@@ -852,6 +852,10 @@ public sealed partial class GraphCompiler
 			sb.AppendLine( "DynamicCombo( D_RENDER_BACKFACES, 0..1, Sys( ALL ) );" );
 			sb.AppendLine( "RenderState( CullMode, D_RENDER_BACKFACES ? NONE : BACK );" );
 		}
+		else
+		{
+			sb.AppendLine( "RenderState( CullMode, F_RENDER_BACKFACES ? NONE : DEFAULT );" );
+		}
 
 		return sb.ToString();
 	}
