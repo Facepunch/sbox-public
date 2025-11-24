@@ -18,16 +18,18 @@ public record EverythingLocation : LocalAssetBrowser.Location
 	{
 		string projectPath = Project.Current.GetAssetsPath().NormalizeFilename( false );
 
+		var menuProject = EditorUtility.Projects.GetAll().FirstOrDefault( x => x.Config.Ident == "menu" );
+		string menuPath = menuProject?.GetAssetsPath().NormalizeFilename( false );
+
 		foreach ( var asset in AssetSystem.All.OrderBy( x => x.Name ) )
 		{
 			bool isCloud = asset.AbsolutePath.Contains( ".sbox/cloud/" );
 			if ( isCloud ) continue;
 
-
-			if ( asset.AbsolutePath.StartsWith( "mount:" ) )
+			if ( menuPath is not null && menuProject != Project.Current )
 			{
-				yield return new FileInfo( asset.AbsolutePath );
-				continue;
+				bool isMenu = asset.AbsolutePath.StartsWith( menuPath );
+				if ( isMenu ) continue;
 			}
 
 			yield return new FileInfo( asset.AbsolutePath );

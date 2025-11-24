@@ -21,7 +21,7 @@ public partial class Project
 	int lastCompilerHash;
 
 	// anything that means we need to re-create the compiler and recompile should be here
-	int CompilerHash => HashCode.Combine( Active, Json.SerializeAsObject( Config.GetCompileSettings() ).ToJsonString(), Config.IsStandaloneOnly, Config.Org, Config.Ident, Config.Type, string.Join( ";", PackageReferences() ) );
+	int CompilerHash => HashCode.Combine( Active, Current == this, Json.SerializeAsObject( Config.GetCompileSettings() ).ToJsonString(), Config.IsStandaloneOnly, Config.Org, Config.Ident, Config.Type, string.Join( ";", PackageReferences() ) );
 
 	/// <summary>
 	/// These package types should reference package.base
@@ -171,6 +171,10 @@ public partial class Project
 		EditorCompiler = null;
 
 		if ( !Active )
+			return;
+
+		// only want menu editor code if we're in the menu project
+		if ( this != Current && Config.Ident == "menu" )
 			return;
 
 		if ( !HasEditorPath() )
