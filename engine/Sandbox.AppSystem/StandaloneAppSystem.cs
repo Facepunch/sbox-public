@@ -45,8 +45,32 @@ public class StandaloneAppSystem : AppSystem
 		LoadStandaloneGame();
 	}
 
+	private Task _standaloneLoadTask;
+
 	private void LoadStandaloneGame()
 	{
-		IGameInstanceDll.Current.LoadGamePackageAsync( Standalone.Manifest.Ident, GameLoadingFlags.Host, new() );
+		_standaloneLoadTask = IGameInstanceDll.Current.LoadGamePackageAsync( Standalone.Manifest.Ident, GameLoadingFlags.Host, default );
+	}
+
+	protected override bool RunFrame()
+	{
+
+		EngineLoop.RunFrame( _appSystem, out bool wantsToQuit );
+		// Still loading
+		if ( _standaloneLoadTask is not null )
+		{
+			if ( _standaloneLoadTask.IsCompleted )
+			{
+				_standaloneLoadTask.GetAwaiter().GetResult();
+				_standaloneLoadTask = null;
+			}
+		}
+		// Quit next loop after load, if we are testing
+		else if ( Utility.CommandLine.HasSwitch( "-test-standalone" ) )
+		{
+			Application.Exit();
+		}
+
+		return !wantsToQuit;
 	}
 }
