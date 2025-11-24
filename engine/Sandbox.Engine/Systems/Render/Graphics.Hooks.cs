@@ -18,7 +18,6 @@ public static partial class Graphics
 			using ( new Graphics.Scope( in setup ) )
 			{
 				RenderUiOverlay();
-				DebugOverlay.Render();
 			}
 
 			return;
