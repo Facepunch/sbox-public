@@ -2,6 +2,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 
 namespace Standalone;
 
@@ -88,10 +89,23 @@ public class StandaloneTest
 
 	private void CleanOutput( ExportConfig config )
 	{
-		if ( !Directory.Exists( config.TargetDir ) )
+		if ( config?.TargetDir is null || !Directory.Exists( config.TargetDir ) )
 			return;
 
-		Directory.Delete( config.TargetDir, true );
+		try
+		{
+			Directory.Delete( config.TargetDir, true );
+		}
+		catch ( IOException )
+		{
+			Thread.Sleep( 500 );
+			Directory.Delete( config.TargetDir, true );
+		}
+		catch ( UnauthorizedAccessException )
+		{
+			Thread.Sleep( 500 );
+			Directory.Delete( config.TargetDir, true );
+		}
 	}
 
 }
