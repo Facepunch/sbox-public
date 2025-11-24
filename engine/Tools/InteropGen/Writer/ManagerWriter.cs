@@ -82,6 +82,10 @@ internal partial class ManagerWriter : BaseWriter
 
 		StartBlock( "internal unsafe static partial class NativeInterop" );
 		{
+			WriteLine( "static IntPtr _nativeLibraryHandle;" );
+			WriteLine( "static bool _initialized;" );
+			WriteLine();
+
 			ErrorFunction();
 
 			WriteLine( "[UnmanagedFunctionPointer( CallingConvention.Cdecl )]" );
@@ -90,8 +94,12 @@ internal partial class ManagerWriter : BaseWriter
 
 			StartBlock( "internal static void Initialize()" );
 			{
+				WriteLine( "if ( _initialized ) return;" );
+				WriteLine();
+
 				WriteLine( $"if ( !NativeLibrary.TryLoad( System.IO.Path.Combine( NetCore.NativeDllPath, \"{definitions.NativeDll}\" ), out var nativeDll ) )" );
 				WriteLine( $"	Sandbox.Interop.NativeAssemblyLoadFailed( \"{definitions.NativeDll}\" );" );
+				WriteLine( "_nativeLibraryHandle = nativeDll;" );
 
 				WriteLine();
 				WriteLine( $"IntPtr nativeInitPtr = NativeLibrary.GetExport( nativeDll, \"igen_{definitions.Ident}\" );" );
@@ -235,6 +243,18 @@ internal partial class ManagerWriter : BaseWriter
 					WriteLine( "onError( $\"{___e.Message}\\n\\n{___e.StackTrace}\" );" );
 				}
 				EndBlock();
+				
+
+				WriteLine( "_initialized = true;" );
+			}
+			EndBlock();
+
+			StartBlock( "internal static void Free()" );
+			{
+				WriteLine( "if ( _nativeLibraryHandle == IntPtr.Zero ) return;" );
+				WriteLine( "NativeLibrary.Free( _nativeLibraryHandle );" );
+				WriteLine( "_nativeLibraryHandle = IntPtr.Zero;" );
+				WriteLine( "_initialized = false;" );
 			}
 			EndBlock();
 		}
@@ -330,7 +350,3 @@ internal partial class ManagerWriter : BaseWriter
 		EndBlock();
 	}
 }
-
-
-
-

@@ -153,6 +153,17 @@ public class AppSystem
 			NativeLibrary.Free( steamApiDll );
 			steamApiDll = default;
 		}
+		// Unload native dlls:
+		// At this point we should no longer need them.
+		// If we still hold references to native resources, we want it to crash here rather than on application exit.
+		Managed.SandboxEngine.NativeInterop.Free();
+
+		// No-ops if editor isn't loaded
+		Managed.SourceTools.NativeInterop.Free();
+		Managed.SourceAssetSytem.NativeInterop.Free();
+		Managed.SourceHammer.NativeInterop.Free();
+		Managed.SourceModelDoc.NativeInterop.Free();
+		Managed.SourceAnimgraph.NativeInterop.Free();
 	}
 
 	protected void InitGame( AppSystemCreateInfo createInfo )
