@@ -23,6 +23,12 @@ internal class Deploy
 		builder.AddStep( new BuildShaders( "Build Shaders" ) );
 		builder.AddStep( new BuildContent( "Build Content" ) );
 
+		if ( target == BuildTarget.Staging )
+		{
+			// Sync to public repository
+			builder.AddStep( new SyncPublicRepo( "Sync to Public Repository" ) );
+		}
+
 		// Testing
 		builder.AddStep( new Test( "Tests" ) );
 
@@ -38,12 +44,6 @@ internal class Deploy
 		// Steam upload
 		string branch = target == BuildTarget.Staging ? "staging" : "release";
 		builder.AddStep( new UploadSteam( "Upload to Steam", branch ) );
-
-		if ( target == BuildTarget.Staging )
-		{
-			// Sync to public repository
-			builder.AddStep( new SyncPublicRepo( "Sync to Public Repository" ) );
-		}
 
 		// Notification
 		var commitMessage = Environment.GetEnvironmentVariable( "COMMIT_MESSAGE" ) ?? "Build completed";
