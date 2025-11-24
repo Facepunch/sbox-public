@@ -153,8 +153,6 @@ public class GameObjectInspector : InspectorWidget
 
 		foreach ( var go in SerializedObject.Targets.OfType<GameObject>() )
 		{
-			if ( go.IsPrefabInstance ) continue;
-
 			go.PasteComponent();
 		}
 	}
