@@ -42,9 +42,6 @@ public class AppSystem
 	{
 		GCSettings.LatencyMode = GCLatencyMode.SustainedLowLatency;
 		NetCore.InitializeInterop( Environment.CurrentDirectory );
-
-		if ( Utility.CommandLine.HasSwitch( "-quit" ) )
-			Application.Exit(); // exit as soon as we can
 	}
 
 	void SetupEnvironment()

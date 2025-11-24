@@ -56,7 +56,7 @@ public class StandaloneTest
 					{
 						FileName = Path.Combine( config.TargetDir, $"{config.ExecutableName}.exe" ),
 						WorkingDirectory = config.TargetDir,
-						Arguments = "-headless -quit",
+						Arguments = "-headless -test-standalone",
 						RedirectStandardError = true,
 						UseShellExecute = false,
 						CreateNoWindow = true
