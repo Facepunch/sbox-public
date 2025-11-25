@@ -106,7 +106,7 @@ internal class SyncPublicRepo( string name ) : Step( name )
 		{
 			Log.Info( "Creating clone for filtering..." );
 
-			if ( !Utility.RunProcess( "git", $"clone --shallow-since=2025-11-23 \"{localFilePath}\" \"{filteredRepoPath}\"" ) )
+			if ( !Utility.RunProcess( "git", $"clone --shallow-exclude public-history-root \"{localFilePath}\" \"{filteredRepoPath}\"" ) )
 			{
 				Log.Error( "Failed to create clone" );
 				return null;
