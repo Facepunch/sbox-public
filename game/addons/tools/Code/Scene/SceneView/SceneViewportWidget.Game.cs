@@ -19,6 +19,7 @@ public partial class SceneViewportWidget
 		Renderer.Camera = _activeCamera;
 		Renderer.EnableEngineOverlays = false;
 		ViewportOptions.Visible = true;
+		SetDefaultSize();
 	}
 
 	public void EjectGameCamera()
@@ -40,6 +41,7 @@ public partial class SceneViewportWidget
 		Renderer.Camera = _activeCamera;
 		Renderer.EnableEngineOverlays = false;
 		ViewportOptions.Visible = true;
+		SetDefaultSize();
 	}
 
 	public void PossesGameCamera()

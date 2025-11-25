@@ -24,6 +24,8 @@ public partial class SceneViewWidget
 
 		_gameViewport = _viewports.FirstOrDefault().Value;
 		_gameViewport.StartPlay();
+
+		_viewportTools.UpdateViewportFromCookie();
 	}
 
 	[Event( "scene.stop" )]
@@ -65,10 +67,44 @@ public partial class SceneViewWidget
 		_sidePanel?.Visible = CurrentView != ViewMode.Game;
 	}
 
-	// The first viewport is our target for now - we could probably do something smarter
-	// in future, like using the last focused viewport
 	public SceneViewportWidget GetGameTarget()
 	{
 		return _gameViewport;
+	}
+
+	/// <summary>
+	/// Set the game viewport to free sizing mode
+	/// </summary>
+	public void SetFreeSize()
+	{
+		var viewport = GetGameTarget();
+		if ( viewport.IsValid() )
+		{
+			viewport.SetDefaultSize();
+		}
+	}
+
+	/// <summary>
+	/// Set the game viewport to a specific aspect ratio
+	/// </summary>
+	public void SetForceAspect( float aspect )
+	{
+		var viewport = GetGameTarget();
+		if ( viewport.IsValid() )
+		{
+			viewport.SetAspectRatio( aspect );
+		}
+	}
+
+	/// <summary>
+	/// Set the game viewport to a specific resolution
+	/// </summary>
+	public void SetForceResolution( Vector2 resolution )
+	{
+		var viewport = GetGameTarget();
+		if ( viewport.IsValid() )
+		{
+			viewport.SetResolution( resolution );
+		}
 	}
 }

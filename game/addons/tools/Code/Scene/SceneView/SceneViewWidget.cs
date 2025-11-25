@@ -263,7 +263,9 @@ public partial class SceneViewWidget : Widget
 				}
 			default:
 			case ViewportLayoutMode.One:
+				Layout.AddStretchCell();
 				viewportLayout.Add( CreateViewport() );
+				Layout.AddStretchCell();
 				break;
 		}
 	}

@@ -8,6 +8,9 @@ partial class ViewportTools
 	private Label FrameRateLabel;
 	private ResolutionModeButton ResolutionComboBox;
 
+	/// <inheritdoc cref="ResolutionModeButton.UpdateViewportFromCookie"/>
+	public void UpdateViewportFromCookie() => ResolutionComboBox.UpdateViewportFromCookie();
+
 	private void BuildToolbarGame( Layout layout )
 	{
 		{
@@ -66,8 +69,7 @@ partial class ViewportTools
 	}
 }
 
-
-internal class ResolutionModeButton : Button
+class ResolutionModeButton : Button
 {
 	private int _selectedIndex = 0;
 	private List<Option> _options;
@@ -76,8 +78,16 @@ internal class ResolutionModeButton : Button
 
 	private SceneViewWidget _sceneViewWidget;
 
+	static string EditorDisplayMode
+	{
+		get => ProjectCookie.Get( "EditorDisplayMode", "Free Size" );
+		set => ProjectCookie.Set( "EditorDisplayMode", value );
+	}
+
 	public ResolutionModeButton( SceneViewWidget sceneViewWidget ) : base( null )
 	{
+		_sceneViewWidget = sceneViewWidget;
+
 		SetStyles( $"padding-left: 32px; padding-right: 32px; font-family: '{Theme.DefaultFont}'; padding-top: 6px; padding-bottom: 6px;" );
 		FixedWidth = 210;
 		FixedHeight = Theme.RowHeight + 6;
@@ -86,48 +96,45 @@ internal class ResolutionModeButton : Button
 		UpdateButtonText();
 
 		Clicked = Click;
-
-		_sceneViewWidget = sceneViewWidget;
 	}
 
 	private void InitializeOptions()
 	{
+		var view = _sceneViewWidget;
 		_options =
 		[
-			new Option( "Free Size", "fit_screen", () => SetFreeSize() ),
-			new Option( "16:9 Aspect", "aspect_ratio", () => SetForceAspect( 16.0f / 9.0f ) ),
-			new Option( "21:9 Aspect", "aspect_ratio", () => SetForceAspect( 21.0f / 9.0f ) ),
-			new Option( "4:3 Aspect", "aspect_ratio", () => SetForceAspect( 4.0f / 3.0f ) ),
-			new Option( "9:16 Aspect", "aspect_ratio", () => SetForceAspect( 9.0f / 16.0f ) ),
-			new Option( "Steam Deck", "stay_current_landscape", () => SetForceResolution( new( 1280, 800 ) ) ),
-			new Option( "720p", "laptop_windows", () => SetForceResolution( new( 1280, 720 ) ) ),
-			new Option( "1080p", "desktop_windows", () => SetForceResolution( new( 1920, 1080 ) ) ),
+			new Option( "Free Size", "fit_screen", () => view.SetFreeSize() ),
+			new Option( "16:9 Aspect", "aspect_ratio", () => view.SetForceAspect( 16.0f / 9.0f ) ),
+			new Option( "21:9 Aspect", "aspect_ratio", () => view.SetForceAspect( 21.0f / 9.0f ) ),
+			new Option( "4:3 Aspect", "aspect_ratio", () => view.SetForceAspect( 4.0f / 3.0f ) ),
+			new Option( "9:16 Aspect", "aspect_ratio", () => view.SetForceAspect( 9.0f / 16.0f ) ),
+			new Option( "Steam Deck", "stay_current_landscape", () => view.SetForceResolution( new( 1280, 800 ) ) ),
+			new Option( "720p", "laptop_windows", () => view.SetForceResolution( new( 1280, 720 ) ) ),
+			new Option( "1080p", "desktop_windows", () => view.SetForceResolution( new( 1920, 1080 ) ) ),
 		];
 	}
 
-	void SetForceAspect( float aspect )
+	/// <summary>
+	/// Updates the viewport from the <see cref="EditorDisplayMode"/> cookie
+	/// </summary>
+	public void UpdateViewportFromCookie()
 	{
-		var viewport = _sceneViewWidget.GetGameTarget();
-		// viewport.SetForceAspect( aspect );
+		var storedMode = EditorDisplayMode;
+		var option = _options.FirstOrDefault( o => o.Text == storedMode );
 
-		UpdateButtonText();
+		if ( option != null )
+		{
+			_selectedIndex = _options.IndexOf( option );
+			option.Triggered?.Invoke();
+		}
+		else
+		{
+			// Fallback to first option if not found
+			_selectedIndex = 0;
+			_options[0].Triggered?.Invoke();
+		}
 	}
 
-	void SetFreeSize()
-	{
-		var viewport = _sceneViewWidget.GetGameTarget();
-		// viewport.SetFreeSize();
-
-		UpdateButtonText();
-	}
-
-	void SetForceResolution( Vector2 res )
-	{
-		var viewport = _sceneViewWidget.GetGameTarget();
-		// viewport.SetForceResolution( res );
-
-		UpdateButtonText();
-	}
 
 	public string GetSizeString()
 	{
@@ -159,6 +166,7 @@ internal class ResolutionModeButton : Button
 
 			menu.AddOption( option.Text, option.Icon, () =>
 			{
+				EditorDisplayMode = option.Text;
 				_selectedIndex = index;
 				option.Triggered?.Invoke();
 			} );
