@@ -34,33 +34,7 @@ public class GradientEditor : ValueEditor
 		Paint.SetBrush( bg );
 		Paint.DrawRect( rect, 2 );
 
-		PaintBlock( Value, rect.Shrink( 2 ) );
-	}
-
-	private void PaintBlock( Gradient gradient, Rect rect )
-	{
-		Paint.ClearPen();
-		Paint.Antialiasing = false;
-
-		Paint.SetBrush( "/image/transparent-small.png" );
-		Paint.DrawRect( rect );
-
-		float pixelWidth = 1;
-
-		// this is kind of a lazy way of doing it but
-		// it works and is accurate as can be so who cares
-		for ( float x = (int)rect.Left; x <= (int)rect.Right; x += pixelWidth )
-		{
-			float w = pixelWidth;
-
-			if ( x + pixelWidth > rect.Right )
-				w = rect.Right - x;
-
-			float normalizedX = ( x - rect.Left ) / rect.Width;
-			var c = gradient.Evaluate( normalizedX );
-			Paint.SetBrush( c );
-			Paint.DrawRect( new Rect( x, rect.Top, w, rect.Height ) );
-		}
+		Value.PaintBlock( rect.Shrink( 2 ) );
 	}
 
 	protected override void OnMousePressed( GraphicsMouseEvent e )
