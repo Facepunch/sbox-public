@@ -4,6 +4,11 @@ public class CameraEditorTool : EditorTool<CameraComponent>
 {
 	CameraToolWindow window;
 
+	/// <summary>
+	/// Track when mouse is pressed during look-at mode (prevent exiting mode immediately)
+	/// </summary>
+	bool lookAtMousePressed = false;
+
 	public override void OnEnabled()
 	{
 		window = new CameraToolWindow();
@@ -17,6 +22,8 @@ public class CameraEditorTool : EditorTool<CameraComponent>
 
 		if ( EditorToolManager.CurrentModeName == "camera.lookat" )
 			DoCameraLookAt();
+		else
+			lookAtMousePressed = false; // Reset when not in look-at mode
 	}
 
 	public override bool ShouldKeepActive()
@@ -67,7 +74,14 @@ public class CameraEditorTool : EditorTool<CameraComponent>
 				}
 			}
 
-			if ( Gizmo.WasLeftMouseReleased )
+			// Track if mouse was pressed during look-at mode
+			if ( Gizmo.WasLeftMousePressed )
+			{
+				lookAtMousePressed = true;
+			}
+
+			// Only exit if mouse was pressed AND released during look-at mode
+			if ( lookAtMousePressed && Gizmo.WasLeftMouseReleased )
 			{
 				EditorToolManager.CurrentModeName = "object";
 			}
