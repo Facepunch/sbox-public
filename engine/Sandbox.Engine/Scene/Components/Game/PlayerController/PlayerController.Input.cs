@@ -115,7 +115,7 @@ public sealed partial class PlayerController : Component
 	Vector3 bodyDuckOffset = 0;
 
 	/// <summary>
-	/// Called during FixedUpdate when UseInputControls is enmabled. Will duck if requested.
+	/// Called during FixedUpdate when UseInputControls is enabled. Will duck if requested.
 	/// If not, and we're ducked, will unduck if there is room
 	/// </summary>
 	public void UpdateDucking( bool wantsDuck )
