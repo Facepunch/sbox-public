@@ -174,7 +174,7 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 	}
 
 	/// <summary>
-	/// Called after Awake or whenever the component switches to being enabled (because a gameobject heirachy active change, or the component changed)
+	/// Called after Awake or whenever the component switches to being enabled (because a gameobject hierarchy active change, or the component changed)
 	/// </summary>
 	protected virtual void OnEnabled() { }
 
