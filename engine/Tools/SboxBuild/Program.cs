@@ -23,6 +23,8 @@ internal class Program
 		AddBuildShadersStep( rootCommand );
 		AddGenerateSolutionsStep( rootCommand );
 
+		AddSyncPublicRepo( rootCommand );
+
 		AddPullRequestPipeline( rootCommand );
 		AddDeployPipeline( rootCommand );
 
@@ -190,5 +192,26 @@ internal class Program
 		}, configOption );
 
 		rootCommand.Add( generateSolutionsCommand );
+	}
+
+	private static void AddSyncPublicRepo( RootCommand rootCommand )
+	{
+		var syncCommand = new Command( "sync-public-repo", "Perform a dry run of the sync step" );
+
+		var option = new Option<bool>(
+			"--dry-run",
+			description: "Whether to perform a dry run",
+			getDefaultValue: () => true );
+
+		syncCommand.AddOption( option );
+
+		syncCommand.SetHandler( ( bool dryRun ) =>
+		{
+			var step = new SyncPublicRepo( "Sync Public Repo", dryRun );
+			ExitCode result = step.Run();
+			Environment.ExitCode = (int)result;
+		}, option );
+
+		rootCommand.Add( syncCommand );
 	}
 }
