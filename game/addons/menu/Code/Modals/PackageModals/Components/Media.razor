@@ -1,0 +1,58 @@
+﻿@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+@using Sandbox.Network
+
+@if (Package.Screenshots is null) return;
+@if (Package.Screenshots.Count() == 0) return;
+
+<root>
+
+    <div class="main">
+        @if (selectedShot is not null)
+        {
+            if ( selectedShot.IsVideo)
+            {
+                <VideoPanel Controls=@false Source="@selectedShot.Url" />
+            }
+            else
+            {
+                <img src="@(selectedShot.Url)" />
+            }
+        }
+    </div>
+
+    @if (Package.Screenshots.Count() > 1)
+    {
+        <div class="list">
+            @foreach (var screenshot in Package.Screenshots.OrderBy(x => x.IsVideo ? -1 : 1))
+            {
+                <div class="screenshot @(screenshot == selectedShot ? "selected" : "")" onclick=@(() => SelectScreenshot(screenshot))>
+                    <img src="@screenshot.Thumb" />
+                    @if (screenshot.IsVideo)
+                    {
+                        <i>play_arrow</i>
+                    }
+                </div>
+            }
+        </div>
+    }
+</root>
+
+@code
+{
+	[Parameter] public Package Package { get; set; }
+
+    protected override int BuildHash() => System.HashCode.Combine(Package, Package.Screenshots);
+
+    int SelectedScreenshot = 0;
+    Package.Screenshot selectedShot => Package?.Screenshots?.ElementAtOrDefault(SelectedScreenshot);
+
+    void SelectScreenshot(Package.Screenshot screenshot)
+    {
+        SelectedScreenshot = Package.Screenshots.ToList().IndexOf(screenshot);
+    }
+}

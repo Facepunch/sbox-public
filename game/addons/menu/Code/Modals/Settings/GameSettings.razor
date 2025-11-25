@@ -1,0 +1,89 @@
+﻿@using Sandbox.UI;
+@using Sandbox;
+@namespace MenuProject.Settings
+@inherits Panel
+@page "/settings/game"
+
+<root class="page-inner">
+
+    <div class="page-content">
+        
+        <h2>Localization</h2>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Game Language
+            </cell>
+			<DropDown class="glass with-grow" Value:bind=@Language Options=@LanguageOptions></DropDown>
+        </row>
+
+        <h2>Game Preferences</h2>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Field Of View
+            </cell>
+            <SliderControl Min="@(45)" Max="@(120)" Value:bind=@FieldOfView />
+
+            <TextEntry Numeric=@true class="glass" Value:bind=@FieldOfView style="min-width: 50px;"></TextEntry>
+        </row>
+        
+	</div>
+
+    <SettingsFooter OnCancel=@OnCancel OnRestore=@OnRestore OnApply=@OnApply></SettingsFooter>
+
+</root>
+
+
+@code
+{
+    public string Language { get; set; }
+    public float FieldOfView { get; set; }
+
+    List<Option> _languageOptions;
+    List<Option> LanguageOptions
+    {
+        get
+        {
+            if (_languageOptions == null)
+            {
+                _languageOptions = new();
+
+                foreach (var lang in Sandbox.Localization.Languages.List)
+                {
+                    _languageOptions.Add(new Option(lang.Title, lang.Abbreviation));
+                }
+            }
+            return _languageOptions;
+        }
+    }
+
+    protected override void OnAfterTreeRender(bool firstTime)
+    {
+        base.OnAfterTreeRender(firstTime);
+
+        if (!firstTime)
+            return;
+
+        OnCancel();
+    }
+
+    public void OnRestore()
+    {
+        MenuUtility.RenderSettings.DefaultFOV = 60;
+        ConsoleSystem.Run("language", "en");
+    }
+
+    public void OnCancel()
+    {
+        FieldOfView = MenuUtility.RenderSettings.DefaultFOV;
+        Language = Sandbox.Language.Current.Abbreviation;
+    }
+
+    public void OnApply()
+    {
+        ConsoleSystem.Run("language", Language);
+
+        MenuUtility.RenderSettings.DefaultFOV = (int)(FieldOfView.Clamp( 45, 120 ));
+    }
+}

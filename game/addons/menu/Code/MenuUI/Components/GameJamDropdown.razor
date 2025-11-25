@@ -1,0 +1,72 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@using System.Threading
+
+<root class="packagefilterfacet" onmousedown="@OpenMenu">
+
+    <div>@Value</div>
+
+    <div class="addon-button"><i>emoji_events</i></div>
+
+</root>
+
+@code
+{
+	public string[] GameJams { get; set; }
+	public string Value { get; set; }
+	public Action<string> OnChange { get; set; }
+
+	Popup menu;
+
+	void SwitchTo( string entry )
+	{
+		Value = entry;
+		OnChange?.Invoke(entry);
+		StateHasChanged();
+	}
+
+	void OpenMenu()
+	{
+		if (menu.IsValid())
+		{
+			menu.Delete();
+			return;
+		}
+
+		menu = new Popup(this, Popup.PositionMode.BelowLeft, 0.0f);
+		menu.Style.Set( "margin-top", "8px" );
+		menu.Style.Set( "border", "2px solid #1E2432" );
+		menu.Style.Set( "border-radius", "16px" );
+		menu.Style.Set( "font-family", "Poppins" );
+		menu.Style.Set( "font-size", "14px" );
+		menu.Style.Set("background-color", "rgba(#131820, 0.8)");
+		menu.Style.Set("backdrop-filter", "blur(4px);");
+		menu.StyleSheet.Parse( @"
+								Button {
+									cursor: pointer;
+									align-items: center;
+
+									&:hover{
+										sound-in: ui.button.over;
+									}
+
+									&:active {
+										sound-out: ui.button.press;
+									}
+								}
+							");
+
+        foreach (string entry in GameJams)
+        {
+            var o = menu.AddOption(entry, "emoji_events", () => SwitchTo(entry));
+
+            if (Value == entry)
+            {
+                o.AddClass("active");
+            }
+        }
+
+    }
+
+}

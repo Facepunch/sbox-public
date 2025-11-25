@@ -1,0 +1,51 @@
+﻿@using MenuProject.MenuUI.ContentBlock
+@using MenuProject.MenuUI.Layout
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.UI;
+@page "/games/group"
+@inherits Panel
+
+<root class="root">
+
+    <Page>
+		<Body>
+            <h2>
+                <span>@Icon</span>
+                <span>@Title</span>
+            </h2>
+			<PackageList ShowFilters="@false" Query=@(GetQuery()) Take=@(200) OnSelected=@Selected OnMenu=@Menu></PackageList>
+		</Body>
+	</Page>
+</root>
+
+@code {
+
+
+    [Parameter] public string Query { get; set; }
+    [Parameter] public string Title { get; set; }
+    [Parameter] public string Icon { get; set; }
+
+    List<string> SelectedTags = new();
+    Dictionary<string, string> SelectedCategory = new();
+
+    string GetQuery()
+    {
+        return Query;
+    }
+
+    protected override int BuildHash()
+    {
+        return System.HashCode.Combine(GetQuery());
+    }
+
+    void Selected( Package package  )
+    {
+        ContentBlocks.OnLaunch(package);
+    }
+
+    void Menu( Package package )
+    {
+        ContentBlocks.OnMenu(this, package);
+    }
+}

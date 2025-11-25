@@ -1,0 +1,41 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.AvatarEditor
+
+<root>
+
+    <div class="body-left">
+
+        @foreach (var rig in Scene.GetComponentsInChildren<AvatarBackgroundRig>( true ))
+        {
+            var active = rig.GameObject.Enabled ? "active" : "";
+
+            <div class="rig-button @active" onclick=@(() => SelectRig(rig))>
+                <Image Texture="@rig.Icon"></Image>
+                <div class="title">@rig.Title</div>
+            </div>
+        }
+
+    </div>
+
+    <div class="body-center">
+
+    </div>
+
+    <div class="body-right">
+
+
+    </div>
+
+</root>
+
+@code
+{
+    AvatarEditManager Manager => Scene.GetAll<AvatarEditManager>().First();
+
+    public void SelectRig(AvatarBackgroundRig rig)
+    {
+        rig.SetActiveRig();
+        StateHasChanged();
+    }
+}

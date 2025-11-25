@@ -1,0 +1,126 @@
+﻿@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+@using Sandbox.Network
+@using MenuProject.Modals.MapModalComponents;
+@using MenuProject.Modals.PackageModalComponents;
+@attribute [StyleSheet("/Modals/PackageModals/BasePackageModal.razor.scss")]
+
+<root>
+
+    <MegaCard Icon="@Package.ThumbWide">
+        <Metrics>
+            <PackageMetrics Package="@Package" />
+        </Metrics>
+        <Tabs>
+
+            <PortalButton StartActive Portal=@Portal>
+                <Button>
+                    <SearchlightTab Title="Overview" Icon="people" />
+                </Button>
+                <Content>
+                    <Media Package=@Package></Media>
+                    <PackageDescription Package=@Package />
+                </Content>
+            </PortalButton>
+
+            <PortalButton Portal=@Portal>
+                <Button>
+                    <SearchlightTab Title="Reviews" Icon="reviews" />
+                </Button>
+                <Content>
+                    <PackageReviews Package=@Package />
+                </Content>
+            </PortalButton>
+
+            @if (Package.LatestNewsPost is not null)
+            {
+                <PortalButton Portal=@Portal>
+                    <Button>
+                        <SearchlightTab Title="News" Icon="newspaper" />
+                    </Button>
+                    <Content>
+                        <PackageNews Package=@Package />
+                    </Content>
+                </PortalButton>
+            }
+
+        </Tabs>
+        <Left>
+            <PackageSummary Package=@Package></PackageSummary>
+
+            @if (achList is not null)
+            {
+                <h2>Achievements</h2>
+                <PortalButton Portal=@Portal>
+                    <Button>
+                        <AchievementSummary Package="@Package"></AchievementSummary>
+                    </Button>
+                    <Content>
+                        <AchievementList Package="@Package"></AchievementList>
+                    </Content>
+                </PortalButton>
+            }
+
+        </Left>
+
+        <Content><PortalTarget @ref=Portal></PortalTarget></Content>
+
+        <Footer>
+            <ActionBar Modal="@this" Package="@Package"></ActionBar>
+        </Footer>
+    </MegaCard>
+
+</root>
+
+@code
+{
+    public Package Package;
+    public string PackageIdent { get; set; }
+    public bool HasFullPackage { get; set; }
+
+    AchievementCollection achList;
+    PortalTarget Portal = default;
+
+	public List<LobbyInformation> Lobbies = new();
+
+	async Task RefreshLobbies()
+	{
+		var filters = new Dictionary<string, string> { { "map", Package.FullIdent } };
+		
+		Lobbies = await Networking.QueryLobbies( filters );
+		
+		StateHasChanged();
+	}
+
+	void OnLobbySelected ( LobbyInformation lobby )
+	{
+        Networking.Connect(lobby.LobbyId);
+		CloseModal(true);
+		OrganizationModal.LastOpened?.CloseModal( true );
+	}
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (PackageIdent is null)
+            return;
+
+        // Get whatever package info we have
+        Package.TryGetCached(PackageIdent, out Package, true);
+
+        // Get Full Package info
+        Package = await Package.FetchAsync(PackageIdent, false);
+        HasFullPackage = true;
+
+        achList = await Package.GetAchievements();
+        if (!achList.All.Any()) achList = default;
+        if (achList is not null) StateHasChanged();
+
+        await RefreshLobbies();
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine(Package);
+}

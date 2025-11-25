@@ -1,0 +1,18 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.AvatarEditor
+@inherits Panel
+
+<root>
+
+    <div class="label">@Label</div>
+    <div class="content">@Content</div>
+
+</root>
+
+@code
+{
+    [Parameter] public string Label { get; set; }
+    [Parameter] public RenderFragment Content { get; set; }
+
+}

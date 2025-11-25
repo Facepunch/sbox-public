@@ -1,0 +1,25 @@
+﻿@using MenuProject.MenuUI.Components
+@using MenuProject.MenuUI.Components.Multiplayer
+@using MenuProject.MenuUI.Layout
+@using Sandbox;
+@using Sandbox.UI;
+@page "/multiplayer"
+@inherits Panel
+
+<root class="root">
+    <Page>
+
+        <Left>
+            <div class="clicky button" onclick="@(() => ServerList.RefreshLobbies())"><WithIcon Icon="cached" Text="Refresh Server List"></WithIcon></div>
+        </Left>
+
+        <Body>
+            <ServerList @ref=ServerList></ServerList>
+        </Body>
+    </Page>
+</root>
+
+@code 
+{
+    ServerList ServerList = default;
+}

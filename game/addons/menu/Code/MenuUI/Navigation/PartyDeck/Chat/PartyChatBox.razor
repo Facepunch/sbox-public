@@ -1,0 +1,121 @@
+﻿@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace MenuProject.Social
+
+<root>
+
+	<div class="output">
+
+		@foreach (var entry in Entries)
+		{
+            <div class="chat_entry">
+                @if (entry.steamid > 0)
+                {
+                    <div class="avatar" style="background-image: url( avatar:@entry.steamid )"></div>
+                }
+				<div class="author">@entry.author</div>
+				<div class="message">@entry.message</div>
+			</div>
+		}
+	</div>
+
+	<div class="input">
+        <div class="prepend">Party Chat:</div>
+		<TextEntry @ref="InputBox" onsubmit="@ChatFinished"></TextEntry>
+	</div>
+	
+</root>
+
+@code
+{
+    TextEntry InputBox = default;
+
+    public record Entry( long steamid, string author, string message, RealTimeSince timeSinceAdded );
+    List<Entry> Entries = new();
+
+    public PartyChatBox()
+    {
+        PartyRoom.Current.OnChatMessage += OnChatMessage;
+        PartyRoom.Current.OnJoin += OnJoin;
+        PartyRoom.Current.OnLeave += OnLeave;
+
+        AddSystemText( $"Press \"{Input.GetButtonOrigin( "chat" )}\" to chat" );
+    }
+
+    public override void OnDeleted()
+    {
+        base.OnDeleted();
+
+        if (PartyRoom.Current is not null)
+        {
+            PartyRoom.Current.OnChatMessage -= OnChatMessage;
+            PartyRoom.Current.OnJoin -= OnJoin;
+            PartyRoom.Current.OnLeave -= OnLeave;
+        }
+    }
+
+    public override void Tick()
+    {
+        if (InputBox is null)
+            return;
+
+        if ( Input.Pressed( "chat" ) )
+        {
+            InputBox.Focus();
+        }
+
+        if ( Entries.RemoveAll( x => x.timeSinceAdded > 20.0f ) > 0 )
+        {
+            StateHasChanged();
+        }
+
+        SetClass( "open", InputBox.HasFocus );
+    }
+
+    void ChatFinished()
+    {
+        var text = InputBox.Text;
+        InputBox.Text = "";
+
+        if (string.IsNullOrWhiteSpace(text))
+            return;
+
+        PartyRoom.Current.SendChatMessage( text );
+    }
+
+    public void OnChatMessage(Friend friend, string message)
+    {
+        message = message.Truncate( 300 );
+
+        if (string.IsNullOrWhiteSpace(message))
+                return;
+
+        Entries.Add(new Entry((long)friend.Id, friend.Name, message, 0.0f));
+        StateHasChanged();
+    }
+
+    void OnJoin( Friend friend )
+    {
+        Entries.Add(new Entry(0, "👋", $"{friend.Name} joined the party", 0.0f));
+        StateHasChanged();
+    }
+
+    void OnLeave( Friend friend )
+    {
+        Entries.Add(new Entry(0, "💀", $"{friend.Name} left the party", 0.0f));
+        StateHasChanged();
+    }
+
+    public void AddSystemText(string message)
+    {
+        message = message.Truncate(300);
+
+        if (string.IsNullOrWhiteSpace(message))
+            return;
+
+        Entries.Add(new Entry(0, "🦆", message, 0.0f));
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,57 @@
+<!-- dmx encoding keyvalues2_noids 4 format vtex 1 -->
+"CDmeVtex"
+{
+	"m_inputTextureArray" "element_array" 
+	[
+		"CDmeInputTexture"
+		{
+			"m_name" "string" "inputTexture0"
+			"m_fileName" "string" "maps/editor/_bakeresourcecache/toolscene_default_baked/env_cubemap_16.exr"
+			"m_colorSpace" "string" "linear"
+			"m_fileExt" "string" ""
+			"m_nMinBitsPerChannel" "int" "-1"
+			"m_typeString" "string" "CUBE"
+			"m_imageProcessorArray" "element_array" 
+			[
+			]
+			"m_bPassThroughToCompiledVtex" "bool" "0"
+			"m_n3DSliceCount" "int" "-1"
+			"m_n3DSliceWidth" "int" "-1"
+			"m_n3DSliceHeight" "int" "-1"
+		}
+	]
+	"m_outputTypeString" "string" "CUBEARRAY"
+	"m_outputFormat" "string" "BC6H"
+	"m_outputClearColor" "vector4" "0 0 0 0"
+	"m_nOutputMinDimension" "int" "0"
+	"m_nOutputMaxDimension" "int" "0"
+	"m_nOutputDimensionReduce" "int" "0"
+	"m_textureOutputChannelArray" "element_array" 
+	[
+		"CDmeTextureOutputChannel"
+		{
+			"m_srcChannels" "string" "rgba"
+			"m_dstChannels" "string" "rgba"
+			"m_mipAlgorithm" "CDmeImageProcessor"
+			{
+				"m_algorithm" "string" "GGXCubeMapBlur"
+				"m_stringArg" "string" ""
+				"m_vFloat4Arg" "vector4" "0 0 0 0"
+			}
+			
+			"m_outputColorSpace" "string" "linear"
+			"m_inputTextureArray" "string_array" 
+			[
+				"inputTexture0"
+			]
+		}
+	]
+	"m_vClamp" "vector3" "0 0 0"
+	"m_bNoLod" "bool" "0"
+	"m_bHiddenAssetFlag" "bool" "1"
+	"m_bCreateLinearColorSpaceApiTexture" "bool" "0"
+	"m_nDisplayRectWidth" "int" "0"
+	"m_nDisplayRectHeight" "int" "0"
+	"m_nMotionVectorsMaxDistanceInPixels" "int" "0"
+}
+

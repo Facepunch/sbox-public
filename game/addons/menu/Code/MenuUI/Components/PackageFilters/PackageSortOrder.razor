@@ -1,0 +1,45 @@
+@using System;
+@using Sandbox;
+@using System.Threading
+@using Sandbox.UI
+@namespace MenuProject.UI
+
+@{
+    var current = orders.FirstOrDefault(x => x.Name == Value);
+}
+
+<root>
+
+    @foreach (var entry in orders)
+    {
+        <Button Active="@(current == entry)" tooltip="@entry.Name" Icon=@entry.Icon onmousedown=@(() => SwitchTo(entry))></Button>
+    }
+
+</root>
+
+@code
+{
+    public string Value { get; set; }
+
+    List<Package.SortOrder> orders = new();
+
+    public PackageSortOrder()
+    {
+        orders.Add(new Package.SortOrder { Icon = "emoji_events", Name = "popular", Title = "Popular" });
+        orders.Add(new Package.SortOrder { Icon = "trending_up", Name = "trending", Title = "Trending" });
+        orders.Add(new Package.SortOrder { Icon = "new_releases", Name = "newest", Title = "Newest" });
+        orders.Add(new Package.SortOrder { Icon = "schedule", Name = "updated", Title = "Updated" });
+        orders.Add(new Package.SortOrder { Icon = "thumb_up", Name = "upvotes", Title = "Most Upvoted" });
+        orders.Add(new Package.SortOrder { Icon = "group", Name = "friends", Title = "Played my friends" });
+        orders.Add(new Package.SortOrder { Icon = "shuffle", Name = "random", Title = "Shuffle" });
+    }
+
+    void SwitchTo(Package.SortOrder entry)
+    {
+        Value = entry.Name;
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine(Value);
+
+}

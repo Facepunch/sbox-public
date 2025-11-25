@@ -1,0 +1,25 @@
+﻿@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+
+<root>
+    @Content
+</root>
+
+@code
+{
+    RenderFragment _content;
+
+    public RenderFragment Content 
+    {
+        get => _content;
+        set
+        {
+            if (_content == value) return;
+
+            _content = value;
+            StateHasChanged();
+        }
+    }
+}

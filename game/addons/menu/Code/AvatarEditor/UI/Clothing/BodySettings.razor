@@ -1,0 +1,142 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.AvatarEditor
+
+<root>
+
+    <div>
+        <TextEntry placeholder="Avatar Name" Value:bind="@Manager.DisplayName"></TextEntry>
+    </div>
+
+    <FormRow Label="Model">
+        <Content>
+
+            <ButtonGroup Value:bind="@Manager.CitizenActive" class="bg-round">
+                <ChildContent>
+                    <Button Text="Human" Value="@false"></Button>
+                    <Button Text="Citizen" Value="@true"></Button>
+                </ChildContent>
+            </ButtonGroup>
+
+        </Content>
+    </FormRow>    
+
+
+
+    <FormRow Label="Height">
+        <Content>
+            <SliderControl class="simple" Value:bind=@Manager.Height Min="@(0.0f)" Max="@(1.0f)" Step="@(0.01f)"></SliderControl>
+        </Content>
+    </FormRow>    
+
+
+    @if (Manager.CitizenActive )
+    {
+        <FormRow Label="Age">
+            <Content>
+                <SliderControl class="simple" Value:bind=@Manager.Age Min="@(0.0f)" Max="@(1.0f)" Step="@(0.01f)"></SliderControl>
+            </Content>
+        </FormRow>
+
+        /* 
+        We could load the material and sample this shit, and have a load of swatches instead. Would look nicer in the UI.
+
+        */
+
+        <FormRow Label="Skin">
+            <Content>
+
+                <ColorSwatchPicker Value:bind="@Manager.Tint" Swatches="@GetLoadSkinSwatches()"></ColorSwatchPicker>
+
+            </Content>
+        </FormRow>
+    }
+    else
+    {
+        <FormRow Label="Skin">
+            <Content>
+                <div class="skin-items">
+                    @foreach( var item in Manager.GetAllClothing().Where( x => x.HasHumanSkin ) )
+                    {
+                        var w = Manager.IsSelected(item);
+                        var c = w ? "active" : "";
+
+                        <ClothingIcon class="@c" onclick=@( () => Clicked( item ) ) Icon=@item.Icon.Path></ClothingIcon>
+                    }
+                </div>
+
+            </Content>
+        </FormRow>
+    }
+
+    @if (Manager.Container.Clothing.Any(x => x.Clothing?.AllowTintSelect ?? false ))
+    {
+        <div style="height:32px"></div>
+
+        @foreach (var entry in Manager.Container.Clothing)
+        {
+            if (entry.Clothing == null) continue;
+            if (!entry.Clothing.AllowTintSelect) continue;
+
+            <FormRow Label="@entry.Clothing.Title">
+                <Content>
+                    <ClothingOptions Clothing="@entry.Clothing"></ClothingOptions>
+                </Content>
+            </FormRow>
+
+
+        }
+    }
+
+
+
+
+</root>
+
+@code
+{
+    [Parameter]
+    public AvatarEditManager Manager { get; set; }
+
+    protected override int BuildHash() => HashCode.Combine(Manager.CitizenActive, Manager.Container.Clothing.Select( x => x.GetHashCode() ) );
+
+    static Bitmap lookupTexture;
+
+    ColorSwatch[] GetLoadSkinSwatches()
+    {
+
+        if (lookupTexture == null)
+        {
+            var skinMaterial = Material.Load("models/citizen/skin/citizen_skin01.vmat");
+
+            var tex = skinMaterial.GetTexture("g_tTintLookup");
+            if (tex is null) return new ColorSwatch[ 0 ];
+
+            lookupTexture = tex.GetBitmap(0);
+        }
+
+        float swatchCount = 32;
+        float delta = 1.0f / swatchCount;
+
+        List<ColorSwatch> swatches = new List<ColorSwatch>();
+
+        for (float f = 0; f <= 1.0f; f += delta)
+        {
+            var x = (int)(f * lookupTexture.Width);
+            x = x.Clamp(0, lookupTexture.Width - 1);
+            var color = lookupTexture.GetPixel(x, 8 );
+            swatches.Add(new ColorSwatch { Value = f, Color = color });
+        }
+
+        return swatches.ToArray();
+    }
+
+    void Clicked( Clothing x )
+    {
+        // don't deselect skins - they just have to choose a new one!
+        if ( Manager.IsSelected(x) )
+            return;
+
+        Manager.OnClothingToggle(x);
+    }
+}

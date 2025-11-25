@@ -1,0 +1,39 @@
+﻿@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.Social
+
+<root>
+
+    @if (PartyRoom.Current is null)
+    {
+        <CreatePartyButton></CreatePartyButton>
+
+        @*
+            <AvailableParties></AvailableParties>
+        *@
+    }
+    else
+    {
+        if (WithChat)
+        {
+            <PartyChatBox></PartyChatBox>
+        }
+        <ManageParty></ManageParty>
+    }
+</root>
+
+@code
+{
+    public bool WithChat { get; set; }
+
+    protected override int BuildHash() => System.HashCode.Combine(PartyRoom.Current);
+
+    public override void Tick()
+    {
+        if ( WithChat && IsVisible )
+        {
+            MenuUtility.SetVoiceListen( Input.Down("voice") );
+        }
+    }
+}

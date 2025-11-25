@@ -1,0 +1,88 @@
+@using System;
+@using MenuProject.MenuUI.Components
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@inherits Panel;
+
+
+<root class="clicky">
+
+    <MediaCardWide Image="@Entry.Package.ThumbWide" OnPressImage="@OnPressCard">
+        <Content>
+              <div class="title">@Entry.Package.Title</div>
+
+
+                @if ( Complete)
+                {
+                    <div>Complete!</div>
+                }
+                else
+                {
+                    <div class="meta">
+                    <div>
+                        <i>apps</i>
+                        <label class="mine">@Entry.Unlocked</label>
+                        <label>/</label>
+                        <label class="total">@Entry.Total</label>
+                    </div>    
+
+                    <div>
+                        <i>emoji_events</i>
+                        <label class="mine">@Entry.Score</label>
+                        <label>/</label>
+                        <label class="total">@Entry.TotalScore</label>
+                    </div>                    
+                    </div>                    
+                }
+
+        </Content>
+        <Right>
+
+            <div class="squares">
+                @foreach( Achievement a in Entry.Achievements.Take( 20 ) )
+                {
+                    var c = a.UnlockTimestamp.HasValue ? "ach unlocked clicky" : "ach locked clicky";
+                    var tt = $"{a.Title} - {a.Description} - {a.Score} points";
+
+                    <div tooltip="@tt" class="@c" style="background-image: url( @a.Icon )"></div>
+                }
+            </div>
+
+        </Right>
+    </MediaCardWide>
+
+</root>
+
+@code{
+
+    public Sandbox.Services.AchievementOverview Entry;
+
+    bool Complete;
+    string Message;
+    string Score;
+
+    protected override void OnParametersSet()
+    {
+        Message = $"{Entry.Unlocked} of {Entry.Total}";
+        Score = $"{Entry.Score} of {Entry.Score}";
+        Complete = Entry.Total > 0 && Entry.Unlocked >= Entry.Total;
+
+        if ( Complete )
+        {
+            Message = "Completed";
+            SetClass("complete", true);
+        }
+    }
+
+    void OnPressCard()
+    {
+
+    }
+
+    protected override void OnMouseDown( MousePanelEvent e )
+    {
+        Entry.Package.OpenModal();
+    }
+
+}

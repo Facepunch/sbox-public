@@ -1,0 +1,13 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+<root class="game-tag @(Active ? "active" : "")">
+	<label class="tag">@Entry.Name</label>
+	<label class="count">@Entry.Count</label>
+</root>
+
+@code {
+	public bool Active { get; set; }
+	public Package.TagEntry Entry { get; set;  }
+}

@@ -1,0 +1,83 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+<root>
+
+    <div class="left">
+        <img src="@Item.IconUrl" width="100" height="100" />
+    </div>
+
+    <div class="right">
+        <div class="title">@Item.Name</div>
+        <div class="description">@Item.Description</div>
+
+		@if ( Item.SellEnd != null )
+		{
+			var days = (Item.SellEnd.Value-DateTime.UtcNow).TotalDays;
+			var text = $"Leaving in {Math.Floor(days)} days";
+
+			if ( days <= 1.5 )
+			{
+				text = "Leaving Soon!";
+			}
+
+			<div class="enddate">@text</div>
+		}
+
+        @if ( Owned > 0 )
+        {
+            <div class="owned">You already own this item</div>
+        }
+
+        <div class="spacer"></div>
+
+        <div class="bottom">
+            <div class="spacer"></div>
+            <div class="cart">
+
+                <div class="price">@Item.Price </div>
+
+                <div class="adder">
+                <div class="remove" @onclick="@RemoveFromCart">-</div>
+                <div class="count">@NumberValue</div>
+                <div class="add" @onclick="@AddToCart">+</div>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+
+</root>
+
+@code 
+{
+    public Sandbox.Services.Inventory.ItemDefinition Item { get; set; }
+    public ShoppingCart Cart { get; set; }
+
+    void AddToCart()
+    {
+        Cart.AddToCart( Item );
+    }
+
+    void RemoveFromCart()
+    {
+        Cart.RemoveFromCart(Item);
+    }
+
+    bool IsInCart => Cart.Contains(Item);
+    int CountInCart => Cart.Count(Item);
+
+
+    int Owned => Sandbox.Services.Inventory.Items.Count(x => x.DefinitionId == Item.Id);
+
+    string NumberValue
+    {
+        get => CountInCart.ToString();
+
+        set 
+        {
+
+        }
+    }
+}

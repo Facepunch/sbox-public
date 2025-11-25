@@ -1,0 +1,30 @@
+@using System;
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@using Sandbox.Menu;
+
+<root>
+    <div class="inner">
+        @if (Left is not null)
+        {
+            <div class="leftbar sidebar">@Left</div>
+        }
+        <div class="pagebody">@Body</div>
+    </div>
+</root>
+
+@code
+{
+	[Parameter] public RenderFragment Body { get; set; }
+	[Parameter] public RenderFragment Tabs { get; set; }
+	[Parameter] public RenderFragment TabsRight { get; set; }
+	[Parameter] public RenderFragment Left { get; set; }
+	[Parameter] public bool Fullwidth { get; set; }
+	[Parameter] public string Title { get; set; }
+	[Parameter] public string Subtitle { get; set; }
+	[Parameter] public string Icon { get; set; }
+	[Parameter] public string Variant { get; set; }
+
+	protected override int BuildHash() => System.HashCode.Combine(Title, Subtitle);
+}

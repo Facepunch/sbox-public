@@ -1,0 +1,56 @@
+﻿@namespace Menu
+@inherits Panel
+@using Sandbox
+
+<root>
+    <div class="left">
+        <img src=@Player?.Avatar onclick="@OpenUserPanel"/>
+    </div>
+
+    <div class="right">
+        <div class="header">
+
+            @if (Player is not null )
+            {
+                var playerclass = "username";
+                if (Player.Online) playerclass += " online";
+                if (Player.IsFriend) playerclass += " friend";
+
+                <div class="@playerclass" onclick="@OpenUserPanel">@Player.Name</div>
+            }
+
+            @if (Date != null )
+            {
+                <div class="date">@Date?.Humanize()</div>
+            }
+
+            @if (Details is not null )
+            {
+                <div class="details">@Details</div>
+            }
+        </div>
+
+        @if ( TopBar is not null )
+        {
+            @TopBar
+        }
+
+        <div class="content">@Content</div>
+
+    </div>
+</root>
+
+@code
+{
+    [Parameter] public Sandbox.Services.Players.Profile Player { get; set; }
+    [Parameter] public RenderFragment Content { get; set; }
+    [Parameter] public RenderFragment TopBar { get; set; }
+    [Parameter] public DateTimeOffset? Date { get; set; }
+    [Parameter] public string Details { get; set; }
+
+    void OpenUserPanel()
+    {
+        Game.Overlay.ShowPlayer(Player.Id);
+    }
+
+}

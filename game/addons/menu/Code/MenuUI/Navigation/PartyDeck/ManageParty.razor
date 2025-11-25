@@ -1,0 +1,47 @@
+﻿@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.Footer;
+@inherits Panel
+@namespace MenuProject.Social
+
+<root>
+
+    <div class="vertical-button clicky" onmousedown=@InviteSomeone>
+        <i>person_add</i>
+        <span>Invite</span>
+    </div>
+
+    <div class="members">
+        @foreach ( var member in PartyRoom.Current.Members )
+        {
+            bool isOwner = PartyRoom.Current.Owner.Id == member.Id;
+
+            <ProfileImage SteamId="@member.Id" ></ProfileImage>
+        }
+    </div>
+
+    @*
+    <div class="vertical-button clicky" onmousedown=@LeaveParty>
+        <i>logout</i>
+        <span>Leave</span>
+    </div>
+    *@
+
+</root>
+
+@code
+{
+    protected override int BuildHash() => System.HashCode.Combine(PartyRoom.Current?.Members.Count());
+
+    void LeaveParty()
+    {
+        PartyRoom.Current.Leave();
+    }
+
+    void InviteSomeone()
+    {
+        MenuUtility.InviteOverlayToParty();
+    }
+
+}

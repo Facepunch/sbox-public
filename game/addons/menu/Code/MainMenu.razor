@@ -1,0 +1,125 @@
+@using MenuProject.MenuUI.Layout.MenuHeader
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox;
+@using System;
+@using Menu;
+@using MenuProject.Social;
+@using MenuProject.Footer;
+@inherits PanelComponent
+
+<div class="mainmenu">
+
+    <NavigationHost @ref="Navigator" DefaultUrl="/front" class="navigator"> 
+        <ChildContent>
+
+            <div class="mainmenu-header">
+                <MenuHeader />
+            </div>
+
+            <div class="mainmenu-content">
+                <div id="MenuContent" slot="navigator-canvas"></div>
+            </div>
+
+            <div class="mainmenu-footer">
+                <MenuFooter></MenuFooter>
+            </div>
+            
+        </ChildContent>
+    </NavigationHost>
+
+	<Toasts></Toasts>
+
+    <div class="image-viewer @( showImage ? "active" : "" )" style="background-image: url( @viewImage ); transform-origin: @cursorPos.x% @cursorPos.y%;" @onclick="@( () => showImage = false )"></div>
+
+</div>
+
+@code
+{
+    public static MainMenu Instance { get; private set; }
+    public NavigationHost Navigator { get; protected set; }
+
+    bool showImage;
+    string viewImage;
+
+    Vector2 cursorPos;
+
+    public MainMenu()
+    {
+        Instance = this;
+    }
+
+    override protected void OnEnabled()
+    {
+        base.OnEnabled();
+
+        MenuUtility.Tick += MenuTick;
+
+        var human = Scene.Directory.FindByName("Player Human").FirstOrDefault();
+        var citizen = Scene.Directory.FindByName("Player Citizen").FirstOrDefault();
+        var clothing = ClothingContainer.CreateFromLocalUser();
+
+        if ( human.IsValid() )
+            human.Enabled = clothing.PrefersHuman;
+
+        if ( citizen.IsValid() )
+            citizen.Enabled = !clothing.PrefersHuman;
+    }
+
+    override protected void OnDisabled()
+    {
+        base.OnDisabled();
+
+        MenuUtility.Tick -= MenuTick;
+    }
+
+    public void ShowPopup(string imageUrl)
+    {
+        cursorPos = (Mouse.Position / Screen.Size) * 100.0f;
+        viewImage = imageUrl;
+        showImage = true;
+    }
+
+    static GameClosing gameClosingPanel;
+
+    void MenuTick()
+    {
+		if (Game.InGame && !Application.IsEditor)
+		{
+			var startDelay = 0.2f;
+			var holdDelay = 1.5f;
+
+			if (MenuUtility.EscapeTime > startDelay)
+			{
+				var et = MenuUtility.EscapeTime - startDelay;
+				if (!gameClosingPanel.IsValid())
+				{
+					gameClosingPanel = new GameClosing();
+					gameClosingPanel.Parent = MenuOverlay.Instance.PopupCanvasTop;
+				}
+
+				gameClosingPanel.Progress = (et / holdDelay);
+				gameClosingPanel.StateHasChanged();
+
+				if (gameClosingPanel.Progress > 1)
+					Game.Close();
+			}
+			else
+			{
+				gameClosingPanel?.Delete();
+				gameClosingPanel = null;
+			}
+		}
+		else
+		{
+			gameClosingPanel?.Delete();
+			gameClosingPanel = null;
+        }
+	}
+
+	override protected void OnUpdate()
+    {
+        SetClass("is-vr", Application.IsVR);
+		SetClass("has-streamer-account", Sandbox.MenuEngine.Account.HasLinkedStreamerServices);
+	}
+}

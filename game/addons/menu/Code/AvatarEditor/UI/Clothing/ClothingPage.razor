@@ -1,0 +1,43 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.AvatarEditor
+
+<root>
+
+    <div class="body-left">
+        <BodySettings Manager="@Manager"></BodySettings>
+    </div>
+
+    <div class="body-center">
+
+    </div>
+
+    <div class="body-right">
+
+        <div class="category">
+
+            <ButtonGroup Value:bind="@tab" class="bg-round">
+                <ChildContent>
+                    <Button Text="Face" Value="face"></Button>
+                    <Button Text="Clothing" Value="clothing"></Button>
+                    <Button Text="Accessories" Value="accessories"></Button>
+                </ChildContent>
+            </ButtonGroup>
+
+        </div>
+
+        <div class="items">
+            <ClothingItemSelector class="@(tab == "face" ? "active" : "hidden")" Source="/scenes/avatar/face.clthgrp"></ClothingItemSelector>
+            <ClothingItemSelector class="@(tab == "clothing" ? "active" : "hidden")" Source="/scenes/avatar/clothing.clthgrp"></ClothingItemSelector>
+            <ClothingItemSelector class="@(tab == "accessories" ? "active" : "hidden")" Source="/scenes/avatar/accessories.clthgrp"></ClothingItemSelector>
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+    AvatarEditManager Manager => Scene.GetAll<AvatarEditManager>().First();
+
+    string tab = "face";
+}

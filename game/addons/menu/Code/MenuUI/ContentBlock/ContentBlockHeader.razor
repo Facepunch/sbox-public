@@ -1,0 +1,25 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.UI;
+@inherits Panel
+
+<root class="content-block-header">
+    <a class="inner" href="@url">
+        <span class="icon">@Group.Icon </span>
+        <span class="title">@Group.Title</span>
+    </a>
+</root>
+
+@code
+{
+    [Parameter]
+    public Package.ListResult.Grouping Group { get; set; }
+
+    string url => $"/games/group?Query={Group.QueryString}&title={Group.Title}&icon={Group.Icon}";
+
+    void HeaderClicked()
+    {
+        
+    }
+
+}

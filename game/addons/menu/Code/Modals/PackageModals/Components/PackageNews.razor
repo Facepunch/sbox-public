@@ -1,0 +1,58 @@
+﻿@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+
+<root>
+
+    @foreach (var entry in News)
+    {
+        <div class="entry" @onclick="@( () => OpenNews( entry ) )">
+
+            @if (entry.Media is not null)
+            {
+                @if (entry.Media.EndsWith(".mp4"))
+                {
+
+                }
+                else
+                {
+                    <div class="media" style="background-image: url( @entry.Media )" />
+                }
+            }
+
+            <div class="right">
+                <div class="title">@entry.Title</div>
+                <div class="meta">
+
+                    <div><i>schedule</i><span>@entry.Created.Humanize()</span></div>
+
+                    @if (entry.Author is not null)
+                    {
+                        <div><i>people</i><span>@entry.Author.Name</span></div>
+                    }
+
+                    </div>
+                <div class="summary">@entry.Summary</div>
+            </div>
+        </div>
+    }
+
+</root>
+
+@code
+{
+    [Parameter] public Package Package { get; set; }
+
+    List<Sandbox.Services.News> News = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        News = (await Sandbox.Services.News.GetPackageNews(Package.FullIdent)).ToList();
+    }
+
+    void OpenNews( Sandbox.Services.News news )
+    {
+        Game.Overlay.ShowNewsModal( news );
+    }
+
+}

@@ -1,0 +1,75 @@
+﻿@namespace Sandbox.UI
+@inherits Sandbox.UI.Panel
+
+<root class="videopanel">
+
+    @if (Controls)
+    {
+        <VideoControls VideoPlayer="@videoPlayer"></VideoControls>
+    }
+
+</root>
+
+@code 
+{
+    string _source;
+
+    public string Source 
+    { 
+        get => _source; 
+
+        set
+        {
+            if (_source == value) return;
+
+            _source = value;
+
+            videoPlayer.Play( FileSystem.Mounted, Source );
+        }
+    }
+
+    public bool Repeat
+    {
+        set
+        {
+            videoPlayer.Repeat = value;
+        }
+    }
+
+    public bool Controls { get; set; } = true;
+
+    Sandbox.VideoPlayer videoPlayer;
+
+    public VideoPanel()
+    {
+        videoPlayer = new VideoPlayer();
+
+        // TODO: Let the user decide how audio is played
+        // videoPlayer.OnAudioReady = () => videoPlayer.PlayAudio();
+
+        Repeat = true;
+        Style.AspectRatio = 16.0f / 9.0f;
+    }
+
+    public override void OnDeleted()
+    {
+        videoPlayer?.Dispose();
+        videoPlayer = null;
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        // Try to match the aspect ratio of the video
+        if (videoPlayer.Width > 4 && videoPlayer.Height > 4)
+        {
+            Style.AspectRatio = (float)videoPlayer.Width / (float)videoPlayer.Height;
+        }
+
+        videoPlayer.Present();
+        var tex = videoPlayer?.Texture;
+        Style.SetBackgroundImage(tex);
+    }
+
+}

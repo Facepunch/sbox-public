@@ -1,0 +1,65 @@
+@using System;
+@using Sandbox;
+@using System.Threading
+@using MenuProject.MenuUI.Front
+@namespace Sandbox.UI
+
+@if (Result?.Tags is null)
+    return;
+
+<root>
+    @{
+		@foreach ( var entry in Tags.OrderByDescending( x => x.Count ).ThenBy( x => x.Name ) )
+		{
+			<GameTag Active="@(Selected.Contains(entry.Name))" Entry=@entry onclick=@(() => ToggleTag(entry.Name)) />
+		}
+    }
+</root>
+
+@code
+{
+	public Package.FindResult Result { get; set; }
+	public Action OnTagsChanged { get; set; }
+
+	public List<string> Selected { get; set; } = new();
+	private List<Package.TagEntry> Tags = new();
+
+	protected override void OnParametersSet()
+	{
+		base.OnParametersSet();
+
+        if ( Result?.Tags is null )
+            return;
+
+		Tags = new List<Package.TagEntry>( Result.Tags );
+		var missingTags = new List<string>(Selected);
+
+		foreach ( var tag in Tags )
+		{
+            if ( Selected.Contains( tag.Name ) )
+                missingTags.Remove( tag.Name );
+		}
+
+		foreach ( var missing in missingTags )
+		{
+			Tags.Add( new Package.TagEntry( missing, 0 ) );
+		}
+	}
+
+    void ToggleTag(string tag)
+    {
+        if (Selected.Contains(tag))
+        {
+            Selected.Remove(tag);
+        }
+        else
+        {
+            Selected.Add(tag);
+        }
+
+        OnTagsChanged?.Invoke();
+    }
+
+    protected override int BuildHash() => HashCode.Combine(Result, Selected?.Count());
+
+}

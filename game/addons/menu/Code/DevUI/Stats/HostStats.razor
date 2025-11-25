@@ -1,0 +1,20 @@
+@namespace Sandbox.UI.Dev.Stats
+@inherits Panel
+
+<root class="statbox">
+	@{
+		var hostStats = Networking.HostStats;
+	}
+	
+	<title>Host Stats</title>
+	
+	<StatValue Value="@hostStats.Fps.ToString()" Title="FPS"></StatValue>
+	<StatValue Value="@( (hostStats.InBytesPerSecond / 1024f).ToString( "0.00" ) )" Title="KB In Per Second"></StatValue>
+	<StatValue Value="@( (hostStats.OutBytesPerSecond / 1024f).ToString( "0.00" ) )" Title="KB Out Per Second"></StatValue>
+</root>
+
+
+@code
+{
+    protected override int BuildHash() => HashCode.Combine( DateTime.UtcNow.Second );
+}

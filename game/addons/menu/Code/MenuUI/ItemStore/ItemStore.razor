@@ -1,0 +1,39 @@
+﻿@using MenuProject.MenuUI.Components
+@using MenuProject.MenuUI.Layout
+@using Sandbox;
+@using Sandbox.UI;
+@page "/itemstore"
+@inherits Panel
+
+<root class="root">
+	<Page title="Item Store" subtitle="Here you can buy items for your avatar" icon="local_mall" variant="green">
+
+		<Left>
+            <h2><WithIcon Text="Item Store" Icon="info"></WithIcon></h2>
+            
+            <p>Here you can buy cosmetic items. These items will be added to your Steam Inventory and you will be able to choose them in the avatar editor.</p>
+
+            
+		</Left>
+
+		<Body>
+		
+            <div class="store-header">
+                <CartButton Cart="@Cart"></CartButton>
+            </div>
+
+            <div class="itemlist">
+                @foreach (var item in Sandbox.Services.Inventory.Definitions.Where(x => x.Price.Value > 0).OrderBy(x => Sandbox.Services.Inventory.Items.Count( y => y.DefinitionId == x.Id) ).ThenBy( x => x.Name ) )
+                {
+                     <ItemTile Cart="@Cart" Item="@item"></ItemTile>
+                }
+            </div>
+
+		</Body>
+	</Page>
+</root>
+
+@code 
+{
+    public ShoppingCart Cart = new();
+}

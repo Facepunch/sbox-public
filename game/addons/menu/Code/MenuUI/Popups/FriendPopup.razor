@@ -1,0 +1,238 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+
+@inherits Popup
+
+<root>
+
+    <div class="arrow"><i>arrow_drop_down</i></div>
+
+    <div class="header">
+
+        <h2>@Friend.Name</h2>
+
+        @if (Friend.IsPlayingThisGame)
+        {
+            var gameName = Friend.GetRichPresence("gamename");
+            var gameTitle = Friend.GetRichPresence("gametitle");
+
+            if (!string.IsNullOrWhiteSpace(gameName) && !string.IsNullOrWhiteSpace(gameTitle))
+            {
+                <FriendGamePopup Ident="@gameName" Title="@gameTitle"></FriendGamePopup>
+            }
+            else
+            {
+                <h3>Main Menu</h3>
+            }
+        }
+        else
+        {
+            <h3>@StateText()</h3>
+        }
+
+    </div>
+
+
+    @if ( !Friend.IsFriend && !IsMe )
+    {
+        <row class="clicky" @onclick=@TryAddFriend>
+            <cell><i>person_add</i></cell>
+            <column>
+                <cell class="text-title">Send Friend Request</cell>
+            </column>
+        </row>
+    }
+
+    <row class="clicky" @onclick=@ShowProfile>
+        <cell><i>person</i></cell>
+        <column>
+            <cell class="text-title">Profile</cell>
+        </column>
+    </row>
+
+    <row class="clicky" @onclick=@ShowAchievements>
+        <cell><i>military_tech</i></cell>
+        <column>
+            <cell class="text-title">Achievements</cell>
+        </column>
+    </row>
+
+    <row class="clicky" @onclick=@ShowProfile>
+        <cell><i>launch</i></cell>
+        <column>
+            <cell class="text-title">Steam Profile</cell>
+        </column>
+    </row>
+
+    @if ( !IsMe && Joinable )
+    {
+        @if ( IsInGame && CanJoinGame )
+        {
+            <row class="clicky join" @onclick=@Join>
+                <cell><i>sports_esports</i></cell>
+                <column>
+                    <cell class="text-title">Join Game</cell>
+                </column>
+            </row>
+        }
+    }
+
+    @if (!IsMe && CanInviteToGame)
+    {
+        <row class="clicky" @onclick=@InviteToGame>
+            <cell><i>group_add</i></cell>
+            <column>
+                <cell class="text-title">Invite to Game</cell>
+            </column>
+        </row>
+    }    
+
+    @if (CanInviteToParty)
+    {
+        <row class="clicky is-party" @onclick=@InviteToParty>
+            <cell><i>group_add</i></cell>
+            <column>
+                <cell class="text-title">Invite to Party</cell>
+            </column>
+        </row>
+    }
+
+    @if ( IsInParty && PartyRoom.Current.Owner.IsMe && !IsMe )
+    {
+        <row class="clicky is-party" @onclick=@MakePartyOwner>
+            <cell><i>shield</i></cell>
+            <column>
+                <cell class="text-title">Make Party Owner</cell>
+            </column>
+        </row>
+    }
+
+    @if ( IsMe && PartyRoom.Current is not null  )
+    {
+        <row class="clicky is-party" @onclick=@LeaveToParty>
+            <cell><i>exit_to_app</i></cell>
+            <column>
+                <cell class="text-title">Leave Party</cell>
+            </column>
+        </row>
+    }
+
+</root>
+
+@code
+{
+    public Friend Friend { get; set; }
+
+    Friend Me => new Friend( Game.SteamId );
+    bool IsMe => Friend.IsMe;
+
+    // Accessors
+    bool Joinable => IsInGame;
+
+    string ConnectString => Friend.GetRichPresence( "connect" );
+
+    bool IsInGame => !string.IsNullOrEmpty(ConnectString);
+    bool InSameGame => IsInGame && ConnectString == Me.GetRichPresence("connect");
+
+    public bool CanJoinGame => !string.IsNullOrEmpty(ConnectString);
+
+    public bool CanInviteToGame
+    {
+        get
+        {
+            //if ( string.IsNullOrEmpty( Game.Server.SteamId ) ) return false;
+            // if ( GameSteamId == Game.Server.SteamId ) return false;
+            // TODO - Server capacity?
+            return false;
+        }
+    }   
+
+    public bool IsInParty
+    {
+        get
+        {
+            if (PartyRoom.Current is null) return false;
+            return PartyRoom.Current.Members.Contains(Friend);
+        }
+    }
+
+    public bool CanInviteToParty
+    {
+        get
+        {
+            if (IsMe) return false;
+            if (PartyRoom.Current is null) return false;
+            if (IsInParty) return false;
+
+            return true;
+        }
+    }
+
+    string StateText()
+    {
+        var friend = Friend;
+        if (friend.IsMe) return "Reading this text";
+        if (friend.IsPlayingThisGame) return "Playing s&box";
+        if (friend.IsAway || friend.IsBusy || friend.IsSnoozing) return "Is AFK";
+        if (!friend.IsOnline) return "Is Offline";
+        return "Is Online";
+    }
+
+    void ShowProfile()
+    {
+        Game.Overlay.ShowPlayer(Friend.Id);
+        Delete();
+    }
+
+    void ShowAchievements()
+    {
+        Game.Overlay.ShowPlayer(Friend.Id, "/achievements");
+        Delete();
+    }
+
+    public static FriendPopup Show(Panel sourcePanel, Friend friend, PositionMode mode = PositionMode.BelowStretch, float offset = 8.0f)
+    {
+        var popup = new FriendPopup();
+        popup.Friend = friend;
+        popup.SetPositioning(sourcePanel, mode, offset);
+
+        return popup;
+    }
+
+    public void Join()
+    {
+        MenuUtility.JoinFriendGame(Friend);
+        Delete();
+    }
+
+    public void InviteToGame()
+    {
+        // TODO - Implement
+        Delete();
+    }
+
+    public void InviteToParty()
+    {
+        MenuUtility.InviteToParty(Friend.Id);
+        Delete();
+    }
+
+    public void TryAddFriend()
+    {
+        Friend.OpenAddFriendOverlay();
+        Delete();
+    }
+
+    void LeaveToParty()
+    {
+        PartyRoom.Current?.Leave();
+        Delete();
+    }
+
+    void MakePartyOwner()
+    {
+        PartyRoom.Current.SetOwner(Friend.Id);
+        Delete();
+    }
+}

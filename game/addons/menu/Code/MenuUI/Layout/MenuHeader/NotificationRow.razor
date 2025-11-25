@@ -1,0 +1,51 @@
+@using System;
+@using MenuProject.MenuUI.Components
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@using Sandbox.Menu;
+@inherits Panel
+
+<root>
+
+    <MediaCardWide Image="@Notice.Icon" OnPressImage="@Pressed">
+        <Content>
+            <div class="text clicky" onmousedown="@Pressed">@Notice.Text</div>
+            <div class="meta">@Notice.Updated.Humanize()</div>
+        </Content>
+    </MediaCardWide>
+
+</root>
+
+
+@code 
+{
+    public Sandbox.Services.Notification Notice;
+
+    void Pressed()
+    {
+        if (string.IsNullOrWhiteSpace(Notice.Url))
+            return;
+
+        var parts = Notice.Url.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if ( parts.Length == 3)
+        {
+            Game.Overlay.ShowPackageModal($"{parts[0]}.{parts[1]}", parts[2]);
+            return;
+        }
+
+        if ( Notice.Url.StartsWith( "/" ) )
+        {
+            MenuUtility.OpenUrl($"https://sbox.game{Notice.Url}");
+            return;
+        }
+
+        Log.Info($"Unhandled: {Notice.Url}");
+    }
+
+    public override void Tick()
+    {
+        SetClass( "read", Notice.Read != null );
+    }
+
+}

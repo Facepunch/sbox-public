@@ -1,0 +1,73 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.AvatarEditor
+
+<root class="@FavouriteClass @RatingClass">
+
+    <div class="card-image" style="background-image: url( @BackgroundImage )"></div>
+
+</root>
+
+@code
+{
+    public Package Package { get; set; }
+
+    /// <summary>
+    /// Called when the icon part of the card is right clicked
+    /// </summary>
+    public System.Action OnMenu { get; set; }
+
+    /// <summary>
+    /// Called when the org name is pressed
+    /// </summary>
+    public System.Action OnOrg { get; set; }
+
+    public string HoverIcon { get; set; } = "play_arrow";
+
+    public string BackgroundImage => Package.ThumbWide;
+
+    public int UsersNow { get; set; }
+
+    string FavouriteClass => Package.Interaction.Favourite ? "is-favourite" : "";
+    string RatingClass
+    {
+        get
+        {
+            if (Package.Interaction.Rating == null) return "";
+            if (Package.Interaction.Rating == 0) return "is-rated-up";
+            if (Package.Interaction.Rating == 1) return "is-rated-down";
+
+            return "";
+        }
+    }
+
+    protected override void OnMouseDown(MousePanelEvent e)
+    {
+        Ancestors.OfType<WorkshopPage>().FirstOrDefault()?.OnPackageSelected(Package);
+    }
+
+
+    void OnCardRightClicked()
+    {
+        OnMenu?.Invoke();
+    }
+
+    [Event("package.update.users")]
+    public void UpdateUsers(string ident, long value)
+    {
+        if (ident != Package.FullIdent) return;
+
+        var u = Package.Usage;
+        u.UsersNow = value;
+        Package.Usage = u;
+        StateHasChanged();
+    }
+
+    [Event("package.update.favourites")]
+    public void UpdateFaves(string ident, long value)
+    {
+        if (ident != Package.FullIdent) return;
+        Package.Favourited = (int)value;
+        StateHasChanged();
+    }
+}

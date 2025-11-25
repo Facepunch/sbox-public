@@ -1,0 +1,36 @@
+@using System;
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@using Sandbox.Menu;
+
+<root>
+    @if (!string.IsNullOrEmpty(Href))
+    {
+        <a href="@Href" class="btn round with-click @Variant">
+            @if (Icon != null)
+            {
+                <i>@Icon</i>
+            }
+            <span>@Title</span>
+        </a>
+    }
+    else
+    {
+        <div class="btn round with-click @Variant">
+            @if (Icon != null)
+            {
+                <i>@Icon</i>
+            }
+            <span>@Title</span>
+        </div>
+    }
+</root>
+
+@code
+{
+    [Parameter] public string Title { get; set; }
+    [Parameter] public string Href { get; set; }
+    [Parameter] public string Icon { get; set; }
+    [Parameter] public string Variant { get; set; }
+}

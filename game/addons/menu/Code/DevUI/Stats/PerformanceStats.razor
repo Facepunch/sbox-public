@@ -1,0 +1,18 @@
+@namespace Sandbox.UI.Dev.Stats
+@inherits Panel
+
+<root class="statbox"> 
+
+    <title>Performance</title>
+
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.FrameMin.ToString( "0 ms" )" Title="Min"></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.FrameMax.ToString( "0 ms" )" Title="Max"></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.FrameAvg.ToString( "0 ms" )" Title="Avg"></StatValue>
+
+</root>
+
+
+@code
+{
+    protected override int BuildHash() => HashCode.Combine( Sandbox.Diagnostics.PerformanceStats.LastSecond );
+}

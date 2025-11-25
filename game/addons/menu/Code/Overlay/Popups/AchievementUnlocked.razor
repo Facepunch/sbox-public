@@ -1,0 +1,62 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox.OverlayPopups
+@inherits Panel
+
+<root>
+
+    <div class="a">Achievement Unlocked</div>
+
+    <div class="b">
+
+        <div class="icon" style="background-image: url( '@Icon' );"></div>
+        <div class="content">
+            <div class="title">@Title</div>
+            <div class="description">@Description</div>
+        </div>
+
+    </div>
+
+    <div class="c">
+        <div class="adding">
+            <i>emoji_events</i>
+            <span>@Score</span>
+        </div>
+        
+        <div class="playerscore">
+            <i>directions_run</i>
+            <span>@PlayerScoreLerped</span>
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+    public string Icon { get; set; } = "https://files.facepunch.com/garry/597b35a5-c634-4ffe-9376-733b40901b6c.png";
+    public string Title {get;set;} = "Missing Title";
+    public string Description {get;set;} = "Missing Description";
+    public int Score {get;set;} = 100;
+    public int PlayerScore {get;set;} = 1300;
+
+    public float scoreDelta = 0;
+
+    public int PlayerScoreLerped => MathX.Lerp(PlayerScore - Score, PlayerScore, scoreDelta, true).FloorToInt();
+    public int ScoreLerped => MathX.Lerp(Score, 0, scoreDelta, true).FloorToInt();
+
+    protected override int BuildHash() => HashCode.Combine(PlayerScoreLerped, ScoreLerped);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Task.DelayRealtimeSeconds( 3.4f );
+
+        RealTimeSince since = 0;
+        while (since < 1)
+        {
+            scoreDelta = since.Relative * 5.0f;
+            await Task.Delay( 1 );
+        }
+
+        scoreDelta = 1;
+    }
+}

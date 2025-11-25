@@ -1,0 +1,32 @@
+﻿@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+@using MenuProject.Settings
+@using Sandbox;
+@using Menu;
+@using System;
+@using Sandbox.Network;
+@using Sandbox.UI.Navigation;
+
+<root>
+
+	<div class="inner">
+		
+		<SettingsPage DefaultUrl=@defaultPage @ref="SettingsPage" />
+
+	</div>
+
+</root>
+
+@code
+{
+    Panel SettingsPage { get; set; }
+    string defaultPage = "/settings/video";
+
+    public SettingsModal( string page = "" )
+    {
+        if ( !string.IsNullOrEmpty( page ) )
+        {
+            defaultPage = $"/settings/{page}";
+        }
+    }
+}

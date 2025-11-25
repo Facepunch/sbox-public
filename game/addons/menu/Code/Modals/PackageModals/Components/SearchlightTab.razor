@@ -1,0 +1,22 @@
+﻿@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+@using Sandbox.Network
+
+<root>
+
+    <i>@Icon</i>
+    <div class="title">@Title</div>
+
+</root>
+
+@code
+{
+    [Parameter] public string Title { get; set; }
+    [Parameter] public string Icon { get; set; }
+
+    protected override int BuildHash() => System.HashCode.Combine(Title, Icon);
+}

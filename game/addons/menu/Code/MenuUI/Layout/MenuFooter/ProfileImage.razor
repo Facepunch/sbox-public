@@ -1,0 +1,88 @@
+﻿@using System;
+@using MenuProject.MenuUI.Popups
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@using MenuProject.MenuUI.Components;
+@using Sandbox.Menu;
+@using Sandbox.Services.Players;
+@namespace MenuProject.Footer
+@inherits Panel
+
+<root class="@CssClasses()">
+
+    @if ( IsPartyOwner )
+    {
+        <div class="crown">👑</div>
+    }
+
+    <div class="inner" style="background-image: url( avatar:@SteamId )"></div>
+    <WithIcon class="score" Icon="emoji_events" Text="@($"{(profile?.Score ?? 0):n0}")"></WithIcon>
+</root>
+
+@code {
+
+    public SteamId SteamId { get; set; }
+
+    Profile profile;
+
+    bool InParty => PartyRoom.Current is not null;
+    bool IsPartyMember => InParty && PartyRoom.Current.Members.Contains(new Friend(SteamId));
+    bool IsPartyOwner => InParty && PartyRoom.Current.Owner == new Friend(SteamId );
+
+    protected override async Task OnParametersSetAsync()
+    {
+        profile = await Profile.Get( SteamId );
+        StateHasChanged();
+    }
+
+    public string CssClasses()
+    {
+        var friend = new Friend( SteamId );
+        if (friend.IsMe) return "me";
+        if (friend.IsPlayingThisGame && !string.IsNullOrEmpty(friend.GetRichPresence("connect"))) return "ingame joinable";
+        if (friend.IsPlayingThisGame) return "ingame";
+        if (friend.IsAway || friend.IsBusy || friend.IsSnoozing) return "online away";
+        if (!friend.IsOnline) return "offline";
+        return "online";
+    }
+
+    void OpenUserProfile()
+    {
+        Game.Overlay.ShowPlayer(SteamId);
+    }
+
+    public void JoinGame()
+    {
+        MenuUtility.JoinFriendGame(new Friend( SteamId ) );
+    }
+
+    void ShowFriendPopup()
+    {
+
+    }
+
+    FriendPopup popup;
+
+    protected override void OnMouseOver(MousePanelEvent e)
+    {
+        if (popup.IsValid())
+            return;
+
+        Popup.CloseAll();
+        popup = FriendPopup.Show(this, new Friend(SteamId), Popup.PositionMode.AboveCenter, 32);
+    }
+
+    protected override void OnMouseOut(MousePanelEvent e)
+    {
+        base.OnMouseOut(e);
+
+        //if ( popup.IsValid() )
+        //{
+        //  Popup.CloseAll(popup);
+        //}
+    }
+
+    protected override int BuildHash() => HashCode.Combine(IsPartyOwner, CssClasses());
+
+}

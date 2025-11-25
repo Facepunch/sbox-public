@@ -1,0 +1,22 @@
+@namespace Sandbox.UI.Dev.Stats
+@inherits Panel
+
+<root class="statbox"> 
+
+    <title>Scene Stats</title>
+
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Animation.AverageMs( 200 ).ToString( "0.00 ms" )" Title="Animation"></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Audio.AverageMs( 200 ).ToString( "0.00 ms" )" Title="Audio"></StatValue>
+	<StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.AudioMixingThread.AverageMs( 200 ).ToString( "0.00 ms" )" Title="AudioMixingThread"></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Physics.AverageMs( 200 ).ToString( "0.00 ms" )" Title="Physics"></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Particles.AverageMs( 200 ).ToString( "0.00 ms" )" Title="Particles"></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Render.AverageMs( 200 ).ToString( "0.00 ms" )" Title="Render"></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.Timings.Scene.AverageMs( 200 ).ToString( "0.00 ms" )" Title="Scene"></StatValue>
+
+</root>
+
+
+@code
+{
+    protected override int BuildHash() => HashCode.Combine(DateTime.UtcNow.Millisecond);
+}

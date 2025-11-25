@@ -1,0 +1,40 @@
+﻿@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+@using Sandbox.Network
+
+<root>
+    <label class="title">@Package.Title</label>
+    <label class="orgname" onclick=@OrgClicked>@Package.Org.Title</label>
+
+    @if (!string.IsNullOrWhiteSpace(Package.Summary))
+    {
+        <label class="summary">@Package.Summary</label>
+    }
+
+    @if (Package.Tags?.Length > 0 )
+    {
+        <div class="tags">
+            @foreach (var tag in Package.Tags.Take( 8 ))
+            {
+                <div class="tag">@tag</div>
+            }
+        </div>
+    }
+
+</root>
+
+@code
+{
+    [Parameter] public Package Package { get; set; }
+
+    protected override int BuildHash() => System.HashCode.Combine(Package);
+
+    void OrgClicked()
+    {
+        Game.Overlay.ShowOrganizationModal(Package.Org);
+    }
+}

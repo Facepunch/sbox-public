@@ -1,0 +1,34 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+@if (Package is not null )
+{
+    <root class="clicky" onmousedown="@( () => Package.OpenModal() )">
+        <div class="intro">Playing:</div>
+        <div class="title">@Package.Title</div>
+    </root>
+}
+else
+{
+<root>
+
+    <div class="intro">Playing:</div>
+    <div class="title">@Title</div>
+
+</root>
+}
+
+@code
+{
+    public string Ident { get; set; }
+    public string Title { get; set; }
+
+    Package Package;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Package = await Package.FetchAsync( Ident, true );
+    }
+}

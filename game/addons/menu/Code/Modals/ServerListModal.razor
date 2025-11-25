@@ -1,0 +1,93 @@
+﻿@using Sandbox.Modals
+@using Sandbox
+@using Sandbox.Network
+
+@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+
+<root>
+	<div class="inner">
+
+		@if ( busy)
+		{
+            <div class="loading">...</div>
+		}
+		else if (lobbies.Count == 0)
+		{
+			<div class="notice">Sorry - no servers were found 😔</div>
+		}
+		else
+		{
+			@foreach ( LobbyInformation lobby in lobbies.OrderBy(x => -x.Members) )
+			{
+                var l = lobby;
+
+                <row onclick=@( () => OnLobbySelected( lobby ) )>
+					<div class="title">@lobby.Name</div>
+
+					@if (Config.GamePackageFilter != lobby.Game)
+					{
+						<div class="game">@lobby.Game</div>
+					}
+                    @if (Config.MapPackageFilter != lobby.Map)
+                    {
+                        <div class="map">@lobby.Map</div>
+                    }
+
+					<div class="members">
+						<div class="current">@lobby.Members</div>
+						<div class="sep">/</div>
+						<div class="maxmembers">@lobby.MaxMembers</div>
+					</div>
+				</row>
+			}
+		}
+	</div>
+</root>
+
+@code
+{
+    ServerListConfig Config;
+
+    public IEnumerable<Friend> Friends => MenuUtility.Friends.Where( x => !x.IsMe )
+        .OrderBy( x => x.Name )
+        .OrderBy( x => x.IsAway || x.IsBusy || x.IsSnoozing );
+
+    bool busy;
+    List<LobbyInformation> lobbies = new();
+
+
+    public ServerListModal( ServerListConfig config )
+    {
+        Config = config;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await RefreshLobbies();
+    }
+
+    async Task RefreshLobbies()
+    {
+        busy = true;
+        
+        var filters = new Dictionary<string, string>
+        {
+	        { "game", Config.GamePackageFilter },
+	        { "map", Config.MapPackageFilter }
+        };
+        
+        lobbies = await Networking.QueryLobbies( filters );
+        
+        busy = false;
+
+        StateHasChanged();
+    }
+
+    void OnLobbySelected( LobbyInformation lobby )
+    {
+        Networking.Connect(lobby.LobbyId);
+		OrganizationModal.LastOpened?.CloseModal( true );
+        CloseModal(true);
+    }
+}

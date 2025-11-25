@@ -1,0 +1,67 @@
+﻿@using Sandbox.UI;
+@using Sandbox.Internal;
+@using Sandbox;
+@namespace MenuProject.Settings
+@inherits Panel
+@page "/settings/developer"
+
+<root class="page-inner">
+
+    <div class="page-content">
+
+        <h2>Console</h2>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Console Overlay
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@ConsoleOverlayOptions Value:bind=@ShowConsoleOverlay></ButtonGroup>
+        </row>
+
+	</div>
+
+     <div class="with-grow"></div>
+
+     <SettingsFooter OnCancel=@OnCancel OnRestore=@OnRestore OnApply=@OnApply></SettingsFooter>
+
+</root>
+
+
+@code
+{
+
+    List<Option> ConsoleOverlayOptions = new List<Option>()
+    {
+        new Option("Off", false),
+        new Option("On", true),
+    };
+
+    bool ShowConsoleOverlay = false;
+
+    protected override void OnAfterTreeRender(bool firstTime)
+    {
+        base.OnAfterTreeRender(firstTime);
+
+        if (!firstTime)
+            return;
+
+        OnCancel();
+    }
+
+    public void OnRestore()
+    {
+        ConsoleSystem.SetValue("consoleoverlay", false);
+        OnCancel();
+    }
+
+    public void OnCancel()
+    {
+        bool.TryParse(ConsoleSystem.GetValue("consoleoverlay"), out bool ShowConsoleOverlay);
+    }
+
+    public void OnApply()
+    {
+        ConsoleSystem.SetValue("consoleoverlay", ShowConsoleOverlay);
+    }
+
+}

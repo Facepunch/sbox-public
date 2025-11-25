@@ -1,0 +1,19 @@
+@namespace Sandbox.UI.Dev.Stats
+@inherits Panel
+
+<root class="statbox"> 
+
+    <title>Garbage Collector</title>
+
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.ByteAlloc.FormatBytes()" Title="Allocations"></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.Gc0.ToMetric()" Title="Gen0"></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.Gc1.ToMetric()" Title="Gen1"></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.PerformanceStats.LastSecond.Gc2.ToMetric()" Title="Gen2"></StatValue>
+
+</root>
+
+
+@code
+{
+    protected override int BuildHash() => HashCode.Combine( Sandbox.Diagnostics.PerformanceStats.LastSecond );
+}

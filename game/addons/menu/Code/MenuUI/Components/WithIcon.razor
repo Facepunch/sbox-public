@@ -1,0 +1,20 @@
+@using System;
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@using Sandbox.Menu;
+
+<root>
+    <div class="inner">
+	    <i>@Icon</i>
+        <span>@Text</span>
+    </div>
+</root>
+
+@code
+{
+    [Parameter] public string Icon { get; set; }
+    [Parameter] public string Text { get; set; }
+
+    protected override int BuildHash() => HashCode.Combine(Text);
+}

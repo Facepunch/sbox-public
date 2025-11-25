@@ -1,0 +1,29 @@
+﻿@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+
+<root class="player-modal">
+
+    <WebPanel class="browser" Url=@Url></WebPanel>
+                
+</root>
+
+@code
+{
+    public SteamId SteamId { get; set; }
+	public string Url;
+	public string Page;
+
+	protected override void OnParametersSet()
+	{
+        Url = $"https://sbox.game/u/{SteamId}";
+
+		if(!string.IsNullOrEmpty(Page))
+		{
+			Url += "/" + Page.Trim( '/' );
+		}
+	}
+}

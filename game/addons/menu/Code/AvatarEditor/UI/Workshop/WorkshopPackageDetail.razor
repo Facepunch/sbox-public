@@ -1,0 +1,101 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.AvatarEditor
+
+@if ( Package is null )
+    return;
+
+<root>
+
+    <div class="return" onclick=@(() => Ancestors.OfType<WorkshopPage>().FirstOrDefault().OnPackageSelected(null))>
+        <i>keyboard_return</i>
+        <label>Return To List</label>
+    </div>
+
+    <div class="detail">
+
+        <div class="thumb" style="background-image: url( @Package.Thumb )" onclick=@( () => Game.Overlay.ShowPackageModal(Package.FullIdent))></div>
+        <div class="meta">
+            <div class="title" onclick=@( () => Game.Overlay.ShowPackageModal(Package.FullIdent))>@Package.Title</div>
+            <div class="org" onclick=@( () => Game.Overlay.ShowOrganizationModal(Package.Org))><i>people</i> @Package.Org.Title</div>
+            <div class="created"><i>alarm</i> @Package.Created.Date.ToString( "dd MMMM yyyy" )</div>
+        </div>
+
+    </div>
+
+    <div class="interactions">
+
+        @*
+        <div class="option favourite @(Package.Interaction.Favourite ? "active" : "")" ToolTip="@(Package.Interaction.Favourite ? "Remove from Favourites" : "Add to Favourites")" onclick=@ToggleFavourite>
+            <i>favorite</i>
+            <label>@(Package.Favourited.KiloFormat())</label>
+        </div>
+        *@
+
+        <div>
+
+            <div class="option voteup @((Package.Interaction.Rating ?? 1) <= 0 ? "active" : "")" onclick=@VoteUp>
+                <i>thumb_up</i>
+                <label>@(Package.VotesUp.KiloFormat())</label>
+            </div>
+
+            <div class="option votedown @((Package.Interaction.Rating ?? 0) > 0 ? "active" : "")" onclick=@VoteDown>
+                <i>thumb_down</i>
+                <label>@(Package.VotesDown.KiloFormat())</label>
+            </div>
+
+        </div>
+
+
+        <div class="option rating" onclick=@LeaveReview ToolTip="Add a Review">
+            <i>reviews</i>
+            <label>Review</label>
+        </div>
+
+    </div>
+
+</root>
+
+@code
+{
+    public string Ident { get; set; }
+    Package Package { get; set; }
+
+    AvatarEditManager Manager => Scene.GetAll<AvatarEditManager>().First();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        
+        await UpdatePackage();
+    }
+
+    async Task UpdatePackage()
+    {
+        Package = await Package.FetchAsync(Ident, false);
+    }
+
+    void LeaveReview()
+    {
+        Game.Overlay.ShowReviewModal(Package);
+    }
+
+    bool IsFavourite => Package.Interaction.Favourite;
+
+    async void VoteUp()
+    {
+        await Package.SetVoteAsync(true);
+        StateHasChanged();
+    }
+
+    async void VoteDown()
+    {
+        await Package.SetVoteAsync(false);
+        StateHasChanged();
+    }
+
+    async void ToggleFavourite()
+    {
+        await Package.SetFavouriteAsync(!IsFavourite);
+        StateHasChanged();
+    }
+}

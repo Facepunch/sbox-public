@@ -1,0 +1,50 @@
+﻿@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+
+<root class="@( IsActivePortalUser ? "active" : "" )">@Button</root>
+
+@code
+{
+    [Parameter] public RenderFragment Button { get; set; }
+    [Parameter] public RenderFragment Content { get; set; }
+    [Parameter] public PortalTarget Portal { get; set; }
+    [Parameter] public bool StartActive { get; set; }
+
+    bool IsActivePortalUser => Portal is not null && Content is not null && Portal.Content == Content;
+
+    protected override void OnMouseDown(MousePanelEvent e)
+    {
+        ActivatePage();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (StartActive)
+        {
+            ActivatePage();
+        }
+    }
+
+    protected override void OnAfterTreeRender(bool firstTime)
+    {
+        // We need to tell the portal to update when we redraw
+        // because the contents of Page probably changed
+        if (IsActivePortalUser)
+        {
+            Portal?.StateHasChanged();
+        }
+    }
+
+    void ActivatePage()
+    {
+        if (Portal is not null)
+        {
+            Portal.Content = Content;
+            StateHasChanged();
+
+            Portal.StateHasChanged();
+        }
+    }
+}

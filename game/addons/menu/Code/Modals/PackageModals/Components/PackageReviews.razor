@@ -1,0 +1,62 @@
+﻿@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI
+@using Menu;
+
+<root>
+
+    <Grid Padding Gap>
+        <ChildContent>
+            <StatCard Icon="how_to_reg" Value="@Package.Reviews.Total.ToMetric()" Subtitle="Reviews"></StatCard>
+            <StatCard Icon="insights" Value="@($"{Math.Round( Package.Reviews.Score)}%" )" Subtitle="Score"></StatCard>
+            <Button class="review-button" Icon="rate_review" Text="Write Review" @onmousedown="@WriteReview"></Button>
+        </ChildContent>
+    </Grid>
+
+    <h2>Latest Reviews</h2>
+
+    <div class="review-list">
+        @foreach (var review in Reviews )
+        {
+            <UserComment Player="@review.Player" Date="@review.Updated" Details="@($"{review.PlayTime.Humanize( 1 )} played")">
+                <TopBar>
+                    @if (review.Score == Sandbox.Services.Review.ReviewScore.Positive)
+                    {
+                        <div class="rating-stamp rating-positive"><div class="icon">😍</div><div class="text">Recommended</div></div>
+                    }
+
+                    @if (review.Score == Sandbox.Services.Review.ReviewScore.Negative)
+                    {
+                        <div class="rating-stamp rating-negative"><div class="icon">💩</div><div class="text">Needs Work</div></div>
+                    }
+
+                    @if (review.Score == Sandbox.Services.Review.ReviewScore.Promise)
+                    {
+                        <div class="rating-stamp rating-promise"><div class="icon">😐</div><div class="text">Shows Promise</div></div>
+                    }
+                </TopBar>
+                <Content>@review.Content</Content>
+            </UserComment>
+        }
+    </div>
+
+</root>
+
+@code
+{
+    [Parameter] public Package Package { get; set; }
+
+    List<Sandbox.Services.Review> Reviews = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Reviews = (await Sandbox.Services.Review.Fetch(Package.FullIdent, 100, 0)).ToList();
+    }
+
+    void WriteReview()
+    {
+        Game.Overlay.ShowReviewModal( Package );
+    }
+
+}

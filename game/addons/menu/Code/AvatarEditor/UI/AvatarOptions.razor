@@ -1,0 +1,24 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.AvatarEditor
+@inherits Panel
+
+<root>
+
+    <div class="option">
+        <div class="label">Height</div>
+        <div class="control">
+            <SliderControl class="simple" Value:bind=@Manager.Height Min="@(0.8f)" Max="@(1.2f)" Step="@(0.01f)"></SliderControl>
+        </div>
+    </div>
+
+
+</root>
+
+@code
+{
+    AvatarEditManager Manager => Scene.GetAll<AvatarEditManager>().First();
+
+    public float Height = 1.0f;
+
+}

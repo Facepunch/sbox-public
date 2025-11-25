@@ -1,0 +1,196 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.AvatarEditor
+
+<root>
+
+    <div class="category">
+
+        <div class="bg-round buttongroup">
+
+            @foreach (var entry in Category.Categories)
+            {
+                var c = main == entry ? "active" : "";
+
+                <div class="@c topcategorybutton" onclick=@(() => SelectCategory(entry) )>
+                    <div class="icon"><Image Texture="@entry.Icon"></Image></div>
+                    <div class="title">@entry.Title</div>
+
+                        @if ( main == entry )
+                        {
+                            <div class="tabs">
+
+                                <div class="connection"></div>
+
+                                @{
+                                    var allc = sub == _suball ? "active" : "";
+
+                                    <div class="tab @allc" tooltip="@_suball.Title" @onclick=@(() => ChangeGroup( _suball ))>
+                                        <div class="icon"><i>apps</i></div>
+                                    </div>
+                                }
+
+
+                                @foreach ( var subcategory in main.SubCategories )
+                                {
+                                    var cl = subcategory == sub ? "active" : "";
+
+                                    <div class="tab @cl" tooltip="@subcategory.Title" @onclick=@(() => ChangeGroup( subcategory ))>
+                                        <div class="icon"><Image Texture="@subcategory.Icon"></Image></div>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                </div>
+            }
+                    
+        </div>
+
+    </div>
+
+    <div class="items">
+        <div class="container">
+                @foreach (var group in CurrentClothing().GroupBy(x => ClothingGroup(x)))
+                {
+                    <div class="item-group">
+
+                        <div class="section-title">@group.Key</div>
+
+                        <div class="item-grid">
+
+                        @foreach (var item in group )
+                        {
+                             var c = "";
+                            if (Manager.IsSelected(item)) c = "active";
+
+                            <ClothingIcon tooltip="@item.Title" class="@c" onmouseover=@( () => Hovered( item ) ) onmouseout=@( () => Unhovered( item ) ) onclick=@( () => Clicked( item ) ) Icon=@item.Icon.Path></ClothingIcon>
+                        }
+
+                        </div>
+
+                    </div>
+                }
+
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+    AvatarEditManager Manager => Scene.GetAll<AvatarEditManager>().First();
+    AvatarClothingCategory Category => ResourceLibrary.Get<AvatarClothingCategory>(Source);
+
+    [Parameter] public string Source { get; set; }
+
+    AvatarClothingCategory.SubCategory _suball;
+
+    AvatarClothingCategory.Category main = null;
+    AvatarClothingCategory.SubCategory sub = null;
+
+    Clothing selectedItem = null;
+
+    override protected void OnParametersSet()
+    {
+        SelectCategory( Category.Categories.First() );
+    }
+
+    //
+    // Switched the sub category - the top tabs
+    //
+    void ChangeGroup( AvatarClothingCategory.SubCategory group )
+    {
+        sub = group;
+        Game.Cookies.SetString($"clothing;{Category.Name};{main.Name};lasttab", sub.Name);
+
+        StateHasChanged();
+    }
+
+    //
+    // Switched the main category - the side tabs
+    //
+    void SelectCategory(AvatarClothingCategory.Category e)
+    {
+        main = e;
+
+        _suball = new();
+        _suball.Name = "all";
+        _suball.Title = "All";
+        _suball.Categories = main.SubCategories.SelectMany(x => x.Categories).ToArray();
+
+        var cookieValue = Game.Cookies.GetString($"clothing;{Category.Name};{main.Name};lasttab");
+        sub = main.SubCategories.FirstOrDefault(x => x.Name == cookieValue);
+
+        sub ??= _suball;
+
+        StateHasChanged();
+    }
+
+    //
+    // Get a list of applicable clothing
+    //
+    IEnumerable<Clothing> CurrentClothing()
+    {
+        if (sub == null)
+            return Manager.GetAllClothing();
+
+        return Manager.GetAllClothing().Where(x => sub.Categories.Contains( x.Category ) && ShouldShow( x ) );
+    }
+
+    bool ShouldShow( Clothing x )
+    {
+        return true;
+    }
+
+    //
+    // Clicked on a clothing icon
+    //
+    void Clicked(Clothing x)
+    {
+        Manager.OnClothingToggle(x);
+        selectedItem = null;
+    }
+
+    void Modify( Clothing x )
+    {
+        selectedItem = x;
+    }
+
+    void Unselect()
+    {
+        selectedItem = null;
+    }
+
+    Clothing _lastHovered;
+    void Hovered(Clothing x)
+    {
+        Manager.OnClothingHover(x);
+        _lastHovered = x;
+    }
+
+    void Unhovered(Clothing x)
+    {
+        if (_lastHovered != x) return;
+        Manager.OnClothingHover(null);
+    }
+
+    string ClothingGroup(Clothing x)
+    {
+        // If this is a steam item - and we don't own it
+        // then put it at the bottom
+        if (x.SteamItemDefinitionId.HasValue)
+        {
+            // Owned items go at the top
+            if (Sandbox.Services.Inventory.HasItem(x.SteamItemDefinitionId.Value))
+            {
+                return "Purchased";
+            }
+
+            return "Unowned";
+        }
+
+        return "Available";
+    }
+
+}

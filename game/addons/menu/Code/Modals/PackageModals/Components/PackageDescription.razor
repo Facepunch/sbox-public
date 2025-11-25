@@ -1,0 +1,15 @@
+﻿@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+
+<root>
+
+    <HtmlPanel Html="@Package.Description"></HtmlPanel>
+
+</root>
+
+@code
+{
+   [Parameter] public Package Package {get;set;}
+
+}

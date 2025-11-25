@@ -1,0 +1,103 @@
+﻿@inherits Sandbox.UI.Panel
+@page "/front"
+@using MenuProject.MenuUI.Components
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Menu
+
+<root>
+
+	<div class="left">
+        <LiveLobbies></LiveLobbies>
+	</div>
+
+	<div class="center">
+
+	</div>
+
+	<div class="right">
+		<Button class="clicky" Icon="checkroom" Help="Change your avatar's clothes and stuff" Text="#avatar.change" @onmousedown=@OpenAvatarScene></Button>
+		<Button class="clicky" icon="@CurrentModelIcon" Text="@CurrentModelMode" @onmousedown=@ToggleHuman></Button>
+	</div>
+
+	@if ( Application.IsEditor )
+	{
+		<OverlayDebug></OverlayDebug>
+
+	}
+
+</root>
+
+@code
+{
+    bool IsHuman => Scene.Directory.FindByName("Player Human").FirstOrDefault()?.Active ?? false;
+
+    string CurrentModelMode => IsHuman ? "Human" : "Citizen";
+    string CurrentModelIcon => IsHuman ? "emoji_people" : "egg";
+
+
+    protected override int BuildHash() => System.HashCode.Combine(IsHuman);
+
+	void OpenAvatarScene()
+	{
+		var options = new SceneLoadOptions();
+		options.ShowLoadingScreen = false;
+		options.SetScene("/scenes/avatar.scene");
+
+		Game.ActiveScene.Load(options);
+	}
+
+	async Task ToggleHuman()
+	{
+		var clothing = ClothingContainer.CreateFromLocalUser();
+		clothing.PrefersHuman = !clothing.PrefersHuman;
+
+		var human = Scene.Directory.FindByName("Player Human").FirstOrDefault();
+		var citizen = Scene.Directory.FindByName("Player Citizen").FirstOrDefault();
+
+		var fx = Scene.Camera.GetOrAddComponent<Pixelate>();
+		var gr = Scene.Camera.GetOrAddComponent<FilmGrain>();
+		var b = Scene.Camera.GetOrAddComponent<Bloom>();
+
+		fx.Enabled = true;
+		gr.Enabled = true;
+
+		var a = clothing.PrefersHuman;
+
+		RealTimeSince t = 0;
+		var transitionLength = 0.1f;
+
+		while (t < transitionLength)
+		{
+			fx.Scale = t.Relative.Remap(0, transitionLength, 0, 1f);
+			gr.Intensity = t.Relative.Remap(0, transitionLength, 0, 0.5f);
+
+			await Task.Delay(1);
+		}
+
+		await Task.Delay(50);
+
+		using (Scene.Push())
+		{
+			human.Enabled = a;
+			citizen.Enabled = !a;
+		}
+
+		t = 0;
+
+		while (t < transitionLength)
+		{
+			fx.Scale = t.Relative.Remap(0, transitionLength, 1f, 0);
+			gr.Intensity = t.Relative.Remap(0, transitionLength, 0.5f, 0f);
+			await Task.Delay(1);
+		}
+
+		using (Scene.Push())
+		{
+			fx.Enabled = false;
+			gr.Enabled = false;
+		}
+
+		_ = MenuUtility.SaveAvatar(clothing, true, 0);
+	}
+}

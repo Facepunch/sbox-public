@@ -32,6 +32,22 @@ public sealed class EnvmapProbe : Component, Component.ExecuteInEditor
 	[ShowIf( nameof( RenderDynamically ), false )]
 	public Texture Texture { get; set; }
 
+	/// <summary>
+	/// Enable time slicing to spread cubemap rendering across multiple frames
+	/// </summary>
+	[Property, ToggleGroup(nameof(RenderDynamically))]
+	public bool TimeSlicing { get; set; } = false;
+
+	/// <summary>
+	/// Current face being rendered when time slicing is enabled (0-5)
+	/// </summary>
+	private int _currentFace = 0;
+
+	/// <summary>
+	/// Track if we're in the middle of a time-sliced render
+	/// </summary>
+	private bool _isTimeSlicing = false;
+	
 	Texture _dynamicTexture;
 
 	public bool Dirty;
@@ -79,6 +95,9 @@ public sealed class EnvmapProbe : Component, Component.ExecuteInEditor
 
 		_dynamicTexture?.Dispose();
 		_dynamicTexture = null;
+		
+		_isTimeSlicing = false;
+		_currentFace = 0;
 	}
 
 	protected override async Task OnLoad()
@@ -272,6 +291,10 @@ public sealed class EnvmapProbe : Component, Component.ExecuteInEditor
 
 	internal bool IsReadyToUpdate()
 	{
+		// If we're in the middle of time slicing, always continue
+		if (_isTimeSlicing)
+			return true;
+		
 		// If it's dirty, always update even if we're render once
 		if ( _sceneObject?.RequiresUpdate ?? false )
 			return true;
@@ -332,19 +355,69 @@ public sealed class EnvmapProbe : Component, Component.ExecuteInEditor
 			filterType = CubemapRendering.GGXFilterType.Fast;
 		}
 
-		CubemapRendering.Render( Scene.SceneWorld, _dynamicTexture, WorldTransform.WithScale( 1 ), ZNear.Clamp( 1, ZFar ), ZFar.Clamp( ZNear, 1024 * 16 ), filterType );
+		if ( TimeSlicing )
+		{
+			// Render one face at a time
+			if ( !_isTimeSlicing )
+			{
+				// Start new time-sliced render
+				_currentFace = 0;
+				_isTimeSlicing = true;
+			}
 
-		// Just finished rendering, signal to component that we're done
-		_sceneObject.RequiresUpdate = false;
+			// Render current face
+			CubemapRendering.RenderSingleFace(
+				Scene.SceneWorld, 
+				_dynamicTexture, 
+				WorldTransform.WithScale(1), 
+				ZNear.Clamp(1, ZFar), 
+				ZFar.Clamp(ZNear, 1024 * 16), 
+				_currentFace,
+				filterType
+			);
+			
+			_currentFace++;
 
-		// Reset counters after rendering
-		QueuedFrames = 0;
-		QueuedTime = 0;
+			// Check if we've rendered all 6 faces
+			if (_currentFace >= 6)
+			{
+				// All faces rendered, finalize
+				_isTimeSlicing = false;
+				_sceneObject.RequiresUpdate = false;
+				QueuedFrames = 0;
+				QueuedTime = 0;
 
-		if ( BouncesLeft > 0 && UpdateStrategy == CubemapDynamicUpdate.OnEnabled )
-			BouncesLeft--;
+				if ( BouncesLeft > 0 && UpdateStrategy == CubemapDynamicUpdate.OnEnabled )
+					BouncesLeft--;
 
-		Dirty = false;
+				Dirty = false;
+			}
+			else
+			{
+				Dirty = true;
+			}
+		}
+		else
+		{
+			// Original behavior (Render all faces at once)
+			CubemapRendering.Render(
+				Scene.SceneWorld, 
+				_dynamicTexture, 
+				WorldTransform.WithScale(1), 
+				ZNear.Clamp(1, ZFar), 
+				ZFar.Clamp(ZNear, 1024 * 16), 
+				filterType
+			);
+
+			_sceneObject.RequiresUpdate = false;
+			QueuedFrames = 0;
+			QueuedTime = 0;
+
+			if ( BouncesLeft > 0 && UpdateStrategy == CubemapDynamicUpdate.OnEnabled )
+				BouncesLeft--;
+
+			Dirty = false;
+		}
 	}
 
 	public enum CubemapResolution

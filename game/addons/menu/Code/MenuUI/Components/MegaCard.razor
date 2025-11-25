@@ -1,0 +1,61 @@
+﻿@namespace Menu
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+@using MenuProject.Modals.PackageModalComponents;
+@inherits Panel
+
+<root class="megacard">
+
+    @if (Metrics is not null)
+    {
+        <div class="metrics">@Metrics</div>
+    }
+
+    <div class="body-outer">
+
+        @if (Tabs is not null)
+        {
+            <div class="tabs">@Tabs</div>
+        }
+
+        <div class="body">
+
+            <div class="row">
+
+                <div class="left">
+
+                    @if (Icon is not null)
+                    {
+                        <div class="icon" style="background-image: url( @Icon );"></div>
+                    }
+
+                    @Left
+
+                </div>
+
+
+                <div class="content">@Content</div>
+
+            </div>
+
+            @if (Footer is not null)
+            {
+                <div class="footer">@Footer</div>
+            }
+
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+    [Parameter] public string Icon { get; set; }
+    [Parameter] public RenderFragment Left { get; set; }
+    [Parameter] public RenderFragment Footer { get; set; }
+    [Parameter] public RenderFragment Tabs { get; set; }
+    [Parameter] public RenderFragment Metrics { get; set; }
+    [Parameter] public RenderFragment Content { get; set; }
+}

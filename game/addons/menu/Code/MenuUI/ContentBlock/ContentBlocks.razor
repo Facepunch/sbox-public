@@ -1,0 +1,80 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.UI;
+@inherits Panel
+
+<root class="content-blocks">
+
+    @{
+
+    var hero = Group.Groupings.Where(x => x.Style == "hero").FirstOrDefault();
+    if ( hero != null )
+    {
+        <div class="content-block-hero">
+            <ContentBlockHero Group="@hero"></ContentBlockHero>
+        </div>
+    }
+    }
+
+    @foreach (var entry in Group.Groupings )
+    {
+        if ( entry.Style =="large" )
+        {
+            <ContentBlockLarge Group="@entry"></ContentBlockLarge>
+            continue;
+        }
+    
+        if ( entry.Style =="regular" )
+        {
+            <ContentBlockRegular Group="@entry"></ContentBlockRegular>
+            continue;
+        }
+    
+        if ( entry.Style =="squaresmall" )
+        {
+            <ContentBlockSquareSmall Group="@entry"></ContentBlockSquareSmall>
+            continue;
+        }
+    
+        if ( entry.Style =="tall" )
+        {
+            <ContentBlockTall Group="@entry"></ContentBlockTall>
+            continue;
+        }
+
+        if ( entry.Style =="hero" )
+        {
+            // we ignore this type, because it's at the top of the page
+            continue;
+        }
+    }
+</root>
+
+@code
+{
+    [Parameter]
+    public Package.ListResult Group { get; set; }
+
+
+    public static void OnLaunch(Package package)
+    {
+        if ( package.TypeName == "game" )
+        {
+            MenuHelpers.LaunchGame(package.FullIdent);
+            return;
+        }
+
+        if (package.TypeName == "map")
+        {
+            MenuHelpers.LaunchGame(package.FullIdent);
+            return;
+        }
+
+        Game.Overlay.ShowPackageModal(package.FullIdent);
+    }
+
+    public static void OnMenu(Panel root, Package package)
+    {
+        MenuHelpers.OpenPackageMenu(root, package);
+    }
+}

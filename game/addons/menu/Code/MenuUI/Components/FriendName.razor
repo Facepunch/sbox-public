@@ -1,0 +1,22 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Menu
+
+<root class="friend-name @FriendClasses()">@(Override ?? Friend.Name)</root>
+
+@code
+{
+    public string Override { get; set; }
+    public Friend Friend { get; set; }
+
+    string FriendClasses()
+    {
+        if (Friend.IsMe)
+            return "is-me";
+
+        if (Friend.IsFriend)
+            return "is-friend";
+
+        return "";
+    }
+}

@@ -1,0 +1,114 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.AvatarEditor
+@inherits PanelComponent
+
+<root>
+
+	<div class="body">
+
+		@if ( tab == "edit" )
+		{
+			<ClothingPage></ClothingPage>
+		}
+
+		@if ( tab == "scene" )
+		{
+			<AvatarRigPage></AvatarRigPage>
+		}
+
+		@if ( tab == "workshop" )
+		{
+			<WorkshopPage></WorkshopPage>
+		}
+
+	</div>    
+
+	<div class="controls">
+
+		<div class="left">
+
+			<div class="headerbutton" @onclick=@BackToMainMenu>
+				<div class="icon">west</div>
+				<div class="title">Back</div>
+			</div>
+
+			@if (tab == "edit")
+			{
+
+				<div class="headerbutton @(HasUnsavedChanges ? "" : "disabled")" @onclick=@Manager.SaveChanges>
+					<div class="icon">save</div>
+					<div class="title">Save</div>
+				</div>
+
+				<div title="Revert" class="headerbutton @(HasUnsavedChanges ? "" : "disabled")" @onclick=@Manager.RevertChanges>
+					<div class="icon">restore</div>
+				</div>
+			}
+
+		</div>
+
+		<div class="center">
+			<ButtonGroup Value:bind="@tab" class="bg-round">
+				<ChildContent>
+					<Button Icon="checkroom" Text="Edit" Value="edit"></Button>
+					<Button Icon="landscape" Text="Scene" Value="scene"></Button>
+					<Button Icon="cloud_done" Text="Workshop" Value="workshop"></Button>
+				</ChildContent>
+			</ButtonGroup>
+		</div>
+
+		<div class="right"></div>
+
+	</div>
+
+</root>
+
+@code
+{
+	AvatarEditManager Manager => Scene.GetAll<AvatarEditManager>().First();
+
+	bool HasUnsavedChanges => Manager?.HasUnsavedChanges ?? false;
+    string tab = "edit";
+
+	protected override int BuildHash() => HashCode.Combine(HasUnsavedChanges);
+
+	bool returnToMainMenu;
+
+	protected override void OnEnabled()
+	{
+		base.OnEnabled();
+	}
+
+	void BackToMainMenu()
+	{
+		returnToMainMenu = true;
+	}
+
+	protected override void OnUpdate()
+	{
+		base.OnUpdate();
+
+        SetClass( "hide", Input.Keyboard.Down( "SPACE" ) );
+
+		if (returnToMainMenu)
+		{
+			var options = new SceneLoadOptions();
+			options.ShowLoadingScreen = false;
+			options.SetScene("/scenes/menu-main.scene");
+
+			Game.ActiveScene.Load(options);
+		}
+	}
+
+	void Undo()
+	{
+
+	}
+
+	void Redo()
+	{
+
+	}
+
+}

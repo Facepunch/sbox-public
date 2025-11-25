@@ -1,0 +1,42 @@
+@namespace Sandbox.UI.Dev
+@inherits Panel
+
+<root class="@classes">
+    <div class="close" onclick="@Hide"><i>close</i></div>
+    <div @ref="Output" class="message" AllowChildSelection="true" AcceptsFocus="true" @onkeypress="KeyPress">
+        <div class="text">@message</div>
+        <div class="stack">@entry.Stack</div>
+    </div>
+</root>
+
+@code
+{
+    LogEvent entry;
+    bool visible;
+
+    string classes => $"logeventpanel {(visible?"visible":"hidden")}";
+    string message => $"[{entry.Logger}] {entry.Message}";
+    Panel Output = default;
+
+    public void Switch( LogEvent e )
+    {
+        entry = e;
+        visible = true;
+        StateHasChanged();
+        UnselectAllInChildren();
+    }
+
+    void Hide()
+    {
+        visible = false;
+        StateHasChanged();
+    }
+
+    public override void OnButtonEvent(ButtonEvent e)
+    {
+        if ( e.HasCtrl && e.Button == "a" && e.Pressed )
+        {
+            Output.SelectAllInChildren();
+        }
+    }
+}

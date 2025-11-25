@@ -1,0 +1,51 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+
+@namespace Sandbox.Menu
+
+<root class="game-starting" >
+
+    <div class="left">
+        <div class="game-icon" style="background-image: url( @AvatarUrl )"></div>
+    </div>
+
+    <div class="right">
+
+        <div class="game-title">@GameTitle</div>
+        <div class="game-author">@GameAuthor</div>
+        <div class="more-info"><span class="button">F1</span> for info, hold <span class="button">ESC</span> to exit</div>
+
+    </div>
+    
+</root>
+
+@code
+{
+    RealTimeSince timeSinceCreated = 0;
+
+    string GameTitle = "Game Title";
+    string GameAuthor = "Author Name";
+    string AvatarUrl = "https://cdn.sbox.game/asset/facepunch.testbed/logo.51722a86.png";
+
+    public GameStarting()
+    {
+        if (MenuUtility.GamePackage is not null)
+        {
+            GameTitle = MenuUtility.GamePackage.Title;
+            GameAuthor = MenuUtility.GamePackage.Org?.Title ?? "Unknown";
+            AvatarUrl = MenuUtility.GamePackage.Thumb;
+        }
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( timeSinceCreated > 3 )
+        {
+            Delete();
+        }
+    }
+
+}

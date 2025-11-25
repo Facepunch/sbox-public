@@ -1,0 +1,29 @@
+@using System;
+@using Sandbox;
+
+<root>
+    <div class="inner">
+        <div class="image" @onmousedown="@OnPressImage">
+            <div class="inner" style="background-image: url( @Image )">
+                <div class="light-border"></div>
+            </div>
+        </div>
+
+        <div class="content flex-column">@Content</div>
+
+        @if ( Right is not null )
+        {
+            <div class="right">@Right</div>
+        }
+
+    </div>
+</root>
+
+@code
+{
+    [Parameter] public string Image { get; set; } = "https://files.facepunch.com/7baef32b-d271-48d4-ab37-701fffc20eb2.png";
+    [Parameter] public RenderFragment Content { get; set; }
+    [Parameter] public RenderFragment Right { get; set; }
+
+    [Parameter] public Action OnPressImage { get; set; }
+}

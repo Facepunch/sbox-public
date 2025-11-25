@@ -1,0 +1,76 @@
+@using System;
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@using Sandbox.Menu;
+@using MenuProject.Social;
+@namespace MenuProject.Footer
+
+<root>
+
+    <div class="container">
+
+        <div class="left">
+            <PartyDeck WithChat=@true></PartyDeck>
+        </div>
+
+        <div class="center">
+
+
+        </div>
+
+        <div class="right">
+
+            <div class="friends">
+                @{
+
+                    foreach( var friend in ActiveFriends.Take( 12 ) )
+                    {
+                        if (PartyRoom.Current != null && PartyRoom.Current.Members.Contains(friend))
+                            continue;
+
+                        <ProfileImage SteamId="@friend.Id"></ProfileImage>
+                    }
+
+                }
+            </div>
+
+            @if (PartyRoom.Current is null)
+            {
+                <ProfileImage SteamId="@((long)Sandbox.Utility.Steam.SteamId)"></ProfileImage>
+            }
+
+        </div>
+
+    </div>
+
+</root>
+
+
+@code {
+
+    public IEnumerable<Friend> ActiveFriends => MenuUtility.Friends.Where(x => x.IsPlayingThisGame && !x.IsMe)
+                                                                        .OrderBy(x => x.Name);
+
+    void OpenAvatarScene()
+    {
+        var options = new SceneLoadOptions();
+        options.ShowLoadingScreen = false;
+        options.SetScene("/scenes/avatar.scene");
+
+        Game.ActiveScene.Load(options);
+    }
+
+    void Settings()
+    {
+        ConsoleSystem.Run("quit");
+    }
+
+    void Quit()
+    {
+        ConsoleSystem.Run("quit");
+    }
+
+    protected override int BuildHash() => HashCode.Combine( ActiveFriends.Count() );
+
+}

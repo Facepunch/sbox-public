@@ -1,0 +1,89 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@using System.Threading
+@namespace MenuProject.AvatarEditor
+
+<div class="header">
+    <ButtonGroup Value:bind="@tab" class="bg-round" ValueChanged="@OnTabChanged">
+        <ChildContent>
+            <Button Text="Newest" Value="newest"></Button>
+            <Button Text="Voted" Value="upvotes"></Button>
+        </ChildContent>
+    </ButtonGroup>
+</div>
+
+<div class="package-list">
+
+    @if ( FoundPackages == null )
+    {
+        <LoaderFullScreen></LoaderFullScreen>
+    }
+    else if (FoundPackages.Length == 0 )
+    {
+        <div class="loading-status">Nothing Found</div>
+    }
+    else
+    {
+        foreach (var package in FoundPackages)
+        {
+            if (package == null) continue;
+            <WorkshopClothingIcon Package=@package></WorkshopClothingIcon>
+        }
+    }
+    
+</div>
+
+@code
+{
+    public string tab { get; set; } = "newest";
+
+    public string Query { get; set; }
+    public string Group { get; set; }
+    public int Take { get; set; } = 200;
+    public int Skip { get; set; }
+
+    public System.Action<Package> OnMenu { get; set; }
+    public System.Action<Package> OnSelected { get; set; }
+    public System.Action<Package> OnOrg { get; set; }
+    public System.Action<Package.FindResult> OnResult { get; set; }
+
+    public Package[] FoundPackages{ get; set; }
+
+    public Package.FindResult Result;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        FoundPackages = null;
+
+        Query ??= "";
+
+        await RunQuery();
+    }
+
+    void OnTabChanged( string newTab )
+    {
+        tab = newTab;
+
+        Result = default;
+        FoundPackages = default;
+        StateHasChanged();
+
+        _ = RunQuery();
+    }
+
+    async Task RunQuery()
+    {
+        var query = $"type:clothing sort:{tab}";
+
+        Result = await Package.FindAsync(query, Take, Skip);
+
+        if (Result != null)
+        {
+            FoundPackages = Result.Packages;
+            OnResult?.Invoke(Result);
+        }
+
+        StateHasChanged();
+    }
+}

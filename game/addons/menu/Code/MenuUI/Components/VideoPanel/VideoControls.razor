@@ -1,0 +1,111 @@
+﻿@using System
+@namespace Sandbox.UI
+@inherits Sandbox.UI.Panel
+
+@if (VideoPlayer == null)
+    return;
+
+<root class="videocontrols">
+
+    <div class="left">
+
+        @if ( VideoPlayer.IsPaused )
+        {
+            <div class="playbutton video-control-button" onclick="@VideoPlayer.Resume">
+                <i>play_arrow</i>
+            </div>
+        }
+        else
+        {
+            <div class="playbutton video-control-button" onclick="@VideoPlayer.Pause">
+                <i>pause</i>
+            </div>
+        }
+
+    </div>
+
+    <div class="right">
+
+        <div class="timeline">
+            <SliderControl NumberFormat="0" Min="@(0)" Max="@VideoPlayer.Duration" Value="@VideoPlayer.PlaybackTime" OnValueChanged="@TimelineChanged"></SliderControl>
+        </div>
+
+        <div class="meta">
+
+            <div class="left">
+
+                @if ( !VideoPlayer.HasAudio )
+                {
+                    <div class="playbutton video-control-button disabled">
+                        <i>volume_off</i>
+                    </div>
+                }
+                else
+				{
+					@if ( VideoPlayer.Muted )
+					{
+						<div class="playbutton video-control-button" onclick="@( () => VideoPlayer.Muted = false )">
+							<i>volume_off</i>
+						</div>
+					}
+					else
+					{
+						<div class="playbutton video-control-button" onclick="@( () => VideoPlayer.Muted = true )">
+							<i>volume_up</i>
+						</div>
+					}
+					
+					<SliderControl Min="@(0)" Max="@(1)" Step="@(0.01f)" Value="@VideoPlayer.Audio.Volume" OnValueChanged="@VolumeChanged"></SliderControl>
+				}
+
+            </div>
+
+            <div class="right">
+                <span>@GetPlayback()</span>
+                <span> / </span>
+                <span>@GetDuration()</span>
+            </div>
+
+        </div>
+
+    </div>
+
+</root>
+
+@code 
+{
+	public Sandbox.VideoPlayer VideoPlayer { get; set; }
+	static float Volume = 0.4f;
+
+	protected override void OnParametersSet ()
+	{
+		VideoPlayer.Audio.Volume = Volume;
+	}
+
+	protected override int BuildHash()
+	{
+		return System.HashCode.Combine( VideoPlayer, VideoPlayer?.PlaybackTime, VideoPlayer.IsPaused );
+	}
+
+	void TimelineChanged( float value )
+	{
+		VideoPlayer.Seek( value );
+	}
+
+	void VolumeChanged(float value)
+	{
+		Volume = value;
+		VideoPlayer.Audio.Volume = value;
+	}
+
+    string GetPlayback()
+    {
+        return TimeSpan.FromSeconds( VideoPlayer.PlaybackTime ).ToString( "mm\\:ss" ); //);
+    }
+
+    string GetDuration()
+    {
+        return TimeSpan.FromSeconds( VideoPlayer.Duration ).ToString( "mm\\:ss" );
+    }
+
+}

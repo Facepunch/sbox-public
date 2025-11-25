@@ -1,0 +1,123 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox.Menu
+@inherits Panel
+
+<root>
+
+    <div class="close" @onclick="@Close"><i>close</i></div>
+
+    <div class="top" @onclick="@OpenModal" ToolTip="View More Information">
+
+        <div class="left">
+            <div  class="game-icon" style="background-image: url( @( Package.Thumb ) )"></div>
+        </div>
+
+        <div class="right">
+
+            <div class="game-title">@Package.Title</div>
+            <div class="game-author">@Package.Org.Title</div>
+
+        </div>
+    </div>
+
+    <div class="body">
+
+        <div class="option favourite @(IsFavourite ? "active" : "")" ToolTip="@(IsFavourite ? "Remove from Favourites" : "Add to Favourites")" onclick=@ToggleFavourite>
+            <i>favorite</i>
+            <label>@(Package.Favourited.KiloFormat())</label>
+        </div>
+
+        <div class="group">
+            <div class="option voteup @((Package.Interaction.Rating ?? 1) <= 0 ? "active" : "")" onclick=@VoteUp ToolTip="Vote Up">
+                <i>thumb_up</i>
+                <label>@(Package.VotesUp.KiloFormat())</label>
+            </div>
+
+            <div class="option votedown @((Package.Interaction.Rating ?? 0) > 0 ? "active" : "")" onclick=@VoteDown ToolTip="Vote Down">
+                <i>thumb_down</i>
+                <label>@(Package.VotesDown.KiloFormat())</label>
+            </div>
+        </div>
+
+        <div class="option rating" onclick=@LeaveReview ToolTip="Add a Review">
+            <i>reviews</i>
+            <label>Review</label>
+        </div>
+
+    </div>
+
+    <div class="close-progress">
+        <Panel class="inner" @ref=_closeProgress></Panel>
+    </div>
+
+</root>
+
+@code
+{
+    [Parameter, EditorRequired] public Package Package { get; set; }
+
+    RealTimeUntil timeUntilClose = 4;
+
+    Panel _closeProgress = default;
+
+    protected override void OnMouseOver(MousePanelEvent e)
+    {
+        timeUntilClose = 10;
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( _closeProgress is not null )
+        {
+            _closeProgress.Style.Width = Length.Fraction( ((float)timeUntilClose.Relative) / 4.0f );
+            _closeProgress.Style.Dirty();
+        }
+
+        if (timeUntilClose < 0)
+        {
+            Delete();
+        }
+    }
+
+    void OpenModal()
+    {
+        Game.Overlay.ShowGameModal(Package.FullIdent);
+        Close();
+    }
+
+    void Close()
+    {
+        Delete();
+    }
+
+    void LeaveReview()
+    {
+        Game.Overlay.ShowReviewModal(Package);
+        Close();
+    }
+
+    bool IsFavourite => Package.Interaction.Favourite;
+
+    async void VoteUp()
+    {
+        await Package.SetVoteAsync(true);
+        StateHasChanged();
+    }
+
+    async void VoteDown()
+    {
+        await Package.SetVoteAsync(false);
+        StateHasChanged();
+    }
+
+    async void ToggleFavourite()
+    {
+        await Package.SetFavouriteAsync(!IsFavourite);
+        StateHasChanged();
+    }
+
+}

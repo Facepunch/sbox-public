@@ -1,0 +1,64 @@
+@using System;
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@using Sandbox.Menu;
+@inherits Panel
+
+<root>
+
+    <Button onclick="@OpenPopup" Active=@(count > 0) class="circle" Icon="notifications"></Button>
+
+    @if ( count > 0 )
+    {
+        <div class="count">@count</div>
+    }
+
+
+</root>
+
+
+@code 
+{
+    int count;
+    RealTimeUntil timeUntilUpdate = 0;
+
+    async Task UpdateCount()
+    {
+        count = await MenuUtility.GetNotificationCount();
+        StateHasChanged();
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if ( !IsVisible )
+            return;
+
+        if ( timeUntilUpdate <= 0 )
+        {
+            timeUntilUpdate = 60 * 5;
+            _ = UpdateCount();
+        }
+    }
+
+
+    Popup menu;
+
+    void OpenPopup()
+    {
+        if (menu.IsValid())
+        {
+            menu.Delete();
+            menu = null;
+            timeUntilUpdate = 0;
+            return;
+        }
+
+        menu = new NotificationList();
+        menu.SetPositioning(this, Popup.PositionMode.BelowLeft, -10.0f);
+        menu.StayOpen = true;
+    }
+
+}

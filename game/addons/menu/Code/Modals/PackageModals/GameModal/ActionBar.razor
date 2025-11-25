@@ -1,0 +1,229 @@
+﻿@namespace MenuProject.Modals.GameModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+@using Sandbox.Network
+@using Sandbox.Modals
+@using Sandbox.DataModel
+
+<root>
+
+    <div class="left">
+
+        @if ( IsMultiplayerGame )
+        {
+            <Button icon="list" class="@(LobbyCount == 0 ? "disabled" : "")" onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
+        }
+
+    </div>
+
+    <div class="right">
+
+        @if (Modal.HasFullPackage)
+        {
+            if (NeedsMap())
+            {
+                @if (MapPackage is null)
+                {
+                    <Button icon="map" onclick=@SelectMap>Select Map</Button>
+                }
+                else
+                {
+                    <Button icon="map" onclick=@SelectMap>@MapPackage.Title</Button>
+                }
+            }
+
+            @if (IsVrOnly && !Application.IsVR)
+            {
+                <Button icon="panorama_photosphere" class="play disabled">VR Only</Button>
+            }
+            else
+            {
+                var text = ((!IsMultiplayerGame || IsQuickPlayGame) ? "Play Game" : "New Game");
+                var classes = $"play { (IsReady() ? "" : "disabled") } ";
+
+                <Button Icon="play_arrow" class="@classes" onclick=@OnPlay>
+                    @text
+                </Button>
+
+                @if (IsMultiplayerGame && !IsQuickPlayGame)
+                {
+                    var mpclasses = $"play {(LobbyCount == 0 ? "disabled" : "")} ";
+                    <Button icon="auto_awesome" class="@mpclasses" onclick=@OnJoinGame>Join Game</Button>
+                }
+            }
+        }
+        else
+        {
+            <Button Icon="play_arrow" class="play disabled">Play Game</Button>
+        }
+    </div>
+
+</root>
+
+@code
+{
+    [Parameter] public GameModal Modal {get;set;}
+    [Parameter] public Package Package {get;set;}
+    [Parameter] public Package MapPackage { get; set; }
+
+    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount );
+
+    void ViewOrg() => Game.Overlay.ShowOrganizationModal(Package.Org);
+
+    bool IsVrOnly => Package.GetMeta<ControlModeSettings>("ControlModes")?.IsVROnly ?? false;
+    bool IsMultiplayerGame => Package.Tags.Contains("multiplayer") || LobbyCount > 0 || Package.GetMeta<int>("MaxPlayers", 1) > 1;
+    bool IsQuickPlayGame => Package.GetMeta( "LaunchMode", "default" ).ToLower() == "quickplay";
+    int LobbyCount => Modal?.Lobbies?.Count() ?? 0;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var map = Package.GetValue("DefaultMap", "");
+        if ( !string.IsNullOrWhiteSpace(map ) )
+        {
+            MapPackage = await Package.FetchAsync(map, false);
+        }
+    }
+
+    bool isLoading = false;
+
+    bool ShouldUseCreateGameModal()
+    {
+        //
+        // Always show the create game modal if they have that option selected in their
+        // package in the options in the backend.
+        //
+        if ( Package.GetValue("UseCreateGameModal", false ) )
+        {
+            return true;
+        }
+
+        //
+        // If they have game settings to configure, always show game settings.
+        //
+        var settings = Package.GetMeta<List<GameSetting>>( "GameSettings", null );
+        if ( settings is not null && settings.Count() > 0 ) return true;
+
+        return false;
+    }
+
+    async void OnPlay()
+    {
+        if (!IsReady())
+            return;
+
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            if (IsQuickPlayGame)
+            {
+                if (await OnJoinGame())
+                    return;
+            }
+
+            MenuUtility.CloseAllModals();
+
+            // Don't join if we're already in a game
+            if (Game.InGame)
+                return;
+
+            if ( ShouldUseCreateGameModal() )
+            {
+                Game.Overlay.CreateGame( new CreateGameOptions( Package, x => {
+                    if (x.MaxPlayers > 1) LaunchArguments.MaxPlayers = x.MaxPlayers;
+
+                    if ( !string.IsNullOrEmpty( x.ServerName ) )
+                    {
+                        LaunchArguments.ServerName = x.ServerName;
+                    }
+
+                    LaunchArguments.Privacy = x.Privacy;
+
+                    if ( !string.IsNullOrEmpty( x.MapIdent ) )
+                    {
+                        MenuUtility.OpenGameWithMap( Package.FullIdent, x.MapIdent, x.GameSettings );
+                    }
+                    else
+                    {
+                        MenuUtility.OpenGame( Package.FullIdent, true, x.GameSettings );
+                    }
+                } ) );
+                return;
+            }
+
+            LoadingScreen.IsVisible = true;
+            LoadingScreen.Title = "Loading..";
+            LoadingScreen.Subtitle = "";
+
+            if (MapPackage is not null)
+            {
+                MenuUtility.OpenGameWithMap(Package.FullIdent, MapPackage.FullIdent);
+            }
+            else
+            {
+                MenuUtility.OpenGame(Package.FullIdent, true);
+            }
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    async Task<bool> OnJoinGame()
+    {
+        LoadingScreen.IsVisible = true;
+        LoadingScreen.Title = "Finding Game..";
+        LoadingScreen.Subtitle = "Please wait while we find a game for you to join.";
+
+        if ( await MenuUtility.TryJoinLobby(Package.FullIdent) )
+        {
+            MenuUtility.CloseAllModals();
+            return true;
+        }
+
+        return false;
+    }
+
+    void OpenLobbyList()
+    {
+        Game.Overlay.ShowServerList(new Sandbox.Modals.ServerListConfig(Package.FullIdent));
+    }
+
+    bool NeedsMap()
+    {
+        // garry: there's a good argument here to say that none of this needs map shit
+        // should exist in this modal now. It should maybe all be moved into the CreateGame modal.
+        // either way - if we're using a create game dialog, it'll be handled there.
+        if ( ShouldUseCreateGameModal() ) return false;
+
+        if (Package is null) return false;
+        if (Package.GetValue("NeedsMap", false)) return true;
+
+        // legacy
+        var launchMode = Package.GetMeta("LaunchMode", "default");
+        return string.Equals(launchMode, "launcher", StringComparison.OrdinalIgnoreCase);
+    }
+
+    bool IsReady()
+    {
+        if (isLoading) return false;
+        if (NeedsMap() && MapPackage is null) return false;
+        return true;
+    }
+
+    void SelectMap()
+    {
+        var mapTarget = Package.GetValue("MapTarget", Package.FullIdent);
+
+        Game.Overlay.ShowPackageSelector($"type:map sort:popular target:{mapTarget}", (pkg) =>
+        {
+            MapPackage = pkg;
+            StateHasChanged();
+        });
+    }
+}

@@ -1,0 +1,24 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+
+@namespace Sandbox.Menu
+
+<root class="game-closing" >
+
+    @{
+        var progress = Progress.Remap(0, 1.0f, 0.0f, 100.0f).ToString("0.00") + "%";
+
+        <iconpanel>close</iconpanel>
+        <div class="title">Closing Game</div>
+        <div class="progress" style="width: @progress"></div>
+    }
+    
+</root>
+
+@code
+{
+
+    public float Progress { get; set; }
+
+}

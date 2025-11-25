@@ -1,0 +1,21 @@
+@using System;
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@using Sandbox.Menu;
+
+<root tooltip="@Title">
+    <div class="inner">
+	    <i>@Icon</i>
+        <span>@Value</span>
+    </div>
+</root>
+
+@code
+{
+    public string Icon { get; set; }
+    public string Title { get; set; }
+    public string Value { get; set; }
+
+    protected override int BuildHash() => HashCode.Combine(Value);
+}

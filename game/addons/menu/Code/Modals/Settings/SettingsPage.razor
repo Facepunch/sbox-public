@@ -1,0 +1,33 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@page "/settings"
+@namespace MenuProject.Settings
+@inherits NavigationHost
+
+
+<root>
+
+    <div class="tabs">
+        <Button class="clicky uplight" href="/settings/video" icon="tv">Video</Button>
+        <Button class="clicky uplight" href="/settings/input" Icon="mouse">Input</Button>
+        <Button class="clicky uplight" href="/settings/keybinds" Icon="keyboard">Key Binds</Button>
+        <Button class="clicky uplight" href="/settings/audio" Icon="music_note">Sound</Button>
+        <Button class="clicky uplight" href="/settings/game" Icon="language">Game</Button>
+        <Button class="clicky uplight" href="/settings/storage" Icon="sd_card">Storage</Button>
+        <Button class="clicky uplight" href="/settings/developer" Icon="build">Developer</Button>
+        <Button class="clicky uplight" href="/settings/about" Icon="info">About</Button>
+    </div>
+
+    <div class="body">
+        <div class="grow navigator-canvas" slot="navigator-canvas" style="width: 100%; height: 100%;"></div>
+    </div>
+</root>
+
+@code
+{
+    public SettingsPage()
+    {
+        DefaultUrl = "/settings/video";
+    }
+}

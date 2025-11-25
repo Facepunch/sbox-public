@@ -1,0 +1,49 @@
+﻿@using MenuProject.MenuUI.ContentBlock
+@using MenuProject.MenuUI.Layout
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.UI;
+@page "/games/dash"
+@inherits Panel
+
+<root class="gameshub">
+    <Page>
+		<Body>
+            @if (Result == null)
+            {
+                <LoadingPanel></LoadingPanel>
+            }
+            else
+            {
+                <ContentBlocks Group="@Result"></ContentBlocks>
+            }
+		</Body>
+	</Page>
+</root>
+
+@code 
+{
+
+    Package.ListResult Result;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await UpdateList();
+    }
+
+    async Task UpdateList()
+    {
+        //
+        // Just calling this here for now so I can guage speed on the backend
+        // - it's not actually being used anywhere yet
+        //
+        Result = await Package.ListAsync("aa8913bd-495e-44d1-a8e1-288e69427f0d");
+
+        StateHasChanged();
+    }
+
+	protected override int BuildHash()
+	{
+        return System.HashCode.Combine(Result);
+	}
+}

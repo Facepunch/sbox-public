@@ -1,0 +1,31 @@
+@using System;
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@inherits Panel;
+
+
+<root class="clicky @ClassList">@Target.Name</root>
+
+@code{
+
+    public Sandbox.Services.Players.Profile Target;
+
+    string ClassList = "";
+
+    protected override void OnParametersSet()
+    {
+        if ( Target.Online )
+            ClassList = "online";
+
+        Tooltip = $"{Target.Name} ({Target.Score})";
+    }
+
+    protected override void OnMouseDown(MousePanelEvent e)
+    {
+        e.StopPropagation();
+
+        Game.Overlay.ShowPlayer( Target.Id );
+    }
+
+}

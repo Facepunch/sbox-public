@@ -1,0 +1,37 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+<root class="@clss" @onclick="@Cart.CheckOut">
+
+    <i>shopping_cart</i>
+
+    @if ( Cart.Items.Count() == 0 )
+    {
+        <span class="empty">Empty</span>
+    }
+    else if ( Cart.CheckingOut )
+    {
+        <div class="info">
+            <span class="items">Checking Out..</span>
+        </div>
+    }
+    else
+    {
+        <div class="info">
+            <span class="items">@Cart.Items.Count Items</span>
+            <span class="CheckOut">Check Out</span>
+        </div>
+    }
+
+</root>
+
+@code 
+{
+    public ShoppingCart Cart { get; set; }
+    public string clss => Cart.Items.Count() == 0 ? "empty" : "info";
+
+    protected override int BuildHash() => HashCode.Combine(Cart.Items.Count(), Cart.CartValue, Cart.CheckingOut);
+
+
+}

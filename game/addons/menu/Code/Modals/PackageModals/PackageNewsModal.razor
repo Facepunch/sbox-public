@@ -1,0 +1,23 @@
+﻿@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+@using Sandbox;
+@using Menu;
+@using System;
+@using Sandbox.UI
+
+<root class="news-modal">
+
+    <WebPanel class="browser" Url=@Url></WebPanel>
+
+</root>
+
+@code
+{
+    public Sandbox.Services.News News { get; set; }
+    public string Url;
+
+    protected override void OnParametersSet()
+    {
+        Url = $"https://sbox.game{News.Url}";
+    }
+}

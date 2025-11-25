@@ -1,0 +1,44 @@
+@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@using System.Threading
+@namespace MenuProject.UI
+
+@{
+    var current = orders.FirstOrDefault(x => x.Name == Value);
+}
+
+<root>
+
+    @foreach (var entry in orders)
+    {
+        <Button Active="@(current == entry)" tooltip="@entry.Title" Icon=@entry.Icon onmousedown=@(() => SwitchTo(entry))></Button>
+    }
+
+</root>
+
+@code
+{
+    public string Value { get; set; }
+
+    List<Package.SortOrder> orders = new();
+
+    public GamePackageSortOrder()
+    {
+        orders.Add(new Package.SortOrder { Icon = "today", Name = "rankday", Title = "Popular Today" });
+        orders.Add(new Package.SortOrder { Icon = "date_range", Name = "rankweek", Title = "Popular Week" });
+        orders.Add(new Package.SortOrder { Icon = "calendar_month", Name = "rankmonth", Title = "Popular Month" });
+        orders.Add(new Package.SortOrder { Icon = "trending_up", Name = "trending", Title = "Trending" });
+        orders.Add(new Package.SortOrder { Icon = "new_releases", Name = "newest", Title = "Newest" });
+        orders.Add(new Package.SortOrder { Icon = "schedule", Name = "updated", Title = "Updated" });
+    }
+
+    void SwitchTo(Package.SortOrder entry)
+    {
+        Value = entry.Name;
+        StateHasChanged();
+    }
+
+    protected override int BuildHash() => HashCode.Combine(Value);
+
+}

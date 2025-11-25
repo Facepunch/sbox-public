@@ -1,0 +1,15 @@
+﻿@namespace Menu
+@inherits Panel
+
+@{
+    var c = "";
+    if (Padding) c += " padding";
+    if (Gap) c += " gap";
+}
+<root class="@c">@ChildContent</root>
+
+@code
+{
+    [Parameter] public bool Padding { get; set; }
+    [Parameter] public bool Gap { get; set; }
+}

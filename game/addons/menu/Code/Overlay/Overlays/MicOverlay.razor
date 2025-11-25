@@ -1,0 +1,22 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+<root class="@StatusClass">mic</root>
+
+@code{
+    public string StatusClass
+    {
+        get
+        {
+
+            if (Application.IsMicrophoneRecording) return "active recording";
+            if (Application.IsMicrophoneListening) return "active";
+
+            return "inactive";
+        }
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine( Application.IsMicrophoneListening , Application.IsMicrophoneRecording );
+
+}

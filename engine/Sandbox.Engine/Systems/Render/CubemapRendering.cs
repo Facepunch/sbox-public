@@ -11,7 +11,7 @@ namespace Sandbox;
 internal static class CubemapRendering
 {
 	static ComputeShader EnvmapFilter = new( "envmap_filtering_cs" );
-
+	
 	/// <summary>
 	/// Specifies the quality level for GGX filtering of environment maps.
 	/// </summary>
@@ -70,6 +70,44 @@ internal static class CubemapRendering
 
 
 		camera.RenderToCubeTexture( cubemapTexture );
+	}
+	
+	/// <summary>
+	/// Renders single face of a cubemap from a scene at the specified transform position and applies filtering.
+	/// </summary>
+	/// <param name="world">The scene world to render.</param>
+	/// <param name="cubemapTexture">The texture to render the cubemap to.</param>
+	/// <param name="cubemapTransform">The position and rotation of the cubemap camera.</param>
+	/// <param name="znear">The near plane distance for the camera.</param>
+	/// <param name="zfar">The far plane distance for the camera.</param>
+	/// <param name="faceIndex">The face index to render (0-5).</param>
+	/// <param name="filterType">The quality level for GGX filtering.</param>
+	public static void RenderSingleFace( SceneWorld world, Texture cubemapTexture, Transform cubemapTransform, float znear, float zfar, int faceIndex, GGXFilterType filterType )
+	{
+		if ( faceIndex < 0 || faceIndex >= 6 )
+			return;
+		
+		SceneCamera camera = new SceneCamera( "CubemapRendering" );
+		camera.FieldOfView = 90;
+		camera.ZNear = znear;
+		camera.ZFar = zfar;
+		camera.Position = cubemapTransform.Position;
+		camera.Rotation = cubemapTransform.Rotation;
+		camera.World = world;
+
+		// Only apply GGX filtering after the last face is rendered
+		if ( faceIndex == 5 )
+		{
+			camera.OnRenderStageHook += ( stage, cam ) =>
+			{
+				if ( stage != Stage.AfterPostProcess )
+					return;
+				
+				Filter( cubemapTexture, filterType ).ExecuteOnRenderThread();
+			};
+		}
+
+		camera.RenderToCubeTextureFace( cubemapTexture, faceIndex );
 	}
 
 	/// <summary>

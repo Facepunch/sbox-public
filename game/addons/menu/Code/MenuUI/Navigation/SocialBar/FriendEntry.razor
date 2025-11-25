@@ -1,0 +1,88 @@
+﻿@using System;
+@using MenuProject.MenuUI.Popups
+@using Sandbox;
+@using Sandbox.UI;
+
+@namespace MenuProject.Social
+
+<root class="@CssClasses" onclick=@ShowFriendPopup>
+	<div class="avatar" style="background-image: url( avatar:@Friend.Id )" />
+	<div class="info">
+		<div class="name">@Friend.Name</div>
+		<div>
+			<div class="status">@StateString.Substring(0, Math.Min(StateString.Length, 36))</div>
+		</div>
+	</div>
+	<div class="actions">
+		@if ( Joinable )
+		{
+            <div class="button-simple" onclick=@JoinGame><i>sports_kabaddi</i><span class="text">join</span></div>
+		}
+        @*
+		<div class="button-simple" tooltip="Invite To Party" onclick=@InviteToParty>
+			<i>group_add</i>
+		</div>
+        *@
+    </div>
+</root>
+
+@code
+{
+    [Parameter]
+    public Friend Friend { get; set; }
+
+    public bool Joinable => !string.IsNullOrEmpty(Friend.GetRichPresence("connect"));
+
+    public string CssClasses
+    {	
+        get
+        {
+            if (Friend.IsPlayingThisGame) return "ingame";
+            if (Friend.IsAway || Friend.IsBusy || Friend.IsSnoozing) return "online away";
+            if (!Friend.IsOnline) return "offline";
+            return "online";
+        }
+    }
+
+    public string StateString
+    {
+        get
+        {
+            if (Friend.IsPlayingThisGame)
+            {
+                var game = Friend.GetRichPresence("gametitle");
+                var map = Friend.GetRichPresence("map");
+
+                if (string.IsNullOrEmpty(game)) return "[Unknown State]";
+                if (game == "menu") return "Main Menu"; // (Idle)
+                if (string.IsNullOrWhiteSpace(map)) return $"Playing {game}";
+                return $"Playing {game} - {map}";
+            }
+
+            if (Friend.IsPlayingAGame) return "Playing Other Game";
+            if (Friend.IsAway) return "Away";
+            if (Friend.IsBusy) return "Busy";
+            if (Friend.IsSnoozing) return "Snooze";
+            if (Friend.IsOnline) return "Online";
+            return "Offline";
+        }
+    }
+
+    [Event("friend.change")]
+    public void SteamFriends_OnPersonaStateChange(Friend friend)
+    {
+        if (Friend.Id != friend.Id) return;
+        Friend = friend;
+        StateHasChanged();
+    }
+
+    public void JoinGame()
+    {
+        MenuUtility.JoinFriendGame(Friend);
+    }
+
+    void ShowFriendPopup()
+    {
+        FriendPopup.Show(this, Friend, Popup.PositionMode.AboveCenter );
+    }
+}

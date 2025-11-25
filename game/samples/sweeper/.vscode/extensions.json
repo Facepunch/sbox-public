@@ -1,0 +1,6 @@
+{
+  "recommendations": [
+    "ms-dotnettools.csdevkit",
+    "shader-slang.slang-language-extension"
+  ]
+}

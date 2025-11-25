@@ -1,0 +1,79 @@
+﻿@inherits Sandbox.UI.Panel
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Menu
+
+@if (package == null)
+	return;
+
+<root>
+
+	<div class="content">
+
+		<div class="header">
+			<div class="title">@package.Title</div>
+		</div>
+
+
+		<div class="meta">
+			
+			<div class="head">
+                <img src="avatar:@(Lobby.OwnerId)" />
+            </div>
+
+			<div class="players">
+				<IconPanel>directions_run</IconPanel>
+				<label>@Lobby.Members</label>
+				<label class="smaller">/</label>
+				<label class="smaller">@Lobby.MaxMembers</label>
+			</div>
+
+
+
+			<div class="title">@Lobby.Name</div>
+		</div>
+
+	</div>
+
+	@{
+		var bg = package.Thumb;
+		<div class="icon" style="background-image: url( @bg )"></div>
+	}
+
+</root>
+
+@code
+{
+	[Parameter]
+	public Sandbox.Network.LobbyInformation Lobby { get; set; }
+
+	Package package;
+
+	override protected async Task OnParametersSetAsync()
+	{
+		package = await Package.Fetch(Lobby.Game, true);
+		StateHasChanged();
+	}
+
+	protected override void OnClick( MousePanelEvent e )
+	{
+		Networking.Connect(Lobby.LobbyId);
+	}
+
+	protected override void OnRightClick(MousePanelEvent e)
+	{
+		OpenContextMenu();
+	}
+
+	void OpenContextMenu()
+	{
+		var menu = MenuPanel.Open(this);
+
+		menu.AddOption("play_arrow", "Join Game", () => Networking.Connect(Lobby.LobbyId) );
+
+		menu.AddSpacer();
+		menu.AddOption("info", $"View Game Details", () => Game.Overlay.ShowGameModal(package.FullIdent));
+		menu.AddOption("corporate_fare", $"View Creator Details", () => Game.Overlay.ShowOrganizationModal(package.Org));
+		menu.AddOption("star", "Rate Game", () => Game.Overlay.ShowReviewModal(package));
+	}
+}

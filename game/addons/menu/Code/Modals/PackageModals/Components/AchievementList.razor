@@ -1,0 +1,87 @@
+﻿@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+@using Sandbox.Network
+
+@if (collection is null || collection.All.Count() == 0)
+    return;
+
+<root>
+
+    <div class="achievement-list">
+        @foreach (Achievement a in collection.All.OrderBy(x => x.IsUnlocked).Take(10))
+        {
+            string tooltip = $"{a.Title} - {a.Description}";
+            string icon = a.Icon;
+            if (string.IsNullOrEmpty(icon)) icon = "https://files.facepunch.com/garry/ae277f80-8a5d-4d54-833e-e7d6f11580fc.png";
+            string clss = "achievement";
+            if (!a.IsUnlocked) clss += " locked";
+            else clss += " unlocked";
+
+            <div class="@clss" tooltip="@tooltip">
+
+                <img src="@icon" />
+
+                <div class="right">
+
+                    <div class="toprow">
+
+                        <div class="title">@a.Title</div>
+                        <div class="score">+@a.Score</div>
+
+                        <div class="meta">
+                            <div class="global" tooltip="How many people unlocked this"><i>person</i> @a.GlobalUnlocked.ToMetric( 1 )</div>
+
+                            @if (a.IsUnlocked)
+                            {
+                                <div class="unlocked"><i>event</i>@a.UnlockTimestamp.Value.Humanize()</div>
+                            }
+
+                        </div>
+                    </div>
+
+                    <div class="description">@a.Description</div>
+
+                    @if (a.HasProgression && !a.IsUnlocked)
+                    {
+                        var pct = 0.0f;
+                        if (a.IsUnlocked) pct = 100;
+                        else if (a.HasProgression) pct = a.ProgressionFraction.Clamp(0, 1) * 100;
+
+                        var pctWidth = $"width: {pct}%";
+                        var progressText = $"{a.CurrentValue.ToMetric( 1 )} / {a.Range.y.ToMetric( 1 )}";
+
+                        <div class="progress">
+                            <div class="bar">
+                                <div class="inner" style="@pctWidth"></div>
+                            </div>
+                            <div class="text">@progressText</div>
+                        </div>
+                    }
+                </div>
+
+            </div>
+        }
+    </div>
+
+</root>
+
+@code
+{
+    [Parameter, EditorRequired] public Package Package { get; set; }
+
+    AchievementCollection collection;
+
+    protected override int BuildHash() => System.HashCode.Combine(Package, collection);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        collection = await this.Package.GetAchievements();
+        StateHasChanged();
+        await collection.RecountProgression();
+        StateHasChanged();
+    }
+}

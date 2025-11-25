@@ -1,0 +1,45 @@
+@using System;
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@inherits Panel;
+
+
+<root>
+
+    @if (Entries?.Length > 0)
+    {
+        @foreach (var entry in Entries)
+        {
+            <FeedRow Entry=@entry></FeedRow>
+        }
+    }
+
+</root>
+
+@code{
+    RealTimeUntil timeUntilRefresh = 0;
+
+    Sandbox.Services.Feed[] Entries;
+
+    async Task Update()
+    {
+        Entries = await MenuUtility.GetPlayerFeed( 20 );
+        StateHasChanged();
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        if (!IsVisible)
+            return;
+
+        if (timeUntilRefresh > 0)
+            return;
+
+        timeUntilRefresh = 60 * 3;
+        
+        _ = Update();
+    }
+}

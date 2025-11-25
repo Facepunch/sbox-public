@@ -1,0 +1,54 @@
+﻿@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+@using Sandbox.Network
+
+@if (collection is null || collection.All.Count() == 0)
+    return;
+
+<root>
+
+    <div class="achievement-buttons">
+        @foreach (Achievement a in collection.All.OrderBy(x => !x.IsUnlocked).Take(4))
+        {
+            string tooltip = $"{a.Title} - {a.Description}";
+            string icon = a.Icon;
+            if (string.IsNullOrEmpty(icon)) icon = "https://files.facepunch.com/garry/ae277f80-8a5d-4d54-833e-e7d6f11580fc.png";
+            string clss = "achievement-icon";
+            if (!a.IsUnlocked) clss += " locked";
+
+            <div src="@icon" class="@clss" tooltip="@tooltip" style="background-image: url( @icon );"></div>
+        }
+    </div>
+
+    <div class="button">
+
+        <div>
+            <label class="unlocked">@collection.All.Where(x => x.IsUnlocked).Count()</label>
+            <label class="splitter">of</label>
+            <label class="total">@collection.All.Count()</label>
+        </div>
+        
+    </div>
+
+</root>
+
+@code
+{
+    [Parameter, EditorRequired] public Package Package { get; set; }
+
+    AchievementCollection collection;
+
+    protected override int BuildHash() => System.HashCode.Combine(Package, collection);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        collection = await this.Package.GetAchievements();
+        StateHasChanged();
+        await collection.RecountProgression();
+        StateHasChanged();
+    }
+}

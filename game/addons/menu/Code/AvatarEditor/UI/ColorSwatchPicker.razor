@@ -1,0 +1,50 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.AvatarEditor
+@inherits Panel
+
+<root>
+
+    <div class="thumb" style="left: @(Value* Box.RectInner.Width*ScaleFromScreen)px">
+        <i class="top">play_arrow</i>
+        <i class="bottom">play_arrow</i>
+    </div>
+
+    <div class="swatches">
+        @foreach (var c in Swatches)
+        {
+            <div class="swatch" style="background-color: @c.Color.Hex"></div>
+        }
+    </div>
+
+</root>
+
+@code
+{
+    [Parameter] public ColorSwatch[] Swatches { get; set; } = [];
+    [Parameter] public float Value { get; set; }
+
+    protected override void OnMouseMove(MousePanelEvent e)
+    {
+        base.OnMouseMove(e);
+
+        if ( HasActive )
+        {
+            PickValue();
+        }
+    }
+
+    protected override void OnMouseDown(MousePanelEvent e)
+    {
+        base.OnMouseDown(e);
+
+        PickValue();
+    }
+
+    void PickValue()
+    {
+        var x =( MousePosition.x - Box.Padding.Left).Clamp(0, Box.RectInner.Width) / Box.RectInner.Width;
+        Value = x;
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,32 @@
+﻿@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace MenuProject.Social
+
+<root>
+
+    <div class="@ButtonClasses" onmousedown=@CreateParty>
+        <i>celebration</i>
+        <span>#party</span>
+    </div>
+</root>
+
+@code
+{
+    string ButtonClasses => $"vertical-button clicky create-party {(popup.IsValid() ? "active" : "")}";
+
+    CreatePartyMenu popup;
+
+    void CreateParty()
+    {
+        if (popup.IsValid())
+            return;
+
+        popup = new CreatePartyMenu();
+        popup.SetPositioning( this, Popup.PositionMode.AboveCenter, 32 );
+    }
+
+    protected override int BuildHash() => HashCode.Combine(popup.IsValid());
+
+}

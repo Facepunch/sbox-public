@@ -1,0 +1,100 @@
+﻿@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace MenuProject.Social
+
+
+<root class="partymember" tooltip=@Friend.Name style="background-image: url( avatar:@Friend.Id )" @onrightclick=@ShowFriendPopup>
+    
+    @if ( IsOwner )
+    {
+        <div class="crown">👑</div>
+    }
+
+    @if ( IsTalking )
+    {
+        <div class="talking">🎙️</div>
+    }
+
+</root>
+
+@code
+{
+    public Friend Friend { get; set; }
+
+    public bool IsOwner { get; set; }
+
+    public bool IsTalking { get; set; } = true;
+
+    protected override int BuildHash() => System.HashCode.Combine(IsTalking);
+
+    void ShowFriendPopup()
+    {
+        MenuHelpers.OpenFriendMenu(this, Friend);
+    }
+
+    public PartyMember()
+    {
+        PartyRoom.Current.OnVoiceData += OnVoiceData;
+    }
+
+    public override void OnDeleted()
+    {
+        base.OnDeleted();
+
+        if (PartyRoom.Current is not null)
+        {
+            PartyRoom.Current.OnVoiceData -= OnVoiceData;
+        }
+    }
+
+    public override void Tick()
+    {
+        if ( soundHandle is not null && soundHandle.IsPlaying )
+        {
+            StateHasChanged();
+
+            var scale = soundHandle.Amplitude * 0.3f;
+
+            Style.Set($"transform: scaley( {1 + scale} ) scalex( {1 - scale} );");
+        }
+
+        IsTalking = soundHandle?.Amplitude > 0;
+    }
+
+    /// <summary>
+    /// How long has it been since this sound played?
+    /// </summary>
+    public RealTimeSince LastPlayed { get; private set; }
+
+    private SoundStream soundStream;
+    private SoundHandle soundHandle;
+
+    void OnVoiceData( Friend friend, byte[] buffer )
+    {
+        if (friend != Friend) return;
+
+        if (soundStream is null)
+        {
+            soundStream = new SoundStream(Sound.VoiceSampleRate);
+        }
+
+        Sound.UncompressVoiceData(buffer, samples =>
+		{
+			if ( !soundHandle.IsValid() )
+			{
+				soundHandle = soundStream.Play();
+			}
+
+            soundHandle.LipSync.Enabled = true;
+            soundHandle.Position = 0;
+            soundHandle.ListenLocal = true;
+            soundHandle.Loopback = friend.IsMe;
+			soundStream.WriteData( samples.Span );
+
+			LastPlayed = 0;
+		} );
+    }
+
+}

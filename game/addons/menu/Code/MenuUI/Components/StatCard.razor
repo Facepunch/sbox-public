@@ -1,0 +1,15 @@
+﻿@namespace Menu
+@inherits Panel
+
+<div class="statcard">
+    <div class="icon">@Icon</div>
+    <div class="value">@Value</div>
+    <div class="subtitle">@Subtitle</div>
+</div>
+
+@code 
+{
+    [Parameter] public string Value { get; set; }
+    [Parameter] public string Subtitle { get; set; }
+    [Parameter] public string Icon { get; set; }
+}

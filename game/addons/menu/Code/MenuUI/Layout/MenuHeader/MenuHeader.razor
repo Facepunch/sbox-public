@@ -1,0 +1,58 @@
+﻿@using System;
+@using MenuProject.MenuUI.Layout.MenuHeader
+@using Sandbox.UI;
+@using Sandbox;
+@using Sandbox.Menu;
+
+<root>
+
+    <div class="container">
+
+        <div class="left">
+            <Button class="clicky branding" href="/front">s&</Button>
+        </div>
+
+        <div class="links">
+
+            <Button class="clicky" href="/home" icon="hub">#menu.hub</Button>
+            <Button class="clicky" href="/games/dash" icon="sports_esports" Text="#menu.games">
+                <HoverMenu>
+                    
+                    <Button class="clicky" href="/games/dash" icon="diamond">Discover</Button>
+                    <Button class="clicky" href="/games/group?Query=type:game sort:favourite&title=Favourite Games&Icon=💖" icon="favorite">Favourites</Button>
+                    <Button class="clicky" Href="/games/all" icon="manage_search">Search</Button>
+                    
+                </HoverMenu>
+            </Button>
+            <Button class="clicky" href="/maps/all" icon="map">#menu.maps</Button>
+            <Button class="clicky" href="/multiplayer" icon="escalator_warning">#menu.multiplayer</Button>
+            <Button class="clicky" href="/itemstore" icon="shopping_cart">#menu.store</Button>
+
+        </div>
+
+        <div class="right">
+
+            <NotificationButton></NotificationButton>
+            <Button class="circle clicky" tooltip="#menu.settings" onmousedown="@Settings" icon="settings"></Button>
+            <Button class="circle clicky" tooltip="#menu.quit" onmousedown="@Quit" icon="power_settings_new"></Button>
+
+        </div>
+
+    </div>
+
+</root>
+
+
+@code {
+
+    void Settings()
+    {
+        Game.Overlay.ShowSettingsModal();
+    }
+
+    void Quit()
+    {
+        ConsoleSystem.Run("quit");
+    }
+
+}

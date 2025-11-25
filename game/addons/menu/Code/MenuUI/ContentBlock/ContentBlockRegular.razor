@@ -1,0 +1,24 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.UI;
+@inherits Panel
+
+<root class="cblock">
+    <ContentBlockHeader Group="@Group"></ContentBlockHeader>
+
+    <div class="content-block-track">
+        @foreach ( var package in Group.Packages )
+        {
+            <PackageCard Package=@package 
+                        OnLaunch="@( () => ContentBlocks.OnLaunch( package ) )"
+                        OnMenu="@( () => ContentBlocks.OnMenu( this, package ) )"></PackageCard>
+        }
+    </div> 
+
+</root>
+
+@code
+{
+    [Parameter]
+    public Package.ListResult.Grouping Group { get; set; }
+}

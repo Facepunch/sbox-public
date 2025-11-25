@@ -1,0 +1,104 @@
+@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+@using MenuProject.MenuUI.Components
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+
+<root class="organization-modal">
+	@if (Org is null) return;
+
+	<div class="org-window column center">
+		<div class="header-bar row">
+			<div class="left row">
+				<img class="large" src="@Org.Thumb" />
+				<div class="column" style="gap: 8px;">
+					<div class="title">@Org.Title</div>
+					<div class="pages" style="gap: 16px;">
+						<HeaderTab class=@(type == "game" ? "active" : "") href="/org/games" onclick=@(() => SetType("game")) title="Games" icon="sports_esports" />
+						<HeaderTab class=@(type == "map" ? "active" : "") href="/org/maps" onclick=@(() => SetType("map")) title="Maps" icon="map" />
+					</div>
+				</div>
+			</div>
+
+			<div class="right column" style="align-items: flex-end; justify-content: center; gap: 8px;">
+				<div class="search-bar">
+					<i>search</i>
+
+                    @{
+                        var placeholderText = $"Search {type}s";
+                        <TextEntry @ref="SearchEntry" Placeholder="@placeholderText" />
+                    }
+				</div>
+			</div>
+		</div>
+
+		<PackageList Query=@CurrentQuery OnSelected=@OnPackageSelected />
+
+	</div>
+                
+</root>
+
+@code
+{
+    internal static OrganizationModal LastOpened;
+
+    public Package.Organization Org { get; set; }
+    int packageCount = 0;
+    string type = "game";
+
+    TextEntry SearchEntry = default;
+    List<string> SelectedTags = new();
+
+	void OnPackageSelected(Package package)
+	{
+        package.OpenModal();
+	}
+
+	protected override void OnParametersSet()
+	{
+		LastOpened = this;
+	}
+
+	void SetType(string newType)
+	{
+		type = newType;
+	}
+
+	void ToggleTag ( string tag )
+	{
+		if ( SelectedTags.Contains( tag ) )
+		{
+			SelectedTags.Remove( tag );
+		}
+		else
+		{
+			SelectedTags.Add( tag );
+		}
+	}
+
+	string CurrentQuery
+	{
+		get
+		{
+			if ( Org == null )
+				return "";
+
+			var query = $"org:{Org.Ident} type:{type} " + ( SearchEntry?.Text ?? "" );
+			if ( SelectedTags.Count == 0 )
+				return query;
+
+			foreach ( var tag in SelectedTags )
+			{
+				query += $" +{tag}";
+			}
+			return query;
+		}
+	}
+
+	protected override int BuildHash ()
+	{
+		return HashCode.Combine( CurrentQuery, packageCount, SearchEntry?.Text );
+	}
+}

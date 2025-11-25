@@ -820,6 +820,36 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 			setup.Native.RenderToCubeTexture( texture.native, i );
 		}
 	}
+	
+	/// <summary>
+	/// Renders the scene from the camera position to a single face of a cube texture.
+	/// </summary>
+	internal void RenderToCubeTextureFace( Texture texture, int faceIndex, in ViewSetup config = default )
+	{
+		if ( texture is null || texture.native.IsNull )
+			return;
+
+		if ( texture.Depth != 6 ) throw new Exception( "Expected a texture with 6 depth slices for RenderToCubeTextureFace" );
+
+		if ( faceIndex < 0 || faceIndex >= 6 ) throw new ArgumentOutOfRangeException( nameof(faceIndex), "Face index must be between 0 and 5" );
+
+		var renderSize = texture.Size;
+
+		if ( renderSize.x <= 0 ) return;
+		if ( renderSize.y <= 0 ) return;
+
+		OnPreRender( renderSize );
+
+		//
+		// Adds a single view to the scene system
+		//
+		var setup = new CameraRenderer( "RenderToCubeTextureFace", _cameraId );
+		setup.Configure( this, config );
+
+		// Override rotation for the specific face
+		setup.Native.CameraRotation = (Rotation * CubeRotations[faceIndex]).Angles();
+		setup.Native.RenderToCubeTexture( texture.native, faceIndex );
+	}
 
 	private void RenderStereo( in ViewSetup config = default )
 	{

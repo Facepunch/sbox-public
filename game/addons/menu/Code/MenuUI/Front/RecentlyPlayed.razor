@@ -1,0 +1,56 @@
+@using System;
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@using MenuProject.MenuUI.Components;
+@inherits Panel;
+
+@if (Packages.Count == 0)
+    return;
+
+<root class="flex-column">
+
+    <h2><WithIcon Icon="history" Text="Keep Playing"></WithIcon></h2>
+
+    @foreach (var p in Packages.Take( 4 ) )
+    {
+        <MediaCardWide Image="@p.ThumbWide" OnPressImage="@( () => p.OpenModal() )">
+            <Content>
+                <div class="title clicky" onmousedown="@( ()=> p.OpenModal() )">@p.Title</div>
+                <div class="meta flex-row flex-gap-8">
+
+                    <Meta Title="Likes" Icon="thumb_up" Value="@p.VotesUp.KiloFormat()" />
+                    <Meta Title="Players" Icon="people" Value="@p.Usage.Total.Users.KiloFormat()" />
+
+                </div>
+            </Content>
+        </MediaCardWide>
+    }
+
+</root>
+
+@code{
+    List<Package> Packages = new();
+
+    public Package.ListResult.Grouping Group { get; set; }
+
+    void Select( Package package )
+    {
+        MenuHelpers.LaunchGame( package.FullIdent );
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await UpdateLobbies();
+    }
+
+    async Task UpdateLobbies()
+    {
+        var found = await Package.FindAsync( "type:game sort:used", 4, 0, default );
+
+        Packages.Clear();
+        Packages.AddRange(found.Packages);
+
+        StateHasChanged();
+    }
+}

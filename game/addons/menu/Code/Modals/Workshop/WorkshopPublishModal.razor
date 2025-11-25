@@ -1,0 +1,97 @@
+﻿@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.Modals;
+@using Menu;
+@using System;
+
+@if ( item != null && !item.IsFinished )
+{
+	<root>
+		<div class="inner progress">
+			<h1>Publishing File..</h1>
+
+			<div class="progress-bar">
+				<div class="fill" style="width: @( MathX.Clamp( item.PercentComplete, 0, 100 ) )%;"></div>
+			</div>
+		</div>
+	</root>
+	return;
+}
+
+@if ( item != null )
+{
+	<root>
+		<div class="inner progress">
+			<h1>Publishing Complete!</h1>
+
+			<div class="success">😎👍</div>
+
+			<div class="actions">
+				<Button class="clicky" Icon="link" @onclick=@ViewOnWeb>View On Web</Button>
+				<Button class="clicky" @onclick=@( () => CloseModal( true ) )>Done</Button>
+			</div>
+		</div>
+	</root>
+	return;
+}
+
+
+<root>
+
+	<div class="inner">
+
+		<div class="left">
+			<div class="thumbnail" @ref=ThumbnailPanel></div>
+		</div>
+
+		<div class="right">
+			
+			<h1>Publish to Workshop</h1>
+
+			<div class="form-group">
+
+				<div class="row">
+					<label>Title</label>
+					<TextEntry Value:bind="@Title"></TextEntry>
+				</div>
+
+				<div class="row">
+					<label>Description</label>
+					<TextEntry Multiline style="height: 100px;" Value:bind="@Description"></TextEntry>
+				</div>
+
+				<div class="row">
+					<label>Visibility</label>
+					
+					<ButtonGroup Value:bind="@Visibility" class="bg-round">
+
+					<ChildContent>
+						<Button class="clicky" Icon="public" Text="Public" Value="@Storage.Visibility.Public"></Button>
+						<Button class="clicky" Icon="handshake" Text="Friends" Value="@Storage.Visibility.FriendsOnly"></Button>
+						<Button class="clicky" Icon="lock" Text="Private" Value="@Storage.Visibility.Private"></Button>
+						<Button class="clicky" Icon="visibility_off" Text="Unlisted" Value="@Storage.Visibility.Unlisted"></Button>
+					</ChildContent>
+
+			</ButtonGroup>
+
+				</div>
+			</div>
+
+			<div class="actions">
+				<div class="clicky" Icon="people" @onclick="@PublishItem">Publish</div>
+			</div>
+
+		</div>
+
+
+	</div>
+
+
+</root>
+
+@code
+{
+
+}

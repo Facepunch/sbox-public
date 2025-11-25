@@ -1,0 +1,184 @@
+﻿@using Sandbox.UI
+@using Sandbox.Internal
+@using Sandbox
+@using System.Collections.Generic
+@namespace MenuProject.Settings
+@inherits Panel
+@page "/settings/about"
+
+<root class="page-inner">
+
+	<div class="page-content">
+		<h2>Third-Party Components</h2>
+		<div class="statement">@IndexData?.Statement</div>
+
+		@if (Components != null)
+		{
+			@foreach (var component in Components)
+			{
+				<div class="component glass with-padding">
+					<h3>@component.Name</h3>
+					@if (!string.IsNullOrEmpty(component.Comment))
+					{
+						<div class="info-row">
+							<span class="content">@component.Comment</span>
+						</div>
+					}
+					<div class="info-row">
+                        <span class="info-label">Copyright ©</span>
+						<span class="content">@string.Join("; ", component.Copyright ?? new List<string>())</span>
+					</div>
+					<div class="info-row">
+						<span class="info-label">License</span>
+						<span class="content">@component.License</span>
+					</div>
+					<div class="info-row">
+                        <span class="info-label">Homepage</span>
+                        <span class="content">@component.ProjectUrl</span>
+					</div>
+
+                    @if (component.License != "Public-Domain")
+                    {
+                        <Button class="license-button" onclick=@(() => ToggleLicense(component.Name)) Icon=@(LicenseTextChunks.ContainsKey(component.Name) ? "expand_more" : "navigate_next")>
+						    Full License Text
+					    </Button>
+                    }
+
+					@if (LicenseTextChunks.ContainsKey(component.Name))
+					{
+						<div class="license-text">
+							@foreach (var chunk in LicenseTextChunks[component.Name])
+							{
+								<div class="license-chunk">@chunk</div>
+							}
+						</div>
+					}
+				</div>
+			}
+		}
+		else
+		{
+			<div>Loading third-party component data...</div>
+		}
+	</div>
+</root>
+
+
+@code
+{
+    private DependencyIndex IndexData { get; set; }
+    private List<DependencyComponent> Components { get; set; }
+    private Dictionary<string, List<string>> LicenseTextChunks { get; set; } = new Dictionary<string, List<string>>();
+    private const int LinesPerChunk = 150;
+
+    protected override void OnAfterTreeRender(bool firstTime)
+    {
+        base.OnAfterTreeRender(firstTime);
+
+        if (!firstTime)
+            return;
+
+        LoadThirdPartyData();
+    }
+
+    private void LoadThirdPartyData()
+    {
+        IndexData = FileSystem.Mounted.ReadJson<DependencyIndex>("dependency_index.json");
+        // Sort components alphabetically by name
+        if (IndexData?.Components != null)
+        {
+            Components = IndexData.Components.OrderBy(c => c.Name).ToList();
+        }
+        else
+        {
+            Components = null;
+        }
+
+        StateHasChanged();
+    }
+
+    private void ToggleLicense(string componentName)
+    {
+        if (LicenseTextChunks.ContainsKey(componentName))
+        {
+            LicenseTextChunks.Remove(componentName);
+        }
+        else
+        {
+            LoadLicenseText(componentName);
+        }
+
+        StateHasChanged();
+    }
+
+    private void LoadLicenseText(string componentName)
+    {
+        if (Components == null)
+        {
+            Log.Warning("Components collection is null");
+            return;
+        }
+
+        var component = Components.FirstOrDefault(c => c.Name == componentName);
+        if (component == null)
+        {
+            Log.Warning($"Component {componentName} not found");
+            return;
+        }
+
+        string componentId = component.Name.ToLower().Replace(" ", "-");
+        string licenseFileName = $"licenses/{componentId}";
+
+        try
+        {
+            string text = FileSystem.Mounted.ReadAllText(licenseFileName);
+            
+            // Split the license text into chunks
+            var chunks = SplitIntoChunks(text, LinesPerChunk);
+            LicenseTextChunks[componentName] = chunks;
+            
+        }
+        catch (Exception ex)
+        {
+            Log.Warning($"Failed to load license: {ex.Message}");
+            LicenseTextChunks[componentName] = new List<string> { $"Unable to load license text from {licenseFileName}" };
+        }
+    }
+    
+    private List<string> SplitIntoChunks(string text, int linesPerChunk)
+    {
+        if (string.IsNullOrEmpty(text))
+            return new List<string> { "No license text available." };
+            
+        // Split the text into lines
+        var lines = text.Split('\n');
+        var chunks = new List<string>();
+        
+        // Create chunks of linesPerChunk lines each
+        for (int i = 0; i < lines.Length; i += linesPerChunk)
+        {
+            int count = Math.Min(linesPerChunk, lines.Length - i);
+            var chunk = string.Join("\n", lines.Skip(i).Take(count));
+            chunks.Add(chunk);
+        }
+        
+        return chunks;
+    }
+
+    public class DependencyIndex
+    {
+        public string Statement { get; set; }
+        public List<DependencyComponent> Components { get; set; }
+    }
+
+    public class DependencyComponent
+    {
+        public string Name { get; set; }
+        public string Comment { get; set; }
+        public List<string> UsedBy { get; set; }
+        public string License { get; set; }
+        public string ProjectUrl { get; set; }
+        public string Linkage { get; set; }
+        public List<string> Copyright { get; set; }
+    }
+}

@@ -1,0 +1,258 @@
+﻿@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+@using Sandbox.Modals;
+@using Sandbox.DataModel;
+
+<root>
+    <div class="window">
+        <div class="header">
+            <i>room_preferences</i>
+            <div class="title">
+                <label>@Package.Title</label><i>arrow_forward_ios</i><label>Create Game</label>
+            </div>
+        </div>
+
+        <div class="body">
+            <div class="tabs">
+                <div @onclick=@( () => CurrentTabName = null ) class="@ActiveClass( null )">General</div>
+
+                @foreach ( var group in Settings.GroupBy( x => x.Group ) )
+                {
+                    @if ( group.Key == "General" || group.Key == null ) continue;
+                    <div @onclick=@( () => CurrentTabName = group.Key ) class="@ActiveClass( group.Key )">@GetGroupName( group.Key )</div>
+                }
+            </div>
+
+            <div class="content">
+                @{ 
+                    var settings = Settings
+                        .Where( x => x.Group == CurrentTabName && Output.GameSettings.ContainsKey( x.Name ) )
+                        .ToList();
+                }
+
+                @if ( CurrentTabName == null || CurrentTabName == "General" )
+                {
+                    @if ( IsMultiplayerGame )
+                    {
+                        <div class="entry">
+                            <div class="is-label">Server Name</div>
+                            <div class="control">
+                                 <TextEntry Value:bind=@ServerName />
+                            </div>
+                        </div>
+
+                        <div class="entry">
+                            <div class="is-label">Privacy</div>
+                            <div class="control">
+                                 <DropDown Value:bind=@Privacy />
+                            </div>
+                        </div>
+
+                        <div class="entry">
+                            <div class="is-label">Max Players</div>
+                            <div class="control">
+                                <SliderControl class="glass with-grow" Value:bind=@Players Min=@MinPlayers Max=@MaxPlayers Step=@(1) ShowTextEntry=@true />
+                            </div>
+                        </div>
+                    }
+
+                    if ( NeedsMap() )
+                    {
+                        <div class="entry">
+                            <div class="is-label">Map</div>
+                            <div class="control">
+                                 <Button icon="map" onclick=@SelectMap>@(MapPackage?.Title ?? "Select Map")</Button>
+                            </div>
+                        </div>
+                    }
+                }
+
+                @foreach ( var e in settings )
+                {
+                    <div class="entry">
+                        <div class="is-label">@e.Title.ToTitleCase()</div>
+                        <div class="control">
+                            @if ( IsCheckbox( e ) )
+                            {
+                                <SwitchControl Value=@(Output.GameSettings[e.Name].ToBool()) OnValueChanged=@((bool x) => { Output.GameSettings[e.Name] = x.ToString(); }) />
+                            }
+                            else if ( IsNumeric( e, out var flValue ) )
+                            {
+                                @if ( e.Max is not null ) 
+                                {
+                                    <SliderControl Value=@(Output.GameSettings[e.Name].ToFloat()) OnValueChanged=@((float x) => { Output.GameSettings[e.Name] = x.ToString(); }) class="glass with-grow" Min="@(e.Min ?? 0)" Max="@(e.Max ?? 100)" Step="@(e.Step ?? 1)" />
+                                    <label>@Output.GameSettings[e.Name]</label>
+                                }
+                                else
+                                {
+                                    <TextEntry Value=@Output.GameSettings[e.Name] OnTextEdited=@((string x) => { Output.GameSettings[e.Name] = x; }) />
+                                }
+
+                            }
+                            else if ( HasOptions( e ) ) 
+                            {
+                                <DropDown Value=@Output.GameSettings[e.Name] ValueChanged=@((string x) => { Output.GameSettings[e.Name] = x; }) BuildOptions=@( () => GetOptions(e) )></DropDown>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="footer">
+            <Button class="primary" Icon="play_arrow" onclick=@OnSave>Start Game</Button>
+        </div>
+    </div>
+</root>
+
+@code
+{
+    public List<GameSetting> Settings { get; set; }
+    public Package MapPackage { get; set; }
+    public Sandbox.Network.LobbyPrivacy Privacy { get; set; }
+
+    public Action<CreateGameResults> OnComplete { get; set; }
+
+    CreateGameResults Output { get; set; }
+    Package Package { get; set; }
+
+    string CookieName => $"{Package.FullIdent}_create_game_config";
+    string CurrentTabName;
+
+    //
+    // Multiplayer Settings
+    // 
+
+    int MaxPlayers => Package.GetMeta<int>( "MaxPlayers", 1 );
+    int MinPlayers => Package.GetMeta<int>( "MinPlayers", 1 );
+    bool IsMultiplayerGame => Package.Tags.Contains( "multiplayer" ) || Package.GetMeta<int>( "MaxPlayers", 1 ) > 1;
+    string ServerName { get; set; }
+    int Players { get; set; }
+
+    public CreateGameModal( Sandbox.Modals.CreateGameOptions options )
+    {
+        Package = options.Package;
+        OnComplete = options.OnComplete;
+
+        //
+        // Check if we have a saved config
+        //
+        Output = Game.Cookies.Get<CreateGameResults>( CookieName, new()
+        {
+            MaxPlayers = MinPlayers,
+            ServerName = $"{Sandbox.Utility.Steam.PersonaName}'s game"
+        } );
+
+        //
+        // Apply config / defaults
+        //
+        Players = Output.MaxPlayers;
+        ServerName = Output.ServerName;
+        Settings = Package.GetMeta( "GameSettings", new List<GameSetting>() );
+
+        SetMap( Output.MapIdent ?? Package.GetValue( "DefaultMap", "" ) );
+    }
+
+    private async void SetMap( string ident )
+    {
+        if ( !string.IsNullOrWhiteSpace( ident ) )
+        {
+            MapPackage = await Package.FetchAsync( ident, false );
+        }
+    }
+
+    List<Option> GetOptions( GameSetting e )
+    {
+        var options = new List<Option>();
+
+        foreach ( var o in e.Options )
+        {
+            options.Add( new Option( o.Name.ToTitleCase(), o.Name ) { Icon = o.Icon } );
+        }
+
+        return options;
+    }
+
+    public bool HasOptions( GameSetting entry )
+    {
+        return entry.Options is not null && entry.Options.Count > 0;
+    }
+
+    public bool IsNumeric( GameSetting entry, out float flValue )
+    {
+        flValue = default;
+
+        if ( float.TryParse( entry.Default, out var fl ) )
+        {
+            flValue = fl;
+            return true;
+        }
+        return false;
+    }
+
+    public bool IsCheckbox( GameSetting entry )
+    {
+        // 0 or 1, no min, no max, no steps. Could easily be a bool
+        var canPassAsBool = ( entry.Default.Equals( "0" ) || entry.Default.Equals( "1" ) ) && entry.Min is null && entry.Max is null && entry.Step is null;
+
+        if ( canPassAsBool ) return true;
+
+        if ( bool.TryParse( entry.Default, out var b ) )
+            return true;
+
+        return false;
+    }
+
+    bool NeedsMap()
+    {   
+        if ( Package is null ) return false;
+        if ( Package.GetValue( "NeedsMap", false ) ) return true;
+
+        // legacy
+        var launchMode = Package.GetMeta( "LaunchMode", "default" );
+        return string.Equals( launchMode, "launcher", StringComparison.OrdinalIgnoreCase );
+    }
+
+    void SelectMap()
+    {
+        var mapTarget = Package.GetValue( "MapTarget", Package.FullIdent );
+
+        Game.Overlay.ShowPackageSelector( $"type:map sort:popular target:{mapTarget}", (pkg) =>
+        {
+            MapPackage = pkg;
+            Output = Output with { MapIdent = pkg.FullIdent };
+            StateHasChanged();
+        } );
+    }
+
+    private string GetGroupName( string group )
+    {
+        if ( string.IsNullOrEmpty( group ) )
+        {
+            return "General";
+        }
+        return group;
+    }
+
+    public void OnSave()
+    {
+        Output = Output with { MaxPlayers = Players, ServerName = ServerName, Privacy = Privacy };
+
+        Game.Cookies.Set( CookieName, Output );
+
+        OnComplete?.Invoke( Output );
+        CloseModal( true );
+    }
+
+    string ActiveClass( string tab )
+    {
+        if ( tab == "General" && CurrentTabName == "General" ) return "active";
+        if ( CurrentTabName == tab ) return "active";
+        return default;
+    }
+}

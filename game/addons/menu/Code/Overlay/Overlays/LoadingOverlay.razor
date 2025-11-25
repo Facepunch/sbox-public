@@ -1,0 +1,40 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+<root>
+
+    @if (!string.IsNullOrWhiteSpace(LoadingScreen.Media))
+    {
+        <div class="background" style="background-image: url( @LoadingScreen.Media );"></div>
+    }
+    else
+    {
+        <div class="title">loading</div>
+    }
+
+    <div class="loading-panel">       
+
+        <span class="loading-info">
+            <div class="status">@LoadingScreen.Title</div>
+            @if ( !string.IsNullOrWhiteSpace( LoadingScreen.Subtitle ) )
+            {
+                <div class="eta">@LoadingScreen.Subtitle</div>
+            }
+        </span>
+
+        <div class="cancel-button" onclick=@MenuUtility.CancelLoading>Cancel</div>
+    </div>
+
+</root>
+
+@code
+{
+
+    protected override int BuildHash() => System.HashCode.Combine( LoadingScreen.IsVisible, LoadingScreen.Title, LoadingScreen.Subtitle, LoadingScreen.Media );
+
+    public override void Tick()
+    {
+        SetClass( "visible", LoadingScreen.IsVisible );
+    }
+}

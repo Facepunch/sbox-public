@@ -1,0 +1,21 @@
+@namespace Sandbox.UI.Dev.Stats
+@inherits Panel
+
+<root class="statbox"> 
+
+    <title>Render Stats</title>
+
+    <StatValue Value="@Sandbox.Diagnostics.FrameStats.Current.ShadowMaps.ToMetric()" Title="Shadow Maps"></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.FrameStats.Current.UnshadowedLightsInView.ToMetric()" Title="Unshadowed Lights"></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.FrameStats.Current.ShadowedLightsInView.ToMetric()" Title="Shadowed Lights"></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.FrameStats.Current.DrawCalls.ToMetric()" Title="Draw Calls"></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.FrameStats.Current.TrianglesRendered.ToMetric()" Title="Triangles Rendered"></StatValue>
+    <StatValue Value="@Sandbox.Diagnostics.FrameStats.Current.ObjectsRendered.ToMetric()" Title="Objects Rendered"></StatValue>
+
+</root>
+
+
+@code
+{
+    protected override int BuildHash() => HashCode.Combine(Sandbox.Diagnostics.PerformanceStats.LastSecond);
+}

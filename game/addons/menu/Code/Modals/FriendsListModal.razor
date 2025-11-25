@@ -1,0 +1,75 @@
+﻿@using Sandbox.Modals
+@using Sandbox
+@using MenuProject.Social
+
+@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+
+<root class="friendslist-modal">
+	<div class="inner">
+
+        <div class="header">
+            <h2><i>people</i>Friends</h2>
+        </div>
+
+		<div class="friends-list">			
+			@* TODO: It'd be really great if we could group together our friends in parties here *@
+			@foreach ( var friend in Friends )
+			{
+			    <FriendEntry Friend=@friend></FriendEntry>
+			}
+
+            @if( !Friends.Any() )
+            {
+                <p>Nothing to show!</p>
+            }
+
+		</div>
+	</div>
+</root>
+
+@code
+{
+    public IEnumerable<Friend> Friends => MenuUtility.Friends.Where( ShouldShow )
+        .OrderBy( GetGroup )
+        .ThenBy( x => x.Name );
+
+    FriendsListModalOptions Options;
+
+    public FriendsListModal(FriendsListModalOptions options)
+    {
+        Options = options;
+    }
+
+    private bool ShouldShow(Friend friend)
+    {
+        if (friend.IsMe) return false;
+
+        if (friend.IsOnline && friend.IsPlayingThisGame)
+            return true;
+
+        if (Options.ShowOnlineMembers && friend.IsOnline)
+            return true;
+
+        if (Options.ShowOfflineMembers && !friend.IsOnline)
+            return true;
+
+        return false;
+    }
+
+    private int GetGroup( Friend friend ) 
+    {
+        if ( friend.IsOnline && friend.IsPlayingThisGame ) return 1;
+        if ( friend.IsOnline && friend.IsPlayingAGame ) return 2;
+        if ( friend.IsAway || friend.IsBusy || friend.IsSnoozing ) return 4;
+        if ( friend.IsOnline ) return 3;
+        return 99;
+    }
+
+
+    [Event("friend.change")]
+    public void SteamFriends_OnPersonaStateChange(Friend friend)
+    {
+        StateHasChanged();
+    }
+}

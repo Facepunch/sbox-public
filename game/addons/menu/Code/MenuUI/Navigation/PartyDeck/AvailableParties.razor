@@ -1,0 +1,61 @@
+﻿@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace MenuProject.Social
+
+@if (Found is null || Found.Length == 0)
+    return;
+
+
+<root>
+    @foreach ( PartyRoom.Entry party in Found )
+    {
+        var c = "btn party";
+        var tt = $"{party.Name}";
+        if (party.IsPlaying ) 
+        {
+            c += " playing";
+            tt += $" - playing {party.GameTitle}";
+        }
+
+        <div class="@c" tooltip="@tt" style="background-image: url( avatar:@party.OwnerId )" onclick=@( () => party.Join() )>
+            <div class="membercount">@party.Members</div>
+        </div>
+    }
+</root>
+
+@code
+{
+
+    PartyRoom.Entry[] Found;
+    RealTimeSince timeSinceUpdate = 1000;
+
+    protected override void OnParametersSet()
+    {
+       
+    }
+
+    async Task UpdatePartyList()
+    {
+        var found = await PartyRoom.Find();
+
+        Found = found
+                .Where( x => !x.IsFull && x.OwnerId != 0 )
+                .OrderByDescending( x => x.Members ).Take( 8 ).ToArray();
+
+        StateHasChanged();
+    }
+
+    public override void Tick()
+    {
+        if ( !IsVisible ) return;
+
+        if ( timeSinceUpdate > 10 )
+        {
+            timeSinceUpdate = 0;
+            _ = UpdatePartyList();
+        }
+    }
+
+}

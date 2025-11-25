@@ -1,0 +1,66 @@
+﻿@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+@using Sandbox.Network
+
+<root>
+
+    <MetricButton Interactive 
+        Active="@Package.Interaction.Favourite"
+        @onclick="@ToggleFavourite"
+        Tooltip="Favourited" 
+        Icon="favorite" 
+        Value="@Package.Favourited.ToMetric()" />
+
+    <MetricButton Interactive 
+        Active="@( Package.Interaction.Rating == 0 )"
+        @onclick="@VoteUp"
+        Tooltip="Thumbs Up"
+        Icon="thumb_up" 
+        Value="@Package.VotesUp.ToMetric()" />
+
+    <MetricButton Interactive 
+        Active="@( Package.Interaction.Rating == 1 )" 
+         @onclick="@VoteDown"
+        Tooltip="Thumbs Down" 
+        Icon="thumb_down" 
+        Value="@Package.VotesDown.ToMetric()" />
+
+    <MetricButton 
+        Tooltip="@($"{Package.Reviews.Score.ToString( "N0" )}% from {Package.Reviews.Total} Reviews")" 
+        Icon="reviews" 
+        Value="@Package.Reviews.Score.ToString( "0\\%" )" />
+
+    <MetricButton Tooltip="Total Players" Icon="sports_kabaddi" Value="@Package.Usage.Total.Users.ToMetric()" />
+    <MetricButton Tooltip="Total Sessions" Icon="calendar_month" Value="@Package.Usage.Total.Sessions.ToMetric()" />
+
+    <MetricButton Tooltip="Last Updated" Icon="update" Value="@((DateTime.UtcNow - Package.Updated ).Humanize( 1 ))" />
+
+</root>
+
+@code
+{
+    public Package Package {get;set;}
+    protected override int BuildHash() => System.HashCode.Combine(Package, Package.Interaction);
+
+    async void VoteUp()
+    {
+        await Package.SetVoteAsync(true);
+        StateHasChanged();
+    }
+
+    async void VoteDown()
+    {
+        await Package.SetVoteAsync(false);
+        StateHasChanged();
+    }
+
+    async void ToggleFavourite()
+    {
+        await Package.SetFavouriteAsync(!Package.Interaction.Favourite);
+        StateHasChanged();
+    }
+}

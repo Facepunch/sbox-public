@@ -1,0 +1,61 @@
+﻿@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Popup
+@namespace MenuProject.Social
+
+<root>
+
+    <div class="arrow"><i>arrow_drop_down</i></div>
+
+    <h2>Create a Party</h2>
+
+    <row>
+        <div class="control-label">Party Name</div>
+        <div class="control"><TextEntry Value:bind=@PartyTitle></TextEntry></div>
+    </row>
+
+    <row>
+        <div class="control-label">Capacity</div>
+        <div class="control">
+            <TextEntry Numeric=@true Value:bind=@MemberCount MinValue=@(2.0f) MaxValue=@(64.0f)></TextEntry>
+            </div>
+    </row>
+
+    <row>
+        <div class="control-label">Public</div>
+        <div class="control"><Checkbox Value:bind=@IsPublic /></div>
+    </row>    
+   
+
+    <div class="footer">
+        <Button class="clicky primary" Icon="add" @onmousedown="@Create">Create</Button>
+    </div>
+
+</root>
+
+@code
+{
+    public string PartyTitle { get; set; } = "My Party";
+    public int MemberCount { get; set; } = 8;
+    public bool IsPublic { get; set; } = true;
+
+    public CreatePartyMenu()
+    {
+        PartyTitle = $"{Sandbox.Utility.Steam.PersonaName}'s party";
+
+        PartyTitle = Game.Cookies.Get("party.title", PartyTitle);
+        MemberCount = Game.Cookies.Get("party.capacity", MemberCount);
+    }
+
+    async Task Create()
+    {
+        Game.Cookies.Set("party.title", PartyTitle);
+        Game.Cookies.Set("party.capacity", MemberCount);
+
+        var room = await PartyRoom.Create(MemberCount, Title, IsPublic);
+
+        Delete();
+    }
+
+}

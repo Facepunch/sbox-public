@@ -1,0 +1,47 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.AvatarEditor;
+@namespace MenuProject.AvatarEditor
+@inherits Panel
+
+<root>
+
+    @if ( Clothing.AllowTintSelect )
+    {
+        var currentTint = Manager.GetTint(Clothing);
+
+        <ColorSwatchPicker Value:bind="@TintValue" Swatches="@GetSwatches()"></ColorSwatchPicker>
+    }
+
+</root>
+
+@code
+{
+    [Property] public Clothing Clothing { get; set; }
+
+    AvatarEditManager Manager => Scene.GetAll<AvatarEditManager>().First();
+
+    protected override int BuildHash() => System.HashCode.Combine(Clothing);
+
+    ColorSwatch[] GetSwatches()
+    {
+        int squares = 36;
+        List<ColorSwatch> swatches = new List<ColorSwatch>();
+
+        for (int i = 0; i < squares; i++)
+        {
+            var f = (float)i / squares;
+            var c = Clothing.TintSelection.Evaluate( f );
+            swatches.Add(new ColorSwatch { Value = f, Color = c });
+        }
+
+        return swatches.ToArray();
+    }
+
+    public float TintValue
+    {
+        get => Manager.GetTint(Clothing);
+        set => Manager.SetTint(Clothing, value );
+    }
+
+}

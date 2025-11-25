@@ -1,0 +1,211 @@
+﻿@using Sandbox.UI;
+@using Sandbox;
+@using Sandbox.Engine.Settings;
+@namespace MenuProject.Settings
+@inherits Panel
+@page "/settings/video"
+
+<root class="page-inner">
+
+    <div class="page-content">
+
+        <h2><i>camera</i>Modes</h2>
+
+        <row>
+            <div class="is-label">Video Mode</div>
+            @{
+                var c = Sandbox.Game.IsEditor ? "disabled" : "";
+                c = $"glass with-grow with-click {c}";
+                <ButtonGroup class="glass with-grow" ButtonClass="@c" Value:bind=@VideoMode Options=@VideoModeOptions></ButtonGroup>
+            }
+        </row>
+        
+        <row class="with-gaps">
+            <div class="is-label">Resolution</div>
+            @{
+                var c2 = Sandbox.Game.IsEditor ? "disabled" : "";
+                c2 = $"glass with-grow {c2}";
+                <DropDown class="@c2" Value:bind=@Resolution BuildOptions=@GetResolutionOptions></DropDown>
+            }
+        </row>
+
+        <row class="with-gaps">
+            <div class="is-label">VSync</div>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@VSyncOptions Value:bind=@VSync></ButtonGroup>
+        </row>
+
+        <h2><i>brush</i>Quality</h2>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Anti-Aliasing
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@AntiAliasingOptions Value:bind=@AntiAliasing></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Texture Detail
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@TextureDetailOptions Value:bind=@TextureDetail></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Volumetric Fog
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@VolumetricFogQualityOptions Value:bind=@VolumetricFogQuality></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Post Processing
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@PostProcessOptions Value:bind=@PostProcessQuality></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Motion Blur Strength
+            </cell>
+            <SliderControl class="glass with-grow" Value:bind=@MotionBlurScale Min="@(0.0f)" Max="@(1.0f)" Step="@(0.01f)" ShowTextEntry="@true"></SliderControl>
+        </row>
+    </div>
+
+     <SettingsFooter OnCancel=@OnCancel OnRestore=@OnRestore OnApply=@OnApply></SettingsFooter>
+
+</root>
+
+
+@code
+{
+    public string VideoMode { get; set; }
+    public string Resolution { get; set; }
+    public MultisampleAmount AntiAliasing { get; set; }
+    public bool VSync { get; set; }
+    public TextureQuality TextureDetail { get; set; }
+    public VolumetricFogQuality VolumetricFogQuality { get; set; }
+    public PostProcessQuality PostProcessQuality { get; set; }
+    public float MotionBlurScale { get; set; }
+
+    List<Option> VideoModeOptions = new List<Option>()
+    {
+        new Option("Windowed", "web_asset", "window"),
+        new Option("Borderless", "fullscreen", "borderless"),
+        new Option("Exclusive", "monitor", "exclusive"),
+    };
+
+    List<Option> AntiAliasingOptions = new List<Option>()
+    {
+     //   new Option("None", MultisampleAmount.MultisampleNone),
+        new Option("2x", MultisampleAmount.Multisample2x),
+        new Option("4x", MultisampleAmount.Multisample4x),
+        new Option("8x", MultisampleAmount.Multisample8x),
+    };
+
+    List<Option> VSyncOptions = [new("Off", false), new("On", true)];
+
+    List<Option> TextureDetailOptions = [new("Low", Sandbox.Engine.Settings.TextureQuality.Low), new("Medium", Sandbox.Engine.Settings.TextureQuality.Medium), new("High", Sandbox.Engine.Settings.TextureQuality.High)];
+    List<Option> VolumetricFogQualityOptions = [new("Low", VolumetricFogQuality.Low), new("Medium", VolumetricFogQuality.Medium), new("High", VolumetricFogQuality.High)];
+    List<Option> PostProcessOptions = [new("Low", PostProcessQuality.Low), new("Medium", PostProcessQuality.Medium), new("High", PostProcessQuality.High)];
+
+    List<Option> GetResolutionOptions()
+    {
+        var options = new List<Option>();
+
+        var smallestAspect = 1.5f;
+
+        var displayModes = MenuUtility.RenderSettings.DisplayModes( false )
+                                        .Where( x => x.Width >= 1280 ) // Fuck small screen sizes
+                                        .Where( x => ((float)x.Width / (float)x.Height) >= smallestAspect ); // fuck small aspect ratios
+
+        foreach ( var res in displayModes.GroupBy( x => $"{x.Width}x{x.Height}" ) )
+        {
+            options.Add(new Option(res.Key, res.Key));
+        }
+
+        return options;
+    }
+
+    protected override void OnAfterTreeRender(bool firstTime)
+    {
+        base.OnAfterTreeRender(firstTime);
+
+        if (!firstTime)
+            return;
+
+        ReadSettings();
+    }
+
+    public void ReadSettings()
+    {
+        VideoMode = "window";
+        if (MenuUtility.RenderSettings.Borderless) VideoMode = "borderless";
+        if (MenuUtility.RenderSettings.Fullscreen) VideoMode = "exclusive";
+
+        Resolution = $"{MenuUtility.RenderSettings.ResolutionWidth}x{MenuUtility.RenderSettings.ResolutionHeight}";
+        VSync = MenuUtility.RenderSettings.VSync;
+        AntiAliasing = MenuUtility.RenderSettings.AntiAliasQuality;
+
+        TextureDetail = MenuUtility.RenderSettings.TextureQuality;
+        VolumetricFogQuality = MenuUtility.RenderSettings.VolumetricFogQuality;
+        PostProcessQuality = MenuUtility.RenderSettings.PostProcessQuality;
+        MotionBlurScale = MenuUtility.RenderSettings.MotionBlurScale;    }
+
+    public void OnRestore()
+    {
+        MenuUtility.RenderSettings.ResetVideoConfig();
+    }
+
+    public void OnCancel()
+    {
+        ReadSettings();
+    }
+
+    public void OnApply()
+    {
+        if (!Game.IsEditor)
+        {
+            switch (VideoMode)
+            {
+                case "window":
+                    {
+                        MenuUtility.RenderSettings.Fullscreen = false;
+                        MenuUtility.RenderSettings.Borderless = false;
+                        break;
+                    }
+
+                case "borderless":
+                    {
+                        MenuUtility.RenderSettings.Fullscreen = false;
+                        MenuUtility.RenderSettings.Borderless = true;
+                        break;
+                    }
+
+                case "exclusive":
+                    {
+                        MenuUtility.RenderSettings.Fullscreen = true;
+                        MenuUtility.RenderSettings.Borderless = false;
+                        break;
+                    }
+            }
+
+            if (VideoMode != "borderless")
+            {
+                var parts = Resolution.Split("x", 2).Select(x => x.ToInt()).ToArray();
+                MenuUtility.RenderSettings.ResolutionWidth = parts[0];
+                MenuUtility.RenderSettings.ResolutionHeight = parts[1];
+            }
+        }
+
+        MenuUtility.RenderSettings.VSync = VSync;
+        MenuUtility.RenderSettings.AntiAliasQuality = AntiAliasing;
+
+        MenuUtility.RenderSettings.TextureQuality = TextureDetail;
+        MenuUtility.RenderSettings.VolumetricFogQuality = VolumetricFogQuality;
+        MenuUtility.RenderSettings.PostProcessQuality = PostProcessQuality;
+        MenuUtility.RenderSettings.MotionBlurScale = MotionBlurScale;
+
+        MenuUtility.RenderSettings.Apply();
+    }
+}

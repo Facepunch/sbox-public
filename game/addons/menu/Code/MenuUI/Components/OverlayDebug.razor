@@ -1,0 +1,66 @@
+@using System;
+@using Sandbox.UI;
+@using Sandbox;
+@using Sandbox.Modals;
+@using Menu;
+@using Sandbox.Menu;
+
+<root>
+	<div class="toggle" @onclick=@( () => { _showdebug = !_showdebug; } )>Overlay Debug</div>
+	@if ( _showdebug )
+	{
+		<div class="children">
+
+			<h2>MenuOverlay</h2>
+			<div class="option" @onclick=@( () => { MenuOverlay.Message( "Message Title" ); } )>Message</div>
+			<div class="option" @onclick=@( () => { MenuOverlay.Question( "Want some crisps?", "people", () => {}, () => {} ); } )>Question</div>
+
+			<h2>ModalSystem</h2>
+			<div class="option" @onclick=@( () => { ModalSystem.Instance.Game( "facepunch.sandbox" ); } )>Game Modal</div>
+			<div class="option" @onclick=@( () => { ModalSystem.Instance.Map( "facepunch.flatgrass" ); } )>Map Modal</div>
+			<div class="option" @onclick=@( () => { ModalSystem.Instance.Package( "facepunch.flatgrass" ); } )>Package Modal</div>
+			<div class="option" @onclick=@( () => { ModalSystem.Instance.Settings(); } )>Settings</div>
+			<div class="option" @onclick=@( () => { ModalSystem.Instance.PauseMenu(); } )>Pause Menu</div>
+
+			<div class="option" @onclick=@( () => { ModalSystem.Instance.PackageSelect( "type:model", p => {}, f => {} ); } )>Package Select</div>
+			<div class="option" @onclick=@( () => { ModalSystem.Instance.WorkshopPublish( MockWorkshopItem() ); } )>Workshop Publish</div>
+
+		</div>
+	}
+</root>
+
+@code
+{
+	bool _showdebug;
+
+	WorkshopPublishOptions MockWorkshopItem()
+	{
+		var o = new WorkshopPublishOptions();
+
+		o.Title = "My Test File";
+		
+		o.StorageEntry = Storage.CreateEntry( "tests" );
+		o.StorageEntry.Files.WriteAllText( "/banana/orange/test.txt", "This is a test file!" );
+		o.StorageEntry.Files.WriteAllText( "/banana/shouldnotcopy.txt", "This is a test file!" );
+		o.StorageEntry.Files.WriteAllText( "/banana/orange/models/files/somethingelse.txt", "This is a test file!" );
+		o.StorageEntry.Files.WriteAllText( "/banana/orange/models/files/buttes.txt", "This is a test file!" );
+
+		var thumb = new Bitmap( 512, 512 );
+		thumb.Clear( Color.Random );
+
+		for ( int i=0; i< 100; i++ )
+		{
+			thumb.SetFill( Color.Random );
+			thumb.DrawCircle( Vector2.Random * 512, Random.Shared.Float( 5, 10 ) );
+		}
+
+		o.Thumbnail = thumb;
+
+		o.KeyValues ??= new();
+		o.KeyValues["type"] = "test";
+		o.Tags = [ "test", "menu", "placeholder" ];
+		o.Metadata = "This is a string. It could be Json. It could be anything";
+
+		return o;
+	}
+}

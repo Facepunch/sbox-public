@@ -1,0 +1,105 @@
+﻿@using Sandbox.UI;
+@using Sandbox.Internal;
+@using Sandbox;
+@namespace MenuProject.Settings
+@inherits Panel
+@page "/settings/input"
+
+<root class="page-inner">
+
+    <div class="page-content">
+
+        <h2><i>mouse</i>Mouse</h2>
+
+        <row>
+            <div class="is-label">Mouse Sensitivity</div>
+            <SliderControl Min=@(0) Max=@(20) Step=@(0.1f) Value:bind=@MouseSensitivity ShowTextEntry="@true"></SliderControl>
+        </row>
+
+        <row>
+            <div class="is-label">Invert Mouse Pitch</div>
+            <ButtonGroup ButtonClass="glass with-grow with-click" Options=@InvertMousePitchOptions Value:bind=@InvertMousePitch></ButtonGroup>
+        </row>
+
+        <row>
+            <div class="is-label">Invert Mouse Yaw</div>
+            <ButtonGroup ButtonClass="glass with-grow with-click" Options=@InvertMouseYawOptions Value:bind=@InvertMouseYaw></ButtonGroup>
+        </row>
+
+        <h2><i>sports_esports</i>Controller</h2>
+
+        <row>
+            <div class="is-label">Look Yaw Speed</div>
+            <SliderControl Min=@(0) Max=@(360) Value:bind=@ControllerLookSpeedYaw ShowTextEntry="@true"></SliderControl>
+        </row>
+
+        <row>
+            <div class="is-label">Look Pitch Speed</div>
+            <SliderControl Min=@(0) Max=@(360) Value:bind=@ControllerLookSpeedPitch ShowTextEntry="@true"></SliderControl>
+        </row>
+	</div>
+
+     <SettingsFooter OnCancel=@OnCancel OnRestore=@OnRestore OnApply=@OnApply></SettingsFooter>
+
+</root>
+
+
+@code
+{
+	public float MouseSensitivity { get; set; }
+
+	public float ControllerLookSpeedYaw { get; set; }
+	public float ControllerLookSpeedPitch { get; set; }
+
+	public bool InvertMousePitch { get; set; }
+	public bool InvertMouseYaw { get; set; }
+
+	List<Option> InvertMousePitchOptions = new List<Option>()
+	{
+		new Option("Off", false),
+		new Option("On", true),
+	};
+
+	List<Option> InvertMouseYawOptions = new List<Option>()
+	{
+		new Option("Off", false),
+		new Option("On", true),
+	};
+
+	protected override void OnAfterTreeRender(bool firstTime)
+	{
+		base.OnAfterTreeRender(firstTime);
+
+		if (!firstTime)
+			return;
+
+        OnCancel();
+	}
+
+    public void OnRestore()
+	{
+		ConsoleSystem.SetValue("sensitivity", 5);
+		ConsoleSystem.SetValue("controller_look_speed_yaw", 270);
+		ConsoleSystem.SetValue("controller_look_speed_pitch", 160);
+		ConsoleSystem.SetValue("mouse_pitch_inverted", false);
+		ConsoleSystem.SetValue("mouse_yaw_inverted", false);
+	}
+
+    public void OnCancel()
+    {
+        MouseSensitivity = ConsoleSystem.GetValue("sensitivity").ToFloat();
+        ControllerLookSpeedYaw = ConsoleSystem.GetValue("controller_look_speed_yaw").ToFloat();
+        ControllerLookSpeedPitch = ConsoleSystem.GetValue("controller_look_speed_pitch").ToFloat();
+		InvertMousePitch = ConsoleSystem.GetValue("mouse_pitch_inverted").ToBool();
+		InvertMouseYaw = ConsoleSystem.GetValue("mouse_yaw_inverted").ToBool();
+    }
+
+    public void OnApply()
+    {
+        ConsoleSystem.SetValue( "sensitivity", MouseSensitivity );
+        ConsoleSystem.SetValue( "controller_look_speed_yaw", ControllerLookSpeedYaw );
+		ConsoleSystem.SetValue( "controller_look_speed_pitch", ControllerLookSpeedPitch );
+		ConsoleSystem.SetValue( "mouse_pitch_inverted", InvertMousePitch );
+		ConsoleSystem.SetValue( "mouse_yaw_inverted", InvertMouseYaw );
+    }
+}

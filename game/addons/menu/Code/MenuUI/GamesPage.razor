@@ -1,0 +1,114 @@
+﻿@using MenuProject.MenuUI.Components
+@using MenuProject.MenuUI.ContentBlock
+@using MenuProject.MenuUI.Layout
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.UI;
+@page "/games/all"
+@inherits Panel
+
+<root class="root">
+
+    <Page>
+
+        <Left>
+
+            <div class="flex-column flex-gap-32">
+
+                <div class="flex-column flex-gap-16">
+                    <GamePackageSortOrder Value:bind="@filterOrder" ></GamePackageSortOrder> 
+                </div>
+
+                <TextEntry @ref="SearchEntry" placeholder="Search games..."></TextEntry>
+
+                @if ( Result?.Properties is not null && Result.Properties.Length > 0 )
+                {
+                    <div class="flex-column flex-gap-16">
+                        <h2><WithIcon Icon="filter_alt" Text="Filters"></WithIcon></h2>
+                        <PackagePropertyFilter Result=@Result Selected="@SelectedTags"></PackagePropertyFilter>
+                    </div>
+                }
+
+                @if ( Result?.Facets is not null)
+                {
+                    foreach (var facet in Result.Facets)
+                    {
+                        <div class="flex-column flex-gap-16">
+                            <h2><WithIcon Icon="@facet.Entries.FirstOrDefault()?.Icon" Text="@facet.Title"></WithIcon></h2>
+                            <PackageCategoryFilter Result=@Result Selected="@SelectedCategory" Facet="@facet"></PackageCategoryFilter>
+                        </div>
+                    }
+                }
+
+				<div class="flex-column flex-gap-16">
+					<h2><WithIcon Icon="tag" Text="Tags"></WithIcon></h2>
+					<PackageTagFilter Result=@Result Selected="@SelectedTags"></PackageTagFilter>
+				</div>
+
+			</div>
+
+		</Left>
+
+		<Body>
+			<PackageList @ref=PackageList ShowFilters="@false" Query=@($"type:game sort:{filterOrder} {GetQuery()}")  OnSelected=@Selected OnMenu=@Menu Take=@(200)></PackageList>
+		</Body>
+	</Page>
+</root>
+
+@code {
+    string filterOrder = "rankweek";
+
+    TextEntry SearchEntry = default;
+
+    List<string> SelectedTags = new();
+    Dictionary<string, string> SelectedCategory = new();
+
+    PackageList PackageList = default;
+
+    Package.FindResult Result => PackageList?.Result;
+
+    public GamesPage()
+    {
+        // Default to showing VR games in VR mode
+        if ( Application.IsVR )
+        {
+            SelectedTags.Add("vr");
+        }
+    }
+
+    void OnOrderChanged(string value)
+    {
+        filterOrder = value;
+    }
+
+    string GetQuery()
+    {
+        string tagString = SearchEntry?.Text ?? "";
+        foreach (var tag in SelectedTags)
+        {
+            tagString += $" +{tag}";
+        }
+
+        foreach (var cat in SelectedCategory)
+        {
+            tagString += $" {cat.Key}:{cat.Value}";
+        }
+
+        return tagString;
+    }
+
+    protected override int BuildHash()
+    {
+        return System.HashCode.Combine(Result, GetQuery(), filterOrder);
+    }
+
+    void Selected(Package package)
+    {
+        ContentBlocks.OnLaunch(package);
+    }
+
+    void Menu(Package package)
+    {
+        ContentBlocks.OnMenu(this, package);
+    }
+}

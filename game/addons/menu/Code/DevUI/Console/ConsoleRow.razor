@@ -1,0 +1,45 @@
+@using Sandbox
+@using Sandbox.UI
+@namespace Sandbox.UI.Dev
+@inherits Panel
+
+<root class="@classes">
+    <div class="time">@Event.Time.ToString("hh:mm:ss")</div>
+    <div class="message">@Event.Message</div>
+</root>
+
+
+@code
+{
+    static ConsoleRow selectedLine;
+
+    public LogEvent Event;
+
+    public bool AutoDelete;
+    public RealTimeUntil TimeUntilDelete;
+
+    public Action<LogEvent> OnEntryClicked;
+
+    public string classes => $"consolerow {(selectedLine==this?"highlight":"")} {Event.Level.ToString()}";
+
+    internal void SetLogEvent(LogEvent e)
+    {
+        Event = e;
+        StateHasChanged();
+    }
+
+    protected override void OnClick(MousePanelEvent e)
+    {
+        OnEntryClicked?.Invoke(Event);
+        selectedLine = this;
+    }
+
+    protected override void OnMouseDown(MousePanelEvent e)
+    {
+        base.OnMouseDown(e);
+
+        e.StopPropagation();
+    }
+
+    protected override int BuildHash() => HashCode.Combine( selectedLine );
+}

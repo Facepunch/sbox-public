@@ -1,0 +1,25 @@
+@namespace Sandbox.UI.Dev
+@using Sandbox.UI.Dev.Stats
+@inherits Panel
+
+<root id="DeveloperMode"> 
+    <PerformanceStats></PerformanceStats>
+    <GarbageStats></GarbageStats>
+    <RenderStats></RenderStats>
+    <SceneStats></SceneStats>
+    
+    @if ( Networking.IsActive )
+    {
+	    <NetworkStats></NetworkStats>
+	    
+	    @if ( !Networking.IsHost )
+	    {
+		    <HostStats></HostStats>
+	    }
+    }
+</root>
+
+@code
+{
+	protected override int BuildHash() => HashCode.Combine( Networking.IsActive );
+}

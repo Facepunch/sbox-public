@@ -1,0 +1,63 @@
+@using System;
+@using MenuProject.MenuUI.Components
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@inherits Panel;
+
+
+<root>
+
+    <MediaCardWide Image="@Thumb" OnPressImage="@OnPressCard">
+        <Content>
+            <div class="message">
+                
+                @if ( Entry.Player is not null )
+                {
+                    <PlayerLink Target="@Entry.Player"></PlayerLink>
+                }
+
+                <div onmousedown="@OnPressLink" class="text clicky">@Text</div>
+            </div>
+            <div class="meta">@Entry.Timestamp.Humanize()</div>
+        </Content>
+    </MediaCardWide>
+
+</root>
+
+@code{
+
+    public Sandbox.Services.Feed Entry;
+
+    string Thumb;
+    string Text;
+
+    protected override void OnParametersSet()
+    {
+        Thumb = Entry.Package.ThumbWide;
+        Text = Entry.Text;
+
+        Text = Text.Replace( "{package}", Entry.Package.Title );
+    }
+
+    void OnPressCard()
+    {
+        Entry.Package?.OpenModal();
+    }
+
+    void OnPressLink()
+    {
+        if ( Entry.Url.StartsWith( "/u" ) )
+        {
+            var parts = Entry.Url.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if ( parts.Length == 3 )
+            {
+                Game.Overlay.ShowPlayer(Entry.Player.Id, parts[2]);
+                return;
+            }
+        }
+
+        Entry.Package?.OpenModal();
+    }
+
+}

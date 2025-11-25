@@ -1,0 +1,35 @@
+﻿@inherits Sandbox.UI.Panel
+@page "/home"
+@using MenuProject.MenuUI.Front
+@using MenuProject.MenuUI.Front.Achievements
+@using MenuProject.MenuUI.Front.Feed
+@using MenuProject.MenuUI.Layout
+@using Sandbox;
+@using Sandbox.UI;
+
+<root class="root">
+    <Page>
+
+        <Left>
+
+            <RecentlyPlayed></RecentlyPlayed>
+
+            <hr />
+            <FavouritedGames></FavouritedGames>
+
+        </Left>
+
+        <Body>
+
+            <div class="blocks">
+
+                <div class="block"><PlayerFeed></PlayerFeed></div>
+                <div class="block"><AchievementDeck></AchievementDeck></div>
+
+            </div>
+
+        </Body>
+    </Page>
+
+
+</root>

@@ -1,0 +1,83 @@
+﻿@namespace MenuProject.Modals.MapModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+@using Sandbox.Network
+
+<root>
+
+    <div class="left">
+
+        @if ( LobbyCount > 0 )
+        {
+            <Button icon="list" class="@(LobbyCount == 0 ? "disabled" : "")" onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
+        }
+
+    </div>
+
+    <div class="right">
+
+		@if (Modal.HasFullPackage)
+		{
+			@if(GamePackage is null)
+			{
+                <Button icon="sports_esports" onclick=@SelectGame>Select Game</Button>
+			}
+			else
+			{
+                <Button icon="sports_esports" onclick=@SelectGame>@GamePackage.Title</Button>
+			}
+
+            var bc = $"play {(GamePackage is null ? "disabled" : "")}";
+            <Button icon="play_arrow" class="@bc" onclick=@OnPlay>Launch Map</Button>
+		}
+		else
+		{
+            <Button icon="play_arrow" class="play disabled" onclick=@OnPlay>Launch Map</Button>
+		}
+
+
+    </div>
+
+</root>
+
+@code
+{
+    public MapModal Modal {get;set;}
+    public Package Package {get;set;}
+    public static Package GamePackage { get; set; } = null;
+    public static Package MapPackage { get; set; } = null;
+
+    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, LobbyCount );
+
+    int LobbyCount => Modal?.Lobbies?.Count() ?? 0;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var target = this.Package.GetMeta<string>("ParentPackage", null);
+        if (string.IsNullOrWhiteSpace(target)) target = "facepunch.sandbox";
+
+        GamePackage = await Package.FetchAsync( target, false );
+    }
+
+    void OnPlay()
+    {
+		MenuUtility.CloseAllModals();
+		MenuHelpers.CreateGameWithMap(GamePackage.FullIdent, Package);
+	}
+
+	void SelectGame()
+	{
+		Game.Overlay.ShowPackageSelector("type:game sort:popular +mapselect", (pkg) => {
+			GamePackage = pkg;
+			StateHasChanged();
+		});
+	}
+
+    void OpenLobbyList()
+    {
+        Game.Overlay.ShowServerList(new Sandbox.Modals.ServerListConfig(null, Package.FullIdent));
+    }
+}

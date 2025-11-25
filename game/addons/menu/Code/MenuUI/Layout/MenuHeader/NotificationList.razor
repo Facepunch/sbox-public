@@ -1,0 +1,56 @@
+@using System;
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@using Sandbox.Menu;
+@inherits Popup
+
+@if (Notices is null)
+{
+    <root>
+        <div class="note">...</div>
+    </root>
+    return;
+}
+
+@if (Notices.Length == 0)
+{
+    <root>
+        <div class="note">No notifications</div>
+    </root>
+    return;
+}
+
+<root>
+
+    <div class="inner">
+    @foreach (var notice in Notices )
+    {
+        <NotificationRow Notice=@notice></NotificationRow>
+    }
+    </div>
+
+</root>
+
+
+@code 
+{
+    Sandbox.Services.Notification[] Notices;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Update();
+    }
+
+    async Task Update()
+    {
+        Notices = await MenuUtility.GetNotifications( 20 );
+
+        if ( Notices is not null && Notices.Any( x => x.Read == null ) )
+        {
+            await MenuUtility.MarkNotificationsRead();
+        }
+
+        StateHasChanged();
+    }
+}

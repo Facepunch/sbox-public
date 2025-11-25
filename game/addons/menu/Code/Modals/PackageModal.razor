@@ -1,0 +1,26 @@
+﻿@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+
+<root>
+    <WebPanel class="browser" Url=@Url></WebPanel>          
+</root>
+
+@code
+{
+	public string PackageIdent { get; set; }
+	public string Url;
+	public string Page;
+
+	protected override void OnParametersSet()
+	{
+        Url = $"https://sbox.game/{PackageIdent.Replace('.', '/')}";
+		if(!string.IsNullOrEmpty(Page))
+		{
+			Url += "/" + Page;
+		}
+	}
+}

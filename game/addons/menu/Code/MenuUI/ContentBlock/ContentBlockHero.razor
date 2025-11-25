@@ -1,0 +1,76 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.UI;
+@inherits Panel
+
+@if (Current == null) return;
+
+<root class="hero bgcolor@BgColor">
+
+    @if (BackgroundUrl != null)
+    {
+        <div class="background-media" @key="@BackgroundUrl" style="background-image: url( @BackgroundUrl )"></div>
+    }
+
+    <div class="content">
+
+        <div class="left" onclick="@Clicked">
+            <div class="icon"><img src="@Current.Thumb" /></div>
+            <div class="title">@Current.Title</div>
+            <div class="description">@Current.Summary</div>
+            <div class="buttons">
+
+            </div>
+        </div>
+
+    </div>
+
+</root>
+
+@code
+{
+    [Parameter]
+    public Package.ListResult.Grouping Group { get; set; }
+
+    [Parameter]
+    public Package Current { get; set; }
+
+    string BackgroundUrl;
+    int BgColor = 0;
+
+    protected override async Task OnParametersSetAsync()
+    {
+
+        Current = Group.Packages.OrderBy( x => Guid.NewGuid() ).FirstOrDefault();
+        Current = await Package.FetchAsync( Current.FullIdent, false );
+        UpdateBackgroundMedia();
+        StateHasChanged();
+    }
+
+    void UpdateBackgroundMedia()
+    {
+        var bg = Current.VideoThumb ?? Current.ThumbWide;
+
+        var ss = Current.Screenshots?.OrderBy(x => Guid.NewGuid()).FirstOrDefault()?.Url;
+        if (ss != null)
+        {
+            bg = ss;
+        }
+
+        var video = Current.Screenshots?.Where(x => x.IsVideo).OrderBy(x => Guid.NewGuid()).FirstOrDefault()?.Url;
+        if (video != null)
+        {
+            video = video.Replace("medium.mp4", "high.mp4");
+            bg = video;
+        }
+
+        BackgroundUrl = bg;
+        BgColor = Random.Shared.Int(0, 4);
+
+    }
+
+    void Clicked()
+    {
+        ContentBlocks.OnLaunch(Current);
+    }
+}

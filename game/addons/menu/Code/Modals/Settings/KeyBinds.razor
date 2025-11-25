@@ -1,0 +1,74 @@
+﻿@using Sandbox.UI;
+@using Sandbox;
+@using MenuProject.Settings;
+@namespace MenuProject.Settings
+@inherits Panel
+@page "/settings/keybinds"
+
+<root class="page-inner">
+
+    <div class="page-content">
+
+        @{
+
+            var inputs = Game.InGame ? Input.GetActions() : MenuUtility.Input.GetCommonInputs();
+            var groups = inputs.GroupBy(x => x.GroupName);
+        }
+
+        @foreach ( var group in groups )
+        {
+            <h2>@group.Key</h2>
+
+            @foreach ( InputAction button in group )
+            {
+                <row>
+                    <div class="is-label">@(button.Title ?? button.Name)</div>
+
+                    <div>
+                        <KeyBind BindGroup=@BindGroup Action=@button Slot=@(0) />
+                        <KeyBind BindGroup=@BindGroup Action=@button Slot=@(1) />
+                    </div>
+                </row>
+            }
+        }
+
+	</div>
+
+    <SettingsFooter OnCancel=@OnCancel OnRestore=@OnRestore OnApply=@OnApply></SettingsFooter>
+
+</root>
+
+
+@code
+{
+    public string BindGroup => Game.InGame ? Game.Ident : "common";
+
+    public void OnCancel()
+    {
+        foreach ( var kb in Descendants.OfType<KeyBind>() )
+        {
+            kb.Cancel();
+        }
+    }
+
+    public void OnRestore()
+    {
+        MenuUtility.Input.ResetBinds( BindGroup );
+        MenuUtility.Input.SaveBinds( BindGroup );
+    }
+
+    public void OnApply()
+    {
+        foreach ( var kb in Descendants.OfType<KeyBind>() )
+        {
+            kb.Apply();
+        }
+
+        MenuUtility.Input.SaveBinds( BindGroup );
+    }
+
+    protected override int BuildHash()
+    {
+        return HashCode.Combine( BindGroup );
+    }
+}

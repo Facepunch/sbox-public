@@ -1,0 +1,184 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@using System;
+@namespace MenuProject.Settings
+@inherits Panel
+@page "/settings/storage"
+
+<root class="page-inner">
+
+    <div class="page-content">
+
+        <h2>Storage Usage</h2>
+
+        <div>
+
+            <div class="file-surround">
+
+                @foreach (var entry in SizeBreakdown.OrderByDescending( x => x.Value ) )
+                {
+                    <div class="file-category file-type-@entry.Key" style="flex-grow: @entry.Value;">
+                        <div class="title">@entry.Key</div>
+                        <div class="size">@entry.Value.FormatBytes()</div>
+                    </div>
+                }
+
+            </div>
+
+        </div>
+
+        <column>
+
+            <div class="file-surround">
+
+                <div class="file-category file-type-recent" style="flex-grow: @(1 + (Size - OldSize));">
+                </div>
+
+                @if (OldSize > 1024)
+                {
+                    <div class="file-category file-type-older" style="flex-grow: @OldSize;">
+                    </div>
+                }
+
+            </div>
+
+            <div class="summary">
+
+                <div class="used">
+                    <span>@Size.FormatBytes()</span>
+                    <span>total storage used</span>
+                </div>
+
+                @if (OldSize > 1024)
+                {
+                    <div class="freeable">
+                        <span>@OldSize.FormatBytes()</span>
+                        <span>ready to delete</span>
+                    </div>
+                }
+
+            </div>
+
+        </column>
+
+	</div>
+
+    <div class="page-footer">
+
+        @if (refreshTask == null || refreshTask.IsCompleted)
+        {
+            <Button Icon="restore" @onclick=@TryRefresh>Refresh</Button>
+        }
+
+        @if (clearTask?.IsCompleted ?? true)
+        {
+            <Button Icon="delete" @onclick=@ClearUnused>Delete Unused</Button>
+        }
+    </div>
+
+</root>
+
+@code
+{
+    /// <summary>
+    /// The default dead period. If a file hasn't been used in this many days assume it's dead
+    /// </summary>
+    const int DaysAgo = 7;
+
+    Task refreshTask;
+    Task clearTask;
+
+    Dictionary<string, long> SizeBreakdown = new Dictionary<string, long>();
+
+    long Files;
+    long Size;
+    long OldSize;
+
+    protected override void OnAfterTreeRender(bool firstTime)
+    {
+        base.OnAfterTreeRender(firstTime);
+
+        if (!firstTime)
+            return;
+
+        TryRefresh();
+    }
+
+    /// <summary>
+    /// Delete everything that hasn't been used for x days, and then refresh
+    /// </summary>
+    async Task ClearUnused()
+    {
+        clearTask = MenuUtility.Storage.FlushAsync(DateTime.Now.AddDays(-DaysAgo));
+        await clearTask;
+        clearTask = null;
+
+        TryRefresh();
+    }
+
+    /// <summary>
+    /// Refresh the file usage (if there isn't already a refresh in progress)
+    /// </summary>
+    void TryRefresh()
+    {
+        if (refreshTask != null && !refreshTask.IsCompleted ) return;
+
+        refreshTask = Refresh();
+    }
+
+    async Task Refresh()
+    {
+        SizeBreakdown.Clear();
+        Files = 0;
+        Size = 0;
+        OldSize = 0;
+
+        DateTime cutoff = DateTime.Now.AddDays(-DaysAgo);
+
+        StateHasChanged();
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        foreach (var entry in MenuUtility.Storage.GetStorageFiles())
+        {
+            Files++;
+            Size += entry.Size;
+
+            if (entry.LastAccessed < cutoff)
+                OldSize += entry.Size;
+
+            var type = "Other";
+
+            if (entry.Filename.Contains(".vpk", StringComparison.OrdinalIgnoreCase)) type = "Map";
+            else if (entry.Filename.Contains(".vtex", StringComparison.OrdinalIgnoreCase)) type = "Texture";
+            else if (entry.Filename.Contains(".shader", StringComparison.OrdinalIgnoreCase)) type = "Shader";
+            else if (entry.Filename.Contains(".png", StringComparison.OrdinalIgnoreCase)) type = "Image";
+            else if (entry.Filename.Contains(".jpg", StringComparison.OrdinalIgnoreCase)) type = "Image";
+            else if (entry.Filename.Contains(".gif", StringComparison.OrdinalIgnoreCase)) type = "Image";
+            else if (entry.Filename.Contains(".mp4", StringComparison.OrdinalIgnoreCase)) type = "Video";
+            else if (entry.Filename.Contains(".vmt", StringComparison.OrdinalIgnoreCase)) type = "Material";
+            else if (entry.Filename.Contains(".vmdl", StringComparison.OrdinalIgnoreCase)) type = "Model";
+            else if (entry.Filename.Contains(".vsnd", StringComparison.OrdinalIgnoreCase)) type = "Sound";
+
+            if (type == "Other")
+            {
+             //   type = System.IO.Path.GetExtension( entry.Filename );
+            }
+
+            if (!SizeBreakdown.ContainsKey(type))
+                SizeBreakdown[type] = 0;
+
+            SizeBreakdown[type] += entry.Size;
+
+
+            if (sw.ElapsedMilliseconds > 1 )
+            {
+                sw.Restart();
+                await Task.DelayRealtime( 1 );
+                StateHasChanged();
+            }
+        }
+
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,49 @@
+@using System;
+@using MenuProject.MenuUI.Components
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@inherits Panel;
+
+@if (Packages.Count == 0)
+    return;
+
+<root class="flex-column">
+
+    <h2><WithIcon Icon="favorite" Text="Your Favourites"></WithIcon></h2>
+
+    @foreach (var p in Packages )
+    {
+        <MediaCardWide Image="@p.ThumbWide" OnPressImage="@( () => p.OpenModal() )">
+            <Content>
+                <div class="title clicky" onmousedown="@( ()=> p.OpenModal() )">@p.Title</div>
+                <div class="meta flex-row flex-gap-8">
+
+                    <Meta Title="Likes" Icon="thumb_up" Value="@p.VotesUp.KiloFormat()" />
+                    <Meta Title="Players" Icon="people" Value="@p.Usage.Total.Users.KiloFormat()" />
+
+                </div>
+            </Content>
+        </MediaCardWide>
+    }
+
+</root>
+
+@code{
+    List<Package> Packages = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Update();
+    }
+
+    async Task Update()
+    {
+        var found = await Package.FindAsync("type:game sort:favourite", 10, 0, default);
+
+        Packages.Clear();
+        Packages.AddRange(found.Packages);
+
+        StateHasChanged();
+    }
+}

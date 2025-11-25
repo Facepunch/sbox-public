@@ -1,0 +1,28 @@
+﻿@namespace Menu
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+@using MenuProject.Modals.PackageModalComponents;
+
+@{
+    var c = Active ? "active" : "";
+    if (Interactive) c += " interactive";
+}
+
+<root class="metricbutton @c">
+
+    <i>@Icon</i>
+    <label class="value">@Value</label>
+
+</root>
+
+@code
+{
+	[Parameter] public string Icon { get; set; }
+	[Parameter] public string Value { get; set; }
+    [Parameter] public bool Active { get; set; }
+    [Parameter] public bool Interactive { get; set; }
+
+}

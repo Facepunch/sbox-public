@@ -1,0 +1,102 @@
+﻿@using Sandbox.Modals;
+@using Sandbox.UI;
+@using Sandbox;
+@using Sandbox.Network;
+
+<root class="row">
+
+	<div class="title">@Server.Name</div>
+	<div class="game" @onclick=@OpenGameInfo>
+		@if (string.IsNullOrEmpty(GamePackage?.Thumb))
+		{
+			<i>sports_esports</i>
+		    <label>@Server.Game</label>
+		}
+		else
+		{
+			<img src="@GamePackage.Thumb" />
+		    <label>@GamePackage.Title</label>
+		}
+	</div>
+	<div class="map" onclick=@OpenMapInfo>
+		@if (string.IsNullOrEmpty(MapPackage?.Thumb))
+		{
+			<i>map</i>
+		    <label>@Server.Map</label>
+
+		}
+		else
+		{
+			<img src="@MapPackage.Thumb" />
+		    <label>@(MapPackage.Title ?? Server.Map)</label>
+		}
+	</div>
+	<div class="members">
+		<div class="current">@Server.Members</div>
+		<div class="sep">/</div>
+		<div class="maxmembers">@Server.MaxMembers</div>
+	</div>
+
+	<div class="controls" onclick=@( () => OnLobbySelected( Server ) )>
+		<Button class="clicky" icon="launch">Join</Button>
+	</div>
+
+</root>
+
+@code
+{
+    public LobbyInformation Server { get; set; }
+
+    Package GamePackage;
+    Package MapPackage;
+
+    protected override void OnAfterTreeRender(bool firstTime)
+    {
+        base.OnAfterTreeRender(firstTime);
+
+        if(firstTime)
+        {
+            GetThumbnails();
+        }
+    }
+
+    void OpenMapInfo()
+    {
+        if (MapPackage is null) return;
+
+        Game.Overlay.ShowPackageModal( MapPackage.FullIdent );
+    }
+
+	async void GetThumbnails()
+	{
+		if (Server.Game.Contains(".") && !Server.Game.Contains("local."))
+		{
+			var gamePackage = await Package.FetchAsync(Server.Game, true);
+			if (gamePackage.Public)
+			{
+				GamePackage = gamePackage;
+			}
+		}
+
+		if (Server.Map.Contains(".") && !Server.Map.Contains(".vmap"))
+		{
+			var mapPackage = await Package.FetchAsync(Server.Map, true);
+			if (mapPackage.Public)
+			{
+				MapPackage = mapPackage;
+			}
+		}
+	}
+
+	void OnLobbySelected( LobbyInformation lobby )
+	{
+		Networking.Connect( lobby.LobbyId );
+	}
+
+	void OpenGameInfo()
+	{
+		Game.Overlay.ShowGameModal(Server.Game);
+	}
+
+	protected override int BuildHash() => System.HashCode.Combine(GamePackage?.Thumb, MapPackage?.Thumb);
+}

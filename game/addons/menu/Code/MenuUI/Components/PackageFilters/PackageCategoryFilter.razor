@@ -1,0 +1,63 @@
+@using System;
+@using MenuProject.MenuUI.Components
+@using Sandbox;
+@using System.Threading
+@namespace Sandbox.UI
+
+@if (Result?.Tags is null)
+    return;
+
+<root>
+    @foreach ( Package.Facet.Entry entry in Facet.Entries.OrderBy(x => x.Title))
+    {
+        var clss = IsSelected(entry.Name) ? "active" : "";
+
+        <div class="option @clss" @onmousedown=@( () => ToggleTag( entry.Name ) )>
+            <WithIcon Icon="@entry.Icon" Text="@entry.Title"></WithIcon>
+            <div class="count">@entry.Count</div>
+        </div>
+
+        @if (entry.Children is not null && entry.Children.Count > 0 )
+        {
+            <div class="children">
+                @foreach( var c in entry.Children )
+                {
+                    clss = IsSelected(c.Name) ? "active" : "";
+                    <div class="option @clss" @onmousedown=@( () => ToggleTag( c.Name ) )>
+                        <WithIcon Icon="@c.Icon" Text="@c.Title"></WithIcon>
+                        <div class="count">@c.Count</div>
+                    </div>
+                }
+            </div>
+        }
+    }
+</root>
+
+@code
+{
+    public Package.FindResult Result { get; set; }
+    public Package.Facet Facet { get; set; }
+    public Dictionary<string, string> Selected { get; set; } = new();
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+    }
+
+    bool IsSelected(string name) => Selected.ContainsKey(Facet.Name) && Selected[Facet.Name] == name;
+
+    void ToggleTag(string tag)
+    {
+        if (IsSelected(tag))
+        {
+            Selected.Remove(Facet.Name);
+        }
+        else
+        {
+            Selected[Facet.Name] = tag;
+        }
+    }
+
+    protected override int BuildHash() => HashCode.Combine(Result, Selected?.Count());
+
+}

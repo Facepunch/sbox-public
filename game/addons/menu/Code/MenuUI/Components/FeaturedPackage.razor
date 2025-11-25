@@ -1,0 +1,114 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox.Menu
+
+<root>
+
+    <div class="screenshot" onclick="@OnClicked" style="background-image: url( @GetScreenshot() )">
+
+        <div class="stats">
+
+            <div class="stat">
+                <i>person</i>
+                <span>@Package.Usage.Total.Users</span>
+            </div>
+
+        </div>
+
+        <div class="gradient"></div>
+
+    </div>
+
+    <div class="avatar" style="background-image: url( @Package.Thumb )"></div>
+
+    <div class="infocard">
+        <div class="title" onclick=@OnNamePressed>@Package.Title</div>
+        <div class="org" onclick=@OnOrgPressed>@Package.Org.Title</div>
+        <div class="description">@Package.Summary</div>
+
+        <div class="ratings">
+            <div class="up">
+                <i>thumb_up</i>
+                <span>@Package.VotesUp</span>
+            </div>
+            <div class="up">
+                <i>favorite</i>
+                <span>@Package.Favourited</span>
+            </div>
+        </div>
+
+        <Button onclick="@OnClicked" class="primary" icon="play_arrow">Play Now</Button>
+
+    </div>
+
+</root>
+
+
+@code
+{
+    public Package Package { get; set; }
+    public bool Large { get; set; }
+    public bool List { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Package = await Package.FetchAsync(Package.FullIdent, false);
+        StateHasChanged();
+    }
+
+
+    string GetScreenshot()
+    {
+        var video = Package.Screenshots?.Where(x => x.IsVideo).FirstOrDefault();
+        if (video is not null) return video.Url;
+
+        var ss = Package.Screenshots?.FirstOrDefault();
+        if (ss is not null) return ss.Url;
+
+        if (Package.VideoThumb is not null)
+            return Package.VideoThumb;
+
+        return Package.Thumb;
+    }
+
+    void OnClicked()
+    {
+        Sound.Play("ui.button.press");
+        Package.OpenModal();
+    }
+
+    void OnImageClicked()
+    {
+        Package.OpenModal();
+    }
+
+	void OnNamePressed()
+	{
+        Package.OpenModal();
+	}
+
+	void OnOrgPressed()
+	{
+        Game.Overlay.ShowOrganizationModal(Package.Org);
+	}
+
+	string FormatHoursPlayed()
+	{
+		double minutes = Package.Interaction.Seconds / 60.0;
+
+		if (minutes < 60)
+			return minutes.ToString("0m");
+
+		double hours = Package.Interaction.Seconds / 60.0 / 60.0;
+
+		if (hours > 10)
+			return hours.ToString("0h");
+
+		return hours.ToString("0.#h");
+	}
+
+	public string UpdatedString()
+	{
+		return Package.Updated.LocalDateTime.ToRelativeTimeString();
+	}
+}

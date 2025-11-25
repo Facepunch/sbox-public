@@ -1,0 +1,15 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject.AvatarEditor
+@inherits Panel
+
+<root>
+    <div class="avatar" style="background-image: url( @Icon?.Trim('/') );"></div>
+</root>
+
+@code
+{
+    [Parameter] public string Icon { get; set; }
+
+    protected override int BuildHash() => System.HashCode.Combine(Icon);
+}

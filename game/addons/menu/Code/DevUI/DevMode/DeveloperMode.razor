@@ -1,0 +1,76 @@
+@namespace Sandbox.UI.Dev
+@inherits Panel
+
+<root id="DeveloperMode"> 
+
+    <div class="left">
+        <ConvarToggle Title="Profiler Overlay" ConVar="overlay_profile"></ConvarToggle>
+        <ConvarToggle Title="Frame Stats" ConVar="overlay_frame"></ConvarToggle>
+        <ConvarToggle Title="Allocations Overlay" ConVar="overlay_alloc"></ConvarToggle>
+        <ConvarToggle Title="Network Graph" ConVar="overlay_network_graph"></ConvarToggle>
+        <ConvarToggle Title="Network Messages" ConVar="overlay_network_calls"></ConvarToggle>
+		<ConvarToggle Title="PostProcess Stack" ConVar="overlay_pp"></ConvarToggle>
+        <ConvarToggle Title="Physics Debug" ConVar="physics_debug_draw"></ConvarToggle>
+        <ConvarToggle Title="Overlay Console Output" ConVar="consoleoverlay" On="True" Off="False"></ConvarToggle>
+    </div>
+
+    <div class="center">
+        <Console @ref="Console"></Console>
+    </div>
+
+    <div class="right">
+        <StatsContainer></StatsContainer>
+    </div>
+
+</root>
+
+
+@code
+{
+    static DeveloperMode Singleton;
+
+    public Console Console { get; set; }
+
+    public static bool Open { get; protected set; }
+
+    public DeveloperMode()
+    {
+        Singleton = this;
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        SetClass("open", Open);
+    }
+
+
+    void Toggle()
+    {
+        Open = !Open;
+
+        if (Open)
+        {
+            Console.Input.Focus();
+           // Event.Run("developermode.open");
+        }
+        else
+        {
+            Console.Input.Blur();
+          //  Event.Run("developermode.close");
+        }
+
+        FindRootPanel().SetClass("developermode", Open);
+
+        MenuUtility.SkipAllTransitions();
+    }
+
+    public override Panel FindPopupPanel() => this;
+
+    [MenuConCmd("con_toggle")]
+    static void ToggleConsole()
+    {
+        Singleton?.Toggle();
+    }
+}

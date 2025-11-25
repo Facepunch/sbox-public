@@ -1,0 +1,65 @@
+﻿
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@namespace MenuProject.Settings
+
+<root>
+
+    <div class="left">
+        <Button class="clicky" Icon="restore" onclick=@RestoreDefaults>Restore Defaults</Button>
+    </div>
+
+    <div class="right">
+        <Button class="clicky" Icon="restore" onclick=@CancelChanges>Revert</Button>
+        <Button class="clicky primary" Icon="save" onclick=@ApplySettings>Save Changes</Button>
+    </div>
+
+</root>
+
+@code 
+{
+    [Parameter] public Action OnRestore { get; set; }
+    [Parameter] public Action OnCancel { get; set; }
+    [Parameter] public Action OnApply { get; set; }
+
+    bool Dirty;
+    TimeUntil TimeUntilEnabled = 0.1f;
+
+    protected override void OnAfterTreeRender(bool firstTime)
+    {
+        base.OnAfterTreeRender(firstTime);
+
+        if (!firstTime)
+            return;
+
+        // Uckkk
+        Parent?.AddEventListener("onchange", () => Dirty = TimeUntilEnabled <= 0);
+    }
+
+    protected override int BuildHash()
+    {
+        return Dirty.GetHashCode();
+    }
+
+    void ApplySettings()
+    {
+        Dirty = false;
+        TimeUntilEnabled = 0.1f;
+        OnApply?.Invoke();
+    }
+
+    void CancelChanges()
+    {
+        Dirty = false;
+        TimeUntilEnabled = 0.1f;
+        OnCancel?.InvokeWithWarning();
+    }
+
+    void RestoreDefaults()
+    {
+        CancelChanges();
+        OnRestore?.InvokeWithWarning();
+        CancelChanges();
+    }
+}

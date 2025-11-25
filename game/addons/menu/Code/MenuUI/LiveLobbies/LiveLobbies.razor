@@ -1,0 +1,74 @@
+﻿@inherits Sandbox.UI.Panel
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Menu
+
+@if (all.Count == 0)
+	return;
+
+<root>
+
+	<h2>Live Games</h2>
+
+	<div class="lobby-list">
+    @foreach (var l in all.GroupBy( x => x.Game ).Take( 10 ).Select( x => x.OrderByDescending( x => x.Members ).First() ) )
+    {
+		<LiveLobbyCard Lobby="@l"></LiveLobbyCard>
+    }
+	</div>
+
+</root>
+
+@code
+{
+	List<Sandbox.Network.LobbyInformation> all = new();
+	RealTimeSince timeSinceUpdate = 0;
+
+	override protected void OnParametersSet()
+	{
+		base.OnParametersSet();
+
+		timeSinceUpdate = 0;
+		_ = RefreshLobbies();
+	}
+
+	override public void Tick()
+	{
+		base.Tick();
+
+		if ( timeSinceUpdate > 5 )
+		{
+			timeSinceUpdate = 0;
+			_ = RefreshLobbies();
+		}
+	}
+
+	async Task RefreshLobbies()
+	{
+		var filters = new Dictionary<string, string>();
+        var lobbies = await Networking.QueryLobbies(filters, false);
+
+        foreach( var l in lobbies )
+        {
+            var i = all.FindIndex(x => x.LobbyId == l.LobbyId);
+
+            if (i >= 0)
+            {
+                all[i] = l;
+                continue;
+            }            
+
+            all.Insert( 0, l);
+        }
+
+        foreach (var l in all.ToArray() )
+        {
+            if (lobbies.Any(x => x.LobbyId == l.LobbyId))
+                continue;
+
+            all.RemoveAll( x => x.LobbyId == l.LobbyId );
+        }
+
+        StateHasChanged();
+    }
+}
