@@ -87,7 +87,7 @@ public abstract partial class GameObjectSystem : IDisposable
 	}
 
 	/// <summary>
-	/// When implementing an ITraceProvider, the most importannt thing to keep in mind 
+	/// When implementing an ITraceProvider, the most important thing to keep in mind 
 	/// is that the call to DoTrace should be thread safe. This might be called from 
 	/// multiple threads at once, so you better watch out.
 	/// </summary>
