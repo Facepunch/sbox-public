@@ -15,7 +15,7 @@ public abstract partial class Collider
 	internal PhysicsBody PhysicsBody => Rigidbody.IsValid() ? Rigidbody.PhysicsBody : KeyBody;
 
 	/// <summary>
-	/// Called when a Rigidbody is enabled. It calls this on all downstream colliders. On our part, we look at who out nearest
+	/// Called when a Rigidbody is enabled. It calls this on all downstream colliders. On our part, we look at who our nearest
 	/// parent rigidbody is and add ourselves to that.
 	/// </summary>
 	internal void OnRigidBodyEnabled( Rigidbody rigidbody )
