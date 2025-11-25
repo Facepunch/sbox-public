@@ -333,6 +333,13 @@ file class EditorSubToolBarWidget : VerticalToolbarGroup
 		if ( _parentTool is null )
 			return;
 
+		// Create and add tool widget if the tool provides one.
+		var toolWidget = _parentTool.CreateToolWidget();
+		if ( toolWidget.IsValid() )
+		{
+			_toolPanel.Add( toolWidget );
+		}
+
 		if ( _parentTool.Tools is null || !_parentTool.Tools.Any() )
 			return;
 
@@ -347,12 +354,6 @@ file class EditorSubToolBarWidget : VerticalToolbarGroup
 
 			var toolButton = new EditorSubToolButton( subtool, _parentTool );
 			Layout.Add( toolButton );
-		}
-
-		var w = _parentTool.CreateToolWidget();
-		if ( w.IsValid() )
-		{
-			_toolPanel.Add( w );
 		}
 	}
 

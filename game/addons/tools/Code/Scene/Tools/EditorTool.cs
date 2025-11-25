@@ -190,6 +190,7 @@ public class EditorTool : IDisposable
 
 	/// <summary>
 	/// Create a widget for this tool to be added next to the left toolbar.
+	/// NOTE: This is only called for main tools, not subtools.
 	/// </summary>
 	public virtual Widget CreateToolWidget()
 	{
