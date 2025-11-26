@@ -257,6 +257,9 @@ PS
 			Material p = Material::Init( i );
 			p.Albedo = vColor.rgb;
 
+			// We want to support per-instance tint color as well
+			vTintColor *= i.vVertexColor.rgb;
+
 			if ( ShaderVersion >= 1 )
 			{
 				p.Normal = TransformNormal( DecodeHemiOctahedronNormal( vNormalTexel.rg ), i.vNormalWs, i.vTangentUWs, i.vTangentVWs );

@@ -143,7 +143,7 @@ Material Material::From(PixelInput i)
         float4 vColor = g_tColor.Sample(TextureFiltering, i.vTextureCoords.xy);
         float4 vNormalTs = g_tNormal.Sample(TextureFiltering, i.vTextureCoords.xy);
         float4 vRMA = g_tRma.Sample(TextureFiltering, i.vTextureCoords.xy);
-        float3 vTintColor = g_flTintColor;
+        float3 vTintColor = g_flTintColor * i.vVertexColor.rgb;
         float3 vEmission = float3(0.0f, 0.0f, 0.0f); // Default emission value
 
         material.Albedo = vColor.rgb * vTintColor.rgb;
