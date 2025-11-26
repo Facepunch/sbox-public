@@ -77,6 +77,14 @@ partial class GameObjectNode : TreeNode<GameObject>
 		Color iconColor = Theme.TextControl.WithAlpha( 0.6f );
 		Color overlayIconColor = iconColor;
 
+		// If an editor icon has been registered for this GameObject, prefer that in the hierarchy
+		var registryIcon = Editor.GameObjectIconRegistry.GetIcon( Value );
+		if ( !string.IsNullOrEmpty( registryIcon ) )
+		{
+			icon = registryIcon;
+			iconColor = Theme.Text;
+		}
+
 		string overlayIcon = null;
 
 		if ( Value.IsPrefabInstance )
@@ -231,7 +239,13 @@ partial class GameObjectNode : TreeNode<GameObject>
 		var iconSize = 16;
 
 		Paint.Pen = iconColor.WithAlphaMultiplied( opacity );
-		Paint.DrawIcon( r, icon, iconSize, TextFlag.LeftCenter );
+		// draw main icon and capture its rect
+		var iconRect = r;
+		iconRect.Width = iconSize;
+		iconRect.Height = iconSize;
+		Paint.DrawIcon( iconRect, icon, iconSize, TextFlag.LeftCenter );
+
+
 		if ( !string.IsNullOrEmpty( overlayIcon ) )
 		{
 			var overlayIconRect = r;

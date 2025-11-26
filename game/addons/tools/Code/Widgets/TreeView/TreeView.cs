@@ -426,6 +426,28 @@ public partial class TreeView : BaseItemWidget
 			}
 		}
 
+		// If we clicked on the icon area, and this is a GameObject node, open the icon picker
+		if ( pressedItem.Object is GameObjectNode gon )
+		{
+			var iconClickRect = pressedItem.Rect;
+			iconClickRect.Left += 4;
+			iconClickRect.Width = 22;
+			if ( iconClickRect.IsInside( e.LocalPosition ) )
+			{
+				var go = gon.Value;
+				if ( go is not null )
+				{
+					string current = Editor.GameObjectIconRegistry.GetIcon( go ) ?? "";
+					IconPickerWidget.OpenPopup( this, current, icon =>
+					{
+						Editor.GameObjectIconRegistry.SetIcon( go, icon );
+						this.Update();
+					} );
+				}
+				return false;
+			}
+		}
+
 		return true;
 	}
 
