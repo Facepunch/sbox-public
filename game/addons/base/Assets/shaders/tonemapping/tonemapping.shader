@@ -217,7 +217,7 @@ PS
     {   
         float4 color = g_tColorBuffer.Sample( g_sPointClamp, i.vTexCoord );
 
-        float3 rgb = max(0.0.xxx, color.rgb);
+        float3 rgb = max(0.0.xxx, color.rgb) * g_flToneMapScalarLinear;
 
         #if ( D_TONEMAPPING == TONEMAPPING_LINEAR ) 
             // it's already linear

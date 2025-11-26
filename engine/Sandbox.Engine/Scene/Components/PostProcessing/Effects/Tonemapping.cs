@@ -31,11 +31,11 @@ public class Tonemapping : BasePostProcess<Tonemapping>
 		/// </summary>
 		ReinhardJodie,
 		/// <summary>
-		/// Linear tonemapper.
+		/// Linear tonemapper, only applies autoexposure.
 		/// </summary>
 		Linear,
 		/// <summary>
-		/// Default AgX implementation.
+		/// Default AgX implementation
 		/// </summary>
 		AgX
 	}
@@ -56,13 +56,45 @@ public class Tonemapping : BasePostProcess<Tonemapping>
 
 	public override void Render()
 	{
+		UpdateExposure( Camera );
+
 		var shader = Material.FromShader( "shaders/tonemapping/tonemapping.shader" );
 
 		Attributes.SetComboEnum( "D_TONEMAPPING", Mode );
 		Attributes.SetComboEnum( "D_EXPOSUREMETHOD", ExposureMethod );
 
-		var blit = BlitMode.WithBackbuffer( shader, Stage.Tonemapping, 1 ); // The actual tonemap should be after the autoexposure
+		var blit = BlitMode.WithBackbuffer( shader, Stage.Tonemapping, 0 );
 		Blit( blit, "Tonemapping" );
+	}
+
+	//
+	// All of this auto exposure stuff should be it's own component
+	// It's used by tonemapping, not part of it
+	//
+	[Property, Group( "Auto Exposure" )]
+	public bool AutoExposureEnabled { get; set; } = true;
+
+	[Property, Group( "Auto Exposure" ), Range( 0.0f, 3.0f ), ShowIf( nameof( AutoExposureEnabled ), true )]
+	public float MinimumExposure { get; set; } = 1.0f;
+
+	[Property, Group( "Auto Exposure" ), Range( 0.0f, 5.0f ), ShowIf( nameof( AutoExposureEnabled ), true )]
+	public float MaximumExposure { get; set; } = 3.0f;
+
+	[Property, Group( "Auto Exposure" ), Range( -5.0f, 5.0f ), ShowIf( nameof( AutoExposureEnabled ), true )]
+	public float ExposureCompensation { get; set; } = 0.0f;
+
+	[Property, Group( "Auto Exposure" ), Range( 1.0f, 10.0f ), ShowIf( nameof( AutoExposureEnabled ), true )]
+	public float Rate { get; set; } = 1.0f;
+
+	void UpdateExposure( CameraComponent camera )
+	{
+		if ( !camera.IsValid() ) return;
+
+		camera.AutoExposure.Enabled = AutoExposureEnabled;
+		camera.AutoExposure.Compensation = GetWeighted( x => x.ExposureCompensation, 0 );
+		camera.AutoExposure.MinimumExposure = GetWeighted( x => x.MinimumExposure, 1 );
+		camera.AutoExposure.MaximumExposure = GetWeighted( x => x.MaximumExposure, 3 );
+		camera.AutoExposure.Rate = GetWeighted( x => x.Rate, 1 );
 	}
 
 	public override int ComponentVersion => 3;
