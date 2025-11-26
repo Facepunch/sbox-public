@@ -57,8 +57,12 @@ public class Voice : Component
 	/// </summary>
 	public float LaughterScore { get; private set; }
 
+	/// <summary>
+	/// Gets the underlying audio stream associated with the sound. Can be used to get raw audio data or perform visualizations.
+	/// </summary>
+	public SoundStream SoundStream { get; private set; }
+
 	private bool recording = false;
-	private SoundStream soundStream;
 	private SoundHandle sound;
 	private float[] morphs;
 	private float[] morphVelocity;
@@ -148,7 +152,7 @@ public class Voice : Component
 	{
 		VoiceManager.OnCompressedVoiceData += OnVoice;
 
-		soundStream = new SoundStream( VoiceManager.SampleRate );
+		SoundStream = new SoundStream( VoiceManager.SampleRate );
 
 		if ( Renderer.IsValid() && Renderer.Model.MorphCount > 0 )
 		{
@@ -173,8 +177,8 @@ public class Voice : Component
 
 		sound?.Dispose();
 		sound = null;
-		soundStream?.Dispose();
-		soundStream = null;
+		SoundStream?.Dispose();
+		SoundStream = null;
 	}
 
 	public bool IsRecording
@@ -395,21 +399,21 @@ public class Voice : Component
 	{
 		if ( buffer.Length < 2 )
 			return;
-		if ( soundStream is null )
+		if ( SoundStream is null )
 			return;
 
 		VoiceManager.Uncompress( buffer, samples =>
 		{
 			if ( !sound.IsValid() )
 			{
-				sound = soundStream.Play();
+				sound = SoundStream.Play();
 				sound.TargetMixer = TargetMixer;
 				sound.Distance = Distance;
 				sound.Falloff = Falloff;
 				sound.LipSync.Enabled = true;
 			}
 
-			soundStream.WriteData( samples.Span );
+			SoundStream.WriteData( samples.Span );
 
 			LastPlayed = 0;
 			UpdateSound();
