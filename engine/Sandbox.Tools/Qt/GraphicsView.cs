@@ -63,6 +63,9 @@ namespace Editor
 			}
 		}
 
+        public float ScaleMin { get; set; } = 0.1f;
+        public float ScaleMax { get; set; } = 5.0f;
+
 		float _rotate;
 		public float Rotation
 		{
@@ -79,7 +82,7 @@ namespace Editor
 		public void Zoom( float adjust, Vector2 viewpos )
 		{
 			_scale *= adjust;
-			_scale = _scale.Clamp( 0.1f, 5.0f );
+            _scale = _scale.Clamp( ScaleMin, ScaleMax );
 			var mousePosBefore = ToScene( viewpos );
 			_graphicsview.resetTransform();
 			_graphicsview.scale( _scale.x, _scale.y );
