@@ -6,7 +6,7 @@ public class IntEditor : ValueEditor
 	public float Value { get; set; }
 	public int Min { get; set; } = 0;
 	public int Max { get; set; } = 1;
-	
+
 	public NodeUI Node { get; set; }
 	private bool IsRange => Min != Max;
 

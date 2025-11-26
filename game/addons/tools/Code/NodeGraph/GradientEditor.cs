@@ -52,7 +52,7 @@ public class GradientEditor : ValueEditor
 
 		var view = Node.GraphicsView;
 		var position = view.ToScreen( view.FromScene( ToScene( new Vector2( Size.x + 1, 1 ) ) ) );
-		
+
 
 		OpenGradientEditorPopup( ( v ) =>
 		{
