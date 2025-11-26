@@ -89,6 +89,20 @@ file sealed class GameObjectIconButton : IconButton
 		Background = Color.Transparent;
 
 		IsDraggable = !parent.Target.IsMultipleTargets;
+
+		// allow clicking to change icon
+		MouseTracking = true;
+		OnClick = () =>
+		{
+			var go = _parent.Target.Targets.OfType<GameObject>().FirstOrDefault();
+			if ( go is null ) return;
+			string current = Editor.GameObjectIconRegistry.GetIcon( go ) ?? "";
+			IconPickerWidget.OpenPopup( this, current, icon =>
+			{
+				Editor.GameObjectIconRegistry.SetIcon( go, icon );
+				_parent.Update();
+			} );
+		};
 	}
 
 	protected override void OnDragStart()
@@ -110,6 +124,17 @@ file sealed class GameObjectIconButton : IconButton
 	protected override void OnPaint()
 	{
 		Background = _drag.IsValid() ? Theme.Pink.WithAlpha( 0.6f ) : Color.Transparent;
+
+		// draw the registered icon if present
+		var go = _parent.Target.Targets.OfType<GameObject>().FirstOrDefault();
+		if ( go is not null )
+		{
+			var registered = Editor.GameObjectIconRegistry.GetIcon( go );
+			if ( !string.IsNullOrEmpty( registered ) )
+			{
+				this.Icon = registered;
+			}
+		}
 
 		base.OnPaint();
 

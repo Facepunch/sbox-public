@@ -2,10 +2,6 @@
 *
 !*/
 
-# Git
-!.gitignore
-!.gitattributes
-
 # Source files
 !*.sln
 !*.csproj

@@ -61,9 +61,9 @@
         await RunQuery();
     }
 
-    void OnTabChanged( object newTab )
+    void OnTabChanged( string newTab )
     {
-        tab = newTab?.ToString();
+        tab = newTab;
 
         Result = default;
         FoundPackages = default;
