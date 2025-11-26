@@ -1,0 +1,37 @@
+ColorAlphaControl
+{
+	gap: 0.5rem;
+	flex-grow: 1;
+	pointer-events: all;
+	background: linear-gradient( to right, black, white );
+	border-radius: 4px;
+	padding: 2px;
+	height: 12px;
+	position: relative;
+	cursor: pointer;
+	border: 1px solid #333;
+
+	&:hover
+	{
+		border: 1px solid #08f;
+	}
+
+	&:active
+	{
+		border: 1px solid #fff;
+	}
+
+	.handle
+	{
+		top: -5px;
+		bottom: -5px;
+		aspect-ratio: 1;
+		border-radius: 100px;
+		border: 2px solid #444;
+		position: absolute;
+		background-color: white;
+		box-shadow: 2px 2px 16px #000a;
+		transform: translateX( -50% );
+		pointer-events: none;
+	}
+}

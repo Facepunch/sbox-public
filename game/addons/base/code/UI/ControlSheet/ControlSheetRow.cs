@@ -6,6 +6,7 @@ namespace Sandbox.UI;
 /// </summary>
 public class ControlSheetRow : Panel
 {
+	[Parameter]
 	public SerializedProperty Property { get; set; }
 
 	Panel _left;
@@ -22,9 +23,20 @@ public class ControlSheetRow : Panel
 
 	internal void Initialize( SerializedProperty prop )
 	{
-		_title.Text = prop.DisplayName;
+		Property = prop;
+	}
 
-		var c = BaseControl.CreateFor( prop );
+	protected override void OnParametersSet()
+	{
+		if ( Property is null )
+			return;
+
+		_title.Text = Property?.DisplayName;
+
+		_right.DeleteChildren();
+
+		var c = BaseControl.CreateFor( Property );
+		if ( c is null ) return;
 		_right.AddChild( c );
 	}
 }

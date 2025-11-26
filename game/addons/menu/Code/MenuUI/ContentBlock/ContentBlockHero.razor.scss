@@ -1,5 +1,4 @@
-
-.hero
+.hero 
 {
 	min-height: 40vh;
 	position: relative;
@@ -12,6 +11,14 @@
 	margin: 4px;
 	margin-top: 2rem;
 	border: 1px solid #fff2;
+	cursor: pointer;
+	transition: all 0.3s ease;
+
+	&:hover 
+	{
+		border: 1px solid #08f4;
+		transition: all 0.1s ease;
+	}
 }
 
 .background-media
@@ -37,7 +44,6 @@
 	max-width: 250px;
 	flex-direction: column;
 	gap: 1rem;
-	cursor: pointer;
 	text-shadow: 1px 1px 2px #000d;
 }
 

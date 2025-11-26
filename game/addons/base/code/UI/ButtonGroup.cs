@@ -14,7 +14,7 @@ public class ButtonGroup : Panel
 	/// <summary>
 	/// Called when the value has been changed.
 	/// </summary>
-	[Parameter] public System.Action<string> ValueChanged { get; set; }
+	[Parameter] public System.Action<object> ValueChanged { get; set; }
 
 	/// <summary>
 	/// The selected option value.
@@ -30,9 +30,9 @@ public class ButtonGroup : Panel
 
 			_value = value;
 
-			ValueChanged?.Invoke( $"{Value}" );
+			ValueChanged?.Invoke( _value );
 			CreateEvent( "onchange" );
-			CreateValueEvent( "value", value );
+			CreateValueEvent( "value", _value );
 			SetSelectedButton();
 		}
 	}
@@ -48,6 +48,13 @@ public class ButtonGroup : Panel
 	/// </summary>
 	[Parameter]
 	public string ButtonClass { get; set; } = "";
+
+
+	public ButtonGroup()
+	{
+
+	}
+
 
 	/// <summary>
 	/// Adds a button to this group.
