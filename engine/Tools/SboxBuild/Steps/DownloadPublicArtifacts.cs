@@ -75,6 +75,7 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 	{
 		var downloadedArtifacts = new ConcurrentDictionary<string, string>( StringComparer.OrdinalIgnoreCase );
 		var artifactLocks = new ConcurrentDictionary<string, object>( StringComparer.OrdinalIgnoreCase );
+		var fileLocks = new ConcurrentDictionary<string, object>( StringComparer.OrdinalIgnoreCase );
 		var updatedCount = 0;
 		var skippedCount = 0;
 		var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelDownloads };
@@ -103,6 +104,22 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 			}
 		}
 
+		void CopyFileWithRetry( string source, string destination, int maxRetries = 3 )
+		{
+			for ( int attempt = 0; attempt <= maxRetries; attempt++ )
+			{
+				try
+				{
+					File.Copy( source, destination, true );
+					return;
+				}
+				catch ( IOException ) when ( attempt < maxRetries )
+				{
+					Thread.Sleep( 100 * (attempt + 1) ); // Exponential backoff
+				}
+			}
+		}
+
 		Parallel.ForEach( manifest.Files, parallelOptions, entry =>
 		{
 			if ( string.IsNullOrWhiteSpace( entry.Path ) || string.IsNullOrWhiteSpace( entry.Sha256 ) )
@@ -113,30 +130,36 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 			}
 
 			var destination = Path.Combine( repoRoot, entry.Path.Replace( '/', Path.DirectorySeparatorChar ) );
+			var destinationKey = destination.ToLowerInvariant();
 
-			if ( FileMatchesHash( destination, entry.Sha256 ) )
+			// Lock per destination file to prevent concurrent writes to the same file
+			var fileLock = fileLocks.GetOrAdd( destinationKey, _ => new object() );
+			lock ( fileLock )
 			{
-				Interlocked.Increment( ref skippedCount );
-				return;
+				if ( FileMatchesHash( destination, entry.Sha256 ) )
+				{
+					Interlocked.Increment( ref skippedCount );
+					return;
+				}
+
+				var sourcePath = EnsureArtifactCached( entry );
+
+				var directory = Path.GetDirectoryName( destination );
+				if ( !string.IsNullOrEmpty( directory ) )
+				{
+					Directory.CreateDirectory( directory );
+				}
+
+				CopyFileWithRetry( sourcePath, destination );
+
+				if ( !FileMatchesHash( destination, entry.Sha256 ) )
+				{
+					throw new InvalidOperationException( $"Hash mismatch after writing {entry.Path}." );
+				}
+
+				Log.Info( $"Wrote {entry.Path}" );
+				Interlocked.Increment( ref updatedCount );
 			}
-
-			var sourcePath = EnsureArtifactCached( entry );
-
-			var directory = Path.GetDirectoryName( destination );
-			if ( !string.IsNullOrEmpty( directory ) )
-			{
-				Directory.CreateDirectory( directory );
-			}
-
-			File.Copy( sourcePath, destination, true );
-
-			if ( !FileMatchesHash( destination, entry.Sha256 ) )
-			{
-				throw new InvalidOperationException( $"Hash mismatch after writing {entry.Path}." );
-			}
-
-			Log.Info( $"Wrote {entry.Path}" );
-			Interlocked.Increment( ref updatedCount );
 		} );
 
 		Log.Info( $"Artifact download completed successfully. Updated {updatedCount} file(s), skipped {skippedCount}." );
