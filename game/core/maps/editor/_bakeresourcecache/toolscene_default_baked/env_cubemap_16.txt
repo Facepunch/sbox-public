@@ -1,4 +1,0 @@
-"TextureOptions"
-{
-	"ggx_cubemap_blur_accumulation_pass_count"		"1"
-}
