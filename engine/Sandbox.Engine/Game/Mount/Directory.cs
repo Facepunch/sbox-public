@@ -216,4 +216,10 @@ class SteamIntegration : ISteamIntegration
 		if ( !NativeEngine.Steam.SteamApps().IsValid ) return false;
 		return NativeEngine.Steam.SteamApps().BIsAppInstalled( (int)appid );
 	}
+
+	public bool IsDlcInstalled( long appid )
+	{
+		if ( !NativeEngine.Steam.SteamApps().IsValid ) return false;
+		return NativeEngine.Steam.SteamApps().BIsDlcInstalled( (int)appid );
+	}
 }
