@@ -28,11 +28,14 @@ internal static class ScreenshotService
 		return filePath;
 	}
 
-	internal static void ProcessFrame( IRenderContext context, ITexture renderTarget )
+	internal static void ProcessFrame( IRenderContext context, ITexture nativeTexture )
 	{
+		if ( nativeTexture.IsNull || !nativeTexture.IsStrongHandleValid() )
+			return;
+
 		while ( _pendingRequests.TryDequeue( out var request ) )
 		{
-			CaptureRenderTexture( context, renderTarget, request.FilePath );
+			CaptureRenderTexture( context, nativeTexture, request.FilePath );
 		}
 	}
 
@@ -45,7 +48,7 @@ internal static class ScreenshotService
 		{
 			Bitmap bitmap = null;
 
-			context.ReadTextureAsync( Texture.FromNative( nativeTexture ), ( pData, format, mipLevel, width, height, _ ) =>
+			context.ReadTextureAsync( nativeTexture, ( pData, format, mipLevel, width, height, _ ) =>
 			{
 				try
 				{

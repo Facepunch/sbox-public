@@ -73,10 +73,11 @@ internal static class ScreenRecorder
 	public static void RecordVideoFrame( IRenderContext renderContext, ITexture nativeTexture )
 	{
 		if ( !_isRecording ) return;
+		if ( nativeTexture.IsNull || !nativeTexture.IsStrongHandleValid() ) return;
 
 		if ( _videoWriter == null )
 		{
-			var desc = g_pRenderDevice.GetTextureDesc( nativeTexture );
+			var desc = g_pRenderDevice.GetOnDiskTextureDesc( nativeTexture );
 
 			_videoWriter = new VideoWriter( _filename, new VideoWriter.Config
 			{
@@ -89,7 +90,7 @@ internal static class ScreenRecorder
 			} );
 		}
 
-		renderContext.ReadTextureAsync( Texture.FromNative( nativeTexture ), ( pData, format, mipLevel, width, height, _ ) =>
+		renderContext.ReadTextureAsync( nativeTexture, ( pData, format, mipLevel, width, height, _ ) =>
 		{
 			if ( !_isRecording || _videoWriter == null ) return;
 

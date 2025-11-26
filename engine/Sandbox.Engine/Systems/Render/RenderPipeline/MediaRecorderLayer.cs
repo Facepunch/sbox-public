@@ -20,13 +20,26 @@ internal class MediaRecorderLayer : ProceduralRenderLayer
 	{
 		var colorTarget = Graphics.SceneLayer.GetColorTarget();
 
-		if ( !colorTarget.IsValid ) return;
+		if ( colorTarget.IsNull )
+			return;
 
-		ScreenshotService.ProcessFrame( Graphics.Context, colorTarget );
-
-		if ( ScreenRecorder.IsRecording() )
+		try
 		{
-			ScreenRecorder.RecordVideoFrame( Graphics.Context, colorTarget );
+			if ( !colorTarget.IsStrongHandleValid() )
+			{
+				return;
+			}
+
+			ScreenshotService.ProcessFrame( Graphics.Context, colorTarget );
+
+			if ( ScreenRecorder.IsRecording() )
+			{
+				ScreenRecorder.RecordVideoFrame( Graphics.Context, colorTarget );
+			}
+		}
+		finally
+		{
+			colorTarget.DestroyStrongHandle();
 		}
 	}
 }

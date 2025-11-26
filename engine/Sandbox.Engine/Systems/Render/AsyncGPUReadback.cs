@@ -24,6 +24,17 @@ internal static class AsyncGPUReadback
 	/// </summary>
 	internal static void ReadTextureAsync( this IRenderContext context, Texture texture, TextureReadDelegate callback, int slice = 0, int mipLevel = 0, (int X, int Y, int Width, int Height) srcRect = default )
 	{
+		if ( texture is null )
+			return;
+
+		context.ReadTextureAsync( texture.native, callback, slice, mipLevel, srcRect );
+	}
+
+	internal static void ReadTextureAsync( this IRenderContext context, ITexture texture, TextureReadDelegate callback, int slice = 0, int mipLevel = 0, (int X, int Y, int Width, int Height) srcRect = default )
+	{
+		if ( texture.IsNull )
+			return;
+
 		// Generate a unique ID for this callback
 		int callbackId = Interlocked.Increment( ref _nextReadTextureCallbackId );
 
@@ -34,7 +45,7 @@ internal static class AsyncGPUReadback
 		_activeReadTextureCallbacks.TryAdd( callbackId, callback );
 
 		var nativeRect = new NativeRect( srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height );
-		context.ReadTexturePixels( texture.native, nativeCallbackObject, nativeRect, slice, mipLevel, true );
+		context.ReadTexturePixels( texture, nativeCallbackObject, nativeRect, slice, mipLevel, true );
 	}
 
 	/// <summary>

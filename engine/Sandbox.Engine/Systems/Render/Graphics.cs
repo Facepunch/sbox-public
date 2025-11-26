@@ -347,15 +347,6 @@ public static partial class Graphics
 	}
 
 	/// <summary>
-	/// Get the current color and depth MSAA render targets that this layer is rendering to.
-	/// This should be set on start of scope but is causing problems, left here for advanced usage.
-	/// </summary>
-	internal static RenderTarget NativeLayerRenderTarget
-	{
-		get => RenderTarget.From( Texture.FromNative( SceneLayer.GetColorTarget() ), Texture.FromNative( SceneLayer.GetDepthTarget() ) );
-	}
-
-	/// <summary>
 	/// Clear the current drawing context to given color.
 	/// </summary>
 	/// <param name="color">Color to clear to.</param>
