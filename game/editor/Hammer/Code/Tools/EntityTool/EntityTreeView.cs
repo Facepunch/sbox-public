@@ -2,7 +2,7 @@
 
 public class EntityTreeView : TreeView
 {
-	public Action<string> OnItemSelected { get; set; }
+	public event Action<string> OnItemSelected;
 
 	public EntityTreeView( Widget parent ) : base( parent )
 	{
@@ -22,10 +22,16 @@ public class EntityTreeView : TreeView
 
 	protected void OnItemClicked( object value )
 	{
-		if ( value is not EntityDataNode entityNode )
+		if ( value is MapClass mapClass )
+		{
+			OnItemSelected?.Invoke( mapClass.Name );
 			return;
+		}
 
-		OnItemSelected.Invoke( entityNode.Value.Name );
+		if ( value is EntityDataNode entityNode )
+		{
+			OnItemSelected?.Invoke( entityNode.Value.Name );
+		}
 	}
 
 	protected override void OnPaint()
