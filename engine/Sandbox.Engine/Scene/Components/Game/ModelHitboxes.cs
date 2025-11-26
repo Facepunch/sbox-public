@@ -53,8 +53,6 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 		}
 	}
 
-	public readonly List<Hitbox> Hitboxes = new();
-
 	protected override void OnAwake()
 	{
 		Scene.GetSystem( out system );
@@ -165,10 +163,19 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 		}
 	}
 
+	internal readonly List<Hitbox> Hitboxes = new();
+
 	public void AddHitbox( Hitbox hitbox )
 	{
 		Hitboxes.Add( hitbox );
 	}
+
+	public void RemoveHitbox( Hitbox hitbox )
+	{
+		Hitboxes.Remove( hitbox );
+	}	
+
+	public IReadOnlyList<Hitbox> GetHitboxes() => Hitboxes;
 
 	/// <summary>
 	/// The gameobject tags have changed, update collision tags on the target objects
