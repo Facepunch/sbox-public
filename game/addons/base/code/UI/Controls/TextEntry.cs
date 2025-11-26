@@ -197,7 +197,7 @@ public partial class TextEntry : BaseControl
 		AddClass( "textentry" );
 
 		Label = Add.Label( "", "content-label" );
-
+		Label.Tokenize = false;
 		Label.Style.WhiteSpace = WhiteSpace.Pre;
 	}
 
@@ -653,7 +653,7 @@ public partial class TextEntry : BaseControl
 
 		bool isPlaceholder = string.IsNullOrEmpty( Text ) && !string.IsNullOrEmpty( Placeholder );
 		Label.SetClass( "placeholder", isPlaceholder );
-		Label.Style.Content = isPlaceholder ? Placeholder : Text;
+		Label.Style.Content = isPlaceholder ? Placeholder : null;
 		Label.Selectable = !isPlaceholder;
 
 		if ( Label.IsValid() )

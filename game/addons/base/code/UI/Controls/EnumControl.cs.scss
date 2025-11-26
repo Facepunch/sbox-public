@@ -1,0 +1,76 @@
+EnumControl
+{
+	gap: 2px;
+	flex-grow: 1;
+}
+
+EnumControl DropDown,
+EnumControl ButtonGroup
+{
+	border-radius: 8px;
+	background-color: #000a;
+	flex-grow: 1;
+}
+
+EnumControl DropDown
+{
+	flex-grow: 1;
+	min-height: 32px;
+}
+
+EnumControl ButtonGroup
+{
+	border-radius: 12px;
+	overflow: hidden;
+	min-height: 32px;
+
+	Button
+	{
+		flex-grow: 1;
+		justify-content: center;
+		align-items: center;
+		gap: 4px;
+		color: #aaa;
+		font-size: 1rem;
+		cursor: pointer;
+
+		.icon
+		{
+			color: #08f;
+		}
+
+		&:hover
+		{
+			color: #ddd;
+
+			.icon
+			{
+				color: #3af;
+			}
+		}
+
+		&:active
+		{
+			background-color: #04a;
+			color: white;
+			transform: translateX( 1px ) translateY( 1px );
+
+			.icon
+			{
+				color: #fff;
+			}
+		}
+
+		&.active
+		{
+			background-color: #08f;
+			color: white;
+			pointer-events: none;
+
+			.icon
+			{
+				color: #fff;
+			}
+		}
+	}
+}
