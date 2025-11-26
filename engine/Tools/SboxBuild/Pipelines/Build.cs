@@ -22,7 +22,7 @@ internal class Build
 		}
 
 		// Always add interop gen
-		builder.AddStep( new Steps.InteropGen( "Interop Gen", shouldSkipNative ) );
+		builder.AddStep( new Steps.InteropGen( "Interop Gen", isPublicSource ) );
 
 		if ( !isPublicSource )
         {
