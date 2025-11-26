@@ -109,20 +109,18 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 		}
 	}
 
-	static AssetListViewMode _viewModeType;
-
 	/// <summary>
 	/// View mode, i.e. thumbs, list or whatever else.
 	/// </summary>
 	public AssetListViewMode ViewModeType
 	{
-		get => _viewModeType;
+		get;
 		set
 		{
-			if ( _viewModeType == value ) return;
-			_viewModeType = value;
+			if ( field == value ) return;
+			field = value;
 
-			AssetList.ViewMode = _viewModeType;
+			AssetList.ViewMode = field;
 			UpdateViewModeIcon();
 			SaveSettings();
 		}
@@ -710,6 +708,12 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 		ShowJunkFiles = ProjectCookie.Get( $"{SettingsCookie}.ShowJunkFiles", ShowJunkFiles );
 		HideNonAssets = ProjectCookie.Get( $"{SettingsCookie}.HideNonAssets", HideNonAssets );
 		ShowRecursiveFiles = ProjectCookie.Get( $"{SettingsCookie}.ShowRecursiveFiles", ShowRecursiveFiles );
+		
+		// Set view mode on the asset list since the property setter won't be called if the value is the same as before,
+		// and ViewMode 0 = List, which is the default, which causes the icon to not be updated correctly.
+		// Previously, the backing field for ViewModeType was static, which caused even more issues when loading settings.
+		AssetList.ViewMode = ViewModeType;
+		UpdateViewModeIcon();
 
 		if ( FilterAssetTypes is null )
 		{
