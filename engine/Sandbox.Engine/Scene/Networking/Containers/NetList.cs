@@ -161,7 +161,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	/// <summary>
 	/// <inheritdoc cref="List{T}.AddRange"/>
 	/// </summary>
-	public void AddRange( T[] collection )
+	public void AddRange( IEnumerable<T> collection )
 	{
 		if ( !CanWriteChanges() )
 			return;
