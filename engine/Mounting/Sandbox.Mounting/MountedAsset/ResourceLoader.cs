@@ -139,7 +139,7 @@ public abstract class ResourceLoader
 	/// </summary>
 	protected virtual object Load()
 	{
-		return null; ;
+		return null;
 	}
 
 	internal void ShutdownInternal()
