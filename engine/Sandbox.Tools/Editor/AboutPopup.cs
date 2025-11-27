@@ -43,6 +43,11 @@ public class AboutWidget : BaseWindow
 		messageLabel.Text = "s&box editor © Facepunch Studios Ltd.";
 		messageLabel.TextSelectable = false;
 
+		// Add version
+		var versionLabel = Layout.Add( new Label() );
+		versionLabel.Text = $"Version {Sandbox.Application.Version}";
+		versionLabel.TextSelectable = true;
+
 		// Add content layout
 		ContentLayout = Layout.AddColumn( 1 );
 		ContentLayout.Margin = new Sandbox.UI.Margin( 0, 16, 0, 0 );
