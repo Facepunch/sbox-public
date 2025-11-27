@@ -1,9 +1,11 @@
-﻿namespace Sandbox;
+﻿using Sandbox.UI;
+
+namespace Sandbox;
 
 public partial class Scene : GameObject
 {
 	/// <summary>
-	/// Run an event on all components. The find argument is unused when calling this on a scene.
+	/// Run an event on all components and panels. The find argument is unused when calling this on a scene.
 	/// </summary>
 	public override void RunEvent<T>( Action<T> action, FindMode find = FindMode.EnabledInSelfAndDescendants )
 	{
@@ -19,6 +21,43 @@ public partial class Scene : GameObject
 			}
 		}
 
+		// Support for ISceneEvent on Panels
+		foreach ( var panelComponent in GetAll<PanelComponent>() )
+		{
+			if ( !panelComponent.Panel.IsValid() )
+			{
+				continue;
+			}
+
+			if ( panelComponent.Panel is T t )
+			{
+				try
+				{
+					action( t );
+				}
+				catch ( System.Exception e )
+				{
+					Log.Warning( e, e.Message );
+				}
+			}
+
+			foreach ( var child in panelComponent.Panel.Descendants )
+			{
+				if ( child is not T ct )
+				{
+					continue;
+				}
+
+				try
+				{
+					action( ct );
+				}
+				catch ( System.Exception e )
+				{
+					Log.Warning( e, e.Message );
+				}
+			}
+		}
 	}
 }
 
