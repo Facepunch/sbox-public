@@ -161,17 +161,57 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 
 	internal readonly List<Hitbox> Hitboxes = new();
 
+	/// <summary>
+	/// Adds a hitbox to the models hitbox list
+	/// </summary>
+	/// <param name="hitbox"></param>
 	public void AddHitbox( Hitbox hitbox )
 	{
 		Hitboxes.Add( hitbox );
 	}
 
+	/// <summary>
+	/// Removes a hitbox from the models hitbox list.
+	/// </summary>
+	/// <param name="hitbox"></param>
 	public void RemoveHitbox( Hitbox hitbox )
 	{
 		Hitboxes.Remove( hitbox );
 	}
 
+	/// <summary>
+	/// Returns every hitbox on this model.
+	/// </summary>
+	/// <returns></returns>
 	public IReadOnlyList<Hitbox> GetHitboxes() => Hitboxes;
+
+	/// <summary>
+	/// Retrieves the hitbox associated with the bone index.
+	/// </summary>
+	/// <param name="boneIndex">The bone index to retrieve.</param>
+	/// <returns>null if no matching hitbox is found.</returns>
+	public Hitbox GetHitbox( int boneIndex ) => Hitboxes.FirstOrDefault( x => x.Bone.Index == boneIndex );
+
+	/// <summary>
+	/// Retrieves the hitbox associated with the specified bone.
+	/// </summary>
+	/// <param name="bone">The bone for which to find the corresponding hitbox.</param>
+	/// <returns>null if no matching hitbox is found.</returns>
+	public Hitbox GetHitbox( BoneCollection.Bone bone ) => Hitboxes.FirstOrDefault( x => x.Bone == bone );
+
+	/// <summary>
+	/// Retrieves the hitbox associated with the specified bone name.
+	/// </summary>
+	/// <param name="boneName">The name of the bone for which to retrieve the hitbox.</param>
+	/// <returns>null if no matching hitbox is found.</returns>
+	public Hitbox GetHitbox( string boneName ) => Hitboxes.FirstOrDefault( x => x.Bone.Name == boneName );
+
+	/// <summary>
+	/// Retrieves the hitbox associated with the specified physics body.
+	/// </summary>
+	/// <param name="physicsBody">The physics body for which to find the corresponding hitbox.</param>
+	/// <returns>null if no matching hitbox is found.</returns>
+	public Hitbox GetHitbox( PhysicsBody physicsBody ) => Hitboxes.FirstOrDefault( x => x.Body == physicsBody );
 
 	/// <summary>
 	/// The gameobject tags have changed, update collision tags on the target objects
