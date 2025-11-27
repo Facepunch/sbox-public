@@ -195,7 +195,11 @@ public sealed class CookieContainer
 			CookieCache.Remove( key );
 		}
 
-		if ( expiredKeys.Count > 0 )
+		if ( expiredKeys.Count == 1 )
+		{
+			Log.Info( $"Clearing expired Cookie: {expiredKeys[0]}" );
+		}
+		else if ( expiredKeys.Count > 0 )
 		{
 			Log.Info( $"Clearing {expiredKeys.Count} expired Cookies" );
 		}
