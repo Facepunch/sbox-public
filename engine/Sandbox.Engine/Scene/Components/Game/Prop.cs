@@ -536,7 +536,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				gib.Tags.Add( "debris", "clientside" ); // no physics interactions
 				gib.Enabled = true;
 			}
-			else
+			else if ( !IsProxy )
 			{
 				// Spawn on the network
 				gib.NetworkSpawn( true, null );
