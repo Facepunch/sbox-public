@@ -317,6 +317,12 @@ public class SoundscapeTrigger : Component
 
 		public override void Frame( in Transform head )
 		{
+			if ( source == null || !source.SoundFile.IsValid() )
+			{
+				Finished = true;
+				return;
+			}
+
 			var targetVolume = sourceVolume * internalVolume * Volume;
 			if ( Finished ) targetVolume = 0.0f;
 
@@ -373,6 +379,12 @@ public class SoundscapeTrigger : Component
 
 			if ( timeUntilNextShot > 0 )
 				return;
+
+			if ( source == null || !source.SoundFile.IsValid() )
+			{
+				Finished = true;
+				return;
+			}
 
 			timeUntilNextShot = source.RepeatTime.GetValue();
 
