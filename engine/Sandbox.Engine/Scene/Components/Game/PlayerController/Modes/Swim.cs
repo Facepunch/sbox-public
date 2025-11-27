@@ -13,7 +13,7 @@ public partial class MoveModeSwim : MoveMode
 	public float SwimLevel { get; set; } = 0.7f;
 
 	/// <summary>
-	/// Will will update this based on how much you're in a "water" tagged trigger
+	/// We will update this based on how much you're in a "water" tagged trigger.
 	/// </summary>
 	public float WaterLevel { get; private set; }
 

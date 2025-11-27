@@ -10,7 +10,7 @@ namespace Sandbox;
 public sealed partial class PlayerController : Component, IScenePhysicsEvents, Component.ExecuteInEditor
 {
 	/// <summary>
-	/// This is used to keep a distance away from surfaces. For exmaple, when grounding, we'll
+	/// This is used to keep a distance away from surfaces. For example, when grounding, we'll
 	/// be a skin distance away from the ground.
 	/// </summary>
 	const float _skin = 0.095f;
