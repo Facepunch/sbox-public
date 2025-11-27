@@ -1,4 +1,6 @@
-﻿namespace Editor.Wizards;
+﻿using System.IO;
+
+namespace Editor.Wizards;
 
 partial class PublishWizard
 {
@@ -117,6 +119,15 @@ partial class PublishWizard
 			{
 				UploadWarning.Visible = true;
 				UploadWarning.Label.Text += "\n• You must specify an organisation to publish under.";
+			}
+
+			if ( !EditorTypeLibrary.CheckValidationAttributes( Project.Config, out var errors ) )
+			{
+				UploadWarning.Visible = true;
+				foreach (var error in errors)
+				{
+					UploadWarning.Label.Text += $"\n• {error}.";
+				}
 			}
 		}
 
