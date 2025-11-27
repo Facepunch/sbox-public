@@ -21,7 +21,7 @@ internal static class ManagedTools
 
 	public static void InitStart()
 	{
-		Log.Info( "Editor Startup" );
+		Log.Info( $"Editor Startup version {Sandbox.Application.Version}" );
 		//
 		// Init steam and log into the api
 		//
