@@ -637,6 +637,9 @@ public partial class SceneViewportWidget : Widget
 				Gizmo.Hitbox.DepthBias = 1;
 				Gizmo.Hitbox.TrySetHovered( tr.Distance );
 
+				if ( !Gizmo.IsHovered )
+					return;
+
 				if ( tr.Component is ModelRenderer mr && mr.Model is not null && !session.Selection.Contains( tr.GameObject ) )
 				{
 					Gizmo.Draw.Color = Gizmo.Colors.Active.WithAlpha( MathF.Sin( RealTime.Now * 20.0f ).Remap( -1, 1, 0.3f, 0.8f ) );
