@@ -126,7 +126,7 @@ partial class PublishWizard
 				UploadWarning.Visible = true;
 				foreach (var error in errors)
 				{
-					UploadWarning.Label.Text += $"\n• {error}.";
+					UploadWarning.Label.Text += $"\n• {error}";
 				}
 			}
 		}
