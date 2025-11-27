@@ -62,7 +62,11 @@ public static partial class Networking
 
 			while ( serverList.IsQuerying )
 			{
-				ct.ThrowIfCancellationRequested();
+				if ( ct.IsCancellationRequested )
+				{
+					// Stop waiting on the server list if the caller timed out/cancelled, return anything collected so far
+					return list;
+				}
 
 				await Task.Yield();
 			}
@@ -108,6 +112,11 @@ public static partial class Networking
 
 				list.Add( lobby );
 			}
+		}
+		catch ( OperationCanceledException )
+		{
+			// Caller cancelled, return whatever we gathered instead of bubbling the exception
+			return list;
 		}
 		catch ( Exception e )
 		{
