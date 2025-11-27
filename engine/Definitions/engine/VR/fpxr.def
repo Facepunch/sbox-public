@@ -28,6 +28,11 @@ native class fpxr::ApplicationConfig as Facepunch.XR.ApplicationConfig
     {
         fpxr::ApplicationConfig::GetInstance().m_debugCallback = (fpxr::PFN_DebugCallback)dbgCallback;
     }
+
+    inline static void SetErrorCallback( IntPtr errCallback )
+    {
+        fpxr::ApplicationConfig::GetInstance().m_errorCallback = (fpxr::PFN_ErrorCallback)errCallback;
+    }
 }
 
 native class fpxr::EventManager as Facepunch.XR.EventManager

@@ -99,8 +99,15 @@ internal static unsafe partial class VRNative
 	}
 
 	public delegate void DebugUtilsMessengerCallback( string message, DebugCallbackType type );
+	public delegate void DebugUtilsErrorCallback( string message );
 
-	private static Logger Log = new( "VR" );
+	private static Logger Log = new( "OpenXR" );
+
+	private static void XrErrorCallback( string message )
+	{
+		Log.Error( $"{message}" );
+		Application.Exit(); // For now
+	}
 
 	private static void XrDebugCallback( string message, DebugCallbackType type )
 	{
@@ -143,11 +150,17 @@ internal static unsafe partial class VRNative
 		if ( !VRSystem.HasHeadset )
 			return;
 
-		if ( VRSystem.WantsDebug )
+		// Initialize app config callbacks
 		{
-			// Set up a debug callback for logging Facepunch.XR messages
-			var pDebugCallback = Marshal.GetFunctionPointerForDelegate<DebugUtilsMessengerCallback>( XrDebugCallback );
-			ApplicationConfig.SetDebugCallback( pDebugCallback );
+			if ( VRSystem.WantsDebug )
+			{
+				// Set up a debug callback for logging Facepunch.XR messages
+				var pDebugCallback = Marshal.GetFunctionPointerForDelegate<DebugUtilsMessengerCallback>( XrDebugCallback );
+				ApplicationConfig.SetDebugCallback( pDebugCallback );
+			}
+
+			var pErrorCallback = Marshal.GetFunctionPointerForDelegate<DebugUtilsErrorCallback>( XrErrorCallback );
+			ApplicationConfig.SetErrorCallback( pErrorCallback );
 		}
 
 		// Create the OpenXR instance
