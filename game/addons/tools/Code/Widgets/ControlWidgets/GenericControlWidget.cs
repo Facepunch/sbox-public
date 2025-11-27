@@ -174,8 +174,8 @@ public class GenericControlWidget : ControlObjectWidget
 	void BuildInlineEditor( InlineEditorAttribute attribute )
 	{
 		Layout = Layout.Column();
-
-		if ( attribute.Label )
+		
+		if ( attribute.Label && !SerializedProperty.Parent.GetType().IsAssignableTo( typeof( SerializedCollection ) ) )
 		{
 			Layout.Add( ControlSheet.CreateLabel( SerializedProperty ) );
 		}
