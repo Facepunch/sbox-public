@@ -80,20 +80,17 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 		}
 	}
 
-	AssetListViewMode _viewModeType;
-
 	/// <summary>
 	/// View mode, i.e. thumbs, list or whatever else.
 	/// </summary>
 	public AssetListViewMode ViewModeType
 	{
-		get => _viewModeType;
+		get;
 		set
 		{
-			if ( _viewModeType == value ) return;
-			_viewModeType = value;
+			field = value;
 
-			AssetList.ViewMode = _viewModeType;
+			AssetList.ViewMode = field;
 			SaveSettings();
 
 			if ( value == AssetListViewMode.List ) ViewMode.Icon = "view_headline";

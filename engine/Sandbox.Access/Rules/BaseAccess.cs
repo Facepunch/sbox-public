@@ -214,6 +214,7 @@ internal static partial class Rules
 		"System.ComponentModel.Annotations/System.ComponentModel.DataAnnotations.RequiredAttribute",
 		"System.ComponentModel.Annotations/System.ComponentModel.DataAnnotations.RegularExpressionAttribute",
 		"System.ComponentModel.Annotations/System.ComponentModel.DataAnnotations.RangeAttribute",
+		"System.ComponentModel.Annotations/System.ComponentModel.DataAnnotations.MaxLengthAttribute",
 
 		"System.Private.CoreLib/System.EventArgs*",
 		"System.Private.CoreLib/System.EventHandler*",

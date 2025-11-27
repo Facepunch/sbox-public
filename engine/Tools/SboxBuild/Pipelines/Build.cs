@@ -25,9 +25,9 @@ internal class Build
 		builder.AddStep( new Steps.InteropGen( "Interop Gen", isPublicSource ) );
 
 		if ( !isPublicSource )
-        {
-         		builder.AddStep( new Steps.ShaderProc( "Shader Proc" ) );   
-        }
+		{
+			builder.AddStep( new Steps.ShaderProc( "Shader Proc" ) );
+		}
 
 		// Add native build step if not skipped
 		if ( !shouldSkipNative )

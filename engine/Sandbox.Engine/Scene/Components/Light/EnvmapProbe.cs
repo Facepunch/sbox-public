@@ -26,7 +26,7 @@ public sealed class EnvmapProbe : Component, Component.ExecuteInEditor
 	internal int Priority;
 
 	/// <summary>
-	/// If this is set, the EnvmapProbe will use a custom cubemap texture instead of render dynamically
+	/// If this is set, the EnvmapProbe will use a custom cubemap texture instead of rendering dynamically
 	/// </summary>
 	[Property, MakeDirty]
 	[ShowIf( nameof( RenderDynamically ), false )]

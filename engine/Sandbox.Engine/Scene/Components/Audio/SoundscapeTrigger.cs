@@ -42,7 +42,7 @@ public class SoundscapeTrigger : Component
 	MixerHandle _targetMixer;
 
 	/// <summary>
-	/// Ths mixer that the soundscape will play on.
+	/// The mixer that the soundscape will play on.
 	/// </summary>
 	[Property]
 	public MixerHandle TargetMixer

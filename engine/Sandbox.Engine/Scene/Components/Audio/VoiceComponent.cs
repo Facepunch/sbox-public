@@ -55,7 +55,7 @@ public class Voice : Component
 	/// <summary>
 	/// Laughter score for the current audio frame, between 0 and 1
 	/// </summary>
-	public float LaughterScore { get; private set; }
+	public float LaughterScore => sound.IsValid() ? sound.LipSync.LaughterScore : 0;
 
 	private bool recording = false;
 	private SoundStream soundStream;

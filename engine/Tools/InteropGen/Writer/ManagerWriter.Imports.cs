@@ -6,7 +6,7 @@ namespace Facepunch.InteropGen;
 internal partial class ManagerWriter
 {
 	private const string InternalNative = "__N";
-	private const bool addRecording = false;
+	private static bool addRecording = false;
 
 	private void Imports()
 	{

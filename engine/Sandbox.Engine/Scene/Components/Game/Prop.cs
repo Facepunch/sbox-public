@@ -310,7 +310,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 	}
 
 	/// <summary>
-	/// True is this prop can be set on fire.
+	/// True if this prop can be set on fire.
 	/// </summary>
 	public bool IsFlammable => Model?.Data.Flammable ?? false;
 

@@ -1,7 +1,7 @@
 namespace Sandbox;
 
 /// <summary>
-/// Allows collision contrained movement without the need for a rigidbody. This is not affected by forces and will only move when you call the Move() method.
+/// Allows collision constrained movement without the need for a rigidbody. This is not affected by forces and will only move when you call the Move() method.
 /// </summary>
 [Expose]
 [Title( "Character Controller" )]

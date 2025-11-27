@@ -18,6 +18,7 @@ internal class PullRequest
 				new Format( "Format Engine", Solutions.Engine, Format.Mode.Full, verifyOnly: true ),
 				new Format( "Format Editor", Solutions.Toolbase, Format.Mode.Whitespace, verifyOnly: true ),
 				new Format( "Format Menu", Solutions.Menu, Format.Mode.Whitespace, verifyOnly: true ),
+				new Format( "Format Build Tools", Solutions.BuildTools, Format.Mode.Full, verifyOnly: true )
 			], continueOnFailure: true );
 		}
 

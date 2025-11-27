@@ -5,6 +5,7 @@
 # Git
 !.gitignore
 !.gitattributes
+!.github/workflows/**
 
 # Source files
 !*.sln

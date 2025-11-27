@@ -197,7 +197,7 @@ internal partial class GameInstanceDll
 	}
 
 	static string[] _interestingExtensions = new[] { "_c", ".scss", ".ttf" };
-	static string[] _engineAssets = new[] { "vtex_c", "vmat_c", "vsnd_c", "vmdl_c", "vpk" }; // anything that the engine has to download has to be a LARGE download
+	static string[] _engineAssets = new[] { "vtex_c", "vmat_c", "vsnd_c", "vmdl_c", "vpk", "vanmgrph_c" }; // anything that the engine has to download has to be a LARGE download
 	List<string> _netIncludePaths = new(); // wildcard-supported paths we also want to include content of
 
 	bool ShouldNetworkFile( string filename )

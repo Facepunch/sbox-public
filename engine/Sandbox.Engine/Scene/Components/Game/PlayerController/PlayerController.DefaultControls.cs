@@ -25,7 +25,7 @@ public sealed partial class PlayerController : Component
 	public bool IsDucking { get; set; }
 
 	/// <summary>
-	/// The distance from the top of the head to to closest ceiling
+	/// The distance from the top of the head to the closest ceiling.
 	/// </summary>
 	public float Headroom { get; set; }
 

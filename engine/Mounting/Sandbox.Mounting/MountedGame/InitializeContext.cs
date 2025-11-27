@@ -25,6 +25,14 @@ public ref struct InitializeContext
 	}
 
 	/// <summary>
+	/// Return true if this DLC is installed on Steam
+	/// </summary>
+	public bool IsDlcInstalled( long appid )
+	{
+		return system.Steam?.IsDlcInstalled( appid ) ?? false;
+	}
+
+	/// <summary>
 	/// If this app is installed we'll return the folder in which it is installed
 	/// </summary>
 	public string GetAppDirectory( long appid )

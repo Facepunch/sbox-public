@@ -41,9 +41,12 @@
 			origin.x += style.TransformOriginX.Value.GetPixels( panel.Box.Rect.Width, 0.0f );
 			origin.y += style.TransformOriginY.Value.GetPixels( panel.Box.Rect.Height, 0.0f );
 
-			Matrix *= Matrix.CreateTranslation( -origin );
+			// Transform origin from parent's untransformed space to parent's transformed space
+			Vector3 transformedOrigin = panel.Parent?.GlobalMatrix?.Inverted.Transform( origin ) ?? origin;
+
+			Matrix *= Matrix.CreateTranslation( -transformedOrigin );
 			Matrix *= panel.TransformMatrix;
-			Matrix *= Matrix.CreateTranslation( origin );
+			Matrix *= Matrix.CreateTranslation( transformedOrigin );
 
 			var mi = Matrix.Inverted;
 

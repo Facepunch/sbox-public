@@ -127,10 +127,13 @@ internal class TcpChannel : Connection
 		{
 			while ( !tokenSource.IsCancellationRequested )
 			{
+				var processedPacket = false;
+
 				if ( fakeLagIncoming.TryPeek( out var i ) )
 				{
 					if ( i.Item2 )
 					{
+						processedPacket = true;
 						InvokeMessageHandler( i.Item3, i.Item1 );
 						fakeLagIncoming.Dequeue();
 					}
@@ -140,13 +143,15 @@ internal class TcpChannel : Connection
 				{
 					if ( o.Item2 )
 					{
+						processedPacket = true;
 						sendChannel.Writer.TryWrite( BitConverter.GetBytes( o.Item1.Length ) );
 						sendChannel.Writer.TryWrite( o.Item1 );
 						fakeLagOutgoing.Dequeue();
 					}
 				}
 
-				await Task.Delay( 1 );
+				if ( !processedPacket ) // Maybe something will be ready later?
+					await Task.Delay( 1 );
 			}
 		}
 		catch ( Exception e )

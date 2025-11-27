@@ -113,7 +113,7 @@ public partial class GameObject
 
 	/// <summary>
 	/// Returns either a full JsonObject with all the GameObjects data,
-	/// or if this GameObject is a prefab instance, it wil return an object containing the patch/diff between instance and prefab.
+	/// or if this GameObject is a prefab instance, it will return an object containing the patch/diff between instance and prefab.
 	/// </summary>
 	public virtual JsonObject Serialize( SerializeOptions options = null )
 	{

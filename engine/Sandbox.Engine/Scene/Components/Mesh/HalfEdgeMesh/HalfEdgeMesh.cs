@@ -19,7 +19,7 @@ internal struct HalfEdge
 {
 	public int Vertex { get; set; } // Vertex at the end of the edge
 	public int OppositeEdge { get; set; } // Half edge which runs the opposite direction from this edge
-	public int NextEdge { get; set; } // Next half edge edge loop around the face to which this edge belongs
+	public int NextEdge { get; set; } // Next half edge in the edge loop around the face to which this edge belongs
 	public int Face { get; set; } // Face to which the half edge belongs
 
 	public static HalfEdge Invalid => new()

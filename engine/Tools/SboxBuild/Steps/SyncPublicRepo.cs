@@ -94,6 +94,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		{ "public/.gitignore", ".gitignore" },
 		{ "public/.gitattributes", ".gitattributes" },
 		{ "public/.github/workflows/pull_request.yml", ".github/workflows/pull_request.yml" },
+		{ "public/.github/workflows/pull_request_checks.yml", ".github/workflows/pull_request_checks.yml" },
 		{ "public/README.md", "README.md" },
 		{ "public/LICENSE.md", "LICENSE.md" },
 		{ "public/CONTRIBUTING.md", "CONTRIBUTING.md" },
@@ -435,7 +436,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 
 		// Extend with all lfs files from first commit to HEAD
 		var firstCommitHash = string.Empty;
-		if ( !Utility.RunProcess( "git", "rev-list --max-parents=0 HEAD", relativeRepoPath, onDataReceived: (_, e) =>
+		if ( !Utility.RunProcess( "git", "rev-list --max-parents=0 HEAD", relativeRepoPath, onDataReceived: ( _, e ) =>
 		{
 			if ( !string.IsNullOrWhiteSpace( e.Data ) )
 			{
@@ -447,7 +448,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			return null;
 		}
 
-		if ( !Utility.RunProcess( "git", $"lfs ls-files --name-only {firstCommitHash} HEAD", relativeRepoPath, onDataReceived: (_, e) =>
+		if ( !Utility.RunProcess( "git", $"lfs ls-files --name-only {firstCommitHash} HEAD", relativeRepoPath, onDataReceived: ( _, e ) =>
 		{
 			if ( !string.IsNullOrWhiteSpace( e.Data ) )
 			{
