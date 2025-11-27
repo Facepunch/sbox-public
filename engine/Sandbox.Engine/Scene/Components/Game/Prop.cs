@@ -11,7 +11,7 @@ namespace Sandbox;
 [Title( "Prop" )]
 [Category( "Game" )]
 [Icon( "toys" )]
-public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable, Component.ICollisionListener
+public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 {
 	Model _model;
 	ulong _bodyGroups = ulong.MaxValue;
@@ -130,25 +130,6 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable,
 	/// </summary>
 	[Property, ShowIf( nameof( IsStatic ), false )]
 	public bool StartAsleep { get; set; }
-
-	/// <summary>
-	/// Whether this prop can take damage from high-speed impacts.
-	/// </summary>
-	[Property, Category( "Impact Damage" )]
-	public bool EnableImpactDamage { get; set; } = true;
-
-	/// <summary>
-	/// The minimum speed required for an impact to cause damage.
-	/// </summary>
-	[Property, Category( "Impact Damage" ), ShowIf( nameof( EnableImpactDamage ), true )]
-	public float MinImpactDamageSpeed { get; set; } = 500f;
-
-	/// <summary>
-	/// The amount of damage this prop deals to other objects when it collides at high speed.
-	/// If set to 0 or less, this will be calculated from the mass of the prop.
-	/// </summary>
-	[Property, Category( "Impact Damage" ), ShowIf( nameof( EnableImpactDamage ), true )]
-	public float ImpactDamage { get; set; } = 0f;
 
 	[Property] public Action OnPropBreak { get; set; }
 	[Property] public Action<DamageInfo> OnPropTakeDamage { get; set; }
@@ -563,69 +544,6 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable,
 		}
 
 		return gibs;
-	}
-
-	/// <summary>
-	/// Gets the effective impact damage value. If ImpactDamage is not set,
-	/// calculates a default value based on the prop's mass.
-	/// </summary>
-	private float GetEffectiveImpactDamage()
-	{
-		if ( ImpactDamage > 0 )
-			return ImpactDamage;
-
-		// Calculate from mass if not explicitly set
-		var rb = Components.Get<Rigidbody>();
-		return rb.IsValid() && rb.PhysicsBody.IsValid() ? rb.PhysicsBody.Mass / 10f : 10f;
-	}
-
-	/// <summary>
-	/// Called when this prop starts colliding with another object.
-	/// Handles velocity-based damage for high-speed impacts.
-	/// </summary>
-	void ICollisionListener.OnCollisionStart( Collision collision )
-	{
-		if ( !EnableImpactDamage ) return;
-		if ( IsProxy ) return;
-
-		var speed = collision.Contact.Speed.Length;
-		var minSpeed = MinImpactDamageSpeed;
-		if ( minSpeed <= 0 )
-			minSpeed = 500f;
-
-		if ( speed <= minSpeed )
-			return;
-
-		var impactDmg = GetEffectiveImpactDamage();
-		var damageMultiplier = speed / minSpeed;
-
-		// This prop takes damage from high speed impacts
-		if ( Health > 0 )
-		{
-			var selfDamage = damageMultiplier * impactDmg;
-			var damageInfo = new DamageInfo( selfDamage, collision.Other.GameObject, collision.Other.GameObject )
-			{
-				Position = collision.Contact.Point
-			};
-			damageInfo.Tags.Add( "physics_impact" );
-
-			OnDamage( damageInfo );
-		}
-
-		// The other object takes more damage
-		var otherDamageable = collision.Other.GameObject?.GetComponentInParent<IDamageable>();
-		if ( otherDamageable is not null )
-		{
-			var otherDamage = damageMultiplier * impactDmg * 1.2f;
-			var otherDamageInfo = new DamageInfo( otherDamage, GameObject, GameObject )
-			{
-				Position = collision.Contact.Point,
-				Shape = collision.Other.Shape
-			};
-			otherDamageInfo.Tags.Add( "physics_impact" );
-
-			otherDamageable.OnDamage( otherDamageInfo );
-		}
 	}
 
 	/// <summary>
