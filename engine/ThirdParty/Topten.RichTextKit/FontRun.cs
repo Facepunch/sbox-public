@@ -864,24 +864,24 @@ namespace Topten.RichTextKit
 			// text strokes.
 			//
 			_textBlob = null;
-			CreateTextBlob( ctx, false );
+			var glyphVOffset = CreateTextBlob( ctx, false );
 
 			if ( _textBlob == null )
 				return;
 
-			using ( var effectPaint = new SKPaint() )
+			using var effectPaint = new SKPaint();
+			foreach ( var effect in Style.TextEffects )
 			{
-				foreach ( var effect in Style.TextEffects )
-				{
-					effectPaint.Style = effect.PaintStyle;
-					effectPaint.StrokeWidth = effect.Width;
-					effectPaint.StrokeJoin = effect.StrkeJoin;
-					effectPaint.StrokeMiter = effect.StrokeMiter;
-					effectPaint.Color = effect.Color;
-					effectPaint.ImageFilter = effect.BlurSize > 0 ? SKImageFilter.CreateDropShadow( effect.Offset.X, effect.Offset.Y, effect.BlurSize, effect.BlurSize, effect.Color ) : null;
+				effectPaint.Style = effect.PaintStyle;
+				effectPaint.StrokeWidth = effect.Width;
+				effectPaint.StrokeJoin = effect.StrokeJoin;
+				effectPaint.StrokeMiter = effect.StrokeMiter;
+				effectPaint.Color = effect.Color;
+				effectPaint.ImageFilter = effect.BlurSize > 0 ? SKImageFilter.CreateDropShadow( effect.Offset.X, effect.Offset.Y, effect.BlurSize, effect.BlurSize, effect.Color ) : null;
 
-					ctx.Canvas.DrawText( _textBlob, 0, 0, effectPaint );
-				}
+				ctx.Canvas.DrawText( _textBlob, 0, 0, effectPaint );
+				PaintUnderline( ctx, effectPaint );
+				PaintStrikeThrough( ctx, effectPaint, glyphVOffset );
 			}
 		}
 
