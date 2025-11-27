@@ -12,8 +12,6 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 {
 	HitboxSystem system;
 
-	SkinnedModelRenderer _renderer;
-
 	/// <summary>
 	/// The target SkinnedModelRenderer that holds the model/skeleton you want to 
 	/// take the hitboxes from.
@@ -21,20 +19,18 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 	[Property]
 	public SkinnedModelRenderer Renderer
 	{
-		get => _renderer;
+		get;
 		set
 		{
-			if ( _renderer == value ) return;
+			if ( field == value ) return;
 
 			Clear();
 
-			_renderer = value;
+			field = value;
 
 			AddFrom( Renderer );
 		}
 	}
-
-	GameObject _target;
 
 	/// <summary>
 	/// The target GameObject to report in trace hits. If this is unset we'll defaault to the gameobject on which this component is.
@@ -42,12 +38,12 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 	[Property]
 	public GameObject Target
 	{
-		get => _target;
+		get;
 		set
 		{
-			if ( _target == value ) return;
+			if ( field == value ) return;
 
-			_target = value;
+			field = value;
 
 			Rebuild();
 		}
@@ -173,7 +169,7 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 	public void RemoveHitbox( Hitbox hitbox )
 	{
 		Hitboxes.Remove( hitbox );
-	}	
+	}
 
 	public IReadOnlyList<Hitbox> GetHitboxes() => Hitboxes;
 
