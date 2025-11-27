@@ -48,6 +48,7 @@ public partial class Bitmap
 		pen.ColorF = color.ToSkF();
 		pen.StrokeWidth = width;
 		pen.Style = SKPaintStyle.Stroke;
+		pen.PathEffect = null;
 		pen.Shader = default;
 	}
 
