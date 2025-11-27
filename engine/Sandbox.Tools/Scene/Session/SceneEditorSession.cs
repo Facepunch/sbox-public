@@ -452,14 +452,14 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	{
 		var resource = ResourceLibrary.Get<Resource>( path );
 
-		/*if ( SceneEditorSession.Resolve( resource ) is PrefabEditorSession session )
-		{
-			session.MakeActive();
-			return;
-		}*/
-
 		if ( resource is SceneFile sceneFile )
 		{
+			if ( SceneEditorSession.Resolve( sceneFile ) is SceneEditorSession existingSession )
+			{
+				existingSession.MakeActive();
+				return existingSession;
+			}
+
 			var openingScene = Scene.CreateEditorScene();
 			using var _ = openingScene.Push();
 
@@ -472,6 +472,12 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 		if ( resource is PrefabFile prefabFile )
 		{
+			if ( PrefabEditorSession.Resolve( prefabFile ) is PrefabEditorSession existingSession )
+			{
+				existingSession.MakeActive();
+				return existingSession;
+			}
+
 			var openingScene = PrefabScene.CreateForEditing();
 			using var _ = openingScene.Push();
 
