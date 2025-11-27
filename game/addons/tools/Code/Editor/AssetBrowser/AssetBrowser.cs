@@ -109,20 +109,16 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 		}
 	}
 
-	static AssetListViewMode _viewModeType;
-
 	/// <summary>
 	/// View mode, i.e. thumbs, list or whatever else.
 	/// </summary>
 	public AssetListViewMode ViewModeType
 	{
-		get => _viewModeType;
+		get;
 		set
 		{
-			if ( _viewModeType == value ) return;
-			_viewModeType = value;
-
-			AssetList.ViewMode = _viewModeType;
+			field = value;
+			AssetList.ViewMode = field;
 			UpdateViewModeIcon();
 			SaveSettings();
 		}

@@ -26,7 +26,7 @@ jobs:
         run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- format --verify
 
       - name: Bootstrap
-        run: Bootstrap.bat
+        run: .\Bootstrap.bat
 
       - name: Test
         run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- test
