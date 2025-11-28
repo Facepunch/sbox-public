@@ -76,7 +76,7 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 	[Property]
 	public List<string> WorkshopItems { get; set; }
 
-	protected override void OnAwake()
+	protected override void OnStart()
 	{
 		if ( IsProxy )
 			return;

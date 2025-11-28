@@ -830,6 +830,28 @@ public sealed unsafe partial class CommandList
 		AddEntry( &Execute, new Entry { Object1 = compute, Object2 = indirectBuffer, Data1 = new Vector4( indirectElementOffset, 0, 0, 0 ) } );
 	}
 
+	/// <inheritdoc cref="RayTracingShader.DispatchRaysWithAttributes(RenderAttributes, int, int, int)"/>
+	internal void DispatchRays( RayTracingShader raytracing, int threadsX, int threadsY, int threadsZ )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			((RayTracingShader)entry.Object1).DispatchRaysWithAttributes( Graphics.Attributes, (int)entry.Data1.x, (int)entry.Data1.y, (int)entry.Data1.z );
+		}
+
+		AddEntry( &Execute, new Entry { Object1 = raytracing, Data1 = new Vector4( threadsX, threadsY, threadsZ, 0 ) } );
+	}
+
+	/// <inheritdoc cref="RayTracingShader.DispatchRaysIndirect(GpuBuffer, uint)"/>
+	internal void DispatchRaysIndirect( RayTracingShader raytracing, GpuBuffer indirectBuffer, uint indirectElementOffset = 0 )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			((RayTracingShader)entry.Object1).DispatchRaysIndirectWithAttributes( Graphics.Attributes, (GpuBuffer)entry.Object2, (uint)entry.Data1.x );
+		}
+
+		AddEntry( &Execute, new Entry { Object1 = raytracing, Object2 = indirectBuffer, Data1 = new Vector4( indirectElementOffset, 0, 0, 0 ) } );
+	}
+
 	/// <summary>
 	/// A handle to the viewport size
 	/// </summary>
@@ -849,6 +871,22 @@ public sealed unsafe partial class CommandList
 		}
 
 		AddEntry( &Execute, new Entry { Object1 = compute, Object5 = dimension.Name } );
+	}
+
+	/// <summary>
+	/// Dispatch a ray tracing shader
+	/// </summary>
+	internal void DispatchRays( RayTracingShader raytracing, RenderTargetHandle.SizeHandle dimension )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			var xyz = commandList.GetDimension( (string)entry.Object5 );
+			if ( !xyz.HasValue ) return;
+
+			((RayTracingShader)entry.Object1).DispatchRaysWithAttributes( Graphics.Attributes, xyz.Value.x, xyz.Value.y, xyz.Value.z );
+		}
+
+		AddEntry( &Execute, new Entry { Object1 = raytracing, Object5 = dimension.Name } );
 	}
 
 	/// <summary>
