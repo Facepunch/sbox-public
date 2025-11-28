@@ -78,7 +78,7 @@ public partial class SoundPlayer : Widget
 	{
 		Timeline.OnFrame();
 		Time = Timeline.Time;
-		
+
 		PlayOption.Text = Playing ? "Pause" : "Play";
 		PlayOption.Icon = Playing ? "pause" : "play_arrow";
 
