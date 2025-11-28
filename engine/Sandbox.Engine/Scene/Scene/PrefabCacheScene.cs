@@ -55,7 +55,7 @@ internal partial class PrefabCacheScene : PrefabScene
 		FullPrefabInstanceJson = Serialize( new SerializeOptions { SerializePrefabForDiff = true } );
 
 		// Iterate all gameobjects in scene and find prefab instances, add them to reference set
-		referencedPrefabs = GetAllObjects( false ).Where( o => o.IsPrefabInstanceRoot ).Select( p => ResourceLibrary.Get<PrefabFile>( p.PrefabInstanceSource ) ).ToHashSet();
+		referencedPrefabs = GetAllObjects( false ).Where( o => o.IsPrefabInstanceRoot ).Select( p => ResourceLibrary.Get<PrefabFile>( p.PrefabSource ) ).ToHashSet();
 
 		return true;
 	}

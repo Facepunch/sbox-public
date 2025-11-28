@@ -148,6 +148,7 @@ public partial class GameObject
 		}
 
 		Name = original.Name;
+		PrefabSource = original.PrefabSource;
 		Enabled = enabled;
 
 		NetworkMode = original.NetworkMode;

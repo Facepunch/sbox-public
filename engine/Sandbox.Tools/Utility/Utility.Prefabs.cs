@@ -31,7 +31,7 @@ public static partial class EditorUtility
 			if ( !go.IsValid() ) return null;
 			if ( !go.IsPrefabInstance ) return null;
 
-			var prefabName = System.IO.Path.GetFileNameWithoutExtension( go.OutermostPrefabInstanceRoot.PrefabInstanceSource );
+			var prefabName = System.IO.Path.GetFileNameWithoutExtension( go.OutermostPrefabInstanceRoot.PrefabSource );
 
 			return prefabName.ToTitleCase();
 		}
@@ -170,7 +170,7 @@ public static partial class EditorUtility
 
 			go.OutermostPrefabInstanceRoot.PrefabInstance.ApplyPropertyChangeToPrefab( owner, prop.Name );
 
-			UpdatePrefabAfterModification( go.OutermostPrefabInstanceRoot.PrefabInstanceSource );
+			UpdatePrefabAfterModification( go.OutermostPrefabInstanceRoot.PrefabSource );
 
 			EditorUtility.InspectorObject = SceneEditorSession.Active.Scene.Directory.FindByGuid( goId );
 		}
@@ -211,7 +211,7 @@ public static partial class EditorUtility
 
 			comp.GameObject.OutermostPrefabInstanceRoot.PrefabInstance.ApplyComponentChangesToPrefab( comp );
 
-			UpdatePrefabAfterModification( comp.GameObject.OutermostPrefabInstanceRoot.PrefabInstanceSource );
+			UpdatePrefabAfterModification( comp.GameObject.OutermostPrefabInstanceRoot.PrefabSource );
 
 			EditorUtility.InspectorObject = SceneEditorSession.Active.Scene.Directory.FindByGuid( goId );
 		}
@@ -240,7 +240,7 @@ public static partial class EditorUtility
 				go.OutermostPrefabInstanceRoot.PrefabInstance.AddGameObjectToPrefab( go );
 			}
 
-			UpdatePrefabAfterModification( go.OutermostPrefabInstanceRoot.PrefabInstanceSource );
+			UpdatePrefabAfterModification( go.OutermostPrefabInstanceRoot.PrefabSource );
 
 			EditorUtility.InspectorObject = SceneEditorSession.Active.Scene.Directory.FindByGuid( goId );
 		}
@@ -260,7 +260,7 @@ public static partial class EditorUtility
 
 			go.OutermostPrefabInstanceRoot.PrefabInstance.ApplyGameObjectChangesToPrefab( go );
 
-			UpdatePrefabAfterModification( go.OutermostPrefabInstanceRoot.PrefabInstanceSource );
+			UpdatePrefabAfterModification( go.OutermostPrefabInstanceRoot.PrefabSource );
 
 			EditorUtility.InspectorObject = SceneEditorSession.Active.Scene.Directory.FindByGuid( goId );
 		}
@@ -287,7 +287,7 @@ public static partial class EditorUtility
 			if ( !go.IsValid() ) return;
 			if ( !go.IsPrefabInstance ) return;
 
-			var prefabSource = go.OutermostPrefabInstanceRoot.PrefabInstanceSource;
+			var prefabSource = go.OutermostPrefabInstanceRoot.PrefabSource;
 
 			WriteGameObjectToPrefab( go, prefabSource, skipDiskWrite );
 		}
@@ -305,9 +305,9 @@ public static partial class EditorUtility
 			{
 				foreach ( var prefabInstanceRoot in go.GetAllObjects( false ).Where( x => x.IsPrefabInstanceRoot ) )
 				{
-					if ( prefabInstanceRoot != go && prefabInstanceRoot.PrefabInstanceSource == go.PrefabInstanceSource )
+					if ( prefabInstanceRoot != go && prefabInstanceRoot.PrefabSource == go.PrefabSource )
 					{
-						Log.Warning( $"Failed to write GameObject to prefab, {prefabInstanceRoot.PrefabInstanceSource} occurs more than once in hierarchy." );
+						Log.Warning( $"Failed to write GameObject to prefab, {prefabInstanceRoot.PrefabSource} occurs more than once in hierarchy." );
 						EditorUtility.PlayRawSound( "sounds/editor/fail.wav" );
 						return (null, null);
 					}
@@ -327,7 +327,7 @@ public static partial class EditorUtility
 
 			Dictionary<Guid, Guid> instanceToPrefabGuid = null;
 
-			bool isWritingBackToExistingInstance = go.IsOutermostPrefabInstanceRoot && prefabFile.ResourcePath == go.PrefabInstanceSource;
+			bool isWritingBackToExistingInstance = go.IsOutermostPrefabInstanceRoot && prefabFile.ResourcePath == go.PrefabSource;
 			// Some special care when writing back existing prefab instances
 			// Need to keep ids up to date
 			if ( isWritingBackToExistingInstance )
