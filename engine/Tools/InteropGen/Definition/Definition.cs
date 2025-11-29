@@ -25,6 +25,7 @@ public class Definition
 	public string SaveFileCpp { get; internal set; }
 	public string SaveFileCppH { get; internal set; }
 	public string SaveFileCs { get; internal set; }
+	public string SaveFileCsAot { get; internal set; }
 	public string ManagedNamespace { get; internal set; } = "ManagedNamespace";
 	public string PrecompiledHeader { get; set; }
 	public string FullText { get; set; }

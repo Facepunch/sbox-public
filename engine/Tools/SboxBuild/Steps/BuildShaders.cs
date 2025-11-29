@@ -11,7 +11,16 @@ internal class BuildShaders( string name, bool forced = false ) : Step( name )
 		{
 			string rootDir = Directory.GetCurrentDirectory();
 			string gameDir = Path.Combine( rootDir, "game" );
-			string shaderCompilerPath = Path.Combine( gameDir, "bin", "managed", "shadercompiler.exe" );
+			string shaderCompilerPath;
+
+			if ( OperatingSystem.IsLinux() )
+			{
+				shaderCompilerPath = Path.Combine( gameDir, "bin", "managed", "ShaderCompiler.dll" );
+			}
+			else
+			{
+				shaderCompilerPath = Path.Combine( gameDir, "bin", "managed", "shadercompiler.exe" );
+			}
 
 			// Verify shader compiler exists
 			if ( !File.Exists( shaderCompilerPath ) )
@@ -32,7 +41,20 @@ internal class BuildShaders( string name, bool forced = false ) : Step( name )
 	private ExitCode RunShaderCompiler( string shaderCompilerPath, string workingDirectory )
 	{
 		// Build arguments - only include -f if forced is true
-		string arguments = "*";
+		string arguments = "";
+		
+		string executable;
+		if ( OperatingSystem.IsLinux() )
+		{
+			executable = "dotnet";
+			arguments = $"\"{shaderCompilerPath}\" *";
+		}
+		else
+		{
+			executable = shaderCompilerPath;
+			arguments = "*";
+		}
+
 		if ( forced )
 		{
 			arguments += " -f";
@@ -42,7 +64,7 @@ internal class BuildShaders( string name, bool forced = false ) : Step( name )
 		var shaderCompiled = false;
 
 		bool success = Utility.RunProcess(
-			shaderCompilerPath,
+			executable,
 			arguments,
 			workingDirectory,
 			onDataReceived: ( sender, e ) =>

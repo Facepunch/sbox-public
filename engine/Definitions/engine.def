@@ -10,7 +10,8 @@ namespace "Managed.SandboxEngine"
 // Paths are relative to the def file
 cpp "../../src/engine2/interop.engine.cpp"
 hpp "../../src/engine2/interop.engine.h"
-cs	"../Sandbox.Engine/Interop.Engine.cs"
+cs      "../Sandbox.Engine/Interop.Engine.cs"                                                                                                                                                                      
+csaot   "../src/Sbox.Engine.Emulation/Generated/Interop.Aot.cs"
 
 
 include "dbg.h"

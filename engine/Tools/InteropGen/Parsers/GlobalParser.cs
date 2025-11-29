@@ -75,6 +75,11 @@ internal class GlobalParser : BaseParser
 		definition.SaveFileCs = str.Trim();
 	}
 
+	public void csaot( string str )
+	{
+		definition.SaveFileCsAot = str.Trim();
+	}
+
 	public void cpp( string str )
 	{
 		definition.SaveFileCpp = str.Trim();

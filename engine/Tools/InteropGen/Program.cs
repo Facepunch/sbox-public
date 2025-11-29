@@ -7,7 +7,7 @@ namespace Facepunch.InteropGen;
 
 public static class Program
 {
-	public static void ProcessDefinitionFile( int index, string filename, bool skipNative )
+	public static void ProcessDefinitionFile( int index, string filename, bool skipNative, bool aot = false )
 	{
 		using ( Log.Group( ConsoleColor.Green, $"{System.IO.Path.GetFileName( filename )}" ) )
 		{
@@ -17,23 +17,34 @@ public static class Program
 			{
 				Definition definitions = Definition.FromFile( filename );
 
-				// Log.WriteLine( "Saving Managed File" );
-				ManagerWriter managedWriter = new( definitions, definitions.SaveFileCs );
-				managedWriter.Generate();
-				managedWriter.SaveToFile( definitions.SaveFileCs );
-
-				if ( !skipNative )
+				if ( aot )
+                {
+                    Log.WriteLine( "Saving NativeAOT File" );
+                    NativeAotWriter nativeAotWriter = new( definitions, definitions.SaveFileCsAot );
+                    nativeAotWriter.Generate();
+                    nativeAotWriter.SaveToFile( definitions.SaveFileCsAot );
+                }
+				else
 				{
-					// Log.WriteLine( "Saving Native Header" );
-					NativeHeaderWriter nativeHeaderWriter = new( definitions, definitions.SaveFileCppH );
-					nativeHeaderWriter.Generate();
-					nativeHeaderWriter.SaveToFile( definitions.SaveFileCppH );
+					// Log.WriteLine( "Saving Managed File" );
+					ManagerWriter managedWriter = new( definitions, definitions.SaveFileCs );
+					managedWriter.Generate();
+					managedWriter.SaveToFile( definitions.SaveFileCs );
 
-					// Log.WriteLine( "Saving Native" );
-					NativeWriter nativeWriter = new( definitions, definitions.SaveFileCpp );
-					nativeWriter.Generate();
-					nativeWriter.SaveToFile( definitions.SaveFileCpp );
+					if ( !skipNative )
+					{
+						// Log.WriteLine( "Saving Native Header" );
+						NativeHeaderWriter nativeHeaderWriter = new( definitions, definitions.SaveFileCppH );
+						nativeHeaderWriter.Generate();
+						nativeHeaderWriter.SaveToFile( definitions.SaveFileCppH );
+
+						// Log.WriteLine( "Saving Native" );
+						NativeWriter nativeWriter = new( definitions, definitions.SaveFileCpp );
+						nativeWriter.Generate();
+						nativeWriter.SaveToFile( definitions.SaveFileCpp );
+					}
 				}
+
 
 				Log.Completion( $"Done in {sw.Elapsed.TotalSeconds:0.00}s", true );
 			}
@@ -44,7 +55,7 @@ public static class Program
 		}
 	}
 
-	public static void ProcessManifest( string directory, bool skipNative = false )
+	public static void ProcessManifest( string directory, bool skipNative = false, bool aot = false )
 	{
 		string filename = System.IO.Path.Combine( directory, "manifest.def" );
 		if ( !System.IO.File.Exists( filename ) )
@@ -68,7 +79,7 @@ public static class Program
 				int index = i++;
 				string path = System.IO.Path.Combine( directory, line );
 
-				Task t = Task.Run( () => ProcessDefinitionFile( index, path, skipNative ) );
+				Task t = Task.Run( () => ProcessDefinitionFile( index, path, skipNative, aot ) );
 				tasks.Add( t );
 			}
 		}

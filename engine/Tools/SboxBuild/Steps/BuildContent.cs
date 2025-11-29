@@ -15,6 +15,12 @@ internal class BuildContent( string name ) : Step( name )
 			// Verify content builder exists
 			if ( !File.Exists( contentBuilderPath ) )
 			{
+				if ( OperatingSystem.IsLinux() )
+				{
+					Log.Warning( $"Warning: Content builder executable not found at {contentBuilderPath}. Skipping content build on Linux." );
+					return ExitCode.Success;
+				}
+
 				Log.Error( $"Error: Content builder executable not found at {contentBuilderPath}" );
 				return ExitCode.Failure;
 			}
