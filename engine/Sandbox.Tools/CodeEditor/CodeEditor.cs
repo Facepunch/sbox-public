@@ -50,6 +50,19 @@ public static partial class CodeEditor
 			if ( _current == null )
 			{
 				var editorName = EditorCookie.GetString( "CodeEditor", GetDefault() );
+
+				if ( editorName != null && editorName.StartsWith( "Custom:" ) )
+				{
+					var customId = editorName.Substring( 7 );
+					_current = TryGetCustomEditor( customId );
+					if ( _current != null )
+					{
+						return _current;
+					}
+
+					editorName = GetDefault();
+				}
+
 				var editorType = EditorTypeLibrary.GetTypes<ICodeEditor>().FirstOrDefault( t => t.Name == editorName );
 
 				// Check if our selected editor is still valid
@@ -82,8 +95,53 @@ public static partial class CodeEditor
 		set
 		{
 			_current = value;
-			EditorCookie.SetString( "CodeEditor", value.GetType().Name );
+
+			var typeName = value.GetType().Name;
+			if ( typeName == "CustomCodeEditor" )
+			{
+				var customEditor = value as dynamic;
+				var config = customEditor?.Config;
+				if ( config != null )
+				{
+					EditorCookie.SetString( "CodeEditor", $"Custom:{config.Id}" );
+					return;
+				}
+			}
+
+			EditorCookie.SetString( "CodeEditor", typeName );
 		}
+	}
+
+	/// <summary>
+	/// Tries to get a custom code editor by its unique ID.
+	/// </summary>
+	/// <param name="customId">The unique ID of the custom editor.</param>
+	/// <returns>Returns the custom editor if found and is valid, otherwise returns null.</returns>
+	private static ICodeEditor TryGetCustomEditor( string customId )
+	{
+		var customEditorType = EditorTypeLibrary.GetTypes<ICodeEditor>()
+			.FirstOrDefault( t => t.Name == "CustomCodeEditor" );
+
+		if ( customEditorType == null ) return null;
+
+		var registryType = customEditorType.TargetType.Assembly.GetType( "Editor.CodeEditors.CustomCodeEditorRegistry" );
+		if ( registryType == null ) return null;
+
+		var getMethod = registryType.GetMethod( "GetEditorById", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static );
+		if ( getMethod == null ) return null;
+
+		var editor = getMethod.Invoke( null, new object[] { customId } ) as ICodeEditor;
+		if ( editor != null && editor.IsInstalled() ) return editor;
+		return null;
+	}
+
+	/// <summary>
+	/// Clears out the current cached editor, forcing a re-evaluation on next cycle.
+	/// Call this when custom editor configurations change.
+	/// </summary>
+	public static void InvalidateCache()
+	{
+		_current = null;
 	}
 
 	/// <summary>
@@ -127,6 +185,17 @@ public static partial class CodeEditor
 		{
 			if ( CodeEditor.Current != null )
 			{
+				if ( CodeEditor.Current.GetType().Name == "CustomCodeEditor" )
+				{
+					var customEditor = CodeEditor.Current as dynamic;
+					var config = customEditor?.Config;
+					if ( config != null && !string.IsNullOrEmpty( config.Name ) )
+					{
+						return config.Name;
+					}
+
+				}
+
 				var displayInfo = DisplayInfo.ForType( CodeEditor.Current.GetType(), true );
 				if ( !string.IsNullOrEmpty( displayInfo.Name ) )
 					return displayInfo.Name;
