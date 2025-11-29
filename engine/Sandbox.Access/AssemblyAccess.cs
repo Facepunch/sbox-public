@@ -428,7 +428,16 @@ internal partial class AssemblyAccess
 		{
 			if ( methodref.DeclaringType.IsArray )
 			{
-				Touch( methodref.DeclaringType.Resolve() );
+				if ( methodref.DeclaringType.GetElementType() is TypeReference { IsGenericParameter: true } elementType )
+				{
+					// We can't Resolve() a generic this way
+					// Pass the element type to Touch(TypeReference) which should handle these gracefully
+					Touch( elementType );	
+				}
+				else
+				{
+					Touch( methodref.DeclaringType.Resolve() );
+				}
 			}
 			else
 			{
