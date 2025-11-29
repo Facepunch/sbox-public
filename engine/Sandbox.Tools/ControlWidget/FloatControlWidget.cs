@@ -252,8 +252,8 @@ public class FloatControlWidget : StringControlWidget
 
 			LineEdit.Text = ValueToString();
 			SignalValuesChanged();
-
-			Application.CursorPosition = ScreenPosition + Theme.RowHeight * 0.5f;
+			
+			Application.UnscaledCursorPosition = (ScreenPosition * DpiScale) + Theme.RowHeight * 0.5f;
 			Cursor = CursorShape.Blank;
 
 			e.Accepted = true;
