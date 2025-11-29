@@ -88,7 +88,7 @@ public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Co
 	}
 
 	bool IsStarted => time - Delay >= 0;
-	bool IsFinished => time > (Duration + Delay);
+	bool IsFinished => !burstPending && time > (Duration + Delay);
 
 	void OnParticleStep( float delta )
 	{
