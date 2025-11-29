@@ -119,11 +119,11 @@ internal class StackTraceProperty : Widget
 		scroller.Canvas.Layout.AddStretchCell();
 	}
 
-	[StackLineHandler( @"^at (.+?)( in (.+):line (.+))?$", Order = 1000 )]
+	[StackLineHandler( @"^at (.+?) in ([A-Za-z]:\\.+|/.+|\\\\.+):line (\d+)$", Order = 1000 )]
 	public static StackRow DefaultStackLineHandler( Match match )
 	{
-		var hasFile = match.Groups[3].Success;
-		var isGenerated = match.Groups[3].Value.StartsWith( "Sandbox.Generator." );
+		var hasFile = match.Groups[2].Success;
+		var isGenerated = match.Groups[2].Value.StartsWith( "Sandbox.Generator." );
 		var functionName = match.Groups[1].Value;
 		if ( functionName.IndexOf( '(' ) > 0 ) functionName = functionName.Substring( 0, functionName.IndexOf( '(' ) );
 
@@ -132,8 +132,8 @@ internal class StackTraceProperty : Widget
 			return UnknownStackLineHandler( match );
 		}
 
-		var fileName = match.Groups[3].Value;
-		var fileLine = match.Groups[4].Value;
+		var fileName = match.Groups[2].Value;
+		var fileLine = match.Groups[3].Value;
 
 		var row = new StackRow( functionName, $"{fileName}:{fileLine}" )
 		{
