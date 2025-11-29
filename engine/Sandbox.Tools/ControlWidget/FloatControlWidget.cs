@@ -127,7 +127,11 @@ public class FloatControlWidget : StringControlWidget
 	internal static object StringToValueImpl( string text, SerializedProperty property )
 	{
 		Type underlyingType = Nullable.GetUnderlyingType( property.PropertyType ) ?? property.PropertyType;
-		return Convert.ChangeType( text.ToDoubleEval( property.As.Double ), underlyingType );
+		
+		// Normalize comma to period for parsing, some cultures use comma as decimal separator, making the numpad dot input useless
+		string normalizedText = text.Replace( ',', '.' );
+		
+		return Convert.ChangeType( normalizedText.ToDoubleEval( property.As.Double ), underlyingType );
 	}
 
 	protected override string ValueToString() => ValueToStringImpl( SerializedProperty );
