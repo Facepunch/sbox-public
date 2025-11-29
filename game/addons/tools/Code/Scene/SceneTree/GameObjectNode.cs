@@ -34,6 +34,27 @@ partial class GameObjectNode : TreeNode<GameObject>
 			hc.Add( Value.Network.IsOwner );
 			hc.Add( Value.IsProxy );
 			hc.Add( Value.Active );
+		hc.Add( Value.Tags ); // Include tags for custom icon and color changes
+
+		// Include custom icon (from session storage) so changes trigger a node update
+		// Prefer persisted icon tag (saved with scene) so icons survive reloads
+		var iconTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) );
+		if ( iconTag is not null )
+		{
+			var decoded = Editor.IconTagEncoding.DecodeIconFromTag( iconTag );
+			if ( !string.IsNullOrEmpty( decoded ) ) hc.Add( decoded );
+		}
+		else if ( CustomIconStorage.Icons.TryGetValue( Value, out var sessionIcon ) )
+		{
+			hc.Add( sessionIcon );
+		}
+
+		// Also include persisted color tag so color changes invalidate the node
+		var colorTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_color_" ) );
+		if ( colorTag is not null )
+		{
+			hc.Add( colorTag );
+		}
 
 			foreach ( var val in Value.Children )
 			{
@@ -73,7 +94,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 		if ( !Value.Active ) opacity *= 0.5f;
 
 		Color pen = Theme.TextControl;
-		string icon = "layers";
+		string icon = Value.Children.Where( x => x.ShouldShowInHierarchy() ).Any() ? "📂" : (Value.Components.Count > 0 ? "layers" : "📁");
 		Color iconColor = Theme.TextControl.WithAlpha( 0.6f );
 		Color overlayIconColor = iconColor;
 
@@ -165,7 +186,6 @@ partial class GameObjectNode : TreeNode<GameObject>
 			pen = Theme.Yellow.WithAlpha( 0.6f );
 		}
 
-
 		//
 		// If there's a drag and drop happening, fade out nodes that aren't possible
 		//
@@ -230,8 +250,48 @@ partial class GameObjectNode : TreeNode<GameObject>
 
 		var iconSize = 16;
 
-		Paint.Pen = iconColor.WithAlphaMultiplied( opacity );
-		Paint.DrawIcon( r, icon, iconSize, TextFlag.LeftCenter );
+        // Apply custom icon and color overrides (after all default conditions)
+
+
+        // Prefer persisted icon tag (saved with scene)
+        var iconTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) );
+        if ( iconTag is not null )
+        {
+            var decoded = Editor.IconTagEncoding.DecodeIconFromTag( iconTag );
+            if ( !string.IsNullOrEmpty( decoded ) ) icon = decoded;
+        }
+        else if ( CustomIconStorage.Icons.TryGetValue( Value, out var sessionIconValue ) )
+        {
+            icon = sessionIconValue;
+        }
+
+        // Prefer persisted color tag (saved with scene)
+        var colorTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_color_" ) );
+        if ( colorTag is not null )
+        {
+            var hex = colorTag.Substring( 11 ); // Remove "icon_color_"
+            // Expecting AARRGGBB
+            if ( hex.Length == 8 )
+            {
+                if ( Color.TryParse( $"#{hex}", out var parsedColor ) )
+                {
+                    iconColor = parsedColor;
+                    overlayIconColor = parsedColor;
+                }
+            }
+            else if ( hex.Length == 6 )
+            {
+                // fallback RRGGBB -> assume full alpha
+                if ( Color.TryParse( $"#FF{hex}", out var parsedColor ) )
+                {
+                    iconColor = parsedColor;
+                    overlayIconColor = parsedColor;
+                }
+            }
+        }
+
+        Paint.Pen = iconColor.WithAlphaMultiplied( opacity );
+        Paint.DrawIcon( r, icon, iconSize, TextFlag.LeftCenter );
 		if ( !string.IsNullOrEmpty( overlayIcon ) )
 		{
 			var overlayIconRect = r;
@@ -277,6 +337,11 @@ partial class GameObjectNode : TreeNode<GameObject>
 
 
 		}
+		// Apply custom icon and color overrides (after all default conditions)
+        if ( CustomIconStorage.Icons.TryGetValue( Value, out var customIcon ) )
+        {
+            icon = customIcon;
+        }
 	}
 
 	public override void OnRename( VirtualWidget item, string text, List<TreeNode> selection = null )
