@@ -354,7 +354,7 @@ public static class EditorScene
 		{
 			// Copy, because this collection can be modified during prefab updating ( e.g. refreshing/deserializing prefab spawns GOs or components)
 			var prefabInstancesRequiringUpdate = scene.GetAllObjects( false )
-				.Where( x => x.IsPrefabInstanceRoot && x.PrefabInstanceSource == changedPath )
+				.Where( x => x.IsPrefabInstanceRoot && x.PrefabSource == changedPath )
 				.Select( x => x.OutermostPrefabInstanceRoot ) // We always need to update the outermostprefab instance
 				.ToHashSet();
 			foreach ( var obj in prefabInstancesRequiringUpdate )

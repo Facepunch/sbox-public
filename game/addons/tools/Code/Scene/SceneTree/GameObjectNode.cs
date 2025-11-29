@@ -1,6 +1,4 @@
-﻿using Editor.MapEditor;
-using Sandbox;
-using static Editor.BaseItemWidget;
+﻿using static Editor.BaseItemWidget;
 namespace Editor;
 
 partial class GameObjectNode : TreeNode<GameObject>
@@ -551,10 +549,10 @@ partial class GameObjectNode : TreeNode<GameObject>
 			// prefabs
 			if ( selectedGos.All( x => x.IsPrefabInstance ) )
 			{
-				var sources = selectedGos.Select( x => x.PrefabInstanceSource ).Distinct();
+				var sources = selectedGos.Select( x => x.PrefabSource ).Distinct();
 				bool multipleSources = sources.Count() > 1;
 
-				var prefabPath = gameObject.PrefabInstanceSource;
+				var prefabPath = gameObject.PrefabSource;
 				var rootPrefabName = System.IO.Path.GetFileNameWithoutExtension( prefabPath ).ToTitleCase();
 
 				var prefabMenu = m.AddMenu( multipleSources ? "Prefabs (multiple)" : $"Prefab '{rootPrefabName}'", "dataset" );
