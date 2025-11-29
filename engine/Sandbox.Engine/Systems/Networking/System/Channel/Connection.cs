@@ -1,4 +1,4 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using Sandbox.Network;
 
@@ -142,6 +142,25 @@ public abstract partial class Connection
 			if ( info.CanRefreshObjects == value ) return;
 
 			info.CanRefreshObjects = value;
+			info.UpdateStringTable();
+		}
+	}
+
+	/// <summary>
+	/// Can this connection destroy networked objects they own?
+	/// </summary>
+	public bool CanDestroyObjects
+	{
+		get => IsHost || (Info?.CanDestroyObjects ?? true);
+		set
+		{
+			Assert.True( Networking.IsHost );
+
+			var info = Info;
+			if ( info is null ) return;
+			if ( info.CanDestroyObjects == value ) return;
+
+			info.CanDestroyObjects = value;
 			info.UpdateStringTable();
 		}
 	}
