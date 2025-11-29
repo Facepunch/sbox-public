@@ -9,7 +9,7 @@ partial class MoveMode
 	public virtual Transform CalculateEyeTransform()
 	{
 		var transform = new Transform();
-		transform.Position = Controller.WorldPosition + Vector3.Up * (Controller.BodyHeight - Controller.EyeDistanceFromTop);
+		transform.Position = Controller.WorldPosition + Vector3.Up * (Controller.CurrentHeight - Controller.EyeDistanceFromTop);
 		transform.Rotation = Controller.EyeAngles.ToRotation();
 		return transform;
 	}
