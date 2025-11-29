@@ -173,7 +173,9 @@ PS
         for ( int i = 0; i < 4; i++ )
         {
             float2 layerUV = texUV * g_TerrainMaterials[ i ].uvscale;
-            float2 seamlessUV = Terrain_SampleSeamlessUV( layerUV );
+
+            float2x2 uvRotation;
+            float2 seamlessUV = Terrain_SampleSeamlessUV( layerUV, uvRotation );
 
             Texture2D tBcr = Bindless::GetTexture2D( g_TerrainMaterials[ i ].bcr_texid );
             Texture2D tNho = Bindless::GetTexture2D( g_TerrainMaterials[ i ].nho_texid );
@@ -183,6 +185,10 @@ PS
 
             float3 normal = ComputeNormalFromRGTexture( nho.rg );
             normal.xz *= g_TerrainMaterials[ i ].normalstrength;
+            
+            // Rotate normal map to match seamless UV angle and avoid shading errors 
+            normal.xy = mul( uvRotation, normal.xy );
+
             normal = normalize( normal );
 
             albedos[i] = SrgbGammaToLinear( bcr.rgb );
