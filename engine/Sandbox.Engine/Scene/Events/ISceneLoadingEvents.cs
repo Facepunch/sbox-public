@@ -18,5 +18,5 @@ public interface ISceneLoadingEvents : ISceneEvent<ISceneLoadingEvents>
 	/// <summary>
 	/// Loading has finished
 	/// </summary>
-	void AfterLoad( Scene scene );
+	void AfterLoad( Scene scene ) { }
 }
