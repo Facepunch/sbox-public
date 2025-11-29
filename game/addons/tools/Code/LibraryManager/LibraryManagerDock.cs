@@ -226,7 +226,7 @@ public class LibraryManagerDock : Widget
 
 	void CreateNewLibrary()
 	{
-		Dialog.AskString( CreateNewLibrary, "What would you like to call your new library?", "Create", title: "Create a Library" );
+		Dialog.AskString( CreateNewLibrary, "What would you like to call your new library?", "Create", title: "Create a Library", minLength: 2 );
 	}
 
 	void CreateNewLibrary( string libraryName )

@@ -45,7 +45,7 @@ public partial class Dialog : Widget
 	/// <summary>
 	/// Ask for a string
 	/// </summary>
-	public static void AskString( Action<string> OnSuccess, string question, string okay = "Okay", string cancel = "Cancel", string initialName = "", string title = "Input required" )
+	public static void AskString( Action<string> OnSuccess, string question, string okay = "Okay", string cancel = "Cancel", string initialName = "", string title = "Input required", int minLength = 0 )
 	{
 		var modal = new TextDialog();
 		modal.Window.SetWindowIcon( "question_mark" );
@@ -55,6 +55,7 @@ public partial class Dialog : Widget
 		modal.OkayButton.Text = okay;
 		modal.OkayButton.Enabled = !string.IsNullOrWhiteSpace( initialName );
 		modal.CancelButton.Text = cancel;
+		modal.MinLength = minLength;
 		modal.OnSuccess = OnSuccess;
 		modal.Show();
 		modal.LineEdit.Text = initialName;
@@ -107,6 +108,8 @@ public partial class Dialog : Widget
 		public Button CancelButton { get; private set; }
 		public LineEdit LineEdit { get; private set; }
 		public Label Label { get; private set; }
+
+		public int MinLength { get; set; }
 
 		bool WantsText = true;
 
@@ -165,6 +168,7 @@ public partial class Dialog : Widget
 		{
 			var valid = true;
 			if ( string.IsNullOrWhiteSpace( LineEdit.Text ) ) valid = false;
+			if ( LineEdit.Text.Trim().Length < MinLength ) valid = false;
 			if ( !WantsText ) valid = true;
 
 			OkayButton.Enabled = valid;
