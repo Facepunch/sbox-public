@@ -1,6 +1,4 @@
-﻿using Editor.MapEditor;
-using Sandbox;
-using static Editor.BaseItemWidget;
+﻿using static Editor.BaseItemWidget;
 namespace Editor;
 
 partial class GameObjectNode : TreeNode<GameObject>
@@ -569,7 +567,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 						{
 							if ( prefabAsset.TryLoadResource<PrefabFile>( out var prefab ) && prefab.IsValid )
 							{
-								// TODO EditorScene.LoadFromPrefab( prefab );
+								EditorScene.OpenPrefab( prefab );
 							}
 						} ).Enabled = !prefabAsset.IsProcedural;
 
