@@ -47,7 +47,12 @@ public class CubemapFog : Component
 		// Take it straight from the skybox if it's null
 		if ( tex is null )
 		{
-			var skybox = Scene.GetAllComponents<SkyBox2D>().FirstOrDefault();
+			SkyBox2D skybox = null;
+			foreach ( var s in Scene.GetAllComponents<SkyBox2D>() )
+			{
+				skybox = s;
+				break;
+			}
 
 			if ( skybox.IsValid() && !skybox.Tags.HasAny( camera.RenderExcludeTags ) )
 			{

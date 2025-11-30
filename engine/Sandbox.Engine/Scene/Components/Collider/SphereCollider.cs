@@ -92,10 +92,13 @@ public sealed class SphereCollider : Collider
 			scale.z = MathF.Sign( scale.z ) * MathF.Max( 0.01f, MathF.Abs( scale.z ) );
 
 			const int rings = 8;
-			var points = ArrayPool<Vector3>.Shared.Rent( rings * rings );
+			int count = rings * rings;
+			var points = ArrayPool<Vector3>.Shared.Rent( count );
+			
 			GenerateSphere( rings, Center, Radius, scale, points );
 
-			Shape.UpdateHull( local.Position, local.Rotation, points );
+			// Changed ReadOnlySpan to Span to satisfy updatehull, not good but won't work otherwise.
+			Shape.UpdateHull( local.Position, local.Rotation, new Span<Vector3>( points, 0, count ) );
 
 			ArrayPool<Vector3>.Shared.Return( points );
 		}
@@ -120,10 +123,13 @@ public sealed class SphereCollider : Collider
 			scale.z = MathF.Sign( scale.z ) * MathF.Max( 0.01f, MathF.Abs( scale.z ) );
 
 			const int rings = 8;
-			var points = ArrayPool<Vector3>.Shared.Rent( rings * rings );
+			int count = rings * rings;
+			var points = ArrayPool<Vector3>.Shared.Rent( count );
+			
 			GenerateSphere( rings, Center, Radius, scale, points );
 
-			Shape = targetBody.AddHullShape( local.Position, local.Rotation, points );
+			// span implicitly converts to ReadOnlySpan, so this is safe for AddHullShape too
+			Shape = targetBody.AddHullShape( local.Position, local.Rotation, new Span<Vector3>( points, 0, count ) );
 
 			ArrayPool<Vector3>.Shared.Return( points );
 		}

@@ -20,6 +20,8 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		}
 
 		list.Add( new CommandListEntry( order, buffer ) );
+		
+		list.Sort( ( a, b ) => a.Priority.CompareTo( b.Priority ) );
 	}
 
 	/// <summary>
@@ -71,7 +73,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 		if ( commandlists.TryGetValue( stage, out var list ) )
 		{
-			foreach ( var entry in list.OrderBy( x => x.Priority ) )
+			foreach ( var entry in list )
 			{
 				using ( _executeCommandList.Start( entry.List.DebugName ) )
 				{

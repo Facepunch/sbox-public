@@ -6,15 +6,18 @@ public class HitboxSet
 
 	internal HitboxSet( ModelBones bones, CHitBoxSet set )
 	{
-		all = new();
+		// Cache count to avoid Native Interop calls in loop condition
+		// and initialize list with correct capacity to avoid resizing
+		int count = (set.IsValid) ? set.numhitboxes() : 0;
+		
+		all = new( count );
 
-		// empty set
-		if ( !set.IsValid || set.numhitboxes() == 0 )
+		if ( count == 0 )
 		{
 			return;
 		}
 
-		for ( int i = 0; i < set.numhitboxes(); i++ )
+		for ( int i = 0; i < count; i++ )
 		{
 			var box = new Box( bones, set.pHitbox( i ) );
 			all.Add( box );

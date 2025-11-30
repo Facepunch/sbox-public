@@ -10,11 +10,35 @@ namespace Sandbox;
 [EditorHandle( "materials/gizmo/charactercontroller.png" )]
 public class CharacterController : Component
 {
-	[Range( 0, 200 )]
-	[Property] public float Radius { get; set; } = 16.0f;
+	private float _radius = 16.0f;
+	private float _height = 64.0f;
+	private BBox _cachedBBox;
 
 	[Range( 0, 200 )]
-	[Property] public float Height { get; set; } = 64.0f;
+	[Property] 
+	public float Radius 
+	{ 
+		get => _radius;
+		set
+		{
+			if ( _radius == value ) return;
+			_radius = value;
+			RebuildBBox();
+		}
+	}
+
+	[Range( 0, 200 )]
+	[Property] 
+	public float Height 
+	{ 
+		get => _height;
+		set
+		{
+			if ( _height == value ) return;
+			_height = value;
+			RebuildBBox();
+		}
+	}
 
 	[Range( 0, 50 )]
 	[Property] public float StepHeight { get; set; } = 18.0f;
@@ -40,7 +64,7 @@ public class CharacterController : Component
 	[Property, Group( "Collision" ), HideIf( nameof( UseCollisionRules ), true )]
 	public TagSet IgnoreLayers { get; set; } = new();
 
-	public BBox BoundingBox => new BBox( new Vector3( -Radius, -Radius, 0 ), new Vector3( Radius, Radius, Height ) );
+	public BBox BoundingBox => _cachedBBox;
 
 	[Sync]
 	public Vector3 Velocity { get; set; }
@@ -51,9 +75,20 @@ public class CharacterController : Component
 	public GameObject GroundObject { get; set; }
 	public Collider GroundCollider { get; set; }
 
+	protected override void OnAwake()
+	{
+		base.OnAwake();
+		RebuildBBox();
+	}
+
+	private void RebuildBBox()
+	{
+		_cachedBBox = new BBox( new Vector3( -_radius, -_radius, 0 ), new Vector3( _radius, _radius, _height ) );
+	}
+
 	protected override void DrawGizmos()
 	{
-		Gizmo.Draw.LineBBox( BoundingBox );
+		Gizmo.Draw.LineBBox( _cachedBBox );
 	}
 
 	/// <summary>
@@ -90,13 +125,16 @@ public class CharacterController : Component
 		Velocity *= newspeed;
 	}
 
-	SceneTrace BuildTrace( Vector3 from, Vector3 to ) => BuildTrace( Scene.Trace.Ray( from, to ) );
-
-	SceneTrace BuildTrace( SceneTrace source )
+	// Helper to build the base configuration (Size, Ignores)
+	SceneTrace BuildTraceConfig()
 	{
-		var trace = source.Size( BoundingBox ).IgnoreGameObjectHierarchy( GameObject );
-
+		var trace = Scene.Trace.Size( _cachedBBox ).IgnoreGameObjectHierarchy( GameObject );
 		return UseCollisionRules ? trace.WithCollisionRules( Tags ) : trace.WithoutTags( IgnoreLayers );
+	}
+
+	SceneTrace BuildTrace( Vector3 from, Vector3 to )
+	{
+		return BuildTraceConfig().FromTo( from, to );
 	}
 
 	/// <summary>
@@ -114,7 +152,7 @@ public class CharacterController : Component
 			Velocity = Velocity.WithZ( 0 );
 		}
 
-		if ( Velocity.Length < 0.001f )
+		if ( Velocity.LengthSquared < 0.000001f )
 		{
 			Velocity = Vector3.Zero;
 			return;
@@ -122,7 +160,10 @@ public class CharacterController : Component
 
 		var pos = GameObject.WorldPosition;
 
-		var mover = new CharacterControllerHelper( BuildTrace( pos, pos ), pos, Velocity );
+		// We use BuildTraceConfig() here because CharacterControllerHelper might assume a clean builder,
+		// but typically it uses the trace configuration to run its own sweeps. 
+		// Using .FromTo(pos, pos) ensures the builder is initialized correctly.
+		var mover = new CharacterControllerHelper( BuildTraceConfig().FromTo( pos, pos ), pos, Velocity );
 		mover.Bounce = Bounciness;
 		mover.MaxStandableAngle = GroundAngle;
 
@@ -254,7 +295,10 @@ public class CharacterController : Component
 
 	bool TryUnstuck()
 	{
-		var result = BuildTrace( WorldPosition, WorldPosition ).Run();
+		var baseTrace = BuildTraceConfig();
+		
+		// Run initial check
+		var result = baseTrace.FromTo( WorldPosition, WorldPosition ).Run();
 
 		// Not stuck, we cool
 		if ( !result.StartedSolid )
@@ -281,7 +325,8 @@ public class CharacterController : Component
 				pos = WorldPosition + Vector3.Up * 2;
 			}
 
-			result = BuildTrace( pos, pos ).Run();
+			// Reuse the base trace, just updating the positions
+			result = baseTrace.FromTo( pos, pos ).Run();
 
 			if ( !result.StartedSolid )
 			{
@@ -295,5 +340,4 @@ public class CharacterController : Component
 
 		return true;
 	}
-
 }

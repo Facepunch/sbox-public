@@ -107,7 +107,17 @@ class CollisionEventSystem : IDisposable
 		if ( other is null )
 			return;
 
-		if ( !TouchingPairs.Any( x => x.Other == other ) )
+		bool pairExists = false;
+		foreach ( var pair in TouchingPairs )
+		{
+			if ( pair.Other == other )
+			{
+				pairExists = true;
+				break;
+			}
+		}
+
+		if ( !pairExists )
 		{
 			TouchingColliders.Add( other );
 
@@ -148,7 +158,17 @@ class CollisionEventSystem : IDisposable
 		if ( !TouchingPairs.Remove( new TouchingPair( self, other, go ) ) )
 			return;
 
-		if ( !TouchingPairs.Any( x => x.Other == other ) )
+		bool pairExists = false;
+		foreach ( var pair in TouchingPairs )
+		{
+			if ( pair.Other == other )
+			{
+				pairExists = true;
+				break;
+			}
+		}
+
+		if ( !pairExists )
 		{
 			TouchingColliders.Remove( other );
 
@@ -202,7 +222,17 @@ class CollisionEventSystem : IDisposable
 		if ( other is null )
 			return;
 
-		if ( TouchingPairs.Any( x => x.GameObject == other ) )
+		bool pairExists = false;
+		foreach ( var pair in TouchingPairs )
+		{
+			if ( pair.GameObject == other )
+			{
+				pairExists = true;
+				break;
+			}
+		}
+
+		if ( pairExists )
 			return;
 
 		if ( !TouchingObjects.Remove( other ) )

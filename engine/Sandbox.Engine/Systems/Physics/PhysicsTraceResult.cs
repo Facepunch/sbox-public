@@ -2,6 +2,24 @@
 
 public struct PhysicsTraceResult
 {
+	// Private fields first
+	// Cache resolved objects to avoid multiple lookups
+	private PhysicsBody _cachedBody;
+	private PhysicsShape _cachedShape;
+	private Surface _cachedSurface;
+	private int _cachedBone = -2; // -2 = not cached
+	private string[] _cachedTags;
+
+	// store raw tag bits instead of allocating string array immediately
+	internal unsafe fixed uint _rawTags[16];
+
+	[ThreadStatic] internal static HashSet<string> tagBuilder;
+
+	public PhysicsTraceResult()
+	{
+		_cachedTags = null;
+	}
+
 	/// <summary>
 	/// Whether the trace hit something or not
 	/// </summary>
@@ -37,75 +55,107 @@ public struct PhysicsTraceResult
 	/// </summary>
 	public float Fraction;
 
-	/// <summary>
-	/// The physics object that was hit, if any
-	/// </summary>
-	public PhysicsBody Body;
+	// store raw IDs instead of resolving Objects immediately.
+	internal int _bodyHandle;
+	internal int _shapeHandle;
+	internal int _surfaceIndex;
 
-	/// <summary>
-	/// The physics shape that was hit, if any
-	/// </summary>
-	public PhysicsShape Shape;
+	public PhysicsBody Body => _cachedBody ??= HandleIndex.Get<PhysicsBody>( _bodyHandle )?.SelfOrParent;
+	public PhysicsShape Shape => _cachedShape ??= HandleIndex.Get<PhysicsShape>( _shapeHandle );
+	public Surface Surface => _cachedSurface ??= Surface.FindByIndex( _surfaceIndex );
 
-	/// <summary>
-	/// The physical properties of the hit surface
-	/// </summary>
-	public Surface Surface;
+	public int Bone
+	{
+		get
+		{
+			if ( _cachedBone == -2 )
+			{
+				var shape = Shape;
+				_cachedBone = shape.IsValid() ? shape.BoneIndex : -1;
+			}
+			return _cachedBone;
+		}
+	}
 
-	/// <summary>
-	/// The id of the hit bone (either from hitbox or physics shape)
-	/// </summary>
-	public readonly int Bone => Shape.IsValid() ? Shape.BoneIndex : -1;
-
-	/// <summary>
-	/// The direction of the trace ray
-	/// </summary>
 	public Vector3 Direction;
-
-	/// <summary>
-	/// The triangle index hit, if we hit a mesh <see cref="PhysicsShape">physics shape</see>
-	/// </summary>
 	public int Triangle;
 
 	/// <summary>
-	/// The tags that the hit shape had
+	/// The tags that the hit shape had.
+	/// WARNING:  May allocate! If you need to check tags often, use HasTag instead (Most won't bother to move over to it who cares)
 	/// </summary>
-	public string[] Tags;
+	public string[] Tags
+	{
+		get
+		{
+			if ( _cachedTags is not null ) return _cachedTags;
+			_cachedTags = BuildTags();
+			return _cachedTags;
+		}
+		set => _cachedTags = value;
+	}
+
+	/// <summary>
+	/// Check if the hit object has a specific tag.
+	/// </summary>
+	public bool HasTag( string tag )
+	{
+		if ( string.IsNullOrEmpty( tag ) ) return false;
+
+		// Convert string to ID
+		var token = (StringToken)tag;
+		if ( token.Value == 0 ) return false;
+
+		return HasTag( token );
+	}
+
+	/// <summary>
+	/// Check if the hit object has a specific tag token
+	/// </summary>
+	public unsafe bool HasTag( StringToken token )
+	{
+		var id = token.Value;
+
+		// Fixed buffer
+		for ( int i = 0; i < 16; i++ )
+		{
+			if ( _rawTags[i] == 0 ) break; // End of list
+			if ( _rawTags[i] == id ) return true;
+		}
+		return false;
+	}
 
 	/// <summary>
 	/// The distance between start and end positions.
 	/// </summary>
 	public readonly float Distance => Vector3.DistanceBetween( StartPosition, EndPosition );
 
-	[ThreadStatic] internal static HashSet<string> tagBuilder;
-
 	internal PhysicsTrace.Request.Shape StartShape;
 
-	internal unsafe static PhysicsTraceResult From( in PhysicsTrace.Result result, in PhysicsTrace.Request.Shape shape )
+	private unsafe string[] BuildTags()
 	{
 		tagBuilder ??= new();
 		tagBuilder.Clear();
 
-		//
-		// I don't love this shit, for the amount of churn it's going to create.
-		// In the future I suspect that we either copy all the tags id's raw and offer
-		// things like HasTag for efficient access.. or we keep it like this and just
-		// have something on the request like Trace.IncludeTagsInResult() to get them all.
-		//
 		for ( int i = 0; i < 16; i++ )
 		{
-			if ( result.Tags[i] == 0 ) break;
+			if ( _rawTags[i] == 0 ) break;
 
-			var t = StringToken.GetValue( result.Tags[i] ); // sadface
+			var t = StringToken.GetValue( _rawTags[i] );
 			if ( t != null )
 			{
 				tagBuilder.Add( t.ToLowerInvariant() );
 			}
 		}
 
+		return tagBuilder.Count > 0 ? tagBuilder.ToArray() : Array.Empty<string>();
+	}
+
+	internal unsafe static PhysicsTraceResult From( in PhysicsTrace.Result result, in PhysicsTrace.Request.Shape shape )
+	{
 		var direction = Vector3.Direction( result.StartPos, result.EndPos );
 
-		return new PhysicsTraceResult
+		var r = new PhysicsTraceResult
 		{
 			Hit = result.Fraction < 1,
 			StartedSolid = result.StartedInSolid != 0,
@@ -116,14 +166,21 @@ public struct PhysicsTraceResult
 			Fraction = result.Fraction,
 			Direction = direction,
 			Triangle = result.TriangleIndex,
-			Tags = tagBuilder.Count > 0 ? tagBuilder.ToArray() : Array.Empty<string>(), // sadface
 
-			// TODO - maybe we populate these on access?
-			Surface = Surface.FindByIndex( result.SurfaceProperty ),
-			Body = HandleIndex.Get<PhysicsBody>( result.PhysicsBodyHandle )?.SelfOrParent,
-			Shape = HandleIndex.Get<PhysicsShape>( result.PhysicsShapeHandle ),
+			// just copy the ints and don't stick it up your ass (don't look up objects yet).
+			_surfaceIndex = result.SurfaceProperty,
+			_bodyHandle = result.PhysicsBodyHandle,
+			_shapeHandle = result.PhysicsShapeHandle,
 
 			StartShape = shape
 		};
+
+		for ( int i = 0; i < 16; i++ )
+		{
+			if ( result.Tags[i] == 0 ) break;
+			r._rawTags[i] = result.Tags[i];
+		}
+
+		return r;
 	}
 }

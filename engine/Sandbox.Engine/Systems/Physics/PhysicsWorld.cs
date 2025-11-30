@@ -38,7 +38,8 @@ public sealed partial class PhysicsWorld : IHandle
 	/// <summary>
 	/// All bodies in the world
 	/// </summary>
-	public IEnumerable<PhysicsBody> Bodies => bodies.Where( x => x.IsValid() );
+	// Users should check .IsValid() inside their own loops if necessary.
+	public IEnumerable<PhysicsBody> Bodies => bodies;
 
 	//public Action<int, PhysicsBody, PhysicsBody, Vector3> Internal_OnCollision;
 

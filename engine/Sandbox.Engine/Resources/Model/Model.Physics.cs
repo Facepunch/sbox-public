@@ -63,14 +63,24 @@ public sealed class PhysicsGroupDescription
 	/// <summary>
 	/// Enumerate every <see cref="Surface"/> in this <see cref="Model"/> 
 	/// </summary>
-	public IEnumerable<Surface> Surfaces => Enumerable.Range( 0, _surfaces.Count )
-		.Select( x => GetSurface( (uint)x ) );
+	public IEnumerable<Surface> Surfaces
+	{
+		get
+		{
+			for ( int i = 0; i < _surfaces.Count; i++ )
+			{
+				yield return GetSurface( (uint)i );
+			}
+		}
+	}
 
 	void Refresh()
 	{
 		_surfaces.Clear();
 
 		var surfaceCount = native.GetSurfacePropertiesCount();
+		if ( _surfaces.Capacity < surfaceCount ) _surfaces.Capacity = surfaceCount;
+
 		for ( int i = 0; i < surfaceCount; i++ )
 		{
 			var s = native.GetSurfaceProperties( i );
@@ -80,6 +90,8 @@ public sealed class PhysicsGroupDescription
 		_tags.Clear();
 
 		var attributeCount = native.GetCollisionAttributeCount();
+		if ( _tags.Capacity < attributeCount ) _tags.Capacity = attributeCount;
+
 		for ( int attributeIndex = 0; attributeIndex < attributeCount; attributeIndex++ )
 		{
 			var tagCount = native.GetTagCount( attributeIndex );
@@ -93,20 +105,37 @@ public sealed class PhysicsGroupDescription
 			_tags.Add( tags );
 		}
 
-		// todo - destroy old parts, null their pointers
+		// Pre-calculate the Surface array once, instead of doing it 
+		// inside every BodyPart/MeshPart constructor.
+		var cachedSurfaceArray = new Surface[_surfaces.Count];
+		for ( int i = 0; i < _surfaces.Count; i++ )
+		{
+			cachedSurfaceArray[i] = GetSurface( (uint)i );
+		}
+
+		foreach ( var part in _parts )
+		{
+			part.Dispose();
+		}
 		_parts.Clear();
 
-		for ( int i = 0; i < native.GetPartCount(); i++ )
+		var partCount = native.GetPartCount();
+		if ( _parts.Capacity < partCount ) _parts.Capacity = partCount;
+
+		for ( int i = 0; i < partCount; i++ )
 		{
 			var tx = native.GetBoneCount() > 0 ? native.GetBindPose( i ) : Transform.Zero;
 			var boneName = native.GetBoneCount() > 0 ? native.GetBoneName( i ) : "";
 
-			_parts.Add( new BodyPart( this, boneName, native.GetPart( i ), tx ) );
+			_parts.Add( new BodyPart( this, boneName, native.GetPart( i ), tx, cachedSurfaceArray ) );
 		}
 
 		_joints.Clear();
 
-		for ( int i = 0; i < native.GetJointCount(); i++ )
+		var jointCount = native.GetJointCount();
+		if ( _joints.Capacity < jointCount ) _joints.Capacity = jointCount;
+
+		for ( int i = 0; i < jointCount; i++ )
 		{
 			_joints.Add( new Joint( native.GetJoint( i ) ) );
 		}
@@ -207,7 +236,11 @@ public sealed class PhysicsGroupDescription
 
 		public string BoneName { get; init; }
 
-		private List<Part> All { get; } = new();
+		private List<SpherePart> _spheres = new();
+		private List<CapsulePart> _capsules = new();
+		private List<HullPart> _hulls = new();
+		private List<MeshPart> _meshes = new();
+		private List<Part> _all = new();
 
 		public float Mass => native.m_flMass;
 		public float LinearDamping => native.m_flLinearDamping;
@@ -215,7 +248,7 @@ public sealed class PhysicsGroupDescription
 		public bool OverrideMassCenter => native.m_bOverrideMassCenter;
 		public Vector3 MassCenterOverride => native.m_vMassCenterOverride;
 
-		internal BodyPart( PhysicsGroupDescription physicsGroupDescription, string boneName, VPhysXBodyPart_t vPhysXBodyPart_t, Transform transform )
+		internal BodyPart( PhysicsGroupDescription physicsGroupDescription, string boneName, VPhysXBodyPart_t vPhysXBodyPart_t, Transform transform, Surface[] cachedSurfaces )
 		{
 			Transform = transform;
 			parent = physicsGroupDescription;
@@ -225,48 +258,60 @@ public sealed class PhysicsGroupDescription
 			for ( int i = 0; i < native.GetSphereCount(); i++ )
 			{
 				var p = native.GetSphere( i );
-				All.Add( new SpherePart( p, parent.GetSurface( p.m_nSurfacePropertyIndex ) ) );
+				var part = new SpherePart( p, parent.GetSurface( p.m_nSurfacePropertyIndex ) );
+				_spheres.Add( part );
+				_all.Add( part );
 			}
 
 			for ( int i = 0; i < native.GetCapsuleCount(); i++ )
 			{
 				var p = native.GetCapsule( i );
-				All.Add( new CapsulePart( p, parent.GetSurface( p.m_nSurfacePropertyIndex ) ) );
+				var part = new CapsulePart( p, parent.GetSurface( p.m_nSurfacePropertyIndex ) );
+				_capsules.Add( part );
+				_all.Add( part );
 			}
 
 			for ( int i = 0; i < native.GetHullCount(); i++ )
 			{
 				var p = native.GetHull( i );
-				All.Add( new HullPart( p, parent.GetSurface( p.m_nSurfacePropertyIndex ) ) );
+				var part = new HullPart( p, parent.GetSurface( p.m_nSurfacePropertyIndex ) );
+				_hulls.Add( part );
+				_all.Add( part );
 			}
 
 			var meshCount = native.GetMeshCount();
 			if ( meshCount > 0 )
 			{
-				var surfaces = Enumerable.Range( 0, parent._surfaces.Count )
-					.Select( x => parent.GetSurface( (uint)x ) ).ToArray();
-
 				for ( int i = 0; i < meshCount; i++ )
 				{
 					var p = native.GetMesh( i );
-					All.Add( new MeshPart( p, parent.GetSurface( p.m_nSurfacePropertyIndex ), surfaces ) );
+					var part = new MeshPart( p, parent.GetSurface( p.m_nSurfacePropertyIndex ), cachedSurfaces );
+					_meshes.Add( part );
+					_all.Add( part );
 				}
 			}
 		}
 
 		internal void Dispose()
 		{
-			foreach ( var s in All )
+			foreach ( var s in _all )
 			{
 				s.Dispose();
 			}
+			
+			_spheres.Clear();
+			_capsules.Clear();
+			_hulls.Clear();
+			_meshes.Clear();
+			_all.Clear();
 		}
 
-		public IReadOnlyList<SpherePart> Spheres => All.OfType<SpherePart>().ToList();
-		public IReadOnlyList<CapsulePart> Capsules => All.OfType<CapsulePart>().ToList();
-		public IReadOnlyList<HullPart> Hulls => All.OfType<HullPart>().ToList();
-		public IReadOnlyList<MeshPart> Meshes => All.OfType<MeshPart>().ToList();
-		public IReadOnlyList<Part> Parts => All;
+		// Return the typed lists directly. 
+		public IReadOnlyList<SpherePart> Spheres => _spheres;
+		public IReadOnlyList<CapsulePart> Capsules => _capsules;
+		public IReadOnlyList<HullPart> Hulls => _hulls;
+		public IReadOnlyList<MeshPart> Meshes => _meshes;
+		public IReadOnlyList<Part> Parts => _all;
 
 		public abstract class Part
 		{
@@ -339,7 +384,8 @@ public sealed class PhysicsGroupDescription
 			/// </summary>
 			public IEnumerable<Line> GetLines()
 			{
-				for ( int i = 0; i < hull.GetEdgeCount(); i++ )
+				var edgeCount = hull.GetEdgeCount();
+				for ( int i = 0; i < edgeCount; i++ )
 				{
 					hull.GetEdgeVertex( i, out var a, out var b );
 					yield return new Line( a, b );
@@ -348,7 +394,8 @@ public sealed class PhysicsGroupDescription
 
 			public IEnumerable<Vector3> GetPoints()
 			{
-				for ( int i = 0; i < hull.GetVertexCount(); i++ )
+				var vertCount = hull.GetVertexCount();
+				for ( int i = 0; i < vertCount; i++ )
 				{
 					yield return hull.GetVertex( i );
 				}
@@ -390,7 +437,8 @@ public sealed class PhysicsGroupDescription
 			/// </summary>
 			public IEnumerable<Triangle> GetTriangles()
 			{
-				for ( int i = 0; i < mesh.GetTriangleCount(); i++ )
+				var triCount = mesh.GetTriangleCount();
+				for ( int i = 0; i < triCount; i++ )
 				{
 					mesh.GetTriangle( i, out var a, out var b, out var c );
 					yield return new Triangle( a, b, c );

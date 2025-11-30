@@ -155,7 +155,22 @@ public sealed partial class ModelPhysics : Component, IScenePhysicsEvents, IHasM
 	/// <summary>
 	/// Returns the total mass of every <see cref="Rigidbody"/>
 	/// </summary>
-	public float Mass => Bodies.Sum( x => x.Component?.Mass ?? default );
+	public float Mass
+	{
+		get
+		{
+			float totalMass = 0.0f;
+			foreach ( var body in Bodies )
+			{
+				var rb = body.Component;
+				if ( rb != null )
+				{
+					totalMass += rb.Mass;
+				}
+			}
+			return totalMass;
+		}
+	}
 
 	/// <summary>
 	/// Returns the local center of mass of every <see cref="Rigidbody"/>

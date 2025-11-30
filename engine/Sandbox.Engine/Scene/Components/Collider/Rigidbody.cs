@@ -358,6 +358,7 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		}
 
 		// The other object takes more damage
+		// wie cannot cache "other" as it changes every collision
 		var otherDamageable = collision.Other.GameObject?.GetComponentInParent<IDamageable>();
 		if ( otherDamageable is null )
 			return;
@@ -398,6 +399,13 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		UpdateBody();
 	}
 
+	// Extracted lambda to method to avoid allocation
+	private void OnCollisionStartHandler( Collision c )
+	{
+		HandleImpactDamage( c );
+		OnCollisionStart?.Invoke( c );
+	}
+
 	protected override void OnEnabled()
 	{
 		Assert.NotNull( Scene, "Tried to create physics object but no scene" );
@@ -407,11 +415,9 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 
 		_collisionEvents?.Dispose();
 		_collisionEvents = new CollisionEventSystem( _body, GameObjectSource );
-		_collisionEvents.OnCollisionStart = ( c ) =>
-		{
-			HandleImpactDamage( c );
-			OnCollisionStart?.Invoke( c );
-		};
+		
+		// Use method group instead of lambda
+		_collisionEvents.OnCollisionStart = OnCollisionStartHandler;
 		_collisionEvents.OnCollisionUpdate = OnCollisionUpdate;
 		_collisionEvents.OnCollisionStop = OnCollisionStop;
 

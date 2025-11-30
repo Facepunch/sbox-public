@@ -30,6 +30,8 @@ public sealed class PlaneCollider : Collider
 
 	private PhysicsShape Shape;
 	private static readonly int[] Indices = [0, 1, 2, 2, 3, 0];
+	
+	private readonly Vector3[] _vertices = new Vector3[4];
 
 	public override bool IsConcave => true;
 
@@ -40,22 +42,22 @@ public sealed class PlaneCollider : Collider
 
 		Gizmo.Transform = Gizmo.Transform.WithScale( 1.0f );
 
-		var vertices = GetVertices( global::Transform.Zero );
+		UpdateVerticesBuffer( global::Transform.Zero );
 
 		Gizmo.Draw.LineThickness = 1;
 		Gizmo.Draw.CullBackfaces = true;
 		Gizmo.Draw.Color = Gizmo.Colors.Green.WithAlpha( Gizmo.IsSelected ? 0.2f : 0.1f );
-		Gizmo.Draw.SolidTriangle( vertices[0], vertices[1], vertices[2] );
-		Gizmo.Draw.SolidTriangle( vertices[2], vertices[3], vertices[0] );
+		Gizmo.Draw.SolidTriangle( _vertices[0], _vertices[1], _vertices[2] );
+		Gizmo.Draw.SolidTriangle( _vertices[2], _vertices[3], _vertices[0] );
 
 		Gizmo.Draw.Color = Gizmo.Colors.Green.WithAlpha( Gizmo.IsSelected ? 1.0f : 0.6f );
-		Gizmo.Draw.Line( vertices[0], vertices[1] );
-		Gizmo.Draw.Line( vertices[1], vertices[2] );
-		Gizmo.Draw.Line( vertices[2], vertices[3] );
-		Gizmo.Draw.Line( vertices[3], vertices[0] );
+		Gizmo.Draw.Line( _vertices[0], _vertices[1] );
+		Gizmo.Draw.Line( _vertices[1], _vertices[2] );
+		Gizmo.Draw.Line( _vertices[2], _vertices[3] );
+		Gizmo.Draw.Line( _vertices[3], _vertices[0] );
 	}
 
-	private Vector3[] GetVertices( Transform local )
+	private void UpdateVerticesBuffer( Transform local )
 	{
 		var n = Normal.LengthSquared > 1e-12f ? Normal.Normal : Vector3.Up;
 		var rot = Rotation.LookAt( n );
@@ -72,12 +74,10 @@ public sealed class PlaneCollider : Collider
 		var v2 = center + tangent * halfX + bitangent * halfY;
 		var v3 = center - tangent * halfX + bitangent * halfY;
 
-		var vertices = new Vector3[] { v0, v1, v2, v3 };
-
-		for ( int i = 0; i < 4; i++ )
-			vertices[i] = (vertices[i] * local.Rotation) + local.Position;
-
-		return vertices;
+		_vertices[0] = (v0 * local.Rotation) + local.Position;
+		_vertices[1] = (v1 * local.Rotation) + local.Position;
+		_vertices[2] = (v2 * local.Rotation) + local.Position;
+		_vertices[3] = (v3 * local.Rotation) + local.Position;
 	}
 
 	internal override void UpdateShape()
@@ -89,16 +89,16 @@ public sealed class PlaneCollider : Collider
 		var world = Transform.TargetWorld;
 		var local = body.IsValid() ? body.Transform.TargetWorld.ToLocal( world ) : global::Transform.Zero;
 
-		var vertices = GetVertices( local );
-		Shape.UpdateMesh( vertices, Indices );
+		UpdateVerticesBuffer( local );
+		Shape.UpdateMesh( _vertices, Indices );
 
 		CalculateLocalBounds();
 	}
 
 	protected override IEnumerable<PhysicsShape> CreatePhysicsShapes( PhysicsBody targetBody, Transform local )
 	{
-		var vertices = GetVertices( local );
-		var shape = targetBody.AddMeshShape( vertices, Indices );
+		UpdateVerticesBuffer( local );
+		var shape = targetBody.AddMeshShape( _vertices, Indices );
 
 		Shape = shape;
 

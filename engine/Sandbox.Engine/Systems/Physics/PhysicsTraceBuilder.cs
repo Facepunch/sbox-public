@@ -388,11 +388,12 @@ public partial struct PhysicsTraceBuilder
 		}
 
 		var r = request;
-		r.World = targetWorld.native;
+
+		r.World = (IntPtr)targetWorld.native;
 
 		if ( targetBody.IsValid() )
 		{
-			r.Body = targetBody.native;
+			r.Body = (IntPtr)targetBody.native;
 		}
 
 		if ( filterCallback is not null )
@@ -430,11 +431,11 @@ public partial struct PhysicsTraceBuilder
 		}
 
 		var r = request;
-		r.World = targetWorld.native;
+		r.World = (IntPtr)targetWorld.native;
 
 		if ( targetBody.IsValid() )
 		{
-			r.Body = targetBody.native;
+			r.Body = (IntPtr)targetBody.native;
 		}
 
 		if ( filterCallback is not null )

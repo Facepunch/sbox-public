@@ -13,15 +13,11 @@ public partial class Model
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		if ( string.IsNullOrWhiteSpace( filename ) )
+		filename = SanitizeFilename( filename );
+		if ( filename is null )
 			return Error;
 
-		filename = filename?.Replace( ".vmdl_c", ".vmdl" );
-
-		if ( Sandbox.Mounting.Directory.TryLoad( filename, ResourceType.Model, out object model ) && model is Model m )
-			return m;
-
-		return FromNative( NativeGlue.Resources.GetModel( filename ), name: filename );
+		return LoadInternal( filename );
 	}
 
 	/// <summary>
@@ -33,11 +29,11 @@ public partial class Model
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		if ( string.IsNullOrWhiteSpace( filename ) )
+		filename = SanitizeFilename( filename );
+		if ( filename is null )
 			return Error;
 
-		filename = filename?.Replace( ".vmdl_c", ".vmdl" );
-
+		// Check cache first
 		if ( await Sandbox.Mounting.Directory.TryLoadAsync( filename, ResourceType.Model ) is Model m )
 			return m;
 
@@ -48,6 +44,31 @@ public partial class Model
 		}
 
 		// TODO - make async
-		return Load( filename );
+		return LoadInternal( filename );
+	}
+
+	/// <summary>
+	/// Helper to sanitize filenames
+	/// </summary>
+	private static string SanitizeFilename( string filename )
+	{
+		if ( string.IsNullOrWhiteSpace( filename ) )
+			return null;
+
+		if ( filename.EndsWith( ".vmdl_c", StringComparison.OrdinalIgnoreCase ) )
+			return filename[..^2];
+
+		return filename;
+	}
+
+	/// <summary>
+	/// Internal load logic assuming sanitized filename and main thread context.
+	/// </summary>
+	private static Model LoadInternal( string filename )
+	{
+		if ( Sandbox.Mounting.Directory.TryLoad( filename, ResourceType.Model, out object model ) && model is Model m )
+			return m;
+
+		return FromNative( NativeGlue.Resources.GetModel( filename ), name: filename );
 	}
 }

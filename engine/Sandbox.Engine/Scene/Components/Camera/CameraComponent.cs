@@ -340,14 +340,28 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		// Also don't hook into render overlays, nor volumetric fog stuff.
 		if ( ClearFlags.Contains( ClearFlags.Color ) )
 		{
-			camera.VolumetricFog.Enabled = Scene.GetAllComponents<VolumetricFogVolume>().Count() > 0;
+			bool hasFogVolume = false;
+			foreach ( var _ in Scene.GetAllComponents<VolumetricFogVolume>() )
+			{
+				hasFogVolume = true;
+				break;
+			}
+			camera.VolumetricFog.Enabled = hasFogVolume;
+			
 			camera.VolumetricFog.DrawDistance = 4096;
 			camera.VolumetricFog.FadeInStart = 64;
 			camera.VolumetricFog.FadeInEnd = 256;
 			camera.VolumetricFog.IndirectStrength = 1.0f;
 			camera.VolumetricFog.Anisotropy = 1;
 			camera.VolumetricFog.Scattering = 1.0f;
-			camera.VolumetricFog.BakedIndirectTexture = Scene.GetAllComponents<VolumetricFogController>().FirstOrDefault()?.BakedFogTexture;
+			
+			Texture bakedTexture = null;
+			foreach ( var controller in Scene.GetAllComponents<VolumetricFogController>() )
+			{
+				bakedTexture = controller.BakedFogTexture;
+				break;
+			}
+			camera.VolumetricFog.BakedIndirectTexture = bakedTexture;
 		}
 
 #pragma warning disable CS0612
@@ -404,12 +418,24 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	[Obsolete( "Use CommandList" )]
 	public IDisposable AddHookAfterUI( string debugName, int order, Action<SceneCamera> renderEffect ) => null;
 
+	[ThreadStatic] static List<ScreenPanel> _uiSortList;
+
 	private void OnCameraRenderUI( SceneCamera camera )
 	{
 		if ( Scene is null )
 			return;
 
-		foreach ( var c in Scene.GetAll<ScreenPanel>().OrderBy( x => x.ZIndex ) )
+		_uiSortList ??= new List<ScreenPanel>();
+		_uiSortList.Clear();
+		
+		foreach ( var c in Scene.GetAll<ScreenPanel>() )
+		{
+			_uiSortList.Add( c );
+		}
+		
+		_uiSortList.Sort( (a, b) => a.ZIndex.CompareTo( b.ZIndex ) );
+
+		foreach ( var c in _uiSortList )
 		{
 			if ( !c.Active ) continue;
 			var target = c.TargetCamera ?? (IsMainCamera ? this : null);
@@ -418,6 +444,8 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 			c.Render();
 		}
+		
+		_uiSortList.Clear();
 	}
 
 	/// <summary>
@@ -511,29 +539,29 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// </summary>
 	public Rect BBoxToScreenPixels( BBox bounds, out bool isBehind )
 	{
-		Vector2[] corners = new Vector2[8];
 		Vector3 min = bounds.Mins;
 		Vector3 max = bounds.Maxs;
 
 		isBehind = true;
 
-		corners[0] = PointToScreenPixels( new Vector3( min.x, min.y, min.z ) );
-		corners[1] = PointToScreenPixels( new Vector3( max.x, min.y, min.z ) );
-		corners[2] = PointToScreenPixels( new Vector3( min.x, max.y, min.z ) );
-		corners[3] = PointToScreenPixels( new Vector3( min.x, min.y, max.z ) );
-		corners[4] = PointToScreenPixels( new Vector3( max.x, max.y, min.z ) );
-		corners[5] = PointToScreenPixels( new Vector3( min.x, max.y, max.z ) );
-		corners[6] = PointToScreenPixels( new Vector3( max.x, min.y, max.z ) );
-		corners[7] = PointToScreenPixels( new Vector3( max.x, max.y, max.z ) );
+		Vector2 minScreen = new Vector2( float.MaxValue, float.MaxValue );
+		Vector2 maxScreen = new Vector2( float.MinValue, float.MinValue );
 
-		Vector2 minScreen = corners[0];
-		Vector2 maxScreen = corners[0];
-
-		for ( int i = 1; i < 8; i++ )
+		void ProcessPoint( Vector3 p )
 		{
-			minScreen = Vector2.Min( minScreen, corners[i] );
-			maxScreen = Vector2.Max( maxScreen, corners[i] );
+			var screenPoint = PointToScreenPixels( p );
+			minScreen = Vector2.Min( minScreen, screenPoint );
+			maxScreen = Vector2.Max( maxScreen, screenPoint );
 		}
+
+		ProcessPoint( new Vector3( min.x, min.y, min.z ) );
+		ProcessPoint( new Vector3( max.x, min.y, min.z ) );
+		ProcessPoint( new Vector3( min.x, max.y, min.z ) );
+		ProcessPoint( new Vector3( min.x, min.y, max.z ) );
+		ProcessPoint( new Vector3( max.x, max.y, min.z ) );
+		ProcessPoint( new Vector3( min.x, max.y, max.z ) );
+		ProcessPoint( new Vector3( max.x, min.y, max.z ) );
+		ProcessPoint( new Vector3( max.x, max.y, max.z ) );
 
 		var ss = CustomSize ?? Screen.Size;
 

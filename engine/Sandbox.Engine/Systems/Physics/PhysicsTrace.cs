@@ -10,8 +10,8 @@ internal unsafe static partial class PhysicsTrace
 	{
 		public const int NumTagFields = 8;
 
-		public IPhysicsWorld World;
-		public NativeEngine.IPhysicsBody Body;
+		public IntPtr World;
+		public IntPtr Body;
 		public Vector3 StartPos;
 		public Vector3 EndPos;
 		public fixed uint TagRequire[NumTagFields];

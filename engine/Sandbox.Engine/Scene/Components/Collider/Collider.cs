@@ -6,6 +6,9 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 	internal readonly List<PhysicsShape> Shapes = new();
 
 	CollisionEventSystem _collisionEvents;
+	private Rigidbody _cachedBody;
+	private GameObject _cachedBodyGo;
+	private int _cachedBodyDepth = -1;
 
 	private bool _static;
 
@@ -173,9 +176,13 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 		get => _isTrigger;
 		set
 		{
+			if ( _isTrigger == value ) return;
 			_isTrigger = value;
 
-			Rebuild();
+			foreach ( var shape in Shapes )
+			{
+				shape.IsTrigger = _isTrigger;
+			}
 		}
 	}
 
@@ -484,7 +491,29 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 		else if ( Rigidbody.IsValid() && Rigidbody.GameObject != GameObject )
 		{
 			// Update shape if a child of the Rigidbody changed its transform
-			if ( Rigidbody.GameObject.IsDescendant( root.GameObject ) && root.GameObject != Rigidbody.GameObject )
+			if ( _cachedBody != Rigidbody )
+			{
+				_cachedBody = Rigidbody;
+				_cachedBodyGo = Rigidbody.GameObject;
+				_cachedBodyDepth = GetHierarchyDepth( _cachedBodyGo );
+			}
+
+			bool isDescendant = false;
+
+			if ( _cachedBodyGo == root.GameObject )
+			{
+				isDescendant = true;
+			}
+			else
+			{
+				int rootDepth = GetHierarchyDepth( root.GameObject );
+				if ( rootDepth < _cachedBodyDepth )
+				{
+					isDescendant = _cachedBodyGo.IsDescendant( root.GameObject );
+				}
+			}
+
+			if ( isDescendant && root.GameObject != _cachedBodyGo )
 			{
 				UpdateShape();
 			}
@@ -531,8 +560,24 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 	protected void CalculateLocalBounds()
 	{
 		var invScale = 1.0f / Transform.World.SafeScale;
-		LocalBounds = BBox.FromBoxes( Shapes.Where( x => x.IsValid() )
-			.Select( x => x.LocalBounds.Scale( invScale ) ) );
+		
+		if ( Shapes.Count == 0 )
+		{
+			LocalBounds = default;
+			return;
+		}
+
+		BBox? bounds = null;
+
+		foreach ( var shape in Shapes )
+		{
+			if ( !shape.IsValid() ) continue;
+
+			var box = shape.LocalBounds.Scale( invScale );
+			bounds = bounds.HasValue ? bounds.Value.AddBBox( box ) : box;
+		}
+
+		LocalBounds = bounds ?? default;
 	}
 
 	[AttributeUsage( AttributeTargets.Property )]
@@ -593,8 +638,23 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 		}
 		else
 		{
-			var bounds = BBox.FromBoxes( Shapes.Select( x => x.BuildBounds() ) );
+			var bounds = Shapes[0].BuildBounds();
+			for ( int i = 1; i < Shapes.Count; i++ )
+			{
+				bounds = bounds.AddBBox( Shapes[i].BuildBounds() );
+			}
 			return bounds.Grow( -0.8f );
 		}
+	}
+
+	private int GetHierarchyDepth( GameObject go )
+	{
+		int d = 0;
+		while ( go.Parent.IsValid() )
+		{
+			d++;
+			go = go.Parent;
+		}
+		return d;
 	}
 }

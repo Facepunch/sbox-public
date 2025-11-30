@@ -235,18 +235,20 @@ public sealed partial class PhysicsBody : IHandle
 	{
 		get
 		{
-			foreach ( var body in Shapes )
+			var count = native.GetShapeCount();
+			for ( int i = 0; i < count; i++ )
 			{
-				if ( body.EnableTouchPersists ) return true;
+				if ( native.GetShape( i ).EnableTouchPersists ) return true;
 			}
 
 			return false;
 		}
 		set
 		{
-			foreach ( var shape in Shapes )
+			var count = native.GetShapeCount();
+			for ( int i = 0; i < count; i++ )
 			{
-				shape.EnableTouchPersists = value;
+				native.GetShape( i ).EnableTouchPersists = value;
 			}
 		}
 	}
@@ -260,18 +262,20 @@ public sealed partial class PhysicsBody : IHandle
 	{
 		get
 		{
-			foreach ( var body in Shapes )
+			var count = native.GetShapeCount();
+			for ( int i = 0; i < count; i++ )
 			{
-				if ( body.EnableSolidCollisions ) return true;
+				if ( native.GetShape( i ).EnableSolidCollisions ) return true;
 			}
 
 			return false;
 		}
 		set
 		{
-			foreach ( var shape in Shapes )
+			var count = native.GetShapeCount();
+			for ( int i = 0; i < count; i++ )
 			{
-				shape.EnableSolidCollisions = value;
+				native.GetShape( i ).EnableSolidCollisions = value;
 			}
 		}
 	}
@@ -453,7 +457,7 @@ public sealed partial class PhysicsBody : IHandle
 		return shape;
 	}
 
-	/// <inheritdoc cref="AddHullShape(Vector3, Rotation, Span{Vector3}, bool)"/>
+	/// <inheritdoc cref="AddHullShape(Vector3, Rotation, ReadOnlySpan{Vector3}, bool)"/>
 	public PhysicsShape AddHullShape( Vector3 position, Rotation rotation, List<Vector3> points, bool rebuildMass = true )
 	{
 		return AddHullShape( position, rotation, CollectionsMarshal.AsSpan( points ), rebuildMass );
@@ -467,7 +471,7 @@ public sealed partial class PhysicsBody : IHandle
 	/// <param name="points">Points for the hull. They will be used to generate a convex shape.</param>
 	/// <param name="rebuildMass">Whether the mass should be <see cref="RebuildMass">recalculated</see> after adding the shape.</param>
 	/// <returns>The newly created shape, or null on failure.</returns>
-	public unsafe PhysicsShape AddHullShape( Vector3 position, Rotation rotation, Span<Vector3> points, bool rebuildMass = true )
+	public unsafe PhysicsShape AddHullShape( Vector3 position, Rotation rotation, ReadOnlySpan<Vector3> points, bool rebuildMass = true )
 	{
 		if ( points.Length == 0 )
 			return null;
@@ -525,7 +529,7 @@ public sealed partial class PhysicsBody : IHandle
 		return AddHullShape( position, rotation, points );
 	}
 
-	/// <inheritdoc cref="AddMeshShape(Span{Vector3}, Span{int})"/>
+	/// <inheritdoc cref="AddMeshShape(ReadOnlySpan{Vector3}, ReadOnlySpan{int})"/>
 	public PhysicsShape AddMeshShape( List<Vector3> vertices, List<int> indices )
 	{
 		return AddMeshShape( CollectionsMarshal.AsSpan( vertices ), CollectionsMarshal.AsSpan( indices ) );
@@ -537,7 +541,7 @@ public sealed partial class PhysicsBody : IHandle
 	/// <param name="vertices">Vertices of the mesh.</param>
 	/// <param name="indices">Indices of the mesh.</param>
 	/// <returns>The created shape, or null on failure.</returns>
-	public unsafe PhysicsShape AddMeshShape( Span<Vector3> vertices, Span<int> indices )
+	public unsafe PhysicsShape AddMeshShape( ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> indices )
 	{
 		if ( vertices.Length == 0 )
 			return null;
@@ -958,12 +962,30 @@ public sealed partial class PhysicsBody : IHandle
 	{
 		get
 		{
-			if ( !Shapes.Any() ) return "default";
+			var count = native.GetShapeCount();
+			if ( count == 0 ) return "default";
 
-			return Shapes.Select( s => s.SurfaceMaterial )
-					.GroupBy( v => v )
-					.OrderByDescending( g => g.Count() )
-					.First().Key;
+			// Find the most frequent material
+			string bestMat = "default";
+			int maxFreq = -1;
+
+			for ( int i = 0; i < count; i++ )
+			{
+				var mat = native.GetShape( i ).SurfaceMaterial;
+				int currentFreq = 0;
+				for ( int j = 0; j < count; j++ )
+				{
+					if ( native.GetShape( j ).SurfaceMaterial == mat )
+						currentFreq++;
+				}
+
+				if ( currentFreq > maxFreq )
+				{
+					maxFreq = currentFreq;
+					bestMat = mat;
+				}
+			}
+			return bestMat;
 		}
 
 		set

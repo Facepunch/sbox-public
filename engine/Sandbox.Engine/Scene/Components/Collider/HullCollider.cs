@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using System.Buffers;
 
 namespace Sandbox;
 
@@ -136,28 +137,43 @@ public sealed class HullCollider : Collider
 		var world = Transform.TargetWorld;
 		var local = body.IsValid() ? body.Transform.TargetWorld.ToLocal( world ) : global::Transform.Zero;
 
-		if ( Type == PrimitiveType.Box )
+		Vector3[] buffer = null;
+
+		try
 		{
-			var box = BBox.FromPositionAndSize( Center, BoxSize );
-			box.Mins *= world.Scale;
-			box.Maxs *= world.Scale;
-			box.Mins += local.Position;
-			box.Maxs += local.Position;
-			Shape.UpdateBoxShape( box.Center, local.Rotation, box.Size * 0.5f );
+			if ( Type == PrimitiveType.Box )
+			{
+				var box = BBox.FromPositionAndSize( Center, BoxSize );
+				box.Mins *= world.Scale;
+				box.Maxs *= world.Scale;
+				box.Mins += local.Position;
+				box.Maxs += local.Position;
+				Shape.UpdateBoxShape( box.Center, local.Rotation, box.Size * 0.5f );
+			}
+			else if ( Type == PrimitiveType.Cone )
+			{
+				var vertices = GetVertices( Height, Radius, Radius2, Slices, Center, world.Scale );
+				Shape.UpdateHull( local.Position, local.Rotation, vertices );
+			}
+			else if ( Type == PrimitiveType.Cylinder )
+			{
+				var vertices = GetVertices( Height, Radius, Radius, Slices, Center, world.Scale );
+				Shape.UpdateHull( local.Position, local.Rotation, vertices );
+			}
+			else if ( Type == PrimitiveType.Points )
+			{
+				var count = Points.Count;
+				buffer = ArrayPool<Vector3>.Shared.Rent( count );
+				for ( int i = 0; i < count; i++ )
+				{
+					buffer[i] = Points[i] * world.Scale;
+				}
+				Shape.UpdateHull( local.Position, local.Rotation, new Span<Vector3>( buffer, 0, count ) );
+			}
 		}
-		else if ( Type == PrimitiveType.Cone )
+		finally
 		{
-			var vertices = GetVertices( Height, Radius, Radius2, Slices, Center, world.Scale );
-			Shape.UpdateHull( local.Position, local.Rotation, vertices );
-		}
-		else if ( Type == PrimitiveType.Cylinder )
-		{
-			var vertices = GetVertices( Height, Radius, Radius, Slices, Center, world.Scale );
-			Shape.UpdateHull( local.Position, local.Rotation, vertices );
-		}
-		else if ( Type == PrimitiveType.Points )
-		{
-			Shape.UpdateHull( local.Position, local.Rotation, Points.Select( x => x * world.Scale ).ToArray() );
+			if ( buffer != null ) ArrayPool<Vector3>.Shared.Return( buffer );
 		}
 
 		CalculateLocalBounds();
@@ -190,7 +206,21 @@ public sealed class HullCollider : Collider
 		}
 		else if ( Type == PrimitiveType.Points )
 		{
-			Shape = body.AddHullShape( local.Position, local.Rotation, Points.Select( x => x * scale ).ToArray() );
+			var count = Points.Count;
+			var buffer = ArrayPool<Vector3>.Shared.Rent( count );
+			try 
+			{
+				for( int i=0; i<count; i++ )
+				{
+					buffer[i] = Points[i] * scale;
+				}
+				// Use ReadOnlySpan explicitly here to match our new AddHullShape overload
+				Shape = body.AddHullShape( local.Position, local.Rotation, new ReadOnlySpan<Vector3>( buffer, 0, count ) );
+			}
+			finally
+			{
+				ArrayPool<Vector3>.Shared.Return( buffer );
+			}
 		}
 		else
 		{

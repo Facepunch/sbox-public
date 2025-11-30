@@ -236,6 +236,16 @@ namespace Sandbox
 		public PhysicsBody GetBody( int groupIndex ) => native.GetBodyHandle( groupIndex ); // Throw on OOB
 
 		/// <summary>
+		/// Returns amount of joints in this group.
+		/// </summary>
+		public int JointCount => native.GetJointCount();
+
+		/// <summary>
+		/// Get a joint by index without allocating memory.
+		/// </summary>
+		public PhysicsJoint GetJoint( int index ) => native.GetJointHandle( index );
+
+		/// <summary>
 		/// Returns a <see cref="PhysicsBody"/> by its <see cref="PhysicsBody.GroupName"/> within this group.
 		/// </summary>
 		/// <param name="groupName">Name of the physics body to look up.</param>
@@ -245,6 +255,7 @@ namespace Sandbox
 
 		/// <summary>
 		/// Any and all joints that are attached to any body in this group.
+		/// WARNING: Creates Garbage. Use JointCount and GetJoint(i) for zero-allocation loops.
 		/// </summary>
 		[ActionGraphInclude]
 		public IEnumerable<PhysicsJoint> Joints
