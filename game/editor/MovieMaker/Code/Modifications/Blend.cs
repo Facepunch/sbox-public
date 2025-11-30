@@ -1,6 +1,9 @@
-﻿using System.Collections.Immutable;
-using System.Linq;
+﻿using Sandbox;
 using Sandbox.MovieMaker;
+using Sandbox.MovieMaker.Compiled;
+using System.Collections.Immutable;
+using System.Linq;
+using System.Text.Json.Nodes;
 
 namespace Editor.MovieMaker;
 
@@ -17,13 +20,9 @@ public class BlendModification() : PerTrackModification<BlendOptions>( BlendOpti
 		Options = Options with { IsAdditive = editMode.DefaultIsAdditive };
 	}
 
-	public void SetFromClipboard( ClipboardData clipboard, MovieTime offset, MovieProject project )
+	public void SetFromClipboard( ClipboardData clipboard, MovieTime offset, bool? isAdditive = null )
 	{
-		Options = Options with
-		{
-			SourceRange = clipboard.Selection.TotalTimeRange,
-			Offset = offset
-		};
+		var project = EditMode.Project;
 
 		foreach ( var (id, blocks) in clipboard.Tracks )
 		{
@@ -34,6 +33,57 @@ public class BlendModification() : PerTrackModification<BlendOptions>( BlendOpti
 
 			state.Modification = blocks.AsModification();
 		}
+
+		Options = Options with
+		{
+			SourceRange = clipboard.Selection.TotalTimeRange,
+			Offset = offset,
+			IsAdditive = isAdditive ?? Options.IsAdditive
+		};
+	}
+
+	public void SetFromTracks( IEnumerable<ICompiledPropertyTrack> tracks, MovieTimeRange timeRange, MovieTime offset, bool? isAdditive = null, JsonObject? metadata = null )
+	{
+		var tracksCopy = tracks.ToArray();
+		var clip = MovieClip.FromTracks( tracksCopy.AsEnumerable() );
+		var source = new ProjectSourceClip( Guid.NewGuid(), clip, metadata );
+
+		var project = EditMode.Project;
+		var trackCount = project.Tracks.Count;
+
+		// Ensure tracks are created
+
+		foreach ( var srcTrack in tracksCopy )
+		{
+			project.GetOrAddTrack( srcTrack );
+		}
+
+		// Update track list if new tracks were added
+
+		if ( trackCount != project.Tracks.Count )
+		{
+			EditMode.Session.TrackList.Update();
+			EditMode.Session.ClipModified();
+		}
+
+		// Copy modification data to track previews
+
+		foreach ( var srcTrack in tracksCopy )
+		{
+			if ( project.GetOrAddTrack( srcTrack ) is not IProjectPropertyTrack dstTrack ) continue;
+			if ( source.AsBlocks( dstTrack ) is not { Count: > 0 } blocks ) continue;
+
+			var state = GetOrCreateTrackModificationPreview( dstTrack );
+
+			state.Modification = blocks.AsModification();
+		}
+
+		Options = Options with
+		{
+			SourceRange = timeRange,
+			Offset = offset,
+			IsAdditive = isAdditive ?? Options.IsAdditive
+		};
 	}
 
 	public override void AddControls( ToolBarGroup group )
@@ -75,7 +125,9 @@ public class BlendModification() : PerTrackModification<BlendOptions>( BlendOpti
 	}
 }
 
-public record ClipboardData( TimeSelection Selection, IReadOnlyDictionary<Guid, IReadOnlyList<IProjectPropertyBlock>> Tracks );
+public record ClipboardData(
+	TimeSelection Selection,
+	IReadOnlyDictionary<Guid, IReadOnlyList<IProjectPropertyBlock>> Tracks );
 
 public record BlendOptions( bool IsAdditive, MovieTime Offset, MovieTimeRange? SourceRange ) : ITranslatableOptions
 {

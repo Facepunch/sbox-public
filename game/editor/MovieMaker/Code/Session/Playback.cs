@@ -1,4 +1,5 @@
 ﻿using Sandbox.MovieMaker;
+using Sandbox.MovieMaker.Properties;
 
 namespace Editor.MovieMaker;
 
@@ -54,7 +55,14 @@ public sealed partial class Session
 
 	public void ApplyFrame( MovieTime time )
 	{
+		using var sceneScope = Player.Scene.Push();
+
 		_applyNextFrame = false;
+
+		foreach ( var renderer in Binder.GetComponents<SkinnedModelRenderer>( Project ) )
+		{
+			MovieBoneAnimatorSystem.Current?.ClearBones( renderer );
+		}
 
 		if ( IsOpenInEditor && SyncPlayback )
 		{

@@ -64,6 +64,8 @@ public sealed partial class Session
 	private MovieTime _timeOffset;
 	private float _pixelsPerSecond;
 
+	private SessionInverseKinematics _ik;
+
 	public bool IsEditorScene => Player.Scene?.IsEditor ?? true;
 	public TrackBinder Binder => Player.Binder;
 
@@ -196,6 +198,7 @@ public sealed partial class Session
 
 		History = new SessionHistory( this );
 		Renderer = new SessionRenderer( this );
+		_ik = new SessionInverseKinematics( this );
 	}
 
 	/// <summary>
@@ -619,16 +622,19 @@ public sealed partial class Session
 
 	public void DrawGizmos()
 	{
-		var selectedTrackView = TrackList.SelectedTracks.FirstOrDefault();
-
-		if ( selectedTrackView is null ) return;
-		if ( selectedTrackView.TransformTrack is not { } transformTrack ) return;
-
 		using var rootScope = Gizmo.Scope( "MovieMaker" );
 
 		Gizmo.Draw.IgnoreDepth = true;
 
-		var timeRange = new MovieTimeRange( PlayheadTime - 5d, PlayheadTime + 5d );
+		var selectedTrackView = TrackList.SelectedTracks.FirstOrDefault();
+
+		_ik.DrawGizmos();
+
+		if ( selectedTrackView is null ) return;
+		if ( selectedTrackView.TransformTrack is not { } transformTrack ) return;
+
+		var centerTime = PreviewTime ?? PlayheadTime;
+		var timeRange = new MovieTimeRange( centerTime - 5d, centerTime + 5d );
 		var clampedTimeRange = timeRange.Clamp( (0d, Project.Duration) );
 
 		EditMode?.DrawGizmos( selectedTrackView, timeRange );
@@ -659,6 +665,11 @@ public sealed partial class Session
 			Gizmo.Draw.Color = Theme.Blue;
 			Gizmo.Draw.Arrow( transform.Position, transform.Position + transform.Rotation * Vector3.Up * length, arrowLength, arrowWidth );
 		}
+	}
+
+	public void ShowContextMenu( EditorEvent.ShowContextMenuEvent ev )
+	{
+		_ik.ShowContextMenu( ev );
 	}
 
 	public bool CanReferenceMovie( MovieResource resource )

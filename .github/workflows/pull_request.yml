@@ -8,10 +8,56 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.label.name == 'triaged'
     steps:
-      - name: Repository Dispatch
-        uses: peter-evans/repository-dispatch@v4
+      - name: Ensure PR checks passed
+        uses: actions/github-script@v7
         with:
-          token: ${{ secrets.SBOXBOT_TOKEN }}
-          repository: Facepunch/sbox
-          event-type: pr-triaged
-          client-payload: '{"github": ${{ toJson(github) }}}'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const requiredChecks = ['Tests', 'Formatting'];
+
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              throw new Error('No pull request found in event payload.');
+            }
+
+            const { data } = await github.rest.checks.listForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: pr.head.sha,
+              per_page: 100
+            });
+
+            const checkRuns = data.check_runs ?? [];
+            for (const requiredCheck of requiredChecks) {
+              const match = checkRuns.find(run => (run.name ?? '') === requiredCheck);
+
+              if (!match || match.conclusion !== 'success') {
+                const status = match ? (match.conclusion ?? match.status ?? 'unknown') : 'missing';
+                core.warning(`Required check '${requiredCheck}' did not pass (${status}). Removing triaged label.`);
+
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  name: 'triaged'
+                });
+
+                throw new Error('Cannot triage until required checks succeed.');
+              }
+            }
+
+      - name: Repository Dispatch
+        uses: actions/github-script@v7
+        env:
+          DISPATCH_CONTEXT: ${{ toJson(github) }}
+        with:
+          github-token: ${{ secrets.SBOXBOT_TOKEN }}
+          script: |
+            const clientPayload = JSON.parse(process.env.DISPATCH_CONTEXT);
+
+            await github.rest.repos.createDispatchEvent({
+              owner: 'Facepunch',
+              repo: 'sbox',
+              event_type: 'pr-triaged',
+              client_payload: { github: clientPayload }
+            });

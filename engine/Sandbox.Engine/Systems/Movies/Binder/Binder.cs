@@ -82,6 +82,36 @@ public sealed partial class TrackBinder( Scene? scene = null ) : IEnumerable<Key
 		};
 	}
 
+	/// <summary>
+	/// Get all reference targets for tracks in the given <paramref name="clip"/>.
+	/// </summary>
+	/// <typeparam name="T">Reference type, for example <see cref="GameObject"/> or a <see cref="Component"/> type.</typeparam>
+	/// <param name="clip">Movie clip to find track bindings for.</param>
+	public IEnumerable<ITrackReference<T>> GetReferences<T>( IMovieClip clip )
+		where T : Component
+	{
+		return clip.Tracks
+			.OfType<IReferenceTrack<T>>()
+			.Select( Get );
+	}
+
+	/// <summary>
+	/// Get all property targets for tracks in the given <paramref name="clip"/>.
+	/// </summary>
+	/// <typeparam name="T">Property value type.</typeparam>
+	/// <param name="clip">Movie clip to find track bindings for.</param>
+	public IEnumerable<ITrackProperty<T>> GetProperties<T>( IMovieClip clip )
+	{
+		return clip.Tracks
+			.OfType<IPropertyTrack<T>>()
+			.Select( Get );
+	}
+
+	/// <summary>
+	/// Get all bound component references for tracks in the given <paramref name="clip"/>.
+	/// </summary>
+	/// <typeparam name="T">Component type.</typeparam>
+	/// <param name="clip">Movie clip to find track bindings for.</param>
 	public IEnumerable<T> GetComponents<T>( IMovieClip clip )
 		where T : Component
 	{

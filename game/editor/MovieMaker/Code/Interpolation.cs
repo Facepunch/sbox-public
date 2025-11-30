@@ -89,7 +89,8 @@ file sealed class DefaultTransformer :
 	INumericTransformer<int>, INumericTransformer<float>, INumericTransformer<double>,
 	ITransformer<Vector2>, ITransformer<Vector3>, ITransformer<Vector4>,
 	ITransformer<Rotation>, ITransformer<Angles>,
-	ITransformer<Color>
+	ITransformer<Color>,
+	ITransformer<Transform>
 {
 	public static DefaultTransformer Instance { get; } = new();
 
@@ -112,6 +113,9 @@ file sealed class DefaultTransformer :
 
 	public Vector2 Invert( Vector2 value ) => -value;
 	public Vector2 Apply( Vector2 outer, Vector2 inner ) => outer + inner;
+
+	public Transform Invert( Transform value ) => value.ToLocal( Transform.Zero );
+	public Transform Apply( Transform outer, Transform inner ) => outer.ToWorld( inner );
 }
 
 file sealed class LocalTransformerWrapper<T> : ITransformer<object?>

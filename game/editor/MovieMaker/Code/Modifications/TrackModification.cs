@@ -93,7 +93,7 @@ public interface IMovieModification
 	bool HasChanges { get; }
 	MovieTimeRange? SourceTimeRange { get; }
 
-	bool CanStart( IProjectPropertyBlock block, TimeSelection selection );
+	bool CanStart( TrackListView trackList, TimeSelection selection );
 
 	/// <summary>
 	/// Called after this instance was created to perform any initialization.
@@ -108,10 +108,10 @@ public interface IMovieModification
 	/// <summary>
 	/// Called when this modification's toolbar button was pressed.
 	/// </summary>
-	void Start( TimeSelection selection );
+	void Start( TrackListView trackList, TimeSelection selection );
 
 	bool UpdatePreview( TimeSelection selection );
-	bool UpdatePreview( TimeSelection selection, IProjectPropertyTrack track );
+	bool UpdatePreview( TimeSelection selection, IProjectTrack track );
 	void ClearPreview();
 
 	bool Commit( TimeSelection selection );
@@ -172,7 +172,8 @@ public abstract class PerTrackModification<T>( T defaultOptions, bool autoCreate
 
 	public virtual MovieTimeRange? SourceTimeRange => null;
 
-	public virtual bool CanStart( IProjectPropertyBlock block, TimeSelection selection ) => true;
+	public virtual bool CanStart( TrackListView trackList, TimeSelection selection ) =>
+		trackList.EditablePropertyTracks.Any( x => x.Track is IProjectPropertyTrack );
 
 	public void Initialize( MotionEditMode editMode )
 	{
@@ -185,7 +186,7 @@ public abstract class PerTrackModification<T>( T defaultOptions, bool autoCreate
 
 	public virtual void AddControls( ToolBarGroup group ) { }
 
-	public virtual void Start( TimeSelection selection ) { }
+	public virtual void Start( TrackListView trackList, TimeSelection selection ) { }
 
 	protected ITrackModificationPreview? GetTrackModificationPreview( IProjectPropertyTrack track )
 	{
@@ -208,7 +209,7 @@ public abstract class PerTrackModification<T>( T defaultOptions, bool autoCreate
 
 		if ( autoCreate )
 		{
-			foreach ( var view in EditMode.Session.TrackList.EditableTracks )
+			foreach ( var view in EditMode.Session.TrackList.EditablePropertyTracks )
 			{
 				GetOrCreateTrackModificationPreview( (IProjectPropertyTrack)view.Track );
 			}
@@ -226,9 +227,9 @@ public abstract class PerTrackModification<T>( T defaultOptions, bool autoCreate
 		return changed;
 	}
 
-	public bool UpdatePreview( TimeSelection selection, IProjectPropertyTrack track )
+	public bool UpdatePreview( TimeSelection selection, IProjectTrack track )
 	{
-		if ( GetTrackModificationPreview( track ) is { } preview )
+		if ( track is IProjectPropertyTrack propertyTrack && GetTrackModificationPreview( propertyTrack ) is { } preview )
 		{
 			preview.Update( selection, Options );
 			return true;

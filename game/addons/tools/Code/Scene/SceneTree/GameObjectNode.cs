@@ -567,7 +567,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 						{
 							if ( prefabAsset.TryLoadResource<PrefabFile>( out var prefab ) && prefab.IsValid )
 							{
-								// TODO EditorScene.LoadFromPrefab( prefab );
+								EditorScene.OpenPrefab( prefab );
 							}
 						} ).Enabled = !prefabAsset.IsProcedural;
 

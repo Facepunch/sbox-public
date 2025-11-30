@@ -60,7 +60,7 @@ partial class MotionEditMode
 		_stopPlayingAfterRecording = !Session.IsPlaying;
 		_recordingLastTime = startTime;
 
-		foreach ( var view in Session.TrackList.EditableTracks )
+		foreach ( var view in Session.TrackList.EditablePropertyTracks )
 		{
 			_recorder.Tracks.Add( (IProjectPropertyTrack)view.Track );
 		}

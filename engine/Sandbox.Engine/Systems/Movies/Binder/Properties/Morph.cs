@@ -23,8 +23,6 @@ file sealed record MorphProperty( ITrackProperty<MorphAccessor?> Parent, string 
 [Expose]
 file sealed class MorphPropertyFactory : ITrackPropertyFactory<ITrackProperty<MorphAccessor?>, float>
 {
-	string ITrackPropertyFactory.CategoryName => "Morphs";
-
 	/// <summary>
 	/// Any property inside a <see cref="MorphAccessor"/> is a morph.
 	/// </summary>
@@ -37,4 +35,6 @@ file sealed class MorphPropertyFactory : ITrackPropertyFactory<ITrackProperty<Mo
 			? accessor.Names
 			: Enumerable.Empty<string>();
 	}
+
+	public string GetCategoryName( ITrackProperty<MorphAccessor?> parent, string name ) => "Morphs";
 }

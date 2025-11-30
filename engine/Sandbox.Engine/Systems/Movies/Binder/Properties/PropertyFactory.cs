@@ -18,11 +18,6 @@ public interface ITrackPropertyFactory
 	public int Order => 0;
 
 	/// <summary>
-	/// When listing properties to add, what category should we use for properties from this factory?
-	/// </summary>
-	public string CategoryName => "Other";
-
-	/// <summary>
 	/// Lists all available property names provided by this factory from a given <paramref name="parent"/>.
 	/// </summary>
 	IEnumerable<string> GetPropertyNames( ITrackTarget parent );
@@ -33,6 +28,11 @@ public interface ITrackPropertyFactory
 	/// will be called using that type.
 	/// </summary>
 	Type? GetTargetType( ITrackTarget parent, string name );
+
+	/// <summary>
+	/// When listing properties to add, what category should we use for the given property provided by this factory?
+	/// </summary>
+	string GetCategoryName( ITrackTarget parent, string name ) => "Other";
 
 	/// <summary>
 	/// Create a property with the given <paramref name="parent"/>, <paramref name="name"/>, and property value type <typeparamref name="T"/>.
@@ -51,6 +51,9 @@ public interface ITrackPropertyFactory<in TParent> : ITrackPropertyFactory
 {
 	IEnumerable<string> GetPropertyNames( TParent parent );
 
+	/// <inheritdoc cref="ITrackPropertyFactory.GetCategoryName"/>
+	string GetCategoryName( TParent parent, string name ) => "Other";
+
 	/// <inheritdoc cref="ITrackPropertyFactory.GetTargetType"/>
 	Type? GetTargetType( TParent parent, string name );
 
@@ -61,6 +64,11 @@ public interface ITrackPropertyFactory<in TParent> : ITrackPropertyFactory
 		parent is TParent typedParent
 			? GetPropertyNames( typedParent )
 			: Enumerable.Empty<string>();
+
+	string ITrackPropertyFactory.GetCategoryName( ITrackTarget parent, string name ) =>
+		parent is TParent typedParent
+			? GetCategoryName( typedParent, name )
+			: "Other";
 
 	Type? ITrackPropertyFactory.GetTargetType( ITrackTarget parent, string name ) =>
 		parent is TParent typedParent
@@ -108,6 +116,7 @@ public static class TrackProperty
 			.Select( CreateFactory )
 			.OfType<ITrackPropertyFactory>()
 			.OrderBy( x => x.Order )
+			.ThenBy( x => x.GetType().FullName )
 			// ReSharper disable once UseCollectionExpression
 			.ToImmutableArray();
 
@@ -132,7 +141,7 @@ public static class TrackProperty
 	public static IEnumerable<(string Name, string Category, Type Type)> GetAll( ITrackTarget parent )
 	{
 		return Factories.SelectMany( x => x.GetPropertyNames( parent )
-				.Select( y => (Name: y, Category: x.CategoryName, Type: x.GetTargetType( parent, y )) )
+				.Select( y => (Name: y, Category: x.GetCategoryName( parent, y ), Type: x.GetTargetType( parent, y )) )
 				.Where( y => y.Type is not null && y.Type != typeof( Unknown ) ) )
 			.DistinctBy( x => x.Name )!;
 	}
