@@ -418,7 +418,6 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
             //
             // Recieve incoming network messages, send heartbeat and other outgoing messages
             //
-            //
             Networking.PreFrameTick();
 
 			//
