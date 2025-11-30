@@ -677,7 +677,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		var system = SceneNetworkSystem.Instance;
 		if ( system is null ) return;
 
-		ReadDataTable( tableData );
+		ReadDataTable( tableData, ( _, entry ) => entry.HasControl( source ) );
 
 		var bs = ByteStream.CreateReader( snapshotData );
 		system.DeltaSnapshots.OnDeltaSnapshot( source, bs );

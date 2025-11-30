@@ -826,7 +826,7 @@ public partial class GameObject
 	{
 		using var prefabContext = PushDeserializeContext();
 
-		Components.ForEach( "PostDeserialize", true, c => c.PostDeserialize() );
+		Components.ForEach( "PostDeserialize", true, c => c.PostDeserialize( options ) );
 
 		for ( int i = 0; i < Children.Count; i++ )
 		{
