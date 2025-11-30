@@ -61,12 +61,18 @@ internal class Program
 		buildCommand.AddOption( skipNativeOption );
 		buildCommand.AddOption( skipManagedOption );
 
-		buildCommand.SetHandler( ( BuildConfiguration config, bool clean, bool skipNative, bool skipManaged ) =>
+		var aotOption = new Option<bool>(
+			"--aot",
+			description: "Generate NativeAOT stubs",
+			getDefaultValue: () => false );
+		buildCommand.AddOption( aotOption );
+
+		buildCommand.SetHandler( ( BuildConfiguration config, bool clean, bool skipNative, bool skipManaged, bool aot ) =>
 		{
-			var pipeline = Build.Create( config, clean, skipNative, skipManaged );
+			var pipeline = Build.Create( config, clean, skipNative, skipManaged, aot );
 			ExitCode result = pipeline.Run();
 			Environment.ExitCode = (int)result;
-		}, configOption, cleanOption, skipNativeOption, skipManagedOption );
+		}, configOption, cleanOption, skipNativeOption, skipManagedOption, aotOption );
 
 		rootCommand.Add( buildCommand );
 	}

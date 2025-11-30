@@ -101,12 +101,17 @@ internal partial class ManagerWriter : BaseWriter
 				WriteLine( $"	Sandbox.Interop.NativeAssemblyLoadFailed( \"{definitions.NativeDll}\" );" );
 				WriteLine( "_nativeLibraryHandle = nativeDll;" );
 
+				WriteLine( "NetCoreImportDelegate nativeInit = default;" ); // Declare outside the conditional, initialized to null
 				WriteLine();
 				WriteLine( $"IntPtr nativeInitPtr = NativeLibrary.GetExport( nativeDll, \"igen_{definitions.Ident}\" );" );
-				WriteLine( $"if ( nativeInitPtr == IntPtr.Zero ) throw new System.Exception( \"Couldn't load from {definitions.NativeDll}\" );" );
+				
+				WriteLine( $"if ( nativeInitPtr == IntPtr.Zero )" ); // Check for null pointer
+				StartBlock( null );
+				WriteLine( $"throw new System.Exception( \"Couldn't load from {definitions.NativeDll} - igen_{definitions.Ident} not found.\" );" );
+				EndBlock();
 
 				WriteLine();
-				WriteLine( $"var nativeInit = Marshal.GetDelegateForFunctionPointer<NetCoreImportDelegate>( nativeInitPtr );" );
+				WriteLine( $"nativeInit = Marshal.GetDelegateForFunctionPointer<NetCoreImportDelegate>( nativeInitPtr );" );
 				WriteLine( $"if ( nativeInit == null ) throw new System.Exception( \"Couldn't load from {definitions.NativeDll}\" );" );
 
 				int i = 0;

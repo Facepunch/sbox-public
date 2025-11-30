@@ -10,7 +10,27 @@ internal class BuildContent( string name ) : Step( name )
 		{
 			string rootDir = Directory.GetCurrentDirectory();
 			string gameDir = Path.Combine( rootDir, "game" );
-			string contentBuilderPath = Path.Combine( gameDir, "bin", "win64", "contentbuilder.exe" );
+			string contentBuilderExecutable = "contentbuilder";
+			if ( OperatingSystem.IsWindows() )
+			{
+				contentBuilderExecutable = "contentbuilder.exe";
+			}
+
+			string contentBuilderPath = "";
+
+			if ( OperatingSystem.IsLinux() )
+			{
+				contentBuilderPath = Path.Combine( gameDir, "bin", "linuxsteamrt64", contentBuilderExecutable );
+			}
+			else if ( OperatingSystem.IsWindows() )
+			{
+				contentBuilderPath = Path.Combine( gameDir, "bin", "win64", contentBuilderExecutable );
+			}
+			else
+			{
+				// Default to win64 for other OSes, or handle specifically if needed
+				contentBuilderPath = Path.Combine( gameDir, "bin", "win64", contentBuilderExecutable );
+			}
 
 			// Verify content builder exists
 			if ( !File.Exists( contentBuilderPath ) )

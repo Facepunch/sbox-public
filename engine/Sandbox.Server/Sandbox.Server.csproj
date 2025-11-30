@@ -2,8 +2,7 @@
 
   <PropertyGroup>
     <VersionPrefix>1.0.1</VersionPrefix>
-    <TargetFramework>net7.0</TargetFramework>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    		<TargetFramework>net10.0</TargetFramework>    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <AssemblyName>Sandbox.Server</AssemblyName>
@@ -12,6 +11,8 @@
     <NoWarn>1701;1702;1591</NoWarn>
     <LangVersion>14</LangVersion>
     <OutputPath>..\..\game\bin\managed</OutputPath>
+		<BaseIntermediateOutputPath>$(MSBuildProjectDirectory)\obj\</BaseIntermediateOutputPath>
+		<IntermediateOutputPath>obj\$(Configuration)\</IntermediateOutputPath>
 		<RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
 		<EnableNETAnalyzers>false</EnableNETAnalyzers>
   </PropertyGroup>
@@ -19,7 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Sandbox.Engine\Sandbox.Engine.csproj" />
     <ProjectReference Include="..\Sandbox.Event\Sandbox.Event.csproj" />
-    <ProjectReference Include="..\Sandbox.Game\Sandbox.Game.csproj" />
+
   </ItemGroup>
 
 </Project>

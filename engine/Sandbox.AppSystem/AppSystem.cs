@@ -9,12 +9,13 @@ using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics.X86;
 
+
 namespace Sandbox;
 
 public class AppSystem
 {
 	protected Logger log = new Logger( "AppSystem" );
-	internal CMaterialSystem2AppSystemDict _appSystem { get; set; }
+	internal CMaterialSystem2AppSystemDict? _appSystem { get; set; }
 
 	[DllImport( "user32.dll", CharSet = CharSet.Unicode )]
 	private static extern int MessageBox( IntPtr hWnd, string text, string caption, uint type );
@@ -102,7 +103,10 @@ public class AppSystem
 
 			Init();
 
-			NativeEngine.EngineGlobal.Plat_SetCurrentFrame( 0 );
+			if ( !System.OperatingSystem.IsLinux() )
+			{
+				NativeEngine.EngineGlobal.Plat_SetCurrentFrame( 0 );
+			}
 
 			while ( RunFrame() )
 			{
@@ -125,7 +129,12 @@ public class AppSystem
 
 	protected virtual bool RunFrame()
 	{
-		EngineLoop.RunFrame( _appSystem, out bool wantsToQuit );
+		if ( _appSystem is null )
+		{
+			return false; // If appSystem is null, we want to quit.
+		}
+
+		EngineLoop.RunFrame( _appSystem.Value, out bool wantsToQuit ); // Use .Value to access the non-nullable struct
 
 		return !wantsToQuit;
 	}
@@ -193,7 +202,10 @@ public class AppSystem
 		}
 
 		// Shut the engine down (close window etc)
-		NativeEngine.EngineGlobal.SourceEngineShutdown( _appSystem, false );
+		if ( _appSystem is not null ) // Only shutdown if it was initialized
+		{
+			NativeEngine.EngineGlobal.SourceEngineShutdown( _appSystem.Value, false ); // Pass the non-nullable value
+		}
 
 		if ( _appSystem.IsValid )
 		{
@@ -275,7 +287,6 @@ public class AppSystem
 	{
 		_appSystem.SetAppWindowTitle( title );
 	}
-
 	IntPtr steamApiDll = IntPtr.Zero;
 
 	/// <summary>

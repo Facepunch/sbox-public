@@ -6,7 +6,7 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <ApplicationIcon>icon.ico</ApplicationIcon>
     <NoWarn>1701;1702;1591</NoWarn>
-	<OutputPath>..\..\..\game\bin\managed</OutputPath>
+
 	<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 	<SentryDisableSourceGenerator>true</SentryDisableSourceGenerator>
   </PropertyGroup>

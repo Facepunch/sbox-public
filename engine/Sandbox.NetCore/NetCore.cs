@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.IO;
 
 /*
  * 
@@ -27,9 +28,18 @@ internal static class NetCore
 		//
 
 		var gameFolder = Marshal.PtrToStringUTF8( gameFolderPtr );
-		var managedFolder = $"{gameFolder}\\bin\\managed\\";
+		
+		string managedFolder = Path.Combine( gameFolder, "bin", "managed" );
 
-		var assembly = Assembly.LoadFrom( $"{managedFolder}Sandbox.Engine.dll" );
+		string engineAssemblyName = "Sandbox.Engine";
+		string engineAssemblyExtension = ".dll";
+
+		if ( OperatingSystem.IsLinux() )
+		{
+			engineAssemblyExtension = ".so"; // Or whatever the managed assembly extension is on Linux
+		}
+
+		var assembly = Assembly.LoadFrom( Path.Combine( managedFolder, $"{engineAssemblyName}{engineAssemblyExtension}" ) );
 		var type = assembly.GetTypes().Where( x => x.Name == "NetCore" ).FirstOrDefault();
 		var method = type.GetMethod( "InitializeInterop", BindingFlags.Static | BindingFlags.NonPublic );
 

@@ -71,22 +71,39 @@ public static class ShaderCompile
 
 	static ShaderCompile()
 	{
+		if ( System.OperatingSystem.IsLinux() )
+		{
+			Log.Warning( "Skipping ShaderCompile native initialization on Linux due to disabled native interop." );
+			return;
+		}
+
 		if ( NativeEngine.EngineGlobal.AppIsDedicatedServer() )
 			return;
 
-		string dllName = "vfx_vulkan.dll";
+		string vfxDllName = "vfx_vulkan";
+		string filesystemDllName = "filesystem_stdio";
+		string dllExtension = ".dll";
+
+		if ( OperatingSystem.IsLinux() )
+		{
+			vfxDllName = "libvfx_vulkan";
+			filesystemDllName = "libfilesystem_stdio";
+			dllExtension = ".so";
+		}
+
+		string fullVfxDllName = $"{vfxDllName}{dllExtension}";
 
 		if ( !native.IsNull )
 			return;
 
-		native = NativeEngine.CreateInterface.LoadInterface( dllName, "VFX_DLL_001" );
+		native = NativeEngine.CreateInterface.LoadInterface( fullVfxDllName, "VFX_DLL_001" );
 
 		if ( native.IsNull )
-			throw new System.Exception( $"Failed to load {dllName}" );
+			throw new System.Exception( $"Failed to load {fullVfxDllName}" );
 
 		// the shader compiler only needs the filesystem interface so we just pass
 		// in the createinterface for that, directly.
-		var createinterface = NativeEngine.CreateInterface.GetCreateInterface( "filesystem_stdio.dll" );
+		var createinterface = NativeEngine.CreateInterface.GetCreateInterface( $"{filesystemDllName}{dllExtension}" );
 
 		native.Init( createinterface );
 	}

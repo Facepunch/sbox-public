@@ -13,6 +13,8 @@
 		<NoWarn>1701;1702;1591;NETSDK1138</NoWarn>
 		<LangVersion>14</LangVersion>
 		<OutputPath>..\..\..\game</OutputPath>
+		<BaseIntermediateOutputPath>obj\</BaseIntermediateOutputPath>
+		<IntermediateOutputPath>obj\$(Configuration)\</IntermediateOutputPath>
 		<OutputType>WinExe</OutputType>
 		<DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>
 		<PreserveCompilationReferences>false</PreserveCompilationReferences>

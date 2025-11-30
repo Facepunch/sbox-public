@@ -7,9 +7,9 @@ namespace Facepunch;
 
 internal static class Utility
 {
-	public static bool RunDotnetCommand( string workingDirectory, string arguments )
+	public static bool RunDotnetCommand( string workingDirectory, string arguments, Dictionary<string, string> environmentVariables = null )
 	{
-		return RunProcess( "dotnet", arguments, workingDirectory );
+		return RunProcess( "dotnet", arguments, workingDirectory, environmentVariables: environmentVariables );
 	}
 
 	/// <summary>

@@ -92,10 +92,23 @@ public class QtAppSystem
 	/// </summary>
 	protected void LoadSteamDll()
 	{
-		var dllName = $"{Environment.CurrentDirectory}\\bin\\win64\\steam_api64.dll";
-		if ( !NativeLibrary.TryLoad( dllName, out var steamApiDll ) )
+		string dllName;
+		if ( RuntimeInformation.IsOSPlatform( OSPlatform.Linux ) )
 		{
-			throw new System.Exception( "Couldn't load bin/win64/steam_api64.dll" );
+			dllName = $"{Environment.CurrentDirectory}/bin/linuxsteamrt64/libsteam_api.so";
+		}
+		else if ( RuntimeInformation.IsOSPlatform( OSPlatform.Windows ) )
+		{
+			dllName = $"{Environment.CurrentDirectory}\\bin\\win64\\steam_api64.dll";
+		}
+		else
+		{
+			throw new System.Exception( "Unsupported platform for Steam API" );
+		}
+
+		if ( !NativeLibrary.TryLoad( dllName, out steamApiDll ) )
+		{
+			throw new System.Exception( $"Couldn't load Steam API library: {dllName}" );
 		}
 	}
 }

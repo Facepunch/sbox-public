@@ -50,24 +50,31 @@ public class ToolAppSystem : AppSystem, IDisposable
 		var commandLine = System.Environment.CommandLine;
 		commandLine = commandLine.Replace( ".dll", ".exe" ); // uck
 
-		_appSystem = CMaterialSystem2AppSystemDict.Create( createInfo.ToMaterialSystem2AppSystemDictCreateInfo() );
-		_appSystem.SetModGameSubdir( "core" );
-		_appSystem.SetInToolsMode();
-		_appSystem.SetSteamAppId( (uint)Application.AppId );
-
-		//_appSystem.Init();
-
-		if ( !NativeEngine.EngineGlobal.SourceEnginePreInit( commandLine, _appSystem ) )
+		_appSystem = null; // Set to null or a dummy implementation for Linux
+		if ( !System.OperatingSystem.IsLinux() )
 		{
-			throw new System.Exception( "SourceEnginePreInit failed" );
+			_appSystem = CMaterialSystem2AppSystemDict.Create( createInfo.ToMaterialSystem2AppSystemDictCreateInfo() );
 		}
-
-		_appSystem.AddSystem( "resourcecompiler", "ResourceCompilerSystem001" );
-
-		Bootstrap.PreInit( _appSystem );
-
-		//Bootstrap.Init();
-	}
+		
+		        if ( _appSystem is not null )
+		        {
+		            _appSystem.Value.SetModGameSubdir( "core" );
+		            _appSystem.Value.SetInToolsMode();
+		            _appSystem.Value.SetSteamAppId( (uint)Application.AppId );
+		
+		            //_appSystem.Init();
+		
+		            if ( !NativeEngine.EngineGlobal.SourceEnginePreInit( commandLine, _appSystem.Value ) ) // Use .Value
+		            {
+		                throw new System.Exception( "SourceEnginePreInit failed" );
+		            }
+		
+		            _appSystem.Value.AddSystem( "resourcecompiler", "ResourceCompilerSystem001" );
+		
+		            Bootstrap.PreInit( _appSystem.Value ); // Use .Value
+		
+		            //Bootstrap.Init();
+		        }	}
 
 	static void AddSearchPaths( string[] args )
 	{
@@ -94,30 +101,61 @@ public class ToolAppSystem : AppSystem, IDisposable
 		exePath = System.IO.Path.GetDirectoryName( exePath );
 
 		// we're in the managed folder, we can set this shit up
-		if ( exePath.EndsWith( "bin\\managed", StringComparison.OrdinalIgnoreCase ) )
+		if ( exePath.EndsWith( Path.Combine( "bin", "managed" ), StringComparison.OrdinalIgnoreCase ) )
 		{
 			var dirInfo = new DirectoryInfo( exePath );
 
 			var gameRoot = dirInfo.Parent.Parent;
 
 			Environment.CurrentDirectory = gameRoot.FullName;
-			var nativeDllPath = $"{gameRoot.FullName}\\bin\\win64";
+			string nativeDllPath = "";
+
+			if ( OperatingSystem.IsLinux() )
+			{
+				nativeDllPath = Path.Combine( gameRoot.FullName, "bin", "linuxsteamrt64" );
+			}
+			else if ( OperatingSystem.IsWindows() )
+			{
+				nativeDllPath = Path.Combine( gameRoot.FullName, "bin", "win64" );
+			}
+			else
+			{
+				// Default to win64 for other OSes, or handle specifically if needed
+				nativeDllPath = Path.Combine( gameRoot.FullName, "bin", "win64" );
+			}
 
 			//
 			// If we don't load sentry specifically from this directly, it'll
 			// try to load the one from the managed folder
 			//
-			NativeLibrary.TryLoad( $"{nativeDllPath}\\sentry.dll", out _ );
-			//NativeLibrary.TryLoad( $"{nativeDllPath}\\tier0.dll", out _ );
-			//NativeLibrary.TryLoad( $"{nativeDllPath}\\engine2.dll", out _ );
+			if ( OperatingSystem.IsLinux() )
+			{
+				NativeLibrary.TryLoad( Path.Combine( nativeDllPath, "sentry.so" ), out _ );
+				//NativeLibrary.TryLoad( Path.Combine( nativeDllPath, "tier0.so" ), out _ );
+				//NativeLibrary.TryLoad( Path.Combine( nativeDllPath, "engine2.so" ), out _ );
 
-			//
-			// Put our native dll path first so that when looking up native dlls we'll
-			// always use the ones from our folder first
-			//
-			var path = System.Environment.GetEnvironmentVariable( "PATH" );
-			path = $"{nativeDllPath};{path}";
-			System.Environment.SetEnvironmentVariable( "PATH", path );
+				var path = System.Environment.GetEnvironmentVariable( "PATH" );
+				path = $"{nativeDllPath}:{path}";
+				System.Environment.SetEnvironmentVariable( "PATH", path );
+			}
+			else if ( OperatingSystem.IsWindows() )
+			{
+				NativeLibrary.TryLoad( Path.Combine( nativeDllPath, "sentry.dll" ), out _ );
+				//NativeLibrary.TryLoad( Path.Combine( nativeDllPath, "tier0.dll"), out _ );
+				//NativeLibrary.TryLoad( Path.Combine( nativeDllPath, "engine2.dll"), out _ );
+
+				var path = System.Environment.GetEnvironmentVariable( "PATH" );
+				path = $"{nativeDllPath};{path}";
+				System.Environment.SetEnvironmentVariable( "PATH", path );
+			}
+			else
+			{
+				// Default to Windows behavior for other OSes, or handle specifically if needed
+				NativeLibrary.TryLoad( Path.Combine( nativeDllPath, "sentry.dll" ), out _ );
+				var path = System.Environment.GetEnvironmentVariable( "PATH" );
+				path = $"{nativeDllPath};{path}";
+				System.Environment.SetEnvironmentVariable( "PATH", path );
+			}
 
 			return;
 		}

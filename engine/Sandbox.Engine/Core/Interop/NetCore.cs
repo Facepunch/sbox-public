@@ -3,7 +3,7 @@
 	/// <summary>
 	/// Interop will try to load dlls from this path, e.g bin/win64/
 	/// </summary>
-	internal static string NativeDllPath { get; set; } = "bin/win64/";
+	internal static string NativeDllPath { get; set; } = System.OperatingSystem.IsLinux() ? "bin/linuxsteamrt64/" : "bin/win64/";
 
 	/// <summary>
 	/// From here we'll open the native dlls and inject our function pointers into them,
@@ -20,7 +20,15 @@
 		Managed.SandboxEngine.NativeInterop.Initialize();
 
 		// set engine paths etc
-		NativeEngine.EngineGlobal.Plat_SetModuleFilename( $"{gameFolder}\\sbox.exe" );
-		NativeEngine.EngineGlobal.Plat_SetCurrentDirectory( $"{gameFolder}" );
+		if ( System.OperatingSystem.IsLinux() )
+		{
+			NativeEngine.EngineGlobal.Plat_SetModuleFilename( $"{gameFolder}/sbox" );
+			NativeEngine.EngineGlobal.Plat_SetCurrentDirectory( $"{gameFolder}" );
+		}
+		else
+		{
+			NativeEngine.EngineGlobal.Plat_SetModuleFilename( $"{gameFolder}\\sbox.exe" );
+			NativeEngine.EngineGlobal.Plat_SetCurrentDirectory( $"{gameFolder}" );
+		}
 	}
 }

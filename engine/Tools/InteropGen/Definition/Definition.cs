@@ -87,6 +87,11 @@ public class Definition
 
 		GlobalParser parser = new();
 		parser.Parse( this, text, System.IO.Path.Combine( Root.FullName, Filename ) );
+		
+		// Root.FullName is usually engine/Definitions/something
+		// We want to go to src/Sbox.Engine.Emulation/Generated
+		// engine/Definitions/../../src/Sbox.Engine.Emulation/Generated
+		SaveFileCsAot = System.IO.Path.GetFullPath( System.IO.Path.Combine( Root.FullName, "../../src/Sbox.Engine.Emulation/Generated", Filename.Replace( ".def", ".Generated.cs" ) ) );
 	}
 
 	private void GenerateHash()

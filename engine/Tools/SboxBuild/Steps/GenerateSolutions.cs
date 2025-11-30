@@ -1,4 +1,5 @@
-﻿using static Facepunch.Constants;
+﻿using System;
+using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
@@ -26,6 +27,12 @@ internal class GenerateSolutions( string name, BuildConfiguration configuration 
 	{
 		Log.Info( "Generating Retail solutions..." );
 
+		if ( System.OperatingSystem.IsLinux() )
+		{
+			Log.Warning( "Skipping solution generation on Linux as vpc is not available or supported." );
+			return ExitCode.Success;
+		}
+
 		string vpcPath = Path.Combine( "src", "devtools", "bin", platform.PlatformID, "vpc" );
 
 		// Generate schemacompiler_all solution
@@ -50,6 +57,12 @@ internal class GenerateSolutions( string name, BuildConfiguration configuration 
 	private ExitCode GenerateDeveloperSolutions( BuildConfiguration configuration )
 	{
 		Log.Info( "Generating Developer solutions..." );
+
+		if ( System.OperatingSystem.IsLinux() )
+		{
+			Log.Warning( "Skipping solution generation on Linux as vpc is not available or supported." );
+			return ExitCode.Success;
+		}
 
 		string vpcPath = Path.Combine( "src", "devtools", "bin", platform.PlatformID, "vpc" );
 

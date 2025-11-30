@@ -55,22 +55,50 @@ public class StandaloneAppSystem : AppSystem
 	protected override bool RunFrame()
 	{
 
-		EngineLoop.RunFrame( _appSystem, out bool wantsToQuit );
-		// Still loading
-		if ( _standaloneLoadTask is not null )
+		if ( _appSystem is null )
+
 		{
+
+			return false; // If appSystem is null, we want to quit.
+
+		}
+
+
+
+		EngineLoop.RunFrame( _appSystem.Value, out bool wantsToQuit ); // Use .Value to access the non-nullable struct
+
+		// Still loading
+
+		if ( _standaloneLoadTask is not null )
+
+		{
+
 			if ( _standaloneLoadTask.IsCompleted )
+
 			{
+
 				_standaloneLoadTask.GetAwaiter().GetResult();
+
 				_standaloneLoadTask = null;
+
 			}
+
+		}
+
+		// Quit next loop after load, if we are testing
+
+		else if ( Utility.CommandLine.HasSwitch( "-test-standalone" ) )
+
+		{
+
+			Application.Exit();
+
 		}
 		// Quit next loop after load, if we are testing
 		else if ( Utility.CommandLine.HasSwitch( "-test-standalone" ) )
 		{
 			Game.Close();
 		}
-
 		return !wantsToQuit;
 	}
 }

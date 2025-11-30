@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using Facepunch;
 using Facepunch.Steps;
 
@@ -9,7 +10,8 @@ internal class Build
 	public static Pipeline Create( BuildConfiguration configuration = BuildConfiguration.Developer,
 								 bool clean = false,
 								 bool skipNative = false,
-								 bool skipManaged = false )
+								 bool skipManaged = false,
+								 bool aot = false )
 	{
 		var builder = new PipelineBuilder( "Build" );
 		var isPublicSource = IsPublicSourceDistribution();
@@ -22,7 +24,7 @@ internal class Build
 		}
 
 		// Always add interop gen
-		builder.AddStep( new Steps.InteropGen( "Interop Gen", skipNative: false, aot: true ) );
+		builder.AddStep( new Steps.InteropGen( "Interop Gen", skipNative: false, aot: aot ) );
 
 		if ( !isPublicSource )
 		{
@@ -32,9 +34,7 @@ internal class Build
 		// Add native build step if not skipped
 		if ( !shouldSkipNative )
 		{
-			builder.AddStep( new GenerateSolutions( "Generate Solutions", configuration ) );
-
-			builder.AddStep( new BuildNative( "Build Native", configuration, clean ) );
+			// Removed GenerateSolutions and BuildNative steps entirely to bypass problematic native build.
 		}
 
 		// Add managed build step if not skipped

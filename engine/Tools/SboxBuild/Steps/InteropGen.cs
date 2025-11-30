@@ -6,7 +6,7 @@ internal class InteropGen( string name, bool skipNative = false, bool aot = fals
 {
 	protected override ExitCode RunInternal()
 	{
-		Facepunch.InteropGen.Program.ProcessManifest( "engine", skipNative, aot );
+		Facepunch.InteropGen.Program.ProcessManifest( "engine", skipNative );
 		return ExitCode.Success;
 	}
 }

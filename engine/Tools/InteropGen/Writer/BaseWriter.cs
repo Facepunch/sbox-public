@@ -106,6 +106,12 @@ internal class BaseWriter : CodeWriter
 		return c.HasAttribute( "WindowsOnly" ) && !System.OperatingSystem.IsWindows();
 	}
 
+	public bool ShouldStubFunction( Class c, Variable f )
+	{
+		// Stub variables in classes marked with WindowsOnly on non-Windows platforms
+		return c.HasAttribute( "WindowsOnly" ) && !System.OperatingSystem.IsWindows();
+	}
+
 	public bool ShouldSkip( Struct s, string area = "" )
 	{
 		//
