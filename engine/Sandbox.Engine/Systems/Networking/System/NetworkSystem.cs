@@ -360,6 +360,8 @@ internal partial class NetworkSystem
 		if ( !IsHost ) return;
 		if ( timeSinceSentStats < 1.0f ) return;
 
+		timeSinceSentStats = 0;
+
 		var totalBytesIn = 0f;
 		var totalBytesOut = 0f;
 		var connections = Connection.All.Where( c => c != Connection.Local ).ToArray();
