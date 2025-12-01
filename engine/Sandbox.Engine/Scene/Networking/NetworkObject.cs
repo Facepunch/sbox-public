@@ -665,7 +665,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		var jsonObj = JsonNode.Parse( message.JsonData ).AsObject();
 
 		GameObject.SetParentFromNetwork( scene.Directory.FindByGuid( message.Parent ) );
-		GameObject.NetworkRefresh( jsonObj );
+		GameObject.NetworkRefresh( jsonObj, source.IsHost );
 
 		UpdateFromRefresh( source, message.TableData, message.Snapshot );
 	}
@@ -677,7 +677,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		var system = SceneNetworkSystem.Instance;
 		if ( system is null ) return;
 
-		ReadDataTable( tableData, ( _, entry ) => entry.HasControl( source ) );
+		ReadDataTable( tableData, ( _, entry ) => source.IsHost || entry.HasControl( source ) );
 
 		var bs = ByteStream.CreateReader( snapshotData );
 		system.DeltaSnapshots.OnDeltaSnapshot( source, bs );

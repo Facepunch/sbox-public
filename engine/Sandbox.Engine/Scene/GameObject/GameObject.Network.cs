@@ -440,9 +440,9 @@ public partial class GameObject
 	/// <summary>
 	/// Update hierarchy from a network refresh.
 	/// </summary>
-	internal void NetworkRefresh( JsonObject jso )
+	internal void NetworkRefresh( JsonObject jso, bool sourceIsHost )
 	{
-		Deserialize( jso, new DeserializeOptions { IsRefreshing = true, IsNetworkRefresh = true } );
+		Deserialize( jso, new DeserializeOptions { IsRefreshing = true, IsNetworkRefresh = true, IsRefreshFromHost = sourceIsHost } );
 	}
 
 	/// <summary>

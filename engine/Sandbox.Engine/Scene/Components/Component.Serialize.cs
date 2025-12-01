@@ -138,11 +138,12 @@ public abstract partial class Component : BytePack.ISerializer
 					continue;
 				}
 
-				// Skip [Sync] properties during network refresh - they're sent via NetworkTable/Snapshot
-				// which enforce authority (prevents clients from overwriting SyncFlags.FromHost values)
-				if ( options.IsNetworkRefresh && field is PropertyDescription prop && prop.HasAttribute<SyncAttribute>() )
+				// Client refresh
+				if ( options.IsNetworkRefresh && !options.IsRefreshFromHost )
 				{
-					continue;
+					// Skip [Sync] vars - sent via network table (prevents FromHost overwrite)
+					if ( field is PropertyDescription prop && prop.HasAttribute<SyncAttribute>() )
+						continue;
 				}
 
 				// This also includes fields that are null
