@@ -1,4 +1,4 @@
-name: Pull Request Checks
+name: Formatting
 
 on:
   pull_request:
@@ -11,19 +11,17 @@ jobs:
   format:
     runs-on: [ windows-latest ]
     steps:
-      - name: Full Checkout
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           clean: true
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
-      - name: Build
-        run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- build --config Developer
-
-      - name: Test
-        run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- test
+      - name: Format
+        run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- format --verify

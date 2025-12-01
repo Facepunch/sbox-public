@@ -416,7 +416,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			}
 
 			//
-			// Recieve incoming network messages
+			// Recieve incoming network messages, send heartbeat and other outgoing messages
 			//
 			Networking.PreFrameTick();
 
@@ -437,9 +437,6 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 				RunGameFrame( scene );
 			}
 
-			//
-			// Send heartbeat and other outgoing network messages
-			//
 			Networking.PostFrameTick();
 		}
 

@@ -1,4 +1,4 @@
-name: Pull Request
+name: PR Triage
 on:
   pull_request_target:
     types: [ labeled ]
