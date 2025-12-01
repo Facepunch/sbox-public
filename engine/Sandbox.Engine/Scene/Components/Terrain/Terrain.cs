@@ -6,6 +6,7 @@ namespace Sandbox;
 /// Terrain renders heightmap based terrain.
 /// </summary>
 [Expose]
+[Category( "World" )]
 public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 {
 	[ConVar( "r_terrain_displacement" )]
