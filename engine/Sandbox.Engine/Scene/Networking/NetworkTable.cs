@@ -281,7 +281,7 @@ internal class NetworkTable : IDisposable
 		{
 			var entry = _snapshotEntries[i];
 
-			if ( !entry.HasControl() && !Networking.IsHost )
+			if ( !entry.HasControl() )
 				continue;
 
 			if ( entry.IsDeltaSnapshotType )
