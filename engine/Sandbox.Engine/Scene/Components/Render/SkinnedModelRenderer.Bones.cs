@@ -196,7 +196,7 @@ public sealed partial class SkinnedModelRenderer
 	public record struct BoneVelocity( Vector3 Linear, Vector3 Angular );
 
 	/// <summary>
-	/// Allocate an array of bone veloicities in world space
+	/// Allocate an array of bone velocities in world space
 	/// </summary>
 	public BoneVelocity[] GetBoneVelocities()
 	{
