@@ -25,9 +25,8 @@ public sealed partial class SceneModel : SceneObject
 
 	/// <summary>
 	/// Calculate velocity from previous and current bone transform 
-	/// (I want to expose this public but want to make sure the math is correct first)
 	/// </summary>
-	internal void GetBoneVelocity( int boneIndex, out Vector3 linear, out Vector3 angular )
+	public void GetBoneVelocity( int boneIndex, out Vector3 linear, out Vector3 angular )
 	{
 		linear = default;
 		angular = default;
