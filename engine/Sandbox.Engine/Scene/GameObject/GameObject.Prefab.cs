@@ -1,7 +1,4 @@
-﻿using System.Collections.ObjectModel;
-using System.Text.Json.Nodes;
-
-namespace Sandbox;
+﻿namespace Sandbox;
 
 public partial class GameObject
 {
@@ -43,13 +40,19 @@ public partial class GameObject
 		return SceneUtility.GetPrefabScene( prefabFile );
 	}
 
+	[Obsolete( "Use PrefabSource" )]
 	public string PrefabInstanceSource
 	{
 		get
 		{
-			return PrefabInstance?.PrefabSource;
+			return PrefabSource;
 		}
 	}
+
+	/// <summary>
+	/// The path to the PrefabFile that this GameObject originated from, if any
+	/// </summary>
+	public string PrefabSource { get; internal set; }
 
 	/// <summary>
 	/// This GameObject is part of a prefab instance.
@@ -144,10 +147,9 @@ public partial class GameObject
 			return;
 		}
 
-		// Added 12th Dec 2023
-		prefabSource = prefabSource.Replace( ".object", ".prefab", StringComparison.OrdinalIgnoreCase );
+		PrefabSource = prefabSource.Replace( ".object", ".prefab", StringComparison.OrdinalIgnoreCase );
 
-		_prefabInstanceData = new PrefabInstanceData( prefabSource, this, isNested );
+		_prefabInstanceData = new PrefabInstanceData( PrefabSource, this, isNested );
 	}
 
 	internal void ClearPrefabInstance()

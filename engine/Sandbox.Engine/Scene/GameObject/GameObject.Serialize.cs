@@ -793,11 +793,11 @@ public partial class GameObject
 	{
 		if ( IsPrefabInstanceRoot )
 		{
-			var prefabFile = ResourceLibrary.Get<PrefabFile>( PrefabInstanceSource );
+			var prefabFile = ResourceLibrary.Get<PrefabFile>( PrefabSource );
 
 			if ( prefabFile is null )
 			{
-				Log.Warning( $"Unable to find prefab source file: \"{PrefabInstanceSource}\"." );
+				Log.Warning( $"Unable to find prefab source file: \"{PrefabSource}\"." );
 				return null;
 			}
 
