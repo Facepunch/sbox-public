@@ -1,6 +1,4 @@
-﻿using System.IO;
-
-namespace Editor.Wizards;
+﻿namespace Editor.Wizards;
 
 partial class PublishWizard
 {
@@ -124,7 +122,7 @@ partial class PublishWizard
 			if ( !EditorTypeLibrary.CheckValidationAttributes( Project.Config, out var errors ) )
 			{
 				UploadWarning.Visible = true;
-				foreach (var error in errors)
+				foreach ( var error in errors )
 				{
 					UploadWarning.Label.Text += $"\n• {error}";
 				}
