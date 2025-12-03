@@ -217,8 +217,6 @@ public partial class Scene : GameObject
 		}
 	}
 
-	public override void Deserialize( JsonObject node ) => Deserialize( node, new DeserializeOptions() );
-
 	internal JsonObject SerializeProperties()
 	{
 		var jso = new JsonObject();

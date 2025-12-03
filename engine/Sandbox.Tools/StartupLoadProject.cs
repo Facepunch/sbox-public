@@ -250,10 +250,13 @@ static class StartupLoadProject
 
 		//
 		// The engine ships a bunch of transient files, like image generations from the addon base, and
-		// cloud assets that the menu scene use. We mount them last.
+		// cloud assets that the menu scene uses. Mount them last, but no need in the menu project.
 		//
-		var engineTransient = EngineFileSystem.Root.GetFullPath( "addons/menu/transients" );
-		NativeEngine.FullFileSystem.AddCloudPath( "mod_engtrans", engineTransient );
+		if ( project.Config.Ident != "menu" )
+		{
+			var engineTransient = EngineFileSystem.Root.GetFullPath( "addons/menu/transients" );
+			NativeEngine.FullFileSystem.AddCloudPath( "mod_engtrans", engineTransient );
+		}
 
 		Editor.FileSystem.RebuildContentPath();
 

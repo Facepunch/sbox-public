@@ -82,6 +82,8 @@ public partial class GameObject
 		}
 	}
 
+	private static readonly SerializeOptions _defaultSerializeOptions = new();
+
 	public struct DeserializeOptions
 	{
 		/// <summary>
@@ -111,13 +113,15 @@ public partial class GameObject
 		public Transform? TransformOverride { get; set; }
 	}
 
+	private static readonly DeserializeOptions _defaultDeserializeOptions = new();
+
 	/// <summary>
 	/// Returns either a full JsonObject with all the GameObjects data,
 	/// or if this GameObject is a prefab instance, it will return an object containing the patch/diff between instance and prefab.
 	/// </summary>
 	public virtual JsonObject Serialize( SerializeOptions options = null )
 	{
-		options ??= new SerializeOptions();
+		options ??= _defaultSerializeOptions;
 
 		if ( !options.ShouldSave( this ) ) return null;
 
@@ -302,8 +306,7 @@ public partial class GameObject
 		return json;
 	}
 
-
-	public virtual void Deserialize( JsonObject node ) => Deserialize( node, new DeserializeOptions() );
+	public virtual void Deserialize( JsonObject node ) => Deserialize( node, _defaultDeserializeOptions );
 
 	public virtual void Deserialize( JsonObject node, DeserializeOptions options )
 	{

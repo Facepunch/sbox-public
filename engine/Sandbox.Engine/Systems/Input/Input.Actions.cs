@@ -10,7 +10,7 @@ public static partial class Input
 	/// </summary>
 	public static bool UsingController { get; internal set; } = false;
 
-	static ulong Actions
+	internal static ulong Actions
 	{
 		get => CurrentContext.ActionsCurrent;
 		set => CurrentContext.ActionsCurrent = value;

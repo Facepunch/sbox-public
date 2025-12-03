@@ -412,8 +412,8 @@ public partial class SceneViewportWidget : Widget
 
 	void OnEditorPreFrame()
 	{
-		if ( SceneView.CurrentView == SceneViewWidget.ViewMode.Game )
-			return;
+		// don't do editor update if we're the play view
+		if ( IsGameView ) return;
 
 		UpdateInputState();
 
@@ -636,6 +636,9 @@ public partial class SceneViewportWidget : Widget
 			{
 				Gizmo.Hitbox.DepthBias = 1;
 				Gizmo.Hitbox.TrySetHovered( tr.Distance );
+
+				if ( !Gizmo.IsHovered )
+					return;
 
 				if ( tr.Component is ModelRenderer mr && mr.Model is not null && !session.Selection.Contains( tr.GameObject ) )
 				{

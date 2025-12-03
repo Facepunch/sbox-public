@@ -32,7 +32,7 @@ public partial class SceneTreeWidget : Widget
 
 		SubHeader = Layout.AddRow();
 		SubHeader.Spacing = 2;
-		SubHeader.Margin = 2;
+		SubHeader.Margin = new Sandbox.UI.Margin( 0, 2 );
 		SubHeader.Alignment = TextFlag.LeftCenter;
 
 		var add = SubHeader.Add( new AddButton( "add" ) );

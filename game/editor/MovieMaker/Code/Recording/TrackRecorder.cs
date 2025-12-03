@@ -308,9 +308,9 @@ internal class BlockWriter<T>( int sampleRate ) : IPropertyBlock<T>, IDynamicBlo
 	{
 		if ( IsEmpty ) throw new InvalidOperationException( "Block is empty!" );
 
-		if ( IsConstant ) return new CompiledConstantBlock<T>( timeRange, _samples[0] );
-
 		timeRange = timeRange.Clamp( TimeRange );
+
+		if ( IsConstant ) return new CompiledConstantBlock<T>( timeRange, _samples[0] );
 
 		return new CompiledSampleBlock<T>( timeRange, StartTime - timeRange.Start, sampleRate, [.._samples] );
 	}

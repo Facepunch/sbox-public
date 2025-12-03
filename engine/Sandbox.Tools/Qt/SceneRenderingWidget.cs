@@ -1,5 +1,7 @@
 ﻿using System;
 
+using Sandbox.Engine.Settings;
+
 namespace Editor;
 
 /// <summary>
@@ -35,7 +37,8 @@ public class SceneRenderingWidget : Frame
 		SetFlag( Flag.WA_NoSystemBackground, true );
 		SetFlag( Flag.WA_OpaquePaintEvent, true );
 
-		SwapChain = WidgetUtil.CreateSwapChain( _widget );
+		SwapChain = WidgetUtil.CreateSwapChain( _widget, RenderSettings.Instance.AntiAliasQuality.ToEngine() );
+		RenderSettings.Instance.OnVideoSettingsChanged += HandleVideoChanged;
 
 		FocusMode = FocusMode.Click; // If we're focused we're probably accepting input, don't let tab blur us
 
@@ -47,6 +50,7 @@ public class SceneRenderingWidget : Frame
 		base.NativeShutdown();
 
 		All.Remove( this );
+		RenderSettings.Instance.OnVideoSettingsChanged -= HandleVideoChanged;
 
 		// The swapchain might still be in use by native, so defer its destruction until the end of the frame.
 		// Otherwise, a race condition could occur where render targets are accessed after destruction, causing a delayed crash.
@@ -126,6 +130,8 @@ public class SceneRenderingWidget : Frame
 		if ( !Scene.IsValid() ) return;
 		if ( !Visible ) return;
 
+		if ( SwapChain == default ) return;
+
 		using ( Scene.Push() )
 		{
 			using ( GizmoInstance.Push() )
@@ -197,6 +203,22 @@ public class SceneRenderingWidget : Frame
 			return default;
 
 		return camera.GetRay( localPosition, Size );
+	}
+
+	internal void HandleVideoChanged()
+	{
+		var oldSwapChain = SwapChain;
+		SwapChain = WidgetUtil.CreateSwapChain( _widget, RenderSettings.Instance.AntiAliasQuality.ToEngine() );
+		if ( SwapChain == default )
+		{
+			SwapChain = oldSwapChain;
+			return;
+		}
+
+		if ( oldSwapChain != default )
+		{
+			EngineLoop.DisposeAtFrameEnd( new Sandbox.Utility.DisposeAction( () => g_pRenderDevice.DestroySwapChain( oldSwapChain ) ) );
+		}
 	}
 
 	internal static void RenderAll()

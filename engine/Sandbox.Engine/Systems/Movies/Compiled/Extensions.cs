@@ -52,6 +52,43 @@ public static class CompiledClipExtensions
 			name, track, blocks ?? [] )!;
 
 	/// <summary>
+	/// <para>
+	/// Helper for creating a compiled child track with the given <paramref name="name"/> and value <paramref name="type"/>.
+	/// </para>
+	/// <para>
+	/// Some special cases if the parent track is a <see cref="Sandbox.GameObject"/> reference track:
+	/// <list type="bullet">
+	/// <item>
+	/// <term><paramref name="type"/> is <see cref="Sandbox.GameObject"/></term>
+	/// <description>Returns a game object reference track</description>
+	/// </item>
+	/// <item>
+	/// <term><paramref name="type"/> extends <see cref="Sandbox.Component"/></term>
+	/// <description>Returns a component reference track</description>
+	/// </item>
+	/// </list>
+	/// By default, returns a property track.
+	/// </para>
+	/// </summary>
+	public static ICompiledTrack Child( this ICompiledTrack track, string name, Type type )
+	{
+		if ( track is CompiledReferenceTrack<GameObject> goTrack )
+		{
+			if ( type == typeof( GameObject ) )
+			{
+				return goTrack.GameObject( name );
+			}
+
+			if ( type.IsAssignableTo( typeof( Component ) ) )
+			{
+				return goTrack.Component( type );
+			}
+		}
+
+		return track.Property( name, type );
+	}
+
+	/// <summary>
 	/// Returns a clone of <paramref name="track"/> with an appended <see cref="CompiledConstantBlock{T}"/> with the given
 	/// <paramref name="timeRange"/> and <paramref name="value"/>.
 	/// </summary>

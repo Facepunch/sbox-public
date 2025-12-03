@@ -295,6 +295,8 @@ public static class EditorScene
 
 	public static void Stop()
 	{
+		Game.IsClosing = true;
+
 		SceneEditorSession.Active.StopPlaying();
 
 		Game.IsPlaying = false;
@@ -310,6 +312,8 @@ public static class EditorScene
 			Game.ActiveScene?.Destroy();
 			Game.ActiveScene = null;
 		}
+
+		Game.IsClosing = false;
 
 		Sound.StopAll( 0.5f );
 

@@ -95,8 +95,6 @@ file sealed record MemberProperty<T>( ITrackTarget Parent, MemberDescription Mem
 [Expose]
 file sealed class MemberPropertyFactory : ITrackPropertyFactory
 {
-	string ITrackPropertyFactory.CategoryName => "Members";
-
 	int ITrackPropertyFactory.Order => 0x4000_0000;
 
 	IEnumerable<string> ITrackPropertyFactory.GetPropertyNames( ITrackTarget parent )
@@ -118,6 +116,8 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 			.Where( m => m.Name == name )
 			.FirstOrDefault( CanMakeTrackFromMember );
 	}
+
+	public string GetCategoryName( ITrackTarget parent, string name ) => "Members";
 
 	public Type? GetTargetType( ITrackTarget parent, string name )
 	{

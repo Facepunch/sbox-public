@@ -1,4 +1,6 @@
-﻿using NativeEngine;
+using System;
+using NativeEngine;
+
 
 namespace Sandbox.Engine.Settings;
 
@@ -11,6 +13,7 @@ public partial class RenderSettings
 
 	internal CookieContainer VideoSettings { get; } = new( "video", true );
 
+	public event Action OnVideoSettingsChanged;
 	internal RenderQualityProfiles Config { get; } = new();
 
 	internal RenderSettings()
@@ -99,6 +102,8 @@ public partial class RenderSettings
 	public void Apply()
 	{
 		ApplyVideoMode();
+
+		OnVideoSettingsChanged?.Invoke();
 
 		VideoSettings.Save();
 	}
