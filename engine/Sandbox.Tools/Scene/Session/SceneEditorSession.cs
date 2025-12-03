@@ -342,6 +342,8 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		{
 			var prefabFile = prefabScene.ToPrefabFile();
 			var asset = AssetSystem.CreateResource( "prefab", saveLocation );
+			if ( asset == null ) return;
+
 			asset.SaveToDisk( prefabFile );
 
 			// Update this scene's path
@@ -352,6 +354,8 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		{
 			var sceneFile = Scene.CreateSceneFile();
 			var asset = AssetSystem.CreateResource( "scene", saveLocation );
+			if ( asset == null ) return;
+
 			asset.SaveToDisk( sceneFile );
 
 			// Update this scene's path
