@@ -5,9 +5,10 @@ namespace Editor.MeshEditor;
 /// Create new shapes by dragging out a block
 /// </summary>
 [EditorTool( "tools.block-tool" )]
-[Title( "Block Tool" )]
+[Title( "Block Builder" )]
 [Icon( "hardware" )]
-[Group( "4" )]
+[Group( "Mesh" )]
+[Order( -1 )]
 public partial class BlockTool : EditorTool
 {
 	private BBox _box;

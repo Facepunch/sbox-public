@@ -75,10 +75,10 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		SceneDock = EditorTypeLibrary.Create<Widget>( "SceneDock", new object[] { this } );
 		SceneDock.Name = $"SceneDock:{(Scene.Source?.ResourcePath ?? "untitled")}";
 
-		SetDockProperties();
-
 		SceneDock.Parent = EditorWindow;
 		SceneDock.Visible = true;
+
+		UpdateEditorTitle();
 
 		Dock();
 	}
@@ -204,25 +204,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		}
 	}
 
-	[EditorEvent.Frame]
-	private void SetDockProperties()
-	{
-		if ( !SceneDock.IsValid() )
-			return;
-
-		var title = Scene.Name.Trim();
-
-		if ( IsPrefabSession )
-		{
-			SceneDock.SetWindowIcon( "home_repair_service" );
-			SceneDock.WindowTitle = $"Prefab: {title}";
-		}
-		else
-		{
-			SceneDock.SetWindowIcon( "grid_4x4" );
-		}
-	}
-
 	internal void UpdateEditorTitle()
 	{
 		if ( !SceneDock.IsValid() )
@@ -235,8 +216,18 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 		if ( SceneDock is not null )
 		{
-			SceneDock.WindowTitle = name;
 			SceneDock.Name = $"SceneDock:{(Scene.Source?.ResourcePath ?? "untitled")}";
+
+			if ( IsPrefabSession )
+			{
+				SceneDock.SetWindowIcon( "home_repair_service" );
+				SceneDock.WindowTitle = $"Prefab: {name}";
+			}
+			else
+			{
+				SceneDock.SetWindowIcon( "grid_4x4" );
+				SceneDock.WindowTitle = name;
+			}
 		}
 	}
 

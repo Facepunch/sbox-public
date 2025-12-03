@@ -614,6 +614,7 @@ public static partial class SandboxSystemExtensions
 	{
 		Value = null;
 
+		t = Nullable.GetUnderlyingType( t ) ?? t;
 		if ( t == typeof( decimal ) ) { Value = str.ToDecimal(); return true; }
 		if ( t == typeof( float ) ) { Value = str.ToFloat(); return true; }
 		if ( t == typeof( double ) ) { Value = (double)str.ToFloat(); return true; }

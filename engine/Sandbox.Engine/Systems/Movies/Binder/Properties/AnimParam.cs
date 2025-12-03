@@ -33,8 +33,6 @@ file sealed record AnimParamProperty<T>( ITrackProperty<ParameterAccessor?> Pare
 [Expose]
 file sealed class AnimParamPropertyFactory : ITrackPropertyFactory<ITrackProperty<ParameterAccessor?>>
 {
-	string ITrackPropertyFactory.CategoryName => "Anim Graph";
-
 	public IEnumerable<string> GetPropertyNames( ITrackProperty<ParameterAccessor?> parent )
 	{
 		var graph = parent is { IsBound: true } ? parent.Value?.Graph : null;
@@ -46,6 +44,8 @@ file sealed class AnimParamPropertyFactory : ITrackPropertyFactory<ITrackPropert
 			yield return graph.GetParameterName( i );
 		}
 	}
+
+	public string GetCategoryName( ITrackProperty<ParameterAccessor?> parent, string name ) => "Anim Graph";
 
 	/// <summary>
 	/// Any property in a <see cref="ParameterAccessor"/> is an anim graph parameter, but we

@@ -76,10 +76,13 @@ namespace Editor
 
 		public IEnumerable<GraphicsItem> SelectedItems => Scene.SelectedItems;
 
+		public float MinZoom { get; set; } = 0.1f;
+		public float MaxZoom { get; set; } = 5.0f;
+
 		public void Zoom( float adjust, Vector2 viewpos )
 		{
 			_scale *= adjust;
-			_scale = _scale.Clamp( 0.1f, 5.0f );
+			_scale = _scale.Clamp( MinZoom, MaxZoom );
 			var mousePosBefore = ToScene( viewpos );
 			_graphicsview.resetTransform();
 			_graphicsview.scale( _scale.x, _scale.y );

@@ -124,6 +124,88 @@ public class NetworkTests
 	}
 
 	[TestMethod]
+	public void UserCommandInputs()
+	{
+		Assert.IsNotNull( TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );
+
+		using var scope = new Scene().Push();
+
+		var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		// Become the client
+		clientAndHost.BecomeClient();
+
+		var inputSettings = new InputSettings();
+		inputSettings.InitDefault();
+
+		Input.InputSettings = inputSettings;
+		Input.SetAction( "Jump", true );
+
+		// Send a client tick - this will build a user command as well
+		Game.ActiveScene.SendClientTick( SceneNetworkSystem.Instance );
+
+		// Become the host
+		clientAndHost.BecomeHost();
+
+		clientAndHost.Host.ProcessMessages( InternalMessageType.ClientTick, bs =>
+		{
+			Networking.System.OnReceiveClientTick( bs, clientAndHost.Client );
+		} );
+
+		clientAndHost.Client.Messages.Clear();
+
+		Assert.AreEqual( true, clientAndHost.Client.Pressed( "Jump" ) );
+		Assert.AreEqual( true, clientAndHost.Client.Down( "Jump" ) );
+
+		// Become the client
+		clientAndHost.BecomeClient();
+
+		Input.ClearActions();
+
+		// Send a client tick - this will build a user command as well
+		Game.ActiveScene.SendClientTick( SceneNetworkSystem.Instance );
+
+		// Become the host
+		clientAndHost.BecomeHost();
+
+		clientAndHost.Host.ProcessMessages( InternalMessageType.ClientTick, bs =>
+		{
+			Networking.System.OnReceiveClientTick( bs, clientAndHost.Client );
+		} );
+
+		clientAndHost.Host.Messages.Clear();
+
+		Assert.AreEqual( true, clientAndHost.Client.Released( "Jump" ) );
+		Assert.AreEqual( false, clientAndHost.Client.Down( "Jump" ) );
+
+
+
+		// Let's test wrap-aware command number processing
+		var userCommand = new UserCommand( uint.MaxValue );
+
+		clientAndHost.Client.Input.ApplyUserCommand( userCommand );
+
+		// Become the client
+		clientAndHost.BecomeClient();
+
+		Input.SetAction( "Jump", true );
+
+		// Send a client tick - this will build a user command as well
+		Game.ActiveScene.SendClientTick( SceneNetworkSystem.Instance );
+
+		// Become the host
+		clientAndHost.BecomeHost();
+
+		clientAndHost.Host.ProcessMessages( InternalMessageType.ClientTick, bs =>
+		{
+			Networking.System.OnReceiveClientTick( bs, clientAndHost.Client );
+		} );
+
+		Assert.AreEqual( true, clientAndHost.Client.Pressed( "Jump" ) );
+		Assert.AreEqual( true, clientAndHost.Client.Down( "Jump" ) );
+	}
+
+	[TestMethod]
 	public void RemoteObjectChildSpawnShouldHaveCorrectTransform()
 	{
 		Assert.IsNotNull( TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );

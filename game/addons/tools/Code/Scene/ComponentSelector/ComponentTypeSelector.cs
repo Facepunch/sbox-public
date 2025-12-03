@@ -207,9 +207,8 @@ internal partial class ComponentTypeSelectorWidget : Widget
 	protected override void OnPaint()
 	{
 		Paint.Antialiasing = true;
-		Paint.SetPen( Theme.WidgetBackground.Darken( 0.4f ), 1 );
-		Paint.SetBrush( Theme.WidgetBackground );
-		Paint.DrawRect( LocalRect.Shrink( 1 ), 3 );
+		Paint.SetBrushAndPen( Theme.WidgetBackground );
+		Paint.DrawRect( LocalRect );
 	}
 
 	/// <summary>
@@ -513,7 +512,7 @@ internal partial class ComponentTypeSelectorWidget : Widget
 			Layout = Layout.Column();
 
 			CategoryHeader = new Widget( this );
-			CategoryHeader.FixedHeight = 24;
+			CategoryHeader.FixedHeight = Theme.RowHeight;
 			CategoryHeader.OnPaintOverride = PaintHeader;
 			CategoryHeader.MouseClick = Selector.PopSelection;
 			Layout.Add( CategoryHeader );
@@ -525,6 +524,13 @@ internal partial class ComponentTypeSelectorWidget : Widget
 
 			Scroller.Canvas = new Widget( Scroller );
 			Scroller.Canvas.Layout = Layout.Column();
+			Scroller.Canvas.OnPaintOverride = () =>
+			{
+				Paint.ClearPen();
+				Paint.SetBrush( Theme.WidgetBackground );
+				Paint.DrawRect( Scroller.Canvas.LocalRect );
+				return true;
+			};
 		}
 
 		protected bool SelectMoveRow( int delta )
@@ -632,7 +638,7 @@ internal partial class ComponentTypeSelectorWidget : Widget
 			}
 
 			var category = string.IsNullOrEmpty( Category ) ? "Component" : Category.Split( Selector.CategorySeparator ).LastOrDefault();
-			Paint.SetDefaultFont( 8 );
+			Paint.SetDefaultFont( 8, 600 );
 			Paint.DrawText( r, category, TextFlag.Center );
 
 			return true;
@@ -682,8 +688,7 @@ internal partial class ComponentTypeSelectorWidget : Widget
 		protected override void OnPaint()
 		{
 			Paint.Antialiasing = true;
-			Paint.SetPen( Theme.WidgetBackground.Darken( 0.8f ), 1 );
-			Paint.SetBrush( Theme.WidgetBackground.Darken( 0.2f ) );
+			Paint.SetBrushAndPen( Theme.ControlBackground );
 			Paint.DrawRect( LocalRect.Shrink( 0 ), 3 );
 		}
 	}
@@ -720,12 +725,15 @@ internal partial class ComponentTypeSelectorWidget : Widget
 			var selected = IsUnderMouse || Selector.CurrentItem == this;
 			var opacity = selected ? 1.0f : 0.7f;
 
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.WidgetBackground );
+
 			if ( selected )
 			{
-				Paint.ClearPen();
 				Paint.SetBrush( Theme.ControlBackground );
-				Paint.DrawRect( LocalRect );
 			}
+
+			Paint.DrawRect( LocalRect );
 
 			if ( Type is not null && !string.IsNullOrEmpty( Type.Icon ) )
 			{
@@ -759,12 +767,15 @@ internal partial class ComponentTypeSelectorWidget : Widget
 		{
 			var selected = IsUnderMouse || Selector.CurrentItem == this;
 
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.WidgetBackground );
+
 			if ( selected )
 			{
-				Paint.ClearPen();
 				Paint.SetBrush( Theme.ControlBackground );
-				Paint.DrawRect( LocalRect );
 			}
+
+			Paint.DrawRect( LocalRect );
 
 			var r = LocalRect.Shrink( 12, 2 );
 
@@ -822,22 +833,22 @@ file class ComponentFilterControlWidget : Widget
 
 		if ( menu?.IsValid ?? false )
 		{
-			Paint.SetPen( Theme.Blue.WithAlpha( 0.3f ), 1 );
-			Paint.SetBrush( Theme.Blue.WithAlpha( 0.2f ) );
+			Paint.SetPen( Theme.Blue, 1 );
+			Paint.SetBrush( Theme.Blue );
 			Paint.DrawRect( rect, 2 );
 
-			Paint.SetPen( Theme.Blue );
+			Paint.SetPen( Theme.Text );
 			Paint.DrawIcon( rect, icon, 13 );
 		}
 		else
 		{
-			Paint.SetPen( Theme.Blue.WithAlpha( 0.3f ) );
+			Paint.SetPen( Theme.Blue );
 			Paint.DrawIcon( rect, icon, 13 );
 		}
 
 		if ( IsUnderMouse )
 		{
-			Paint.SetPen( Theme.Blue.WithAlpha( 0.5f ), 1 );
+			Paint.SetPen( Theme.Blue.Lighten( 0.1f ), 1 );
 			Paint.ClearBrush();
 			Paint.DrawRect( rect, 1 );
 		}

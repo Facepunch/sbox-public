@@ -120,7 +120,7 @@ partial class KeyframeEditMode
 
 		foreach ( var trackData in data.Keyframes )
 		{
-			var trackView = Session.TrackList.EditableTracks.FirstOrDefault( x => x.Track.Id == trackData.Guid );
+			var trackView = Session.TrackList.EditablePropertyTracks.FirstOrDefault( x => x.Track.Id == trackData.Guid );
 
 			if ( IsCompatibleTrackClipboard( trackData, trackView ) )
 			{

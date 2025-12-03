@@ -16,7 +16,7 @@ internal class ToolsModeButton : Button
 	{
 		SetStyles( $"padding-left: 32px; padding-right: 32px; font-family: '{Theme.DefaultFont}'; padding-top: 6px; padding-bottom: 6px;" );
 		FixedWidth = 210;
-		FixedHeight = Theme.RowHeight + 6;
+		FixedHeight = Theme.RowHeight + 8;
 
 		InitializeToolGroups();
 		UpdateButtonText();
@@ -27,8 +27,8 @@ internal class ToolsModeButton : Button
 	private void InitializeToolGroups()
 	{
 		_toolGroups = EditorTypeLibrary.GetTypesWithAttribute<EditorToolAttribute>()
-			.GroupBy( x => string.IsNullOrEmpty( x.Type.Group ) ? "aaa" : x.Type.Group )
-			.OrderBy( x => x.Key )
+			.GroupBy( x => string.IsNullOrEmpty( x.Type.Group ) ? "Tools" : x.Type.Group )
+			.OrderByDescending( x => x.Key )
 			.ToArray();
 	}
 
@@ -52,9 +52,17 @@ internal class ToolsModeButton : Button
 	{
 		var menu = new ContextMenu();
 
-		foreach ( var group in _toolGroups )
+		for ( int i = 0; i < _toolGroups.Length; i++ )
 		{
-			foreach ( var type in group.OrderBy( x => x.Type.Name ) )
+			var group = _toolGroups[i];
+
+			// No visible tools in this group - skip
+			if ( !group.Any( x => !x.Type.GetAttribute<EditorToolAttribute>().Hidden ) )
+				continue;
+
+			menu.AddHeading( group.Key );
+
+			foreach ( var type in group.OrderBy( x => x.Type.Order ) )
 			{
 				var attr = type.Type.GetAttribute<EditorToolAttribute>();
 				if ( attr.Hidden )
