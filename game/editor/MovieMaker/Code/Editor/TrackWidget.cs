@@ -2,6 +2,7 @@
 using Sandbox.MovieMaker;
 using Sandbox.MovieMaker.Properties;
 using Sandbox.UI;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
@@ -66,7 +67,8 @@ public partial class TrackWidget : Widget
 		if ( !AddReferenceControl( row ) )
 		{
 			row.AddSpacingCell( 8f );
-			_label = row.Add( new Label( view.Target.Name ) );
+
+			_label = row.Add( new Label( view.Target.Name ) { Color = Color.White } );
 		}
 
 		row.AddStretchCell();
@@ -97,7 +99,7 @@ public partial class TrackWidget : Widget
 	private bool AddReferenceControl( Layout layout )
 	{
 		if ( View.Target is not ITrackReference reference ) return false;
-		if ( reference is { IsBound: true, Value: GameObject go } && (go.Flags & GameObjectFlags.Bone) != 0 && View.Parent is not null ) return false;
+		if ( View.IsBoneObject ) return false;
 
 		// Add control to retarget a scene reference (Component / GameObject)
 
@@ -131,22 +133,13 @@ public partial class TrackWidget : Widget
 
 	private void View_Changed( TrackView view )
 	{
-		var labelColor = new Color( 0.6f, 0.6f, 0.6f );
-
 		_collapseButton.Visible = view.Children.Count > 0;
 
 		_lockButton.Update();
 		_collapseButton.Update();
 
-		if ( _controlWidget is not null )
-		{
-			_controlWidget.Enabled = !View.IsLocked;
-		}
-
-		if ( _label is not null )
-		{
-			_label.Color = !View.IsLocked ? IsSelected ? Color.White : labelColor : labelColor.Darken( 0.25f );
-		}
+		_label?.Color = !View.IsLocked ? IsSelected ? Color.White : Color.White.Darken( 0.4f ) : Color.White.Darken( 0.6f );
+		_controlWidget?.Enabled = !View.IsLocked;
 
 		Update();
 	}
@@ -154,6 +147,7 @@ public partial class TrackWidget : Widget
 	private void View_ValueChanged( TrackView view )
 	{
 		_timeSinceInteraction = 0f;
+
 		Update();
 	}
 
@@ -165,16 +159,33 @@ public partial class TrackWidget : Widget
 		base.OnDestroyed();
 	}
 
+	protected override void OnMousePress( MouseEvent e )
+	{
+		base.OnMousePress( e );
+
+		e.Accepted = true;
+	}
+
 	protected override void OnMouseClick( MouseEvent e )
 	{
 		base.OnMouseClick( e );
 
-		if ( e.LeftMouseButton )
+		if ( !e.LeftMouseButton ) return;
+
+		if ( e.HasCtrl )
+		{
+			View.ToggleSelect();
+		}
+		else if ( e.HasShift )
+		{
+			View.RangeSelect();
+		}
+		else
 		{
 			View.Select();
-
-			e.Accepted = true;
 		}
+
+		e.Accepted = true;
 	}
 
 	protected override void OnDoubleClick( MouseEvent e )
@@ -244,6 +255,22 @@ public partial class TrackWidget : Widget
 	{
 		e.Accepted = true;
 
+		if ( !View.IsSelected )
+		{
+			if ( (Application.KeyboardModifiers & KeyboardModifiers.Ctrl) != 0 )
+			{
+				View.ToggleSelect();
+			}
+			else if ( (Application.KeyboardModifiers & KeyboardModifiers.Shift) != 0 )
+			{
+				View.RangeSelect();
+			}
+			else
+			{
+				View.Select();
+			}
+		}
+
 		ShowContextMenu();
 	}
 
@@ -251,33 +278,80 @@ public partial class TrackWidget : Widget
 	{
 		_menu = new Menu( this );
 
-		_menu.AddHeading( $"{View.Title} Track" );
+		var trackViews = View.TrackList.SelectedTracks.ToArray();
 
-		if ( View.Track is ProjectSequenceTrack sequenceTrack )
+		if ( trackViews.Length == 1 )
 		{
-			var rename = _menu.AddMenu( "Rename", "edit" );
+			_menu.AddHeading( $"{View.Title} Track" );
 
-			rename.AddLineEdit( "Name", sequenceTrack.Name, autoFocus: true, onSubmit: OnRename );
+			if ( View.Track is ProjectSequenceTrack sequenceTrack )
+			{
+				var rename = _menu.AddMenu( "Rename", "edit" );
+
+				rename.AddLineEdit( "Name", sequenceTrack.Name, autoFocus: true, onSubmit: OnRename );
+			}
+
+			AddCommonContextMenuOptions( _menu, trackViews );
+
+			if ( CanMoveToRoot )
+			{
+				_menu.AddOption( "Move to Root", "subdirectory_arrow_left", MoveToRoot );
+			}
+
+			if ( CanMoveToParent( out var parentTrack ) )
+			{
+				_menu.AddOption( "Move to Parent", "subdirectory_arrow_right", () => MoveToParent( parentTrack ) );
+			}
+
+			if ( CanHaveSubTracks )
+			{
+				CreateSubTrackMenu( _menu );
+			}
 		}
-
-		_menu.AddOption( "Remove", "delete", Remove );
-
-		if ( CanMoveToRoot )
+		else
 		{
-			_menu.AddOption( "Move to Root", "subdirectory_arrow_left", MoveToRoot );
-		}
+			_menu.AddHeading( "Selected Tracks" );
 
-		if ( CanMoveToParent( out var parentTrack ) )
-		{
-			_menu.AddOption( "Move to Parent", "subdirectory_arrow_right", () => MoveToParent( parentTrack ) );
-		}
-
-		if ( CanHaveSubTracks )
-		{
-			CreateSubTrackMenu( _menu );
+			AddCommonContextMenuOptions( _menu, trackViews );
 		}
 
 		_menu.OpenAtCursor();
+	}
+
+	private static void AddCommonContextMenuOptions( Menu menu, IReadOnlyList<TrackView> trackViews )
+	{
+		var anyLocked = trackViews.Any( x => x.IsLockedSelf );
+		var anyUnlocked = trackViews.Any( x => !x.IsLockedSelf );
+
+		if ( anyUnlocked )
+		{
+			menu.AddOption( "Lock", "lock", () =>
+			{
+				foreach ( var track in trackViews )
+				{
+					track.IsLockedSelf = true;
+				}
+			} );
+		}
+
+		if ( anyLocked )
+		{
+			menu.AddOption( "Unlock", "lock_open", () =>
+			{
+				foreach ( var track in trackViews )
+				{
+					track.IsLockedSelf = false;
+				}
+			} );
+		}
+
+		menu.AddOption( "Remove", "delete", () =>
+		{
+			foreach ( var track in trackViews )
+			{
+				track.Remove();
+			}
+		} );
 	}
 
 	private bool? GetAggregateLockState( IEnumerable<TrackView> trackViews )
@@ -353,7 +427,7 @@ public partial class TrackWidget : Widget
 	{
 		parent.AddHeading( "Sub-Tracks" );
 
-		var menu = parent.AddMenu( "Add / Remove", "playlist_add" );
+		var menu = parent.AddMenu( "Add / Remove", "playlist_add_check" );
 
 		var session = TrackList.Session;
 		var availableTracks = new List<AvailableTrackProperty>();
@@ -420,8 +494,33 @@ public partial class TrackWidget : Widget
 
 		menu.AboutToShow += () => updateActive?.Invoke();
 
+		if ( availableTracks.Any( x => session.GetTrack( View.Track, x.Name ) is null ) )
+		{
+			parent.AddOption( "Add All", "playlist_add", () =>
+			{
+				foreach ( var available in availableTracks )
+				{
+					session.GetOrCreateTrack( View.Track, available.Name );
+				}
+
+				session.TrackList.Update();
+				session.ClipModified();
+			} );
+		}
+
 		if ( View.Children.Count > 0 )
 		{
+			parent.AddOption( "Remove All", "playlist_remove", () =>
+			{
+				foreach ( var child in View.Children.ToArray() )
+				{
+					child.Track.Remove();
+				}
+
+				session.TrackList.Update();
+				session.ClipModified();
+			} );
+
 			parent.AddOption( "Remove Empty", "cleaning_services", RemoveEmptyChildren );
 		}
 
@@ -481,11 +580,11 @@ public partial class TrackWidget : Widget
 		}
 	}
 
-	public static void PopulatePresetMenu( Menu menu, IReadOnlyList<TrackPreset> presets, IReadOnlyList<TrackView> targets )
+	public static void PopulatePresetMenu( Menu menu, IReadOnlyList<TrackPreset> presets, IReadOnlyList<TrackView> rootViews )
 	{
-		if ( targets.Count == 0 ) return;
+		if ( rootViews.Count == 0 ) return;
 
-		var session = targets[0].TrackList.Session;
+		var session = rootViews[0].TrackList.Session;
 
 		Action? updateActive = null;
 
@@ -495,15 +594,15 @@ public partial class TrackWidget : Widget
 			{
 				using var scope = session.History.Push( $"{(create ? "Create" : "Remove")} Preset Tracks ({preset.Meta.Title})" );
 
-				foreach ( var target in targets )
+				foreach ( var rootView in rootViews )
 				{
 					if ( create )
 					{
-						session.LoadPreset( target.Track, preset.Root );
+						session.LoadPreset( rootView.Track, rootView.Target, preset.Root );
 					}
 					else
 					{
-						session.RemovePreset( target.Track, preset.Root );
+						session.RemovePreset( rootView.Track, rootView.Target, preset.Root );
 					}
 				}
 
@@ -517,12 +616,15 @@ public partial class TrackWidget : Widget
 				session.SaveConfig();
 			} );
 
+			option.ToolTip = preset.Meta.Description;
+
 			updateActive += () =>
 			{
-				var matchingCount = targets.Min( x => preset.MatchingTrackCount( x.Track ) );
+				var totalCount = rootViews.Max( x => preset.AvailableTrackCount( x.Track, session.Binder ) );
+				var matchingCount = rootViews.Min( x => preset.MatchingTrackCount( x.Track ) );
 
-				option.Title = $"{preset.Meta.Title} ({matchingCount} / {preset.TrackCount} Tracks)";
-				option.IsActive = targets.All( x => preset.Root.AllTracksExist( x.Track ) );
+				option.Title = $"{preset.Meta.Title} ({matchingCount} / {totalCount} Tracks)";
+				option.IsActive = rootViews.All( x => preset.AllTracksExist( x.Track, session.Binder ) );
 				option.Update();
 			};
 
@@ -539,6 +641,10 @@ public partial class TrackWidget : Widget
 		sequenceTrack.Name = name;
 
 		if ( _label is { } label ) label.Text = name;
+
+		// Track order might have changed
+
+		TrackList.Session.TrackList.Update();
 	}
 
 	private void Remove()

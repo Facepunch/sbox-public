@@ -63,7 +63,7 @@ public abstract class BaseGameMount
 
 		await Mount( new MountContext( this ) );
 
-		foreach ( var entry in _entries )
+		foreach ( var entry in _entries.Values )
 		{
 			RootFolder.AddResource( entry );
 		}
@@ -81,7 +81,7 @@ public abstract class BaseGameMount
 
 		Shutdown();
 
-		foreach ( var entry in _entries )
+		foreach ( var entry in _entries.Values )
 		{
 			entry?.ShutdownInternal();
 		}
@@ -98,19 +98,18 @@ public abstract class BaseGameMount
 
 	}
 
-	readonly List<ResourceLoader> _entries = [];
+	readonly Dictionary<string, ResourceLoader> _entries = [];
 
 	/// <summary>
 	/// All of the resources in this game
 	/// </summary>
-	public IReadOnlyCollection<ResourceLoader> Resources => _entries.AsReadOnly();
+	public IReadOnlyCollection<ResourceLoader> Resources => _entries.Values;
 
 	public ResourceFolder RootFolder { get; internal set; }
 
 	internal void RegisterFileInternal( ResourceLoader entry )
 	{
-		_entries.Add( entry );
-
+		_entries[entry.Path] = entry;
 	}
 
 	/// <summary>

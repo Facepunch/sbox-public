@@ -23,12 +23,6 @@ internal class Deploy
 		builder.AddStep( new BuildShaders( "Build Shaders" ) );
 		builder.AddStep( new BuildContent( "Build Content" ) );
 
-		if ( target == BuildTarget.Staging )
-		{
-			// Sync to public repository
-			builder.AddStep( new SyncPublicRepo( "Sync to Public Repository" ) );
-		}
-
 		// Testing
 		builder.AddStep( new Test( "Tests" ) );
 

@@ -22,6 +22,7 @@ public partial interface IProjectTrack : ITrack, IComparable<IProjectTrack>
 	void Remove();
 	IProjectTrack? GetChild( string name );
 
+	ICompiledTrack Compile( bool headerOnly ) => Compile( Parent?.Compile( headerOnly ), headerOnly );
 	ICompiledTrack Compile( ICompiledTrack? compiledParent, bool headerOnly );
 
 	ITrack? ITrack.Parent => Parent;
@@ -274,6 +275,8 @@ public sealed partial class ProjectPropertyTrack<T>( MovieProject project, Guid 
 
 		return compiled with { Blocks = [..Blocks.SelectMany( x => x.Compile( this ) )] };
 	}
+
+	public T GetLastValue( MovieTime time ) => Blocks.GetLastBlock( time ).GetValue( time );
 
 	public bool TryGetValue( MovieTime time, [MaybeNullWhen( false )] out T value )
 	{

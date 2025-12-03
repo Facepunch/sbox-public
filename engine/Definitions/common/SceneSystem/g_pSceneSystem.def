@@ -160,4 +160,8 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 	void RenderTiledLightCulling( IRenderContext pCtx, ISceneView pView, RenderViewport viewport );
 
 	void BindTransformSlot( IRenderContext pCtx, int nVBSlot, int nTransformSlotIndex );
+
+	// Ray Tracing
+	IRayTraceSceneWorld CreateRayTraceWorld( string pWorldDebugName, int nMaxRayTypes );
+	void DestroyRayTraceWorld( IRayTraceSceneWorld pRayTraceSceneWorld );
 }

@@ -159,6 +159,20 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	}
 
 	/// <summary>
+	/// <inheritdoc cref="List{T}.AddRange"/>
+	/// </summary>
+	public void AddRange( IEnumerable<T> collection )
+	{
+		if ( !CanWriteChanges() )
+			return;
+
+		foreach ( var value in collection )
+		{
+			list.Add( value );
+		}
+	}
+
+	/// <summary>
 	/// <inheritdoc cref="List{T}.Remove"/>
 	/// </summary>
 	public bool Remove( T value )

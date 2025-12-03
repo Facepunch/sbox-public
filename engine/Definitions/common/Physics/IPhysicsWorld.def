@@ -43,6 +43,7 @@ native class IPhysicsWorld
 	IPhysicsJoint AddPrismaticJoint( IPhysicsBody pBody1, IPhysicsBody pBody2, Transform localFrame1, Transform localFrame2 );
 	IPhysicsJoint AddSphericalJoint( IPhysicsBody pBody1, IPhysicsBody pBody2, Transform localFrame1, Transform localFrame2 );
 	IPhysicsJoint AddMotorJoint( IPhysicsBody pBody1, IPhysicsBody pBody2, Transform localFrame1, Transform localFrame2 );
+	IPhysicsJoint AddWheelJoint( IPhysicsBody pBody1, IPhysicsBody pBody2, Transform localFrame1, Transform localFrame2 );
 
 	//
 	// Sets the collision rules using a json serialized Sandbox.Internal.CollisionRules

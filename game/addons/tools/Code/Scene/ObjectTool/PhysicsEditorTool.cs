@@ -6,10 +6,10 @@ namespace Editor;
 /// Simulate rigid bodies in editor
 /// </summary>
 [EditorTool( "tools.physics-tool" )]
-[Title( "Physics Tool" )]
+[Title( "Physics Simulation" )]
 [Icon( "panorama_fish_eye" )]
 [Alias( "physics" )]
-[Group( "1" )]
+[Group( "Scene" )]
 public class PhysicsEditorTool : EditorTool
 {
 	public bool IsSimulating { get; private set; }

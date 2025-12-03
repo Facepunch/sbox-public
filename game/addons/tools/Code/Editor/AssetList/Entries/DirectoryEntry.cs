@@ -71,7 +71,8 @@ public class DirectoryEntry : IAssetListEntry
 
 		rect.Position = rect.Position - new Vector2( 0, 4 );
 
-		Paint.DrawText( rect, Name, TextFlag.Center | TextFlag.WordWrap );
+		var strText = Paint.GetElidedText( Name, rect.Width, ElideMode.Right );
+		Paint.DrawText( rect, strText, TextFlag.Center | TextFlag.WordWrap );
 	}
 
 	public void DrawIcon( Rect rect )

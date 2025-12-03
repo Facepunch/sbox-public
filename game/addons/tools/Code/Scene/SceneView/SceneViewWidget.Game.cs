@@ -24,7 +24,6 @@ public partial class SceneViewWidget
 
 		_gameViewport = _viewports.FirstOrDefault().Value;
 		_gameViewport.StartPlay();
-
 		_viewportTools.UpdateViewportFromCookie();
 	}
 
@@ -56,6 +55,11 @@ public partial class SceneViewWidget
 		}
 
 		OnViewModeChanged();
+
+		if ( CurrentView == ViewMode.Game )
+		{
+			_viewportTools.UpdateViewportFromCookie();
+		}
 	}
 
 	/// <summary>

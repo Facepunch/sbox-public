@@ -5,10 +5,11 @@ namespace Editor.MeshEditor;
 /// Move, rotate and scale mesh vertices
 /// </summary>
 [EditorTool( "mesh.vertex" )]
-[Title( "Vertex Tool" )]
+[Title( "Vertex Select" )]
 [Icon( "workspaces" )]
 [Alias( "Vertex" )]
-[Group( "1" )]
+[Group( "Mesh" )]
+[Order( 1 )]
 public sealed partial class VertexTool : BaseMeshTool
 {
 	protected override bool DrawVertices => true;

@@ -70,9 +70,12 @@ public static partial class Game
 
 	internal static void Shutdown()
 	{
+		IsClosing = true;
 		IsPlaying = false;
 
 		ActiveScene?.Destroy();
 		ActiveScene = null;
+
+		IsClosing = false;
 	}
 }

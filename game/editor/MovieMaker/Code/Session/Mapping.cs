@@ -33,7 +33,7 @@ partial class Session
 		return GetTrack( GetTrack( cmp ), propertyPath );
 	}
 
-	private IProjectTrack? GetTrack( IProjectTrack? parentTrack, string propertyPath )
+	public IProjectTrack? GetTrack( IProjectTrack? parentTrack, string propertyPath )
 	{
 		while ( parentTrack is not null && propertyPath.Length > 0 )
 		{
@@ -173,27 +173,50 @@ partial class Session
 	/// <summary>
 	/// Create a track hierarchy matching the given <paramref name="preset"/>, rooted on <paramref name="rootTrack"/>.
 	/// </summary>
-	public void LoadPreset( IProjectTrack rootTrack, TrackPresetNode preset )
+	public void LoadPreset( IProjectTrack rootTrack, ITrackTarget rootTarget, TrackPresetNode preset )
 	{
-		var rootGo = (Binder.Get( rootTrack ) as ITrackReference<GameObject>)?.Value;
+		if ( preset.AllChildren )
+		{
+			foreach ( var (name, _, _) in TrackProperty.GetAll( rootTarget ) )
+			{
+				GetOrCreateTrack( rootTrack, name );
+			}
+
+			return;
+		}
 
 		foreach ( var childPreset in preset.Children )
 		{
-			if ( GetOrCreatePresetTrackCore( rootTrack, childPreset, rootGo ) is { } childTrack )
+			if ( GetOrCreatePresetTrackCore( rootTrack, rootTarget, childPreset ) is { } childTrack )
 			{
-				LoadPreset( childTrack, childPreset );
+				var childTarget = Binder.Get( childTrack );
+
+				LoadPreset( childTrack, childTarget, childPreset );
 			}
 		}
 	}
 
-	public void RemovePreset( IProjectTrack rootTrack, TrackPresetNode preset )
+	public void RemovePreset( IProjectTrack rootTrack, ITrackTarget rootTarget, TrackPresetNode preset )
 	{
+		if ( preset.AllChildren )
+		{
+			foreach ( var childTrack in rootTrack.Children.ToArray() )
+			{
+				if ( childTrack.IsEmpty )
+				{
+					childTrack.Remove();
+				}
+			}
+
+			return;
+		}
+
 		foreach ( var childPreset in preset.Children )
 		{
 			if ( rootTrack.Children.FirstOrDefault( x => x.Name == childPreset.PropertyName ) is not { } childTrack ) continue;
 			if ( !childTrack.TargetType.IsAssignableTo( childPreset.PropertyType ) ) continue;
 
-			RemovePreset( childTrack, childPreset );
+			RemovePreset( childTrack, Binder.Get( childTrack ), childPreset );
 
 			if ( childTrack.IsEmpty )
 			{
@@ -202,9 +225,9 @@ partial class Session
 		}
 	}
 
-	private IProjectTrack? GetOrCreatePresetTrackCore( IProjectTrack rootTrack, TrackPresetNode childPreset, GameObject? rootGameObject )
+	private IProjectTrack? GetOrCreatePresetTrackCore( IProjectTrack rootTrack, ITrackTarget rootTarget, TrackPresetNode childPreset )
 	{
-		if ( rootGameObject is null )
+		if ( rootTarget is not ITrackReference<GameObject> { Value: { } rootGameObject } )
 		{
 			return GetOrCreateTrack( rootTrack, childPreset.PropertyName );
 		}
@@ -238,10 +261,17 @@ partial class Session
 			throw new Exception( "Parent track not registered." );
 		}
 
-		var property = TrackProperty.Create( parentProperty, propertyName )
-			?? throw new Exception( $"Unknown property \"{propertyName}\" in type \"{parentProperty.TargetType}\"." );
+		if ( TrackProperty.Create( parentProperty, propertyName ) is { } property )
+		{
+			return Project.AddPropertyTrack( property.Name, property.TargetType, parentTrack );
+		}
 
-		return Project.AddPropertyTrack( property.Name, property.TargetType, parentTrack );
+		if ( parentTrack is ProjectReferenceTrack<GameObject> && TypeLibrary.GetType<Component>( propertyName ) is { TargetType: { } componentType } )
+		{
+			return Project.AddReferenceTrack( propertyName, componentType, parentTrack );
+		}
+
+		throw new Exception( $"Unknown property \"{propertyName}\" in type \"{parentProperty.TargetType}\"." );
 	}
 
 	private readonly HashSet<SkinnedModelRenderer> _controlledSkinnedModelRenderers = new();

@@ -337,7 +337,7 @@ internal sealed class TextBlock : IDisposable
 			var size = style.TextStrokeWidth.Value.GetPixels( 1.0f );
 			var effect = TextEffect.Outline( color.ToSk(), size );
 			effect.StrokeMiter = 2.0f;
-			effect.StrkeJoin = SKStrokeJoin.Round;
+			effect.StrokeJoin = SKStrokeJoin.Round;
 			Style.AddEffect( effect );
 
 			EffectMargin.Left = MathF.Max( EffectMargin.Left, size ).CeilToInt();

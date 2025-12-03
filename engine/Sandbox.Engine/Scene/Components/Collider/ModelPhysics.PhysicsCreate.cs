@@ -184,6 +184,7 @@ public sealed partial class ModelPhysics
 			body.MassOverride = part.Mass;
 			body.OverrideMassCenter = part.OverrideMassCenter;
 			body.MassCenterOverride = part.MassCenterOverride;
+			body.GravityScale = part.GravityScale;
 			body.GameObjectSource = GameObject;
 
 			var bodyTransform = body.WorldTransform;

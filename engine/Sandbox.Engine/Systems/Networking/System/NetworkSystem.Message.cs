@@ -291,9 +291,11 @@ internal partial class NetworkSystem
 		GameSystem?.OnCullStateChangeMessage( data, source );
 	}
 
-	private void OnReceiveClientTick( ByteStream data, Connection source )
+	internal void OnReceiveClientTick( ByteStream data, Connection source )
 	{
-		// visibility
+		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.UserCommands, data.Length );
+
+		// Read and apply visibility origins from the client
 		{
 			var count = data.Read<char>();
 
@@ -316,6 +318,21 @@ internal partial class NetworkSystem
 					source.VisibilityOrigins[i] = new Vector3( x, y, z );
 				}
 			}
+		}
+
+		// Read and apply the user command from this client
+		{
+			if ( data.ReadRemaining == 0 )
+				return;
+
+			// We should reject user commands from clients if we're not the host
+			if ( !Networking.IsHost )
+				return;
+
+			// This is a user command directly from another client
+			UserCommand cmd = default;
+			cmd.Deserialize( ref data );
+			source.Input.ApplyUserCommand( cmd );
 		}
 	}
 

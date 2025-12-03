@@ -416,7 +416,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			}
 
 			//
-			// Recieve incoming network messages
+			// Recieve incoming network messages, send heartbeat and other outgoing messages
 			//
 			Networking.PreFrameTick();
 
@@ -432,15 +432,14 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			//
 			// Run the actual game scene tick
 			//
-			using ( Sandbox.Diagnostics.Performance.Scope( "GameFrame" ) )
+			using ( Performance.Scope( "GameFrame" ) )
 			{
 				RunGameFrame( scene );
 			}
 
-			//
-			// Send heartbeat and other outgoing network messages
-			//
 			Networking.PostFrameTick();
+
+			Connection.ClearUpdateContextInput();
 		}
 
 		if ( !Application.IsDedicatedServer )

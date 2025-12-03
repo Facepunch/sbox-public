@@ -1,6 +1,6 @@
-﻿using Editor.MapEditor;
-using Sandbox.MovieMaker;
+﻿using Sandbox.MovieMaker;
 using System.Linq;
+using Sandbox.MovieMaker.Compiled;
 
 namespace Editor.MovieMaker;
 
@@ -160,6 +160,17 @@ public sealed partial class MotionEditMode : EditMode
 				() => CreateSequence( TimeSelection!.Value.TotalTimeRange ) ) );
 
 		AddCustomModifications( ev.Menu, selection );
+
+		if ( GetSkinnedModelRendererTrack( ev.TimelineTrack?.View ) is (_, var rTrack, { Model.AnimationCount: > 0 } renderer ) )
+		{
+			ev.Menu.AddHeading( "Skinned Model Renderer" );
+
+			var animSequenceMenu = ev.Menu.AddMenu( "Import Anim Sequence", "local_movies" );
+
+			animSequenceMenu.AddOptions( renderer.Model.AnimationNames,
+				x => string.Join( "/", x.Split( '_', '.' ) ),
+				name => ImportAnimationSequence( renderer, rTrack, selection, renderer.Model, name ) );
+		}
 	}
 
 	internal void AddClipboardContextMenu( ContextMenuEvent ev, MovieTimeRange timeRange )
@@ -183,6 +194,26 @@ public sealed partial class MotionEditMode : EditMode
 		}
 	}
 
+	private (TrackView TrackView, ProjectReferenceTrack<SkinnedModelRenderer> Track, SkinnedModelRenderer? BoundRenderer)? GetSkinnedModelRendererTrack( TrackView? trackView )
+	{
+		while ( true )
+		{
+			if ( trackView?.Track is ProjectReferenceTrack<GameObject> )
+			{
+				trackView = trackView.Children.FirstOrDefault( x => x.Track is IReferenceTrack<SkinnedModelRenderer> );
+			}
+
+			if ( trackView is null ) return null;
+
+			if ( trackView is { Track: ProjectReferenceTrack<SkinnedModelRenderer> track, Target: ITrackReference<SkinnedModelRenderer> reference } )
+			{
+				return reference.IsBound ? (trackView, track, reference.Value) : (trackView, track, null);
+			}
+
+			trackView = trackView.Parent;
+		}
+	}
+
 	private void AddCustomModifications( Menu menu, TimeSelection selection )
 	{
 		var modificationTypes = EditorTypeLibrary
@@ -199,11 +230,7 @@ public sealed partial class MotionEditMode : EditMode
 				if ( type.IsAbstract || type.IsGenericType ) continue;
 
 				var dummy = (IMovieModification)Activator.CreateInstance( type.TargetType )!;
-				var canStart = Session.TrackList.EditableTracks
-					.Any( x => x.Blocks
-						.OfType<IProjectPropertyBlock>()
-						.Where( y => selection.TotalTimeRange.Intersect( y.TimeRange ) is { IsEmpty: false } )
-						.Any( y => dummy.CanStart( y, selection ) ) );
+				var canStart = dummy.CanStart( Session.TrackList, selection );
 
 				if ( !canStart ) continue;
 
@@ -219,7 +246,7 @@ public sealed partial class MotionEditMode : EditMode
 					{
 						var modification = SetModification( type.TargetType, selection );
 
-						modification.Start( selection );
+						modification.Start( Session.TrackList, selection );
 					} );
 			}
 		}

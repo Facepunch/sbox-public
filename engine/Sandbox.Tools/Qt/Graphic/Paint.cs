@@ -14,6 +14,14 @@ namespace Editor
 		DashDotDot
 	}
 
+	public enum ElideMode
+	{
+		Left,
+		Right,
+		Middle,
+		None
+	}
+
 	public enum RenderMode
 	{
 		Normal = CompositionMode.CompositionMode_SourceOver,
@@ -241,6 +249,14 @@ namespace Editor
 		{
 			Current.drawText( position, (int)flags, text, out var rect );
 			return rect.Rect;
+		}
+
+		/// <summary>
+		/// Adds required ellipses to a string if it doesn't fit within the width
+		/// </summary>
+		public static string GetElidedText( string text, float width, ElideMode mode = ElideMode.Right, TextFlag flags = TextFlag.Center )
+		{
+			return WidgetUtil.ElidedText( text, (int)width, (int)mode, (int)flags );
 		}
 
 		public static Rect MeasureText( in Rect position, string text, TextFlag flags = TextFlag.Center )

@@ -321,7 +321,6 @@ public partial class Scene : GameObject
 			Signal( GameObjectSystem.Stage.FinishFixedUpdate );
 		}
 
-
+		Connection.ClearFixedUpdateContextInput();
 	}
-
 }

@@ -830,6 +830,28 @@ public sealed unsafe partial class CommandList
 		AddEntry( &Execute, new Entry { Object1 = compute, Object2 = indirectBuffer, Data1 = new Vector4( indirectElementOffset, 0, 0, 0 ) } );
 	}
 
+	/// <inheritdoc cref="RayTracingShader.DispatchRaysWithAttributes(RenderAttributes, int, int, int)"/>
+	internal void DispatchRays( RayTracingShader raytracing, int threadsX, int threadsY, int threadsZ )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			((RayTracingShader)entry.Object1).DispatchRaysWithAttributes( Graphics.Attributes, (int)entry.Data1.x, (int)entry.Data1.y, (int)entry.Data1.z );
+		}
+
+		AddEntry( &Execute, new Entry { Object1 = raytracing, Data1 = new Vector4( threadsX, threadsY, threadsZ, 0 ) } );
+	}
+
+	/// <inheritdoc cref="RayTracingShader.DispatchRaysIndirect(GpuBuffer, uint)"/>
+	internal void DispatchRaysIndirect( RayTracingShader raytracing, GpuBuffer indirectBuffer, uint indirectElementOffset = 0 )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			((RayTracingShader)entry.Object1).DispatchRaysIndirectWithAttributes( Graphics.Attributes, (GpuBuffer)entry.Object2, (uint)entry.Data1.x );
+		}
+
+		AddEntry( &Execute, new Entry { Object1 = raytracing, Object2 = indirectBuffer, Data1 = new Vector4( indirectElementOffset, 0, 0, 0 ) } );
+	}
+
 	/// <summary>
 	/// A handle to the viewport size
 	/// </summary>
@@ -849,6 +871,22 @@ public sealed unsafe partial class CommandList
 		}
 
 		AddEntry( &Execute, new Entry { Object1 = compute, Object5 = dimension.Name } );
+	}
+
+	/// <summary>
+	/// Dispatch a ray tracing shader
+	/// </summary>
+	internal void DispatchRays( RayTracingShader raytracing, RenderTargetHandle.SizeHandle dimension )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			var xyz = commandList.GetDimension( (string)entry.Object5 );
+			if ( !xyz.HasValue ) return;
+
+			((RayTracingShader)entry.Object1).DispatchRaysWithAttributes( Graphics.Attributes, xyz.Value.x, xyz.Value.y, xyz.Value.z );
+		}
+
+		AddEntry( &Execute, new Entry { Object1 = raytracing, Object5 = dimension.Name } );
 	}
 
 	/// <summary>
@@ -901,6 +939,39 @@ public sealed unsafe partial class CommandList
 		}
 
 		AddEntry( &Execute, new Entry { Object1 = texture, Data1 = new Vector4( (int)state, mip, 0, 0 ) } );
+	}
+
+	/// <summary>
+	/// Executes a barrier transition for the color texture of the given render target handle.
+	/// </summary>
+	/// <param name="texture">The render target color handle.</param>
+	/// <param name="state">The new resource state for the texture.</param>
+	/// <param name="mip">The mip level to transition (-1 for all mips).</param>
+	public void ResourceBarrierTransition( RenderTargetHandle.ColorTextureRef texture, ResourceState state, int mip = -1 )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			if ( commandList.state.GetRenderTarget( (string)entry.Object5 ) is not { } target )
+			{
+				Log.Warning( $"[{commandList.DebugName ?? "CommandList"}] Unknown rt: {(string)entry.Object5}" );
+				return;
+			}
+
+			Graphics.ResourceBarrierTransition( target.ColorTarget, (ResourceState)(int)entry.Data1.x, (int)entry.Data1.y );
+		}
+
+		AddEntry( &Execute, new Entry { Object5 = texture.Name, Data1 = new Vector4( (int)state, mip, 0, 0 ) } );
+	}
+
+	/// <summary>
+	/// Executes a barrier transition for the color texture of the given render target handle.
+	/// </summary>
+	/// <param name="handle">The render target handle.</param>
+	/// <param name="state">The new resource state for the texture.</param>
+	/// <param name="mip">The mip level to transition (-1 for all mips).</param>
+	public void ResourceBarrierTransition( RenderTargetHandle handle, ResourceState state, int mip = -1 )
+	{
+		ResourceBarrierTransition( handle.ColorTexture, state, mip );
 	}
 
 	/// <summary>

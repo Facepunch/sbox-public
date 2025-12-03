@@ -336,7 +336,17 @@ public partial class PhysicsJoint : IHandle
 		return joint;
 	}
 
+	internal static WheelJoint CreateWheel( PhysicsPoint a, PhysicsPoint b )
+	{
+		ArgumentNullException.ThrowIfNull( a.Body, nameof( a ) );
+		ArgumentNullException.ThrowIfNull( b.Body, nameof( b ) );
 
+		Assert.AreEqual( a.Body.World, b.Body.World );
+		Assert.AreNotEqual( a.Body, b.Body );
+
+		var joint = a.Body.World.world.AddWheelJoint( a.Body, b.Body, a.LocalTransform, b.LocalTransform ) as WheelJoint;
+		return !joint.IsValid() ? throw new Exception( $"Unable to create joint" ) : joint;
+	}
 
 	[Obsolete]
 	public static HingeJoint CreateHinge( PhysicsBody body1, PhysicsBody body2, Vector3 center, Vector3 axis )

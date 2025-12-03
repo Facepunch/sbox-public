@@ -42,7 +42,7 @@ public class SoundscapeTrigger : Component
 	MixerHandle _targetMixer;
 
 	/// <summary>
-	/// Ths mixer that the soundscape will play on.
+	/// The mixer that the soundscape will play on.
 	/// </summary>
 	[Property]
 	public MixerHandle TargetMixer
@@ -317,6 +317,12 @@ public class SoundscapeTrigger : Component
 
 		public override void Frame( in Transform head )
 		{
+			if ( source?.SoundFile?.IsValid() == false )
+			{
+				Finished = true;
+				return;
+			}
+
 			var targetVolume = sourceVolume * internalVolume * Volume;
 			if ( Finished ) targetVolume = 0.0f;
 
@@ -373,6 +379,12 @@ public class SoundscapeTrigger : Component
 
 			if ( timeUntilNextShot > 0 )
 				return;
+
+			if ( source?.SoundFile?.IsValid() == false )
+			{
+				Finished = true;
+				return;
+			}
 
 			timeUntilNextShot = source.RepeatTime.GetValue();
 

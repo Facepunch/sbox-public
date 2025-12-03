@@ -6,10 +6,11 @@ namespace Editor.MeshEditor;
 /// Move, rotate and scale mesh edges
 /// </summary>
 [EditorTool( "mesh.edge" )]
-[Title( "Edge Tool" )]
+[Title( "Edge Select" )]
 [Icon( "show_chart" )]
 [Alias( "Edge" )]
-[Group( "2" )]
+[Group( "Mesh" )]
+[Order( 2 )]
 public sealed partial class EdgeTool : BaseMeshTool
 {
 	public override void OnUpdate()

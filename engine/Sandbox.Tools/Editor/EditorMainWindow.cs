@@ -407,7 +407,6 @@ public class EditorMainWindow : DockWindow
 		g_pToolFramework2.SetStallMonitorMainThreadWindow( _widget );
 
 		OnStartupLoadingFinished();
-		NativeEngine.EngineGlobal.UpdateWindowSize();
 	}
 
 	[Event( "refresh" )]
