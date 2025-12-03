@@ -11,7 +11,7 @@ namespace Sandbox;
 [Expose]
 public partial class SceneNetworkSystem : GameNetworkSystem
 {
-	internal static SceneNetworkSystem Instance { get; private set; }
+	internal static SceneNetworkSystem Instance { get; set; }
 	internal DeltaSnapshotSystem DeltaSnapshots { get; private set; }
 
 	private List<NetworkObject> BatchSpawnList { get; set; } = [];
@@ -602,7 +602,13 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			}
 		}
 
+		foreach ( var connection in Connection.All )
+		{
+			connection.Input.Clear();
+		}
+
 		DeltaSnapshots?.Reset();
+		UserCommand.Reset();
 	}
 
 	public override void OnBecameHost( Connection previousHost )

@@ -432,12 +432,14 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			//
 			// Run the actual game scene tick
 			//
-			using ( Sandbox.Diagnostics.Performance.Scope( "GameFrame" ) )
+			using ( Performance.Scope( "GameFrame" ) )
 			{
 				RunGameFrame( scene );
 			}
 
 			Networking.PostFrameTick();
+
+			Connection.ClearUpdateContextInput();
 		}
 
 		if ( !Application.IsDedicatedServer )

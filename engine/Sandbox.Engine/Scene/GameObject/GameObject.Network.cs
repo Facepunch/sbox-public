@@ -279,12 +279,13 @@ public partial class GameObject
 	/// Set the parent of this networked object.
 	/// </summary>
 	[Rpc.Broadcast]
-	void Msg_SetParent( Guid id, Transform transform, ushort snapshotVersion )
+	void Msg_SetParent( Guid id, bool keepWorldPosition )
 	{
 		if ( _net is null ) return;
 
 		var caller = Rpc.Caller;
-		if ( caller == Connection.Local ) return;
+		if ( caller == Connection.Local )
+			return;
 
 		// Can this caller set the parent?
 		if ( !caller.IsHost && !_net.HasControl( caller ) )
@@ -302,8 +303,7 @@ public partial class GameObject
 				return;
 		}
 
-		_net.LocalSnapshotState.Version = snapshotVersion;
-		SetParentFromNetwork( parentObject, transform );
+		SetParentFromNetwork( parentObject, keepWorldPosition );
 	}
 
 	/// <summary>

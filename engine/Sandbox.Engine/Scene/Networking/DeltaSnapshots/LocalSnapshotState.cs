@@ -1,4 +1,3 @@
-using Sandbox.Engine;
 using Sandbox.Hashing;
 
 namespace Sandbox.Network;
@@ -25,6 +24,31 @@ internal class LocalSnapshotState
 	public ushort Version { get; set; }
 	public Guid ObjectId { get; set; }
 	public int Size { get; private set; }
+
+	/// <summary>
+	/// The unique <see cref="Guid"/> of the networked object's parent. Some values in the snapshot state
+	/// may be specific to the parent object - such as the local transform. In these cases,
+	/// this can be used as a salt when hashing those values, so if the parent changes, the
+	/// values will be re-transmitted to connections.
+	/// </summary>
+	public Guid ParentId
+	{
+		get;
+		set
+		{
+			if ( _parentIdBytes != null && field == value )
+				return;
+
+			_parentIdBytes ??= new byte[16];
+
+			value.TryWriteBytes( _parentIdBytes );
+			field = value;
+		}
+	}
+
+	private byte[] _parentIdBytes;
+
+	private readonly XxHash3 _hasher = new();
 
 	/// <summary>
 	/// Remove a connection from stored state acknowledgements.
@@ -54,13 +78,21 @@ internal class LocalSnapshotState
 	}
 
 	/// <summary>
-	/// Add a serialized byte array value to the specified slot.
+	/// Add a serialized byte array value to the specified slot. Can optionally choose to add the
+	/// parent <see cref="Guid"/> as a salt when hashing the value, if the value is related to the parent.
 	/// </summary>
 	/// <param name="slot"></param>
 	/// <param name="value"></param>
-	public void AddSerialized( int slot, byte[] value )
+	/// <param name="hashWithParentId"></param>
+	public void AddSerialized( int slot, byte[] value, bool hashWithParentId = false )
 	{
-		var hash = XxHash3.HashToUInt64( value );
+		_hasher.Reset();
+		_hasher.Append( value );
+
+		if ( hashWithParentId && _parentIdBytes is not null )
+			_hasher.Append( _parentIdBytes );
+
+		var hash = _hasher.GetCurrentHashAsUInt64();
 
 		if ( Lookup.TryGetValue( slot, out var entry ) )
 		{
@@ -92,10 +124,11 @@ internal class LocalSnapshotState
 	}
 
 	/// <summary>
-	/// Add from a <see cref="SnapshotValueCache"/> cache.
+	/// Add from a <see cref="SnapshotValueCache"/> cache. Can optionally choose to add the
+	/// parent <see cref="Guid"/> as a salt when hashing the value, if the value is related to the parent.
 	/// </summary>
-	public void AddCached<T>( SnapshotValueCache cache, int slot, T value )
+	public void AddCached<T>( SnapshotValueCache cache, int slot, T value, bool hashWithParentId = false )
 	{
-		AddSerialized( slot, cache.GetCached( slot, value ) );
+		AddSerialized( slot, cache.GetCached( slot, value ), hashWithParentId );
 	}
 }

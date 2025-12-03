@@ -4,10 +4,11 @@
 /// Move, rotate and scale objects
 /// </summary>
 [EditorTool( "tools.object-tool" )]
-[Title( "Object Tool" )]
+[Title( "Object Select" )]
 [Icon( "layers" )]
 [Alias( "object" )]
-[Group( "0" )]
+[Group( "Scene" )]
+[Order( -9999 )]
 public class ObjectEditorTool : EditorTool
 {
 	/// <summary>

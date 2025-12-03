@@ -397,7 +397,7 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 		bool recursive = ShowRecursiveFiles || !Search.IsEmpty;
 		AssetList.FullPathMode = recursive;
 
-		Path.UpdateSegments();
+		Path.Rebuild();
 		RefreshTask = UpdateAssetListAsync( recursive, refreshToken.Token );
 	}
 

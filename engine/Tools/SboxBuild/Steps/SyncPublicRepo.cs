@@ -152,8 +152,14 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			var uploadedArtifacts = new HashSet<ArtifactFileInfo>();
 			var uploadedArtifactHashes = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 
-			// Upload build artifacts from original repository
-			if ( !TryUploadBuildArtifacts( repositoryRoot, remoteBase, dryRun, ref uploadedArtifacts, uploadedArtifactHashes ) )
+			// Upload windows binaries
+			if ( !TryUploadBuildArtifacts( repositoryRoot, remoteBase, "win64", dryRun, ref uploadedArtifacts, uploadedArtifactHashes ) )
+			{
+				return false;
+			}
+
+			// Upload linux binaries
+			if ( !TryUploadBuildArtifacts( repositoryRoot, remoteBase, "linuxsteamrt64", dryRun, ref uploadedArtifacts, uploadedArtifactHashes ) )
 			{
 				return false;
 			}
@@ -263,9 +269,9 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		return false;
 	}
 
-	private static bool TryUploadBuildArtifacts( string repositoryRoot, string remoteBase, bool skipUpload, ref HashSet<ArtifactFileInfo> artifacts, HashSet<string> uploadedHashes )
+	private static bool TryUploadBuildArtifacts( string repositoryRoot, string remoteBase, string platform, bool skipUpload, ref HashSet<ArtifactFileInfo> artifacts, HashSet<string> uploadedHashes )
 	{
-		var buildArtifactsRoot = Path.Combine( repositoryRoot, "game", "bin", "win64" );
+		var buildArtifactsRoot = Path.Combine( repositoryRoot, "game", "bin", platform );
 		if ( !Directory.Exists( buildArtifactsRoot ) )
 		{
 			Log.Info( $"Build artifacts directory not found, skipping upload: {buildArtifactsRoot}" );
@@ -436,7 +442,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			}
 		}
 
-		if ( !Utility.RunProcess( "git", $"push public {PUBLIC_BRANCH} --force", relativeRepoPath ) )
+		if ( !Utility.RunProcess( "git", $"push public {PUBLIC_BRANCH}", relativeRepoPath ) )
 		{
 			Log.Error( "Failed to push to public repository" );
 			return null;
@@ -486,32 +492,19 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 
 	private static HashSet<string> GetAllPublicLfsFiles( string relativeRepoPath )
 	{
-		// Get base set
 		var trackedFiles = GetCurrentLfsFiles( relativeRepoPath );
 
-		// Extend with all lfs files from first commit to HEAD
-		var firstCommitHash = string.Empty;
-		if ( !Utility.RunProcess( "git", "rev-list --max-parents=0 HEAD", relativeRepoPath, onDataReceived: ( _, e ) =>
+		if ( !Utility.RunProcess( "git", "lfs ls-files --all --deleted --name-only", relativeRepoPath, onDataReceived: ( _, e ) =>
 		{
-			if ( !string.IsNullOrWhiteSpace( e.Data ) )
+			if ( string.IsNullOrWhiteSpace( e.Data ) )
 			{
-				firstCommitHash = e.Data.Trim();
+				return;
 			}
-		} ) )
-		{
-			Log.Error( "Failed find first commit" );
-			return null;
-		}
 
-		if ( !Utility.RunProcess( "git", $"lfs ls-files --name-only {firstCommitHash} HEAD", relativeRepoPath, onDataReceived: ( _, e ) =>
-		{
-			if ( !string.IsNullOrWhiteSpace( e.Data ) )
-			{
-				trackedFiles.Add( ToForwardSlash( e.Data.Trim() ) );
-			}
+			trackedFiles.Add( ToForwardSlash( e.Data.Trim() ) );
 		} ) )
 		{
-			Log.Error( "Failed to list LFS tracked files" );
+			Log.Error( "Failed to list historical LFS tracked files" );
 			return null;
 		}
 
