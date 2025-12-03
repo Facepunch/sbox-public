@@ -6,7 +6,7 @@ Dialog LineEdit,
 Dialog TextEdit {
 	background-color: $SurfaceBackground;
 	border: 0px;
-	min-height: 22px;
+	min-height: 24px;
 	border-radius: 3px;
 	padding: 0px 5px;
 	border: 1px solid $SurfaceBackground;
