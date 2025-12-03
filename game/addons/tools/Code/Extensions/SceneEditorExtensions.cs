@@ -101,8 +101,8 @@ public static class SceneEditorExtensions
 
 			var moveSpeed = EditorPreferences.CameraSpeed;
 
-			if ( EditorShortcuts.IsDown( "scene.movement-quick" ) ) moveSpeed *= 8.0f;
-			if ( EditorShortcuts.IsDown( "scene.movement-slow" ) ) moveSpeed /= 8.0f;
+			if ( EditorShortcuts.IsShortcutDown( "scene.movement-quick" ) ) moveSpeed *= 8.0f;
+			if ( EditorShortcuts.IsShortcutDown( "scene.movement-slow" ) ) moveSpeed /= 8.0f;
 
 			if ( rightMouse && !camera.Orthographic )
 			{
@@ -166,12 +166,12 @@ public static class SceneEditorExtensions
 
 			var move = Vector3.Zero;
 
-			if ( EditorShortcuts.IsDown( "scene.move-forward" ) ) move += camera.WorldRotation.Forward;
-			if ( EditorShortcuts.IsDown( "scene.move-backward" ) ) move += camera.WorldRotation.Backward;
-			if ( EditorShortcuts.IsDown( "scene.move-left" ) ) move += camera.WorldRotation.Left;
-			if ( EditorShortcuts.IsDown( "scene.move-right" ) ) move += camera.WorldRotation.Right;
-			if ( EditorShortcuts.IsDown( "scene.move-down" ) ) move += Vector3.Down;
-			if ( EditorShortcuts.IsDown( "scene.move-up" ) ) move += Vector3.Up;
+			if ( EditorShortcuts.IsShortcutDown( "scene.move-forward" ) ) move += camera.WorldRotation.Forward;
+			if ( EditorShortcuts.IsShortcutDown( "scene.move-backward" ) ) move += camera.WorldRotation.Backward;
+			if ( EditorShortcuts.IsShortcutDown( "scene.move-left" ) ) move += camera.WorldRotation.Left;
+			if ( EditorShortcuts.IsShortcutDown( "scene.move-right" ) ) move += camera.WorldRotation.Right;
+			if ( EditorShortcuts.IsShortcutDown( "scene.move-down" ) ) move += Vector3.Down;
+			if ( EditorShortcuts.IsShortcutDown( "scene.move-up" ) ) move += Vector3.Up;
 
 			if ( !move.IsNearZeroLength )
 			{
