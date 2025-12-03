@@ -1,22 +1,42 @@
-"Layer0"
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
 {
-	"shader"		"shaders/generic.shader_c"
-	"g_vColorTint"		"[1.000000 1.000000 1.000000 0.000000]"
-	"TextureColor"		"materials/tools/new/nodrawwood_color.png"
-	"g_bFogEnabled"		"1"
-	"g_flDirectionalLightmapMinZ"		"0.050000"
-	"g_flDirectionalLightmapStrength"		"1.000000"
-	"TextureNormal"		"materials/default/default_normal.tga"
-	"g_flBumpStrength"		"1.000000"
-	"Attributes"
+	shader "shaders/generic.shader"
+
+	//---- Specular ----
+	F_SPECULAR 1
+
+	//---- Color ----
+	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "materials/tools/new/nodrawwood_color.png"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Lighting ----
+	g_vGlossinessRange "[0.000 1.000]"
+	g_vMetalnessRange "[0.000 1.000]"
+	TextureGlossiness "materials/default/default_gloss.tga"
+	TextureMetalness "materials/default/default_metal.tga"
+	TextureReflectance "materials/default/default_refl.tga"
+
+	//---- Normal ----
+	TextureNormal "materials/default/default_normal.tga"
+
+	//---- Normal Map ----
+	g_flBumpStrength "1.000"
+
+	Attributes
 	{
-		"mapbuilder.nodraw"		"1"
-		"mapbuilder.acceptvis"		"1"
-		"tools.toolsmaterial"		"1"
-		"tools.tilebase"		"1"
+		mapbuilder.nodraw "1"
+		mapbuilder.acceptvis "1"
+		tools.toolsmaterial "1"
+		tools.tilebase "1"
 	}
-	"SystemAttributes"
+
+	SystemAttributes
 	{
-		"PhysicsSurfaceProperties"		"world.wood_solid"
+		PhysicsSurfaceProperties "world.wood_solid"
 	}
 }

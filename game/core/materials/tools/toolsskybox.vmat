@@ -1,15 +1,24 @@
-"Layer0"
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
 {
-	"shader"		"shaders/generic.shader_c"
-	"F_UNLIT"		"1"
-	"g_vColorTint"		"[1.000000 1.000000 1.000000 0.000000]"
-	"TextureColor"		"materials/tools/new/skybox_color.png"
-	"g_bFogEnabled"		"1"
-	"Attributes"
+	shader "shaders/generic.shader"
+
+	//---- Lighting ----
+	F_UNLIT 1
+
+	//---- Color ----
+	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "materials/tools/new/skybox_color.png"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	Attributes
 	{
-		"mapbuilder.nodraw"		"1"
-		"mapbuilder.sky"		"1"
-		"mapbuilder.tags"		"sky"
-		"tools.toolsmaterial"		"1"
+		mapbuilder.nodraw "1"
+		mapbuilder.sky "1"
+		mapbuilder.tags "sky"
+		tools.toolsmaterial "1"
 	}
 }
