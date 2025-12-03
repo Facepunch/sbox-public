@@ -51,12 +51,20 @@ public static class ClipboardTools
 		var clipboard = EditorUtility.Clipboard.Paste();
 		if ( string.IsNullOrWhiteSpace( clipboard ) ) return false;
 		if ( !clipboard.StartsWith( "{" ) ) return false;
-		var json = JsonNode.Parse( clipboard );
-		if ( json is null ) return false;
-		if ( json["_group"] is null || json["_group"].ToString() != groupName ) return false;
-		var parentType = properties.FirstOrDefault()?.Parent?.TypeName ?? null;
-		if ( parentType == null ) return false;
-		if ( json["_parentType"] is null || json["_parentType"].ToString() != parentType.ToString() ) return false;
-		return true;
+
+		try
+		{
+			var json = JsonNode.Parse( clipboard );
+			if ( json is null ) return false;
+			if ( json["_group"] is null || json["_group"].ToString() != groupName ) return false;
+			var parentType = properties.FirstOrDefault()?.Parent?.TypeName ?? null;
+			if ( parentType == null ) return false;
+			if ( json["_parentType"] is null || json["_parentType"].ToString() != parentType.ToString() ) return false;
+			return true;
+		}
+		catch ( JsonException )
+		{
+			return false;
+		}
 	}
 }

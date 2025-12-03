@@ -65,7 +65,7 @@ public class ChipsWidget : Widget
 		if ( Chips.Any( x => x.Value.Equals( option ) ) )
 			return;
 
-		Scroller.FixedHeight = 24;
+		Scroller.FixedHeight = Theme.RowHeight;
 
 		Scroller.Canvas.Layout.Add( new Chip( option, this )
 		{
@@ -80,7 +80,7 @@ public class ChipsWidget : Widget
 		if ( Chips.Any( x => x.Value.Equals( tag ) ) )
 			return;
 
-		Scroller.FixedHeight = 24;
+		Scroller.FixedHeight = Theme.RowHeight;
 
 		Scroller.Canvas.Layout.Add( new Chip( tag, this )
 		{
@@ -132,7 +132,7 @@ public class Chip : Button
 		var totalWidth = textSize.x + iconSize.x;
 		if ( IsActive ) totalWidth += 8;
 
-		var totalSize = new Vector2( totalWidth, 22 ) + padding;
+		var totalSize = new Vector2( totalWidth, Theme.RowHeight ) + padding;
 		return totalSize;
 	}
 

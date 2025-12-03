@@ -18,6 +18,7 @@ internal static partial class Rules
 		"System.Private.CoreLib/System.Collections.*",
 		"System.Collections/System.Collections.*",
 		"System.Collections.Immutable/System.Collections.Immutable.*",
+		"System.Collections.Immutable/System.Collections.Frozen.*",
 		"System.Collections.Immutable/System.Linq.ImmutableArrayExtensions.*",
 		"System.ObjectModel/System.Collections.ObjectModel.*",
 		"System.ObjectModel/System.Collections.Specialized.*",

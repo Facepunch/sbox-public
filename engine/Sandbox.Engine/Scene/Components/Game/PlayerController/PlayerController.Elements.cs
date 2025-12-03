@@ -43,7 +43,7 @@ public sealed partial class PlayerController : Component
 	/// </summary>
 	void UpdateBody()
 	{
-		var feetHeight = BodyHeight * 0.5f;
+		var feetHeight = CurrentHeight * 0.5f;
 		var radius = (BodyRadius * MathF.Sqrt( 2 )) / 2;
 
 		// If we're not on the ground, we have slippy as fuck feet
@@ -77,12 +77,12 @@ public sealed partial class PlayerController : Component
 		// If it becomes too short to fit, disable it and let the feet collider cover the rest.
 		//
 		BodyCollider.Radius = radius;
-		BodyCollider.Start = Vector3.Up * (BodyHeight - radius);
+		BodyCollider.Start = Vector3.Up * (CurrentHeight - radius);
 		BodyCollider.End = Vector3.Up * MathF.Max( BodyCollider.Start.z - (feetHeight - radius), radius + 1.0f );
 		BodyCollider.Friction = 0.0f;
 		BodyCollider.Enabled = BodyCollider.End.z < BodyCollider.Start.z;
 
-		FeetCollider.Scale = new Vector3( BodyRadius, BodyRadius, BodyCollider.Enabled ? feetHeight : BodyHeight );
+		FeetCollider.Scale = new Vector3( BodyRadius, BodyRadius, BodyCollider.Enabled ? feetHeight : CurrentHeight );
 		FeetCollider.Center = new Vector3( 0, 0, FeetCollider.Scale.z * 0.5f );
 		FeetCollider.Friction = feetFriction;
 		FeetCollider.Enabled = true;
@@ -99,7 +99,7 @@ public sealed partial class PlayerController : Component
 		// When trying to move, we move the mass center up to the waist so the player can "step" over smaller shit
 		// When not moving we drop it to the foot position.
 		//
-		float massCenter = IsOnGround ? WishVelocity.Length.Clamp( 0, BodyHeight * 0.5f ) : BodyHeight * 0.5f;
+		float massCenter = IsOnGround ? WishVelocity.Length.Clamp( 0, CurrentHeight * 0.5f ) : CurrentHeight * 0.5f;
 		Body.MassCenterOverride = new Vector3( 0, 0, massCenter );
 		Body.OverrideMassCenter = true;
 

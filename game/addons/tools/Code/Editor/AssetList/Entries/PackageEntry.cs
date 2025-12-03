@@ -132,11 +132,7 @@ public class PackageEntry : IAssetListEntry
 		rect.Left += 20;
 
 		var strText = Path.GetFileNameWithoutExtension( Name );
-
-		if ( Paint.MeasureText( strText ).x > rect.Width && strText.Length > 16 )
-		{
-			strText = $"{strText.Substring( 0, 7 )}...{strText.Substring( strText.Length - 7, 7 )}";
-		}
+		strText = Paint.GetElidedText( strText, rect.Width, ElideMode.Middle );
 
 		Paint.DrawText( rect, strText, TextFlag.LeftTop );
 

@@ -1,4 +1,4 @@
-name: Pull Request Checks
+name: Tests
 
 on:
   pull_request:
@@ -8,25 +8,22 @@ permissions:
   contents: read
 
 jobs:
-  format:
+  tests:
     runs-on: [ windows-latest ]
     steps:
       - name: Full Checkout
         uses: actions/checkout@v4
         with:
           clean: true
-          fetch-depth: 1
+          fetch-depth: 0
           persist-credentials: false
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
-      - name: Format
-        run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- format --verify
-
-      - name: Bootstrap
-        run: .\Bootstrap.bat
+      - name: Build
+        run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- build --config Developer
 
       - name: Test
         run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- test

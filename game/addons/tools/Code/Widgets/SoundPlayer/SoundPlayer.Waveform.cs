@@ -101,7 +101,7 @@ public partial class SoundPlayer
 			float fRange = maxVal - minVal;
 
 			int columns = MathX.FloorToInt( TimelineView.PositionFromTime( TimelineView.Duration ) / LineSize );
-			SamplesPerColumn = (sampleCount / columns);
+			SamplesPerColumn = Math.Max( 1, sampleCount / columns );
 
 			for ( int i = 0; i < columns - 1; i++ )
 			{

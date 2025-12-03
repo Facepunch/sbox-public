@@ -386,11 +386,14 @@ namespace Editor
 
 		public void Clear()
 		{
+			if ( _menu.IsNull )
+				return;
+
 			_menu.clear();
 
-			Menus.Clear();
-			Options.Clear();
-			_widgets.Clear();
+			Menus?.Clear();
+			Options?.Clear();
+			_widgets?.Clear();
 		}
 
 		Option lastActive;

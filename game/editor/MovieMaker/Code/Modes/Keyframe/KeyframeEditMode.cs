@@ -274,25 +274,51 @@ public sealed partial class KeyframeEditMode : EditMode
 		}
 	}
 
-	private void CreateKeyframe( TimelineTrack timelineTrack, MovieTime time )
+	private void CreateKeyframe( TimelineTrack parentTimelineTrack, MovieTime time )
 	{
-		var view = timelineTrack.View;
+		var writeableViews = GetWritableDescendantTrackViews( parentTimelineTrack.View ).ToImmutableArray();
 
-		if ( view.Track is not IProjectPropertyTrack propertyTrack ) return;
-		if ( view.Target is not ITrackProperty { IsBound: true, CanWrite: true } target ) return;
-
-		if ( GetHandles( timelineTrack ) is not { } handles ) return;
-		if ( handles.Any( x => x.Time == time ) ) return;
-
-		var value = propertyTrack.TryGetValue( time, out var val ) ? val : target.Value;
+		if ( writeableViews.Length == 0 ) return;
 
 		ClearKeyframeChangeScope();
 
-		using var scope = Session.History.Push( "Add Keyframe" );
+		using var scope = Session.History.Push( $"Add {(writeableViews.Length > 1 ? $"{writeableViews.Length} " : "")}" + $"Keyframe{(writeableViews.Length > 1 ? "s" : "")}" );
 
-		handles.AddOrUpdate( new Keyframe( time, value, DefaultInterpolation ) );
+		foreach ( var view in writeableViews )
+		{
+			if ( Timeline.Tracks.FirstOrDefault( x => x.View == view ) is not { } timelineTrack ) continue;
+			if ( view.Track is not IProjectPropertyTrack propertyTrack ) continue;
+			if ( view.Target is not ITrackProperty { IsBound: true, CanWrite: true } target ) continue;
+
+			if ( GetHandles( timelineTrack ) is not { } handles ) return;
+			if ( handles.Any( x => x.Time == time ) ) return;
+
+			var value = propertyTrack.TryGetValue( time, out var val ) ? val : target.Value;
+
+			handles.AddOrUpdate( new Keyframe( time, value, DefaultInterpolation ) );
+		}
 
 		Session.PlayheadTime = time;
+	}
+
+	private IEnumerable<TrackView> GetWritableDescendantTrackViews( TrackView parentView )
+	{
+		if ( !parentView.Target.IsBound ) yield break;
+		if ( parentView.IsLocked ) yield break;
+
+		if ( parentView is { Track: IProjectPropertyTrack, Target: ITrackProperty { CanWrite: true } } )
+		{
+			yield return parentView;
+			yield break;
+		}
+
+		foreach ( var child in parentView.Children )
+		{
+			foreach ( var childView in GetWritableDescendantTrackViews( child ) )
+			{
+				yield return childView;
+			}
+		}
 	}
 
 	protected override void OnDragItems( IReadOnlyList<IMovieDraggable> items, MovieTime delta )

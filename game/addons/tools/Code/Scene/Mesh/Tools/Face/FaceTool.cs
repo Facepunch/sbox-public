@@ -4,10 +4,11 @@
 /// Move, rotate and scale mesh faces
 /// </summary>
 [EditorTool( "mesh.face" )]
-[Title( "Face Tool" )]
+[Title( "Face Select" )]
 [Icon( "change_history" )]
 [Alias( "Face" )]
-[Group( "3" )]
+[Group( "Mesh" )]
+[Order( 3 )]
 public sealed partial class FaceTool : BaseMeshTool
 {
 	private MeshFace HoverFace;

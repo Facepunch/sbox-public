@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using Sandbox.MovieMaker.Properties;
+using System.Diagnostics;
 using System.Text.Json.Serialization;
 
 namespace Sandbox.MovieMaker;
@@ -113,6 +114,11 @@ public sealed class MoviePlayer : Component
 		if ( !Enabled ) return;
 
 		if ( Clip is not { } clip ) return;
+
+		foreach ( var renderer in Binder.GetComponents<SkinnedModelRenderer>( clip ) )
+		{
+			MovieBoneAnimatorSystem.Current?.ClearBones( renderer );
+		}
 
 		clip.Update( _position, Binder );
 

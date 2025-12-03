@@ -100,7 +100,7 @@ public sealed partial class RenderTarget
 			ss = 8;
 		}
 
-		return GetTemporary( MathX.CeilToInt( ss.x / sizeFactor ), MathX.CeilToInt( ss.y / sizeFactor ), colorFormat, depthFormat, msaa, numMips, targetName );
+		return GetTemporary( (int)(ss.x / sizeFactor), (int)(ss.y / sizeFactor), colorFormat, depthFormat, msaa, numMips, targetName );
 	}
 
 	internal void Return( RenderTarget source )

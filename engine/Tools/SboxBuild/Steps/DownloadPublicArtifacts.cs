@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Net;
 using System.Text.Json;
 using System.Threading;
@@ -14,32 +15,46 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 	private const string BaseUrl = "https://artifacts.sbox.game";
 	private const int MaxParallelDownloads = 32;
 	private const int MaxDownloadAttempts = 3;
+	private const int MaxManifestLookbackCommits = 512;
 	protected override ExitCode RunInternal()
 	{
 		try
 		{
-			var commitHash = ResolveCommitHash();
-			if ( string.IsNullOrWhiteSpace( commitHash ) )
+			var commitCandidates = ResolveCommitHistory( MaxManifestLookbackCommits );
+			if ( commitCandidates.Count == 0 )
 			{
 				Log.Error( "Unable to determine the commit hash to download artifacts for." );
 				return ExitCode.Failure;
 			}
 
-			Log.Info( $"Downloading public artifacts for commit {commitHash} from {BaseUrl}" );
-
 			using var httpClient = CreateHttpClient();
 
-			var manifest = DownloadManifest( httpClient, BaseUrl, commitHash );
+			ArtifactManifest manifest = null;
+			foreach ( var candidate in commitCandidates )
+			{
+				var candidateManifest = DownloadManifest( httpClient, BaseUrl, candidate );
+				if ( candidateManifest is null )
+				{
+					continue;
+				}
+
+				if ( !string.Equals( candidateManifest.Commit, candidate, StringComparison.OrdinalIgnoreCase ) )
+				{
+					Log.Error( $"Manifest commit {candidateManifest.Commit} does not match requested commit {candidate}." );
+					return ExitCode.Failure;
+				}
+
+				manifest = candidateManifest;
+				break;
+			}
+
 			if ( manifest is null )
 			{
+				Log.Error( $"Unable to locate a manifest within the last {commitCandidates.Count} commit(s)." );
 				return ExitCode.Failure;
 			}
 
-			if ( !string.Equals( manifest.Commit, commitHash, StringComparison.OrdinalIgnoreCase ) )
-			{
-				Log.Error( $"Manifest commit {manifest.Commit} does not match requested commit {commitHash}." );
-				return ExitCode.Failure;
-			}
+			Log.Info( $"Downloading public artifacts for commit {manifest.Commit} from {BaseUrl}" );
 
 			if ( manifest.Files.Count == 0 )
 			{
@@ -131,31 +146,29 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 		};
 	}
 
-	private static string ResolveCommitHash()
+	private static IReadOnlyList<string> ResolveCommitHistory( int maxCommits )
 	{
-		const string branchName = "master";
-		string gitCommit = null;
-		var success = Utility.RunProcess( "git", $"rev-parse {branchName}", onDataReceived: ( _, e ) =>
+		var commits = new List<string>( Math.Max( maxCommits, 1 ) );
+		var success = Utility.RunProcess( "git", $"rev-list HEAD --max-count={maxCommits}", onDataReceived: ( _, e ) =>
 		{
 			if ( !string.IsNullOrWhiteSpace( e.Data ) )
 			{
-				gitCommit ??= e.Data.Trim();
+				commits.Add( e.Data.Trim() );
 			}
 		} );
 
 		if ( !success )
 		{
-			Log.Error( $"Failed to execute git to resolve commit hash for branch '{branchName}'." );
-			return null;
+			Log.Error( "Failed to execute git to resolve commit history for the current branch." );
+			return Array.Empty<string>();
 		}
 
-		if ( string.IsNullOrWhiteSpace( gitCommit ) )
+		if ( commits.Count == 0 )
 		{
-			Log.Error( $"git returned an empty commit hash for branch '{branchName}'." );
-			return null;
+			Log.Error( "git returned no commits for the current branch." );
 		}
 
-		return gitCommit;
+		return commits;
 	}
 
 	private static ArtifactManifest DownloadManifest( HttpClient httpClient, string baseUrl, string commitHash )
@@ -167,13 +180,13 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 		using var response = httpClient.GetAsync( manifestUrl, HttpCompletionOption.ResponseHeadersRead ).GetAwaiter().GetResult();
 		if ( response.StatusCode == HttpStatusCode.NotFound )
 		{
-			Log.Error( $"Manifest not found for commit {commitHash}." );
+			Log.Warning( $"Manifest not found for commit {commitHash}." );
 			return null;
 		}
 
 		if ( !response.IsSuccessStatusCode )
 		{
-			Log.Error( $"Failed to download manifest (HTTP {(int)response.StatusCode})." );
+			Log.Warning( $"Failed to download manifest for commit {commitHash} (HTTP {(int)response.StatusCode})." );
 			return null;
 		}
 
@@ -186,7 +199,7 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 
 		if ( manifest is null )
 		{
-			Log.Error( "Failed to deserialize manifest JSON." );
+			Log.Warning( $"Failed to deserialize manifest JSON for commit {commitHash}." );
 			return null;
 		}
 

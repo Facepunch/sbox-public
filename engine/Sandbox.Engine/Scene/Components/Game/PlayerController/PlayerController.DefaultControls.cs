@@ -86,7 +86,7 @@ public sealed partial class PlayerController : Component
 
 	void UpdateHeadroom()
 	{
-		var tr = TraceBody( WorldPosition + Vector3.Up * BodyHeight * 0.5f, WorldPosition + Vector3.Up * (100 + BodyHeight * 0.5f), 0.75f, 0.5f );
+		var tr = TraceBody( WorldPosition + Vector3.Up * CurrentHeight * 0.5f, WorldPosition + Vector3.Up * (100 + CurrentHeight * 0.5f), 0.75f, 0.5f );
 		Headroom = tr.Distance;
 	}
 

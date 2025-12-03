@@ -330,7 +330,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		if ( Health <= 0.0f )
 			return;
 
-		if ( IsFlammable && !IsOnFire )
+		if ( IsFlammable && !IsOnFire && ShouldDamageIgnite( damage ) )
 		{
 			// when first ignited, randomize the health a bit, so eventual breaks and explosions
 			// don't happen in complete unison
@@ -353,6 +353,17 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			Kill();
 			Health = 0;
 		}
+	}
+
+	bool ShouldDamageIgnite( in DamageInfo damage )
+	{
+		// Physics impacts only ignite if they do lots of damage
+		if ( damage.Tags.Contains( "impact" ) )
+		{
+			return damage.Damage > Health * 0.5f;
+		}
+
+		return true;
 	}
 
 	public void Ignite()
@@ -521,25 +532,32 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			c.Model = model;
 			c.Enabled = true;
 
-			var phys = gib.Components.Get<Rigidbody>( true );
-
-			if ( phys is not null && rb is not null )
-			{
-				phys.Velocity = rb.Velocity;
-				phys.AngularVelocity = rb.AngularVelocity;
-			}
-
 			gibs.Add( c );
 
 			if ( breakModel.IsClientOnly )
 			{
 				gib.Tags.Add( "debris", "clientside" ); // no physics interactions
-				gib.Enabled = true;
 			}
-			else
+			else if ( !IsProxy )
 			{
 				// Spawn on the network
 				gib.NetworkSpawn( true, null );
+			}
+
+			gib.Enabled = true;
+
+			var phys = gib.Components.Get<Rigidbody>( true );
+
+			if ( phys is not null && rb is not null )
+			{
+				// Compute linear velocity at the gibs spawn point.
+				var velocity = rb.PreVelocity + Vector3.Cross( rb.PreAngularVelocity, phys.MassCenter - rb.MassCenter );
+
+				// Apply 50% energy loss.
+				velocity *= 0.5f;
+
+				phys.Velocity = velocity;
+				phys.AngularVelocity = rb.PreAngularVelocity;
 			}
 		}
 

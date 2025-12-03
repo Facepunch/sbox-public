@@ -25,6 +25,7 @@ native static class WidgetUtil Native.WidgetUtil
 	// Text measuring tools
 	//
 	Vector4 MeasureText( QRect rect, int flags, string text );
+	QString ElidedText( string text, int width, int mode, int flags );
 
 
 	static void ConstrainToScreen( QWidget widget );

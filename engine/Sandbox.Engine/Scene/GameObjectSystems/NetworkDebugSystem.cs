@@ -23,7 +23,8 @@ sealed class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 		Snapshot,
 		SyncVars,
 		Culling,
-		StringTable
+		StringTable,
+		UserCommands
 	}
 
 	internal class Sample

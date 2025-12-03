@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using Sandbox.MovieMaker;
 using System.Linq;
+using Sandbox.MovieMaker.Properties;
 
 namespace Editor.MovieMaker;
 
@@ -20,6 +21,8 @@ public sealed partial class TrackView : IComparable<TrackView>
 	public IProjectTrack Track { get; }
 	public ITrackTarget Target { get; }
 
+	public string Name => Track.Name;
+
 	public MovieTime Duration => _blocks.Select( x => x.TimeRange.End )
 		.Concat( _previewBlocks.Select( x => x.TimeRange.End ) )
 		.DefaultIfEmpty( MovieTime.Zero )
@@ -32,10 +35,21 @@ public sealed partial class TrackView : IComparable<TrackView>
 	private bool _isExpanded;
 	private bool _isLockedSelf;
 	private bool _isHovered;
+	private bool _isSelected;
 
 	private bool _wasExpanded;
 
-	public bool IsSelected { get; internal set; }
+	public bool IsSelected
+	{
+		get => _isSelected;
+		set
+		{
+			if ( _isSelected == value ) return;
+
+			_isSelected = value;
+			DispatchChanged( false );
+		}
+	}
 
 	public bool IsHovered
 	{
@@ -86,7 +100,7 @@ public sealed partial class TrackView : IComparable<TrackView>
 		{
 			var path = Track.GetPath();
 			string[] propertyNames = [path.ReferenceTrack.Name, .. path.PropertyNames];
-			return string.Join( $" \u2192 ", propertyNames );
+			return string.Join( " \u2192 ", propertyNames );
 		}
 	}
 
@@ -98,6 +112,22 @@ public sealed partial class TrackView : IComparable<TrackView>
 
 	public int StateHash { get; private set; }
 	public bool IsEmpty => _children.Count == 0 && Track.IsEmpty;
+
+	/// <summary>
+	/// Is this track representing the transform of a bone accessed through a <see cref="SkinnedModelRenderer"/>?
+	/// </summary>
+	public bool IsBoneTransform => Track is IPropertyTrack<Transform> && Parent is
+		{ Track.Name: "Bones", Parent.Track: IReferenceTrack<SkinnedModelRenderer> };
+
+	/// <summary>
+	/// Is this track representing a (procedural) bone object?
+	/// </summary>
+	public bool IsBoneObject => Parent is not null && Target is ITrackReference<GameObject> { Value.Flags: var flags } && (flags & GameObjectFlags.Bone) != 0;
+
+	public BoneCollection.Bone? Bone =>
+		Parent?.Parent?.Target is ITrackReference<SkinnedModelRenderer> { Value.Model: { } model }
+			? model.Bones.GetBone( Track.Name )
+			: null;
 
 	/// <summary>
 	/// Invoked when properties of this track are changed.
@@ -150,12 +180,52 @@ public sealed partial class TrackView : IComparable<TrackView>
 	private void RemoveChildTrack( TrackView item ) => item.OnRemoved();
 	private bool UpdateChildTrack( IProjectTrack source, TrackView item ) => item.Update();
 
+	/// <summary>
+	/// Select this track, deselect others.
+	/// </summary>
 	public void Select()
 	{
 		TrackList.DeselectAll();
+		TrackList.LastSelected = this;
+
+		IsSelected = true;
+	}
+
+	/// <summary>
+	/// Toggle whether this track is selected, don't deselect others.
+	/// </summary>
+	public void ToggleSelect()
+	{
+		IsSelected = !IsSelected;
+		TrackList.LastSelected = this;
+	}
+
+	/// <summary>
+	/// Select this track, and all tracks between it and the last selected track.
+	/// </summary>
+	public void RangeSelect()
+	{
+		var lastSelected = TrackList.LastSelected;
+
+		TrackList.LastSelected = this;
 		IsSelected = true;
 
-		Update();
+		if ( lastSelected is null || lastSelected == this ) return;
+
+		var visibleTracks = TrackList.VisibleTracks.ToArray();
+
+		var lastIndex = visibleTracks.IndexOf( lastSelected );
+		var thisIndex = visibleTracks.IndexOf( this );
+
+		if ( lastIndex == -1 || thisIndex == -1 ) return;
+
+		var minIndex = Math.Min( lastIndex, thisIndex );
+		var maxIndex = Math.Max( lastIndex, thisIndex );
+
+		for ( var i = minIndex; i <= maxIndex; i++ )
+		{
+			visibleTracks[i].IsSelected = true;
+		}
 	}
 
 	private readonly record struct SubOrderedTrack( IProjectTrack Track, int SubOrder ) : IComparable<SubOrderedTrack>
@@ -313,10 +383,10 @@ public sealed partial class TrackView : IComparable<TrackView>
 		return string.Compare( Track.Name, other.Track.Name, StringComparison.Ordinal );
 	}
 
-	private T GetCookie<T>( string name, T fallback ) =>
+	public T GetCookie<T>( string name, T fallback ) =>
 		TrackList.Session.GetCookie( $"{Track.Id}.{name}", fallback );
 
-	private void SetCookie<T>( string name, T value ) =>
+	public void SetCookie<T>( string name, T value ) =>
 		TrackList.Session.SetCookie( $"{Track.Id}.{name}", value );
 
 	public void InspectProperty()
@@ -408,6 +478,12 @@ public sealed partial class TrackView : IComparable<TrackView>
 
 				if ( _previewBlocks.GetBlock( time ) is IPropertySignal block )
 				{
+					if ( block is IDynamicBlock )
+					{
+						// Don't preview while recording
+						break;
+					}
+
 					property.Value = block.GetValue( time );
 				}
 				else
@@ -438,6 +514,11 @@ public sealed partial class TrackView : IComparable<TrackView>
 
 	private IPropertyTrack<Transform> CreateTransformTrack()
 	{
+		if ( IsBoneTransform )
+		{
+			return new BoneTransformTrack( Parent!, Track.Name );
+		}
+
 		if ( Track is not IReferenceTrack<GameObject> )
 		{
 			return Parent?.TransformTrack ?? new TransformTrack( this );
@@ -451,6 +532,9 @@ public sealed partial class TrackView : IComparable<TrackView>
 	}
 }
 
+/// <summary>
+/// Helper for drawing a trail gizmo of a track inside a game object reference track.
+/// </summary>
 file sealed class TransformTrack : IPropertyTrack<Transform>
 {
 	public string Name => "Transform";
@@ -518,5 +602,82 @@ file sealed class TransformTrack : IPropertyTrack<Transform>
 		}
 
 		return enabled;
+	}
+}
+
+/// <summary>
+/// Helper for drawing a trail gizmo of a bone track.
+/// </summary>
+file sealed class BoneTransformTrack : IPropertyTrack<Transform>
+{
+	public string Name { get; }
+	public ITrack Parent { get; }
+
+	private readonly TrackView _boneAccessorView;
+
+	public BoneTransformTrack( TrackView boneAccessorView, string boneName )
+	{
+		_boneAccessorView = boneAccessorView;
+
+		Name = boneName;
+		Parent = boneAccessorView.Track;
+	}
+
+	public bool TryGetValue( MovieTime time, out Transform value )
+	{
+		value = default;
+
+		if ( _boneAccessorView.Parent?.Target is not ITrackReference<SkinnedModelRenderer> { Value: { } renderer } )
+		{
+			return false;
+		}
+
+		if ( renderer.Model is not { } model )
+		{
+			return false;
+		}
+
+		if ( model.Bones.GetBone( Name ) is not { } bone )
+		{
+			return false;
+		}
+
+		if ( GetBoneTransform( renderer, bone, time ) is { } transform )
+		{
+			value = transform;
+
+			if ( _boneAccessorView.Parent?.TransformTrack.TryGetValue( time, out var parentTransform ) is true )
+			{
+				value = parentTransform.ToWorld( value );
+				return true;
+			}
+
+			return false;
+		}
+
+		return false;
+	}
+
+	private Transform? GetBoneTransform( SkinnedModelRenderer renderer, BoneCollection.Bone bone, MovieTime time )
+	{
+		var parentTransform = bone.Parent is { } parent
+			? GetBoneTransform( renderer, parent, time ) ?? Transform.Zero
+			: Transform.Zero;
+
+		Transform localTransform;
+
+		if ( _boneAccessorView.Children.FirstOrDefault( x => x.Track.Name == bone.Name ) is { } boneView )
+		{
+			if ( !boneView.TryGetValue( time, out localTransform ) )
+			{
+				return null;
+			}
+		}
+		else
+		{
+			localTransform = MovieBoneAnimatorSystem.Current.GetParentSpaceBone( renderer, bone.Index );
+		}
+
+		return parentTransform.ToWorld( localTransform );
 	}
 }

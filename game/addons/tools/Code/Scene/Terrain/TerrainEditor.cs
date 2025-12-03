@@ -4,10 +4,10 @@
 /// Modify terrains
 /// </summary>
 [EditorTool]
-[Title( "Terrain Tool" )]
+[Title( "Terrain" )]
 [Icon( "landscape" )]
 [Alias( "terrain" )]
-[Group( "9" )]
+[Group( "Scene" )]
 public class TerrainEditorTool : EditorTool
 {
 	public override IEnumerable<EditorTool> GetSubtools()

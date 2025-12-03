@@ -94,10 +94,19 @@ public sealed class TrackListWidget : Widget
 
 		track.Focus( false );
 
-		if ( Parent is ScrollArea scrollArea )
-		{
-			scrollArea.MakeVisible( track );
-		}
+		ScrollToTrack( track.View );
+	}
+
+	public void ScrollToTrack( TrackView trackView ) => ScrollToTrack( trackView.Track );
+
+	public void ScrollToTrack( IProjectTrack track )
+	{
+		if ( Tracks.FirstOrDefault( x => x.View.Track.Id == track.Id ) is not { } trackWidget ) return;
+
+		var maxScrollPos = trackWidget.Position.y + Session.TrackListHeaderHeight + Session.TrackListScrollOffset;
+		var minScrollPos = maxScrollPos - Session.TrackListViewHeight;
+
+		Session.TrackListScrollPosition = Math.Clamp( Session.TrackListScrollPosition, minScrollPos, maxScrollPos );
 	}
 
 	protected override void OnPaint()
@@ -130,6 +139,11 @@ public sealed class TrackListWidget : Widget
 		base.OnMousePress( e );
 
 		_lastMouseScreenPos = e.ScreenPosition;
+
+		if ( e.LeftMouseButton && !e.HasCtrl )
+		{
+			Session.TrackList.DeselectAll();
+		}
 	}
 
 	protected override void OnMouseMove( MouseEvent e )
