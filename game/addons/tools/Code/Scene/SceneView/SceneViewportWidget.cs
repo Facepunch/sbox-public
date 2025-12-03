@@ -412,8 +412,8 @@ public partial class SceneViewportWidget : Widget
 
 	void OnEditorPreFrame()
 	{
-		if ( SceneView.CurrentView == SceneViewWidget.ViewMode.Game )
-			return;
+		// don't do editor update if we're the play view
+		if ( IsGameView ) return;
 
 		UpdateInputState();
 
