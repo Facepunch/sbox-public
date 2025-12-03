@@ -1,7 +1,6 @@
 using Sandbox.Network;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
-using static Sandbox.Component;
 
 namespace Sandbox;
 
@@ -139,7 +138,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	/// </summary>
 	private void CallNetworkSpawn( Connection owner )
 	{
-		foreach ( var target in GameObject.Components.GetAll<INetworkSpawn>( FindMode.EverythingInSelfAndDescendants ).ToArray() )
+		foreach ( var target in GameObject.Components.GetAll<Component.INetworkSpawn>( FindMode.EverythingInSelfAndDescendants ).ToArray() )
 		{
 			try
 			{
@@ -535,14 +534,15 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		if ( system is null ) return null;
 
 		LocalSnapshotState.SnapshotId = system.DeltaSnapshots.CreateSnapshotId( Id );
+		LocalSnapshotState.ParentId = GameObject.Parent is Scene ? Guid.Empty : GameObject.Parent.Id;
 		LocalSnapshotState.ObjectId = Id;
 
 		if ( !IsProxy )
 		{
 			var tx = GameObject.Transform.TargetLocal;
-			LocalSnapshotState.AddCached( _snapshotCache, SnapshotPositionSlot, tx.Position );
-			LocalSnapshotState.AddCached( _snapshotCache, SnapshotRotationSlot, tx.Rotation );
-			LocalSnapshotState.AddCached( _snapshotCache, SnapshotScaleSlot, tx.Scale );
+			LocalSnapshotState.AddCached( _snapshotCache, SnapshotPositionSlot, tx.Position, true );
+			LocalSnapshotState.AddCached( _snapshotCache, SnapshotRotationSlot, tx.Rotation, true );
+			LocalSnapshotState.AddCached( _snapshotCache, SnapshotScaleSlot, tx.Scale, true );
 			LocalSnapshotState.AddCached( _snapshotCache, SnapshotInterpolationSlot, _clearInterpolationFlag );
 			LocalSnapshotState.AddCached( _snapshotCache, SnapshotEnabledSlot, GameObject.Enabled );
 		}

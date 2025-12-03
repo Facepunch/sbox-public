@@ -171,7 +171,7 @@ public partial class AssetList : ListView, AssetSystem.IEventListener
 	/// </summary>
 	public void SetListMode()
 	{
-		ItemSize = new Vector2( 0, 24 );
+		ItemSize = new Vector2( 0, Theme.RowHeight );
 		ItemPaint = PaintListItem;
 		ItemSpacing = 0;
 	}

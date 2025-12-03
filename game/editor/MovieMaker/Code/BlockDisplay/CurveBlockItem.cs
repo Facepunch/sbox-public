@@ -152,9 +152,9 @@ public sealed class Vector4BlockItem() : CurveBlockItem<Vector4>(
 #region Rotation
 
 public sealed class AnglesBlockItem() : CurveBlockItem<Angles>(
-	new Element( "P", Theme.Red, -180f, 180f ),
-	new Element( "Y", Theme.Green, -180f, 180f ),
-	new Element( "R", Theme.Blue, -180f, 180f ) )
+	new Element( "P", Theme.Red.Lighten( 0.25f ), -180f, 180f ),
+	new Element( "Y", Theme.Green.Lighten( 0.25f ), -180f, 180f ),
+	new Element( "R", Theme.Blue.Lighten( 0.25f ), -180f, 180f ) )
 {
 	protected override void Decompose( Angles value, Span<float> result )
 	{
@@ -165,9 +165,9 @@ public sealed class AnglesBlockItem() : CurveBlockItem<Angles>(
 }
 
 public sealed class RotationBlockItem() : CurveBlockItem<Rotation>(
-	new Element( "X", Theme.Red, -1f, 1f ),
-	new Element( "Y", Theme.Green, -1f, 1f ),
-	new Element( "Z", Theme.Blue, -1f, 1f ),
+	new Element( "X", Theme.Red.Lighten( 0.25f ), -1f, 1f ),
+	new Element( "Y", Theme.Green.Lighten( 0.25f ), -1f, 1f ),
+	new Element( "Z", Theme.Blue.Lighten( 0.25f ), -1f, 1f ),
 	new Element( "W", Color.White, -1f, 1f ) )
 {
 	protected override void Decompose( Rotation value, Span<float> result )
@@ -182,6 +182,35 @@ public sealed class RotationBlockItem() : CurveBlockItem<Rotation>(
 		result[1] = forward.y;
 		result[2] = forward.z;
 		result[3] = right.z;
+	}
+}
+
+#endregion
+
+#region Transform
+
+public sealed class TransformBlockItem() : CurveBlockItem<Transform>(
+	new Element( "X", Theme.Red ),
+	new Element( "Y", Theme.Green ),
+	new Element( "Z", Theme.Blue ),
+	new Element( "x", Theme.Red.Lighten( 0.25f ), -1f, 1f ),
+	new Element( "y", Theme.Green.Lighten( 0.25f ), -1f, 1f ),
+	new Element( "z", Theme.Blue.Lighten( 0.25f ), -1f, 1f ),
+	new Element( "w", Color.White, -1f, 1f ) )
+{
+	protected override void Decompose( Transform value, Span<float> result )
+	{
+		var forward = value.Forward;
+		var right = value.Right;
+
+		result[0] = value.Position.x;
+		result[1] = value.Position.y;
+		result[2] = value.Position.z;
+
+		result[3] = forward.x;
+		result[4] = forward.y;
+		result[5] = forward.z;
+		result[6] = right.z;
 	}
 }
 

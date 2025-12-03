@@ -102,7 +102,7 @@ public partial class MoveModeLadder : MoveMode
 			return;
 
 		var wt = WorldTransform;
-		Vector3 head = wt.PointToWorld( new Vector3( 0, 0, Controller.BodyHeight ) );
+		Vector3 head = wt.PointToWorld( new Vector3( 0, 0, Controller.CurrentHeight ) );
 		Vector3 foot = wt.Position;
 
 		GameObject ladderObject = default;

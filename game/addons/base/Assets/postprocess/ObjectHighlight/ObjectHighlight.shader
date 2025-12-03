@@ -114,21 +114,19 @@ PS
     RenderState( DepthWriteEnable, true );
     RenderState( DepthEnable, true );
 	RenderState( ColorWriteEnable0, RGB );
+	
+	RenderState( StencilEnable, true );
+	RenderState( StencilRef, 1 );
 
 	// Write to stencil if we're doing the inside pass
 #if D_OUTLINE_PASS == OUTLINE_INSIDE
-	RenderState( StencilEnable, true );
 	RenderState( StencilPassOp, REPLACE );
 	RenderState( StencilFunc, ALWAYS );
 	RenderState( BackStencilFunc, ALWAYS );
-	RenderState( StencilRef, 0x01 );
 #else
-	RenderState( StencilEnable, true );
 	RenderState( StencilPassOp, KEEP );
 	RenderState( StencilFunc, NOT_EQUAL );
-	RenderState( StencilRef, 3 );
-	RenderState( StencilReadMask, 1 );
-	RenderState( StencilWriteMask, 254 );
+	RenderState( BackStencilFunc, NOT_EQUAL );
 #endif
 
 	Texture2D _BaseOpacity < Attribute( "BaseOpacity" ); >;

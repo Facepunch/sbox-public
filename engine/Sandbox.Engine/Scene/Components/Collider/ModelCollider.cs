@@ -142,6 +142,12 @@ public class ModelCollider : Collider, IHasModel
 
 			if ( part.AngularDamping > 0 )
 				targetBody.AngularDamping = part.AngularDamping;
+
+			if ( part.GravityScale != 1.0f )
+			{
+				targetBody.DefaultGravityScale = part.GravityScale;
+				targetBody.GravityScale = part.GravityScale;
+			}
 		}
 	}
 

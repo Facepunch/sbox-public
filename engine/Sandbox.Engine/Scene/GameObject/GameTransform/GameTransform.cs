@@ -1,5 +1,6 @@
 ﻿using Sandbox.Utility;
 using System.Runtime.CompilerServices;
+using Sandbox.Interpolation;
 
 namespace Sandbox;
 
@@ -108,11 +109,7 @@ public partial class GameTransform
 				return;
 			}
 
-			var isFixedUpdate = GameObject?.Scene?.IsFixedUpdate ?? false;
-			var isEnabled = GameObject?.Enabled ?? false;
-			var isInterpolationDisabled = GameObject?.Flags.Contains( GameObjectFlags.NoInterpolation ) ?? false;
-
-			SetLocalTransform( value, FixedUpdateInterpolation && isFixedUpdate && isEnabled && !isInterpolationDisabled );
+			SetLocalTransform( value, ShouldInterpolate() );
 		}
 	}
 
@@ -230,14 +227,16 @@ public partial class GameTransform
 			return;
 		}
 
+		var interpolate = ShouldInterpolate();
+
 		if ( !IsFollowingParent() )
 		{
-			Local = value;
+			SetLocalTransform( value, interpolate );
 			return;
 		}
 
 		var localTransform = GameObject.Parent.WorldTransform.ToLocal( value );
-		SetLocalTransform( localTransform );
+		SetLocalTransform( localTransform, interpolate );
 	}
 
 	/// <summary>
@@ -347,7 +346,7 @@ public partial class GameTransform
 	{
 		if ( GameObject.Network.Interpolation && !clearInterpolation )
 		{
-			_networkTransformBuffer.Add( new( transform ), Time.Now );
+			_networkTransformBuffer.Add( new TransformState( transform ), Time.Now );
 			Interpolate = true;
 		}
 		else

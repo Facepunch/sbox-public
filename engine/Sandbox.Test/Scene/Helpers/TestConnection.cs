@@ -13,6 +13,28 @@ internal sealed class TestConnection : Connection
 
 	public List<Message> Messages { get; } = new();
 
+	public override bool IsHost { get; }
+
+	public TestConnection( Guid id, bool isHost = false )
+	{
+		IsHost = isHost;
+		Id = id;
+	}
+
+	public TestConnection()
+	{
+
+	}
+
+	public void ProcessMessages( InternalMessageType type, Action<ByteStream> callback )
+	{
+		foreach ( var m in Messages.Where( p => p.Type == type ) )
+		{
+			using var reader = ByteStream.CreateReader( m.Payload as byte[] );
+			callback( reader );
+		}
+	}
+
 	internal override void InternalSend( ByteStream stream, NetFlags flags )
 	{
 		var reader = new ByteStream( stream.ToArray() );
@@ -29,7 +51,7 @@ internal sealed class TestConnection : Connection
 				break;
 
 			default:
-				Messages.Add( new Message( type ) );
+				Messages.Add( new Message( type, reader.GetRemainingBytes().ToArray() ) );
 				break;
 		}
 	}

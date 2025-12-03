@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -135,25 +136,39 @@ file sealed class ResampleCache<T>
 
 partial class PropertySignalExtensions
 {
-	public static IReadOnlyList<PropertyBlock<T>> AsBlocks<T>( this ProjectSourceClip source, IProjectPropertyTrack track )
+	public static IReadOnlyList<IProjectPropertyBlock> AsBlocks( this ProjectSourceClip source, IProjectPropertyTrack track )
+	{
+		var method = AsBlocksCore_Method.MakeGenericMethod( track.TargetType );
+		var blocks = (IEnumerable<IProjectPropertyBlock>)method.Invoke( null, [source, track] )!;
+
+		return [.. blocks];
+	}
+
+	public static IReadOnlyList<PropertyBlock<T>> AsBlocks<T>( this ProjectSourceClip source, IProjectPropertyTrack track ) => AsBlocksCore<T>( source, track );
+
+	private static MethodInfo AsBlocksCore_Method { get; } = typeof(PropertySignalExtensions)
+		.GetMethod( nameof(AsBlocksCore), BindingFlags.Static | BindingFlags.NonPublic )!;
+
+	private static IReadOnlyList<PropertyBlock<T>> AsBlocksCore<T>( ProjectSourceClip source, IProjectPropertyTrack track )
 	{
 		var (refTrack, propertyPath) = track.GetPath();
 
-		if ( source.Clip.GetProperty<T>( refTrack.Id, propertyPath ) is not { } matchingTrack )
-		{
-			return [];
-		}
+		return source.Clip.GetProperty<T>( refTrack.Id, propertyPath ) is { } matchingTrack ? source.AsBlocks( matchingTrack ) : [];
+	}
 
-		var trackIndex = source.Clip.Tracks.IndexOf( matchingTrack );
+	public static IReadOnlyList<PropertyBlock<T>> AsBlocks<T>( this ProjectSourceClip source, CompiledPropertyTrack<T> compiledTrack )
+	{
+		var trackIndex = source.Clip.Tracks.IndexOf( compiledTrack );
 
-		return matchingTrack.Blocks
-			.Select( (x, i) => new PropertyBlock<T>( x switch
+		return
+		[
+			..compiledTrack.Blocks.Select( ( x, i ) => new PropertyBlock<T>( x switch
 			{
 				CompiledConstantBlock<T> constant => constant.Value,
 				CompiledSampleBlock<T> => new CompiledSignal<T>( source, trackIndex, i ),
 				_ => throw new NotImplementedException()
 			}, x.TimeRange ) )
-			.ToImmutableArray();
+		];
 	}
 
 	public static IReadOnlyList<T> Resample<T>( this CompiledSampleBlock<T> source, int sampleRate,

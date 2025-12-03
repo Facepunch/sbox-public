@@ -12,6 +12,7 @@ public sealed class TrackListView
 {
 	public Session Session { get; }
 	public int StateHash { get; private set; }
+	public TrackView? LastSelected { get; set; }
 
 	public MovieTime Duration => MovieTime.Max( Session.Project.Duration,
 		_trackDict.Values
@@ -32,7 +33,9 @@ public sealed class TrackListView
 	public IEnumerable<TrackView> VisibleTracks => RootTracks.SelectMany( EnumerateVisibleDescendants );
 	public IEnumerable<TrackView> SelectedTracks => AllTracks.Where( x => x.IsSelected );
 
-	public IEnumerable<TrackView> EditableTracks =>
+	public IEnumerable<TrackView> UnlockedTracks =>
+		AllTracks.Where( x => x is { IsLocked: false } );
+	public IEnumerable<TrackView> EditablePropertyTracks =>
 		AllTracks.Where( x => x is { IsLocked: false, Target: ITrackProperty { CanWrite: true } } );
 
 	public TrackView? Find( IProjectTrack track ) => _trackDict.GetValueOrDefault( track );
@@ -108,6 +111,8 @@ public sealed class TrackListView
 
 	public void DeselectAll()
 	{
+		LastSelected = null;
+
 		foreach ( var view in SelectedTracks.ToArray() )
 		{
 			view.IsSelected = false;

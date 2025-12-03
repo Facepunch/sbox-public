@@ -332,7 +332,7 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		if ( !EnableImpactDamage ) return;
 		if ( IsProxy ) return;
 
-		var speed = collision.Contact.Speed.Length;
+		var speed = collision.Contact.NormalSpeed;
 		var minSpeed = MinImpactDamageSpeed;
 		if ( minSpeed <= 0 )
 			minSpeed = 500f;
@@ -477,9 +477,22 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	/// </summary>
 	internal Transform? TargetTransform { get; set; }
 
+	/// <summary>
+	/// Linear velocity before physics step. Internal until someone needs them.
+	/// </summary>
+	internal Vector3 PreVelocity { get; private set; }
+
+	/// <summary>
+	/// Angular velocity before physics step. Internal until someone needs them.
+	/// </summary>
+	internal Vector3 PreAngularVelocity { get; private set; }
+
 	void IScenePhysicsEvents.PrePhysicsStep()
 	{
 		if ( !_body.IsValid() ) return;
+
+		PreVelocity = _body.Velocity;
+		PreAngularVelocity = _body.AngularVelocity;
 
 		if ( TargetTransform.HasValue )
 		{

@@ -9,19 +9,6 @@ internal class PullRequest
 	{
 		var builder = new PipelineBuilder( "Pull Request" );
 
-		// Add format steps - allow them to fail
-		// Linux formatting complains about line endings, it's probably enough if we run this windows only anyway
-		if ( OperatingSystem.IsWindows() )
-		{
-			builder.AddStepGroup( "Format",
-			[
-				new Format( "Format Engine", Solutions.Engine, Format.Mode.Full, verifyOnly: true ),
-				new Format( "Format Editor", Solutions.Toolbase, Format.Mode.Whitespace, verifyOnly: true ),
-				new Format( "Format Menu", Solutions.Menu, Format.Mode.Whitespace, verifyOnly: true ),
-				new Format( "Format Build Tools", Solutions.BuildTools, Format.Mode.Full, verifyOnly: true )
-			], continueOnFailure: true );
-		}
-
 		// Add other steps
 		builder.AddStepGroup( "CodeGen",
 			[

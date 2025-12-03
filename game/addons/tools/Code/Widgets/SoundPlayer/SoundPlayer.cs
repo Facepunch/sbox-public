@@ -180,7 +180,6 @@ public partial class SoundPlayer : Widget
 
 			if ( Timeline.Playing && !Scrubbing )
 			{
-				Time += RealTime.Delta;
 				var time = Time % Duration;
 				if ( time < Time )
 				{
@@ -194,9 +193,10 @@ public partial class SoundPlayer : Widget
 					}
 					else
 					{
-						time = 0;
-						Time = time;
 						SoundHandle?.Stop( 0.0f );
+						time = 0;
+						Time = 0;
+						MoveScrubber( 0 );
 						Timeline.Playing = false;
 					}
 				}
@@ -204,11 +204,13 @@ public partial class SoundPlayer : Widget
 				if ( Timeline.Playing && !SoundHandle.IsValid() )
 				{
 					SoundHandle = EditorUtility.PlaySound( Sound, Time );
+					SoundHandle.Time = 0;
 					SoundHandle.Occlusion = false;
 					SoundHandle.DistanceAttenuation = false;
 				}
 
 				Scrubber.Position = Scrubber.Position.WithX( PositionFromTime( Time ) - 3 ).SnapToGrid( 1.0f );
+				Time += RealTime.SmoothDelta;
 			}
 
 			if ( SoundHandle.IsValid() )
