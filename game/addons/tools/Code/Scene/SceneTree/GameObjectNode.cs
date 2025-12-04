@@ -32,27 +32,27 @@ partial class GameObjectNode : TreeNode<GameObject>
 			hc.Add( Value.Network.IsOwner );
 			hc.Add( Value.IsProxy );
 			hc.Add( Value.Active );
-		hc.Add( Value.Tags ); // Include tags for custom icon and color changes
+			hc.Add( Value.Tags ); // Include tags for custom icon and color changes
 
-		// Include custom icon (from session storage) so changes trigger a node update
-		// Prefer persisted icon tag (saved with scene) so icons survive reloads
-		var iconTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) );
-		if ( iconTag is not null )
-		{
-			var decoded = Editor.IconTagEncoding.DecodeIconFromTag( iconTag );
-			if ( !string.IsNullOrEmpty( decoded ) ) hc.Add( decoded );
-		}
-		else if ( CustomIconStorage.Icons.TryGetValue( Value, out var sessionIcon ) )
-		{
-			hc.Add( sessionIcon );
-		}
+			// Include custom icon (from session storage) so changes trigger a node update
+			// Prefer persisted icon tag (saved with scene) so icons survive reloads
+			var iconTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) );
+			if ( iconTag is not null )
+			{
+				var decoded = Editor.IconTagEncoding.DecodeIconFromTag( iconTag );
+				if ( !string.IsNullOrEmpty( decoded ) ) hc.Add( decoded );
+			}
+			else if ( CustomIconStorage.Icons.TryGetValue( Value, out var sessionIcon ) )
+			{
+				hc.Add( sessionIcon );
+			}
 
-		// Also include persisted color tag so color changes invalidate the node
-		var colorTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_color_" ) );
-		if ( colorTag is not null )
-		{
-			hc.Add( colorTag );
-		}
+			// Also include persisted color tag so color changes invalidate the node
+			var colorTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_color_" ) );
+			if ( colorTag is not null )
+			{
+				hc.Add( colorTag );
+			}
 
 			foreach ( var val in Value.Children )
 			{
@@ -248,48 +248,48 @@ partial class GameObjectNode : TreeNode<GameObject>
 
 		var iconSize = 16;
 
-        // Apply custom icon and color overrides (after all default conditions)
+		// Apply custom icon and color overrides (after all default conditions)
 
 
-        // Prefer persisted icon tag (saved with scene)
-        var iconTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) );
-        if ( iconTag is not null )
-        {
-            var decoded = Editor.IconTagEncoding.DecodeIconFromTag( iconTag );
-            if ( !string.IsNullOrEmpty( decoded ) ) icon = decoded;
-        }
-        else if ( CustomIconStorage.Icons.TryGetValue( Value, out var sessionIconValue ) )
-        {
-            icon = sessionIconValue;
-        }
+		// Prefer persisted icon tag (saved with scene)
+		var iconTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) );
+		if ( iconTag is not null )
+		{
+			var decoded = Editor.IconTagEncoding.DecodeIconFromTag( iconTag );
+			if ( !string.IsNullOrEmpty( decoded ) ) icon = decoded;
+		}
+		else if ( CustomIconStorage.Icons.TryGetValue( Value, out var sessionIconValue ) )
+		{
+			icon = sessionIconValue;
+		}
 
-        // Prefer persisted color tag (saved with scene)
-        var colorTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_color_" ) );
-        if ( colorTag is not null )
-        {
-            var hex = colorTag.Substring( 11 ); // Remove "icon_color_"
-            // Expecting AARRGGBB
-            if ( hex.Length == 8 )
-            {
-                if ( Color.TryParse( $"#{hex}", out var parsedColor ) )
-                {
-                    iconColor = parsedColor;
-                    overlayIconColor = parsedColor;
-                }
-            }
-            else if ( hex.Length == 6 )
-            {
-                // fallback RRGGBB -> assume full alpha
-                if ( Color.TryParse( $"#FF{hex}", out var parsedColor ) )
-                {
-                    iconColor = parsedColor;
-                    overlayIconColor = parsedColor;
-                }
-            }
-        }
+		// Prefer persisted color tag (saved with scene)
+		var colorTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_color_" ) );
+		if ( colorTag is not null )
+		{
+			var hex = colorTag.Substring( 11 ); // Remove "icon_color_"
+												// Expecting AARRGGBB
+			if ( hex.Length == 8 )
+			{
+				if ( Color.TryParse( $"#{hex}", out var parsedColor ) )
+				{
+					iconColor = parsedColor;
+					overlayIconColor = parsedColor;
+				}
+			}
+			else if ( hex.Length == 6 )
+			{
+				// fallback RRGGBB -> assume full alpha
+				if ( Color.TryParse( $"#FF{hex}", out var parsedColor ) )
+				{
+					iconColor = parsedColor;
+					overlayIconColor = parsedColor;
+				}
+			}
+		}
 
-        Paint.Pen = iconColor.WithAlphaMultiplied( opacity );
-        Paint.DrawIcon( r, icon, iconSize, TextFlag.LeftCenter );
+		Paint.Pen = iconColor.WithAlphaMultiplied( opacity );
+		Paint.DrawIcon( r, icon, iconSize, TextFlag.LeftCenter );
 		if ( !string.IsNullOrEmpty( overlayIcon ) )
 		{
 			var overlayIconRect = r;
@@ -336,10 +336,10 @@ partial class GameObjectNode : TreeNode<GameObject>
 
 		}
 		// Apply custom icon and color overrides (after all default conditions)
-        if ( CustomIconStorage.Icons.TryGetValue( Value, out var customIcon ) )
-        {
-            icon = customIcon;
-        }
+		if ( CustomIconStorage.Icons.TryGetValue( Value, out var customIcon ) )
+		{
+			icon = customIcon;
+		}
 	}
 
 	public override void OnRename( VirtualWidget item, string text, List<TreeNode> selection = null )
@@ -566,22 +566,22 @@ partial class GameObjectNode : TreeNode<GameObject>
 
 		// For object creation, we need to determine the parent at click time, not menu creation time
 		// (because right-clicking on empty space deselects nodes, and we want root-level creation in that case)
-        Func<IEnumerable<GameObject>> getParentsForCreation = () =>
-        {
-            var currentSelection = EditorScene.Selection.OfType<GameObject>();
+		Func<IEnumerable<GameObject>> getParentsForCreation = () =>
+		{
+			var currentSelection = EditorScene.Selection.OfType<GameObject>();
 
-            if ( currentSelection.Any() )
-            {
-                // Use current selection as parents
-                var validParents = currentSelection.Where( x => x != null && x.IsValid() );
-                return validParents;
-            }
-            else
-            {
-                // No current selection - create at root level
-                return new GameObject[] { null };
-            }
-        };
+			if ( currentSelection.Any() )
+			{
+				// Use current selection as parents
+				var validParents = currentSelection.Where( x => x != null && x.IsValid() );
+				return validParents;
+			}
+			else
+			{
+				// No current selection - create at root level
+				return new GameObject[] { null };
+			}
+		};
 
 		m.AddOption( "Cut", "content_cut", EditorScene.Cut, "editor.cut" ).Enabled = isObjectMenu && !isPrefabRoot;
 		m.AddOption( "Copy", "content_copy", EditorScene.Copy, "editor.copy" ).Enabled = isObjectMenu;

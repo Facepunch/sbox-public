@@ -31,7 +31,7 @@ class GameObjectHeader : Widget
 				var left = topRow.AddRow();
 				left.Add( new GameObjectIconButton( this ) );
 			}
-        
+
 
 			// 2 rows right
 			{
@@ -102,14 +102,14 @@ file sealed class GameObjectIconButton : IconButton
 		var go = target.Targets.OfType<GameObject>().FirstOrDefault();
 		if ( go is null ) return "folder";
 
-        // Check for persistent icon tag first (saved with the scene)
-        var iconTag = go.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) );
-        if ( iconTag is not null )
-        {
-            var decoded = Editor.IconTagEncoding.DecodeIconFromTag( iconTag );
-            if ( !string.IsNullOrEmpty( decoded ) )
-                return decoded;
-        }
+		// Check for persistent icon tag first (saved with the scene)
+		var iconTag = go.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) );
+		if ( iconTag is not null )
+		{
+			var decoded = Editor.IconTagEncoding.DecodeIconFromTag( iconTag );
+			if ( !string.IsNullOrEmpty( decoded ) )
+				return decoded;
+		}
 
 		// Fallback to session-only storage
 		if ( CustomIconStorage.Icons.TryGetValue( go, out var customIcon ) )
@@ -163,7 +163,7 @@ file sealed class GameObjectIconButton : IconButton
 			// Prepare new tag values
 			var hasChildren = go.Children.Where( x => x.ShouldShowInHierarchy() ).Any();
 			var defaultIcon = hasChildren ? "folder_open" : (go.Components.Count > 0 ? "layers" : "folder");
-            string newIconTag = selectedIcon != defaultIcon ? IconTagEncoding.EncodeIconToTag( selectedIcon ) : null;
+			string newIconTag = selectedIcon != defaultIcon ? IconTagEncoding.EncodeIconToTag( selectedIcon ) : null;
 			string newColorTag = null;
 			if ( selectedColor != Color.White )
 			{
@@ -172,17 +172,17 @@ file sealed class GameObjectIconButton : IconButton
 
 			// Apply to all selected targets to avoid inconsistent state
 			var targets = _parent.Target.Targets.OfType<GameObject>().ToArray();
-		foreach ( var targetGo in targets )
+			foreach ( var targetGo in targets )
 			{
-			// Icon (store by Id)
-            if ( selectedIcon == defaultIcon )
-            {
-                CustomIconStorage.Icons.Remove( targetGo );
-            }
-            else
-            {
-                CustomIconStorage.Icons[targetGo] = selectedIcon;
-            }
+				// Icon (store by Id)
+				if ( selectedIcon == defaultIcon )
+				{
+					CustomIconStorage.Icons.Remove( targetGo );
+				}
+				else
+				{
+					CustomIconStorage.Icons[targetGo] = selectedIcon;
+				}
 
 				// Color tag (keep using tags for color)
 				var existingColorTag = targetGo.Tags.FirstOrDefault( t => t.StartsWith( "icon_color_" ) );
