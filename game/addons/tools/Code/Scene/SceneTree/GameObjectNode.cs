@@ -566,22 +566,22 @@ partial class GameObjectNode : TreeNode<GameObject>
 
 		// For object creation, we need to determine the parent at click time, not menu creation time
 		// (because right-clicking on empty space deselects nodes, and we want root-level creation in that case)
-		Func<IEnumerable<GameObject>> getParentsForCreation = () =>
-		{
-			var currentSelection = EditorScene.Selection.OfType<GameObject>();
+        Func<IEnumerable<GameObject>> getParentsForCreation = () =>
+        {
+            var currentSelection = EditorScene.Selection.OfType<GameObject>();
 
-			if ( currentSelection.Any() )
-			{
-				// Use current selection as parents
-				var validParents = currentSelection.Where( x => x != null && x.IsValid() );
-				return validParents;
-			}
-			else
-			{
-				// No current selection - create at root level
-				return [null];
-			}
-		};
+            if ( currentSelection.Any() )
+            {
+                // Use current selection as parents
+                var validParents = currentSelection.Where( x => x != null && x.IsValid() );
+                return validParents;
+            }
+            else
+            {
+                // No current selection - create at root level
+                return new GameObject[] { null };
+            }
+        };
 
 		m.AddOption( "Cut", "content_cut", EditorScene.Cut, "editor.cut" ).Enabled = isObjectMenu && !isPrefabRoot;
 		m.AddOption( "Copy", "content_copy", EditorScene.Copy, "editor.copy" ).Enabled = isObjectMenu;
