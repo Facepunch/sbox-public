@@ -469,33 +469,33 @@ sealed class IconPickerWidget : Widget
         "train", "tram", "transfer_within_a_station", "zoom_out_map"
     };
 
-    static readonly Dictionary<string, string[]> IconCategories = new()
-    {
-        ["Recently Used"] = Array.Empty<string>(),
-        ["Main"] = MainIcons,
-        ["Action"] = ActionIcons,
-        ["Navigation"] = NavigationIcons,
-        ["Content"] = ContentIcons,
-        ["Communication"] = CommunicationIcons,
-        ["Editor"] = EditorIcons,
-        ["File"] = FileIcons,
-        ["Hardware"] = HardwareIcons,
-        ["Social"] = SocialIcons,
-        ["Toggle"] = ToggleIcons,
-        ["Maps"] = MapsIcons,
-        ["All Icons"] = MainIcons
-            .Concat( ActionIcons )
-            .Concat( NavigationIcons )
-            .Concat( ContentIcons )
-            .Concat( CommunicationIcons )
-            .Concat( EditorIcons )
-            .Concat( FileIcons )
-            .Concat( HardwareIcons )
-            .Concat( SocialIcons )
-            .Concat( ToggleIcons )
-            .Concat( MapsIcons )
-            .Distinct()
-            .OrderBy( x => x )
-            .ToArray()
-    };
+	static readonly Dictionary<string, string[]> IconCategories = new()
+	{
+		["Recently Used"] = Array.Empty<string>(),
+		["Main"] = MainIcons,
+		["Action"] = ActionIcons,
+		["Navigation"] = NavigationIcons,
+		["Content"] = ContentIcons,
+		["Communication"] = CommunicationIcons,
+		["Editor"] = EditorIcons,
+		["File"] = FileIcons,
+		["Hardware"] = HardwareIcons,
+		["Social"] = SocialIcons,
+		["Toggle"] = ToggleIcons,
+		["Maps"] = MapsIcons,
+		["All Icons"] = MainIcons
+			.Concat( ActionIcons )
+			.Concat( NavigationIcons )
+			.Concat( ContentIcons )
+			.Concat( CommunicationIcons )
+			.Concat( EditorIcons )
+			.Concat( FileIcons )
+			.Concat( HardwareIcons )
+			.Concat( SocialIcons )
+			.Concat( ToggleIcons )
+			.Concat( MapsIcons )
+			.Distinct()
+			.OrderBy( x => x )
+			.ToArray()
+	};
 }
