@@ -20,6 +20,7 @@ public enum IconPickerMode
 sealed class IconPickerWidget : Widget
 {
 	public Action<string> ValueChanged { get; set; }
+	public Action<Color> ColorChanged { get; set; }
 	public int IconsPerPage = 56;
 	public int IconsPerRow = 7;
 
@@ -51,10 +52,14 @@ sealed class IconPickerWidget : Widget
 	Label CategoryLabel;
 	GridLayout ContentLayout;
 	Layout CategoryLayout;
-	Button MaterialIconButton;
-	Button EmojiButton;
+	IconButton MaterialIconButton;
+	IconButton EmojiButton;
+	IconButton ColorButton;
+	LineEdit SearchBox;
+	string _searchText = "";
 
 	static readonly Dictionary<string, string[]> EmojiCategories;
+	static readonly Dictionary<string, List<string>> EmojiToNames; // Maps emoji to their searchable names
 
 	static string[] SmileyEmojis;
 	static string[] PeopleEmojis;
@@ -99,6 +104,7 @@ sealed class IconPickerWidget : Widget
 		EmojiCategories = new Dictionary<string, string[]>()
 		{
 			["Recently Used"] = Array.Empty<string>(),
+			["Favorites"] = Array.Empty<string>(),
 			["Smileys"] = SmileyEmojis,
 			["People"] = PeopleEmojis,
 			["Nature"] = NatureEmojis,
@@ -120,24 +126,53 @@ sealed class IconPickerWidget : Widget
 				.Distinct()
 				.ToArray()
 		};
+
+		// Build reverse mapping from emojis to searchable names
+		// Uses reflection to get the Emoji.Entries dictionary from Sandbox.UI namespace
+		EmojiToNames = new Dictionary<string, List<string>>();
+		try
+		{
+			var emojiType = typeof( Sandbox.UI.Emoji );
+			var entriesField = emojiType.GetField( "Entries", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic );
+			if ( entriesField?.GetValue( null ) is Dictionary<string, string> entries )
+			{
+				foreach ( var kvp in entries )
+				{
+					var name = kvp.Key.Trim( ':' ); // Remove colons from ":heart:" -> "heart"
+					var emoji = kvp.Value;
+
+					if ( !EmojiToNames.ContainsKey( emoji ) )
+						EmojiToNames[emoji] = new List<string>();
+
+					EmojiToNames[emoji].Add( name );
+				}
+			}
+		}
+		catch { }
 	}
 
 	public IconPickerWidget( Widget parent = null ) : base( parent )
 	{
-		Layout = Layout.Row();
+		Layout = Layout.Column();
 		FocusMode = FocusMode.Click;
+
+		// Remove tab widget, just use the icons tab directly
+		var iconsTab = new Widget( this );
+		iconsTab.Layout = Layout.Row();
+		Layout.Add( iconsTab );
 
 		// Left sidebar for categories
 		var sidebarLayout = Layout.Column();
 		sidebarLayout.Margin = 4;
 		sidebarLayout.Spacing = 2;
-		Layout.Add( sidebarLayout );
+		sidebarLayout.Alignment = TextFlag.Top; // Icons start at the top
+		iconsTab.Layout.Add( sidebarLayout );
 
 		CategoryLayout = sidebarLayout;
 		BuildCategorySidebar();
 
 		// Separator
-		var separator = new Widget( this );
+		var separator = new Widget( iconsTab );
 		separator.FixedWidth = 1;
 		separator.MinimumHeight = 100;
 		separator.OnPaintOverride = () =>
@@ -147,36 +182,38 @@ sealed class IconPickerWidget : Widget
 			Paint.DrawRect( separator.LocalRect );
 			return true;
 		};
-		Layout.Add( separator );
+		iconsTab.Layout.Add( separator );
 
-		// Right content area
+		// Right content area - wrapped in a widget for background painting
+		var contentAreaWrapper = new Widget( iconsTab );
 		var contentArea = Layout.Column();
 		contentArea.Margin = 4;
-		Layout.Add( contentArea );
+		contentAreaWrapper.Layout = contentArea;
+		iconsTab.Layout.Add( contentAreaWrapper );
 
-		// Mode toggle buttons at top
-		var modeLayout = Layout.Row();
-		modeLayout.Margin = 2;
-		modeLayout.Spacing = 4;
-		contentArea.Add( modeLayout );
+		// Add background for content area for better contrast
+		contentAreaWrapper.OnPaintOverride = () =>
+		{
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.ControlBackground.Darken( 0.05f ) );
+			Paint.DrawRect( contentAreaWrapper.LocalRect, 4 );
+			return false; // Continue painting children
+		};
 
-		MaterialIconButton = new Button( "Icons", this );
-		MaterialIconButton.ToolTip = "Material Icons";
-		MaterialIconButton.Clicked = () => SetMode( IconPickerMode.MaterialIcons );
-		modeLayout.Add( MaterialIconButton );
-
-		EmojiButton = new Button( "Emoji", this );
-		EmojiButton.ToolTip = "Emojis";
-		EmojiButton.Clicked = () => SetMode( IconPickerMode.Emojis );
-		modeLayout.Add( EmojiButton );
-
-		modeLayout.AddStretchCell( 1 );
-		UpdateModeButtons();
-
-		// Category header
-		CategoryLabel = contentArea.Add( new Label( this ) );
-		CategoryLabel.Alignment = TextFlag.Left;
+		// Category header - right aligned
+		CategoryLabel = contentArea.Add( new Label( iconsTab ) );
+		CategoryLabel.Alignment = TextFlag.Right;
 		CategoryLabel.SetStyles( "font-weight: bold; font-size: 11px; color: #888;" );
+
+		// Search box
+		SearchBox = contentArea.Add( new LineEdit( iconsTab ) );
+		SearchBox.PlaceholderText = "Search icons...";
+		SearchBox.TextEdited += ( text ) =>
+		{
+			_searchText = text;
+			CurrentPage = 0;
+			Rebuild();
+		};
 
 		// Page navigation
 		var headerLayout = Layout.Row();
@@ -184,23 +221,73 @@ sealed class IconPickerWidget : Widget
 		headerLayout.Spacing = 2;
 		contentArea.Add( headerLayout );
 
-		var buttonLeft = headerLayout.Add( new IconButton( "chevron_left", ButtonLeft, this ) );
+		var buttonLeft = headerLayout.Add( new IconButton( "chevron_left", ButtonLeft, iconsTab ) );
 		buttonLeft.ToolTip = "Previous Page";
 
-		HeaderLabel = headerLayout.Add( new Label( this ) );
+		HeaderLabel = headerLayout.Add( new Label( iconsTab ) );
 		HeaderLabel.Alignment = TextFlag.Center;
 
-		var buttonRight = headerLayout.Add( new IconButton( "chevron_right", ButtonRight, this ) );
+		var buttonRight = headerLayout.Add( new IconButton( "chevron_right", ButtonRight, iconsTab ) );
 		buttonRight.ToolTip = "Next Page";
 
 		// Icon grid
 		ContentLayout = Layout.Grid();
 		ContentLayout.Margin = 4;
 		ContentLayout.Spacing = 4;
-		ContentLayout.Alignment = TextFlag.LeftTop;
+		ContentLayout.Alignment = TextFlag.LeftTop; // Icons start at top-left
 		contentArea.Add( ContentLayout );
 
 		contentArea.AddStretchCell( 1 );
+
+		// Right sidebar for small mode buttons (icons / emoji) and color picker
+		var rightSeparator = new Widget( iconsTab );
+		rightSeparator.FixedWidth = 1;
+		rightSeparator.MinimumHeight = 100;
+		rightSeparator.OnPaintOverride = () =>
+		{
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.ControlBackground.Lighten( 0.1f ) );
+			Paint.DrawRect( separator.LocalRect );
+			return true;
+		};
+		iconsTab.Layout.Add( rightSeparator );
+
+		var rightSidebar = Layout.Column();
+		rightSidebar.Margin = 4;
+		rightSidebar.Spacing = 10; // Increased spacing for better separation
+		rightSidebar.Alignment = TextFlag.Top | TextFlag.Right; // Align to top right
+		iconsTab.Layout.Add( rightSidebar );
+
+		// Mode buttons as small icons in the right sidebar
+		MaterialIconButton = new IconButton( "apps", () => SetMode( IconPickerMode.MaterialIcons ), iconsTab );
+		MaterialIconButton.ToolTip = "Material Icons";
+		MaterialIconButton.IconSize = 14;
+		MaterialIconButton.FixedSize = 26;
+		rightSidebar.Add( MaterialIconButton );
+
+		// Use a material icon for emoji instead of emoji glyph
+		EmojiButton = new IconButton( "emoji_emotions", () => SetMode( IconPickerMode.Emojis ), iconsTab );
+		EmojiButton.ToolTip = "Emojis";
+		EmojiButton.IconSize = 14;
+		EmojiButton.FixedSize = 26;
+		rightSidebar.Add( EmojiButton );
+
+		// Color button - opens color picker popup
+		ColorButton = new IconButton( "palette", () =>
+		{
+			var lastColor = EditorCookie.Get<Color?>( "IconPicker.LastColor", null ) ?? Color.White;
+			ColorPicker.OpenColorPopup( lastColor, c =>
+			{
+				EditorCookie.Set( "IconPicker.LastColor", c );
+				ColorChanged?.Invoke( c );
+			} );
+		}, iconsTab );
+		ColorButton.ToolTip = "Icon Color";
+		ColorButton.IconSize = 14;
+		ColorButton.FixedSize = 26;
+		rightSidebar.Add( ColorButton );
+
+		UpdateModeButtons();
 
 		Rebuild();
 	}
@@ -210,6 +297,12 @@ sealed class IconPickerWidget : Widget
 		if ( _currentMode == mode ) return;
 		_currentMode = mode;
 		_currentCategory = mode == IconPickerMode.MaterialIcons ? "Main" : "Smileys";
+		_searchText = "";
+		if ( SearchBox is not null )
+		{
+			SearchBox.Text = "";
+			SearchBox.PlaceholderText = mode == IconPickerMode.MaterialIcons ? "Search icons..." : "Search emojis...";
+		}
 		CurrentPage = 0;
 		UpdateModeButtons();
 		BuildCategorySidebar();
@@ -228,6 +321,12 @@ sealed class IconPickerWidget : Widget
 		EmojiButton.SetStyles( _currentMode == IconPickerMode.Emojis
 			? $"background-color: {activeColor.Hex}; color: white;"
 			: $"background-color: {inactiveColor.Hex};" );
+
+		// Update color button visibility: only for material icons and when an icon is selected
+		if ( ColorButton is not null )
+		{
+			ColorButton.Visible = _currentMode == IconPickerMode.MaterialIcons && !string.IsNullOrEmpty( Icon );
+		}
 	}
 
 	void BuildCategorySidebar()
@@ -267,6 +366,8 @@ sealed class IconPickerWidget : Widget
 	{
 		if ( _currentCategory == category ) return;
 		_currentCategory = category;
+		_searchText = "";
+		if ( SearchBox is not null ) SearchBox.Text = "";
 		CurrentPage = 0;
 		BuildCategorySidebar();
 		Rebuild();
@@ -278,18 +379,9 @@ sealed class IconPickerWidget : Widget
 		{
 			// Material Icon categories
 			"Recently Used" => ("history", "Recently Used"),
-			"Main" => ("star", "Main Icons"),
-			"Action" => ("touch_app", "Action"),
-			"Navigation" => ("explore", "Navigation"),
-			"Content" => ("content_copy", "Content"),
-			"Communication" => ("chat", "Communication"),
-			"Editor" => ("edit", "Editor"),
-			"File" => ("folder", "Files & Folders"),
-			"Hardware" => ("devices", "Hardware"),
-			"Social" => ("people", "Social"),
-			"Toggle" => ("toggle_on", "Toggle"),
-			"Maps" => ("map", "Maps"),
-			"All Icons" => ("apps", "All Icons"),
+			"Favorites" => ("star", "Favorites"),
+			"Main" => ("apps", "Common"),
+			"All Icons" => ("widgets", "All Icons"),
 			// Emoji categories
 			"Smileys" => ("emoji_emotions", "Smileys & Emotion"),
 			"People" => ("emoji_people", "People & Body"),
@@ -340,24 +432,24 @@ sealed class IconPickerWidget : Widget
 			var capturedMode = _currentMode;
 			iconButton.MouseRightClick = () =>
 			{
-			var menu = new Menu( iconButton );
-			if ( IsFavorite( capturedIcon, capturedMode ) )
-			{
-			menu.AddOption( "Remove from Favorites", "star_border", () =>
-			{
-			RemoveFromFavorites( capturedIcon, capturedMode );
-			Rebuild();
-			} );
-			}
-			else
-			{
-			menu.AddOption( "Add to Favorites", "star", () =>
-			{
-			AddToFavorites( capturedIcon, capturedMode );
-			Rebuild();
-			} );
-			}
-			menu.OpenAtCursor();
+				var menu = new Menu( iconButton );
+				if ( IsFavorite( capturedIcon, capturedMode ) )
+				{
+					menu.AddOption( "Remove from Favorites", "star_border", () =>
+					{
+						RemoveFromFavorites( capturedIcon, capturedMode );
+						Rebuild();
+					} );
+				}
+				else
+				{
+					menu.AddOption( "Add to Favorites", "star", () =>
+					{
+						AddToFavorites( capturedIcon, capturedMode );
+						Rebuild();
+					} );
+				}
+				menu.OpenAtCursor();
 			};
 
 			if ( icon == Icon )
@@ -395,6 +487,7 @@ sealed class IconPickerWidget : Widget
 		}
 
 		Update();
+		UpdateModeButtons();
 	}
 
 	void ButtonLeft()
@@ -415,21 +508,59 @@ sealed class IconPickerWidget : Widget
 
 	string[] GetAvailableIconNames()
 	{
+		string[] icons;
+
+		// Get base icon list
 		if ( _currentCategory == "Recently Used" )
 		{
-			// Favorites first, then recently used
-			var favorites = GetFavorites( _currentMode );
-			var recent = GetRecentlyUsedIcons( _currentMode );
-			return favorites.Concat( recent.Where( r => !favorites.Contains( r ) ) ).ToArray();
+			icons = GetRecentlyUsedIcons( _currentMode );
 		}
-
-		var categories = _currentMode == IconPickerMode.MaterialIcons ? IconCategories : EmojiCategories;
-		if ( categories.TryGetValue( _currentCategory, out var icons ) )
+		else if ( _currentCategory == "Favorites" )
 		{
-			return icons;
+			icons = GetFavorites( _currentMode );
+		}
+		else
+		{
+			var categories = _currentMode == IconPickerMode.MaterialIcons ? IconCategories : EmojiCategories;
+			if ( categories.TryGetValue( _currentCategory, out var categoryIcons ) )
+			{
+				icons = categoryIcons;
+			}
+			else
+			{
+				icons = _currentMode == IconPickerMode.MaterialIcons ? MainIcons : SmileyEmojis;
+			}
 		}
 
-		return _currentMode == IconPickerMode.MaterialIcons ? MainIcons : SmileyEmojis;
+		// Apply search filter
+		if ( !string.IsNullOrWhiteSpace( _searchText ) )
+		{
+			if ( _currentMode == IconPickerMode.Emojis )
+			{
+				// Search emojis by their names (e.g., "heart" finds ??, ??, ??, etc.)
+				icons = icons.Where( emoji =>
+				{
+					// Check if the emoji itself contains the search text (unlikely but possible)
+					if ( emoji.Contains( _searchText, StringComparison.OrdinalIgnoreCase ) )
+						return true;
+
+					// Check if any of the emoji's names contain the search text
+					if ( EmojiToNames.TryGetValue( emoji, out var names ) )
+					{
+						return names.Any( name => name.Contains( _searchText, StringComparison.OrdinalIgnoreCase ) );
+					}
+
+					return false;
+				} ).ToArray();
+			}
+			else
+			{
+				// Material icons: search by icon name
+				icons = icons.Where( i => i.Contains( _searchText, StringComparison.OrdinalIgnoreCase ) ).ToArray();
+			}
+		}
+
+		return icons;
 	}
 
 	int GetTotalPages()
@@ -501,11 +632,11 @@ sealed class IconPickerWidget : Widget
 	/// <summary>
 	/// Open an Icon Picker popup
 	/// </summary>
-	public static void OpenPopup( Widget parent, string icon, Action<string> onChange, bool showEmojis = true )
+	public static void OpenPopup( Widget parent, string icon, Action<string> onChange, bool showEmojis = true, Action<Color> colorChanged = null )
 	{
 		var popup = new PopupWidget( parent );
 		popup.Visible = false;
-		popup.FixedWidth = 320;
+		popup.FixedWidth = 280;
 		popup.Layout = Layout.Column();
 		popup.Layout.Margin = 4;
 
@@ -517,6 +648,8 @@ sealed class IconPickerWidget : Widget
 			editor.EmojiButton.Visible = false;
 			editor.MaterialIconButton.Visible = false;
 		}
+
+		editor.ColorChanged = colorChanged;
 
 		// Start with recently used if available, otherwise main
 		var recentIcons = GetRecentlyUsedIcons( IconPickerMode.MaterialIcons );
@@ -570,16 +703,25 @@ sealed class IconPickerWidget : Widget
 	// Main/Common icons - most frequently used
 	static readonly string[] MainIcons = new[]
 	{
-		"folder", "folder_open", "home", "settings", "search", "add", "remove", "edit", "delete",
-		"save", "close", "check", "clear", "refresh", "sync", "undo", "redo", "content_copy", "content_paste",
-		"content_cut", "visibility", "visibility_off", "lock", "lock_open", "star", "star_border",
-		"favorite", "favorite_border", "bookmark", "bookmark_border", "label", "info", "warning",
-		"error", "help", "help_outline", "lightbulb", "code", "terminal", "bug_report", "build",
-		"extension", "widgets", "view_module", "grid_view", "list", "apps", "menu", "more_vert",
-		"more_horiz", "arrow_back", "arrow_forward", "arrow_upward", "arrow_downward", "expand_more",
-		"expand_less", "chevron_left", "chevron_right", "first_page", "last_page", "play_arrow",
-		"pause", "stop", "skip_next", "skip_previous", "fast_forward", "fast_rewind", "loop",
-		"shuffle", "volume_up", "volume_down", "volume_mute", "volume_off"
+		// Files & Organization
+		"folder", "folder_open", "home", "settings", "search", "apps", "widgets", "view_module", "grid_view", "list",
+		// Editing & Actions
+		"add", "remove", "edit", "delete", "save", "close", "check", "clear", "refresh", "sync",
+		"undo", "redo", "content_copy", "content_paste", "content_cut",
+		// Visibility & Security
+		"visibility", "visibility_off", "lock", "lock_open",
+		// Favorites & Bookmarks
+		"star", "star_border", "favorite", "favorite_border", "bookmark", "bookmark_border",
+		// Information & Help
+		"info", "warning", "error", "help", "help_outline", "lightbulb",
+		// Development
+		"code", "terminal", "bug_report", "build", "extension",
+		// Navigation
+		"arrow_back", "arrow_forward", "arrow_upward", "arrow_downward", "expand_more", "expand_less",
+		"chevron_left", "chevron_right", "first_page", "last_page", "menu", "more_vert", "more_horiz",
+		// Media Controls
+		"play_arrow", "pause", "stop", "skip_next", "skip_previous", "fast_forward", "fast_rewind",
+		"loop", "shuffle", "volume_up", "volume_down", "volume_mute", "volume_off"
 	};
 
 	// Action icons
@@ -610,7 +752,7 @@ sealed class IconPickerWidget : Widget
 	};
 
 	// Content icons
-	static readonly string[] ContentIcons = new[]
+static readonly string[] ContentIcons = new[]
 	{
 		"add", "add_box", "add_circle", "add_circle_outline", "archive", "backspace", "block",
 		"clear", "content_copy", "content_cut", "content_paste", "create", "delete_sweep",
@@ -725,17 +867,8 @@ sealed class IconPickerWidget : Widget
 	static readonly Dictionary<string, string[]> IconCategories = new()
 	{
 		["Recently Used"] = Array.Empty<string>(),
+		["Favorites"] = Array.Empty<string>(),
 		["Main"] = MainIcons,
-		["Action"] = ActionIcons,
-		["Navigation"] = NavigationIcons,
-		["Content"] = ContentIcons,
-		["Communication"] = CommunicationIcons,
-		["Editor"] = EditorIcons,
-		["File"] = FileIcons,
-		["Hardware"] = HardwareIcons,
-		["Social"] = SocialIcons,
-		["Toggle"] = ToggleIcons,
-		["Maps"] = MapsIcons,
 		["All Icons"] = MainIcons
 			.Concat( ActionIcons )
 			.Concat( NavigationIcons )
@@ -755,3 +888,4 @@ sealed class IconPickerWidget : Widget
 	// Emoji categories are loaded from Data/emojis/emojis.json at runtime.
 	// This avoids embedding large emoji literals in source files which can be mangled by file encoding.
 }
+

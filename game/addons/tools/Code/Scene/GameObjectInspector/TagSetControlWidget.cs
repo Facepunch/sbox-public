@@ -60,6 +60,10 @@ public class TagSetControlWidget : ControlWidget
 				var isGameTags = tagset is GameTags;
 				foreach ( var tag in tagset )
 				{
+					// Hide internal icon tags
+					if ( tag.StartsWith( "icon_" ) || tag.StartsWith( "icon_color_" ) )
+						continue;
+
 					if ( tagCounts.ContainsKey( tag ) )
 					{
 						tagCounts[tag]++;
@@ -78,6 +82,10 @@ public class TagSetControlWidget : ControlWidget
 				{
 					foreach ( var tag in gameset.TryGetAll( false ) )
 					{
+						// Hide internal icon tags
+						if ( tag.StartsWith( "icon_" ) || tag.StartsWith( "icon_color_" ) )
+							continue;
+
 						if ( !ownTags.Contains( tag ) )
 						{
 							ownTags.Add( tag );
@@ -93,6 +101,10 @@ public class TagSetControlWidget : ControlWidget
 
 			foreach ( var tag in tags )
 			{
+				// Hide internal icon tags
+				if ( tag.StartsWith( "icon_" ) || tag.StartsWith( "icon_color_" ) )
+					continue;
+
 				tagCounts[tag] = 1;
 			}
 
@@ -100,6 +112,10 @@ public class TagSetControlWidget : ControlWidget
 			{
 				foreach ( var tag in gTags.TryGetAll( false ) )
 				{
+					// Hide internal icon tags
+					if ( tag.StartsWith( "icon_" ) || tag.StartsWith( "icon_color_" ) )
+						continue;
+
 					if ( !ownTags.Contains( tag ) )
 					{
 						ownTags.Add( tag );

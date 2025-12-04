@@ -34,17 +34,12 @@ partial class GameObjectNode : TreeNode<GameObject>
 			hc.Add( Value.Active );
 			hc.Add( Value.Tags ); // Include tags for custom icon and color changes
 
-			// Include custom icon (from session storage) so changes trigger a node update
-			// Prefer persisted icon tag (saved with scene) so icons survive reloads
-			var iconTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) );
+			// Include custom icon from tags so changes trigger a node update
+			var iconTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) && !t.StartsWith( "icon_color_" ) );
 			if ( iconTag is not null )
 			{
 				var decoded = Editor.IconTagEncoding.DecodeIconFromTag( iconTag );
 				if ( !string.IsNullOrEmpty( decoded ) ) hc.Add( decoded );
-			}
-			else if ( CustomIconStorage.Icons.TryGetValue( Value, out var sessionIcon ) )
-			{
-				hc.Add( sessionIcon );
 			}
 
 			// Also include persisted color tag so color changes invalidate the node
@@ -92,7 +87,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 		if ( !Value.Active ) opacity *= 0.5f;
 
 		Color pen = Theme.TextControl;
-		string icon = Value.Children.Where( x => x.ShouldShowInHierarchy() ).Any() ? "📂" : (Value.Components.Count > 0 ? "layers" : "📁");
+		string icon = "layers";
 		Color iconColor = Theme.TextControl.WithAlpha( 0.6f );
 		Color overlayIconColor = iconColor;
 
@@ -249,18 +244,11 @@ partial class GameObjectNode : TreeNode<GameObject>
 		var iconSize = 16;
 
 		// Apply custom icon and color overrides (after all default conditions)
-
-
-		// Prefer persisted icon tag (saved with scene)
-		var iconTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) );
+		var iconTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) && !t.StartsWith( "icon_color_" ) );
 		if ( iconTag is not null )
 		{
 			var decoded = Editor.IconTagEncoding.DecodeIconFromTag( iconTag );
 			if ( !string.IsNullOrEmpty( decoded ) ) icon = decoded;
-		}
-		else if ( CustomIconStorage.Icons.TryGetValue( Value, out var sessionIconValue ) )
-		{
-			icon = sessionIconValue;
 		}
 
 		// Prefer persisted color tag (saved with scene)
@@ -329,16 +317,11 @@ partial class GameObjectNode : TreeNode<GameObject>
 			else
 			{
 				Paint.Pen = Theme.Blue;
-				Paint.DrawText( r, $"{connection.DisplayName}", TextFlag.LeftCenter );
-				r.Left += 22;
-			}
-
-
+			Paint.DrawText( r, $"{connection.DisplayName}", TextFlag.LeftCenter );
+			r.Left += 22;
 		}
-		// Apply custom icon and color overrides (after all default conditions)
-		if ( CustomIconStorage.Icons.TryGetValue( Value, out var customIcon ) )
-		{
-			icon = customIcon;
+
+
 		}
 	}
 

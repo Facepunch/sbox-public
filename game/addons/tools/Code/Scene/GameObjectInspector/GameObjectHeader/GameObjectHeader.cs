@@ -82,7 +82,7 @@ file sealed class GameObjectIconButton : IconButton
 	private Drag _drag;
 
 	public GameObjectIconButton( GameObjectHeader parent )
-		: base( GetCurrentIcon( parent.Target ), null )
+		: base( GetCurrentIcon( parent.Target ) )  // Load icon from tags
 	{
 		_parent = parent;
 
@@ -100,9 +100,9 @@ file sealed class GameObjectIconButton : IconButton
 	private static string GetCurrentIcon( SerializedObject target )
 	{
 		var go = target.Targets.OfType<GameObject>().FirstOrDefault();
-		if ( go is null ) return "folder";
+		if ( go is null ) return "📦";
 
-		// Check for persistent icon tag first (saved with the scene)
+		// Check for persistent icon tag (saved with the scene)
 		var iconTag = go.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) );
 		if ( iconTag is not null )
 		{
@@ -111,14 +111,8 @@ file sealed class GameObjectIconButton : IconButton
 				return decoded;
 		}
 
-		// Fallback to session-only storage
-		if ( CustomIconStorage.Icons.TryGetValue( go, out var customIcon ) )
-		{
-			return customIcon;
-		}
-
-		// Default icon based on children and components
-		return go.Children.Where( x => x.ShouldShowInHierarchy() ).Any() ? "📂" : (go.Components.Count > 0 ? "layers" : "📁");
+		// Default icon
+		return "📦";
 	}
 
 	private static Color GetCurrentColor( SerializedObject target )
@@ -150,6 +144,19 @@ file sealed class GameObjectIconButton : IconButton
 		base.OnMousePress( e );
 	}
 
+	protected override void OnMouseRightClick( MouseEvent e )
+	{
+		base.OnMouseRightClick( e );
+
+		var menu = new Menu( this );
+		menu.AddOption( "Change Icon...", "palette", OnIconClicked );
+		menu.AddSeparator();
+		menu.AddOption( "Reset to Default", "refresh", ResetToDefault );
+		menu.OpenAtCursor();
+
+		e.Accepted = true;
+	}
+
 	private void OnIconClicked()
 	{
 		var go = _parent.Target.Targets.OfType<GameObject>().FirstOrDefault();
@@ -162,7 +169,7 @@ file sealed class GameObjectIconButton : IconButton
 		{
 			// Prepare new tag values
 			var hasChildren = go.Children.Where( x => x.ShouldShowInHierarchy() ).Any();
-			var defaultIcon = hasChildren ? "folder_open" : (go.Components.Count > 0 ? "layers" : "folder");
+			var defaultIcon = "📦";
 			string newIconTag = selectedIcon != defaultIcon ? IconTagEncoding.EncodeIconToTag( selectedIcon ) : null;
 			string newColorTag = null;
 			if ( selectedColor != Color.White )
@@ -174,17 +181,7 @@ file sealed class GameObjectIconButton : IconButton
 			var targets = _parent.Target.Targets.OfType<GameObject>().ToArray();
 			foreach ( var targetGo in targets )
 			{
-				// Icon (store by Id)
-				if ( selectedIcon == defaultIcon )
-				{
-					CustomIconStorage.Icons.Remove( targetGo );
-				}
-				else
-				{
-					CustomIconStorage.Icons[targetGo] = selectedIcon;
-				}
-
-				// Color tag (keep using tags for color)
+				// Remove existing color tag if needed
 				var existingColorTag = targetGo.Tags.FirstOrDefault( t => t.StartsWith( "icon_color_" ) );
 				if ( existingColorTag is not null )
 				{
@@ -196,8 +193,8 @@ file sealed class GameObjectIconButton : IconButton
 					targetGo.Tags.Add( newColorTag );
 				}
 
-				// Icon tag (persisted with the scene)
-				var existingIconTag = targetGo.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) );
+				// Remove existing icon tag if needed (but not color tags)
+				var existingIconTag = targetGo.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) && !t.StartsWith( "icon_color_" ) );
 				if ( existingIconTag is not null )
 				{
 					if ( newIconTag is null || existingIconTag != newIconTag )
@@ -227,6 +224,38 @@ file sealed class GameObjectIconButton : IconButton
 			// Update the scene tree to reflect the change
 			SceneTreeWidget.Current?.TreeView?.Update();
 		} );
+	}
+
+	private void ResetToDefault()
+	{
+		var targets = _parent.Target.Targets.OfType<GameObject>().ToArray();
+		foreach ( var targetGo in targets )
+		{
+			// Remove all icon-related tags
+			var iconTags = targetGo.Tags.Where( t => t.StartsWith( "icon_" ) || t.StartsWith( "icon_color_" ) ).ToList();
+			foreach ( var tag in iconTags )
+			{
+				targetGo.Tags.Remove( tag );
+			}
+		}
+
+		// Update the tree view
+		if ( SceneTreeWidget.Current?.TreeView is { } tv )
+		{
+			foreach ( var t in targets )
+			{
+				tv.Dirty( t );
+			}
+			tv.UpdateIfDirty();
+		}
+
+		// Reset button to default state
+		Icon = "📦";
+		Foreground = Color.White;
+		Update();
+
+		// Update the scene tree to reflect the change
+		SceneTreeWidget.Current?.TreeView?.Update();
 	}
 
 	protected override void OnDragStart()
@@ -296,28 +325,40 @@ file static class IconColorPicker
 		popup.Layout.Margin = 8;
 		popup.Layout.Spacing = 8;
 
-		// Icon Picker
+		// Track current color
+		Color selectedColor = currentColor;
+
+		// Icon Picker with color button
 		var iconPicker = popup.Layout.Add( new IconPickerWidget( popup ), 1 );
 		iconPicker.Icon = currentIcon;
-
-		// Color Picker
-		var colorPicker = popup.Layout.Add( new ColorPicker( popup ) );
-		colorPicker.Value = currentColor;
-
-		// Live update when icon or color changes
-		iconPicker.ValueChanged = ( v ) =>
+		
+		// Update color when changed via the color button
+		iconPicker.ColorChanged = ( c ) =>
 		{
-			onSelected?.Invoke( v, colorPicker.Value );
+			selectedColor = c;
+			onSelected?.Invoke( iconPicker.Icon, selectedColor );
 		};
 
-		colorPicker.ValueChanged = ( c ) =>
+		// Live update when icon changes
+		iconPicker.ValueChanged = ( v ) =>
 		{
-			onSelected?.Invoke( iconPicker.Icon, c );
+			onSelected?.Invoke( v, selectedColor );
 		};
 
 		// Buttons
 		var buttonRow = popup.Layout.AddRow();
 		buttonRow.Spacing = 4;
+
+		var resetButton = buttonRow.Add( new Button( "Reset" ) );
+		resetButton.Icon = "refresh";
+		resetButton.Clicked += () =>
+		{
+			iconPicker.Icon = "📦";
+			selectedColor = Color.White;
+			onSelected?.Invoke( "📦", Color.White );
+		};
+
+		buttonRow.AddStretchCell();
 
 		var cancelButton = buttonRow.Add( new Button( "Cancel" ) );
 		cancelButton.Clicked += () => popup.Destroy();
@@ -325,10 +366,13 @@ file static class IconColorPicker
 		var okButton = buttonRow.Add( new Button.Primary( "OK" ) );
 		okButton.Clicked += () =>
 		{
-			onSelected?.Invoke( iconPicker.Icon, colorPicker.Value );
+			onSelected?.Invoke( iconPicker.Icon, selectedColor );
 			popup.Destroy();
 		};
 
-		popup.OpenAtCursor();
+		// Position with offset from cursor to avoid covering the icon
+		popup.Position = Application.CursorPosition + new Vector2( 10, 10 );
+		popup.Show();
+		popup.ConstrainToScreen();
 	}
 }
