@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.IO;
-using System.Text;
 using System.Text.Json;
 
 namespace Editor;
@@ -70,56 +68,33 @@ sealed class IconPickerWidget : Widget
 
 	static IconPickerWidget()
 	{
-		var defaults = new Dictionary<string, string[]>()
-		{
-			["Smileys"] = new[] { "\uD83D\uDE00","\uD83D\uDE03","\uD83D\uDE04","\uD83D\uDE01","\uD83D\uDE06","\uD83D\uDE02","\uD83D\uDE42","\uD83D\uDE09","\uD83D\uDE0A","\uD83D\uDE0D" },
-			["People"] = new[] { "\uD83D\uDC4B","\uD83D\uDC4A","\uD83D\uDD90\uFE0F","\uD83D\uDC4F","\uD83D\uDC4D","\uD83D\uDC4E","\uD83D\uDC4C","\uD83D\uDC4F","\uD83D\uDE4C","\uD83D\uDE4F" },
-			["Nature"] = new[] { "\uD83D\uDC36","\uD83D\uDC31","\uD83E\uDD8A","\uD83D\uDC3B","\uD83D\uDC3C","\uD83D\uDC28","\uD83D\uDC2F","\uD83E\uDD81","\uD83D\uDC2E","\uD83D\uDC37" },
-			["Food"] = new[] { "\uD83C\uDF4F","\uD83C\uDF4E","\uD83C\uDF50","\uD83C\uDF4A","\uD83C\uDF4B","\uD83C\uDF4C","\uD83C\uDF49","\uD83C\uDF47","\uD83C\uDF53","\uD83C\uDF52" },
-			["Activities"] = new[] { "\u26BD","\uD83C\uDFC0","\uD83C\uDFC8","\uD83C\uDFBE","\uD83C\uDFD0","\uD83C\uDFC9","\uD83C\uDFD2","\uD83C\uDFD1","\uD83C\uDFCF","\uD83C\uDFAF" },
-			["Travel"] = new[] { "\uD83D\uDE97","\uD83D\uDE95","\uD83D\uDE99","\uD83D\uDE8C","\uD83D\uDE8D","\uD83D\uDEF0\uFE0F","\uD83D\uDE93","\uD83D\uDE91","\uD83D\uDE92","\uD83D\uDEB2" },
-			["Objects"] = new[] { "\uD83D\uDCF1","\uD83D\uDCBB","\u231A","\uD83D\uDCF7","\uD83D\uDCFB","\uD83D\uDCFA","\uD83D\uDCFB","\uD83D\uDD0C","\uD83D\uDD0B","\uD83D\uDCA1" },
-			["Symbols"] = new[] { "\u2764\uFE0F","\u2B50","\uD83D\uDD25","\u2728","\uD83D\uDD1F","\u2705","\u274C","\u26A0\uFE0F","\uD83D\uDD14","\uD83D\uDD12" },
-			["Flags"] = new[] { "\uD83C\uDFF3\uFE0F","\uD83C\uDFF4","\uD83C\uDFC1","\uD83D\uDEA9","\uD83C\uDDFA\uD83C\uDDF8","\uD83C\uDDEC\uD83C\uDDE7","\uD83C\uDDE9\uD83C\uDDEA","\uD83C\uDDEB\uD83C\uDDF7","\uD83C\uDDEA\uD83C\uDDF8","\uD83C\uDDEE\uD83C\uDDF9" }
-		};
+		// Load emojis from JSON file
+		Dictionary<string, string[]> emojiData = null;
 
 		try
 		{
-			var baseDir = Path.Combine( AppDomain.CurrentDomain.BaseDirectory ?? ".", "Data", "emojis" );
-			var path = Path.Combine( baseDir, "emojis.json" );
-			if ( File.Exists( path ) )
+			// Try loading from addons/tools/Data path (where this code lives)
+			var path = FileSystem.Root.GetFullPath( "/addons/tools/Data/emojis/emojis.json" );
+			if ( !string.IsNullOrEmpty( path ) && System.IO.File.Exists( path ) )
 			{
-				var json = File.ReadAllText( path, Encoding.UTF8 );
-				var doc = JsonSerializer.Deserialize<Dictionary<string, string[]>>( json );
-				if ( doc != null )
-				{
-					SmileyEmojis = GetOrDefault( doc, "Smileys", defaults["Smileys"] );
-					PeopleEmojis = GetOrDefault( doc, "People", defaults["People"] );
-					NatureEmojis = GetOrDefault( doc, "Nature", defaults["Nature"] );
-					FoodEmojis = GetOrDefault( doc, "Food", defaults["Food"] );
-					ActivityEmojis = GetOrDefault( doc, "Activities", defaults["Activities"] );
-					TravelEmojis = GetOrDefault( doc, "Travel", defaults["Travel"] );
-					ObjectEmojis = GetOrDefault( doc, "Objects", defaults["Objects"] );
-					SymbolEmojis = GetOrDefault( doc, "Symbols", defaults["Symbols"] );
-					FlagEmojis = GetOrDefault( doc, "Flags", defaults["Flags"] );
-				}
+				var json = System.IO.File.ReadAllText( path );
+				emojiData = JsonSerializer.Deserialize<Dictionary<string, string[]>>( json );
 			}
 		}
-		catch
-		{
-			// ignore and use defaults
-		}
+		catch { }
 
-		// Ensure non-null
-		SmileyEmojis ??= defaults["Smileys"];
-		PeopleEmojis ??= defaults["People"];
-		NatureEmojis ??= defaults["Nature"];
-		FoodEmojis ??= defaults["Food"];
-		ActivityEmojis ??= defaults["Activities"];
-		TravelEmojis ??= defaults["Travel"];
-		ObjectEmojis ??= defaults["Objects"];
-		SymbolEmojis ??= defaults["Symbols"];
-		FlagEmojis ??= defaults["Flags"];
+		// Fallback defaults if JSON not found
+		emojiData ??= new Dictionary<string, string[]>();
+
+		SmileyEmojis = emojiData.GetValueOrDefault( "Smileys" ) ?? [];
+		PeopleEmojis = emojiData.GetValueOrDefault( "People" ) ?? [];
+		NatureEmojis = emojiData.GetValueOrDefault( "Nature" ) ?? [];
+		FoodEmojis = emojiData.GetValueOrDefault( "Food" ) ?? [];
+		ActivityEmojis = emojiData.GetValueOrDefault( "Activities" ) ?? [];
+		TravelEmojis = emojiData.GetValueOrDefault( "Travel" ) ?? [];
+		ObjectEmojis = emojiData.GetValueOrDefault( "Objects" ) ?? [];
+		SymbolEmojis = emojiData.GetValueOrDefault( "Symbols" ) ?? [];
+		FlagEmojis = emojiData.GetValueOrDefault( "Flags" ) ?? [];
 
 		EmojiCategories = new Dictionary<string, string[]>()
 		{
@@ -145,12 +120,6 @@ sealed class IconPickerWidget : Widget
 				.Distinct()
 				.ToArray()
 		};
-	}
-
-	static string[] GetOrDefault( Dictionary<string, string[]> dict, string key, string[] fallback )
-	{
-		if ( dict.TryGetValue( key, out var arr ) && arr != null && arr.Length > 0 ) return arr;
-		return fallback;
 	}
 
 	public IconPickerWidget( Widget parent = null ) : base( parent )
