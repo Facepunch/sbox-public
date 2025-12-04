@@ -340,24 +340,24 @@ sealed class IconPickerWidget : Widget
 			var capturedMode = _currentMode;
 			iconButton.MouseRightClick = () =>
 			{
-			var menu = new Menu( iconButton );
-			if ( IsFavorite( capturedIcon, capturedMode ) )
-			{
-			menu.AddOption( "Remove from Favorites", "star_border", () =>
-			{
-			RemoveFromFavorites( capturedIcon, capturedMode );
-			Rebuild();
-			} );
-			}
-			else
-			{
-			menu.AddOption( "Add to Favorites", "star", () =>
-			{
-			AddToFavorites( capturedIcon, capturedMode );
-			Rebuild();
-			} );
-			}
-			menu.OpenAtCursor();
+				var menu = new Menu( iconButton );
+				if ( IsFavorite( capturedIcon, capturedMode ) )
+				{
+					menu.AddOption( "Remove from Favorites", "star_border", () =>
+					{
+						RemoveFromFavorites( capturedIcon, capturedMode );
+						Rebuild();
+					} );
+				}
+				else
+				{
+					menu.AddOption( "Add to Favorites", "star", () =>
+					{
+						AddToFavorites( capturedIcon, capturedMode );
+						Rebuild();
+					} );
+				}
+				menu.OpenAtCursor();
 			};
 
 			if ( icon == Icon )
@@ -755,3 +755,4 @@ sealed class IconPickerWidget : Widget
 	// Emoji categories are loaded from Data/emojis/emojis.json at runtime.
 	// This avoids embedding large emoji literals in source files which can be mangled by file encoding.
 }
+
