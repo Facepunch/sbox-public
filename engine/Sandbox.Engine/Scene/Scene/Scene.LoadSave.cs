@@ -101,7 +101,7 @@ public partial class Scene : GameObject
 
 			if ( sceneFile.SceneProperties is not null )
 			{
-				DeserializeProperties( sceneFile.SceneProperties );
+				DeserializeProperties( sceneFile.SceneProperties, options.IsAdditive );
 			}
 
 			//
@@ -255,7 +255,7 @@ public partial class Scene : GameObject
 		return metadata;
 	}
 
-	void DeserializeProperties( JsonObject data )
+	void DeserializeProperties( JsonObject data, bool isAdditive = false )
 	{
 		var sceneType = Game.TypeLibrary.GetType<Scene>();
 		Assert.NotNull( sceneType, "Scene type is inaccessible!" );
@@ -279,8 +279,13 @@ public partial class Scene : GameObject
 			}
 		}
 
-		NavMesh.Deserialize( data["NavMesh"] as JsonObject );
-
+		//
+		// We don't want navmesh to be overwritten in additive loads
+		//
+		if ( !isAdditive )
+		{
+			NavMesh.Deserialize( data["NavMesh"] as JsonObject );
+		}
 	}
 
 
