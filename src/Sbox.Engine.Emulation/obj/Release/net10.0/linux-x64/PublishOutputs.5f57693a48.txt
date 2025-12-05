@@ -1,3 +1,0 @@
-/home/hermann/Repositories/sbox-public/src/Sbox.Engine.Emulation/bin/Release/net10.0/linux-x64/publish/Sbox.Engine.Emulation.so
-/home/hermann/Repositories/sbox-public/src/Sbox.Engine.Emulation/bin/Release/net10.0/linux-x64/publish/libglfw.so.3
-/home/hermann/Repositories/sbox-public/src/Sbox.Engine.Emulation/bin/Release/net10.0/linux-x64/publish/libSDL2-2.0.so

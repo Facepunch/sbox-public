@@ -137,6 +137,19 @@ public class ToolAppSystem : AppSystem, IDisposable
 				var path = System.Environment.GetEnvironmentVariable( "PATH" );
 				path = $"{nativeDllPath}:{path}";
 				System.Environment.SetEnvironmentVariable( "PATH", path );
+
+				// Set LD_LIBRARY_PATH so that native libraries can find their dependencies
+				var ldLibraryPath = System.Environment.GetEnvironmentVariable( "LD_LIBRARY_PATH" );
+				if ( string.IsNullOrEmpty( ldLibraryPath ) )
+				{
+					ldLibraryPath = nativeDllPath;
+				}
+				else
+				{
+					ldLibraryPath = $"{nativeDllPath}:{ldLibraryPath}";
+				}
+				System.Environment.SetEnvironmentVariable( "LD_LIBRARY_PATH", ldLibraryPath );
+				Console.WriteLine( $"[ToolAppSystem] Set LD_LIBRARY_PATH to: {ldLibraryPath}" );
 			}
 			else if ( OperatingSystem.IsWindows() )
 			{

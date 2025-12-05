@@ -22,5 +22,6 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "Sandbox.AppSystem" )]
 [assembly: InternalsVisibleTo( "Sbox-Server" )]
 [assembly: InternalsVisibleTo( "Sbox.Engine.Emulation" )]
+[assembly: InternalsVisibleTo( "Sandbox.Engine.Emulation" )]
 
 [assembly: TasksPersistOnContextReset]

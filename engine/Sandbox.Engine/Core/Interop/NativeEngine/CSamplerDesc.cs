@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace NativeEngine;
 
 [StructLayout( LayoutKind.Sequential, Pack = 4, Size = 20 )]
-internal struct CSamplerStateDesc
+public struct CSamplerStateDesc
 {
 	public byte m_nFilterMode;
 	public byte m_nMipLodBias;

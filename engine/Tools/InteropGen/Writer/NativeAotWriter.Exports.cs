@@ -123,7 +123,7 @@ internal partial class NativeAotWriter
 				WriteLine( $"        public static {returnType} _Get__{f.MangledName}( {args} )" );
 				WriteLine( "        {" );
 				if ( returnType != "void" )
-					WriteLine( $"            return default;" );
+					WriteLine( $"            throw new NotImplementedException(\"{f.MangledName}\");" );
 				WriteLine( "        }" );
 				
 				// Setter
@@ -133,7 +133,7 @@ internal partial class NativeAotWriter
 				WriteLine( $"        [UnmanagedCallersOnly(EntryPoint = \"_Set__{f.MangledName}\", CallConvs = new[] {{ typeof(CallConvSuppressGCTransition) }})]" );
 				WriteLine( $"        public static void* _Set__{f.MangledName}( {setArgs} )" );
 				WriteLine( "        {" );
-				WriteLine( "            return default;" );
+					WriteLine( $"            throw new NotImplementedException(\"{f.MangledName}\");" );
 				WriteLine( "        }" );
 			}
 		}

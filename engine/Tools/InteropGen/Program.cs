@@ -27,6 +27,8 @@ public static class Program
 				// Détection automatique de l’OS
 				bool isLinux = RuntimeInformation.IsOSPlatform( OSPlatform.Linux );
 
+
+
 				if ( isLinux )
 				{
 					Log.WriteLine( "Detected Linux → Saving NativeAOT File" );
@@ -34,6 +36,13 @@ public static class Program
 					var nativeAotWriter = new NativeAotWriter( definitions, definitions.SaveFileCsAot );
 					nativeAotWriter.Generate();
 					nativeAotWriter.SaveToFile( definitions.SaveFileCsAot );
+					// var nativeHeaderWriter = new NativeHeaderWriter( definitions, definitions.SaveFileCppH );
+					// nativeHeaderWriter.Generate();
+					// nativeHeaderWriter.SaveToFile( definitions.SaveFileCppH );
+
+					// var nativeWriter = new NativeWriter( definitions, definitions.SaveFileCpp );
+					// nativeWriter.Generate();
+					// nativeWriter.SaveToFile( definitions.SaveFileCpp );
 				}
 				else
 				{

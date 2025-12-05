@@ -24,7 +24,8 @@ internal class Build
 		}
 
 		// Always add interop gen
-		builder.AddStep( new Steps.InteropGen( "Interop Gen", skipNative: false, aot: aot ) );
+		// Skip native generation when using public artifacts (libengine2.so is already provided)
+		builder.AddStep( new Steps.InteropGen( "Interop Gen", skipNative: isPublicSource, aot: aot ) );
 
 		if ( !isPublicSource )
 		{

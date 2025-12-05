@@ -12,7 +12,7 @@ internal class LinuxPlatform : Platform
 		if ( solutionName.Contains( "developer_all" ) )
 		{
 			Log.Info( "Building NativeAOT Engine..." );
-			return Utility.RunProcess( "dotnet", "publish src/Sbox.Engine.Emulation/Sbox.Engine.Emulation.csproj -c Release -r linux-x64 /p:NativeLib=Shared /p:SelfContained=true -o game/bin/linuxsteamrt64", "." );
+			return Utility.RunProcess( "dotnet", "publish src/Sandbox.Engine.Emulation/Sandbox.Engine.Emulation.csproj -c Release -r linux-x64 /p:NativeLib=Shared /p:SelfContained=true -o game/bin/linuxsteamrt64", "." );
 		}
 
 		return Utility.RunProcess( "make", $"-f {solutionName}.mak SHELL=/bin/bash", "src" );

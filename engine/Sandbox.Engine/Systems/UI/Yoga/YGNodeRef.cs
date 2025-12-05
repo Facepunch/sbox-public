@@ -98,7 +98,7 @@ internal enum YGNodeType
 }
 
 
-internal enum YGUnit
+public enum YGUnit
 {
 	YGUnitUndefined,
 	YGUnitPoint,
@@ -107,7 +107,7 @@ internal enum YGUnit
 }
 
 
-internal struct YGValue
+public struct YGValue
 {
 	public float value;
 	public YGUnit unit;
