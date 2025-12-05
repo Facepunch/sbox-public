@@ -88,7 +88,7 @@ public partial class SceneViewportWidget : Widget
 		FocusMode = FocusMode.None;
 	}
 
-	Vector3? cameraTargetPosition;
+	internal Vector3? cameraTargetPosition;
 	Vector3 cameraVelocity;
 	float cameraOrbitDistance = 400;
 	bool doubleClick;
