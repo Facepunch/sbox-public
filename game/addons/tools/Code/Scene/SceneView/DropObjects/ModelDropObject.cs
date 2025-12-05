@@ -7,7 +7,8 @@ namespace Editor;
 partial class ModelDropObject : BaseDropObject
 {
 	Model model;
-	string archetype;
+	bool physicsArchetype;
+	bool physics;
 
 	protected override async Task Initialize( string dragData, CancellationToken token )
 	{
@@ -19,7 +20,7 @@ partial class ModelDropObject : BaseDropObject
 		if ( token.IsCancellationRequested )
 			return;
 
-		archetype = asset.FindStringEditInfo( "model_archetype_id" );
+		var archetype = asset.FindStringEditInfo( "model_archetype_id" );
 
 		PackageStatus = "Loading Model";
 		model = await Model.LoadAsync( asset.Path );
@@ -27,19 +28,25 @@ partial class ModelDropObject : BaseDropObject
 
 		Bounds = model.Bounds;
 		PivotPosition = Bounds.ClosestPoint( Vector3.Down * 10000 );
+		physics = (model.Physics?.Parts.Count ?? 0) > 0;
+		if ( physics && model.Physics.Parts.Any( p => p.Meshes.Any() ) ) // can't do rigid body with meshes
+			physics = false;
+		physicsArchetype = archetype == "physics_prop_model" || archetype == "jointed_physics_model" || archetype == "breakable_prop_model";
 	}
 
 	public override void OnUpdate()
 	{
 		using var scope = Gizmo.Scope( "DropObject", traceTransform );
 
-		Gizmo.Draw.Color = Color.White.WithAlpha( 0.3f );
-		Gizmo.Draw.LineBBox( Bounds );
-
-		Gizmo.Draw.Color = Color.White;
-
 		if ( model is not null )
 		{
+			if ( physics && physicsArchetype != Gizmo.IsShiftPressed )
+				Gizmo.Draw.Color = Theme.Blue.WithAlpha( 0.6f );
+			else
+				Gizmo.Draw.Color = Color.White.WithAlpha( 0.3f );
+			Gizmo.Draw.LineBBox( Bounds );
+
+			Gizmo.Draw.Color = Color.White;
 			var so = Gizmo.Draw.Model( model );
 			if ( so.IsValid() )
 			{
@@ -58,8 +65,6 @@ partial class ModelDropObject : BaseDropObject
 
 	private bool HasPropData()
 	{
-		if ( archetype == "physics_prop_model" || archetype == "jointed_physics_model" || archetype == "breakable_prop_model" )
-			return true;
 		if ( model.Data.Explosive )
 			return true;
 		if ( model.Data.Flammable )
@@ -86,12 +91,12 @@ partial class ModelDropObject : BaseDropObject
 			GameObject.Name = model.ResourceName;
 			GameObject.WorldTransform = traceTransform;
 
-			bool physics = (model.Physics?.Parts.Count ?? 0) > 0;
-			if ( physics && HasPropData() )
+			var rigidbody = physics && physicsArchetype != Gizmo.IsShiftPressed;
+			if ( rigidbody || HasPropData() )
 			{
 				var prop = GameObject.Components.Create<Prop>();
 				prop.Model = model;
-				prop.IsStatic = archetype == "" || archetype == "default" || archetype == "static_prop_model" || archetype == "animated_model";
+				prop.IsStatic = !rigidbody;
 			}
 			else if ( model.BoneCount > 0 )
 			{
@@ -102,7 +107,7 @@ partial class ModelDropObject : BaseDropObject
 			{
 				var renderer = GameObject.Components.Create<ModelRenderer>();
 				renderer.Model = model;
-				if ( physics )
+				if ( (model.Physics?.Parts.Count ?? 0) > 0 )
 				{
 					var collider = GameObject.Components.Create<ModelCollider>();
 					collider.Model = model;
