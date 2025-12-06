@@ -6,6 +6,11 @@ namespace Sandbox;
 /// </summary>
 public sealed partial class SceneModel : SceneObject
 {
+	/// <summary>
+	/// Manually override the final bone transform.
+	/// </summary>
+	/// <param name="boneIndex"></param>
+	/// <param name="transform">Local coordinates based on the SceneModel's transform</param>
 	public void SetBoneOverride( int boneIndex, in Transform transform )
 	{
 		if ( boneIndex < 0 ) return;
@@ -13,21 +18,26 @@ public sealed partial class SceneModel : SceneObject
 		animNative.SetPhysicsBone( (ushort)boneIndex, transform );
 	}
 
+	/// <summary>
+	/// Clears all bone transform overrides.
+	/// </summary>
 	public void ClearBoneOverrides()
 	{
 		animNative.ClearPhysicsBones();
 	}
 
-	internal bool HasBoneOverrides()
+	/// <summary>
+	/// Whether any bone transforms have been overridden.
+	/// </summary>
+	public bool HasBoneOverrides()
 	{
 		return animNative.HasPhysicsBones();
 	}
 
 	/// <summary>
-	/// Calculate velocity from previous and current bone transform 
-	/// (I want to expose this public but want to make sure the math is correct first)
+	/// Calculates the velocity from the previous and current bone transforms.
 	/// </summary>
-	internal void GetBoneVelocity( int boneIndex, out Vector3 linear, out Vector3 angular )
+	public void GetBoneVelocity( int boneIndex, out Vector3 linear, out Vector3 angular )
 	{
 		linear = default;
 		angular = default;
