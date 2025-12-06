@@ -7,11 +7,11 @@
     "menu.settings": "Settings",
     "menu.quit": "Quit",
     "menu.searchplaceholder": "Search..",
+    "menu.notifications":  "Notifications",
 
     "avatar.change": "Change",
     "avatar.changetip": "Change your appearance",
     "avatar.toggletype": "Switch between human and citizen",
 
     "party": "Party"
-
 }
