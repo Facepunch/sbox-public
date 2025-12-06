@@ -29,8 +29,11 @@ public partial class SceneObject : IHandle
 		get
 		{
 			if ( native.IsNull ) return null;
-			// FIXME: What really sucks with this is it allocates CSceneObject::m_pExtraData even if we're only reading
-			return _attributes ??= new RenderAttributes( native.GetAttributesPtrForModify() );
+			if ( _attributes == null )
+			{
+				_attributes = new RenderAttributes( native.GetAttributesPtrForModify() );
+			}
+			return _attributes;
 		}
 	}
 
