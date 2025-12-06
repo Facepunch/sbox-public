@@ -437,14 +437,15 @@ public partial class GameObject
 		return Parent.FindNetworkRoot();
 	}
 
-	private static readonly DeserializeOptions _networkRefreshDeserializeOptions = new() { IsRefreshing = true, IsNetworkRefresh = true };
+	private static readonly DeserializeOptions _networkRefreshFromHostOptions = new() { IsRefreshing = true, IsNetworkRefresh = true, IsRefreshFromHost = true };
+	private static readonly DeserializeOptions _networkRefreshFromClientOptions = new() { IsRefreshing = true, IsNetworkRefresh = true, IsRefreshFromHost = false };
 
 	/// <summary>
 	/// Update hierarchy from a network refresh.
 	/// </summary>
-	internal void NetworkRefresh( JsonObject jso )
+	internal void NetworkRefresh( JsonObject jso, bool sourceIsHost )
 	{
-		Deserialize( jso, _networkRefreshDeserializeOptions );
+		Deserialize( jso, sourceIsHost ? _networkRefreshFromHostOptions : _networkRefreshFromClientOptions );
 	}
 
 	/// <summary>
