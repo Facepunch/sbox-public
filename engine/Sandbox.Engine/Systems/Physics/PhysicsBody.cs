@@ -1228,4 +1228,9 @@ public sealed partial class PhysicsBody : IHandle
 	{
 		Joints.Remove( joint );
 	}
+
+	internal void ResetProxy()
+	{
+		native.ResetProxy();
+	}
 }

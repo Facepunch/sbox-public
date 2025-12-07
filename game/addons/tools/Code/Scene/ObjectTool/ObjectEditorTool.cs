@@ -1,4 +1,5 @@
-﻿namespace Editor;
+﻿
+namespace Editor;
 
 /// <summary>
 /// Move, rotate and scale objects
@@ -11,11 +12,6 @@
 [Order( -9999 )]
 public class ObjectEditorTool : EditorTool
 {
-	/// <summary>
-	/// Non null when selection is active
-	/// </summary>
-	SceneSelectionMode selectionMode;
-
 	public override IEnumerable<EditorTool> GetSubtools()
 	{
 		yield return new PositionEditorTool();
@@ -30,11 +26,71 @@ public class ObjectEditorTool : EditorTool
 		UpdateSelectionMode();
 	}
 
-	public override void OnDisabled()
+	protected override void OnBoxSelect( Frustum frustum, Rect screenRect, bool isFinal )
 	{
-		base.OnDisabled();
+		var selection = new HashSet<GameObject>();
+		var previous = new HashSet<GameObject>();
 
-		FinishSelection();
+		bool fullyInside = true;
+		bool removing = Gizmo.IsCtrlPressed;
+
+		foreach ( var mr in Scene.GetAllComponents<ModelRenderer>() )
+		{
+			var bounds = mr.Bounds;
+			if ( !frustum.IsInside( bounds, !fullyInside ) )
+			{
+				previous.Add( mr.GameObject );
+				continue;
+			}
+
+			selection.Add( mr.GameObject );
+		}
+
+		foreach ( var go in Scene.GetAllObjects( true ) )
+		{
+			if ( selection.Contains( go ) ) continue;
+			if ( !go.HasGizmoHandle ) continue;
+			if ( !frustum.IsInside( go.WorldPosition ) )
+			{
+				previous.Add( go );
+				continue;
+			}
+
+			selection.Add( go );
+		}
+
+		foreach ( var selectedObj in selection )
+		{
+			if ( !removing )
+			{
+				//if ( selected.Contains( selectedObj ) ) continue;
+				if ( Selection.Contains( selectedObj ) ) continue;
+
+				Selection.Add( selectedObj );
+			}
+			else
+			{
+				if ( !Selection.Contains( selectedObj ) ) continue;
+
+				Selection.Remove( selectedObj );
+			}
+		}
+
+		foreach ( var removed in previous )
+		{
+			if ( removing )
+			{
+				//if ( !selected.Contains( removed ) ) continue;
+
+				Selection.Add( removed );
+			}
+			else
+			{
+				//	if ( selected.Contains( removed ) ) continue;
+
+				Selection.Remove( removed );
+			}
+		}
 	}
 
 	void UpdateSelectionMode()
@@ -42,54 +98,23 @@ public class ObjectEditorTool : EditorTool
 		if ( !Gizmo.HasMouseFocus )
 			return;
 
-		//
-		// trigger selection if mouse is down, we're not dragging anything, and have moved the mouse since press
-		//
-		if ( selectionMode is null && !Gizmo.IsAltPressed && Gizmo.Pressed.IsActive && !Gizmo.Pressed.Any && Gizmo.Pressed.CursorDelta.Length > 3 )
-		{
-			selectionMode = new BoxSelectionMode( SceneEditorSession.Active.Scene, SceneEditorSession.Active.Selection );
-		}
-
-		//
-		// Did we click nothing and aren't wanting to drag?
-		//
-		if ( selectionMode is null && Gizmo.WasLeftMouseReleased && !Gizmo.Pressed.Any )
+		if ( Gizmo.WasLeftMouseReleased && !Gizmo.Pressed.Any && !IsBoxSelecting )
 		{
 			using ( Scene.Editor?.UndoScope( "Deselect all" ).Push() )
 			{
 				EditorScene.Selection.Clear();
 			}
 		}
-
-		//
-		// Think the active selection mode
-		//
-		if ( selectionMode is not null )
-		{
-			selectionMode?.Think( Gizmo.CurrentRay );
-		}
-
-		//
-		// Release the active selecion mode
-		//
-		if ( !Gizmo.Pressed.IsActive )
-		{
-			FinishSelection();
-
-		}
 	}
 
-	void FinishSelection()
-	{
-		selectionMode?.Finish( Gizmo.CurrentRay );
-		selectionMode = null;
-	}
 
 	[Shortcut( "tools.object-tool", "o", typeof( SceneViewportWidget ) )]
 	public static void ActivateSubTool()
 	{
 		EditorToolManager.SetTool( nameof( ObjectEditorTool ) );
 	}
+
+	public override bool HasBoxSelectionMode() => true;
 
 
 }

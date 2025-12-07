@@ -4,12 +4,11 @@ namespace Editor.MeshEditor;
 /// <summary>
 /// Create new shapes by dragging out a block
 /// </summary>
-[EditorTool( "tools.block-tool" )]
-[Title( "Block Builder" )]
-[Icon( "hardware" )]
-[Group( "Mesh" )]
-[Order( -1 )]
-public partial class BlockTool : EditorTool
+[Title( "Block Tool" )]
+[Icon( "view_in_ar" )]
+[Group( "4" )]
+[Alias( "tools.block-tool" )]
+public partial class BlockTool( MeshTool meshTool ) : EditorTool
 {
 	private BBox _box;
 	private BBox _startBox;
@@ -18,7 +17,6 @@ public partial class BlockTool : EditorTool
 	private bool _resizePressed;
 	private bool _inProgress;
 	private bool _dragging;
-	private bool _finished;
 	private Vector3 _dragStartPos;
 
 	private readonly HashSet<PrimitiveBuilder> _primitives = new();
@@ -34,7 +32,7 @@ public partial class BlockTool : EditorTool
 				return;
 
 			_primitive = value;
-			_primitive.Material = LastMaterial;
+			_primitive.Material = meshTool.ActiveMaterial;
 
 			BuildControlSheet();
 			RebuildMesh();
@@ -50,13 +48,10 @@ public partial class BlockTool : EditorTool
 				return;
 
 			_inProgress = value;
-
-			UpdateStatus();
 		}
 	}
 
 	private static float LastHeight = 128;
-	private static Material LastMaterial = Material.Load( "materials/dev/reflectivity_30.vmat" );
 
 	public override void OnEnabled()
 	{
@@ -81,10 +76,11 @@ public partial class BlockTool : EditorTool
 
 		if ( InProgress )
 		{
-			var go = CreateFromBox( _box );
-			Selection.Set( go );
-			Log.Info( "BlockTool: OnDisabled: Created object" );
-			_finished = true;
+			using ( Scene.Push() )
+			{
+				var go = CreateFromBox( _box );
+				Selection.Set( go );
+			}
 			InProgress = false;
 		}
 		else
@@ -94,6 +90,11 @@ public partial class BlockTool : EditorTool
 			foreach ( var o in selectedObjects )
 				Selection.Add( o );
 		}
+
+		_resizing = false;
+		_resizePressed = false;
+		_inProgress = false;
+		_dragging = false;
 	}
 
 	private PolygonMesh Build( BBox box )
@@ -164,7 +165,7 @@ public partial class BlockTool : EditorTool
 		}
 
 		_primitive = _primitives.FirstOrDefault();
-		_primitive.Material = LastMaterial;
+		_primitive.Material = meshTool.ActiveMaterial;
 	}
 
 	private static IEnumerable<TypeDescription> GetBuilderTypes()
@@ -218,19 +219,13 @@ public partial class BlockTool : EditorTool
 			return;
 		}
 
-		EditorToolManager.SetTool( nameof( ObjectEditorTool ) );
-		_finished = true;
+		EditorToolManager.SetSubTool( nameof( PositionMode ) );
 	}
 
 	public override void OnUpdate()
 	{
-		if ( _finished )
-			return;
-
 		if ( Selection.OfType<GameObject>().Any() )
 			return;
-
-		EditorUtility.InspectorObject = this;
 
 		if ( InProgress && Application.FocusWidget.IsValid() )
 		{
@@ -252,8 +247,6 @@ public partial class BlockTool : EditorTool
 
 		if ( Current is null )
 			return;
-
-		LastMaterial = Current.Material;
 
 		var textSize = 22 * Gizmo.Settings.GizmoScale * Application.DpiScale;
 
@@ -332,12 +325,10 @@ public partial class BlockTool : EditorTool
 			{
 				var go = CreateFromBox( _box );
 				Selection.Set( go );
-				Log.Info( "BlockTool: OnUpdate: Created object" );
 
-				_finished = true;
 				InProgress = false;
 
-				EditorToolManager.SetTool( nameof( ObjectEditorTool ) );
+				EditorToolManager.SetSubTool( nameof( PositionMode ) );
 			}
 		}
 		else
@@ -375,13 +366,8 @@ public partial class BlockTool : EditorTool
 			using ( Gizmo.Scope( "Aim Handle", new Transform( tr.EndPosition, Rotation.LookAt( tr.Normal ) ) ) )
 			{
 				Gizmo.Draw.Color = Color.White;
-				Gizmo.Draw.LineCircle( 0, 2 );
-				Gizmo.Draw.Color = Color.White.WithAlpha( 0.5f );
-				Gizmo.Draw.LineCircle( 0, 3 );
-				Gizmo.Draw.Color = Color.White.WithAlpha( 0.3f );
-				Gizmo.Draw.LineCircle( 0, 6 );
-				Gizmo.Draw.Color = Color.White.WithAlpha( 0.1f );
-				Gizmo.Draw.LineCircle( 0, 12 );
+				var size = 3.0f * Gizmo.Camera.Position.Distance( tr.EndPosition ) / 1000.0f;
+				Gizmo.Draw.SolidSphere( 0, size );
 			}
 		}
 
@@ -436,11 +422,5 @@ public partial class BlockTool : EditorTool
 				Gizmo.Draw.ScreenText( $"W: {box.Size.x:0.#}", box.Mins.WithX( box.Center.x ), Vector2.Up * 32, size: textSize );
 			}
 		}
-	}
-
-	[Shortcut( "tools.block-tool", "Shift+B", typeof( SceneViewportWidget ) )]
-	public static void ActivateTool()
-	{
-		EditorToolManager.SetTool( nameof( BlockTool ) );
 	}
 }

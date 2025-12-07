@@ -207,18 +207,15 @@ public class SceneRenderingWidget : Frame
 
 	internal void HandleVideoChanged()
 	{
-		var oldSwapChain = SwapChain;
-		SwapChain = WidgetUtil.CreateSwapChain( _widget, RenderSettings.Instance.AntiAliasQuality.ToEngine() );
+		var msaaAmount = RenderSettings.Instance.AntiAliasQuality.ToEngine();
+
 		if ( SwapChain == default )
 		{
-			SwapChain = oldSwapChain;
+			SwapChain = WidgetUtil.CreateSwapChain( _widget, msaaAmount );
 			return;
 		}
 
-		if ( oldSwapChain != default )
-		{
-			EngineLoop.DisposeAtFrameEnd( new Sandbox.Utility.DisposeAction( () => g_pRenderDevice.DestroySwapChain( oldSwapChain ) ) );
-		}
+		WidgetUtil.UpdateSwapChainMSAA( SwapChain, msaaAmount );
 	}
 
 	internal static void RenderAll()

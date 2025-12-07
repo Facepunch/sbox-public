@@ -8,32 +8,23 @@ namespace Editor.MeshEditor;
 /// </summary>
 [Title( "Rotate" )]
 [Icon( "360" )]
-[Alias( "tools.rotate-tool" )]
-[Group( "1" )]
-public sealed class RotateTool : BaseMoveTool
+[Alias( "mesh.rotate.mode" )]
+[Order( 1 )]
+public sealed class RotateMode : MoveMode
 {
 	private Angles _moveDelta;
 	private Vector3 _origin;
 	private Rotation _basis;
 
-	public RotateTool( BaseMeshTool meshTool ) : base( meshTool )
+	protected override void OnUpdate( SelectionTool tool )
 	{
-	}
-
-	public override void OnUpdate()
-	{
-		base.OnUpdate();
-
-		if ( !Selection.OfType<IMeshElement>().Any() )
-			return;
-
 		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
 		{
 			EndDrag();
 
 			_moveDelta = default;
-			_basis = MeshTool.CalculateSelectionBasis();
-			_origin = MeshTool.Pivot;
+			_basis = tool.CalculateSelectionBasis();
+			_origin = tool.Pivot;
 		}
 
 		using ( Gizmo.Scope( "Tool", new Transform( _origin, _basis ) ) )
@@ -42,11 +33,9 @@ public sealed class RotateTool : BaseMoveTool
 
 			if ( Gizmo.Control.Rotate( "rotation", out var angleDelta ) )
 			{
-				var components = TransformVertices.Select( x => x.Key.Component ).Distinct();
-
 				_moveDelta += angleDelta;
 
-				StartDrag();
+				StartDrag( tool );
 
 				var snapDelta = Gizmo.Snap( _moveDelta, _moveDelta );
 
@@ -64,12 +53,5 @@ public sealed class RotateTool : BaseMoveTool
 				UpdateDrag();
 			}
 		}
-	}
-
-	[Shortcut( "tools.rotate-tool", "e", typeof( SceneViewportWidget ) )]
-	public static void ActivateSubTool()
-	{
-		if ( !(EditorToolManager.CurrentModeName == nameof( VertexTool ) || EditorToolManager.CurrentModeName == nameof( FaceTool ) || EditorToolManager.CurrentModeName == nameof( EdgeTool )) ) return;
-		EditorToolManager.SetSubTool( nameof( RotateTool ) );
 	}
 }

@@ -34,8 +34,15 @@ public class ControlSheet : Panel, IControlSheet
 
 		if ( Target is null ) return;
 
-		var so = Game.TypeLibrary.GetSerializedObject( Target );
-		IControlSheet.FilterSortAndAdd( sheet, so.ToList() );
+		if ( Target is List<SerializedProperty> propertyList )
+		{
+			IControlSheet.FilterSortAndAdd( sheet, propertyList );
+		}
+		else
+		{
+			var so = Game.TypeLibrary.GetSerializedObject( Target );
+			IControlSheet.FilterSortAndAdd( sheet, so.ToList() );
+		}
 	}
 
 	int _hash;

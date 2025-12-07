@@ -5,6 +5,11 @@ ControlSheetRow
 	flex-shrink: 0;
 	max-height: 32px;
 	border-radius: 4px;
+
+	&.hidden
+	{
+		display: none;
+	}
 }
 
 ControlSheetRow > .left

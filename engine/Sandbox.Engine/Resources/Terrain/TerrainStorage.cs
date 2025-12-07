@@ -7,6 +7,114 @@ using System.Text.Json.Serialization;
 namespace Sandbox;
 
 /// <summary>
+/// Compact terrain material encoding with base/overlay texture blending.
+/// Packed format (32-bit uint)
+/// </summary>
+public record struct CompactTerrainMaterial
+{
+	/// <summary>
+	/// Helper struct for cleaner bit field manipulation
+	/// </summary>
+	private readonly record struct BitField( int shift, int bits )
+	{
+		private readonly uint _mask = (1u << bits) - 1;
+
+		/// <summary>
+		/// Extract value from packed data
+		/// </summary>
+		public uint Extract( uint packed ) => (packed >> shift) & _mask;
+
+		/// <summary>
+		/// Insert value into packed data
+		/// </summary>
+		public uint Insert( uint packed, uint value )
+		{
+			packed &= ~(_mask << shift);
+			packed |= (value & _mask) << shift;
+			return packed;
+		}
+	}
+
+	private uint _packed;
+
+	// Bit offset definitions
+	private static readonly BitField BaseTexture = new( shift: 0, bits: 5 );
+	private static readonly BitField OverlayTexture = new( shift: 5, bits: 5 );
+	private static readonly BitField Blend = new( shift: 10, bits: 8 );
+	private static readonly BitField Hole = new( shift: 18, bits: 1 );
+	private static readonly BitField Reserved = new( shift: 19, bits: 13 );
+
+	public CompactTerrainMaterial( uint packed )
+	{
+		_packed = packed;
+	}
+
+	public CompactTerrainMaterial(
+		byte baseTextureId,
+		byte overlayTextureId = 0,
+		byte blendFactor = 0,
+		bool isHole = false )
+	{
+		_packed = 0;
+		BaseTextureId = baseTextureId;
+		OverlayTextureId = overlayTextureId;
+		BlendFactor = blendFactor;
+		IsHole = isHole;
+		ReservedValue = 0;
+	}
+
+	/// <summary>
+	/// Base texture ID (0-31)
+	/// </summary>
+	public byte BaseTextureId
+	{
+		get => (byte)BaseTexture.Extract( _packed );
+		set => _packed = BaseTexture.Insert( _packed, value );
+	}
+
+	/// <summary>
+	/// Overlay texture ID (0-31)
+	/// </summary>
+	public byte OverlayTextureId
+	{
+		get => (byte)OverlayTexture.Extract( _packed );
+		set => _packed = OverlayTexture.Insert( _packed, value );
+	}
+
+	/// <summary>
+	/// Blend factor between base and overlay (0-255).
+	/// </summary>
+	public byte BlendFactor
+	{
+		get => (byte)Blend.Extract( _packed );
+		set => _packed = Blend.Insert( _packed, value );
+	}
+
+	/// <summary>
+	/// Whether this pixel is marked as a hole
+	/// </summary>
+	public bool IsHole
+	{
+		get => Hole.Extract( _packed ) != 0;
+		set => _packed = Hole.Insert( _packed, value ? 1u : 0u );
+	}
+
+	/// <summary>
+	/// Reserved bits for future use (13 bits)
+	/// </summary>
+	internal ushort ReservedValue
+	{
+		get => (ushort)Reserved.Extract( _packed );
+		set => _packed = Reserved.Insert( _packed, value );
+	}
+
+	/// <summary>
+	/// Raw packed value
+	/// </summary>
+	public uint Packed => _packed;
+}
+
+/// <summary>
 /// Stores heightmaps, control maps and materials.
 /// </summary>
 [Expose]
@@ -16,8 +124,7 @@ public partial class TerrainStorage : GameResource
 	[JsonInclude, JsonPropertyName( "Maps" )] private TerrainMaps Maps { get; set; } = new();
 
 	[JsonIgnore] public ushort[] HeightMap { get => Maps.HeightMap; set => Maps.HeightMap = value; }
-	[JsonIgnore] public Color32[] ControlMap { get => Maps.SplatMap; set => Maps.SplatMap = value; }
-	[JsonIgnore] public byte[] HolesMap { get => Maps.HolesMap; set => Maps.HolesMap = value; }
+	[JsonIgnore] public UInt32[] ControlMap { get => Maps.SplatMap; set => Maps.SplatMap = value; }
 
 	public int Resolution { get; set; }
 
@@ -35,8 +142,31 @@ public partial class TerrainStorage : GameResource
 
 	public class TerrainMaterialSettings
 	{
-		[Group( "Height Blend" ), Property] public bool HeightBlendEnabled { get; set; } = true;
-		[Group( "Height Blend" ), Property, Range( 0, 1 )] public float HeightBlendSharpness { get; set; } = 0.87f;
+		public event Action OnChanged;
+
+		[Group( "Height Blend" ), Property]
+		public bool HeightBlendEnabled
+		{
+			get => field;
+			set
+			{
+				if ( field == value ) return;
+				field = value;
+				OnChanged?.Invoke();
+			}
+		} = true;
+
+		[Group( "Height Blend" ), Property, Range( 0, 1 )]
+		public float HeightBlendSharpness
+		{
+			get => field;
+			set
+			{
+				if ( field == value ) return;
+				field = value;
+				OnChanged?.Invoke();
+			}
+		} = 0.87f;
 	}
 
 	public TerrainMaterialSettings MaterialSettings { get; set; } = new();
@@ -53,98 +183,11 @@ public partial class TerrainStorage : GameResource
 		Resolution = resolution;
 
 		HeightMap = new ushort[Resolution * Resolution];
-		ControlMap = new Color32[Resolution * Resolution];
-		HolesMap = new byte[Resolution * Resolution];
+		ControlMap = new UInt32[Resolution * Resolution];
 
-		for ( int i = 0; i < ControlMap.Length; i++ )
-			ControlMap[i] = new Color32( 255, 0, 0, 0 );
-	}
-
-	internal void GetDominantControlMapIndices( byte[] indices )
-	{
-		Assert.True( indices.Length == ControlMap.Length );
-		// Assert.True( indices.Length == HolesMap.Length );
-
-		// Resolve the getters
-		var holeMap = HolesMap;
-		var controlMap = ControlMap;
-
-		for ( var i = 0; i < controlMap.Length; i++ )
-		{
-			if ( holeMap is not null && i < holeMap.Length && holeMap[i] != 0 )
-			{
-				indices[i] = 255;
-				continue;
-			}
-
-			var color = controlMap[i];
-			var max = color.r;
-			byte maxIndex = 0;
-
-			if ( color.g > max )
-			{
-				max = color.g;
-				maxIndex = 1;
-			}
-
-			if ( color.b > max )
-			{
-				max = color.b;
-				maxIndex = 2;
-			}
-
-			if ( color.a > max )
-			{
-				maxIndex = 3;
-			}
-
-			indices[i] = maxIndex;
-		}
-	}
-
-	public byte[] GetDominantControlMapIndices( int x, int y, int w, int h )
-	{
-		var indices = new byte[w * h];
-
-		for ( int offsetY = 0; offsetY < h; offsetY++ )
-		{
-			for ( int offsetX = 0; offsetX < w; offsetX++ )
-			{
-				int sourceIndex = (x + offsetX) + (y + offsetY) * Resolution;
-				int destinationIndex = offsetX + offsetY * w;
-
-				if ( HolesMap != null && HolesMap[sourceIndex] != 0 )
-				{
-					indices[destinationIndex] = 255;
-					continue;
-				}
-
-				var color = ControlMap[sourceIndex];
-				var max = color.r;
-				byte maxIndex = 0;
-
-				if ( color.g > max )
-				{
-					max = color.g;
-					maxIndex = 1;
-				}
-
-				if ( color.b > max )
-				{
-					max = color.b;
-					maxIndex = 2;
-				}
-
-				if ( color.a > max )
-				{
-					maxIndex = 3;
-				}
-
-				indices[destinationIndex] = maxIndex;
-			}
-		}
-
-		return indices;
+		// Initialize compact control map with material 0
+		var compactMaterial = new CompactTerrainMaterial( 0 );
+		ControlMap.AsSpan().Fill( compactMaterial.Packed );
 	}
 
 	/// <summary>
@@ -153,8 +196,7 @@ public partial class TerrainStorage : GameResource
 	private class TerrainMaps : IJsonConvert
 	{
 		public ushort[] HeightMap { get; set; }
-		public Color32[] SplatMap { get; set; }
-		public byte[] HolesMap { get; set; }
+		public UInt32[] SplatMap { get; set; }
 
 		public static object JsonRead( ref Utf8JsonReader reader, Type typeToConvert )
 		{
@@ -179,28 +221,27 @@ public partial class TerrainStorage : GameResource
 						continue;
 					}
 
-					if ( name == "splatmap" )
-					{
-						maps.SplatMap = Decompress<Color32>( reader.GetBytesFromBase64() ).ToArray();
-						reader.Read();
-						continue;
-					}
-
+					// Skip old formats for backward compatibility
 					if ( name == "holesmap" )
 					{
-						maps.HolesMap = Decompress<byte>( reader.GetBytesFromBase64() ).ToArray();
+						reader.Skip();
 						reader.Read();
 						continue;
 					}
 
-					reader.Read();
-					continue;
+					if ( name == "splatmap" )
+					{
+						maps.SplatMap = Decompress<uint>( reader.GetBytesFromBase64() ).ToArray();
+						reader.Read();
+						continue;
+					}
 
+					reader.Skip();
+					continue;
 				}
 
 				reader.Read();
 			}
-
 
 			return maps;
 		}
@@ -213,7 +254,6 @@ public partial class TerrainStorage : GameResource
 			writer.WriteStartObject();
 			writer.WriteBase64String( "heightmap", Compress( maps.HeightMap.AsSpan() ) );
 			writer.WriteBase64String( "splatmap", Compress( maps.SplatMap.AsSpan() ) );
-			writer.WriteBase64String( "holesmap", Compress( maps.HolesMap.AsSpan() ) );
 			writer.WriteEndObject();
 		}
 
@@ -240,12 +280,5 @@ public partial class TerrainStorage : GameResource
 
 			return memoryStream.ToArray();
 		}
-
-
-	}
-
-	protected override Bitmap CreateAssetTypeIcon( int width, int height )
-	{
-		return CreateSimpleAssetTypeIcon( "landscape", width, height );
 	}
 }

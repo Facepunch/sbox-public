@@ -11,6 +11,8 @@
 #ifndef TERRAIN_H
 #define TERRAIN_H
 
+#include "terrain/TerrainSplatFormat.hlsl"
+
 struct TerrainStruct
 {
     // Immediately I don't like transforms on terrain - it's wasteful and you should really only have 1 terrain.
@@ -20,8 +22,6 @@ struct TerrainStruct
     // Bindless texture maps
     int HeightMapTexture;
     int ControlMapTexture;
-    int HolesMapTexture;
-    int Padding;
 
     float Resolution; // should be inv?
     float HeightScale;
@@ -43,7 +43,6 @@ struct TerrainMaterial
     float displacementscale;
 };
 
-// What's these doing here
 SamplerState g_sBilinearBorder < Filter( BILINEAR ); AddressU( BORDER ); AddressV( BORDER ); >;
 SamplerState g_sAnisotropic < Filter( ANISOTROPIC ); MaxAniso(8); >;
 
@@ -56,10 +55,9 @@ StructuredBuffer<TerrainMaterial> g_TerrainMaterials < Attribute( "TerrainMateri
 class Terrain
 {
     static TerrainStruct Get() { return g_Terrains[0]; }
-
-    static Texture2D GetHeightMap() { return GetBindlessTexture2D( Get().HeightMapTexture ); }
-    static Texture2D GetControlMap() { return GetBindlessTexture2D( Get().ControlMapTexture ); }
-    static Texture2D GetHolesMap() { return GetBindlessTexture2D( Get().HolesMapTexture ); }
+    
+    static Texture2D GetHeightMap() { return Bindless::GetTexture2D( Get().HeightMapTexture ); }
+    static Texture2D GetControlMap() { return Bindless::GetTexture2D( Get().ControlMapTexture ); }
 
     static float GetHeight( float2 worldPos )
     {
@@ -95,8 +93,6 @@ float2 Terrain_SampleSeamlessUV( float2 uv )
     // Apply random offset
     return tileCoord + frac(localUV + hash);
 }
-
-// Move to another file:
 
 //
 // Takes 4 samples
@@ -145,6 +141,7 @@ void Terrain_ProcGrid( in float2 p, out float3 albedo, out float roughness )
     roughness = 0.8f + ( 1 - v ) * 0.2f;
 }
 
+#ifdef COMMON_COLOR_H
 float4 Terrain_Debug( uint nDebugView, uint lodLevel, float2 uv )
 {
     if ( nDebugView == 1 )
@@ -166,5 +163,6 @@ float4 Terrain_WireframeColor( uint lodLevel )
 {       
     return float4( SrgbGammaToLinear( HsvToRgb( float3( lodLevel / 10.0f, 0.6f, 1.0f ) ) ), 1.0f );
 }
+#endif
 
 #endif

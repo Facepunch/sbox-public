@@ -70,7 +70,7 @@ public partial class SceneViewWidget : Widget
 	protected override void OnPaint()
 	{
 		Paint.ClearPen();
-		Paint.SetBrush( Theme.ControlBackground );
+		Paint.SetBrush( Theme.TabBackground );
 		Paint.DrawRect( LocalRect, Theme.ControlRadius );
 	}
 
@@ -284,103 +284,121 @@ public partial class SceneViewWidget : Widget
 
 file class ViewportToolBar : Widget
 {
+	Layout _sidebar;
+	Layout _toolbar;
+	Layout _footer;
+
 	public ViewportToolBar( Widget parent ) : base( parent )
 	{
-		Layout = Layout.Row();
-		Layout.Spacing = 2;
+		Layout = Layout.Column();
+		Layout.Margin = 0;
+		Layout.Spacing = 0;
 
-		var sidebarWidget = Layout.Add( new ScrollArea( this ) );
-		sidebarWidget.Name = "ViewportSidebar";
-		sidebarWidget.Canvas = new Widget();
-		sidebarWidget.HorizontalScrollbarMode = ScrollbarMode.Off;
+		var top = Layout.AddRow();
+		var middle = Layout.AddRow();
+		_footer = Layout.AddRow();
 
-		var sidebar = sidebarWidget.Canvas.Layout = Layout.Column();
-		sidebar.Margin = 2;
+		_toolbar = middle.AddColumn();
+		_sidebar = middle.AddColumn();
+	}
 
-		void PostCreate( GameObject go )
+	void OnToolChanged()
+	{
+		// Prevent flicker when changing tools
+		using var x = SuspendUpdates.For( GetAncestor<SceneViewWidget>() );
+
+		var rootTool = SceneViewWidget.Current?.Tools.CurrentTool;
+		var subTool = SceneViewWidget.Current?.Tools.CurrentSubTool;
+
+		_toolbar?.Clear( true );
+		_sidebar?.Clear( true );
+		_footer?.Clear( true );
+
+		// Update toolbar contents
+		if ( rootTool.Tools?.Any() ?? false )
 		{
-			var tv = SceneTreeWidget.Current.TreeView;
-			tv.Open( this );
-			tv.SelectItem( go, skipEvents: true );
-			tv.BeginRename();
+			var toolbar = new EditorSubToolBarWidget( rootTool );
+			toolbar.Build();
+			_toolbar.Add( toolbar, 0 );
 		}
 
-		sidebar.Add( new EditorSubToolBarWidget( this, Layout.AddColumn() ), 0 );
-		sidebar.AddStretchCell();
+		// Update sidebar
+		var toolWidget = subTool?.CreateToolSidebar() ?? rootTool?.CreateToolSidebar();
 
-		sidebar.Add( new ViewportMainCreateButton( "add", "Create Empty", () =>
+		if ( toolWidget.IsValid() )
 		{
-			var menu = new Menu();
-			GameObjectNode.CreateObjectMenu( menu, null, PostCreate );
-			menu.OpenAtCursor();
-		} ) );
+			var scroller = new ScrollArea( this );
+			scroller.FixedWidth = 240;
+			toolWidget.FixedWidth = 240;
+			scroller.HorizontalSizeMode = SizeMode.Flexible;
+			scroller.VerticalSizeMode = SizeMode.Flexible;
+			scroller.HorizontalScrollbarMode = ScrollbarMode.Off;
+			scroller.Canvas = toolWidget;
+			_sidebar.Add( scroller );
+		}
+
+		// Update footer
+		var footerWidget = subTool?.CreateToolFooter() ?? rootTool?.CreateToolFooter();
+		if ( footerWidget.IsValid() )
+		{
+			_footer.Add( footerWidget );
+		}
+
+		if ( rootTool?.CreateShortcutsWidget() is { } rootShortcutWidget ) _footer.Add( rootShortcutWidget );
+		if ( subTool?.CreateShortcutsWidget() is { } subShortcutWidget ) _footer.Add( subShortcutWidget );
+	}
+
+	EditorTool _activeTool;
+	int _selectionHash;
+
+	[EditorEvent.Frame]
+	public void Frame()
+	{
+		var tool = SceneViewWidget.Current?.Tools.CurrentSubTool ?? SceneViewWidget.Current?.Tools.CurrentTool;
+		var selectionHash = tool?.Selection?.GetHashCode() ?? 0;
+
+		if ( _activeTool != tool || (selectionHash != _selectionHash && (tool?.RebuildSidebarOnSelectionChange ?? false)) )
+		{
+			_activeTool = tool;
+			_selectionHash = selectionHash;
+			OnToolChanged();
+		}
 	}
 }
 
 file class EditorSubToolBarWidget : VerticalToolbarGroup
 {
-	EditorTool _parentTool;
-	readonly Layout _toolPanel;
+	readonly EditorTool _tool;
 
-	public EditorSubToolBarWidget( Widget parent, Layout toolPanel ) : base( parent, null, null )
+	public EditorSubToolBarWidget( EditorTool tool ) : base( null, null, null )
 	{
-		_toolPanel = toolPanel;
-		FixedWidth = 32;
-	}
-
-	protected override void OnPaint()
-	{
-		Paint.ClearPen();
-		Paint.SetBrush( Theme.ControlBackground );
-		Paint.DrawRect( LocalRect, Theme.ControlRadius );
+		_tool = tool;
+		FixedWidth = 32 + 4 + 4;
+		ContentMargins = 4;
 	}
 
 	public override void Build()
 	{
 		Layout.Clear( true );
 
-		_toolPanel?.Clear( true );
-
-		Visible = false;
-
-		if ( _parentTool is null )
-			return;
-
-		// Create and add tool widget if the tool provides one.
-		var toolWidget = _parentTool.CreateToolWidget();
-		if ( toolWidget.IsValid() )
+		if ( _tool == null || _tool.Tools is null || !_tool.Tools.Any() )
 		{
-			_toolPanel.Add( toolWidget );
+			FixedWidth = 0;
+			return;
 		}
 
-		if ( _parentTool.Tools is null || !_parentTool.Tools.Any() )
-			return;
+		Title = DisplayInfo.For( _tool ).Name.ToUpperInvariant() + " MODE";
 
-		Visible = true;
-
-		Title = DisplayInfo.For( _parentTool ).Name.ToUpperInvariant() + " MODE";
-
-		foreach ( var subtool in _parentTool.Tools.Select( x => EditorTypeLibrary.GetType( x.GetType() ) ) )
+		foreach ( var subtool in _tool.Tools.Select( x => EditorTypeLibrary.GetType( x.GetType() ) ) )
 		{
 			if ( subtool is null )
 				continue;
 
-			var toolButton = new EditorSubToolButton( subtool, _parentTool );
+			var toolButton = new EditorSubToolButton( subtool, _tool );
 			Layout.Add( toolButton );
 		}
-	}
 
-	[EditorEvent.Frame]
-	public void Frame()
-	{
-		SetContentHash( HashCode.Combine( _parentTool?.CurrentTool ) );
-
-		var tool = SceneViewWidget.Current?.Tools?.CurrentTool;
-		if ( _parentTool != tool )
-		{
-			_parentTool = tool;
-			Build();
-		}
+		Layout.AddStretchCell();
 	}
 }
 
@@ -445,6 +463,11 @@ file class EditorSubToolButton : Widget
 		}
 		else
 		{
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.ControlBackground );
+
+			Paint.DrawRect( LocalRect.Shrink( 1 ), 4 );
+
 			Paint.ClearPen();
 			Paint.SetPen( Theme.TextLight );
 		}
