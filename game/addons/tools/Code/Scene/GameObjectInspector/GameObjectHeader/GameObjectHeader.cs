@@ -331,7 +331,7 @@ file static class IconColorPicker
 		// Icon Picker with color button
 		var iconPicker = popup.Layout.Add( new IconPickerWidget( popup ), 1 );
 		iconPicker.Icon = currentIcon;
-		
+
 		// Update color when changed via the color button
 		iconPicker.ColorChanged = ( c ) =>
 		{

@@ -752,8 +752,8 @@ sealed class IconPickerWidget : Widget
 	};
 
 	// Content icons
-static readonly string[] ContentIcons = new[]
-	{
+	static readonly string[] ContentIcons = new[]
+		{
 		"add", "add_box", "add_circle", "add_circle_outline", "archive", "backspace", "block",
 		"clear", "content_copy", "content_cut", "content_paste", "create", "delete_sweep",
 		"drafts", "filter_list", "flag", "font_download", "forward", "gesture", "how_to_reg",

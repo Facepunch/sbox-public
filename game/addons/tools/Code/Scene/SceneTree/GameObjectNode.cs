@@ -317,9 +317,9 @@ partial class GameObjectNode : TreeNode<GameObject>
 			else
 			{
 				Paint.Pen = Theme.Blue;
-			Paint.DrawText( r, $"{connection.DisplayName}", TextFlag.LeftCenter );
-			r.Left += 22;
-		}
+				Paint.DrawText( r, $"{connection.DisplayName}", TextFlag.LeftCenter );
+				r.Left += 22;
+			}
 
 
 		}
