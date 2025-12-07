@@ -8,7 +8,6 @@ public partial class Terrain
 	// I think I've made all of these public for the editor... Feels shitty
 	public Texture HeightMap { get; private set; }
 	public Texture ControlMap { get; private set; }
-	public Texture HolesMap { get; private set; } // TODO: Merge into ControlMap
 
 	Model _clipmapModel;
 	int _clipMapLodLevels;
@@ -63,8 +62,6 @@ public partial class Terrain
 
 		public int HeightMapTextureID;
 		public int ControlMapTextureID;
-		public int HolesMapTextureID;
-		public int Padding;
 
 		public float Resolution;
 		public float HeightScale;
@@ -112,7 +109,6 @@ public partial class Terrain
 			TransformInv = transform.Inverted,
 			HeightMapTextureID = HeightMap?.Index ?? 0,
 			ControlMapTextureID = ControlMap?.Index ?? 0,
-			HolesMapTextureID = HolesMap?.Index ?? 0,
 			Resolution = Storage.TerrainSize / Storage.Resolution,
 			HeightScale = Storage.TerrainHeight,
 			HeightBlending = Storage.MaterialSettings.HeightBlendEnabled,
@@ -138,11 +134,17 @@ public partial class Terrain
 		if ( Storage is null )
 			return;
 
-		if ( MaterialsBuffer is null )
-			MaterialsBuffer = new( 4 );
+		// Support up to 32 materials for indexed splatmap
+		int materialCount = Math.Max( 4, Math.Min( Storage.Materials.Count, 32 ) );
 
-		Span<GPUTerrainMaterial> gpuMaterials = stackalloc GPUTerrainMaterial[4];
-		for ( int i = 0; i < 4; i++ )
+		if ( MaterialsBuffer is null || MaterialsBuffer.ElementCount != materialCount )
+		{
+			MaterialsBuffer?.Dispose();
+			MaterialsBuffer = new( materialCount );
+		}
+
+		var gpuMaterials = new GPUTerrainMaterial[materialCount];
+		for ( int i = 0; i < materialCount; i++ )
 		{
 			var layer = Storage.Materials.ElementAtOrDefault( i );
 

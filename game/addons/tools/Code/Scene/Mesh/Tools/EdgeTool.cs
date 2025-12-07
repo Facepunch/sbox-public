@@ -3,33 +3,16 @@
 namespace Editor.MeshEditor;
 
 /// <summary>
-/// Move, rotate and scale mesh edges
+/// Select and edit edges.
 /// </summary>
-[EditorTool( "mesh.edge" )]
-[Title( "Edge Select" )]
+[Title( "Edge Tool" )]
 [Icon( "show_chart" )]
-[Alias( "Edge" )]
-[Group( "Mesh" )]
-[Order( 2 )]
-public sealed partial class EdgeTool : BaseMeshTool
+[Alias( "tools.edge-tool" )]
+[Group( "2" )]
+public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>( tool )
 {
 	public override void OnUpdate()
 	{
-		var bevelEdges = MeshSelection.OfType<BevelEdges>().ToList();
-		if ( bevelEdges.Count != 0 )
-		{
-			foreach ( var group in bevelEdges )
-			{
-				var component = group.Component;
-				if ( !component.IsValid() )
-					continue;
-
-				DrawMesh( component );
-			}
-
-			return;
-		}
-
 		base.OnUpdate();
 
 		using var scope = Gizmo.Scope( "EdgeTool" );
@@ -46,7 +29,7 @@ public sealed partial class EdgeTool : BaseMeshTool
 				SelectEdgeLoop();
 		}
 
-		var edges = MeshSelection.OfType<MeshEdge>().ToList();
+		var edges = Selection.OfType<MeshEdge>().ToList();
 
 		using ( Gizmo.Scope( "Edge Selection" ) )
 		{
@@ -105,7 +88,7 @@ public sealed partial class EdgeTool : BaseMeshTool
 		if ( Gizmo.Settings.GlobalSpace )
 			return Rotation.Identity;
 
-		var edge = MeshSelection.OfType<MeshEdge>().FirstOrDefault();
+		var edge = Selection.OfType<MeshEdge>().FirstOrDefault();
 		if ( edge.IsValid() )
 		{
 			var line = edge.Line;
@@ -189,13 +172,13 @@ public sealed partial class EdgeTool : BaseMeshTool
 			return;
 
 		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
-			MeshSelection.Clear();
+			Selection.Clear();
 
 		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 		{
 			edge.Component.Mesh.FindEdgeLoopForEdges( [edge.Handle], out var hEdges );
 			foreach ( var hEdge in hEdges )
-				MeshSelection.Add( new MeshEdge( edge.Component, hEdge ) );
+				Selection.Add( new MeshEdge( edge.Component, hEdge ) );
 		}
 	}
 
@@ -238,7 +221,7 @@ public sealed partial class EdgeTool : BaseMeshTool
 
 	protected override IEnumerable<IMeshElement> GetAllSelectedElements()
 	{
-		foreach ( var group in MeshSelection.OfType<MeshEdge>()
+		foreach ( var group in Selection.OfType<MeshEdge>()
 			.GroupBy( x => x.Component ) )
 		{
 			var component = group.Key;
@@ -256,7 +239,7 @@ public sealed partial class EdgeTool : BaseMeshTool
 
 	public override List<MeshFace> ExtrudeSelection( Vector3 delta = default )
 	{
-		var groups = MeshSelection.OfType<MeshEdge>()
+		var groups = Selection.OfType<MeshEdge>()
 			.GroupBy( face => face.Component );
 
 		var connectingFaces = new List<MeshFace>();
@@ -312,21 +295,15 @@ public sealed partial class EdgeTool : BaseMeshTool
 			}
 		}
 
-		MeshSelection.Clear();
+		Selection.Clear();
 
 		foreach ( var edge in selectedEdges )
 		{
-			MeshSelection.Add( edge );
+			Selection.Add( edge );
 		}
 
 		CalculateSelectionVertices();
 
 		return connectingFaces;
-	}
-
-	[Shortcut( "mesh.edge", "2" )]
-	public static void ActivateTool()
-	{
-		EditorToolManager.SetTool( nameof( EdgeTool ) );
 	}
 }

@@ -83,4 +83,6 @@ native class IPhysicsShape as NativeEngine.IPhysicsShape
 	}
 
 	bool IsTouching( IPhysicsShape pShape, bool bTriggers );
+
+	void ResetProxy();
 }

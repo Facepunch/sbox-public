@@ -4,38 +4,45 @@ namespace Editor.MeshEditor;
 /// <summary>
 /// Base class for moving mesh elements (move, rotate, scale)
 /// </summary>
-public abstract class BaseMoveTool : EditorTool
+public abstract class MoveMode
 {
-	protected BaseMeshTool MeshTool { get; private init; }
-
 	protected IReadOnlyDictionary<MeshVertex, Vector3> TransformVertices => _transformVertices;
 
-	private readonly Dictionary<MeshVertex, Vector3> _transformVertices = new();
+	private readonly Dictionary<MeshVertex, Vector3> _transformVertices = [];
 	private List<MeshFace> _transformFaces;
-
-	public BaseMoveTool( BaseMeshTool meshTool )
-	{
-		MeshTool = meshTool;
-	}
-
 	private IDisposable _undoScope;
 
-	protected void StartDrag()
+	public void Update( SelectionTool tool )
 	{
-		if ( _transformVertices.Any() )
+		if ( !tool.Selection.OfType<IMeshElement>().Any() )
 			return;
 
+		OnUpdate( tool );
+	}
 
-		var components = MeshTool.Selection.OfType<IMeshElement>().Select( x => x.Component );
+	protected virtual void OnUpdate( SelectionTool tool )
+	{
+	}
 
-		_undoScope ??= SceneEditorSession.Active.UndoScope( $"{(Gizmo.IsShiftPressed ? "Extrude" : "Move")} Selection" ).WithComponentChanges( components ).Push();
+	protected void StartDrag( SelectionTool tool )
+	{
+		if ( _transformVertices.Count != 0 )
+			return;
+
+		var components = tool.Selection.OfType<IMeshElement>()
+			.Select( x => x.Component )
+			.Distinct();
+
+		_undoScope ??= SceneEditorSession.Active.UndoScope( $"{(Gizmo.IsShiftPressed ? "Extrude" : "Move")} Selection" )
+			.WithComponentChanges( components )
+			.Push();
 
 		if ( Gizmo.IsShiftPressed )
 		{
-			_transformFaces = MeshTool.ExtrudeSelection();
+			_transformFaces = tool.ExtrudeSelection();
 		}
 
-		foreach ( var vertex in MeshTool.VertexSelection )
+		foreach ( var vertex in tool.VertexSelection )
 		{
 			_transformVertices[vertex] = vertex.PositionWorld;
 		}
@@ -57,8 +64,9 @@ public abstract class BaseMoveTool : EditorTool
 			}
 		}
 
-		var meshes = TransformVertices.GroupBy( x => x.Key.Component.Mesh )
-			.Select( x => x.Key );
+		var meshes = TransformVertices
+			.Select( x => x.Key.Component.Mesh )
+			.Distinct();
 
 		foreach ( var mesh in meshes )
 		{

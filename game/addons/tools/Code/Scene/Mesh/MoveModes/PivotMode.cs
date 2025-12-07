@@ -6,30 +6,21 @@ namespace Editor.MeshEditor;
 /// </summary>
 [Title( "Pivot Tool" )]
 [Icon( "adjust" )]
-[Alias( "mesh.pivot" )]
-[Group( "3" )]
-public sealed class PivotTool : BaseMoveTool
+[Alias( "mesh.pivot.mode" )]
+[Order( 3 )]
+public sealed class PivotMode : MoveMode
 {
 	private Vector3 _pivot;
 	private Rotation _basis;
 
-	public PivotTool( BaseMeshTool meshTool ) : base( meshTool )
+	protected override void OnUpdate( SelectionTool tool )
 	{
-	}
-
-	public override void OnUpdate()
-	{
-		base.OnUpdate();
-
-		if ( !Selection.OfType<IMeshElement>().Any() )
-			return;
-
-		var origin = MeshTool.Pivot;
+		var origin = tool.Pivot;
 
 		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
 		{
 			_pivot = origin;
-			_basis = MeshTool.CalculateSelectionBasis();
+			_basis = tool.CalculateSelectionBasis();
 		}
 
 		using ( Gizmo.Scope( "Tool", new Transform( origin ) ) )
@@ -39,9 +30,7 @@ public sealed class PivotTool : BaseMoveTool
 			if ( Gizmo.Control.Position( "position", Vector3.Zero, out var delta, _basis ) )
 			{
 				_pivot += delta;
-
-				var pivot = Gizmo.Snap( _pivot * _basis.Inverse, delta * _basis.Inverse );
-				MeshTool.Pivot = pivot * _basis;
+				tool.Pivot = Gizmo.Snap( _pivot * _basis.Inverse, delta * _basis.Inverse ) * _basis;
 			}
 		}
 	}

@@ -13,6 +13,8 @@ public class ControlSheetRow : Panel
 	Label _title;
 	Panel _right;
 
+	InspectorVisibilityAttribute[] _visibilityAttributes;
+
 	public ControlSheetRow()
 	{
 		_left = AddChild<Panel>( "left" );
@@ -24,6 +26,8 @@ public class ControlSheetRow : Panel
 	internal void Initialize( SerializedProperty prop )
 	{
 		Property = prop;
+
+		_visibilityAttributes = Property.GetAttributes<InspectorVisibilityAttribute>()?.ToArray();
 	}
 
 	protected override void OnParametersSet()
@@ -38,5 +42,16 @@ public class ControlSheetRow : Panel
 		var c = BaseControl.CreateFor( Property );
 		if ( c is null ) return;
 		_right.AddChild( c );
+	}
+
+	public override void Tick()
+	{
+		base.Tick();
+
+		if ( _visibilityAttributes?.Length == 0 ) return;
+		if ( Property.Parent is null ) return;
+
+		bool hidden = _visibilityAttributes.All( x => x.TestCondition( Property.Parent ) );
+		SetClass( "hidden", hidden );
 	}
 }

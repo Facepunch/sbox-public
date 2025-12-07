@@ -1,18 +1,19 @@
-﻿namespace Editor.MeshEditor;
+﻿
+namespace Editor.MeshEditor;
 
 /// <summary>
-/// Move, rotate and scale mesh faces
+/// Select and edit face uvs and materials.
 /// </summary>
-[EditorTool( "mesh.face" )]
-[Title( "Face Select" )]
-[Icon( "change_history" )]
-[Alias( "Face" )]
-[Group( "Mesh" )]
-[Order( 3 )]
-public sealed partial class FaceTool : BaseMeshTool
+[Title( "Texture Tool" )]
+[Icon( "gradient" )]
+[Alias( "tools.texture-tool" )]
+[Group( "4" )]
+public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFace>( tool )
 {
-	private MeshFace HoverFace;
-	private SceneDynamicObject FaceObject;
+	protected override bool HasMoveMode => false;
+
+	MeshFace _hoverFace;
+	SceneDynamicObject _faceObject;
 
 	public override void OnEnabled()
 	{
@@ -23,21 +24,21 @@ public sealed partial class FaceTool : BaseMeshTool
 
 	private void CreateFaceObject()
 	{
-		FaceObject = new SceneDynamicObject( Scene.SceneWorld );
-		FaceObject.Material = Material.Load( "materials/tools/vertex_color_translucent.vmat" );
-		FaceObject.Attributes.SetCombo( "D_DEPTH_BIAS", 1 );
-		FaceObject.Attributes.SetCombo( "D_NO_CULLING", 1 );
-		FaceObject.Flags.CastShadows = false;
+		_faceObject = new SceneDynamicObject( Scene.SceneWorld );
+		_faceObject.Material = Material.Load( "materials/tools/vertex_color_translucent.vmat" );
+		_faceObject.Attributes.SetCombo( "D_DEPTH_BIAS", 1 );
+		_faceObject.Attributes.SetCombo( "D_NO_CULLING", 1 );
+		_faceObject.Flags.CastShadows = false;
 	}
 
 	public override void OnDisabled()
 	{
 		base.OnDisabled();
 
-		FaceObject?.Delete();
-		FaceObject = null;
+		_faceObject?.Delete();
+		_faceObject = null;
 
-		HoverFace = default;
+		_hoverFace = default;
 	}
 
 	public override void OnUpdate()
@@ -50,10 +51,10 @@ public sealed partial class FaceTool : BaseMeshTool
 		if ( result.Hit && result.Component is MeshComponent )
 			Gizmo.Hitbox.TrySetHovered( result.EndPosition );
 
-		if ( FaceObject.IsValid() && FaceObject.World != Scene.SceneWorld )
+		if ( _faceObject.IsValid() && _faceObject.World != Scene.SceneWorld )
 		{
-			HoverFace = default;
-			FaceObject.Delete();
+			_hoverFace = default;
+			_faceObject.Delete();
 
 			CreateFaceObject();
 		}
@@ -66,30 +67,49 @@ public sealed partial class FaceTool : BaseMeshTool
 				SelectAllFaces();
 		}
 
-		FaceObject.Init( Graphics.PrimitiveType.Triangles );
+		_faceObject.Init( Graphics.PrimitiveType.Triangles );
 
-		if ( HoverFace.IsValid() )
+		if ( _hoverFace.IsValid() )
 		{
 			var hoverColor = Color.Green.WithAlpha( 0.1f );
-			var mesh = HoverFace.Component.Mesh;
-			var vertices = mesh.CreateFace( HoverFace.Handle, HoverFace.Transform, hoverColor );
+			var mesh = _hoverFace.Component.Mesh;
+			var vertices = mesh.CreateFace( _hoverFace.Handle, _hoverFace.Transform, hoverColor );
 			if ( vertices is not null )
 			{
-				FaceObject.AddVertex( vertices.AsSpan() );
+				_faceObject.AddVertex( vertices.AsSpan() );
 			}
 
-			HoverFace = default;
+			if ( Gizmo.WasRightMousePressed && Gizmo.KeyboardModifiers.Contains( KeyboardModifiers.Shift ) )
+			{
+				Tool.ActiveMaterial = _hoverFace.Material;
+			}
+
+			if ( Gizmo.IsRightMouseDown && Gizmo.KeyboardModifiers.Contains( KeyboardModifiers.Ctrl ) )
+			{
+				var material = mesh.GetFaceMaterial( _hoverFace.Handle );
+				if ( material != Tool.ActiveMaterial )
+				{
+					using ( SceneEditorSession.Active.UndoScope( "Paint Material" )
+						.WithComponentChanges( _hoverFace.Component )
+						.Push() )
+					{
+						mesh.SetFaceMaterial( _hoverFace.Handle, Tool.ActiveMaterial );
+					}
+				}
+			}
+
+			_hoverFace = default;
 		}
 
 		var selectionColor = Color.Yellow.WithAlpha( 0.1f );
-		foreach ( var face in MeshSelection.OfType<MeshFace>() )
+		foreach ( var face in Selection.OfType<MeshFace>() )
 		{
 			var mesh = face.Component.Mesh;
 			var vertices = mesh.CreateFace( face.Handle, face.Transform, selectionColor );
 			if ( vertices is not null )
 			{
 				foreach ( var vertex in vertices )
-					FaceObject.AddVertex( vertex );
+					_faceObject.AddVertex( vertex );
 			}
 		}
 
@@ -98,7 +118,7 @@ public sealed partial class FaceTool : BaseMeshTool
 
 	protected override IEnumerable<IMeshElement> GetAllSelectedElements()
 	{
-		foreach ( var group in MeshSelection.OfType<MeshFace>()
+		foreach ( var group in Selection.OfType<MeshFace>()
 			.GroupBy( x => x.Component ) )
 		{
 			var component = group.Key;
@@ -109,8 +129,8 @@ public sealed partial class FaceTool : BaseMeshTool
 
 	private void SelectFace()
 	{
-		HoverFace = TraceFace();
-		UpdateSelection( HoverFace );
+		_hoverFace = TraceFace();
+		UpdateSelection( _hoverFace );
 
 		if ( Gizmo.IsAltPressed && Gizmo.WasRightMousePressed )
 		{
@@ -127,18 +147,18 @@ public sealed partial class FaceTool : BaseMeshTool
 
 	private void WrapTextureToSelection()
 	{
-		foreach ( var face in MeshSelection.OfType<MeshFace>() )
+		foreach ( var face in Selection.OfType<MeshFace>() )
 		{
-			WrapTexture( HoverFace, face );
+			WrapTexture( _hoverFace, face );
 		}
 	}
 
 	private void WrapTexture()
 	{
-		if ( !HoverFace.IsValid() || MeshSelection.LastOrDefault() is not MeshFace face )
+		if ( !_hoverFace.IsValid() || Selection.LastOrDefault() is not MeshFace face )
 			return;
 
-		WrapTexture( face, HoverFace );
+		WrapTexture( face, _hoverFace );
 	}
 
 	private static void WrapTexture( MeshFace sourceFace, MeshFace targetFace )
@@ -224,18 +244,18 @@ public sealed partial class FaceTool : BaseMeshTool
 			return;
 
 		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
-			MeshSelection.Clear();
+			Selection.Clear();
 
 		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 		{
 			foreach ( var hFace in face.Component.Mesh.FaceHandles )
-				MeshSelection.Add( new MeshFace( face.Component, hFace ) );
+				Selection.Add( new MeshFace( face.Component, hFace ) );
 		}
 	}
 
 	public override List<MeshFace> ExtrudeSelection( Vector3 delta = default )
 	{
-		var faces = MeshSelection.OfType<MeshFace>().ToArray();
+		var faces = Selection.OfType<MeshFace>().ToArray();
 
 		Selection.Clear();
 
@@ -265,7 +285,7 @@ public sealed partial class FaceTool : BaseMeshTool
 		if ( Gizmo.Settings.GlobalSpace )
 			return Rotation.Identity;
 
-		var face = MeshSelection.OfType<MeshFace>().FirstOrDefault();
+		var face = Selection.OfType<MeshFace>().FirstOrDefault();
 		if ( face.IsValid() )
 		{
 			face.Component.Mesh.ComputeFaceNormal( face.Handle, out var normal );
@@ -307,11 +327,5 @@ public sealed partial class FaceTool : BaseMeshTool
 				Gizmo.Draw.ScreenText( $"H: {box.Size.z:0.#}", box.Maxs.WithZ( box.Center.z ), Vector2.Up * 32, size: textSize );
 			Gizmo.Draw.Line( box.Maxs.WithZ( box.Mins.z ), box.Maxs.WithZ( box.Maxs.z ) );
 		}
-	}
-
-	[Shortcut( "mesh.face", "3" )]
-	public static void ActivateTool()
-	{
-		EditorToolManager.SetTool( nameof( FaceTool ) );
 	}
 }

@@ -8,32 +8,23 @@ namespace Editor.MeshEditor;
 /// </summary>
 [Title( "Move/Position" )]
 [Icon( "control_camera" )]
-[Alias( "tools.position-tool" )]
-[Group( "0" )]
-public sealed class PositionTool : BaseMoveTool
+[Alias( "mesh.position.mode" )]
+[Order( 0 )]
+public sealed class PositionMode : MoveMode
 {
 	private Vector3 _moveDelta;
 	private Vector3 _origin;
 	private Rotation _basis;
 
-	public PositionTool( BaseMeshTool meshTool ) : base( meshTool )
+	protected override void OnUpdate( SelectionTool tool )
 	{
-	}
-
-	public override void OnUpdate()
-	{
-		base.OnUpdate();
-
-		if ( !Selection.OfType<IMeshElement>().Any() )
-			return;
-
-		var origin = MeshTool.Pivot;
+		var origin = tool.Pivot;
 
 		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
 		{
 			EndDrag();
 
-			_basis = MeshTool.CalculateSelectionBasis();
+			_basis = tool.CalculateSelectionBasis();
 			_origin = origin;
 			_moveDelta = default;
 		}
@@ -50,13 +41,11 @@ public sealed class PositionTool : BaseMoveTool
 				moveDelta = Gizmo.Snap( moveDelta, _moveDelta * _basis.Inverse );
 				moveDelta *= _basis;
 
-				MeshTool.Pivot = moveDelta;
+				tool.Pivot = moveDelta;
 
 				moveDelta -= _origin;
 
-				StartDrag();
-
-				var comps = TransformVertices.Select( x => x.Key.Component ).Distinct();
+				StartDrag( tool );
 
 				foreach ( var entry in TransformVertices )
 				{
@@ -68,12 +57,5 @@ public sealed class PositionTool : BaseMoveTool
 				UpdateDrag();
 			}
 		}
-	}
-
-	[Shortcut( "tools.position-tool", "w", typeof( SceneViewportWidget ) )]
-	public static void ActivateSubTool()
-	{
-		if ( !(EditorToolManager.CurrentModeName == nameof( VertexTool ) || EditorToolManager.CurrentModeName == nameof( FaceTool ) || EditorToolManager.CurrentModeName == nameof( EdgeTool )) ) return;
-		EditorToolManager.SetSubTool( nameof( PositionTool ) );
 	}
 }

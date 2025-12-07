@@ -8,38 +8,29 @@ namespace Editor.MeshEditor;
 /// </summary>
 [Title( "Scale" )]
 [Icon( "zoom_out_map" )]
-[Alias( "tools.scale-tool" )]
-[Group( "2" )]
-public sealed class ScaleTool : BaseMoveTool
+[Alias( "mesh.scale.mode" )]
+[Order( 2 )]
+public sealed class ScaleMode : MoveMode
 {
 	private Vector3 _moveDelta;
 	private Vector3 _size;
 	private Vector3 _origin;
 	private Rotation _basis;
 
-	public ScaleTool( BaseMeshTool meshTool ) : base( meshTool )
+	protected override void OnUpdate( SelectionTool tool )
 	{
-	}
-
-	public override void OnUpdate()
-	{
-		base.OnUpdate();
-
-		if ( !Selection.OfType<IMeshElement>().Any() )
-			return;
-
 		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
 		{
 			EndDrag();
 
 			_moveDelta = default;
-			_basis = MeshTool.CalculateSelectionBasis();
+			_basis = tool.CalculateSelectionBasis();
 
-			var bounds = BBox.FromPoints( MeshTool.VertexSelection
+			var bounds = BBox.FromPoints( tool.VertexSelection
 				.Select( x => _basis.Inverse * x.PositionWorld ) );
 
 			_size = bounds.Size;
-			_origin = MeshTool.Pivot;
+			_origin = tool.Pivot;
 
 			if ( _size.x < 0.1f ) _size.x = 0;
 			if ( _size.y < 0.1f ) _size.y = 0;
@@ -52,8 +43,6 @@ public sealed class ScaleTool : BaseMoveTool
 
 			if ( Gizmo.Control.Scale( "scale", Vector3.Zero, out var delta, _basis ) )
 			{
-				var components = TransformVertices.Select( x => x.Key.Component ).Distinct();
-
 				_moveDelta += delta / 0.01f;
 
 				var size = _size + Gizmo.Snap( _moveDelta, _moveDelta ) * 2.0f;
@@ -63,7 +52,7 @@ public sealed class ScaleTool : BaseMoveTool
 					_size.z != 0 ? size.z / _size.z : 1
 				);
 
-				StartDrag();
+				StartDrag( tool );
 
 				foreach ( var entry in TransformVertices )
 				{
@@ -79,12 +68,5 @@ public sealed class ScaleTool : BaseMoveTool
 				UpdateDrag();
 			}
 		}
-	}
-
-	[Shortcut( "tools.scale-tool", "r", typeof( SceneViewportWidget ) )]
-	public static void ActivateSubTool()
-	{
-		if ( !(EditorToolManager.CurrentModeName == nameof( VertexTool ) || EditorToolManager.CurrentModeName == nameof( FaceTool ) || EditorToolManager.CurrentModeName == nameof( EdgeTool )) ) return;
-		EditorToolManager.SetSubTool( nameof( ScaleTool ) );
 	}
 }

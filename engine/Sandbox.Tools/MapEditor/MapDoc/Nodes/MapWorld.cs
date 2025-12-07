@@ -111,7 +111,11 @@ public sealed class MapWorld : MapNode
 		base.OnNativeDestroy();
 
 		worldNative = default;
-		Scene = default; // FIXME: Dispose
+		if ( Scene.IsValid() )
+		{
+			Scene.Destroy();
+			Scene = null;
+		}
 
 		EditorSession?.Destroy();
 		EditorSession = null;

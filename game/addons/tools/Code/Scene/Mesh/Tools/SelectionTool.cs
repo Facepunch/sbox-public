@@ -1,22 +1,33 @@
 ﻿
-using Sandbox;
-
 namespace Editor.MeshEditor;
 
-/// <summary>
-/// Base class for vertex, edge and face tools.
-/// </summary>
-public abstract class BaseMeshTool : EditorTool
+public abstract class SelectionTool : EditorTool
 {
-	public SelectionSystem MeshSelection => Selection;
-	public HashSet<MeshVertex> VertexSelection { get; init; } = new();
+	public Vector3 Pivot { get; set; }
+
+	public HashSet<MeshVertex> VertexSelection { get; init; } = [];
+
+	public virtual Rotation CalculateSelectionBasis()
+	{
+		return Rotation.Identity;
+	}
+
+	public virtual List<MeshFace> ExtrudeSelection( Vector3 delta = default )
+	{
+		return [];
+	}
+}
+
+public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool
+{
+	protected MeshTool Tool { get; private init; } = tool;
+
+	protected virtual bool HasMoveMode => true;
 
 	public static Vector2 RayScreenPosition => SceneViewportWidget.MousePosition;
 
 	public static bool IsMultiSelecting => Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) ||
 				Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift );
-
-	public Vector3 Pivot { get; set; }
 
 	private bool _meshSelectionDirty;
 	private bool _nudge;
@@ -24,52 +35,29 @@ public abstract class BaseMeshTool : EditorTool
 
 	private MeshComponent _hoverMesh;
 
+	public virtual bool DrawVertices => false;
+
 	protected IDisposable _undoScope;
-
-	protected virtual bool DrawVertices => false;
-
-	public override IEnumerable<EditorTool> GetSubtools()
-	{
-		yield return new PositionTool( this );
-		yield return new RotateTool( this );
-		yield return new ScaleTool( this );
-		yield return new PivotTool( this );
-	}
 
 	public override void OnEnabled()
 	{
-		base.OnEnabled();
-
-		AllowGameObjectSelection = false;
-
-		Selection.Clear();
-
-		MeshSelection.OnItemAdded += OnMeshSelectionChanged;
-		MeshSelection.OnItemRemoved += OnMeshSelectionChanged;
+		Selection.OnItemAdded += OnMeshSelectionChanged;
+		Selection.OnItemRemoved += OnMeshSelectionChanged;
 
 		SceneEditorSession.Active.UndoSystem.OnUndo += ( _ ) => OnMeshSelectionChanged();
 		SceneEditorSession.Active.UndoSystem.OnRedo += ( _ ) => OnMeshSelectionChanged();
-	}
 
-	public override void OnDisabled()
-	{
-		base.OnDisabled();
-
-		var selectedObjects = GetSelectedObjects();
-		Selection.Clear();
-
-		foreach ( var go in selectedObjects )
-		{
-			if ( !go.IsValid() )
-				continue;
-
-			Selection.Add( go );
-		}
+		SelectElements();
+		CalculateSelectionVertices();
+		OnMeshSelectionChanged();
 	}
 
 	public override void OnUpdate()
 	{
-		base.OnUpdate();
+		if ( HasMoveMode )
+		{
+			Tool.CurrentMoveMode?.Update( this );
+		}
 
 		if ( Gizmo.WasLeftMouseReleased && !Gizmo.Pressed.Any && Gizmo.Pressed.CursorDelta.Length < 1 )
 		{
@@ -78,7 +66,9 @@ public abstract class BaseMeshTool : EditorTool
 
 		var removeList = GetInvalidSelection().ToList();
 		foreach ( var s in removeList )
-			MeshSelection.Remove( s );
+		{
+			Selection.Remove( s );
+		}
 
 		if ( Application.IsKeyDown( KeyCode.I ) )
 		{
@@ -105,27 +95,24 @@ public abstract class BaseMeshTool : EditorTool
 		DrawSelection();
 	}
 
-	private void InvertSelection()
+	void SelectElements()
 	{
-		if ( !MeshSelection.Any() )
-			return;
+		var elements = Selection.OfType<T>().ToArray();
 
-		var newSelection = GetAllSelectedElements()
-			.Except( MeshSelection )
-			.ToArray();
+		Selection.Clear();
 
-		MeshSelection.Clear();
-
-		foreach ( var element in newSelection )
-			MeshSelection.Add( element );
+		foreach ( var element in elements )
+		{
+			Selection.Add( element );
+		}
 	}
 
 	protected virtual IEnumerable<IMeshElement> GetAllSelectedElements()
 	{
-		return Enumerable.Empty<IMeshElement>();
+		return [];
 	}
 
-	private void DrawSelection()
+	void DrawSelection()
 	{
 		var face = TraceFace();
 		if ( face.IsValid() )
@@ -134,8 +121,7 @@ public abstract class BaseMeshTool : EditorTool
 		if ( _hoverMesh.IsValid() )
 			DrawMesh( _hoverMesh );
 
-		foreach ( var group in MeshSelection.OfType<IMeshElement>()
-			.GroupBy( x => x.Component ) )
+		foreach ( var group in Selection.OfType<IMeshElement>().GroupBy( x => x.Component ) )
 		{
 			var component = group.Key;
 			if ( !component.IsValid() )
@@ -148,28 +134,25 @@ public abstract class BaseMeshTool : EditorTool
 		}
 	}
 
-	protected void DrawMesh( MeshComponent mesh )
+	void DrawMesh( MeshComponent mesh )
 	{
 		using ( Gizmo.ObjectScope( mesh.GameObject, mesh.WorldTransform ) )
 		{
-			var color = new Color( 0.3137f, 0.7843f, 1.0f, 0.5f );
-
-			if ( DrawVertices )
-			{
-				using ( Gizmo.Scope( "Vertices" ) )
-				{
-					Gizmo.Draw.Color = color;
-
-					foreach ( var v in mesh.Mesh.GetVertexPositions() )
-					{
-						Gizmo.Draw.Sprite( v, 8, null, false );
-					}
-				}
-			}
-
 			using ( Gizmo.Scope( "Edges" ) )
 			{
-				Gizmo.Draw.Color = color;
+				var edgeColor = new Color( 0.3137f, 0.7843f, 1.0f, 1f );
+
+				Gizmo.Draw.LineThickness = 1;
+				Gizmo.Draw.IgnoreDepth = true;
+				Gizmo.Draw.Color = edgeColor.Darken( 0.3f ).WithAlpha( 0.1f );
+
+				foreach ( var v in mesh.Mesh.GetEdges() )
+				{
+					Gizmo.Draw.Line( v );
+				}
+
+				Gizmo.Draw.Color = edgeColor;
+				Gizmo.Draw.IgnoreDepth = false;
 				Gizmo.Draw.LineThickness = 2;
 
 				foreach ( var v in mesh.Mesh.GetEdges() )
@@ -177,6 +160,47 @@ public abstract class BaseMeshTool : EditorTool
 					Gizmo.Draw.Line( v );
 				}
 			}
+
+			if ( DrawVertices )
+			{
+				var vertexColor = new Color( 1.0f, 1.0f, 0.3f, 1f );
+
+				using ( Gizmo.Scope( "Vertices" ) )
+				{
+					Gizmo.Draw.IgnoreDepth = true;
+					Gizmo.Draw.Color = vertexColor.Darken( 0.3f ).WithAlpha( 0.2f );
+
+					foreach ( var v in mesh.Mesh.GetVertexPositions() )
+					{
+						Gizmo.Draw.Sprite( v, 8, null, false );
+					}
+
+					Gizmo.Draw.Color = vertexColor;
+					Gizmo.Draw.IgnoreDepth = false;
+
+					foreach ( var v in mesh.Mesh.GetVertexPositions() )
+					{
+						Gizmo.Draw.Sprite( v, 8, null, false );
+					}
+				}
+			}
+		}
+	}
+
+	private void InvertSelection()
+	{
+		if ( !Selection.Any() )
+			return;
+
+		var newSelection = GetAllSelectedElements()
+			.Except( Selection )
+			.ToArray();
+
+		Selection.Clear();
+
+		foreach ( var element in newSelection )
+		{
+			Selection.Add( element );
 		}
 	}
 
@@ -207,7 +231,7 @@ public abstract class BaseMeshTool : EditorTool
 		var direction = new Vector2( keyLeft ? 1 : keyRight ? -1 : 0, keyUp ? 1 : keyDown ? -1 : 0 );
 		var delta = Gizmo.Nudge( basis, direction );
 
-		var components = MeshSelection.OfType<IMeshElement>().Select( x => x.Component );
+		var components = Selection.OfType<IMeshElement>().Select( x => x.Component );
 
 		_undoScope ??= SceneEditorSession.Active.UndoScope( "Nudge Vertices" ).WithComponentChanges( components ).Push();
 
@@ -229,31 +253,11 @@ public abstract class BaseMeshTool : EditorTool
 		_nudge = true;
 	}
 
-	public virtual List<MeshFace> ExtrudeSelection( Vector3 delta = default )
-	{
-		return default;
-	}
-
-	public override void OnSelectionChanged()
-	{
-		base.OnSelectionChanged();
-
-		if ( Selection.OfType<GameObject>().Any() )
-		{
-			EditorToolManager.CurrentModeName = "object";
-		}
-	}
-
 	public BBox CalculateSelectionBounds()
 	{
 		return BBox.FromPoints( VertexSelection
 			.Where( x => x.IsValid() )
 			.Select( x => x.Transform.PointToWorld( x.Component.Mesh.GetVertexPosition( x.Handle ) ) ) );
-	}
-
-	public virtual Rotation CalculateSelectionBasis()
-	{
-		return Rotation.Identity;
 	}
 
 	public virtual Vector3 CalculateSelectionOrigin()
@@ -266,7 +270,7 @@ public abstract class BaseMeshTool : EditorTool
 	{
 		VertexSelection.Clear();
 
-		foreach ( var face in MeshSelection.OfType<MeshFace>() )
+		foreach ( var face in Selection.OfType<MeshFace>() )
 		{
 			foreach ( var vertex in face.Component.Mesh.GetFaceVertices( face.Handle )
 				.Select( i => new MeshVertex( face.Component, i ) ) )
@@ -275,12 +279,12 @@ public abstract class BaseMeshTool : EditorTool
 			}
 		}
 
-		foreach ( var vertex in MeshSelection.OfType<MeshVertex>() )
+		foreach ( var vertex in Selection.OfType<MeshVertex>() )
 		{
 			VertexSelection.Add( vertex );
 		}
 
-		foreach ( var edge in MeshSelection.OfType<MeshEdge>() )
+		foreach ( var edge in Selection.OfType<MeshEdge>() )
 		{
 			edge.Component.Mesh.GetEdgeVertices( edge.Handle, out var hVertexA, out var hVertexB );
 			VertexSelection.Add( new MeshVertex( edge.Component, hVertexA ) );
@@ -290,21 +294,9 @@ public abstract class BaseMeshTool : EditorTool
 		_meshSelectionDirty = false;
 	}
 
-	private HashSet<GameObject> GetSelectedObjects()
-	{
-		var objects = new HashSet<GameObject>();
-		foreach ( var face in MeshSelection.OfType<IMeshElement>()
-			.Where( x => x.IsValid() ) )
-		{
-			objects.Add( face.GameObject );
-		}
-
-		return objects;
-	}
-
 	private IEnumerable<IMeshElement> GetInvalidSelection()
 	{
-		foreach ( var selection in MeshSelection.OfType<IMeshElement>()
+		foreach ( var selection in Selection.OfType<IMeshElement>()
 			.Where( x => !x.IsValid() || x.Scene != Scene ) )
 		{
 			yield return selection;
@@ -326,31 +318,31 @@ public abstract class BaseMeshTool : EditorTool
 	{
 		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 		{
-			if ( MeshSelection.Contains( element ) )
+			if ( Selection.Contains( element ) )
 			{
-				MeshSelection.Remove( element );
+				Selection.Remove( element );
 			}
 			else
 			{
-				MeshSelection.Add( element );
+				Selection.Add( element );
 			}
 
 			return;
 		}
 		else if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
 		{
-			if ( !MeshSelection.Contains( element ) )
+			if ( !Selection.Contains( element ) )
 			{
-				MeshSelection.Add( element );
+				Selection.Add( element );
 			}
 
 			return;
 		}
 
-		MeshSelection.Set( element );
+		Selection.Set( element );
 	}
 
-	protected void UpdateSelection( IMeshElement element )
+	public void UpdateSelection( IMeshElement element )
 	{
 		if ( Gizmo.WasLeftMousePressed )
 		{
@@ -360,25 +352,25 @@ public abstract class BaseMeshTool : EditorTool
 			}
 			else if ( !IsMultiSelecting )
 			{
-				MeshSelection.Clear();
+				Selection.Clear();
 			}
 		}
-		else if ( Gizmo.IsLeftMouseDown && Gizmo.CursorMoveDelta.LengthSquared > 0 && element.IsValid() )
+		else if ( Gizmo.IsLeftMouseDown && element.IsValid() )
 		{
 			if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 			{
-				if ( MeshSelection.Contains( element ) )
-					MeshSelection.Remove( element );
+				if ( Selection.Contains( element ) )
+					Selection.Remove( element );
 			}
 			else
 			{
-				if ( !MeshSelection.Contains( element ) )
-					MeshSelection.Add( element );
+				if ( !Selection.Contains( element ) )
+					Selection.Add( element );
 			}
 		}
 	}
 
-	protected MeshVertex GetClosestVertex( int radius )
+	public MeshVertex GetClosestVertex( int radius )
 	{
 		var point = RayScreenPosition;
 		var bestFace = TraceFace( out var bestHitDistance );
@@ -407,7 +399,7 @@ public abstract class BaseMeshTool : EditorTool
 		return bestVertex;
 	}
 
-	protected MeshEdge GetClosestEdge( int radius )
+	public MeshEdge GetClosestEdge( int radius )
 	{
 		var point = RayScreenPosition;
 		var bestFace = TraceFace( out var bestHitDistance );
@@ -454,6 +446,9 @@ public abstract class BaseMeshTool : EditorTool
 
 	public MeshFace TraceFace()
 	{
+		if ( IsBoxSelecting )
+			return default;
+
 		var result = MeshTrace.Run();
 		if ( !result.Hit || result.Component is not MeshComponent component )
 			return default;
@@ -499,7 +494,7 @@ public abstract class BaseMeshTool : EditorTool
 		return faces;
 	}
 
-	protected static Vector3 ComputeTextureVAxis( Vector3 normal ) => FaceDownVectors[GetOrientationForPlane( normal )];
+	public static Vector3 ComputeTextureVAxis( Vector3 normal ) => FaceDownVectors[GetOrientationForPlane( normal )];
 
 	private static int GetOrientationForPlane( Vector3 plane )
 	{
