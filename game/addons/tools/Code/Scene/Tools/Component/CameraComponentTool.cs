@@ -136,7 +136,7 @@ class CameraToolWindow : WidgetWindow
 		var headerRow = Layout.AddRow();
 		headerRow.AddStretchCell();
 
-		_pinButton = new IconButton( IsPinned ? "lock_open" : "lock", TogglePinned )
+		_pinButton = new IconButton( IsPinned ? "lock" : "lock_open", TogglePinned )
 		{
 			ToolTip = IsPinned ? "Unpin" : "Pin",
 			FixedHeight = HeaderHeight,
@@ -173,7 +173,7 @@ class CameraToolWindow : WidgetWindow
 
 		IsPinned = isPinned;
 
-		_pinButton.Icon = isPinned ? "lock_open" : "lock";
+		_pinButton.Icon = isPinned ? "lock" : "lock_open";
 		_pinButton.ToolTip = isPinned ? "Unpin" : "Pin";
 		_pinButton.Update();
 
