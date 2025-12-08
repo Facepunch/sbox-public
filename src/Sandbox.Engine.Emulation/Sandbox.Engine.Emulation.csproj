@@ -1,17 +1,40 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net10.0;net10.0-android</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
-    <PublishAot>true</PublishAot>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <OutputType>Library</OutputType>
     <NativeLib>Shared</NativeLib>
     <SelfContained>true</SelfContained>
     <InternalsVisibleTo>Sandbox.Engine.Emulation.Tests</InternalsVisibleTo>
+    <UseSandboxBlazor>false</UseSandboxBlazor>
   </PropertyGroup>
+
+  <!-- RID/Publish settings par TFM -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <RuntimeIdentifiers>linux-x64</RuntimeIdentifiers>
+    <PublishAot>true</PublishAot>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <RuntimeIdentifiers>android-arm64;android-x64</RuntimeIdentifiers>
+    <PublishAot>true</PublishAot>
+    <IlcGenerateDynamicLibrary>true</IlcGenerateDynamicLibrary>
+    <IlcDisableReflection>false</IlcDisableReflection>
+    <StripSymbols>true</StripSymbols>
+    <!-- Forcer le nom de la native lib Android en libengine2.so -->
+    <NativeLib>Shared</NativeLib>
+    <AndroidNativeLibName>libengine2.so</AndroidNativeLibName>
+    <!-- Générer un Resource designer mais dans un namespace/classe dédiés -->
+    <AndroidUseDesignerAssembly>true</AndroidUseDesignerAssembly>
+    <AndroidGenerateResourceDesigner>true</AndroidGenerateResourceDesigner>
+    <AndroidResgenNamespace>Sandbox.Engine.Emulation.AndroidResources</AndroidResgenNamespace>
+    <AndroidResgenClass>AndroidResource</AndroidResgenClass>
+    <UseSandboxBlazor>true</UseSandboxBlazor>
+  </PropertyGroup>
+
 
   <ItemGroup>
     <PackageReference Include="DotNext.Unsafe" Version="1.0.0" />
@@ -29,6 +52,27 @@
     <PackageReference Include="BepuUtilities" Version="2.5.0-beta.27" />
     <ProjectReference Include="../../engine/Sandbox.Engine/Sandbox.Engine.csproj" />
     <ProjectReference Include="../../engine/Sandbox.System/Sandbox.System.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="FFmpeg.AutoGen" Version="4.4.1.7" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <NativeCopyToOutput Include="runtimes/linux-x64/native/libavformat.so*" Condition="Exists('runtimes/linux-x64/native/libavformat.so')" />
+    <NativeCopyToOutput Include="runtimes/linux-x64/native/libavcodec.so*" Condition="Exists('runtimes/linux-x64/native/libavcodec.so')" />
+    <NativeCopyToOutput Include="runtimes/linux-x64/native/libavutil.so*" Condition="Exists('runtimes/linux-x64/native/libavutil.so')" />
+    <NativeCopyToOutput Include="runtimes/linux-x64/native/libswscale.so*" Condition="Exists('runtimes/linux-x64/native/libswscale.so')" />
+    <NativeCopyToOutput Include="runtimes/linux-x64/native/libswresample.so*" Condition="Exists('runtimes/linux-x64/native/libswresample.so')" />
+    <NativeCopyToOutput Include="runtimes/win-x64/native/avformat-*.dll" Condition="Exists('runtimes/win-x64/native/avformat-*.dll')" />
+    <NativeCopyToOutput Include="runtimes/win-x64/native/avcodec-*.dll" Condition="Exists('runtimes/win-x64/native/avcodec-*.dll')" />
+    <NativeCopyToOutput Include="runtimes/win-x64/native/avutil-*.dll" Condition="Exists('runtimes/win-x64/native/avutil-*.dll')" />
+    <NativeCopyToOutput Include="runtimes/win-x64/native/swscale-*.dll" Condition="Exists('runtimes/win-x64/native/swscale-*.dll')" />
+    <NativeCopyToOutput Include="runtimes/win-x64/native/swresample-*.dll" Condition="Exists('runtimes/win-x64/native/swresample-*.dll')" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseSandboxBlazor)' == 'true'">
+    <ProjectReference Include="../../engine/Sandbox.Blazor/Sandbox.Blazor.csproj" />
   </ItemGroup>
 
   <!-- Build libyogacore.a if needed -->
@@ -117,6 +161,24 @@
   <!-- Exclude test file from compilation -->
   <ItemGroup>
     <Compile Remove="EngineExports_test.cs" />
+  </ItemGroup>
+
+  <!-- Emballage Android : copier la lib native vers ABI arm64-v8a -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <AndroidNativeOutDir>$(MSBuildThisFileDirectory)runtimes/android-arm64/native</AndroidNativeOutDir>
+    <AndroidNativeSo>$(MSBuildThisFileDirectory)bin/$(Configuration)/net10.0-android/android-arm64/publish/libengine2.so</AndroidNativeSo>
+  </PropertyGroup>
+
+  <Target Name="CopyAndroidNativeLib" AfterTargets="Publish" Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <MakeDir Directories="$(AndroidNativeOutDir)" Condition="!Exists('$(AndroidNativeOutDir)')" />
+    <Copy SourceFiles="$(AndroidNativeSo)"
+          DestinationFiles="$(AndroidNativeOutDir)/libengine2.so"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(AndroidNativeSo)')" />
+  </Target>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <AndroidNativeLibrary Include="runtimes/android-arm64/native/libengine2.so" Abi="arm64-v8a" Condition="Exists('runtimes/android-arm64/native/libengine2.so')" />
   </ItemGroup>
 
 </Project>

@@ -40,6 +40,7 @@ public static unsafe class RenderAttributes
     /// </summary>
     public static void Init(void** native)
     {
+        Console.WriteLine("[NativeAOT] RenderAttributes.Init: patching CRenderAttributes function pointers (indices 689-727)");
         // Fonctions principales (indices 689-727)
         native[689] = (void*)(delegate* unmanaged<IntPtr, void>)&CRndrttrbts_DeleteThis;
         native[690] = (void*)(delegate* unmanaged<IntPtr>)&CRndrttrbts_Create;
@@ -80,6 +81,8 @@ public static unsafe class RenderAttributes
         native[725] = (void*)(delegate* unmanaged<IntPtr, IntPtr, void>)&CRndrttrbts_MergeToPtr;
         native[726] = (void*)(delegate* unmanaged<IntPtr, int>)&CRndrttrbts_IsEmpty;
         native[727] = (void*)(delegate* unmanaged<IntPtr, int, int, void>)&CRndrttrbts_Clear;
+
+        Console.WriteLine($"[NativeAOT] RenderAttributes.Init: native[690]=0x{(nuint)native[690]:X}");
     }
     
     /// <summary>
@@ -139,6 +142,12 @@ public static unsafe class RenderAttributes
     {
         var attributes = new EmulatedRenderAttributes();
         int handle = HandleManager.Register(attributes);
+        if (handle == 0)
+        {
+            Console.WriteLine("[NativeAOT] CRndrttrbts_Create: failed to register handle (0)");
+            return IntPtr.Zero;
+        }
+
         Console.WriteLine($"[NativeAOT] CRndrttrbts_Create: created handle={handle}");
         return (IntPtr)handle;
     }
@@ -325,6 +334,16 @@ public static unsafe class RenderAttributes
         
         return IntPtr.Zero;
     }
+
+    /// <summary>
+    /// Helper function to set a pointer value (managed helper, avoids UnmanagedCallersOnly call).
+    /// </summary>
+    public static void SetPtrValueHelper(IntPtr self, Sandbox.StringToken token, IntPtr ptr)
+    {
+        var attrs = GetRenderAttributes(self);
+        if (attrs == null) return;
+        attrs.PtrValues[token] = ptr;
+    }
     
     /// <summary>
     /// Helper to get EmulatedRenderAttributes from IntPtr.
@@ -333,7 +352,12 @@ public static unsafe class RenderAttributes
     {
         if (self == IntPtr.Zero) return null;
         int handle = (int)self;
-        return HandleManager.Get<EmulatedRenderAttributes>(handle);
+        var result = HandleManager.Get<EmulatedRenderAttributes>(handle);
+        if (result == null)
+        {
+            Console.WriteLine($"[NativeAOT] RenderAttributes: handle {handle} not found");
+        }
+        return result;
     }
     
     // ========== Fonctions principales ==========

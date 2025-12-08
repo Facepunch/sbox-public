@@ -19,6 +19,8 @@ using Sandbox.Engine.Emulation.Engine;
 using Sandbox.Engine.Emulation.Resource;
 using Sandbox.Engine.Emulation.Audio;
 using Sandbox.Engine.Emulation.Input;
+using Sandbox.Engine.Emulation.Video;
+using Sandbox.Engine.Emulation.CUtl;
 using Sandbox.Engine;
 using System.Collections.Generic;
 using System.Reflection;
@@ -32,8 +34,7 @@ public static unsafe class EngineExports
     
     // Rendering stubs - created once and reused
     private static EmulatedRenderContext? _renderContext;
-    private static EmulatedSceneView? _sceneView;
-    private static EmulatedSceneLayer? _sceneLayer;
+    // SceneView / SceneLayer placeholders were removed; handled by dedicated modules.
     
     // Note: _glfw, _windowHandle, _gl sont maintenant gérés par PlatformFunctions
     // Utiliser PlatformFunctions.GetGL(), GetGlfw(), GetWindowHandle() pour y accéder
@@ -53,16 +54,20 @@ public static unsafe class EngineExports
         // 1. Store managed function pointers (Imports)
         EngineGlue.StoreImports(managed);
 
-        // 2. Fill native function pointers (Exports)
-        // This will call StoreNativeFunctions which reads from native[] and assigns to static fields
+        // 2. Fill native function pointers (Exports) AVANT nos patchs
+        //    pour éviter qu'ils soient écrasés.
         Exports.FillNativeFunctionsEngine(managed, native, structSizes);
         
-        // 3. Initialize all modules (in dependency order)
+        // 3. Initialize all modules (in dependency order) qui patchent native[]
         RenderAttributes.RenderAttributes.Init(native);
         Material.MaterialSystem.Init(native);
         Model.ModelSystem.Init(native);
         Texture.TextureSystem.Init(native);
         Rendering.RenderDevice.Init(native); // RenderDevice doit être initialisé après TextureSystem
+        Rendering.VertexLayoutInterop.Init(native);
+        Rendering.RenderTools.Init(native);
+        Rendering.EmulatedSceneLayer.Init(native);
+        Rendering.EmulatedSceneView.Init(native);
         Camera.CameraRenderer.Init(native);
         Platform.PlatformFunctions.Init(native);
         Steam.SteamAPI.Init(native);
@@ -77,7 +82,18 @@ public static unsafe class EngineExports
         Audio.AudioDevice.Init(native);
         Physics.PhysicsSystem.Init(native);
         Scene.SceneSystem.Init(native);
+        Scene.EmulatedSceneWorld.Init(native);
         Input.InputService.Init(native);
+        Input.InputSystem.Init(native);
+        Video.VideoPlayer.Init(native);
+        CUtl.CUtlBuffer.Init(native);
+        CUtl.CUtlSymbolTable.Init(native);
+        CUtl.CUtlVectorString.Init(native);
+        CUtl.CUtlVectorFloat.Init(native);
+        CUtl.CUtlVectorTexture.Init(native);
+        CUtl.CUtlVectorTraceResult.Init(native);
+        CUtl.CUtlVectorUInt32.Init(native);
+        CUtl.CUtlVectorVector.Init(native);
         
         // 4. Initialize cross-module references (after modules are initialized)
         // Note: OpenGL sera initialisé dans PlatformFunctions.SourceEngineInit
@@ -100,7 +116,7 @@ public static unsafe class EngineExports
         
         // SourceEngineFrame reste ici car il a une logique de rendu complexe
         // Signature exacte depuis Interop.Engine.cs ligne 16341: delegate* unmanaged< IntPtr, double, double, int >
-        native[1594] = (void*)(delegate* unmanaged<IntPtr, double, double, int>)&SourceEngineFrame;
+        // native[1594] = (void*)(delegate* unmanaged<IntPtr, double, double, int>)&SourceEngineFrame;
 
         // Physics System Exports are now handled by PhysicsSystem.Init() and PhysicsWorld.Init()
         // All g_pPhysicsSystem_* and IPhysicsWorld_* functions are patched in their respective modules
@@ -124,10 +140,6 @@ public static unsafe class EngineExports
         // DSP Preset Functions sont maintenant gérées par Audio.DspPreset.Init()
         // Audio Mix Buffer Functions sont maintenant gérées par Audio.AudioMixBuffer.Init()
         // Audio Mix Device Buffers Functions sont maintenant gérées par Audio.AudioMixDeviceBuffers.Init()
-        
-        // RenderTools Functions - Indexes from engine.Generated.cs
-        native[2371] = (void*)(delegate* unmanaged<void*, void*, void*, void*, void*, int>)&RenderTools_SetRenderState;
-        native[2372] = (void*)(delegate* unmanaged<void*, long, void*, void*, int, void*, int, void*, void*>)&RenderTools_Draw;
 
         // PerformanceTrace module initialization
         PerformanceTrace.PerformanceTrace.Init(native);
@@ -922,104 +934,6 @@ public static unsafe class EngineExports
     // Audio Mix Device Buffers Functions sont maintenant dans Audio.AudioMixDeviceBuffers.cs
     
     // RenderTools Functions
-    
-    [UnmanagedCallersOnly]
-    public static int RenderTools_SetRenderState(void* context, void* attributes, void* materialMode, void* layout, void* stats)
-    {
-        if (context == null)
-            return 0; // Failure
-        
-        // Get the EmulatedRenderContext instance
-        var renderContext = EmulatedRenderContext.GetInstance((IntPtr)context);
-        if (renderContext == null)
-        {
-            Console.WriteLine("[NativeAOT] RenderTools_SetRenderState: Failed to get EmulatedRenderContext instance");
-            return 0; // Failure
-        }
-        
-        try
-        {
-            // For now, ensure the basic shader is initialized
-            // The actual shader/material configuration will be implemented later
-            // when we have a proper material system
-            
-            // Setup vertex layout if provided
-            if (layout != null)
-            {
-                var vertexLayout = new NativeEngine.VertexLayout { self = (IntPtr)layout };
-                renderContext.SetupVertexLayout(vertexLayout);
-            }
-            
-            return 1; // Success
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[NativeAOT] RenderTools_SetRenderState error: {ex}");
-            return 0; // Failure
-        }
-    }
-    
-    // MaterialSystem functions have been migrated to Material/MaterialSystem.cs
-    
-    [UnmanagedCallersOnly]
-    public static void* RenderTools_Draw(void* context, long type, void* layout, void* vertices, int numVertices, void* indices, int numIndices, void* stats)
-    {
-        if (context == null || vertices == null || numVertices <= 0)
-            return null;
-        
-        // Get the EmulatedRenderContext instance
-        var renderContext = EmulatedRenderContext.GetInstance((IntPtr)context);
-        if (renderContext == null)
-        {
-            Console.WriteLine("[NativeAOT] RenderTools_Draw: Failed to get EmulatedRenderContext instance");
-            return null;
-        }
-        
-        try
-        {
-            // Calculate vertex data size (assuming Vertex struct = 48 bytes)
-            // TODO: Get actual vertex size from layout
-            int vertexSize = 48; // sizeof(Vertex)
-            int vertexDataSize = numVertices * vertexSize;
-            
-            // Upload vertex data
-            renderContext.UploadVertexData((IntPtr)vertices, vertexDataSize);
-            
-            // Upload index data if present
-            if (indices != null && numIndices > 0)
-            {
-                int indexDataSize = numIndices * sizeof(ushort);
-                renderContext.UploadIndexData((IntPtr)indices, indexDataSize);
-            }
-            
-            // Setup vertex layout
-            if (layout != null)
-            {
-                var vertexLayout = new NativeEngine.VertexLayout { self = (IntPtr)layout };
-                renderContext.SetupVertexLayout(vertexLayout);
-            }
-            
-            // Draw based on whether we have indices
-            var primitiveType = (NativeEngine.RenderPrimitiveType)type;
-            if (indices != null && numIndices > 0)
-            {
-                // Draw indexed
-                renderContext.DrawIndexed(primitiveType, 0, numIndices, numVertices, 0);
-            }
-            else
-            {
-                // Draw non-indexed
-                renderContext.Draw(primitiveType, 0, numVertices);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[NativeAOT] RenderTools_Draw error: {ex}");
-            return null;
-        }
-        
-        return null; // Return value not used
-    }
 
     [UnmanagedCallersOnly(EntryPoint = "Debug_Error")]
     public static void DebugError(IntPtr message)
@@ -1168,65 +1082,65 @@ public static unsafe class EngineExports
     // SourceEngineInit has been migrated to Platform/PlatformFunctions.cs
     // Note: SourceEngineFrame remains here because it has complex rendering logic
 
-    [UnmanagedCallersOnly]
-    public static int SourceEngineFrame(IntPtr appDict, double currentTime, double previousTime)
-    {
-        var windowHandle = Platform.PlatformFunctions.GetWindowHandle();
-        var glfw = Platform.PlatformFunctions.GetGlfw();
-        var gl = Platform.PlatformFunctions.GetGL();
+    // [UnmanagedCallersOnly]
+    // public static int SourceEngineFrame(IntPtr appDict, double currentTime, double previousTime)
+    // {
+    //     var windowHandle = Platform.PlatformFunctions.GetWindowHandle();
+    //     var glfw = Platform.PlatformFunctions.GetGlfw();
+    //     var gl = Platform.PlatformFunctions.GetGL();
         
-        if (windowHandle == null || glfw == null || gl == null) return 0;
+    //     if (windowHandle == null || glfw == null || gl == null) return 0;
 
-        glfw.PollEvents();
+    //     glfw.PollEvents();
         
-        if (glfw.WindowShouldClose(windowHandle)) return 0;
+    //     if (glfw.WindowShouldClose(windowHandle)) return 0;
 
-        // Initialize rendering stubs if not already done
-        if (_renderContext == null && gl != null)
-        {
-            _renderContext = new EmulatedRenderContext(gl);
-            _sceneView = new EmulatedSceneView();
-            _sceneLayer = new EmulatedSceneLayer();
-        }
+    //     // Initialize rendering stubs if not already done
+    //     if (_renderContext == null && gl != null)
+    //     {
+    //         _renderContext = new EmulatedRenderContext(gl);
+    //         _sceneView = new EmulatedSceneView();
+    //         _sceneLayer = new EmulatedSceneLayer();
+    //     }
 
-        // Clear the screen
-        if (gl != null)
-        {
-            gl.ClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-            gl.Clear((uint)ClearBufferMask.ColorBufferBit | (uint)ClearBufferMask.DepthBufferBit);
-        }
+    //     // Clear the screen
+    //     if (gl != null)
+    //     {
+    //         gl.ClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    //         gl.Clear((uint)ClearBufferMask.ColorBufferBit | (uint)ClearBufferMask.DepthBufferBit);
+    //     }
 
-        // Render UI if stubs are ready
-        if (_renderContext != null && _sceneView != null && _sceneLayer != null)
-        {
-            try
-            {
-                // Create ManagedRenderSetup_t with our emulated stubs
-                var setup = new ManagedRenderSetup_t
-                {
-                    renderContext = new NativeEngine.IRenderContext(_renderContext.Self),
-                    sceneView = new NativeEngine.ISceneView(_sceneView.Self),
-                    sceneLayer = new NativeEngine.ISceneLayer(_sceneLayer.Self),
-                    colorImageFormat = Sandbox.ImageFormat.RGBA8888,
-                    msaaLevel = NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_NONE,
-                    stats = default(global::SceneSystemPerFrameStats_t)
-                };
+    //     // Render UI if stubs are ready
+    //     if (_renderContext != null && _sceneView != null && _sceneLayer != null)
+    //     {
+    //         try
+    //         {
+    //             // Create ManagedRenderSetup_t with our emulated stubs
+    //             var setup = new ManagedRenderSetup_t
+    //             {
+    //                 renderContext = new NativeEngine.IRenderContext(_renderContext.Self),
+    //                 sceneView = new NativeEngine.ISceneView(_sceneView.Self),
+    //                 sceneLayer = new NativeEngine.ISceneLayer(_sceneLayer.Self),
+    //                 colorImageFormat = Sandbox.ImageFormat.RGBA8888,
+    //                 msaaLevel = NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_NONE,
+    //                 stats = default(global::SceneSystemPerFrameStats_t)
+    //             };
 
-                // Call Graphics.OnLayer(-1, ...) to render UI
-                // Note: Graphics.OnLayer est dans le namespace Sandbox, pas Sandbox.Engine
-                Sandbox.Graphics.OnLayer(-1, setup);
-            }
-            catch (Exception ex)
-            {
-                // Log error but don't crash - rendering is optional for now
-                Console.WriteLine($"[NativeAOT] Error in Graphics.OnLayer: {ex}");
-            }
-        }
+    //             // Call Graphics.OnLayer(-1, ...) to render UI
+    //             // Note: Graphics.OnLayer est dans le namespace Sandbox, pas Sandbox.Engine
+    //             Sandbox.Graphics.OnLayer(-1, setup);
+    //         }
+    //         catch (Exception ex)
+    //         {
+    //             // Log error but don't crash - rendering is optional for now
+    //             Console.WriteLine($"[NativeAOT] Error in Graphics.OnLayer: {ex}");
+    //         }
+    //     }
         
-        glfw.SwapBuffers(windowHandle);
+    //     glfw.SwapBuffers(windowHandle);
         
-        return 1;
-    }
+    //     return 1;
+    // }
 
     // UpdateWindowSize has been migrated to Platform/PlatformFunctions.cs
 

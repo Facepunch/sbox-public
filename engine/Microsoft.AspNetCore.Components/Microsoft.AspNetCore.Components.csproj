@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <VersionPrefix>10.0.0</VersionPrefix>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net10.0;net10.0-android</TargetFrameworks>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -10,6 +10,11 @@
     <PackageId>Microsoft.AspNetCore.Components</PackageId>
     <NoWarn>1701;1702;1591</NoWarn>
 	  <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+	<!-- Option pour builds desktop: ne cibler que net10.0 et éviter le runtime Mono Android -->
+	<PropertyGroup Condition="'$(DisableAndroidTFM)' == 'true'">
+		<TargetFrameworks>net10.0</TargetFrameworks>
   </PropertyGroup>
   
 </Project>

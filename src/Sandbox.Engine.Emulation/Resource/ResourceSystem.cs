@@ -309,27 +309,7 @@ public static unsafe class ResourceSystem
             return;
         }
         
-        Console.WriteLine($"[NativeAOT] g_pRsrcSystm_GetAllCodeManifests: Found {_codeManifests.Count} code manifests");
-        
-        try
-        {
-            // Le paramètre values est un pointeur vers un CUtlVectorString natif déjà créé
-            // On doit utiliser l'API native pour ajouter les éléments
-            // Pour l'instant, on log les manifests car l'API exacte de CUtlVectorString n'est pas encore disponible
-            // TODO: Implémenter l'ajout d'éléments au CUtlVectorString natif quand l'API sera disponible
-            // En attendant, on utilise une implémentation basique qui log les manifests
-            foreach (var manifestName in _codeManifests)
-            {
-                Console.WriteLine($"[NativeAOT]   - Code manifest: {manifestName}");
-                // NOTE: L'ajout au CUtlVectorString natif nécessitera l'API exacte de CUtlVectorString
-                // Pour l'instant, on log seulement les manifests trouvés
-                // Cette fonction sera complétée quand on aura besoin d'accéder aux manifests depuis le code managé
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[NativeAOT] g_pRsrcSystm_GetAllCodeManifests: Exception: {ex.Message}");
-        }
+        throw new NotImplementedException("g_pRsrcSystm_GetAllCodeManifests requires CUtlVectorString native append support");
     }
 }
 

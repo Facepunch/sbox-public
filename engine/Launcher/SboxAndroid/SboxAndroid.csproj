@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationTitle>SboxAndroid</ApplicationTitle>
+    <AssemblyName>sbox-android</AssemblyName>
+    <RootNamespace>Sandbox.Launcher.SboxAndroid</RootNamespace>
+    <AndroidUseLatestPlatformSdk>true</AndroidUseLatestPlatformSdk>
+    <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AndroidNativeLibrary Include="runtimes/android-arm64/native/libengine2.so"
+                          Abi="arm64-v8a"
+                          Condition="Exists('runtimes/android-arm64/native/libengine2.so')" />
+  </ItemGroup>
+</Project>
+
+
+

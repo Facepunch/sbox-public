@@ -4,7 +4,7 @@
 	
 	<PropertyGroup>
 		<VersionPrefix>1.0.1</VersionPrefix>
-		<TargetFramework>net10.0</TargetFramework>
+		<TargetFrameworks>net10.0;net10.0-android</TargetFrameworks>
 		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -15,6 +15,11 @@
 		<OutputPath>../../game/bin/managed</OutputPath>
 		<LangVersion>14</LangVersion>
 		<AllowedReferenceRelatedFileExtensions>.pdb</AllowedReferenceRelatedFileExtensions>
+	</PropertyGroup>
+
+	<!-- Permettre de désactiver le TFM Android lors des builds desktop pour éviter le téléchargement du runtime Mono 10.0 inexistant -->
+	<PropertyGroup Condition="'$(DisableAndroidTFM)' == 'true'">
+		<TargetFrameworks>net10.0</TargetFrameworks>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -31,6 +36,10 @@
 
 	<PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
 		<DefineConstants Condition="'$(OS)' == 'Windows_NT'">WIN;$(DefineConstants)</DefineConstants>
+	</PropertyGroup>
+	
+	<PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+		<DefineConstants>ANDROID;$(DefineConstants)</DefineConstants>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -71,9 +80,24 @@
 	<ItemGroup>
 		<PackageReference Include="SkiaSharp" Version="3.116.0" />
 		<PackageReference Include="SkiaSharp.HarfBuzz" Version="3.116.0" />
-		<Reference Include="System.Speech">
+		<Reference Include="System.Speech" Condition="'$(TargetFramework)' == 'net10.0'">
 			<HintPath>../ThirdParty/System.Speech.dll</HintPath>
 		</Reference>
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+		<!-- System.Speech indisponible sur Android -->
+		<Compile Remove="Systems/Audio/Speech/**" />
+		<Compile Remove="obj/.generated/Systems/Audio/Speech/**" />
+		<Compile Remove="**/Systems/Audio/Speech/**" />
+		<Compile Remove="**/obj/.generated/Systems/Audio/Speech/**" />
+		<Compile Remove="obj/**/Speech.*.cs" />
+
+		<!-- Ne pas compiler les stubs de secours -->
+		<Compile Remove="Systems/UI/Stub/**" />
+		<Compile Remove="**/Systems/UI/Stub/**" />
+
+		<!-- Conserver la pile UI complète pour Android -->
 	</ItemGroup>
 
 	<Target Name="_ResolveCopyLocalNuGetPkgXmls" AfterTargets="ResolveReferences">

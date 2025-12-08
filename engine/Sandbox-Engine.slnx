@@ -22,6 +22,7 @@
     <Project Path="Launcher/SboxProfiler/SboxProfiler.csproj" />
     <Project Path="Launcher/SboxServer/Sbox-Server.csproj" />
     <Project Path="Launcher/SboxStandalone/Sbox-Standalone.csproj" />
+    <Project Path="Launcher/SboxAndroid/SboxAndroid.csproj" />
     <Project Path="Launcher/Shared/LaunchShared.shproj" />
     <Project Path="Launcher/StandaloneTest/Sbox-Launcher.csproj" />
   </Folder>
@@ -70,6 +71,6 @@
     <Project Path="Sandbox.Test/Sandbox.Test.csproj" />
   </Folder>
   <Folder Name="/Emulation/">
-    <Project Path="../src/Sbox.Engine.Emulation/Sbox.Engine.Emulation.csproj" />
+    <Project Path="../src/Sandbox.Engine.Emulation/Sandbox.Engine.Emulation.csproj" />
   </Folder>
 </Solution>

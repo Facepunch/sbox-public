@@ -68,7 +68,7 @@ public static class HandleManager
 
         public HandleEntry(object obj, int bindingHandle)
         {
-            _handles = new HashSet<int>(4); // Capacité initiale de 4
+            _handles = new HashSet<int>(10); // Capacité initiale de 4
             Initialize(obj, bindingHandle);
         }
 

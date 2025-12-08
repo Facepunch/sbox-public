@@ -5,6 +5,9 @@ using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 using Sandbox.Engine.Emulation.Common;
 using Sandbox;
+using Sandbox.Engine.Emulation.Platform;
+using Sandbox.Engine.Emulation.Rendering;
+using Sandbox.Engine.Emulation.Scene;
 
 namespace Sandbox.Engine.Emulation.Scene;
 
@@ -208,6 +211,13 @@ public static unsafe class SceneSystem
     // Cache pour les textures et matériaux bien connus
     private static readonly Dictionary<long, IntPtr> _wellKnownTextures = new();
     private static readonly Dictionary<long, IntPtr> _wellKnownMaterials = new();
+
+    // État minimal pour la frame en cours (SceneView/SceneLayer actifs)
+    private static IntPtr _activeSceneViewHandle = IntPtr.Zero;
+    private static IntPtr _activeSceneLayerHandle = IntPtr.Zero;
+
+    internal static IntPtr GetActiveSceneView() => _activeSceneViewHandle;
+    internal static IntPtr GetActiveSceneLayer() => _activeSceneLayerHandle;
     
     /// <summary>
     /// Initialise le module SceneSystem en patchant les fonctions natives.
@@ -444,8 +454,7 @@ public static unsafe class SceneSystem
     /// **Responsabilité mémoire** : Les stats sont un singleton, ne pas libérer.
     /// </summary>
     /// <returns>Pointeur vers les stats par frame (SceneSystemPerFrameStats_t)</returns>
-    [UnmanagedCallersOnly]
-    public static void* g_pSceneSystem_GetPerFrameStats()
+    private static IntPtr EnsurePerFrameStatsPtr()
     {
         if (_perFrameStats == null)
         {
@@ -466,8 +475,16 @@ public static unsafe class SceneSystem
             }
         }
         
-        return (void*)_perFrameStats.StatsPtr;
+        return _perFrameStats.StatsPtr;
     }
+
+    [UnmanagedCallersOnly]
+    public static void* g_pSceneSystem_GetPerFrameStats()
+    {
+        return (void*)EnsurePerFrameStatsPtr();
+    }
+
+    internal static IntPtr GetPerFrameStatsPtrManaged() => EnsurePerFrameStatsPtr();
     
     /// <summary>
     /// Create a new scene world.
@@ -491,6 +508,7 @@ public static unsafe class SceneSystem
         
         int handle = HandleManager.Register(worldData);
         worldData.BindingPtr = (IntPtr)HandleManager.GetBindingHandle(handle);
+        EmulatedSceneWorld.TrackWorld(handle, debugName);
         
         Console.WriteLine($"[NativeAOT] g_pSceneSystem_CreateWorld: debugName={debugName}, handle={handle}");
         
@@ -517,6 +535,7 @@ public static unsafe class SceneSystem
         {
             HandleManager.Unregister(handle);
             Console.WriteLine($"[NativeAOT] g_pSceneSystem_DestroyWorld: handle={handle}, debugName={worldData.DebugName}");
+            EmulatedSceneWorld.UntrackWorld(handle);
         }
     }
     
@@ -843,10 +862,50 @@ public static unsafe class SceneSystem
     /// **Comportement Source 2** : Démarre le rendu d'une vue dynamique.
     /// **Comportement émulation** : Non implémenté, nécessite une intégration complexe avec le système de rendu.
     /// </summary>
+    private static void BeginRenderingDynamicViewInternal(IntPtr pView)
+    {
+        var glfw = PlatformFunctions.GetGlfw();
+        var window = PlatformFunctions.GetWindowHandle();
+        int width = 1280, height = 720;
+        if (glfw != null && window != null)
+        {
+            glfw.GetFramebufferSize(window, out width, out height);
+            width = Math.Max(1, width);
+            height = Math.Max(1, height);
+        }
+
+        var viewport = new NativeEngine.RenderViewport(0, 0, width, height);
+
+        // Utiliser la view existante si fournie, sinon en créer une.
+        _activeSceneViewHandle = pView != IntPtr.Zero
+            ? pView
+            : Emulation.Rendering.EmulatedSceneView.CreateView(viewport, managedCameraId: 1, priority: 0);
+
+        // Créer un layer par défaut pour cette view.
+        _activeSceneLayerHandle = Emulation.Rendering.EmulatedSceneLayer.CreateLayer("DefaultLayer", viewport, SceneLayerType.Translucent);
+        Emulation.Rendering.EmulatedSceneLayer.SetViewportManaged(_activeSceneLayerHandle, viewport);
+
+        // Brancher la swapchain comme color target si disponible.
+        var swapColor = RenderDevice.GetSwapChainTextureHandle();
+        if (swapColor != IntPtr.Zero)
+        {
+            Emulation.Rendering.EmulatedSceneLayer.SetOutputManaged(_activeSceneLayerHandle, swapColor, IntPtr.Zero);
+        }
+
+        // Conserver la view -> layer pour que RenderPipeline puisse les réutiliser via getters.
+        Emulation.Rendering.EmulatedSceneView.SetSwapChainManaged(_activeSceneViewHandle, swapColor);
+    }
+
     [UnmanagedCallersOnly]
     public static void g_pSceneSystem_BeginRenderingDynamicView(IntPtr pView)
     {
-        throw new NotImplementedException("g_pSceneSystem_BeginRenderingDynamicView is not yet implemented in the linux emulation layer");
+        BeginRenderingDynamicViewInternal(pView);
+    }
+
+    internal static IntPtr BeginRenderingDynamicViewManaged(IntPtr pView)
+    {
+        BeginRenderingDynamicViewInternal(pView);
+        return _activeSceneViewHandle;
     }
     
     /// <summary>

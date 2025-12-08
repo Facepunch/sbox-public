@@ -145,15 +145,7 @@ public static unsafe class DspPreset
             return IntPtr.Zero;
         }
 
-        // Pour l'émulation, on retourne un handle vers l'instance
-        // Dans une implémentation complète avec OpenAL, on créerait des effets DSP réels ici
-        IntPtr instance = (IntPtr)_nextDspPresetId++;
-        Console.WriteLine($"[NativeAOT] DspPreset_Instantiate: {preset.Name} channels={channels} -> instance={instance}");
-        
-        // TODO: Créer des effets OpenAL DSP réels basés sur les processeurs du preset
-        // Les types de processeurs incluent: Reverb (2), Diffusor (10), Amplifier (11), etc.
-        
-        return instance;
+        throw new NotImplementedException("DspPreset_Instantiate: DSP effects are not implemented (OpenAL/Efx backend missing)");
     }
 }
 

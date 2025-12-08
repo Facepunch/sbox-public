@@ -3,7 +3,10 @@ using System.Runtime.InteropServices;
 using System.Numerics;
 using Silk.NET.OpenGL;
 using Sandbox;
+using Sandbox.Engine.Emulation.Common;
+using Sandbox.Engine.Emulation.Video;
 using NativeEngine;
+using Sandbox.Engine.Emulation.Rendering;
 
 namespace Sandbox.Engine.Emulation.Rendering;
 
@@ -13,6 +16,7 @@ namespace Sandbox.Engine.Emulation.Rendering;
 /// </summary>
 internal unsafe class EmulatedRenderContext
 {
+    private const int DefaultVertexStride = 80; // align stride with RenderTools fallback
     private readonly GL _gl;
     private IntPtr _selfPtr;
     private GCHandle _gcHandle;
@@ -33,6 +37,7 @@ internal unsafe class EmulatedRenderContext
     public EmulatedRenderContext(GL gl)
     {
         _gl = gl ?? throw new ArgumentNullException(nameof(gl));
+        Sandbox.Engine.Emulation.Video.VideoPlayer.SetSharedGL(_gl);
         
         // Allocate memory for CRenderAttributes
         // CRenderAttributes is just an IntPtr, so we allocate a small buffer
@@ -120,30 +125,36 @@ internal unsafe class EmulatedRenderContext
             _gl.UseProgram(_basicShaderProgram);
         }
         
-        // For now, use a simple layout based on the Vertex struct
-        // Position (vec3) at offset 0
+        int stride = DefaultVertexStride;
+        if (layout.self != IntPtr.Zero && VertexLayoutInterop.TryGetLayout(layout.self, out var layoutData) && layoutData != null && layoutData.Size > 0)
+        {
+            stride = layoutData.Size;
+        }
+
+        // Layout supposée alignée sur un stride fixe (configurée ci-dessus)
+        // Position (vec3) à l’offset 0
         _gl.EnableVertexAttribArray(0);
-        _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 48, (void*)0); // 48 = sizeof(Vertex)
+        _gl.VertexAttribPointer(0, 3, (GLEnum)VertexAttribPointerType.Float, false, (uint)stride, (void*)0);
         
-        // Color (vec4 as Color32) at offset 12 - normalized to [0,1]
+        // Color (vec4 as Color32) à l’offset 12 - normalisé [0,1]
         _gl.EnableVertexAttribArray(1);
-        _gl.VertexAttribPointer(1, 4, VertexAttribPointerType.UnsignedByte, true, 48, (void*)12);
+        _gl.VertexAttribPointer(1, 4, (GLEnum)VertexAttribPointerType.UnsignedByte, true, (uint)stride, (void*)12);
         
-        // Normal (vec3) at offset 16
+        // Normal (vec3) à l’offset 16
         _gl.EnableVertexAttribArray(2);
-        _gl.VertexAttribPointer(2, 3, VertexAttribPointerType.Float, false, 48, (void*)16);
+        _gl.VertexAttribPointer(2, 3, (GLEnum)VertexAttribPointerType.Float, false, (uint)stride, (void*)16);
         
-        // TexCoord0 (vec4) at offset 28
+        // TexCoord0 (vec4) à l’offset 28
         _gl.EnableVertexAttribArray(3);
-        _gl.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, 48, (void*)28);
+        _gl.VertexAttribPointer(3, 4, (GLEnum)VertexAttribPointerType.Float, false, (uint)stride, (void*)28);
         
-        // TexCoord1 (vec4) at offset 44
+        // TexCoord1 (vec4) à l’offset 44
         _gl.EnableVertexAttribArray(4);
-        _gl.VertexAttribPointer(4, 4, VertexAttribPointerType.Float, false, 48, (void*)44);
+        _gl.VertexAttribPointer(4, 4, (GLEnum)VertexAttribPointerType.Float, false, (uint)stride, (void*)44);
         
-        // Tangent (vec4) at offset 60
+        // Tangent (vec4) à l’offset 60
         _gl.EnableVertexAttribArray(5);
-        _gl.VertexAttribPointer(5, 4, VertexAttribPointerType.Float, false, 48, (void*)60);
+        _gl.VertexAttribPointer(5, 4, (GLEnum)VertexAttribPointerType.Float, false, (uint)stride, (void*)60);
     }
     
     // Static mapping for IntPtr -> EmulatedRenderContext
@@ -245,13 +256,22 @@ internal unsafe class EmulatedRenderContext
     public void DrawInstanced(NativeEngine.RenderPrimitiveType type, int nFirstVertex, int nVertexCountPerInstance, int nInstanceCount)
     {
         if (_isDisposed) return;
-        // TODO: Implement instanced drawing
+        EnsureShaderInitialized();
+        EnsureBuffersInitialized();
+        var glType = ConvertPrimitiveType(type);
+        _gl.BindVertexArray(_tempVAO);
+        _gl.DrawArraysInstanced((GLEnum)glType, nFirstVertex, (uint)nVertexCountPerInstance, (uint)nInstanceCount);
     }
 
     public void DrawIndexedInstanced(NativeEngine.RenderPrimitiveType type, int nFirstIndex, int nIndexCountPerInstance, int nInstanceCount, int nMaxVertexCount, int nBaseVertex)
     {
         if (_isDisposed) return;
-        // TODO: Implement indexed instanced drawing
+        EnsureShaderInitialized();
+        EnsureBuffersInitialized();
+        var glType = ConvertPrimitiveType(type);
+        _gl.BindVertexArray(_tempVAO);
+        int elementOffset = nFirstIndex / sizeof(ushort);
+        _gl.DrawElementsInstanced((GLEnum)glType, (uint)nIndexCountPerInstance, (GLEnum)DrawElementsType.UnsignedShort, (void*)(elementOffset * sizeof(ushort)), (uint)nInstanceCount);
     }
 
     public unsafe void Clear(System.Numerics.Vector4 col, bool clearColor, bool clearDepth, bool clearStencil)
@@ -289,20 +309,52 @@ internal unsafe class EmulatedRenderContext
 
     public bool BindVertexBuffer(int nSlot, NativeEngine.VertexBufferHandle_t hVertexBuffer, int nOffset)
     {
-        // TODO: Implement vertex buffer binding
-        return false;
+        return BindVertexBuffer(nSlot, hVertexBuffer, nOffset, DefaultVertexStride);
     }
 
     public bool BindVertexBuffer(int nSlot, NativeEngine.VertexBufferHandle_t hVertexBuffer, int nOffset, int nStride)
     {
-        // TODO: Implement vertex buffer binding with stride
+        if (_isDisposed) return false;
+        EnsureBuffersInitialized();
+        int handle = (int)hVertexBuffer.self;
+        var bufferData = Common.HandleManager.Get<RenderDevice.BufferData>(handle);
+        if (bufferData == null || bufferData.OpenGLBufferHandle == 0)
         return false;
+        
+        _gl.BindVertexArray(_tempVAO);
+        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, bufferData.OpenGLBufferHandle);
+        
+        // Basic layout: position/color/normal/uv/tangent with stride param
+        _gl.EnableVertexAttribArray(0);
+        _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, (uint)nStride, (void*)(nOffset + 0));
+        
+        _gl.EnableVertexAttribArray(1);
+        _gl.VertexAttribPointer(1, 4, VertexAttribPointerType.UnsignedByte, true, (uint)nStride, (void*)(nOffset + 12));
+        
+        _gl.EnableVertexAttribArray(2);
+        _gl.VertexAttribPointer(2, 3, VertexAttribPointerType.Float, false, (uint)nStride, (void*)(nOffset + 16));
+        
+        _gl.EnableVertexAttribArray(3);
+        _gl.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, (uint)nStride, (void*)(nOffset + 28));
+        
+        _gl.EnableVertexAttribArray(4);
+        _gl.VertexAttribPointer(4, 4, VertexAttribPointerType.Float, false, (uint)nStride, (void*)(nOffset + 44));
+        
+        return true;
     }
 
     public bool BindIndexBuffer(NativeEngine.IndexBufferHandle_t hIndexBuffer, int nOffset)
     {
-        // TODO: Implement index buffer binding
+        if (_isDisposed) return false;
+        EnsureBuffersInitialized();
+        int handle = (int)hIndexBuffer.self;
+        var bufferData = Common.HandleManager.Get<RenderDevice.BufferData>(handle);
+        if (bufferData == null || bufferData.OpenGLBufferHandle == 0)
         return false;
+        
+        _gl.BindVertexArray(_tempVAO);
+        _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, bufferData.OpenGLBufferHandle);
+        return true;
     }
 
     public void BindVertexShader(NativeEngine.RenderShaderHandle_t hVertexShader, NativeEngine.VertexBufferHandle_t hInputLayout)
@@ -327,27 +379,37 @@ internal unsafe class EmulatedRenderContext
 
     public void BindTexture(int nTextureIndex, NativeEngine.ITexture hTexture)
     {
-        // TODO: Implement texture binding
+        if (_isDisposed) return;
+        var gl = _gl;
+        var texData = Texture.TextureSystem.GetTextureData(hTexture.self);
+        if (texData == null || texData.OpenGLHandle == 0) return;
+        gl.ActiveTexture(TextureUnit.Texture0 + nTextureIndex);
+        gl.BindTexture(GLEnum.Texture2D, texData.OpenGLHandle);
     }
 
     public void BindRenderTargets(NativeEngine.ITexture colorTexture, NativeEngine.ITexture depthTexture, NativeEngine.ISceneLayer layer)
     {
-        // TODO: Implement render target binding
+        // Minimal placeholder: bind default framebuffer
+        _gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
 
     public void BindRenderTargets(IntPtr swapChain, bool color, bool depth)
     {
-        // TODO: Implement swap chain binding
+        // Minimal placeholder: bind default framebuffer
+        _gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
 
     public void RestoreRenderTargets(NativeEngine.ISceneLayer layer)
     {
-        // TODO: Implement render target restoration
+        _gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
 
     public void GenerateMipMaps(NativeEngine.ITexture material)
     {
-        // TODO: Implement mipmap generation
+        var texData = Texture.TextureSystem.GetTextureData(material.self);
+        if (texData == null || texData.OpenGLHandle == 0) return;
+        _gl.BindTexture(GLEnum.Texture2D, texData.OpenGLHandle);
+        _gl.GenerateMipmap(GLEnum.Texture2D);
     }
 
     public void BeginPixEvent(string name)

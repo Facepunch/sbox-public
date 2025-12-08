@@ -372,6 +372,14 @@ public static unsafe class AudioDevice
     [UnmanagedCallersOnly]
     public static void g_pAudioDevice_SendOutput(IntPtr buffers)
     {
+        SendOutputManaged(buffers);
+    }
+
+    /// <summary>
+    /// Version managée utilisable depuis le code C# (backend vidéo).
+    /// </summary>
+    public static void SendOutputManaged(IntPtr buffers)
+    {
         if (buffers == IntPtr.Zero)
         {
             Console.WriteLine("[NativeAOT] g_pAudioDevice_SendOutput: buffers is null");

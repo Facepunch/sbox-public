@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using BepuPhysics;
 using BepuPhysics.Constraints;
 using Sandbox;
@@ -24,8 +25,46 @@ public static unsafe class PhysicsWorld
     // Dictionary to store reference bodies by world handle
     private static readonly Dictionary<int, int> _referenceBodies = new();
     
+    private enum JointKind
+    {
+        Weld,
+        BallSocket
+    }
+    
+    private static System.Numerics.Quaternion ToQuaternion(Rotation rot)
+    {
+        return rot;
+    }
+    
+    private static System.Numerics.Vector3 ToVector3(global::Vector3 v)
+    {
+        return new System.Numerics.Vector3(v.x, v.y, v.z);
+    }
+    
+    private static void GetLocalPose(Transform* frame, out System.Numerics.Vector3 pos, out System.Numerics.Quaternion rot)
+    {
+        if (frame == null)
+        {
+            pos = System.Numerics.Vector3.Zero;
+            rot = System.Numerics.Quaternion.Identity;
+            return;
+        }
+        
+        pos = ToVector3(frame->Position);
+        rot = ToQuaternion(frame->Rotation);
+    }
+    
+    private struct JointData
+    {
+        public ConstraintHandle Handle;
+        public int BodyAHandle;
+        public int BodyBHandle;
+        public JointKind Kind;
+        public BepuPhysicsWorld World;
+    }
+    
     // Dictionary to store joints by handle
-    private static readonly Dictionary<int, object> _joints = new();
+    private static readonly Dictionary<int, JointData> _joints = new();
     private static int _nextJointHandle = 10000;
     
     // Dictionary to store sleeping state by world handle
@@ -220,6 +259,7 @@ public static unsafe class PhysicsWorld
         if (body != null)
         {
             // Remove body from BepuPhysics simulation
+            world.RemoveBodyMapping(body.Handle);
             world.Simulation.Bodies.Remove(body.Handle);
             HandleManager.Unregister(bodyHandle);
             Console.WriteLine($"[NativeAOT] IPhysicsWorld_RemoveBody: world={worldHandle}, body={bodyHandle}");
@@ -293,7 +333,7 @@ public static unsafe class PhysicsWorld
             if (_joints.TryGetValue(jointHandle, out var joint))
             {
                 // Remove joint from BepuPhysics simulation
-                // Note: Joint removal depends on joint type, simplified for now
+                joint.World.Simulation.Solver.Remove(joint.Handle);
                 _joints.Remove(jointHandle);
                 Console.WriteLine($"[NativeAOT] IPhysicsWorld_RemoveJoint: joint={jointHandle}");
             }
@@ -459,19 +499,11 @@ public static unsafe class PhysicsWorld
         if (body1 == null || body2 == null)
             return 0;
         
-        // Create weld joint in BepuPhysics
-        // Note: BepuPhysics v2 joint API needs to be researched
-        // For now, return a placeholder handle
-        // TODO: Implement proper WeldJoint creation using BepuPhysics v2 API
-        int jointHandleInt = _nextJointHandle++;
-        lock (_joints)
-        {
-            _joints[jointHandleInt] = new object(); // Placeholder
-        }
+        GetLocalPose(localFrame1, out var offsetA, out var orientA);
+        GetLocalPose(localFrame2, out var offsetB, out var orientB);
         
-        Console.WriteLine($"[NativeAOT] IPhysicsWorld_AddWeldJoint: world={worldHandle}, body1={body1Handle}, body2={body2Handle}, joint={jointHandleInt} (placeholder)");
-        
-        throw new NotImplementedException("IPhysicsWorld_AddWeldJoint: BepuPhysics v2 joint API needs to be implemented");
+        // Weld constraint wiring for Bepu v2 requires matching field names; not wired yet
+        throw new NotImplementedException("IPhysicsWorld_AddWeldJoint: weld constraint not wired yet");
     }
     
     /// <summary>
@@ -480,7 +512,7 @@ public static unsafe class PhysicsWorld
     [UnmanagedCallersOnly]
     public static int IPhysicsWorld_AddSpringJoint(IntPtr self, IntPtr body1Ptr, IntPtr body2Ptr, Transform* localFrame1, Transform* localFrame2)
     {
-        throw new NotImplementedException("IPhysicsWorld_AddSpringJoint is not yet implemented in the linux emulation layer");
+        throw new NotImplementedException("IPhysicsWorld_AddSpringJoint: select and configure an appropriate Bepu constraint (e.g., BallSocket + spring) before enabling");
     }
     
     /// <summary>
@@ -489,7 +521,7 @@ public static unsafe class PhysicsWorld
     [UnmanagedCallersOnly]
     public static int IPhysicsWorld_AddRevoluteJoint(IntPtr self, IntPtr body1Ptr, IntPtr body2Ptr, Transform* localFrame1, Transform* localFrame2)
     {
-        throw new NotImplementedException("IPhysicsWorld_AddRevoluteJoint is not yet implemented in the linux emulation layer");
+        throw new NotImplementedException("IPhysicsWorld_AddRevoluteJoint: hinge constraint not wired yet");
     }
     
     /// <summary>
@@ -498,7 +530,7 @@ public static unsafe class PhysicsWorld
     [UnmanagedCallersOnly]
     public static int IPhysicsWorld_AddPrismaticJoint(IntPtr self, IntPtr body1Ptr, IntPtr body2Ptr, Transform* localFrame1, Transform* localFrame2)
     {
-        throw new NotImplementedException("IPhysicsWorld_AddPrismaticJoint is not yet implemented in the linux emulation layer");
+        throw new NotImplementedException("IPhysicsWorld_AddPrismaticJoint: slider constraint not wired yet");
     }
     
     /// <summary>
@@ -507,7 +539,49 @@ public static unsafe class PhysicsWorld
     [UnmanagedCallersOnly]
     public static int IPhysicsWorld_AddSphericalJoint(IntPtr self, IntPtr body1Ptr, IntPtr body2Ptr, Transform* localFrame1, Transform* localFrame2)
     {
-        throw new NotImplementedException("IPhysicsWorld_AddSphericalJoint is not yet implemented in the linux emulation layer");
+        if (self == IntPtr.Zero || body1Ptr == IntPtr.Zero || body2Ptr == IntPtr.Zero)
+            return 0;
+        
+        int worldHandle = (int)self;
+        int body1Handle = (int)body1Ptr;
+        int body2Handle = (int)body2Ptr;
+        
+        if (!PhysicsSystem.TryGetPhysicsWorld(worldHandle, out var world) || world == null)
+            return 0;
+        
+        var body1 = HandleManager.Get<BepuPhysicsBody>(body1Handle);
+        var body2 = HandleManager.Get<BepuPhysicsBody>(body2Handle);
+        
+        if (body1 == null || body2 == null)
+        return 0;
+        
+        GetLocalPose(localFrame1, out var offsetA, out _);
+        GetLocalPose(localFrame2, out var offsetB, out _);
+        
+        var desc = new BallSocket
+        {
+            LocalOffsetA = offsetA,
+            LocalOffsetB = offsetB,
+            SpringSettings = new SpringSettings(30f, 1f)
+        };
+        
+        var handle = body1.World.Simulation.Solver.Add(body1.Handle, body2.Handle, desc);
+        
+        int jointHandleInt = Interlocked.Increment(ref _nextJointHandle);
+        lock (_joints)
+        {
+            _joints[jointHandleInt] = new JointData
+            {
+                Handle = handle,
+                BodyAHandle = body1Handle,
+                BodyBHandle = body2Handle,
+                Kind = JointKind.BallSocket,
+                World = body1.World
+            };
+        }
+        
+        Console.WriteLine($"[NativeAOT] IPhysicsWorld_AddSphericalJoint: world={worldHandle}, body1={body1Handle}, body2={body2Handle}, joint={jointHandleInt}");
+        return jointHandleInt;
     }
     
     /// <summary>
@@ -516,7 +590,7 @@ public static unsafe class PhysicsWorld
     [UnmanagedCallersOnly]
     public static int IPhysicsWorld_AddMotorJoint(IntPtr self, IntPtr body1Ptr, IntPtr body2Ptr, Transform* localFrame1, Transform* localFrame2)
     {
-        throw new NotImplementedException("IPhysicsWorld_AddMotorJoint is not yet implemented in the linux emulation layer");
+        throw new NotImplementedException("IPhysicsWorld_AddMotorJoint: motor constraint not wired yet");
     }
     
     /// <summary>
@@ -530,11 +604,36 @@ public static unsafe class PhysicsWorld
     
     /// <summary>
     /// Set collision rules from JSON.
+    /// 
+    /// **Source 2 behavior**: Sets collision rules from a JSON string describing tag pairs and their collision behavior.
+    /// **Emulation behavior**: Parses JSON and stores rules in BepuPhysicsWorld for use in collision callbacks.
     /// </summary>
+    /// <param name="self">Handle to the physics world</param>
+    /// <param name="rulesPtr">Pointer to UTF-8 JSON string</param>
     [UnmanagedCallersOnly]
     public static void IPhysicsWorld_SetCollisionRulesFromJson(IntPtr self, IntPtr rulesPtr)
     {
-        throw new NotImplementedException("IPhysicsWorld_SetCollisionRulesFromJson is not yet implemented in the linux emulation layer");
+        if (self == IntPtr.Zero || rulesPtr == IntPtr.Zero)
+            return;
+        
+        int worldHandle = (int)self;
+        if (!PhysicsSystem.TryGetPhysicsWorld(worldHandle, out var world) || world == null)
+        {
+            Console.WriteLine($"[NativeAOT] IPhysicsWorld_SetCollisionRulesFromJson: world not found, handle={worldHandle}");
+            return;
+        }
+        
+        // Read JSON string from pointer
+        string? jsonString = Marshal.PtrToStringUTF8(rulesPtr);
+        if (string.IsNullOrEmpty(jsonString))
+        {
+            Console.WriteLine("[NativeAOT] IPhysicsWorld_SetCollisionRulesFromJson: empty JSON string");
+            return;
+        }
+        
+        // Set collision rules in the world
+        world.SetCollisionRulesFromJson(jsonString);
+        Console.WriteLine($"[NativeAOT] IPhysicsWorld_SetCollisionRulesFromJson: world={worldHandle}, rules set");
     }
     
     /// <summary>
@@ -563,7 +662,10 @@ public static unsafe class PhysicsWorld
     [UnmanagedCallersOnly]
     public static void IPhysicsWorld_ProcessIntersections(IntPtr self, IntPtr callbackPtr)
     {
-        throw new NotImplementedException("IPhysicsWorld_ProcessIntersections is not yet implemented in the linux emulation layer");
+        // Placeholder: real intersection callbacks are not wired; avoid crashing
+        if (self == IntPtr.Zero)
+            return;
+        // Console.WriteLine("[NativeAOT] IPhysicsWorld_ProcessIntersections: stubbed no-op");
     }
     
     /// <summary>
@@ -572,7 +674,8 @@ public static unsafe class PhysicsWorld
     [UnmanagedCallersOnly]
     public static void IPhysicsWorld_DestroyAggregateInstance(IntPtr self, IntPtr aggregatePtr)
     {
-        throw new NotImplementedException("IPhysicsWorld_DestroyAggregateInstance is not yet implemented in the linux emulation layer");
+        // No-op stub
+        Console.WriteLine("[NativeAOT] IPhysicsWorld_DestroyAggregateInstance: stubbed no-op");
     }
     
     /// <summary>
@@ -581,7 +684,8 @@ public static unsafe class PhysicsWorld
     [UnmanagedCallersOnly]
     public static int IPhysicsWorld_CreateAggregateInstance(IntPtr self, IntPtr resourceNamePtr, Transform* tmStart, ulong nGSNHandle, long nMotionType)
     {
-        throw new NotImplementedException("IPhysicsWorld_CreateAggregateInstance is not yet implemented in the linux emulation layer");
+        Console.WriteLine("[NativeAOT] IPhysicsWorld_CreateAggregateInstance: stubbed, returning 0");
+        return 0;
     }
     
     /// <summary>
@@ -590,7 +694,8 @@ public static unsafe class PhysicsWorld
     [UnmanagedCallersOnly]
     public static int IPhysicsWorld_CreateAggregateInstance_1(IntPtr self, IntPtr modelPtr, Transform* tmStart, ulong nGSNHandle, long nMotionType)
     {
-        throw new NotImplementedException("IPhysicsWorld_CreateAggregateInstance_1 is not yet implemented in the linux emulation layer");
+        Console.WriteLine("[NativeAOT] IPhysicsWorld_CreateAggregateInstance_1: stubbed, returning 0");
+        return 0;
     }
     
     /// <summary>
@@ -664,7 +769,8 @@ public static unsafe class PhysicsWorld
     [UnmanagedCallersOnly]
     public static void IPhysicsWorld_Query(IntPtr self, IntPtr resultPtr, Vector3* vCenter, float flRadius, ushort nObjectSetMask)
     {
-        throw new NotImplementedException("IPhysicsWorld_Query is not yet implemented in the linux emulation layer");
+        // Stub: no results
+        Console.WriteLine("[NativeAOT] IPhysicsWorld_Query: stubbed no-op");
     }
     
     /// <summary>
@@ -673,7 +779,8 @@ public static unsafe class PhysicsWorld
     [UnmanagedCallersOnly]
     public static void IPhysicsWorld_Query_1(IntPtr self, IntPtr resultPtr, BBox* bounds, ushort nObjectSetMask)
     {
-        throw new NotImplementedException("IPhysicsWorld_Query_1 is not yet implemented in the linux emulation layer");
+        // Stub: no results
+        Console.WriteLine("[NativeAOT] IPhysicsWorld_Query_1: stubbed no-op");
     }
     
     /// <summary>
@@ -682,7 +789,8 @@ public static unsafe class PhysicsWorld
     [UnmanagedCallersOnly]
     public static void IPhysicsWorld_Query_2(IntPtr self, IntPtr resultPtr, IntPtr pPoints, int nPoints, ushort nObjectSetMask)
     {
-        throw new NotImplementedException("IPhysicsWorld_Query_2 is not yet implemented in the linux emulation layer");
+        // Stub: no results
+        Console.WriteLine("[NativeAOT] IPhysicsWorld_Query_2: stubbed no-op");
     }
 }
 

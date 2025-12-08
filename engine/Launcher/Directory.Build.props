@@ -2,11 +2,17 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <!-- Common properties -->
   <PropertyGroup>
-    <!-- SolutionDir is not defined when building projects explicitly -->
-    <SolutionDir Condition=" '$(SolutionDir)' == '' ">$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildProjectDirectory), MySolution.sln))\</SolutionDir>
+    <!-- Force le SolutionDir sur la racine du dépôt pour tous les launchers -->
+    <SolutionDir>$(MSBuildThisFileDirectory)..\..\</SolutionDir>
     <!-- Output paths -->
     <BaseIntermediateOutputPath>$(SolutionDir)bin\obj\$(Configuration)\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
     <IntermediateOutputPath>$(SolutionDir)bin\obj\$(Configuration)\$(MSBuildProjectName)\</IntermediateOutputPath>
     <MSBuildProjectExtensionsPath>$(IntermediateOutputPath)\</MSBuildProjectExtensionsPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <!-- Pour Android, éviter les chemins mutualisés desktop -->
+    <BaseIntermediateOutputPath>$(MSBuildProjectDirectory)/obj/</BaseIntermediateOutputPath>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)</IntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
   </PropertyGroup>
 </Project>

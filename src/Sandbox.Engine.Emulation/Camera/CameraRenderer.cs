@@ -240,8 +240,7 @@ public static unsafe class CameraRenderer
         var renderer = HandleManager.Get<EmulatedCameraRenderer>(handle);
         if (renderer == null) return;
         
-        // TODO: Implémenter le rendu réel vers la swap chain
-        // Pour l'instant, c'est un stub qui permet au moteur de fonctionner
+        throw new NotImplementedException("CCameraRenderer_Render is not implemented in the emulation layer");
     }
     
     /// <summary>
@@ -256,7 +255,7 @@ public static unsafe class CameraRenderer
         var renderer = HandleManager.Get<EmulatedCameraRenderer>(handle);
         if (renderer == null) return;
         
-        // TODO: Implémenter le rendu vers texture
+        throw new NotImplementedException("CCameraRenderer_RenderToTexture is not implemented in the emulation layer");
     }
     
     /// <summary>
@@ -271,7 +270,7 @@ public static unsafe class CameraRenderer
         var renderer = HandleManager.Get<EmulatedCameraRenderer>(handle);
         if (renderer == null) return;
         
-        // TODO: Implémenter le rendu vers cubemap
+        throw new NotImplementedException("CCameraRenderer_RenderToCubeTexture is not implemented in the emulation layer");
     }
     
     /// <summary>
@@ -286,7 +285,7 @@ public static unsafe class CameraRenderer
         var renderer = HandleManager.Get<EmulatedCameraRenderer>(handle);
         if (renderer == null) return;
         
-        // TODO: Implémenter le rendu vers bitmap
+        throw new NotImplementedException("CCameraRenderer_RenderToBitmap is not implemented in the emulation layer");
     }
     
     /// <summary>
@@ -301,7 +300,7 @@ public static unsafe class CameraRenderer
         var renderer = HandleManager.Get<EmulatedCameraRenderer>(handle);
         if (renderer == null) return;
         
-        // TODO: Implémenter le rendu stéréo
+        throw new NotImplementedException("CCameraRenderer_RenderStereo is not implemented in the emulation layer");
     }
     
     /// <summary>
@@ -316,7 +315,7 @@ public static unsafe class CameraRenderer
         var renderer = HandleManager.Get<EmulatedCameraRenderer>(handle);
         if (renderer == null) return;
         
-        // TODO: Implémenter la soumission stéréo
+        throw new NotImplementedException("CCameraRenderer_SubmitStereo is not implemented in the emulation layer");
     }
     
     /// <summary>
@@ -331,7 +330,7 @@ public static unsafe class CameraRenderer
         var renderer = HandleManager.Get<EmulatedCameraRenderer>(handle);
         if (renderer == null) return;
         
-        // TODO: Implémenter le blit stéréo
+        throw new NotImplementedException("CCameraRenderer_BlitStereo is not implemented in the emulation layer");
     }
     
     /// <summary>

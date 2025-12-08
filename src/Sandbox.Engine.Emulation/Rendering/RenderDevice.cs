@@ -53,6 +53,12 @@ internal struct RenderDisplayMode_t
 public static unsafe class RenderDevice
 {
     private static int _nextBindlessIndex = 1;
+    private static IntPtr _swapChainTextureHandle = IntPtr.Zero;
+    private static uint _swapChainTextureGl = 0;
+    private static uint _swapChainFbo = 0;
+    private static int _swapChainWidth = 0;
+    private static int _swapChainHeight = 0;
+    private static readonly object _swapChainLock = new();
     
     /// <summary>
     /// Données internes pour un sampler state émulé.
@@ -349,7 +355,6 @@ public static unsafe class RenderDevice
         
         glfw.GetFramebufferSize(windowHandle, out int width, out int height);
         
-        // Créer et retourner la structure RenderDeviceInfo_t
         var info = new RenderDeviceInfo_t
         {
             m_nVersion = 1,
@@ -363,7 +368,7 @@ public static unsafe class RenderDevice
                 m_nRefreshRateDenominator = 1,
                 m_nFlags = 0
             },
-            m_nBackBufferCount = 2, // Triple buffering
+            m_nBackBufferCount = 2, // double buffering effectif sur GLFW
             m_nMultisampleType = RenderMultisampleType.RENDER_MULTISAMPLE_NONE,
             m_nModeUsage = 0,
             m_bUseStencil = 0,
@@ -382,28 +387,42 @@ public static unsafe class RenderDevice
     [UnmanagedCallersOnly]
     public static IntPtr g_pRenderDevice_GetSwapChainTexture(IntPtr swapChain, long bufferType)
     {
-        // Pour OpenGL, le swap chain texture est généralement le backbuffer
-        // Retourner un handle spécial pour le backbuffer (0 par défaut car OpenGL n'a pas de handle explicite)
-        // TODO: Implémenter un système de tracking des swap chain textures si nécessaire
-        return IntPtr.Zero; // Backbuffer n'a pas de handle explicite en OpenGL
+        return EnsureSwapChainTexture();
     }
     
     [UnmanagedCallersOnly]
     public static void g_pRenderDevice_DestroySwapChain(IntPtr hSwapChain)
     {
-        // Pas de destruction nécessaire pour GLFW (la fenêtre est gérée par PlatformFunctions)
-        // No-op pour OpenGL
+        lock (_swapChainLock)
+        {
+            var gl = PlatformFunctions.GetGL();
+
+            if (gl != null)
+            {
+                if (_swapChainTextureGl != 0)
+                {
+                    gl.DeleteTexture(_swapChainTextureGl);
+                    _swapChainTextureGl = 0;
+                }
+                if (_swapChainFbo != 0)
+                {
+                    gl.DeleteFramebuffer(_swapChainFbo);
+                    _swapChainFbo = 0;
+                }
+            }
+
+            if (_swapChainTextureHandle != IntPtr.Zero)
+            {
+                HandleManager.Unregister((int)_swapChainTextureHandle);
+                _swapChainTextureHandle = IntPtr.Zero;
+            }
+        }
     }
     
     [UnmanagedCallersOnly]
     public static int g_pRenderDevice_Present(IntPtr chain)
     {
-        var glfw = PlatformFunctions.GetGlfw();
-        var windowHandle = PlatformFunctions.GetWindowHandle();
-        
-        if (glfw == null || windowHandle == null) return 0;
-        
-        glfw.SwapBuffers(windowHandle);
+        PresentManaged();
         return 1;
     }
     
@@ -412,6 +431,33 @@ public static unsafe class RenderDevice
     {
         // Toujours possible avec OpenGL
         return 1; // Oui, on peut rendre vers le swap chain
+    }
+
+    /// <summary>
+    /// Présente le FBO de swapchain vers le framebuffer par défaut (appel managé).
+    /// </summary>
+    internal static void PresentManaged()
+    {
+        var glfw = PlatformFunctions.GetGlfw();
+        var windowHandle = PlatformFunctions.GetWindowHandle();
+        var gl = PlatformFunctions.GetGL();
+
+        if (glfw == null || windowHandle == null || gl == null) return;
+
+        EnsureSwapChainTexture();
+
+        if (_swapChainFbo != 0 && _swapChainTextureGl != 0)
+        {
+            gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, _swapChainFbo);
+            gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
+            gl.BlitFramebuffer(0, 0, _swapChainWidth, _swapChainHeight,
+                               0, 0, _swapChainWidth, _swapChainHeight,
+                               (uint)ClearBufferMask.ColorBufferBit, (GLEnum)BlitFramebufferFilter.Linear);
+            gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, 0);
+            gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, 0);
+        }
+
+        glfw.SwapBuffers(windowHandle);
     }
     
     [UnmanagedCallersOnly]
@@ -434,14 +480,32 @@ public static unsafe class RenderDevice
     [UnmanagedCallersOnly]
     public static IntPtr g_pRenderDevice_FindOrCreateFileTexture(IntPtr pFileName, long nLoadMode)
     {
-        // TODO: Charger une texture depuis un fichier
-        // Pour l'instant, retourner IntPtr.Zero pour permettre au moteur de continuer
-        // L'implémentation complète nécessiterait un système de chargement de fichiers
-        string fileName = Marshal.PtrToStringUTF8(pFileName) ?? "";
-        Console.WriteLine($"[NativeAOT] g_pRenderDevice_FindOrCreateFileTexture: {fileName}, loadMode={nLoadMode}");
+        var gl = PlatformFunctions.GetGL();
+        if (gl == null || pFileName == IntPtr.Zero)
+            return IntPtr.Zero;
         
-        throw new NotImplementedException(
-            "g_pRenderDevice_FindOrCreateFileTexture not yet implemented in the linux emulation layer");
+        string fileName = Marshal.PtrToStringUTF8(pFileName) ?? "";
+        if (string.IsNullOrEmpty(fileName))
+            return IntPtr.Zero;
+        
+        // Simple 1x1 texture placeholder until real loader exists
+        uint texHandle = 0;
+        gl.GenTextures(1, &texHandle);
+        if (texHandle == 0)
+            return IntPtr.Zero;
+        
+        gl.BindTexture(GLEnum.Texture2D, texHandle);
+        byte[] pixel = new byte[] { 255, 255, 255, 255 };
+        fixed (byte* p = pixel)
+        {
+            gl.TexImage2D(GLEnum.Texture2D, 0, (int)GLEnum.Rgba, 1, 1, 0, GLEnum.Rgba, GLEnum.UnsignedByte, p);
+        }
+        gl.TexParameter(GLEnum.Texture2D, GLEnum.TextureMinFilter, (int)GLEnum.Linear);
+        gl.TexParameter(GLEnum.Texture2D, GLEnum.TextureMagFilter, (int)GLEnum.Linear);
+        
+        var textureHandle = Texture.TextureSystem.CreateTextureWithOpenGLHandle(fileName, texHandle);
+        Console.WriteLine($"[NativeAOT] g_pRenderDevice_FindOrCreateFileTexture: {fileName}, loadMode={nLoadMode}, gl={texHandle}, handle={textureHandle}");
+        return textureHandle;
     }
     
     [UnmanagedCallersOnly]
@@ -715,13 +779,59 @@ public static unsafe class RenderDevice
     [UnmanagedCallersOnly]
     public static IntPtr g_pRenderDevice_CompileAndCreateShader(long nType, IntPtr pProgram, uint nBufLen, IntPtr pShaderVersion, IntPtr pDebugName)
     {
-        // TODO: Compiler et créer un shader OpenGL
-        // Pour l'instant, retourner IntPtr.Zero pour permettre au moteur de continuer
-        string debugName = pDebugName != IntPtr.Zero ? Marshal.PtrToStringUTF8(pDebugName) ?? "" : "";
-        Console.WriteLine($"[NativeAOT] g_pRenderDevice_CompileAndCreateShader: type={nType}, debugName={debugName}");
+        var gl = PlatformFunctions.GetGL();
+        if (gl == null) return IntPtr.Zero;
         
-        throw new NotImplementedException(
-            "g_pRenderDevice_CompileAndCreateShader not yet implemented in the linux emulation layer");
+        string debugName = pDebugName != IntPtr.Zero ? Marshal.PtrToStringUTF8(pDebugName) ?? "" : "";
+        
+        // Program string comes as a buffer; interpret as UTF8
+        string? source = pProgram != IntPtr.Zero && nBufLen > 0
+            ? Marshal.PtrToStringUTF8(pProgram, (int)nBufLen)
+            : null;
+        
+        if (string.IsNullOrEmpty(source))
+        {
+            Console.WriteLine($"[NativeAOT] g_pRenderDevice_CompileAndCreateShader: empty source ({debugName})");
+            return IntPtr.Zero;
+        }
+        
+        ShaderType shaderType = nType switch
+        {
+            0 => ShaderType.VertexShader,
+            1 => ShaderType.FragmentShader,
+            _ => ShaderType.FragmentShader
+        };
+        
+        uint shader = gl.CreateShader(shaderType);
+        gl.ShaderSource(shader, source);
+        gl.CompileShader(shader);
+        gl.GetShader(shader, ShaderParameterName.CompileStatus, out int compileStatus);
+        if (compileStatus == 0)
+        {
+            string info = gl.GetShaderInfoLog(shader);
+            Console.WriteLine($"[NativeAOT] Shader compile failed ({debugName}): {info}");
+            gl.DeleteShader(shader);
+            return IntPtr.Zero;
+        }
+        
+        uint program = gl.CreateProgram();
+        gl.AttachShader(program, shader);
+        gl.LinkProgram(program);
+        gl.GetProgram(program, ProgramPropertyARB.LinkStatus, out int linkStatus);
+        gl.DeleteShader(shader);
+        
+        if (linkStatus == 0)
+        {
+            string info = gl.GetProgramInfoLog(program);
+            Console.WriteLine($"[NativeAOT] Program link failed ({debugName}): {info}");
+            gl.DeleteProgram(program);
+            return IntPtr.Zero;
+        }
+        
+        // Register as handle
+        int handle = HandleManager.Register(program);
+        Console.WriteLine($"[NativeAOT] g_pRenderDevice_CompileAndCreateShader: type={nType}, debugName={debugName}, program={program}, handle={handle}");
+        return (IntPtr)handle;
     }
     
     // ========== GPU Buffer Functions ==========
@@ -729,50 +839,39 @@ public static unsafe class RenderDevice
     [UnmanagedCallersOnly]
     public static IntPtr g_pRenderDevice_CreateGPUBuffer(long nType, IntPtr pDesc, long nInitialDataSize, IntPtr pInitialData)
     {
-        // TODO: Créer un buffer GPU OpenGL
         var gl = PlatformFunctions.GetGL();
-        if (gl == null) return IntPtr.Zero;
-        
-        if (pDesc == IntPtr.Zero)
+        if (gl == null || pDesc == IntPtr.Zero)
             return IntPtr.Zero;
         
         BufferDesc* desc = (BufferDesc*)pDesc;
         
-        // Créer un buffer OpenGL
         uint bufferHandle = 0;
         gl.GenBuffers(1, &bufferHandle);
+        if (bufferHandle == 0) return IntPtr.Zero;
         
-        if (bufferHandle == 0)
-            return IntPtr.Zero;
-        
-        // Déterminer le type de buffer OpenGL
         GLEnum bufferType = nType switch
         {
-            0 => GLEnum.ArrayBuffer, // Vertex buffer
-            1 => GLEnum.ElementArrayBuffer, // Index buffer
-            2 => GLEnum.UniformBuffer, // Uniform buffer
-            3 => GLEnum.ShaderStorageBuffer, // Shader storage buffer
+            0 => GLEnum.ArrayBuffer,
+            1 => GLEnum.ElementArrayBuffer,
+            2 => GLEnum.UniformBuffer,
+            3 => GLEnum.ShaderStorageBuffer,
             _ => GLEnum.ArrayBuffer
         };
         
         gl.BindBuffer(bufferType, bufferHandle);
         
-        // Upload les données initiales si fournies
+        long bufferSize = (long)desc->m_nElementCount * desc->m_nElementSizeInBytes;
+        if (bufferSize < 0) bufferSize = 0;
+        
         if (pInitialData != IntPtr.Zero && nInitialDataSize > 0)
         {
             gl.BufferData(bufferType, (nuint)nInitialDataSize, (void*)pInitialData, GLEnum.StaticDraw);
         }
         else
         {
-            // Calculer la taille totale : nombre d'éléments * taille d'un élément
-            long totalSize = (long)desc->m_nElementCount * desc->m_nElementSizeInBytes;
-            gl.BufferData(bufferType, (nuint)totalSize, null, GLEnum.DynamicDraw);
+            gl.BufferData(bufferType, (nuint)bufferSize, null, GLEnum.DynamicDraw);
         }
         
-        // Calculer la taille totale pour stockage
-        long bufferSize = (long)desc->m_nElementCount * desc->m_nElementSizeInBytes;
-        
-        // Enregistrer le buffer avec HandleManager
         var bufferData = new BufferData
         {
             OpenGLBufferHandle = bufferHandle,
@@ -781,8 +880,7 @@ public static unsafe class RenderDevice
         };
         int handle = HandleManager.Register(bufferData);
         
-        Console.WriteLine($"[NativeAOT] g_pRenderDevice_CreateGPUBuffer: type={nType}, OpenGL handle={bufferHandle}, handle={handle}");
-        
+        Console.WriteLine($"[NativeAOT] g_pRenderDevice_CreateGPUBuffer: type={nType}, OpenGL handle={bufferHandle}, handle={handle}, size={bufferSize}");
         return (IntPtr)handle;
     }
     
@@ -800,14 +898,11 @@ public static unsafe class RenderDevice
         
         if (bufferData != null && bufferData.OpenGLBufferHandle != 0)
         {
-            // Détruire le buffer OpenGL
             uint bufferHandle = bufferData.OpenGLBufferHandle;
             gl.DeleteBuffers(1, &bufferHandle);
-            
-            // Retirer du HandleManager
-            HandleManager.Unregister(handle);
         }
         
+        HandleManager.Unregister(handle);
         Console.WriteLine($"[NativeAOT] g_pRenderDevice_DestroyGPUBuffer: handle={handle}");
     }
     
@@ -976,6 +1071,84 @@ public static unsafe class RenderDevice
         
         throw new NotImplementedException(
             "g_pRenderDevice_ReadTexturePixels not yet implemented in the linux emulation layer");
+    }
+
+    /// <summary>
+    /// Garantit qu'une texture/FBO de swapchain réelle existe et retourne le handle TextureSystem.
+    /// </summary>
+    private static IntPtr EnsureSwapChainTexture()
+    {
+        lock (_swapChainLock)
+        {
+            var gl = PlatformFunctions.GetGL();
+            var glfw = PlatformFunctions.GetGlfw();
+            var windowHandle = PlatformFunctions.GetWindowHandle();
+
+            if (gl == null || glfw == null || windowHandle == null)
+                return IntPtr.Zero;
+
+            glfw.GetFramebufferSize(windowHandle, out int width, out int height);
+            width = Math.Max(1, width);
+            height = Math.Max(1, height);
+
+            bool needRecreate = _swapChainTextureGl == 0 || _swapChainFbo == 0 ||
+                                width != _swapChainWidth || height != _swapChainHeight;
+
+            if (needRecreate)
+            {
+                if (_swapChainTextureGl != 0)
+                {
+                    gl.DeleteTexture(_swapChainTextureGl);
+                    _swapChainTextureGl = 0;
+                }
+                if (_swapChainFbo != 0)
+                {
+                    gl.DeleteFramebuffer(_swapChainFbo);
+                    _swapChainFbo = 0;
+                }
+                if (_swapChainTextureHandle != IntPtr.Zero)
+                {
+                    HandleManager.Unregister((int)_swapChainTextureHandle);
+                    _swapChainTextureHandle = IntPtr.Zero;
+                }
+
+                gl.GenTextures(1, out _swapChainTextureGl);
+                gl.BindTexture(GLEnum.Texture2D, _swapChainTextureGl);
+                gl.TexImage2D(GLEnum.Texture2D, 0, (int)GLEnum.Rgba8, (uint)width, (uint)height, 0,
+                              GLEnum.Rgba, GLEnum.UnsignedByte, null);
+                gl.TexParameter(GLEnum.Texture2D, GLEnum.TextureMinFilter, (int)GLEnum.Linear);
+                gl.TexParameter(GLEnum.Texture2D, GLEnum.TextureMagFilter, (int)GLEnum.Linear);
+                gl.TexParameter(GLEnum.Texture2D, GLEnum.TextureWrapS, (int)GLEnum.ClampToEdge);
+                gl.TexParameter(GLEnum.Texture2D, GLEnum.TextureWrapT, (int)GLEnum.ClampToEdge);
+
+                gl.GenFramebuffers(1, out _swapChainFbo);
+                gl.BindFramebuffer(FramebufferTarget.Framebuffer, _swapChainFbo);
+                gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0,
+                                        GLEnum.Texture2D, _swapChainTextureGl, 0);
+                var status = gl.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+                if (status != GLEnum.FramebufferComplete)
+                {
+                    Console.WriteLine($"[NativeAOT] RenderDevice: Swapchain FBO incomplete: {status}");
+                }
+                gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+
+                _swapChainWidth = width;
+                _swapChainHeight = height;
+
+                _swapChainTextureHandle = TextureSystem.CreateTextureWithOpenGLHandle("swapchain-backbuffer", _swapChainTextureGl);
+                Console.WriteLine($"[NativeAOT] RenderDevice: swapchain recreated {width}x{height}, gl={_swapChainTextureGl}, handle={_swapChainTextureHandle}");
+            }
+
+            return _swapChainTextureHandle;
+        }
+    }
+
+    /// <summary>
+    /// Helper managé pour récupérer la texture de swapchain (Handle TextureSystem).
+    /// </summary>
+    internal static IntPtr GetSwapChainTextureHandle()
+    {
+        return EnsureSwapChainTexture();
     }
 }
 

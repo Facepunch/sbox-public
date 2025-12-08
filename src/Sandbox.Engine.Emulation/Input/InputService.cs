@@ -96,11 +96,7 @@ public static unsafe class InputService
         if (string.IsNullOrEmpty(bindingStr))
             return IntPtr.Zero;
         
-        // TODO: Implémenter la conversion binding -> nom de touche
-        // Pour l'instant, retourner une chaîne vide
-        // Cette fonction nécessite un système de mapping binding -> key code -> key name
-        Console.WriteLine($"[NativeAOT] g_pInputService_Key_NameForBinding: binding={bindingStr} (not implemented)");
-        return IntPtr.Zero;
+        throw new NotImplementedException("g_pInputService_Key_NameForBinding requires binding->key name mapping");
     }
     
     /// <summary>
@@ -114,11 +110,7 @@ public static unsafe class InputService
     [UnmanagedCallersOnly]
     public static IntPtr g_pInputService_GetBinding(long button)
     {
-        // TODO: Implémenter la conversion button code -> binding string
-        // Pour l'instant, retourner IntPtr.Zero
-        // Cette fonction nécessite un système de mapping button code -> binding
-        Console.WriteLine($"[NativeAOT] g_pInputService_GetBinding: button={button} (not implemented)");
-        return IntPtr.Zero;
+        throw new NotImplementedException("g_pInputService_GetBinding requires button code -> binding mapping");
     }
     
     /// <summary>

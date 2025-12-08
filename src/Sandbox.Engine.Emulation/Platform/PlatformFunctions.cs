@@ -3,6 +3,10 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Silk.NET.GLFW;
 using Silk.NET.OpenGL;
+using Sandbox;
+using NativeEngine;
+using Sandbox.Engine.Emulation.Rendering;
+using Sandbox.Engine.Emulation.Scene;
 
 namespace Sandbox.Engine.Emulation.Platform;
 
@@ -23,6 +27,8 @@ public static unsafe class PlatformFunctions
     // Cache pour le nom du module (chemin vers l'exécutable)
     private static string? _moduleFilename = null;
     private static string? _moduleDirectory = null;
+    private static EmulatedRenderContext? _renderContext;
+    private static IntPtr _renderContextHandle = IntPtr.Zero;
     
     /// <summary>
     /// Obtient le répertoire du module (déduit du module filename).
@@ -119,8 +125,7 @@ public static unsafe class PlatformFunctions
         // global_SourceEngine* functions (indices 1592-1596)
         native[1592] = (void*)(delegate* unmanaged<IntPtr, IntPtr, int>)&SourceEnginePreInit;
         native[1593] = (void*)(delegate* unmanaged<IntPtr, int>)&SourceEngineInit;
-        // SourceEngineFrame reste dans EngineExports.cs car il a une logique de rendu complexe
-        // native[1594] sera patché depuis EngineExports.cs
+        native[1594] = (void*)(delegate* unmanaged<IntPtr, double, double, int>)&SourceEngineFrame;
         native[1595] = (void*)(delegate* unmanaged<IntPtr, int, void>)&global_SourceEngineShutdown;
         native[1596] = (void*)(delegate* unmanaged<void>)&UpdateWindowSize;
         native[1597] = (void*)(delegate* unmanaged<float>)&global_GetDiagonalDpi;
@@ -294,17 +299,18 @@ public static unsafe class PlatformFunctions
                 }
             }
             
-            // Créer une fenêtre invisible pour avoir un contexte OpenGL
-            // Cette fenêtre sera remplacée plus tard par CMtrlSystm2ppSys_CreateAppWindow
+            // Créer une fenêtre visible pour le rendu
             if (_windowHandle == null)
             {
                 _glfw.WindowHint(WindowHintClientApi.ClientApi, ClientApi.OpenGL);
                 _glfw.WindowHint(WindowHintInt.ContextVersionMajor, 3);
                 _glfw.WindowHint(WindowHintInt.ContextVersionMinor, 3);
                 _glfw.WindowHint(WindowHintOpenGlProfile.OpenGlProfile, OpenGlProfile.Core);
-                _glfw.WindowHint(WindowHintBool.Visible, false); // Fenêtre invisible
+                _glfw.WindowHint(WindowHintBool.Visible, true);
                 
-                _windowHandle = _glfw.CreateWindow(1, 1, "S&box NativeAOT (Init)", null, null);
+                const int defaultWidth = 1280;
+                const int defaultHeight = 720;
+                _windowHandle = _glfw.CreateWindow(defaultWidth, defaultHeight, "s&box (NativeAOT)", null, null);
                 
                 if (_windowHandle == null)
                 {
@@ -321,6 +327,8 @@ public static unsafe class PlatformFunctions
                 // Initialize GL
                 _gl = GL.GetApi(new GlfwContext(_glfw, _windowHandle));
                 
+                Material.MaterialSystem.SetWindowHandle(_windowHandle);
+                SetSharedState(_glfw, _windowHandle, _gl);
                 Console.WriteLine("[NativeAOT] SourceEngineInit: OpenGL initialized");
             }
         }
@@ -331,6 +339,87 @@ public static unsafe class PlatformFunctions
         }
         
         return 1; // Success
+    }
+
+    /// <summary>
+    /// Boucle de frame principale (émulation). Rendu simple sur framebuffer par défaut.
+    /// </summary>
+    [UnmanagedCallersOnly]
+    public static int SourceEngineFrame(IntPtr appDict, double currentTime, double previousTime)
+    {
+        var glfw = GetGlfw();
+        var window = GetWindowHandle();
+        var gl = GetGL();
+
+        if (glfw == null || window == null || gl == null)
+        {
+            Console.WriteLine("[NativeAOT] SourceEngineFrame: missing GL/GLFW/window");
+            return 0;
+        }
+
+        glfw.PollEvents();
+        if (glfw.WindowShouldClose(window))
+            return 0;
+
+        glfw.GetFramebufferSize(window, out int width, out int height);
+        width = Math.Max(1, width);
+        height = Math.Max(1, height);
+
+        // Assurer le contexte de rendu émulé
+        if (_renderContext == null)
+        {
+            _renderContext = new EmulatedRenderContext(gl);
+            _renderContextHandle = _renderContext.Self;
+        }
+
+        // Préparer SceneView/SceneLayer pour cette frame
+        Scene.SceneSystem.BeginRenderingDynamicViewManaged(IntPtr.Zero);
+        var sceneViewHandle = Scene.SceneSystem.GetActiveSceneView();
+        var sceneLayerHandle = Scene.SceneSystem.GetActiveSceneLayer();
+
+        var viewport = new RenderViewport(0, 0, width, height);
+        if (sceneLayerHandle != IntPtr.Zero)
+        {
+            EmulatedSceneLayer.SetViewportManaged(sceneLayerHandle, viewport);
+        }
+
+        var swapColor = RenderDevice.GetSwapChainTextureHandle();
+        if (sceneLayerHandle != IntPtr.Zero && swapColor != IntPtr.Zero)
+        {
+            EmulatedSceneLayer.SetOutputManaged(sceneLayerHandle, swapColor, IntPtr.Zero);
+        }
+        if (sceneViewHandle != IntPtr.Zero)
+        {
+            EmulatedSceneView.SetSwapChainManaged(sceneViewHandle, swapColor);
+        }
+
+        // Récupérer les stats per-frame (pointeur)
+        var statsPtr = Scene.SceneSystem.GetPerFrameStatsPtrManaged();
+        var statsHandle = statsPtr != IntPtr.Zero ? new SceneSystemPerFrameStats_t(statsPtr) : default;
+
+        // Construire le setup managé et appeler Graphics.OnLayer (UI / overlays)
+        var setup = new ManagedRenderSetup_t
+        {
+            renderContext = new NativeEngine.IRenderContext(_renderContextHandle),
+            sceneView = new NativeEngine.ISceneView(sceneViewHandle),
+            sceneLayer = new NativeEngine.ISceneLayer(sceneLayerHandle),
+            colorImageFormat = ImageFormat.RGBA8888,
+            msaaLevel = RenderMultisampleType.RENDER_MULTISAMPLE_NONE,
+            stats = statsHandle
+        };
+
+        try
+        {
+            Sandbox.Graphics.OnLayer(-1, setup);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[NativeAOT] SourceEngineFrame: Graphics.OnLayer error: {ex}");
+        }
+
+        // Présenter le swapchain sur le backbuffer et swapper une seule fois.
+        RenderDevice.PresentManaged();
+        return 1;
     }
     
     /// <summary>

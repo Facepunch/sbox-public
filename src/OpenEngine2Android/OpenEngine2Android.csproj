@@ -14,4 +14,12 @@
     -->
     <TrimMode>full</TrimMode>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Silk.NET.OpenGLES" Version="2.22.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Sandbox.Engine.Emulation/Sandbox.Engine.Emulation.csproj" />
+  </ItemGroup>
 </Project>
