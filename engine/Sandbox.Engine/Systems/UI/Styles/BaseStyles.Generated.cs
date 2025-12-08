@@ -3076,6 +3076,7 @@ public abstract partial class BaseStyles
 		LerpProperty( "border-image-width-bottom", from, to, delta );
 		LerpProperty( "border-image-tint", from, to, delta );
 		LerpProperty( "background-tint", from, to, delta );
+		LerpProperty( "background-image-tint", from, to, delta );
 		LerpProperty( "background-angle", from, to, delta );
 		LerpProperty( "text-background-angle", from, to, delta );
 		LerpProperty( "perspective-origin-x", from, to, delta );
@@ -3348,6 +3349,7 @@ public abstract partial class BaseStyles
 				Lerp( ref _borderimagetint, from._borderimagetint, to._borderimagetint, Color.White, delta );
 				break;
 			case "background-tint":
+			case "background-image-tint":
 				Lerp( ref _backgroundtint, from._backgroundtint, to._backgroundtint, Color.White, delta );
 				break;
 			case "background-angle":
