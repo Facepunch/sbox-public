@@ -468,6 +468,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		if ( Game.ActiveScene.IsValid() )
 		{
+			Game.ActiveScene.Signal( GameObjectSystem.Stage.SceneLoaded );
+
 			Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
 		}
 
