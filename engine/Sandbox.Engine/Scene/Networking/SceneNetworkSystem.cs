@@ -418,18 +418,6 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		Time.Now = (float)msg.Time;
 		Game.ActiveScene.UpdateTimeFromHost( msg.Time );
 
-		foreach ( var s in msg.GameObjectSystems )
-		{
-			var type = Game.TypeLibrary.GetTypeByIdent( s.Type );
-			var system = Game.ActiveScene.GetSystemByType( type );
-
-			if ( system is null )
-				continue;
-
-			system.Id = s.Id;
-			system.ReadDataTable( s.TableData );
-		}
-
 		{
 			using var batchGroup = CallbackBatch.Batch();
 
@@ -455,6 +443,18 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			{
 				go.NetworkSpawnRemote( oc );
 			}
+		}
+
+		foreach ( var s in msg.GameObjectSystems )
+		{
+			var type = Game.TypeLibrary.GetTypeByIdent( s.Type );
+			var system = Game.ActiveScene.GetSystemByType( type );
+
+			if ( system is null )
+				continue;
+
+			system.Id = s.Id;
+			system.ReadDataTable( s.TableData );
 		}
 
 		MountedVPKs?.Dispose();
