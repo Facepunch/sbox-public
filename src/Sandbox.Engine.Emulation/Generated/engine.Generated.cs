@@ -17027,7 +17027,6 @@ public static void* Sandbox_EngineLoop_OnSceneViewSubmitted( void* view )
 }
 
 // Sandbox.Graphics
-[UnmanagedCallersOnly(EntryPoint = "Sandbox_Graphics_OnLayer")]
 public static void* Sandbox_Graphics_OnLayer( void* renderHookStage, void* setup )
 {
     return (void*)Imports._ptr_Sandbox_Graphics_OnLayer( renderHookStage, setup );

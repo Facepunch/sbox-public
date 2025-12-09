@@ -876,13 +876,25 @@ public static unsafe class SceneSystem
 
         var viewport = new NativeEngine.RenderViewport(0, 0, width, height);
 
-        // Utiliser la view existante si fournie, sinon en créer une.
-        _activeSceneViewHandle = pView != IntPtr.Zero
-            ? pView
-            : Emulation.Rendering.EmulatedSceneView.CreateView(viewport, managedCameraId: 1, priority: 0);
+        // Réutiliser view/layer si déjà créés et pView == 0, sinon adopter pView.
+        if (pView != IntPtr.Zero)
+        {
+            _activeSceneViewHandle = pView;
+        }
+        else
+        {
+            if (_activeSceneViewHandle == IntPtr.Zero)
+            {
+                _activeSceneViewHandle = Emulation.Rendering.EmulatedSceneView.CreateView(viewport, managedCameraId: 1, priority: 0);
+            }
+        }
 
-        // Créer un layer par défaut pour cette view.
-        _activeSceneLayerHandle = Emulation.Rendering.EmulatedSceneLayer.CreateLayer("DefaultLayer", viewport, SceneLayerType.Translucent);
+        if (_activeSceneLayerHandle == IntPtr.Zero)
+        {
+            _activeSceneLayerHandle = Emulation.Rendering.EmulatedSceneLayer.CreateLayer("DefaultLayer", viewport, SceneLayerType.Translucent);
+        }
+
+        // Mettre à jour viewport/swapchain sur les objets existants
         Emulation.Rendering.EmulatedSceneLayer.SetViewportManaged(_activeSceneLayerHandle, viewport);
 
         // Brancher la swapchain comme color target si disponible.
@@ -890,10 +902,8 @@ public static unsafe class SceneSystem
         if (swapColor != IntPtr.Zero)
         {
             Emulation.Rendering.EmulatedSceneLayer.SetOutputManaged(_activeSceneLayerHandle, swapColor, IntPtr.Zero);
+            Emulation.Rendering.EmulatedSceneView.SetSwapChainManaged(_activeSceneViewHandle, swapColor);
         }
-
-        // Conserver la view -> layer pour que RenderPipeline puisse les réutiliser via getters.
-        Emulation.Rendering.EmulatedSceneView.SetSwapChainManaged(_activeSceneViewHandle, swapColor);
     }
 
     [UnmanagedCallersOnly]

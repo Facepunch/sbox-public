@@ -253,6 +253,58 @@ internal unsafe class EmulatedRenderContext
         }
     }
 
+    public void DrawQuadFallback()
+    {
+        if (_isDisposed) return;
+        EnsureBuffersInitialized();
+        EnsureShaderInitialized();
+
+        // Simple quad covering the viewport
+        Span<float> quad = stackalloc float[]
+        {
+            // posX posY posZ, color RGBA8 (as floats here), texcoord
+            -1f, -1f, 0f, 1f,1f,1f,1f, 0f,0f,
+             1f, -1f, 0f, 1f,1f,1f,1f, 1f,0f,
+             1f,  1f, 0f, 1f,1f,1f,1f, 1f,1f,
+            -1f,  1f, 0f, 1f,1f,1f,1f, 0f,1f
+        };
+        Span<ushort> idx = stackalloc ushort[] { 0, 1, 2, 2, 3, 0 };
+
+        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _tempVBO);
+        unsafe
+        {
+            fixed (float* p = quad)
+            {
+                _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(quad.Length * sizeof(float)), p, BufferUsageARB.DynamicDraw);
+            }
+        }
+
+        _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _tempEBO);
+        unsafe
+        {
+            fixed (ushort* pi = idx)
+            {
+                _gl.BufferData(BufferTargetARB.ElementArrayBuffer, (nuint)(idx.Length * sizeof(ushort)), pi, BufferUsageARB.DynamicDraw);
+            }
+        }
+
+        _gl.BindVertexArray(_tempVAO);
+        _gl.UseProgram(_basicShaderProgram);
+
+        int stride = (3 * sizeof(float)) + (4 * sizeof(float)) + (2 * sizeof(float)); // pos(3) + color(4) + uv(2)
+        int offset = 0;
+        _gl.EnableVertexAttribArray(0);
+        _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, (uint)stride, (void*)offset);
+        offset += 3 * sizeof(float);
+        _gl.EnableVertexAttribArray(1);
+        _gl.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, (uint)stride, (void*)offset);
+        offset += 4 * sizeof(float);
+        _gl.EnableVertexAttribArray(3);
+        _gl.VertexAttribPointer(3, 2, VertexAttribPointerType.Float, false, (uint)stride, (void*)offset);
+
+        _gl.DrawElements((GLEnum)PrimitiveType.Triangles, 6, DrawElementsType.UnsignedShort, (void*)0);
+    }
+
     public void DrawInstanced(NativeEngine.RenderPrimitiveType type, int nFirstVertex, int nVertexCountPerInstance, int nInstanceCount)
     {
         if (_isDisposed) return;
@@ -389,13 +441,21 @@ internal unsafe class EmulatedRenderContext
 
     public void BindRenderTargets(NativeEngine.ITexture colorTexture, NativeEngine.ITexture depthTexture, NativeEngine.ISceneLayer layer)
     {
-        // Minimal placeholder: bind default framebuffer
+        // Rendre dans le swapchain si possible (colorTexture est toujours le backbuffer dans notre emu).
+        if (RenderDevice.BindSwapChainForRender())
+            return;
+
+        // Fallback : bind le framebuffer par défaut.
         _gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
 
     public void BindRenderTargets(IntPtr swapChain, bool color, bool depth)
     {
-        // Minimal placeholder: bind default framebuffer
+        // Idem : binder le swapchain si dispo.
+        if (RenderDevice.BindSwapChainForRender())
+            return;
+
+        // Fallback : bind le framebuffer par défaut.
         _gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
 

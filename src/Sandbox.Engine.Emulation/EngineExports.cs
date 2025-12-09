@@ -21,10 +21,13 @@ using Sandbox.Engine.Emulation.Audio;
 using Sandbox.Engine.Emulation.Input;
 using Sandbox.Engine.Emulation.Video;
 using Sandbox.Engine.Emulation.CUtl;
+using Sandbox.Engine.Emulation.Vfx;
+using Sandbox.Engine.Emulation.ShaderTools;
 using Sandbox.Engine;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using Sandbox.Engine.Emulation; // Ensure CreateInterfaceShim is rooted
 
 namespace Sandbox.Engine.Emulation;
 
@@ -46,6 +49,9 @@ public static unsafe class EngineExports
     [UnmanagedCallersOnly(EntryPoint = "igen_engine")]
     public static void IGenEngine(int hash, void* managedFunctions, void* nativeFunctions, int* structSizes)
     {
+		// Root CreateInterfaceShim to ensure the CreateInterface export is preserved in NativeAOT
+		RuntimeHelpers.RunClassConstructor(typeof(CreateInterfaceShim).TypeHandle);
+
         Console.WriteLine($"[NativeAOT Engine] igen_engine called with hash: {hash}");
 
         void** managed = (void**)managedFunctions;
@@ -94,6 +100,8 @@ public static unsafe class EngineExports
         CUtl.CUtlVectorTraceResult.Init(native);
         CUtl.CUtlVectorUInt32.Init(native);
         CUtl.CUtlVectorVector.Init(native);
+        VfxModule.Init(native);
+        ShaderToolsModule.Init(native);
         
         // 4. Initialize cross-module references (after modules are initialized)
         // Note: OpenGL sera initialisé dans PlatformFunctions.SourceEngineInit

@@ -1,34 +1,53 @@
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Sandbox.Engine.Emulation.Vfx;
 
 namespace Sandbox.Engine.Emulation;
 
 /// <summary>
-/// Minimal stub to expose a CreateInterface export so NativeLibrary.GetExport succeeds.
-/// This does not provide real interfaces yet; it simply logs and returns null.
+/// Exposes a CreateInterface export and routes known interfaces to emulated factories.
 /// </summary>
 public static unsafe class CreateInterfaceShim
 {
-    [UnmanagedCallersOnly(EntryPoint = "CreateInterface", CallConvs = new[] { typeof(CallConvCdecl) })]
+    [UnmanagedCallersOnly(EntryPoint = "CreateInterface")]
     public static IntPtr CreateInterface(byte* namePtr, IntPtr returnCode)
     {
+        var name = namePtr != null ? Marshal.PtrToStringUTF8((IntPtr)namePtr) ?? string.Empty : string.Empty;
         try
         {
-            var name = namePtr != null ? Marshal.PtrToStringUTF8((IntPtr)namePtr) ?? string.Empty : string.Empty;
-            Console.WriteLine($"[NativeAOT] CreateInterface stub called for '{name}'");
+            IntPtr result = IntPtr.Zero;
 
-            // Signal failure to the caller (consistent with returning null)
+            switch (name)
+            {
+                case "VFX_DLL_001":
+                    Console.WriteLine("Hello");
+                    result = VfxModule.GetVfxInterface();
+                    break;
+                case "filesystem_stdio":
+                    // Filesystem interface is not used directly here; return a non-null placeholder.
+                    result = VfxModule.GetFilesystemStub();
+                    break;
+                default:
+                    Console.WriteLine($"[NativeAOT] CreateInterface unknown interface '{name}'");
+                    break;
+            }
+
+            if (returnCode != IntPtr.Zero)
+            {
+                Marshal.WriteInt32(returnCode, result != IntPtr.Zero ? 0 : 1);
+            }
+
+            Console.WriteLine($"[NativeAOT] CreateInterface handled '{name}' -> 0x{result.ToInt64():X}");
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[NativeAOT] CreateInterface error for '{name}': {ex}");
             if (returnCode != IntPtr.Zero)
             {
                 Marshal.WriteInt32(returnCode, 1);
             }
-
-            return IntPtr.Zero;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[NativeAOT] CreateInterface stub error: {ex}");
             return IntPtr.Zero;
         }
     }

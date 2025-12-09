@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Numerics;
 using Sandbox;
 using NativeEngine;
 using Sandbox.Engine.Emulation.Platform;
@@ -17,6 +18,59 @@ namespace Sandbox.Engine.Emulation.Rendering;
 /// </summary>
 public static unsafe class RenderTools
 {
+    // One-time debug log to know if RenderTools.Draw is reached.
+    private static bool _loggedDraw = false;
+    private static bool _loggedSetRenderState = false;
+    private static bool _loggedDrawModel = false;
+    private static bool _loggedDrawSceneObject = false;
+
+    // Minimal vertex format matching the default stride (80 bytes) used in EmulatedRenderContext.SetupVertexLayout:
+    // pos (vec3) @0, color (RGBA8) @12, normal (vec3) @16, tex0 (vec4) @28, tex1 (vec4) @44, tangent (vec4) @60, pad (float) @76 -> stride 80.
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    private struct BasicVertex
+    {
+        public Vector3 Position;   // 12
+        public uint Color;         // 4 -> 16
+        public Vector3 Normal;     // 12 -> 28
+        public Vector4 Tex0;       // 16 -> 44
+        public Vector4 Tex1;       // 16 -> 60
+        public Vector4 Tangent;    // 16 -> 76
+        public float Pad;          // 4 -> 80
+    }
+
+    // Static cube (unit cube centered at origin) to render when no real mesh data is available.
+    private static readonly BasicVertex[] _fallbackCubeVertices = CreateFallbackCubeVertices();
+    private static readonly ushort[] _fallbackCubeIndices =
+    {
+        0,1,2, 2,1,3,       // -Z
+        4,6,5, 5,6,7,       // +Z
+        0,2,4, 4,2,6,       // -X
+        1,5,3, 3,5,7,       // +X
+        0,4,1, 1,4,5,       // -Y
+        2,3,6, 6,3,7        // +Y
+    };
+
+    private static BasicVertex[] CreateFallbackCubeVertices()
+    {
+        const float s = 0.5f;
+        uint white = 0xFFFFFFFF;
+        Vector4 zero4 = default;
+        Vector4 tangent = new Vector4(1, 0, 0, 1);
+
+        return new[]
+        {
+            new BasicVertex { Position = new Vector3(-s, -s, -s), Color = white, Normal = new Vector3(0, 0, -1), Tex0 = zero4, Tex1 = zero4, Tangent = tangent, Pad = 0 },
+            new BasicVertex { Position = new Vector3( s, -s, -s), Color = white, Normal = new Vector3(0, 0, -1), Tex0 = zero4, Tex1 = zero4, Tangent = tangent, Pad = 0 },
+            new BasicVertex { Position = new Vector3(-s,  s, -s), Color = white, Normal = new Vector3(0, 0, -1), Tex0 = zero4, Tex1 = zero4, Tangent = tangent, Pad = 0 },
+            new BasicVertex { Position = new Vector3( s,  s, -s), Color = white, Normal = new Vector3(0, 0, -1), Tex0 = zero4, Tex1 = zero4, Tangent = tangent, Pad = 0 },
+
+            new BasicVertex { Position = new Vector3(-s, -s,  s), Color = white, Normal = new Vector3(0, 0, 1), Tex0 = zero4, Tex1 = zero4, Tangent = tangent, Pad = 0 },
+            new BasicVertex { Position = new Vector3( s, -s,  s), Color = white, Normal = new Vector3(0, 0, 1), Tex0 = zero4, Tex1 = zero4, Tangent = tangent, Pad = 0 },
+            new BasicVertex { Position = new Vector3(-s,  s,  s), Color = white, Normal = new Vector3(0, 0, 1), Tex0 = zero4, Tex1 = zero4, Tangent = tangent, Pad = 0 },
+            new BasicVertex { Position = new Vector3( s,  s,  s), Color = white, Normal = new Vector3(0, 0, 1), Tex0 = zero4, Tex1 = zero4, Tangent = tangent, Pad = 0 },
+        };
+    }
+
     public static void Init(void** native)
     {
         // Ordre conforme à engine.Generated.cs
@@ -53,6 +107,12 @@ public static unsafe class RenderTools
 
         try
         {
+            if (!_loggedSetRenderState)
+            {
+                Console.WriteLine($"[NativeAOT] RenderTools_SetRenderState first call: ctx=0x{context.ToInt64():X} attrs=0x{attributes.ToInt64():X} layout=0x{layout.ToInt64():X}");
+                _loggedSetRenderState = true;
+            }
+
             // Setup vertex layout if provided; materials/attributes to be wired later.
             if (layout != IntPtr.Zero)
             {
@@ -72,7 +132,7 @@ public static unsafe class RenderTools
     [UnmanagedCallersOnly]
     public static void RenderTools_Draw(IntPtr context, long type, IntPtr layout, IntPtr vertices, int numVertices, IntPtr indices, int numIndices, IntPtr stats)
     {
-        if (context == IntPtr.Zero || vertices == IntPtr.Zero || numVertices <= 0)
+        if (context == IntPtr.Zero)
             return;
 
         var renderContext = EmulatedRenderContext.GetInstance(context);
@@ -84,6 +144,20 @@ public static unsafe class RenderTools
 
         try
         {
+            if (!_loggedDraw)
+            {
+                Console.WriteLine($"[NativeAOT] RenderTools_Draw first call: type={type}, numVertices={numVertices}, numIndices={numIndices}, layout=0x{layout.ToInt64():X} verticesPtr=0x{vertices.ToInt64():X}");
+                _loggedDraw = true;
+            }
+
+            // If the managed side didn't provide CPU vertex data, render a debug quad so we can detect the call.
+            if (vertices == IntPtr.Zero || numVertices <= 0)
+            {
+                renderContext.DrawQuadFallback();
+                return;
+            }
+
+            // Upload provided vertices/indices if any
             const int fallbackVertexSize = 80;
             int vertexSize = fallbackVertexSize;
             if (layout != IntPtr.Zero && VertexLayoutInterop.TryGetLayout(layout, out var layoutData) && layoutData != null && layoutData.Size > 0)
@@ -91,7 +165,6 @@ public static unsafe class RenderTools
                 vertexSize = layoutData.Size;
             }
             int vertexDataSize = numVertices * vertexSize;
-
             renderContext.UploadVertexData(vertices, vertexDataSize);
 
             if (indices != IntPtr.Zero && numIndices > 0)
@@ -107,6 +180,7 @@ public static unsafe class RenderTools
             }
 
             var primitiveType = (NativeEngine.RenderPrimitiveType)type;
+
             if (indices != IntPtr.Zero && numIndices > 0)
             {
                 renderContext.DrawIndexed(primitiveType, 0, numIndices, numVertices, 0);
@@ -191,14 +265,60 @@ public static unsafe class RenderTools
     [UnmanagedCallersOnly]
     public static void RenderTools_DrawSceneObject(IntPtr renderContext, IntPtr sceneLayer, IntPtr sceneObject, Transform* transform, System.Numerics.Vector4* color, IntPtr material, IntPtr attributes)
     {
-        // Sans données de maillage/shader côté managé, on se contente de tracer le log
-        Console.WriteLine("[NativeAOT] RenderTools_DrawSceneObject: not fully implemented (no scene graph hookup)");
+        if (!_loggedDrawSceneObject)
+        {
+            Console.WriteLine($"[NativeAOT] RenderTools_DrawSceneObject first call: ctx=0x{renderContext.ToInt64():X} obj=0x{sceneObject.ToInt64():X} mat=0x{material.ToInt64():X} attrs=0x{attributes.ToInt64():X}");
+            _loggedDrawSceneObject = true;
+        }
+
+        // For now, route to DrawModel fallback (we don't have a scene graph hookup yet).
+        
+    }
+
+    public static void RenderTools_DrawModelInternal(IntPtr renderContext, IntPtr sceneLayer, IntPtr hModel, IntPtr transforms, int numTransforms, IntPtr attributes)
+    {
+        if (!_loggedDrawModel)
+        {
+            Console.WriteLine($"[NativeAOT] RenderTools_DrawModel first call: ctx=0x{renderContext.ToInt64():X} model=0x{hModel.ToInt64():X} transforms={numTransforms} attrs=0x{attributes.ToInt64():X}");
+            _loggedDrawModel = true;
+        }
+
+        if (renderContext == IntPtr.Zero)
+            return;
+
+        var ctx = EmulatedRenderContext.GetInstance(renderContext);
+        if (ctx == null)
+        {
+            Console.WriteLine("[NativeAOT] RenderTools_DrawModel: Failed to get EmulatedRenderContext instance");
+            return;
+        }
+
+        // Fallback: draw a unit cube with the basic shader to validate the pipeline.
+        unsafe
+        {
+            fixed (BasicVertex* vptr = _fallbackCubeVertices)
+            fixed (ushort* iptr = _fallbackCubeIndices)
+            {
+                int vertexSize = sizeof(BasicVertex); // 80 bytes to match default layout
+                int vertexDataSize = _fallbackCubeVertices.Length * vertexSize;
+                int indexDataSize = _fallbackCubeIndices.Length * sizeof(ushort);
+
+                ctx.UploadVertexData((IntPtr)vptr, vertexDataSize);
+                ctx.UploadIndexData((IntPtr)iptr, indexDataSize);
+
+                // Setup default layout (stride 80) so attributes are enabled.
+                ctx.SetupVertexLayout(new NativeEngine.VertexLayout { self = IntPtr.Zero });
+
+                ctx.DrawIndexed(NativeEngine.RenderPrimitiveType.RENDER_PRIM_TRIANGLES, 0, _fallbackCubeIndices.Length, _fallbackCubeVertices.Length, 0);
+            }
+        }
     }
 
     [UnmanagedCallersOnly]
     public static void RenderTools_DrawModel(IntPtr renderContext, IntPtr sceneLayer, IntPtr hModel, IntPtr transforms, int numTransforms, IntPtr attributes)
     {
-        Console.WriteLine("[NativeAOT] RenderTools_DrawModel: model draw not yet wired (no mesh binding)");
+        RenderTools_DrawModelInternal(renderContext, sceneLayer, hModel, transforms, numTransforms, attributes);
+        
     }
 
     [UnmanagedCallersOnly]

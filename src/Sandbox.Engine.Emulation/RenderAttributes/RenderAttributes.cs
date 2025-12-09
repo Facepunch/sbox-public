@@ -138,6 +138,7 @@ public static unsafe class RenderAttributes
     /// <summary>
     /// Helper function to create render attributes (can be called from managed code).
     /// </summary>
+    private static long _createCount = 0;
     public static IntPtr CreateRenderAttributesInternal()
     {
         var attributes = new EmulatedRenderAttributes();
@@ -148,7 +149,20 @@ public static unsafe class RenderAttributes
             return IntPtr.Zero;
         }
 
-        Console.WriteLine($"[NativeAOT] CRndrttrbts_Create: created handle={handle}");
+        long n = System.Threading.Interlocked.Increment(ref _createCount);
+
+        // Throttle logging: only log the first few and then every 10,000 creations with a stack trace to locate the caller.
+        // if (n <= 5 || (n % 10000) == 0)
+        // {
+        //     string? trace = null;
+        //     try { trace = Environment.StackTrace; } catch { /* ignore */ }
+            Console.WriteLine($"[NativeAOT] CRndrttrbts_Create: handle={handle}, count={n}");
+        //     if (!string.IsNullOrEmpty(trace))
+        //     {
+        //         Console.WriteLine("[NativeAOT] CRndrttrbts_Create stack:\n" + trace);
+        //     }
+        // }
+
         return (IntPtr)handle;
     }
     

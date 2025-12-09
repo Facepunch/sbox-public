@@ -4,9 +4,11 @@ using System.Runtime.InteropServices;
 using Silk.NET.GLFW;
 using Silk.NET.OpenGL;
 using Sandbox;
+using Sandbox.Rendering;
 using NativeEngine;
 using Sandbox.Engine.Emulation.Rendering;
 using Sandbox.Engine.Emulation.Scene;
+using System.Runtime.CompilerServices;
 
 namespace Sandbox.Engine.Emulation.Platform;
 
@@ -29,7 +31,105 @@ public static unsafe class PlatformFunctions
     private static string? _moduleDirectory = null;
     private static EmulatedRenderContext? _renderContext;
     private static IntPtr _renderContextHandle = IntPtr.Zero;
+    private static bool _loggedFrameInfo = false;
+    private static int _loggedOnLayerCount = 0;
     
+
+    private static bool _loggedAddLayers = false;
+    private static bool _loggedPipelineEnd = false;
+
+    private static void SafeCallRenderPipelineAddLayers(IntPtr view, ref RenderViewport viewport, IntPtr color, IntPtr depth, long msaa)
+    {
+        if (EngineGlue.Imports._ptr_SndbxRndrng_RenderPipeline_InternalAddLayersToView == null)
+            return;
+        try
+        {
+            unsafe
+            {
+                fixed (RenderViewport* vp = &viewport)
+                {
+                    EngineGlue.Imports.SndbxRndrng_RenderPipeline_InternalAddLayersToView(
+                        (void*)view,
+                        (void*)vp,
+                        (void*)color,
+                        (void*)depth,
+                        msaa,
+                        null,
+                        null
+                    );
+                    if (!_loggedAddLayers)
+                    {
+                        Console.WriteLine($"[NativeAOT] RenderPipeline_InternalAddLayersToView view=0x{view.ToInt64():X} color=0x{color.ToInt64():X} depth=0x{depth.ToInt64():X} msaa={msaa}");
+                        _loggedAddLayers = true;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[NativeAOT] RenderPipeline_InternalAddLayersToView error: {ex}");
+        }
+    }
+
+    private static void SafeCallRenderPipelineEnd(IntPtr view, ref RenderViewport viewport, IntPtr color, IntPtr depth, long msaa)
+    {
+        if (EngineGlue.Imports._ptr_SndbxRndrng_RenderPipeline_InternalPipelineEnd == null)
+            return;
+        try
+        {
+            unsafe
+            {
+                fixed (RenderViewport* vp = &viewport)
+                {
+                    EngineGlue.Imports.SndbxRndrng_RenderPipeline_InternalPipelineEnd(
+                        (void*)view,
+                        (void*)vp,
+                        (void*)color,
+                        (void*)depth,
+                        msaa,
+                        null,
+                        null
+                    );
+                    if (!_loggedPipelineEnd)
+                    {
+                        Console.WriteLine($"[NativeAOT] RenderPipeline_InternalPipelineEnd view=0x{view.ToInt64():X} color=0x{color.ToInt64():X} depth=0x{depth.ToInt64():X} msaa={msaa}");
+                        _loggedPipelineEnd = true;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[NativeAOT] RenderPipeline_InternalPipelineEnd error: {ex}");
+        }
+    }
+
+    // Hooks SceneSystem retirés : ils attendent un SceneObject, pas un stage.
+
+    private static void SafeCallOnLayer(int stage, ref ManagedRenderSetup_t setup)
+    {
+        try
+        {
+            if (_loggedOnLayerCount < 8)
+            {
+                Console.WriteLine($"[NativeAOT] OnLayer stage={stage} rc=0x{setup.renderContext.self.ToInt64():X} view=0x{setup.sceneView.self.ToInt64():X} layer=0x{setup.sceneLayer.self.ToInt64():X}");
+                _loggedOnLayerCount++;
+            }
+            EngineGlue.Imports.Sandbox_Graphics_OnLayer((void*)stage, Unsafe.AsPointer(ref setup));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[NativeAOT] Graphics.OnLayer error (stage {stage}): {ex}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"[NativeAOT] Inner: {ex.InnerException}");
+                Console.WriteLine(ex.InnerException.StackTrace);
+                if (ex.InnerException.InnerException != null)
+                    Console.WriteLine($"[NativeAOT] Inner2: {ex.InnerException.InnerException}\n{ex.InnerException.InnerException.StackTrace}");
+            }
+        }
+    }
+
     /// <summary>
     /// Obtient le répertoire du module (déduit du module filename).
     /// </summary>
@@ -393,11 +493,48 @@ public static unsafe class PlatformFunctions
             EmulatedSceneView.SetSwapChainManaged(sceneViewHandle, swapColor);
         }
 
+        if (!_loggedFrameInfo)
+        {
+            Console.WriteLine("[NativeAOT] Render frame setup:"
+                + $" view=0x{sceneViewHandle.ToInt64():X}"
+                + $" layer=0x{sceneLayerHandle.ToInt64():X}"
+                + $" swapColor=0x{swapColor.ToInt64():X}"
+                + $" viewport={width}x{height}"
+                + $" OnLayerPtr=0x{(EngineGlue.Imports.Sandbox_Graphics_OnLayer != null ? Marshal.GetFunctionPointerForDelegate(EngineGlue.Imports.Sandbox_Graphics_OnLayer) : IntPtr.Zero):X}"
+                + $" RP_AddLayers=0x{(IntPtr)EngineGlue.Imports._ptr_SndbxRndrng_RenderPipeline_InternalAddLayersToView}"
+                + $" RP_End=0x{(IntPtr)EngineGlue.Imports._ptr_SndbxRndrng_RenderPipeline_InternalPipelineEnd}"
+            );
+            _loggedFrameInfo = true;
+        }
+
+        // Fallback visuel si le pipeline n'est pas câblé : affichage d'un clear + quad
+        bool missingPipeline = sceneViewHandle == IntPtr.Zero
+            || sceneLayerHandle == IntPtr.Zero
+            || EngineGlue.Imports.Sandbox_Graphics_OnLayer == null;
+        if (missingPipeline && _renderContext != null)
+        {
+            Console.WriteLine("[NativeAOT] Render fallback: pipeline missing (view/layer/OnLayer null)");
+            // Binder FBO swapchain pour que le quad aille bien dans la cible présentée
+            RenderDevice.BindSwapChainForRender();
+            _renderContext.Clear(new System.Numerics.Vector4(0.1f, 0.1f, 0.15f, 1f), clearColor: true, clearDepth: true, clearStencil: false);
+            _renderContext.DrawQuadFallback();
+            RenderDevice.UnbindFramebuffer();
+            RenderDevice.PresentManaged();
+            return 1;
+        }
+
+        // Binder le FBO de swapchain avant d'appeler le pipeline managé
+        var boundSwap = RenderDevice.BindSwapChainForRender();
+        if (!boundSwap)
+        {
+            Console.WriteLine("[NativeAOT] Warning: failed to bind swapchain FBO for rendering");
+        }
+
         // Récupérer les stats per-frame (pointeur)
         var statsPtr = Scene.SceneSystem.GetPerFrameStatsPtrManaged();
         var statsHandle = statsPtr != IntPtr.Zero ? new SceneSystemPerFrameStats_t(statsPtr) : default;
 
-        // Construire le setup managé et appeler Graphics.OnLayer (UI / overlays)
+        // Construire le setup managé et appeler le pipeline managé
         var setup = new ManagedRenderSetup_t
         {
             renderContext = new NativeEngine.IRenderContext(_renderContextHandle),
@@ -408,16 +545,33 @@ public static unsafe class PlatformFunctions
             stats = statsHandle
         };
 
-        try
+        // Laisser le pipeline managé ajouter les layers si disponible
+        SafeCallRenderPipelineAddLayers(sceneViewHandle, ref viewport, swapColor, IntPtr.Zero, (long)RenderMultisampleType.RENDER_MULTISAMPLE_NONE);
+
+        // Appeler Graphics.OnLayer pour UI et VS/PS
+        SafeCallOnLayer(-1, ref setup); // UI
+        SafeCallOnLayer((int)Stage.AfterDepthPrepass, ref setup);
+        SafeCallOnLayer((int)Stage.AfterOpaque, ref setup);
+        SafeCallOnLayer((int)Stage.AfterSkybox, ref setup);
+        SafeCallOnLayer((int)Stage.AfterTransparent, ref setup);
+        SafeCallOnLayer((int)Stage.AfterViewmodel, ref setup);
+        SafeCallOnLayer((int)Stage.BeforePostProcess, ref setup);
+        SafeCallOnLayer((int)Stage.Tonemapping, ref setup);
+        SafeCallOnLayer((int)Stage.AfterPostProcess, ref setup);
+        SafeCallOnLayer((int)Stage.AfterUI, ref setup);
+
+        // Fin de pipeline managé
+        SafeCallRenderPipelineEnd(sceneViewHandle, ref viewport, swapColor, IntPtr.Zero, (long)RenderMultisampleType.RENDER_MULTISAMPLE_NONE);
+        if (EngineGlue.Imports.Sandbox_EngineLoop_OnSceneViewSubmitted != null && sceneViewHandle != IntPtr.Zero)
         {
-            Sandbox.Graphics.OnLayer(-1, setup);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[NativeAOT] SourceEngineFrame: Graphics.OnLayer error: {ex}");
+            try { EngineGlue.Imports.Sandbox_EngineLoop_OnSceneViewSubmitted((void*)sceneViewHandle); }
+            catch (Exception ex) { Console.WriteLine($"[NativeAOT] OnSceneViewSubmitted error: {ex}"); }
         }
 
+        EngineGlue.Imports.Sandbox_RenderTarget_Flush();
+
         // Présenter le swapchain sur le backbuffer et swapper une seule fois.
+        RenderDevice.UnbindFramebuffer();
         RenderDevice.PresentManaged();
         return 1;
     }

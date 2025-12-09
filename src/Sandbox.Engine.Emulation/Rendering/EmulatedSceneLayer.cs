@@ -103,7 +103,7 @@ internal static unsafe class EmulatedSceneLayer
         if (fromHandle != null)
         {
             return fromHandle;
-        }
+    }
 
         return EnsureFallback(self);
     }
@@ -208,7 +208,7 @@ internal static unsafe class EmulatedSceneLayer
         if (data.RenderAttributesPtr == IntPtr.Zero)
         {
             data.RenderAttributesPtr = RenderAttributes.RenderAttributes.CreateRenderAttributesInternal();
-        }
+    }
         return data.RenderAttributesPtr;
     }
 
@@ -237,7 +237,7 @@ internal static unsafe class EmulatedSceneLayer
     {
         var data = GetLayerData(self);
         if (data.TextureValues.TryGetValue(nTokenID, out var val))
-        {
+    {
             return val;
         }
         return nDefaultValue;
@@ -297,4 +297,4 @@ internal static unsafe class EmulatedSceneLayer
 
     [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvSuppressGCTransition) })]
     public static void Set__ISceneLayer_m_nClearFlags(IntPtr self, int value) => GetLayerData(self).ClearFlags = value;
-}
+    }

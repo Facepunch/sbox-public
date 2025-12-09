@@ -759,7 +759,7 @@ public static unsafe class PhysicsWorld
         if (self == IntPtr.Zero)
             return 0;
         
-        // Return the world handle itself (it's already registered with HandleManager)
+        // Return the binding handle (self). Managed side uses HandleIndex.Get<> which expects the binding handle returned by CreateWorld.
         return (int)self;
     }
     

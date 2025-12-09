@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
 using Sandbox.Engine.Emulation.Common;
 using Sandbox.Engine.Emulation.Generated;
+using Sandbox.Engine.Emulation;
 
 namespace Sandbox.Engine.Emulation.Physics;
 
@@ -24,8 +25,15 @@ public static unsafe class PhysicsSystem
     // Dictionary to store controller data
     private static readonly Dictionary<IntPtr, SurfacePropertyControllerData> _controllers = new();
     
-    // Dictionary to store physics worlds by handle
-    private static readonly Dictionary<int, BepuPhysicsWorld> _physicsWorlds = new();
+    private struct PhysicsWorldEntry
+    {
+        public BepuPhysicsWorld World;
+        public int Handle;         // HandleManager handle (impair)
+        public int BindingHandle;  // HandleManager binding handle (pair)
+    }
+
+    // Dictionary keyed by BindingHandle (pair) → entry
+    private static readonly Dictionary<int, PhysicsWorldEntry> _physicsWorlds = new();
     private static int _nextWorldHandle = 1;
     private static uint _physicsWorldTypeId;
     
@@ -138,29 +146,46 @@ public static unsafe class PhysicsSystem
     {
         Console.WriteLine("[NativeAOT] g_pPhysicsSystem_CreateWorld (Bepu)");
         var world = new BepuPhysicsWorld();
-        int bepuHandle = Common.HandleManager.Register(world);
-        
+
+        // Always register through the central HandleManager
+        int handle = Common.HandleManager.Register(world);
+        if (handle == 0)
+        {
+            Console.WriteLine("[NativeAOT] Error: HandleManager.Register returned 0 for PhysicsWorld");
+            return 0;
+        }
+
+        int bindingHandle = Common.HandleManager.GetBindingHandle(handle);
+        if (bindingHandle == 0)
+        {
+            Console.WriteLine("[NativeAOT] Error: BindingHandle is 0 for PhysicsWorld");
+            Common.HandleManager.Unregister(handle);
+            return 0;
+        }
+
         lock (_physicsWorlds)
         {
-            _physicsWorlds[bepuHandle] = world;
+            _physicsWorlds[bindingHandle] = new PhysicsWorldEntry
+            {
+                World = world,
+                Handle = handle,
+                BindingHandle = bindingHandle
+            };
         }
-        
-        int managedHandle = 0;
-        
-        // Register with HandleIndex if available
-        if (_physicsWorldTypeId != 0 && Imports._ptr_Sandbox_HandleIndex_RegisterHandle != null)
+
+        // Optional registration with HandleIndex for managed lookup
+        if (_physicsWorldTypeId != 0 && EngineGlue.Imports._ptr_Sandbox_HandleIndex_RegisterHandle != null)
         {
-            var registerFn = (delegate* unmanaged<IntPtr, uint, int>)Imports._ptr_Sandbox_HandleIndex_RegisterHandle;
-            managedHandle = registerFn((IntPtr)bepuHandle, _physicsWorldTypeId);
-            Console.WriteLine($"[NativeAOT] Registered PhysicsWorld. BepuHandle={bepuHandle}, ManagedHandle={managedHandle}, TypeID={_physicsWorldTypeId}");
+            var registerFn = (delegate* unmanaged<IntPtr, uint, int>)EngineGlue.Imports._ptr_Sandbox_HandleIndex_RegisterHandle;
+            int result = registerFn((IntPtr)bindingHandle, _physicsWorldTypeId);
+            Console.WriteLine($"[NativeAOT] Registered PhysicsWorld in HandleIndex. Binding={bindingHandle}, Return={result}, TypeID={_physicsWorldTypeId}");
         }
         else
         {
-            Console.WriteLine($"[NativeAOT] Warning: Could not register PhysicsWorld handle. TypeID={_physicsWorldTypeId}, Ptr={(IntPtr)Imports._ptr_Sandbox_HandleIndex_RegisterHandle}");
-            managedHandle = bepuHandle;
+            Console.WriteLine($"[NativeAOT] Warning: HandleIndex registration unavailable. TypeID={_physicsWorldTypeId}, Ptr={(IntPtr)EngineGlue.Imports._ptr_Sandbox_HandleIndex_RegisterHandle}");
         }
-        
-        return managedHandle;
+
+        return bindingHandle;
     }
     
     /// <summary>
@@ -169,23 +194,23 @@ public static unsafe class PhysicsSystem
     [UnmanagedCallersOnly]
     public static void g_pPhysicsSystem_DestroyWorld(IntPtr worldPtr)
     {
-        int handle = (int)worldPtr;
-        BepuPhysicsWorld? world = null;
-        
+        int bindingHandle = (int)worldPtr;
+        PhysicsWorldEntry entry;
+
         lock (_physicsWorlds)
         {
-            if (_physicsWorlds.TryGetValue(handle, out world))
+            if (!_physicsWorlds.TryGetValue(bindingHandle, out entry))
             {
-                _physicsWorlds.Remove(handle);
+                Console.WriteLine($"[NativeAOT] g_pPhysicsSystem_DestroyWorld: world not found, binding={bindingHandle}");
+                return;
             }
+
+            _physicsWorlds.Remove(bindingHandle);
         }
-        
-        if (world != null)
-        {
-            world.Dispose();
-            Common.HandleManager.Unregister(handle);
-            Console.WriteLine($"[NativeAOT] g_pPhysicsSystem_DestroyWorld (Bepu) handle={handle}");
-        }
+
+        entry.World.Dispose();
+        Common.HandleManager.Unregister(entry.Handle);
+        Console.WriteLine($"[NativeAOT] g_pPhysicsSystem_DestroyWorld (Bepu) binding={bindingHandle}, handle={entry.Handle}");
     }
     
     /// <summary>
@@ -241,12 +266,19 @@ public static unsafe class PhysicsSystem
     /// <summary>
     /// Internal helper to get a physics world by handle.
     /// </summary>
-    internal static bool TryGetPhysicsWorld(int handle, out BepuPhysicsWorld? world)
+    internal static bool TryGetPhysicsWorld(int bindingHandle, out BepuPhysicsWorld? world)
     {
         lock (_physicsWorlds)
         {
-            return _physicsWorlds.TryGetValue(handle, out world);
+            if (_physicsWorlds.TryGetValue(bindingHandle, out var entry))
+            {
+                world = entry.World;
+                return true;
+            }
         }
+
+        world = null;
+        return false;
     }
     
     /// <summary>

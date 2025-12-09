@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.CommandLine;
 using Facepunch.Pipelines;
 using Facepunch.Steps;
@@ -167,15 +167,20 @@ internal class Program
 			"--forced",
 			description: "Whether to force rebuild all shaders",
 			getDefaultValue: () => false );
+		var openEngineOption = new Option<bool>(
+			"--openengine",
+			description: "Use libengine2 CreateInterface for ShaderCompile instead of legacy vfx_vulkan",
+			getDefaultValue: () => false );
 
 		buildShadersCommand.AddOption( forcedOption );
+		buildShadersCommand.AddOption( openEngineOption );
 
-		buildShadersCommand.SetHandler( ( bool forced ) =>
+		buildShadersCommand.SetHandler( ( bool forced, bool openengine ) =>
 		{
-			var step = new BuildShaders( "Build Shaders", forced );
+			var step = new BuildShaders( "Build Shaders", forced, openengine );
 			ExitCode result = step.Run();
 			Environment.ExitCode = (int)result;
-		}, forcedOption );
+		}, forcedOption, openEngineOption );
 
 		rootCommand.Add( buildShadersCommand );
 	}

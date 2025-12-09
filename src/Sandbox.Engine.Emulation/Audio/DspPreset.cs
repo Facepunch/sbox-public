@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
 using System;
+using System.Threading;
+using Sandbox.Engine.Emulation.Common;
 
 namespace Sandbox.Engine.Emulation.Audio;
 
@@ -11,9 +13,10 @@ namespace Sandbox.Engine.Emulation.Audio;
 /// </summary>
 public static unsafe class DspPreset
 {
-    // État pour gérer les presets DSP
-    private static readonly Dictionary<IntPtr, DspPresetData> _dspPresets = new();
-    private static long _nextDspPresetId = 1;
+    // État pour gérer les presets et leurs instances via HandleManager
+    private static readonly Dictionary<int, HashSet<int>> _presetInstances = new();
+    private static readonly object _lock = new();
+    private static int _nameCounter = 1;
 
     private class DspPresetData
     {
@@ -26,6 +29,13 @@ public static unsafe class DspPreset
     {
         public int Type { get; set; }
         public float[] Parameters { get; set; } = Array.Empty<float>();
+    }
+
+    private class DspInstanceData
+    {
+        public IntPtr PresetHandle { get; set; }
+        public int Channels { get; set; }
+        public bool Active { get; set; }
     }
 
     /// <summary>
@@ -57,14 +67,24 @@ public static unsafe class DspPreset
     {
         string? name = Marshal.PtrToStringUTF8(namePtr);
         if (string.IsNullOrEmpty(name))
-            name = $"dsp_preset_{_nextDspPresetId}";
+            name = $"dsp_preset_{Interlocked.Increment(ref _nameCounter)}";
 
         var preset = new DspPresetData { Name = name };
-        IntPtr handle = (IntPtr)_nextDspPresetId++;
-        _dspPresets[handle] = preset;
+
+        int handle = HandleManager.Register(preset);
+        if (handle == 0)
+        {
+            Console.WriteLine("[NativeAOT] DspPreset_Create: failed to register handle");
+            return IntPtr.Zero;
+        }
+
+        lock (_lock)
+        {
+            _presetInstances[handle] = new HashSet<int>();
+        }
 
         Console.WriteLine($"[NativeAOT] DspPreset_Create: {name} -> handle={handle}");
-        return handle;
+        return (IntPtr)handle;
     }
 
     /// <summary>
@@ -74,10 +94,23 @@ public static unsafe class DspPreset
     [UnmanagedCallersOnly]
     public static void DspPreset_Dispose(IntPtr self)
     {
-        if (_dspPresets.Remove(self))
+        int handle = (int)self;
+
+        // Nettoie les instances associées
+        lock (_lock)
         {
-            Console.WriteLine($"[NativeAOT] DspPreset_Dispose: handle={self}");
+            if (_presetInstances.TryGetValue(handle, out var instances))
+            {
+                foreach (var inst in instances)
+                {
+                    HandleManager.Unregister(inst);
+                }
+                _presetInstances.Remove(handle);
+            }
         }
+
+        HandleManager.Unregister(handle);
+        Console.WriteLine($"[NativeAOT] DspPreset_Dispose: handle={self}");
     }
 
     /// <summary>
@@ -87,7 +120,9 @@ public static unsafe class DspPreset
     [UnmanagedCallersOnly]
     public static void DspPreset_AddProcessor(IntPtr self, int nType, float* prms, uint prmsCount)
     {
-        if (!_dspPresets.TryGetValue(self, out var preset))
+        int handle = (int)self;
+        var preset = HandleManager.Get<DspPresetData>(handle);
+        if (preset == null)
         {
             Console.WriteLine($"[NativeAOT] DspPreset_AddProcessor: Invalid preset handle={self}");
             return;
@@ -96,6 +131,14 @@ public static unsafe class DspPreset
         if (preset.IsFinished)
         {
             Console.WriteLine($"[NativeAOT] DspPreset_AddProcessor: Preset {preset.Name} is already finished");
+            return;
+        }
+
+        // Sécurise les pointeurs et tailles
+        if (prms == null || prmsCount == 0)
+        {
+            Console.WriteLine($"[NativeAOT] DspPreset_AddProcessor: {preset.Name} type={nType} with no parameters");
+            preset.Processors.Add(new DspProcessorData { Type = nType, Parameters = Array.Empty<float>() });
             return;
         }
 
@@ -121,7 +164,9 @@ public static unsafe class DspPreset
     [UnmanagedCallersOnly]
     public static void DspPreset_FinishBuilding(IntPtr self)
     {
-        if (!_dspPresets.TryGetValue(self, out var preset))
+        int handle = (int)self;
+        var preset = HandleManager.Get<DspPresetData>(handle);
+        if (preset == null)
         {
             Console.WriteLine($"[NativeAOT] DspPreset_FinishBuilding: Invalid preset handle={self}");
             return;
@@ -139,13 +184,47 @@ public static unsafe class DspPreset
     [UnmanagedCallersOnly]
     public static IntPtr DspPreset_Instantiate(IntPtr self, int channels)
     {
-        if (!_dspPresets.TryGetValue(self, out var preset))
+        int handle = (int)self;
+        var preset = HandleManager.Get<DspPresetData>(handle);
+        if (preset == null)
         {
             Console.WriteLine($"[NativeAOT] DspPreset_Instantiate: Invalid preset handle={self}");
             return IntPtr.Zero;
         }
 
-        throw new NotImplementedException("DspPreset_Instantiate: DSP effects are not implemented (OpenAL/Efx backend missing)");
+        if (!preset.IsFinished)
+        {
+            // Auto-finish si oublié côté appelant pour rester tolérant.
+            preset.IsFinished = true;
+        }
+
+        // Crée une instance active pour le preset demandé
+        var instance = new DspInstanceData
+        {
+            PresetHandle = self,
+            Channels = Math.Max(1, channels),
+            Active = true
+        };
+
+        int instHandle = HandleManager.Register(instance);
+        if (instHandle == 0)
+        {
+            Console.WriteLine($"[NativeAOT] DspPreset_Instantiate: failed to register instance for {preset.Name}");
+            return IntPtr.Zero;
+        }
+
+        lock (_lock)
+        {
+            if (!_presetInstances.TryGetValue(handle, out var set))
+            {
+                set = new HashSet<int>();
+                _presetInstances[handle] = set;
+            }
+            set.Add(instHandle);
+        }
+
+        Console.WriteLine($"[NativeAOT] DspPreset_Instantiate: {preset.Name} -> inst={instHandle} channels={channels}");
+        return (IntPtr)instHandle;
     }
 }
 

@@ -1,4 +1,4 @@
-﻿using Sandbox;
+using Sandbox;
 using Sandbox.Diagnostics;
 using Sandbox.Engine.Shaders;
 using Sandbox.Tasks;
@@ -13,10 +13,23 @@ public static partial class Program
 	[STAThread]
 	public static int Main( string[] args )
 	{
+		// Ensure main thread is registered for SyncContext assertions (NativeAOT/CLI)
+		// ThreadSafe.MarkMainThread is internal; set the thread-static flag via reflection.
+		var mark = typeof( ThreadSafe ).GetMethod( "MarkMainThread", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic );
+		mark?.Invoke( null, null );
+		var field = typeof( ThreadSafe ).GetField( "isMainThread", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic );
+		field?.SetValue( null, true );
+		SyncContext.Init();
+
 		var options = new ShaderCompileOptions();
 		options.ForceRecompile = args.Any( x => x.Contains( "-f" ) );
 		options.SingleThreaded = args.Any( x => x.Contains( "-s" ) );
 		options.ConsoleOutput = !args.Any( x => x.Contains( "-q" ) );
+		var useOpenEngine = args.Any( x => x.Contains( "-openengine" ) );
+		if ( useOpenEngine )
+		{
+			Environment.SetEnvironmentVariable( "SBOX_OPENENGINE_VFX", "1" );
+		}
 
 		List<ProcessList> failedList = new();
 
@@ -71,7 +84,8 @@ public static partial class Program
 				}
 
 				FastTimer fastTimer = FastTimer.StartNew();
-				var result = SyncContext.RunBlocking( ShaderCompile.Compile( c.AbsolutePath, c.RelativePath, options, default ) );
+				// Avoid main-thread assertion in RunBlocking for CLI: wait synchronously.
+				var result = ShaderCompile.Compile( c.AbsolutePath, c.RelativePath, options, default ).GetAwaiter().GetResult();
 
 				if ( !result.Success )
 				{

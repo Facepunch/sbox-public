@@ -1,9 +1,9 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
-internal class BuildShaders( string name, bool forced = false ) : Step( name )
+internal class BuildShaders( string name, bool forced = false, bool openengine = false ) : Step( name )
 {
 	protected override ExitCode RunInternal()
 	{
@@ -58,6 +58,10 @@ internal class BuildShaders( string name, bool forced = false ) : Step( name )
 		if ( forced )
 		{
 			arguments += " -f";
+		}
+		if ( openengine )
+		{
+			arguments += " -openengine";
 		}
 
 		// Track if any shaders were compiled

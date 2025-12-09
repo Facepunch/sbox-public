@@ -131,3 +131,38 @@ Program.Main (Startup)
 - Toute la résolution de DLL et des natives est configurée avant les premiers appels moteur via `LauncherEnvironment.Init`.
 - Les exports natifs (SourceEngine*, RenderDevice, RenderAttributes, etc.) sont fournis par la couche natif/interop (libengine2.so en émulation) et branchés via `FillNativeFunctionsEngine`.
 
+## Chaîne ShaderCompile (CLI, éditeur, build)
+### Entrées côté outils / build
+- CLI `Tools/ShaderCompiler/Program.Main` (`ShaderCompiler.dll` sous Linux, `.exe` Windows) :
+  - Parse `-f` (ForceRecompile), `-s` (SingleThreaded), `-q` (quiet) → `ShaderCompileOptions`.
+  - Enumère `*.shader` depuis le répertoire courant (exclut `\download\`, `\templates\`, dossiers cachés), crée `ProcessList`.
+  - Pour chaque shader : `SyncContext.RunBlocking( ShaderCompile.Compile(abs, rel, options, default) )` (via `ToolAppSystem` pour initialiser l’environnement editor/managed).
+- Build CI `SboxBuild` :
+  - `BuildManaged` construit puis copie `ShaderCompiler.dll` + runtimeconfig vers `game/bin/managed`.
+  - Étape `BuildShaders` lance `dotnet ShaderCompiler.dll *` (Linux) ou `shadercompiler.exe *` (Windows) ; option `-f` si step forcé ; échec CI si un shader a dû être recompilé.
+- Éditeur / hotload :
+  - `StartupLoadProject.CompileAllShaders` (au chargement projet) parcourt les assets shader du projet courant → `ShaderCompile.Compile`.
+  - `Utility.CompileShader(localPath, options)` (actions éditeur / hotload) → `ShaderCompile.Compile` puis `ConsoleSystem.Run("mat_reloadshaders <path>")`.
+  - Tests/ShaderGraph utilisent le même CLI (`ShaderGraphTests.RunShaderCompiler`).
+
+### Pipeline managé `ShaderCompile.Compile` (Sandbox.Engine.Shaders)
+- Static ctor (sauté sur dedicated server) : résout `libvfx_vulkan.so` (`vfx_vulkan.dll` Windows) via `NativeEngine.CreateInterface.LoadInterface("VFX_DLL_001")`; récupère `CreateInterface` de `libfilesystem_stdio.so` et appelle `native.Init(createinterface)`.
+- `Compile(absPath, relPath, options, token)` :
+  - Crée `ShaderSource`, lit le fichier (`ShaderSource.Read()`), vérifie `IsOutOfDate` (skip si à jour et pas de force).
+  - Appelle `CompileShader(shaderSource, options, token)` ; si succès → écrit `absPath + "_c"` avec le blob compilé.
+- `CompileShader` :
+  - Charge `Shader` VFX (`Shader.LoadFromSource`), lit le texte source.
+  - Pour chaque programme (`ShaderSource.Programs`) :
+    - `ProgramSource.Compile(options, vfx, source, result, token, abs, rel)` :
+      - Crée un contexte partagé `ShaderCompile.GetSharedContext(ProgramType)` → wrapper `IShaderCompileContext` natif.
+      - Applique `ShaderTools.MaskShaderSource` puis `ShaderPreprocessor.Preprocess` (inclut include/guards) → `context.MaskedSource` envoyé au natif via `SetMaskedCode`.
+      - Énumère les combos (`EnumerateCombos`) puis compile en parallèle (ou séquentiel si `SingleThreaded`) via `ShaderCompile.CompileSingleCombo` :
+        - `CompileSingleCombo` → `native.CompileShader(context.GetNative(), staticCombo, dynamicCombo, vfx.native, SM_6_0_VULKAN, programType, useShaderCache, flags=0)` ; renvoie `CompiledCombo` (avec log).
+      - Agrège et dédup l’output du compilateur, log dans `Results.Program`.
+      - Construit `CVfxByteCodeManager` puis `vfx.native.WriteCombo` pour chaque combo.
+  - Après tous programmes : `vfx.native.FinalizeCompile()` → `InitializeWrite()` → `ShaderSource.Serialize` (inclut source si pas core asset) → `CompileResourceFile` (appelle `IResourceCompilerSystem.GenerateResourceBytes`) → remplit `Results.CompiledShader`, `Results.Success=true`.
+
+### Notes interop ShaderCompile
+- Interfaces natives utilisées : `IVfx` (`CompileShader`, `CreateSharedContext`, `FinalizeCompile`, `InitializeWrite`, `WriteCombo`, `WriteProgramToBuffer`) et `IShaderCompileContext` (`Delete`, `SetMaskedCode`, indices 2200-2201 dans `Interop.Engine.cs`/`engine.Generated.cs`).
+- Dépendances natives : export `CreateInterface` de `libvfx_vulkan` et `libfilesystem_stdio` (la couche NativeAOT doit fournir/mapper ces exports pour que le shader compile fonctionne). `Assembly.cs` expose `InternalsVisibleTo("ShaderCompiler")` pour l’outil.
+

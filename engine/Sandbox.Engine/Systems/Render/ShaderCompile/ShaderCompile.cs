@@ -1,4 +1,6 @@
-﻿using System.Threading;
+using System.Runtime.InteropServices;
+using System.IO;
+using System.Threading;
 
 namespace Sandbox.Engine.Shaders;
 
@@ -71,33 +73,88 @@ public static class ShaderCompile
 
 	static ShaderCompile()
 	{
-		if ( NativeEngine.EngineGlobal.AppIsDedicatedServer() )
-			return;
-
 		string vfxDllName = "vfx_vulkan";
 		string filesystemDllName = "filesystem_stdio";
 		string dllExtension = ".dll";
 
 		if ( OperatingSystem.IsLinux() )
 		{
-			vfxDllName = "libvulkan";
+			vfxDllName = "libvfx_vulkan";
 			filesystemDllName = "libfilesystem_stdio";
 			dllExtension = ".so";
 		}
 
 		string fullVfxDllName = $"{vfxDllName}{dllExtension}";
+		bool useOpenEngine = Environment.GetEnvironmentVariable( "SBOX_OPENENGINE_VFX" ) == "1";
+		if ( useOpenEngine )
+		{
+			fullVfxDllName = "libengine2.so";
+			filesystemDllName = "libfilesystem_stdio";
+			dllExtension = ".so";
+		}
+
+		// Ensure filesystem is initialized for shader includes when running tools/CLI
+		if ( EngineFileSystem.Root is null || EngineFileSystem.Assets is null )
+		{
+			var baseDir = AppContext.BaseDirectory ?? Directory.GetCurrentDirectory();
+			var gameRoot = Path.GetFullPath( Path.Combine( baseDir, "..", ".." ) );
+			EngineFileSystem.Initialize( gameRoot );
+			EngineFileSystem.InitializeAddonsFolder();
+			EngineFileSystem.InitializeDataFolder();
+			EngineFileSystem.InitializeDownloadsFolder();
+		}
 
 		if ( !native.IsNull )
 			return;
 
-		native = NativeEngine.CreateInterface.LoadInterface( fullVfxDllName, "VFX_DLL_001" );
+		var vfxPath = fullVfxDllName;
+		if ( OperatingSystem.IsLinux() )
+		{
+			var baseDir = AppContext.BaseDirectory ?? string.Empty;
+			var linuxRt64 = Path.GetFullPath( Path.Combine( baseDir, "..", "linuxsteamrt64", fullVfxDllName ) );
+			if ( File.Exists( linuxRt64 ) )
+			{
+				vfxPath = linuxRt64;
+			}
+			else
+			{
+				var baseDirPath = Path.Combine( baseDir, fullVfxDllName );
+				if ( File.Exists( baseDirPath ) )
+					vfxPath = baseDirPath;
+			}
+		}
 
+		var createInterfacePtr = NativeEngine.CreateInterface.GetCreateInterface( vfxPath );
+		if ( createInterfacePtr == IntPtr.Zero )
+			throw new System.Exception( $"Failed to find CreateInterface in {vfxPath}" );
+
+		var createInterface = Marshal.GetDelegateForFunctionPointer<NativeEngine.CreateInterface.CreateInterfaceFn>( createInterfacePtr );
+		native = new IVfx( createInterface( "VFX_DLL_001", IntPtr.Zero ) );
+		Log.Info( $"Loaded VFX native: type={native.GetType().FullName}, value={native}" );
+		
 		if ( native.IsNull )
 			throw new System.Exception( $"Failed to load {fullVfxDllName}" );
 
 		// the shader compiler only needs the filesystem interface so we just pass
 		// in the createinterface for that, directly.
-		var createinterface = NativeEngine.CreateInterface.GetCreateInterface( $"{filesystemDllName}{dllExtension}" );
+		var fsDll = $"{filesystemDllName}{dllExtension}";
+		if ( OperatingSystem.IsLinux() )
+		{
+			var baseDir = AppContext.BaseDirectory ?? string.Empty;
+			var linuxRt64Fs = Path.GetFullPath( Path.Combine( baseDir, "..", "linuxsteamrt64", fsDll ) );
+			if ( File.Exists( linuxRt64Fs ) )
+			{
+				fsDll = linuxRt64Fs;
+			}
+			else
+			{
+				var baseDirFs = Path.Combine( baseDir, fsDll );
+				if ( File.Exists( baseDirFs ) )
+					fsDll = baseDirFs;
+			}
+		}
+
+		var createinterface = NativeEngine.CreateInterface.GetCreateInterface( fsDll );
 
 		native.Init( createinterface );
 	}

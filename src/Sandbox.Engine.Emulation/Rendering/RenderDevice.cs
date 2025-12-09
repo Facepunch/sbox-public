@@ -459,6 +459,35 @@ public static unsafe class RenderDevice
 
         glfw.SwapBuffers(windowHandle);
     }
+
+    /// <summary>
+    /// Binde le FBO de swapchain comme cible de rendu actuelle.
+    /// Retourne true si le bind a réussi.
+    /// </summary>
+    internal static bool BindSwapChainForRender()
+    {
+        lock (_swapChainLock)
+        {
+            var gl = PlatformFunctions.GetGL();
+            if (gl == null) return false;
+
+            EnsureSwapChainTexture();
+            if (_swapChainFbo == 0) return false;
+
+            gl.BindFramebuffer(FramebufferTarget.Framebuffer, _swapChainFbo);
+            gl.Viewport(0, 0, (uint)_swapChainWidth, (uint)_swapChainHeight);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Rebind le framebuffer par défaut après avoir rendu dans le swapchain.
+    /// </summary>
+    internal static void UnbindFramebuffer()
+    {
+        var gl = PlatformFunctions.GetGL();
+        gl?.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+    }
     
     [UnmanagedCallersOnly]
     public static Vector2 g_pRenderDevice_GetBackbufferDimensions(IntPtr chain)
@@ -830,7 +859,12 @@ public static unsafe class RenderDevice
         
         // Register as handle
         int handle = HandleManager.Register(program);
-        Console.WriteLine($"[NativeAOT] g_pRenderDevice_CompileAndCreateShader: type={nType}, debugName={debugName}, program={program}, handle={handle}");
+        // Log de debug limité (premiers shaders uniquement)
+        const int maxLog = 20;
+        if (handle <= maxLog)
+        {
+            Console.WriteLine($"[NativeAOT] g_pRenderDevice_CompileAndCreateShader: type={nType}, debugName={debugName}, program={program}, handle={handle}");
+        }
         return (IntPtr)handle;
     }
     

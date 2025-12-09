@@ -26,6 +26,7 @@ internal static unsafe class EmulatedSceneView
         public long DefaultRequiredFlags;
         public long DefaultExcludedFlags;
         public readonly List<IntPtr> RenderLayers = new();
+        public readonly Dictionary<string, IntPtr> LayersByName = new();
         public readonly List<IntPtr> Worlds = new();
         public readonly List<IntPtr> DependentViews = new();
         public IntPtr Parent = IntPtr.Zero;
@@ -114,13 +115,21 @@ internal static unsafe class EmulatedSceneView
     {
         string debugName = pszDebugName != IntPtr.Zero ? Marshal.PtrToStringUTF8(pszDebugName) ?? "RenderLayer" : "RenderLayer";
         var vp = viewport != null ? *viewport : new RenderViewport(0, 0, 1280, 720);
-        var handle = EmulatedSceneLayer.CreateLayer(debugName, vp, layerType);
         var data = GetView(self);
         lock (data.RenderLayers)
         {
+            if (data.LayersByName.TryGetValue(debugName, out var existing))
+            {
+                // Mettre à jour le viewport si demandé et retourner la couche existante
+                EmulatedSceneLayer.SetViewportManaged(existing, vp);
+                return existing;
+            }
+
+            var handle = EmulatedSceneLayer.CreateLayer(debugName, vp, layerType);
             data.RenderLayers.Add(handle);
+            data.LayersByName[debugName] = handle;
+            return handle;
         }
-        return handle;
     }
 
     [UnmanagedCallersOnly]
@@ -136,7 +145,7 @@ internal static unsafe class EmulatedSceneView
         lock (data.DependentViews)
         {
             data.DependentViews.Add(pView);
-        }
+    }
     }
 
     [UnmanagedCallersOnly]
@@ -218,7 +227,7 @@ internal static unsafe class EmulatedSceneView
     {
         var data = GetView(self);
         if (data.FrustumPtr == IntPtr.Zero)
-        {
+    {
             // Provide a stable non-null pointer for callers expecting a struct pointer.
             var frustum = new global::CFrustum { self = IntPtr.Zero };
             var handle = GCHandle.Alloc(frustum, GCHandleType.Pinned);
@@ -244,4 +253,4 @@ internal static unsafe class EmulatedSceneView
 
     [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvSuppressGCTransition) })]
     public static void Set__ISceneView_m_ManagedCameraId(IntPtr self, int value) => GetView(self).ManagedCameraId = value;
-}
+    }
