@@ -60,7 +60,7 @@ public partial class Scene : GameObject
 			objects = objects.Concat( systems );
 
 		system.DeltaSnapshots.Send( objects, connectionsArray );
-		
+
 		system.DeltaSnapshots.Tick();
 	}
 
