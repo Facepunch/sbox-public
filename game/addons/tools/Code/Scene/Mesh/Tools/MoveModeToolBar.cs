@@ -24,16 +24,16 @@ class MoveModeToolBar : Widget
 		Update();
 	}
 
-	[Shortcut( "mesh.position.mode", "w", typeof( SceneDock ) )]
+	[Shortcut( "mesh.position.mode", "t", typeof( SceneDock ) )]
 	public void ActivatePositionMode() => SetMode( "mesh.position.mode" );
 
-	[Shortcut( "mesh.rotate.mode", "e", typeof( SceneDock ) )]
+	[Shortcut( "mesh.rotate.mode", "r", typeof( SceneDock ) )]
 	public void ActivateRotateMode() => SetMode( "mesh.rotate.mode" );
 
-	[Shortcut( "mesh.scale.mode", "r", typeof( SceneDock ) )]
+	[Shortcut( "mesh.scale.mode", "e", typeof( SceneDock ) )]
 	public void ActivateScaleMode() => SetMode( "mesh.scale.mode" );
 
-	[Shortcut( "mesh.pivot.mode", "t", typeof( SceneDock ) )]
+	[Shortcut( "mesh.pivot.mode", "d", typeof( SceneDock ) )]
 	public void ActivatePivotMode() => SetMode( "mesh.pivot.mode" );
 }
 

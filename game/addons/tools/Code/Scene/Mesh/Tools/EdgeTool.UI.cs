@@ -147,7 +147,7 @@ partial class EdgeTool
 			return _edges.Length != 0;
 		}
 
-		[Shortcut( "mesh.edge-bevel", "ALT+F", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.edge-bevel", "F", typeof( SceneViewportWidget ) )]
 		private void Bevel()
 		{
 			if ( !CanBevel() )
@@ -386,7 +386,7 @@ partial class EdgeTool
 			}
 		}
 
-		[Shortcut( "mesh.bridge-edges", "ALT+B", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.bridge-edges", "B", typeof( SceneViewportWidget ) )]
 		private void BridgeEdges()
 		{
 			if ( !CanBridgeEdges() )
