@@ -406,6 +406,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 	private void OnCameraRenderUI( SceneCamera camera )
 	{
+		if ( Graphics.SuppressUI )
+			return;
+
 		if ( Scene is null )
 			return;
 

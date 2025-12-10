@@ -43,8 +43,16 @@ public static partial class Graphics
 		}
 	}
 
+	/// <summary>
+	/// When true, suppresses UI rendering (used for clean screenshots).
+	/// </summary>
+	internal static bool SuppressUI { get; set; }
+
 	static void RenderUiOverlay()
 	{
+		if ( SuppressUI )
+			return;
+
 		using var _ = IMenuDll.Current?.PushScope();
 
 		Graphics.Attributes.SetCombo( "D_WORLDPANEL", 0 );

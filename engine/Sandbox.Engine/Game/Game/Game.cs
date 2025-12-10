@@ -219,12 +219,30 @@ public static partial class Game
 	}
 
 	/// <summary>
+	/// Capture a clean screenshot without UI.
+	/// </summary>
+	[ConCmd( "screenshot_clean", Help = "Take a screenshot without UI overlay" )]
+	public static void TakeCleanScreenshot()
+	{
+		ScreenshotService.RequestCleanCapture();
+	}
+
+	/// <summary>
 	/// Capture a high resolution screenshot using the active scene camera.
 	/// </summary>
 	[ConCmd( "screenshot_highres", Help = "Take a high resolution screenshot you specify the width and height" )]
 	public static void TakeHighResScreenshot( int width, int height )
 	{
 		ScreenshotService.TakeHighResScreenshot( Application.GetActiveScene(), width, height );
+	}
+
+	/// <summary>
+	/// Capture a clean high resolution screenshot without UI.
+	/// </summary>
+	[ConCmd( "screenshot_highres_clean", Help = "Take a high resolution screenshot without UI" )]
+	public static void TakeCleanHighResScreenshot( int width, int height )
+	{
+		ScreenshotService.TakeHighResScreenshot( Application.GetActiveScene(), width, height, hideUI: true );
 	}
 
 	/// <summary>
