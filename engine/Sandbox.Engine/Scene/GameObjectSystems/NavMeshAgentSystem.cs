@@ -77,8 +77,8 @@ internal sealed class NavMeshGameSystem : GameObjectSystem
 			baseTrace = baseTrace.IgnoreKeyframed();
 		}
 
-		var downTrace = baseTrace.Sphere( footRadius, traceStart, traceStart + Vector3.Down * traceStartOffset );
-		var upTrace = baseTrace.Sphere( footRadius, traceStart, traceStart + Vector3.Up * traceStartOffset );
+		var downTrace = baseTrace.Sphere( footRadius, traceStart, traceStart + Vector3.Down * traceStartOffset ).WithCollisionRules(agent.Tags);
+		var upTrace = baseTrace.Sphere( footRadius, traceStart, traceStart + Vector3.Up * traceStartOffset ).WithCollisionRules( agent.Tags );
 
 		var downResult = downTrace.Run();
 		var upResult = upTrace.Run();
