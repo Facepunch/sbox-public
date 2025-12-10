@@ -28,7 +28,8 @@ public class StandaloneTest
 	public async Task ExportAndRun()
 	{
 		var config = new ExportConfig();
-		config.TargetDir = Path.Combine( Path.GetTempPath(), "sboxexportest" );
+		var tempFolderName = Guid.NewGuid().ToString();
+		config.TargetDir = Path.Combine( Path.GetTempPath(), tempFolderName, "sboxexportest" );
 		config.AppId = 480; // SpaceWar AppID
 
 		try

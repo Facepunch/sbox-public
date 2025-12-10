@@ -108,7 +108,7 @@ public class ObjectEditorTool : EditorTool
 	}
 
 
-	[Shortcut( "tools.object-tool", "o", typeof( SceneViewportWidget ) )]
+	[Shortcut( "tools.object-tool", "o", typeof( SceneDock ) )]
 	public static void ActivateSubTool()
 	{
 		EditorToolManager.SetTool( nameof( ObjectEditorTool ) );

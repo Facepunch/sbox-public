@@ -50,7 +50,7 @@
     <Project Path="Mounting/Sandbox.Mounting/Sandbox.Mounting.csproj" />
   </Folder>
   <Folder Name="/Engine/Tier1/">
-    <Project Path="Sandbox.Engine/Sandbox.Engine.csproj" />
+    <Project Path="Sandbox.Engine/Sandbox.Engine.csproj" DefaultStartup="true" />
   </Folder>
   <Folder Name="/Engine/Tier2/">
     <Project Path="Sandbox.AppSystem/Sandbox.AppSystem.csproj" />
@@ -64,9 +64,12 @@
   <Folder Name="/Tests/">
     <Project Path="Benchmark/Benchmark.csproj" />
     <Project Path="Sandbox.Hotload.Test/Sandbox.Hotload.Test.csproj" />
+    <Project Path="Sandbox.Test/Sandbox.Test.csproj" />
+    <Project Path="Sandbox.Test.Unit/Sandbox.Test.Unit.csproj" />
+  </Folder>
+  <Folder Name="/Tests/Resources/">
     <Project Path="Sandbox.Test.Generate/Sandbox.Test.Generate.csproj" />
     <Project Path="Sandbox.Test.Hotload/Sandbox.Test.AfterHotload.csproj" />
     <Project Path="Sandbox.Test.Hotload/Sandbox.Test.BeforeHotload.csproj" />
-    <Project Path="Sandbox.Test/Sandbox.Test.csproj" />
   </Folder>
 </Solution>

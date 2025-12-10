@@ -9,7 +9,7 @@
 public sealed class WheelJoint : Joint
 {
 	/// <inheritdoc cref="Physics.WheelJoint.EnableSuspensionLimit"/>
-	[Property, ToggleGroup( "EnableSuspensionLimit", Label = "Suspension Limit" )]
+	[Property, ToggleGroup( "EnableSuspensionLimit", Label = "Suspension Limit" ), ShowIf( nameof( EnableSuspension ), true )]
 	public bool EnableSuspensionLimit
 	{
 		get;
@@ -21,14 +21,14 @@ public sealed class WheelJoint : Joint
 
 			if ( _joint.IsValid() )
 			{
-				_joint.EnableSuspensionLimit = field;
+				_joint.EnableSuspensionLimit = !EnableSuspension || field;
 				_joint.WakeBodies();
 			}
 		}
 	}
 
 	/// <inheritdoc cref="Physics.WheelJoint.SuspensionLimits"/>
-	[Property, Group( "EnableSuspensionLimit" ), Title( "Translation Limits" ), Range( -25, 25 )]
+	[Property, Group( "EnableSuspensionLimit" ), Title( "Translation Limits" ), Range( -25, 25 ), ShowIf( nameof( EnableSuspension ), true )]
 	public Vector2 SuspensionLimits
 	{
 		get;
@@ -40,7 +40,7 @@ public sealed class WheelJoint : Joint
 
 			if ( _joint.IsValid() )
 			{
-				_joint.SuspensionLimits = field;
+				_joint.SuspensionLimits = EnableSuspension ? field : 0.0f;
 				_joint.WakeBodies();
 			}
 		}
@@ -116,9 +116,28 @@ public sealed class WheelJoint : Joint
 
 			if ( _joint.IsValid() )
 			{
-				_joint.EnableSuspension = field;
+				UpdateSuspension();
+
 				_joint.WakeBodies();
 			}
+		}
+	}
+
+	void UpdateSuspension()
+	{
+		_joint.EnableSuspension = EnableSuspension;
+
+		if ( EnableSuspension )
+		{
+			// Suspension on, use user limits.
+			_joint.EnableSuspensionLimit = EnableSuspensionLimit;
+			_joint.SuspensionLimits = SuspensionLimits;
+		}
+		else
+		{
+			// Suspension off, limit it to zero.
+			_joint.EnableSuspensionLimit = true;
+			_joint.SuspensionLimits = 0.0f;
 		}
 	}
 
@@ -139,7 +158,7 @@ public sealed class WheelJoint : Joint
 				_joint.WakeBodies();
 			}
 		}
-	}
+	} = 10.0f;
 
 	/// <inheritdoc cref="Physics.WheelJoint.SuspensionDampingRatio"/>
 	[Property, Group( "EnableSuspension" ), Title( "Damping" ), Range( 0, 2 )]
@@ -158,7 +177,7 @@ public sealed class WheelJoint : Joint
 				_joint.WakeBodies();
 			}
 		}
-	}
+	} = 1.0f;
 
 	/// <inheritdoc cref="Physics.WheelJoint.EnableSteering"/>
 	[Property, ToggleGroup( "EnableSteering", Label = "Steering" )]
@@ -196,7 +215,7 @@ public sealed class WheelJoint : Joint
 				_joint.WakeBodies();
 			}
 		}
-	}
+	} = 10.0f;
 
 	/// <inheritdoc cref="Physics.WheelJoint.SteeringDampingRatio"/>
 	[Property, Group( "EnableSteering" ), Title( "Damping" ), Range( 0, 2 )]
@@ -215,7 +234,7 @@ public sealed class WheelJoint : Joint
 				_joint.WakeBodies();
 			}
 		}
-	}
+	} = 1.0f;
 
 	/// <inheritdoc cref="Physics.WheelJoint.TargetSteeringAngle"/>
 	[Property, Group( "EnableSteering" ), Title( "Target Angle" ), Range( -180, 180 )]
@@ -343,7 +362,6 @@ public sealed class WheelJoint : Joint
 		_joint.EnableSpinMotor = EnableSpinMotor;
 		_joint.MaxSpinTorque = MaxSpinTorque;
 		_joint.SpinMotorSpeed = SpinMotorSpeed;
-		_joint.EnableSuspension = EnableSuspension;
 		_joint.SuspensionHertz = SuspensionHertz;
 		_joint.SuspensionDampingRatio = SuspensionDampingRatio;
 		_joint.EnableSteering = EnableSteering;
@@ -351,10 +369,10 @@ public sealed class WheelJoint : Joint
 		_joint.SteeringDampingRatio = SteeringDampingRatio;
 		_joint.TargetSteeringAngle = TargetSteeringAngle;
 		_joint.MaxSteeringTorque = MaxSteeringTorque;
-		_joint.EnableSuspensionLimit = EnableSuspensionLimit;
 		_joint.EnableSteeringLimit = EnableSteeringLimit;
-		_joint.SuspensionLimits = SuspensionLimits;
 		_joint.SteeringLimits = SteeringLimits;
+
+		UpdateSuspension();
 
 		_joint.WakeBodies();
 	}

@@ -335,6 +335,12 @@ file class ViewportToolBar : Widget
 			scroller.HorizontalScrollbarMode = ScrollbarMode.Off;
 			scroller.Canvas = toolWidget;
 			_sidebar.Add( scroller );
+
+			toolWidget.Focus();
+		}
+		else
+		{
+			SceneViewportWidget.LastSelected?.Focus();
 		}
 
 		// Update footer

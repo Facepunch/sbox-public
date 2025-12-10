@@ -12,23 +12,12 @@ public class PackageManagement
 	{
 		PackageManager.UnmountAll();
 
-		var dir = $"{Environment.CurrentDirectory}/.source2/package_manager_folder";
+		var dir = $"{Environment.CurrentDirectory}/.source2/test_download_cache/package_management";
 
 		if ( System.IO.Directory.Exists( dir ) )
-		{
-			for ( int i = 0; i < 5; i++ )
-			{
-				try
-				{
-					System.IO.Directory.Delete( dir, true );
-					break;
-				}
-				catch
-				{
-					Thread.Sleep( 500 );
-				}
-			}
-		}
+			System.IO.Directory.Delete( dir, true );
+
+		System.IO.Directory.CreateDirectory( dir );
 
 		AssetDownloadCache.Initialize( dir );
 	}

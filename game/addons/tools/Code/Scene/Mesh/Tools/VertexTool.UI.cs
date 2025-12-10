@@ -154,7 +154,7 @@ partial class VertexTool
 			}
 		}
 
-		[Shortcut( "mesh.snap_to_vertex", "B", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.snap_to_vertex", "B", typeof( SceneDock ) )]
 		private void SnapToVertex()
 		{
 			if ( _vertices.Length < 2 )
@@ -172,7 +172,7 @@ partial class VertexTool
 			}
 		}
 
-		[Shortcut( "mesh.vertex-weld-uvs", "CTRL+F", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.vertex-weld-uvs", "CTRL+F", typeof( SceneDock ) )]
 		private void WeldUVs()
 		{
 			if ( _vertices.Length < 1 )
@@ -193,7 +193,7 @@ partial class VertexTool
 			}
 		}
 
-		[Shortcut( "mesh.bevel", "F", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.bevel", "F", typeof( SceneDock ) )]
 		private void Bevel()
 		{
 			if ( _vertices.Length <= 0 )
@@ -221,7 +221,7 @@ partial class VertexTool
 			}
 		}
 
-		[Shortcut( "mesh.merge", "M", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.merge", "M", typeof( SceneDock ) )]
 		private void Merge()
 		{
 			if ( _vertices.Length < 2 )

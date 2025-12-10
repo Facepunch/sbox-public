@@ -121,7 +121,7 @@ partial class EdgeTool
 			}
 		}
 
-		[Shortcut( "mesh.edge-weld-uvs", "CTRL+F", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.edge-weld-uvs", "CTRL+F", typeof( SceneDock ) )]
 		private void WeldUVs()
 		{
 			if ( _edges.Length < 1 )
@@ -147,7 +147,7 @@ partial class EdgeTool
 			return _edges.Length != 0;
 		}
 
-		[Shortcut( "mesh.edge-bevel", "ALT+F", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.edge-bevel", "ALT+F", typeof( SceneDock ) )]
 		private void Bevel()
 		{
 			if ( !CanBevel() )
@@ -223,7 +223,7 @@ partial class EdgeTool
 			return edgeB;
 		}
 
-		[Shortcut( "mesh.merge", "M", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.merge", "M", typeof( SceneDock ) )]
 		private void Merge()
 		{
 			if ( !CanMerge() )
@@ -266,7 +266,7 @@ partial class EdgeTool
 			return _edges.Length != 0;
 		}
 
-		[Shortcut( "mesh.split", "ALT+N", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.split", "ALT+N", typeof( SceneDock ) )]
 		private void Split()
 		{
 			if ( !CanSplit() )
@@ -321,7 +321,7 @@ partial class EdgeTool
 			return _edges.Length > 1;
 		}
 
-		[Shortcut( "mesh.connect", "V", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.connect", "V", typeof( SceneDock ) )]
 		private void Connect()
 		{
 			if ( !CanConnect() )
@@ -353,7 +353,7 @@ partial class EdgeTool
 			return _edges.Any( x => x.IsOpen );
 		}
 
-		[Shortcut( "mesh.extend", "N", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.extend", "N", typeof( SceneDock ) )]
 		private void Extend()
 		{
 			if ( !CanExtend() )
@@ -386,7 +386,7 @@ partial class EdgeTool
 			}
 		}
 
-		[Shortcut( "mesh.bridge-edges", "ALT+B", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.bridge-edges", "ALT+B", typeof( SceneDock ) )]
 		private void BridgeEdges()
 		{
 			if ( !CanBridgeEdges() )
@@ -439,7 +439,7 @@ partial class EdgeTool
 			return _edges.Length != 0;
 		}
 
-		[Shortcut( "mesh.dissolve", "Backspace", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.dissolve", "Backspace", typeof( SceneDock ) )]
 		private void Dissolve()
 		{
 			if ( !CanDissolve() )
@@ -468,7 +468,7 @@ partial class EdgeTool
 			return _edges.Length != 0;
 		}
 
-		[Shortcut( "mesh.collapse", "SHIFT+O", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.collapse", "SHIFT+O", typeof( SceneDock ) )]
 		private void Collapse()
 		{
 			if ( !CanCollapse() )
@@ -495,7 +495,7 @@ partial class EdgeTool
 			return _edges.Any( x => x.IsOpen );
 		}
 
-		[Shortcut( "mesh.fill-hole", "P", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.fill-hole", "P", typeof( SceneDock ) )]
 		private void FillHole()
 		{
 			using var scope = SceneEditorSession.Scope();
@@ -516,7 +516,7 @@ partial class EdgeTool
 			return _edges.Length != 0;
 		}
 
-		[Shortcut( "mesh.select-ribs", "CTRL+G", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.select-ribs", "CTRL+G", typeof( SceneDock ) )]
 		private void SelectRibs()
 		{
 			if ( !CanSelectRibs() )
@@ -561,7 +561,7 @@ partial class EdgeTool
 			return _edges.Length != 0;
 		}
 
-		[Shortcut( "mesh.select-ring", "G", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.select-ring", "G", typeof( SceneDock ) )]
 		private void SelectRing()
 		{
 			if ( !CanSelectRing() )
@@ -591,7 +591,7 @@ partial class EdgeTool
 			return _edges.Length != 0;
 		}
 
-		[Shortcut( "mesh.select-loop", "L", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.select-loop", "L", typeof( SceneDock ) )]
 		private void SelectLoop()
 		{
 			if ( !CanSelectLoop() )
@@ -613,7 +613,7 @@ partial class EdgeTool
 			}
 		}
 
-		[Shortcut( "mesh.snap-edge-to-edge", "I", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.snap-edge-to-edge", "I", typeof( SceneDock ) )]
 		private void SnapEdgeToEdge()
 		{
 			if ( _edges.Length != 2 )
@@ -654,19 +654,19 @@ partial class EdgeTool
 			}
 		}
 
-		[Shortcut( "mesh.hard-normals", "H", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.hard-normals", "H", typeof( SceneDock ) )]
 		void HardNormals()
 		{
 			SetNormals( PolygonMesh.EdgeSmoothMode.Hard );
 		}
 
-		[Shortcut( "mesh.soft-normals", "J", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.soft-normals", "J", typeof( SceneDock ) )]
 		void SoftNormals()
 		{
 			SetNormals( PolygonMesh.EdgeSmoothMode.Soft );
 		}
 
-		[Shortcut( "mesh.default-normals", "K", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.default-normals", "K", typeof( SceneDock ) )]
 		void DefaultNormals()
 		{
 			SetNormals( PolygonMesh.EdgeSmoothMode.Default );
