@@ -1,0 +1,62 @@
+﻿ControlSheetGroupHeader
+{
+	font-size: 1.33rem;
+	color: red;
+	gap: 2px;
+	align-items: center;
+
+	&.hidden
+	{
+		display: none;
+	}
+
+	> .title
+	{
+		font-weight: 600;
+	}
+
+	&.has-toggle
+	{
+		cursor: pointer;
+		opacity: 0.8;
+
+		&:before
+		{
+			content: ' ';
+			width: 22px;
+			height: 22px;
+			background-color: #000a;
+			align-items: center;
+			justify-content: center;
+			text-align: center;
+			border-radius: 5px;
+			border: 1px solid #555;
+		}
+
+		&:hover
+		{
+			opacity: 1;
+
+			&:before
+			{
+				border-color: #888;
+			}
+		}
+
+		&.checked
+		{
+			> .title
+			{
+				color: white;
+			}
+
+			&:before
+			{
+				content: '✓';
+				font-weight: bold;
+				color: #08f;
+				border-color: #08f;
+			}
+		}
+	}
+}

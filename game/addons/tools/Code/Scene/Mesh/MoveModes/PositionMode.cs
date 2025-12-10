@@ -20,9 +20,9 @@ public sealed class PositionMode : MoveMode
 	{
 		var origin = tool.Pivot;
 
-		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
+		if ( !Gizmo.Pressed.Any )
 		{
-			EndDrag();
+			tool.EndDrag();
 
 			_basis = tool.CalculateSelectionBasis();
 			_origin = origin;
@@ -45,16 +45,9 @@ public sealed class PositionMode : MoveMode
 
 				moveDelta -= _origin;
 
-				StartDrag( tool );
-
-				foreach ( var entry in TransformVertices )
-				{
-					var position = entry.Value + moveDelta;
-					var transform = entry.Key.Transform;
-					entry.Key.Component.Mesh.SetVertexPosition( entry.Key.Handle, transform.PointToLocal( position ) );
-				}
-
-				UpdateDrag();
+				tool.StartDrag();
+				tool.Translate( moveDelta );
+				tool.UpdateDrag();
 			}
 		}
 	}

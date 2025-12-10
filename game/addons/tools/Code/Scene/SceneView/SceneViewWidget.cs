@@ -305,7 +305,7 @@ file class ViewportToolBar : Widget
 	void OnToolChanged()
 	{
 		// Prevent flicker when changing tools
-		using var x = SuspendUpdates.For( GetAncestor<SceneViewWidget>() );
+		using var x = SuspendUpdates.For( this );
 
 		var rootTool = SceneViewWidget.Current?.Tools.CurrentTool;
 		var subTool = SceneViewWidget.Current?.Tools.CurrentSubTool;
@@ -327,7 +327,7 @@ file class ViewportToolBar : Widget
 
 		if ( toolWidget.IsValid() )
 		{
-			var scroller = new ScrollArea( this );
+			var scroller = new ScrollArea( null );
 			scroller.FixedWidth = 240;
 			toolWidget.FixedWidth = 240;
 			scroller.HorizontalSizeMode = SizeMode.Flexible;

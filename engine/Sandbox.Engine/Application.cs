@@ -23,7 +23,7 @@ public static class Application
 	/// <summary>
 	/// True if we're running the engine as part of a unit test
 	/// </summary>
-	public static bool IsUnitTest { get; private set; }
+	public static bool IsUnitTest { get; internal set; }
 
 	/// <summary>
 	/// True if running without a graphics window, such as in a terminal.

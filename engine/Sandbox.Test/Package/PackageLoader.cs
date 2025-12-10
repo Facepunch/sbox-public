@@ -10,7 +10,7 @@ public partial class PackageLoader
 	public void TestInitialize()
 	{
 		Project.Clear();
-		AssetDownloadCache.Initialize( $"{Environment.CurrentDirectory}/.source2/package_manager_folder" );
+		var dir = $"{Environment.CurrentDirectory}/.source2/test_download_cache/package_loader";
 	}
 
 	private (TypeLibrary TypeLibrary, Sandbox.PackageLoader PackageLoader, Sandbox.PackageLoader.Enroller Enroller) Preamble()

@@ -5,22 +5,49 @@ public abstract class SelectionTool : EditorTool
 {
 	public Vector3 Pivot { get; set; }
 
-	public HashSet<MeshVertex> VertexSelection { get; init; } = [];
-
 	public virtual Rotation CalculateSelectionBasis()
 	{
 		return Rotation.Identity;
 	}
 
-	public virtual List<MeshFace> ExtrudeSelection( Vector3 delta = default )
+	public virtual BBox CalculateLocalBounds()
 	{
-		return [];
+		return default;
+	}
+
+	public virtual void StartDrag()
+	{
+	}
+
+	public virtual void UpdateDrag()
+	{
+	}
+
+	public virtual void EndDrag()
+	{
+	}
+
+	public virtual void Translate( Vector3 delta )
+	{
+	}
+
+	public virtual void Rotate( Vector3 origin, Rotation basis, Rotation delta )
+	{
+	}
+
+	public virtual void Scale( Vector3 origin, Rotation basis, Vector3 scale )
+	{
 	}
 }
 
-public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool
+public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T : IMeshElement
 {
 	protected MeshTool Tool { get; private init; } = tool;
+
+	readonly HashSet<MeshVertex> _vertexSelection = [];
+	readonly Dictionary<MeshVertex, Vector3> _transformVertices = [];
+	List<MeshFace> _transformFaces;
+	IDisposable _undoScope;
 
 	protected virtual bool HasMoveMode => true;
 
@@ -37,7 +64,49 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool
 
 	public virtual bool DrawVertices => false;
 
-	protected IDisposable _undoScope;
+	public override void Translate( Vector3 delta )
+	{
+		foreach ( var entry in _transformVertices )
+		{
+			var position = entry.Value + delta;
+			var transform = entry.Key.Transform;
+			entry.Key.Component.Mesh.SetVertexPosition( entry.Key.Handle, transform.PointToLocal( position ) );
+		}
+	}
+
+	public override void Rotate( Vector3 origin, Rotation basis, Rotation delta )
+	{
+		foreach ( var entry in _transformVertices )
+		{
+			var rotation = basis * delta * basis.Inverse;
+			var position = entry.Value - origin;
+			position *= rotation;
+			position += origin;
+
+			var transform = entry.Key.Transform;
+			entry.Key.Component.Mesh.SetVertexPosition( entry.Key.Handle, transform.PointToLocal( position ) );
+		}
+	}
+
+	public override void Scale( Vector3 origin, Rotation basis, Vector3 scale )
+	{
+		foreach ( var entry in _transformVertices )
+		{
+			var position = (entry.Value - origin) * basis.Inverse;
+			position *= scale;
+			position *= basis;
+			position += origin;
+
+			var transform = entry.Key.Transform;
+			entry.Key.Component.Mesh.SetVertexPosition( entry.Key.Handle, transform.PointToLocal( position ) );
+		}
+	}
+
+	public override BBox CalculateLocalBounds()
+	{
+		return BBox.FromPoints( _vertexSelection
+			.Select( x => CalculateSelectionBasis().Inverse * x.PositionWorld ) );
+	}
 
 	public override void OnEnabled()
 	{
@@ -54,10 +123,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool
 
 	public override void OnUpdate()
 	{
-		if ( HasMoveMode )
-		{
-			Tool.CurrentMoveMode?.Update( this );
-		}
+		UpdateMoveMode();
 
 		if ( Gizmo.WasLeftMouseReleased && !Gizmo.Pressed.Any && Gizmo.Pressed.CursorDelta.Length < 1 )
 		{
@@ -93,6 +159,16 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool
 		}
 
 		DrawSelection();
+	}
+
+	void UpdateMoveMode()
+	{
+		if ( !HasMoveMode ) return;
+		if ( Tool is null ) return;
+		if ( Tool.MoveMode is null ) return;
+		if ( !Selection.OfType<IMeshElement>().Any() ) return;
+
+		Tool.MoveMode.Update( this );
 	}
 
 	void SelectElements()
@@ -204,6 +280,11 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool
 		}
 	}
 
+	public virtual List<MeshFace> ExtrudeSelection( Vector3 delta = default )
+	{
+		return [];
+	}
+
 	private void UpdateNudge()
 	{
 		if ( Gizmo.Pressed.Any || !Application.FocusWidget.IsValid() )
@@ -241,7 +322,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool
 		}
 		else
 		{
-			foreach ( var vertex in VertexSelection )
+			foreach ( var vertex in _vertexSelection )
 			{
 				var transform = vertex.Transform;
 				var position = vertex.Component.Mesh.GetVertexPosition( vertex.Handle );
@@ -255,7 +336,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool
 
 	public BBox CalculateSelectionBounds()
 	{
-		return BBox.FromPoints( VertexSelection
+		return BBox.FromPoints( _vertexSelection
 			.Where( x => x.IsValid() )
 			.Select( x => x.Transform.PointToWorld( x.Component.Mesh.GetVertexPosition( x.Handle ) ) ) );
 	}
@@ -268,27 +349,27 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool
 
 	public void CalculateSelectionVertices()
 	{
-		VertexSelection.Clear();
+		_vertexSelection.Clear();
 
 		foreach ( var face in Selection.OfType<MeshFace>() )
 		{
 			foreach ( var vertex in face.Component.Mesh.GetFaceVertices( face.Handle )
 				.Select( i => new MeshVertex( face.Component, i ) ) )
 			{
-				VertexSelection.Add( vertex );
+				_vertexSelection.Add( vertex );
 			}
 		}
 
 		foreach ( var vertex in Selection.OfType<MeshVertex>() )
 		{
-			VertexSelection.Add( vertex );
+			_vertexSelection.Add( vertex );
 		}
 
 		foreach ( var edge in Selection.OfType<MeshEdge>() )
 		{
 			edge.Component.Mesh.GetEdgeVertices( edge.Handle, out var hVertexA, out var hVertexB );
-			VertexSelection.Add( new MeshVertex( edge.Component, hVertexA ) );
-			VertexSelection.Add( new MeshVertex( edge.Component, hVertexB ) );
+			_vertexSelection.Add( new MeshVertex( edge.Component, hVertexA ) );
+			_vertexSelection.Add( new MeshVertex( edge.Component, hVertexB ) );
 		}
 
 		_meshSelectionDirty = false;
@@ -368,6 +449,65 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool
 					Selection.Add( element );
 			}
 		}
+	}
+
+	public override void StartDrag()
+	{
+		if ( _transformVertices.Count != 0 )
+			return;
+
+		var components = Selection.OfType<IMeshElement>()
+			.Select( x => x.Component )
+			.Distinct();
+
+		_undoScope ??= SceneEditorSession.Active.UndoScope( $"{(Gizmo.IsShiftPressed ? "Extrude" : "Move")} Selection" )
+			.WithComponentChanges( components )
+			.Push();
+
+		if ( Gizmo.IsShiftPressed )
+		{
+			_transformFaces = ExtrudeSelection();
+		}
+
+		foreach ( var vertex in _vertexSelection )
+		{
+			_transformVertices[vertex] = vertex.PositionWorld;
+		}
+	}
+
+	public override void UpdateDrag()
+	{
+		if ( _transformFaces is not null )
+		{
+			foreach ( var group in _transformFaces.GroupBy( x => x.Component ) )
+			{
+				var mesh = group.Key.Mesh;
+				var faces = group.Select( x => x.Handle ).ToArray();
+
+				foreach ( var face in faces )
+				{
+					mesh.TextureAlignToGrid( mesh.Transform, face );
+				}
+			}
+		}
+
+		var meshes = _transformVertices
+			.Select( x => x.Key.Component.Mesh )
+			.Distinct();
+
+		foreach ( var mesh in meshes )
+		{
+			mesh.ComputeFaceTextureCoordinatesFromParameters();
+		}
+	}
+
+	public override void EndDrag()
+	{
+		_transformVertices.Clear();
+		_transformFaces = null;
+
+		_undoScope?.Dispose();
+		_undoScope = null;
 	}
 
 	public MeshVertex GetClosestVertex( int radius )
@@ -515,6 +655,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool
 		return orientation;
 	}
 
+	[SkipHotload]
 	private static readonly Vector3[] FaceNormals =
 	{
 		new( 0, 0, 1 ),
@@ -525,6 +666,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool
 		new( 1, 0, 0 ),
 	};
 
+	[SkipHotload]
 	private static readonly Vector3[] FaceDownVectors =
 	{
 		new( 0, -1, 0 ),

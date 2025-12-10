@@ -67,14 +67,11 @@
     {
         flex-shrink: 0;
         flex-grow: 0;
+        width: 50px;
 
-        > textentry
+        > numberentry
         {
-            text-align: right;
-            width: 100%;
-            border-radius: 4px;
-            padding: 0;
-            min-height: 0px;
+            background-color: transparent;
 
             > .content-label
             {

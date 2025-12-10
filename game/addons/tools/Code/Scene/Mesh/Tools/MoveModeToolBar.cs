@@ -20,7 +20,7 @@ class MoveModeToolBar : Widget
 
 	void SetMode( string id )
 	{
-		_tool.CurrentMoveMode = EditorTypeLibrary.Create<MoveMode>( id );
+		_tool.MoveMode = EditorTypeLibrary.Create<MoveMode>( id );
 		Update();
 	}
 
@@ -72,9 +72,9 @@ file class MoveModeButton : Widget
 
 	public void Activate()
 	{
-		if ( _type.TargetType == _tool.CurrentMoveMode?.GetType() ) return;
+		if ( _type.TargetType == _tool.MoveMode?.GetType() ) return;
 
-		_tool.CurrentMoveMode = _type.Create<MoveMode>();
+		_tool.MoveMode = _type.Create<MoveMode>();
 	}
 
 	protected override void OnPaint()
@@ -82,7 +82,7 @@ file class MoveModeButton : Widget
 		Paint.Antialiasing = true;
 		Paint.TextAntialiasing = true;
 
-		if ( _type.TargetType == _tool.CurrentMoveMode?.GetType() )
+		if ( _type.TargetType == _tool.MoveMode?.GetType() )
 		{
 			Paint.ClearPen();
 			Paint.SetBrush( Theme.Blue );

@@ -19,16 +19,13 @@ public sealed class ScaleMode : MoveMode
 
 	protected override void OnUpdate( SelectionTool tool )
 	{
-		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
+		if ( !Gizmo.Pressed.Any )
 		{
-			EndDrag();
+			tool.EndDrag();
 
 			_moveDelta = default;
 			_basis = tool.CalculateSelectionBasis();
-
-			var bounds = BBox.FromPoints( tool.VertexSelection
-				.Select( x => _basis.Inverse * x.PositionWorld ) );
-
+			var bounds = tool.CalculateLocalBounds();
 			_size = bounds.Size;
 			_origin = tool.Pivot;
 
@@ -52,20 +49,9 @@ public sealed class ScaleMode : MoveMode
 					_size.z != 0 ? size.z / _size.z : 1
 				);
 
-				StartDrag( tool );
-
-				foreach ( var entry in TransformVertices )
-				{
-					var position = (entry.Value - _origin) * _basis.Inverse;
-					position *= scale;
-					position *= _basis;
-					position += _origin;
-
-					var transform = entry.Key.Transform;
-					entry.Key.Component.Mesh.SetVertexPosition( entry.Key.Handle, transform.PointToLocal( position ) );
-				}
-
-				UpdateDrag();
+				tool.StartDrag();
+				tool.Scale( _origin, _basis, scale );
+				tool.UpdateDrag();
 			}
 		}
 	}
