@@ -155,6 +155,18 @@
         ServerName = Output.ServerName;
         Settings = Package.GetMeta( "GameSettings", new List<GameSetting>() );
 
+        //
+        // Initialize GameSettings dictionary with defaults if missing
+        //
+
+        foreach ( var setting in Settings )
+        {
+            if ( !Output.GameSettings.ContainsKey( setting.Name ) )
+            {
+                Output.GameSettings[setting.Name] = setting.Default ?? string.Empty;
+            }
+        }
+
         SetMap( Output.MapIdent ?? Package.GetValue( "DefaultMap", "" ) );
     }
 
