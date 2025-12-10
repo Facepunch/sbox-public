@@ -22,9 +22,9 @@ public static partial class Sound
 	}
 
 	/// <summary>
-	/// The user's preference for their field of view
+	/// The user's preference for their master volume.
 	/// </summary>
-	[ConVar( "volume", ConVarFlags.Protected | ConVarFlags.Saved, Help = "Global volume output", Min = 0.0f, Max = 1.0f )]
+	[ConVar( "volume", ConVarFlags.Protected | ConVarFlags.Saved, Help = "Global volume output", Min = 0.0f )]
 	public static float MasterVolume { get; internal set; } = 1.0f;
 
 	[System.Obsolete]
