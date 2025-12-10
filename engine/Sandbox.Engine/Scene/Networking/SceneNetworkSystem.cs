@@ -559,20 +559,23 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 				system.LocalSnapshotState.RemoveConnection( client.Id );
 			}
 
-			Action queue = default;
+			if ( Networking.IsHost )
+			{
+				Action queue = default;
 
-			foreach ( var c in Game.ActiveScene.GetAll<Component.INetworkListener>() )
-			{
-				queue += () => c.OnDisconnected( client );
-			}
+				foreach ( var c in Game.ActiveScene.GetAll<Component.INetworkListener>() )
+				{
+					queue += () => c.OnDisconnected( client );
+				}
 
-			try
-			{
-				queue?.Invoke();
-			}
-			catch ( Exception e )
-			{
-				Log.Error( e, "Exception when calling INetworkListener.OnDisconnected" );
+				try
+				{
+					queue?.Invoke();
+				}
+				catch ( Exception e )
+				{
+					Log.Error( e, "Exception when calling INetworkListener.OnDisconnected" );
+				}
 			}
 		}
 
