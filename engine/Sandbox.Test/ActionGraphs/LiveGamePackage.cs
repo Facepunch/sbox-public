@@ -24,7 +24,9 @@ public class LiveGamePackage
 	)]
 	public void AssertNoGraphErrorsInScene( string packageName, long? version, string scenePath, int graphCount, params string[] ignoreGuids )
 	{
-		AssetDownloadCache.Initialize( $"{Environment.CurrentDirectory}/.source2/package_manager_folder" );
+		var dir = $"{Environment.CurrentDirectory}/.source2/test_download_cache/actiongraph";
+
+		AssetDownloadCache.Initialize( dir );
 
 		PackageManager.UnmountAll();
 		// Let's make sure we have base content mounted

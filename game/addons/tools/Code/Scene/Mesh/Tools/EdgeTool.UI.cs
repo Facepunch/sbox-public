@@ -299,7 +299,7 @@ partial class EdgeTool
 			}
 		}
 
-		[Shortcut( "editor.delete", "DEL", typeof( SceneViewportWidget ) )]
+		[Shortcut( "editor.delete", "DEL", typeof( SceneDock ) )]
 		private void DeleteSelection()
 		{
 			var groups = _edges.GroupBy( face => face.Component );

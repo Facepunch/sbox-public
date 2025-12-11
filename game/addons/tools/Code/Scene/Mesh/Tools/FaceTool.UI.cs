@@ -112,7 +112,7 @@ partial class FaceTool
 			}
 		}
 
-		[Shortcut( "editor.delete", "DEL", typeof( SceneViewportWidget ) )]
+		[Shortcut( "editor.delete", "DEL", typeof( SceneDock ) )]
 		private void DeleteSelection()
 		{
 			var groups = _faces.GroupBy( face => face.Component );

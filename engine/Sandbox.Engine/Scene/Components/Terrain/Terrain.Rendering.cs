@@ -46,7 +46,7 @@ public partial class Terrain
 		_so.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
 
 		// If we have no textures, push a grid texture (SUCKS)
-		_so.Attributes.SetCombo( "D_GRID", Storage.Materials.Count == 0 );
+		_so.Attributes.SetCombo( "D_GRID", Storage?.Materials.Count == 0 );
 
 		_clipMapLodLevels = ClipMapLodLevels;
 		_clipMapLodExtentTexels = ClipMapLodExtentTexels;
@@ -70,13 +70,13 @@ public partial class Terrain
 		public float HeightBlendSharpness;
 	}
 
-	[StructLayout( LayoutKind.Sequential, Pack = 0 )]
+	[StructLayout( LayoutKind.Sequential )]
 	private struct GPUTerrainMaterial
 	{
 		public int BCRTextureID;
 		public int NHOTextureID;
 		public float UVScale;
-		public float UVRotation;
+		public TerrainFlags Flags;
 		public float Metalness;
 		public float HeightBlendStrength;
 		public float NormalStrength;
@@ -153,11 +153,11 @@ public partial class Terrain
 				BCRTextureID = layer?.BCRTexture?.Index ?? 0,
 				NHOTextureID = layer?.NHOTexture?.Index ?? 0,
 				UVScale = 1.0f / (layer?.UVScale ?? 1.0f),
-				UVRotation = layer?.UVRotation ?? 1.0f,
 				Metalness = layer?.Metalness ?? 0.0f,
 				NormalStrength = 1.0f / (layer?.NormalStrength ?? 1.0f),
 				HeightBlendStrength = layer?.HeightBlendStrength ?? 1.0f,
 				DisplacementScale = layer?.DisplacementScale ?? 0.0f,
+				Flags = layer?.Flags ?? TerrainFlags.None,
 			};
 		}
 
@@ -167,6 +167,6 @@ public partial class Terrain
 		Scene.RenderAttributes.Set( "TerrainMaterials", MaterialsBuffer );
 
 		// If we have no textures, push a grid texture (SUCKS)
-		_so.Attributes.SetCombo( "D_GRID", Storage.Materials.Count == 0 );
+		_so.Attributes.SetCombo( "D_GRID", Storage?.Materials.Count == 0 );
 	}
 }

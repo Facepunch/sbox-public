@@ -9,7 +9,7 @@
 public sealed class WheelJoint : Joint
 {
 	/// <inheritdoc cref="Physics.WheelJoint.EnableSuspensionLimit"/>
-	[Property, ToggleGroup( "EnableSuspensionLimit", Label = "Suspension Limit" ), ShowIf( nameof( EnableSuspension ), true )]
+	[Property, ToggleGroup( "EnableSuspensionLimit", Label = "Suspension Limit" ), ShowIf( nameof( EnableSuspension ), true ), ClientEditable]
 	public bool EnableSuspensionLimit
 	{
 		get;
@@ -28,7 +28,7 @@ public sealed class WheelJoint : Joint
 	}
 
 	/// <inheritdoc cref="Physics.WheelJoint.SuspensionLimits"/>
-	[Property, Group( "EnableSuspensionLimit" ), Title( "Translation Limits" ), Range( -25, 25 ), ShowIf( nameof( EnableSuspension ), true )]
+	[Property, Group( "EnableSuspensionLimit" ), Title( "Translation Limits" ), Range( -25, 25 ), ShowIf( nameof( EnableSuspension ), true ), ClientEditable]
 	public Vector2 SuspensionLimits
 	{
 		get;
@@ -47,7 +47,7 @@ public sealed class WheelJoint : Joint
 	}
 
 	/// <inheritdoc cref="Physics.WheelJoint.EnableSpinMotor"/>
-	[Property, ToggleGroup( "EnableSpinMotor", Label = "Motor" )]
+	[Property, ToggleGroup( "EnableSpinMotor", Label = "Motor" ), ClientEditable]
 	public bool EnableSpinMotor
 	{
 		get;
@@ -66,7 +66,7 @@ public sealed class WheelJoint : Joint
 	}
 
 	/// <inheritdoc cref="Physics.WheelJoint.MaxSpinTorque"/>
-	[Property, Group( "EnableSpinMotor" ), Title( "Max Torque" )]
+	[Property, Group( "EnableSpinMotor" ), Title( "Max Torque" ), ClientEditable]
 	public float MaxSpinTorque
 	{
 		get;
@@ -85,7 +85,7 @@ public sealed class WheelJoint : Joint
 	}
 
 	/// <inheritdoc cref="Physics.WheelJoint.SpinMotorSpeed"/>
-	[Property, Group( "EnableSpinMotor" ), Title( "Speed" )]
+	[Property, Group( "EnableSpinMotor" ), Title( "Speed" ), ClientEditable]
 	public float SpinMotorSpeed
 	{
 		get;
@@ -104,7 +104,7 @@ public sealed class WheelJoint : Joint
 	}
 
 	/// <inheritdoc cref="Physics.WheelJoint.EnableSuspension"/>
-	[Property, ToggleGroup( "EnableSuspension", Label = "Suspension" )]
+	[Property, ToggleGroup( "EnableSuspension", Label = "Suspension" ), ClientEditable]
 	public bool EnableSuspension
 	{
 		get;
@@ -142,7 +142,7 @@ public sealed class WheelJoint : Joint
 	}
 
 	/// <inheritdoc cref="Physics.WheelJoint.SuspensionHertz"/>
-	[Property, Group( "EnableSuspension" ), Title( "Hertz" ), Range( 0, 30 )]
+	[Property, Group( "EnableSuspension" ), Title( "Hertz" ), Range( 0, 30 ), Step( 1 ), ClientEditable]
 	public float SuspensionHertz
 	{
 		get;
@@ -161,7 +161,7 @@ public sealed class WheelJoint : Joint
 	} = 10.0f;
 
 	/// <inheritdoc cref="Physics.WheelJoint.SuspensionDampingRatio"/>
-	[Property, Group( "EnableSuspension" ), Title( "Damping" ), Range( 0, 2 )]
+	[Property, Group( "EnableSuspension" ), Title( "Damping" ), Range( 0, 2 ), Step( 0.1f ), ClientEditable]
 	public float SuspensionDampingRatio
 	{
 		get;

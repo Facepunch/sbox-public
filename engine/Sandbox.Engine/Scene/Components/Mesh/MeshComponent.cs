@@ -18,7 +18,7 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 		Hull
 	}
 
-	[Property, Order( 0 )]
+	[Property, Hide]
 	public PolygonMesh Mesh
 	{
 		get;

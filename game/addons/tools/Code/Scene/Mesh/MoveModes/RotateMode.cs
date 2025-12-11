@@ -18,9 +18,9 @@ public sealed class RotateMode : MoveMode
 
 	protected override void OnUpdate( SelectionTool tool )
 	{
-		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
+		if ( !Gizmo.Pressed.Any )
 		{
-			EndDrag();
+			tool.EndDrag();
 
 			_moveDelta = default;
 			_basis = tool.CalculateSelectionBasis();
@@ -35,22 +35,11 @@ public sealed class RotateMode : MoveMode
 			{
 				_moveDelta += angleDelta;
 
-				StartDrag( tool );
-
 				var snapDelta = Gizmo.Snap( _moveDelta, _moveDelta );
 
-				foreach ( var entry in TransformVertices )
-				{
-					var rotation = _basis * snapDelta * _basis.Inverse;
-					var position = entry.Value - _origin;
-					position *= rotation;
-					position += _origin;
-
-					var transform = entry.Key.Transform;
-					entry.Key.Component.Mesh.SetVertexPosition( entry.Key.Handle, transform.PointToLocal( position ) );
-				}
-
-				UpdateDrag();
+				tool.StartDrag();
+				tool.Rotate( _origin, _basis, snapDelta );
+				tool.UpdateDrag();
 			}
 		}
 	}

@@ -17,7 +17,7 @@ public sealed class PivotMode : MoveMode
 	{
 		var origin = tool.Pivot;
 
-		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
+		if ( !Gizmo.Pressed.Any )
 		{
 			_pivot = origin;
 			_basis = tool.CalculateSelectionBasis();

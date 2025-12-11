@@ -5,6 +5,7 @@
 // Not stable, shit will change and custom shaders using this API will break until I'm satisfied.
 // But they will break for good reason and I will tell you why and how to update.
 //
+// 12/9/25: Added NoTile Flag
 // 23/07/24: Initial global structured buffers
 //
 
@@ -31,16 +32,26 @@ struct TerrainStruct
     float HeightBlendSharpness;
 };
 
+enum TerrainFlags
+{
+    NoTile = 1 // (1 << 0)
+};
+
 struct TerrainMaterial
 {
     int bcr_texid;
     int nho_texid;
     float uvscale;
-    float uvrotation;
+    uint flags;
     float metalness;
     float heightstrength;
     float normalstrength;
     float displacementscale;
+
+    bool HasFlag( TerrainFlags flag )
+    {
+        return (flags & flag) != 0;
+    }
 };
 
 SamplerState g_sBilinearBorder < Filter( BILINEAR ); AddressU( BORDER ); AddressV( BORDER ); >;
@@ -71,7 +82,7 @@ class Terrain
 
 // Get UV with per-tile UV offset to reduce visible tiling
 // Works by offsetting UVs within each tile using a hash of the tile coordinate
-float2 Terrain_SampleSeamlessUV( float2 uv )
+float2 Terrain_SampleSeamlessUV( float2 uv, out float2x2 uvAngle )
 {
     float2 tileCoord = floor( uv );
     float2 localUV = frac( uv );
@@ -87,11 +98,20 @@ float2 Terrain_SampleSeamlessUV( float2 uv )
     float sinA = sin(angle);
     float2x2 rot = float2x2(cosA, -sinA, sinA, cosA);
 
+    // Output rotation matrix 
+    uvAngle = rot;
+
     // Rotate around center
     localUV = mul(rot, localUV - 0.5) + 0.5;
 
     // Apply random offset
     return tileCoord + frac(localUV + hash);
+}
+
+float2 Terrain_SampleSeamlessUV( float2 uv ) 
+{
+    float2x2 dummy;
+    return Terrain_SampleSeamlessUV( uv, dummy ); 
 }
 
 //

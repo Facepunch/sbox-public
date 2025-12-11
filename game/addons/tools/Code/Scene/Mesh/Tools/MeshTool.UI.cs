@@ -35,4 +35,7 @@ file class MeshToolShortcutsWidget : Widget
 
 	[Shortcut( "tools.texture-tool", "4", typeof( SceneDock ) )]
 	public void ActivateTextureTool() => EditorToolManager.SetSubTool( nameof( TextureTool ) );
+
+	[Shortcut( "tools.mesh-selection", "5", typeof( SceneDock ) )]
+	public void ActivateMeshSelection() => EditorToolManager.SetSubTool( nameof( MeshSelection ) );
 }

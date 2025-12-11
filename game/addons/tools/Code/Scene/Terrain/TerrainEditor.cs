@@ -54,119 +54,111 @@ public class TerrainEditorTool : EditorTool
 	/// </summary>
 	public override Widget CreateToolSidebar()
 	{
-		var sidebar = new Widget( null );
-		sidebar.Name = "TerrainToolSidebar";
-		sidebar.Layout = Layout.Column();
-		sidebar.Layout.Alignment = TextFlag.LeftTop;
-		sidebar.Layout.Spacing = 8;
-		sidebar.Layout.Margin = 8;
-		sidebar.MinimumWidth = 250;
-		sidebar.VerticalSizeMode = SizeMode.Expand;
-		sidebar.MaximumWidth = 300;
+		var sidebar = new ToolSidebarWidget();
+		sidebar.AddTitle( "Brush Settings", "brush" );
 
-		// Brush settings section at the top (always visible)
-		var brushSection = sidebar.Layout.Add( new Widget() );
-		brushSection.Layout = Layout.Column();
-		brushSection.Layout.Spacing = 2;
-		brushSection.MaximumHeight = 80; // Limit the height of brush section
-		brushSection.VerticalSizeMode = SizeMode.CanShrink;
-
-		var brushTitle = brushSection.Layout.Add( new Label.Header( "Brush Settings" ) );
-
-		// Brush controls row
-		var brushRow = brushSection.Layout.Add( new Widget() );
-		brushRow.Layout = Layout.Row();
-		brushRow.Layout.Spacing = 4;
-
-		// Brush preview button
-		var brushPreview = new BrushPreviewWidget( brushRow );
-		brushRow.Layout.Add( brushPreview );
-
-		// Brush property controls
-		var brushControls = brushRow.Layout.Add( new Widget() );
-		brushControls.Layout = Layout.Column();
-		brushControls.Layout.Spacing = 2;
-
-		// Size slider
-		var sizeRow = brushControls.Layout.Add( new Widget() );
-		sizeRow.Layout = Layout.Row();
-		sizeRow.Layout.Spacing = 2;
-
-		var sizeLabel = sizeRow.Layout.Add( new Label( "Size" ) );
-		sizeLabel.MinimumWidth = 40;
-
-		var sizeSlider = new FloatSlider( sizeRow );
-		sizeSlider.MinimumWidth = 100;
-		sizeSlider.Minimum = 8;
-		sizeSlider.Maximum = 2048;
-		sizeSlider.Step = 1;
-		sizeSlider.Value = BrushSettings.Size;
-		sizeSlider.OnValueEdited = () => BrushSettings.Size = (int)sizeSlider.Value;
-		sizeRow.Layout.Add( sizeSlider );
-
-		var sizeValue = sizeRow.Layout.Add( new Label( BrushSettings.Size.ToString() ) );
-		sizeValue.MinimumWidth = 35;
-		sizeSlider.OnValueEdited += () => sizeValue.Text = ((int)sizeSlider.Value).ToString();
-
-		// Opacity slider
-		var opacityRow = brushControls.Layout.Add( new Widget() );
-		opacityRow.Layout = Layout.Row();
-		opacityRow.Layout.Spacing = 2;
-
-		var opacityLabel = opacityRow.Layout.Add( new Label( "Opacity" ) );
-		opacityLabel.MinimumWidth = 40;
-
-		var opacitySlider = new FloatSlider( opacityRow );
-		opacitySlider.MinimumWidth = 100;
-		opacitySlider.Minimum = 0;
-		opacitySlider.Maximum = 1;
-		opacitySlider.Step = 0.01f;
-		opacitySlider.Value = BrushSettings.Opacity;
-		opacitySlider.OnValueEdited = () => BrushSettings.Opacity = opacitySlider.Value;
-		opacityRow.Layout.Add( opacitySlider );
-
-		var opacityValue = opacityRow.Layout.Add( new Label( BrushSettings.Opacity.ToString( "0.00" ) ) );
-		opacityValue.MinimumWidth = 35;
-		opacitySlider.OnValueEdited += () => opacityValue.Text = opacitySlider.Value.ToString( "0.00" );
-
-		var tabs = new TabWidget( sidebar );
-		tabs.StateCookie = "TerrainEditorTool.Tabs";
-
-		// Create named pages so we can hook into tab changes
-		var basePage = new Widget();
-		var overlayPage = new Widget();
-
-		tabs.AddPage( "Base", "layers", basePage );
-		tabs.AddPage( "Overlay", "landscape", overlayPage );
-
-		// Hook into tab selection changes
-		var tabBar = tabs.Children.OfType<SegmentedControl>().FirstOrDefault();
-		tabBar.OnSelectedChanged += ( selectedName ) =>
+		// Brush Type
 		{
-			PaintTextureTool.ActiveLayer = selectedName == "Base" ? TerrainLayer.Base : TerrainLayer.Overlay;
-		};
+			var group = sidebar.AddGroup( "Brush Type" );
 
-		tabs.VerticalSizeMode = SizeMode.CanShrink;
-		tabs.MaximumHeight = 40;
-		sidebar.Layout.Add( tabs );
+			group.Add( new BrushPreviewWidget( sidebar ) );
+		}
+
+		// Brush Properties
+		{
+			var group = sidebar.AddGroup( "Brush Properties" );
+
+			var so = BrushSettings.GetSerialized();
+			group.Add( ControlSheetRow.Create( so.GetProperty( nameof( BrushSettings.Size ) ) ) );
+			group.Add( ControlSheetRow.Create( so.GetProperty( nameof( BrushSettings.Opacity ) ) ) );
+		}
+
+		// Active Layer
+		{
+			var group = sidebar.AddGroup( "Active Layer" );
+
+			var tabs = new TabWidget( sidebar );
+			tabs.MaximumHeight = 40;
+			tabs.StateCookie = "TerrainEditorTool.Tabs";
+
+			// Create named pages so we can hook into tab changes
+			var basePage = new Widget();
+			var overlayPage = new Widget();
+
+			tabs.AddPage( "Base", "layers", basePage );
+			tabs.AddPage( "Overlay", "landscape", overlayPage );
+
+			// Hook into tab selection changes
+			var tabBar = tabs.Children.OfType<SegmentedControl>().FirstOrDefault();
+			tabBar.OnSelectedChanged += ( selectedName ) =>
+			{
+				PaintTextureTool.ActiveLayer = selectedName == "Base" ? TerrainLayer.Base : TerrainLayer.Overlay;
+			};
+
+			group.Add( tabs );
+		}
 
 		// Material selection
-		var materialSection = sidebar.Layout.AddColumn( 1 );
-		materialSection.Spacing = 4;
-		materialSection.Margin = new Sandbox.UI.Margin( 0, 8, 0, 0 );
-
-		var materialTitle = materialSection.Add( new Label.Header( "Materials" ) );
-
 		var terrain = GetSelectedComponent<Terrain>();
-		if ( terrain.IsValid() && terrain.Storage?.Materials is not null )
+		if ( terrain.IsValid() )
 		{
+			var group = sidebar.AddGroup( "Materials", SizeMode.Flexible );
+
 			var materialList = new TerrainMaterialList( sidebar, terrain );
-			materialList.ItemSize += 48;
+			materialList.ItemSize += 24;
 			materialList.BuildItems();
-			materialSection.Add( materialList, 1 );
+			group.Add( materialList );
+
+			var hlayout = group.AddRow();
+			hlayout.Spacing = 8;
+			hlayout.AddStretchCell();
+
+			var newTerrainMat = new Button( "New Terrain Material" );
+			newTerrainMat.Clicked += () => NewTerrainMaterial( terrain, materialList );
+
+			var cloudMats = new Button( "Browse", "cloud" );
+			cloudMats.Clicked += () =>
+			{
+				var picker = AssetPicker.Create( null, AssetType.FromExtension( "tmat" ) );
+				picker.OnAssetPicked = x =>
+				{
+					var material = x.First().LoadResource<TerrainMaterial>();
+					terrain.Storage.Materials.Add( material );
+					terrain.UpdateMaterialsBuffer();
+					materialList?.BuildItems();
+				};
+				picker.Show();
+			};
+
+			hlayout.Add( cloudMats );
+			hlayout.Add( newTerrainMat, 1 );
+		}
+		else
+		{
+			sidebar.Layout.AddStretchCell();
 		}
 
 		return sidebar;
+	}
+
+	static void NewTerrainMaterial( Terrain terrain, TerrainMaterialList materialList )
+	{
+		var filepath = EditorUtility.SaveFileDialog( "Create Terrain Material", "tmat", $"{Project.Current.GetAssetsPath()}/" );
+		if ( filepath is null ) return;
+
+		var asset = AssetSystem.CreateResource( "tmat", filepath );
+
+		if ( !asset.TryLoadResource<TerrainMaterial>( out var material ) )
+			return;
+
+		asset.Compile( true );
+		MainAssetBrowser.Instance?.Local.UpdateAssetList();
+
+		terrain.Storage.Materials.Add( material );
+		terrain.UpdateMaterialsBuffer();
+		materialList.BuildItems();
+
+		asset.OpenInEditor();
 	}
 
 	public void DrawBrushPreview( Transform transform )

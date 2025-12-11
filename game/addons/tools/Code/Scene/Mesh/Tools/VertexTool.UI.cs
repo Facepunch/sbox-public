@@ -56,42 +56,47 @@ partial class VertexTool
 			_components = _vertexGroups.Select( x => x.Key ).ToList();
 
 			{
-				var row = new Widget { Layout = Layout.Row() };
-				row.Layout.Spacing = 4;
+				var group = AddGroup( "Operations" );
 
-				CreateButton( "Merge", "merge", "mesh.merge", Merge, _vertices.Length > 1, row.Layout );
+				{
+					var row = new Widget { Layout = Layout.Row() };
+					row.Layout.Spacing = 4;
 
-				var mergeObject = mergeProperties.GetSerialized();
-				var range = ControlWidget.Create( mergeObject.GetProperty( nameof( MergeProperties.Range ) ) );
-				var distance = ControlWidget.Create( mergeObject.GetProperty( nameof( MergeProperties.Distance ) ) );
-				distance.HorizontalSizeMode = SizeMode.Expand;
+					CreateButton( "Merge", "merge", "mesh.merge", Merge, _vertices.Length > 1, row.Layout );
 
-				range.FixedHeight = Theme.ControlHeight;
-				distance.FixedHeight = Theme.ControlHeight;
+					var mergeObject = mergeProperties.GetSerialized();
+					var range = ControlWidget.Create( mergeObject.GetProperty( nameof( MergeProperties.Range ) ) );
+					var distance = ControlWidget.Create( mergeObject.GetProperty( nameof( MergeProperties.Distance ) ) );
+					distance.HorizontalSizeMode = SizeMode.Expand;
 
-				row.Layout.Add( range );
-				row.Layout.Add( distance );
+					range.FixedHeight = Theme.ControlHeight;
+					distance.FixedHeight = Theme.ControlHeight;
 
-				Layout.Add( row );
-			}
-			{
-				var row = new Widget { Layout = Layout.Row() };
-				row.Layout.Spacing = 4;
+					row.Layout.Add( range );
+					row.Layout.Add( distance );
 
-				CreateButton( "Snap To Vertex", "gps_fixed", "mesh.snap_to_vertex", SnapToVertex, _vertices.Length > 1, row.Layout );
-				CreateButton( "Weld UVs", "scatter_plot", "mesh.vertex-weld-uvs", WeldUVs, _vertices.Length > 0, row.Layout );
-				CreateButton( "Bevel", "straighten", "mesh.bevel", Bevel, _vertices.Length > 0, row.Layout );
-				CreateButton( "Connect", "link", "mesh.connect", Connect, _vertices.Length > 1, row.Layout );
+					group.Add( row );
+				}
 
-				row.Layout.AddStretchCell();
+				{
+					var row = new Widget { Layout = Layout.Row() };
+					row.Layout.Spacing = 4;
 
-				Layout.Add( row );
+					CreateButton( "Snap To Vertex", "gps_fixed", "mesh.snap_to_vertex", SnapToVertex, _vertices.Length > 1, row.Layout );
+					CreateButton( "Weld UVs", "scatter_plot", "mesh.vertex-weld-uvs", WeldUVs, _vertices.Length > 0, row.Layout );
+					CreateButton( "Bevel", "straighten", "mesh.bevel", Bevel, _vertices.Length > 0, row.Layout );
+					CreateButton( "Connect", "link", "mesh.connect", Connect, _vertices.Length > 1, row.Layout );
+
+					row.Layout.AddStretchCell();
+
+					group.Add( row );
+				}
 			}
 
 			Layout.AddStretchCell();
 		}
 
-		[Shortcut( "mesh.connect", "V", typeof( SceneViewportWidget ) )]
+		[Shortcut( "mesh.connect", "V", typeof( SceneDock ) )]
 		private void Connect()
 		{
 			if ( _vertices.Length < 2 )
@@ -273,7 +278,7 @@ partial class VertexTool
 			}
 		}
 
-		[Shortcut( "editor.delete", "DEL", typeof( SceneViewportWidget ) )]
+		[Shortcut( "editor.delete", "DEL", typeof( SceneDock ) )]
 		private void DeleteSelection()
 		{
 			var groups = _vertices.GroupBy( face => face.Component );

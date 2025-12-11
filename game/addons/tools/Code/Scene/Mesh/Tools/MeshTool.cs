@@ -12,11 +12,12 @@ public partial class MeshTool : EditorTool
 {
 	public Material ActiveMaterial { get; set; } = Material.Load( "materials/dev/reflectivity_30.vmat" );
 
-	public MoveMode CurrentMoveMode { get; set; }
+	public MoveMode MoveMode { get; set; }
 
 	public override IEnumerable<EditorTool> GetSubtools()
 	{
 		yield return new BlockTool( this );
+		yield return new MeshSelection( this );
 		yield return new VertexTool( this );
 		yield return new EdgeTool( this );
 		yield return new FaceTool( this );
@@ -32,7 +33,12 @@ public partial class MeshTool : EditorTool
 
 		Selection.Clear();
 
-		CurrentMoveMode = EditorTypeLibrary.Create<MoveMode>( "PositionMode" );
+		MoveMode = EditorTypeLibrary.Create<MoveMode>( "PositionMode" );
+	}
+
+	public override void OnSelectionChanged()
+	{
+		CurrentTool?.OnSelectionChanged();
 	}
 
 	[Shortcut( "tools.mesh-tool", "m", typeof( SceneDock ) )]

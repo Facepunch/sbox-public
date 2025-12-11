@@ -106,6 +106,9 @@ internal partial class GameInstance : IGameInstance
 
 		_packageAssembly = null;
 
+		// Tear down the active scene while content is still mounted so native handles remain valid during cleanup
+		Game.Shutdown();
+
 		GlobalContext.Current.UISystem.Clear();
 
 		if ( activePackage != null && !Application.IsStandalone )
@@ -122,8 +125,6 @@ internal partial class GameInstance : IGameInstance
 		PackageManager.UnmountTagged( "game" );
 
 		GameInstanceDll.Current.Shutdown( this );
-
-		Game.Shutdown();
 
 		// If we were running a benchmark, leave the game
 		if ( Application.IsBenchmark )
