@@ -338,10 +338,6 @@ file class ViewportToolBar : Widget
 
 			toolWidget.Focus();
 		}
-		else
-		{
-			SceneViewportWidget.LastSelected?.Focus();
-		}
 
 		// Update footer
 		var footerWidget = subTool?.CreateToolFooter() ?? rootTool?.CreateToolFooter();
