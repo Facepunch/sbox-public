@@ -34,10 +34,11 @@ public class ToolSidebarWidget : Widget
 		var titleLabel = titleRow.Add( new Label.Header( title ), 1 );
 	}
 
-	public Layout AddGroup( string title )
+	public Layout AddGroup( string title, SizeMode sizeMode = SizeMode.CanShrink )
 	{
 		var group = new SidebarGroupWidget();
 		group.Title = title;
+		group.VerticalSizeMode = sizeMode;
 
 		Layout.Add( group );
 

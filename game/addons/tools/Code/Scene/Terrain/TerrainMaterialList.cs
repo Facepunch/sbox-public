@@ -19,7 +19,7 @@ public class TerrainMaterialList : ListView
 
 		ItemSize = new Vector2( 68, 68 + 20 );
 		ItemAlign = Sandbox.UI.Align.FlexStart;
-		Margin = 0;
+		Margin = 8;
 
 		Terrain = terrain;
 

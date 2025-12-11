@@ -456,9 +456,11 @@ public partial class SceneViewportWidget : Widget
 
 		if ( IsActiveWindow ) // don't update camera input if the editor window isn't active
 		{
-			var rightMouse = Application.MouseButtons.HasFlag( MouseButtons.Right );
-			var modifiers = Application.KeyboardModifiers != KeyboardModifiers.None;
-			blockCamera = modifiers && (!blockCamera ? !rightMouse : blockCamera);
+			// Block camera input when shift or ctrl was down first and right mouse pressed.
+			var rightDown = Application.MouseButtons.HasFlag( MouseButtons.Right );
+			var modifiers = Application.KeyboardModifiers;
+			var modifiersDown = modifiers.Contains( KeyboardModifiers.Shift ) || modifiers.HasFlag( KeyboardModifiers.Ctrl );
+			blockCamera = !blockCamera ? modifiersDown && !rightDown : modifiersDown;
 
 			_activeCamera.OrthographicHeight = State.CameraOrthoHeight;
 

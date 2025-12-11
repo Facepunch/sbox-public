@@ -27,6 +27,9 @@ public class TestInit
 
 		Api.Init();
 
+		// Usually this, is created by native source 2, we have to do it manually here, as we don't init native source2 for this assembly.
+		System.IO.Directory.CreateDirectory( ".source2/" );
+
 		Application.IsUnitTest = true;
 		GlobalContext.Current.TypeLibrary = new TypeLibrary();
 
