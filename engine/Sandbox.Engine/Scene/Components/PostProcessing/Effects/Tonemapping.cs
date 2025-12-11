@@ -35,7 +35,8 @@ public class Tonemapping : BasePostProcess<Tonemapping>
 		/// </summary>
 		Linear,
 		/// <summary>
-		/// Default AgX implementation
+		/// Similar to ACES - very realistic, but handles lower and higher brightness ranges better.
+		/// Uses the Punchy AgX look.
 		/// </summary>
 		AgX
 	}

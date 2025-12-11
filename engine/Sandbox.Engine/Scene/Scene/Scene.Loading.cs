@@ -76,7 +76,6 @@ public partial class Scene : GameObject
 			{
 				LoadingScreen.Subtitle = "Generating NavMesh..";
 
-				NavMesh.SetDirty();
 				await NavMesh.Generate( PhysicsWorld );
 
 				LoadingScreen.Subtitle = "Loading Finished..";

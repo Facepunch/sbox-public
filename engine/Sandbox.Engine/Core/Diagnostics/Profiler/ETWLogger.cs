@@ -40,7 +40,17 @@ internal class EtwLogger
 			WorkingDirectory = Path.Combine( Environment.CurrentDirectory, "bin", "managed" )
 		};
 
-		var profilerProcess = Process.Start( startInfo );
+		try
+		{
+			Process.Start( startInfo );
+		}
+		catch
+		{
+			CleanUp();
+
+			throw;
+		}
+
 		_pipeServer.WaitForConnection();
 
 		_writer = new StreamWriter( _pipeServer ) { AutoFlush = true };

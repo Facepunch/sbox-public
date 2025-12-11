@@ -22,7 +22,7 @@ partial class SceneNode : GameObjectNode
 		if ( item.Selected )
 		{
 			Paint.ClearPen();
-			Paint.SetBrush( Theme.Blue.WithAlpha( 0.4f ) );
+			Paint.SetBrush( Theme.SelectedBackground );
 			Paint.DrawRect( fullSpanRect );
 
 			Paint.SetPen( Theme.TextControl );

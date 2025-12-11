@@ -498,6 +498,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			return gibs;
 
 		var rb = Components.Get<Rigidbody>();
+		var mr = Components.Get<ModelRenderer>();
 
 		gibs.EnsureCapacity( breaklist.Length );
 
@@ -531,6 +532,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			c.FadeTime = breakModel.FadeTime;
 			c.Model = model;
 			c.Enabled = true;
+			c.Tint = mr?.Tint ?? c.Tint;
 
 			gibs.Add( c );
 
@@ -550,8 +552,14 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 			if ( phys is not null && rb is not null )
 			{
-				phys.Velocity = rb.Velocity;
-				phys.AngularVelocity = rb.AngularVelocity;
+				// Compute linear velocity at the gibs spawn point.
+				var velocity = rb.PreVelocity + Vector3.Cross( rb.PreAngularVelocity, phys.MassCenter - rb.MassCenter );
+
+				// Apply 50% energy loss.
+				velocity *= 0.5f;
+
+				phys.Velocity = velocity;
+				phys.AngularVelocity = rb.PreAngularVelocity;
 			}
 		}
 

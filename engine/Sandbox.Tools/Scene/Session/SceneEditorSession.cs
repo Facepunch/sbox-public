@@ -1,6 +1,7 @@
 ﻿using Facepunch.ActionGraphs;
 using Sandbox.ActionGraphs;
 using System;
+using System.IO;
 
 namespace Editor;
 
@@ -75,10 +76,10 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		SceneDock = EditorTypeLibrary.Create<Widget>( "SceneDock", new object[] { this } );
 		SceneDock.Name = $"SceneDock:{(Scene.Source?.ResourcePath ?? "untitled")}";
 
-		SetDockProperties();
-
 		SceneDock.Parent = EditorWindow;
 		SceneDock.Visible = true;
+
+		UpdateEditorTitle();
 
 		Dock();
 	}
@@ -204,25 +205,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		}
 	}
 
-	[EditorEvent.Frame]
-	private void SetDockProperties()
-	{
-		if ( !SceneDock.IsValid() )
-			return;
-
-		var title = Scene.Name.Trim();
-
-		if ( IsPrefabSession )
-		{
-			SceneDock.SetWindowIcon( "home_repair_service" );
-			SceneDock.WindowTitle = $"Prefab: {title}";
-		}
-		else
-		{
-			SceneDock.SetWindowIcon( "grid_4x4" );
-		}
-	}
-
 	internal void UpdateEditorTitle()
 	{
 		if ( !SceneDock.IsValid() )
@@ -235,8 +217,18 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 		if ( SceneDock is not null )
 		{
-			SceneDock.WindowTitle = name;
 			SceneDock.Name = $"SceneDock:{(Scene.Source?.ResourcePath ?? "untitled")}";
+
+			if ( IsPrefabSession )
+			{
+				SceneDock.SetWindowIcon( "home_repair_service" );
+				SceneDock.WindowTitle = $"Prefab: {name}";
+			}
+			else
+			{
+				SceneDock.SetWindowIcon( "grid_4x4" );
+				SceneDock.WindowTitle = name;
+			}
 		}
 	}
 
@@ -314,62 +306,49 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	public void Save( bool saveAs )
 	{
 		bool isPrefab = Scene is PrefabScene;
-		var saveLocation = string.Empty;
+		string extension = isPrefab ? "prefab" : "scene";
+		string fileType = isPrefab ? "Prefab" : "Scene";
 
-		if ( Scene.Source is not null && AssetSystem.FindByPath( Scene.Source.ResourcePath ) is Asset sourceAsset )
+		var saveLocation = string.Empty;
+		if ( !saveAs && Scene.Source is not null && AssetSystem.FindByPath( Scene.Source.ResourcePath ) is Asset sourceAsset )
 		{
 			saveLocation = sourceAsset.AbsolutePath;
 		}
 		else
 		{
-			saveAs = true;
-		}
-
-		string extension = isPrefab ? "prefab" : "scene";
-		string fileType = isPrefab ? "Prefab" : "Scene";
-
-		if ( saveAs )
-		{
-			if ( string.IsNullOrEmpty( saveLocation ) )
+			saveLocation = ProjectCookie.GetString( $"LastSaveLocation.{extension}", string.Empty );
+			if ( !Directory.Exists( saveLocation ) )
 			{
-				saveLocation = System.IO.Path.Combine(
-					System.IO.Path.GetDirectoryName( ProjectCookie.GetString( $"LastSaveLocation.{extension}", Project.Current.GetAssetsPath() ) ),
-					$"untitled.{extension}" );
+				saveLocation = Project.Current.GetAssetsPath();
 			}
 
-			saveLocation = EditorUtility.SaveFileDialog( $"Save {fileType} As..", extension, saveLocation );
-
+			saveLocation = EditorUtility.SaveFileDialog( $"Save {fileType} As..", extension,
+				Path.Combine( saveLocation, $"untitled.{extension}" ) );
 			if ( saveLocation is null )
 				return;
 
-			ProjectCookie.SetString( $"LastSaveLocation.{extension}", System.IO.Path.GetDirectoryName( saveLocation ) );
+			if ( !saveLocation.NormalizeFilename( false ).StartsWith( Project.Current.GetAssetsPath().NormalizeFilename( false ) ) )
+			{
+				// enforce saving inside Assets/ - if it's outside, complain and let them retry
+				EditorUtility.DisplayDialog( $"Save Failed: Invalid location",
+					$"{fileType}s must be saved inside the Assets folder of your project", "Cancel", "Retry",
+					() => Save( true ) );
+				return;
+			}
+
+			ProjectCookie.SetString( $"LastSaveLocation.{extension}", Path.GetDirectoryName( saveLocation ) );
 		}
 
-		EditorEvent.Run( "scene.beforesave", SceneEditorSession.Active.Scene );
+		EditorEvent.Run( "scene.beforesave", Active.Scene );
 
-		if ( Scene is PrefabScene prefabScene )
-		{
-			var prefabFile = prefabScene.ToPrefabFile();
-			var asset = AssetSystem.CreateResource( "prefab", saveLocation );
-			asset.SaveToDisk( prefabFile );
+		var asset = AssetSystem.CreateResource( extension, saveLocation );
+		Assert.NotNull( asset, $"Failed to CreateResource for {fileType} at {saveLocation}" );
 
-			// Update this scene's path
-			Scene.Source = prefabFile;
-			Scene.Name = System.IO.Path.GetFileNameWithoutExtension( saveLocation );
-		}
-		else
-		{
-			var sceneFile = Scene.CreateSceneFile();
-			var asset = AssetSystem.CreateResource( "scene", saveLocation );
-			asset.SaveToDisk( sceneFile );
-
-			// Update this scene's path
-			Scene.Source = sceneFile;
-			Scene.Name = System.IO.Path.GetFileNameWithoutExtension( saveLocation );
-		}
+		GameResource resource = Scene is PrefabScene prefabScene ? prefabScene.ToPrefabFile() : Scene.CreateSceneFile();
+		asset.SaveToDisk( resource );
 
 		HasUnsavedChanges = false;
-		EditorEvent.Run( "scene.saved", SceneEditorSession.Active.Scene );
+		EditorEvent.Run( "scene.saved", Active.Scene );
 
 		UpdateEditorTitle();
 	}

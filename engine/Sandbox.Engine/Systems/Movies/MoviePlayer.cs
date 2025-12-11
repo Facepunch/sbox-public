@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using Sandbox.MovieMaker.Properties;
+using System.Diagnostics;
 using System.Text.Json.Serialization;
 
 namespace Sandbox.MovieMaker;
@@ -9,6 +10,7 @@ namespace Sandbox.MovieMaker;
 /// Plays a <see cref="IMovieClip"/> in a <see cref="Scene"/> to animate properties over time.
 /// </summary>
 [Icon( "live_tv" )]
+[Category( "Movie Maker" )]
 public sealed class MoviePlayer : Component
 {
 	private MovieTime _position;
@@ -113,6 +115,11 @@ public sealed class MoviePlayer : Component
 		if ( !Enabled ) return;
 
 		if ( Clip is not { } clip ) return;
+
+		foreach ( var renderer in Binder.GetComponents<SkinnedModelRenderer>( clip ) )
+		{
+			MovieBoneAnimatorSystem.Current?.ClearBones( renderer );
+		}
 
 		clip.Update( _position, Binder );
 

@@ -201,7 +201,7 @@ internal class Program
 		var option = new Option<bool>(
 			"--dry-run",
 			description: "Whether to perform a dry run",
-			getDefaultValue: () => true );
+			getDefaultValue: () => false );
 
 		syncCommand.AddOption( option );
 

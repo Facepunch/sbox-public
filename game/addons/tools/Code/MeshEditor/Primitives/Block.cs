@@ -4,12 +4,24 @@ namespace Editor.MeshEditor;
 [Title( "Block" ), Icon( "rectangle" )]
 public class BlockPrimitive : PrimitiveBuilder
 {
-	public bool Top { get; set; } = true;
-	public bool Bottom { get; set; } = true;
-	public bool Left { get; set; } = true;
-	public bool Right { get; set; } = true;
-	public bool Front { get; set; } = true;
-	public bool Back { get; set; } = true;
+	[Flags]
+	public enum Side
+	{
+		[Hide]
+		None = 0,
+
+		Top = 1 << 0,
+		Bottom = 1 << 1,
+		Left = 1 << 2,
+		Right = 1 << 3,
+		Front = 1 << 4,
+		Back = 1 << 5,
+
+		[Hide]
+		All = Top | Bottom | Left | Right | Front | Back
+	}
+
+	public Side Sides { get; set; } = Side.All;
 	public bool Hollow { get; set; } = false;
 
 	[Hide] private BBox _box;
@@ -32,9 +44,10 @@ public class BlockPrimitive : PrimitiveBuilder
 			maxs = _box.Maxs;
 		}
 
-		if ( Top )
+		bool Has( Side s ) => (Sides & s) != 0;
+
+		if ( Has( Side.Top ) )
 		{
-			// x planes - top first
 			mesh.AddFace(
 				new Vector3( mins.x, mins.y, maxs.z ),
 				new Vector3( maxs.x, mins.y, maxs.z ),
@@ -43,9 +56,8 @@ public class BlockPrimitive : PrimitiveBuilder
 			);
 		}
 
-		if ( Bottom )
+		if ( Has( Side.Bottom ) )
 		{
-			// x planes - bottom
 			mesh.AddFace(
 				new Vector3( mins.x, maxs.y, mins.z ),
 				new Vector3( maxs.x, maxs.y, mins.z ),
@@ -54,9 +66,8 @@ public class BlockPrimitive : PrimitiveBuilder
 			);
 		}
 
-		if ( Left )
+		if ( Has( Side.Left ) )
 		{
-			// y planes - left
 			mesh.AddFace(
 				new Vector3( mins.x, maxs.y, mins.z ),
 				new Vector3( mins.x, mins.y, mins.z ),
@@ -65,9 +76,8 @@ public class BlockPrimitive : PrimitiveBuilder
 			);
 		}
 
-		if ( Right )
+		if ( Has( Side.Right ) )
 		{
-			// y planes - right
 			mesh.AddFace(
 				new Vector3( maxs.x, maxs.y, maxs.z ),
 				new Vector3( maxs.x, mins.y, maxs.z ),
@@ -76,9 +86,8 @@ public class BlockPrimitive : PrimitiveBuilder
 			);
 		}
 
-		if ( Front )
+		if ( Has( Side.Front ) )
 		{
-			// x planes - farthest
 			mesh.AddFace(
 				new Vector3( maxs.x, maxs.y, mins.z ),
 				new Vector3( mins.x, maxs.y, mins.z ),
@@ -87,9 +96,8 @@ public class BlockPrimitive : PrimitiveBuilder
 			);
 		}
 
-		if ( Back )
+		if ( Has( Side.Back ) )
 		{
-			// x planes - nearest
 			mesh.AddFace(
 				new Vector3( maxs.x, mins.y, maxs.z ),
 				new Vector3( mins.x, mins.y, maxs.z ),

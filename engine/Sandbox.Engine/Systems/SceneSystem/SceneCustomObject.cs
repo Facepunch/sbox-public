@@ -26,6 +26,9 @@ public class SceneCustomObject : SceneObject
 				// if the user forgets/doesn't need bounds.
 				native.SetBoundsInfinite();
 			}
+
+			// Initialize Transform so it will render (default Transform has scale 0)
+			Transform = Transform.Zero;
 		}
 	}
 

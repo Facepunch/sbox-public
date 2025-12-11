@@ -6894,12 +6894,12 @@
   "__references": [
     "facepunch.beech_bush_large#108296",
     "facepunch.beech_hedge_40x128_corner#108300",
-    "facepunch.beech_hedge_40x128#29090",
+    "facepunch.beech_hedge_40x128#108298",
     "facepunch.binbag_a2#17182",
     "facepunch.binbag_pile_a2#17187",
     "facepunch.floor_grass_a#18648",
-    "facepunch.grass_clump_a#47110",
-    "facepunch.grass_clump_b#29063",
+    "facepunch.grass_clump_a#126338",
+    "facepunch.grass_clump_b#126339",
     "facepunch.leaf_a1#56169",
     "facepunch.leaf_a2#56170",
     "facepunch.leaf_a3#56171",
@@ -6909,9 +6909,9 @@
     "facepunch.old_bench#108398",
     "facepunch.pine_bush_regular_a#108316",
     "facepunch.pine_bush_regular_c#108318",
-    "facepunch.rock_scatter_01#47198",
-    "facepunch.rock_scatter_pile_02#47202",
-    "facepunch.rock_scatter_pile_05#47205",
+    "facepunch.rock_scatter_01#116941",
+    "facepunch.rock_scatter_pile_02#116945",
+    "facepunch.rock_scatter_pile_05#116942",
     "facepunch.street_bin_rubbish#33657",
     "facepunch.studio_light_projector#29115",
     "facepunch.summer_flowers_01#47032",
@@ -6921,7 +6921,7 @@
     "facepunch.trash_pile_c_04#37374",
     "facepunch.trash_pile_c_05#37530",
     "facepunch.trash_pile_c_cigs_01#37375",
-    "facepunch.tree_oak_big_a#38050"
+    "facepunch.tree_oak_big_a#117390"
   ],
   "__version": 3
 }

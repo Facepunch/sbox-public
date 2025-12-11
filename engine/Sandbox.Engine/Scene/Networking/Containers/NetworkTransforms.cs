@@ -34,9 +34,9 @@ internal class NetworkTransforms : NetworkTable<Transform>
 
 			var hashes = _componentHashes[key];
 
-			state.AddCached( _snapshotCache, hashes.Position, transform.Position );
-			state.AddCached( _snapshotCache, hashes.Rotation, transform.Rotation );
-			state.AddCached( _snapshotCache, hashes.Scale, transform.Scale );
+			state.AddCached( _snapshotCache, hashes.Position, transform.Position, true );
+			state.AddCached( _snapshotCache, hashes.Rotation, transform.Rotation, true );
+			state.AddCached( _snapshotCache, hashes.Scale, transform.Scale, true );
 		}
 	}
 

@@ -51,7 +51,8 @@ file sealed class DefaultInterpolator :
 	IInterpolator<int>, IInterpolator<float>, IInterpolator<double>,
 	IInterpolator<Vector2>, IInterpolator<Vector3>, IInterpolator<Vector4>,
 	IInterpolator<Rotation>, IInterpolator<Angles>,
-	IInterpolator<Color>
+	IInterpolator<Color>,
+	IInterpolator<Transform>
 {
 	public static DefaultInterpolator Instance { get; } = new();
 
@@ -64,4 +65,5 @@ file sealed class DefaultInterpolator :
 	public Rotation Interpolate( Rotation a, Rotation b, float delta ) => a.SlerpTo( b, delta );
 	public Angles Interpolate( Angles a, Angles b, float delta ) => a.LerpTo( b, delta );
 	public Color Interpolate( Color a, Color b, float delta ) => a + (b - a) * delta;
+	public Transform Interpolate( Transform a, Transform b, float t ) => a.LerpTo( b, t );
 }

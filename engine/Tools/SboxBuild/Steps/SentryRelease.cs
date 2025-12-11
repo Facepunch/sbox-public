@@ -71,7 +71,7 @@ internal class SentryRelease( string name, string org, string project ) : Step( 
 			arguments,
 			workingDirectory,
 			envVars,
-			30000
+			1200000
 		);
 	}
 }

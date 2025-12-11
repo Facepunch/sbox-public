@@ -196,11 +196,11 @@ public sealed partial class SkinnedModelRenderer
 	public record struct BoneVelocity( Vector3 Linear, Vector3 Angular );
 
 	/// <summary>
-	/// Allocate an array of bone veloicities in world space
+	/// Allocate an array of bone velocities in world space
 	/// </summary>
 	public BoneVelocity[] GetBoneVelocities()
 	{
-		Assert.NotNull( Model, "Model should not be null when calling GetBoneTransforms" );
+		Assert.NotNull( Model, "Model should not be null when calling GetBoneVelocities" );
 
 		BoneVelocity[] transforms = new BoneVelocity[Model.BoneCount];
 
@@ -214,5 +214,19 @@ public sealed partial class SkinnedModelRenderer
 		}
 
 		return transforms;
+	}
+
+	/// <summary>
+	/// Retrieve the bone's velocities based on previous and current position
+	/// </summary>
+	public BoneVelocity GetBoneVelocity( int boneIndex )
+	{
+		Assert.NotNull( Model, "Model should not be null when calling GetBoneVelocity" );
+
+		if ( !SceneModel.IsValid() || boneIndex < 0 || boneIndex >= Model.BoneCount )
+			return default;
+
+		SceneModel.GetBoneVelocity( boneIndex, out var linear, out var angular );
+		return new BoneVelocity( linear, angular );
 	}
 }

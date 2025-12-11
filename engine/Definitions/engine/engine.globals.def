@@ -66,27 +66,6 @@ native static class global as NativeEngine.EngineGlobal
 	bool SourceEngineFrame( CMaterialSystem2AppSystemDict appDict, double currentTime, double previousTime );
 	void SourceEngineShutdown( CMaterialSystem2AppSystemDict appDict, bool forced );
 
-	inline void UpdateWindowSize()
-	{
-		VideoModeChange_t* pModeChange = g_pEngineServiceMgr->GetVideoModeChange();
-		if ( pModeChange )
-		{
-			g_pRenderService->SetVideoMode( pModeChange->m_deviceInfo );
-			pModeChange->ModeChangeComplete();
-		}
-
-		SwapChainHandle_t m_hSwapChain = g_pEngineServiceMgr->GetEngineSwapChain();
-		RenderViewport_t renderViewport;
-		renderViewport.Init( 0, 0, 512, 512, 0, 1 );
-
-		CRenderContextPtr pRenderContext( g_pRenderDevice, RenderTargetDesc_t( m_hSwapChain, RENDER_SRGB ), "Clear" );
-		pRenderContext->Clear( Vector4D( 0, 0, 0, 0 ) );
-		pRenderContext->SetViewports( 1, &renderViewport );
-
-		pRenderContext->Submit();
-		g_pRenderDevice->Present( m_hSwapChain );
-	}
-
 	inline float GetDiagonalDpi()
 	{
 		return Plat_GetDPI();

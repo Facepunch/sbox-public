@@ -12,7 +12,8 @@ internal static partial class DebugOverlay
 			[NetworkDebugSystem.MessageType.Snapshot] = Color.Red,
 			[NetworkDebugSystem.MessageType.SyncVars] = Color.Cyan,
 			[NetworkDebugSystem.MessageType.Culling] = Color.Yellow,
-			[NetworkDebugSystem.MessageType.StringTable] = Color.Green
+			[NetworkDebugSystem.MessageType.StringTable] = Color.Green,
+			[NetworkDebugSystem.MessageType.UserCommands] = Color.Black
 		};
 
 		private static float _smoothedInKbpsIn;

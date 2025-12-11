@@ -136,8 +136,10 @@ internal class DeltaSnapshot : IObjectPoolEvent
 	/// <summary>
 	/// Copy the data from a <see cref="LocalSnapshotState"/>.
 	/// </summary>
-	public void CopyFrom( LocalSnapshotState state, int connectionCount )
+	public void CopyFrom( IDeltaSnapshot snapshotter, LocalSnapshotState state, int connectionCount )
 	{
+		LocalState = state;
+		Source = snapshotter;
 		SnapshotId = state.SnapshotId;
 		ObjectId = state.ObjectId;
 		Version = state.Version;

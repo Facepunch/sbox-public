@@ -8,8 +8,14 @@ namespace Editor.MovieMaker;
 [MovieModification( "Smoothen", Group = "Recording", Icon = "blur_on" )]
 file sealed class SmoothModification() : PerTrackModification<SmoothOptions>( SmoothOptions.Default, true )
 {
-	public override bool CanStart( IProjectPropertyBlock block, TimeSelection selection ) =>
-		block.Signal.CanSmooth( selection.TotalTimeRange );
+	public override bool CanStart( TrackListView trackList, TimeSelection selection )
+	{
+		return trackList.EditablePropertyTracks
+			.Select( x => x.Track )
+			.OfType<IProjectPropertyTrack>()
+			.Any( x => x.GetBlocks( selection.TotalTimeRange )
+				.Any( y => y.Signal.CanSmooth( selection.TotalTimeRange ) ) );
+	}
 
 	public override void AddControls( ToolBarGroup group )
 	{

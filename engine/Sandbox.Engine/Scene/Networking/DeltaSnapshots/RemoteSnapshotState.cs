@@ -45,28 +45,25 @@ internal class RemoteSnapshotState
 	}
 
 	/// <summary>
-	/// Add a predicted entry to the snapshot.
+	/// Add a predicted entry to the snapshot from a <see cref="DeltaSnapshot.SnapshotDataEntry"/>.
 	/// </summary>
-	/// <param name="slot"></param>
-	/// <param name="value"></param>
+	/// <param name="input"></param>
 	/// <param name="timeNow"></param>
-	public void AddPredicted( int slot, byte[] value, float timeNow )
+	public void AddPredicted( in DeltaSnapshot.SnapshotDataEntry input, float timeNow )
 	{
-		var hash = XxHash3.HashToUInt64( value );
-		_predictedData[slot] = new PredictedEntry( value, timeNow + MaximumAckResponseTime, hash );
+		_predictedData[input.Slot] = new PredictedEntry( input.Value, timeNow + MaximumAckResponseTime, input.Hash );
 	}
 
 	/// <summary>
-	/// Update the value in the stored snapshot.
+	/// Update the value in the stored snapshot from a <see cref="DeltaSnapshot.SnapshotDataEntry"/>.
 	/// </summary>
-	public void Update( int slot, ushort snapshotId, byte[] data )
+	public void Update( in DeltaSnapshot.SnapshotDataEntry input, ushort snapshotId )
 	{
-		if ( Data.TryGetValue( slot, out var entry ) && !IsNewer( snapshotId, entry.SnapshotId ) )
+		if ( Data.TryGetValue( input.Slot, out var entry ) && !IsNewer( snapshotId, entry.SnapshotId ) )
 			return;
 
-		var hash = XxHash3.HashToUInt64( data );
-		_predictedData.Remove( slot );
-		Data[slot] = new Entry( snapshotId, data, hash );
+		_predictedData.Remove( input.Slot );
+		Data[input.Slot] = new Entry( snapshotId, input.Value, input.Hash );
 	}
 
 	/// <summary>
@@ -166,7 +163,7 @@ internal class RemoteSnapshotState
 			if ( (!entry.Connections?.Contains( sourceId ) ?? false) )
 				continue;
 
-			snapshot.Update( entry.Slot, delta.SnapshotId, entry.Value );
+			snapshot.Update( entry, delta.SnapshotId );
 		}
 
 		return snapshot;

@@ -90,35 +90,48 @@ public partial class Scene : GameObject
 
 	/// <summary>
 	/// Send all of our visibility origins to other clients. These are points we can observe from, which helps
-	/// to determine the visibility of network objects.
+	/// to determine the visibility of network objects and sends a user command.
 	/// </summary>
-	private void SendClientTick( SceneNetworkSystem system )
+	internal void SendClientTick( SceneNetworkSystem system )
 	{
-		var lc = Connection.Local;
-		using var msg = ByteStream.Create( 256 );
-		msg.Write( InternalMessageType.ClientTick );
+		var localConnection = Connection.Local;
 
-		// client visibility origins
+		// Conna: in the future we might support multiple visibility origins. For now though, we'll just
+		// use the main camera position as our primary viewing source.
+		if ( localConnection.VisibilityOrigins.Length == 0 )
+			localConnection.VisibilityOrigins = new Vector3[1];
+
+		localConnection.VisibilityOrigins[0] = Camera?.WorldPosition ?? default;
+
+		var userCommand = UserCommand.Create();
+		localConnection.BuildUserCommand( ref userCommand );
+
+		foreach ( var connection in system.GetFilteredConnections() )
 		{
-			// Conna: in the future we might support multiple visibility origins. For now though, we'll just
-			// use the main camera position as our primary viewing source.
-			if ( lc.VisibilityOrigins.Length == 0 )
-				lc.VisibilityOrigins = new Vector3[1];
+			var msg = ByteStream.Create( 256 );
+			msg.Write( InternalMessageType.ClientTick );
 
-			lc.VisibilityOrigins[0] = Camera?.WorldPosition ?? default;
-
-			msg.Write( (char)lc.VisibilityOrigins.Length );
-
-			for ( var i = 0; i < lc.VisibilityOrigins.Length; i++ )
+			// Broadcast our visibility origins to everyone
 			{
-				var source = lc.VisibilityOrigins[i];
-				msg.Write( source.x );
-				msg.Write( source.y );
-				msg.Write( source.z );
-			}
-		}
+				msg.Write( (char)localConnection.VisibilityOrigins.Length );
 
-		system.BroadcastRaw( msg, null, NetFlags.UnreliableNoDelay );
+				for ( var i = 0; i < localConnection.VisibilityOrigins.Length; i++ )
+				{
+					var source = localConnection.VisibilityOrigins[i];
+					msg.Write( source.x );
+					msg.Write( source.y );
+					msg.Write( source.z );
+				}
+			}
+
+			if ( connection.IsHost )
+			{
+				userCommand.Serialize( ref msg );
+			}
+
+			connection.SendRawMessage( msg, NetFlags.UnreliableNoDelay );
+			msg.Dispose();
+		}
 	}
 
 	/// <summary>
