@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.Specialized;
 
 namespace Networking;
 
@@ -52,6 +53,107 @@ public class NetDictionary
 		Assert.AreEqual( 1, dictionary["a"] );
 		Assert.AreEqual( 2, dictionary["b"] );
 		Assert.AreEqual( 3, dictionary["c"] );
+	}
+
+	[TestMethod]
+	public void OnChangedIsInvokedWhenItemIsAdded()
+	{
+		var dict = new NetDictionary<string, int>();
+
+		var callCount = 0;
+		NetDictionaryChangeEvent<string, int> receivedEvent = default;
+
+		dict.OnChanged = ev =>
+		{
+			callCount++;
+			receivedEvent = ev;
+		};
+
+		dict.Add( "foo", 42 );
+
+		Assert.AreEqual( 1, callCount );
+		Assert.AreEqual( NotifyCollectionChangedAction.Add, receivedEvent.Type );
+		Assert.AreEqual( "foo", receivedEvent.Key );
+		Assert.AreEqual( 42, receivedEvent.NewValue );
+	}
+
+	[TestMethod]
+	public void OnChangedIsInvokedWhenItemIsRemoved()
+	{
+		var dict = new NetDictionary<string, int>();
+
+		dict.Add( "foo", 10 );
+		dict.Add( "bar", 20 );
+
+		var callCount = 0;
+		NetDictionaryChangeEvent<string, int> receivedEvent = default;
+
+		dict.OnChanged = ev =>
+		{
+			callCount++;
+			receivedEvent = ev;
+		};
+
+		dict.Remove( "foo" );
+
+		Assert.AreEqual( 1, callCount );
+		Assert.AreEqual( NotifyCollectionChangedAction.Remove, receivedEvent.Type );
+		Assert.AreEqual( "foo", receivedEvent.Key );
+		Assert.AreEqual( 10, receivedEvent.OldValue );
+		Assert.IsFalse( dict.ContainsKey( "foo" ) );
+	}
+
+	[TestMethod]
+	public void OnChangedIsInvokedWhenDictionaryIsCleared()
+	{
+		var dict = new NetDictionary<string, int>();
+
+		dict.Add( "foo", 1 );
+		dict.Add( "bar", 2 );
+
+		var callCount = 0;
+		NetDictionaryChangeEvent<string, int> receivedEvent = default;
+
+		dict.OnChanged = ev =>
+		{
+			callCount++;
+			receivedEvent = ev;
+		};
+
+		dict.Clear();
+
+		Assert.AreEqual( 1, callCount );
+		Assert.AreEqual( NotifyCollectionChangedAction.Reset, receivedEvent.Type );
+		Assert.AreEqual( 0, dict.Count );
+	}
+
+	[TestMethod]
+	public void ReplaceInvokesWithCorrectValues()
+	{
+		var dict = new NetDictionary<string, int>();
+
+		dict.Add( "foo", 10 );
+
+		var callCount = 0;
+		NetDictionaryChangeEvent<string, int> receivedEvent = default;
+
+		dict.OnChanged = ev =>
+		{
+			callCount++;
+			receivedEvent = ev;
+		};
+
+		// This should represent a Replace: old 10 -> new 99
+		dict["foo"] = 99;
+
+		Assert.AreEqual( 1, callCount );
+
+		Assert.AreEqual( NotifyCollectionChangedAction.Replace, receivedEvent.Type );
+		Assert.AreEqual( "foo", receivedEvent.Key );
+		Assert.AreEqual( 10, receivedEvent.OldValue );
+		Assert.AreEqual( 99, receivedEvent.NewValue );
+
+		Assert.AreEqual( 99, dict["foo"] );
 	}
 
 	[TestMethod]

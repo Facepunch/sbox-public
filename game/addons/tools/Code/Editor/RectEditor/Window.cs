@@ -4,6 +4,15 @@ namespace Editor.RectEditor;
 
 [EditorForAssetType( "rect" )]
 [EditorApp( "Hotspot Editor", "dashboard", "For defining hotspot materials" )]
+public class HotspotEditorWindow : Window
+{
+	// This is separate so that classes that derive from Window don't show up in Editor Apps
+	public HotspotEditorWindow() : base()
+	{
+		WindowTitle = "Hotspot Editor";
+	}
+}
+
 public partial class Window : DockWindow, IAssetEditor
 {
 	public bool CanOpenMultipleAssets => false;
@@ -11,13 +20,13 @@ public partial class Window : DockWindow, IAssetEditor
 	public Document Document { get; private set; } = new();
 	public Settings Settings { get; private set; } = new();
 
-	private Asset Asset;
-	private Asset[] MaterialReferences;
+	protected Asset Asset;
+	protected Asset[] MaterialReferences;
 
-	private ToolBar ToolBar;
-	private RectView RectView;
-	private Properties Properties;
-	private MaterialReference MaterialReference;
+	protected ToolBar ToolBar;
+	protected RectView RectView;
+	protected Properties Properties;
+	protected MaterialReference MaterialReference;
 
 	private UndoSystem UndoSystem;
 
@@ -36,6 +45,7 @@ public partial class Window : DockWindow, IAssetEditor
 			SetWindowIcon( assetType.Icon128 );
 
 		InitUndo();
+		SetupSettingsCallbacks();
 		NewDocument();
 		CreateUI();
 	}
@@ -45,6 +55,18 @@ public partial class Window : DockWindow, IAssetEditor
 		UndoSystem = new UndoSystem();
 		UndoSystem.Initialize();
 	}
+
+	private void SetupSettingsCallbacks()
+	{
+		Settings.FastTextureSettings.OnMappingChanged = OnMappingModeChanged;
+		Settings.FastTextureSettings.OnSettingsChanged = OnFastTextureSettingsChanged;
+	}
+
+	public virtual void OnFastTextureSettingsChanged()
+	{
+	}
+
+
 
 	[Shortcut( "editor.quit", "CTRL+Q" )]
 	void Quit()
@@ -90,7 +112,7 @@ public partial class Window : DockWindow, IAssetEditor
 	[Shortcut( "editor.delete", "DEL" )]
 	private void DeleteSelected()
 	{
-		if ( !Document.SelectedRectangles.Any() )
+		if ( !Document.SelectedRectangles.Any( x => x.CanDelete ) )
 			return;
 
 		ExecuteUndoableAction( "Delete Rectangles", () => Document.DeleteRectangles( Document.SelectedRectangles.ToArray() ) );
@@ -138,8 +160,8 @@ public partial class Window : DockWindow, IAssetEditor
 			Toggled = SetGridEnabled
 		} );
 
-		ToolBar.AddOption( new Option( "Increase Grid Size", "keyboard_arrow_up", BiggerGrid ) { ShortcutName = "editor.increase-grid-size" } );
-		ToolBar.AddOption( new Option( "Decrease Grid Size", "keyboard_arrow_down", SmallerGrid ) { ShortcutName = "editor.decrease-grid-size" } );
+		ToolBar.AddOption( new Option( "Decrease Grid Size", "keyboard_arrow_down", SmallerGrid ) { ShortcutName = "grid.decrease-grid-size" } );
+		ToolBar.AddOption( new Option( "Increase Grid Size", "keyboard_arrow_up", BiggerGrid ) { ShortcutName = "grid.increase-grid-size" } );
 
 		ToolBar.AddSeparator();
 
@@ -151,6 +173,27 @@ public partial class Window : DockWindow, IAssetEditor
 		} );
 
 		ToolBar.AddSeparator();
+	}
+
+	protected virtual void BuildDock()
+	{
+		DockManager.RegisterDockType( "Rect View", "space_dashboard", null, false );
+		RectView = new RectView( this );
+		DockManager.AddDock( null, RectView, DockArea.Right, DockManager.DockProperty.HideOnClose, 0.0f );
+
+		DockManager.RegisterDockType( "Properties", "edit", null, false );
+		Properties = new Properties( this );
+		UpdateProperties();
+		DockManager.AddDock( null, Properties, DockArea.Left, DockManager.DockProperty.HideOnClose, 0.4f );
+
+		DockManager.RegisterDockType( "Material Reference", "texture", null, false );
+		MaterialReference = new MaterialReference( this, OnReferenceChanged );
+		MaterialReference.SetReferences( MaterialReferences );
+		DockManager.AddDock( Properties, MaterialReference, DockArea.Bottom, DockManager.DockProperty.HideOnClose, 0.4f );
+	}
+
+	protected virtual void InitRectanglesFromMeshFaces()
+	{
 	}
 
 	private void SetNormalizedValues( bool enabled )
@@ -205,20 +248,7 @@ public partial class Window : DockWindow, IAssetEditor
 		CreateToolBar();
 		CreateMenu();
 		UpdateTitle();
-
-		DockManager.RegisterDockType( "Rect View", "space_dashboard", null, false );
-		RectView = new RectView( this );
-		DockManager.AddDock( null, RectView, DockArea.Right, DockManager.DockProperty.HideOnClose, 0.0f );
-
-		DockManager.RegisterDockType( "Properties", "edit", null, false );
-		Properties = new Properties( this );
-		UpdateProperties();
-		DockManager.AddDock( null, Properties, DockArea.Left, DockManager.DockProperty.HideOnClose, 0.4f );
-
-		DockManager.RegisterDockType( "Material Reference", "texture", null, false );
-		MaterialReference = new MaterialReference( this, OnReferenceChanged );
-		MaterialReference.SetReferences( MaterialReferences );
-		DockManager.AddDock( Properties, MaterialReference, DockArea.Bottom, DockManager.DockProperty.HideOnClose, 0.4f );
+		BuildDock();
 
 		var previousMat = AssetSystem.FindByPath( Settings.ReferenceMaterial );
 		if ( previousMat is not null )
@@ -239,14 +269,22 @@ public partial class Window : DockWindow, IAssetEditor
 		}
 	}
 
-	private void OnDocumentModified()
+	protected void OnDocumentModified()
 	{
 		UpdateTitle();
 		UpdateProperties();
+		UpdateMeshFaces();
 		Update();
 	}
 
-	private void UpdateProperties()
+	protected virtual void UpdateMeshFaces()
+	{
+	}
+
+	public virtual void OnMappingModeChanged()
+	{
+	}
+	protected virtual void UpdateProperties()
 	{
 		if ( !Properties.IsValid() )
 			return;
@@ -278,13 +316,13 @@ public partial class Window : DockWindow, IAssetEditor
 		}
 	}
 
-	private void UpdateTitle()
+	protected virtual void UpdateTitle()
 	{
 		var title = Asset is null ? "Untitled" : Asset.Path;
 		WindowTitle = Document is not null && Document.Modified ? $"{title}*" : title;
 	}
 
-	private void OnReferenceChanged( Asset asset )
+	protected virtual void OnReferenceChanged( Asset asset )
 	{
 		var material = asset?.LoadResource<Material>();
 		Settings.ReferenceMaterial = material?.ResourcePath;
@@ -328,6 +366,7 @@ public partial class Window : DockWindow, IAssetEditor
 		Asset = asset;
 		Document = new Document( this, assetData, OnDocumentModified );
 		Settings = assetData.Settings ?? new Settings();
+		SetupSettingsCallbacks();
 
 		MaterialReferences = AssetSystem.All.Where( x => x.AssetType == AssetType.Material && x.GetAdditionalRelatedFiles()
 			.Any( x => x.Contains( asset.Name ) ) )

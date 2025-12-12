@@ -2648,6 +2648,21 @@ public sealed partial class PolygonMesh : IJsonConvert
 		}
 
 		ComputeFaceTextureParametersFromCoordinates( new[] { hFace } );
+
+		IsDirty = true;
+	}
+
+	public Vector2[] GetFaceTextureCoords( FaceHandle hFace )
+	{
+		if ( !hFace.IsValid )
+			return Array.Empty<Vector2>();
+		GetFaceVerticesConnectedToFace( hFace, out var hEdges );
+		var texcoords = new Vector2[hEdges.Length];
+		for ( int i = 0; i < hEdges.Length; i++ )
+		{
+			texcoords[i] = TextureCoord[hEdges[i]];
+		}
+		return texcoords;
 	}
 
 	/// <summary>

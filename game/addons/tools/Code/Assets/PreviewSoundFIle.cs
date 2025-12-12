@@ -30,9 +30,14 @@ class PreviewSoundFile : AssetPreview
 			previewWidget.Play();
 		}
 
-		var autoPlay = previewWidget.ToolBar.AddOption( "Auto-Play", "slideshow" );
-		autoPlay.Checkable = true;
-		autoPlay.Bind( "Checked" ).From( this, nameof( AutoPlay ) );
+		previewWidget.ToolBar.AddWidget( new IconButton( "slideshow" )
+		{
+			ToolTip = "Auto-Play",
+			IconSize = 18,
+			IsToggle = true,
+			IsActive = AutoPlay,
+			OnToggled = ( value ) => AutoPlay = value
+		} );
 
 		return previewWidget;
 	}
