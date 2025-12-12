@@ -83,5 +83,12 @@ public class MainAssetBrowser : WrappedAssetBrowser
 	{
 		menu.AddSeparator();
 		menu.AddOption( "New Asset Browser", "create_new_folder", () => EditorWindow.DockManager.Create<MainAssetBrowser>() );
+		menu.AddOption( "Go to coordinates", "control_camera", () => Dialog.AskString( GoToCoordinates, "Where do you want to go?", "Go", title: "Go to coordinates", minLength: 5 ) );
+	}
+
+	static void GoToCoordinates( string coordinates )
+	{
+		var parsedCoordinates = Vector3.Parse( coordinates );
+		SceneViewportWidget.LastSelected?.cameraTargetPosition = parsedCoordinates;
 	}
 }
