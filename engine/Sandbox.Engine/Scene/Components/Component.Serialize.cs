@@ -167,6 +167,7 @@ public abstract partial class Component : BytePack.ISerializer
 	{
 		Deserialize( node );
 		PostDeserialize();
+		OnValidateInternal();
 	}
 
 	[ConVar( "serialization_warn_time", ConVarFlags.Protected, Help = "Warn if deserializing a component property takes longer than this number of milliseconds." )]
