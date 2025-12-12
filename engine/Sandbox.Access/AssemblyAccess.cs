@@ -152,7 +152,8 @@ internal partial class AssemblyAccess
 
 #if true
 		{
-			Parallel.ForEach( EnumerateTypes( module.Types ), new ParallelOptions { MaxDegreeOfParallelism = 16 }, TestTypeInThread );
+			Parallel.ForEach( EnumerateTypes( module.Types ), new ParallelOptions { MaxDegreeOfParallelism = 16 },
+				TestTypeInThread );
 		}
 #else
 		{
@@ -185,7 +186,8 @@ internal partial class AssemblyAccess
 	private bool TypeAllowedExplicitLayout( TypeDefinition type )
 	{
 		// Allow static array initializers
-		if ( type.DeclaringType?.Name == "<PrivateImplementationDetails>" && type.Name.StartsWith( "__StaticArrayInitTypeSize=" ) )
+		if ( type.DeclaringType?.Name == "<PrivateImplementationDetails>" &&
+			 type.Name.StartsWith( "__StaticArrayInitTypeSize=" ) )
 			return true;
 
 		return false;
@@ -244,11 +246,12 @@ internal partial class AssemblyAccess
 			TestBaseType( type, type.BaseType );
 		}
 
-		Parallel.ForEach( type.Methods, new ParallelOptions { MaxDegreeOfParallelism = 8, TaskScheduler = TaskScheduler.Default }, member =>
-		{
-			TestMethod( member );
-			TestAttributes( member.CustomAttributes );
-		} );
+		Parallel.ForEach( type.Methods,
+			new ParallelOptions { MaxDegreeOfParallelism = 8, TaskScheduler = TaskScheduler.Default }, member =>
+			{
+				TestMethod( member );
+				TestAttributes( member.CustomAttributes );
+			} );
 	}
 
 	private void TestBaseType( TypeDefinition parent, TypeReference baseType )
@@ -315,7 +318,6 @@ internal partial class AssemblyAccess
 		{
 			TestAttribute( attr );
 		}
-
 	}
 
 	private void TestField( FieldDefinition member )
@@ -338,11 +340,15 @@ internal partial class AssemblyAccess
 
 	private void TestMethod( MethodDefinition member )
 	{
-		if ( member.IsNative ) Touch( $"System.Private.CoreLib/System.Runtime.InteropServices.DllImportAttribute", "attribute" );
-		if ( member.IsPInvokeImpl ) Touch( $"System.Private.CoreLib/System.Runtime.InteropServices.DllImportAttribute", "attribute" );
-		if ( member.IsUnmanagedExport ) Touch( $"System.Private.CoreLib/System.Runtime.InteropServices.DllImportAttribute", "attribute" );
+		if ( member.IsNative )
+			Touch( $"System.Private.CoreLib/System.Runtime.InteropServices.DllImportAttribute", "attribute" );
+		if ( member.IsPInvokeImpl )
+			Touch( $"System.Private.CoreLib/System.Runtime.InteropServices.DllImportAttribute", "attribute" );
+		if ( member.IsUnmanagedExport )
+			Touch( $"System.Private.CoreLib/System.Runtime.InteropServices.DllImportAttribute", "attribute" );
 
-		if ( member.DebugInformation.HasSequencePoints && member.DebugInformation.SequencePoints.FirstOrDefault( x => !x.IsHidden ) is { } sequencePoint )
+		if ( member.DebugInformation.HasSequencePoints &&
+			 member.DebugInformation.SequencePoints.FirstOrDefault( x => !x.IsHidden ) is { } sequencePoint )
 			UpdateLocation( sequencePoint );
 		else
 			Location = new AccessControl.CodeLocation( member.FullName );
@@ -378,7 +384,6 @@ internal partial class AssemblyAccess
 				Touch( attribute.AttributeType );
 			}
 		}
-
 	}
 
 	private void TestAttribute( CustomAttribute attr )
@@ -428,7 +433,19 @@ internal partial class AssemblyAccess
 		{
 			if ( methodref.DeclaringType.IsArray )
 			{
-				Touch( methodref.DeclaringType.Resolve() );
+				if ( methodref.DeclaringType.GetElementType() is TypeReference
+					{
+						IsGenericParameter: true
+					} elementType )
+				{
+					// We can't Resolve() a generic this way
+					// Pass the element type to Touch(TypeReference) which should handle these gracefully
+					Touch( elementType );
+				}
+				else
+				{
+					Touch( methodref.DeclaringType.Resolve() );
+				}
 			}
 			else
 			{
@@ -469,7 +486,8 @@ internal partial class AssemblyAccess
 			// However you can get a reference and invoke that action just fine, which can be abused and should be invalid.
 			// We check against ldftn/ldvirtftn only as call is valid runtime usage from the compiler
 			//
-			if ( methodref.Name == Microsoft.CodeAnalysis.WellKnownMemberNames.DestructorName && (instruction.OpCode.Code == Code.Ldftn || instruction.OpCode.Code == Code.Ldvirtftn) )
+			if ( methodref.Name == Microsoft.CodeAnalysis.WellKnownMemberNames.DestructorName &&
+				 (instruction.OpCode.Code == Code.Ldftn || instruction.OpCode.Code == Code.Ldvirtftn) )
 			{
 				// Dummy invalid method
 				Touch( $"System.Private.CoreLib/System.InvalidFinalizeMethodReference", "method" );
@@ -521,7 +539,6 @@ internal partial class AssemblyAccess
 	}
 
 
-
 	private bool ShouldSkipExploration( AssemblyDefinition candidate )
 	{
 		if ( Assembly == candidate ) return false;
@@ -554,6 +571,5 @@ internal partial class AssemblyAccess
 				return;
 			}
 		} );
-
 	}
 }
