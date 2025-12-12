@@ -203,4 +203,30 @@ public partial class Scene : GameObject
 
 		return default;
 	}
+
+	/// <summary>
+	/// Gets the first object found of this type. This could be a component or a GameObjectSystem, or other stuff in the future.
+	/// </summary>
+	/// <typeparam name="T"></typeparam>
+	/// <param name="obj"></param>
+	/// <returns>true if the Scene contained a valid object; otherwise, false.</returns>
+	[Pure]
+	public bool TryGet<T>( out T obj )
+	{
+		if ( objectIndex.TryGetValue( typeof( T ), out var set ) && set.Count > 0 )
+		{
+			foreach ( var e in set.EnumerateLocked() )
+			{
+				T c = (T)e;
+				if ( c is null ) continue;
+				if ( c is IValid v && !v.IsValid ) continue;
+
+				obj = c;
+				return true;
+			}
+		}
+
+		obj = default;
+		return false;
+	}
 }
