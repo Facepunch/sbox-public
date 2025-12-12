@@ -24,7 +24,7 @@ public static partial class Rpc
 
 		NetworkDebugSystem.Current?.Track( $"{method.TypeDescription.FullName}.{method.Name}", message );
 
-		using ( WithCaller( source ) )
+		using ( WithPendingCaller( source ) )
 		{
 			try
 			{
@@ -43,30 +43,31 @@ public static partial class Rpc
 	[EditorBrowsable( EditorBrowsableState.Never )]
 	public static void OnCallRpc( WrappedMethod m, params object[] argumentList )
 	{
-		var attribute = m.GetAttribute<RpcAttribute>();
-		if ( attribute is null ) return;
-
-		//
-		// Send over network
-		//
-		if ( !Calling && Networking.IsActive )
+		using ( WithCaller( ConsumePendingRpcCaller() ) )
 		{
-			SendStaticRpc( m, argumentList, attribute );
+			var attribute = m.GetAttribute<RpcAttribute>();
+			if ( attribute is null ) return;
+
+			//
+			// Send over network
+			//
+			if ( !IsRemoteCall && Networking.IsActive )
+			{
+				SendStaticRpc( m, argumentList, attribute );
+			}
+
+			// Was filtered out
+			if ( Filter.HasValue && !Filter.Value.IsRecipient( Connection.Local ) ) return;
+
+			// Was not included in the filter
+			if ( attribute.Mode == RpcMode.Owner && !Networking.IsHost ) return;
+			if ( attribute.Mode == RpcMode.Host && !Networking.IsHost ) return;
+
+			// Can they even call this shit
+			if ( !HasStaticPermission( Caller, attribute.Flags ) ) return;
+
+			Resume( m );
 		}
-
-		// Was filtered out
-		if ( Filter.HasValue && !Filter.Value.IsRecipient( Connection.Local ) ) return;
-
-		// Was not included in the filter
-		if ( attribute.Mode == RpcMode.Owner && !Networking.IsHost ) return;
-		if ( attribute.Mode == RpcMode.Host && !Networking.IsHost ) return;
-
-		PreCall();
-
-		// Can they even call this shit
-		if ( !HasStaticPermission( Caller ?? Connection.Local, attribute.Flags ) ) return;
-
-		Resume( m );
 	}
 
 	/// <summary>

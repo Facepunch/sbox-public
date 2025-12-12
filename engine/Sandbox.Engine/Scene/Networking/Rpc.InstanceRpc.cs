@@ -123,7 +123,7 @@ public static partial class Rpc
 
 		NetworkDebugSystem.Current?.Track( rpcName, rpc );
 
-		using ( WithCaller( source ) )
+		using ( WithPendingCaller( source ) )
 		{
 			try
 			{
@@ -164,7 +164,7 @@ public static partial class Rpc
 
 		NetworkDebugSystem.Current?.Track( rpcName, rpc );
 
-		using ( WithCaller( source ) )
+		using ( WithPendingCaller( source ) )
 		{
 			try
 			{
@@ -226,7 +226,7 @@ public static partial class Rpc
 		//
 		// Send over network
 		//
-		if ( !Calling && Networking.IsActive )
+		if ( !IsRemoteCall && Networking.IsActive )
 		{
 			SendInstanceRpc( system, m, argumentList, attribute );
 		}
@@ -240,8 +240,6 @@ public static partial class Rpc
 		// Was not included in the filter
 		if ( attribute.Mode == RpcMode.Owner && !isOwner ) return;
 		if ( attribute.Mode == RpcMode.Host && !Networking.IsHost ) return;
-
-		PreCall();
 
 		if ( !HasHostInstancePermission( Caller ?? Connection.Local, attribute.Flags ) ) return;
 
@@ -260,7 +258,7 @@ public static partial class Rpc
 		//
 		// Send over network
 		//
-		if ( !Calling && Networking.IsActive )
+		if ( !IsRemoteCall && Networking.IsActive )
 		{
 			SendInstanceRpc( go, component, m, argumentList, attribute );
 		}
@@ -274,8 +272,6 @@ public static partial class Rpc
 		// Was not included in the filter
 		if ( attribute.Mode == RpcMode.Owner && !isOwner ) return;
 		if ( attribute.Mode == RpcMode.Host && !Networking.IsHost ) return;
-
-		PreCall();
 
 		// Can they even call this shit
 		if ( !HasInstancePermission( Caller ?? Connection.Local, go, attribute.Flags ) ) return;

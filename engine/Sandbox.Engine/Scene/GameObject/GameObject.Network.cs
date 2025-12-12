@@ -414,7 +414,10 @@ public partial class GameObject
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	protected void __rpc_Wrapper( in WrappedMethod m, params object[] argumentList )
 	{
-		Rpc.OnCallInstanceRpc( this, default, m, argumentList );
+		using ( Rpc.WithCaller( Rpc.ConsumePendingRpcCaller() ) )
+		{
+			Rpc.OnCallInstanceRpc( this, default, m, argumentList );
+		}
 	}
 
 	/// <summary>
