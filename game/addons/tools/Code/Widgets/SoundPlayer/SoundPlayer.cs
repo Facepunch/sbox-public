@@ -129,7 +129,7 @@ public partial class SoundPlayer : Widget
 		{
 			Timeline = parent;
 			SceneRect = new( 0, Size );
-			HorizontalScrollbar = ScrollbarMode.On;
+			HorizontalScrollbar = ScrollbarMode.Auto;
 			VerticalScrollbar = ScrollbarMode.Off;
 			Scale = 1;
 			Time = 0;
@@ -152,7 +152,7 @@ public partial class SoundPlayer : Widget
 
 			var size = Size;
 			size.x = MathF.Max( Size.x, PositionFromTime( Duration ) );
-			SceneRect = new( 0, size );
+			SceneRect = new( 0, size - ( Width - ContentRect.Width ) );
 			TimeAxis.Size = new Vector2( size.x, Theme.RowHeight );
 			Scrubber.Size = new Vector2( 9, size.y );
 
