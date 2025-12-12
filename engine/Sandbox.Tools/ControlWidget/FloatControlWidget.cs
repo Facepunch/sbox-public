@@ -245,7 +245,7 @@ public class FloatControlWidget : StringControlWidget
 			if ( e.ButtonState.Contains( MouseButtons.Right ) ) delta *= 0.1f;
 
 			dragValue += delta;
-			if ( HasRange ) dragValue = dragValue.Clamp( Range.x, Range.y );
+			if ( HasRange && RangeClamped ) dragValue = dragValue.Clamp( Range.x, Range.y );
 
 			var steppedValue = (RangeStep != 0.0f) ? dragValue.SnapToGrid( RangeStep ) : dragValue;
 			SerializedProperty.As.Float = steppedValue;

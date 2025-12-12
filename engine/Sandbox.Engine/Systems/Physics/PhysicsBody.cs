@@ -195,8 +195,10 @@ public sealed partial class PhysicsBody : IHandle
 	public float GravityScale
 	{
 		get => native.GetGravityScale();
-		set => native.SetGravityScale( value );
+		set => native.SetGravityScale( value * DefaultGravityScale );
 	}
+
+	internal float DefaultGravityScale { get; set; } = 1.0f;
 
 	/// <summary>
 	/// If true we'll create a controller for this physics body. This is useful
@@ -1225,5 +1227,10 @@ public sealed partial class PhysicsBody : IHandle
 	internal void RemoveJoint( Joint joint )
 	{
 		Joints.Remove( joint );
+	}
+
+	internal void ResetProxy()
+	{
+		native.ResetProxy();
 	}
 }

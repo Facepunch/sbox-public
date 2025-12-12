@@ -20,6 +20,12 @@ public class EditorTool : IDisposable
 
 	public IEnumerable<EditorTool> Tools => _tools;
 
+	/// <summary>
+	/// If true well recreate the sidebar when the selection changes. This is really useful if your tool's sidebar depends on the selection.
+	/// But also it can be a waste of energy if your tool's sidebar is static.
+	/// </summary>
+	public bool RebuildSidebarOnSelectionChange { get; set; } = true;
+
 	private EditorTool _currentTool;
 	[JsonIgnore]
 	public EditorTool CurrentTool
@@ -33,6 +39,8 @@ public class EditorTool : IDisposable
 			_currentTool?.OnDisabled();
 			_currentTool = value;
 			_currentTool?.OnEnabled();
+
+			EditorToolManager.SetSubTool( _currentTool?.GetType().Name );
 		}
 	}
 
@@ -62,6 +70,11 @@ public class EditorTool : IDisposable
 	/// if true then regular scene object selection will apply
 	/// </summary>
 	public bool AllowGameObjectSelection { get; set; } = true;
+
+	/// <summary>
+	/// allow context menu or not, some tools don't need it.
+	/// </summary>
+	public bool AllowContextMenu { get; set; } = true;
 
 	internal void InitializeInternal( EditorToolManager manager )
 	{
@@ -97,8 +110,13 @@ public class EditorTool : IDisposable
 
 		try
 		{
+			if ( HasBoxSelectionMode() )
+			{
+				UpdateBoxSelection();
+			}
+
 			OnUpdate();
-			CurrentTool?.OnUpdate();
+			CurrentTool?.Frame( camera );
 		}
 		catch ( System.Exception e )
 		{
@@ -189,12 +207,129 @@ public class EditorTool : IDisposable
 	}
 
 	/// <summary>
-	/// Create a widget for this tool to be added next to the left toolbar.
-	/// NOTE: This is only called for main tools, not subtools.
+	/// Create a widget with the intention to create shortcut keys for this tool (and its parents)
 	/// </summary>
-	public virtual Widget CreateToolWidget()
+	public virtual Widget CreateShortcutsWidget()
 	{
 		return null;
+	}
+
+	/// <summary>
+	/// Create a widget for this tool to be added next to the left toolbar.
+	/// </summary>
+	public virtual Widget CreateToolSidebar()
+	{
+		return null;
+	}
+
+	/// <summary>
+	/// Create a widget for this tool to be added at the bottom of the tools
+	/// </summary>
+	public virtual Widget CreateToolFooter()
+	{
+		return null;
+	}
+
+	/// <summary>
+	/// Get the current selection as a SerializedObject
+	/// </summary>
+	public SerializedObject GetSerializedSelection()
+	{
+		var o = Selection.ToArray();
+		SerializedObject so;
+
+		if ( o.Length == 0 )
+		{
+			so = o.GetSerialized();
+		}
+		else if ( o.Length == 1 )
+		{
+			so = o.GetValue( 0 )?.GetSerialized();
+		}
+		else
+		{
+			var mo = new MultiSerializedObject();
+
+			for ( int i = 0; i < o.Length; i++ )
+			{
+				var val = o?.GetValue( i );
+				if ( val is null ) continue;
+				mo.Add( val.GetSerialized() );
+			}
+
+			mo.Rebuild();
+			so = mo;
+		}
+
+		return so;
+	}
+
+	/// <summary>
+	/// If true then this mode uses box selection
+	/// </summary>
+	public virtual bool HasBoxSelectionMode() => false;
+
+	Ray _ray1;
+	Ray _ray2;
+
+	protected bool IsBoxSelecting { get; private set; }
+
+	private void UpdateBoxSelection()
+	{
+		var ray = Gizmo.CurrentRay;
+
+		if ( Gizmo.WasLeftMousePressed )
+		{
+			_ray1 = ray;
+		}
+
+		if ( Gizmo.IsLeftMouseDown && _ray1 != default )
+		{
+			_ray2 = ray;
+		}
+
+		// project to screen position
+		var c1 = Gizmo.Camera.ToScreen( _ray1.Project( 100 ) );
+		var c2 = Gizmo.Camera.ToScreen( _ray2.Project( 100 ) );
+
+		if ( Vector2.Distance( c1, c2 ) < 5 || Gizmo.Pressed.Any )
+		{
+			IsBoxSelecting = false;
+
+			if ( !Gizmo.IsLeftMouseDown )
+			{
+				_ray1 = _ray2 = default;
+			}
+
+			return;
+		}
+
+		IsBoxSelecting = true;
+
+		var frustum = Gizmo.Camera.GetFrustum( Rect.FromPoints( c1, c2 ) );
+		Rect rect = new Rect( MathF.Min( c1.x, c2.x ), MathF.Min( c1.y, c2.y ), MathF.Abs( c1.x - c2.x ), MathF.Abs( c1.y - c2.y ) );
+
+		OnBoxSelect( frustum, rect, Gizmo.WasLeftMouseReleased );
+
+		// Crystalize the box select
+		if ( Gizmo.WasLeftMouseReleased )
+		{
+			_ray1 = _ray2 = default;
+			return;
+		}
+
+		// Paint the selection rectangle
+		{
+			Gizmo.Draw.ScreenRect( rect, Theme.Blue.WithAlpha( 0.1f ), new Vector4( 1.0f ), Theme.Blue, new Vector4( 1.0f ) );
+		}
+	}
+
+	/// <summary>
+	/// Called when the box selection changed
+	/// </summary>
+	protected virtual void OnBoxSelect( Frustum frustum, Rect screenRect, bool isFinal )
+	{
+
 	}
 }
 

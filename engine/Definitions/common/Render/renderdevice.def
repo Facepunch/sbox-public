@@ -69,6 +69,8 @@ native accessor g_pRenderDevice
 
 	bool IsTextureRenderTarget( ITexture texture );
 
+	bool IsRayTracingSupported();
+
 	inline RenderBufferHandle_t CreateGPUBuffer( RenderBufferType_t nType, BufferDesc_t desc, RenderBufferFlags_t usage, string pDebugName )
 	{
 		desc.m_pDebugName = pDebugName;

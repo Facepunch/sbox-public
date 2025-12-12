@@ -13,7 +13,7 @@ public partial class MoveModeSwim : MoveMode
 	public float SwimLevel { get; set; } = 0.7f;
 
 	/// <summary>
-	/// Will will update this based on how much you're in a "water" tagged trigger
+	/// We will update this based on how much you're in a "water" tagged trigger.
 	/// </summary>
 	public float WaterLevel { get; private set; }
 
@@ -57,7 +57,7 @@ public partial class MoveModeSwim : MoveMode
 			return;
 
 		var wt = WorldTransform;
-		Vector3 head = wt.PointToWorld( new Vector3( 0, 0, Controller.BodyHeight ) );
+		Vector3 head = wt.PointToWorld( new Vector3( 0, 0, Controller.CurrentHeight ) );
 		Vector3 foot = wt.Position;
 
 		float waterLevel = 0;

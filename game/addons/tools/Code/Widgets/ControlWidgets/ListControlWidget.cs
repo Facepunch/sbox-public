@@ -1,4 +1,6 @@
-﻿namespace Editor;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace Editor;
 
 [CustomEditor( typeof( List<> ) )]
 [CustomEditor( typeof( Array ) )]
@@ -133,6 +135,19 @@ public class ListControlWidget : ControlWidget
 
 			if ( !ShowAddButton )
 				addButton.Visible = ShowAddButton;
+
+			if ( SerializedProperty.TryGetAttribute<MaxLengthAttribute>( out var maxLengthAttr ) )
+			{
+				var maxLength = maxLengthAttr.Length;
+				if ( Collection is not null )
+				{
+					addButton.Enabled = Collection.Count() < maxLength;
+				}
+				else
+				{
+					addButton.Enabled = GetMultipleMin() < maxLength;
+				}
+			}
 
 			buttonRow.Add( addButton );
 			buttonRow.AddStretchCell( 1 );

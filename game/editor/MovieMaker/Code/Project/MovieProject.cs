@@ -15,6 +15,8 @@ namespace Editor.MovieMaker;
 /// </summary>
 public sealed partial class MovieProject : IMovieClip, IMovieProject
 {
+	public const int DefaultSampleRate = 30;
+
 	private readonly List<IProjectTrack> _rootTrackList = new();
 	private readonly List<IProjectTrack> _trackList = new();
 	private readonly Dictionary<Guid, IProjectTrack> _trackDict = new();
@@ -27,7 +29,7 @@ public sealed partial class MovieProject : IMovieClip, IMovieProject
 	/// <summary>
 	/// When compiling, what sample rate to use.
 	/// </summary>
-	public int SampleRate { get; set; } = 30;
+	public int SampleRate { get; set; } = DefaultSampleRate;
 
 	/// <summary>
 	/// When exporting video, which config to use.
@@ -268,7 +270,16 @@ public sealed partial class MovieProject : IMovieClip, IMovieProject
 			}
 
 			case IPropertyTrack propertyTrack:
+			{
+				var parentCopy = GetOrAddTrack( propertyTrack.Parent );
+
+				if ( parentCopy.GetChild( propertyTrack.Name ) is { } existing && existing.TargetType == propertyTrack.TargetType )
+				{
+					return existing;
+				}
+
 				return AddPropertyTrack( propertyTrack.Name, propertyTrack.TargetType, GetOrAddTrack( propertyTrack.Parent ) );
+			}
 
 			default:
 				throw new NotImplementedException();

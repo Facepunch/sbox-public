@@ -95,4 +95,13 @@ public static partial class TextRendering
 
 		//Log.Info( $"TextManager: {total} ({deleted} deleted)" );
 	}
+
+	internal static void ClearCache()
+	{
+		foreach ( var item in Dictionary )
+		{
+			item.Value.Dispose();
+		}
+		Dictionary.Clear();
+	}
 }

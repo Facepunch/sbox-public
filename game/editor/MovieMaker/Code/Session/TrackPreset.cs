@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Text.Json.Serialization;
+using Sandbox.MovieMaker.Compiled;
 
 namespace Editor.MovieMaker;
 
@@ -19,12 +20,11 @@ public sealed partial record TrackPreset( TrackPresetMetadata Meta, TrackPresetN
 	/// <summary>
 	/// Number of tracks contained in this preset, not counting the root node.
 	/// </summary>
-	[JsonIgnore]
-	public int TrackCount => Root.TrackCount - 1;
+	public int AvailableTrackCount( IProjectTrack rootTrack, TrackBinder binder ) => Root.AvailableTrackCount( rootTrack.Compile( true ), binder ) - 1;
 
 	/// <summary>
 	/// Counts how many tracks in the hierarchy rooted by <paramref name="rootTrack"/> match this preset's hierarchy.
-	/// If this matches <see cref="TrackCount"/>, then this preset has been fully created.
+	/// If this matches <see cref="AvailableTrackCount"/>, then this preset has been fully created.
 	/// </summary>
 	public int MatchingTrackCount( IProjectTrack rootTrack ) => Root.MatchingTrackCount( rootTrack ) - 1;
 
@@ -32,13 +32,14 @@ public sealed partial record TrackPreset( TrackPresetMetadata Meta, TrackPresetN
 	/// Tests if the given <paramref name="rootTrack"/> has sub-tracks matching the track hierarchy described
 	/// by this preset node.
 	/// </summary>
-	public bool AllTracksExist( IProjectTrack rootTrack ) => Root.AllTracksExist( rootTrack );
+	public bool AllTracksExist( IProjectTrack rootTrack, TrackBinder binder ) =>
+		AvailableTrackCount( rootTrack, binder ) == MatchingTrackCount( rootTrack );
 }
 
 /// <summary>
 /// Describes how a <see cref="TrackPreset"/> is presented in menus.
 /// </summary>
-public sealed record TrackPresetMetadata( string Title, string Category = "Custom", string Icon = "playlist_add" );
+public sealed record TrackPresetMetadata( string Title, string Category = "Custom", string Icon = "playlist_add", string? Description = null );
 
 /// <summary>
 /// A track in a <see cref="TrackPresetNode"/>'s hierarchy with a given <paramref name="PropertyName"/> and <paramref name="PropertyType"/>.
@@ -46,17 +47,30 @@ public sealed record TrackPresetMetadata( string Title, string Category = "Custo
 /// </summary>
 /// <param name="PropertyName">Property name to match.</param>
 /// <param name="PropertyType">Property type to match.</param>
+/// <param name="AllChildren">If true, auto-add all child properties when applying this preset and ignore <paramref name="Children"/>.</param>
 /// <param name="Children">Sub-properties to match.</param>
+[method: JsonConstructor]
 public sealed record TrackPresetNode(
 	string PropertyName,
 	Type PropertyType,
+	bool AllChildren = false,
 	params ImmutableArray<TrackPresetNode> Children )
 {
+	public TrackPresetNode( string propertyName, Type propertyType, params ImmutableArray<TrackPresetNode> children )
+		: this( propertyName, propertyType, false, children )
+	{
+
+	}
+
 	/// <summary>
 	/// Total number of tracks in this node's hierarchy, including this node's track.
 	/// </summary>
-	[JsonIgnore]
-	public int TrackCount => 1 + Children.Sum( x => x.TrackCount );
+	public int AvailableTrackCount( ICompiledTrack track, TrackBinder binder )
+	{
+		return AllChildren
+			? 1 + TrackProperty.GetAll( binder.Get( track ) ).Count()
+			: 1 + Children.Sum( x => x.AvailableTrackCount( track.Child( x.PropertyName, x.PropertyType ), binder ) );
+	}
 
 	/// <summary>
 	/// Tests if a given <paramref name="target"/> contains this node's track hierarchy. True if the target has a
@@ -64,8 +78,7 @@ public sealed record TrackPresetNode(
 	/// </summary>
 	public bool Matches( ITrackTarget target )
 	{
-		return target.TargetType.IsAssignableTo( PropertyType ) &&
-		       Children.All( childPreset => childPreset.IsChildOf( target ) );
+		return target.TargetType.IsAssignableTo( PropertyType ) && Children.All( childPreset => childPreset.IsChildOf( target ) );
 	}
 
 	/// <summary>
@@ -107,9 +120,10 @@ public sealed record TrackPresetNode(
 			if ( PropertyType.IsAssignableTo( typeof( Component ) ) )
 			{
 				var component = go.Components.FirstOrDefault( PropertyType.IsInstanceOfType );
+				var refType = typeof(ComponentReference<>).MakeGenericType( PropertyType );
 
 				return component is not null
-					? new ComponentReference( component, parentRef )
+					? (ITrackReference)Activator.CreateInstance( refType, [component, parent] )!
 					: null;
 			}
 		}
@@ -125,30 +139,28 @@ public sealed record TrackPresetNode(
 
 	/// <summary>
 	/// Counts how many tracks in the hierarchy rooted by <paramref name="rootTrack"/> match this preset's hierarchy.
-	/// If this matches <see cref="TrackCount"/>, then this preset has been fully created.
+	/// If this matches <see cref="AvailableTrackCount"/>, then this preset has been fully created.
 	/// </summary>
 	public int MatchingTrackCount( IProjectTrack rootTrack )
 	{
 		if ( !rootTrack.TargetType.IsAssignableTo( PropertyType ) ) return 0;
 
+		if ( AllChildren )
+		{
+			return rootTrack.Children.Count + 1;
+		}
+
 		var count = 1;
 
 		foreach ( var childPreset in Children )
 		{
-			if ( rootTrack.Children.FirstOrDefault( x => x.Name == childPreset.PropertyName ) is not
-			    { } childTrack ) continue;
+			if ( rootTrack.Children.FirstOrDefault( x => x.Name == childPreset.PropertyName ) is not { } childTrack ) continue;
 
 			count += childPreset.MatchingTrackCount( childTrack );
 		}
 
 		return count;
 	}
-
-	/// <summary>
-	/// Tests if the given <paramref name="rootTrack"/> has sub-tracks matching the track hierarchy described
-	/// by this preset node.
-	/// </summary>
-	public bool AllTracksExist( IProjectTrack rootTrack ) => MatchingTrackCount( rootTrack ) == TrackCount;
 
 	private bool PrintMembers( StringBuilder builder )
 	{
@@ -165,7 +177,7 @@ public sealed record TrackPresetNode(
 	public static TrackPresetNode FromTrackView( TrackView root )
 	{
 		return new TrackPresetNode( root.Track.Name, root.Track.TargetType,
-			[.. root.Children.Select( FromTrackView )] );
+			[.. root.Children.Where( x => !x.IsLocked ).Select( FromTrackView )] );
 	}
 }
 
@@ -195,7 +207,8 @@ file sealed record GameObjectReference( GameObject Value, ITrackReference<GameOb
 	public override Guid Id => Value.Id;
 }
 
-file sealed record ComponentReference( Component Value, ITrackReference<GameObject>? Parent ) : DummyReference<Component>( Value, Parent )
+file sealed record ComponentReference<T>( T Value, ITrackReference<GameObject>? Parent ) : DummyReference<T>( Value, Parent )
+	where T : Component
 {
 	public override string Name => Value.GetType().Name;
 	public override Guid Id => Value.Id;

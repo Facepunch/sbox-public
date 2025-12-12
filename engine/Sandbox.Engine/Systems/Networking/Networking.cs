@@ -408,6 +408,8 @@ public static partial class Networking
 			SteamNetwork.RunCallbacks();
 			System?.Tick();
 			System?.SendTableUpdates();
+			System?.SendHeartbeat();
+			System?.SendHostStats();
 		}
 		catch ( Exception e )
 		{
@@ -419,8 +421,6 @@ public static partial class Networking
 	{
 		try
 		{
-			System?.SendHeartbeat();
-			System?.SendHostStats();
 			System?.SendTableUpdates();
 		}
 		catch ( Exception e )

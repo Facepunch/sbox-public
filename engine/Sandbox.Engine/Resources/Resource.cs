@@ -39,13 +39,20 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 	/// </summary>
 	[Hide, JsonIgnore] public virtual bool HasUnsavedChanges => false;
 
-	~Resource()
+	internal void Destroy()
 	{
 		// Unregister on main thread
 		MainThread.Queue( () => { Game.Resources.Unregister( this ); } );
 
 		Manifest?.Dispose();
 		Manifest = default;
+
+		GC.SuppressFinalize( this );
+	}
+
+	~Resource()
+	{
+		Destroy();
 	}
 
 	internal static string FixPath( string filename )

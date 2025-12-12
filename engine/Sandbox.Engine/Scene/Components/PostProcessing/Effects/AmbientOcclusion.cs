@@ -196,6 +196,7 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 			commands.Attributes.SetCombo( "D_PASS", DenoiseMode == DenoiseModes.Temporal ? GTAOPasses.DenoiseTemporal : GTAOPasses.DenoiseSpatial );
 			commands.DispatchCompute( csAO, AOTextureCurrent.Size );
 		}
+		commands.ResourceBarrierTransition( AOTextureCurrent, ResourceState.PixelShaderResource );
 
 		//
 		// Finally pass the AO as a texture for the rest of the pipeline

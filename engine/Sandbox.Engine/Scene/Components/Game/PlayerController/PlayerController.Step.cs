@@ -150,7 +150,7 @@ public sealed partial class PlayerController : Component
 
 	/// <summary>
 	/// If we stepped up on the previous step, we suck our position back to the previous position after the physics step
-	/// to avoid adding double velocity. This is technically wrong but doens't seem to cause any harm right now
+	/// to avoid adding double velocity. This is technically wrong but doesn't seem to cause any harm right now
 	/// </summary>
 	void RestoreStep()
 	{

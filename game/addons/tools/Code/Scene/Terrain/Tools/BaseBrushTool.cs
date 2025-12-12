@@ -79,6 +79,10 @@ public abstract class BaseBrushTool : EditorTool
 				var tx = terrain.WorldTransform;
 				StrokePlane = new Plane( tx.PointToWorld( hitPosition ), tx.Rotation.Up );
 
+				// Draw brush preview at hit position
+				var previewTransform = new Transform( tx.PointToWorld( hitPosition ), tx.Rotation );
+				_parent.DrawBrushPreview( previewTransform );
+
 				_dragging = true;
 
 				var uv = new Vector2( hitPosition.x, hitPosition.y ) / terrain.Storage.TerrainSize;
@@ -102,10 +106,18 @@ public abstract class BaseBrushTool : EditorTool
 				OnPaint( terrain, parameters );
 			}
 		}
-		else if ( _dragging )
+		else
 		{
-			_dragging = false;
-			OnPaintEnded( terrain );
+			// Draw brush preview when not painting
+			var tx = terrain.WorldTransform;
+			var previewTransform = new Transform( tx.PointToWorld( hitPosition ), tx.Rotation );
+			_parent.DrawBrushPreview( previewTransform );
+
+			if ( _dragging )
+			{
+				_dragging = false;
+				OnPaintEnded( terrain );
+			}
 		}
 	}
 
@@ -126,7 +138,8 @@ public abstract class BaseBrushTool : EditorTool
 		cs.Attributes.SetComboEnum( "D_SCULPT_MODE", Mode );
 
 		cs.Attributes.Set( "Heightmap", terrain.HeightMap );
-		cs.Attributes.Set( "Holemap", terrain.HolesMap );
+		cs.Attributes.Set( "ControlMap", terrain.ControlMap );
+
 		cs.Attributes.Set( "HeightUV", paint.HitUV );
 		cs.Attributes.Set( "FlattenHeight", paint.FlattenHeight );
 		cs.Attributes.Set( "BrushStrength", opacity ); ;
@@ -193,14 +206,14 @@ public abstract class BaseBrushTool : EditorTool
 		}
 		else
 		{
-			// Copy region before, apply GPU texture back, copy after for redo
-			var regionBefore = CopyRegion( terrain.Storage.HolesMap, terrain.Storage.Resolution, _dirtyRegion );
-			terrain.SyncCPUTexture( Terrain.SyncFlags.Holes, _dirtyRegion );
-			var regionAfter = CopyRegion( terrain.Storage.HolesMap, terrain.Storage.Resolution, _dirtyRegion );
+			// Hole mode: sync control map since holes are stored in the compact material
+			var regionBefore = CopyRegion( terrain.Storage.ControlMap, terrain.Storage.Resolution, _dirtyRegion );
+			terrain.SyncCPUTexture( Terrain.SyncFlags.Control, _dirtyRegion );
+			var regionAfter = CopyRegion( terrain.Storage.ControlMap, terrain.Storage.Resolution, _dirtyRegion );
 
 			SceneEditorSession.Active.UndoSystem.Insert( $"Terrain {DisplayInfo.For( this ).Name}",
-				CreateUndoAction( terrain, terrain.Storage.HolesMap, regionBefore, _dirtyRegion ),
-				CreateUndoAction( terrain, terrain.Storage.HolesMap, regionAfter, _dirtyRegion ) );
+				CreateUndoAction( terrain, terrain.Storage.ControlMap, regionBefore, _dirtyRegion ),
+				CreateUndoAction( terrain, terrain.Storage.ControlMap, regionAfter, _dirtyRegion ) );
 		}
 
 		_snapshot = null;

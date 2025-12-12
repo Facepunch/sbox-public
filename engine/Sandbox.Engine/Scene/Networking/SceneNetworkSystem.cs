@@ -11,7 +11,7 @@ namespace Sandbox;
 [Expose]
 public partial class SceneNetworkSystem : GameNetworkSystem
 {
-	internal static SceneNetworkSystem Instance { get; private set; }
+	internal static SceneNetworkSystem Instance { get; set; }
 	internal DeltaSnapshotSystem DeltaSnapshots { get; private set; }
 
 	private List<NetworkObject> BatchSpawnList { get; set; } = [];
@@ -234,10 +234,10 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			LoadingScreen.Title = "Loading Scene";
 		}
 
-		// Go ahead and destroy the scene immediately (if it exists.)
+		// Go ahead and destroy the scene
 		if ( Game.ActiveScene is not null )
 		{
-			Game.ActiveScene?.DestroyImmediate();
+			Game.ActiveScene?.Destroy();
 			Game.ActiveScene = null;
 		}
 
@@ -281,6 +281,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		MountedVPKs = await MountMaps( msg.MountedVPKs );
 	}
 
+	private static readonly GameObject.SerializeOptions _snapshotSerializeOptions = new() { SceneForNetwork = true };
+
 	/// <summary>
 	/// A client has joined and wants a snapshot of the world.
 	/// </summary>
@@ -291,16 +293,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		msg.Time = Time.Now;
 
-		var o = new GameObject.SerializeOptions
-		{
-			SceneForNetwork = true
-		};
-
 		var analytic = new Api.Events.EventRecord( "SceneNetworkSystem.GetSnapshot" );
 
 		using ( analytic.ScopeTimer( "SceneTime" ) )
 		{
-			msg.SceneData = Game.ActiveScene.Serialize( o ).ToJsonString();
+			msg.SceneData = Game.ActiveScene.Serialize( _snapshotSerializeOptions ).ToJsonString();
 		}
 
 		using ( analytic.ScopeTimer( "NetworkObjectTime" ) )
@@ -411,7 +408,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		if ( Game.ActiveScene is not null )
 		{
-			Game.ActiveScene?.DestroyImmediate();
+			Game.ActiveScene?.Destroy();
 			Game.ActiveScene = null;
 		}
 
@@ -420,18 +417,6 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		Time.Now = (float)msg.Time;
 		Game.ActiveScene.UpdateTimeFromHost( msg.Time );
-
-		foreach ( var s in msg.GameObjectSystems )
-		{
-			var type = Game.TypeLibrary.GetTypeByIdent( s.Type );
-			var system = Game.ActiveScene.GetSystemByType( type );
-
-			if ( system is null )
-				continue;
-
-			system.Id = s.Id;
-			system.ReadDataTable( s.TableData );
-		}
 
 		{
 			using var batchGroup = CallbackBatch.Batch();
@@ -460,6 +445,18 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			}
 		}
 
+		foreach ( var s in msg.GameObjectSystems )
+		{
+			var type = Game.TypeLibrary.GetTypeByIdent( s.Type );
+			var system = Game.ActiveScene.GetSystemByType( type );
+
+			if ( system is null )
+				continue;
+
+			system.Id = s.Id;
+			system.ReadDataTable( s.TableData );
+		}
+
 		MountedVPKs?.Dispose();
 		MountedVPKs = null;
 
@@ -471,6 +468,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		if ( Game.ActiveScene.IsValid() )
 		{
+			Game.ActiveScene.Signal( GameObjectSystem.Stage.SceneLoaded );
+
 			Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
 		}
 
@@ -602,7 +601,13 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			}
 		}
 
+		foreach ( var connection in Connection.All )
+		{
+			connection.Input.Clear();
+		}
+
 		DeltaSnapshots?.Reset();
+		UserCommand.Reset();
 	}
 
 	public override void OnBecameHost( Connection previousHost )

@@ -110,6 +110,7 @@ public partial class GameObject : IValid
 	/// </summary>
 	public void DestroyImmediate()
 	{
+		Assert.False( this is Scene, "Don't call DestroyImmediate on a scene." );
 		ThreadSafe.AssertIsMainThread();
 
 		Term();

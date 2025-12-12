@@ -47,24 +47,6 @@ public static partial class Game
 		set => GlobalContext.Current.NodeLibrary = value;
 	}
 
-
-	/// <summary>
-	/// Initialize for a unit test
-	/// </summary>
-	internal static void InitUnitTest<T>()
-	{
-		GlobalContext.Current.Reset();
-		GlobalContext.Current.LocalAssembly = typeof( T ).Assembly;
-		GlobalContext.Current.UISystem = new UISystem();
-		GlobalContext.Current.InputContext = new InputContext();
-		GlobalContext.Current.InputContext.TargetUISystem = GlobalContext.Current.UISystem;
-
-		Game.InitHost();
-
-		TypeLibrary.AddAssembly( typeof( T ).Assembly, false );
-	}
-
-
 	private static void AddNodesFromAssembly( Assembly asm )
 	{
 		var result = NodeLibrary.AddAssembly( asm );

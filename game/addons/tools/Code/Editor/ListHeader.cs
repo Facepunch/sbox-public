@@ -38,7 +38,7 @@ internal class ListHeader : Widget
 
 	public ListHeader( Widget parent, string[] cols ) : base( parent )
 	{
-		FixedHeight = 24;
+		FixedHeight = Theme.RowHeight;
 		Columns = cols;
 		ShownColumns = Columns.ToHashSet();
 

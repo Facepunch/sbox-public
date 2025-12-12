@@ -14,12 +14,12 @@ QTabBar {
 QTabBar::tab {
 	background-color: $TabInactiveBackground;
 	color: $TextLight;
-	padding: 0px 4px;
-	padding-left: 8px;
+	padding: 0px 8px;
+	padding-left: 12px;
 	padding-bottom: 2px;
 	background-color: transparent;
-	min-height: 22px;
-	max-height: 22px;
+	min-height: 24px;
+	max-height: 24px;
 	border-top-left-radius: $ControlRadius;
 	border-top-right-radius: $ControlRadius;
 	border-top: 2px solid transparent;
