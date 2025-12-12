@@ -48,6 +48,9 @@ public partial class MenuSystem : IMenuSystem
 
 		Dev?.Delete();
 		Dev = null;
+
+		// Null so GC can have it's way
+		Instance = null;
 	}
 
 	Package oldGamePackage;
@@ -142,7 +145,7 @@ public partial class MenuSystem : IMenuSystem
 		}
 	}
 
-	MenuMusic menu = new MenuMusic( "music/menu-bg.wav" );
+	MenuMusic menu = new MenuMusic( "music/menu-bg-xmas.mp3" );
 	MenuMusic loading = new MenuMusic( "music/menu-loading.wav" );
 	MenuMusic avatar = new MenuMusic( "music/furniture_shop_loop.ogg" );
 

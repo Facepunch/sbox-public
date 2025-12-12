@@ -79,6 +79,43 @@ native class IPhysicsJoint as NativeEngine.IPhysicsJoint
 	float Motor_GetAngularDampingRatio();
 	float Motor_GetMaxSpringForce();
 	float Motor_GetMaxSpringTorque();
+
+	void Wheel_EnableSuspension( bool flag );
+	bool Wheel_IsSuspensionEnabled();
+	void Wheel_SetSuspensionHertz( float hertz );
+	float Wheel_GetSuspensionHertz();
+	void Wheel_SetSuspensionDampingRatio( float dampingRatio );
+	float Wheel_GetSuspensionDampingRatio();
+	void Wheel_EnableSuspensionLimit( bool flag );
+	bool Wheel_IsSuspensionLimitEnabled();
+	float Wheel_GetLowerSuspensionLimit();
+	float Wheel_GetUpperSuspensionLimit();
+	void Wheel_SetSuspensionLimits( float lower, float upper );
+	void Wheel_EnableSpinMotor( bool flag );
+	bool Wheel_IsSpinMotorEnabled();
+	void Wheel_SetSpinMotorSpeed( float speed );
+	float Wheel_GetSpinMotorSpeed();
+	void Wheel_SetMaxSpinTorque( float torque );
+	float Wheel_GetMaxSpinTorque();
+	void Wheel_EnableSteering( bool flag );
+	bool Wheel_IsSteeringEnabled();
+	void Wheel_SetSteeringHertz( float hertz );
+	float Wheel_GetSteeringHertz();
+	void Wheel_SetSteeringDampingRatio( float dampingRatio );
+	float Wheel_GetSteeringDampingRatio();
+	void Wheel_SetMaxSteeringTorque( float torque );
+	float Wheel_GetMaxSteeringTorque();
+	void Wheel_EnableSteeringLimit( bool flag );
+	bool Wheel_IsSteeringLimitEnabled();
+	float Wheel_GetLowerSteeringLimit();
+	float Wheel_GetUpperSteeringLimit();
+	void Wheel_SetSteeringLimits( float lowerRadians, float upperRadians );
+	void Wheel_SetTargetSteeringAngle( float radians );
+	float Wheel_GetTargetSteeringAngle();
+	float Wheel_GetSpinSpeed();
+	float Wheel_GetSpinTorque();
+	float Wheel_GetSteeringAngle();
+	float Wheel_GetSteeringTorque();
 }
 
 managed static class Sandbox.Physics.PhysicsEngine

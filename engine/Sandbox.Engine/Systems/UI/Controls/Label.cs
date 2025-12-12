@@ -48,6 +48,11 @@ namespace Sandbox.UI
 		[Category( "Selection" )]
 		public bool Selectable { get; set; } = true;
 
+		/// <summary>
+		/// If true and the text starts with #, it will be treated as a language token.
+		/// </summary>
+		public bool Tokenize { get; set; } = true;
+
 		[Hide]
 		public int SelectionStart
 		{
@@ -150,7 +155,7 @@ namespace Sandbox.UI
 			{
 				value ??= "";
 
-				if ( value != null && value.Length > 1 && value[0] == '#' )
+				if ( Tokenize && value != null && value.Length > 1 && value[0] == '#' )
 				{
 					if ( _textToken == value ) return;
 					_textToken = value;
@@ -417,6 +422,7 @@ namespace Sandbox.UI
 		public override void LanguageChanged()
 		{
 			if ( _textToken == null ) return;
+			if ( !Tokenize ) return;
 
 			var token = _textToken;
 			_textToken = null; // skip cache

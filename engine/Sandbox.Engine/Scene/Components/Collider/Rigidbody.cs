@@ -146,6 +146,25 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	[Property, MakeDirty]
 	public RigidbodyFlags RigidbodyFlags { get; set; }
 
+	/// <summary>
+	/// Whether this rigidbody can deal damage to damageable objects on high-speed impacts.
+	/// </summary>
+	[Property, Group( "Impact Damage" )]
+	public bool EnableImpactDamage { get; set; } = true;
+
+	/// <summary>
+	/// The minimum speed required for an impact to cause damage.
+	/// </summary>
+	[Property, Title( "Minimum Speed" ), Group( "Impact Damage" ), ShowIf( nameof( EnableImpactDamage ), true )]
+	public float MinImpactDamageSpeed { get; set; } = 500f;
+
+	/// <summary>
+	/// The amount of damage this rigidbody deals to other objects when it collides at high speed.
+	/// If set to 0 or less, this will be calculated from the mass of the rigidbody.
+	/// </summary>
+	[Property, Group( "Impact Damage" ), ShowIf( nameof( EnableImpactDamage ), true )]
+	public float ImpactDamage { get; set; } = 0f;
+
 	PhysicsBody _body;
 	CollisionEventSystem _collisionEvents;
 
@@ -291,6 +310,69 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	internal Action<Collision> OnCollisionUpdate;
 	internal Action<CollisionStop> OnCollisionStop;
 
+	/// <summary>
+	/// Gets the effective impact damage value. If ImpactDamage is not set,
+	/// calculates a default value based on the rigidbody's mass.
+	/// </summary>
+	private float GetEffectiveImpactDamage()
+	{
+		if ( ImpactDamage > 0 )
+			return ImpactDamage;
+
+		// Calculate from mass if not explicitly set
+		return _body.IsValid() ? _body.Mass / 10f : 10f;
+	}
+
+	/// <summary>
+	/// Called when this rigidbody starts colliding with another object.
+	/// Handles velocity-based damage for high-speed impacts.
+	/// </summary>
+	internal void HandleImpactDamage( Collision collision )
+	{
+		if ( !EnableImpactDamage ) return;
+		if ( IsProxy ) return;
+
+		var speed = collision.Contact.NormalSpeed;
+		var minSpeed = MinImpactDamageSpeed;
+		if ( minSpeed <= 0 )
+			minSpeed = 500f;
+
+		if ( speed <= minSpeed )
+			return;
+
+		var impactDmg = GetEffectiveImpactDamage();
+		var damageMultiplier = speed / minSpeed;
+
+		// I take damage from high speed impacts
+		var selfDamageable = GameObject.GetComponentInParent<IDamageable>();
+		if ( selfDamageable is not null )
+		{
+			var selfDamage = damageMultiplier * impactDmg;
+			var selfDamageInfo = new DamageInfo( selfDamage, collision.Other.GameObject, collision.Other.GameObject )
+			{
+				Position = collision.Contact.Point
+			};
+			selfDamageInfo.Tags.Add( "impact" );
+
+			selfDamageable.OnDamage( selfDamageInfo );
+		}
+
+		// The other object takes more damage
+		var otherDamageable = collision.Other.GameObject?.GetComponentInParent<IDamageable>();
+		if ( otherDamageable is null )
+			return;
+
+		var damage = damageMultiplier * impactDmg * 1.2f;
+		var damageInfo = new DamageInfo( damage, GameObject, GameObject )
+		{
+			Position = collision.Contact.Point,
+			Shape = collision.Other.Shape
+		};
+		damageInfo.Tags.Add( "impact" );
+
+		otherDamageable.OnDamage( damageInfo );
+	}
+
 	void EnsureBodyCreated()
 	{
 		if ( _body.IsValid() ) return;
@@ -305,6 +387,14 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		_body.EnableTouch = CollisionEventsEnabled;
 		_body.EnableTouchPersists = CollisionUpdateEventsEnabled;
 
+		// Apply velocities that were set before the body was created
+		_body.Velocity = _lastVelocity;
+		_body.AngularVelocity = _lastAngularVelocity;
+
+		// Make sure we clear these so we don't reapply them again later
+		_lastVelocity = default;
+		_lastAngularVelocity = default;
+
 		UpdateBody();
 	}
 
@@ -317,7 +407,11 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 
 		_collisionEvents?.Dispose();
 		_collisionEvents = new CollisionEventSystem( _body, GameObjectSource );
-		_collisionEvents.OnCollisionStart = OnCollisionStart;
+		_collisionEvents.OnCollisionStart = ( c ) =>
+		{
+			HandleImpactDamage( c );
+			OnCollisionStart?.Invoke( c );
+		};
 		_collisionEvents.OnCollisionUpdate = OnCollisionUpdate;
 		_collisionEvents.OnCollisionStop = OnCollisionStop;
 
@@ -383,9 +477,22 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	/// </summary>
 	internal Transform? TargetTransform { get; set; }
 
+	/// <summary>
+	/// Linear velocity before physics step. Internal until someone needs them.
+	/// </summary>
+	internal Vector3 PreVelocity { get; private set; }
+
+	/// <summary>
+	/// Angular velocity before physics step. Internal until someone needs them.
+	/// </summary>
+	internal Vector3 PreAngularVelocity { get; private set; }
+
 	void IScenePhysicsEvents.PrePhysicsStep()
 	{
 		if ( !_body.IsValid() ) return;
+
+		PreVelocity = _body.Velocity;
+		PreAngularVelocity = _body.AngularVelocity;
 
 		if ( TargetTransform.HasValue )
 		{

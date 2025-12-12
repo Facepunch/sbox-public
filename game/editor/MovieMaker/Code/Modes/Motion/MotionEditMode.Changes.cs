@@ -111,7 +111,7 @@ partial class MotionEditMode
 
 		using ( Session.History.Push( shiftTime ? "Remove Time" : "Clear Time" ) )
 		{
-			foreach ( var view in Session.TrackList.EditableTracks )
+			foreach ( var view in Session.TrackList.EditablePropertyTracks )
 			{
 				var track = (IProjectPropertyTrack)view.Track;
 
@@ -151,7 +151,7 @@ partial class MotionEditMode
 
 		using ( Session.History.Push( "Insert" ) )
 		{
-			foreach ( var view in Session.TrackList.EditableTracks )
+			foreach ( var view in Session.TrackList.EditablePropertyTracks )
 			{
 				var track = (IProjectPropertyTrack)view.Track;
 
@@ -188,7 +188,7 @@ partial class MotionEditMode
 		var tracks = new Dictionary<Guid, IReadOnlyList<IProjectPropertyBlock>>();
 		var slicedBlocks = new List<IProjectPropertyBlock>();
 
-		foreach ( var view in Session.TrackList.EditableTracks )
+		foreach ( var view in Session.TrackList.EditablePropertyTracks )
 		{
 			var track = (IProjectPropertyTrack)view.Track;
 
@@ -227,7 +227,7 @@ partial class MotionEditMode
 		TimeSelection = selection;
 
 		SetModification<BlendModification>( selection )
-			.SetFromClipboard( clipboard, offset, Project );
+			.SetFromClipboard( clipboard, offset );
 
 		SelectionChanged();
 		DisplayAction( "content_paste" );
@@ -240,7 +240,7 @@ partial class MotionEditMode
 		var project = new MovieProject();
 		var offset = -timeRange.Start;
 
-		foreach ( var editable in Session.TrackList.EditableTracks )
+		foreach ( var editable in Session.TrackList.EditablePropertyTracks )
 		{
 			if ( editable.Track is not IProjectPropertyTrack propertyTrack ) continue; // TODO
 			if ( propertyTrack.Slice( timeRange ) is not { Count: > 0 } slice ) continue;
@@ -297,7 +297,7 @@ partial class MotionEditMode
 
 	private bool _hasSelectionItems;
 
-	private void SelectionChanged()
+	public void SelectionChanged()
 	{
 		if ( TimeSelection is { } selection )
 		{

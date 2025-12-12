@@ -10,9 +10,7 @@ global using static Sandbox.Internal.GlobalSystemNamespace;
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo( "Sandbox.Test" )]
-[assembly: InternalsVisibleTo( "Sandbox.UI.Test" )]
-[assembly: InternalsVisibleTo( "Sandbox.Tools.Test" )]
-[assembly: InternalsVisibleTo( "Sandbox.Access.Test" )]
+[assembly: InternalsVisibleTo( "Sandbox.Test.Unit" )]
 [assembly: InternalsVisibleTo( "Sandbox.Hotload.Test" )]
 [assembly: InternalsVisibleTo( "Sandbox.GameInstance" )]
 [assembly: InternalsVisibleTo( "Sandbox.Tools" )]

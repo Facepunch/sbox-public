@@ -158,7 +158,8 @@ public partial class Project
 			{
 				if ( !project.Active ) continue;
 
-				if ( project != Current && project.Config.Ident == "menu" ) continue;
+				// Don't put menu project in everyone's slns
+				if ( project.Config.Ident == "menu" && Current?.Config?.Ident != "menu" ) continue;
 
 				await project.GenerateProject( generator );
 			}

@@ -166,11 +166,7 @@ public class AssetEntry : IAssetListEntry
 		rect.Top += 2; // Pull down to avoid conflicting with asset type strip
 
 		var strText = Path.GetFileNameWithoutExtension( Name );
-
-		if ( strText.Length > 16 )
-		{
-			strText = $"{strText.Substring( 0, 8 )}...{strText.Substring( strText.Length - 8, 8 )}";
-		}
+		strText = Paint.GetElidedText( strText, rect.Width, ElideMode.Middle );
 
 		Paint.DrawText( rect, strText, TextFlag.LeftTop );
 

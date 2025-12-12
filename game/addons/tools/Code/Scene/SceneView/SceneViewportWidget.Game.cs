@@ -2,29 +2,67 @@
 
 public partial class SceneViewportWidget
 {
-	public void StartPlay()
+	/// <summary>
+	/// Is this viewport the game view?
+	/// </summary>
+	public bool IsGameView { get; private set; }
+
+	/// <summary>
+	/// Called when the SceneView's view mode changes.
+	/// </summary>
+	public void OnViewModeChanged( SceneViewWidget.ViewMode viewMode )
 	{
-		Editor.GameMode.SetPlayWidget( Renderer );
 		Renderer.Scene = Session.Scene;
-		Renderer.Camera = null;
-		Renderer.EnableEngineOverlays = true;
-		ViewportOptions.Visible = false;
+		GizmoInstance.Selection = Session.Selection;
+
+		if ( _editorCamera.IsValid() && _editorCamera.Scene != Session.Scene )
+		{
+			// make sure the editor camera exists in the correct scene
+			_editorCamera.DestroyGameObject();
+			_editorCamera = Renderer.CreateSceneEditorCamera();
+		}
+
+		_activeCamera = viewMode switch
+		{
+			SceneViewWidget.ViewMode.Game => null,
+			SceneViewWidget.ViewMode.GameEjected => _ejectCamera,
+			_ => _editorCamera,
+		};
+
+		Renderer.Camera = _activeCamera;
+		Renderer.EnableEngineOverlays = IsGameView;
+		ViewportOptions.Visible = !IsGameView;
 	}
 
-	public void StopPlay()
+	/// <summary>
+	/// Set this viewport as the game view.
+	/// </summary>
+	public void SetGameView()
 	{
-		Editor.GameMode.ClearPlayMode();
-		Renderer.Scene = Session.Scene;
-		_activeCamera = _editorCamera;
-		Renderer.Camera = _activeCamera;
-		Renderer.EnableEngineOverlays = false;
-		ViewportOptions.Visible = true;
+		GameMode.SetPlayWidget( Renderer );
+		IsGameView = true;
+	}
+
+	/// <summary>
+	/// Clear this viewport as the game view.
+	/// </summary>
+	public void ClearGameView()
+	{
+		GameMode.ClearPlayMode();
+		IsGameView = false;
+
 		SetDefaultSize();
 	}
 
-	public void EjectGameCamera()
+	/// <summary>
+	/// Called when ejecting from the game state.
+	/// </summary>
+	public void OnEject()
 	{
-		Editor.GameMode.ClearPlayMode();
+		GameMode.ClearPlayMode();
+		IsGameView = false;
+
+		SetDefaultSize();
 
 		var gameCamera = Renderer.Scene.Camera;
 		if ( gameCamera.IsValid() )
@@ -36,20 +74,14 @@ public partial class SceneViewportWidget
 
 		if ( !_ejectCamera.IsValid() )
 			_ejectCamera = Renderer.CreateSceneEditorCamera();
-
-		_activeCamera = _ejectCamera;
-		Renderer.Camera = _activeCamera;
-		Renderer.EnableEngineOverlays = false;
-		ViewportOptions.Visible = true;
-		SetDefaultSize();
 	}
 
-	public void PossesGameCamera()
+	/// <summary>
+	/// Called when possessing back into the game state.
+	/// </summary>
+	public void OnPossessGame()
 	{
-		Editor.GameMode.SetPlayWidget( Renderer );
-		_activeCamera = null;
-		Renderer.Camera = null;
-		Renderer.EnableEngineOverlays = true;
-		ViewportOptions.Visible = false;
+		GameMode.SetPlayWidget( Renderer );
+		IsGameView = true;
 	}
 }

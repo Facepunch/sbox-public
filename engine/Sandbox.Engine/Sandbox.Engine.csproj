@@ -44,6 +44,7 @@
 		<PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.0" />
 		<PackageReference Include="Svg.Skia" Version="2.0.0.4" />
 		<PackageReference Include="Azure.Messaging.WebPubSub.Client" Version="1.0.0" />
+		<PackageReference Include="System.Numerics.Tensors" Version="10.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>

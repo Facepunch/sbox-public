@@ -243,7 +243,7 @@ internal partial class ManagerWriter : BaseWriter
 					WriteLine( "onError( $\"{___e.Message}\\n\\n{___e.StackTrace}\" );" );
 				}
 				EndBlock();
-				
+
 
 				WriteLine( "_initialized = true;" );
 			}

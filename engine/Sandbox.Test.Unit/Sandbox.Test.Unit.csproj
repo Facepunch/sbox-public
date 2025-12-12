@@ -1,0 +1,57 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <NoWarn>1701;1702;1591;CS0612</NoWarn>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+	<IsTestProject>true</IsTestProject>
+	<IsPublishable>false</IsPublishable>
+	<IsPackable>false</IsPackable>
+	<SentryDisableSourceGenerator>true</SentryDisableSourceGenerator>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(BuildingForLiveUnitTesting)' == 'true'">
+    <DefineConstants>$(DefineConstants);LIVE_UNIT_TEST</DefineConstants>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<Using Include="Microsoft.AspNetCore.Components" />
+		<Using Include="Microsoft.AspNetCore.Components.Rendering" />
+	</ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="CodeGen\data\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="CodeGen\data\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+  <PackageReference Include="Facepunch.ActionGraphs" Version="1.9.22" />
+	<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+	<PackageReference Include="MSTest.TestAdapter" Version="3.6.4" />
+	<PackageReference Include="MSTest.TestFramework" Version="3.6.4" />
+
+	<PackageReference Include="coverlet.collector" Version="6.0.2">
+	  <PrivateAssets>all</PrivateAssets>
+	  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+	</PackageReference>
+
+	<PackageReference Include="OxyPlot.Core" Version="2.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sandbox.Bind\Sandbox.Bind.csproj" />
+    <ProjectReference Include="..\Sandbox.Generator\Sandbox.Generator.csproj" />
+    <ProjectReference Include="..\Sandbox.System\Sandbox.System.csproj" />
+    <ProjectReference Include="..\Sandbox.Engine\Sandbox.Engine.csproj" />
+    <ProjectReference Include="..\Sandbox.Tools\Sandbox.Tools.csproj" />
+    <ProjectReference Include="..\Sandbox.Menu\Sandbox.Menu.csproj" />
+    <ProjectReference Include="..\Sandbox.AppSystem\Sandbox.AppSystem.csproj" />
+  </ItemGroup>
+
+</Project>
+

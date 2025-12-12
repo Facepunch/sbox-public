@@ -110,7 +110,7 @@ public class RotationEditorTool : EditorTool
 	}
 
 
-	[Shortcut( "tools.rotate-tool", "e", typeof( SceneViewportWidget ) )]
+	[Shortcut( "tools.rotate-tool", "e", typeof( SceneDock ) )]
 	public static void ActivateSubTool()
 	{
 		if ( !(EditorToolManager.CurrentModeName == nameof( ObjectEditorTool ) || EditorToolManager.CurrentModeName == "object") ) return;

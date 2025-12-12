@@ -210,7 +210,7 @@ public sealed partial class SceneMap : IValid
 		if ( PVS.IsValid )
 		{
 			// don't destroy if another SceneWorld is using it
-			if ( !SceneWorld.All.Where( x => x.IsValid() && x.native.GetPVS() == PVS ).Any() )
+			if ( !SceneWorld.All.Any( x => x.ActivePVS == PVS ) )
 			{
 				g_pEnginePVSManager.DestroyPvs( PVS );
 			}

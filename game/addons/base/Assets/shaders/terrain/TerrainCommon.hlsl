@@ -5,11 +5,14 @@
 // Not stable, shit will change and custom shaders using this API will break until I'm satisfied.
 // But they will break for good reason and I will tell you why and how to update.
 //
+// 12/9/25: Added NoTile Flag
 // 23/07/24: Initial global structured buffers
 //
 
 #ifndef TERRAIN_H
 #define TERRAIN_H
+
+#include "terrain/TerrainSplatFormat.hlsl"
 
 struct TerrainStruct
 {
@@ -20,8 +23,6 @@ struct TerrainStruct
     // Bindless texture maps
     int HeightMapTexture;
     int ControlMapTexture;
-    int HolesMapTexture;
-    int Padding;
 
     float Resolution; // should be inv?
     float HeightScale;
@@ -31,19 +32,28 @@ struct TerrainStruct
     float HeightBlendSharpness;
 };
 
+enum TerrainFlags
+{
+    NoTile = 1 // (1 << 0)
+};
+
 struct TerrainMaterial
 {
     int bcr_texid;
     int nho_texid;
     float uvscale;
-    float uvrotation;
+    uint flags;
     float metalness;
     float heightstrength;
     float normalstrength;
     float displacementscale;
+
+    bool HasFlag( TerrainFlags flag )
+    {
+        return (flags & flag) != 0;
+    }
 };
 
-// What's these doing here
 SamplerState g_sBilinearBorder < Filter( BILINEAR ); AddressU( BORDER ); AddressV( BORDER ); >;
 SamplerState g_sAnisotropic < Filter( ANISOTROPIC ); MaxAniso(8); >;
 
@@ -56,10 +66,9 @@ StructuredBuffer<TerrainMaterial> g_TerrainMaterials < Attribute( "TerrainMateri
 class Terrain
 {
     static TerrainStruct Get() { return g_Terrains[0]; }
-
-    static Texture2D GetHeightMap() { return GetBindlessTexture2D( Get().HeightMapTexture ); }
-    static Texture2D GetControlMap() { return GetBindlessTexture2D( Get().ControlMapTexture ); }
-    static Texture2D GetHolesMap() { return GetBindlessTexture2D( Get().HolesMapTexture ); }
+    
+    static Texture2D GetHeightMap() { return Bindless::GetTexture2D( Get().HeightMapTexture ); }
+    static Texture2D GetControlMap() { return Bindless::GetTexture2D( Get().ControlMapTexture ); }
 
     static float GetHeight( float2 worldPos )
     {
@@ -73,7 +82,7 @@ class Terrain
 
 // Get UV with per-tile UV offset to reduce visible tiling
 // Works by offsetting UVs within each tile using a hash of the tile coordinate
-float2 Terrain_SampleSeamlessUV( float2 uv )
+float2 Terrain_SampleSeamlessUV( float2 uv, out float2x2 uvAngle )
 {
     float2 tileCoord = floor( uv );
     float2 localUV = frac( uv );
@@ -89,6 +98,9 @@ float2 Terrain_SampleSeamlessUV( float2 uv )
     float sinA = sin(angle);
     float2x2 rot = float2x2(cosA, -sinA, sinA, cosA);
 
+    // Output rotation matrix 
+    uvAngle = rot;
+
     // Rotate around center
     localUV = mul(rot, localUV - 0.5) + 0.5;
 
@@ -96,7 +108,11 @@ float2 Terrain_SampleSeamlessUV( float2 uv )
     return tileCoord + frac(localUV + hash);
 }
 
-// Move to another file:
+float2 Terrain_SampleSeamlessUV( float2 uv ) 
+{
+    float2x2 dummy;
+    return Terrain_SampleSeamlessUV( uv, dummy ); 
+}
 
 //
 // Takes 4 samples
@@ -145,6 +161,7 @@ void Terrain_ProcGrid( in float2 p, out float3 albedo, out float roughness )
     roughness = 0.8f + ( 1 - v ) * 0.2f;
 }
 
+#ifdef COMMON_COLOR_H
 float4 Terrain_Debug( uint nDebugView, uint lodLevel, float2 uv )
 {
     if ( nDebugView == 1 )
@@ -166,5 +183,6 @@ float4 Terrain_WireframeColor( uint lodLevel )
 {       
     return float4( SrgbGammaToLinear( HsvToRgb( float3( lodLevel / 10.0f, 0.6f, 1.0f ) ) ), 1.0f );
 }
+#endif
 
 #endif

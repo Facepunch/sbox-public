@@ -82,6 +82,18 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 		var GBufferHistory = cmd.GetRenderTarget( "Previous GBuffer", ImageFormat.RGBA16161616F, sizeFactor: DownsampleRatio );
 		var FullResRadiance = needsUpscale ? cmd.GetRenderTarget( "Radiance Full", ImageFormat.RGBA16161616F ) : default;
 
+		var radiancePing = pingPong ? Radiance0 : Radiance1;
+		var radianceHistory = pingPong ? Radiance1 : Radiance0;
+
+		var variancePing = pingPong ? Variance0 : Variance1;
+		var varianceHistory = pingPong ? Variance1 : Variance0;
+
+		var samplePing = pingPong ? SampleCount0 : SampleCount1;
+		var sampleHistory = pingPong ? SampleCount1 : SampleCount0;
+
+		var averagePing = pingPong ? AverageRadiance0 : AverageRadiance1;
+		var averageHistory = pingPong ? AverageRadiance1 : AverageRadiance0;
+
 		ComputeShader reflectionsCs = new ComputeShader( "screen_space_reflections_cs" );
 
 		var lastFrameRt = cmdLastframe.Attributes.GetRenderTarget( "LastFrameColor" )?.ColorTarget ?? Texture.Transparent;
@@ -100,56 +112,50 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 
 		foreach ( Passes pass in Enum.GetValues( typeof( Passes ) ) )
 		{
+			if ( !Denoise && pass != Passes.Intersect )
+				break;
 
 			switch ( pass )
 			{
-				// I'd like to use the ray dispatches from GPU Buffers , which would be faster and higher quality
-				// but this is hard in the command list api without having per-viewport configuration
-				// right now it's a direct reimplementation of C++ version but without Reflection MODE
-				// case Passes.ClassifyTiles:
-				//    {
-				//        break;
-				//    }
 				case Passes.Intersect:
-					cmd.Attributes.Set( "OutRadiance", pingPong ? Radiance0.ColorTexture : Radiance1.ColorTexture );
+					cmd.Attributes.Set( "OutRadiance", radiancePing.ColorTexture );
 					break;
 
 				case Passes.DenoiseReproject:
-					cmd.Attributes.Set( "Radiance", pingPong ? Radiance0.ColorTexture : Radiance1.ColorTexture );
-					cmd.Attributes.Set( "RadianceHistory", !pingPong ? Radiance0.ColorTexture : Radiance1.ColorTexture );
-
-					cmd.Attributes.Set( "AverageRadianceHistory", !pingPong ? AverageRadiance0.ColorTexture : AverageRadiance1.ColorTexture );
-					cmd.Attributes.Set( "VarianceHistory", !pingPong ? Variance0.ColorTexture : Variance1.ColorTexture );
-					cmd.Attributes.Set( "SampleCountHistory", !pingPong ? SampleCount0.ColorTexture : SampleCount1.ColorTexture );
+					cmd.Attributes.Set( "Radiance", radiancePing.ColorTexture );
+					cmd.Attributes.Set( "RadianceHistory", radianceHistory.ColorTexture );
+					cmd.Attributes.Set( "AverageRadianceHistory", averageHistory.ColorTexture );
+					cmd.Attributes.Set( "VarianceHistory", varianceHistory.ColorTexture );
+					cmd.Attributes.Set( "SampleCountHistory", sampleHistory.ColorTexture );
 
 					cmd.Attributes.Set( "OutReprojectedRadiance", ReprojectedRadiance.ColorTexture );
-					cmd.Attributes.Set( "OutAverageRadiance", pingPong ? AverageRadiance0.ColorTexture : AverageRadiance1.ColorTexture );
-					cmd.Attributes.Set( "OutVariance", pingPong ? Variance0.ColorTexture : Variance1.ColorTexture );
-					cmd.Attributes.Set( "OutSampleCount", pingPong ? SampleCount0.ColorTexture : SampleCount1.ColorTexture );
+					cmd.Attributes.Set( "OutAverageRadiance", averagePing.ColorTexture );
+					cmd.Attributes.Set( "OutVariance", variancePing.ColorTexture );
+					cmd.Attributes.Set( "OutSampleCount", samplePing.ColorTexture );
 					break;
 
 				case Passes.DenoisePrefilter:
-					cmd.Attributes.Set( "Radiance", pingPong ? Radiance0.ColorTexture : Radiance1.ColorTexture );
-					cmd.Attributes.Set( "RadianceHistory", !pingPong ? Radiance0.ColorTexture : Radiance1.ColorTexture );
-					cmd.Attributes.Set( "AverageRadiance", pingPong ? AverageRadiance0.ColorTexture : AverageRadiance1.ColorTexture );
-					cmd.Attributes.Set( "Variance", pingPong ? Variance0.ColorTexture : Variance1.ColorTexture );
-					cmd.Attributes.Set( "SampleCountHistory", pingPong ? SampleCount0.ColorTexture : SampleCount1.ColorTexture );
+					cmd.Attributes.Set( "Radiance", radiancePing.ColorTexture );
+					cmd.Attributes.Set( "RadianceHistory", radianceHistory.ColorTexture );
+					cmd.Attributes.Set( "AverageRadiance", averagePing.ColorTexture );
+					cmd.Attributes.Set( "Variance", variancePing.ColorTexture );
+					cmd.Attributes.Set( "SampleCountHistory", samplePing.ColorTexture );
 
-					cmd.Attributes.Set( "OutRadiance", !pingPong ? Radiance0.ColorTexture : Radiance1.ColorTexture );
-					cmd.Attributes.Set( "OutVariance", !pingPong ? Variance0.ColorTexture : Variance1.ColorTexture );
-					cmd.Attributes.Set( "OutSampleCount", !pingPong ? SampleCount0.ColorTexture : SampleCount1.ColorTexture );
+					cmd.Attributes.Set( "OutRadiance", radianceHistory.ColorTexture );
+					cmd.Attributes.Set( "OutVariance", varianceHistory.ColorTexture );
+					cmd.Attributes.Set( "OutSampleCount", sampleHistory.ColorTexture );
 					break;
 
 				case Passes.DenoiseResolveTemporal:
-					cmd.Attributes.Set( "AverageRadiance", pingPong ? AverageRadiance0.ColorTexture : AverageRadiance1.ColorTexture );
-					cmd.Attributes.Set( "Radiance", !pingPong ? Radiance0.ColorTexture : Radiance1.ColorTexture );
+					cmd.Attributes.Set( "AverageRadiance", averagePing.ColorTexture );
+					cmd.Attributes.Set( "Radiance", radianceHistory.ColorTexture );
 					cmd.Attributes.Set( "ReprojectedRadiance", ReprojectedRadiance.ColorTexture );
-					cmd.Attributes.Set( "Variance", !pingPong ? Variance0.ColorTexture : Variance1.ColorTexture );
-					cmd.Attributes.Set( "SampleCount", !pingPong ? SampleCount0.ColorTexture : SampleCount1.ColorTexture );
+					cmd.Attributes.Set( "Variance", varianceHistory.ColorTexture );
+					cmd.Attributes.Set( "SampleCount", sampleHistory.ColorTexture );
 
-					cmd.Attributes.Set( "OutRadiance", pingPong ? Radiance0.ColorTexture : Radiance1.ColorTexture );
-					cmd.Attributes.Set( "OutVariance", pingPong ? Variance0.ColorTexture : Variance1.ColorTexture );
-					cmd.Attributes.Set( "OutSampleCount", pingPong ? SampleCount0.ColorTexture : SampleCount1.ColorTexture );
+					cmd.Attributes.Set( "OutRadiance", radiancePing.ColorTexture );
+					cmd.Attributes.Set( "OutVariance", variancePing.ColorTexture );
+					cmd.Attributes.Set( "OutSampleCount", samplePing.ColorTexture );
 
 					cmd.Attributes.Set( "GBufferHistoryRW", GBufferHistory.ColorTexture );
 					cmd.Attributes.Set( "DepthHistoryRW", DepthHistory.ColorTexture );
@@ -161,28 +167,28 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 						continue;
 					}
 
-					cmd.Attributes.Set( "Radiance", pingPong ? Radiance0.ColorTexture : Radiance1.ColorTexture );
+					cmd.Attributes.Set( "Radiance", radiancePing.ColorTexture );
 					cmd.Attributes.Set( "OutRadiance", FullResRadiance.ColorTexture );
 					cmd.Attributes.SetCombo( "D_PASS", (int)Passes.BilateralUpscale );
 					cmd.DispatchCompute( reflectionsCs, cmd.ViewportSize );
-					break;
+					continue;
 			}
 
 			if ( pass == Passes.BilateralUpscale )
 				continue;
-			// Set the pass
+
 			cmd.Attributes.SetCombo( "D_PASS", (int)pass );
 			cmd.DispatchCompute( reflectionsCs, ReprojectedRadiance.Size );
-
-			if ( !Denoise )
-				break;
 		}
+
+		var finalReflection = needsUpscale ? FullResRadiance : radiancePing;
+		cmd.ResourceBarrierTransition( finalReflection, ResourceState.PixelShaderResource );
 
 		// Final SSR color to be used by shaders
 		if ( needsUpscale )
 			cmd.GlobalAttributes.Set( "ReflectionColorIndex", FullResRadiance.ColorIndex );
 		else
-			cmd.GlobalAttributes.Set( "ReflectionColorIndex", pingPong ? Radiance0.ColorIndex : Radiance1.ColorIndex );
+			cmd.GlobalAttributes.Set( "ReflectionColorIndex", radiancePing.ColorIndex );
 
 
 		InsertCommandList( cmdLastframe, Stage.AfterOpaque, 0, "ScreenSpaceReflections" );

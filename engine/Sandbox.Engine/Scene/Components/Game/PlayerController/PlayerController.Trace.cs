@@ -5,7 +5,7 @@ public sealed partial class PlayerController : Component
 	/// <summary>
 	/// Return an aabb representing the body
 	/// </summary>
-	public BBox BodyBox( float scale = 1.0f, float heightScale = 1.0f ) => new BBox( new Vector3( -BodyRadius * 0.5f * scale, -BodyRadius * 0.5f * scale, 0 ), new Vector3( BodyRadius * 0.5f * scale, BodyRadius * 0.5f * scale, BodyHeight * heightScale ) );
+	public BBox BodyBox( float scale = 1.0f, float heightScale = 1.0f ) => new BBox( new Vector3( -BodyRadius * 0.5f * scale, -BodyRadius * 0.5f * scale, 0 ), new Vector3( BodyRadius * 0.5f * scale, BodyRadius * 0.5f * scale, CurrentHeight * heightScale ) );
 
 	/// <summary>
 	/// Trace the aabb body from one position to another and return the result

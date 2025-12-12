@@ -56,7 +56,7 @@ public partial class Scene
 	/// <summary>
 	/// Signal a hook stage
 	/// </summary>
-	private void Signal( in GameObjectSystem.Stage stage )
+	internal void Signal( in GameObjectSystem.Stage stage )
 	{
 		GetCallbacks( stage ).Run();
 	}

@@ -28,7 +28,6 @@ public static class EditorShortcuts
 	{
 		Entries.Clear();
 
-
 		var methods = EditorTypeLibrary.GetMethodsWithAttribute<ShortcutAttribute>( false );
 
 		foreach ( var method in methods )
@@ -45,7 +44,6 @@ public static class EditorShortcuts
 			{
 				method.Attribute.Type = ShortcutType.Window;
 			}
-
 
 			var entry = new Entry( method.Method, method.Attribute, group );
 			Entries.Add( entry );

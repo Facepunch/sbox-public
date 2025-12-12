@@ -1,7 +1,13 @@
-﻿using System;
+using System;
 using static Sandbox.PhysicsGroupDescription.BodyPart;
 
 namespace Editor.TerrainEditor;
+
+public enum TerrainLayer
+{
+	Base = 0,
+	Overlay = 1
+}
 
 [Title( "Paint Texture" )]
 [Icon( "brush" )]
@@ -21,6 +27,7 @@ public class PaintTextureTool : EditorTool
 	}
 
 	public static int SplatChannel { get; set; } = 0;
+	public static TerrainLayer ActiveLayer { get; set; } = TerrainLayer.Base;
 
 	public override void OnUpdate()
 	{
@@ -30,6 +37,11 @@ public class PaintTextureTool : EditorTool
 
 		if ( !terrain.RayIntersects( Gizmo.CurrentRay, Gizmo.RayDepth, out var hitPosition ) )
 			return;
+
+		// Draw brush preview at hit position
+		var tx = terrain.WorldTransform;
+		var previewTransform = new Transform( tx.PointToWorld( hitPosition ), tx.Rotation );
+		parent.DrawBrushPreview( previewTransform );
 
 		if ( Gizmo.IsLeftMouseDown )
 		{
@@ -85,11 +97,13 @@ public class PaintTextureTool : EditorTool
 		cs.Attributes.Set( "BrushSize", size );
 		cs.Attributes.Set( "Brush", paint.Brush.Texture );
 		cs.Attributes.Set( "SplatChannel", SplatChannel );
+		cs.Attributes.Set( "PaintLayer", (int)ActiveLayer );
 
 		var x = (int)Math.Floor( terrain.Storage.Resolution * paint.HitUV.x ) - size / 2;
 		var y = (int)Math.Floor( terrain.Storage.Resolution * paint.HitUV.y ) - size / 2;
 
 		cs.Dispatch( size, size, 1 );
+
 
 		// Grow the dirty region (+1 to be conservative of the floor) 
 		_dirtyRegion.Add( new RectInt( x, y, size + 1, size + 1 ) );
@@ -105,10 +119,10 @@ public class PaintTextureTool : EditorTool
 
 		var dirtyRegion = _dirtyRegion;
 
-		// copy region back to the array
-		Color32[] CopyRegion( Color32[] data, int stride, RectInt rect )
+		// Copy control map region - use Witcher format
+		UInt32[] CopyRegion( UInt32[] data, int stride, RectInt rect )
 		{
-			Color32[] region = new Color32[rect.Width * rect.Height];
+			UInt32[] region = new UInt32[rect.Width * rect.Height];
 
 			for ( int y = 0; y < rect.Height; y++ )
 			{
@@ -123,13 +137,13 @@ public class PaintTextureTool : EditorTool
 
 		var regionBefore = CopyRegion( terrain.Storage.ControlMap, terrain.Storage.Resolution, dirtyRegion );
 
-		// This updates so we can grab the CPU data for redo
+		// This updates so we can grab the CPU data for redo - sync the control map
 		terrain.SyncCPUTexture( Terrain.SyncFlags.Control, dirtyRegion );
 
 		var regionAfter = CopyRegion( terrain.Storage.ControlMap, terrain.Storage.Resolution, dirtyRegion );
 
 		// Undo/Redo is the same, just different data
-		Action CreateUndoAction( Color32[] region ) => () =>
+		Action CreateUndoAction( UInt32[] region ) => () =>
 		{
 			if ( !terrain.IsValid() )
 				return;
@@ -150,3 +164,4 @@ public class PaintTextureTool : EditorTool
 		_snapshot = null;
 	}
 }
+

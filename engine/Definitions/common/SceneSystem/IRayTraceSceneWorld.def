@@ -1,0 +1,19 @@
+#include "scenesystem/iscenesystem.h"
+
+native class IRayTraceSceneWorld as NativeEngine.IRayTraceSceneWorld
+{
+    void BeginBuild();
+    void AddSceneWorldToBuild( ISceneWorld pWorld, IRenderContext pRenderContext );
+	bool EndBuild( IRenderContext pRenderContext, CRenderAttributes attrs );
+
+    inline bool BuildTLASForWorld( ISceneWorld pWorld, CRenderAttributes attrs )
+    {
+        CRenderContextPtr pRenderContext( g_pRenderDevice, "sceneinfo_gpu" );
+
+        this->BeginBuild();
+        this->AddSceneWorldToBuild( pWorld, pRenderContext );
+        this->EndBuild( pRenderContext, attrs );
+
+        return true;
+    } 
+}

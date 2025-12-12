@@ -79,12 +79,6 @@ float FFX_DNSR_Reflections_GetLuminanceWeight(float3 val) {
     return weight;
 }
 
-float2 FFX_DNSR_Reflections_GetSurfaceReprojection(int2 dispatch_thread_id, float2 uv, float2 motion_vector) {
-    // Reflector position reprojection
-    float2 history_uv = uv - motion_vector;
-    return history_uv;
-}
-
 float2 FFX_DNSR_Reflections_GetHitPositionReprojection(int2 dispatch_thread_id, float2 uv, float reflected_ray_length) 
 {
     float  z              = FFX_DNSR_Reflections_LoadDepth(dispatch_thread_id);
@@ -98,8 +92,9 @@ float2 FFX_DNSR_Reflections_GetHitPositionReprojection(int2 dispatch_thread_id, 
     view_space_ray = normalize(view_space_ray);
 
     float3 vHitPositionWs = g_vCameraPositionWs.xyz + view_space_ray * ( ray_length );
-    float2 vReprojectedCoordUV = ReprojectFromLastFrameSs( vHitPositionWs ).xy * InvDimensions;
-    return uv - ( uv - vReprojectedCoordUV );
+    float2 vHitPositionSs = ProjectPosition( vHitPositionWs, g_matWorldToProjection ).xy * Dimensions;
+
+    return Motion::Get( vHitPositionSs + 0.5f ).xy * InvDimensions;
 }
 
 float FFX_DNSR_Reflections_GetDisocclusionFactor(float3 normal, float3 history_normal, float linear_depth, float history_linear_depth) {
@@ -148,26 +143,12 @@ floatx GetContactHardenedRadiance(int2 dispatch_thread_id)
     floatx radiance = FFX_DNSR_Reflections_LoadRadiance(dispatch_thread_id);
     float flRayLength = FFX_DNSR_Reflections_LoadRayLength(dispatch_thread_id);
     
-    // Add adaptive contact hardening based on ray length and roughness
-    float roughness = FFX_DNSR_Reflections_LoadRoughness(dispatch_thread_id);
-    
-    // For very short rays (surfaces close to each other), enhance the reflection
-    if (flRayLength > 0 && flRayLength < 0.1 && radiance.a > 0) {
-        // Apply contrast enhancement for contact reflections
-        radiance.rgb *= 1.0 + (0.1 - flRayLength) * (1.0 - roughness) * 2.0;
-    }
-
     return radiance;
 }
 
 floatx GetContactHardenedRadianceHistory(float2 vUV)
 {
     floatx radiance = FFX_DNSR_Reflections_SampleRadianceHistory(vUV);
-
-    float flRayLength = FFX_DNSR_Reflections_LoadRayLength(vUV * Dimensions.xy);
-
-    //if( flRayLength < .5f )
-    //    return FFX_DNSR_Reflections_SampleRadianceHistory(vUV + ( Dimensions.zw * FFX_DNSR_Reflections_LoadViewSpaceNormal( vUV * Dimensions.xy ).xy ) );
 
     return radiance;
 }
@@ -189,8 +170,7 @@ void FFX_DNSR_Reflections_PickReprojection(int2            dispatch_thread_id,  
     float       history_linear_depth;
 
     {
-        const float2      motion_vector             = FFX_DNSR_Reflections_LoadMotionVector(dispatch_thread_id);
-        const float2      surface_reprojection_uv   = FFX_DNSR_Reflections_GetSurfaceReprojection(dispatch_thread_id, uv, motion_vector);
+        const float2      surface_reprojection_uv   = FFX_DNSR_Reflections_LoadMotionVector(dispatch_thread_id);
         const float2      hit_reprojection_uv       = FFX_DNSR_Reflections_GetHitPositionReprojection(dispatch_thread_id, uv, ray_length);
         const float3 surface_normal            = FFX_DNSR_Reflections_SampleWorldSpaceNormalHistory(surface_reprojection_uv);
         const float3 hit_normal                = FFX_DNSR_Reflections_SampleWorldSpaceNormalHistory(hit_reprojection_uv);
@@ -335,25 +315,23 @@ void FFX_DNSR_Reflections_Reproject(int2 dispatch_thread_id, int2 group_thread_i
                                               /* out */ disocclusion_factor,
                                               /* out */ reprojection_uv,
                                               /* out */ reprojection);
-        {
-            float prev_variance = FFX_DNSR_Reflections_SampleVarianceHistory(reprojection_uv);
-            num_samples              = FFX_DNSR_Reflections_SampleNumSamplesHistory(reprojection_uv) * disocclusion_factor;
-            float s_max_samples = max(8.0, max_samples * FFX_DNSR_REFLECTIONS_SAMPLES_FOR_ROUGHNESS(roughness));
-            num_samples              = min(s_max_samples, num_samples + SampleCountIntersection );
-            num_samples              = max(1.0, num_samples);
-            float new_variance  = FFX_DNSR_Reflections_ComputeTemporalVariance(radiance.xyz, reprojection.xyz);
-            if (disocclusion_factor < FFX_DNSR_REFLECTIONS_DISOCCLUSION_THRESHOLD) {
-                FFX_DNSR_Reflections_StoreRadianceReprojected(dispatch_thread_id, (0.0).xxxx);
-                FFX_DNSR_Reflections_StoreVariance(dispatch_thread_id, 1.0);
-                FFX_DNSR_Reflections_StoreNumSamples(dispatch_thread_id, 1.0);
-            } else {
-                float variance_mix = lerp(new_variance, prev_variance, 1.0 / num_samples);
-                FFX_DNSR_Reflections_StoreRadianceReprojected(dispatch_thread_id, reprojection);
-                FFX_DNSR_Reflections_StoreVariance(dispatch_thread_id, variance_mix);
-                FFX_DNSR_Reflections_StoreNumSamples(dispatch_thread_id, num_samples);
-                // Mix in reprojection for radiance mip computation 
-                radiance = lerp(radiance, reprojection, 0.3);
-            }
+        float prev_variance = FFX_DNSR_Reflections_SampleVarianceHistory(reprojection_uv);
+        num_samples         = FFX_DNSR_Reflections_SampleNumSamplesHistory(reprojection_uv) * disocclusion_factor;
+        float s_max_samples = max(8.0, max_samples * FFX_DNSR_REFLECTIONS_SAMPLES_FOR_ROUGHNESS(roughness));
+        num_samples         = min(s_max_samples, num_samples + SampleCountIntersection);
+        num_samples         = max(1.0, num_samples);
+        float new_variance  = FFX_DNSR_Reflections_ComputeTemporalVariance(radiance.xyz, reprojection.xyz);
+        if (disocclusion_factor < FFX_DNSR_REFLECTIONS_DISOCCLUSION_THRESHOLD) {
+            FFX_DNSR_Reflections_StoreRadianceReprojected(dispatch_thread_id, (0.0).xxxx);
+            FFX_DNSR_Reflections_StoreVariance(dispatch_thread_id, 1.0);
+            FFX_DNSR_Reflections_StoreNumSamples(dispatch_thread_id, 1.0);
+        } else {
+            float variance_mix = lerp(new_variance, prev_variance, 1.0 / num_samples);
+            FFX_DNSR_Reflections_StoreRadianceReprojected(dispatch_thread_id, reprojection);
+            FFX_DNSR_Reflections_StoreVariance(dispatch_thread_id, variance_mix);
+            FFX_DNSR_Reflections_StoreNumSamples(dispatch_thread_id, num_samples);
+            // Mix in reprojection for radiance mip computation 
+            radiance.xyz = lerp(radiance.xyz, reprojection.xyz, 0.3);
         }
     }
     

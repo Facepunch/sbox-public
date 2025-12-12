@@ -5,7 +5,7 @@
 
 @if (Current == null) return;
 
-<root class="hero bgcolor@BgColor">
+<root class="hero bgcolor@BgColor" onclick="@Clicked">
 
     @if (BackgroundUrl != null)
     {
@@ -14,7 +14,7 @@
 
     <div class="content">
 
-        <div class="left" onclick="@Clicked">
+        <div class="left">
             <div class="icon"><img src="@Current.Thumb" /></div>
             <div class="title">@Current.Title</div>
             <div class="description">@Current.Summary</div>
@@ -40,7 +40,6 @@
 
     protected override async Task OnParametersSetAsync()
     {
-
         Current = Group.Packages.OrderBy( x => Guid.NewGuid() ).FirstOrDefault();
         Current = await Package.FetchAsync( Current.FullIdent, false );
         UpdateBackgroundMedia();
@@ -66,7 +65,6 @@
 
         BackgroundUrl = bg;
         BgColor = Random.Shared.Int(0, 4);
-
     }
 
     void Clicked()

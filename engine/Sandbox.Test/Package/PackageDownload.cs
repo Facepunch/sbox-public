@@ -5,12 +5,6 @@ namespace Packages;
 [TestClass]
 public class PackageDownload
 {
-	[TestInitialize]
-	public void TestInitialize()
-	{
-		PackageManager.ResetForUnitTest();
-	}
-
 	[TestMethod]
 	[DataRow( "facepunch.sandbox" )]
 	[DataRow( "garry.grassworld" )]
@@ -20,7 +14,7 @@ public class PackageDownload
 		var package = await Package.FetchAsync( packageIdent, false );
 		Assert.IsNotNull( package );
 
-		var dir = $"{Environment.CurrentDirectory}/download_test/{packageIdent}";
+		var dir = $"{Environment.CurrentDirectory}/.source2/test_download_cache/package_download/{packageIdent}";
 
 		if ( System.IO.Directory.Exists( dir ) )
 			System.IO.Directory.Delete( dir, true );
@@ -62,7 +56,7 @@ public class PackageDownload
 		var package = await Package.FetchAsync( packageIdent, false );
 		Assert.IsNotNull( package );
 
-		var dir = $"{Environment.CurrentDirectory}/download_test/{packageIdent}";
+		var dir = $"{Environment.CurrentDirectory}/.source2/test_download_cache/package_download";
 
 		if ( System.IO.Directory.Exists( dir ) )
 			System.IO.Directory.Delete( dir, true );
@@ -102,7 +96,7 @@ public class PackageDownload
 		var package = await Package.FetchAsync( packageIdent, false );
 		Assert.IsNotNull( package );
 
-		var dir = $"{Environment.CurrentDirectory}/download_test/dlltest";
+		var dir = $"{Environment.CurrentDirectory}/.source2/test_download_cache/package_dll";
 
 		if ( System.IO.Directory.Exists( dir ) )
 			System.IO.Directory.Delete( dir, true );

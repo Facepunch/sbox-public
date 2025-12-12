@@ -17,6 +17,8 @@ native static class RenderTools as NativeEngine.RenderTools
 	//
 	void Compute( IRenderContext renderContext, CRenderAttributes attributes, IMaterialMode pMode, int tx, int ty, int tz );
 	void ComputeIndirect( IRenderContext renderContext, CRenderAttributes attributes, IMaterialMode pMode, RenderBufferHandle_t hIndirectBuffer, uint nIndirectBufferOffset );
+	void TraceRays( IRenderContext renderContext, CRenderAttributes attributes, IMaterialMode pMode, uint tx, uint ty, uint tz );
+	void TraceRaysIndirect( IRenderContext renderContext, CRenderAttributes attributes, IMaterialMode pMode, RenderBufferHandle_t hIndirectBuffer, uint nIndirectBufferOffset );
 	void SetDynamicConstantBufferData( CRenderAttributes attributes, StringToken nTokenID, IRenderContext renderContext, void* data, int dataSize );
 
 	void CopyTexture( IRenderContext renderContext, ITexture sourceTexture, ITexture destTexture, Rect_t pSrcRect, int nDestX, int nDestY, uint nSrcMipSlice, uint nSrcArraySlice, uint nDstMipSlice, uint nDstArraySlice );
