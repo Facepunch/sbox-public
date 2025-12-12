@@ -199,7 +199,7 @@ partial class TextureTool
 
 		private void AlignToView()
 		{
-			var sceneView = SceneViewportWidget.LastSelected;
+			var sceneView = SceneViewWidget.Current?.LastSelectedViewportWidget;
 			if ( !sceneView.IsValid() )
 				return;
 

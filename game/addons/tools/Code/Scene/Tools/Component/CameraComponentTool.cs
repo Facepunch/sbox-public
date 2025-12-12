@@ -206,7 +206,7 @@ class CameraToolWindow : WidgetWindow
 	{
 		EditorToolManager.CurrentModeName = "camera.lookat";
 		// maintain focus on scene even after clicking the button
-		SceneViewportWidget.LastSelected?.Focus();
+		SceneViewWidget.Current?.LastSelectedViewportWidget?.Focus();
 	}
 
 	void CloseWindow()

@@ -2,7 +2,6 @@
 
 public partial class SceneViewportWidget : Widget
 {
-	public static SceneViewportWidget LastSelected { get; private set; }
 	public static Vector2 MousePosition { get; private set; }
 
 	public int Id { get; private set; }
@@ -43,7 +42,7 @@ public partial class SceneViewportWidget : Widget
 		Id = id;
 		if ( Id == 0 )
 		{
-			LastSelected = this;
+			SceneView.LastSelectedViewportWidget = this;
 		}
 
 		if ( ProjectCookie.Get<ViewportState>( $"SceneView.Viewport{Id}.Settings", null ) is ViewportState savedSettings )
@@ -447,9 +446,9 @@ public partial class SceneViewportWidget : Widget
 		//
 
 		var hasMouseFocus = hasMouseInput;
-		if ( IsFocused )
+		if ( IsFocused && SceneViewWidget.Current.IsValid() )
 		{
-			LastSelected = this;
+			SceneViewWidget.Current.LastSelectedViewportWidget = this;
 		}
 
 		GizmoInstance.Input.IsHovered = hasMouseFocus;

@@ -750,7 +750,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 			if ( !EditorPreferences.CreateObjectsAtOrigin && !parent.IsValid() )
 			{
 				// I wonder if we should be tracing and placing it on the surface?
-				go.LocalPosition = SceneViewportWidget.LastSelected.State.CameraPosition + SceneViewportWidget.LastSelected.State.CameraRotation.Forward * 300;
+				go.LocalPosition = SceneViewWidget.Current.LastSelectedViewportWidget.State.CameraPosition + SceneViewWidget.Current.LastSelectedViewportWidget.State.CameraRotation.Forward * 300;
 			}
 
 			afterCreate?.Invoke( go );
@@ -813,7 +813,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 			if ( !EditorPreferences.CreateObjectsAtOrigin && !parent.IsValid() )
 			{
 				// I wonder if we should be tracing and placing it on the surface?
-				go.LocalPosition = SceneViewportWidget.LastSelected.State.CameraPosition + SceneViewportWidget.LastSelected.State.CameraRotation.Forward * 300;
+				go.LocalPosition = SceneViewWidget.Current.LastSelectedViewportWidget.State.CameraPosition + SceneViewWidget.Current.LastSelectedViewportWidget.State.CameraRotation.Forward * 300;
 			}
 
 			afterCreate?.Invoke( go );
@@ -891,7 +891,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 			if ( !EditorPreferences.CreateObjectsAtOrigin && !parent.IsValid() )
 			{
 				// I wonder if we should be tracing and placing it on the surface?
-				go.LocalPosition = SceneViewportWidget.LastSelected.State.CameraPosition + SceneViewportWidget.LastSelected.State.CameraRotation.Forward * 300;
+				go.LocalPosition = SceneViewWidget.Current.LastSelectedViewportWidget.State.CameraPosition + SceneViewWidget.Current.LastSelectedViewportWidget.State.CameraRotation.Forward * 300;
 			}
 
 			afterCreate?.Invoke( go );
