@@ -219,13 +219,14 @@ public partial class SoundPlayer : Widget
 				if ( Timeline.Playing && !SoundHandle.IsValid() )
 				{
 					SoundHandle = EditorUtility.PlaySound( Sound, Time );
-					SoundHandle.Time = 0;
+					SoundHandle.Time = Time;
 					SoundHandle.Occlusion = false;
 					SoundHandle.DistanceAttenuation = false;
 				}
 
 				Scrubber.Position = Scrubber.Position.WithX( PositionFromTime( Time ) - 3 ).SnapToGrid( 1.0f );
-				Time += RealTime.SmoothDelta;
+				if ( Timeline.Playing )
+					Time += RealTime.SmoothDelta;
 			}
 
 			if ( SoundHandle.IsValid() )
