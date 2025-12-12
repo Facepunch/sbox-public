@@ -245,7 +245,7 @@ public class PackageSelector : Dialog
 		taskSource?.Dispose();
 		taskSource = new CancellationTokenSource();
 		var token = taskSource.Token;
-		var queryString = $"{Query} sort:trending {SearchFilter.Text}";
+		var queryString = $"{Query} sort:trending {SearchFilter.Text} +wip";
 
 		var result = await Package.FindAsync( queryString, 200, 0, token );
 		token.ThrowIfCancellationRequested();
