@@ -22,9 +22,10 @@ public partial class DebugOverlaySystem
 	/// </summary>
 	public void Text( Vector3 position, TextRendering.Scope scope, TextFlag flags = TextFlag.Center, float duration = 0, bool overlay = false )
 	{
-		Add( duration, new DebugTextSceneObject( Scene.SceneWorld, position, scope, flags )
+		Add( duration, new DebugTextSceneObject( Scene.SceneWorld, scope, flags )
 		{
 			RenderLayer = overlay ? SceneRenderLayer.OverlayWithoutDepth : SceneRenderLayer.OverlayWithDepth,
+			Transform = new Transform( position ),
 			LocalBounds = BBox.FromPositionAndSize( 0, 256 )
 		} );
 	}
@@ -34,14 +35,12 @@ file class DebugTextSceneObject : SceneCustomObject
 {
 	private readonly TextRendering.Scope _scope;
 	private readonly TextFlag _flags;
-	private readonly Vector3 _position;
 	private readonly float _scale;
 
-	public DebugTextSceneObject( SceneWorld sceneWorld, Vector3 position, TextRendering.Scope scope, TextFlag flags ) : base( sceneWorld )
+	public DebugTextSceneObject( SceneWorld sceneWorld, TextRendering.Scope scope, TextFlag flags ) : base( sceneWorld )
 	{
 		_scope = scope;
 		_flags = flags;
-		_position = position;
 
 		var fontSize = _scope.FontSize;
 		var scaleFactor = fontSize < 32 ? fontSize.Remap( 0, 32, 0, 1 ) : 1.0f;
@@ -53,7 +52,7 @@ file class DebugTextSceneObject : SceneCustomObject
 	public override void RenderSceneObject()
 	{
 		var rotation = Graphics.CameraRotation;
-		Graphics.Attributes.Set( "WorldMat", Matrix.CreateScale( _scale ) * Matrix.CreateWorld( _position, rotation.Forward, rotation.Up ) );
+		Graphics.Attributes.Set( "WorldMat", Matrix.CreateScale( _scale ) * Matrix.CreateWorld( Vector3.Zero, rotation.Forward, rotation.Up ) );
 		Graphics.Attributes.SetCombo( "D_WORLDPANEL", 1 );
 		Graphics.DrawText( new Rect( 0 ), _scope, _flags );
 	}

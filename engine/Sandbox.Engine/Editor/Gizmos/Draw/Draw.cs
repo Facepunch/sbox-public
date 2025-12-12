@@ -145,7 +145,7 @@ public static partial class Gizmo
 		/// <summary>
 		/// Draw a model
 		/// </summary>
-		public SceneObject Model( Model modelName ) => Model( modelName, Transform.Zero );
+		public SceneModel Model( Model modelName ) => Model( modelName, Transform.Zero );
 
 
 
