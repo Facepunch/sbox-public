@@ -16,6 +16,7 @@ public sealed partial class SceneWorld : IHandle
 	internal HashSet<SceneObject> InternalSceneObjects { get; set; } = new();
 	internal HashSet<SceneMap> InternalSceneMaps { get; set; } = new();
 	internal HashSet<SceneSkybox3D> InternalSkyboxWorlds { get; set; } = new();
+	internal IPVS ActivePVS { get; private set; }
 
 	/// <summary>
 	/// List of scene objects belonging to this scene world.
@@ -100,6 +101,7 @@ public sealed partial class SceneWorld : IHandle
 
 		CSceneSystem.DestroyWorld( this );
 		native = IntPtr.Zero;
+		ActivePVS = default;
 	}
 
 	internal void OnNativeInit( ISceneWorld ptr )
@@ -111,6 +113,7 @@ public sealed partial class SceneWorld : IHandle
 	internal void OnNativeDestroy()
 	{
 		native = IntPtr.Zero;
+		ActivePVS = default;
 		All.Remove( this );
 	}
 
@@ -168,6 +171,7 @@ public sealed partial class SceneWorld : IHandle
 			{
 				//Log.Info( $"{this} - SET PVS from {sceneMap}" );
 				native.SetPVS( sceneMap.PVS );
+				ActivePVS = sceneMap.PVS;
 			}
 		}
 	}
@@ -182,9 +186,13 @@ public sealed partial class SceneWorld : IHandle
 				Log.Warning( "Couldn't remove sceneMap" );
 			}
 
-			if ( native.GetPVS() == sceneMap.PVS )
+			if ( ActivePVS == sceneMap.PVS )
 			{
-				native.SetPVS( default );
+				if ( !native.IsNull )
+				{
+					native.SetPVS( default );
+				}
+				ActivePVS = default;
 			}
 		}
 	}

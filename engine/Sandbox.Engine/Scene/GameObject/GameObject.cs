@@ -211,8 +211,7 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 			if ( _net is null )
 				return;
 
-			Transform.ClearLocalInterpolation();
-			Msg_SetParent( value.Id, Transform.TargetWorld, _net.SnapshotVersion );
+			Msg_SetParent( value.Id, false );
 		}
 	}
 
@@ -487,14 +486,13 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 		if ( _net is null )
 			return;
 
-		Transform.ClearLocalInterpolation();
-		Msg_SetParent( value.Id, Transform.TargetWorld, _net.SnapshotVersion );
+		Msg_SetParent( value.Id, keepWorldPosition );
 	}
 
 	/// <summary>
 	/// Set the parent of this GameObject from a remote change over the network.
 	/// </summary>
-	internal void SetParentFromNetwork( GameObject value, Transform? transform = null )
+	internal void SetParentFromNetwork( GameObject value, bool keepWorldPosition = false )
 	{
 		if ( this is Scene ) return;
 
@@ -503,9 +501,9 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 		if ( _parent == value )
 			return;
 
-		if ( transform.HasValue )
+		if ( keepWorldPosition )
 		{
-			var oldTransform = transform.Value;
+			var oldTransform = WorldTransform;
 			SetParentInternal( value ?? Scene );
 			_gameTransform.SetWorldInternal( oldTransform );
 		}

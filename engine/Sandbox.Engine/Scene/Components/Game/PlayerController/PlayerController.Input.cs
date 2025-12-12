@@ -111,19 +111,23 @@ public sealed partial class PlayerController : Component
 		}
 	}
 
-	float unduckedHeight = -1;
 	Vector3 bodyDuckOffset = 0;
 
 	/// <summary>
-	/// Called during FixedUpdate when UseInputControls is enmabled. Will duck if requested.
+	/// Gets the current character height from <see cref="BodyHeight"/> when standing,
+	/// otherwise uses <see cref="DuckedHeight"/> when ducking.
+	/// </summary>
+	public float CurrentHeight => IsDucking ? DuckedHeight : BodyHeight;
+
+	/// <summary>
+	/// Called during FixedUpdate when UseInputControls is enabled. Will duck if requested.
 	/// If not, and we're ducked, will unduck if there is room
 	/// </summary>
 	public void UpdateDucking( bool wantsDuck )
 	{
 		if ( wantsDuck == IsDucking ) return;
 
-		unduckedHeight = MathF.Max( unduckedHeight, BodyHeight );
-		var unduckDelta = unduckedHeight - DuckedHeight;
+		var unduckDelta = CurrentHeight - DuckedHeight;
 
 		// Can we unduck?
 		if ( !wantsDuck )
@@ -137,21 +141,12 @@ public sealed partial class PlayerController : Component
 
 		IsDucking = wantsDuck;
 
-		if ( wantsDuck )
+		// if we're in the air, keep our head in the same position
+		if ( wantsDuck && IsAirborne )
 		{
-			BodyHeight = DuckedHeight;
-
-			// if we're in the air, keep our head in the same position
-			if ( IsAirborne )
-			{
-				WorldPosition += Vector3.Up * unduckDelta;
-				Transform.ClearInterpolation();
-				bodyDuckOffset = Vector3.Up * -unduckDelta;
-			}
-		}
-		else
-		{
-			BodyHeight = unduckedHeight;
+			WorldPosition += Vector3.Up * unduckDelta;
+			Transform.ClearInterpolation();
+			bodyDuckOffset = Vector3.Up * -unduckDelta;
 		}
 	}
 }

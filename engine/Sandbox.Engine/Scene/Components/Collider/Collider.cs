@@ -543,7 +543,7 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 	}
 
 	/// <summary>
-	/// Get the velocity of this collider at the specific point in word coordinates.
+	/// Get the velocity of this collider at the specific point in world coordinates.
 	/// </summary>
 	public Vector3 GetVelocityAtPoint( Vector3 worldPoint )
 	{

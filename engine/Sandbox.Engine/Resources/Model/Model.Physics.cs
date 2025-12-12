@@ -214,6 +214,7 @@ public sealed class PhysicsGroupDescription
 		public float AngularDamping => native.m_flAngularDamping;
 		public bool OverrideMassCenter => native.m_bOverrideMassCenter;
 		public Vector3 MassCenterOverride => native.m_vMassCenterOverride;
+		public float GravityScale => native.m_flGravityScale;
 
 		internal BodyPart( PhysicsGroupDescription physicsGroupDescription, string boneName, VPhysXBodyPart_t vPhysXBodyPart_t, Transform transform )
 		{

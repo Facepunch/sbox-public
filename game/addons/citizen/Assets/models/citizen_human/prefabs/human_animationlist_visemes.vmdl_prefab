@@ -1,0 +1,2395 @@
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
+{
+	rootNode = 
+	{
+		_class = "RootNode"
+		children = 
+		[
+			{
+				_class = "AnimationList"
+				children = 
+				[
+					{
+						_class = "MorphFrame"
+						name = "viseme_sil"
+						activity_name = ""
+						activity_weight = 1
+						weight_list_name = ""
+						fade_in_time = 0.2
+						fade_out_time = 0.2
+						looping = false
+						delta = false
+						worldSpace = false
+						hidden = false
+						anim_markup_ordered = false
+						disable_compression = false
+						disable_interpolation = false
+						enable_scale = false
+						morph_weights = [  ]
+					},
+					{
+						_class = "Folder"
+						name = "Viseme_Consonants"
+						children = 
+						[
+							{
+								_class = "Folder"
+								name = "BMP"
+								children = 
+								[
+									{
+										_class = "MorphFrame"
+										name = "viseme_B"
+										note = "b in Big"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "LipSidewaysL"
+												weight = 0.17
+											},
+											{
+												morph = "LipSidewaysR"
+												weight = 0.089
+											},
+											{
+												morph = "lippuckerer"
+												weight = 0.138
+											},
+											{
+												morph = "lowerLipFunneler"
+												weight = 0.113
+											},
+											{
+												morph = "lowerLipsTowardAndPart"
+												weight = 0.934
+											},
+											{
+												morph = "mouthPress_L"
+												weight = 0.187
+											},
+											{
+												morph = "mouthPress_R"
+												weight = 0.157
+											},
+											{
+												morph = "mouthPucker"
+												weight = 0.315
+											},
+											{
+												morph = "mouthRollLower"
+												weight = 0.467
+											},
+											{
+												morph = "mouthUpperUp_L"
+												weight = 0.099
+											},
+											{
+												morph = "mouthUpperUp_R"
+												weight = 0.111
+											},
+											{
+												morph = "upperLipFunneler"
+												weight = 0.195
+											},
+											{
+												morph = "upperLipsTowardAndPart"
+												weight = 0.211
+											},
+										]
+									},
+									{
+										_class = "MorphFrame"
+										name = "viseme_M"
+										note = "m in Mat"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "LipSidewaysL"
+												weight = 0.2
+											},
+											{
+												morph = "LipSidewaysR"
+												weight = 0.2
+											},
+											{
+												morph = "LowerLipDrepressor"
+												weight = 0.008
+											},
+											{
+												morph = "jawsuck"
+												weight = 0.17
+											},
+											{
+												morph = "lippuckerer"
+												weight = 0.065
+											},
+											{
+												morph = "lowerLipsTowardAndPart"
+												weight = 0.593
+											},
+											{
+												morph = "mouthFrown_L"
+												weight = 0.257
+											},
+											{
+												morph = "mouthFrown_R"
+												weight = 0.251
+											},
+											{
+												morph = "mouthPress_L"
+												weight = 0.251
+											},
+											{
+												morph = "mouthPress_R"
+												weight = 0.263
+											},
+											{
+												morph = "mouthRollLower"
+												weight = 0.269
+											},
+											{
+												morph = "mouthRollUpper"
+												weight = 0.321
+											},
+											{
+												morph = "mouthStretch_L"
+												weight = 0.14
+											},
+											{
+												morph = "mouthStretch_R"
+												weight = 0.116
+											},
+											{
+												morph = "upperLipsTowardAndPart"
+												weight = 0.032
+											},
+											{
+												morph = "upperlipraiserL"
+												weight = 0.097
+											},
+											{
+												morph = "upperlipraiserR"
+												weight = 0.113
+											},
+										]
+									},
+									{
+										_class = "MorphFrame"
+										name = "viseme_PP"
+										note = "p in Put"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "LipSidewaysL"
+												weight = 0.211
+											},
+											{
+												morph = "LipSidewaysR"
+												weight = 0.235
+											},
+											{
+												morph = "cheekinflateL"
+												weight = 0.024
+											},
+											{
+												morph = "cheekinflateR"
+												weight = 0.032
+											},
+											{
+												morph = "lipcornerpullerL"
+												weight = 0.154
+											},
+											{
+												morph = "lipcornerpullerR"
+												weight = 0.065
+											},
+											{
+												morph = "lippuckerer"
+												weight = 0.162
+											},
+											{
+												morph = "lowerLipsTowardAndPart"
+												weight = 0.804
+											},
+											{
+												morph = "mouthClose"
+												weight = 0.093
+											},
+											{
+												morph = "mouthRollLower"
+												weight = 0.216
+											},
+											{
+												morph = "mouthRollUpper"
+												weight = 0.497
+											},
+											{
+												morph = "mouthShrugLower"
+												weight = 0.257
+											},
+											{
+												morph = "mouthShrugUpper"
+												weight = 0.385
+											},
+											{
+												morph = "mouthUpperUp_L"
+												weight = 0.233
+											},
+											{
+												morph = "mouthUpperUp_R"
+												weight = 0.175
+											},
+											{
+												morph = "upperLipsTowardAndPart"
+												weight = 0.552
+											},
+										]
+									},
+								]
+							},
+							{
+								_class = "Folder"
+								name = "FV"
+								children = 
+								[
+									{
+										_class = "MorphFrame"
+										name = "viseme_FF"
+										note = "f in Fork"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "ChinRaiser"
+												weight = 0.162
+											},
+											{
+												morph = "LipSidewaysL"
+												weight = 0.186
+											},
+											{
+												morph = "LipSidewaysR"
+												weight = 0.178
+											},
+											{
+												morph = "jawForward"
+												weight = 0.099
+											},
+											{
+												morph = "jawsuck"
+												weight = 0.235
+											},
+											{
+												morph = "lipcornerpullerL"
+												weight = 0.089
+											},
+											{
+												morph = "lipcornerpullerR"
+												weight = 0.227
+											},
+											{
+												morph = "lippuckerer"
+												weight = 0.073
+											},
+											{
+												morph = "lowerLipsTowardAndPart"
+												weight = 0.528
+											},
+											{
+												morph = "mouthLowerDown_L"
+												weight = 0.169
+											},
+											{
+												morph = "mouthLowerDown_R"
+												weight = 0.222
+											},
+											{
+												morph = "mouthRollLower"
+												weight = 0.438
+											},
+											{
+												morph = "mouthShrugUpper"
+												weight = 1.0
+											},
+											{
+												morph = "mouthSmile_L"
+												weight = 0.105
+											},
+											{
+												morph = "mouthSmile_R"
+												weight = 0.099
+											},
+											{
+												morph = "openjawL"
+												weight = 0.065
+											},
+											{
+												morph = "openjawR"
+												weight = 0.097
+											},
+											{
+												morph = "upperLipFunneler"
+												weight = 0.528
+											},
+											{
+												morph = "upperLipsTowardAndPart"
+												weight = 0.154
+											},
+											{
+												morph = "upperlipraiserL"
+												weight = 0.341
+											},
+											{
+												morph = "upperlipraiserR"
+												weight = 0.121
+											},
+										]
+									},
+									{
+										_class = "MorphFrame"
+										name = "viseme_V"
+										note = "v in Val"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "ChinRaiser"
+												weight = 0.162
+											},
+											{
+												morph = "LipSidewaysL"
+												weight = 0.3
+											},
+											{
+												morph = "LipSidewaysR"
+												weight = 0.3
+											},
+											{
+												morph = "jawsuck"
+												weight = 0.203
+											},
+											{
+												morph = "lipcornerpullerL"
+												weight = 0.089
+											},
+											{
+												morph = "lipcornerpullerR"
+												weight = 0.089
+											},
+											{
+												morph = "lippuckerer"
+												weight = 0.056
+											},
+											{
+												morph = "lowerLipsTowardAndPart"
+												weight = 0.829
+											},
+											{
+												morph = "mouthLowerDown_L"
+												weight = 0.087
+											},
+											{
+												morph = "mouthLowerDown_R"
+												weight = 0.128
+											},
+											{
+												morph = "mouthRollLower"
+												weight = 1.0
+											},
+											{
+												morph = "mouthShrugUpper"
+												weight = 1.0
+											},
+											{
+												morph = "openjawL"
+												weight = 0.178
+											},
+											{
+												morph = "openjawR"
+												weight = 0.211
+											},
+											{
+												morph = "upperLipFunneler"
+												weight = 0.3
+											},
+										]
+									},
+								]
+							},
+							{
+								_class = "Folder"
+								name = "TH"
+								children = 
+								[
+									{
+										_class = "MorphFrame"
+										name = "viseme_TH"
+										note = "th in Thin"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "ChinRaiser"
+												weight = 0.162
+											},
+											{
+												morph = "LipSidewaysL"
+												weight = 0.3
+											},
+											{
+												morph = "LipSidewaysR"
+												weight = 0.3
+											},
+											{
+												morph = "jawForward"
+												weight = 0.099
+											},
+											{
+												morph = "jawsuck"
+												weight = 0.081
+											},
+											{
+												morph = "lipcornerpullerL"
+												weight = 0.089
+											},
+											{
+												morph = "lipcornerpullerR"
+												weight = 0.089
+											},
+											{
+												morph = "lippuckerer"
+												weight = 0.056
+											},
+											{
+												morph = "lowerLipsTowardAndPart"
+												weight = 0.528
+											},
+											{
+												morph = "mouthLowerDown_L"
+												weight = 0.169
+											},
+											{
+												morph = "mouthLowerDown_R"
+												weight = 0.222
+											},
+											{
+												morph = "mouthRollLower"
+												weight = 0.438
+											},
+											{
+												morph = "mouthShrugUpper"
+												weight = 1.0
+											},
+											{
+												morph = "mouthSmile_L"
+												weight = 0.081
+											},
+											{
+												morph = "mouthSmile_R"
+												weight = 0.099
+											},
+											{
+												morph = "mouthUpperUp_L"
+												weight = 0.099
+											},
+											{
+												morph = "mouthUpperUp_R"
+												weight = 0.093
+											},
+											{
+												morph = "openjawL"
+												weight = 0.154
+											},
+											{
+												morph = "openjawR"
+												weight = 0.178
+											},
+											{
+												morph = "upperLipFunneler"
+												weight = 0.308
+											},
+											{
+												morph = "upperLipsTowardAndPart"
+												weight = 0.487
+											},
+										]
+									},
+									{
+										_class = "MorphFrame"
+										name = "viseme_DH"
+										note = "th in Then"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "ChinRaiser"
+												weight = 0.162
+											},
+											{
+												morph = "LipSidewaysL"
+												weight = 0.3
+											},
+											{
+												morph = "LipSidewaysR"
+												weight = 0.3
+											},
+											{
+												morph = "jawOpen"
+												weight = 0.056
+											},
+											{
+												morph = "jawsuck"
+												weight = 0.203
+											},
+											{
+												morph = "lipcornerpullerL"
+												weight = 0.089
+											},
+											{
+												morph = "lipcornerpullerR"
+												weight = 0.089
+											},
+											{
+												morph = "lippuckerer"
+												weight = 0.056
+											},
+											{
+												morph = "lowerLipsTowardAndPart"
+												weight = 0.829
+											},
+											{
+												morph = "mouthClose"
+												weight = 0.096
+											},
+											{
+												morph = "mouthRollLower"
+												weight = 0.18
+											},
+											{
+												morph = "mouthRollUpper"
+												weight = 0.141
+											},
+											{
+												morph = "mouthShrugUpper"
+												weight = 1.0
+											},
+											{
+												morph = "mouthSmile_L"
+												weight = 0.011
+											},
+											{
+												morph = "mouthSmile_R"
+												weight = 0.016
+											},
+											{
+												morph = "openjawL"
+												weight = 0.178
+											},
+											{
+												morph = "openjawR"
+												weight = 0.211
+											},
+											{
+												morph = "upperLipFunneler"
+												weight = 0.3
+											},
+										]
+									},
+								]
+							},
+							{
+								_class = "Folder"
+								name = "CH_SH"
+								children = 
+								[
+									{
+										_class = "MorphFrame"
+										name = "viseme_CH"
+										note = "sh in She"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "lippuckerer"
+												weight = 0.203
+											},
+											{
+												morph = "lowerLipFunneler"
+												weight = 0.186
+											},
+											{
+												morph = "mouthDimple_L"
+												weight = 0.446
+											},
+											{
+												morph = "mouthDimple_R"
+												weight = 0.485
+											},
+											{
+												morph = "mouthLowerDown_L"
+												weight = 0.406
+											},
+											{
+												morph = "mouthLowerDown_R"
+												weight = 0.384
+											},
+											{
+												morph = "mouthPucker"
+												weight = 1.0
+											},
+											{
+												morph = "mouthRollLower"
+												weight = 0.31
+											},
+											{
+												morph = "mouthRollUpper"
+												weight = 0.265
+											},
+											{
+												morph = "mouthUpperUp_L"
+												weight = 0.536
+											},
+											{
+												morph = "mouthUpperUp_R"
+												weight = 0.502
+											},
+											{
+												morph = "openmouthL"
+												weight = 0.154
+											},
+											{
+												morph = "openmouthR"
+												weight = 0.138
+											},
+											{
+												morph = "upperLipsTowardAndPart"
+												weight = 0.13
+											},
+											{
+												morph = "upperlipraiserL"
+												weight = 0.105
+											},
+											{
+												morph = "upperlipraiserR"
+												weight = 0.243
+											},
+										]
+									},
+								]
+							},
+							{
+								_class = "Folder"
+								name = "DT"
+								children = 
+								[
+									{
+										_class = "MorphFrame"
+										name = "viseme_DD"
+										note = "d in Dig"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "LipSidewaysL"
+												weight = 0.097
+											},
+											{
+												morph = "LipSidewaysR"
+												weight = 0.113
+											},
+											{
+												morph = "LowerLipDrepressor"
+												weight = 0.235
+											},
+											{
+												morph = "lipcornerpullerL"
+												weight = 0.162
+											},
+											{
+												morph = "lipcornerpullerR"
+												weight = 0.146
+											},
+											{
+												morph = "mouthLowerDown_L"
+												weight = 0.146
+											},
+											{
+												morph = "mouthLowerDown_R"
+												weight = 0.158
+											},
+											{
+												morph = "mouthPress_L"
+												weight = 0.101
+											},
+											{
+												morph = "mouthPress_R"
+												weight = 0.107
+											},
+											{
+												morph = "mouthUpperUp_L"
+												weight = 0.412
+											},
+											{
+												morph = "mouthUpperUp_R"
+												weight = 0.395
+											},
+											{
+												morph = "upperLipsTowardAndPart"
+												weight = 0.211
+											},
+										]
+									},
+									{
+										_class = "MorphFrame"
+										name = "viseme_T"
+										note = "t in Talk"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "LowerLipDrepressor"
+												weight = 0.284
+											},
+											{
+												morph = "jawOpen"
+												weight = 0.096
+											},
+											{
+												morph = "mouthPress_L"
+												weight = 0.271
+											},
+											{
+												morph = "mouthPress_R"
+												weight = 0.288
+											},
+											{
+												morph = "mouthUpperUp_L"
+												weight = 0.237
+											},
+											{
+												morph = "mouthUpperUp_R"
+												weight = 0.225
+											},
+											{
+												morph = "openmouthL"
+												weight = 0.284
+											},
+											{
+												morph = "openmouthR"
+												weight = 0.308
+											},
+										]
+									},
+								]
+							},
+							{
+								_class = "Folder"
+								name = "GK"
+								children = 
+								[
+									{
+										_class = "MorphFrame"
+										name = "viseme_KK"
+										note = "c in Cut"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "LowerLipDrepressor"
+												weight = 0.227
+											},
+											{
+												morph = "jawForward"
+												weight = 0.293
+											},
+											{
+												morph = "jawOpen"
+												weight = 0.05
+											},
+											{
+												morph = "jawsuck"
+												weight = 0.17
+											},
+											{
+												morph = "mouthDimple_L"
+												weight = 0.09
+											},
+											{
+												morph = "mouthDimple_R"
+												weight = 0.084
+											},
+											{
+												morph = "mouthFrown_L"
+												weight = 0.146
+											},
+											{
+												morph = "mouthFrown_R"
+												weight = 0.141
+											},
+											{
+												morph = "mouthLowerDown_L"
+												weight = 0.186
+											},
+											{
+												morph = "mouthLowerDown_R"
+												weight = 0.209
+											},
+											{
+												morph = "mouthPress_L"
+												weight = 0.101
+											},
+											{
+												morph = "mouthPress_R"
+												weight = 0.112
+											},
+											{
+												morph = "mouthUpperUp_L"
+												weight = 0.237
+											},
+											{
+												morph = "mouthUpperUp_R"
+												weight = 0.225
+											},
+											{
+												morph = "openmouthL"
+												weight = 0.26
+											},
+											{
+												morph = "openmouthR"
+												weight = 0.26
+											},
+											{
+												morph = "upperLipsTowardAndPart"
+												weight = 0.113
+											},
+										]
+									},
+									{
+										_class = "MorphFrame"
+										name = "viseme_G"
+										note = "g in Tag"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "LowerLipDrepressor"
+												weight = 0.219
+											},
+											{
+												morph = "jawsuck"
+												weight = 0.146
+											},
+											{
+												morph = "lippuckerer"
+												weight = 0.073
+											},
+											{
+												morph = "mouthDimple_L"
+												weight = 0.09
+											},
+											{
+												morph = "mouthDimple_R"
+												weight = 0.084
+											},
+											{
+												morph = "mouthFrown_L"
+												weight = 0.146
+											},
+											{
+												morph = "mouthFrown_R"
+												weight = 0.141
+											},
+											{
+												morph = "mouthLowerDown_L"
+												weight = 0.186
+											},
+											{
+												morph = "mouthLowerDown_R"
+												weight = 0.141
+											},
+											{
+												morph = "mouthPress_L"
+												weight = 0.101
+											},
+											{
+												morph = "mouthPress_R"
+												weight = 0.112
+											},
+											{
+												morph = "mouthShrugUpper"
+												weight = 0.135
+											},
+											{
+												morph = "mouthUpperUp_L"
+												weight = 0.299
+											},
+											{
+												morph = "mouthUpperUp_R"
+												weight = 0.276
+											},
+											{
+												morph = "openmouthL"
+												weight = 0.162
+											},
+											{
+												morph = "openmouthR"
+												weight = 0.154
+											},
+											{
+												morph = "upperLipsTowardAndPart"
+												weight = 0.113
+											},
+										]
+									},
+								]
+							},
+							{
+								_class = "Folder"
+								name = "SZ"
+								children = 
+								[
+									{
+										_class = "MorphFrame"
+										name = "viseme_SS"
+										note = "s in Sit"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "LipSidewaysL"
+												weight = 0.219
+											},
+											{
+												morph = "LipSidewaysR"
+												weight = 0.268
+											},
+											{
+												morph = "LowerLipDrepressor"
+												weight = 0.511
+											},
+											{
+												morph = "lipcornerdepressorL"
+												weight = 0.3
+											},
+											{
+												morph = "lipcornerdepressorR"
+												weight = 0.195
+											},
+											{
+												morph = "lipcornerpullerL"
+												weight = 0.268
+											},
+											{
+												morph = "lipcornerpullerR"
+												weight = 0.219
+											},
+											{
+												morph = "lowerLipFunneler"
+												weight = 0.146
+											},
+											{
+												morph = "mouthDimple_L"
+												weight = 0.079
+											},
+											{
+												morph = "mouthDimple_R"
+												weight = 0.129
+											},
+											{
+												morph = "mouthFrown_L"
+												weight = 0.203
+											},
+											{
+												morph = "mouthFrown_R"
+												weight = 0.124
+											},
+											{
+												morph = "mouthLowerDown_L"
+												weight = 0.361
+											},
+											{
+												morph = "mouthLowerDown_R"
+												weight = 0.367
+											},
+											{
+												morph = "mouthSmile_L"
+												weight = 0.197
+											},
+											{
+												morph = "mouthSmile_R"
+												weight = 0.175
+											},
+											{
+												morph = "mouthUpperUp_L"
+												weight = 0.406
+											},
+											{
+												morph = "mouthUpperUp_R"
+												weight = 0.406
+											},
+											{
+												morph = "upperLipFunneler"
+												weight = 0.048
+											},
+											{
+												morph = "upperlipraiserL"
+												weight = 0.008
+											},
+										]
+									},
+									{
+										_class = "MorphFrame"
+										name = "viseme_Z"
+										note = "z in Zap"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "LipSidewaysL"
+												weight = 0.219
+											},
+											{
+												morph = "LipSidewaysR"
+												weight = 0.268
+											},
+											{
+												morph = "LowerLipDrepressor"
+												weight = 0.268
+											},
+											{
+												morph = "jawthrust"
+												weight = 0.398
+											},
+											{
+												morph = "lipcornerdepressorL"
+												weight = 0.235
+											},
+											{
+												morph = "lipcornerdepressorR"
+												weight = 0.26
+											},
+											{
+												morph = "lipcornerpullerL"
+												weight = 0.13
+											},
+											{
+												morph = "lipcornerpullerR"
+												weight = 0.113
+											},
+											{
+												morph = "lippuckerer"
+												weight = 0.081
+											},
+											{
+												morph = "lowerLipFunneler"
+												weight = 0.178
+											},
+											{
+												morph = "mouthDimple_L"
+												weight = 0.079
+											},
+											{
+												morph = "mouthDimple_R"
+												weight = 0.129
+											},
+											{
+												morph = "mouthFrown_L"
+												weight = 0.203
+											},
+											{
+												morph = "mouthFrown_R"
+												weight = 0.124
+											},
+											{
+												morph = "mouthLowerDown_L"
+												weight = 0.361
+											},
+											{
+												morph = "mouthLowerDown_R"
+												weight = 0.367
+											},
+											{
+												morph = "mouthSmile_L"
+												weight = 0.197
+											},
+											{
+												morph = "mouthSmile_R"
+												weight = 0.175
+											},
+											{
+												morph = "mouthUpperUp_L"
+												weight = 0.406
+											},
+											{
+												morph = "mouthUpperUp_R"
+												weight = 0.406
+											},
+											{
+												morph = "upperLipFunneler"
+												weight = 0.211
+											},
+											{
+												morph = "upperlipraiserL"
+												weight = 0.138
+											},
+											{
+												morph = "upperlipraiserR"
+												weight = 0.113
+											},
+										]
+									},
+								]
+							},
+							{
+								_class = "Folder"
+								name = "RR"
+								children = 
+								[
+									{
+										_class = "MorphFrame"
+										name = "viseme_ER"
+										note = "ur in Urn"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "LipSidewaysL"
+												weight = 0.252
+											},
+											{
+												morph = "LipSidewaysR"
+												weight = 0.227
+											},
+											{
+												morph = "jawOpen"
+												weight = 0.259
+											},
+											{
+												morph = "lippuckerer"
+												weight = 0.227
+											},
+											{
+												morph = "mouthLowerDown_L"
+												weight = 0.209
+											},
+											{
+												morph = "mouthLowerDown_R"
+												weight = 0.248
+											},
+											{
+												morph = "mouthPucker"
+												weight = 0.48
+											},
+											{
+												morph = "mouthUpperUp_L"
+												weight = 0.254
+											},
+											{
+												morph = "mouthUpperUp_R"
+												weight = 0.225
+											},
+											{
+												morph = "openjawL"
+												weight = 0.219
+											},
+											{
+												morph = "openjawR"
+												weight = 0.195
+											},
+											{
+												morph = "openmouthL"
+												weight = 0.373
+											},
+											{
+												morph = "openmouthR"
+												weight = 0.39
+											},
+										]
+									},
+									{
+										_class = "MorphFrame"
+										name = "viseme_RR"
+										note = "r in Red\n"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "LipSidewaysL"
+												weight = 0.252
+											},
+											{
+												morph = "LipSidewaysR"
+												weight = 0.227
+											},
+											{
+												morph = "jawOpen"
+												weight = 0.084
+											},
+											{
+												morph = "lowerLipFunneler"
+												weight = 0.098
+											},
+											{
+												morph = "mouthLowerDown_L"
+												weight = 0.209
+											},
+											{
+												morph = "mouthLowerDown_R"
+												weight = 0.248
+											},
+											{
+												morph = "mouthPucker"
+												weight = 0.694
+											},
+											{
+												morph = "mouthUpperUp_L"
+												weight = 0.254
+											},
+											{
+												morph = "mouthUpperUp_R"
+												weight = 0.225
+											},
+											{
+												morph = "openmouthL"
+												weight = 0.521
+											},
+											{
+												morph = "openmouthR"
+												weight = 0.5
+											},
+											{
+												morph = "upperLipFunneler"
+												weight = 0.105
+											},
+										]
+									},
+								]
+							},
+							{
+								_class = "Folder"
+								name = "NN"
+								children = 
+								[
+									{
+										_class = "MorphFrame"
+										name = "viseme_NN"
+										activity_name = ""
+										activity_weight = 1
+										weight_list_name = ""
+										fade_in_time = 0.2
+										fade_out_time = 0.2
+										looping = false
+										delta = false
+										worldSpace = false
+										hidden = false
+										anim_markup_ordered = false
+										disable_compression = false
+										disable_interpolation = false
+										enable_scale = false
+										morph_weights = 
+										[
+											{
+												morph = "LipSidewaysL"
+												weight = 0.112
+											},
+											{
+												morph = "LipSidewaysR"
+												weight = 0.112
+											},
+											{
+												morph = "LowerLipDrepressor"
+												weight = 0.823
+											},
+											{
+												morph = "jawOpen"
+												weight = 0.084
+											},
+											{
+												morph = "jawsuck"
+												weight = 0.035
+											},
+											{
+												morph = "lowerLipsTowardAndPart"
+												weight = 0.112
+											},
+											{
+												morph = "mouthLowerDown_L"
+												weight = 0.531
+											},
+											{
+												morph = "mouthLowerDown_R"
+												weight = 0.48
+											},
+											{
+												morph = "mouthPucker"
+												weight = 0.378
+											},
+											{
+												morph = "mouthUpperUp_L"
+												weight = 0.186
+											},
+											{
+												morph = "mouthUpperUp_R"
+												weight = 0.146
+											},
+											{
+												morph = "openjawL"
+												weight = 0.169
+											},
+											{
+												morph = "openjawR"
+												weight = 0.14
+											},
+										]
+									},
+								]
+							},
+						]
+					},
+					{
+						_class = "Folder"
+						name = "Viseme_Vowels"
+						note = "Kind of arranged in order from A to E to O to U"
+						children = 
+						[
+							{
+								_class = "MorphFrame"
+								name = "viseme_AA"
+								note = "a in Father"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								morph_weights = 
+								[
+									{
+										morph = "jawOpen"
+										weight = 0.355
+									},
+									{
+										morph = "lipcornerdepressorR"
+										weight = 0.008
+									},
+									{
+										morph = "lowerLipFunneler"
+										weight = 0.04
+									},
+									{
+										morph = "mouthUpperUp_L"
+										weight = 0.265
+									},
+									{
+										morph = "mouthUpperUp_R"
+										weight = 0.242
+									},
+									{
+										morph = "openjawL"
+										weight = 0.318
+									},
+									{
+										morph = "openjawR"
+										weight = 0.308
+									},
+									{
+										morph = "openmouthL"
+										weight = 0.065
+									},
+									{
+										morph = "openmouthR"
+										weight = 0.032
+									},
+									{
+										morph = "upperLipsTowardAndPart"
+										weight = 0.235
+									},
+								]
+							},
+							{
+								_class = "MorphFrame"
+								name = "viseme_AE"
+								note = "a in Cat"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								morph_weights = 
+								[
+									{
+										morph = "jawOpen"
+										weight = 0.299
+									},
+									{
+										morph = "lipcornerdepressorL"
+										weight = 0.105
+									},
+									{
+										morph = "lipcornerdepressorR"
+										weight = 0.097
+									},
+									{
+										morph = "mouthFrown_L"
+										weight = 0.299
+									},
+									{
+										morph = "mouthFrown_R"
+										weight = 0.361
+									},
+									{
+										morph = "mouthUpperUp_L"
+										weight = 0.107
+									},
+									{
+										morph = "mouthUpperUp_R"
+										weight = 0.112
+									},
+									{
+										morph = "openjawL"
+										weight = 0.317
+									},
+									{
+										morph = "openjawR"
+										weight = 0.308
+									},
+								]
+							},
+							{
+								_class = "MorphFrame"
+								name = "viseme_AH"
+								note = "u in Cut"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								morph_weights = 
+								[
+									{
+										morph = "LipSidewaysL"
+										weight = 0.121
+									},
+									{
+										morph = "LipSidewaysR"
+										weight = 0.121
+									},
+									{
+										morph = "jawOpen"
+										weight = 0.271
+									},
+									{
+										morph = "jawsuck"
+										weight = 0.121
+									},
+									{
+										morph = "lippuckerer"
+										weight = 0.089
+									},
+									{
+										morph = "lowerLipFunneler"
+										weight = 0.26
+									},
+									{
+										morph = "mouthPucker"
+										weight = 0.598
+									},
+									{
+										morph = "openjawL"
+										weight = 0.3
+									},
+									{
+										morph = "openjawR"
+										weight = 0.3
+									},
+									{
+										morph = "openmouthL"
+										weight = 0.089
+									},
+									{
+										morph = "openmouthR"
+										weight = 0.04
+									},
+								]
+							},
+							{
+								_class = "MorphFrame"
+								name = "viseme_AO"
+								note = "o in Dog"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								morph_weights = 
+								[
+									{
+										morph = "LipSidewaysL"
+										weight = 0.284
+									},
+									{
+										morph = "LipSidewaysR"
+										weight = 0.292
+									},
+									{
+										morph = "jawOpen"
+										weight = 0.209
+									},
+									{
+										morph = "lippuckerer"
+										weight = 0.186
+									},
+									{
+										morph = "mouthFrown_L"
+										weight = 0.129
+									},
+									{
+										morph = "mouthFrown_R"
+										weight = 0.169
+									},
+									{
+										morph = "mouthPucker"
+										weight = 0.7
+									},
+									{
+										morph = "mouthShrugLower"
+										weight = 0.18
+									},
+									{
+										morph = "mouthShrugUpper"
+										weight = 0.062
+									},
+									{
+										morph = "mouthUpperUp_L"
+										weight = 0.395
+									},
+									{
+										morph = "mouthUpperUp_R"
+										weight = 0.418
+									},
+									{
+										morph = "openjawL"
+										weight = 0.203
+									},
+									{
+										morph = "openjawR"
+										weight = 0.195
+									},
+									{
+										morph = "openmouthL"
+										weight = 0.268
+									},
+									{
+										morph = "openmouthR"
+										weight = 0.243
+									},
+									{
+										morph = "upperlipraiserL"
+										weight = 0.317
+									},
+									{
+										morph = "upperlipraiserR"
+										weight = 0.39
+									},
+								]
+							},
+							{
+								_class = "MorphFrame"
+								name = "viseme_AX"
+								note = "a in Ago"
+								disabled = true
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								morph_weights = [  ]
+							},
+							{
+								_class = "MorphFrame"
+								name = "viseme_EY"
+								note = "a in Ate (past tense of eat)"
+								disabled = true
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								morph_weights = [  ]
+							},
+							{
+								_class = "MorphFrame"
+								name = "viseme_E"
+								note = "e in Pet or Bed\n(aka EH)"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								morph_weights = 
+								[
+									{
+										morph = "jawOpen"
+										weight = 0.214
+									},
+									{
+										morph = "lipcornerpullerL"
+										weight = 0.288
+									},
+									{
+										morph = "lipcornerpullerR"
+										weight = 0.302
+									},
+									{
+										morph = "mouthFrown_L"
+										weight = 0.22
+									},
+									{
+										morph = "mouthFrown_R"
+										weight = 0.203
+									},
+									{
+										morph = "mouthSmile_L"
+										weight = 0.338
+									},
+									{
+										morph = "mouthSmile_R"
+										weight = 0.372
+									},
+									{
+										morph = "openjawL"
+										weight = 0.097
+									},
+									{
+										morph = "openjawR"
+										weight = 0.113
+									},
+									{
+										morph = "openmouthL"
+										weight = 0.439
+									},
+									{
+										morph = "openmouthR"
+										weight = 0.406
+									},
+								]
+							},
+							{
+								_class = "MorphFrame"
+								name = "viseme_I"
+								note = "ee in Eel / Cheese / Feel"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								morph_weights = 
+								[
+									{
+										morph = "LowerLipDrepressor"
+										weight = 0.186
+									},
+									{
+										morph = "jawOpen"
+										weight = 0.214
+									},
+									{
+										morph = "lipcornerdepressorL"
+										weight = 0.422
+									},
+									{
+										morph = "lipcornerdepressorR"
+										weight = 0.394
+									},
+									{
+										morph = "lipcornerpullerL"
+										weight = 0.218
+									},
+									{
+										morph = "lipcornerpullerR"
+										weight = 0.204
+									},
+									{
+										morph = "mouthDimple_L"
+										weight = 0.169
+									},
+									{
+										morph = "mouthDimple_R"
+										weight = 0.158
+									},
+									{
+										morph = "mouthFrown_L"
+										weight = 0.423
+									},
+									{
+										morph = "mouthFrown_R"
+										weight = 0.418
+									},
+									{
+										morph = "mouthSmile_L"
+										weight = 0.197
+									},
+									{
+										morph = "mouthSmile_R"
+										weight = 0.197
+									},
+									{
+										morph = "openjawL"
+										weight = 0.105
+									},
+									{
+										morph = "openjawR"
+										weight = 0.113
+									},
+									{
+										morph = "openmouthL"
+										weight = 0.186
+									},
+									{
+										morph = "openmouthR"
+										weight = 0.195
+									},
+									{
+										morph = "upperLipsTowardAndPart"
+										weight = 0.105
+									},
+								]
+							},
+							{
+								_class = "MorphFrame"
+								name = "viseme_O"
+								note = "o in Go / Toe"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								morph_weights = 
+								[
+									{
+										morph = "LipSidewaysL"
+										weight = 0.232
+									},
+									{
+										morph = "LipSidewaysR"
+										weight = 0.211
+									},
+									{
+										morph = "cheekinflateL"
+										weight = 0.024
+									},
+									{
+										morph = "cheekinflateR"
+										weight = 0.048
+									},
+									{
+										morph = "jawOpen"
+										weight = 0.209
+									},
+									{
+										morph = "lipcornerpullerL"
+										weight = 0.048
+									},
+									{
+										morph = "lipcornerpullerR"
+										weight = 0.048
+									},
+									{
+										morph = "lippuckerer"
+										weight = 0.186
+									},
+									{
+										morph = "mouthDimple_L"
+										weight = 0.175
+									},
+									{
+										morph = "mouthDimple_R"
+										weight = 0.163
+									},
+									{
+										morph = "mouthFrown_R"
+										weight = 0.05
+									},
+									{
+										morph = "mouthPucker"
+										weight = 0.525
+									},
+									{
+										morph = "mouthShrugLower"
+										weight = 0.18
+									},
+									{
+										morph = "mouthShrugUpper"
+										weight = 0.062
+									},
+									{
+										morph = "mouthUpperUp_L"
+										weight = 0.248
+									},
+									{
+										morph = "mouthUpperUp_R"
+										weight = 0.284
+									},
+									{
+										morph = "openjawL"
+										weight = 0.203
+									},
+									{
+										morph = "openjawR"
+										weight = 0.195
+									},
+									{
+										morph = "openmouthL"
+										weight = 0.268
+									},
+									{
+										morph = "openmouthR"
+										weight = 0.243
+									},
+									{
+										morph = "upperlipraiserL"
+										weight = 0.317
+									},
+									{
+										morph = "upperlipraiserR"
+										weight = 0.39
+									},
+								]
+							},
+							{
+								_class = "MorphFrame"
+								name = "viseme_U"
+								note = "oo in Too / Look / Good / Book"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								morph_weights = 
+								[
+									{
+										morph = "LipSidewaysL"
+										weight = 0.211
+									},
+									{
+										morph = "LipSidewaysR"
+										weight = 0.227
+									},
+									{
+										morph = "jawOpen"
+										weight = 0.186
+									},
+									{
+										morph = "jawsuck"
+										weight = 0.162
+									},
+									{
+										morph = "lippuckerer"
+										weight = 0.325
+									},
+									{
+										morph = "mouthFrown_R"
+										weight = 0.05
+									},
+									{
+										morph = "mouthPucker"
+										weight = 1.0
+									},
+									{
+										morph = "mouthShrugUpper"
+										weight = 0.062
+									},
+									{
+										morph = "mouthSmile_L"
+										weight = 0.073
+									},
+									{
+										morph = "mouthSmile_R"
+										weight = 0.096
+									},
+									{
+										morph = "mouthUpperUp_L"
+										weight = 0.293
+									},
+									{
+										morph = "mouthUpperUp_R"
+										weight = 0.276
+									},
+									{
+										morph = "openjawL"
+										weight = 0.17
+									},
+									{
+										morph = "openjawR"
+										weight = 0.17
+									},
+									{
+										morph = "openmouthL"
+										weight = 0.089
+									},
+									{
+										morph = "openmouthR"
+										weight = 0.048
+									},
+									{
+										morph = "upperLipsTowardAndPart"
+										weight = 0.43
+									},
+								]
+							},
+							{
+								_class = "MorphFrame"
+								name = "viseme_W"
+								note = "w in What"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								morph_weights = 
+								[
+									{
+										morph = "ChinRaiser"
+										weight = 0.089
+									},
+									{
+										morph = "LipSidewaysL"
+										weight = 0.487
+									},
+									{
+										morph = "LipSidewaysR"
+										weight = 0.512
+									},
+									{
+										morph = "jawOpen"
+										weight = 0.05
+									},
+									{
+										morph = "lippuckerer"
+										weight = 0.243
+									},
+									{
+										morph = "lowerLipsTowardAndPart"
+										weight = 0.284
+									},
+									{
+										morph = "mouthFrown_R"
+										weight = 0.05
+									},
+									{
+										morph = "mouthPucker"
+										weight = 1.0
+									},
+									{
+										morph = "mouthShrugUpper"
+										weight = 0.372
+									},
+									{
+										morph = "mouthUpperUp_L"
+										weight = 0.146
+									},
+									{
+										morph = "mouthUpperUp_R"
+										weight = 0.152
+									},
+									{
+										morph = "openjawL"
+										weight = 0.195
+									},
+									{
+										morph = "openjawR"
+										weight = 0.186
+									},
+									{
+										morph = "openmouthL"
+										weight = 0.268
+									},
+									{
+										morph = "openmouthR"
+										weight = 0.26
+									},
+									{
+										morph = "upperLipFunneler"
+										weight = 0.073
+									},
+									{
+										morph = "upperLipsTowardAndPart"
+										weight = 0.138
+									},
+								]
+							},
+							{
+								_class = "MorphFrame"
+								name = "viseme_Y"
+								note = "y in Yacht"
+								activity_name = ""
+								activity_weight = 1
+								weight_list_name = ""
+								fade_in_time = 0.2
+								fade_out_time = 0.2
+								looping = false
+								delta = false
+								worldSpace = false
+								hidden = false
+								anim_markup_ordered = false
+								disable_compression = false
+								disable_interpolation = false
+								enable_scale = false
+								morph_weights = 
+								[
+									{
+										morph = "LipSidewaysL"
+										weight = 0.52
+									},
+									{
+										morph = "LipSidewaysR"
+										weight = 0.512
+									},
+									{
+										morph = "jawOpen"
+										weight = 0.153
+									},
+									{
+										morph = "mouthFrown_R"
+										weight = 0.05
+									},
+									{
+										morph = "mouthPucker"
+										weight = 1.0
+									},
+									{
+										morph = "mouthRollLower"
+										weight = 0.175
+									},
+									{
+										morph = "mouthRollUpper"
+										weight = 0.096
+									},
+									{
+										morph = "mouthShrugUpper"
+										weight = 0.406
+									},
+									{
+										morph = "mouthUpperUp_L"
+										weight = 0.372
+									},
+									{
+										morph = "mouthUpperUp_R"
+										weight = 0.389
+									},
+									{
+										morph = "openjawL"
+										weight = 0.065
+									},
+									{
+										morph = "openjawR"
+										weight = 0.056
+									},
+									{
+										morph = "openmouthL"
+										weight = 0.162
+									},
+									{
+										morph = "openmouthR"
+										weight = 0.235
+									},
+									{
+										morph = "upperLipFunneler"
+										weight = 0.292
+									},
+								]
+							},
+						]
+					},
+				]
+				default_root_bone_name = ""
+			},
+		]
+		model_archetype = ""
+		primary_associated_entity = ""
+		anim_graph_name = ""
+		base_model_name = ""
+	}
+}

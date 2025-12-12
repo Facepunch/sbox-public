@@ -243,39 +243,36 @@ public abstract partial class EditMode
 
 		var gap = false;
 
-		for ( var t = clampedTimeRange.Start.Floor( interval * 2 ); t <= clampedTimeRange.End; t += interval )
+		for ( var t = clampedTimeRange.Start.Floor( interval * 2 ); t <= clampedTimeRange.End; t += interval, gap = !gap )
 		{
-			if ( trackView.TransformTrack.TryGetValue( t, out var next ) )
-			{
-				var alpha = Session.GetGizmoAlpha( t, timeRange );
-				var dist = Gizmo.Camera.Ortho ? Gizmo.Camera.OrthoHeight : Gizmo.CameraTransform.Position.Distance( next.Position );
-				var scale = dist / 64f;
-
-				if ( trackView.Track is IPropertyTrack<Rotation> rotationTrack && rotationTrack.TryGetValue( t, out var rotation ) )
-				{
-					Gizmo.Draw.Color = Theme.Red.WithAlpha( alpha );
-					Gizmo.Draw.Line( next.Position, next.Position + rotation.Forward * scale );
-
-					Gizmo.Draw.Color = Theme.Green.WithAlpha( alpha );
-					Gizmo.Draw.Line( next.Position, next.Position + rotation.Right * scale );
-
-					Gizmo.Draw.Color = Theme.Blue.WithAlpha( alpha );
-					Gizmo.Draw.Line( next.Position, next.Position + rotation.Up * scale );
-				}
-				else if ( !gap && prevTransform is { } prev )
-				{
-					Gizmo.Draw.Color = GetTrailColor( t ).WithAlpha( alpha );
-					Gizmo.Draw.Line( prev.Position, next.Position );
-				}
-
-				prevTransform = next;
-			}
-			else
+			if ( !trackView.TransformTrack.TryGetValue( t, out var next ) )
 			{
 				prevTransform = null;
+				continue;
 			}
 
-			gap = !gap;
+			var alpha = Session.GetGizmoAlpha( t, timeRange );
+			var dist = Gizmo.Camera.Ortho ? Gizmo.Camera.OrthoHeight : Gizmo.CameraTransform.Position.Distance( next.Position );
+			var scale = dist / 64f;
+
+			if ( trackView.Track is IPropertyTrack<Rotation> rotationTrack && rotationTrack.TryGetValue( t, out var rotation ) )
+			{
+				Gizmo.Draw.Color = Theme.Red.WithAlpha( alpha );
+				Gizmo.Draw.Line( next.Position, next.Position + rotation.Forward * scale );
+
+				Gizmo.Draw.Color = Theme.Green.WithAlpha( alpha );
+				Gizmo.Draw.Line( next.Position, next.Position + rotation.Right * scale );
+
+				Gizmo.Draw.Color = Theme.Blue.WithAlpha( alpha );
+				Gizmo.Draw.Line( next.Position, next.Position + rotation.Up * scale );
+			}
+			else if ( !gap && prevTransform is { } prev )
+			{
+				Gizmo.Draw.Color = GetTrailColor( t ).WithAlpha( alpha );
+				Gizmo.Draw.Line( prev.Position, next.Position );
+			}
+
+			prevTransform = next;
 		}
 	}
 

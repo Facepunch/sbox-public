@@ -44,8 +44,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	SceneMap loadedMap;
 	GameObject _mapPhysics;
 	string loadedMapName;
-
-
+	string sceneMapScenePath;
 
 	public MapInstance() : base()
 	{
@@ -119,6 +118,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	public void UnloadMap()
 	{
 		loadedMapName = null;
+		sceneMapScenePath = null;
 
 		bool hadMap = loadedMap is not null;
 
@@ -268,8 +268,8 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 				}
 				else if ( mapFileName.EndsWith( ".scene" ) )
 				{
-					Log.Warning( $"Package {package.FullIdent} is a scenemap and cannot be loaded by MapInstance" );
-					return false;
+					// Scene maps can be loaded, but we need to do some special work with the GameObjects.
+					sceneMapScenePath = mapFileName;
 				}
 			}
 
@@ -365,7 +365,10 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 	private void LoadMapSceneGameObjects( string mapName )
 	{
-		var scene = Game.Resources.LoadRawGameResource( $"{loadedMap.MapFolder}/world.scene_c" );
+		// If this is being loaded from a vpk, load scene contents from world.scene_c.
+		// If this is from an actual scene, just use that.
+		var path = string.IsNullOrWhiteSpace( sceneMapScenePath ) ? $"{loadedMap?.MapFolder}/world.scene_c" : sceneMapScenePath + "_c";
+		var scene = Game.Resources.LoadRawGameResource( path );
 		if ( scene is not SceneFile sceneFile )
 			return;
 
@@ -406,6 +409,15 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 	private bool ShouldIgnoreGameObject( JsonObject json )
 	{
+		// Don't load another MapInstance if this scene already has one.
+		if ( json["Components"] is JsonArray components )
+		{
+			if ( components.Any( comp => comp["__type"]?.ToString() == "Sandbox.MapInstance" ) )
+			{
+				return true;
+			}
+		}
+
 		if ( !Networking.IsClient || !json.TryGetPropertyValue( JsonKeys.Id, out var id ) )
 			return false;
 

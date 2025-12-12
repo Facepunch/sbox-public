@@ -22,6 +22,8 @@ CS
 {
     #include "common.fxc"
     #include "procedural.hlsl"
+    
+    #include "terrain/TerrainSplatFormat.hlsl"
 
     DynamicCombo( D_SCULPT_MODE, 0..4, Sys( ALL ) );
         #define MODE_RAISE_LOWER    0
@@ -31,7 +33,8 @@ CS
         #define MODE_NOISE          4
 
     RWTexture2D<float> Heightmap < Attribute( "Heightmap" ); >;
-    RWTexture2D<float> Holemap < Attribute( "Holemap" ); >;
+    RWTexture2D<float> ControlMap < Attribute( "ControlMap" ); >;
+    
     float2 HeightUV < Attribute( "HeightUV" ); >;
     float FlattenHeight < Attribute( "FlattenHeight" ); >;
     int BrushSize < Attribute( "BrushSize" ); >;
@@ -101,13 +104,17 @@ CS
         if ( D_SCULPT_MODE == MODE_HOLE )
         {
             float brush = Brush.SampleLevel( g_sBilinearBorder, brushUV, 0 ) * BrushStrength;
-            if ( brush > 0.1f )
+            
+            bool setHole = brush > 0.1f;
+            bool clearHole = brush < -0.1f;
+            
+            if ( setHole || clearHole )
             {
-                Holemap[texel] = 1.0f;            
-            }
-            else if ( brush < -0.1f )
-            {
-                Holemap[texel] = 0.0f;
+                // Decode compact format, modify hole bit, encode
+                float rawPixel = ControlMap.Load( texel );
+                CompactTerrainMaterial material = CompactTerrainMaterial::DecodeFromFloat( rawPixel );
+                material.IsHole = setHole;
+                ControlMap[texel] = material.EncodeToFloat();
             }
         }
         if ( D_SCULPT_MODE == MODE_NOISE )

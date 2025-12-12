@@ -58,12 +58,18 @@ public class ResourceSystem
 
 		var toDispose = ResourceIndex.Values.ToArray();
 
-		ResourceIndex.Clear();
-
 		foreach ( var resource in toDispose.OfType<GameResource>() )
 		{
 			resource.DestroyInternal();
 		}
+
+		foreach ( var resource in toDispose )
+		{
+			// Don't wait/rely for finalizer get rid of this immediately
+			resource.Destroy();
+		}
+
+		ResourceIndex.Clear();
 
 		TypeCache.Clear();
 	}

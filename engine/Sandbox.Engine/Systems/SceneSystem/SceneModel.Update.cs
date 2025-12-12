@@ -64,6 +64,12 @@ public sealed partial class SceneModel
 		animNative.MergeFrom( parent );
 	}
 
-	internal Transform GetParentSpaceBone( int i ) => animNative.GetParentSpaceBone( i );
+	/// <summary>
+	/// Returns the parent space transform of a bone by its index.
+	/// </summary>
+	/// <param name="i">Index of the bone to calculate transform of.</param>
+	/// <returns>The parent space transform, or an identity transform on failure.</returns>
+	public Transform GetParentSpaceBone( int i ) => animNative.GetParentSpaceBone( i );
+
 	internal void SetParentSpaceBone( int i, in Transform tx ) => animNative.SetParentSpaceBone( i, tx );
 }

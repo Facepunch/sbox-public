@@ -8,7 +8,7 @@ namespace Editor.MovieMaker;
 // [MovieModification( "Stretch", Icon = "width_full" )]
 file sealed class StretchModification() : PerTrackModification<StretchOptions>( StretchOptions.Default, true )
 {
-	public override void Start( TimeSelection selection )
+	public override void Start( TrackListView trackList, TimeSelection selection )
 	{
 		Options = Options with { SourceDuration = selection.TotalTimeRange.Duration };
 	}

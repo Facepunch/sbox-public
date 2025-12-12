@@ -91,5 +91,6 @@ public abstract class PrimitiveBuilder
 	/// <summary>
 	/// The material to use for this whole primitive.
 	/// </summary>
+	[Hide]
 	public Material Material { get; set; } = Material.Load( "materials/dev/reflectivity_30.vmat" );
 }

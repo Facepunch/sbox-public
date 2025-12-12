@@ -79,32 +79,17 @@ void FFX_DNSR_Reflections_InitializeGroupSharedMemory(int2 dispatch_thread_id, i
 }
 
 float FFX_DNSR_Reflections_GetEdgeStoppingNormalWeight(float3 normal_p, float3 normal_q) {
-    // Sharper edge stopping for high-frequency normal changes
-    float dotProduct = max(dot(normal_p, normal_q), 0.0);
-    float normalDiff = 1.0 - dotProduct;
-    
-    // Adaptive normal sigma based on curvature (approximated by normal difference)
-    float adaptiveSigma = FFX_DNSR_REFLECTIONS_PREFILTER_NORMAL_SIGMA;
-    if (normalDiff > 0.2) {
-        // Strengthen edge stopping at sharp normal boundaries
-        adaptiveSigma *= 1.5;
-    }
-    
-    return pow(dotProduct, adaptiveSigma);
+    return pow(max(dot(normal_p, normal_q), 0.0), FFX_DNSR_REFLECTIONS_PREFILTER_NORMAL_SIGMA);
 }
 
 float FFX_DNSR_Reflections_GetEdgeStoppingDepthWeight(float center_depth, float neighbor_depth) {
-    // Adaptive depth sensitivity based on absolute depth values
-    float depthScale = min(1.0, center_depth * 5.0); // More sensitive at close distances
-    float adaptiveSigma = FFX_DNSR_REFLECTIONS_PREFILTER_DEPTH_SIGMA * depthScale;
-    
-    return exp(-abs(center_depth - neighbor_depth) * center_depth * adaptiveSigma);
+    return exp(-abs(center_depth - neighbor_depth) * center_depth * FFX_DNSR_REFLECTIONS_PREFILTER_DEPTH_SIGMA);
 }
 
 float FFX_DNSR_Reflections_GetRadianceWeight(floatx center_radiance, floatx neighbor_radiance, float variance) {
     return max(exp(-(FFX_DNSR_REFLECTIONS_RADIANCE_WEIGHT_BIAS + variance * FFX_DNSR_REFLECTIONS_RADIANCE_WEIGHT_VARIANCE_K)
-                    * length(center_radiance.xyz - neighbor_radiance.xyz))
-            , 1.0e-2);
+                    * length(center_radiance.xyz - neighbor_radiance.xyz)),
+               1.0e-2);
 }
 
 void FFX_DNSR_Reflections_Resolve(int2 group_thread_id, floatx avg_radiance, FFX_DNSR_Reflections_NeighborhoodSample center,
@@ -119,21 +104,9 @@ void FFX_DNSR_Reflections_Resolve(int2 group_thread_id, floatx avg_radiance, FFX
     const int2 sample_offsets[] = {int2(0, 1),  int2(-2, 1),  int2(2, -3), int2(-3, 0),  int2(1, 2), int2(-1, -2), int2(3, 0), int2(-3, 3),
                                    int2(0, -3), int2(-1, -1), int2(2, 1),  int2(-2, -2), int2(1, 0), int2(0, 2),   int2(3, -1)};
     float variance_weight = max(FFX_DNSR_REFLECTIONS_PREFILTER_VARIANCE_BIAS,
-                                     1.0 - exp(-(center.variance * FFX_DNSR_REFLECTIONS_PREFILTER_VARIANCE_WEIGHT))
-                                    );
-    
-    // Adapt filter kernel based on variance and roughness
-    float adaptiveVarianceWeight = max(FFX_DNSR_REFLECTIONS_PREFILTER_VARIANCE_BIAS,
-                                  1.0 - exp(-(center.variance * FFX_DNSR_REFLECTIONS_PREFILTER_VARIANCE_WEIGHT)));
-    
-    // Adaptive sample selection - use more samples for high variance regions
-    int effectiveSampleCount = sample_count;
-    if (center.variance < 0.01) {
-        // For low variance regions, we can use fewer samples
-        effectiveSampleCount = 9; // Use only the first 9 samples
-    }
-    
-    for (int i = 0; i < effectiveSampleCount; ++i) {
+                                1.0 - exp(-(center.variance * FFX_DNSR_REFLECTIONS_PREFILTER_VARIANCE_WEIGHT)));
+
+    for (int i = 0; i < sample_count; ++i) {
         int2                                    new_idx  = group_thread_id + sample_offsets[i];
         FFX_DNSR_Reflections_NeighborhoodSample neighbor = FFX_DNSR_Reflections_LoadFromGroupSharedMemory(new_idx);
 
@@ -142,10 +115,6 @@ void FFX_DNSR_Reflections_Resolve(int2 group_thread_id, floatx avg_radiance, FFX
         weight *= FFX_DNSR_Reflections_GetEdgeStoppingDepthWeight(center.depth, neighbor.depth);
         weight *= FFX_DNSR_Reflections_GetRadianceWeight(avg_radiance, neighbor.radiance, center.variance);
         weight *= variance_weight;
-
-        // Add roughness-dependent spatial filter radius
-        float roughness = FFX_DNSR_Reflections_LoadRoughness(group_thread_id);
-        weight *= variance_weight * (1.0 + roughness);
 
         // Accumulate all contributions.
         accumulated_weight += weight;

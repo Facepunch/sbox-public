@@ -55,7 +55,7 @@ public class ScaleEditorTool : EditorTool
 	}
 
 
-	[Shortcut( "tools.scale-tool", "r", typeof( SceneViewportWidget ) )]
+	[Shortcut( "tools.scale-tool", "r", typeof( SceneDock ) )]
 	public static void ActivateSubTool()
 	{
 		if ( !(EditorToolManager.CurrentModeName == nameof( ObjectEditorTool ) || EditorToolManager.CurrentModeName == "object") ) return;

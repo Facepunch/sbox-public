@@ -66,7 +66,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			}
 		}
 
-		Assert.IsNull( PackageLoader );
+		PackageLoader?.Dispose();
 		PackageLoader = new PackageLoader( "GameMenu", typeof( GameInstanceDll ).Assembly );
 		PackageLoader.HotloadWatch( Game.GameAssembly ); // Sandbox.Game is per instance
 		PackageLoader.OnAfterHotload = OnAfterHotload;
@@ -234,11 +234,14 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			}
 		};
 
-		// Clear resource library so resources don't leak between games,
-		// then let IMenuDll reload whatever resources it needs
-
-		Game.Resources.Clear();
 		IMenuDll.Current?.Reset();
+
+		// Run GC and finalizers to clear any native resources held
+		GC.Collect();
+		GC.WaitForPendingFinalizers();
+
+		// Run the queue one more time, since some finalizers queue tasks
+		MainThread.RunQueues();
 	}
 
 	/// <summary>
@@ -416,7 +419,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			}
 
 			//
-			// Recieve incoming network messages
+			// Recieve incoming network messages, send heartbeat and other outgoing messages
 			//
 			Networking.PreFrameTick();
 
@@ -432,15 +435,14 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			//
 			// Run the actual game scene tick
 			//
-			using ( Sandbox.Diagnostics.Performance.Scope( "GameFrame" ) )
+			using ( Performance.Scope( "GameFrame" ) )
 			{
 				RunGameFrame( scene );
 			}
 
-			//
-			// Send heartbeat and other outgoing network messages
-			//
 			Networking.PostFrameTick();
+
+			Connection.ClearUpdateContextInput();
 		}
 
 		if ( !Application.IsDedicatedServer )
@@ -701,7 +703,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	/// Called when the game menu is closed
 	/// </summary>
 	/// <param name="instance"></param>
-	public void OnGameInstanceClosed( IGameInstance instance )
+	public void Shutdown( IGameInstance instance )
 	{
 		NativeErrorReporter.Breadcrumb( true, "game", "Closed game instance" );
 		NativeErrorReporter.SetTag( "game", null );

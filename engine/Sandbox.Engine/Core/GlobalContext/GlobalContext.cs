@@ -124,6 +124,8 @@ internal partial class GlobalContext
 		oldCts?.Cancel();
 		oldCts?.Dispose();
 
+		ActiveScene = null;
+
 		TaskSource = new TaskSource( 1 );
 
 		EventSystem?.Dispose();
@@ -133,6 +135,9 @@ internal partial class GlobalContext
 
 		Cookies?.Dispose();
 		Cookies = null;
+
+		ResourceSystem?.Clear();
+		ResourceSystem = new ResourceSystem();
 	}
 
 	string _disabledReason;

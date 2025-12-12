@@ -6,6 +6,7 @@ namespace Sandbox;
 /// A volume that defines a region in the scene where post processing effects will be applied.
 /// </summary>
 [EditorHandle( Icon = "contrast" )]
+[Category( "Post Processing" )]
 [Icon( "contrast" )]
 public class PostProcessVolume : VolumeComponent, Component.ExecuteInEditor
 {

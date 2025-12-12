@@ -52,8 +52,8 @@ public sealed partial class PolygonMesh : IJsonConvert
 		public int MaterialId { get; set; }
 	}
 
-	private static readonly Material DefaultMaterial = Material.Load( "materials/dev/reflectivity_30.vmat" );
-	private static readonly Vector2 DefaultTextureSize = CalculateTextureSize( DefaultMaterial );
+	private Material DefaultMaterial = Material.Load( "materials/dev/reflectivity_30.vmat" );
+	private Vector2 DefaultTextureSize => CalculateTextureSize( DefaultMaterial );
 
 	private VertexData<Vector3> Positions { get; init; }
 	private HalfEdgeData<Vector2> TextureCoord { get; init; }
@@ -142,7 +142,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 	/// <summary>
 	/// Has there been changes to the mesh that need rebuilding?
 	/// </summary>
-	public bool IsDirty { get; private set; }
+	public bool IsDirty { get; internal set; }
 
 	private Transform _transform = Transform.Zero;
 

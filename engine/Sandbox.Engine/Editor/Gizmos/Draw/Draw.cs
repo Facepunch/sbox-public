@@ -15,10 +15,30 @@ public static partial class Gizmo
 	/// </summary>
 	public sealed partial class GizmoDraw
 	{
-		static Material LineMaterial = Material.Load( "materials/gizmo/line.vmat" );
-		static Material SolidMaterial = Material.Load( "materials/gizmo/solid.vmat" );
-		static Material SpriteMaterial = Material.Load( "materials/gizmo/sprite.vmat" );
-		static Material GridMaterial = Material.Load( "materials/gizmo/grid.vmat" );
+		static Material LineMaterial;
+		static Material SolidMaterial;
+		static Material SpriteMaterial;
+		static Material GridMaterial;
+
+		internal static void InitStatic()
+		{
+			LineMaterial = Material.Load( "materials/gizmo/line.vmat" );
+			SolidMaterial = Material.Load( "materials/gizmo/solid.vmat" );
+			SpriteMaterial = Material.Load( "materials/gizmo/sprite.vmat" );
+			GridMaterial = Material.Load( "materials/gizmo/grid.vmat" );
+		}
+
+		internal static void DisposeStatic()
+		{
+			LineMaterial?.Dispose();
+			LineMaterial = null;
+			SolidMaterial?.Dispose();
+			SolidMaterial = null;
+			SpriteMaterial?.Dispose();
+			SpriteMaterial = null;
+			GridMaterial?.Dispose();
+			GridMaterial = null;
+		}
 
 		internal GizmoDraw()
 		{
@@ -125,7 +145,7 @@ public static partial class Gizmo
 		/// <summary>
 		/// Draw a model
 		/// </summary>
-		public SceneObject Model( Model modelName ) => Model( modelName, Transform.Zero );
+		public SceneModel Model( Model modelName ) => Model( modelName, Transform.Zero );
 
 
 

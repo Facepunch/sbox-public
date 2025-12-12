@@ -20,18 +20,28 @@ public static class SceneEditorMenus
 	{
 		using var scope = SceneEditorSession.Scope();
 
-		var selection = EditorScene.Selection.OfType<GameObject>().Where( go => go.GetType() != typeof( Sandbox.Scene ) ).ToArray();
+		var selection = EditorScene.Selection.OfType<GameObject>().Where( go => go.GetType() != typeof( Sandbox.Scene ) ).OrderBy( e => -e.Parent.Children.IndexOf( e ) ).ToArray();
 
 		if ( selection.Length == 0 ) return;
 
 		EditorScene.Selection.Clear();
 
+		var groups = new Dictionary<GameObject, GameObject>( selection.Length );
 		foreach ( var entry in selection )
 		{
-			var clone = entry.Clone();
+			var next = entry.GetNextSibling( false );
+			if ( next.IsValid() && groups.TryGetValue( next, out var forward ) )
+				groups.Add( entry, forward );
+			else
+				groups.Add( entry, entry );
+		}
 
-			clone.WorldTransform = entry.WorldTransform;
-			entry.AddSibling( clone, false );
+		foreach ( var entry in groups )
+		{
+			var clone = entry.Key.Clone();
+
+			clone.WorldTransform = entry.Key.WorldTransform;
+			entry.Value.AddSibling( clone, false );
 
 			EditorScene.Selection.Add( clone );
 		}

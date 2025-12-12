@@ -6,6 +6,7 @@ namespace Sandbox;
 /// Terrain renders heightmap based terrain.
 /// </summary>
 [Expose]
+[Category( "World" )]
 public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 {
 	[ConVar( "r_terrain_displacement" )]
@@ -16,27 +17,25 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 	protected override void OnEnabled()
 	{
 		Create();
-
-		Transform.OnTransformChanged += OnTransformChanged;
+		Transform.OnTransformChanged += OnTerrainChanged;
+		Storage?.MaterialSettings?.OnChanged += OnTerrainChanged;
 	}
 
 	protected override void OnDisabled()
 	{
-		Transform.OnTransformChanged -= OnTransformChanged;
+		Transform.OnTransformChanged -= OnTerrainChanged;
+		Storage?.MaterialSettings?.OnChanged -= OnTerrainChanged;
 
 		_so?.Delete();
 		_so = null;
 
 		HeightMap?.Dispose();
 		ControlMap?.Dispose();
-		HolesMap?.Dispose();
 	}
 
-	void OnTransformChanged()
+	void OnTerrainChanged()
 	{
-		if ( !_so.IsValid() )
-			return;
-
+		if ( !_so.IsValid() ) return;
 		_so.Transform = WorldTransform;
 		UpdateTerrainBuffer();
 	}
@@ -47,18 +46,6 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 			return;
 
 		_so.Attributes.Set( "VertexDisplacement", UseVertexDisplacement );
-
-		if ( Storage is null )
-			return;
-
-		foreach ( var material in Storage.Materials )
-		{
-			// Tell texture streaming we want at least 4k textures if they have them
-			// We could make this way way smarter, if materials are further away from us we can request a lower mip
-			// if we're not using them at all, simply don't mark them as used
-			material.BCRTexture?.MarkUsed( 4096 );
-			material.NHOTexture?.MarkUsed( 4096 );
-		}
 	}
 
 	protected override void OnTagsChanged()
@@ -70,7 +57,7 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 	/// <summary>
 	/// Call on enable or storage change
 	/// </summary>
-	private void Create()
+	public void Create()
 	{
 		if ( !Active )
 			return;
@@ -80,7 +67,6 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 
 		HeightMap?.Dispose();
 		ControlMap?.Dispose();
-		HolesMap?.Dispose();
 
 		if ( Storage is null )
 			return;
@@ -182,11 +168,9 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 		Assert.NotNull( Storage );
 		Assert.NotNull( Storage.HeightMap );
 		Assert.NotNull( Storage.ControlMap );
-		Assert.NotNull( Storage.HolesMap );
 
 		HeightMap?.Dispose();
 		ControlMap?.Dispose();
-		HolesMap?.Dispose();
 
 		HeightMap = Texture.Create( Storage.Resolution, Storage.Resolution, ImageFormat.R16 )
 			.WithData( new ReadOnlySpan<ushort>( Storage.HeightMap ) )
@@ -194,16 +178,10 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 			.WithName( "terrain_heightmap" )
 			.Finish();
 
-		ControlMap = Texture.Create( Storage.Resolution, Storage.Resolution, ImageFormat.RGBA8888 )
-			.WithData( new ReadOnlySpan<Color32>( Storage.ControlMap ) )
+		ControlMap = Texture.Create( Storage.Resolution, Storage.Resolution, ImageFormat.R32_UINT )
+			.WithData( new ReadOnlySpan<UInt32>( Storage.ControlMap ) )
 			.WithUAVBinding()
 			.WithName( "terrain_controlmap" )
-			.Finish();
-
-		HolesMap = Texture.Create( Storage.Resolution, Storage.Resolution, ImageFormat.I8 )
-			.WithData( new ReadOnlySpan<byte>( Storage.HolesMap ) )
-			.WithUAVBinding()
-			.WithName( "terrain_holemap" )
 			.Finish();
 	}
 }

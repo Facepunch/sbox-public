@@ -136,7 +136,6 @@ CS
 
         float3 vColor = 0;
         float flConfidence = 0;
-        uint nValidSamples = 0;
         float flHitLength = 0;
 
         float InvSampleCount = 1.0 / nSamplesPerPixel;
@@ -191,8 +190,6 @@ CS
             vColor += PreviousFrameColor[ vLastFramePositionHitSs ].rgb;
 
             flConfidence += bValidSample * InvSampleCount;
-
-            nValidSamples += bValidSample;
         }
 
         vColor *= InvSampleCount;
@@ -309,15 +306,16 @@ CS
 
 	float3	FFX_DNSR_Reflections_LoadWorldSpaceNormal(int2 pixel_coordinate) 		{ return Normals::Sample( pixel_coordinate * ScaleInv  ); }
 	float3	FFX_DNSR_Reflections_LoadWorldSpaceNormalHistory(int2 pixel_coordinate) { return GBufferHistory[pixel_coordinate].xyz; }
-	float3	FFX_DNSR_Reflections_SampleWorldSpaceNormalHistory(float2 uv) 			{ return GBufferHistory.SampleLevel( BilinearWrap, uv, 0).xyz; } // Todo: bilinear fetch
+	float3	FFX_DNSR_Reflections_SampleWorldSpaceNormalHistory(float2 uv) 			{ return GBufferHistory.SampleLevel( BilinearWrap, uv, 0).xyz; }
     
 	float3	FFX_DNSR_Reflections_LoadViewSpaceNormal(int2 pixel_coordinate) 		{ return Vector3WsToVs( Normals::Sample( pixel_coordinate * ScaleInv  ) ); }
 
 	float	FFX_DNSR_Reflections_LoadRoughness(int2 pixel_coordinate) 				{ return Roughness::Sample( pixel_coordinate * ScaleInv  ); }
 	float	FFX_DNSR_Reflections_LoadRoughnessHistory(int2 pixel_coordinate) 		{ return GBufferHistory[pixel_coordinate].w; } 
-	float	FFX_DNSR_Reflections_SampleRoughnessHistory(float2 uv) 					{ return GBufferHistory.SampleLevel( BilinearWrap, uv, 0).w; } // Todo: bilinear fetch
+	float	FFX_DNSR_Reflections_SampleRoughnessHistory(float2 uv) 					{ return GBufferHistory.SampleLevel( BilinearWrap, uv, 0).w; }
 
-    float2	FFX_DNSR_Reflections_LoadMotionVector(int2 pixel_coordinate) 			{ return ( Motion::Get( pixel_coordinate * ScaleInv  ).xy - (pixel_coordinate * ScaleInv ) ) * InvDimensions; }
+    float2 FFX_DNSR_Reflections_LoadMotionVector(int2 pixel_coordinate)             { return ( Motion::Get( ( pixel_coordinate + 0.5f ) * ScaleInv ).xy ) * InvDimensions; }
+    float2 FFX_DNSR_Reflections_LoadMotionLength(int2 pixel_coordinate)             { return ( Motion::Get( ( pixel_coordinate  ) * ScaleInv ).xy) - ( pixel_coordinate * ScaleInv );}
 
     float	FFX_DNSR_Reflections_SampleVarianceHistory(float2 uv) 					{ return Tex2DLevelS( VarianceHistory, BilinearWrap, uv, 0 ).x; }
 	float	FFX_DNSR_Reflections_LoadRayLength(int2 pixel_coordinate) 				{ return RayLength[pixel_coordinate]; } // Todo: Implement
@@ -340,7 +338,7 @@ CS
 	float3 	FFX_DNSR_Reflections_ScreenSpaceToViewSpace(float3 screen_uv_coord) 			{ return ScreenSpaceToViewSpace(screen_uv_coord); } // UV and projection space depth
 	float3 	FFX_DNSR_Reflections_ViewSpaceToWorldSpace(float4 view_space_coord) 			{ float4 vPositionPs = Position4VsToPs( view_space_coord ); return mul( vPositionPs, g_matProjectionToWorld ).xyz; }
 	float3 	FFX_DNSR_Reflections_WorldSpaceToScreenSpacePrevious(float3 world_space_pos) 	{ return Motion::GetFromWorldPosition( world_space_pos); }
-    float 	FFX_DNSR_Reflections_GetLinearDepth(float2 uv, float depth) 					{ return Depth::GetLinear( uv * ScaleInv ); } // View space depth from full-res depth
+    float 	FFX_DNSR_Reflections_GetLinearDepth(float2 uv, float depth) 					{ return Depth::GetLinear( uv * Dimensions ); } // View space depth from full-res depth
 
 	
     void FFX_DNSR_Reflections_LoadNeighborhood(
@@ -378,11 +376,11 @@ CS
         uint2 group_thread_id 		= groupThreadID;
         uint2 dispatch_thread_id = dispatchThreadID;
 
-        const float flReconstructMin = 0.15f;
-        const float flReconstructMax = 0.7f;
-        const float flMotionVectorScale = Dimensions.y;
+        const float flReconstructMin = 0.3f;
+        const float flReconstructMax = 0.9f;
+        const float2 vMotionAmount = FFX_DNSR_Reflections_LoadMotionLength( dispatch_thread_id );
 
-        const float g_temporal_stability_factor = RemapValClamped( length( FFX_DNSR_Reflections_LoadMotionVector( dispatchThreadID ) ) * flMotionVectorScale, 1.0, 0.0, flReconstructMin, flReconstructMax );
+        const float g_temporal_stability_factor = RemapValClamped( length( vMotionAmount ), 1.0f, 0.0f, flReconstructMin, flReconstructMax );
 
         #if ( D_PASS == PASS_INTERSECT )
         {
