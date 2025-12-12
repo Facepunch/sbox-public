@@ -9,5 +9,6 @@
   "menu.hub": "Hub",
   "menu.maps": "Kaarten",
   "menu.store": "Winkel",
-  "menu.multiplayer": "Servers"
+  "menu.multiplayer": "Servers",
+  "menu.notifications": "Meldingen"
 }

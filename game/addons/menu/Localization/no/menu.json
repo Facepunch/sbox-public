@@ -9,5 +9,6 @@
   "menu.hub": "Hub",
   "menu.games": "Spill",
   "menu.maps": "Kart",
-  "menu.multiplayer": "Servere"
+  "menu.multiplayer": "Servere",
+  "menu.notifications": "Varsler"
 }

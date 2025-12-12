@@ -9,5 +9,6 @@
   "menu.store": "상점",
   "menu.games": "게임",
   "menu.multiplayer": "서버",
-  "menu.hub": "허브"
+  "menu.hub": "허브",
+  "menu.notifications": "알림"
 }
