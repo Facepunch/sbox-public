@@ -220,6 +220,7 @@ public partial class Scene : GameObject
 				T c = (T)e;
 				if ( c is null ) continue;
 				if ( c is IValid v && !v.IsValid ) continue;
+				if ( c is Component co && co.GameObject.IsDestroyed ) continue;
 
 				obj = c;
 				return true;
