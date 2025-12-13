@@ -6,7 +6,8 @@ namespace Editor.TerrainEditor;
 public enum TerrainLayer
 {
 	Base = 0,
-	Overlay = 1
+	Overlay = 1,
+	Both = 2
 }
 
 [Title( "Paint Texture" )]
