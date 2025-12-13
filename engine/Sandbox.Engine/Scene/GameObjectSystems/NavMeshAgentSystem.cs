@@ -66,7 +66,7 @@ internal sealed class NavMeshGameSystem : GameObjectSystem
 				.IgnoreDynamic()
 				.IgnoreGameObjectHierarchy( agent.GameObject )
 				.WithAnyTags( Scene.NavMesh.IncludedBodies )
-				.WithCollisionRules(agent.Tags)
+				.WithCollisionRules( agent.Tags )
 				.WithoutTags( Scene.NavMesh.ExcludedBodies );
 
 		if ( !Scene.NavMesh.IncludeStaticBodies )
