@@ -163,7 +163,7 @@ public partial class SoundPlayer : Widget
 			WaveForm.SceneRect = r;
 			WaveForm.Analyse();
 
-			Scrubber.Position = Scrubber.Position.WithX( PositionFromTime( Time ) - 3 ).SnapToGrid( 1.0f );
+			Scrubber.Position = Scrubber.Position.WithX( PositionFromTime( Time ) - 4 ).SnapToGrid( 1.0f );
 		}
 
 		protected override void OnResize()
