@@ -192,8 +192,6 @@ public partial class SoundPlayer : Widget
 				SoundHandle = null;
 			}
 
-			VisibleRect = Rect.FromPoints( ToScene( LocalRect.TopLeft ), ToScene( LocalRect.BottomRight ) );
-
 			if ( Timeline.Playing && !Scrubbing )
 			{
 				var time = Time % Duration;
@@ -238,8 +236,9 @@ public partial class SoundPlayer : Widget
 			if ( Scrubbing || Timeline.Playing )
 			{
 				CenterOn( Scrubber.Position );
-				VisibleRect = Rect.FromPoints( ToScene( LocalRect.TopLeft ), ToScene( LocalRect.BottomRight ) );
 			}
+
+			VisibleRect = Rect.FromPoints( ToScene( LocalRect.TopLeft ), ToScene( LocalRect.BottomRight ) );
 
 			TimeAxis.Update();
 			WaveForm.Update();
