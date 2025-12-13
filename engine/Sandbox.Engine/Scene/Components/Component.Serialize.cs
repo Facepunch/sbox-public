@@ -117,7 +117,7 @@ public abstract partial class Component : BytePack.ISerializer
 		Enabled = (bool)(jsonData[JsonKeys.Enabled] ?? true);
 	}
 
-	internal void PostDeserialize()
+	internal void PostDeserialize( GameObject.DeserializeOptions options = default )
 	{
 		if ( jsonData is null )
 			return;
@@ -136,6 +136,14 @@ public abstract partial class Component : BytePack.ISerializer
 				if ( !jsonData.ContainsKey( field.Name ) )
 				{
 					continue;
+				}
+
+				// Client refresh
+				if ( options.IsNetworkRefresh && !options.IsRefreshFromHost )
+				{
+					// Skip [Sync] vars - sent via network table (prevents FromHost overwrite)
+					if ( field is PropertyDescription prop && prop.HasAttribute<SyncAttribute>() )
+						continue;
 				}
 
 				// This also includes fields that are null
