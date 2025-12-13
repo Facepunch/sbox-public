@@ -99,7 +99,10 @@ public abstract partial class Component
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	protected void __rpc_Wrapper( in WrappedMethod m, params object[] argumentList )
 	{
-		Rpc.OnCallInstanceRpc( GameObject, this, m, argumentList );
+		using ( Rpc.WithCaller( Rpc.ConsumePendingRpcCaller() ) )
+		{
+			Rpc.OnCallInstanceRpc( GameObject, this, m, argumentList );
+		}
 	}
 
 	/// <summary>
