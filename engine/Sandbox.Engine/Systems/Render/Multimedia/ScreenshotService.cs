@@ -7,23 +7,46 @@ namespace Sandbox;
 /// <summary>
 /// Provides functionality to capture and save screenshots in various formats.
 /// </summary>
-internal static class ScreenshotService
+public static class ScreenshotService
 {
 	[ConVar( "screenshot_prefix", Help = "Prefix for auto-generated screenshot filenames" )]
 	public static string ScreenshotPrefix { get; set; } = "sbox";
 
-	private record ScreenshotRequest( string FilePath );
 
+
+
+
+	[ConVar( "screenshot_steam", Help = "Add screenshots to Steam library" )]
+	public static bool AddToSteamLibrary { get; set; } = true;
+
+
+
+	public static event EventHandler<ScreenshotCapturedEventArgs> OnScreenshotCaptured;
+
+	private sealed record ScreenshotRequest(
+		string FilePath,
+
+		bool AddToSteam,
+		bool IsHighRes,
+		Action<ScreenshotCapturedEventArgs> Callback
+	);
 	private static readonly ConcurrentQueue<ScreenshotRequest> _pendingRequests = new();
 
 	/// <summary>
 	/// Captures the screen and saves it as a PNG file.
 	/// </summary>
-	internal static string RequestCapture()
+	public static string RequestCapture()
+	{
+		return RequestCapture( AddToSteamLibrary, null );
+	}
+
+	public static string RequestCapture(
+		bool addToSteam,
+		Action<ScreenshotCapturedEventArgs> callback )
 	{
 		string filePath = ScreenCaptureUtility.GenerateScreenshotFilename( "png" );
 
-		_pendingRequests.Enqueue( new ScreenshotRequest( filePath ) );
+		_pendingRequests.Enqueue( new ScreenshotRequest( filePath, addToSteam, false, callback ) );
 
 		return filePath;
 	}
@@ -35,14 +58,11 @@ internal static class ScreenshotService
 
 		while ( _pendingRequests.TryDequeue( out var request ) )
 		{
-			CaptureRenderTexture( context, nativeTexture, request.FilePath );
+			CaptureRenderTexture( context, nativeTexture, request );
 		}
 	}
 
-	/// <summary>
-	/// Captures the current render target and saves it to the specified file.
-	/// </summary>
-	private static void CaptureRenderTexture( IRenderContext context, ITexture nativeTexture, string filePath )
+	private static void CaptureRenderTexture( IRenderContext context, ITexture nativeTexture, ScreenshotRequest request )
 	{
 		try
 		{
@@ -53,27 +73,33 @@ internal static class ScreenshotService
 				try
 				{
 					bitmap = new Bitmap( width, height );
-
 					pData.CopyTo( bitmap.GetBuffer() );
 
-					var rgbData = bitmap.ToFormat( ImageFormat.RGB888 );
-					Services.Screenshots.AddScreenshotToLibrary( rgbData, width, height );
-
-					var dir = Path.GetDirectoryName( filePath );
-					if ( dir != null )
+					if ( request.AddToSteam )
 					{
-						Directory.CreateDirectory( dir );
+						var rgbData = bitmap.ToFormat( ImageFormat.RGB888 );
+						Services.Screenshots.AddScreenshotToLibrary( rgbData, width, height );
 					}
-					var encodedBytes = bitmap.ToPng();
-					File.WriteAllBytes( filePath, encodedBytes );
+
+					SaveBitmap( bitmap, request.FilePath );
+
+					var fileSize = new FileInfo( request.FilePath ).Length;
+					var args = new ScreenshotCapturedEventArgs( request.FilePath, width, height, fileSize, request.IsHighRes );
+
+					OnScreenshotCaptured?.Invoke( null, args );
+					request.Callback?.Invoke( args );
+
+					Log.Info( $"Screenshot saved to: {request.FilePath}" );
 				}
 				catch ( Exception ex )
 				{
-					Log.Error( $"Error creating bitmap from texture: {ex.Message}" );
+					Log.Error( $"Error processing screenshot: {ex.Message}" );
+				}
+				finally
+				{
+					bitmap?.Dispose();
 				}
 			} );
-
-			Log.Info( $"Screenshot saved to: {filePath}" );
 		}
 		catch ( Exception ex )
 		{
@@ -81,7 +107,27 @@ internal static class ScreenshotService
 		}
 	}
 
+	private static void SaveBitmap( Bitmap bitmap, string filePath )
+	{
+		var dir = Path.GetDirectoryName( filePath );
+		if ( !string.IsNullOrEmpty( dir ) )
+			Directory.CreateDirectory( dir );
+
+		byte[] data = bitmap.ToPng();
+
+		File.WriteAllBytes( filePath, data );
+	}
+
 	public static void TakeHighResScreenshot( Scene scene, int width, int height )
+	{
+		TakeHighResScreenshot( scene, width, height, null );
+	}
+
+	public static void TakeHighResScreenshot(
+		Scene scene,
+		int width,
+		int height,
+		Action<ScreenshotCapturedEventArgs> callback )
 	{
 		if ( !scene.IsValid() )
 		{
@@ -138,17 +184,15 @@ internal static class ScreenshotService
 			}
 
 			var filePath = ScreenCaptureUtility.GenerateScreenshotFilename( "png" );
-			var directory = Path.GetDirectoryName( filePath );
-			if ( !string.IsNullOrEmpty( directory ) )
-			{
-				Directory.CreateDirectory( directory );
-			}
 
-			var pngData = captureBitmap.ToPng();
-
-			File.WriteAllBytes( filePath, pngData );
+			SaveBitmap( captureBitmap, filePath );
 
 			Log.Info( $"High-res screenshot saved to: {filePath} ({width}x{height})" );
+
+			var fileSize = new FileInfo( filePath ).Length;
+			var args = new ScreenshotCapturedEventArgs( filePath, width, height, fileSize, true );
+			OnScreenshotCaptured?.Invoke( null, args );
+			callback?.Invoke( args );
 		}
 		catch ( Exception ex )
 		{
@@ -167,5 +211,23 @@ internal static class ScreenshotService
 				camera.InitializeRendering();
 			}
 		}
+	}
+}
+
+public class ScreenshotCapturedEventArgs : EventArgs
+{
+	public string FilePath { get; }
+	public int Width { get; }
+	public int Height { get; }
+	public long FileSize { get; }
+	public bool IsHighRes { get; }
+
+	public ScreenshotCapturedEventArgs( string filePath, int width, int height, long fileSize, bool isHighRes )
+	{
+		FilePath = filePath;
+		Width = width;
+		Height = height;
+		FileSize = fileSize;
+		IsHighRes = isHighRes;
 	}
 }
