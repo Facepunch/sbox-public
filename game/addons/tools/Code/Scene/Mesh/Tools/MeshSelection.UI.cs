@@ -39,6 +39,7 @@ partial class MeshSelection
 
 				CreateButton( "Set Origin To Pivot", "gps_fixed", "mesh.set-origin-to-pivot", SetOriginToPivot, _meshes.Length > 0, grid );
 				CreateButton( "Center Origin", "center_focus_strong", "mesh.center-origin", CenterOrigin, _meshes.Length > 0, grid );
+				CreateButton( "Merge Meshes", "join_full", "mesh.merge-meshes", MergeMeshes, _meshes.Length > 1, grid );
 				CreateButton( "Bake Scale", "straighten", "mesh.bake-scale", BakeScale, _meshes.Length > 0, grid );
 
 				grid.AddStretchCell();
@@ -126,6 +127,34 @@ partial class MeshSelection
 				{
 					BakeScale( mesh );
 				}
+			}
+		}
+
+		[Shortcut( "mesh.merge-meshes", "M", typeof( SceneDock ) )]
+		public void MergeMeshes()
+		{
+			if ( _meshes.Length == 0 ) return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Merge Meshes" )
+				.WithGameObjectDestructions( _meshes.Skip( 1 ).Select( x => x.GameObject ) )
+				.WithComponentChanges( _meshes[0] )
+				.Push() )
+			{
+				var sourceMesh = _meshes[0];
+
+				for ( int i = 1; i < _meshes.Length; ++i )
+				{
+					var mesh = _meshes[i];
+					var transform = sourceMesh.WorldTransform.ToLocal( mesh.WorldTransform );
+					sourceMesh.Mesh.MergeMesh( mesh.Mesh, transform, out _, out _, out _ );
+
+					mesh.GameObject.Destroy();
+				}
+
+				var selection = SceneEditorSession.Active.Selection;
+				selection.Set( sourceMesh.GameObject );
 			}
 		}
 

@@ -13,6 +13,7 @@ partial class TextureTool
 		private readonly MeshFace[] _faces;
 		private readonly List<IGrouping<MeshComponent, MeshFace>> _faceGroups;
 		private readonly List<MeshComponent> _components;
+		private readonly MeshTool _meshTool;
 
 		private bool TreatAsOne = false;
 
@@ -23,6 +24,7 @@ partial class TextureTool
 		{
 			AddTitle( "Texture Mode", "gradient" );
 
+			_meshTool = tool;
 			_faces = so.Targets
 				.OfType<MeshFace>()
 				.ToArray();
@@ -113,12 +115,23 @@ partial class TextureTool
 					r.Add( ControlWidget.Create( so.GetProperty( nameof( MeshFace.TextureScale ) ) ) );
 				}
 
+				var row = group.AddRow();
+				row.Spacing = 4;
+				CreateSmallButton( "Fast Texture Tool", "edit", "mesh.fast-texture-tool", OpenFastTextureTool, true, row );
+
 				var apply = new Button( "Apply Material (Ctrl + RMB)", "format_color_fill" );
 				apply.Clicked = () => ApplyMaterial( tool.ActiveMaterial );
-				group.Add( apply );
+				row.Add( apply );
 			}
 
 			Layout.AddStretchCell();
+		}
+
+		[Shortcut( "mesh.fast-texture-tool", "CTRL+G", typeof( SceneDock ) )]
+		private void OpenFastTextureTool()
+		{
+			var selectedFaces = SceneEditorSession.Active.Selection.OfType<MeshFace>().ToArray();
+			RectEditor.FastTextureWindow.OpenWith( selectedFaces, _meshTool.ActiveMaterial );
 		}
 
 		void ApplyMaterial( Material material )

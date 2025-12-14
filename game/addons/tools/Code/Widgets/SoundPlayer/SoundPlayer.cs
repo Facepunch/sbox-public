@@ -10,7 +10,7 @@ public partial class SoundPlayer : Widget
 
 	public ToolBar ToolBar { get; private set; }
 
-	private readonly Option PlayOption;
+	private readonly IconButton PlayOption;
 
 	private bool _prevPlay = false;
 
@@ -27,7 +27,12 @@ public partial class SoundPlayer : Widget
 		ToolBar = header.Add( new ToolBar( this ) );
 		ToolBar.NoSystemBackground = false;
 		ToolBar.SetIconSize( 18 );
-		PlayOption = ToolBar.AddOption( "Play", "play_arrow", () => Playing = !Playing );
+		PlayOption = ToolBar.AddWidget( new IconButton( "play_arrow" )
+		{
+			ToolTip = "Play",
+			IconSize = 18,
+			OnClick = () => Playing = !Playing
+		} );
 
 		var timecode = header.Add( new Label( this ) );
 		timecode.Bind( "Text" ).ReadOnly().From( () =>
@@ -38,11 +43,21 @@ public partial class SoundPlayer : Widget
 		}, null );
 		timecode.Alignment = TextFlag.RightCenter;
 
-		var skipStart = ToolBar.AddOption( "Skip to Start", "skip_previous", () => Timeline.MoveScrubber( 0 ) );
+		ToolBar.AddWidget( new IconButton( "skip_previous" )
+		{
+			ToolTip = "Skip to Start",
+			IconSize = 18,
+			OnClick = () => Timeline.MoveScrubber( 0 )
+		} );
 		ToolBar.AddSeparator();
-		var loop = ToolBar.AddOption( "Loop", "repeat" );
-		loop.Bind( "Checked" ).From( this, nameof( Repeating ) );
-		loop.Checkable = true;
+		ToolBar.AddWidget( new IconButton( "repeat" )
+		{
+			ToolTip = "Loop",
+			IconSize = 18,
+			IsToggle = true,
+			IsActive = Repeating,
+			OnToggled = ( value ) => Repeating = value
+		} );
 
 		Timeline = Layout.Add( new TimelineView( this ), 1 );
 	}
@@ -79,7 +94,7 @@ public partial class SoundPlayer : Widget
 		Timeline.OnFrame();
 		Time = Timeline.Time;
 
-		PlayOption.Text = Playing ? "Pause" : "Play";
+		PlayOption.ToolTip = Playing ? "Pause" : "Play";
 		PlayOption.Icon = Playing ? "pause" : "play_arrow";
 
 		if ( Application.FocusWidget.IsValid() )

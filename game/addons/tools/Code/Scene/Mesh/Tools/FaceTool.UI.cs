@@ -15,6 +15,7 @@ partial class FaceTool
 		private readonly MeshFace[] _faces;
 		private readonly List<IGrouping<MeshComponent, MeshFace>> _faceGroups;
 		private readonly List<MeshComponent> _components;
+		private readonly MeshTool _meshTool;
 
 		[Range( 0, 64, slider: false ), Step( 1 ), WideMode]
 		private Vector2Int NumCuts = 1;
@@ -23,6 +24,7 @@ partial class FaceTool
 		{
 			AddTitle( "Face Mode", "change_history" );
 
+			_meshTool = tool;
 			_faces = so.Targets
 				.OfType<MeshFace>()
 				.ToArray();
@@ -72,6 +74,13 @@ partial class FaceTool
 			}
 
 			Layout.AddStretchCell();
+		}
+
+		[Shortcut( "mesh.fast-texture-tool", "CTRL+G", typeof( SceneDock ) )]
+		public void OpenFastTextureTool()
+		{
+			var selectedFaces = SceneEditorSession.Active.Selection.OfType<MeshFace>().ToArray();
+			RectEditor.FastTextureWindow.OpenWith( selectedFaces, _meshTool.ActiveMaterial );
 		}
 
 		[Shortcut( "mesh.collapse", "SHIFT+O", typeof( SceneDock ) )]
