@@ -11,7 +11,7 @@ internal class LocalFileSystem : BaseFileSystem
 	{
 		Physical = new Zio.FileSystems.PhysicalFileSystem();
 
-		var rootPath = Physical.ConvertPathFromInternal( rootFolder.ToLowerInvariant() );
+		var rootPath = Physical.ConvertPathFromInternal( rootFolder );
 		system = new Zio.FileSystems.SubFileSystem( Physical, rootPath );
 
 		if ( makereadonly )
