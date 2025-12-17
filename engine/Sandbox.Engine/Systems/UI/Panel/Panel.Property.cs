@@ -65,7 +65,7 @@ public partial class Panel
 	{
 		var prop = GetType().GetProperty( name, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.FlattenHierarchy );
 
-		if (prop != null && prop.PropertyType.IsAssignableFrom( value.GetType() ) )
+		if ( prop != null && prop.PropertyType.IsAssignableFrom( value?.GetType() ) )
 		{
 			prop.SetValue( this, value );
 			return;
