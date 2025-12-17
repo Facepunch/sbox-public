@@ -9,7 +9,17 @@
 		/// <summary>
 		/// The texture being displayed by this panel.
 		/// </summary>
-		public Texture Texture { get; set; }
+		[Property]
+		public Texture Texture
+		{
+			get;
+			set
+			{
+				if ( field == value ) return;
+				field = value;
+				YogaNode.MarkDirty();
+			}
+		}
 
 		public override bool HasContent => Texture != null;
 
@@ -27,9 +37,6 @@
 			if ( !IsValid ) return;
 
 			Texture = await Texture.LoadAsync( name );
-
-			if ( !IsValid ) return;
-			YogaNode.MarkDirty(); // Update MeasureTexture
 		}
 
 		float oldScaleToScreen = 1.0f;

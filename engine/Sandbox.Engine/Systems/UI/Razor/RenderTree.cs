@@ -141,7 +141,7 @@ public partial class PanelRenderTreeBuilder : Microsoft.AspNetCore.Components.Re
 		if ( CurrentBlock.CheckCacheValue( HashCode.Combine( scope.Element, attrName ), value?.GetHashCode() ?? 0 ) )
 			return;
 
-		scope.Element?.SetProperty( attrName, $"{value}" );
+		scope.Element?.SetPropertyObject( attrName, value );
 	}
 
 	/// <summary>
