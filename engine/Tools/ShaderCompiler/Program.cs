@@ -47,9 +47,9 @@ public static partial class Program
 				if ( !files.Contains( s, StringComparer.OrdinalIgnoreCase ) && !files.Contains( "*" ) ) continue;
 
 				// skip all the BS in junk folders
-				if ( s.Contains( "\\download\\" ) ) continue;
-				if ( s.Contains( "\\templates\\" ) ) continue;
-				if ( s.Contains( "\\." ) ) continue;
+				if ( s.Contains( "/download/" ) ) continue;
+				if ( s.Contains( "/templates/" ) ) continue;
+				if ( s.Contains( "/." ) ) continue;
 
 				var relative = System.IO.Path.GetRelativePath( wd, s );
 				var p = new ProcessList( relative, s );

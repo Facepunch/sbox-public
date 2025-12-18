@@ -20,7 +20,10 @@
 		Managed.SandboxEngine.NativeInterop.Initialize();
 
 		// set engine paths etc
-		NativeEngine.EngineGlobal.Plat_SetModuleFilename( $"{gameFolder}\\sbox.exe" );
+		if (OperatingSystem.IsWindows())
+			NativeEngine.EngineGlobal.Plat_SetModuleFilename( $"{gameFolder}\\sbox.exe" );
+		else
+			NativeEngine.EngineGlobal.Plat_SetModuleFilename( $"{gameFolder}/sbox" );
 		NativeEngine.EngineGlobal.Plat_SetCurrentDirectory( $"{gameFolder}" );
 	}
 }
