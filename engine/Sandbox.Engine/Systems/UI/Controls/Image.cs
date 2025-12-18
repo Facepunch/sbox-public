@@ -23,7 +23,6 @@
 		/// </summary>
 		public async void SetTexture( string name )
 		{
-			Log.Info( $"Image.SetTexture: {name}" );
 			if ( string.IsNullOrWhiteSpace( name ) ) return;
 			if ( !IsValid ) return;
 
