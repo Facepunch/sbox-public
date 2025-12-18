@@ -9,17 +9,7 @@
 		/// <summary>
 		/// The texture being displayed by this panel.
 		/// </summary>
-		[Property]
-		public Texture Texture
-		{
-			get;
-			set
-			{
-				if ( field == value ) return;
-				field = value;
-				YogaNode.MarkDirty();
-			}
-		}
+		public Texture Texture { get; set; }
 
 		public override bool HasContent => Texture != null;
 
@@ -33,10 +23,14 @@
 		/// </summary>
 		public async void SetTexture( string name )
 		{
+			Log.Info( $"Image.SetTexture: {name}" );
 			if ( string.IsNullOrWhiteSpace( name ) ) return;
 			if ( !IsValid ) return;
 
 			Texture = await Texture.LoadAsync( name );
+
+			if ( !IsValid ) return;
+			YogaNode.MarkDirty(); // Update MeasureTexture
 		}
 
 		float oldScaleToScreen = 1.0f;
