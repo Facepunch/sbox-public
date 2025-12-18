@@ -1,0 +1,27 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@inherits Panel
+@namespace Menu
+
+@if ( DateTimeOffset.UtcNow >= EndTime )
+{
+    return;
+}
+
+<root onclick=@OpenStore class="active">
+    <div class="time-left">
+        <span class="number">@DaysLeft</span>
+        <span class="text">days left</span>
+    </div>
+</root>
+
+@code {
+    public DateTimeOffset EndTime { get; set; } = DateTimeOffset.FromUnixTimeSeconds(1767258000);
+    public int DaysLeft => (int)Math.Floor((EndTime - DateTimeOffset.UtcNow).TotalDays);
+
+    void OpenStore()
+    {
+        this.Navigate( "/itemstore" );
+    }
+}

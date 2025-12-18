@@ -14,10 +14,11 @@ public sealed class ParticleModelEmitter : ParticleEmitter
 
 	Vector3 GetRandomPositionOnModel( ModelRenderer target )
 	{
-		if ( !target.IsValid() )
+		if ( !target.IsValid() || !target.Model.IsValid() )
 			return WorldPosition;
 
-		if ( target.Model.HitboxSet is not null && target.Model.HitboxSet.All.Count > 0 )
+		// If we have hitboxes, use those
+		if ( target.Model.HitboxSet?.All?.Count > 0 )
 		{
 			var boxIndex = Random.Shared.Int( 0, target.Model.HitboxSet.All.Count - 1 );
 			var box = target.Model.HitboxSet.All[boxIndex];
@@ -32,12 +33,14 @@ public sealed class ParticleModelEmitter : ParticleEmitter
 			return tx.PointToWorld( OnEdge ? box.RandomPointOnEdge : box.RandomPointInside );
 		}
 
-		if ( target.Model.Physics is not null )
+		// If we have physics, use those
+		if ( target.Model?.Physics is PhysicsGroupDescription physicsGroup )
 		{
 			return target.WorldTransform.PointToWorld( OnEdge ? target.Model.PhysicsBounds.RandomPointOnEdge : target.Model.PhysicsBounds.RandomPointInside );
 		}
 
-		// Fallback to along bones?
+		// todo: Fallback to along bones? Make bones fat? Might be unfairly biased to dense bone areas like fingers
+
 
 		return target.WorldTransform.PointToWorld( OnEdge ? target.Model.Bounds.RandomPointOnEdge : target.Model.Bounds.RandomPointInside );
 	}

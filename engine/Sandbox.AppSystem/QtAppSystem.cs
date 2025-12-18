@@ -93,7 +93,7 @@ public class QtAppSystem
 	protected void LoadSteamDll()
 	{
 		var dllName = $"{Environment.CurrentDirectory}\\bin\\win64\\steam_api64.dll";
-		if ( !NativeLibrary.TryLoad( dllName, out var steamApiDll ) )
+		if ( !NativeLibrary.TryLoad( dllName, out steamApiDll ) )
 		{
 			throw new System.Exception( "Couldn't load bin/win64/steam_api64.dll" );
 		}

@@ -19,38 +19,38 @@ class Program
 		var envelope = await Envelope.FromFileStreamAsync( stream );
 
 		var dsn = envelope.TryGetDsn();
-		var event_id = envelope.TryGetEventId();
+		var eventId = envelope.TryGetEventId();
 
 		// Submit to Sentry
 		await SentryClient.SubmitEnvelopeAsync( dsn!, envelope );
 
 		// Submit to our own API
 		var sentryEvent = envelope.TryGetEvent()?.TryParseAsJson();
+		if ( sentryEvent is null )
+			return 0;
 
-		if ( sentryEvent is not null )
+		var tags = sentryEvent["tags"];
+		var processName = sentryEvent["contexts"]?["process"]?["name"]?.GetValue<string>();
+
+		var payload = new
 		{
-			var tags = sentryEvent["tags"];
+			sentry_event_id = eventId,
+			timestamp = sentryEvent["timestamp"],
+			version = sentryEvent["release"],
+			session_id = tags?["session_id"],
+			activity_session_id = tags?["activity_session_id"],
+			launch_guid = tags?["launch_guid"],
+			gpu = tags?["gpu"],
+			cpu = tags?["cpu"],
+			mode = tags?["mode"],
+			process_name = processName,
+		};
 
-			var payload = new
-			{
-				sentry_event_id = event_id,
-				timestamp = sentryEvent["timestamp"],
-				version = sentryEvent["release"],
-				session_id = tags?["session_id"],
-				activity_session_id = tags?["activity_session_id"],
-				launch_guid = tags?["launch_guid"],
-				gpu = tags?["gpu"],
-				cpu = tags?["cpu"],
-				mode = tags?["mode"],
-			};
-
-			// Submit to our API
-			using var client = new HttpClient();
-			await client.PostAsJsonAsync( "https://services.facepunch.com/sbox/event/crash/1/", payload );
-		}
+		using var client = new HttpClient();
+		await client.PostAsJsonAsync( "https://services.facepunch.com/sbox/event/crash/1/", payload );
 
 		// Open browser to crash report page
-		Process.Start( new ProcessStartInfo( $"https://sbox.game/crashes/{event_id}" ) { UseShellExecute = true } );
+		Process.Start( new ProcessStartInfo( $"https://sbox.game/crashes/{eventId}" ) { UseShellExecute = true } );
 
 		return 0;
 	}

@@ -52,6 +52,65 @@ public class RectView : Widget
 		ResetView();
 	}
 
+	protected override void OnKeyPress( KeyEvent e )
+	{
+		base.OnKeyPress( e );
+
+		if ( e.Accepted ) return;
+
+		var direction = Vector2.Zero;
+
+		if ( e.Key == KeyCode.Left ) direction = new Vector2( -1, 0 );
+		if ( e.Key == KeyCode.Right ) direction = new Vector2( 1, 0 );
+		if ( e.Key == KeyCode.Up ) direction = new Vector2( 0, -1 );
+		if ( e.Key == KeyCode.Down ) direction = new Vector2( 0, 1 );
+
+		if ( direction != Vector2.Zero )
+		{
+			Nudge( direction );
+			e.Accepted = true;
+		}
+	}
+
+	private void Nudge( Vector2 direction )
+	{
+		var gridCountX = GetGridCountX();
+		var gridCountY = GetGridCountY();
+		var step = new Vector2( 1.0f / gridCountX, 1.0f / gridCountY );
+		var delta = direction * step;
+
+		if ( Session.Settings.IsFastTextureTool )
+		{
+			var meshRect = Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
+			if ( meshRect != null )
+			{
+				Session.ExecuteUndoableAction( "Nudge UVs", () =>
+				{
+					meshRect.Min += delta;
+					meshRect.Max += delta;
+					meshRect.ApplyMapping( Session.Settings.FastTextureSettings, false );
+					Document.Modified = true;
+					Document.OnModified?.Invoke();
+				} );
+				Update();
+			}
+		}
+		else if ( Document.SelectedRectangles.Count > 0 )
+		{
+			Session.ExecuteUndoableAction( "Nudge Rectangles", () =>
+			{
+				foreach ( var rect in Document.SelectedRectangles )
+				{
+					rect.Min += delta;
+					rect.Max += delta;
+				}
+				Document.Modified = true;
+				Document.OnModified?.Invoke();
+			} );
+			Update();
+		}
+	}
+
 	private Vector2 SnapUVToGrid( Vector2 uv )
 	{
 		var gridCountX = GetGridCountX();
@@ -65,7 +124,7 @@ public class RectView : Widget
 
 	private Vector2 PixelToUV_OnGrid( Vector2 vPixel )
 	{
-		if ( Session.GridEnabled ) return SnapUVToGrid( PixelToUV( vPixel ) );
+		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) ) return SnapUVToGrid( PixelToUV( vPixel ) );
 		return PixelToUV( vPixel );
 	}
 
@@ -78,6 +137,22 @@ public class RectView : Widget
 		var max = Vector2.Max( current, maxStart );
 
 		NewRect = new Rect( min, max - min );
+
+		if ( Session.Settings.IsFastTextureTool )
+		{
+			var meshRect = Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
+			if ( meshRect != null )
+			{
+				meshRect.Min = NewRect.TopLeft;
+				meshRect.Max = NewRect.BottomRight;
+
+				// Re-apply mapping so the UVs deform to the new shape immediately
+				meshRect.ApplyMapping( Session.Settings.FastTextureSettings, false );
+
+				Document.Modified = true;
+				Document.OnModified?.Invoke();
+			}
+		}
 
 		Update();
 	}
@@ -338,6 +413,9 @@ public class RectView : Widget
 	private void CreateContextMenu( Document.Rectangle rectangle )
 	{
 		var m = new ContextMenu( this );
+
+		if ( Session.Settings.IsFastTextureTool )
+			return;
 
 		m.AddOption( "Delete Rectangle", "delete", () => Session.ExecuteUndoableAction( "Delete Rectangle", () => Document.DeleteRectangles( [rectangle] ) ) );
 
@@ -605,7 +683,7 @@ public class RectView : Widget
 			}
 			else
 			{
-				Cursor = CursorShape.Arrow;
+				Cursor = CursorShape.Cross;
 			}
 		}
 		else
@@ -670,7 +748,7 @@ public class RectView : Widget
 
 		foreach ( var rectangle in Document.SelectedRectangles )
 		{
-			Paint.SetBrush( Color.Yellow.WithAlpha( 0.2f ) );
+			Paint.SetBrush( Color.White.WithAlpha( 0.1f ) );
 			Paint.SetPen( new Color32( 255, 255, 0 ), 3 );
 			DrawRectangle( rectangle, corner: (rectangle == rectangleUnderCursor && Document.SelectedRectangles.Count < 2) ? HoveredCorner : 0 );
 		}
@@ -846,7 +924,11 @@ public class RectView : Widget
 			return;
 
 		if ( UvAssetRects.Count == 0 )
+		{
+			ResetUV();
 			return;
+		}
+
 
 		var index = GetAssetRectIndexAtUV( uv );
 		if ( index < 0 )
@@ -871,6 +953,36 @@ public class RectView : Widget
 			Document.Modified = true;
 			Document.OnModified?.Invoke();
 		} );
+	}
+
+	public void ResetUV()
+	{
+		Session.ExecuteUndoableAction( "Apply UV From Asset Rect", () =>
+		{
+			var meshRect = Document.Rectangles
+				.OfType<Document.MeshRectangle>()
+				.FirstOrDefault();
+			if ( meshRect == null )
+				return;
+			meshRect.Min = Vector2.Zero;
+			meshRect.Max = Vector2.One;
+			Document.Modified = true;
+			Document.OnModified?.Invoke();
+		} );
+	}
+
+	public void FocusOnUV()
+	{
+		//Focus the view on the selected rectangle UVs
+		var selectedRect = Document.SelectedRectangles.FirstOrDefault();
+		if ( selectedRect is null )
+			return;
+		var rectCenter = selectedRect.Max + selectedRect.Min;
+		rectCenter *= 0.5f;
+		PanOffset = rectCenter - (0.5f / ZoomLevel);
+		UpdateViewRect();
+		Update();
+
 	}
 
 	private Rect GetDrawRect()

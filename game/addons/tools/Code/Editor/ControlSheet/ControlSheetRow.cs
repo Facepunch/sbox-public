@@ -2,6 +2,10 @@
 
 namespace Editor;
 
+/// <summary>
+/// Represents a single row in a control sheet UI, providing editing and validation functionality for a serialized
+/// property.
+/// </summary>
 class ControlSheetRow : Widget
 {
 	public ControlWidget ControlWidget { get; private set; }

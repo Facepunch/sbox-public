@@ -1,4 +1,6 @@
-﻿namespace Editor.MeshEditor;
+﻿using Sandbox.UI;
+
+namespace Editor.MeshEditor;
 
 class ActiveMaterialWidget : ControlWidget
 {
@@ -10,29 +12,25 @@ class ActiveMaterialWidget : ControlWidget
 	public ActiveMaterialWidget( SerializedProperty property ) : base( property )
 	{
 		FixedHeight = 220;
-
 		Layout = Layout.Row();
-		Layout.Margin = 8;
 
 		ToolTip = "";
 
 		_materialWidget = Layout.Add( new MaterialWidget() );
 		_materialWidget.ToolTip = "Active Material";
-		_materialWidget.FixedSize = FixedHeight - 26;
+		_materialWidget.FixedSize = FixedHeight - 22;
 		_materialWidget.Cursor = CursorShape.Finger;
 
-		Layout.AddStretchCell( 1 );
+		Layout.AddSpacingCell( 1 );
 
 		_paletteStrip = Layout.Add( new MaterialPaletteWidget() );
 		_paletteStrip.MaterialClicked += OnPaletteMaterialClicked;
-		_paletteStrip.FixedHeight = FixedHeight - 26;
+		_paletteStrip.FixedHeight = FixedHeight - 8;
+		_paletteStrip.FixedWidth = 64;
 		_paletteStrip.GetActiveMaterial = () => _materialWidget.Material;
-
-		Layout.AddStretchCell( 1 );
 
 		Frame();
 	}
-
 	protected override void OnPaint()
 	{
 		// nothing
@@ -99,7 +97,7 @@ class ActiveMaterialWidget : ControlWidget
 		base.OnMouseClick( e );
 
 		// If we are selecting the Material Widget continue. (Probably better way of doing this)
-		if ( !_materialWidget.LocalRect.IsInside( e.LocalPosition ) )
+		if ( !_materialWidget.ContentRect.IsInside( e.LocalPosition ) )
 			return;
 
 		if ( ReadOnly ) return;

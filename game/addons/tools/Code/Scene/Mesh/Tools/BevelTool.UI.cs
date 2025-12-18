@@ -14,12 +14,13 @@ partial class BevelTool
 		private readonly BevelEdges[] _edges = null;
 
 		private static int BevelSteps { get; set; } = 1;
-		private static float BevelShape { get; set; } = 0.5f;
+		private static float BevelShape { get; set; } = 1.0f;
 		private static float BevelWidth { get; set; } = 8.0f;
+		private static bool BevelSoftEdges { get; set; } = false;
 
 		private struct BevelProperties
 		{
-			[Title( "Steps" ), Range( 1, 32 ), WideMode]
+			[Title( "Steps" ), Range( 0, 32 ), WideMode]
 			public readonly int Steps { get => BevelSteps; set => BevelSteps = value; }
 
 			[Title( "Shape" ), Range( 0.0f, 1.0f ), WideMode]
@@ -27,6 +28,9 @@ partial class BevelTool
 
 			[Title( "Width" ), Range( 0.0625f, 256.0f ), WideMode]
 			public readonly float Width { get => BevelWidth; set => BevelWidth = value; }
+
+			[Title( "Soft Edges" ), WideMode]
+			public readonly bool SoftEdges { get => BevelSoftEdges; set => BevelSoftEdges = value; }
 		}
 
 		[InlineEditor( Label = false )]
@@ -71,7 +75,7 @@ partial class BevelTool
 
 		private void UpdateMesh()
 		{
-			var steps = BevelSteps % 2 == 0 ? BevelSteps : BevelSteps - 1;
+			var steps = Math.Max( 1, BevelSteps * 2 );
 
 			foreach ( var edge in _edges )
 			{
@@ -86,6 +90,15 @@ partial class BevelTool
 				var newFaces = new List<FaceHandle>();
 				if ( !mesh.BevelEdges( edges, PolygonMesh.BevelEdgesMode.RemoveClosedEdges, steps, BevelWidth, BevelShape, newOuterEdges, newInnerEdges, newFaces, facesNeedingUVs ) )
 					continue;
+
+				var smoothMode = BevelSoftEdges
+					? PolygonMesh.EdgeSmoothMode.Soft
+					: PolygonMesh.EdgeSmoothMode.Default;
+
+				foreach ( var edgeHandle in newInnerEdges )
+				{
+					mesh.SetEdgeSmoothing( edgeHandle, smoothMode );
+				}
 
 				foreach ( var hFace in facesNeedingUVs )
 				{

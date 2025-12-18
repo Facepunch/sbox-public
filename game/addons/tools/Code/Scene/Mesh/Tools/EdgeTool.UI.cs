@@ -43,7 +43,6 @@ partial class EdgeTool
 
 				CreateButton( "Dissolve", "blur_off", "mesh.dissolve", Dissolve, CanDissolve(), row.Layout );
 				CreateButton( "Collapse", "unfold_less", "mesh.collapse", Collapse, CanCollapse(), row.Layout );
-				CreateButton( "Bevel", "straighten", "mesh.edge-bevel", Bevel, CanBevel(), row.Layout );
 				CreateButton( "Connect", "link", "mesh.connect", Connect, CanConnect(), row.Layout );
 				CreateButton( "Extend", "call_made", "mesh.extend", Extend, CanExtend(), row.Layout );
 
@@ -107,7 +106,29 @@ partial class EdgeTool
 				group.Add( row );
 			}
 
+			{
+				var group = AddGroup( "Tools" );
+
+				var grid = Layout.Row();
+				grid.Spacing = 4;
+
+				CreateButton( "Bevel", "straighten", "mesh.edge-bevel", Bevel, CanBevel(), grid );
+				CreateButton( "Edge Cut Tool", "content_cut", "mesh.edge-cut-tool", OpenEdgeCutTool, true, grid );
+
+				grid.AddStretchCell();
+
+				group.Add( grid );
+			}
+
 			Layout.AddStretchCell();
+		}
+
+		[Shortcut( "mesh.edge-cut-tool", "C", typeof( SceneDock ) )]
+		void OpenEdgeCutTool()
+		{
+			var tool = new EdgeCutTool( nameof( EdgeTool ) );
+			tool.Manager = _tool.Manager;
+			_tool.CurrentTool = tool;
 		}
 
 		private void SetNormals( PolygonMesh.EdgeSmoothMode mode )

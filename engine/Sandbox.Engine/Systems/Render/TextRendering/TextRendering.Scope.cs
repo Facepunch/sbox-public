@@ -34,6 +34,7 @@ public static partial class TextRendering
 		[JsonInclude] public float WordSpacing;
 
 		[JsonInclude] public Rendering.FilterMode FilterMode;
+		[JsonInclude] public UI.FontSmooth FontSmooth;
 
 		// this seems stupid, but it's like this because a list would be a pain
 		// and also would be a bunch of bullshit to hashcode. This is fast.
@@ -67,6 +68,7 @@ public static partial class TextRendering
 			hc.Add( Shadow );
 			hc.Add( ShadowUnder );
 			hc.Add( FilterMode );
+			hc.Add( FontSmooth );
 
 			return hc.ToHashCode();
 		}

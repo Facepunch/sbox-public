@@ -191,7 +191,7 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 		var clothing = new ClothingContainer();
 		clothing.Apply( BodyTarget );
 
-		BodyTarget.PostAnimationUpdate();
+		BodyTarget.MergeDescendants();
 	}
 
 	[Button( "Apply Clothing" )]
@@ -231,7 +231,7 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 			ManualTint = clothing.Tint;
 			ManualAge = clothing.Age;
 
-			BodyTarget.PostAnimationUpdate();
+			BodyTarget.MergeDescendants();
 		}
 		finally
 		{

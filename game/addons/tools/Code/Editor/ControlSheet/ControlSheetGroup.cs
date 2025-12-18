@@ -2,7 +2,11 @@
 
 namespace Editor;
 
-class ControlSheetGroup : Widget
+/// <summary>
+/// Represents a group of related controls within a control sheet, optionally with a collapsible header and property
+/// name display.
+/// </summary>
+public class ControlSheetGroup : Widget
 {
 	internal List<SerializedProperty> properties;
 	List<ControlSheetRow> rows = new();

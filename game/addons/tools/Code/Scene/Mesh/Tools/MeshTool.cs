@@ -14,6 +14,12 @@ public partial class MeshTool : EditorTool
 
 	public MoveMode MoveMode { get; set; }
 
+	public void SetMoveMode<T>() where T : MoveMode
+	{
+		if ( MoveMode?.GetType() == typeof( T ) ) return;
+		MoveMode = EditorTypeLibrary.Create<MoveMode>( typeof( T ) );
+	}
+
 	public override IEnumerable<EditorTool> GetSubtools()
 	{
 		yield return new PrimitiveTool( this );
@@ -33,7 +39,7 @@ public partial class MeshTool : EditorTool
 
 		Selection.Clear();
 
-		MoveMode = EditorTypeLibrary.Create<MoveMode>( "PositionMode" );
+		SetMoveMode<PositionMode>();
 	}
 
 	public override void OnSelectionChanged()

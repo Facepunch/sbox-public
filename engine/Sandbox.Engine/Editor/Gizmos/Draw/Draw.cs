@@ -210,6 +210,20 @@ public static partial class Gizmo
 		}
 
 		/// <summary>
+		/// Draw text with a text rendering scope for more text rendering customization.
+		/// </summary>
+		public void ScreenText( TextRendering.Scope text, Vector2 pos, TextFlag flags = TextFlag.LeftTop )
+		{
+			var so = Active.FindOrCreate( $"text", () => new TextSceneObject( World ) );
+
+			so.TextBlock = text;
+			so.Transform = Transform.Zero;
+			so.ScreenPos = pos;
+			so.Bounds = BBox.FromPositionAndSize( 0, float.MaxValue );
+			so.TextFlags = flags;
+		}
+
+		/// <summary>
 		/// Draw text on screen at a 3d position
 		/// </summary>
 		public void ScreenText( string text, Vector3 worldPos, Vector2 offset, string font = "Roboto", float size = 12.0f, TextFlag flags = TextFlag.LeftTop )
@@ -218,6 +232,17 @@ public static partial class Gizmo
 				return;
 
 			ScreenText( text, screen + offset, font, size, flags );
+		}
+
+		/// <summary>
+		/// Draw text on screen at a 3d position with a text rendering scope for more text rendering customization.
+		/// </summary>
+		public void ScreenText( TextRendering.Scope text, Vector3 worldPos, Vector2 offset, TextFlag flags = TextFlag.LeftTop )
+		{
+			if ( !Camera.ToScreen( worldPos, out var screen ) )
+				return;
+
+			ScreenText( text, screen + offset, flags );
 		}
 
 		/// <summary>

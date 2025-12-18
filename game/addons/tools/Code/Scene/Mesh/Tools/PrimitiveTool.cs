@@ -8,9 +8,11 @@ namespace Editor.MeshEditor;
 [Alias( "tools.primitive-tool" )]
 public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 {
+	public MeshTool MeshTool { get; private init; } = tool;
+
 	public PrimitiveEditor Editor { get; private set; }
 
-	public Material ActiveMaterial => tool.ActiveMaterial;
+	public Material ActiveMaterial => MeshTool.ActiveMaterial;
 
 	public override void OnEnabled()
 	{

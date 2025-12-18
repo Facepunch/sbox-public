@@ -73,7 +73,29 @@ partial class FaceTool
 				group.Add( grid );
 			}
 
+			{
+				var group = AddGroup( "Tools" );
+
+				var grid = Layout.Row();
+				grid.Spacing = 4;
+
+				CreateButton( "Fast Texture Tool", "texture", "mesh.fast-texture-tool", OpenFastTextureTool, true, grid );
+				CreateButton( "Edge Cut Tool", "content_cut", "mesh.edge-cut-tool", OpenEdgeCutTool, true, grid );
+
+				grid.AddStretchCell();
+
+				group.Add( grid );
+			}
+
 			Layout.AddStretchCell();
+		}
+
+		[Shortcut( "mesh.edge-cut-tool", "C", typeof( SceneDock ) )]
+		void OpenEdgeCutTool()
+		{
+			var tool = new EdgeCutTool( nameof( FaceTool ) );
+			tool.Manager = _meshTool.Manager;
+			_meshTool.CurrentTool = tool;
 		}
 
 		[Shortcut( "mesh.fast-texture-tool", "CTRL+G", typeof( SceneDock ) )]

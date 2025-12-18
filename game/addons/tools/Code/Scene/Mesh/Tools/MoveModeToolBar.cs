@@ -35,6 +35,9 @@ class MoveModeToolBar : Widget
 
 	[Shortcut( "tools.pivot-tool", "t", typeof( SceneDock ) )]
 	public void ActivatePivotMode() => SetMode( "mesh.pivot.mode" );
+
+	[Shortcut( "tools.resize-tool", "y", typeof( SceneDock ) )]
+	public void ActivateResizeMode() => SetMode( "mesh.resize.mode" );
 }
 
 file class MoveModeButton : Widget

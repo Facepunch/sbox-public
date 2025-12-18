@@ -38,6 +38,9 @@ public partial class Document
 		[Hide, JsonIgnore]
 		public (int vertexA, int vertexB) HoveredEdge { get; set; } = (-1, -1);
 
+		[Hide, JsonIgnore]
+		public List<Vector2> UnwrappedVertexPositionsWorldSpace { get; set; } = new();
+
 		public MeshRectangle( Window window ) : base( window )
 		{
 		}
@@ -46,6 +49,13 @@ public partial class Document
 		{
 			MeshFaces = meshFaces;
 			StoreOriginalUVs();
+
+			var settings = Session?.Settings?.FastTextureSettings;
+			if ( settings != null && settings.SavedRectMin != settings.SavedRectMax )
+			{
+				Min = settings.SavedRectMin;
+				Max = settings.SavedRectMax;
+			}
 		}
 
 		public override void OnPaint( RectView view )
@@ -132,6 +142,16 @@ public partial class Document
 			Max = max;
 		}
 
+		private void SaveBoundsToSettings()
+		{
+			var settings = Session?.Settings?.FastTextureSettings;
+			if ( settings != null )
+			{
+				settings.SavedRectMin = Min;
+				settings.SavedRectMax = Max;
+			}
+		}
+
 		public void ApplyMapping( FastTextureSettings settings, bool resetBoundsFromUseExisting = false )
 		{
 			if ( MeshFaces == null || MeshFaces.Length == 0 )
@@ -150,10 +170,11 @@ public partial class Document
 			switch ( currentMapping )
 			{
 				case MappingMode.UnwrapSquare:
-					BuildUnwrappedMeshWithSquareMapping();
+				case MappingMode.UnwrapConforming:
+					BuildUnwrappedMesh( currentMapping );
 					break;
 				case MappingMode.Planar:
-					var cameraRot = SceneViewportWidget.LastSelected.State.CameraRotation;
+					var cameraRot = SceneViewWidget.Current.LastSelectedViewportWidget.State.CameraRotation;
 					BuildUnwrappedMeshWithPlanarMapping( cameraRot.Left, cameraRot.Up );
 					break;
 				case MappingMode.UseExisting:
@@ -178,6 +199,8 @@ public partial class Document
 				Min = previousBounds.Min;
 				Max = previousBounds.Max;
 			}
+
+			SaveBoundsToSettings();
 
 			PreviousMappingMode = currentMapping;
 		}
@@ -256,7 +279,7 @@ public partial class Document
 			return (min, max);
 		}
 
-		private void BuildUnwrappedMeshWithSquareMapping()
+		private void BuildUnwrappedMesh( MappingMode mode )
 		{
 			if ( MeshFaces == null || MeshFaces.Length == 0 )
 				return;
@@ -266,7 +289,7 @@ public partial class Document
 			OriginalVertexPositions.Clear();
 
 			var unwrapper = new EdgeAwareFaceUnwrapper( MeshFaces );
-			var result = unwrapper.UnwrapToSquare();
+			var result = unwrapper.Unwrap( mode );
 
 			UnwrappedVertexPositions.AddRange( result.VertexPositions );
 			FaceVertexIndices.AddRange( result.FaceIndices );
@@ -429,6 +452,8 @@ public partial class Document
 			if ( UnwrappedVertexPositions.Count == 0 )
 				return;
 
+			UnwrappedVertexPositionsWorldSpace = new List<Vector2>( UnwrappedVertexPositions );
+
 			var min = UnwrappedVertexPositions[0];
 			var max = UnwrappedVertexPositions[0];
 
@@ -487,6 +512,50 @@ public partial class Document
 		}
 
 		/// <summary>
+		/// Gets the material's world space mapping dimensions.
+		/// </summary>
+		private (float width, float height) GetMaterialWorldScale()
+		{
+			var material = Material.Load( Session?.Settings.ReferenceMaterial );
+			if ( material == null )
+				return (512.0f, 512.0f);
+
+			var worldMappingWidth = material.Attributes.GetInt( "WorldMappingWidth", 0 );
+			var worldMappingHeight = material.Attributes.GetInt( "WorldMappingHeight", 0 );
+
+			var texture = material.FirstTexture;
+			if ( texture == null )
+			{
+				if ( worldMappingWidth > 0 && worldMappingHeight > 0 )
+					return (worldMappingWidth, worldMappingHeight);
+				return (512.0f, 512.0f);
+			}
+
+			var textureWidth = texture.Size.x;
+			var textureHeight = texture.Size.y;
+
+			float mappingWidth;
+			float mappingHeight;
+
+			if ( worldMappingWidth > 0 )
+				mappingWidth = worldMappingWidth;
+			else
+				mappingWidth = 0.25f * textureWidth;
+
+			if ( worldMappingHeight > 0 )
+				mappingHeight = worldMappingHeight;
+			else
+				mappingHeight = 0.25f * textureHeight;
+
+			if ( mappingWidth <= 0 )
+				mappingWidth = 512.0f;
+			if ( mappingHeight <= 0 )
+				mappingHeight = 512.0f;
+
+			return (mappingWidth, mappingHeight);
+		}
+
+		/// <summary>
 		/// Transforms unwrapped vertex positions so they are relative to the current rectangle bounds
 		/// </summary>
 		public List<Vector2> GetRectangleRelativePositions()
@@ -507,6 +576,66 @@ public partial class Document
 				settings.InsetY / imageSize.y
 			);
 
+			float tileU = 1.0f;
+			float tileV = 1.0f;
+
+			if ( settings.ScaleMode == ScaleMode.WorldScale )
+			{
+				var worldSpacePositions = UnwrappedVertexPositionsWorldSpace.Count > 0
+					? UnwrappedVertexPositionsWorldSpace
+					: UnwrappedVertexPositions;
+
+				var minUV = worldSpacePositions[0];
+				foreach ( var pos in worldSpacePositions )
+				{
+					minUV = Vector2.Min( minUV, pos );
+				}
+
+				var (mappingWidth, mappingHeight) = GetMaterialWorldScale();
+
+				foreach ( var pos in worldSpacePositions )
+				{
+					var scaledX = ((pos.x - minUV.x) / mappingWidth) + Min.x;
+					var scaledY = ((pos.y - minUV.y) / mappingHeight) + Min.y;
+
+					transformedPositions.Add( new Vector2( scaledX, scaledY ) );
+				}
+
+				return transformedPositions;
+			}
+
+			if ( settings.ScaleMode != ScaleMode.Fit )
+			{
+				if ( settings.TileMode == TileMode.Repeat )
+				{
+					if ( settings.ScaleMode == ScaleMode.TileU )
+						tileU = settings.Repeat;
+					else if ( settings.ScaleMode == ScaleMode.TileV )
+						tileV = settings.Repeat;
+				}
+				else if ( settings.TileMode == TileMode.MaintainAspect )
+				{
+					var meshWidth = MathF.Max( unwrappedSize.x, 0.001f );
+					var meshHeight = MathF.Max( unwrappedSize.y, 0.001f );
+					var meshAspect = meshWidth / meshHeight;
+
+					var rectPixelWidth = MathF.Max( rectSize.x * imageSize.x, 0.001f );
+					var rectPixelHeight = MathF.Max( rectSize.y * imageSize.y, 0.001f );
+					var rectAspect = rectPixelWidth / rectPixelHeight;
+
+					if ( settings.ScaleMode == ScaleMode.TileU )
+					{
+						tileU = meshAspect / rectAspect;
+						tileV = 1.0f;
+					}
+					else if ( settings.ScaleMode == ScaleMode.TileV )
+					{
+						tileU = 1.0f;
+						tileV = rectAspect / meshAspect;
+					}
+				}
+			}
+
 			foreach ( var pos in UnwrappedVertexPositions )
 			{
 				Vector2 relativePos;
@@ -514,6 +643,9 @@ public partial class Document
 				if ( unwrappedSize.x > 0 && unwrappedSize.y > 0 )
 				{
 					var normalized = (pos - unwrappedMin) / unwrappedSize;
+
+					normalized.x *= tileU;
+					normalized.y *= tileV;
 
 					var insetMin = Min + insetUV;
 					var insetSize = rectSize - insetUV * 2;

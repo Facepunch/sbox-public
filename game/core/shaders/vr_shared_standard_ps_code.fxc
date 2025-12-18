@@ -139,6 +139,7 @@ CreateInputTexture2D( TextureTranslucency, Linear, 8, "", "_trans", "Translucent
 	float3 g_vSelfIllumTint < UiType( Color ); Default3( 1.0, 1.0, 1.0 ); UiGroup( "Self Illum/20" ); >;
 	float g_flSelfIllumBrightness < Default( 0.0 ); Range( -10.0, 10.0 ); UiGroup( "Self Illum" ); >;
 	float g_flSelfIllumScale < Default( 1.0 ); Range( 0.0, 16.0 ); UiGroup( "Self Illum/30" ); >;
+	float2 g_vSelfIllumOffset < Default2( 0.0, 0.0 ); UiGroup( "Self Illum/35" ); >;
 	float2 g_vSelfIllumScrollSpeed < Default2( 0.0, 0.0 ); Range2( -10.0, -10.0, 10.0, 10.0 ); UiGroup( "Self Illum/40" ); >;
 	float g_flSelfIllumAlbedoFactor < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Self Illum/50" );  >;
 #endif
@@ -511,7 +512,7 @@ FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
 	//
 	#if ( S_SELF_ILLUM )
 	{
-		float2 vSelfIllumTextureCoords = GetUVDefault1( g_bUseSecondaryUvForSelfIllum, i.vTextureCoords ) + frac( g_flTime * g_vSelfIllumScrollSpeed.xy );
+		float2 vSelfIllumTextureCoords = g_vSelfIllumOffset.xy + GetUVDefault1( g_bUseSecondaryUvForSelfIllum, i.vTextureCoords ) + frac( g_flTime * g_vSelfIllumScrollSpeed.xy );
 		float3 vSelfIllumTintScaled = pow( 2.0, g_flSelfIllumBrightness ).xxx * saturate( g_flSelfIllumScale.xxx ) * SrgbGammaToLinear( g_vSelfIllumTint.xyz );
 		o.vEmissive = Tex2DS( g_tSelfIllumMask, g_sTrilinearWrap, vSelfIllumTextureCoords.xy ).rgb * vSelfIllumTintScaled.rgb;
 		o.vEmissive = lerp( o.vEmissive.rgb, o.vEmissive.rgb * vAlbedo.rgb, g_flSelfIllumAlbedoFactor );

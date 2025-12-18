@@ -2209,7 +2209,7 @@
               ]
             },
             {
-              "__guid": "a946f64b-6a92-4c6b-8789-9c889c8e04c2",
+              "__guid": "04589963-41fd-4f54-a5ae-422cdc17f3e3",
               "__version": 1,
               "Flags": 0,
               "Name": "Clothing - bruised_face",
@@ -2226,7 +2226,7 @@
               "Components": [
                 {
                   "__type": "Sandbox.SkinnedModelRenderer",
-                  "__guid": "9f7c7669-03b2-4ea4-8e42-8f6694c0c6c7",
+                  "__guid": "8771bf87-4230-4627-9f20-952ae97be9d3",
                   "__enabled": true,
                   "AnimationGraph": null,
                   "BodyGroups": 18446744073709551615,
@@ -2277,7 +2277,7 @@
               "Children": []
             },
             {
-              "__guid": "3c322971-e92b-441c-893b-7941f38de1f5",
+              "__guid": "ce3fa143-347f-46b9-8777-391d7d116a48",
               "__version": 1,
               "Flags": 0,
               "Name": "Clothing - rubber_gloves_black",
@@ -2294,7 +2294,7 @@
               "Components": [
                 {
                   "__type": "Sandbox.SkinnedModelRenderer",
-                  "__guid": "7258c0c2-f3c0-4877-b2ae-c37e1710967c",
+                  "__guid": "4b85da44-1609-4855-a7ae-bb83e02e5304",
                   "__enabled": true,
                   "AnimationGraph": null,
                   "BodyGroups": 18446744073709551615,
@@ -2345,7 +2345,7 @@
               "Children": []
             },
             {
-              "__guid": "fdd9a006-ea98-4eeb-9c01-43f9a53763d9",
+              "__guid": "7ba7da76-98cb-490c-ba0b-39825206fbe1",
               "__version": 1,
               "Flags": 0,
               "Name": "Clothing - fisherman_jumpsuit",
@@ -2362,7 +2362,7 @@
               "Components": [
                 {
                   "__type": "Sandbox.SkinnedModelRenderer",
-                  "__guid": "c390a210-52b5-4b38-bfa3-bb8568a66c04",
+                  "__guid": "5a977c09-d372-49bc-9966-a4219ccf228d",
                   "__enabled": true,
                   "AnimationGraph": null,
                   "BodyGroups": 18446744073709551615,
@@ -2413,7 +2413,7 @@
               "Children": []
             },
             {
-              "__guid": "b6ecc62e-00a2-4bc8-bc74-ccc7cbb368e1",
+              "__guid": "10b554ee-e508-4659-89bc-1c1b5369055c",
               "__version": 1,
               "Flags": 0,
               "Name": "Clothing - shark_head",
@@ -2430,7 +2430,7 @@
               "Components": [
                 {
                   "__type": "Sandbox.SkinnedModelRenderer",
-                  "__guid": "c93b708c-d73d-41a8-91ce-d72be867208a",
+                  "__guid": "8692bc41-a60e-4958-bfd4-dec53c6a8502",
                   "__enabled": true,
                   "AnimationGraph": null,
                   "BodyGroups": 18446744073709551615,
@@ -4686,7 +4686,7 @@
               ]
             },
             {
-              "__guid": "37cf8a64-23ff-4c10-8c2e-aebf22aaa899",
+              "__guid": "0bc2f731-85d4-4ff9-a4e3-d204f5bf0780",
               "__version": 1,
               "Flags": 0,
               "Name": "Clothing - rubber_gloves_black",
@@ -4703,7 +4703,7 @@
               "Components": [
                 {
                   "__type": "Sandbox.SkinnedModelRenderer",
-                  "__guid": "7799b4ae-3b74-48f2-b454-6e7516f01946",
+                  "__guid": "29c5bc42-cac7-4a1e-b691-54006371ea6f",
                   "__enabled": true,
                   "AnimationGraph": null,
                   "BodyGroups": 18446744073709551615,
@@ -4754,7 +4754,7 @@
               "Children": []
             },
             {
-              "__guid": "bf7d238c-35ea-454f-bdd3-41ec0c3e2ca0",
+              "__guid": "cc8cd561-e432-4ee1-a5e9-e72cbd9b3c14",
               "__version": 1,
               "Flags": 0,
               "Name": "Clothing - fisherman_jumpsuit",
@@ -4771,7 +4771,7 @@
               "Components": [
                 {
                   "__type": "Sandbox.SkinnedModelRenderer",
-                  "__guid": "a98943dc-135f-4ce3-b0e6-ebb283667f48",
+                  "__guid": "50a9e4ac-afc0-4003-84ec-6a250a17c733",
                   "__enabled": true,
                   "AnimationGraph": null,
                   "BodyGroups": 18446744073709551615,
@@ -4822,7 +4822,7 @@
               "Children": []
             },
             {
-              "__guid": "7ae833d0-0822-498e-89d6-e23d071db965",
+              "__guid": "5c351126-922f-4c5e-8cd1-2bfcd0d0f800",
               "__version": 1,
               "Flags": 0,
               "Name": "Clothing - shark_head",
@@ -4839,7 +4839,7 @@
               "Components": [
                 {
                   "__type": "Sandbox.SkinnedModelRenderer",
-                  "__guid": "fcafb9cf-7084-4c5e-a7f6-e4879162f8c2",
+                  "__guid": "3bc894f0-c211-48c5-9b46-7945f2b83612",
                   "__enabled": true,
                   "AnimationGraph": null,
                   "BodyGroups": 18446744073709551615,
@@ -5272,42 +5272,6 @@
             "bd5e338d-f574-4ef1-ade7-dc52f7128bc7": "ad9e499a-6d13-475e-a10a-65c386466a1c",
             "9f0da8d8-0c3a-4019-ab27-88591d350e62": "d1f39a77-134f-472e-8095-5680fd5f27d2"
           }
-        },
-        {
-          "__guid": "771d7226-5424-4ca7-ab1a-a1351b885ea1",
-          "__version": 1,
-          "Flags": 0,
-          "Name": "Point Light",
-          "Position": "-346.0934,1041.109,459.6828",
-          "Rotation": "0,0,0,1",
-          "Scale": "1,1,1",
-          "Tags": "light_point,light",
-          "Enabled": true,
-          "NetworkMode": 2,
-          "NetworkInterpolation": true,
-          "NetworkOrphaned": 0,
-          "NetworkTransmit": true,
-          "OwnerTransfer": 1,
-          "Components": [
-            {
-              "__type": "Sandbox.PointLight",
-              "__guid": "b1e594d2-66cb-401e-a71e-e8c11aaac6b5",
-              "__enabled": true,
-              "Attenuation": 1,
-              "FogMode": "Enabled",
-              "FogStrength": 1,
-              "LightColor": "2.74119,2.94117,3,1",
-              "OnComponentDestroy": null,
-              "OnComponentDisabled": null,
-              "OnComponentEnabled": null,
-              "OnComponentFixedUpdate": null,
-              "OnComponentStart": null,
-              "OnComponentUpdate": null,
-              "Radius": 200,
-              "Shadows": true
-            }
-          ],
-          "Children": []
         },
         {
           "__guid": "19482ea0-bc92-4357-9a34-a230312485e5",
@@ -9551,95 +9515,6 @@
           "Children": []
         },
         {
-          "__guid": "08ece3b5-67b0-4b91-b214-cec5b144f34e",
-          "__version": 1,
-          "Flags": 0,
-          "Name": "planter_01",
-          "Position": "-67.75208,-272,0.00006273761",
-          "Rotation": "0,0,-0.7071067,0.7071068",
-          "Scale": "1,1,1",
-          "Tags": "",
-          "Enabled": true,
-          "NetworkMode": 2,
-          "NetworkInterpolation": true,
-          "NetworkOrphaned": 0,
-          "NetworkTransmit": true,
-          "OwnerTransfer": 1,
-          "Components": [
-            {
-              "__type": "Sandbox.Prop",
-              "__guid": "f90f5e0d-c4ff-46e8-aa7f-69690e8a8aa9",
-              "__enabled": true,
-              "BodyGroups": 18446744073709551615,
-              "Health": 0,
-              "IsStatic": true,
-              "MaterialGroup": "default",
-              "Model": "models/props/trim_sheets/planter/planter_01.vmdl",
-              "OnComponentDestroy": null,
-              "OnComponentDisabled": null,
-              "OnComponentEnabled": null,
-              "OnComponentFixedUpdate": null,
-              "OnComponentStart": null,
-              "OnComponentUpdate": null,
-              "OnPropBreak": null,
-              "OnPropTakeDamage": null,
-              "StartAsleep": false,
-              "Tint": "0.70233,0.098,0.098,1"
-            },
-            {
-              "__type": "Sandbox.ModelRenderer",
-              "__guid": "a4a8bb8d-724a-4d40-b8d1-f116cbf972df",
-              "__enabled": true,
-              "BodyGroups": 18446744073709551615,
-              "CreateAttachments": false,
-              "LodOverride": null,
-              "MaterialGroup": "default",
-              "MaterialOverride": null,
-              "Materials": null,
-              "Model": "models/props/trim_sheets/planter/planter_01.vmdl",
-              "OnComponentDestroy": null,
-              "OnComponentDisabled": null,
-              "OnComponentEnabled": null,
-              "OnComponentFixedUpdate": null,
-              "OnComponentStart": null,
-              "OnComponentUpdate": null,
-              "RenderOptions": {
-                "GameLayer": true,
-                "OverlayLayer": false,
-                "BloomLayer": false,
-                "AfterUILayer": false
-              },
-              "RenderType": "On",
-              "Tint": "0.70233,0.098,0.098,1"
-            },
-            {
-              "__type": "Sandbox.ModelCollider",
-              "__guid": "353e9c48-2caf-49f9-b13c-c49ae0f1a8b7",
-              "__enabled": true,
-              "ColliderFlags": 0,
-              "Elasticity": null,
-              "Friction": null,
-              "IsTrigger": false,
-              "Model": "models/props/trim_sheets/planter/planter_01.vmdl",
-              "OnComponentDestroy": null,
-              "OnComponentDisabled": null,
-              "OnComponentEnabled": null,
-              "OnComponentFixedUpdate": null,
-              "OnComponentStart": null,
-              "OnComponentUpdate": null,
-              "OnObjectTriggerEnter": null,
-              "OnObjectTriggerExit": null,
-              "OnTriggerEnter": null,
-              "OnTriggerExit": null,
-              "RollingResistance": null,
-              "Static": true,
-              "Surface": null,
-              "SurfaceVelocity": "0,0,0"
-            }
-          ],
-          "Children": []
-        },
-        {
           "__guid": "bf8f4079-f68e-4e8f-b6a5-74c8962c22ba",
           "__version": 1,
           "Flags": 0,
@@ -10420,95 +10295,6 @@
             {
               "__type": "Sandbox.ModelCollider",
               "__guid": "e38dadd1-4885-4ca7-881c-1c41a9fad901",
-              "__enabled": true,
-              "ColliderFlags": 0,
-              "Elasticity": null,
-              "Friction": null,
-              "IsTrigger": false,
-              "Model": "models/sbox_props/trees/oak/tree_oak_small_a.vmdl",
-              "OnComponentDestroy": null,
-              "OnComponentDisabled": null,
-              "OnComponentEnabled": null,
-              "OnComponentFixedUpdate": null,
-              "OnComponentStart": null,
-              "OnComponentUpdate": null,
-              "OnObjectTriggerEnter": null,
-              "OnObjectTriggerExit": null,
-              "OnTriggerEnter": null,
-              "OnTriggerExit": null,
-              "RollingResistance": null,
-              "Static": true,
-              "Surface": null,
-              "SurfaceVelocity": "0,0,0"
-            }
-          ],
-          "Children": []
-        },
-        {
-          "__guid": "e8171ef2-6fac-4216-937f-380eb5c1593f",
-          "__version": 1,
-          "Flags": 0,
-          "Name": "tree_oak_small_a (4)",
-          "Position": "416,-44,0",
-          "Rotation": "0.02403386,0.06138564,-0.7822568,-0.6194581",
-          "Scale": "0.7457815,0.7457815,0.7457815",
-          "Tags": "",
-          "Enabled": true,
-          "NetworkMode": 2,
-          "NetworkInterpolation": true,
-          "NetworkOrphaned": 0,
-          "NetworkTransmit": true,
-          "OwnerTransfer": 1,
-          "Components": [
-            {
-              "__type": "Sandbox.Prop",
-              "__guid": "6403698e-d11f-406e-a2b0-9349c48a8181",
-              "__enabled": true,
-              "BodyGroups": 18446744073709551615,
-              "Health": 0,
-              "IsStatic": true,
-              "MaterialGroup": "dead",
-              "Model": "models/sbox_props/trees/oak/tree_oak_small_a.vmdl",
-              "OnComponentDestroy": null,
-              "OnComponentDisabled": null,
-              "OnComponentEnabled": null,
-              "OnComponentFixedUpdate": null,
-              "OnComponentStart": null,
-              "OnComponentUpdate": null,
-              "OnPropBreak": null,
-              "OnPropTakeDamage": null,
-              "StartAsleep": false,
-              "Tint": "1,1,1,1"
-            },
-            {
-              "__type": "Sandbox.ModelRenderer",
-              "__guid": "5bf2b558-6b00-42d7-afd5-612805a8b575",
-              "__enabled": true,
-              "BodyGroups": 18446744073709551615,
-              "CreateAttachments": false,
-              "LodOverride": null,
-              "MaterialGroup": "dead",
-              "MaterialOverride": null,
-              "Materials": null,
-              "Model": "models/sbox_props/trees/oak/tree_oak_small_a.vmdl",
-              "OnComponentDestroy": null,
-              "OnComponentDisabled": null,
-              "OnComponentEnabled": null,
-              "OnComponentFixedUpdate": null,
-              "OnComponentStart": null,
-              "OnComponentUpdate": null,
-              "RenderOptions": {
-                "GameLayer": true,
-                "OverlayLayer": false,
-                "BloomLayer": false,
-                "AfterUILayer": false
-              },
-              "RenderType": "On",
-              "Tint": "1,1,1,1"
-            },
-            {
-              "__type": "Sandbox.ModelCollider",
-              "__guid": "a8c7e649-833e-4eec-a1d0-37ee16856dac",
               "__enabled": true,
               "ColliderFlags": 0,
               "Elasticity": null,
@@ -11485,79 +11271,6 @@
                 "materials/decals/decal_snow_buildup/decal_snow_buildup.decal"
               ],
               "Depth": 55,
-              "LifeTime": 0,
-              "Looped": false,
-              "OnComponentDestroy": null,
-              "OnComponentDisabled": null,
-              "OnComponentEnabled": null,
-              "OnComponentFixedUpdate": null,
-              "OnComponentStart": null,
-              "OnComponentUpdate": null,
-              "Parallax": 1,
-              "Rotation": 0,
-              "Scale": 1,
-              "SequenceId": 0,
-              "SheetSequence": false,
-              "Size": "1,1",
-              "SortLayer": 0,
-              "Transient": false
-            }
-          ],
-          "Children": []
-        },
-        {
-          "__guid": "154982d6-cca0-44c8-9029-0f641837de2a",
-          "__version": 1,
-          "Flags": 0,
-          "Name": "GameObject (7)",
-          "Position": "185,223,32.88893",
-          "Rotation": "-0.000000401798,-0.000000401798,0.7071068,0.7071066",
-          "Scale": "0.9606655,0.5120038,1",
-          "Tags": "",
-          "Enabled": true,
-          "NetworkMode": 2,
-          "NetworkInterpolation": true,
-          "NetworkOrphaned": 0,
-          "NetworkTransmit": true,
-          "OwnerTransfer": 1,
-          "Components": [
-            {
-              "__type": "Sandbox.Decal",
-              "__guid": "0174d4d9-8b30-4b1a-a4ae-f55d5a72f2c9",
-              "__enabled": true,
-              "__version": 3,
-              "AttenuationAngle": 0.5,
-              "ColorMix": 1,
-              "ColorTint": {
-                "Type": "Constant",
-                "Evaluation": "Life",
-                "GradientA": {
-                  "blend": "Linear",
-                  "color": [
-                    {
-                      "t": 0.5,
-                      "c": "1,1,1,1"
-                    }
-                  ],
-                  "alpha": []
-                },
-                "GradientB": {
-                  "blend": "Linear",
-                  "color": [
-                    {
-                      "t": 0.5,
-                      "c": "1,1,1,1"
-                    }
-                  ],
-                  "alpha": []
-                },
-                "ConstantA": "1,1,1,1",
-                "ConstantB": "1,1,1,1"
-              },
-              "Decals": [
-                "materials/decals/decal_snow_buildup/decal_snow_buildup.decal"
-              ],
-              "Depth": 72,
               "LifeTime": 0,
               "Looped": false,
               "OnComponentDestroy": null,
@@ -12782,7 +12495,7 @@
               "OnComponentStart": null,
               "OnComponentUpdate": null,
               "Radius": 100,
-              "Shadows": true
+              "Shadows": false
             }
           ],
           "Children": []
@@ -13397,8 +13110,8 @@
               "__guid": "b664c4d6-addb-4c4c-882f-7304bce16378",
               "__enabled": true,
               "__version": 1,
-              "ClipMapLodExtentTexels": 256,
-              "ClipMapLodLevels": 1,
+              "ClipMapLodExtentTexels": 64,
+              "ClipMapLodLevels": 6,
               "ColliderFlags": 0,
               "Elasticity": null,
               "EnableCollision": true,
@@ -13415,7 +13128,7 @@
               "OnObjectTriggerExit": null,
               "OnTriggerEnter": null,
               "OnTriggerExit": null,
-              "RenderType": "On",
+              "RenderType": "Off",
               "RollingResistance": null,
               "Static": true,
               "Storage": "terrain/snow_terrain.terrain",
@@ -15136,7 +14849,6 @@
     "facepunch.mistletoewreath#130832",
     "facepunch.old_construction_wall_02a#47044",
     "facepunch.old_window#29068",
-    "facepunch.planter_01#43557",
     "facepunch.present_box#44112",
     "facepunch.rock_scatter_03#116939",
     "facepunch.rock_scatter_pile_01#116944",

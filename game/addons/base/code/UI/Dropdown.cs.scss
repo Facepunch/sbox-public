@@ -1,0 +1,11 @@
+.dropdown
+{
+	gap: 2px;
+	flex-grow: 1;
+	cursor: pointer;
+
+	.button-right-column
+	{
+		flex-grow: 1;
+	}
+}

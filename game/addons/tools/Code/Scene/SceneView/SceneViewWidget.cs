@@ -33,6 +33,8 @@ public partial class SceneViewWidget : Widget
 
 	public static SceneViewWidget Current { get; private set; }
 
+	public SceneViewportWidget LastSelectedViewportWidget { get; set; }
+
 	public EditorToolManager Tools { get; private set; }
 
 	/// <summary>
@@ -337,6 +339,13 @@ file class ViewportToolBar : Widget
 			_sidebar.Add( scroller );
 
 			toolWidget.Focus();
+		}
+		else
+		{
+			if ( SceneViewWidget.Current?.LastSelectedViewportWidget?.IsValid() ?? false )
+			{
+				SceneViewWidget.Current.LastSelectedViewportWidget.Focus();
+			}
 		}
 
 		// Update footer

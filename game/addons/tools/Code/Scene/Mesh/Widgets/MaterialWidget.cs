@@ -33,13 +33,13 @@ public class MaterialWidget : Widget
 
 		if ( icon is not null )
 		{
-			Paint.Draw( LocalRect.Shrink( 2 ), icon );
+			Paint.Draw( LocalRect, icon );
 		}
 
 		if ( ShowFilename && asset is not null )
 		{
 			Paint.SetDefaultFont( 7 );
-			Theme.DrawFilename( LocalRect.Shrink( 4 ), asset.RelativePath, TextFlag.LeftBottom, Color.White );
+			Theme.DrawFilename( LocalRect, asset.RelativePath, TextFlag.LeftBottom, Color.White );
 		}
 
 	}

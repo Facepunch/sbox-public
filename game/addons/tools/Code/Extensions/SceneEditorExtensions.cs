@@ -120,7 +120,7 @@ public static class SceneEditorExtensions
 					currentSpeed = Math.Clamp( currentSpeed, 0.25f, 100.0f );
 
 					EditorPreferences.CameraSpeed = currentSpeed;
-					SceneViewportWidget.LastSelected.timeSinceCameraSpeedChange = 0;
+					SceneViewWidget.Current?.LastSelectedViewportWidget?.timeSinceCameraSpeedChange = 0;
 				}
 
 				var sens = EditorPreferences.CameraSensitivity;

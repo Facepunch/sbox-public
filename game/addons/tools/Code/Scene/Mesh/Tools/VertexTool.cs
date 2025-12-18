@@ -73,7 +73,7 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 		if ( closestVertex.IsValid() )
 			Gizmo.Hitbox.TrySetHovered( closestVertex.PositionWorld );
 
-		if ( Gizmo.IsHovered )
+		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection )
 		{
 			SelectVertex();
 

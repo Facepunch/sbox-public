@@ -192,8 +192,8 @@ partial class MeshSelection
 
 			var world = meshComponent.WorldTransform;
 			var localCenter = world.PointToLocal( origin );
-			meshComponent.WorldPosition = origin;
 			meshComponent.Mesh.ApplyTransform( new Transform( -localCenter ) );
+			meshComponent.WorldPosition = origin;
 			meshComponent.RebuildMesh();
 		}
 

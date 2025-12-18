@@ -153,6 +153,14 @@ public sealed class MapWorld : MapNode
 		{
 			references.AddString( x.ResourcePath );
 		}
+
+		var referencedPrefabs = Scene.GetAllObjects( false )
+			.Where( x => x.IsPrefabInstanceRoot );
+
+		foreach ( var x in referencedPrefabs )
+		{
+			references.AddString( x.PrefabInstanceSource );
+		}
 	}
 
 }

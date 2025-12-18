@@ -21,7 +21,7 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		if ( closestEdge.IsValid() )
 			Gizmo.Hitbox.TrySetHovered( closestEdge.Transform.PointToWorld( closestEdge.Line.Center ) );
 
-		if ( Gizmo.IsHovered )
+		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection )
 		{
 			SelectEdge();
 
