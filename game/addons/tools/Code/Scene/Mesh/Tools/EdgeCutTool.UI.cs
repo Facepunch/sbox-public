@@ -22,6 +22,27 @@ partial class EdgeCutTool
 				var row = Layout.AddRow();
 				row.Spacing = 4;
 
+				var snapping = new IconButton( "grid_on", null );
+				snapping.IsToggle = true;
+				snapping.IsActive = _tool._snappingEnabled;
+				snapping.OnToggled = ( e ) => { _tool._snappingEnabled = e; EditorCookie.Set( "edgecut_snapping", e ); };
+				snapping.ToolTip = "Toggle snapping for edge cuts";
+				row.Add( snapping );
+
+				var showInfo = new IconButton( "info", null );
+				showInfo.IsToggle = true;
+				showInfo.IsActive = _tool._showSnappingInfo;
+				showInfo.OnToggled = ( e ) => { _tool._showSnappingInfo = e; EditorCookie.Set( "edgecut_showinfo", e ); };
+				showInfo.ToolTip = "Toggle display of snapping info";
+				row.Add( showInfo );
+			}
+
+			Layout.AddSpacingCell( 8 );
+
+			{
+				var row = Layout.AddRow();
+				row.Spacing = 4;
+
 				var apply = new Button( "Apply", "done" );
 				apply.Clicked = Apply;
 				apply.ToolTip = "[Apply " + EditorShortcuts.GetKeys( "mesh.edge-cut-apply" ) + "]";

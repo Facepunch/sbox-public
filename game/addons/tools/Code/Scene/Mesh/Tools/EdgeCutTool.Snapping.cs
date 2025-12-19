@@ -133,6 +133,14 @@ partial class EdgeCutTool
 			{
 				snaps.Add( new SnapPoint( edge, hit, EdgeCutAlignment.Perpendicular ) );
 			}
+
+			// Add fine-tuned ratio snap points
+			var ratios = new[] { 1f / 3f, 1f / 4f, 1f / 5f, 1f / 6f, 1f / 7f, 1f / 9f, 1f / 17f, 1f / 33f, 1f / 65f };
+			foreach ( var r in ratios )
+			{
+				var pos = p0.LerpTo( p1, r );
+				snaps.Add( new SnapPoint( edge, pos, EdgeCutAlignment.None ) );
+			}
 		}
 	}
 
