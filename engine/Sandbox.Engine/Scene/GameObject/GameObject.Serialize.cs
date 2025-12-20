@@ -108,6 +108,12 @@ public partial class GameObject
 		internal bool IsNetworkRefresh { get; set; }
 
 		/// <summary>
+		/// If true, the network refresh originated from the Host,
+		/// so we should allow it to overwrite [Sync] properties.
+		/// </summary>
+		internal bool IsRefreshFromHost { get; set; }
+
+		/// <summary>
 		/// Allows overriding the transform when deserializing. Will apply only to the root object.
 		/// </summary>
 		public Transform? TransformOverride { get; set; }
@@ -829,7 +835,7 @@ public partial class GameObject
 	{
 		using var prefabContext = PushDeserializeContext();
 
-		Components.ForEach( "PostDeserialize", true, c => c.PostDeserialize() );
+		Components.ForEach( "PostDeserialize", true, c => c.PostDeserialize( options ) );
 
 		for ( int i = 0; i < Children.Count; i++ )
 		{

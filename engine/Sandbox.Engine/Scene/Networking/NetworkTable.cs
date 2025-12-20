@@ -130,6 +130,8 @@ internal class NetworkTable : IDisposable
 	/// </summary>
 	public void Register( int slot, Entry entry )
 	{
+		Unregister( slot );
+
 		_entries[slot] = entry;
 
 		var value = GetValue( slot );

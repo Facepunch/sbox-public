@@ -767,7 +767,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			gameObject?.Deserialize( gameObjectJson, new GameObject.DeserializeOptions
 			{
 				IsNetworkRefresh = true,
-				IsRefreshing = true
+				IsRefreshing = true,
+				IsRefreshFromHost = source.IsHost
 			} );
 		}
 
