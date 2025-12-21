@@ -46,7 +46,7 @@ internal class ControlsTest : Widget
 		public TestFlags FlagsValue { get; set; } = TestFlags.Bottom | TestFlags.Top;
 		public Model ModelValue { get; set; }
 		public Curve CurveValue { get; set; } = new Curve( new Curve.Frame( 0.0f, 0.5f ), new Curve.Frame( 1.0f, 1.0f ) );
-		public Gradient GradientValye { get; set; } = new Gradient( new Gradient.ColorFrame( 0.0f, Color.Cyan ), new Gradient.ColorFrame( 0.2f, Color.Red ), new Gradient.ColorFrame( 1.0f, Color.Yellow ) );
+		public Gradient GradientValue { get; set; } = new Gradient( new Gradient.ColorFrame( 0.0f, Color.Cyan ), new Gradient.ColorFrame( 0.2f, Color.Red ), new Gradient.ColorFrame( 1.0f, Color.Yellow ) );
 		public List<Vector3> ValueList { get; set; } = new List<Vector3>() { Vector3.Up, Vector3.Down };
 		public Dictionary<string, float> DictionaryValues { get; set; } = new() { { "garry", 6.3f }, { "helk", 4.6f } };
 		public Guid Guid { get; set; } = Guid.NewGuid();
