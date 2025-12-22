@@ -229,6 +229,8 @@ public class AssetInspector : InspectorWidget
 					SaveOption.Bind( "Enabled" ).ReadOnly().From( () => gameResource.HasUnsavedChanges, null );
 				}
 
+				SaveOption.Triggered = saveAction;
+
 				if ( custom is IAssetInspector customInspector )
 				{
 					customInspector.SetAsset( target );
