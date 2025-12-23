@@ -304,12 +304,9 @@ class ControlSheetRow : Widget
 		var component = EditedComponents.FirstOrDefault();
 
 		// Are we editing in a game session?
-		var session = SceneEditorSession.Resolve( component?.GameObject?.Scene );
+		var gameSession = SceneEditorSession.Resolve( component?.GameObject?.Scene ) as GameEditorSession;
+		var session = gameSession?.Parent;
 		if ( session is null )
-			return;
-
-		// Only show "Apply To Scene" if we're editing in an active game session
-		if ( !session.IsPlaying || component.GameObject.Scene != session.Scene )
 			return;
 
 		// try to find the version of this component in the editor session
