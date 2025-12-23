@@ -11,6 +11,10 @@ public class FloatControlWidget : StringControlWidget
 	public string Icon { get; set; }
 	public string Label { get; set; }
 	public Action<Rect, float> SliderPaint { get; set; }
+	public float SliderCurve {
+		get => SliderWidget?.Curve ?? 1f;
+		set => SliderWidget?.Curve = value;
+	}
 
 	/// <summary>
 	/// If true we can draw a slider
@@ -277,6 +281,7 @@ public class FloatSlider : Widget
 {
 	public float Minimum { get; set; }
 	public float Maximum { get; set; }
+	public float Curve { get; set; } = 1f;
 	public Action OnValueEdited { get; set; }
 	public Color HighlightColor { get; set; } = Theme.TextLight;
 	public Action<Rect, float> SliderPaint { get; set; }
@@ -304,12 +309,23 @@ public class FloatSlider : Widget
 	{
 		get
 		{
-			return MathX.LerpInverse( Value, Minimum, Maximum, true );
+			var v = Value;
+			if ( Curve != 1 )
+			{
+				var range = Maximum - Minimum;
+				v = MathF.Pow( v / range, 1f / Curve ) * range;
+			}
+			return MathX.LerpInverse( v, Minimum, Maximum, true );
 		}
 
 		set
 		{
 			var v = MathX.LerpTo( Minimum, Maximum, value, true );
+			if ( Curve != 1 )
+			{
+				var range = Maximum - Minimum;
+				v = MathF.Pow( v / range, Curve ) * range;
+			}
 			Value = v;
 		}
 
