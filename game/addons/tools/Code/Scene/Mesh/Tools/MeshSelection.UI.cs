@@ -40,7 +40,8 @@ partial class MeshSelection
 				CreateButton( "Set Origin To Pivot", "gps_fixed", "mesh.set-origin-to-pivot", SetOriginToPivot, _meshes.Length > 0, grid );
 				CreateButton( "Center Origin", "center_focus_strong", "mesh.center-origin", CenterOrigin, _meshes.Length > 0, grid );
 				CreateButton( "Merge Meshes", "join_full", "mesh.merge-meshes", MergeMeshes, _meshes.Length > 1, grid );
-				CreateButton( "Bake Scale", "straighten", "mesh.bake-scale", BakeScale, _meshes.Length > 0, grid );
+				CreateButton( "Bake Scale", "straighten", null, BakeScale, _meshes.Length > 0, grid );
+				CreateButton( "Save To Model", "save", null, SaveToModel, _meshes.Length > 0, grid );
 
 				grid.AddStretchCell();
 
@@ -205,6 +206,17 @@ partial class MeshSelection
 			meshComponent.WorldScale = 1.0f;
 			meshComponent.Mesh.Scale( scale );
 			meshComponent.RebuildMesh();
+		}
+
+		void SaveToModel()
+		{
+			if ( _meshes.Length == 0 ) return;
+
+			var targetPath = EditorUtility.SaveFileDialog( "Create Model..", "vmdl", "" );
+			if ( targetPath is null ) return;
+
+			var meshes = _meshes.Select( x => x.Mesh ).ToArray();
+			EditorUtility.CreateModelFromPolygonMeshes( meshes, targetPath );
 		}
 	}
 }
