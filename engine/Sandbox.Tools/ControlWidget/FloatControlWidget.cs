@@ -11,7 +11,8 @@ public class FloatControlWidget : StringControlWidget
 	public string Icon { get; set; }
 	public string Label { get; set; }
 	public Action<Rect, float> SliderPaint { get; set; }
-	public float SliderCurve {
+	public float SliderCurve
+	{
 		get => SliderWidget?.Curve ?? 1f;
 		set => SliderWidget?.Curve = value;
 	}
