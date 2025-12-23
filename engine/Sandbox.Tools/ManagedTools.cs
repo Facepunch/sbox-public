@@ -178,23 +178,28 @@ internal static class ManagedTools
 			if ( press )
 			{
 				var modifiers = ev.KeyboardModifiers;
-				var keys = ev.Name;
+				var baseKey = ev.Name.ToUpperInvariant();
+				var modifiedKey = baseKey;
 
 				if ( modifiers != KeyboardModifiers.None )
 				{
-					EditorShortcuts.Press( ev.Name.ToUpperInvariant() );
-					if ( modifiers.HasFlag( KeyboardModifiers.Shift ) && ev.Key != KeyCode.Shift ) keys = "SHIFT+" + keys;
-					if ( modifiers.HasFlag( KeyboardModifiers.Alt ) && ev.Key != KeyCode.Alt ) keys = "ALT+" + keys;
-					if ( modifiers.HasFlag( KeyboardModifiers.Ctrl ) && ev.Key != KeyCode.Control ) keys = "CTRL+" + keys;
+					EditorShortcuts.Press( baseKey );
+					if ( modifiers.HasFlag( KeyboardModifiers.Shift ) && ev.Key != KeyCode.Shift ) modifiedKey = "SHIFT+" + modifiedKey;
+					if ( modifiers.HasFlag( KeyboardModifiers.Alt ) && ev.Key != KeyCode.Alt ) modifiedKey = "ALT+" + modifiedKey;
+					if ( modifiers.HasFlag( KeyboardModifiers.Ctrl ) && ev.Key != KeyCode.Control ) modifiedKey = "CTRL+" + modifiedKey;
 				}
 
 				// If we're "in game" these will be passed by the InputRouter whilst we're not focused
 				if ( EditorShortcuts._timeSinceGlobalShortcut <= 0.05f && ev.Key >= KeyCode.F1 && ev.Key <= KeyCode.F12 )
-				{
 					return false;
-				}
 
-				if ( EditorShortcuts.Invoke( keys.ToUpperInvariant() ) ) return true;
+				// Try with modifier first.
+				if ( modifiers != KeyboardModifiers.None && EditorShortcuts.Invoke( modifiedKey ) )
+					return true;
+
+				// If no shortcut was invoked with modifier, try without.
+				if ( EditorShortcuts.Invoke( baseKey ) )
+					return true;
 			}
 			else
 			{

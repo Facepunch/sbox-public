@@ -1,4 +1,5 @@
 ﻿using MenuProject.Modals;
+using MenuProject.Modals.PauseMenuModal;
 using Sandbox;
 using Sandbox.Modals;
 using Sandbox.Services;
@@ -166,7 +167,7 @@ public class ModalSystem : IModalSystem
 			return;
 		}
 
-		var modal = new PauseMenuModal();
+		var modal = new PauseModal();
 		Push( modal );
 	}
 
@@ -190,5 +191,5 @@ public class ModalSystem : IModalSystem
 	}
 
 	public bool IsModalOpen => OpenModals.Any();
-	public bool IsPauseMenuOpen => OpenModals.OfType<PauseMenuModal>().Any();
+	public bool IsPauseMenuOpen => OpenModals.OfType<PauseModal>().Any();
 }

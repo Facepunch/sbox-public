@@ -65,8 +65,8 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 				}
 			);
 
-			// Now merge any descendants
-			System.Threading.Tasks.Parallel.ForEach( rootRenderers.Where( x => !x.BoneMergeTarget.IsValid() ), _animParallelOptions, x => x.MergeDescendants( ChangedTransforms.Enqueue ) );
+			// Now merge any descendants without allocating per-merge delegates
+			System.Threading.Tasks.Parallel.ForEach( rootRenderers.Where( x => !x.BoneMergeTarget.IsValid() ), _animParallelOptions, renderer => renderer.MergeDescendants( ChangedTransforms ) );
 
 			while ( ChangedTransforms.TryDequeue( out var tx ) )
 			{

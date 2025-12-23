@@ -94,10 +94,23 @@ public class Preview : Widget
 
 	private void ScenePreFrame()
 	{
-		var originOffset = new Vector2( 0.5f, 0.5f ) - (SpriteEditor?.SelectedAnimation?.Origin ?? new Vector2( 0.5f, 0.5f ));
-		Renderer.WorldPosition = Renderer.WorldPosition
-			.WithY( originOffset.x * 100 )
-			.WithZ( originOffset.y * 100 );
+		var texture = Renderer.Texture;
+		if ( texture.Width == 0 || texture.Height == 0 )
+			return;
+		var ratio = (float)texture.Width / texture.Height;
+		var pivotOffset = new Vector2( 0.5f, 0.5f ) - (SpriteEditor?.SelectedAnimation?.Origin ?? new Vector2( 0.5f, 0.5f ));
+		if ( ratio > 1 )
+		{
+			Renderer.WorldPosition = Renderer.WorldPosition
+			.WithY( pivotOffset.x * 100 )
+			.WithZ( pivotOffset.y * 100 / ratio );
+		}
+		else
+		{
+			Renderer.WorldPosition = Renderer.WorldPosition
+			.WithY( pivotOffset.x * 100 * ratio )
+			.WithZ( pivotOffset.y * 100 );
+		}
 
 		switch ( SpriteEditor?.Antialiasing )
 		{

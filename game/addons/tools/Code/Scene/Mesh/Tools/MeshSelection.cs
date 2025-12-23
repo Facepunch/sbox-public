@@ -153,6 +153,19 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 
 	public override void OnEnabled()
 	{
+		var objects = Selection.OfType<GameObject>()
+			.Where( x => x.GetComponent<MeshComponent>().IsValid() )
+			.ToArray();
+
+		var connectedObjects = Application.KeyboardModifiers.Contains( KeyboardModifiers.Shift ) ? Selection.OfType<IMeshElement>()
+			.Select( x => x.Component.GameObject )
+			.ToArray() : [];
+
+		Selection.Clear();
+
+		foreach ( var go in objects ) Selection.Add( go );
+		foreach ( var go in connectedObjects ) Selection.Add( go );
+
 		OnSelectionChanged();
 
 		var undo = SceneEditorSession.Active.UndoSystem;

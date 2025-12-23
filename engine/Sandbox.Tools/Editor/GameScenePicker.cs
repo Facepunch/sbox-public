@@ -36,8 +36,18 @@ public class GameScenePicker : Widget
 		var activeSession = SceneEditorSession.Active;
 		var dock = activeSession.SceneDock;
 
-		Position = dock.ScreenPosition - 8;
-		Size = dock.ScreenRect.Size + 16;
+		if ( activeSession is GameEditorSession gameEditorSession )
+		{
+			dock = gameEditorSession.Parent.SceneDock;
+			var headerSize = new Vector2( 0, 36 );
+			Position = dock.ScreenPosition + headerSize;
+			Size = dock.ScreenRect.Size - headerSize;
+		}
+		else
+		{
+			Position = dock.ScreenPosition - 8;
+			Size = dock.ScreenRect.Size + 16;
+		}
 	}
 
 	Vector2 hoverPos;

@@ -226,8 +226,9 @@ public static class SceneEditorExtensions
 			camera.WorldPosition = Vector3.SmoothDamp( camera.WorldPosition, cameraTarget.Value, ref vel, EditorPreferences.CameraMovementSmoothing.Clamp( 0.0f, 1.0f ), RealTime.Delta );
 			cameraVelocity = vel;
 
-			if ( camera.WorldPosition.AlmostEqual( cameraTarget.Value, 0.1f ) )
+			if ( camera.WorldPosition.AlmostEqual( cameraTarget.Value, 0.01f ) )
 			{
+				camera.WorldPosition = cameraTarget.Value;
 				cameraTarget = default;
 				cameraVelocity = default;
 			}

@@ -347,11 +347,11 @@ public sealed class WheelJoint : Joint
 		{
 			localFrame1 = global::Transform.Zero;
 			localFrame1.Position = point1.LocalPosition;
-			localFrame1.Rotation = point1.LocalRotation * new Angles( 90, 0, 0 );
+			localFrame1.Rotation = point1.LocalRotation * new Angles( 90, 0, 0 ) * new Angles( 0, 90, 0 ); // face the right way, steer the right way
 
 			localFrame2 = global::Transform.Zero;
 			localFrame2.Position = point2.Body.Transform.PointToLocal( point1.Transform.Position );
-			localFrame2.Rotation = point2.Body.Transform.RotationToLocal( point1.Transform.Rotation * new Angles( 90, 0, 0 ) );
+			localFrame2.Rotation = point2.Body.Transform.RotationToLocal( point1.Transform.Rotation * new Angles( 90, 0, 0 ) * new Angles( 0, 90, 0 ) ); // face the right way, steer the right way
 		}
 
 		if ( !Scene.IsEditor )

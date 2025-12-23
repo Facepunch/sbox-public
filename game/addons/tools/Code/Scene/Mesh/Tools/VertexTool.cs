@@ -136,4 +136,39 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 				yield return new MeshVertex( component, hVertex );
 		}
 	}
+
+	protected override IEnumerable<MeshVertex> GetConnectedSelectionElements()
+	{
+		var unique = new HashSet<MeshVertex>();
+
+		foreach ( var component in Selection.OfType<GameObject>()
+			.Select( x => x.GetComponent<MeshComponent>() )
+			.Where( x => x.IsValid() ) )
+		{
+			foreach ( var vertex in component.Mesh.VertexHandles )
+			{
+				unique.Add( new MeshVertex( component, vertex ) );
+			}
+		}
+
+		foreach ( var face in Selection.OfType<MeshFace>() )
+		{
+			face.Component.Mesh.GetVerticesConnectedToFace( face.Handle, out var vertices );
+
+			foreach ( var vertex in vertices )
+			{
+				unique.Add( new MeshVertex( face.Component, vertex ) );
+			}
+		}
+
+		foreach ( var edge in Selection.OfType<MeshEdge>() )
+		{
+			edge.Component.Mesh.GetVerticesConnectedToEdge( edge.Handle, out var vertexA, out var vertexB );
+
+			unique.Add( new MeshVertex( edge.Component, vertexA ) );
+			unique.Add( new MeshVertex( edge.Component, vertexB ) );
+		}
+
+		return unique;
+	}
 }

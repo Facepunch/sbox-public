@@ -125,4 +125,6 @@ native class IPhysicsBody as NativeEngine.IPhysicsBody
 	void SetTrigger( bool trigger );
 
 	void ResetProxy();
+
+	void SetBullet( bool bEnabled );
 }

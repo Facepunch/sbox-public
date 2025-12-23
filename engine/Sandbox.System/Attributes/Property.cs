@@ -15,7 +15,6 @@ public class PropertyAttribute : Attribute, IClassNameProvider, ITitleProvider
 	/// </summary>
 	public string Title { get; set; }
 
-
 	public PropertyAttribute() : base()
 	{
 	}
@@ -48,4 +47,12 @@ public class KeyPropertyAttribute : Attribute
 public class InlineEditorAttribute : Attribute
 {
 	public bool Label { get; set; } = true;
+}
+
+/// <summary>
+/// Some properties are not meant for the average user, hide them unless they really want to see them.
+/// </summary>
+[AttributeUsage( AttributeTargets.Property | AttributeTargets.Field )]
+public class AdvancedAttribute : Attribute
+{
 }

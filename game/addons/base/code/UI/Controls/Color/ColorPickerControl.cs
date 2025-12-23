@@ -9,6 +9,8 @@ public partial class ColorPickerControl : BaseControl
 	readonly ColorHueControl _hueControl;
 	readonly ColorAlphaControl _alphaControl;
 
+	public override bool SupportsMultiEdit => true;
+
 	public ColorPickerControl()
 	{
 		_svControl = AddChild<ColorSaturationValueControl>( "sv" );

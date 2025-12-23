@@ -1,4 +1,5 @@
-﻿
+﻿using System.Collections.Concurrent;
+
 namespace Sandbox;
 
 /// <summary>
@@ -519,39 +520,18 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 
 		return transformsChanged;
 	}
-
-	private IEnumerable<SkinnedModelRenderer> GetMergeDescendants()
+	internal void MergeDescendants( ConcurrentQueue<GameTransform> changedTransforms = null )
 	{
 		foreach ( var child in mergeChildren )
 		{
 			if ( !child.IsValid() )
 				continue;
 
-			yield return child;
-
-			foreach ( var descendant in child.GetMergeDescendants() )
-			{
-				yield return descendant;
-			}
-		}
-	}
-
-	internal void MergeDescendants( Action<GameTransform> transformChangedCallback = null )
-	{
-		if ( mergeChildren.Count == 0 )
-			return;
-
-		var descendants = GetMergeDescendants();
-		foreach ( var descendant in descendants )
-		{
-			if ( !descendant.IsValid() )
-				continue;
-
-			var so = descendant.SceneModel;
+			var so = child.SceneModel;
 			if ( !so.IsValid() )
 				continue;
 
-			var target = descendant.BoneMergeTarget;
+			var target = child.BoneMergeTarget;
 			if ( !target.IsValid() )
 				continue;
 
@@ -563,19 +543,21 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 			so.MergeBones( parent );
 
 			// Updated bones, transform is no longer dirty.
-			descendant._transformDirty = false;
+			child._transformDirty = false;
 
-			if ( !descendant.UpdateGameObjectsFromBones() )
-				continue;
+			if ( child.UpdateGameObjectsFromBones() )
+			{
+				if ( changedTransforms is not null )
+				{
+					changedTransforms.Enqueue( child.Transform );
+				}
+				else if ( ThreadSafe.IsMainThread )
+				{
+					child.Transform.TransformChanged();
+				}
+			}
 
-			if ( transformChangedCallback is not null )
-			{
-				transformChangedCallback( descendant.Transform );
-			}
-			else if ( ThreadSafe.IsMainThread )
-			{
-				descendant.Transform.TransformChanged();
-			}
+			child.MergeDescendants( changedTransforms );
 		}
 	}
 

@@ -248,7 +248,8 @@ class ControlSheetRow : Widget
 			property.Parent.NoteFinishEdit( property );
 		} );
 
-		if ( IsEditingComponent || IsEditingGameObject )
+		bool isPrefab = property.GetContainingGameObject()?.IsPrefabInstance ?? false;
+		if ( isPrefab && (IsEditingComponent || IsEditingGameObject) )
 		{
 			menu.AddSeparator();
 
@@ -258,28 +259,20 @@ class ControlSheetRow : Widget
 			editedObject ??= EditedGameObjects.FirstOrDefault();
 			var prefabName = EditorUtility.Prefabs.GetOuterMostPrefabName( editedObject ) ?? "";
 
-			var revertChangesActionName = $"Revert Property instance change";
-
-			menu.AddOption( revertChangesActionName, "history", () =>
+			var revertActionName = "Revert Change";
+			menu.AddOption( revertActionName, "history", () =>
 			{
 				using var scene = SceneEditorSession.Scope();
 
-				using ( SceneEditorSession.Active.UndoScope( revertChangesActionName ).WithComponentChanges( EditedComponents ).WithGameObjectChanges( EditedGameObjects, GameObjectUndoFlags.Properties ).Push() )
+				using ( SceneEditorSession.Active.UndoScope( revertActionName ).WithComponentChanges( EditedComponents ).WithGameObjectChanges( EditedGameObjects, GameObjectUndoFlags.Properties ).Push() )
 				{
 					EditorUtility.Prefabs.RevertPropertyChange( property );
 				}
 			} ).Enabled = isPropertyModified;
 
-			var applyChangesActionName = $"Apply Property instance change to prefab \"{prefabName}\"";
-
-			menu.AddOption( applyChangesActionName, "update", () =>
+			menu.AddOption( "Apply to Prefab", "save", () =>
 			{
-				using var scene = SceneEditorSession.Scope();
-
-				using ( SceneEditorSession.Active.UndoScope( applyChangesActionName ).WithComponentChanges( EditedComponents ).WithGameObjectChanges( EditedGameObjects, GameObjectUndoFlags.Properties ).Push() )
-				{
-					EditorUtility.Prefabs.ApplyPropertyChange( property );
-				}
+				EditorUtility.Prefabs.ApplyPropertyChange( property );
 			} ).Enabled = isPropertyModified;
 		}
 

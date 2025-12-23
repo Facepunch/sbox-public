@@ -648,8 +648,28 @@ partial class GameObjectNode : TreeNode<GameObject>
 				var isModified = selectedGos.Any( x => (x.IsPrefabInstanceRoot && EditorUtility.Prefabs.IsInstanceModified( x ))
 													|| (x.IsPrefabInstance && EditorUtility.Prefabs.IsGameObjectInstanceModified( gameObject )) );
 
-				var isAdded = selectedGos.All( x => x.IsPrefabInstance && EditorUtility.Prefabs.IsGameObjectAddedToInstance( x ) );
+				var revertChangesActionName = "Revert Changes";
+				prefabMenu.AddOption( revertChangesActionName, "history", () =>
+				{
+					using var scene = SceneEditorSession.Scope();
 
+					using ( SceneEditorSession.Active.UndoScope( revertChangesActionName ).WithGameObjectChanges( selectedGos, GameObjectUndoFlags.Properties ).Push() )
+					{
+						foreach ( var go in selectedGos )
+						{
+							if ( go.IsPrefabInstanceRoot )
+							{
+								EditorUtility.Prefabs.RevertInstanceToPrefab( go );
+							}
+							else if ( go.IsPrefabInstance )
+							{
+								EditorUtility.Prefabs.RevertGameObjectInstanceChanges( go );
+							}
+						}
+					}
+				} ).Enabled = isModified;
+
+				var isAdded = selectedGos.All( x => x.IsPrefabInstance && EditorUtility.Prefabs.IsGameObjectAddedToInstance( x ) );
 				if ( isAdded )
 				{
 					var applyAddActionName = multipleSources ? "Add Objects to Prefabs" : "Add Object to Prefab";
@@ -658,7 +678,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 						var parentPrefabName = EditorUtility.Prefabs.GetOuterMostPrefabName( gameObject.Parent );
 						applyAddActionName += $" '{parentPrefabName ?? "Invalid"}'";
 					}
-					prefabMenu.AddOption( applyAddActionName, "update", () =>
+					prefabMenu.AddOption( applyAddActionName, "save", () =>
 					{
 						using var scene = SceneEditorSession.Scope();
 
@@ -677,8 +697,8 @@ partial class GameObjectNode : TreeNode<GameObject>
 				}
 				else
 				{
-					var applyChangesActionName = multipleSources ? "Apply Instance Changes to Prefabs" : "Apply Instance Changes To Prefab";
-					prefabMenu.AddOption( applyChangesActionName, "update", () =>
+					var applyChangesActionName = multipleSources ? "Apply to Prefabs" : "Apply to Prefab";
+					prefabMenu.AddOption( applyChangesActionName, "save", () =>
 					{
 						using var scene = SceneEditorSession.Scope();
 
@@ -699,29 +719,6 @@ partial class GameObjectNode : TreeNode<GameObject>
 						}
 					} ).Enabled = isModified;
 				}
-
-
-
-				var revertChangesActionName = "Revert Instance Changes";
-				prefabMenu.AddOption( revertChangesActionName, "history", () =>
-				{
-					using var scene = SceneEditorSession.Scope();
-
-					using ( SceneEditorSession.Active.UndoScope( revertChangesActionName ).WithGameObjectChanges( selectedGos, GameObjectUndoFlags.Properties ).Push() )
-					{
-						foreach ( var go in selectedGos )
-						{
-							if ( go.IsPrefabInstanceRoot )
-							{
-								EditorUtility.Prefabs.RevertInstanceToPrefab( go );
-							}
-							else if ( go.IsPrefabInstance )
-							{
-								EditorUtility.Prefabs.RevertGameObjectInstanceChanges( go );
-							}
-						}
-					}
-				} ).Enabled = isModified;
 			}
 
 			if ( !isPrefabRoot )

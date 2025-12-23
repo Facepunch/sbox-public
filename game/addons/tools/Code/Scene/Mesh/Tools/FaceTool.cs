@@ -307,4 +307,38 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 			Gizmo.Draw.Line( box.Maxs.WithZ( box.Mins.z ), box.Maxs.WithZ( box.Maxs.z ) );
 		}
 	}
+
+	protected override IEnumerable<MeshFace> GetConnectedSelectionElements()
+	{
+		var unique = new HashSet<MeshFace>();
+
+		foreach ( var component in Selection.OfType<GameObject>()
+			.Select( x => x.GetComponent<MeshComponent>() )
+			.Where( x => x.IsValid() ) )
+		{
+			foreach ( var face in component.Mesh.FaceHandles )
+			{
+				unique.Add( new MeshFace( component, face ) );
+			}
+		}
+
+		foreach ( var edge in Selection.OfType<MeshEdge>() )
+		{
+			edge.Component.Mesh.GetFacesConnectedToEdge( edge.Handle, out var faceA, out var faceB );
+			unique.Add( new MeshFace( edge.Component, faceA ) );
+			unique.Add( new MeshFace( edge.Component, faceB ) );
+		}
+
+		foreach ( var vertex in Selection.OfType<MeshVertex>() )
+		{
+			vertex.Component.Mesh.GetFacesConnectedToVertex( vertex.Handle, out var faces );
+
+			foreach ( var face in faces )
+			{
+				unique.Add( new MeshFace( vertex.Component, face ) );
+			}
+		}
+
+		return unique;
+	}
 }

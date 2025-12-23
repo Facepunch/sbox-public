@@ -198,19 +198,18 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 	void SelectElements()
 	{
 		var elements = Selection.OfType<T>().ToArray();
+		var connectedElements = Application.KeyboardModifiers.Contains( KeyboardModifiers.Shift ) ?
+			GetConnectedSelectionElements().ToArray() : [];
 
 		Selection.Clear();
 
-		foreach ( var element in elements )
-		{
-			Selection.Add( element );
-		}
+		foreach ( var element in elements ) Selection.Add( element );
+		foreach ( var element in connectedElements ) Selection.Add( element );
 	}
 
-	protected virtual IEnumerable<IMeshElement> GetAllSelectedElements()
-	{
-		return [];
-	}
+	protected virtual IEnumerable<T> GetConnectedSelectionElements() => [];
+
+	protected virtual IEnumerable<IMeshElement> GetAllSelectedElements() => [];
 
 	void DrawSelection()
 	{
