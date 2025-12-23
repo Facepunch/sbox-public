@@ -187,7 +187,7 @@ public partial class Panel
 
 		if ( debounce.HasValue )
 		{
-			e.Time = TimeNow + debounce.Value;
+			e.Time = (float)(TimeNow + debounce.Value);
 		}
 	}
 

@@ -5,6 +5,18 @@ using System.Collections.Specialized;
 namespace Sandbox;
 
 /// <summary>
+/// Describes a change to a <see cref="NetDictionary{TKey,TValue}"/> which is passed to
+/// <see cref="NetDictionary{TKey,TValue}.OnChanged"/> whenever its contents change.
+/// </summary>
+public struct NetDictionaryChangeEvent<TKey, TValue>
+{
+	public NotifyCollectionChangedAction Type { get; set; }
+	public TKey Key { get; set; }
+	public TValue NewValue { get; set; }
+	public TValue OldValue { get; set; }
+}
+
+/// <summary>
 /// A networkable dictionary for use with the <see cref="SyncAttribute"/> and <see cref="HostSyncAttribute"/>. Only changes will be
 /// networked instead of sending the whole dictionary every time, so it's more efficient.
 /// <br/>
@@ -36,34 +48,39 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 		public TValue Value { get; set; }
 	}
 
-	private readonly ObservableDictionary<TKey, TValue> dictionary = new();
-	private readonly List<Change> changes = new();
+	/// <summary>
+	/// Get notified when the dictionary is changed.
+	/// </summary>
+	public Action<NetDictionaryChangeEvent<TKey, TValue>> OnChanged;
+
+	private readonly ObservableDictionary<TKey, TValue> _dictionary = new();
+	private readonly List<Change> _changes = new();
 
 	bool ICollection<KeyValuePair<TKey, TValue>>.IsReadOnly => false;
 	bool IDictionary.IsReadOnly => false;
 	bool IDictionary.IsFixedSize => false;
 	bool ICollection.IsSynchronized => false;
 	object ICollection.SyncRoot => this;
-	ICollection IDictionary.Values => (ICollection)dictionary.Values;
-	ICollection IDictionary.Keys => (ICollection)dictionary.Keys;
+	ICollection IDictionary.Values => (ICollection)_dictionary.Values;
+	ICollection IDictionary.Keys => (ICollection)_dictionary.Keys;
 
-	IEnumerable<TValue> IReadOnlyDictionary<TKey, TValue>.Values => dictionary.Values;
-	IEnumerable<TKey> IReadOnlyDictionary<TKey, TValue>.Keys => dictionary.Keys;
+	IEnumerable<TValue> IReadOnlyDictionary<TKey, TValue>.Values => _dictionary.Values;
+	IEnumerable<TKey> IReadOnlyDictionary<TKey, TValue>.Keys => _dictionary.Keys;
 
 	/// <summary>
 	/// <inheritdoc cref="ObservableDictionary{TKey,TValue}.Values"/>
 	/// </summary>
-	public ICollection<TValue> Values => dictionary.Values;
+	public ICollection<TValue> Values => _dictionary.Values;
 
 	public NetDictionary()
 	{
-		dictionary.CollectionChanged += OnCollectionChanged;
+		_dictionary.CollectionChanged += OnCollectionChanged;
 		AddResetChange();
 	}
 
 	public void Dispose()
 	{
-		changes.Clear();
+		_changes.Clear();
 	}
 
 	/// <summary>
@@ -71,7 +88,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 	/// </summary>
 	void ICollection.CopyTo( Array array, int index )
 	{
-		(dictionary as ICollection).CopyTo( array, index );
+		(_dictionary as ICollection).CopyTo( array, index );
 	}
 
 	/// <summary>
@@ -106,7 +123,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 		if ( !CanWriteChanges() )
 			return;
 
-		dictionary.Add( key, value );
+		_dictionary.Add( key, value );
 	}
 
 	/// <summary>
@@ -117,7 +134,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 		if ( !CanWriteChanges() )
 			return;
 
-		dictionary.Add( item );
+		_dictionary.Add( item );
 	}
 
 	/// <summary>
@@ -128,7 +145,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 		if ( !CanWriteChanges() )
 			return;
 
-		dictionary.Clear();
+		_dictionary.Clear();
 	}
 
 	/// <summary>
@@ -136,7 +153,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 	/// </summary>
 	public bool ContainsKey( TKey key )
 	{
-		return dictionary.ContainsKey( key );
+		return _dictionary.ContainsKey( key );
 	}
 
 	/// <summary>
@@ -144,7 +161,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 	/// </summary>
 	public bool Contains( KeyValuePair<TKey, TValue> item )
 	{
-		return dictionary.Contains( item );
+		return _dictionary.Contains( item );
 	}
 
 	/// <summary>
@@ -152,12 +169,12 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 	/// </summary>
 	public void CopyTo( KeyValuePair<TKey, TValue>[] array, int arrayIndex )
 	{
-		dictionary.CopyTo( array, arrayIndex );
+		_dictionary.CopyTo( array, arrayIndex );
 	}
 
 	public bool Remove( KeyValuePair<TKey, TValue> item )
 	{
-		return CanWriteChanges() && dictionary.Remove( item );
+		return CanWriteChanges() && _dictionary.Remove( item );
 	}
 
 	/// <summary>
@@ -165,7 +182,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 	/// </summary>
 	public ICollection<TKey> Keys
 	{
-		get { return dictionary.Keys; }
+		get { return _dictionary.Keys; }
 	}
 
 	/// <summary>
@@ -176,31 +193,31 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 		if ( !CanWriteChanges() )
 			return false;
 
-		return dictionary.Remove( key );
+		return _dictionary.Remove( key );
 	}
 
 	/// <summary>
 	/// <inheritdoc cref="ObservableDictionary{TKey,TValue}.TryGetValue"/>
 	/// </summary>
-	public bool TryGetValue( TKey key, out TValue value ) => dictionary.TryGetValue( key, out value );
+	public bool TryGetValue( TKey key, out TValue value ) => _dictionary.TryGetValue( key, out value );
 
 	/// <summary>
 	/// <inheritdoc cref="ObservableDictionary{TKey,TValue}.Count"/>
 	/// </summary>
-	public int Count => dictionary.Count;
+	public int Count => _dictionary.Count;
 
 	public TValue this[TKey key]
 	{
 		get
 		{
-			return dictionary[key];
+			return _dictionary[key];
 		}
 		set
 		{
 			if ( !CanWriteChanges() )
 				return;
 
-			dictionary[key] = value;
+			_dictionary[key] = value;
 		}
 	}
 
@@ -215,7 +232,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 	/// </summary>
 	IDictionaryEnumerator IDictionary.GetEnumerator()
 	{
-		return ((IDictionary)dictionary).GetEnumerator();
+		return ((IDictionary)_dictionary).GetEnumerator();
 	}
 
 	/// <summary>
@@ -223,7 +240,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 	/// </summary>
 	public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
 	{
-		return dictionary.GetEnumerator();
+		return _dictionary.GetEnumerator();
 	}
 
 	/// <summary>
@@ -231,7 +248,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 	/// </summary>
 	IEnumerator IEnumerable.GetEnumerator()
 	{
-		return ((IEnumerable)dictionary).GetEnumerator();
+		return ((IEnumerable)_dictionary).GetEnumerator();
 	}
 
 	private INetworkProxy Parent { get; set; }
@@ -244,7 +261,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 	/// <summary>
 	/// Do we have any pending changes?
 	/// </summary>
-	bool INetworkSerializer.HasChanges => changes.Count > 0;
+	bool INetworkSerializer.HasChanges => _changes.Count > 0;
 
 	/// <summary>
 	/// Write any changed items to a <see cref="ByteStream"/>.
@@ -255,9 +272,9 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 		{
 			// We are sending changes, not a full update. This flag indicates that.
 			data.Write( false );
-			data.Write( changes.Count );
+			data.Write( _changes.Count );
 
-			foreach ( var change in changes )
+			foreach ( var change in _changes )
 			{
 				data.Write( change.Type );
 				WriteValue( change.Key, ref data );
@@ -269,7 +286,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 			Log.Warning( e, $"Error when writing NetDictionary changes - {e.Message}" );
 		}
 
-		changes.Clear();
+		_changes.Clear();
 	}
 
 	/// <summary>
@@ -292,7 +309,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 		}
 
 		// Clear changes whenever we read data. We don't want to keep local changes.
-		changes.Clear();
+		_changes.Clear();
 	}
 
 	/// <summary>
@@ -304,9 +321,9 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 		{
 			// We are sending a full update. This flag indicates that.
 			data.Write( true );
-			data.Write( dictionary.Count );
+			data.Write( _dictionary.Count );
 
-			foreach ( var (k, v) in dictionary )
+			foreach ( var (k, v) in _dictionary )
 			{
 				WriteValue( k, ref data );
 				WriteValue( v, ref data );
@@ -323,7 +340,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 	/// </summary>
 	private void ReadAll( ref ByteStream data )
 	{
-		dictionary.Clear();
+		_dictionary.Clear();
 
 		var count = data.Read<int>();
 
@@ -334,7 +351,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 
 			if ( key is null ) continue;
 
-			dictionary[key] = value;
+			_dictionary[key] = value;
 		}
 	}
 
@@ -353,7 +370,7 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 
 			if ( type == NotifyCollectionChangedAction.Reset )
 			{
-				dictionary.Clear();
+				_dictionary.Clear();
 			}
 			else if ( key is null )
 			{
@@ -361,21 +378,42 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 			}
 			else if ( type == NotifyCollectionChangedAction.Add )
 			{
-				dictionary.Add( key, value );
+				_dictionary.Add( key, value );
 			}
 			else if ( type == NotifyCollectionChangedAction.Remove )
 			{
-				dictionary.Remove( key );
+				_dictionary.Remove( key );
 			}
 			else if ( type == NotifyCollectionChangedAction.Replace )
 			{
-				dictionary[key] = value;
+				_dictionary[key] = value;
 			}
 		}
 	}
 
 	private void OnCollectionChanged( object sender, NotifyCollectionChangedEventArgs e )
 	{
+		var changeEvent = new NetDictionaryChangeEvent<TKey, TValue>
+		{
+			Type = e.Action
+		};
+
+		if ( e.OldItems is not null && e.OldItems.Count > 0 )
+		{
+			var (k, oldValue) = (KeyValuePair<TKey, TValue>)e.OldItems[0];
+			changeEvent.OldValue = oldValue;
+			changeEvent.Key = k;
+		}
+
+		if ( e.NewItems is not null && e.NewItems.Count > 0 )
+		{
+			var (k, newValue) = (KeyValuePair<TKey, TValue>)e.NewItems[0];
+			changeEvent.NewValue = newValue;
+			changeEvent.Key = k;
+		}
+
+		OnChanged?.InvokeWithWarning( changeEvent );
+
 		if ( !CanWriteChanges() )
 			return;
 
@@ -383,13 +421,13 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 		{
 			var (k, v) = (KeyValuePair<TKey, TValue>)e.NewItems[0];
 			var change = new Change { Key = k, Value = v, Type = e.Action };
-			changes.Add( change );
+			_changes.Add( change );
 		}
 		else if ( e.Action == NotifyCollectionChangedAction.Remove )
 		{
-			var (k, v) = (KeyValuePair<TKey, TValue>)e.NewItems[0];
+			var (k, v) = (KeyValuePair<TKey, TValue>)e.OldItems[0];
 			var change = new Change { Key = k, Type = e.Action };
-			changes.Add( change );
+			_changes.Add( change );
 		}
 		else if ( e.Action == NotifyCollectionChangedAction.Reset )
 		{
@@ -397,19 +435,19 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 		}
 		else if ( e.Action == NotifyCollectionChangedAction.Replace )
 		{
-			var (k, v) = (KeyValuePair<TKey, TValue>)e.NewItems[0];
-			var change = new Change { Key = k, Type = e.Action, Value = v };
-			changes.Add( change );
+			var (k, newValue) = (KeyValuePair<TKey, TValue>)e.NewItems[0];
+			var change = new Change { Key = k, Type = e.Action, Value = newValue };
+			_changes.Add( change );
 		}
 	}
 
-	private T ReadValue<T>( ref ByteStream data )
+	private static T ReadValue<T>( ref ByteStream data )
 	{
 		var value = Game.TypeLibrary.FromBytes<object>( ref data );
 		return (T)value;
 	}
 
-	private void WriteValue( object value, ref ByteStream data )
+	private static void WriteValue( object value, ref ByteStream data )
 	{
 		Game.TypeLibrary.ToBytes( value, ref data );
 	}
@@ -419,16 +457,16 @@ public sealed class NetDictionary<TKey, TValue> : INetworkSerializer, INetworkRe
 	private void AddResetChange()
 	{
 		var change = new Change { Type = NotifyCollectionChangedAction.Reset };
-		changes.Add( change );
+		_changes.Add( change );
 
-		foreach ( var (k, v) in dictionary )
+		foreach ( var (k, v) in _dictionary )
 		{
 			// If a key is no longer valid, don't send it as a change, it'll be a null key on read.
 			if ( k is IValid valid && !valid.IsValid() )
 				continue;
 
 			change = new Change { Key = k, Value = v, Type = NotifyCollectionChangedAction.Add };
-			changes.Add( change );
+			_changes.Add( change );
 		}
 	}
 }

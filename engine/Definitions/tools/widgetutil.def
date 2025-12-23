@@ -18,6 +18,7 @@ native static class WidgetUtil Native.WidgetUtil
 
 	static void PaintSetFont( QPainter painter, string fontName, int size, int weight, bool italic, bool heightInPixels );
 	static SwapChainHandle_t CreateSwapChain( QWidget target, RenderMultisampleType_t nMSAAAmount );
+	static bool UpdateSwapChainMSAA( SwapChainHandle_t swapChain, RenderMultisampleType_t nMSAAAmount );
 
 	static void SetWindowNoActivate( QWidget widget );
 

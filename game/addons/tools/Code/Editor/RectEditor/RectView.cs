@@ -1,11 +1,11 @@
-
-namespace Editor.RectEditor;
+﻿namespace Editor.RectEditor;
 
 public enum DragState
 {
 	None,
 	WaitingForMovement,
 	Dragging,
+	Panning,
 }
 
 enum GridSnapMode
@@ -27,8 +27,15 @@ public class RectView : Widget
 	private Vector2 DragStartPos;
 	private Vector2 HoveredCorner;
 	private Rect NewRect;
+	private Rect ViewRect;
 	private List<Document.Rectangle> RectanglesUnderCursor;
 	private HashSet<Document.Rectangle> DraggingRectangles = new();
+
+	private float ZoomLevel = 1.0f;
+	private Vector2 PanOffset = Vector2.Zero;
+	private Vector2 PanStartOffset;
+
+	private List<Rect> UvAssetRects = new();
 
 	public RectView( Window session ) : base( session )
 	{
@@ -42,6 +49,66 @@ public class RectView : Widget
 		FocusMode = FocusMode.Click;
 
 		DrawRect = GetDrawRect();
+		ResetView();
+	}
+
+	protected override void OnKeyPress( KeyEvent e )
+	{
+		base.OnKeyPress( e );
+
+		if ( e.Accepted ) return;
+
+		var direction = Vector2.Zero;
+
+		if ( e.Key == KeyCode.Left ) direction = new Vector2( -1, 0 );
+		if ( e.Key == KeyCode.Right ) direction = new Vector2( 1, 0 );
+		if ( e.Key == KeyCode.Up ) direction = new Vector2( 0, -1 );
+		if ( e.Key == KeyCode.Down ) direction = new Vector2( 0, 1 );
+
+		if ( direction != Vector2.Zero )
+		{
+			Nudge( direction );
+			e.Accepted = true;
+		}
+	}
+
+	private void Nudge( Vector2 direction )
+	{
+		var gridCountX = GetGridCountX();
+		var gridCountY = GetGridCountY();
+		var step = new Vector2( 1.0f / gridCountX, 1.0f / gridCountY );
+		var delta = direction * step;
+
+		if ( Session.Settings.IsFastTextureTool )
+		{
+			var meshRect = Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
+			if ( meshRect != null )
+			{
+				Session.ExecuteUndoableAction( "Nudge UVs", () =>
+				{
+					meshRect.Min += delta;
+					meshRect.Max += delta;
+					meshRect.ApplyMapping( Session.Settings.FastTextureSettings, false );
+					Document.Modified = true;
+					Document.OnModified?.Invoke();
+				} );
+				Update();
+			}
+		}
+		else if ( Document.SelectedRectangles.Count > 0 )
+		{
+			Session.ExecuteUndoableAction( "Nudge Rectangles", () =>
+			{
+				foreach ( var rect in Document.SelectedRectangles )
+				{
+					rect.Min += delta;
+					rect.Max += delta;
+				}
+				Document.Modified = true;
+				Document.OnModified?.Invoke();
+			} );
+			Update();
+		}
 	}
 
 	private Vector2 SnapUVToGrid( Vector2 uv )
@@ -57,7 +124,8 @@ public class RectView : Widget
 
 	private Vector2 PixelToUV_OnGrid( Vector2 vPixel )
 	{
-		return SnapUVToGrid( PixelToUV( vPixel ) );
+		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) ) return SnapUVToGrid( PixelToUV( vPixel ) );
+		return PixelToUV( vPixel );
 	}
 
 	private void DragCreateRect( Vector2 mousePos )
@@ -69,6 +137,22 @@ public class RectView : Widget
 		var max = Vector2.Max( current, maxStart );
 
 		NewRect = new Rect( min, max - min );
+
+		if ( Session.Settings.IsFastTextureTool )
+		{
+			var meshRect = Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
+			if ( meshRect != null )
+			{
+				meshRect.Min = NewRect.TopLeft;
+				meshRect.Max = NewRect.BottomRight;
+
+				// Re-apply mapping so the UVs deform to the new shape immediately
+				meshRect.ApplyMapping( Session.Settings.FastTextureSettings, false );
+
+				Document.Modified = true;
+				Document.OnModified?.Invoke();
+			}
+		}
 
 		Update();
 	}
@@ -95,33 +179,72 @@ public class RectView : Widget
 
 	private void DragResizeRect( Vector2 mousePos )
 	{
-		var start = PixelToUV_OnGrid( DragStartPos );
-		var end = PixelToUV_OnGrid( mousePos );
-		var diff = end - start;
-		if ( diff.x == 0 && diff.y == 0 )
-			return;
+		var currentUV = PixelToUV_OnGrid( mousePos );
 
 		foreach ( var rectangle in DraggingRectangles )
 		{
+			var a = rectangle.Min;
+			var b = rectangle.Max;
+
+			// Horizontal
 			if ( HoveredCorner.x < 0 )
 			{
-				rectangle.Min += diff.WithY( 0 );
+				if ( currentUV.x > b.x )
+				{
+					a = a.WithX( b.x );
+					b = b.WithX( currentUV.x );
+					HoveredCorner = HoveredCorner.WithX( 1 );
+				}
+				else
+				{
+					a = a.WithX( currentUV.x );
+				}
 			}
 			else if ( HoveredCorner.x > 0 )
 			{
-				rectangle.Max += diff.WithY( 0 );
+				if ( currentUV.x < a.x )
+				{
+					b = b.WithX( a.x );
+					a = a.WithX( currentUV.x );
+					HoveredCorner = HoveredCorner.WithX( -1 );
+				}
+				else
+				{
+					b = b.WithX( currentUV.x );
+				}
 			}
 
+			// Vertical
 			if ( HoveredCorner.y < 0 )
 			{
-				rectangle.Min += diff.WithX( 0 );
+				if ( currentUV.y > b.y )
+				{
+					a = a.WithY( b.y );
+					b = b.WithY( currentUV.y );
+					HoveredCorner = HoveredCorner.WithY( 1 );
+				}
+				else
+				{
+					a = a.WithY( currentUV.y );
+				}
 			}
 			else if ( HoveredCorner.y > 0 )
 			{
-				rectangle.Max += diff.WithX( 0 );
+				if ( currentUV.y < a.y )
+				{
+					b = b.WithY( a.y );
+					a = a.WithY( currentUV.y );
+					HoveredCorner = HoveredCorner.WithY( -1 );
+				}
+				else
+				{
+					b = b.WithY( currentUV.y );
+				}
 			}
+
+			rectangle.Min = a;
+			rectangle.Max = b;
 		}
-		DragStartPos = mousePos;
 
 		Document.Modified = true;
 		Document.OnModified?.Invoke();
@@ -134,14 +257,44 @@ public class RectView : Widget
 		var mousePos = FromScreen( Application.CursorPosition );
 		FindRectanglesUnderCursor( mousePos );
 		FindHoveredCorner( mousePos );
+		FindHoveredEdgeInPickMode( mousePos );
 		SetCursorFromState();
+	}
+
+	void FindHoveredEdgeInPickMode( Vector2 mousePos )
+	{
+		// Update hovered edge when in pick edge mode
+		var meshRect = RectanglesUnderCursor.FirstOrDefault( x => x is Document.MeshRectangle ) as Document.MeshRectangle;
+		if ( meshRect is null )
+			return;
+
+		if ( Session.Settings.IsFastTextureTool && Session.Settings.FastTextureSettings.IsPickingEdge )
+		{
+			var mouseUV = PixelToUV( mousePos );
+			meshRect.FindHoveredEdge( mouseUV );
+			Update();
+		}
+		else
+		{
+			meshRect.HoveredEdge = (-1, -1);
+		}
 	}
 
 	protected override void OnMouseMove( MouseEvent e )
 	{
 		base.OnMouseMove( e );
 
-		if ( DragState == DragState.WaitingForMovement )
+		if ( DragState == DragState.Panning )
+		{
+			var delta = e.LocalPosition - DragStartPos;
+			var uvDelta = new Vector2( delta.x / DrawRect.Width, delta.y / DrawRect.Height ) * ViewRect.Size;
+			PanOffset = PanStartOffset - uvDelta;
+			UpdateViewRect();
+			Update();
+			return;
+		}
+
+		if ( DragState == DragState.WaitingForMovement && !Session.Settings.IsFastTextureTool )
 		{
 			if ( DraggingRectangles.Count == 1 )
 			{
@@ -150,7 +303,7 @@ public class RectView : Widget
 			DragState = DragState.Dragging;
 		}
 
-		if ( DragState != DragState.None )
+		if ( DragState != DragState.None && DragState != DragState.Panning )
 		{
 			if ( DraggingRectangles.Count > 0 )
 			{
@@ -174,8 +327,34 @@ public class RectView : Widget
 	{
 		base.OnMousePress( e );
 
+		if ( e.Button == MouseButtons.Middle )
+		{
+			DragState = DragState.Panning;
+			DragStartPos = e.LocalPosition;
+			PanStartOffset = PanOffset;
+			Cursor = CursorShape.ClosedHand;
+			return;
+		}
+
 		if ( e.Button == MouseButtons.Left )
 		{
+			// Handle edge picking mode for Fast Texture Tool
+			if ( Session.Settings.IsFastTextureTool && Session.Settings.FastTextureSettings.IsPickingEdge )
+			{
+				var meshRect = GetFirstRectangleUnderCursor() as Document.MeshRectangle;
+				if ( meshRect != null )
+				{
+					var clickUV = PixelToUV( e.LocalPosition );
+					if ( meshRect.PickAlignmentEdge( clickUV, 0.02f ) )
+					{
+						Session.Settings.FastTextureSettings.IsPickingEdge = false;
+						Session.Settings.FastTextureSettings.OnSettingsChanged?.Invoke();
+						Update();
+					}
+				}
+				return;
+			}
+
 			DragState = DragState.WaitingForMovement;
 			DragStartPos = e.LocalPosition;
 			DraggingRectangles.Clear();
@@ -205,6 +384,12 @@ public class RectView : Widget
 	{
 		base.OnMouseReleased( e );
 
+		if ( e.Button == MouseButtons.Middle )
+		{
+			DragState = DragState.None;
+			return;
+		}
+
 		if ( e.Button == MouseButtons.Left )
 		{
 			var operation = (e.HasShift || e.HasCtrl) ? SelectionOperation.Add : SelectionOperation.Set;
@@ -229,6 +414,9 @@ public class RectView : Widget
 	{
 		var m = new ContextMenu( this );
 
+		if ( Session.Settings.IsFastTextureTool )
+			return;
+
 		m.AddOption( "Delete Rectangle", "delete", () => Session.ExecuteUndoableAction( "Delete Rectangle", () => Document.DeleteRectangles( [rectangle] ) ) );
 
 		m.OpenAtCursor();
@@ -251,6 +439,50 @@ public class RectView : Widget
 			return;
 
 		UpdateScaledBackgroundImage();
+
+		if ( Session.Settings.IsFastTextureTool )
+		{
+			DrawRectUv();
+		}
+	}
+
+	private void DrawRectUv()
+	{
+		UvAssetRects.Clear();
+
+		var materialPath = Session.Settings.ReferenceMaterial;
+		if ( materialPath is null )
+			return;
+
+		var asset = AssetSystem.FindByPath( materialPath );
+		if ( asset is null )
+			return;
+
+		var data = RectAssetData.Find( asset );
+		if ( data is null || data.RectangleSets == null || data.RectangleSets.Count == 0 )
+			return;
+
+		var set = data.RectangleSets.FirstOrDefault();
+		if ( set is null || set.Rectangles == null )
+			return;
+
+		const float invScale = 1.0f / 32768.0f;
+
+		foreach ( var r in set.Rectangles )
+		{
+			if ( r == null || r.Min == null || r.Max == null || r.Min.Length < 2 || r.Max.Length < 2 )
+				continue;
+
+			var minUv = new Vector2( r.Min[0] * invScale, r.Min[1] * invScale );
+			var maxUv = new Vector2( r.Max[0] * invScale, r.Max[1] * invScale );
+
+			if ( maxUv.x <= minUv.x || maxUv.y <= minUv.y )
+				continue;
+
+			UvAssetRects.Add( new Rect( minUv, maxUv - minUv ) );
+		}
+
+		Update();
 	}
 
 	private void UpdateScaledBackgroundImage()
@@ -267,6 +499,27 @@ public class RectView : Widget
 		UpdateScaledBackgroundImage();
 	}
 
+	protected override void OnWheel( WheelEvent e )
+	{
+		base.OnWheel( e );
+
+		var mouseUV = PixelToUV( e.Position );
+
+		// Zoom in/out
+		var zoomFactor = e.Delta > 0 ? 1.1f : 0.9f;
+		var newZoom = System.Math.Clamp( ZoomLevel * zoomFactor, 0.1f, 10.0f );
+
+		if ( newZoom != ZoomLevel )
+		{
+			// Adjust pan to zoom towards mouse position
+			var zoomRatio = newZoom / ZoomLevel;
+			PanOffset = mouseUV - (mouseUV - PanOffset) / zoomRatio;
+			ZoomLevel = newZoom;
+			UpdateViewRect();
+			Update();
+		}
+	}
+
 	protected override void OnPaint()
 	{
 		Paint.ClearPen();
@@ -274,53 +527,90 @@ public class RectView : Widget
 		Paint.SetBrush( Theme.ControlBackground );
 		Paint.DrawRect( LocalRect );
 
-		Paint.SetBrush( Color.Gray );
-		Paint.DrawRect( DrawRect );
+		var topLeft = UVToPixel( 0 );
+		var bottomRight = UVToPixel( 1 );
+		var uvRect = Rect.FromPoints( topLeft, bottomRight );
 
 		if ( ScaledImage is not null )
 		{
-			Paint.Draw( DrawRect, ScaledImage );
+			if ( Session.Settings.IsFastTextureTool && Session.Settings.FastTextureSettings.IsTileView )
+			{
+				// Tiled View
+				var tileSize = uvRect.Size;
+				var viewBounds = LocalRect;
+
+				var startX = MathF.Floor( (viewBounds.Left - uvRect.Left) / tileSize.x ) * tileSize.x + uvRect.Left;
+				var startY = MathF.Floor( (viewBounds.Top - uvRect.Top) / tileSize.y ) * tileSize.y + uvRect.Top;
+
+				for ( float y = startY; y < viewBounds.Bottom; y += tileSize.y )
+				{
+					for ( float x = startX; x < viewBounds.Right; x += tileSize.x )
+					{
+						var tileRect = new Rect( x, y, tileSize.x, tileSize.y );
+						Paint.Draw( tileRect, ScaledImage );
+					}
+				}
+			}
+			else
+			{
+				// Normal View
+				Paint.Draw( uvRect, ScaledImage );
+			}
 		}
 
 		if ( Session.GridEnabled )
 		{
-			DrawGrid();
+			if ( Session.Settings.IsFastTextureTool && Session.Settings.FastTextureSettings.IsTileView )
+			{
+				DrawTiledGrid( uvRect );
+			}
+			else
+			{
+				DrawGrid( uvRect );
+			}
+		}
+
+		if ( Session.Settings.FastTextureSettings.ShowRects )
+		{
+			DrawUvAssetRectangles();
 		}
 
 		DrawRectangleSet( Document?.Rectangles );
 
 		if ( DragState == DragState.Dragging )
 		{
-			var topLeft = UVToPixel( NewRect.TopLeft );
-			var bottomRight = UVToPixel( NewRect.BottomRight );
-			var newRect = new Rect( topLeft, bottomRight - topLeft );
+			var newTopLeft = UVToPixel( NewRect.TopLeft );
+			var newBottomRight = UVToPixel( NewRect.BottomRight );
+			var newRect = new Rect( newTopLeft, newBottomRight - newTopLeft );
 			Paint.ClearBrush();
 			Paint.SetPen( Color.Yellow, 3 );
 			Paint.DrawRect( newRect );
 		}
 	}
 
-	private Vector2 UVToPixel( Vector2 uv )
+	public Vector2 UVToPixel( Vector2 uv )
 	{
-		return new Vector2( (int)((uv.x * DrawRect.Width) + DrawRect.Left), (int)((uv.y * DrawRect.Height) + DrawRect.Top) );
+		var transformedUV = (uv - ViewRect.TopLeft) / ViewRect.Size;
+		return new Vector2( (int)((transformedUV.x * DrawRect.Width) + DrawRect.Left), (int)((transformedUV.y * DrawRect.Height) + DrawRect.Top) );
 	}
 
-	private Vector2 PixelToUV( Vector2 pixel )
+	public Vector2 PixelToUV( Vector2 pixel )
 	{
-		return new Vector2( (pixel.x - DrawRect.Left) / DrawRect.Width, (pixel.y - DrawRect.Top) / DrawRect.Height );
+		var normalizedPixel = new Vector2( (pixel.x - DrawRect.Left) / DrawRect.Width, (pixel.y - DrawRect.Top) / DrawRect.Height );
+		return ViewRect.TopLeft + normalizedPixel * ViewRect.Size;
 	}
 
 	private int GetGridCountX()
 	{
 		var width = SourceImage is null ? 512 : System.Math.Max( (int)SourceImage.Width, 1 );
-		var gridSize = Session.Settings.GridSize;
+		var gridSize = Math.Max( 1, Session.Settings.GridSize );
 		return width / gridSize;
 	}
 
 	private int GetGridCountY()
 	{
 		var height = SourceImage is null ? 512 : System.Math.Max( (int)SourceImage.Height, 1 );
-		var gridSize = Session.Settings.GridSize;
+		var gridSize = Math.Max( 1, Session.Settings.GridSize );
 		return height / gridSize;
 	}
 
@@ -350,6 +640,19 @@ public class RectView : Widget
 	}
 	void SetCursorFromState()
 	{
+		// Show crosshair cursor when picking edge
+		if ( Session.Settings.IsFastTextureTool && Session.Settings.FastTextureSettings.IsPickingEdge )
+		{
+			Cursor = CursorShape.Cross;
+			return;
+		}
+
+		if ( DragState == DragState.Panning )
+		{
+			Cursor = CursorShape.ClosedHand;
+			return;
+		}
+
 		bool canResize = Document.SelectedRectangles.Count < 2 && HoveredCorner != 0;
 		var rectUnderCursor = GetFirstRectangleUnderCursor();
 
@@ -380,7 +683,7 @@ public class RectView : Widget
 			}
 			else
 			{
-				Cursor = CursorShape.Arrow;
+				Cursor = CursorShape.Cross;
 			}
 		}
 		else
@@ -430,25 +733,30 @@ public class RectView : Widget
 		if ( rectangles is null )
 			return;
 
-		var rectangleUnderCursor = GetFirstRectangleUnderCursor();
-		foreach ( var rectangle in rectangles.Where( x => !Document.IsRectangleSelected( x ) ) )
+		foreach ( var rectanglesItem in rectangles )
 		{
-			Paint.SetBrush( rectangle.Color.WithAlpha( 0.5f ) );
-			Paint.SetPen( Color.Black.WithAlpha( 192 / 255.0f ), 1 );
+			rectanglesItem?.OnPaint( this );
+		}
+
+		var rectangleUnderCursor = GetFirstRectangleUnderCursor();
+		foreach ( var rectangle in rectangles.Where( x => !Document.IsRectangleSelected( x ) && x != rectangleUnderCursor ) )
+		{
+			Paint.SetBrush( rectangle.Color.WithAlpha( 0.2f ) );
+			Paint.SetPen( Color.Black.WithAlpha( 192 / 255.0f ), 2 );
 			DrawRectangle( rectangle );
 		}
 
 		foreach ( var rectangle in Document.SelectedRectangles )
 		{
-			Paint.SetBrush( new Color32( 255, 255, 0, 64 ) );
-			Paint.SetPen( new Color32( 255, 255, 0 ), 1 );
+			Paint.SetBrush( Color.White.WithAlpha( 0.1f ) );
+			Paint.SetPen( new Color32( 255, 255, 0 ), 3 );
 			DrawRectangle( rectangle, corner: (rectangle == rectangleUnderCursor && Document.SelectedRectangles.Count < 2) ? HoveredCorner : 0 );
 		}
 
 		if ( rectangleUnderCursor is not null && !Document.IsRectangleSelected( rectangleUnderCursor ) )
 		{
-			Paint.SetBrush( new Color32( 0, 255, 0, 64 ) );
-			Paint.SetPen( Color.Green );
+			Paint.SetBrush( Color.Yellow.WithAlpha( 0.1f ) );
+			Paint.SetPen( Color.Yellow, 2 );
 			DrawRectangle( rectangleUnderCursor, corner: HoveredCorner );
 		}
 	}
@@ -490,7 +798,7 @@ public class RectView : Widget
 		}
 	}
 
-	private void DrawGrid()
+	private void DrawGrid( Rect rect )
 	{
 		const float gridOpacity = 64 / 255.0f;
 
@@ -499,8 +807,6 @@ public class RectView : Widget
 
 		var stepX = 1.0f / gridCountX;
 		var stepY = 1.0f / gridCountY;
-
-		var rect = DrawRect;
 
 		Paint.ClearBrush();
 
@@ -558,6 +864,127 @@ public class RectView : Widget
 		}
 	}
 
+	private void DrawTiledGrid( Rect baseRect )
+	{
+		const float gridOpacity = 64 / 255.0f;
+
+		var gridCountX = GetGridCountX();
+		var gridCountY = GetGridCountY();
+
+		var tileSize = baseRect.Size;
+		var viewBounds = LocalRect;
+
+		var stepPixelsX = tileSize.x / gridCountX;
+		var stepPixelsY = tileSize.y / gridCountY;
+
+		Paint.ClearBrush();
+
+		var offsetX = baseRect.Left % stepPixelsX;
+		var offsetY = baseRect.Top % stepPixelsY;
+
+		for ( float x = viewBounds.Left + offsetX; x <= viewBounds.Right; x += stepPixelsX )
+		{
+			if ( x < viewBounds.Left )
+				continue;
+
+			Paint.SetPen( new Color( 1, 1, 1, gridOpacity ) );
+			Paint.DrawLine( new Vector2( x - 1, viewBounds.Top ), new Vector2( x - 1, viewBounds.Bottom ) );
+
+			Paint.SetPen( new Color( 0, 0, 0, gridOpacity ) );
+			Paint.DrawLine( new Vector2( x, viewBounds.Top ), new Vector2( x, viewBounds.Bottom ) );
+		}
+
+		for ( float y = viewBounds.Top + offsetY; y <= viewBounds.Bottom; y += stepPixelsY )
+		{
+			if ( y < viewBounds.Top )
+				continue;
+
+			Paint.SetPen( new Color( 1, 1, 1, gridOpacity ) );
+			Paint.DrawLine( new Vector2( viewBounds.Left, y - 1 ), new Vector2( viewBounds.Right, y - 1 ) );
+
+			Paint.SetPen( new Color( 0, 0, 0, gridOpacity ) );
+			Paint.DrawLine( new Vector2( viewBounds.Left, y ), new Vector2( viewBounds.Right, y ) );
+		}
+	}
+
+	protected override void OnDoubleClick( MouseEvent e )
+	{
+		base.OnDoubleClick( e );
+
+		if ( e.Button != MouseButtons.Left )
+			return;
+
+		var uv = PixelToUV( e.LocalPosition );
+		SelectUvAssetRect( uv );
+	}
+
+	private void SelectUvAssetRect( Vector2 uv )
+	{
+		if ( !Session.Settings.IsFastTextureTool )
+			return;
+
+		if ( UvAssetRects.Count == 0 )
+		{
+			ResetUV();
+			return;
+		}
+
+
+		var index = GetAssetRectIndexAtUV( uv );
+		if ( index < 0 )
+			return;
+
+		var assetRect = UvAssetRects[index];
+		var assetMin = assetRect.TopLeft;
+		var assetMax = assetRect.BottomRight;
+
+		Session.ExecuteUndoableAction( "Apply UV From Asset Rect", () =>
+		{
+			var meshRect = Document.Rectangles
+				.OfType<Document.MeshRectangle>()
+				.FirstOrDefault();
+
+			if ( meshRect == null )
+				return;
+
+			meshRect.Min = assetMin;
+			meshRect.Max = assetMax;
+
+			Document.Modified = true;
+			Document.OnModified?.Invoke();
+		} );
+	}
+
+	public void ResetUV()
+	{
+		Session.ExecuteUndoableAction( "Apply UV From Asset Rect", () =>
+		{
+			var meshRect = Document.Rectangles
+				.OfType<Document.MeshRectangle>()
+				.FirstOrDefault();
+			if ( meshRect == null )
+				return;
+			meshRect.Min = Vector2.Zero;
+			meshRect.Max = Vector2.One;
+			Document.Modified = true;
+			Document.OnModified?.Invoke();
+		} );
+	}
+
+	public void FocusOnUV()
+	{
+		//Focus the view on the selected rectangle UVs
+		var selectedRect = Document.SelectedRectangles.FirstOrDefault();
+		if ( selectedRect is null )
+			return;
+		var rectCenter = selectedRect.Max + selectedRect.Min;
+		rectCenter *= 0.5f;
+		PanOffset = rectCenter - (0.5f / ZoomLevel);
+		UpdateViewRect();
+		Update();
+
+	}
+
 	private Rect GetDrawRect()
 	{
 		const int marigin = 16;
@@ -600,5 +1027,64 @@ public class RectView : Widget
 		drawHeight = drawHeight / drawSnapSize * drawSnapSize;
 
 		return new Rect( marigin, marigin, drawWidth, drawHeight );
+	}
+
+	private int GetAssetRectIndexAtUV( Vector2 uv )
+	{
+		for ( int i = 0; i < UvAssetRects.Count; i++ )
+		{
+			var r = UvAssetRects[i];
+
+			if ( uv.x >= r.Left && uv.x <= r.Right &&
+				 uv.y >= r.Top && uv.y <= r.Bottom )
+			{
+				return i;
+			}
+		}
+
+		return -1;
+	}
+
+	private void DrawUvAssetRectangles()
+	{
+		if ( UvAssetRects.Count == 0 )
+			return;
+
+		Paint.ClearBrush();
+		Paint.SetPen( Color.Black.WithAlpha( 0.6f ), 2, style: PenStyle.Dot );
+
+		foreach ( var rect in UvAssetRects )
+		{
+			var p0 = UVToPixel( rect.TopLeft );
+			var p1 = UVToPixel( rect.BottomRight );
+			Paint.DrawRect( new Rect( p0, p1 - p0 ) );
+		}
+	}
+
+	private void UpdateViewRect()
+	{
+		var size = 1.0f / ZoomLevel;
+		ViewRect = new Rect(
+			PanOffset.x,
+			PanOffset.y,
+			size,
+			size
+		);
+	}
+
+	public void ResetView()
+	{
+		ZoomLevel = 1.0f;
+		PanOffset = Vector2.Zero;
+		UpdateViewRect();
+		Update();
+	}
+
+	public void FitView()
+	{
+		ZoomLevel = 1.0f;
+		PanOffset = Vector2.Zero;
+		UpdateViewRect();
+		Update();
 	}
 }

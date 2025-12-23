@@ -2459,9 +2459,9 @@
                                               "PanelSize": "1024,1024",
                                               "RenderOptions": {
                                                 "GameLayer": false,
-                                                "OverlayLayer": false,
+                                                "OverlayLayer": true,
                                                 "BloomLayer": false,
-                                                "AfterUILayer": true
+                                                "AfterUILayer": false
                                               },
                                               "RenderScale": 0.33,
                                               "VerticalAlign": "Center"
@@ -4456,9 +4456,9 @@
                                               "PanelSize": "1024,1024",
                                               "RenderOptions": {
                                                 "GameLayer": false,
-                                                "OverlayLayer": false,
+                                                "OverlayLayer": true,
                                                 "BloomLayer": false,
-                                                "AfterUILayer": true
+                                                "AfterUILayer": false
                                               },
                                               "RenderScale": 0.33,
                                               "VerticalAlign": "Center"

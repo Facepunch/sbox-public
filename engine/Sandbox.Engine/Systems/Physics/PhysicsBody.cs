@@ -1228,4 +1228,21 @@ public sealed partial class PhysicsBody : IHandle
 	{
 		Joints.Remove( joint );
 	}
+
+	internal void ResetProxy()
+	{
+		native.ResetProxy();
+	}
+
+	/// <summary>
+	/// Enable enhanced continuous collision detection (CCD) for this body.
+	/// When enabled, the body performs CCD against dynamic bodies
+	/// (but not against other bodies with enhanced CCD enabled).
+	/// This is useful for fast-moving objects like bullets or rockets
+	/// that need reliable collision detection.
+	/// </summary>
+	public bool EnhancedCcd
+	{
+		set => native.SetBullet( value );
+	}
 }

@@ -14,6 +14,7 @@ public partial class SoundPlayer
 			Cursor = CursorShape.SizeH;
 			Movable = true;
 			Selectable = true;
+			HandlePosition = new( 0.5f, 0f );
 		}
 
 		protected override void OnPaint()
@@ -41,6 +42,7 @@ public partial class SoundPlayer
 		protected override void OnMouseReleased( GraphicsMouseEvent e )
 		{
 			base.OnMouseReleased( e );
+			TimelineView.MoveScrubber( Position.x );
 			TimelineView.Scrubbing = false;
 		}
 
@@ -49,7 +51,7 @@ public partial class SoundPlayer
 			base.OnMoved();
 
 			TimelineView.Scrubbing = true;
-			TimelineView.MoveScrubber( Position.x, false );
+			TimelineView.MoveScrubber( Position.x + 0.5f, false );
 		}
 	}
 

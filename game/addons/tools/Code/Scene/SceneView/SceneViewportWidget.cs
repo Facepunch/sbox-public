@@ -2,7 +2,6 @@
 
 public partial class SceneViewportWidget : Widget
 {
-	public static SceneViewportWidget LastSelected { get; private set; }
 	public static Vector2 MousePosition { get; private set; }
 
 	public int Id { get; private set; }
@@ -43,7 +42,7 @@ public partial class SceneViewportWidget : Widget
 		Id = id;
 		if ( Id == 0 )
 		{
-			LastSelected = this;
+			SceneView.LastSelectedViewportWidget = this;
 		}
 
 		if ( ProjectCookie.Get<ViewportState>( $"SceneView.Viewport{Id}.Settings", null ) is ViewportState savedSettings )
@@ -369,8 +368,13 @@ public partial class SceneViewportWidget : Widget
 
 		base.OnMouseReleased( e );
 
+		var tool = SceneView?.Tools.CurrentTool;
+		if ( tool is not null && !tool.AllowContextMenu )
+			return;
+
 		// Unity does a 6 pixel deadzone to trigger the context menu
-		if ( e.Button == MouseButtons.Right && Vector2.DistanceBetween( initialMousePosition, e.LocalPosition ) < 6 )
+		if ( e.KeyboardModifiers == KeyboardModifiers.None && e.Button == MouseButtons.Right &&
+			 Vector2.DistanceBetween( initialMousePosition, e.LocalPosition ) < 6 )
 		{
 			var menu = new ContextMenu( this );
 			bool HasSelection = Session.Selection.OfType<GameObject>().Any();
@@ -410,6 +414,8 @@ public partial class SceneViewportWidget : Widget
 		}
 	}
 
+	bool blockCamera;
+
 	void OnEditorPreFrame()
 	{
 		// don't do editor update if we're the play view
@@ -440,25 +446,39 @@ public partial class SceneViewportWidget : Widget
 		//
 
 		var hasMouseFocus = hasMouseInput;
-		if ( IsFocused )
+		if ( IsFocused && SceneViewWidget.Current.IsValid() )
 		{
-			LastSelected = this;
+			SceneViewWidget.Current.LastSelectedViewportWidget = this;
 		}
 
 		GizmoInstance.Input.IsHovered = hasMouseFocus;
 
 		if ( IsActiveWindow ) // don't update camera input if the editor window isn't active
 		{
+			// Block camera input when shift or ctrl was down first and right mouse pressed.
+			var rightDown = Application.MouseButtons.HasFlag( MouseButtons.Right );
+			var modifiers = Application.KeyboardModifiers;
+			var modifiersDown = modifiers.Contains( KeyboardModifiers.Shift ) || modifiers.HasFlag( KeyboardModifiers.Ctrl );
+			blockCamera = !blockCamera ? modifiersDown && !rightDown : modifiersDown;
+
 			_activeCamera.OrthographicHeight = State.CameraOrthoHeight;
-			if ( GizmoInstance.OrbitCamera( _activeCamera, Renderer, ref cameraOrbitDistance ) )
+
+			if ( !blockCamera )
 			{
-				cameraTargetPosition = null;
-				GizmoInstance.Input.IsHovered = false;
+				if ( GizmoInstance.OrbitCamera( _activeCamera, Renderer, ref cameraOrbitDistance ) )
+				{
+					cameraTargetPosition = null;
+					GizmoInstance.Input.IsHovered = false;
+				}
+				else if ( GizmoInstance.FirstPersonCamera( _activeCamera, Renderer, State.View == ViewMode.Perspective ) )
+				{
+					cameraTargetPosition = null;
+					GizmoInstance.Input.IsHovered = false;
+				}
 			}
-			else if ( GizmoInstance.FirstPersonCamera( _activeCamera, Renderer, State.View == ViewMode.Perspective ) )
+			else
 			{
-				cameraTargetPosition = null;
-				GizmoInstance.Input.IsHovered = false;
+				Renderer.Cursor = CursorShape.None;
 			}
 
 			State.CameraPosition = _activeCamera.WorldPosition;

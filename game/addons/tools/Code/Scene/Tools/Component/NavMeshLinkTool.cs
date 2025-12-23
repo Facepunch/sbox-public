@@ -107,7 +107,7 @@ class NavMeshLinkToolWindow : WidgetWindow
 					isPickingEnd = false;
 					isAddingNewLink = false;
 					helpLabel.Text = "Pick start position for selected link. Press Ctrl or Cancel Button to cancel.";
-					SceneViewportWidget.LastSelected.Focus();
+					SceneViewWidget.Current?.LastSelectedViewportWidget?.Focus();
 				}
 			} );
 
@@ -120,7 +120,7 @@ class NavMeshLinkToolWindow : WidgetWindow
 					isPickingStart = false;
 					isAddingNewLink = false;
 					helpLabel.Text = "Pick end position for selected link. Press Ctrl or Cancel Button to cancel.";
-					SceneViewportWidget.LastSelected.Focus();
+					SceneViewWidget.Current?.LastSelectedViewportWidget?.Focus();
 				}
 			} );
 
@@ -132,7 +132,7 @@ class NavMeshLinkToolWindow : WidgetWindow
 					isAddingNewLink = true;
 					isPickingStart = true;
 					helpLabel.Text = "Pick start Position for new link. Press Ctrl or Cancel Button to cancel.";
-					SceneViewportWidget.LastSelected.Focus();
+					SceneViewWidget.Current?.LastSelectedViewportWidget?.Focus();
 				}
 			} );
 

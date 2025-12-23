@@ -10,6 +10,7 @@ internal static partial class Rules
 		"System.Private.CoreLib/System.Runtime.CompilerServices.Unsafe.As*",
 		"System.Private.CoreLib/System.Runtime.CompilerServices.Unsafe.AsRef*",
 		"System.Private.CoreLib/System.Runtime.CompilerServices.InlineArrayAttribute",
+		"System.Private.CoreLib/System.Runtime.CompilerServices.DecimalConstantAttribute",
 		"System.Private.CoreLib/System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan*",
 
 		"System.Private.CoreLib/System.Runtime.CompilerServices.IAsyncStateMachine*",

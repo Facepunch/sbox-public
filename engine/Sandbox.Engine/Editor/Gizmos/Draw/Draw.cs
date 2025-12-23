@@ -15,10 +15,30 @@ public static partial class Gizmo
 	/// </summary>
 	public sealed partial class GizmoDraw
 	{
-		static Material LineMaterial = Material.Load( "materials/gizmo/line.vmat" );
-		static Material SolidMaterial = Material.Load( "materials/gizmo/solid.vmat" );
-		static Material SpriteMaterial = Material.Load( "materials/gizmo/sprite.vmat" );
-		static Material GridMaterial = Material.Load( "materials/gizmo/grid.vmat" );
+		static Material LineMaterial;
+		static Material SolidMaterial;
+		static Material SpriteMaterial;
+		static Material GridMaterial;
+
+		internal static void InitStatic()
+		{
+			LineMaterial = Material.Load( "materials/gizmo/line.vmat" );
+			SolidMaterial = Material.Load( "materials/gizmo/solid.vmat" );
+			SpriteMaterial = Material.Load( "materials/gizmo/sprite.vmat" );
+			GridMaterial = Material.Load( "materials/gizmo/grid.vmat" );
+		}
+
+		internal static void DisposeStatic()
+		{
+			LineMaterial?.Dispose();
+			LineMaterial = null;
+			SolidMaterial?.Dispose();
+			SolidMaterial = null;
+			SpriteMaterial?.Dispose();
+			SpriteMaterial = null;
+			GridMaterial?.Dispose();
+			GridMaterial = null;
+		}
 
 		internal GizmoDraw()
 		{
@@ -125,7 +145,7 @@ public static partial class Gizmo
 		/// <summary>
 		/// Draw a model
 		/// </summary>
-		public SceneObject Model( Model modelName ) => Model( modelName, Transform.Zero );
+		public SceneModel Model( Model modelName ) => Model( modelName, Transform.Zero );
 
 
 
@@ -190,6 +210,20 @@ public static partial class Gizmo
 		}
 
 		/// <summary>
+		/// Draw text with a text rendering scope for more text rendering customization.
+		/// </summary>
+		public void ScreenText( TextRendering.Scope text, Vector2 pos, TextFlag flags = TextFlag.LeftTop )
+		{
+			var so = Active.FindOrCreate( $"text", () => new TextSceneObject( World ) );
+
+			so.TextBlock = text;
+			so.Transform = Transform.Zero;
+			so.ScreenPos = pos;
+			so.Bounds = BBox.FromPositionAndSize( 0, float.MaxValue );
+			so.TextFlags = flags;
+		}
+
+		/// <summary>
 		/// Draw text on screen at a 3d position
 		/// </summary>
 		public void ScreenText( string text, Vector3 worldPos, Vector2 offset, string font = "Roboto", float size = 12.0f, TextFlag flags = TextFlag.LeftTop )
@@ -198,6 +232,17 @@ public static partial class Gizmo
 				return;
 
 			ScreenText( text, screen + offset, font, size, flags );
+		}
+
+		/// <summary>
+		/// Draw text on screen at a 3d position with a text rendering scope for more text rendering customization.
+		/// </summary>
+		public void ScreenText( TextRendering.Scope text, Vector3 worldPos, Vector2 offset, TextFlag flags = TextFlag.LeftTop )
+		{
+			if ( !Camera.ToScreen( worldPos, out var screen ) )
+				return;
+
+			ScreenText( text, screen + offset, flags );
 		}
 
 		/// <summary>

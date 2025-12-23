@@ -7,6 +7,8 @@ public partial class ColorHueControl : BaseControl
 {
 	readonly Panel _handle;
 
+	public override bool SupportsMultiEdit => true;
+
 	float _hue = 0;
 
 	public ColorHueControl()

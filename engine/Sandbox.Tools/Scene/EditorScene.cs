@@ -300,6 +300,7 @@ public static class EditorScene
 		SceneEditorSession.Active.StopPlaying();
 
 		Game.IsPlaying = false;
+		Game.IsPaused = false;
 
 		// Immediately stop active recordings so we don't get any black frames
 		ScreenRecorder.StopRecording();

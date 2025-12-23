@@ -36,15 +36,19 @@ public static class MenuEditorSystem
 	{
 		if ( IsInProjectFolder( asset ) ) return;
 
-		var dir = targetRoot + "/" + System.IO.Path.GetDirectoryName( asset.RelativePath );
+		// Make sure we only copy compiled stuff, Asset.RelativePath will use a source path if one exists!
+		var assetPath = asset.GetCompiledFile();
+		if ( assetPath == null ) return;
+
+		var dir = targetRoot + "/" + System.IO.Path.GetDirectoryName( assetPath );
 		System.IO.Directory.CreateDirectory( dir );
 
-		var target = targetRoot + "/" + asset.RelativePath;
+		var target = targetRoot + "/" + assetPath;
 
 		if ( System.IO.File.Exists( target ) )
 			return;
 
-		System.IO.File.Copy( asset.AbsolutePath, target );
+		System.IO.File.Copy( asset.GetCompiledFile( true ), target );
 
 		foreach ( var dependant in asset.GetReferences( false ) )
 		{

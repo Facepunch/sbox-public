@@ -82,7 +82,7 @@ public class CloneTests
 	[TestMethod]
 	public void CloneAsDisabled_Prefab()
 	{
-		var prefab = Prefabs.BasicPrefab;
+		var prefab = Prefab.Prefabs.BasicPrefab;
 
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
@@ -141,7 +141,7 @@ public class CloneTests
 	[TestMethod]
 	public void CloneAsDisabled_Prefab_Overloads()
 	{
-		var prefab = Prefabs.BasicPrefab;
+		var prefab = Prefab.Prefabs.BasicPrefab;
 
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
@@ -191,7 +191,7 @@ public class CloneTests
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
-		var prefab = Prefabs.GetPrefab( "onawakeonstart_disabled.prefab", OnAwakeOnStartTestPrefab );
+		var prefab = Prefab.Prefabs.GetPrefab( "onawakeonstart_disabled.prefab", OnAwakeOnStartTestPrefab );
 
 		var clonedPrefab = prefab.Clone( new CloneConfig()
 		{
@@ -242,7 +242,7 @@ public class CloneTests
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
 
-		var prefab = Prefabs.GetPrefab( "onawakeonstart.prefab", OnAwakeOnStartTestPrefab );
+		var prefab = Prefab.Prefabs.GetPrefab( "onawakeonstart.prefab", OnAwakeOnStartTestPrefab );
 
 		var clonedPrefab = prefab.Clone( new CloneConfig()
 		{
@@ -276,7 +276,7 @@ public class CloneTests
 
 		Game.Resources.Register( pfile );
 
-		var prefab = Prefabs.GetPrefab( "prefabwithnestedprefab.prefab", PrefabWithNestedPrefabThatHasAPrefabVariableWhichReferencesRoot );
+		var prefab = Prefab.Prefabs.GetPrefab( "prefabwithnestedprefab.prefab", PrefabWithNestedPrefabThatHasAPrefabVariableWhichReferencesRoot );
 
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
