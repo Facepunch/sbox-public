@@ -442,7 +442,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			var openingScene = Scene.CreateEditorScene();
 			using var _ = openingScene.Push();
 
-			openingScene.Name = sceneFile.ResourceName.ToTitleCase();
 			openingScene.Load( sceneFile );
 
 			var session = new SceneEditorSession( openingScene );
@@ -460,7 +459,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			var openingScene = PrefabScene.CreateForEditing();
 			using var _ = openingScene.Push();
 
-			openingScene.Name = prefabFile.ResourceName.ToTitleCase();
 			openingScene.Load( prefabFile );
 
 			var session = new PrefabEditorSession( openingScene );
