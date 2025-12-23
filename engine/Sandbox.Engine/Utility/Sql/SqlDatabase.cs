@@ -1,8 +1,160 @@
 using Microsoft.Data.Sqlite;
 using System.IO;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace Sandbox.Utility;
+
+/// <summary>
+/// Handles native SQLite library initialization for the engine.
+/// </summary>
+internal static class SqliteNative
+{
+	private static bool s_initialized;
+	private static readonly Lock Lock = new();
+	private static IntPtr s_nativeHandle;
+
+	/// <summary>
+	/// Path to the native SQLite library relative to the managed assembly directory.
+	/// </summary>
+	private static string GetNativeLibraryPath()
+	{
+		var managedDir = Path.GetDirectoryName( typeof( SqliteNative ).Assembly.Location );
+		var runtimesPath = Path.Combine( managedDir, "runtimes" );
+
+		if ( RuntimeInformation.IsOSPlatform( OSPlatform.Windows ) )
+		{
+			var rid = RuntimeInformation.ProcessArchitecture switch
+			{
+				Architecture.X64 => "win-x64",
+				Architecture.X86 => "win-x86",
+				Architecture.Arm64 => "win-arm64",
+				_ => "win-x64"
+			};
+			return Path.Combine( runtimesPath, rid, "native", "e_sqlite3.dll" );
+		}
+
+		if ( RuntimeInformation.IsOSPlatform( OSPlatform.Linux ) )
+		{
+			var rid = RuntimeInformation.ProcessArchitecture switch
+			{
+				Architecture.X64 => "linux-x64",
+				Architecture.Arm64 => "linux-arm64",
+				_ => "linux-x64"
+			};
+			return Path.Combine( runtimesPath, rid, "native", "libe_sqlite3.so" );
+		}
+
+		if ( RuntimeInformation.IsOSPlatform( OSPlatform.OSX ) )
+		{
+			var rid = RuntimeInformation.ProcessArchitecture switch
+			{
+				Architecture.Arm64 => "osx-arm64",
+				Architecture.X64 => "osx-x64",
+				_ => "osx-x64"
+			};
+			return Path.Combine( runtimesPath, rid, "native", "libe_sqlite3.dylib" );
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Ensures the native SQLite library is loaded and SQLitePCL is initialized.
+	/// Must be called before any SQLite operations.
+	/// </summary>
+	internal static void Initialize()
+	{
+		if ( s_initialized )
+			return;
+
+		lock ( Lock )
+		{
+			if ( s_initialized )
+				return;
+
+			var nativeLibPath = GetNativeLibraryPath();
+			if ( string.IsNullOrEmpty( nativeLibPath ) || !File.Exists( nativeLibPath ) )
+			{
+				throw new DllNotFoundException( $"Could not find native SQLite library at: {nativeLibPath}" );
+			}
+
+			// Pre-load the native library so it's available when SQLitePCL needs it
+			if ( !NativeLibrary.TryLoad( nativeLibPath, out s_nativeHandle ) )
+			{
+				throw new DllNotFoundException( $"Failed to load native SQLite library from: {nativeLibPath}" );
+			}
+
+			AppDomain.CurrentDomain.AssemblyLoad += OnAssemblyLoad;
+
+			foreach ( var assembly in AppDomain.CurrentDomain.GetAssemblies() )
+			{
+				TrySetResolver( assembly );
+			}
+
+			InitializeSqlitePcl();
+
+			s_initialized = true;
+		}
+	}
+
+	private static void OnAssemblyLoad( object sender, AssemblyLoadEventArgs args )
+	{
+		TrySetResolver( args.LoadedAssembly );
+	}
+
+	private static void TrySetResolver( Assembly assembly )
+	{
+		var name = assembly.GetName().Name;
+		if ( name == null || !name.StartsWith( "SQLitePCL", StringComparison.OrdinalIgnoreCase ) )
+			return;
+
+		try
+		{
+			NativeLibrary.SetDllImportResolver( assembly, ResolveSqliteNative );
+		}
+		catch ( InvalidOperationException )
+		{
+			// Resolver already set
+		}
+	}
+
+	private static IntPtr ResolveSqliteNative( string libraryName, Assembly assembly, DllImportSearchPath? searchPath )
+	{
+		return libraryName == "e_sqlite3" && s_nativeHandle != IntPtr.Zero ? s_nativeHandle : IntPtr.Zero;
+	}
+
+	private static void InitializeSqlitePcl()
+	{
+		var providerType = Type.GetType( "SQLitePCL.SQLite3Provider_e_sqlite3, SQLitePCLRaw.provider.e_sqlite3" );
+		var rawType = Type.GetType( "SQLitePCL.raw, SQLitePCLRaw.core" );
+
+		if ( providerType == null || rawType == null )
+		{
+			throw new InvalidOperationException( "SQLitePCL assemblies not found. Did you check if Microsoft.Data.Sqlite is referenced?" );
+		}
+
+		var provider = Activator.CreateInstance( providerType );
+		var setProviderMethod = rawType.GetMethod( "SetProvider", BindingFlags.Public | BindingFlags.Static );
+		setProviderMethod?.Invoke( null, [provider] );
+	}
+
+	/// <summary>
+	/// Frees the native SQLite library. Called on shutdown.
+	/// </summary>
+	internal static void Shutdown()
+	{
+		AppDomain.CurrentDomain.AssemblyLoad -= OnAssemblyLoad;
+
+		if ( s_nativeHandle != IntPtr.Zero )
+		{
+			NativeLibrary.Free( s_nativeHandle );
+			s_nativeHandle = IntPtr.Zero;
+		}
+		s_initialized = false;
+	}
+}
 
 /// <summary>
 /// Represents an SQLite database connection that can be used for custom database operations.
@@ -47,6 +199,8 @@ public sealed class SqlDatabase : IDisposable
 	{
 		ArgumentNullException.ThrowIfNull( path );
 
+		SqliteNative.Initialize();
+
 		DatabasePath = path;
 
 		// Ensure directory exists for file-based databases
@@ -69,9 +223,9 @@ public sealed class SqlDatabase : IDisposable
 		_connection = new SqliteConnection( _connectionString );
 		_connection.Open();
 
-		// Enable foreign keys and WAL mode for better performance
+		// Enable foreign keys
 		using var cmd = _connection.CreateCommand();
-		cmd.CommandText = "PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;";
+		cmd.CommandText = "PRAGMA foreign_keys = ON;";
 		cmd.ExecuteNonQuery();
 	}
 
@@ -125,6 +279,9 @@ public sealed class SqlDatabase : IDisposable
 	/// <param name="query">The SQL query to execute.</param>
 	/// <param name="parameters">Optional anonymous object containing parameter values.</param>
 	/// <returns>A task containing a list of dictionaries where each dictionary represents a row.</returns>
+	/// <remarks>
+	/// This method does not use locking. Ensure you don't call this concurrently with other database operations.
+	/// </remarks>
 	public async Task<List<Dictionary<string, object>>> QueryAsync( string query, object parameters = null )
 	{
 		ThrowIfDisposed();
@@ -169,7 +326,7 @@ public sealed class SqlDatabase : IDisposable
 	/// </summary>
 	/// <param name="query">The SQL query to execute.</param>
 	/// <param name="parameters">Optional anonymous object containing parameter values.</param>
-	/// <returns>The value of the first column of the first row, or null.</returns>
+	/// <returns>The value of the first column of the first row, or null if no rows or the value is NULL.</returns>
 	public object QueryValue( string query, object parameters = null )
 	{
 		ThrowIfDisposed();
@@ -177,7 +334,8 @@ public sealed class SqlDatabase : IDisposable
 		lock ( _lock )
 		{
 			using var cmd = CreateCommand( query, parameters );
-			return cmd.ExecuteScalar();
+			var result = cmd.ExecuteScalar();
+			return result is DBNull ? null : result;
 		}
 	}
 

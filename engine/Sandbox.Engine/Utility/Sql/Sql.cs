@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.Data.Sqlite;
 
@@ -115,6 +116,35 @@ public static class Sql
 			LastError = ex.Message;
 			Log.Warning( $"SQL Error: {ex.Message}" );
 			return null;
+		}
+	}
+
+	/// <summary>
+	/// Executes a non-query SQL command (INSERT, UPDATE, DELETE, CREATE, etc.).
+	/// </summary>
+	/// <param name="query">The SQL command to execute.</param>
+	/// <param name="parameters">Optional parameters for parameterized queries.</param>
+	/// <returns>The number of rows affected, or -1 if an error occurred.</returns>
+	/// <example>
+	/// <code>
+	/// Sql.Execute( "CREATE TABLE users ( id INTEGER PRIMARY KEY, name TEXT )" );
+	/// Sql.Execute( "INSERT INTO users (name) VALUES (@name)", new { name = "John" } );
+	/// var affected = Sql.Execute( "DELETE FROM users WHERE id > @id", new { id = 10 } );
+	/// </code>
+	/// </example>
+	public static int Execute( string query, object parameters = null )
+	{
+		LastError = null;
+
+		try
+		{
+			return Database.Execute( query, parameters );
+		}
+		catch ( SqliteException ex )
+		{
+			LastError = ex.Message;
+			Log.Warning( $"SQL Error: {ex.Message}" );
+			return -1;
 		}
 	}
 
@@ -324,7 +354,7 @@ public static class Sql
 	/// </example>
 	public static void Begin()
 	{
-		Query( "BEGIN TRANSACTION" );
+		Database.Execute( "BEGIN TRANSACTION" );
 	}
 
 	/// <summary>
@@ -332,7 +362,7 @@ public static class Sql
 	/// </summary>
 	public static void Commit()
 	{
-		Query( "COMMIT" );
+		Database.Execute( "COMMIT" );
 	}
 
 	/// <summary>
@@ -340,7 +370,7 @@ public static class Sql
 	/// </summary>
 	public static void Rollback()
 	{
-		Query( "ROLLBACK" );
+		Database.Execute( "ROLLBACK" );
 	}
 
 	/// <summary>
@@ -388,10 +418,17 @@ public static class Sql
 	/// Gets column information for a specified table.
 	/// </summary>
 	/// <param name="tableName">The name of the table.</param>
-	/// <returns>A list of column information dictionaries.</returns>
+	/// <returns>A list of column information dictionaries, or null if the table name is invalid.</returns>
 	public static List<Dictionary<string, object>> GetTableColumns( string tableName )
 	{
-		return Query( $"PRAGMA table_info({Escape( tableName, false )})" );
+		// PRAGMA doesn't support parameters, so validate table name to prevent injection
+		if ( string.IsNullOrEmpty( tableName ) || !Regex.IsMatch( tableName, @"^[a-zA-Z_][a-zA-Z0-9_]*$" ) )
+		{
+			LastError = "Invalid table name";
+			return null;
+		}
+
+		return Query( $"PRAGMA table_info({tableName})" );
 	}
 
 	/// <summary>
