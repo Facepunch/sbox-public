@@ -113,8 +113,8 @@ public abstract partial class Connection
 	/// </summary>
 	public bool Down( [InputAction] string action )
 	{
-		// If we're the host, just use our local input instead.
-		if ( IsHost )
+		// If this connection is us, just use our local input instead.
+		if ( Local == this )
 			return Sandbox.Input.Down( action );
 
 		if ( string.IsNullOrWhiteSpace( action ) )
@@ -133,8 +133,8 @@ public abstract partial class Connection
 	/// </summary>
 	public bool Pressed( [InputAction] string action )
 	{
-		// If we're the host, just use our local input instead.
-		if ( IsHost )
+		// If this connection is us, just use our local input instead.
+		if ( Local == this )
 			return Sandbox.Input.Pressed( action );
 
 		if ( string.IsNullOrWhiteSpace( action ) )
@@ -155,8 +155,8 @@ public abstract partial class Connection
 	/// </summary>
 	public bool Released( [InputAction] string action )
 	{
-		// If we're the host, just use our local input instead.
-		if ( IsHost )
+		// If this connection is us, just use our local input instead.
+		if ( Local == this )
 			return Sandbox.Input.Released( action );
 
 		if ( string.IsNullOrWhiteSpace( action ) )

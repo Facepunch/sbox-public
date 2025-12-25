@@ -32,6 +32,96 @@ public class NetworkTests
 	}
 
 	[TestMethod]
+	public void NetworkedInput()
+	{
+		Assert.IsNotNull( TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );
+
+		using var scope = new Scene().Push();
+
+		var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		// Become the client
+		clientAndHost.BecomeClient();
+
+		var inputSettings = new InputSettings();
+		inputSettings.InitDefault();
+
+		Input.InputSettings = inputSettings;
+		Input.SetAction( "Jump", true );
+
+		// Send a client tick - this will build a user command as well
+		Game.ActiveScene.SendClientTick( SceneNetworkSystem.Instance );
+
+		// Become the host
+		clientAndHost.BecomeHost();
+
+		clientAndHost.Host.ProcessMessages( InternalMessageType.ClientTick, bs =>
+		{
+			Networking.System.OnReceiveClientTick( bs, clientAndHost.Client );
+		} );
+
+		clientAndHost.Client.Messages.Clear();
+
+		Assert.AreEqual( true, clientAndHost.Client.Pressed( "Jump" ) );
+		Assert.AreEqual( true, clientAndHost.Client.Down( "Jump" ) );
+
+		// Become the client
+		clientAndHost.BecomeClient();
+
+		Input.ClearActions();
+
+		// Send a client tick - this will build a user command as well
+		Game.ActiveScene.SendClientTick( SceneNetworkSystem.Instance );
+
+		// Become the host
+		clientAndHost.BecomeHost();
+
+		clientAndHost.Host.ProcessMessages( InternalMessageType.ClientTick, bs =>
+		{
+			Networking.System.OnReceiveClientTick( bs, clientAndHost.Client );
+		} );
+
+		clientAndHost.Host.Messages.Clear();
+
+		Assert.AreEqual( true, clientAndHost.Client.Released( "Jump" ) );
+		Assert.AreEqual( false, clientAndHost.Client.Down( "Jump" ) );
+
+		// Let's test wrap-aware command number processing
+		var userCommand = new UserCommand( uint.MaxValue );
+
+		clientAndHost.Client.Input.ApplyUserCommand( userCommand );
+
+		// Become the client
+		clientAndHost.BecomeClient();
+
+		Input.SetAction( "Jump", true );
+
+		Assert.AreEqual( true, Connection.Local.Pressed( "Jump" ) );
+		Assert.AreEqual( true, Connection.Local.Down( "Jump" ) );
+
+		// Send a client tick - this will build a user command as well
+		Game.ActiveScene.SendClientTick( SceneNetworkSystem.Instance );
+
+		// Become the host
+		clientAndHost.BecomeHost();
+
+		clientAndHost.Host.ProcessMessages( InternalMessageType.ClientTick, bs =>
+		{
+			Networking.System.OnReceiveClientTick( bs, clientAndHost.Client );
+		} );
+
+		Assert.AreEqual( false, clientAndHost.Client.Pressed( "Forward" ) );
+		Assert.AreEqual( true, clientAndHost.Client.Pressed( "Jump" ) );
+		Assert.AreEqual( true, clientAndHost.Client.Down( "Jump" ) );
+
+		Input.ClearActions();
+		Input.SetAction( "Forward", true );
+
+		Assert.AreEqual( true, Connection.Local.Pressed( "Forward" ) );
+		Assert.AreEqual( true, Connection.Local.Down( "Forward" ) );
+	}
+
+	[TestMethod]
 	public void RegisterSyncProps()
 	{
 		Assert.IsNotNull( Game.TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );
@@ -113,7 +203,7 @@ public class NetworkTests
 		Connection.Local = client2;
 
 		// Reset the transform to default as it would be when client first constructs it
-		go3.SetParentFromNetwork( null, new Transform() );
+		go3.SetParentFromNetwork( null );
 
 		// Now simulate the refresh message from the owner
 		go3._net.OnRefreshMessage( client1, refreshMsg );
@@ -124,85 +214,40 @@ public class NetworkTests
 	}
 
 	[TestMethod]
-	public void UserCommandInputs()
+	public void RemoteObjectParentToSceneKeepsTransform()
 	{
 		Assert.IsNotNull( TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );
 
 		using var scope = new Scene().Push();
 
-		var clientAndHost = new ClientAndHost( TypeLibrary );
+		var client = new NetworkSystem( "client", TypeLibrary );
+		Networking.System = client;
 
-		// Become the client
-		clientAndHost.BecomeClient();
+		var sceneSystem = new SceneNetworkSystem( TypeLibrary, client );
+		client.GameSystem = sceneSystem;
 
-		var inputSettings = new InputSettings();
-		inputSettings.InitDefault();
+		var client1 = new MockConnection( Guid.NewGuid() );
+		var client2 = new MockConnection( Guid.NewGuid() );
 
-		Input.InputSettings = inputSettings;
-		Input.SetAction( "Jump", true );
+		Connection.Local = client1;
 
-		// Send a client tick - this will build a user command as well
-		Game.ActiveScene.SendClientTick( SceneNetworkSystem.Instance );
-
-		// Become the host
-		clientAndHost.BecomeHost();
-
-		clientAndHost.Host.ProcessMessages( InternalMessageType.ClientTick, bs =>
+		var go1 = new GameObject();
+		var go2 = new GameObject( go1 )
 		{
-			Networking.System.OnReceiveClientTick( bs, clientAndHost.Client );
-		} );
+			WorldPosition = new Vector3( 100f, 100f, 100f )
+		};
 
-		clientAndHost.Client.Messages.Clear();
+		go1.NetworkSpawn( Connection.Local );
 
-		Assert.AreEqual( true, clientAndHost.Client.Pressed( "Jump" ) );
-		Assert.AreEqual( true, clientAndHost.Client.Down( "Jump" ) );
+		var go3 = new GameObject( go2 );
+		go3.NetworkSpawn( Connection.Local );
 
-		// Become the client
-		clientAndHost.BecomeClient();
+		Connection.Local = client2;
 
-		Input.ClearActions();
+		// Receive a parent message from the network
+		go3.SetParentFromNetwork( null, true );
 
-		// Send a client tick - this will build a user command as well
-		Game.ActiveScene.SendClientTick( SceneNetworkSystem.Instance );
-
-		// Become the host
-		clientAndHost.BecomeHost();
-
-		clientAndHost.Host.ProcessMessages( InternalMessageType.ClientTick, bs =>
-		{
-			Networking.System.OnReceiveClientTick( bs, clientAndHost.Client );
-		} );
-
-		clientAndHost.Host.Messages.Clear();
-
-		Assert.AreEqual( true, clientAndHost.Client.Released( "Jump" ) );
-		Assert.AreEqual( false, clientAndHost.Client.Down( "Jump" ) );
-
-
-
-		// Let's test wrap-aware command number processing
-		var userCommand = new UserCommand( uint.MaxValue );
-
-		clientAndHost.Client.Input.ApplyUserCommand( userCommand );
-
-		// Become the client
-		clientAndHost.BecomeClient();
-
-		Input.SetAction( "Jump", true );
-
-		// Send a client tick - this will build a user command as well
-		Game.ActiveScene.SendClientTick( SceneNetworkSystem.Instance );
-
-		// Become the host
-		clientAndHost.BecomeHost();
-
-		clientAndHost.Host.ProcessMessages( InternalMessageType.ClientTick, bs =>
-		{
-			Networking.System.OnReceiveClientTick( bs, clientAndHost.Client );
-		} );
-
-		Assert.AreEqual( true, clientAndHost.Client.Pressed( "Jump" ) );
-		Assert.AreEqual( true, clientAndHost.Client.Down( "Jump" ) );
+		Assert.AreEqual( go2.WorldPosition, go3.WorldPosition );
 	}
 
 	[TestMethod]
@@ -239,7 +284,7 @@ public class NetworkTests
 		Connection.Local = client2;
 
 		// Reset the transform to default as it would be when client first constructs it
-		go3.SetParentFromNetwork( null, new Transform() );
+		go3.SetParentFromNetwork( null );
 
 		// Now simulate the creation message from the owner
 		go3._net.OnCreateMessage( createMsg );
@@ -351,9 +396,7 @@ public class NetworkTests
 		// client2 now owns it, let's have it record a snapshot in this state
 		var state = networkObject.WriteSnapshotState();
 		var snapshot = new DeltaSnapshot();
-		snapshot.CopyFrom( state, 2 );
-		snapshot.LocalState = state;
-		snapshot.Source = networkObject;
+		snapshot.CopyFrom( networkObject, state, 2 );
 
 		// Become client1 again
 		Connection.Local = client1;

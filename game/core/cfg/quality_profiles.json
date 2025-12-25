@@ -4,17 +4,20 @@
         "Low":
         {
             "r_texture_stream_max_resolution": "1024.0",
-            "r_texture_stream_resolution_bias_min": "0.5"
+            "r_texture_stream_resolution_bias_min": "0.5",
+            "r_max_anisotropy": "1"
         },
         "Medium":
         {
             "r_texture_stream_max_resolution": "2048.0",
-            "r_texture_stream_resolution_bias_min": "0.8"
+            "r_texture_stream_resolution_bias_min": "0.8",
+            "r_max_anisotropy": "2"
         },
         "High":
         {
             "r_texture_stream_max_resolution": "8192.0",
-            "r_texture_stream_resolution_bias_min": "1.0"
+            "r_texture_stream_resolution_bias_min": "1.0",
+            "r_max_anisotropy": "4"
         }
     }, 
     "PostProcessQuality":

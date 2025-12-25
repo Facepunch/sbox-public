@@ -161,20 +161,20 @@ public class PathWidget : Widget
 			hasVisible = true;
 		}
 
-		ElipsesWidget.Paths.Clear();
+		ElipsesWidget?.Paths.Clear();
 
 		// what doesn't fit should be hidden, and added to the elipses menu
 		for ( int i = 0; i < Segments.Count; i++ )
 		{
 			Segments[i].Visible = i > truncIdx;
 
-			if ( !Segments[i].Visible )
+			if ( ElipsesWidget is not null && !Segments[i].Visible )
 			{
 				ElipsesWidget.Paths.Add( (Segments[i].Label, Segments[i].TargetPath) );
 			}
 		}
 
-		ElipsesWidget.Visible = truncIdx != -1;
+		ElipsesWidget?.Visible = truncIdx != -1;
 	}
 
 	string GetSegmentLabel( int index, string segment, AssetBrowser.Location location )
