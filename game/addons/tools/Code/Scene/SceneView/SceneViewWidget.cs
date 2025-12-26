@@ -82,13 +82,21 @@ public partial class SceneViewWidget : Widget
 	public void Frame()
 	{
 		var session = Session;
-		if ( session is null ) return;
-		if ( !session.Scene.IsValid() ) return;
+		if ( session is null )
+		{
+			Log.Info($"SceneViewWidget#Frame.L91 is null {session is null}");
+			return;
+		}
+		if ( !session.Scene.IsValid() )
+		{
+			return;
+		}
 
 		using var scope = session.Scene.Push();
 
 		bool isActive = session == SceneEditorSession.Active;
-
+		if (!isActive)
+			Log.Info($"SceneViewWidget#Frame.L91 {session.Scene.Name} isActive = {isActive}");
 		// Update inspector with current selection, if changed
 		if ( isActive && selectionHash != session.Selection.GetHashCode() )
 		{
@@ -112,6 +120,7 @@ public partial class SceneViewWidget : Widget
 
 			if ( isActive )
 			{
+				// Log.Info("SceneViewWidget#Frame.L115 isActive");
 				Current = this;
 			}
 
@@ -338,14 +347,8 @@ file class ViewportToolBar : Widget
 			scroller.Canvas = toolWidget;
 			_sidebar.Add( scroller );
 
+			Log.Info($"SceneViewWidget.ViewportToolBar#OnToolChanged.L351 {toolWidget.Name}");
 			toolWidget.Focus();
-		}
-		else
-		{
-			if ( SceneViewWidget.Current?.LastSelectedViewportWidget?.IsValid() ?? false )
-			{
-				SceneViewWidget.Current.LastSelectedViewportWidget.Focus();
-			}
 		}
 
 		// Update footer
@@ -370,6 +373,8 @@ file class ViewportToolBar : Widget
 
 		if ( _activeTool != tool || (selectionHash != _selectionHash && (tool?.RebuildSidebarOnSelectionChange ?? false)) )
 		{
+			Log.Info($"_activeTool {_activeTool?.GetType().ToString()} {SceneViewWidget.Current?.Tools.CurrentSession.Scene.Name}");
+			Log.Info($"tool {tool?.GetType().ToString()}");
 			_activeTool = tool;
 			_selectionHash = selectionHash;
 			OnToolChanged();

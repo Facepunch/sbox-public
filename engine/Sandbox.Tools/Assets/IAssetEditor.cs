@@ -23,8 +23,7 @@ public interface IAssetEditor : IValid
 	public static bool OpenInEditor( Asset asset, out IAssetEditor editor )
 	{
 		System.ArgumentNullException.ThrowIfNull( asset );
-		
-		Log.Info($"Open In Editor {asset.GetSourceFile()}");
+
 		//
 		// Stick this on the recent opened list
 		//
@@ -34,8 +33,6 @@ public interface IAssetEditor : IValid
 
 		if ( OpenSingleEditors.TryGetValue( path, out var openEditor ) && openEditor.IsValid )
 		{
-			Log.Info("Should not focus. ");
-
 			// ReSharper disable once SuspiciousTypeConversion.Global
 			if ( openEditor is BaseWindow window )
 			{
@@ -50,7 +47,6 @@ public interface IAssetEditor : IValid
 
 		if ( OpenMultiAssetEditors.TryGetValue( extension, out openEditor ) && openEditor.IsValid )
 		{
-			Log.Info( $"Open In MultiAssetEditor {asset.GetSourceFile()}" );
 			openEditor.AssetOpen( asset );
 
 			editor = openEditor;
@@ -89,8 +85,6 @@ public interface IAssetEditor : IValid
 		}
 
 		var created = found.Type.Create<Widget>();
-
-		Log.Info( $"widgetWindow create {created} {created.GetType().ToString()}" );
 
 		if ( created is not IAssetEditor ae )
 		{
