@@ -126,6 +126,46 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 
 	private FileSystemWatcher watcher;
 
+	int lastKnownScrollPosition = 0;
+
+	/// <summary>
+	/// Retrieves the current vertical scroll position of the asset list.
+	/// </summary>
+	private int CaptureScrollPosition()
+	{
+		if ( AssetList?.VerticalScrollbar?.IsValid() == true )
+		{
+			lastKnownScrollPosition = AssetList.VerticalScrollbar.Value;
+		}
+
+		return lastKnownScrollPosition;
+	}
+
+	/// <summary>
+	/// Restores the vertical scroll position of the asset list to the specified target value.
+	/// </summary>
+	/// <param name="target">The desired scroll position to restore.</param>
+	private void RestoreScrollPosition( int target )
+	{
+		if ( AssetList?.VerticalScrollbar?.IsValid() != true )
+			return;
+
+		void Apply()
+		{
+			if ( AssetList?.VerticalScrollbar?.IsValid() != true )
+				return;
+
+			var scrollbar = AssetList.VerticalScrollbar;
+			var clamped = Math.Clamp( target, scrollbar.Minimum, scrollbar.Maximum );
+			scrollbar.Value = clamped;
+			AssetList.SmoothScrollTarget = 0;
+			lastKnownScrollPosition = clamped;
+		}
+
+		Apply();
+		MainThread.Queue( Apply );
+	}
+
 	public AssetBrowser( Widget parent ) : this( parent, null )
 	{
 
@@ -406,7 +446,7 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 		List<object> items = new List<object>();
 		var tagCounts = new Dictionary<string, int>();
 
-		AssetList.Clear();
+		var scroll = CaptureScrollPosition();
 
 		await Task.Run( () =>
 		{
@@ -497,6 +537,9 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 			return false;
 
 		AssetList.SetItems( items );
+
+		RestoreScrollPosition( scroll );
+
 		if ( !string.IsNullOrEmpty( lastSortColumn ) )
 		{
 			SortAssetList( lastSortColumn, lastSortAscending );
@@ -518,6 +561,7 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 
 	private void SortAssetList( string sortBy, bool ascending )
 	{
+		var scroll = CaptureScrollPosition();
 		List<object> items;
 
 		switch ( sortBy )
@@ -590,6 +634,7 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 			items.Reverse();
 		}
 		AssetList.SetItems( items );
+		RestoreScrollPosition( scroll );
 
 		lastSortColumn = sortBy;
 		lastSortAscending = ascending;
