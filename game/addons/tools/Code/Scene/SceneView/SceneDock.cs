@@ -51,7 +51,6 @@ public partial class SceneDock : Widget
 		base.OnVisibilityChanged( visible );
 		if ( visible )
 		{
-			Log.Info($"SceneDock.OnVisibilityChanged.l52 visible {visible} {Session.Scene.Name}");
 			Session.MakeActive();
 		}
 	}
@@ -59,7 +58,6 @@ public partial class SceneDock : Widget
 	protected override void OnFocus( FocusChangeReason reason )
 	{
 		base.OnFocus( reason );
-		Log.Info($"SceneDock.OnFocus.l62 {Session.Scene.Name}");
 
 		Session.MakeActive();
 	}

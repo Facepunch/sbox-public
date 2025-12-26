@@ -1,5 +1,4 @@
 ﻿using static Editor.BaseItemWidget;
-using System;
 namespace Editor;
 
 partial class GameObjectNode : TreeNode<GameObject>
@@ -567,7 +566,6 @@ partial class GameObjectNode : TreeNode<GameObject>
 						{
 							if ( prefabAsset.TryLoadResource<PrefabFile>( out var prefab ) && prefab.IsValid )
 							{
-								Log.Info( "GameObjectNode.cs#AddGameObjectMenuItems.l570" );
 								EditorScene.OpenPrefab( prefab );
 							}
 						} ).Enabled = !prefabAsset.IsProcedural;
