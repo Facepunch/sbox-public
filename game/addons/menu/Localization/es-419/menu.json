@@ -9,5 +9,6 @@
   "menu.multiplayer": "Servidores",
   "menu.store": "Tienda",
   "menu.maps": "Mapas",
-  "menu.hub": "Centro"
+  "menu.hub": "Centro",
+  "menu.notifications": "Notificaciones"
 }
