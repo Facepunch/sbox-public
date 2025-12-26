@@ -79,6 +79,8 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		SceneDock.Parent = EditorWindow;
 		SceneDock.Visible = true;
 
+		Log.Info($"SceneEditorSession#CreateSceneDock.l82 {SceneDock} {SceneDock.IsValid}");
+
 		UpdateEditorTitle();
 
 		Dock();
@@ -167,12 +169,17 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public void MakeActive( bool bringToFront = true )
 	{
-		Active = this;
+		if (Active == this)
+		{
+			return;
+		}
 
+		Active = this;
 		if ( bringToFront && EditorWindow is not null )
 		{
 			BringToFront();
 		}
+		Log.Info($"SceneEditorSession#MakeActive scene: {Scene.Name}");
 	}
 
 	/// <summary>
@@ -180,12 +187,20 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public void BringToFront()
 	{
+		Log.Info($"SceneEditorSession#BringToFront scene: {Scene.Name}");
 		if ( EditorWindow.DockManager.IsDockOpen( SceneDock, false ) )
 		{
 			EditorWindow.DockManager.RaiseDock( SceneDock );
 		}
 
+		// Focus the dock
+		if ( SceneDock.IsValid() )
+			SceneDock.Focus(); // if it doesn't focus, UpdateEditorTile will not work
+			
+
 		UpdateEditorTitle();
+
+
 	}
 
 	RealTimeSince timeSinceSavedState;

@@ -85,6 +85,7 @@ public static class EditorScene
 	{
 		if ( SceneEditorSession.Resolve( resource ) is PrefabEditorSession session )
 		{
+			Log.Info( "EditorScene#OpenPrefab.l88" );
 			session.MakeActive();
 			return;
 		}
@@ -97,6 +98,7 @@ public static class EditorScene
 
 			session = new PrefabEditorSession( prefabScene );
 			session.MakeActive();
+			Log.Info( "EditorScene#OpenPrefab.l101" );
 		}
 	}
 
@@ -161,6 +163,9 @@ public static class EditorScene
 
 	static SceneEditorSession FindPlayableSession()
 	{
+		if ( SceneEditorSession.Active is not PrefabEditorSession )
+			return SceneEditorSession.Active;
+
 		// Current scene is good
 		if ( SceneEditorSession.Active?.Scene is not PrefabScene )
 			return SceneEditorSession.Active;
@@ -239,7 +244,13 @@ public static class EditorScene
 		playableSession ??= FindPlayableSession();
 		if ( playableSession is null ) return;
 
+		Log.Info( playableSession );
+		Log.Info( playableSession.GetType() );
+		Log.Info( playableSession.Scene );
+		Log.Info( playableSession.Scene.GetType() );
+		
 		OnPlayStore();
+		playableSession.MakeActive();
 
 		Game.IsPlaying = true;
 
