@@ -16,7 +16,13 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 	private const int MaxParallelDownloads = 32;
 	private const int MaxDownloadAttempts = 3;
 	private const int MaxManifestLookbackCommits = 512;
+
 	protected override ExitCode RunInternal()
+	{
+		return RunInternalAsync().GetAwaiter().GetResult();
+	}
+
+	private async Task<ExitCode> RunInternalAsync()
 	{
 		try
 		{
@@ -32,7 +38,7 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 			ArtifactManifest manifest = null;
 			foreach ( var candidate in commitCandidates )
 			{
-				var candidateManifest = DownloadManifest( httpClient, BaseUrl, candidate );
+				var candidateManifest = await DownloadManifestAsync( httpClient, BaseUrl, candidate );
 				if ( candidateManifest is null )
 				{
 					continue;
@@ -63,7 +69,7 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 			}
 
 			var repoRoot = Path.TrimEndingDirectorySeparator( Path.GetFullPath( Directory.GetCurrentDirectory() ) );
-			return DownloadArtifacts( httpClient, manifest, repoRoot );
+			return await DownloadArtifactsAsync( httpClient, manifest, repoRoot );
 		}
 		catch ( AggregateException ex )
 		{
@@ -81,14 +87,14 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 		}
 	}
 
-	private static ExitCode DownloadArtifacts( HttpClient httpClient, ArtifactManifest manifest, string repoRoot )
+	private static async Task<ExitCode> DownloadArtifactsAsync( HttpClient httpClient, ArtifactManifest manifest, string repoRoot )
 	{
 		var updatedCount = 0;
 		var skippedCount = 0;
 		var failedCount = 0;
 		var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelDownloads };
 
-		Parallel.ForEach( manifest.Files, parallelOptions, entry =>
+		await Parallel.ForEachAsync( manifest.Files, parallelOptions, async ( entry, ct ) =>
 		{
 			if ( string.IsNullOrWhiteSpace( entry.Path ) || string.IsNullOrWhiteSpace( entry.Sha256 ) )
 			{
@@ -99,7 +105,7 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 
 			var destination = Path.Combine( repoRoot, entry.Path.Replace( '/', Path.DirectorySeparatorChar ) );
 
-			if ( FileMatchesHash( destination, entry.Sha256 ) )
+			if ( FileMatchesHash( destination, entry.Sha256, entry.Size ) )
 			{
 				Interlocked.Increment( ref skippedCount );
 				return;
@@ -111,7 +117,7 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 				Directory.CreateDirectory( directory );
 			}
 
-			var dlSuccess = DownloadArtifact( httpClient, BaseUrl, entry, destination );
+			var dlSuccess = await DownloadArtifactAsync( httpClient, BaseUrl, entry, destination, ct );
 			if ( dlSuccess )
 			{
 				Interlocked.Increment( ref updatedCount );
@@ -171,13 +177,13 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 		return commits;
 	}
 
-	private static ArtifactManifest DownloadManifest( HttpClient httpClient, string baseUrl, string commitHash )
+	private static async Task<ArtifactManifest> DownloadManifestAsync( HttpClient httpClient, string baseUrl, string commitHash )
 	{
 		var manifestUrl = $"{baseUrl.TrimEnd( '/' )}/manifests/{commitHash}.json";
 
 		Log.Info( $"Fetching manifest: {manifestUrl}" );
 
-		using var response = httpClient.GetAsync( manifestUrl, HttpCompletionOption.ResponseHeadersRead ).GetAwaiter().GetResult();
+		using var response = await httpClient.GetAsync( manifestUrl, HttpCompletionOption.ResponseHeadersRead );
 		if ( response.StatusCode == HttpStatusCode.NotFound )
 		{
 			Log.Warning( $"Manifest not found for commit {commitHash}." );
@@ -190,9 +196,9 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 			return null;
 		}
 
-		using var stream = response.Content.ReadAsStreamAsync().GetAwaiter().GetResult();
+		using var stream = await response.Content.ReadAsStreamAsync();
 
-		var manifest = JsonSerializer.Deserialize<ArtifactManifest>( stream, new JsonSerializerOptions
+		var manifest = await JsonSerializer.DeserializeAsync<ArtifactManifest>( stream, new JsonSerializerOptions
 		{
 			PropertyNameCaseInsensitive = true
 		} );
@@ -206,26 +212,36 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 		return manifest;
 	}
 
-	private static bool DownloadArtifact( HttpClient httpClient, string baseUrl, ArtifactFileInfo entry, string destination )
+	private static async Task<bool> DownloadArtifactAsync( HttpClient httpClient, string baseUrl, ArtifactFileInfo entry, string destination, CancellationToken ct )
 	{
 		for ( var attempt = 1; attempt <= MaxDownloadAttempts; attempt++ )
 		{
+			if ( ct.IsCancellationRequested )
+			{
+				return false;
+			}
+
 			try
 			{
-				DownloadArtifactOnce( httpClient, baseUrl, entry, destination );
+				await DownloadArtifactOnceAsync( httpClient, baseUrl, entry, destination, ct );
 				return true;
 			}
 			catch ( Exception ex )
 			{
+				if ( ct.IsCancellationRequested )
+				{
+					return false;
+				}
+
 				Log.Warning( $"Download attempt {attempt} for {entry.Path ?? entry.Sha256} failed: {ex.Message}" );
-				Thread.Sleep( TimeSpan.FromMilliseconds( 200 * attempt ) );
+				await Task.Delay( TimeSpan.FromMilliseconds( 200 * attempt ), ct );
 			}
 		}
 
 		return false;
 	}
 
-	private static void DownloadArtifactOnce( HttpClient httpClient, string baseUrl, ArtifactFileInfo entry, string destination )
+	private static async Task DownloadArtifactOnceAsync( HttpClient httpClient, string baseUrl, ArtifactFileInfo entry, string destination, CancellationToken ct )
 	{
 		var hash = entry.Sha256;
 		var expectedSize = entry.Size;
@@ -234,7 +250,7 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 		var targetName = string.IsNullOrWhiteSpace( entry.Path ) ? hash : entry.Path;
 		Log.Info( $"Downloading {targetName} from {artifactUrl} ({Utility.FormatSize( expectedSize )})" );
 
-		using var response = httpClient.GetAsync( artifactUrl, HttpCompletionOption.ResponseHeadersRead ).GetAwaiter().GetResult();
+		using var response = await httpClient.GetAsync( artifactUrl, HttpCompletionOption.ResponseHeadersRead, ct );
 		if ( response.StatusCode == HttpStatusCode.NotFound )
 		{
 			Log.Error( $"Artifact blob {hash} not found." );
@@ -247,27 +263,45 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 			throw new InvalidOperationException( $"Failed to download artifact {hash} (HTTP {(int)response.StatusCode})." );
 		}
 
-		using ( var downloadStream = response.Content.ReadAsStreamAsync().GetAwaiter().GetResult() )
-		using ( var fileStream = File.Open( destination, FileMode.Create, FileAccess.Write, FileShare.None ) )
+		using var downloadStream = await response.Content.ReadAsStreamAsync( ct );
+		using var fileStream = File.Open( destination, FileMode.Create, FileAccess.Write, FileShare.None );
+		
+		if ( expectedSize > 0 )
 		{
-			downloadStream.CopyTo( fileStream );
+			fileStream.SetLength( expectedSize );
+		}
+
+		using var incrementalHash = System.Security.Cryptography.IncrementalHash.CreateHash( System.Security.Cryptography.HashAlgorithmName.SHA256 );
+		var buffer = new byte[81920]; // 80KB buffer
+		int bytesRead;
+
+		while ( (bytesRead = await downloadStream.ReadAsync( buffer, ct )) != 0 )
+		{
+			await fileStream.WriteAsync( buffer.AsMemory( 0, bytesRead ), ct );
+			incrementalHash.AppendData( buffer, 0, bytesRead );
 		}
 
 		if ( expectedSize > 0 )
 		{
-			var actualSize = new FileInfo( destination ).Length;
+			var actualSize = fileStream.Length;
 			if ( actualSize != expectedSize )
 			{
 				Log.Error( $"Downloaded artifact {hash} has size {actualSize}, expected {expectedSize}." );
+				// Close stream before deleting
+				fileStream.Close();
 				File.Delete( destination );
 				throw new InvalidOperationException( $"Downloaded artifact {hash} has unexpected size." );
 			}
 		}
 
-		var downloadedHash = Utility.CalculateSha256( destination );
+		var downloadedHashBytes = incrementalHash.GetHashAndReset();
+		var downloadedHash = Convert.ToHexString( downloadedHashBytes );
+
 		if ( !string.Equals( downloadedHash, hash, StringComparison.OrdinalIgnoreCase ) )
 		{
 			Log.Error( $"Hash mismatch for downloaded artifact {hash}." );
+			// Close stream before deleting
+			fileStream.Close();
 			File.Delete( destination );
 			throw new InvalidOperationException( $"Hash mismatch for downloaded artifact {hash}." );
 		}
@@ -288,7 +322,7 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 		}
 	}
 
-	private static bool FileMatchesHash( string path, string expectedHash )
+	private static bool FileMatchesHash( string path, string expectedHash, long expectedSize )
 	{
 		if ( !File.Exists( path ) )
 		{
@@ -297,6 +331,12 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 
 		try
 		{
+			var fileInfo = new FileInfo( path );
+			if ( fileInfo.Length != expectedSize )
+			{
+				return false;
+			}
+
 			var hash = Utility.CalculateSha256( path );
 			return string.Equals( hash, expectedHash, StringComparison.OrdinalIgnoreCase );
 		}
