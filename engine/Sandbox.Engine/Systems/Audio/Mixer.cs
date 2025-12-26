@@ -354,6 +354,10 @@ public partial class Mixer
 		}
 
 		var samples = voice.sampler.GetLastReadSamples();
+
+		// Apply per-voice audio event processors before any other processing
+		voice.ApplyEventProcessors( samples );
+
 		var buffer = samples.Get( AudioChannel.Left );
 
 		// Store the levels on the sound for use later
