@@ -32,11 +32,5 @@ public struct MeshEdge : IMeshElement
 	}
 
 	public readonly override int GetHashCode() => HashCode.Combine( Component, nameof( MeshEdge ), Handle );
-	public override readonly string ToString()
-	{
-		if ( !IsValid ) return "Invalid Edge";
-
-		var objectName = Component.GameObject?.Name ?? "<no object>";
-		return $"{objectName} Edge #{HandleIndex}";
-	}
+	public override readonly string ToString() => IsValid ? $"{Component.GameObject.Name} Edge {Handle}" : "Invalid Edge";
 }
