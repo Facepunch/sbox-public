@@ -49,7 +49,6 @@ public partial class SceneDock : Widget
 	protected override void OnVisibilityChanged( bool visible )
 	{
 		base.OnVisibilityChanged( visible );
-
 		if ( visible )
 		{
 			Session.MakeActive();
