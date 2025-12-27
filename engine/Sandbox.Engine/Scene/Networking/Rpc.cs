@@ -109,28 +109,75 @@ public static partial class Rpc
 	/// <summary>
 	/// Whether we're currently being called from a remote <see cref="Connection"/>.
 	/// </summary>
-	public static bool Calling { get; private set; }
+	public static bool IsRemoteCall { get; private set; }
 
 	internal static Connection.Filter? Filter { get; private set; }
 
 	internal static DisposeAction<Connection, bool> WithCaller( Connection caller )
 	{
 		var oldCaller = Caller;
-		var oldCalling = Calling;
+		var oldIsRemoteCall = IsRemoteCall;
 
-		Calling = true;
+		IsRemoteCall = caller != Connection.Local;
 		Caller = caller;
 
 		unsafe
 		{
-			return new DisposeAction<Connection, bool>( &RestoreCaller, oldCaller, oldCalling );
+			return new DisposeAction<Connection, bool>( &RestoreCaller, oldCaller, oldIsRemoteCall );
 		}
 	}
 
-	static void RestoreCaller( Connection oldCaller, bool oldCalling )
+	static void RestoreCaller( Connection oldCaller, bool oldIsRemoteCall )
 	{
-		Calling = oldCalling;
+		IsRemoteCall = oldIsRemoteCall;
 		Caller = oldCaller;
+	}
+
+	/// <summary>
+	/// Temporarily stores the connection that initiated a remote RPC.
+	/// This is consumed by  <see cref="ConsumePendingRpcCaller"/> to establish the caller context.
+	/// <para>
+	/// This deferred approach ensures nested RPC calls maintain correct caller information:
+	/// - Remote RPC arrives → sets PendingRpcCaller
+	/// - First wrapper consumes it → creates WithCaller scope, resets to null
+	/// - Nested RPCs see null → correctly use Connection.Local
+	/// </para>
+	/// </summary>
+	private static Connection PendingRpcCaller { get; set; }
+
+	/// <summary>
+	/// Consumes <see cref="PendingRpcCaller"/> (if set) and resets it to null.
+	/// Returns the caller to use for the current RPC execution context.
+	/// </summary>
+	/// <returns>The remote caller if pending, otherwise <see cref="Connection.Local"/></returns>
+	internal static Connection ConsumePendingRpcCaller()
+	{
+		var caller = PendingRpcCaller ?? Connection.Local;
+		PendingRpcCaller = null;
+		return caller;
+	}
+
+	/// <summary>
+	/// Sets the pending caller for a remote RPC invocation.
+	/// </summary>
+	/// <param name="source">The remote connection invoking the RPC</param>
+	internal static DisposeAction WithPendingCaller( Connection source )
+	{
+		PendingRpcCaller = source;
+
+		unsafe
+		{
+			return new DisposeAction( ResetPendingCaller );
+		}
+	}
+
+	/// <summary>
+	/// Resets the <see cref="PendingRpcCaller"/> to null.
+	/// This doesn't need to restore the previous value as there will never be nested remote RPCs.
+	/// </summary>
+	private static void ResetPendingCaller()
+	{
+		PendingRpcCaller = null;
 	}
 
 	/// <summary>
@@ -164,20 +211,6 @@ public static partial class Rpc
 		{
 			Log.Error( e );
 		}
-	}
-
-	/// <summary>
-	/// Called right before calling an RPC function.
-	/// </summary>
-	public static void PreCall()
-	{
-		if ( Calling )
-		{
-			Calling = false;
-			return;
-		}
-
-		Caller = Connection.Local;
 	}
 
 	/// <summary>

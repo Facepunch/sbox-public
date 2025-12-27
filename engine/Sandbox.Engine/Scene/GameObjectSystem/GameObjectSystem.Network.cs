@@ -42,7 +42,10 @@ public abstract partial class GameObjectSystem : IDeltaSnapshot
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	protected void __rpc_Wrapper( in WrappedMethod m, params object[] argumentList )
 	{
-		Rpc.OnCallInstanceRpc( this, m, argumentList );
+		using ( Rpc.WithCaller( Rpc.ConsumePendingRpcCaller() ) )
+		{
+			Rpc.OnCallInstanceRpc( this, m, argumentList );
+		}
 	}
 
 	[EditorBrowsable( EditorBrowsableState.Never )]
