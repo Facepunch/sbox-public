@@ -1,24 +1,51 @@
-"Layer0"
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
 {
-	"shader"		"shaders/generic.shader_c"
-	"F_SELF_ILLUM"		"1"
-	"F_TRANSLUCENT"		"1"
-	"g_vColorTint"		"[1.000000 1.000000 1.000000 0.000000]"
-	"TextureColor"		"materials/tools/new/navattribute_color.png"
-	"g_bFogEnabled"		"1"
-	"g_flDirectionalLightmapMinZ"		"0.050000"
-	"g_flDirectionalLightmapStrength"		"1.000000"
-	"TextureNormal"		"materials/default/default_normal.tga"
-	"g_flBumpStrength"		"1.000000"
-	"g_flSelfIllumScale"		"1.000000"
-	"g_vSelfIllumTint"		"[0.568627 0.568627 0.568627 1.000000]"
-	"TextureSelfIllumMask"		"materials/default/default.tga"
-	"g_flOpacityScale"		"0.750000"
-	"TextureTranslucency"		"materials/tools/new/navattribute_trans.png"
-	"Attributes"
+	shader "shaders/generic.shader"
+
+	//---- Self Illum ----
+	F_SELF_ILLUM 1
+
+	//---- Specular ----
+	F_SPECULAR 1
+
+	//---- Translucent ----
+	F_TRANSLUCENT 1
+
+	//---- Color ----
+	g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+	TextureColor "materials/tools/new/navattribute_color.png"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+
+	//---- Lighting ----
+	g_vGlossinessRange "[0.000 1.000]"
+	g_vMetalnessRange "[0.000 1.000]"
+	TextureGlossiness "materials/default/default_gloss.tga"
+	TextureMetalness "materials/default/default_metal.tga"
+	TextureReflectance "materials/default/default_refl.tga"
+
+	//---- Normal ----
+	TextureNormal "materials/default/default_normal.tga"
+
+	//---- Normal Map ----
+	g_flBumpStrength "1.000"
+
+	//---- Self Illum ----
+	g_flSelfIllumScale "1.000"
+	g_vSelfIllumTint "[0.568627 0.568627 0.568627 1.000000]"
+	TextureSelfIllumMask "materials/default/default.tga"
+
+	//---- Translucent ----
+	g_flOpacityScale "0.750"
+	TextureTranslucency "materials/tools/new/navattribute_trans.png"
+
+	Attributes
 	{
-		"mapbuilder.nodraw"		"1"
-		"tools.toolsmaterial"		"1"
-		"mapbuilder.nonsolid"		"1"
+		mapbuilder.nodraw "1"
+		tools.toolsmaterial "1"
+		mapbuilder.nonsolid "1"
 	}
 }
