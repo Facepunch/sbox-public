@@ -185,6 +185,18 @@ internal static class DedicatedServer
 		}
 	}
 
+	private static void LogSteamTagsLengthWarning( string tagsString )
+	{
+		var lost = tagsString.Substring( 128 );
+
+		// ANSI color codes
+		const string redBackground = "\x1b[1;7;91m";
+		const string red = "\x1b[31m";
+		const string reset = "\x1b[0m";
+
+		Log.Warning( $"{redBackground}WARNING{reset}: Steam game tags exceed 128 char limit ({tagsString.Length} chars). Data dropped: \"{red}{lost}{reset}\"" );
+	}
+
 	/// <summary>
 	/// Set data for this dedicated server. This data is used when querying or filtering servers. Uses game tags
 	/// internally, which have a hardcoded character limit enforced by Steam.
@@ -201,6 +213,10 @@ internal static class DedicatedServer
 		_data[key] = value;
 
 		var tagsString = string.Join( ",", _data.Select( kv => $"{kv.Key}:{kv.Value}" ) );
+
+		if ( tagsString.Length > 128 )
+			LogSteamTagsLengthWarning( tagsString );
+
 		sgs.SetGameTags( tagsString );
 	}
 
@@ -262,7 +278,16 @@ internal static class DedicatedServer
 				{ "api", Protocol.Api.ToString() }
 			};
 
+			// Add any user-set data
+			foreach ( var kvp in Networking.ServerData )
+			{
+				_data[kvp.Key] = kvp.Value;
+			}
+
 			var tagsString = string.Join( ",", _data.Select( kv => $"{kv.Key}:{kv.Value}" ) );
+
+			if ( tagsString.Length > 128 )
+				LogSteamTagsLengthWarning( tagsString );
 
 			var sgs = Steam.SteamGameServer();
 			sgs.SetGameDescription( gameTitle );
