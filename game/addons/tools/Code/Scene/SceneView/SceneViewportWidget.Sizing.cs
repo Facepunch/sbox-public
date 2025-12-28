@@ -15,7 +15,6 @@ public partial class SceneViewportWidget
 	/// </summary>
 	public void SetDefaultSize()
 	{
-		Log.Info("SetDefaultSize");
 		ForcedSize = null;
 		ForcedAspectRatio = null;
 
@@ -32,7 +31,6 @@ public partial class SceneViewportWidget
 	/// <param name="aspectRatio"></param>
 	public void SetAspectRatio( float aspectRatio )
 	{
-		Log.Info("SetAspectRatio");
 		
 		MinimumSize = Vector2.Zero;
 		MaximumSize = QT_MAX_SIZE;
@@ -64,7 +62,6 @@ public partial class SceneViewportWidget
 
 	private void UpdateSizeConstraints()
 	{
-		Log.Info("UpdateSizeConstraints");
 		if ( ForcedSize.HasValue )
 		{
 			var size = ForcedSize.Value;
@@ -76,18 +73,15 @@ public partial class SceneViewportWidget
 		{
 			if ( Parent != null )
 			{
-				Log.Info($"CurrentSize: x{Size.x} y{Size.y}");
 				var contentRect = Parent.ContentRect;
 				var parentSize = new Vector2( contentRect.Width, contentRect.Height );
 				MaximumSize = parentSize;
-				Log.Info($"MaximumSize: x{MaximumSize.x} y{MaximumSize.y}");
 			}
 			else
 			{
 				MaximumSize = new Vector2( QT_MAX_SIZE, QT_MAX_SIZE );
 			}
 			FixedSize = QT_MAX_SIZE;
-			Log.Info($"FixedSize: x{FixedSize.x} y{FixedSize.y}");
 		}
 		else
 		{
@@ -125,7 +119,6 @@ public partial class SceneViewportWidget
 		}
 
 		var aspectRatio = ForcedAspectRatio.Value;
-		Log.Info( $"Aspect ratio: {aspectRatio}" );
 
 		if ( aspectRatio <= 0 || float.IsNaN( aspectRatio ) || float.IsInfinity( aspectRatio ) )
 		{
