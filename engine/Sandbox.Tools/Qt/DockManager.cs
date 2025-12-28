@@ -1,4 +1,6 @@
 ﻿using Sandbox.Utility;
+using Sandbox.Engine;
+using Sandbox.Internal;
 using System;
 
 namespace Editor;
@@ -328,7 +330,13 @@ public partial class DockManager : Widget
 
 			var session = SceneEditorSession.CreateFromPath( path );
 
-			// If we can't open it (deleted?) just make a blank
+			if ( session is null && (string.IsNullOrEmpty( path ) || path == "untitled") )
+			{
+				var minimalScenePath = "scenes/minimal.scene";
+				session = SceneEditorSession.CreateFromPath( minimalScenePath );
+			}
+
+			// If we still can't open it (deleted? or minimal.scene doesn't exist?), just make a blank
 			if ( session is null )
 				session = SceneEditorSession.CreateDefault();
 
