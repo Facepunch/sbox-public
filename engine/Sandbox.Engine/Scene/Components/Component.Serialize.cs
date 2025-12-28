@@ -223,7 +223,7 @@ public abstract partial class Component : BytePack.ISerializer
 		try
 		{
 			var converterInstance = Activator.CreateInstance( jsonConverterAttr.ConverterType );
-			
+
 			// Check if it's a JsonConverterFactory
 			if ( converterInstance is JsonConverterFactory factory )
 			{
