@@ -171,7 +171,7 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	/// <summary>
 	/// The game object source for finding collision listeners.
 	/// </summary>
-	internal GameObject GameObjectSource;
+	public GameObject GameObjectSource { get; set; }
 
 	Vector3 _lastVelocity;
 	Vector3 _lastAngularVelocity;
