@@ -179,11 +179,21 @@ public struct Plane : System.IEquatable<Plane>
 		float d1 = GetDistance( start );
 		float d2 = GetDistance( end );
 
-		if ( MathF.Abs( d1 ) < 0.001f ) return start;
-		if ( MathF.Abs( d1 - d2 ) < 0.001f ) return default;
+		const float eps = 0.001f;
+
+		if ( MathF.Abs( d1 - d2 ) < eps )
+		{
+			if ( MathF.Abs( d1 ) < eps )
+				return start;
+
+			return default;
+		}
 
 		float t = -d1 / (d2 - d1);
-		return (t is >= 0.0f and <= 1.0f) ? start + (end - start) * t : default;
+		if ( t >= 0.0f && t <= 1.0f )
+			return start + (end - start) * t;
+
+		return default;
 	}
 
 	/// <summary>

@@ -305,4 +305,17 @@ internal class ToolsDll : IToolsDll
 		}
 	}
 
+
+	public Bitmap GetThumbnail( string filename )
+	{
+		var asset = AssetSystem.FindByPath( filename );
+		if ( asset is null ) return null;
+
+		var thumb = asset.GetAssetThumb( true );
+
+		// Sorry - we have no fast GetPixels
+		var pixels = thumb.GetPng();
+		return Bitmap.CreateFromBytes( pixels );
+	}
+
 }

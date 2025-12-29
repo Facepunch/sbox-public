@@ -1,6 +1,11 @@
 ﻿namespace Sandbox;
 
-/// <inheritdoc cref="Physics.WheelJoint"/>
+/// <summary>
+/// The wheel joint can be used to simulate wheels on vehicles.
+/// The wheel joint restricts body B to move along a local axis in body A. Body B is free to rotate.
+/// Supports a linear spring, linear limits, and a rotational motor.
+/// The assumption is that you will create this joint on the wheel body.This will enable suspension to be in the correct direction.
+/// </summary>
 [Expose]
 [Title( "Wheel Joint" )]
 [Category( "Physics" )]
@@ -9,7 +14,7 @@
 public sealed class WheelJoint : Joint
 {
 	/// <inheritdoc cref="Physics.WheelJoint.EnableSuspensionLimit"/>
-	[Property, ToggleGroup( "EnableSuspensionLimit", Label = "Suspension Limit" )]
+	[Property, ToggleGroup( "EnableSuspensionLimit", Label = "Suspension Limit" ), ShowIf( nameof( EnableSuspension ), true ), ClientEditable]
 	public bool EnableSuspensionLimit
 	{
 		get;
@@ -21,14 +26,14 @@ public sealed class WheelJoint : Joint
 
 			if ( _joint.IsValid() )
 			{
-				_joint.EnableSuspensionLimit = field;
+				_joint.EnableSuspensionLimit = !EnableSuspension || field;
 				_joint.WakeBodies();
 			}
 		}
 	}
 
 	/// <inheritdoc cref="Physics.WheelJoint.SuspensionLimits"/>
-	[Property, Group( "EnableSuspensionLimit" ), Title( "Translation Limits" ), Range( -25, 25 )]
+	[Property, Group( "EnableSuspensionLimit" ), Title( "Translation Limits" ), Range( -25, 25 ), ShowIf( nameof( EnableSuspension ), true ), ClientEditable]
 	public Vector2 SuspensionLimits
 	{
 		get;
@@ -40,14 +45,17 @@ public sealed class WheelJoint : Joint
 
 			if ( _joint.IsValid() )
 			{
-				_joint.SuspensionLimits = field;
+				var v = EnableSuspension ? field : 0.0f;
+				v = new Vector2( Math.Min( v.x, v.y ), Math.Max( v.x, v.y ) );
+
+				_joint.SuspensionLimits = v;
 				_joint.WakeBodies();
 			}
 		}
 	}
 
 	/// <inheritdoc cref="Physics.WheelJoint.EnableSpinMotor"/>
-	[Property, ToggleGroup( "EnableSpinMotor", Label = "Motor" )]
+	[Property, ToggleGroup( "EnableSpinMotor", Label = "Motor" ), ClientEditable]
 	public bool EnableSpinMotor
 	{
 		get;
@@ -66,7 +74,7 @@ public sealed class WheelJoint : Joint
 	}
 
 	/// <inheritdoc cref="Physics.WheelJoint.MaxSpinTorque"/>
-	[Property, Group( "EnableSpinMotor" ), Title( "Max Torque" )]
+	[Property, Group( "EnableSpinMotor" ), Title( "Max Torque" ), ClientEditable]
 	public float MaxSpinTorque
 	{
 		get;
@@ -85,7 +93,7 @@ public sealed class WheelJoint : Joint
 	}
 
 	/// <inheritdoc cref="Physics.WheelJoint.SpinMotorSpeed"/>
-	[Property, Group( "EnableSpinMotor" ), Title( "Speed" )]
+	[Property, Group( "EnableSpinMotor" ), Title( "Speed" ), ClientEditable]
 	public float SpinMotorSpeed
 	{
 		get;
@@ -104,7 +112,7 @@ public sealed class WheelJoint : Joint
 	}
 
 	/// <inheritdoc cref="Physics.WheelJoint.EnableSuspension"/>
-	[Property, ToggleGroup( "EnableSuspension", Label = "Suspension" )]
+	[Property, ToggleGroup( "EnableSuspension", Label = "Suspension" ), ClientEditable]
 	public bool EnableSuspension
 	{
 		get;
@@ -116,14 +124,37 @@ public sealed class WheelJoint : Joint
 
 			if ( _joint.IsValid() )
 			{
-				_joint.EnableSuspension = field;
+				UpdateSuspension();
+
 				_joint.WakeBodies();
 			}
 		}
 	}
 
+	void UpdateSuspension()
+	{
+		_joint.EnableSuspension = EnableSuspension;
+
+		if ( EnableSuspension )
+		{
+			// Suspension on, use user limits.
+			_joint.EnableSuspensionLimit = EnableSuspensionLimit;
+
+			var v = SuspensionLimits;
+			v = new Vector2( Math.Min( v.x, v.y ), Math.Max( v.x, v.y ) );
+
+			_joint.SuspensionLimits = v;
+		}
+		else
+		{
+			// Suspension off, limit it to zero.
+			_joint.EnableSuspensionLimit = true;
+			_joint.SuspensionLimits = 0.0f;
+		}
+	}
+
 	/// <inheritdoc cref="Physics.WheelJoint.SuspensionHertz"/>
-	[Property, Group( "EnableSuspension" ), Title( "Hertz" ), Range( 0, 30 )]
+	[Property, Group( "EnableSuspension" ), Title( "Hertz" ), Range( 0, 30 ), Step( 1 ), ClientEditable]
 	public float SuspensionHertz
 	{
 		get;
@@ -139,10 +170,10 @@ public sealed class WheelJoint : Joint
 				_joint.WakeBodies();
 			}
 		}
-	}
+	} = 10.0f;
 
 	/// <inheritdoc cref="Physics.WheelJoint.SuspensionDampingRatio"/>
-	[Property, Group( "EnableSuspension" ), Title( "Damping" ), Range( 0, 2 )]
+	[Property, Group( "EnableSuspension" ), Title( "Damping" ), Range( 0, 2 ), Step( 0.1f ), ClientEditable]
 	public float SuspensionDampingRatio
 	{
 		get;
@@ -158,7 +189,7 @@ public sealed class WheelJoint : Joint
 				_joint.WakeBodies();
 			}
 		}
-	}
+	} = 1.0f;
 
 	/// <inheritdoc cref="Physics.WheelJoint.EnableSteering"/>
 	[Property, ToggleGroup( "EnableSteering", Label = "Steering" )]
@@ -196,7 +227,7 @@ public sealed class WheelJoint : Joint
 				_joint.WakeBodies();
 			}
 		}
-	}
+	} = 10.0f;
 
 	/// <inheritdoc cref="Physics.WheelJoint.SteeringDampingRatio"/>
 	[Property, Group( "EnableSteering" ), Title( "Damping" ), Range( 0, 2 )]
@@ -215,7 +246,7 @@ public sealed class WheelJoint : Joint
 				_joint.WakeBodies();
 			}
 		}
-	}
+	} = 1.0f;
 
 	/// <inheritdoc cref="Physics.WheelJoint.TargetSteeringAngle"/>
 	[Property, Group( "EnableSteering" ), Title( "Target Angle" ), Range( -180, 180 )]
@@ -314,8 +345,13 @@ public sealed class WheelJoint : Joint
 
 		if ( Attachment == AttachmentMode.Auto )
 		{
-			localFrame1 = point1.LocalTransform;
-			localFrame2 = point2.LocalTransform;
+			localFrame1 = global::Transform.Zero;
+			localFrame1.Position = point1.LocalPosition;
+			localFrame1.Rotation = point1.LocalRotation * new Angles( 90, 0, 0 ) * new Angles( 0, 90, 0 ); // face the right way, steer the right way
+
+			localFrame2 = global::Transform.Zero;
+			localFrame2.Position = point2.Body.Transform.PointToLocal( point1.Transform.Position );
+			localFrame2.Rotation = point2.Body.Transform.RotationToLocal( point1.Transform.Rotation * new Angles( 90, 0, 0 ) * new Angles( 0, 90, 0 ) ); // face the right way, steer the right way
 		}
 
 		if ( !Scene.IsEditor )
@@ -329,7 +365,7 @@ public sealed class WheelJoint : Joint
 		point1.LocalTransform = localFrame1;
 		point2.LocalTransform = localFrame2;
 
-		_joint = PhysicsJoint.CreateWheel( point1, point2 );
+		_joint = PhysicsJoint.CreateWheel( point2, point1 );
 
 		UpdateProperties();
 
@@ -343,7 +379,6 @@ public sealed class WheelJoint : Joint
 		_joint.EnableSpinMotor = EnableSpinMotor;
 		_joint.MaxSpinTorque = MaxSpinTorque;
 		_joint.SpinMotorSpeed = SpinMotorSpeed;
-		_joint.EnableSuspension = EnableSuspension;
 		_joint.SuspensionHertz = SuspensionHertz;
 		_joint.SuspensionDampingRatio = SuspensionDampingRatio;
 		_joint.EnableSteering = EnableSteering;
@@ -351,11 +386,63 @@ public sealed class WheelJoint : Joint
 		_joint.SteeringDampingRatio = SteeringDampingRatio;
 		_joint.TargetSteeringAngle = TargetSteeringAngle;
 		_joint.MaxSteeringTorque = MaxSteeringTorque;
-		_joint.EnableSuspensionLimit = EnableSuspensionLimit;
 		_joint.EnableSteeringLimit = EnableSteeringLimit;
-		_joint.SuspensionLimits = SuspensionLimits;
 		_joint.SteeringLimits = SteeringLimits;
 
+		UpdateSuspension();
+
 		_joint.WakeBodies();
+	}
+
+	protected override void DrawGizmos()
+	{
+		if ( !Gizmo.IsSelected )
+			return;
+
+		Gizmo.Draw.IgnoreDepth = true;
+
+		using var _ = Gizmo.Scope();
+
+		Gizmo.Transform = Gizmo.Transform.WithScale( 1 );
+
+
+		// axis
+		{
+			using var __ = Gizmo.Scope();
+			Gizmo.Transform = Gizmo.Transform with { Rotation = Gizmo.Transform.Rotation * new Angles( 0, 0, RealTime.Now * 45 ) };
+			Gizmo.Draw.Color = Gizmo.Colors.Green;
+			Gizmo.Draw.LineThickness = 2;
+			Gizmo.Draw.LineCapsule( new Capsule( Vector3.Forward * -5.0f, Vector3.Forward * 5.0f, 1 ) );
+		}
+
+		if ( EnableSuspension && SuspensionLimits != default )
+		{
+			var v = SuspensionLimits;
+			v = new Vector2( Math.Min( v.x, v.y ), Math.Max( v.x, v.y ) );
+
+			using var __ = Gizmo.Scope();
+
+			if ( Body != null )
+			{
+				if ( !Scene.IsEditor && _joint.IsValid() )
+				{
+					Gizmo.Transform = _joint.Point1.Transform;
+				}
+				else
+				{
+					Gizmo.Transform = Gizmo.Transform with { Rotation = Body.WorldRotation * new Angles( 90, 0, 0 ) };
+				}
+
+			}
+
+			var top = Vector3.Forward * v.y;
+			var bottom = Vector3.Forward * v.x;
+			var h = Vector3.Left * 1;
+
+			Gizmo.Draw.LineThickness = 2;
+			Gizmo.Draw.Color = Gizmo.Colors.Forward.WithAlpha( 0.3f );
+
+			Gizmo.Draw.LineCapsule( new Capsule( top, bottom, 1 ) );
+		}
 	}
 }

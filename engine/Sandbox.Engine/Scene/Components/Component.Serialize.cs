@@ -37,7 +37,8 @@ public abstract partial class Component : BytePack.ISerializer
 		{
 			{ JsonKeys.Type, t.SerializedName },
 			{ JsonKeys.Id, Id },
-			{ JsonKeys.Enabled, Enabled }
+			{ JsonKeys.Enabled, Enabled },
+			{ JsonKeys.Flags, (long)Flags }
 		};
 
 		if ( (isSceneForNetwork || isSingleNetworkObject) && this is INetworkSnapshot sw )
@@ -102,6 +103,8 @@ public abstract partial class Component : BytePack.ISerializer
 			Id = (Guid)id;
 		}
 
+		DeserializeFlags( node );
+
 		if ( node.TryGetPropertyValue( JsonKeys.Snapshot, out var snapshotNode ) && this is INetworkSnapshot sw )
 		{
 			var data = snapshotNode.Deserialize<byte[]>();
@@ -115,6 +118,18 @@ public abstract partial class Component : BytePack.ISerializer
 		InitializeComponent();
 
 		Enabled = (bool)(jsonData[JsonKeys.Enabled] ?? true);
+	}
+
+	private void DeserializeFlags( JsonObject node )
+	{
+		if ( !node.TryGetPropertyValue( JsonKeys.Flags, out var inFlagNode ) )
+			return;
+
+		var inFlags = (ComponentFlags)(long)inFlagNode;
+
+		const ComponentFlags savedFlags = ComponentFlags.ShowAdvancedProperties;
+
+		Flags = (Flags & ~savedFlags) | (inFlags & savedFlags);
 	}
 
 	internal void PostDeserialize()

@@ -13,6 +13,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 	private readonly List<FaceHandle> _triangleFaces = new();
 	private readonly List<int> _meshIndices = new();
 	private readonly List<Vector3> _meshVertices = new();
+	private readonly List<byte> _meshTriangleMaterials = new();
 	private readonly Dictionary<FaceHandle, FaceMesh> _meshFaces = new();
 	private readonly Dictionary<int, Material> _materialsById = new();
 	private readonly Dictionary<string, int> _materialIdsByName = new();
@@ -41,6 +42,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		public List<int> Indices { get; init; } = new();
 		public List<float> UvDensity { get; set; } = new();
 		public Material Material { get; set; }
+		public int Index { get; set; }
 	}
 
 	private struct FaceData
@@ -52,8 +54,8 @@ public sealed partial class PolygonMesh : IJsonConvert
 		public int MaterialId { get; set; }
 	}
 
-	private static readonly Material DefaultMaterial = Material.Load( "materials/dev/reflectivity_30.vmat" );
-	private static readonly Vector2 DefaultTextureSize = CalculateTextureSize( DefaultMaterial );
+	private Material DefaultMaterial = Material.Load( "materials/dev/reflectivity_30.vmat" );
+	private Vector2 DefaultTextureSize => CalculateTextureSize( DefaultMaterial );
 
 	private VertexData<Vector3> Positions { get; init; }
 	private HalfEdgeData<Vector2> TextureCoord { get; init; }
@@ -142,7 +144,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 	/// <summary>
 	/// Has there been changes to the mesh that need rebuilding?
 	/// </summary>
-	public bool IsDirty { get; private set; }
+	public bool IsDirty { get; internal set; }
 
 	private Transform _transform = Transform.Zero;
 
@@ -163,6 +165,14 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 			IsDirty = true;
 		}
+	}
+
+	/// <summary>
+	/// Set transform without computing texture parameters from coordinates.
+	/// </summary>
+	public void SetTransform( Transform transform )
+	{
+		_transform = transform;
 	}
 
 	public PolygonMesh()
@@ -620,7 +630,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		pOutVertexB = GetVertexPosition( hVertexB );
 	}
 
-	private bool AreEdgesCoLinear( HalfEdgeHandle hEdgeA, HalfEdgeHandle hEdgeB, float flAngleToleranceInDegrees )
+	public bool AreEdgesCoLinear( HalfEdgeHandle hEdgeA, HalfEdgeHandle hEdgeB, float flAngleToleranceInDegrees )
 	{
 		float flTolerance = MathF.Cos( MathF.Min( flAngleToleranceInDegrees, 180.0f ).DegreeToRadian() );
 
@@ -649,6 +659,13 @@ public sealed partial class PolygonMesh : IJsonConvert
 			.ToArray();
 
 		DissolveEdges( connectedEdges, true, DissolveRemoveVertexCondition.Colinear );
+
+		IsDirty = true;
+	}
+
+	public void DissolveEdge( HalfEdgeHandle edge )
+	{
+		Topology.DissolveEdge( edge, out _ );
 
 		IsDirty = true;
 	}
@@ -727,6 +744,68 @@ public sealed partial class PolygonMesh : IJsonConvert
 		IsDirty = true;
 	}
 
+	public bool ComputeClosestPointOnEdge( VertexHandle hVertexA, VertexHandle hVertexB, Vector3 vTargetPoint, out float pOutBaseEdgeParam )
+	{
+		pOutBaseEdgeParam = 0.0f;
+		var hEdge = FindEdgeConnectingVertices( hVertexA, hVertexB );
+		if ( hEdge == HalfEdgeHandle.Invalid )
+			return false;
+
+		var vEdgePositions = new Vector3[2];
+		vEdgePositions[0] = GetVertexPosition( hVertexA );
+		vEdgePositions[1] = GetVertexPosition( hVertexB );
+		int nNumPositions = vEdgePositions.Length;
+
+		float flEdgeLength = 0.0f;
+		for ( int iPos = 1; iPos < nNumPositions; ++iPos )
+		{
+			flEdgeLength += vEdgePositions[iPos - 1].Distance( vEdgePositions[iPos] );
+		}
+
+		Vector3 vClosestPointOnEdge = Vector3.Zero;
+		float flClosestPointParam = 0.0f;
+		float flMinDistanceSqr = float.MaxValue;
+		float flClosestSegmentParam = 0.0f;
+		float flBaseEdgeParam = 0.0f;
+		int nClosestSegment = -1;
+
+		float flSegmentStart = 0.0f;
+		for ( int iPos = 1; iPos < nNumPositions; ++iPos )
+		{
+			var vEdgePosA = vEdgePositions[iPos - 1];
+			var vEdgePosB = vEdgePositions[iPos];
+
+			var vSegment = vEdgePosB - vEdgePosA;
+			float flSegmentLength = vSegment.Length;
+			float flSegmentEnd = flSegmentStart + flSegmentLength;
+
+			CalcClosestPointOnLineSegment( vTargetPoint, vEdgePosA, vEdgePosB, out var vClosestPointOnSegment, out var flSegmentParam );
+
+			float flDistSqr = vClosestPointOnSegment.DistanceSquared( vTargetPoint );
+			if ( flDistSqr < flMinDistanceSqr )
+			{
+				flMinDistanceSqr = flDistSqr;
+				vClosestPointOnEdge = vClosestPointOnSegment;
+				flClosestSegmentParam = flSegmentParam;
+				nClosestSegment = iPos - 1;
+				float flPointDistance = flSegmentStart + flSegmentParam * flSegmentLength;
+				flClosestPointParam = flPointDistance / flEdgeLength;
+
+				flBaseEdgeParam = MathX.Lerp( (iPos - 1) / (float)(nNumPositions - 1), iPos / (float)(nNumPositions - 1), flSegmentParam );
+			}
+
+			flSegmentStart = flSegmentEnd;
+		}
+
+		Assert.True( nClosestSegment >= 0 );
+		if ( nClosestSegment < 0 )
+			return false;
+
+		pOutBaseEdgeParam = flBaseEdgeParam;
+
+		return true;
+	}
+
 	private void RemoveVerticesFromColinearEdgesInFace( FaceHandle hFace, float flColinearAngleTolerance )
 	{
 		// Get all of the vertices in the face
@@ -743,21 +822,190 @@ public sealed partial class PolygonMesh : IJsonConvert
 		}
 	}
 
-	private bool RemoveColinearVertex( VertexHandle hVertex, float flColinearAngleTolerance )
+	bool RemoveColinearVertex( VertexHandle hVertex, float flColinearAngleTolerance )
+	{
+		return RemoveColinearVertexAndUpdateTable( hVertex, null, flColinearAngleTolerance );
+	}
+
+	public bool RemoveColinearVertexAndUpdateTable( VertexHandle hVertex, SortedSet<HalfEdgeHandle> edgeTable, float flColinearAngleTolerance = 5.0f )
 	{
 		Topology.GetFullEdgesConnectedToVertex( hVertex, out var edgesConnectedToVertex );
 
-		if ( edgesConnectedToVertex.Count == 2 )
+		if ( edgesConnectedToVertex is not null && edgesConnectedToVertex.Count == 2 )
 		{
 			if ( AreEdgesCoLinear( edgesConnectedToVertex[0], edgesConnectedToVertex[1], flColinearAngleTolerance ) )
 			{
+				// Were either of the edges in the table
+				bool bEdgeInTable = false;
+				if ( edgeTable is not null )
+				{
+					if ( edgeTable.Contains( edgesConnectedToVertex[0] ) ||
+						 edgeTable.Contains( edgesConnectedToVertex[1] ) )
+					{
+						bEdgeInTable = true;
+					}
+				}
+
+				// Get the vertices at the ends of each edge opposite the vertex about to be removed.
+				GetVerticesConnectedToEdge( edgesConnectedToVertex[0], out var hVertexA, out var hVertexB );
+				var hVertex0 = (hVertexA == hVertex) ? hVertexB : hVertexA;
+
+				GetVerticesConnectedToEdge( edgesConnectedToVertex[1], out hVertexA, out hVertexB );
+				var hVertex1 = (hVertexA == hVertex) ? hVertexB : hVertexA;
+
 				// Remove the vertex, combining the two edges into a single edge
 				if ( Topology.RemoveVertex( hVertex, true ) )
+				{
+					// Remove the two old edges from the table and add the new edge
+					if ( bEdgeInTable )
+					{
+						edgeTable.Remove( edgesConnectedToVertex[0] );
+						edgeTable.Remove( edgesConnectedToVertex[1] );
+						var hCombinedEdge = FindEdgeConnectingVertices( hVertex0, hVertex1 );
+						if ( hCombinedEdge != HalfEdgeHandle.Invalid )
+						{
+							edgeTable.Add( hCombinedEdge );
+						}
+					}
+
 					return true;
+				}
 			}
 		}
 
 		return false;
+	}
+
+	public bool GetEdgesConnectedToVertex( VertexHandle hVertex, out List<HalfEdgeHandle> edges )
+	{
+		return Topology.GetFullEdgesConnectedToVertex( hVertex, out edges );
+	}
+
+	static float CalcClosestPointToLineT( Vector3 P, Vector3 vLineA, Vector3 vLineB, out Vector3 vDir )
+	{
+		vDir = vLineB - vLineA;
+		var div = vDir.Dot( vDir );
+		return div < 0.00001f ? 0.0f : (vDir.Dot( P ) - vDir.Dot( vLineA )) / div;
+	}
+
+	static void CalcClosestPointOnLine( Vector3 P, Vector3 vLineA, Vector3 vLineB, out Vector3 vClosest, out float outT )
+	{
+		outT = CalcClosestPointToLineT( P, vLineA, vLineB, out var vDir );
+		vClosest = vLineA + vDir * outT;
+	}
+
+	public VertexHandle CreateEdgesConnectingVertexToPoint( VertexHandle hStartVertex, Vector3 vTargetPosition, out List<HalfEdgeHandle> pOutEdgeList, out bool pOutIsLastEdgeConnector, SortedSet<HalfEdgeHandle> pEdgeTable )
+	{
+		const float flTolerance = 0.001f;
+
+		pOutEdgeList = [];
+		pOutIsLastEdgeConnector = false;
+
+		var hCurrentVertex = hStartVertex;
+		var hTargetVertex = VertexHandle.Invalid;
+
+		while ( hTargetVertex == VertexHandle.Invalid )
+		{
+			var hNextVertex = VertexHandle.Invalid;
+
+			if ( FindCutEdgeIntersection( hCurrentVertex, vTargetPosition, out var hIntersectionEdge, out var hIntersectionFace, out var vIntersectionPoint ) )
+			{
+				GetVerticesConnectedToEdge( hIntersectionEdge, out var hVertexA, out var hVertexB );
+
+				var vPositionA = GetVertexPosition( hVertexA );
+				var vPositionB = GetVertexPosition( hVertexB );
+
+				CalcClosestPointOnLineSegment( vIntersectionPoint, vPositionA, vPositionB, out _, out var flParam );
+
+				if ( flParam < flTolerance )
+				{
+					hNextVertex = hVertexA;
+				}
+				else if ( flParam > (1.0f - flTolerance) )
+				{
+					hNextVertex = hVertexB;
+				}
+				else
+				{
+					AddVertexToEdgeAndUpdateTable( hVertexA, hVertexB, flParam, out hNextVertex, pEdgeTable );
+				}
+			}
+
+			if ( hNextVertex == VertexHandle.Invalid )
+				break;
+
+			var hTargetEdges = new HalfEdgeHandle[2];
+			hTargetEdges[0] = FindEdgeConnectingVertices( hCurrentVertex, hNextVertex );
+			hTargetEdges[1] = HalfEdgeHandle.Invalid;
+
+			if ( hTargetEdges[0] == HalfEdgeHandle.Invalid )
+			{
+				if ( IsLineBetweenVerticesInsideFace( hIntersectionFace, hCurrentVertex, hNextVertex ) )
+				{
+					AddEdgeToFace( hIntersectionFace, hCurrentVertex, hNextVertex, out hTargetEdges[0] );
+				}
+
+				if ( pEdgeTable is not null && (hTargetEdges[0] != HalfEdgeHandle.Invalid) )
+				{
+					pEdgeTable.Add( hTargetEdges[0] );
+				}
+			}
+
+			if ( hTargetEdges[0] != HalfEdgeHandle.Invalid )
+			{
+				var vPositionA = GetVertexPosition( hCurrentVertex );
+				var vPositionB = GetVertexPosition( hNextVertex );
+
+				CalcClosestPointOnLine( vTargetPosition, vPositionA, vPositionB, out _, out var flParam );
+				if ( (flParam > -flTolerance) && (flParam < (1.0f + flTolerance)) )
+				{
+					if ( flParam < flTolerance )
+					{
+						hTargetVertex = hCurrentVertex;
+					}
+					else if ( flParam > (1.0f - flTolerance) )
+					{
+						hTargetVertex = hNextVertex;
+					}
+					else
+					{
+						if ( AddVertexToEdgeAndUpdateTable( hCurrentVertex, hNextVertex, flParam, out hTargetVertex, pEdgeTable ) )
+						{
+							hTargetEdges[0] = FindEdgeConnectingVertices( hCurrentVertex, hTargetVertex );
+							hTargetEdges[1] = FindEdgeConnectingVertices( hTargetVertex, hNextVertex );
+
+							if ( pEdgeTable is not null && pEdgeTable.Contains( hTargetEdges[1] ) )
+							{
+								pOutIsLastEdgeConnector = true;
+							}
+						}
+						else
+						{
+							Assert.True( hTargetVertex != VertexHandle.Invalid );
+							break;
+						}
+					}
+				}
+			}
+
+			if ( hTargetEdges[0] != HalfEdgeHandle.Invalid )
+			{
+				pOutEdgeList.Add( hTargetEdges[0] );
+			}
+			if ( hTargetEdges[1] != HalfEdgeHandle.Invalid )
+			{
+				pOutEdgeList.Add( hTargetEdges[1] );
+			}
+
+			Assert.True( hNextVertex != hStartVertex );
+			Assert.True( hNextVertex != hCurrentVertex );
+			if ( (hNextVertex == hStartVertex) || (hNextVertex == hCurrentVertex) )
+				break;
+
+			hCurrentVertex = hNextVertex;
+		}
+
+		return hTargetVertex;
 	}
 
 	public enum DissolveRemoveVertexCondition
@@ -1396,6 +1644,43 @@ public sealed partial class PolygonMesh : IJsonConvert
 		return true;
 	}
 
+	public bool AddVertexToEdgeAndUpdateTable( VertexHandle hVertexA, VertexHandle hVertexB, float flParam, out VertexHandle pNewVertex, SortedSet<HalfEdgeHandle> pEdgeTable )
+	{
+		pNewVertex = VertexHandle.Invalid;
+
+		bool bOriginalEdgeInTable = false;
+		var hOriginalEdge = HalfEdgeHandle.Invalid;
+
+		if ( pEdgeTable is not null )
+		{
+			var hEdge = FindEdgeConnectingVertices( hVertexA, hVertexB );
+			if ( pEdgeTable.Contains( hEdge ) )
+			{
+				bOriginalEdgeInTable = true;
+			}
+		}
+
+		if ( AddVertexToEdge( hVertexA, hVertexB, flParam, out var hNewVertex ) )
+		{
+			if ( bOriginalEdgeInTable )
+			{
+				Topology.GetFullEdgesConnectedToVertex( hNewVertex, out var connectedEdges );
+				if ( connectedEdges.Count == 2 )
+				{
+					pEdgeTable.Remove( hOriginalEdge );
+					pEdgeTable.Add( connectedEdges[0] );
+					pEdgeTable.Add( connectedEdges[1] );
+				}
+			}
+
+			pNewVertex = hNewVertex;
+
+			return true;
+		}
+
+		return false;
+	}
+
 	public bool RemoveVertex( VertexHandle hVertex, bool removeFreeVerts )
 	{
 		return Topology.RemoveVertex( hVertex, removeFreeVerts );
@@ -1551,108 +1836,58 @@ public sealed partial class PolygonMesh : IJsonConvert
 		return false;
 	}
 
-	private bool IsLineBetweenVerticesInsideFace( FaceHandle hFace, VertexHandle hVertexA, VertexHandle hVertexB )
+	bool IsLineBetweenVerticesInsideFace( FaceHandle face, VertexHandle a, VertexHandle b )
 	{
-		Assert.True( hVertexA != hVertexB );
-		if ( hVertexA == hVertexB )
-			return false;
+		if ( a == b ) return false;
 
-		var positionA = GetVertexPosition( hVertexA );
-		var positionB = GetVertexPosition( hVertexB );
-		var dirAB = (positionB - positionA).Normal;
+		var pa = GetVertexPosition( a );
+		var pb = GetVertexPosition( b );
 
-		var positions = GetFaceVertexPositions( hFace, Transform.Zero ).ToArray();
-		var numVertices = positions.Length;
-		PlaneEquation( positions, out var vNormal, out var flPlaneDist );
+		var v3 = GetFaceVertexPositions( face, Transform.Zero ).ToArray();
+		if ( v3.Length < 3 ) return false;
 
-		var intersectPlane = new Plane( positionA, dirAB.Cross( vNormal ).Normal );
-		var planeA = new Plane( positionA, dirAB );
-		var planeB = new Plane( positionB, -dirAB );
+		PlaneEquation( v3, out var n, out _ );
 
-		for ( int i = (numVertices - 1), j = 0; j < numVertices; i = j++ )
+		var u = (MathF.Abs( n.z ) < 0.9f ? Vector3.Up : Vector3.Right).Cross( n ).Normal;
+		var v = n.Cross( u );
+
+		var a2 = new Vector2( pa.Dot( u ), pa.Dot( v ) );
+		var b2 = new Vector2( pb.Dot( u ), pb.Dot( v ) );
+
+		var poly = new Vector2[v3.Length];
+		for ( int i = 0; i < v3.Length; ++i ) poly[i] = new Vector2( v3[i].Dot( u ), v3[i].Dot( v ) );
+
+		static float Cross( Vector2 x, Vector2 y ) => x.x * y.y - x.y * y.x;
+
+		for ( int i = poly.Length - 1, j = 0; j < poly.Length; i = j++ )
 		{
-			var intersectPoint = intersectPlane.IntersectLine( positions[i], positions[j] );
-			if ( intersectPoint.HasValue )
+			var p = poly[i];
+			var q = poly[j];
+
+			var da = b2 - a2;
+			var db = q - p;
+
+			var o1 = Cross( da, p - a2 );
+			var o2 = Cross( da, q - a2 );
+			var o3 = Cross( db, a2 - p );
+			var o4 = Cross( db, b2 - p );
+
+			if ( o1 * o2 < 0 && o3 * o4 < 0 ) return false;
+		}
+
+		var m = (a2 + b2) * 0.5f;
+		var inside = false;
+		for ( int i = poly.Length - 1, j = 0; j < poly.Length; i = j++ )
+		{
+			if ( ((poly[i].y > m.y) != (poly[j].y > m.y)) &&
+				 (m.x < (poly[j].x - poly[i].x) * (m.y - poly[i].y) /
+				 (poly[j].y - poly[i].y + 1e-20f) + poly[i].x) )
 			{
-				if ( (planeA.GetDistance( intersectPoint.Value ) >= 0.01f) &&
-					 (planeB.GetDistance( intersectPoint.Value ) >= 0.01f) )
-				{
-					return false;
-				}
+				inside = !inside;
 			}
 		}
 
-		var indices = Mesh.TriangulatePolygon( positions );
-		var min = positions[0];
-		var max = min;
-
-		foreach ( var v in positions[1..] )
-		{
-			min = Vector3.Min( min, v );
-			max = Vector3.Max( max, v );
-		}
-
-		return IsPointInPolygon( positions, indices, min, max, positionA.LerpTo( positionB, 1.0f / 3.0f ) ) ||
-			   IsPointInPolygon( positions, indices, min, max, positionA.LerpTo( positionB, 2.0f / 3.0f ) );
-	}
-
-	private static bool IsPointInPolygon( ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> indices, Vector3 min, Vector3 max, Vector3 point )
-	{
-		if ( (point.x < min.x) || (point.y < min.y) || (point.z < min.z) ||
-			 (point.x > max.x) || (point.y > max.y) || (point.z > max.z) )
-			return false;
-
-		int numIndices = indices.Length;
-		for ( int i = 0; (i + 2) < numIndices; i += 3 )
-		{
-			var a = vertices[indices[i + 0]];
-			var b = vertices[indices[i + 1]];
-			var c = vertices[indices[i + 2]];
-
-			var ab = b - a;
-			var ac = c - a;
-			var normal = ab.Cross( ac ).Normal;
-
-			if ( InsideTriangle( a, b, c, point, normal ) )
-			{
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	public static bool InsideTriangle( Vector3 a, Vector3 b, Vector3 c, Vector3 p, Vector3 normal )
-	{
-		const float EPSILON = 0.0000001f;
-		const float MAX_EDGE_DIST_SQ = EPSILON * EPSILON;
-
-		var bc = c - b;
-		var ca = a - c;
-		var ab = b - a;
-		var ap = p - a;
-		var bp = p - b;
-		var cp = p - c;
-
-		if ( Vector3.Dot( Vector3.Cross( bc, bp ), normal ) > -EPSILON &&
-			 Vector3.Dot( Vector3.Cross( ca, cp ), normal ) > -EPSILON &&
-			 Vector3.Dot( Vector3.Cross( ab, ap ), normal ) > -EPSILON )
-		{
-			return true;
-		}
-
-		return IsPointOnEdge( p, a, b, MAX_EDGE_DIST_SQ ) ||
-			   IsPointOnEdge( p, b, c, MAX_EDGE_DIST_SQ ) ||
-			   IsPointOnEdge( p, c, a, MAX_EDGE_DIST_SQ );
-	}
-
-	private static bool IsPointOnEdge( Vector3 p, Vector3 a, Vector3 b, float maxEdgeDistSq )
-	{
-		var dir = b - a;
-		var div = Vector3.Dot( dir, dir );
-		var t = (div < 0.00001f) ? 0.0f : (Vector3.Dot( dir, p ) - Vector3.Dot( dir, a )) / div;
-		var closestPoint = a + dir * t;
-		return (Vector3.DistanceBetweenSquared( p, closestPoint ) < maxEdgeDistSq) && (t >= 0.0f) && (t <= 1.0f);
+		return inside;
 	}
 
 	private bool AddEdgeToFace( FaceHandle hFace, VertexHandle hVertexA, VertexHandle hVertexB, out HalfEdgeHandle pOutNewEdge )
@@ -2294,6 +2529,12 @@ public sealed partial class PolygonMesh : IJsonConvert
 		ComputeFaceTextureCoordinatesFromParameters( FaceHandles );
 	}
 
+	public void ComputeFaceTextureCoordinatesFromParameters( Transform transform )
+	{
+		var textureSizes = Materials.Select( CalculateTextureSize ).ToArray();
+		ComputeFaceTextureCoordinatesFromParameters( FaceHandles, transform, textureSizes, 0.25f );
+	}
+
 	public void ComputeFaceTextureCoordinatesFromParameters( IEnumerable<FaceHandle> faces )
 	{
 		var textureSizes = Materials.Select( CalculateTextureSize ).ToArray();
@@ -2386,6 +2627,8 @@ public sealed partial class PolygonMesh : IJsonConvert
 				TextureCoord[hFaceVertex] = texCoord;
 			}
 		}
+
+		IsDirty = true;
 	}
 
 	private static bool CalcTextureBasisFromUVs( Vector3[] vVertPos, Vector2[] vTexCoord, out Vector3 vOutU, out Vector3 vOutV )
@@ -2648,6 +2891,21 @@ public sealed partial class PolygonMesh : IJsonConvert
 		}
 
 		ComputeFaceTextureParametersFromCoordinates( new[] { hFace } );
+
+		IsDirty = true;
+	}
+
+	public Vector2[] GetFaceTextureCoords( FaceHandle hFace )
+	{
+		if ( !hFace.IsValid )
+			return Array.Empty<Vector2>();
+		GetFaceVerticesConnectedToFace( hFace, out var hEdges );
+		var texcoords = new Vector2[hEdges.Length];
+		for ( int i = 0; i < hEdges.Length; i++ )
+		{
+			texcoords[i] = TextureCoord[hEdges[i]];
+		}
+		return texcoords;
 	}
 
 	/// <summary>
@@ -2878,7 +3136,9 @@ public sealed partial class PolygonMesh : IJsonConvert
 		_meshIndices.Clear();
 		_meshVertices.Clear();
 		_meshFaces.Clear();
+		_meshTriangleMaterials.Clear();
 
+		var builder = Model.Builder;
 		var submeshes = new Dictionary<int, Submesh>();
 
 		foreach ( var hFace in Topology.FaceHandles )
@@ -2890,22 +3150,24 @@ public sealed partial class PolygonMesh : IJsonConvert
 				submesh = new()
 				{
 					Material = material,
+					Index = submeshes.Count,
 				};
 
 				submeshes.Add( materialId, submesh );
+
+				builder.AddSurface( material?.Surface );
 			}
 
 			TriangulateFace( hFace, submesh );
 		}
 
-		var builder = Model.Builder;
-
 		if ( _meshVertices.Count >= 3 && _meshIndices.Count >= 3 )
 		{
 			builder.AddCollisionHull( _meshVertices );
-			builder.AddCollisionMesh( _meshVertices, _meshIndices );
+			builder.AddCollisionMesh( _meshVertices, _meshIndices, _meshTriangleMaterials );
 			builder.AddTraceMesh( _meshVertices, _meshIndices );
 		}
+
 
 		foreach ( var submesh in submeshes.Values )
 		{
@@ -3024,7 +3286,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		return Topology.GetFullEdgesConnectedToFace( hFace, out edges );
 	}
 
-	private bool GetVerticesConnectedToEdge( HalfEdgeHandle hEdge, FaceHandle hFace, out VertexHandle hOutVertexA, out VertexHandle hOutVertexB )
+	public bool GetVerticesConnectedToEdge( HalfEdgeHandle hEdge, FaceHandle hFace, out VertexHandle hOutVertexA, out VertexHandle hOutVertexB )
 	{
 		hOutVertexA = VertexHandle.Invalid;
 		hOutVertexB = VertexHandle.Invalid;
@@ -3099,7 +3361,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		return HalfEdgeHandle.Invalid;
 	}
 
-	private bool GetVerticesConnectedToFace( FaceHandle hFace, out VertexHandle[] vertices )
+	public bool GetVerticesConnectedToFace( FaceHandle hFace, out VertexHandle[] vertices )
 	{
 		return Topology.GetVerticesConnectedToFace( hFace, out vertices );
 	}
@@ -4172,6 +4434,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 			triangles.Add( c );
 
 			_triangleFaces.Add( hFace );
+			_meshTriangleMaterials.Add( (byte)submesh.Index );
 
 			_meshIndices.Add( startCollisionVertex + faceIndices[triangle] );
 			_meshIndices.Add( startCollisionVertex + faceIndices[triangle + 1] );
@@ -4204,6 +4467,115 @@ public sealed partial class PolygonMesh : IJsonConvert
 		return Enumerable.Range( faceMesh.IndexStart, faceMesh.IndexCount )
 					.Select( x => new Vertex( transform.PointToWorld( _meshVertices[_meshIndices[x]] ), color ) )
 					.ToArray();
+	}
+
+	bool FindCutEdgeIntersection( VertexHandle hVertex, Vector3 targetPosition, out HalfEdgeHandle outEdge, out FaceHandle outFace, out Vector3 outPosition )
+	{
+		outEdge = HalfEdgeHandle.Invalid;
+		outFace = FaceHandle.Invalid;
+		outPosition = default;
+
+		GetVertexPosition( hVertex, Transform.Zero, out var vCurrentPosition );
+		var vDir = (targetPosition - vCurrentPosition).Normal;
+
+		GetFacesConnectedToVertex( hVertex, out var connectedFaces );
+
+		var hBestFace = FaceHandle.Invalid;
+		var hBestVertexA = VertexHandle.Invalid;
+		var hBestVertexB = VertexHandle.Invalid;
+		var vBestPoint = Vector3.Zero;
+		var flMinDistance = float.MaxValue;
+
+		int nNumFaces = connectedFaces.Count;
+		for ( int iFace = 0; iFace < nNumFaces; ++iFace )
+		{
+			var hFace = connectedFaces[iFace];
+
+			ComputeFaceNormal( hFace, out var vFaceNormal );
+
+			if ( MathF.Abs( vFaceNormal.Dot( vDir ) ) > 0.5f )
+				continue;
+
+			var vCutPlaneNormal = vFaceNormal.Cross( vDir ).Normal;
+			var cutPlane = new Plane( vCurrentPosition, vCutPlaneNormal );
+			var basePlane = new Plane( vCurrentPosition, vDir );
+
+			var hStartFaceVertex = FindFaceVertexConnectedToVertex( hVertex, hFace );
+			var hFaceVertexA = GetNextVertexInFace( hStartFaceVertex );
+			var hFaceVertexB = GetNextVertexInFace( hFaceVertexA );
+
+			var hBestVertexForFaceA = VertexHandle.Invalid;
+			var hBestVertexForFaceB = VertexHandle.Invalid;
+			var vBestPointForFace = Vector3.Zero;
+			var flMinBasePlaneDistance = float.MaxValue;
+
+			while ( hFaceVertexB != hStartFaceVertex )
+			{
+				var hVertexA = GetVertexConnectedToFaceVertex( hFaceVertexA );
+				var hVertexB = GetVertexConnectedToFaceVertex( hFaceVertexB );
+
+				if ( (hVertexA != hVertex) && (hVertexB != hVertex) )
+				{
+					var vPositionA = GetVertexPosition( hVertexA );
+					var vPositionB = GetVertexPosition( hVertexB );
+					var vIntersection = cutPlane.IntersectLine( vPositionA, vPositionB );
+					if ( vIntersection.HasValue )
+					{
+						float flBasePlaneDistance = basePlane.GetDistance( vIntersection.Value );
+
+						if ( (flBasePlaneDistance >= 0) && (flBasePlaneDistance <= flMinBasePlaneDistance) )
+						{
+							var vAB = vPositionB - vPositionA;
+							var vCross = vDir.Cross( vAB );
+
+							if ( vCross.Dot( vFaceNormal ) > 0.0f )
+							{
+								hBestVertexForFaceA = hVertexA;
+								hBestVertexForFaceB = hVertexB;
+								vBestPointForFace = vIntersection.Value;
+							}
+							else if ( flBasePlaneDistance < flMinBasePlaneDistance )
+							{
+								hBestVertexForFaceA = VertexHandle.Invalid;
+								hBestVertexForFaceB = VertexHandle.Invalid;
+								vBestPointForFace = Vector3.Zero;
+							}
+
+							flMinBasePlaneDistance = flBasePlaneDistance;
+						}
+					}
+				}
+
+				hFaceVertexA = hFaceVertexB;
+				hFaceVertexB = GetNextVertexInFace( hFaceVertexB );
+			}
+
+			var flFaceTargetDistance = vBestPointForFace.Distance( targetPosition );
+			if ( (hBestVertexForFaceA != VertexHandle.Invalid) &&
+				 (hBestVertexForFaceB != VertexHandle.Invalid) &&
+				 (flFaceTargetDistance < flMinDistance) )
+			{
+				hBestFace = hFace;
+				hBestVertexA = hBestVertexForFaceA;
+				hBestVertexB = hBestVertexForFaceB;
+				vBestPoint = vBestPointForFace;
+				flMinDistance = flFaceTargetDistance;
+			}
+		}
+
+		if ( hBestFace == FaceHandle.Invalid )
+			return false;
+
+		outEdge = FindEdgeConnectingVertices( hBestVertexA, hBestVertexB );
+		outFace = hBestFace;
+		outPosition = vBestPoint;
+
+		return true;
+	}
+
+	public void GetFacesConnectedToEdge( HalfEdgeHandle hEdge, out FaceHandle hOutFaceA, out FaceHandle hOutFaceB )
+	{
+		Topology.GetFacesConnectedToFullEdge( hEdge, out hOutFaceA, out hOutFaceB );
 	}
 
 	private static readonly Vector3[] FaceNormals =

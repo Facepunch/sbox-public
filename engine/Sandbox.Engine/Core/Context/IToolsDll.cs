@@ -45,4 +45,9 @@ internal unsafe interface IToolsDll
 	/// Called after the host network system is initialised, used to add additional package references etc. to dev servers 
 	/// </summary>
 	public Task OnInitializeHost();
+
+	/// <summary>
+	/// Get a thumbnail for the specified asset.Can return null if not immediately available. 
+	/// </summary>
+	Bitmap GetThumbnail( string filename );
 }

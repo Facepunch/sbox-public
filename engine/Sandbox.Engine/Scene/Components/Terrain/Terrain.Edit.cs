@@ -12,7 +12,6 @@ public partial class Terrain
 	{
 		Height = 1,
 		Control = 2,
-		Holes = 4,
 	}
 
 	/// <summary>
@@ -41,12 +40,10 @@ public partial class Terrain
 		if ( flags.HasFlag( SyncFlags.Height ) )
 			HeightMap.GetPixels( regionTuple, 0, 0, Storage.HeightMap.AsSpan(), ImageFormat.R16, regionTuple, HeightMap.Width );
 		if ( flags.HasFlag( SyncFlags.Control ) )
-			ControlMap.GetPixels( regionTuple, 0, 0, Storage.ControlMap.AsSpan(), ImageFormat.RGBA8888, regionTuple, ControlMap.Width );
-		if ( flags.HasFlag( SyncFlags.Holes ) )
-			HolesMap.GetPixels( regionTuple, 0, 0, Storage.HolesMap.AsSpan(), ImageFormat.I8, regionTuple, HolesMap.Width );
+			ControlMap.GetPixels( regionTuple, 0, 0, Storage.ControlMap.AsSpan(), ImageFormat.R32_UINT, regionTuple, ControlMap.Width );
 
 		// Update collider regions with the dirty data
-		if ( flags.HasFlag( SyncFlags.Height ) || flags.HasFlag( SyncFlags.Holes ) )
+		if ( flags.HasFlag( SyncFlags.Height ) )
 			UpdateColliderHeights( region.Left, region.Top, region.Width, region.Height );
 		if ( flags.HasFlag( SyncFlags.Control ) )
 			UpdateColliderMaterials( region.Left, region.Top, region.Width, region.Height );
@@ -61,7 +58,6 @@ public partial class Terrain
 	public void SyncGPUTexture()
 	{
 		HeightMap.Update( new ReadOnlySpan<ushort>( Storage.HeightMap ) );
-		ControlMap.Update( new ReadOnlySpan<Color32>( Storage.ControlMap ) );
-		HolesMap.Update( new ReadOnlySpan<byte>( Storage.HolesMap ) );
+		ControlMap.Update( new ReadOnlySpan<UInt32>( Storage.ControlMap ) );
 	}
 }

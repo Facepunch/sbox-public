@@ -18,80 +18,72 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 		Hull
 	}
 
-	private PolygonMesh _mesh;
-
-	[Property, Order( 0 )]
+	[Property, Hide]
 	public PolygonMesh Mesh
 	{
-		get => _mesh;
+		get;
 		set
 		{
-			if ( _mesh == value )
-				return;
+			if ( field == value ) return;
 
-			_mesh = value;
+			field = value;
 
-			Update();
+			RebuildMesh();
 		}
 	}
 
 	[Property, Order( 1 )]
 	public CollisionType Collision
 	{
-		get => _collisionType;
+		get;
 		set
 		{
-			if ( _collisionType == value )
-				return;
+			if ( field == value ) return;
 
-			_collisionType = value;
+			field = value;
 
 			RebuildImmediately();
 		}
-	}
+	} = CollisionType.Mesh;
 
 	[Property, Title( "Tint" ), Order( 2 )]
 	public Color Color
 	{
-		get => _color;
+		get;
 		set
 		{
-			if ( _color == value )
-				return;
+			if ( field == value ) return;
 
-			_color = value;
+			field = value;
 
-			if ( SceneObject.IsValid() )
-			{
-				SceneObject.ColorTint = Color;
-			}
+			_sceneObject?.ColorTint = Color;
 		}
-	}
+	} = Color.White;
 
 	[Property, Order( 3 )]
 	public float SmoothingAngle
 	{
-		get => _smoothingAngle;
+		get;
 		set
 		{
-			if ( _smoothingAngle == value )
+			if ( field == value )
 				return;
 
-			_smoothingAngle = value;
-			Mesh?.SetSmoothingAngle( _smoothingAngle );
+			field = value;
+			Mesh?.SetSmoothingAngle( field );
 		}
 	}
 
 	[Property, Order( 4 )]
 	public bool HideInGame
 	{
-		get => _hideInGame;
+		get;
 		set
 		{
-			if ( _hideInGame == value )
+			if ( field == value )
 				return;
 
-			_hideInGame = value;
+			field = value;
 
 			if ( Scene.IsEditor )
 				return;
@@ -100,78 +92,63 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 			{
 				DeleteSceneObject();
 			}
-			else if ( !SceneObject.IsValid() && Model is not null )
+			else if ( !_sceneObject.IsValid() && Model is not null )
 			{
-				SceneObject = new SceneObject( Scene.SceneWorld, Model, WorldTransform );
+				_sceneObject = new SceneObject( Scene.SceneWorld, Model, WorldTransform );
 				UpdateSceneObject();
 			}
 		}
 	}
 
-	private ShadowRenderType _renderType = ShadowRenderType.On;
-
 	[Title( "Cast Shadows" ), Property, Category( "Lighting" )]
 	public ShadowRenderType RenderType
 	{
-		get => _renderType;
+		get;
 		set
 		{
-			if ( _renderType == value )
-				return;
+			if ( field == value ) return;
 
-			_renderType = value;
-			if ( SceneObject.IsValid() )
+			field = value;
+			if ( _sceneObject.IsValid() )
 			{
-				SceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
+				_sceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
 			}
 		}
-	}
+	} = ShadowRenderType.On;
 
 	[JsonIgnore, Hide]
 	public Model Model { get; private set; }
 
 	public override bool IsConcave => Collision == CollisionType.Mesh;
 
-	private bool Hidden => !Scene.IsEditor && HideInGame;
-	private SceneObject SceneObject;
-	private Color _color = Color.White;
-	private CollisionType _collisionType = CollisionType.Mesh;
-	private float _smoothingAngle;
-	private bool _hideInGame;
+	bool Hidden => !Scene.IsEditor && HideInGame;
+
+	SceneObject _sceneObject;
 
 	public void SetMaterial( Material material, int triangle )
 	{
-		if ( Mesh is null )
-			return;
+		if ( Mesh is null ) return;
 
 		var face = Mesh.TriangleToFace( triangle );
-		if ( !face.IsValid )
-			return;
+		if ( !face.IsValid ) return;
 
 		Mesh.SetFaceMaterial( face, material );
 	}
 
 	public Material GetMaterial( int triangle )
 	{
-		if ( Mesh is null )
-			return default;
+		if ( Mesh is null ) return default;
 
 		var face = Mesh.TriangleToFace( triangle );
 		return Mesh.GetFaceMaterial( face );
 	}
 
-	protected override void OnValidate()
+	internal override void OnEnabledInternal()
 	{
-		WorldScale = 1;
+		// Mesh needs to build before collider.
+		RebuildRenderMesh();
 
-		Update();
-	}
-
-	protected override void OnEnabled()
-	{
-		base.OnEnabled();
-
-		RebuildMesh();
+		base.OnEnabledInternal();
 	}
 
 	protected override void OnDisabled()
@@ -181,68 +158,56 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 		DeleteSceneObject();
 	}
 
-	private void DeleteSceneObject()
+	void DeleteSceneObject()
 	{
-		if ( !SceneObject.IsValid() )
-			return;
+		if ( !_sceneObject.IsValid() ) return;
 
-		SceneObject.RenderingEnabled = false;
-		SceneObject.Delete();
-		SceneObject = null;
+		_sceneObject.RenderingEnabled = false;
+		_sceneObject.Delete();
+		_sceneObject = null;
 	}
 
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
 
-		Update();
-	}
-
-	private void Update()
-	{
-		if ( !Active )
-			return;
-
-		if ( Mesh is null )
-			return;
-
-		if ( Scene.IsEditor )
-		{
-			Mesh.Transform = WorldTransform;
-		}
-
-		if ( !Mesh.IsDirty )
-			return;
-
 		RebuildMesh();
 	}
 
-	internal override void OnTagsUpdatedInternal()
+	public void RebuildMesh()
 	{
-		if ( SceneObject.IsValid() )
-		{
-			SceneObject.Tags.SetFrom( Tags );
-		}
+		// Only rebuild dirty meshes in editor.
+		if ( !Active ) return;
+		if ( !Scene.IsEditor ) return;
+		if ( Mesh is null || !Mesh.IsDirty ) return;
 
-		base.OnTagsUpdatedInternal();
+		RebuildRenderMesh();
+		RebuildImmediately();
+	}
+
+	protected override void OnTagsChanged()
+	{
+		base.OnTagsChanged();
+
+		if ( _sceneObject.IsValid() )
+		{
+			_sceneObject.Tags.SetFrom( Tags );
+		}
 	}
 
 	internal override void TransformChanged( GameTransform root )
 	{
-		if ( WorldScale != 1 && Mesh is not null )
+		if ( _sceneObject.IsValid() )
 		{
-			Mesh.Scale( WorldScale );
-			WorldScale = 1;
+			_sceneObject.Transform = WorldTransform;
 		}
 
 		if ( Mesh is not null && Scene.IsEditor )
 		{
+			// Compute face texture parameters on transform change but don't rebuild mesh now.
+			var wasDirty = Mesh.IsDirty;
 			Mesh.Transform = WorldTransform;
-		}
-
-		if ( SceneObject.IsValid() )
-		{
-			SceneObject.Transform = WorldTransform;
+			Mesh.IsDirty = wasDirty;
 		}
 
 		base.TransformChanged( root );
@@ -288,58 +253,52 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 		}
 	}
 
-	public void RebuildMesh()
+	void RebuildRenderMesh()
 	{
-		if ( !Active )
-			return;
-
-		if ( Mesh is null )
-			return;
+		if ( !Active ) return;
+		if ( Mesh is null ) return;
 
 		Mesh.Transform = WorldTransform;
 		Mesh.SetSmoothingAngle( SmoothingAngle );
 		Model = Mesh.Rebuild();
 
-		RebuildImmediately();
-
 		if ( Model is null || Model.MeshCount == 0 )
 		{
-			if ( SceneObject.IsValid() )
+			if ( _sceneObject.IsValid() )
 			{
-				SceneObject.RenderingEnabled = false;
-				SceneObject.Delete();
-				SceneObject = null;
+				_sceneObject.RenderingEnabled = false;
+				_sceneObject.Delete();
+				_sceneObject = null;
 			}
 
 			return;
 		}
 
-		if ( Hidden )
-			return;
+		if ( Hidden ) return;
 
-		if ( !SceneObject.IsValid() )
+		if ( !_sceneObject.IsValid() )
 		{
-			SceneObject = new SceneObject( Scene.SceneWorld, Model, WorldTransform );
+			_sceneObject = new SceneObject( Scene.SceneWorld, Model, WorldTransform );
 		}
 		else
 		{
-			SceneObject.Model = Model;
-			SceneObject.Transform = WorldTransform;
+			_sceneObject.Model = Model;
+			_sceneObject.Transform = WorldTransform;
 
 			// We manually set the model, sceneobject needs to update based on any new materials in it
-			SceneObject.UpdateFlagsBasedOnMaterial();
+			_sceneObject.UpdateFlagsBasedOnMaterial();
 		}
 
 		UpdateSceneObject();
 	}
 
-	private void UpdateSceneObject()
+	void UpdateSceneObject()
 	{
-		if ( !SceneObject.IsValid() ) return;
+		if ( !_sceneObject.IsValid() ) return;
 
-		SceneObject.Component = this;
-		SceneObject.Tags.SetFrom( GameObject.Tags );
-		SceneObject.ColorTint = Color;
-		SceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
+		_sceneObject.Component = this;
+		_sceneObject.Tags.SetFrom( GameObject.Tags );
+		_sceneObject.ColorTint = Color;
+		_sceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
 	}
 }

@@ -498,6 +498,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			return gibs;
 
 		var rb = Components.Get<Rigidbody>();
+		var mr = Components.Get<ModelRenderer>();
 
 		gibs.EnsureCapacity( breaklist.Length );
 
@@ -531,6 +532,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			c.FadeTime = breakModel.FadeTime;
 			c.Model = model;
 			c.Enabled = true;
+			c.Tint = mr?.Tint ?? c.Tint;
 
 			gibs.Add( c );
 

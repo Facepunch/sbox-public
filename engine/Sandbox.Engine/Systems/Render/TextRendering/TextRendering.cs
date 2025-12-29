@@ -20,7 +20,7 @@ public static partial class TextRendering
 	/// <summary>
 	/// Create a texture from the scope. The texture will either be a cached version or will be rendered immediately
 	/// </summary>
-	public static Texture GetOrCreateTexture( in Scope scope, Vector2 clip = default, TextFlag flag = TextFlag.LeftTop, FontSmooth smooth = FontSmooth.Auto )
+	public static Texture GetOrCreateTexture( in Scope scope, Vector2 clip = default, TextFlag flag = TextFlag.LeftTop )
 	{
 		if ( Application.IsHeadless )
 			return Texture.Invalid;
@@ -31,7 +31,6 @@ public static partial class TextRendering
 		hc.Add( scope );
 		hc.Add( clip );
 		hc.Add( flag );
-		hc.Add( smooth );
 
 		// TextManager is caching this right now
 		var tb = GetOrCreateTextBlock( hc.ToHashCode(), out bool created );
@@ -40,7 +39,6 @@ public static partial class TextRendering
 		{
 			tb.Clip = clip;
 			tb.Flags = flag;
-			tb.Smooth = FontSmooth.Auto;
 			tb.Initialize( scope );
 		}
 
@@ -94,5 +92,14 @@ public static partial class TextRendering
 		}
 
 		//Log.Info( $"TextManager: {total} ({deleted} deleted)" );
+	}
+
+	internal static void ClearCache()
+	{
+		foreach ( var item in Dictionary )
+		{
+			item.Value.Dispose();
+		}
+		Dictionary.Clear();
 	}
 }

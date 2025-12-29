@@ -1,0 +1,51 @@
+StoreHero {
+    &:not(.active) {
+        display: none;
+    }
+
+    width: 450px;
+    height: 300px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: all;
+    cursor: pointer;
+    border: 1px solid #2e344b44;
+    border-radius: 16px;
+    padding: 16px 32px;
+    transition: all 0.1s linear;
+    color: #aab3cc;
+    background-image: url( 'ui/mainmenu/xmas-store-hero.png' );
+    background-size: cover;
+    margin-top: 50px;
+    position: relative;
+
+    .time-left {
+        position: absolute;
+        top: 116px;
+        left: 10px;
+        font-weight: 900;
+        font-size: 4rem;
+        text-transform: uppercase;
+        transform: rotate(-2deg);
+        font-family: Poppins;
+        align-items: center;
+        gap: 0.75rem;
+        text-shadow: 1px 1px 10px #000000;
+        text-stroke: 5px #fff;
+
+        .number {
+            font-size: 5rem;
+            color: #a51c1f;
+        }
+
+        .text {
+            color: #1da43d;
+            font-size: 3.25rem;
+        }
+    }
+
+    &:hover {
+        transform: scale( 1.05 );
+    }
+}

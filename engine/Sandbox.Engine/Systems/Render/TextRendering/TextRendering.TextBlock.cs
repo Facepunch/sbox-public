@@ -14,47 +14,31 @@ public static partial class TextRendering
 
 		public TextFlag Flags;
 		public Vector2 Clip;
-		public FontSmooth Smooth;
 		public bool IsEmpty;
 
 		public RealTimeSince TimeSinceUsed;
 
-		TextRendering.Scope Scope;
-
-
+		Scope _scope;
 		Margin _effectMargin = default;
 
-		public TextBlock( string text, Color color, string font, float size, int fontWeight, Vector2 clip, TextFlag flag, FontSmooth? smooth = FontSmooth.Auto )
+		public TextBlock( Scope scope, Vector2 clip, TextFlag flag )
 		{
 			Assert.False( Application.IsHeadless );
 
 			Flags = flag;
 			Clip = clip;
-			Smooth = smooth ?? FontSmooth.Auto;
-
-			Initialize( new TextRendering.Scope { Text = text, TextColor = color, FontName = font, FontSize = size, FontWeight = fontWeight } );
-		}
-
-		public TextBlock( Scope scope, Vector2 clip, TextFlag flag, FontSmooth? smooth = FontSmooth.Auto )
-		{
-			Assert.False( Application.IsHeadless );
-
-			Flags = flag;
-			Clip = clip;
-			Smooth = smooth ?? FontSmooth.Auto;
 
 			Initialize( scope );
 		}
 
 		public TextBlock()
 		{
-
 		}
 
-		internal void Initialize( TextRendering.Scope scope )
+		internal void Initialize( Scope scope )
 		{
-			Scope = scope;
-			IsEmpty = string.IsNullOrEmpty( Scope.Text );
+			_scope = scope;
+			IsEmpty = string.IsNullOrEmpty( _scope.Text );
 
 			_effectMargin = default;
 
@@ -134,13 +118,13 @@ public static partial class TextRendering
 			}
 
 			var style = new Topten.RichTextKit.Style();
-			Scope.ToStyle( style );
+			_scope.ToStyle( style );
 
-			block.AddText( Scope.Text, style );
+			block.AddText( _scope.Text, style );
 
 			var o = new Topten.RichTextKit.TextPaintOptions
 			{
-				Edging = Smooth switch
+				Edging = _scope.FontSmooth switch
 				{
 					FontSmooth.Never => SKFontEdging.Alias,
 					_ => SKFontEdging.Antialias,
@@ -190,9 +174,9 @@ public static partial class TextRendering
 			// Build text block
 			//
 			var style = new Topten.RichTextKit.Style();
-			Scope.ToStyle( style );
+			_scope.ToStyle( style );
 
-			block.AddText( IsEmpty ? "." : Scope.Text, style );
+			block.AddText( IsEmpty ? "." : _scope.Text, style );
 
 			//
 			// Build Text
@@ -215,7 +199,7 @@ public static partial class TextRendering
 			{
 				var o = new Topten.RichTextKit.TextPaintOptions
 				{
-					Edging = Smooth switch
+					Edging = _scope.FontSmooth switch
 					{
 						FontSmooth.Never => SKFontEdging.Alias,
 						_ => SKFontEdging.Antialias,

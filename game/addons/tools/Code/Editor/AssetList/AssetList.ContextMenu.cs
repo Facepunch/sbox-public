@@ -219,7 +219,7 @@ public partial class AssetList
 		{
 			SelectedList = selection,
 			ScreenPosition = Application.CursorPosition,
-			Menu = new ContextMenu( this ),
+			Menu = new ContextMenu( this ) { Searchable = true },
 			AssetList = this
 		};
 
@@ -613,29 +613,14 @@ public partial class AssetList
 		{
 			Target = directoryInfo,
 			ScreenPosition = Application.CursorPosition,
-			Menu = new ContextMenu(),
+			Menu = new ContextMenu() { Searchable = true },
 			ThisFolder = isThisFolder,
 			Context = this
 		};
 
-		if ( !fcm.ThisFolder && Browser is AssetBrowser ab )
-		{
-			fcm.Menu.AddOption( $"Open", "folder", () => ab.NavigateTo( fcm.Target.FullName ) );
-		}
-
-		fcm.Menu.AddSeparator();
-
-		var location = new DiskLocation( fcm.Target );
-		if ( location.Type is LocalAssetBrowser.LocationType.Assets or LocalAssetBrowser.LocationType.Code or LocalAssetBrowser.LocationType.Localization )
-		{
-			var menu = fcm.Menu.AddMenu( "New", "note_add" );
-			CreateAsset.AddOptions( menu, location );
-		}
-
 		if ( fcm.ThisFolder )
 		{
-			fcm.Menu.AddSeparator();
-
+			// Right-clicking on empty space in the folder
 			fcm.Menu.AddOption( "Refresh", "refresh", () => Refresh() );
 
 			if ( Items.OfType<Asset>().Count() > 0 )
@@ -646,16 +631,21 @@ public partial class AssetList
 		}
 		else
 		{
+			// Right-clicking on a specific folder/directory entry
+			if ( Browser is AssetBrowser ab )
+			{
+				fcm.Menu.AddOption( $"Open", "folder", () => ab.NavigateTo( fcm.Target.FullName ) );
+			}
+
+			fcm.Menu.AddSeparator();
+
 			fcm.Menu.AddOption( "Delete", "delete", DeleteAsset, "editor.delete" );
 			fcm.Menu.AddOption( "Rename", "edit", () => OpenRenameFlyout( directoryInfo, fcm.ScreenPosition ), "editor.rename" );
 		}
 
 		EditorEvent.Run( "folder.contextmenu", fcm );
 
-		if ( !fcm.Menu.HasOptions )
-			return fcm;
-
-		fcm.Menu.OpenAt( fcm.ScreenPosition );
+		fcm.Menu.OpenAt( fcm.ScreenPosition, false );
 
 		return fcm;
 	}
@@ -687,6 +677,18 @@ public partial class AssetList
 			Log.Warning( $"Recompiling {assets.Count} assets..." );
 			assets.ForEach( x => x.Compile( true ) );
 		}, $"You are about to recompile {assets.Count} asset(s). This can take a REALLY long time. Do you wish to continue?" );
+	}
+
+	[Event( "folder.contextmenu", Priority = 10 )]
+	private static void OnFolderContextMenu_New( FolderContextMenu e )
+	{
+		var location = new DiskLocation( e.Target );
+		if ( location.Type is LocalAssetBrowser.LocationType.Assets or LocalAssetBrowser.LocationType.Code or LocalAssetBrowser.LocationType.Localization )
+		{
+			var menu = e.Menu.AddMenu( "New", "note_add" );
+			CreateAsset.AddOptions( menu, location );
+			e.Menu.AddSeparator();
+		}
 	}
 
 	[Event( "folder.contextmenu", Priority = 50 )]

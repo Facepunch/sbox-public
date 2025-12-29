@@ -157,6 +157,10 @@ public sealed partial class ModelPhysics
 		foreach ( var part in physics.Parts )
 		{
 			var bone = bones.GetBone( part.BoneName );
+
+			if ( bone is null )
+				continue;
+
 			if ( !boneObjects.TryGetValue( bone, out var go ) )
 				continue;
 

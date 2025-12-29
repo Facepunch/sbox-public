@@ -9,7 +9,8 @@ internal partial class NetworkSystem
 
 	public void InitializeGameSystem()
 	{
-		if ( IGameInstanceDll.Current is null )
+		// If we are unit testing we dont want to do any of this for now, this only works with a gamepackage loaded
+		if ( IGameInstanceDll.Current is null || Application.IsUnitTest )
 			return;
 
 		GameSystem = IGameInstanceDll.Current.CreateGameNetworking( this );

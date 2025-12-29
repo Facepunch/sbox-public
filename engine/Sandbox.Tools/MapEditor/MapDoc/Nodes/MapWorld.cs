@@ -111,7 +111,11 @@ public sealed class MapWorld : MapNode
 		base.OnNativeDestroy();
 
 		worldNative = default;
-		Scene = default; // FIXME: Dispose
+		if ( Scene.IsValid() )
+		{
+			Scene.Destroy();
+			Scene = null;
+		}
 
 		EditorSession?.Destroy();
 		EditorSession = null;
@@ -148,6 +152,14 @@ public sealed class MapWorld : MapNode
 		foreach ( var x in referencedResources )
 		{
 			references.AddString( x.ResourcePath );
+		}
+
+		var referencedPrefabs = Scene.GetAllObjects( false )
+			.Where( x => x.IsPrefabInstanceRoot );
+
+		foreach ( var x in referencedPrefabs )
+		{
+			references.AddString( x.PrefabInstanceSource );
 		}
 	}
 

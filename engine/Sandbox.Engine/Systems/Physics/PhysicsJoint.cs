@@ -348,6 +348,18 @@ public partial class PhysicsJoint : IHandle
 		return !joint.IsValid() ? throw new Exception( $"Unable to create joint" ) : joint;
 	}
 
+	internal static PhysicsJoint CreateFilter( PhysicsBody a, PhysicsBody b )
+	{
+		ArgumentNullException.ThrowIfNull( a, nameof( a ) );
+		ArgumentNullException.ThrowIfNull( b, nameof( b ) );
+
+		Assert.AreEqual( a.World, b.World );
+		Assert.AreNotEqual( a, b );
+
+		var joint = a.World.world.AddFilterJoint( a, b );
+		return !joint.IsValid() ? throw new Exception( $"Unable to create joint" ) : joint;
+	}
+
 	[Obsolete]
 	public static HingeJoint CreateHinge( PhysicsBody body1, PhysicsBody body2, Vector3 center, Vector3 axis )
 	{

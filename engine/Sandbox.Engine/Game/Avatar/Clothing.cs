@@ -5,7 +5,7 @@ namespace Sandbox;
 /// <summary>
 /// Describes an item of clothing and implicitly which other items it can be worn with
 /// </summary>
-[AssetType( Name = "Clothing Definition", Extension = "clothing", Category = "citizen" )]
+[AssetType( Name = "Clothing Definition", Extension = "clothing", Category = "citizen", Flags = AssetTypeFlags.IncludeThumbnails )]
 public sealed partial class Clothing : GameResource
 {
 

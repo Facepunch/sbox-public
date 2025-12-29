@@ -5,6 +5,19 @@ using System.Collections.Specialized;
 namespace Sandbox;
 
 /// <summary>
+/// Describes a change to a <see cref="NetListChangeEvent{T}"/> which is passed to
+/// <see cref="NetList{T}.OnChanged"/> whenever its contents change.
+/// </summary>
+public struct NetListChangeEvent<T>
+{
+	public NotifyCollectionChangedAction Type { get; set; }
+	public int Index { get; set; }
+	public int MovedIndex { get; set; }
+	public T NewValue { get; set; }
+	public T OldValue { get; set; }
+}
+
+/// <summary>
 /// A networkable list for use with the <see cref="SyncAttribute"/> and <see cref="HostSyncAttribute"/>. Only changes will be
 /// networked instead of sending the whole list every time, so it's more efficient.
 /// <br/>
@@ -37,18 +50,23 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 		public T Value { get; set; }
 	}
 
-	private readonly ObservableCollection<T> list = new();
-	private readonly List<Change> changes = new();
+	/// <summary>
+	/// Get notified when the list has changed.
+	/// </summary>
+	public Action<NetListChangeEvent<T>> OnChanged;
+
+	private readonly ObservableCollection<T> _list = new();
+	private readonly List<Change> _changes = new();
 
 	public NetList()
 	{
-		list.CollectionChanged += OnCollectionChanged;
+		_list.CollectionChanged += OnCollectionChanged;
 		AddResetChange();
 	}
 
 	public void Dispose()
 	{
-		changes.Clear();
+		_changes.Clear();
 	}
 
 	bool ICollection<T>.IsReadOnly => false;
@@ -85,7 +103,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	/// </summary>
 	void ICollection.CopyTo( Array array, int index )
 	{
-		(list as ICollection).CopyTo( array, index );
+		(_list as ICollection).CopyTo( array, index );
 	}
 
 	/// <summary>
@@ -93,7 +111,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	/// </summary>
 	bool IList.Contains( object value )
 	{
-		return list.Contains( (T)value );
+		return _list.Contains( (T)value );
 	}
 
 	/// <summary>
@@ -101,7 +119,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	/// </summary>
 	int IList.IndexOf( object value )
 	{
-		return list.IndexOf( (T)value );
+		return _list.IndexOf( (T)value );
 	}
 
 	/// <summary>
@@ -128,7 +146,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 		if ( !CanWriteChanges() )
 			return;
 
-		list.Clear();
+		_list.Clear();
 	}
 
 	/// <summary>
@@ -136,7 +154,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	/// </summary>
 	public bool Contains( T item )
 	{
-		return list.Contains( item );
+		return _list.Contains( item );
 	}
 
 	/// <summary>
@@ -144,7 +162,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	/// </summary>
 	public void CopyTo( T[] array, int arrayIndex )
 	{
-		list.CopyTo( array, arrayIndex );
+		_list.CopyTo( array, arrayIndex );
 	}
 
 	/// <summary>
@@ -155,7 +173,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 		if ( !CanWriteChanges() )
 			return;
 
-		list.Add( value );
+		_list.Add( value );
 	}
 
 	/// <summary>
@@ -168,7 +186,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 
 		foreach ( var value in collection )
 		{
-			list.Add( value );
+			_list.Add( value );
 		}
 	}
 
@@ -177,7 +195,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	/// </summary>
 	public bool Remove( T value )
 	{
-		return CanWriteChanges() && list.Remove( value );
+		return CanWriteChanges() && _list.Remove( value );
 	}
 
 	/// <summary>
@@ -185,7 +203,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	/// </summary>
 	public int IndexOf( T item )
 	{
-		return list.IndexOf( item );
+		return _list.IndexOf( item );
 	}
 
 	/// <summary>
@@ -196,7 +214,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 		if ( !CanWriteChanges() )
 			return;
 
-		list.Insert( index, value );
+		_list.Insert( index, value );
 	}
 
 	/// <summary>
@@ -207,26 +225,26 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 		if ( !CanWriteChanges() )
 			return;
 
-		list.RemoveAt( index );
+		_list.RemoveAt( index );
 	}
 
 	/// <summary>
 	/// <inheritdoc cref="List{T}.Count"/>
 	/// </summary>
-	public int Count => list.Count;
+	public int Count => _list.Count;
 
 	public T this[int key]
 	{
 		get
 		{
-			return list[key];
+			return _list[key];
 		}
 		set
 		{
 			if ( !CanWriteChanges() )
 				return;
 
-			list[key] = value;
+			_list[key] = value;
 		}
 	}
 
@@ -235,7 +253,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	/// </summary>
 	public IEnumerator<T> GetEnumerator()
 	{
-		return list.GetEnumerator();
+		return _list.GetEnumerator();
 	}
 
 	/// <summary>
@@ -243,7 +261,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	/// </summary>
 	IEnumerator IEnumerable.GetEnumerator()
 	{
-		return ((IEnumerable)list).GetEnumerator();
+		return ((IEnumerable)_list).GetEnumerator();
 	}
 
 	private INetworkProxy Parent { get; set; }
@@ -256,7 +274,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	/// <summary>
 	/// Do we have any pending changes?
 	/// </summary>
-	bool INetworkSerializer.HasChanges => changes.Count > 0;
+	bool INetworkSerializer.HasChanges => _changes.Count > 0;
 
 	/// <summary>
 	/// Write any changed items to a <see cref="ByteStream"/>.
@@ -267,9 +285,9 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 		{
 			// We are sending changes, not a full update. This flag indicates that.
 			data.Write( false );
-			data.Write( changes.Count );
+			data.Write( _changes.Count );
 
-			foreach ( var change in changes )
+			foreach ( var change in _changes )
 			{
 				data.Write( change.Type );
 				data.Write( change.Index );
@@ -282,7 +300,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 			Log.Warning( e, $"Error when writing NetList changes - {e.Message}" );
 		}
 
-		changes.Clear();
+		_changes.Clear();
 	}
 
 	/// <summary>
@@ -305,7 +323,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 		}
 
 		// Clear changes whenever we read data. We don't want to keep local changes.
-		changes.Clear();
+		_changes.Clear();
 	}
 
 	/// <summary>
@@ -317,9 +335,9 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 		{
 			// We are sending a full update. This flag indicates that.
 			data.Write( true );
-			data.Write( list.Count );
+			data.Write( _list.Count );
 
-			foreach ( var item in list )
+			foreach ( var item in _list )
 			{
 				WriteValue( item, ref data );
 			}
@@ -336,14 +354,14 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	/// <param name="data"></param>
 	private void ReadAll( ref ByteStream data )
 	{
-		list.Clear();
+		_list.Clear();
 
 		var count = data.Read<int>();
 
 		for ( var i = 0; i < count; i++ )
 		{
 			var value = ReadValue( ref data );
-			list.Add( value );
+			_list.Add( value );
 		}
 	}
 
@@ -363,45 +381,64 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 
 			if ( type == NotifyCollectionChangedAction.Add )
 			{
-				if ( index >= 0 && index <= list.Count )
-					list.Insert( index, value );
+				if ( index >= 0 && index <= _list.Count )
+					_list.Insert( index, value );
 				else
-					list.Add( value );
+					_list.Add( value );
 			}
 			else if ( type == NotifyCollectionChangedAction.Remove )
 			{
-				if ( index >= 0 && index < list.Count )
-					list.RemoveAt( index );
+				if ( index >= 0 && index < _list.Count )
+				{
+					var element = _list.ElementAt( index );
+					_list.RemoveAt( index );
+				}
 			}
 			else if ( type == NotifyCollectionChangedAction.Reset )
 			{
-				list.Clear();
+				_list.Clear();
 			}
 			else if ( type == NotifyCollectionChangedAction.Replace )
 			{
-				list[index] = value;
+				if ( index >= 0 && index < _list.Count )
+				{
+					var element = _list.ElementAt( index );
+				}
+
+				_list[index] = value;
 			}
 			else if ( type == NotifyCollectionChangedAction.Move )
 			{
-				list.Move( index, movedIndex );
+				_list.Move( index, movedIndex );
 			}
 		}
 	}
 
 	private void OnCollectionChanged( object sender, NotifyCollectionChangedEventArgs e )
 	{
+		var changeEvent = new NetListChangeEvent<T>
+		{
+			Type = e.Action,
+			Index = e.Action == NotifyCollectionChangedAction.Add ? e.NewStartingIndex : e.OldStartingIndex,
+			MovedIndex = e.NewStartingIndex,
+			OldValue = (e.OldItems is not null && e.OldItems.Count > 0) ? (T)e.OldItems[0] : default,
+			NewValue = (e.NewItems is not null && e.NewItems.Count > 0) ? (T)e.NewItems[0] : default
+		};
+
+		OnChanged?.InvokeWithWarning( changeEvent );
+
 		if ( !CanWriteChanges() )
 			return;
 
 		if ( e.Action == NotifyCollectionChangedAction.Add )
 		{
 			var change = new Change { Index = e.NewStartingIndex, Value = (T)e.NewItems[0], Type = e.Action };
-			changes.Add( change );
+			_changes.Add( change );
 		}
 		else if ( e.Action == NotifyCollectionChangedAction.Remove )
 		{
 			var change = new Change { Index = e.OldStartingIndex, Type = e.Action };
-			changes.Add( change );
+			_changes.Add( change );
 		}
 		else if ( e.Action == NotifyCollectionChangedAction.Reset )
 		{
@@ -410,22 +447,22 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 		else if ( e.Action == NotifyCollectionChangedAction.Replace )
 		{
 			var change = new Change { Index = e.OldStartingIndex, Type = e.Action, Value = (T)e.NewItems[0] };
-			changes.Add( change );
+			_changes.Add( change );
 		}
 		else if ( e.Action == NotifyCollectionChangedAction.Move )
 		{
 			var change = new Change { Index = e.OldStartingIndex, MovedIndex = e.NewStartingIndex, Type = e.Action };
-			changes.Add( change );
+			_changes.Add( change );
 		}
 	}
 
-	private T ReadValue( ref ByteStream data )
+	private static T ReadValue( ref ByteStream data )
 	{
 		var value = Game.TypeLibrary.FromBytes<object>( ref data );
 		return (T)value;
 	}
 
-	private void WriteValue( T value, ref ByteStream data )
+	private static void WriteValue( T value, ref ByteStream data )
 	{
 		Game.TypeLibrary.ToBytes( value, ref data );
 	}
@@ -435,13 +472,13 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	private void AddResetChange()
 	{
 		var change = new Change { Type = NotifyCollectionChangedAction.Reset };
-		changes.Add( change );
+		_changes.Add( change );
 
-		for ( var i = 0; i < list.Count; i++ )
+		for ( var i = 0; i < _list.Count; i++ )
 		{
-			var item = list[i];
-			change = new() { Index = -1, Value = item, Type = NotifyCollectionChangedAction.Add };
-			changes.Add( change );
+			var item = _list[i];
+			change = new Change { Index = -1, Value = item, Type = NotifyCollectionChangedAction.Add };
+			_changes.Add( change );
 		}
 	}
 }

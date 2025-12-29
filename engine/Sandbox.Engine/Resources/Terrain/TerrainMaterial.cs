@@ -1,7 +1,14 @@
-﻿using System.IO;
+using System.IO;
 using System.Text.Json.Serialization;
 
 namespace Sandbox;
+
+[Flags]
+public enum TerrainFlags : uint
+{
+	None = 0,
+	NoTile = 1 << 0
+}
 
 /// <summary>
 /// Description of a Terrain Material.
@@ -25,7 +32,6 @@ public class TerrainMaterial : GameResource
 	[JsonIgnore, Hide] public Texture NHOTexture { get; private set; }
 
 	[Category( "Material" ), Title( "UV Scale" )] public float UVScale { get; set; } = 1.0f;
-	[Category( "Material" ), Title( "UV Rotation" )] public float UVRotation { get; set; } = 0.0f;
 	[Category( "Material" ), Range( 0.0f, 1.0f )] public float Metalness { get; set; } = 0.0f;
 	[Category( "Material" ), Range( 0.1f, 10 )] public float NormalStrength { get; set; } = 1.0f;
 	[Category( "Material" ), Range( 0.1f, 10 )] public float HeightBlendStrength { get; set; } = 1.0f;
@@ -35,6 +41,23 @@ public class TerrainMaterial : GameResource
 
 	[Category( "Material" ), Range( 0.0f, 10.0f ), Title( "Displacement Scale" ), ShowIf( nameof( HasHeightTexture ), true )]
 	public float DisplacementScale { get; set; } = 0.0f;
+
+	[Category( "Material" ), Title( "No Tiling" )]
+	public bool NoTiling { get; set; } = false;
+
+	[JsonIgnore, Hide]
+	public TerrainFlags Flags
+	{
+		get
+		{
+			var flags = TerrainFlags.None;
+
+			if ( NoTiling )
+				flags |= TerrainFlags.NoTile;
+
+			return flags;
+		}
+	}
 
 	[Category( "Misc" )] public Surface Surface { get; set; }
 

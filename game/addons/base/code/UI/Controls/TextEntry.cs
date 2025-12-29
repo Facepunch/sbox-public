@@ -10,6 +10,8 @@ namespace Sandbox.UI;
 [CustomEditor( typeof( string ) )]
 public partial class TextEntry : BaseControl
 {
+	public override bool SupportsMultiEdit => true;
+
 	/// <summary>
 	/// Called when the text of this text entry is changed.
 	/// </summary>

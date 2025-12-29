@@ -9,6 +9,8 @@ public partial class ColorSaturationValueControl : BaseControl
 
 	float _hue = 0;
 
+	public override bool SupportsMultiEdit => true;
+
 	public ColorSaturationValueControl()
 	{
 		_handle = AddChild<Panel>( "handle" );

@@ -13,7 +13,28 @@ internal class BuildAddons( string name ) : Step( name )
 			string rootDir = Directory.GetCurrentDirectory();
 			string gameDir = Path.Combine( rootDir, "game" );
 
-			Log.Info( "Step 1: Building Addons" );
+			Log.Info( "Step 1: Generate solution" );
+
+			string sboxDevPath = Path.Combine( gameDir, "sbox-dev.exe" );
+			if ( !File.Exists( sboxDevPath ) )
+			{
+				Log.Error( $"Error: sbox-dev.exe not found at {sboxDevPath}" );
+				return ExitCode.Failure;
+			}
+
+			bool gameTestSuccess = Utility.RunProcess(
+				sboxDevPath,
+				"-generatesolution",
+				gameDir
+			);
+
+			if ( !gameTestSuccess )
+			{
+				Log.Error( "Solution generation failed!" );
+				return ExitCode.Failure;
+			}
+
+			Log.Info( "Step 2: Building Addons" );
 
 			bool addonsSuccess = Utility.RunDotnetCommand(
 				gameDir,
@@ -26,7 +47,7 @@ internal class BuildAddons( string name ) : Step( name )
 				return ExitCode.Failure;
 			}
 
-			Log.Info( "Step 2: Building Menu" );
+			Log.Info( "Step 3: Building Menu" );
 
 			string menuBuildPath = Path.Combine( gameDir, "bin", "managed", "MenuBuild.exe" );
 			if ( !File.Exists( menuBuildPath ) )

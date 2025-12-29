@@ -39,7 +39,17 @@ public sealed partial class NavMesh : IDisposable
 	/// <summary>
 	/// Determines wether the navigation mesh is enabled and should be generated
 	/// </summary>
-	public bool IsEnabled { get; set; } = false;
+	public bool IsEnabled
+	{
+		get; set
+		{
+			field = value;
+			if ( field )
+			{
+				Init();
+			}
+		}
+	} = false;
 
 	/// <summary>
 	/// The navigation mesh is generating
@@ -51,7 +61,7 @@ public sealed partial class NavMesh : IDisposable
 	/// The navigation mesh is dirty and needs a complete rebuild
 	/// </summary>
 	[Hide]
-	public bool IsDirty { get; private set; } = true;
+	public bool IsDirty { get; private set; } = false;
 
 	/// <summary>
 	/// Should the generator include static bodies
@@ -152,16 +162,24 @@ public sealed partial class NavMesh : IDisposable
 	private Vector3 TileSizeWorldSpace { get => new Vector3( TileSizeXYWorldSpace, TileSizeXYWorldSpace, TileHeightWorldSpace ); }
 
 	/// <summary>
-	/// Set the navgiation a dirty, so it will rebuild next update
+	/// Set the navgiation a dirty, so it will rebuild over the next few frames.
+	/// If you need an immediate rebuild, call <see cref="Generate(PhysicsWorld)"/> instead.
 	/// </summary>
 	public void SetDirty()
 	{
 		IsDirty = true;
 	}
 
+	private bool _isInitialized = false;
+
 	internal void Init()
 	{
 		ThreadSafe.AssertIsMainThread();
+
+		if ( _isInitialized )
+		{
+			return;
+		}
 
 		var navMeshParams = new DtNavMeshParams
 		{
@@ -199,11 +217,15 @@ public sealed partial class NavMesh : IDisposable
 
 		query = new DtNavMeshQuery( navmeshInternal );
 
+		_isInitialized = true;
+
 		OnInit?.Invoke();
 	}
 
-	internal void HandleEditorAutoUpdate( PhysicsWorld world )
+	internal void InvalidateAllTiles( PhysicsWorld world )
 	{
+		if ( IsGenerating ) return;
+
 		WorldBounds = CalculateWorldBounds( world );
 		// accountf or a border incase world shrinks
 		WorldBounds = WorldBounds.Grow( TileSizeXYWorldSpace * 2 );
@@ -220,6 +242,8 @@ public sealed partial class NavMesh : IDisposable
 				tile.RequestFullRebuild();
 			}
 		}
+
+		IsDirty = false;
 	}
 
 	public async Task<bool> Generate( PhysicsWorld world )

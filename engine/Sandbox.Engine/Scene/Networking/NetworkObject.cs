@@ -231,6 +231,8 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		SceneNetworkSystem.Instance.Broadcast( msg );
 	}
 
+	private static readonly GameObject.SerializeOptions _refreshSerializeOptions = new() { SingleNetworkObject = true };
+
 	internal ObjectRefreshMsg GetRefreshMessage()
 	{
 		var system = SceneNetworkSystem.Instance;
@@ -239,22 +241,19 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 		var snapshot = ((IDeltaSnapshot)this).WriteSnapshotState();
 
-		var o = new GameObject.SerializeOptions
-		{
-			SingleNetworkObject = true
-		};
-
 		var msg = new ObjectRefreshMsg
 		{
 			Guid = GameObject.Id,
 			Parent = GameObject.Parent.Id,
-			JsonData = GameObject.Serialize( o ).ToJsonString(),
+			JsonData = GameObject.Serialize( _refreshSerializeOptions ).ToJsonString(),
 			TableData = WriteReliableData(),
 			Snapshot = system.DeltaSnapshots.GetFullSnapshotData( snapshot )
 		};
 
 		return msg;
 	}
+
+	private static readonly GameObject.SerializeOptions _refreshDescendantSerializeOptions = new() { IgnoreChildren = true };
 
 	internal void SendNetworkRefresh( GameObject go )
 	{
@@ -288,17 +287,11 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		{
 			var snapshot = ((IDeltaSnapshot)this).WriteSnapshotState();
 
-			// Only this one object...
-			var options = new GameObject.SerializeOptions
-			{
-				IgnoreChildren = true
-			};
-
 			var msg = new ObjectRefreshDescendantMsg
 			{
 				GameObjectId = GameObject.Id,
 				ParentId = go.Parent.Id,
-				JsonData = go.Serialize( options ).ToJsonString(),
+				JsonData = go.Serialize( _refreshDescendantSerializeOptions ).ToJsonString(),
 				TableData = WriteReliableData(),
 				Snapshot = system.DeltaSnapshots.GetFullSnapshotData( snapshot )
 			};
@@ -579,16 +572,16 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		LocalSnapshotState.ClearConnections();
 	}
 
+	private static readonly GameObject.SerializeOptions _createSerializeOptions = new() { SingleNetworkObject = true };
+
 	internal ObjectCreateMsg GetCreateMessage()
 	{
-		var o = new GameObject.SerializeOptions { SingleNetworkObject = true };
-
 		if ( GameObject.Parent is null )
 		{
 			throw new( $"GameObject {GameObject.Id} ({GameObject.Name} has invalid parent" );
 		}
 
-		var jsonData = GameObject.Serialize( o );
+		var jsonData = GameObject.Serialize( _createSerializeOptions );
 		if ( jsonData is null )
 		{
 			throw new( $"Unable to serialize {GameObject.Id} ({GameObject.Name})" );

@@ -31,6 +31,8 @@ public class RectAssetData
 		if ( asset.AssetType == AssetType.Material )
 		{
 			asset = AssetSystem.FindByPath( asset.FindStringEditInfo( "SubrectDefinition" ) );
+			if ( asset is null )
+				return null;
 		}
 		else if ( asset.AssetType.FileExtension != "rect" )
 		{

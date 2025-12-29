@@ -8,11 +8,7 @@
 	<IsTestProject>true</IsTestProject>
 	<IsPublishable>false</IsPublishable>
   </PropertyGroup>
-
-  <PropertyGroup Condition="'$(BuildingForLiveUnitTesting)' == 'true'">
-    <DefineConstants>$(DefineConstants);LIVE_UNIT_TEST</DefineConstants>
-  </PropertyGroup>
-
+	
 	<ItemGroup>
 		<Compile Remove="data\**\*.cs" />
 		<None Include="data\**\*.*" CopyToOutputDirectory="Always" />

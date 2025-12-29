@@ -67,7 +67,7 @@ public partial class PrefabFile : GameResource
 
 	protected override void OnDestroy()
 	{
-		CachedScene?.DestroyImmediate();
+		CachedScene?.DestroyInternal();
 		CachedScene = null;
 
 		Unregister();

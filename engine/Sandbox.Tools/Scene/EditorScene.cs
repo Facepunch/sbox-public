@@ -300,6 +300,7 @@ public static class EditorScene
 		SceneEditorSession.Active.StopPlaying();
 
 		Game.IsPlaying = false;
+		Game.IsPaused = false;
 
 		// Immediately stop active recordings so we don't get any black frames
 		ScreenRecorder.StopRecording();
@@ -573,5 +574,14 @@ public static class EditorScene
 		{
 			Log.Warning( "Failed to paste, invalid JSON." );
 		}
+	}
+
+	/// <summary>
+	/// Capture a high resolution screenshot using the active scene camera.
+	/// </summary>
+	[ConCmd( "screenshot_highres", Help = "Take a high resolution screenshot you specify the width and height" )]
+	public static void TakeHighResScreenshot( int width, int height )
+	{
+		ScreenshotService.TakeHighResScreenshot( SceneEditorSession.Active.Scene, width, height );
 	}
 }

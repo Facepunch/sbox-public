@@ -13,16 +13,11 @@ public partial class Scene : GameObject
 		if ( !NavMesh.IsEnabled || this is PrefabScene )
 			return;
 
-		if ( NavMesh.IsDirty && !NavMesh.IsGenerating )
-		{
-			AddLoadingTask( NavMesh.Generate( PhysicsWorld ) );
-		}
-
 		if ( NavMesh.IsGenerating ) return;
 
-		if ( NavMesh.DrawMesh && NavMesh.EditorAutoUpdate && IsEditor )
+		if ( NavMesh.IsDirty || (NavMesh.DrawMesh && NavMesh.EditorAutoUpdate && IsEditor) )
 		{
-			NavMesh.HandleEditorAutoUpdate( PhysicsWorld );
+			NavMesh.InvalidateAllTiles( PhysicsWorld );
 		}
 
 		NavMesh.UpdateCache( PhysicsWorld );
