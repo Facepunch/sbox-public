@@ -9,5 +9,6 @@
   "menu.quit": "退出",
   "menu.multiplayer": "伺服器",
   "menu.settings": "設定",
-  "menu.maps": "地圖"
+  "menu.maps": "地圖",
+  "menu.notifications": "通知"
 }
