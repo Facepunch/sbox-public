@@ -64,7 +64,28 @@ partial class MeshSelection
 				group.Add( grid );
 			}
 
+			{
+				var group = AddGroup( "Tools" );
+
+				var grid = Layout.Row();
+				grid.Spacing = 4;
+
+				CreateButton( "Clipping Tool", "content_cut", "mesh.open-clipping-tool", OpenClippingTool, _meshes.Length > 0, grid );
+
+				grid.AddStretchCell();
+
+				group.Add( grid );
+			}
+
 			Layout.AddStretchCell();
+		}
+
+		[Shortcut( "mesh.open-clipping-tool", "C", typeof( SceneDock ) )]
+		void OpenClippingTool()
+		{
+			var tool = new ClipTool();
+			tool.Manager = _tool.Tool.Manager;
+			_tool.Tool.CurrentTool = tool;
 		}
 
 		[Shortcut( "mesh.previous-pivot", "N+MWheelDn", typeof( SceneDock ) )]

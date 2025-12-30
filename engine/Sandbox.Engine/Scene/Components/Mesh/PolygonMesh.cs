@@ -13,6 +13,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 	private readonly List<FaceHandle> _triangleFaces = new();
 	private readonly List<int> _meshIndices = new();
 	private readonly List<Vector3> _meshVertices = new();
+	private readonly List<byte> _meshTriangleMaterials = new();
 	private readonly Dictionary<FaceHandle, FaceMesh> _meshFaces = new();
 	private readonly Dictionary<int, Material> _materialsById = new();
 	private readonly Dictionary<string, int> _materialIdsByName = new();
@@ -41,6 +42,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		public List<int> Indices { get; init; } = new();
 		public List<float> UvDensity { get; set; } = new();
 		public Material Material { get; set; }
+		public int Index { get; set; }
 	}
 
 	private struct FaceData
@@ -1834,108 +1836,58 @@ public sealed partial class PolygonMesh : IJsonConvert
 		return false;
 	}
 
-	private bool IsLineBetweenVerticesInsideFace( FaceHandle hFace, VertexHandle hVertexA, VertexHandle hVertexB )
+	bool IsLineBetweenVerticesInsideFace( FaceHandle face, VertexHandle a, VertexHandle b )
 	{
-		Assert.True( hVertexA != hVertexB );
-		if ( hVertexA == hVertexB )
-			return false;
+		if ( a == b ) return false;
 
-		var positionA = GetVertexPosition( hVertexA );
-		var positionB = GetVertexPosition( hVertexB );
-		var dirAB = (positionB - positionA).Normal;
+		var pa = GetVertexPosition( a );
+		var pb = GetVertexPosition( b );
 
-		var positions = GetFaceVertexPositions( hFace, Transform.Zero ).ToArray();
-		var numVertices = positions.Length;
-		PlaneEquation( positions, out var vNormal, out var flPlaneDist );
+		var v3 = GetFaceVertexPositions( face, Transform.Zero ).ToArray();
+		if ( v3.Length < 3 ) return false;
 
-		var intersectPlane = new Plane( positionA, dirAB.Cross( vNormal ).Normal );
-		var planeA = new Plane( positionA, dirAB );
-		var planeB = new Plane( positionB, -dirAB );
+		PlaneEquation( v3, out var n, out _ );
 
-		for ( int i = (numVertices - 1), j = 0; j < numVertices; i = j++ )
+		var u = (MathF.Abs( n.z ) < 0.9f ? Vector3.Up : Vector3.Right).Cross( n ).Normal;
+		var v = n.Cross( u );
+
+		var a2 = new Vector2( pa.Dot( u ), pa.Dot( v ) );
+		var b2 = new Vector2( pb.Dot( u ), pb.Dot( v ) );
+
+		var poly = new Vector2[v3.Length];
+		for ( int i = 0; i < v3.Length; ++i ) poly[i] = new Vector2( v3[i].Dot( u ), v3[i].Dot( v ) );
+
+		static float Cross( Vector2 x, Vector2 y ) => x.x * y.y - x.y * y.x;
+
+		for ( int i = poly.Length - 1, j = 0; j < poly.Length; i = j++ )
 		{
-			var intersectPoint = intersectPlane.IntersectLine( positions[i], positions[j] );
-			if ( intersectPoint.HasValue )
+			var p = poly[i];
+			var q = poly[j];
+
+			var da = b2 - a2;
+			var db = q - p;
+
+			var o1 = Cross( da, p - a2 );
+			var o2 = Cross( da, q - a2 );
+			var o3 = Cross( db, a2 - p );
+			var o4 = Cross( db, b2 - p );
+
+			if ( o1 * o2 < 0 && o3 * o4 < 0 ) return false;
+		}
+
+		var m = (a2 + b2) * 0.5f;
+		var inside = false;
+		for ( int i = poly.Length - 1, j = 0; j < poly.Length; i = j++ )
+		{
+			if ( ((poly[i].y > m.y) != (poly[j].y > m.y)) &&
+				 (m.x < (poly[j].x - poly[i].x) * (m.y - poly[i].y) /
+				 (poly[j].y - poly[i].y + 1e-20f) + poly[i].x) )
 			{
-				if ( (planeA.GetDistance( intersectPoint.Value ) >= 0.01f) &&
-					 (planeB.GetDistance( intersectPoint.Value ) >= 0.01f) )
-				{
-					return false;
-				}
+				inside = !inside;
 			}
 		}
 
-		var indices = Mesh.TriangulatePolygon( positions );
-		var min = positions[0];
-		var max = min;
-
-		foreach ( var v in positions[1..] )
-		{
-			min = Vector3.Min( min, v );
-			max = Vector3.Max( max, v );
-		}
-
-		return IsPointInPolygon( positions, indices, min, max, positionA.LerpTo( positionB, 1.0f / 3.0f ) ) ||
-			   IsPointInPolygon( positions, indices, min, max, positionA.LerpTo( positionB, 2.0f / 3.0f ) );
-	}
-
-	private static bool IsPointInPolygon( ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> indices, Vector3 min, Vector3 max, Vector3 point )
-	{
-		if ( (point.x < min.x) || (point.y < min.y) || (point.z < min.z) ||
-			 (point.x > max.x) || (point.y > max.y) || (point.z > max.z) )
-			return false;
-
-		int numIndices = indices.Length;
-		for ( int i = 0; (i + 2) < numIndices; i += 3 )
-		{
-			var a = vertices[indices[i + 0]];
-			var b = vertices[indices[i + 1]];
-			var c = vertices[indices[i + 2]];
-
-			var ab = b - a;
-			var ac = c - a;
-			var normal = ab.Cross( ac ).Normal;
-
-			if ( InsideTriangle( a, b, c, point, normal ) )
-			{
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	public static bool InsideTriangle( Vector3 a, Vector3 b, Vector3 c, Vector3 p, Vector3 normal )
-	{
-		const float EPSILON = 0.0000001f;
-		const float MAX_EDGE_DIST_SQ = EPSILON * EPSILON;
-
-		var bc = c - b;
-		var ca = a - c;
-		var ab = b - a;
-		var ap = p - a;
-		var bp = p - b;
-		var cp = p - c;
-
-		if ( Vector3.Dot( Vector3.Cross( bc, bp ), normal ) > -EPSILON &&
-			 Vector3.Dot( Vector3.Cross( ca, cp ), normal ) > -EPSILON &&
-			 Vector3.Dot( Vector3.Cross( ab, ap ), normal ) > -EPSILON )
-		{
-			return true;
-		}
-
-		return IsPointOnEdge( p, a, b, MAX_EDGE_DIST_SQ ) ||
-			   IsPointOnEdge( p, b, c, MAX_EDGE_DIST_SQ ) ||
-			   IsPointOnEdge( p, c, a, MAX_EDGE_DIST_SQ );
-	}
-
-	private static bool IsPointOnEdge( Vector3 p, Vector3 a, Vector3 b, float maxEdgeDistSq )
-	{
-		var dir = b - a;
-		var div = Vector3.Dot( dir, dir );
-		var t = (div < 0.00001f) ? 0.0f : (Vector3.Dot( dir, p ) - Vector3.Dot( dir, a )) / div;
-		var closestPoint = a + dir * t;
-		return (Vector3.DistanceBetweenSquared( p, closestPoint ) < maxEdgeDistSq) && (t >= 0.0f) && (t <= 1.0f);
+		return inside;
 	}
 
 	private bool AddEdgeToFace( FaceHandle hFace, VertexHandle hVertexA, VertexHandle hVertexB, out HalfEdgeHandle pOutNewEdge )
@@ -3184,7 +3136,9 @@ public sealed partial class PolygonMesh : IJsonConvert
 		_meshIndices.Clear();
 		_meshVertices.Clear();
 		_meshFaces.Clear();
+		_meshTriangleMaterials.Clear();
 
+		var builder = Model.Builder;
 		var submeshes = new Dictionary<int, Submesh>();
 
 		foreach ( var hFace in Topology.FaceHandles )
@@ -3196,22 +3150,24 @@ public sealed partial class PolygonMesh : IJsonConvert
 				submesh = new()
 				{
 					Material = material,
+					Index = submeshes.Count,
 				};
 
 				submeshes.Add( materialId, submesh );
+
+				builder.AddSurface( material?.Surface );
 			}
 
 			TriangulateFace( hFace, submesh );
 		}
 
-		var builder = Model.Builder;
-
 		if ( _meshVertices.Count >= 3 && _meshIndices.Count >= 3 )
 		{
 			builder.AddCollisionHull( _meshVertices );
-			builder.AddCollisionMesh( _meshVertices, _meshIndices );
+			builder.AddCollisionMesh( _meshVertices, _meshIndices, _meshTriangleMaterials );
 			builder.AddTraceMesh( _meshVertices, _meshIndices );
 		}
+
 
 		foreach ( var submesh in submeshes.Values )
 		{
@@ -4478,6 +4434,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 			triangles.Add( c );
 
 			_triangleFaces.Add( hFace );
+			_meshTriangleMaterials.Add( (byte)submesh.Index );
 
 			_meshIndices.Add( startCollisionVertex + faceIndices[triangle] );
 			_meshIndices.Add( startCollisionVertex + faceIndices[triangle + 1] );

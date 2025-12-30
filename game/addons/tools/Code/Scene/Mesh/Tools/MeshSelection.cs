@@ -18,7 +18,7 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 
 	MeshComponent[] _meshes = [];
 
-	public override void StartDrag()
+	protected override void OnStartDrag()
 	{
 		if ( _startPoints.Count > 0 ) return;
 		if ( _meshes.Length == 0 ) return;
@@ -54,7 +54,7 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 		}
 	}
 
-	public override void EndDrag()
+	protected override void OnEndDrag()
 	{
 		_startPoints.Clear();
 
@@ -174,7 +174,7 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 
 	public override Rotation CalculateSelectionBasis()
 	{
-		if ( Gizmo.Settings.GlobalSpace ) return Rotation.Identity;
+		if ( GlobalSpace ) return Rotation.Identity;
 
 		var mesh = _meshes.FirstOrDefault();
 		return mesh.IsValid() ? mesh.WorldRotation : Rotation.Identity;
@@ -216,6 +216,8 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 
 	public override void OnUpdate()
 	{
+		GlobalSpace = Gizmo.Settings.GlobalSpace;
+
 		UpdateMoveMode();
 		UpdateHovered();
 		UpdateSelectionMode();
@@ -264,6 +266,8 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 		}
 
 		ClearPivot();
+
+		Tool?.MoveMode?.OnBegin( this );
 	}
 
 	void UpdateSelectionMode()

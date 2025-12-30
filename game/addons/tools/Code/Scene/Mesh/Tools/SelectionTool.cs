@@ -6,6 +6,10 @@ public abstract class SelectionTool : EditorTool
 
 	public Vector3 Pivot { get; set; }
 
+	public bool DragStarted { get; private set; }
+
+	public bool GlobalSpace { get; set; }
+
 	public virtual Vector3 CalculateSelectionOrigin()
 	{
 		return default;
@@ -26,15 +30,34 @@ public abstract class SelectionTool : EditorTool
 		return default;
 	}
 
-	public virtual void StartDrag()
+	public void StartDrag()
+	{
+		DragStarted = true;
+
+		OnStartDrag();
+	}
+
+	public void UpdateDrag()
+	{
+		OnUpdateDrag();
+	}
+
+	public void EndDrag()
+	{
+		DragStarted = false;
+
+		OnEndDrag();
+	}
+
+	protected virtual void OnStartDrag()
 	{
 	}
 
-	public virtual void UpdateDrag()
+	protected virtual void OnUpdateDrag()
 	{
 	}
 
-	public virtual void EndDrag()
+	protected virtual void OnEndDrag()
 	{
 	}
 
@@ -166,6 +189,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 
 	public override void OnUpdate()
 	{
+		GlobalSpace = Gizmo.Settings.GlobalSpace;
+
 		UpdateMoveMode();
 
 		if ( IsAllowedToSelect && Gizmo.WasLeftMouseReleased && !Gizmo.Pressed.Any && Gizmo.Pressed.CursorDelta.Length < 1 )
@@ -423,6 +448,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 	private void OnMeshSelectionChanged()
 	{
 		Pivot = CalculateSelectionOrigin();
+		Tool?.MoveMode?.OnBegin( this );
 	}
 
 	protected void Select( IMeshElement element )
@@ -484,7 +510,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 		}
 	}
 
-	public override void StartDrag()
+	protected override void OnStartDrag()
 	{
 		if ( _transformVertices.Count != 0 )
 			return;
@@ -508,7 +534,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 		}
 	}
 
-	public override void UpdateDrag()
+	protected override void OnUpdateDrag()
 	{
 		if ( _transformFaces is not null )
 		{
@@ -534,7 +560,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 		}
 	}
 
-	public override void EndDrag()
+	protected override void OnEndDrag()
 	{
 		_transformVertices.Clear();
 		_transformFaces = null;

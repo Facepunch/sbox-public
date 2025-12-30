@@ -48,4 +48,16 @@ native class IMaterial2 as NativeEngine.IMaterial
 	{
 		self->ReloadStaticCombos( *((HMaterialStrong *)__self) );
 	}
+
+	inline int GetPhysicsSurfaceProperties()
+	{
+		CUtlString surfacePropertiesName;
+		if ( self->GetStringAttribute( &surfacePropertiesName, "PhysicsSurfaceProperties" ) )
+		{
+			const CPhysSurfaceProperties *pSurfaceProperties = g_pPhysicsSystem->GetSurfacePropertyController()->FindSurfaceProperties( MakeStringToken( surfacePropertiesName ) );
+			if ( pSurfaceProperties ) return pSurfaceProperties->m_nIndex;
+		}
+
+		return -1;
+	}
 }

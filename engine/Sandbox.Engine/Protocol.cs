@@ -8,7 +8,7 @@ public static class Protocol
 	/// <summary>
 	/// We cannot play packages with an Api version higher than this.
 	/// </summary>
-	public static int Api => 22;
+	public static int Api => 23;
 
 	/// <summary>
 	/// We cannot talk to servers or clients with a network protocol different to this.

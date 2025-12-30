@@ -434,6 +434,18 @@ public static class ResourceLibrary
 		return default;
 	}
 
+	/// <summary>
+	/// Render a thumbnail for this resource
+	/// </summary>
+	public static async Task<Bitmap> GetThumbnail( string path, int width = 256, int height = 256 )
+	{
+		var resource = await ResourceLibrary.LoadAsync<Resource>( path );
+		if ( resource is null ) return default;
+
+		// try to render it
+		return resource.RenderThumbnail( new() { Width = width, Height = height } );
+	}
+
 	public interface IEventListener
 	{
 		/// <summary>

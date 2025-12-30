@@ -17,23 +17,21 @@ public sealed class ScaleMode : MoveMode
 	private Vector3 _origin;
 	private Rotation _basis;
 
+	public override void OnBegin( SelectionTool tool )
+	{
+		_moveDelta = default;
+		_basis = tool.CalculateSelectionBasis();
+		var bounds = tool.CalculateLocalBounds();
+		_size = bounds.Size;
+		_origin = tool.Pivot;
+
+		if ( _size.x < 0.1f ) _size.x = 0;
+		if ( _size.y < 0.1f ) _size.y = 0;
+		if ( _size.z < 0.1f ) _size.z = 0;
+	}
+
 	protected override void OnUpdate( SelectionTool tool )
 	{
-		if ( !Gizmo.Pressed.Any )
-		{
-			tool.EndDrag();
-
-			_moveDelta = default;
-			_basis = tool.CalculateSelectionBasis();
-			var bounds = tool.CalculateLocalBounds();
-			_size = bounds.Size;
-			_origin = tool.Pivot;
-
-			if ( _size.x < 0.1f ) _size.x = 0;
-			if ( _size.y < 0.1f ) _size.y = 0;
-			if ( _size.z < 0.1f ) _size.z = 0;
-		}
-
 		using ( Gizmo.Scope( "Tool", new Transform( _origin ) ) )
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;

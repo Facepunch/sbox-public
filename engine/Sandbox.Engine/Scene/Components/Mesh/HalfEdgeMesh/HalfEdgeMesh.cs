@@ -72,6 +72,8 @@ public sealed record VertexHandle : IHandle
 		get => new( Mesh is null ? -1 : Mesh[this].Edge, Mesh );
 		set => Mesh?.SetVertexEdge( this, value );
 	}
+
+	public override string ToString() => $"{Index}";
 }
 
 public sealed record FaceHandle : IHandle
@@ -93,6 +95,8 @@ public sealed record FaceHandle : IHandle
 		get => new( Mesh is null ? -1 : Mesh[this].Edge, Mesh );
 		set => Mesh?.SetFaceEdge( this, value );
 	}
+
+	public override string ToString() => $"{Index}";
 }
 
 public sealed record HalfEdgeHandle : IHandle
@@ -132,6 +136,8 @@ public sealed record HalfEdgeHandle : IHandle
 		get => new( Mesh is null ? -1 : Mesh[this].Face, Mesh );
 		set => Mesh?.SetEdgeFace( this, value );
 	}
+
+	public override string ToString() => $"{Index}";
 }
 
 internal sealed partial class Mesh

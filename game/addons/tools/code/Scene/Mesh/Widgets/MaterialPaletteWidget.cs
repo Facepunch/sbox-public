@@ -421,15 +421,16 @@ public class MaterialPaletteWidget : Widget
 	class PaletteMaterialSlotWidget : MaterialWidget
 	{
 		readonly MaterialPaletteWidget _strip;
-		bool _isDownloading;
-		bool _isValidDropHover;
 
-		public PaletteMaterialSlotWidget( MaterialPaletteWidget strip )
+		public PaletteMaterialSlotWidget( MaterialPaletteWidget strip ) : base( null )
 		{
 			_strip = strip;
 			ToolTip = "";
-			AcceptDrops = true;
-			Cursor = CursorShape.Finger;
+		}
+
+		protected override void OnMaterialDropped( Material material )
+		{
+			_strip.SlotSetMaterial( this, material );
 		}
 
 		protected override void OnMouseClick( MouseEvent e )
@@ -498,7 +499,6 @@ public class MaterialPaletteWidget : Widget
 					Paint.SetBrushAndPen( Color.Transparent, Color.White );
 					Paint.DrawRect( controlRect, 0 );
 				}
-
 			}
 			else
 			{
@@ -562,127 +562,6 @@ public class MaterialPaletteWidget : Widget
 			base.OnMouseLeave();
 
 			tt?.Destroy();
-		}
-
-		public override void OnDragLeave()
-		{
-			base.OnDragLeave();
-
-			_isValidDropHover = false;
-		}
-
-		public override void OnDragHover( DragEvent ev )
-		{
-			if ( ev.Data.Url?.Scheme == "https" )
-			{
-				ev.Action = DropAction.Link;
-				_isValidDropHover = true;
-				return;
-			}
-
-			if ( ev.Data.HasFileOrFolder )
-			{
-				var assetFromPath = AssetSystem.FindByPath( ev.Data.FileOrFolder );
-				if ( assetFromPath is not null && assetFromPath.AssetType == AssetType.Material )
-				{
-					ev.Action = DropAction.Link;
-					_isValidDropHover = true;
-					return;
-				}
-			}
-
-			if ( ev.Data.Object is Asset asset && asset.AssetType == AssetType.Material )
-			{
-				ev.Action = DropAction.Link;
-				_isValidDropHover = true;
-				return;
-			}
-
-			if ( ev.Data.Object is Material )
-			{
-				ev.Action = DropAction.Link;
-				_isValidDropHover = true;
-			}
-		}
-
-		public override void OnDragDrop( DragEvent ev )
-		{
-			base.OnDragDrop( ev );
-
-			if ( ev.Data.Url?.Scheme == "https" )
-			{
-				_ = AssignFromUrlAsync( ev.Data.Text );
-				ev.Action = DropAction.Link;
-				return;
-			}
-
-			Material droppedMaterial = null;
-
-			if ( ev.Data.HasFileOrFolder )
-			{
-				var assetFromPath = AssetSystem.FindByPath( ev.Data.FileOrFolder );
-				if ( assetFromPath is not null && assetFromPath.AssetType == AssetType.Material )
-				{
-					droppedMaterial = assetFromPath.LoadResource( typeof( Material ) ) as Material;
-				}
-			}
-			else if ( ev.Data.Object is Asset asset && asset.AssetType == AssetType.Material )
-			{
-				droppedMaterial = asset.LoadResource( typeof( Material ) ) as Material;
-			}
-			else if ( ev.Data.Object is Material material )
-			{
-				droppedMaterial = material;
-			}
-
-			if ( droppedMaterial is null )
-				return;
-
-			_strip.SlotSetMaterial( this, droppedMaterial );
-			ev.Action = DropAction.Link;
-
-			_isValidDropHover = false;
-			Update();
-		}
-
-		async Task AssignFromUrlAsync( string identUrl )
-		{
-			try
-			{
-				_isDownloading = true;
-				Update();
-
-				var asset = await AssetSystem.InstallAsync( identUrl );
-				if ( asset is null || asset.AssetType != AssetType.Material )
-					return;
-
-				var mat = asset.LoadResource( typeof( Material ) ) as Material;
-				if ( mat is null )
-					return;
-
-				_strip.SlotSetMaterial( this, mat );
-			}
-			finally
-			{
-				_isDownloading = false;
-				_isValidDropHover = false;
-				Update();
-			}
-		}
-
-		protected override void OnDragStart()
-		{
-			if ( Material is null )
-				return;
-
-			var asset = AssetSystem.FindByPath( Material.ResourcePath );
-			if ( asset == null )
-				return;
-
-			var drag = new Drag( this );
-			drag.Data.Object = asset;
-			drag.Data.Url = new System.Uri( $"file://{asset.AbsolutePath}" );
-			drag.Execute();
 		}
 	}
 }
