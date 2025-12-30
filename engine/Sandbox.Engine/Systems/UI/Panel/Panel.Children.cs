@@ -87,7 +87,6 @@ public partial class Panel
 			}
 
 			ParentHasChanged = true;
-			Scene = FindRootPanel()?.Scene;
 			// Dirty
 		}
 	}
@@ -416,7 +415,29 @@ public partial class Panel
 	/// <summary>
 	/// Returns the scene that this panel belongs to
 	/// </summary>
-	public Scene Scene { get; set; }
+	public Scene Scene
+	{
+		get => GameObject?.Scene;
+
+		[Obsolete( "Setting Scene is no longer supported. This should be done automatically, internally" )]
+		set => GameObject = value;
+	}
+
+	/// <summary>
+	/// Returns the GameObject that this panel belongs to
+	/// </summary>
+	public GameObject GameObject
+	{
+		get
+		{
+			if ( field is not null )
+				return field;
+
+			return Parent?.GameObject;
+		}
+
+		internal set;
+	}
 
 	/// <summary>
 	/// Returns the index at which the given panel is <see cref="Parent">parented</see> to this panel, or -1 if it is not.

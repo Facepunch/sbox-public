@@ -3,7 +3,7 @@
 public partial class Styles
 {
 	KeyFrames currentFrames;
-	float animationStart;
+	double animationStart;
 	Styles animStyle;
 
 	/// <summary>
@@ -109,7 +109,7 @@ public partial class Styles
 		}
 
 		var f = Utility.Easing.GetFunction( AnimationTimingFunction ?? "linear" );
-		delta = f( delta );
+		delta = f( (float)delta );
 
 		if ( playLength >= totalDuration )
 		{
@@ -120,7 +120,7 @@ public partial class Styles
 				return false;
 		}
 
-		keyframes.FillStyle( delta, animStyle );
+		keyframes.FillStyle( (float)delta, animStyle );
 
 		Add( animStyle );
 

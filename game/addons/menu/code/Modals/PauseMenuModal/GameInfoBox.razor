@@ -1,0 +1,113 @@
+﻿@using Sandbox.Modals
+@using Sandbox
+@using Sandbox.UI
+@using Sandbox.Menu
+@using MenuProject.MenuUI.Components
+@inherits Panel
+
+<root>
+
+    @{
+
+        var icon = Package.ThumbWide ?? Package.Thumb;
+
+        @if (icon != null )
+        {
+            <div class="thumb clicky" style="background-image: url( @icon )" @onclick=@(() => Package.OpenModal())>
+               <div class="light-border"></div>
+            </div>
+        }
+    }
+
+    <div class="contents">
+
+        <div class="title-org">
+            <div class="title clicky" onmousedown="@( ()=> Package.OpenModal() )">@Package.Title</div>
+            <div class="org clicky" onmousedown="@( ()=> Game.Overlay.ShowOrganizationModal( Package.Org ) )">by @Package.Org?.Title</div>
+        </div>
+
+        @if ( !string.IsNullOrWhiteSpace( Package.Summary ) )
+        {
+            <div class="summary">@Package.Summary</div>
+        }
+
+        <div class="metrics">
+
+            <Button Icon="directions_run" Disabled Text="@(Package.Usage.Total.Users.ToMetric( 0 ) + " users")"></Button>
+            <Button Icon="play_arrow" Disabled Text="@(Package.Usage.Total.Sessions.ToMetric( 0 ) + " plays")"></Button>
+            <Button Icon="favorite" Active="@IsFavourite" class="favorite" Text="@(Package.Favourited.ToMetric() + " favorites")" onclick="@ToggleFavourite"></Button>
+            <Button Icon="bug_report" Disabled Text="@((Package.ErrorRate * 100.0f).Clamp( 0, 100).ToString( "0\\%" ) + " errors")"></Button>
+            <Button Icon="thumb_up" Active="@(Package.Interaction.Rating == 0)" Text="@(Package.VotesUp.ToMetric() + " likes")" onclick="@VoteUp"></Button>
+            <Button Icon="thumb_down" Active="@(Package.Interaction.Rating == 1)" Text="@(Package.VotesDown.ToMetric() + " dislikes" )" onclick="@VoteDown"></Button>
+            <Button Icon="reviews"
+                Text="@($"{Package.Reviews.Score.ToString( "N0" )}% from {Package.Reviews.Total} Reviews")" 
+                    onclick="@( () => Game.Overlay.ShowReviewModal(Package) )"></Button>
+            
+
+        </div>
+
+        @if ( Package.Interaction.Used )
+        {
+            <div class="statsbox">
+                <div class="row">
+                    <div class="key">Play Time</div>
+                    <div class="value">@TimeSpan.FromSeconds( Package.Interaction.Seconds ).Humanize( 1 )</div>
+                </div>
+                <div class="row">
+                    <div class="key">Sessions</div>
+                    <div class="value">@Package.Interaction.Sessions.ToMetric( 0 )</div>
+                </div>
+                <div class="row">
+                    <div class="key">First Played</div>
+                    <div class="value">@Package.Interaction.FirstUsed?.Date.Humanize()</div>
+                </div>
+
+                @if ( ach != null )
+                {
+                    var achText = $"{ach.All.Where(x => x.IsUnlocked).Count().ToMetric()} of {ach.All.Count().ToMetric()}";
+
+                    <div class="row">
+                        <div class="key">Achievements</div>
+                        <div class="value">@achText</div>
+                    </div>
+                }
+
+            </div>
+        }
+
+    </div>
+
+</root>
+
+@code
+{
+    [Parameter]
+    public Package Package { get; set; }
+
+    AchievementCollection ach;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        ach = await Package.GetAchievements();
+    }
+
+    bool IsFavourite => Package.Interaction.Favourite;
+
+    async void VoteUp()
+    {
+        await Package.SetVoteAsync(true);
+        StateHasChanged();
+    }
+
+    async void VoteDown()
+    {
+        await Package.SetVoteAsync(false);
+        StateHasChanged();
+    }
+
+    async void ToggleFavourite()
+    {
+        await Package.SetFavouriteAsync(!IsFavourite);
+        StateHasChanged();
+    }
+}

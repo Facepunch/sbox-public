@@ -538,9 +538,6 @@ namespace Topten.RichTextKit
 					glyphVOffset = Style.FontSize * 0.1f;
 				}
 
-				// Get glyph positions
-				var glyphPositions = GlyphPositions.ToArray();
-
 				// Create the font
 				if ( _font == null )
 				{
@@ -872,6 +869,16 @@ namespace Topten.RichTextKit
 			using var effectPaint = new SKPaint();
 			foreach ( var effect in Style.TextEffects )
 			{
+				// Aliased 1 pixel outline needs to be rendered in a different way to look good.
+				if ( ctx.Options.Edging == SKFontEdging.Alias &&
+					 effect.PaintStyle == SKPaintStyle.StrokeAndFill &&
+					 effect.Width == 1 )
+				{
+					PaintPixelOutline( ctx, effect.Color );
+
+					continue;
+				}
+
 				effectPaint.Style = effect.PaintStyle;
 				effectPaint.StrokeWidth = effect.Width;
 				effectPaint.StrokeJoin = effect.StrokeJoin;
@@ -883,6 +890,49 @@ namespace Topten.RichTextKit
 				PaintUnderline( ctx, effectPaint );
 				PaintStrikeThrough( ctx, effectPaint, glyphVOffset );
 			}
+		}
+
+		static readonly SKPoint[] PixelOutlineOffsets =
+		{
+			new( -1,  0 ),
+			new( 1,  0 ),
+			new( 0, -1 ),
+			new( 0,  1 ),
+			new( -1, -1 ),
+			new( -1,  1 ),
+			new( 1, -1 ),
+			new( 1,  1 ),
+		};
+
+		unsafe void PaintPixelOutline( PaintTextContext ctx, SKColor color )
+		{
+			using var pixelPaint = new SKPaint
+			{
+				Color = color,
+				IsAntialias = false,
+			};
+
+			// Override font edging.
+			var edging = _font.Edging;
+			_font.Edging = SKFontEdging.Alias;
+
+			fixed ( ushort* pGlyphs = Glyphs.Underlying )
+			{
+				var textBlob = SKTextBlob.CreatePositioned(
+					(IntPtr)(pGlyphs + Glyphs.Start),
+					Glyphs.Length * sizeof( ushort ),
+					SKTextEncoding.GlyphId,
+					_font,
+					GlyphPositions.AsSpan() );
+
+				foreach ( var o in PixelOutlineOffsets )
+				{
+					ctx.Canvas.DrawText( textBlob, o.X, o.Y, pixelPaint );
+				}
+			}
+
+			// Restore font edging.
+			_font.Edging = edging;
 		}
 
 		SKTextBlob _textBlob;

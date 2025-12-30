@@ -76,8 +76,7 @@ public class ObservableDictionary<TKey, TValue> : IDictionary<TKey, TValue>, INo
 		Dictionary.TryGetValue( key, out value );
 		var removed = Dictionary.Remove( key );
 		if ( removed )
-			//OnCollectionChanged(NotifyCollectionChangedAction.Remove, new KeyValuePair<TKey, TValue>(key, value));
-			OnCollectionChanged();
+			OnCollectionChanged( NotifyCollectionChangedAction.Remove, new KeyValuePair<TKey, TValue>( key, value ) );
 
 		return removed;
 	}

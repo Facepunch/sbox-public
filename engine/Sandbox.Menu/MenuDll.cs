@@ -183,13 +183,13 @@ internal sealed class MenuDll : IMenuDll
 			Avatar.AvatarJson = AccountInformation.AvatarJson;
 		}
 
-		using ( Sandbox.Engine.Bootstrap.StartupTiming?.ScopeTimer( "Menu - Resources" ) )
-		{
-			LoadResources();
-		}
-
 		if ( !Application.IsEditor )
 		{
+			using ( Sandbox.Engine.Bootstrap.StartupTiming?.ScopeTimer( "Menu - Resources" ) )
+			{
+				LoadResources();
+			}
+
 			SetupMenuScene();
 		}
 
@@ -211,8 +211,44 @@ internal sealed class MenuDll : IMenuDll
 
 	public void Exiting()
 	{
-		using var scope = PushScope();
-		Game.Cookies?.Save();
+		using ( PushScope() )
+		{
+			// Shutdown menu system
+			IMenuSystem.Current?.Shutdown();
+			IMenuSystem.Current = null;
+
+			// Unregister messaging
+			Sandbox.Services.Messaging.OnMessage -= OnMessageFromBackend;
+
+			// Save and dispose cookies
+			Game.Cookies?.Save();
+			Game.Cookies = null;
+
+			// Cleanup scene
+			MenuScene.Scene?.Destroy();
+			MenuScene.Scene = null;
+
+			// Dispose package loader and enroller
+			Enroller?.Dispose();
+			Enroller = null;
+
+			Loader?.Dispose();
+			Loader = null;
+
+			// Shutdown Steamworks interfaces
+			if ( !Application.IsEditor )
+			{
+				Steamworks.SteamClient.Cleanup();
+			}
+
+			// Expire async context to prevent lingering tasks
+			AsyncContext.Expire( null );
+
+			// Clear global context
+			GlobalContext.Current.Reset();
+
+			IMenuDll.Current = null;
+		}
 	}
 
 	void LoadResources()
@@ -312,6 +348,9 @@ internal sealed class MenuDll : IMenuDll
 
 	public void Reset()
 	{
+		if ( Application.IsEditor )
+			return;
+
 		using var _ = PushScope();
 		LoadResources();
 	}

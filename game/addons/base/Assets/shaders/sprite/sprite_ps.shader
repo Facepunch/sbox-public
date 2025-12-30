@@ -230,16 +230,15 @@ PS
 		RenderState( SrcBlend, SRC_ALPHA );
 		RenderState( DstBlend, ONE );
 		RenderState( DepthWriteEnable, false );
-	#else 
-		RenderState( BlendEnable, true);
-		RenderState( DepthWriteEnable, S_MODE_DEPTH == 1 );
+	#else
+		RenderState( BlendEnable, true );
 		RenderState( SrcBlend, SRC_ALPHA );
 		RenderState( DstBlend, INV_SRC_ALPHA );
 		RenderState( BlendOp, ADD );
 		RenderState( SrcBlendAlpha, ONE );
 		RenderState( DstBlendAlpha, INV_SRC_ALPHA );
-		RenderState( AlphaToCoverageEnable, S_MODE_DEPTH == 1);
-		
+		RenderState( DepthWriteEnable, D_OPAQUE || S_MODE_DEPTH == 1 );
+		RenderState( AlphaToCoverageEnable, S_MODE_DEPTH == 1 );
 	#endif
 
 	RenderState( CullMode, NONE );
@@ -290,6 +289,7 @@ PS
 	int CurrentBufferSize < Attribute("SpriteCount"); >;
 
 	DynamicCombo( D_BLEND, 0..1, Sys( ALL ) );
+	DynamicCombo( D_OPAQUE, 0..1, Sys( ALL ) );
 
 	float g_FogStrength < Attribute( "g_FogStrength" ); >;
 

@@ -42,7 +42,7 @@ public sealed class ScreenPanel : Component, IRootPanelComponent
 	protected override void OnAwake()
 	{
 		rootPanel = new GameRootPanel();
-		rootPanel.Scene = Scene;
+		rootPanel.GameObject = GameObject;
 		rootPanel.RenderedManually = true;
 		rootPanel.Style.Display = DisplayMode.None;
 

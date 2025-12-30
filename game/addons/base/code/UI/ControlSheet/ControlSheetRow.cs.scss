@@ -5,6 +5,11 @@ ControlSheetRow
 	flex-shrink: 0;
 	max-height: 32px;
 	border-radius: 4px;
+
+	&.hidden
+	{
+		display: none;
+	}
 }
 
 ControlSheetRow > .left
@@ -30,7 +35,7 @@ ControlSheetRow > .left > .title
 	overflow: hidden;
 }
 
-ControlSheetRow > .right > textentry, 
+ControlSheetRow > .right > textentry,
 ControlSheetRow > .right numberentry
 {
 	background-color: #000a;

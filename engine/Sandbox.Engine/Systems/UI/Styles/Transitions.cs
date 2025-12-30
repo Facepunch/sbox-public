@@ -12,15 +12,15 @@ public sealed class Transitions
 	public struct Entry
 	{
 		public string Property { get; init; }
-		public float StartTime { get; init; }
-		public float Length { get; init; }
+		public double StartTime { get; init; }
+		public double Length { get; init; }
 		public int Target { get; init; }
 		public Utility.Easing.Function EasingFunction { get; init; }
 		public bool IsKilled { get; private set; }
 
 		public TransitionFunction Action { get; init; }
 
-		public Entry( string property, float startTime, float length, int target, TransitionFunction action, Easing.Function easingFunction ) : this()
+		public Entry( string property, double startTime, double length, int target, TransitionFunction action, Easing.Function easingFunction ) : this()
 		{
 			Property = property;
 			StartTime = startTime;
@@ -107,7 +107,7 @@ public sealed class Transitions
 		}
 	}
 
-	internal void Add( Styles from, Styles to, float startTime )
+	internal void Add( Styles from, Styles to, double startTime )
 	{
 		if ( !to.HasTransitions ) return;
 
@@ -124,7 +124,7 @@ public sealed class Transitions
 		}
 	}
 
-	void Transition( in TransitionDesc desc, BaseStyles from, BaseStyles to, TransitionFunction action, float startTime )
+	void Transition( in TransitionDesc desc, BaseStyles from, BaseStyles to, TransitionFunction action, double startTime )
 	{
 		if ( from == to ) return;
 
@@ -134,7 +134,7 @@ public sealed class Transitions
 		Add( desc, target, action, startTime );
 	}
 
-	void Add( in TransitionDesc desc, int target, TransitionFunction action, float startTime )
+	void Add( in TransitionDesc desc, int target, TransitionFunction action, double startTime )
 	{
 		var length = 1.0f;
 		var property = desc.Property;
@@ -157,7 +157,7 @@ public sealed class Transitions
 		Entries.Add( entry );
 	}
 
-	internal bool Run( Styles style, float now )
+	internal bool Run( Styles style, double now )
 	{
 		if ( !HasAny )
 			return false;
@@ -183,7 +183,7 @@ public sealed class Transitions
 
 			var t = entry.IsKilled ? 1f : (now - entry.StartTime) / entry.Length;
 
-			entry.Invoke( style, entry.Ease( t ) );
+			entry.Invoke( style, entry.Ease( (float)t ) );
 		}
 
 		if ( Entries.RemoveAll( x => x.IsKilled ) > 0 )

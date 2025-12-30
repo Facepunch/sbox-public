@@ -10,8 +10,7 @@ public partial class PackageLoader
 	public void TestInitialize()
 	{
 		Project.Clear();
-		PackageManager.ResetForUnitTest();
-		AssetDownloadCache.Initialize( $"{Environment.CurrentDirectory}/.source2/package_manager_folder" );
+		var dir = $"{Environment.CurrentDirectory}/.source2/test_download_cache/package_loader";
 	}
 
 	private (TypeLibrary TypeLibrary, Sandbox.PackageLoader PackageLoader, Sandbox.PackageLoader.Enroller Enroller) Preamble()
@@ -94,7 +93,7 @@ public partial class PackageLoader
 		var addonName = "garry.grassworld";
 		var addonClass = "GrassSpawner";
 
-		var (library, _, enroller) = Preamble();
+		var (library, packageLoader, enroller) = Preamble();
 
 		Assert.AreEqual( 0, PackageManager.MountedFileSystem.FileCount, "No package files mounted" );
 
@@ -115,13 +114,16 @@ public partial class PackageLoader
 
 		PackageManager.UnmountTagged( "client" );
 
+		enroller.Dispose();
+		packageLoader.Dispose();
+
 		Assert.AreEqual( 0, PackageManager.MountedFileSystem.FileCount, "Unmounted everything" );
 	}
 
 	//[TestMethod]
 	public async Task LoadPackageWithAddonWithLibrary( string packageName )
 	{
-		var (library, _, enroller) = Preamble();
+		var (library, packageLoader, enroller) = Preamble();
 
 		Assert.AreEqual( 0, PackageManager.MountedFileSystem.FileCount, "No package files mounted" );
 
@@ -138,6 +140,9 @@ public partial class PackageLoader
 
 		PackageManager.UnmountTagged( "client" );
 
+		enroller.Dispose();
+		packageLoader.Dispose();
+
 		Assert.AreEqual( 0, PackageManager.MountedFileSystem.FileCount, "Unmounted everything" );
 	}
 
@@ -150,7 +155,7 @@ public partial class PackageLoader
 	[TestMethod]
 	public async Task LoadRuntimeGamePackage()
 	{
-		var (library, _, enroller) = Preamble();
+		var (library, packageLoader, enroller) = Preamble();
 
 		Project.AddFromFileBuiltIn( "addons/base" );
 		var project = Project.AddFromFile( "unittest/addons/spacewars" );
@@ -170,8 +175,11 @@ public partial class PackageLoader
 		var gameClass = library.GetType( "SpaceWarsGameManager" );
 		Assert.IsNotNull( gameClass, "Found game class" );
 
-		// cleanup
-		PackageManager.UnmountTagged( "client" );
+		enroller.Dispose();
+		packageLoader.Dispose();
+
+		PackageManager.UnmountAll();
+		Assert.AreEqual( 0, PackageManager.MountedFileSystem.FileCount );
 	}
 
 	/// <summary>
@@ -203,6 +211,12 @@ public partial class PackageLoader
 		Assert.IsInstanceOfType<InvalidOperationException>( exception );
 
 		Assert.IsTrue( exception.Message.Contains( "Disabled during static constructors." ) );
+
+		enroller.Dispose();
+		packageLoader.Dispose();
+
+		PackageManager.UnmountAll();
+		Assert.AreEqual( 0, PackageManager.MountedFileSystem.FileCount );
 	}
 
 	//
@@ -328,10 +342,10 @@ public partial class PackageLoader
 
 		//Assert.IsTrue( Project.CompileAsync )
 
-		// cleanup
-		PackageManager.UnmountTagged( "client" );
-
 		packageLoader.Dispose();
+
+		PackageManager.UnmountAll();
+		Assert.AreEqual( 0, PackageManager.MountedFileSystem.FileCount );
 	}
 
 	/// <summary>

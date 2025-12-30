@@ -10,10 +10,6 @@
 	<SentryDisableSourceGenerator>true</SentryDisableSourceGenerator>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(BuildingForLiveUnitTesting)' == 'true'">
-    <DefineConstants>$(DefineConstants);LIVE_UNIT_TEST</DefineConstants>
-  </PropertyGroup>
-
 	<ItemGroup>
 		<Using Include="Microsoft.AspNetCore.Components" />
 		<Using Include="Microsoft.AspNetCore.Components.Rendering" />
@@ -50,6 +46,12 @@
     <ProjectReference Include="..\Sandbox.Engine\Sandbox.Engine.csproj" />
     <ProjectReference Include="..\Sandbox.Tools\Sandbox.Tools.csproj" />
     <ProjectReference Include="..\Sandbox.Menu\Sandbox.Menu.csproj" />
+    <ProjectReference Include="..\Sandbox.AppSystem\Sandbox.AppSystem.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Access\" />
+    <Folder Include="Scene\Scene\" />
   </ItemGroup>
 
 </Project>

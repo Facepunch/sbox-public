@@ -225,7 +225,7 @@ public abstract class Joint : Component, Component.ExecuteInEditor
 	/// </summary>
 	protected abstract PhysicsJoint CreateJoint( PhysicsPoint point1, PhysicsPoint point2 );
 
-	static PhysicsBody FindPhysicsBody( GameObject go, GameObject source = null )
+	internal static PhysicsBody FindPhysicsBody( GameObject go, GameObject source = null )
 	{
 		if ( go is null ) return null;
 		if ( go is Scene ) return null;

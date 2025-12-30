@@ -23,25 +23,26 @@
 
         @if ( Decorated )
         {
-            if (Package.Public == false)
-            {
-                <div class="card-decorator-hidden" tooltip="This is hidden from the public">Hidden</div>
-            }
-
-            if ( UsersNow > 0 )
-            {
-                <div class="card-decorator-users" tooltip="This many users are playing now">
-                    <i>sports_esports</i>
-                    <span> @UsersNow.KiloFormat() </span>
-                </div>
-            }
-            else if ( Package.Usage.UsersNow > 0 )
-            {
-                <div class="card-decorator-users" tooltip="This many users are playing now">
-                    <i>sports_esports</i>
-                    <span> @Package.Usage.UsersNow.KiloFormat() </span>
-                </div>
-            }
+            <div class="card-decorator">
+                @if ( Package.Public == false )
+                {
+                    <i tooltip="This package is hidden from the public">visibility_off</i>
+                }
+                @if ( UsersNow > 0 )
+                {   
+                    <div class="player-count" tooltip="This many users are playing now">
+                        <i>sports_esports</i>
+                        <span> @UsersNow.KiloFormat() </span>
+                    </div>
+                }
+                else if ( Package.Usage.UsersNow > 0 )
+                {
+                    <div class="player-count" tooltip="This many users are playing now">
+                        <i>sports_esports</i>
+                        <span> @Package.Usage.UsersNow.KiloFormat() </span>
+                    </div>
+                }
+            </div>
         }
 
     </div>

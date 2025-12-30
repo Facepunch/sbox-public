@@ -42,11 +42,7 @@ namespace Sandbox.UI
 			get => _value;
 			set
 			{
-				if ( _valueHash == HashCode.Combine( value ) )
-					return;
-
-				if ( $"{_value}" == $"{value}" )
-					return;
+				if ( _valueHash == HashCode.Combine( value ) ) return;
 
 				_valueHash = HashCode.Combine( value );
 				_value = value;
@@ -79,11 +75,13 @@ namespace Sandbox.UI
 
 				if ( selected != null )
 				{
-					Value = $"{selected.Value}";
+					var v = $"{selected.Value}";
+
+					Value = v;
 					Icon = selected.Icon;
 					Text = selected.Title;
 
-					ValueChanged?.Invoke( Value.ToString() );
+					ValueChanged?.Invoke( v );
 					CreateEvent( "onchange" );
 					CreateValueEvent( "value", selected?.Value );
 				}
@@ -185,7 +183,15 @@ namespace Sandbox.UI
 		/// </summary>
 		protected virtual void Select( string value, bool triggerChange = true )
 		{
-			Select( Options.FirstOrDefault( x => string.Equals( x.Value.ToString(), value, StringComparison.OrdinalIgnoreCase ) ), triggerChange );
+			Select( Options.FirstOrDefault( x => IsOptionMatch( x, value ) ), triggerChange );
+		}
+
+		private bool IsOptionMatch( Option option, string value )
+		{
+			if ( option.Value == null || (option.Value is string stringValue && string.IsNullOrEmpty( value )) )
+				return string.IsNullOrEmpty( value );
+
+			return string.Equals( option.Value?.ToString(), value, StringComparison.OrdinalIgnoreCase );
 		}
 
 		protected override void OnParametersSet()

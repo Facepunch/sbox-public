@@ -103,6 +103,24 @@ public partial class Panel
 		{
 			_children[i].UpdateVisibility();
 		}
+
+		try
+		{
+			OnVisibilityChanged();
+		}
+		catch ( System.Exception e )
+		{
+			Log.Warning( e );
+		}
+	}
+
+	/// <summary>
+	/// Called when the visibility of the current panel changes. This could be because our own style changed, or a parent style.
+	/// You can check visibility using <see cref="IsVisible"/> and <see cref="IsVisibleSelf"/>.
+	/// </summary>
+	protected virtual void OnVisibilityChanged()
+	{
+
 	}
 
 	bool needsPreLayout = true;

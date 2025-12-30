@@ -5,7 +5,7 @@ namespace GameObjects.Components;
 [TestClass]
 public class ModelPhysicsTests
 {
-	private static readonly Model CitizenModel = Model.Load( "models/citizen/citizen.vmdl" );
+	private static Model CitizenModel => Model.Load( "models/citizen/citizen.vmdl" );
 
 	[TestMethod]
 	public void ComponentCreation()

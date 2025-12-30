@@ -1,4 +1,5 @@
 ﻿
+using Microsoft.AspNetCore.Components;
 using Sandbox.Engine;
 
 namespace Sandbox.UI;
@@ -8,11 +9,13 @@ public partial class Panel
 	/// <summary>
 	/// A string to show when hovering over this panel.
 	/// </summary>
+	[Parameter]
 	public string Tooltip { get; set; }
 
 	/// <summary>
 	/// The created tooltip element will have this class, if set.
 	/// </summary>
+	[Parameter]
 	public string TooltipClass { get; set; }
 
 	/// <summary>

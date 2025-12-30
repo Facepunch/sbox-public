@@ -11,7 +11,7 @@ namespace Sandbox;
 /// </summary>
 internal class ServerPackages
 {
-	public static ServerPackages Current { get; private set; }
+	public static ServerPackages Current { get; private set; } = new();
 
 	internal record struct ServerPackageInfo();
 	internal StringTable StringTable;
@@ -86,7 +86,7 @@ internal class ServerPackages
 
 	internal ServerPackages()
 	{
-		Assert.IsNull( Current );
+		// WTF???
 		Current = this;
 
 		StringTable = new StringTable( "ServerPackages", true );

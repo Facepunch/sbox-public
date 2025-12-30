@@ -20,12 +20,6 @@ internal static partial class PackageManager
 	/// </summary>
 	public static event Action<ActivePackage, string> OnPackageInstalledToContext;
 
-	internal static void ResetForUnitTest()
-	{
-		ActivePackages = new();
-		MountedFileSystem = new AggregateFileSystem();
-	}
-
 	static async Task<Package> FetchPackageAsync( string ident, bool localPriority )
 	{
 		if ( localPriority && Package.TryParseIdent( ident, out var parts ) && !parts.local )
@@ -126,6 +120,15 @@ internal static partial class PackageManager
 		{
 			log.Trace( $"Unmounting '{item.Package.FullIdent}' - no tags remaining" );
 
+			item.Delete();
+			ActivePackages.Remove( item );
+		}
+	}
+
+	internal static void UnmountAll()
+	{
+		foreach ( var item in ActivePackages.ToArray() )
+		{
 			item.Delete();
 			ActivePackages.Remove( item );
 		}

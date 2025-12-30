@@ -78,7 +78,7 @@ partial class Compiler
 	/// </summary>
 	private string GetReplacementDirective( string filePath )
 	{
-		foreach ( var pair in config.ReplacementDirectives )
+		foreach ( var pair in _config.ReplacementDirectives )
 		{
 			if ( filePath.EndsWith( pair.Key, StringComparison.OrdinalIgnoreCase ) )
 				return pair.Value;
@@ -108,7 +108,7 @@ partial class Compiler
 				var pathFolders = folderName.Split( new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries );
 
 				// is this ignored
-				if ( pathFolders.Any( x => config.IgnoreFolders.Contains( x, StringComparer.OrdinalIgnoreCase ) ) )
+				if ( pathFolders.Any( x => _config.IgnoreFolders.Contains( x, StringComparer.OrdinalIgnoreCase ) ) )
 					return;
 
 				if ( pathFolders.Contains( "obj", StringComparer.OrdinalIgnoreCase ) )
@@ -156,7 +156,7 @@ partial class Compiler
 				{
 					tree = CSharpSyntaxTree.ParseText( text: sourceText, options: fileOptions, path: physicalPath );
 
-					if ( config.StripDisabledTextTrivia )
+					if ( _config.StripDisabledTextTrivia )
 						tree = StripDisabledTextTrivia( tree );
 				}
 
@@ -168,7 +168,7 @@ partial class Compiler
 					var wrappedSourceText = SourceText.From( wrappedText, Encoding.UTF8 );
 					tree = CSharpSyntaxTree.ParseText( wrappedSourceText, fileOptions, physicalPath );
 
-					if ( config.StripDisabledTextTrivia )
+					if ( _config.StripDisabledTextTrivia )
 						tree = StripDisabledTextTrivia( tree );
 				}
 

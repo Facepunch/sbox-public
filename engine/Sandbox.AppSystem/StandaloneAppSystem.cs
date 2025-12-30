@@ -68,7 +68,7 @@ public class StandaloneAppSystem : AppSystem
 		// Quit next loop after load, if we are testing
 		else if ( Utility.CommandLine.HasSwitch( "-test-standalone" ) )
 		{
-			Application.Exit();
+			Game.Close();
 		}
 
 		return !wantsToQuit;

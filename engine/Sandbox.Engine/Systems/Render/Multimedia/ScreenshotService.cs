@@ -1,4 +1,5 @@
 ﻿using NativeEngine;
+using Sandbox.UI;
 using System.Collections.Concurrent;
 using System.IO;
 
@@ -91,6 +92,8 @@ internal static class ScreenshotService
 
 		const int MaxDimension = 16384;
 
+		var requestedSize = new Vector2( width, height );
+
 		if ( width <= 0 || height <= 0 )
 		{
 			Log.Warning( "screenshot_highres requires width and height greater than zero." );
@@ -112,10 +115,20 @@ internal static class ScreenshotService
 		Bitmap captureBitmap = null;
 		RenderTarget renderTarget = null;
 		var previousCustomSize = camera.CustomSize;
+		var previousScreenSize = Screen.Size;
+		var screenSizeChanged = previousScreenSize != requestedSize;
 
 		try
 		{
-			camera.CustomSize = new Vector2( width, height );
+			if ( screenSizeChanged )
+			{
+				Screen.Size = requestedSize;
+				RenderTarget.Flush();
+			}
+
+			camera.CustomSize = requestedSize;
+
+			ResizeUI( camera, requestedSize );
 
 			renderTarget = RenderTarget.GetTemporary( width, height, ImageFormat.Default, ImageFormat.Default, MultisampleAmount.Multisample16x, 1, "HighResScreenshot" );
 			if ( renderTarget is null )
@@ -162,10 +175,54 @@ internal static class ScreenshotService
 
 			captureBitmap?.Dispose();
 
+			if ( screenSizeChanged )
+			{
+				Screen.Size = previousScreenSize;
+				RenderTarget.Flush();
+				ResizeUI( camera, previousScreenSize );
+			}
+
 			if ( camera.IsValid() )
 			{
 				camera.InitializeRendering();
 			}
+		}
+	}
+
+	private static void ResizeUI( CameraComponent camera, Vector2 size )
+	{
+		if ( !camera.IsValid() )
+			return;
+
+		if ( !camera.Scene.IsValid() )
+			return;
+
+		foreach ( var panel in camera.Scene.GetAll<ScreenPanel>() )
+		{
+			if ( !panel.IsValid() || !panel.Active )
+				continue;
+
+			var target = panel.TargetCamera ?? (camera.IsMainCamera ? camera : null);
+			if ( target != camera )
+				continue;
+
+			if ( camera.RenderExcludeTags.HasAny( panel.GameObject.Tags ) )
+				continue;
+
+			if ( panel.GetPanel() is not RootPanel rootPanel )
+				continue;
+
+			if ( !rootPanel.IsValid() )
+				continue;
+
+			if ( rootPanel.PanelBounds.Width == size.x && rootPanel.PanelBounds.Height == size.y )
+				continue;
+
+			var screenRect = new Rect( 0, 0, size.x, size.y );
+
+			rootPanel.PreLayout( screenRect );
+			rootPanel.CalculateLayout();
+			rootPanel.PostLayout();
 		}
 	}
 }

@@ -156,7 +156,7 @@ internal static partial class StyleParser
 
 	private static bool ParseKeyframes( ref Parse p, StyleSheet sheet )
 	{
-		var keyframe = KeyFrames.Parse( ref p );
+		var keyframe = KeyFrames.Parse( ref p, sheet );
 		if ( keyframe == null )
 			return false;
 

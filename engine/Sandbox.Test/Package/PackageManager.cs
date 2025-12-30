@@ -10,33 +10,16 @@ public class PackageManagement
 	[TestInitialize]
 	public void TestInitialize()
 	{
-		PackageManager.ResetForUnitTest();
+		PackageManager.UnmountAll();
 
-		var dir = $"{Environment.CurrentDirectory}/.source2/package_manager_folder";
+		var dir = $"{Environment.CurrentDirectory}/.source2/test_download_cache/package_management";
 
 		if ( System.IO.Directory.Exists( dir ) )
-		{
-			for ( int i = 0; i < 5; i++ )
-			{
-				try
-				{
-					System.IO.Directory.Delete( dir, true );
-					break;
-				}
-				catch
-				{
-					Thread.Sleep( 500 );
-				}
-			}
-		}
+			System.IO.Directory.Delete( dir, true );
+
+		System.IO.Directory.CreateDirectory( dir );
 
 		AssetDownloadCache.Initialize( dir );
-	}
-
-	[TestCleanup]
-	public void TestCleanup()
-	{
-
 	}
 
 	/// <summary>
@@ -179,9 +162,14 @@ public class PackageManagement
 	[TestMethod]
 	public async Task DownloadPackagesWithMatchingFiles()
 	{
+		var pm = PackageManager.ActivePackages;
+
 		var a = PackageManager.InstallAsync( new PackageLoadOptions( "titanovsky.ufrts_archery2_3", "fff" ) );
 		var b = PackageManager.InstallAsync( new PackageLoadOptions( "titanovsky.ufrts_crates2", "fff" ) );
 
 		await Task.WhenAll( a, b );
+
+		PackageManager.UnmountAll();
+		Assert.AreEqual( 0, PackageManager.MountedFileSystem.FileCount );
 	}
 }

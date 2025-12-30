@@ -6,6 +6,8 @@
 [CustomEditor( typeof( Enum ) )]
 public partial class EnumControl : BaseControl
 {
+	public override bool SupportsMultiEdit => true;
+
 	public EnumControl()
 	{
 

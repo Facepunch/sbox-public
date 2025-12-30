@@ -106,12 +106,15 @@ internal partial class GameInstance : IGameInstance
 
 		_packageAssembly = null;
 
+		// Tear down the active scene while content is still mounted so native handles remain valid during cleanup
+		Game.Shutdown();
+
 		GlobalContext.Current.UISystem.Clear();
 
 		if ( activePackage != null && !Application.IsStandalone )
 		{
-			Game.Language.Shutdown();
-			FileSystem.Mounted.UnMount( activePackage.FileSystem );
+			Game.Language?.Shutdown();
+			FileSystem.Mounted?.UnMount( activePackage.FileSystem );
 
 			activePackage = null;
 		}
@@ -121,9 +124,7 @@ internal partial class GameInstance : IGameInstance
 		// Is this the right place for it? Map packages are marked with "game" so they never get unmounted
 		PackageManager.UnmountTagged( "game" );
 
-		GameInstanceDll.Current.OnGameInstanceClosed( this );
-
-		Game.Shutdown();
+		GameInstanceDll.Current.Shutdown( this );
 
 		// If we were running a benchmark, leave the game
 		if ( Application.IsBenchmark )

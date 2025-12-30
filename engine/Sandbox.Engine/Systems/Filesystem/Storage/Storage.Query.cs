@@ -74,10 +74,19 @@ public static partial class Storage
 		/// <summary>
 		/// Run the query
 		/// </summary>
-		public async Task<QueryResult> Run( CancellationToken token = default )
+		public Task<QueryResult> Run( CancellationToken token = default )
+		{
+			// gets first page of results
+			return RunEx( "*", token );
+		}
+
+		/// <summary>
+		/// Run the query
+		/// </summary>
+		internal async Task<QueryResult> RunEx( string nextToken, CancellationToken token = default )
 		{
 			var json = JsonSerializer.Serialize( this );
-			using var q = NativeEngine.CUgcQuery.CreateQuery( json, "" );
+			using var q = NativeEngine.CUgcQuery.CreateQuery( json, nextToken );
 
 			while ( !q.m_complete )
 			{
@@ -85,9 +94,11 @@ public static partial class Storage
 			}
 
 			var resultJson = q.GetResultJson();
-			return Json.Deserialize<QueryResult>( resultJson );
-		}
 
+			var result = Json.Deserialize<QueryResult>( resultJson );
+			result.SourceQuery = this;
+			return result;
+		}
 	}
 
 	/// <summary>
@@ -99,6 +110,24 @@ public static partial class Storage
 		public int TotalCount { get; set; }
 		public string NextCursor { get; set; }
 		public List<QueryItem> Items { get; set; }
+
+		internal Query SourceQuery;
+
+		/// <summary>
+		/// Returns true if there are more results to be fetched
+		/// </summary>
+		public bool HasMoreResults() => !string.IsNullOrEmpty( NextCursor );
+
+		/// <summary>
+		/// Get the next set of results from the query. Returns null if none.
+		/// </summary>
+		public Task<QueryResult> GetNextResults( CancellationToken token = default )
+		{
+			if ( !HasMoreResults() ) return null;
+			if ( SourceQuery is null ) return null;
+
+			return SourceQuery.RunEx( NextCursor, token );
+		}
 	}
 
 	/// <summary>

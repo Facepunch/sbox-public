@@ -83,6 +83,8 @@ public sealed class MovieResource : GameResource, IMovieResource
 	/// <inheritdoc />
 	public void StateHasChanged( IMovieProject project )
 	{
+		ArgumentNullException.ThrowIfNull( project );
+
 		_compiled = null;
 		_editorData = null;
 		_project = project;
@@ -119,6 +121,8 @@ public sealed class EmbeddedMovieResource : IMovieResource
 	/// <inheritdoc />
 	public void StateHasChanged( IMovieProject project )
 	{
+		ArgumentNullException.ThrowIfNull( project );
+
 		_compiled = null;
 		_editorData = null;
 		_project = project;

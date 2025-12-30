@@ -4,6 +4,7 @@ global using System.Linq;
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo( "Sandbox.Test" )]
+[assembly: InternalsVisibleTo( "Sandbox.Test.Unit" )]
 [assembly: InternalsVisibleTo( "Benchmark" )]
 
 [assembly: InternalsVisibleTo( "Sandbox.Access" )]

@@ -1,3 +1,4 @@
+using System;
 using static System.Runtime.InteropServices.MemoryMarshal;
 
 class UsingStaticTest

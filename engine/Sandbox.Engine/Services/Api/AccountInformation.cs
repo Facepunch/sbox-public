@@ -76,6 +76,9 @@ internal class AccountInformation
 				return;
 			}
 
+			NativeErrorReporter.SetTag( "session_id", login.Session );
+			NativeErrorReporter.SetTag( "launch_guid", Api.LaunchGuid );
+
 			SteamId = login.Id;
 			Session = login.Session;
 			Links = login.Links?.Select( x => (StreamService)x ).ToList() ?? new();

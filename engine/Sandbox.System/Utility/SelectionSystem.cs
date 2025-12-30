@@ -8,7 +8,7 @@ namespace Sandbox;
 public class SelectionSystem : IEnumerable<object>
 {
 	// Value is always false and unused - we only need the ordered key collection
-	private OrderedDictionary<object, bool> _list { get; } = new();
+	private readonly OrderedDictionary<object, bool> _list = new();
 
 	// Random hash code that changes when the collection is modified
 	int _hashCode = Random.Shared.Int( 0, 4096 );
@@ -120,6 +120,7 @@ public class SelectionSystem : IEnumerable<object>
 	/// <returns>True if the object is selected</returns>
 	public virtual bool Contains( object obj )
 	{
+		if ( obj is null ) return false;
 		return _list.ContainsKey( obj );
 	}
 

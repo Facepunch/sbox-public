@@ -196,6 +196,7 @@ public class ComponentListWidget : Widget
 					component.Reset();
 				}
 			} );
+
 			menu.AddSeparator();
 
 			var componentIndex = componentList.GetAll().ToList().IndexOf( component );
@@ -230,66 +231,6 @@ public class ComponentListWidget : Widget
 
 			menu.AddSeparator();
 
-			menu.AddOption( "Remove Component", "remove", action: () =>
-			{
-				ActivateSession();
-				using var scene = SceneEditorSession.Scope();
-
-				using ( SceneEditorSession.Active.UndoScope( $"Remove {component.GetType().Name} Component" ).WithComponentDestructions( component ).Push() )
-				{
-					component.Destroy();
-				}
-			} );
-
-			if ( component.GameObject.IsPrefabInstance )
-			{
-				var isComponentModified = EditorUtility.Prefabs.IsComponentInstanceModified( component );
-
-				var prefabName = EditorUtility.Prefabs.GetOuterMostPrefabName( component );
-
-				var revertChangesActionName = $"Revert Component instance changes";
-				menu.AddOption( revertChangesActionName, "history", action: () =>
-				{
-					ActivateSession();
-					using var scene = SceneEditorSession.Scope();
-
-					using ( SceneEditorSession.Active.UndoScope( revertChangesActionName ).WithComponentChanges( component ).Push() )
-					{
-						EditorUtility.Prefabs.RevertComponentInstanceChanges( component );
-					}
-				} ).Enabled = isComponentModified;
-
-
-				var applyChangesActionName = $"Apply Component instance changes to prefab \"{prefabName}\"";
-				menu.AddOption( applyChangesActionName, "update", action: () =>
-				{
-					ActivateSession();
-					using var scene = SceneEditorSession.Scope();
-
-					EditorUtility.Prefabs.ApplyComponentInstanceChangesToPrefab( component );
-
-				} ).Enabled = isComponentModified;
-			}
-
-			var replace = menu.AddMenu( "Replace Component", "find_replace" );
-			replace.AddWidget( new MenuComponentTypeSelectorWidget( replace )
-			{
-				OnSelect = ( t ) =>
-				{
-					ActivateSession();
-					using var scene = SceneEditorSession.Scope();
-
-					using ( SceneEditorSession.Active.UndoScope( $"Replace {component.GetType().Name} Component" ).WithComponentDestructions( component ).WithComponentCreations().Push() )
-					{
-						var go = component.GameObject;
-						var jso = component.Serialize().AsObject();
-						component.Destroy();
-						var newComponent = go.Components.Create( t );
-						newComponent.DeserializeImmediately( jso );
-					}
-				}
-			} );
-
 			menu.AddOption( $"Cut {title}", "content_cut", action: () =>
 			{
 				ActivateSession();
@@ -305,11 +246,75 @@ public class ComponentListWidget : Widget
 
 		menu.AddOption( $"Copy {title}", "copy_all", action: () => component.CopyToClipboard() );
 
-		if ( editable && SceneEditor.HasComponentInClipboard() )
+		if ( editable )
 		{
-			menu.AddOption( "Paste Values", "content_paste", action: () => component.PasteValues() );
-			menu.AddOption( "Paste As New", "content_paste_go", action: () => component.GameObject.PasteComponent() );
+			bool clipboardComponent = SceneEditor.HasComponentInClipboard();
+			menu.AddOption( "Paste Values", "content_paste", action: () => component.PasteValues() ).Enabled = clipboardComponent;
+			menu.AddOption( "Paste As New", "content_paste_go", action: () => component.GameObject.PasteComponent() ).Enabled = clipboardComponent;
 		}
+
+		menu.AddSeparator();
+
+		if ( component.GameObject.IsPrefabInstance )
+		{
+			var isComponentModified = EditorUtility.Prefabs.IsComponentInstanceModified( component );
+
+			var prefabName = EditorUtility.Prefabs.GetOuterMostPrefabName( component );
+
+			var revertChangesActionName = "Revert Changes";
+			menu.AddOption( revertChangesActionName, "history", action: () =>
+			{
+				ActivateSession();
+				using var scene = SceneEditorSession.Scope();
+
+				using ( SceneEditorSession.Active.UndoScope( revertChangesActionName ).WithComponentChanges( component ).Push() )
+				{
+					EditorUtility.Prefabs.RevertComponentInstanceChanges( component );
+				}
+			} ).Enabled = isComponentModified;
+
+
+			menu.AddOption( "Apply to Prefab", "save", action: () =>
+			{
+				ActivateSession();
+				using var scene = SceneEditorSession.Scope();
+
+				EditorUtility.Prefabs.ApplyComponentInstanceChangesToPrefab( component );
+
+			} ).Enabled = isComponentModified;
+
+			menu.AddSeparator();
+		}
+
+		menu.AddOption( "Remove Component", "remove", action: () =>
+		{
+			ActivateSession();
+			using var scene = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( $"Remove {component.GetType().Name} Component" ).WithComponentDestructions( component ).Push() )
+			{
+				component.Destroy();
+			}
+		} );
+
+		var replace = menu.AddMenu( "Replace Component", "find_replace" );
+		replace.AddWidget( new MenuComponentTypeSelectorWidget( replace )
+		{
+			OnSelect = ( t ) =>
+			{
+				ActivateSession();
+				using var scene = SceneEditorSession.Scope();
+
+				using ( SceneEditorSession.Active.UndoScope( $"Replace {component.GetType().Name} Component" ).WithComponentDestructions( component ).WithComponentCreations().Push() )
+				{
+					var go = component.GameObject;
+					var jso = component.Serialize().AsObject();
+					component.Destroy();
+					var newComponent = go.Components.Create( t );
+					newComponent.DeserializeImmediately( jso );
+				}
+			}
+		} );
 
 		menu.AddSeparator();
 
@@ -318,7 +323,7 @@ public class ComponentListWidget : Widget
 		{
 			bool isPackage = component.GetType().Assembly.IsPackage();
 			var filename = System.IO.Path.GetFileName( t.SourceFile );
-			menu.AddOption( $"Open {filename}", "open_in_new", action: () => CodeEditor.OpenFile( t ) ).Enabled = isPackage;
+			menu.AddOption( $"Open {filename}", "code", action: () => CodeEditor.OpenFile( t ) ).Enabled = isPackage;
 		}
 	}
 

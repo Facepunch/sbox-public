@@ -329,10 +329,18 @@ PS
 			}
 			
 			vImage.xyz = SrgbGammaToLinear( vImage.xyz );
-			vImage *= bgTint;
+
+			#if ( D_BLENDMODE == 3 ) // PREMULIPLIED
+				vImage.rgb *= bgTint.rgb;
+				vImage *= bgTint.a;
+			#else
+				vImage *= bgTint;
+			#endif
 
 			vBox.rgb = lerp( vBox.rgb, vImage.rgb, saturate( vImage.a + ( 1 - vBox.a ) ) );
 			vBox.a = max( vBox.a, vImage.a );
+			
+
 		}
 		
 		o.vColor = vBox;

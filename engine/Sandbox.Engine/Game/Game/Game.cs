@@ -141,21 +141,21 @@ public static partial class Game
 			return;
 		}
 
+		// Might want to queue this up. do it the next frame?
+		// Be aware that this could be called from the GameDll or the MenuDll
+		// So anything here needs to be safe to call from either
+
+		if ( IGameInstance.Current is not null )
+		{
+			IGameInstance.Current.Close();
+			LaunchArguments.Reset();
+		}
+
 		// Standalone mode and Dedicated Server only: exit whole app
 		if ( Application.IsStandalone || Application.IsDedicatedServer )
 		{
 			Application.Exit();
 		}
-
-		// Might want to queue this up. do it the next frame?
-		// Be aware that this could be called from the GameDll or the MenuDll
-		// So anything here needs to be safe to call from either
-
-		if ( IGameInstance.Current is null )
-			return;
-
-		IGameInstance.Current.Close();
-		LaunchArguments.Reset();
 	}
 
 	/// <summary>

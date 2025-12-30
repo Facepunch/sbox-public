@@ -50,6 +50,11 @@ public enum ComponentFlags
 	/// Don't serialize this component when cloning
 	/// </summary>
 	NotCloned = 256,
+
+	/// <summary>
+	/// Can edit advanced properties in the component inspector
+	/// </summary>
+	ShowAdvancedProperties = 512,
 }
 
 public partial class Component

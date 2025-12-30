@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using Editor.MeshEditor;
+using System.Text.Json.Serialization;
 
 namespace Editor.RectEditor;
 
@@ -10,7 +11,7 @@ public enum SelectionOperation
 	Remove,
 };
 
-public class Document
+public partial class Document
 {
 	public class Rectangle
 	{
@@ -48,8 +49,11 @@ public class Document
 		public bool AllowTiling { get; set; }
 		public Color Color { get; set; }
 
-		[Hide, JsonIgnore] Window Session;
-		[Hide, JsonIgnore] bool UseNormalizedValues => Session?.Settings?.ShowNormalizedValues ?? false;
+		[Hide, JsonIgnore]
+		public virtual bool CanDelete => true;
+
+		[Hide, JsonIgnore] protected Window Session;
+		[Hide, JsonIgnore] protected bool UseNormalizedValues => Session?.Settings?.ShowNormalizedValues ?? false;
 
 		public bool IsPointInRectangle( Vector2 point )
 		{
@@ -60,6 +64,11 @@ public class Document
 		public float DistanceFromPointToCenter( Vector2 point )
 		{
 			return point.Distance( (Min + Max) * 0.5f );
+		}
+
+		public virtual void OnPaint( RectView view )
+		{
+
 		}
 
 		public Rectangle( Window window )
@@ -121,10 +130,38 @@ public class Document
 		return rectangle;
 	}
 
+	public MeshRectangle AddMeshRectangle( Window session, MeshFace[] meshFaces, FastTextureSettings settings = default )
+	{
+		var meshRectangle = new MeshRectangle( session, meshFaces )
+		{
+			Color = RandomColor()
+		};
+
+		meshRectangle.ApplyMapping( settings, resetBoundsFromUseExisting: false );
+
+		if ( meshRectangle.Min == Vector2.Zero && meshRectangle.Max == Vector2.Zero )
+		{
+			var tempSettings = new FastTextureSettings { Mapping = MappingMode.UseExisting };
+			meshRectangle.ApplyMapping( tempSettings, resetBoundsFromUseExisting: false );
+			if ( settings.Mapping != MappingMode.UseExisting )
+			{
+				meshRectangle.ApplyMapping( settings, resetBoundsFromUseExisting: true );
+			}
+		}
+
+		Rectangles.Add( meshRectangle );
+		SetModified();
+
+		return meshRectangle;
+	}
+
 	public void DeleteRectangles( IEnumerable<Rectangle> rectangles )
 	{
 		foreach ( var rectangle in rectangles )
 		{
+			if ( !rectangle.CanDelete )
+				continue;
+
 			SelectedRectangles.Remove( rectangle );
 			Rectangles.Remove( rectangle );
 		}

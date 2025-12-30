@@ -94,7 +94,7 @@ partial class TransformComponentWidget : ComponentEditorWidget
 
 		menu.Clear();
 
-		menu.AddOption( UseLocal ? "Display Worldspace" : "Display Localspace", null, () =>
+		menu.AddOption( UseLocal ? "Display Worldspace" : "Display Localspace", "public", () =>
 		{
 			UseLocal = !UseLocal;
 			Rebuild();
@@ -102,19 +102,19 @@ partial class TransformComponentWidget : ComponentEditorWidget
 
 		menu.AddSeparator();
 
-		menu.AddOption( "Reset", action: () =>
+		menu.AddOption( "Reset", "restart_alt", () =>
 		{
 			SerializedObject.GetProperty( UseLocal ? "Local" : "World" ).SetValue( Transform.Zero );
 		} );
 		menu.AddSeparator();
 
-		menu.AddOption( "Copy Local Transform", action: () =>
+		menu.AddOption( "Copy Local Transform", "content_copy", () =>
 		{
 			var tx = SerializedObject.GetProperty( "Local" ).GetValue<Transform>();
 			EditorUtility.Clipboard.Copy( Json.Serialize( tx ) );
 		} );
 
-		menu.AddOption( "Copy World Transform", action: () =>
+		menu.AddOption( "Copy World Transform", "content_copy", () =>
 		{
 			var tx = SerializedObject.GetProperty( "World" ).GetValue<Transform>();
 			EditorUtility.Clipboard.Copy( Json.Serialize( tx ) );
@@ -126,12 +126,12 @@ partial class TransformComponentWidget : ComponentEditorWidget
 			var tx = Json.Deserialize<Transform>( clipText );
 			if ( tx != default )
 			{
-				menu.AddOption( "Paste as Local Transform", action: () =>
+				menu.AddOption( "Paste as Local Transform", "content_paste", () =>
 				{
 					SerializedObject.GetProperty( "Local" ).SetValue( tx );
 				} );
 
-				menu.AddOption( "Paste as World Transform", action: () =>
+				menu.AddOption( "Paste as World Transform", "content_paste", () =>
 				{
 					SerializedObject.GetProperty( "World" ).SetValue( tx );
 				} );

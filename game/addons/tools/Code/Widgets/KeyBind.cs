@@ -45,7 +45,9 @@ public class KeyBind : Widget
 
 		if ( IsTrapping )
 		{
-			SetValue( e.Delta > 0 ? "MWHEELUP" : "MWHEELDOWN" );
+			var keyStr = e.Delta > 0 ? "MWHEELUP" : "MWHEELDOWN";
+			keyStr = AddModifiers( keyStr, e.KeyboardModifiers );
+			SetValue( keyStr );
 			e.Accept();
 		}
 	}
@@ -77,18 +79,22 @@ public class KeyBind : Widget
 
 			return;
 		}
+	}
 
-		var keyStr = GetKeyName( e );
+	string AddModifiers( string keyStr, KeyboardModifiers modifiers )
+	{
+		if ( !AllowModifiers )
+			return keyStr;
 
-		if ( AllowModifiers )
-		{
-			if ( (keyStr.Contains( "CTRL" ) || keyStr.Contains( "ALT" ) || keyStr.Contains( "SHIFT" )) ) return;
-			if ( e.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) ) keyStr = "SHIFT+" + keyStr;
-			if ( e.KeyboardModifiers.HasFlag( KeyboardModifiers.Alt ) ) keyStr = "ALT+" + keyStr;
-			if ( e.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) ) keyStr = "CTRL+" + keyStr;
-		}
-
-		SetValue( keyStr );
+		if ( (keyStr.Contains( "CTRL" ) || keyStr.Contains( "ALT" ) || keyStr.Contains( "SHIFT" )) )
+			return keyStr;
+		if ( modifiers.HasFlag( KeyboardModifiers.Shift ) )
+			keyStr = "SHIFT+" + keyStr;
+		if ( modifiers.HasFlag( KeyboardModifiers.Alt ) )
+			keyStr = "ALT+" + keyStr;
+		if ( modifiers.HasFlag( KeyboardModifiers.Ctrl ) )
+			keyStr = "CTRL+" + keyStr;
+		return keyStr;
 	}
 
 	protected override void OnKeyRelease( KeyEvent e )
@@ -97,12 +103,9 @@ public class KeyBind : Widget
 
 		if ( !IsTrapping ) return;
 
-		if ( AllowModifiers )
-		{
-			var keystr = GetKeyName( e );
-			if ( keystr.Contains( "CTRL" ) || keystr.Contains( "ALT" ) || keystr.Contains( "SHIFT" ) )
-				SetValue( keystr );
-		}
+		var keyStr = GetKeyName( e );
+		keyStr = AddModifiers( keyStr, e.KeyboardModifiers );
+		SetValue( keyStr );
 	}
 
 	protected virtual string GetKeyName( KeyEvent e )

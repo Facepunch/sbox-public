@@ -324,7 +324,7 @@ static class StartupLoadProject
 	{
 		var sw = Stopwatch.StartNew();
 
-		packagesToDownload.AddRange( CloudAsset.GetAssetReferences( false ) );
+		packagesToDownload.AddRange( CloudAsset.GetAssetReferences( true ) );
 
 		// 1. remove any installed packages we no longer need
 		var required = new HashSet<string>();

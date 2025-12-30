@@ -123,4 +123,8 @@ native class IPhysicsBody as NativeEngine.IPhysicsBody
 	bool IsTouching( IPhysicsShape pShape, bool bTriggers );
 
 	void SetTrigger( bool trigger );
+
+	void ResetProxy();
+
+	void SetBullet( bool bEnabled );
 }

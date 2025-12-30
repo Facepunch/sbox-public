@@ -140,7 +140,8 @@ class ImportHeightmapPopup : Widget
 		terrain.Storage.SetResolution( realResolution );
 		terrain.Storage.HeightMap = heightmap;
 
-		terrain.SyncGPUTexture();
+		// Recreate GPU textures, mesh, and collider with the new heightmap data
+		terrain.Create();
 
 		Close();
 	}

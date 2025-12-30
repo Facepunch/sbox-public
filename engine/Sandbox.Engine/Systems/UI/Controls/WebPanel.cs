@@ -1,4 +1,5 @@
-﻿using System.Web;
+﻿using Microsoft.AspNetCore.Components;
+using System.Web;
 
 namespace Sandbox.UI;
 
@@ -12,7 +13,7 @@ public class WebPanel : Panel
 	/// </summary>
 	public WebSurface Surface { get; private set; }
 
-
+	[Parameter]
 	public string Url
 	{
 		get => Surface.Url;
@@ -51,6 +52,8 @@ public class WebPanel : Panel
 			sufaceTexture = Texture.Create( (int)size.x, (int)size.y, ImageFormat.BGRA8888 )
 										.WithName( "WebPanel" )
 										.Finish();
+
+			sufaceTexture.Flags |= TextureFlags.PremultipliedAlpha;
 
 			Style.SetBackgroundImage( sufaceTexture );
 		}

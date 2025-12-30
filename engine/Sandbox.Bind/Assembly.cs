@@ -6,10 +6,7 @@ global using System.Reflection;
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo( "Sandbox.Test" )]
-[assembly: InternalsVisibleTo( "Sandbox.System.Test" )]
-[assembly: InternalsVisibleTo( "Sandbox.UI.Test" )]
-[assembly: InternalsVisibleTo( "Sandbox.Bind.Test" )]
-
+[assembly: InternalsVisibleTo( "Sandbox.Test.Unit" )]
 [assembly: InternalsVisibleTo( "Sandbox.Engine" )]
 [assembly: InternalsVisibleTo( "Sandbox.Tools" )]
 [assembly: InternalsVisibleTo( "Sandbox.Menu" )]

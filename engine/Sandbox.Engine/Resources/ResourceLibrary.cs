@@ -58,12 +58,18 @@ public class ResourceSystem
 
 		var toDispose = ResourceIndex.Values.ToArray();
 
-		ResourceIndex.Clear();
-
 		foreach ( var resource in toDispose.OfType<GameResource>() )
 		{
 			resource.DestroyInternal();
 		}
+
+		foreach ( var resource in toDispose )
+		{
+			// Don't wait/rely for finalizer get rid of this immediately
+			resource.Destroy();
+		}
+
+		ResourceIndex.Clear();
 
 		TypeCache.Clear();
 	}
@@ -426,6 +432,18 @@ public static class ResourceLibrary
 		}
 
 		return default;
+	}
+
+	/// <summary>
+	/// Render a thumbnail for this resource
+	/// </summary>
+	public static async Task<Bitmap> GetThumbnail( string path, int width = 256, int height = 256 )
+	{
+		var resource = await ResourceLibrary.LoadAsync<Resource>( path );
+		if ( resource is null ) return default;
+
+		// try to render it
+		return resource.RenderThumbnail( new() { Width = width, Height = height } );
 	}
 
 	public interface IEventListener

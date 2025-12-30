@@ -54,6 +54,8 @@ internal static partial class Api
 
 					SessionId = Guid.NewGuid();
 
+					NativeErrorReporter.SetTag( "activity_session_id", SessionId.ToString() );
+
 					SessionTimer = FastTimer.StartNew();
 					ActivityCount = 0;
 					performanceData = null;

@@ -114,10 +114,10 @@ partial class Compiler
 
 		var archive = new CodeArchive();
 		archive.CompilerName = Name;
-		archive.Configuration = config;
+		archive.Configuration = _config;
 		output.Archive = archive;
 
-		var parseOptions = config.GetParseOptions();
+		var parseOptions = _config.GetParseOptions();
 
 		//
 		// References
@@ -217,7 +217,7 @@ partial class Compiler
 		// check for blacklisted methods/types used in compilation
 		// we need this because the c# compiler will post optimize and use tons of blacklisted methods
 		// run this after generators because they can contain user inputs too
-		if ( config.Whitelist )
+		if ( _config.Whitelist )
 		{
 			RunBlacklistWalker( compiler, output );
 
@@ -242,7 +242,7 @@ partial class Compiler
 
 				peStream.Seek( 0, System.IO.SeekOrigin.Begin );
 
-				if ( config.Whitelist && Group.AccessControl is { } access )
+				if ( _config.Whitelist && Group.AccessControl is { } access )
 				{
 					var result = access.VerifyAssembly( peStream, out TrustedBinaryStream stream );
 					if ( !result.Success )

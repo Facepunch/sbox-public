@@ -92,9 +92,6 @@ class FolderNode : TreeNode<LocalAssetBrowser.Location>
 				Context = this
 			};
 
-			var menu = fcm.Menu.AddMenu( "New", "note_add" );
-			CreateAsset.AddOptions( menu, Value );
-
 			EditorEvent.Run( "folder.contextmenu", fcm );
 
 			if ( !fcm.Menu.HasOptions )

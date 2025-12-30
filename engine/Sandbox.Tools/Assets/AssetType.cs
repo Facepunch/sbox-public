@@ -8,6 +8,9 @@ public class AssetType
 {
 	internal static Dictionary<int, AssetType> AssetTypeCache = new Dictionary<int, AssetType>();
 
+	TypeDescription _typeDescription;
+	AssetTypeAttribute _assetTypeAttribute;
+
 	/// <summary>
 	/// All currently registered asset types, including the base types such as models, etc.
 	/// </summary>
@@ -143,6 +146,11 @@ public class AssetType
 	/// </summary>
 	public Color Color { get; internal set; } = Color.Magenta;
 
+	/// <summary>
+	/// Flags for this asset type
+	/// </summary>
+	public AssetTypeFlags Flags => _assetTypeAttribute?.Flags ?? default;
+
 	public override string ToString() => FriendlyName;
 
 	internal string IconPathSmall { get; set; }
@@ -241,17 +249,20 @@ public class AssetType
 		Icon64 = Icon128.Resize( 64, 64 );
 	}
 
-	private void Init( TypeDescription type, AssetTypeAttribute gr )
+	private void Init( TypeDescription type, AssetTypeAttribute attribute )
 	{
 		IsGameResource = true;
 
+		_typeDescription = type;
+		_assetTypeAttribute = attribute;
+
 		ResourceType = type.TargetType;
 
-		Category = gr.Category;
-		FriendlyName = gr.Name;
-		FileExtension = gr.Extension;
+		Category = attribute.Category;
+		FriendlyName = attribute.Name;
+		FileExtension = attribute.Extension;
 
-		GenerateGlyphs( gr );
+		GenerateGlyphs( attribute );
 
 		// For game resources, use the background color specified in the attribute
 		Color = "#67ac5c";

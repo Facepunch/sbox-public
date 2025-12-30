@@ -10,7 +10,7 @@ public partial class SoundPlayer : Widget
 
 	public ToolBar ToolBar { get; private set; }
 
-	private readonly Option PlayOption;
+	private readonly IconButton PlayOption;
 
 	private bool _prevPlay = false;
 
@@ -27,7 +27,12 @@ public partial class SoundPlayer : Widget
 		ToolBar = header.Add( new ToolBar( this ) );
 		ToolBar.NoSystemBackground = false;
 		ToolBar.SetIconSize( 18 );
-		PlayOption = ToolBar.AddOption( "Play", "play_arrow", () => Playing = !Playing );
+		PlayOption = ToolBar.AddWidget( new IconButton( "play_arrow" )
+		{
+			ToolTip = "Play",
+			IconSize = 18,
+			OnClick = () => Playing = !Playing
+		} );
 
 		var timecode = header.Add( new Label( this ) );
 		timecode.Bind( "Text" ).ReadOnly().From( () =>
@@ -38,11 +43,21 @@ public partial class SoundPlayer : Widget
 		}, null );
 		timecode.Alignment = TextFlag.RightCenter;
 
-		var skipStart = ToolBar.AddOption( "Skip to Start", "skip_previous", () => Timeline.MoveScrubber( 0 ) );
+		ToolBar.AddWidget( new IconButton( "skip_previous" )
+		{
+			ToolTip = "Skip to Start",
+			IconSize = 18,
+			OnClick = () => Timeline.MoveScrubber( 0 )
+		} );
 		ToolBar.AddSeparator();
-		var loop = ToolBar.AddOption( "Loop", "repeat" );
-		loop.Bind( "Checked" ).From( this, nameof( Repeating ) );
-		loop.Checkable = true;
+		ToolBar.AddWidget( new IconButton( "repeat" )
+		{
+			ToolTip = "Loop",
+			IconSize = 18,
+			IsToggle = true,
+			IsActive = Repeating,
+			OnToggled = ( value ) => Repeating = value
+		} );
 
 		Timeline = Layout.Add( new TimelineView( this ), 1 );
 	}
@@ -79,7 +94,7 @@ public partial class SoundPlayer : Widget
 		Timeline.OnFrame();
 		Time = Timeline.Time;
 
-		PlayOption.Text = Playing ? "Pause" : "Play";
+		PlayOption.ToolTip = Playing ? "Pause" : "Play";
 		PlayOption.Icon = Playing ? "pause" : "play_arrow";
 
 		if ( Application.FocusWidget.IsValid() )
@@ -114,7 +129,7 @@ public partial class SoundPlayer : Widget
 		{
 			Timeline = parent;
 			SceneRect = new( 0, Size );
-			HorizontalScrollbar = ScrollbarMode.On;
+			HorizontalScrollbar = ScrollbarMode.Auto;
 			VerticalScrollbar = ScrollbarMode.Off;
 			Scale = 1;
 			Time = 0;
@@ -137,6 +152,7 @@ public partial class SoundPlayer : Widget
 
 			var size = Size;
 			size.x = MathF.Max( Size.x, PositionFromTime( Duration ) );
+			size.x -= Width - ContentRect.Width;
 			SceneRect = new( 0, size );
 			TimeAxis.Size = new Vector2( size.x, Theme.RowHeight );
 			Scrubber.Size = new Vector2( 9, size.y );
@@ -147,7 +163,7 @@ public partial class SoundPlayer : Widget
 			WaveForm.SceneRect = r;
 			WaveForm.Analyse();
 
-			Scrubber.Position = Scrubber.Position.WithX( PositionFromTime( Time ) - 3 ).SnapToGrid( 1.0f );
+			Scrubber.Position = Scrubber.Position.WithX( PositionFromTime( Time ) ).SnapToGrid( 1.0f );
 		}
 
 		protected override void OnResize()
@@ -176,8 +192,6 @@ public partial class SoundPlayer : Widget
 				SoundHandle = null;
 			}
 
-			VisibleRect = Rect.FromPoints( ToScene( LocalRect.TopLeft ), ToScene( LocalRect.BottomRight ) );
-
 			if ( Timeline.Playing && !Scrubbing )
 			{
 				var time = Time % Duration;
@@ -204,13 +218,14 @@ public partial class SoundPlayer : Widget
 				if ( Timeline.Playing && !SoundHandle.IsValid() )
 				{
 					SoundHandle = EditorUtility.PlaySound( Sound, Time );
-					SoundHandle.Time = 0;
+					SoundHandle.Time = Time;
 					SoundHandle.Occlusion = false;
 					SoundHandle.DistanceAttenuation = false;
 				}
 
-				Scrubber.Position = Scrubber.Position.WithX( PositionFromTime( Time ) - 3 ).SnapToGrid( 1.0f );
-				Time += RealTime.SmoothDelta;
+				Scrubber.Position = Scrubber.Position.WithX( PositionFromTime( Time ) ).SnapToGrid( 1.0f );
+				if ( Timeline.Playing )
+					Time += RealTime.SmoothDelta;
 			}
 
 			if ( SoundHandle.IsValid() )
@@ -218,13 +233,16 @@ public partial class SoundPlayer : Widget
 				SoundHandle.Paused = Scrubbing;
 			}
 
-			TimeAxis.Update();
-			WaveForm.Update();
-
 			if ( Scrubbing || Timeline.Playing )
 			{
+				Translate( 1 );
 				CenterOn( Scrubber.Position );
 			}
+
+			VisibleRect = Rect.FromPoints( ToScene( LocalRect.TopLeft ), ToScene( LocalRect.BottomRight ) );
+
+			TimeAxis.Update();
+			WaveForm.Update();
 		}
 
 		public float PositionFromTime( float time )
@@ -246,8 +264,8 @@ public partial class SoundPlayer : Widget
 
 		public void MoveScrubber( float position, bool centreOn = true )
 		{
-			Scrubber.Position = Vector2.Right * (position - 4).SnapToGrid( 1.0f );
-			Time = TimeFromPosition( Scrubber.Position.x + 4 );
+			Scrubber.Position = Vector2.Right * position.Clamp( 0, SceneRect.Width + 4 ).SnapToGrid( 1.0f );
+			Time = TimeFromPosition( Scrubber.Position.x );
 
 			if ( SoundHandle.IsValid() )
 			{
@@ -269,6 +287,8 @@ public partial class SoundPlayer : Widget
 			ZoomLevel = ZoomLevel.Clamp( 1.0f, 20.0f );
 
 			DoLayout();
+
+			VisibleRect = Rect.FromPoints( ToScene( LocalRect.TopLeft ), ToScene( LocalRect.BottomRight ) );
 
 			TimeAxis.Update();
 			WaveForm.Update();

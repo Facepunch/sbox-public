@@ -34,6 +34,8 @@ public abstract partial class PanelComponent : Component, IPanelComponent
 		loadedStyleSheet = null;
 		panel = new CustomBuildPanel( this, BuildRenderTree, OnTreeRenderedInternal, GetRenderTreeChecksum, BuildRenderHash );
 		panel.ElementName = GetType().Name.ToLower();
+		panel.GameObject = GameObject;
+
 		LoadStyleSheet();
 		UpdateParent();
 

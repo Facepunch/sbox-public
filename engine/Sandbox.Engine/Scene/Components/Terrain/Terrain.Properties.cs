@@ -6,19 +6,17 @@ public partial class Terrain
 {
 	private TerrainStorage _storage;
 
-	/// <summary>
-	/// Storage contains pretty much everything: heightmap, controlmaps, materials, grass, etc etc
-	/// </summary>
 	[Property]
 	public TerrainStorage Storage
 	{
 		get => _storage;
 		set
 		{
-			if ( _storage == value )
-				return;
+			if ( _storage == value ) return;
 
+			_storage?.MaterialSettings?.OnChanged -= OnTerrainChanged;
 			_storage = value;
+			_storage?.MaterialSettings?.OnChanged += OnTerrainChanged;
 
 			Create();
 		}

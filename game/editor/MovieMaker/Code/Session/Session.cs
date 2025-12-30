@@ -281,8 +281,7 @@ public sealed partial class Session
 
 		var resourceNode = JsonSerializer.Deserialize<JsonNode>( File.ReadAllText( sourcePath ) );
 
-		return resourceNode?[nameof( IMovieResource.EditorData )];
-
+		return resource.EditorData = resourceNode?[nameof( IMovieResource.EditorData )];
 	}
 
 	internal bool SetEditMode<T>() => SetEditMode( typeof( T ) );

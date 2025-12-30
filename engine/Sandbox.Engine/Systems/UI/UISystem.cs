@@ -283,7 +283,7 @@ internal class UISystem
 	bool DoAnyPanelsWantMouseVisible()
 	{
 		if ( Mouse.Visibility == MouseVisibility.Visible ) return true;
-		if ( Mouse.Visibility == MouseVisibility.Hidden ) return false;
+		if ( Mouse.Visibility == MouseVisibility.Hidden && !Game.IsMenu ) return false;
 
 		for ( int i = 0; i < RootPanels.Count; i++ )
 		{

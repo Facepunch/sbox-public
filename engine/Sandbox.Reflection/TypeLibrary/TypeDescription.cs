@@ -448,7 +448,7 @@ public sealed class TypeDescription : ISourceLineProvider
 		SourceLine = 0;
 		SourceFile = null;
 
-		if ( OwnAttributes.OfType<SourceLocationAttribute>().MinBy( x => x.Path ) is { } sourceLocation )
+		if ( OwnAttributes.OfType<SourceLocationAttribute>().MinBy( x => x.Path.Length ) is { } sourceLocation )
 		{
 			SourceLine = sourceLocation.Line;
 			SourceFile = sourceLocation.Path;

@@ -7,6 +7,8 @@ public partial class ColorAlphaControl : BaseControl
 {
 	readonly Panel _handle;
 
+	public override bool SupportsMultiEdit => true;
+
 	public ColorAlphaControl()
 	{
 		_handle = AddChild<Panel>( "handle" );

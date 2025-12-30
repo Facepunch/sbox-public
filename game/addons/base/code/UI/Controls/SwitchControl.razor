@@ -21,6 +21,8 @@
 
 @code
 {
+    public override bool SupportsMultiEdit => true;
+
     public RenderFragment Label { get; set; }
 
     public Action<bool> OnValueChanged { get; set; }

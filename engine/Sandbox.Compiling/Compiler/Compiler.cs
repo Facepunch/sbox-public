@@ -85,7 +85,7 @@ public sealed partial class Compiler : IDisposable
 	/// <summary>
 	/// The compiler's settings. 
 	/// </summary>
-	private Compiler.Configuration config;
+	private Compiler.Configuration _config = new();
 
 	/// <summary>
 	/// Should only ever get called from CompileGroup.
@@ -134,13 +134,13 @@ public sealed partial class Compiler : IDisposable
 
 	public void SetConfiguration( Compiler.Configuration newConfig )
 	{
-		config = newConfig;
+		_config = newConfig;
 		incrementalState.Reset();
 	}
 
 	public Configuration GetConfiguration()
 	{
-		return config;
+		return _config;
 	}
 
 	/// <summary>

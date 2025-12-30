@@ -280,7 +280,26 @@ public class CloudAsset
 		string projectPath = Project.Current.GetAssetsPath().Replace( '\\', '/' );
 		var packages = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 
-		var gr = AssetSystem.All.Where( x => x.AssetType.IsGameResource && (!currentProjectOnly || x.AbsolutePath.StartsWith( projectPath, StringComparison.OrdinalIgnoreCase )) );
+		HashSet<string> validAssetPaths = null;
+		if ( currentProjectOnly )
+		{
+			validAssetPaths = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+
+			// Include current project
+			validAssetPaths.Add( projectPath );
+
+			// Include all libraries used by the current project
+			foreach ( var library in LibrarySystem.All )
+			{
+				var libraryAssetsPath = library.Project.GetAssetsPath()?.Replace( '\\', '/' );
+				if ( !string.IsNullOrEmpty( libraryAssetsPath ) )
+				{
+					validAssetPaths.Add( libraryAssetsPath );
+				}
+			}
+		}
+
+		var gr = AssetSystem.All.Where( x => x.AssetType.IsGameResource && (!currentProjectOnly || validAssetPaths.Any( path => x.AbsolutePath.StartsWith( path, StringComparison.OrdinalIgnoreCase ) )) );
 		foreach ( var r in gr )
 		{
 			string json = null;
@@ -311,7 +330,7 @@ public class CloudAsset
 			}
 		}
 
-		var nativeResources = AssetSystem.All.Where( x => !x.AssetType.IsGameResource && (!currentProjectOnly || x.AbsolutePath.StartsWith( projectPath, StringComparison.OrdinalIgnoreCase )) ).ToArray();
+		var nativeResources = AssetSystem.All.Where( x => !x.AssetType.IsGameResource && (!currentProjectOnly || validAssetPaths.Any( path => x.AbsolutePath.StartsWith( path, StringComparison.OrdinalIgnoreCase ) )) ).ToArray();
 		foreach ( var r in nativeResources )
 		{
 			var config = r?.Publishing?.ProjectConfig;

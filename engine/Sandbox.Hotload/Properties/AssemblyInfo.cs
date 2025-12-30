@@ -19,6 +19,7 @@ using System.Runtime.InteropServices;
 [assembly: Guid( "4a73d772-a4f4-4edf-9952-695f59397253" )]
 
 [assembly: InternalsVisibleTo( "Sandbox.Test" )]
+[assembly: InternalsVisibleTo( "Sandbox.Test.Unit" )]
 [assembly: InternalsVisibleTo( "Sandbox.Test.Before" )]
 [assembly: InternalsVisibleTo( "Sandbox.Test.After" )]
 [assembly: InternalsVisibleTo( "Sandbox.Compiling.Test" )]

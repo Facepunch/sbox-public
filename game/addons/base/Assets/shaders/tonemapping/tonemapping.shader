@@ -172,33 +172,29 @@ PS
             0.0482516061458583,     0.101439036467562,      0.811302368396859
         );
 
-        float flExposureMin = -12.47393f;
-        float flExposureMax = 4.026069f;
-
         // Prevent negative values
         vColor = max( vColor, 0.0.xxx );
 
         // Apply
-        vColor = mul( mAgx, vColor );
+        vColor = mul( vColor, mAgx );
 
         // Log2 transform
+        float flExposureMin = -12.47393f;
+        float flExposureMax = 4.026069f;
+
         vColor = max( vColor, 1e-10.xxx );
         vColor = clamp( log2( vColor ), flExposureMin, flExposureMax );
         vColor = ( vColor - flExposureMin ) / ( flExposureMax - flExposureMin );
 
         vColor = AgxTonescale( vColor );
         
-        // custom power that attempts to remove some of AgX's natural
-        // tendency to desaturate blues and greens, resulting in
-        // a more neutral look
-        float3 vPower = float3( 1.2, 1.0, 1.0 );
-        float flSat = 1.4; // Raise saturation to match ACES
+        // AgX Punchy look
+        float3 vPower = float3( 1.35.xxx );
+        float flSat = 1.4;
     
         vColor = pow( vColor, vPower );
     
-        float3 flLumaWeight = float3( 0.2126, 0.7152, 0.0722 );
-        float flLuma = dot( vColor, flLumaWeight );
-
+        float flLuma = CalculateLuminance( vColor );
         vColor = flLuma + flSat * ( vColor - flLuma );
 
         // AgX outset matrix combined with Rec2020 to linear sRGB
@@ -208,8 +204,8 @@ PS
             -0.0990297440797205,    -0.0989611768448433,    1.15107367264116
         );
 
+        vColor = mul( vColor, mAgxInv );
         vColor = pow( vColor, 2.2.xxx );
-        vColor = mul( mAgxInv, vColor );
         vColor = max( vColor, 0.0.xxx );
     }
 

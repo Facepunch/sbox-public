@@ -283,7 +283,7 @@ public class SerializeTest
 	{
 		var scene = new Scene();
 		using var sceneScope = scene.Push();
-		var prefabBasic = Prefabs.BasicPrefab;
+		var prefabBasic = Prefab.Prefabs.BasicPrefab;
 
 		var go = scene.CreateObject();
 

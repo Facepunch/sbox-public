@@ -33,6 +33,11 @@ public class ControlSheet : GridLayout, IControlSheet
 		_filter = default;
 	}
 
+	public static Widget CreateRow( SerializedProperty property, bool includeExtraInfo = false )
+	{
+		return ControlSheetRow.Create( property, includeExtraInfo );
+	}
+
 	Guid FindGuid( SerializedProperty sp )
 	{
 		return FindGuid( sp?.Parent );

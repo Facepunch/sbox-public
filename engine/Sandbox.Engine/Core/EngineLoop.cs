@@ -385,34 +385,6 @@ internal static class EngineLoop
 	}
 
 	/// <summary>
-	/// Called when the application is shutting down
-	/// </summary>
-	internal static void Exiting()
-	{
-		// Send shutdown event, should allow us to track successful shutdown vs crash
-		{
-			var analytic = new Api.Events.EventRecord( "Exit" );
-			analytic.SetValue( "uptime", RealTime.Now );
-			// We could record a bunch of stats during the session and
-			// submit them here. I'm thinking things like num games played
-			// menus visited, time in menus, time in game, files downloaded.
-			// Things to give us a whole session picture.
-			analytic.Submit();
-		}
-
-		ConVarSystem.SaveAll();
-
-		IToolsDll.Current?.Exiting();
-		IMenuDll.Current?.Exiting();
-		IGameInstanceDll.Current?.Exiting();
-
-		SoundFile.Shutdown();
-		SoundHandle.Shutdown();
-
-		DedicatedServer.Shutdown();
-	}
-
-	/// <summary>
 	/// A console command has arrived, or a convar has changed
 	/// </summary>
 	internal static void DispatchConsoleCommand( string name, string args, long flaglong )

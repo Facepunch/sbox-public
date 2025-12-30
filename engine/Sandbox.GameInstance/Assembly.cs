@@ -10,3 +10,5 @@ using System.Runtime.CompilerServices;
 [assembly: TasksPersistOnContextReset]
 [assembly: InternalsVisibleTo( "Sandbox.Tools" )]
 [assembly: InternalsVisibleTo( "Sandbox.AppSystem" )]
+[assembly: InternalsVisibleTo( "Sandbox.Test" )]
+[assembly: InternalsVisibleTo( "Sandbox.Test.Unit" )]

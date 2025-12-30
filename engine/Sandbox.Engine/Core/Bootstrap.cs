@@ -28,7 +28,7 @@ internal static class Bootstrap
 	/// </summary>
 	internal static void PreInit( CMaterialSystem2AppSystemDict appDict )
 	{
-		Application.InitializeGame( appDict.IsDedicatedServer(), appDict.IsConsoleApp(), appDict.IsInToolsMode(), appDict.IsInTestMode(), EngineGlobal.IsRetail() );
+		Application.Initialize( appDict.IsDedicatedServer(), appDict.IsConsoleApp(), appDict.IsInToolsMode(), appDict.IsInTestMode(), EngineGlobal.IsRetail() );
 
 		try
 		{
@@ -90,16 +90,6 @@ internal static class Bootstrap
 				}
 
 				Mounting.Directory.LoadAssemblies();
-			}
-
-			//
-			// In testmode (-test) we want to build the .sln files now because we'll be closed
-			// down after this call.
-			//
-			if ( Application.IsUnitTest )
-			{
-				SyncContext.RunBlocking( Project.InitializeBuiltIn() );
-				SyncContext.RunBlocking( Project.GenerateSolution() );
 			}
 		}
 		catch ( Exception ex )
@@ -199,9 +189,12 @@ internal static class Bootstrap
 			//
 			{
 				Screen.UpdateFromEngine();
-				Material.UI.Init();
-				Model.Init();
-				Texture.InitStaticTextures();
+				Material.UI.InitStatic();
+				Gizmo.GizmoDraw.InitStatic();
+				Model.InitStatic();
+				Texture.InitStatic();
+				CubemapRendering.InitStatic();
+				Graphics.InitStatic();
 			}
 
 			if ( !Application.IsHeadless && !Application.IsStandalone )
@@ -293,8 +286,6 @@ internal static class Bootstrap
 			Environment.Exit( 1 );
 		}
 	}
-
-
 
 	internal static void InitMinimal( string rootFolder )
 	{

@@ -191,7 +191,7 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 		var clothing = new ClothingContainer();
 		clothing.Apply( BodyTarget );
 
-		BodyTarget.PostAnimationUpdate();
+		BodyTarget.MergeDescendants();
 	}
 
 	[Button( "Apply Clothing" )]
@@ -218,7 +218,11 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 				clothing.Height = 1;
 			}
 
-			clothing.AddRange( Clothing );
+			if ( Source == ClothingSource.Manual )
+			{
+				clothing.AddRange( Clothing );
+			}
+
 			clothing.Normalize();
 
 			await clothing.ApplyAsync( BodyTarget, token );
@@ -227,12 +231,31 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 			ManualTint = clothing.Tint;
 			ManualAge = clothing.Age;
 
-			BodyTarget.PostAnimationUpdate();
+			BodyTarget.MergeDescendants();
 		}
 		finally
 		{
 			IsDressing = false;
 		}
+	}
+
+	/// <summary>
+	/// Make a random outfit
+	/// </summary>
+	[Button, ShowIf( nameof( Source ), ClothingSource.Manual )]
+	public void Randomize()
+	{
+		var outfit = AvatarRandomizer.GetRandom();
+
+		Clothing.Clear();
+		Clothing.AddRange( outfit );
+
+		var rnd = new Random();
+		ManualAge = rnd.Float();
+		ManualHeight = rnd.Float();
+		ManualTint = rnd.Float();
+
+		_ = Apply();
 	}
 
 	protected override void OnValidate()

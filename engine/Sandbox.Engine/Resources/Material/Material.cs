@@ -42,15 +42,23 @@ public sealed partial class Material : Resource
 
 	~Material()
 	{
+		Dispose();
+	}
+
+	internal void Dispose()
+	{
 		// kill the native pointer - it does with the native material
 		// we want to reduce the risk that someone is holding on to it.
-		Attributes.Set( default );
+		Attributes?.Set( default );
 		Attributes = null;
 
-		var n = native;
-		native = default;
+		if ( !native.IsNull )
+		{
+			var n = native;
+			native = default;
 
-		MainThread.Queue( () => n.DestroyStrongHandle() );
+			MainThread.Queue( () => n.DestroyStrongHandle() );
+		}
 	}
 
 	/// <summary>

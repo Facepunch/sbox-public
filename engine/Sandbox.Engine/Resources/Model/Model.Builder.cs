@@ -13,6 +13,7 @@ namespace Sandbox
 		private readonly List<Mesh> meshes = new();
 		private readonly List<Vector3> vertices = new();
 		private readonly List<int> indices = new();
+		private readonly List<byte> triangleMaterials = new();
 		private readonly List<BoxDesc> boxes = new();
 		private readonly List<SphereDesc> spheres = new();
 		private readonly List<CapsuleDesc> capsules = new();
@@ -67,6 +68,7 @@ namespace Sandbox
 			public int numVertex;
 			public int startIndex;
 			public int numIndex;
+			public int startMaterial;
 		}
 
 		private struct BoneDesc
@@ -203,13 +205,43 @@ namespace Sandbox
 		/// <summary>
 		/// Add a CONCAVE mesh collision shape. (This shape can NOT be physically simulated)
 		/// </summary>
+		public ModelBuilder AddCollisionMesh( List<Vector3> vertices, List<int> indices, List<byte> materials )
+		{
+			return AddCollisionMesh( CollectionsMarshal.AsSpan( vertices ), CollectionsMarshal.AsSpan( indices ), CollectionsMarshal.AsSpan( materials ) );
+		}
+
+		/// <summary>
+		/// Add a CONCAVE mesh collision shape. (This shape can NOT be physically simulated)
+		/// </summary>
 		public ModelBuilder AddCollisionMesh( Span<Vector3> vertices, Span<int> indices )
+		{
+			return AddCollisionMesh( vertices, indices, null );
+		}
+
+		/// <summary>
+		/// Add a CONCAVE mesh collision shape. (This shape can NOT be physically simulated)
+		/// </summary>
+		public ModelBuilder AddCollisionMesh( Span<Vector3> vertices, Span<int> indices, Span<byte> materials )
 		{
 			if ( vertices.Length < 3 )
 				return this;
 
 			if ( indices.Length < 3 )
 				return this;
+
+			if ( (indices.Length % 3) != 0 )
+				throw new ArgumentException( "Indices length must be a multiple of 3", nameof( indices ) );
+
+			var triangleCount = indices.Length / 3;
+
+			// Materials are optional, but if provided must match triangle count
+			if ( materials.Length != 0 && materials.Length != triangleCount )
+			{
+				throw new ArgumentException(
+					$"Materials length ({materials.Length}) must match triangle count ({triangleCount}) when provided",
+					nameof( materials )
+				);
+			}
 
 			// Validate indices are in range, creating collision mesh is expensive anyway so no harm in being safe.
 			int numVertices = vertices.Length;
@@ -221,17 +253,22 @@ namespace Sandbox
 
 			var startVertex = this.vertices.Count;
 			var startIndex = this.indices.Count;
+			var startMaterial = this.triangleMaterials.Count;
 
 			meshShapes.Add( new()
 			{
 				startVertex = startVertex,
 				numVertex = vertices.Length,
 				startIndex = startIndex,
-				numIndex = indices.Length
+				numIndex = indices.Length,
+				startMaterial = materials.Length != 0 ? startMaterial : -1,
 			} );
 
 			this.vertices.AddRange( vertices );
 			this.indices.AddRange( indices );
+
+			if ( materials.Length != 0 )
+				triangleMaterials.AddRange( materials );
 
 			return this;
 		}
@@ -501,6 +538,15 @@ namespace Sandbox
 			return this;
 		}
 
+		List<int> _surfaces = [];
+
+		public ModelBuilder AddSurface( Surface surface )
+		{
+			surface ??= Surface.FindByName( "default" );
+			_surfaces.Add( surface.Index );
+			return this;
+		}
+
 		/// <summary>
 		/// Finish creation of the model.
 		/// </summary>
@@ -513,6 +559,7 @@ namespace Sandbox
 
 			var vertices_span = CollectionsMarshal.AsSpan( vertices );
 			var indices_span = CollectionsMarshal.AsSpan( indices );
+			var materials_span = CollectionsMarshal.AsSpan( triangleMaterials );
 			var spheres_span = CollectionsMarshal.AsSpan( spheres );
 			var capsules_span = CollectionsMarshal.AsSpan( capsules );
 			var boxes_span = CollectionsMarshal.AsSpan( boxes );
@@ -522,10 +569,12 @@ namespace Sandbox
 			var bodygroups_span = CollectionsMarshal.AsSpan( bodyGroups );
 			var meshgroups_span = CollectionsMarshal.AsSpan( meshGroups );
 			var bones_span = CollectionsMarshal.AsSpan( bones );
+			var surfaces_span = CollectionsMarshal.AsSpan( _surfaces );
 
 			fixed ( IMesh* meshes_ptr = renderMeshes )
 			fixed ( Vector3* vertices_ptr = vertices_span )
 			fixed ( int* indices_ptr = indices_span )
+			fixed ( byte* materials_ptr = materials_span )
 			fixed ( SphereDesc* spheres_ptr = spheres_span )
 			fixed ( CapsuleDesc* capsule_ptr = capsules_span )
 			fixed ( BoxDesc* boxes_ptr = boxes_span )
@@ -536,6 +585,7 @@ namespace Sandbox
 			fixed ( MeshGroupDesc* meshgroups_ptr = meshgroups_span )
 			fixed ( BoneDesc* bones_ptr = bones_span )
 			fixed ( float* pLodSwitchDistance = &lodSwitchDistance[0] )
+			fixed ( int* pSurfaces = surfaces_span )
 			{
 				var anim = CreateAnimationGroup();
 				var bodies = CreatePhysBodyDesc();
@@ -554,6 +604,8 @@ namespace Sandbox
 					(IntPtr)meshgroups_ptr, meshGroups.Count,
 					(IntPtr)vertices_ptr, vertices.Count,
 					(IntPtr)indices_ptr, indices.Count,
+					(IntPtr)materials_ptr,
+					(IntPtr)pSurfaces, _surfaces.Count,
 					(IntPtr)spheres_ptr, spheres.Count,
 					(IntPtr)capsule_ptr, capsules.Count,
 					(IntPtr)boxes_ptr, boxes.Count,

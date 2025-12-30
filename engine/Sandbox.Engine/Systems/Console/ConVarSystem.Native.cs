@@ -19,6 +19,31 @@ internal static partial class ConVarSystem
 		var command = new NativeCommand( value );
 		AddCommand( command );
 	}
+
+	internal static void ClearNativeCommands()
+	{
+		if ( Members.Count == 0 )
+			return;
+
+		System.Collections.Generic.List<string> nativeKeys = null;
+
+		foreach ( var (name, command) in Members )
+		{
+			if ( command is NativeCommand || command is NativeConVar )
+			{
+				nativeKeys ??= new System.Collections.Generic.List<string>();
+				nativeKeys.Add( name );
+			}
+		}
+
+		if ( nativeKeys is null )
+			return;
+
+		foreach ( var name in nativeKeys )
+		{
+			Members.Remove( name );
+		}
+	}
 }
 
 

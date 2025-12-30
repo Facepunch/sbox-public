@@ -1,4 +1,5 @@
 ﻿using MenuProject.Modals;
+using MenuProject.Modals.PauseMenuModal;
 using Sandbox;
 using Sandbox.Modals;
 using Sandbox.Services;
@@ -9,6 +10,8 @@ public class ModalSystem : IModalSystem
 
 	List<BaseModal> OpenModals = new List<BaseModal>();
 
+	PauseModal _pauseModal;
+
 	public ModalSystem()
 	{
 		Instance = this;
@@ -16,6 +19,9 @@ public class ModalSystem : IModalSystem
 
 	public bool HasModalsOpen()
 	{
+		if ( IsPauseMenuOpen )
+			return true;
+
 		return OpenModals.Any( x => x.WantsMouseInput() );
 	}
 
@@ -166,8 +172,16 @@ public class ModalSystem : IModalSystem
 			return;
 		}
 
-		var modal = new PauseMenuModal();
-		Push( modal );
+		_pauseModal = MenuOverlay.Instance.Children.OfType<PauseModal>().FirstOrDefault();
+
+		if ( _pauseModal != null )
+		{
+			_pauseModal.ToggleClass( "hidden" );
+			return;
+		}
+
+		_pauseModal = new PauseModal();
+		MenuOverlay.Instance.AddChild( _pauseModal );
 	}
 
 	public void Player( SteamId steamid, string page = "" )
@@ -189,6 +203,6 @@ public class ModalSystem : IModalSystem
 		Push( new WorkshopPublishModal { Options = options } );
 	}
 
-	public bool IsModalOpen => OpenModals.Any();
-	public bool IsPauseMenuOpen => OpenModals.OfType<PauseMenuModal>().Any();
+	public bool IsModalOpen => HasModalsOpen();
+	public bool IsPauseMenuOpen => _pauseModal.IsValid() && _pauseModal.IsPauseMenuOpen();
 }

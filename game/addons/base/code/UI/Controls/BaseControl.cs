@@ -1,11 +1,10 @@
-﻿using System;
-
-namespace Sandbox.UI;
+﻿namespace Sandbox.UI;
 
 public class BaseControl : Panel
 {
 	SerializedProperty _property;
 
+	[Parameter]
 	public SerializedProperty Property
 	{
 		get => _property;
@@ -56,7 +55,7 @@ public class BaseControl : Panel
 		var type = property.PropertyType;
 
 		var allAttributes = Game.TypeLibrary.GetTypesWithAttribute<CustomEditorAttribute>( false )
-					.Where( x => x.Type.TargetType.IsAssignableTo( typeof( BaseControl ) ))
+					.Where( x => x.Type.TargetType.IsAssignableTo( typeof( BaseControl ) ) )
 					.ToArray();
 
 		var allEditors = allAttributes

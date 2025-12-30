@@ -23,7 +23,7 @@
             </div>
 
             <div class="itemlist">
-                @foreach (var item in Sandbox.Services.Inventory.Definitions.Where(x => x.Price.Value > 0).OrderBy(x => Sandbox.Services.Inventory.Items.Count( y => y.DefinitionId == x.Id) ).ThenBy( x => x.Name ) )
+                @foreach (var item in Items )
                 {
                      <ItemTile Cart="@Cart" Item="@item"></ItemTile>
                 }
@@ -36,4 +36,10 @@
 @code 
 {
     public ShoppingCart Cart = new();
+
+    public IEnumerable<Sandbox.Services.Inventory.ItemDefinition> Items => Sandbox.Services.Inventory.Definitions
+            .Where(x => x.Price.Value > 0)
+            .OrderBy(x => x.SellEnd is null)
+            .ThenBy(x => Sandbox.Services.Inventory.Items.Count(y => y.DefinitionId == x.Id))
+            .ThenBy(x => x.Name);
 }

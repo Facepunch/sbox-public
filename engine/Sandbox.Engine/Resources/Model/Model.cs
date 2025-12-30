@@ -28,12 +28,20 @@ public sealed partial class Model : Resource
 		SetIdFromResourcePath( Name );
 	}
 
+	internal void Dispose()
+	{
+		if ( !native.IsNull )
+		{
+			var n = native;
+			native = default;
+
+			MainThread.Queue( () => n.DestroyStrongHandle() );
+		}
+	}
+
 	~Model()
 	{
-		var n = native;
-		native = default;
-
-		MainThread.Queue( () => n.DestroyStrongHandle() );
+		Dispose();
 	}
 
 	/// <summary>

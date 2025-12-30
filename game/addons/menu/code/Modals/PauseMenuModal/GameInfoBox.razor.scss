@@ -1,0 +1,152 @@
+GameInfoBox
+{
+	width: 100%;
+	flex-direction: column;
+	font-size: 1.2rem;
+
+
+	> .thumb
+	{
+		width: 100%;
+		aspect-ratio: 16/9;
+		background-color: red;
+		border-radius: 10px;
+		background-size: cover;
+		background-position: center;
+		position: relative;
+
+		.light-border
+		{
+			position: absolute;
+			width: 100%;
+			height: 100%;
+			border: 1px solid #fff1;
+			border-radius: 10px;
+		}
+
+		&:hover
+		{
+			.light-border
+			{
+				border: 1px solid #fff4;
+			}
+		}
+	}
+}
+
+.contents
+{
+	flex-direction: column;
+	width: 100%;
+
+	.summary
+	{
+		justify-content: center;
+	}
+}
+
+.title-org
+{
+	font-weight: 700;
+	width: 100%;
+	padding: 1rem;
+	align-items: center;
+	justify-content: space-between;
+
+	.title
+	{
+		font-size: 2rem;
+	}
+
+	.org
+	{
+		font-size: 1rem;
+	}
+
+	.title, .org
+	{
+		padding: 0.5rem 1rem;
+		border-radius: 5px;
+
+		&:hover
+		{
+			background-color: #fff2;
+		}
+	}
+}
+
+.statsbox
+{
+	flex-direction: column;
+	padding: 1rem 2rem;
+	background-color: #0004;
+	border-radius: 10px;
+	margin-top: 2rem;
+
+	h1
+	{
+		font-weight: 300;
+		font-size: 1.5rem;
+		margin-bottom: 10px;
+		text-transform: uppercase;
+		color: #08f;
+	}
+
+	.row
+	{
+		.key
+		{
+			width: 50%;
+			opacity: 0.6;
+		}
+
+		.value
+		{
+			font-weight: bold;
+		}
+	}
+}
+
+.metrics
+{
+	margin-top: 2rem;
+	flex-wrap: wrap;
+	gap: 0.25rem;
+
+	.button
+	{
+		background-color: #0004;
+		width: 40%;
+		flex-grow: 1;
+		border-radius: 8px;
+		opacity: 1;
+
+		&:hover
+		{
+			background-color: #0006;
+		}
+
+		&:active
+		{
+			background-color: #0002;
+		}
+
+		&.active
+		{
+			color: #08f;
+		}
+
+		&.disabled
+		{
+			pointer-events: none;
+		}
+
+		&.favorite
+		{
+			&.active
+			{
+				color: #ff0058;
+			}
+		}
+	}
+}

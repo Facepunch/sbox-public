@@ -88,7 +88,7 @@ public static partial class Gizmo
 				return;
 			}
 
-			if ( Active.Selection.Contains( Object ) )
+			if ( Object is not null && Active.Selection.Contains( Object ) )
 			{
 				Active.Selection.Remove( Object );
 				return;

@@ -2,7 +2,7 @@
 
 public partial class KeyFrames
 {
-	internal static KeyFrames Parse( ref Parse p )
+	internal static KeyFrames Parse( ref Parse p, StyleSheet sheet )
 	{
 		// starts with @keyframes
 		if ( !p.TrySkip( "@keyframes", 0, true ) )
@@ -62,7 +62,7 @@ public partial class KeyFrames
 
 			// next we should have a value style block enclosed in { }.
 			var styles = new Styles();
-			StyleParser.ParseStyles( ref p, styles, true );
+			StyleParser.ParseStyles( ref p, styles, true, sheet );
 
 			foreach ( var interval in intervals )
 			{

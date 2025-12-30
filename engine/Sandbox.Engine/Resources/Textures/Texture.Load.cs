@@ -191,6 +191,14 @@ public partial class Texture
 			return TextureLoader.Avatar.Load( filepath );
 		}
 
+		//
+		// Thumb loader
+		//
+		if ( TextureLoader.ThumbLoader.IsAppropriate( filepath ) )
+		{
+			return TextureLoader.ThumbLoader.Load( filepath );
+		}
+
 		//Precache.Add( filename );
 
 		//

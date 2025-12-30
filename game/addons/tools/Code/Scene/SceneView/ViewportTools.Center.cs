@@ -69,6 +69,7 @@ partial class ViewportTools
 	{
 		// What the fuck, why isnt this a method
 		Game.IsPaused = !Game.IsPaused;
+		PauseButton.Color = Game.IsPaused ? Theme.Blue : Theme.TextLight;
 	}
 
 	[Shortcut( "editor.eject", "F8", ShortcutType.Window )]

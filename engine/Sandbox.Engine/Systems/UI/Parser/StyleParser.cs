@@ -5,7 +5,7 @@ internal static partial class StyleParser
 	/// <summary>
 	/// Parse the styles as you would if they were passed in an style="width: 100px" attribute
 	/// </summary>
-	internal static void ParseStyles( ref Parse p, Styles style, bool parentheses = false )
+	internal static void ParseStyles( ref Parse p, Styles style, bool parentheses = false, StyleSheet sheet = null )
 	{
 		if ( parentheses )
 		{
@@ -34,6 +34,19 @@ internal static partial class StyleParser
 				break;
 
 			p.Pointer++;
+
+			// Replace SCSS variables if stylesheet is provided
+			if ( sheet != null && value.IndexOf( '$' ) >= 0 )
+			{
+				try
+				{
+					value = sheet.ReplaceVariables( value );
+				}
+				catch ( System.Exception e )
+				{
+					throw new System.Exception( $"{e.Message} {p.FileAndLine}" );
+				}
+			}
 
 			if ( !style.Set( name, value ) )
 			{

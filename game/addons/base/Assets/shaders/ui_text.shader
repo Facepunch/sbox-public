@@ -96,16 +96,13 @@ PS
 		Texture2D tex = GetBindlessTexture2D( TextureIndex + 1 );
 		float4 vColor = tex.SampleBias( sampler, vTexCoord, mipBias );
 
-		float flAlphaScale = 1.0f;
-
-		float lum = saturate(dot( float3(0.30, 0.59, 0.11), vColor.rgb ) - 0.2);
-		float alpha = vColor.a;
-		alpha = pow(alpha, 0.6 + (lum) * 3 );
-
-		vColor.a = alpha * flAlphaScale;
-
 		o.vColor = vColor;
-		o.vColor.a *= i.vColor.a;
+
+		#if ( D_BLENDMODE == 3 )
+			o.vColor *= i.vColor.a;
+		#else
+			o.vColor.a *= i.vColor.a;
+		#endif
 
 		// Apply fog only on world panels
 		#if D_WORLDPANEL

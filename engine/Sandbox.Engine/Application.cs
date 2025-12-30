@@ -23,13 +23,7 @@ public static class Application
 	/// <summary>
 	/// True if we're running the engine as part of a unit test
 	/// </summary>
-	public static bool IsUnitTest { get; private set; }
-
-
-	/// <summary>
-	/// True if we're running a live unit test.
-	/// </summary>
-	internal static bool IsLiveUnitTest { get; private set; }
+	public static bool IsUnitTest { get; internal set; }
 
 	/// <summary>
 	/// True if running without a graphics window, such as in a terminal.
@@ -98,106 +92,7 @@ public static class Application
 	/// </summary>
 	public static bool IsVR => VRSystem.IsActive; // garry: I think this is right? But feels like this should be set at startup and never change?
 
-	static CMaterialSystem2AppSystemDict AppSystem;
-
-	/// <summary>
-	/// Called from unit test projects to initialize the engine
-	/// </summary>
-	public static void InitUnitTest<T>( bool withtools = true, bool withRendering = false )
-	{
-		if ( IsInitialized )
-			throw new InvalidOperationException( "Already Initialized" );
-
-		SyncContext.Init();
-		SyncContext.Reset();
-
-		ThreadSafe.MarkMainThread();
-
-		var callingAssembly = Assembly.GetCallingAssembly();
-		var GameFolder = System.Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", IsLiveUnitTest ? EnvironmentVariableTarget.User : EnvironmentVariableTarget.Process );
-		if ( GameFolder is null ) throw new Exception( "FACEPUNCH_ENGINE not found" );
-
-		var nativeDllPath = $"{GameFolder}\\bin\\win64\\";
-
-		var native = NativeLibrary.Load( $"{nativeDllPath}engine2.dll" );
-
-		//
-		// Put our native dll path first so that when looking up native dlls we'll
-		// always use the ones from our folder first
-		//
-		var path = System.Environment.GetEnvironmentVariable( "PATH" );
-		path = $"{nativeDllPath};{path}";
-		System.Environment.SetEnvironmentVariable( "PATH", path );
-
-		Api.Init();
-		EngineFileSystem.Initialize( GameFolder );
-		Application.InitializeGame( false, false, false, true, false );
-		NetCore.InitializeInterop( GameFolder );
-
-		Game.InitUnitTest<T>();
-
-		AppSystem = CMaterialSystem2AppSystemDict.Create( new NativeEngine.MaterialSystem2AppSystemDictCreateInfo()
-		{
-			iFlags = NativeEngine.MaterialSystem2AppSystemDictFlags.IsGameApp
-		} );
-
-		AppSystem.SuppressCOMInitialization();
-		AppSystem.SuppressStartupManifestLoad( true );
-		AppSystem.SetModGameSubdir( "core" );
-		AppSystem.SetInTestMode();
-
-		if ( withRendering )
-		{
-			AppSystem.SetDefaultRenderSystemOption( "-vulkan" );
-		}
-
-		if ( !NativeEngine.EngineGlobal.SourceEnginePreInit( "", AppSystem ) )
-		{
-			throw new System.Exception( "SourceEnginePreInit failed" );
-		}
-
-		AppSystem.InitFinishSetupMaterialSystem();
-
-		AppSystem.AddSystem( "engine2", "SceneSystem_002" );
-		AppSystem.AddSystem( "engine2", "SceneUtils_001" );
-		AppSystem.AddSystem( "engine2", "WorldRendererMgr001" );
-
-		NativeLibrary.Free( native );
-
-		if ( withtools )
-		{
-			var sandboxGame = Assembly.Load( "Sandbox.Tools" );
-			sandboxGame.GetType( "Editor.AssemblyInitialize", true, true )
-					.GetMethod( "InitializeUnitTest", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic )
-					.Invoke( null, new[] { callingAssembly } );
-		}
-	}
-
-	internal static void InitLiveUnitTest<T>( bool withtools = true, bool withRendering = false )
-	{
-		Application.IsLiveUnitTest = true;
-		InitUnitTest<T>( withtools, withRendering );
-	}
-
-	/// <summary>
-	/// Called from unit test projects to politely shut down the engine
-	/// </summary>
-	public static void ShutdownUnitTest()
-	{
-		if ( !IsUnitTest )
-		{
-			throw new InvalidOperationException( "Not running a unit test" );
-		}
-
-		if ( AppSystem.IsValid )
-		{
-			NativeEngine.EngineGlobal.SourceEngineShutdown( AppSystem, false );
-			AppSystem.Destroy();
-			AppSystem = default;
-		}
-	}
-
-	internal static void InitializeGame( bool dedicated, bool headless, bool toolsMode, bool testMode, bool isRetail )
+	internal static void Initialize( bool dedicated, bool headless, bool toolsMode, bool testMode, bool isRetail )
 	{
 		if ( IsInitialized )
 			throw new InvalidOperationException( "Already Initialized" );
@@ -211,6 +106,11 @@ public static class Application
 		IsEditor = toolsMode;
 		IsJoinLocal = CommandLine.HasSwitch( "-joinlocal" );
 		IsBenchmark = Environment.GetEnvironmentVariable( "SBOX_MODE" ) == "BENCHMARK";
+	}
+
+	internal static void Shutdown()
+	{
+		IsInitialized = false;
 	}
 
 	internal static void TryLoadVersionInfo( string gameFolder )

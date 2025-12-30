@@ -127,7 +127,7 @@ public sealed partial class PlayerController : Component
 	{
 		if ( wantsDuck == IsDucking ) return;
 
-		var unduckDelta = CurrentHeight - DuckedHeight;
+		var unduckDelta = BodyHeight - DuckedHeight;
 
 		// Can we unduck?
 		if ( !wantsDuck )

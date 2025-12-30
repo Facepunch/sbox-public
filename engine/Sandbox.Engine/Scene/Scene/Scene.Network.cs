@@ -53,16 +53,13 @@ public partial class Scene : GameObject
 		var connections = system.GetFilteredConnections( Connection.ChannelState.Connected );
 		var connectionsArray = connections as Connection[] ?? connections.ToArray();
 
-		if ( connectionsArray.Length != 0 )
-		{
-			var objects = networkedObjects.OfType<IDeltaSnapshot>();
+		var objects = networkedObjects.OfType<IDeltaSnapshot>();
 
-			// If we're the host, include any GameObjectSystems.
-			if ( Networking.IsHost )
-				objects = objects.Concat( systems );
+		// If we're the host, include any GameObjectSystems.
+		if ( Networking.IsHost )
+			objects = objects.Concat( systems );
 
-			system.DeltaSnapshots.Send( objects, connectionsArray );
-		}
+		system.DeltaSnapshots.Send( objects, connectionsArray );
 
 		system.DeltaSnapshots.Tick();
 	}

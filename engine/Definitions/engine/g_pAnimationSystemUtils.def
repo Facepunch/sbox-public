@@ -1,0 +1,6 @@
+﻿#include "animationsystem/ianimationsystemutils.h"
+
+native accessor g_pAnimationSystemUtils
+{
+	void MaintainDecodeCaches();
+}

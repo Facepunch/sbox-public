@@ -33,6 +33,11 @@ public partial class Texture : Resource, IDisposable
 	public override bool IsValid => native.IsValid;
 
 	/// <summary>
+	/// Flags providing hints about this texture
+	/// </summary>
+	public TextureFlags Flags { get; set; } = TextureFlags.None;
+
+	/// <summary>
 	/// Private constructor, use <see cref="FromNative(ITexture)"/>
 	/// </summary>
 	private Texture( ITexture native )
@@ -303,4 +308,17 @@ public partial class Texture : Resource, IDisposable
 
 		IsLoaded = true;
 	}
+}
+
+/// <summary>
+/// Flags providing hints about a texture
+/// </summary>
+public enum TextureFlags
+{
+	None = 0,
+
+	/// <summary>
+	/// Hint that this texture has pre-multiplied alpha
+	/// </summary>
+	PremultipliedAlpha = 1 << 0,
 }

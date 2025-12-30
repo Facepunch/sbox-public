@@ -177,6 +177,8 @@ public sealed partial class SceneMap : IValid
 
 		while ( !worldRef.IsWorldLoaded() )
 		{
+			g_pWorldRendererMgr.ServiceWorldRequests();
+
 			await Task.Delay( 1, cancelToken );
 			cancelToken.ThrowIfCancellationRequested();
 		}
@@ -210,7 +212,7 @@ public sealed partial class SceneMap : IValid
 		if ( PVS.IsValid )
 		{
 			// don't destroy if another SceneWorld is using it
-			if ( !SceneWorld.All.Where( x => x.IsValid() && x.native.GetPVS() == PVS ).Any() )
+			if ( !SceneWorld.All.Any( x => x.ActivePVS == PVS ) )
 			{
 				g_pEnginePVSManager.DestroyPvs( PVS );
 			}

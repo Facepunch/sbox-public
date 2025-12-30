@@ -1,4 +1,5 @@
 using NativeEngine;
+using Sandbox.VR;
 
 namespace Sandbox;
 
@@ -23,6 +24,11 @@ public class ComputeShader
 		var material = Material.FromShader( path );
 		Assert.NotNull( material );
 		ComputeMaterial = material;
+	}
+
+	internal void Dispose()
+	{
+		ComputeMaterial.Dispose();
 	}
 
 	/// <summary>

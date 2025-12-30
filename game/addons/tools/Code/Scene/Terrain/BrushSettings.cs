@@ -2,8 +2,8 @@
 
 public class BrushSettings
 {
-	[Property, Range( 8, 1024 ), Step( 1 )] public int Size { get; set; } = 200;
-	[Property, Range( 0.0f, 1.0f ), Step( 0.01f )] public float Opacity { get; set; } = 0.5f;
+	[Property, Range( 8, 1024 ), Step( 1 ), WideMode] public int Size { get; set; } = 200;
+	[Property, Range( 0.0f, 1.0f ), Step( 0.01f ), WideMode] public float Opacity { get; set; } = 0.5f;
 }
 
 public class BrushSettingsWidgetWindow : WidgetWindow

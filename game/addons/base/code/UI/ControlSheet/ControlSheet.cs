@@ -34,8 +34,15 @@ public class ControlSheet : Panel, IControlSheet
 
 		if ( Target is null ) return;
 
-		var so = Game.TypeLibrary.GetSerializedObject( Target );
-		IControlSheet.FilterSortAndAdd( sheet, so.ToList() );
+		if ( Target is List<SerializedProperty> propertyList )
+		{
+			IControlSheet.FilterSortAndAdd( sheet, propertyList );
+		}
+		else
+		{
+			var so = Game.TypeLibrary.GetSerializedObject( Target );
+			IControlSheet.FilterSortAndAdd( sheet, so.ToList() );
+		}
 	}
 
 	int _hash;
@@ -68,9 +75,28 @@ public class ControlSheet : Panel, IControlSheet
 	void IControlSheet.AddGroup( IControlSheet.Group group )
 	{
 		var g = _body.AddChild<ControlSheetGroup>();
+		g.Header.Title = group.Name;
 
-		var title = g.Header.AddChild<Label>( "title" );
-		title.Text = group.Name;
+		//
+		// This is part of a toggle group - so add a checkbox to the header
+		//
+		var toggleGroup = group.Properties.FirstOrDefault( x => x.HasAttribute<ToggleGroupAttribute>() && x.Name == group.Name );
+		if ( toggleGroup is not null )
+		{
+			toggleGroup.TryGetAttribute<ToggleGroupAttribute>( out var toggleAttr );
+			if ( toggleGroup is not null )
+			{
+				group.Properties.Remove( toggleGroup );
+
+				var enabler = BaseControl.CreateFor( toggleGroup );
+
+				g.Header.Title = toggleAttr.Label ?? g.Header.Title;
+				g.SetToggle( toggleGroup );
+				g.SetVisibility( toggleGroup.GetAttributes<InspectorVisibilityAttribute>()?.ToArray() );
+
+				if ( !toggleGroup.As.Bool ) g.Closed = true;
+			}
+		}
 
 		foreach ( var prop in group.Properties )
 		{

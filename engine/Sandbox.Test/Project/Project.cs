@@ -11,7 +11,8 @@ public class ProjectTests
 	{
 		Logging.Enabled = true;
 		Project.Clear();
-		AssetDownloadCache.Initialize( $"{Environment.CurrentDirectory}/.source2/project_download_folder" );
+		var dir = $"{Environment.CurrentDirectory}/.source2/test_download_cache/project";
+		AssetDownloadCache.Initialize( dir );
 	}
 
 	[TestCleanup]

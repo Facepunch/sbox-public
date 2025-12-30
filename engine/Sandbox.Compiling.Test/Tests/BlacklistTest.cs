@@ -9,6 +9,65 @@ namespace TestCompiler;
 [TestClass]
 public partial class BlacklistTest
 {
+
+	[TestMethod]
+	public async Task DefaultCompilerFailsWhitelist()
+	{
+		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
+		var group = new CompileGroup( "TestWhitelist" );
+
+		var compiler = group.GetOrCreateCompiler( "test" );
+		compiler.AddSourcePath( codePath );
+		compiler.MarkForRecompile();
+		await group.BuildAsync();
+
+		// Verify compilation failed due to whitelist violations
+		var output = compiler.Output;
+		Assert.IsNotNull( output );
+		Assert.IsFalse( output.Successful, "Compiler should fail with default whitelist settings" );
+		Assert.IsTrue( output.Diagnostics.Count > 0, "Should have diagnostics for whitelist violations" );
+	}
+
+	[TestMethod]
+	public async Task CompilerWithWhitelistFails()
+	{
+		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
+		var group = new CompileGroup( "TestWhitelist" );
+
+		var compilerSettings = new Compiler.Configuration();
+		compilerSettings.Whitelist = true;
+		compilerSettings.Unsafe = false;
+
+		var compiler = group.CreateCompiler( "test", codePath, compilerSettings );
+		await group.BuildAsync();
+
+		// Verify compilation failed due to whitelist being enabled
+		var output = compiler.Output;
+		Assert.IsNotNull( output );
+		Assert.IsFalse( output.Successful, "Compiler should fail when whitelist is explicitly enabled" );
+		Assert.IsTrue( output.Diagnostics.Count > 0, "Should have diagnostics for whitelist violations" );
+	}
+
+	[TestMethod]
+	public async Task CompilerWithoutWhitelistSucceeds()
+	{
+		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
+		var group = new CompileGroup( "TestWhitelist" );
+
+		var compilerSettings = new Compiler.Configuration();
+		compilerSettings.Whitelist = false;
+		compilerSettings.Unsafe = true;
+
+		var compiler = group.CreateCompiler( "test", codePath, compilerSettings );
+		await group.BuildAsync();
+
+		// Verify compilation succeeded with whitelist disabled
+		var output = compiler.Output;
+		Assert.IsNotNull( output );
+		Assert.IsTrue( output.Successful, "Compiler should succeed when whitelist is disabled" );
+		Assert.IsNull( output.Exception, "Should not have any exceptions" );
+	}
+
 	[TestMethod]
 	public async Task EndToEndBuildFailure()
 	{

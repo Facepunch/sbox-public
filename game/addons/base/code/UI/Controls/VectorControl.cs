@@ -8,6 +8,8 @@
 [CustomEditor( typeof( Vector4 ) )]
 public partial class VectorControl : BaseControl
 {
+	public override bool SupportsMultiEdit => true;
+
 	NumberEntry _x;
 	NumberEntry _y;
 	NumberEntry _z;

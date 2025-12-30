@@ -9,6 +9,8 @@ public partial class ColorControl : BaseControl
 	readonly TextEntry _textEntry;
 	readonly Panel _colorSwatch;
 
+	public override bool SupportsMultiEdit => true;
+
 	public ColorControl()
 	{
 		_colorSwatch = AddChild<Panel>( "colorswatch" );

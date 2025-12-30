@@ -97,7 +97,7 @@ public sealed class WorldPanel : Renderer, IRootPanelComponent
 	protected override void OnEnabled()
 	{
 		worldPanel = new Sandbox.UI.WorldPanel( Scene.SceneWorld );
-		worldPanel.Scene = Scene;
+		worldPanel.GameObject = GameObject;
 		worldPanel.Transform = WorldTransform;
 		worldPanel.Tags.SetFrom( GameObject.Tags );
 		worldPanel.MaxInteractionDistance = InteractionRange;

@@ -43,4 +43,10 @@ internal partial class RenderPipeline
 		// Return to pool
 		Pool.Enqueue( renderPipeline );
 	}
+
+	internal static void ClearPool()
+	{
+		Pool.Clear();
+		ActivePipelines.Clear();
+	}
 }

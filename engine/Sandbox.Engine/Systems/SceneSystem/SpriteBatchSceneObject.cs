@@ -13,6 +13,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	public bool Sorted { get; set; } = false;
 	public bool Filtered { get; set; } = false;
 	public bool Additive { get; set; } = false;
+	public bool Opaque { get; set; } = false;
 
 	internal Dictionary<Guid, SpriteRenderer> Components = new();
 
@@ -512,6 +513,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		Graphics.ResourceBarrierTransition( SpriteBufferOut, ResourceState.Common );
 
 		Graphics.Attributes.SetCombo( "D_BLEND", Additive ? 1 : 0 );
+		Graphics.Attributes.SetCombo( "D_OPAQUE", Opaque ? 1 : 0 );
 
 		// Sort
 		if ( Sorted )

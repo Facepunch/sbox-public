@@ -347,10 +347,8 @@ partial class Mesh
 		return faces.Count > 0;
 	}
 
-	public int FindFaceInSetSharedByVertices( VertexHandle hVertexA, VertexHandle hVertexB, out List<FaceHandle> faceList )
+	internal int FindFaceInSetSharedByVertices( VertexHandle hVertexA, VertexHandle hVertexB, List<FaceHandle> faceList )
 	{
-		faceList = new List<FaceHandle>();
-
 		if ( (IsVertexInMesh( hVertexA ) == false) || (IsVertexInMesh( hVertexB ) == false) )
 			return -1;
 

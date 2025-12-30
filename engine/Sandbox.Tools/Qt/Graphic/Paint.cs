@@ -595,6 +595,17 @@ namespace Editor
 
 		public static Rect DrawIcon( Rect rect, string iconName, float pixelHeight, TextFlag alignment = TextFlag.Center )
 		{
+			if ( string.IsNullOrEmpty( iconName ) )
+				return rect;
+
+			if ( iconName.Contains( '.' ) )
+			{
+				var innerRect = rect.Align( new Vector2( pixelHeight, pixelHeight ), alignment );
+
+				Draw( innerRect, iconName, Pen.a );
+				return innerRect;
+			}
+
 			// save and restore the font
 			var of = fontInfo;
 
@@ -615,12 +626,12 @@ namespace Editor
 			Current.drawPixmap( r, pixmap.ptr, src, alpha );
 		}
 
-		public static void Draw( Rect r, string image )
+		public static void Draw( Rect r, string image, float alpha = 1.0f )
 		{
 			// find the image, and resize it to this size to make it nice
 			var pixmap = LoadImage( image, (int)(r.Size.x * _dpiScale), (int)(r.Size.y * _dpiScale) );
 
-			Draw( r, pixmap );
+			Draw( r, pixmap, alpha );
 		}
 
 		public static IDisposable ToPixmap( Pixmap pixmap )

@@ -100,21 +100,7 @@ $highlight: #5c5;
 	transition: all 0.3s ease-out;
 }
 
-.card-decorator-hidden
-{
-	position: absolute;
-	background-color: #0009;
-	bottom: 0;
-	left: 0;
-	right: 0;
-	color: white;
-	padding: 10px;
-	text-transform: uppercase;
-	font-size: 12px;
-	z-index: 5;
-}
-
-.card-decorator-users
+.card-decorator
 {
 	background-color: darken( rgba( $highlight, 0.7 ), 0.66 );
 	color: lighten( $highlight, 0.5 );
@@ -123,15 +109,25 @@ $highlight: #5c5;
 	top: 5px;
 	padding: 3px 8px;
 	border-radius: 200px;
-	aspect-ratio: 1;
 	box-shadow: 2px 2px 16px #0002;
 	font-size: 12px;
 	font-weight: bold;
-	gap: 3px;
+	gap: 6px;
 	align-items: center;
+	justify-content: space-between;
 
 	i
 	{
 		font-size: 16px;
 	}
+
+	&:empty
+	{
+		display: none;
+	}
+}
+
+.player-count
+{
+	gap: 3px;
 }

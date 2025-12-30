@@ -220,14 +220,16 @@ IconPanel, i
 
 	button
 	{
-		padding: 8px;
+		padding: 2px 8px;
 		cursor: pointer;
 		font-family: Poppins;
 		font-weight: 600;
+		flex-shrink: 0;
 
 		&:hover
 		{
-			background-color: lighten( #1b202c, 0.25 );
+			background-color: #08f;
+			color: #fff;
 		}
 	}
 }
