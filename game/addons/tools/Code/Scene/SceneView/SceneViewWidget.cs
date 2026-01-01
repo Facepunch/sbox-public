@@ -82,13 +82,19 @@ public partial class SceneViewWidget : Widget
 	public void Frame()
 	{
 		var session = Session;
-		if ( session is null ) return;
-		if ( !session.Scene.IsValid() ) return;
+		if ( session is null )
+		{
+			return;
+		}
+		if ( !session.Scene.IsValid() )
+		{
+			return;
+		}
 
 		using var scope = session.Scene.Push();
 
 		bool isActive = session == SceneEditorSession.Active;
-
+	
 		// Update inspector with current selection, if changed
 		if ( isActive && selectionHash != session.Selection.GetHashCode() )
 		{
@@ -112,6 +118,7 @@ public partial class SceneViewWidget : Widget
 
 			if ( isActive )
 			{
+				// Log.Info("SceneViewWidget#Frame.L115 isActive");
 				Current = this;
 			}
 
@@ -339,13 +346,6 @@ file class ViewportToolBar : Widget
 			_sidebar.Add( scroller );
 
 			toolWidget.Focus();
-		}
-		else
-		{
-			if ( SceneViewWidget.Current?.LastSelectedViewportWidget?.IsValid() ?? false )
-			{
-				SceneViewWidget.Current.LastSelectedViewportWidget.Focus();
-			}
 		}
 
 		// Update footer
