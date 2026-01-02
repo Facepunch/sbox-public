@@ -207,6 +207,27 @@ public partial class SoundFile : Resource, IValid
 		return Create( filename, pcmData, soundData.Channels, soundData.SampleRate, format, soundData.SampleCount, soundData.Duration, loop );
 	}
 
+	/// <summary>
+	/// Load from MP3.
+	/// </summary>
+	public static unsafe SoundFile FromMp3( string filename, Span<byte> data, bool loop )
+	{
+		ThreadSafe.AssertIsMainThread( "SoundFile.FromMp3" );
+
+		if ( !filename.EndsWith( ".vsnd", StringComparison.OrdinalIgnoreCase ) )
+			filename = System.IO.Path.ChangeExtension( filename, "vsnd" );
+
+		if ( Loaded.TryGetValue( filename, out var soundFile ) )
+			return soundFile;
+
+		if ( data.Length <= 0 )
+			throw new ArgumentException( "Invalid data" );
+
+		var soundData = SoundData.FromMp3( data );
+
+		return Create( filename, data, soundData.Channels, soundData.SampleRate, (int)SoundFormat.MP3, soundData.SampleCount, soundData.Duration, loop );
+	}
+
 	// this is a fucking mess
 
 	// TODO: Document. What's the difference beetween preloading here and precaching in Load()? What does this do that Load() doesn't?
