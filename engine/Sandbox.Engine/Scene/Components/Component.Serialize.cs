@@ -1,6 +1,7 @@
 ﻿using Facepunch.ActionGraphs;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 
 namespace Sandbox;
 
@@ -63,7 +64,15 @@ public abstract partial class Component : BytePack.ISerializer
 				var value = field.GetValue( this );
 				try
 				{
-					json.Add( field.Name, Json.ToNode( value, field.FieldType ) );
+					var serializerOptions = GetSerializerOptions( field, field.FieldType );
+					if ( value is IJsonPopulator jss )
+					{
+						json.Add( field.Name, jss.Serialize() );
+					}
+					else
+					{
+						json.Add( field.Name, JsonSerializer.SerializeToNode( value, field.FieldType, serializerOptions ) );
+					}
 				}
 				catch ( System.Exception e )
 				{
@@ -75,7 +84,15 @@ public abstract partial class Component : BytePack.ISerializer
 				var value = prop.GetValue( this );
 				try
 				{
-					json.Add( prop.Name, Json.ToNode( value, prop.PropertyType ) );
+					var serializerOptions = GetSerializerOptions( prop, prop.PropertyType );
+					if ( value is IJsonPopulator jss )
+					{
+						json.Add( prop.Name, jss.Serialize() );
+					}
+					else
+					{
+						json.Add( prop.Name, JsonSerializer.SerializeToNode( value, prop.PropertyType, serializerOptions ) );
+					}
 				}
 				catch ( System.Exception e )
 				{
@@ -187,6 +204,51 @@ public abstract partial class Component : BytePack.ISerializer
 	[ConVar( "serialization_warn_time", ConVarFlags.Protected, Help = "Warn if deserializing a component property takes longer than this number of milliseconds." )]
 	internal static int DeserializeTimeWarnThreshold { get; set; }
 
+	/// <summary>
+	/// Gets JsonSerializerOptions with a custom converter if the member has a JsonConverterAttribute.
+	/// Otherwise returns the default options.
+	/// </summary>
+	private static JsonSerializerOptions GetSerializerOptions( MemberDescription member, Type targetType )
+	{
+		var jsonConverterAttr = member.GetCustomAttribute<JsonConverterAttribute>();
+		if ( jsonConverterAttr == null || jsonConverterAttr.ConverterType == null )
+		{
+			return Json.options;
+		}
+
+		// Create a new options instance based on the default options
+		var customOptions = new JsonSerializerOptions( Json.options );
+
+		// Create an instance of the converter type
+		try
+		{
+			var converterInstance = Activator.CreateInstance( jsonConverterAttr.ConverterType );
+
+			// Check if it's a JsonConverterFactory
+			if ( converterInstance is JsonConverterFactory factory )
+			{
+				// For factories, we need to create the converter for the specific type
+				var converter = factory.CreateConverter( targetType, customOptions );
+				if ( converter != null )
+				{
+					customOptions.Converters.Insert( 0, converter );
+				}
+			}
+			else if ( converterInstance is JsonConverter converter )
+			{
+				// For regular converters, add them directly
+				customOptions.Converters.Insert( 0, converter );
+			}
+		}
+		catch ( System.Exception e )
+		{
+			Log.Warning( $"Failed to create instance of JsonConverter type {jsonConverterAttr.ConverterType}: {e.Message}" );
+			return Json.options;
+		}
+
+		return customOptions;
+	}
+
 	private void StopTiming( MemberDescription member, Type type, FastTimer timer )
 	{
 		if ( DeserializeTimeWarnThreshold <= 0 ) return;
@@ -231,7 +293,15 @@ public abstract partial class Component : BytePack.ISerializer
 			}
 			else
 			{
-				prop.SetValue( this, Json.FromNode( node, prop.PropertyType ) );
+				if ( node is null )
+				{
+					prop.SetValue( this, default );
+				}
+				else
+				{
+					var serializerOptions = GetSerializerOptions( prop, prop.PropertyType );
+					prop.SetValue( this, node.Deserialize( prop.PropertyType, serializerOptions ) );
+				}
 			}
 
 			StopTiming( prop, prop.PropertyType, startTime );
@@ -265,7 +335,15 @@ public abstract partial class Component : BytePack.ISerializer
 			}
 			else
 			{
-				field.SetValue( this, Json.FromNode( node, field.FieldType ) );
+				if ( node is null )
+				{
+					field.SetValue( this, default );
+				}
+				else
+				{
+					var serializerOptions = GetSerializerOptions( field, field.FieldType );
+					field.SetValue( this, node.Deserialize( field.FieldType, serializerOptions ) );
+				}
 			}
 
 			StopTiming( field, field.FieldType, startTime );
