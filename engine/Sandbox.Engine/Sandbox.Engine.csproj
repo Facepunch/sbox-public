@@ -25,11 +25,11 @@
 	  <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
 	</PropertyGroup>
 
-	<PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+	<PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' And '$(TargetPlatformIdentifier)' == 'windows'">
 		<DefineConstants>WIN;$(DefineConstants)</DefineConstants>
 	</PropertyGroup>
 
-	<PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+	<PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' And '$(TargetPlatformIdentifier)' == 'windows'">
 		<DefineConstants>WIN;$(DefineConstants)</DefineConstants>
 	</PropertyGroup>
 
