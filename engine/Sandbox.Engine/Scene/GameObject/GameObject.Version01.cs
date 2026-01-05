@@ -116,6 +116,7 @@ public partial class GameObject
 		TryAddOverrideTargetingPrefab( legacyData, JsonKeys.AlwaysTransmit, prefabFile.RootObject[JsonKeys.AlwaysTransmit] ?? true );
 		TryAddOverrideTargetingPrefab( legacyData, JsonKeys.NetworkOrphaned, prefabFile.RootObject[JsonKeys.NetworkOrphaned] ?? (int)NetworkOrphaned.Destroy );
 		TryAddOverrideTargetingPrefab( legacyData, JsonKeys.OwnerTransfer, prefabFile.RootObject[JsonKeys.OwnerTransfer] ?? (int)OwnerTransfer.Fixed );
+		TryAddOverrideTargetingPrefab( legacyData, JsonKeys.NetworkFlags, prefabFile.RootObject[JsonKeys.NetworkFlags] ?? 0 );
 		TryAddOverrideTargetingPrefab( legacyData, JsonKeys.NetworkInterpolation, prefabFile.RootObject[JsonKeys.NetworkInterpolation] ?? false );
 
 		return instancePatch;

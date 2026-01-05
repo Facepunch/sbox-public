@@ -43,7 +43,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		public int TextureHandle;
 		public int RenderFlags;
 		public uint BillboardMode;
-		public float FogStrength;
+		public uint FogStrengthCutout;  // Lower 16 bits: fog, upper 16 bits: alpha cutout
 		public uint Lighting;
 		public float DepthFeather;
 		public int SamplerIndex;
@@ -68,6 +68,14 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			byte b = (byte)(color.b * 255f);
 			byte a = (byte)(color.a * 255f);
 			return (uint)(r | (g << 8) | (b << 16) | (a << 24));
+		}
+
+		// Pack fog strength and alpha cutout into a single uint
+		internal static uint PackFogAndAlphaCutout( float fogStrength, float alphaCutout )
+		{
+			ushort fogPacked = (ushort)(fogStrength.Clamp( 0f, 1f ) * 65535f);
+			ushort alphaPacked = (ushort)(alphaCutout.Clamp( 0f, 1f ) * 65535f);
+			return (uint)(fogPacked | (alphaPacked << 16));
 		}
 	}
 	struct SpriteVertex
@@ -376,6 +384,9 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 				int lightingFlag = c.Lighting ? 1 : 0;
 				uint packedExponent = (uint)(((byte)lightingFlag) | rgbe.a << 16);
+
+				uint packedFogAndAlpha = SpriteData.PackFogAndAlphaCutout( c.FogStrength, c.AlphaCutoff );
+
 				SpriteDataBuffer[i] = new SpriteData
 				{
 					Position = transform.Position,
@@ -386,7 +397,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 					OverlayColor = overlayColor.RawInt,
 					RenderFlags = (int)flipFlags,
 					BillboardMode = (uint)c.Billboard,
-					FogStrength = c.FogStrength,
+					FogStrengthCutout = packedFogAndAlpha,
 					Lighting = packedExponent,
 					DepthFeather = c.DepthFeather,
 					SamplerIndex = SamplerState.GetBindlessIndex( sampler with { Filter = c.TextureFilter } ),

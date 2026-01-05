@@ -327,7 +327,7 @@ class QuakeModelMD5( string pakDir, string fileName ) : ResourceLoader<QuakeMoun
 		}
 
 		var mesh = new Mesh( material );
-		mesh.CreateVertexBuffer( verts.Count, SkinnedVertex.Layout, verts );
+		mesh.CreateVertexBuffer( verts.Count, verts );
 		mesh.CreateIndexBuffer( indices.Count, indices.ToArray() );
 		mesh.Bounds = BBox.FromPoints( positions );
 		return mesh;

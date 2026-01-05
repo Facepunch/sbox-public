@@ -4,11 +4,15 @@ using Sandbox;
 using Sandbox.ActionGraphs;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text.Json;
 
 namespace Editor.ActionGraphs;
 
+/// <summary>
+/// Implementation of <see cref="IGraph"/> wrapping an <see cref="ActionGraph"/>.
+/// </summary>
 public partial class EditorActionGraph : IGraph
 {
 	[Hide]
@@ -24,7 +28,40 @@ public partial class EditorActionGraph : IGraph
 	public IEnumerable<INode> Nodes => NodeDict.Values;
 
 	[Hide]
-	public object HostObject { get; }
+	private readonly WeakReference<IActionGraphDelegate> _sourceDelegate = new( null );
+
+	/// <summary>
+	/// Target object of this graph. Will be a <see cref="GameObject"/> if this graph is in
+	/// a component property. Will be a <see cref="GameResource"/> if this graph is in a
+	/// resource property.
+	/// </summary>
+	[Hide]
+	public object HostObject => SourceDelegate?.GetEmbeddedTarget() ?? Graph.GetEmbeddedTarget();
+
+	/// <summary>
+	/// Resource that contains this graph in a property. Saving this resource will save this graph.
+	/// </summary>
+	[Hide]
+	public GameResource HostResource => (Graph.SourceLocation as GameResourceSourceLocation)?.Resource;
+
+	[Hide]
+	public IActionGraphDelegate SourceDelegate
+	{
+		get
+		{
+			if ( _sourceDelegate.TryGetTarget( out var deleg ) )
+			{
+				if ( deleg.GetEmbeddedTarget() is IValid { IsValid: true } or not IValid )
+				{
+					return deleg;
+				}
+			}
+
+			_sourceDelegate.SetTarget( deleg = ResolveSourceDelegate() );
+
+			return deleg;
+		}
+	}
 
 	[Hide]
 	public event Action GraphPropertiesChanged;
@@ -91,6 +128,14 @@ public partial class EditorActionGraph : IGraph
 		Component comp => comp.Scene,
 		_ => null
 	};
+
+	public EditorActionGraph( ActionGraph graph )
+	{
+		Graph = graph;
+
+		UpdateNodes();
+		UpdateEditorProperties();
+	}
 
 	public void AddNode( INode node )
 	{
@@ -304,13 +349,78 @@ public partial class EditorActionGraph : IGraph
 		UpdateNodes();
 	}
 
-	public EditorActionGraph( Facepunch.ActionGraphs.ActionGraph graph )
+	private IActionGraphDelegate ResolveSourceDelegate()
 	{
-		Graph = graph;
-		HostObject = graph.GetEmbeddedTarget();
+		return Graph.GetDelegates().Max( Comparer<IActionGraphDelegate>.Create( GraphSourceDelegateComparer ) );
+	}
 
-		UpdateNodes();
-		UpdateEditorProperties();
+	/// <summary>
+	/// Returns false if <paramref name="obj"/> is null or
+	/// <see cref="IValid.IsValid"/> is <see langword="false" />.
+	/// </summary>
+	private static bool IsValidOrNotNull( [NotNullWhen( true )] object obj )
+	{
+		if ( obj is IValid valid )
+		{
+			return valid.IsValid;
+		}
+
+		return obj is not null;
+	}
+
+	/// <summary>
+	/// Compares two delegates to see which is a better source for an action graph.
+	/// <list type="number">
+	/// <item>
+	/// <description>GameObject from a prefab scene editor session</description>
+	/// </item>
+	/// <item>
+	/// <description>GameObject from a scene editor session</description>
+	/// </item>
+	/// <item>
+	/// <description>GameObject from a non-editor scene</description>
+	/// </item>
+	/// <item>
+	/// <description>Not <see langword="null"></see> and not <see cref="IValid.IsValid"/> = <see langword="false" /></description>
+	/// </item>
+	/// </list>
+	/// </summary>
+	private static int GraphSourceDelegateComparer( IActionGraphDelegate a, IActionGraphDelegate b )
+	{
+		var targetA = a.GetEmbeddedTarget();
+		var targetB = b.GetEmbeddedTarget();
+
+		var isValidA = IsValidOrNotNull( targetA );
+		var isValidB = IsValidOrNotNull( targetB );
+
+		if ( !isValidA || !isValidB )
+		{
+			return isValidA.CompareTo( isValidB );
+		}
+
+		var gameObjA = targetA as GameObject;
+		var gameObjB = targetB as GameObject;
+
+		if ( gameObjA is null || gameObjB is null )
+		{
+			return (gameObjA is not null).CompareTo( gameObjB is not null );
+		}
+
+		var sessionA = SceneEditorSession.Resolve( gameObjA.Scene );
+		var sessionB = SceneEditorSession.Resolve( gameObjB.Scene );
+
+		// We might have resolved the editor session from a game scene,
+		// we only want to match the editor scene.
+
+		if ( sessionA?.Scene != gameObjA.Scene ) sessionA = null;
+		if ( sessionB?.Scene != gameObjB.Scene ) sessionB = null;
+
+		if ( sessionA is null || sessionB is null )
+		{
+			return (sessionA is not null).CompareTo( sessionB is not null );
+		}
+
+		return sessionA.IsPrefabSession.CompareTo( sessionB.IsPrefabSession );
 	}
 
 	private void UpdateEditorProperties()

@@ -274,6 +274,15 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 			var rb = Components.GetOrCreate<Rigidbody>();
 
+			// Inherit body settings from model
+			var part = Model.Physics.Parts[0];
+			rb.MassOverride = part.Mass;
+			rb.LinearDamping = part.LinearDamping;
+			rb.AngularDamping = part.AngularDamping;
+			rb.OverrideMassCenter = part.OverrideMassCenter;
+			rb.MassCenterOverride = part.MassCenterOverride;
+			rb.GravityScale = part.GravityScale;
+
 			if ( StartAsleep )
 			{
 				rb.StartAsleep = true;

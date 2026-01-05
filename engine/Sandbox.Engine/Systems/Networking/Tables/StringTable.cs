@@ -103,7 +103,7 @@ internal class StringTable
 		/// </summary>
 		internal T Read<T>() where T : unmanaged
 		{
-			var bytes = ByteStream.CreateReader( Data );
+			using var bytes = ByteStream.CreateReader( Data );
 			return bytes.Read<T>();
 		}
 

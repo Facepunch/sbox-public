@@ -1,5 +1,4 @@
-﻿using Sandbox.UI;
-
+﻿
 namespace Editor.MeshEditor;
 
 class ActiveMaterialWidget : ControlWidget
@@ -16,7 +15,7 @@ class ActiveMaterialWidget : ControlWidget
 
 		ToolTip = "";
 
-		_materialWidget = Layout.Add( new MaterialWidget() );
+		_materialWidget = Layout.Add( new MaterialWidget( this ) );
 		_materialWidget.ToolTip = "Active Material";
 		_materialWidget.FixedSize = FixedHeight - 22;
 		_materialWidget.Cursor = CursorShape.Finger;
@@ -31,6 +30,7 @@ class ActiveMaterialWidget : ControlWidget
 
 		Frame();
 	}
+
 	protected override void OnPaint()
 	{
 		// nothing
@@ -89,6 +89,15 @@ class ActiveMaterialWidget : ControlWidget
 
 		SerializedProperty.Parent.NoteStartEdit( SerializedProperty );
 		SerializedProperty.SetValue( resource );
+		SerializedProperty.Parent.NoteFinishEdit( SerializedProperty );
+	}
+
+	public void UpdateFromMaterial( Material material )
+	{
+		if ( material is null ) return;
+
+		SerializedProperty.Parent.NoteStartEdit( SerializedProperty );
+		SerializedProperty.SetValue( material );
 		SerializedProperty.Parent.NoteFinishEdit( SerializedProperty );
 	}
 

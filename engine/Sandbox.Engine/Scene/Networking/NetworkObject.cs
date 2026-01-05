@@ -526,16 +526,32 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		var system = SceneNetworkSystem.Instance;
 		if ( system is null ) return null;
 
+		var flags = GameObject.Network.Flags;
+
 		LocalSnapshotState.SnapshotId = system.DeltaSnapshots.CreateSnapshotId( Id );
 		LocalSnapshotState.ParentId = GameObject.Parent is Scene ? Guid.Empty : GameObject.Parent.Id;
 		LocalSnapshotState.ObjectId = Id;
+		LocalSnapshotState.Flags = flags;
 
 		if ( !IsProxy )
 		{
 			var tx = GameObject.Transform.TargetLocal;
-			LocalSnapshotState.AddCached( _snapshotCache, SnapshotPositionSlot, tx.Position, true );
-			LocalSnapshotState.AddCached( _snapshotCache, SnapshotRotationSlot, tx.Rotation, true );
-			LocalSnapshotState.AddCached( _snapshotCache, SnapshotScaleSlot, tx.Scale, true );
+
+			if ( (flags & NetworkFlags.NoPositionSync) == 0 )
+				LocalSnapshotState.AddCached( _snapshotCache, SnapshotPositionSlot, tx.Position, LocalSnapshotState.HashFlags.All );
+			else
+				LocalSnapshotState.Remove( SnapshotPositionSlot );
+
+			if ( (flags & NetworkFlags.NoRotationSync) == 0 )
+				LocalSnapshotState.AddCached( _snapshotCache, SnapshotRotationSlot, tx.Rotation, LocalSnapshotState.HashFlags.All );
+			else
+				LocalSnapshotState.Remove( SnapshotRotationSlot );
+
+			if ( (flags & NetworkFlags.NoScaleSync) == 0 )
+				LocalSnapshotState.AddCached( _snapshotCache, SnapshotScaleSlot, tx.Scale, LocalSnapshotState.HashFlags.All );
+			else
+				LocalSnapshotState.Remove( SnapshotScaleSlot );
+
 			LocalSnapshotState.AddCached( _snapshotCache, SnapshotInterpolationSlot, _clearInterpolationFlag );
 			LocalSnapshotState.AddCached( _snapshotCache, SnapshotEnabledSlot, GameObject.Enabled );
 		}
@@ -655,12 +671,35 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		var scene = Game.ActiveScene;
 		if ( !scene.IsValid() ) return;
 
+		var oldTransform = GameObject.Transform.TargetLocal;
 		var jsonObj = JsonNode.Parse( message.JsonData ).AsObject();
+
+		// Only the host can modify network flags after the object has been spawned.
+		if ( !source.IsHost )
+			jsonObj.Remove( GameObject.JsonKeys.NetworkFlags );
 
 		GameObject.SetParentFromNetwork( scene.Directory.FindByGuid( message.Parent ) );
 		GameObject.NetworkRefresh( jsonObj );
 
 		UpdateFromRefresh( source, message.TableData, message.Snapshot );
+
+		// This is making sure that components of a transform that shouldn't
+		// be synchronized are not updated from this message.
+		var newTransform = GameObject.Transform.TargetLocal;
+		var copyTransform = newTransform;
+		var flags = GameObject.Network.Flags;
+
+		if ( (flags & NetworkFlags.NoPositionSync) != 0 )
+			copyTransform.Position = oldTransform.Position;
+
+		if ( (flags & NetworkFlags.NoRotationSync) != 0 )
+			copyTransform.Rotation = oldTransform.Rotation;
+
+		if ( (flags & NetworkFlags.NoScaleSync) != 0 )
+			copyTransform.Scale = oldTransform.Scale;
+
+		if ( copyTransform != newTransform )
+			GameObject.Transform.Local = copyTransform;
 	}
 
 	internal void UpdateFromRefresh( Connection source, byte[] tableData, byte[] snapshotData )

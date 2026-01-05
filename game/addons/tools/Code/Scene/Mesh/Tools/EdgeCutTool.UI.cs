@@ -36,10 +36,10 @@ partial class EdgeCutTool
 			Layout.AddStretchCell();
 		}
 
-		[Shortcut( "mesh.edge-cut-apply", "enter", typeof( SceneDock ) )]
+		[Shortcut( "mesh.edge-cut-apply", "enter", typeof( SceneViewWidget ) )]
 		void Apply() => _tool.Apply();
 
-		[Shortcut( "mesh.edge-cut-cancel", "ESC", typeof( SceneDock ) )]
+		[Shortcut( "mesh.edge-cut-cancel", "ESC", typeof( SceneViewWidget ) )]
 		void Cancel() => _tool.Cancel();
 	}
 }

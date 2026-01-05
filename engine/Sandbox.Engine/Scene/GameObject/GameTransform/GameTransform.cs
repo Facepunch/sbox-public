@@ -100,7 +100,7 @@ public partial class GameTransform
 				return;
 			}
 
-			if ( !(GameObject?.HasAuthority() ?? true) )
+			if ( !(GameObject?.CanUpdateTransform( Local, ref value ) ?? false) )
 				return;
 
 			if ( Proxy is not null )
@@ -199,7 +199,7 @@ public partial class GameTransform
 
 		set
 		{
-			if ( !(GameObject?.HasAuthority() ?? true) )
+			if ( !(GameObject?.CanUpdateTransform( World, ref value ) ?? false) )
 				return;
 
 			SetWorldInternal( value );
@@ -341,7 +341,6 @@ public partial class GameTransform
 		World = tx;
 	}
 
-
 	internal void FromNetwork( Transform transform, bool clearInterpolation )
 	{
 		if ( GameObject.Network.Interpolation && !clearInterpolation )
@@ -357,7 +356,6 @@ public partial class GameTransform
 			SetLocalTransform( transform );
 		}
 	}
-
 
 	/// <summary>
 	/// Disable the proxy temporarily

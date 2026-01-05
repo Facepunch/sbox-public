@@ -7,6 +7,33 @@ public static class MountUtility
 	static readonly HashSet<RenderJob> _activeJobs = new();
 
 	/// <summary>
+	/// Find a ResourceLoader by its mount path.
+	/// </summary>
+	public static ResourceLoader FindLoader( string loaderPath )
+	{
+		if ( !loaderPath.StartsWith( "mount://" ) ) return null;
+
+		var partIndex = loaderPath.IndexOf( '/', 8 );
+		if ( partIndex <= 8 ) return null;
+		var mountName = loaderPath[8..partIndex];
+
+		var mount = Directory.Get( mountName );
+		if ( mount is null ) return null;
+
+		return mount.GetByPath( loaderPath );
+	}
+
+	/// <summary>
+	/// Create a preview texture for the given resource loader.
+	/// </summary>
+	public static Texture GetPreviewTexture( string loaderPath )
+	{
+		var loader = FindLoader( loaderPath );
+		if ( loader is null ) return null;
+		return GetPreviewTexture( loader );
+	}
+
+	/// <summary>
 	/// Create a preview texture for the given resource loader.
 	/// </summary>
 	public static Texture GetPreviewTexture( ResourceLoader loader )

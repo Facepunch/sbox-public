@@ -1,8 +1,6 @@
 ﻿using Editor.MapEditor;
 using Editor.NodeEditor;
 using Facepunch.ActionGraphs;
-using Sandbox;
-using Sandbox.ActionGraphs;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -12,10 +10,15 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Sandbox;
+using Sandbox.ActionGraphs;
 using Connection = Editor.NodeEditor.Connection;
 
 namespace Editor.ActionGraphs;
 
+/// <summary>
+/// Graph view widget for an <see cref="ActionGraph"/>.
+/// </summary>
 public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 {
 	private static Action<ActionGraphResource> ResourceSaved;
@@ -33,29 +36,6 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 	{
 		get => _cachedConnectionStyle ??= EditorCookie.Get( "actiongraph.gridwires", false );
 		set => EditorCookie.Set( "actiongraph.gridwires", _cachedConnectionStyle = value );
-	}
-
-	[Event( "actiongraph.inspect" )]
-	private static void OnInspect( IMessageContext context )
-	{
-		var graph = context.ActionGraph;
-
-		var view = Open( graph );
-
-		switch ( context )
-		{
-			case Node.IParameter parameter:
-				view.SelectNode( parameter.Node );
-				break;
-			case Node node:
-				view.SelectNode( node );
-				break;
-			case Link link:
-				view.SelectLink( link );
-				break;
-		}
-
-		view.CenterOnSelection();
 	}
 
 	private static void OpenContainingResource( ActionGraph actionGraph )
@@ -99,6 +79,11 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 			resource.Graph.SourceLocation = new GameResourceSourceLocation( resource );
 		}
 
+		return Open( resource );
+	}
+
+	public static ActionGraphView Open( ActionGraphResource resource )
+	{
 		return Open( resource.Graph );
 	}
 
@@ -146,12 +131,10 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 	{
 		if ( AllViews.TryGetValue( graph, out var view ) )
 		{
-			view.Graph.UpdateNodes();
+			view.EditorGraph.UpdateNodes();
 			view.RebuildFromGraph();
 		}
 	}
-
-	private LinkDebugger _linkDebugger;
 
 	private class Pulse
 	{
@@ -167,21 +150,13 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 
 	protected override string ClipboardIdent => "actiongraph";
 
-	public Facepunch.ActionGraphs.ActionGraph ActionGraph { get; private set; }
+	public ActionGraph ActionGraph { get; }
+	public EditorActionGraph EditorGraph { get; }
 
 	internal UndoStack UndoStack { get; }
-
-	public new EditorActionGraph Graph
-	{
-		get => (EditorActionGraph)base.Graph;
-		set => base.Graph = value;
-	}
-
 	public MainWindow Window { get; set; }
 
-	protected override string ViewCookie => $"actiongraph.{Graph.Graph.Guid}";
-
-	public event Action Saved;
+	protected override string ViewCookie => $"actiongraph.{EditorGraph.Graph.Guid}";
 
 	public override ConnectionStyle ConnectionStyle => EnableGridAlignedWires
 		? GridConnectionStyle.Instance
@@ -190,10 +165,25 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 	private ConnectionStyle _oldConnectionStyle;
 	private WarningFrame _warningFrame;
 
+	private object _lastHostObject;
+
+	public SerializedProperty Property
+	{
+		get
+		{
+			if ( _lastHostObject == EditorGraph.HostObject && PropertyContainsGraph( field, ActionGraph ) )
+			{
+				return field;
+			}
+
+			_lastHostObject = EditorGraph.HostObject;
+
+			return field = ResolveProperty( _lastHostObject, ActionGraph, null );
+		}
+	}
+
 	public ActionGraphView( ActionGraph actionGraph ) : base( null )
 	{
-		ResourceSaved += OnResourceSaved;
-
 		if ( actionGraph.SourceLocation is null )
 		{
 			Log.Warning( $"Unknown source location for ActionGraph \"{actionGraph.Title}\"!" );
@@ -202,29 +192,22 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 		Name = $"View:{actionGraph.Guid}";
 
 		ActionGraph = actionGraph;
-		Graph = new EditorActionGraph( actionGraph );
 
-		Graph.GraphPropertiesChanged += UpdateTitle;
+		base.Graph = EditorGraph = new EditorActionGraph( actionGraph );
+
+		ActionGraph.LinkTriggered += OnLinkTriggered;
+		EditorGraph.GraphPropertiesChanged += UpdateTitle;
 
 		UpdateTitle();
 
-		UndoStack = new UndoStack( () => Graph!.Serialize() );
-
-		OnSelectionChanged += SelectionChanged;
-
-		try
-		{
-			_linkDebugger = ActionGraphDebugger.StartListening( actionGraph );
-			_linkDebugger.Triggered += OnLinkTriggered;
-		}
-		catch ( Exception e )
-		{
-			Log.Error( e );
-		}
+		UndoStack = new UndoStack( () => EditorGraph!.Serialize() );
 
 		Layout = Layout.Column();
 
 		_warningFrame = Layout.Add( new WarningFrame() );
+
+		OnSelectionChanged += SelectionChanged;
+		ResourceSaved += OnResourceSaved;
 	}
 
 	private void UpdateTitle()
@@ -236,9 +219,12 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 
 	public Connection GetConnection( Link link )
 	{
+		// Being careful about Input / Output being null here, which will happen while you drag a new
+		// connection from a node
+
 		return Items.OfType<Connection>()
-			.FirstOrDefault( x => x.Input.Inner is ActionInputPlug plugIn && plugIn.Parameter == link.Target
-				&& x.Output.Inner is ActionOutputPlug plugOut && plugOut.Parameter == link.Source );
+			.FirstOrDefault( x => x.Input?.Inner is ActionInputPlug plugIn && plugIn.Parameter == link.Target
+				&& x.Output?.Inner is ActionOutputPlug plugOut && plugOut.Parameter == link.Source );
 	}
 
 	public (PlugOut Source, PlugIn Target) GetPlugs( Link link )
@@ -259,14 +245,27 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 
 	private Scene.ISceneEditorSession GetSceneEditorSession()
 	{
+		var hostResource = EditorGraph.HostResource;
+
 		if ( HammerSceneEditorSession.Resolve( ActionGraph.SourceLocation ) is { } hammerSession )
 		{
 			return hammerSession;
 		}
 
-		if ( SceneEditorSession.Resolve( ActionGraph.SourceLocation ) is { } sceneSession )
+		if ( hostResource is SceneFile sceneFile )
 		{
-			return sceneSession;
+			if ( SceneEditorSession.Resolve( sceneFile ) is { } sceneSession )
+			{
+				return sceneSession;
+			}
+		}
+
+		if ( hostResource is PrefabFile prefabFile )
+		{
+			if ( SceneEditorSession.Resolve( prefabFile ) is { } prefabSession )
+			{
+				return prefabSession;
+			}
 		}
 
 		return null;
@@ -277,7 +276,7 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 		ActionGraph.RemoveUnusedChildNodes();
 		ActionGraph.UpdateReferences();
 
-		Saved?.Invoke();
+		// Saved?.Invoke();
 
 		if ( GetSceneEditorSession() is not { } session )
 		{
@@ -406,9 +405,9 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 		{
 			_needsRebuilding = false;
 
-			Graph.Graph.Validate( true );
+			EditorGraph.Graph.Validate( true );
 
-			foreach ( var node in Graph.Nodes.OfType<EditorNode>() )
+			foreach ( var node in EditorGraph.Nodes.OfType<EditorNode>() )
 			{
 				node.MarkDirty();
 			}
@@ -421,7 +420,7 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 			PulseValueInspector.Value = pulse.Value;
 		}
 
-		var updated = Graph.Update();
+		var updated = EditorGraph.Update();
 
 		if ( updated.Any() )
 		{
@@ -451,24 +450,29 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 
 	private void UpdateWarningFrame()
 	{
-		_warningFrame.Text = null;
+		string warning = null;
 
-		if ( ActionGraph.SourceLocation is null )
+		var hostObject = EditorGraph.HostObject;
+		var hostResource = EditorGraph.HostResource;
+
+		if ( hostResource is null )
 		{
-			_warningFrame.Text = "Graph has no valid source location, so can't be saved!";
+			warning = "Graph has no valid source location, so can't be saved!";
 		}
-		else if ( ActionGraph.SourceLocation is GameResourceSourceLocation { Resource: SceneFile { ResourcePath: null } } )
+		else if ( hostResource is { IsValid: false } )
 		{
-			_warningFrame.Text = "Graph is from play mode, so can't be saved!";
+			warning = "Graph is from a deleted resource, so can't be saved!";
 		}
-		else if ( ActionGraph.SourceLocation is GameResourceSourceLocation { Resource.IsValid: false } )
+		else if ( hostObject is IValid { IsValid: false } )
 		{
-			_warningFrame.Text = "Graph is from a deleted resource, so can't be saved!";
+			warning = "Graph is from a destroyed object, so can't be saved!";
 		}
-		else if ( ActionGraph.GetEmbeddedTarget() is GameObject { IsValid: false } )
+		else if ( Property?.IsValid is not true )
 		{
-			_warningFrame.Text = "Graph is from a destroyed object, so can't be saved!";
+			warning = $"Graph is no longer referenced, so can't be saved!";
 		}
+
+		_warningFrame.Text = warning;
 	}
 
 	[EditorEvent.Hotload]
@@ -488,7 +492,7 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 
 	void AssetSystem.IEventListener.OnAssetThumbGenerated( Asset asset )
 	{
-		foreach ( var node in Graph.Nodes.OfType<EditorNode>() )
+		foreach ( var node in EditorGraph.Nodes.OfType<EditorNode>() )
 		{
 			if ( node.Definition.Identifier != "resource.ref" ) continue;
 			if ( !node.Node.Properties.TryGetValue( "value", out var valueProperty ) ) continue;
@@ -600,7 +604,7 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 
 	public void SelectNode( Node node )
 	{
-		var actionNode = Graph.FindNode( node );
+		var actionNode = EditorGraph.FindNode( node );
 
 		SelectNode( actionNode );
 	}
@@ -645,7 +649,7 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 
 		foreach ( var invalidNode in invalidNodes )
 		{
-			Graph.RemoveNode( (EditorNode)invalidNode.Node );
+			EditorGraph.RemoveNode( (EditorNode)invalidNode.Node );
 			invalidNode.Destroy();
 		}
 
@@ -715,7 +719,7 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 	{
 		var avgPos = nodes.Aggregate( Vector2.Zero, ( s, x ) => s + x.NodeUI.Position ) / nodes.Count;
 
-		var actionGraph = Graph.Graph;
+		var actionGraph = EditorGraph.Graph;
 		var result = await actionGraph.CreateSubGraphAsync(
 			nodes.Select( x => x.ActionNode ),
 			EditorJsonOptions,
@@ -738,9 +742,9 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 			return null;
 		}
 
-		var newNode = new EditorNode( Graph, result.Value.GraphNode );
+		var newNode = new EditorNode( EditorGraph, result.Value.GraphNode );
 
-		Graph.AddNode( newNode );
+		EditorGraph.AddNode( newNode );
 
 		RemoveInvalidElements();
 		BuildFromNodes( new[] { newNode }, true, default, true );
@@ -761,7 +765,7 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 			.Where( x => x.ActionNode != null )
 			.ToArray();
 
-		var actionGraph = Graph.Graph;
+		var actionGraph = EditorGraph.Graph;
 
 		if ( !actionGraph.CanCreateSubGraph( selectedNodes.Select( x => x.ActionNode ) ) )
 		{
@@ -805,14 +809,14 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 
 					MainAssetBrowser.Instance?.Local.UpdateAssetList();
 
-					var graphNode = Graph.Graph.AddNode( EditorNodeLibrary.Graph );
+					var graphNode = EditorGraph.Graph.AddNode( EditorNodeLibrary.Graph );
 
 					graphNode.Properties["graph"].Value = asset.Path;
 					graphNode.UpdateParameters();
 
 					var targetInput = graphNode.Inputs.Values.FirstOrDefault( x => x.IsTarget );
 
-					if ( targetInput is not null && Graph.Graph.TargetOutput is { } targetOutput )
+					if ( targetInput is not null && EditorGraph.Graph.TargetOutput is { } targetOutput )
 					{
 						targetInput.SetLink( targetOutput );
 					}
@@ -880,23 +884,21 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 	{
 		if ( !UndoStack.CanUndo ) return;
 
-		Graph.Deserialize( UndoStack.Undo() );
-		BuildFromNodes( Graph.Nodes, false );
+		EditorGraph.Deserialize( UndoStack.Undo() );
+		BuildFromNodes( EditorGraph.Nodes, false );
 	}
 
 	public void Redo()
 	{
 		if ( !UndoStack.CanRedo ) return;
 
-		Graph.Deserialize( UndoStack.Redo() );
-		BuildFromNodes( Graph.Nodes, false );
+		EditorGraph.Deserialize( UndoStack.Redo() );
+		BuildFromNodes( EditorGraph.Nodes, false );
 	}
 
 	public override void OnDestroyed()
 	{
-		_linkDebugger?.Dispose();
-		_linkDebugger = null;
-
+		ActionGraph.LinkTriggered -= OnLinkTriggered;
 		ResourceSaved -= OnResourceSaved;
 
 		if ( AllViews.TryGetValue( ActionGraph, out var inst ) && inst == this )
@@ -909,14 +911,9 @@ public partial class ActionGraphView : GraphView, AssetSystem.IEventListener
 		base.OnDestroyed();
 	}
 
-	public void LogLastCompiled()
+	public void LogExpression()
 	{
-		if ( !ActionGraphDebugger.TryGetCompiled( ActionGraph.Guid, out var expression ) )
-		{
-			Log.Warning( $"Graph not compiled yet, graphs get compiled when first executed." );
-			return;
-		}
-
+		var expression = ActionGraph.BuildExpression();
 		var debugView = typeof( Expression ).GetProperty( "DebugView", BindingFlags.Instance | BindingFlags.NonPublic )!
 			.GetValue( expression );
 

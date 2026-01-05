@@ -243,11 +243,11 @@ file sealed class CompressedSampleBlockConverter<T> : JsonConverter<CompiledSamp
 
 	public override void Write( Utf8JsonWriter writer, CompiledSampleBlock<T> value, JsonSerializerOptions options )
 	{
-		var stream = ByteStream.Create( 16 * value.Samples.Length + 4 );
+		using var stream = ByteStream.Create( 16 * value.Samples.Length + 4 );
 
 		stream.WriteArray( value.Samples.AsSpan() );
 
-		var compressed = stream.Compress();
+		using var compressed = stream.Compress();
 		var base64 = Convert.ToBase64String( compressed.ToArray() );
 		var model = new Model( value.TimeRange, value.Offset, value.SampleRate, base64 );
 
@@ -266,8 +266,8 @@ file sealed class CompressedSampleBlockConverter<T> : JsonConverter<CompiledSamp
 		}
 		else if ( model.Samples.GetValue<string>() is { } base64 )
 		{
-			var compressed = ByteStream.CreateReader( Convert.FromBase64String( base64 ) );
-			var stream = compressed.Decompress();
+			using var compressed = ByteStream.CreateReader( Convert.FromBase64String( base64 ) );
+			using var stream = compressed.Decompress();
 
 			samples = stream.ReadArraySpan<T>( 0x10_0000 ).ToImmutableArray();
 		}

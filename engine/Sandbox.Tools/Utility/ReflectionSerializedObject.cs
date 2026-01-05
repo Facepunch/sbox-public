@@ -15,7 +15,19 @@ class ReflectionSerializedObject : SerializedObject
 	public override string TypeName => TargetObject.GetType().Name;
 	public override string TypeTitle => TypeName;
 
-	public override bool IsValid => (TargetObject as IValid)?.IsValid() ?? TargetObject is not null;
+	public override bool IsValid
+	{
+		// If we're targeting an IValid just ask that,
+		// if target is null we're definitely invalid,
+		// otherwise use base implementation that checks our parent.
+
+		get => TargetObject switch
+		{
+			IValid target => target.IsValid,
+			null => false,
+			_ => base.IsValid
+		};
+	}
 
 	public ReflectionSerializedObject( object target )
 	{

@@ -98,12 +98,20 @@ public abstract class BaseGameMount
 
 	}
 
-	readonly Dictionary<string, ResourceLoader> _entries = [];
+	readonly Dictionary<string, ResourceLoader> _entries = new Dictionary<string, ResourceLoader>( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
 	/// All of the resources in this game
 	/// </summary>
 	public IReadOnlyCollection<ResourceLoader> Resources => _entries.Values;
+
+	/// <summary>
+	/// Retrieves the resource loader associated with the specified path, if it exists.
+	/// </summary>
+	public ResourceLoader GetByPath( string path )
+	{
+		return _entries.TryGetValue( path, out var entry ) ? entry : default;
+	}
 
 	public ResourceFolder RootFolder { get; internal set; }
 

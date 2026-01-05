@@ -1,4 +1,4 @@
-﻿
+﻿using System;
 using System.Text.Json.Serialization;
 
 namespace Sandbox;
@@ -89,16 +89,8 @@ internal record struct Line2D( Vector2 Start, Vector2 End )
 	public readonly Line2D Remap( Rect oldRange, Rect newRange )
 	{
 		return new Line2D(
-			Start.Remap( oldRange, newRange, false ),
-			End.Remap( oldRange, newRange, false ) );
-	}
-
-	/// <summary>
-	/// Remaps from one range to another, clipping along the way.
-	/// </summary>
-	public readonly Line2D? RemapClip( Rect oldRange, Rect newRange )
-	{
-		return Clip( oldRange )?.Remap( oldRange, newRange );
+			Start.Remap( oldRange, newRange ),
+			End.Remap( oldRange, newRange ) );
 	}
 
 	/// <summary>
@@ -139,5 +131,70 @@ internal record struct Line2D( Vector2 Start, Vector2 End )
 		var pos = Start + (End - Start) * pivot;
 
 		return new Line2D( pos - along * pivot, pos + along * (1f - pivot) );
+	}
+}
+
+internal static class LineExtensions
+{
+	/// <summary>
+	/// Remaps from one range to another.
+	/// </summary>
+	public static Vector2 Remap( this Vector2 vector, Rect oldRange, Rect newRange )
+	{
+		return new Vector2(
+			vector.x.Remap( oldRange.Left, oldRange.Right, newRange.Left, newRange.Right, false ),
+			vector.y.Remap( oldRange.Top, oldRange.Bottom, newRange.Top, newRange.Bottom, false ) );
+	}
+
+	/// <summary>
+	/// Returns this line, clamped on the positive side of a plane. Null if
+	/// line is fully clipped.
+	/// </summary>
+	public static Line? Clip( this Line line, Plane plane )
+	{
+		var startDot = Vector3.Dot( line.Start, plane.Normal ) - plane.Distance;
+		var endDot = Vector3.Dot( line.End, plane.Normal ) - plane.Distance;
+
+		// Fully on positive side
+
+		if ( startDot >= 0f && endDot >= 0f )
+		{
+			return line;
+		}
+
+		// Fully on negative side
+
+		if ( startDot < 0f && endDot < 0f )
+		{
+			return null;
+		}
+
+		var t = -startDot / (endDot - startDot);
+		var clipped = line.Start + (line.End - line.Start) * t;
+
+		return startDot < 0f
+			? new Line( clipped, line.End )
+			: new Line( line.Start, clipped );
+	}
+
+	/// <summary>
+	/// Projects a line in world space to screen coords, returning null if the line is
+	/// fully behind the camera.
+	/// </summary>
+	public static Line2D? ToScreen( this SceneCamera camera, Line worldLine )
+	{
+		var forward = camera.Rotation.Forward;
+
+		// Clip line to be fully in front of near plane
+
+		if ( worldLine.Clip( new Plane( camera.Position + forward * camera.ZNear, forward ) ) is not { } clipped )
+		{
+			return null;
+		}
+
+		if ( !camera.ToScreen( clipped.Start, out var start ) ) return null;
+		if ( !camera.ToScreen( clipped.End, out var end ) ) return null;
+
+		return new Line2D( start, end );
 	}
 }

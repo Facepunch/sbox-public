@@ -74,7 +74,7 @@ internal class VTexWriter
 
 	public byte[] GetData()
 	{
-		ByteStream buffer = ByteStream.Create( 256 );
+		using var buffer = ByteStream.Create( 256 );
 		buffer.Write( Header );
 
 		buffer.Write( (int)0 ); // extra data offset
@@ -85,7 +85,7 @@ internal class VTexWriter
 
 	public byte[] GetStreamingData()
 	{
-		ByteStream buffer = ByteStream.Create( 256 );
+		using var buffer = ByteStream.Create( 256 );
 
 		var outputFormat = VTexWriter.VTEX_FormatToRuntime( Header.Format );
 

@@ -16,18 +16,16 @@ public sealed class PositionMode : MoveMode
 	private Vector3 _origin;
 	private Rotation _basis;
 
+	public override void OnBegin( SelectionTool tool )
+	{
+		_basis = tool.CalculateSelectionBasis();
+		_origin = tool.Pivot;
+		_moveDelta = default;
+	}
+
 	protected override void OnUpdate( SelectionTool tool )
 	{
 		var origin = tool.Pivot;
-
-		if ( !Gizmo.Pressed.Any )
-		{
-			tool.EndDrag();
-
-			_basis = tool.CalculateSelectionBasis();
-			_origin = origin;
-			_moveDelta = default;
-		}
 
 		using ( Gizmo.Scope( "Tool", new Transform( origin ) ) )
 		{

@@ -104,6 +104,15 @@ internal class RemoteSnapshotState
 	}
 
 	/// <summary>
+	/// Remove an entry from the specified slot.
+	/// </summary>
+	public void Remove( int slot )
+	{
+		_predictedData.Remove( slot );
+		Data.Remove( slot );
+	}
+
+	/// <summary>
 	/// Try to get the serialized byte array value from the specified slot.
 	/// </summary>
 	public bool TryGetValue( int slot, out byte[] value, float timeNow )

@@ -14,17 +14,15 @@ public sealed class ResizeMode : MoveMode
 	private BBox _deltaBox;
 	private BBox _box;
 
+	public override void OnBegin( SelectionTool tool )
+	{
+		_startBox = tool.CalculateSelectionBounds();
+		_deltaBox = default;
+		_box = _startBox;
+	}
+
 	protected override void OnUpdate( SelectionTool tool )
 	{
-		if ( !Gizmo.Pressed.Any )
-		{
-			tool.EndDrag();
-
-			_startBox = tool.CalculateSelectionBounds();
-			_deltaBox = default;
-			_box = _startBox;
-		}
-
 		var size = _startBox.Size;
 		if ( size.x.AlmostEqual( 0.0f ) ) return;
 		if ( size.y.AlmostEqual( 0.0f ) ) return;

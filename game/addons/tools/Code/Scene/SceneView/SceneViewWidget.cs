@@ -340,13 +340,6 @@ file class ViewportToolBar : Widget
 
 			toolWidget.Focus();
 		}
-		else
-		{
-			if ( SceneViewWidget.Current?.LastSelectedViewportWidget?.IsValid() ?? false )
-			{
-				SceneViewWidget.Current.LastSelectedViewportWidget.Focus();
-			}
-		}
 
 		// Update footer
 		var footerWidget = subTool?.CreateToolFooter() ?? rootTool?.CreateToolFooter();

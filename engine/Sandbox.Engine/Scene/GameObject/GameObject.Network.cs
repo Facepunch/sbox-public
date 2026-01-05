@@ -72,6 +72,13 @@ public partial class GameObject
 	/// </summary>
 	[Sync, Expose] private NetworkOrphaned NetworkOrphaned { get; set; } = NetworkOrphaned.Destroy;
 
+
+	/// <summary>
+	/// Network flags that describe the behavior of this <see cref="GameObject"/> as a <see cref="NetworkObject"/>.
+	/// </summary>
+	[Property, Sync( SyncFlags.FromHost ), Expose]
+	private NetworkFlags NetworkFlags { get; set; } = NetworkFlags.None;
+
 	/// <summary>
 	/// Determines whether updates for this networked object are always transmitted to clients. Otherwise,
 	/// they are only transmitted when the object is determined as visible to each client.
@@ -81,8 +88,11 @@ public partial class GameObject
 	/// <summary>
 	/// Whether our networked transform will be interpolated. This property will only
 	/// be synchronized for a root network object.
+	///
+	/// Obsolete: 09/12/2025
 	/// </summary>
-	[Property, Sync, Expose] public bool NetworkInterpolation { get; set; } = true;
+	[Obsolete( "Use Network.Interpolation or Network.Flags" )]
+	[Property, Expose] public bool NetworkInterpolation { get; set; } = true;
 
 	/// <summary>
 	/// Spawn on the network. If you have permission to spawn entities, this will spawn on
@@ -134,6 +144,9 @@ public partial class GameObject
 
 			if ( options.AlwaysTransmit.HasValue )
 				AlwaysTransmit = options.AlwaysTransmit.Value;
+
+			if ( options.Flags.HasValue )
+				NetworkFlags = options.Flags.Value;
 
 			// Give us a network object
 			_net = new NetworkObject( this );
@@ -583,6 +596,16 @@ public partial class GameObject
 		internal ushort SnapshotVersion => go._net?.SnapshotVersion ?? 0;
 
 		/// <summary>
+		/// Network flags which describe the behavior of this networked object.
+		/// <b>Can only be changed by the host after the networked object has been spawned.</b>
+		/// </summary>
+		public NetworkFlags Flags
+		{
+			get => go.NetworkFlags;
+			set => go.NetworkFlags = value;
+		}
+
+		/// <summary>
 		/// Determines whether updates for this networked object are always transmitted to clients. Otherwise,
 		/// they are only transmitted when the object is determined as visible to each client.
 		/// </summary>
@@ -604,25 +627,49 @@ public partial class GameObject
 		/// <summary>
 		/// Whether the networked object's transform is interpolated.
 		/// </summary>
-		public bool Interpolation => go.NetworkInterpolation;
+		public bool Interpolation
+		{
+			get => (Flags & NetworkFlags.NoInterpolation) == 0;
+			set
+			{
+				if ( IsProxy && !Networking.IsHost )
+					return;
+
+				if ( Interpolation == value )
+					return;
+
+				if ( value )
+					Flags &= ~NetworkFlags.NoInterpolation;
+				else
+					Flags |= NetworkFlags.NoInterpolation;
+			}
+		}
 
 		/// <summary>
 		/// Enable interpolation for the networked object's transform.
+		/// Obsolete: 09/12/2025
 		/// </summary>
+		[Obsolete( "Use Interpolation Property" )]
 		public bool EnableInterpolation()
 		{
-			if ( IsProxy ) return false;
-			go.NetworkInterpolation = true;
+			if ( IsProxy && !Networking.IsHost )
+				return false;
+
+			Interpolation = true;
 			return true;
 		}
 
 		/// <summary>
 		/// Disable interpolation for the networked object's transform.
+		/// Obsolete: 09/12/2025
 		/// </summary>
+		[Obsolete( "Use Interpolation Property" )]
 		public bool DisableInterpolation()
 		{
-			if ( IsProxy ) return false;
-			go.NetworkInterpolation = false;
+			if ( IsProxy && !Networking.IsHost )
+				return false;
+
+			Interpolation = false;
 			return true;
 		}
 

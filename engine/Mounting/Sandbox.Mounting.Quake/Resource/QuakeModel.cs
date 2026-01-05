@@ -189,7 +189,7 @@ class QuakeModel( string pakDir, string fileName ) : ResourceLoader<QuakeMount>
 			}
 		}
 
-		mesh.CreateVertexBuffer( uniqueVertices.Count, SimpleVertex.Layout, uniqueVertices );
+		mesh.CreateVertexBuffer( uniqueVertices.Count, uniqueVertices );
 		mesh.CreateIndexBuffer( indices.Length, indices );
 		mesh.Bounds = BBox.FromPoints( uniqueVertices.Select( x => x.position ) );
 

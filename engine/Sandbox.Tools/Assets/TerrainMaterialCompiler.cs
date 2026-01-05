@@ -13,8 +13,6 @@ internal class TerrainMaterialCompiler : ResourceCompiler
 		var filename = Context.AbsolutePath;
 		var jsonString = File.ReadAllText( filename );
 
-		Log.Info( $"tryna compile {filename}" );
-
 		var docOptions = new JsonDocumentOptions();
 		docOptions.MaxDepth = 512;
 

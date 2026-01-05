@@ -434,7 +434,8 @@ public class RectView : Widget
 		if ( texture is null )
 			return;
 
-		SourceImage = Pixmap.FromTexture( texture, false );
+		RenderMaterial( material, texture.Size );
+
 		if ( SourceImage is null )
 			return;
 
@@ -444,6 +445,40 @@ public class RectView : Widget
 		{
 			DrawRectUv();
 		}
+	}
+
+	void RenderMaterial( Material material, Vector2 size )
+	{
+		var world = new SceneWorld
+		{
+			AmbientLightColor = Color.White
+		};
+
+		var camera = new SceneCamera
+		{
+			BackgroundColor = Color.Red,
+			Ortho = true,
+			Position = Vector3.Backward,
+			Rotation = Rotation.Identity,
+			OrthoHeight = 100,
+			AmbientLightColor = Color.White,
+			World = world
+		};
+
+		var model = Model.Load( "models/dev/plane_blend.vmdl" );
+		var obj = new SceneObject( world, model )
+		{
+			Position = Vector3.Zero,
+			Rotation = Rotation.From( 90, 180, 0 ),
+		};
+		obj.SetMaterialOverride( material );
+
+		SourceImage = new Pixmap( size );
+		if ( !camera.RenderToPixmap( SourceImage ) )
+			SourceImage = null;
+
+		world.Delete();
+		camera.Dispose();
 	}
 
 	private void DrawRectUv()

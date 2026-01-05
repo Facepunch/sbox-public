@@ -82,7 +82,7 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 		var motionBlurEnabled = MotionBlur;
 		const float blurReciprocal = 0.02f;
 
-		var fogStrength = FogStrength;
+		var packedFogAndAlpha = SpriteData.PackFogAndAlphaCutout( this.FogStrength, 0.001f );
 		var depthFeather = DepthFeather;
 		var blurOpacity = BlurOpacity;
 		var origin = Pivot;
@@ -156,7 +156,7 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 				spritePtr->OverlayColor = overlayColor.RawInt;
 				spritePtr->RenderFlags = 0;
 				spritePtr->BillboardMode = billboardModeUint;
-				spritePtr->FogStrength = fogStrength;
+				spritePtr->FogStrengthCutout = packedFogAndAlpha;
 				spritePtr->Lighting = packedExponent;
 				spritePtr->DepthFeather = depthFeather;
 				spritePtr->SamplerIndex = samplerIndex;

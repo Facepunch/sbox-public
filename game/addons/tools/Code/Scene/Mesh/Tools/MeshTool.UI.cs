@@ -21,21 +21,21 @@ partial class MeshTool
 
 file class MeshToolShortcutsWidget : Widget
 {
-	[Shortcut( "tools.primitive-tool", "Shift+B", typeof( SceneDock ) )]
+	[Shortcut( "tools.primitive-tool", "Shift+B", typeof( SceneViewWidget ) )]
 	public void ActivatePrimitiveTool() => EditorToolManager.SetSubTool( nameof( PrimitiveTool ) );
 
-	[Shortcut( "tools.vertex-tool", "1", typeof( SceneDock ) )]
+	[Shortcut( "tools.vertex-tool", "1", typeof( SceneViewWidget ) )]
 	public void ActivateVertexTool() => EditorToolManager.SetSubTool( nameof( VertexTool ) );
 
-	[Shortcut( "tools.edge-tool", "2", typeof( SceneDock ) )]
+	[Shortcut( "tools.edge-tool", "2", typeof( SceneViewWidget ) )]
 	public void ActivateEdgeTool() => EditorToolManager.SetSubTool( nameof( EdgeTool ) );
 
-	[Shortcut( "tools.face-tool", "3", typeof( SceneDock ) )]
+	[Shortcut( "tools.face-tool", "3", typeof( SceneViewWidget ) )]
 	public void ActivateFaceTool() => EditorToolManager.SetSubTool( nameof( FaceTool ) );
 
-	[Shortcut( "tools.texture-tool", "4", typeof( SceneDock ) )]
+	[Shortcut( "tools.texture-tool", "4", typeof( SceneViewWidget ) )]
 	public void ActivateTextureTool() => EditorToolManager.SetSubTool( nameof( TextureTool ) );
 
-	[Shortcut( "tools.mesh-selection", "5", typeof( SceneDock ) )]
+	[Shortcut( "tools.mesh-selection", "5", typeof( SceneViewWidget ) )]
 	public void ActivateMeshSelection() => EditorToolManager.SetSubTool( nameof( MeshSelection ) );
 }

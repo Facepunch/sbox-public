@@ -36,8 +36,6 @@ internal class ToolsDll : IToolsDll
 
 		EditorCookie = new CookieContainer( "tools" );
 
-		ActionGraphDebugger.Enabled = true;
-
 		// make sure mixer is initialized at least once
 		Mixer.ResetToDefault();
 
@@ -303,6 +301,19 @@ internal class ToolsDll : IToolsDll
 			g_pToolFramework2.Tools_OnIdle( 0 );
 			g_pToolFramework2.Tools_UnloadPending();
 		}
+	}
+
+
+	public Bitmap GetThumbnail( string filename )
+	{
+		var asset = AssetSystem.FindByPath( filename );
+		if ( asset is null ) return null;
+
+		var thumb = asset.GetAssetThumb( true );
+
+		// Sorry - we have no fast GetPixels
+		var pixels = thumb.GetPng();
+		return Bitmap.CreateFromBytes( pixels );
 	}
 
 }

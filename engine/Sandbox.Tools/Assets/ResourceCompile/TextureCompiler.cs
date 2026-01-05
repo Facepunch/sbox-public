@@ -59,6 +59,31 @@ public class TextureResourceCompiler : ResourceCompiler
 		writer.Header.Depth = (ushort)depth;
 		writer.Header.MipCount = (byte)mipCount;
 
+		var desc = texture.Desc;
+		var flags = VTexWriter.VTEX_Flags_t.NONE;
+
+		if ( desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_CUBE_TEXTURE ) )
+		{
+			flags |= VTexWriter.VTEX_Flags_t.VTEX_FLAG_CUBE_TEXTURE;
+		}
+
+		if ( desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_VOLUME_TEXTURE ) )
+		{
+			flags |= VTexWriter.VTEX_Flags_t.VTEX_FLAG_VOLUME_TEXTURE;
+		}
+
+		if ( desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_TEXTURE_ARRAY ) )
+		{
+			flags |= VTexWriter.VTEX_Flags_t.VTEX_FLAG_TEXTURE_ARRAY;
+		}
+
+		if ( desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_NO_LOD ) )
+		{
+			flags |= VTexWriter.VTEX_Flags_t.VTEX_FLAG_NO_LOD;
+		}
+
+		writer.Header.Flags = flags;
+
 		writer.CalculateFormat();
 
 		Context.Data.Write( writer.GetData() );

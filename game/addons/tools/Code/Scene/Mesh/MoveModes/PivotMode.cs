@@ -15,6 +15,12 @@ public sealed class PivotMode : MoveMode
 
 	public override bool AllowSceneSelection => !Application.IsKeyDown( KeyCode.Space );
 
+	public override void OnBegin( SelectionTool tool )
+	{
+		_pivot = tool.Pivot;
+		_basis = tool.CalculateSelectionBasis();
+	}
+
 	protected override void OnUpdate( SelectionTool tool )
 	{
 		if ( Application.IsKeyDown( KeyCode.Space ) && Gizmo.HasMouseFocus )
@@ -24,12 +30,6 @@ public sealed class PivotMode : MoveMode
 		}
 
 		var origin = tool.Pivot;
-
-		if ( !Gizmo.Pressed.Any )
-		{
-			_pivot = origin;
-			_basis = tool.CalculateSelectionBasis();
-		}
 
 		using ( Gizmo.Scope( "Tool", new Transform( origin ) ) )
 		{

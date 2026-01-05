@@ -121,7 +121,7 @@ public partial class PartyRoom : ILobby
 		if ( !VoiceCommunicationAllowed )
 			return;
 
-		var bs = ByteStream.Create( 32 );
+		using var bs = ByteStream.Create( 32 );
 		bs.Write( MessageIdentity.VoiceMessage );
 		bs.WriteArray( memory.ToArray() );
 

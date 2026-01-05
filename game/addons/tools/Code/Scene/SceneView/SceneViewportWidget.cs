@@ -376,7 +376,7 @@ public partial class SceneViewportWidget : Widget
 		if ( e.KeyboardModifiers == KeyboardModifiers.None && e.Button == MouseButtons.Right &&
 			 Vector2.DistanceBetween( initialMousePosition, e.LocalPosition ) < 6 )
 		{
-			var menu = new ContextMenu( this );
+			var menu = new ContextMenu( this ) { Searchable = true };
 			bool HasSelection = Session.Selection.OfType<GameObject>().Any();
 			menu.AddOption( "Cut", "content_cut", EditorScene.Cut, "editor.cut" ).Enabled = HasSelection;
 			menu.AddOption( "Copy", "content_copy", EditorScene.Copy, "editor.copy" ).Enabled = HasSelection;

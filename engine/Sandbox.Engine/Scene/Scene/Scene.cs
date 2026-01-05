@@ -162,9 +162,6 @@ public partial class Scene : GameObject
 
 		var timeScope = Time.Scope( TimeNow, TimeDelta );
 
-		// Make sure ActionGraphDebugger starts listening for ActionGraphs being deserialized / created
-		ActionGraphs.ActionGraphDebugger.Tick();
-
 		return DisposeAction.Create( () =>
 		{
 			ThreadSafe.AssertIsMainThread();

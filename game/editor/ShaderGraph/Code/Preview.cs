@@ -911,7 +911,7 @@ public class Preview : SceneRenderingWidget
 	{
 		var material = Material.Load( "materials/dev/gray_grid_8.vmat" );
 		var mesh = new Mesh( material );
-		mesh.CreateVertexBuffer<Vertex>( 4, Vertex.Layout, new[]
+		mesh.CreateVertexBuffer( 4, new[]
 		{
 			new Vertex( new Vector3( -200, -200, 0 ), Vector3.Up, Vector3.Forward, new Vector4( 0, 0, 0, 0 ) ),
 			new Vertex( new Vector3( 200, -200, 0 ), Vector3.Up, Vector3.Forward, new Vector4( 2, 0, 0, 0 ) ),
@@ -932,7 +932,7 @@ public class Preview : SceneRenderingWidget
 
 		var material = Material.Load( "materials/core/shader_editor.vmat" );
 		var mesh = new Mesh( material );
-		mesh.CreateVertexBuffer<Vertex>( (uFacets + 1) * (vFacets + 1), Vertex.Layout );
+		mesh.CreateVertexBuffer<Vertex>( (uFacets + 1) * (vFacets + 1) );
 		mesh.CreateIndexBuffer( 2 * 3 * uFacets * vFacets );
 		mesh.Bounds = BBox.FromPositionAndSize( 0, radius * 2 );
 

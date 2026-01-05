@@ -48,6 +48,11 @@ public enum AssetTypeFlags
 	/// it can only really exist as an asset file on disk, not inside another asset.
 	/// </summary>
 	NoEmbedding = 1 << 0,
+
+	/// <summary>
+	/// Include thumbnails when publishing as part of another package
+	/// </summary>
+	IncludeThumbnails = 1 << 1,
 }
 
 [Obsolete( "Use AssetType instead" )]

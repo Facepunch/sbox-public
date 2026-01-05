@@ -482,8 +482,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 
 	public override bool OnContextMenu()
 	{
-		var m = new ContextMenu( TreeView );
-
+		var m = new ContextMenu( TreeView ) { Searchable = true };
 		AddGameObjectMenuItems( m, this );
 
 		m.OpenAtCursor( false );

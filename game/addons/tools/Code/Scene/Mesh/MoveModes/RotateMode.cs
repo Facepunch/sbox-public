@@ -16,17 +16,15 @@ public sealed class RotateMode : MoveMode
 	private Vector3 _origin;
 	private Rotation _basis;
 
+	public override void OnBegin( SelectionTool tool )
+	{
+		_moveDelta = default;
+		_basis = tool.CalculateSelectionBasis();
+		_origin = tool.Pivot;
+	}
+
 	protected override void OnUpdate( SelectionTool tool )
 	{
-		if ( !Gizmo.Pressed.Any )
-		{
-			tool.EndDrag();
-
-			_moveDelta = default;
-			_basis = tool.CalculateSelectionBasis();
-			_origin = tool.Pivot;
-		}
-
 		using ( Gizmo.Scope( "Tool", new Transform( _origin, _basis ) ) )
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;

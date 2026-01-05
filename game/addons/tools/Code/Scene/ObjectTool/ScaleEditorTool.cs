@@ -1,6 +1,4 @@
-﻿using static Sandbox.VertexLayout;
-
-namespace Editor;
+﻿namespace Editor;
 
 /// <summary>
 /// Scale selected GameObjects.<br/> <br/> 
@@ -55,7 +53,7 @@ public class ScaleEditorTool : EditorTool
 	}
 
 
-	[Shortcut( "tools.scale-tool", "r", typeof( SceneDock ) )]
+	[Shortcut( "tools.scale-tool", "r", typeof( SceneViewWidget ) )]
 	public static void ActivateSubTool()
 	{
 		if ( !(EditorToolManager.CurrentModeName == nameof( ObjectEditorTool ) || EditorToolManager.CurrentModeName == "object") ) return;

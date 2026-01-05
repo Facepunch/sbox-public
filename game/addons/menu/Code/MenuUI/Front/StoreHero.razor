@@ -4,21 +4,35 @@
 @inherits Panel
 @namespace Menu
 
-@if ( DateTimeOffset.UtcNow >= EndTime )
-{
+@if (def == null)
     return;
+
+@{
+    var daysLeftString = DaysLeft == 1 ? $"1 day left" : $"{DaysLeft} days left";
 }
 
-<root onclick=@OpenStore class="active">
-    <div class="time-left">
-        <span class="number">@DaysLeft</span>
-        <span class="text">days left</span>
-    </div>
-</root>
+<div class="front-page-box">
+    <h2>Item Store</h2>
+    <Button class="clicky" Icon="@def.IconUrl" Help="@daysLeftString" Text="@def.Name" @onmousedown=@OpenStore></Button>
+</div>
 
 @code {
     public DateTimeOffset EndTime { get; set; } = DateTimeOffset.FromUnixTimeSeconds(1767258000);
-    public int DaysLeft => (int)Math.Floor((EndTime - DateTimeOffset.UtcNow).TotalDays);
+    public int DaysLeft => (int)Math.Floor((def.SellEnd.Value - DateTimeOffset.UtcNow).TotalDays);
+
+    Sandbox.Services.Inventory.ItemDefinition def;
+
+    protected override void OnParametersSet()
+    {
+        def = Sandbox.Services.Inventory.Definitions
+                .Where(x => x.SellEnd.HasValue) // is going to stop selling
+                .Where(x => x.SellEnd.Value > DateTimeOffset.UtcNow) // is currently for sale
+                .Where(x => !Sandbox.Services.Inventory.HasItem(x.Id)) // we don't own it
+                .OrderBy(x => new Guid())
+                .FirstOrDefault();
+
+        base.OnParametersSet();
+    }
 
     void OpenStore()
     {
