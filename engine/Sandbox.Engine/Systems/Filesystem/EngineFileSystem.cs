@@ -68,17 +68,17 @@ internal static class EngineFileSystem
 			CoreContent.CreateAndMount( Root, "/core/" );
 
 			Assets.CreateAndMount( Root, "/core/" );
-			Assets.CreateAndMount( Root, "/addons/base/assets" );
+			Assets.CreateAndMount( Root, "/addons/base/Assets" );
 		}
 		else
 		{
 			CoreContent.CreateAndMount( Root, "/core/" );
-			CoreContent.CreateAndMount( Root, "/addons/base/assets/" );
-			CoreContent.CreateAndMount( Root, "/addons/citizen/assets/" );
+			CoreContent.CreateAndMount( Root, "/addons/base/Assets/" );
+			CoreContent.CreateAndMount( Root, "/addons/citizen/Assets/" );
 
 			Assets.CreateAndMount( Root, "/core/" );
-			Assets.CreateAndMount( Root, "/addons/base/assets/" );
-			Assets.CreateAndMount( Root, "/addons/citizen/assets/" );
+			Assets.CreateAndMount( Root, "/addons/base/Assets/" );
+			Assets.CreateAndMount( Root, "/addons/citizen/Assets/" );
 		}
 	}
 
