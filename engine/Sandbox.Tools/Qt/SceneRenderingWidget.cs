@@ -33,6 +33,7 @@ public class SceneRenderingWidget : Frame
 	public SceneRenderingWidget( Widget parent = null ) : base( parent )
 	{
 		SetFlag( Flag.WA_NativeWindow, true );
+		SetFlag( Flag.WA_DontCreateNativeAncestors, true );
 		SetFlag( Flag.WA_PaintOnScreen, true );
 		SetFlag( Flag.WA_NoSystemBackground, true );
 		SetFlag( Flag.WA_OpaquePaintEvent, true );
