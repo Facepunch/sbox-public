@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace Sandbox;
 
@@ -73,9 +74,12 @@ public static class LauncherEnvironment
 		// Put our native dll path first so that when looking up native dlls we'll
 		// always use the ones from our folder first
 		//
-		var path = System.Environment.GetEnvironmentVariable( "PATH" );
-		path = $"{nativeDllPath};{path}";
-		System.Environment.SetEnvironmentVariable( "PATH", path );
+		if (OperatingSystem.IsWindows())
+		{
+			var path = System.Environment.GetEnvironmentVariable( "PATH" );
+			path = $"{nativeDllPath};{path}";
+			System.Environment.SetEnvironmentVariable( "PATH", path );
+		}
 	}
 
 	private static Assembly CurrentDomain_AssemblyResolve( object sender, ResolveEventArgs args )
