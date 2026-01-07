@@ -276,10 +276,18 @@ internal partial class NetworkSystem
 			if ( messageData is byte[] arr )
 			{
 				var stream = ByteStream.CreateReader( arr );
-				var type = stream.Read<InternalMessageType>();
 
-				if ( type == InternalMessageType.Packed )
-					messageData = TypeLibrary.FromBytes<object>( ref stream );
+				if ( stream.TryRead<InternalMessageType>( out var type ) )
+				{
+					if ( type == InternalMessageType.Packed )
+						messageData = TypeLibrary.FromBytes<object>( ref stream );
+				}
+				else
+				{
+					Log.Warning( "Failed to read InternalMessageType from targeted message data" );
+					stream.Dispose();
+					return;
+				}
 
 				stream.Dispose();
 			}

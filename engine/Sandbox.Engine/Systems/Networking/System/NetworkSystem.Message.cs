@@ -240,9 +240,7 @@ internal partial class NetworkSystem
 				}
 				catch ( Exception e )
 				{
-					IGameInstanceDll.Current?.Disconnect();
 					Log.Warning( e );
-					Log.Warning( "Disconnected - Connection has crashed!" );
 				}
 
 				return;
@@ -267,18 +265,12 @@ internal partial class NetworkSystem
 			catch ( Exception e )
 			{
 				Log.Warning( e );
-				OnConnectionCrashed( e.Message );
 			}
 
 			return;
 		}
 
 		Log.Info( $"Unhandled message type: {type} from {msg.Source}" );
-	}
-
-	void OnConnectionCrashed( string message )
-	{
-		Log.Warning( $"TODO: Disconnect on error ({message})" );
 	}
 
 	private void OnDeltaSnapshotMessage( InternalMessageType type, ByteStream data, Connection source )
@@ -366,7 +358,7 @@ internal partial class NetworkSystem
 
 		if ( rtt < 0 )
 		{
-			OnConnectionCrashed( "Rtt error" );
+			Log.Warning( "Round-trip time error! Round-trip time was less than zero." );
 			return;
 		}
 

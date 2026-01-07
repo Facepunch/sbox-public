@@ -30,7 +30,7 @@ public static partial class EditorUtility
 			compilerSettings.ReleaseMode = Compiler.ReleaseMode.Release;
 			compilerSettings.StripDisabledTextTrivia = true;
 
-			var compiler = compileGroup.CreateCompiler( $"{project.Config.Org}.{project.Config.Ident}", codePath, compilerSettings );
+			var compiler = compileGroup.CreateCompiler( project.Package.CompilerName, codePath, compilerSettings );
 			compiler.UseAbsoluteSourcePaths = false;
 
 			//Log.Info( $"Code Path: {addon.GetCodePath()}" );
@@ -46,15 +46,13 @@ public static partial class EditorUtility
 				{
 					await PackageManager.InstallAsync( new PackageLoadOptions( library.Package.FullIdent, "publish" ) );
 
-					var compilerName = GetLibraryCompilerName( library );
-
 					// Compile library
 					{
 						var compileSettings = new Compiler.Configuration();
 						compileSettings.Clean();
 						compileSettings.ReleaseMode = Compiler.ReleaseMode.Release;
 
-						var libCompiler = compileGroup.CreateCompiler( compilerName, library.GetCodePath(), compileSettings );
+						var libCompiler = compileGroup.CreateCompiler( library.Package.CompilerName, library.GetCodePath(), compileSettings );
 						libCompiler.UseAbsoluteSourcePaths = false;
 						libCompiler.GeneratedCode.AppendLine( "global using static Sandbox.Internal.GlobalGameNamespace;" );
 
@@ -62,17 +60,17 @@ public static partial class EditorUtility
 						libCompiler.GeneratedCode.AppendLine( "global using Microsoft.AspNetCore.Components;" );
 						libCompiler.GeneratedCode.AppendLine( "global using Microsoft.AspNetCore.Components.Rendering;" );
 
-						libCompiler.AddReference( "package.base" );
+						libCompiler.AddBaseReference();
 
 						foreach ( var reference in references )
 						{
-							libCompiler.AddReference( "package." + GetLibraryCompilerName( reference ) );
+							libCompiler.AddReference( reference.Package );
 						}
 					}
 
 					// add a reference to it from the main compiler
 					{
-						compiler.AddReference( "package." + compilerName );
+						compiler.AddReference( library.Package );
 					}
 				}
 			}
@@ -97,7 +95,7 @@ public static partial class EditorUtility
 				baseCompiler.GeneratedCode.AppendLine( "global using Microsoft.AspNetCore.Components.Rendering;" );
 
 				// reference this from the main compiler
-				compiler.AddReference( "package.base" );
+				compiler.AddReference( baseCompiler );
 			}
 
 			logOutput?.Invoke( $"Creating package.{project.Config.Org}.{project.Config.Ident} compiler" );
@@ -155,11 +153,6 @@ public static partial class EditorUtility
 		public static Compiler ResolveCompiler( Assembly assembly )
 		{
 			return Project.ResolveCompiler( assembly );
-		}
-
-		private static string GetLibraryCompilerName( Project library )
-		{
-			return "library." + library.Package.GetIdent( false, false );
 		}
 
 		/// <summary>

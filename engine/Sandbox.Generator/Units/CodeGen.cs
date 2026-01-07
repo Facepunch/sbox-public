@@ -13,7 +13,7 @@ namespace Sandbox.Generator
 		[Flags]
 		internal enum Flags
 		{
-			WrapProperyGet = 1,
+			WrapPropertyGet = 1,
 			WrapPropertySet = 2,
 			WrapMethod = 4,
 			Static = 8,
@@ -78,7 +78,7 @@ namespace Sandbox.Generator
 					var callbackName = cg.GetArgumentValue( 1, "CallbackName", string.Empty );
 					var priority = int.Parse( cg.GetArgumentValue( 2, "Priority", "0" ) );
 
-					if ( type.Contains( Flags.WrapPropertySet ) || type.Contains( Flags.WrapProperyGet ) )
+					if ( type.Contains( Flags.WrapPropertySet ) || type.Contains( Flags.WrapPropertyGet ) )
 					{
 						data.Add( new()
 						{
@@ -103,7 +103,7 @@ namespace Sandbox.Generator
 						generateBackingField = true;
 				}
 
-				if ( w.Type.Contains( Flags.WrapProperyGet ) )
+				if ( w.Type.Contains( Flags.WrapPropertyGet ) )
 				{
 					if ( HandleWrapGet( w.Attribute, w.Type, w.CallbackName, ref node, symbol, master ) )
 						generateBackingField = true;
@@ -137,7 +137,7 @@ namespace Sandbox.Generator
 			if ( !attributeClassName.EndsWith( "Attribute" ) )
 				attributeClassName += "Attribute";
 
-			var arguments = sn.ArgumentList?.Arguments.ToArray() ?? Array.Empty<AttributeArgumentSyntax>();
+			var arguments = sn.ArgumentList?.Arguments.ToArray() ?? [];
 			if ( arguments.Length == 0 )
 			{
 				list.Add( $"new {attributeClassName}()" );
@@ -169,6 +169,8 @@ namespace Sandbox.Generator
 
 			list.Add( $"{output} }}" );
 		}
+
+		#region Property Wrapping
 
 		private static bool HandleWrapSet( AttributeData attribute, Flags type, string callbackName, ref PropertyDeclarationSyntax node, IPropertySymbol symbol, Worker master )
 		{
@@ -210,13 +212,19 @@ namespace Sandbox.Generator
 			var propertyType = symbol.Type.FullName();
 			var usesBackingField = false;
 			var accessors = new List<AccessorDeclarationSyntax>();
+
+			// GET accessor
 			var get = node.AccessorList?.Accessors.FirstOrDefault( a => a.Kind() == SyntaxKind.GetAccessorDeclaration );
 
 			if ( get is not null && (get.Body is null && get.ExpressionBody is null) )
 			{
-				var defaultStatement = ParseStatement( $"return {node.BackingFieldName()};" );
+				var backingFieldName = node.BackingFieldName();
+				var defaultReturn = ReturnStatement( IdentifierName( backingFieldName ) );
 				usesBackingField = true;
-				get = AccessorDeclaration( SyntaxKind.GetAccessorDeclaration, Block( defaultStatement ) );
+
+				get = AccessorDeclaration( SyntaxKind.GetAccessorDeclaration )
+					.WithBody( Block( defaultReturn ) )
+					.WithModifiers( get.Modifiers );
 			}
 
 			if ( get is not null )
@@ -224,44 +232,118 @@ namespace Sandbox.Generator
 				accessors.Add( get );
 			}
 
+			// SET accessor
 			{
 				var existingSetter = node.AccessorList?.Accessors.FirstOrDefault( a => a.Kind() == SyntaxKind.SetAccessorDeclaration );
-				string defaultStatement = $"{node.BackingFieldName()} = value;";
-				string getValue = $"{node.BackingFieldName()}";
+				BlockSyntax setterInnerBody;
+				var backingFieldName = node.BackingFieldName();
 
 				if ( existingSetter is not null && (existingSetter.Body is not null || existingSetter.ExpressionBody is not null) )
 				{
 					if ( existingSetter.Body is not null )
-						defaultStatement = existingSetter.Body.ToString();
+					{
+						setterInnerBody = existingSetter.Body;
+					}
 					else
-						defaultStatement = $"{existingSetter.ExpressionBody?.Expression.ToString()};";
+					{
+						setterInnerBody = Block(
+							ExpressionStatement( existingSetter.ExpressionBody.Expression ) );
+					}
 				}
 				else
 				{
 					usesBackingField = true;
+					var assign = ExpressionStatement(
+						AssignmentExpression(
+							SyntaxKind.SimpleAssignmentExpression,
+							IdentifierName( backingFieldName ),
+							IdentifierName( "value" ) ) );
+
+					setterInnerBody = Block( assign );
 				}
 
-				var memberIdentity = $"{symbol.ContainingType.GetFullMetadataName().Replace( "global::", "" )}.{symbol.Name}";
+				var setterLambda = ParenthesizedLambdaExpression(
+					ParameterList(
+						SingletonSeparatedList(
+							Parameter( Identifier( "v" ) ) ) ),
+					setterInnerBody );
 
-				var parameterStruct = ParseStatement(
-					$"new global::Sandbox.WrappedPropertySet<{propertyType}> {{" +
-					$"Value = value," +
-					$"Object = {(symbol.IsStatic ? "null" : "this")}," +
-					$"Setter = ( v ) => {{{defaultStatement}}}," +
-					$"Getter = () => {symbol.Name}," +
-					$"IsStatic = {(symbol.IsStatic ? "true" : "false")}," +
-					$"TypeName = {symbol.ContainingType.FullName().Replace( "global::", "" ).QuoteSafe()}," +
-					$"PropertyName = {symbol.Name.QuoteSafe()}," +
-					$"MemberIdent = {memberIdentity.FastHash()}," +
-					$"Attributes = __{symbol.Name}__Attrs" +
-					$"}}" );
+				var memberIdentity = $"{symbol.ContainingType.GetFullMetadataName().Replace( "global::", "" )}.{symbol.Name}";
+				var memberHash = memberIdentity.FastHash();
+
+				var wrappedType = ParseTypeName( $"global::Sandbox.WrappedPropertySet<{propertyType}>" );
+
+				var wrappedInitializerExpressions = new List<ExpressionSyntax>
+				{
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( "Value" ),
+						IdentifierName( "value" ) ),
+
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( "Object" ),
+						symbol.IsStatic
+							? (ExpressionSyntax)LiteralExpression( SyntaxKind.NullLiteralExpression )
+							: ThisExpression() ),
+
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( "Setter" ),
+						setterLambda ),
+
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( "Getter" ),
+						ParenthesizedLambdaExpression( IdentifierName( symbol.Name ) ) ),
+
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( "IsStatic" ),
+						LiteralExpression( symbol.IsStatic ? SyntaxKind.TrueLiteralExpression : SyntaxKind.FalseLiteralExpression ) ),
+
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( "TypeName" ),
+						ParseExpression( symbol.ContainingType.FullName().Replace( "global::", "" ).QuoteSafe() ) ),
+
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( "PropertyName" ),
+						ParseExpression( symbol.Name.QuoteSafe() ) ),
+
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( "MemberIdent" ),
+						LiteralExpression( SyntaxKind.NumericLiteralExpression, Literal( memberHash ) ) ),
+
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( "Attributes" ),
+						IdentifierName( $"__{symbol.Name}__Attrs" ) )
+				};
+
+				var parameterStructExpr =
+					ObjectCreationExpression( wrappedType )
+						.WithInitializer(
+							InitializerExpression(
+								SyntaxKind.ObjectInitializerExpression,
+								SeparatedList( wrappedInitializerExpressions ) ) );
+
+				var callbackExpr = ParseExpression( callbackName );
+				var argList = ArgumentList(
+					SingletonSeparatedList(
+						Argument( parameterStructExpr ) ) );
+
+				var invocation = InvocationExpression( callbackExpr, argList );
 
 				var statements = new[]
 				{
-					ParseStatement( $"{callbackName}( {parameterStruct} );" )
+					ExpressionStatement( invocation )
 				};
 
-				var set = AccessorDeclaration( SyntaxKind.SetAccessorDeclaration, Block( statements ) );
+				var set = AccessorDeclaration( SyntaxKind.SetAccessorDeclaration )
+					.WithBody( Block( statements ) );
 
 				if ( existingSetter is not null )
 					set = set.WithModifiers( existingSetter.Modifiers );
@@ -318,13 +400,23 @@ namespace Sandbox.Generator
 
 			var usesBackingField = false;
 			var accessors = new List<AccessorDeclarationSyntax>();
+
+			// SET accessor
 			var set = node.AccessorList?.Accessors.FirstOrDefault( a => a.Kind() == SyntaxKind.SetAccessorDeclaration );
 
 			if ( set is not null && (set.Body is null && set.ExpressionBody is null) )
 			{
-				var defaultStatement = ParseStatement( $"{node.BackingFieldName()} = value;" );
+				var backingFieldName = node.BackingFieldName();
+				var assign = ExpressionStatement(
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( backingFieldName ),
+						IdentifierName( "value" ) ) );
+
 				usesBackingField = true;
-				set = AccessorDeclaration( SyntaxKind.SetAccessorDeclaration, Block( defaultStatement ) );
+				set = AccessorDeclaration( SyntaxKind.SetAccessorDeclaration )
+					.WithBody( Block( assign ) )
+					.WithModifiers( set.Modifiers );
 			}
 
 			if ( set is not null )
@@ -332,52 +424,121 @@ namespace Sandbox.Generator
 				accessors.Add( set );
 			}
 
+			// GET accessor
 			{
 				var existingGetter = node.AccessorList?.Accessors.FirstOrDefault( a => a.Kind() == SyntaxKind.GetAccessorDeclaration );
-				var defaultStatement = string.Empty;
-				var defaultValue = $"value";
+				var statements = new List<StatementSyntax>();
+				ExpressionSyntax defaultValueExpression;
 
 				if ( existingGetter is not null && (existingGetter.Body is not null || existingGetter.ExpressionBody is not null) )
 				{
 					if ( existingGetter.Body is not null )
 					{
-						defaultStatement = $"var getValue = () => {existingGetter.Body.ToString()};";
-						defaultValue = $"getValue()";
+						var getValueLambda = ParenthesizedLambdaExpression( existingGetter.Body );
+
+						var declarator = VariableDeclarator( Identifier( "getValue" ) )
+							.WithInitializer( EqualsValueClause( getValueLambda ) );
+
+						var decl = LocalDeclarationStatement(
+							VariableDeclaration( IdentifierName( "var" ) )
+								.WithVariables(
+									SingletonSeparatedList( declarator ) ) );
+
+						statements.Add( decl );
+
+						defaultValueExpression = InvocationExpression( IdentifierName( "getValue" ) );
 					}
 					else
 					{
-						defaultValue = $"{existingGetter.ExpressionBody?.Expression.ToString()}";
+						defaultValueExpression = existingGetter.ExpressionBody.Expression;
 					}
 				}
 				else
 				{
-					defaultStatement = $"var value = {node.BackingFieldName()};";
+					var backingFieldName = node.BackingFieldName();
+					var declarator = VariableDeclarator( Identifier( "value" ) )
+						.WithInitializer(
+							EqualsValueClause( IdentifierName( backingFieldName ) ) );
+
+					var decl = LocalDeclarationStatement(
+						VariableDeclaration( IdentifierName( "var" ) )
+							.WithVariables(
+								SingletonSeparatedList( declarator ) ) );
+
+					statements.Add( decl );
+					defaultValueExpression = IdentifierName( "value" );
 					usesBackingField = true;
 				}
 
-				var statements = new List<StatementSyntax>();
-
-				if ( !string.IsNullOrEmpty( defaultStatement ) )
-				{
-					statements.Add( ParseStatement( defaultStatement ) );
-				}
-
 				var memberIdentity = $"{symbol.ContainingType.GetFullMetadataName().Replace( "global::", "" )}.{symbol.Name}";
-				var parameterStruct = ParseStatement(
-					$"new global::Sandbox.WrappedPropertyGet<{propertyType}> {{" +
-					$"Value = {defaultValue}," +
-					$"Object = {(symbol.IsStatic ? "null" : "this")}," +
-					$"IsStatic = {(symbol.IsStatic ? "true" : "false")}," +
-					$"TypeName = {symbol.ContainingType.FullName().Replace( "global::", "" ).QuoteSafe()}," +
-					$"PropertyName = {symbol.Name.QuoteSafe()}," +
-					$"MemberIdent = {memberIdentity.FastHash()}," +
-					$"Attributes = __{symbol.Name}__Attrs" +
-					$"}}" );
+				var memberHash = memberIdentity.FastHash();
+
+				var wrappedType = ParseTypeName( $"global::Sandbox.WrappedPropertyGet<{propertyType}>" );
+
+				var wrappedInitializerExpressions = new List<ExpressionSyntax>
+				{
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( "Value" ),
+						defaultValueExpression ),
+
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( "Object" ),
+						symbol.IsStatic
+							? (ExpressionSyntax)LiteralExpression( SyntaxKind.NullLiteralExpression )
+							: ThisExpression() ),
+
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( "IsStatic" ),
+						LiteralExpression( symbol.IsStatic ? SyntaxKind.TrueLiteralExpression : SyntaxKind.FalseLiteralExpression ) ),
+
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( "TypeName" ),
+						ParseExpression( symbol.ContainingType.FullName().Replace( "global::", "" ).QuoteSafe() ) ),
+
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( "PropertyName" ),
+						ParseExpression( symbol.Name.QuoteSafe() ) ),
+
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( "MemberIdent" ),
+						LiteralExpression( SyntaxKind.NumericLiteralExpression, Literal( memberHash ) ) ),
+
+					AssignmentExpression(
+						SyntaxKind.SimpleAssignmentExpression,
+						IdentifierName( "Attributes" ),
+						IdentifierName( $"__{symbol.Name}__Attrs" ) )
+				};
+
+				var parameterStructExpr =
+					ObjectCreationExpression( wrappedType )
+						.WithInitializer(
+							InitializerExpression(
+								SyntaxKind.ObjectInitializerExpression,
+								SeparatedList( wrappedInitializerExpressions ) ) );
+
+				var callbackExpr = ParseExpression( callbackName );
+				var argList = ArgumentList(
+					SingletonSeparatedList(
+						Argument( parameterStructExpr ) ) );
+
+				var invocation = InvocationExpression( callbackExpr, argList );
+
+				var returnTypeSyntax = ParseTypeName( propertyType );
 
 				statements.Add(
-					ParseStatement( $"return ({propertyType}){callbackName}( {parameterStruct} );" ) );
+					ReturnStatement(
+						CastExpression(
+							returnTypeSyntax,
+							invocation ) ) );
 
-				var get = AccessorDeclaration( SyntaxKind.GetAccessorDeclaration, Block( statements ) );
+				var get = AccessorDeclaration( SyntaxKind.GetAccessorDeclaration )
+					.WithBody( Block( statements ) );
 
 				if ( existingGetter is not null )
 					get = get.WithModifiers( existingGetter.Modifiers );
@@ -393,38 +554,89 @@ namespace Sandbox.Generator
 			return usesBackingField;
 		}
 
-		private static readonly Dictionary<string, string> TypeAliases = new()
-		{
-			["object"] = "System.Object",
-			["string"] = "System.String",
-			["bool"] = "System.Boolean",
-			["byte"] = "System.Byte",
-			["sbyte"] = "System.SByte",
-			["short"] = "System.Int16",
-			["ushort"] = "System.UInt16",
-			["int"] = "System.Int32",
-			["uint"] = "System.UInt32",
-			["long"] = "System.Int64",
-			["ulong"] = "System.UInt64",
-			["float"] = "System.Single",
-			["double"] = "System.Double",
-			["decimal"] = "System.Decimal",
-			["char"] = "System.Char"
-		};
+		#endregion
 
-		private static string SanitizeTypeName( ITypeSymbol type, bool fullName = false )
-		{
-			if ( type is IArrayTypeSymbol a ) return $"{SanitizeTypeName( a.ElementType )}[]";
+		#region Method Wrapping
 
-			if ( !fullName )
+		private static ExpressionSyntax BuildWrappedMethodExpression( IMethodSymbol symbol, CSharpSyntaxNode resumeBodyNode, int methodIdentity )
+		{
+			var hasReturn = !symbol.ReturnsVoid;
+			var parameterStructGenericType = hasReturn ? $"<{symbol.ReturnType.FullName()}>" : string.Empty;
+			var wrappedTypeName = $"global::Sandbox.WrappedMethod{parameterStructGenericType}";
+			var wrappedType = ParseTypeName( wrappedTypeName );
+
+			var resumeLambda = ParenthesizedLambdaExpression( resumeBodyNode );
+			if ( symbol.IsAsync )
 			{
-				return TypeAliases.TryGetValue( type.Name, out var alias ) ? alias : type.Name;
+				resumeLambda = resumeLambda.WithAsyncKeyword( Token( SyntaxKind.AsyncKeyword ) );
 			}
 
-			return type.FullName()
-				.Replace( "global::", "" )
-				.Split( '<' )
-				.FirstOrDefault();
+			var typeName = symbol.ContainingType.FullName().Replace( "global::", "" );
+			var attrsFieldName = $"__{MakeMethodIdentitySafe( methodIdentity )}__Attrs";
+
+			var assignments = new List<ExpressionSyntax>
+			{
+				AssignmentExpression(
+					SyntaxKind.SimpleAssignmentExpression,
+					IdentifierName( "Resume" ),
+					resumeLambda ),
+
+				AssignmentExpression(
+					SyntaxKind.SimpleAssignmentExpression,
+					IdentifierName( "Object" ),
+					symbol.IsStatic
+						? (ExpressionSyntax)LiteralExpression( SyntaxKind.NullLiteralExpression )
+						: ThisExpression() ),
+
+				AssignmentExpression(
+					SyntaxKind.SimpleAssignmentExpression,
+					IdentifierName( "MethodIdentity" ),
+					LiteralExpression( SyntaxKind.NumericLiteralExpression, Literal( methodIdentity ) ) ),
+
+				AssignmentExpression(
+					SyntaxKind.SimpleAssignmentExpression,
+					IdentifierName( "MethodName" ),
+					ParseExpression( symbol.Name.QuoteSafe() ) ),
+
+				AssignmentExpression(
+					SyntaxKind.SimpleAssignmentExpression,
+					IdentifierName( "TypeName" ),
+					ParseExpression( typeName.QuoteSafe() ) ),
+
+				AssignmentExpression(
+					SyntaxKind.SimpleAssignmentExpression,
+					IdentifierName( "IsStatic" ),
+					LiteralExpression( symbol.IsStatic ? SyntaxKind.TrueLiteralExpression : SyntaxKind.FalseLiteralExpression ) ),
+
+				AssignmentExpression(
+					SyntaxKind.SimpleAssignmentExpression,
+					IdentifierName( "Attributes" ),
+					IdentifierName( attrsFieldName ) )
+			};
+
+			return ObjectCreationExpression( wrappedType )
+				.WithInitializer(
+					InitializerExpression(
+						SyntaxKind.ObjectInitializerExpression,
+						SeparatedList( assignments ) ) );
+		}
+
+		private static ExpressionSyntax BuildCallbackInvocation( string callbackName, ExpressionSyntax wrappedMethodExpr, IEnumerable<IParameterSymbol> parameters )
+		{
+			var callbackExpr = ParseExpression( callbackName );
+
+			var args = new List<ArgumentSyntax>
+			{
+				Argument( wrappedMethodExpr )
+			};
+
+			args.AddRange(
+				parameters.Select(
+					p => Argument( IdentifierName( p.Name ) ) ) );
+
+			return InvocationExpression(
+				callbackExpr,
+				ArgumentList( SeparatedList( args ) ) );
 		}
 
 		private static bool HandleWrapCall( AttributeData attribute, Flags type, string callbackName, ref MethodDeclarationSyntax node, IMethodSymbol symbol, Worker master )
@@ -432,7 +644,6 @@ namespace Sandbox.Generator
 			if ( node.Body == null && node.ExpressionBody == null ) return false;
 
 			var parameterCount = symbol.Parameters.Count();
-			var parameterList = string.Join( ", ", symbol.Parameters.Select( s => s.Name ) );
 
 			if ( symbol.IsStatic && !type.Contains( Flags.Static ) )
 				return false;
@@ -492,48 +703,30 @@ namespace Sandbox.Generator
 				return false;
 			}
 
-			var parameterStructGenericType = string.Empty;
-			if ( !symbol.ReturnsVoid )
-				parameterStructGenericType = $"<{symbol.ReturnType.FullName()}>";
+			// Capture original body/expression before we replace them
+			var originalBody = node.Body;
+			var originalExpressionBody = node.ExpressionBody;
 
-			var resumeString = "{}";
+			CSharpSyntaxNode resumeBodyNode;
 
-			if ( node.Body is not null )
+			if ( originalBody is not null )
 			{
-				if ( node.Body.Statements.Any() )
-					resumeString = $"{node.Body.ToFullString()}";
+				resumeBodyNode = originalBody;
 			}
-			else if ( node.ExpressionBody is not null )
-				resumeString = node.ExpressionBody.Expression.ToFullString();
-
-			string resumeExpression;
-
-			if ( symbol.IsAsync )
-				resumeExpression = $"async () => {resumeString}";
 			else
-				resumeExpression = $"() => {resumeString}";
+			{
+				resumeBodyNode = originalExpressionBody.Expression;
+			}
 
 			var methodIdentity = GetUniqueMethodIdentity( symbol );
-			var parameterStruct = ParseStatement(
-				$"new global::Sandbox.WrappedMethod{parameterStructGenericType} {{" +
-				$"Resume = {resumeExpression}," +
-				$"Object = {(symbol.IsStatic ? "null" : "this")}," +
-				$"MethodIdentity = {methodIdentity}," +
-				$"MethodName = {symbol.Name.QuoteSafe()}," +
-				$"TypeName = {symbol.ContainingType.FullName().Replace( "global::", "" ).QuoteSafe()}," +
-				$"IsStatic = {(symbol.IsStatic ? "true" : "false")}," +
-				$"Attributes = __{MakeMethodIdentitySafe( methodIdentity )}__Attrs" +
-				$"}}" );
+			var wrappedMethodExpr = BuildWrappedMethodExpression( symbol, resumeBodyNode, methodIdentity );
+			var callbackInvocation = BuildCallbackInvocation( callbackName, wrappedMethodExpr, symbol.Parameters );
 
 			var fullReturnType = symbol.ReturnType.FullName();
 			var isGenericTaskType = fullReturnType.StartsWith( "global::System.Threading.Tasks.Task<" );
 			var isTaskType = fullReturnType == "global::System.Threading.Tasks.Task";
 
-			var callbackCall = parameterCount > 0
-				? $"{callbackName}( {parameterStruct}, {parameterList} )"
-				: $"{callbackName}( {parameterStruct} )";
-
-			if ( node.ExpressionBody is null )
+			if ( originalExpressionBody is null )
 			{
 				List<StatementSyntax> statements;
 
@@ -541,87 +734,138 @@ namespace Sandbox.Generator
 				{
 					if ( isGenericTaskType )
 					{
-						statements = new List<StatementSyntax>
-						{
-							ParseStatement( $"return await {callbackCall};" )
-						};
+						// return await Callback(...);
+						statements =
+						[
+							ReturnStatement(
+								AwaitExpression( callbackInvocation ) )
+						];
 					}
 					else if ( isTaskType )
 					{
-						statements = new List<StatementSyntax>
-						{
-							ParseStatement( $"await {callbackCall};" ),
-							ParseStatement( "return;" )
-						};
+						// await Callback(...); return;
+						statements =
+						[
+							ExpressionStatement(
+								AwaitExpression( callbackInvocation ) ),
+
+							ReturnStatement()
+						];
 					}
 					else if ( symbol.ReturnsVoid )
 					{
-						statements = new List<StatementSyntax>
-						{
-							ParseStatement( $"{callbackCall};" )
-						};
+						// Callback(...);
+						statements = [ExpressionStatement( callbackInvocation )];
 					}
 					else
 					{
-						statements = new List<StatementSyntax>
-						{
-							ParseStatement( $"return {callbackCall};" )
-						};
+						// return Callback(...);
+						statements = [ReturnStatement( callbackInvocation )];
 					}
 				}
 				else
 				{
-					var returnPrefix = symbol.ReturnsVoid ? "" : "return ";
-
-					statements = new List<StatementSyntax>
+					var list = new List<StatementSyntax>();
+					if ( symbol.ReturnsVoid )
 					{
-						ParseStatement( $"{returnPrefix}{callbackCall};" )
-					};
+						list.Add( ExpressionStatement( callbackInvocation ) );
+					}
+					else
+					{
+						list.Add( ReturnStatement( callbackInvocation ) );
+					}
+
+					statements = list;
 				}
 
 				var block = Block( statements );
 
 				var newBody = block.WithCloseBraceToken(
-					block.CloseBraceToken.WithTrailingTrivia( SyntaxTriviaList.Empty )
-				);
+					block.CloseBraceToken.WithTrailingTrivia( SyntaxTriviaList.Empty ) );
 
-				node = node.WithBody( newBody );
+				node = node
+					.WithBody( newBody )
+					.WithExpressionBody( null )
+					.WithSemicolonToken( Token( SyntaxKind.None ) )
+					.NormalizeWhitespace();
 			}
 			else
 			{
 				if ( symbol.IsAsync && isTaskType )
 				{
-					var statements = new[]
+					var awaitExpr = AwaitExpression(
+						Token( SyntaxKind.AwaitKeyword ),
+						callbackInvocation );
+
+					var statements = new StatementSyntax[]
 					{
-						ParseStatement( $"await {callbackCall};" ),
-						ParseStatement( "return;" )
+						ExpressionStatement( awaitExpr ),
+						ReturnStatement()
 					};
 
 					node = node
 						.WithExpressionBody( null )
 						.WithSemicolonToken( Token( SyntaxKind.None ) )
-						.WithBody( Block( statements ) );
+						.WithBody( Block( statements ) )
+						.NormalizeWhitespace();
 				}
 				else
 				{
-					var expression = (symbol.IsAsync && isGenericTaskType)
-						? $"await {callbackCall}"
-						: callbackCall;
+					ExpressionSyntax expression = callbackInvocation;
+
+					if ( symbol.IsAsync && isGenericTaskType )
+					{
+						expression = AwaitExpression( callbackInvocation );
+					}
 
 					node = node.WithExpressionBody(
-						node.ExpressionBody.WithExpression( ParseExpression( expression ) )
-					);
+						ArrowExpressionClause( expression ) )
+						.NormalizeWhitespace();
 				}
 			}
 
 			return true;
 		}
 
+		#endregion
+
+		private static readonly Dictionary<string, string> TypeAliases = new()
+		{
+			["object"] = "System.Object",
+			["string"] = "System.String",
+			["bool"] = "System.Boolean",
+			["byte"] = "System.Byte",
+			["sbyte"] = "System.SByte",
+			["short"] = "System.Int16",
+			["ushort"] = "System.UInt16",
+			["int"] = "System.Int32",
+			["uint"] = "System.UInt32",
+			["long"] = "System.Int64",
+			["ulong"] = "System.UInt64",
+			["float"] = "System.Single",
+			["double"] = "System.Double",
+			["decimal"] = "System.Decimal",
+			["char"] = "System.Char"
+		};
+
+		private static string SanitizeTypeName( ITypeSymbol type, bool fullName = false )
+		{
+			if ( type is IArrayTypeSymbol a ) return $"{SanitizeTypeName( a.ElementType )}[]";
+
+			if ( !fullName )
+			{
+				return TypeAliases.TryGetValue( type.Name, out var alias ) ? alias : type.Name;
+			}
+
+			return type.FullName()
+				.Replace( "global::", "" )
+				.Split( '<' )
+				.FirstOrDefault();
+		}
+
 		private static string GetUniqueMethodIdentityString( IMethodSymbol method )
 		{
 			// Needs to keep in sync with Sandbox.MethodDescription.GetIdentityHashString()
-
-			// TODO: this will have conflicts for generic types with different numbers of type params
 
 			var returnTypeName = method.ReturnsVoid ? "Void" : SanitizeTypeName( method.ReturnType );
 			return $"{returnTypeName}.{SanitizeTypeName( method.ContainingType, true )}.{method.Name}.{string.Join( ",", method.Parameters.Select( p => SanitizeTypeName( p.Type ) ) )}";
@@ -790,7 +1034,6 @@ namespace Sandbox.Generator
 				if ( !SymbolEqualityComparer.Default.Equals( namedParameterType?.TypeArguments[0], propertyType )
 					 && namedParameterType?.TypeArguments[0] is not ITypeParameterSymbol )
 					continue;
-
 
 				return true;
 			}
