@@ -167,8 +167,12 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public void MakeActive( bool bringToFront = true )
 	{
-		Active = this;
+		if (Active == this)
+		{
+			return;
+		}
 
+		Active = this;
 		if ( bringToFront && EditorWindow is not null )
 		{
 			BringToFront();
@@ -184,6 +188,10 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		{
 			EditorWindow.DockManager.RaiseDock( SceneDock );
 		}
+
+		if ( SceneDock.IsValid() )
+			SceneDock.Focus();
+
 
 		UpdateEditorTitle();
 	}
