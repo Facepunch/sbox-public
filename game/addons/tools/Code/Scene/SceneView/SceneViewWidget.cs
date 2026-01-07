@@ -97,6 +97,11 @@ public partial class SceneViewWidget : Widget
 			selectionHash = session.Selection.GetHashCode();
 		}
 
+		if ( isActive )
+		{
+			Current = this;
+		}
+
 		// All this shit below is scene specific
 		if ( CurrentView != ViewMode.Game )
 		{
@@ -109,11 +114,6 @@ public partial class SceneViewWidget : Widget
 
 			if ( !shouldUpdate )
 				return;
-
-			if ( isActive )
-			{
-				Current = this;
-			}
 
 			session.Scene.EditorTick( RealTime.Now, RealTime.Delta );
 		}
