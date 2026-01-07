@@ -74,7 +74,7 @@ public static class ShaderCompile
 		if ( NativeEngine.EngineGlobal.AppIsDedicatedServer() )
 			return;
 
-		string dllName = "vfx_vulkan.dll";
+		string dllName = "vfx_vulkan";
 
 		if ( !native.IsNull )
 			return;
@@ -86,7 +86,7 @@ public static class ShaderCompile
 
 		// the shader compiler only needs the filesystem interface so we just pass
 		// in the createinterface for that, directly.
-		var createinterface = NativeEngine.CreateInterface.GetCreateInterface( "filesystem_stdio.dll" );
+		var createinterface = NativeEngine.CreateInterface.GetCreateInterface( "filesystem_stdio" );
 
 		native.Init( createinterface );
 	}
