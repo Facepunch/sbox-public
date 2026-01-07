@@ -23,17 +23,17 @@
 		{
 			if(OperatingSystem.IsWindows())
 			{
-				NativeDllPath = "bin/win64";
+				NativeDllPath = "bin/win64/";
 			} 
 			//Absolute paths for these two.
 			else if (OperatingSystem.IsLinux())
 			{
-				NativeDllPath = $"{gameFolder}/bin/linuxsteamrt64";
+				NativeDllPath = $"{gameFolder}/bin/linuxsteamrt64/";
 			}
 			else if (OperatingSystem.IsMacOS())
 			{
 				//TODO: Also check for architecture here.
-				NativeDllPath = $"{gameFolder}/bin/osxarm64";
+				NativeDllPath = $"{gameFolder}/bin/osxarm64/";
 			} else
 			{
 				throw new Exception("Unsupported platform for interop.");
