@@ -2,20 +2,21 @@
 
 public partial class Scene : GameObject
 {
-	List<Task> loadingTasks = new List<Task>();
-	Task loadingMainTask;
+	readonly List<LoadingContext> _loadingTasks = [];
+	Task _loadingMainTask;
 
-	internal void AddLoadingTask( Task loadingTask )
+	internal void AddLoadingTask( LoadingContext loadingTask )
 	{
-		loadingTasks.Add( loadingTask );
+		_loadingTasks.Add( loadingTask );
+		LoadingScreen.UpdateLoadingTasks( _loadingTasks );
 	}
 
 	public void StartLoading()
 	{
-		if ( loadingMainTask is not null )
+		if ( _loadingMainTask is not null )
 			return;
 
-		loadingMainTask = WaitForLoading();
+		_loadingMainTask = WaitForLoading();
 	}
 
 	/// <summary>
@@ -25,10 +26,10 @@ public partial class Scene : GameObject
 	{
 		get
 		{
-			loadingTasks.RemoveAll( x => x.IsCompleted );
+			_loadingTasks.RemoveAll( x => x.IsCompleted );
 
-			if ( loadingMainTask is null ) return false;
-			if ( loadingMainTask.IsCompleted ) return false;
+			if ( _loadingMainTask is null ) return false;
+			if ( _loadingMainTask.IsCompleted ) return false;
 
 			return true;
 		}
@@ -39,9 +40,9 @@ public partial class Scene : GameObject
 	/// </summary>
 	internal async Task WaitForLoading()
 	{
-		if ( loadingMainTask is not null )
+		if ( _loadingMainTask is not null )
 		{
-			await loadingMainTask;
+			await _loadingMainTask;
 			return;
 		}
 
@@ -53,11 +54,15 @@ public partial class Scene : GameObject
 			await Task.Yield();
 
 			// wait for all the loading tasks to finish
-			while ( loadingTasks.Any() )
+			while ( _loadingTasks.Count > 0 )
 			{
-				await Task.WhenAll( loadingTasks );
-				loadingTasks.RemoveAll( x => x.IsCompleted );
+				LoadingScreen.UpdateLoadingTasks( _loadingTasks );
+				await Task.WhenAny( _loadingTasks.Select( x => x.Task ) );
+				_loadingTasks.RemoveAll( x => x.IsCompleted );
 			}
+
+			// Remove all the tasks
+			LoadingScreen.UpdateLoadingTasks( [] );
 
 			if ( !IsValid ) return;
 
@@ -101,7 +106,25 @@ public partial class Scene : GameObject
 		}
 		finally
 		{
-			loadingMainTask = default;
+			_loadingMainTask = default;
 		}
 	}
+}
+
+public class LoadingContext
+{
+	/// <summary>
+	/// The title of this loading task
+	/// </summary>
+	public string Title { get; internal set; }
+
+	/// <summary>
+	/// True if the task has completed
+	/// </summary>
+	public bool IsCompleted => Task?.IsCompleted ?? true;
+
+	/// <summary>
+	/// The task itself
+	/// </summary>
+	internal Task Task { get; set; }
 }
