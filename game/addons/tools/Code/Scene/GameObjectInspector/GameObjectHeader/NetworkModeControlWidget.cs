@@ -114,12 +114,31 @@ class NetworkModeControlWidget : Widget
 		additionalOptions = new()
 		{
 			Layout = Layout.Column(),
-			VerticalSizeMode = SizeMode.CanShrink,
+			VerticalSizeMode = SizeMode.Default,
 			Enabled = modeProperty.GetValue<NetworkMode>() == NetworkMode.Object
 		};
 		additionalOptions.Layout.Spacing = 4;
 
 		menu.Layout.Add( additionalOptions );
+
+		{
+			if ( Target.GetProperty( nameof( GameObject.Network ) ).TryGetAsObject( out var networkProperty ) )
+			{
+				var flagsProperty = networkProperty.GetProperty( nameof( GameObject.Network.Flags ) );
+				var networkFlagsWidget = CreateFlagsWidget( "Network Flags", flagsProperty, gameObject.Network.Flags, v =>
+				{
+					using ( SceneEditorSession.Active.UndoScope( "Network Flags" ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties ).Push() )
+					{
+						foreach ( var go in gameObjects )
+						{
+							go.Network.Flags = v;
+						}
+					}
+				} );
+
+				additionalOptions.Layout.Add( networkFlagsWidget );
+			}
+		}
 
 		var orphanedModeProperty = accessorType.GetProperty( nameof( GameObject.Network.NetworkOrphaned ) );
 		var orphanedModeWidget = CreateOptionsWidget( "Orphaned Mode", orphanedModeProperty.Description, gameObject.Network.NetworkOrphaned, v =>
@@ -161,13 +180,6 @@ class NetworkModeControlWidget : Widget
 
 				Update();
 			} );
-
-			additionalOptions.Layout.Add( widget );
-		}
-
-		{
-			var property = Target.GetProperty( nameof( GameObject.NetworkInterpolation ) );
-			var widget = CreateBoolWidget( property, "Interpolation", menu );
 
 			additionalOptions.Layout.Add( widget );
 		}
@@ -271,6 +283,37 @@ class NetworkModeControlWidget : Widget
 		return widget;
 	}
 
+	Widget CreateFlagsWidget<T>( string name, SerializedProperty property, T value, Action<T> onSelected = null ) where T : Enum
+	{
+		var widget = new Widget
+		{
+			Layout = Layout.Column(),
+			VerticalSizeMode = SizeMode.Default
+		};
+
+		var column = widget.Layout;
+
+		var label = new Label( name );
+		label.SetStyles( "font-size: 12px; font-weight: bold; font-family: Poppins; color: white;" );
+		label.HorizontalSizeMode = SizeMode.CanShrink;
+		label.VerticalSizeMode = SizeMode.CanShrink;
+		column.Add( label );
+
+		var descriptionLabel = new Label( "<p>" + property.Description + "</p>" );
+		descriptionLabel.SetStyles( "color: gray;" );
+		descriptionLabel.WordWrap = true;
+		descriptionLabel.VerticalSizeMode = SizeMode.CanShrink;
+		column.Add( descriptionLabel );
+
+		column.AddSpacingCell( 4 );
+
+		var selector = new EnumControlWidget( property );
+		selector.VerticalSizeMode = SizeMode.CanShrink;
+		column.Add( selector );
+
+		return widget;
+	}
+
 	Widget CreateOptionsWidget<T>( string name, string description, T value, Action<T> onSelected = null ) where T : Enum
 	{
 		var enumDesc = EditorTypeLibrary.GetEnumDescription( typeof( T ) );
@@ -315,7 +358,6 @@ class NetworkModeControlWidget : Widget
 		column.Add( radioSelect );
 		return widget;
 	}
-
 
 	bool PaintMenuBackground()
 	{

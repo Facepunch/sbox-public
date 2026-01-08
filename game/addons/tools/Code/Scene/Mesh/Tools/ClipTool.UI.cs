@@ -58,10 +58,10 @@ partial class ClipTool
 
 		void Keep( ClipKeepMode keepMode ) => _tool.KeepMode = keepMode;
 
-		[Shortcut( "mesh.clip-apply", "enter", typeof( SceneDock ) )]
+		[Shortcut( "mesh.clip-apply", "enter", typeof( SceneViewWidget ) )]
 		void Apply() => _tool.Apply();
 
-		[Shortcut( "mesh.clip-cancel", "ESC", typeof( SceneDock ) )]
+		[Shortcut( "mesh.clip-cancel", "ESC", typeof( SceneViewWidget ) )]
 		void Cancel() => _tool.Cancel();
 	}
 }

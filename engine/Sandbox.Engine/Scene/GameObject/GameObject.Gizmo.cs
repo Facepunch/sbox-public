@@ -227,7 +227,7 @@ public partial class GameObject
 	/// </summary>
 	GameObject FindSelectionBase()
 	{
-		var isSelectionBase = IsNetworkRoot || IsOutermostPrefabInstanceRoot || Components.GetAll().Any( x => Game.TypeLibrary.GetType( x.GetType() ).HasAttribute<SelectionBaseAttribute>() );
+		var isSelectionBase = IsNetworkRoot || IsOutermostPrefabInstanceRoot || Components.GetAll().Any( x => Game.TypeLibrary.GetType( x?.GetType() )?.HasAttribute<SelectionBaseAttribute>() == true );
 
 		if ( isSelectionBase ) return this;
 

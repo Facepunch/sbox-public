@@ -17,10 +17,10 @@ public class LiveGamePackage
 	/// package have no errors.
 	/// </summary>
 	[TestMethod]
-	[DataRow( "fish.sauna", 76972L, "scenes/finland.scene", 14,
-		"d174cab5-7a05-476c-a545-4db2fd685032", // Prefab references game object from other scene
-		"e9ac7c29-ff9f-4c3c-8d9d-7228c4711248", // Inventory method changed parameter types
-		"462927b9-1f01-4ba8-9f6b-2e1e6a5934e4"  // Inventory method changed parameter types
+	[DataRow( "fish.sauna", 105400L, "scenes/finland.scene", 304,
+		"33319bc0-e128-4e9d-a45a-8dedd8e9cf81", // Unable to find node definition for 'event.endsession'
+		"6e10f594-201e-4859-b750-77442dbf67a7", // Unable to find type 'EventAreaFinder'
+		"ffc76fb6-66ea-43ca-a028-9521be9422b2"  // Unable to find type 'EventAreaFinder'
 	)]
 	public void AssertNoGraphErrorsInScene( string packageName, long? version, string scenePath, int graphCount, params string[] ignoreGuids )
 	{
@@ -45,21 +45,18 @@ public class LiveGamePackage
 		Assert.AreNotEqual( 0, GlobalGameNamespace.TypeLibrary.Types.Count, "Library has classes" );
 
 		var sceneFile = ResourceLibrary.Get<SceneFile>( scenePath );
-		Assert.IsNotNull( sceneFile, "Target scene exists" );
 
-		ActionGraphDebugger.Enabled = true;
+		Assert.IsNotNull( sceneFile, "Target scene exists" );
 
 		Game.ActiveScene = new Scene();
 		Game.ActiveScene.LoadFromFile( sceneFile.ResourcePath );
 
-		var graphs = ActionGraphDebugger.GetAllGraphs();
-		Assert.AreEqual( graphCount, graphs.Count, "Scene has expected graph count" );
-
+		var graphs = Game.NodeLibrary.GetGraphs().ToArray();
 		var anyErrors = false;
 
-		foreach ( var graph in graphs )
+		foreach ( var graph in graphs.OrderBy( x => x.Guid ) )
 		{
-			Console.WriteLine( $"{graph.Guid}: {graph.Title} {(ignoreGuidSet.Contains( graph.Guid ) ? "(IGNORED)" : "")}" );
+			Console.WriteLine( $"{graph.Guid}: {graph.Title} {(ignoreGuidSet.Contains( graph.Guid ) ? "(IGNORED)" : "")} {graph.Nodes.Count} {graph.SourceLocation}" );
 
 			foreach ( var message in graph.Messages )
 			{
@@ -72,8 +69,7 @@ public class LiveGamePackage
 			}
 		}
 
-		ActionGraphDebugger.Enabled = false;
-
+		Assert.AreEqual( graphCount, graphs.Length, "Scene has expected graph count" );
 		Assert.IsFalse( anyErrors, "No unexpected graph errors" );
 
 		GameInstanceDll.Current?.CloseGame();

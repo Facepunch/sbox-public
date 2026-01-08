@@ -13,9 +13,6 @@ namespace Sandbox;
 /// </summary>
 public unsafe ref struct ByteStream
 {
-	// Maximum reasonable allocation size (1GB) - prevents OOM attacks
-	private const int MAX_BUFFER_SIZE = 1024 * 1024 * 1024;
-
 	NativeMemoryBlock? writeData;
 	ReadOnlySpan<byte> readSpan;
 
@@ -52,8 +49,7 @@ public unsafe ref struct ByteStream
 
 	internal ByteStream( int size )
 	{
-		if ( size <= 0 || size > MAX_BUFFER_SIZE )
-			throw new ArgumentOutOfRangeException( nameof( size ), $"Size must be between 1 and {MAX_BUFFER_SIZE}" );
+		if ( size <= 0 ) throw new ArgumentOutOfRangeException( nameof( size ), $"Size must be larger than 0" );
 
 		writeData = NativeMemoryBlock.GetOrCreatePooled( size );
 		position = 0;
@@ -61,18 +57,13 @@ public unsafe ref struct ByteStream
 
 	internal ByteStream( ReadOnlySpan<byte> data )
 	{
-		if ( data.Length > MAX_BUFFER_SIZE )
-			throw new ArgumentOutOfRangeException( nameof( data ), "Data too large" );
-
 		readSpan = data;
 		usedSize = data.Length;
 		position = 0;
 	}
 
 	internal ByteStream( void* data, int datasize )
-		: this( datasize <= 0 || datasize > MAX_BUFFER_SIZE
-			? throw new ArgumentOutOfRangeException( nameof( datasize ) )
-			: new ReadOnlySpan<byte>( data, datasize ) )
+		: this( datasize <= 0 ? throw new ArgumentOutOfRangeException( nameof( datasize ) ) : new ReadOnlySpan<byte>( data, datasize ) )
 	{
 	}
 
@@ -81,8 +72,8 @@ public unsafe ref struct ByteStream
 	/// </summary>
 	public static ByteStream Create( int size )
 	{
-		if ( size <= 0 || size > MAX_BUFFER_SIZE )
-			throw new ArgumentOutOfRangeException( nameof( size ) );
+		if ( size <= 0 ) throw new ArgumentOutOfRangeException( nameof( size ) );
+
 		return new ByteStream( size );
 	}
 
@@ -119,20 +110,14 @@ public unsafe ref struct ByteStream
 		if ( writeData is null )
 			throw new InvalidOperationException( "Cannot write to read-only stream" );
 
-		if ( size < 0 || size > MAX_BUFFER_SIZE )
-			throw new ArgumentOutOfRangeException( nameof( size ), "Invalid write size" );
+		if ( size < 0 ) throw new ArgumentOutOfRangeException( nameof( size ), "Invalid write size" );
 
-		// Uses checked arithmetic to detect overflow
-		checked
-		{
-			int required = position + size;
+		long required = (long)position + size;
+		if ( required > int.MaxValue )
+			throw new OutOfMemoryException( "Requested size exceeds maximum supported buffer size." );
 
-			if ( required > MAX_BUFFER_SIZE )
-				throw new ArgumentOutOfRangeException( nameof( size ), "Write would exceed maximum buffer size" );
-
-			if ( required > writeData.Size )
-				writeData.Grow( required );
-		}
+		if ( required > writeData.Size )
+			writeData.Grow( (int)required );
 	}
 
 	public int ReadRemaining
@@ -210,9 +195,6 @@ public unsafe ref struct ByteStream
 		var len = stream.usedSize;
 		if ( len == 0 ) return;
 
-		if ( len > MAX_BUFFER_SIZE )
-			throw new ArgumentOutOfRangeException( nameof( stream ), "Stream too large" );
-
 		Write( stream.ToSpan() );
 	}
 
@@ -225,7 +207,6 @@ public unsafe ref struct ByteStream
 		{
 			var bytesSize = rawData.Length * sizeof( T );
 			if ( bytesSize == 0 ) return;
-			if ( bytesSize > MAX_BUFFER_SIZE ) throw new ArgumentOutOfRangeException( nameof( rawData ), "Data too large" );
 
 			EnsureCanWrite( bytesSize );
 
@@ -259,7 +240,6 @@ public unsafe ref struct ByteStream
 		}
 
 		if ( bytes == 0 ) return;
-		if ( bytes > MAX_BUFFER_SIZE ) throw new ArgumentOutOfRangeException( nameof( bytes ), "Too many bytes" );
 
 		Write( rawData.AsSpan().Slice( offset, bytes ) );
 	}
@@ -279,7 +259,6 @@ public unsafe ref struct ByteStream
 		int maxReadLeft = stream.usedSize - offset;
 		int len = maxSize > maxReadLeft ? maxReadLeft : maxSize;
 		if ( len <= 0 ) return;
-		if ( len > MAX_BUFFER_SIZE ) throw new ArgumentOutOfRangeException( nameof( maxSize ), "Size too large" );
 
 		Write( stream.ToSpan().Slice( offset, len ) );
 	}
@@ -301,14 +280,7 @@ public unsafe ref struct ByteStream
 			return;
 		}
 
-		// Validates string isn't absurdly large
-		if ( str.Length > MAX_BUFFER_SIZE / 4 ) // UTF8 can be up to 4 bytes per char
-			throw new ArgumentOutOfRangeException( nameof( str ), "String too large" );
-
 		var dataLen = System.Text.Encoding.UTF8.GetByteCount( str );
-
-		if ( dataLen > MAX_BUFFER_SIZE )
-			throw new ArgumentOutOfRangeException( nameof( str ), "Encoded string too large" );
 
 		Write( dataLen );
 
@@ -350,20 +322,6 @@ public unsafe ref struct ByteStream
 	}
 
 	/// <summary>
-	/// Returns a pointer to the base of the data with offset validation
-	/// </summary>
-	internal readonly IntPtr Base( int offset )
-	{
-		if ( writeData is null )
-			throw new NotImplementedException( $"Only writeable {nameof( ByteStream )}s have a valid pointer." );
-
-		if ( offset < 0 || offset > usedSize )
-			throw new ArgumentOutOfRangeException( nameof( offset ), "Offset out of range" );
-
-		return (IntPtr)((byte*)writeData.Pointer + offset);
-	}
-
-	/// <summary>
 	/// Writes an unmanaged type
 	/// </summary>
 	public void Write<T>( T value ) where T : unmanaged
@@ -372,10 +330,6 @@ public unsafe ref struct ByteStream
 			throw new InvalidOperationException( "Type must be unmanaged" );
 
 		var size = sizeof( T );
-
-		// Validates reasonable size
-		if ( size > MAX_BUFFER_SIZE )
-			throw new ArgumentOutOfRangeException( nameof( T ), "Type too large" );
 
 		EnsureCanWrite( size );
 
@@ -467,7 +421,7 @@ public unsafe ref struct ByteStream
 	/// <summary>
 	/// Returns an array of unmanaged types
 	/// </summary>
-	public T[] ReadArray<T>( int maxElements = 1024 ) where T : unmanaged
+	public T[] ReadArray<T>( int maxElements = int.MaxValue / 2 ) where T : unmanaged
 	{
 		return ReadArraySpan<T>( maxElements ).ToArray();
 	}
@@ -475,12 +429,12 @@ public unsafe ref struct ByteStream
 	/// <summary>
 	/// Non allocating read of an array of unmanaged types
 	/// </summary>
-	internal ReadOnlySpan<T> ReadArraySpan<T>( int maxElements = 1024 ) where T : unmanaged
+	internal ReadOnlySpan<T> ReadArraySpan<T>( int maxElements = int.MaxValue / 2 ) where T : unmanaged
 	{
 		if ( !SandboxedUnsafe.IsAcceptablePod<T>() )
 			throw new ArgumentOutOfRangeException( nameof( T ), "Type not acceptable" );
 
-		if ( maxElements <= 0 || maxElements > MAX_BUFFER_SIZE / sizeof( T ) )
+		if ( maxElements <= 0 )
 			throw new ArgumentOutOfRangeException( nameof( maxElements ), "Invalid max elements" );
 
 		var len = Read<int>();
@@ -495,13 +449,14 @@ public unsafe ref struct ByteStream
 		if ( len > maxElements )
 			throw new IndexOutOfRangeException( $"Array length {len} exceeds maximum {maxElements}" );
 
+		int elementSize = sizeof( T );
+		if ( len > int.MaxValue / elementSize )
+			throw new IndexOutOfRangeException( $"Array length {len} is too large for element size {elementSize}" );
+
 		// Checks for multiplication overflow
 		checked
 		{
-			int dataSize = sizeof( T ) * len;
-
-			if ( dataSize > MAX_BUFFER_SIZE )
-				throw new ArgumentOutOfRangeException( nameof( len ), "Array data too large" );
+			int dataSize = elementSize * len;
 
 			int newPos = position + dataSize;
 
@@ -533,9 +488,6 @@ public unsafe ref struct ByteStream
 
 		if ( datasize < 0 )
 			throw new InvalidOperationException( "String size cannot be negative" );
-
-		if ( datasize > MAX_BUFFER_SIZE )
-			throw new ArgumentOutOfRangeException( nameof( datasize ), "String too large" );
 
 		checked
 		{
@@ -599,9 +551,6 @@ public unsafe ref struct ByteStream
 		if ( size < 0 )
 			throw new ArgumentOutOfRangeException( nameof( size ), "Size cannot be negative" );
 
-		if ( size > MAX_BUFFER_SIZE )
-			throw new ArgumentOutOfRangeException( nameof( size ), "Size too large" );
-
 		checked
 		{
 			int newPos = position + size;
@@ -652,13 +601,9 @@ public unsafe ref struct ByteStream
 	/// </summary>
 	internal void WriteValueArray( Array array )
 	{
-		if ( array == null )
-			throw new ArgumentNullException( nameof( array ) );
+		if ( array == null ) throw new ArgumentNullException( nameof( array ) );
 
 		if ( array.Length == 0 ) return;
-
-		if ( array.Length > MAX_BUFFER_SIZE )
-			throw new ArgumentOutOfRangeException( nameof( array ), "Array too large" );
 
 		var elementType = array.GetType().GetElementType()!;
 		if ( !elementType.IsValueType )
@@ -672,9 +617,6 @@ public unsafe ref struct ByteStream
 		checked
 		{
 			int bytes = elementSize * array.Length;
-
-			if ( bytes > MAX_BUFFER_SIZE )
-				throw new ArgumentOutOfRangeException( nameof( array ), "Array data too large" );
 
 			EnsureCanWrite( bytes );
 
@@ -702,13 +644,9 @@ public unsafe ref struct ByteStream
 	/// </summary>
 	internal void ReadValueArray( Array array )
 	{
-		if ( array == null )
-			throw new ArgumentNullException( nameof( array ) );
+		if ( array == null ) throw new ArgumentNullException( nameof( array ) );
 
 		if ( array.Length == 0 ) return;
-
-		if ( array.Length > MAX_BUFFER_SIZE )
-			throw new ArgumentOutOfRangeException( nameof( array ), "Array too large" );
 
 		var elementType = array.GetType().GetElementType()!;
 		if ( !elementType.IsValueType )
@@ -722,9 +660,6 @@ public unsafe ref struct ByteStream
 		checked
 		{
 			int bytes = elementSize * array.Length;
-
-			if ( bytes > MAX_BUFFER_SIZE )
-				throw new ArgumentOutOfRangeException( nameof( array ), "Array data too large" );
 
 			int newPos = position + bytes;
 
@@ -792,33 +727,29 @@ public unsafe ref struct ByteStream
 		return length;
 	}
 
-	public ByteStream Compress()
+	public ByteStream Compress( CompressionLevel compressionLevel = CompressionLevel.Optimal )
 	{
-		var data = ToArray();
-		using ( MemoryStream compressedStream = new MemoryStream() )
-		{
-			using ( GZipStream gzipStream = new GZipStream( compressedStream, CompressionLevel.SmallestSize ) )
-			{
-				gzipStream.Write( data, 0, data.Length );
-			}
+		// Work directly with the span to avoid ToArray() allocation
+		var data = ToSpan();
 
-			return ByteStream.CreateReader( compressedStream.ToArray() );
+		// Pre-allocate with reasonable estimate (GZip typically 40-50% of original size + overhead)
+		using var compressedStream = new MemoryStream( data.Length / 2 + 128 );
+		using ( var gzipStream = new GZipStream( compressedStream, compressionLevel, leaveOpen: true ) )
+		{
+			gzipStream.Write( data );
 		}
+
+		return CreateReader( compressedStream.ToArray() );
 	}
 
 	public ByteStream Decompress()
 	{
-		using ( MemoryStream compressedStream = new MemoryStream( ToArray() ) )
-		{
-			using ( MemoryStream decompressedStream = new MemoryStream() )
-			{
-				using ( GZipStream gzipStream = new GZipStream( compressedStream, CompressionMode.Decompress ) )
-				{
-					gzipStream.CopyTo( decompressedStream );
-				}
+		using var compressedStream = new MemoryStream( ToArray() );
+		using var decompressedStream = new MemoryStream();
+		using var gzipStream = new GZipStream( compressedStream, CompressionMode.Decompress );
 
-				return ByteStream.CreateReader( decompressedStream.ToArray() );
-			}
-		}
+		gzipStream.CopyTo( decompressedStream );
+
+		return CreateReader( decompressedStream.ToArray() );
 	}
 }

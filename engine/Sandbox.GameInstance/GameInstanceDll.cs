@@ -447,7 +447,6 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		if ( !Application.IsDedicatedServer )
 		{
-			ActionGraphDebugger.Tick();
 			RichPresenceSystem.Tick();
 			Services.Achievements.Tick();
 		}

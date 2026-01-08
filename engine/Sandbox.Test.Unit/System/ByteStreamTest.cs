@@ -90,6 +90,8 @@ public class ByteStreamTest
 		s.Write( "hello there this is a big string" );
 
 		Console.WriteLine( $"Written {s.Position}b" );
+
+		s.Dispose();
 	}
 
 	[TestMethod]
@@ -109,6 +111,8 @@ public class ByteStreamTest
 		Assert.AreEqual( 32, s.Read<int>() );
 		Assert.AreEqual( 64, s.Read<int>() );
 		Assert.AreEqual( 512, s.Read<int>() );
+
+		s.Dispose();
 	}
 
 	[TestMethod]
@@ -128,6 +132,8 @@ public class ByteStreamTest
 		Assert.AreEqual( 32.0f, s.Read<float>() );
 		Assert.AreEqual( 64.0f, s.Read<float>() );
 		Assert.AreEqual( 512.0f, s.Read<float>() );
+
+		s.Dispose();
 	}
 
 	[TestMethod]
@@ -147,6 +153,8 @@ public class ByteStreamTest
 		Assert.AreEqual( new Vector3( 4, 5, 1 ), s.Read<Vector3>() );
 		Assert.AreEqual( new Vector3( 44, 1235, 5121 ), s.Read<Vector3>() );
 		Assert.AreEqual( new Vector3( 0, 0, 0 ), s.Read<Vector3>() );
+
+		s.Dispose();
 	}
 
 	[TestMethod]
@@ -170,6 +178,8 @@ public class ByteStreamTest
 		var b = s.Read<MyDataClass>();
 
 		Assert.AreEqual( b.DataContents, a.DataContents );
+
+		s.Dispose();
 	}
 
 	[TestMethod]
@@ -193,6 +203,8 @@ public class ByteStreamTest
 		var b = s.Read<MyPlainOldDataClass>();
 
 		Assert.AreEqual( b.Position, a.Position );
+
+		s.Dispose();
 	}
 
 	[TestMethod]
@@ -212,6 +224,8 @@ public class ByteStreamTest
 		Assert.AreEqual( 32, s.Read<int>() );
 		Assert.AreEqual( 64, s.Read<int>() );
 		Assert.AreEqual( 512, s.Read<int>() );
+
+		s.Dispose();
 	}
 
 	[TestMethod]
@@ -232,7 +246,7 @@ public class ByteStreamTest
 
 		var data = t.ToArray();
 
-		var r = ByteStream.CreateReader( data );
+		using var r = ByteStream.CreateReader( data );
 		Assert.AreEqual( 32, r.Read<int>() );
 		Assert.AreEqual( 64, r.Read<int>() );
 		Assert.AreEqual( "Hello", r.Read<string>() );
@@ -250,7 +264,7 @@ public class ByteStreamTest
 	public void ReadBuffer()
 	{
 		var data = Enumerable.Range( 0, 256 ).Select( x => (byte)x ).ToArray();
-		var r = ByteStream.CreateReader( data );
+		using var r = ByteStream.CreateReader( data );
 
 		var buffer = new byte[256];
 
@@ -267,7 +281,7 @@ public class ByteStreamTest
 	public void ReadBufferUntilStreamEnd()
 	{
 		var data = Enumerable.Range( 0, 16 ).Select( x => (byte)x ).ToArray();
-		var r = ByteStream.CreateReader( data );
+		using var r = ByteStream.CreateReader( data );
 
 		var buffer = new byte[256];
 
@@ -289,19 +303,19 @@ public class ByteStreamTest
 
 		Assert.ThrowsException<ArgumentOutOfRangeException>( () =>
 		{
-			var r = ByteStream.CreateReader( new byte[128] );
+			using var r = ByteStream.CreateReader( new byte[128] );
 			return r.Read( buffer, -1, 16 );
 		} );
 
 		Assert.ThrowsException<ArgumentOutOfRangeException>( () =>
 		{
-			var r = ByteStream.CreateReader( new byte[128] );
+			using var r = ByteStream.CreateReader( new byte[128] );
 			return r.Read( buffer, 384, 16 );
 		} );
 
 		Assert.ThrowsException<ArgumentOutOfRangeException>( () =>
 		{
-			var r = ByteStream.CreateReader( new byte[128] );
+			using var r = ByteStream.CreateReader( new byte[128] );
 			return r.Read( buffer, 128, 256 );
 		} );
 	}
@@ -395,13 +409,13 @@ public class ByteStreamTest
 	{
 		public void Write( TFrom value )
 		{
-			var byteStream = ByteStream.Create( IntPtr.Size );
+			using var byteStream = ByteStream.Create( IntPtr.Size );
 			byteStream.Write( value );
 		}
 
 		public void Read()
 		{
-			var byteStream = ByteStream.Create( IntPtr.Size );
+			using var byteStream = ByteStream.Create( IntPtr.Size );
 			var x = byteStream.Read<TFrom>();
 		}
 	}

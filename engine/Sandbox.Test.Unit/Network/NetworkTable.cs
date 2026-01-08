@@ -35,6 +35,7 @@ public class NetworkTable
 		serverTable.Dispose();
 
 		var serialized = bs.ToArray();
+		bs.Dispose();
 		var reader = ByteStream.CreateReader( serialized );
 
 		{
@@ -48,6 +49,8 @@ public class NetworkTable
 
 			Assert.AreEqual( clientTable.GetValue( 3 ), false );
 		}
+
+		reader.Dispose();
 	}
 
 	[TestMethod]
@@ -76,6 +79,8 @@ public class NetworkTable
 		serverTable.QueryValues();
 
 		Assert.IsFalse( serverTable.HasAnyChanges );
+
+		bs.Dispose();
 	}
 
 	public void ExchangeTest<T>( T a, T b, Action<T> modifyvalue = null )
@@ -104,6 +109,8 @@ public class NetworkTable
 			client.Read( ref snapshot );
 
 			AreEqual( serverValue, clientValue );
+
+			snapshot.Dispose();
 		}
 
 		// server value change
@@ -121,6 +128,8 @@ public class NetworkTable
 			client.Read( ref snapshot );
 
 			AreEqual( serverValue, clientValue );
+
+			snapshot.Dispose();
 		}
 
 		// server value change
@@ -145,6 +154,8 @@ public class NetworkTable
 				client.Read( ref snapshot );
 
 				AreEqual( serverValue, clientValue );
+
+				snapshot.Dispose();
 			}
 		}
 

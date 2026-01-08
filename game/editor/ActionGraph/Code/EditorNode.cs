@@ -12,6 +12,9 @@ using System.Threading;
 
 namespace Editor.ActionGraphs;
 
+/// <summary>
+/// Implementation of <see cref="INode"/> wrapping an <see cref="ActionGraph"/>'s <see cref="Facepunch.ActionGraphs.Node"/>.
+/// </summary>
 public class EditorNode : INode
 {
 	[Hide]
@@ -137,8 +140,7 @@ public class EditorNode : INode
 		switch ( node.Definition.Identifier )
 		{
 			case "scene.ref":
-				return SceneReferenceHelper.ResolveTargetComponent( node )?.GameObject
-					?? SceneReferenceHelper.ResolveTargetGameObject( node );
+				return node.ActionGraph.GetEmbeddedTarget() is GameObject hostObject ? node.GetSceneReference( hostObject.Scene )?.TargetObject : null;
 
 			default:
 				if ( node.Inputs.Values.FirstOrDefault( x => x.IsTarget ) is { Link.Source.Node: { } sourceNode } && sourceNode.Parent == node )
@@ -326,7 +328,7 @@ public class EditorNode : INode
 
 						if ( ResourceLibrary.TryGet( graphPath, out ActionGraphResource graphResource ) )
 						{
-							return () => ActionGraphView.Open( graphResource.Graph );
+							return () => ActionGraphView.Open( graphResource );
 						}
 
 						return null;

@@ -53,7 +53,7 @@ public partial class Texture
 		var height = desc.m_nHeight / d;
 		var depth = desc.m_nDepth;
 		var outputFormat = floatingPoint ? ImageFormat.RGBA16161616F : ImageFormat.RGBA8888;
-		var targetMemoryRequired = NativeEngine.ImageLoader.GetMemRequired( width, height, 1, 1, outputFormat );
+		var targetMemoryRequired = NativeEngine.ImageLoader.GetMemRequired( width, height, depth, 1, outputFormat );
 
 		if ( targetMemoryRequired <= 0 )
 		{
@@ -61,10 +61,10 @@ public partial class Texture
 			// If desc.m_nWidth and height are 0, this is probably the rendersystemempty, which is obviously a disaster
 			//
 
-			throw new System.Exception( $"targetMemoryRequired <= 0 ({width}x{height} {outputFormat})" );
+			throw new System.Exception( $"targetMemoryRequired <= 0 ({width}x{height}x{depth} {outputFormat})" );
 		}
 
-		var bitmap = new Bitmap( width, height, floatingPoint );
+		var bitmap = new Bitmap( width, height * depth, floatingPoint );
 		var data = bitmap.GetBuffer();
 
 		if ( data.Length != targetMemoryRequired )
@@ -74,10 +74,18 @@ public partial class Texture
 
 		fixed ( byte* pData = data )
 		{
-			var rect = new NativeRect( 0, 0, width, height );
+			if ( depth > 1 )
+			{
+				GetPixels3D( (0, 0, 0, width, height, depth), mip, data, outputFormat );
+			}
+			else
+			{
+				var rect = new NativeRect( 0, 0, width, height );
 
-			if ( !g_pRenderDevice.ReadTexturePixels( native, ref rect, 0, mip, ref rect, (IntPtr)pData, outputFormat, 0 ) )
-				return null;
+				if ( !g_pRenderDevice.ReadTexturePixels( native, ref rect, 0, mip, ref rect, (IntPtr)pData, outputFormat, 0 ) )
+					return null;
+			}
+
 		}
 
 		return bitmap;
@@ -149,8 +157,10 @@ public partial class Texture
 			throw new ArgumentException( $"{nameof( srcRect )} out of range" );
 		}
 
-		var dstStride = (long)dstSize.X * pixelSize;
-		if ( dstStride > int.MaxValue || ((long)dstSize.Y * pixelSize) > int.MaxValue )
+		var dstStrideBytes = GetImageFormatSize( dstFormat, dstSize.X, 1 );
+		if ( dstStrideBytes <= 0 )
+			throw new ArgumentException( $"{nameof( dstSize )} invalid" );
+		if ( dstStrideBytes > int.MaxValue )
 			throw new ArgumentException( $"{nameof( dstSize )} too large" );
 
 		var sliceSize = GetImageFormatSize( dstFormat, dstSize.X, dstSize.Y );
@@ -173,7 +183,7 @@ public partial class Texture
 
 		fixed ( T* dataPtr = dstData )
 		{
-			if ( !g_pRenderDevice.ReadTexturePixels( native, ref nativeSrcRect, slice, mip, ref nativeDstRect, (IntPtr)dataPtr, dstFormat, (int)dstStride ) )
+			if ( !g_pRenderDevice.ReadTexturePixels( native, ref nativeSrcRect, slice, mip, ref nativeDstRect, (IntPtr)dataPtr, dstFormat, dstStrideBytes ) )
 				throw new Exception( "Unable to read texture pixels" );
 		}
 	}

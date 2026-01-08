@@ -607,30 +607,6 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	}
 
 	/// <summary>
-	/// Projects a line in world space to screen coords, returning null if the line is
-	/// fully behind the camera.
-	/// </summary>
-	internal Line2D? ToScreen( Line worldLine )
-	{
-		var forward = Rotation.Forward;
-
-		// Clip line to be fully in front of near plane
-
-		if ( worldLine.Clip( new Plane( Position + forward * ZNear, forward ) ) is not { } clipped )
-		{
-			return null;
-		}
-
-		Frustum.WorldToView( clipped.Start, out var start );
-		Frustum.WorldToView( clipped.End, out var end );
-
-		return new Line2D( start, end )
-			.Remap(
-				new Rect( -1f, -1f, 2f, 2f ),
-				new Rect( 0f, Size.y, Size.x, -Size.y ) );
-	}
-
-	/// <summary>
 	/// Convert from world coords to normal screen corrds. The results will be between 0 and 1
 	/// </summary>
 	public Vector2 ToScreenNormal( Vector3 world )

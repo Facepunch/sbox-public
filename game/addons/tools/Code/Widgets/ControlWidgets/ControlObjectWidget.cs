@@ -25,6 +25,9 @@ public class ControlObjectWidget : ControlWidget
 		// There's nothing to edit inside a plain System.Object instance
 		if ( type == typeof( object ) ) return false;
 
+		// Don't try to create delegates
+		if ( type.IsAssignableTo( typeof( Delegate ) ) ) return false;
+
 		if ( property.HasAttribute<AllowNullAttribute>() ) return false;
 
 		return true;

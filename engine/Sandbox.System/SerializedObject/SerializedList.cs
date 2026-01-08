@@ -109,6 +109,7 @@ file class SerializedListProperty : SerializedProperty
 	public override string Name => $"{Index}";
 	public override Type PropertyType => serializedList.ValueType;
 	public override SerializedObject Parent => serializedList;
+	public override bool IsValid => serializedList.list.Count > Index && base.IsValid;
 
 	public SerializedListProperty( SerializedList serializedList, int i )
 	{

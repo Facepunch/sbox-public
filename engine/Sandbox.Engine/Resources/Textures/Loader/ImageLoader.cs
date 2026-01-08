@@ -134,22 +134,29 @@ internal static class Image
 
 		try
 		{
+			Texture tex = default;
+
 			var extension = System.IO.Path.GetExtension( filename );
 			if ( extension == ".tga" || extension == ".psd" || extension == ".tif" )
 			{
-				return Load( filesystem, filename );
+				tex = Load( filesystem, filename );
 			}
 			else if ( extension == ".ies" )
 			{
 				var bytes = filesystem.ReadAllBytes( filename ).ToArray();
 				if ( Bitmap.CreateFromIesBytes( bytes ) is { } ies )
-					return ies.ToTexture();
+				{
+					tex = ies.ToTexture();
+				}
 			}
 			else
 			{
 				using var stream = filesystem.OpenRead( filename );
-				return Load( stream, filename );
+				tex = Load( stream, filename );
 			}
+
+			tex?.SetIdFromResourcePath( filename );
+			return tex;
 		}
 		catch ( System.IO.FileNotFoundException e )
 		{

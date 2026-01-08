@@ -17,7 +17,7 @@ public static partial class EditorUtility
 	{
 		public bool Cancel { get; set; }
 
-		public object Object { get; init; }
+		public object Object { get; set; }
 	}
 
 	/// <summary>
@@ -37,12 +37,6 @@ public static partial class EditorUtility
 		{
 			if ( _inspectorObject == value ) return;
 
-			if ( TryInspectActionGraphElement( value ) )
-			{
-				_inspectorObject = value;
-				return;
-			}
-
 			if ( OnInspect == null )
 			{
 				_inspectorObject = value;
@@ -61,20 +55,6 @@ public static partial class EditorUtility
 			{
 				_inspectorObject = eventArgs.Object;
 			}
-		}
-	}
-
-	private static bool TryInspectActionGraphElement( object value )
-	{
-		switch ( value )
-		{
-			case Array arr:
-				return arr.OfType<Facepunch.ActionGraphs.IMessageContext>().Any( TryInspectActionGraphElement );
-			case Facepunch.ActionGraphs.IMessageContext element:
-				EditorEvent.Run( "actiongraph.inspect", element );
-				return true;
-			default:
-				return false;
 		}
 	}
 

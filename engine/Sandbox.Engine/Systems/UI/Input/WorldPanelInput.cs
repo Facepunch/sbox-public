@@ -1,49 +1,18 @@
 ﻿namespace Sandbox.UI;
 
-internal class WorldInputInternal : PanelInput
+/// <summary>
+/// Simulates PanelInput for world space panels using a ray and inputs.
+/// </summary>
+internal class WorldPanelInput : PanelInput
 {
-	internal static List<WeakReference<WorldInputInternal>> WorldInputs = new();
-
-	internal bool Enabled { get; set; } = true;
 	internal Ray Ray { get; set; }
 	internal bool MouseLeftPressed;
 	internal bool MouseRightPressed;
 	internal Vector2 MouseWheel;
 	internal bool UseMouseInput;
 
-	public WorldInputInternal()
-	{
-		WorldInputs.Add( new WeakReference<WorldInputInternal>( this, false ) );
-	}
-
-	internal static void Clear()
-	{
-		WorldInputs.Clear();
-	}
-
-	internal static void TickAll( IEnumerable<RootPanel> panels )
-	{
-		for ( int i = WorldInputs.Count - 1; i >= 0; i-- )
-		{
-			// Remove any dead references
-			if ( !WorldInputs[i].TryGetTarget( out var input ) )
-			{
-				WorldInputs.RemoveAt( i );
-				continue;
-			}
-
-			input.Tick( panels, true );
-		}
-	}
-
 	internal override void Tick( IEnumerable<RootPanel> panels, bool mouseIsActive )
 	{
-		if ( !Enabled )
-		{
-			SetHovered( null );
-			return;
-		}
-
 		bool hoveredAny = false;
 		var inputData = GetInputData();
 

@@ -334,17 +334,6 @@ public partial struct Vector2 : System.IEquatable<Vector2>, IParsable<Vector2>, 
 	}
 
 	/// <summary>
-	/// Remaps from one range to another.
-	/// </summary>
-	internal readonly Vector2 Remap( Rect oldRange, Rect newRange, bool clamp )
-	{
-		return new Vector2(
-			x.Remap( oldRange.Left, oldRange.Right, newRange.Left, newRange.Right, clamp ),
-			y.Remap( oldRange.Top, oldRange.Bottom, newRange.Top, newRange.Bottom, clamp ) );
-	}
-
-
-	/// <summary>
 	/// Returns the scalar/dot product between the 2 given vectors.
 	/// </summary>
 	[ActionGraphNode( "geom.dot" ), Pure, Group( "Math/Geometry" ), Icon( "fiber_manual_record" )]

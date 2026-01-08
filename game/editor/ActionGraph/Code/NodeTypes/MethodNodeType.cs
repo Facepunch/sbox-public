@@ -32,7 +32,8 @@ public class MethodNodeType : LibraryNodeType
 			catch ( Exception ex )
 			{
 				var first = methodGroup.First();
-				throw new Exception( $"Exception when adding node type for method: {first.TypeDescription.TargetType.ToSimpleString()}::{first.Name}", ex );
+
+				Log.Error( ex, $"Exception when adding node type for method: {first.TypeDescription.TargetType.ToSimpleString()}::{first.Name}" );
 			}
 		}
 	}

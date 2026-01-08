@@ -19,7 +19,7 @@ public class MultiSerializedObject : SerializedObject
 	public override string TypeName => SelectDistincSingleOrFallback( children, x => x.TypeName, "MultipleTypes" );
 	public override string TypeTitle => SelectDistincSingleOrFallback( children, x => x.TypeTitle, "Multiple Objects" );
 
-	public override bool IsValid => children.Where( x => x.IsValid() ).Any();
+	public override bool IsValid => children.Any( x => x.IsValid() );
 
 	public MultiSerializedObject()
 	{

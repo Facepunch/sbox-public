@@ -43,52 +43,72 @@ FrontPage .right
     flex: 1;
 }
 
-FrontPage button.button
-{
-    border: 1px solid #2e344b44;
-    border-radius: 16px;
-    font-weight: bold;
-    font-family: Poppins;
-    text-shadow: none;
-    gap: 16px;
-    padding: 16px 32px;
-    width: 270px;
-    background-color: #1e1f2855;
-    backdrop-filter: blur( 20px );
-    transition: all 0.1s linear;
-    color: #aab3cc;
-
-    .icon
-    {
-        font-size: 3rem;
-        flex-shrink: 0;
-        color: #08f;
-    }
-
-    .button-text
-    {
-        font-size: 2rem;
-        white-space: nowrap;
-    }
-
-    .button-help
-    {
-        font-size: 1rem;
-        font-weight: 400;
-        color: #8287b2;
-    }
-}
-
-FrontPage button.button:hover
-{
-    background-color: #1e1f28cc;
-    border: 1px solid #08f;
-    color: white;
-}
 
 button.button .iconpanel
 {
     color: #457ce2;
     text-shadow: none;
     font-size: 32px;
+}
+
+.front-page-box
+{
+    flex-direction: column;
+    gap: 1rem;
+    background-color: #181b26;
+    border-radius: 12px;
+    padding: 1rem;
+
+    h2
+    {
+        font-size: 1.2rem;
+        font-weight: 800;
+        color: #08f;
+        padding: 0 8px;
+        text-transform: lowercase;
+        flex-shrink: 0;
+    }
+
+    .button
+    {
+        border: 1px solid #2e344b44;
+        border-radius: 16px;
+        font-weight: bold;
+        font-family: Poppins;
+        text-shadow: none;
+        gap: 16px;
+        background-color: #1e1f2855;
+        transition: all 0.1s linear;
+        color: #fff;
+        border-radius: 8px;
+        background-color: #3273ebaa;
+
+        .icon
+        {
+            font-size: 2rem;
+            flex-shrink: 0;
+            color: #fff;
+        }
+
+        .button-text
+        {
+            font-size: 1rem;
+            white-space: nowrap;
+        }
+
+        .button-help
+        {
+            font-size: 0.8rem;
+            font-weight: 400;
+            color: #fffc;
+        }
+
+        &:hover
+        {
+            background-color: #08f;
+            border: 1px solid #08f;
+            color: white;
+            box-shadow: 0px 0px 30px #08f3;
+        }
+    }
 }

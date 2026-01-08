@@ -232,51 +232,45 @@ internal sealed partial class Mesh
 
 	public void FlipAllFaces()
 	{
-		foreach ( var hVertex in VertexHandles )
+		foreach ( var v in VertexHandles )
 		{
-			var hEdge = hVertex.Edge;
-			if ( hEdge.IsValid )
+			if ( v.Edge.IsValid )
+				v.Edge = v.Edge.OppositeEdge;
+		}
+
+		foreach ( var e in HalfEdgeHandles )
+		{
+			var o = e.OppositeEdge;
+			if ( !o.IsValid || e.Index > o.Index )
+				continue;
+
+			(e.Vertex, o.Vertex) = (o.Vertex, e.Vertex);
+		}
+
+		var reversed = new HashSet<int>();
+		var loop = new List<HalfEdgeHandle>( 64 );
+
+		foreach ( var start in HalfEdgeHandles )
+		{
+			if ( !reversed.Add( start.Index ) )
+				continue;
+
+			loop.Clear();
+			var e = start;
+
+			do
 			{
-				hVertex.Edge = hEdge.OppositeEdge;
+				loop.Add( e );
+				e = GetNextEdgeInFaceLoop( e );
 			}
-		}
+			while ( e.IsValid && e != start );
 
-		foreach ( var hEdge in HalfEdgeHandles )
-		{
-			var hOpposite = hEdge.OppositeEdge;
-			if ( hOpposite.IsValid && hEdge.Index < hOpposite.Index )
+			for ( int i = 0, n = loop.Count; i < n; ++i )
 			{
-				(hEdge.Vertex, hOpposite.Vertex) = (hOpposite.Vertex, hEdge.Vertex);
+				var cur = loop[i];
+				cur.NextEdge = loop[(i - 1 + n) % n];
+				reversed.Add( cur.Index );
 			}
-		}
-
-		foreach ( var hFace in FaceHandles )
-		{
-			ReverseFaceLoop( hFace );
-		}
-	}
-
-	private void ReverseFaceLoop( FaceHandle hFace )
-	{
-		if ( !hFace.IsValid )
-			return;
-
-		var hStartEdge = hFace.Edge;
-		if ( !hStartEdge.IsValid )
-			return;
-
-		var edges = new List<HalfEdgeHandle>();
-		var hCurrent = hStartEdge;
-		do
-		{
-			edges.Add( hCurrent );
-			hCurrent = hCurrent.NextEdge;
-		}
-		while ( hCurrent.IsValid && hCurrent != hStartEdge );
-
-		for ( int i = 0; i < edges.Count; i++ )
-		{
-			edges[i].NextEdge = edges[(i - 1 + edges.Count) % edges.Count];
 		}
 	}
 

@@ -13,7 +13,7 @@ public static class Protocol
 	/// <summary>
 	/// We cannot talk to servers or clients with a network protocol different to this.
 	/// </summary>
-	public static int Network => 1095;
+	public static int Network => 1096;
 }
 
 // Api Versions
@@ -24,6 +24,7 @@ public static class Protocol
 
 
 // Network Versions
+// 1096. 05th December 2025 - NetworkFlags + Transform Sync Flags
 // 1095. 23rd November 2025 - Snapshot parent salt
 // 1094. 10th November 2025 - Network visibility
 // 1093. 13th October 2025 - LZ4 compression

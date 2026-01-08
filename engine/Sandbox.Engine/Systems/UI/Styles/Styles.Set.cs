@@ -7,8 +7,7 @@ namespace Sandbox.UI
 	{
 		public override bool Set( string property, string value )
 		{
-			if ( property == "color" )
-				property = "font-color";
+			property = StyleParser.GetPropertyFromAlias( property );
 
 			switch ( property )
 			{
@@ -170,10 +169,6 @@ namespace Sandbox.UI
 
 				case "background-repeat":
 					return SetBackgroundRepeat( value );
-
-				case "background-image-tint":
-					property = "background-tint";
-					break;
 
 				case "image-rendering":
 					return SetImageRendering( value );

@@ -80,7 +80,7 @@ partial class MeshSelection
 			Layout.AddStretchCell();
 		}
 
-		[Shortcut( "mesh.open-clipping-tool", "C", typeof( SceneDock ) )]
+		[Shortcut( "mesh.open-clipping-tool", "C", typeof( SceneViewWidget ) )]
 		void OpenClippingTool()
 		{
 			var tool = new ClipTool();
@@ -88,19 +88,19 @@ partial class MeshSelection
 			_tool.Tool.CurrentTool = tool;
 		}
 
-		[Shortcut( "mesh.previous-pivot", "N+MWheelDn", typeof( SceneDock ) )]
+		[Shortcut( "mesh.previous-pivot", "N+MWheelDn", typeof( SceneViewWidget ) )]
 		public void PreviousPivot() => _tool.PreviousPivot();
 
-		[Shortcut( "mesh.next-pivot", "N+MWheelUp", typeof( SceneDock ) )]
+		[Shortcut( "mesh.next-pivot", "N+MWheelUp", typeof( SceneViewWidget ) )]
 		public void NextPivot() => _tool.NextPivot();
 
-		[Shortcut( "mesh.clear-pivot", "Home", typeof( SceneDock ) )]
+		[Shortcut( "mesh.clear-pivot", "Home", typeof( SceneViewWidget ) )]
 		public void ClearPivot() => _tool.ClearPivot();
 
-		[Shortcut( "mesh.zero-pivot", "Ctrl+End", typeof( SceneDock ) )]
+		[Shortcut( "mesh.zero-pivot", "Ctrl+End", typeof( SceneViewWidget ) )]
 		public void ZeroPivot() => _tool.ZeroPivot();
 
-		[Shortcut( "mesh.set-origin-to-pivot", "Ctrl+D", typeof( SceneDock ) )]
+		[Shortcut( "mesh.set-origin-to-pivot", "Ctrl+D", typeof( SceneViewWidget ) )]
 		public void SetOriginToPivot()
 		{
 			using var scope = SceneEditorSession.Scope();
@@ -117,7 +117,7 @@ partial class MeshSelection
 			}
 		}
 
-		[Shortcut( "mesh.center-origin", "End", typeof( SceneDock ) )]
+		[Shortcut( "mesh.center-origin", "End", typeof( SceneViewWidget ) )]
 		public void CenterOrigin()
 		{
 			using var scope = SceneEditorSession.Scope();
@@ -152,7 +152,7 @@ partial class MeshSelection
 			}
 		}
 
-		[Shortcut( "mesh.merge-meshes", "M", typeof( SceneDock ) )]
+		[Shortcut( "mesh.merge-meshes", "M", typeof( SceneViewWidget ) )]
 		public void MergeMeshes()
 		{
 			if ( _meshes.Length == 0 ) return;

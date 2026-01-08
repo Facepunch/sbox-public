@@ -123,6 +123,7 @@ file class SerializedArrayProperty : SerializedProperty
 	public override string Name => $"{Index}";
 	public override Type PropertyType => serializedArray.ValueType;
 	public override SerializedObject Parent => serializedArray;
+	public override bool IsValid => serializedArray.array.Length > Index && base.IsValid;
 
 	public SerializedArrayProperty( SerializedArray serializedList, int i )
 	{

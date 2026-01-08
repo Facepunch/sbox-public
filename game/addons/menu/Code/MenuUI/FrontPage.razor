@@ -18,8 +18,13 @@
 	<div class="right">
         <StoreHero></StoreHero>
         <div class="spacer"></div>
-		<Button class="clicky" Icon="checkroom" Help="Change your avatar's clothes and stuff" Text="#avatar.change" @onmousedown=@OpenAvatarScene></Button>
-		<Button class="clicky" icon="@CurrentModelIcon" Text="@CurrentModelMode" @onmousedown=@ToggleHuman></Button>
+
+        <div class="front-page-box">
+            <h2>Your Avatar</h2>
+            <Button class="clicky" Icon="checkroom" Help="Edit your avatar's appearance" Text="#avatar.change" @onmousedown=@OpenAvatarScene></Button>
+            <Button class="clicky" icon="@CurrentModelIcon" Text="@CurrentModelMode" @onmousedown=@ToggleHuman></Button>
+        </div>
+
 	</div>
 
 	@if ( Application.IsEditor )

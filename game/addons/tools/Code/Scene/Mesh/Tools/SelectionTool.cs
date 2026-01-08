@@ -87,16 +87,16 @@ public abstract class SelectionTool : EditorTool
 
 file class SelectionToolShortcutsWidget( SelectionTool tool ) : Widget
 {
-	[Shortcut( "mesh.selection-nudge-up", "UP", typeof( SceneDock ) )]
+	[Shortcut( "mesh.selection-nudge-up", "UP", typeof( SceneViewWidget ) )]
 	public void NudgeUp() => tool.Nudge( Vector2.Up );
 
-	[Shortcut( "mesh.selection-nudge-down", "DOWN", typeof( SceneDock ) )]
+	[Shortcut( "mesh.selection-nudge-down", "DOWN", typeof( SceneViewWidget ) )]
 	public void NudgeDown() => tool.Nudge( Vector2.Down );
 
-	[Shortcut( "mesh.selection-nudge-left", "LEFT", typeof( SceneDock ) ),]
+	[Shortcut( "mesh.selection-nudge-left", "LEFT", typeof( SceneViewWidget ) ),]
 	public void NudgeLeft() => tool.Nudge( Vector2.Left );
 
-	[Shortcut( "mesh.selection-nudge-right", "RIGHT", typeof( SceneDock ) )]
+	[Shortcut( "mesh.selection-nudge-right", "RIGHT", typeof( SceneViewWidget ) )]
 	public void NudgeRight() => tool.Nudge( Vector2.Right );
 }
 

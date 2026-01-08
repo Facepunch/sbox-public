@@ -72,7 +72,7 @@ internal class ConsoleWidget : Widget
 			AddConsoleMessage( diagnostic );
 		}
 
-		foreach ( var graph in ActionGraphDebugger.GetAllGraphs() )
+		foreach ( var graph in EditorNodeLibrary.GetGraphs() )
 		{
 			if ( !graph.HasErrors() ) continue;
 

@@ -130,7 +130,7 @@ namespace Sandbox
 		public void CreateBuffers( VertexBuffer vb, bool calculateBounds = true )
 		{
 			var vertices_span = CollectionsMarshal.AsSpan( vb.Vertex );
-			CreateVertexBuffer( vb.Vertex.Count, Vertex.Layout, vertices_span );
+			CreateVertexBuffer( vb.Vertex.Count, vertices_span );
 
 			if ( vb.Indexed )
 			{

@@ -17,6 +17,8 @@ public sealed partial class Material : Resource
 	/// <returns>The new material.</returns>
 	public static Material Create( string materialName, string shader, bool anonymous = true )
 	{
+		// MaterialSystem2.CreateRawMaterial will also assert in native, but let's catch this in managed too.
+		ThreadSafe.AssertIsMainThread();
 		return FromNative( MaterialSystem2.CreateRawMaterial( materialName, shader, anonymous ) );
 	}
 

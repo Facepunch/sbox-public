@@ -65,6 +65,7 @@ internal partial class RenderPipeline
 			DepthDownsampleLayer.Setup( viewport, rtDepth, msaaInput: msaa != MultisampleAmount.MultisampleNone, view );
 			DepthDownsampleLayer.AddToView( view, viewport );
 
+			TiledCullingLayer.Setup( view );
 			TiledCullingLayer.AddToView( view, viewport );
 		}
 

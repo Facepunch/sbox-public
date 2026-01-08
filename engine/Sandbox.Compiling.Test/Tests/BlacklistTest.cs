@@ -153,6 +153,7 @@ public partial class BlacklistTest
 		// H1-3204420
 		var sourceCode = """
 			#define DUMMY
+			#define DUMMY2
 			using System;
 			using System.Diagnostics;
 			using System.Reflection;
@@ -172,20 +173,24 @@ public partial class BlacklistTest
 			#if !DUMMY
 					return System.Runtime.CompilerServices.Unsafe.As<T>(o);
 			#endif
-					throw new UnreachableException();
+			
+			#if DUMMY2
+					return System.Runtime.CompilerServices.Unsafe.As<T>(o);
+			#endif
+			
+					return default;
 				}
 			
 				private static T OnMethodInvoked<T>(WrappedMethod<T> m, object o)
 				{
 					return m.Resume();
 				}
-
+				
 				[ConCmd("escape")]
 				public static void Escape()
 				{
 					var type = typeof(Type);
 					var typeShadow = As<ModelRenderer>(type);
-
 					Log.Info("type " + type);
 					Log.Info("typeShadow " + typeShadow);
 				}

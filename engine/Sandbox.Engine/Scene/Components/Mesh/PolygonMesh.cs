@@ -406,7 +406,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 	/// </summary>
 	public void ExtrudeFaces( FaceHandle[] faces, out List<FaceHandle> newFaces, out List<FaceHandle> connectingFaces, Vector3 offset = default )
 	{
-		BevelFaces( faces, out newFaces, out connectingFaces, true, offset );
+		BevelFaces( faces, out newFaces, out connectingFaces, out _, true, offset );
 	}
 
 	/// <summary>
@@ -414,11 +414,13 @@ public sealed partial class PolygonMesh : IJsonConvert
 	/// </summary>
 	public void DetachFaces( FaceHandle[] faces, out List<FaceHandle> newFaces )
 	{
-		BevelFaces( faces, out newFaces, out _, false );
+		BevelFaces( faces, out newFaces, out _, out _, false );
 	}
 
-	private void BevelFaces( FaceHandle[] faces, out List<FaceHandle> newFaces, out List<FaceHandle> connectingFaces, bool createConnectingFaces, Vector3 offset = default )
+	private void BevelFaces( FaceHandle[] faces, out List<FaceHandle> newFaces, out List<FaceHandle> connectingFaces, out List<HalfEdgeHandle> connectingEdges, bool createConnectingFaces, Vector3 offset = default )
 	{
+		connectingEdges = [];
+
 		var numFaces = faces.Length;
 		var faceDataIndices = new int[numFaces];
 
@@ -514,7 +516,83 @@ public sealed partial class PolygonMesh : IJsonConvert
 			TextureAlignToGrid( Transform, hConnectingFace );
 		}
 
+		connectingEdges.EnsureCapacity( numConnectingFaces );
+		for ( int iFace = 0; iFace < numConnectingFaces; ++iFace )
+		{
+			var hConnectingFace = connectingFaces[iFace];
+			var hTargetFace = connectingTargetFaces[iFace];
+			var hTargetEdge = FindEdgeConnectingFaces( hConnectingFace, hTargetFace );
+			var hConnectingEdge = FindOppositeEdgeInFace( hConnectingFace, hTargetEdge );
+			connectingEdges.Add( hConnectingEdge );
+		}
+
 		IsDirty = true;
+	}
+
+	void OffsetFacesAlongNormal( List<FaceHandle> faces, float flOffset )
+	{
+		var faceCount = faces.Count;
+
+		Topology.FindVerticesConnectedToFaces( faces, faceCount, out var connectedVertices );
+
+		var vertexToIndex = new Dictionary<VertexHandle, int>( connectedVertices.Length );
+		for ( var i = 0; i < connectedVertices.Length; i++ )
+			vertexToIndex[connectedVertices[i]] = i;
+
+		var facePlanes = new Plane[faceCount];
+		for ( var i = 0; i < faceCount; ++i )
+		{
+			GetFacePlane( faces[i], Transform.Zero, out var plane );
+			plane.Distance += flOffset;
+			facePlanes[i] = plane;
+		}
+
+		var offsetPositions = new Vector3[connectedVertices.Length];
+		for ( var i = 0; i < connectedVertices.Length; i++ )
+			offsetPositions[i] = GetVertexPosition( connectedVertices[i] );
+
+		for ( var i = 0; i < faceCount; ++i )
+		{
+			var hFace = faces[i];
+			var hStart = GetFirstVertexInFace( hFace );
+			var hCurrent = hStart;
+
+			do
+			{
+				var hVertex = GetVertexConnectedToFaceVertex( hCurrent );
+				offsetPositions[vertexToIndex[hVertex]] += facePlanes[i].Normal * flOffset;
+				hCurrent = GetNextVertexInFace( hCurrent );
+			}
+			while ( hCurrent != hStart );
+		}
+
+		for ( var i = 0; i < faceCount; ++i )
+		{
+			var hFace = faces[i];
+			var hStart = GetFirstVertexInFace( hFace );
+			var hCurrent = hStart;
+
+			do
+			{
+				var hVertex = GetVertexConnectedToFaceVertex( hCurrent );
+				var index = vertexToIndex[hVertex];
+				var original = GetVertexPosition( hVertex );
+				var offset = offsetPositions[index];
+				var intersection = facePlanes[i].IntersectLine( original, offset );
+				if ( intersection.HasValue )
+				{
+					offsetPositions[index] = intersection.Value;
+				}
+
+				hCurrent = GetNextVertexInFace( hCurrent );
+			}
+			while ( hCurrent != hStart );
+		}
+
+		for ( int i = 0; i < connectedVertices.Length; ++i )
+		{
+			SetVertexPosition( connectedVertices[i], offsetPositions[i] );
+		}
 	}
 
 	public bool ExtendEdges( IReadOnlyList<HalfEdgeHandle> edges, float amount, out List<HalfEdgeHandle> newEdges, out List<FaceHandle> newFaces )
@@ -3183,7 +3261,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 			var bounds = BBox.FromPoints( vertices.Select( x => x.position ) );
 			var material = submesh.Material ?? DefaultMaterial;
 			var mesh = new Mesh( material );
-			mesh.CreateVertexBuffer( vertices.Count, SimpleVertex.Layout, vertices );
+			mesh.CreateVertexBuffer( vertices.Count, vertices );
 			mesh.CreateIndexBuffer( indices.Count, indices );
 			mesh.Bounds = bounds;
 
@@ -4576,6 +4654,141 @@ public sealed partial class PolygonMesh : IJsonConvert
 	public void GetFacesConnectedToEdge( HalfEdgeHandle hEdge, out FaceHandle hOutFaceA, out FaceHandle hOutFaceB )
 	{
 		Topology.GetFacesConnectedToFullEdge( hEdge, out hOutFaceA, out hOutFaceB );
+	}
+
+	void FindBoundaryEdgesConnectedToFaces( IReadOnlyList<FaceHandle> faces, int faceCount, out List<HalfEdgeHandle> outBoundaryEdges )
+	{
+		Topology.FindFullEdgesConnectedToFaces( faces, faceCount, out var allConnectedEdges, out var edgeFaceCounts );
+
+		var connectedEdgesCount = allConnectedEdges.Length;
+		outBoundaryEdges = new( connectedEdgesCount );
+
+		for ( int i = 0; i < connectedEdgesCount; ++i )
+		{
+			if ( edgeFaceCounts[i] != 2 )
+			{
+				outBoundaryEdges.Add( allConnectedEdges[i] );
+			}
+		}
+	}
+
+	public bool ThickenFaces( IReadOnlyList<FaceHandle> faces, float amount, out List<FaceHandle> outFaces )
+	{
+		var any = false;
+		outFaces = [];
+
+		FindFaceIslands( faces, out var faceIslands );
+
+		var numIslands = faceIslands.Count;
+		for ( int islandIndex = 0; islandIndex < numIslands; ++islandIndex )
+		{
+			var faceIsland = faceIslands[islandIndex];
+
+			FindBoundaryEdgesConnectedToFaces( faceIsland, faceIsland.Count, out var boundaryEdges );
+
+			var numEdges = boundaryEdges.Count;
+			var allEdgesOpen = numEdges > 0;
+			for ( int iEdge = 0; iEdge < numEdges; ++iEdge )
+			{
+				if ( IsEdgeOpen( boundaryEdges[iEdge] ) == false )
+				{
+					allEdgesOpen = false;
+					break;
+				}
+			}
+
+			if ( allEdgesOpen == false )
+				continue;
+
+			var newMesh = new PolygonMesh();
+			newMesh.MergeMesh( this, Transform.Zero, out _, out _, out var newFaces );
+			var facesToExtrude = new List<FaceHandle>();
+			var facesToRemove = new List<FaceHandle>();
+
+			foreach ( var face in faceIsland )
+			{
+				facesToExtrude.Add( newFaces[face] );
+			}
+
+			foreach ( var face in newMesh.FaceHandles )
+			{
+				if ( facesToExtrude.Contains( face ) ) continue;
+				facesToRemove.Add( face );
+			}
+
+			newMesh.RemoveFaces( facesToRemove );
+			newMesh.FlipAllFaces();
+			newMesh.BevelFaces( [.. facesToExtrude], out var extrudedFaces, out _, out var connectingEdges, true );
+			newMesh.OffsetFacesAlongNormal( extrudedFaces, amount );
+
+			foreach ( var face in newMesh.FaceHandles )
+			{
+				newMesh.TextureAlignToGrid( Transform, face );
+			}
+
+			MergeMesh( newMesh, Transform.Zero, out _, out var newEdges, out newFaces );
+
+			var allEdges = new List<HalfEdgeHandle>();
+			foreach ( var e in connectingEdges )
+			{
+				if ( newEdges.TryGetValue( e, out var v ) )
+					allEdges.Add( v );
+			}
+
+			foreach ( var e in boundaryEdges )
+			{
+				allEdges.Add( e );
+			}
+
+			FindVerticesConnectedToEdges( allEdges, out var vertices );
+			MergeVerticesWithinDistance( vertices, 0.000001f, false, true, out _ );
+
+			foreach ( var f in faceIsland )
+			{
+				outFaces.Add( f );
+			}
+
+			any = true;
+		}
+
+		return any;
+	}
+
+	void FindFaceIslands( IReadOnlyList<FaceHandle> faces, out List<List<FaceHandle>> outFaces )
+	{
+		outFaces = [];
+
+		var faceSearchSet = faces.Where( IsFaceInMesh ).ToHashSet();
+
+		while ( faceSearchSet.Count > 0 )
+		{
+			var hStartFace = faceSearchSet.First();
+			faceSearchSet.Remove( hStartFace );
+
+			var island = new List<FaceHandle>( 32 );
+			outFaces.Add( island );
+			island.Add( hStartFace );
+
+			for ( int i = 0; i < island.Count; ++i )
+			{
+				var hCurrentFace = island[i];
+				var hStartEdge = Topology.GetFirstEdgeInFaceLoop( hCurrentFace );
+				var hEdge = hStartEdge;
+
+				do
+				{
+					var hConnectedFace = hEdge.OppositeEdge.Face;
+
+					if ( faceSearchSet.Remove( hConnectedFace ) )
+					{
+						island.Add( hConnectedFace );
+					}
+
+					hEdge = hEdge.NextEdge;
+				}
+				while ( hEdge != hStartEdge );
+			}
+		}
 	}
 
 	private static readonly Vector3[] FaceNormals =

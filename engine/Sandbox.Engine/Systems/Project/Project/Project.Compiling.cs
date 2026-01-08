@@ -96,7 +96,7 @@ public partial class Project
 
 			if ( BaseReferencingTypes.Contains( Config.Type ) && compilerName != "base" )
 			{
-				Compiler.AddReference( "package.base" );
+				Compiler.AddBaseReference();
 			}
 
 			Compiler.GeneratedCode.AppendLine( $"global using Microsoft.AspNetCore.Components;" );
@@ -121,7 +121,7 @@ public partial class Project
 
 				if ( compilerName != "toolbase" )
 				{
-					Compiler.AddReference( "package.toolbase" );
+					Compiler.AddToolBaseReference();
 					//await Project.WaitFor( "toolbase" );
 				}
 			}
@@ -130,7 +130,7 @@ public partial class Project
 
 			foreach ( var reference in PackageReferences() )
 			{
-				Compiler.AddReference( $"package.{reference}" );
+				Compiler.AddReference( reference );
 			}
 
 			foreach ( var reference in compilerSettings.DistinctAssemblyReferences )
@@ -151,13 +151,13 @@ public partial class Project
 		}
 	}
 
-	IEnumerable<string> PackageReferences()
+	IEnumerable<Package> PackageReferences()
 	{
 		if ( Config.Type == "game" )
 		{
 			foreach ( var library in Project.Libraries.Where( x => x.HasCodePath() ) )
 			{
-				yield return library.Package.GetIdent( false, false );
+				yield return library.Package;
 			}
 		}
 	}
@@ -197,11 +197,12 @@ public partial class Project
 		if ( Compiler is not null )
 		{
 			// reference the main code assembly		
-			EditorCompiler.AddReference( Compiler.AssemblyName );
+			EditorCompiler.AddReference( Compiler );
 		}
 
-		EditorCompiler.AddReference( "package.base" );
-		EditorCompiler.AddReference( "package.toolbase" );
+		EditorCompiler.AddBaseReference();
+		EditorCompiler.AddToolBaseReference();
+
 		EditorCompiler.AddReference( "Sandbox.Tools" );
 		EditorCompiler.AddReference( "Sandbox.Compiling" );
 		EditorCompiler.AddReference( "System.Diagnostics.Process" );
@@ -220,7 +221,7 @@ public partial class Project
 
 		foreach ( var reference in PackageReferences() )
 		{
-			EditorCompiler.AddReference( "package." + reference );
+			EditorCompiler.AddReference( reference );
 		}
 
 		if ( Config.Type == "game" )
@@ -228,7 +229,7 @@ public partial class Project
 			// editor libraries
 			foreach ( var library in Libraries.Where( x => x.HasEditorPath() ) )
 			{
-				EditorCompiler.AddReference( $"package.{library.Package.GetIdent( false, false )}.editor" );
+				EditorCompiler.AddEditorReference( library.Package );
 			}
 		}
 

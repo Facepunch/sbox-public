@@ -102,6 +102,11 @@ internal static class MaterialMenu
 		// Find all the image files in the same folder as the first asset we selected
 		var assetPath = System.IO.Path.GetDirectoryName( asset.AbsolutePath ).NormalizeFilename( false );
 		var assetPeers = AssetSystem.All.Where( x => x.AssetType == AssetType.ImageFile ).Where( x => x.AbsolutePath.StartsWith( assetPath ) ).ToArray();
+		var assetPeersWithSameBaseName = assetPeers.Where( x => x.Name == assetName || x.Name.StartsWith( assetName + "_" ) ).ToArray();
+		if ( assetPeersWithSameBaseName.Length > 0 )
+		{
+			assetPeers = assetPeersWithSameBaseName;
+		}
 
 		//
 		// Try to work out what textures should go where using hacks and magic

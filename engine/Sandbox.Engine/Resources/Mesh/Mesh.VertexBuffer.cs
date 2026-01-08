@@ -159,6 +159,46 @@ namespace Sandbox
 			}
 		}
 
+		public static unsafe VertexBufferHandle Create<T>( int vertexCount, Span<T> data = default ) where T : unmanaged
+		{
+			if ( data.Length > 0 && vertexCount > data.Length )
+				throw new ArgumentException( $"{nameof( vertexCount )} exceeds {nameof( data )}" );
+
+			fixed ( T* pData = data )
+			{
+				return Create( typeof( T ), vertexCount, (IntPtr)pData );
+			}
+		}
+
+		internal static unsafe VertexBufferHandle Create( Type type, int vertexCount, IntPtr data = default )
+		{
+			if ( vertexCount <= 0 )
+				throw new ArgumentException( "Vertex buffer size can't be zero" );
+
+			if ( !SandboxedUnsafe.IsAcceptablePod( type ) )
+				throw new ArgumentException( $"{type} must be a POD type" );
+
+			var layout = VertexLayout.Get( type );
+			if ( !layout.IsValid )
+				throw new ArgumentException( $"{type} invalid vertex type" );
+
+			var handle = MeshGlue.CreateVertexBuffer( vertexCount, layout, data );
+			if ( handle == IntPtr.Zero )
+				throw new Exception( $"Failed to create vertex buffer" );
+
+			return new VertexBufferHandle()
+			{
+				_native = handle,
+				_lockData = IntPtr.Zero,
+				_elementCount = vertexCount,
+				_elementSize = layout.m_Size,
+				_elementType = type,
+				_lockDataSize = 0,
+				_lockDataOffset = 0,
+				_locked = false,
+			};
+		}
+
 		internal static unsafe VertexBufferHandle Create( Type type, int vertexCount, VertexAttribute[] layout, IntPtr data = default, int dataLength = 0 )
 		{
 			if ( !SandboxedUnsafe.IsAcceptablePod( type ) )
@@ -539,8 +579,45 @@ namespace Sandbox
 		private Type vertexType;
 
 		/// <summary>
+		/// Create a vertex buffer with a number of vertices
+		/// </summary>
+		public unsafe void CreateVertexBuffer<T>( int vertexCount, Span<T> data = default ) where T : unmanaged
+		{
+			if ( vb.IsValid )
+				throw new Exception( "Vertex buffer has already been created" );
+
+			if ( !SandboxedUnsafe.IsAcceptablePod<T>() )
+				throw new ArgumentException( $"{nameof( T )} must be a POD type" );
+
+			vertexType = typeof( T );
+
+			if ( vertexCount <= 0 )
+				return;
+
+			vb = VertexBufferHandle.Create( vertexCount, data );
+			if ( !vb.IsValid )
+				return;
+
+			fixed ( T* data_ptr = data )
+			{
+				MeshGlue.SetMeshVertexBuffer( native, vb, (IntPtr)data_ptr, data.Length );
+			}
+
+			SetVertexRange( 0, vb.ElementCount );
+		}
+
+		/// <summary>
+		/// Create a vertex buffer with a number of vertices
+		/// </summary>
+		public void CreateVertexBuffer<T>( int vertexCount, List<T> data ) where T : unmanaged
+		{
+			CreateVertexBuffer( vertexCount, CollectionsMarshal.AsSpan( data ) );
+		}
+
+		/// <summary>
 		/// Create an empty vertex buffer, it can be resized later
 		/// </summary>
+		[Obsolete( $"Use CreateVertexBuffer without {nameof( layout )}, use {nameof( VertexLayout )} attributes on your vertex struct instead" )]
 		public void CreateVertexBuffer<T>( VertexAttribute[] layout ) where T : unmanaged
 		{
 			CreateVertexBuffer( 0, layout, Span<T>.Empty );
@@ -549,6 +626,7 @@ namespace Sandbox
 		/// <summary>
 		/// Create a vertex buffer with a number of vertices
 		/// </summary>
+		[Obsolete( $"Use CreateVertexBuffer without {nameof( layout )}, use {nameof( VertexLayout )} attributes on your vertex struct instead" )]
 		public void CreateVertexBuffer<T>( int vertexCount, VertexAttribute[] layout, List<T> data ) where T : unmanaged
 		{
 			CreateVertexBuffer( vertexCount, layout, CollectionsMarshal.AsSpan( data ) );
@@ -557,6 +635,7 @@ namespace Sandbox
 		/// <summary>
 		/// Create a vertex buffer with a number of vertices
 		/// </summary>
+		[Obsolete( $"Use CreateVertexBuffer without {nameof( layout )}, use {nameof( VertexLayout )} attributes on your vertex struct instead" )]
 		public unsafe void CreateVertexBuffer<T>( int vertexCount, VertexAttribute[] layout, Span<T> data = default ) where T : unmanaged
 		{
 			if ( vb.IsValid )
@@ -607,13 +686,19 @@ namespace Sandbox
 			if ( elementCount <= 0 )
 				throw new ArgumentException( "Vertex buffer size can't be zero" );
 
-			if ( !vb.IsValid && vertexLayout != null && vertexLayout.Length > 0 && vertexType != null )
+			if ( vertexType is null ) return;
+
+			if ( vb.IsValid )
+			{
+				vb.SetSize( elementCount );
+			}
+			else if ( vertexLayout is not null && vertexLayout.Length > 0 )
 			{
 				vb = VertexBufferHandle.Create( vertexType, elementCount, vertexLayout );
 			}
 			else
 			{
-				vb.SetSize( elementCount );
+				vb = VertexBufferHandle.Create( vertexType, elementCount );
 			}
 
 			if ( !vb.IsValid )

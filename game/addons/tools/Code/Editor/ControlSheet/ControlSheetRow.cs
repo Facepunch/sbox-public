@@ -303,13 +303,9 @@ class ControlSheetRow : Widget
 
 		var component = EditedComponents.FirstOrDefault();
 
-		// Are we editing in a game session?
+		// Only show if we're editing in a game session
 		var session = SceneEditorSession.Resolve( component?.GameObject?.Scene );
 		if ( session is null )
-			return;
-
-		// Only show "Apply To Scene" if we're editing in an active game session
-		if ( !session.IsPlaying || component.GameObject.Scene != session.Scene )
 			return;
 
 		// try to find the version of this component in the editor session
@@ -322,10 +318,11 @@ class ControlSheetRow : Widget
 
 		// add option to apply this value to that scene
 		menu.AddSeparator();
-		var setter = menu.AddOption( "Apply To Scene..", "save", () =>
+		var setter = menu.AddOption( "Apply to Scene", "save", () =>
 		{
-			// No idea what Apply To Scene does behind the scenes, cheaper undo is likely possible if it ever becomes an issue
-			using ( SceneEditorSession.Active.UndoScope( "Apply To Scene" ).WithGameObjectChanges( session.Scene, GameObjectUndoFlags.All ).Push() )
+			using var scope = session.Scene.Push();
+
+			using ( session.UndoScope( "Apply to Scene" ).WithComponentChanges( targetComponent ).Push() )
 			{
 				prop.SetValue<object>( property.GetValue<object>() );
 			}
