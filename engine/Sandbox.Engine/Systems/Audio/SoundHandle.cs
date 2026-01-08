@@ -334,6 +334,7 @@ public partial class SoundHandle : IValid, IDisposable
 			_sfx = default;
 
 			DisposeSources();
+			DisposeProcessors();
 
 			MainThread.QueueDispose( sampler );
 			sampler = null;
