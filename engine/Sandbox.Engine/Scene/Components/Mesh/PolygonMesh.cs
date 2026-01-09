@@ -1882,6 +1882,11 @@ public sealed partial class PolygonMesh : IJsonConvert
 		return Topology.GetFacesConnectedToVertex( hVertex, out faces );
 	}
 
+	public bool GetFacesConnectedToFace( FaceHandle hFace, out List<FaceHandle> faces )
+	{
+		return Topology.GetFacesConnectedToFace( hFace, out faces );
+	}
+
 	public HalfEdgeHandle FindFaceVertexConnectedToVertex( VertexHandle hVertex, FaceHandle hFace )
 	{
 		return Topology.FindEdgeConnectedToFaceEndingAtVertex( hFace, hVertex );

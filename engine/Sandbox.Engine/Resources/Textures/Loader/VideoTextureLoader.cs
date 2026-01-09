@@ -19,6 +19,10 @@ internal static class VideoTextureLoader
 
 	internal static bool IsAppropriate( string url )
 	{
+		if ( !Uri.TryCreate( url, UriKind.Absolute, out var uri ) ) return false;
+
+		if ( uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps ) return false;
+
 		var split = url.Split( '?' )[0];
 		var extension = System.IO.Path.GetExtension( split );
 

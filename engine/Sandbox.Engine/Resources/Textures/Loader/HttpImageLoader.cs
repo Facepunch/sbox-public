@@ -13,7 +13,11 @@ internal static class ImageUrl
 
 	internal static bool IsAppropriate( string url )
 	{
-		return url.StartsWith( "https://" ) || url.StartsWith( "http://" );
+		if ( !Uri.TryCreate( url, UriKind.Absolute, out var uri ) ) return false;
+
+		if ( uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps ) return false;
+
+		return true;
 	}
 
 	internal static Texture Load( string filename, bool warnOnMissing )
@@ -51,7 +55,7 @@ internal static class ImageUrl
 		{
 			// I'd love to retry this multiple times, if it's a weird error that seems recoverable
 
-			var bytes = await HttpClient.GetByteArrayAsync( url );
+			var bytes = await Http.RequestBytesAsync( url );
 			Texture texture = null;
 			// decode in a thread
 			await Task.Run( () =>

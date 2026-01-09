@@ -43,11 +43,4 @@ public unsafe class MemoryAlloc
 		var data = NativeMemory.Alloc( allocSize );
 		NativeMemory.Free( data );
 	}
-
-	[Benchmark]
-	public void NativeMemoryBlock()
-	{
-		using var ptr = Sandbox.NativeMemoryBlock.GetOrCreatePooled( allocSize );
-	}
-
 }
