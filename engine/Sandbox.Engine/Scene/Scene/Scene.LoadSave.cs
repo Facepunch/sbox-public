@@ -40,6 +40,11 @@ public partial class Scene : GameObject
 			return false;
 		}
 
+		if ( sceneFile.ResourceName != null )
+		{
+			Name = sceneFile.ResourceName.ToTitleCase();
+		}
+
 		ProcessDeletes();
 
 		if ( !options.IsAdditive )
