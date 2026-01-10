@@ -1,22 +1,38 @@
-﻿namespace Editor;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
 
+namespace Editor;
+
+/// <summary>
+/// Picker mode - Material Icons or Emojis
+/// </summary>
+public enum IconPickerMode
+{
+	MaterialIcons,
+	Emojis
+}
+
+/// <summary>
+/// A widget for picking Material Icons or Emojis with categories, favorites and recently used tracking.
+/// </summary>
 [Icon( "search" )]
 sealed class IconPickerWidget : Widget
 {
 	public Action<string> ValueChanged { get; set; }
-	public int IconsPerPage = 40;
-	public int IconsPerRow = 8;
+	public Action<Color> ColorChanged { get; set; }
+	public int IconsPerPage = 56;
+	public int IconsPerRow = 7;
 
-	string _filter;
-	public string Filter
-	{
-		get => _filter;
-		set
-		{
-			_filter = value;
-			Rebuild();
-		}
-	}
+	const string RecentlyUsedCookieKey = "IconPicker.RecentlyUsed";
+	const string RecentlyUsedEmojiCookieKey = "IconPicker.RecentlyUsedEmoji";
+	const string FavoritesCookieKey = "IconPicker.Favorites";
+	const string FavoritesEmojiCookieKey = "IconPicker.FavoritesEmoji";
+	const int MaxRecentIcons = 16;
+	const int MaxFavorites = 32;
+
+	string _currentCategory = "Main";
+	IconPickerMode _currentMode = IconPickerMode.MaterialIcons;
 
 	string _icon;
 	public string Icon
@@ -25,56 +41,374 @@ sealed class IconPickerWidget : Widget
 		set
 		{
 			_icon = value;
+			AddToRecentlyUsed( _icon, _currentMode );
 			Rebuild();
 			ValueChanged?.Invoke( _icon );
 		}
 	}
 
 	int CurrentPage = 0;
-	int FilterPage = 0;
 	Label HeaderLabel;
-	LineEdit HeaderSearch;
+	Label CategoryLabel;
 	GridLayout ContentLayout;
+	Layout CategoryLayout;
+	IconButton MaterialIconButton;
+	IconButton EmojiButton;
+	IconButton ColorButton;
+	LineEdit SearchBox;
+	string _searchText = "";
+
+	static readonly Dictionary<string, string[]> EmojiCategories;
+	static readonly Dictionary<string, List<string>> EmojiToNames; // Maps emoji to their searchable names
+
+	static string[] SmileyEmojis;
+	static string[] PeopleEmojis;
+	static string[] NatureEmojis;
+	static string[] FoodEmojis;
+	static string[] ActivityEmojis;
+	static string[] TravelEmojis;
+	static string[] ObjectEmojis;
+	static string[] SymbolEmojis;
+	static string[] FlagEmojis;
+
+	static IconPickerWidget()
+	{
+		// Load emojis from JSON file
+		Dictionary<string, string[]> emojiData = null;
+
+		try
+		{
+			// Try loading from addons/tools/Data path (where this code lives)
+			var path = FileSystem.Root.GetFullPath( "/addons/tools/Data/emojis/emojis.json" );
+			if ( !string.IsNullOrEmpty( path ) && System.IO.File.Exists( path ) )
+			{
+				var json = System.IO.File.ReadAllText( path );
+				emojiData = JsonSerializer.Deserialize<Dictionary<string, string[]>>( json );
+			}
+		}
+		catch { }
+
+		// Fallback defaults if JSON not found
+		emojiData ??= new Dictionary<string, string[]>();
+
+		SmileyEmojis = emojiData.GetValueOrDefault( "Smileys" ) ?? [];
+		PeopleEmojis = emojiData.GetValueOrDefault( "People" ) ?? [];
+		NatureEmojis = emojiData.GetValueOrDefault( "Nature" ) ?? [];
+		FoodEmojis = emojiData.GetValueOrDefault( "Food" ) ?? [];
+		ActivityEmojis = emojiData.GetValueOrDefault( "Activities" ) ?? [];
+		TravelEmojis = emojiData.GetValueOrDefault( "Travel" ) ?? [];
+		ObjectEmojis = emojiData.GetValueOrDefault( "Objects" ) ?? [];
+		SymbolEmojis = emojiData.GetValueOrDefault( "Symbols" ) ?? [];
+		FlagEmojis = emojiData.GetValueOrDefault( "Flags" ) ?? [];
+
+		EmojiCategories = new Dictionary<string, string[]>()
+		{
+			["Recently Used"] = Array.Empty<string>(),
+			["Favorites"] = Array.Empty<string>(),
+			["Smileys"] = SmileyEmojis,
+			["People"] = PeopleEmojis,
+			["Nature"] = NatureEmojis,
+			["Food"] = FoodEmojis,
+			["Activities"] = ActivityEmojis,
+			["Travel"] = TravelEmojis,
+			["Objects"] = ObjectEmojis,
+			["Symbols"] = SymbolEmojis,
+			["Flags"] = FlagEmojis,
+			["All Emojis"] = SmileyEmojis
+				.Concat( PeopleEmojis )
+				.Concat( NatureEmojis )
+				.Concat( FoodEmojis )
+				.Concat( ActivityEmojis )
+				.Concat( TravelEmojis )
+				.Concat( ObjectEmojis )
+				.Concat( SymbolEmojis )
+				.Concat( FlagEmojis )
+				.Distinct()
+				.ToArray()
+		};
+
+		// Build reverse mapping from emojis to searchable names
+		// Uses reflection to get the Emoji.Entries dictionary from Sandbox.UI namespace
+		EmojiToNames = new Dictionary<string, List<string>>();
+		try
+		{
+			var emojiType = typeof( Sandbox.UI.Emoji );
+			var entriesField = emojiType.GetField( "Entries", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic );
+			if ( entriesField?.GetValue( null ) is Dictionary<string, string> entries )
+			{
+				foreach ( var kvp in entries )
+				{
+					var name = kvp.Key.Trim( ':' ); // Remove colons from ":heart:" -> "heart"
+					var emoji = kvp.Value;
+
+					if ( !EmojiToNames.ContainsKey( emoji ) )
+						EmojiToNames[emoji] = new List<string>();
+
+					EmojiToNames[emoji].Add( name );
+				}
+			}
+		}
+		catch { }
+	}
 
 	public IconPickerWidget( Widget parent = null ) : base( parent )
 	{
 		Layout = Layout.Column();
-		Layout.Alignment = TextFlag.CenterTop;
 		FocusMode = FocusMode.Click;
 
+		// Remove tab widget, just use the icons tab directly
+		var iconsTab = new Widget( this );
+		iconsTab.Layout = Layout.Row();
+		Layout.Add( iconsTab );
 
-		HeaderSearch = Layout.Add( new LineEdit( this ) );
-		HeaderSearch.HorizontalSizeMode = SizeMode.Flexible;
-		HeaderSearch.PlaceholderText = "⌕  Search";
-		HeaderSearch.TextChanged += FilterTextChanged;
+		// Left sidebar for categories
+		var sidebarLayout = Layout.Column();
+		sidebarLayout.Margin = 4;
+		sidebarLayout.Spacing = 2;
+		sidebarLayout.Alignment = TextFlag.Top; // Icons start at the top
+		iconsTab.Layout.Add( sidebarLayout );
 
+		CategoryLayout = sidebarLayout;
+		BuildCategorySidebar();
+
+		// Separator
+		var separator = new Widget( iconsTab );
+		separator.FixedWidth = 1;
+		separator.MinimumHeight = 100;
+		separator.OnPaintOverride = () =>
+		{
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.ControlBackground.Lighten( 0.1f ) );
+			Paint.DrawRect( separator.LocalRect );
+			return true;
+		};
+		iconsTab.Layout.Add( separator );
+
+		// Right content area - wrapped in a widget for background painting
+		var contentAreaWrapper = new Widget( iconsTab );
+		var contentArea = Layout.Column();
+		contentArea.Margin = 4;
+		contentAreaWrapper.Layout = contentArea;
+		iconsTab.Layout.Add( contentAreaWrapper );
+
+		// Add background for content area for better contrast
+		contentAreaWrapper.OnPaintOverride = () =>
+		{
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.ControlBackground.Darken( 0.05f ) );
+			Paint.DrawRect( contentAreaWrapper.LocalRect, 4 );
+			return false; // Continue painting children
+		};
+
+		// Category header - right aligned
+		CategoryLabel = contentArea.Add( new Label( iconsTab ) );
+		CategoryLabel.Alignment = TextFlag.Right;
+		CategoryLabel.SetStyles( "font-weight: bold; font-size: 11px; color: #888;" );
+
+		// Search box
+		SearchBox = contentArea.Add( new LineEdit( iconsTab ) );
+		SearchBox.PlaceholderText = "Search icons...";
+		SearchBox.TextEdited += ( text ) =>
+		{
+			_searchText = text;
+			CurrentPage = 0;
+			Rebuild();
+		};
+
+		// Page navigation
 		var headerLayout = Layout.Row();
-		headerLayout.Margin = 8;
+		headerLayout.Margin = 4;
 		headerLayout.Spacing = 2;
-		Layout.Add( headerLayout );
+		contentArea.Add( headerLayout );
 
-		var buttonLeft = headerLayout.Add( new IconButton( "arrow_back", ButtonLeft, this ) );
+		var buttonLeft = headerLayout.Add( new IconButton( "chevron_left", ButtonLeft, iconsTab ) );
+		buttonLeft.ToolTip = "Previous Page";
 
-		HeaderLabel = headerLayout.Add( new Label( this ) );
+		HeaderLabel = headerLayout.Add( new Label( iconsTab ) );
 		HeaderLabel.Alignment = TextFlag.Center;
 
-		var buttonRight = headerLayout.Add( new IconButton( "arrow_forward", ButtonRight, this ) );
+		var buttonRight = headerLayout.Add( new IconButton( "chevron_right", ButtonRight, iconsTab ) );
+		buttonRight.ToolTip = "Next Page";
 
+		// Icon grid
 		ContentLayout = Layout.Grid();
-		ContentLayout.Margin = 8;
-		ContentLayout.Spacing = 6;
-		ContentLayout.Alignment = TextFlag.LeftTop;
-		Layout.Add( ContentLayout );
+		ContentLayout.Margin = 4;
+		ContentLayout.Spacing = 4;
+		ContentLayout.Alignment = TextFlag.LeftTop; // Icons start at top-left
+		contentArea.Add( ContentLayout );
 
-		Layout.AddStretchCell( 1 );
+		contentArea.AddStretchCell( 1 );
+
+		// Right sidebar for small mode buttons (icons / emoji) and color picker
+		var rightSeparator = new Widget( iconsTab );
+		rightSeparator.FixedWidth = 1;
+		rightSeparator.MinimumHeight = 100;
+		rightSeparator.OnPaintOverride = () =>
+		{
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.ControlBackground.Lighten( 0.1f ) );
+			Paint.DrawRect( separator.LocalRect );
+			return true;
+		};
+		iconsTab.Layout.Add( rightSeparator );
+
+		var rightSidebar = Layout.Column();
+		rightSidebar.Margin = 4;
+		rightSidebar.Spacing = 10; // Increased spacing for better separation
+		rightSidebar.Alignment = TextFlag.Top | TextFlag.Right; // Align to top right
+		iconsTab.Layout.Add( rightSidebar );
+
+		// Mode buttons as small icons in the right sidebar
+		MaterialIconButton = new IconButton( "apps", () => SetMode( IconPickerMode.MaterialIcons ), iconsTab );
+		MaterialIconButton.ToolTip = "Material Icons";
+		MaterialIconButton.IconSize = 14;
+		MaterialIconButton.FixedSize = 26;
+		rightSidebar.Add( MaterialIconButton );
+
+		// Use a material icon for emoji instead of emoji glyph
+		EmojiButton = new IconButton( "emoji_emotions", () => SetMode( IconPickerMode.Emojis ), iconsTab );
+		EmojiButton.ToolTip = "Emojis";
+		EmojiButton.IconSize = 14;
+		EmojiButton.FixedSize = 26;
+		rightSidebar.Add( EmojiButton );
+
+		// Color button - opens color picker popup
+		ColorButton = new IconButton( "palette", () =>
+		{
+			var lastColor = EditorCookie.Get<Color?>( "IconPicker.LastColor", null ) ?? Color.White;
+			ColorPicker.OpenColorPopup( lastColor, c =>
+			{
+				EditorCookie.Set( "IconPicker.LastColor", c );
+				ColorChanged?.Invoke( c );
+			} );
+		}, iconsTab );
+		ColorButton.ToolTip = "Icon Color";
+		ColorButton.IconSize = 14;
+		ColorButton.FixedSize = 26;
+		rightSidebar.Add( ColorButton );
+
+		UpdateModeButtons();
 
 		Rebuild();
 	}
 
+	void SetMode( IconPickerMode mode )
+	{
+		if ( _currentMode == mode ) return;
+		_currentMode = mode;
+		_currentCategory = mode == IconPickerMode.MaterialIcons ? "Main" : "Smileys";
+		_searchText = "";
+		if ( SearchBox is not null )
+		{
+			SearchBox.Text = "";
+			SearchBox.PlaceholderText = mode == IconPickerMode.MaterialIcons ? "Search icons..." : "Search emojis...";
+		}
+		CurrentPage = 0;
+		UpdateModeButtons();
+		BuildCategorySidebar();
+		Rebuild();
+	}
+
+	void UpdateModeButtons()
+	{
+		var activeColor = Theme.Primary;
+		var inactiveColor = Theme.ControlBackground;
+
+		MaterialIconButton.SetStyles( _currentMode == IconPickerMode.MaterialIcons
+			? $"background-color: {activeColor.Hex}; color: white;"
+			: $"background-color: {inactiveColor.Hex};" );
+
+		EmojiButton.SetStyles( _currentMode == IconPickerMode.Emojis
+			? $"background-color: {activeColor.Hex}; color: white;"
+			: $"background-color: {inactiveColor.Hex};" );
+
+		// Update color button visibility: only for material icons and when an icon is selected
+		if ( ColorButton is not null )
+		{
+			ColorButton.Visible = _currentMode == IconPickerMode.MaterialIcons && !string.IsNullOrEmpty( Icon );
+		}
+	}
+
+	void BuildCategorySidebar()
+	{
+		CategoryLayout.Clear( true );
+
+		var categories = _currentMode == IconPickerMode.MaterialIcons ? IconCategories : EmojiCategories;
+
+		foreach ( var category in categories.Keys )
+		{
+			var isActive = category == _currentCategory;
+			var categoryInfo = GetCategoryInfo( category );
+
+			var btn = new IconButton( categoryInfo.Icon, () => SetCategory( category ), this );
+			btn.ToolTip = categoryInfo.Name;
+			btn.IconSize = 18;
+			btn.FixedSize = 28;
+
+			if ( isActive )
+			{
+				btn.OnPaintOverride = () =>
+				{
+					Paint.ClearPen();
+					Paint.SetBrush( Theme.Primary.WithAlpha( 0.3f ) );
+					Paint.DrawRect( btn.LocalRect, 4 );
+					Paint.SetPen( Theme.Primary );
+					Paint.DrawIcon( btn.LocalRect, categoryInfo.Icon, 18 );
+					return true;
+				};
+			}
+
+			CategoryLayout.Add( btn );
+		}
+	}
+
+	void SetCategory( string category )
+	{
+		if ( _currentCategory == category ) return;
+		_currentCategory = category;
+		_searchText = "";
+		if ( SearchBox is not null ) SearchBox.Text = "";
+		CurrentPage = 0;
+		BuildCategorySidebar();
+		Rebuild();
+	}
+
+	(string Icon, string Name) GetCategoryInfo( string category )
+	{
+		return category switch
+		{
+			// Material Icon categories
+			"Recently Used" => ("history", "Recently Used"),
+			"Favorites" => ("star", "Favorites"),
+			"Main" => ("apps", "Common"),
+			"All Icons" => ("widgets", "All Icons"),
+			// Emoji categories
+			"Smileys" => ("emoji_emotions", "Smileys & Emotion"),
+			"People" => ("emoji_people", "People & Body"),
+			"Nature" => ("emoji_nature", "Animals & Nature"),
+			"Food" => ("emoji_food_beverage", "Food & Drink"),
+			"Activities" => ("emoji_events", "Activities"),
+			"Travel" => ("emoji_transportation", "Travel & Places"),
+			"Objects" => ("emoji_objects", "Objects"),
+			"Symbols" => ("emoji_symbols", "Symbols"),
+			"Flags" => ("emoji_flags", "Flags"),
+			"All Emojis" => ("apps", "All Emojis"),
+			_ => ("help", category)
+		};
+	}
+
 	void Rebuild()
 	{
-		var currentPage = !string.IsNullOrWhiteSpace( Filter ) ? FilterPage : CurrentPage;
-		HeaderLabel.Text = $"Page {currentPage + 1}/{GetTotalPages()}";
+		var currentPage = CurrentPage;
+		int totalPages = GetTotalPages();
+		if ( totalPages == 0 ) totalPages = 1;
+		if ( currentPage >= totalPages ) currentPage = Math.Max( 0, totalPages - 1 );
+		if ( currentPage < 0 ) currentPage = 0;
+		CurrentPage = currentPage;
+
+		var categoryInfo = GetCategoryInfo( _currentCategory );
+		CategoryLabel.Text = categoryInfo.Name.ToUpperInvariant();
+		HeaderLabel.Text = $"{currentPage + 1} / {totalPages}";
 
 		var iconNames = GetAvailableIconNames();
 
@@ -86,20 +420,63 @@ sealed class IconPickerWidget : Widget
 		for ( int i = startingIndex; i < endingIndex; i++ )
 		{
 			var icon = iconNames[i];
+			var isFavorite = IsFavorite( icon, _currentMode );
 			var iconButton = new IconButton( icon );
-			iconButton.IconSize = 20;
-			iconButton.ToolTip = icon;
+			iconButton.IconSize = 18;
+			iconButton.FixedSize = 26;
+			iconButton.ToolTip = icon + (isFavorite ? " ?" : "");
 			iconButton.OnClick = () => Icon = icon;
+
+			// Right-click context menu for favorites
+			var capturedIcon = icon;
+			var capturedMode = _currentMode;
+			iconButton.MouseRightClick = () =>
+			{
+				var menu = new Menu( iconButton );
+				if ( IsFavorite( capturedIcon, capturedMode ) )
+				{
+					menu.AddOption( "Remove from Favorites", "star_border", () =>
+					{
+						RemoveFromFavorites( capturedIcon, capturedMode );
+						Rebuild();
+					} );
+				}
+				else
+				{
+					menu.AddOption( "Add to Favorites", "star", () =>
+					{
+						AddToFavorites( capturedIcon, capturedMode );
+						Rebuild();
+					} );
+				}
+				menu.OpenAtCursor();
+			};
+
 			if ( icon == Icon )
+			{
 				iconButton.OnPaintOverride = () =>
 				{
 					Paint.ClearPen();
-					Paint.SetBrush( Theme.Blue.WithAlpha( 1f ) );
-					Paint.DrawRect( iconButton.LocalRect, 2 );
-					Paint.SetBrushAndPen( Theme.ControlBackground, Theme.ControlBackground );
-					Paint.DrawIcon( iconButton.LocalRect, icon, 20 );
+					Paint.SetBrush( Theme.Primary.WithAlpha( 0.8f ) );
+					Paint.DrawRect( iconButton.LocalRect, 3 );
+					Paint.SetPen( Color.White );
+					Paint.DrawIcon( iconButton.LocalRect, icon, 18 );
 					return true;
 				};
+			}
+			else if ( isFavorite )
+			{
+				iconButton.OnPaintOverride = () =>
+				{
+					Paint.ClearPen();
+					Paint.SetBrush( Theme.Yellow.WithAlpha( 0.2f ) );
+					Paint.DrawRect( iconButton.LocalRect, 3 );
+					Paint.SetPen( Theme.TextControl );
+					Paint.DrawIcon( iconButton.LocalRect, icon, 18 );
+					return true;
+				};
+			}
+
 			ContentLayout.AddCell( x, y, iconButton );
 			x++;
 			if ( x >= IconsPerRow )
@@ -110,2301 +487,405 @@ sealed class IconPickerWidget : Widget
 		}
 
 		Update();
+		UpdateModeButtons();
 	}
 
 	void ButtonLeft()
 	{
-		var isFiltering = !string.IsNullOrWhiteSpace( Filter );
-		var currentPage = isFiltering ? FilterPage : CurrentPage;
-		currentPage--;
-		if ( currentPage < 0 )
-			currentPage = GetTotalPages() - 1;
-		if ( isFiltering )
-			FilterPage = currentPage;
-		else
-			CurrentPage = currentPage;
+		CurrentPage--;
+		if ( CurrentPage < 0 )
+			CurrentPage = GetTotalPages() - 1;
 		Rebuild();
 	}
 
 	void ButtonRight()
 	{
-		var isFiltering = !string.IsNullOrWhiteSpace( Filter );
-		var currentPage = isFiltering ? FilterPage : CurrentPage;
-		currentPage++;
-		if ( currentPage >= GetTotalPages() )
-			currentPage = 0;
-		if ( isFiltering )
-			FilterPage = currentPage;
-		else
-			CurrentPage = currentPage;
+		CurrentPage++;
+		if ( CurrentPage >= GetTotalPages() )
+			CurrentPage = 0;
 		Rebuild();
-	}
-
-	void FilterTextChanged( string text )
-	{
-		if ( string.IsNullOrWhiteSpace( Filter ) && !string.IsNullOrWhiteSpace( text ) )
-		{
-			FilterPage = 0;
-		}
-		Filter = text;
 	}
 
 	string[] GetAvailableIconNames()
 	{
-		if ( string.IsNullOrEmpty( Filter ) )
-			return MaterialIconNames;
-		return MaterialIconNames.Where( x => x.Contains( Filter ) ).ToArray();
+		string[] icons;
+
+		// Get base icon list
+		if ( _currentCategory == "Recently Used" )
+		{
+			icons = GetRecentlyUsedIcons( _currentMode );
+		}
+		else if ( _currentCategory == "Favorites" )
+		{
+			icons = GetFavorites( _currentMode );
+		}
+		else
+		{
+			var categories = _currentMode == IconPickerMode.MaterialIcons ? IconCategories : EmojiCategories;
+			if ( categories.TryGetValue( _currentCategory, out var categoryIcons ) )
+			{
+				icons = categoryIcons;
+			}
+			else
+			{
+				icons = _currentMode == IconPickerMode.MaterialIcons ? MainIcons : SmileyEmojis;
+			}
+		}
+
+		// Apply search filter
+		if ( !string.IsNullOrWhiteSpace( _searchText ) )
+		{
+			if ( _currentMode == IconPickerMode.Emojis )
+			{
+				// Search emojis by their names (e.g., "heart" finds ??, ??, ??, etc.)
+				icons = icons.Where( emoji =>
+				{
+					// Check if the emoji itself contains the search text (unlikely but possible)
+					if ( emoji.Contains( _searchText, StringComparison.OrdinalIgnoreCase ) )
+						return true;
+
+					// Check if any of the emoji's names contain the search text
+					if ( EmojiToNames.TryGetValue( emoji, out var names ) )
+					{
+						return names.Any( name => name.Contains( _searchText, StringComparison.OrdinalIgnoreCase ) );
+					}
+
+					return false;
+				} ).ToArray();
+			}
+			else
+			{
+				// Material icons: search by icon name
+				icons = icons.Where( i => i.Contains( _searchText, StringComparison.OrdinalIgnoreCase ) ).ToArray();
+			}
+		}
+
+		return icons;
 	}
 
 	int GetTotalPages()
 	{
-		if ( !string.IsNullOrWhiteSpace( Filter ) )
-		{
-			return (int)MathF.Ceiling( GetAvailableIconNames().Length / (float)IconsPerPage );
-		}
+		var icons = GetAvailableIconNames();
+		if ( icons.Length == 0 ) return 1;
+		return (int)MathF.Ceiling( icons.Length / (float)IconsPerPage );
+	}
 
-		return (int)MathF.Ceiling( MaterialIconNames.Length / (float)IconsPerPage );
+	// Recently used methods
+	static string[] GetRecentlyUsedIcons( IconPickerMode mode )
+	{
+		var key = mode == IconPickerMode.MaterialIcons ? RecentlyUsedCookieKey : RecentlyUsedEmojiCookieKey;
+		return EditorCookie.Get( key, Array.Empty<string>() );
+	}
+
+	static void AddToRecentlyUsed( string icon, IconPickerMode mode )
+	{
+		if ( string.IsNullOrEmpty( icon ) ) return;
+
+		var key = mode == IconPickerMode.MaterialIcons ? RecentlyUsedCookieKey : RecentlyUsedEmojiCookieKey;
+		var recent = GetRecentlyUsedIcons( mode ).ToList();
+		recent.Remove( icon );
+		recent.Insert( 0, icon );
+
+		if ( recent.Count > MaxRecentIcons )
+			recent = recent.Take( MaxRecentIcons ).ToList();
+
+		EditorCookie.Set( key, recent.ToArray() );
+	}
+
+	// Favorites methods
+	static string[] GetFavorites( IconPickerMode mode )
+	{
+		var key = mode == IconPickerMode.MaterialIcons ? FavoritesCookieKey : FavoritesEmojiCookieKey;
+		return EditorCookie.Get( key, Array.Empty<string>() );
+	}
+
+	static bool IsFavorite( string icon, IconPickerMode mode )
+	{
+		return GetFavorites( mode ).Contains( icon );
+	}
+
+	static void AddToFavorites( string icon, IconPickerMode mode )
+	{
+		if ( string.IsNullOrEmpty( icon ) ) return;
+
+		var key = mode == IconPickerMode.MaterialIcons ? FavoritesCookieKey : FavoritesEmojiCookieKey;
+		var favorites = GetFavorites( mode ).ToList();
+		if ( !favorites.Contains( icon ) )
+		{
+			favorites.Insert( 0, icon );
+			if ( favorites.Count > MaxFavorites )
+				favorites = favorites.Take( MaxFavorites ).ToList();
+			EditorCookie.Set( key, favorites.ToArray() );
+		}
+	}
+
+	static void RemoveFromFavorites( string icon, IconPickerMode mode )
+	{
+		if ( string.IsNullOrEmpty( icon ) ) return;
+
+		var key = mode == IconPickerMode.MaterialIcons ? FavoritesCookieKey : FavoritesEmojiCookieKey;
+		var favorites = GetFavorites( mode ).ToList();
+		favorites.Remove( icon );
+		EditorCookie.Set( key, favorites.ToArray() );
 	}
 
 	/// <summary>
-	/// Open a Icon Picker popup
+	/// Open an Icon Picker popup
 	/// </summary>
-	public static void OpenPopup( Widget parent, string icon, Action<string> onChange )
+	public static void OpenPopup( Widget parent, string icon, Action<string> onChange, bool showEmojis = true, Action<Color> colorChanged = null )
 	{
 		var popup = new PopupWidget( parent );
 		popup.Visible = false;
-		popup.FixedWidth = 250;
+		popup.FixedWidth = 280;
 		popup.Layout = Layout.Column();
-		popup.Layout.Margin = 8;
+		popup.Layout.Margin = 4;
 
 		var editor = popup.Layout.Add( new IconPickerWidget( popup ), 1 );
 
-		var startingPageIndex = Array.IndexOf( MaterialIconNames, icon ) / editor.IconsPerPage;
-		editor.CurrentPage = startingPageIndex;
-		editor.Icon = icon;
+		// Hide emoji toggle if not needed
+		if ( !showEmojis )
+		{
+			editor.EmojiButton.Visible = false;
+			editor.MaterialIconButton.Visible = false;
+		}
+
+		editor.ColorChanged = colorChanged;
+
+		// Start with recently used if available, otherwise main
+		var recentIcons = GetRecentlyUsedIcons( IconPickerMode.MaterialIcons );
+		editor._currentCategory = recentIcons.Length > 0 ? "Recently Used" : "Main";
+		editor.BuildCategorySidebar();
+
+		// Find which category contains the current icon and navigate to it
+		if ( !string.IsNullOrEmpty( icon ) )
+		{
+			// Check Material Icons first
+			foreach ( var kvp in IconCategories )
+			{
+				var idx = Array.IndexOf( kvp.Value, icon );
+				if ( idx >= 0 )
+				{
+					editor._currentMode = IconPickerMode.MaterialIcons;
+					editor._currentCategory = kvp.Key;
+					editor.CurrentPage = idx / editor.IconsPerPage;
+					editor.UpdateModeButtons();
+					editor.BuildCategorySidebar();
+					break;
+				}
+			}
+
+			// Check Emojis if not found in Material Icons
+			if ( showEmojis )
+			{
+				foreach ( var kvp in EmojiCategories )
+				{
+					var idx = Array.IndexOf( kvp.Value, icon );
+					if ( idx >= 0 )
+					{
+						editor._currentMode = IconPickerMode.Emojis;
+						editor._currentCategory = kvp.Key;
+						editor.CurrentPage = idx / editor.IconsPerPage;
+						editor.UpdateModeButtons();
+						editor.BuildCategorySidebar();
+						break;
+					}
+				}
+			}
+		}
+
+		editor._icon = icon;
 		editor.ValueChanged = onChange;
+		editor.Rebuild();
 
 		popup.OpenAtCursor();
 	}
 
-	static string[] MaterialIconNames = new string[]
+	// Main/Common icons - most frequently used
+	static readonly string[] MainIcons = new[]
 	{
-		"10k",
-		"10mp",
-		"11mp",
-		"123",
-		"12mp",
-		"13mp",
-		"14mp",
-		"15mp",
-		"16mp",
-		"17mp",
-		"18_up_rating",
-		"18mp",
-		"19mp",
-		"1k",
-		"1k_plus",
-		"1x_mobiledata",
-		"20mp",
-		"21mp",
-		"22mp",
-		"23mp",
-		"24mp",
-		"2k",
-		"2k_plus",
-		"2mp",
-		"30fps",
-		"30fps_select",
-		"360",
-		"3d_rotation",
-		"3g_mobiledata",
-		"3k",
-		"3k_plus",
-		"3mp",
-		"3p",
-		"4g_mobiledata",
-		"4g_plus_mobiledata",
-		"4k",
-		"4k_plus",
-		"4mp",
-		"5g",
-		"5k",
-		"5k_plus",
-		"5mp",
-		"60fps",
-		"60fps_select",
-		"6_ft_apart",
-		"6k",
-		"6k_plus",
-		"6mp",
-		"7k",
-		"7k_plus",
-		"7mp",
-		"8k",
-		"8k_plus",
-		"8mp",
-		"9k",
-		"9k_plus",
-		"9mp",
-		"abc",
-		"ac_unit",
-		"access_alarm",
-		"access_alarms",
-		"access_time",
-		"access_time_filled",
-		"accessibility",
-		"accessibility_new",
-		"accessible",
-		"accessible_forward",
-		"account_balance",
-		"account_balance_wallet",
-		"account_box",
-		"account_circle",
-		"account_tree",
-		"ad_units",
-		"adb",
-		"add",
-		"add_a_photo",
-		"add_alarm",
-		"add_alert",
-		"add_box",
-		"add_business",
-		"add_call",
-		"add_card",
-		"add_chart",
-		"add_circle",
-		"add_circle_outline",
-		"add_comment",
-		"add_home",
-		"add_home_work",
-		"add_ic_call",
-		"add_link",
-		"add_location",
-		"add_location_alt",
-		"add_moderator",
-		"add_photo_alternate",
-		"add_reaction",
-		"add_road",
-		"add_shopping_cart",
-		"add_task",
-		"add_to_drive",
-		"add_to_home_screen",
-		"add_to_photos",
-		"add_to_queue",
-		"addchart",
-		"adf_scanner",
-		"adjust",
-		"admin_panel_settings",
-		"adobe",
-		"ads_click",
-		"agriculture",
-		"air",
-		"airline_seat_flat",
-		"airline_seat_flat_angled",
-		"airline_seat_individual_suite",
-		"airline_seat_legroom_extra",
-		"airline_seat_legroom_normal",
-		"airline_seat_legroom_reduced",
-		"airline_seat_recline_extra",
-		"airline_seat_recline_normal",
-		"airline_stops",
-		"airlines",
-		"airplane_ticket",
-		"airplanemode_active",
-		"airplanemode_inactive",
-		"airplanemode_off",
-		"airplanemode_on",
-		"airplay",
-		"airport_shuttle",
-		"alarm",
-		"alarm_add",
-		"alarm_off",
-		"alarm_on",
-		"album",
-		"align_horizontal_center",
-		"align_horizontal_left",
-		"align_horizontal_right",
-		"align_vertical_bottom",
-		"align_vertical_center",
-		"align_vertical_top",
-		"all_inbox",
-		"all_inclusive",
-		"all_out",
-		"alt_route",
-		"alternate_email",
-		"amp_stories",
-		"analytics",
-		"anchor",
-		"android",
-		"animation",
-		"announcement",
-		"aod",
-		"apartment",
-		"api",
-		"app_blocking",
-		"app_registration",
-		"app_settings_alt",
-		"app_shortcut",
-		"apple",
-		"approval",
-		"apps",
-		"apps_outage",
-		"architecture",
-		"archive",
-		"area_chart",
-		"arrow_back",
-		"arrow_back_ios",
-		"arrow_back_ios_new",
-		"arrow_circle_down",
-		"arrow_circle_left",
-		"arrow_circle_right",
-		"arrow_circle_up",
-		"arrow_downward",
-		"arrow_drop_down",
-		"arrow_drop_down_circle",
-		"arrow_drop_up",
-		"arrow_forward",
-		"arrow_forward_ios",
-		"arrow_left",
-		"arrow_outward",
-		"arrow_right",
-		"arrow_right_alt",
-		"arrow_upward",
-		"art_track",
-		"article",
-		"aspect_ratio",
-		"assessment",
-		"assignment",
-		"assignment_ind",
-		"assignment_late",
-		"assignment_return",
-		"assignment_returned",
-		"assignment_turned_in",
-		"assist_walker",
-		"assistant",
-		"assistant_direction",
-		"assistant_navigation",
-		"assistant_photo",
-		"assured_workload",
-		"atm",
-		"attach_email",
-		"attach_file",
-		"attach_money",
-		"attachment",
-		"attractions",
-		"attribution",
-		"audio_file",
-		"audiotrack",
-		"auto_awesome",
-		"auto_awesome_mosaic",
-		"auto_awesome_motion",
-		"auto_delete",
-		"auto_fix_high",
-		"auto_fix_normal",
-		"auto_fix_off",
-		"auto_graph",
-		"auto_mode",
-		"auto_stories",
-		"autofps_select",
-		"autorenew",
-		"av_timer",
-		"baby_changing_station",
-		"back_hand",
-		"backpack",
-		"backspace",
-		"backup",
-		"backup_table",
-		"badge",
-		"bakery_dining",
-		"balance",
-		"balcony",
-		"ballot",
-		"bar_chart",
-		"batch_prediction",
-		"bathroom",
-		"bathtub",
-		"battery_0_bar",
-		"battery_1_bar",
-		"battery_2_bar",
-		"battery_3_bar",
-		"battery_4_bar",
-		"battery_5_bar",
-		"battery_6_bar",
-		"battery_alert",
-		"battery_charging_full",
-		"battery_full",
-		"battery_saver",
-		"battery_std",
-		"battery_unknown",
-		"beach_access",
-		"bed",
-		"bedroom_baby",
-		"bedroom_child",
-		"bedroom_parent",
-		"bedtime",
-		"bedtime_off",
-		"beenhere",
-		"bento",
-		"bike_scooter",
-		"biotech",
-		"blender",
-		"blind",
-		"blinds",
-		"blinds_closed",
-		"block",
-		"block_flipped",
-		"bloodtype",
-		"bluetooth",
-		"bluetooth_audio",
-		"bluetooth_connected",
-		"bluetooth_disabled",
-		"bluetooth_drive",
-		"bluetooth_searching",
-		"blur_circular",
-		"blur_linear",
-		"blur_off",
-		"blur_on",
-		"bolt",
-		"book",
-		"book_online",
-		"bookmark",
-		"bookmark_add",
-		"bookmark_added",
-		"bookmark_border",
-		"bookmark_outline",
-		"bookmark_remove",
-		"bookmarks",
-		"border_all",
-		"border_bottom",
-		"border_clear",
-		"border_color",
-		"border_horizontal",
-		"border_inner",
-		"border_left",
-		"border_outer",
-		"border_right",
-		"border_style",
-		"border_top",
-		"border_vertical",
-		"boy",
-		"branding_watermark",
-		"breakfast_dining",
-		"brightness_1",
-		"brightness_2",
-		"brightness_3",
-		"brightness_4",
-		"brightness_5",
-		"brightness_6",
-		"brightness_7",
-		"brightness_auto",
-		"brightness_high",
-		"brightness_low",
-		"brightness_medium",
-		"broadcast_on_home",
-		"broadcast_on_personal",
-		"broken_image",
-		"browse_gallery",
-		"browser_not_supported",
-		"browser_updated",
-		"brunch_dining",
-		"brush",
-		"bubble_chart",
-		"bug_report",
-		"build",
-		"build_circle",
-		"bungalow",
-		"burst_mode",
-		"bus_alert",
-		"business",
-		"business_center",
-		"cabin",
-		"cable",
-		"cached",
-		"cake",
-		"calculate",
-		"calendar_month",
-		"calendar_today",
-		"calendar_view_day",
-		"calendar_view_month",
-		"calendar_view_week",
-		"call",
-		"call_end",
-		"call_made",
-		"call_merge",
-		"call_missed",
-		"call_missed_outgoing",
-		"call_received",
-		"call_split",
-		"call_to_action",
-		"camera",
-		"camera_alt",
-		"camera_enhance",
-		"camera_front",
-		"camera_indoor",
-		"camera_outdoor",
-		"camera_rear",
-		"camera_roll",
-		"cameraswitch",
-		"campaign",
-		"cancel",
-		"cancel_presentation",
-		"cancel_schedule_send",
-		"candlestick_chart",
-		"car_crash",
-		"car_rental",
-		"car_repair",
-		"card_giftcard",
-		"card_membership",
-		"card_travel",
-		"carpenter",
-		"cases",
-		"casino",
-		"cast",
-		"cast_connected",
-		"cast_for_education",
-		"castle",
-		"catching_pokemon",
-		"category",
-		"celebration",
-		"cell_tower",
-		"cell_wifi",
-		"center_focus_strong",
-		"center_focus_weak",
-		"chair",
-		"chair_alt",
-		"chalet",
-		"change_circle",
-		"change_history",
-		"charging_station",
-		"chat",
-		"chat_bubble",
-		"chat_bubble_outline",
-		"check",
-		"check_box",
-		"check_box_outline_blank",
-		"check_circle",
-		"check_circle_outline",
-		"checklist",
-		"checklist_rtl",
-		"checkroom",
-		"chevron_left",
-		"chevron_right",
-		"child_care",
-		"child_friendly",
-		"chrome_reader_mode",
-		"church",
-		"circle",
-		"circle_notifications",
-		"class",
-		"clean_hands",
-		"cleaning_services",
-		"clear",
-		"clear_all",
-		"close",
-		"close_fullscreen",
-		"closed_caption",
-		"closed_caption_disabled",
-		"closed_caption_off",
-		"cloud",
-		"cloud_circle",
-		"cloud_done",
-		"cloud_download",
-		"cloud_off",
-		"cloud_queue",
-		"cloud_sync",
-		"cloud_upload",
-		"cloudy_snowing",
-		"co2",
-		"co_present",
-		"code",
-		"code_off",
-		"coffee",
-		"coffee_maker",
-		"collections",
-		"collections_bookmark",
-		"color_lens",
-		"colorize",
-		"comment",
-		"comment_bank",
-		"comments_disabled",
-		"commit",
-		"commute",
-		"compare",
-		"compare_arrows",
-		"compass_calibration",
-		"compost",
-		"compress",
-		"computer",
-		"confirmation_num",
-		"confirmation_number",
-		"connect_without_contact",
-		"connected_tv",
-		"connecting_airports",
-		"construction",
-		"contact_emergency",
-		"contact_mail",
-		"contact_page",
-		"contact_phone",
-		"contact_support",
-		"contactless",
-		"contacts",
-		"content_copy",
-		"content_cut",
-		"content_paste",
-		"content_paste_go",
-		"content_paste_off",
-		"content_paste_search",
-		"contrast",
-		"control_camera",
-		"control_point",
-		"control_point_duplicate",
-		"cookie",
-		"copy_all",
-		"copyright",
-		"coronavirus",
-		"corporate_fare",
-		"cottage",
-		"countertops",
-		"create",
-		"create_new_folder",
-		"credit_card",
-		"credit_card_off",
-		"credit_score",
-		"crib",
-		"crisis_alert",
-		"crop",
-		"crop_16_9",
-		"crop_3_2",
-		"crop_5_4",
-		"crop_7_5",
-		"crop_din",
-		"crop_free",
-		"crop_landscape",
-		"crop_original",
-		"crop_portrait",
-		"crop_rotate",
-		"crop_square",
-		"cruelty_free",
-		"css",
-		"currency_bitcoin",
-		"currency_exchange",
-		"currency_franc",
-		"currency_lira",
-		"currency_pound",
-		"currency_ruble",
-		"currency_rupee",
-		"currency_yen",
-		"currency_yuan",
-		"curtains",
-		"curtains_closed",
-		"cyclone",
-		"dangerous",
-		"dark_mode",
-		"dashboard",
-		"dashboard_customize",
-		"data_array",
-		"data_exploration",
-		"data_object",
-		"data_saver_off",
-		"data_saver_on",
-		"data_thresholding",
-		"data_usage",
-		"dataset",
-		"dataset_linked",
-		"date_range",
-		"deblur",
-		"deck",
-		"dehaze",
-		"delete",
-		"delete_forever",
-		"delete_outline",
-		"delete_sweep",
-		"delivery_dining",
-		"density_large",
-		"density_medium",
-		"density_small",
-		"departure_board",
-		"description",
-		"deselect",
-		"design_services",
-		"desk",
-		"desktop_access_disabled",
-		"desktop_mac",
-		"desktop_windows",
-		"details",
-		"developer_board",
-		"developer_board_off",
-		"developer_mode",
-		"device_hub",
-		"device_thermostat",
-		"device_unknown",
-		"devices",
-		"devices_fold",
-		"devices_other",
-		"dialer_sip",
-		"dialpad",
-		"diamond",
-		"difference",
-		"dining",
-		"dinner_dining",
-		"directions",
-		"directions_bike",
-		"directions_boat",
-		"directions_boat_filled",
-		"directions_bus",
-		"directions_bus_filled",
-		"directions_car",
-		"directions_car_filled",
-		"directions_ferry",
-		"directions_off",
-		"directions_railway",
-		"directions_railway_filled",
-		"directions_run",
-		"directions_subway",
-		"directions_subway_filled",
-		"directions_train",
-		"directions_transit",
-		"directions_transit_filled",
-		"directions_walk",
-		"dirty_lens",
-		"disabled_by_default",
-		"disabled_visible",
-		"disc_full",
-		"discord",
-		"discount",
-		"display_settings",
-		"diversity_1",
-		"diversity_2",
-		"diversity_3",
-		"dnd_forwardslash",
-		"dns",
-		"do_disturb",
-		"do_disturb_alt",
-		"do_disturb_off",
-		"do_disturb_on",
-		"do_not_disturb",
-		"do_not_disturb_alt",
-		"do_not_disturb_off",
-		"do_not_disturb_on",
-		"do_not_disturb_on_total_silence",
-		"do_not_step",
-		"do_not_touch",
-		"dock",
-		"document_scanner",
-		"domain",
-		"domain_add",
-		"domain_disabled",
-		"domain_verification",
-		"done",
-		"done_all",
-		"done_outline",
-		"donut_large",
-		"donut_small",
-		"door_back",
-		"door_front",
-		"door_sliding",
-		"doorbell",
-		"double_arrow",
-		"downhill_skiing",
-		"download",
-		"download_done",
-		"download_for_offline",
-		"downloading",
-		"drafts",
-		"drag_handle",
-		"drag_indicator",
-		"draw",
-		"drive_eta",
-		"drive_file_move",
-		"drive_file_move_outline",
-		"drive_file_move_rtl",
-		"drive_file_rename_outline",
-		"drive_folder_upload",
-		"dry",
-		"dry_cleaning",
-		"duo",
-		"dvr",
-		"dynamic_feed",
-		"dynamic_form",
-		"e_mobiledata",
-		"earbuds",
-		"earbuds_battery",
-		"east",
-		"eco",
-		"edgesensor_high",
-		"edgesensor_low",
-		"edit",
-		"edit_attributes",
-		"edit_calendar",
-		"edit_location",
-		"edit_location_alt",
-		"edit_note",
-		"edit_notifications",
-		"edit_off",
-		"edit_road",
-		"egg",
-		"egg_alt",
-		"eject",
-		"elderly",
-		"elderly_woman",
-		"electric_bike",
-		"electric_bolt",
-		"electric_car",
-		"electric_meter",
-		"electric_moped",
-		"electric_rickshaw",
-		"electric_scooter",
-		"electrical_services",
-		"elevator",
-		"email",
-		"emergency",
-		"emergency_recording",
-		"emergency_share",
-		"emoji_emotions",
-		"emoji_events",
-		"emoji_flags",
-		"emoji_food_beverage",
-		"emoji_nature",
-		"emoji_objects",
-		"emoji_people",
-		"emoji_symbols",
-		"emoji_transportation",
-		"energy_savings_leaf",
-		"engineering",
-		"enhance_photo_translate",
-		"enhanced_encryption",
-		"equalizer",
-		"error",
-		"error_outline",
-		"escalator",
-		"escalator_warning",
-		"euro",
-		"euro_symbol",
-		"ev_station",
-		"event",
-		"event_available",
-		"event_busy",
-		"event_note",
-		"event_repeat",
-		"event_seat",
-		"exit_to_app",
-		"expand",
-		"expand_circle_down",
-		"expand_less",
-		"expand_more",
-		"explicit",
-		"explore",
-		"explore_off",
-		"exposure",
-		"exposure_minus_1",
-		"exposure_minus_2",
-		"exposure_neg_1",
-		"exposure_neg_2",
-		"exposure_plus_1",
-		"exposure_plus_2",
-		"exposure_zero",
-		"extension",
-		"extension_off",
-		"face",
-		"face_2",
-		"face_3",
-		"face_4",
-		"face_5",
-		"face_6",
-		"face_retouching_natural",
-		"face_retouching_off",
-		"facebook",
-		"fact_check",
-		"factory",
-		"family_restroom",
-		"fast_forward",
-		"fast_rewind",
-		"fastfood",
-		"favorite",
-		"favorite_border",
-		"favorite_outline",
-		"fax",
-		"featured_play_list",
-		"featured_video",
-		"feed",
-		"feedback",
-		"female",
-		"fence",
-		"festival",
-		"fiber_dvr",
-		"fiber_manual_record",
-		"fiber_new",
-		"fiber_pin",
-		"fiber_smart_record",
-		"file_copy",
-		"file_download",
-		"file_download_done",
-		"file_download_off",
-		"file_open",
-		"file_present",
-		"file_upload",
-		"filter",
-		"filter_1",
-		"filter_2",
-		"filter_3",
-		"filter_4",
-		"filter_5",
-		"filter_6",
-		"filter_7",
-		"filter_8",
-		"filter_9",
-		"filter_9_plus",
-		"filter_alt",
-		"filter_alt_off",
-		"filter_b_and_w",
-		"filter_center_focus",
-		"filter_drama",
-		"filter_frames",
-		"filter_hdr",
-		"filter_list",
-		"filter_list_alt",
-		"filter_list_off",
-		"filter_none",
-		"filter_tilt_shift",
-		"filter_vintage",
-		"find_in_page",
-		"find_replace",
-		"fingerprint",
-		"fire_extinguisher",
-		"fire_hydrant",
-		"fire_hydrant_alt",
-		"fire_truck",
-		"fireplace",
-		"first_page",
-		"fit_screen",
-		"fitbit",
-		"fitness_center",
-		"flag",
-		"flag_circle",
-		"flaky",
-		"flare",
-		"flash_auto",
-		"flash_off",
-		"flash_on",
-		"flashlight_off",
-		"flashlight_on",
-		"flatware",
-		"flight",
-		"flight_class",
-		"flight_land",
-		"flight_takeoff",
-		"flip",
-		"flip_camera_android",
-		"flip_camera_ios",
-		"flip_to_back",
-		"flip_to_front",
-		"flood",
-		"flourescent",
-		"flutter_dash",
-		"fmd_bad",
-		"fmd_good",
-		"foggy",
-		"folder",
-		"folder_copy",
-		"folder_delete",
-		"folder_off",
-		"folder_open",
-		"folder_shared",
-		"folder_special",
-		"folder_zip",
-		"follow_the_signs",
-		"font_download",
-		"font_download_off",
-		"food_bank",
-		"forest",
-		"fork_left",
-		"fork_right",
-		"format_align_center",
-		"format_align_justify",
-		"format_align_left",
-		"format_align_right",
-		"format_bold",
-		"format_clear",
-		"format_color_fill",
-		"format_color_reset",
-		"format_color_text",
-		"format_indent_decrease",
-		"format_indent_increase",
-		"format_italic",
-		"format_line_spacing",
-		"format_list_bulleted",
-		"format_list_numbered",
-		"format_list_numbered_rtl",
-		"format_overline",
-		"format_paint",
-		"format_quote",
-		"format_shapes",
-		"format_size",
-		"format_strikethrough",
-		"format_textdirection_l_to_r",
-		"format_textdirection_r_to_l",
-		"format_underline",
-		"format_underlined",
-		"fort",
-		"forum",
-		"forward",
-		"forward_10",
-		"forward_30",
-		"forward_5",
-		"forward_to_inbox",
-		"foundation",
-		"free_breakfast",
-		"free_cancellation",
-		"front_hand",
-		"fullscreen",
-		"fullscreen_exit",
-		"functions",
-		"g_mobiledata",
-		"g_translate",
-		"gamepad",
-		"games",
-		"garage",
-		"gas_meter",
-		"gavel",
-		"generating_tokens",
-		"gesture",
-		"get_app",
-		"gif",
-		"gif_box",
-		"girl",
-		"gite",
-		"goat",
-		"golf_course",
-		"gpp_bad",
-		"gpp_good",
-		"gpp_maybe",
-		"gps_fixed",
-		"gps_not_fixed",
-		"gps_off",
-		"grade",
-		"gradient",
-		"grading",
-		"grain",
-		"graphic_eq",
-		"grass",
-		"grid_3x3",
-		"grid_4x4",
-		"grid_goldenratio",
-		"grid_off",
-		"grid_on",
-		"grid_view",
-		"group",
-		"group_add",
-		"group_off",
-		"group_remove",
-		"group_work",
-		"groups",
-		"groups_2",
-		"groups_3",
-		"h_mobiledata",
-		"h_plus_mobiledata",
-		"hail",
-		"handshake",
-		"handyman",
-		"hardware",
-		"hd",
-		"hdr_auto",
-		"hdr_auto_select",
-		"hdr_enhanced_select",
-		"hdr_off",
-		"hdr_off_select",
-		"hdr_on",
-		"hdr_on_select",
-		"hdr_plus",
-		"hdr_strong",
-		"hdr_weak",
-		"headphones",
-		"headphones_battery",
-		"headset",
-		"headset_mic",
-		"headset_off",
-		"healing",
-		"health_and_safety",
-		"hearing",
-		"hearing_disabled",
-		"heart_broken",
-		"heat_pump",
-		"height",
-		"help",
-		"help_center",
-		"help_outline",
-		"hevc",
-		"hexagon",
-		"hide_image",
-		"hide_source",
-		"high_quality",
-		"highlight",
-		"highlight_alt",
-		"highlight_off",
-		"highlight_remove",
-		"hiking",
-		"history",
-		"history_edu",
-		"history_toggle_off",
-		"hive",
-		"hls",
-		"hls_off",
-		"holiday_village",
-		"home",
-		"home_filled",
-		"home_max",
-		"home_mini",
-		"home_repair_service",
-		"home_work",
-		"horizontal_distribute",
-		"horizontal_rule",
-		"horizontal_split",
-		"hot_tub",
-		"hotel",
-		"hotel_class",
-		"hourglass_bottom",
-		"hourglass_disabled",
-		"hourglass_empty",
-		"hourglass_full",
-		"hourglass_top",
-		"house",
-		"house_siding",
-		"houseboat",
-		"how_to_reg",
-		"how_to_vote",
-		"html",
-		"http",
-		"https",
-		"hub",
-		"hvac",
-		"ice_skating",
-		"icecream",
-		"image",
-		"image_aspect_ratio",
-		"image_not_supported",
-		"image_search",
-		"imagesearch_roller",
-		"import_contacts",
-		"import_export",
-		"important_devices",
-		"inbox",
-		"incomplete_circle",
-		"indeterminate_check_box",
-		"info",
-		"info_outline",
-		"input",
-		"insert_chart",
-		"insert_chart_outlined",
-		"insert_comment",
-		"insert_drive_file",
-		"insert_emoticon",
-		"insert_invitation",
-		"insert_link",
-		"insert_page_break",
-		"insert_photo",
-		"insights",
-		"install_desktop",
-		"install_mobile",
-		"integration_instructions",
-		"interests",
-		"interpreter_mode",
-		"inventory",
-		"inventory_2",
-		"invert_colors",
-		"invert_colors_off",
-		"invert_colors_on",
-		"ios_share",
-		"iron",
-		"iso",
-		"javascript",
-		"join_full",
-		"join_inner",
-		"join_left",
-		"join_right",
-		"kayaking",
-		"kebab_dining",
-		"key",
-		"key_off",
-		"keyboard",
-		"keyboard_alt",
-		"keyboard_arrow_down",
-		"keyboard_arrow_left",
-		"keyboard_arrow_right",
-		"keyboard_arrow_up",
-		"keyboard_backspace",
-		"keyboard_capslock",
-		"keyboard_command",
-		"keyboard_command_key",
-		"keyboard_control",
-		"keyboard_control_key",
-		"keyboard_double_arrow_down",
-		"keyboard_double_arrow_left",
-		"keyboard_double_arrow_right",
-		"keyboard_double_arrow_up",
-		"keyboard_hide",
-		"keyboard_option",
-		"keyboard_option_key",
-		"keyboard_return",
-		"keyboard_tab",
-		"keyboard_voice",
-		"king_bed",
-		"kitchen",
-		"kitesurfing",
-		"label",
-		"label_important",
-		"label_important_outline",
-		"label_off",
-		"label_outline",
-		"lan",
-		"landscape",
-		"landslide",
-		"language",
-		"laptop",
-		"laptop_chromebook",
-		"laptop_mac",
-		"laptop_windows",
-		"last_page",
-		"launch",
-		"layers",
-		"layers_clear",
-		"leaderboard",
-		"leak_add",
-		"leak_remove",
-		"leave_bags_at_home",
-		"legend_toggle",
-		"lens",
-		"lens_blur",
-		"library_add",
-		"library_add_check",
-		"library_books",
-		"library_music",
-		"light",
-		"light_mode",
-		"lightbulb",
-		"lightbulb_circle",
-		"lightbulb_outline",
-		"line_axis",
-		"line_style",
-		"line_weight",
-		"linear_scale",
-		"link",
-		"link_off",
-		"linked_camera",
-		"liquor",
-		"list",
-		"list_alt",
-		"live_help",
-		"live_tv",
-		"living",
-		"local_activity",
-		"local_airport",
-		"local_atm",
-		"local_attraction",
-		"local_bar",
-		"local_cafe",
-		"local_car_wash",
-		"local_convenience_store",
-		"local_dining",
-		"local_drink",
-		"local_fire_department",
-		"local_florist",
-		"local_gas_station",
-		"local_grocery_store",
-		"local_hospital",
-		"local_hotel",
-		"local_laundry_service",
-		"local_library",
-		"local_mall",
-		"local_movies",
-		"local_offer",
-		"local_parking",
-		"local_pharmacy",
-		"local_phone",
-		"local_pizza",
-		"local_play",
-		"local_police",
-		"local_post_office",
-		"local_print_shop",
-		"local_printshop",
-		"local_restaurant",
-		"local_see",
-		"local_shipping",
-		"local_taxi",
-		"location_city",
-		"location_disabled",
-		"location_history",
-		"location_off",
-		"location_on",
-		"location_pin",
-		"location_searching",
-		"lock",
-		"lock_clock",
-		"lock_open",
-		"lock_outline",
-		"lock_person",
-		"lock_reset",
-		"login",
-		"logo_dev",
-		"logout",
-		"looks",
-		"looks_3",
-		"looks_4",
-		"looks_5",
-		"looks_6",
-		"looks_one",
-		"looks_two",
-		"loop",
-		"loupe",
-		"low_priority",
-		"loyalty",
-		"lte_mobiledata",
-		"lte_plus_mobiledata",
-		"luggage",
-		"lunch_dining",
-		"lyrics",
-		"macro_off",
-		"mail",
-		"mail_lock",
-		"mail_outline",
-		"male",
-		"man",
-		"man_2",
-		"man_3",
-		"man_4",
-		"manage_accounts",
-		"manage_history",
-		"manage_search",
-		"map",
-		"maps_home_work",
-		"maps_ugc",
-		"margin",
-		"mark_as_unread",
-		"mark_chat_read",
-		"mark_chat_unread",
-		"mark_email_read",
-		"mark_email_unread",
-		"mark_unread_chat_alt",
-		"markunread",
-		"markunread_mailbox",
-		"masks",
-		"maximize",
-		"media_bluetooth_off",
-		"media_bluetooth_on",
-		"mediation",
-		"medical_information",
-		"medical_services",
-		"medication",
-		"medication_liquid",
-		"meeting_room",
-		"memory",
-		"menu",
-		"menu_book",
-		"menu_open",
-		"merge",
-		"merge_type",
-		"message",
-		"messenger",
-		"messenger_outline",
-		"mic",
-		"mic_external_off",
-		"mic_external_on",
-		"mic_none",
-		"mic_off",
-		"microwave",
-		"military_tech",
-		"minimize",
-		"minor_crash",
-		"miscellaneous_services",
-		"missed_video_call",
-		"mms",
-		"mobile_friendly",
-		"mobile_off",
-		"mobile_screen_share",
-		"mobiledata_off",
-		"mode",
-		"mode_comment",
-		"mode_edit",
-		"mode_edit_outline",
-		"mode_fan_off",
-		"mode_night",
-		"mode_of_travel",
-		"mode_standby",
-		"model_training",
-		"monetization_on",
-		"money",
-		"money_off",
-		"money_off_csred",
-		"monitor",
-		"monitor_heart",
-		"monitor_weight",
-		"monochrome_photos",
-		"mood",
-		"mood_bad",
-		"moped",
-		"more",
-		"more_horiz",
-		"more_time",
-		"more_vert",
-		"mosque",
-		"motion_photos_auto",
-		"motion_photos_off",
-		"motion_photos_on",
-		"motion_photos_pause",
-		"motion_photos_paused",
-		"motorcycle",
-		"mouse",
-		"move_down",
-		"move_to_inbox",
-		"move_up",
-		"movie",
-		"movie_creation",
-		"movie_filter",
-		"moving",
-		"mp",
-		"multiline_chart",
-		"multiple_stop",
-		"multitrack_audio",
-		"museum",
-		"music_note",
-		"music_off",
-		"music_video",
-		"my_library_add",
-		"my_library_books",
-		"my_library_music",
-		"my_location",
-		"nat",
-		"nature",
-		"nature_people",
-		"navigate_before",
-		"navigate_next",
-		"navigation",
-		"near_me",
-		"near_me_disabled",
-		"nearby_error",
-		"nearby_off",
-		"nest_cam_wired_stand",
-		"network_cell",
-		"network_check",
-		"network_locked",
-		"network_ping",
-		"network_wifi",
-		"network_wifi_1_bar",
-		"network_wifi_2_bar",
-		"network_wifi_3_bar",
-		"new_label",
-		"new_releases",
-		"newspaper",
-		"next_plan",
-		"next_week",
-		"nfc",
-		"night_shelter",
-		"nightlife",
-		"nightlight",
-		"nightlight_round",
-		"nights_stay",
-		"no_accounts",
-		"no_adult_content",
-		"no_backpack",
-		"no_cell",
-		"no_crash",
-		"no_drinks",
-		"no_encryption",
-		"no_encryption_gmailerrorred",
-		"no_flash",
-		"no_food",
-		"no_luggage",
-		"no_meals",
-		"no_meals_ouline",
-		"no_meeting_room",
-		"no_photography",
-		"no_sim",
-		"no_stroller",
-		"no_transfer",
-		"noise_aware",
-		"noise_control_off",
-		"nordic_walking",
-		"north",
-		"north_east",
-		"north_west",
-		"not_accessible",
-		"not_interested",
-		"not_listed_location",
-		"not_started",
-		"note",
-		"note_add",
-		"note_alt",
-		"notes",
-		"notification_add",
-		"notification_important",
-		"notifications",
-		"notifications_active",
-		"notifications_none",
-		"notifications_off",
-		"notifications_on",
-		"notifications_paused",
-		"now_wallpaper",
-		"now_widgets",
-		"numbers",
-		"offline_bolt",
-		"offline_pin",
-		"offline_share",
-		"oil_barrel",
-		"on_device_training",
-		"ondemand_video",
-		"online_prediction",
-		"opacity",
-		"open_in_browser",
-		"open_in_full",
-		"open_in_new",
-		"open_in_new_off",
-		"open_with",
-		"other_houses",
-		"outbond",
-		"outbound",
-		"outbox",
-		"outdoor_grill",
-		"outgoing_mail",
-		"outlet",
-		"outlined_flag",
-		"output",
-		"padding",
-		"pages",
-		"pageview",
-		"paid",
-		"palette",
-		"pan_tool",
-		"pan_tool_alt",
-		"panorama",
-		"panorama_fish_eye",
-		"panorama_fisheye",
-		"panorama_horizontal",
-		"panorama_horizontal_select",
-		"panorama_photosphere",
-		"panorama_photosphere_select",
-		"panorama_vertical",
-		"panorama_vertical_select",
-		"panorama_wide_angle",
-		"panorama_wide_angle_select",
-		"paragliding",
-		"park",
-		"party_mode",
-		"password",
-		"pattern",
-		"pause",
-		"pause_circle",
-		"pause_circle_filled",
-		"pause_circle_outline",
-		"pause_presentation",
-		"payment",
-		"payments",
-		"paypal",
-		"pedal_bike",
-		"pending",
-		"pending_actions",
-		"pentagon",
-		"people",
-		"people_alt",
-		"people_outline",
-		"percent",
-		"perm_camera_mic",
-		"perm_contact_cal",
-		"perm_contact_calendar",
-		"perm_data_setting",
-		"perm_device_info",
-		"perm_device_information",
-		"perm_identity",
-		"perm_media",
-		"perm_phone_msg",
-		"perm_scan_wifi",
-		"person",
-		"person_2",
-		"person_3",
-		"person_4",
-		"person_add",
-		"person_add_alt",
-		"person_add_alt_1",
-		"person_add_disabled",
-		"person_off",
-		"person_outline",
-		"person_pin",
-		"person_pin_circle",
-		"person_remove",
-		"person_remove_alt_1",
-		"person_search",
-		"personal_injury",
-		"personal_video",
-		"pest_control",
-		"pest_control_rodent",
-		"pets",
-		"phishing",
-		"phone",
-		"phone_android",
-		"phone_bluetooth_speaker",
-		"phone_callback",
-		"phone_disabled",
-		"phone_enabled",
-		"phone_forwarded",
-		"phone_in_talk",
-		"phone_iphone",
-		"phone_locked",
-		"phone_missed",
-		"phone_paused",
-		"phonelink",
-		"phonelink_erase",
-		"phonelink_lock",
-		"phonelink_off",
-		"phonelink_ring",
-		"phonelink_setup",
-		"photo",
-		"photo_album",
-		"photo_camera",
-		"photo_camera_back",
-		"photo_camera_front",
-		"photo_filter",
-		"photo_library",
-		"photo_size_select_actual",
-		"photo_size_select_large",
-		"photo_size_select_small",
-		"php",
-		"piano",
-		"piano_off",
-		"picture_as_pdf",
-		"picture_in_picture",
-		"picture_in_picture_alt",
-		"pie_chart",
-		"pie_chart_outline",
-		"pie_chart_outlined",
-		"pin",
-		"pin_drop",
-		"pin_end",
-		"pin_invoke",
-		"pinch",
-		"pivot_table_chart",
-		"pix",
-		"place",
-		"plagiarism",
-		"play_arrow",
-		"play_circle",
-		"play_circle_fill",
-		"play_circle_filled",
-		"play_circle_outline",
-		"play_disabled",
-		"play_for_work",
-		"play_lesson",
-		"playlist_add",
-		"playlist_add_check",
-		"playlist_add_check_circle",
-		"playlist_add_circle",
-		"playlist_play",
-		"playlist_remove",
-		"plumbing",
-		"plus_one",
-		"podcasts",
-		"point_of_sale",
-		"policy",
-		"poll",
-		"polyline",
-		"polymer",
-		"pool",
-		"portable_wifi_off",
-		"portrait",
-		"post_add",
-		"power",
-		"power_input",
-		"power_off",
-		"power_settings_new",
-		"precision_manufacturing",
-		"pregnant_woman",
-		"present_to_all",
-		"preview",
-		"price_change",
-		"price_check",
-		"print",
-		"print_disabled",
-		"priority_high",
-		"privacy_tip",
-		"private_connectivity",
-		"production_quantity_limits",
-		"propane",
-		"propane_tank",
-		"psychology",
-		"psychology_alt",
-		"public",
-		"public_off",
-		"publish",
-		"published_with_changes",
-		"punch_clock",
-		"push_pin",
-		"qr_code",
-		"qr_code_2",
-		"qr_code_scanner",
-		"query_builder",
-		"query_stats",
-		"question_answer",
-		"question_mark",
-		"queue",
-		"queue_music",
-		"queue_play_next",
-		"quick_contacts_dialer",
-		"quick_contacts_mail",
-		"quickreply",
-		"quiz",
-		"quora",
-		"r_mobiledata",
-		"radar",
-		"radio",
-		"radio_button_checked",
-		"radio_button_off",
-		"radio_button_on",
-		"radio_button_unchecked",
-		"railway_alert",
-		"ramen_dining",
-		"ramp_left",
-		"ramp_right",
-		"rate_review",
-		"raw_off",
-		"raw_on",
-		"read_more",
-		"real_estate_agent",
-		"receipt",
-		"receipt_long",
-		"recent_actors",
-		"recommend",
-		"record_voice_over",
-		"rectangle",
-		"recycling",
-		"reddit",
-		"redeem",
-		"redo",
-		"reduce_capacity",
-		"refresh",
-		"remember_me",
-		"remove",
-		"remove_circle",
-		"remove_circle_outline",
-		"remove_done",
-		"remove_from_queue",
-		"remove_moderator",
-		"remove_red_eye",
-		"remove_road",
-		"remove_shopping_cart",
-		"reorder",
-		"repartition",
-		"repeat",
-		"repeat_on",
-		"repeat_one",
-		"repeat_one_on",
-		"replay",
-		"replay_10",
-		"replay_30",
-		"replay_5",
-		"replay_circle_filled",
-		"reply",
-		"reply_all",
-		"report",
-		"report_gmailerrorred",
-		"report_off",
-		"report_problem",
-		"request_page",
-		"request_quote",
-		"reset_tv",
-		"restart_alt",
-		"restaurant",
-		"restaurant_menu",
-		"restore",
-		"restore_from_trash",
-		"restore_page",
-		"reviews",
-		"rice_bowl",
-		"ring_volume",
-		"rocket",
-		"rocket_launch",
-		"roller_shades",
-		"roller_shades_closed",
-		"roller_skating",
-		"roofing",
-		"room",
-		"room_preferences",
-		"room_service",
-		"rotate_90_degrees_ccw",
-		"rotate_90_degrees_cw",
-		"rotate_left",
-		"rotate_right",
-		"roundabout_left",
-		"roundabout_right",
-		"rounded_corner",
-		"route",
-		"router",
-		"rowing",
-		"rss_feed",
-		"rsvp",
-		"rtt",
-		"rule",
-		"rule_folder",
-		"run_circle",
-		"running_with_errors",
-		"rv_hookup",
-		"safety_check",
-		"safety_divider",
-		"sailing",
-		"sanitizer",
-		"satellite",
-		"satellite_alt",
-		"save",
-		"save_alt",
-		"save_as",
-		"saved_search",
-		"savings",
-		"scale",
-		"scanner",
-		"scatter_plot",
-		"schedule",
-		"schedule_send",
-		"schema",
-		"school",
-		"science",
-		"score",
-		"scoreboard",
-		"screen_lock_landscape",
-		"screen_lock_portrait",
-		"screen_lock_rotation",
-		"screen_rotation",
-		"screen_rotation_alt",
-		"screen_search_desktop",
-		"screen_share",
-		"screenshot",
-		"screenshot_monitor",
-		"scuba_diving",
-		"sd",
-		"sd_card",
-		"sd_card_alert",
-		"sd_storage",
-		"search",
-		"search_off",
-		"security",
-		"security_update",
-		"security_update_good",
-		"security_update_warning",
-		"segment",
-		"select_all",
-		"self_improvement",
-		"sell",
-		"send",
-		"send_and_archive",
-		"send_time_extension",
-		"send_to_mobile",
-		"sensor_door",
-		"sensor_occupied",
-		"sensor_window",
-		"sensors",
-		"sensors_off",
-		"sentiment_dissatisfied",
-		"sentiment_neutral",
-		"sentiment_satisfied",
-		"sentiment_satisfied_alt",
-		"sentiment_very_dissatisfied",
-		"sentiment_very_satisfied",
-		"set_meal",
-		"settings",
-		"settings_accessibility",
-		"settings_applications",
-		"settings_backup_restore",
-		"settings_bluetooth",
-		"settings_brightness",
-		"settings_cell",
-		"settings_display",
-		"settings_ethernet",
-		"settings_input_antenna",
-		"settings_input_component",
-		"settings_input_composite",
-		"settings_input_hdmi",
-		"settings_input_svideo",
-		"settings_overscan",
-		"settings_phone",
-		"settings_power",
-		"settings_remote",
-		"settings_suggest",
-		"settings_system_daydream",
-		"settings_voice",
-		"severe_cold",
-		"shape_line",
-		"share",
-		"share_arrival_time",
-		"share_location",
-		"shield",
-		"shield_moon",
-		"shop",
-		"shop_2",
-		"shop_two",
-		"shopify",
-		"shopping_bag",
-		"shopping_basket",
-		"shopping_cart",
-		"shopping_cart_checkout",
-		"short_text",
-		"shortcut",
-		"show_chart",
-		"shower",
-		"shuffle",
-		"shuffle_on",
-		"shutter_speed",
-		"sick",
-		"sign_language",
-		"signal_cellular_0_bar",
-		"signal_cellular_4_bar",
-		"signal_cellular_alt",
-		"signal_cellular_alt_1_bar",
-		"signal_cellular_alt_2_bar",
-		"signal_cellular_connected_no_internet_0_bar",
-		"signal_cellular_connected_no_internet_4_bar",
-		"signal_cellular_no_sim",
-		"signal_cellular_nodata",
-		"signal_cellular_null",
-		"signal_cellular_off",
-		"signal_wifi_0_bar",
-		"signal_wifi_4_bar",
-		"signal_wifi_4_bar_lock",
-		"signal_wifi_bad",
-		"signal_wifi_connected_no_internet_4",
-		"signal_wifi_off",
-		"signal_wifi_statusbar_4_bar",
-		"signal_wifi_statusbar_connected_no_internet_4",
-		"signal_wifi_statusbar_null",
-		"signpost",
-		"sim_card",
-		"sim_card_alert",
-		"sim_card_download",
-		"single_bed",
-		"sip",
-		"skateboarding",
-		"skip_next",
-		"skip_previous",
-		"sledding",
-		"slideshow",
-		"slow_motion_video",
-		"smart_button",
-		"smart_display",
-		"smart_screen",
-		"smart_toy",
-		"smartphone",
-		"smoke_free",
-		"smoking_rooms",
-		"sms",
-		"sms_failed",
-		"snapchat",
-		"snippet_folder",
-		"snooze",
-		"snowboarding",
-		"snowing",
-		"snowmobile",
-		"snowshoeing",
-		"soap",
-		"social_distance",
-		"solar_power",
-		"sort",
-		"sort_by_alpha",
-		"sos",
-		"soup_kitchen",
-		"source",
-		"south",
-		"south_america",
-		"south_east",
-		"south_west",
-		"spa",
-		"space_bar",
-		"space_dashboard",
-		"spatial_audio",
-		"spatial_audio_off",
-		"spatial_tracking",
-		"speaker",
-		"speaker_group",
-		"speaker_notes",
-		"speaker_notes_off",
-		"speaker_phone",
-		"speed",
-		"spellcheck",
-		"splitscreen",
-		"spoke",
-		"sports",
-		"sports_bar",
-		"sports_baseball",
-		"sports_basketball",
-		"sports_cricket",
-		"sports_esports",
-		"sports_football",
-		"sports_golf",
-		"sports_gymnastics",
-		"sports_handball",
-		"sports_hockey",
-		"sports_kabaddi",
-		"sports_martial_arts",
-		"sports_mma",
-		"sports_motorsports",
-		"sports_rugby",
-		"sports_score",
-		"sports_soccer",
-		"sports_tennis",
-		"sports_volleyball",
-		"square",
-		"square_foot",
-		"ssid_chart",
-		"stacked_bar_chart",
-		"stacked_line_chart",
-		"stadium",
-		"stairs",
-		"star",
-		"star_border",
-		"star_border_purple500",
-		"star_half",
-		"star_outline",
-		"star_purple500",
-		"star_rate",
-		"stars",
-		"start",
-		"stay_current_landscape",
-		"stay_current_portrait",
-		"stay_primary_landscape",
-		"stay_primary_portrait",
-		"sticky_note_2",
-		"stop",
-		"stop_circle",
-		"stop_screen_share",
-		"storage",
-		"store",
-		"store_mall_directory",
-		"storefront",
-		"storm",
-		"straight",
-		"straighten",
-		"stream",
-		"streetview",
-		"strikethrough_s",
-		"stroller",
-		"style",
-		"subdirectory_arrow_left",
-		"subdirectory_arrow_right",
-		"subject",
-		"subscript",
-		"subscriptions",
-		"subtitles",
-		"subtitles_off",
-		"subway",
-		"summarize",
-		"sunny",
-		"sunny_snowing",
-		"superscript",
-		"supervised_user_circle",
-		"supervisor_account",
-		"support",
-		"support_agent",
-		"surfing",
-		"surround_sound",
-		"swap_calls",
-		"swap_horiz",
-		"swap_horizontal_circle",
-		"swap_vert",
-		"swap_vert_circle",
-		"swap_vertical_circle",
-		"swipe",
-		"swipe_down",
-		"swipe_down_alt",
-		"swipe_left",
-		"swipe_left_alt",
-		"swipe_right",
-		"swipe_right_alt",
-		"swipe_up",
-		"swipe_up_alt",
-		"swipe_vertical",
-		"switch_access_shortcut",
-		"switch_access_shortcut_add",
-		"switch_account",
-		"switch_camera",
-		"switch_left",
-		"switch_right",
-		"switch_video",
-		"synagogue",
-		"sync",
-		"sync_alt",
-		"sync_disabled",
-		"sync_lock",
-		"sync_problem",
-		"system_security_update",
-		"system_security_update_good",
-		"system_security_update_warning",
-		"system_update",
-		"system_update_alt",
-		"system_update_tv",
-		"tab",
-		"tab_unselected",
-		"table_bar",
-		"table_chart",
-		"table_restaurant",
-		"table_rows",
-		"table_view",
-		"tablet",
-		"tablet_android",
-		"tablet_mac",
-		"tag",
-		"tag_faces",
-		"takeout_dining",
-		"tap_and_play",
-		"tapas",
-		"task",
-		"task_alt",
-		"taxi_alert",
-		"telegram",
-		"temple_buddhist",
-		"temple_hindu",
-		"terminal",
-		"terrain",
-		"text_decrease",
-		"text_fields",
-		"text_format",
-		"text_increase",
-		"text_rotate_up",
-		"text_rotate_vertical",
-		"text_rotation_angledown",
-		"text_rotation_angleup",
-		"text_rotation_down",
-		"text_rotation_none",
-		"text_snippet",
-		"textsms",
-		"texture",
-		"theater_comedy",
-		"theaters",
-		"thermostat",
-		"thermostat_auto",
-		"thumb_down",
-		"thumb_down_alt",
-		"thumb_down_off_alt",
-		"thumb_up",
-		"thumb_up_alt",
-		"thumb_up_off_alt",
-		"thumbs_up_down",
-		"thunderstorm",
-		"tiktok",
-		"time_to_leave",
-		"timelapse",
-		"timeline",
-		"timer",
-		"timer_10",
-		"timer_10_select",
-		"timer_3",
-		"timer_3_select",
-		"timer_off",
-		"tips_and_updates",
-		"tire_repair",
-		"title",
-		"toc",
-		"today",
-		"toggle_off",
-		"toggle_on",
-		"token",
-		"toll",
-		"tonality",
-		"topic",
-		"tornado",
-		"touch_app",
-		"tour",
-		"toys",
-		"track_changes",
-		"traffic",
-		"train",
-		"tram",
-		"transcribe",
-		"transfer_within_a_station",
-		"transform",
-		"transgender",
-		"transit_enterexit",
-		"translate",
-		"travel_explore",
-		"trending_down",
-		"trending_flat",
-		"trending_neutral",
-		"trending_up",
-		"trip_origin",
-		"troubleshoot",
-		"try",
-		"tsunami",
-		"tty",
-		"tune",
-		"tungsten",
-		"turn_left",
-		"turn_right",
-		"turn_sharp_left",
-		"turn_sharp_right",
-		"turn_slight_left",
-		"turn_slight_right",
-		"turned_in",
-		"turned_in_not",
-		"tv",
-		"tv_off",
-		"two_wheeler",
-		"type_specimen",
-		"u_turn_left",
-		"u_turn_right",
-		"umbrella",
-		"unarchive",
-		"undo",
-		"unfold_less",
-		"unfold_less_double",
-		"unfold_more",
-		"unfold_more_double",
-		"unpublished",
-		"unsubscribe",
-		"upcoming",
-		"update",
-		"update_disabled",
-		"upgrade",
-		"upload",
-		"upload_file",
-		"usb",
-		"usb_off",
-		"vaccines",
-		"vape_free",
-		"vaping_rooms",
-		"verified",
-		"verified_user",
-		"vertical_align_bottom",
-		"vertical_align_center",
-		"vertical_align_top",
-		"vertical_distribute",
-		"vertical_shades",
-		"vertical_shades_closed",
-		"vertical_split",
-		"vibration",
-		"video_call",
-		"video_camera_back",
-		"video_camera_front",
-		"video_collection",
-		"video_file",
-		"video_label",
-		"video_library",
-		"video_settings",
-		"video_stable",
-		"videocam",
-		"videocam_off",
-		"videogame_asset",
-		"videogame_asset_off",
-		"view_agenda",
-		"view_array",
-		"view_carousel",
-		"view_column",
-		"view_comfortable",
-		"view_comfy",
-		"view_comfy_alt",
-		"view_compact",
-		"view_compact_alt",
-		"view_cozy",
-		"view_day",
-		"view_headline",
-		"view_in_ar",
-		"view_kanban",
-		"view_list",
-		"view_module",
-		"view_quilt",
-		"view_sidebar",
-		"view_stream",
-		"view_timeline",
-		"view_week",
-		"vignette",
-		"villa",
-		"visibility",
-		"visibility_off",
-		"voice_chat",
-		"voice_over_off",
-		"voicemail",
-		"volcano",
-		"volume_down",
-		"volume_down_alt",
-		"volume_mute",
-		"volume_off",
-		"volume_up",
-		"volunteer_activism",
-		"vpn_key",
-		"vpn_key_off",
-		"vpn_lock",
-		"vrpano",
-		"wallet",
-		"wallet_giftcard",
-		"wallet_membership",
-		"wallet_travel",
-		"wallpaper",
-		"warehouse",
-		"warning",
-		"warning_amber",
-		"wash",
-		"watch",
-		"watch_later",
-		"watch_off",
-		"water",
-		"water_damage",
-		"water_drop",
-		"waterfall_chart",
-		"waves",
-		"waving_hand",
-		"wb_auto",
-		"wb_cloudy",
-		"wb_incandescent",
-		"wb_iridescent",
-		"wb_shade",
-		"wb_sunny",
-		"wb_twighlight",
-		"wb_twilight",
-		"wc",
-		"web",
-		"web_asset",
-		"web_asset_off",
-		"web_stories",
-		"webhook",
-		"wechat",
-		"weekend",
-		"west",
-		"whatshot",
-		"wheelchair_pickup",
-		"where_to_vote",
-		"widgets",
-		"width_full",
-		"width_normal",
-		"width_wide",
-		"wifi",
-		"wifi_1_bar",
-		"wifi_2_bar",
-		"wifi_calling",
-		"wifi_calling_3",
-		"wifi_channel",
-		"wifi_find",
-		"wifi_lock",
-		"wifi_off",
-		"wifi_password",
-		"wifi_protected_setup",
-		"wifi_tethering",
-		"wifi_tethering_error",
-		"wifi_tethering_error_rounded",
-		"wifi_tethering_off",
-		"wind_power",
-		"window",
-		"wine_bar",
-		"woman",
-		"woman_2",
-		"woo_commerce",
-		"wordpress",
-		"work",
-		"work_history",
-		"work_off",
-		"work_outline",
-		"workspace_premium",
-		"workspaces",
-		"workspaces_filled",
-		"workspaces_outline",
-		"wrap_text",
-		"wrong_location",
-		"wysiwyg",
-		"yard",
-		"youtube_searched_for",
-		"zoom_in",
-		"zoom_in_map",
-		"zoom_out",
-		"zoom_out_map"
+		// Files & Organization
+		"folder", "folder_open", "home", "settings", "search", "apps", "widgets", "view_module", "grid_view", "list",
+		// Editing & Actions
+		"add", "remove", "edit", "delete", "save", "close", "check", "clear", "refresh", "sync",
+		"undo", "redo", "content_copy", "content_paste", "content_cut",
+		// Visibility & Security
+		"visibility", "visibility_off", "lock", "lock_open",
+		// Favorites & Bookmarks
+		"star", "star_border", "favorite", "favorite_border", "bookmark", "bookmark_border",
+		// Information & Help
+		"info", "warning", "error", "help", "help_outline", "lightbulb",
+		// Development
+		"code", "terminal", "bug_report", "build", "extension",
+		// Navigation
+		"arrow_back", "arrow_forward", "arrow_upward", "arrow_downward", "expand_more", "expand_less",
+		"chevron_left", "chevron_right", "first_page", "last_page", "menu", "more_vert", "more_horiz",
+		// Media Controls
+		"play_arrow", "pause", "stop", "skip_next", "skip_previous", "fast_forward", "fast_rewind",
+		"loop", "shuffle", "volume_up", "volume_down", "volume_mute", "volume_off"
 	};
+
+	// Action icons
+	static readonly string[] ActionIcons = new[]
+	{
+		"search", "home", "settings", "done", "info", "delete", "shopping_cart", "check_circle",
+		"favorite", "visibility", "lock", "schedule", "language", "face", "help", "history",
+		"highlight_off", "account_circle", "alarm", "build", "code", "date_range", "event",
+		"explore", "extension", "fingerprint", "grade", "label", "launch", "perm_identity",
+		"power_settings_new", "print", "question_answer", "receipt", "room", "settings_input_component",
+		"spellcheck", "subject", "supervisor_account", "swap_horiz", "swap_vert", "thumb_up",
+		"thumb_down", "timeline", "toc", "today", "track_changes", "translate", "trending_up",
+		"trending_down", "update", "verified_user", "view_list", "work", "zoom_in", "zoom_out",
+		"add_circle", "remove_circle", "add_box", "indeterminate_check_box", "check_box",
+		"check_box_outline_blank", "radio_button_checked", "radio_button_unchecked"
+	};
+
+	// Navigation icons
+	static readonly string[] NavigationIcons = new[]
+	{
+		"arrow_back", "arrow_forward", "arrow_upward", "arrow_downward", "arrow_drop_down",
+		"arrow_drop_up", "arrow_left", "arrow_right", "cancel", "check", "chevron_left",
+		"chevron_right", "close", "expand_less", "expand_more", "first_page", "fullscreen",
+		"fullscreen_exit", "last_page", "menu", "more_horiz", "more_vert", "refresh", "subdirectory_arrow_left",
+		"subdirectory_arrow_right", "unfold_less", "unfold_more", "apps", "arrow_back_ios",
+		"arrow_forward_ios", "double_arrow", "east", "north", "south", "west", "north_east",
+		"north_west", "south_east", "south_west", "home", "menu_open", "pivot_table_chart"
+	};
+
+	// Content icons
+	static readonly string[] ContentIcons = new[]
+		{
+		"add", "add_box", "add_circle", "add_circle_outline", "archive", "backspace", "block",
+		"clear", "content_copy", "content_cut", "content_paste", "create", "delete_sweep",
+		"drafts", "filter_list", "flag", "font_download", "forward", "gesture", "how_to_reg",
+		"inbox", "link", "link_off", "low_priority", "mail", "markunread", "move_to_inbox",
+		"next_week", "outlined_flag", "redo", "remove", "remove_circle", "remove_circle_outline",
+		"reply", "reply_all", "report", "save", "save_alt", "select_all", "send", "sort",
+		"text_format", "unarchive", "undo", "weekend", "where_to_vote", "ballot", "file_copy",
+		"how_to_vote", "waves", "add_link", "attach_email", "calculate", "dynamic_feed"
+	};
+
+	// Communication icons
+	static readonly string[] CommunicationIcons = new[]
+	{
+		"call", "chat", "chat_bubble", "comment", "contact_mail", "contact_phone", "contacts",
+		"email", "forum", "import_contacts", "live_help", "location_off", "location_on",
+		"mail_outline", "message", "no_sim", "phone", "portable_wifi_off", "present_to_all",
+		"ring_volume", "rss_feed", "screen_share", "speaker_phone", "stay_current_landscape",
+		"stay_current_portrait", "stop_screen_share", "swap_calls", "textsms", "voicemail",
+		"vpn_key", "call_end", "call_made", "call_merge", "call_missed", "call_received",
+		"call_split", "cell_wifi", "clear_all", "dialer_sip", "dialpad", "duo", "import_export",
+		"invert_colors_off", "list_alt", "mobile_screen_share", "nat", "person_add_disabled",
+		"phonelink_erase", "phonelink_lock", "phonelink_ring", "phonelink_setup", "print_disabled"
+	};
+
+	// Editor icons
+	static readonly string[] EditorIcons = new[]
+	{
+		"attach_file", "attach_money", "border_all", "border_bottom", "border_clear", "border_color",
+		"border_horizontal", "border_inner", "border_left", "border_outer", "border_right",
+		"border_style", "border_top", "border_vertical", "bubble_chart", "drag_handle",
+		"format_align_center", "format_align_justify", "format_align_left", "format_align_right",
+		"format_bold", "format_clear", "format_color_fill", "format_color_reset", "format_color_text",
+		"format_indent_decrease", "format_indent_increase", "format_italic", "format_line_spacing",
+		"format_list_bulleted", "format_list_numbered", "format_paint", "format_quote",
+		"format_shapes", "format_size", "format_strikethrough", "format_textdirection_l_to_r",
+		"format_textdirection_r_to_l", "format_underlined", "functions", "height", "highlight",
+		"insert_chart", "insert_comment", "insert_drive_file", "insert_emoticon", "insert_invitation",
+		"insert_link", "insert_photo", "linear_scale", "merge_type", "mode_comment", "monetization_on",
+		"money_off", "multiline_chart", "notes", "pie_chart", "publish", "scatter_plot", "score",
+		"short_text", "show_chart", "space_bar", "strikethrough_s", "table_chart", "text_fields",
+		"title", "vertical_align_bottom", "vertical_align_center", "vertical_align_top", "wrap_text"
+	};
+
+	// File icons
+	static readonly string[] FileIcons = new[]
+	{
+		"folder", "folder_open", "folder_shared", "folder_special", "create_new_folder",
+		"attachment", "cloud", "cloud_circle", "cloud_done", "cloud_download", "cloud_off",
+		"cloud_queue", "cloud_upload", "file_download", "file_upload", "drive_file_move",
+		"drive_file_rename_outline", "drive_folder_upload", "file_download_done", "file_present",
+		"folder_delete", "folder_zip", "grid_view", "request_page", "snippet_folder", "source",
+		"topic", "upload_file", "workspaces", "description", "insert_drive_file", "note_add",
+		"post_add", "file_copy", "save", "save_alt", "save_as", "restore_page", "difference",
+		"document_scanner", "draft", "drafts", "feed", "inventory_2", "newspaper", "note",
+		"rule_folder", "snippet_folder", "task", "text_snippet"
+	};
+
+	// Hardware icons
+	static readonly string[] HardwareIcons = new[]
+	{
+		"cast", "cast_connected", "computer", "desktop_mac", "desktop_windows", "developer_board",
+		"device_hub", "device_unknown", "devices_other", "dock", "gamepad", "headset", "headset_mic",
+		"keyboard", "keyboard_arrow_down", "keyboard_arrow_left", "keyboard_arrow_right",
+		"keyboard_arrow_up", "keyboard_backspace", "keyboard_capslock", "keyboard_hide",
+		"keyboard_return", "keyboard_tab", "keyboard_voice", "laptop", "laptop_chromebook",
+		"laptop_mac", "laptop_windows", "memory", "mouse", "phone_android", "phone_iphone",
+		"phonelink", "phonelink_off", "power_input", "router", "scanner", "security", "sim_card",
+		"smartphone", "speaker", "speaker_group", "tablet", "tablet_android", "tablet_mac",
+		"toys", "tv", "videogame_asset", "watch", "browser_not_supported", "browser_updated",
+		"cable", "cast_for_education", "connected_tv", "developer_board_off", "earbuds"
+	};
+
+	// Social icons
+	static readonly string[] SocialIcons = new[]
+	{
+		"cake", "domain", "group", "group_add", "location_city", "mood", "mood_bad", "notifications",
+		"notifications_active", "notifications_none", "notifications_off", "notifications_paused",
+		"pages", "party_mode", "people", "people_outline", "person", "person_add", "person_outline",
+		"plus_one", "poll", "public", "school", "sentiment_dissatisfied", "sentiment_satisfied",
+		"sentiment_very_dissatisfied", "sentiment_very_satisfied", "share", "thumb_down_alt",
+		"thumb_up_alt", "whatshot", "emoji_emotions", "emoji_events", "emoji_flags", "emoji_food_beverage",
+		"emoji_nature", "emoji_objects", "emoji_people", "emoji_symbols", "emoji_transportation"
+	};
+
+	// Toggle icons
+	static readonly string[] ToggleIcons = new[]
+	{
+		"check_box", "check_box_outline_blank", "indeterminate_check_box", "radio_button_checked",
+		"radio_button_unchecked", "star", "star_border", "star_half", "toggle_off", "toggle_on"
+	};
+
+	// Maps icons
+	static readonly string[] MapsIcons = new[]
+	{
+		"add_location", "beenhere", "directions", "directions_bike", "directions_boat",
+		"directions_bus", "directions_car", "directions_railway", "directions_run",
+		"directions_subway", "directions_transit", "directions_walk", "edit_location",
+		"ev_station", "flight", "hotel", "layers", "layers_clear", "local_activity",
+		"local_airport", "local_atm", "local_bar", "local_cafe", "local_car_wash",
+		"local_convenience_store", "local_dining", "local_drink", "local_florist",
+		"local_gas_station", "local_grocery_store", "local_hospital", "local_hotel",
+		"local_laundry_service", "local_library", "local_mall", "local_movies",
+		"local_offer", "local_parking", "local_pharmacy", "local_phone", "local_pizza",
+		"local_play", "local_post_office", "local_printshop", "local_see", "local_shipping",
+		"local_taxi", "map", "my_location", "navigation", "near_me", "person_pin",
+		"person_pin_circle", "pin_drop", "place", "rate_review", "restaurant", "restaurant_menu",
+		"satellite", "store_mall_directory", "streetview", "subway", "terrain", "traffic",
+		"train", "tram", "transfer_within_a_station", "zoom_out_map"
+	};
+
+	static readonly Dictionary<string, string[]> IconCategories = new()
+	{
+		["Recently Used"] = Array.Empty<string>(),
+		["Favorites"] = Array.Empty<string>(),
+		["Main"] = MainIcons,
+		["All Icons"] = MainIcons
+			.Concat( ActionIcons )
+			.Concat( NavigationIcons )
+			.Concat( ContentIcons )
+			.Concat( CommunicationIcons )
+			.Concat( EditorIcons )
+			.Concat( FileIcons )
+			.Concat( HardwareIcons )
+			.Concat( SocialIcons )
+			.Concat( ToggleIcons )
+			.Concat( MapsIcons )
+			.Distinct()
+			.OrderBy( x => x )
+			.ToArray()
+	};
+
+	// Emoji categories are loaded from Data/emojis/emojis.json at runtime.
+	// This avoids embedding large emoji literals in source files which can be mangled by file encoding.
 }
+
