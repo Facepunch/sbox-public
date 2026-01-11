@@ -62,7 +62,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 			SelectFace();
 
 			if ( Gizmo.IsDoubleClicked )
-				SelectAllFaces();
+				SelectContiguousFaces();
 		}
 
 		_faceObject.Init( Graphics.PrimitiveType.Triangles );
@@ -216,10 +216,13 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		pInOutAxisV = new Vector4( vAxisVNew, flShiftVNew / scale.y );
 	}
 
-	private void SelectAllFaces()
+	private void SelectContiguousFaces()
 	{
 		var face = TraceFace();
 		if ( !face.IsValid() )
+			return;
+
+		if ( !face.Component.Mesh.GetFacesConnectedToFace( face.Handle, out var faces ) )
 			return;
 
 		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
@@ -227,7 +230,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 
 		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 		{
-			foreach ( var hFace in face.Component.Mesh.FaceHandles )
+			foreach ( var hFace in faces )
 				Selection.Add( new MeshFace( face.Component, hFace ) );
 		}
 	}

@@ -61,8 +61,8 @@ public partial class Project
 			//
 			if ( Application.IsDedicatedServer )
 			{
-				var defines = compilerSettings.DefineConstants.Split( ';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries ).ToList();
-				if ( !defines.Any( x => x.Equals( "SERVER", StringComparison.OrdinalIgnoreCase ) ) )
+				var defines = compilerSettings.GetPreprocessorSymbols();
+				if ( !defines.Contains( "SERVER" ) )
 				{
 					compilerSettings.DefineConstants += ";SERVER";
 				}

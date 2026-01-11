@@ -34,6 +34,20 @@ public class AssetTypeAttribute : System.Attribute, ITypeAttribute, IUninheritab
 	/// Flags for this asset type.
 	/// </summary>
 	public AssetTypeFlags Flags { get; set; }
+
+	/// <summary>
+	/// Find a resource type by its extension. The extension should have no period.
+	/// </summary>
+	public static TypeDescription FindTypeByExtension( string extension )
+	{
+		foreach ( var t in Game.TypeLibrary.GetTypesWithAttribute<AssetTypeAttribute>() )
+		{
+			if ( string.Equals( t.Attribute.Extension, extension, StringComparison.OrdinalIgnoreCase ) )
+				return t.Type;
+		}
+
+		return null;
+	}
 }
 
 /// <summary>

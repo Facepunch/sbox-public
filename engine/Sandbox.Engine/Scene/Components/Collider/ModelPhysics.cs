@@ -158,12 +158,14 @@ public sealed partial class ModelPhysics : Component, IScenePhysicsEvents, IHasM
 	public float Mass => Bodies.Sum( x => x.Component?.Mass ?? default );
 
 	/// <summary>
-	/// Returns the local center of mass of every <see cref="Rigidbody"/>
+	/// Returns the center of mass of every <see cref="Rigidbody"/> in world-space
 	/// </summary>
 	public Vector3 MassCenter
 	{
 		get
 		{
+			var world = WorldTransform;
+
 			var mass = 0.0f;
 			var center = Vector3.Zero;
 
@@ -173,10 +175,10 @@ public sealed partial class ModelPhysics : Component, IScenePhysicsEvents, IHasM
 				if ( !rb.IsValid() ) continue;
 
 				mass += rb.Mass;
-				center += rb.Mass * rb.MassCenter;
+				center += rb.Mass * world.PointToWorld( rb.MassCenter );
 			}
 
-			return mass > 0.0f ? center / mass : Vector3.Zero;
+			return mass > 0.0f ? center / mass : world.Position;
 		}
 	}
 
@@ -217,9 +219,6 @@ public sealed partial class ModelPhysics : Component, IScenePhysicsEvents, IHasM
 		if ( !so.IsValid() )
 			return;
 
-		// Clear all bone overrides first.
-		Renderer.ClearPhysicsBones();
-
 		var world = WorldTransform;
 
 		foreach ( var body in Bodies )
@@ -228,13 +227,14 @@ public sealed partial class ModelPhysics : Component, IScenePhysicsEvents, IHasM
 			if ( !rb.IsValid() )
 				continue;
 
-			Transform local;
+			if ( !rb.GameObject.Flags.Contains( GameObjectFlags.PhysicsBone ) )
+				continue;
 
 			// Only drive physics from animation if we have motion disabled.
 			if ( !MotionEnabled && !rb.MotionEnabled )
 			{
 				// Use the animation pose when body motion is disabled.
-				local = so.Transform.ToLocal( so.GetWorldSpaceAnimationTransform( body.Bone ) );
+				var local = so.Transform.ToLocal( so.GetWorldSpaceAnimationTransform( body.Bone ) );
 				so.SetBoneOverride( body.Bone, local );
 
 				// Move object to animation pose, physics object will move towards it in pre physics step.
@@ -244,8 +244,7 @@ public sealed partial class ModelPhysics : Component, IScenePhysicsEvents, IHasM
 			else
 			{
 				// Bone overrides are in modelspace, strip off our world transform from body world transform.
-				local = world.ToLocal( rb.WorldTransform );
-				so.SetBoneOverride( body.Bone, local );
+				so.SetBoneOverride( body.Bone, world.ToLocal( rb.WorldTransform ) );
 			}
 		}
 	}
@@ -405,12 +404,19 @@ public sealed partial class ModelPhysics : Component, IScenePhysicsEvents, IHasM
 	{
 		_onEnabled = true;
 
-		CreatePhysics();
+		if ( PhysicsWereCreated )
+		{
+			EnableComponents();
+		}
+		else
+		{
+			CreatePhysics();
+		}
 	}
 
 	protected override void OnDisabled()
 	{
-		DestroyPhysics();
+		DisableComponents();
 
 		_onEnabled = false;
 	}

@@ -50,6 +50,16 @@ public sealed partial class SkinnedModelRenderer
 			if ( p.Value is bool b ) SceneModel.SetAnimParameter( p.Key, b );
 			if ( p.Value is Rotation r ) SceneModel.SetAnimParameter( p.Key, r );
 		}
+
+		// Tick the animation by a frame so we're fully up to date on the first frame.
+		if ( Scene.IsEditor && !CanUpdateInEditor() )
+		{
+			SceneModel.UpdateToBindPose( ReadBonesFromGameObjects );
+		}
+		else
+		{
+			SceneModel.Update( Time.Delta, ReadBonesFromGameObjects );
+		}
 	}
 
 	/// <summary>

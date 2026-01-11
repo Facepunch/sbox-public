@@ -131,7 +131,13 @@ public partial class PartyRoom : ILobby
 			flags = 8; // k_nSteamNetworkingSend_Reliable
 			flags |= 32; // k_nSteamNetworkingSend_AutoRestartBrokenSession
 
-			Steam.SteamNetworkingMessages().SendMessageToUser( friend.Id, bs.Base(), bs.Length, flags, NetworkChannel );
+			unsafe
+			{
+				fixed ( byte* pData = bs.ToSpan() )
+				{
+					Steam.SteamNetworkingMessages().SendMessageToUser( friend.Id, (IntPtr)pData, bs.Length, flags, NetworkChannel );
+				}
+			}
 		}
 	}
 
