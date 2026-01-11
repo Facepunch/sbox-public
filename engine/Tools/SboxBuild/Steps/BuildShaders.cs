@@ -14,7 +14,7 @@ internal class BuildShaders( string name, bool forced = false ) : Step( name )
 			string gameDir = Path.Combine( rootDir, "game" );
 
 			string shaderCompilerPath;
-			if (OperatingSystem.IsWindows()) 
+			if ( OperatingSystem.IsWindows() )
 				shaderCompilerPath = Path.Combine( gameDir, "bin", "managed", "ShaderCompiler.exe" );
 			else
 				shaderCompilerPath = Path.Combine( gameDir, "bin", "managed", "ShaderCompiler" );

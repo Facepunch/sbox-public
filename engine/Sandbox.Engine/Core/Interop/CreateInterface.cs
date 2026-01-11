@@ -11,31 +11,34 @@ internal static class CreateInterface
 	static Dictionary<string, IntPtr> loadedModules = new();
 
 	//this somewhat mimics V_GetFileExtension(DLL_EXT_STRING) back on Source 1
-	static string NativizeModuleName(string abstractDLL)
+	static string NativizeModuleName( string abstractDLL )
 	{
 		if ( OperatingSystem.IsWindows() )
 		{
 			return $"{abstractDLL}.dll";
-		} else if (OperatingSystem.IsLinux())
+		}
+		else if ( OperatingSystem.IsLinux() )
 		{
 			return $"lib{abstractDLL}.so";
-		} else if (OperatingSystem.IsMacOS())
+		}
+		else if ( OperatingSystem.IsMacOS() )
 		{
 			return $"lib{abstractDLL}.dylib";
 		}
 		else
 		{
-			throw new Exception("Cannot nativize the module name.");
-		};
+			throw new Exception( "Cannot nativize the module name." );
+		}
+		;
 	}
 
 	static IntPtr LoadModule( string dll )
 	{
-		var nativizedDLL = NativizeModuleName(dll);
+		var nativizedDLL = NativizeModuleName( dll );
 		if ( loadedModules.TryGetValue( dll, out var module ) )
 			return module;
 
-		if ( !NativeLibrary.TryLoad( NetCore.NativeDllPath+nativizedDLL, out module ) )
+		if ( !NativeLibrary.TryLoad( NetCore.NativeDllPath + nativizedDLL, out module ) )
 			return default;
 
 		loadedModules[dll] = module;
