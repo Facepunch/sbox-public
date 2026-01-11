@@ -97,7 +97,7 @@ public class ToolAppSystem : AppSystem, IDisposable
 		exePath = System.IO.Path.GetDirectoryName( exePath );
 
 		// we're in the managed folder, we can set this shit up
-		if ( exePath.EndsWith( "bin/managed", StringComparison.OrdinalIgnoreCase ) )
+		if ( exePath.EndsWith( System.IO.Path.Join("bin","managed"), StringComparison.OrdinalIgnoreCase ) )
 		{
 			var dirInfo = new DirectoryInfo( exePath );
 
@@ -108,7 +108,7 @@ public class ToolAppSystem : AppSystem, IDisposable
 			if (OperatingSystem.IsWindows())
 			{
 				
-			 	nativeDllPath = $"{gameRoot.FullName}/bin/win64";
+			 	nativeDllPath = $"{gameRoot.FullName}\\bin\\win64";
 				//
 				// If we don't load sentry specifically from this directly, it'll
 				// try to load the one from the managed folder
