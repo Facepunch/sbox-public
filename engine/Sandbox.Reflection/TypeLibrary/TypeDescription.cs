@@ -647,6 +647,31 @@ public sealed class TypeDescription : ISourceLineProvider
 		if ( genericParams.Length != typeArgs.Length )
 			return null;
 
+
+		// Make a map from generic type parameters to type arguments
+		var substitutions = new Dictionary<Type, Type>();
+		for ( int i = 0; i < genericParams.Length; i++ )
+		{
+			var param = genericParams[i];
+			var arg = typeArgs[i];
+			substitutions.Add( param, arg );
+		}
+
+		// Substitutes generic type parameters in a type definition with type arguments
+		Type Substitute( Type type )
+		{
+			if ( !type.IsGenericType )
+				return type;
+			var genericDefinition = type.GetGenericTypeDefinition();
+			var genericParams = type.GenericTypeArguments;
+			for ( int i = 0; i < genericParams.Length; i++ )
+			{
+				if ( substitutions.TryGetValue( genericParams[i], out var substitutedType ) )
+					genericParams[i] = Substitute( substitutedType );
+			}
+			return genericDefinition.MakeGenericType( genericParams );
+		}
+
 		for ( int i = 0; i < genericParams.Length; i++ )
 		{
 			var param = genericParams[i];
@@ -691,7 +716,7 @@ public sealed class TypeDescription : ISourceLineProvider
 			var constraints = param.GetGenericParameterConstraints();
 			foreach ( var constraint in constraints )
 			{
-				if ( !constraint.IsAssignableFrom( arg ) )
+				if ( !Substitute( constraint ).IsAssignableFrom( arg ) )
 					return null;
 			}
 		}
