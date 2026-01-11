@@ -1,8 +1,8 @@
-﻿using System.IO;
+﻿using System.Buffers;
+using System.IO;
 using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-
 
 #nullable enable
 
@@ -13,7 +13,7 @@ namespace Sandbox;
 /// </summary>
 public unsafe ref struct ByteStream
 {
-	NativeMemoryBlock? writeData;
+	byte[]? writeData;
 	ReadOnlySpan<byte> readSpan;
 
 	int position;
@@ -40,7 +40,7 @@ public unsafe ref struct ByteStream
 		}
 	}
 
-	internal readonly int BufferSize => writeData?.Size ?? usedSize;
+	internal readonly int BufferSize => writeData?.Length ?? usedSize;
 
 	/// <summary>
 	/// The total size of the data
@@ -51,7 +51,7 @@ public unsafe ref struct ByteStream
 	{
 		if ( size <= 0 ) throw new ArgumentOutOfRangeException( nameof( size ), $"Size must be larger than 0" );
 
-		writeData = NativeMemoryBlock.GetOrCreatePooled( size );
+		writeData = ArrayPool<byte>.Shared.Rent( size );
 		position = 0;
 	}
 
@@ -95,7 +95,7 @@ public unsafe ref struct ByteStream
 
 	public void Dispose()
 	{
-		writeData?.Dispose();
+		if ( writeData is not null ) ArrayPool<byte>.Shared.Return( writeData );
 		writeData = null;
 		readSpan = default;
 		position = default;
@@ -116,8 +116,25 @@ public unsafe ref struct ByteStream
 		if ( required > int.MaxValue )
 			throw new OutOfMemoryException( "Requested size exceeds maximum supported buffer size." );
 
-		if ( required > writeData.Size )
-			writeData.Grow( (int)required );
+		if ( required > writeData.Length )
+		{
+			long newSize = writeData.Length;
+			// Grow geometrically 
+			while ( newSize < required )
+			{
+				if ( newSize >= int.MaxValue / 2 )
+				{
+					newSize = required;
+					break;
+				}
+				newSize *= 2;
+			}
+
+			var newBuffer = ArrayPool<byte>.Shared.Rent( (int)newSize );
+			Array.Copy( writeData, newBuffer, usedSize );
+			ArrayPool<byte>.Shared.Return( writeData );
+			writeData = newBuffer;
+		}
 	}
 
 	public int ReadRemaining
@@ -210,8 +227,12 @@ public unsafe ref struct ByteStream
 
 			EnsureCanWrite( bytesSize );
 
-			var dst = new Span<T>( (byte*)writeData!.Pointer + position, rawData.Length );
-			rawData.CopyTo( dst );
+			// Copy via refs to avoid per-call pinning without incurring extra span conversions
+			ref byte dstRef = ref MemoryMarshal.GetArrayDataReference( writeData! );
+			ref byte dst = ref Unsafe.AddByteOffset( ref dstRef, (IntPtr)position );
+			ref T srcRef = ref MemoryMarshal.GetReference( rawData );
+			ref byte src = ref Unsafe.As<T, byte>( ref srcRef );
+			Unsafe.CopyBlockUnaligned( ref dst, ref src, (uint)bytesSize );
 
 			position += bytesSize;
 			if ( position > usedSize ) usedSize = position;
@@ -286,7 +307,7 @@ public unsafe ref struct ByteStream
 
 		EnsureCanWrite( dataLen );
 
-		var dst = new Span<byte>( (byte*)writeData!.Pointer + position, dataLen );
+		var dst = writeData!.AsSpan( position, dataLen );
 		System.Text.Encoding.UTF8.GetBytes( str, dst );
 
 		position += dataLen;
@@ -307,18 +328,8 @@ public unsafe ref struct ByteStream
 	internal readonly ReadOnlySpan<byte> ToSpan()
 	{
 		return writeData is not null
-			? new ReadOnlySpan<byte>( writeData.Pointer, usedSize )
+			? writeData.AsSpan( 0, usedSize )
 			: readSpan;
-	}
-
-	/// <summary>
-	/// Returns a pointer to the base of the data
-	/// </summary>
-	internal readonly IntPtr Base()
-	{
-		return writeData is not null
-			? (IntPtr)writeData.Pointer
-			: throw new NotImplementedException( $"Only writeable {nameof( ByteStream )}s have a valid pointer." );
 	}
 
 	/// <summary>
@@ -333,8 +344,9 @@ public unsafe ref struct ByteStream
 
 		EnsureCanWrite( size );
 
-		var dst = (byte*)writeData!.Pointer + position;
-		Unsafe.WriteUnaligned( dst, value );
+		ref byte dstRef = ref MemoryMarshal.GetArrayDataReference( writeData! );
+		ref byte target = ref Unsafe.AddByteOffset( ref dstRef, (IntPtr)position );
+		Unsafe.WriteUnaligned( ref target, value );
 
 		position += size;
 		if ( position > usedSize ) usedSize = position;
@@ -361,15 +373,13 @@ public unsafe ref struct ByteStream
 			T value;
 			if ( writeData is not null )
 			{
-				var src = (byte*)writeData.Pointer + position;
-				value = Unsafe.ReadUnaligned<T>( src );
+				ref byte src = ref MemoryMarshal.GetArrayDataReference( writeData );
+				value = Unsafe.ReadUnaligned<T>( ref Unsafe.AddByteOffset( ref src, (IntPtr)position ) );
 			}
 			else
 			{
-				fixed ( byte* src = readSpan )
-				{
-					value = Unsafe.ReadUnaligned<T>( src + position );
-				}
+				ref byte src = ref MemoryMarshal.GetReference( readSpan );
+				value = Unsafe.ReadUnaligned<T>( ref Unsafe.AddByteOffset( ref src, (IntPtr)position ) );
 			}
 
 			position = newPos;
@@ -402,15 +412,13 @@ public unsafe ref struct ByteStream
 
 			if ( writeData is not null )
 			{
-				var src = (byte*)writeData.Pointer + position;
-				v = Unsafe.ReadUnaligned<T>( src );
+				ref byte src = ref MemoryMarshal.GetArrayDataReference( writeData );
+				v = Unsafe.ReadUnaligned<T>( ref Unsafe.AddByteOffset( ref src, (IntPtr)position ) );
 			}
 			else
 			{
-				fixed ( byte* src = readSpan )
-				{
-					v = Unsafe.ReadUnaligned<T>( src + position );
-				}
+				ref byte src = ref MemoryMarshal.GetReference( readSpan );
+				v = Unsafe.ReadUnaligned<T>( ref Unsafe.AddByteOffset( ref src, (IntPtr)position ) );
 			}
 
 			position = newPos;
@@ -466,7 +474,7 @@ public unsafe ref struct ByteStream
 			ReadOnlySpan<byte> byteSpan;
 			if ( writeData is not null )
 			{
-				byteSpan = new ReadOnlySpan<byte>( (byte*)writeData.Pointer + position, dataSize );
+				byteSpan = writeData.AsSpan( position, dataSize );
 			}
 			else
 			{
@@ -499,7 +507,7 @@ public unsafe ref struct ByteStream
 			ReadOnlySpan<byte> bytes;
 			if ( writeData is not null )
 			{
-				bytes = new ReadOnlySpan<byte>( (byte*)writeData.Pointer + position, datasize );
+				bytes = writeData.AsSpan( position, datasize );
 			}
 			else
 			{
@@ -561,7 +569,7 @@ public unsafe ref struct ByteStream
 			ReadOnlySpan<byte> span;
 			if ( writeData is not null )
 			{
-				span = new ReadOnlySpan<byte>( (byte*)writeData.Pointer + position, size );
+				span = writeData.AsSpan( position, size );
 			}
 			else
 			{
@@ -583,7 +591,7 @@ public unsafe ref struct ByteStream
 
 		if ( writeData is not null )
 		{
-			var span = new ReadOnlySpan<byte>( (byte*)writeData.Pointer + position, remaining );
+			var span = writeData.AsSpan( position, remaining );
 			position = usedSize;
 			return span;
 		}
@@ -620,13 +628,13 @@ public unsafe ref struct ByteStream
 
 			EnsureCanWrite( bytes );
 
-			var dst = (byte*)writeData!.Pointer + position;
 			var handle = GCHandle.Alloc( array, GCHandleType.Pinned );
 
 			try
 			{
 				var src = (void*)handle.AddrOfPinnedObject();
-				Buffer.MemoryCopy( src, dst, bytes, bytes );
+				var srcSpan = new ReadOnlySpan<byte>( src, bytes );
+				srcSpan.CopyTo( writeData!.AsSpan( position, bytes ) );
 			}
 			finally
 			{
@@ -672,17 +680,14 @@ public unsafe ref struct ByteStream
 			{
 				var dst = (void*)handle.AddrOfPinnedObject();
 
+				var dstSpan = new Span<byte>( dst, bytes );
 				if ( writeData is not null )
 				{
-					var src = (byte*)writeData.Pointer + position;
-					Buffer.MemoryCopy( src, dst, bytes, bytes );
+					writeData.AsSpan( position, bytes ).CopyTo( dstSpan );
 				}
 				else
 				{
-					fixed ( byte* src = readSpan )
-					{
-						Buffer.MemoryCopy( src + position, dst, bytes, bytes );
-					}
+					readSpan.Slice( position, bytes ).CopyTo( dstSpan );
 				}
 			}
 			finally
@@ -715,7 +720,7 @@ public unsafe ref struct ByteStream
 
 		if ( writeData is not null )
 		{
-			var src = new ReadOnlySpan<byte>( (byte*)writeData.Pointer + position, length );
+			var src = writeData.AsSpan( position, length );
 			src.CopyTo( buffer );
 		}
 		else

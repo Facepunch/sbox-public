@@ -384,8 +384,8 @@ internal sealed class TextBlock : IDisposable
 
 						var sty = Style.Copy();
 
-						sty.FontSize = (style.FontSize ?? Length.Pixels( 13 ).Value).GetPixels( 100 );
-						sty.FontSize = MathF.Round( FontSize * 32.0f ) / 32.0f;
+						sty.FontSize = s.FontSize?.GetPixels( 100 ) ?? sty.FontSize;
+						sty.FontSize = MathF.Round( sty.FontSize * 32.0f ) / 32.0f;
 						sty.FontFamily = s.FontFamily;
 						sty.TextColor = s.FontColor?.ToSk() ?? sty.TextColor;
 						sty.BackgroundColor = s.BackgroundColor?.ToSk() ?? sty.BackgroundColor;

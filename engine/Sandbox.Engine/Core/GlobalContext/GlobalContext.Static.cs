@@ -1,22 +1,29 @@
-﻿namespace Sandbox.Engine;
+using System.Threading;
+
+namespace Sandbox.Engine;
 
 internal partial class GlobalContext
 {
-	/// <summary>
-	/// The current active context
-	/// </summary>
-	public static GlobalContext Current;
+	private static readonly AsyncLocal<GlobalContext> _current = new AsyncLocal<GlobalContext>();
 
 	/// <summary>
 	/// The context used for the menu system
 	/// </summary>
 	public static GlobalContext Menu;
 
-
 	/// <summary>
 	/// The context used for the game. This is the default context.
 	/// </summary>
 	public static GlobalContext Game;
+
+	/// <summary>
+	/// The current active context
+	/// </summary>
+	public static GlobalContext Current
+	{
+		get => _current.Value ?? Game;
+		set => _current.Value = value;
+	}
 
 	/// <summary>
 	/// The global context for the game, which holds references to various systems and libraries used throughout the game.
@@ -26,7 +33,7 @@ internal partial class GlobalContext
 		Game = new GlobalContext();
 		Menu = new GlobalContext();
 
-		Current = Game;
+		_current.Value = Game;
 	}
 
 	/// <summary>

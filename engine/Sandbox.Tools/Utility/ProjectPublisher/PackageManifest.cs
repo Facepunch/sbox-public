@@ -344,11 +344,18 @@ public partial class ProjectPublisher
 				return;
 
 			var rel = asset.GetCompiledFile( false );
+
+			var thumbName = $"{rel}.t.png";
+
+			//
+			// already added
+			//
+			if ( Assets.Any( x => string.Equals( x.Name, thumbName, StringComparison.OrdinalIgnoreCase ) ) )
+				return;
+
 			var thumb = asset.GetAssetThumb( true );
 
 			if ( thumb is null ) return;
-
-			var thumbName = $"{rel}.t.png";
 
 			var png = thumb.GetPng();
 			await AddFile( png, thumbName );
@@ -462,6 +469,12 @@ public partial class ProjectPublisher
 
 		internal async Task AddFile( byte[] contents, string relativePath )
 		{
+			//
+			// already added
+			//
+			if ( Assets.Any( x => string.Equals( x.Name, relativePath, StringComparison.OrdinalIgnoreCase ) ) )
+				return;
+
 			var e = new ProjectFile
 			{
 				Name = relativePath,
