@@ -188,6 +188,14 @@ public class EditorToolManager
 		}
 	}
 
+	public void ClearScreen()
+	{
+		foreach ( var tool in ComponentTools )
+			tool?.Dispose();
+		ComponentTools.Clear();
+		previousHash = -1;
+	}
+
 	/// <summary>
 	/// Switches to the named tool type next editor frame.
 	/// </summary>
