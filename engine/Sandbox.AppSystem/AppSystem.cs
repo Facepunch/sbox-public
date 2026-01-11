@@ -245,8 +245,12 @@ public class AppSystem
 	protected void InitGame( AppSystemCreateInfo createInfo, string commandLine = null )
 	{
 		commandLine ??= System.Environment.CommandLine;
-		commandLine = commandLine.Replace( ".dll", ".exe" ); // uck
+		if(OperatingSystem.IsWindows())
+			commandLine = commandLine.Replace( ".dll", ".exe" ); // uck
+		else
+			commandLine = commandLine.Replace( ".dll", "" ); // double uck
 
+		//Why tf this completely breaks in debug linux?
 		_appSystem = CMaterialSystem2AppSystemDict.Create( createInfo.ToMaterialSystem2AppSystemDictCreateInfo() );
 
 		if ( createInfo.Flags.HasFlag( AppSystemFlags.IsEditor ) )
