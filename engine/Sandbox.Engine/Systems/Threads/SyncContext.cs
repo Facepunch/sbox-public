@@ -67,11 +67,23 @@ internal static partial class SyncContext
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		while ( !task.IsCompleted )
+		// Single scope for the entire wait period (not per-iteration)
+		using ( PerformanceStats.Timings.Async.Scope() )
 		{
-			EngineLoop.RunAsyncTasks();
-			Thread.Yield();
-			IToolsDll.Current?.Spin();
+			while ( !task.IsCompleted )
+			{
+				EngineLoop.RunAsyncTasksCore();
+
+				// Check + Sleep: only sleep if there's no pending work
+				bool hasPendingWork =
+					Sandbox.MainThread.HasPendingActions ||
+					SyncContext.MainThread?.QueueCount > 0;
+
+				if ( !hasPendingWork )
+					Thread.Sleep( 16 );
+
+				IToolsDll.Current?.Spin();
+			}
 		}
 
 		if ( task.Exception != null )
@@ -85,10 +97,21 @@ internal static partial class SyncContext
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		while ( !task.IsCompleted )
+		// Single scope for the entire wait period (not per-iteration)
+		using ( PerformanceStats.Timings.Async.Scope() )
 		{
-			EngineLoop.RunAsyncTasks();
-			Thread.Yield();
+			while ( !task.IsCompleted )
+			{
+				EngineLoop.RunAsyncTasksCore();
+
+				// Check + Sleep: only sleep if there's no pending work
+				bool hasPendingWork =
+					Sandbox.MainThread.HasPendingActions ||
+					SyncContext.MainThread?.QueueCount > 0;
+
+				if ( !hasPendingWork )
+					Thread.Sleep( 16 );
+			}
 		}
 
 		if ( task.Exception != null )

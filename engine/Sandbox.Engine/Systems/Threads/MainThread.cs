@@ -12,6 +12,11 @@ public static class MainThread
 	static Channel<Action> Actions = Channel.CreateUnbounded<Action>();
 
 	/// <summary>
+	/// Returns true if there are pending actions or disposables to process
+	/// </summary>
+	internal static bool HasPendingActions => Actions.Reader.Count > 0 || Disposables.Reader.Count > 0;
+
+	/// <summary>
 	/// Wait to execute on the main thread
 	/// </summary>
 	public static SyncTask Wait()

@@ -247,12 +247,20 @@ internal static class EngineLoop
 	{
 		using ( PerformanceStats.Timings.Async.Scope() )
 		{
-			using var sceneScope = IGameInstanceDll.Current?.PushScope();
-
-			ThreadSafe.AssertIsMainThread();
-			MainThread.RunQueues();
-			SyncContext.MainThread?.ProcessQueue();
+			RunAsyncTasksCore();
 		}
+	}
+
+	/// <summary>
+	/// Internal version without PerformanceTrace scope - for use in tight loops like RunBlocking
+	/// </summary>
+	internal static void RunAsyncTasksCore()
+	{
+		using var sceneScope = IGameInstanceDll.Current?.PushScope();
+
+		ThreadSafe.AssertIsMainThread();
+		MainThread.RunQueues();
+		SyncContext.MainThread?.ProcessQueue();
 	}
 
 	internal static void FrameEnd()
