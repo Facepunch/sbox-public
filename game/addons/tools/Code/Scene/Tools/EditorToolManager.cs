@@ -188,12 +188,12 @@ public class EditorToolManager
 		}
 	}
 
-	public void ClearScreen()
+	public void DisposeAll()
 	{
+		previousHash = -1;
 		foreach ( var tool in ComponentTools )
 			tool?.Dispose();
 		ComponentTools.Clear();
-		previousHash = -1;
 	}
 
 	/// <summary>

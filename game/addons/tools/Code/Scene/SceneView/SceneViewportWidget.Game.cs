@@ -40,8 +40,8 @@ public partial class SceneViewportWidget
 	public void SetGameView()
 	{
 		GameMode.SetPlayWidget( Renderer );
-		Tools.ClearScreen();
 		IsGameView = true;
+		Tools.DisposeAll();
 	}
 
 	/// <summary>
@@ -83,7 +83,7 @@ public partial class SceneViewportWidget
 	public void OnPossessGame()
 	{
 		GameMode.SetPlayWidget( Renderer );
-		Tools.ClearScreen();
 		IsGameView = true;
+		Tools.DisposeAll();
 	}
 }
