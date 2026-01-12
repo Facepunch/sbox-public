@@ -288,11 +288,11 @@ class SceneWidget : Widget
 	public Scene Scene { get; set; }
 	public SceneCamera Camera { get; set; } = new SceneCamera();
 
-	Pixmap pixmap;
+	private readonly Preview.ThrottledPreviewRenderer _renderer;
 
 	public SceneWidget( Widget parent ) : base( parent )
 	{
-
+		_renderer = new Preview.ThrottledPreviewRenderer( Preview.PreviewRenderSettings.Default );
 	}
 
 	[EditorEvent.Frame]
@@ -300,31 +300,33 @@ class SceneWidget : Widget
 	{
 		if ( !Visible ) return;
 
-		var realSize = Size * DpiScale;
-
-		if ( pixmap is null || pixmap.Size != realSize )
-		{
-			pixmap = new Pixmap( realSize );
-		}
-
 		if ( Scene.IsValid() )
 		{
 			Camera.World = Scene.SceneWorld;
 			Camera.Worlds.Clear();
 
-			Camera.RenderToPixmap( pixmap );
-		}
+			var displaySize = Size * DpiScale;
+			_renderer.TryRender( Camera, displaySize );
 
-		Update();
+			// Always call Update - pixmap may have changed
+			Update();
+		}
 	}
 
 	protected override void OnPaint()
 	{
 		base.OnPaint();
 
+		var pixmap = _renderer.Pixmap;
 		if ( pixmap is not null )
 		{
 			Paint.Draw( LocalRect, pixmap );
 		}
+	}
+
+	public override void OnDestroyed()
+	{
+		base.OnDestroyed();
+		_renderer.Dispose();
 	}
 }
