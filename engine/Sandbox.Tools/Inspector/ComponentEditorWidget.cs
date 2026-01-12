@@ -37,7 +37,7 @@ public abstract class ComponentEditorWidget : Widget
 		int score = 0;
 
 		//
-		// Order by derived classes so we get the most relevent editor
+		// Order by derived classes so we get the most relevant editor
 		//
 		Type baseType = componentType;
 		while ( targetType.IsAssignableFrom( baseType ) )
