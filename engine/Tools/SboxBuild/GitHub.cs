@@ -108,7 +108,7 @@ internal static class GitHub
 		}
 
 		var jsonContent = JsonSerializer.Serialize( updatePayload );
-		var content = new StringContent( jsonContent, Encoding.UTF8, "application/json" );
+		using var content = new StringContent( jsonContent, Encoding.UTF8, "application/json" );
 
 		var updateUrl = $"https://api.github.com/repos/{repository}/check-runs/{checkRunId}";
 
@@ -170,7 +170,7 @@ internal static class GitHub
 		}
 
 		var jsonContent = JsonSerializer.Serialize( updatePayload );
-		var content = new StringContent( jsonContent, Encoding.UTF8, "application/json" );
+		using var content = new StringContent( jsonContent, Encoding.UTF8, "application/json" );
 
 		var url = $"https://api.github.com/repos/{repository}/check-runs";
 

@@ -64,7 +64,7 @@ internal static class ScreenRecorder
 			_videoWriter = null;
 		}
 
-		Log.Info( "Video recording finished." );
+		Log.Info( $"Video recording finished: <a href=\"{_filename}\">{_filename}</a>" );
 	}
 
 	/// <summary>

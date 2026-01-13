@@ -227,8 +227,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		if ( _hasNetworkDestroyed ) return;
 		if ( IsProxy && !Networking.IsHost ) return;
 
-		var msg = new ObjectDestroyMsg { Guid = GameObject.Id };
-		SceneNetworkSystem.Instance.Broadcast( msg );
+		SceneNetworkSystem.Instance.NetworkDestroyBroadcast( this );
 	}
 
 	private static readonly GameObject.SerializeOptions _refreshSerializeOptions = new() { SingleNetworkObject = true };

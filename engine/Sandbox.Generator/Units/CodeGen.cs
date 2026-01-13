@@ -171,7 +171,6 @@ namespace Sandbox.Generator
 		}
 
 		#region Property Wrapping
-
 		private static bool HandleWrapSet( AttributeData attribute, Flags type, string callbackName, ref PropertyDeclarationSyntax node, IPropertySymbol symbol, Worker master )
 		{
 			if ( symbol.IsStatic && !type.Contains( Flags.Static ) )
@@ -210,49 +209,69 @@ namespace Sandbox.Generator
 			}
 
 			var propertyType = symbol.Type.FullName();
-			var usesBackingField = false;
 			var accessors = new List<AccessorDeclarationSyntax>();
+			var backingFieldName = node.BackingFieldName();
 
-			// GET accessor
-			var get = node.AccessorList?.Accessors.FirstOrDefault( a => a.Kind() == SyntaxKind.GetAccessorDeclaration );
+			var existingGetter = node.AccessorList?.Accessors.FirstOrDefault( a => a.Kind() == SyntaxKind.GetAccessorDeclaration );
+			var existingSetter = node.AccessorList?.Accessors.FirstOrDefault( a => a.Kind() == SyntaxKind.SetAccessorDeclaration );
 
-			if ( get is not null && (get.Body is null && get.ExpressionBody is null) )
+			if ( existingSetter is null )
 			{
-				var backingFieldName = node.BackingFieldName();
-				var defaultReturn = ReturnStatement( IdentifierName( backingFieldName ) );
-				usesBackingField = true;
-
-				get = AccessorDeclaration( SyntaxKind.GetAccessorDeclaration )
-					.WithBody( Block( defaultReturn ) )
-					.WithModifiers( get.Modifiers );
+				// There is no setter to wrap.
+				return false;
 			}
 
-			if ( get is not null )
+			// Check if ANY accessor uses the field keyword
+			var propertyUsesField = UsesFieldKeyword( existingGetter?.Body )
+				|| UsesFieldKeyword( existingGetter?.ExpressionBody )
+				|| UsesFieldKeyword( existingSetter?.Body )
+				|| UsesFieldKeyword( existingSetter?.ExpressionBody );
+
+			// Also need backing field for auto-properties
+			var getterIsAuto = existingGetter is not null && existingGetter.Body is null && existingGetter.ExpressionBody is null;
+			var setterIsAuto = existingSetter.Body is null && existingSetter.ExpressionBody is null;
+
+			var usesBackingField = propertyUsesField || getterIsAuto || setterIsAuto;
+
+			// GET accessor
+			if ( existingGetter is not null )
 			{
+				AccessorDeclarationSyntax get;
+
+				if ( getterIsAuto )
+				{
+					// Auto-getter: generate return backingField;
+					get = AccessorDeclaration( SyntaxKind.GetAccessorDeclaration )
+						.WithBody( Block( ReturnStatement( IdentifierName( backingFieldName ) ) ) )
+						.WithModifiers( existingGetter.Modifiers );
+				}
+				else if ( existingGetter.Body is not null )
+				{
+					var body = propertyUsesField
+						? (BlockSyntax)ReplaceFieldKeyword( existingGetter.Body, backingFieldName )
+						: existingGetter.Body;
+
+					get = existingGetter.WithBody( body );
+				}
+				else
+				{
+					var expr = propertyUsesField
+						? (ExpressionSyntax)ReplaceFieldKeyword( existingGetter.ExpressionBody.Expression, backingFieldName )
+						: existingGetter.ExpressionBody.Expression;
+
+					get = existingGetter.WithExpressionBody( ArrowExpressionClause( expr ) );
+				}
+
 				accessors.Add( get );
 			}
 
 			// SET accessor
 			{
-				var existingSetter = node.AccessorList?.Accessors.FirstOrDefault( a => a.Kind() == SyntaxKind.SetAccessorDeclaration );
 				BlockSyntax setterInnerBody;
-				var backingFieldName = node.BackingFieldName();
 
-				if ( existingSetter is not null && (existingSetter.Body is not null || existingSetter.ExpressionBody is not null) )
+				if ( setterIsAuto )
 				{
-					if ( existingSetter.Body is not null )
-					{
-						setterInnerBody = existingSetter.Body;
-					}
-					else
-					{
-						setterInnerBody = Block(
-							ExpressionStatement( existingSetter.ExpressionBody.Expression ) );
-					}
-				}
-				else
-				{
-					usesBackingField = true;
+					// Auto-setter: generate backingField = value;
 					var assign = ExpressionStatement(
 						AssignmentExpression(
 							SyntaxKind.SimpleAssignmentExpression,
@@ -260,6 +279,20 @@ namespace Sandbox.Generator
 							IdentifierName( "value" ) ) );
 
 					setterInnerBody = Block( assign );
+				}
+				else if ( existingSetter.Body is not null )
+				{
+					setterInnerBody = propertyUsesField
+						? (BlockSyntax)ReplaceFieldKeyword( existingSetter.Body, backingFieldName )
+						: existingSetter.Body;
+				}
+				else
+				{
+					var expr = propertyUsesField
+						? (ExpressionSyntax)ReplaceFieldKeyword( existingSetter.ExpressionBody.Expression, backingFieldName )
+						: existingSetter.ExpressionBody.Expression;
+
+					setterInnerBody = Block( ExpressionStatement( expr ) );
 				}
 
 				var setterLambda = ParenthesizedLambdaExpression(
@@ -337,16 +370,14 @@ namespace Sandbox.Generator
 
 				var invocation = InvocationExpression( callbackExpr, argList );
 
-				var statements = new[]
-				{
+				StatementSyntax[] statements =
+				[
 					ExpressionStatement( invocation )
-				};
+				];
 
 				var set = AccessorDeclaration( SyntaxKind.SetAccessorDeclaration )
-					.WithBody( Block( statements ) );
-
-				if ( existingSetter is not null )
-					set = set.WithModifiers( existingSetter.Modifiers );
+					.WithBody( Block( statements ) )
+					.WithModifiers( existingSetter.Modifiers );
 
 				accessors.Add( set );
 
@@ -398,76 +429,99 @@ namespace Sandbox.Generator
 				return false;
 			}
 
-			var usesBackingField = false;
 			var accessors = new List<AccessorDeclarationSyntax>();
+			var backingFieldName = node.BackingFieldName();
 
-			// SET accessor
-			var set = node.AccessorList?.Accessors.FirstOrDefault( a => a.Kind() == SyntaxKind.SetAccessorDeclaration );
+			var existingGetter = node.AccessorList?.Accessors.FirstOrDefault( a => a.Kind() == SyntaxKind.GetAccessorDeclaration );
+			var existingSetter = node.AccessorList?.Accessors.FirstOrDefault( a => a.Kind() == SyntaxKind.SetAccessorDeclaration );
 
-			if ( set is not null && (set.Body is null && set.ExpressionBody is null) )
+			if ( existingGetter is null )
 			{
-				var backingFieldName = node.BackingFieldName();
-				var assign = ExpressionStatement(
-					AssignmentExpression(
-						SyntaxKind.SimpleAssignmentExpression,
-						IdentifierName( backingFieldName ),
-						IdentifierName( "value" ) ) );
-
-				usesBackingField = true;
-				set = AccessorDeclaration( SyntaxKind.SetAccessorDeclaration )
-					.WithBody( Block( assign ) )
-					.WithModifiers( set.Modifiers );
+				// There is no setter to wrap.
+				return false;
 			}
 
-			if ( set is not null )
+			// Check if ANY accessor uses the field keyword
+			var propertyUsesField = UsesFieldKeyword( existingGetter?.Body )
+				|| UsesFieldKeyword( existingGetter?.ExpressionBody )
+				|| UsesFieldKeyword( existingSetter?.Body )
+				|| UsesFieldKeyword( existingSetter?.ExpressionBody );
+
+			// Also need backing field for auto-properties
+			var getterIsAuto = existingGetter.Body is null && existingGetter.ExpressionBody is null;
+			var setterIsAuto = existingSetter is not null && existingSetter.Body is null && existingSetter.ExpressionBody is null;
+
+			var usesBackingField = propertyUsesField || getterIsAuto || setterIsAuto;
+
+			// SET accessor
+			if ( existingSetter is not null )
 			{
+				AccessorDeclarationSyntax set;
+
+				if ( setterIsAuto )
+				{
+					// Auto-setter: generate backingField = value;
+					var assign = ExpressionStatement(
+						AssignmentExpression(
+							SyntaxKind.SimpleAssignmentExpression,
+							IdentifierName( backingFieldName ),
+							IdentifierName( "value" ) ) );
+
+					set = AccessorDeclaration( SyntaxKind.SetAccessorDeclaration )
+						.WithBody( Block( assign ) )
+						.WithModifiers( existingSetter.Modifiers );
+				}
+				else if ( existingSetter.Body is not null )
+				{
+					var body = propertyUsesField
+						? (BlockSyntax)ReplaceFieldKeyword( existingSetter.Body, backingFieldName )
+						: existingSetter.Body;
+
+					set = existingSetter.WithBody( body );
+				}
+				else
+				{
+					var expr = propertyUsesField
+						? (ExpressionSyntax)ReplaceFieldKeyword( existingSetter.ExpressionBody.Expression, backingFieldName )
+						: existingSetter.ExpressionBody.Expression;
+
+					set = existingSetter.WithExpressionBody( ArrowExpressionClause( expr ) );
+				}
+
 				accessors.Add( set );
 			}
 
 			// GET accessor
 			{
-				var existingGetter = node.AccessorList?.Accessors.FirstOrDefault( a => a.Kind() == SyntaxKind.GetAccessorDeclaration );
 				var statements = new List<StatementSyntax>();
 				ExpressionSyntax defaultValueExpression;
 
-				if ( existingGetter is not null && (existingGetter.Body is not null || existingGetter.ExpressionBody is not null) )
+				if ( getterIsAuto )
 				{
-					if ( existingGetter.Body is not null )
-					{
-						var getValueLambda = ParenthesizedLambdaExpression( existingGetter.Body );
+					// Auto-getter: use the backing field directly
+					defaultValueExpression = IdentifierName( backingFieldName );
+				}
+				else if ( existingGetter.Body is not null )
+				{
+					var body = propertyUsesField
+						? (BlockSyntax)ReplaceFieldKeyword( existingGetter.Body, backingFieldName )
+						: existingGetter.Body;
 
-						var declarator = VariableDeclarator( Identifier( "getValue" ) )
-							.WithInitializer( EqualsValueClause( getValueLambda ) );
+					var declarator = VariableDeclarator( Identifier( "getValue" ) )
+						.WithInitializer( EqualsValueClause( ParenthesizedLambdaExpression( body ) ) );
 
-						var decl = LocalDeclarationStatement(
-							VariableDeclaration( IdentifierName( "var" ) )
-								.WithVariables(
-									SingletonSeparatedList( declarator ) ) );
+					statements.Add( LocalDeclarationStatement(
+						VariableDeclaration( IdentifierName( "var" ) )
+							.WithVariables( SingletonSeparatedList( declarator ) ) ) );
 
-						statements.Add( decl );
-
-						defaultValueExpression = InvocationExpression( IdentifierName( "getValue" ) );
-					}
-					else
-					{
-						defaultValueExpression = existingGetter.ExpressionBody.Expression;
-					}
+					defaultValueExpression = InvocationExpression( IdentifierName( "getValue" ) );
 				}
 				else
 				{
-					var backingFieldName = node.BackingFieldName();
-					var declarator = VariableDeclarator( Identifier( "value" ) )
-						.WithInitializer(
-							EqualsValueClause( IdentifierName( backingFieldName ) ) );
-
-					var decl = LocalDeclarationStatement(
-						VariableDeclaration( IdentifierName( "var" ) )
-							.WithVariables(
-								SingletonSeparatedList( declarator ) ) );
-
-					statements.Add( decl );
-					defaultValueExpression = IdentifierName( "value" );
-					usesBackingField = true;
+					var expr = existingGetter.ExpressionBody.Expression;
+					defaultValueExpression = propertyUsesField
+						? (ExpressionSyntax)ReplaceFieldKeyword( expr, backingFieldName )
+						: expr;
 				}
 
 				var memberIdentity = $"{symbol.ContainingType.GetFullMetadataName().Replace( "global::", "" )}.{symbol.Name}";
@@ -538,10 +592,8 @@ namespace Sandbox.Generator
 							invocation ) ) );
 
 				var get = AccessorDeclaration( SyntaxKind.GetAccessorDeclaration )
-					.WithBody( Block( statements ) );
-
-				if ( existingGetter is not null )
-					get = get.WithModifiers( existingGetter.Modifiers );
+					.WithBody( Block( statements ) )
+					.WithModifiers( existingGetter.Modifiers );
 
 				accessors.Add( get );
 
@@ -553,15 +605,47 @@ namespace Sandbox.Generator
 
 			return usesBackingField;
 		}
-
 		#endregion
+
+		private static bool UsesFieldKeyword( SyntaxNode node )
+		{
+			if ( node is null ) return false;
+
+			return node.DescendantNodesAndSelf()
+				.Any( n => n.IsKind( SyntaxKind.FieldExpression ) );
+		}
+
+		private static SyntaxNode ReplaceFieldKeyword( SyntaxNode node, string backingFieldName )
+		{
+			return node?.ReplaceNodes(
+				node.DescendantNodesAndSelf()
+					.Where( n => n.IsKind( SyntaxKind.FieldExpression ) ),
+				( original, _ ) => IdentifierName( backingFieldName ) );
+		}
 
 		#region Method Wrapping
 
-		private static ExpressionSyntax BuildWrappedMethodExpression( IMethodSymbol symbol, CSharpSyntaxNode resumeBodyNode, int methodIdentity )
+		private static ExpressionSyntax BuildWrappedMethodExpression( IMethodSymbol symbol, CSharpSyntaxNode resumeBodyNode, int methodIdentity, bool usesObjectFallback = false )
 		{
 			var hasReturn = !symbol.ReturnsVoid;
-			var parameterStructGenericType = hasReturn ? $"<{symbol.ReturnType.FullName()}>" : string.Empty;
+
+			string parameterStructGenericType;
+
+			if ( !hasReturn )
+			{
+				parameterStructGenericType = string.Empty;
+			}
+			else if ( usesObjectFallback )
+			{
+				// Use object (or Task<object> for async Task<T>)
+				var fullReturnType = symbol.ReturnType.FullName();
+				parameterStructGenericType = fullReturnType.StartsWith( "global::System.Threading.Tasks.Task<" ) ? "<global::System.Threading.Tasks.Task<object>>" : "<object>";
+			}
+			else
+			{
+				parameterStructGenericType = $"<{symbol.ReturnType.FullName()}>";
+			}
+
 			var wrappedTypeName = $"global::Sandbox.WrappedMethod{parameterStructGenericType}";
 			var wrappedType = ParseTypeName( wrappedTypeName );
 
@@ -573,6 +657,24 @@ namespace Sandbox.Generator
 
 			var typeName = symbol.ContainingType.FullName().Replace( "global::", "" );
 			var attrsFieldName = $"__{MakeMethodIdentitySafe( methodIdentity )}__Attrs";
+
+			ExpressionSyntax genericArgsExpression;
+
+			if ( symbol.IsGenericMethod )
+			{
+				var typeofExpressions = symbol.TypeArguments
+					.Select( t => TypeOfExpression( ParseTypeName( t.ToDisplayString( SymbolDisplayFormat.FullyQualifiedFormat ) ) ) )
+					.ToArray();
+
+				genericArgsExpression = ImplicitArrayCreationExpression(
+					InitializerExpression(
+						SyntaxKind.ArrayInitializerExpression,
+						SeparatedList<ExpressionSyntax>( typeofExpressions ) ) );
+			}
+			else
+			{
+				genericArgsExpression = LiteralExpression( SyntaxKind.NullLiteralExpression );
+			}
 
 			var assignments = new List<ExpressionSyntax>
 			{
@@ -611,7 +713,12 @@ namespace Sandbox.Generator
 				AssignmentExpression(
 					SyntaxKind.SimpleAssignmentExpression,
 					IdentifierName( "Attributes" ),
-					IdentifierName( attrsFieldName ) )
+					IdentifierName( attrsFieldName ) ),
+
+				AssignmentExpression(
+					SyntaxKind.SimpleAssignmentExpression,
+					IdentifierName( "GenericArguments" ),
+					genericArgsExpression )
 			};
 
 			return ObjectCreationExpression( wrappedType )
@@ -651,6 +758,7 @@ namespace Sandbox.Generator
 			if ( !symbol.IsStatic && !type.Contains( Flags.Instance ) )
 				return false;
 
+			var usesObjectFallback = false;
 			var typeToInvokeOn = symbol.ContainingType;
 			var methodToInvoke = callbackName;
 			var splitCallbackName = callbackName.Split( '.' );
@@ -677,7 +785,7 @@ namespace Sandbox.Generator
 			if ( typeToInvokeOn is not null )
 			{
 				success = ValidateMethodCallback( symbol.ContainingType, typeToInvokeOn, methodToInvoke,
-					isStaticCallback, !symbol.ReturnsVoid ? symbol.ReturnType : null, parameterCount );
+					isStaticCallback, !symbol.ReturnsVoid ? symbol.ReturnType : null, parameterCount, out usesObjectFallback );
 			}
 
 			if ( !success )
@@ -719,7 +827,7 @@ namespace Sandbox.Generator
 			}
 
 			var methodIdentity = GetUniqueMethodIdentity( symbol );
-			var wrappedMethodExpr = BuildWrappedMethodExpression( symbol, resumeBodyNode, methodIdentity );
+			var wrappedMethodExpr = BuildWrappedMethodExpression( symbol, resumeBodyNode, methodIdentity, usesObjectFallback );
 			var callbackInvocation = BuildCallbackInvocation( callbackName, wrappedMethodExpr, symbol.Parameters );
 
 			var fullReturnType = symbol.ReturnType.FullName();
@@ -734,12 +842,31 @@ namespace Sandbox.Generator
 				{
 					if ( isGenericTaskType )
 					{
-						// return await Callback(...);
-						statements =
-						[
-							ReturnStatement(
-								AwaitExpression( callbackInvocation ) )
-						];
+						if ( usesObjectFallback )
+						{
+							var innerType = (symbol.ReturnType as INamedTypeSymbol)?.TypeArguments[0];
+							var innerTypeSyntax = ParseTypeName( innerType.FullName() );
+
+							statements =
+							[
+								LocalDeclarationStatement(
+									VariableDeclaration( IdentifierName( "var" ) )
+										.WithVariables( SingletonSeparatedList(
+											VariableDeclarator( "__result" )
+												.WithInitializer( EqualsValueClause( AwaitExpression( callbackInvocation ) ) ) ) ) ),
+								ReturnStatement(
+									CastExpression( innerTypeSyntax, IdentifierName( "__result" ) ) )
+							];
+						}
+						else
+						{
+							// return await Callback(...);
+							statements =
+							[
+								ReturnStatement(
+									AwaitExpression( callbackInvocation ) )
+							];
+						}
 					}
 					else if ( isTaskType )
 					{
@@ -826,7 +953,6 @@ namespace Sandbox.Generator
 
 			return true;
 		}
-
 		#endregion
 
 		private static readonly Dictionary<string, string> TypeAliases = new()
@@ -905,56 +1031,111 @@ namespace Sandbox.Generator
 			}
 		}
 
-		private static bool ValidateMethodCallback( INamedTypeSymbol containingType, INamedTypeSymbol parent, string methodName, bool isStatic, ITypeSymbol returnType, int argCount )
+		private static bool ValidateMethodCallback( INamedTypeSymbol containingType, INamedTypeSymbol parent, string methodName, bool isStatic, ITypeSymbol returnType, int argCount, out bool usesObjectFallback )
 		{
+			usesObjectFallback = false;
 			var validMethods = FetchValidMethods( parent, methodName, isStatic, SymbolEqualityComparer.Default.Equals( containingType, parent ) );
 
 			foreach ( var method in validMethods )
 			{
-				var hasObjectParams = method.Parameters.Length > 1 && method.Parameters[1].IsParams && method.Parameters[1].Type.FullName() == "object[]";
+				if ( IsValidMethodCallback( method, returnType, argCount, requireExactType: true ) )
+					return true;
+			}
 
-				if ( !hasObjectParams && method.Parameters.Length != argCount + 1 )
+			// Second pass: look for object fallback (only if we have a return type)
+			if ( returnType is null )
+				return false;
+
+			foreach ( var method in validMethods )
+			{
+				if ( !IsValidMethodCallback( method, returnType, argCount, requireExactType: false ) )
 					continue;
 
-				var firstParameterType = method.Parameters[0].Type;
-				var firstParameterName = firstParameterType.FullName();
-
-				if ( returnType is null )
-				{
-					if ( firstParameterName != "global::Sandbox.WrappedMethod" )
-						continue;
-				}
-				else
-				{
-					if ( !firstParameterName.StartsWith( "global::Sandbox.WrappedMethod<" ) )
-						continue;
-
-					var namedParam = firstParameterType as INamedTypeSymbol;
-					var wrappedArg = namedParam?.TypeArguments[0];
-
-					if ( wrappedArg is null )
-						continue;
-
-					if ( !SymbolEqualityComparer.Default.Equals( wrappedArg, returnType )
-						 && !IsTypeCompatible( wrappedArg, returnType ) )
-					{
-						continue;
-					}
-
-					var cbReturn = method.ReturnType;
-
-					if ( !SymbolEqualityComparer.Default.Equals( cbReturn, returnType )
-						 && !IsTypeCompatible( cbReturn, returnType )
-						 && cbReturn is not ITypeParameterSymbol )
-					{
-						continue;
-					}
-				}
-
+				usesObjectFallback = true;
 				return true;
 			}
 
 			return false;
+		}
+
+		private static bool IsValidMethodCallback( IMethodSymbol method, ITypeSymbol returnType, int argCount, bool requireExactType )
+		{
+			var hasObjectParams = method.Parameters.Length > 1 && method.Parameters[1].IsParams && method.Parameters[1].Type.FullName() == "object[]";
+
+			if ( !hasObjectParams && method.Parameters.Length != argCount + 1 )
+				return false;
+
+			var firstParameterType = method.Parameters[0].Type;
+			var firstParameterName = firstParameterType.FullName();
+
+			if ( returnType is null )
+			{
+				return firstParameterName == "global::Sandbox.WrappedMethod";
+			}
+
+			if ( !firstParameterName.StartsWith( "global::Sandbox.WrappedMethod<" ) )
+				return false;
+
+			var namedParam = firstParameterType as INamedTypeSymbol;
+			var wrappedArg = namedParam?.TypeArguments[0];
+
+			if ( wrappedArg is null )
+				return false;
+
+			if ( requireExactType )
+			{
+				// Exact match or compatible generic
+				if ( !SymbolEqualityComparer.Default.Equals( wrappedArg, returnType )
+					&& !IsTypeCompatible( wrappedArg, returnType ) )
+				{
+					return false;
+				}
+
+				var cbReturn = method.ReturnType;
+
+				if ( !SymbolEqualityComparer.Default.Equals( cbReturn, returnType )
+					&& !IsTypeCompatible( cbReturn, returnType )
+					&& cbReturn is not ITypeParameterSymbol )
+				{
+					return false;
+				}
+			}
+			else
+			{
+				if ( !IsObjectOrTaskOfObject( wrappedArg, returnType ) )
+					return false;
+
+				var cbReturn = method.ReturnType;
+				if ( !IsObjectOrTaskOfObject( cbReturn, returnType ) && cbReturn is not ITypeParameterSymbol )
+					return false;
+			}
+
+			return true;
+		}
+
+		private static bool IsObjectOrTaskOfObject( ITypeSymbol candidate, ITypeSymbol targetForShape )
+		{
+			if ( candidate.SpecialType == SpecialType.System_Object )
+				return true;
+
+			// Check for Task<object> when the target is Task<T>
+			if ( candidate is not INamedTypeSymbol namedCandidate || targetForShape is not INamedTypeSymbol namedTarget )
+				return false;
+
+			// Both must be generic Task<T>
+			var isCandidateGenericTask = namedCandidate.Name == "Task"
+				 && namedCandidate.TypeArguments.Length == 1
+				 && namedCandidate.ContainingNamespace?.ToDisplayString() == "System.Threading.Tasks";
+
+			var isTargetGenericTask = namedTarget.Name == "Task"
+				  && namedTarget.TypeArguments.Length == 1
+				  && namedTarget.ContainingNamespace?.ToDisplayString() == "System.Threading.Tasks";
+
+			if ( !isCandidateGenericTask || !isTargetGenericTask )
+				return false;
+
+			// Candidate should be Task<object>
+			return namedCandidate.TypeArguments[0].SpecialType == SpecialType.System_Object;
 		}
 
 		private static bool IsTypeCompatible( ITypeSymbol candidate, ITypeSymbol target )

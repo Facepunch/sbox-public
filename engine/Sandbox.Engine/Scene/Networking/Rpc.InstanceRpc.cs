@@ -127,7 +127,17 @@ public static partial class Rpc
 		{
 			try
 			{
-				method.Invoke( targetObject, rpc.Arguments );
+				if ( rpc.GenericArguments is not null )
+				{
+					var genericTypes = Game.TypeLibrary.FromIdentities( rpc.GenericArguments );
+					var genericMethod = method.MakeGenericMethod( genericTypes );
+
+					genericMethod.Invoke( targetObject, rpc.Arguments );
+				}
+				else
+				{
+					method.Invoke( targetObject, rpc.Arguments );
+				}
 			}
 			catch ( Exception e )
 			{
@@ -168,7 +178,17 @@ public static partial class Rpc
 		{
 			try
 			{
-				method.Invoke( targetObject, rpc.Arguments );
+				if ( rpc.GenericArguments is not null )
+				{
+					var genericTypes = Game.TypeLibrary.FromIdentities( rpc.GenericArguments );
+					var genericMethod = method.MakeGenericMethod( genericTypes );
+
+					genericMethod.Invoke( targetObject, rpc.Arguments );
+				}
+				else
+				{
+					method.Invoke( targetObject, rpc.Arguments );
+				}
 			}
 			catch ( Exception e )
 			{
@@ -301,7 +321,8 @@ public static partial class Rpc
 		{
 			Guid = system.Id,
 			MethodIdentity = m.MethodIdentity,
-			Arguments = argumentList
+			Arguments = argumentList,
+			GenericArguments = Game.TypeLibrary.ToIdentities( m.GenericArguments )
 		};
 
 		//
@@ -358,7 +379,8 @@ public static partial class Rpc
 			Guid = go.Id,
 			ComponentId = component?.Id ?? Guid.Empty,
 			MethodIdentity = m.MethodIdentity,
-			Arguments = argumentList
+			Arguments = argumentList,
+			GenericArguments = Game.TypeLibrary.ToIdentities( m.GenericArguments )
 		};
 
 		//

@@ -32,7 +32,7 @@ public partial class Bitmap
 	/// </summary>
 	public void DrawRoundRect( Rect rect, Margin margins )
 	{
-		var rounded = new SKRoundRect( rect.ToSk() );
+		using var rounded = new SKRoundRect( rect.ToSk() );
 		rounded.SetRectRadii( rect.ToSk(), new[] { new SKPoint( margins.Left, margins.Left ), new SKPoint( margins.Top, margins.Top ), new SKPoint( margins.Right, margins.Right ), new SKPoint( margins.Bottom, margins.Bottom ) } );
 
 		var skRect = rect.ToSk();

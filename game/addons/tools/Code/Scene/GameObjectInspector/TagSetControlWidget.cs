@@ -310,10 +310,8 @@ public class TagSetControlWidget : ControlWidget
 
 	void RebuildTagGrid()
 	{
-		var scene = SceneEditorSession.Active?.Scene;
 		var tags = SerializedProperty.GetValue<ITagSet>();
 
-		if ( !scene.IsValid() ) return;
 		if ( tags == null ) return;
 		if ( !TagsPopupGrid.IsValid() ) return;
 

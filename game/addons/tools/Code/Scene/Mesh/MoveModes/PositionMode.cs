@@ -30,6 +30,7 @@ public sealed class PositionMode : MoveMode
 		using ( Gizmo.Scope( "Tool", new Transform( origin ) ) )
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
+			Gizmo.Hitbox.CanInteract = CanUseGizmo;
 
 			if ( Gizmo.Control.Position( "position", Vector3.Zero, out var delta, _basis ) )
 			{

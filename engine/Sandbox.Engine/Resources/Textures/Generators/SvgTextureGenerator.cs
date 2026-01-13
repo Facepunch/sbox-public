@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization;
 using System.Threading;
 
 namespace Sandbox.Resources;
@@ -109,21 +110,34 @@ public class SvgSourceGenerator : TextureGenerator
 		var w = Size.x.Clamp( 1, 1024 * 4 );
 		var h = Size.y.Clamp( 1, 1024 * 4 );
 
-		var bitmap = Bitmap.CreateFromSvgString( Source, w, h, Scale, Offset, Rotate );
+		using var bitmap = Bitmap.CreateFromSvgString( Source, w, h, Scale, Offset, Rotate );
 		if ( bitmap is null ) return default;
-
-		// adjustments
-		{
-			if ( FlipHorizontal ) bitmap = bitmap.FlipHorizontal();
-			if ( FlipVertical ) bitmap = bitmap.FlipVertical();
-		}
 
 		if ( Colorize )
 		{
 			bitmap.Colorize( TargetColor );
 		}
 
-		return ValueTask.FromResult( bitmap.ToTexture() );
+		// adjustments
+		if ( FlipHorizontal && FlipVertical )
+		{
+			using var flippedHorizontal = bitmap.FlipHorizontal();
+			using var flippedVertical = flippedHorizontal.FlipVertical();
+			return ValueTask.FromResult( flippedVertical.ToTexture() );
+		}
 
+		if ( FlipHorizontal )
+		{
+			using var flippedHorizontal = bitmap.FlipHorizontal();
+			return ValueTask.FromResult( flippedHorizontal.ToTexture() );
+		}
+
+		if ( FlipVertical )
+		{
+			using var flippedVertical = bitmap.FlipVertical();
+			return ValueTask.FromResult( flippedVertical.ToTexture() );
+		}
+
+		return ValueTask.FromResult( bitmap.ToTexture() );
 	}
 }

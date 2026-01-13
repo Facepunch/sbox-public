@@ -140,8 +140,8 @@ internal class Pipeline
 		var originalOut = Console.Out;
 		var originalError = Console.Error;
 
-		ConsoleOutputCapture outputCapture = new ConsoleOutputCapture( originalOut, 2000 );
-		ConsoleOutputCapture errorCapture = new ConsoleOutputCapture( originalError, 2000 );
+		using ConsoleOutputCapture outputCapture = new ConsoleOutputCapture( originalOut, 2000 );
+		using ConsoleOutputCapture errorCapture = new ConsoleOutputCapture( originalError, 2000 );
 
 		// Log this before running the step
 		// we dont want to capture this in the output

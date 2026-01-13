@@ -52,7 +52,7 @@ public class GameObjectControlWidget : ControlWidget
 		}
 		else if ( go is not null )
 		{
-			m.AddOption( "Find in Scene", "search", () => FindInScene( go ) );
+			m.AddOption( "Find in Scene", "search", () => EditorUtility.FindInScene( go ) );
 			m.AddSeparator();
 		}
 
@@ -176,7 +176,7 @@ public class GameObjectControlWidget : ControlWidget
 			if ( go.IsValid() && go is not PrefabScene )
 			{
 				// If the current value exists in the scene, select it
-				FindInScene( go );
+				EditorUtility.FindInScene( go );
 			}
 			else
 			{
@@ -272,17 +272,6 @@ public class GameObjectControlWidget : ControlWidget
 
 				return;
 			}
-		}
-	}
-
-	static void FindInScene( GameObject go )
-	{
-		if ( !go.IsValid() )
-			return;
-
-		using ( SceneEditorSession.Active.UndoScope( $"Selected {go}" ).Push() )
-		{
-			SceneEditorSession.Active?.Selection.Set( go );
 		}
 	}
 }

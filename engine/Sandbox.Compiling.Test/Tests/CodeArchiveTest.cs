@@ -22,7 +22,7 @@ public partial class CodeArchiveTest
 
 	static async Task<CompilerOutput> CompileAndTest( CodeArchive a )
 	{
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 		var compiler = group.GetOrCreateCompiler( "test" );
 
 		compiler.UpdateFromArchive( a );
@@ -40,7 +40,7 @@ public partial class CodeArchiveTest
 	{
 		// Compile some shit
 		var codePath = System.IO.Path.GetFullPath( "data/code/base" );
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 		var compiler = group.CreateCompiler( "test", codePath, new Compiler.Configuration() );
 		await group.BuildAsync();
 
@@ -89,7 +89,7 @@ public partial class CodeArchiveTest
 	public async Task SingleCompilerWithServer()
 	{
 		var codePath = System.IO.Path.GetFullPath( "data/code/base_with_server" );
-		var group = new CompileGroup( "TestServer" );
+		using var group = new CompileGroup( "TestServer" );
 
 		var compilerSettings = new Compiler.Configuration();
 		compilerSettings.StripDisabledTextTrivia = true;
@@ -164,7 +164,7 @@ public partial class CodeArchiveTest
 	[TestMethod]
 	public void ReferencesCopied()
 	{
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 
 		// Create base compiler
 		group.CreateCompiler( "base", System.IO.Path.GetFullPath( "data/code/base" ), new Compiler.Configuration() );

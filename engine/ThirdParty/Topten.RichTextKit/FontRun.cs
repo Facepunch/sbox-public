@@ -918,7 +918,7 @@ namespace Topten.RichTextKit
 
 			fixed ( ushort* pGlyphs = Glyphs.Underlying )
 			{
-				var textBlob = SKTextBlob.CreatePositioned(
+				using var textBlob = SKTextBlob.CreatePositioned(
 					(IntPtr)(pGlyphs + Glyphs.Start),
 					Glyphs.Length * sizeof( ushort ),
 					SKTextEncoding.GlyphId,

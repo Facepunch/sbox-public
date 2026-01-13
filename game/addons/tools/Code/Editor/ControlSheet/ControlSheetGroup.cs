@@ -283,9 +283,8 @@ file class GroupHeader : Widget
 
 			menu.AddOption( revertAllActionName, "history", () =>
 			{
-				using var scene = SceneEditorSession.Scope();
-
-				using ( SceneEditorSession.Active.UndoScope( revertAllActionName ).WithComponentChanges( editedComponents ).Push() )
+				var session = SceneEditorSession.Resolve( editedComponents.FirstOrDefault() );
+				using ( session.UndoScope( revertAllActionName ).WithComponentChanges( editedComponents ).Push() )
 				{
 					groupControl.properties.ForEach( prop => EditorUtility.Prefabs.RevertPropertyChange( prop ) );
 				}
@@ -295,9 +294,8 @@ file class GroupHeader : Widget
 
 			menu.AddOption( applyAllActionName, "update", () =>
 			{
-				using var scene = SceneEditorSession.Scope();
-
-				using ( SceneEditorSession.Active.UndoScope( applyAllActionName ).WithComponentChanges( editedComponents ).Push() )
+				var session = SceneEditorSession.Resolve( editedComponents.FirstOrDefault() );
+				using ( session.UndoScope( applyAllActionName ).WithComponentChanges( editedComponents ).Push() )
 				{
 					groupControl.properties.ForEach( prop => EditorUtility.Prefabs.ApplyPropertyChange( prop ) );
 				}
@@ -314,9 +312,8 @@ file class GroupHeader : Widget
 
 				menu.AddOption( revertToggleActionName, "history", () =>
 				{
-					using var scene = SceneEditorSession.Scope();
-
-					using ( SceneEditorSession.Active.UndoScope( revertToggleActionName ).WithComponentChanges( editedComponents ).Push() )
+					var session = SceneEditorSession.Resolve( editedComponents.FirstOrDefault() );
+					using ( session.UndoScope( revertToggleActionName ).WithComponentChanges( editedComponents ).Push() )
 					{
 						EditorUtility.Prefabs.RevertPropertyChange( toggleProperty );
 					}
@@ -326,9 +323,8 @@ file class GroupHeader : Widget
 
 				menu.AddOption( applyToggleActionName, "update", () =>
 				{
-					using var scene = SceneEditorSession.Scope();
-
-					using ( SceneEditorSession.Active.UndoScope( applyToggleActionName ).WithComponentChanges( editedComponents ).Push() )
+					var session = SceneEditorSession.Resolve( editedComponents.FirstOrDefault() );
+					using ( session.UndoScope( applyToggleActionName ).WithComponentChanges( editedComponents ).Push() )
 					{
 						EditorUtility.Prefabs.ApplyPropertyChange( toggleProperty );
 					}

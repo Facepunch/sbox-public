@@ -1,7 +1,5 @@
-using ProtoBuf;
 using Sandbox.Engine.Resources;
 using Sandbox.Navigation;
-using Sandbox.Navigation.Generation;
 using Sandbox.Volumes;
 
 namespace Sandbox;
@@ -47,12 +45,13 @@ public class NavMeshArea : VolumeComponent, Component.ExecuteInEditor
 		}
 	}
 
-	protected override async Task OnLoad()
+	protected override async Task OnLoad( LoadingContext context )
 	{
-		if ( _linkedCollider != null )
-		{
-			await ConvertColliderToSceneVolumeLoadTask();
-		}
+		if ( _linkedCollider == null ) return;
+
+		context.Title = "Converting Collider";
+
+		await ConvertColliderToSceneVolumeLoadTask();
 	}
 
 	private Collider _linkedCollider;

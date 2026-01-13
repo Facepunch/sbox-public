@@ -19,6 +19,10 @@ internal static class VideoTextureLoader
 
 	internal static bool IsAppropriate( string url )
 	{
+		if ( !Uri.TryCreate( url, UriKind.Absolute, out var uri ) ) return false;
+
+		if ( uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps ) return false;
+
 		var split = url.Split( '?' )[0];
 		var extension = System.IO.Path.GetExtension( split );
 
@@ -44,7 +48,12 @@ internal static class VideoTextureLoader
 			return null;
 		}
 
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// TOOD this sucks, right now we rely on the VideoPlayer and its texture to be GC'd to free up resources
+		// we should make this explicit, but i don't know how, since VideoPlayer and texture form a circular reference,
+		// so we can't keep a hard reference to either of them
 		var player = new VideoPlayer();
+#pragma warning restore CA2000 // Dispose objects before losing scope
 		player.SetVideoOnly();
 
 		ActivePlayers[filename] = new WeakReference<Texture>( player.Texture );

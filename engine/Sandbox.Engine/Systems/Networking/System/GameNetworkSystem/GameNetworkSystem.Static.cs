@@ -316,7 +316,7 @@ internal static class DedicatedServer
 			sgs.SetAdvertiseServerActive( true );
 
 			var timeout = TimeSpan.FromSeconds( 10f );
-			var timeoutSource = new CancellationTokenSource( timeout );
+			using var timeoutSource = new CancellationTokenSource( timeout );
 			var delay = TimeSpan.FromMilliseconds( 100 );
 
 			while ( !sgs.BLoggedOn() )

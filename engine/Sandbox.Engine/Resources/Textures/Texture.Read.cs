@@ -51,7 +51,7 @@ public partial class Texture
 		var desc = g_pRenderDevice.GetTextureDesc( native );
 		var width = desc.m_nWidth / d;
 		var height = desc.m_nHeight / d;
-		var depth = desc.m_nDepth;
+		var depth = Depth; // Cubes have 6 depth even though reports as only 1 in desc
 		var outputFormat = floatingPoint ? ImageFormat.RGBA16161616F : ImageFormat.RGBA8888;
 		var targetMemoryRequired = NativeEngine.ImageLoader.GetMemRequired( width, height, depth, 1, outputFormat );
 
@@ -95,6 +95,8 @@ public partial class Texture
 	{
 		switch ( format )
 		{
+			case ImageFormat.RGBA16161616F:
+				return 8;
 			case ImageFormat.RGBA8888:
 			case ImageFormat.BGRA8888:
 			case ImageFormat.ARGB8888:

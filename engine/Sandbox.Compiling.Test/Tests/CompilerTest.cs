@@ -14,7 +14,7 @@ public partial class CompilerTest
 		bool compileSuccessCallback = false;
 
 		var codePath = System.IO.Path.GetFullPath( "data/code/base" );
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
 		var compilerSettings = new Compiler.Configuration();
@@ -52,7 +52,7 @@ public partial class CompilerTest
 		bool compileSuccessCallback = false;
 
 		var codePath = System.IO.Path.GetFullPath( "data/code/base" );
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
 		var compilerSettings = new Compiler.Configuration();
@@ -81,7 +81,7 @@ public partial class CompilerTest
 		bool compileSuccessCallback = false;
 
 		var codePath = System.IO.Path.GetFullPath( "data/code/base" );
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
 		var compilerSettings = new Compiler.Configuration();
@@ -126,7 +126,7 @@ public partial class CompilerTest
 		bool compileSuccessCallback = false;
 
 		var codePath = System.IO.Path.GetFullPath( "data/code/" );
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
 		var compilerSettings = new Compiler.Configuration();
@@ -167,7 +167,7 @@ public partial class CompilerTest
 		bool compileSuccessCallback = false;
 
 		var codePath = System.IO.Path.GetFullPath( "data/code/" );
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
 		var compilerSettings = new Compiler.Configuration();
@@ -197,7 +197,7 @@ public partial class CompilerTest
 	public async Task EditorFolders()
 	{
 		var codePath = System.IO.Path.GetFullPath( "data/code/with_editor_folders" );
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 
 		//
 		// Game Dll

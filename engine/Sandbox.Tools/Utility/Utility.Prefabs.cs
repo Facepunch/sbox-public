@@ -158,6 +158,8 @@ public static partial class EditorUtility
 			if ( obj is null ) return;
 
 			var go = obj.Targets.Select( ResolveGameObject ).FirstOrDefault();
+			var session = SceneEditorSession.Resolve( go );
+			using var scene = session.Scene.Push();
 
 			var owner = obj.Targets.FirstOrDefault();
 
@@ -172,7 +174,7 @@ public static partial class EditorUtility
 
 			UpdatePrefabAfterModification( go.OutermostPrefabInstanceRoot.PrefabInstanceSource );
 
-			EditorUtility.InspectorObject = SceneEditorSession.Active.Scene.Directory.FindByGuid( goId );
+			EditorUtility.InspectorObject = session.Scene.Directory.FindByGuid( goId );
 		}
 
 		/// <summary>
@@ -202,6 +204,9 @@ public static partial class EditorUtility
 		/// </summary>
 		public static void ApplyComponentInstanceChangesToPrefab( Component comp )
 		{
+			var session = SceneEditorSession.Resolve( comp );
+			using var scene = session.Scene.Push();
+
 			if ( !comp.IsValid() ) return;
 			if ( !comp.GameObject.IsPrefabInstance ) return;
 
@@ -213,7 +218,7 @@ public static partial class EditorUtility
 
 			UpdatePrefabAfterModification( comp.GameObject.OutermostPrefabInstanceRoot.PrefabInstanceSource );
 
-			EditorUtility.InspectorObject = SceneEditorSession.Active.Scene.Directory.FindByGuid( goId );
+			EditorUtility.InspectorObject = session.Scene.Directory.FindByGuid( goId );
 		}
 
 		/// <summary>
@@ -221,6 +226,9 @@ public static partial class EditorUtility
 		/// </summary>
 		public static void AddInstanceAddedGameObjectToPrefab( GameObject go )
 		{
+			var session = SceneEditorSession.Resolve( go );
+			using var scene = session.Scene.Push();
+
 			if ( !go.IsValid() ) return;
 			if ( !go.IsPrefabInstance ) return;
 
@@ -242,7 +250,7 @@ public static partial class EditorUtility
 
 			UpdatePrefabAfterModification( go.OutermostPrefabInstanceRoot.PrefabInstanceSource );
 
-			EditorUtility.InspectorObject = SceneEditorSession.Active.Scene.Directory.FindByGuid( goId );
+			EditorUtility.InspectorObject = session.Scene.Directory.FindByGuid( goId );
 		}
 
 
@@ -251,6 +259,9 @@ public static partial class EditorUtility
 		/// </summary>
 		public static void ApplyGameObjectInstanceChangesToPrefab( GameObject go )
 		{
+			var session = SceneEditorSession.Resolve( go );
+			using var scene = session.Scene.Push();
+
 			if ( !go.IsValid() ) return;
 			if ( !go.IsPrefabInstance ) return;
 
@@ -262,7 +273,7 @@ public static partial class EditorUtility
 
 			UpdatePrefabAfterModification( go.OutermostPrefabInstanceRoot.PrefabInstanceSource );
 
-			EditorUtility.InspectorObject = SceneEditorSession.Active.Scene.Directory.FindByGuid( goId );
+			EditorUtility.InspectorObject = session.Scene.Directory.FindByGuid( goId );
 		}
 
 		/// <summary>

@@ -9,17 +9,10 @@ namespace TestBind;
 [TestClass]
 public class Structs
 {
-	public object Object { get; set; }
-	public string TeacherName { get; set; }
-	public string TeacherNamePathed { get; set; }
-
 	[TestMethod]
 	public void StructEditing()
 	{
-		TeacherName = null;
-		Object = null;
-		TeacherNamePathed = null;
-
+		var target = new BindingTarget();
 		var school = new School();
 		school.HeadTeacher = new Teacher()
 		{
@@ -28,16 +21,16 @@ public class Structs
 
 		var bind = new BindSystem( "UnitTest" );
 
-		var teacherLink = bind.Build.Set( this, nameof( Object ) ).From( school, x => x.HeadTeacher );
-		var teacherLinkPathed = bind.Build.Set( this, nameof( TeacherNamePathed ) ).From( school, "HeadTeacher.Name" );
+		var teacherLink = bind.Build.Set( target, nameof( BindingTarget.Object ) ).From( school, x => x.HeadTeacher );
+		var teacherLinkPathed = bind.Build.Set( target, nameof( BindingTarget.TeacherNamePathed ) ).From( school, "HeadTeacher.Name" );
 
 		bind.Tick();
 
 		// Bind to object
 		{
-			Assert.IsNotNull( Object );
-			Assert.IsTrue( Object is Teacher teacher && teacher.Name == "Skinner" );
-			Assert.AreEqual( "Skinner", TeacherNamePathed );
+			Assert.IsNotNull( target.Object );
+			Assert.IsTrue( target.Object is Teacher teacher && teacher.Name == "Skinner" );
+			Assert.AreEqual( "Skinner", target.TeacherNamePathed );
 		}
 
 
@@ -50,27 +43,34 @@ public class Structs
 
 		// Replacing object works
 		{
-			Assert.IsNotNull( Object );
-			Assert.IsTrue( Object is Teacher teacher && teacher.Name == "Gammon" );
-			Assert.AreEqual( "Gammon", TeacherNamePathed );
+			Assert.IsNotNull( target.Object );
+			Assert.IsTrue( target.Object is Teacher teacher && teacher.Name == "Gammon" );
+			Assert.AreEqual( "Gammon", target.TeacherNamePathed );
 		}
 
-		Assert.IsNull( TeacherName );
+		Assert.IsNull( target.TeacherName );
 
-		var teacherNameLink = bind.Build.Set( this, "TeacherName" ).From( Object, "Name" );
-
-		bind.Tick();
-
-		Assert.AreEqual( "Gammon", TeacherName );
-		Assert.AreEqual( "Gammon", TeacherNamePathed );
-
-		TeacherName = "Frank";
+		var teacherNameLink = bind.Build.Set( target, nameof( BindingTarget.TeacherName ) ).From( target, nameof( BindingTarget.Object ) + ".Name" );
 
 		bind.Tick();
 
-		Assert.AreEqual( "Frank", TeacherName );
+		Assert.AreEqual( "Gammon", target.TeacherName );
+		Assert.AreEqual( "Gammon", target.TeacherNamePathed );
+
+		target.TeacherName = "Frank";
+
+		bind.Tick();
+
+		Assert.AreEqual( "Frank", target.TeacherName );
 		Assert.AreEqual( "Frank", school.HeadTeacher.Name );
-		Assert.AreEqual( "Frank", TeacherNamePathed );
+		Assert.AreEqual( "Frank", target.TeacherNamePathed );
+	}
+
+	private sealed class BindingTarget
+	{
+		public object Object { get; set; }
+		public string TeacherName { get; set; }
+		public string TeacherNamePathed { get; set; }
 	}
 }
 

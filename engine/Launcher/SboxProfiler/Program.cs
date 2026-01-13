@@ -216,7 +216,7 @@ class Launcher
 		{
 			httpClient.DefaultRequestHeaders.Accept.ParseAdd( "application/vnd.firefox-profiler+json;version=1.0" );
 
-			var content = new ByteArrayContent( compressedData );
+			using var content = new ByteArrayContent( compressedData );
 			var response = await httpClient.PostAsync( "https://api.profiler.firefox.com/compressed-store", content );
 
 			response.EnsureSuccessStatusCode();

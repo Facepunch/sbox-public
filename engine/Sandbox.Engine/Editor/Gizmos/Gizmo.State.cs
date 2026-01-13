@@ -1,6 +1,4 @@
-﻿using System.Collections.Immutable;
-
-namespace Sandbox;
+﻿namespace Sandbox;
 
 public static partial class Gizmo
 {
@@ -19,6 +17,7 @@ public static partial class Gizmo
 		public bool IgnoreDepth;
 		public float LineThickness;
 		public bool CullBackfaces;
+		public bool CanInteract;
 
 		public Color Color;
 		internal Color32 Color32;

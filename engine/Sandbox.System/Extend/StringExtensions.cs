@@ -186,7 +186,7 @@ public static partial class SandboxSystemExtensions
 	{
 		try
 		{
-			var table = new DataTable();
+			using var table = new DataTable();
 			var value = table.Compute( expression, string.Empty );
 			return Convert.ToSingle( value );
 		}
@@ -214,7 +214,7 @@ public static partial class SandboxSystemExtensions
 	{
 		try
 		{
-			var table = new DataTable();
+			using var table = new DataTable();
 			var value = table.Compute( expression, string.Empty );
 			return Convert.ToDouble( value );
 		}
@@ -268,7 +268,7 @@ public static partial class SandboxSystemExtensions
 	{
 		try
 		{
-			var table = new DataTable();
+			using var table = new DataTable();
 			var value = table.Compute( expression, string.Empty );
 			return Convert.ToInt32( value );
 		}
@@ -307,7 +307,7 @@ public static partial class SandboxSystemExtensions
 	{
 		try
 		{
-			var table = new DataTable();
+			using var table = new DataTable();
 			var value = table.Compute( expression, string.Empty );
 			return Convert.ToInt64( value );
 		}

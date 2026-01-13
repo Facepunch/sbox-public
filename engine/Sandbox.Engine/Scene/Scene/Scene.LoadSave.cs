@@ -107,8 +107,14 @@ public partial class Scene : GameObject
 			//
 			// Let ISceneLoadingEvents add their own tasks
 			//
-			List<Task> sceneLoadingTasks = new();
-			RunEvent<ISceneLoadingEvents>( x => sceneLoadingTasks.Add( x.OnLoad( this, options ) ) );
+			List<LoadingContext> sceneLoadingTasks = new();
+			RunEvent<ISceneLoadingEvents>( x =>
+			{
+				var context = new LoadingContext();
+				context.Task = x.OnLoad( this, options, context );
+
+				sceneLoadingTasks.Add( context );
+			} );
 
 			foreach ( var task in sceneLoadingTasks )
 			{

@@ -98,7 +98,9 @@ class NetworkModeControlWidget : Widget
 		var modeProperty = Target.GetProperty( nameof( GameObject.NetworkMode ) );
 		var modeWidget = CreateOptionsWidget( modeProperty.DisplayName, modeProperty.Description, modeProperty.GetValue<NetworkMode>(), v =>
 		{
-			using ( SceneEditorSession.Active.UndoScope( modeProperty.DisplayName ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties ).Push() )
+			var session = SceneEditorSession.Resolve( gameObject );
+			using var scene = session.Scene.Push();
+			using ( session.UndoScope( modeProperty.DisplayName ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties ).Push() )
 			{
 				foreach ( var go in gameObjects )
 				{
@@ -127,7 +129,9 @@ class NetworkModeControlWidget : Widget
 				var flagsProperty = networkProperty.GetProperty( nameof( GameObject.Network.Flags ) );
 				var networkFlagsWidget = CreateFlagsWidget( "Network Flags", flagsProperty, gameObject.Network.Flags, v =>
 				{
-					using ( SceneEditorSession.Active.UndoScope( "Network Flags" ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties ).Push() )
+					var session = SceneEditorSession.Resolve( gameObject );
+					using var scene = session.Scene.Push();
+					using ( session.UndoScope( "Network Flags" ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties ).Push() )
 					{
 						foreach ( var go in gameObjects )
 						{
@@ -143,7 +147,9 @@ class NetworkModeControlWidget : Widget
 		var orphanedModeProperty = accessorType.GetProperty( nameof( GameObject.Network.NetworkOrphaned ) );
 		var orphanedModeWidget = CreateOptionsWidget( "Orphaned Mode", orphanedModeProperty.Description, gameObject.Network.NetworkOrphaned, v =>
 		{
-			using ( SceneEditorSession.Active.UndoScope( "Orphaned Mode" ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties ).Push() )
+			var session = SceneEditorSession.Resolve( gameObject );
+			using var scene = session.Scene.Push();
+			using ( session.UndoScope( "Orphaned Mode" ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties ).Push() )
 			{
 				foreach ( var go in gameObjects )
 				{
@@ -156,7 +162,9 @@ class NetworkModeControlWidget : Widget
 		var ownerTransferProperty = accessorType.GetProperty( nameof( GameObject.Network.OwnerTransfer ) );
 		var ownerTransferWidget = CreateOptionsWidget( "Owner Transfer", ownerTransferProperty.Description, gameObject.Network.OwnerTransfer, v =>
 		{
-			using ( SceneEditorSession.Active.UndoScope( "Owner Transfer" ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties ).Push() )
+			var session = SceneEditorSession.Resolve( gameObject );
+			using var scene = session.Scene.Push();
+			using ( session.UndoScope( "Owner Transfer" ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties ).Push() )
 			{
 				foreach ( var go in gameObjects )
 				{
@@ -170,7 +178,9 @@ class NetworkModeControlWidget : Widget
 			var property = accessorType.GetProperty( nameof( GameObject.Network.AlwaysTransmit ) );
 			var widget = CreateBoolWidget( property, () => gameObject.Network.AlwaysTransmit, "Always Transmit", menu, v =>
 			{
-				using ( SceneEditorSession.Active.UndoScope( "Always Transmit" ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties ).Push() )
+				var session = SceneEditorSession.Resolve( gameObject );
+				using var scene = session.Scene.Push();
+				using ( session.UndoScope( "Always Transmit" ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties ).Push() )
 				{
 					foreach ( var go in gameObjects )
 					{

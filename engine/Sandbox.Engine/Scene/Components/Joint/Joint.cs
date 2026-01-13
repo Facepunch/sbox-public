@@ -7,7 +7,6 @@ public abstract class Joint : Component, Component.ExecuteInEditor
 {
 	private PhysicsJoint _joint;
 	private PhysicsBody _worldBody;
-	private GameObject _body;
 
 	private bool started;
 	private bool enableCollision;
@@ -46,18 +45,36 @@ public abstract class Joint : Component, Component.ExecuteInEditor
 	public Transform LocalFrame2 { get; set; }
 
 	/// <summary>
+	/// The body this joint is anchored to. If this is null then it will use the current GameObject as the anchor.
+	/// </summary>
+	[Property, Advanced]
+	public GameObject AnchorBody
+	{
+		get => field;
+		set
+		{
+			if ( value == field )
+				return;
+
+			field = value;
+
+			CreateJoint();
+		}
+	}
+
+	/// <summary>
 	/// Game object to find the body to attach this joint to.
 	/// </summary>
 	[Property]
 	public GameObject Body
 	{
-		get => _body;
+		get => field;
 		set
 		{
-			if ( value == _body )
+			if ( value == field )
 				return;
 
-			_body = value;
+			field = value;
 
 			CreateJoint();
 		}
@@ -255,11 +272,13 @@ public abstract class Joint : Component, Component.ExecuteInEditor
 		if ( IsBroken )
 			return;
 
-		var body1 = FindPhysicsBody( GameObject, GameObject );
+		var body1Go = AnchorBody.IsValid() ? AnchorBody : GameObject; // fall back to self if no anchor body set
+		var body1 = FindPhysicsBody( body1Go, body1Go );
 		if ( !body1.IsValid() )
 			return;
 
-		var body2 = FindPhysicsBody( Body, Body );
+		var body2Go = Body;
+		var body2 = FindPhysicsBody( body2Go, body2Go );
 		if ( !body2.IsValid() )
 			body2 = Scene?.PhysicsWorld?.Body;
 
@@ -271,7 +290,7 @@ public abstract class Joint : Component, Component.ExecuteInEditor
 			body2 = _worldBody;
 		}
 
-		var world = WorldTransform;
+		var world = body1Go.WorldTransform;
 
 		// Anchor is this component transform
 		var anchor1 = body1.Transform.ToLocal( world );
@@ -349,11 +368,27 @@ public abstract class Joint : Component, Component.ExecuteInEditor
 		Gizmo.Draw.LineThickness = 1;
 		Gizmo.Draw.Color = Gizmo.Colors.Green.WithAlpha( Gizmo.IsSelected ? 1.0f : 0.75f );
 
-		var a = Vector3.Zero;
-		var b = WorldTransform.PointToLocal( Body.WorldPosition );
+		using var scope = Gizmo.Scope();
 
-		Gizmo.Draw.Sprite( a, 0.2f, Texture.White );
-		Gizmo.Draw.Line( a, b );
-		Gizmo.Draw.Sprite( b, 0.2f, Texture.White );
+		// use world space
+		Gizmo.Transform = global::Transform.Zero;
+
+		// if we have a joint, use its raw data
+		if ( _joint.IsValid() )
+		{
+			Gizmo.Draw.Line( _joint.Point1.Transform.Position, _joint.Point2.Transform.Position );
+		}
+		else
+		{
+			var body1Go = AnchorBody.IsValid() ? AnchorBody : GameObject;
+			var body2Go = Body;
+
+			var a = body1Go.WorldPosition;
+			var b = body2Go.WorldPosition;
+
+			Gizmo.Draw.Sprite( a, 0.2f, Texture.White );
+			Gizmo.Draw.Line( a, b );
+			Gizmo.Draw.Sprite( b, 0.2f, Texture.White );
+		}
 	}
 }

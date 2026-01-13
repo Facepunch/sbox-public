@@ -192,7 +192,7 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 	private void UpdateSkinnedRendererParent()
 	{
 		// Get the first ancestor skinned model renderer
-		var potentialNewParent = GameObject.Parent.Components.GetInAncestors<SkinnedModelRenderer>( true );
+		var potentialNewParent = GameObject.Parent?.Components.GetInAncestors<SkinnedModelRenderer>( true );
 
 		// Check if there are any other skinned renderers in the parent
 		// This is an edge case, generally you should only have one skinned model renderer per GO

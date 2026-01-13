@@ -860,7 +860,7 @@ public static partial class EditorUtility
 	internal static TypeLibrary CreateTypeLibrary( CompilerOutput[] assemblies )
 	{
 		var library = new TypeLibrary();
-		var packageLoader = new Sandbox.PackageLoader( "EditorTypeLibrary", typeof( GameInstanceDll ).Assembly );
+		using var packageLoader = new Sandbox.PackageLoader( "EditorTypeLibrary", typeof( GameInstanceDll ).Assembly );
 		using var enroller = packageLoader.CreateEnroller( "EditorTypeLibrary" );
 
 		enroller.OnAssemblyAdded = ( a ) =>
@@ -900,9 +900,11 @@ public static partial class EditorUtility
 		if ( !go.IsValid() )
 			return;
 
-		using ( SceneEditorSession.Active.UndoScope( $"Selected {go}" ).Push() )
+		var session = SceneEditorSession.Resolve( go );
+		using var scene = session.Scene.Push();
+		using ( session.UndoScope( $"Selected {go}" ).Push() )
 		{
-			SceneEditorSession.Active?.Selection.Set( go );
+			session.Selection.Set( go );
 		}
 	}
 }

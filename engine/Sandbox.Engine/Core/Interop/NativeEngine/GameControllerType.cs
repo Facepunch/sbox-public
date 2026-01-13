@@ -3,15 +3,18 @@
 	internal enum GameControllerType : int
 	{
 		Unknown = 0,
-		Xbox360 = 1,
-		XboxOne = 2,
-		PS3 = 3,
-		PS4 = 4,
 
-		SwitchPro = 5,
+		Standard,
+		Xbox360,
+		XboxOne,
+		PS3,
+		PS4,
+		PS5,
+		SwitchPro,
+		SwitchLeftJoy,
+		SwitchRightJoy,
+		SwitchJoyPair,
 
-		PS5 = 7,
-
-		MAX = 14
+		Count
 	};
 }

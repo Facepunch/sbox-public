@@ -13,4 +13,7 @@ public class VSCodeSettings
 
 	[JsonPropertyName( "slang.predefinedMacros" )]
 	public string[] SlangDefines { get; set; } = [];
+
+	[JsonPropertyName( "slang.workspaceFlavor" )]
+	public string SlangWorkspaceFlavor { get; set; } = "vfx";
 }

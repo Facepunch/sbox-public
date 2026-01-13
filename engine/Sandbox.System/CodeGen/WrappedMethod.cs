@@ -36,6 +36,11 @@ public readonly ref struct WrappedMethod
 	public int MethodIdentity { get; init; }
 
 	/// <summary>
+	/// The generic argument types of the method or null if the method is not generic.
+	/// </summary>
+	public Type[] GenericArguments { get; init; }
+
+	/// <summary>
 	/// An array of all attributes decorated with <see cref="CodeGeneratorAttribute"/> on the original method.
 	/// </summary>
 	public Attribute[] Attributes { get; init; }
@@ -91,6 +96,11 @@ public readonly struct WrappedMethod<T>
 	/// The Identity of the original method. This is an integer that each MethodDescription has to distinguish itself from other methods of the same class.
 	/// </summary>
 	public int MethodIdentity { get; init; }
+
+	/// <summary>
+	/// The generic argument types of the method or null if the method is not generic.
+	/// </summary>
+	public Type[] GenericArguments { get; init; }
 
 	/// <summary>
 	/// An array of all attributes decorated with <see cref="CodeGeneratorAttribute"/> on the original method.

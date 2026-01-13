@@ -257,4 +257,33 @@ partial class Mesh
 			while ( hCurrentEdge != hStartEdge );
 		}
 	}
+
+	public bool GetFacesConnectedToFace( FaceHandle hFace, out List<FaceHandle> faces )
+	{
+		faces = [];
+
+		if ( !hFace.IsValid )
+			return false;
+
+		int edgeCount = ComputeNumEdgesInFace( hFace );
+		if ( edgeCount <= 0 )
+			return false;
+
+		faces.EnsureCapacity( edgeCount );
+
+		var hEdge = hFace.Edge;
+		do
+		{
+			var hOppositeEdge = hEdge.OppositeEdge;
+			if ( hOppositeEdge.Face != FaceHandle.Invalid )
+			{
+				faces.Add( hOppositeEdge.Face );
+			}
+
+			hEdge = hEdge.NextEdge;
+		}
+		while ( hEdge != hFace.Edge );
+
+		return true;
+	}
 }

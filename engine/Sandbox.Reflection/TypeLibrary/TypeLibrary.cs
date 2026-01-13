@@ -370,6 +370,22 @@ public partial class TypeLibrary
 	public TypeDescription GetType( Type type ) => typedata.GetValueOrDefault( type.IsConstructedGenericType ? type.GetGenericTypeDefinition() : type );
 
 	/// <summary>
+	/// Convert a list of <see cref="Type"/> to a list of integers representing their TypeLibrary identity.
+	/// </summary>
+	internal int[] ToIdentities( Type[] types )
+	{
+		return types?.Select( t => GetType( t ).Identity ).ToArray();
+	}
+
+	/// <summary>
+	/// Convert a list of integers representing their TypeLibrary identity to a list of <see cref="Type"/>
+	/// </summary>
+	internal Type[] FromIdentities( int[] identities )
+	{
+		return identities?.Select( i => GetTypeByIdent( i ).TargetType ).ToArray();
+	}
+
+	/// <summary>
 	/// Get a list of types that implement this generic type
 	/// </summary>
 	public IReadOnlyList<TypeDescription> GetGenericTypes( Type type, Type[] types )

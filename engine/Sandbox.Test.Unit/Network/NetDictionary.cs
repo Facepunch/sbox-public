@@ -9,7 +9,7 @@ public class NetDictionary
 	[TestMethod]
 	public void AddRemoveAndCount()
 	{
-		var dictionary = new NetDictionary<string, int>();
+		using var dictionary = new NetDictionary<string, int>();
 		Assert.IsTrue( dictionary.Count == 0 );
 
 		dictionary.Add( "foo", 0 );
@@ -24,7 +24,7 @@ public class NetDictionary
 	[TestMethod]
 	public void Iterate()
 	{
-		var dictionary = new NetDictionary<string, int>();
+		using var dictionary = new NetDictionary<string, int>();
 
 		dictionary.Add( "a", 1 );
 		dictionary.Add( "b", 2 );
@@ -58,7 +58,7 @@ public class NetDictionary
 	[TestMethod]
 	public void OnChangedIsInvokedWhenItemIsAdded()
 	{
-		var dict = new NetDictionary<string, int>();
+		using var dict = new NetDictionary<string, int>();
 
 		var callCount = 0;
 		NetDictionaryChangeEvent<string, int> receivedEvent = default;
@@ -80,7 +80,7 @@ public class NetDictionary
 	[TestMethod]
 	public void OnChangedIsInvokedWhenItemIsRemoved()
 	{
-		var dict = new NetDictionary<string, int>();
+		using var dict = new NetDictionary<string, int>();
 
 		dict.Add( "foo", 10 );
 		dict.Add( "bar", 20 );
@@ -106,7 +106,7 @@ public class NetDictionary
 	[TestMethod]
 	public void OnChangedIsInvokedWhenDictionaryIsCleared()
 	{
-		var dict = new NetDictionary<string, int>();
+		using var dict = new NetDictionary<string, int>();
 
 		dict.Add( "foo", 1 );
 		dict.Add( "bar", 2 );
@@ -130,7 +130,7 @@ public class NetDictionary
 	[TestMethod]
 	public void ReplaceInvokesWithCorrectValues()
 	{
-		var dict = new NetDictionary<string, int>();
+		using var dict = new NetDictionary<string, int>();
 
 		dict.Add( "foo", 10 );
 
@@ -159,7 +159,7 @@ public class NetDictionary
 	[TestMethod]
 	public void ValidAccess()
 	{
-		var dictionary = new NetDictionary<string, int>();
+		using var dictionary = new NetDictionary<string, int>();
 
 		Assert.ThrowsException<KeyNotFoundException>( () =>
 		{

@@ -127,10 +127,10 @@ internal static class Avatar
 
 			//Log.Info( $"Got Avatar For {steamid} ({result.Value.Width} x {result.Value.Height})" );
 
-			var texture = Texture.Create( (int)result.Value.Width, (int)result.Value.Height, ImageFormat.RGBA8888 )
-						.WithName( "avatar" )
-						.WithData( result.Value.Data )
-						.Finish();
+			using var texture = Texture.Create( (int)result.Value.Width, (int)result.Value.Height, ImageFormat.RGBA8888 )
+					.WithName( "avatar" )
+					.WithData( result.Value.Data )
+					.Finish();
 
 			//
 			// Replace the placeholder texture with this loaded one

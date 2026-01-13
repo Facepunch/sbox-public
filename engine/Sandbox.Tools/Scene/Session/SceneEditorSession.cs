@@ -370,6 +370,27 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	}
 
 	/// <summary>
+	/// Resolve a Component to an editor session.
+	/// </summary>
+	public static SceneEditorSession Resolve( Component component ) => Resolve( component?.GameObject );
+
+	/// <summary>
+	/// Resolve a GameObject to an editor session.
+	/// </summary>
+	public static SceneEditorSession Resolve( GameObject go )
+	{
+		ArgumentNullException.ThrowIfNull( go, nameof( go ) );
+
+		var session = go.Scene.Editor as SceneEditorSession;
+		if ( session is null )
+		{
+			Log.Error( $"Failed to resolve session for GameObject: {go}" );
+		}
+
+		return session;
+	}
+
+	/// <summary>
 	/// Resolve a scene file to an editor session.
 	/// </summary>
 	public static SceneEditorSession Resolve( SceneFile sceneFile )

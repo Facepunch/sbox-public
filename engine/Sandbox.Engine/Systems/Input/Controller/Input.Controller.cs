@@ -80,7 +80,7 @@ public static partial class Input
 		{
 			// Use controller's input context
 			// Doesn't need to be flipped, we do this once a frame for each controller.
-			controller.InputContext?.Push();
+			using var inputScope = controller.InputContext?.Push();
 
 			var lookX = controller.GetAxis( NativeEngine.GameControllerAxis.RightX ) * Time.Delta * Preferences.ControllerLookYawSpeed;
 			var lookY = controller.GetAxis( NativeEngine.GameControllerAxis.RightY ) * Time.Delta * Preferences.ControllerLookPitchSpeed;

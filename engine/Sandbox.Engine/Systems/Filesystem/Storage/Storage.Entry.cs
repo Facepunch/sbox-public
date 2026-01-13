@@ -39,6 +39,10 @@ public static partial class Storage
 		private string MetaPath => "_meta.json";
 		private string ThumbPath => "_thumb.png";
 
+		/// <summary>
+		/// Creates a new storage entry with the specified type
+		/// </summary>
+		/// <param name="type">The content type (letters only, 1-16 characters)</param>
 		public Entry( string type )
 		{
 			Type = type;
@@ -142,6 +146,9 @@ public static partial class Storage
 		bool _thumbGenerated = false;
 		Texture _thumbnail;
 
+		/// <summary>
+		/// Gets the thumbnail texture for this storage entry, if one exists
+		/// </summary>
 		public Texture Thumbnail
 		{
 			get
@@ -158,7 +165,10 @@ public static partial class Storage
 			}
 		}
 
-
+		/// <summary>
+		/// Sets the thumbnail for this storage entry
+		/// </summary>
+		/// <param name="bitmap">The bitmap to use as the thumbnail</param>
 		public void SetThumbnail( Bitmap bitmap )
 		{
 			if ( Files.IsReadOnly ) return;
@@ -169,53 +179,62 @@ public static partial class Storage
 			Files.WriteAllBytes( ThumbPath, png );
 		}
 
+		/// <summary>
+		/// Deletes this storage entry and all its files from disk
+		/// </summary>
 		public void Delete()
 		{
 			Sandbox.FileSystem.Data.DeleteDirectory( DataPath, true );
 			Storage.OnDeleted( this );
 		}
 
+		/// <summary>
+		/// Publishes this storage entry to the workshop
+		/// </summary>
+		/// <param name="title">The title for the workshop item</param>
+		/// <param name="tags">Additional tags to apply to the workshop item</param>
+		/// <param name="keyvalues">Additional key-value pairs for the workshop item</param>
+		[Obsolete( "You can pass in a WorkshopPublishOptions now, which is way more flexible" )]
 		public void Publish( string title = "Unnammed", string[] tags = null, Dictionary<string, string> keyvalues = null )
 		{
-			var meta = Files.ReadAllText( MetaPath );
-
 			var o = new WorkshopPublishOptions
 			{
 				Title = title,
 				StorageEntry = this,
 				KeyValues = [],
-				Tags = [Type],
-				Metadata = meta
+				Tags = [Type]
 			};
 
-			if ( tags != null )
-			{
-				foreach ( var t in tags )
-				{
-					o.Tags.Add( t );
-				}
-			}
+			Publish( o );
+		}
 
-			if ( keyvalues != null )
-			{
-				foreach ( var t in keyvalues )
-				{
-					o.KeyValues[t.Key] = t.Value;
-				}
-			}
+		/// <summary>
+		/// Publishes this storage entry to the workshop
+		/// </summary>
+		public void Publish( WorkshopPublishOptions options )
+		{
+			var meta = Files.ReadAllText( MetaPath );
+
+			options.StorageEntry = this;
+			options.KeyValues ??= [];
+
+			options.Tags ??= [];
+			options.Tags.Add( Type );
+
+			options.Metadata = meta;
 
 			// assign the thumbnail
 			if ( Files.FileExists( ThumbPath ) )
 			{
 				var thumbData = Files.ReadAllBytes( ThumbPath );
 				var bitmap = Bitmap.CreateFromBytes( thumbData.ToArray() );
-				o.Thumbnail = bitmap;
+				options.Thumbnail = bitmap;
 			}
 
-			o.KeyValues["type"] = Type;
-			o.KeyValues["source"] = "storage";
+			options.KeyValues["type"] = Type;
+			options.KeyValues["source"] = "storage";
 
-			Game.Overlay.WorkshopPublish( o );
+			Game.Overlay.WorkshopPublish( options );
 		}
 	}
 }

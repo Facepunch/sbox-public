@@ -118,7 +118,7 @@ public abstract partial class GameNetworkSystem : IDisposable
 
 	internal void Send( Connection connection, InternalMessageType type, ReadOnlySpan<byte> data, NetFlags flags )
 	{
-		var bs = ByteStream.Create( 512 );
+		using var bs = ByteStream.Create( 512 );
 		bs.Write( type );
 		bs.Write( data.Length );
 		bs.Write( data );
@@ -145,8 +145,6 @@ public abstract partial class GameNetworkSystem : IDisposable
 		{
 			targetConnection.SendRawMessage( bs, flags );
 		}
-
-		bs.Dispose();
 	}
 
 	internal void Send( Connection connection, InternalMessageType type, byte[] data, NetFlags flags )

@@ -93,7 +93,8 @@ internal static class ThumbLoader
 					if ( FileSystem.Mounted.FileExists( imageFile ) )
 					{
 						using var bitmap = Bitmap.CreateFromBytes( await FileSystem.Mounted.ReadAllBytesAsync( imageFile ) );
-						placeholder.CopyFrom( bitmap.ToTexture() );
+						using var texture = bitmap.ToTexture();
+						placeholder.CopyFrom( texture );
 						return;
 					}
 				}
@@ -103,8 +104,8 @@ internal static class ThumbLoader
 					if ( bitmap != null )
 					{
 						using var downscaled = bitmap.Resize( 256, 256, true );
-						var t = downscaled.ToTexture();
-						placeholder.CopyFrom( t );
+						using var texture = downscaled.ToTexture();
+						placeholder.CopyFrom( texture );
 						return;
 					}
 				}
@@ -115,8 +116,8 @@ internal static class ThumbLoader
 					if ( bitmap != null )
 					{
 						using var downscaled = bitmap.Resize( 256, 256, true );
-						var t = downscaled.ToTexture();
-						placeholder.CopyFrom( t );
+						using var texture = downscaled.ToTexture();
+						placeholder.CopyFrom( texture );
 						return;
 					}
 				}
