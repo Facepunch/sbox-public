@@ -217,12 +217,11 @@ public sealed class ThrottledPreviewRenderer : IDisposable
 	{
 		if ( !_settings.UseDoubleBuffering )
 		{
-			// Single buffer mode - just use back as front
-			// Pixmap uses finalizer for cleanup, old front will be GC'd
+			// Single buffer mode - front and back point to same pixmap
+			// Don't null _backPixmap - reuse it next frame to avoid per-frame allocations
 			lock ( _swapLock )
 			{
 				_frontPixmap = _backPixmap;
-				_backPixmap = null;
 			}
 		}
 		else

@@ -26,9 +26,6 @@ public readonly struct PreviewRenderSettings
 	/// <summary>Skip when unfocused</summary>
 	public bool SkipWhenUnfocused { get; init; }
 
-	/// <summary>Use async GPU readback (non-blocking)</summary>
-	public bool UseAsyncReadback { get; init; }
-
 	/// <summary>Use double buffering for smoother display</summary>
 	public bool UseDoubleBuffering { get; init; }
 
@@ -56,7 +53,6 @@ public readonly struct PreviewRenderSettings
 		MaxRenderHeight = 360,
 		FrameBudgetMs = 16f,
 		SkipWhenUnfocused = false,
-		UseAsyncReadback = true,
 		UseDoubleBuffering = true,
 		EnablePostProcessing = false,
 		EnableShadows = false,
@@ -74,7 +70,6 @@ public readonly struct PreviewRenderSettings
 		MaxRenderHeight = 720,
 		FrameBudgetMs = 32f,
 		SkipWhenUnfocused = false,
-		UseAsyncReadback = true,
 		UseDoubleBuffering = true,
 		EnablePostProcessing = true,
 		EnableShadows = true,
@@ -92,7 +87,6 @@ public readonly struct PreviewRenderSettings
 		MaxRenderHeight = 180,
 		FrameBudgetMs = 8f,
 		SkipWhenUnfocused = true,
-		UseAsyncReadback = false,
 		UseDoubleBuffering = false,
 		EnablePostProcessing = false,
 		EnableShadows = false,
@@ -110,9 +104,7 @@ public readonly struct PreviewRenderSettings
 		MaxRenderHeight = 360,
 		FrameBudgetMs = 16f,
 		SkipWhenUnfocused = false,
-		UseAsyncReadback = false,
 		UseDoubleBuffering = false,
-		// Lightweight
 		EnablePostProcessing = false,
 		EnableShadows = false,
 		EnableIndirectLighting = false,
