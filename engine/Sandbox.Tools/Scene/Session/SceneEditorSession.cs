@@ -167,7 +167,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public void MakeActive( bool bringToFront = true )
 	{
-		if (Active == this)
+		if ( Active == this )
 		{
 			return;
 		}

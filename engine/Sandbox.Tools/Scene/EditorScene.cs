@@ -241,7 +241,7 @@ public static class EditorScene
 	{
 		playableSession ??= FindPlayableSession();
 		if ( playableSession is null ) return;
-		
+
 		OnPlayStore();
 		playableSession.MakeActive();
 

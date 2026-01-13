@@ -94,7 +94,7 @@ public partial class SceneViewWidget : Widget
 		using var scope = session.Scene.Push();
 
 		bool isActive = session == SceneEditorSession.Active;
-	
+
 		// Update inspector with current selection, if changed
 		if ( isActive && selectionHash != session.Selection.GetHashCode() )
 		{
