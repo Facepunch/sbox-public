@@ -13,7 +13,7 @@ namespace Editor.Preview;
 /// </summary>
 public sealed class ThrottledPreviewRenderer : IDisposable
 {
-	private readonly PreviewRenderSettings _settings;
+	private PreviewRenderSettings _settings;
 
 	// Double-buffered pixmaps
 	private Pixmap _frontPixmap;
@@ -43,6 +43,28 @@ public sealed class ThrottledPreviewRenderer : IDisposable
 	public void MarkDirty() => _isDirty = true;
 
 	/// <summary>
+	/// Update settings without full recreation. Only recreates resources if needed.
+	/// Zero-alloc for FPS/quality changes, minimal alloc for resolution changes.
+	/// </summary>
+	public void UpdateSettings( PreviewRenderSettings newSettings )
+	{
+		bool resolutionChanged =
+			newSettings.MaxRenderWidth != _settings.MaxRenderWidth ||
+			newSettings.MaxRenderHeight != _settings.MaxRenderHeight;
+
+		_settings = newSettings;
+
+		if ( resolutionChanged )
+		{
+			// Only recreate if resolution caps changed
+			_stagingBitmap?.Dispose();
+			_stagingBitmap = null;
+		}
+
+		_isDirty = true; // Force re-render with new settings
+	}
+
+	/// <summary>
 	/// Get pixmap for display (thread-safe)
 	/// </summary>
 	public Pixmap Pixmap
@@ -60,17 +82,14 @@ public sealed class ThrottledPreviewRenderer : IDisposable
 	/// Attempt to render. Returns true if new frame is ready for display.
 	/// Call this every frame - throttling is handled internally.
 	/// </summary>
+	/// <param name="camera">The scene camera to render</param>
+	/// <param name="displaySize">Display size in pixels</param>
 	public bool TryRender( SceneCamera camera, Vector2 displaySize )
 	{
 		if ( _isDisposed ) return false;
 		if ( camera?.World == null ) return false;
 		if ( displaySize.x <= 1 || displaySize.y <= 1 ) return false;
 
-		// Frame budget check - skip if frame is already over budget
-		if ( Time.Delta * 1000 > _settings.FrameBudgetMs )
-			return false;
-
-		// Focus + throttle check
 		if ( !ShouldRender( camera ) )
 			return false;
 
@@ -84,6 +103,9 @@ public sealed class ThrottledPreviewRenderer : IDisposable
 
 		// Ensure staging bitmap exists at render size
 		EnsureStagingBitmap( renderWidth, renderHeight );
+
+		// Apply lightweight settings to reduce GPU cost
+		ApplyLightweightSettings( camera );
 
 		// Render (blocking, but throttled so only happens 2-10 times per second)
 		camera.OnPreRender( new Vector2( renderWidth, renderHeight ) );
@@ -103,29 +125,30 @@ public sealed class ThrottledPreviewRenderer : IDisposable
 
 	private bool ShouldRender( SceneCamera camera )
 	{
-		float interval;
+		float fps;
 
-		if ( !Sandbox.Application.IsFocused )
-		{
-			if ( _settings.SkipWhenUnfocused )
-				return false;
+		bool hasChanges = HasCameraChanged( camera );
+		fps = hasChanges ? _settings.ActiveFps : _settings.IdleFps;
 
-			interval = _settings.GetInterval( _settings.UnfocusedFps );
-		}
-		else
-		{
-			// Adaptive throttling: faster when camera is moving, slower when idle
-			bool hasChanges = HasCameraChanged( camera );
-			float fps = hasChanges ? _settings.ActiveFps : _settings.IdleFps;
-			interval = _settings.GetInterval( fps );
-		}
-
+		float interval = _settings.GetInterval( fps );
 		return _lastRender >= interval;
+	}
+
+	/// <summary>
+	/// Apply lightweight render settings to reduce GPU cost.
+	/// Disables expensive features like shadows, post-processing, etc.
+	/// </summary>
+	private void ApplyLightweightSettings( SceneCamera camera )
+	{
+		camera.EnablePostProcessing = _settings.EnablePostProcessing;
+		camera.AntiAliasing = _settings.EnableAntiAliasing;
+		camera.Attributes.Set( "drawShadows", _settings.EnableShadows );
+		camera.Attributes.Set( "indirectLighting", _settings.EnableIndirectLighting );
 	}
 
 	private bool HasCameraChanged( SceneCamera camera )
 	{
-		if ( _isDirty ) return true;
+		if (_isDirty) return true;
 
 		const float posEpsilon = 0.001f;
 		const float rotEpsilon = 0.1f;

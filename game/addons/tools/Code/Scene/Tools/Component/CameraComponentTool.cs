@@ -136,6 +136,20 @@ class CameraToolWindow : WidgetWindow
 		var headerRow = Layout.AddRow();
 		headerRow.AddStretchCell();
 
+		// Quality preset selector
+		var qualityCombo = new ComboBox( this )
+		{
+			ToolTip = "Preview Quality",
+			FixedWidth = 85,
+			FixedHeight = HeaderHeight
+		};
+		qualityCombo.AddItem( "Minimal" );
+		qualityCombo.AddItem( "Default" );
+		qualityCombo.AddItem( "High" );
+		qualityCombo.CurrentIndex = 0; // Minimal by default
+		qualityCombo.ItemChanged += () => OnQualityChanged( qualityCombo.CurrentText );
+		headerRow.Add( qualityCombo );
+
 		_pinButton = new IconButton( IsPinned ? "lock_open" : "lock", TogglePinned )
 		{
 			ToolTip = IsPinned ? "Unpin" : "Pin",
@@ -217,6 +231,21 @@ class CameraToolWindow : WidgetWindow
 		Position = Parent.Size - 32;
 	}
 
+	void OnQualityChanged( string text )
+	{
+		if ( !SceneWidget.IsValid() )
+			return;
+
+		var settings = text switch
+		{
+			"High" => Preview.PreviewRenderSettings.HighQuality,
+			"Default" => Preview.PreviewRenderSettings.Default,
+			_ => Preview.PreviewRenderSettings.Minimal
+		};
+
+		SceneWidget.SetSettings( settings );
+	}
+
 	public bool ShouldKeepActive()
 	{
 		return IsPinned && targetComponent.IsValid();
@@ -292,7 +321,15 @@ class SceneWidget : Widget
 
 	public SceneWidget( Widget parent ) : base( parent )
 	{
-		_renderer = new Preview.ThrottledPreviewRenderer( Preview.PreviewRenderSettings.Default );
+		_renderer = new Preview.ThrottledPreviewRenderer( Preview.PreviewRenderSettings.Minimal );
+	}
+
+	/// <summary>
+	/// Change the render settings preset (zero-alloc if only FPS/quality changes)
+	/// </summary>
+	public void SetSettings( Preview.PreviewRenderSettings settings )
+	{
+		_renderer.UpdateSettings( settings );
 	}
 
 	[EditorEvent.Frame]
@@ -306,10 +343,11 @@ class SceneWidget : Widget
 			Camera.Worlds.Clear();
 
 			var displaySize = Size * DpiScale;
-			_renderer.TryRender( Camera, displaySize );
 
-			// Always call Update - pixmap may have changed
-			Update();
+			if ( _renderer.TryRender( Camera, displaySize ) )
+			{
+				Update();
+			}
 		}
 	}
 

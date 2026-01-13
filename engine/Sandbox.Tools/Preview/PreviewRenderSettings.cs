@@ -32,7 +32,21 @@ public readonly struct PreviewRenderSettings
 	/// <summary>Use double buffering for smoother display</summary>
 	public bool UseDoubleBuffering { get; init; }
 
-	/// <summary>Default settings</summary>
+	// Lightweight Render Options (reduces GPU cost dramatically)
+
+	/// <summary>Enable post-processing effects</summary>
+	public bool EnablePostProcessing { get; init; }
+
+	/// <summary>Enable shadow rendering</summary>
+	public bool EnableShadows { get; init; }
+
+	/// <summary>Enable indirect/global illumination</summary>
+	public bool EnableIndirectLighting { get; init; }
+
+	/// <summary>Enable anti-aliasing</summary>
+	public bool EnableAntiAliasing { get; init; }
+
+	/// <summary>Default settings - lightweight for good performance</summary>
 	public static PreviewRenderSettings Default => new()
 	{
 		ActiveFps = 10f,
@@ -43,10 +57,14 @@ public readonly struct PreviewRenderSettings
 		FrameBudgetMs = 16f,
 		SkipWhenUnfocused = false,
 		UseAsyncReadback = true,
-		UseDoubleBuffering = true
+		UseDoubleBuffering = true,
+		EnablePostProcessing = false,
+		EnableShadows = false,
+		EnableIndirectLighting = false,
+		EnableAntiAliasing = false
 	};
 
-	/// <summary>High quality</summary>
+	/// <summary>High quality - full render features</summary>
 	public static PreviewRenderSettings HighQuality => new()
 	{
 		ActiveFps = 30f,
@@ -57,21 +75,29 @@ public readonly struct PreviewRenderSettings
 		FrameBudgetMs = 32f,
 		SkipWhenUnfocused = false,
 		UseAsyncReadback = true,
-		UseDoubleBuffering = true
+		UseDoubleBuffering = true,
+		EnablePostProcessing = true,
+		EnableShadows = true,
+		EnableIndirectLighting = true,
+		EnableAntiAliasing = true
 	};
 
-	/// <summary>Minimal (thumbnails)</summary>
+	/// <summary>Minimal (thumbnails) - lowest resource usage</summary>
 	public static PreviewRenderSettings Minimal => new()
 	{
 		ActiveFps = 5f,
-		IdleFps = 1f,
+		IdleFps = 0f,
 		UnfocusedFps = 0f,
 		MaxRenderWidth = 320,
 		MaxRenderHeight = 180,
 		FrameBudgetMs = 8f,
 		SkipWhenUnfocused = true,
 		UseAsyncReadback = false,
-		UseDoubleBuffering = false
+		UseDoubleBuffering = false,
+		EnablePostProcessing = false,
+		EnableShadows = false,
+		EnableIndirectLighting = false,
+		EnableAntiAliasing = false
 	};
 
 	/// <summary>Sync mode (legacy compatibility)</summary>
@@ -85,7 +111,12 @@ public readonly struct PreviewRenderSettings
 		FrameBudgetMs = 16f,
 		SkipWhenUnfocused = false,
 		UseAsyncReadback = false,
-		UseDoubleBuffering = false
+		UseDoubleBuffering = false,
+		// Lightweight
+		EnablePostProcessing = false,
+		EnableShadows = false,
+		EnableIndirectLighting = false,
+		EnableAntiAliasing = false
 	};
 
 	internal float GetInterval( float fps ) => fps > 0 ? 1f / fps : float.MaxValue;
