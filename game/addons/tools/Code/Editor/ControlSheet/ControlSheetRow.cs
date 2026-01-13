@@ -336,15 +336,15 @@ class ControlSheetRow : Widget
 		if ( !IsEditingGameObject || property.IsMultipleValues )
 			return;
 
-		var gameobject = EditedGameObjects.FirstOrDefault();
+		var gameObject = EditedGameObjects.FirstOrDefault();
 
 		// Only show if we're editing in a game session
-		var session = SceneEditorSession.Resolve( gameobject?.Scene );
+		var session = SceneEditorSession.Resolve( gameObject?.Scene );
 		if ( session is null || !session.IsPlaying )
 			return;
 
 		// try to find the version of this object in the editor session
-		var targetObject = session.Scene.Directory.FindByGuid( gameobject.Id );
+		var targetObject = session.Scene.Directory.FindByGuid( gameObject.Id );
 		if ( !targetObject.IsValid() ) return;
 
 		// get a serialized version of this object from that session
