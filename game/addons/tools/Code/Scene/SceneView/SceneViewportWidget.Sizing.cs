@@ -36,7 +36,7 @@ public partial class SceneViewportWidget
 		MaximumSize = QT_MAX_SIZE;
 		FixedSize = QT_MAX_SIZE;
 
-		// Don't update if the aspect ratio hasn't changed
+		// Don't update if the aspect ratio hasn't changed.
 		if ( ForcedAspectRatio.HasValue && ForcedAspectRatio.Value.AlmostEqual( aspectRatio ) && !ForcedSize.HasValue )
 		{
 			return;
