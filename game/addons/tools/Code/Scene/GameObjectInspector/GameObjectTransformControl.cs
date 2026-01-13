@@ -142,10 +142,13 @@ partial class TransformComponentWidget : ComponentEditorWidget
 			// ignore
 		}
 
-		// past this point should only show when ingame
+		// past this point should only show when editing a single object ingame
+		if ( SerializedObject.IsMultipleTargets )
+			return;
 		var session = SceneEditorSession.Resolve( gameObject.GetProperty( nameof( GameObject.Scene ) ).GetValue<Scene>() );
 		if ( session is null || !session.IsPlaying )
 			return;
+
 		// try to find the editor session version
 		var targetObject = session.Scene.Directory.FindByGuid( gameObject.GetProperty( nameof( GameObject.Id ) ).GetValue<Guid>() );
 		if ( !targetObject.IsValid() )
