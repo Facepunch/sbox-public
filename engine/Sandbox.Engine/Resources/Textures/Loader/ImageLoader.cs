@@ -84,7 +84,6 @@ internal static class Image
 
 			int width = bm.Width();
 			int height = bm.Height();
-			int numMips = (int)Math.Log2( Math.Min( width, height ) ) + 1;
 			var format = ImageFormat.RGBA8888;
 			var dataSize = ImageLoader.GetMemRequired( width, height, 1, 1, format );
 			var data = new byte[dataSize];
@@ -102,7 +101,7 @@ internal static class Image
 			var texture = Texture.Create( width, height, format )
 				.WithName( filename )
 				.WithData( data, dataSize )
-				.WithMips( numMips )
+				.WithMips( 1 )
 				.Finish();
 
 			return texture;
@@ -123,12 +122,10 @@ internal static class Image
 			_ => throw new System.Exception( $"bitmap.ColorType is {bitmap.ColorType} - unsupported" ),
 		};
 
-		int numMips = (int)Math.Log2( Math.Min( bitmap.Width, bitmap.Height ) ) + 1;
-
 		var texture = Texture.Create( bitmap.Width, bitmap.Height, format )
 			.WithName( name )
 			.WithData( bitmap.GetPixels(), bitmap.ByteCount )
-			.WithMips( numMips )
+			.WithMips( 1 )
 			.Finish();
 
 		return texture;
