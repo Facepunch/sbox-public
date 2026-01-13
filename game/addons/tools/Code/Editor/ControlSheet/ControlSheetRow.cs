@@ -299,7 +299,7 @@ class ControlSheetRow : Widget
 	void AddComponentOptions( Menu menu )
 	{
 		// Are we editing the property of a component?
-		if ( !IsEditingComponent )
+		if ( !IsEditingComponent || property.IsMultipleValues )
 			return;
 
 		var component = EditedComponents.FirstOrDefault();
@@ -333,7 +333,7 @@ class ControlSheetRow : Widget
 
 	void AddGameObjectOptions( Menu menu )
 	{
-		if ( !IsEditingGameObject )
+		if ( !IsEditingGameObject || property.IsMultipleValues )
 			return;
 
 		var gameobject = EditedGameObjects.FirstOrDefault();
