@@ -20,9 +20,6 @@ public readonly struct PreviewRenderSettings
 	/// <summary>Maximum render height</summary>
 	public int MaxRenderHeight { get; init; }
 
-	/// <summary>Frame budget in ms</summary>
-	public float FrameBudgetMs { get; init; }
-
 	/// <summary>Skip when unfocused</summary>
 	public bool SkipWhenUnfocused { get; init; }
 
@@ -51,7 +48,6 @@ public readonly struct PreviewRenderSettings
 		UnfocusedFps = 0.5f,
 		MaxRenderWidth = 640,
 		MaxRenderHeight = 360,
-		FrameBudgetMs = 16f,
 		SkipWhenUnfocused = false,
 		UseDoubleBuffering = true,
 		EnablePostProcessing = false,
@@ -68,7 +64,6 @@ public readonly struct PreviewRenderSettings
 		UnfocusedFps = 2f,
 		MaxRenderWidth = 1280,
 		MaxRenderHeight = 720,
-		FrameBudgetMs = 32f,
 		SkipWhenUnfocused = false,
 		UseDoubleBuffering = true,
 		EnablePostProcessing = true,
@@ -81,11 +76,10 @@ public readonly struct PreviewRenderSettings
 	public static PreviewRenderSettings Minimal => new()
 	{
 		ActiveFps = 5f,
-		IdleFps = 0f,
+		IdleFps = 1f,
 		UnfocusedFps = 0f,
 		MaxRenderWidth = 320,
 		MaxRenderHeight = 180,
-		FrameBudgetMs = 8f,
 		SkipWhenUnfocused = true,
 		UseDoubleBuffering = false,
 		EnablePostProcessing = false,
@@ -102,7 +96,6 @@ public readonly struct PreviewRenderSettings
 		UnfocusedFps = 0.5f,
 		MaxRenderWidth = 640,
 		MaxRenderHeight = 360,
-		FrameBudgetMs = 16f,
 		SkipWhenUnfocused = false,
 		UseDoubleBuffering = false,
 		EnablePostProcessing = false,

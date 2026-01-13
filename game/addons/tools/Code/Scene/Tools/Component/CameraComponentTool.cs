@@ -98,7 +98,8 @@ class CameraToolWindow : WidgetWindow
 
 	private static CameraComponent PinnedCamera;
 	private static bool IsPinned;
-	static bool IsClosed = false;
+	private static bool IsClosed = false;
+	private static int _currentQualityIndex = 0;
 
 	public CameraToolWindow()
 	{
@@ -146,8 +147,12 @@ class CameraToolWindow : WidgetWindow
 		qualityCombo.AddItem( "Minimal" );
 		qualityCombo.AddItem( "Default" );
 		qualityCombo.AddItem( "High" );
-		qualityCombo.CurrentIndex = 0; // Minimal by default
-		qualityCombo.ItemChanged += () => OnQualityChanged( qualityCombo.CurrentText );
+		qualityCombo.CurrentIndex = _currentQualityIndex; // Restore saved selection
+		qualityCombo.ItemChanged += () =>
+		{
+			_currentQualityIndex = qualityCombo.CurrentIndex; // Save selection
+			OnQualityChanged( qualityCombo.CurrentText );
+		};
 		headerRow.Add( qualityCombo );
 
 		_pinButton = new IconButton( IsPinned ? "lock_open" : "lock", TogglePinned )
@@ -325,7 +330,8 @@ class SceneWidget : Widget
 	}
 
 	/// <summary>
-	/// Change the render settings preset (zero-alloc if only FPS/quality changes)
+	/// Change the render settings preset.
+	/// Zero-alloc for FPS/feature changes, minimal alloc only for resolution changes.
 	/// </summary>
 	public void SetSettings( Preview.PreviewRenderSettings settings )
 	{

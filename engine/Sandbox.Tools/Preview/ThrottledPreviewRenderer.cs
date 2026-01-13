@@ -84,13 +84,14 @@ public sealed class ThrottledPreviewRenderer : IDisposable
 	/// </summary>
 	/// <param name="camera">The scene camera to render</param>
 	/// <param name="displaySize">Display size in pixels</param>
-	public bool TryRender( SceneCamera camera, Vector2 displaySize )
+	/// <param name="isWidgetActive">True if widget's window is active (IsActiveWindow)</param>
+	public bool TryRender( SceneCamera camera, Vector2 displaySize, bool isWidgetActive = true )
 	{
 		if ( _isDisposed ) return false;
 		if ( camera?.World == null ) return false;
 		if ( displaySize.x <= 1 || displaySize.y <= 1 ) return false;
 
-		if ( !ShouldRender( camera ) )
+		if ( !ShouldRender( camera, isWidgetActive ) )
 			return false;
 
 		_lastRender = 0;
@@ -123,20 +124,34 @@ public sealed class ThrottledPreviewRenderer : IDisposable
 		return true;
 	}
 
-	private bool ShouldRender( SceneCamera camera )
+	private bool ShouldRender( SceneCamera camera, bool isWidgetActive )
 	{
+		// Force first frame immediately - no pixmap means never rendered
+		if ( _frontPixmap is null )
+			return true;
+
 		float fps;
 
-		bool hasChanges = HasCameraChanged( camera );
-		fps = hasChanges ? _settings.ActiveFps : _settings.IdleFps;
+		if ( !isWidgetActive )
+		{
+			// Editor window not focused - use low FPS or skip entirely
+			if ( _settings.SkipWhenUnfocused )
+				return false;
+			fps = _settings.UnfocusedFps;
+		}
+		else
+		{
+			// Editor window active - use ActiveFps if camera moving, IdleFps otherwise
+			bool hasChanges = HasCameraChanged( camera );
+			fps = hasChanges ? _settings.ActiveFps : _settings.IdleFps;
+		}
 
 		float interval = _settings.GetInterval( fps );
 		return _lastRender >= interval;
 	}
 
 	/// <summary>
-	/// Apply lightweight render settings to reduce GPU cost.
-	/// Disables expensive features like shadows, post-processing, etc.
+	/// Apply render settings to camera based on current preset.
 	/// </summary>
 	private void ApplyLightweightSettings( SceneCamera camera )
 	{
@@ -178,14 +193,24 @@ public sealed class ThrottledPreviewRenderer : IDisposable
 		int renderWidth = Math.Min( targetWidth, _settings.MaxRenderWidth );
 		int renderHeight = Math.Min( targetHeight, _settings.MaxRenderHeight );
 
-		// Maintain aspect ratio
+		// Maintain aspect ratio using float math and rounding to avoid truncation issues
 		float targetAspect = targetSize.x / targetSize.y;
 		float renderAspect = (float)renderWidth / renderHeight;
 
 		if ( renderAspect > targetAspect )
-			renderWidth = (int)(renderHeight * targetAspect);
+		{
+			// Too wide: adjust width
+			float adjustedWidth = renderHeight * targetAspect;
+			if ( adjustedWidth < 1f ) adjustedWidth = 1f;
+			renderWidth = (int)MathF.Round( adjustedWidth );
+		}
 		else
-			renderHeight = (int)(renderWidth / targetAspect);
+		{
+			// Too tall: adjust height
+			float adjustedHeight = renderWidth / targetAspect;
+			if ( adjustedHeight < 1f ) adjustedHeight = 1f;
+			renderHeight = (int)MathF.Round( adjustedHeight );
+		}
 
 		// Ensure minimum size
 		return (Math.Max( 64, renderWidth ), Math.Max( 36, renderHeight ));
@@ -226,10 +251,20 @@ public sealed class ThrottledPreviewRenderer : IDisposable
 		}
 		else
 		{
-			// Double buffer - swap pointers
+			// Double buffer mode
 			lock ( _swapLock )
 			{
-				(_frontPixmap, _backPixmap) = (_backPixmap, _frontPixmap);
+				// First render: promote back to front and create new back buffer
+				// to avoid wasting the initial allocation
+				if ( _frontPixmap is null && _backPixmap is not null )
+				{
+					_frontPixmap = _backPixmap;
+					_backPixmap = new Pixmap( _frontPixmap.Size );
+				}
+				else
+				{
+					(_frontPixmap, _backPixmap) = (_backPixmap, _frontPixmap);
+				}
 			}
 		}
 	}
@@ -239,9 +274,12 @@ public sealed class ThrottledPreviewRenderer : IDisposable
 		if ( _isDisposed ) return;
 		_isDisposed = true;
 
-		// Pixmap uses finalizer for cleanup, just null the references
-		_frontPixmap = null;
-		_backPixmap = null;
+		// Lock to prevent race with Pixmap getter
+		lock ( _swapLock )
+		{
+			_frontPixmap = null;
+			_backPixmap = null;
+		}
 
 		// Bitmap implements IDisposable
 		_stagingBitmap?.Dispose();
