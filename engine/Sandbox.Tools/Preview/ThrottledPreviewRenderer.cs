@@ -148,7 +148,7 @@ public sealed class ThrottledPreviewRenderer : IDisposable
 
 	private bool HasCameraChanged( SceneCamera camera )
 	{
-		if (_isDirty) return true;
+		if ( _isDirty ) return true;
 
 		const float posEpsilon = 0.001f;
 		const float rotEpsilon = 0.1f;
