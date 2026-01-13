@@ -150,7 +150,7 @@ public static partial class Theme
 
 	private static void LoadFromFile()
 	{
-		var themeJson = FileSystem.Root.ReadAllText( "/addons/tools/assets/styles/theme.json" );
+		var themeJson = FileSystem.Root.ReadAllText( "/addons/tools/Assets/styles/theme.json" );
 		var theme = Json.Deserialize<Dictionary<string, string>>( themeJson );
 
 		TabBackground = Color.Parse( theme["TabBackground"] ) ?? Color.Parse( "#3b3b3b" ).Value;

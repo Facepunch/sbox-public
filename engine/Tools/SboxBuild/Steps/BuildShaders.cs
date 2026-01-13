@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Runtime.InteropServices;
 using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
@@ -11,8 +12,12 @@ internal class BuildShaders( string name, bool forced = false ) : Step( name )
 		{
 			string rootDir = Directory.GetCurrentDirectory();
 			string gameDir = Path.Combine( rootDir, "game" );
-			string shaderCompilerPath = Path.Combine( gameDir, "bin", "managed", "shadercompiler.exe" );
 
+			string shaderCompilerPath;
+			if ( OperatingSystem.IsWindows() )
+				shaderCompilerPath = Path.Combine( gameDir, "bin", "managed", "ShaderCompiler.exe" );
+			else
+				shaderCompilerPath = Path.Combine( gameDir, "bin", "managed", "ShaderCompiler" );
 			// Verify shader compiler exists
 			if ( !File.Exists( shaderCompilerPath ) )
 			{
