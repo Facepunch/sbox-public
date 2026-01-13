@@ -66,7 +66,7 @@ namespace Topten.RichTextKit
 		/// <returns>A sequence of runs with unsupported code points replaced by a selected font fallback</returns>
 		public static IEnumerable<Run> GetFontRuns( Slice<int> codePoints, SKTypeface typeface, char replacementCharacter = '\0' )
 		{
-			var font = new SKFont( typeface );
+			using var font = new SKFont( typeface );
 
 			if ( replacementCharacter != '\0' )
 			{
@@ -144,7 +144,7 @@ namespace Topten.RichTextKit
 							unmatchedEnd = unmatchedStart;
 							break;
 						}
-						var subSpanFont = new SKFont( subSpanTypeface );
+						using var subSpanFont = new SKFont( subSpanTypeface );
 
 						// Get the glyphs over the current unmatched range
 						subSpanFont.GetGlyphs( codePoints.SubSlice( unmatchedStart, unmatchedLength ).AsSpan(), new Span<ushort>( glyphs, unmatchedStart, unmatchedLength ) );

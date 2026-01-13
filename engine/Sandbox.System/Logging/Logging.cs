@@ -14,7 +14,11 @@ internal static partial class Logging
 		_initialized = true;
 
 		var config = new NLog.Config.LoggingConfiguration();
+
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// Config takes ownership of targets
 		var game_target = new GameLog();
+#pragma warning restore CA2000 // Dispose objects before losing scope
 
 		NLog.LogManager.Setup().SetupExtensions( s =>
 		{
@@ -33,7 +37,10 @@ internal static partial class Logging
 		var gamePath = System.Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.User );
 		gamePath ??= AppContext.BaseDirectory;
 
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// Config takes ownership of targets
 		var file_target = new NLog.Targets.FileTarget
+#pragma warning restore CA2000 // Dispose objects before losing scope
 		{
 			FileName = System.IO.Path.Combine( gamePath, $"logs/{appName}.log" ),
 			ArchiveOldFileOnStartup = true,

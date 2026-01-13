@@ -1,4 +1,7 @@
 ﻿
+using HalfEdgeMesh;
+using System;
+
 namespace Editor.MeshEditor;
 
 partial class EdgeTool
@@ -14,6 +17,9 @@ partial class EdgeTool
 		private readonly List<IGrouping<MeshComponent, MeshEdge>> _edgeGroups;
 		private readonly List<MeshComponent> _components;
 		readonly MeshTool _tool;
+
+		[Range( 0, 16 ), Step( 1 ), WideMode]
+		private int NumCuts = 1;
 
 		public EdgeSelectionWidget( MeshTool tool, SerializedObject selection ) : base()
 		{
@@ -109,15 +115,31 @@ partial class EdgeTool
 			{
 				var group = AddGroup( "Tools" );
 
-				var grid = Layout.Row();
-				grid.Spacing = 4;
+				{
+					var row = new Widget { Layout = Layout.Row() };
+					row.Layout.Spacing = 4;
 
-				CreateButton( "Bevel", "straighten", "mesh.edge-bevel", Bevel, CanBevel(), grid );
-				CreateButton( "Edge Cut Tool", "content_cut", "mesh.edge-cut-tool", OpenEdgeCutTool, true, grid );
+					CreateButton( "Bevel", "straighten", "mesh.edge-bevel", Bevel, CanBevel(), row.Layout );
+					CreateButton( "Edge Cut Tool", "content_cut", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
 
-				grid.AddStretchCell();
+					row.Layout.AddStretchCell();
 
-				group.Add( grid );
+					group.Add( row );
+				}
+
+				{
+					var row = new Widget { Layout = Layout.Row() };
+					row.Layout.Spacing = 4;
+
+					var numCutsControl = ControlWidget.Create( this.GetSerialized().GetProperty( nameof( NumCuts ) ) );
+					numCutsControl.FixedHeight = Theme.ControlHeight;
+					CreateButton( "Quick Bevel", "carpenter", "mesh.edge-quick-bevel", QuickBevel, CanBevel(), row.Layout );
+					row.Layout.Add( numCutsControl );
+
+					row.Layout.AddStretchCell();
+
+					group.Add( row );
+				}
 			}
 
 			Layout.AddStretchCell();
@@ -159,6 +181,70 @@ partial class EdgeTool
 					var component = group.Key;
 					var mesh = component.Mesh;
 					mesh.AverageEdgeUVs( group.Select( x => x.Handle ).ToList() );
+				}
+			}
+		}
+
+		[Shortcut( "mesh.edge-quick-bevel", "F", typeof( SceneViewWidget ) )]
+		private void QuickBevel()
+		{
+			if ( !CanBevel() )
+				return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Quick Bevel Edges" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				var newEdges = new Dictionary<MeshComponent, List<HalfEdgeHandle>>();
+
+				var bevelWidth = EditorScene.GizmoSettings.GridSpacing;
+				int steps = NumCuts;
+				const float shape = 1.0f;
+				const bool softEdges = false;
+
+				foreach ( var group in _edgeGroups )
+				{
+					var component = group.Key;
+					var mesh = component.Mesh;
+					var edges = group.Select( x => x.Handle ).ToList();
+
+					var newOuterEdges = new List<HalfEdgeHandle>();
+					var newInnerEdges = new List<HalfEdgeHandle>();
+					var facesNeedingUVs = new List<FaceHandle>();
+					var newFaces = new List<FaceHandle>();
+
+					if ( !mesh.BevelEdges( edges, PolygonMesh.BevelEdgesMode.RemoveClosedEdges, steps, bevelWidth, shape, newOuterEdges, newInnerEdges, newFaces, facesNeedingUVs ) )
+						continue;
+
+					var smoothMode = softEdges
+						? PolygonMesh.EdgeSmoothMode.Soft
+						: PolygonMesh.EdgeSmoothMode.Default;
+
+					foreach ( var edgeHandle in newInnerEdges )
+					{
+						mesh.SetEdgeSmoothing( edgeHandle, smoothMode );
+					}
+
+					foreach ( var hFace in facesNeedingUVs )
+					{
+						mesh.TextureAlignToGrid( mesh.Transform, hFace );
+					}
+
+					mesh.ComputeFaceTextureParametersFromCoordinates( newFaces );
+
+					newEdges[component] = newOuterEdges.Concat( newInnerEdges ).ToList();
+				}
+
+				selection.Clear();
+				foreach ( var edgeGroup in newEdges )
+				{
+					foreach ( var edge in edgeGroup.Value )
+					{
+						selection.Add( new MeshEdge( edgeGroup.Key, edge ) );
+					}
 				}
 			}
 		}

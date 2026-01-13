@@ -53,7 +53,7 @@ public class MeshBuilding
 	[TestMethod]
 	public async Task Generator_GenerateTile_HighLevel()
 	{
-		var navMesh = new NavMesh();
+		using var navMesh = new NavMesh();
 		var world = new PhysicsWorld();
 
 		var boxSize = BBox.FromPositionAndSize( 0, 100 );

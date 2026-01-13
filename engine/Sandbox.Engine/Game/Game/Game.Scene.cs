@@ -35,15 +35,20 @@ public static partial class Game
 		if ( !Networking.IsHost )
 			return false;
 
+		// We don't want to send any networked messages to do with deletion or creation
+		// of GameObjects here. Because the client will destroy their scene locally
+		// anyway. This saves us sending a message for potentially 100s of objects.
 		using ( SceneNetworkSystem.SuppressSpawnMessages() )
 		{
-			if ( !ActiveScene.Load( options ) )
-				return false;
+			using ( SceneNetworkSystem.SuppressDestroyMessages() )
+			{
+				if ( !ActiveScene.Load( options ) )
+					return false;
+			}
 		}
 
 		// Conna: We want to send a new snapshot to every client.
 		SceneNetworkSystem.Instance?.LoadSceneBroadcast( options );
-
 		return true;
 	}
 

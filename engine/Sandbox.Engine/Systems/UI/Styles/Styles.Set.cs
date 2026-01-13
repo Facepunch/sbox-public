@@ -1601,7 +1601,10 @@ namespace Sandbox.UI
 
 			if ( GetTokenValueUnderParenthesis( p, "linear-gradient", out string gradient ) )
 			{
-				Texture gradientTexture = GenerateLinearGradientTexture( gradient, out var angle );
+#pragma warning disable CA2000 // Dispose objects before losing scope
+				// Ownership of gradientTexture is transferred to the Lazy<Texture> returned via setImage
+				var gradientTexture = GenerateLinearGradientTexture( gradient, out var angle );
+#pragma warning restore CA2000 // Dispose objects before losing scope
 				setAngle?.Invoke( angle );
 				setImage?.Invoke( new Lazy<Texture>( gradientTexture ) );
 				setSize?.Invoke( "100%" );
@@ -1611,7 +1614,11 @@ namespace Sandbox.UI
 
 			if ( GetTokenValueUnderParenthesis( p, "radial-gradient", out string radialGradient ) )
 			{
-				setImage?.Invoke( new Lazy<Texture>( GenerateRadialGradientTexture( radialGradient ) ) );
+#pragma warning disable CA2000 // Dispose objects before losing scope
+				// Ownership of gradientTexture is transferred to the Lazy<Texture> returned via setImage
+				var gradientTexture = GenerateRadialGradientTexture( radialGradient );
+#pragma warning restore CA2000 // Dispose objects before losing scope
+				setImage?.Invoke( new Lazy<Texture>( gradientTexture ) );
 				setSize?.Invoke( "100%" );
 				setRepeat?.Invoke( "clamp" );
 				return true;
@@ -1619,7 +1626,11 @@ namespace Sandbox.UI
 
 			if ( GetTokenValueUnderParenthesis( p, "conic-gradient", out string conicGradient ) )
 			{
-				setImage?.Invoke( new Lazy<Texture>( GenerateConicGradientTexture( conicGradient ) ) );
+#pragma warning disable CA2000 // Dispose objects before losing scope
+				// Ownership of gradientTexture is transferred to the Lazy<Texture> returned via setImage
+				var gradientTexture = GenerateConicGradientTexture( conicGradient );
+#pragma warning restore CA2000 // Dispose objects before losing scope
+				setImage?.Invoke( new Lazy<Texture>( gradientTexture ) );
 				setSize?.Invoke( "100%" );
 				setRepeat?.Invoke( "clamp" );
 				return true;

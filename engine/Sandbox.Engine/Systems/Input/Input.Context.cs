@@ -12,6 +12,7 @@ public static partial class Input
 
 	// weak list of contexts
 	static List<WeakReference<Context>> contexts = new List<WeakReference<Context>>();
+	static IDisposable defaultContextScope;
 
 	/// <summary>
 	/// Get all of the contexts
@@ -36,7 +37,7 @@ public static partial class Input
 		// We should always have a context available
 		// This will just get GC'd on client as we replace it with frame/tick context
 		var d = Context.Create( "Default" );
-		d.Push();
+		defaultContextScope = d.Push();
 	}
 
 	/// <summary>

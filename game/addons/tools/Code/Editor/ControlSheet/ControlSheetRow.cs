@@ -262,9 +262,9 @@ class ControlSheetRow : Widget
 			var revertActionName = "Revert Change";
 			menu.AddOption( revertActionName, "history", () =>
 			{
-				using var scene = SceneEditorSession.Scope();
-
-				using ( SceneEditorSession.Active.UndoScope( revertActionName ).WithComponentChanges( EditedComponents ).WithGameObjectChanges( EditedGameObjects, GameObjectUndoFlags.Properties ).Push() )
+				var session = SceneEditorSession.Resolve( EditedGameObjects.FirstOrDefault() );
+				using var scene = session.Scene.Push();
+				using ( session.UndoScope( revertActionName ).WithComponentChanges( EditedComponents ).WithGameObjectChanges( EditedGameObjects, GameObjectUndoFlags.Properties ).Push() )
 				{
 					EditorUtility.Prefabs.RevertPropertyChange( property );
 				}

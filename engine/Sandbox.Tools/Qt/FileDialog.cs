@@ -45,10 +45,10 @@ namespace Editor
 		{
 			get
 			{
-				var files = _filedialog.selectedFiles();
+				using var files = _filedialog.selectedFiles();
 				if ( files.size() == 0 ) return null;
 
-				return _filedialog.selectedFiles().at( 0 );
+				return files.at( 0 );
 			}
 		}
 
@@ -64,7 +64,14 @@ namespace Editor
 			set => _filedialog.setDefaultSuffix( value );
 		}
 
-		public List<string> SelectedFiles => _filedialog.selectedFiles().ToList();
+		public List<string> SelectedFiles
+		{
+			get
+			{
+				using var selectedFiles = _filedialog.selectedFiles();
+				return selectedFiles.ToList();
+			}
+		}
 
 		public void SetNameFilter( string text )
 		{

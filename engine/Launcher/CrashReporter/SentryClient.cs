@@ -21,7 +21,7 @@ public class SentryClient
 		await stream.FlushAsync( cancellationToken ).ConfigureAwait( false );
 		stream.Seek( 0, SeekOrigin.Begin );
 
-		var request = new HttpRequestMessage( HttpMethod.Post, uriBuilder.Uri )
+		using var request = new HttpRequestMessage( HttpMethod.Post, uriBuilder.Uri )
 		{
 			Content = new StreamContent( stream )
 		};

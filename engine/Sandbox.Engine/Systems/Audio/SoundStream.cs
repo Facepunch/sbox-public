@@ -50,7 +50,10 @@ public sealed partial class SoundStream : IHandle, IDisposable
 
 		using ( var h = IHandle.MakeNextHandle( this ) )
 		{
+#pragma warning disable CA2000 // Dispose objects before losing scope
+			// The "created" stream links to this so we dont want to dispose it
 			var stream = CAudioStreamManaged.Create( channels, (uint)sampleRate );
+#pragma warning restore CA2000 // Dispose objects before losing scope
 			stream.Channels = channels;
 			stream.SampleRate = sampleRate;
 		}

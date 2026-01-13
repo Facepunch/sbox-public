@@ -204,7 +204,7 @@ public partial class PartyRoom : ILobby
 					continue;
 				}
 
-				var data = new ByteStream( msg.Data, msg.Size );
+				using var data = new ByteStream( msg.Data, msg.Size );
 
 				var iMessageType = data.Read<MessageIdentity>();
 

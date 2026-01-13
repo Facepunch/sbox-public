@@ -428,8 +428,8 @@ public partial class ILHotload : IDisposable
 
 		try
 		{
-			var dynamicMethodDef = new DynamicMethodDefinition( source );
-			var replaceMethodDef = new DynamicMethodDefinition( replace );
+			using var dynamicMethodDef = new DynamicMethodDefinition( source );
+			using var replaceMethodDef = new DynamicMethodDefinition( replace );
 
 			dynamicMethodDef.Definition.Body = replaceMethodDef.Definition.Body.Clone( dynamicMethodDef.Definition );
 

@@ -126,49 +126,33 @@ public class ComponentListWidget : Widget
 
 	void PropertyStartEdit( SerializedProperty property, IEnumerable<Component> components )
 	{
-		ActivateSession();
-
 		var propertyDisplayName = property.Parent.ParentProperty is null
 			? property.Name
 			: $"{property.Parent.ParentProperty.Name}.{property.Name}";
 		var undoName = $"Edit {propertyDisplayName} on {components.First().GetType().Name}";
 
-		undoScope = SceneEditorSession.Active.UndoScope( undoName ).WithComponentChanges( components ).Push();
+		var session = SceneEditorSession.Resolve( components.FirstOrDefault() );
+		using var scene = session.Scene.Push();
+		undoScope = session.UndoScope( undoName ).WithComponentChanges( components ).Push();
 
 		property.DispatchPreEdited();
 	}
 
 	void PropertyChanged( SerializedProperty property, IEnumerable<Component> components )
 	{
-		ActivateSession();
+		using var scene = components.FirstOrDefault()?.Scene.Push();
 
 		property.DispatchEdited();
 	}
 
 	void PropertyFinishEdit( SerializedProperty property, IEnumerable<Component> components )
 	{
-		ActivateSession();
+		using var scene = components.FirstOrDefault()?.Scene.Push();
 
 		property.DispatchEdited();
 
 		undoScope?.Dispose();
 		undoScope = null;
-	}
-
-	private void ActivateSession()
-	{
-		var gameObject = SerializedObject.Targets.OfType<GameObject>().FirstOrDefault();
-		ArgumentNullException.ThrowIfNull( gameObject );
-
-		// you can lock the inspector to an object from a non-active scene session, so for now just make sure we're
-		// making active the right scene when we start changing shit
-		// TODO: we should really resolve undo etc from the currently pushed scene or something, so we can just push that scope wherever (?)
-
-		var session = SceneEditorSession.Resolve( gameObject.Scene );
-		if ( session is null || SceneEditorSession.Active == session )
-			return;
-
-		session.MakeActive();
 	}
 
 	void ContextMenu( Component component, Menu menu, string title )
@@ -188,10 +172,9 @@ public class ComponentListWidget : Widget
 		{
 			menu.AddOption( "Reset", "restart_alt", action: () =>
 			{
-				ActivateSession();
-				using var scene = SceneEditorSession.Scope();
-
-				using ( SceneEditorSession.Active.UndoScope( $"Reset {component.GetType().Name}" ).WithComponentChanges( component ).Push() )
+				var session = SceneEditorSession.Resolve( gameObject );
+				using var scene = session.Scene.Push();
+				using ( session.UndoScope( $"Reset {component.GetType().Name}" ).WithComponentChanges( component ).Push() )
 				{
 					component.Reset();
 				}
@@ -206,10 +189,9 @@ public class ComponentListWidget : Widget
 
 			menu.AddOption( "Move Up", "expand_less", action: () =>
 			{
-				ActivateSession();
-				using var scene = SceneEditorSession.Scope();
-
-				using ( SceneEditorSession.Active.UndoScope( "Change Component Order" ).WithGameObjectChanges( component.GameObject, GameObjectUndoFlags.Components ).Push() )
+				var session = SceneEditorSession.Resolve( gameObject );
+				using var scene = session.Scene.Push();
+				using ( session.UndoScope( "Change Component Order" ).WithGameObjectChanges( component.GameObject, GameObjectUndoFlags.Components ).Push() )
 				{
 					component.Components.Move( component, -1 );
 				}
@@ -219,10 +201,9 @@ public class ComponentListWidget : Widget
 
 			menu.AddOption( "Move Down", "expand_more", action: () =>
 			{
-				ActivateSession();
-				using var scene = SceneEditorSession.Scope();
-
-				using ( SceneEditorSession.Active.UndoScope( "Change Component Order" ).WithGameObjectChanges( component.GameObject, GameObjectUndoFlags.Components ).Push() )
+				var session = SceneEditorSession.Resolve( gameObject );
+				using var scene = session.Scene.Push();
+				using ( session.UndoScope( "Change Component Order" ).WithGameObjectChanges( component.GameObject, GameObjectUndoFlags.Components ).Push() )
 				{
 					component.Components.Move( component, +1 );
 				}
@@ -233,10 +214,9 @@ public class ComponentListWidget : Widget
 
 			menu.AddOption( $"Cut {title}", "content_cut", action: () =>
 			{
-				ActivateSession();
-				using var scene = SceneEditorSession.Scope();
-
-				using ( SceneEditorSession.Active.UndoScope( $"Cut {component.GetType().Name} Component" ).WithComponentDestructions( component ).Push() )
+				var session = SceneEditorSession.Resolve( gameObject );
+				using var scene = session.Scene.Push();
+				using ( session.UndoScope( $"Cut {component.GetType().Name} Component" ).WithComponentDestructions( component ).Push() )
 				{
 					component.CopyToClipboard();
 					component.Destroy();
@@ -264,10 +244,9 @@ public class ComponentListWidget : Widget
 			var revertChangesActionName = "Revert Changes";
 			menu.AddOption( revertChangesActionName, "history", action: () =>
 			{
-				ActivateSession();
-				using var scene = SceneEditorSession.Scope();
-
-				using ( SceneEditorSession.Active.UndoScope( revertChangesActionName ).WithComponentChanges( component ).Push() )
+				var session = SceneEditorSession.Resolve( gameObject );
+				using var scene = session.Scene.Push();
+				using ( session.UndoScope( revertChangesActionName ).WithComponentChanges( component ).Push() )
 				{
 					EditorUtility.Prefabs.RevertComponentInstanceChanges( component );
 				}
@@ -276,9 +255,8 @@ public class ComponentListWidget : Widget
 
 			menu.AddOption( "Apply to Prefab", "save", action: () =>
 			{
-				ActivateSession();
-				using var scene = SceneEditorSession.Scope();
-
+				var session = SceneEditorSession.Resolve( gameObject );
+				using var scene = session.Scene.Push();
 				EditorUtility.Prefabs.ApplyComponentInstanceChangesToPrefab( component );
 
 			} ).Enabled = isComponentModified;
@@ -288,11 +266,11 @@ public class ComponentListWidget : Widget
 
 		menu.AddOption( "Remove Component", "remove", action: () =>
 		{
-			ActivateSession();
-			using var scene = SceneEditorSession.Scope();
-
-			using ( SceneEditorSession.Active.UndoScope( $"Remove {component.GetType().Name} Component" ).WithComponentDestructions( component ).Push() )
+			var session = SceneEditorSession.Resolve( gameObject );
+			using var scene = session.Scene.Push();
+			using ( session.UndoScope( $"Remove {component.GetType().Name} Component" ).WithComponentDestructions( component ).Push() )
 			{
+				Log.Info( Game.ActiveScene.Name );
 				component.Destroy();
 			}
 		} );
@@ -302,10 +280,9 @@ public class ComponentListWidget : Widget
 		{
 			OnSelect = ( t ) =>
 			{
-				ActivateSession();
-				using var scene = SceneEditorSession.Scope();
-
-				using ( SceneEditorSession.Active.UndoScope( $"Replace {component.GetType().Name} Component" ).WithComponentDestructions( component ).WithComponentCreations().Push() )
+				var session = SceneEditorSession.Resolve( gameObject );
+				using var scene = session.Scene.Push();
+				using ( session.UndoScope( $"Replace {component.GetType().Name} Component" ).WithComponentDestructions( component ).WithComponentCreations().Push() )
 				{
 					var go = component.GameObject;
 					var jso = component.Serialize().AsObject();
@@ -357,10 +334,9 @@ public class ComponentListWidget : Widget
 		{
 			menu.AddOption( "Reset All", "restart_alt", action: () =>
 			{
-				ActivateSession();
-				using var scene = SceneEditorSession.Scope();
-
-				using ( SceneEditorSession.Active.UndoScope( $"Reset Component(s)" ).WithComponentChanges( components ).Push() )
+				var session = SceneEditorSession.Resolve( components.FirstOrDefault() );
+				using var scene = session.Scene.Push();
+				using ( session.UndoScope( $"Reset Component(s)" ).WithComponentChanges( components ).Push() )
 				{
 					foreach ( var c in components )
 					{
@@ -373,10 +349,9 @@ public class ComponentListWidget : Widget
 
 			menu.AddOption( "Remove Components", "remove", action: () =>
 			{
-				ActivateSession();
-				using var scene = SceneEditorSession.Scope();
-
-				using ( SceneEditorSession.Active.UndoScope( $"Removed Component(s)" ).WithComponentDestructions( components ).Push() )
+				var session = SceneEditorSession.Resolve( components.FirstOrDefault() );
+				using var scene = session.Scene.Push();
+				using ( session.UndoScope( $"Removed Component(s)" ).WithComponentDestructions( components ).Push() )
 				{
 					foreach ( var c in components )
 					{
@@ -391,10 +366,9 @@ public class ComponentListWidget : Widget
 				{
 					OnSelect = ( t ) =>
 					{
-						ActivateSession();
-						using var scene = SceneEditorSession.Scope();
-
-						using ( SceneEditorSession.Active.UndoScope( $"Replace Component(s)" ).WithComponentDestructions( components ).WithComponentCreations().Push() )
+						var session = SceneEditorSession.Resolve( components.FirstOrDefault() );
+						using var scene = session.Scene.Push();
+						using ( session.UndoScope( $"Replace Component(s)" ).WithComponentDestructions( components ).WithComponentCreations().Push() )
 						{
 							foreach ( var c in components )
 							{
@@ -413,7 +387,6 @@ public class ComponentListWidget : Widget
 			{
 				menu.AddOption( "Paste Values", "content_paste", action: () =>
 				{
-					ActivateSession();
 					foreach ( var c in components )
 					{
 						c.PasteValues();
@@ -421,7 +394,6 @@ public class ComponentListWidget : Widget
 				} );
 				menu.AddOption( "Paste As New", "content_paste_go", action: () =>
 				{
-					ActivateSession();
 					foreach ( var c in components )
 					{
 						c.GameObject.PasteComponent();

@@ -125,11 +125,6 @@ public partial class GameObject
 			return false;
 		}
 
-		if ( IsPrefabInstanceRoot )
-		{
-			PrefabInstanceData.BreakAllPrefabInstanceInHierarchy( this );
-		}
-
 		// We may contain other networked children. In which case we want to send
 		// them all in a singular message to keep any references
 		using ( SceneNetworkSystem.Instance?.NetworkSpawnBatch() )

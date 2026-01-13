@@ -43,7 +43,7 @@ public static class MainThread
 			return func();
 
 		T r = default;
-		ManualResetEvent reset = new ManualResetEvent( false );
+		using var reset = new ManualResetEvent( false );
 
 		Queue( () =>
 		{

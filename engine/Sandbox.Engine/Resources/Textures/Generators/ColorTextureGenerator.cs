@@ -17,8 +17,9 @@ public class ColorTextureGenerator : TextureGenerator
 
 	protected override ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
 	{
-		var bitmap = new Bitmap( 1, 1, Color.IsHdr );
+		using var bitmap = new Bitmap( 1, 1, Color.IsHdr );
 		bitmap.Clear( Color );
-		return ValueTask.FromResult( bitmap.ToTexture() );
+		using var texture = bitmap.ToTexture();
+		return ValueTask.FromResult( texture );
 	}
 }

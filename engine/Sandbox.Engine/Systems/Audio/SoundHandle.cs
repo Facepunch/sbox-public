@@ -499,7 +499,7 @@ public partial class SoundHandle : IValid, IDisposable
 		var handles = new List<SoundHandle>();
 		GetActive( handles );
 
-		var writer = new StringWriter();
+		using var writer = new StringWriter();
 		var mixerGroups = handles
 			.GroupBy( x => x.TargetMixer )
 			.OrderBy( x => x.Key?.Name );

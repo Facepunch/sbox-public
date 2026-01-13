@@ -64,6 +64,7 @@ public static partial class Gizmo
 
 		Draw.Color = Color.White;
 		Transform = Transform.Zero;
+		Active.scope.CanInteract = true;
 		Path = "";
 
 		Draw.Start();

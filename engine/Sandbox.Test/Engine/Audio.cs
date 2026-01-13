@@ -8,7 +8,7 @@ public class Audio
 	[TestMethod]
 	public void Silence()
 	{
-		MixBuffer buffer = new MixBuffer();
+		using var buffer = new MixBuffer();
 		buffer.RandomFill();
 		Assert.AreNotEqual( 0, buffer.LevelMax );
 		buffer.Silence();
@@ -18,7 +18,7 @@ public class Audio
 	[TestMethod]
 	public void LevelMax()
 	{
-		MixBuffer buffer = new MixBuffer();
+		using var buffer = new MixBuffer();
 		buffer.RandomFill();
 		Assert.AreEqual( buffer.LevelMax, buffer.Buffer.ToArray().Max() );
 	}
@@ -26,7 +26,7 @@ public class Audio
 	[TestMethod]
 	public void LevelAvg()
 	{
-		MixBuffer buffer = new MixBuffer();
+		using var buffer = new MixBuffer();
 		buffer.RandomFill();
 		Assert.AreEqual( buffer.LevelAvg, buffer.Buffer.ToArray().Average(), 0.001f );
 	}
@@ -34,8 +34,8 @@ public class Audio
 	[TestMethod]
 	public void Copy()
 	{
-		MixBuffer buffer = new MixBuffer();
-		MixBuffer bufferTarget = new MixBuffer();
+		using var buffer = new MixBuffer();
+		using var bufferTarget = new MixBuffer();
 		bufferTarget.Silence();
 		Assert.IsTrue( bufferTarget.LevelAvg == 0 );
 
@@ -52,8 +52,8 @@ public class Audio
 	[TestMethod]
 	public void MixFrom()
 	{
-		MixBuffer buffer = new MixBuffer();
-		MixBuffer bufferTarget = new MixBuffer();
+		using var buffer = new MixBuffer();
+		using var bufferTarget = new MixBuffer();
 		bufferTarget.Silence();
 		Assert.IsTrue( bufferTarget.LevelAvg == 0 );
 

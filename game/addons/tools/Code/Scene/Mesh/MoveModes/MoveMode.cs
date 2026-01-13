@@ -15,6 +15,9 @@ public abstract class MoveMode
 	bool _dirty = true;
 	bool _globalSpace;
 
+	protected bool CanUseGizmo = true;
+	private Vector2 _lastCursorPos;
+
 	public void Update( SelectionTool tool )
 	{
 		if ( tool.DragStarted )
@@ -40,7 +43,21 @@ public abstract class MoveMode
 			_dirty = false;
 		}
 
+		UpdateGizmoFromCursor();
 		OnUpdate( tool );
+	}
+
+	protected void UpdateGizmoFromCursor()
+	{
+		if ( Gizmo.IsLeftMouseDown )
+		{
+			CanUseGizmo = false;
+			_lastCursorPos = Gizmo.CursorPosition;
+		}
+		else if ( !CanUseGizmo && Gizmo.CursorPosition.DistanceSquared( _lastCursorPos ) > 4f )
+		{
+			CanUseGizmo = true;
+		}
 	}
 
 	protected virtual void OnUpdate( SelectionTool tool )

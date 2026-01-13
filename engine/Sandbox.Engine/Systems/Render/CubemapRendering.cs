@@ -48,7 +48,7 @@ internal static class CubemapRendering
 	/// <param name="filterType">The quality level for GGX filtering.</param>
 	public static void Render( SceneWorld world, Texture cubemapTexture, Transform cubemapTransform, float znear, float zfar, GGXFilterType filterType )
 	{
-		SceneCamera camera = new SceneCamera( "CubemapRendering" );
+		using var camera = new SceneCamera( "CubemapRendering" );
 		camera.FieldOfView = 90;
 		camera.ZNear = znear;
 		camera.ZFar = zfar;

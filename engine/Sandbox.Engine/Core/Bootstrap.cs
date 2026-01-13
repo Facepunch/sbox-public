@@ -202,7 +202,7 @@ internal static class Bootstrap
 				// we really want the items available before we continue
 				// here we'll wait up to 5 seconds for them, but they're
 				// generally available completely immediately.
-				var timeout = new CancellationTokenSource( 5000 );
+				using var timeout = new CancellationTokenSource( 5000 );
 				SyncContext.RunBlocking( Services.Inventory.WaitForSteamInventoryItems( timeout.Token ) );
 			}
 

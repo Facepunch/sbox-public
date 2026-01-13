@@ -138,7 +138,7 @@ public class ByteStreamTest
 	[Benchmark]
 	public int ByteStreamReadInt()
 	{
-		var reader = ByteStream.CreateReader( intData );
+		using var reader = ByteStream.CreateReader( intData );
 		int sum = 0;
 
 		for ( int i = 0; i < 512; i++ )
@@ -152,7 +152,7 @@ public class ByteStreamTest
 	[Benchmark]
 	public int ByteStreamReadByte()
 	{
-		var reader = ByteStream.CreateReader( byteData );
+		using var reader = ByteStream.CreateReader( byteData );
 		int sum = 0;
 		for ( int i = 0; i < 512; i++ )
 		{
@@ -166,7 +166,7 @@ public class ByteStreamTest
 	[Benchmark]
 	public int ByteStreamReadGuid()
 	{
-		var reader = ByteStream.CreateReader( guidData );
+		using var reader = ByteStream.CreateReader( guidData );
 		int hash = 0;
 
 		for ( int i = 0; i < 512; i++ )
@@ -180,7 +180,7 @@ public class ByteStreamTest
 	[Benchmark]
 	public int ByteStreamReadString()
 	{
-		var reader = ByteStream.CreateReader( stringData );
+		using var reader = ByteStream.CreateReader( stringData );
 		int totalLength = 0;
 
 		for ( int i = 0; i < 512; i++ )

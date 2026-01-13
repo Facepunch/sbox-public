@@ -148,9 +148,10 @@ public partial class ComponentSheet : Widget
 		if ( !TryDragComponent( ev, out var component, out var moveDelta ) )
 			return;
 
-		using var scene = SceneEditorSession.Scope();
+		var session = SceneEditorSession.Resolve( component );
+		using var scene = session.Scene.Push();
 
-		using ( SceneEditorSession.Active.UndoScope( "Change Component Order" ).WithGameObjectChanges( component.GameObject, GameObjectUndoFlags.Components ).Push() )
+		using ( session.UndoScope( "Change Component Order" ).WithGameObjectChanges( component.GameObject, GameObjectUndoFlags.Components ).Push() )
 		{
 			component.Components.Move( component, moveDelta );
 		}
@@ -256,9 +257,9 @@ public partial class ComponentSheet : Widget
 		if ( ViewMode == ComponentViewMode.Events && !hideInEventTab ) return false;
 		if ( ViewMode != ComponentViewMode.Events && hideInEventTab ) return false;
 
+		if ( o.HasAttribute<AdvancedAttribute>() && showAdvanced == false ) return false;
 		if ( o.IsMethod ) return true;
 		if ( o.HasAttribute<PropertyAttribute>() == false ) return false;
-		if ( o.HasAttribute<AdvancedAttribute>() && showAdvanced == false ) return false;
 
 		return true;
 	}

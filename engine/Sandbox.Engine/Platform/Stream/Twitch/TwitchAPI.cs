@@ -38,13 +38,14 @@ namespace Sandbox.Twitch
 			}
 		}
 
-		internal Task<HttpResponseMessage> Post( string request, string json )
+		internal async Task<HttpResponseMessage> Post( string request, string json )
 		{
 			var url = $"{ApiUrl}{request}";
 
 			try
 			{
-				return Http.PostAsync( url, new StringContent( json, Encoding.UTF8, "application/json" ) );
+				using var content = new StringContent( json, Encoding.UTF8, "application/json" );
+				return await Http.PostAsync( url, content );
 			}
 			catch
 			{
@@ -52,13 +53,14 @@ namespace Sandbox.Twitch
 			}
 		}
 
-		internal Task<HttpResponseMessage> Put( string request, string json )
+		internal async Task<HttpResponseMessage> Put( string request, string json )
 		{
 			var url = $"{ApiUrl}{request}";
 
 			try
 			{
-				return Http.PutAsync( url, new StringContent( json, Encoding.UTF8, "application/json" ) );
+				using var content = new StringContent( json, Encoding.UTF8, "application/json" );
+				return await Http.PutAsync( url, content );
 			}
 			catch
 			{
@@ -66,13 +68,14 @@ namespace Sandbox.Twitch
 			}
 		}
 
-		internal Task<HttpResponseMessage> Patch( string request, string json )
+		internal async Task<HttpResponseMessage> Patch( string request, string json )
 		{
 			var url = $"{ApiUrl}{request}";
 
 			try
 			{
-				return Http.PatchAsync( url, new StringContent( json, Encoding.UTF8, "application/json" ) );
+				using var content = new StringContent( json, Encoding.UTF8, "application/json" );
+				return await Http.PatchAsync( url, content );
 			}
 			catch
 			{

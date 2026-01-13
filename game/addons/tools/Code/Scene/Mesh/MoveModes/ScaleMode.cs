@@ -35,6 +35,7 @@ public sealed class ScaleMode : MoveMode
 		using ( Gizmo.Scope( "Tool", new Transform( _origin ) ) )
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
+			Gizmo.Hitbox.CanInteract = CanUseGizmo;
 
 			if ( Gizmo.Control.Scale( "scale", Vector3.Zero, out var delta, _basis ) )
 			{

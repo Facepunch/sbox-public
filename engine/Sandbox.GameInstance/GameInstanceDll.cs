@@ -437,7 +437,12 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			//
 			using ( Performance.Scope( "GameFrame" ) )
 			{
-				RunGameFrame( scene );
+				// The old scene could be invalid here as a network message may end
+				// up destroying it (such as changing a scene)
+				if ( scene.IsValid() )
+				{
+					RunGameFrame( scene );
+				}
 			}
 
 			Networking.PostFrameTick();
@@ -451,8 +456,11 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			Services.Achievements.Tick();
 		}
 
-		// Advance per frame scene metrics
-		TickSceneStats( scene );
+		if ( scene.IsValid() )
+		{
+			// Advance per frame scene metrics
+			TickSceneStats( scene );
+		}
 
 		Analytics.Tick();
 

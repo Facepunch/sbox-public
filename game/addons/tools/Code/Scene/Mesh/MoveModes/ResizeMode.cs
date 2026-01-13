@@ -31,6 +31,7 @@ public sealed class ResizeMode : MoveMode
 		using ( Gizmo.Scope( "box" ) )
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
+			Gizmo.Hitbox.CanInteract = CanUseGizmo;
 
 			if ( Gizmo.Control.BoundingBox( "resize", _box, out var outBox ) )
 			{

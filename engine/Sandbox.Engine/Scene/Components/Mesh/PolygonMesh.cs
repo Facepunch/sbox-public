@@ -1,4 +1,5 @@
 using HalfEdgeMesh;
+using System.Runtime.InteropServices;
 
 namespace Sandbox;
 
@@ -38,7 +39,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 	private class Submesh
 	{
-		public List<SimpleVertex> Vertices { get; init; } = new();
+		public List<MeshVertex> Vertices { get; init; } = new();
 		public List<int> Indices { get; init; } = new();
 		public List<float> UvDensity { get; set; } = new();
 		public Material Material { get; set; }
@@ -3263,7 +3264,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 			if ( indices.Count < 3 )
 				continue;
 
-			var bounds = BBox.FromPoints( vertices.Select( x => x.position ) );
+			var bounds = BBox.FromPoints( vertices.Select( x => x.Position ) );
 			var material = submesh.Material ?? DefaultMaterial;
 			var mesh = new Mesh( material );
 			mesh.CreateVertexBuffer( vertices.Count, vertices );
@@ -4152,6 +4153,116 @@ public sealed partial class PolygonMesh : IJsonConvert
 		return normal.Normal;
 	}
 
+	static void CalcTriangleTangentSpace( Vector3 p0, Vector3 p1, Vector3 p2, Vector2 t0, Vector2 t1, Vector2 t2, out Vector3 sVect, out Vector3 tVect )
+	{
+		const float eps = 1e-12f;
+
+		sVect = Vector3.Zero;
+		tVect = Vector3.Zero;
+
+		Vector3 edge01, edge02, cross;
+
+		edge01 = new Vector3( p1.x - p0.x, t1.x - t0.x, t1.y - t0.y );
+		edge02 = new Vector3( p2.x - p0.x, t2.x - t0.x, t2.y - t0.y );
+
+		cross = Vector3.Cross( edge01, edge02 );
+		if ( MathF.Abs( cross.x ) > eps )
+		{
+			sVect.x += -cross.y / cross.x;
+			tVect.x += -cross.z / cross.x;
+		}
+
+		edge01 = new Vector3( p1.y - p0.y, t1.x - t0.x, t1.y - t0.y );
+		edge02 = new Vector3( p2.y - p0.y, t2.x - t0.x, t2.y - t0.y );
+
+		cross = Vector3.Cross( edge01, edge02 );
+		if ( MathF.Abs( cross.x ) > eps )
+		{
+			sVect.y += -cross.y / cross.x;
+			tVect.y += -cross.z / cross.x;
+		}
+
+		edge01 = new Vector3( p1.z - p0.z, t1.x - t0.x, t1.y - t0.y );
+		edge02 = new Vector3( p2.z - p0.z, t2.x - t0.x, t2.y - t0.y );
+
+		cross = Vector3.Cross( edge01, edge02 );
+		if ( MathF.Abs( cross.x ) > eps )
+		{
+			sVect.z += -cross.y / cross.x;
+			tVect.z += -cross.z / cross.x;
+		}
+
+		if ( sVect.LengthSquared > 0.0f ) sVect = sVect.Normal;
+		if ( tVect.LengthSquared > 0.0f ) tVect = tVect.Normal;
+	}
+
+	bool ComputeTangentSpaceForFaceVertex( HalfEdgeHandle targetHalfEdge, out Vector3 tangentU, out Vector3 tangentV )
+	{
+		float collinearTolerance = MathF.Cos( 1.0f.DegreeToRadian() );
+
+		tangentU = Vector3.Zero;
+		tangentV = Vector3.Zero;
+
+		var face = Topology.GetFaceConnectedToHalfEdge( targetHalfEdge );
+		if ( face == FaceHandle.Invalid )
+			return false;
+
+		Span<Vector3> positions = stackalloc Vector3[3];
+		Span<Vector2> texcoords = stackalloc Vector2[3];
+
+		positions[0] = Positions[GetVertexConnectedToFaceVertex( targetHalfEdge )];
+		texcoords[0] = TextureCoord[targetHalfEdge];
+
+		var prevHalfEdge = FindPreviousVertexInFace( targetHalfEdge );
+		positions[1] = Positions[GetVertexConnectedToFaceVertex( prevHalfEdge )];
+		texcoords[1] = TextureCoord[prevHalfEdge];
+
+		var prevToTarget = (positions[0] - positions[1]).Normal;
+		var currentHalfEdge = GetNextVertexInFace( targetHalfEdge );
+		do
+		{
+			positions[2] = Positions[GetVertexConnectedToFaceVertex( currentHalfEdge )];
+			texcoords[2] = TextureCoord[currentHalfEdge];
+
+			var targetToCurrent = (positions[2] - positions[0]).Normal;
+			if ( Vector3.Dot( targetToCurrent, prevToTarget ) < collinearTolerance )
+				break;
+
+			currentHalfEdge = GetNextVertexInFace( currentHalfEdge );
+		}
+		while ( currentHalfEdge != targetHalfEdge );
+
+		CalcTriangleTangentSpace( positions[0], positions[1], positions[2], texcoords[0], texcoords[1], texcoords[2], out tangentU, out tangentV );
+
+		return true;
+	}
+
+	static void BuildBasis( Vector3 normal, out Vector3 tangent, out Vector3 bitangent )
+	{
+		tangent = Vector3.Cross( MathF.Abs( normal.z ) < 0.999f ? Vector3.Up : Vector3.Left, normal ).Normal;
+		bitangent = Vector3.Cross( normal, tangent );
+	}
+
+	static void CalcTangentAndFlipFromBasis( Vector3 inTangentU, Vector3 inTangentV, Vector3 normal, out Vector4 tangent )
+	{
+		var tangentU = inTangentU;
+		var tangentV = inTangentV;
+
+		if ( tangentU.Length < 1e-12f || tangentV.Length < 1e-12f )
+		{
+			BuildBasis( normal, out tangentU, out tangentV );
+		}
+
+		var crossUV = Vector3.Cross( tangentU, tangentV );
+		var isLeftHanded = Vector3.Dot( crossUV, normal ) < 0.0f;
+		var orthoU = Vector3.Cross( normal, tangentU );
+		var tangentFromU = Vector3.Cross( orthoU, normal ).Normal;
+		var tangentFromV = isLeftHanded ? Vector3.Cross( normal, tangentV ) : Vector3.Cross( tangentV, normal );
+		tangentFromV = tangentFromV.Normal;
+		var finalTangent = (tangentFromU + tangentFromV).Normal;
+		tangent = new Vector4( finalTangent.x, finalTangent.y, finalTangent.z, isLeftHanded ? -1.0f : 1.0f );
+	}
+
 	public HalfEdgeHandle GetOppositeHalfEdge( HalfEdgeHandle hEdge )
 	{
 		if ( !hEdge.IsValid )
@@ -4453,32 +4564,22 @@ public sealed partial class PolygonMesh : IJsonConvert
 		var uvDensity = submesh.UvDensity;
 		int startVertex = vertices.Count;
 		int startCollisionVertex = _meshVertices.Count;
-		var tangent = TextureUAxis[hFace].Normal;
-		var bitangent = TextureVAxis[hFace].Normal;
 
 		GetFaceVerticesConnectedToFace( hFace, out var faceEdges );
 
 		for ( var i = 0; i < faceEdges.Length; ++i )
 		{
-			var n = ComputeFaceVertexNormal( faceEdges[i] );
+			var faceEdge = faceEdges[i];
+			var normal = ComputeFaceVertexNormal( faceEdge );
+			ComputeTangentSpaceForFaceVertex( faceEdge, out var u, out var v );
+			CalcTangentAndFlipFromBasis( u, v, normal, out var tangent );
 
-			// Project the face U axis onto the tangent plane of the smoothed normal
-			var t = tangent - n * Vector3.Dot( n, tangent );
-
-			// Fix orientation so cross(N,T) aligns with the bitangent direction
-			var b = bitangent;
-			if ( b.LengthSquared > 1e-12f )
+			vertices.Add( new MeshVertex
 			{
-				var handed = Vector3.Dot( Vector3.Cross( n, t ), b.Normal );
-				if ( handed < 0.0f ) t = -t;
-			}
-
-			vertices.Add( new SimpleVertex
-			{
-				position = vertexPositions[i],
-				normal = n,
-				tangent = t,
-				texcoord = TextureCoord[faceEdges[i]],
+				Position = vertexPositions[i],
+				Normal = normal,
+				Tangent = tangent,
+				Texcoord = TextureCoord[faceEdge],
 			} );
 		}
 
@@ -4505,8 +4606,8 @@ public sealed partial class PolygonMesh : IJsonConvert
 			if ( c < 0 || c >= vertices.Count )
 				return;
 
-			var ab = vertices[b].position - vertices[a].position;
-			var ac = vertices[c].position - vertices[a].position;
+			var ab = vertices[b].Position - vertices[a].Position;
+			var ac = vertices[c].Position - vertices[a].Position;
 			var area = Vector3.Cross( ab, ac ).Length * 0.5f;
 
 			if ( area.AlmostEqual( 0.0f ) )
@@ -4523,7 +4624,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 			_meshIndices.Add( startCollisionVertex + faceIndices[triangle + 1] );
 			_meshIndices.Add( startCollisionVertex + faceIndices[triangle + 2] );
 
-			var areaUV = CalculateTriangleAreaUV( vertices[a].texcoord, vertices[b].texcoord, vertices[c].texcoord );
+			var areaUV = CalculateTriangleAreaUV( vertices[a].Texcoord, vertices[b].Texcoord, vertices[c].Texcoord );
 			if ( areaUV > 0.0f )
 				uvDensity.Add( MathF.Sqrt( area / areaUV ) );
 		}
@@ -4852,5 +4953,16 @@ public sealed partial class PolygonMesh : IJsonConvert
 		}
 
 		return orientation;
+	}
+
+	[StructLayout( LayoutKind.Sequential )]
+	struct MeshVertex( Vector3 position, Vector3 normal, Vector4 tangent, Vector2 texcoord, Color32 blend, Color32 color )
+	{
+		[VertexLayout.Position] public Vector3 Position = position;
+		[VertexLayout.Normal] public Vector3 Normal = normal;
+		[VertexLayout.Tangent] public Vector4 Tangent = tangent;
+		[VertexLayout.TexCoord] public Vector2 Texcoord = texcoord;
+		[VertexLayout.TexCoord( 4 )] public Color32 Blend = blend;
+		[VertexLayout.TexCoord( 5 )] public Color32 Color = color;
 	}
 }

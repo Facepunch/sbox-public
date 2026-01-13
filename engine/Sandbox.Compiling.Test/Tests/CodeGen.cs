@@ -230,6 +230,8 @@ namespace Generator
 			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = this, MethodIdentity = 1201362747, MethodName = \"ExpressionBodiedBroadcast\", TypeName = \"TestWrapCall\"" ), "Generated code should wrap expression bodied method" );
 			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = this, MethodIdentity = -1316352073, MethodName = \"TestWrappedInstanceCallReturnType\", TypeName = \"TestWrapCall\"" ), "Generated code should wrap instance method call with return type" );
 			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = null, MethodIdentity = 1168636003, MethodName = \"TestAsyncTaskCall\", TypeName = \"TestWrapCall\", IsStatic = true" ), "Generated code should wrap async Task method call" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "MethodName = \"MyGenericCall\", TypeName = \"TestWrapCall\", IsStatic = false, Attributes = __898531504__Attrs, GenericArguments = new[] { typeof(T) } }" ), "Generated code should include closed generic types" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "MethodName = \"MyGenericCallAsync\", TypeName = \"TestWrapCall\", IsStatic = false, Attributes = __1383690312__Attrs, GenericArguments = new[] { typeof(T) } }" ), "Generated code should include closed generic types when returning a Task" );
 		}
 
 		[TestMethod]
@@ -257,9 +259,10 @@ namespace Generator
 			var tree = compiler.SyntaxTrees.First();
 			System.Console.WriteLine( tree.GetText().ToString() );
 
-			Assert.IsTrue( tree.GetText().ToString().Contains( "return (bool)WrapGet.OnWrapGetStatic(new global::Sandbox.WrappedPropertyGet<bool> { Value = value, Object = null, IsStatic = true, TypeName = \"TestWrapGet\", PropertyName = \"StaticProperty\", MemberIdent = 2112852062, Attributes = __StaticProperty__Attrs });" ), "Generated code should wrap static property get accessor" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "return (bool)OnWrapGet(new global::Sandbox.WrappedPropertyGet<bool> { Value = value, Object = this, IsStatic = false, TypeName = \"TestWrapGet\", PropertyName = \"InstanceProperty\", MemberIdent = 1816497229, Attributes = __InstanceProperty__Attrs });" ), "Generated code should wrap instance property get accessor" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "return (bool)WrapGet.OnWrapGetStatic(new global::Sandbox.WrappedPropertyGet<bool> { Value = _repback__StaticProperty" ), "Generated code should wrap static property get accessor" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "return (bool)OnWrapGet(new global::Sandbox.WrappedPropertyGet<bool> { Value = _repback__InstanceProperty" ), "Generated code should wrap instance property get accessor" );
 			Assert.IsTrue( tree.GetText().ToString().Contains( "_repback__InstanceProperty= true;" ), "Generated code should copy initializer" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "return _repback__FieldKeywordProperty;" ), "Field keyword is replaced in getter with backing field name" );
 		}
 
 		[TestMethod]
@@ -271,6 +274,9 @@ namespace Generator
 
 			Assert.IsTrue( tree.GetText().ToString().Contains( "WrapSet.OnWrapSetStatic(new global::Sandbox.WrappedPropertySet<bool> { Value = value, Object = null, Setter = (v) =>" ), "Generated code should wrap static property set accessor" );
 			Assert.IsTrue( tree.GetText().ToString().Contains( "OnWrapSet(new global::Sandbox.WrappedPropertySet<bool> { Value = value, Object = this, Setter = (v) =>" ), "Generated code should wrap instance property set accessor" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "_repback__FieldKeywordProperty = value;" ), "Field keyword is replaced in setter with backing field name" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "get => _repback__FieldKeywordPropertyAuto" ), "Field keyword is replaced in auto-getter with backing field name" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "_repback__FieldKeywordPropertyAuto = value" ), "Field keyword is replaced in setter with auto-getter" );
 		}
 
 		[TestMethod]

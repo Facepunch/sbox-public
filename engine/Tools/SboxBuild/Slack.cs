@@ -65,7 +65,7 @@ internal static class Slack
 			DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
 		} );
 
-		var content = new StringContent( jsonContent, Encoding.UTF8, "application/json" );
+		using var content = new StringContent( jsonContent, Encoding.UTF8, "application/json" );
 
 		// Send the request
 		var response = await httpClient.PostAsync( webhookUrl, content );

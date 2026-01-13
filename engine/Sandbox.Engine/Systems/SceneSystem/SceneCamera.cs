@@ -721,7 +721,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 		OnPreRender( renderSize );
 
-		var setup = new CameraRenderer( "RenderToSwapChain", _cameraId );
+		using var setup = new CameraRenderer( "RenderToSwapChain", _cameraId );
 		setup.Configure( this, config );
 		setup.Native.Render( swapChain );
 	}
@@ -738,7 +738,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 		ConfigureView( in config );
 
-		var setup = new CameraRenderer( "RenderToTexture", _cameraId );
+		using var setup = new CameraRenderer( "RenderToTexture", _cameraId );
 		setup.Configure( this, config );
 		setup.Native.RenderToTexture( texture.native, Graphics.SceneView );
 	}
@@ -756,7 +756,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 		OnPreRender( renderSize );
 
-		var setup = new CameraRenderer( "RenderToBitmap", _cameraId );
+		using var setup = new CameraRenderer( "RenderToBitmap", _cameraId );
 		setup.Configure( this, config );
 
 		unsafe
@@ -795,6 +795,8 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 			setup.Native.CameraRotation = (Rotation * CubeRotations[i]).Angles();
 			setup.Native.RenderToCubeTexture( texture.native, i );
 		}
+
+		setup.Dispose();
 	}
 
 	private void RenderStereo( in ViewSetup config = default )
@@ -805,7 +807,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 			return;
 		}
 
-		var setup = new CameraRenderer( "RenderStereo", _cameraId );
+		using var setup = new CameraRenderer( "RenderStereo", _cameraId );
 		setup.Configure( this, config );
 
 		var n = setup.Native;

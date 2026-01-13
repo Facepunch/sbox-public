@@ -176,6 +176,7 @@ namespace Sandbox.SolutionGenerator
 				}
 
 				settings.SlangIncludePaths = shaderSearchPaths.ToArray();
+				settings.SlangWorkspaceFlavor = "vfx";
 
 				WriteTextIfChanged( Path.Combine( vscodePath, "settings.json" ), JsonSerializer.Serialize( settings, JsonWriteIndented ) );
 			}

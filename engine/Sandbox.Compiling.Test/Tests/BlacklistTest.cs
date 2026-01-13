@@ -14,7 +14,7 @@ public partial class BlacklistTest
 	public async Task DefaultCompilerFailsWhitelist()
 	{
 		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
-		var group = new CompileGroup( "TestWhitelist" );
+		using var group = new CompileGroup( "TestWhitelist" );
 
 		var compiler = group.GetOrCreateCompiler( "test" );
 		compiler.AddSourcePath( codePath );
@@ -32,7 +32,7 @@ public partial class BlacklistTest
 	public async Task CompilerWithWhitelistFails()
 	{
 		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
-		var group = new CompileGroup( "TestWhitelist" );
+		using var group = new CompileGroup( "TestWhitelist" );
 
 		var compilerSettings = new Compiler.Configuration();
 		compilerSettings.Whitelist = true;
@@ -52,7 +52,7 @@ public partial class BlacklistTest
 	public async Task CompilerWithoutWhitelistSucceeds()
 	{
 		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
-		var group = new CompileGroup( "TestWhitelist" );
+		using var group = new CompileGroup( "TestWhitelist" );
 
 		var compilerSettings = new Compiler.Configuration();
 		compilerSettings.Whitelist = false;
@@ -74,7 +74,7 @@ public partial class BlacklistTest
 		bool compileSuccessCallback = false;
 
 		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
 		var compilerSettings = new Compiler.Configuration();

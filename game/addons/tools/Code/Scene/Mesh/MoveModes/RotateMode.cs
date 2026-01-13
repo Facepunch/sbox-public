@@ -28,6 +28,7 @@ public sealed class RotateMode : MoveMode
 		using ( Gizmo.Scope( "Tool", new Transform( _origin, _basis ) ) )
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
+			Gizmo.Hitbox.CanInteract = CanUseGizmo;
 
 			if ( Gizmo.Control.Rotate( "rotation", out var angleDelta ) )
 			{

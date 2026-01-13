@@ -15,7 +15,7 @@ public partial class Bitmap
 		const int height = 512;
 
 		var imageData = new Half[width * height * 4];
-		var bitmap = new SKBitmap( width, height, SKColorType.RgbaF16, SKAlphaType.Unpremul );
+		using var bitmap = new SKBitmap( width, height, SKColorType.RgbaF16, SKAlphaType.Unpremul );
 		var ies = new IES();
 
 		try
@@ -99,7 +99,7 @@ public partial class Bitmap
 
 		public void ParseIESInfo( Stream stream )
 		{
-			var reader = new StreamReader( stream );
+			using var reader = new StreamReader( stream );
 			_ = reader.ReadLine();
 
 			// Read until tilt information, we don't care the metadata that's behind

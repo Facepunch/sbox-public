@@ -149,6 +149,7 @@ public struct SnapshotMsg
 	[Expose]
 	public struct GameObjectSystemData
 	{
+		public byte[] SnapshotData { get; set; }
 		public byte[] TableData { get; set; }
 		public int Type { get; set; }
 		public Guid Id { get; set; }

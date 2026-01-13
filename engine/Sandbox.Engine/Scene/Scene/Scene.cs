@@ -160,7 +160,10 @@ public partial class Scene : GameObject
 
 		Game.ActiveScene = this;
 
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// Disposed in DisposeAction
 		var timeScope = Time.Scope( TimeNow, TimeDelta );
+#pragma warning restore CA2000 // Dispose objects before losing scope
 
 		return DisposeAction.Create( () =>
 		{

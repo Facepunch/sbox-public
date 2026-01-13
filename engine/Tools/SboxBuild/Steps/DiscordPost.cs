@@ -52,7 +52,7 @@ internal class DiscordPostStep( string name, string message, string author ) : S
 				};
 
 				// Serialize and post
-				var content = new StringContent( JsonSerializer.Serialize( payload ), Encoding.UTF8, "application/json" );
+				using var content = new StringContent( JsonSerializer.Serialize( payload ), Encoding.UTF8, "application/json" );
 				var response = await client.PostAsync( hook, content );
 
 				if ( !response.IsSuccessStatusCode )

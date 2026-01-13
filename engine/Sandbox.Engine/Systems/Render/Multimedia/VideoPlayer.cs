@@ -340,7 +340,8 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 
 	internal void OnTextureCreatedInternal()
 	{
-		Texture.CopyFrom( Texture.FromNative( native.GetTexture() ) );
+		using var tex = Texture.FromNative( native.GetTexture() );
+		Texture.CopyFrom( tex );
 		Texture.IsLoaded = true;
 	}
 

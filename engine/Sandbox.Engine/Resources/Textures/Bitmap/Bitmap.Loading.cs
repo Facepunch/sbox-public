@@ -31,19 +31,9 @@ public partial class Bitmap
 			}
 		}
 
-		if ( CreateFromTgaBytes( data ) is { } tga )
-			return tga;
-
-		if ( CreateFromPsdBytes( data ) is { } psd )
-			return psd;
-
-		if ( CreateFromTifBytes( data ) is { } tif )
-			return tif;
-
-		if ( CreateFromIesBytes( data ) is { } ies )
-			return ies;
-
-		// don't know how to load this
-		return null;
+		return CreateFromTgaBytes( data )
+			?? CreateFromPsdBytes( data )
+			?? CreateFromTifBytes( data )
+			?? CreateFromIesBytes( data );
 	}
 }

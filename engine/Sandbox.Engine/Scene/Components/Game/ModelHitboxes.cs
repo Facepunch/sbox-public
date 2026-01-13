@@ -145,6 +145,7 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 			}
 			else
 			{
+				hitbox?.Dispose();
 				body.Remove();
 			}
 		}
