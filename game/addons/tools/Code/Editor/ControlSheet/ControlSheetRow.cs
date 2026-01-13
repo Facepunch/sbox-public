@@ -305,7 +305,7 @@ class ControlSheetRow : Widget
 
 		// Only show if we're editing in a game session
 		var session = SceneEditorSession.Resolve( component?.GameObject?.Scene );
-		if ( session is null )
+		if ( session is null || !session.IsPlaying )
 			return;
 
 		// try to find the version of this component in the editor session
