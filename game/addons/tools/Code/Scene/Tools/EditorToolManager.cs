@@ -188,6 +188,14 @@ public class EditorToolManager
 		}
 	}
 
+	public void DisposeAll()
+	{
+		previousHash = -1;
+		foreach ( var tool in ComponentTools )
+			tool?.Dispose();
+		ComponentTools.Clear();
+	}
+
 	/// <summary>
 	/// Switches to the named tool type next editor frame.
 	/// </summary>
