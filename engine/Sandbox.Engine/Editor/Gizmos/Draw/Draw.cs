@@ -137,7 +137,11 @@ public static partial class Gizmo
 			so.Flags.CastShadows = false;
 			so.Model = model;
 			so.ColorTint = Color;
-			so.Transform = tx;
+			if ( tx != so.Transform )
+			{
+				so.Transform = tx;
+				so.FinishBoneUpdate();
+			}
 
 			return so;
 		}
