@@ -64,7 +64,6 @@ namespace Sandbox.Generator
 
 		internal static void VisitProperty( ref PropertyDeclarationSyntax node, IPropertySymbol symbol, Worker master )
 		{
-			var generateBackingField = false;
 			var attributesToWrite = new List<string>();
 			var attributes = symbol.GetAttributes();
 			var originalNode = node;
@@ -99,14 +98,12 @@ namespace Sandbox.Generator
 			{
 				if ( w.Type.Contains( Flags.WrapPropertySet ) )
 				{
-					if ( HandleWrapSet( w.Attribute, w.Type, w.CallbackName, ref node, symbol, master ) )
-						generateBackingField = true;
+					HandleWrapSet( w.Attribute, w.Type, w.CallbackName, ref node, symbol, master );
 				}
 
 				if ( w.Type.Contains( Flags.WrapPropertyGet ) )
 				{
-					if ( HandleWrapGet( w.Attribute, w.Type, w.CallbackName, ref node, symbol, master ) )
-						generateBackingField = true;
+					HandleWrapGet( w.Attribute, w.Type, w.CallbackName, ref node, symbol, master );
 				}
 			}
 
@@ -114,15 +111,6 @@ namespace Sandbox.Generator
 			{
 				master.AddToCurrentClass( $"[global::Sandbox.SkipHotload] static readonly global::System.Attribute[] __{symbol.Name}__Attrs = new global::System.Attribute[] {{ {string.Join( ", ", attributesToWrite )} }};\n", false );
 			}
-
-			if ( !generateBackingField ) return;
-
-			var fieldName = originalNode.BackingFieldName();
-			var modifiers = originalNode.Modifiers.ToString();
-			var nodeType = originalNode.Type;
-
-			modifiers = modifiers.Replace( "public", "" ).Replace( "protected", "" ).Trim();
-			master.AddToCurrentClass( $"{modifiers} {nodeType} {fieldName}{originalNode.Initializer};\n", false );
 		}
 
 		private static void AddAttributeString( AttributeData attribute, List<string> list )
@@ -171,13 +159,13 @@ namespace Sandbox.Generator
 		}
 
 		#region Property Wrapping
-		private static bool HandleWrapSet( AttributeData attribute, Flags type, string callbackName, ref PropertyDeclarationSyntax node, IPropertySymbol symbol, Worker master )
+		private static void HandleWrapSet( AttributeData attribute, Flags type, string callbackName, ref PropertyDeclarationSyntax node, IPropertySymbol symbol, Worker master )
 		{
 			if ( symbol.IsStatic && !type.Contains( Flags.Static ) )
-				return false;
+				return;
 
 			if ( !symbol.IsStatic && !type.Contains( Flags.Instance ) )
-				return false;
+				return;
 
 			var typeToInvokeOn = symbol.ContainingType;
 			var methodToInvoke = callbackName;
@@ -196,7 +184,7 @@ namespace Sandbox.Generator
 				{
 					master.AddError( node.GetLocation(),
 						$"Unable to find {typeToLookFor} required for {attribute.AttributeClass?.Name}. Ensure that a fully qualified callback name is used." );
-					return false;
+					return;
 				}
 			}
 
@@ -205,12 +193,11 @@ namespace Sandbox.Generator
 				master.AddError( node.GetLocation(),
 					$"A method {callbackName}( WrappedPropertySet ) is required on {typeToInvokeOn?.Name}." );
 
-				return false;
+				return;
 			}
 
 			var propertyType = symbol.Type.FullName();
 			var accessors = new List<AccessorDeclarationSyntax>();
-			var backingFieldName = node.BackingFieldName();
 
 			var existingGetter = node.AccessorList?.Accessors.FirstOrDefault( a => a.Kind() == SyntaxKind.GetAccessorDeclaration );
 			var existingSetter = node.AccessorList?.Accessors.FirstOrDefault( a => a.Kind() == SyntaxKind.SetAccessorDeclaration );
@@ -218,63 +205,24 @@ namespace Sandbox.Generator
 			if ( existingSetter is null )
 			{
 				// There is no setter to wrap.
-				return false;
+				return;
 			}
-
-			// Check if ANY accessor uses the field keyword
-			var propertyUsesField = UsesFieldKeyword( existingGetter?.Body )
-				|| UsesFieldKeyword( existingGetter?.ExpressionBody )
-				|| UsesFieldKeyword( existingSetter?.Body )
-				|| UsesFieldKeyword( existingSetter?.ExpressionBody );
-
-			// Also need backing field for auto-properties
-			var getterIsAuto = existingGetter is not null && existingGetter.Body is null && existingGetter.ExpressionBody is null;
-			var setterIsAuto = existingSetter.Body is null && existingSetter.ExpressionBody is null;
-
-			var usesBackingField = propertyUsesField || getterIsAuto || setterIsAuto;
 
 			// GET accessor
 			if ( existingGetter is not null )
 			{
-				AccessorDeclarationSyntax get;
-
-				if ( getterIsAuto )
-				{
-					// Auto-getter: generate return backingField;
-					get = AccessorDeclaration( SyntaxKind.GetAccessorDeclaration )
-						.WithBody( Block( ReturnStatement( FieldExpression() ) ) )
-						.WithModifiers( existingGetter.Modifiers );
-				}
-				else if ( existingGetter.Body is not null )
-				{
-					var body = existingGetter.Body;
-
-					get = existingGetter.WithBody( body );
-				}
-				else
-				{
-					var expr = existingGetter.ExpressionBody.Expression;
-
-					get = existingGetter.WithExpressionBody( ArrowExpressionClause( expr ) );
-				}
-
-				accessors.Add( get );
+				accessors.Add( existingGetter );
 			}
 
 			// SET accessor
 			{
 				BlockSyntax setterInnerBody;
 
-				if ( setterIsAuto )
+				if ( existingSetter.ExpressionBody is not null )
 				{
-					// Auto-setter: generate backingField = value;
-					var assign = ExpressionStatement(
-						AssignmentExpression(
-							SyntaxKind.SimpleAssignmentExpression,
-							FieldExpression(),
-							IdentifierName( "value" ) ) );
+					var expr = existingSetter.ExpressionBody.Expression;
 
-					setterInnerBody = Block( assign );
+					setterInnerBody = Block( ExpressionStatement( expr ) );
 				}
 				else if ( existingSetter.Body is not null )
 				{
@@ -282,9 +230,14 @@ namespace Sandbox.Generator
 				}
 				else
 				{
-					var expr = existingSetter.ExpressionBody.Expression;
+					// Auto-setter: generate field = value;
+					var assign = ExpressionStatement(
+						AssignmentExpression(
+							SyntaxKind.SimpleAssignmentExpression,
+							FieldExpression(),
+							IdentifierName( "value" ) ) );
 
-					setterInnerBody = Block( ExpressionStatement( expr ) );
+					setterInnerBody = Block( assign );
 				}
 
 				var setterLambda = ParenthesizedLambdaExpression(
@@ -309,7 +262,7 @@ namespace Sandbox.Generator
 						SyntaxKind.SimpleAssignmentExpression,
 						IdentifierName( "Object" ),
 						symbol.IsStatic
-							? (ExpressionSyntax)LiteralExpression( SyntaxKind.NullLiteralExpression )
+							? LiteralExpression( SyntaxKind.NullLiteralExpression )
 							: ThisExpression() ),
 
 					AssignmentExpression(
@@ -376,17 +329,15 @@ namespace Sandbox.Generator
 				node = node.WithAccessorList( AccessorList( List( accessors ) ) )
 					.NormalizeWhitespace();
 			}
-
-			return false;
 		}
 
-		private static bool HandleWrapGet( AttributeData attribute, Flags type, string callbackName, ref PropertyDeclarationSyntax node, IPropertySymbol symbol, Worker master )
+		private static void HandleWrapGet( AttributeData attribute, Flags type, string callbackName, ref PropertyDeclarationSyntax node, IPropertySymbol symbol, Worker master )
 		{
 			if ( symbol.IsStatic && !type.Contains( Flags.Static ) )
-				return false;
+				return;
 
 			if ( !symbol.IsStatic && !type.Contains( Flags.Instance ) )
-				return false;
+				return;
 
 			var typeToInvokeOn = symbol.ContainingType;
 			var methodToInvoke = callbackName;
@@ -405,7 +356,7 @@ namespace Sandbox.Generator
 				{
 					master.AddError( node.GetLocation(),
 						$"Unable to find {typeToLookFor} required for {attribute.AttributeClass?.Name}. Ensure that a fully qualified callback name is used." );
-					return false;
+					return;
 				}
 			}
 
@@ -416,65 +367,24 @@ namespace Sandbox.Generator
 				master.AddError( node.GetLocation(),
 					$"A method {symbol.Type.Name} {methodToInvoke}( WrappedPropertyGet ) is required on {typeToInvokeOn?.Name}." );
 
-				return false;
+				return;
 			}
 
 			var accessors = new List<AccessorDeclarationSyntax>();
-			var backingFieldName = node.BackingFieldName();
 
 			var existingGetter = node.AccessorList?.Accessors.FirstOrDefault( a => a.Kind() == SyntaxKind.GetAccessorDeclaration );
 			var existingSetter = node.AccessorList?.Accessors.FirstOrDefault( a => a.Kind() == SyntaxKind.SetAccessorDeclaration );
 
 			if ( existingGetter is null )
 			{
-				// There is no setter to wrap.
-				return false;
+				// There is no getter to wrap.
+				return;
 			}
-
-			// Check if ANY accessor uses the field keyword
-			var propertyUsesField = UsesFieldKeyword( existingGetter?.Body )
-				|| UsesFieldKeyword( existingGetter?.ExpressionBody )
-				|| UsesFieldKeyword( existingSetter?.Body )
-				|| UsesFieldKeyword( existingSetter?.ExpressionBody );
-
-			// Also need backing field for auto-properties
-			var getterIsAuto = existingGetter.Body is null && existingGetter.ExpressionBody is null;
-			var setterIsAuto = existingSetter is not null && existingSetter.Body is null && existingSetter.ExpressionBody is null;
-
-			var usesBackingField = propertyUsesField || getterIsAuto || setterIsAuto;
 
 			// SET accessor
 			if ( existingSetter is not null )
 			{
-				AccessorDeclarationSyntax set;
-
-				if ( setterIsAuto )
-				{
-					// Auto-setter: generate backingField = value;
-					var assign = ExpressionStatement(
-						AssignmentExpression(
-							SyntaxKind.SimpleAssignmentExpression,
-							FieldExpression(),
-							IdentifierName( "value" ) ) );
-
-					set = AccessorDeclaration( SyntaxKind.SetAccessorDeclaration )
-						.WithBody( Block( assign ) )
-						.WithModifiers( existingSetter.Modifiers );
-				}
-				else if ( existingSetter.Body is not null )
-				{
-					var body = existingSetter.Body;
-
-					set = existingSetter.WithBody( body );
-				}
-				else
-				{
-					var expr = existingSetter.ExpressionBody.Expression;
-
-					set = existingSetter.WithExpressionBody( ArrowExpressionClause( expr ) );
-				}
-
-				accessors.Add( set );
+				accessors.Add( existingSetter );
 			}
 
 			// GET accessor
@@ -482,10 +392,9 @@ namespace Sandbox.Generator
 				var statements = new List<StatementSyntax>();
 				ExpressionSyntax defaultValueExpression;
 
-				if ( getterIsAuto )
+				if ( existingGetter.ExpressionBody is not null )
 				{
-					// Auto-getter: use the backing field directly
-					defaultValueExpression = FieldExpression();
+					defaultValueExpression = existingGetter.ExpressionBody.Expression;
 				}
 				else if ( existingGetter.Body is not null )
 				{
@@ -502,8 +411,8 @@ namespace Sandbox.Generator
 				}
 				else
 				{
-					var expr = existingGetter.ExpressionBody.Expression;
-					defaultValueExpression = expr;
+					// Auto-getter: use the backing field directly
+					defaultValueExpression = FieldExpression();
 				}
 
 				var memberIdentity = $"{symbol.ContainingType.GetFullMetadataName().Replace( "global::", "" )}.{symbol.Name}";
@@ -522,7 +431,7 @@ namespace Sandbox.Generator
 						SyntaxKind.SimpleAssignmentExpression,
 						IdentifierName( "Object" ),
 						symbol.IsStatic
-							? (ExpressionSyntax)LiteralExpression( SyntaxKind.NullLiteralExpression )
+							? LiteralExpression( SyntaxKind.NullLiteralExpression )
 							: ThisExpression() ),
 
 					AssignmentExpression(
@@ -582,26 +491,8 @@ namespace Sandbox.Generator
 				node = node.WithAccessorList( AccessorList( List( accessors ) ) )
 					.NormalizeWhitespace();
 			}
-
-			return false;
 		}
 		#endregion
-
-		private static bool UsesFieldKeyword( SyntaxNode node )
-		{
-			if ( node is null ) return false;
-
-			return node.DescendantNodesAndSelf()
-				.Any( n => n.IsKind( SyntaxKind.FieldExpression ) );
-		}
-
-		private static SyntaxNode ReplaceFieldKeyword( SyntaxNode node, string backingFieldName )
-		{
-			return node?.ReplaceNodes(
-				node.DescendantNodesAndSelf()
-					.Where( n => n.IsKind( SyntaxKind.FieldExpression ) ),
-				( original, _ ) => IdentifierName( backingFieldName ) );
-		}
 
 		#region Method Wrapping
 
@@ -667,7 +558,7 @@ namespace Sandbox.Generator
 					SyntaxKind.SimpleAssignmentExpression,
 					IdentifierName( "Object" ),
 					symbol.IsStatic
-						? (ExpressionSyntax)LiteralExpression( SyntaxKind.NullLiteralExpression )
+						? LiteralExpression( SyntaxKind.NullLiteralExpression )
 						: ThisExpression() ),
 
 				AssignmentExpression(
