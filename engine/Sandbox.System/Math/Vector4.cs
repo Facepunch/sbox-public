@@ -397,9 +397,6 @@ public struct Vector4 : System.IEquatable<Vector4>, IParsable<Vector4>,
 	public static Vector4 operator +( Vector4 c1, Vector4 c2 ) => System.Numerics.Vector4.Add( c1._vec, c2._vec );
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	public static Vector4 operator +( in Vector4 c1, in Vector4 c2 ) => System.Numerics.Vector4.Add( c1._vec, c2._vec );
-
-	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	public static Vector4 operator -( Vector4 c1, Vector4 c2 ) => System.Numerics.Vector4.Subtract( c1._vec, c2._vec );
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
