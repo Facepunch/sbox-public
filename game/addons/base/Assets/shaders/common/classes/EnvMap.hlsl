@@ -2,29 +2,32 @@
 #define ENVIRONMENTMAPPING_HLSL
 
 #include "vr_environment_map.fxc"
+#include "common/lightbinner.hlsl"
 
 float3 CalcParallaxReflectionCubemapLocal(float3 vPositionWs, float3 vNormalWs, uint nEnvMap);
 
 class EnvMap
 {
     // Computes the environment map color contribution
-    static float3 From(float3 WorldPosition, float2 ScreenPosition, float3 WorldNormal, float2 Roughness = 0.0f)
+    static float3 From(float3 WorldPosition, float3 WorldNormal, float2 Roughness = 0.0f)
     {
-        
         float flDistAccumulated = 0.0f;
         float3 vColor = float3(0.0f, 0.0f, 0.0f);
-        
-        // Determine the tile based on screen position
-        const uint2 vTile = GetTileForScreenPosition(ScreenPosition.xy);
-        
+
+        ClusterRange range = Cluster::Query( ClusterItemType_EnvMap, WorldPosition );
+        if ( range.Count == 0 )
+        {
+            return vColor;
+        }
+
         // Which mip level of the environment map to sample
         const float2 vLevel = sqrt(Roughness.xy);
 
         // Accumulate contributions from each environment map
-        for (uint i = 0; i < GetNumEnvMaps(vTile); i++)
+        for (uint i = 0; i < range.Count; i++)
         {
             // Get the environment map index
-            const uint index = TranslateEnvMapIndex(i, vTile);
+            const uint index = Cluster::LoadItem( range, i );
 
             // Transform world position to local cubemap space
             const float3 vCubePos = mul(float4(WorldPosition.xyz, 1.0f), EnvMapWorldToLocal(index)).xyz;
@@ -68,15 +71,6 @@ class EnvMap
         }
 
         return vColor;
-    }
-
-    static uint Count(uint2 ScreenPosition)
-    {
-        // Determine the tile based on screen position
-        const uint2 vTile = GetTileForScreenPosition(ScreenPosition.xy);
-
-        // Count the number of environment maps in the tile
-        return GetNumEnvMaps(vTile);
     }
 };
 

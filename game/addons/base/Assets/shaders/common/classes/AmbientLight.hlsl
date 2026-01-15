@@ -58,13 +58,18 @@ float3 AmbientLight::FromEnvMapProbe(float3 WorldPosition, float2 ScreenPosition
     float accumulatedDistance = 0.0f;
     float3 ambientLightColor = float3(0.0, 0.0, 0.0);
 
-    // Determine the tile based on screen position
-    const uint2 tile = GetTileForScreenPosition(ScreenPosition);
+    // Todo: all this shit could just use EnvMap::From( Roughness 1.0f ) just overgoing the parallax stuff
+    
+    ClusterRange range = Cluster::Query( ClusterItemType_EnvMap, WorldPosition );
+    if ( range.Count == 0 )
+    {
+        return lerp( ambientLightColor, AmbientLightColor.rgb, AmbientLightColor.a );
+    }
 
     // Iterate over environment maps in the tile
-    for (uint i = 0; i < GetNumEnvMaps(tile); i++)
+    for (uint i = 0; i < range.Count; i++)
     {
-        const uint index = TranslateEnvMapIndex(i, tile);
+        const uint index = Cluster::LoadItem( range, i );
 
         // Transform world position to environment map local space
         const float3 localPos = mul(float4(WorldPosition, 1.0f), EnvMapWorldToLocal(index)).xyz;

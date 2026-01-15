@@ -15,8 +15,7 @@ internal class Skybox3DPipeline
 	static ConcurrentQueue<Skybox3DPipeline> Pool = new();
 
 	LightbinnerLayer LightbinnerLayer { get; } = new();
-	//ClusteredCullingLayer ClusteredCullingLayer { get; } = new();
-	TiledCullingLayer TiledCullingLayer { get; } = new();
+	ClusteredCullingLayer ClusteredCullingLayer { get; } = new();
 
 	Skybox3DDepthPrepassLayer DepthPrepassLayer { get; } = new();
 	Skybox3DForwardLayer ForwardLayer { get; } = new();
@@ -52,11 +51,8 @@ internal class Skybox3DPipeline
 			LightbinnerLayer.Setup( pipelineAttributes );
 			LightbinnerLayer.AddToView( view, viewport );
 
-			//ClusteredCullingLayer.Setup( view, viewport );
-			//ClusteredCullingLayer.AddToView( view, viewport );
-
-			TiledCullingLayer.Setup( view );
-			TiledCullingLayer.AddToView( view, viewport );
+			ClusteredCullingLayer.Setup( view, viewport );
+			ClusteredCullingLayer.AddToView( view, viewport );
 		}
 
 		if ( DepthPrepass )

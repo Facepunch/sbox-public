@@ -81,7 +81,6 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		"game/core/shaders/common_samplers.fxc",
 		"game/core/shaders/descriptor_set_support.fxc",
 		"game/core/shaders/system.fxc",
-		"game/core/shaders/tiled_culling.hlsl",
 		"game/core/shaders/skinning_cs.shader",
 		"game/core/shaders/yuv_resolve.shader",
 		"game/core/shaders/sbox_pixel.fxc",

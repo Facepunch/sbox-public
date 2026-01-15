@@ -917,8 +917,8 @@ public enum SceneCameraDebugMode
 
 	[Title( "Shader IDs" ), Icon( "sell" )]
 	ShaderIDColor = 16,
-	[Title( "Tiled Rendering Lights" ), Icon( "view_module" )]
-	TiledRenderingQuads = 50,
+	[Title( "Clustered Light Culling" ), Icon( "scatter_plot" )]
+	ClusteredLightCulling = 50,
 
 	[Title( "Quad Overdraw" ), Icon( "signal_cellular_null" )]
 	QuadOverdraw = 100,
