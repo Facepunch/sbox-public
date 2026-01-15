@@ -242,22 +242,18 @@ namespace Sandbox.Generator
 				{
 					// Auto-getter: generate return backingField;
 					get = AccessorDeclaration( SyntaxKind.GetAccessorDeclaration )
-						.WithBody( Block( ReturnStatement( IdentifierName( backingFieldName ) ) ) )
+						.WithBody( Block( ReturnStatement( FieldExpression() ) ) )
 						.WithModifiers( existingGetter.Modifiers );
 				}
 				else if ( existingGetter.Body is not null )
 				{
-					var body = propertyUsesField
-						? (BlockSyntax)ReplaceFieldKeyword( existingGetter.Body, backingFieldName )
-						: existingGetter.Body;
+					var body = existingGetter.Body;
 
 					get = existingGetter.WithBody( body );
 				}
 				else
 				{
-					var expr = propertyUsesField
-						? (ExpressionSyntax)ReplaceFieldKeyword( existingGetter.ExpressionBody.Expression, backingFieldName )
-						: existingGetter.ExpressionBody.Expression;
+					var expr = existingGetter.ExpressionBody.Expression;
 
 					get = existingGetter.WithExpressionBody( ArrowExpressionClause( expr ) );
 				}
@@ -275,22 +271,18 @@ namespace Sandbox.Generator
 					var assign = ExpressionStatement(
 						AssignmentExpression(
 							SyntaxKind.SimpleAssignmentExpression,
-							IdentifierName( backingFieldName ),
+							FieldExpression(),
 							IdentifierName( "value" ) ) );
 
 					setterInnerBody = Block( assign );
 				}
 				else if ( existingSetter.Body is not null )
 				{
-					setterInnerBody = propertyUsesField
-						? (BlockSyntax)ReplaceFieldKeyword( existingSetter.Body, backingFieldName )
-						: existingSetter.Body;
+					setterInnerBody = existingSetter.Body;
 				}
 				else
 				{
-					var expr = propertyUsesField
-						? (ExpressionSyntax)ReplaceFieldKeyword( existingSetter.ExpressionBody.Expression, backingFieldName )
-						: existingSetter.ExpressionBody.Expression;
+					var expr = existingSetter.ExpressionBody.Expression;
 
 					setterInnerBody = Block( ExpressionStatement( expr ) );
 				}
@@ -382,12 +374,10 @@ namespace Sandbox.Generator
 				accessors.Add( set );
 
 				node = node.WithAccessorList( AccessorList( List( accessors ) ) )
-					.WithInitializer( null )
-					.WithSemicolonToken( Token( SyntaxKind.None ) )
 					.NormalizeWhitespace();
 			}
 
-			return usesBackingField;
+			return false;
 		}
 
 		private static bool HandleWrapGet( AttributeData attribute, Flags type, string callbackName, ref PropertyDeclarationSyntax node, IPropertySymbol symbol, Worker master )
@@ -464,7 +454,7 @@ namespace Sandbox.Generator
 					var assign = ExpressionStatement(
 						AssignmentExpression(
 							SyntaxKind.SimpleAssignmentExpression,
-							IdentifierName( backingFieldName ),
+							FieldExpression(),
 							IdentifierName( "value" ) ) );
 
 					set = AccessorDeclaration( SyntaxKind.SetAccessorDeclaration )
@@ -473,17 +463,13 @@ namespace Sandbox.Generator
 				}
 				else if ( existingSetter.Body is not null )
 				{
-					var body = propertyUsesField
-						? (BlockSyntax)ReplaceFieldKeyword( existingSetter.Body, backingFieldName )
-						: existingSetter.Body;
+					var body = existingSetter.Body;
 
 					set = existingSetter.WithBody( body );
 				}
 				else
 				{
-					var expr = propertyUsesField
-						? (ExpressionSyntax)ReplaceFieldKeyword( existingSetter.ExpressionBody.Expression, backingFieldName )
-						: existingSetter.ExpressionBody.Expression;
+					var expr = existingSetter.ExpressionBody.Expression;
 
 					set = existingSetter.WithExpressionBody( ArrowExpressionClause( expr ) );
 				}
@@ -499,13 +485,11 @@ namespace Sandbox.Generator
 				if ( getterIsAuto )
 				{
 					// Auto-getter: use the backing field directly
-					defaultValueExpression = IdentifierName( backingFieldName );
+					defaultValueExpression = FieldExpression();
 				}
 				else if ( existingGetter.Body is not null )
 				{
-					var body = propertyUsesField
-						? (BlockSyntax)ReplaceFieldKeyword( existingGetter.Body, backingFieldName )
-						: existingGetter.Body;
+					var body = existingGetter.Body;
 
 					var declarator = VariableDeclarator( Identifier( "getValue" ) )
 						.WithInitializer( EqualsValueClause( ParenthesizedLambdaExpression( body ) ) );
@@ -519,9 +503,7 @@ namespace Sandbox.Generator
 				else
 				{
 					var expr = existingGetter.ExpressionBody.Expression;
-					defaultValueExpression = propertyUsesField
-						? (ExpressionSyntax)ReplaceFieldKeyword( expr, backingFieldName )
-						: expr;
+					defaultValueExpression = expr;
 				}
 
 				var memberIdentity = $"{symbol.ContainingType.GetFullMetadataName().Replace( "global::", "" )}.{symbol.Name}";
@@ -598,12 +580,10 @@ namespace Sandbox.Generator
 				accessors.Add( get );
 
 				node = node.WithAccessorList( AccessorList( List( accessors ) ) )
-					.WithInitializer( null )
-					.WithSemicolonToken( Token( SyntaxKind.None ) )
 					.NormalizeWhitespace();
 			}
 
-			return usesBackingField;
+			return false;
 		}
 		#endregion
 
