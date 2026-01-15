@@ -65,7 +65,7 @@ file class MaterialIndex : Widget
 		revertButton.Enabled = HasOverride();
 		revertButton.Bind( "Enabled" ).From( HasOverride, null );
 
-		resourceWidget.Tint = Color.Red;
+		resourceWidget.Tint = Theme.TextLight;
 		resourceWidget.Bind( "Tint" ).From( () => HasOverride() ? Theme.Green : Color.Gray, null );
 	}
 

@@ -16,10 +16,10 @@ public sealed class Sharpen : BasePostProcess<Sharpen>
 	[Range( 0, 5 )]
 	[Property] public float TexelSize { get; set; } = 1;
 
+	private static readonly Material Shader = Material.FromShader( "shaders/postprocess/pp_sharpen.shader" );
+
 	public override void Render()
 	{
-		var shader = Material.FromShader( "shaders/postprocess/pp_sharpen.shader" );
-
 		float scale = GetWeighted( x => x.Scale );
 
 		if ( scale <= 0f )
@@ -28,7 +28,7 @@ public sealed class Sharpen : BasePostProcess<Sharpen>
 		Attributes.Set( "strength", scale );
 		Attributes.Set( "size", GetWeighted( x => x.TexelSize ) );
 
-		var blit = BlitMode.WithBackbuffer( shader, Stage.AfterPostProcess, 1 );
+		var blit = BlitMode.WithBackbuffer( Shader, Stage.AfterPostProcess, 1 );
 		Blit( blit, "Sharpen" );
 	}
 }

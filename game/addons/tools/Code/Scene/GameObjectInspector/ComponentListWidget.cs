@@ -270,7 +270,6 @@ public class ComponentListWidget : Widget
 			using var scene = session.Scene.Push();
 			using ( session.UndoScope( $"Remove {component.GetType().Name} Component" ).WithComponentDestructions( component ).Push() )
 			{
-				Log.Info( Game.ActiveScene.Name );
 				component.Destroy();
 			}
 		} );

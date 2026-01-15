@@ -15,6 +15,7 @@ partial class SceneNode : GameObjectNode
 	public override void OnPaint( VirtualWidget item )
 	{
 		var isEven = item.Row % 2 == 0;
+		var isHovered = item.Hovered;
 		var fullSpanRect = item.Rect;
 		fullSpanRect.Left = 0;
 		fullSpanRect.Right = TreeView.Width;
@@ -26,6 +27,12 @@ partial class SceneNode : GameObjectNode
 			Paint.DrawRect( fullSpanRect );
 
 			Paint.SetPen( Theme.TextControl );
+		}
+		else if ( isHovered )
+		{
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.SelectedBackground.WithAlpha( 0.25f ) );
+			Paint.DrawRect( fullSpanRect );
 		}
 		else if ( isEven )
 		{

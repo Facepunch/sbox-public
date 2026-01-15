@@ -27,6 +27,7 @@ QTabBar::tab {
 
 QTabBar::tab:hover {
 	color: $Text;
+	background-color: $SurfaceBackground;
 }
 
 QTabBar::tab:selected {

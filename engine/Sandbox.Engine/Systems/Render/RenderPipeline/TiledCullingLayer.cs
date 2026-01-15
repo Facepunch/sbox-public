@@ -21,7 +21,7 @@ internal class TiledCullingLayer : ProceduralRenderLayer
 	[ConVar( "r_tiled_rendering_conservative_culling", Help = "Use conservative near-z culling for tiled rendering.", Min = 0, Max = 1 )]
 	public static bool ConservativeCulling { get; set; }
 
-	private readonly ComputeShader _computeShader = new( "shaders/tiled_light_culling_cs.shader" );
+	private static readonly ComputeShader ComputeShader = new( "shaders/tiled_light_culling_cs.shader" );
 	private GpuBuffer _tiledLightBuffer;
 
 	public TiledCullingLayer()
@@ -78,7 +78,7 @@ internal class TiledCullingLayer : ProceduralRenderLayer
 		attributes.Set( "TiledLightBuffer", _tiledLightBuffer );
 		attributes.Set( "g_TiledLightBuffer", _tiledLightBuffer );
 
-		_computeShader.DispatchWithAttributes( attributes, numTilesWidth, numTilesHeight, CullingLightJobCount );
+		ComputeShader.DispatchWithAttributes( attributes, numTilesWidth, numTilesHeight, CullingLightJobCount );
 
 		RenderAttributes.Pool.Return( attributes );
 

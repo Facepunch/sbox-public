@@ -77,6 +77,8 @@ public sealed class ColorGrading : BasePostProcess<ColorGrading>
 	[ShowIf( nameof( ColorSpace ), ColorSpaceEnum.HSV )]
 	public Curve ValueCurve { get; set; } = new Curve( new Curve.Frame( 0.0f, 0.5f ), new Curve.Frame( 1.0f, 1.0f ) );
 
+	private static readonly Material Shader = Material.FromShader( "ColorGrading.shader" );
+
 	public override void Render()
 	{
 		var blendFactor = GetWeighted( x => x.BlendFactor );
@@ -110,7 +112,7 @@ public sealed class ColorGrading : BasePostProcess<ColorGrading>
 			ProcessCurve( ValueCurve, "V", Attributes );
 		}
 
-		var blit = BlitMode.WithBackbuffer( Material.FromShader( "ColorGrading.shader" ), Stage.AfterPostProcess, 4000, false );
+		var blit = BlitMode.WithBackbuffer( Shader, Stage.AfterPostProcess, 4000, false );
 		Blit( blit, "ColorGrading" );
 	}
 

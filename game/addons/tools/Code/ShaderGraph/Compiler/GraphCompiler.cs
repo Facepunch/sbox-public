@@ -489,7 +489,7 @@ public sealed partial class GraphCompiler
 
 		parameter.Result = ResultValue( value, name );
 
-		var options = new StringWriter();
+		using var options = new StringWriter();
 
 		// If we're an attribute, we don't care about the UI options
 		if ( isAttribute )

@@ -17,11 +17,12 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 	internal Dictionary<Guid, SpriteRenderer> Components = new();
 
-	private readonly ComputeShader SpriteComputeShader = new( "sprite/sprite_cs" );
-	private readonly ComputeShader SortComputeShader = new( "sort_cs" );
+	private static readonly ComputeShader SpriteComputeShader = new( "sprite/sprite_cs" );
+	private static readonly ComputeShader SortComputeShader = new( "sort_cs" );
+	private readonly RenderAttributes SortComputeShaderAttributes = new();
 	private readonly GpuBuffer<uint> SpriteAtomicCounter;
 
-	private readonly Material SpriteMaterial;
+	private static readonly Material SpriteMaterial = Material.FromShader( "sprite/sprite_ps.shader" );
 
 	internal Dictionary<Guid, SpriteGroup> SpriteGroups = [];
 
@@ -162,8 +163,6 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 	public SpriteBatchSceneObject( Scene scene ) : base( scene.SceneWorld )
 	{
-		SpriteMaterial = Material.FromShader( "sprite/sprite_ps.shader" );
-
 		InitializeSpriteMesh();
 
 		// GPU buffers
@@ -438,11 +437,11 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		if ( SpriteCount < 2 ) return;
 
 		// First we clear the buffers to prepare for sorting
-		SortComputeShader.Attributes.SetCombo( "D_CLEAR", 1 );
-		SortComputeShader.Attributes.Set( "SortBuffer", GPUSortingBuffer );
-		SortComputeShader.Attributes.Set( "DistanceBuffer", GPUDistanceBuffer );
-		SortComputeShader.Attributes.Set( "Count", CurrentBufferSize );
-		SortComputeShader.Dispatch( CurrentBufferSize, 1, 1 );
+		SortComputeShaderAttributes.SetCombo( "D_CLEAR", 1 );
+		SortComputeShaderAttributes.Set( "SortBuffer", GPUSortingBuffer );
+		SortComputeShaderAttributes.Set( "DistanceBuffer", GPUDistanceBuffer );
+		SortComputeShaderAttributes.Set( "Count", CurrentBufferSize );
+		SortComputeShader.DispatchWithAttributes( SortComputeShaderAttributes, CurrentBufferSize, 1, 1 );
 
 		Graphics.ResourceBarrierTransition( GPUSortingBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
 		Graphics.ResourceBarrierTransition( GPUDistanceBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
@@ -457,7 +456,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		Graphics.ResourceBarrierTransition( GPUDistanceBuffer, Sandbox.Rendering.ResourceState.Common );
 
 		// Sort
-		SortComputeShader.Attributes.SetCombo( "D_CLEAR", 0 );
+		SortComputeShaderAttributes.SetCombo( "D_CLEAR", 0 );
 
 		var x = Math.Min( CurrentBufferSize, MaxDimThreads );
 		var y = (CurrentBufferSize + MaxDimThreads - 1) / MaxDimThreads;
@@ -465,12 +464,12 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 		for ( var dim = 2; dim <= CurrentBufferSize; dim <<= 1 )
 		{
-			SortComputeShader.Attributes.Set( "Dim", dim );
+			SortComputeShaderAttributes.Set( "Dim", dim );
 
 			for ( var block = dim >> 1; block > 0; block >>= 1 )
 			{
-				SortComputeShader.Attributes.Set( "Block", block );
-				SortComputeShader.Dispatch( x, y, z );
+				SortComputeShaderAttributes.Set( "Block", block );
+				SortComputeShader.DispatchWithAttributes( SortComputeShaderAttributes, x, y, z );
 
 				// Make sure sort buffer is ready to use
 				Graphics.ResourceBarrierTransition( GPUSortingBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );

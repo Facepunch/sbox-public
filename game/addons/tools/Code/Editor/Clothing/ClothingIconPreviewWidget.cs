@@ -53,7 +53,7 @@ class ClothingIconPreviewWidget : Widget
 		int size = 512;
 		int upscale = 4;
 
-		var bitmap = new Bitmap( size * upscale, size * upscale );
+		using var bitmap = new Bitmap( size * upscale, size * upscale );
 		clothingSetup.Scene.Camera.RenderToBitmap( bitmap );
 
 		if ( asset.SaveToDisk( resource ) )
@@ -65,8 +65,8 @@ class ClothingIconPreviewWidget : Widget
 		var pngPath = root + iconInfo.Path;
 		System.IO.Directory.CreateDirectory( System.IO.Path.GetDirectoryName( pngPath ) );
 
-		bitmap = bitmap.Resize( size, size );
-		var outputData = bitmap.ToPng();
+		using var downsampledBitmap = bitmap.Resize( size, size );
+		var outputData = downsampledBitmap.ToPng();
 		System.IO.File.WriteAllBytes( pngPath, outputData );
 	}
 }
