@@ -120,6 +120,23 @@ public static partial class Http
 			throw new InvalidOperationException( $"Access to '{uri}' is not allowed." );
 		}
 
+		var userInfo = uri.UserInfo;
+		if ( !string.IsNullOrEmpty( userInfo ) )
+		{
+			var bytes = System.Text.Encoding.UTF8.GetBytes( userInfo );
+
+			headers ??= new Dictionary<string, string>();
+			headers["Authorization"] = $"Basic {Convert.ToBase64String( bytes )}";
+
+			var uriBuilder = new UriBuilder( uri )
+			{
+				UserName = string.Empty,
+				Password = string.Empty
+			};
+
+			uri = uriBuilder.Uri;
+		}
+
 		var request = new HttpRequestMessage( method, uri );
 		if ( headers != null )
 		{
