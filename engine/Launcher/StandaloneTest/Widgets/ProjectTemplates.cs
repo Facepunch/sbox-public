@@ -108,7 +108,7 @@ internal class ProjectTemplatesListView : ListView
 		var fg = Theme.Text;
 
 		if ( Paint.HasSelected )
-			fg = Theme.Blue;
+			fg = Theme.Text;
 
 		Paint.Antialiasing = true;
 		Paint.ClearPen();
@@ -116,7 +116,7 @@ internal class ProjectTemplatesListView : ListView
 		Paint.SetBrush( Theme.ButtonBackground.WithAlpha( 0.1f ) );
 
 		if ( Paint.HasSelected )
-			Paint.SetBrush( Theme.Blue.WithAlpha( 0.1f ) );
+			Paint.SetBrush( Theme.SelectedBackground );
 
 		Paint.DrawRect( r, 4.0f );
 
@@ -145,14 +145,11 @@ internal class ProjectTemplatesListView : ListView
 		// Middle bit
 		{
 			if ( Paint.HasSelected )
-				Paint.SetPen( Theme.Blue.WithAlpha( 1.0f ) );
+				Paint.SetPen( Theme.Text.WithAlpha( 1.0f ) );
 			else
 				Paint.SetPen( Theme.TextControl.WithAlpha( 0.5f ) );
 
 			r.Right = rect.Width;
-
-			x = Paint.DrawIcon( r, "info", 12.0f, TextFlag.LeftTop );
-			r.Left = x.Right + 4;
 
 			x = Paint.DrawText( r, template.Description, TextFlag.LeftTop );
 			r.Left = x.Right + 4;

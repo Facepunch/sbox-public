@@ -240,11 +240,13 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 		var snapshot = ((IDeltaSnapshot)this).WriteSnapshotState();
 
+		using var blobs = BlobDataSerializer.Capture();
 		var msg = new ObjectRefreshMsg
 		{
 			Guid = GameObject.Id,
 			Parent = GameObject.Parent.Id,
 			JsonData = GameObject.Serialize( _refreshSerializeOptions ).ToJsonString(),
+			BlobData = blobs.ToByteArray(),
 			TableData = WriteReliableData(),
 			Snapshot = system.DeltaSnapshots.GetFullSnapshotData( snapshot )
 		};
@@ -286,11 +288,13 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		{
 			var snapshot = ((IDeltaSnapshot)this).WriteSnapshotState();
 
+			using var blobs = BlobDataSerializer.Capture();
 			var msg = new ObjectRefreshDescendantMsg
 			{
 				GameObjectId = GameObject.Id,
 				ParentId = go.Parent.Id,
 				JsonData = go.Serialize( _refreshDescendantSerializeOptions ).ToJsonString(),
+				BlobData = blobs.ToByteArray(),
 				TableData = WriteReliableData(),
 				Snapshot = system.DeltaSnapshots.GetFullSnapshotData( snapshot )
 			};
@@ -321,9 +325,11 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		{
 			var snapshot = ((IDeltaSnapshot)this).WriteSnapshotState();
 
+			using var blobs = BlobDataSerializer.Capture();
 			var msg = new ObjectRefreshComponentMsg
 			{
 				JsonData = component.Serialize().ToJsonString(),
+				BlobData = blobs.ToByteArray(),
 				GameObjectId = component.GameObject.Id,
 				TableData = WriteReliableData(),
 				Snapshot = system.DeltaSnapshots.GetFullSnapshotData( snapshot )
@@ -596,6 +602,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			throw new( $"GameObject {GameObject.Id} ({GameObject.Name} has invalid parent" );
 		}
 
+		using var blobs = BlobDataSerializer.Capture();
 		var jsonData = GameObject.Serialize( _createSerializeOptions );
 		if ( jsonData is null )
 		{
@@ -608,6 +615,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			SnapshotVersion = GameObject._net.LocalSnapshotState.Version,
 			Transform = GameObject.Transform.TargetLocal,
 			JsonData = jsonData.ToJsonString(),
+			BlobData = blobs.ToByteArray(),
 			Creator = Creator,
 			Parent = GameObject.Parent.Id,
 			Owner = Owner,
@@ -671,14 +679,17 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		if ( !scene.IsValid() ) return;
 
 		var oldTransform = GameObject.Transform.TargetLocal;
-		var jsonObj = JsonNode.Parse( message.JsonData ).AsObject();
+		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
+		{
+			var jsonObj = JsonNode.Parse( message.JsonData ).AsObject();
 
-		// Only the host can modify network flags after the object has been spawned.
-		if ( !source.IsHost )
-			jsonObj.Remove( GameObject.JsonKeys.NetworkFlags );
+			// Only the host can modify network flags after the object has been spawned.
+			if ( !source.IsHost )
+				jsonObj.Remove( GameObject.JsonKeys.NetworkFlags );
 
-		GameObject.SetParentFromNetwork( scene.Directory.FindByGuid( message.Parent ) );
-		GameObject.NetworkRefresh( jsonObj );
+			GameObject.SetParentFromNetwork( scene.Directory.FindByGuid( message.Parent ) );
+			GameObject.NetworkRefresh( jsonObj );
+		}
 
 		UpdateFromRefresh( source, message.TableData, message.Snapshot );
 

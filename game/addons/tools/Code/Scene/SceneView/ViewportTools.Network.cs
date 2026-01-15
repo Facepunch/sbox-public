@@ -102,7 +102,7 @@ partial class ViewportTools
 
 	void SpawnDedicatedServer()
 	{
-		var p = new Process();
+		using var p = new Process();
 		p.StartInfo.FileName = "sbox-server.exe";
 		p.StartInfo.WorkingDirectory = Environment.CurrentDirectory;
 
@@ -116,7 +116,7 @@ partial class ViewportTools
 
 	void SpawnProcess()
 	{
-		var p = new Process();
+		using var p = new Process();
 		p.StartInfo.FileName = "sbox.exe";
 		p.StartInfo.WorkingDirectory = Environment.CurrentDirectory;
 		p.StartInfo.CreateNoWindow = true;

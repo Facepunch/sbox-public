@@ -12,6 +12,8 @@ public sealed class Blur : BasePostProcess<Blur>
 {
 	[Range( 0, 1 ), Property] public float Size { get; set; } = 1.0f;
 
+	private static readonly Material Shader = Material.FromShader( "shaders/postprocess/pp_blur.shader" );
+
 	public override void Render()
 	{
 		float size = GetWeighted( x => x.Size );
@@ -19,7 +21,7 @@ public sealed class Blur : BasePostProcess<Blur>
 
 		Attributes.Set( "size", size );
 
-		var blit = BlitMode.WithBackbuffer( Material.FromShader( "shaders/postprocess/pp_blur.shader" ), Stage.BeforePostProcess, 4000, true );
+		var blit = BlitMode.WithBackbuffer( Shader, Stage.BeforePostProcess, 4000, true );
 		Blit( blit, "Blur" );
 	}
 }

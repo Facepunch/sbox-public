@@ -39,6 +39,7 @@ public static partial class Json
 		options.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
 
 		options.Converters.Add( new JsonStringEnumConverter( null, true ) );
+		options.Converters.Add( new BinaryConvert() );
 		options.Converters.Add( new JsonConvertFactory() );
 		options.Converters.Add( new MovieResourceConverter() );
 		options.Converters.Add( new InterfaceConverterFactory() );
@@ -181,7 +182,8 @@ public static partial class Json
 			.Where( x => x.CanWrite )
 			.Where( x =>
 				x.SetMethod!.IsPublic && !x.HasAttribute( typeof( JsonIgnoreAttribute ) ) ||
-				x.HasAttribute( typeof( JsonIncludeAttribute ) ) )
+				x.HasAttribute( typeof( JsonIncludeAttribute ) ) ||
+				x.HasAttribute( typeof( PropertyAttribute ) ) )
 			.Select( x => (Name: x.GetCustomAttribute<JsonPropertyNameAttribute>() is { } jpna ? jpna.Name : x.Name, Property: x) )
 			.DistinctBy( x => x.Name, StringComparer.OrdinalIgnoreCase )
 			.ToDictionary( x => x.Name, x => x.Property, StringComparer.OrdinalIgnoreCase );
@@ -226,6 +228,7 @@ public static partial class Json
 	public static object FromNode( JsonNode node, Type type )
 	{
 		if ( node is null ) return default;
+
 		return node.Deserialize( type, options );
 	}
 
@@ -256,6 +259,7 @@ public static partial class Json
 
 			var value = property.GetValue( target );
 
+			// BinaryBlob types are handled automatically by BinaryBlobJsonConverter
 			var node = JsonSerializer.SerializeToNode( value, property.PropertyType, options );
 
 			var propName = property.Name;

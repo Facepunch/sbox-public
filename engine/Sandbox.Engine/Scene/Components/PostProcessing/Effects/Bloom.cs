@@ -34,6 +34,10 @@ public class Bloom : BasePostProcess<Bloom>
 
 	CommandList command = new CommandList();
 
+	private static readonly Material Shader = Material.FromShader( "postprocess_bloom.shader" );
+
+	private static readonly ComputeShader ShaderCs = new ComputeShader( "postprocess_bloom_cs" );
+
 	public override void Render()
 	{
 		if ( Strength == 0.0f || !UserEnabled )
@@ -62,14 +66,13 @@ public class Bloom : BasePostProcess<Bloom>
 		command.Attributes.Set( "BloomOut", bloomRt.ColorTexture );
 
 		// Dispatch compute at bloom RT size
-		var compute = new ComputeShader( "postprocess_bloom_cs" );
-		command.DispatchCompute( compute, bloomRt.Size );
+		command.DispatchCompute( ShaderCs, bloomRt.Size );
 
 		// Composite: sample the bloom texture in PS and apply selected mode
 		command.Attributes.Set( "BloomTexture", bloomRt.ColorTexture );
 		command.Attributes.Set( "CompositeMode", (int)Mode );
 
-		command.Blit( Material.FromShader( "postprocess_bloom.shader" ) );
+		command.Blit( Shader );
 
 		InsertCommandList( command, Stage.BeforePostProcess, 100, "Bloom" );
 	}

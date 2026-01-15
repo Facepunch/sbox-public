@@ -371,13 +371,26 @@ internal partial class NetworkSystem
 		//
 		if ( GameSystem is not null )
 		{
-			await GameSystem.SetSnapshotAsync( msg.Snapshot );
+			try
+			{
+				await GameSystem.SetSnapshotAsync( msg.Snapshot );
+			}
+			catch ( Exception e )
+			{
+				IGameInstanceDll.Current.Disconnect();
+				IMenuSystem.ShowServerError( "Disconnected", "Error Deserializing Snapshot" );
+				Log.Error( e );
+
+				return;
+			}
 		}
 
 		Log.Trace( $"[{this}] Finished loading snapshot" );
 
-		var output = new ClientReady();
-		output.HandshakeId = msg.HandshakeId;
+		var output = new ClientReady
+		{
+			HandshakeId = msg.HandshakeId
+		};
 
 		source.SendMessage( output );
 	}

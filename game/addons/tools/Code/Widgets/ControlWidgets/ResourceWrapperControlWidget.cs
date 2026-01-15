@@ -158,7 +158,14 @@ public sealed class ResourceWrapperControlWidget : ControlWidget
 		{
 			if ( generator.TargetType.IsAbstract ) continue;
 
-			AddOption( menu, generator.Title, generator.Icon, generator.ClassName );
+			var option = AddOption( menu, generator.Title, generator.Icon, generator.ClassName );
+			var description = generator.Description;
+
+			if ( !string.IsNullOrEmpty( description ) )
+			{
+				menu.ToolTipsVisible = true;
+				option.ToolTip = description;
+			}
 		}
 
 		menu.OpenNextTo( Button, WidgetAnchor.BottomEnd with { AdjustSize = true, ConstrainToScreen = true } );

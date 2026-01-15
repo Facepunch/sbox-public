@@ -183,7 +183,8 @@ public partial class GameObject
 		json.Add( JsonKeys.AlwaysTransmit, AlwaysTransmit );
 		json.Add( JsonKeys.OwnerTransfer, (int)OwnerTransfer );
 
-		if ( IsNestedPrefabInstanceRoot || (IsOutermostPrefabInstanceRoot && options.SerializePrefabForDiff) )
+		if ( (!options.SceneForNetwork && !options.SingleNetworkObject)
+				&& (IsNestedPrefabInstanceRoot || (IsOutermostPrefabInstanceRoot && options.SerializePrefabForDiff)) )
 		{
 			if ( options.SerializeForPrefabInstanceToPrefabUpdate && Parent is not null && Parent.IsOutermostPrefabInstanceRoot )
 			{

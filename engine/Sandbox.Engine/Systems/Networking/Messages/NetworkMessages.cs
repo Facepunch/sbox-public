@@ -143,6 +143,7 @@ public struct SnapshotMsg
 {
 	public double Time { get; set; }
 	public string SceneData { get; set; }
+	public byte[] BlobData { get; set; }
 	public List<object> NetworkObjects { get; init; }
 	public List<GameObjectSystemData> GameObjectSystems { get; set; }
 

@@ -347,6 +347,10 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		GameResource resource = Scene is PrefabScene prefabScene ? prefabScene.ToPrefabFile() : Scene.CreateSceneFile();
 		asset.SaveToDisk( resource );
 
+		// Update this scene's path
+		Scene.Source = resource;
+		Scene.Name = System.IO.Path.GetFileNameWithoutExtension( saveLocation );
+
 		HasUnsavedChanges = false;
 		EditorEvent.Run( "scene.saved", Active.Scene );
 
@@ -471,7 +475,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			var openingScene = Scene.CreateEditorScene();
 			using var _ = openingScene.Push();
 
-			openingScene.Name = sceneFile.ResourceName.ToTitleCase();
 			openingScene.Load( sceneFile );
 
 			var session = new SceneEditorSession( openingScene );
@@ -489,7 +492,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			var openingScene = PrefabScene.CreateForEditing();
 			using var _ = openingScene.Push();
 
-			openingScene.Name = prefabFile.ResourceName.ToTitleCase();
 			openingScene.Load( prefabFile );
 
 			var session = new PrefabEditorSession( openingScene );

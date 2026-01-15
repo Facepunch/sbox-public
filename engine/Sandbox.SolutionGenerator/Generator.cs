@@ -154,32 +154,6 @@ namespace Sandbox.SolutionGenerator
 			}
 
 			WriteTextIfChanged( solutionPath, slnx.Generate() );
-
-			// Some vscode files
-			{
-				var vscodePath = Path.Combine( projectPath, ".vscode" );
-
-				var extensions = new VSCodeExtensions { Recommendations = ["ms-dotnettools.csdevkit", "shader-slang.slang-language-extension"] };
-				WriteTextIfChanged( Path.Combine( vscodePath, "extensions.json" ), JsonSerializer.Serialize( extensions, JsonWriteIndented ) );
-
-				var settings = new VSCodeSettings();
-
-				// Don't use Unity's Shaderlab please
-				settings.FilesAssociations = new() { { "*.shader", "slang" }, { "*.hlsl", "slang" } };
-
-				var shaderSearchPaths = new List<string> { Path.Combine( relativePath, "core", "shaders" ) };
-
-				foreach ( var p in Projects )
-				{
-					var rootPath = Path.GetDirectoryName( p.SandboxProjectFilePath );
-					shaderSearchPaths.Add( Path.Combine( rootPath, "Assets", "shaders" ) );
-				}
-
-				settings.SlangIncludePaths = shaderSearchPaths.ToArray();
-				settings.SlangWorkspaceFlavor = "vfx";
-
-				WriteTextIfChanged( Path.Combine( vscodePath, "settings.json" ), JsonSerializer.Serialize( settings, JsonWriteIndented ) );
-			}
 		}
 
 		private static void WriteTextIfChanged( string path, string contents )

@@ -14,8 +14,6 @@ internal class BloomLayer : RenderLayer
 		ClearFlags = ClearFlags.Color;
 		Flags |= LayerFlags.NeedsPerViewLightingConstants;
 
-		Attributes.Set( "UseTiledRendering", false ); // We render at quarter res and with lighting and this fucks up the offsets of tiled rendering
-
 		ObjectFlagsRequired = SceneObjectFlags.EffectsBloomLayer;
 		ObjectFlagsExcluded = SceneObjectFlags.IsLight;
 	}

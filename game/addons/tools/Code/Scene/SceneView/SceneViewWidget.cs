@@ -377,8 +377,8 @@ file class EditorSubToolBarWidget : VerticalToolbarGroup
 	public EditorSubToolBarWidget( EditorTool tool ) : base( null, null, null )
 	{
 		_tool = tool;
-		FixedWidth = 32 + 4 + 4;
-		ContentMargins = 4;
+		FixedWidth = 32 + 4 + 1;
+		ContentMargins = 1;
 	}
 
 	public override void Build()

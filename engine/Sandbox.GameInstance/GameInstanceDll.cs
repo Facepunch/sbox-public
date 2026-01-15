@@ -456,11 +456,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			Services.Achievements.Tick();
 		}
 
-		if ( scene.IsValid() )
-		{
-			// Advance per frame scene metrics
-			TickSceneStats( scene );
-		}
+		// Advance per frame scene metrics
+		TickSceneStats( scene );
 
 		Analytics.Tick();
 

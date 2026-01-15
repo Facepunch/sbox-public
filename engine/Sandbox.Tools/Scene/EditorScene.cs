@@ -92,7 +92,6 @@ public static class EditorScene
 		var prefabScene = PrefabScene.CreateForEditing();
 		using ( prefabScene.Push() )
 		{
-			prefabScene.Name = resource.ResourceName.ToTitleCase();
 			prefabScene.Load( resource );
 
 			session = new PrefabEditorSession( prefabScene );

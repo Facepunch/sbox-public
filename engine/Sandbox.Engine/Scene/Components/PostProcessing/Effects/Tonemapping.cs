@@ -55,16 +55,16 @@ public class Tonemapping : BasePostProcess<Tonemapping>
 	[ShowIf( nameof( Mode ), TonemappingMode.HableFilmic )]
 	[Property, MakeDirty] public ExposureColorSpaceEnum ExposureMethod { get; set; } = ExposureColorSpaceEnum.RGB;
 
+	private static readonly Material Shader = Material.FromShader( "shaders/tonemapping/tonemapping.shader" );
+
 	public override void Render()
 	{
 		UpdateExposure( Camera );
 
-		var shader = Material.FromShader( "shaders/tonemapping/tonemapping.shader" );
-
 		Attributes.SetComboEnum( "D_TONEMAPPING", Mode );
 		Attributes.SetComboEnum( "D_EXPOSUREMETHOD", ExposureMethod );
 
-		var blit = BlitMode.WithBackbuffer( shader, Stage.Tonemapping, 0 );
+		var blit = BlitMode.WithBackbuffer( Shader, Stage.Tonemapping, 0 );
 		Blit( blit, "Tonemapping" );
 	}
 

@@ -53,6 +53,10 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 
 	CommandList command = new CommandList( "Depth Of Field" );
 
+	private static readonly ComputeShader ShaderCs = new ComputeShader( "postprocess_standard_dof_cs" );
+
+	private static readonly Material Shader = Material.FromShader( "postprocess_standard_dof.shader" );
+
 	public override void Render()
 	{
 		if ( Quality == 0 || (!BackBlur && !FrontBlur) )
@@ -67,8 +71,6 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 		float stepScale = StepScales[Quality.Clamp( 0, 3 )];
 
 		command.Reset();
-
-		var compute = new ComputeShader( "postprocess_standard_dof_cs" );
 
 		var downsample = 2;
 
@@ -108,19 +110,18 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 			command.Attributes.SetCombo( "D_DOF_TYPE", type );
 
 			command.Attributes.SetCombo( "D_PASS", BlurPasses.CircleOfConfusion );
-			command.DispatchCompute( compute, Vertical.Size );
+			command.DispatchCompute( ShaderCs, Vertical.Size );
 
 			command.Attributes.SetCombo( "D_PASS", BlurPasses.Blur );
-			command.DispatchCompute( compute, Vertical.Size );
+			command.DispatchCompute( ShaderCs, Vertical.Size );
 
 			command.Attributes.SetCombo( "D_PASS", BlurPasses.RhomboidBlur );
-			command.DispatchCompute( compute, Vertical.Size );
+			command.DispatchCompute( ShaderCs, Vertical.Size );
 
 			command.Attributes.SetCombo( "D_DOF_TYPE", type );
 			command.Attributes.SetCombo( "D_PASS", 0 );
 
-			var composite = Material.FromShader( "postprocess_standard_dof.shader" );
-			command.Blit( composite );
+			command.Blit( Shader );
 		}
 
 		InsertCommandList( command, Stage.AfterTransparent, 100, "Dof" );

@@ -166,4 +166,28 @@ public class StringExtensions
 	{
 		Assert.AreEqual( expected, path.WithExtension( ext ) );
 	}
+
+	[TestMethod]
+	public void NormalizeFilename_Defaults()
+	{
+		var result = "Path\\File.TXT".NormalizeFilename();
+		Assert.AreEqual( "/path/file.txt", result );
+	}
+
+	[DataTestMethod]
+	[DataRow( "", true, true, '/', "/" )]
+	[DataRow( "", false, true, '/', "" )]
+	[DataRow( "/already/normalized.txt", true, true, '/', "/already/normalized.txt" )]
+	[DataRow( "Path\\File.TXT", true, true, '/', "/path/file.txt" )]
+	[DataRow( "Folder\\Sub/File.TXT", false, true, '_', "folder_sub_file.txt" )]
+	[DataRow( "Mixed\\Path/File", false, false, '_', "Mixed_Path_File" )]
+	[DataRow( "\\Server\\Share\"Trailing", false, true, '/', "/server/share\"trailing" )]
+	[DataRow( "Assets/Textures/Hero.png", false, false, '/', "Assets/Textures/Hero.png" )]
+	[DataRow( "relative/path", true, true, '_', "_relative_path" )]
+	[DataRow( "relative/path", true, false, '.', ".relative.path" )]
+	public void NormalizeFilename_Variants( string input, bool enforceInitialSlash, bool enforceLowerCase, char separator, string expected )
+	{
+		var result = input.NormalizeFilename( enforceInitialSlash, enforceLowerCase, separator );
+		Assert.AreEqual( expected, result );
+	}
 }

@@ -149,7 +149,7 @@ class ImportHeightmapPopup : Widget
 	static Span<ushort> ResampleHeightmap( Span<ushort> original, int originalSize, int newSize )
 	{
 		// Create SKBitmap with the original data copied in
-		var bitmap = new SKBitmap( originalSize, originalSize, SKColorType.Alpha16, SKAlphaType.Opaque );
+		using var bitmap = new SKBitmap( originalSize, originalSize, SKColorType.Alpha16, SKAlphaType.Opaque );
 		using ( var pixmap = bitmap.PeekPixels() )
 		{
 			var dataBytes = MemoryMarshal.AsBytes( original );
@@ -157,7 +157,7 @@ class ImportHeightmapPopup : Widget
 		}
 
 		// Create new resized bitmap
-		var newBitmap = bitmap.Resize( new SKSizeI( newSize, newSize ), SKSamplingOptions.Default );
+		using var newBitmap = bitmap.Resize( new SKSizeI( newSize, newSize ), SKSamplingOptions.Default );
 
 		// Output pixels
 		using ( var pixmap = newBitmap.PeekPixels() )

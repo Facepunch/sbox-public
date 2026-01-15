@@ -19,14 +19,22 @@ internal static class VideoTextureLoader
 
 	internal static bool IsAppropriate( string url )
 	{
-		if ( !Uri.TryCreate( url, UriKind.Absolute, out var uri ) ) return false;
+		// Check if it's a web URL
+		if ( Uri.TryCreate( url, UriKind.Absolute, out var uri ) )
+		{
+			if ( uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps )
+			{
+				var split = url.Split( '?' )[0];
+				var extension = System.IO.Path.GetExtension( split );
+				return Extensions.Contains( extension );
+			}
 
-		if ( uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps ) return false;
+			return false;
+		}
 
-		var split = url.Split( '?' )[0];
-		var extension = System.IO.Path.GetExtension( split );
-
-		return Extensions.Contains( extension );
+		// Treat as local file path
+		var ext = System.IO.Path.GetExtension( url );
+		return Extensions.Contains( ext );
 	}
 
 	internal static Texture Load( BaseFileSystem filesystem, string filename, bool warnOnMissing )

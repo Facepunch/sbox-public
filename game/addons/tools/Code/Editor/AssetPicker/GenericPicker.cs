@@ -23,7 +23,7 @@ public class GenericPicker : AssetPicker
 	/// </summary>
 	public List<Asset> Assets { get; protected set; }
 
-	Button ConfirmButton;
+	internal Button ConfirmButton;
 	Button CancelButton;
 
 	public GenericPicker( Widget parent, List<AssetType> assetTypes, PickerOptions options ) : base( parent, null, options )
@@ -42,7 +42,7 @@ public class GenericPicker : AssetPicker
 		CreateUI( assetTypes );
 	}
 
-	private DockManager DockManager;
+	internal DockManager DockManager;
 
 	void CreateUI( List<AssetType> assetTypes )
 	{
@@ -132,13 +132,17 @@ public class GenericPicker : AssetPicker
 
 			Submit( assets.ToArray() );
 		}
-		else
+		else if ( CloudBrowser.Visible )
 		{
 			Package package = CloudBrowser.GetSelected<PackageEntry>().FirstOrDefault().Package;
 			if ( package is not null )
 			{
 				Submit( package );
 			}
+		}
+		else
+		{
+			Window.Close();
 		}
 	}
 

@@ -234,7 +234,7 @@ partial class ActionGraphView
 			.Where( x => x.Property is not null )
 			.ToArray();
 
-		var writer = new StringWriter();
+		using var writer = new StringWriter();
 
 		writer.WriteLine( $"Instances of {actionGraph.Guid}: {instances.Length}" );
 

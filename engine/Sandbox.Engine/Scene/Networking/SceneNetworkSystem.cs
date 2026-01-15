@@ -370,7 +370,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		using ( analytic.ScopeTimer( "SceneTime" ) )
 		{
+			using var blobs = BlobDataSerializer.Capture();
 			msg.SceneData = Game.ActiveScene.Serialize( _snapshotSerializeOptions ).ToJsonString();
+			msg.BlobData = blobs.ToByteArray();
 		}
 
 		using ( analytic.ScopeTimer( "NetworkObjectTime" ) )
@@ -530,6 +532,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		{
 			using var batchGroup = CallbackBatch.Batch();
+			using var blobs = BlobDataSerializer.LoadFromMemory( msg.BlobData );
 
 			if ( !string.IsNullOrWhiteSpace( msg.SceneData ) )
 			{
@@ -900,6 +903,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		using ( var _ = CallbackBatch.Batch() )
+		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
 		{
 			gameObject?.Deserialize( gameObjectJson, new GameObject.DeserializeOptions
 			{
@@ -968,6 +972,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		using ( var _ = CallbackBatch.Batch() )
+		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
 		{
 			component?.Deserialize( componentJson );
 		}
@@ -1031,9 +1036,12 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		{
 			foreach ( var msg in message.CreateMsgs )
 			{
-				var go = new GameObject();
-				go.Deserialize( JsonNode.Parse( msg.JsonData ).AsObject() );
-				go.NetworkSpawnRemote( msg );
+				using ( BlobDataSerializer.LoadFromMemory( msg.BlobData ) )
+				{
+					var go = new GameObject();
+					go.Deserialize( JsonNode.Parse( msg.JsonData ).AsObject() );
+					go.NetworkSpawnRemote( msg );
+				}
 			}
 		}
 	}
@@ -1055,6 +1063,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		var go = new GameObject();
 
 		using ( CallbackBatch.Batch() )
+		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
 		{
 			go.Deserialize( JsonNode.Parse( message.JsonData ).AsObject() );
 			go.NetworkSpawnRemote( message );
@@ -1256,6 +1265,7 @@ struct ObjectDestroyDescendantMsg
 struct ObjectRefreshDescendantMsg
 {
 	public string JsonData { get; set; }
+	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
 	public Guid ParentId { get; set; }
@@ -1270,6 +1280,7 @@ struct ObjectRefreshDescendantMsg
 struct ObjectRefreshComponentMsg
 {
 	public string JsonData { get; set; }
+	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
 	public Guid GameObjectId { get; set; }
@@ -1284,6 +1295,7 @@ struct ObjectRefreshComponentMsg
 struct ObjectRefreshMsg
 {
 	public string JsonData { get; set; }
+	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
 	public Guid Parent { get; set; }
@@ -1332,6 +1344,7 @@ struct ObjectCreateMsg
 {
 	public ushort SnapshotVersion { get; set; }
 	public string JsonData { get; set; }
+	public byte[] BlobData { get; set; }
 	public Transform Transform { get; set; }
 	public Guid Guid { get; set; }
 	public Guid Creator { get; set; }
