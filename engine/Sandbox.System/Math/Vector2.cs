@@ -11,7 +11,17 @@ using System.Text.Json.Serialization;
 /// </summary>
 [JsonConverter( typeof( Sandbox.Internal.JsonConvert.Vector2Converter ) )]
 [StructLayout( LayoutKind.Sequential )]
-public partial struct Vector2 : System.IEquatable<Vector2>, IParsable<Vector2>, IInterpolator<Vector2>
+public partial struct Vector2 : System.IEquatable<Vector2>, IParsable<Vector2>, IInterpolator<Vector2>,
+	System.Numerics.IAdditionOperators<Vector2, Vector2, Vector2>,
+	System.Numerics.IAdditiveIdentity<Vector2, Vector2>,
+	System.Numerics.ISubtractionOperators<Vector2, Vector2, Vector2>,
+	System.Numerics.IUnaryNegationOperators<Vector2, Vector2>,
+	System.Numerics.IMultiplyOperators<Vector2, Vector2, Vector2>,
+	System.Numerics.IMultiplyOperators<Vector2, float, Vector2>,
+	System.Numerics.IMultiplicativeIdentity<Vector2, Vector2>,
+	System.Numerics.IDivisionOperators<Vector2, Vector2, Vector2>,
+	System.Numerics.IDivisionOperators<Vector2, float, Vector2>,
+	System.Numerics.IEqualityOperators<Vector2, Vector2, bool>
 {
 	internal System.Numerics.Vector2 _vec;
 
@@ -598,6 +608,11 @@ public partial struct Vector2 : System.IEquatable<Vector2>, IParsable<Vector2>, 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	public readonly bool Equals( Vector2 o ) => (_vec) == (o._vec);
 	public readonly override int GetHashCode() => _vec.GetHashCode();
+	#endregion
+
+	#region identity
+	public static Vector2 AdditiveIdentity => Zero;
+	public static Vector2 MultiplicativeIdentity => One;
 	#endregion
 
 	/// <summary>

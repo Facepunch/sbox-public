@@ -7,7 +7,41 @@ using System.Text.Json.Serialization;
 
 [JsonConverter( typeof( Sandbox.Internal.JsonConvert.Vector2IntConverter ) )]
 [StructLayout( LayoutKind.Sequential )]
-public struct Vector2Int : IEquatable<Vector2Int>, IParsable<Vector2Int>
+public struct Vector2Int : IEquatable<Vector2Int>, IParsable<Vector2Int>,
+	System.Numerics.IAdditionOperators<Vector2Int, int, Vector2Int>,
+	System.Numerics.IAdditionOperators<Vector2Int, float, Vector2>,
+	System.Numerics.ISubtractionOperators<Vector2Int, int, Vector2Int>,
+	System.Numerics.ISubtractionOperators<Vector2Int, float, Vector2>,
+	System.Numerics.IMultiplyOperators<Vector2Int, int, Vector2Int>,
+	System.Numerics.IMultiplyOperators<Vector2Int, float, Vector2>,
+	System.Numerics.IDivisionOperators<Vector2Int, int, Vector2Int>,
+	System.Numerics.IDivisionOperators<Vector2Int, float, Vector2>,
+
+	System.Numerics.IAdditionOperators<Vector2Int, Vector2Int, Vector2Int>,
+	System.Numerics.ISubtractionOperators<Vector2Int, Vector2Int, Vector2Int>,
+	System.Numerics.IMultiplyOperators<Vector2Int, Vector2Int, Vector2Int>,
+	System.Numerics.IDivisionOperators<Vector2Int, Vector2Int, Vector2Int>,
+
+	System.Numerics.IAdditionOperators<Vector2Int, Vector2, Vector2>,
+	System.Numerics.ISubtractionOperators<Vector2Int, Vector2, Vector2>,
+	System.Numerics.IMultiplyOperators<Vector2Int, Vector2, Vector2>,
+	System.Numerics.IDivisionOperators<Vector2Int, Vector2, Vector2>,
+
+	System.Numerics.IAdditionOperators<Vector2Int, Vector3, Vector3>,
+	System.Numerics.ISubtractionOperators<Vector2Int, Vector3, Vector3>,
+	System.Numerics.IMultiplyOperators<Vector2Int, Vector3, Vector3>,
+	System.Numerics.IDivisionOperators<Vector2Int, Vector3, Vector3>,
+
+	System.Numerics.IAdditionOperators<Vector2Int, Vector4, Vector4>,
+	System.Numerics.ISubtractionOperators<Vector2Int, Vector4, Vector4>,
+	System.Numerics.IMultiplyOperators<Vector2Int, Vector4, Vector4>,
+	System.Numerics.IDivisionOperators<Vector2Int, Vector4, Vector4>,
+
+	System.Numerics.IUnaryNegationOperators<Vector2Int, Vector2Int>,
+
+	System.Numerics.IAdditiveIdentity<Vector2Int, Vector2Int>,
+	System.Numerics.IMultiplicativeIdentity<Vector2Int, Vector2Int>,
+	System.Numerics.IEqualityOperators<Vector2Int, Vector2Int, bool>
 {
 	/// <summary>
 	/// The X component of this integer vector.
@@ -212,13 +246,13 @@ public struct Vector2Int : IEquatable<Vector2Int>, IParsable<Vector2Int>
 	}
 
 	// Vector2Int x Vector3 Operators
-	public static Vector3 operator +( Vector3 c1, Vector2Int c2 )
-	{
-		return new Vector3( c1.x + c2.x, c1.y + c2.y, c1.z );
-	}
 	public static Vector3 operator +( Vector2Int c1, Vector3 c2 )
 	{
 		return new Vector3( c1.x + c2.x, c1.y + c2.y, c2.z );
+	}
+	public static Vector3 operator +( Vector3 c1, Vector2Int c2 )
+	{
+		return new Vector3( c1.x + c2.x, c1.y + c2.y, c1.z );
 	}
 	public static Vector3 operator -( Vector2Int c1, Vector3 c2 )
 	{
@@ -228,6 +262,22 @@ public struct Vector2Int : IEquatable<Vector2Int>, IParsable<Vector2Int>
 	{
 		return new Vector3( c1.x - c2.x, c1.y - c2.y, c1.z );
 	}
+	public static Vector3 operator *( Vector2Int c1, Vector3 c2 )
+	{
+		return new Vector3( c1.x * c2.x, c1.y * c2.y, c2.z );
+	}
+	public static Vector3 operator *( Vector3 c1, Vector2Int c2 )
+	{
+		return new Vector3( c1.x * c2.x, c1.y * c2.y, c1.z );
+	}
+	public static Vector3 operator /( Vector2Int c1, Vector3 c2 )
+	{
+		return new Vector3( c1.x / c2.x, c1.y / c2.y, c2.z );
+	}
+	public static Vector3 operator /( Vector3 c1, Vector2Int c2 )
+	{
+		return new Vector3( c1.x / c2.x, c1.y / c2.y, c1.z );
+	}
 
 
 	// Vector2Int x Vector4 Operators
@@ -235,7 +285,6 @@ public struct Vector2Int : IEquatable<Vector2Int>, IParsable<Vector2Int>
 	{
 		return new Vector4( c1.x + c2.x, c1.y + c2.y, c2.z, c2.w );
 	}
-
 	public static Vector4 operator +( Vector4 c1, Vector2Int c2 )
 	{
 		return new Vector4( c1.x + c2.x, c1.y + c2.y, c1.z, c1.w );
@@ -440,6 +489,11 @@ public struct Vector2Int : IEquatable<Vector2Int>, IParsable<Vector2Int>
 	public override bool Equals( object obj ) => obj is Vector2Int o && Equals( o );
 	public bool Equals( Vector2Int o ) => x == o.x && y == o.y;
 	public override int GetHashCode() => HashCode.Combine( x, y );
+	#endregion
+
+	#region identity
+	public static Vector2Int AdditiveIdentity => Zero;
+	public static Vector2Int MultiplicativeIdentity => One;
 	#endregion
 
 	/// <summary>

@@ -12,7 +12,17 @@ using System.Text.Json.Serialization;
 [DataContract]
 [JsonConverter( typeof( Sandbox.Internal.JsonConvert.Vector4Converter ) )]
 [StructLayout( LayoutKind.Explicit, Pack = 16, Size = 16 )]
-public struct Vector4 : System.IEquatable<Vector4>, IParsable<Vector4>
+public struct Vector4 : System.IEquatable<Vector4>, IParsable<Vector4>,
+	System.Numerics.IAdditionOperators<Vector4, Vector4, Vector4>,
+	System.Numerics.IAdditiveIdentity<Vector4, Vector4>,
+	System.Numerics.ISubtractionOperators<Vector4, Vector4, Vector4>,
+	System.Numerics.IUnaryNegationOperators<Vector4, Vector4>,
+	System.Numerics.IMultiplyOperators<Vector4, Vector4, Vector4>,
+	System.Numerics.IMultiplyOperators<Vector4, float, Vector4>,
+	System.Numerics.IMultiplicativeIdentity<Vector4, Vector4>,
+	System.Numerics.IDivisionOperators<Vector4, Vector4, Vector4>,
+	System.Numerics.IDivisionOperators<Vector4, float, Vector4>,
+	System.Numerics.IEqualityOperators<Vector4, Vector4, bool>
 {
 	[FieldOffset( 0 )]
 	internal System.Numerics.Vector4 _vec;
@@ -175,15 +185,6 @@ public struct Vector4 : System.IEquatable<Vector4>, IParsable<Vector4>
 	/// <param name="w">The override for W component.</param>
 	/// <returns>The new vector.</returns>
 	public readonly Vector4 WithW( float w ) => new Vector4( x, y, z, w );
-
-	#region operators
-	public float this[int index]
-	{
-		[MethodImpl( MethodImplOptions.AggressiveInlining )]
-		readonly get => _vec[index];
-		[MethodImpl( MethodImplOptions.AggressiveInlining )]
-		set => _vec[index] = value;
-	}
 
 	/// <summary>
 	/// Returns true if value on every axis is less than tolerance away from zero
@@ -383,27 +384,41 @@ public struct Vector4 : System.IEquatable<Vector4>, IParsable<Vector4>
 			sw ? w.SnapToGrid( gridSize ) : w );
 	}
 
+	#region operators
+	public float this[int index]
+	{
+		[MethodImpl( MethodImplOptions.AggressiveInlining )]
+		readonly get => _vec[index];
+		[MethodImpl( MethodImplOptions.AggressiveInlining )]
+		set => _vec[index] = value;
+	}
+
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	public static Vector4 operator +( Vector4 c1, Vector4 c2 ) => System.Numerics.Vector4.Add( c1._vec, c2._vec );
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	public static Vector4 operator +( in Vector4 c1, in Vector4 c2 ) => System.Numerics.Vector4.Add( c1._vec, c2._vec );
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	public static Vector4 operator -( in Vector4 c1, in Vector4 c2 ) => System.Numerics.Vector4.Subtract( c1._vec, c2._vec );
+	public static Vector4 operator -( Vector4 c1, Vector4 c2 ) => System.Numerics.Vector4.Subtract( c1._vec, c2._vec );
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	public static Vector4 operator *( in Vector4 c1, float f ) => System.Numerics.Vector4.Multiply( c1._vec, f );
+	public static Vector4 operator *( Vector4 c1, float f ) => System.Numerics.Vector4.Multiply( c1._vec, f );
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	public static Vector4 operator *( in Vector4 c1, in Vector4 c2 ) => System.Numerics.Vector4.Multiply( c1._vec, c2._vec );
+	public static Vector4 operator *( Vector4 c1, Vector4 c2 ) => System.Numerics.Vector4.Multiply( c1._vec, c2._vec );
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	public static Vector4 operator *( float f, in Vector4 c1 ) => System.Numerics.Vector4.Multiply( f, c1._vec );
+	public static Vector4 operator *( float f, Vector4 c1 ) => System.Numerics.Vector4.Multiply( f, c1._vec );
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	public static Vector4 operator /( in Vector4 c1, float f ) => System.Numerics.Vector4.Divide( c1._vec, f );
+	public static Vector4 operator /( Vector4 c1, Vector4 c2 ) => System.Numerics.Vector4.Divide( c1._vec, c2._vec );
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	public static Vector4 operator -( in Vector4 value ) => new Vector4( -value.x, -value.y, -value.z, -value.w );
+	public static Vector4 operator /( Vector4 c1, float f ) => System.Numerics.Vector4.Divide( c1._vec, f );
+
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	public static Vector4 operator -( Vector4 value ) => new Vector4( -value.x, -value.y, -value.z, -value.w );
 
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
@@ -436,6 +451,11 @@ public struct Vector4 : System.IEquatable<Vector4>, IParsable<Vector4>
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	public readonly bool Equals( Vector4 o ) => (_vec) == (o._vec);
 	public readonly override int GetHashCode() => _vec.GetHashCode();
+	#endregion
+
+	#region identity
+	public static Vector4 AdditiveIdentity => Zero;
+	public static Vector4 MultiplicativeIdentity => One;
 	#endregion
 
 
