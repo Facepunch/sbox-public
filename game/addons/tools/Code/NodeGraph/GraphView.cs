@@ -1185,12 +1185,10 @@ public class GraphView : GraphicsView, IGridSizeView
 
 		DeleteAllItems();
 
-		if ( _graph is not null )
-		{
-			BuildFromNodes( _graph.Nodes, true );
-			OnRebuild();
-		}
+		if ( _graph is not null ) BuildFromNodes( _graph.Nodes, true );
 
+		OnRebuild();
+		
 		RestoreViewFromCookie();
 	}
 
