@@ -1,0 +1,167 @@
+PauseModal.modal
+{
+	font-family: Poppins;
+	pointer-events: all;
+	font-size: 11px;
+	position: absolute;
+
+	> .inner
+	{
+		flex-direction: column;
+		background-color: transparent;
+		justify-content: center;
+		align-items: center;
+		width: 1920px;
+		height: 1280px;
+		position: relative;
+		padding: 4rem;
+		gap: 2rem;
+	}
+
+	&.hidden
+	{
+		opacity: 0;
+		pointer-events: none;
+	}
+}
+
+
+PauseModal.modal > .inner > .bottom-bar
+{
+	max-width: 1800px;
+	width: 100%;
+	gap: 2rem;
+	background-color: #111a;
+	backdrop-filter: blur( 20px );
+	padding: 2rem;
+	border-radius: 24px;
+
+	.left
+	{
+	}
+
+	.center
+	{
+		flex-grow: 1;
+		justify-content: center;
+		gap: 1rem;
+	}
+
+	.right
+	{
+		gap: 1rem;
+	}
+
+	button.button
+	{
+		width: auto;
+		font-size: 2rem;
+		font-weight: 700;
+		background-color: #fff3;
+		border-radius: 10px;
+		padding: 2rem 3rem;
+		opacity: 1;
+
+		.icon
+		{
+			font-size: 3rem;
+		}
+
+		&.circle
+		{
+			border-radius: 100px;
+			aspect-ratio: 1;
+			padding: 1rem;
+			align-items: center;
+			justify-content: center;
+			background-color: #575e6b;
+			color: #b5bdd6;
+
+			&:hover
+			{
+				background-color: #9dcc00;
+				color: #fff;
+			}
+
+			.icon
+			{
+				font-size: 3rem;
+			}
+		}
+
+		&.exit
+		{
+			background-color: #99004a;
+			color: #fffc;
+			text-shadow: 0px 0px 2px #0005;
+
+			&:hover
+			{
+				background-color: #cc0063;
+				color: #fff;
+			}
+		}
+
+		&.resume
+		{
+			flex-direction: row-reverse;
+			background-color: #006ccc;
+			color: #fffc;
+			text-shadow: 0px 0px 2px #0005;
+
+			&:hover
+			{
+				background-color: #08f;
+				color: #fff;
+			}
+		}
+	}
+}
+
+
+
+.options
+{
+	flex-direction: column;
+
+	font-size: 24px;
+	font-weight: bold;
+}
+
+button.button
+{
+	opacity: 0.5;
+	gap: 16px;
+	width: 300px;
+}
+
+button:hover
+{
+	opacity: 1;
+}
+
+PauseModal .tiles-container
+{
+	flex-grow: 1;
+	width: 100%;
+	gap: 2rem;
+
+	& > .left
+	{
+		width: 450px;
+		overflow: hidden;
+	}
+
+	& > .right
+	{
+		flex-grow: 1;
+		overflow: hidden;
+	}
+}
+
+.browser
+{
+	flex-grow: 1;
+	width: 100%;
+	height: 100%;
+}

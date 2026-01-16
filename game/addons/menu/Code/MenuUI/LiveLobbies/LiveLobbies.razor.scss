@@ -2,6 +2,7 @@ LiveLobbies
 {
 	flex-direction: column;
 	gap: 1rem;
+	width: 350px;
 }
 
 .entry
@@ -15,15 +16,7 @@ LiveLobbies
 	gap: 5px;
 }
 
-h2
-{
-	font-size: 2rem;
-	font-weight: 600;
-	color: #08f;
-	padding: 0 8px;
-	text-transform: lowercase;
-	flex-shrink: 0;
-}
+
 
 .lobby-list
 {

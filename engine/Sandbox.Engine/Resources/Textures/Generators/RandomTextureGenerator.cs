@@ -112,17 +112,15 @@ public class RandomTextureGenerator : TextureGenerator
 			return ValueTask.CompletedTask;
 		} );
 
-		var bitmap = new Bitmap( w, h, false );
+		using var bitmap = new Bitmap( w, h, false );
 		bitmap.SetPixels( pixels );
 
-		if ( ConvertHeightToNormals )
-		{
-			bitmap = bitmap.HeightmapToNormalMap( NormalScale );
-		}
+		using var normalMap = ConvertHeightToNormals ? bitmap.HeightmapToNormalMap( NormalScale ) : null;
+		var target = normalMap ?? bitmap;
 
 		ct.ThrowIfCancellationRequested();
 
-		return bitmap.ToTexture();
+		return target.ToTexture();
 	}
 
 	public static float IntToRandomFloat( long seed )

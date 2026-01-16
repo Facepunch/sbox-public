@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using System.IO;
 using System.Net.Http;
 
@@ -6,33 +7,35 @@ namespace Sandbox.TextureLoader;
 internal static class ImageUrl
 {
 	/// <summary>
-	/// For textures loaded from the web we want to keep them around a bit longer
+	/// Entries are cached on a sliding window, they will be released if not used for 10 minutes
 	/// </summary>
-	static CaseInsensitiveDictionary<Texture> Loaded = new();
+	static readonly MemoryCache _cache = new( new MemoryCacheOptions() );
 
 	internal static bool IsAppropriate( string url )
 	{
-		return url.StartsWith( "https://" ) || url.StartsWith( "http://" );
+		if ( !Uri.TryCreate( url, UriKind.Absolute, out var uri ) ) return false;
+
+		if ( uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps ) return false;
+
+		return true;
 	}
 
 	internal static Texture Load( string filename, bool warnOnMissing )
 	{
-		if ( Loaded.TryGetValue( filename, out var cachedTexture ) )
-		{
-			return cachedTexture;
-		}
-
 		try
 		{
-			//
-			// Create a 1x1 placeholder texture
-			//
-			var placeholder = Texture.Create( 1, 1 ).WithName( "httpimg-placeholder" ).WithData( new byte[4] { 0, 0, 0, 0 } ).Finish();
-			_ = placeholder.ReplacementAsync( LoadFromUrl( filename ) );
+			return _cache.GetOrCreate<Texture>( filename, entry =>
+			{
+				//
+				// Create a 1x1 placeholder texture
+				//
+				var placeholder = Texture.Create( 1, 1 ).WithName( "httpimg-placeholder" ).WithData( new byte[4] { 0, 0, 0, 0 } ).Finish();
+				_ = placeholder.ReplacementAsync( LoadFromUrl( filename ) );
+				placeholder.SetIdFromResourcePath( filename );
 
-			Loaded[filename] = placeholder;
-
-			return placeholder;
+				entry.SlidingExpiration = TimeSpan.FromMinutes( 10 );
+				return placeholder;
+			} );
 		}
 		catch ( System.Exception e )
 		{
@@ -52,7 +55,7 @@ internal static class ImageUrl
 		{
 			// I'd love to retry this multiple times, if it's a weird error that seems recoverable
 
-			var bytes = await HttpClient.GetByteArrayAsync( url );
+			var bytes = await Http.RequestBytesAsync( url );
 			Texture texture = null;
 			// decode in a thread
 			await Task.Run( () =>

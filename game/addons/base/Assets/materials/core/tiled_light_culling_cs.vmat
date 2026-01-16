@@ -1,6 +1,0 @@
-// THIS FILE IS AUTO-GENERATED
-
-Layer0
-{
-	shader "shaders/tiled_light_culling_cs.shader"
-}

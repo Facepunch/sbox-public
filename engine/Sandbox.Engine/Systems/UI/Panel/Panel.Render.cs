@@ -1,5 +1,4 @@
 ﻿using Sandbox.Rendering;
-using System.Runtime.InteropServices;
 
 namespace Sandbox.UI;
 
@@ -70,7 +69,12 @@ public partial class Panel
 
 			if ( bgBlendMode == BlendMode.Normal || ComputedStyle.BackgroundImage == null )
 			{
-				bgAttribs.SetComboEnum( "D_BLENDMODE", renderer.OverrideBlendMode );
+				BlendMode bm = bgBlendMode;
+
+				if ( bm == BlendMode.Normal && (ComputedStyle.BackgroundImage?.Flags.Contains( TextureFlags.PremultipliedAlpha ) ?? false) )
+					bm = BlendMode.PremultipliedAlpha;
+
+				bgAttribs.SetComboEnum( "D_BLENDMODE", bm );
 				bgAttribs.Set( "Texture", ComputedStyle.BackgroundImage );
 				Graphics.DrawQuad( rect, Material.UI.Box, color, bgAttribs );
 			}

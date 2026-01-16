@@ -34,15 +34,13 @@ struct Light
     // 1.0.
     float Visibility;
 
-    // Gets the light structure given the screen-space and world position and
-    // the light index.
-    static Light From( float2 vPositionSs, float3 vPositionWs, uint nLightIndex, float2 vLightMapUV = 0.0f );
-    
+    // Gets the light structure given the world position and the light index.
+    static Light From( float3 vPositionWs, uint nLightIndex, float2 vLightMapUV = 0.0f );
+
     // Number of lights in the current fragment.
-    static uint Count( float2 vPositionSs );
+    static uint Count( float3 vPositionWs );
 };
 
-//-----------------------------------------------------------------------------
 class DynamicLight : Light
 {
     BinnedLight LightData;
@@ -76,24 +74,29 @@ class DynamicLight : Light
     //
     // Creates the structure of a dynamic light from the current pixel input.
     //
-    static DynamicLight From( float2 vPositionSs, float3 vPositionWs, uint nLightIndex )
+    static DynamicLight From( float3 vPositionWs, uint nLightIndex )
     {
-        DynamicLight light;
+        DynamicLight light = (DynamicLight)0;
 
-        // Index of the dynamic light.
-        // Translates from the light index in the global array to the light index in the current tile.
-        nLightIndex = TranslateLightIndex( nLightIndex, GetTileForScreenPosition(vPositionSs.xy) );
+        ClusterRange range = Cluster::Query( ClusterItemType_Light, vPositionWs );
+        if ( range.Count == 0 )
+        {
+            return light;
+        }
 
-        light.Init( vPositionWs, DynamicLightConstantByIndex( nLightIndex ) );
+        uint clusterLocalIndex = min( nLightIndex, range.Count - 1 );
+        uint lightIndex = Cluster::LoadItem( range, clusterLocalIndex );
+
+        light.Init( vPositionWs, DynamicLightConstantByIndex( lightIndex ) );
         return light;
     }
 
     //
     // Number of lights in the current fragment.
     //
-    static uint Count( float2 vPositionSs )
+    static uint Count( float3 vPositionWs )
     {
-	    return GetNumLights( GetTileForScreenPosition( vPositionSs.xy ) );
+        return Cluster::Query( ClusterItemType_Light, vPositionWs ).Count;
     }
 
     //
@@ -257,20 +260,21 @@ class StaticLight : Light
 
 //-----------------------------------------------------------------------------
 
-static Light Light::From( float2 vPositionSs, float3 vPositionWs, uint nLightIndex, float2 vLightMapUV )
+static Light Light::From( float3 vPositionWs, uint nLightIndex, float2 vLightMapUV )
 {
-    if( nLightIndex < DynamicLight::Count( vPositionSs ) )
+    uint dynamicCount = DynamicLight::Count( vPositionWs );
+
+    if ( nLightIndex < dynamicCount )
     {
-        return DynamicLight::From( vPositionSs, vPositionWs, nLightIndex );
+        return DynamicLight::From( vPositionWs, nLightIndex );
     }
 
-    return StaticLight::From(vPositionWs, vLightMapUV, nLightIndex);
-    
+    return StaticLight::From( vPositionWs, vLightMapUV, nLightIndex - dynamicCount );
 }
 
-static uint Light::Count( float2 vPositionSs )
+static uint Light::Count( float3 vPositionWs )
 {
-    return DynamicLight::Count( vPositionSs ) + StaticLight::Count();
+    return DynamicLight::Count( vPositionWs ) + StaticLight::Count();
 }
 
 //-----------------------------------------------------------------------------

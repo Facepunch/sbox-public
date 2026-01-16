@@ -2,7 +2,7 @@
 
 namespace Sandbox;
 
-public partial class StartupWindow : BaseWindow
+public partial class StartupWindow : Window
 {
 	private Vector2 WindowSize => new Vector2( 600, 600 );
 
@@ -12,6 +12,8 @@ public partial class StartupWindow : BaseWindow
 
 	public StartupWindow()
 	{
+		Canvas = new Widget( this );
+
 		Size = WindowSize;
 		MaximumSize = WindowSize;
 		MinimumSize = WindowSize;
@@ -23,6 +25,8 @@ public partial class StartupWindow : BaseWindow
 		SetWindowIcon( Pixmap.FromFile( "logo_rounded.png" ) );
 
 		CreateUI();
+
+		StatusBar.Destroy();
 	}
 
 	public override void Show()
@@ -43,20 +47,20 @@ public partial class StartupWindow : BaseWindow
 
 	private void CreateUI()
 	{
-		Layout = Layout.Row();
+		Canvas.Layout = Layout.Row();
 
 		//
 		// Sidebar
 		//
 		{
-			var sidebar = Layout.Add( new SidebarWidget( this ), 1 );
+			var sidebar = Canvas.Layout.Add( new SidebarWidget( Canvas ), 1 );
 
 			{
-				var heading = sidebar.Add( new Widget( this ) { FixedHeight = 32 } );
+				var heading = sidebar.Add( new Widget( Canvas ) { FixedHeight = 32 } );
 				heading.Layout = Layout.Row();
 
 				var headingRow = heading.Layout;
-				headingRow.Add( new LogoWidget( this ) );
+				headingRow.Add( new LogoWidget( Canvas ) );
 			}
 
 			sidebar.AddSpacer();
@@ -96,8 +100,8 @@ public partial class StartupWindow : BaseWindow
 		// Body
 		//
 		{
-			Body = Layout.AddColumn( 3 );
-			Body.Add( new HomeWidget( this ), 1 );
+			Body = Canvas.Layout.AddColumn( 3 );
+			Body.Add( new HomeWidget( Canvas ), 1 );
 		}
 	}
 

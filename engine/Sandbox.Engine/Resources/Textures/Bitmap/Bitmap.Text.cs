@@ -9,7 +9,7 @@ public partial class Bitmap
 	/// </summary>
 	public void DrawText( TextRendering.Scope scope, Rect rect, TextFlag flags = TextFlag.Center )
 	{
-		using var block = new TextRendering.TextBlock( scope, new Vector2( 0, 0 ), flags, FontSmooth.Always );
+		using var block = new TextRendering.TextBlock( scope, new Vector2( 0, 0 ), flags );
 		block.Render( _canvas, rect );
 	}
 }

@@ -14,7 +14,7 @@ public partial class CompilerTest
 		bool compileSuccessCallback = false;
 
 		var codePath = System.IO.Path.GetFullPath( "data/code/base" );
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
 		var compilerSettings = new Compiler.Configuration();
@@ -52,14 +52,14 @@ public partial class CompilerTest
 		bool compileSuccessCallback = false;
 
 		var codePath = System.IO.Path.GetFullPath( "data/code/base" );
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
 		var compilerSettings = new Compiler.Configuration();
 		compilerSettings.Clean();
 
 		var compiler = group.CreateCompiler( "test", codePath, compilerSettings );
-		compiler.AddReference( "package.test" );
+		compiler.AddReference( compiler );
 
 		Assert.IsTrue( compiler.NeedsBuild );
 		Assert.IsFalse( compileSuccessCallback );
@@ -81,7 +81,7 @@ public partial class CompilerTest
 		bool compileSuccessCallback = false;
 
 		var codePath = System.IO.Path.GetFullPath( "data/code/base" );
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
 		var compilerSettings = new Compiler.Configuration();
@@ -126,7 +126,7 @@ public partial class CompilerTest
 		bool compileSuccessCallback = false;
 
 		var codePath = System.IO.Path.GetFullPath( "data/code/" );
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
 		var compilerSettings = new Compiler.Configuration();
@@ -135,7 +135,7 @@ public partial class CompilerTest
 		var depnCompiler = group.CreateCompiler( $"depend", codePath + "/dependant", compilerSettings );
 		var baseCompiler = group.CreateCompiler( $"base", codePath + "/base", compilerSettings );
 
-		depnCompiler.AddReference( "package.base" );
+		depnCompiler.AddReference( baseCompiler );
 
 		Assert.IsFalse( compileSuccessCallback );
 		await group.BuildAsync();
@@ -167,7 +167,7 @@ public partial class CompilerTest
 		bool compileSuccessCallback = false;
 
 		var codePath = System.IO.Path.GetFullPath( "data/code/" );
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
 		var compilerSettings = new Compiler.Configuration();
@@ -176,8 +176,8 @@ public partial class CompilerTest
 		var depnCompiler = group.CreateCompiler( $"depend", codePath + "/dependant", compilerSettings );
 		var baseCompiler = group.CreateCompiler( $"base", codePath + "/base", compilerSettings );
 
-		depnCompiler.AddReference( "package.base" );
-		baseCompiler.AddReference( "package.depend" );
+		depnCompiler.AddReference( baseCompiler );
+		baseCompiler.AddReference( depnCompiler );
 
 		Assert.IsFalse( compileSuccessCallback );
 		await Assert.ThrowsExceptionAsync<System.Exception>( () => group.BuildAsync() );
@@ -197,7 +197,7 @@ public partial class CompilerTest
 	public async Task EditorFolders()
 	{
 		var codePath = System.IO.Path.GetFullPath( "data/code/with_editor_folders" );
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 
 		//
 		// Game Dll

@@ -9,7 +9,7 @@ public class NetList
 	[TestMethod]
 	public void AddRemoveAndCount()
 	{
-		var list = new NetList<int>();
+		using var list = new NetList<int>();
 		Assert.IsTrue( list.Count == 0 );
 
 		list.Add( 3 );
@@ -23,7 +23,7 @@ public class NetList
 	[TestMethod]
 	public void Iterate()
 	{
-		var list = new NetList<int>();
+		using var list = new NetList<int>();
 
 		list.Add( 1 );
 		list.Add( 2 );
@@ -44,7 +44,7 @@ public class NetList
 	[TestMethod]
 	public void OnChangedIsInvokedWhenItemIsAdded()
 	{
-		var list = new NetList<int>();
+		using var list = new NetList<int>();
 
 		var callCount = 0;
 		NetListChangeEvent<int> receivedEvent = default;
@@ -66,7 +66,7 @@ public class NetList
 	[TestMethod]
 	public void OnChangedIsInvokedWhenItemIsRemoved()
 	{
-		var list = new NetList<int>();
+		using var list = new NetList<int>();
 
 		list.Add( 10 );
 		list.Add( 20 );
@@ -91,7 +91,7 @@ public class NetList
 	[TestMethod]
 	public void OnChangedIsInvokedWhenListIsCleared()
 	{
-		var list = new NetList<int>();
+		using var list = new NetList<int>();
 
 		list.Add( 1 );
 		list.Add( 2 );
@@ -115,7 +115,7 @@ public class NetList
 	[TestMethod]
 	public void OnChangedIsNotInvokedWhenNoChangeOccurs()
 	{
-		var list = new NetList<int>();
+		using var list = new NetList<int>();
 		var callCount = 0;
 
 		list.OnChanged = _ =>
@@ -134,7 +134,7 @@ public class NetList
 	[TestMethod]
 	public void ValidAccess()
 	{
-		var list = new NetList<int>();
+		using var list = new NetList<int>();
 
 		Assert.ThrowsException<ArgumentOutOfRangeException>( () =>
 		{

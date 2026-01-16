@@ -282,8 +282,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		//
 		// Strip the SERVER define from the archive's DefineConstants
 		//
-		var parts = config.DefineConstants.Split( ';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries ).ToList();
-		parts.RemoveAll( x => x.Equals( "SERVER", StringComparison.OrdinalIgnoreCase ) );
+		var parts = config.GetPreprocessorSymbols();
+		parts.RemoveWhere( x => x.Equals( "SERVER", StringComparison.OrdinalIgnoreCase ) );
 
 		var newConfig = config with { DefineConstants = string.Join( ";", parts ) };
 
@@ -437,7 +437,12 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			//
 			using ( Performance.Scope( "GameFrame" ) )
 			{
-				RunGameFrame( scene );
+				// The old scene could be invalid here as a network message may end
+				// up destroying it (such as changing a scene)
+				if ( scene.IsValid() )
+				{
+					RunGameFrame( scene );
+				}
 			}
 
 			Networking.PostFrameTick();
@@ -447,7 +452,6 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		if ( !Application.IsDedicatedServer )
 		{
-			ActionGraphDebugger.Tick();
 			RichPresenceSystem.Tick();
 			Services.Achievements.Tick();
 		}
@@ -588,6 +592,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			{
 				newInstance = new GameInstance( ident, flags );
 			}
+
+			using var _ = GlobalContext.GameScope();
 
 			ResetEnvironment();
 

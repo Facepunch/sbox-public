@@ -12,7 +12,7 @@ partial class PartyRoom
 
 	public void SendChatMessage( string text )
 	{
-		var bs = ByteStream.Create( 128 );
+		using var bs = ByteStream.Create( 128 );
 		bs.Write( ProtocolIdentity );
 		bs.Write( MessageIdentity.ChatMessage );
 		bs.Write( text );

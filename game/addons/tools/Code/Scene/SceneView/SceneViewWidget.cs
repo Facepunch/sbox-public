@@ -33,6 +33,8 @@ public partial class SceneViewWidget : Widget
 
 	public static SceneViewWidget Current { get; private set; }
 
+	public SceneViewportWidget LastSelectedViewportWidget { get; set; }
+
 	public EditorToolManager Tools { get; private set; }
 
 	/// <summary>
@@ -95,6 +97,11 @@ public partial class SceneViewWidget : Widget
 			selectionHash = session.Selection.GetHashCode();
 		}
 
+		if ( isActive )
+		{
+			Current = this;
+		}
+
 		// All this shit below is scene specific
 		if ( CurrentView != ViewMode.Game )
 		{
@@ -107,11 +114,6 @@ public partial class SceneViewWidget : Widget
 
 			if ( !shouldUpdate )
 				return;
-
-			if ( isActive )
-			{
-				Current = this;
-			}
 
 			session.Scene.EditorTick( RealTime.Now, RealTime.Delta );
 		}
@@ -375,8 +377,8 @@ file class EditorSubToolBarWidget : VerticalToolbarGroup
 	public EditorSubToolBarWidget( EditorTool tool ) : base( null, null, null )
 	{
 		_tool = tool;
-		FixedWidth = 32 + 4 + 4;
-		ContentMargins = 4;
+		FixedWidth = 32 + 4 + 1;
+		ContentMargins = 1;
 	}
 
 	public override void Build()

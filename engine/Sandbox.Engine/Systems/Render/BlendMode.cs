@@ -13,13 +13,18 @@
 		// Screen = 2,
 		// Overlay = 3,
 		// Darken = 4,
-		Lighten = 2, // 5
-					 // ColorDodge = 6,
-					 // ColorBurn = 7,
-					 // HardLight = 8,
-					 // SoftLight = 9,
-					 // Difference = 10,
-					 // Exclusion = 11,
+		Lighten = 2,
+		PremultipliedAlpha = 3,
+		// 5
+		// ColorDodge = 6,
+		// ColorBurn = 7,
+		// HardLight = 8,
+		// SoftLight = 9,
+		// Difference = 10,
+		// Exclusion = 11,
+
+
+
 
 	}
 }

@@ -72,7 +72,7 @@ internal class ConsoleWidget : Widget
 			AddConsoleMessage( diagnostic );
 		}
 
-		foreach ( var graph in ActionGraphDebugger.GetAllGraphs() )
+		foreach ( var graph in EditorNodeLibrary.GetGraphs() )
 		{
 			if ( !graph.HasErrors() ) continue;
 
@@ -691,7 +691,7 @@ internal class ConsoleWidget : Widget
 			var anchor = GetAnchorAt( localPosition );
 			if ( string.IsNullOrEmpty( anchor ) ) return false;
 
-			var cursor = GetCursorAtPosition( localPosition );
+			using var cursor = GetCursorAtPosition( localPosition );
 			if ( cursor.BlockNumber >= Events.Count ) return false;
 			var ev = Events[cursor.BlockNumber];
 
@@ -703,7 +703,9 @@ internal class ConsoleWidget : Widget
 
 				EditorUtility.InspectorObject = ev.Arguments[i];
 			}
-			if ( anchor.StartsWith( "http://" ) || anchor.StartsWith( "https://" ) )
+
+
+			if ( Uri.TryCreate( anchor, UriKind.RelativeOrAbsolute, out var uri ) )
 			{
 				EditorUtility.OpenFile( anchor );
 			}
@@ -716,7 +718,10 @@ internal class ConsoleWidget : Widget
 			var hasAnchor = !string.IsNullOrEmpty( GetAnchorAt( e.LocalPosition ) );
 			Cursor = hasAnchor ? CursorShape.Finger : CursorShape.None;
 
+#pragma warning disable CA2000 // Dispose objects before losing scope
+			// Silence this warning, this gets assigned to a field
 			var newHover = GetCursorAtPosition( e.LocalPosition );
+#pragma warning restore CA2000 // Dispose objects before losing scope
 			if ( LastHover != null && newHover.BlockNumber == LastHover.BlockNumber ) return;
 
 			LastHover = newHover;

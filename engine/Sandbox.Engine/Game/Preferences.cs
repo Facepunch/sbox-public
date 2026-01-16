@@ -15,13 +15,13 @@ public static class Preferences
 	/// <summary>
 	/// The user's preferred Music volume, as set in the options, clamped between 0 and 1
 	/// </summary>
-	[ConVar( "music_volume", ConVarFlags.Protected, Help = "Music volume", Min = 0.0f, Max = 1.0f, Saved = true )]
+	[ConVar( "music_volume", ConVarFlags.Protected, Help = "Music volume", Min = 0.0f, Saved = true )]
 	public static float MusicVolume { get; internal set; } = 1.0f;
 
 	/// <summary>
 	/// The user's preferred VOIP volume, as set in the options, clamped between 0 and 1
 	/// </summary>
-	[ConVar( "voip_volume", ConVarFlags.Protected, Help = "Voice chat volume", Min = 0.0f, Max = 1.0f, Saved = true )]
+	[ConVar( "voip_volume", ConVarFlags.Protected, Help = "Voice chat volume", Min = 0.0f, Saved = true )]
 	public static float VoipVolume { get; internal set; } = 1.0f;
 
 	/// <summary>

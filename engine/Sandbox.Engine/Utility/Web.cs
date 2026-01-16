@@ -54,7 +54,7 @@ internal static class Web
 
 			using var fileStream = new FileStream( tempName, FileMode.Create );
 			using var bodyStream = await response.Content.ReadAsStreamAsync( cancelToken );
-			var content = new DataProgress.HttpContentStream( bodyStream );
+			using var content = new DataProgress.HttpContentStream( bodyStream );
 
 			if ( progress is not null )
 			{

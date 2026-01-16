@@ -2,7 +2,7 @@
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Reflection;
-using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Sandbox;
 
@@ -15,12 +15,17 @@ public static class VertexLayout
 
 	internal static NativeEngine.VertexLayout Get<T>() where T : unmanaged
 	{
-		return entries.GetOrAdd( typeof( T ), Create<T> );
+		return Get( typeof( T ) );
 	}
 
-	private static NativeEngine.VertexLayout Create<T>( Type t )
+	internal static NativeEngine.VertexLayout Get( Type t )
 	{
-		var layout = NativeEngine.VertexLayout.Create( t.Name, Unsafe.SizeOf<T>() );
+		return entries.GetOrAdd( t, Create );
+	}
+
+	private static NativeEngine.VertexLayout Create( Type t )
+	{
+		var layout = NativeEngine.VertexLayout.Create( t.Name, Marshal.SizeOf( t ) );
 
 		List<string> slots = new();
 

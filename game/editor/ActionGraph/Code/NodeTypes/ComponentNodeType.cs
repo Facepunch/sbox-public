@@ -33,7 +33,7 @@ public class ComponentNodeType : LibraryNodeType
 	[Event( GetLocalNodeTypesEvent.EventName )]
 	public static void OnGetLocalNodeTypes( GetLocalNodeTypesEvent ev )
 	{
-		if ( ev.Graph.GetEmbeddedTarget() is not GameObject hostObject ) return;
+		if ( ev.EditorGraph.HostObject is not GameObject hostObject ) return;
 
 		var hostObjectName = hostObject.Name;
 		var hostTypeDesc = TypeLibrary.GetType( typeof( GameObject ) );
@@ -59,38 +59,23 @@ public class ComponentNodeType : LibraryNodeType
 	[Event( QueryNodeTypesEvent.EventName )]
 	public static void OnQueryNodeTypes( QueryNodeTypesEvent ev )
 	{
+		if ( ev.EditorGraph.HostObject is not GameObject hostObject ) return;
+
 		if ( ev.Query.Plug is not ActionOutputPlug { Parameter.Node: { Definition.Identifier: "scene.ref" } node } )
 		{
 			return;
 		}
 
-		IComponentLister? componentSource = null;
-		string? hostObjectName = null;
-
-		if ( SceneReferenceHelper.ResolveTargetGameObject( node ) is { } go )
-		{
-			componentSource = go;
-			hostObjectName = go.Name;
-		}
-		else if ( SceneReferenceHelper.ResolveTargetComponent( node ) is { } comp )
-		{
-			componentSource = comp;
-			hostObjectName = comp.GameObject.Name;
-		}
-
-		if ( componentSource is null )
-		{
-			return;
-		}
+		if ( node.GetSceneReference( hostObject.Scene ) is not { } sceneRefNode ) return;
 
 		var typeTitle = DisplayInfo.ForType( node.Outputs.Result.Type ).Name;
 
-		foreach ( var component in componentSource.GetAll<Component>( FindMode.EverythingInSelf ) )
+		foreach ( var component in sceneRefNode.TargetObject.Components.GetAll<Component>( FindMode.EverythingInSelf ) )
 		{
 			var typeDesc = TypeLibrary.GetType( component.GetType() );
 			if ( typeDesc is null ) continue;
 
-			ev.Output.Add( new SelectedOutputNodeType( new ComponentNodeType( typeDesc, hostObjectName ), typeTitle ) );
+			ev.Output.Add( new SelectedOutputNodeType( new ComponentNodeType( typeDesc, sceneRefNode.TargetObject.Name ), typeTitle ) );
 		}
 	}
 

@@ -2,7 +2,6 @@
 
 public partial class SceneViewportWidget : Widget
 {
-	public static SceneViewportWidget LastSelected { get; private set; }
 	public static Vector2 MousePosition { get; private set; }
 
 	public int Id { get; private set; }
@@ -43,7 +42,7 @@ public partial class SceneViewportWidget : Widget
 		Id = id;
 		if ( Id == 0 )
 		{
-			LastSelected = this;
+			SceneView.LastSelectedViewportWidget = this;
 		}
 
 		if ( ProjectCookie.Get<ViewportState>( $"SceneView.Viewport{Id}.Settings", null ) is ViewportState savedSettings )
@@ -154,10 +153,11 @@ public partial class SceneViewportWidget : Widget
 			return;
 		}
 
-		var hoveredWidget = Application.HoveredWidget;
-		var hovered = hoveredWidget == Renderer;
-
-		hasMouseInput = IsActiveWindow && hovered;
+		//
+		// tony: Check if the mouse is hovering this viewport
+		// we were previously using Application.HoveredWidget but Qt is unreliable at providing the hovered widget at fractional DPI scales, and I can't figure out why
+		//
+		hasMouseInput = IsActiveWindow && Renderer.IsUnderMouse;
 	}
 
 	protected override void OnPaint()
@@ -377,7 +377,7 @@ public partial class SceneViewportWidget : Widget
 		if ( e.KeyboardModifiers == KeyboardModifiers.None && e.Button == MouseButtons.Right &&
 			 Vector2.DistanceBetween( initialMousePosition, e.LocalPosition ) < 6 )
 		{
-			var menu = new ContextMenu( this );
+			var menu = new ContextMenu( this ) { Searchable = true };
 			bool HasSelection = Session.Selection.OfType<GameObject>().Any();
 			menu.AddOption( "Cut", "content_cut", EditorScene.Cut, "editor.cut" ).Enabled = HasSelection;
 			menu.AddOption( "Copy", "content_copy", EditorScene.Copy, "editor.copy" ).Enabled = HasSelection;
@@ -447,9 +447,9 @@ public partial class SceneViewportWidget : Widget
 		//
 
 		var hasMouseFocus = hasMouseInput;
-		if ( IsFocused )
+		if ( IsFocused && SceneViewWidget.Current.IsValid() )
 		{
-			LastSelected = this;
+			SceneViewWidget.Current.LastSelectedViewportWidget = this;
 		}
 
 		GizmoInstance.Input.IsHovered = hasMouseFocus;
@@ -530,9 +530,8 @@ public partial class SceneViewportWidget : Widget
 		if ( GizmoInstance.Input.IsHovered )
 		{
 			UpdateHovered();
+			Tools.Frame( _activeCamera, Session );
 		}
-
-		Tools.Frame( _activeCamera, Session );
 
 		EditorEvent.RunInterface<EditorEvent.ISceneView>( x => x.DrawGizmos( Session.Scene ) );
 		Session.Scene.EditorDraw();

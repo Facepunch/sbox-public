@@ -37,7 +37,7 @@ public class LinearGradient : TextureGenerator
 
 	protected override ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
 	{
-		var bitmap = new Bitmap( Size.x, Size.y, IsHdr && !ConvertHeightToNormals );
+		using var bitmap = new Bitmap( Size.x, Size.y, IsHdr && !ConvertHeightToNormals );
 		bitmap.Clear( Color.Transparent );
 
 		var hw = bitmap.Rect.Size.Length * 0.5f * Scale.Clamp( 0.0001f, 1000f );
@@ -49,7 +49,8 @@ public class LinearGradient : TextureGenerator
 
 		if ( ConvertHeightToNormals )
 		{
-			bitmap = bitmap.HeightmapToNormalMap( NormalScale );
+			using var normalMap = bitmap.HeightmapToNormalMap( NormalScale );
+			ValueTask.FromResult( normalMap.ToTexture() );
 		}
 
 		return ValueTask.FromResult( bitmap.ToTexture() );

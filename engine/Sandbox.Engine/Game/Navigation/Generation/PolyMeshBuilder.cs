@@ -50,7 +50,10 @@ internal static class PolyMeshBuilder
 		var vflags = pooledVflags.Span;
 		vflags.Clear();
 
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// Mesh is returned by this function caller takes ownership
 		var mesh = PolyMesh.GetPooled();
+#pragma warning restore CA2000 // Dispose objects before losing scope
 		mesh.Init( cset, maxVertsPerPoly, maxTris, maxVertices );
 
 		using var pooledNextVert = new PooledSpan<int>( maxVertices );

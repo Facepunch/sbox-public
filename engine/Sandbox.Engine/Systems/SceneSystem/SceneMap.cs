@@ -177,6 +177,8 @@ public sealed partial class SceneMap : IValid
 
 		while ( !worldRef.IsWorldLoaded() )
 		{
+			g_pWorldRendererMgr.ServiceWorldRequests();
+
 			await Task.Delay( 1, cancelToken );
 			cancelToken.ThrowIfCancellationRequested();
 		}

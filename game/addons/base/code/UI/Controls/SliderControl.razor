@@ -41,6 +41,8 @@
 
 @code
 {
+    public override bool SupportsMultiEdit => true;
+
 	[Parameter] public Action<float> OnValueChanged { get; set; }
 
 	/// <summary>

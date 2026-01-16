@@ -70,8 +70,6 @@ public partial class Texture
 		if ( tex == null )
 			return null;
 
-		tex.SetIdFromResourcePath( normalizedFilename );
-
 		Loaded[normalizedFilename] = new WeakReference<Texture>( tex );
 
 		return tex;
@@ -191,6 +189,14 @@ public partial class Texture
 			return TextureLoader.Avatar.Load( filepath );
 		}
 
+		//
+		// Thumb loader
+		//
+		if ( TextureLoader.ThumbLoader.IsAppropriate( filepath ) )
+		{
+			return TextureLoader.ThumbLoader.Load( filepath );
+		}
+
 		//Precache.Add( filename );
 
 		//
@@ -198,7 +204,9 @@ public partial class Texture
 		//
 		ThreadSafe.AssertIsMainThread();
 		var textureHandle = NativeGlue.Resources.GetTexture( filepath );
-		return new Texture( textureHandle );
+		var t = new Texture( textureHandle );
+		t.SetIdFromResourcePath( filepath );
+		return t;
 	}
 
 	/// <summary>

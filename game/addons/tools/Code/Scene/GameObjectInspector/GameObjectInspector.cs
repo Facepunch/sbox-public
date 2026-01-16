@@ -34,50 +34,31 @@ public class GameObjectInspector : InspectorWidget
 
 	void PropertyStartEdit( SerializedProperty property )
 	{
-		ActivateSession();
-
 		var propertyDisplayName = property.Parent.ParentProperty is null
 			? property.Name
 			: $"{property.Parent.ParentProperty.Name}.{property.Name}";
 		var undoName = $"Edit {propertyDisplayName} on {SerializedObject.GetProperty( nameof( GameObject.Name ) ).GetValue<string>()}";
 
 		var gameObjects = SerializedObject.Targets.OfType<GameObject>();
-		undoScope = SceneEditorSession.Active.UndoScope( undoName ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties | GameObjectUndoFlags.Components ).Push();
+
+		var session = SceneEditorSession.Resolve( gameObjects.FirstOrDefault() );
+		using var scene = session.Scene.Push();
+		undoScope = session.UndoScope( undoName ).WithGameObjectChanges( gameObjects, GameObjectUndoFlags.Properties | GameObjectUndoFlags.Components ).Push();
 
 		property.DispatchPreEdited();
 	}
 
 	void PropertyChanged( SerializedProperty property )
 	{
-		ActivateSession();
-
 		property.DispatchEdited();
 	}
 
 	void PropertyFinishEdit( SerializedProperty property )
 	{
-		ActivateSession();
-
 		property.DispatchEdited();
 
 		undoScope?.Dispose();
 		undoScope = null;
-	}
-
-	private void ActivateSession()
-	{
-		var gameObject = SerializedObject.Targets.OfType<GameObject>().FirstOrDefault();
-		ArgumentNullException.ThrowIfNull( gameObject );
-
-		// you can lock the inspector to an object from a non-active scene session, so for now just make sure we're
-		// making active the right scene when we start changing shit
-		// TODO: we should really resolve undo etc from the currently pushed scene or something, so we can just push that scope wherever (?)
-
-		var session = SceneEditorSession.Resolve( gameObject.Scene );
-		if ( session is null || SceneEditorSession.Active == session )
-			return;
-
-		session.MakeActive();
 	}
 
 	void BuildComponentList()
@@ -129,28 +110,21 @@ public class GameObjectInspector : InspectorWidget
 
 	private void AddComponent( TypeDescription componentType )
 	{
-		ActivateSession();
+		var gameObjects = SerializedObject.Targets.OfType<GameObject>();
 
-		var createdComponents = new List<Component>();
-
-		using var sceneScope = SceneEditorSession.Scope();
-
-		foreach ( var go in SerializedObject.Targets.OfType<GameObject>() )
+		var session = SceneEditorSession.Resolve( gameObjects.FirstOrDefault() );
+		using var scene = session.Scene.Push();
+		using ( session.UndoScope( "Add Component(s)" ).WithComponentCreations().Push() )
 		{
-			using ( SceneEditorSession.Active.UndoScope( "Add Component(s)" ).WithComponentCreations().Push() )
+			foreach ( var go in gameObjects )
 			{
-				var component = go.Components.Create( componentType );
-				createdComponents.Add( component );
+				go.Components.Create( componentType );
 			}
 		}
 	}
 
 	private void PasteComponent()
 	{
-		ActivateSession();
-
-		using var sceneScope = SceneEditorSession.Scope();
-
 		foreach ( var go in SerializedObject.Targets.OfType<GameObject>() )
 		{
 			go.PasteComponent();

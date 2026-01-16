@@ -14,6 +14,7 @@ partial class VertexTool
 		private readonly MeshVertex[] _vertices;
 		private readonly List<IGrouping<MeshComponent, MeshVertex>> _vertexGroups;
 		private readonly List<MeshComponent> _components;
+		readonly MeshTool _tool;
 
 		public enum MergeRange
 		{
@@ -39,6 +40,8 @@ partial class VertexTool
 
 		public VertexSelectionWidget( SerializedObject so, MeshTool tool ) : base()
 		{
+			_tool = tool;
+
 			AddTitle( "Vertex Mode", "workspaces" );
 
 			{
@@ -86,6 +89,7 @@ partial class VertexTool
 					CreateButton( "Weld UVs", "scatter_plot", "mesh.vertex-weld-uvs", WeldUVs, _vertices.Length > 0, row.Layout );
 					CreateButton( "Bevel", "straighten", "mesh.bevel", Bevel, _vertices.Length > 0, row.Layout );
 					CreateButton( "Connect", "link", "mesh.connect", Connect, _vertices.Length > 1, row.Layout );
+					CreateButton( "Edge Cut Tool", "content_cut", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
 
 					row.Layout.AddStretchCell();
 
@@ -96,7 +100,15 @@ partial class VertexTool
 			Layout.AddStretchCell();
 		}
 
-		[Shortcut( "mesh.connect", "V", typeof( SceneDock ) )]
+		[Shortcut( "mesh.edge-cut-tool", "C", typeof( SceneViewWidget ) )]
+		void OpenEdgeCutTool()
+		{
+			var tool = new EdgeCutTool( nameof( VertexTool ) );
+			tool.Manager = _tool.Manager;
+			_tool.CurrentTool = tool;
+		}
+
+		[Shortcut( "mesh.connect", "V", typeof( SceneViewWidget ) )]
 		private void Connect()
 		{
 			if ( _vertices.Length < 2 )
@@ -159,7 +171,7 @@ partial class VertexTool
 			}
 		}
 
-		[Shortcut( "mesh.snap_to_vertex", "B", typeof( SceneDock ) )]
+		[Shortcut( "mesh.snap_to_vertex", "B", typeof( SceneViewWidget ) )]
 		private void SnapToVertex()
 		{
 			if ( _vertices.Length < 2 )
@@ -177,7 +189,7 @@ partial class VertexTool
 			}
 		}
 
-		[Shortcut( "mesh.vertex-weld-uvs", "CTRL+F", typeof( SceneDock ) )]
+		[Shortcut( "mesh.vertex-weld-uvs", "CTRL+F", typeof( SceneViewWidget ) )]
 		private void WeldUVs()
 		{
 			if ( _vertices.Length < 1 )
@@ -198,7 +210,7 @@ partial class VertexTool
 			}
 		}
 
-		[Shortcut( "mesh.bevel", "F", typeof( SceneDock ) )]
+		[Shortcut( "mesh.bevel", "F", typeof( SceneViewWidget ) )]
 		private void Bevel()
 		{
 			if ( _vertices.Length <= 0 )
@@ -226,7 +238,7 @@ partial class VertexTool
 			}
 		}
 
-		[Shortcut( "mesh.merge", "M", typeof( SceneDock ) )]
+		[Shortcut( "mesh.merge", "M", typeof( SceneViewWidget ) )]
 		private void Merge()
 		{
 			if ( _vertices.Length < 2 )
@@ -278,7 +290,7 @@ partial class VertexTool
 			}
 		}
 
-		[Shortcut( "editor.delete", "DEL", typeof( SceneDock ) )]
+		[Shortcut( "editor.delete", "DEL", typeof( SceneViewWidget ) )]
 		private void DeleteSelection()
 		{
 			var groups = _vertices.GroupBy( face => face.Component );

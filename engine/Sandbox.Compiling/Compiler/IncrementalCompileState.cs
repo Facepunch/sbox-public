@@ -46,7 +46,7 @@ class IncrementalCompileState
 			.ToArray();
 
 		var result = new Dictionary<string, object>();
-		var writer = new StringWriter();
+		using var writer = new StringWriter();
 
 		foreach ( var filePath in filePaths )
 		{

@@ -70,18 +70,15 @@ public abstract class BaseBrushTool : EditorTool
 		if ( !GetHitPosition( terrain, out var hitPosition ) )
 			return;
 
+		var tx = terrain.WorldTransform;
+
 		if ( Gizmo.IsLeftMouseDown )
 		{
 			bool shouldSculpt = !_dragging || !Application.CursorDelta.IsNearZeroLength;
 
 			if ( !_dragging )
 			{
-				var tx = terrain.WorldTransform;
 				StrokePlane = new Plane( tx.PointToWorld( hitPosition ), tx.Rotation.Up );
-
-				// Draw brush preview at hit position
-				var previewTransform = new Transform( tx.PointToWorld( hitPosition ), tx.Rotation );
-				_parent.DrawBrushPreview( previewTransform );
 
 				_dragging = true;
 
@@ -106,19 +103,15 @@ public abstract class BaseBrushTool : EditorTool
 				OnPaint( terrain, parameters );
 			}
 		}
-		else
+		else if ( _dragging )
 		{
-			// Draw brush preview when not painting
-			var tx = terrain.WorldTransform;
-			var previewTransform = new Transform( tx.PointToWorld( hitPosition ), tx.Rotation );
-			_parent.DrawBrushPreview( previewTransform );
-
-			if ( _dragging )
-			{
-				_dragging = false;
-				OnPaintEnded( terrain );
-			}
+			_dragging = false;
+			OnPaintEnded( terrain );
 		}
+
+		// Draw brush preview at hit position
+		var previewTransform = new Transform( tx.PointToWorld( hitPosition ), tx.Rotation );
+		_parent.DrawBrushPreview( previewTransform );
 	}
 
 	protected virtual void OnPaintStart( Terrain terrain )

@@ -15,6 +15,7 @@ partial class FaceTool
 		private readonly MeshFace[] _faces;
 		private readonly List<IGrouping<MeshComponent, MeshFace>> _faceGroups;
 		private readonly List<MeshComponent> _components;
+		private readonly MeshTool _meshTool;
 
 		[Range( 0, 64, slider: false ), Step( 1 ), WideMode]
 		private Vector2Int NumCuts = 1;
@@ -23,6 +24,7 @@ partial class FaceTool
 		{
 			AddTitle( "Face Mode", "change_history" );
 
+			_meshTool = tool;
 			_faces = so.Targets
 				.OfType<MeshFace>()
 				.ToArray();
@@ -50,6 +52,7 @@ partial class FaceTool
 				CreateButton( "Collapse Faces", "unfold_less", "mesh.collapse", Collapse, _faces.Length > 0, grid );
 				CreateButton( "Remove Bad Faces", "delete_sweep", "mesh.remove-bad-faces", RemoveBadFaces, _faces.Length > 0, grid );
 				CreateButton( "Flip All Faces", "flip", "mesh.flip-all-faces", FlipAllFaces, _faces.Length > 0, grid );
+				CreateButton( "Thicken Faces", "layers", "mesh.thicken-faces", ThickenFaces, _faces.Length > 0, grid );
 
 				grid.AddStretchCell();
 
@@ -71,10 +74,39 @@ partial class FaceTool
 				group.Add( grid );
 			}
 
+			{
+				var group = AddGroup( "Tools" );
+
+				var grid = Layout.Row();
+				grid.Spacing = 4;
+
+				CreateButton( "Fast Texture Tool", "texture", "mesh.fast-texture-tool", OpenFastTextureTool, true, grid );
+				CreateButton( "Edge Cut Tool", "content_cut", "mesh.edge-cut-tool", OpenEdgeCutTool, true, grid );
+
+				grid.AddStretchCell();
+
+				group.Add( grid );
+			}
+
 			Layout.AddStretchCell();
 		}
 
-		[Shortcut( "mesh.collapse", "SHIFT+O", typeof( SceneDock ) )]
+		[Shortcut( "mesh.edge-cut-tool", "C", typeof( SceneViewWidget ) )]
+		void OpenEdgeCutTool()
+		{
+			var tool = new EdgeCutTool( nameof( FaceTool ) );
+			tool.Manager = _meshTool.Manager;
+			_meshTool.CurrentTool = tool;
+		}
+
+		[Shortcut( "mesh.fast-texture-tool", "CTRL+G", typeof( SceneViewWidget ) )]
+		public void OpenFastTextureTool()
+		{
+			var selectedFaces = SceneEditorSession.Active.Selection.OfType<MeshFace>().ToArray();
+			RectEditor.FastTextureWindow.OpenWith( selectedFaces, _meshTool.ActiveMaterial );
+		}
+
+		[Shortcut( "mesh.collapse", "SHIFT+O", typeof( SceneViewWidget ) )]
 		private void Collapse()
 		{
 			using var scope = SceneEditorSession.Scope();
@@ -96,7 +128,7 @@ partial class FaceTool
 			}
 		}
 
-		[Shortcut( "mesh.remove-bad-faces", "", typeof( SceneDock ) )]
+		[Shortcut( "mesh.remove-bad-faces", "", typeof( SceneViewWidget ) )]
 		private void RemoveBadFaces()
 		{
 			using var scope = SceneEditorSession.Scope();
@@ -112,7 +144,7 @@ partial class FaceTool
 			}
 		}
 
-		[Shortcut( "editor.delete", "DEL", typeof( SceneDock ) )]
+		[Shortcut( "editor.delete", "DEL", typeof( SceneViewWidget ) )]
 		private void DeleteSelection()
 		{
 			var groups = _faces.GroupBy( face => face.Component );
@@ -129,7 +161,7 @@ partial class FaceTool
 			}
 		}
 
-		[Shortcut( "mesh.extract-faces", "ALT+N", typeof( SceneDock ) )]
+		[Shortcut( "mesh.extract-faces", "ALT+N", typeof( SceneViewWidget ) )]
 		private void ExtractFaces()
 		{
 			using var scope = SceneEditorSession.Scope();
@@ -194,7 +226,7 @@ partial class FaceTool
 			}
 		}
 
-		[Shortcut( "mesh.detach-faces", "N", typeof( SceneDock ) )]
+		[Shortcut( "mesh.detach-faces", "N", typeof( SceneViewWidget ) )]
 		private void DetachFaces()
 		{
 			using var scope = SceneEditorSession.Scope();
@@ -215,7 +247,7 @@ partial class FaceTool
 			}
 		}
 
-		[Shortcut( "mesh.combine-faces", "Backspace", typeof( SceneDock ) )]
+		[Shortcut( "mesh.combine-faces", "Backspace", typeof( SceneViewWidget ) )]
 		private void CombineFaces()
 		{
 			using var scope = SceneEditorSession.Scope();
@@ -236,7 +268,7 @@ partial class FaceTool
 			}
 		}
 
-		[Shortcut( "mesh.flip-all-faces", "F", typeof( SceneDock ) )]
+		[Shortcut( "mesh.flip-all-faces", "F", typeof( SceneViewWidget ) )]
 		private void FlipAllFaces()
 		{
 			using var scope = SceneEditorSession.Scope();
@@ -252,7 +284,35 @@ partial class FaceTool
 			}
 		}
 
-		[Shortcut( "mesh.quad-slice", "CTRL+D", typeof( SceneDock ) )]
+		[Shortcut( "mesh.thicken-faces", "G", typeof( SceneViewWidget ) )]
+		private void ThickenFaces()
+		{
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Thicken Faces" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				selection.Clear();
+
+				var amount = EditorScene.GizmoSettings.GridSpacing;
+
+				foreach ( var group in _faceGroups )
+				{
+					var mesh = group.Key.Mesh;
+					mesh.ThickenFaces( [.. group.Select( x => x.Handle )], amount, out var newFaces );
+					mesh.ComputeFaceTextureCoordinatesFromParameters();
+
+					foreach ( var hFace in newFaces )
+					{
+						selection.Add( new MeshFace( group.Key, hFace ) );
+					}
+				}
+			}
+		}
+
+		[Shortcut( "mesh.quad-slice", "CTRL+D", typeof( SceneViewWidget ) )]
 		private void QuadSlice()
 		{
 			using var scope = SceneEditorSession.Scope();

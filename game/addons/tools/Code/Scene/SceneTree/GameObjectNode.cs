@@ -1,4 +1,5 @@
-﻿using static Editor.BaseItemWidget;
+﻿using System.Text;
+using static Editor.BaseItemWidget;
 namespace Editor;
 
 partial class GameObjectNode : TreeNode<GameObject>
@@ -12,6 +13,32 @@ partial class GameObjectNode : TreeNode<GameObject>
 	{
 		get => Value.Name;
 		set => Value.Name = value;
+	}
+
+	public override string GetTooltip()
+	{
+		var sb = new StringBuilder();
+
+		sb.AppendLine( $"<h3>{Name}</h3>" );
+
+		if ( Value.Tags.Any() )
+		{
+			sb.AppendLine( $"<br />" );
+			sb.AppendLine( $"<i>{string.Join( ", ", Value.Tags )}</i>" );
+		}
+
+		sb.AppendLine( $"<hr />" );
+		sb.AppendLine( $"<b>Components:</b>" );
+
+		foreach ( var c in Value.Components.GetAll() )
+		{
+			var displayInfo = DisplayInfo.For( c );
+			var typeDesc = EditorTypeLibrary.GetType( c.GetType() );
+			sb.AppendLine( $"<br />" );
+			sb.AppendLine( $"- {displayInfo.Name}" );
+		}
+
+		return sb.ToString();
 	}
 
 	public override bool CanEdit => true;
@@ -50,6 +77,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 			return;
 
 		var isEven = item.Row % 2 == 0;
+		var isHovered = item.Hovered;
 		var selected = item.Selected || item.Pressed || item.Dragging;
 		var isBone = Value.Flags.Contains( GameObjectFlags.Bone );
 		var isProceduralBone = Value.Flags.Contains( GameObjectFlags.ProceduralBone );
@@ -211,6 +239,12 @@ partial class GameObjectNode : TreeNode<GameObject>
 			//item.PaintBackground( Color.Transparent, 3 );
 			Paint.ClearPen();
 			Paint.SetBrush( Theme.SelectedBackground.WithAlpha( opacity ) );
+			Paint.DrawRect( fullSpanRect );
+		}
+		else if ( isHovered )
+		{
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.SelectedBackground.WithAlpha( 0.25f ) );
 			Paint.DrawRect( fullSpanRect );
 		}
 		else if ( isEven )
@@ -482,8 +516,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 
 	public override bool OnContextMenu()
 	{
-		var m = new ContextMenu( TreeView );
-
+		var m = new ContextMenu( TreeView ) { Searchable = true };
 		AddGameObjectMenuItems( m, this );
 
 		m.OpenAtCursor( false );
@@ -600,8 +633,28 @@ partial class GameObjectNode : TreeNode<GameObject>
 				var isModified = selectedGos.Any( x => (x.IsPrefabInstanceRoot && EditorUtility.Prefabs.IsInstanceModified( x ))
 													|| (x.IsPrefabInstance && EditorUtility.Prefabs.IsGameObjectInstanceModified( gameObject )) );
 
-				var isAdded = selectedGos.All( x => x.IsPrefabInstance && EditorUtility.Prefabs.IsGameObjectAddedToInstance( x ) );
+				var revertChangesActionName = "Revert Changes";
+				prefabMenu.AddOption( revertChangesActionName, "history", () =>
+				{
+					using var scene = SceneEditorSession.Scope();
 
+					using ( SceneEditorSession.Active.UndoScope( revertChangesActionName ).WithGameObjectChanges( selectedGos, GameObjectUndoFlags.Properties ).Push() )
+					{
+						foreach ( var go in selectedGos )
+						{
+							if ( go.IsPrefabInstanceRoot )
+							{
+								EditorUtility.Prefabs.RevertInstanceToPrefab( go );
+							}
+							else if ( go.IsPrefabInstance )
+							{
+								EditorUtility.Prefabs.RevertGameObjectInstanceChanges( go );
+							}
+						}
+					}
+				} ).Enabled = isModified;
+
+				var isAdded = selectedGos.All( x => x.IsPrefabInstance && EditorUtility.Prefabs.IsGameObjectAddedToInstance( x ) );
 				if ( isAdded )
 				{
 					var applyAddActionName = multipleSources ? "Add Objects to Prefabs" : "Add Object to Prefab";
@@ -610,7 +663,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 						var parentPrefabName = EditorUtility.Prefabs.GetOuterMostPrefabName( gameObject.Parent );
 						applyAddActionName += $" '{parentPrefabName ?? "Invalid"}'";
 					}
-					prefabMenu.AddOption( applyAddActionName, "update", () =>
+					prefabMenu.AddOption( applyAddActionName, "save", () =>
 					{
 						using var scene = SceneEditorSession.Scope();
 
@@ -629,8 +682,8 @@ partial class GameObjectNode : TreeNode<GameObject>
 				}
 				else
 				{
-					var applyChangesActionName = multipleSources ? "Apply Instance Changes to Prefabs" : "Apply Instance Changes To Prefab";
-					prefabMenu.AddOption( applyChangesActionName, "update", () =>
+					var applyChangesActionName = multipleSources ? "Apply to Prefabs" : "Apply to Prefab";
+					prefabMenu.AddOption( applyChangesActionName, "save", () =>
 					{
 						using var scene = SceneEditorSession.Scope();
 
@@ -651,29 +704,6 @@ partial class GameObjectNode : TreeNode<GameObject>
 						}
 					} ).Enabled = isModified;
 				}
-
-
-
-				var revertChangesActionName = "Revert Instance Changes";
-				prefabMenu.AddOption( revertChangesActionName, "history", () =>
-				{
-					using var scene = SceneEditorSession.Scope();
-
-					using ( SceneEditorSession.Active.UndoScope( revertChangesActionName ).WithGameObjectChanges( selectedGos, GameObjectUndoFlags.Properties ).Push() )
-					{
-						foreach ( var go in selectedGos )
-						{
-							if ( go.IsPrefabInstanceRoot )
-							{
-								EditorUtility.Prefabs.RevertInstanceToPrefab( go );
-							}
-							else if ( go.IsPrefabInstance )
-							{
-								EditorUtility.Prefabs.RevertGameObjectInstanceChanges( go );
-							}
-						}
-					}
-				} ).Enabled = isModified;
 			}
 
 			if ( !isPrefabRoot )
@@ -747,10 +777,10 @@ partial class GameObjectNode : TreeNode<GameObject>
 		{
 			go.Parent = parent;
 
-			if ( !EditorPreferences.CreateObjectsAtOrigin && !parent.IsValid() )
+			if ( !EditorPreferences.CreateObjectsAtOrigin && !parent.IsValid() && SceneViewWidget.Current?.LastSelectedViewportWidget?.IsValid() == true )
 			{
 				// I wonder if we should be tracing and placing it on the surface?
-				go.LocalPosition = SceneViewportWidget.LastSelected.State.CameraPosition + SceneViewportWidget.LastSelected.State.CameraRotation.Forward * 300;
+				go.LocalPosition = SceneViewWidget.Current.LastSelectedViewportWidget.State.CameraPosition + SceneViewWidget.Current.LastSelectedViewportWidget.State.CameraRotation.Forward * 300;
 			}
 
 			afterCreate?.Invoke( go );
@@ -810,10 +840,10 @@ partial class GameObjectNode : TreeNode<GameObject>
 		{
 			go.Parent = parent;
 
-			if ( !EditorPreferences.CreateObjectsAtOrigin && !parent.IsValid() )
+			if ( !EditorPreferences.CreateObjectsAtOrigin && !parent.IsValid() && SceneViewWidget.Current?.LastSelectedViewportWidget?.IsValid() == true )
 			{
 				// I wonder if we should be tracing and placing it on the surface?
-				go.LocalPosition = SceneViewportWidget.LastSelected.State.CameraPosition + SceneViewportWidget.LastSelected.State.CameraRotation.Forward * 300;
+				go.LocalPosition = SceneViewWidget.Current.LastSelectedViewportWidget.State.CameraPosition + SceneViewWidget.Current.LastSelectedViewportWidget.State.CameraRotation.Forward * 300;
 			}
 
 			afterCreate?.Invoke( go );
@@ -891,7 +921,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 			if ( !EditorPreferences.CreateObjectsAtOrigin && !parent.IsValid() )
 			{
 				// I wonder if we should be tracing and placing it on the surface?
-				go.LocalPosition = SceneViewportWidget.LastSelected.State.CameraPosition + SceneViewportWidget.LastSelected.State.CameraRotation.Forward * 300;
+				go.LocalPosition = SceneViewWidget.Current.LastSelectedViewportWidget.State.CameraPosition + SceneViewWidget.Current.LastSelectedViewportWidget.State.CameraRotation.Forward * 300;
 			}
 
 			afterCreate?.Invoke( go );

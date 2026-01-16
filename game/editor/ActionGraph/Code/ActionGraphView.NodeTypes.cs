@@ -39,7 +39,7 @@ partial class ActionGraphView
 		{
 			var local = new ConcurrentBag<INodeType>();
 
-			EditorEvent.Run( GetLocalNodeTypesEvent.EventName, new GetLocalNodeTypesEvent( Graph.Graph, GlobalNodeTypes, local ) );
+			EditorEvent.Run( GetLocalNodeTypesEvent.EventName, new GetLocalNodeTypesEvent( EditorGraph, GlobalNodeTypes, local ) );
 
 			local.FilterInto( query, result );
 		}
@@ -58,7 +58,7 @@ partial class ActionGraphView
 
 	public IEnumerable<SelectedOutputNodeType> GetExpansionOptions( IPlugOut output )
 	{
-		return GetRelevantNodes( new NodeQuery( Graph, output ) )
+		return GetRelevantNodes( new NodeQuery( EditorGraph, output ) )
 			.OfType<SelectedOutputNodeType>()
 			.Where( x => x.Inner.IsExpansionOption() );
 	}
@@ -84,9 +84,9 @@ partial class ActionGraphView
 						return;
 					}
 
-					if ( !Graph.Graph.Variables.TryGetValue( name, out var variable ) )
+					if ( !EditorGraph.Graph.Variables.TryGetValue( name, out var variable ) )
 					{
-						variable = Graph.Graph.AddVariable( name, targetPlug.PropertyType );
+						variable = EditorGraph.Graph.AddVariable( name, targetPlug.PropertyType );
 					}
 
 					var nodeType = new VariableNodeType( variable );
@@ -109,15 +109,15 @@ partial class ActionGraphView
 					if ( string.IsNullOrWhiteSpace( name ) ) name = "newVariable";
 					var ogName = name;
 					int varIndex = 0;
-					while ( Graph.Graph.Variables.ContainsKey( name ) )
+					while ( EditorGraph.Graph.Variables.ContainsKey( name ) )
 					{
 						varIndex++;
 						name = $"{ogName}_{varIndex}";
 					}
 
-					if ( !Graph.Graph.Variables.TryGetValue( name, out var variable ) )
+					if ( !EditorGraph.Graph.Variables.TryGetValue( name, out var variable ) )
 					{
-						variable = Graph.Graph.AddVariable( name, type );
+						variable = EditorGraph.Graph.AddVariable( name, type );
 					}
 
 					var nodeType = new VariableNodeType( variable );

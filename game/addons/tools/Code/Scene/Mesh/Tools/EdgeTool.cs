@@ -17,11 +17,21 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 
 		using var scope = Gizmo.Scope( "EdgeTool" );
 
-		var closestEdge = GetClosestEdge( 8 );
+		var closestEdge = MeshTrace.GetClosestEdge( 8 );
 		if ( closestEdge.IsValid() )
+		{
 			Gizmo.Hitbox.TrySetHovered( closestEdge.Transform.PointToWorld( closestEdge.Line.Center ) );
+		}
+		else
+		{
+			var result = MeshTrace.Run();
+			if ( result.Hit && result.Component is MeshComponent )
+			{
+				Gizmo.Hitbox.TrySetHovered( result.EndPosition );
+			}
+		}
 
-		if ( Gizmo.IsHovered )
+		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection )
 		{
 			SelectEdge();
 
@@ -85,8 +95,7 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 
 	public override Rotation CalculateSelectionBasis()
 	{
-		if ( Gizmo.Settings.GlobalSpace )
-			return Rotation.Identity;
+		if ( GlobalSpace ) return Rotation.Identity;
 
 		var edge = Selection.OfType<MeshEdge>().FirstOrDefault();
 		if ( edge.IsValid() )
@@ -167,7 +176,7 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 
 	private void SelectEdgeLoop()
 	{
-		var edge = GetClosestEdge( 8 );
+		var edge = MeshTrace.GetClosestEdge( 8 );
 		if ( !edge.IsValid() )
 			return;
 
@@ -184,7 +193,7 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 
 	private void SelectEdge()
 	{
-		var edge = GetClosestEdge( 8 );
+		var edge = MeshTrace.GetClosestEdge( 8 );
 		if ( edge.IsValid() )
 		{
 			using ( Gizmo.Scope( "Edge Hover" ) )
@@ -305,5 +314,42 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		CalculateSelectionVertices();
 
 		return connectingFaces;
+	}
+
+	protected override IEnumerable<MeshEdge> GetConnectedSelectionElements()
+	{
+		var unique = new HashSet<MeshEdge>();
+
+		foreach ( var component in Selection.OfType<GameObject>()
+			.Select( x => x.GetComponent<MeshComponent>() )
+			.Where( x => x.IsValid() ) )
+		{
+			foreach ( var edge in component.Mesh.HalfEdgeHandles )
+			{
+				unique.Add( new MeshEdge( component, edge ) );
+			}
+		}
+
+		foreach ( var face in Selection.OfType<MeshFace>() )
+		{
+			face.Component.Mesh.GetEdgesConnectedToFace( face.Handle, out var edges );
+
+			foreach ( var edge in edges )
+			{
+				unique.Add( new MeshEdge( face.Component, edge ) );
+			}
+		}
+
+		foreach ( var vertex in Selection.OfType<MeshVertex>() )
+		{
+			vertex.Component.Mesh.GetEdgesConnectedToVertex( vertex.Handle, out var edges );
+
+			foreach ( var edge in edges )
+			{
+				unique.Add( new MeshEdge( vertex.Component, edge ) );
+			}
+		}
+
+		return unique;
 	}
 }

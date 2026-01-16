@@ -9,5 +9,6 @@
   "menu.quit": "Выйти",
   "menu.games": "Игры",
   "menu.maps": "Карты",
-  "menu.multiplayer": "Серверы"
+  "menu.multiplayer": "Серверы",
+  "menu.notifications": "Уведомления"
 }

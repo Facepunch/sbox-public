@@ -57,12 +57,12 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 			CreateFaceObject();
 		}
 
-		if ( Gizmo.IsHovered )
+		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection )
 		{
 			SelectFace();
 
 			if ( Gizmo.IsDoubleClicked )
-				SelectAllFaces();
+				SelectContiguousFaces();
 		}
 
 		_faceObject.Init( Graphics.PrimitiveType.Triangles );
@@ -216,10 +216,13 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		pInOutAxisV = new Vector4( vAxisVNew, flShiftVNew / scale.y );
 	}
 
-	private void SelectAllFaces()
+	private void SelectContiguousFaces()
 	{
 		var face = TraceFace();
 		if ( !face.IsValid() )
+			return;
+
+		if ( !face.Component.Mesh.GetFacesConnectedToFace( face.Handle, out var faces ) )
 			return;
 
 		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
@@ -227,7 +230,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 
 		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 		{
-			foreach ( var hFace in face.Component.Mesh.FaceHandles )
+			foreach ( var hFace in faces )
 				Selection.Add( new MeshFace( face.Component, hFace ) );
 		}
 	}
@@ -261,8 +264,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 
 	public override Rotation CalculateSelectionBasis()
 	{
-		if ( Gizmo.Settings.GlobalSpace )
-			return Rotation.Identity;
+		if ( GlobalSpace ) return Rotation.Identity;
 
 		var face = Selection.OfType<MeshFace>().FirstOrDefault();
 		if ( face.IsValid() )
@@ -306,5 +308,39 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 				Gizmo.Draw.ScreenText( $"H: {box.Size.z:0.#}", box.Maxs.WithZ( box.Center.z ), Vector2.Up * 32, size: textSize );
 			Gizmo.Draw.Line( box.Maxs.WithZ( box.Mins.z ), box.Maxs.WithZ( box.Maxs.z ) );
 		}
+	}
+
+	protected override IEnumerable<MeshFace> GetConnectedSelectionElements()
+	{
+		var unique = new HashSet<MeshFace>();
+
+		foreach ( var component in Selection.OfType<GameObject>()
+			.Select( x => x.GetComponent<MeshComponent>() )
+			.Where( x => x.IsValid() ) )
+		{
+			foreach ( var face in component.Mesh.FaceHandles )
+			{
+				unique.Add( new MeshFace( component, face ) );
+			}
+		}
+
+		foreach ( var edge in Selection.OfType<MeshEdge>() )
+		{
+			edge.Component.Mesh.GetFacesConnectedToEdge( edge.Handle, out var faceA, out var faceB );
+			unique.Add( new MeshFace( edge.Component, faceA ) );
+			unique.Add( new MeshFace( edge.Component, faceB ) );
+		}
+
+		foreach ( var vertex in Selection.OfType<MeshVertex>() )
+		{
+			vertex.Component.Mesh.GetFacesConnectedToVertex( vertex.Handle, out var faces );
+
+			foreach ( var face in faces )
+			{
+				unique.Add( new MeshFace( vertex.Component, face ) );
+			}
+		}
+
+		return unique;
 	}
 }

@@ -40,7 +40,9 @@ partial class MeshSelection
 				CreateButton( "Set Origin To Pivot", "gps_fixed", "mesh.set-origin-to-pivot", SetOriginToPivot, _meshes.Length > 0, grid );
 				CreateButton( "Center Origin", "center_focus_strong", "mesh.center-origin", CenterOrigin, _meshes.Length > 0, grid );
 				CreateButton( "Merge Meshes", "join_full", "mesh.merge-meshes", MergeMeshes, _meshes.Length > 1, grid );
-				CreateButton( "Bake Scale", "straighten", "mesh.bake-scale", BakeScale, _meshes.Length > 0, grid );
+				CreateButton( "Merge Meshes By Edge", "link", null, MergeMeshesByEdge, _meshes.Length > 1, grid );
+				CreateButton( "Bake Scale", "straighten", null, BakeScale, _meshes.Length > 0, grid );
+				CreateButton( "Save To Model", "save", null, SaveToModel, _meshes.Length > 0, grid );
 
 				grid.AddStretchCell();
 
@@ -63,22 +65,43 @@ partial class MeshSelection
 				group.Add( grid );
 			}
 
+			{
+				var group = AddGroup( "Tools" );
+
+				var grid = Layout.Row();
+				grid.Spacing = 4;
+
+				CreateButton( "Clipping Tool", "content_cut", "mesh.open-clipping-tool", OpenClippingTool, _meshes.Length > 0, grid );
+
+				grid.AddStretchCell();
+
+				group.Add( grid );
+			}
+
 			Layout.AddStretchCell();
 		}
 
-		[Shortcut( "mesh.previous-pivot", "N+MWheelDn", typeof( SceneDock ) )]
+		[Shortcut( "mesh.open-clipping-tool", "C", typeof( SceneViewWidget ) )]
+		void OpenClippingTool()
+		{
+			var tool = new ClipTool();
+			tool.Manager = _tool.Tool.Manager;
+			_tool.Tool.CurrentTool = tool;
+		}
+
+		[Shortcut( "mesh.previous-pivot", "N+MWheelDn", typeof( SceneViewWidget ) )]
 		public void PreviousPivot() => _tool.PreviousPivot();
 
-		[Shortcut( "mesh.next-pivot", "N+MWheelUp", typeof( SceneDock ) )]
+		[Shortcut( "mesh.next-pivot", "N+MWheelUp", typeof( SceneViewWidget ) )]
 		public void NextPivot() => _tool.NextPivot();
 
-		[Shortcut( "mesh.clear-pivot", "Home", typeof( SceneDock ) )]
+		[Shortcut( "mesh.clear-pivot", "Home", typeof( SceneViewWidget ) )]
 		public void ClearPivot() => _tool.ClearPivot();
 
-		[Shortcut( "mesh.zero-pivot", "Ctrl+End", typeof( SceneDock ) )]
+		[Shortcut( "mesh.zero-pivot", "Ctrl+End", typeof( SceneViewWidget ) )]
 		public void ZeroPivot() => _tool.ZeroPivot();
 
-		[Shortcut( "mesh.set-origin-to-pivot", "Ctrl+D", typeof( SceneDock ) )]
+		[Shortcut( "mesh.set-origin-to-pivot", "Ctrl+D", typeof( SceneViewWidget ) )]
 		public void SetOriginToPivot()
 		{
 			using var scope = SceneEditorSession.Scope();
@@ -95,7 +118,7 @@ partial class MeshSelection
 			}
 		}
 
-		[Shortcut( "mesh.center-origin", "End", typeof( SceneDock ) )]
+		[Shortcut( "mesh.center-origin", "End", typeof( SceneViewWidget ) )]
 		public void CenterOrigin()
 		{
 			using var scope = SceneEditorSession.Scope();
@@ -130,7 +153,7 @@ partial class MeshSelection
 			}
 		}
 
-		[Shortcut( "mesh.merge-meshes", "M", typeof( SceneDock ) )]
+		[Shortcut( "mesh.merge-meshes", "M", typeof( SceneViewWidget ) )]
 		public void MergeMeshes()
 		{
 			if ( _meshes.Length == 0 ) return;
@@ -156,6 +179,90 @@ partial class MeshSelection
 				var selection = SceneEditorSession.Active.Selection;
 				selection.Set( sourceMesh.GameObject );
 			}
+		}
+
+		public void MergeMeshesByEdge()
+		{
+			if ( _meshes.Length < 2 ) return;
+
+			var touching = new List<(int a, int b)>();
+			for ( int i = 0; i < _meshes.Length; i++ )
+			{
+				for ( int j = i + 1; j < _meshes.Length; j++ )
+				{
+					if ( HasTouchingVertices( _meshes[i], _meshes[j], 0.1f ) )
+						touching.Add( (i, j) );
+				}
+			}
+
+			if ( touching.Count == 0 )
+				return;
+
+			var parent = Enumerable.Range( 0, _meshes.Length ).ToArray();
+			int Find( int x ) => parent[x] == x ? x : parent[x] = Find( parent[x] );
+			void Union( int x, int y ) => parent[Find( x )] = Find( y );
+
+			foreach ( var (a, b) in touching )
+				Union( a, b );
+
+			var groups = Enumerable.Range( 0, _meshes.Length )
+				.GroupBy( Find )
+				.Where( g => g.Count() > 1 )
+				.Select( g => g.ToList() )
+				.ToList();
+
+			using var scope = SceneEditorSession.Scope();
+
+			var toDestroy = groups.SelectMany( g => g.Skip( 1 ) ).Select( i => _meshes[i].GameObject ).ToList();
+
+			using ( SceneEditorSession.Active.UndoScope( "Merge Meshes By Edge" )
+				.WithGameObjectDestructions( toDestroy )
+				.WithComponentChanges( groups.Select( g => _meshes[g[0]] ) )
+				.Push() )
+			{
+				int totalWelded = 0;
+
+				foreach ( var group in groups )
+				{
+					var target = _meshes[group[0]];
+
+					foreach ( var i in group.Skip( 1 ) )
+					{
+						var source = _meshes[i];
+						target.Mesh.MergeMesh( source.Mesh, target.WorldTransform.ToLocal( source.WorldTransform ), out _, out _, out _ );
+						source.GameObject.Destroy();
+					}
+
+					totalWelded += target.Mesh.MergeVerticesWithinDistance( target.Mesh.VertexHandles.ToList(), 0.01f, true, false, out _ );
+					target.Mesh.ComputeFaceTextureCoordinatesFromParameters();
+					target.RebuildMesh();
+				}
+
+				SceneEditorSession.Active.Selection.Set( _meshes[groups[0][0]].GameObject );
+			}
+		}
+
+		static bool HasTouchingVertices( MeshComponent meshA, MeshComponent meshB, float threshold )
+		{
+			var boundsA = meshA.GetWorldBounds();
+			var boundsB = meshB.GetWorldBounds();
+
+			var expandedB = new BBox( boundsB.Mins - threshold, boundsB.Maxs + threshold );
+
+			if ( !boundsA.Overlaps( expandedB ) )
+				return false;
+
+			foreach ( var vA in meshA.Mesh.VertexHandles )
+			{
+				meshA.Mesh.GetVertexPosition( vA, meshA.WorldTransform, out var posA );
+				foreach ( var vB in meshB.Mesh.VertexHandles )
+				{
+					meshB.Mesh.GetVertexPosition( vB, meshB.WorldTransform, out var posB );
+					if ( posA.Distance( posB ) < threshold )
+						return true;
+				}
+			}
+			return false;
 		}
 
 		static void CenterMeshOrigin( MeshComponent meshComponent )
@@ -192,8 +299,8 @@ partial class MeshSelection
 
 			var world = meshComponent.WorldTransform;
 			var localCenter = world.PointToLocal( origin );
-			meshComponent.WorldPosition = origin;
 			meshComponent.Mesh.ApplyTransform( new Transform( -localCenter ) );
+			meshComponent.WorldPosition = origin;
 			meshComponent.RebuildMesh();
 		}
 
@@ -205,6 +312,17 @@ partial class MeshSelection
 			meshComponent.WorldScale = 1.0f;
 			meshComponent.Mesh.Scale( scale );
 			meshComponent.RebuildMesh();
+		}
+
+		void SaveToModel()
+		{
+			if ( _meshes.Length == 0 ) return;
+
+			var targetPath = EditorUtility.SaveFileDialog( "Create Model..", "vmdl", "" );
+			if ( targetPath is null ) return;
+
+			var meshes = _meshes.Select( x => x.Mesh ).ToArray();
+			EditorUtility.CreateModelFromPolygonMeshes( meshes, targetPath );
 		}
 	}
 }

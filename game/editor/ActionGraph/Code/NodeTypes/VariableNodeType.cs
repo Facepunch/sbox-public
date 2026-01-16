@@ -14,7 +14,7 @@ public class VariableNodeType : LibraryNodeType
 	[Event( GetLocalNodeTypesEvent.EventName )]
 	public static void OnGetLocalNodeTypes( GetLocalNodeTypesEvent ev )
 	{
-		foreach ( var variable in ev.Graph.Variables.Values )
+		foreach ( var variable in ev.ActionGraph.Variables.Values )
 		{
 			ev.Output.Add( new VariableNodeType( variable ) );
 		}

@@ -41,6 +41,13 @@ public struct MeshFace : IMeshElement
 	}
 
 	[JsonIgnore, Hide]
+	public readonly Vector2[] TextureCoordinates
+	{
+		get => IsValid ? Component.Mesh.GetFaceTextureCoords( Handle ) : default;
+		set => Component?.Mesh.SetFaceTextureCoords( Handle, value );
+	}
+
+	[JsonIgnore, Hide]
 	public readonly Material Material
 	{
 		get => IsValid ? Component.Mesh.GetFaceMaterial( Handle ) : default;

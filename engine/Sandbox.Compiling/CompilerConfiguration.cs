@@ -23,7 +23,7 @@ partial class Compiler
 		public string RootNamespace { get; set; }
 
 		[Title( "Symbols" ), Description( "A list of pre-processor symbols to define when compiling, separated with semi-colons." )]
-		public string DefineConstants { get; set; } = "SANDBOX;ADDON;DEBUG";
+		public string DefineConstants { get; set; } = "SANDBOX";
 		public string NoWarn { get; set; } = "1701;1702;1591;";
 		public string WarningsAsErrors { get; set; } = "";
 		public bool TreatWarningsAsErrors { get; set; }
@@ -43,6 +43,10 @@ partial class Compiler
 		[JsonIgnore]
 		public bool Unsafe { get; set; } = false;
 
+		/// <summary>
+		/// The current release mode. This only matters during local development. 
+		/// Published games are always built in release mode, where optimizations are enabled and debugging is limited (breakpoints, sequence points, and locals may be unavailable).
+		/// </summary>
 		public ReleaseMode ReleaseMode { get; set; }
 
 		/// <summary>
@@ -105,17 +109,35 @@ partial class Compiler
 		}
 
 		/// <summary>
+		/// Fetches the preprocessor symbols, which might've changed based on criteria
+		/// </summary>
+		/// <returns></returns>
+		public HashSet<string> GetPreprocessorSymbols()
+		{
+			var symbols = DefineConstants.Split( ";", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries )
+							.ToHashSet();
+
+			if ( ReleaseMode == ReleaseMode.Debug )
+			{
+				symbols.Add( "DEBUG" );
+			}
+			else
+			{
+				symbols.Remove( "DEBUG" );
+			}
+
+			return symbols;
+		}
+
+		/// <summary>
 		/// Returns the CSharpParseOptions for this configuration, which includes the preprocessor symbols defined in <see cref="DefineConstants"/>.
 		/// </summary>
 		/// <returns></returns>
 		public CSharpParseOptions GetParseOptions()
 		{
-			var symbols = DefineConstants.Split( ";", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries )
-							.ToHashSet();
-
 			return CSharpParseOptions.Default
 				.WithLanguageVersion( LanguageVersion.CSharp14 )
-				.WithPreprocessorSymbols( symbols );
+				.WithPreprocessorSymbols( GetPreprocessorSymbols() );
 		}
 	}
 }

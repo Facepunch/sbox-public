@@ -7,15 +7,23 @@ public partial class Component
 		return Task.CompletedTask;
 	}
 
+	protected virtual Task OnLoad( LoadingContext context )
+	{
+		return OnLoad();
+	}
+
 	private void LaunchLoader()
 	{
-		var loadingTask = OnLoad();
-		if ( loadingTask is null || loadingTask.IsCompletedSuccessfully )
+		var loadContext = new LoadingContext();
+
+		loadContext.Task = OnLoad( loadContext );
+		if ( loadContext.IsCompleted )
 			return;
 
-		GameObject.Flags |= GameObjectFlags.Loading;
-		Scene.AddLoadingTask( WaitForLoad( loadingTask ) );
+		loadContext.Task = WaitForLoad( loadContext.Task );
 
+		GameObject.Flags |= GameObjectFlags.Loading;
+		Scene.AddLoadingTask( loadContext );
 	}
 
 	private async Task WaitForLoad( Task task )

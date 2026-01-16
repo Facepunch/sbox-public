@@ -104,12 +104,12 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		}
 	}
 
-	protected override Task OnLoad()
+	protected override Task OnLoad( LoadingContext context )
 	{
 		if ( !Active )
 			return Task.CompletedTask;
 
-		return LoadMapAsync();
+		return LoadMapAsync( context );
 	}
 
 	/// <summary>
@@ -161,7 +161,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 		if ( loadedMapName != MapName )
 		{
-			_ = LoadMapAsync( MapName );
+			_ = LoadMapAsync( MapName, null );
 		}
 	}
 
@@ -175,27 +175,29 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		tokenSources.Clear();
 	}
 
-	async Task<bool> LoadMapAsync()
+	async Task<bool> LoadMapAsync( LoadingContext context )
 	{
 		if ( UseMapFromLaunch && !string.IsNullOrWhiteSpace( LaunchArguments.Map ) )
 		{
 			MapName = LaunchArguments.Map;
-			await LoadMapAsync( MapName );
+			await LoadMapAsync( MapName, context );
 			return true;
 		}
 
 		if ( string.IsNullOrWhiteSpace( MapName ) )
 			return false;
 
-		return await LoadMapAsync( MapName );
+		return await LoadMapAsync( MapName, context );
 	}
 
-	async Task<bool> LoadMapAsync( string mapName )
+	async Task<bool> LoadMapAsync( string mapName, LoadingContext context )
 	{
 		if ( loadedMapName == mapName )
 			return true;
 
 		SentrySdk.AddBreadcrumb( $"LoadMapAsync {mapName}", "map.load" );
+
+		context?.Title = "Loading Map";
 
 		UnloadMap();
 		CancelLoading();
@@ -218,8 +220,6 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			GameObject.Flags |= GameObjectFlags.Loading;
 
 			token.ThrowIfCancellationRequested();
-
-			LoadingScreen.Title = $"Loading Map";
 
 			var mapFileName = mapName;
 
@@ -245,7 +245,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 				token.ThrowIfCancellationRequested();
 
-				LoadingScreen.Title = $"Loading Map - {package.Title}";
+				context?.Title = $"Loading Map - {package.Title}";
 
 				var fs = await package.MountAsync();
 

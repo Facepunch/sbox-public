@@ -114,10 +114,18 @@ public class ComponentSheetHeader : InspectorHeader
 
 	void FillContextMenu( Menu menu )
 	{
-		var o = menu.AddOption( "View Legacy Actions", "sentiment_very_dissatisfied" );
-		o.Checkable = true;
-		o.Checked = Sheet.ViewMode == ComponentViewMode.Events;
-		o.Toggled = b => Sheet.ViewMode = b ? ComponentViewMode.Events : ComponentViewMode.Default;
+		{
+			var o = menu.AddOption( "View Legacy Actions", "sentiment_very_dissatisfied" );
+			o.Checkable = true;
+			o.Checked = Sheet.ViewMode == ComponentViewMode.Events;
+			o.Toggled = b => Sheet.ViewMode = b ? ComponentViewMode.Events : ComponentViewMode.Default;
+		}
+		{
+			var o = menu.AddOption( "View Advanced Properties", "tune" );
+			o.Checkable = true;
+			o.Checked = Sheet.ShowAdvanced;
+			o.Toggled = b => Sheet.ShowAdvanced = b;
+		}
 		menu.AddSeparator();
 	}
 

@@ -145,7 +145,7 @@ public partial class MenuSystem : IMenuSystem
 		}
 	}
 
-	MenuMusic menu = new MenuMusic( "music/menu-bg-xmas.mp3" );
+	MenuMusic menu = new MenuMusic( "music/menu-bg.wav" );
 	MenuMusic loading = new MenuMusic( "music/menu-loading.wav" );
 	MenuMusic avatar = new MenuMusic( "music/furniture_shop_loop.ogg" );
 

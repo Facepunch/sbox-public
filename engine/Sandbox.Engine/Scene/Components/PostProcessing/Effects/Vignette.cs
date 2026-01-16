@@ -36,11 +36,10 @@ public sealed class Vignette : BasePostProcess<Vignette>
 	/// </summary>
 	[Property] public Vector2 Center { get; set; } = new Vector2( 0.5f, 0.5f );
 
+	private static readonly Material Shader = Material.FromShader( "shaders/postprocess/pp_vignette.shader" );
 
 	public override void Render()
 	{
-		var shader = Material.FromShader( "shaders/postprocess/pp_vignette.shader" );
-
 		float intensity = GetWeighted( x => x.Intensity );
 		if ( intensity.AlmostEqual( 0.0f ) ) return;
 
@@ -53,7 +52,7 @@ public sealed class Vignette : BasePostProcess<Vignette>
 		Attributes.Set( "roundness", GetWeighted( x => x.Roundness, onlyLerpBetweenVolumes: true ) );
 		Attributes.Set( "center", GetWeighted( x => x.Center, onlyLerpBetweenVolumes: true ) );
 
-		var blit = BlitMode.Simple( shader, Stage.BeforePostProcess, 5000 );
+		var blit = BlitMode.Simple( Shader, Stage.BeforePostProcess, 5000 );
 		Blit( blit, "Vignette" );
 	}
 }

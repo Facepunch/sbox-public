@@ -310,8 +310,10 @@ public class ResourceControlWidget : ControlWidget
 				return false;
 		}
 
+		var scene = SerializedProperty.GetContainingGameObject()?.Scene;
+
 		// Check that we aren't changing this prefab to the same prefab we're already in (recursive nightmare)
-		if ( SerializedProperty.PropertyType == typeof( PrefabFile ) && SceneEditorSession.Active.Scene is PrefabScene prefabScene )
+		if ( SerializedProperty.PropertyType == typeof( PrefabFile ) && scene is PrefabScene prefabScene )
 		{
 			var prefab = asset.LoadResource<PrefabFile>();
 			var scenePrefab = prefabScene.ToPrefabFile();

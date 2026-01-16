@@ -157,12 +157,17 @@ internal sealed class TextBlock : IDisposable
 
 		if ( color.a <= 0 ) return;
 
+		var bm = renderer.OverrideBlendMode;
+
+		if ( bm == BlendMode.Normal && Texture.Flags.Contains( TextureFlags.PremultipliedAlpha ) )
+			bm = BlendMode.PremultipliedAlpha;
+
 		textAttr.Set( "BoxPosition", textrect.Position );
 		textAttr.Set( "BoxSize", textrect.Size );
 
 		textAttr.Set( "TextureIndex", Texture.Index );
 		textAttr.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = TextFilter } ) );
-		textAttr.SetComboEnum( "D_BLENDMODE", renderer.OverrideBlendMode );
+		textAttr.SetComboEnum( "D_BLENDMODE", bm );
 
 		Graphics.DrawQuad( textrect.Floor(), Material.UI.Text, color, textAttr );
 	}
@@ -379,8 +384,8 @@ internal sealed class TextBlock : IDisposable
 
 						var sty = Style.Copy();
 
-						sty.FontSize = (style.FontSize ?? Length.Pixels( 13 ).Value).GetPixels( 100 );
-						sty.FontSize = MathF.Round( FontSize * 32.0f ) / 32.0f;
+						sty.FontSize = s.FontSize?.GetPixels( 100 ) ?? sty.FontSize;
+						sty.FontSize = MathF.Round( sty.FontSize * 32.0f ) / 32.0f;
 						sty.FontFamily = s.FontFamily;
 						sty.TextColor = s.FontColor?.ToSk() ?? sty.TextColor;
 						sty.BackgroundColor = s.BackgroundColor?.ToSk() ?? sty.BackgroundColor;
@@ -543,7 +548,7 @@ internal sealed class TextBlock : IDisposable
 
 		using var perfScope = Performance.Scope( "TextBlock.RebuildTexture" );
 
-		using ( var bitmap = new SKBitmap( width, height, SKColorType.Bgra8888, SKAlphaType.Unpremul ) )
+		using ( var bitmap = new SKBitmap( width, height, SKColorType.Bgra8888, SKAlphaType.Premul ) )
 		using ( var canvas = new SKCanvas( bitmap ) )
 		{
 			var o = new Topten.RichTextKit.TextPaintOptions
@@ -599,6 +604,8 @@ internal sealed class TextBlock : IDisposable
 									.WithData( bitmap.GetPixels(), width * height * bitmap.BytesPerPixel )
 									.WithDynamicUsage()
 									.Finish();
+
+			Texture.Flags |= TextureFlags.PremultipliedAlpha;
 		}
 	}
 

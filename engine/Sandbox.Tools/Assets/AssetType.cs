@@ -8,6 +8,9 @@ public class AssetType
 {
 	internal static Dictionary<int, AssetType> AssetTypeCache = new Dictionary<int, AssetType>();
 
+	TypeDescription _typeDescription;
+	AssetTypeAttribute _assetTypeAttribute;
+
 	/// <summary>
 	/// All currently registered asset types, including the base types such as models, etc.
 	/// </summary>
@@ -143,6 +146,11 @@ public class AssetType
 	/// </summary>
 	public Color Color { get; internal set; } = Color.Magenta;
 
+	/// <summary>
+	/// Flags for this asset type
+	/// </summary>
+	public AssetTypeFlags Flags => _assetTypeAttribute?.Flags ?? default;
+
 	public override string ToString() => FriendlyName;
 
 	internal string IconPathSmall { get; set; }
@@ -163,12 +171,17 @@ public class AssetType
 		}
 
 		var missing_svg = "<svg viewBox=\"0 0 16 16\" xmlns=\"http://www.w3.org/2000/svg\" fill=\"#000000\"><g id=\"SVGRepo_bgCarrier\" stroke-width=\"0\"></g><g id=\"SVGRepo_tracerCarrier\" stroke-linecap=\"round\" stroke-linejoin=\"round\"></g><g id=\"SVGRepo_iconCarrier\"> <g fill=\"#66b8ff\"> <path d=\"m 4 0 c -2 0 -2 2 -2 2 v 12 c 0 2 2 2 2 2 h 8 s 2 0 2 -2 v -11 l -3 -3 z m 3.753906 3 c 0.019532 0 0.039063 0.011719 0.058594 0.011719 c 2.160156 -0.089844 4.0625 1.5625 4.183594 3.746093 l 0.003906 0.027344 v 0.027344 c 0 0.046875 -0.003906 0.085938 -0.007812 0.132812 c 0.003906 0.011719 0.007812 0.054688 0.007812 0.054688 l -0.003906 1 h -0.121094 c -0.074219 0.328125 -0.1875 0.636719 -0.355469 0.917969 c -0.015625 0.03125 -0.039062 0.054687 -0.054687 0.082031 h 0.53125 v 2 h 0.003906 v 2 c 0 1 -1 1 -1 1 l -1.003906 -0.003906 v -0.984375 c -0.007813 1.089843 -0.910156 1.988281 -1.996094 1.988281 c -1.09375 0 -2 -0.90625 -2 -2 c 0 -0.382812 0.132812 -0.710938 0.335938 -1 h -0.335938 v -1 h -2.003906 v -2 h 2.003906 v -1 h -0.003906 v 0.007812 h -2 l 0.003906 -1.007812 s 0.003906 -0.054688 0.007812 -0.09375 c -0.03125 -2.109375 1.671876 -3.789062 3.746094 -3.902344 z m 4.242188 8 h -1.996094 v 0.003906 h 1.996094 z m -3.332032 -5.867188 c 0.71875 0.261719 1.273438 0.929688 1.324219 1.730469 c 0 -0.003906 0.003907 -0.003906 0.003907 -0.011719 c -0.054688 -0.796874 -0.601563 -1.457031 -1.328126 -1.722656 z m 1 6.867188 c 0.199219 0.285156 0.332032 0.613281 0.332032 0.988281 v -0.988281 z m -5.667968 0.003906 h 2 v 2 l -0.996094 -0.003906 c -1 0 -1 -1 -1 -1 z m 0 0\" fill-opacity=\"0.34902\"></path> <path d=\"m 8.152344 4.007812 c -0.4375 -0.023437 -0.882813 0.046876 -1.300782 0.222657 c -1.117187 0.460937 -1.851562 1.558593 -1.851562 2.769531 h 2 c 0 -0.40625 0.242188 -0.769531 0.617188 -0.921875 c 0.375 -0.15625 0.800781 -0.074219 1.089843 0.214844 c 0.289063 0.289062 0.371094 0.714843 0.214844 1.089843 s -0.515625 0.617188 -0.921875 0.617188 c -0.550781 0 -1 0.449219 -1 1 v 2 h 2 v -1.179688 c 0.785156 -0.28125 1.441406 -0.875 1.769531 -1.671874 c 0.464844 -1.117188 0.207031 -2.414063 -0.648437 -3.269532 c -0.535156 -0.535156 -1.242188 -0.835937 -1.96875 -0.871094 z m -0.152344 7.992188 c -0.550781 0 -1 0.449219 -1 1 s 0.449219 1 1 1 s 1 -0.449219 1 -1 s -0.449219 -1 -1 -1 z m 0 0\"></path> </g> </g></svg>";
-		var bitmap = Bitmap.CreateFromSvgString( missing_svg, 256, 256 );
+		using var bitmap256 = Bitmap.CreateFromSvgString( missing_svg, 256, 256 );
+		Icon256 = Pixmap.FromBitmap( bitmap256 );
 
-		Icon256 = Pixmap.FromBitmap( bitmap );
-		Icon128 = Pixmap.FromBitmap( bitmap.Resize( 128, 128 ) );
-		Icon64 = Pixmap.FromBitmap( bitmap.Resize( 64, 64 ) );
-		Icon16 = Pixmap.FromBitmap( bitmap.Resize( 16, 16 ) );
+		using var bitmap128 = bitmap256.Resize( 128, 128 );
+		Icon128 = Pixmap.FromBitmap( bitmap128 );
+
+		using var bitmap64 = bitmap256.Resize( 64, 64 );
+		Icon64 = Pixmap.FromBitmap( bitmap64 );
+
+		using var bitmap16 = bitmap256.Resize( 64, 64 );
+		Icon16 = Pixmap.FromBitmap( bitmap16 );
 	}
 
 	internal void Init()
@@ -241,17 +254,20 @@ public class AssetType
 		Icon64 = Icon128.Resize( 64, 64 );
 	}
 
-	private void Init( TypeDescription type, AssetTypeAttribute gr )
+	private void Init( TypeDescription type, AssetTypeAttribute attribute )
 	{
 		IsGameResource = true;
 
+		_typeDescription = type;
+		_assetTypeAttribute = attribute;
+
 		ResourceType = type.TargetType;
 
-		Category = gr.Category;
-		FriendlyName = gr.Name;
-		FileExtension = gr.Extension;
+		Category = attribute.Category;
+		FriendlyName = attribute.Name;
+		FileExtension = attribute.Extension;
 
-		GenerateGlyphs( gr );
+		GenerateGlyphs( attribute );
 
 		// For game resources, use the background color specified in the attribute
 		Color = "#67ac5c";

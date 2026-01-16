@@ -9,13 +9,72 @@ namespace TestCompiler;
 [TestClass]
 public partial class BlacklistTest
 {
+
+	[TestMethod]
+	public async Task DefaultCompilerFailsWhitelist()
+	{
+		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
+		using var group = new CompileGroup( "TestWhitelist" );
+
+		var compiler = group.GetOrCreateCompiler( "test" );
+		compiler.AddSourcePath( codePath );
+		compiler.MarkForRecompile();
+		await group.BuildAsync();
+
+		// Verify compilation failed due to whitelist violations
+		var output = compiler.Output;
+		Assert.IsNotNull( output );
+		Assert.IsFalse( output.Successful, "Compiler should fail with default whitelist settings" );
+		Assert.IsTrue( output.Diagnostics.Count > 0, "Should have diagnostics for whitelist violations" );
+	}
+
+	[TestMethod]
+	public async Task CompilerWithWhitelistFails()
+	{
+		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
+		using var group = new CompileGroup( "TestWhitelist" );
+
+		var compilerSettings = new Compiler.Configuration();
+		compilerSettings.Whitelist = true;
+		compilerSettings.Unsafe = false;
+
+		var compiler = group.CreateCompiler( "test", codePath, compilerSettings );
+		await group.BuildAsync();
+
+		// Verify compilation failed due to whitelist being enabled
+		var output = compiler.Output;
+		Assert.IsNotNull( output );
+		Assert.IsFalse( output.Successful, "Compiler should fail when whitelist is explicitly enabled" );
+		Assert.IsTrue( output.Diagnostics.Count > 0, "Should have diagnostics for whitelist violations" );
+	}
+
+	[TestMethod]
+	public async Task CompilerWithoutWhitelistSucceeds()
+	{
+		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
+		using var group = new CompileGroup( "TestWhitelist" );
+
+		var compilerSettings = new Compiler.Configuration();
+		compilerSettings.Whitelist = false;
+		compilerSettings.Unsafe = true;
+
+		var compiler = group.CreateCompiler( "test", codePath, compilerSettings );
+		await group.BuildAsync();
+
+		// Verify compilation succeeded with whitelist disabled
+		var output = compiler.Output;
+		Assert.IsNotNull( output );
+		Assert.IsTrue( output.Successful, "Compiler should succeed when whitelist is disabled" );
+		Assert.IsNull( output.Exception, "Should not have any exceptions" );
+	}
+
 	[TestMethod]
 	public async Task EndToEndBuildFailure()
 	{
 		bool compileSuccessCallback = false;
 
 		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
 		var compilerSettings = new Compiler.Configuration();
@@ -94,6 +153,7 @@ public partial class BlacklistTest
 		// H1-3204420
 		var sourceCode = """
 			#define DUMMY
+			#define DUMMY2
 			using System;
 			using System.Diagnostics;
 			using System.Reflection;
@@ -113,20 +173,24 @@ public partial class BlacklistTest
 			#if !DUMMY
 					return System.Runtime.CompilerServices.Unsafe.As<T>(o);
 			#endif
-					throw new UnreachableException();
+			
+			#if DUMMY2
+					return System.Runtime.CompilerServices.Unsafe.As<T>(o);
+			#endif
+			
+					return default;
 				}
 			
 				private static T OnMethodInvoked<T>(WrappedMethod<T> m, object o)
 				{
 					return m.Resume();
 				}
-
+				
 				[ConCmd("escape")]
 				public static void Escape()
 				{
 					var type = typeof(Type);
 					var typeShadow = As<ModelRenderer>(type);
-
 					Log.Info("type " + type);
 					Log.Info("typeShadow " + typeShadow);
 				}

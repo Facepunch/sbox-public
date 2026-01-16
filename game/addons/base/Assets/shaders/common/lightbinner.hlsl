@@ -37,12 +37,6 @@ enum LightShape
     Rectangle = 2
 };
 
-// These two max constants are only really useful for tiled rendering, make them
-// programatic later when we do dynamic allocation of lights
-#define MAX_LIGHTS_PER_TILE 64
-#define MAX_ENVMAPS_PER_TILE 32
-#define MAX_DECALS_PER_TILE 64
-
 #define MAX_SHADOW_FRUSTA_PER_LIGHT 6
 
 //-----------------------------------------------------------------------------
@@ -226,7 +220,7 @@ BinnedEnvMap EnvironmentMapConstantByIndex( int index )
 
 //-----------------------------------------------------------------------------
 
-#include "common/light.tiledrendering.hlsl"
+#include "common/classes/ClusterCulling.hlsl"
 
 //-----------------------------------------------------------------------------
 

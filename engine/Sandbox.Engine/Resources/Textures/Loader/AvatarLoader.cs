@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using NativeEngine;
 using Steamworks;
 using Steamworks.Data;
@@ -9,6 +10,11 @@ namespace Sandbox.TextureLoader;
 /// </summary>
 internal static class Avatar
 {
+	/// <summary>
+	/// Entries are cached on a sliding window, they will be released if not used for 10 minutes
+	/// </summary>
+	static readonly MemoryCache _cache = new( new MemoryCacheOptions() );
+
 	internal static bool IsAppropriate( string url )
 	{
 		return url.StartsWith( "avatar:" ) || url.StartsWith( "avatarbig:" ) || url.StartsWith( "avatarsmall:" );
@@ -18,15 +24,18 @@ internal static class Avatar
 	{
 		try
 		{
-			//
-			// Create a 1x1 placeholder texture
-			//
-			var placeholder = Texture.Create( 1, 1 ).WithName( "avatar" ).WithData( new byte[4] { 0, 0, 0, 0 } ).Finish();
-			placeholder.IsLoaded = false;
+			return _cache.GetOrCreate( filename, entry =>
+			{
+				entry.SetSlidingExpiration( TimeSpan.FromMinutes( 10 ) );
 
-			_ = LoadIntoTexture( filename, placeholder );
+				var placeholder = Texture.Create( 1, 1 ).WithName( "avatar" ).WithData( new byte[4] { 0, 0, 0, 0 } ).Finish();
+				placeholder.IsLoaded = false;
+				placeholder.SetIdFromResourcePath( filename );
 
-			return placeholder;
+				_ = LoadIntoTexture( filename, placeholder );
+
+				return placeholder;
+			} );
 		}
 		catch ( System.Exception e )
 		{
@@ -118,10 +127,10 @@ internal static class Avatar
 
 			//Log.Info( $"Got Avatar For {steamid} ({result.Value.Width} x {result.Value.Height})" );
 
-			var texture = Texture.Create( (int)result.Value.Width, (int)result.Value.Height, ImageFormat.RGBA8888 )
-						.WithName( "avatar" )
-						.WithData( result.Value.Data )
-						.Finish();
+			using var texture = Texture.Create( (int)result.Value.Width, (int)result.Value.Height, ImageFormat.RGBA8888 )
+					.WithName( "avatar" )
+					.WithData( result.Value.Data )
+					.Finish();
 
 			//
 			// Replace the placeholder texture with this loaded one

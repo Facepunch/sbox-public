@@ -370,6 +370,22 @@ public partial class TypeLibrary
 	public TypeDescription GetType( Type type ) => typedata.GetValueOrDefault( type.IsConstructedGenericType ? type.GetGenericTypeDefinition() : type );
 
 	/// <summary>
+	/// Convert a list of <see cref="Type"/> to a list of integers representing their TypeLibrary identity.
+	/// </summary>
+	internal int[] ToIdentities( Type[] types )
+	{
+		return types?.Select( t => GetType( t ).Identity ).ToArray();
+	}
+
+	/// <summary>
+	/// Convert a list of integers representing their TypeLibrary identity to a list of <see cref="Type"/>
+	/// </summary>
+	internal Type[] FromIdentities( int[] identities )
+	{
+		return identities?.Select( i => GetTypeByIdent( i ).TargetType ).ToArray();
+	}
+
+	/// <summary>
 	/// Get a list of types that implement this generic type
 	/// </summary>
 	public IReadOnlyList<TypeDescription> GetGenericTypes( Type type, Type[] types )
@@ -507,15 +523,26 @@ public partial class TypeLibrary
 	/// <returns>True if all properties pass their validity checks (or if there are no checks), false otherwise.</returns>
 	public bool CheckValidationAttributes<T>( T obj ) where T : class
 	{
+		return CheckValidationAttributes( obj, out _ );
+	}
+
+	/// <summary>
+	/// Check if all properties of this class instance pass their <see cref="ValidationAttribute"/>.
+	/// </summary>
+	/// <param name="obj">Object to test.</param>
+	/// <param name="errors">string array of first invalid obj property error</param>
+	/// <returns>True if all properties pass their validity checks (or if there are no checks), false otherwise.</returns>
+	public bool CheckValidationAttributes<T>( T obj, out string[] errors ) where T : class
+	{
 		var type = GetType<T>();
 
 		foreach ( var prop in type.Properties )
 		{
-			// TODO: output dictionary of property-errors?
-			var valid = prop.CheckValidationAttributes( obj, out _ );
+			var valid = prop.CheckValidationAttributes( obj, out errors );
 			if ( !valid ) return false;
 		}
 
+		errors = [];
 		return true;
 	}
 

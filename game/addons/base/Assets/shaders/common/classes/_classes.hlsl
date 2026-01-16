@@ -1,6 +1,7 @@
 #include "common_samplers.fxc" // Move me to hlsl
 #include "common/GBuffer.hlsl"
 
+#include "common/classes/ClusterCulling.hlsl"
 #include "common/classes/Light.hlsl"
 #include "common/classes/LTC.hlsl"
 #include "common/classes/Bindless.hlsl"
@@ -14,3 +15,4 @@
 #include "common/classes/AmbientLight.hlsl"
 #include "common/classes/EnvMap.hlsl"
 #include "common/classes/ToolsVis.hlsl"
+#include "common/classes/Math/_math.hlsl"

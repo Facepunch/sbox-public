@@ -1,6 +1,11 @@
 ﻿namespace Sandbox;
 
-/// <inheritdoc cref="Physics.WheelJoint"/>
+/// <summary>
+/// The wheel joint can be used to simulate wheels on vehicles.
+/// The wheel joint restricts body B to move along a local axis in body A. Body B is free to rotate.
+/// Supports a linear spring, linear limits, and a rotational motor.
+/// The assumption is that you will create this joint on the wheel body.This will enable suspension to be in the correct direction.
+/// </summary>
 [Expose]
 [Title( "Wheel Joint" )]
 [Category( "Physics" )]
@@ -40,7 +45,10 @@ public sealed class WheelJoint : Joint
 
 			if ( _joint.IsValid() )
 			{
-				_joint.SuspensionLimits = EnableSuspension ? field : 0.0f;
+				var v = EnableSuspension ? field : 0.0f;
+				v = new Vector2( Math.Min( v.x, v.y ), Math.Max( v.x, v.y ) );
+
+				_joint.SuspensionLimits = v;
 				_joint.WakeBodies();
 			}
 		}
@@ -131,7 +139,11 @@ public sealed class WheelJoint : Joint
 		{
 			// Suspension on, use user limits.
 			_joint.EnableSuspensionLimit = EnableSuspensionLimit;
-			_joint.SuspensionLimits = SuspensionLimits;
+
+			var v = SuspensionLimits;
+			v = new Vector2( Math.Min( v.x, v.y ), Math.Max( v.x, v.y ) );
+
+			_joint.SuspensionLimits = v;
 		}
 		else
 		{
@@ -333,8 +345,13 @@ public sealed class WheelJoint : Joint
 
 		if ( Attachment == AttachmentMode.Auto )
 		{
-			localFrame1 = point1.LocalTransform;
-			localFrame2 = point2.LocalTransform;
+			localFrame1 = global::Transform.Zero;
+			localFrame1.Position = point1.LocalPosition;
+			localFrame1.Rotation = point1.LocalRotation * new Angles( 90, 0, 0 ) * new Angles( 0, 90, 0 ); // face the right way, steer the right way
+
+			localFrame2 = global::Transform.Zero;
+			localFrame2.Position = point2.Body.Transform.PointToLocal( point1.Transform.Position );
+			localFrame2.Rotation = point2.Body.Transform.RotationToLocal( point1.Transform.Rotation * new Angles( 90, 0, 0 ) * new Angles( 0, 90, 0 ) ); // face the right way, steer the right way
 		}
 
 		if ( !Scene.IsEditor )
@@ -348,7 +365,7 @@ public sealed class WheelJoint : Joint
 		point1.LocalTransform = localFrame1;
 		point2.LocalTransform = localFrame2;
 
-		_joint = PhysicsJoint.CreateWheel( point1, point2 );
+		_joint = PhysicsJoint.CreateWheel( point2, point1 );
 
 		UpdateProperties();
 
@@ -375,5 +392,43 @@ public sealed class WheelJoint : Joint
 		UpdateSuspension();
 
 		_joint.WakeBodies();
+	}
+
+	protected override void DrawGizmos()
+	{
+		if ( !Gizmo.IsSelected )
+			return;
+
+		Gizmo.Draw.IgnoreDepth = true;
+
+		using var _ = Gizmo.Scope();
+
+		Gizmo.Transform = Gizmo.Transform.WithScale( 1 );
+
+
+		// axis
+		{
+			using var __ = Gizmo.Scope();
+			Gizmo.Transform = Gizmo.Transform with { Rotation = Gizmo.Transform.Rotation * new Angles( 0, 0, RealTime.Now * 45 ) };
+			Gizmo.Draw.Color = Gizmo.Colors.Green;
+			Gizmo.Draw.LineThickness = 2;
+			Gizmo.Draw.LineCapsule( new Capsule( Vector3.Forward * -5.0f, Vector3.Forward * 5.0f, 1 ) );
+		}
+
+		if ( EnableSuspension && SuspensionLimits != default )
+		{
+			var v = SuspensionLimits;
+			v = new Vector2( Math.Min( v.x, v.y ), Math.Max( v.x, v.y ) );
+
+			using var __ = Gizmo.Scope();
+
+			var top = Vector3.Left * v.y;
+			var bottom = Vector3.Left * v.x;
+
+			Gizmo.Draw.LineThickness = 2;
+			Gizmo.Draw.Color = Gizmo.Colors.Forward.WithAlpha( 0.3f );
+
+			Gizmo.Draw.LineCapsule( new Capsule( top, bottom, 1 ) );
+		}
 	}
 }

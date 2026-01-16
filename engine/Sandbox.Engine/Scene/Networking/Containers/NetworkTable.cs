@@ -82,7 +82,7 @@ internal class NetworkTable<T> : INetworkDeltaSnapshot, INetworkProperty, INetwo
 
 	void WriteSerializedKeys()
 	{
-		var bs = ByteStream.Create( 1024 );
+		using var bs = ByteStream.Create( 1024 );
 		bs.Write( Keys.Count );
 
 		foreach ( var key in Keys )
@@ -110,7 +110,7 @@ internal class NetworkTable<T> : INetworkDeltaSnapshot, INetworkProperty, INetwo
 			return;
 		}
 
-		var reader = ByteStream.CreateReader( data );
+		using var reader = ByteStream.CreateReader( data );
 		var count = reader.Read<int>();
 
 		Keys.Clear();

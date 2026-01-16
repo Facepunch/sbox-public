@@ -8,6 +8,7 @@
 #include "light_probe_volume.fxc"
 #include "baked_lighting_constants.fxc"
 #include "pcss.fxc"
+#include "common/lightbinner.hlsl"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -481,13 +482,13 @@ void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t 
 	o.vSpecular 	= float3( 0.0, 0.0, 0.0 );
 	o.vTransmissive = float3( 0.0, 0.0, 0.0 );
 
-	const uint2 vTile = GetTileForScreenPosition( f.vPositionSs.xy );
+	ClusterRange lightRange = Cluster::Query( ClusterItemType_Light, f.vPositionWs );
 
 	[loop]
-	for ( uint i = 0; i < GetNumLights( vTile ); i++ )
+	for ( uint i = 0; i < lightRange.Count; i++ )
 	{
-		const uint index = TranslateLightIndex( i, vTile );
-        const BinnedLight lightData = DynamicLightConstantByIndex( index );
+		const uint index = Cluster::LoadItem( lightRange, i );
+		const BinnedLight lightData = DynamicLightConstantByIndex( index );
 		ComputeDirectLightingForLight( f, lightData, o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb );
 	}
 }
@@ -714,14 +715,13 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 		
         float flDistAccumulated = 0;
 
-		const uint2 vTile = GetTileForScreenPosition( vPositionSS.xy );
-		const uint nNumEnvMaps = GetNumEnvMaps( vTile );
+		ClusterRange envRange = Cluster::Query( ClusterItemType_EnvMap, vPositionWs );
 
 		float2 vLevel = vSQRTRoughness.xy;
 		
-		for( uint i=0; i<nNumEnvMaps; i++ )
+		for ( uint i = 0; i < envRange.Count; i++ )
 		{
-			const uint index = TranslateEnvMapIndex( i, vTile );
+			const uint index = Cluster::LoadItem( envRange, i );
 
 			const float3 vCubePos = mul( float4( vPositionWs.xyz, 1.0 ), EnvMapWorldToLocal( index ) ).xyz;
 

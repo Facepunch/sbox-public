@@ -11,18 +11,22 @@ public struct NetworkSpawnOptions()
 	public static readonly NetworkSpawnOptions Default = new();
 
 	/// <summary>
-	/// What happens to this networked object when its owner disconnects?
+	/// <inheritdoc cref="GameObject.NetworkAccessor.NetworkOrphaned"/>
 	/// </summary>
 	public NetworkOrphaned? OrphanedMode { get; set; }
 
 	/// <summary>
-	/// Who can control the ownership of this networked object?
+	/// <inheritdoc cref="GameObject.NetworkAccessor.OwnerTransfer"/>
 	/// </summary>
 	public OwnerTransfer? OwnerTransfer { get; set; }
 
 	/// <summary>
-	/// Determines whether updates for this networked object are always transmitted to clients. Otherwise,
-	/// they are only transmitted when the object is determined as visible to each client.
+	/// <inheritdoc cref="GameObject.NetworkAccessor.Flags"/>
+	/// </summary>
+	public NetworkFlags? Flags { get; set; }
+
+	/// <summary>
+	/// <inheritdoc cref="GameObject.NetworkAccessor.AlwaysTransmit"/>
 	/// </summary>
 	public bool? AlwaysTransmit { get; set; }
 

@@ -14,7 +14,7 @@ public class SceneRefNodeType : LibraryNodeType
 	[Event( QueryNodeTypesEvent.EventName )]
 	public static void OnQueryNodeTypes( QueryNodeTypesEvent ev )
 	{
-		if ( ev.Graph.GetEmbeddedTarget() is not GameObject hostObject )
+		if ( ev.EditorGraph.HostObject is not GameObject hostObject )
 		{
 			return;
 		}
@@ -108,19 +108,19 @@ public class SceneRefNodeType : LibraryNodeType
 	}
 
 	public SceneRefNodeType( GameObject value, GameObject root = null )
-		: base( EditorNodeLibrary.Get( "scene.ref" )!, GetPath( value, root ), SceneReferenceHelper.GetNodeProperties( value ) )
+		: base( EditorNodeLibrary.Get( "scene.ref" )!, GetPath( value, root ), ActionGraphEditorExtensions.GetNodeProperties( value ) )
 	{
 		Value = value;
 	}
 
 	public SceneRefNodeType( Component value, GameObject root = null )
-		: base( EditorNodeLibrary.Get( "scene.ref" )!, GetPath( value, root ), SceneReferenceHelper.GetNodeProperties( value ) )
+		: base( EditorNodeLibrary.Get( "scene.ref" )!, GetPath( value, root ), ActionGraphEditorExtensions.GetNodeProperties( value ) )
 	{
 		Value = value;
 	}
 
 	public SceneRefNodeType( string prefabPath, GameObject root = null )
-		: base( EditorNodeLibrary.Get( "scene.ref" )!, GetPath( prefabPath, root ), SceneReferenceHelper.GetNodeProperties( prefabPath ) )
+		: base( EditorNodeLibrary.Get( "scene.ref" )!, GetPath( prefabPath, root ), ActionGraphEditorExtensions.GetNodeProperties( prefabPath ) )
 	{
 		PrefabPath = prefabPath;
 	}

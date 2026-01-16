@@ -2,42 +2,281 @@
 
 public class MaterialPaletteWidget : Widget
 {
-	const int MaxRecentMaterials = 12;
-	const int RecentColumns = 6;
+	const int MaxCells = 12;
+	const int PaletteColumns = 6;
 
 	readonly List<Material> _recentMaterials = new();
-	readonly RecentMaterialSlotWidget[] _slots;
+	readonly PaletteMaterialSlotWidget[] _slots;
+
+	readonly List<string> _paletteNames = new();
+	string _paletteId = "Default";
 
 	public event Action<Material> MaterialClicked;
 	public Func<Material> GetActiveMaterial { get; set; }
 
+	public string PaletteId
+	{
+		get => _paletteId;
+		set
+		{
+			if ( string.IsNullOrEmpty( value ) || _paletteId == value )
+				return;
+
+			_paletteId = value;
+
+			SaveActivePalette();
+
+			LoadPaletteFromCookie();
+			Update();
+		}
+	}
+
 	public MaterialPaletteWidget()
 	{
 		Layout = Layout.Column();
-		Layout.Margin = 0;
+		Layout.Alignment = TextFlag.Center;
 
 		var grid = Layout.Grid();
 		grid.Spacing = 2;
 		Layout.Add( grid );
 
-		_slots = new RecentMaterialSlotWidget[MaxRecentMaterials];
+		_slots = new PaletteMaterialSlotWidget[MaxCells];
 
-		for ( int i = 0; i < MaxRecentMaterials; i++ )
+		for ( int i = 0; i < MaxCells; i++ )
 		{
-			var col = i / RecentColumns;
-			var row = i % RecentColumns;
+			var col = i / PaletteColumns;
+			var row = i % PaletteColumns;
 
-			var slot = new RecentMaterialSlotWidget( this )
+			var slot = new PaletteMaterialSlotWidget( this )
 			{
 				ShowFilename = false,
 				FixedSize = 32
 			};
 
 			_slots[i] = slot;
-
 			grid.AddCell( col, row, slot );
 		}
 
+		LoadPalettes();
+		LoadPaletteFromCookie();
+	}
+
+	void LoadPalettes()
+	{
+		_paletteNames.Clear();
+
+		string rawNames;
+		try { rawNames = ProjectCookie.Get( "MeshEditor.MaterialPalettes.Names", string.Empty ); }
+		catch { rawNames = string.Empty; }
+
+		if ( string.IsNullOrWhiteSpace( rawNames ) )
+		{
+			_paletteNames.Add( "Default" );
+		}
+		else
+		{
+			foreach ( var name in rawNames.Split( ';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries ) )
+			{
+				if ( !_paletteNames.Contains( name ) )
+					_paletteNames.Add( name );
+			}
+
+			if ( _paletteNames.Count == 0 )
+				_paletteNames.Add( "Default" );
+		}
+
+		try { _paletteId = ProjectCookie.Get( "MeshEditor.MaterialPalettes.Active", _paletteNames[0] ); }
+		catch { _paletteId = _paletteNames[0]; }
+
+		if ( !_paletteNames.Contains( _paletteId ) )
+			_paletteId = _paletteNames[0];
+	}
+
+	void SavePalettes()
+	{
+		ProjectCookie.Set( "MeshEditor.MaterialPalettes.Names", string.Join( ";", _paletteNames ) );
+		SaveActivePalette();
+	}
+
+	void SaveActivePalette()
+	{
+		ProjectCookie.Set( "MeshEditor.MaterialPalettes.Active", _paletteId ?? string.Empty );
+	}
+
+	protected override void OnContextMenu( ContextMenuEvent e )
+	{
+		base.OnContextMenu( e );
+
+		var m = new ContextMenu();
+
+		AddPaletteMenu( m );
+
+		m.OpenAtCursor( false );
+		e.Accepted = true;
+	}
+
+	internal void AddPaletteMenu( ContextMenu m )
+	{
+		LoadPalettes();
+
+		var p = m.AddMenu( "Palettes", "palette" );
+
+		foreach ( var name in _paletteNames )
+		{
+			var localName = name;
+			var icon = (localName == _paletteId) ? "check" : "palette";
+			p.AddOption( localName, icon, () => PaletteId = localName );
+		}
+
+		p.AddSeparator();
+
+		p.AddOption( "New Palette…", "add", ShowCreatePalettePopup );
+		p.AddOption( "Rename Palette…", "edit", () => ShowRenamePalettePopup( _paletteId ) ).Enabled = _paletteNames.Count > 0;
+		p.AddOption( "Duplicate Palette", "content_copy", () => DuplicatePalette( _paletteId ) ).Enabled = _paletteNames.Count > 0;
+
+		var del = p.AddOption( "Delete Palette", "delete", () => DeletePalette( _paletteId ) );
+		del.Enabled = _paletteNames.Count > 1;
+	}
+
+	void ShowCreatePalettePopup()
+	{
+		var popup = new PopupWidget( this );
+		popup.FixedWidth = 220;
+		popup.Layout = Layout.Column();
+		popup.Layout.Margin = 8;
+		popup.Layout.Spacing = 4;
+
+		_ = popup.Layout.Add( new Label.Small( "New palette" ) );
+		var entry = popup.Layout.Add( new LineEdit( popup ) );
+		entry.FixedHeight = Theme.RowHeight;
+		entry.PlaceholderText = "Palette name…";
+
+		void Commit()
+		{
+			var name = entry.Value?.Trim();
+			if ( string.IsNullOrEmpty( name ) ) { popup.Destroy(); return; }
+			if ( _paletteNames.Contains( name ) ) { popup.Destroy(); return; }
+
+			_paletteNames.Add( name );
+			_paletteId = name;
+
+			SavePalettes();
+			LoadPaletteFromCookie();
+
+			popup.Destroy();
+		}
+
+		entry.ReturnPressed += Commit;
+
+		popup.OpenAtCursor();
+		entry.Focus();
+	}
+
+	void ShowRenamePalettePopup( string oldName )
+	{
+		if ( string.IsNullOrEmpty( oldName ) )
+			return;
+
+		var popup = new PopupWidget( this );
+		popup.FixedWidth = 220;
+		popup.Layout = Layout.Column();
+		popup.Layout.Margin = 8;
+		popup.Layout.Spacing = 4;
+
+		_ = popup.Layout.Add( new Label.Small( "Rename palette" ) );
+		var entry = popup.Layout.Add( new LineEdit( popup ) );
+		entry.FixedHeight = Theme.RowHeight;
+		entry.Value = oldName;
+
+		void Commit()
+		{
+			var newName = entry.Value?.Trim();
+			if ( string.IsNullOrEmpty( newName ) || newName == oldName ) { popup.Destroy(); return; }
+			if ( _paletteNames.Contains( newName ) ) { popup.Destroy(); return; }
+
+			RenamePalette( oldName, newName );
+			popup.Destroy();
+		}
+
+		entry.ReturnPressed += Commit;
+
+		popup.OpenAtCursor();
+		entry.Focus();
+	}
+
+	void RenamePalette( string oldName, string newName )
+	{
+		var idx = _paletteNames.IndexOf( oldName );
+		if ( idx < 0 ) return;
+
+		_paletteNames[idx] = newName;
+
+		var oldKey = $"MeshEditor.MaterialPalette.{oldName}";
+		var newKey = $"MeshEditor.MaterialPalette.{newName}";
+
+		try
+		{
+			var data = ProjectCookie.Get( oldKey, string.Empty );
+			ProjectCookie.Set( newKey, data );
+			ProjectCookie.Set( oldKey, string.Empty );
+		}
+		catch { }
+
+		if ( _paletteId == oldName )
+			_paletteId = newName;
+
+		SavePalettes();
+		LoadPaletteFromCookie();
+	}
+
+	void DuplicatePalette( string sourceName )
+	{
+		if ( string.IsNullOrEmpty( sourceName ) )
+			return;
+
+		var baseName = $"{sourceName} Copy";
+		var newName = baseName;
+		int counter = 2;
+
+		while ( _paletteNames.Contains( newName ) )
+			newName = $"{baseName} {counter++}";
+
+		_paletteNames.Add( newName );
+
+		var srcKey = $"MeshEditor.MaterialPalette.{sourceName}";
+		var dstKey = $"MeshEditor.MaterialPalette.{newName}";
+
+		try
+		{
+			var data = ProjectCookie.Get( srcKey, string.Empty );
+			ProjectCookie.Set( dstKey, data );
+		}
+		catch { }
+
+		_paletteId = newName;
+
+		SavePalettes();
+		LoadPaletteFromCookie();
+	}
+
+	void DeletePalette( string name )
+	{
+		if ( _paletteNames.Count <= 1 )
+			return;
+
+		var idx = _paletteNames.IndexOf( name );
+		if ( idx < 0 )
+			return;
+
+		_paletteNames.RemoveAt( idx );
+
+		var key = $"MeshEditor.MaterialPalette.{name}";
+		try { ProjectCookie.Set( key, string.Empty ); }
+		catch { }
+
+		_paletteId = _paletteNames[Math.Clamp( idx - 1, 0, _paletteNames.Count - 1 )];
+
+		SavePalettes();
 		LoadPaletteFromCookie();
 	}
 
@@ -48,20 +287,14 @@ public class MaterialPaletteWidget : Widget
 		var path = material.ResourcePath;
 
 		if ( !string.IsNullOrEmpty( path ) )
-		{
 			_recentMaterials.RemoveAll( m => m is not null && m.ResourcePath == path );
-		}
 		else
-		{
 			_recentMaterials.RemoveAll( m => m == material );
-		}
 
 		_recentMaterials.Insert( 0, material );
 
-		if ( _recentMaterials.Count > MaxRecentMaterials )
-		{
+		if ( _recentMaterials.Count > _slots.Length )
 			_recentMaterials.RemoveAt( _recentMaterials.Count - 1 );
-		}
 
 		UpdateSlots();
 		SavePaletteToCookie();
@@ -70,16 +303,7 @@ public class MaterialPaletteWidget : Widget
 	void UpdateSlots()
 	{
 		for ( int i = 0; i < _slots.Length; i++ )
-		{
-			if ( i < _recentMaterials.Count )
-			{
-				_slots[i].Material = _recentMaterials[i];
-			}
-			else
-			{
-				_slots[i].Material = null;
-			}
-		}
+			_slots[i].Material = i < _recentMaterials.Count ? _recentMaterials[i] : null;
 	}
 
 	internal void SlotClickedApply( Material material )
@@ -88,7 +312,7 @@ public class MaterialPaletteWidget : Widget
 		MaterialClicked?.Invoke( material );
 	}
 
-	private void SlotSetMaterial( RecentMaterialSlotWidget slot, Material mat )
+	private void SlotSetMaterial( PaletteMaterialSlotWidget slot, Material mat )
 	{
 		if ( slot is null ) return;
 
@@ -106,21 +330,18 @@ public class MaterialPaletteWidget : Widget
 		SavePaletteToCookie();
 	}
 
-	private void SlotAssignFromActive( RecentMaterialSlotWidget slot )
+	private void SlotAssignFromActive( PaletteMaterialSlotWidget slot )
 	{
-		if ( GetActiveMaterial is null )
-			return;
+		if ( GetActiveMaterial is null ) return;
 
 		var mat = GetActiveMaterial();
-		if ( mat is null )
-			return;
+		if ( mat is null ) return;
 
 		SlotSetMaterial( slot, mat );
 	}
 
-	private void SlotAssignMaterial( RecentMaterialSlotWidget slot )
+	private void SlotAssignMaterial( PaletteMaterialSlotWidget slot )
 	{
-		// Open a picker just for materials and assign the result to this slot.
 		var picker = AssetPicker.Create( null, AssetType.Material, new AssetPicker.PickerOptions()
 		{
 			EnableMultiselect = false
@@ -142,10 +363,7 @@ public class MaterialPaletteWidget : Widget
 		picker.Show();
 	}
 
-	private void SlotClear( RecentMaterialSlotWidget slot )
-	{
-		SlotSetMaterial( slot, null );
-	}
+	private void SlotClear( PaletteMaterialSlotWidget slot ) => SlotSetMaterial( slot, null );
 
 	void SavePaletteToCookie()
 	{
@@ -159,24 +377,14 @@ public class MaterialPaletteWidget : Widget
 			.Take( _slots.Length )
 			.Select( m => m is not null ? m.ResourcePath ?? string.Empty : string.Empty );
 
-		var data = string.Join( ";", parts );
-
-		// Maybe this should be scene specific? 
-		ProjectCookie.Set( "MeshEditor.MaterialPalette", data );
+		ProjectCookie.Set( $"MeshEditor.MaterialPalette.{_paletteId}", string.Join( ";", parts ) );
 	}
 
 	void LoadPaletteFromCookie()
 	{
 		string data;
-
-		try
-		{
-			data = ProjectCookie.Get( "MeshEditor.MaterialPalette", string.Empty );
-		}
-		catch
-		{
-			data = string.Empty;
-		}
+		try { data = ProjectCookie.Get( $"MeshEditor.MaterialPalette.{_paletteId}", string.Empty ); }
+		catch { data = string.Empty; }
 
 		_recentMaterials.Clear();
 
@@ -188,7 +396,7 @@ public class MaterialPaletteWidget : Widget
 
 		var parts = data.Split( ';' );
 
-		for ( int i = 0; i < MaxRecentMaterials; i++ )
+		for ( int i = 0; i < _slots.Length; i++ )
 		{
 			if ( i >= parts.Length || string.IsNullOrWhiteSpace( parts[i] ) )
 			{
@@ -204,51 +412,42 @@ public class MaterialPaletteWidget : Widget
 				continue;
 			}
 
-			var mat = asset.LoadResource( typeof( Material ) ) as Material;
-			_recentMaterials.Add( mat );
+			_recentMaterials.Add( asset.LoadResource( typeof( Material ) ) as Material );
 		}
 
 		UpdateSlots();
 	}
 
-	class RecentMaterialSlotWidget : MaterialWidget
+	class PaletteMaterialSlotWidget : MaterialWidget
 	{
 		readonly MaterialPaletteWidget _strip;
-		bool _isDownloading;
-		bool _isValidDropHover;
-		public RecentMaterialSlotWidget( MaterialPaletteWidget strip )
+
+		public PaletteMaterialSlotWidget( MaterialPaletteWidget strip ) : base( null )
 		{
 			_strip = strip;
 			ToolTip = "";
+		}
 
-			AcceptDrops = true;
-			Cursor = CursorShape.Finger;
+		protected override void OnMaterialDropped( Material material )
+		{
+			_strip.SlotSetMaterial( this, material );
 		}
 
 		protected override void OnMouseClick( MouseEvent e )
 		{
 			base.OnMouseClick( e );
 
-			if ( Material is not null )
-			{
-				_strip.SlotClickedApply( Material );
-			}
-			else
-			{
-				_strip.SlotAssignFromActive( this );
-			}
+			if ( Material.IsValid() ) _strip.SlotClickedApply( Material );
+			else _strip.SlotAssignFromActive( this );
 		}
 
 		protected override void OnContextMenu( ContextMenuEvent e )
 		{
 			var m = new ContextMenu();
-			bool hasMaterial = Material is not null;
+			bool hasMaterial = Material.IsValid();
 
 			var text = hasMaterial ? "Change Material" : "Set Material";
-			m.AddOption( text, "format_color_fill", () =>
-			{
-				_strip.SlotAssignMaterial( this );
-			} );
+			m.AddOption( text, "format_color_fill", () => _strip.SlotAssignMaterial( this ) );
 
 			m.AddSeparator();
 
@@ -263,10 +462,10 @@ public class MaterialPaletteWidget : Widget
 				}
 			}
 
-			m.AddOption( "Clear", "backspace", () =>
-			{
-				_strip.SlotClear( this );
-			} ).Enabled = hasMaterial;
+			_strip.AddPaletteMenu( m );
+			m.AddSeparator();
+
+			m.AddOption( "Clear", "backspace", () => _strip.SlotClear( this ) ).Enabled = hasMaterial;
 
 			m.OpenAtCursor( false );
 			e.Accepted = true;
@@ -313,6 +512,12 @@ public class MaterialPaletteWidget : Widget
 					baseLine = Theme.Text.WithAlpha( 0.2f );
 					iconColor = Theme.Text.WithAlpha( 0.2f );
 				}
+				else
+				{
+					baseFill = Theme.Text.WithAlpha( 0.01f );
+					baseLine = Theme.Text.WithAlpha( 0.1f );
+					iconColor = Theme.Text.WithAlpha( 0.1f );
+				}
 
 				if ( _isValidDropHover )
 				{
@@ -358,140 +563,8 @@ public class MaterialPaletteWidget : Widget
 
 			tt?.Destroy();
 		}
-
-		public override void OnDragLeave()
-		{
-			base.OnDragLeave();
-
-			_isValidDropHover = false;
-		}
-
-		public override void OnDragHover( DragEvent ev )
-		{
-			if ( ev.Data.Url?.Scheme == "https" )
-			{
-				ev.Action = DropAction.Link;
-				_isValidDropHover = true;
-				return;
-			}
-
-			if ( ev.Data.HasFileOrFolder )
-			{
-				var assetFromPath = AssetSystem.FindByPath( ev.Data.FileOrFolder );
-				if ( assetFromPath is not null && assetFromPath.AssetType == AssetType.Material )
-				{
-					ev.Action = DropAction.Link;
-					_isValidDropHover = true;
-					return;
-				}
-			}
-
-			if ( ev.Data.Object is Asset asset && asset.AssetType == AssetType.Material )
-			{
-				ev.Action = DropAction.Link;
-				_isValidDropHover = true;
-				return;
-			}
-
-			if ( ev.Data.Object is Material )
-			{
-				ev.Action = DropAction.Link;
-				_isValidDropHover = true;
-			}
-		}
-
-		public override void OnDragDrop( DragEvent ev )
-		{
-			base.OnDragDrop( ev );
-
-			if ( ev.Data.Url?.Scheme == "https" )
-			{
-				_ = AssignFromUrlAsync( ev.Data.Text );
-				ev.Action = DropAction.Link;
-				return;
-			}
-
-			Material droppedMaterial = null;
-
-			if ( ev.Data.HasFileOrFolder )
-			{
-				var assetFromPath = AssetSystem.FindByPath( ev.Data.FileOrFolder );
-				if ( assetFromPath is not null && assetFromPath.AssetType == AssetType.Material )
-				{
-					droppedMaterial = assetFromPath.LoadResource( typeof( Material ) ) as Material;
-				}
-			}
-			else if ( ev.Data.Object is Asset asset && asset.AssetType == AssetType.Material )
-			{
-				droppedMaterial = asset.LoadResource( typeof( Material ) ) as Material;
-			}
-			else if ( ev.Data.Object is Material material )
-			{
-				droppedMaterial = material;
-			}
-
-			if ( droppedMaterial is null )
-				return;
-
-			_strip.SlotSetMaterial( this, droppedMaterial );
-			ev.Action = DropAction.Link;
-		}
-
-		async Task AssignFromUrlAsync( string identUrl )
-		{
-			try
-			{
-				_isDownloading = true;
-				Update();
-
-				var asset = await AssetSystem.InstallAsync( identUrl );
-				if ( asset is null || asset.AssetType != AssetType.Material )
-					return;
-
-				var mat = asset.LoadResource( typeof( Material ) ) as Material;
-				if ( mat is null )
-					return;
-
-				Material = mat;
-
-				var index = Array.IndexOf( _strip._slots, this );
-				if ( index >= 0 )
-				{
-					if ( index >= _strip._recentMaterials.Count )
-					{
-						while ( _strip._recentMaterials.Count <= index )
-							_strip._recentMaterials.Add( null );
-					}
-
-					_strip._recentMaterials[index] = mat;
-					_strip.SavePaletteToCookie();
-				}
-			}
-			finally
-			{
-				_isDownloading = false;
-				_isValidDropHover = false;
-				Update();
-			}
-		}
-
-		protected override void OnDragStart()
-		{
-			if ( Material is null )
-				return;
-
-			var asset = AssetSystem.FindByPath( Material.ResourcePath );
-			if ( asset == null )
-				return;
-
-			var drag = new Drag( this );
-			drag.Data.Object = asset;
-			drag.Data.Url = new System.Uri( $"file://{asset.AbsolutePath}" );
-			drag.Execute();
-		}
 	}
 }
-
 file class TextureTooltip : Widget
 {
 	Widget target;

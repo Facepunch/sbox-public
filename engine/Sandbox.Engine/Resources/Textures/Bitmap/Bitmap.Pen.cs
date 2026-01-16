@@ -95,11 +95,14 @@ public partial class Bitmap
 	{
 		var pen = GetPen();
 		pen.StrokeWidth = default;
+
+		using var colorSpace = SKColorSpace.CreateSrgbLinear();
+
 		pen.Shader = SKShader.CreateLinearGradient(
 			new SKPoint( start.x, start.y ),
 			new SKPoint( end.x, end.y ),
 			gradientPoints.Select( x => gradient.Evaluate( x ).ToSkF() ).ToArray(),
-			SKColorSpace.CreateSrgbLinear(),
+			colorSpace,
 			gradientPoints,
 			SKShaderTileMode.Clamp
 		);
@@ -116,11 +119,14 @@ public partial class Bitmap
 	{
 		var pen = GetPen();
 		pen.StrokeWidth = default;
+
+		using var colorSpace = SKColorSpace.CreateSrgbLinear();
+
 		pen.Shader = SKShader.CreateRadialGradient(
 			new SKPoint( center.x, center.y ),
 			radius,
 			gradientPoints.Select( x => gradient.Evaluate( x ).ToSkF() ).ToArray(),
-			SKColorSpace.CreateSrgbLinear(),
+			colorSpace,
 			gradientPoints,
 			SKShaderTileMode.Clamp
 		);

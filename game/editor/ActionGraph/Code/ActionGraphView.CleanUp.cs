@@ -60,8 +60,8 @@ partial class ActionGraphView
 			var sceneRef = ActionGraph.AddNode( EditorNodeLibrary.Get( "scene.ref" )!, x.Parent );
 			var properties = x.Properties.Value.Value switch
 			{
-				Component comp => SceneReferenceHelper.GetNodeProperties( comp ),
-				GameObject go => SceneReferenceHelper.GetNodeProperties( go ),
+				Component comp => ActionGraphEditorExtensions.GetNodeProperties( comp ),
+				GameObject go => ActionGraphEditorExtensions.GetNodeProperties( go ),
 				_ => throw new NotImplementedException()
 			};
 
