@@ -25,7 +25,6 @@ public class ProjectCreator : Dialog
 
 	public ProjectCreator( Widget parent = null ) : base( null )
 	{
-
 		Window.Size = new Vector2( 800, 500 );
 		Window.MaximumSize = Window.Size;
 		Window.MinimumSize = Window.Size;
@@ -35,31 +34,29 @@ public class ProjectCreator : Dialog
 		Window.SetWindowIcon( "sports_esports" );
 
 		Layout = Layout.Row();
-		Layout.Spacing = 4;
+		Layout.Margin = 4;
 
 		// Template List
 		{
 			var column = Layout.AddColumn( 3 );
-			column.Margin = 20;
+			column.Margin = 12;
 
 			column.AddSpacingCell( 8.0f );
-			column.Add( new FieldTitle( "Templates" ) );
+			column.Add( new Label.Subtitle( "Templates" ) );
 			column.AddSpacingCell( 18.0f );
 
 			var templates = column.Add( new ProjectTemplates( this ) );
 			Templates = templates;
 		}
 
-		Layout.AddSeparator();
-
 		// Body
 		{
 			var body = Layout.AddColumn( 2 );
-			body.Margin = 20;
+			body.Margin = 12;
 			body.Spacing = 8;
 
 			body.AddSpacingCell( 8.0f );
-			body.Add( new FieldTitle( "Project Setup" ) );
+			body.Add( new Label.Subtitle( "Project Setup" ) );
 			body.AddSpacingCell( 12.0f );
 
 			body.Add( new FieldTitle( "Title" ) );

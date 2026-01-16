@@ -246,6 +246,23 @@ public static partial class Gizmo
 		}
 
 		/// <summary>
+		/// Draw text at an angle
+		/// </summary>
+		public void ScreenText( TextRendering.Scope text, Rect rect, float angle, TextFlag flags = TextFlag.LeftTop )
+		{
+			var so = Active.FindOrCreate<TextSceneObject>( $"text", () => new TextSceneObject( World ) );
+
+			so.TextBlock = text;
+			so.ColorTint = Color;
+			so.Transform = Transform.Zero;
+			so.AngleDegrees = angle;
+			so.ScreenPos = rect.Position;
+			so.ScreenSize = rect.Size;
+			so.Bounds = BBox.FromPositionAndSize( 0, float.MaxValue );
+			so.TextFlags = flags;
+		}
+
+		/// <summary>
 		/// Draw a rect, on the screen
 		/// </summary>
 		public void ScreenRect( Rect rect, Color color, Vector4 borderRadius = default, Color borderColor = default, Vector4 borderSize = default, BlendMode blendMode = BlendMode.Normal )
@@ -280,23 +297,6 @@ public static partial class Gizmo
 
 				Graphics.DrawQuad( rect, Material.UI.Box, color, so.Attributes );
 			};
-		}
-
-		/// <summary>
-		/// Draw text at an angle
-		/// </summary>
-		internal void ScreenText( string text, Vector2 pos, Vector2 clip, float angle, string font = "Roboto", float size = 12.0f, TextFlag flags = TextFlag.LeftTop )
-		{
-			var so = Active.FindOrCreate<TextSceneObject>( $"text", () => new TextSceneObject( World ) );
-
-			so.TextBlock = new TextRendering.Scope( text, Color, size, font );
-			so.ColorTint = Color;
-			so.Transform = Transform.Zero;
-			so.AngleDegrees = angle;
-			so.ScreenPos = pos;
-			so.ScreenSize = clip;
-			so.Bounds = BBox.FromPositionAndSize( 0, float.MaxValue );
-			so.TextFlags = flags;
 		}
 
 		/// <summary>

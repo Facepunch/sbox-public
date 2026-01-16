@@ -2,15 +2,28 @@
 using Facepunch.ActionGraphs.Compilation;
 using System.Linq.Expressions;
 using System.Reflection;
+using Sandbox.Engine;
 
 #nullable enable
 
 namespace Sandbox.ActionGraphs;
 
+public interface IActionGraphEvents
+{
+	void SceneReferenceTriggered( SceneReferenceTriggeredEvent ev ) { }
+}
+
+public readonly record struct SceneReferenceTriggeredEvent(
+	GameObject Source,
+	IValid Target,
+	Node Node );
+
 [NodeDefinition]
 internal partial class SceneRefNodeDefinition : NodeDefinition
 {
 	public const string Ident = "scene.ref";
+
+	private InputDefinition TargetInput { get; } = InputDefinition.Target( typeof( GameObject ) );
 
 	private PropertyDefinition ComponentProperty { get; } = new( "component", typeof( ComponentReference ),
 		PropertyFlags.Required, new Facepunch.ActionGraphs.DisplayInfo( "Component", "Component this node will output.", Hidden: true ) );
@@ -31,24 +44,27 @@ internal partial class SceneRefNodeDefinition : NodeDefinition
 	#region Debug
 
 	private static MethodInfo DispatchTriggered_Method { get; } =
-		typeof( SceneRefGizmo ).GetMethod( nameof( SceneRefGizmo.Trigger ),
-			BindingFlags.Public | BindingFlags.Instance )!;
+		typeof( SceneRefNodeDefinition ).GetMethod( nameof( DispatchTriggered ),
+			BindingFlags.NonPublic | BindingFlags.Static )!;
 
-	private Expression? BuildDispatchTriggeredExpression( Node node )
+	private static void DispatchTriggered( GameObject source, IValid target, Node node )
 	{
-		if ( node.ActionGraph.GetEmbeddedTarget() is not GameObject source )
+		IToolsDll.Current?.RunEvent<IActionGraphEvents>( x => x.SceneReferenceTriggered( new SceneReferenceTriggeredEvent( source, target, node ) ) );
+	}
+
+	private Expression? BuildDispatchTriggeredExpression( Expression sourceExpr, Expression targetExpr, Node node )
+	{
+		if ( sourceExpr.Type != typeof( GameObject ) )
 		{
 			return null;
 		}
 
-		if ( source.SceneRefGizmo is not { } gizmo )
+		if ( IToolsDll.Current is null )
 		{
 			return null;
 		}
 
-		return Expression.Call( Expression.Constant( gizmo ),
-			DispatchTriggered_Method,
-			Expression.Constant( node ) );
+		return Expression.Call( DispatchTriggered_Method, sourceExpr, targetExpr, Expression.Constant( node ) );
 	}
 
 	#endregion
@@ -63,8 +79,9 @@ internal partial class SceneRefNodeDefinition : NodeDefinition
 			Hidden: true );
 
 		DefaultBinding = NodeBinding.Create( DisplayInfo,
-			properties: new[] { ComponentProperty, GameObjectProperty, LegacyTypeProperty, LegacyValueProperty },
-			outputs: new[] { Output } );
+			inputs: [TargetInput],
+			properties: [ComponentProperty, GameObjectProperty, LegacyTypeProperty, LegacyValueProperty],
+			outputs: [Output] );
 
 		ComponentBinding = NodeBinding.Create(
 			DisplayInfo with
@@ -72,15 +89,16 @@ internal partial class SceneRefNodeDefinition : NodeDefinition
 				Title = "Component Reference",
 				Description = "References a Component from the scene this graph is embedded in."
 			},
-			properties: new[] { ComponentProperty },
-			outputs: new[]
-			{
+			inputs: [TargetInput],
+			properties: [ComponentProperty],
+			outputs:
+			[
 				Output with
 				{
 					Type = typeof(Component),
 					Display = Output.Display with { Description = "The referenced Component." }
 				}
-			} );
+			] );
 
 		GameObjectBinding = NodeBinding.Create(
 			DisplayInfo with
@@ -88,15 +106,19 @@ internal partial class SceneRefNodeDefinition : NodeDefinition
 				Title = "Game Object Reference",
 				Description = "References a Game Object from the scene this graph is embedded in."
 			},
-			properties: new[] { GameObjectProperty },
-			outputs: new[] { Output with
+			inputs: [TargetInput],
+			properties: [GameObjectProperty],
+			outputs:
+			[
+				Output with
 			{
 				Type = typeof(GameObject),
 				Display = Output.Display with
 				{
 					Description = "The referenced Game Object."
 				}
-			} } );
+			}
+			] );
 
 		InitLegacy();
 	}
@@ -189,13 +211,8 @@ internal partial class SceneRefNodeDefinition : NodeDefinition
 			{
 				binding = binding with
 				{
-					Messages = new[] { new NodeBinding.ValidationMessage( null, MessageLevel.Warning, ex.Message ) }
+					Messages = [new NodeBinding.ValidationMessage( null, MessageLevel.Warning, ex.Message )]
 				};
-			}
-
-			if ( surface.Node is { } node && (target.GameObject is not null || target.Component is not null) )
-			{
-				graphTarget.SceneRefGizmo?.Register( node, target.GameObject ?? target.Component?.GameObject, target.Component );
 			}
 		}
 
@@ -209,7 +226,7 @@ internal partial class SceneRefNodeDefinition : NodeDefinition
 			{
 				Title = target.Name ?? binding.DisplayInfo.Title
 			},
-			Outputs = new[] { binding.Outputs.First() with { Type = refType } },
+			Outputs = [binding.Outputs.First() with { Type = refType }],
 			Target = target
 		};
 	}
@@ -233,7 +250,7 @@ internal partial class SceneRefNodeDefinition : NodeDefinition
 			? Expression.Convert( resolveReference, builder.Node.Outputs.Values.First().Type )
 			: resolveReference );
 
-		return BuildDispatchTriggeredExpression( builder.Node ) is { } trigger
+		return BuildDispatchTriggeredExpression( builder.GetInputValue( TargetInput ), resolveReference, builder.Node ) is { } trigger
 			? Expression.Block( trigger, assign )
 			: assign;
 	}

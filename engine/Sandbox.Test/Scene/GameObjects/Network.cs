@@ -32,6 +32,63 @@ public class NetworkTests
 	}
 
 	[TestMethod]
+	public void DisableTransformSync()
+	{
+		Assert.IsNotNull( TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );
+
+		using var scope = new Scene().Push();
+
+		var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		// Become the client
+		clientAndHost.BecomeClient();
+
+		var go = new GameObject();
+
+		// Disable interpolation for this test to help prove the bug, because
+		// otherwise when we test the position later, it'll be in an interpolation
+		// buffer
+		go.Network.Interpolation = false;
+		go.Network.Flags |= NetworkFlags.NoPositionSync;
+		go.Network.Flags |= NetworkFlags.NoRotationSync;
+		go.Network.Flags |= NetworkFlags.NoScaleSync;
+		go.NetworkSpawn();
+
+		var transform = go.Transform.Local;
+		transform.Rotation = Rotation.From( 180f, 0f, 0f );
+		transform.Position = Vector3.One * 16f;
+		transform.Scale = Vector3.One * 16f;
+		go.Transform.Local = transform;
+
+		// Create a snapshot
+		IDeltaSnapshot networkObject = go._net;
+		var state = networkObject.WriteSnapshotState();
+		var snapshot = new DeltaSnapshot();
+		snapshot.CopyFrom( networkObject, state, 2 );
+
+		// Become the host
+		clientAndHost.BecomeHost();
+
+		// We need to set the transform back to what the host would have it as
+		// before it receives the snapshot
+		transform = go.Transform.Local;
+		transform.Rotation = Rotation.Identity;
+		transform.Position = Vector3.Zero;
+		transform.Scale = Vector3.One;
+		go.Transform.Local = transform;
+
+		// Now we'll process the snapshot from the client
+		using ( var reader = ByteStream.CreateReader( SerializeSnapshot( snapshot ) ) )
+		{
+			SceneNetworkSystem.Instance.DeltaSnapshots.OnDeltaSnapshot( clientAndHost.Client, reader );
+		}
+
+		Assert.AreEqual( Rotation.Identity, go.Transform.Local.Rotation );
+		Assert.AreEqual( Vector3.Zero, go.Transform.Local.Position );
+		Assert.AreEqual( Vector3.One, go.Transform.Local.Scale );
+	}
+
+	[TestMethod]
 	public void NetworkedInput()
 	{
 		Assert.IsNotNull( TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );
@@ -383,7 +440,7 @@ public class NetworkTests
 		// Disable interpolation for this test to help prove the bug, because
 		// otherwise when we test the position later, it'll be in an interpolation
 		// buffer
-		go.Network.DisableInterpolation();
+		go.Network.Interpolation = false;
 
 		go.NetworkSpawn( client2 );
 
@@ -507,6 +564,33 @@ public class NetworkTests
 
 		Assert.AreEqual( 1, comp1.SyncInt );
 		Assert.AreEqual( 2, comp2.SyncInt );
+	}
+
+	/// <summary>
+	/// When destroying a scene with networked objects, those objects must not emit <see cref="ObjectDestroyMsg"/>
+	/// inside a <see cref="SceneNetworkSystem.SuppressDestroyMessages"/> scope.
+	/// </summary>
+	[TestMethod]
+	public void TestSuppressDestroyMessages()
+	{
+		using var testSystem = Helpers.InitializeHostWithTestConnection();
+		using var _ = SceneNetworkSystem.SuppressDestroyMessages();
+
+		// Scene contains a networked game object
+
+		var scene = Helpers.LoadSceneFromJson( "example.scene",
+			"""
+			{
+				"__guid": "86b89011-9646-4ee7-ad30-c0e11d258674",
+				"Name": "Networked Object",
+				"Enabled": true,
+				"NetworkMode": 1
+			}
+			""" );
+
+		scene.Destroy();
+
+		Assert.AreEqual( 0, testSystem.GetMessageCount<ObjectDestroyMsg>() );
 	}
 
 	/// <summary>

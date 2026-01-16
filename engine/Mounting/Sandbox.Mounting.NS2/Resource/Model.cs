@@ -425,7 +425,7 @@ class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			var material = string.IsNullOrWhiteSpace( materialName ) ? DefaultMaterial : Material.Load( $"mount://ns2/ns2/{materialName}.vmat" );
 			var mesh = new Mesh( material );
 			mesh.Bounds = bounds;
-			mesh.CreateVertexBuffer<SkinnedVertex>( subVertices.Length, SkinnedVertex.Layout, subVertices );
+			mesh.CreateVertexBuffer( subVertices.Length, subVertices );
 			mesh.CreateIndexBuffer( remappedIndices.Length, remappedIndices );
 			builder.AddMesh( mesh );
 		}

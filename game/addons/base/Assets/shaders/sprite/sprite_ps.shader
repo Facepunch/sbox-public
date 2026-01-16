@@ -53,7 +53,7 @@ VS
 		int TextureID;
 		int Flags;
 		uint BillboardMode;
-		float FogStrength; 
+		uint FogStrengthCutout;
 		int Lighting;
 		float DepthFeather;
 		int SamplerIndex;
@@ -269,7 +269,7 @@ PS
 		int TextureHandle;
 		int RenderFlags;
 		uint BillboardMode;
-		float FogStrength;
+		uint FogStrengthCutout;  // Lower 16 bits: fog, upper 16 bits: alpha cutout
 		uint Lighting;
 		float DepthFeather;
 		int SamplerIndex;
@@ -343,9 +343,24 @@ PS
 		exponent = (lightingPacked >> 16) & 0xFF;
 	}
 
+	void UnpackFogAndAlpha( uint packed, out float fogStrength, out float alphaCutoff )
+	{
+		// Extract lower 16 bits for fog strength
+		uint fogPacked = packed & 0xFFFF;
+		fogStrength = fogPacked / 65535.0f;
+
+		// Extract upper 16 bits for alpha cutoff
+		uint alphaPacked = (packed >> 16) & 0xFFFF;
+		alphaCutoff = alphaPacked / 65535.0f;
+	}
+
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
 		SpriteData sprite = GetSprite(i.instanceID); 
+
+		// Unpack fog strength and alpha cutoff
+		float fogStrength, alphaCutoff;
+		UnpackFogAndAlpha( sprite.FogStrengthCutout, fogStrength, alphaCutoff );
 
 		Texture2D ColorTexture = Bindless::GetTexture2D( NonUniformResourceIndex( sprite.TextureHandle ), true );
 		SamplerState spriteSampler = Bindless::GetSampler( NonUniformResourceIndex( sprite.SamplerIndex ) );
@@ -393,8 +408,8 @@ PS
 		OpaqueFadeDepth(col.a * tintColor.a , i.vPositionSs.xy );
 		return 1;
 	#else
-		col.a = AdjustOpacityForAlphaToCoverage( col.a, 0.5f, 1.0f, i.vPositionSs.xy );
-		if(col.a < 0.00001) discard;
+		col.a = AdjustOpacityForAlphaToCoverage( col.a, alphaCutoff, 1.0f, i.vPositionSs.xy );
+		if(col.a < alphaCutoff) discard;
 	#endif
 
 		if ( sprite.DepthFeather > 0 )
@@ -427,7 +442,7 @@ PS
 			col *= lighting;
 		}
 
-		if ( sprite.FogStrength > 0 ) 
+		if ( fogStrength > 0 ) 
 		{
 		#if (D_BLEND == 1)
 			const float3 vPositionToCameraWs = i.vPositionWithOffsetWs.xyz - g_vCameraPositionWs;
@@ -448,7 +463,7 @@ PS
 			}
 		#else
 			float3 fogged = Fog::Apply( i.vPositionWithOffsetWs, i.vPositionSs.xy, col.rgb );
-			col.rgb = lerp( col.rgb, fogged, sprite.FogStrength );
+			col.rgb = lerp( col.rgb, fogged, fogStrength );
 		#endif
 		}
 

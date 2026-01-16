@@ -32,7 +32,11 @@ public static unsafe partial class Sound
 			return null;
 
 		var handle = PlayFile( soundFile, soundEvent.Volume.GetValue(), soundEvent.Pitch.GetValue() );
-		if ( !handle.IsValid() ) return null;
+		if ( !handle.IsValid() )
+		{
+			handle?.Dispose();
+			return null;
+		}
 
 		handle.Distance = soundEvent.Distance;
 		handle.Falloff = soundEvent.Falloff;

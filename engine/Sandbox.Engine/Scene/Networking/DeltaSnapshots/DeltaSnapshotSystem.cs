@@ -720,6 +720,8 @@ internal class DeltaSnapshotSystem
 			var localSnapshotState = nwo.WriteSnapshotState();
 			nwo.SendNetworkUpdate();
 
+			ClearRemovedSlots( localSnapshotState );
+
 			var allConnectionsAreUpdated = true;
 
 			foreach ( var connection in connections )
@@ -788,6 +790,8 @@ internal class DeltaSnapshotSystem
 		var localSnapshotState = snapshotter.WriteSnapshotState();
 		snapshotter.SendNetworkUpdate();
 
+		ClearRemovedSlots( localSnapshotState );
+
 		if ( localSnapshotState.Size == 0 )
 			return;
 
@@ -804,6 +808,28 @@ internal class DeltaSnapshotSystem
 		}
 
 		clonedSnapshot.Release();
+	}
+
+	/// <summary>
+	/// Clear all <see cref="RemoteSnapshotState"/> of removed slots from a <see cref="LocalSnapshotState"/>.
+	/// </summary>
+	void ClearRemovedSlots( LocalSnapshotState localState )
+	{
+		if ( localState.RemovedSlots.Count == 0 )
+			return;
+
+		foreach ( var connection in Connections.Values )
+		{
+			if ( !connection.RemoteSnapshotStates.TryGetValue( localState.ObjectId, out var state ) )
+				continue;
+
+			foreach ( var slot in localState.RemovedSlots )
+			{
+				state.Remove( slot );
+			}
+		}
+
+		localState.RemovedSlots.Clear();
 	}
 
 	/// <summary>

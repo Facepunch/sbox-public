@@ -86,11 +86,15 @@ public partial class Bitmap
 			0, 0, 0, 1, 0
 		};
 
+		using var bcsFilter = SKColorFilter.CreateColorMatrix( bcsMatrix );
+		using var hueFilter = SKColorFilter.CreateColorMatrix( hueMatrix );
+		using var composedFilter = SKColorFilter.CreateCompose( bcsFilter, hueFilter );
+
 		// Compose both filters so we only do one paint pass
 		using var paint = new SKPaint
 		{
 			Shader = SKShader.CreateBitmap( _bitmap ),
-			ColorFilter = SKColorFilter.CreateCompose( SKColorFilter.CreateColorMatrix( bcsMatrix ), SKColorFilter.CreateColorMatrix( hueMatrix ) )
+			ColorFilter = composedFilter
 		};
 
 		_canvas.DrawRect( _bitmap.Info.Rect, paint );
@@ -117,10 +121,11 @@ public partial class Bitmap
 		0, 0, 0, 1, 0
 		};
 
+		using var hueFilter = SKColorFilter.CreateColorMatrix( hueMatrix );
 		using var paint = new SKPaint
 		{
 			Shader = SKShader.CreateBitmap( _bitmap, SKShaderTileMode.Clamp, SKShaderTileMode.Clamp ),
-			ColorFilter = SKColorFilter.CreateColorMatrix( hueMatrix ),
+			ColorFilter = hueFilter,
 		};
 
 		_canvas.DrawRect( new SKRect( 0, 0, _bitmap.Width, _bitmap.Height ), paint );

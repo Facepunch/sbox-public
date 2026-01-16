@@ -120,11 +120,25 @@ public sealed class EnvelopeItem( JsonObject header, byte[] payload )
 	}
 }
 
-public sealed class Envelope( JsonObject header, IReadOnlyList<EnvelopeItem> items )
+public sealed class Envelope( JsonObject header, List<EnvelopeItem> items )
 {
 	public string? FilePath { get; internal set; }
 	public JsonObject Header { get; } = header;
-	public IReadOnlyList<EnvelopeItem> Items { get; } = items;
+	public IReadOnlyList<EnvelopeItem> Items => items;
+
+	public void AddItem( EnvelopeItem item ) => items.Add( item );
+
+	public void AddAttachment( string filename, byte[] data, string contentType = "application/octet-stream" )
+	{
+		var header = new JsonObject
+		{
+			["type"] = "attachment",
+			["length"] = data.Length,
+			["filename"] = filename,
+			["content_type"] = contentType
+		};
+		AddItem( new EnvelopeItem( header, data ) );
+	}
 
 	public string? TryGetDsn()
 	{

@@ -21,7 +21,7 @@ public abstract class SerializedProperty : IValid
 	public virtual Type PropertyType { get; }
 
 	/// <inheritdoc cref="IValid.IsValid"/>
-	public virtual bool IsValid => true;
+	public virtual bool IsValid => Parent?.IsValid ?? true;
 
 	/// <summary>
 	/// The source filename, if available

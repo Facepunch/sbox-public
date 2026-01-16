@@ -11,18 +11,15 @@ public class Performance
 {
 	const int Iterations = 1000000;
 
-	public string One { get; set; }
-	public string Two { get; set; }
-
-
 	[TestMethod]
 	public void Create_Name()
 	{
 		var bind = new BindSystem( "UnitTest" );
+		var target = new BindingTarget();
 
 		for ( int i = 0; i < Iterations; i++ )
 		{
-			var source = PropertyProxy.Create( this, "One" );
+			var source = PropertyProxy.Create( target, nameof( BindingTarget.One ) );
 
 		}
 	}
@@ -31,10 +28,11 @@ public class Performance
 	public void Create_Method()
 	{
 		var bind = new BindSystem( "UnitTest" );
+		var target = new BindingTarget();
 
 		for ( int i = 0; i < Iterations; i++ )
 		{
-			var source = new MethodProxy<string>( () => One, x => One = x );
+			var source = new MethodProxy<string>( () => target.One, x => target.One = x );
 		}
 	}
 
@@ -42,7 +40,8 @@ public class Performance
 	public void ValueRead_Name()
 	{
 		var bind = new BindSystem( "UnitTest" );
-		var source = PropertyProxy.Create( this, "One" );
+		var target = new BindingTarget();
+		var source = PropertyProxy.Create( target, nameof( BindingTarget.One ) );
 
 		for ( int i = 0; i < Iterations; i++ )
 		{
@@ -54,7 +53,8 @@ public class Performance
 	public void ValueRead_Method()
 	{
 		var bind = new BindSystem( "UnitTest" );
-		var source = new MethodProxy<string>( () => One, x => One = x );
+		var target = new BindingTarget();
+		var source = new MethodProxy<string>( () => target.One, x => target.One = x );
 
 		for ( int i = 0; i < Iterations; i++ )
 		{
@@ -66,7 +66,8 @@ public class Performance
 	public void ValueWrite_Name()
 	{
 		var bind = new BindSystem( "UnitTest" );
-		var source = PropertyProxy.Create( this, "One" );
+		var target = new BindingTarget();
+		var source = PropertyProxy.Create( target, nameof( BindingTarget.One ) );
 
 		for ( int i = 0; i < Iterations; i++ )
 		{
@@ -78,7 +79,8 @@ public class Performance
 	public void ValueWrite_Method()
 	{
 		var bind = new BindSystem( "UnitTest" );
-		var source = new MethodProxy<string>( () => One, x => One = x );
+		var target = new BindingTarget();
+		var source = new MethodProxy<string>( () => target.One, x => target.One = x );
 
 		for ( int i = 0; i < Iterations; i++ )
 		{
@@ -90,10 +92,11 @@ public class Performance
 	public void Link_TwoWay()
 	{
 		var bind = new Sandbox.Bind.BindSystem( "test" );
+		var target = new BindingTarget();
 
 		for ( int i = 0; i < 1000; i++ )
 		{
-			bind.Build.Set( this, "One" ).From( this, "Two" );
+			bind.Build.Set( target, nameof( BindingTarget.One ) ).From( target, nameof( BindingTarget.Two ) );
 		}
 
 		for ( int i = 0; i < 1000; i++ )
@@ -107,16 +110,23 @@ public class Performance
 	{
 		var bind = new Sandbox.Bind.BindSystem( "test" );
 		bind.ThrottleUpdates = true;
+		var target = new BindingTarget();
 
 		for ( int i = 0; i < 1000; i++ )
 		{
-			bind.Build.Set( this, "One" ).From( this, "Two" );
+			bind.Build.Set( target, nameof( BindingTarget.One ) ).From( target, nameof( BindingTarget.Two ) );
 		}
 
 		for ( int i = 0; i < 1000; i++ )
 		{
 			bind.Tick();
 		}
+	}
+
+	private sealed class BindingTarget
+	{
+		public string One { get; set; }
+		public string Two { get; set; }
 	}
 
 }

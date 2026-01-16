@@ -153,10 +153,11 @@ public partial class SceneViewportWidget : Widget
 			return;
 		}
 
-		var hoveredWidget = Application.HoveredWidget;
-		var hovered = hoveredWidget == Renderer;
-
-		hasMouseInput = IsActiveWindow && hovered;
+		//
+		// tony: Check if the mouse is hovering this viewport
+		// we were previously using Application.HoveredWidget but Qt is unreliable at providing the hovered widget at fractional DPI scales, and I can't figure out why
+		//
+		hasMouseInput = IsActiveWindow && Renderer.IsUnderMouse;
 	}
 
 	protected override void OnPaint()
@@ -529,9 +530,8 @@ public partial class SceneViewportWidget : Widget
 		if ( GizmoInstance.Input.IsHovered )
 		{
 			UpdateHovered();
+			Tools.Frame( _activeCamera, Session );
 		}
-
-		Tools.Frame( _activeCamera, Session );
 
 		EditorEvent.RunInterface<EditorEvent.ISceneView>( x => x.DrawGizmos( Session.Scene ) );
 		Session.Scene.EditorDraw();

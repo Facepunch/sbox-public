@@ -40,6 +40,11 @@ public partial class Scene : GameObject
 			return false;
 		}
 
+		if ( sceneFile.ResourceName != null )
+		{
+			Name = sceneFile.ResourceName.ToTitleCase();
+		}
+
 		ProcessDeletes();
 
 		if ( !options.IsAdditive )
@@ -90,6 +95,11 @@ public partial class Scene : GameObject
 			using var sceneScope = Push();
 			using var batchGroup = CallbackBatch.Batch();
 
+			// Depending on if we load a scene from file or from memory, we need to account for that here
+			using var blobs = sceneFile.BinaryData != null
+				? BlobDataSerializer.LoadFromMemory( sceneFile.BinaryData )
+				: BlobDataSerializer.LoadFrom( sceneFile.ResourcePath );
+
 			if ( sceneFile.GameObjects is not null )
 			{
 				foreach ( var json in sceneFile.GameObjects )
@@ -107,8 +117,14 @@ public partial class Scene : GameObject
 			//
 			// Let ISceneLoadingEvents add their own tasks
 			//
-			List<Task> sceneLoadingTasks = new();
-			RunEvent<ISceneLoadingEvents>( x => sceneLoadingTasks.Add( x.OnLoad( this, options ) ) );
+			List<LoadingContext> sceneLoadingTasks = new();
+			RunEvent<ISceneLoadingEvents>( x =>
+			{
+				var context = new LoadingContext();
+				context.Task = x.OnLoad( this, options, context );
+
+				sceneLoadingTasks.Add( context );
+			} );
 
 			foreach ( var task in sceneLoadingTasks )
 			{
@@ -235,6 +251,7 @@ public partial class Scene : GameObject
 
 		jso.Add( "Metadata", SerializeMetadata() );
 		jso.Add( "NavMesh", NavMesh.Serialize() );
+		jso.Add( "GameObjectSystems", SerializeGameObjectSystems() );
 
 		return jso;
 	}
@@ -253,6 +270,52 @@ public partial class Scene : GameObject
 			}
 		}
 		return metadata;
+	}
+
+	JsonArray SerializeGameObjectSystems()
+	{
+		var array = new JsonArray();
+
+		foreach ( var system in GetSystems() )
+		{
+			var systemType = Game.TypeLibrary.GetType( system.GetType() );
+			if ( systemType is null ) continue;
+
+			// Get only properties with [Property] attribute
+			var properties = systemType.Properties.Where( x => x.HasAttribute<PropertyAttribute>() ).ToList();
+			if ( properties.Count == 0 ) continue;
+
+			try
+			{
+				var systemJson = new JsonObject();
+
+				// Serialize only [Property] properties
+				foreach ( var prop in properties )
+				{
+					try
+					{
+						var value = prop.GetValue( system );
+						systemJson[prop.Name] = Json.ToNode( value );
+					}
+					catch ( System.Exception e )
+					{
+						Log.Warning( e, $"Error serializing {system.GetType().Name}.{prop.Name}: {e.Message}" );
+					}
+				}
+
+				// Add type and guid metadata
+				systemJson["__type"] = systemType.ClassName;
+				systemJson["__guid"] = system.Id.ToString();
+
+				array.Add( systemJson );
+			}
+			catch ( System.Exception e )
+			{
+				Log.Warning( e, $"Error serializing {system.GetType().Name}: {e.Message}" );
+			}
+		}
+
+		return array;
 	}
 
 	void DeserializeProperties( JsonObject data, bool isSystemScene = false )
@@ -286,6 +349,56 @@ public partial class Scene : GameObject
 		{
 			NavMesh.Deserialize( data["NavMesh"] as JsonObject );
 		}
+
+		// Deserialize GameObjectSystems
+		if ( data.TryGetPropertyValue( "GameObjectSystems", out var systemsNode ) && systemsNode is JsonArray systemsArray )
+		{
+			DeserializeGameObjectSystems( systemsArray );
+		}
+	}
+
+	void DeserializeGameObjectSystems( JsonArray systemsArray )
+	{
+		foreach ( var systemNode in systemsArray )
+		{
+			if ( systemNode is not JsonObject systemJson ) continue;
+
+			try
+			{
+				// Get the system type
+				if ( !systemJson.TryGetPropertyValue( "__type", out var typeNode ) )
+					continue;
+
+				var typeName = typeNode.ToString();
+				var systemType = Game.TypeLibrary.GetType( typeName );
+				if ( systemType is null )
+				{
+					Log.Warning( $"Could not find GameObjectSystem type: {typeName}" );
+					continue;
+				}
+
+				// Find the system instance by type
+				var system = GetSystemByType( systemType );
+				if ( system is null )
+				{
+					Log.Warning( $"Could not find GameObjectSystem instance: {typeName}" );
+					continue;
+				}
+
+				// Update the GUID if provided
+				if ( systemJson.TryGetPropertyValue( "__guid", out var guidNode ) && Guid.TryParse( guidNode.ToString(), out var guid ) )
+				{
+					system.Id = guid;
+				}
+
+				// Deserialize all properties at once
+				Json.DeserializeToObject( system, systemJson );
+			}
+			catch ( System.Exception e )
+			{
+				Log.Warning( e, $"Error deserializing GameObjectSystem: {e.Message}" );
+			}
+		}
 	}
 
 
@@ -310,9 +423,11 @@ public partial class Scene : GameObject
 
 		using var sceneScope = Push();
 		using var optionsScope = target.PushSerializationScope();
+		using var blobs = BlobDataSerializer.Capture();
 
 		target.Id = Id;
 		target.GameObjects = Children.Select( x => x.Serialize() ).Where( x => x is not null ).ToArray();
 		target.SceneProperties = SerializeProperties();
+		target.BinaryData = blobs.ToByteArray();
 	}
 }

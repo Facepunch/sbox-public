@@ -1,4 +1,5 @@
-﻿using static Editor.BaseItemWidget;
+﻿using System.Text;
+using static Editor.BaseItemWidget;
 namespace Editor;
 
 partial class GameObjectNode : TreeNode<GameObject>
@@ -12,6 +13,32 @@ partial class GameObjectNode : TreeNode<GameObject>
 	{
 		get => Value.Name;
 		set => Value.Name = value;
+	}
+
+	public override string GetTooltip()
+	{
+		var sb = new StringBuilder();
+
+		sb.AppendLine( $"<h3>{Name}</h3>" );
+
+		if ( Value.Tags.Any() )
+		{
+			sb.AppendLine( $"<br />" );
+			sb.AppendLine( $"<i>{string.Join( ", ", Value.Tags )}</i>" );
+		}
+
+		sb.AppendLine( $"<hr />" );
+		sb.AppendLine( $"<b>Components:</b>" );
+
+		foreach ( var c in Value.Components.GetAll() )
+		{
+			var displayInfo = DisplayInfo.For( c );
+			var typeDesc = EditorTypeLibrary.GetType( c.GetType() );
+			sb.AppendLine( $"<br />" );
+			sb.AppendLine( $"- {displayInfo.Name}" );
+		}
+
+		return sb.ToString();
 	}
 
 	public override bool CanEdit => true;
@@ -50,6 +77,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 			return;
 
 		var isEven = item.Row % 2 == 0;
+		var isHovered = item.Hovered;
 		var selected = item.Selected || item.Pressed || item.Dragging;
 		var isBone = Value.Flags.Contains( GameObjectFlags.Bone );
 		var isProceduralBone = Value.Flags.Contains( GameObjectFlags.ProceduralBone );
@@ -211,6 +239,12 @@ partial class GameObjectNode : TreeNode<GameObject>
 			//item.PaintBackground( Color.Transparent, 3 );
 			Paint.ClearPen();
 			Paint.SetBrush( Theme.SelectedBackground.WithAlpha( opacity ) );
+			Paint.DrawRect( fullSpanRect );
+		}
+		else if ( isHovered )
+		{
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.SelectedBackground.WithAlpha( 0.25f ) );
 			Paint.DrawRect( fullSpanRect );
 		}
 		else if ( isEven )

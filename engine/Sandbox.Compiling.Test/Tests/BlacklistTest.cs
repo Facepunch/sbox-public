@@ -14,7 +14,7 @@ public partial class BlacklistTest
 	public async Task DefaultCompilerFailsWhitelist()
 	{
 		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
-		var group = new CompileGroup( "TestWhitelist" );
+		using var group = new CompileGroup( "TestWhitelist" );
 
 		var compiler = group.GetOrCreateCompiler( "test" );
 		compiler.AddSourcePath( codePath );
@@ -32,7 +32,7 @@ public partial class BlacklistTest
 	public async Task CompilerWithWhitelistFails()
 	{
 		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
-		var group = new CompileGroup( "TestWhitelist" );
+		using var group = new CompileGroup( "TestWhitelist" );
 
 		var compilerSettings = new Compiler.Configuration();
 		compilerSettings.Whitelist = true;
@@ -52,7 +52,7 @@ public partial class BlacklistTest
 	public async Task CompilerWithoutWhitelistSucceeds()
 	{
 		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
-		var group = new CompileGroup( "TestWhitelist" );
+		using var group = new CompileGroup( "TestWhitelist" );
 
 		var compilerSettings = new Compiler.Configuration();
 		compilerSettings.Whitelist = false;
@@ -74,7 +74,7 @@ public partial class BlacklistTest
 		bool compileSuccessCallback = false;
 
 		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
-		var group = new CompileGroup( "Test" );
+		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
 		var compilerSettings = new Compiler.Configuration();
@@ -153,6 +153,7 @@ public partial class BlacklistTest
 		// H1-3204420
 		var sourceCode = """
 			#define DUMMY
+			#define DUMMY2
 			using System;
 			using System.Diagnostics;
 			using System.Reflection;
@@ -172,20 +173,24 @@ public partial class BlacklistTest
 			#if !DUMMY
 					return System.Runtime.CompilerServices.Unsafe.As<T>(o);
 			#endif
-					throw new UnreachableException();
+			
+			#if DUMMY2
+					return System.Runtime.CompilerServices.Unsafe.As<T>(o);
+			#endif
+			
+					return default;
 				}
 			
 				private static T OnMethodInvoked<T>(WrappedMethod<T> m, object o)
 				{
 					return m.Resume();
 				}
-
+				
 				[ConCmd("escape")]
 				public static void Escape()
 				{
 					var type = typeof(Type);
 					var typeShadow = As<ModelRenderer>(type);
-
 					Log.Info("type " + type);
 					Log.Info("typeShadow " + typeShadow);
 				}

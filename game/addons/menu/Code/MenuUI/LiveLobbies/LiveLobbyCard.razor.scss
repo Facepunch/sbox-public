@@ -1,24 +1,14 @@
-LiveLobbyCard
+LiveLobbyCard.button
 {
 	flex-direction: row;
 	font-family: Poppins;
-	width: 300px;
-	backdrop-filter: blur( 20px ) brightness( 0.7 );
 	transition: all 0.1s linear;
 	color: #aab3cc;
 	overflow: hidden;
 	cursor: pointer;
 	flex-shrink: 0;
 	flex-grow: 0;
-	border-radius: 8px;
-	border: 1px solid #2e344b44;
-
-	&:hover
-	{
-		background-color: #1e1f28cc;
-		border: 1px solid #08f;
-		color: white;
-	}
+	padding: 0;
 }
 
 .icon
@@ -78,13 +68,17 @@ LiveLobbyCard
 	{
 		flex-shrink: 0;
 		align-items: center;
-		font-weight: 600;
+		font-weight: 700;
 		gap: 2px;
 		color: #08f;
+		background-color: white;
+		font-size: 10px;
+		padding: 2px 3px;
+		border-radius: 4px;
 
 		.smaller
 		{
-			opacity: 0.4;
+			opacity: 0.8;
 		}
 	}
 }

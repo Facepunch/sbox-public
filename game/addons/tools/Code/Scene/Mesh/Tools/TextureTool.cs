@@ -282,8 +282,7 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 
 	public override Rotation CalculateSelectionBasis()
 	{
-		if ( Gizmo.Settings.GlobalSpace )
-			return Rotation.Identity;
+		if ( GlobalSpace ) return Rotation.Identity;
 
 		var face = Selection.OfType<MeshFace>().FirstOrDefault();
 		if ( face.IsValid() )

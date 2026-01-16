@@ -70,6 +70,13 @@ namespace Sandbox.ActionGraphs
 					parameterType = parameterType.GetElementType()!;
 				}
 
+				if ( parameterType.IsByRefLike )
+				{
+					// ref struct (Span<> etc)
+
+					return false;
+				}
+
 				if ( parameterType.IsPointer )
 				{
 					return false;
@@ -87,26 +94,11 @@ namespace Sandbox.ActionGraphs
 					{
 						return false;
 					}
-				}
 
-				if ( !parameterType.IsGenericType )
-				{
-					continue;
-				}
-
-				if ( parameterType.IsConstructedGenericType )
-				{
-					parameterType = parameterType.GetGenericTypeDefinition();
-				}
-
-				if ( parameterType == typeof( Span<> ) )
-				{
-					return false;
-				}
-
-				if ( parameterType == typeof( ReadOnlySpan<> ) )
-				{
-					return false;
+					if ( !AreParametersActionGraphSafe( invokeMethod ) )
+					{
+						return false;
+					}
 				}
 			}
 

@@ -344,6 +344,8 @@ namespace Sandbox.UI
 				s.Add( entry.Block.Styles );
 			}
 
+			s.ApplyScale( FindRootPanel().ScaleToScreen );
+
 			return s;
 		}
 

@@ -106,6 +106,7 @@ internal sealed class CompilerCategory : ProjectInspector.Category
 			"<li>Release Mode enables all optimizations, debugging experience might be degraded." +
 			"<li>Sequence points may be optimized away. As a result it might not be possible to place or hit a breakpoint." +
 			"<li>User-defined locals might be optimized away. They might not be available while debugging." +
+			"<li>The `DEBUG` define constant will always be off." +
 			"</ul>" ) );
 
 		BodyLayout.AddSpacingCell( 8 );

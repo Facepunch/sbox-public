@@ -223,7 +223,7 @@ public struct TextureCubeBuilder
 	public Texture Finish()
 	{
 
-		if ( builder._config.m_nDepth > 0 )
+		if ( builder._config.m_nDepth > 1 )
 		{
 			builder._config.m_nFlags |= RuntimeTextureSpecificationFlags.TSPEC_TEXTURE_ARRAY;
 		}
@@ -239,21 +239,12 @@ public struct TextureCubeBuilder
 			builder._config.m_nFlags |= RuntimeTextureSpecificationFlags.TSPEC_CUBE_CAN_SAMPLE_AS_ARRAY;
 		}
 
-		if ( HasData && builder._config.m_nNumMipLevels > 1 )
-		{
-			throw new Exception( "Cannot create a texture with data and mipmaps" );
-		}
-
 		if ( builder._config.m_nImageFormat == ImageFormat.Default )
 			builder._config.m_nImageFormat = ImageFormat.RGBA8888;
 
 		if ( HasData )
 		{
-			//int memoryRequiredForTextureWithMips = ImageLoader.GetMemRequired( config.common.m_nWidth, config.common.m_nHeight, config.common.m_nDepth, (config.common.m_nNumMipLevels == 0) ? 1 : config.common.m_nNumMipLevels, config.common.m_nImageFormat );
-			//int memoryRequiredForTexture = ImageLoader.GetMemRequired( config.common.m_nWidth, config.common.m_nHeight, config.common.m_nDepth, 1, config.common.m_nImageFormat );
-
-			// Cube textures have 6 slices but technically a depth of "1". Lets check for 6 slices for our memory usage
-			int memoryRequiredForTexture = ImageLoader.GetMemRequired( builder._config.m_nWidth, builder._config.m_nHeight, 6 * builder._config.m_nDepth, builder._config.m_nImageFormat, false );
+			int memoryRequiredForTexture = ImageLoader.GetMemRequired( builder._config.m_nWidth, builder._config.m_nHeight, builder._config.m_nDepth, builder._config.m_nNumMipLevels, builder._config.m_nImageFormat ) * 6;
 
 			if ( _dataLength < memoryRequiredForTexture )
 			{

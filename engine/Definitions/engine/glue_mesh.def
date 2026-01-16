@@ -120,6 +120,7 @@ native static class MeshGlue as NativeEngine.MeshGlue
 	void SetMeshIndexBuffer( IMesh renderMesh, IndexBufferHandle_t hIB, void* pData, int nDataSize );
 
 	VertexBufferHandle_t CreateVertexBuffer( int nElementSizeInBytes, int nElementCount, string fieldNames, CastTo[VertexField_t*] void* pFields, int nFields, void* pData, int nDataSize );
+	VertexBufferHandle_t CreateVertexBuffer( int nElementCount, VertexLayout pLayout, void* pData );
 	IndexBufferHandle_t CreateIndexBuffer( int nElementCount, bool b32Bit, void* pData, int nDataSize );
 
 	void* LockVertexBuffer( VertexBufferHandle_t hVB, int nDataSize, int nDataOffset );

@@ -37,14 +37,16 @@ public class TextureResourceCompiler : ResourceCompiler
 
 		Context.ResourceVersion = 1;
 
+		var desc = texture.Desc;
+
 		//
 		// Note: mipmaps don't work with PNG format ya doink
 		//
 
-		int width = texture.Width;
-		int height = texture.Height;
-		int depth = texture.Depth;
-		int mipCount = texture.Mips;
+		int width = desc.m_nWidth;
+		int height = desc.m_nHeight;
+		int depth = desc.m_nDepth;
+		int mipCount = desc.m_nNumMipLevels;
 
 		var writer = new VTexWriter();
 
@@ -58,6 +60,30 @@ public class TextureResourceCompiler : ResourceCompiler
 		writer.Header.Height = (ushort)height;
 		writer.Header.Depth = (ushort)depth;
 		writer.Header.MipCount = (byte)mipCount;
+
+		var flags = VTexWriter.VTEX_Flags_t.NONE;
+
+		if ( desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_CUBE_TEXTURE ) )
+		{
+			flags |= VTexWriter.VTEX_Flags_t.VTEX_FLAG_CUBE_TEXTURE;
+		}
+
+		if ( desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_VOLUME_TEXTURE ) )
+		{
+			flags |= VTexWriter.VTEX_Flags_t.VTEX_FLAG_VOLUME_TEXTURE;
+		}
+
+		if ( desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_TEXTURE_ARRAY ) )
+		{
+			flags |= VTexWriter.VTEX_Flags_t.VTEX_FLAG_TEXTURE_ARRAY;
+		}
+
+		if ( desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_NO_LOD ) )
+		{
+			flags |= VTexWriter.VTEX_Flags_t.VTEX_FLAG_NO_LOD;
+		}
+
+		writer.Header.Flags = flags;
 
 		writer.CalculateFormat();
 

@@ -347,6 +347,10 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		GameResource resource = Scene is PrefabScene prefabScene ? prefabScene.ToPrefabFile() : Scene.CreateSceneFile();
 		asset.SaveToDisk( resource );
 
+		// Update this scene's path
+		Scene.Source = resource;
+		Scene.Name = System.IO.Path.GetFileNameWithoutExtension( saveLocation );
+
 		HasUnsavedChanges = false;
 		EditorEvent.Run( "scene.saved", Active.Scene );
 
@@ -354,11 +358,40 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	}
 
 	/// <summary>
-	/// Resolve a scene to an editor session
+	/// Resolve a scene to an editor session. If it's a game scene, resolves the parent editor session.
 	/// </summary>
 	public static SceneEditorSession Resolve( Scene scene )
 	{
+		if ( scene.Editor is SceneEditorSession session )
+		{
+			if ( session is GameEditorSession gs )
+				return gs.Parent; // we want the editor session, not the game session
+
+			return session;
+		}
+
 		return All.FirstOrDefault( x => x.Scene == scene );
+	}
+
+	/// <summary>
+	/// Resolve a Component to an editor session.
+	/// </summary>
+	public static SceneEditorSession Resolve( Component component ) => Resolve( component?.GameObject );
+
+	/// <summary>
+	/// Resolve a GameObject to an editor session.
+	/// </summary>
+	public static SceneEditorSession Resolve( GameObject go )
+	{
+		ArgumentNullException.ThrowIfNull( go, nameof( go ) );
+
+		var session = go.Scene.Editor as SceneEditorSession;
+		if ( session is null )
+		{
+			Log.Error( $"Failed to resolve session for GameObject: {go}" );
+		}
+
+		return session;
 	}
 
 	/// <summary>
@@ -366,7 +399,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public static SceneEditorSession Resolve( SceneFile sceneFile )
 	{
-		return All.FirstOrDefault( x => x is not null && !x.IsPrefabSession
+		return All.FirstOrDefault( x => x is not null && !x.IsPrefabSession && x is not GameEditorSession
 			&& string.Equals( sceneFile.ResourcePath, x.Scene.Source?.ResourcePath, StringComparison.OrdinalIgnoreCase ) );
 	}
 
@@ -375,7 +408,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public static SceneEditorSession Resolve( PrefabFile prefabFile )
 	{
-		return All.FirstOrDefault( x => x is not null && x.IsPrefabSession
+		return All.FirstOrDefault( x => x is not null && x.IsPrefabSession && x is not GameEditorSession
 			&& string.Equals( prefabFile.ResourcePath, x.Scene.Source?.ResourcePath, StringComparison.OrdinalIgnoreCase ) );
 	}
 
@@ -442,7 +475,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			var openingScene = Scene.CreateEditorScene();
 			using var _ = openingScene.Push();
 
-			openingScene.Name = sceneFile.ResourceName.ToTitleCase();
 			openingScene.Load( sceneFile );
 
 			var session = new SceneEditorSession( openingScene );
@@ -460,7 +492,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			var openingScene = PrefabScene.CreateForEditing();
 			using var _ = openingScene.Push();
 
-			openingScene.Name = prefabFile.ResourceName.ToTitleCase();
 			openingScene.Load( prefabFile );
 
 			var session = new PrefabEditorSession( openingScene );

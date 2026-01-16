@@ -14,9 +14,9 @@ public partial class VerifyAssembly
 	[DataRow( "package.gio.box.dll" )]
 	public void Assembly_Should_Not_Be_Renamed( string dllName )
 	{
-		var ac = new AccessControl();
+		using var ac = new AccessControl();
 
-		var input = System.IO.File.OpenRead( $"{System.Environment.CurrentDirectory}/unittest/{dllName}" );
+		using var input = System.IO.File.OpenRead( $"{System.Environment.CurrentDirectory}/unittest/{dllName}" );
 
 		var result = ac.VerifyAssembly( input, out var trusted );
 
@@ -28,6 +28,8 @@ public partial class VerifyAssembly
 		}
 
 		Assert.IsFalse( result.Success );
+
+		trusted?.Dispose();
 	}
 
 	/// <summary>
@@ -61,6 +63,8 @@ public partial class VerifyAssembly
 					Assert.AreEqual( 0, result.Errors.Count, "Should produce no errors" );
 					Assert.IsTrue( result.Success );
 					Assert.AreNotEqual( null, trusted );
+
+					trusted?.Dispose();
 				}
 
 				{
@@ -85,6 +89,8 @@ public partial class VerifyAssembly
 
 					System.IO.File.WriteAllText( $"c:\\ui\\{dllName}.txt", str );
 					*/
+
+					trusted?.Dispose();
 				}
 
 				ac.Dispose();

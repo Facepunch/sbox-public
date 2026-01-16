@@ -72,7 +72,7 @@ public class CodeArchive
 	/// </summary>
 	public byte[] Serialize()
 	{
-		using ByteStream bs = ByteStream.Create( 128 );
+		using var bs = ByteStream.Create( 128 );
 
 		bs.Write( "GMCA" ); // gmod code archive
 		bs.Write( Version ); // version
@@ -84,7 +84,8 @@ public class CodeArchive
 		bs.Write( JsonSerializer.Serialize( AdditionalFiles ) );
 		bs.Write( JsonSerializer.Serialize( FileMap ) );
 
-		return bs.Compress().ToArray();
+		using var compressedBs = bs.Compress();
+		return compressedBs.ToArray();
 	}
 
 	/// <summary>

@@ -100,4 +100,24 @@ public partial class Package
 
 		return $"{Org.Ident}.{Ident}#{Revision.VersionId}";
 	}
+
+	/// <summary>
+	/// Compiler name to use when building this package's code. Will be of the form "<c>org.ident</c>".
+	/// </summary>
+	internal string CompilerName => GetIdent( false, false );
+
+	/// <summary>
+	/// Assembly name to use when building this package's code. Will be of the form "<c>package.org.ident</c>".
+	/// </summary>
+	internal string AssemblyName => $"package.{CompilerName}";
+
+	/// <summary>
+	/// Compiler name to use when building this package's editor code. Will be of the form "<c>org.ident.editor</c>".
+	/// </summary>
+	internal string EditorCompilerName => $"{CompilerName}.editor";
+
+	/// <summary>
+	/// Assembly name to use when building this package's editor code. Will be of the form "<c>package.org.ident.editor</c>".
+	/// </summary>
+	internal string EditorAssemblyName => $"package.{EditorCompilerName}";
 }

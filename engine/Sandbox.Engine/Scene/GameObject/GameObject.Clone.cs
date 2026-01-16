@@ -151,7 +151,7 @@ public partial class GameObject
 		Enabled = enabled;
 
 		NetworkMode = original.NetworkMode;
-		NetworkInterpolation = original.NetworkInterpolation;
+		NetworkFlags = original.NetworkFlags;
 		NetworkOrphaned = original.NetworkOrphaned;
 		AlwaysTransmit = original.AlwaysTransmit;
 		OwnerTransfer = original.OwnerTransfer;

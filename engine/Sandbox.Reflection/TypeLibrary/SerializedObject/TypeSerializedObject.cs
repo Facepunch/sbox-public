@@ -11,7 +11,19 @@ class TypeSerializedObject : SerializedObject
 	public override string TypeName => TypeDescription?.Name ?? base.TypeName;
 	public override string TypeTitle => TypeDescription?.Title ?? base.TypeTitle;
 
-	public override bool IsValid => (_targetObject as IValid)?.IsValid() ?? _targetObject is not null;
+	public override bool IsValid
+	{
+		// If we're targeting an IValid just ask that,
+		// if target is null we're definitely invalid,
+		// otherwise use base implementation that checks our parent.
+
+		get => _targetObject switch
+		{
+			IValid target => target.IsValid,
+			null => false,
+			_ => base.IsValid
+		};
+	}
 
 	/// <summary>
 	/// If the object is a value type, we call a method to get the value each time before we change/update/read it.

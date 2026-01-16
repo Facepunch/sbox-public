@@ -157,8 +157,6 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 		return g_pSceneSystem->DownsampleTexture( ctx, src, nullptr, nDownsampleType );
 	}
 
-	void RenderTiledLightCulling( IRenderContext pCtx, ISceneView pView, RenderViewport viewport );
-
 	void BindTransformSlot( IRenderContext pCtx, int nVBSlot, int nTransformSlotIndex );
 
 	// Ray Tracing

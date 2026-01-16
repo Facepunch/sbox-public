@@ -30,6 +30,7 @@ internal static class Avatar
 
 				var placeholder = Texture.Create( 1, 1 ).WithName( "avatar" ).WithData( new byte[4] { 0, 0, 0, 0 } ).Finish();
 				placeholder.IsLoaded = false;
+				placeholder.SetIdFromResourcePath( filename );
 
 				_ = LoadIntoTexture( filename, placeholder );
 
@@ -126,10 +127,10 @@ internal static class Avatar
 
 			//Log.Info( $"Got Avatar For {steamid} ({result.Value.Width} x {result.Value.Height})" );
 
-			var texture = Texture.Create( (int)result.Value.Width, (int)result.Value.Height, ImageFormat.RGBA8888 )
-						.WithName( "avatar" )
-						.WithData( result.Value.Data )
-						.Finish();
+			using var texture = Texture.Create( (int)result.Value.Width, (int)result.Value.Height, ImageFormat.RGBA8888 )
+					.WithName( "avatar" )
+					.WithData( result.Value.Data )
+					.Finish();
 
 			//
 			// Replace the placeholder texture with this loaded one

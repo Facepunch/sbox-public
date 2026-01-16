@@ -59,7 +59,7 @@ public class CustomEditorAttribute : Attribute
 		if ( TargetType is not null && !ForMethod )
 		{
 			//
-			// Order by derived classes so we get the most relevent editor
+			// Order by derived classes so we get the most relevant editor
 			//
 			Type baseType = TargetType;
 			while ( baseType.BaseType != null )

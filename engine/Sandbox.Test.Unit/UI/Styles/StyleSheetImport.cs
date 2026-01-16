@@ -5,6 +5,7 @@ using System;
 namespace UITest;
 
 [TestClass]
+[DoNotParallelize]
 public class StyleSheetImport
 {
 	[TestMethod]

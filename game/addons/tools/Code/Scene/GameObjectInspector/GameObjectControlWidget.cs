@@ -1,4 +1,6 @@
-﻿namespace Editor;
+﻿using Editor.AssetPickers;
+
+namespace Editor;
 
 [CustomEditor( typeof( GameObject ) )]
 public class GameObjectControlWidget : ControlWidget
@@ -52,7 +54,7 @@ public class GameObjectControlWidget : ControlWidget
 		}
 		else if ( go is not null )
 		{
-			m.AddOption( "Find in Scene", "search", () => FindInScene( go ) );
+			m.AddOption( "Find in Scene", "search", () => EditorUtility.FindInScene( go ) );
 			m.AddSeparator();
 		}
 
@@ -143,6 +145,13 @@ public class GameObjectControlWidget : ControlWidget
 		}
 	}
 
+	void UpdateFromGameObject( GameObject go )
+	{
+		PropertyStartEdit();
+		SerializedProperty.SetValue( go );
+		PropertyFinishEdit();
+	}
+
 	void UpdateFromAssets( Asset[] assets )
 	{
 		if ( assets.Length == 0 ) return;
@@ -173,32 +182,38 @@ public class GameObjectControlWidget : ControlWidget
 		{
 			e.Accepted = true;
 			var go = SerializedProperty.GetValue<GameObject>();
-			if ( go.IsValid() && go is not PrefabScene )
+
+			if ( ReadOnly ) return;
+
+			var resource = (go as PrefabScene)?.Source ?? null;
+			var asset = resource != null ? AssetSystem.FindByPath( resource.ResourcePath ) : null;
+
+			// Open Prefab Asset Picker
+			var prefabAssetType = AssetType.Find( "prefab", false );
+			var picker = AssetPicker.Create( null, prefabAssetType, new AssetPicker.PickerOptions()
 			{
-				// If the current value exists in the scene, select it
-				FindInScene( go );
-			}
-			else
+				EnableMultiselect = IsInList
+			} );
+			picker.Window.Title = $"Select GameObject/Prefab";
+			picker.OnAssetHighlighted = ( o ) => UpdateFromAsset( o.FirstOrDefault() );
+			picker.OnAssetPicked = ( o ) => UpdateFromAssets( o );
+			picker.Show();
+
+			var sceneBrowser = new GameObjectSceneBrowser( null );
+			sceneBrowser.OnGameObjectSelect = ( o ) => UpdateFromGameObject( o );
+
+			if ( picker is GenericPicker genericPicker )
 			{
-				if ( ReadOnly ) return;
-
-				var resource = (go as PrefabScene)?.Source ?? null;
-				var asset = resource != null ? AssetSystem.FindByPath( resource.ResourcePath ) : null;
-
-				// Open Prefab Asset Picker
-				var prefabAssetType = AssetType.Find( "prefab", false );
-
-				var picker = AssetPicker.Create( null, prefabAssetType, new AssetPicker.PickerOptions()
+				genericPicker.DockManager.AddDock( null, sceneBrowser, DockArea.Inside, DockManager.DockProperty.HideCloseButton
+					| DockManager.DockProperty.DisallowUserDocking | DockManager.DockProperty.DisableDraggableTab );
+				sceneBrowser.ConfirmButton = genericPicker.ConfirmButton;
+				if ( go.IsValid() && go is not PrefabScene )
 				{
-					EnableMultiselect = IsInList
-				} );
-				picker.Window.Title = $"Select Prefab";
-				picker.OnAssetHighlighted = ( o ) => UpdateFromAsset( o.FirstOrDefault() );
-				picker.OnAssetPicked = ( o ) => UpdateFromAssets( o );
-				picker.Show();
-
-				picker.SetSelection( asset );
+					sceneBrowser.Focus();
+				}
 			}
+
+			picker.SetSelection( asset );
 		}
 	}
 
@@ -272,17 +287,6 @@ public class GameObjectControlWidget : ControlWidget
 
 				return;
 			}
-		}
-	}
-
-	static void FindInScene( GameObject go )
-	{
-		if ( !go.IsValid() )
-			return;
-
-		using ( SceneEditorSession.Active.UndoScope( $"Selected {go}" ).Push() )
-		{
-			SceneEditorSession.Active?.Selection.Set( go );
 		}
 	}
 }

@@ -40,13 +40,14 @@ partial class ModelPhysics
 		if ( !so.IsValid() )
 			return;
 
-		Renderer.ClearPhysicsBones();
-
 		var world = WorldTransform;
 
 		foreach ( var (component, boneIndex, _) in Bodies )
 		{
 			if ( !component.IsValid() )
+				continue;
+
+			if ( !component.GameObject.Flags.Contains( GameObjectFlags.PhysicsBone ) )
 				continue;
 
 			var body = component.PhysicsBody;

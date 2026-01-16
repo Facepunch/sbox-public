@@ -11,6 +11,24 @@
 			AddClass( "iconpanel" );
 		}
 
+		public override string Text
+		{
+			get => base.Text;
+			set
+			{
+				if ( value?.StartsWith( "https://" ) ?? false )
+				{
+					Log.Info( value );
+					Style.SetBackgroundImage( value );
+					base.Text = "";
+					return;
+				}
+
+				Style.BackgroundImage = null;
+				base.Text = value;
+			}
+		}
+
 		public IconPanel( string icon, string classes = null ) : base()
 		{
 			Text = icon;

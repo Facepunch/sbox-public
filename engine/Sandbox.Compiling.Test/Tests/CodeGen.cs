@@ -10,20 +10,33 @@ namespace Generator
 	[TestClass]
 	public class CodeGen
 	{
-		private void AddTree( List<SyntaxTree> syntaxTree, string path )
+		private void AddTree( List<SyntaxTree> syntaxTree, string path, string[] defines = null )
 		{
 			var parseOptions = CSharpParseOptions.Default.WithLanguageVersion( LanguageVersion.Default );
+
+			if ( defines is not null )
+				parseOptions = parseOptions.WithPreprocessorSymbols( defines );
+
 			var code = System.IO.File.ReadAllText( path );
 			var tree = CSharpSyntaxTree.ParseText( text: code, options: parseOptions, path: path, encoding: System.Text.Encoding.UTF8 );
+
+			if ( defines is not null )
+				tree = Compiler.StripDisabledTextTrivia( tree );
+
 			syntaxTree.Add( tree );
 		}
 
 		CSharpCompilation Build( string assemblyName, params string[] files )
 		{
+			return Build( assemblyName, null, files );
+		}
+
+		CSharpCompilation Build( string assemblyName, string[] defines = null, params string[] files )
+		{
 			List<SyntaxTree> SyntaxTree = new List<SyntaxTree>();
 
 			foreach ( var file in files )
-				AddTree( SyntaxTree, $"data/codegen/{file}" );
+				AddTree( SyntaxTree, $"data/codegen/{file}", defines );
 
 			var optn = new CSharpCompilationOptions( OutputKind.DynamicallyLinkedLibrary )
 									.WithConcurrentBuild( true )
@@ -200,8 +213,6 @@ namespace Generator
 
 			var added = compiler.SyntaxTrees.First( x => x.FilePath.Contains( "_gen__AddedCode.cs" ) );
 			Assert.IsTrue( added.GetText().ToString().Contains( "[assembly:Sandbox.Cloud.Asset( " ), "Outputted text should contain the asset attribute" );
-
-
 		}
 
 		[TestMethod]
@@ -212,13 +223,15 @@ namespace Generator
 
 			System.Console.WriteLine( tree.GetText().ToString() );
 
-			Assert.IsTrue( tree.GetText().ToString().Contains( "WrapCall.OnMethodInvokedStatic( new global::Sandbox.WrappedMethod {Resume = () => {},Object = null,MethodIdentity = -1168963981,MethodName = \"TestWrappedStaticCall\",TypeName = \"TestWrapCall\",IsStatic = true,Attributes = __m_1168963981__Attrs}, arga );" ), "Generated code should wrap static method call" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "OnMethodInvoked( new global::Sandbox.WrappedMethod {Resume = () => {},Object = this,MethodIdentity = -446800946,MethodName = \"TestWrappedInstanceCall\",TypeName = \"TestWrapCall\",IsStatic = false,Attributes = __m_446800946__Attrs}, arga );" ), "Generated code should wrap instance method call" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "WrapCall.OnMethodInvokedStatic( new global::Sandbox.WrappedMethod {Resume = () => {},Object = null,MethodIdentity = 1638661065,MethodName = \"TestWrappedStaticCallNoArg\",TypeName = \"TestWrapCall\",IsStatic = true,Attributes = __1638661065__Attrs} );" ), "Generated code should wrap static method call with no arg" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "OnMethodInvoked( new global::Sandbox.WrappedMethod {Resume = () => {},Object = this,MethodIdentity = -1769572979,MethodName = \"TestWrappedInstanceCallNoArg\",TypeName = \"TestWrapCall\",IsStatic = false,Attributes = __m_1769572979__Attrs} );" ), "Generated code should wrap instance method call with no arg" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "public void ExpressionBodiedBroadcast() => OnMethodInvoked( new global::Sandbox.WrappedMethod {Resume = () => Log.Info( \"Test.\" ),Object = this,MethodIdentity = 1201362747,MethodName = \"ExpressionBodiedBroadcast\",TypeName = \"TestWrapCall\",IsStatic = false,Attributes = __1201362747__Attrs} );" ), "Generated code should wrap expression bodied method" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = this,MethodIdentity = -1316352073,MethodName = \"TestWrappedInstanceCallReturnType\",TypeName = \"TestWrapCall\",IsStatic = false,Attributes = __m_1316352073__Attrs}, arga );" ), "Generated code should wrap instance method call with return type" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "return WrapCall.OnMethodInvokedStatic( new global::Sandbox.WrappedMethod<Task<bool>> {Resume = async () =>" ), "Generated code should wrap async Task method call" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = null, MethodIdentity = -1168963981, MethodName = \"TestWrappedStaticCall\", TypeName = \"TestWrapCall\"" ), "Generated code should wrap static method call" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = this, MethodIdentity = -446800946, MethodName = \"TestWrappedInstanceCall\", TypeName = \"TestWrapCall\"" ), "Generated code should wrap instance method call" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = null, MethodIdentity = 1638661065, MethodName = \"TestWrappedStaticCallNoArg\", TypeName = \"TestWrapCall\"" ), "Generated code should wrap static method call with no arg" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = this, MethodIdentity = -1769572979, MethodName = \"TestWrappedInstanceCallNoArg\", TypeName = \"TestWrapCall\"" ), "Generated code should wrap instance method call with no arg" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = this, MethodIdentity = 1201362747, MethodName = \"ExpressionBodiedBroadcast\", TypeName = \"TestWrapCall\"" ), "Generated code should wrap expression bodied method" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = this, MethodIdentity = -1316352073, MethodName = \"TestWrappedInstanceCallReturnType\", TypeName = \"TestWrapCall\"" ), "Generated code should wrap instance method call with return type" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = null, MethodIdentity = 1168636003, MethodName = \"TestAsyncTaskCall\", TypeName = \"TestWrapCall\", IsStatic = true" ), "Generated code should wrap async Task method call" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "MethodName = \"MyGenericCall\", TypeName = \"TestWrapCall\", IsStatic = false, Attributes = __898531504__Attrs, GenericArguments = new[] { typeof(T) } }" ), "Generated code should include closed generic types" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "MethodName = \"MyGenericCallAsync\", TypeName = \"TestWrapCall\", IsStatic = false, Attributes = __1383690312__Attrs, GenericArguments = new[] { typeof(T) } }" ), "Generated code should include closed generic types when returning a Task" );
 		}
 
 		[TestMethod]
@@ -228,8 +241,15 @@ namespace Generator
 			var tree = compiler.SyntaxTrees.First();
 			var treeText = tree.GetText().ToString();
 
-			Assert.IsTrue( treeText.Contains( "{\r\n#if true\r\n\t\tif ( true )\r\n\t\t{\r\n\t\t\t// Hello there!\r\n\t\t}\r\n#endif\r\n\t}" ), "Maintain preprocessor directive in body" );
+			Assert.IsTrue( treeText.Contains( "#if true" ), "Maintain preprocessor directive in body" );
 			Assert.IsFalse( treeText.Contains( $");}}#endif" ), "No trailing trivia outside of body" );
+
+			compiler = Build( "do_code_gen", ["SERVER"], "TestPreprocessorWrapCall.cs" );
+			tree = compiler.SyntaxTrees.First();
+			treeText = tree.GetText().ToString();
+
+			Assert.IsFalse( treeText.Contains( "// Client-side code only" ), "Strip code with missing preprocessor directive" );
+			Assert.IsTrue( treeText.Contains( "// Server-side code only" ), "Maintain SERVER preprocessor directive in body" );
 		}
 
 		[TestMethod]
@@ -239,9 +259,10 @@ namespace Generator
 			var tree = compiler.SyntaxTrees.First();
 			System.Console.WriteLine( tree.GetText().ToString() );
 
-			Assert.IsTrue( tree.GetText().ToString().Contains( "return (bool)WrapGet.OnWrapGetStatic(new global::Sandbox.WrappedPropertyGet<bool> { Value = value, Object = null, IsStatic = true, TypeName = \"TestWrapGet\", PropertyName = \"StaticProperty\", MemberIdent = 2112852062, Attributes = __StaticProperty__Attrs });" ), "Generated code should wrap static property get accessor" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "return (bool)OnWrapGet(new global::Sandbox.WrappedPropertyGet<bool> { Value = value, Object = this, IsStatic = false, TypeName = \"TestWrapGet\", PropertyName = \"InstanceProperty\", MemberIdent = 1816497229, Attributes = __InstanceProperty__Attrs });" ), "Generated code should wrap instance property get accessor" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "return (bool)WrapGet.OnWrapGetStatic(new global::Sandbox.WrappedPropertyGet<bool> { Value = _repback__StaticProperty" ), "Generated code should wrap static property get accessor" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "return (bool)OnWrapGet(new global::Sandbox.WrappedPropertyGet<bool> { Value = _repback__InstanceProperty" ), "Generated code should wrap instance property get accessor" );
 			Assert.IsTrue( tree.GetText().ToString().Contains( "_repback__InstanceProperty= true;" ), "Generated code should copy initializer" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "return _repback__FieldKeywordProperty;" ), "Field keyword is replaced in getter with backing field name" );
 		}
 
 		[TestMethod]
@@ -253,6 +274,9 @@ namespace Generator
 
 			Assert.IsTrue( tree.GetText().ToString().Contains( "WrapSet.OnWrapSetStatic(new global::Sandbox.WrappedPropertySet<bool> { Value = value, Object = null, Setter = (v) =>" ), "Generated code should wrap static property set accessor" );
 			Assert.IsTrue( tree.GetText().ToString().Contains( "OnWrapSet(new global::Sandbox.WrappedPropertySet<bool> { Value = value, Object = this, Setter = (v) =>" ), "Generated code should wrap instance property set accessor" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "_repback__FieldKeywordProperty = value;" ), "Field keyword is replaced in setter with backing field name" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "get => _repback__FieldKeywordPropertyAuto" ), "Field keyword is replaced in auto-getter with backing field name" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "_repback__FieldKeywordPropertyAuto = value" ), "Field keyword is replaced in setter with auto-getter" );
 		}
 
 		[TestMethod]

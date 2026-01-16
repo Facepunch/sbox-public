@@ -47,7 +47,7 @@ public partial class MeshTool : EditorTool
 		CurrentTool?.OnSelectionChanged();
 	}
 
-	[Shortcut( "tools.mesh-tool", "m", typeof( SceneDock ) )]
+	[Shortcut( "tools.mesh-tool", "m", typeof( SceneViewWidget ) )]
 	public static void ActivateTool()
 	{
 		EditorToolManager.SetTool( nameof( MeshTool ) );

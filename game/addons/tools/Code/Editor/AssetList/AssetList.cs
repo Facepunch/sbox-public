@@ -716,9 +716,9 @@ public partial class AssetList : ListView, AssetSystem.IEventListener
 			return;
 		}
 
-		using var scene = SceneEditorSession.Scope();
-
-		using ( SceneEditorSession.Active.UndoScope( "Convert GameObject To Prefab" ).WithGameObjectChanges( target, GameObjectUndoFlags.All ).Push() )
+		var session = SceneEditorSession.Resolve( target );
+		using var scene = session.Scene.Push();
+		using ( session.UndoScope( "Convert GameObject To Prefab" ).WithGameObjectChanges( target, GameObjectUndoFlags.All ).Push() )
 		{
 			EditorUtility.Prefabs.ConvertGameObjectToPrefab( target, location );
 			EditorUtility.InspectorObject = target;

@@ -1,6 +1,5 @@
 ﻿using Sandbox.Utility;
 using System.Collections.Concurrent;
-using System.Threading.Channels;
 
 namespace Sandbox;
 
@@ -28,8 +27,6 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 		MaxDegreeOfParallelism = _animThreadCount
 	};
 
-	private object _decodeCacheLock = new();
-
 	public SceneAnimationSystem( Scene scene ) : base( scene )
 	{
 		Listen( Stage.UpdateBones, 0, UpdateAnimation, "UpdateAnimation" );
@@ -43,30 +40,18 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 		{
 			var rootRenderers = SkinnedRenderers.EnumerateLocked().Where( x => x.IsRootRenderer );
 
-			// We hold the lock in managed because we want it to be as coarse as possible to avoid contention with the cache maintenance
-			lock ( _decodeCacheLock )
-			{
-				// Skip out if we have a parent that is a skinned model, because we need to move relative to that
-				// and their bones haven't been worked out yet. They will get worked out after our parent is.
-				System.Threading.Tasks.Parallel.ForEach( rootRenderers, _animParallelOptions, ProcessRenderer );
-			}
+			// Skip out if we have a parent that is a skinned model, because we need to move relative to that
+			// and their bones haven't been worked out yet. They will get worked out after our parent is.
+			System.Threading.Tasks.Parallel.ForEach( rootRenderers, _animParallelOptions, ProcessRenderer );
 
 			// This is a good time to maintain decode caches
 			// Will copy local caches to the global cache and handle LRU eviction
 			// Can do this in a background task as nothing is touching these caches until next frame
-			Task.Run
-			(
-				() =>
-				{
-					lock ( _decodeCacheLock )
-					{
-						g_pAnimationSystemUtils.MaintainDecodeCaches();
-					}
-				}
-			);
+			Task.Run( g_pAnimationSystemUtils.MaintainDecodeCaches );
 
 			// Now merge any descendants without allocating per-merge delegates
-			System.Threading.Tasks.Parallel.ForEach( rootRenderers.Where( x => !x.BoneMergeTarget.IsValid() ), _animParallelOptions, renderer => renderer.MergeDescendants( ChangedTransforms ) );
+			var boneMergeRoots = SkinnedRenderers.EnumerateLocked().Where( x => !x.BoneMergeTarget.IsValid() && x.HasBoneMergeChildren );
+			System.Threading.Tasks.Parallel.ForEach( boneMergeRoots, _animParallelOptions, renderer => renderer.MergeDescendants( ChangedTransforms ) );
 
 			while ( ChangedTransforms.TryDequeue( out var tx ) )
 			{

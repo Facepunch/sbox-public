@@ -160,10 +160,10 @@ public partial class Scene : GameObject
 
 		Game.ActiveScene = this;
 
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// Disposed in DisposeAction
 		var timeScope = Time.Scope( TimeNow, TimeDelta );
-
-		// Make sure ActionGraphDebugger starts listening for ActionGraphs being deserialized / created
-		ActionGraphs.ActionGraphDebugger.Tick();
+#pragma warning restore CA2000 // Dispose objects before losing scope
 
 		return DisposeAction.Create( () =>
 		{

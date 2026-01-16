@@ -36,4 +36,22 @@ public static class LoadingScreen
 	/// </summary>
 	public static string Media { get; set; }
 
+	/// <summary>
+	/// A list of tasks that are currently being awaited during loading.
+	/// </summary>
+	public static List<LoadingContext> Tasks { get; } = [];
+
+	/// <summary>
+	/// Called by the scene system to tell us about the loading tasks
+	/// </summary>
+	internal static void UpdateLoadingTasks( List<LoadingContext> incoming )
+	{
+		Tasks.Clear();
+
+		if ( incoming.Count > 0 )
+		{
+			Tasks.AddRange( incoming );
+		}
+	}
+
 }

@@ -34,7 +34,8 @@ public class ButtonControlWidget : ControlWidget
 
 			button.Clicked += () =>
 			{
-				using ( SceneEditorSession.Scope() )
+				var session = SceneEditorSession.Resolve( property.GetContainingGameObject() );
+				using ( session.Scene.Push() )
 				{
 					foreach ( var prop in props )
 					{

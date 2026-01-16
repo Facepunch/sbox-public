@@ -315,7 +315,7 @@ public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool 
 			Layout.AddStretchCell();
 		}
 
-		[Shortcut( "editor.delete", "DEL", typeof( SceneDock ) )]
+		[Shortcut( "editor.delete", "DEL", typeof( SceneViewWidget ) )]
 		public void DeletePoint() => _editor.RemovePoint();
 	}
 

@@ -327,7 +327,6 @@ internal sealed class MenuDll : IMenuDll
 		}
 
 		MenuUtility.Tick?.Invoke();
-		ActionGraphDebugger.Tick();
 
 		// Run any pending queue'd mainthread tasks here
 		// so they're in the same scene scope

@@ -19,7 +19,17 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 
 		var closestEdge = MeshTrace.GetClosestEdge( 8 );
 		if ( closestEdge.IsValid() )
+		{
 			Gizmo.Hitbox.TrySetHovered( closestEdge.Transform.PointToWorld( closestEdge.Line.Center ) );
+		}
+		else
+		{
+			var result = MeshTrace.Run();
+			if ( result.Hit && result.Component is MeshComponent )
+			{
+				Gizmo.Hitbox.TrySetHovered( result.EndPosition );
+			}
+		}
 
 		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection )
 		{
@@ -85,8 +95,7 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 
 	public override Rotation CalculateSelectionBasis()
 	{
-		if ( Gizmo.Settings.GlobalSpace )
-			return Rotation.Identity;
+		if ( GlobalSpace ) return Rotation.Identity;
 
 		var edge = Selection.OfType<MeshEdge>().FirstOrDefault();
 		if ( edge.IsValid() )

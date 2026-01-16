@@ -11,7 +11,7 @@ public class NetworkTable
 	[TestMethod]
 	public void SetValue()
 	{
-		var table = new Sandbox.Network.NetworkTable();
+		using var table = new Sandbox.Network.NetworkTable();
 		table.Register( 3, new Sandbox.Network.NetworkTable.Entry { GetValue = () => false } );
 		table.SetValue( 3, false );
 		Assert.AreEqual( table.GetValue( 3 ), false );
@@ -35,6 +35,7 @@ public class NetworkTable
 		serverTable.Dispose();
 
 		var serialized = bs.ToArray();
+		bs.Dispose();
 		var reader = ByteStream.CreateReader( serialized );
 
 		{
@@ -48,6 +49,8 @@ public class NetworkTable
 
 			Assert.AreEqual( clientTable.GetValue( 3 ), false );
 		}
+
+		reader.Dispose();
 	}
 
 	[TestMethod]
@@ -55,7 +58,7 @@ public class NetworkTable
 	{
 		float value = 1.0f;
 
-		var serverTable = new Sandbox.Network.NetworkTable();
+		using var serverTable = new Sandbox.Network.NetworkTable();
 		serverTable.Register( 3, new Sandbox.Network.NetworkTable.Entry { GetValue = () => value, SetValue = ( v ) => value = (float)v } );
 
 		Assert.AreEqual( serverTable.GetValue( 3 ), value );
@@ -76,16 +79,18 @@ public class NetworkTable
 		serverTable.QueryValues();
 
 		Assert.IsFalse( serverTable.HasAnyChanges );
+
+		bs.Dispose();
 	}
 
 	public void ExchangeTest<T>( T a, T b, Action<T> modifyvalue = null )
 	{
 		// Init server table
 		object serverValue = a;
-		var serverTable = new Sandbox.Network.NetworkTable();
+		using var serverTable = new Sandbox.Network.NetworkTable();
 		serverTable.Register( 3, new Sandbox.Network.NetworkTable.Entry { TargetType = typeof( T ), GetValue = () => serverValue, SetValue = ( v ) => serverValue = v } );
 
-		var client = new Sandbox.Network.NetworkTable();
+		using var client = new Sandbox.Network.NetworkTable();
 		object clientValue = default;
 		client.Register( 3, new Sandbox.Network.NetworkTable.Entry { TargetType = typeof( T ), GetValue = () => clientValue, SetValue = ( v ) => clientValue = v } );
 
@@ -104,6 +109,8 @@ public class NetworkTable
 			client.Read( ref snapshot );
 
 			AreEqual( serverValue, clientValue );
+
+			snapshot.Dispose();
 		}
 
 		// server value change
@@ -121,6 +128,8 @@ public class NetworkTable
 			client.Read( ref snapshot );
 
 			AreEqual( serverValue, clientValue );
+
+			snapshot.Dispose();
 		}
 
 		// server value change
@@ -145,6 +154,8 @@ public class NetworkTable
 				client.Read( ref snapshot );
 
 				AreEqual( serverValue, clientValue );
+
+				snapshot.Dispose();
 			}
 		}
 
@@ -207,16 +218,29 @@ public class NetworkTable
 	[TestMethod]
 	public void ExchangeNetList()
 	{
-		ExchangeTest<NetList<int>>( new NetList<int> { 0, 1 }, new NetList<int> { 1, 0 }, t => t.Add( 4 ) );
-		ExchangeTest<NetList<float>>( new NetList<float> { 0, 1 }, new NetList<float> { 1, 0 }, t => t.RemoveAt( 0 ) );
+		using var list1 = new NetList<int> { 0, 1 };
+		using var list2 = new NetList<int> { 1, 0 };
+		ExchangeTest( list1, list2, t => t.Add( 4 ) );
+
+		using var list3 = new NetList<float> { 0, 1 };
+		using var list4 = new NetList<float> { 1, 0 };
+		ExchangeTest( list3, list4, t => t.RemoveAt( 0 ) );
 	}
 
 	[TestMethod]
 	public void ExchangeNetDictionary()
 	{
-		ExchangeTest<NetDictionary<int, int>>( new NetDictionary<int, int> { [0] = 1, [1] = 0 }, new NetDictionary<int, int> { [0] = 0, [1] = 1 }, t => t.Add( 2, 1 ) );
-		ExchangeTest<NetDictionary<string, int>>( new NetDictionary<string, int> { ["Foo"] = 0, ["Bar"] = 1 }, new NetDictionary<string, int> { ["Foo"] = 1, ["Bar"] = 0 }, t => t.Add( "Other", 2 ) );
-		ExchangeTest<NetDictionary<string, int>>( new NetDictionary<string, int> { ["Foo"] = 0, ["Bar"] = 1 }, new NetDictionary<string, int> { ["Foo"] = 1, ["Bar"] = 0 }, t => t.Remove( "Foo" ) );
+		using var dict1 = new NetDictionary<int, int> { [0] = 1, [1] = 0 };
+		using var dict2 = new NetDictionary<int, int> { [0] = 0, [1] = 1 };
+		ExchangeTest( dict1, dict2, t => t.Add( 2, 1 ) );
+
+		using var dict3 = new NetDictionary<string, int> { ["Foo"] = 0, ["Bar"] = 1 };
+		using var dict4 = new NetDictionary<string, int> { ["Foo"] = 1, ["Bar"] = 0 };
+		ExchangeTest( dict3, dict4, t => t.Add( "Other", 2 ) );
+
+		using var dict5 = new NetDictionary<string, int> { ["Foo"] = 0, ["Bar"] = 1 };
+		using var dict6 = new NetDictionary<string, int> { ["Foo"] = 1, ["Bar"] = 0 };
+		ExchangeTest( dict5, dict6, t => t.Remove( "Foo" ) );
 	}
 
 	[TestMethod]

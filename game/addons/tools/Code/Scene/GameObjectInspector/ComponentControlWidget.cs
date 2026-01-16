@@ -114,7 +114,33 @@ public class ComponentControlWidget : ControlWidget
 		e.Accepted = true;
 
 		var component = SerializedProperty.GetValue<Component>();
-		EditorUtility.FindInScene( component );
+
+		// Open Scene Browser Component Picker
+		var picker = new Dialog( null );
+		picker.Window.Title = $"Pick {SerializedProperty.PropertyType.Name}";
+		picker.Size = new Vector2( 500, 700 );
+		picker.Layout = Layout.Column();
+		var sceneBrowser = picker.Layout.Add( new GameObjectSceneBrowser( SerializedProperty.PropertyType ) );
+		var bottomRow = picker.Layout.Add( Layout.Row() );
+		bottomRow.Margin = 8;
+		bottomRow.Spacing = 8;
+		bottomRow.AddStretchCell( 1 );
+		var btnSelect = bottomRow.Add( new Button.Primary( "Select" ) );
+		btnSelect.Clicked = () => picker.Close();
+		var btnCancel = bottomRow.Add( new Button( "Cancel" ) );
+		btnCancel.Clicked = () => picker.Close();
+		btnSelect.Enabled = false;
+
+		sceneBrowser.ConfirmButton = btnSelect;
+		sceneBrowser.SelectComponent( component );
+		sceneBrowser.OnComponentSelect = ( c ) =>
+		{
+			PropertyStartEdit();
+			SerializedProperty.SetValue( c );
+			PropertyFinishEdit();
+		};
+
+		picker.Show();
 	}
 
 	void Clear()

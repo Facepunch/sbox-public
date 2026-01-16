@@ -7,7 +7,7 @@ namespace Sandbox;
 
 public partial class GameObject
 {
-	internal const int GameObjectVersion = 1;
+	internal const int GameObjectVersion = 2;
 
 	/// <summary>
 	/// Helper variable for editor refreshes during deserialization.
@@ -125,16 +125,9 @@ public partial class GameObject
 
 		if ( !options.ShouldSave( this ) ) return null;
 
-		if ( IsOutermostPrefabInstanceRoot && !options.SerializePrefabForDiff )
+		if ( IsOutermostPrefabInstanceRoot && !options.SerializePrefabForDiff && !options.SingleNetworkObject && !options.SceneForNetwork )
 		{
-			if ( options.SceneForNetwork || options.SingleNetworkObject )
-			{
-				return SerializePrefabInstanceForNetwork( options );
-			}
-			else
-			{
-				return SerializePrefabInstance();
-			}
+			return SerializePrefabInstance();
 		}
 
 		var json = SerializeStandard( options );
@@ -155,37 +148,6 @@ public partial class GameObject
 		if ( GameObjectVersion != 0 ) json[JsonKeys.Version] = GameObjectVersion;
 		json[JsonKeys.PrefabInstanceSource] = JsonValue.Create( PrefabInstance.PrefabSource );
 		json[JsonKeys.PrefabInstancePatch] = Json.ToNode( PrefabInstance.Patch );
-		PrefabInstance.ValidatePrefabLookup();
-		json[JsonKeys.PrefabIdToInstanceId] = Json.ToNode( PrefabInstance.PrefabToInstanceLookup );
-
-		return json;
-	}
-
-	/// <summary>
-	/// Creates a JSON representation of this prefab instance including its overrides and GUID mappings.
-	/// Only includes non networked objects.
-	/// </summary>
-	private JsonObject SerializePrefabInstanceForNetwork( SerializeOptions options )
-	{
-		var instanceData = SerializeStandard( options );
-		PrefabInstance.RemapInstanceIdsToPrefabIds( ref instanceData );
-
-		var prefabScene = (PrefabCacheScene)GetPrefab( PrefabInstance.PrefabSource );
-		Assert.IsValid( prefabScene );
-
-		var fullPrefabData = prefabScene.Serialize( new SerializeOptions
-		{
-			SerializePrefabForDiff = true
-		} );
-
-		var patch = Json.CalculateDifferences( fullPrefabData, instanceData, DiffObjectDefinitions );
-
-		var json = new JsonObject();
-
-		json[JsonKeys.Id] = Id;
-		if ( GameObjectVersion != 0 ) json[JsonKeys.Version] = GameObjectVersion;
-		json[JsonKeys.PrefabInstanceSource] = JsonValue.Create( PrefabInstance.PrefabSource );
-		json[JsonKeys.PrefabInstancePatch] = Json.ToNode( patch );
 		PrefabInstance.ValidatePrefabLookup();
 		json[JsonKeys.PrefabIdToInstanceId] = Json.ToNode( PrefabInstance.PrefabToInstanceLookup );
 
@@ -216,12 +178,13 @@ public partial class GameObject
 		json.Add( JsonKeys.Tags, string.Join( ",", Tags.TryGetAll( false ) ) );
 		json.Add( JsonKeys.Enabled, Enabled );
 		json.Add( JsonKeys.NetworkMode, (int)NetworkMode );
-		json.Add( JsonKeys.NetworkInterpolation, NetworkInterpolation );
+		json.Add( JsonKeys.NetworkFlags, (int)NetworkFlags );
 		json.Add( JsonKeys.NetworkOrphaned, (int)NetworkOrphaned );
 		json.Add( JsonKeys.AlwaysTransmit, AlwaysTransmit );
 		json.Add( JsonKeys.OwnerTransfer, (int)OwnerTransfer );
 
-		if ( IsNestedPrefabInstanceRoot || (IsOutermostPrefabInstanceRoot && options.SerializePrefabForDiff) )
+		if ( (!options.SceneForNetwork && !options.SingleNetworkObject)
+				&& (IsNestedPrefabInstanceRoot || (IsOutermostPrefabInstanceRoot && options.SerializePrefabForDiff)) )
 		{
 			if ( options.SerializeForPrefabInstanceToPrefabUpdate && Parent is not null && Parent.IsOutermostPrefabInstanceRoot )
 			{
@@ -231,6 +194,12 @@ public partial class GameObject
 			{
 				json[JsonKeys.EditorPrefabInstanceNestedSource] = JsonValue.Create( PrefabInstance.PrefabSource );
 			}
+		}
+
+		// Preserve the prefab path when networking an instance
+		if ( options.SingleNetworkObject && IsPrefabInstanceRoot )
+		{
+			json[JsonKeys.NetworkedPrefabInstance] = PrefabInstanceSource;
 		}
 
 		if ( !options.IgnoreComponents )
@@ -348,7 +317,7 @@ public partial class GameObject
 			}
 		}
 		// Handle full prefab instances
-		else if ( node[JsonKeys.PrefabInstanceSource] is JsonValue __Prefab && __Prefab.TryGetValue( out prefabSource ) )
+		else if ( node[JsonKeys.PrefabInstanceSource] is JsonValue __prefab && __prefab.TryGetValue( out prefabSource ) )
 		{
 			InitPrefabInstance( prefabSource, false );
 
@@ -394,6 +363,12 @@ public partial class GameObject
 			PrefabInstance.RemapPrefabIdsToInstanceIds( ref node );
 		}
 
+		// Handle networked prefab instances, we just init the path
+		if ( node[JsonKeys.NetworkedPrefabInstance] is JsonValue _prefab && _prefab.TryGetValue( out prefabSource ) )
+		{
+			InitPrefabInstance( prefabSource, false );
+		}
+
 		// Stop right here if we are EditorOnly
 		// If we are a PrefabRoot/PrefabCacheScene marked as editor only we still want to load as the Prefab might be referenced by instances
 		if ( !Scene.IsEditor && Flags.Contains( GameObjectFlags.EditorOnly ) && this is not PrefabCacheScene )
@@ -422,7 +397,7 @@ public partial class GameObject
 		if ( node.TryGetPropertyValue( JsonKeys.NetworkOrphaned, out propertyNode ) ) NetworkOrphaned = (NetworkOrphaned)(int)propertyNode;
 		if ( node.TryGetPropertyValue( JsonKeys.AlwaysTransmit, out propertyNode ) ) AlwaysTransmit = (bool)propertyNode;
 		if ( node.TryGetPropertyValue( JsonKeys.OwnerTransfer, out propertyNode ) ) OwnerTransfer = (OwnerTransfer)(int)propertyNode;
-		if ( node.TryGetPropertyValue( JsonKeys.NetworkInterpolation, out propertyNode ) ) NetworkInterpolation = (bool)propertyNode;
+		if ( node.TryGetPropertyValue( JsonKeys.NetworkFlags, out propertyNode ) ) NetworkFlags = (NetworkFlags)(int)propertyNode;
 
 		if ( node[JsonKeys.Components] is JsonArray componentArray )
 		{
@@ -989,10 +964,14 @@ public partial class GameObject
 		internal const string Tags = "Tags";
 		internal const string Version = "__version";
 		internal const string NetworkMode = "NetworkMode";
-		internal const string NetworkInterpolation = "NetworkInterpolation";
+		internal const string NetworkFlags = "NetworkFlags";
 		internal const string NetworkOrphaned = "NetworkOrphaned";
 		internal const string AlwaysTransmit = "NetworkTransmit";
 		internal const string OwnerTransfer = "OwnerTransfer";
+		internal const string NetworkInterpolation = "NetworkInterpolation"; // Legacy
+
+		// Network kyes for spawning prefa instance
+		internal const string NetworkedPrefabInstance = "__NetworkedPrefaInstance";
 
 		// Editor only keys used to influence serialization logic when performing editor actions
 		internal const string EditorPrefabInstanceNestedSource = "__EditorPrefabNestedInstance";

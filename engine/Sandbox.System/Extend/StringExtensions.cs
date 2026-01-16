@@ -81,24 +81,49 @@ public static partial class SandboxSystemExtensions
 	/// <summary>
 	/// Puts a filename into the format /path/filename.ext (from path\FileName.EXT)
 	/// </summary>
-	public static string NormalizeFilename( this string str, bool enforceInitialSlash = true ) => NormalizeFilename( str, enforceInitialSlash, true );
+	public static string NormalizeFilename( this string str, bool enforceInitialSlash = true ) => NormalizeFilename( str, enforceInitialSlash, true, '/' );
 
 	/// <summary>
 	/// Puts a filename into the format /path/filename.ext (from path\FileName.EXT)
 	/// </summary>
-	public static string NormalizeFilename( this string str, bool enforceInitialSlash, bool enforceLowerCase )
+	public static string NormalizeFilename( this string str, bool enforceInitialSlash, bool enforceLowerCase, char targetSeparator = '/' )
 	{
-		if ( enforceLowerCase )
+		if ( str.Length == 0 )
 		{
-			str = str.ToLowerInvariant();
+			return enforceInitialSlash ? string.Create( 1, targetSeparator, static ( span, sep ) => span[0] = sep ) : str;
 		}
 
-		str = str.Replace( '\\', '/' );
+		var startsWithSeparator = str[0] == targetSeparator || str[0] == '/' || str[0] == '\\';
+		var addLeadingSeparator = enforceInitialSlash && !startsWithSeparator;
 
-		if ( enforceInitialSlash && !str.StartsWith( '/' ) )
-			str = str.Insert( 0, "/" );
+		var resultLength = str.Length + (addLeadingSeparator ? 1 : 0);
+		return string.Create( resultLength, (str, addLeadingSeparator, enforceLowerCase, targetSeparator), static ( span, state ) =>
+		{
+			var (source, addSep, lowerCase, sep) = state;
+			var dest = 0;
 
-		return str;
+			if ( addSep )
+			{
+				span[dest++] = sep;
+			}
+
+			for ( var i = 0; i < source.Length; i++ )
+			{
+				var c = source[i];
+
+				if ( c == '/' || c == '\\' )
+				{
+					c = sep;
+				}
+
+				if ( lowerCase )
+				{
+					c = char.ToLowerInvariant( c );
+				}
+
+				span[dest++] = c;
+			}
+		} );
 	}
 
 	/// <summary>
@@ -186,7 +211,7 @@ public static partial class SandboxSystemExtensions
 	{
 		try
 		{
-			var table = new DataTable();
+			using var table = new DataTable();
 			var value = table.Compute( expression, string.Empty );
 			return Convert.ToSingle( value );
 		}
@@ -214,7 +239,7 @@ public static partial class SandboxSystemExtensions
 	{
 		try
 		{
-			var table = new DataTable();
+			using var table = new DataTable();
 			var value = table.Compute( expression, string.Empty );
 			return Convert.ToDouble( value );
 		}
@@ -268,7 +293,7 @@ public static partial class SandboxSystemExtensions
 	{
 		try
 		{
-			var table = new DataTable();
+			using var table = new DataTable();
 			var value = table.Compute( expression, string.Empty );
 			return Convert.ToInt32( value );
 		}
@@ -307,7 +332,7 @@ public static partial class SandboxSystemExtensions
 	{
 		try
 		{
-			var table = new DataTable();
+			using var table = new DataTable();
 			var value = table.Compute( expression, string.Empty );
 			return Convert.ToInt64( value );
 		}

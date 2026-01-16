@@ -1,6 +1,5 @@
-﻿using System;
-
-using Sandbox.Engine.Settings;
+﻿using Sandbox.Engine.Settings;
+using System;
 
 namespace Editor;
 

@@ -171,9 +171,9 @@ internal class LargeNetworkFiles
 
 			token.ThrowIfCancellationRequested();
 
-			if ( response is not byte[] data )
+			if ( response is not byte[] data || data.Length == 0 )
 			{
-				Log.Warning( $"Unknown response {response}!" );
+				Log.Warning( $"Failed to download file {file}! (response: {response})" );
 				currentCount++;
 				continue;
 			}
@@ -199,11 +199,14 @@ internal class LargeNetworkFiles
 
 	async Task OnRequestNetworkFile( RequestFile file, Connection connection, Guid msgGuid )
 	{
-		Log.Info( $"Client requested file {file.filename} ({msgGuid})" );
-		await Task.Delay( 100 );
+		if ( !EngineFileSystem.Mounted.FileExists( file.filename ) )
+		{
+			Log.Warning( $"Client ({connection.Name}) requested missing file: {file.filename}" );
+			connection.SendResponse( msgGuid, Array.Empty<byte>() );
+			return;
+		}
 
 		var contents = await EngineFileSystem.Mounted.ReadAllBytesAsync( file.filename );
-		Log.Info( $"Read {contents.Length.FormatBytes()}" );
 
 		connection.SendResponse( msgGuid, contents );
 	}

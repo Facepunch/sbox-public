@@ -131,7 +131,7 @@ public class PositionEditorTool : EditorTool
 		gameObject.DispatchEdited( nameof( GameObject.LocalPosition ) );
 	}
 
-	[Shortcut( "tools.position-tool", "w", typeof( SceneDock ) )]
+	[Shortcut( "tools.position-tool", "w", typeof( SceneViewWidget ) )]
 	public static void ActivateSubTool()
 	{
 		if ( !(EditorToolManager.CurrentModeName == nameof( ObjectEditorTool ) || EditorToolManager.CurrentModeName == "object") ) return;

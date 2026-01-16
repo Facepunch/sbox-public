@@ -2,7 +2,7 @@ namespace Sandbox;
 
 internal sealed class VertexKDTree
 {
-	private class Node
+	class Node
 	{
 		public int[] Children = { -1, -1 };
 		public int Axis = -1;
@@ -14,23 +14,27 @@ internal sealed class VertexKDTree
 		public void InitAsLeaf( int start, int count ) => (Axis, LeafStart, LeafCount) = (-1, start, count);
 	}
 
-	private readonly List<Node> tree = new();
-	private List<Vector3> vertexList;
+	readonly List<Node> _tree = [];
+	IReadOnlyList<Vector3> _positions;
+	int[] _refs;
 
-	public void BuildMidpoint( List<Vector3> vertices )
+	public void BuildMidpoint( IReadOnlyList<Vector3> vertices )
 	{
-		vertexList = new( vertices );
-		tree.Clear();
-		BuildNode( 0, vertexList.Count );
+		_positions = vertices;
+		_refs = new int[vertices.Count];
+		for ( int i = 0; i < _refs.Length; i++ ) _refs[i] = i;
+
+		_tree.Clear();
+		BuildNode( 0, _refs.Length );
 	}
 
-	private int BuildNode( int start, int count )
+	int BuildNode( int start, int count )
 	{
 		if ( count <= 8 )
 		{
-			var nodeIndex = tree.Count;
-			tree.Add( new() );
-			tree[nodeIndex].InitAsLeaf( start, count );
+			var nodeIndex = _tree.Count;
+			_tree.Add( new Node() );
+			_tree[nodeIndex].InitAsLeaf( start, count );
 			return nodeIndex;
 		}
 
@@ -41,42 +45,57 @@ internal sealed class VertexKDTree
 
 		if ( splitIndex == start || splitIndex == start + count )
 		{
-			var nodeIndex = tree.Count;
-			tree.Add( new() );
-			tree[nodeIndex].InitAsLeaf( start, count );
+			var nodeIndex = _tree.Count;
+			_tree.Add( new Node() );
+			_tree[nodeIndex].InitAsLeaf( start, count );
 			return nodeIndex;
 		}
 
-		var nodeIdx = tree.Count;
-		tree.Add( new() { Axis = axis, Split = split } );
-		tree[nodeIdx].Children[0] = BuildNode( start, splitIndex - start );
-		tree[nodeIdx].Children[1] = BuildNode( splitIndex, count - (splitIndex - start) );
-
-		return nodeIdx;
+		var idx = _tree.Count;
+		_tree.Add( new Node { Axis = axis, Split = split } );
+		_tree[idx].Children[0] = BuildNode( start, splitIndex - start );
+		_tree[idx].Children[1] = BuildNode( splitIndex, count - (splitIndex - start) );
+		return idx;
 	}
 
-	private int FindMidpointIndex( int start, int count, int axis, float split )
+	int FindMidpointIndex( int start, int count, int axis, float split )
 	{
-		vertexList.Sort( start, count, Comparer<Vector3>.Create( ( a, b ) => a[axis].CompareTo( b[axis] ) ) );
 		var mid = start + count / 2;
+		var end = start + count;
 
-		while ( mid < start + count && vertexList[mid][axis] < split ) mid++;
-		while ( mid > start && vertexList[mid - 1][axis] >= split ) mid--;
+		for ( var i = mid; i < end; i++ )
+		{
+			if ( _positions[_refs[i]][axis] < split )
+			{
+				(_refs[mid], _refs[i]) = (_refs[i], _refs[mid]);
+				mid++;
+			}
+		}
+
+		for ( var i = mid - 1; i >= start; i-- )
+		{
+			if ( _positions[_refs[i]][axis] >= split )
+			{
+				(_refs[mid - 1], _refs[i]) = (_refs[i], _refs[mid - 1]);
+				mid--;
+			}
+		}
 
 		return mid;
 	}
 
-	private void ComputeBounds( out Vector3 min, out Vector3 max, int start, int count )
+	void ComputeBounds( out Vector3 min, out Vector3 max, int start, int count )
 	{
-		min = max = vertexList[start];
+		min = max = _positions[_refs[start]];
 		for ( var i = start + 1; i < start + count; i++ )
 		{
-			min = Vector3.Min( min, vertexList[i] );
-			max = Vector3.Max( max, vertexList[i] );
+			Vector3 p = _positions[_refs[i]];
+			min = Vector3.Min( min, p );
+			max = Vector3.Max( max, p );
 		}
 	}
 
-	private int GreatestAxis( Vector3 v ) => v.x >= v.y ? (v.x > v.z ? 0 : 2) : (v.y > v.z ? 1 : 2);
+	static int GreatestAxis( Vector3 v ) => v.x >= v.y ? (v.x > v.z ? 0 : 2) : (v.y > v.z ? 1 : 2);
 
 	public List<int> FindVertsInBox( Vector3 minBounds, Vector3 maxBounds )
 	{
@@ -85,22 +104,24 @@ internal sealed class VertexKDTree
 		return result;
 	}
 
-	private void FindVertsInBoxRecursive( int nodeIndex, Vector3 minBounds, Vector3 maxBounds, List<int> result )
+	void FindVertsInBoxRecursive( int nodeIndex, Vector3 minBounds, Vector3 maxBounds, List<int> result )
 	{
-		if ( nodeIndex < 0 || nodeIndex >= tree.Count ) return;
+		if ( nodeIndex < 0 || nodeIndex >= _tree.Count ) return;
 
-		var node = tree[nodeIndex];
+		var node = _tree[nodeIndex];
 
 		if ( node.IsLeaf )
 		{
 			for ( var i = node.LeafStart; i < node.LeafStart + node.LeafCount; i++ )
 			{
-				var p = vertexList[i];
-				if ( p.x >= minBounds.y && p.x <= maxBounds.x &&
-					p.y >= minBounds.y && p.y <= maxBounds.y &&
-					p.z >= minBounds.z && p.z <= maxBounds.z )
+				var idx = _refs[i];
+				var p = _positions[idx];
+
+				if ( p.x >= minBounds.x && p.x <= maxBounds.x &&
+					 p.y >= minBounds.y && p.y <= maxBounds.y &&
+					 p.z >= minBounds.z && p.z <= maxBounds.z )
 				{
-					result.Add( i );
+					result.Add( idx );
 				}
 			}
 		}

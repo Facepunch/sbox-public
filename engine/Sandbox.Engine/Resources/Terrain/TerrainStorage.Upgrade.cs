@@ -114,7 +114,7 @@ public partial class TerrainStorage
 	static Span<ushort> ResampleHeightmap( Span<ushort> original, int originalSize, int newSize )
 	{
 		// Create SKBitmap with the original data copied in
-		var bitmap = new SKBitmap( originalSize, originalSize, SKColorType.Alpha16, SKAlphaType.Opaque );
+		using var bitmap = new SKBitmap( originalSize, originalSize, SKColorType.Alpha16, SKAlphaType.Opaque );
 		using ( var pixmap = bitmap.PeekPixels() )
 		{
 			var dataBytes = MemoryMarshal.AsBytes( original );

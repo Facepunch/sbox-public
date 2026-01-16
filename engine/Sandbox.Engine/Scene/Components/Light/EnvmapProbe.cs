@@ -81,7 +81,7 @@ public sealed class EnvmapProbe : Component, Component.ExecuteInEditor
 		_dynamicTexture = null;
 	}
 
-	protected override async Task OnLoad()
+	protected override async Task OnLoad( LoadingContext context )
 	{
 		if ( Application.IsHeadless )
 			return;
@@ -91,11 +91,14 @@ public sealed class EnvmapProbe : Component, Component.ExecuteInEditor
 			Dirty = true;
 		}
 
-		while ( Dirty )
+		if ( Dirty )
 		{
-			LoadingScreen.Title = "Generating Envmaps";
-			LoadingScreen.Subtitle = "Creating reflection maps";
-			await Task.DelayRealtime( 10 );
+			context.Title = "Rendering Envmap";
+
+			while ( Dirty )
+			{
+				await Task.DelayRealtime( 10 );
+			}
 		}
 	}
 

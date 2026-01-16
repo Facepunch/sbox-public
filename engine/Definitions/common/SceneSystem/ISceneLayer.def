@@ -31,6 +31,7 @@ native class ISceneLayer as NativeEngine.ISceneLayer
     }
 
     void SetAttr( StringToken nTokenID, HSceneViewRenderTarget hRenderTarget, SceneLayerMSAAMode_t msaa, uint flags );
+    void SetLayerNoCull( bool enabled );
 
     void SetBoundingVolumeSizeCullThresholdInPercent( float flSizeCullThreshold );
     

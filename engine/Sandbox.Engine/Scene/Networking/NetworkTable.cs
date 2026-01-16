@@ -19,7 +19,8 @@ internal class NetworkTable : IDisposable
 		public Func<object> GetValue { get; init; }
 		public Action<object> SetValue { get; init; }
 		public Action<Entry> OnDirty { get; set; }
-		public int HashValue { get; set; }
+		public ulong SnapshotHash { get; set; }
+		public int HashCodeValue { get; set; }
 		public bool IsSerializerType { get; private set; }
 		public bool IsDeltaSnapshotType { get; private set; }
 		public bool IsReliableType { get; set; }
@@ -130,7 +131,9 @@ internal class NetworkTable : IDisposable
 	/// </summary>
 	public void Register( int slot, Entry entry )
 	{
-		_entries[slot] = entry;
+		// Do nothing if we already have an entry in this slot.
+		if ( !_entries.TryAdd( slot, entry ) )
+			return;
 
 		var value = GetValue( slot );
 		UpdateSlotHash( slot, value );
@@ -192,12 +195,12 @@ internal class NetworkTable : IDisposable
 			return;
 		}
 
-		var hashValue = GenerateHash( value );
+		var hashValue = ToHashCode( value );
 
-		if ( entry.HashValue == hashValue )
+		if ( entry.HashCodeValue == hashValue )
 			return;
 
-		entry.HashValue = hashValue;
+		entry.HashCodeValue = hashValue;
 		entry.Serialized = null;
 		entry.IsDirty = true;
 	}
@@ -213,7 +216,7 @@ internal class NetworkTable : IDisposable
 		UpdateSlotHash( v, value );
 	}
 
-	private int GenerateHash( object value )
+	private static int ToHashCode( object value )
 	{
 		if ( value is IList list )
 		{
@@ -296,10 +299,11 @@ internal class NetworkTable : IDisposable
 					var bs = ByteStream.Create( 4096 );
 					WriteEntryToStream( entry, ref bs );
 					entry.Serialized = bs.ToArray();
+					entry.SnapshotHash = snapshot.Hash( entry.Serialized );
 					bs.Dispose();
 				}
 
-				snapshot.AddSerialized( entry.Slot, entry.Serialized );
+				snapshot.AddSerialized( entry.Slot, entry.Serialized, entry.SnapshotHash );
 			}
 			catch ( Exception e )
 			{

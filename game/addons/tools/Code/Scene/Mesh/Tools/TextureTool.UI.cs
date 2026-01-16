@@ -127,7 +127,7 @@ partial class TextureTool
 			Layout.AddStretchCell();
 		}
 
-		[Shortcut( "mesh.fast-texture-tool", "CTRL+G", typeof( SceneDock ) )]
+		[Shortcut( "mesh.fast-texture-tool", "CTRL+G", typeof( SceneViewWidget ) )]
 		private void OpenFastTextureTool()
 		{
 			var selectedFaces = SceneEditorSession.Active.Selection.OfType<MeshFace>().ToArray();
@@ -150,7 +150,7 @@ partial class TextureTool
 			}
 		}
 
-		[Shortcut( "editor.delete", "DEL", typeof( SceneDock ) )]
+		[Shortcut( "editor.delete", "DEL", typeof( SceneViewWidget ) )]
 		private void DeleteSelection()
 		{
 			var groups = _faces.GroupBy( face => face.Component );

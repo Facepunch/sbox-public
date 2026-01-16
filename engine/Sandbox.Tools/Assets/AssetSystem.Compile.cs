@@ -63,6 +63,20 @@ public static partial class AssetSystem
 		jsonString = context.ScanJson( jsonString );
 
 		context.Data.Write( jsonString );
+
+		// Write binary blob data to BLOB block if companion file exists
+		var blobPath = context.AbsolutePath + "_d";
+		if ( System.IO.File.Exists( blobPath ) )
+		{
+			var blobData = System.IO.File.ReadAllBytes( blobPath );
+			unsafe
+			{
+				fixed ( byte* ptr = blobData )
+				{
+					context.WriteBlock( BlobDataSerializer.CompiledBlobName, (IntPtr)ptr, blobData.Length );
+				}
+			}
+		}
 	}
 
 	/// <summary>

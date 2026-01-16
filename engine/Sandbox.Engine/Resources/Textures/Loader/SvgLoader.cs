@@ -48,7 +48,10 @@ internal static class SvgLoader
 				return null;
 			}
 
-			return Texture.CreateFromSvgSource( svg, width, height, color );
+			var tex = Texture.CreateFromSvgSource( svg, width, height, color );
+			tex?.SetIdFromResourcePath( url );
+
+			return tex;
 		}
 		catch ( System.Exception e )
 		{

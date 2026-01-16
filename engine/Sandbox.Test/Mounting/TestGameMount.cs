@@ -35,7 +35,7 @@ public class TestGameTextureResource : ResourceLoader<TestGameMount>
 
 	protected override object Load()
 	{
-		var bitmap = new Bitmap( 128, 128 );
+		using var bitmap = new Bitmap( 128, 128 );
 		bitmap.Clear( Color.Random );
 
 		return bitmap.ToTexture();

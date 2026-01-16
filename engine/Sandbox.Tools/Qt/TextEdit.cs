@@ -272,7 +272,8 @@ namespace Editor
 		public TextCursor GetCursorAtBlock( int block )
 		{
 			// todo - make sure this block is valid etc?
-			return TextCursor.CreateFromBlock( _pte.document().findBlockByNumber( block ) );
+			using var blockObj = _pte.document().findBlockByNumber( block );
+			return TextCursor.CreateFromBlock( blockObj );
 		}
 
 		internal void InternalTextChanged() => OnTextChanged( PlainText );

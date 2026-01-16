@@ -149,6 +149,8 @@ public readonly ref struct HudPainter
 		return DrawText( scope, rect, flags );
 	}
 
+	private static readonly Material TextShader = Material.FromShader( "shaders/ui_text.shader" );
+
 	/// <summary>
 	/// Draws text within a rectangle using a prepared <see cref="TextRendering.Scope"/>.
 	/// </summary>
@@ -164,9 +166,11 @@ public readonly ref struct HudPainter
 		rect = rect.Align( texture.Size, flags );
 		rect = rect.SnapToGrid();
 
-		list.DrawQuad( rect.SnapToGrid(), Material.FromShader( "shaders/ui_text.shader" ), Color.White );
+		list.DrawQuad( rect.SnapToGrid(), TextShader, Color.White );
 		return rect;
 	}
+
+	private static readonly Material LineShader = Material.FromShader( "shaders/Hud/line.shader" );
 
 	/// <summary>
 	/// Draws a line between two points with the specified width and color.
@@ -186,7 +190,7 @@ public readonly ref struct HudPainter
 		list.Attributes.Set( "EndCaps", 0 ); // flags 1 2  - use corners
 		list.Attributes.Set( "TransformMat", Matrix.Identity );
 
-		list.DrawQuad( NormalizedRect, Material.FromShader( "shaders/Hud/line.shader" ), Color.White );
+		list.DrawQuad( NormalizedRect, LineShader, Color.White );
 	}
 
 	private static readonly Rect NormalizedRect = new( Vector2.One * -1, Vector2.One * 2 );

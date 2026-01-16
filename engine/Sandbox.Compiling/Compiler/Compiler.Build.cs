@@ -259,6 +259,7 @@ partial class Compiler
 							}
 						}
 					}
+					stream?.Dispose();
 				}
 			}
 

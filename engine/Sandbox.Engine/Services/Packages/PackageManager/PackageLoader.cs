@@ -207,12 +207,14 @@ internal sealed partial class PackageLoader : IDisposable
 		if ( !TestAccessControl( stream, out var trustedDll ) )
 		{
 			log.Warning( $"Couldn't load {assmName} - access control error" );
+			trustedDll?.Dispose();
 			return false;
 		}
 
 		assembly = AddAssembly( null, assmName, trustedDll, null );
 		changedPackageDlls.Add( (null, assmName) );
 
+		trustedDll?.Dispose();
 		return assembly is not null;
 	}
 
@@ -262,9 +264,11 @@ internal sealed partial class PackageLoader : IDisposable
 		{
 			if ( !TestAccessControl( dll_stream, out trustedDll ) )
 			{
+				trustedDll?.Dispose();
 				log.Warning( $"Couldn't load {assmName} - access control error" );
 				return null;
 			}
+			trustedDll?.Dispose();
 		}
 
 		//

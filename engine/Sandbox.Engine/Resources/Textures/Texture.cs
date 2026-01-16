@@ -180,7 +180,7 @@ public partial class Texture : Resource, IDisposable
 		//
 		// Try to load the texture again, make a new texture
 		//
-		var newTex = TryToLoad( filesystem, filename, false );
+		using var newTex = TryToLoad( filesystem, filename, false );
 
 		//
 		// If success, copy from this texture

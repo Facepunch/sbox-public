@@ -4,17 +4,16 @@ namespace Sandbox.Rendering;
 
 internal class DepthDownsampleLayer : ProceduralRenderLayer
 {
-	ComputeShader DepthResolve;
-
 	RenderViewport Viewport;
 	RenderTarget DestDepth;
 	bool MSAAInput;
+
+	private static readonly ComputeShader DepthResolveShader = new ComputeShader( "shaders/depthresolve_cs.shader" );
 
 	public DepthDownsampleLayer()
 	{
 		Name = "Hi-Z Depth Downsample";
 		Flags |= LayerFlags.NeverRemove;
-		DepthResolve = new ComputeShader( "shaders/depthresolve_cs.shader" );
 	}
 
 	public void Setup( RenderViewport viewport, SceneViewRenderTargetHandle rtDepth, bool msaaInput, ISceneView view )
@@ -37,7 +36,7 @@ internal class DepthDownsampleLayer : ProceduralRenderLayer
 		var attributes = RenderAttributes.Pool.Get();
 		attributes.Set( "DestDepth", DestDepth.DepthTarget );
 		attributes.SetCombo( "D_MSAA", MSAAInput );
-		DepthResolve.DispatchWithAttributes( attributes, (int)Viewport.Rect.Width, (int)Viewport.Rect.Height, 1 );
+		DepthResolveShader.DispatchWithAttributes( attributes, (int)Viewport.Rect.Width, (int)Viewport.Rect.Height, 1 );
 
 		RenderAttributes.Pool.Return( attributes );
 

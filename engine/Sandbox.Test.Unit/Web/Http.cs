@@ -53,7 +53,7 @@ public class HttpTests
 	public void CreateRequest_Valid_Succeeds()
 	{
 		var headers = new Dictionary<string, string> { { "X-Test", "1" } };
-		var request = Http.CreateRequest( HttpMethod.Get, "https://google.com/", headers );
+		using var request = Http.CreateRequest( HttpMethod.Get, "https://google.com/", headers );
 		Assert.AreEqual( HttpMethod.Get, request.Method );
 		Assert.AreEqual( "https://google.com/", request.RequestUri?.ToString() );
 		Assert.AreEqual( 1, request.Headers.Count() );

@@ -21,7 +21,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-		<PackageReference Include="Facepunch.ActionGraphs" Version="1.9.22" />
+		<PackageReference Include="Facepunch.ActionGraphs" Version="1.9.26" />
     <PackageReference Include="NLog" Version="5.3.4" />
 		<PackageReference Include="Humanizer.Core" Version="2.14.1" />
   </ItemGroup>

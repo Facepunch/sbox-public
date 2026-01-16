@@ -36,6 +36,8 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 	CommandList cmd = new CommandList( "ScreenSpaceReflections" );
 	CommandList cmdLastframe = new CommandList( "ScreenSpaceReflections (Last Frame)" );
 
+	private static readonly ComputeShader ShaderCs = new ComputeShader( "screen_space_reflections_cs" );
+
 	protected override void OnEnabled()
 	{
 		base.OnEnabled();
@@ -93,8 +95,6 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 
 		var averagePing = pingPong ? AverageRadiance0 : AverageRadiance1;
 		var averageHistory = pingPong ? AverageRadiance1 : AverageRadiance0;
-
-		ComputeShader reflectionsCs = new ComputeShader( "screen_space_reflections_cs" );
 
 		var lastFrameRt = cmdLastframe.Attributes.GetRenderTarget( "LastFrameColor" )?.ColorTarget ?? Texture.Transparent;
 
@@ -170,7 +170,7 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 					cmd.Attributes.Set( "Radiance", radiancePing.ColorTexture );
 					cmd.Attributes.Set( "OutRadiance", FullResRadiance.ColorTexture );
 					cmd.Attributes.SetCombo( "D_PASS", (int)Passes.BilateralUpscale );
-					cmd.DispatchCompute( reflectionsCs, cmd.ViewportSize );
+					cmd.DispatchCompute( ShaderCs, cmd.ViewportSize );
 					continue;
 			}
 
@@ -178,7 +178,7 @@ public class ScreenSpaceReflections : BasePostProcess<ScreenSpaceReflections>
 				continue;
 
 			cmd.Attributes.SetCombo( "D_PASS", (int)pass );
-			cmd.DispatchCompute( reflectionsCs, ReprojectedRadiance.Size );
+			cmd.DispatchCompute( ShaderCs, ReprojectedRadiance.Size );
 		}
 
 		var finalReflection = needsUpscale ? FullResRadiance : radiancePing;

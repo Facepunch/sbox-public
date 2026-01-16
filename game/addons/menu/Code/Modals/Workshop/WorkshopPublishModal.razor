@@ -62,6 +62,14 @@
 					<TextEntry Multiline style="height: 100px;" Value:bind="@Description"></TextEntry>
 				</div>
 
+                @foreach (var cat in Options.Categories ?? [] )
+                {
+                    <div class="row">
+                        <label>@cat.Key</label>
+                        <EnumControl Property="@cat.Value"></EnumControl>
+                    </div>
+                }
+
 				<div class="row">
 					<label>Visibility</label>
 					
@@ -80,7 +88,7 @@
 			</div>
 
 			<div class="actions">
-				<div class="clicky" Icon="people" @onclick="@PublishItem">Publish</div>
+                <Button class="clicky" Icon="people" Text="Publish To Workshop" @onclick="@PublishItem"></Button>
 			</div>
 
 		</div>

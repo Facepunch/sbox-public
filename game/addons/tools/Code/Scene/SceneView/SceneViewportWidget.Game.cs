@@ -41,6 +41,7 @@ public partial class SceneViewportWidget
 	{
 		GameMode.SetPlayWidget( Renderer );
 		IsGameView = true;
+		Tools.DisposeAll();
 	}
 
 	/// <summary>
@@ -83,5 +84,6 @@ public partial class SceneViewportWidget
 	{
 		GameMode.SetPlayWidget( Renderer );
 		IsGameView = true;
+		Tools.DisposeAll();
 	}
 }

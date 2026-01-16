@@ -161,8 +161,8 @@ public class PropertyNodeType : LibraryNodeType
 
 		var properties = Target switch
 		{
-			GameObject go => SceneReferenceHelper.GetNodeProperties( go ),
-			Component comp => SceneReferenceHelper.GetNodeProperties( comp ),
+			GameObject go => ActionGraphEditorExtensions.GetNodeProperties( go ),
+			Component comp => ActionGraphEditorExtensions.GetNodeProperties( comp ),
 			_ => throw new NotImplementedException()
 		};
 

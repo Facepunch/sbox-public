@@ -129,7 +129,9 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 
 	public Transform RootMotion => SceneModel.IsValid() ? SceneModel.RootMotion : default;
 
-	readonly HashSet<SkinnedModelRenderer> mergeChildren = new();
+	readonly HashSet<SkinnedModelRenderer> _mergeChildren = new();
+
+	internal bool HasBoneMergeChildren => _mergeChildren.Count > 0;
 
 	/// <summary>
 	/// Does our model have collision and joints.
@@ -143,7 +145,7 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 	{
 		ArgumentNullException.ThrowIfNull( newChild );
 
-		mergeChildren.Add( newChild );
+		_mergeChildren.Add( newChild );
 
 		// Merge immediately if we can. This prevents a problem where components
 		// are added after the animation has been worked out, so you get a one frame
@@ -174,7 +176,7 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 	{
 		ArgumentNullException.ThrowIfNull( oldChild );
 
-		mergeChildren.Remove( oldChild );
+		_mergeChildren.Remove( oldChild );
 
 		oldChild.Physics?.Destroy();
 		oldChild.Physics = null;
@@ -190,7 +192,7 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 	private void UpdateSkinnedRendererParent()
 	{
 		// Get the first ancestor skinned model renderer
-		var potentialNewParent = GameObject.Parent.Components.GetInAncestors<SkinnedModelRenderer>( true );
+		var potentialNewParent = GameObject.Parent?.Components.GetInAncestors<SkinnedModelRenderer>( true );
 
 		// Check if there are any other skinned renderers in the parent
 		// This is an edge case, generally you should only have one skinned model renderer per GO
@@ -520,9 +522,10 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 
 		return transformsChanged;
 	}
+
 	internal void MergeDescendants( ConcurrentQueue<GameTransform> changedTransforms = null )
 	{
-		foreach ( var child in mergeChildren )
+		foreach ( var child in _mergeChildren )
 		{
 			if ( !child.IsValid() )
 				continue;

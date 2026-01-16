@@ -104,7 +104,7 @@ public sealed class ManualHitbox : Component, Component.ExecuteInEditor
 
 		PhysicsShape shape = null;
 
-		var hitbox = new Hitbox( Target ?? GameObject, HitboxTags, body );
+		Hitbox = new Hitbox( Target ?? GameObject, HitboxTags, body );
 
 		if ( Shape == HitboxShape.Sphere )
 		{
@@ -117,7 +117,7 @@ public sealed class ManualHitbox : Component, Component.ExecuteInEditor
 		else if ( Shape == HitboxShape.Box )
 		{
 			shape = body.AddBoxShape( CenterA, Rotation.Identity, CenterB * 0.5f );
-			hitbox.Bounds = new( CenterA, CenterB );
+			Hitbox.Bounds = new( CenterA, CenterB );
 		}
 		else if ( Shape == HitboxShape.Cylinder )
 		{
@@ -126,7 +126,7 @@ public sealed class ManualHitbox : Component, Component.ExecuteInEditor
 			var position = (CenterA + CenterB) * 0.5f;
 			var rotation = Rotation.LookAt( axis.Normal, Vector3.Up );
 			shape = body.AddCylinderShape( position, rotation, height, Radius );
-			hitbox.Bounds = new( CenterA, CenterB );
+			Hitbox.Bounds = new( CenterA, CenterB );
 		}
 
 		if ( shape is not null )
@@ -135,12 +135,11 @@ public sealed class ManualHitbox : Component, Component.ExecuteInEditor
 
 			body.Transform = tx.WithScale( 1 );
 			body.Component = this;
-
-			Hitbox = hitbox;
 		}
 		else
 		{
-			body.Remove();
+			Hitbox?.Dispose();
+			Hitbox = null;
 		}
 	}
 

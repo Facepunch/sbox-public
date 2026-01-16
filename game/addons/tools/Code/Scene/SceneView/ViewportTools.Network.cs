@@ -86,22 +86,37 @@ partial class ViewportTools
 		window.SwitchPage<PageNetworking>();
 	}
 
+	static void AddUserCommandLineArgs( ProcessStartInfo startInfo, string argumentString )
+	{
+		if ( string.IsNullOrWhiteSpace( argumentString ) )
+			return;
+
+		var args = argumentString.Split( ' ',
+			StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries );
+
+		foreach ( var arg in args )
+		{
+			startInfo.ArgumentList.Add( arg );
+		}
+	}
+
 	void SpawnDedicatedServer()
 	{
-		var p = new Process();
+		using var p = new Process();
 		p.StartInfo.FileName = "sbox-server.exe";
 		p.StartInfo.WorkingDirectory = Environment.CurrentDirectory;
-		p.StartInfo.ArgumentList.Add( EditorPreferences.DedicatedServerCommandLineArgs );
 
 		p.StartInfo.ArgumentList.Add( "+game" );
 		p.StartInfo.ArgumentList.Add( Project.Current.GetProjectPath() );
+
+		AddUserCommandLineArgs( p.StartInfo, EditorPreferences.DedicatedServerCommandLineArgs );
 
 		p.Start();
 	}
 
 	void SpawnProcess()
 	{
-		var p = new Process();
+		using var p = new Process();
 		p.StartInfo.FileName = "sbox.exe";
 		p.StartInfo.WorkingDirectory = Environment.CurrentDirectory;
 		p.StartInfo.CreateNoWindow = true;
@@ -110,13 +125,14 @@ partial class ViewportTools
 		p.StartInfo.UseShellExecute = false;
 
 		p.StartInfo.ArgumentList.Add( "-joinlocal" );
-		p.StartInfo.ArgumentList.Add( EditorPreferences.NewInstanceCommandLineArgs );
 
 		if ( EditorPreferences.WindowedLocalInstances )
 		{
 			p.StartInfo.ArgumentList.Add( "-sw" );
 			p.StartInfo.ArgumentList.Add( "-720" );
 		}
+
+		AddUserCommandLineArgs( p.StartInfo, EditorPreferences.NewInstanceCommandLineArgs );
 
 		p.Start();
 	}
