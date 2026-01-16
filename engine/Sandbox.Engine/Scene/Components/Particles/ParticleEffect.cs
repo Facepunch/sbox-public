@@ -553,7 +553,8 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		// Apply constant movement
 		if ( !ConstantMovement.IsNearlyZero() )
 		{
-			p.Position += ConstantMovement.Evaluate( p, 4395 ) * _timeDelta;
+			var constantMovement = ConstantMovement.Evaluate( p, 4395 ) * _timeDelta;
+			p.Position += constantMovement.LerpTo(_worldTx.NormalToWorld( constantMovement ) * constantMovement.Length, localSpace);
 		}
 
 		if ( Collision )
@@ -826,7 +827,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		p.Velocity = Vector3.Random.Normal * StartVelocity.Evaluate( delta, Random.Shared.Float() );
 		
 		var initialVelocity = InitialVelocity.Evaluate( delta, Random.Shared.Float(), Random.Shared.Float(), Random.Shared.Float() );
-		p.Velocity += initialVelocity.LerpTo( WorldTransform.NormalToWorld( initialVelocity.Normal ) * initialVelocity.Length, localSpace );
+		p.Velocity += initialVelocity.LerpTo( WorldTransform.NormalToWorld( initialVelocity ) * initialVelocity.Length, localSpace );
 		
 		p.BornTime += delay;
 		p.DeathTime = p.BornTime + Lifetime.Evaluate( delta, p.Rand( 145, 100 ) );
