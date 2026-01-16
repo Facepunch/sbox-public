@@ -1152,7 +1152,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			}
 
 			// If the source is the owner but not the host, check if they have permission to destroy.
-			if ( !source.IsHost && obj._net.Owner == source.Id && !source.CanDestroyObjects )
+			if ( !source.IsHost && !source.CanDestroyObjects )
 			{
 				Log.Warning( $"ObjectDestroy: {source.DisplayName} attempted to destroy {obj.Name} but does not have CanDestroyObjects permission enabled." );
 				return;
