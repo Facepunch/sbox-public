@@ -25,7 +25,7 @@ namespace Sandbox.SolutionGenerator
 		{
 			return path.Replace( '\\', '/' );
 		}
-		
+
 
 		// Importing necessary Win32 APIs for getting the canonical path
 		[DllImport( "kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true )]
@@ -48,9 +48,9 @@ namespace Sandbox.SolutionGenerator
 		/// </summary>
 		private static string GetCanonicalPath( string path )
 		{
-			if ( !string.IsNullOrWhiteSpace( path ) && !Path.IsPathRooted( path )) return path;
+			if ( !string.IsNullOrWhiteSpace( path ) && !Path.IsPathRooted( path ) ) return path;
 
-			try 
+			try
 			{
 				var handle = CreateFileW( path, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, IntPtr.Zero );
 				if ( handle == IntPtr.Zero || handle == new IntPtr( -1 ) )
@@ -74,13 +74,13 @@ namespace Sandbox.SolutionGenerator
 					{
 						return path;
 					}
-				} 
+				}
 				finally
 				{
 					CloseHandle( handle );
 				}
-			} 
-			catch 
+			}
+			catch
 			{
 				// Ignore errors and return original path
 				return path;
