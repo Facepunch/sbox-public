@@ -245,7 +245,7 @@ public class AppSystem
 	protected void InitGame( AppSystemCreateInfo createInfo, string commandLine = null )
 	{
 		commandLine ??= System.Environment.CommandLine;
-		if(OperatingSystem.IsWindows())
+		if ( OperatingSystem.IsWindows() )
 			commandLine = commandLine.Replace( ".dll", ".exe" ); // uck
 		else
 			commandLine = commandLine.Replace( ".dll", "" ); // double uck
