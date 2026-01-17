@@ -13,25 +13,25 @@ namespace Sandbox;
 
 public class AppSystem
 {
-	protected Logger log = new Logger( "AppSystem" );
+	protected Logger log = new Logger("AppSystem");
 	internal CMaterialSystem2AppSystemDict _appSystem { get; set; }
 
-	[DllImport( "user32.dll", CharSet = CharSet.Unicode )]
-	private static extern int MessageBox( IntPtr hWnd, string text, string caption, uint type );
+	[DllImport("user32.dll", CharSet = CharSet.Unicode)]
+	private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
 
 	/// <summary>
 	/// We should check all the system requirements here as early as possible.
 	/// </summary>
 	public void TestSystemRequirements()
 	{
-		if ( !OperatingSystem.IsWindows() )
+		if (!OperatingSystem.IsWindows())
 			return;
 
 		// AVX is on any sane CPU since 2011
-		if ( !Avx.IsSupported )
+		if (!Avx.IsSupported)
 		{
-			MessageBox( IntPtr.Zero, "Your CPU needs to support AVX instructions to run this game.", "Unsupported CPU", 0x10 );
-			Environment.Exit( 1 );
+			MessageBox(IntPtr.Zero, "Your CPU needs to support AVX instructions to run this game.", "Unsupported CPU", 0x10);
+			Environment.Exit(1);
 		}
 
 		// check core count, ram, os?
@@ -43,7 +43,7 @@ public class AppSystem
 	public virtual void Init()
 	{
 		GCSettings.LatencyMode = GCLatencyMode.SustainedLowLatency;
-		NetCore.InitializeInterop( Environment.CurrentDirectory );
+		NetCore.InitializeInterop(Environment.CurrentDirectory);
 	}
 
 	void SetupEnvironment()
@@ -53,7 +53,7 @@ public class AppSystem
 		//
 		// force GregorianCalendar, because that's how we're going to be parsing dates etc
 		//
-		if ( culture.DateTimeFormat.Calendar is not GregorianCalendar )
+		if (culture.DateTimeFormat.Calendar is not GregorianCalendar)
 		{
 			culture.DateTimeFormat.Calendar = new GregorianCalendar();
 		}
@@ -92,7 +92,7 @@ public class AppSystem
 		{
 			SetupEnvironment();
 
-			Application.TryLoadVersionInfo( Environment.CurrentDirectory );
+			Application.TryLoadVersionInfo(Environment.CurrentDirectory);
 
 			//
 			// Putting ErrorReporter.Initialize(); before Init here causes engine2.dll 
@@ -102,30 +102,30 @@ public class AppSystem
 
 			Init();
 
-			NativeEngine.EngineGlobal.Plat_SetCurrentFrame( 0 );
+			NativeEngine.EngineGlobal.Plat_SetCurrentFrame(0);
 
-			while ( RunFrame() )
+			while (RunFrame())
 			{
-				BlockingLoopPumper.Run( () => RunFrame() );
+				BlockingLoopPumper.Run(() => RunFrame());
 			}
 
 			Shutdown();
 		}
-		catch ( System.Exception e )
+		catch (System.Exception e)
 		{
 			ErrorReporter.Initialize();
-			ErrorReporter.ReportException( e );
+			ErrorReporter.ReportException(e);
 			ErrorReporter.Flush();
 
-			Console.WriteLine( $"Error: ({e.GetType()}) {e.Message}" );
+			Console.WriteLine($"Error: ({e.GetType()}) {e.Message}");
 
-			Environment.Exit( 1 );
+			Environment.Exit(1);
 		}
 	}
 
 	protected virtual bool RunFrame()
 	{
-		EngineLoop.RunFrame( _appSystem, out bool wantsToQuit );
+		EngineLoop.RunFrame(_appSystem, out bool wantsToQuit);
 
 		return !wantsToQuit;
 	}
@@ -137,8 +137,8 @@ public class AppSystem
 
 		// Send shutdown event, should allow us to track successful shutdown vs crash
 		{
-			var analytic = new Api.Events.EventRecord( "Exit" );
-			analytic.SetValue( "uptime", RealTime.Now );
+			var analytic = new Api.Events.EventRecord("Exit");
+			analytic.SetValue("uptime", RealTime.Now);
 			// We could record a bunch of stats during the session and
 			// submit them here. I'm thinking things like num games played
 			// menus visited, time in menus, time in game, files downloaded.
@@ -187,23 +187,23 @@ public class AppSystem
 		MainThread.RunQueues();
 
 		// print each scene that is leaked
-		foreach ( var leakedScene in Scene.All )
+		foreach (var leakedScene in Scene.All)
 		{
-			log.Warning( $"Leaked scene {leakedScene.Id} during shutdown." );
+			log.Warning($"Leaked scene {leakedScene.Id} during shutdown.");
 		}
 
 		// Shut the engine down (close window etc)
-		NativeEngine.EngineGlobal.SourceEngineShutdown( _appSystem, false );
+		NativeEngine.EngineGlobal.SourceEngineShutdown(_appSystem, false);
 
-		if ( _appSystem.IsValid )
+		if (_appSystem.IsValid)
 		{
 			_appSystem.Destroy();
 			_appSystem = default;
 		}
 
-		if ( steamApiDll != IntPtr.Zero )
+		if (steamApiDll != IntPtr.Zero)
 		{
-			NativeLibrary.Free( steamApiDll );
+			NativeLibrary.Free(steamApiDll);
 			steamApiDll = default;
 		}
 		// Unload native dlls:
@@ -222,59 +222,59 @@ public class AppSystem
 		Application.Shutdown();
 	}
 
-	protected void InitGame( AppSystemCreateInfo createInfo, string commandLine = null )
+	protected void InitGame(AppSystemCreateInfo createInfo, string commandLine = null)
 	{
 		commandLine ??= System.Environment.CommandLine;
-		commandLine = commandLine.Replace( ".dll", ".exe" ); // uck
+		commandLine = commandLine.Replace(".dll", ".exe"); // uck
 
-		if ( OperatingSystem.IsWindows() ) _appSystem = CMaterialSystem2AppSystemDict.Create( createInfo.ToMaterialSystem2AppSystemDictCreateInfo() );
-		else _appSystem = CreateAppSystemWithInteropWorkaround( createInfo );
+		if (OperatingSystem.IsWindows()) _appSystem = CMaterialSystem2AppSystemDict.Create(createInfo.ToMaterialSystem2AppSystemDictCreateInfo());
+		else _appSystem = CreateAppSystemWithInteropWorkaround(createInfo);
 
-		if ( createInfo.Flags.HasFlag( AppSystemFlags.IsEditor ) )
+		if (createInfo.Flags.HasFlag(AppSystemFlags.IsEditor))
 		{
 			_appSystem.SetInToolsMode();
 		}
 
-		if ( createInfo.Flags.HasFlag( AppSystemFlags.IsUnitTest ) )
+		if (createInfo.Flags.HasFlag(AppSystemFlags.IsUnitTest))
 		{
 			_appSystem.SetInTestMode();
 		}
 
-		if ( createInfo.Flags.HasFlag( AppSystemFlags.IsStandaloneGame ) )
+		if (createInfo.Flags.HasFlag(AppSystemFlags.IsStandaloneGame))
 		{
 			_appSystem.SetInStandaloneApp();
 		}
 
-		if ( createInfo.Flags.HasFlag( AppSystemFlags.IsDedicatedServer ) )
+		if (createInfo.Flags.HasFlag(AppSystemFlags.IsDedicatedServer))
 		{
-			_appSystem.SetDedicatedServer( true );
+			_appSystem.SetDedicatedServer(true);
 		}
 
-		_appSystem.SetSteamAppId( (uint)Application.AppId );
+		_appSystem.SetSteamAppId((uint)Application.AppId);
 
-		if ( !NativeEngine.EngineGlobal.SourceEnginePreInit( commandLine, _appSystem ) )
+		if (!NativeEngine.EngineGlobal.SourceEnginePreInit(commandLine, _appSystem))
 		{
-			throw new System.Exception( "SourceEnginePreInit failed" );
+			throw new System.Exception("SourceEnginePreInit failed");
 		}
 
-		Bootstrap.PreInit( _appSystem );
+		Bootstrap.PreInit(_appSystem);
 
-		if ( createInfo.Flags.HasFlag( AppSystemFlags.IsStandaloneGame ) )
+		if (createInfo.Flags.HasFlag(AppSystemFlags.IsStandaloneGame))
 		{
 			Standalone.Init();
 		}
 
-		if ( !NativeEngine.EngineGlobal.SourceEngineInit( _appSystem ) )
+		if (!NativeEngine.EngineGlobal.SourceEngineInit(_appSystem))
 		{
-			throw new System.Exception( "SourceEngineInit returned false" );
+			throw new System.Exception("SourceEngineInit returned false");
 		}
 
 		Bootstrap.Init();
 	}
 
-	protected void SetWindowTitle( string title )
+	protected void SetWindowTitle(string title)
 	{
-		_appSystem.SetAppWindowTitle( title );
+		_appSystem.SetAppWindowTitle(title);
 	}
 
 	IntPtr steamApiDll = IntPtr.Zero;
@@ -287,13 +287,13 @@ public class AppSystem
 	/// </summary>
 	protected void LoadSteamDll()
 	{
-		if ( !OperatingSystem.IsWindows() )
+		if (!OperatingSystem.IsWindows())
 			return;
 
 		var dllName = $"{Environment.CurrentDirectory}\\bin\\win64\\steam_api64.dll";
-		if ( !NativeLibrary.TryLoad( dllName, out steamApiDll ) )
+		if (!NativeLibrary.TryLoad(dllName, out steamApiDll))
 		{
-			throw new System.Exception( "Couldn't load bin/win64/steam_api64.dll" );
+			throw new System.Exception("Couldn't load bin/win64/steam_api64.dll");
 		}
 	}
 
@@ -302,11 +302,11 @@ public class AppSystem
 		var ci = createInfo.ToMaterialSystem2AppSystemDictCreateInfo();
 		var size = Marshal.SizeOf<NativeEngine.MaterialSystem2AppSystemDictCreateInfo>();
 
-		IntPtr pCI = Marshal.AllocHGlobal( size );
+		IntPtr pCI = Marshal.AllocHGlobal(size);
 
 		try
 		{
-			Marshal.StructureToPtr( ci, pCI, false );
+			Marshal.StructureToPtr(ci, pCI, false);
 
 			unsafe
 			{
@@ -319,7 +319,7 @@ public class AppSystem
 		}
 		finally
 		{
-			Marshal.FreeHGlobal( pCI );
+			Marshal.FreeHGlobal(pCI);
 		}
 	}
 }

@@ -44,95 +44,95 @@ internal static class EngineFileSystem
 	/// <summary>
 	/// Don't try to use the filesystem until you've called this!
 	/// </summary>
-	internal static void Initialize( string rootFolder, bool skipBaseFolderInit = false )
+	internal static void Initialize(string rootFolder, bool skipBaseFolderInit = false)
 	{
-		if ( Root != null )
-			throw new System.Exception( "Filesystem Multi-Initialize" );
+		if (Root != null)
+			throw new System.Exception("Filesystem Multi-Initialize");
 
-		Root = new LocalFileSystem( rootFolder );
+		Root = new LocalFileSystem(rootFolder);
 		Temporary = new MemoryFileSystem();
 
-		if ( skipBaseFolderInit ) return;
+		if (skipBaseFolderInit) return;
 
-		if ( Application.IsEditor )
+		if (Application.IsEditor)
 		{
 			LibraryContent = new AggregateFileSystem();
-			EditorTemporary = Root.CreateSubSystem( "/.source2/temp" );
+			EditorTemporary = Root.CreateSubSystem("/.source2/temp");
 		}
 
 		Assets = new AggregateFileSystem();
 		CoreContent = new AggregateFileSystem();
 
-		if ( Application.IsStandalone )
+		if (Application.IsStandalone)
 		{
-			CoreContent.CreateAndMount( Root, "/core/" );
+			CoreContent.CreateAndMount(Root, "/core/");
 
-			Assets.CreateAndMount( Root, "/core/" );
-			Assets.CreateAndMount( Root, "/addons/base/Assets" );
+			Assets.CreateAndMount(Root, "/core/");
+			Assets.CreateAndMount(Root, "/addons/base/Assets");
 		}
 		else
 		{
-			CoreContent.CreateAndMount( Root, "/core/" );
-			CoreContent.CreateAndMount( Root, "/addons/base/Assets/" );
-			CoreContent.CreateAndMount( Root, "/addons/citizen/Assets/" );
+			CoreContent.CreateAndMount(Root, "/core/");
+			CoreContent.CreateAndMount(Root, "/addons/base/Assets/");
+			CoreContent.CreateAndMount(Root, "/addons/citizen/Assets/");
 
-			Assets.CreateAndMount( Root, "/core/" );
-			Assets.CreateAndMount( Root, "/addons/base/Assets/" );
-			Assets.CreateAndMount( Root, "/addons/citizen/Assets/" );
+			Assets.CreateAndMount(Root, "/core/");
+			Assets.CreateAndMount(Root, "/addons/base/Assets/");
+			Assets.CreateAndMount(Root, "/addons/citizen/Assets/");
 		}
 	}
 
 	/// <summary>
 	/// Setup Config parameter
 	/// </summary>
-	internal static void InitializeConfigFolder( string name = "/config" )
+	internal static void InitializeConfigFolder(string name = "/config")
 	{
-		Assert.NotNull( name );
-		Assert.NotNull( Root );
+		Assert.NotNull(name);
+		Assert.NotNull(Root);
 
-		Root.CreateDirectory( "/config" );
-		Config = Root.CreateSubSystem( "/config" );
+		Root.CreateDirectory("/config");
+		Config = Root.CreateSubSystem("/config");
 	}
 
 	/// <summary>
 	/// Setup Addons parameter (there's no reason for this to exist now?)
 	/// </summary>
-	internal static void InitializeAddonsFolder( string name = "/addons" )
+	internal static void InitializeAddonsFolder(string name = "/addons")
 	{
-		Assert.NotNull( name );
-		Assert.NotNull( Root );
+		Assert.NotNull(name);
+		Assert.NotNull(Root);
 
-		Addons = Root.CreateSubSystem( "/addons" );
+		Addons = Root.CreateSubSystem("/addons");
 	}
 
 	/// <summary>
 	/// Setup Download folder
 	/// </summary>
-	internal static void InitializeDownloadsFolder( string name = "/download" )
+	internal static void InitializeDownloadsFolder(string name = "/download")
 	{
-		Assert.NotNull( name );
-		Assert.NotNull( Root );
+		Assert.NotNull(name);
+		Assert.NotNull(Root);
 
 		// alex: Don't bother if we're in standalone mode, because games aren't able
 		// to download anything from the backend
-		if ( Application.IsStandalone )
+		if (Application.IsStandalone)
 			return;
 
-		Root.CreateDirectory( $"{name}" );
-		Root.CreateDirectory( $"{name}/.sv" );
-		DownloadedFiles = Root.CreateSubSystem( $"{name}" );
+		Root.CreateDirectory($"{name}");
+		Root.CreateDirectory($"{name}/.sv");
+		DownloadedFiles = Root.CreateSubSystem($"{name}");
 	}
 
 	/// <summary>
 	/// Setup Addons parameter (there's no reason for this to exist now?)
 	/// </summary>
-	internal static void InitializeDataFolder( string name = "/data" )
+	internal static void InitializeDataFolder(string name = "/data")
 	{
-		Assert.NotNull( name );
-		Assert.NotNull( Root );
+		Assert.NotNull(name);
+		Assert.NotNull(Root);
 
-		Root.CreateDirectory( $"{name}" );
-		Data = Root.CreateSubSystem( $"{name}" );
+		Root.CreateDirectory($"{name}");
+		Data = Root.CreateSubSystem($"{name}");
 	}
 
 	/// <summary>
@@ -153,14 +153,14 @@ internal static class EngineFileSystem
 		Root = null;
 	}
 
-	internal static void AddContentPath( string v )
+	internal static void AddContentPath(string v)
 	{
-		CoreContent.Mount( new LocalFileSystem( v ) );
+		CoreContent.Mount(new LocalFileSystem(v));
 	}
 
-	internal static void AddAssetPath( string ident, string path )
+	internal static void AddAssetPath(string ident, string path)
 	{
-		Mounted.Mount( new LocalFileSystem( path ) );
-		NativeEngine.FullFileSystem.AddProjectPath( "xxx", path );
+		Mounted.Mount(new LocalFileSystem(path));
+		NativeEngine.FullFileSystem.AddProjectPath("xxx", path);
 	}
 }
