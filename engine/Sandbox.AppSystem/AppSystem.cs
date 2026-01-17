@@ -318,7 +318,7 @@ public class AppSystem
 	/// expectations of the native code are unknown. Prefer other, simpler creation helpers only
 	/// when you are certain the native side does not retain the provided pointer beyond the call.
 	/// </remarks>
-	internal static CMaterialSystem2AppSystemDict CreateAppSystemWithInteropWorkaround(AppSystemCreateInfo createInfo)
+	private static CMaterialSystem2AppSystemDict CreateAppSystemWithInteropWorkaround(AppSystemCreateInfo createInfo)
 	{
 		var ci = createInfo.ToMaterialSystem2AppSystem2AppSystemDictCreateInfo();
 		var size = Marshal.SizeOf<NativeEngine.MaterialSystem2AppSystemDictCreateInfo>();
