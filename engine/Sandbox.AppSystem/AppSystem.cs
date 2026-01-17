@@ -227,8 +227,14 @@ public class AppSystem
 		commandLine ??= System.Environment.CommandLine;
 		commandLine = commandLine.Replace(".dll", ".exe"); // uck
 
+<<<<<<< HEAD
 		if (OperatingSystem.IsWindows()) _appSystem = CMaterialSystem2AppSystemDict.Create(createInfo.ToMaterialSystem2AppSystemDictCreateInfo());
 		else _appSystem = CreateAppSystemWithInteropWorkaround(createInfo);
+=======
+		_appSystem = OperatingSystem.IsWindows()
+			? CMaterialSystem2AppSystemDict.Create( createInfo.ToMaterialSystem2AppSystemDictCreateInfo() )
+			: CreateAppSystemWithInteropWorkaround( createInfo );
+>>>>>>> 73728b8cc77f9bcef4ce8d4d456ac637b7507b94
 
 		if (createInfo.Flags.HasFlag(AppSystemFlags.IsEditor))
 		{
@@ -297,9 +303,30 @@ public class AppSystem
 		}
 	}
 
-	internal static CMaterialSystem2AppSystemDict CreateAppSystemWithInteropWorkaround(AppSystemCreateInfo createInfo)
+	/// <summary>
+	/// Creates a <see cref="CMaterialSystem2AppSystemDict"/> using a manual interop lifetime workaround.
+	/// </summary>
+	/// <remarks>
+	/// On some Linux configurations, the native material system creation path can retain and
+	/// dereference a pointer to <see cref="NativeEngine.MaterialSystem2AppSystemDictCreateInfo"/>
+	/// after the managed marshalling layer would normally release or move the underlying data.
+	/// This can lead to a native use-after-free when the structure is passed using the default
+	/// P/Invoke marshalling behavior.
+	///
+	/// This helper allocates the create-info structure in unmanaged memory, copies the managed
+	/// data into that buffer, and only frees it after the native
+	/// <c>CMtrlSystm2ppSys_Create</c> call returns. This effectively extends the lifetime of the
+	/// data across the interop boundary and avoids the use-after-free on Linux, while remaining
+	/// safe on other platforms.
+	///
+	/// Use this method when constructing a <see cref="CMaterialSystem2AppSystemDict"/> in code
+	/// paths that call into the native material system on Linux or when the exact lifetime
+	/// expectations of the native code are unknown. Prefer other, simpler creation helpers only
+	/// when you are certain the native side does not retain the provided pointer beyond the call.
+	/// </remarks>
+	private static CMaterialSystem2AppSystemDict CreateAppSystemWithInteropWorkaround(AppSystemCreateInfo createInfo)
 	{
-		var ci = createInfo.ToMaterialSystem2AppSystemDictCreateInfo();
+		var ci = createInfo.ToMaterialSystem2AppSystem2AppSystemDictCreateInfo();
 		var size = Marshal.SizeOf<NativeEngine.MaterialSystem2AppSystemDictCreateInfo>();
 
 		IntPtr pCI = Marshal.AllocHGlobal(size);
