@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace Sandbox.SolutionGenerator
@@ -17,59 +18,111 @@ namespace Sandbox.SolutionGenerator
 			return project;
 		}
 
-		private string NormalizePath( string path ) => new Uri( path ).LocalPath;
-
-		private string AttemptAbsoluteToRelative( string basePath, string relativePath, int maxDepth = 5 )
+		/// <summary>
+		/// Normalize the path to use forward slashes
+		/// </summary>
+		private string NormalizePath( string path )
 		{
-			string baseNormalized = NormalizePath( basePath );
-			string relativeNormalized = NormalizePath( relativePath );
-			string baseEnding = string.Empty;
+			return path.Replace( '\\', '/' );
+		}
+		
 
-			if ( Path.HasExtension( baseNormalized ) )
+		// Importing necessary Win32 APIs for getting the canonical path
+		[DllImport( "kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true )]
+		private static extern IntPtr CreateFileW( string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes, uint dwCreationDisposition, uint dwFlagsAndAttributes, IntPtr hTemplateFile );
+
+		[DllImport( "kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true )]
+		private static extern uint GetFinalPathNameByHandleW( IntPtr hFile, char[] lpszFilePath, uint cchFilePath, uint dwFlags );
+
+		[DllImport( "kernel32.dll", SetLastError = true )]
+		private static extern bool CloseHandle( IntPtr hObject );
+
+		// Define magic numbers with proper names
+		private const uint FILE_FLAG_BACKUP_SEMANTICS = 0x02000000;
+		private const uint OPEN_EXISTING = 3;
+		private const uint FILE_SHARE_READ = 1;
+		private const uint FILE_SHARE_WRITE = 2;
+
+		/// <summary>
+		/// Get the proper path casing for the given path
+		/// </summary>
+		private static string GetCanonicalPath( string path )
+		{
+			if ( !string.IsNullOrWhiteSpace( path ) && !Path.IsPathRooted( path )) return path;
+
+			try 
 			{
-				baseEnding = Path.GetFileName( baseNormalized );
-				baseNormalized = NormalizePath( baseNormalized.Substring( 0, baseNormalized.Length - baseEnding.Length ) );
+				var handle = CreateFileW( path, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, IntPtr.Zero );
+				if ( handle == IntPtr.Zero || handle == new IntPtr( -1 ) )
+					return path;
+
+				try
+				{
+					var buffer = new char[512];
+					var len = GetFinalPathNameByHandleW( handle, buffer, (uint)buffer.Length, 0 );
+					if ( len > 0 && len < buffer.Length )
+					{
+						var finalPath = new string( buffer, 0, (int)len );
+						// Remove the \\?\ prefix added by Windows API
+						if ( finalPath.StartsWith( @"\\?\" ) )
+						{
+							finalPath = finalPath.Substring( 4 );
+						}
+						return finalPath;
+					}
+					else
+					{
+						return path;
+					}
+				} 
+				finally
+				{
+					CloseHandle( handle );
+				}
+			} 
+			catch 
+			{
+				// Ignore errors and return original path
+				return path;
+			}
+		}
+
+		/// <summary>
+		/// Converts a path to be relative to a base path, always returning forward slashes.
+		/// </summary>
+		private string AttemptAbsoluteToRelative( string basePath, string targetPath )
+		{
+			string targetFileName = string.Empty;
+			string baseDir = GetCanonicalPath( basePath );
+			string targetDir = GetCanonicalPath( targetPath );
+
+			// If target is a file, extract the filename
+			if ( Path.HasExtension( targetPath ) )
+			{
+				targetFileName = Path.GetFileName( targetPath );
+				targetDir = GetCanonicalPath( Path.GetDirectoryName( targetPath ) ?? targetPath );
 			}
 
-			if ( Path.HasExtension( relativeNormalized ) )
+			// If base is a file, use its directory
+			if ( Path.HasExtension( basePath ) )
 			{
-				relativeNormalized = Path.GetDirectoryName( relativeNormalized );
+				baseDir = GetCanonicalPath( Path.GetDirectoryName( basePath ) ?? basePath );
 			}
 
-			string finalPath = Path.GetRelativePath( relativeNormalized, basePath );
+			// Calculate relative path from base to target - this preserves casing when inputs are cased
+			string relativePath = Path.GetRelativePath( baseDir, targetDir );
+			relativePath = NormalizePath( relativePath );
 
-			// Exceed how far we want our relative path to go, bail out and use original path
-			if ( finalPath.Split( ".." ).Length > maxDepth )
-			{
-				if ( baseEnding == null )
-				{
-					return baseNormalized;
-				}
-				else
-				{
-					return Path.Combine( baseNormalized, baseEnding );
-				}
-			}
-			else
-			{
-				if ( baseEnding == null )
-				{
-					return finalPath;
-				}
-				else
-				{
-					return Path.Combine( finalPath, baseEnding );
-				}
-			}
+			if ( string.IsNullOrEmpty( targetFileName ) )
+				return relativePath;
+
+			return relativePath + "/" + targetFileName;
 		}
 
 		private static readonly JsonSerializerOptions JsonWriteIndented = new() { WriteIndented = true };
 
 		public void Run( string gameExePath, string managedFolder, string solutionPath, string relativePath, string projectPath )
 		{
-			string normalizedRelativePath = NormalizePath( projectPath );
-			int relativePathoffset = normalizedRelativePath.Length + 1;
-
 			managedFolder = Path.Combine( relativePath, managedFolder );
 			solutionPath = Path.Combine( projectPath, solutionPath );
 			gameExePath = Path.Combine( relativePath, gameExePath );
@@ -109,7 +162,8 @@ namespace Sandbox.SolutionGenerator
 					var reference = Projects.FirstOrDefault( x => x.Name == proj || x.PackageIdent == proj );
 					if ( reference != null )
 					{
-						var path = NormalizePath( $"{reference.Path}\\{reference.Name}.csproj" );
+						var absolutePath = NormalizePath( $"{reference.Path}/{reference.Name}.csproj" );
+						var path = AttemptAbsoluteToRelative( p.CsprojPath, absolutePath );
 						csproj.ProjectReferences += $"		<ProjectReference Include=\"{System.Web.HttpUtility.HtmlEncode( path )}\" />\n";
 					}
 					else
@@ -126,11 +180,14 @@ namespace Sandbox.SolutionGenerator
 					var propertiesPath = Path.Combine( p.Path, "Properties" );
 					Directory.CreateDirectory( propertiesPath );
 
+					var absoluteExePath = Path.Combine( relativePath, "sbox-dev.exe" );
+					var relativeExePath = AttemptAbsoluteToRelative( propertiesPath, absoluteExePath );
+
 					var launchSettings = new LaunchSettings { Profiles = new() };
 					launchSettings.Profiles.Add( "Editor", new LaunchSettings.Profile
 					{
 						CommandName = "Executable",
-						ExecutablePath = Path.Combine( relativePath, "sbox-dev.exe" ),
+						ExecutablePath = relativeExePath,
 						CommandLineArgs = $"-project \"{p.SandboxProjectFilePath}\"",
 					} );
 
@@ -143,12 +200,7 @@ namespace Sandbox.SolutionGenerator
 
 			foreach ( var p in Projects )
 			{
-				string normalizedProjectPath = NormalizePath( p.CsprojPath );
-				if ( normalizedProjectPath.StartsWith( normalizedRelativePath ) )
-				{
-					normalizedProjectPath = normalizedProjectPath.Substring( relativePathoffset );
-				}
-
+				string normalizedProjectPath = AttemptAbsoluteToRelative( solutionPath, p.CsprojPath );
 				normalizedProjectPath = normalizedProjectPath.Trim( '/', '\\' );
 				slnx.AddProject( normalizedProjectPath, p.Folder );
 			}
