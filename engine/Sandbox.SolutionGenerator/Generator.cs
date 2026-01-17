@@ -133,8 +133,8 @@ namespace Sandbox.SolutionGenerator
 				{
 					ProjectName = p.Name,
 					ProjectReferences = "",
-					ManagedRoot = AttemptAbsoluteToRelative( managedFolder, p.CsprojPath ),
-					GameRoot = AttemptAbsoluteToRelative( relativePath, p.CsprojPath ),
+					ManagedRoot = AttemptAbsoluteToRelative( p.CsprojPath, managedFolder ),
+					GameRoot = AttemptAbsoluteToRelative( p.CsprojPath, relativePath ),
 					References = p.References,
 					GlobalStatic = p.GlobalStatic,
 					GlobalUsing = p.GlobalUsing,
