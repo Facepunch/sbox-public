@@ -123,7 +123,7 @@ public sealed partial class Project
 
 		try
 		{
-			RootDirectory = new DirectoryInfo( FileSystemStringCaseHelpers.Casepath(System.IO.Path.GetDirectoryName( ConfigFilePath )) );
+			RootDirectory = new DirectoryInfo( FileSystemStringCaseHelpers.Casepath( System.IO.Path.GetDirectoryName( ConfigFilePath ) ) );
 			Assert.True( RootDirectory.Exists, $"{RootDirectory} does not exist" );
 
 			if ( !ConfigFilePath.EndsWith( ".sbproj" ) )
@@ -174,12 +174,12 @@ public sealed partial class Project
 	/// Gets the .sbproj file for this project
 	/// </summary>
 	/// <returns></returns>
-	public string GetProjectPath() => FileSystemStringCaseHelpers.Casepath(System.IO.Directory.EnumerateFiles( GetRootPath(), "*.sbproj" ).FirstOrDefault());
+	public string GetProjectPath() => FileSystemStringCaseHelpers.Casepath( System.IO.Directory.EnumerateFiles( GetRootPath(), "*.sbproj" ).FirstOrDefault() );
 
 	/// <summary>
 	/// Absolute path to the Code folder of the project.
 	/// </summary>
-	public string GetCodePath() => FileSystemStringCaseHelpers.Casepath(System.IO.Path.Combine( RootDirectory.FullName, "Code" ));
+	public string GetCodePath() => FileSystemStringCaseHelpers.Casepath( System.IO.Path.Combine( RootDirectory.FullName, "Code" ) );
 
 	/// <summary>
 	/// Returns true if the Code path exists
@@ -189,7 +189,7 @@ public sealed partial class Project
 	/// <summary>
 	/// Absolute path to the Editor folder of the project.
 	/// </summary>
-	public string GetEditorPath() => FileSystemStringCaseHelpers.Casepath(System.IO.Path.Combine( RootDirectory.FullName, "Editor" ));
+	public string GetEditorPath() => FileSystemStringCaseHelpers.Casepath( System.IO.Path.Combine( RootDirectory.FullName, "Editor" ) );
 
 	/// <summary>
 	/// Returns true if the Editor path exists
@@ -199,13 +199,13 @@ public sealed partial class Project
 	/// <summary>
 	/// Absolute path to the Assets folder of the project, or <see langword="null"/> if not set.
 	/// </summary>
-	public string GetAssetsPath() => FileSystemStringCaseHelpers.Casepath(System.IO.Path.Combine( RootDirectory.FullName, "Assets" ));
+	public string GetAssetsPath() => FileSystemStringCaseHelpers.Casepath( System.IO.Path.Combine( RootDirectory.FullName, "Assets" ) );
 
 	/// <summary>
 	/// Absolute path to the Localization folder of the project, or <see langword="null"/> if not set.
 	/// </summary>
 	/// <returns></returns>
-	public string GetLocalizationPath() => FileSystemStringCaseHelpers.Casepath(System.IO.Path.Combine( RootDirectory.FullName, "Localization" ));
+	public string GetLocalizationPath() => FileSystemStringCaseHelpers.Casepath( System.IO.Path.Combine( RootDirectory.FullName, "Localization" ) );
 
 	/// <summary>
 	/// Returns true if the Assets path exists
