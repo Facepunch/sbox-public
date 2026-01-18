@@ -12,7 +12,7 @@ internal static class FileSystemStringCaseHelpers
 			return inPath;
 		}
 		string outPath = "/";
-		List<string> pathTokens = inPath.Split( Path.DirectorySeparatorChar ).ToList();
+		List<string> pathTokens = inPath.Split( Path.DirectorySeparatorChar,StringSplitOptions.RemoveEmptyEntries ).ToList();
 		int tokensProcessed = 0;
 		foreach ( string token in pathTokens )
 		{
