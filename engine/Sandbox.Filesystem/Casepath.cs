@@ -3,15 +3,16 @@ using System.IO;
 namespace Sandbox;
 
 
-internal static class FileSystemStringCaseHelpers {
-    internal static string Casepath( string inPath )
+internal static class FileSystemStringCaseHelpers
+{
+	internal static string Casepath( string inPath )
 	{
 		if ( OperatingSystem.IsWindows() )
 		{
 			return inPath;
 		}
 		string outPath = "/";
-		List<string> pathTokens = inPath.Split(Path.DirectorySeparatorChar).ToList();
+		List<string> pathTokens = inPath.Split( Path.DirectorySeparatorChar ).ToList();
 		int tokensProcessed = 0;
 		foreach ( string token in pathTokens )
 		{
@@ -21,7 +22,7 @@ internal static class FileSystemStringCaseHelpers {
 
 			};
 
-			string[] matches = Directory.GetFileSystemEntries( outPath , token, opts );
+			string[] matches = Directory.GetFileSystemEntries( outPath, token, opts );
 			if ( matches.Length == 0 )
 			{
 				break; //end of known path. Assemble the rest of tokens below.
@@ -52,4 +53,3 @@ internal static class FileSystemStringCaseHelpers {
 	}
 }
 
-	
