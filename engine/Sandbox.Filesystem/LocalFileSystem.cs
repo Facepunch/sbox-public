@@ -5,11 +5,11 @@
 /// </summary>
 internal class LocalFileSystem : BaseFileSystem
 {
-	Zio.FileSystems.PhysicalFileSystem Physical { get; }
+	CasefoldPhysicalFileSystem Physical { get; }
 
 	internal LocalFileSystem( string rootFolder, bool makereadonly = false )
 	{
-		Physical = new Zio.FileSystems.PhysicalFileSystem();
+		Physical = new CasefoldPhysicalFileSystem();
 
 		var rootPath = Physical.ConvertPathFromInternal( rootFolder.ToLowerInvariant() );
 		system = new Zio.FileSystems.SubFileSystem( Physical, rootPath );

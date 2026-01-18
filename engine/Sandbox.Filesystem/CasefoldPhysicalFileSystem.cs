@@ -9,70 +9,195 @@ namespace Sandbox;
 internal class CasefoldPhysicalFileSystem : PhysicalFileSystem
 {
 
-    /// <summary>
-    /// An adaptation of POSIX implementation of casepath in C# world.
-    /// WARNING: Handles only absolute paths. Also assumes that it's run under Linux or MacOS.
-    /// </summary>
-    /// <param name="inPath">path as fed through the parameter</param>
-    /// <returns>the same path with proper casing. This is just partially adjusted if only part of the path exists.</returns>
-    private UPath casepath( UPath inPath)
-    {
-        Assert.False(OperatingSystem.IsWindows());
-        UPath outPath = new UPath("/");
-        List<string> pathTokens = inPath.Split();
-        int tokensProcessed =0;
-        foreach (string token in pathTokens )
-        {
-            EnumerationOptions opts = new EnumerationOptions
-            {
-                MatchCasing = MatchCasing.CaseInsensitive,
+	/// <summary>
+	/// An adaptation of POSIX implementation of casepath in C# world.
+	/// WARNING: Handles only absolute paths. Also assumes that it's run under Linux or MacOS.
+	/// On Windows, this function passes through inPath.
+	/// </summary>
+	/// <param name="inPath">path as fed through the parameter</param>
+	/// <returns>the same path with proper casing. This is just partially adjusted if only part of the path exists.</returns>
+	private UPath Casepath( UPath inPath )
+	{
+		if ( OperatingSystem.IsWindows() )
+		{
+			return inPath;
+		}
+		UPath outPath = new UPath( "/" );
+		List<string> pathTokens = inPath.Split();
+		int tokensProcessed = 0;
+		foreach ( string token in pathTokens )
+		{
+			EnumerationOptions opts = new EnumerationOptions
+			{
+				MatchCasing = MatchCasing.CaseInsensitive,
 
-            };
-            
-            string[] matches = Directory.GetFileSystemEntries(ConvertPathToInternalImpl(outPath),token,opts);
-            if(matches.Length ==0)
-            {
-                break; //end of known path. Assemble the rest of tokens below.
-            } else if (matches.Length ==1)
-            {
-                outPath = UPath.Combine(outPath,matches[0]);
-            } else
-            {
-                //What to do with those?
-                throw new Exception("Ambiguous paths detected. Base Path:  \""+outPath+" \". Matched directories: \""+string.Join("\",\"",matches)+"\".");
-            }
+			};
 
-            tokensProcessed++;
-        }
-        
-        string[] slicesToAppend = pathTokens.Slice(tokensProcessed,pathTokens.Count-tokensProcessed).ToArray();
+			string[] matches = Directory.GetFileSystemEntries( ConvertPathToInternalImpl( outPath ), token, opts );
+			if ( matches.Length == 0 )
+			{
+				break; //end of known path. Assemble the rest of tokens below.
+			}
+			else if ( matches.Length == 1 )
+			{
+				outPath = UPath.Combine( outPath, matches[0] );
+			}
+			else
+			{
+				//What to do with those?
+				throw new Exception( "Ambiguous paths detected. Base Path:  \"" + outPath + " \". Matched directories: \"" + string.Join( "\",\"", matches ) + "\"." );
+			}
 
-        foreach (string slice in slicesToAppend)
-        {
-            outPath = UPath.Combine(outPath,slice);
-        }
-        return outPath;
+			tokensProcessed++;
+		}
+
+		string[] slicesToAppend = pathTokens.Slice( tokensProcessed, pathTokens.Count - tokensProcessed ).ToArray();
+
+		foreach ( string slice in slicesToAppend )
+		{
+			outPath = UPath.Combine( outPath, slice );
+		}
+		return outPath;
 
 
 
-    }
+	}
 
 	//directory API
 
 	protected override void CreateDirectoryImpl( UPath path )
 	{
-		base.CreateDirectoryImpl( casepath(path) );
+		base.CreateDirectoryImpl( Casepath( path ) );
 	}
 
 	protected override bool DirectoryExistsImpl( UPath path )
 	{
-		return base.DirectoryExistsImpl( casepath(path) );
+		return base.DirectoryExistsImpl( Casepath( path ) );
+	}
+
+	protected override void MoveDirectoryImpl( UPath srcPath, UPath destPath )
+	{
+		base.MoveDirectoryImpl( Casepath( srcPath ), Casepath( destPath ) );
+	}
+
+	protected override void DeleteDirectoryImpl( UPath path, bool isRecursive )
+	{
+		base.DeleteDirectoryImpl( Casepath( path ), isRecursive );
+	}
+
+	//File API
+
+	protected override void CopyFileImpl( UPath srcPath, UPath destPath, bool overwrite )
+	{
+		base.CopyFileImpl( Casepath( srcPath ), Casepath( destPath ), overwrite );
+	}
+
+	protected override void ReplaceFileImpl( UPath srcPath, UPath destPath, UPath destBackupPath, bool ignoreMetadataErrors )
+	{
+		base.ReplaceFileImpl( Casepath( srcPath ), Casepath( destPath ), Casepath( destBackupPath ), ignoreMetadataErrors );
+	}
+
+	protected override long GetFileLengthImpl( UPath path )
+	{
+		return base.GetFileLengthImpl( Casepath( path ) );
+	}
+
+	protected override void MoveFileImpl( UPath srcPath, UPath destPath )
+	{
+		base.MoveFileImpl( Casepath( srcPath ), Casepath( destPath ) );
+	}
+
+	protected override void DeleteFileImpl( UPath path )
+	{
+		base.DeleteFileImpl( Casepath( path ) );
+	}
+
+	protected override Stream OpenFileImpl( UPath path, FileMode mode, FileAccess access, FileShare share = FileShare.None )
+	{
+		return base.OpenFileImpl( Casepath( path ), mode, access, share );
+	}
+
+	protected override FileAttributes GetAttributesImpl( UPath path )
+	{
+		return base.GetAttributesImpl( Casepath( path ) );
+	}
+
+	//Metadata API
+	protected override void SetAttributesImpl( UPath path, FileAttributes attributes )
+	{
+		base.SetAttributesImpl( Casepath( path ), attributes );
+	}
+
+	protected override DateTime GetCreationTimeImpl( UPath path )
+	{
+		return base.GetCreationTimeImpl( Casepath( path ) );
+	}
+
+	protected override void SetCreationTimeImpl( UPath path, DateTime time )
+	{
+		base.SetCreationTimeImpl( Casepath( path ), time );
+	}
+
+	protected override DateTime GetLastAccessTimeImpl( UPath path )
+	{
+		return base.GetLastAccessTimeImpl( Casepath( path ) );
+	}
+
+	protected override void SetLastAccessTimeImpl( UPath path, DateTime time )
+	{
+		base.SetLastAccessTimeImpl( Casepath( path ), time );
+	}
+
+	protected override DateTime GetLastWriteTimeImpl( UPath path )
+	{
+		return base.GetLastWriteTimeImpl( Casepath( path ) );
+	}
+	protected override void SetLastWriteTimeImpl( UPath path, DateTime time )
+	{
+		base.SetLastWriteTimeImpl( Casepath( path ), time );
+	}
+
+	protected override void CreateSymbolicLinkImpl( UPath path, UPath pathToTarget )
+	{
+		base.CreateSymbolicLinkImpl( Casepath( path ), Casepath( pathToTarget ) );
+	}
+
+	protected override bool TryResolveLinkTargetImpl( UPath linkPath, out UPath resolvedPath )
+	{
+		return base.TryResolveLinkTargetImpl( Casepath( linkPath ), out resolvedPath );
+	}
+
+	//Search API
+
+	protected override IEnumerable<FileSystemItem> EnumerateItemsImpl( UPath path, SearchOption searchOption, SearchPredicate searchPredicate )
+	{
+		return base.EnumerateItemsImpl( Casepath( path ), searchOption, searchPredicate );
+	}
+
+	protected override IEnumerable<UPath> EnumeratePathsImpl( UPath path, string searchPattern, SearchOption searchOption, SearchTarget searchTarget )
+	{
+		return base.EnumeratePathsImpl( Casepath( path ), searchPattern, searchOption, searchTarget );
 	}
 
 
+	//watch API
+
 	protected override bool CanWatchImpl( UPath path )
 	{
-        return base.CanWatchImpl(casepath(path));
-    }
+		return base.CanWatchImpl( Casepath( path ) );
+	}
+
+	protected override IFileSystemWatcher WatchImpl( UPath path )
+	{
+		return base.WatchImpl( Casepath( path ) );
+	}
+
+	protected override UPath ValidatePathImpl( UPath path, string name = "path" )
+	{
+		return base.ValidatePathImpl( Casepath( path ), name );
+	}
+
+
+
 
 }
