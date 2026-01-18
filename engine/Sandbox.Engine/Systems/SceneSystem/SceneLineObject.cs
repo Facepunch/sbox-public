@@ -75,14 +75,7 @@ public class SceneLineObject : SceneCustomObject
 		set
 		{
 			_clamped = value;
-			if ( _clamped )
-			{
-				Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( ClampSampler ) );
-			}
-			else
-			{
-				Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( WrapSampler ) );
-			}
+			Attributes.Set( "TextureClamped", _clamped );
 		}
 	}
 
@@ -142,8 +135,6 @@ public class SceneLineObject : SceneCustomObject
 	private GpuBuffer<LinePoint> _pointBuffer;
 	private GpuBuffer<LineVertex> _vertexBuffer;
 	private GpuBuffer<uint> _indexBuffer;
-	private static readonly SamplerState WrapSampler = new() { Filter = FilterMode.Anisotropic, MaxAnisotropy = 8, AddressModeU = TextureAddressMode.Wrap, AddressModeV = TextureAddressMode.Wrap };
-	private static readonly SamplerState ClampSampler = new() { Filter = FilterMode.Anisotropic, MaxAnisotropy = 8, AddressModeU = TextureAddressMode.Clamp, AddressModeV = TextureAddressMode.Clamp };
 	private readonly List<LinePoint> _points = [];
 	private BBox _bounds;
 

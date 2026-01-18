@@ -8,6 +8,8 @@ FEATURES
 	// Why do I need this to compile?
 	// I don't want this, none of the features work for this shader.
 	#include "vr_common_features.fxc"
+
+	Feature( F_TEXTURE_FILTERING, 0..4 ( 0="Anisotropic", 1="Bilinear", 2="Trilinear", 3="Point Sample", 4="Nearest Neighbour" ), "Texture Filtering" );
 }
 
 MODES
@@ -73,8 +75,10 @@ PS
 	float g_DepthFeather < Attribute( "g_DepthFeather" ); >;
 	float g_FogStrength < Attribute( "g_FogStrength" ); >;
 	float g_flTextureRotation < Attribute( "TextureRotation" ); Default( 0.0 ); >;
+	bool g_bTextureClamped < Attribute( "TextureClamped" ); Default( 0 ); >;
 
-	int SamplerIndex < Attribute("SamplerIndex"); >;
+	SamplerState TextureFiltering < Filter( ( F_TEXTURE_FILTERING == 0 ? ANISOTROPIC : ( F_TEXTURE_FILTERING == 1 ? BILINEAR : ( F_TEXTURE_FILTERING == 2 ? TRILINEAR : ( F_TEXTURE_FILTERING == 3 ? POINT : NEAREST ) ) ) ) ); MaxAniso( 8 ); AddressU( WRAP ); AddressV( WRAP ); >;
+	SamplerState TextureFilteringClamped < Filter( ( F_TEXTURE_FILTERING == 0 ? ANISOTROPIC : ( F_TEXTURE_FILTERING == 1 ? BILINEAR : ( F_TEXTURE_FILTERING == 2 ? TRILINEAR : ( F_TEXTURE_FILTERING == 3 ? POINT : NEAREST ) ) ) ) ); MaxAniso( 8 ); AddressU( CLAMP ); AddressV( CLAMP ); >;
 
 	CreateInputTexture2D(TextureColor, Srgb, 8, "", "_color", "Material,10/10", Default4(1.0, 1.0, 1.0, 1.0));
 	CreateInputTexture2D(TextureNormal, Linear, 8, "NormalizeNormals", "_normal", "Material,10/20", Default3(0.5, 0.5, 1.0));
@@ -182,8 +186,6 @@ PS
 		i.vNormalWs *= ((i.face ? 1.0 : -1.0));
 
 		float4 col = 0;
-		
-		SamplerState sampler = Bindless::GetSampler( NonUniformResourceIndex( SamplerIndex ) );
 
 		float2 vUV = i.vTextureCoords.xy;
 
@@ -199,9 +201,20 @@ PS
 			vUV += vCenter;
 		}
 
-		float4 texAlbedo = g_tColor.Sample(sampler, vUV) * float4(SrgbGammaToLinear(i.vVertexColor.rgb), i.vVertexColor.a);
-		float4 texNormal = g_tNormal.Sample(sampler, vUV);
-		float4 texRMA = g_tRma.Sample(sampler, vUV);
+		float4 texAlbedo, texNormal, texRMA;
+		if ( g_bTextureClamped )
+		{
+			texAlbedo = g_tColor.Sample( TextureFilteringClamped, vUV );
+			texNormal = g_tNormal.Sample( TextureFilteringClamped, vUV );
+			texRMA = g_tRma.Sample( TextureFilteringClamped, vUV );
+		}
+		else
+		{
+			texAlbedo = g_tColor.Sample( TextureFiltering, vUV );
+			texNormal = g_tNormal.Sample( TextureFiltering, vUV );
+			texRMA = g_tRma.Sample( TextureFiltering, vUV );
+		}
+		texAlbedo *= float4( SrgbGammaToLinear( i.vVertexColor.rgb ), i.vVertexColor.a );
 
 		// Decode the normal map
 		float3 decodedTexNormal = DecodeNormal(texNormal.xyz);
