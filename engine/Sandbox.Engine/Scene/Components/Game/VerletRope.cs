@@ -21,10 +21,16 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	public LineRenderer LinkedRenderer { get; set; }
 
 	/// <summary>
+	/// Controls the rope's initial length. Set to 0 for initial length when enabled.
+	/// </summary>
+	[Property, Group( "Simulation" )]
+	public float Length { get; set; } = 0f;
+
+	/// <summary>
 	/// Additional slack, added to the rope length.
 	/// </summary>
 	[Property, Group( "Simulation" )]
-	public float Slack { get; set; } = 0;
+	public float Slack { get; set; } = 0f;
 
 	/// <summary>
 	/// Number of segments in the rope. Higher values increase visual fidelity and collision accuracy but quickly reduce performance.
@@ -65,7 +71,7 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	/// <summary>
 	/// The length the rope would like to have.
 	/// </summary>
-	private float targetRopeLength => initialRopeLength + Slack;
+	private float targetRopeLength => (Length >= 0f ? Length : initialRopeLength) + Slack;
 
 	/// <summary>
 	/// Set on Initialize based on distance between attachment points and slack.
