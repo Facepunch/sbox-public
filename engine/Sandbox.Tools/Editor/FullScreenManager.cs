@@ -5,6 +5,11 @@ namespace Editor;
 /// </summary>
 internal partial class FullScreenManager
 {
+	public FullScreenManager()
+	{
+		EditorEvent.Register( this );
+	}
+
 	public bool IsActive => Widget.IsValid();
 
 	/// <summary>
@@ -39,8 +44,6 @@ internal partial class FullScreenManager
 
 		Widget = null;
 		PreviousParent = null;
-
-		EditorEvent.Register( this );
 	}
 
 	[EditorEvent.Frame]
