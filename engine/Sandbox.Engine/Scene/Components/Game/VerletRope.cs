@@ -41,19 +41,19 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	/// <summary>
 	/// Rope stiffness factor. Higher values make the rope more rigid.
 	/// </summary>
-	[Property, Group( "Advanced", StartFolded = true )]
+	[Advanced, Property]
 	public float Stiffness { get; set; } = 0.7f;
 
 	/// <summary>
 	/// Dampens rope movement. Higher values make the rope settle faster.
 	/// </summary>
-	[Property, Group( "Advanced", StartFolded = true )]
+	[Advanced, Property]
 	public float DampingFactor { get; set; } = 0.2f;
 
 	/// <summary>
 	/// Controls how easily the rope bends. Lower values allow more bending, higher values make it stiffer.
 	/// </summary>
-	[Property, Group( "Advanced", StartFolded = true )]
+	[Advanced, Property]
 	public float SoftBendFactor { get; set; } = 0.3f;
 
 	/// <summary>
