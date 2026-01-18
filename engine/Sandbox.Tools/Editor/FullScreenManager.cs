@@ -60,10 +60,10 @@ internal partial class FullScreenManager
 
 	private Vector2 GetTargetPosition()
 	{
-		var size = new Vector2( 0, EditorWindow.MenuWidget.Size.y );
+		var position = new Vector2( 0, EditorWindow.MenuWidget.Size.y );
 		if ( EditorWindow.IsMaximized )
-			size += 8;
-		return size;
+			position += 8;
+		return position;
 	}
 
 	private Vector2 GetTargetSize()
