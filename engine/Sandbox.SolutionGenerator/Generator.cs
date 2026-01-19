@@ -2,8 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text.Json;
+using Sandbox.Utility;
 
 namespace Sandbox.SolutionGenerator
 {
@@ -26,87 +26,26 @@ namespace Sandbox.SolutionGenerator
 			return path.Replace( '\\', '/' );
 		}
 
-
-		// Importing necessary Win32 APIs for getting the canonical path
-		[DllImport( "kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true )]
-		private static extern IntPtr CreateFileW( string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes, uint dwCreationDisposition, uint dwFlagsAndAttributes, IntPtr hTemplateFile );
-
-		[DllImport( "kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true )]
-		private static extern uint GetFinalPathNameByHandleW( IntPtr hFile, char[] lpszFilePath, uint cchFilePath, uint dwFlags );
-
-		[DllImport( "kernel32.dll", SetLastError = true )]
-		private static extern bool CloseHandle( IntPtr hObject );
-
-		// Define magic numbers with proper names
-		private const uint FILE_FLAG_BACKUP_SEMANTICS = 0x02000000;
-		private const uint OPEN_EXISTING = 3;
-		private const uint FILE_SHARE_READ = 1;
-		private const uint FILE_SHARE_WRITE = 2;
-
-		/// <summary>
-		/// Get the proper path casing for the given path
-		/// </summary>
-		private static string GetCanonicalPath( string path )
-		{
-			if ( !string.IsNullOrWhiteSpace( path ) && !Path.IsPathRooted( path ) ) return path;
-
-			try
-			{
-				var handle = CreateFileW( path, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, IntPtr.Zero, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, IntPtr.Zero );
-				if ( handle == IntPtr.Zero || handle == new IntPtr( -1 ) )
-					return path;
-
-				try
-				{
-					var buffer = new char[512];
-					var len = GetFinalPathNameByHandleW( handle, buffer, (uint)buffer.Length, 0 );
-					if ( len > 0 && len < buffer.Length )
-					{
-						var finalPath = new string( buffer, 0, (int)len );
-						// Remove the \\?\ prefix added by Windows API
-						if ( finalPath.StartsWith( @"\\?\" ) )
-						{
-							finalPath = finalPath.Substring( 4 );
-						}
-						return finalPath;
-					}
-					else
-					{
-						return path;
-					}
-				}
-				finally
-				{
-					CloseHandle( handle );
-				}
-			}
-			catch
-			{
-				// Ignore errors and return original path
-				return path;
-			}
-		}
-
 		/// <summary>
 		/// Converts a path to be relative to a base path, always returning forward slashes.
 		/// </summary>
 		private string AttemptAbsoluteToRelative( string basePath, string targetPath )
 		{
 			string targetFileName = string.Empty;
-			string baseDir = GetCanonicalPath( basePath );
-			string targetDir = GetCanonicalPath( targetPath );
+			string baseDir = NativeFileSystem.GetCanonicalPath( basePath );
+			string targetDir = NativeFileSystem.GetCanonicalPath( targetPath );
 
 			// If target is a file, extract the filename
 			if ( Path.HasExtension( targetPath ) )
 			{
 				targetFileName = Path.GetFileName( targetPath );
-				targetDir = GetCanonicalPath( Path.GetDirectoryName( targetPath ) ?? targetPath );
+				targetDir = NativeFileSystem.GetCanonicalPath( Path.GetDirectoryName( targetPath ) ?? targetPath );
 			}
 
 			// If base is a file, use its directory
 			if ( Path.HasExtension( basePath ) )
 			{
-				baseDir = GetCanonicalPath( Path.GetDirectoryName( basePath ) ?? basePath );
+				baseDir = NativeFileSystem.GetCanonicalPath( Path.GetDirectoryName( basePath ) ?? basePath );
 			}
 
 			// Calculate relative path from base to target - this preserves casing when inputs are cased
