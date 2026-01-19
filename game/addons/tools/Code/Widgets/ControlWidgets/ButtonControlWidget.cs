@@ -48,9 +48,12 @@ public class ButtonControlWidget : ControlWidget
 				}
 				else
 				{
-					foreach ( var prop in props )
+					using ( SceneEditorSession.Scope() )
 					{
-						prop.Invoke();
+						foreach ( var prop in props )
+						{
+							prop.Invoke();
+						}
 					}
 				}
 			};
