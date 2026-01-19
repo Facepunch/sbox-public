@@ -41,9 +41,7 @@ public class ButtonControlWidget : ControlWidget
 					using ( session.Scene.Push() )
 					{
 						foreach ( var prop in props )
-						{
 							prop.Invoke();
-						}
 					}
 				}
 				else
@@ -51,9 +49,7 @@ public class ButtonControlWidget : ControlWidget
 					using ( SceneEditorSession.Scope() )
 					{
 						foreach ( var prop in props )
-						{
 							prop.Invoke();
-						}
 					}
 				}
 			};
