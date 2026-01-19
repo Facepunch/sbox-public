@@ -33,7 +33,7 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 	}
 
 	/// <summary>
-	/// The target GameObject to report in trace hits. If this is unset we'll defaault to the gameobject on which this component is.
+	/// The target GameObject to report in trace hits. If this is unset we'll default to the gameobject on which this component is.
 	/// </summary>
 	[Property]
 	public GameObject Target
