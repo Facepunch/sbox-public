@@ -71,7 +71,7 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	/// <summary>
 	/// The length the rope would like to have.
 	/// </summary>
-	private float targetRopeLength => (Length >= 0f ? Length : initialRopeLength) + Slack;
+	private float targetRopeLength => (Length > 0f ? Length : initialRopeLength) + Slack;
 
 	/// <summary>
 	/// Set on Initialize based on distance between attachment points and slack.
