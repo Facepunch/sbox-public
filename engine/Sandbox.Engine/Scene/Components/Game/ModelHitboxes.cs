@@ -12,8 +12,6 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 {
 	HitboxSystem system;
 
-	SkinnedModelRenderer _renderer;
-
 	/// <summary>
 	/// The target SkinnedModelRenderer that holds the model/skeleton you want to 
 	/// take the hitboxes from.
@@ -21,33 +19,31 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 	[Property]
 	public SkinnedModelRenderer Renderer
 	{
-		get => _renderer;
+		get;
 		set
 		{
-			if ( _renderer == value ) return;
+			if ( field == value ) return;
 
 			Clear();
 
-			_renderer = value;
+			field = value;
 
 			AddFrom( Renderer );
 		}
 	}
 
-	GameObject _target;
-
 	/// <summary>
-	/// The target GameObject to report in trace hits. If this is unset we'll defaault to the gameobject on which this component is.
+	/// The target GameObject to report in trace hits. If this is unset we'll default to the gameobject on which this component is.
 	/// </summary>
 	[Property]
 	public GameObject Target
 	{
-		get => _target;
+		get;
 		set
 		{
-			if ( _target == value ) return;
+			if ( field == value ) return;
 
-			_target = value;
+			field = value;
 
 			Rebuild();
 		}
@@ -73,10 +69,16 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 		Clear();
 	}
 
+	/// <summary>
+	/// Invoked when the hitboxes have been rebuilt.
+	/// </summary>
+	public Action HitboxesRebuilt;
+
 	public void Rebuild()
 	{
 		Clear();
 		AddFrom( Renderer );
+		HitboxesRebuilt?.Invoke();
 	}
 
 	void Clear()
@@ -166,10 +168,60 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 
 	internal readonly List<Hitbox> Hitboxes = new();
 
+	/// <summary>
+	/// Adds a hitbox to the models hitbox list
+	/// </summary>
+	/// <param name="hitbox"></param>
 	public void AddHitbox( Hitbox hitbox )
 	{
 		Hitboxes.Add( hitbox );
 	}
+
+	/// <summary>
+	/// Removes a hitbox from the models hitbox list.
+	/// </summary>
+	/// <param name="hitbox"></param>
+	public void RemoveHitbox( Hitbox hitbox )
+	{
+		if ( Hitboxes.Remove( hitbox ) )
+		{
+			hitbox?.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// Returns every hitbox on this model.
+	/// </summary>
+	/// <returns></returns>
+	public IReadOnlyList<Hitbox> GetHitboxes() => Hitboxes;
+
+	/// <summary>
+	/// Retrieves the hitbox associated with the bone index.
+	/// </summary>
+	/// <param name="boneIndex">The bone index to retrieve.</param>
+	/// <returns>null if no matching hitbox is found.</returns>
+	public Hitbox GetHitbox( int boneIndex ) => Hitboxes.FirstOrDefault( x => x.Bone.Index == boneIndex );
+
+	/// <summary>
+	/// Retrieves the hitbox associated with the specified bone.
+	/// </summary>
+	/// <param name="bone">The bone for which to find the corresponding hitbox.</param>
+	/// <returns>null if no matching hitbox is found.</returns>
+	public Hitbox GetHitbox( BoneCollection.Bone bone ) => Hitboxes.FirstOrDefault( x => x.Bone == bone );
+
+	/// <summary>
+	/// Retrieves the hitbox associated with the specified bone name.
+	/// </summary>
+	/// <param name="boneName">The name of the bone for which to retrieve the hitbox.</param>
+	/// <returns>null if no matching hitbox is found.</returns>
+	public Hitbox GetHitbox( string boneName ) => Hitboxes.FirstOrDefault( x => x.Bone.Name == boneName );
+
+	/// <summary>
+	/// Retrieves the hitbox associated with the specified physics body.
+	/// </summary>
+	/// <param name="physicsBody">The physics body for which to find the corresponding hitbox.</param>
+	/// <returns>null if no matching hitbox is found.</returns>
+	public Hitbox GetHitbox( PhysicsBody physicsBody ) => Hitboxes.FirstOrDefault( x => x.Body == physicsBody );
 
 	/// <summary>
 	/// The gameobject tags have changed, update collision tags on the target objects

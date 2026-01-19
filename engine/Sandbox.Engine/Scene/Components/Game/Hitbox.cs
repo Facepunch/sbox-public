@@ -23,7 +23,7 @@ public class Hitbox : IDisposable
 	public BoneCollection.Bone Bone { get; private set; }
 	public ITagSet Tags { get; private set; }
 	public PhysicsBody Body { get; set; }
-	internal BBox Bounds { get; set; }
+	public BBox Bounds { get; set; }
 
 	public void Dispose()
 	{
