@@ -86,7 +86,13 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 		var updatedCount = 0;
 		var skippedCount = 0;
 		var failedCount = 0;
+		var totalCount = manifest.Files.Count;
+		var processedCount = 0;
 		var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelDownloads };
+		var lockObject = new object();
+
+		// Show initial progress
+		UpdateProgress( lockObject, 0, totalCount, "Starting downloads...", "" );
 
 		Parallel.ForEach( manifest.Files, parallelOptions, entry =>
 		{
@@ -102,6 +108,7 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 			if ( FileMatchesHash( destination, entry.Sha256 ) )
 			{
 				Interlocked.Increment( ref skippedCount );
+				UpdateProgress( lockObject, Interlocked.Increment( ref processedCount ), totalCount, "Skipped (up-to-date)", entry.Path ?? entry.Sha256 );
 				return;
 			}
 
@@ -115,13 +122,18 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 			if ( dlSuccess )
 			{
 				Interlocked.Increment( ref updatedCount );
+				UpdateProgress( lockObject, Interlocked.Increment( ref processedCount ), totalCount, "Downloaded", entry.Path ?? entry.Sha256 );
 			}
 			else
 			{
 				Interlocked.Increment( ref failedCount );
+				UpdateProgress( lockObject, Interlocked.Increment( ref processedCount ), totalCount, "Failed", entry.Path ?? entry.Sha256 );
 				DeleteIfExists( destination );
 			}
 		} );
+
+		// Clear progress line and show final result
+		Console.Write( "\r" + new string( ' ', GetSafeConsoleWidth() - 1 ) + "\r" );
 
 		if ( failedCount > 0 )
 		{
@@ -235,7 +247,6 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 		var artifactUrl = $"{baseUrl.TrimEnd( '/' )}/artifacts/{hash}";
 
 		var targetName = string.IsNullOrWhiteSpace( entry.Path ) ? hash : entry.Path;
-		Log.Info( $"Downloading {targetName} from {artifactUrl} ({Utility.FormatSize( expectedSize )})" );
 
 		using var response = httpClient.GetAsync( artifactUrl, HttpCompletionOption.ResponseHeadersRead ).GetAwaiter().GetResult();
 		if ( response.StatusCode == HttpStatusCode.NotFound )
@@ -307,6 +318,69 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 		{
 			Log.Warning( $"Failed to compute hash for {path}: {ex.Message}" );
 			return false;
+		}
+	}
+
+	private static int GetSafeConsoleWidth()
+	{
+		try
+		{
+			return Console.WindowWidth;
+		}
+		catch ( System.IO.IOException )
+		{
+			// Console output is redirected or in non-interactive environment
+			return 120; // Default width for CI/CD environments
+		}
+	}
+
+	private static void UpdateProgress( object lockObject, int current, int total, string action, string filePath )
+	{
+		lock ( lockObject )
+		{
+			var percentage = (int)((double)current / total * 100);
+			var progressBar = new string( '=', percentage / 5 ).PadRight( 20 );
+			var baseStatus = $"[{progressBar}] {percentage,3}% ({current}/{total}) - {action}";
+
+			var consoleWidth = GetSafeConsoleWidth();
+
+			// If the base status itself is too long for the console, truncate it
+			if ( baseStatus.Length >= consoleWidth - 1 )
+			{
+				var status = baseStatus.Substring( 0, consoleWidth - 1 ).PadRight( consoleWidth - 1 );
+				Console.Write( $"\r{status}" );
+				return;
+			}
+
+			if ( !string.IsNullOrEmpty( filePath ) )
+			{
+				var statusWithColon = baseStatus + ": ";
+				var maxFileLength = consoleWidth - statusWithColon.Length - 1;
+
+				// Truncate from start if path is too long, keeping filename visible
+				var displayFile = filePath;
+				if ( maxFileLength > 3 && displayFile.Length > maxFileLength )
+				{
+					displayFile = "..." + displayFile.Substring( displayFile.Length - maxFileLength + 3 );
+				}
+				else if ( maxFileLength <= 3 )
+				{
+					// Not enough space for file path, just show the action
+					displayFile = "";
+				}
+				else
+				{
+					// File fits without truncation
+				}
+
+				if ( !string.IsNullOrEmpty( displayFile ) )
+				{
+					baseStatus += ": " + displayFile;
+				}
+			}
+
+			var finalStatus = baseStatus.PadRight( consoleWidth - 1 );
+			Console.Write( $"\r{finalStatus}" );
 		}
 	}
 }
