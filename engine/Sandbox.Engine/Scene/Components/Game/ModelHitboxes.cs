@@ -183,7 +183,10 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 	/// <param name="hitbox"></param>
 	public void RemoveHitbox( Hitbox hitbox )
 	{
-		Hitboxes.Remove( hitbox );
+		if ( Hitboxes.Remove( hitbox ) )
+		{
+			hitbox?.Dispose();
+		}
 	}
 
 	/// <summary>
