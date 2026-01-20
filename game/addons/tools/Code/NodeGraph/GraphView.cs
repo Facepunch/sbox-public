@@ -932,7 +932,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		}
 	}
 
-	private Plug GetPlugAt( Vector2 scenePosition )
+	protected Plug GetPlugAt( Vector2 scenePosition )
 	{
 		var selectedItem = GetItemAt( scenePosition );
 
