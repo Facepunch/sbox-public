@@ -5,6 +5,15 @@ namespace Editor.MeshEditor;
 
 partial class FaceTool
 {
+	private const string ClipboardFaceDataType = "mesh_faces";
+
+	/// <summary>
+	/// Data structure for serializing face geometry to clipboard.
+	/// Faces reference vertices by index to preserve shared vertices between connected faces.
+	/// </summary>
+	private record struct ClipboardFaceData( int[] VertexIndices, string Material, Vector4 AxisU, Vector4 AxisV, Vector2 Scale );
+	private record struct ClipboardMeshData( Vector3[] Vertices, ClipboardFaceData[] Faces );
+
 	public override Widget CreateToolSidebar()
 	{
 		return new FaceSelectionWidget( GetSerializedSelection(), Tool );
@@ -158,6 +167,130 @@ partial class FaceTool
 			{
 				foreach ( var group in groups )
 					group.Key.Mesh.RemoveFaces( group.Select( x => x.Handle ) );
+			}
+		}
+
+		[Shortcut( "editor.copy", "CTRL+C", typeof( SceneViewWidget ) )]
+		private void CopySelection()
+		{
+			if ( !_faceGroups.Any() )
+				return;
+
+			var vertexList = new List<Vector3>();
+			var vertexIndexMap = new Dictionary<Vector3, int>();
+			var faceDataList = new List<ClipboardFaceData>();
+
+			foreach ( var group in _faceGroups )
+			{
+				var mesh = group.Key.Mesh;
+
+				foreach ( var face in group )
+				{
+					if ( !face.IsValid )
+						continue;
+
+					var faceVertexIndices = new List<int>();
+
+					foreach ( var vertexHandle in mesh.GetFaceVertices( face.Handle ) )
+					{
+						var position = mesh.GetVertexPosition( vertexHandle );
+
+						if ( !vertexIndexMap.TryGetValue( position, out var index ) )
+						{
+							index = vertexList.Count;
+							vertexList.Add( position );
+							vertexIndexMap[position] = index;
+						}
+
+						faceVertexIndices.Add( index );
+					}
+
+					mesh.GetFaceTextureParameters( face.Handle, out var axisU, out var axisV, out var scale );
+
+					faceDataList.Add( new ClipboardFaceData(
+						faceVertexIndices.ToArray(),
+						face.Material?.ResourcePath,
+						axisU,
+						axisV,
+						scale
+					) );
+				}
+			}
+
+			var meshData = new ClipboardMeshData( vertexList.ToArray(), faceDataList.ToArray() );
+
+			var json = new JsonObject
+			{
+				["_type"] = ClipboardFaceDataType,
+				["_data"] = JsonNode.Parse( Json.Serialize( meshData ) )
+			};
+
+			EditorUtility.Clipboard.Copy( json.ToJsonString() );
+		}
+
+		[Shortcut( "editor.paste", "CTRL+V", typeof( SceneViewWidget ) )]
+		private void PasteSelection()
+		{
+			var clipboard = EditorUtility.Clipboard.Paste();
+			if ( string.IsNullOrWhiteSpace( clipboard ) || !clipboard.StartsWith( "{" ) )
+				return;
+
+			ClipboardMeshData meshData;
+			try
+			{
+				var json = JsonNode.Parse( clipboard );
+				if ( json?["_type"]?.ToString() != ClipboardFaceDataType )
+					return;
+
+				meshData = Json.Deserialize<ClipboardMeshData>( json["_data"].ToJsonString() );
+			}
+			catch
+			{
+				return;
+			}
+
+			if ( meshData.Faces == null || meshData.Faces.Length == 0 )
+				return;
+
+			if ( meshData.Vertices == null || meshData.Vertices.Length == 0 )
+				return;
+
+			if ( _components.Count == 0 )
+				return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Paste Faces" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				selection.Clear();
+
+				// Paste into the first selected component
+				var targetComponent = _components.First();
+				var mesh = targetComponent.Mesh;
+				var newVertices = mesh.AddVertices( meshData.Vertices );
+
+				// Create faces using the shared vertex handles
+				foreach ( var faceData in meshData.Faces )
+				{
+					if ( faceData.VertexIndices == null || faceData.VertexIndices.Length < 3 )
+						continue;
+					if ( faceData.VertexIndices.Any( i => i < 0 || i >= newVertices.Length ) )
+						continue;
+
+					var faceVertices = faceData.VertexIndices.Select( i => newVertices[i] ).ToArray();
+					var newFaceHandle = mesh.AddFace( faceVertices );
+					if ( !newFaceHandle.IsValid )
+						continue;
+
+					var material = string.IsNullOrEmpty( faceData.Material ) ? null : Material.Load( faceData.Material );
+					mesh.SetFaceMaterial( newFaceHandle, material );
+					mesh.SetFaceTextureParameters( newFaceHandle, faceData.AxisU, faceData.AxisV, faceData.Scale );
+
+					selection.Add( new MeshFace( targetComponent, newFaceHandle ) );
+				}
 			}
 		}
 

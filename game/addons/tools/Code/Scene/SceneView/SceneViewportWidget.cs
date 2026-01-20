@@ -530,8 +530,9 @@ public partial class SceneViewportWidget : Widget
 		if ( GizmoInstance.Input.IsHovered )
 		{
 			UpdateHovered();
-			Tools.Frame( _activeCamera, Session );
 		}
+
+		Tools.Frame( _activeCamera, Session, GizmoInstance.Input.IsHovered );
 
 		EditorEvent.RunInterface<EditorEvent.ISceneView>( x => x.DrawGizmos( Session.Scene ) );
 		Session.Scene.EditorDraw();

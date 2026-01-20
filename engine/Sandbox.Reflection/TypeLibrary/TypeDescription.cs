@@ -513,29 +513,42 @@ public sealed class TypeDescription : ISourceLineProvider
 	public bool HasTag( string tag ) => Tags.Contains( tag );
 
 	/// <summary>
-	/// Get property by name
+	/// Get property by name (will not find static properties)
 	/// </summary>
-	public PropertyDescription GetProperty( string name ) => Properties.FirstOrDefault( x => x.IsStatic == false && x.IsNamed( name ) );
+	public PropertyDescription GetProperty( string name ) => Properties.FirstOrDefault( x => !x.IsStatic && x.IsNamed( name ) );
 
 	/// <summary>
-	/// Get field by name
+	/// Get static property by name
 	/// </summary>
-	internal FieldDescription GetField( string name ) => Fields.FirstOrDefault( x => x.IsStatic == false && x.IsNamed( name ) );
+	public PropertyDescription GetStaticProperty( string name ) => Properties.FirstOrDefault( x => x.IsStatic && x.IsNamed( name ) );
 
 	/// <summary>
-	/// Get value by field or property name
+	/// Get field by name (will not find static fields)
+	/// </summary>
+	internal FieldDescription GetField( string name ) => Fields.FirstOrDefault( x => !x.IsStatic && x.IsNamed( name ) );
+
+	/// <summary>
+	/// Get value by field or property name (will not find static members)
 	/// </summary>
 	public object GetValue( object instance, string name )
 	{
-		return GetValue( instance, name, out _ );
+		return GetValue( instance, name, false, out _ );
 	}
 
 	/// <summary>
-	/// Get value by field or property name, and which type the member is declared to store.
+	/// Get value by field or property name, and which type the member is declared to store (will not find static members)
 	/// </summary>
-	internal object GetValue( object instance, string name, out Type memberType )
+	public object GetStaticValue( string name )
 	{
-		var member = Members.FirstOrDefault( x => x.IsStatic == false && x.IsNamed( name ) );
+		return GetValue( null, name, true, out _ );
+	}
+
+	/// <summary>
+	/// Get value by field or property name, and which type the member is declared to store
+	/// </summary>
+	internal object GetValue( object instance, string name, bool isStatic, out Type memberType )
+	{
+		var member = Members.FirstOrDefault( x => x.IsStatic == isStatic && x.IsNamed( name ) );
 
 		switch ( member )
 		{
@@ -552,11 +565,24 @@ public sealed class TypeDescription : ISourceLineProvider
 	}
 
 	/// <summary>
-	/// Get value by field or property name
+	/// Set value by field or property name (will not set static members)
 	/// </summary>
 	public bool SetValue( object instance, string name, object value )
 	{
-		var member = Members.Where( x => x.IsStatic == false && x.IsNamed( name ) ).FirstOrDefault();
+		return SetValue( instance, name, value, false );
+	}
+
+	/// <summary>
+	/// Set static value by field or property name
+	/// </summary>
+	public bool SetStaticValue( string name, object value )
+	{
+		return SetValue( null, name, value, true );
+	}
+
+	internal bool SetValue( object instance, string name, object value, bool isStatic )
+	{
+		var member = Members.Where( x => x.IsStatic == isStatic && x.IsNamed( name ) ).FirstOrDefault();
 		if ( member is null ) return default;
 
 		if ( member is PropertyDescription pd )

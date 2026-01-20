@@ -26,6 +26,7 @@ public class StyleSheet
 	public List<string> IncludedFiles { get; set; } = new List<string>();
 	public Dictionary<string, string> Variables;
 	public Dictionary<string, KeyFrames> KeyFrames = new Dictionary<string, KeyFrames>( StringComparer.OrdinalIgnoreCase );
+	public Dictionary<string, MixinDefinition> Mixins = new Dictionary<string, MixinDefinition>( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
 	/// Releases the filesystem watcher so we won't get file changed events.
@@ -119,6 +120,7 @@ public class StyleSheet
 			Nodes = sheet.Nodes;
 			Variables = sheet.Variables;
 			KeyFrames = sheet.KeyFrames;
+			Mixins = sheet.Mixins;
 
 			// Don't overwrite the included files if the stylesheet
 			// failed to load, because it won't be able to hotload
@@ -227,5 +229,30 @@ public class StyleSheet
 	public void AddKeyFrames( KeyFrames frames )
 	{
 		KeyFrames[frames.Name] = frames;
+	}
+
+	/// <summary>
+	/// Register a mixin definition.
+	/// </summary>
+	public void SetMixin( MixinDefinition mixin )
+	{
+		Mixins[mixin.Name] = mixin;
+	}
+
+	/// <summary>
+	/// Try to get a mixin by name.
+	/// </summary>
+	public bool TryGetMixin( string name, out MixinDefinition mixin )
+	{
+		return Mixins.TryGetValue( name, out mixin );
+	}
+
+	/// <summary>
+	/// Get a mixin by name or null if not found.
+	/// </summary>
+	public MixinDefinition GetMixin( string name )
+	{
+		Mixins.TryGetValue( name, out var mixin );
+		return mixin;
 	}
 }

@@ -27,7 +27,7 @@ public partial class HammerMainWindow : DockWindow
 
 		// Main menu bar and populate it, then do our managed menu
 		_nativeHammerWindow.CreateMenus();
-		MenuAttribute.RegisterMenuBar( "Hammer", MenuBar );
+		MenuBar.RegisterNamed( "Hammer", MenuBar );
 
 		// Shows some tool bars... ?
 		_nativeHammerWindow.SetupDefaultLayout();

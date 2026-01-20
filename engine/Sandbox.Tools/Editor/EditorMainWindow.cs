@@ -1,5 +1,4 @@
 ﻿using NativeEngine;
-using System.Diagnostics;
 
 namespace Editor;
 
@@ -313,7 +312,7 @@ public class EditorMainWindow : DockWindow
 		EditorScene.RestoreState();
 
 		// Register our menu bar and dock options, doesn't open anything
-		MenuAttribute.RegisterMenuBar( "Editor", MenuBar );
+		MenuBar.RegisterNamed( "Editor", MenuBar );
 		DockAttribute.RegisterWindow( "Editor", this );
 
 		// This will attempt to restore the last used layout (or default layout if first time)

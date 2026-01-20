@@ -45,6 +45,8 @@ partial class EdgeCutTool
 				Gizmo.Draw.LineThickness = 4;
 				Gizmo.Draw.Line( edge.Line );
 			}
+
+			DrawEdgeCutLengthText();
 		}
 
 		using ( Gizmo.Scope( "Point" ) )
@@ -57,10 +59,69 @@ partial class EdgeCutTool
 				Gizmo.Draw.LineThickness = 4;
 				Gizmo.Draw.Color = Color.White;
 				Gizmo.Draw.Line( _previewCutPoint.WorldPosition, lastCutPoint.WorldPosition );
+
+				if ( !_previewCutPoint.Edge.IsValid() && !_previewCutPoint.Vertex.IsValid() )
+				{
+					DrawFaceCutLengthText();
+				}
 			}
 
 			Gizmo.Draw.Color = Color.White;
 			Gizmo.Draw.Sprite( _previewCutPoint.WorldPosition, 10, null, false );
+		}
+	}
+
+	void DrawEdgeCutLengthText()
+	{
+		if ( !_previewCutPoint.Edge.IsValid() ) return;
+
+		var edge = _previewCutPoint.Edge;
+		var mesh = edge.Component.Mesh;
+
+		mesh.GetVerticesConnectedToEdge( edge.Handle, out var hVertexA, out var hVertexB );
+		mesh.GetVertexPosition( hVertexA, Transform.Zero, out var vPositionA );
+		mesh.GetVertexPosition( hVertexB, Transform.Zero, out var vPositionB );
+
+		var edgeLength = vPositionA.Distance( vPositionB );
+		mesh.ComputeClosestPointOnEdge( hVertexA, hVertexB, _previewCutPoint.LocalPosition, out var edgeParam );
+
+		var distanceA = (1.0f - edgeParam) * edgeLength;
+		var distanceB = edgeParam * edgeLength;
+
+		var screenPos = Gizmo.Camera.ToScreen( _previewCutPoint.WorldPosition );
+		if ( !screenPos.IsNearlyZero() )
+		{
+			var textPos = screenPos + new Vector2( 8, -24 );
+			var text = $"({distanceA:F0} : {distanceB:F0})";
+			var textSize = 22 * Gizmo.Settings.GizmoScale * Application.DpiScale;
+
+			using ( Gizmo.Scope( "LengthText" ) )
+			{
+				Gizmo.Draw.IgnoreDepth = true;
+				Gizmo.Draw.ScreenText( text, textPos, size: textSize );
+			}
+		}
+	}
+
+	void DrawFaceCutLengthText()
+	{
+		if ( _cutPoints.Count == 0 ) return;
+
+		var lastCutPoint = _cutPoints.Last();
+		var distance = lastCutPoint.WorldPosition.Distance( _previewCutPoint.WorldPosition );
+
+		var screenPos = Gizmo.Camera.ToScreen( _previewCutPoint.WorldPosition );
+		if ( !screenPos.IsNearlyZero() )
+		{
+			var textPos = screenPos + new Vector2( 8, -24 );
+			var text = $"{distance:F0}";
+			var textSize = 22 * Gizmo.Settings.GizmoScale * Application.DpiScale;
+
+			using ( Gizmo.Scope( "LengthText" ) )
+			{
+				Gizmo.Draw.IgnoreDepth = true;
+				Gizmo.Draw.ScreenText( text, textPos, size: textSize );
+			}
 		}
 	}
 

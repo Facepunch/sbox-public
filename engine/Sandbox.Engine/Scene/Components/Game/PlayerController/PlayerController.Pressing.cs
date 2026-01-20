@@ -206,18 +206,21 @@ public sealed partial class PlayerController : Component
 
 			foreach ( var hit in hits )
 			{
-				if ( !hit.GameObject.IsValid() )
+				// Get the GameObject of the collider, not the physics body
+				var hitObject = hit.Collider?.GameObject ?? hit.GameObject;
+
+				if ( !hitObject.IsValid() )
 					continue;
 
 				// Allow our other components to provide something
 				Component foundComponent = default;
-				IEvents.PostToGameObject( GameObject, x => foundComponent = x.GetUsableComponent( hit.GameObject ) ?? foundComponent );
+				IEvents.PostToGameObject( GameObject, x => foundComponent = x.GetUsableComponent( hitObject ) ?? foundComponent );
 
 				if ( foundComponent.IsValid() )
 					return foundComponent;
 
 				// Check for IPressable components
-				foreach ( var c in hit.GameObject.GetComponents<IPressable>() )
+				foreach ( var c in hitObject.GetComponents<IPressable>() )
 				{
 					if ( !c.CanPress( new IPressable.Event { Ray = EyeTransform.ForwardRay, Source = this } ) )
 						continue;

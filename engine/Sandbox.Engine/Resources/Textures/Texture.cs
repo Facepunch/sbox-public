@@ -142,6 +142,11 @@ public partial class Texture : Resource, IDisposable
 	/// </summary>
 	public int LastUsed => native.IsValid ? g_pRenderDevice.GetTextureLastUsed( native ).Clamp( 0, 1000 ) : 1000;
 
+	/// <summary>
+	/// Gets if the texture has UAV access
+	/// </summary>
+	public bool UAVAccess => Desc.m_nFlags.HasFlag( RuntimeTextureSpecificationFlags.TSPEC_UAV );
+
 	internal RenderMultisampleType MultisampleType
 	{
 		get

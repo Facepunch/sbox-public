@@ -1,9 +1,7 @@
-﻿using System;
-using Editor.MapDoc;
+﻿using Editor.MapDoc;
 using Facepunch.ActionGraphs;
 using Sandbox.ActionGraphs;
-using Sandbox.Helpers;
-using static Sandbox.Scene;
+using System;
 
 namespace Editor.MapEditor;
 
@@ -13,6 +11,9 @@ public partial class HammerSceneEditorSession : Scene.ISceneEditorSession
 
 	public Scene Scene { get; }
 	public MapWorld MapWorld { get; }
+
+	// unused, but required by interface
+	public SelectionSystem Selection { get; } = new SelectionSystem();
 
 	public ISourceLocation SourceLocation { get; }
 
@@ -118,6 +119,8 @@ public partial class HammerSceneEditorSession : Scene.ISceneEditorSession
 	{
 		yield break;
 	}
+
+	BaseFileSystem Scene.ISceneEditorSession.TransientFilesystem => FileSystem.Transient;
 }
 
 /// <summary>

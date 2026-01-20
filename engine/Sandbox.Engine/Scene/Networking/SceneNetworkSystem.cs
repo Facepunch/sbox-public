@@ -1137,13 +1137,26 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		{
 			// If we're unowned and the source is not the host, we can't destroy.
 			if ( !source.IsHost )
+			{
+				Log.Warning( $"ObjectDestroy: Only the host can destroy unowned networked objects. {source.DisplayName} attempted to destroy {obj.Name}." );
 				return;
+			}
 		}
 		else
 		{
 			// If the source is not the owner and not the host, we can't destroy.
 			if ( !source.IsHost && obj._net.Owner != source.Id )
+			{
+				Log.Warning( $"ObjectDestroy: {source.DisplayName} attempted to destroy {obj.Name} but is not the owner. Owner is {obj._net.Owner}." );
 				return;
+			}
+
+			// If the source is the owner but not the host, check if they have permission to destroy.
+			if ( !source.IsHost && !source.CanDestroyObjects )
+			{
+				Log.Warning( $"ObjectDestroy: {source.DisplayName} attempted to destroy {obj.Name} but does not have CanDestroyObjects permission enabled." );
+				return;
+			}
 		}
 
 		obj._net.OnNetworkDestroy();

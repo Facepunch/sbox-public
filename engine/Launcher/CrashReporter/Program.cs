@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Net.Http.Json;
 
 namespace CrashReporter;
@@ -24,6 +24,9 @@ class Program
 
 		// Attach the most recent game log if available
 		AttachLatestLog( envelope );
+
+		// Attach managed stack traces from minidump (ClrMD)
+		AttachManagedStacks( envelope );
 
 		// Submit to Sentry
 		var sentrySubmitted = false;
@@ -96,7 +99,7 @@ class Program
 				return;
 
 			// Walk upward to find the game directory that holds aftermath_dumps and the game executable
-			var gameDir = FindGameRootWithSubdirectory( envelopePath, "aftermath_dumps" );
+			var gameDir = FindGameRoot( envelopePath, "aftermath_dumps" );
 
 			var aftermathDir = Path.Combine( gameDir ?? string.Empty, "aftermath_dumps" );
 			if ( !Directory.Exists( aftermathDir ) )
@@ -188,7 +191,7 @@ class Program
 				return;
 
 			// Walk upward to find the game directory that holds logs and the game executable
-			var gameDir = FindGameRootWithSubdirectory( envelopePath, "logs" );
+			var gameDir = FindGameRoot( envelopePath, "logs" );
 
 			var logsDir = Path.Combine( gameDir ?? string.Empty, "logs" );
 			if ( !Directory.Exists( logsDir ) )
@@ -252,16 +255,18 @@ class Program
 	}
 
 	/// <summary>
-	/// Walks upward from the starting path to find the nearest ancestor that contains a given subdirectory
-	/// and looks like a game root (sbox.exe or sbox-dev.exe present).
-	/// Returns the ancestor path or null if none found.
+	/// Walks upward from the starting path to find the nearest ancestor that looks like a game root
+	/// (sbox.exe or sbox-dev.exe present). Optionally requires a specific subdirectory to exist.
 	/// </summary>
-	static string? FindGameRootWithSubdirectory( string startPath, string subdirectory )
+	static string? FindGameRoot( string startPath, string? requiredSubdirectory = null )
 	{
 		var dir = Path.GetDirectoryName( startPath );
 		while ( !string.IsNullOrEmpty( dir ) )
 		{
-			if ( Directory.Exists( Path.Combine( dir, subdirectory ) ) && IsGameRoot( dir ) )
+			var isRoot = File.Exists( Path.Combine( dir, "sbox.exe" ) ) || File.Exists( Path.Combine( dir, "sbox-dev.exe" ) );
+			var hasSubdir = requiredSubdirectory is null || Directory.Exists( Path.Combine( dir, requiredSubdirectory ) );
+
+			if ( isRoot && hasSubdir )
 			{
 				return dir;
 			}
@@ -277,8 +282,81 @@ class Program
 		return null;
 	}
 
-	static bool IsGameRoot( string dir )
+	/// <summary>
+	/// Checks if this is a retail build by looking for .version file in the game root.
+	/// This file is only present in retail builds.
+	/// </summary>
+	static bool IsRetailBuild( string pathInGameDir )
 	{
-		return File.Exists( Path.Combine( dir, "sbox.exe" ) ) || File.Exists( Path.Combine( dir, "sbox-dev.exe" ) );
+		var gameRoot = FindGameRoot( pathInGameDir );
+		if ( gameRoot is null )
+			return false;
+
+		return File.Exists( Path.Combine( gameRoot, ".version" ) );
+	}
+
+	/// <summary>
+	/// Finds the most recent minidump and extracts managed (.NET) stack traces using ClrMD.
+	/// This provides visibility into C# frames that would otherwise appear as "unknown" in native dumps.
+	/// </summary>
+	static void AttachManagedStacks( Envelope envelope )
+	{
+		try
+		{
+			string? managedStacks = null;
+			string? minidumpPathToDelete = null;
+
+			// First, try to find a minidump file on disk (dev builds write full memory dumps)
+			var envelopePath = envelope.FilePath;
+			if ( !string.IsNullOrEmpty( envelopePath ) )
+			{
+				var gameDir = FindGameRoot( envelopePath );
+				if ( !string.IsNullOrEmpty( gameDir ) )
+				{
+					var minidumpPath = ManagedStackExtractor.FindRecentMinidump( gameDir );
+					if ( !string.IsNullOrEmpty( minidumpPath ) )
+					{
+						Console.WriteLine( $"Processing disk minidump: {minidumpPath}" );
+						managedStacks = ManagedStackExtractor.ExtractManagedStacks( minidumpPath );
+
+						// Mark for deletion after successful extraction
+						if ( !string.IsNullOrEmpty( managedStacks ) )
+						{
+							minidumpPathToDelete = minidumpPath;
+						}
+					}
+				}
+			}
+
+			if ( string.IsNullOrEmpty( managedStacks ) )
+			{
+				Console.WriteLine( "No managed stacks extracted" );
+				return;
+			}
+
+			// Attach as a text file
+			var data = System.Text.Encoding.UTF8.GetBytes( managedStacks );
+			envelope.AddAttachment( "managed_stacks.txt", data, "text/plain" );
+			Console.WriteLine( $"Attached managed stacks: {data.Length:N0} bytes" );
+
+			// Delete the disk minidump after successful processing (retail builds only)
+			// Dev builds (sbox-dev.exe) keep the minidump for debugging
+			if ( !string.IsNullOrEmpty( minidumpPathToDelete ) && IsRetailBuild( minidumpPathToDelete ) )
+			{
+				try
+				{
+					File.Delete( minidumpPathToDelete );
+					Console.WriteLine( $"Deleted processed minidump: {Path.GetFileName( minidumpPathToDelete )}" );
+				}
+				catch ( Exception ex )
+				{
+					Console.WriteLine( $"Failed to delete minidump: {ex.Message}" );
+				}
+			}
+		}
+		catch ( Exception ex )
+		{
+			Console.WriteLine( $"Error attaching managed stacks: {ex.Message}" );
+		}
 	}
 }

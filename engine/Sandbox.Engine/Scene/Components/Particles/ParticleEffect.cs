@@ -515,7 +515,11 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 			var localPos = lastTransform.PointToLocal( p.Position );
 			var worldPos = _worldTx.PointToWorld( localPos );
 
+			var localVelocity = lastTransform.NormalToLocal( p.Velocity.Normal );
+			var worldVelocity = _worldTx.NormalToWorld( localVelocity ) * p.Velocity.Length;
+
 			p.Position = p.Position.LerpTo( worldPos, localSpace );
+			p.Velocity = p.Velocity.LerpTo( worldVelocity, localSpace );
 		}
 
 		p.ApplyDamping( damping * timeScale );
@@ -549,7 +553,8 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		// Apply constant movement
 		if ( !ConstantMovement.IsNearlyZero() )
 		{
-			p.Position += ConstantMovement.Evaluate( p, 4395 ) * _timeDelta;
+			var constantMovement = ConstantMovement.Evaluate( p, 4395 ) * _timeDelta;
+			p.Position += constantMovement.LerpTo( _worldTx.NormalToWorld( constantMovement ) * constantMovement.Length, localSpace );
 		}
 
 		if ( Collision )
@@ -811,6 +816,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	/// <returns>A particle, will never be null. It's up to you to obey max particles.</returns>
 	public Particle Emit( Vector3 position, float delta )
 	{
+		var localSpace = LocalSpace.Evaluate( 0, 254 ).Clamp( 0, 1 );
 		var delay = StartDelay.Evaluate( delta, Random.Shared.Float() );
 
 		var p = Particle.Create();
@@ -819,7 +825,10 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		p.StartPosition = position;
 		p.Radius = 1.0f;
 		p.Velocity = Vector3.Random.Normal * StartVelocity.Evaluate( delta, Random.Shared.Float() );
-		p.Velocity += InitialVelocity.Evaluate( delta, Random.Shared.Float(), Random.Shared.Float(), Random.Shared.Float() );
+
+		var initialVelocity = InitialVelocity.Evaluate( delta, Random.Shared.Float(), Random.Shared.Float(), Random.Shared.Float() );
+		p.Velocity += initialVelocity.LerpTo( WorldTransform.NormalToWorld( initialVelocity ) * initialVelocity.Length, localSpace );
+
 		p.BornTime += delay;
 		p.DeathTime = p.BornTime + Lifetime.Evaluate( delta, p.Rand( 145, 100 ) );
 

@@ -19,16 +19,25 @@ public class NetworkingSettings : ConfigData
 	public bool AutoSwitchToBestHost { get; set; } = true;
 
 	/// <summary>
-	/// By default can clients create objects. This can be changed per connection after join.
+	/// By default, can clients create objects. This can be changed per connection after join.
 	/// </summary>
 	[Title( "Client Object Spawning" )]
+	[Group( "Default Client Permissions" )]
 	public bool ClientsCanSpawnObjects { get; set; } = true;
 
 	/// <summary>
-	/// By default can clients refresh objects. This can be changed per connection after join.
+	/// By default, can clients refresh objects. This can be changed per connection after join.
 	/// </summary>
 	[Title( "Client Object Refreshing" )]
+	[Group( "Default Client Permissions" )]
 	public bool ClientsCanRefreshObjects { get; set; } = true;
+
+	/// <summary>
+	/// By default, can clients destroy objects. This can be changed per connection after join.
+	/// </summary>
+	[Title( "Client Object Destroying" )]
+	[Group( "Default Client Permissions" )]
+	public bool ClientsCanDestroyObjects { get; set; } = true;
 
 	/// <summary>
 	/// The frequency at which the network system will send updates to clients. Higher is better but

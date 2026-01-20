@@ -116,7 +116,7 @@ public class LoadingContext
 	/// <summary>
 	/// The title of this loading task
 	/// </summary>
-	public string Title { get; internal set; }
+	public string Title { get; set; }
 
 	/// <summary>
 	/// True if the task has completed

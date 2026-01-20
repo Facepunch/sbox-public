@@ -316,4 +316,9 @@ internal class ToolsDll : IToolsDll
 		return Bitmap.CreateFromBytes( pixels );
 	}
 
+	/// <summary>
+	/// Public access to the editor system, from Game-side
+	/// </summary>
+	public EditorSystem ActiveEditor { get; } = new EditorSystemPublic();
+
 }

@@ -1,16 +1,14 @@
 ﻿namespace Sandbox.Resources;
 
 /// <summary>
-/// The VTex format is:
-/// 
-/// 1. Header (width, depth etc)
-/// 2. Extra data blocks
-/// 3. Streaming Data (encoded textures)
-///		- smallest mip 
-///		- mip
-///		- mip
-///		- main texture
-/// 
+/// Writes the VTEX data format (texture header and streaming data).
+///
+/// The format consists of:
+/// 1. Header (width, height, depth, format, flags, etc.)
+/// 2. Extra data blocks (not currently used)
+/// 3. Streaming data (encoded texture pixels)
+///    - Ordered from smallest mip to largest
+///    - For cubemaps: each mip contains all 6 faces in order (face 0-5)
 /// </summary>
 internal class VTexWriter
 {
@@ -92,19 +90,19 @@ internal class VTexWriter
 		log.Trace( $"Writing Textures: {Header.Format} / {outputFormat}" );
 
 		//
-		// Smallest mip first boys
+		// Smallest mip first, then by face (for cubemaps)
+		// Layout: [mip N face 0][mip N face 1]...[mip N face 5][mip N-1 face 0]...
 		//
-		foreach ( var layer in Layers.OrderByDescending( x => x.Mip ) )
+		foreach ( var layer in Layers.OrderByDescending( x => x.Mip ).ThenBy( x => x.Face ) )
 		{
 			var encoded = layer.Bitmap.ToFormat( outputFormat );
 
 			if ( encoded is null )
 			{
-				Log.Warning( $"Error encoding {layer.Mip} [{layer.Bitmap.Width}x{layer.Bitmap.Height}] to {outputFormat}" );
-				continue;
+				throw new System.Exception( $"Failed to encode mip {layer.Mip} face {layer.Face} [{layer.Bitmap.Width}x{layer.Bitmap.Height}] to {outputFormat}" );
 			}
 
-			log.Trace( $"Writing Bitmap: {layer.Mip} [{layer.Bitmap.Width}x{layer.Bitmap.Height}] [{encoded.Length}]" );
+			log.Trace( $"Writing Bitmap: mip {layer.Mip} face {layer.Face} [{layer.Bitmap.Width}x{layer.Bitmap.Height}] [{encoded.Length}]" );
 			buffer.Write( encoded );
 		}
 
@@ -113,6 +111,7 @@ internal class VTexWriter
 	}
 
 
+	[System.Runtime.InteropServices.StructLayout( System.Runtime.InteropServices.LayoutKind.Sequential, Pack = 1 )]
 	public struct VTEX_Header_t
 	{
 		public VTEX_Header_t() { }
@@ -243,18 +242,20 @@ internal class VTexWriter
 		public Bitmap Bitmap { get; set; }
 		public bool Opaque { get; set; }
 		public int Mip { get; set; }
+		public int Face { get; set; }
 		public bool Hdr { get; set; }
 		public bool IsPowerOfTwo => Bitmap.Width.IsPowerOfTwo() && Bitmap.Height.IsPowerOfTwo();
 	}
 
 	public List<TextureLayer> Layers = new();
 
-	internal void SetTexture( Bitmap bitmap, int mip )
+	internal void SetTexture( Bitmap bitmap, int mip, int face = 0 )
 	{
 		var layer = new TextureLayer
 		{
 			Bitmap = bitmap,
 			Mip = mip,
+			Face = face,
 			Opaque = bitmap.IsOpaque(),
 			Hdr = bitmap.IsFloatingPoint
 		};
