@@ -705,7 +705,7 @@ public class GraphView : GraphicsView, IGridSizeView
 			onChange: s => PopulateNodeMenu( menu, clickPos, targetPlug, s ) );
 	}
 
-	public CommentUI CreateNewComment( string text, CommentColor color, Vector2 position, Vector2 size )
+	public virtual CommentUI CreateNewComment( string text, CommentColor color, Vector2 position, Vector2 size )
 	{
 		using var undoScope = UndoScope( "Add Comment" );
 
