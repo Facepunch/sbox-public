@@ -1085,7 +1085,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		Preview = null;
 	}
 
-	private Connection CreateConnection( PlugOut nodeOutput, PlugIn dropTarget, bool uiOnly = false )
+	protected virtual Connection CreateConnection( PlugOut nodeOutput, PlugIn dropTarget, bool uiOnly = false )
 	{
 		ArgumentNullException.ThrowIfNull( nodeOutput );
 		ArgumentNullException.ThrowIfNull( dropTarget );
