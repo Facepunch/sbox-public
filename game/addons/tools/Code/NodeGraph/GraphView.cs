@@ -758,7 +758,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		return nodeUI;
 	}
 
-	protected NodeUI CreateNodeUI( INode node )
+	protected virtual NodeUI CreateNodeUI( INode node )
 	{
 		var item = node.CreateUI( this );
 		Add( item );
