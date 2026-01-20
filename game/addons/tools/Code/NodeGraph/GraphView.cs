@@ -695,7 +695,7 @@ public class GraphView : GraphicsView, IGridSizeView
 
 	}
 
-	private void CreateNodeMenu( Menu menu, Vector2 pos, Vector2 clickPos, Plug targetPlug = null )
+	protected virtual void CreateNodeMenu( Menu menu, Vector2 pos, Vector2 clickPos, Plug targetPlug = null )
 	{
 		menu.AboutToShow += () => PopulateNodeMenu( menu, clickPos, targetPlug );
 
