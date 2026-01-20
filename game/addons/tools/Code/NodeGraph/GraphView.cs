@@ -466,7 +466,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		OnSelectionChanged?.Invoke();
 	}
 
-	internal void RemoveNode( NodeUI node )
+	public virtual void RemoveNode( NodeUI node )
 	{
 		var connections = Connections.Where( x => x.IsAttachedTo( node ) ).ToList();
 
