@@ -730,13 +730,13 @@ public class GraphView : GraphicsView, IGridSizeView
 		CreateNewNode( RerouteNodeType, position );
 	}
 
-	public NodeUI CreateNewNode( INodeType type, Vector2 position )
+	public virtual NodeUI CreateNewNode( INodeType type, Vector2 position )
 	{
 		return CreateNewNode( type, node =>
 			node.Position = position.SnapToGrid( GridSize ) );
 	}
 
-	public NodeUI CreateNewNode( INodeType type, Action<INode> onCreated = null )
+	public virtual NodeUI CreateNewNode( INodeType type, Action<INode> onCreated = null )
 	{
 		if ( type == null )
 			return null;
@@ -766,7 +766,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		return item;
 	}
 
-	public void CreateNewNode( INodeType type, Vector2 position, Plug targetPlug, bool selected = true )
+	public virtual void CreateNewNode( INodeType type, Vector2 position, Plug targetPlug, bool selected = true )
 	{
 		using var undoScope = UndoScope( "Add Node" );
 
