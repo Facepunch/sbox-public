@@ -86,8 +86,28 @@ static class ManagedStackExtractor
 
 					if ( thread.CurrentException != null )
 					{
-						sb.AppendLine( $"  ** EXCEPTION: {thread.CurrentException.Type?.Name}: {thread.CurrentException.Message}" );
+						var ex = thread.CurrentException;
+						sb.AppendLine( $"  ** EXCEPTION: {ex.Type?.Name}: {ex.Message}" );
+
+						// Print the exception's stack trace if available
+						foreach ( var frame in ex.StackTrace )
+						{
+							var method = frame.Method;
+							if ( method != null )
+							{
+								var typeName = method.Type?.Name ?? "<unknown type>";
+								var methodName = method.Name ?? "<unknown method>";
+								var signature = GetMethodSignature( method );
+								sb.AppendLine( $"       at {typeName}.{methodName}{signature}" );
+							}
+							else
+							{
+								sb.AppendLine( $"       at 0x{frame.InstructionPointer:X16} <native>" );
+							}
+						}
 					}
+
+					sb.AppendLine( "" );
 
 					var frames = thread.EnumerateStackTrace().ToList();
 					var frameIndex = 0;
