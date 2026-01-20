@@ -565,7 +565,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		}
 	}
 
-	private void PopulateNodeMenu( Menu menu, Vector2 clickPos, Plug targetPlug = null, string filter = null )
+	protected virtual void PopulateNodeMenu( Menu menu, Vector2 clickPos, Plug targetPlug = null, string filter = null )
 	{
 		var visible = menu.Visible;
 
