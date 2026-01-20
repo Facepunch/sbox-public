@@ -944,7 +944,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		return selectedItem as Plug;
 	}
 
-	private NodeUI GetNodeAt( Vector2 scenePosition )
+	protected NodeUI GetNodeAt( Vector2 scenePosition )
 	{
 		if ( GetPlugAt( scenePosition ) is { } plug )
 		{
