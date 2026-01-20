@@ -1203,6 +1203,7 @@ public class GraphView : GraphicsView, IGridSizeView
 	/// <param name="insert">If true, we're inserting new nodes so there won't be any existing UI elements for them.</param>
 	/// <param name="offset">Optional position offset to apply to new nodes.</param>
 	/// <param name="selectNew">If true, select newly-created nodes and connections.</param>
+	public virtual void BuildFromNodes( IEnumerable<INode> nodes, bool insert, Vector2 offset = default, bool selectNew = false )
 	{
 		var nodesSet = nodes.ToImmutableHashSet();
 
