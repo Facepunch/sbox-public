@@ -104,8 +104,6 @@ internal class CloudAssetDirectory : IDisposable
 
 		packages.Insert( package );
 
-		// Force checkpoint to ensure data is persisted to disk
-		db.Checkpoint();
 
 		packageCache[package.FullIdent] = package;
 	}
