@@ -1110,7 +1110,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		return connection;
 	}
 
-	internal void RemoveConnection( Connection c )
+	public virtual void RemoveConnection( Connection c )
 	{
 		if ( c.Input.Inner.ConnectedOutput == c.Output.Inner )
 		{
