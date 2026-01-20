@@ -622,7 +622,7 @@ public class GraphView : GraphicsView, IGridSizeView
 			reduce: true );
 	}
 
-	private void OpenContextMenu( Vector2 pos, Vector2 clickPos, Plug targetPlug = null, Action onClose = null )
+	protected virtual void OpenContextMenu( Vector2 pos, Vector2 clickPos, Plug targetPlug = null, Action onClose = null )
 	{
 		var menu = new ContextMenu( this );
 		var anySelected = false;
