@@ -48483,7 +48483,7 @@
 										},
 										{
 											_class = "CParameterAnimCondition"
-											m_comparisonOp = 2
+											m_comparisonOp = 4
 											m_paramID = 
 											{
 												m_id = 1146062733
@@ -48598,7 +48598,7 @@
 									[
 										{
 											_class = "CParameterAnimCondition"
-											m_comparisonOp = 4
+											m_comparisonOp = 2
 											m_paramID = 
 											{
 												m_id = 1146062733
