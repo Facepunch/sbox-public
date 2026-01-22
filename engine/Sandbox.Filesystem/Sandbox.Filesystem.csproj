@@ -23,7 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Sandbox.Generator\Sandbox.Generator.csproj" />
     <ProjectReference Include="..\Sandbox.System\Sandbox.System.csproj" />
-    <PackageReference Include="Zio" Version="0.19.2" />
+    <PackageReference Include="Zio" Version="0.22.1" />
   </ItemGroup>
   
 </Project>
