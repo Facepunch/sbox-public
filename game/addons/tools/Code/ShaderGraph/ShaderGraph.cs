@@ -95,7 +95,7 @@ public sealed partial class ShaderGraph : IGraph
 	public PreviewSettings PreviewSettings { get; set; } = new();
 
 	[Hide]
-	public int Version { get; set; } = 1;
+	public int Version => 1;
 
 	public ShaderGraph()
 	{
