@@ -33,6 +33,8 @@ internal class CasefoldSubFileSystem : SubFileSystem
 		//TODO: We should dive into FallbackSafe until we hit the proper filesystem.
 		if (fs is SubFileSystem sfs)
 		{
+			//TODO: I had to bump Zio to make this work, but I think FallbackSafe should be internal for our purposes
+			//Add Mono.Cecil to pipeline?
 			if(sfs.FallbackSafe is SubFileSystem sub_sfs)
 			{
 				return Casepath_recursive(sub_sfs,UPath.Combine(sfs.SubPath,inPath));
