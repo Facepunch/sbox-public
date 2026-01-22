@@ -558,6 +558,50 @@
 						name = "Citizen_weightlists"
 						target_file = "models/citizen/prefabs/citizen_weightlistlist.vmdl_prefab"
 					},
+					{
+						_class = "WeightList"
+						name = "Human_Blink"
+						default_weight = 0.0
+						weights = 
+						[
+							{
+								bone = "face_lid_lower_L"
+								weight = 1.0
+							},
+							{
+								bone = "face_lid_lower_R"
+								weight = 1.0
+							},
+							{
+								bone = "face_lid_upper_L"
+								weight = 1.0
+							},
+							{
+								bone = "face_lid_upper_R"
+								weight = 1.0
+							},
+						]
+						master_morph_weight = 0.0
+						morph_weights = 
+						[
+							{
+								morph = "eyeBlink_L"
+								weight = 1.0
+							},
+							{
+								morph = "eyeBlink_R"
+								weight = 1.0
+							},
+							{
+								morph = "eyelidbulgelower"
+								weight = 1.0
+							},
+							{
+								morph = "eyelidbulgeupper"
+								weight = 1.0
+							},
+						]
+					},
 				]
 			},
 			{

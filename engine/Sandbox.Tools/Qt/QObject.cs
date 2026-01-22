@@ -68,7 +68,8 @@ namespace Editor
 				}
 				catch ( System.Exception ex )
 				{
-					Log.Error( ex );
+					try { Log.Error( ex ); }
+					catch { }
 				}
 			};
 

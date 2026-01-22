@@ -18,6 +18,15 @@ MODES
 COMMON
 {
 	#include "common/shared.hlsl"
+
+	enum SpriteFlags
+	{
+		None = 0x0,
+		CastShadows = 0x1,
+		FlipW = 0x2,
+		FlipH = 0x4,
+		SnapToFrame = 0x8
+	};
 }
 
 struct PixelInput
@@ -206,8 +215,18 @@ VS
 
 		float blendAmount = 0.0f;
 		float4 blendedUV = float4(0.0f, 0.0f, 0.0f, 0.0f);
-		
-		Sheet::Blended(sprite.BlendSheetUV, sprite.Sequence, sprite.SequenceTime, v.uv, blendedUV.xy, blendedUV.zw, blendAmount );
+
+		bool snapToFrame = (sprite.Flags & SnapToFrame) != 0;
+
+		if (snapToFrame)
+		{
+			blendedUV.xy = Sheet::Single(sprite.BlendSheetUV, sprite.Sequence, sprite.SequenceTime, v.uv);
+			blendedUV.zw = blendedUV.xy;
+		}
+		else
+		{
+			Sheet::Blended(sprite.BlendSheetUV, sprite.Sequence, sprite.SequenceTime, v.uv, blendedUV.xy, blendedUV.zw, blendAmount);
+		}
 
 		PixelInput o;
 		o.vPositionWs = mul(transpose(transform), float4(v.position.xyz, 1)).xyz;
@@ -242,14 +261,6 @@ PS
 	#endif
 
 	RenderState( CullMode, NONE );
-
-	enum SpriteFlags 
-	{
-		None = 0x0,
-		CastShadows = 0x1,
-		FlipW = 0x2,
-		FlipH = 0x4
-	};
 
 	struct SpriteVertex
 	{

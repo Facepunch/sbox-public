@@ -298,6 +298,12 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	public ParticleFloat SequenceSpeed { get; set; } = 1.0f;
 
 	/// <summary>
+	/// When enabled, snap to the nearest whole frame instead of blending between frames.
+	/// </summary>
+	[Property, Feature( "SheetSequence" ), Title( "Snap To Frame" )]
+	public bool SnapToFrame { get; set; } = false;
+
+	/// <summary>
 	/// Enables or disables the use of prefabs for particles.
 	/// </summary>
 	[Property, FeatureEnabled( "Prefab", Icon = "widgets", Description = "Attach a prefab to a particle" )]

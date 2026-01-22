@@ -219,8 +219,19 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 
 					var textSize = 22 * Gizmo.Settings.GizmoScale * Application.DpiScale;
 					var distance = line.Start.Distance( line.End );
-					Gizmo.Draw.Color = Color.White;
-					Gizmo.Draw.ScreenText( $"{distance:0.##}", edge.Transform.PointToWorld( line.Center ), 0, size: textSize );
+
+					var textScope = new TextRendering.Scope
+					{
+						Text = $"{distance:0.##}",
+						TextColor = Color.White,
+						FontSize = textSize,
+						FontName = "Roboto Mono",
+						FontWeight = 400,
+						LineHeight = 1,
+						Outline = new TextRendering.Outline() { Color = Color.Black, Enabled = true, Size = 3 }
+					};
+
+					Gizmo.Draw.ScreenText( textScope, edge.Transform.PointToWorld( line.Center ), 0 );
 				}
 			}
 		}
