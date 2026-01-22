@@ -31,6 +31,8 @@ partial class ShaderGraph
 		SerializeObject( this, doc, options );
 		SerializeNodes( Nodes, doc, options );
 
+		doc.Add( "__version", JsonSerializer.SerializeToNode( Version, options ) );
+
 		return doc.ToJsonString( options );
 	}
 
