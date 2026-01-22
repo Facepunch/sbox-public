@@ -6,7 +6,22 @@ using System.Text.Json.Serialization;
 namespace Editor.ShaderGraph;
 
 partial class ShaderGraph
-{ 
+{
+	/// <summary>
+	/// Gets the version of the provided JsonElement. Returns 0 on failure.
+	/// </summary>
+	private static int GetVersion( JsonElement element )
+	{
+		if ( element.TryGetProperty( "__version", out var versionElement ) )
+		{
+			return versionElement.GetInt32();
+		}
+
+		Log.Warning( $"JsonElement has no property named \"__version\". Defaulting to 0...." );
+
+		return 0;
+	}
+
 	/// <summary>
 	/// Check if a legacy parameter node should be upgraded to SubgraphInput.
 	/// </summary>
