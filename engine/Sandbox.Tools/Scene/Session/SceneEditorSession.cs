@@ -382,7 +382,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public static Scene.ISceneEditorSession Resolve( GameObject go )
 	{
-		ArgumentNullException.ThrowIfNull( go, nameof( go ) );
+		if ( go is null ) return null;
 
 		var session = go.Scene.Editor;
 		if ( session is null )
