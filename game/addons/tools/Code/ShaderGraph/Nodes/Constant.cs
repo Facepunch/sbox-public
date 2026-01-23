@@ -5,7 +5,7 @@ namespace Editor.ShaderGraph.Nodes;
 /// <summary>
 /// Bool value
 /// </summary>
-[Title( "Bool Constant" ), Category( "Constants" ), Icon( "check_box" )]
+[Title( "Bool Constant" ), Category( "Constants" ), Icon( "check_box" ), Order( 0 )]
 public sealed class BoolConstant : ConstantNode<int>
 {
 	[Output( typeof( bool ) ), Title( "Value" )]
@@ -23,7 +23,7 @@ public sealed class BoolConstant : ConstantNode<int>
 /// <summary>
 /// Single int value
 /// </summary>
-[Title( "Int Constant" ), Category( "Constants" ), Icon( "looks_one" )]
+[Title( "Int Constant" ), Category( "Constants" ), Icon( "looks_one" ), Order( 1 )]
 public sealed class ConstantInt : ConstantNode<float>
 {
 	[Hide] public float Step => 1;
@@ -48,7 +48,7 @@ public sealed class ConstantInt : ConstantNode<float>
 /// <summary>
 /// Single float value
 /// </summary>
-[Title( "Float Constant" ), Category( "Constants" ), Icon( "looks_one" )]
+[Title( "Float Constant" ), Category( "Constants" ), Icon( "looks_one" ), Order( 2 )]
 public sealed class ConstantFloat : ConstantNode<float>
 {
 	public float Step { get; set; } = 0.0f;
@@ -73,7 +73,7 @@ public sealed class ConstantFloat : ConstantNode<float>
 /// <summary>
 /// 2 float values
 /// </summary>
-[Title( "Float2 Constant" ), Category( "Constants" ), Icon( "looks_two" )]
+[Title( "Float2 Constant" ), Category( "Constants" ), Icon( "looks_two" ), Order( 3 )]
 public sealed class ConstantFloat2 : ConstantNode<Vector2>
 {
 	[Output( typeof( Vector2 ) ), Title( "XY" ), Hide]
@@ -129,7 +129,7 @@ public sealed class ConstantFloat2 : ConstantNode<Vector2>
 /// <summary>
 /// 3 float values
 /// </summary>
-[Title( "Float3 Constant" ), Category( "Constants" ), Icon( "looks_3" )]
+[Title( "Float3 Constant" ), Category( "Constants" ), Icon( "looks_3" ), Order( 4 )]
 public sealed class ConstantFloat3 : ConstantNode<Vector3>
 {
 	[Output( typeof( Vector3 ) ), Title( "XYZ" ), Hide]
@@ -201,7 +201,7 @@ public sealed class ConstantFloat3 : ConstantNode<Vector3>
 /// <summary>
 /// 3 float values
 /// </summary>
-[Title( "Float4 Constant" ), Category( "Constants" ), Icon( "looks_4" )]
+[Title( "Float4 Constant" ), Category( "Constants" ), Icon( "looks_4" ), Order( 5 )]
 public sealed class ConstantFloat4 : ConstantNode<Vector4>
 {
 	[Output( typeof( Vector4 ) ), Title( "XYZW" ), Hide]
@@ -289,7 +289,7 @@ public sealed class ConstantFloat4 : ConstantNode<Vector4>
 /// <summary>
 /// Color value
 /// </summary>
-[Title( "Color Constant" ), Category( "Constants" ), Icon( "palette" )]
+[Title( "Color Constant" ), Category( "Constants" ), Icon( "palette" ), Order( 6 )]
 public sealed class ConstantColor : ConstantNode<Color>
 {
 	[Output( typeof( Color ) ), Title( "RGBA" )]
