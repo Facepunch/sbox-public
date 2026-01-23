@@ -16,12 +16,12 @@ public sealed partial class GraphCompiler
 
 	public static Dictionary<Type, string> ValueTypes => new()
 	{
-		{typeof(Color), "float4" },
-		{typeof(Vector4), "float4" },
-		{typeof(Vector3), "float3" },
-		{typeof(Vector2), "float2" },
-		{typeof(float), "float" },
-		{typeof(bool), "bool" }
+		{ typeof(Color), "float4" },
+		{ typeof(Vector4), "float4" },
+		{ typeof(Vector3), "float3" },
+		{ typeof(Vector2), "float2" },
+		{ typeof(float), "float" },
+		{ typeof(bool), "bool" }
 	};
 
 	/// <summary>
@@ -588,12 +588,13 @@ public sealed partial class GraphCompiler
 
 		return value switch
 		{
+			bool v => isNamed ? new NodeResult( NodeResultType.Bool, $"{name}" ) : new NodeResult( NodeResultType.Bool, $"{v}" ),
+			int v => isNamed ? new NodeResult( NodeResultType.Int, $"{name}" ) : new NodeResult( NodeResultType.Int, $"{v}", true ),
 			float v => isNamed ? new NodeResult( NodeResultType.Float, $"{name}" ) : new NodeResult( NodeResultType.Float, $"{v}", true ),
 			Vector2 v => isNamed ? new NodeResult( NodeResultType.Vector2, $"{name}" ) : new NodeResult( NodeResultType.Vector2, $"float2( {v.x}, {v.y} )" ),
 			Vector3 v => isNamed ? new NodeResult( NodeResultType.Vector3, $"{name}" ) : new NodeResult( NodeResultType.Vector3, $"float3( {v.x}, {v.y}, {v.z} )" ),
 			Vector4 v => isNamed ? new NodeResult( NodeResultType.Vector4, $"{name}" ) : new NodeResult( NodeResultType.Vector4, $"float4( {v.x}, {v.y}, {v.z}, {v.w} )" ),
 			Color v => isNamed ? new NodeResult( NodeResultType.Color, $"{name}" ) : new NodeResult( NodeResultType.Color, $"float4( {v.r}, {v.g}, {v.b}, {v.a} )" ),
-			bool v => isNamed ? new NodeResult( NodeResultType.Bool, $"{name}" ) : new NodeResult( NodeResultType.Bool, $"{v}" ),
 			_ => throw new ArgumentException( "Unsupported attribute type", nameof( value ) )
 		};
 	}
@@ -698,10 +699,11 @@ public sealed partial class GraphCompiler
 	{
 		return inputType switch
 		{
-			Type t when t == typeof( Vector4 ) || t == typeof( Color ) => 4,
-			Type t when t == typeof( Vector3 ) => 3,
-			Type t when t == typeof( Vector2 ) => 2,
+			Type t when t == typeof( int ) => 1,
 			Type t when t == typeof( float ) => 1,
+			Type t when t == typeof( Vector2 ) => 2,
+			Type t when t == typeof( Vector3 ) => 3,
+			Type t when t == typeof( Vector4 ) || t == typeof( Color ) => 4,
 			_ => 0
 		};
 	}
@@ -951,12 +953,13 @@ public sealed partial class GraphCompiler
 			{
 				var typeName = result.Value switch
 				{
-					Color _ => "float4",
-					Vector4 _ => "float4",
-					Vector3 _ => "float3",
-					Vector2 _ => "float2",
-					float _ => "float",
 					bool _ => "bool",
+					int _ => "int",
+					float _ => "float",
+					Vector2 _ => "float2",
+					Vector3 _ => "float3",
+					Vector4 _ => "float4",
+					Color _ => "float4",
 					_ => null
 				};
 
