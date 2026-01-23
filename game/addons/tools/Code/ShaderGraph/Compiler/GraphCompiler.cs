@@ -15,7 +15,7 @@ public sealed partial class GraphCompiler
 	}
 
 	public static Dictionary<Type, string> ValueTypes => new()
-	{       
+	{
 		{ typeof(bool), "bool" },
 		{ typeof(int), "int" },
 		{ typeof(float), "float" },
@@ -460,9 +460,9 @@ public sealed partial class GraphCompiler
 			return (resultA, resultB);
 
 		if ( resultA.Components < resultB.Components )
-			return (new( resultB.ResultType, resultA.Cast( resultB.Components ) ), resultB );
+			return (new( resultB.ResultType, resultA.Cast( resultB.Components ) ), resultB);
 
-		return ( resultA, new( resultA.ResultType, resultB.Cast( resultA.Components ) ) );
+		return (resultA, new( resultA.ResultType, resultB.Cast( resultA.Components ) ));
 	}
 
 	/// <summary>
