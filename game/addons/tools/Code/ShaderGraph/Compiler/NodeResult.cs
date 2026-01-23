@@ -3,6 +3,7 @@
 public enum NodeResultType
 {
 	Bool,
+	Int,
 	Float,
 	Vector2,
 	Vector3,
