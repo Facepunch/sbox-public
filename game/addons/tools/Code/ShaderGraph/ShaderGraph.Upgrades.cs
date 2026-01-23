@@ -145,7 +145,7 @@ partial class ShaderGraph
 		return subgraphInput;
 	}
 
-	private BaseNode ConvertToConstantNode( string typeName, JsonElement element, JsonSerializerOptions options )
+	private static BaseNode ConvertToConstantNode( string typeName, JsonElement element, JsonSerializerOptions options )
 	{
 		if ( element.TryGetProperty( "Value", out var valueElement ) )
 		{
