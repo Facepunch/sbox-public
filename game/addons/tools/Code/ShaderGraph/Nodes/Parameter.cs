@@ -4,6 +4,32 @@ using System.Text.Json.Serialization;
 namespace Editor.ShaderGraph.Nodes;
 
 /// <summary>
+/// Single int value
+/// </summary>
+[Title( "Int Parameter" ), Category( "Parameters" ), Icon( "looks_one" )]
+public sealed class IntParameter : ParameterNode<int, IntParameterUI>
+{
+	[Hide] public float Step => 1;
+
+	[Output( typeof( int ) ), Title( "Value" )]
+	[Hide, Editor( nameof( Value ) ), Range( nameof( Min ), nameof( Max ), nameof( Step ) )]
+	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
+	{
+		return compiler.ResultParameter( Name, Value, Min, Max, Min != Max, IsAttribute, UI );
+	};
+
+	[Group( "Range" )] public int Min { get; set; }
+	[Group( "Range" )] public int Max { get; set; }
+
+	public IntParameter()
+	{
+		Min = 0;
+		Max = 1;
+		UI = new IntParameterUI();
+	}
+}
+
+/// <summary>
 /// Single float value
 /// </summary>
 [Title( "Float Parameter" ), Category( "Parameters" ), Icon( "looks_one" )]

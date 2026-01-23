@@ -3,6 +3,31 @@
 namespace Editor.ShaderGraph.Nodes;
 
 /// <summary>
+/// Single int value
+/// </summary>
+[Title( "Int Constant" ), Category( "Constants" ), Icon( "looks_one" )]
+public sealed class ConstantInt : ConstantNode<float>
+{
+	[Hide] public float Step => 1;
+
+	[Output( typeof( float ) ), Title( "Value" )]
+	[Hide, Editor( nameof( Value ) ), Range( nameof( Min ), nameof( Max ), nameof( Step ) )]
+	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
+	{
+		return compiler.ResultParameter( "", Value, default, default, false, false, default );
+	};
+
+	[Group( "Range" )] public int Min { get; set; }
+	[Group( "Range" )] public int Max { get; set; }
+
+	public ConstantInt()
+	{
+		Min = 0;
+		Max = 1;
+	}
+}
+
+/// <summary>
 /// Single float value
 /// </summary>
 [Title( "Float Constant" ), Category( "Constants" ), Icon( "looks_one" )]
