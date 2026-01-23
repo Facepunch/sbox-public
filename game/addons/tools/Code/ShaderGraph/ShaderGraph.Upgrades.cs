@@ -13,7 +13,7 @@ partial class ShaderGraph
 		{
 			return versionElement.GetInt32();
 		}
-		else if ( element.TryGetProperty( "Version", out var oldVersionElement ) )
+		else if ( element.TryGetProperty( nameof( Version ), out var oldVersionElement ) )
 		{
 			return oldVersionElement.GetInt32();
 		}
