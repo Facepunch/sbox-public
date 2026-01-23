@@ -66,6 +66,7 @@ public class MainWindow : DockWindow
 	private readonly Dictionary<string, Vector3> _float3Attributes = new();
 	private readonly Dictionary<string, Vector2> _float2Attributes = new();
 	private readonly Dictionary<string, float> _floatAttributes = new();
+	private readonly Dictionary<string, int> _intAttributes = new();
 	private readonly Dictionary<string, bool> _boolAttributes = new();
 
 	private readonly List<BaseNode> _compiledNodes = new();
@@ -353,6 +354,10 @@ public class MainWindow : DockWindow
 				break;
 			case bool v:
 				_boolAttributes.Add( name, v );
+				_preview?.SetAttribute( name, v );
+				break;
+			case int v:
+				_intAttributes.Add( name, v );
 				_preview?.SetAttribute( name, v );
 				break;
 			case Texture v:
@@ -842,6 +847,7 @@ public class MainWindow : DockWindow
 		_float3Attributes.Clear();
 		_float2Attributes.Clear();
 		_floatAttributes.Clear();
+		_intAttributes.Clear();
 		_boolAttributes.Clear();
 		_compiledNodes.Clear();
 
@@ -1161,6 +1167,11 @@ public class MainWindow : DockWindow
 		}
 
 		foreach ( var value in _floatAttributes )
+		{
+			_preview.SetAttribute( value.Key, value.Value );
+		}
+
+		foreach ( var value in _intAttributes )
 		{
 			_preview.SetAttribute( value.Key, value.Value );
 		}
