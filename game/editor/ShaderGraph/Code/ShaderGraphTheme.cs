@@ -2,8 +2,6 @@
 
 internal static class ShaderGraphTheme
 {
-	public record struct BlackboardConfig( string Name, Color Color );
-
 	public static Dictionary<Type, HandleConfig> HandleConfigs { get; private set; }
 
 	static ShaderGraphTheme()
