@@ -331,11 +331,6 @@ public sealed partial class GraphCompiler
 				Subgraph = newStack.Item2;
 				SubgraphNode = lastNode;
 			}
-
-			//if ( value is null )
-			//{
-			//	value = GetDefaultValue( subgraphNode, input.Output, resultType );
-			//}
 		}
 		else
 		{
