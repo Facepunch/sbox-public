@@ -4,6 +4,25 @@ using System.Text.Json.Serialization;
 namespace Editor.ShaderGraph.Nodes;
 
 /// <summary>
+/// Bool value
+/// </summary>
+[Title( "Bool Parameter" ), Category( "Parameters" ), Icon( "check_box" )]
+public sealed class BoolParameter : ParameterNode<bool, BoolParameterUI>
+{
+	[Output( typeof( bool ) ), Title( "Value" )]
+	[Hide, Editor( nameof( Value ) )]
+	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
+	{
+		return compiler.ResultParameter( Name, Value, default, default, false, IsAttribute, UI );
+	};
+
+	public BoolParameter()
+	{
+		UI = new BoolParameterUI();
+	}
+}
+
+/// <summary>
 /// Single int value
 /// </summary>
 [Title( "Int Parameter" ), Category( "Parameters" ), Icon( "looks_one" )]

@@ -3,6 +3,24 @@
 namespace Editor.ShaderGraph.Nodes;
 
 /// <summary>
+/// Bool value
+/// </summary>
+[Title( "Bool Constant" ), Category( "Constants" ), Icon( "check_box" )]
+public sealed class BoolConstant : ConstantNode<int>
+{
+	[Output( typeof( bool ) ), Title( "Value" )]
+	[Hide, Editor( nameof( Value ) )]
+	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
+	{
+		return compiler.ResultParameter( "", Value, default, default, false, false, default );
+	};
+
+	public BoolConstant()
+	{
+	}
+}
+
+/// <summary>
 /// Single int value
 /// </summary>
 [Title( "Int Constant" ), Category( "Constants" ), Icon( "looks_one" )]
