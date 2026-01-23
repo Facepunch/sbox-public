@@ -1,6 +1,11 @@
 ﻿namespace Editor.ShaderGraph;
 
-public abstract class ConstantNode<T> : ShaderNode
+public interface IConstantNode
+{
+
+}
+
+public abstract class ConstantNode<T> : ShaderNode, IConstantNode
 {
 	public T Value { get; set; }
 
