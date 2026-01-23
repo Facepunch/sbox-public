@@ -42,21 +42,11 @@ partial class ShaderGraph
 		var root = doc.RootElement;
 		var options = SerializerOptions();
 
-		// Check for the version so we can handle upgrades
-		var latestVersion = Version;
-		var currentVersion = 0; // Assume 0 for files that don't have the Version property
-		if ( root.TryGetProperty( "Version", out var ver ) )
-		{
-			currentVersion = ver.GetInt32();
-		}
+		// Fetch the current graph version of the file we are loading from disk.
+		var fileVersion = GetVersion( root );
 
-		// Deserialize everything using the current version
-		Version = currentVersion;
 		DeserializeObject( this, root, options );
-		DeserializeNodes( root, options, subgraphPath, currentVersion );
-
-		// Upgrade to the latest version
-		Version = latestVersion;
+		DeserializeNodes( root, options, subgraphPath, fileVersion );
 	}
 
 	public IEnumerable<BaseNode> DeserializeNodes( string json )
@@ -64,16 +54,7 @@ partial class ShaderGraph
 		using var doc = JsonDocument.Parse( json, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip } );
 		var root = doc.RootElement;
 
-		// Check for version in the JSON
-		var fileVersion = 1; // Default to current version
-		if ( root.TryGetProperty( "Version", out var ver ) )
-		{
-			fileVersion = ver.GetInt32();
-		}
-		else
-		{
-			fileVersion = 0; // Old file without version
-		}
+		var fileVersion = GetVersion( root );
 
 		return DeserializeNodes( root, SerializerOptions(), null, fileVersion );
 	}
