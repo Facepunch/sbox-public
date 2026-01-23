@@ -1037,17 +1037,23 @@ public sealed partial class GraphCompiler
 		{
 			int localId = 1;
 
-			foreach ( var result in ShaderResult.Results )
+			foreach ( var (localResult, funcResult) in ShaderResult.Results )
 			{
-				sb.AppendLine( $"{result.Item2.TypeName} {result.Item1} = {result.Item2.Code};" );
-				sb.AppendLine( $"if ( g_iStageId == {localId++} ) return {result.Item1.Cast( 4, 1.0f )};" );
+				sb.AppendLine( $"{funcResult.TypeName} {localResult} = {funcResult.Code};" );
+				//sb.AppendLine( $"if ( g_iStageId == {localId++} ) return {localResult.Cast( 4, 1.0f )};" );
+
+				if ( localResult.ResultType != NodeResultType.Bool )
+				{
+					sb.AppendLine( $"if ( g_iStageId == {localId++} ) return {localResult.Cast( 4, 1.0f )};" );
+				}
 			}
+
 		}
 		else
 		{
-			foreach ( var result in ShaderResult.Results )
+			foreach ( var (localResult, funcResult) in ShaderResult.Results )
 			{
-				sb.AppendLine( $"{result.Item2.TypeName} {result.Item1} = {result.Item2.Code};" );
+				sb.AppendLine( $"{funcResult.TypeName} {localResult} = {funcResult.Code};" );
 			}
 		}
 
