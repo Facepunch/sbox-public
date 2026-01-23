@@ -155,7 +155,7 @@ internal class CasefoldPhysicalFileSystem : PhysicalFileSystem
 		return base.ValidatePathImpl( Casepath( path ), name );
 	}
 
-	
+
 
 
 }
