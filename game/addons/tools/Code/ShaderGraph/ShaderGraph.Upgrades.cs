@@ -90,7 +90,7 @@ partial class ShaderGraph
 	/// <summary>
 	/// Create a new SubgraphInput node from a legacy parameter node
 	/// </summary>
-	private SubgraphInput CreateUpgradedSubgraphInput( string typeName, JsonElement element, JsonSerializerOptions options )
+	private static SubgraphInput CreateUpgradedSubgraphInput( string typeName, JsonElement element, JsonSerializerOptions options )
 	{
 		var subgraphInput = new SubgraphInput();
 
