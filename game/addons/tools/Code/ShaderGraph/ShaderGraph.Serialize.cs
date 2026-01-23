@@ -117,9 +117,9 @@ partial class ShaderGraph
 		{
 			var typeName = element.GetProperty( "_class" ).GetString();
 
-			if ( fileVersion < 2 && ShouldUseNewParameterTypeName( typeName ) )
+			if ( fileVersion < 2 && ShouldUseNewParameterTypeName_v2Upgrade( typeName ) )
 			{
-				typeName = GetNewParameterTypeName( typeName );
+				typeName = GetNewParameterTypeName_v2Upgrade( typeName );
 			}
 
 			var typeDesc = EditorTypeLibrary.GetType( typeName );
@@ -136,13 +136,13 @@ partial class ShaderGraph
 			{
 				// Check if this is a legacy parameter node that should be upgraded to SubgraphInput
 				// Only upgrade for old subgraph files (files without Version property aka. 0 -> 1)
-				if ( IsSubgraph && fileVersion < 1 && ShouldUpgradeToSubgraphInput( typeName, element ) )
+				if ( IsSubgraph && fileVersion < 1 && ShouldUpgradeToSubgraphInput_v1Upgrade( typeName, element ) )
 				{
-					node = CreateUpgradedSubgraphInput( typeName, element, options );
+					node = CreateUpgradedSubgraphInput_v1Upgrade( typeName, element, options );
 				}
-				else if ( fileVersion < 2 && ShouldConvertParameterNodeToConstant( typeName, element ) )
+				else if ( fileVersion < 2 && ShouldConvertParameterNodeToConstant_v2Upgrade( typeName, element ) )
 				{
-					node = ConvertToConstantNode( typeName, element, options );
+					node = ConvertToConstantNode_v2Upgrade( typeName, element, options );
 				}
 				else
 				{

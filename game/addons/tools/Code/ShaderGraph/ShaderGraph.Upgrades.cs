@@ -27,10 +27,10 @@ partial class ShaderGraph
 	/// <summary>
 	/// Check if a legacy parameter node should be upgraded to SubgraphInput.
 	/// </summary>
-	private static bool ShouldUpgradeToSubgraphInput( string typeName, JsonElement element )
+	private static bool ShouldUpgradeToSubgraphInput_v1Upgrade( string typeName, JsonElement element )
 	{
 		// Only upgrade if it's a parameter node type
-		if ( !IsParameterNodeType( typeName ) )
+		if ( !IsParameterNodeType_v1Upgrade( typeName ) )
 			return false;
 
 		// Only upgrade if it has a name (indicating it's meant to be an input)
@@ -43,10 +43,10 @@ partial class ShaderGraph
 		return false;
 	}
 
-	private static bool ShouldConvertParameterNodeToConstant( string typeName, JsonElement element )
+	private static bool ShouldConvertParameterNodeToConstant_v2Upgrade( string typeName, JsonElement element )
 	{
 		// Only upgrade if it's a parameter node type
-		if ( !IsParameterNodeTypeToConvertToConstant( typeName ) )
+		if ( !IsParameterNodeTypeToConvertToConstant_v2Upgrade( typeName ) )
 			return false;
 
 		// Only convert if it dosent have a name (indicating it's meant to be a constant value)
@@ -59,7 +59,7 @@ partial class ShaderGraph
 		return true;
 	}
 
-	private static bool ShouldUseNewParameterTypeName( string typeName )
+	private static bool ShouldUseNewParameterTypeName_v2Upgrade( string typeName )
 	{
 		return typeName switch
 		{
@@ -72,9 +72,9 @@ partial class ShaderGraph
 	}
 
 	/// <summary>
-	/// Check if the type name represents a parameter node
+	/// Check if the type name represents a parameter node.
 	/// </summary>
-	private static bool IsParameterNodeType( string typeName )
+	private static bool IsParameterNodeType_v1Upgrade( string typeName )
 	{
 		return typeName switch
 		{
@@ -87,14 +87,14 @@ partial class ShaderGraph
 		};
 	}
 
-	private static bool IsParameterNodeTypeToConvertToConstant( string typeName )
+	private static bool IsParameterNodeTypeToConvertToConstant_v2Upgrade( string typeName )
 	{
 		return typeName switch
 		{
-			"Float" => true,
-			"Float2" => true,
-			"Float3" => true,
-			"Float4" => true,
+			"FloatParameter" => true,
+			"Float2Parameter" => true,
+			"Float3Parameter" => true,
+			"ColorParameter" => true,
 			_ => false
 		};
 	}
@@ -102,7 +102,7 @@ partial class ShaderGraph
 	/// <summary>
 	/// Create a new SubgraphInput node from a legacy parameter node
 	/// </summary>
-	private static SubgraphInput CreateUpgradedSubgraphInput( string typeName, JsonElement element, JsonSerializerOptions options )
+	private static SubgraphInput CreateUpgradedSubgraphInput_v1Upgrade( string typeName, JsonElement element, JsonSerializerOptions options )
 	{
 		var subgraphInput = new SubgraphInput();
 
@@ -157,7 +157,7 @@ partial class ShaderGraph
 		return subgraphInput;
 	}
 
-	private static BaseNode ConvertToConstantNode( string typeName, JsonElement element, JsonSerializerOptions options )
+	private static BaseNode ConvertToConstantNode_v2Upgrade( string typeName, JsonElement element, JsonSerializerOptions options )
 	{
 		if ( element.TryGetProperty( "Value", out var valueElement ) )
 		{
@@ -165,27 +165,27 @@ partial class ShaderGraph
 
 			switch ( typeName )
 			{
-				case "Float":
+				case "FloatParameter":
 					newNode = new ConstantFloat()
 					{
 						Value = valueElement.GetSingle()
 					};
 					break;
-				case "Float2":
+				case "Float2Parameter":
 					var vector2 = JsonSerializer.Deserialize<Vector2>( valueElement.GetRawText(), options );
 					newNode = new ConstantFloat2()
 					{
 						Value = vector2
 					};
 					break;
-				case "Float3":
+				case "Float3Parameter":
 					var vector3 = JsonSerializer.Deserialize<Vector3>( valueElement.GetRawText(), options );
 					newNode = new ConstantFloat3()
 					{
 						Value = vector3
 					};
 					break;
-				case "Float4":
+				case "ColorParameter":
 					var color = JsonSerializer.Deserialize<Color>( valueElement.GetRawText(), options );
 					newNode = new ConstantColor()
 					{
@@ -206,7 +206,7 @@ partial class ShaderGraph
 		throw new Exception( "Couldnt convert nameless Parameter node to Constant node" );
 	}
 
-	private static string GetNewParameterTypeName( string typeName )
+	private static string GetNewParameterTypeName_v2Upgrade( string typeName )
 	{
 		return typeName switch
 		{
