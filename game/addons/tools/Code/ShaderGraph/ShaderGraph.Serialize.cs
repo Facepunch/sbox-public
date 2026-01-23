@@ -72,13 +72,13 @@ partial class ShaderGraph
 			// Upgrade only if we need to.
 			if ( sgTypeInstance is ShaderGraph sg && oldVersionNumber < sg.Version )
 			{
-				var isSubgraph = false;
-				if ( doc.TryGetProperty( nameof( IsSubgraph ), out var isSubgraphEelement ) )
-				{
-					isSubgraph = isSubgraphEelement.GetBoolean();
-				}
+				//var isSubgraph = false;
+				//if ( doc.TryGetProperty( nameof( IsSubgraph ), out var isSubgraphEelement ) )
+				//{
+				//	isSubgraph = isSubgraphEelement.GetBoolean();
+				//}
 
-				doc = UpgradeShaderGraph( oldVersionNumber, type, doc, options, isSubgraph );
+				doc = UpgradeShaderGraph( oldVersionNumber, type, doc, options );//, isSubgraph );
 			}
 		}
 

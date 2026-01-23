@@ -44,8 +44,7 @@ internal static class SGJsonUpgrader
 	/// <param name="version">The current version that's serialized in the json object</param>
 	/// <param name="json"></param>
 	/// <param name="targetType"></param>
-	/// <param name="isSubgraph"></param>
-	public static void Upgrade( int version, JsonObject json, Type targetType, bool isSubgraph )
+	public static void Upgrade( int version, JsonObject json, Type targetType )
 	{
 		// This is normal, upgraders have not been initialized using UpdateUpgraders
 		// it's fine to ignore this.
@@ -63,8 +62,7 @@ internal static class SGJsonUpgrader
 			try
 			{
 				MethodDescription item = item2.Method;
-				object[] parameters = [json, isSubgraph];
-				item.Invoke( null, parameters );
+				item.Invoke( null, [ json ] );
 			}
 			catch ( Exception exception )
 			{

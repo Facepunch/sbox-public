@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Nodes;
+﻿using Sandbox;
+using System.Text.Json.Nodes;
 
 namespace Editor.ShaderGraph;
 
@@ -118,15 +119,18 @@ partial class ShaderGraph
 
 	/*
 	[SGJsonUpgrader( typeof( ShaderGraph ), 2 )]
-	public static void ShaderGraphUpgrader_v2( JsonObject jsonObj, bool isSubgraph )
+	public static void ShaderGraphUpgrader_v2( JsonObject jsonObj )
 	{
 		try
 		{
 			Log.Info( "Running ShaderGraph v2 JsonUpgrader" );
 
-			if ( isSubgraph )
+			if ( jsonObj.TryGetPropertyValue( nameof( IsSubgraph ), out var isSubgraphJsonNode ) && isSubgraphJsonNode is JsonValue boolJsonValue && boolJsonValue.TryGetValue<bool>( out var isSubgraph ) )
 			{
-				Log.Info( "v2 Upgrader operating on a subgraph" );
+				if ( isSubgraph )
+				{
+					Log.Info( "v2 Upgrader operating on a subgraph" );
+				}
 			}
 		}
 		catch
@@ -135,11 +139,11 @@ partial class ShaderGraph
 	}
 	*/
 
-	private static JsonElement UpgradeShaderGraph( int versionNumber, Type type, JsonElement jsonElement, JsonSerializerOptions serializerOptions, bool isSubgraph )
+	private static JsonElement UpgradeShaderGraph( int versionNumber, Type type, JsonElement jsonElement, JsonSerializerOptions serializerOptions )
 	{
 		var jsonObject = JsonNode.Parse( jsonElement.GetRawText() ) as JsonObject;
 
-		SGJsonUpgrader.Upgrade( versionNumber, jsonObject, type, isSubgraph );
+		SGJsonUpgrader.Upgrade( versionNumber, jsonObject, type );
 
 		return JsonSerializer.Deserialize<JsonElement>( jsonObject.ToJsonString(), serializerOptions );
 	}
