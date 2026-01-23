@@ -116,6 +116,12 @@ partial class ShaderGraph
 		foreach ( var element in arrayProperty.EnumerateArray() )
 		{
 			var typeName = element.GetProperty( "_class" ).GetString();
+
+			if ( fileVersion < 2 && ShouldUseNewParameterTypeName( typeName ) )
+			{
+				typeName = GetNewParameterTypeName( typeName );
+			}
+
 			var typeDesc = EditorTypeLibrary.GetType( typeName );
 			var type = new ClassNodeType( typeDesc );
 

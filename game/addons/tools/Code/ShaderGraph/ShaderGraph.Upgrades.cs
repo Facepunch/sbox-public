@@ -194,6 +194,18 @@ partial class ShaderGraph
 		throw new Exception( "Couldnt convert nameless Parameter node to Constant node" );
 	}
 
+	private static string GetNewParameterTypeName( string typeName )
+	{
+		return typeName switch
+		{
+			"Float" => "FloatParameter",
+			"Float2" => "Float2Parameter",
+			"Float3" => "Float3Parameter",
+			"Float4" => "ColorParameter",
+			_ => throw new Exception()
+		};
+	}
+
 	/*
 	[SGJsonUpgrader( typeof( ShaderGraph ), 2 )]
 	public static void ShaderGraphUpgrader_v2( JsonObject jsonObj )
