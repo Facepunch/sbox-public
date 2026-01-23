@@ -710,7 +710,8 @@ public partial class GameObject
 		/// </summary>
 		public void Refresh()
 		{
-			if ( IsProxy && !Networking.IsHost ) return;
+			if ( !Active || (IsProxy && !Networking.IsHost) )
+				return;
 
 			var connection = Connection.Local;
 			if ( !connection.CanRefreshObjects )
@@ -730,7 +731,8 @@ public partial class GameObject
 		/// </summary>
 		public void Refresh( GameObject descendent )
 		{
-			if ( IsProxy && !Networking.IsHost ) return;
+			if ( !Active || (IsProxy && !Networking.IsHost) )
+				return;
 
 			var connection = Connection.Local;
 			if ( !connection.CanRefreshObjects )
@@ -749,7 +751,8 @@ public partial class GameObject
 		/// </summary>
 		public void Refresh( Component component )
 		{
-			if ( IsProxy && !Networking.IsHost ) return;
+			if ( !Active || (IsProxy && !Networking.IsHost) )
+				return;
 
 			var connection = Connection.Local;
 			if ( !connection.CanRefreshObjects )
