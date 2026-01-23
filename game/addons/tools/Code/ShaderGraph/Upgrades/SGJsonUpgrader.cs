@@ -63,7 +63,7 @@ internal static class SGJsonUpgrader
 			try
 			{
 				MethodDescription item = item2.Method;
-				item.Invoke( null, [ json ] );
+				item.Invoke( null, [json] );
 			}
 			catch ( Exception exception )
 			{
