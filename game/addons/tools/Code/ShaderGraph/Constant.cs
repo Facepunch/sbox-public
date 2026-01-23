@@ -1,4 +1,6 @@
-﻿namespace Editor.ShaderGraph.Nodes;
+﻿using System.Text.Json.Serialization;
+
+namespace Editor.ShaderGraph.Nodes;
 
 /// <summary>
 /// Single float value
