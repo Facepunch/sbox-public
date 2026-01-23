@@ -22,6 +22,7 @@ public class SGJsonUpgraderAttribute : Attribute
 	}
 }
 
+// I could probably use JsonUpgrader but that's marked as internal at the moment... :(
 [SkipHotload]
 internal static class SGJsonUpgrader
 {
