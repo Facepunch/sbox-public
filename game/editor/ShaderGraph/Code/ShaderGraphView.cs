@@ -205,13 +205,15 @@ public class ShaderGraphView : GraphView
 			{
 				string nodeTypeTitle = constantNode.GetType() switch
 				{
+					Type t when t == typeof( ConstantBool ) => "Bool",
+					Type t when t == typeof( ConstantInt ) => "Int",
 					Type t when t == typeof( ConstantFloat ) => "Float",
 					Type t when t == typeof( ConstantFloat2 ) => "Float2",
 					Type t when t == typeof( ConstantFloat3 ) => "Float3",
 					Type t when t == typeof( ConstantFloat4 ) => "Float4",
 					Type t when t == typeof( ConstantColor ) => "Color",
 
-					_ => throw new NotImplementedException( $"Unknown type \"{constantNode.GetType()}\"" ),
+					_ => throw new NotImplementedException( $"Unknown IConstantNode \"{constantNode.GetType()}\"" ),
 				};
 
 				var convertOption = menu.AddOption( $"Convert {baseNode.DisplayInfo.Name} to {nodeTypeTitle} {(Graph.IsSubgraph ? "Subgraph Input" : "Material Parameter")}", "swap_horiz", () =>
