@@ -694,49 +694,6 @@ public sealed partial class GraphCompiler
 		return new();
 	}
 
-	private NodeResult ResolveParameterNode( IParameterNode node, ref object value )
-	{
-		var lastStack = SubgraphStack.LastOrDefault();
-		var lastNodeEntered = lastStack.Item1;
-		if ( lastNodeEntered is not null )
-		{
-			var parentInput = lastNodeEntered.InputReferences.FirstOrDefault( x => x.Key.Identifier == node.Name );
-			if ( parentInput.Key is not null )
-			{
-				var lastSubgraph = Subgraph;
-				var lastNode = SubgraphNode;
-				Subgraph = lastStack.Item2;
-				SubgraphNode = (Subgraph is null) ? null : lastNodeEntered;
-				SubgraphStack.RemoveAt( SubgraphStack.Count - 1 );
-
-				var connectedPlug = parentInput.Key.ConnectedOutput;
-				if ( connectedPlug is not null )
-				{
-					var nodeId = string.Join( ',', SubgraphStack.Select( x => x.Item1.Identifier ) );
-					var newResult = Result( new()
-					{
-						Identifier = connectedPlug.Node.Identifier,
-						Output = connectedPlug.Identifier,
-						Subgraph = Subgraph?.Path,
-						SubgraphNode = nodeId
-					} );
-					SubgraphStack.Add( lastStack );
-					Subgraph = lastSubgraph;
-					SubgraphNode = lastNode;
-					return newResult;
-				}
-				else
-				{
-					value = GetDefaultValue( lastNodeEntered, node.Name, parentInput.Value.Item2 );
-					SubgraphStack.Add( lastStack );
-					Subgraph = lastSubgraph;
-					SubgraphNode = lastNode;
-				}
-			}
-		}
-		return new();
-	}
-
 	private static int GetComponentCount( Type inputType )
 	{
 		return inputType switch
