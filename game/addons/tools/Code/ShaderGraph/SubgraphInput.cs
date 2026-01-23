@@ -31,6 +31,18 @@ public sealed class SubgraphInput : ShaderNode, IErroringNode
 	public InputType InputType { get; set; } = InputType.Float;
 
 	/// <summary>
+	/// Default value for bool inputs
+	/// </summary>
+	[ShowIf( nameof( InputType ), InputType.Bool )]
+	public bool DefaultBool { get; set; } = false;
+
+	/// <summary>
+	/// Default value for int inputs
+	/// </summary>
+	[ShowIf( nameof( InputType ), InputType.Int )]
+	public int DefaultInt { get; set; } = 0;
+
+	/// <summary>
 	/// Default value for float inputs
 	/// </summary>
 	[ShowIf( nameof( InputType ), InputType.Float )]
@@ -47,6 +59,12 @@ public sealed class SubgraphInput : ShaderNode, IErroringNode
 	/// </summary>
 	[ShowIf( nameof( InputType ), InputType.Float3 )]
 	public Vector3 DefaultFloat3 { get; set; } = Vector3.Zero;
+
+	/// <summary>
+	/// Default value for float4 inputs
+	/// </summary>
+	[ShowIf( nameof( InputType ), InputType.Float4 )]
+	public Vector4 DefaultFloat4 { get; set; } = Vector4.Zero;
 
 	/// <summary>
 	/// Default value for color inputs
@@ -107,9 +125,12 @@ public sealed class SubgraphInput : ShaderNode, IErroringNode
 	{
 		return InputType switch
 		{
+			InputType.Bool => DefaultBool,
+			InputType.Int => DefaultInt,
 			InputType.Float => DefaultFloat,
 			InputType.Float2 => DefaultFloat2,
 			InputType.Float3 => DefaultFloat3,
+			InputType.Float4 => DefaultFloat4,
 			InputType.Color => DefaultColor,
 			_ => DefaultFloat
 		};
@@ -153,6 +174,12 @@ public sealed class SubgraphInput : ShaderNode, IErroringNode
 /// </summary>
 public enum InputType
 {
+	[Title( "Bool" ), Icon( "check_box" )]
+	Bool,
+
+	[Title( "Int" ), Icon( "looks_one" )]
+	Int,
+
 	[Title( "Float" ), Icon( "looks_one" )]
 	Float,
 
@@ -161,6 +188,9 @@ public enum InputType
 
 	[Title( "Float3" ), Icon( "looks_3" )]
 	Float3,
+
+	[Title( "Float4" ), Icon( "looks_4" )]
+	Float4,
 
 	[Title( "Color" ), Icon( "palette" )]
 	Color

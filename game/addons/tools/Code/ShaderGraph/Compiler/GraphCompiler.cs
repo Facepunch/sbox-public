@@ -15,13 +15,14 @@ public sealed partial class GraphCompiler
 	}
 
 	public static Dictionary<Type, string> ValueTypes => new()
-	{
-		{ typeof(Color), "float4" },
-		{ typeof(Vector4), "float4" },
-		{ typeof(Vector3), "float3" },
-		{ typeof(Vector2), "float2" },
+	{       
+		{ typeof(bool), "bool" },
+		{ typeof(int), "int" },
 		{ typeof(float), "float" },
-		{ typeof(bool), "bool" }
+		{ typeof(Vector2), "float2" },
+		{ typeof(Vector3), "float3" },
+		{ typeof(Vector4), "float4" },
+		{ typeof(Color), "float4" },
 	};
 
 	/// <summary>

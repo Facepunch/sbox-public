@@ -82,9 +82,12 @@ public sealed class SubgraphNode : ShaderNode, IErroringNode
 		{
 			var type = subgraphInput.InputType switch
 			{
+				InputType.Bool => typeof( bool ),
+				InputType.Int => typeof( int ),
 				InputType.Float => typeof( float ),
 				InputType.Float2 => typeof( Vector2 ),
 				InputType.Float3 => typeof( Vector3 ),
+				InputType.Float4 => typeof( Vector4 ),
 				InputType.Color => typeof( Color ),
 				_ => typeof( float )
 			};
@@ -258,7 +261,29 @@ internal class SubgraphNodeControlWidget : ControlWidget
 			};
 
 			var displayName = $"Default {name}";
-			if ( type == typeof( float ) )
+			if ( type == typeof( bool ) )
+			{
+				Sheet.AddRow( TypeLibrary.CreateProperty<bool>(
+					displayName, () =>
+					{
+						var val = getter();
+						if ( val is JsonElement el ) return bool.Parse( el.GetRawText() );
+						return (bool)val;
+					}, x => SetDefaultValue( name, x )
+				) );
+			}
+			else if ( type == typeof( int ) )
+			{
+				Sheet.AddRow( TypeLibrary.CreateProperty<int>(
+					displayName, () =>
+					{
+						var val = getter();
+						if ( val is JsonElement el ) return int.Parse( el.GetRawText() );
+						return (int)val;
+					}, x => SetDefaultValue( name, x )
+				) );
+			}
+			else if ( type == typeof( float ) )
 			{
 				Sheet.AddRow( TypeLibrary.CreateProperty<float>(
 					displayName, () =>
@@ -288,6 +313,17 @@ internal class SubgraphNodeControlWidget : ControlWidget
 						var val = getter();
 						if ( val is JsonElement el ) return Vector3.Parse( el.GetString() );
 						return (Vector3)val;
+					}, x => SetDefaultValue( name, x )
+				) );
+			}
+			else if ( type == typeof( Vector4 ) )
+			{
+				Sheet.AddRow( TypeLibrary.CreateProperty<Vector4>(
+					displayName, () =>
+					{
+						var val = getter();
+						if ( val is JsonElement el ) return Vector4.Parse( el.GetString() );
+						return (Vector4)val;
 					}, x => SetDefaultValue( name, x )
 				) );
 			}
