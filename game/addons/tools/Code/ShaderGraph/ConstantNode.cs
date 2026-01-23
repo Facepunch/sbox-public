@@ -1,0 +1,18 @@
+﻿namespace Editor.ShaderGraph;
+
+public abstract class ConstantNode<T> : ShaderNode
+{
+	public T Value { get; set; }
+
+	protected NodeResult Component( string component, float value, GraphCompiler compiler )
+	{
+		if ( compiler.IsPreview )
+		{
+			return compiler.ResultValue( value );
+		}
+
+		var result = compiler.Result( new NodeInput { Identifier = Identifier, Output = nameof( Result ) } );
+
+		return new( NodeResultType.Float, $"{result}.{component}", true );
+	}
+}
