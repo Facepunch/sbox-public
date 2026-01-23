@@ -159,7 +159,7 @@ public sealed class ConstantFloat3 : ConstantNode<Vector3>
 [Title( "Float4 Constant" ), Category( "Constants" ), Icon( "looks_4" )]
 public sealed class ConstantFloat4 : ConstantNode<Vector4>
 {
-	[Output( typeof( Vector4 ) ), Title( "XYZ" ), Hide]
+	[Output( typeof( Vector4 ) ), Title( "XYZW" ), Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		return compiler.ResultParameter( "", Value, default, default, false, false, default );
