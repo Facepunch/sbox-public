@@ -1,11 +1,13 @@
 ﻿
+using System.Text.Json.Serialization;
+
 namespace Editor.ShaderGraph.Nodes;
 
 /// <summary>
 /// Single float value
 /// </summary>
 [Title( "Float" ), Category( "Parameters" ), Icon( "looks_one" )]
-public sealed class Float : ParameterNode<float, FloatParameterUI>
+public sealed class FloatParameter : ParameterNode<float, FloatParameterUI>
 {
 	[Hide] public float Step => UI.Step;
 
@@ -19,7 +21,7 @@ public sealed class Float : ParameterNode<float, FloatParameterUI>
 	[Group( "Range" )] public float Min { get; set; }
 	[Group( "Range" )] public float Max { get; set; }
 
-	public Float()
+	public FloatParameter()
 	{
 		Min = 0;
 		Max = 1;
@@ -41,7 +43,7 @@ public sealed class Float : ParameterNode<float, FloatParameterUI>
 /// 2 float values
 /// </summary>
 [Title( "Float2" ), Category( "Parameters" ), Icon( "looks_two" )]
-public sealed class Float2 : ParameterNode<Vector2, FloatParameterUI>
+public sealed class Float2Parameter : ParameterNode<Vector2, FloatParameterUI>
 {
 	[Output( typeof( Vector2 ) ), Title( "XY" ), Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
@@ -52,7 +54,7 @@ public sealed class Float2 : ParameterNode<Vector2, FloatParameterUI>
 	[Group( "Range" )] public Vector2 Min { get; set; }
 	[Group( "Range" )] public Vector2 Max { get; set; }
 
-	public Float2()
+	public Float2Parameter()
 	{
 		Min = 0;
 		Max = 1;
@@ -109,7 +111,7 @@ public sealed class Float2 : ParameterNode<Vector2, FloatParameterUI>
 /// 3 float values
 /// </summary>
 [Title( "Float3" ), Category( "Parameters" ), Icon( "looks_3" )]
-public sealed class Float3 : ParameterNode<Vector3, FloatParameterUI>
+public sealed class Float3Parameter : ParameterNode<Vector3, FloatParameterUI>
 {
 	[Output( typeof( Vector3 ) ), Title( "XYZ" ), Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
@@ -120,7 +122,7 @@ public sealed class Float3 : ParameterNode<Vector3, FloatParameterUI>
 	[Group( "Range" )] public Vector3 Min { get; set; }
 	[Group( "Range" )] public Vector3 Max { get; set; }
 
-	public Float3()
+	public Float3Parameter()
 	{
 		Min = 0;
 		Max = 1;
@@ -190,10 +192,100 @@ public sealed class Float3 : ParameterNode<Vector3, FloatParameterUI>
 }
 
 /// <summary>
+/// 4 float values
+/// </summary>
+[Title( "Float4" ), Category( "Parameters" ), Icon( "palette" )]
+public sealed class Float4Parameter : ParameterNode<Vector4, FloatParameterUI>
+{
+	[Output( typeof( Vector4 ) ), Title( "XYZ" ), Hide]
+	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
+	{
+		return compiler.ResultParameter( Name, Value, default, default, false, IsAttribute, UI );
+	};
+
+	[Group( "Range" )] public Vector4 Min { get; set; }
+	[Group( "Range" )] public Vector4 Max { get; set; }
+
+	[JsonIgnore, Hide]
+	public float ValueX
+	{
+		get => Value.x;
+		set => Value = Value.WithX( value );
+	}
+
+	[JsonIgnore, Hide]
+	public float ValueY
+	{
+		get => Value.y;
+		set => Value = Value.WithY( value );
+	}
+
+	[JsonIgnore, Hide]
+	public float ValueZ
+	{
+		get => Value.z;
+		set => Value = Value.WithZ( value );
+	}
+
+	[JsonIgnore, Hide]
+	public float ValueW
+	{
+		get => Value.w;
+		set => Value = Value.WithW( value );
+	}
+
+	[Hide] public float MinX => Min.x;
+	[Hide] public float MinY => Min.y;
+	[Hide] public float MinZ => Min.z;
+	[Hide] public float MinW => Min.w;
+	[Hide] public float MaxX => Max.x;
+	[Hide] public float MaxY => Max.y;
+	[Hide] public float MaxZ => Max.z;
+	[Hide] public float MaxW => Max.w;
+
+	[Hide] public float Step => UI.Step;
+
+	/// <summary>
+	/// X component of result
+	/// </summary>
+	[Output( typeof( float ) ), Hide, Editor( nameof( ValueX ) ), Title( "X" )]
+	[Range( nameof( MinX ), nameof( MaxX ), nameof( Step ) )]
+	public NodeResult.Func X => ( GraphCompiler compiler ) => Component( "x", ValueX, compiler );
+
+	/// <summary>
+	/// Y component of result
+	/// </summary>
+	[Output( typeof( float ) ), Hide, Editor( nameof( ValueY ) ), Title( "Y" )]
+	[Range( nameof( MinY ), nameof( MaxY ), nameof( Step ) )]
+	public NodeResult.Func Y => ( GraphCompiler compiler ) => Component( "y", ValueY, compiler );
+
+	/// <summary>
+	/// Z component of result
+	/// </summary>
+	[Output( typeof( float ) ), Hide, Editor( nameof( ValueZ ) ), Title( "Z" )]
+	[Range( nameof( MinZ ), nameof( MaxZ ), nameof( Step ) )]
+	public NodeResult.Func Z => ( GraphCompiler compiler ) => Component( "z", ValueZ, compiler );
+
+	/// <summary>
+	/// W component of result
+	/// </summary>
+	[Output( typeof( float ) ), Hide, Editor( nameof( ValueW ) ), Title( "W" )]
+	[Range( nameof( MinW ), nameof( MaxW ), nameof( Step ) )]
+	public NodeResult.Func W => ( GraphCompiler compiler ) => Component( "w", ValueW, compiler );
+
+	public Float4Parameter()
+	{
+		Min = 0;
+		Max = 1;
+		UI = new FloatParameterUI();
+	}
+}
+
+/// <summary>
 /// 4 float values, normally used as a color
 /// </summary>
 [Title( "Color" ), Category( "Parameters" ), Icon( "palette" )]
-public sealed class Float4 : ParameterNode<Color, ColorParameterUI>
+public sealed class ColorParameter : ParameterNode<Color, ColorParameterUI>
 {
 	[Output( typeof( Color ) ), Title( "RGBA" )]
 	[Hide, Editor( nameof( Value ) )]
@@ -254,7 +346,7 @@ public sealed class Float4 : ParameterNode<Color, ColorParameterUI>
 	[Output( typeof( float ) ), Hide, Editor( nameof( ValueA ) ), Title( "Alpha" )]
 	public NodeResult.Func A => ( GraphCompiler compiler ) => Component( "a", ValueA, compiler );
 
-	public Float4()
+	public ColorParameter()
 	{
 		Value = Color.White;
 		UI = new ColorParameterUI();
