@@ -22,32 +22,32 @@ public sealed class SplitVector : ShaderNode
 	public NodeResult.Func X => ( GraphCompiler compiler ) =>
 	{
 		var result = compiler.Result( Input );
-		if ( result.IsValid && result.Components > 0 ) return new NodeResult( 1, $"{result}.x" );
-		return new NodeResult( 1, "0.0f" );
+		if ( result.IsValid && result.Components > 0 ) return new NodeResult( NodeResultType.Float, $"{result}.x" );
+		return new NodeResult( NodeResultType.Float, "0.0f" );
 	};
 
 	[Output( typeof( float ) ), Hide]
 	public NodeResult.Func Y => ( GraphCompiler compiler ) =>
 	{
 		var result = compiler.Result( Input );
-		if ( result.IsValid && result.Components > 1 ) return new NodeResult( 1, $"{result}.y" );
-		return new NodeResult( 1, "0.0f" );
+		if ( result.IsValid && result.Components > 1 ) return new NodeResult( NodeResultType.Float, $"{result}.y" );
+		return new NodeResult( NodeResultType.Float, "0.0f" );
 	};
 
 	[Output( typeof( float ) ), Hide]
 	public NodeResult.Func Z => ( GraphCompiler compiler ) =>
 	{
 		var result = compiler.Result( Input );
-		if ( result.IsValid && result.Components > 2 ) return new NodeResult( 1, $"{result}.z" );
-		return new NodeResult( 1, "0.0f" );
+		if ( result.IsValid && result.Components > 2 ) return new NodeResult( NodeResultType.Float, $"{result}.z" );
+		return new NodeResult( NodeResultType.Float, "0.0f" );
 	};
 
 	[Output( typeof( float ) ), Hide]
 	public NodeResult.Func W => ( GraphCompiler compiler ) =>
 	{
 		var result = compiler.Result( Input );
-		if ( result.IsValid && result.Components > 3 ) return new NodeResult( 1, $"{result}.w" );
-		return new NodeResult( 1, "0.0f" );
+		if ( result.IsValid && result.Components > 3 ) return new NodeResult( NodeResultType.Float, $"{result}.w" );
+		return new NodeResult( NodeResultType.Float, "0.0f" );
 	};
 }
 
@@ -92,7 +92,7 @@ public sealed class CombineVector : ShaderNode
 		var z = compiler.ResultOrDefault( Z, DefaultZ ).Cast( 1 );
 		var w = compiler.ResultOrDefault( W, DefaultW ).Cast( 1 );
 
-		return new NodeResult( 4, $"float4( {x}, {y}, {z}, {w} )" );
+		return new NodeResult( NodeResultType.Vector4, $"float4( {x}, {y}, {z}, {w} )" );
 	};
 
 	[Output( typeof( Vector3 ) )]
@@ -103,7 +103,7 @@ public sealed class CombineVector : ShaderNode
 		var y = compiler.ResultOrDefault( Y, DefaultY ).Cast( 1 );
 		var z = compiler.ResultOrDefault( Z, DefaultZ ).Cast( 1 );
 
-		return new NodeResult( 3, $"float3( {x}, {y}, {z} )" );
+		return new NodeResult( NodeResultType.Vector3, $"float3( {x}, {y}, {z} )" );
 	};
 
 	[Output( typeof( Vector2 ) )]
@@ -113,7 +113,7 @@ public sealed class CombineVector : ShaderNode
 		var x = compiler.ResultOrDefault( X, DefaultX ).Cast( 1 );
 		var y = compiler.ResultOrDefault( Y, DefaultY ).Cast( 1 );
 
-		return new NodeResult( 2, $"float2( {x}, {y})" );
+		return new NodeResult( NodeResultType.Vector2, $"float2( {x}, {y})" );
 	};
 }
 
@@ -155,7 +155,7 @@ public sealed class SwizzleVector : ShaderNode
 		swizzle += SwizzleToChannel( BlueOut );
 		swizzle += SwizzleToChannel( AlphaOut );
 
-		return new NodeResult( 4, $"{input.Cast( 4 )}{swizzle}" );
+		return new NodeResult( NodeResultType.Vector4, $"{input.Cast( 4 )}{swizzle}" );
 	};
 }
 
@@ -181,6 +181,14 @@ public sealed class AppendVector : ShaderNode
 		if ( components < 1 || components > 4 )
 			return NodeResult.Error( $"Can't append {resultB.TypeName} to {resultA.TypeName}" );
 
-		return new NodeResult( components, $"float{components}( {resultA}, {resultB} )" );
+		NodeResultType resultType = components switch
+		{
+			2 => NodeResultType.Vector2,
+			3 => NodeResultType.Vector3,
+			4 => NodeResultType.Vector4,
+			_ => throw new NotImplementedException(),
+		};
+
+		return new NodeResult( resultType, $"float{components}( {resultA}, {resultB} )" );
 	};
 }

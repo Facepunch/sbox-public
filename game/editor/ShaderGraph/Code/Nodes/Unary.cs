@@ -42,7 +42,21 @@ public abstract class Unary : ShaderNode
 	public virtual NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		var result = compiler.ResultOrDefault( Input, 0.0f );
-		return result.IsValid ? new NodeResult( Components ?? result.Components, $"{Op}( {result} )" ) : default;
+
+		NodeResultType resultType = result.ResultType;
+
+		if ( Components is not null )
+		{
+			switch ( Components )
+			{
+				case 1: resultType = NodeResultType.Float; break;
+				case 2: resultType = NodeResultType.Vector2; break;
+				case 3: resultType = NodeResultType.Vector3; break;
+				case 4: resultType = NodeResultType.Color; break;
+			}
+		}
+
+		return result.IsValid ? new NodeResult( resultType, $"{Op}( {result} )" ) : default;
 	};
 }
 
@@ -138,7 +152,7 @@ public sealed class DotProduct : ShaderNode
 		var resultA = compiler.ResultOrDefault( InputA, 0.0f );
 		var resultB = compiler.ResultOrDefault( InputB, 0.0f ).Cast( resultA.Components );
 
-		return new NodeResult( 1, $"dot( {resultA}, {resultB} )" );
+		return new NodeResult( NodeResultType.Float, $"dot( {resultA}, {resultB} )" );
 	};
 }
 
@@ -288,7 +302,16 @@ public sealed class Min : ShaderNode
 
 		int maxComponents = Math.Max( a.IsValid ? a.Components : 1, b.IsValid ? b.Components : 1 );
 
-		return new NodeResult( maxComponents, $"min( {(a.IsValid ? a : "0.0f")}, {(b.IsValid ? b : "0.0f")} )" );
+		NodeResultType resultType = maxComponents switch
+		{
+			1 => NodeResultType.Float,
+			2 => NodeResultType.Vector2,
+			3 => NodeResultType.Vector3,
+			4 => NodeResultType.Color,
+			_ => throw new NotImplementedException(),
+		};
+
+		return new NodeResult( resultType, $"min( {(a.IsValid ? a : "0.0f")}, {(b.IsValid ? b : "0.0f")} )" );
 	};
 }
 
@@ -317,7 +340,16 @@ public sealed class Max : ShaderNode
 
 		int maxComponents = Math.Max( a.IsValid ? a.Components : 1, b.IsValid ? b.Components : 1 );
 
-		return new NodeResult( maxComponents, $"max( {(a.IsValid ? a : "0.0f")}, {(b.IsValid ? b : "0.0f")} )" );
+		NodeResultType resultType = maxComponents switch
+		{
+			1 => NodeResultType.Float,
+			2 => NodeResultType.Vector2,
+			3 => NodeResultType.Vector3,
+			4 => NodeResultType.Color,
+			_ => throw new NotImplementedException(),
+		};
+
+		return new NodeResult( resultType, $"max( {(a.IsValid ? a : "0.0f")}, {(b.IsValid ? b : "0.0f")} )" );
 	};
 }
 
@@ -368,7 +400,16 @@ public sealed class Step : ShaderNode
 
 		int maxComponents = Math.Max( edge.IsValid ? edge.Components : 1, input.IsValid ? input.Components : 1 );
 
-		return new NodeResult( maxComponents, $"step( {(edge.IsValid ? edge : "0.0f")}, {(input.IsValid ? input : "0.0f")} )" );
+		NodeResultType resultType = maxComponents switch
+		{
+			1 => NodeResultType.Float,
+			2 => NodeResultType.Vector2,
+			3 => NodeResultType.Vector3,
+			4 => NodeResultType.Color,
+			_ => throw new NotImplementedException(),
+		};
+
+		return new NodeResult( resultType, $"step( {(edge.IsValid ? edge : "0.0f")}, {(input.IsValid ? input : "0.0f")} )" );
 	};
 }
 
@@ -411,7 +452,16 @@ public sealed class SmoothStep : ShaderNode
 		var edge2String = edge2.IsValid ? edge2.ToString() : compiler.ResultValue( DefaultEdge2 ).ToString();
 		var inputString = input.IsValid ? input.ToString() : compiler.ResultValue( DefaultInput ).ToString();
 
-		return new NodeResult( maxComponents, $"smoothstep( {edge1String}, {edge2String}, {inputString} )" );
+		NodeResultType resultType = maxComponents switch
+		{
+			1 => NodeResultType.Float,
+			2 => NodeResultType.Vector2,
+			3 => NodeResultType.Vector3,
+			4 => NodeResultType.Color,
+			_ => throw new NotImplementedException(),
+		};
+
+		return new NodeResult( resultType, $"smoothstep( {edge1String}, {edge2String}, {inputString} )" );
 	};
 }
 
@@ -475,7 +525,7 @@ public sealed class OneMinus : ShaderNode
 	public NodeResult.Func Out => ( GraphCompiler compiler ) =>
 	{
 		var result = compiler.ResultOrDefault( In, 0.0f );
-		return new NodeResult( result.Components, $"1 - {result}" );
+		return new NodeResult( result.ResultType, $"1 - {result}" );
 	};
 
 	public OneMinus() : base()
@@ -552,6 +602,6 @@ public sealed class Distance : ShaderNode
 		var resultA = compiler.ResultOrDefault( A, 0.0f );
 		var resultB = compiler.ResultOrDefault( B, 0.0f ).Cast( resultA.Components );
 
-		return new NodeResult( 1, $"distance( {resultA}, {resultB} )" );
+		return new NodeResult( NodeResultType.Float, $"distance( {resultA}, {resultB} )" );
 	};
 }

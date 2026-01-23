@@ -9,7 +9,7 @@ public sealed class WorldNormal : ShaderNode
 {
 	[Output( typeof( Vector3 ) )]
 	[Hide]
-	public static NodeResult.Func Result => ( GraphCompiler compiler ) => new( 3, "i.vNormalWs", compiler.IsNotPreview );
+	public static NodeResult.Func Result => ( GraphCompiler compiler ) => new( NodeResultType.Vector3, "i.vNormalWs", compiler.IsNotPreview );
 }
 
 /// <summary>
@@ -20,11 +20,11 @@ public sealed class WorldTangent : ShaderNode
 {
 	[Output( typeof( Vector3 ) )]
 	[Hide]
-	public static NodeResult.Func U => ( GraphCompiler compiler ) => new( 3, "i.vTangentUWs", compiler.IsNotPreview );
+	public static NodeResult.Func U => ( GraphCompiler compiler ) => new( NodeResultType.Vector3, "i.vTangentUWs", compiler.IsNotPreview );
 
 	[Output( typeof( Vector3 ) )]
 	[Hide]
-	public static NodeResult.Func V => ( GraphCompiler compiler ) => new( 3, "i.vTangentVWs", compiler.IsNotPreview );
+	public static NodeResult.Func V => ( GraphCompiler compiler ) => new( NodeResultType.Vector3, "i.vTangentVWs", compiler.IsNotPreview );
 }
 
 /// <summary>
@@ -37,7 +37,7 @@ public sealed class IsFrontFace : ShaderNode
 	[Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		return new NodeResult( 1, compiler.IsPs ? "i.vFrontFacing" : "0", compiler.IsNotPreview );
+		return new NodeResult( NodeResultType.Float, compiler.IsPs ? "i.vFrontFacing" : "0", compiler.IsNotPreview );
 	};
 }
 
@@ -50,7 +50,7 @@ public sealed class ObjectSpaceNormal : ShaderNode
 {
 	[Output( typeof( Vector3 ) )]
 	[Hide]
-	public static NodeResult.Func Result => ( GraphCompiler compiler ) => new( 3, "i.vNormalOs", compiler.IsNotPreview );
+	public static NodeResult.Func Result => ( GraphCompiler compiler ) => new( NodeResultType.Vector3, "i.vNormalOs", compiler.IsNotPreview );
 }
 
 /// <summary>
@@ -64,19 +64,19 @@ public sealed class ScreenPosition : ShaderNode
 
 	[Output( typeof( Vector3 ) )]
 	[Hide]
-	public static NodeResult.Func XYZ => ( GraphCompiler compiler ) => compiler.IsVs ? new( 3, "i.vPositionPs.xyz" ) : new( 3, "i.vPositionSs.xyz" );
+	public static NodeResult.Func XYZ => ( GraphCompiler compiler ) => compiler.IsVs ? new( NodeResultType.Vector3, "i.vPositionPs.xyz" ) : new( NodeResultType.Vector3, "i.vPositionSs.xyz" );
 
 	[Output( typeof( Vector2 ) )]
 	[Hide]
-	public static NodeResult.Func XY => ( GraphCompiler compiler ) => compiler.IsVs ? new( 2, "i.vPositionPs.xy" ) : new( 2, "i.vPositionSs.xy" );
+	public static NodeResult.Func XY => ( GraphCompiler compiler ) => compiler.IsVs ? new( NodeResultType.Vector2, "i.vPositionPs.xy" ) : new( NodeResultType.Vector2, "i.vPositionSs.xy" );
 
 	[Output( typeof( float ) )]
 	[Hide]
-	public static NodeResult.Func Z => ( GraphCompiler compiler ) => compiler.IsVs ? new( 1, "i.vPositionPs.z" ) : new( 1, "i.vPositionSs.z" );
+	public static NodeResult.Func Z => ( GraphCompiler compiler ) => compiler.IsVs ? new( NodeResultType.Float, "i.vPositionPs.z" ) : new( NodeResultType.Float, "i.vPositionSs.z" );
 
 	[Output( typeof( float ) )]
 	[Hide]
-	public static NodeResult.Func W => ( GraphCompiler compiler ) => compiler.IsVs ? new( 1, "i.vPositionPs.w" ) : new( 1, "i.vPositionSs.w" );
+	public static NodeResult.Func W => ( GraphCompiler compiler ) => compiler.IsVs ? new( NodeResultType.Float, "i.vPositionPs.w" ) : new( NodeResultType.Float, "i.vPositionSs.w" );
 }
 
 /// <summary>
@@ -89,8 +89,8 @@ public sealed class ScreenCoordinate : ShaderNode
 	[Hide]
 	public static NodeResult.Func Result => ( GraphCompiler compiler ) =>
 		compiler.IsVs ?
-		new( 2, "CalculateViewportUv( i.vPositionPs.xy )" ) :
-		new( 2, "CalculateViewportUv( i.vPositionSs.xy )" );
+		new( NodeResultType.Vector2, "CalculateViewportUv( i.vPositionPs.xy )" ) :
+		new( NodeResultType.Vector2, "CalculateViewportUv( i.vPositionSs.xy )" );
 }
 
 /// <summary>
@@ -103,8 +103,8 @@ public sealed class WorldPosition : ShaderNode
 	[Hide]
 	public static NodeResult.Func Result => ( GraphCompiler compiler ) =>
 		compiler.IsVs ?
-		new( 3, "i.vPositionWs" ) :
-		new( 3, "i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz" );
+		new( NodeResultType.Vector3, "i.vPositionWs" ) :
+		new( NodeResultType.Vector3, "i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz" );
 }
 
 /// <summary>
@@ -115,7 +115,7 @@ public sealed class ObjectPosition : ShaderNode
 {
 	[Output( typeof( Vector3 ) )]
 	[Hide]
-	public static NodeResult.Func Result => ( GraphCompiler compiler ) => new( 3, "i.vPositionOs" );
+	public static NodeResult.Func Result => ( GraphCompiler compiler ) => new( NodeResultType.Vector3, "i.vPositionOs" );
 }
 
 /// <summary>
@@ -128,8 +128,8 @@ public sealed class ViewDirection : ShaderNode
 	[Hide]
 	public static NodeResult.Func Result => ( GraphCompiler compiler ) =>
 		compiler.IsVs ?
-		new( 3, "CalculatePositionToCameraDirWs( i.vPositionWs )" ) :
-		new( 3, "CalculatePositionToCameraDirWs( i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz )" );
+		new( NodeResultType.Vector3, "CalculatePositionToCameraDirWs( i.vPositionWs )" ) :
+		new( NodeResultType.Vector3, "CalculatePositionToCameraDirWs( i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz )" );
 }
 
 /// <summary>
@@ -140,11 +140,11 @@ public sealed class VertexColor : ShaderNode
 {
 	[Output( typeof( Vector3 ) )]
 	[Hide]
-	public static NodeResult.Func RGB => ( GraphCompiler compiler ) => new( 3, "i.vColor.rgb" );
+	public static NodeResult.Func RGB => ( GraphCompiler compiler ) => new( NodeResultType.Vector3, "i.vColor.rgb" );
 
 	[Output( typeof( float ) )]
 	[Hide]
-	public static NodeResult.Func Alpha => ( GraphCompiler compiler ) => new( 1, "i.vColor.a" );
+	public static NodeResult.Func Alpha => ( GraphCompiler compiler ) => new( NodeResultType.Float, "i.vColor.a" );
 }
 
 /// <summary>
@@ -154,5 +154,5 @@ public sealed class VertexColor : ShaderNode
 public sealed class Tint : ShaderNode
 {
 	[Hide, Output( typeof( Color ) )]
-	public static NodeResult.Func RGBA => ( GraphCompiler compiler ) => new( 4, "i.vTintColor" );
+	public static NodeResult.Func RGBA => ( GraphCompiler compiler ) => new( NodeResultType.Color, "i.vTintColor" );
 }

@@ -85,7 +85,7 @@ public sealed class TransformNormal : ShaderNode
 		if ( !result.IsValid )
 		{
 			// No input, just return the vertex normal in worldspace or a default tangent space output.
-			return OutputSpace == OutputNormalSpace.World ? new NodeResult( 3, "i.vNormalWs.xyz" ) : new NodeResult( 3, "float3( 0, 0, 1 )" );
+			return OutputSpace == OutputNormalSpace.World ? new NodeResult( NodeResultType.Vector3, "i.vNormalWs.xyz" ) : new NodeResult( NodeResultType.Vector3, "float3( 0, 0, 1 )" );
 		}
 
 		// Cast the result to a float3
@@ -116,7 +116,7 @@ public sealed class TransformNormal : ShaderNode
 			inputNormal = $"Vec3WsToTs( {inputNormal}, i.vNormalWs, i.vTangentUWs, i.vTangentVWs )";
 		}
 
-		return OutputSpace == OutputNormalSpace.World ? new NodeResult( 3, $"TransformNormal( {inputNormal}, i.vNormalWs, i.vTangentUWs, i.vTangentVWs )" ) : new NodeResult( 3, $"{inputNormal}" );
+		return OutputSpace == OutputNormalSpace.World ? new NodeResult( NodeResultType.Vector3, $"TransformNormal( {inputNormal}, i.vNormalWs, i.vTangentUWs, i.vTangentVWs )" ) : new NodeResult( NodeResultType.Vector3, $"{inputNormal}" );
 	};
 }
 
@@ -171,7 +171,7 @@ public sealed class ApplyTrs : ShaderNode
 
 		if ( compiler.Result( Rotation ) is { IsValid: true } rotationResult )
 		{
-			rotation = new NodeResult( 4, compiler.ResultFunction( "Quaternion_FromAngles", rotationResult.Code ) );
+			rotation = new NodeResult( NodeResultType.Vector4, compiler.ResultFunction( "Quaternion_FromAngles", rotationResult.Code ) );
 		}
 		else
 		{
@@ -184,7 +184,7 @@ public sealed class ApplyTrs : ShaderNode
 		if ( rotation.IsValid ) ApplyMatrix( ref matrix, compiler.ResultFunction( "Matrix_FromQuaternion", rotation.Code ) );
 		if ( translation.IsValid ) ApplyMatrix( ref matrix, compiler.ResultFunction( "Matrix_FromTranslation", translation.Code ) );
 
-		return matrix is null ? vector : new NodeResult( 3, $"mul( {matrix}, float4( {vector.Code}, 1.0 ) ).xyz" );
+		return matrix is null ? vector : new NodeResult( NodeResultType.Vector3, $"mul( {matrix}, float4( {vector.Code}, 1.0 ) ).xyz" );
 	};
 
 	private static void ApplyMatrix( ref string lhs, string rhs )
@@ -231,7 +231,7 @@ public sealed class PolarCoordinates : ShaderNode
 		var radialScale = compiler.ResultOrDefault( RadialScale, DefaultRadialScale );
 		var lengthScale = compiler.ResultOrDefault( LengthScale, DefaultLengthScale );
 
-		return new NodeResult( 2, $"PolarCoordinates( ( {(coords.IsValid ? coords : "i.vTextureCoords.xy")} ) - ( {(center.IsValid ? center : "0.0f")} ), {(radialScale.IsValid ? radialScale : "1.0f")}, {(lengthScale.IsValid ? lengthScale : "1.0f")} )" );
+		return new NodeResult( NodeResultType.Vector2, $"PolarCoordinates( ( {(coords.IsValid ? coords : "i.vTextureCoords.xy")} ) - ( {(center.IsValid ? center : "0.0f")} ), {(radialScale.IsValid ? radialScale : "1.0f")}, {(lengthScale.IsValid ? lengthScale : "1.0f")} )" );
 	};
 }
 
@@ -282,7 +282,7 @@ public sealed class TileAndOffset : ShaderNode
 			resultCode = $"frac( {resultCode} )";
 		}
 
-		return new NodeResult( 2, resultCode );
+		return new NodeResult( NodeResultType.Vector2, resultCode );
 	};
 }
 
@@ -404,7 +404,7 @@ public sealed class Blend : ShaderNode
 		if ( Clamp )
 			returnCall = $"saturate( {returnCall} )";
 
-		return new NodeResult( results.Item1.Components, returnCall );
+		return new NodeResult( results.Item1.ResultType, returnCall );
 	};
 }
 
@@ -533,7 +533,7 @@ public sealed class RGBtoHSV : ShaderNode
 	[Hide]
 	public NodeResult.Func Out => ( GraphCompiler compiler ) =>
 	{
-		return new NodeResult( 3, compiler.ResultFunction( "RGB2HSV", $"{compiler.ResultOrDefault( In, Vector3.One )}" ) );
+		return new NodeResult( NodeResultType.Vector3, compiler.ResultFunction( "RGB2HSV", $"{compiler.ResultOrDefault( In, Vector3.One )}" ) );
 	};
 }
 
@@ -548,6 +548,6 @@ public sealed class HSVtoRGB : ShaderNode
 	[Hide]
 	public NodeResult.Func Out => ( GraphCompiler compiler ) =>
 	{
-		return new NodeResult( 3, compiler.ResultFunction( "HSV2RGB", $"{compiler.ResultOrDefault( In, Vector3.One )}" ) );
+		return new NodeResult( NodeResultType.Vector3, compiler.ResultFunction( "HSV2RGB", $"{compiler.ResultOrDefault( In, Vector3.One )}" ) );
 	};
 }
