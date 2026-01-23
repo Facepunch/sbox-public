@@ -16,8 +16,12 @@ partial class ShaderGraph
 		{
 			return versionElement.GetInt32();
 		}
+		else if ( element.TryGetProperty( "Version", out var oldVersionElement ) )
+		{
+			return oldVersionElement.GetInt32();
+		}
 
-		Log.Warning( $"JsonElement has no property named \"__version\". Defaulting to 0...." );
+		Log.Warning( $"JsonElement has no property named \"__version\" or \"Version\". Defaulting to 0...." );
 
 		return 0;
 	}
