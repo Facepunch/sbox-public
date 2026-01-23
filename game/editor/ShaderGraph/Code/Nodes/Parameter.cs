@@ -4,7 +4,7 @@ namespace Editor.ShaderGraph.Nodes;
 /// <summary>
 /// Single float value
 /// </summary>
-[Title( "Float" ), Category( "Constants" ), Icon( "looks_one" )]
+[Title( "Float" ), Category( "Parameters" ), Icon( "looks_one" )]
 public sealed class Float : ParameterNode<float>
 {
 	[Hide] public float Step => UI.Step;
@@ -39,7 +39,7 @@ public sealed class Float : ParameterNode<float>
 /// <summary>
 /// 2 float values
 /// </summary>
-[Title( "Float2" ), Category( "Constants" ), Icon( "looks_two" )]
+[Title( "Float2" ), Category( "Parameters" ), Icon( "looks_two" )]
 public sealed class Float2 : ParameterNode<Vector2>
 {
 	[Output( typeof( Vector2 ) ), Title( "XY" ), Hide]
@@ -106,7 +106,7 @@ public sealed class Float2 : ParameterNode<Vector2>
 /// <summary>
 /// 3 float values
 /// </summary>
-[Title( "Float3" ), Category( "Constants" ), Icon( "looks_3" )]
+[Title( "Float3" ), Category( "Parameters" ), Icon( "looks_3" )]
 public sealed class Float3 : ParameterNode<Vector3>
 {
 	[Output( typeof( Vector3 ) ), Title( "XYZ" ), Hide]
@@ -189,7 +189,7 @@ public sealed class Float3 : ParameterNode<Vector3>
 /// <summary>
 /// 4 float values, normally used as a color
 /// </summary>
-[Title( "Color" ), Category( "Constants" ), Icon( "palette" )]
+[Title( "Color" ), Category( "Parameters" ), Icon( "palette" )]
 public sealed class Float4 : ParameterNode<Color>
 {
 	[Output( typeof( Color ) ), Title( "RGBA" )]
