@@ -176,6 +176,43 @@ public class ShaderGraphView : GraphView
 				CreateSubgraphFromSelection( fd.SelectedFile );
 			} );
 		}
+
+		if ( selectedNodes.Length > 1 && selectedNodes.All( x => x.Node is IConstantNode ) )
+		{
+			var convertOption = menu.AddOption( $"Convert {selectedNodes.Count()} Constants to {(Graph.IsSubgraph ? "Subgraph Inputs" : "Material Parameters")}", "swap_horiz", () =>
+			{
+				// TODO
+				throw new NotImplementedException();
+			} );
+		}
+
+		if ( selectedNodes.Length == 1 )
+		{
+			var item = selectedNodes.FirstOrDefault();
+
+			if ( item is null )
+				return;
+
+			if ( item.Node is BaseNode baseNode && baseNode is IConstantNode constantNode )
+			{
+				string nodeTypeTitle = constantNode.GetType() switch
+				{
+					Type t when t == typeof( ConstantFloat ) => "Float",
+					Type t when t == typeof( ConstantFloat2 ) => "Float2",
+					Type t when t == typeof( ConstantFloat3 ) => "Float3",
+					Type t when t == typeof( ConstantFloat4 ) => "Float4",
+					Type t when t == typeof( ConstantColor ) => "Color",
+
+					_ => throw new NotImplementedException( $"Unknown type \"{constantNode.GetType()}\"" ),
+				};
+
+				var convertOption = menu.AddOption( $"Convert {baseNode.DisplayInfo.Name} to {nodeTypeTitle} {(Graph.IsSubgraph ? "Subgraph Input" : "Material Parameter")}", "swap_horiz", () =>
+				{
+					// TODO
+					throw new NotImplementedException();
+				} );
+			}
+		}
 	}
 
 	private void CreateSubgraphFromSelection( string filePath )
