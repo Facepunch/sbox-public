@@ -59,6 +59,18 @@ partial class ShaderGraph
 		return true;
 	}
 
+	private static bool ShouldUseNewParameterTypeName( string typeName )
+	{
+		return typeName switch
+		{
+			"Float" => true,
+			"Float2" => true,
+			"Float3" => true,
+			"Float4" => true,
+			_ => false
+		};
+	}
+
 	/// <summary>
 	/// Check if the type name represents a parameter node
 	/// </summary>
