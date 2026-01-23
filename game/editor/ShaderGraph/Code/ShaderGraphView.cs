@@ -117,18 +117,26 @@ public class ShaderGraphView : GraphView
 		} );
 	}
 
-	private Dictionary<Type, HandleConfig> HandleConfigs { get; } = new()
+	private static bool TryGetHandleConfig( Type type, out Type matchingType, out HandleConfig config )
 	{
-		{ typeof(float), new HandleConfig( "Float", Color.Parse( "#8ec07c" ).Value ) },
-		{ typeof(Vector2), new HandleConfig( "Vector2", Color.Parse( "#ce67e0" ).Value ) },
-		{ typeof(Vector3), new HandleConfig( "Vector3", Color.Parse( "#7177e1" ).Value ) },
-		{ typeof(Vector4), new HandleConfig( "Vector4", Color.Parse( "#e0d867" ).Value ) },
-		{ typeof(Color), new HandleConfig( "Color", Color.Parse( "#c7ae32" ).Value ) },
-	};
+		if ( ShaderGraphTheme.HandleConfigs.TryGetValue( type, out config ) )
+		{
+			matchingType = type;
+			return true;
+		}
+
+		matchingType = null;
+		return false;
+	}
 
 	protected override HandleConfig OnGetHandleConfig( Type type )
 	{
-		return HandleConfigs.TryGetValue( type, out var config ) ? config : base.OnGetHandleConfig( type );
+		if ( TryGetHandleConfig( type, out var matchingType, out var config ) )
+		{
+			return config with { Name = type == matchingType ? config.Name : null };
+		}
+
+		return base.OnGetHandleConfig( type );
 	}
 
 	public override void ChildValuesChanged( Widget source )
