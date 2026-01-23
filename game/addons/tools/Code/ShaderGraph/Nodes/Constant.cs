@@ -6,7 +6,7 @@ namespace Editor.ShaderGraph.Nodes;
 /// Bool value
 /// </summary>
 [Title( "Bool Constant" ), Category( "Constants" ), Icon( "check_box" ), Order( 0 )]
-public sealed class BoolConstant : ConstantNode<int>
+public sealed class ConstantBool : ConstantNode<int>
 {
 	[Output( typeof( bool ) ), Title( "Value" )]
 	[Hide, Editor( nameof( Value ) )]
@@ -15,7 +15,7 @@ public sealed class BoolConstant : ConstantNode<int>
 		return compiler.ResultParameter( "", Value, default, default, false, false, default );
 	};
 
-	public BoolConstant()
+	public ConstantBool()
 	{
 	}
 }
