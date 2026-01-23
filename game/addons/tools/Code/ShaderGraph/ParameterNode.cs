@@ -2,16 +2,18 @@
 
 namespace Editor.ShaderGraph;
 
-public interface IParameterNode
+public interface IParameterNodeBase
 {
 	string Name { get; set; }
-	bool IsAttribute { get; set; }
-	ParameterUI UI { get; set; }
+}
 
-	object GetValue();
-	void SetValue( object val );
-	Vector4 GetRangeMin();
-	Vector4 GetRangeMax();
+public interface IParameterNode<T> where T : IParameterUI
+{
+	string Name { get; set; }
+
+	bool IsAttribute { get; set; }
+
+	T UI { get; set; }
 }
 
 public interface ITextureParameterNode
@@ -20,7 +22,7 @@ public interface ITextureParameterNode
 	TextureInput UI { get; set; }
 }
 
-public abstract class ParameterNode<T> : ShaderNode, IParameterNode, IErroringNode
+public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNodeBase, IParameterNode<Y>, IErroringNode where Y : IParameterUI
 {
 	[Hide]
 	protected bool IsSubgraph => (Graph is ShaderGraph shaderGraph && shaderGraph.IsSubgraph);
@@ -51,7 +53,7 @@ public abstract class ParameterNode<T> : ShaderNode, IParameterNode, IErroringNo
 	}
 
 	[InlineEditor( Label = false ), Group( "UI" )]
-	public ParameterUI UI { get; set; }
+	public Y UI { get; set; }
 
 	protected NodeResult Component( string component, float value, GraphCompiler compiler )
 	{
@@ -95,7 +97,7 @@ public abstract class ParameterNode<T> : ShaderNode, IParameterNode, IErroringNo
 		{
 			if ( parameterNode == this )
 				continue;
-			if ( !string.IsNullOrWhiteSpace( Name ) && parameterNode is IParameterNode pn && pn.Name == Name )
+			if ( !string.IsNullOrWhiteSpace( Name ) && parameterNode is IParameterNodeBase pn && pn.Name == Name )
 			{
 				errors.Add( $"Duplicate name \"{Name}\" on {this.DisplayInfo.Name}" );
 				break;

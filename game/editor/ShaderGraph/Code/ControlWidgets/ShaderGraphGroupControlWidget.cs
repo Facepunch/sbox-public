@@ -32,7 +32,7 @@ internal class ShaderGraphGroupControlWidget : ControlWidget
 				var serialized = node.GetSerialized();
 				foreach ( var prop in serialized )
 				{
-					if ( prop.PropertyType == typeof( ParameterUI ) || prop.PropertyType == typeof( TextureInput ) )
+					if ( prop.PropertyType == typeof( IParameterUI ) || prop.PropertyType == typeof( TextureInput ) )
 					{
 						if ( prop.TryGetAsObject( out var propObj ) )
 						{

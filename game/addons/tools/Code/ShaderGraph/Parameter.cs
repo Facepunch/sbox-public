@@ -6,10 +6,66 @@ public enum UIType
 {
 	Default,
 	Slider,
-	Color,
+	//Color,
 }
 
-public struct ParameterUI
+public interface IParameterUI
+{
+	/// <summary>
+	/// Priority of this value in the group
+	/// </summary>
+	int Priority { get; set; }
+
+	/// <summary>
+	/// Primary group
+	/// </summary>
+	UIGroup PrimaryGroup { get; set; }
+
+	/// <summary>
+	/// Group within the primary group
+	/// </summary>
+	UIGroup SecondaryGroup { get; set; }
+
+	string UIGroup { get; }
+}
+
+public struct BoolParameterUI : IParameterUI
+{
+	public int Priority { get; set; }
+
+	[InlineEditor( Label = false ), Group( "Group" )]
+	public UIGroup PrimaryGroup { get; set; }
+
+	[InlineEditor( Label = false ), Group( "Sub Group" )]
+	public UIGroup SecondaryGroup { get; set; }
+
+	[JsonIgnore, Hide]
+	public readonly string UIGroup => $"{PrimaryGroup.Name},{PrimaryGroup.Priority}/{SecondaryGroup.Name},{SecondaryGroup.Priority}/{Priority}";
+
+	public BoolParameterUI()
+	{
+	}
+}
+
+public struct IntParameterUI : IParameterUI
+{
+	public int Priority { get; set; }
+
+	[InlineEditor( Label = false ), Group( "Group" )]
+	public UIGroup PrimaryGroup { get; set; }
+
+	[InlineEditor( Label = false ), Group( "Sub Group" )]
+	public UIGroup SecondaryGroup { get; set; }
+
+	[JsonIgnore, Hide]
+	public readonly string UIGroup => $"{PrimaryGroup.Name},{PrimaryGroup.Priority}/{SecondaryGroup.Name},{SecondaryGroup.Priority}/{Priority}";
+
+	public IntParameterUI()
+	{
+	}
+}
+
+public struct FloatParameterUI : IParameterUI
 {
 	/// <summary>
 	/// Control type used in the material editor
@@ -40,4 +96,26 @@ public struct ParameterUI
 
 	[JsonIgnore, Hide]
 	public readonly string UIGroup => $"{PrimaryGroup.Name},{PrimaryGroup.Priority}/{SecondaryGroup.Name},{SecondaryGroup.Priority}/{Priority}";
+
+	public FloatParameterUI()
+	{
+	}
+}
+
+public struct ColorParameterUI : IParameterUI
+{
+	public int Priority { get; set; }
+
+	[InlineEditor( Label = false ), Group( "Group" )]
+	public UIGroup PrimaryGroup { get; set; }
+
+	[InlineEditor( Label = false ), Group( "Sub Group" )]
+	public UIGroup SecondaryGroup { get; set; }
+
+	[JsonIgnore, Hide]
+	public readonly string UIGroup => $"{PrimaryGroup.Name},{PrimaryGroup.Priority}/{SecondaryGroup.Name},{SecondaryGroup.Priority}/{Priority}";
+
+	public ColorParameterUI()
+	{
+	}
 }

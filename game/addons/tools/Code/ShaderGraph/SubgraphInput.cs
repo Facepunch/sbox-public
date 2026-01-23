@@ -93,7 +93,7 @@ public sealed class SubgraphInput : ShaderNode, IErroringNode
 		}
 
 		// For normal graphs, use ResultParameter to create a material parameter
-		return compiler.ResultParameter( InputName, outputValue, default, default, false, IsRequired, new() );
+		return compiler.ResultParameter( InputName, outputValue, default, default, false, IsRequired, default );
 	};
 
 	[JsonIgnore, Hide]
