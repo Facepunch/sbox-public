@@ -7,6 +7,7 @@ public enum NodeResultType
 	Float,
 	Vector2,
 	Vector3,
+	Vector4,
 	Color
 }
 
