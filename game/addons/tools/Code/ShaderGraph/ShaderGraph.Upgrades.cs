@@ -115,4 +115,32 @@ partial class ShaderGraph
 
 		return subgraphInput;
 	}
+
+	/*
+	[SGJsonUpgrader( typeof( ShaderGraph ), 2 )]
+	public static void ShaderGraphUpgrader_v2( JsonObject jsonObj, bool isSubgraph )
+	{
+		try
+		{
+			Log.Info( "Running ShaderGraph v2 JsonUpgrader" );
+
+			if ( isSubgraph )
+			{
+				Log.Info( "v2 Upgrader operating on a subgraph" );
+			}
+		}
+		catch
+		{
+		}
+	}
+	*/
+
+	private static JsonElement UpgradeShaderGraph( int versionNumber, Type type, JsonElement jsonElement, JsonSerializerOptions serializerOptions, bool isSubgraph )
+	{
+		var jsonObject = JsonNode.Parse( jsonElement.GetRawText() ) as JsonObject;
+
+		SGJsonUpgrader.Upgrade( versionNumber, jsonObject, type, isSubgraph );
+
+		return JsonSerializer.Deserialize<JsonElement>( jsonObject.ToJsonString(), serializerOptions );
+	}
 }
