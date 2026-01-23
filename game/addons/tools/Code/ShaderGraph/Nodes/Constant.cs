@@ -24,11 +24,11 @@ public sealed class ConstantBool : ConstantNode<bool>
 /// Single int value
 /// </summary>
 [Title( "Int Constant" ), Category( "Constants" ), Icon( "looks_one" ), Order( 1 )]
-public sealed class ConstantInt : ConstantNode<float>
+public sealed class ConstantInt : ConstantNode<int>
 {
 	[Hide] public float Step => 1;
 
-	[Output( typeof( float ) ), Title( "Value" )]
+	[Output( typeof( int ) ), Title( "Value" )]
 	[Hide, Editor( nameof( Value ) ), Range( nameof( Min ), nameof( Max ), nameof( Step ) )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
