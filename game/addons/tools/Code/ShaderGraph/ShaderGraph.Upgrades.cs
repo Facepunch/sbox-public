@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Nodes;
+﻿using Editor.ShaderGraph.Nodes;
+using System.Text.Json.Nodes;
 
 namespace Editor.ShaderGraph;
 
@@ -42,6 +43,22 @@ partial class ShaderGraph
 		return false;
 	}
 
+	private static bool ShouldConvertParameterNodeToConstant( string typeName, JsonElement element )
+	{
+		// Only upgrade if it's a parameter node type
+		if ( !IsParameterNodeTypeToConvertToConstant( typeName ) )
+			return false;
+
+		// Only convert if it dosent have a name (indicating it's meant to be a constant value)
+		if ( element.TryGetProperty( "Name", out var nameProperty ) )
+		{
+			return string.IsNullOrWhiteSpace( nameProperty.GetString() );
+		}
+
+		// No "Name" property? assume its ment to be a constant.
+		return true;
+	}
+
 	/// <summary>
 	/// Check if the type name represents a parameter node
 	/// </summary>
@@ -54,6 +71,18 @@ partial class ShaderGraph
 			"Float3" => true,
 			"Float4" => true,
 			"TextureSampler" => true,
+			_ => false
+		};
+	}
+
+	private static bool IsParameterNodeTypeToConvertToConstant( string typeName )
+	{
+		return typeName switch
+		{
+			"Float" => true,
+			"Float2" => true,
+			"Float3" => true,
+			"Float4" => true,
 			_ => false
 		};
 	}
@@ -114,6 +143,55 @@ partial class ShaderGraph
 		}
 
 		return subgraphInput;
+	}
+
+	private BaseNode ConvertToConstantNode( string typeName, JsonElement element, JsonSerializerOptions options )
+	{
+		if ( element.TryGetProperty( "Value", out var valueElement ) )
+		{
+			BaseNode newNode = null;
+
+			switch ( typeName )
+			{
+				case "Float":
+					newNode = new ConstantFloat()
+					{
+						Value = valueElement.GetSingle()
+					};
+					break;
+				case "Float2":
+					var vector2 = JsonSerializer.Deserialize<Vector2>( valueElement.GetRawText(), options );
+					newNode = new ConstantFloat2()
+					{
+						Value = vector2
+					};
+					break;
+				case "Float3":
+					var vector3 = JsonSerializer.Deserialize<Vector3>( valueElement.GetRawText(), options );
+					newNode = new ConstantFloat3()
+					{
+						Value = vector3
+					};
+					break;
+				case "Float4":
+					var color = JsonSerializer.Deserialize<Color>( valueElement.GetRawText(), options );
+					newNode = new ConstantColor()
+					{
+						Value = color
+					};
+					break;
+			}
+
+			if ( newNode == null )
+				throw new Exception( "Couldnt convert nameless Parameter node to Constant node" );
+
+			// Copy basic node properties
+			DeserializeObject( newNode, element, options );
+
+			return newNode;
+		}
+
+		throw new Exception( "Couldnt convert nameless Parameter node to Constant node" );
 	}
 
 	/*

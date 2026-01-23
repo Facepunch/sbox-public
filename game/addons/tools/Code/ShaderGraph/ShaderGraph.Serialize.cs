@@ -134,6 +134,10 @@ partial class ShaderGraph
 				{
 					node = CreateUpgradedSubgraphInput( typeName, element, options );
 				}
+				else if ( fileVersion < 2 && ShouldConvertParameterNodeToConstant( typeName, element ) )
+				{
+					node = ConvertToConstantNode( typeName, element, options );
+				}
 				else
 				{
 					node = EditorTypeLibrary.Create<BaseNode>( typeName );
