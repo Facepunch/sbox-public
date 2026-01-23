@@ -480,7 +480,18 @@ public sealed partial class GraphCompiler
 		var attribName = name;
 		name = CleanName( name );
 
-		var prefix = (value is float) ? "g_fl" : (value is bool) ? "g_b" : "g_v";
+		var prefix = value switch
+		{
+			bool _ => "g_b",
+			int _ => "g_n",
+			float _ => "g_fl",
+			Vector2 _ => "g_v",
+			Vector3 _ => "g_v",
+			Vector4 _ => "g_v",
+			Color _ => "g_v",
+			Sampler _ => "g_s",
+			_ => throw new Exception( $"Unknown type \"{value.GetType()}\"" )
+		};
 		if ( !name.StartsWith( prefix ) )
 			name = prefix + name;
 
