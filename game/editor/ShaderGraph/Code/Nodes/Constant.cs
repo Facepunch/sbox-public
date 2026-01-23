@@ -156,7 +156,7 @@ public sealed class ConstantFloat3 : ConstantNode<Vector3>
 /// <summary>
 /// 3 float values
 /// </summary>
-[Title( "Float4 Constant" ), Category( "Constants" ), Icon( "looks_3" )]
+[Title( "Float4 Constant" ), Category( "Constants" ), Icon( "looks_4" )]
 public sealed class ConstantFloat4 : ConstantNode<Vector4>
 {
 	[Output( typeof( Vector4 ) ), Title( "XYZ" ), Hide]
