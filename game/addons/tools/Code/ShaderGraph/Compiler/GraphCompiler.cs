@@ -472,7 +472,7 @@ public sealed partial class GraphCompiler
 	/// <summary>
 	/// Get result of a value that can be set in material editor
 	/// </summary>
-	public NodeResult ResultParameter<T>( string name, T value, T min = default, T max = default, bool isRange = false, bool isAttribute = false, ParameterUI ui = default )
+	public NodeResult ResultParameter<T>( string name, T value, T min = default, T max = default, bool isRange = false, bool isAttribute = false, IParameterUI ui = default )
 	{
 		if ( IsPreview || string.IsNullOrWhiteSpace( name ) || Subgraph is not null )
 			return ResultValue( value );
@@ -518,14 +518,30 @@ public sealed partial class GraphCompiler
 		}
 		else
 		{
-			if ( ui.Type != UIType.Default )
+			if ( ui is FloatParameterUI floatParameterUI )
 			{
-				options.Write( $"UiType( {ui.Type} ); " );
-			}
+				if ( floatParameterUI.Type != UIType.Default )
+				{
+					options.Write( $"UiType( {floatParameterUI.Type} ); " );
+				}
 
-			if ( ui.Step > 0.0f )
+				if ( floatParameterUI.Step > 0.0f )
+				{
+					options.Write( $"UiStep( {floatParameterUI.Step} ); " );
+				}
+			}
+			else if ( ui is IntParameterUI )
 			{
-				options.Write( $"UiStep( {ui.Step} ); " );
+				options.Write( $"UiType( Slider ); " );
+
+			}
+			else if ( ui is BoolParameterUI )
+			{
+				options.Write( $"UiType( CheckBox ); " );
+			}
+			else if ( ui is ColorParameterUI )
+			{
+				options.Write( $"UiType( Color ); " );
 			}
 
 			options.Write( $"UiGroup( \"{ui.UIGroup}\" ); " );
@@ -539,7 +555,7 @@ public sealed partial class GraphCompiler
 				options.Write( $"Default{parameter.Result.Components}( {value} ); " );
 			}
 
-			if ( parameter.Result.Components > 0 && isRange )
+			if ( value is not bool && parameter.Result.Components > 0 && isRange )
 			{
 				options.Write( $"Range{parameter.Result.Components}( {min}, {max} ); " );
 			}
