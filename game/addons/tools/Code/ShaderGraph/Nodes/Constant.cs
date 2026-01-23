@@ -6,7 +6,7 @@ namespace Editor.ShaderGraph.Nodes;
 /// Bool value
 /// </summary>
 [Title( "Bool Constant" ), Category( "Constants" ), Icon( "check_box" ), Order( 0 )]
-public sealed class ConstantBool : ConstantNode<int>
+public sealed class ConstantBool : ConstantNode<bool>
 {
 	[Output( typeof( bool ) ), Title( "Value" )]
 	[Hide, Editor( nameof( Value ) )]
