@@ -6,7 +6,7 @@ namespace Editor.ShaderGraph.Nodes;
 /// <summary>
 /// Single float value
 /// </summary>
-[Title( "Float" ), Category( "Parameters" ), Icon( "looks_one" )]
+[Title( "Float Parameter" ), Category( "Parameters" ), Icon( "looks_one" )]
 public sealed class FloatParameter : ParameterNode<float, FloatParameterUI>
 {
 	[Hide] public float Step => UI.Step;
@@ -42,7 +42,7 @@ public sealed class FloatParameter : ParameterNode<float, FloatParameterUI>
 /// <summary>
 /// 2 float values
 /// </summary>
-[Title( "Float2" ), Category( "Parameters" ), Icon( "looks_two" )]
+[Title( "Float2 Parameter" ), Category( "Parameters" ), Icon( "looks_two" )]
 public sealed class Float2Parameter : ParameterNode<Vector2, FloatParameterUI>
 {
 	[Output( typeof( Vector2 ) ), Title( "XY" ), Hide]
@@ -110,7 +110,7 @@ public sealed class Float2Parameter : ParameterNode<Vector2, FloatParameterUI>
 /// <summary>
 /// 3 float values
 /// </summary>
-[Title( "Float3" ), Category( "Parameters" ), Icon( "looks_3" )]
+[Title( "Float3 Parameter" ), Category( "Parameters" ), Icon( "looks_3" )]
 public sealed class Float3Parameter : ParameterNode<Vector3, FloatParameterUI>
 {
 	[Output( typeof( Vector3 ) ), Title( "XYZ" ), Hide]
@@ -194,7 +194,7 @@ public sealed class Float3Parameter : ParameterNode<Vector3, FloatParameterUI>
 /// <summary>
 /// 4 float values
 /// </summary>
-[Title( "Float4" ), Category( "Parameters" ), Icon( "palette" )]
+[Title( "Float4 Parameter" ), Category( "Parameters" ), Icon( "palette" )]
 public sealed class Float4Parameter : ParameterNode<Vector4, FloatParameterUI>
 {
 	[Output( typeof( Vector4 ) ), Title( "XYZ" ), Hide]
@@ -284,7 +284,7 @@ public sealed class Float4Parameter : ParameterNode<Vector4, FloatParameterUI>
 /// <summary>
 /// 4 float values, normally used as a color
 /// </summary>
-[Title( "Color" ), Category( "Parameters" ), Icon( "palette" )]
+[Title( "Color Parameter" ), Category( "Parameters" ), Icon( "palette" )]
 public sealed class ColorParameter : ParameterNode<Color, ColorParameterUI>
 {
 	[Output( typeof( Color ) ), Title( "RGBA" )]
