@@ -12,33 +12,34 @@ internal class NetworkTable : IDisposable
 
 	public class Entry : INetworkProxy
 	{
-		public Type TargetType { get; init; }
-		public string DebugName { get; init; }
-		public bool NeedsQuery { get; set; }
-		public Func<Connection, bool> ControlCondition { get; init; } = c => true;
-		public Func<object> GetValue { get; init; }
-		public Action<object> SetValue { get; init; }
-		public Action<Entry> OnDirty { get; set; }
-		public ulong SnapshotHash { get; set; }
-		public int HashCodeValue { get; set; }
-		public bool IsSerializerType { get; private set; }
-		public bool IsDeltaSnapshotType { get; private set; }
-		public bool IsReliableType { get; set; }
-		public byte[] Serialized { get; set; }
-		public bool Initialized { get; set; }
-		public int Slot { get; private set; }
-
-		private bool InternalIsDirty { get; set; }
+		// We're making all of these fields because they're accessed on an extremely hot path.
+		// Being properties, the extra method call stacks up a lot when you have thousands and
+		// thousands of entries. It doesn't really matter though, this API is not public.
+		public Type TargetType;
+		public string DebugName;
+		public bool NeedsQuery;
+		public Func<Connection, bool> ControlCondition = c => true;
+		public Func<object> GetValue;
+		public Action<object> SetValue;
+		public Action<Entry> OnDirty;
+		public ulong SnapshotHash;
+		public int HashCodeValue;
+		public bool IsSerializerType;
+		public bool IsDeltaSnapshotType;
+		public bool IsReliableType;
+		public byte[] Serialized;
+		public bool Initialized;
+		public int Slot;
 
 		public bool IsDirty
 		{
-			get => InternalIsDirty;
+			get;
 			set
 			{
-				if ( InternalIsDirty == value )
+				if ( field == value )
 					return;
 
-				InternalIsDirty = value;
+				field = value;
 				OnDirty?.Invoke( this );
 			}
 		}

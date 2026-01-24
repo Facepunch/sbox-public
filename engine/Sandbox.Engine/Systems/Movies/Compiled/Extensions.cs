@@ -52,6 +52,13 @@ public static class CompiledClipExtensions
 			name, track, blocks ?? [] )!;
 
 	/// <summary>
+	/// Create a nested <see cref="ICompiledPropertyTrack"/> that targets an item with the given <paramref name="index"/>
+	/// in the parent collection property track.
+	/// </summary>
+	public static CompiledPropertyTrack<TItem> Item<TItem>( this CompiledPropertyTrack<List<TItem>> track, int index, IEnumerable<ICompiledPropertyBlock<TItem>>? blocks = null ) =>
+		new( index.ToString(), track, blocks?.ToImmutableArray() ?? ImmutableArray<ICompiledPropertyBlock<TItem>>.Empty );
+
+	/// <summary>
 	/// <para>
 	/// Helper for creating a compiled child track with the given <paramref name="name"/> and value <paramref name="type"/>.
 	/// </para>

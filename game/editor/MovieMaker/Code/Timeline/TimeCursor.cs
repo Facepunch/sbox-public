@@ -58,10 +58,8 @@ public class TimeCursor : GraphicsItem, ISnapSource
 	{
 		PrepareGeometryChange();
 
-		var timeline = (Timeline)GraphicsView;
-
-		Position = new Vector2( timeline.Session.TimeToPixels( Value ), timeline.VisibleRect.Top + 12f );
-		Size = new Vector2( 1, timeline.VisibleRect.Height - 24f );
+		Position = new Vector2( Timeline.TimeToPixels( Value ), Timeline.VisibleRect.Top + 12f );
+		Size = new Vector2( 1, Timeline.VisibleRect.Height - 24f );
 
 		_frameLabel.Position = new Vector2( 8f, Height );
 	}

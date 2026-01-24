@@ -89,7 +89,7 @@ namespace Editor
 			if ( _object.IsValid )
 			{
 				OnDestroyingLater();
-				_object.deleteLater();
+				_object.deleteMuchLater();
 			}
 		}
 

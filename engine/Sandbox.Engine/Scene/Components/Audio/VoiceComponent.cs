@@ -64,7 +64,6 @@ public class Voice : Component
 	private SoundStream soundStream;
 	private SoundHandle sound;
 	private float[] morphs;
-	private float[] morphVelocity;
 
 	private static readonly string[] VisemeNames = new string[]
 	{
@@ -156,7 +155,6 @@ public class Voice : Component
 		if ( Renderer.IsValid() && Renderer.Model.MorphCount > 0 )
 		{
 			morphs = new float[Renderer.Model.MorphCount];
-			morphVelocity = new float[Renderer.Model.MorphCount];
 		}
 
 		base.OnEnabledInternal();
@@ -343,7 +341,6 @@ public class Voice : Component
 		if ( morphCount != morphs.Length )
 		{
 			morphs = new float[morphCount];
-			morphVelocity = new float[morphCount];
 		}
 
 		var sceneModel = Renderer.SceneModel;
@@ -358,7 +355,7 @@ public class Voice : Component
 			var weight = sceneModel.Morphs.Get( i );
 			float target = LastPlayed < 0.2f ? morphs[i] : 0.0f;
 
-			weight = MathX.SmoothDamp( weight, target, ref morphVelocity[i], MorphSmoothTime, Time.Delta );
+			weight = MathX.ExponentialDecay( weight, target, MorphSmoothTime * 0.17f, Time.Delta );
 			sceneModel.Morphs.Set( i, Math.Max( 0, weight ) );
 		}
 	}

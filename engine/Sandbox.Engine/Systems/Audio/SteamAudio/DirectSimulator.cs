@@ -28,7 +28,6 @@ class DirectSource : IDisposable
 
 	float? _occlusion;
 	float _targetOcclusion = 1.0f;
-	float _occlusionVelocity = 0.0f;
 
 	/// <summary>
 	/// Time tracking for occlusion updates, managed by SoundOcclusionSystem
@@ -46,7 +45,7 @@ class DirectSource : IDisposable
 			{
 				if ( _occlusion.HasValue )
 				{
-					_occlusion = MathX.SmoothDamp( _occlusion.Value, _targetOcclusion, ref _occlusionVelocity, 0.3f, RealTime.Delta );
+					_occlusion = MathX.ExponentialDecay( _occlusion.Value, _targetOcclusion, 0.05f, RealTime.Delta );
 				}
 				else
 				{
@@ -67,7 +66,6 @@ class DirectSource : IDisposable
 	public void Snap()
 	{
 		_occlusion = _targetOcclusion;
-		_occlusionVelocity = 0;
 	}
 
 	/// <summary>

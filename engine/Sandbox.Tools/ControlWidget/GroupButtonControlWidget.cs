@@ -26,7 +26,6 @@ public class GroupButtonControlWidget : ControlWidget
 			return;
 		}
 
-		Cursor = CursorShape.Finger;
 		IsFlagsMode = property.HasAttribute<FlagsAttribute>() || typeDesc.HasAttribute<FlagsAttribute>();
 
 		Layout = Layout.Row();
@@ -41,6 +40,7 @@ public class GroupButtonControlWidget : ControlWidget
 				continue;
 
 			var b = Layout.Add( new MenuOption( o, property, IsFlagsMode ) );
+			b.Enabled = !IsControlDisabled;
 		}
 
 	}
@@ -48,6 +48,16 @@ public class GroupButtonControlWidget : ControlWidget
 
 file class MenuOption : Widget
 {
+	public new bool Enabled
+	{
+		get => base.Enabled;
+		set
+		{
+			base.Enabled = value;
+			Cursor = Enabled ? CursorShape.Finger : CursorShape.None;
+		}
+	}
+
 	EnumDescription.Entry info;
 	SerializedProperty property;
 	bool flagMode;
@@ -75,7 +85,6 @@ file class MenuOption : Widget
 		var c = Layout.AddColumn();
 		c.Margin = new Sandbox.UI.Margin( 8, 4 );
 		_text = c.Add( new Label( e.Title ) );
-		_text.Color = Theme.Text;
 
 		if ( !string.IsNullOrWhiteSpace( e.Description ) )
 		{
@@ -94,11 +103,11 @@ file class MenuOption : Widget
 	{
 		if ( HasValue() )
 		{
-			Paint.SetBrushAndPen( Theme.Blue.WithAlpha( 0.9f ) );
+			Paint.SetBrushAndPen( Enabled ? Theme.Blue.WithAlpha( 0.9f ) : Theme.SurfaceLightBackground );
 		}
 		else
 		{
-			Paint.SetBrushAndPen( Paint.HasMouseOver ? Theme.SurfaceBackground.WithAlpha( 1f ) : Theme.WidgetBackground.WithAlpha( 0.8f ) );
+			Paint.SetBrushAndPen( Paint.HasMouseOver && Enabled ? Theme.SurfaceBackground.WithAlpha( 1f ) : Theme.WidgetBackground.WithAlpha( 0.8f ) );
 		}
 
 		Paint.DrawRect( LocalRect, 3 );
@@ -107,12 +116,15 @@ file class MenuOption : Widget
 
 	void UpdateColors()
 	{
-		_text?.Color = HasValue() ? Color.White : Theme.Text.WithAlpha( 0.7f );
+		_text?.Color = HasValue() && Enabled ? Color.White : Theme.Text.WithAlpha( 0.7f );
 	}
 
 	protected override void OnMousePress( MouseEvent e )
 	{
 		base.OnMousePress( e );
+
+		if ( !Enabled )
+			return;
 
 		var value = property.GetValue<long>( 0 );
 

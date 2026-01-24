@@ -229,7 +229,7 @@ public partial interface IProjectPropertyTrack : IPropertyTrack, IProjectBlockTr
 
 	bool AddRange( IEnumerable<IProjectPropertyBlock> blocks );
 
-	void SetBlocks( IReadOnlyList<IProjectPropertyBlock> blocks );
+	void SetBlocks( IEnumerable<IProjectPropertyBlock> blocks );
 
 	/// <summary>
 	/// Copies blocks that overlap the given <paramref name="timeRange"/> and returns
@@ -237,8 +237,6 @@ public partial interface IProjectPropertyTrack : IPropertyTrack, IProjectBlockTr
 	/// </summary>
 	IReadOnlyList<IProjectPropertyBlock> Slice( MovieTimeRange timeRange );
 
-	IReadOnlyList<IProjectPropertyBlock> CreateSourceBlocks( ProjectSourceClip source );
-	
 	IReadOnlyList<ITrackBlock> IProjectBlockTrack.Blocks => Blocks;
 	IProjectTrack? IProjectTrack.Parent => Parent;
 	ITrack? ITrack.Parent => Parent;
@@ -416,7 +414,7 @@ public sealed partial class ProjectPropertyTrack<T>( MovieProject project, Guid 
 	bool IProjectPropertyTrack.AddRange( IEnumerable<IProjectPropertyBlock> blocks ) =>
 		AddRange( blocks.Cast<PropertyBlock<T>>() );
 
-	public void SetBlocks( IReadOnlyList<IProjectPropertyBlock> blocks )
+	public void SetBlocks( IEnumerable<IProjectPropertyBlock> blocks )
 	{
 		_blocksChanged = true;
 		_blocks.Clear();
@@ -434,9 +432,6 @@ public sealed partial class ProjectPropertyTrack<T>( MovieProject project, Guid 
 	}
 
 	IReadOnlyList<IProjectPropertyBlock> IProjectPropertyTrack.Slice( MovieTimeRange timeRange ) => Slice( timeRange );
-
-	IReadOnlyList<IProjectPropertyBlock> IProjectPropertyTrack.CreateSourceBlocks( ProjectSourceClip source ) =>
-		source.AsBlocks<T>( this );
 
 	private void UpdateBlocks()
 	{

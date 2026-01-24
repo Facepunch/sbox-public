@@ -20,6 +20,7 @@ internal class Deploy
 		// We always want a clean rebuild for managed code.
 		builder.AddStep( new BuildManaged( "Build Managed", true ) );
 		builder.AddStep( new NvPatch( "NvPatch" ) );
+		builder.AddStep( new SignBinaries() );
 		builder.AddStep( new BuildShaders( "Build Shaders" ) );
 		builder.AddStep( new BuildContent( "Build Content" ) );
 

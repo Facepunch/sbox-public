@@ -33,14 +33,8 @@ partial class MotionEditMode
 
 		var compiledTracks = renderer.BakeAnimation( timeSelection.TotalTimeRange, options );
 
-		SetModification<BlendModification>( timeSelection ).SetFromTracks(
-			compiledTracks, timeSelection.TotalTimeRange, 0d, false,
-			new JsonObject
-			{
-				{ "Date", DateTime.UtcNow.ToString( "o", CultureInfo.InvariantCulture ) },
-				{ "SourceModel", sourceModel.ResourcePath },
-				{ "SourceSequence", animName }
-			} );
+		SetModification<BlendModification>( timeSelection )
+			.SetFromTracks( compiledTracks, timeSelection.TotalTimeRange, 0d, false );
 
 		SelectionChanged();
 		DisplayAction( "local_movies" );

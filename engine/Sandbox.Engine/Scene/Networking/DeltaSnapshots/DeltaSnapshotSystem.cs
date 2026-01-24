@@ -18,13 +18,13 @@ internal class DeltaSnapshotSystem
 	internal class GuidUlongComparer : IEqualityComparer<Guid>
 	{
 		[MethodImpl( MethodImplOptions.AggressiveInlining )]
-		public bool Equals( Guid x, Guid y ) => x.Equals( y );
+		public bool Equals( Guid x, Guid y ) => x == y;
 
 		[MethodImpl( MethodImplOptions.AggressiveInlining )]
 		public int GetHashCode( Guid guid )
 		{
-			var lowBits = MemoryMarshal.Read<ulong>( MemoryMarshal.AsBytes( MemoryMarshal.CreateReadOnlySpan( in guid, 1 ) ) );
-			return (int)(lowBits ^ (lowBits >> 32));
+			var span = MemoryMarshal.Cast<Guid, long>( MemoryMarshal.CreateSpan( ref guid, 1 ) );
+			return (int)(span[0] ^ span[1]);
 		}
 	}
 
@@ -674,13 +674,12 @@ internal class DeltaSnapshotSystem
 	/// </summary>
 	public ushort CreateSnapshotId( Guid objectId )
 	{
-		ushort snapshotId = 0;
+		ref var id = ref CollectionsMarshal.GetValueRefOrAddDefault( LastSentSnapshotIds, objectId, out bool exists );
 
-		if ( LastSentSnapshotIds.TryGetValue( objectId, out var id ) )
-			snapshotId = (ushort)(id + 1);
+		if ( exists )
+			id++;
 
-		LastSentSnapshotIds[objectId] = snapshotId;
-		return snapshotId;
+		return id;
 	}
 
 	/// <summary>

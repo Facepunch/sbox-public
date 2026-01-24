@@ -249,7 +249,7 @@ public sealed partial class KeyframeEditMode : EditMode
 		}
 
 		var scenePos = Timeline.ToScene( e.LocalPosition );
-		var time = Session.ScenePositionToTime( scenePos, showSnap: false );
+		var time = Timeline.ScenePositionToTime( scenePos, showSnap: false );
 		var timelineTrack = Timeline.Tracks.FirstOrDefault( x => x.SceneRect.IsInside( scenePos ) );
 
 		if ( !e.LeftMouseButton ) return;

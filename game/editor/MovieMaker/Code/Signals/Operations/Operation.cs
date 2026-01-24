@@ -24,8 +24,6 @@ public abstract record UnaryOperation<T>( PropertySignal<T> Signal ) : PropertyO
 
 	protected override PropertySignal<T> OnSmooth( MovieTime size ) => this with { Signal = Signal.Smooth( size ) };
 
-	public override bool CanSmooth( MovieTimeRange range ) => Signal.CanSmooth( range );
-
 	public override IEnumerable<MovieTimeRange> GetPaintHints( MovieTimeRange timeRange ) =>
 		Signal.GetPaintHints( timeRange );
 }
@@ -54,9 +52,6 @@ public abstract record BinaryOperation<T>( PropertySignal<T> First, PropertySign
 
 		return this with { First = first, Second = second };
 	}
-
-	public override bool CanSmooth( MovieTimeRange range ) =>
-		First.CanSmooth( range ) || Second.CanSmooth( range );
 
 	protected bool TryReduceTransition( MovieTime? start, MovieTime? end, MovieTimeRange transitionTimeRange,
 		[NotNullWhen( true )] out PropertySignal<T>? reduced,

@@ -72,7 +72,12 @@ public sealed class MovieResource : GameResource, IMovieResource
 		// We only want EditorData to be written here,
 		// MovieCompiler will handle writing Compiled to the .movie_c
 
-		node.Remove( nameof( Compiled ) );
+		// If there is no EditorData, just leave Compiled
+
+		if ( node[nameof( EditorData )] is not null )
+		{
+			node.Remove( nameof( Compiled ) );
+		}
 	}
 
 	protected override Bitmap CreateAssetTypeIcon( int width, int height )

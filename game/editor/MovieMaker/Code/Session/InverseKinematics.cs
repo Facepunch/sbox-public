@@ -122,7 +122,7 @@ internal sealed class SessionInverseKinematics
 				if ( Gizmo.WasLeftMousePressed && boneTrackView is not null )
 				{
 					boneTrackView.Select();
-					_session.Editor.ListPanel?.TrackList.ScrollToTrack( boneTrackView );
+					_session.Editor.TimelinePanel?.Timeline.ScrollToTrack( boneTrackView );
 				}
 
 				if ( Gizmo.IsShiftPressed && Gizmo.WasLeftMouseReleased )

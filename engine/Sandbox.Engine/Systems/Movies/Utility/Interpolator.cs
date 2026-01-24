@@ -38,6 +38,19 @@ public static class Interpolator
 		return DefaultInterpolator.Instance as IInterpolator<T>;
 	}
 
+	/// <summary>
+	/// Attempts to find a default interpolator for the given <paramref name="type"/>,
+	/// returning <see langword="null"/> if not found.
+	/// </summary>
+	public static bool CanInterpolate( Type type )
+	{
+		// TODO: type library lookup?
+
+		var interpolatorType = typeof( IInterpolator<> ).MakeGenericType( type );
+
+		return typeof( DefaultInterpolator ).IsAssignableTo( interpolatorType );
+	}
+
 	public static IInterpolator<T> GetDefaultOrThrow<T>() =>
 		GetDefault<T>() ?? throw new Exception( $"Type {typeof( T )} can't be interpolated." );
 }

@@ -117,6 +117,9 @@ internal static partial class SteamNetwork
 			OutgoingMessages.Writer.TryWrite( message );
 		}
 
+		private const int MaxBatchSize = 256;
+		private readonly IntPtr[] _messageBatch = new IntPtr[MaxBatchSize];
+
 		/// <summary>
 		/// Send any queued outgoing messages and process any incoming messages to be queued for handling
 		/// on the main thread.
@@ -126,12 +129,49 @@ internal static partial class SteamNetwork
 			var net = Steam.SteamNetworkingSockets();
 			if ( !net.IsValid ) return;
 
+			int batchCount = 0;
+
 			while ( OutgoingMessages.Reader.TryRead( out var msg ) )
 			{
-				ProcessOutgoingMessage( msg );
+				var gcHandle = GCHandle.Alloc( msg.Data, GCHandleType.Pinned );
+				var dataPtr = gcHandle.AddrOfPinnedObject();
+
+				PinnedBuffers[dataPtr] = gcHandle;
+
+				var steamMsgPtr = Glue.Networking.AllocateMessageWithManagedBuffer( msg.Connection, dataPtr, msg.Data.Length, msg.Flags );
+				if ( steamMsgPtr == IntPtr.Zero )
+				{
+					// Allocation failed, clean up immediately
+					PinnedBuffers.TryRemove( dataPtr, out _ );
+					gcHandle.Free();
+					continue;
+				}
+
+				_messageBatch[batchCount++] = steamMsgPtr;
+
+				if ( batchCount >= MaxBatchSize )
+				{
+					FlushBatch( ref batchCount );
+				}
+			}
+
+			// Send any remaining messages
+			if ( batchCount > 0 )
+			{
+				FlushBatch( ref batchCount );
 			}
 
 			ProcessIncomingMessages( net );
+		}
+
+		private unsafe void FlushBatch( ref int count )
+		{
+			fixed ( IntPtr* pMessages = _messageBatch )
+			{
+				Glue.Networking.SendMessages( (IntPtr)pMessages, count );
+			}
+
+			count = 0;
 		}
 
 		/// <summary>
@@ -164,21 +204,6 @@ internal static partial class SteamNetwork
 					IncomingMessages.Writer.TryWrite( m );
 					net.ReleaseMessage( ptr[i] );
 				}
-			}
-		}
-
-		/// <summary>
-		/// Send any queued outgoing messages via Steam Networking API. 
-		/// </summary>
-		/// <param name="msg"></param>
-		private unsafe void ProcessOutgoingMessage( in OutgoingSteamMessage msg )
-		{
-			fixed ( byte* d = msg.Data )
-			{
-				Glue.Networking.SendMessage( msg.Connection, (IntPtr)d, msg.Data.Length, msg.Flags );
-
-				if ( Connections.TryGetValue( msg.Connection.Id, out var target ) )
-					target.MessagesSent++;
 			}
 		}
 

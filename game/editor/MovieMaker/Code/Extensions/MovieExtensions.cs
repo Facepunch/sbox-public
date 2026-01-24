@@ -1,4 +1,7 @@
-﻿using Sandbox.MovieMaker;
+﻿using System.Linq;
+using System.Reflection;
+using Sandbox.MovieMaker;
+using Sandbox.MovieMaker.Compiled;
 
 namespace Editor.MovieMaker;
 
@@ -52,5 +55,31 @@ internal static class MovieExtensions
 		{
 			yield return ((innerRange + offset).Clamp( outerRange ), new MovieTransform( offset ));
 		}
+	}
+
+	private static MethodInfo ToProjectBlockMethod { get; } = typeof( MovieExtensions )
+		.GetMethods( BindingFlags.Static | BindingFlags.Public )
+		.First( x => x is { IsGenericMethodDefinition: true, Name: nameof( ToProjectBlock ) } );
+
+	public static IEnumerable<IProjectPropertyBlock> ToProjectBlocks( this IEnumerable<ICompiledPropertyBlock> blocks ) =>
+		blocks.Select( x => x.ToProjectBlock() );
+
+	public static IEnumerable<PropertyBlock<T>> ToProjectBlocks<T>( this IEnumerable<ICompiledPropertyBlock<T>> blocks ) =>
+		blocks.Select( x => x.ToProjectBlock() );
+
+	public static IProjectPropertyBlock ToProjectBlock( this ICompiledPropertyBlock block )
+	{
+		return (IProjectPropertyBlock)ToProjectBlockMethod.MakeGenericMethod( block.PropertyType )
+			.Invoke( null, [block] )!;
+	}
+
+	public static PropertyBlock<T> ToProjectBlock<T>( this ICompiledPropertyBlock<T> block )
+	{
+		return block switch
+		{
+			CompiledConstantBlock<T> constantBlock => constantBlock,
+			CompiledSampleBlock<T> sampleBlock => sampleBlock,
+			_ => throw new NotImplementedException()
+		};
 	}
 }

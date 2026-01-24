@@ -208,6 +208,7 @@ public abstract partial class GameObjectSystem : IDeltaSnapshot
 		var system = SceneNetworkSystem.Instance;
 		if ( system is null ) return null;
 
+		LocalSnapshotState.Begin();
 		LocalSnapshotState.SnapshotId = system.DeltaSnapshots.CreateSnapshotId( Id );
 		LocalSnapshotState.ObjectId = Id;
 

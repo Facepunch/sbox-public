@@ -27,9 +27,11 @@ public sealed class StringBlockItem : PropertyBlockItem<string?>
 	{
 		if ( Block.GetValue( range.Start ) is not { } value ) return;
 
-		var origin = Parent.Session.TimeToPixels( Block.TimeRange.Start );
-		var left = Parent.Session.TimeToPixels( range.Start ) - origin;
-		var right = Parent.Session.TimeToPixels( range.End ) - origin;
+		var timeline = Parent.Timeline;
+
+		var origin = timeline.TimeToPixels( Block.TimeRange.Start );
+		var left = timeline.TimeToPixels( range.Start ) - origin;
+		var right = timeline.TimeToPixels( range.End ) - origin;
 
 		Paint.SetPen( Color.White.WithAlpha( 0.5f ), 12f );
 		Paint.DrawText( new Rect( left, LocalRect.Top, right - left, LocalRect.Height ), value );

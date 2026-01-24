@@ -61,10 +61,15 @@ native class Glue.Networking
 	static HSteamNetConnection ConnectToIpAddress( string address );
 	static void CloseConnection( HSteamNetConnection c, int reason, string debugReason );
 	static void AcceptConnection( HSteamNetConnection c );
+	static void* GetMessageDataBuffer( void* message );
+	static void* AllocateMessageWithManagedBuffer( HSteamNetConnection c, void* buffer, int size, int flags );
+	static void* AllocateMessage( HSteamNetConnection c, int size, int flags );
 	static void FlushMessagesOnConnection( HSteamNetConnection c );
 	static EResult SendMessage( HSteamNetConnection c, void* data, int length, int flags );
+	static void SendMessages( void* messages, int numberOfMessages );
 	static int GetConnectionMessages( HSteamNetConnection c, void* array_of_pointers, int maxmessages );
 	static int GetConnectionState( HSteamNetConnection c );
 	static string GetConnectionDescription( HSteamNetConnection c );
 	static ulong GetConnectionSteamId( HSteamNetConnection c );
+	static void SetFreeDataCallback( void* callback );
 }

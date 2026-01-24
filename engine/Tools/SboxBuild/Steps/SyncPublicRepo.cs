@@ -221,8 +221,8 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 				return false;
 			}
 
-			var uploadedTotalBytes = CalculateArtifactTotalSize( uploadedArtifacts );
-			Log.Info( $"Total artifact data uploaded: {Utility.FormatSize( uploadedTotalBytes )}" );
+			var manifestTotalBytes = CalculateArtifactTotalSize( uploadedArtifacts );
+			Log.Info( $"Total manifest artifact size: {Utility.FormatSize( manifestTotalBytes )}" );
 
 			return true;
 		}
@@ -595,16 +595,6 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			return true;
 		}
 
-		if ( duplicateManifestCount > 0 )
-		{
-			Log.Info( $"Skipped {duplicateManifestCount} duplicate manifest entries for {artifactLabel} artifacts" );
-		}
-
-		if ( duplicateUploadCount > 0 )
-		{
-			Log.Info( $"Skipped {duplicateUploadCount} duplicate upload candidates for {artifactLabel} artifacts" );
-		}
-
 		long batchBytes = 0;
 		foreach ( var upload in uniqueUploads )
 		{
@@ -613,21 +603,35 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 
 		if ( skipUpload )
 		{
-			Log.Info( $"Dry run skipping upload for {uniqueUploads.Count} unique {artifactLabel} artifacts ({Utility.FormatSize( batchBytes )})" );
+			Log.Info( $"Dry run: {uniqueUploads.Count} unique {artifactLabel} artifacts ({Utility.FormatSize( batchBytes )})" );
 			return true;
 		}
 
 		var maxParallelUploads = Math.Max( 1, Math.Min( MAX_PARALLEL_UPLOADS, Environment.ProcessorCount ) );
-		Log.Info( $"Uploading {uniqueUploads.Count} unique {artifactLabel} artifacts (up to {maxParallelUploads} concurrent uploads)..." );
+		Log.Info( $"Processing {uniqueUploads.Count} {artifactLabel} artifacts (up to {maxParallelUploads} concurrent)..." );
 
 		var failedUploads = new ConcurrentBag<string>();
+		long actualUploadedBytes = 0;
+		int skippedCount = 0;
+		int uploadedCount = 0;
+
 		Parallel.ForEach( uniqueUploads, new ParallelOptions { MaxDegreeOfParallelism = maxParallelUploads }, item =>
 		{
 			var (absolutePath, artifact) = item;
-			if ( !UploadArtifactFile( absolutePath, artifact, remoteBase ) )
+			var (success, wasSkipped) = UploadArtifactFile( absolutePath, artifact, remoteBase );
+			if ( !success )
 			{
 				Log.Error( $"Failed to upload {artifactLabel} artifact: {artifact.Path}" );
 				failedUploads.Add( artifact.Path );
+			}
+			else if ( wasSkipped )
+			{
+				Interlocked.Increment( ref skippedCount );
+			}
+			else
+			{
+				Interlocked.Add( ref actualUploadedBytes, artifact.Size );
+				Interlocked.Increment( ref uploadedCount );
 			}
 		} );
 
@@ -637,17 +641,28 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			return false;
 		}
 
-		Log.Info( $"Uploaded {uniqueUploads.Count} unique {artifactLabel} artifacts ({Utility.FormatSize( batchBytes )})" );
+		Log.Info( $"Uploaded {uploadedCount} {artifactLabel} artifacts ({Utility.FormatSize( actualUploadedBytes )}), {skippedCount} already existed" );
 
 		return true;
 	}
 
-	private static bool UploadArtifactFile( string localPath, ArtifactFileInfo artifact, string remoteBase )
+	private static (bool Success, bool WasSkipped) UploadArtifactFile( string localPath, ArtifactFileInfo artifact, string remoteBase )
 	{
 		var remotePath = $"{remoteBase}/artifacts/{artifact.Sha256}";
-		var sizeLabel = $" ({Utility.FormatSize( artifact.Size )})";
-		Log.Info( $"Uploading {artifact.Sha256}{sizeLabel}..." );
-		return Utility.RunProcess( "rclone", $"copyto \"{localPath}\" \"{remotePath}\" --ignore-existing -q", timeoutMs: 600000 );
+
+		// Check if the object already exists on remote using lsf
+		var existsOnRemote = false;
+		Utility.RunProcess( "rclone", $"lsf \"{remotePath}\" -q", timeoutMs: 60000,
+			onDataReceived: ( _, e ) => { if ( e.Data?.Contains( artifact.Sha256 ) == true ) existsOnRemote = true; } );
+
+		if ( existsOnRemote )
+		{
+			return (true, true);
+		}
+
+		// Use --no-check-dest since we already verified the file doesn't exist
+		var success = Utility.RunProcess( "rclone", $"copyto \"{localPath}\" \"{remotePath}\" --no-check-dest -q", timeoutMs: 600000 );
+		return (success, false);
 	}
 
 	private static bool UploadManifest( string commitHash, IEnumerable<ArtifactFileInfo> artifacts, string remoteBase )

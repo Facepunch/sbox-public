@@ -113,9 +113,11 @@ partial class Session
 		_frameRate = Cookies.FrameRate;
 		_frameSnap = Cookies.FrameSnap;
 		_objectSnap = Cookies.ObjectSnap;
-		_trackListScrollPosition = Cookies.ScrollPosition;
 
-		SetView( Cookies.TimeOffset, Cookies.PixelsPerSecond );
+		var timeline = Editor.TimelinePanel?.Timeline;
+
+		timeline?.SetView( Cookies.TimeOffset, Cookies.PixelsPerSecond );
+
 		SetEditMode( Cookies.EditMode );
 	}
 }
