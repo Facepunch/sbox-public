@@ -1,6 +1,6 @@
 ﻿using Editor.ShaderGraph;
 
-internal class ClassBlackboardParameterType : IBlackboardParameterType
+public class ClassBlackboardParameterType : IBlackboardParameterType
 {
 	public virtual string Identifier => Type.FullName;
 	public TypeDescription Type { get; }

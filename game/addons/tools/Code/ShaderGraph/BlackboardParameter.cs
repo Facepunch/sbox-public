@@ -13,7 +13,7 @@ public interface IBlackboardParameter
 	string Name { get; }
 }
 
-internal interface IBlackboardParameterType
+public interface IBlackboardParameterType
 {
 	public TypeDescription Type { get; }
 

@@ -50,6 +50,12 @@ public sealed partial class ShaderGraph : IGraph
 	[Hide, JsonIgnore]
 	IEnumerable<INode> IGraph.Nodes => Nodes;
 
+	[Hide, JsonIgnore]
+	public IEnumerable<BlackboardParameter> Parameters => _parameters.Values;
+
+	[Hide, JsonIgnore]
+	public readonly Dictionary<Guid, BlackboardParameter> _parameters = new();
+
 	[Hide]
 	public bool IsSubgraph { get; set; }
 
@@ -119,6 +125,35 @@ public sealed partial class ShaderGraph : IGraph
 	{
 		_nodes.TryGetValue( name, out var node );
 		return node;
+	}
+
+	public void AddParameter( BlackboardParameter parameter )
+	{
+		parameter.Graph = this;
+		_parameters.Add( parameter.Identifier, parameter );
+	}
+
+	public void RemoveParameter( BlackboardParameter parameter )
+	{
+		if ( parameter.Graph != this )
+			return;
+
+		RemoveParameter( parameter.Identifier );
+	}
+
+	public void RemoveParameter( Guid identifier )
+	{
+		_parameters.Remove( identifier );
+	}
+
+	public BlackboardParameter FindParameterByGuid( Guid guid )
+	{
+		if ( _parameters.TryGetValue( guid, out var parameter ) )
+		{
+			return parameter;
+		}
+
+		return null;
 	}
 
 	public void ClearNodes()

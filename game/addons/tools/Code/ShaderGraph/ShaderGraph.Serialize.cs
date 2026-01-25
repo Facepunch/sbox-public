@@ -30,6 +30,7 @@ partial class ShaderGraph
 
 		SerializeObject( this, doc, options );
 		SerializeNodes( Nodes, doc, options );
+		SerializeParameters( Parameters, doc, options );
 
 		doc.Add( "__version", JsonSerializer.SerializeToNode( Version, options ) );
 
@@ -45,6 +46,8 @@ partial class ShaderGraph
 
 		DeserializeObject( this, root, options );
 		DeserializeNodes( root, options, subgraphPath, fileVersion );
+		DeserializeParameters( root, options );
+
 	}
 
 	public IEnumerable<BaseNode> DeserializeNodes( string json )
@@ -234,9 +237,70 @@ partial class ShaderGraph
 		return nodes.Values;
 	}
 
+	public IEnumerable<BlackboardParameter> DeserializeParameters( string json )
+	{
+		using var doc = JsonDocument.Parse( json, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip } );
+		var root = doc.RootElement;
+
+		return DeserializeParameters( root, SerializerOptions() );
+	}
+
+	private IEnumerable<BlackboardParameter> DeserializeParameters( JsonElement doc, JsonSerializerOptions options )
+	{
+		var parameters = new Dictionary<string, BlackboardParameter>();
+
+		if ( doc.TryGetProperty( "parameters", out var arrayProperty ) )
+		{
+			foreach ( var element in arrayProperty.EnumerateArray() )
+			{
+				var typeName = element.GetProperty( "_class" ).GetString();
+				var typeDesc = EditorTypeLibrary.GetType<BlackboardParameter>( typeName );
+				var type = new ClassBlackboardParameterType( typeDesc );
+
+				BlackboardParameter parameter;
+
+				if ( typeDesc != null )
+				{
+					parameter = EditorTypeLibrary.Create<BlackboardParameter>( typeName );
+					DeserializeObject( parameter, element, options );
+
+					if ( string.IsNullOrWhiteSpace( parameter.Name ) )
+					{
+						var name = "Parameter";
+						var id = name;
+						int count = 0;
+
+						while ( parameters.ContainsKey( id ) )
+						{
+							id = $"{name}_{count++}";
+						}
+
+						parameter.Name = id;
+					}
+
+					parameters.Add( parameter.Name, parameter );
+
+					AddParameter( parameter );
+				}
+			}
+		}
+
+		return parameters.Values;
+	}
+
 	public string SerializeNodes()
 	{
 		return SerializeNodes( Nodes );
+	}
+
+	public string UndoStackSerialize()
+	{
+		var doc = new JsonObject();
+		var options = SerializerOptions();
+
+		doc = SerializeNodes( Nodes, doc );
+
+		return SerializeParameters( Parameters, doc ).ToJsonString( options );
 	}
 
 	public string SerializeNodes( IEnumerable<BaseNode> nodes )
@@ -247,6 +311,15 @@ partial class ShaderGraph
 		SerializeNodes( nodes, doc, options );
 
 		return doc.ToJsonString( options );
+	}
+
+	public JsonObject SerializeNodes( IEnumerable<BaseNode> nodes, JsonObject doc )
+	{
+		var options = SerializerOptions();
+
+		SerializeNodes( nodes, doc, options );
+
+		return doc;
 	}
 
 	private static void SerializeObject( object obj, JsonObject doc, JsonSerializerOptions options, Dictionary<string, string> identifiers = null )
@@ -321,4 +394,44 @@ partial class ShaderGraph
 		doc.Add( "nodes", nodeArray );
 	}
 
+	public string SerializeParameters()
+	{
+		return SerializeParameters( Parameters );
+	}
+
+	private string SerializeParameters( IEnumerable<BlackboardParameter> parameters )
+	{
+		var doc = new JsonObject();
+		var options = SerializerOptions();
+
+		SerializeParameters( parameters, doc, options );
+
+		return doc.ToJsonString( options );
+	}
+
+	private JsonObject SerializeParameters( IEnumerable<BlackboardParameter> parameters, JsonObject doc )
+	{
+		var options = SerializerOptions();
+
+		SerializeParameters( parameters, doc, options );
+
+		return doc;
+	}
+
+	private static void SerializeParameters( IEnumerable<BlackboardParameter> parameters, JsonObject doc, JsonSerializerOptions options )
+	{
+		var parameterArray = new JsonArray();
+
+		foreach ( var parameter in parameters )
+		{
+			var type = parameter.GetType();
+			var parameterObject = new JsonObject { { "_class", type.Name } };
+
+			SerializeObject( parameter, parameterObject, options );
+
+			parameterArray.Add( parameterObject );
+		}
+
+		doc.Add( "parameters", parameterArray );
+	}
 }
