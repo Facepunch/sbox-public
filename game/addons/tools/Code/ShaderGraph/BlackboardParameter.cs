@@ -2,7 +2,6 @@
 using Editor.ShaderGraph.Nodes;
 using System.ComponentModel;
 using System.Text.Json.Serialization;
-using static Sandbox.Material;
 
 namespace Editor.ShaderGraph;
 
