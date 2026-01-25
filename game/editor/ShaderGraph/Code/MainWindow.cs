@@ -37,11 +37,13 @@ public class MainWindow : DockWindow
 
 	protected ShaderGraph _graph;
 	protected ShaderGraphView _graphView;
+	private BlackboardView _blackboardView;
 	private Asset _asset;
 
 	public string AssetPath => _asset?.Path;
 
 	private Widget _graphCanvas;
+	private Widget _blackboardCanvas;
 	private Properties _properties;
 	protected PreviewPanel _preview;
 	protected Output _output;
@@ -1077,6 +1079,7 @@ public class MainWindow : DockWindow
 		DockManager.RegisterDockType( "Graph", "account_tree", null, false );
 		DockManager.RegisterDockType( "Preview", "photo", null, false );
 		DockManager.RegisterDockType( "Properties", "edit", null, false );
+		DockManager.RegisterDockType( "Blackboard", "edit", null, false );
 		DockManager.RegisterDockType( "Output", "notes", null, false );
 		DockManager.RegisterDockType( "Console", "text_snippet", null, false );
 		DockManager.RegisterDockType( "Undo History", "history", null, false );
@@ -1185,6 +1188,34 @@ public class MainWindow : DockWindow
 		_properties.Target = _graph;
 		_properties.PropertyUpdated += OnPropertyUpdated;
 
+		_blackboardCanvas = new Widget( this ) { WindowTitle = $"Blackboard" };
+		_blackboardCanvas.Name = "Blackboard";
+		_blackboardCanvas.SetWindowIcon( "list" );
+		_blackboardCanvas.Layout = Layout.Row();
+		_blackboardCanvas.Layout.Spacing = 8;
+		_blackboardCanvas.Layout.Margin = 4;
+
+		_blackboardView = new BlackboardView( _blackboardCanvas, this );
+
+		// TODO 
+		/*
+		var blackboardParameterTypes = EditorTypeLibrary.GetTypes<BlackboardParameter>()
+			.Where( x => !x.IsAbstract ).OrderBy( x => x.Name );
+
+		foreach ( var type in blackboardParameterTypes )
+		{
+			_blackboardView.AddParameterType( type );
+		}
+
+		_blackboardView.Graph = _graph;
+		_blackboardView.OnDirty += () => { SetDirty(); };
+		_blackboardView.OnParameterSelected += ( p ) => { OnParameterSelected( p ); };
+		_blackboardView.OnParameterCreated += ( p ) => { OnParameterPropertyCreated( p ); };
+		_blackboardView.OnParameterDeleted += ( p ) => { OnParameterDeleted( p ); };
+		*/
+
+		_blackboardCanvas.Layout.Add( _blackboardView, 1 );
+
 		_undoHistory = new UndoHistory( this, _undoStack );
 		_undoHistory.OnUndo = Undo;
 		_undoHistory.OnRedo = Redo;
@@ -1200,6 +1231,7 @@ public class MainWindow : DockWindow
 		// Yuck, console is internal but i want it, what is the correct way?
 		var console = EditorTypeLibrary.Create( "ConsoleWidget", typeof( Widget ), new[] { this } ) as Widget;
 		DockManager.AddDock( _output, console, DockArea.Inside, DockManager.DockProperty.HideOnClose );
+		DockManager.AddDock( _output, _blackboardCanvas, DockArea.Right, DockManager.DockProperty.HideOnClose, -0.5f );
 
 		DockManager.AddDock( _output, _undoHistory, DockArea.Inside, DockManager.DockProperty.HideOnClose );
 		DockManager.AddDock( _output, _palette, DockArea.Inside, DockManager.DockProperty.HideOnClose );
