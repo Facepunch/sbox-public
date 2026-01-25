@@ -1,4 +1,6 @@
 ﻿
+using static Sandbox.Services.Inventory;
+
 namespace Editor.ShaderGraph;
 
 public class BlackboardView : Widget
@@ -105,16 +107,11 @@ public class BlackboardView : Widget
 		leftColumnTopLayout.Add( _addButton );
 
 		_parameterListView = leftColumn.Add( new BlackboardParameterList( null ), 1 );
-		_parameterListView.ItemSelected = ( item ) =>
-		{
-			_selectedParameter = item as BlackboardParameter;
-
-			OnParameterSelected?.Invoke( _selectedParameter );
-		};
-		_parameterListView.ItemDrag = ( a ) =>
-		{
-			throw new NotImplementedException();
-		};
+		_parameterListView.ItemClicked += (item) => OnItemClicked( (BlackboardParameter)item );
+		//_parameterListView.ItemDrag = ( a ) =>
+		//{
+		//	throw new NotImplementedException();
+		//};
 
 		// TODO : Remove Later once the rest for the blackboard stuff is setup.
 		_parameterListView.SetItems( 
@@ -156,6 +153,13 @@ public class BlackboardView : Widget
 		var parameterType = new ClassBlackboardParameterType( type );
 
 		AvailableParameters.TryAdd( parameterType.Identifier, parameterType );
+	}
+
+	private void OnItemClicked( BlackboardParameter parameter )
+	{
+		SetSelectedItem( parameter );
+
+		OnParameterSelected?.Invoke( parameter );
 	}
 
 	private void OnAddParameter( IBlackboardParameterType type )
