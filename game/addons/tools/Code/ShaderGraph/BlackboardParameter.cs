@@ -59,7 +59,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 		return Identifier;
 	}
 
-	internal static IEnumerable<IBlackboardParameterType> GetRelevantParameters( Dictionary<string, IBlackboardParameterType> availableParameters, bool isSubgraph )
+	public static IEnumerable<IBlackboardParameterType> GetRelevantParameters( Dictionary<string, IBlackboardParameterType> availableParameters, bool isSubgraph )
 	{
 		return availableParameters.Values.Where( x =>
 		{
@@ -74,6 +74,25 @@ public abstract class BlackboardParameter : IBlackboardParameter
 
 			return true;
 		} );
+	}
+
+	/// <summary>
+	/// Check parameter for any issues.
+	/// </summary>
+	/// <param name="issues">Any issues that are found.</param>
+	/// <returns>False when check has failed otherwise returns true when check has passed.</returns>
+	public bool CheckParameter( out List<string> issues )
+	{
+		issues = new List<string>();
+
+		if ( string.IsNullOrWhiteSpace( Name ) )
+		{
+			issues.Add( $"Parameter with identifier \"{Identifier}\" must have name!" );
+
+			return false;
+		}
+
+		return true;
 	}
 }
 

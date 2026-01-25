@@ -129,7 +129,38 @@ public class MainWindow : DockWindow
 
 	public void OnNodeSelected( BaseNode node )
 	{
+		var oldTarget = _properties.Target;
 		_properties.Target = node != null ? node : _graph;
+
+		// TODO
+		/*
+		if ( _properties.Target is IBlackboardSyncableNode blackboardSyncableTest )
+		{
+			// For now only select a blackboard parameter when _graphView only has 1 selection.
+			if ( _graphView.SelectedItems.Count() == 1 )
+			{
+				if ( blackboardSyncableTest.BlackboardParameterIdentifier != default )
+				{
+					var blackboardParameter = _graph.FindParameterByGuid( blackboardSyncableTest.BlackboardParameterIdentifier );
+					_blackboardView.SetSelectedItem( blackboardParameter );
+					_properties.Target = blackboardParameter;
+				}
+			}
+			else
+			{
+				_properties.Target = _graph;
+			}
+		}
+		*/
+
+		if ( _properties.Target is ShaderGraph && oldTarget is BlackboardParameter )
+		{
+			_blackboardView.ClearSeletedItem();
+		}
+		else if ( _properties.Target is BaseNode && oldTarget is BlackboardParameter )
+		{
+			_blackboardView.ClearSeletedItem();
+		}
 
 		_preview.SetStage( _compiledNodes.IndexOf( node ) + 1 );
 	}
@@ -814,6 +845,7 @@ public class MainWindow : DockWindow
 		_graph = new();
 		_dirty = false;
 		_graphView.Graph = _graph;
+		_blackboardView.Graph = _graph;
 		_graphCanvas.WindowTitle = "untitled";
 		_preview.Model = null;
 		_preview.Tint = Color.White;
@@ -897,6 +929,7 @@ public class MainWindow : DockWindow
 		_graph = graph;
 		_dirty = false;
 		_graphView.Graph = _graph;
+		_blackboardView.Graph = _graph;
 		_graphCanvas.WindowTitle = _asset.Name;
 		_undoStack.Clear();
 		_undoHistory.History = _undoStack.Names;
@@ -926,6 +959,24 @@ public class MainWindow : DockWindow
 		ClearAttributes();
 
 		AddToRecentFiles( path );
+
+		// TODO 
+		/*
+		foreach ( var parameter in graph.Parameters )
+		{
+			if ( parameter.CheckParameter( out var parameterIssues ) )
+			{
+				_graph.UpdateParameterNodes( parameter );
+			}
+			else
+			{
+				foreach ( var parameterIssue in parameterIssues )
+				{
+					AddBlackboardIssue( parameterIssue );
+				}
+			}
+		}
+		*/
 
 		GeneratePreviewCode();
 	}
@@ -1196,10 +1247,12 @@ public class MainWindow : DockWindow
 		_blackboardCanvas.Layout.Margin = 4;
 
 		_blackboardView = new BlackboardView( _blackboardCanvas, this );
-		_blackboardView.OnParameterSelected += ( p ) => OnBlackboardParameterSelected( p );
+		_blackboardView.Graph = _graph;
+		_blackboardView.OnParameterSelected += OnBlackboardParameterSelected;
+		_blackboardView.OnParameterCreated += OnBlackboardParameterCreated;
+		_blackboardView.OnParameterDeleted += OnBlackboardParameterDeleted;
+		_blackboardView.OnDirty += () => SetDirty();
 
-		// TODO 
-		/*
 		var blackboardParameterTypes = EditorTypeLibrary.GetTypes<BlackboardParameter>()
 			.Where( x => !x.IsAbstract ).OrderBy( x => x.Name );
 
@@ -1207,13 +1260,6 @@ public class MainWindow : DockWindow
 		{
 			_blackboardView.AddParameterType( type );
 		}
-
-		_blackboardView.Graph = _graph;
-		_blackboardView.OnDirty += () => { SetDirty(); };
-		_blackboardView.OnParameterSelected += ( p ) => { OnParameterSelected( p ); };
-		_blackboardView.OnParameterCreated += ( p ) => { OnParameterPropertyCreated( p ); };
-		_blackboardView.OnParameterDeleted += ( p ) => { OnParameterDeleted( p ); };
-		*/
 
 		_blackboardCanvas.Layout.Add( _blackboardView, 1 );
 
@@ -1254,14 +1300,79 @@ public class MainWindow : DockWindow
 		Compile();
 	}
 
+	private void OnBlackboardParameterCreated( BlackboardParameter parameter )
+	{
+		if ( _properties.Target != parameter )
+		{
+			_properties.Target = parameter;
+		}
+	}
+
+	private void OnBlackboardParameterDeleted( BlackboardParameter parameter )
+	{
+		if ( _properties.Target == parameter )
+		{
+			_properties.Target = _graph;
+		}
+
+		_graph.RemoveParameter( parameter );
+
+		// TODO
+		/*
+		var identifier = parameter.Identifier;
+
+		foreach ( var node in _graph.Nodes )
+		{
+			if ( node is IBlackboardSyncableNode blackboardSyncable && blackboardSyncable.BlackboardParameterIdentifier == identifier && blackboardSyncable is BaseNode baseNode )
+			{
+				_graph.RemoveNode( baseNode );
+
+				if ( _properties.Target == baseNode )
+					_properties.Target = _graph;
+
+				_graphView.RebuildFromGraph();
+
+				//break;
+			}
+		}
+		*/
+
+		SetDirty();
+
+		_blackboardView.RebuildBuildFromGraph( false );
+	}
+
 	private void OnBlackboardParameterSelected( BlackboardParameter parameter )
 	{
+		_graphView.ClearSelection();
 
+		_properties.Target = parameter;
+		_blackboardView.SetSelectedItem( parameter );
 	}
 
 	private void OnPropertyUpdated()
 	{
 		_preview.PostProcessing = _graphView.Graph.Domain == ShaderDomain.PostProcess;
+
+		// TODO 
+		/*
+		if ( _properties.Target is BlackboardParameter parameter )
+		{
+			// Dont update a node on the graph if we have any blackboard issues.
+			if ( parameter.CheckParameter( out var parameterIssues ) )
+			{
+				_graph.UpdateParameterNodes( parameter );
+			}
+			else
+			{
+				foreach ( var parameterIssue in parameterIssues )
+				{
+					AddBlackboardIssue( parameterIssue );
+				}
+			}
+		}
+		*/
+
 		if ( _properties.Target is BaseNode node )
 		{
 			_graphView.UpdateNode( node );
