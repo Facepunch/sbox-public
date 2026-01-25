@@ -1,7 +1,4 @@
-﻿
-using static Sandbox.Services.Inventory;
-
-namespace Editor.ShaderGraph;
+﻿namespace Editor.ShaderGraph;
 
 public class BlackboardView : Widget
 {
