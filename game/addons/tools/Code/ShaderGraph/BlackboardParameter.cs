@@ -85,6 +85,11 @@ public abstract class BlackboardMaterialParameter<T, Y> : BlackboardParameter wh
 
 	public bool IsAttribute { get; set; }
 
+	public BlackboardMaterialParameter() : base()
+	{
+		IsAttribute = false;
+	}
+
 	public BlackboardMaterialParameter( string name, T value, bool isAttribute ) : base( name )
 	{
 		Value = value;
