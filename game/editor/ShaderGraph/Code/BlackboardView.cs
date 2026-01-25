@@ -30,10 +30,7 @@ public class BlackboardView : Widget
 		canvas.Layout.Spacing = 4;
 
 		var leftColumn = canvas.Layout.AddColumn( 1, false );
-		leftColumn.Spacing = 4;
-
 		var leftColumnTopLayout = leftColumn.AddRow( 1, false );
-		leftColumnTopLayout.Spacing = 4;
 
 		leftColumnTopLayout.AddStretchCell();
 
