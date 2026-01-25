@@ -61,6 +61,8 @@ public sealed class IntParameter : ParameterNode<int, IntParameterUI, IntBlackbo
 	{
 		Name = parameter.Name;
 		Value = parameter.Value;
+		Min = parameter.Min;
+		Max = parameter.Max;
 		UI = parameter.UI;
 		IsAttribute = parameter.IsAttribute;
 	}
@@ -106,6 +108,8 @@ public sealed class FloatParameter : ParameterNode<float, FloatParameterUI, Floa
 	{
 		Name = parameter.Name;
 		Value = parameter.Value;
+		Min = parameter.Min;
+		Max = parameter.Max;
 		UI = parameter.UI;
 		IsAttribute = parameter.IsAttribute;
 	}
@@ -183,6 +187,8 @@ public sealed class Float2Parameter : ParameterNode<Vector2, FloatParameterUI, F
 	{
 		Name = parameter.Name;
 		Value = parameter.Value;
+		Min = parameter.Min;
+		Max = parameter.Max;
 		UI = parameter.UI;
 		IsAttribute = parameter.IsAttribute;
 	}
@@ -276,6 +282,8 @@ public sealed class Float3Parameter : ParameterNode<Vector3, FloatParameterUI, F
 	{
 		Name = parameter.Name;
 		Value = parameter.Value;
+		Min = parameter.Min;
+		Max = parameter.Max;
 		UI = parameter.UI;
 		IsAttribute = parameter.IsAttribute;
 	}
@@ -375,6 +383,8 @@ public sealed class Float4Parameter : ParameterNode<Vector4, FloatParameterUI, F
 	{
 		Name = parameter.Name;
 		Value = parameter.Value;
+		Min = parameter.Min;
+		Max = parameter.Max;
 		UI = parameter.UI;
 		IsAttribute = parameter.IsAttribute;
 	}
