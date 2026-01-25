@@ -58,10 +58,6 @@ public class BlackboardView : Widget
 		leftColumnTopLayout.Add( _addButton );
 
 		_parameterListView = leftColumn.Add( new BlackboardParameterList( null ), 1 );
-		_parameterListView.ItemClicked = ( item ) =>
-		{
-			throw new NotImplementedException();
-		};
 		_parameterListView.ItemSelected = ( item ) =>
 		{
 			_selectedParameter = item as BlackboardParameter;
