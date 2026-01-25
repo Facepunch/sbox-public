@@ -1,4 +1,6 @@
-﻿namespace Editor.ShaderGraph;
+﻿using static Sandbox.Material;
+
+namespace Editor.ShaderGraph;
 
 
 [EditorForAssetType( "shdrfunc" )]
@@ -132,16 +134,16 @@ public class MainWindow : DockWindow
 		var oldTarget = _properties.Target;
 		_properties.Target = node != null ? node : _graph;
 
-		// TODO
-		/*
-		if ( _properties.Target is IBlackboardSyncableNode blackboardSyncableTest )
+
+		// TODO : Make it work when subgraph inputs.
+		if ( _properties.Target is IParameterNodeBase parameterNode )
 		{
 			// For now only select a blackboard parameter when _graphView only has 1 selection.
 			if ( _graphView.SelectedItems.Count() == 1 )
 			{
-				if ( blackboardSyncableTest.BlackboardParameterIdentifier != default )
+				if ( parameterNode.BlackboardParameterIdentifier != default )
 				{
-					var blackboardParameter = _graph.FindParameterByGuid( blackboardSyncableTest.BlackboardParameterIdentifier );
+					var blackboardParameter = _graph.FindParameterByGuid( parameterNode.BlackboardParameterIdentifier );
 					_blackboardView.SetSelectedItem( blackboardParameter );
 					_properties.Target = blackboardParameter;
 				}
@@ -151,7 +153,7 @@ public class MainWindow : DockWindow
 				_properties.Target = _graph;
 			}
 		}
-		*/
+		
 
 		if ( _properties.Target is ShaderGraph && oldTarget is BlackboardParameter )
 		{
@@ -960,23 +962,7 @@ public class MainWindow : DockWindow
 
 		AddToRecentFiles( path );
 
-		// TODO 
-		/*
-		foreach ( var parameter in graph.Parameters )
-		{
-			if ( parameter.CheckParameter( out var parameterIssues ) )
-			{
-				_graph.UpdateParameterNodes( parameter );
-			}
-			else
-			{
-				foreach ( var parameterIssue in parameterIssues )
-				{
-					AddBlackboardIssue( parameterIssue );
-				}
-			}
-		}
-		*/
+		UpdateParameterNodes();
 
 		GeneratePreviewCode();
 	}
@@ -1168,12 +1154,20 @@ public class MainWindow : DockWindow
 		_graphView = new ShaderGraphView( _graphCanvas, this );
 		_graphView.BilinearFiltering = false;
 
-		var types = EditorTypeLibrary.GetTypes<ShaderNode>()
+		var nodeTypes = EditorTypeLibrary.GetTypes<ShaderNode>()
 			.Where( x => !x.IsAbstract ).OrderBy( x => x.Name );
 
-		foreach ( var type in types )
+		var blackboardParameterTypes = EditorTypeLibrary.GetTypes<BlackboardParameter>()
+			.Where( x => !x.IsAbstract ).OrderBy( x => x.Name );
+
+		foreach ( var type in nodeTypes )
 		{
 			_graphView.AddNodeType( type );
+		}
+
+		foreach ( var type in blackboardParameterTypes )
+		{
+			_graphView.AddParameterType( type );
 		}
 
 		var subgraphs = AssetSystem.All.Where( x => x.Path.EndsWith( ".shdrfunc", StringComparison.OrdinalIgnoreCase ) );
@@ -1253,9 +1247,6 @@ public class MainWindow : DockWindow
 		_blackboardView.OnParameterDeleted += OnBlackboardParameterDeleted;
 		_blackboardView.OnDirty += () => SetDirty();
 
-		var blackboardParameterTypes = EditorTypeLibrary.GetTypes<BlackboardParameter>()
-			.Where( x => !x.IsAbstract ).OrderBy( x => x.Name );
-
 		foreach ( var type in blackboardParameterTypes )
 		{
 			_blackboardView.AddParameterType( type );
@@ -1317,13 +1308,12 @@ public class MainWindow : DockWindow
 
 		_graph.RemoveParameter( parameter );
 
-		// TODO
-		/*
 		var identifier = parameter.Identifier;
 
 		foreach ( var node in _graph.Nodes )
 		{
-			if ( node is IBlackboardSyncableNode blackboardSyncable && blackboardSyncable.BlackboardParameterIdentifier == identifier && blackboardSyncable is BaseNode baseNode )
+			// TODO : Make it work when subgraph inputs.
+			if ( node is IParameterNodeBase parameterNode && parameterNode.BlackboardParameterIdentifier == identifier && parameterNode is BaseNode baseNode )
 			{
 				_graph.RemoveNode( baseNode );
 
@@ -1335,8 +1325,7 @@ public class MainWindow : DockWindow
 				//break;
 			}
 		}
-		*/
-
+	
 		SetDirty();
 
 		_blackboardView.RebuildBuildFromGraph( false );
@@ -1350,28 +1339,35 @@ public class MainWindow : DockWindow
 		_blackboardView.SetSelectedItem( parameter );
 	}
 
-	private void OnPropertyUpdated()
+	private void UpdateParameterNodes()
 	{
-		_preview.PostProcessing = _graphView.Graph.Domain == ShaderDomain.PostProcess;
-
-		// TODO 
-		/*
 		if ( _properties.Target is BlackboardParameter parameter )
 		{
 			// Dont update a node on the graph if we have any blackboard issues.
 			if ( parameter.CheckParameter( out var parameterIssues ) )
 			{
-				_graph.UpdateParameterNodes( parameter );
+				// TODO : Make it work when subgraph inputs.
+				foreach ( var parameterNode in _graph.Nodes.OfType<IParameterNodeBase>().Where( x => x.BlackboardParameterIdentifier == parameter.Identifier ) )
+				{
+					parameterNode.UpdateFromBlackboard( parameter );
+				}
 			}
 			else
 			{
-				foreach ( var parameterIssue in parameterIssues )
-				{
-					AddBlackboardIssue( parameterIssue );
-				}
+				// TODO
+				//foreach ( var parameterIssue in parameterIssues )
+				//{
+				//	AddBlackboardIssue( parameterIssue );
+				//}
 			}
 		}
-		*/
+	}
+
+	private void OnPropertyUpdated()
+	{
+		_preview.PostProcessing = _graphView.Graph.Domain == ShaderDomain.PostProcess;
+
+		UpdateParameterNodes();
 
 		if ( _properties.Target is BaseNode node )
 		{

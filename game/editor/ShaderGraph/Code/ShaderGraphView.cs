@@ -27,7 +27,11 @@ public class ShaderGraphView : GraphView
 		set => base.Graph = value;
 	}
 
+	public Action OnNewBlackboardParameterNodeCreated { get; set; }
+	public Action OnConstantNodeConvertedToParameter { get; set; }
+
 	private readonly Dictionary<string, INodeType> AvailableNodes = new( StringComparer.OrdinalIgnoreCase );
+	private readonly Dictionary<string, IBlackboardParameterType> AvailableParameters = new( StringComparer.OrdinalIgnoreCase );
 
 	public override ConnectionStyle ConnectionStyle => EnableGridAlignedWires
 		? GridConnectionStyle.Instance
@@ -72,6 +76,19 @@ public class ShaderGraphView : GraphView
 	public INodeType FindNodeType( Type type )
 	{
 		return AvailableNodes.TryGetValue( type.FullName!, out var nodeType ) ? nodeType : null;
+	}
+
+
+	public void AddParameterType<T>() where T : BlackboardParameter
+	{
+		AddParameterType( EditorTypeLibrary.GetType<T>() );
+	}
+
+	public void AddParameterType( TypeDescription type )
+	{
+		var parameterType = new ClassBlackboardParameterType( type );
+
+		AvailableParameters.TryAdd( parameterType.Identifier, parameterType );
 	}
 
 	protected override INodeType NodeTypeFromDragEvent( DragEvent ev )
@@ -138,6 +155,35 @@ public class ShaderGraphView : GraphView
 		}
 
 		return base.OnGetHandleConfig( type );
+	}
+
+	protected override void OnPopulateNodeMenuSpecialOptions( Menu menu, Vector2 clickPos, Plug targetPlug, string filter )
+	{
+		base.OnPopulateNodeMenuSpecialOptions( menu, clickPos, targetPlug, filter );
+		var isSubgraph = Graph.IsSubgraph;
+
+		if ( !targetPlug.IsValid() )
+		{
+			var newParameterMenu = menu.AddMenu( $"Create {(isSubgraph ? "Subgraph Input" : "Parameter")}", "add" );
+
+			foreach ( var classType in BlackboardParameter.GetRelevantParameters( AvailableParameters, Graph.IsSubgraph ).OrderBy( x => x.Type.GetAttribute<OrderAttribute>().Value ) )
+			{
+				var targetType = classType.Type.TargetType;
+				Log.Info( targetType );
+				newParameterMenu.AddOption( classType.Type.Title, classType.Type.Icon, () =>
+				{
+					Dialog.AskString( ( string parameterName ) =>
+					{
+						CreateNewParameterNode( classType, parameterName, clickPos );
+					},
+					$"Specify a name for the {(isSubgraph ? "subgraph input" : "parameter")}" );
+				} );
+			}
+
+			Log.Info( "Test" );
+		}
+
+		menu.AddSeparator();
 	}
 
 	public override void ChildValuesChanged( Widget source )
@@ -224,6 +270,28 @@ public class ShaderGraphView : GraphView
 				} );
 			}
 		}
+	}
+
+	private void CreateNewParameterNode( IBlackboardParameterType targetType, string name, Vector2 position )
+	{
+		var blackboardParameter = (BlackboardParameter)targetType.CreateParameter( Graph );
+		blackboardParameter.Name = name;
+
+		var node = BlackboardParameter.InitilzeNode( targetType.Type.Name ); //blackboardParameter.InitializeNode();
+		node.Graph = Graph;
+		node.Position = position.SnapToGrid( GridSize );
+
+		Graph?.AddNode( node );
+
+		OnNodeCreated( node );
+
+		var nodeUI = node.CreateUI( this );
+
+		Add( nodeUI );
+
+		Graph.AddParameter( blackboardParameter );
+
+		OnNewBlackboardParameterNodeCreated?.Invoke();
 	}
 
 	private void CreateSubgraphFromSelection( string filePath )

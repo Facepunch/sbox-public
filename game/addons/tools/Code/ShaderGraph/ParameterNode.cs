@@ -1,10 +1,15 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.ComponentModel;
+using System.Text.Json.Serialization;
 
 namespace Editor.ShaderGraph;
 
 public interface IParameterNodeBase
 {
 	string Name { get; set; }
+
+	Guid BlackboardParameterIdentifier { get; set; }
+
+	void UpdateFromBlackboard( IBlackboardParameter parameter );
 }
 
 public interface IParameterNode<T> where T : IParameterUI
@@ -22,7 +27,7 @@ public interface ITextureParameterNode
 	TextureInput UI { get; set; }
 }
 
-public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNodeBase, IParameterNode<Y>, IErroringNode where Y : IParameterUI
+public abstract class ParameterNode<T, Y, P> : ShaderNode, IParameterNodeBase, IParameterNode<Y>, IErroringNode where Y : IParameterUI where P : IBlackboardParameter
 {
 	[Hide]
 	protected bool IsSubgraph => (Graph is ShaderGraph shaderGraph && shaderGraph.IsSubgraph);
@@ -31,6 +36,9 @@ public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNodeBase, IPar
 	public override string Title => string.IsNullOrWhiteSpace( Name ) ?
 		$"{DisplayInfo.For( this ).Name}" :
 		$"{DisplayInfo.For( this ).Name} {Name}";
+
+	[Hide, Browsable( false )]
+	public Guid BlackboardParameterIdentifier { get; set; }
 
 	public T Value { get; set; }
 
@@ -87,6 +95,16 @@ public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNodeBase, IPar
 	public virtual Vector4 GetRangeMax()
 	{
 		return Vector4.Zero;
+	}
+
+	protected virtual void UpdateFromBlackboardParameter( P parameter )
+	{
+	}
+
+	public void UpdateFromBlackboard( IBlackboardParameter parameter )
+	{
+		UpdateFromBlackboard( parameter );
+		Update();
 	}
 
 	public List<string> GetErrors()

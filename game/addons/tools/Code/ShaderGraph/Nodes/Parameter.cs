@@ -7,7 +7,8 @@ namespace Editor.ShaderGraph.Nodes;
 /// Bool value
 /// </summary>
 [Title( "Bool" ), Category( "Parameters" ), Icon( "check_box" ), Order( 0 )]
-public sealed class BoolParameter : ParameterNode<bool, BoolParameterUI>
+[Hide]
+public sealed class BoolParameter : ParameterNode<bool, BoolParameterUI, BoolBlackboardParameter>
 {
 	[Output( typeof( bool ) ), Title( "Value" )]
 	[Hide, Editor( nameof( Value ) )]
@@ -20,13 +21,19 @@ public sealed class BoolParameter : ParameterNode<bool, BoolParameterUI>
 	{
 		UI = new BoolParameterUI();
 	}
+
+	protected override void UpdateFromBlackboardParameter( BoolBlackboardParameter parameter )
+	{
+		
+	}
 }
 
 /// <summary>
 /// Single int value
 /// </summary>
 [Title( "Int" ), Category( "Parameters" ), Icon( "looks_one" ), Order( 1 )]
-public sealed class IntParameter : ParameterNode<int, IntParameterUI>
+[Hide]
+public sealed class IntParameter : ParameterNode<int, IntParameterUI, IntBlackboardParameter>
 {
 	[Hide] public float Step => 1;
 
@@ -46,13 +53,19 @@ public sealed class IntParameter : ParameterNode<int, IntParameterUI>
 		Max = 1;
 		UI = new IntParameterUI();
 	}
+
+	protected override void UpdateFromBlackboardParameter( IntBlackboardParameter parameter )
+	{
+		
+	}
 }
 
 /// <summary>
 /// Single float value
 /// </summary>
 [Title( "Float" ), Category( "Parameters" ), Icon( "looks_one" ), Order( 2 )]
-public sealed class FloatParameter : ParameterNode<float, FloatParameterUI>
+[Hide]
+public sealed class FloatParameter : ParameterNode<float, FloatParameterUI, FloatBlackboardParameter>
 {
 	[Hide] public float Step => UI.Step;
 
@@ -82,13 +95,19 @@ public sealed class FloatParameter : ParameterNode<float, FloatParameterUI>
 	{
 		return new( Max );
 	}
+
+	protected override void UpdateFromBlackboardParameter( FloatBlackboardParameter parameter )
+	{
+		
+	}
 }
 
 /// <summary>
 /// 2 float values
 /// </summary>
 [Title( "Float2" ), Category( "Parameters" ), Icon( "looks_two" ), Order( 3 )]
-public sealed class Float2Parameter : ParameterNode<Vector2, FloatParameterUI>
+[Hide]
+public sealed class Float2Parameter : ParameterNode<Vector2, FloatParameterUI, Float2BlackboardParameter>
 {
 	[Output( typeof( Vector2 ) ), Title( "XY" ), Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
@@ -150,13 +169,19 @@ public sealed class Float2Parameter : ParameterNode<Vector2, FloatParameterUI>
 	{
 		return new( Max.x, Max.y, 0, 0 );
 	}
+
+	protected override void UpdateFromBlackboardParameter( Float2BlackboardParameter parameter )
+	{
+		
+	}
 }
 
 /// <summary>
 /// 3 float values
 /// </summary>
 [Title( "Float3" ), Category( "Parameters" ), Icon( "looks_3" ), Order( 4 )]
-public sealed class Float3Parameter : ParameterNode<Vector3, FloatParameterUI>
+[Hide]
+public sealed class Float3Parameter : ParameterNode<Vector3, FloatParameterUI, Float3BlackboardParameter>
 {
 	[Output( typeof( Vector3 ) ), Title( "XYZ" ), Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
@@ -234,13 +259,19 @@ public sealed class Float3Parameter : ParameterNode<Vector3, FloatParameterUI>
 	{
 		return new( Max.x, Max.y, Max.z, 0 );
 	}
+
+	protected override void UpdateFromBlackboardParameter( Float3BlackboardParameter parameter )
+	{
+		
+	}
 }
 
 /// <summary>
 /// 4 float values
 /// </summary>
 [Title( "Float4" ), Category( "Parameters" ), Icon( "palette" ), Order( 5 )]
-public sealed class Float4Parameter : ParameterNode<Vector4, FloatParameterUI>
+[Hide]
+public sealed class Float4Parameter : ParameterNode<Vector4, FloatParameterUI, Float4BlackboardParameter>
 {
 	[Output( typeof( Vector4 ) ), Title( "XYZ" ), Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
@@ -324,13 +355,19 @@ public sealed class Float4Parameter : ParameterNode<Vector4, FloatParameterUI>
 		Max = 1;
 		UI = new FloatParameterUI();
 	}
+
+	protected override void UpdateFromBlackboardParameter( Float4BlackboardParameter parameter )
+	{
+		
+	}
 }
 
 /// <summary>
 /// 4 float values, normally used as a color
 /// </summary>
 [Title( "Color" ), Category( "Parameters" ), Icon( "palette" ), Order( 6 )]
-public sealed class ColorParameter : ParameterNode<Color, ColorParameterUI>
+[Hide]
+public sealed class ColorParameter : ParameterNode<Color, ColorParameterUI, ColorBlackboardParameter>
 {
 	[Output( typeof( Color ) ), Title( "RGBA" )]
 	[Hide, Editor( nameof( Value ) )]
@@ -395,5 +432,10 @@ public sealed class ColorParameter : ParameterNode<Color, ColorParameterUI>
 	{
 		Value = Color.White;
 		UI = new ColorParameterUI();
+	}
+
+	protected override void UpdateFromBlackboardParameter( ColorBlackboardParameter parameter )
+	{
+		
 	}
 }
