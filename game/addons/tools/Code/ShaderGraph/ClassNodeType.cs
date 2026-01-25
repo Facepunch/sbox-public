@@ -73,7 +73,7 @@ public class ClassNodeType : INodeType
 	}
 }
 
-public class SubgraphNodeType : ClassNodeType
+public sealed class SubgraphNodeType : ClassNodeType
 {
 	public override string Identifier => AssetPath;
 	string AssetPath { get; }
