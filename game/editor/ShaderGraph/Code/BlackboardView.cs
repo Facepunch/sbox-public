@@ -212,7 +212,6 @@ public class BlackboardView : Widget
 
 		_deleteButton.Enabled = false;
 	}
-
 }
 
 class BlackboardParameterList : ListView

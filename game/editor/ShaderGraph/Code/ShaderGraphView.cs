@@ -169,7 +169,7 @@ public class ShaderGraphView : GraphView
 			foreach ( var classType in BlackboardParameter.GetRelevantParameters( AvailableParameters, Graph.IsSubgraph ).OrderBy( x => x.Type.GetAttribute<OrderAttribute>().Value ) )
 			{
 				var targetType = classType.Type.TargetType;
-				Log.Info( targetType );
+
 				newParameterMenu.AddOption( classType.Type.Title, classType.Type.Icon, () =>
 				{
 					Dialog.AskString( ( string parameterName ) =>
@@ -179,8 +179,6 @@ public class ShaderGraphView : GraphView
 					$"Specify a name for the {(isSubgraph ? "subgraph input" : "parameter")}" );
 				} );
 			}
-
-			Log.Info( "Test" );
 		}
 
 		menu.AddSeparator();

@@ -1,6 +1,4 @@
-﻿using static Sandbox.Material;
-
-namespace Editor.ShaderGraph;
+﻿namespace Editor.ShaderGraph;
 
 
 [EditorForAssetType( "shdrfunc" )]
