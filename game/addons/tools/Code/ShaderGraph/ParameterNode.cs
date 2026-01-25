@@ -32,9 +32,6 @@ public abstract class ParameterNode<T, PUI, BP> : ShaderNode, IParameterNodeBase
 	where BP : IBlackboardParameter
 {
 	[Hide]
-	protected bool IsSubgraph => (Graph is ShaderGraph shaderGraph && shaderGraph.IsSubgraph);
-
-	[Hide]
 	public override string Title => string.IsNullOrWhiteSpace( Name ) ?
 		$"{DisplayInfo.For( this ).Name}" :
 		$"{DisplayInfo.For( this ).Name} {Name}";
@@ -51,16 +48,6 @@ public abstract class ParameterNode<T, PUI, BP> : ShaderNode, IParameterNodeBase
 	/// </summary>
 	[HideIf( nameof( IsSubgraph ), true )]
 	public bool IsAttribute { get; set; }
-
-	/// <summary>
-	/// If true, this parameter can be modified directly on the subgraph node.
-	/// </summary>
-	[JsonIgnore, ShowIf( nameof( IsSubgraph ), true )]
-	protected bool IsRequiredInput
-	{
-		get => IsAttribute;
-		set => IsAttribute = value;
-	}
 
 	[InlineEditor( Label = false ), Group( "UI" )]
 	public PUI UI { get; set; }
@@ -87,16 +74,6 @@ public abstract class ParameterNode<T, PUI, BP> : ShaderNode, IParameterNodeBase
 	public void SetValue( object val )
 	{
 		Value = (T)val;
-	}
-
-	public virtual Vector4 GetRangeMin()
-	{
-		return Vector4.Zero;
-	}
-
-	public virtual Vector4 GetRangeMax()
-	{
-		return Vector4.Zero;
 	}
 
 	protected virtual void UpdateFromBlackboardParameter( BP parameter )

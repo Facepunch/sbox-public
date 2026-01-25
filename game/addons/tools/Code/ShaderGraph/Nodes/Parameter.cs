@@ -94,16 +94,6 @@ public sealed class FloatParameter : ParameterNode<float, FloatParameterUI, Floa
 		UI = new FloatParameterUI();
 	}
 
-	public override Vector4 GetRangeMin()
-	{
-		return new( Min );
-	}
-
-	public override Vector4 GetRangeMax()
-	{
-		return new( Max );
-	}
-
 	protected override void UpdateFromBlackboardParameter( FloatBlackboardParameter parameter )
 	{
 		Name = parameter.Name;
@@ -172,16 +162,6 @@ public sealed class Float2Parameter : ParameterNode<Vector2, FloatParameterUI, F
 	[Output( typeof( float ) ), Hide, Editor( nameof( ValueY ) ), Title( "Y" )]
 	[Range( nameof( MinY ), nameof( MaxY ), nameof( Step ) )]
 	public NodeResult.Func Y => ( GraphCompiler compiler ) => Component( "y", ValueY, compiler );
-
-	public override Vector4 GetRangeMin()
-	{
-		return new( Min.x, Min.y, 0, 0 );
-	}
-
-	public override Vector4 GetRangeMax()
-	{
-		return new( Max.x, Max.y, 0, 0 );
-	}
 
 	protected override void UpdateFromBlackboardParameter( Float2BlackboardParameter parameter )
 	{
@@ -267,16 +247,6 @@ public sealed class Float3Parameter : ParameterNode<Vector3, FloatParameterUI, F
 	[Output( typeof( float ) ), Hide, Editor( nameof( ValueZ ) ), Title( "Z" )]
 	[Range( nameof( MinZ ), nameof( MaxZ ), nameof( Step ) )]
 	public NodeResult.Func Z => ( GraphCompiler compiler ) => Component( "z", ValueZ, compiler );
-
-	public override Vector4 GetRangeMin()
-	{
-		return new( Min.x, Min.y, Min.z, 0 );
-	}
-
-	public override Vector4 GetRangeMax()
-	{
-		return new( Max.x, Max.y, Max.z, 0 );
-	}
 
 	protected override void UpdateFromBlackboardParameter( Float3BlackboardParameter parameter )
 	{
