@@ -59,6 +59,7 @@ partial class ShaderGraph
 		return true;
 	}
 
+
 	private static bool ShouldUseNewParameterTypeName_v2Upgrade( string typeName )
 	{
 		return typeName switch
@@ -216,6 +217,112 @@ partial class ShaderGraph
 			"Float4" => "ColorParameter",
 			_ => throw new Exception()
 		};
+	}
+
+	private void AddParameters_v2Upgrade()
+	{
+		if ( IsSubgraph )
+		{
+			// TODO
+			throw new NotImplementedException();
+			/*
+			foreach ( var subgraphInput in Nodes.OfType<SubgraphInput>() )
+			{
+			}
+			*/
+		}
+		else
+		{
+			foreach ( var parameterNode in Nodes.OfType<IParameterNodeBase>() )
+			{
+				if ( string.IsNullOrWhiteSpace( parameterNode.Name ) )
+					continue;
+
+				BlackboardParameter blackboardParameter = null;
+
+				if ( parameterNode is IntParameter intNode )
+				{
+					blackboardParameter = new IntBlackboardParameter()
+					{
+						Name = intNode.Name,
+						Value = intNode.Value,
+						UI = intNode.UI,
+						IsAttribute = intNode.IsAttribute,
+					};
+
+					intNode.BlackboardParameterIdentifier = blackboardParameter.Identifier;
+				}
+				else if ( parameterNode is BoolParameter boolNode )
+				{
+					blackboardParameter = new BoolBlackboardParameter()
+					{
+						Name = boolNode.Name,
+						Value = boolNode.Value,
+						UI = boolNode.UI,
+						IsAttribute = boolNode.IsAttribute,
+					};
+
+					boolNode.BlackboardParameterIdentifier = blackboardParameter.Identifier;
+				}
+				else if ( parameterNode is FloatParameter floatNode )
+				{
+					blackboardParameter = new FloatBlackboardParameter()
+					{
+						Name = floatNode.Name,
+						Value = floatNode.Value,
+						Min = floatNode.Min,
+						Max = floatNode.Max,
+						UI = floatNode.UI,
+						IsAttribute = floatNode.IsAttribute,
+					};
+
+					floatNode.BlackboardParameterIdentifier = blackboardParameter.Identifier;
+				}
+				else if ( parameterNode is Float2Parameter float2Node )
+				{
+					blackboardParameter = new Float2BlackboardParameter()
+					{
+						Name = float2Node.Name,
+						Value = float2Node.Value,
+						Min = float2Node.Min,
+						Max = float2Node.Max,
+						UI = float2Node.UI,
+						IsAttribute = float2Node.IsAttribute,
+					};
+
+					float2Node.BlackboardParameterIdentifier = blackboardParameter.Identifier;
+
+				}
+				else if ( parameterNode is Float3Parameter float3Node )
+				{
+					blackboardParameter = new Float3BlackboardParameter()
+					{
+						Name = float3Node.Name,
+						Value = float3Node.Value,
+						Min = float3Node.Min,
+						Max = float3Node.Max,
+						UI = float3Node.UI,
+						IsAttribute = float3Node.IsAttribute,
+					};
+
+					float3Node.BlackboardParameterIdentifier = blackboardParameter.Identifier;
+				}
+				else if ( parameterNode is ColorParameter colorNode )
+				{
+					blackboardParameter = new ColorBlackboardParameter()
+					{
+						Name = colorNode.Name,
+						Value = colorNode.Value,
+						UI = colorNode.UI,
+						IsAttribute = colorNode.IsAttribute,
+					};
+
+					colorNode.BlackboardParameterIdentifier = blackboardParameter.Identifier;
+				}
+
+				AddParameter( blackboardParameter );
+			}
+		}
 	}
 
 	/*

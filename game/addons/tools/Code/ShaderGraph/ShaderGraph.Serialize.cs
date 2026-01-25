@@ -48,6 +48,10 @@ partial class ShaderGraph
 		DeserializeNodes( root, options, subgraphPath, fileVersion );
 		DeserializeParameters( root, options );
 
+		if ( fileVersion < 3 )
+		{
+			AddParameters_v2Upgrade();
+		}
 	}
 
 	public IEnumerable<BaseNode> DeserializeNodes( string json )
