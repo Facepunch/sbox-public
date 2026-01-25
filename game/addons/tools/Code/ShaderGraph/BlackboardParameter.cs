@@ -4,6 +4,8 @@ using System.Text.Json.Serialization;
 
 namespace Editor.ShaderGraph;
 
+public record struct BlackboardConfig( string Name, Color Color );
+
 public interface IBlackboardParameter
 {
 	Guid Identifier { get; }

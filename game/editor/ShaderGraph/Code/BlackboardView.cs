@@ -95,10 +95,10 @@ class BlackboardParameterList : ListView
 		var itemColor = Theme.ControlBackground;
 		var typeColor = Color.White;
 
-		//if ( ShaderGraphTheme.BlackboardConfigs.TryGetValue( variable.GetType(), out var blackboardConfig ) )
-		//{
-		//	typeColor = blackboardConfig.Color;
-		//}
+		if ( ShaderGraphTheme.BlackboardConfigs.TryGetValue( variable.GetType(), out var blackboardConfig ) )
+		{
+			typeColor = blackboardConfig.Color;
+		}
 
 		if ( item.Hovered )
 		{

@@ -3,6 +3,7 @@
 internal static class ShaderGraphTheme
 {
 	public static Dictionary<Type, HandleConfig> HandleConfigs { get; private set; }
+	public static Dictionary<Type, BlackboardConfig> BlackboardConfigs { get; private set; }
 
 	static ShaderGraphTheme()
 	{
@@ -23,6 +24,17 @@ internal static class ShaderGraphTheme
 			{ typeof( Color ), new HandleConfig( "Color", Color.Parse( "#c7ae32" )!.Value ) },
 			{ typeof( Sampler ), new HandleConfig( "Sampler", Color.Parse( "#dddddd" )!.Value ) },
 			{ typeof( Gradient ), new HandleConfig( "Gradient", Color.Parse( "#dddddd" )!.Value ) },
+		};
+
+		BlackboardConfigs = new()
+		{
+			{ typeof( BoolBlackboardParameter ), new BlackboardConfig( "bool", HandleConfigs[typeof( bool )].Color ) },
+			{ typeof( IntBlackboardParameter ), new BlackboardConfig( "int", HandleConfigs[typeof( int )].Color ) },
+			{ typeof( FloatBlackboardParameter ), new BlackboardConfig( "float", HandleConfigs[typeof( float )].Color ) },
+			{ typeof( Float2BlackboardParameter ), new BlackboardConfig( "float2", HandleConfigs[typeof( Vector2 )].Color ) },
+			{ typeof( Float3BlackboardParameter ), new BlackboardConfig( "float3", HandleConfigs[typeof( Vector3 )].Color ) },
+			{ typeof( Float4BlackboardParameter ), new BlackboardConfig( "float4", HandleConfigs[typeof( Vector4 )].Color ) },
+			{ typeof( ColorBlackboardParameter ), new BlackboardConfig( "float4", HandleConfigs[typeof( Color )].Color ) },
 		};
 	}
 }
