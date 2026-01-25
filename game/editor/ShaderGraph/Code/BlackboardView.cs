@@ -10,6 +10,13 @@ public class BlackboardView : Widget
 	private readonly MainWindow _window;
 	private readonly UndoStack _undoStack;
 
+	private BlackboardParameter _selectedParameter;
+
+	/// <summary>
+	/// Called when a blackboard parameter is selected.
+	/// </summary>
+	public Action<BlackboardParameter> OnParameterSelected { get; set; }
+
 	public BlackboardView( Widget parent, MainWindow window ) : base( parent )
 	{
 		Layout = Layout.Row();
@@ -57,7 +64,9 @@ public class BlackboardView : Widget
 		};
 		_parameterListView.ItemSelected = ( item ) =>
 		{
-			throw new NotImplementedException();
+			_selectedParameter = item as BlackboardParameter;
+
+			OnParameterSelected?.Invoke( _selectedParameter );
 		};
 		_parameterListView.ItemDrag = ( a ) =>
 		{

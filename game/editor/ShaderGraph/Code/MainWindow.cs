@@ -1196,6 +1196,7 @@ public class MainWindow : DockWindow
 		_blackboardCanvas.Layout.Margin = 4;
 
 		_blackboardView = new BlackboardView( _blackboardCanvas, this );
+		_blackboardView.OnParameterSelected += ( p ) => OnBlackboardParameterSelected( p );
 
 		// TODO 
 		/*
@@ -1251,6 +1252,11 @@ public class MainWindow : DockWindow
 		}
 
 		Compile();
+	}
+
+	private void OnBlackboardParameterSelected( BlackboardParameter parameter )
+	{
+
 	}
 
 	private void OnPropertyUpdated()
