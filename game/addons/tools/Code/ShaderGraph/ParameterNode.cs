@@ -27,8 +27,8 @@ public interface ITextureParameterNode
 	TextureInput UI { get; set; }
 }
 
-public abstract class ParameterNode<T, PUI, BP> : ShaderNode, IParameterNodeBase, IParameterNode<PUI>, IErroringNode 
-	where PUI : IParameterUI 
+public abstract class ParameterNode<T, PUI, BP> : ShaderNode, IParameterNodeBase, IParameterNode<PUI>, IErroringNode
+	where PUI : IParameterUI
 	where BP : IBlackboardParameter
 {
 	[Hide]

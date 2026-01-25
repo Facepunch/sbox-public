@@ -48,7 +48,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 		Name = "";
 	}
 
-	public BlackboardParameter( string name ) 
+	public BlackboardParameter( string name )
 	{
 		NewIdentifier();
 		Name = name;
@@ -72,7 +72,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 			if ( x is ClassBlackboardParameterType classParameterType )
 			{
 				var targetType = classParameterType.Type.TargetType;
-			
+
 				// Only show material parameters when not in a subgraph
 				if ( isSubgraph && targetType == typeof( BoolBlackboardParameter ) ) return false;
 				if ( isSubgraph && targetType == typeof( IntBlackboardParameter ) ) return false;
@@ -81,7 +81,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 				if ( isSubgraph && targetType == typeof( Float3BlackboardParameter ) ) return false;
 				if ( isSubgraph && targetType == typeof( Float4BlackboardParameter ) ) return false;
 				if ( isSubgraph && targetType == typeof( ColorBlackboardParameter ) ) return false;
-			
+
 				// TODO : Subgraph input parameters
 			}
 
