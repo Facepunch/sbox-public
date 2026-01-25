@@ -48,7 +48,7 @@ partial class ShaderGraph
 		DeserializeNodes( root, options, subgraphPath, fileVersion );
 		DeserializeParameters( root, options );
 
-		if ( fileVersion < 3 )
+		if ( fileVersion < 2 )
 		{
 			AddParameters_v2Upgrade();
 		}
