@@ -107,17 +107,14 @@ public class BlackboardView : Widget
 
 		_parameterListView = leftColumn.Add( new BlackboardParameterList( null ), 1 );
 		_parameterListView.ItemClicked += (item) => OnItemClicked( (BlackboardParameter)item );
-		//_parameterListView.ItemDrag = ( a ) =>
-		//{
-		//	throw new NotImplementedException();
-		//};
+		_parameterListView.ItemDrag = ( item ) =>
+		{
+			var drag = new Drag( this );
+			drag.Data.Object = item;
+			drag.Execute();
 
-		// TODO : Remove Later once the rest for the blackboard stuff is setup.
-		_parameterListView.SetItems( 
-		[
-			new ColorBlackboardParameter() { Name = "A Color Parameter" }, 
-			new Float2BlackboardParameter() { Name = "A Float2 Parameter" }
-		]);
+			return true;
+		};
 
 		Layout.Add( canvas );
 	}
@@ -193,7 +190,8 @@ public class BlackboardView : Widget
 
 	public void RebuildBuildFromGraph( bool preserveCurrentSelection = false )
 	{
-		BuildFromParameters( ((ShaderGraph)_graph).Parameters, preserveCurrentSelection );
+		if ( _graph is not null )
+			BuildFromParameters( _graph.Parameters, preserveCurrentSelection );
 	}
 
 	public void SetSelectedItem( BlackboardParameter parameter )

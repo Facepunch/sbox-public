@@ -1,6 +1,8 @@
 ﻿using Editor.NodeEditor;
+using Editor.ShaderGraph.Nodes;
 using System.ComponentModel;
 using System.Text.Json.Serialization;
+using static Sandbox.Material;
 
 namespace Editor.ShaderGraph;
 
@@ -59,6 +61,11 @@ public abstract class BlackboardParameter : IBlackboardParameter
 		return Identifier;
 	}
 
+	public virtual object GetValue()
+	{
+		throw new NotImplementedException();
+	}
+
 	public static IEnumerable<IBlackboardParameterType> GetRelevantParameters( Dictionary<string, IBlackboardParameterType> availableParameters, bool isSubgraph )
 	{
 		return availableParameters.Values.Where( x =>
@@ -83,9 +90,86 @@ public abstract class BlackboardParameter : IBlackboardParameter
 		} );
 	}
 
-	// TODO
-	public static BaseNode InitilzeNode( string parameterTypeName )
+	public static BaseNode InitilzeNode( BlackboardParameter parameter )
 	{
+		if ( parameter is BoolBlackboardParameter bbp )
+		{
+			return new BoolParameter()
+			{
+				BlackboardParameterIdentifier = bbp.Identifier,
+				Name = bbp.Name,
+				Value = bbp.Value,
+				IsAttribute = bbp.IsAttribute,
+				UI = bbp.UI
+			};
+		}
+		else if ( parameter is IntBlackboardParameter ibp )
+		{
+			return new IntParameter()
+			{
+				BlackboardParameterIdentifier = ibp.Identifier,
+				Name = ibp.Name,
+				Value = ibp.Value,
+				IsAttribute = ibp.IsAttribute,
+				UI = ibp.UI
+			};
+		}
+		else if ( parameter is FloatBlackboardParameter fbp )
+		{
+			return new FloatParameter()
+			{
+				BlackboardParameterIdentifier = fbp.Identifier,
+				Name = fbp.Name,
+				Value = fbp.Value,
+				IsAttribute = fbp.IsAttribute,
+				UI = fbp.UI
+			};
+		}
+		else if ( parameter is Float2BlackboardParameter f2bp )
+		{
+			return new Float2Parameter()
+			{
+				BlackboardParameterIdentifier = f2bp.Identifier,
+				Name = f2bp.Name,
+				Value = f2bp.Value,
+				IsAttribute = f2bp.IsAttribute,
+				UI = f2bp.UI
+			};
+		}
+		else if ( parameter is Float3BlackboardParameter f3bp )
+		{
+			return new Float3Parameter()
+			{
+				BlackboardParameterIdentifier = f3bp.Identifier,
+				Name = f3bp.Name,
+				Value = f3bp.Value,
+				IsAttribute = f3bp.IsAttribute,
+				UI = f3bp.UI
+			};
+		}
+		else if ( parameter is Float4BlackboardParameter f4bp )
+		{
+			return new Float4Parameter()
+			{
+				BlackboardParameterIdentifier = f4bp.Identifier,
+				Name = f4bp.Name,
+				Value = f4bp.Value,
+				IsAttribute = f4bp.IsAttribute,
+				UI = f4bp.UI
+			};
+		}
+		else if ( parameter is ColorBlackboardParameter cbp )
+		{
+			return new ColorParameter()
+			{
+				BlackboardParameterIdentifier = cbp.Identifier,
+				Name = cbp.Name,
+				Value = cbp.Value,
+				IsAttribute = cbp.IsAttribute,
+				UI = cbp.UI
+			};
+		}
+
 		throw new NotImplementedException();
 	}
 
@@ -128,5 +212,10 @@ public abstract class BlackboardMaterialParameter<T, Y> : BlackboardParameter wh
 	{
 		Value = value;
 		IsAttribute = isAttribute;
+	}
+
+	public override object GetValue()
+	{
+		return Value;
 	}
 }

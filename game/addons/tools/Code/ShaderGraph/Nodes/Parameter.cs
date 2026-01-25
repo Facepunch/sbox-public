@@ -24,7 +24,10 @@ public sealed class BoolParameter : ParameterNode<bool, BoolParameterUI, BoolBla
 
 	protected override void UpdateFromBlackboardParameter( BoolBlackboardParameter parameter )
 	{
-		
+		Name = parameter.Name;
+		Value = parameter.Value;
+		UI = parameter.UI;
+		IsAttribute = parameter.IsAttribute;
 	}
 }
 
@@ -56,7 +59,10 @@ public sealed class IntParameter : ParameterNode<int, IntParameterUI, IntBlackbo
 
 	protected override void UpdateFromBlackboardParameter( IntBlackboardParameter parameter )
 	{
-		
+		Name = parameter.Name;
+		Value = parameter.Value;
+		UI = parameter.UI;
+		IsAttribute = parameter.IsAttribute;
 	}
 }
 
@@ -98,7 +104,10 @@ public sealed class FloatParameter : ParameterNode<float, FloatParameterUI, Floa
 
 	protected override void UpdateFromBlackboardParameter( FloatBlackboardParameter parameter )
 	{
-		
+		Name = parameter.Name;
+		Value = parameter.Value;
+		UI = parameter.UI;
+		IsAttribute = parameter.IsAttribute;
 	}
 }
 
@@ -172,7 +181,10 @@ public sealed class Float2Parameter : ParameterNode<Vector2, FloatParameterUI, F
 
 	protected override void UpdateFromBlackboardParameter( Float2BlackboardParameter parameter )
 	{
-		
+		Name = parameter.Name;
+		Value = parameter.Value;
+		UI = parameter.UI;
+		IsAttribute = parameter.IsAttribute;
 	}
 }
 
@@ -262,7 +274,10 @@ public sealed class Float3Parameter : ParameterNode<Vector3, FloatParameterUI, F
 
 	protected override void UpdateFromBlackboardParameter( Float3BlackboardParameter parameter )
 	{
-		
+		Name = parameter.Name;
+		Value = parameter.Value;
+		UI = parameter.UI;
+		IsAttribute = parameter.IsAttribute;
 	}
 }
 
@@ -273,7 +288,7 @@ public sealed class Float3Parameter : ParameterNode<Vector3, FloatParameterUI, F
 [Hide]
 public sealed class Float4Parameter : ParameterNode<Vector4, FloatParameterUI, Float4BlackboardParameter>
 {
-	[Output( typeof( Vector4 ) ), Title( "XYZ" ), Hide]
+	[Output( typeof( Vector4 ) ), Title( "XYZW" ), Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		return compiler.ResultParameter( Name, Value, default, default, false, IsAttribute, UI );
@@ -358,7 +373,10 @@ public sealed class Float4Parameter : ParameterNode<Vector4, FloatParameterUI, F
 
 	protected override void UpdateFromBlackboardParameter( Float4BlackboardParameter parameter )
 	{
-		
+		Name = parameter.Name;
+		Value = parameter.Value;
+		UI = parameter.UI;
+		IsAttribute = parameter.IsAttribute;
 	}
 }
 
@@ -436,6 +454,9 @@ public sealed class ColorParameter : ParameterNode<Color, ColorParameterUI, Colo
 
 	protected override void UpdateFromBlackboardParameter( ColorBlackboardParameter parameter )
 	{
-		
+		Name = parameter.Name;
+		Value = parameter.Value;
+		UI = parameter.UI;
+		IsAttribute = parameter.IsAttribute;
 	}
 }

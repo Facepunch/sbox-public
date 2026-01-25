@@ -27,7 +27,9 @@ public interface ITextureParameterNode
 	TextureInput UI { get; set; }
 }
 
-public abstract class ParameterNode<T, Y, P> : ShaderNode, IParameterNodeBase, IParameterNode<Y>, IErroringNode where Y : IParameterUI where P : IBlackboardParameter
+public abstract class ParameterNode<T, PUI, BP> : ShaderNode, IParameterNodeBase, IParameterNode<PUI>, IErroringNode 
+	where PUI : IParameterUI 
+	where BP : IBlackboardParameter
 {
 	[Hide]
 	protected bool IsSubgraph => (Graph is ShaderGraph shaderGraph && shaderGraph.IsSubgraph);
@@ -61,7 +63,7 @@ public abstract class ParameterNode<T, Y, P> : ShaderNode, IParameterNodeBase, I
 	}
 
 	[InlineEditor( Label = false ), Group( "UI" )]
-	public Y UI { get; set; }
+	public PUI UI { get; set; }
 
 	protected NodeResult Component( string component, float value, GraphCompiler compiler )
 	{
@@ -97,30 +99,18 @@ public abstract class ParameterNode<T, Y, P> : ShaderNode, IParameterNodeBase, I
 		return Vector4.Zero;
 	}
 
-	protected virtual void UpdateFromBlackboardParameter( P parameter )
+	protected virtual void UpdateFromBlackboardParameter( BP parameter )
 	{
 	}
 
 	public void UpdateFromBlackboard( IBlackboardParameter parameter )
 	{
-		UpdateFromBlackboard( parameter );
-		Update();
+		UpdateFromBlackboardParameter( (BP)parameter );
 	}
 
 	public List<string> GetErrors()
 	{
 		var errors = new List<string>();
-
-		foreach ( var parameterNode in Graph.Nodes )
-		{
-			if ( parameterNode == this )
-				continue;
-			if ( !string.IsNullOrWhiteSpace( Name ) && parameterNode is IParameterNodeBase pn && pn.Name == Name )
-			{
-				errors.Add( $"Duplicate name \"{Name}\" on {this.DisplayInfo.Name}" );
-				break;
-			}
-		}
 
 		return errors;
 	}

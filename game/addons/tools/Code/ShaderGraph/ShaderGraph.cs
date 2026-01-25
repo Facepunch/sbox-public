@@ -127,6 +127,17 @@ public sealed partial class ShaderGraph : IGraph
 		return node;
 	}
 
+	public bool ContainsParameterWithName( string name )
+	{
+		foreach ( var parameter in _parameters )
+		{
+			if ( name == parameter.Value.Name )
+				return true;
+		}
+
+		return false;
+	}
+
 	public void AddParameter( BlackboardParameter parameter )
 	{
 		parameter.Graph = this;
@@ -161,6 +172,11 @@ public sealed partial class ShaderGraph : IGraph
 		_nodes.Clear();
 	}
 
+	public void ClearParameters()
+	{
+		_parameters.Clear();
+	}
+
 	string IGraph.SerializeNodes( IEnumerable<INode> nodes )
 	{
 		return SerializeNodes( nodes.Cast<BaseNode>() );
@@ -180,4 +196,9 @@ public sealed partial class ShaderGraph : IGraph
 	{
 		RemoveNode( (BaseNode)node );
 	}
+
+	//internal void AddParameter( IBlackboardParameter parameter )
+	//{
+	//	AddParameter( (BlackboardParameter)parameter );
+	//}
 }

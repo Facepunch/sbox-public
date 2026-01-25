@@ -86,6 +86,8 @@ public class MainWindow : DockWindow
 	private List<string> _fileHistory = new();
 	private int _fileHistoryPosition = 0;
 
+	private List<GraphCompiler.Error> BlackboardErrors { get; set; } = new();
+
 	private string _defaultDockState;
 
 	public bool CanOpenMultipleAssets => true;
@@ -132,7 +134,6 @@ public class MainWindow : DockWindow
 		var oldTarget = _properties.Target;
 		_properties.Target = node != null ? node : _graph;
 
-
 		// TODO : Make it work when subgraph inputs.
 		if ( _properties.Target is IParameterNodeBase parameterNode )
 		{
@@ -151,13 +152,8 @@ public class MainWindow : DockWindow
 				_properties.Target = _graph;
 			}
 		}
-		
 
-		if ( _properties.Target is ShaderGraph && oldTarget is BlackboardParameter )
-		{
-			_blackboardView.ClearSeletedItem();
-		}
-		else if ( _properties.Target is BaseNode && oldTarget is BlackboardParameter )
+		if ( ( _properties.Target is ShaderGraph && oldTarget is BlackboardParameter ) || ( _properties.Target is BaseNode && oldTarget is BlackboardParameter ) )
 		{
 			_blackboardView.ClearSeletedItem();
 		}
@@ -404,6 +400,17 @@ public class MainWindow : DockWindow
 
 	private string GeneratePreviewCode()
 	{
+		if ( BlackboardErrors.Any() )
+		{
+			_output.Errors = BlackboardErrors;
+			DockManager.RaiseDock( "Output" );
+
+			_generatedCode = null;
+
+			RestoreShader();
+			return null;
+		}
+
 		ClearAttributes();
 
 		var resultNode = _graph.Nodes.OfType<BaseResult>().FirstOrDefault();
@@ -582,8 +589,13 @@ public class MainWindow : DockWindow
 			_redoOption.Enabled = _undoStack.CanUndo;
 
 			_graph.ClearNodes();
+			_graph.ClearParameters();
+
 			_graph.DeserializeNodes( op.undoBuffer );
+			_graph.DeserializeParameters( op.undoBuffer );
+
 			_graphView.RebuildFromGraph();
+			_blackboardView.RebuildBuildFromGraph();
 
 			SetDirty();
 		}
@@ -599,8 +611,13 @@ public class MainWindow : DockWindow
 			_redoOption.Enabled = _undoStack.CanRedo;
 
 			_graph.ClearNodes();
+			_graph.ClearParameters();
+
 			_graph.DeserializeNodes( op.redoBuffer );
+			_graph.DeserializeParameters( op.redoBuffer );
+
 			_graphView.RebuildFromGraph();
+			_blackboardView.RebuildBuildFromGraph();
 
 			SetDirty();
 		}
@@ -613,8 +630,13 @@ public class MainWindow : DockWindow
 			Log.Info( $"SetUndoLevel ({op.name})" );
 
 			_graph.ClearNodes();
+			_graph.ClearParameters();
+
 			_graph.DeserializeNodes( op.redoBuffer );
+			_graph.DeserializeParameters( op.redoBuffer );
+
 			_graphView.RebuildFromGraph();
+			_blackboardView.RebuildBuildFromGraph();
 
 			SetDirty();
 		}
@@ -1176,6 +1198,7 @@ public class MainWindow : DockWindow
 
 		_graphView.Graph = _graph;
 		_graphView.OnChildValuesChanged += ( w ) => SetDirty();
+		_graphView.OnNewParameterNodeCreated += () => OnNewParameterNodeCreated();
 		_graphCanvas.Layout.Add( _graphView, 1 );
 
 		_output = new Output( this );
@@ -1289,6 +1312,11 @@ public class MainWindow : DockWindow
 		Compile();
 	}
 
+	private void OnNewParameterNodeCreated()
+	{
+		_blackboardView.RebuildBuildFromGraph( true );
+	}
+
 	private void OnBlackboardParameterCreated( BlackboardParameter parameter )
 	{
 		if ( _properties.Target != parameter )
@@ -1339,6 +1367,8 @@ public class MainWindow : DockWindow
 
 	private void UpdateParameterNodes()
 	{
+		BlackboardErrors.Clear();
+
 		if ( _properties.Target is BlackboardParameter parameter )
 		{
 			// Dont update a node on the graph if we have any blackboard issues.
@@ -1348,15 +1378,20 @@ public class MainWindow : DockWindow
 				foreach ( var parameterNode in _graph.Nodes.OfType<IParameterNodeBase>().Where( x => x.BlackboardParameterIdentifier == parameter.Identifier ) )
 				{
 					parameterNode.UpdateFromBlackboard( parameter );
+					
+					if ( parameterNode is BaseNode baseNode )
+					{
+						baseNode.Update();
+					}
 				}
 			}
 			else
 			{
-				// TODO
-				//foreach ( var parameterIssue in parameterIssues )
-				//{
-				//	AddBlackboardIssue( parameterIssue );
-				//}
+				foreach ( var issue in parameterIssues )
+				{
+					BlackboardErrors.Add( new() { Node = null, Message = issue } );
+				}
+		
 			}
 		}
 	}

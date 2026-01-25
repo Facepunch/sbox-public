@@ -56,6 +56,7 @@ public partial class PaletteWidget : Widget
 			.Where( x =>
 			{
 				if ( x.IsAbstract ) return false;
+				if ( x.HasAttribute<HideAttribute>() ) return false;
 				if ( IsSubgraph && x.TargetType == typeof( Result ) )
 				{
 					return false;

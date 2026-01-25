@@ -27,7 +27,7 @@ public class ShaderGraphView : GraphView
 		set => base.Graph = value;
 	}
 
-	public Action OnNewBlackboardParameterNodeCreated { get; set; }
+	public Action OnNewParameterNodeCreated { get; set; }
 	public Action OnConstantNodeConvertedToParameter { get; set; }
 
 	private readonly Dictionary<string, INodeType> AvailableNodes = new( StringComparer.OrdinalIgnoreCase );
@@ -112,6 +112,37 @@ public class ShaderGraphView : GraphView
 			}
 		}
 
+		if ( ev.Data.Object is BlackboardParameter blackboardParameter )
+		{
+			var isSubgraph = Graph.IsSubgraph;
+
+			if ( !isSubgraph )
+			{
+				string nodeFullName = blackboardParameter switch
+				{
+					BoolBlackboardParameter => DisplayInfo.ForType( typeof( BoolParameter ) ).Fullname,
+					IntBlackboardParameter => DisplayInfo.ForType( typeof( IntParameter ) ).Fullname,
+					FloatBlackboardParameter => DisplayInfo.ForType( typeof( FloatParameter ) ).Fullname,
+					Float2BlackboardParameter => DisplayInfo.ForType( typeof( Float2Parameter ) ).Fullname,
+					Float3BlackboardParameter => DisplayInfo.ForType( typeof( Float3Parameter ) ).Fullname,
+					Float4BlackboardParameter => DisplayInfo.ForType( typeof( Float4Parameter ) ).Fullname,
+					ColorBlackboardParameter => DisplayInfo.ForType( typeof( ColorParameter ) ).Fullname,
+					_ => throw new NotImplementedException(),
+				};
+
+				if ( AvailableNodes.TryGetValue( nodeFullName, out var nodeType ) )
+				{
+					var parameterNodeType = new ParameterNodeType( ((ClassNodeType)nodeType).Type, blackboardParameter );
+
+					return parameterNodeType;
+				}
+			}
+			else
+			{
+				throw new NotImplementedException();
+			}
+		}
+
 		return AvailableNodes.TryGetValue( ev.Data.Text, out var type )
 			? type
 			: null;
@@ -174,7 +205,10 @@ public class ShaderGraphView : GraphView
 				{
 					Dialog.AskString( ( string parameterName ) =>
 					{
-						CreateNewParameterNode( classType, parameterName, clickPos );
+						var parameter = CreateNewBlackboardParameter( classType );
+						parameter.Name = parameterName;
+
+						CreateNewParameterNode( parameter, clickPos );
 					},
 					$"Specify a name for the {(isSubgraph ? "subgraph input" : "parameter")}" );
 				} );
@@ -232,10 +266,32 @@ public class ShaderGraphView : GraphView
 
 		if ( selectedNodes.Length > 1 && selectedNodes.All( x => x.Node is IConstantNode ) )
 		{
-			var convertOption = menu.AddOption( $"Convert {selectedNodes.Count()} Constants to {(Graph.IsSubgraph ? "Subgraph Inputs" : "Material Parameters")}", "swap_horiz", () =>
+			var convertOption = menu.AddOption( $"Convert {selectedNodes.Count()} Constants to {( Graph.IsSubgraph ? "Subgraph Inputs" : "Material Parameters" )}", "swap_horiz", () =>
 			{
-				// TODO
-				throw new NotImplementedException();
+				using var undoScope = UndoScope( $"Convert {selectedNodes.Count()} Constants to {( Graph.IsSubgraph ? "Subgraph Inputs" : "Material Parameters" )}" );
+				var lastNode = selectedNodes.First().Node as BaseNode;
+				foreach ( var node in selectedNodes )
+				{
+					var baseNode = node.Node as BaseNode;
+					var constantNode = baseNode as IConstantNode;
+
+					Graph.RemoveNode( baseNode );
+
+					var newName = $"{(Graph.IsSubgraph ? "SubgraphInput" : "MaterialParameter")}";
+					var id = 0;
+					while ( Graph.ContainsParameterWithName( $"{newName}{id}" ) )
+					{
+						id++;
+					}
+
+					lastNode = ConvertConstantNodeToParameter( constantNode, $"{newName}{id}", node.Position );
+				}
+
+				RebuildFromGraph();
+
+				// Select the last node in the list.
+				_window.OnNodeSelected( lastNode );
+				SelectNode( lastNode );
 			} );
 		}
 
@@ -263,19 +319,87 @@ public class ShaderGraphView : GraphView
 
 				var convertOption = menu.AddOption( $"Convert {baseNode.DisplayInfo.Name} to {nodeTypeTitle} {(Graph.IsSubgraph ? "Subgraph Input" : "Material Parameter")}", "swap_horiz", () =>
 				{
-					// TODO
-					throw new NotImplementedException();
+					Dialog.AskString( ( string parameterName ) =>
+					{
+						using var undoScope = UndoScope( $"Convert {baseNode.DisplayInfo.Name} node to {nodeTypeTitle} {(Graph.IsSubgraph ? "Subgraph Input node" : "Material Parameter node")}" );
+
+						Graph.RemoveNode( baseNode );
+						
+						var newNode = ConvertConstantNodeToParameter( constantNode, parameterName, item.Node.Position );
+						
+						RebuildFromGraph();
+						
+						_window.OnNodeSelected( newNode );
+						SelectNode( newNode );
+					},
+					$"Specify {(Graph.IsSubgraph ? "input" : "parameter")} name for the new {nodeTypeTitle} {(Graph.IsSubgraph ? "Subgraph Input node" : "Material Parameter node")}." );
 				} );
 			}
 		}
 	}
 
-	private void CreateNewParameterNode( IBlackboardParameterType targetType, string name, Vector2 position )
+	private BaseNode ConvertConstantNodeToParameter( IConstantNode constantNode, string parameterName, Vector2 nodePosition )
 	{
-		var blackboardParameter = (BlackboardParameter)targetType.CreateParameter( Graph );
-		blackboardParameter.Name = name;
+		BaseNode node = null;
 
-		var node = BlackboardParameter.InitilzeNode( targetType.Type.Name ); //blackboardParameter.InitializeNode();
+		if ( !Graph.IsSubgraph )
+		{
+			string bptFullName = constantNode switch
+			{
+				ConstantBool => DisplayInfo.ForType( typeof( BoolBlackboardParameter ) ).Fullname,
+				ConstantInt => DisplayInfo.ForType( typeof( IntBlackboardParameter ) ).Fullname,
+				ConstantFloat => DisplayInfo.ForType( typeof( FloatBlackboardParameter ) ).Fullname,
+				ConstantFloat2 => DisplayInfo.ForType( typeof( Float2BlackboardParameter ) ).Fullname,
+				ConstantFloat3 => DisplayInfo.ForType( typeof( Float3BlackboardParameter ) ).Fullname,
+				ConstantFloat4 => DisplayInfo.ForType( typeof( Float4BlackboardParameter ) ).Fullname,
+				ConstantColor => DisplayInfo.ForType( typeof( ColorBlackboardParameter ) ).Fullname,
+				_ => throw new NotImplementedException(),
+			};
+
+			if ( AvailableParameters.TryGetValue( bptFullName, out var bpParameterType ) )
+			{
+				var parameter = CreateNewBlackboardParameter( bpParameterType );
+				parameter.Name = parameterName;
+
+				node = ConvertConstantNodeToParameterNode( parameter, nodePosition );
+
+				OnConstantNodeConvertedToParameter?.Invoke();
+			}
+
+			if ( node != null )
+			{
+				return node;
+			}
+
+			throw new Exception( $"Unable to convert constant node \"{constantNode.GetType()}\" to material parameter." );
+		}
+		else
+		{
+			// TODO
+			throw new NotImplementedException();
+		}
+
+		throw new Exception( $"Unable to convert constant node \"{constantNode.GetType()}\" to subgraph input parameter." );
+	}
+
+	protected BlackboardParameter CreateNewBlackboardParameter( IBlackboardParameterType type )
+	{
+		if ( type == null )
+			return null;
+
+		var parameter = type.CreateParameter( Graph );
+
+		if ( parameter is null )
+			return null;
+
+		Graph?.AddParameter( (BlackboardParameter)parameter );
+		
+		return (BlackboardParameter)parameter;
+	}
+
+	private BaseNode ConvertConstantNodeToParameterNode( BlackboardParameter parameter, Vector2 position )
+	{
+		var node = BlackboardParameter.InitilzeNode( parameter );
 		node.Graph = Graph;
 		node.Position = position.SnapToGrid( GridSize );
 
@@ -287,9 +411,26 @@ public class ShaderGraphView : GraphView
 
 		Add( nodeUI );
 
-		Graph.AddParameter( blackboardParameter );
+		OnNewParameterNodeCreated?.Invoke();
 
-		OnNewBlackboardParameterNodeCreated?.Invoke();
+		return node;
+	}
+
+	private void CreateNewParameterNode( BlackboardParameter parameter, Vector2 position )
+	{
+		var node = BlackboardParameter.InitilzeNode( parameter );
+		node.Graph = Graph;
+		node.Position = position.SnapToGrid( GridSize );
+
+		Graph?.AddNode( node );
+
+		OnNodeCreated( node );
+
+		var nodeUI = node.CreateUI( this );
+
+		Add( nodeUI );
+
+		OnNewParameterNodeCreated?.Invoke();
 	}
 
 	private void CreateSubgraphFromSelection( string filePath )
@@ -563,3 +704,4 @@ public class ShaderGraphView : GraphView
 		}
 	}
 }
+

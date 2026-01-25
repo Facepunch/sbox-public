@@ -2,7 +2,7 @@
 
 public interface IConstantNode
 {
-
+	string Identifier { get; set; }
 }
 
 public abstract class ConstantNode<T> : ShaderNode, IConstantNode

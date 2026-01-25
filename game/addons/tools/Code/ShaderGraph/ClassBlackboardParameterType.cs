@@ -15,6 +15,7 @@ public class ClassBlackboardParameterType : IBlackboardParameterType
 		if ( EditorTypeLibrary.Create( Type.Name, Type.TargetType ) is BlackboardParameter parameter )
 		{
 			parameter.Name = name;
+			parameter.Graph = graph;
 
 			return parameter;
 		}
