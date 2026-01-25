@@ -134,7 +134,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		Center = EditorCookie.Get( $"{cookieName}.view.center", Center );
 	}
 
-	internal IDisposable UndoScope( string name )
+	protected IDisposable UndoScope( string name )
 	{
 		PushUndo( name );
 		return new Sandbox.Utility.DisposeAction( () => PushRedo() );
