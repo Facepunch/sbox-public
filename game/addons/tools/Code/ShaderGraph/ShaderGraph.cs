@@ -127,6 +127,16 @@ public sealed partial class ShaderGraph : IGraph
 		return node;
 	}
 
+	public BlackboardParameter FindParameter( Guid identifier )
+	{
+		if ( _parameters.TryGetValue( identifier, out var parameter ) )
+		{
+			return parameter;
+		}
+
+		throw new Exception( $"There is no parameter with the identifier : {identifier}" );
+	}
+
 	public bool ContainsParameterWithName( string name )
 	{
 		foreach ( var parameter in _parameters )
@@ -171,16 +181,6 @@ public sealed partial class ShaderGraph : IGraph
 	public void RemoveParameter( Guid identifier )
 	{
 		_parameters.Remove( identifier );
-	}
-
-	public BlackboardParameter FindParameterByGuid( Guid identifier )
-	{
-		if ( _parameters.TryGetValue( identifier, out var parameter ) )
-		{
-			return parameter;
-		}
-
-		throw new Exception( $"There is no parameter with the identifier : {identifier}" );
 	}
 
 	public void ClearNodes()

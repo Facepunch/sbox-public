@@ -182,7 +182,7 @@ public class BlackboardView : Widget
 
 		if ( _selectedParameter != null )
 		{
-			var selection = Graph.FindParameterByGuid( _selectedParameter.Identifier );
+			var selection = Graph.FindParameter( _selectedParameter.Identifier );
 
 			SetSelectedItem( selection );
 		}

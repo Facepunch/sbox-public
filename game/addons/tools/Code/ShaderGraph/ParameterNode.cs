@@ -58,7 +58,7 @@ public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNode, IErrorin
 	{
 		if ( Graph is ShaderGraph graph )
 		{
-			var parameter = graph.FindParameterByGuid( BlackboardParameterIdentifier );
+			var parameter = graph.FindParameter( BlackboardParameterIdentifier );
 
 			switch ( parameter )
 			{
@@ -97,7 +97,7 @@ public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNode, IErrorin
 	{
 		if ( Graph is ShaderGraph graph )
 		{
-			return (Y)graph.FindParameterByGuid( BlackboardParameterIdentifier );
+			return (Y)graph.FindParameter( BlackboardParameterIdentifier );
 		}
 
 		return null;

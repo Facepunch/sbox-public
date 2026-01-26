@@ -141,7 +141,7 @@ public class MainWindow : DockWindow
 			{
 				if ( parameterNode.BlackboardParameterIdentifier != default )
 				{
-					var blackboardParameter = _graph.FindParameterByGuid( parameterNode.BlackboardParameterIdentifier );
+					var blackboardParameter = _graph.FindParameter( parameterNode.BlackboardParameterIdentifier );
 					_blackboardView.SetSelectedItem( blackboardParameter );
 					_properties.Target = blackboardParameter;
 				}
