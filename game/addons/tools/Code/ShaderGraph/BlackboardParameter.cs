@@ -5,6 +5,9 @@ using System.Text.Json.Serialization;
 
 namespace Editor.ShaderGraph;
 
+// TODO - Mabye it would be a good idea to add the blackboard shit to the base NodeEditor stuff.
+// If people dont want to use it make it so they dont have to. - QuackCola
+
 public record struct BlackboardConfig( string Name, Color Color );
 
 public interface IBlackboardParameter
