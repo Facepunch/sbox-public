@@ -77,7 +77,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 			{
 				var targetType = classParameterType.Type.TargetType;
 
-				if ( isSubgraph )
+				if ( !isSubgraph )
 				{
 					// Only show material parameters when not in a subgraph
 					if ( targetType == typeof( BoolBlackboardParameter ) ) return false;
