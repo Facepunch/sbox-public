@@ -1,4 +1,5 @@
-﻿
+﻿using System.Collections.Concurrent;
+
 namespace Sandbox;
 
 /// <summary>
@@ -36,11 +37,11 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 			if ( value == this ) return;
 			if ( _boneMergeTarget == value ) return;
 
-			_boneMergeTarget?.SetBoneMerge( this, false );
+			_boneMergeTarget?.RemoveBoneMergeChild( this );
 
 			_boneMergeTarget = value;
 
-			_boneMergeTarget?.SetBoneMerge( this, true );
+			_boneMergeTarget?.AddBoneMergeChild( this );
 		}
 	}
 
@@ -128,7 +129,9 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 
 	public Transform RootMotion => SceneModel.IsValid() ? SceneModel.RootMotion : default;
 
-	readonly HashSet<SkinnedModelRenderer> mergeChildren = new();
+	readonly HashSet<SkinnedModelRenderer> _mergeChildren = new();
+
+	internal bool HasBoneMergeChildren => _mergeChildren.Count > 0;
 
 	/// <summary>
 	/// Does our model have collision and joints.
@@ -138,51 +141,93 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 		return Model.IsValid() && Model.Physics is { Parts.Count: > 0, Joints.Count: > 0 };
 	}
 
-	private void SetBoneMerge( SkinnedModelRenderer newChild, bool enabled )
+	private void AddBoneMergeChild( SkinnedModelRenderer newChild )
 	{
 		ArgumentNullException.ThrowIfNull( newChild );
 
-		if ( enabled )
+		_mergeChildren.Add( newChild );
+
+		// Merge immediately if we can. This prevents a problem where components
+		// are added after the animation has been worked out, so you get a one frame
+		// flicker of the default pose.
+		if ( SceneModel is not null && newChild.SceneModel is not null )
 		{
-			mergeChildren.Add( newChild );
+			newChild.SceneModel.Transform = SceneModel.Transform;
+			newChild.SceneModel.MergeBones( SceneModel );
 
-			// Merge immediately if we can. This prevents a problem where components
-			// are added after the animation has been worked out, so you get a one frame
-			// flicker of the default pose.
-			if ( SceneModel is not null && newChild.SceneModel is not null )
+			// Updated bones, transform is no longer dirty.
+			newChild._transformDirty = false;
+
+			// Create bone physics on child if they exist.
+			newChild.Physics?.Destroy();
+			newChild.Physics = newChild.HasBonePhysics() ? new BonePhysics( newChild, this ) : null;
+
+			if ( !newChild.UpdateGameObjectsFromBones() )
+				return;
+
+			if ( ThreadSafe.IsMainThread )
 			{
-				newChild.SceneModel.Transform = SceneModel.Transform;
-				newChild.SceneModel.MergeBones( SceneModel );
-
-				// Updated bones, transform is no longer dirty.
-				newChild._transformDirty = false;
-
-				// Create bone physics on child if they exist.
-				newChild.Physics?.Destroy();
-				newChild.Physics = newChild.HasBonePhysics() ? new BonePhysics( newChild, this ) : null;
-
-				if ( !newChild.UpdateGameObjectsFromBones() )
-					return;
-
-				if ( ThreadSafe.IsMainThread )
-				{
-					newChild.Transform.TransformChanged();
-				}
+				newChild.Transform.TransformChanged();
 			}
 		}
-		else
-		{
-			mergeChildren.Remove( newChild );
+	}
 
-			newChild.Physics?.Destroy();
-			newChild.Physics = null;
+	private void RemoveBoneMergeChild( SkinnedModelRenderer oldChild )
+	{
+		ArgumentNullException.ThrowIfNull( oldChild );
+
+		_mergeChildren.Remove( oldChild );
+
+		oldChild.Physics?.Destroy();
+		oldChild.Physics = null;
+	}
+
+	private HashSet<SkinnedModelRenderer> _skinnedChildren = new();
+	private SkinnedModelRenderer _skinnedParent = null;
+
+	internal bool IsRootRenderer => _skinnedParent == null;
+
+	internal IEnumerable<SkinnedModelRenderer> SkinnedChildren => _skinnedChildren;
+
+	private void UpdateSkinnedRendererParent()
+	{
+		// Get the first ancestor skinned model renderer
+		var potentialNewParent = GameObject.Parent?.Components.GetInAncestors<SkinnedModelRenderer>( true );
+
+		// Check if there are any other skinned renderers in the parent
+		// This is an edge case, generally you should only have one skinned model renderer per GO
+		var otherPotentialParents = potentialNewParent?.GetComponents<SkinnedModelRenderer>( true );
+		if ( otherPotentialParents != null && otherPotentialParents.Count() > 1 )
+		{
+			// Make sure only one of the skinned renderers contains children
+			foreach ( var parentSibling in otherPotentialParents.Where( x => x != potentialNewParent ) )
+			{
+				potentialNewParent._skinnedChildren.UnionWith( parentSibling._skinnedChildren );
+				parentSibling._skinnedChildren.Clear();
+			}
 		}
+
+		_skinnedParent?._skinnedChildren.Remove( this );
+
+		if ( potentialNewParent != null )
+		{
+			_skinnedParent = potentialNewParent;
+			_skinnedParent._skinnedChildren.Add( this );
+		}
+	}
+
+	protected override void OnParentChanged( GameObject oldParent, GameObject newParent )
+	{
+		UpdateSkinnedRendererParent();
 	}
 
 	protected override void OnEnabled()
 	{
 		Assert.True( _sceneObject == null, "_sceneObject should be null - disable wasn't called" );
 		Assert.NotNull( Scene, "Scene should not be null" );
+
+		UpdateSkinnedRendererParent();
+		Scene.GetSystem<SceneAnimationSystem>().AddRenderer( this );
 
 		var model = Model ?? Model.Load( "models/dev/box.vmdl" );
 
@@ -204,6 +249,12 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 		OnSceneObjectCreated( _sceneObject );
 
 		Transform.OnTransformChanged += OnTransformChanged;
+	}
+
+	protected override void OnDisabled()
+	{
+		UpdateSkinnedRendererParent();
+		Scene.GetSystem<SceneAnimationSystem>().RemoveRenderer( this );
 	}
 
 	internal override void OnSceneObjectCreated( SceneObject o )
@@ -239,7 +290,7 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 		//
 		if ( _boneMergeTarget is not null )
 		{
-			_boneMergeTarget.SetBoneMerge( this, true );
+			_boneMergeTarget.AddBoneMergeChild( this );
 		}
 		else
 		{
@@ -275,6 +326,7 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 		Physics?.Destroy();
 	}
 
+	[Obsolete]
 	public void PostAnimationUpdate()
 	{
 		ThreadSafe.AssertIsMainThread();
@@ -291,6 +343,16 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 
 		// Bone merge all children in hierarchy in order.
 		MergeDescendants();
+	}
+
+	internal void DispatchEvents()
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		if ( !SceneModel.IsValid() )
+			return;
+		SceneModel.RunPendingEvents();
+		SceneModel.DispatchTagEvents();
 	}
 
 	/// <summary>
@@ -461,38 +523,18 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 		return transformsChanged;
 	}
 
-	private IEnumerable<SkinnedModelRenderer> GetMergeDescendants()
+	internal void MergeDescendants( ConcurrentQueue<GameTransform> changedTransforms = null )
 	{
-		foreach ( var child in mergeChildren )
+		foreach ( var child in _mergeChildren )
 		{
 			if ( !child.IsValid() )
 				continue;
 
-			yield return child;
-
-			foreach ( var descendant in child.GetMergeDescendants() )
-			{
-				yield return descendant;
-			}
-		}
-	}
-
-	private void MergeDescendants()
-	{
-		if ( mergeChildren.Count == 0 )
-			return;
-
-		var descendants = GetMergeDescendants();
-		foreach ( var descendant in descendants )
-		{
-			if ( !descendant.IsValid() )
-				continue;
-
-			var so = descendant.SceneModel;
+			var so = child.SceneModel;
 			if ( !so.IsValid() )
 				continue;
 
-			var target = descendant.BoneMergeTarget;
+			var target = child.BoneMergeTarget;
 			if ( !target.IsValid() )
 				continue;
 
@@ -504,15 +546,21 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 			so.MergeBones( parent );
 
 			// Updated bones, transform is no longer dirty.
-			descendant._transformDirty = false;
+			child._transformDirty = false;
 
-			if ( !descendant.UpdateGameObjectsFromBones() )
-				continue;
-
-			if ( ThreadSafe.IsMainThread )
+			if ( child.UpdateGameObjectsFromBones() )
 			{
-				descendant.Transform.TransformChanged();
+				if ( changedTransforms is not null )
+				{
+					changedTransforms.Enqueue( child.Transform );
+				}
+				else if ( ThreadSafe.IsMainThread )
+				{
+					child.Transform.TransformChanged();
+				}
 			}
+
+			child.MergeDescendants( changedTransforms );
 		}
 	}
 

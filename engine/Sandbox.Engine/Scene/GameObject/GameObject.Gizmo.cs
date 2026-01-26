@@ -27,6 +27,7 @@ public partial class GameObject
 			.Where( x => x is not null )
 			.Select( x => Game.TypeLibrary.GetType( x.GetType() ) )
 			.Where( x => x is not null )
+			.Where( x => Gizmo.Settings.IsGizmoEnabled( x.TargetType ) )
 			.SelectMany( x => x.GetAttributes<EditorHandleAttribute>( true ) )
 			.FirstOrDefault();
 
@@ -227,7 +228,7 @@ public partial class GameObject
 	/// </summary>
 	GameObject FindSelectionBase()
 	{
-		var isSelectionBase = IsNetworkRoot || IsOutermostPrefabInstanceRoot || Components.GetAll().Any( x => Game.TypeLibrary.GetType( x.GetType() ).HasAttribute<SelectionBaseAttribute>() );
+		var isSelectionBase = IsNetworkRoot || IsOutermostPrefabInstanceRoot || Components.GetAll().Any( x => Game.TypeLibrary.GetType( x?.GetType() )?.HasAttribute<SelectionBaseAttribute>() == true );
 
 		if ( isSelectionBase ) return this;
 

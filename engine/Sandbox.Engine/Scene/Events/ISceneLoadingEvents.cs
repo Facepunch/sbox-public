@@ -16,6 +16,11 @@ public interface ISceneLoadingEvents : ISceneEvent<ISceneLoadingEvents>
 	Task OnLoad( Scene scene, SceneLoadOptions options ) { return Task.CompletedTask; }
 
 	/// <summary>
+	/// Called during loading. The game will wait for your task to finish
+	/// </summary>
+	Task OnLoad( Scene scene, SceneLoadOptions options, LoadingContext context ) { return OnLoad( scene, options ); }
+
+	/// <summary>
 	/// Loading has finished
 	/// </summary>
 	void AfterLoad( Scene scene ) { }

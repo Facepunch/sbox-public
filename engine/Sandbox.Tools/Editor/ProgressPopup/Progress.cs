@@ -17,6 +17,7 @@ public static class Progress
 		public ProgressSection( string name )
 		{
 			currentWindow ??= new ProgressWindow();
+			//currentWindow.Parent = EditorMainWindow.Current;
 			Popups++;
 
 			// save state

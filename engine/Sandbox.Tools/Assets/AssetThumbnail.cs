@@ -130,11 +130,7 @@ static class AssetThumbnail
 
 				var fullPath = GetThumbnailFile( asset, true );
 
-				await Task.Run( () =>
-				{
-					if ( pix.HasAlpha ) pix.SavePng( fullPath );
-					else pix.SaveJpg( fullPath );
-				} );
+				await Task.Run( () => pix.SavePng( fullPath ) );
 
 				EditorEvent.RunInterface<AssetSystem.IEventListener>( x => x.OnAssetThumbGenerated( asset ) );
 			}

@@ -44,7 +44,7 @@ internal static class EngineFileSystem
 	/// <summary>
 	/// Don't try to use the filesystem until you've called this!
 	/// </summary>
-	internal static void Initialize( string rootFolder )
+	internal static void Initialize( string rootFolder, bool skipBaseFolderInit = false )
 	{
 		if ( Root != null )
 			throw new System.Exception( "Filesystem Multi-Initialize" );
@@ -52,8 +52,7 @@ internal static class EngineFileSystem
 		Root = new LocalFileSystem( rootFolder );
 		Temporary = new MemoryFileSystem();
 
-		if ( Application.IsUnitTest )
-			return;
+		if ( skipBaseFolderInit ) return;
 
 		if ( Application.IsEditor )
 		{

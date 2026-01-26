@@ -13,14 +13,16 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	public bool Sorted { get; set; } = false;
 	public bool Filtered { get; set; } = false;
 	public bool Additive { get; set; } = false;
+	public bool Opaque { get; set; } = false;
 
 	internal Dictionary<Guid, SpriteRenderer> Components = new();
 
-	private readonly ComputeShader SpriteComputeShader = new( "sprite/sprite_cs" );
-	private readonly ComputeShader SortComputeShader = new( "sort_cs" );
+	private static readonly ComputeShader SpriteComputeShader = new( "sprite/sprite_cs" );
+	private static readonly ComputeShader SortComputeShader = new( "sort_cs" );
+	private readonly RenderAttributes SortComputeShaderAttributes = new();
 	private readonly GpuBuffer<uint> SpriteAtomicCounter;
 
-	private readonly Material SpriteMaterial;
+	private static readonly Material SpriteMaterial = Material.FromShader( "sprite/sprite_ps.shader" );
 
 	internal Dictionary<Guid, SpriteGroup> SpriteGroups = [];
 
@@ -29,6 +31,19 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		AddressModeU = TextureAddressMode.Clamp,
 		AddressModeV = TextureAddressMode.Clamp,
 	};
+
+	/// <summary>
+	/// Flags for sprite rendering, must match SpriteFlags in sprite_ps.shader
+	/// </summary>
+	[Flags]
+	public enum SpriteFlags
+	{
+		None = 0x0,
+		CastShadows = 0x1,
+		FlipX = 0x2,
+		FlipY = 0x4,
+		SnapToFrame = 0x8
+	}
 
 	// GPU Resident representation of a sprite
 	[StructLayout( LayoutKind.Sequential, Pack = 16 )]
@@ -42,7 +57,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		public int TextureHandle;
 		public int RenderFlags;
 		public uint BillboardMode;
-		public float FogStrength;
+		public uint FogStrengthCutout;  // Lower 16 bits: fog, upper 16 bits: alpha cutout
 		public uint Lighting;
 		public float DepthFeather;
 		public int SamplerIndex;
@@ -67,6 +82,14 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 			byte b = (byte)(color.b * 255f);
 			byte a = (byte)(color.a * 255f);
 			return (uint)(r | (g << 8) | (b << 16) | (a << 24));
+		}
+
+		// Pack fog strength and alpha cutout into a single uint
+		internal static uint PackFogAndAlphaCutout( float fogStrength, float alphaCutout )
+		{
+			ushort fogPacked = (ushort)(fogStrength.Clamp( 0f, 1f ) * 65535f);
+			ushort alphaPacked = (ushort)(alphaCutout.Clamp( 0f, 1f ) * 65535f);
+			return (uint)(fogPacked | (alphaPacked << 16));
 		}
 	}
 	struct SpriteVertex
@@ -153,8 +176,6 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 	public SpriteBatchSceneObject( Scene scene ) : base( scene.SceneWorld )
 	{
-		SpriteMaterial = Material.FromShader( "sprite/sprite_ps.shader" );
-
 		InitializeSpriteMesh();
 
 		// GPU buffers
@@ -361,9 +382,9 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 				pos = pos.RotateAround( transform.Position, transform.Rotation );
 				transform = transform.WithScale( scale ).WithPosition( pos );
 
-				var flipFlags = SpriteRenderer.FlipFlags.None;
-				if ( c.FlipHorizontal ) flipFlags |= SpriteRenderer.FlipFlags.FlipX;
-				if ( c.FlipVertical ) flipFlags |= SpriteRenderer.FlipFlags.FlipY;
+				var renderFlags = SpriteFlags.None;
+				if ( c.FlipHorizontal ) renderFlags |= SpriteFlags.FlipX;
+				if ( c.FlipVertical ) renderFlags |= SpriteFlags.FlipY;
 
 				var rgbe = c.Color.ToRgbe();
 				var alpha = (byte)(c.Color.a.Clamp( 0.0f, 1.0f ) * 255.0f);
@@ -375,6 +396,9 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 				int lightingFlag = c.Lighting ? 1 : 0;
 				uint packedExponent = (uint)(((byte)lightingFlag) | rgbe.a << 16);
+
+				uint packedFogAndAlpha = SpriteData.PackFogAndAlphaCutout( c.FogStrength, c.AlphaCutoff );
+
 				SpriteDataBuffer[i] = new SpriteData
 				{
 					Position = transform.Position,
@@ -383,9 +407,9 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 					TextureHandle = c.Texture is null ? Texture.Invalid.Index : c.Texture.Index,
 					TintColor = tintColor.RawInt,
 					OverlayColor = overlayColor.RawInt,
-					RenderFlags = (int)flipFlags,
+					RenderFlags = (int)renderFlags,
 					BillboardMode = (uint)c.Billboard,
-					FogStrength = c.FogStrength,
+					FogStrengthCutout = packedFogAndAlpha,
 					Lighting = packedExponent,
 					DepthFeather = c.DepthFeather,
 					SamplerIndex = SamplerState.GetBindlessIndex( sampler with { Filter = c.TextureFilter } ),
@@ -426,11 +450,11 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		if ( SpriteCount < 2 ) return;
 
 		// First we clear the buffers to prepare for sorting
-		SortComputeShader.Attributes.SetCombo( "D_CLEAR", 1 );
-		SortComputeShader.Attributes.Set( "SortBuffer", GPUSortingBuffer );
-		SortComputeShader.Attributes.Set( "DistanceBuffer", GPUDistanceBuffer );
-		SortComputeShader.Attributes.Set( "Count", CurrentBufferSize );
-		SortComputeShader.Dispatch( CurrentBufferSize, 1, 1 );
+		SortComputeShaderAttributes.SetCombo( "D_CLEAR", 1 );
+		SortComputeShaderAttributes.Set( "SortBuffer", GPUSortingBuffer );
+		SortComputeShaderAttributes.Set( "DistanceBuffer", GPUDistanceBuffer );
+		SortComputeShaderAttributes.Set( "Count", CurrentBufferSize );
+		SortComputeShader.DispatchWithAttributes( SortComputeShaderAttributes, CurrentBufferSize, 1, 1 );
 
 		Graphics.ResourceBarrierTransition( GPUSortingBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
 		Graphics.ResourceBarrierTransition( GPUDistanceBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
@@ -445,7 +469,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		Graphics.ResourceBarrierTransition( GPUDistanceBuffer, Sandbox.Rendering.ResourceState.Common );
 
 		// Sort
-		SortComputeShader.Attributes.SetCombo( "D_CLEAR", 0 );
+		SortComputeShaderAttributes.SetCombo( "D_CLEAR", 0 );
 
 		var x = Math.Min( CurrentBufferSize, MaxDimThreads );
 		var y = (CurrentBufferSize + MaxDimThreads - 1) / MaxDimThreads;
@@ -453,12 +477,12 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 		for ( var dim = 2; dim <= CurrentBufferSize; dim <<= 1 )
 		{
-			SortComputeShader.Attributes.Set( "Dim", dim );
+			SortComputeShaderAttributes.Set( "Dim", dim );
 
 			for ( var block = dim >> 1; block > 0; block >>= 1 )
 			{
-				SortComputeShader.Attributes.Set( "Block", block );
-				SortComputeShader.Dispatch( x, y, z );
+				SortComputeShaderAttributes.Set( "Block", block );
+				SortComputeShader.DispatchWithAttributes( SortComputeShaderAttributes, x, y, z );
 
 				// Make sure sort buffer is ready to use
 				Graphics.ResourceBarrierTransition( GPUSortingBuffer, ResourceState.UnorderedAccess, ResourceState.UnorderedAccess );
@@ -512,6 +536,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		Graphics.ResourceBarrierTransition( SpriteBufferOut, ResourceState.Common );
 
 		Graphics.Attributes.SetCombo( "D_BLEND", Additive ? 1 : 0 );
+		Graphics.Attributes.SetCombo( "D_OPAQUE", Opaque ? 1 : 0 );
 
 		// Sort
 		if ( Sorted )

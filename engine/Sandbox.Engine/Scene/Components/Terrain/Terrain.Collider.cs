@@ -46,8 +46,23 @@ public partial class Terrain
 		var sizeScale = Storage.TerrainSize / Storage.Resolution;
 		var heightScale = Storage.TerrainHeight / ushort.MaxValue;
 
+		// Extract base texture IDs from the compact format
 		var surfaceMap = ArrayPool<byte>.Shared.Rent( Storage.ControlMap.Length );
-		Storage.GetDominantControlMapIndices( surfaceMap );
+		for ( int i = 0; i < Storage.ControlMap.Length; i++ )
+		{
+			var material = new CompactTerrainMaterial( Storage.ControlMap[i] );
+
+			// If marked as a hole, use 255
+			if ( material.IsHole )
+			{
+				surfaceMap[i] = 255;
+			}
+			else
+			{
+				// Use the base texture ID
+				surfaceMap[i] = material.BaseTextureId;
+			}
+		}
 
 		var shape = targetBody.AddHeightFieldShape( Storage.HeightMap, surfaceMap, Storage.Resolution, Storage.Resolution, sizeScale, heightScale, 4 );
 		shape.Collider = this;
@@ -85,7 +100,30 @@ public partial class Terrain
 		if ( !_shape.IsValid() )
 			return;
 
-		var materials = Storage.GetDominantControlMapIndices( x, y, w, h );
+		// Extract base texture IDs from the compact format for the specified region
+		var materials = new byte[w * h];
+
+		for ( int offsetY = 0; offsetY < h; offsetY++ )
+		{
+			for ( int offsetX = 0; offsetX < w; offsetX++ )
+			{
+				int sourceIndex = (x + offsetX) + (y + offsetY) * Storage.Resolution;
+				int destIndex = offsetX + offsetY * w;
+
+				var material = new CompactTerrainMaterial( Storage.ControlMap[sourceIndex] );
+
+				// If marked as a hole, use 255
+				if ( material.IsHole )
+				{
+					materials[destIndex] = 255;
+				}
+				else
+				{
+					// Use the base texture ID
+					materials[destIndex] = material.BaseTextureId;
+				}
+			}
+		}
 
 		fixed ( byte* pMaterials = materials )
 		{

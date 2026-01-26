@@ -16,7 +16,7 @@ public class GraphInputNodeType : LibraryNodeType
 	[Event( GetLocalNodeTypesEvent.EventName )]
 	public static void OnGetLocalNodeTypes( GetLocalNodeTypesEvent ev )
 	{
-		foreach ( var input in ev.Graph.Inputs.Values.Where( x => !x.IsSignal ) )
+		foreach ( var input in ev.ActionGraph.Inputs.Values.Where( x => !x.IsSignal ) )
 		{
 			ev.Output.Add( new GraphInputNodeType( input ) );
 		}

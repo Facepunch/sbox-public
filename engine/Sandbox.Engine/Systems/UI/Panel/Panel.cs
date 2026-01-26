@@ -658,6 +658,7 @@ public partial class Panel : IPanel, IValid, IComponent
 		if ( invokes.Remove( name, out var cts ) )
 		{
 			cts.Cancel();
+			cts.Dispose();
 		}
 	}
 

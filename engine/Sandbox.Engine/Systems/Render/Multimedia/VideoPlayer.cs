@@ -340,7 +340,8 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 
 	internal void OnTextureCreatedInternal()
 	{
-		Texture.CopyFrom( Texture.FromNative( native.GetTexture() ) );
+		using var tex = Texture.FromNative( native.GetTexture() );
+		Texture.CopyFrom( tex );
 		Texture.IsLoaded = true;
 	}
 
@@ -389,16 +390,20 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 
 		url = url.Trim();
 
-		if ( !Uri.TryCreate( url, UriKind.Absolute, out var uri ) )
-			return;
-
-		var ext = System.IO.Path.GetExtension( url ).ToLower();
+		if ( !Uri.TryCreate( url, UriKind.Absolute, out var uri ) ) return;
 
 		if ( uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps )
 		{
-			Log.Warning( $"VideoPlayer: Url Scheme not allowed [{uri.Scheme}]" );
+			Log.Warning( $"Url Scheme not allowed [{uri.Scheme}]" );
 			return;
 		}
+
+		if ( !Http.IsAllowed( uri ) )
+		{
+			throw new InvalidOperationException( $"Access to '{uri}' is not allowed." );
+		}
+
+		var ext = System.IO.Path.GetExtension( url ).ToLower();
 
 		native.Play( url, ext );
 	}

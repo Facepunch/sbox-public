@@ -30,17 +30,23 @@ partial class CurveBlockItem<T>
 		// Round pixelsPerSecond to a power of 2 so that we don't need
 		// to resize each tile every frame while smoothly zooming
 
-		var pixelsPerSecond = Parent.Session.PixelsPerSecond.NearestPowerOfTwo();
-		var scale = Parent.Session.PixelsPerSecond / pixelsPerSecond;
+		var timeline = Parent.Timeline;
+
+		var pixelsPerSecond = timeline.PixelsPerSecond.NearestPowerOfTwo();
+		var scale = timeline.PixelsPerSecond / pixelsPerSecond;
 
 		var tileWidth = CurveTile.TileWidth * scale;
 		var tileCount = (int)MathF.Ceiling( width / tileWidth );
 		var tileDurationSeconds = (double)CurveTile.TileWidth / pixelsPerSecond;
 
-		while ( _tiles.Count > tileCount )
+		// Truncate if we have too many, or they're invalid
+
+		while ( _tiles.Count > tileCount || _tiles.Count > 0 && !_tiles[^1].IsValid )
 		{
 			_tiles.Pop().Destroy();
 		}
+
+		// Append if we have too few
 
 		while ( _tiles.Count < tileCount )
 		{

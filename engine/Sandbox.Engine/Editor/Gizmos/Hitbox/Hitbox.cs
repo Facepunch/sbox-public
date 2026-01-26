@@ -23,6 +23,15 @@ public static partial class Gizmo
 
 		}
 
+		/// <summary>
+		/// Whether or not drawn gizmos can be interacted with. Only affects gizmos in the current scope.
+		/// </summary>
+		public bool CanInteract
+		{
+			get => Active.scope.CanInteract;
+			set => Active.scope.CanInteract = value;
+		}
+
 		public bool Debug { get; internal set; }
 
 		public float DepthBias
@@ -36,6 +45,9 @@ public static partial class Gizmo
 		/// </summary>
 		public void TrySetHovered( float distance )
 		{
+			if ( !CanInteract )
+				return;
+
 			distance *= DepthBias;
 
 			var path = Active.lineScope.Enabled ? Active.lineScope.LinePath : Path;

@@ -133,11 +133,21 @@ public sealed partial class ModelPhysics
 
 			if ( joint.IsValid() )
 			{
+				// Adjust joint rest length to match current body separation.
+				var bindSeparation = (localFrame1.Position * body1.Component.WorldScale).Distance( localFrame2.Position * body2.Component.WorldScale );
+				var currentSeparation = body1.Component.WorldPosition.Distance( body2.Component.WorldPosition );
+
+				if ( bindSeparation > 0.0f )
+				{
+					var scale = currentSeparation / bindSeparation;
+					localFrame1 = localFrame1.WithPosition( localFrame1.Position * scale );
+				}
+
 				joint.Flags |= jointFlags;
 				joint.Body = body2.Component.GameObject;
 				joint.Attachment = Sandbox.Joint.AttachmentMode.LocalFrames;
-				joint.LocalFrame1 = localFrame1.WithPosition( jointDesc.Frame1.Position * body1.Component.WorldScale );
-				joint.LocalFrame2 = localFrame2.WithPosition( jointDesc.Frame2.Position * body2.Component.WorldScale );
+				joint.LocalFrame1 = localFrame1.WithPosition( localFrame1.Position * body1.Component.WorldScale );
+				joint.LocalFrame2 = localFrame2.WithPosition( localFrame2.Position * body2.Component.WorldScale );
 				joint.EnableCollision = jointDesc.EnableCollision;
 				joint.BreakForce = jointDesc.LinearStrength;
 				joint.BreakTorque = jointDesc.AngularStrength;
@@ -157,14 +167,24 @@ public sealed partial class ModelPhysics
 		foreach ( var part in physics.Parts )
 		{
 			var bone = bones.GetBone( part.BoneName );
+
+			if ( bone is null )
+				continue;
+
 			if ( !boneObjects.TryGetValue( bone, out var go ) )
 				continue;
 
-			if ( !go.Flags.Contains( GameObjectFlags.Absolute | GameObjectFlags.PhysicsBone ) )
+			Transform boneWorld;
+
+			if ( go.Flags.Contains( GameObjectFlags.Absolute | GameObjectFlags.PhysicsBone ) )
+			{
+				boneWorld = go.WorldTransform;
+			}
+			else
 			{
 				go.Flags |= GameObjectFlags.Absolute | GameObjectFlags.PhysicsBone;
 
-				if ( !Renderer.IsValid() || !Renderer.TryGetBoneTransform( bone, out var boneWorld ) )
+				if ( !Renderer.IsValid() || !Renderer.TryGetBoneTransform( bone, out boneWorld ) )
 				{
 					// There's no renderer bones, use physics bind pose
 					boneWorld = world.ToWorld( part.Transform );
@@ -184,12 +204,11 @@ public sealed partial class ModelPhysics
 			body.MassOverride = part.Mass;
 			body.OverrideMassCenter = part.OverrideMassCenter;
 			body.MassCenterOverride = part.MassCenterOverride;
+			body.GravityScale = part.GravityScale;
 			body.GameObjectSource = GameObject;
 
-			var bodyTransform = body.WorldTransform;
-
-			BodyTransforms.Set( Bodies.Count, bodyTransform );
-			Bodies.Add( new Body( body, bone.Index, WorldTransform.ToLocal( bodyTransform ) ) );
+			BodyTransforms.Set( Bodies.Count, boneWorld );
+			Bodies.Add( new Body( body, bone.Index, world.ToLocal( boneWorld ) ) );
 
 			foreach ( var sphere in part.Spheres )
 			{
@@ -275,6 +294,63 @@ public sealed partial class ModelPhysics
 
 		PhysicsWereCreated = false;
 	}
+
+	void SetJointsEnabled( bool enabled )
+	{
+		foreach ( var joint in Joints )
+		{
+			if ( !joint.Component.IsValid() ) continue;
+
+			joint.Component.Enabled = enabled;
+		}
+	}
+
+	void SetBodiesEnabled( bool enabled )
+	{
+		foreach ( var body in Bodies )
+		{
+			if ( !body.Component.IsValid() ) continue;
+
+			var world = body.Component.WorldTransform;
+			var flags = body.Component.GameObject.Flags;
+			var mask = GameObjectFlags.Absolute | GameObjectFlags.PhysicsBone;
+			body.Component.GameObject.Flags = enabled ? flags | mask : flags & ~mask;
+			body.Component.WorldTransform = world;
+			body.Component.Enabled = enabled;
+		}
+	}
+
+	void SetCollidersEnabled( bool enabled )
+	{
+		foreach ( var collider in GetComponentsInChildren<Collider>( true ) )
+		{
+			if ( !collider.IsValid() ) continue;
+			if ( !collider.GameObject.Flags.Contains( GameObjectFlags.PhysicsBone ) ) continue;
+
+			collider.Enabled = enabled;
+		}
+	}
+
+	void SetComponentsEnabled( bool enabled )
+	{
+		if ( !PhysicsWereCreated ) return;
+
+		if ( enabled )
+		{
+			SetBodiesEnabled( enabled );
+			SetCollidersEnabled( enabled );
+			SetJointsEnabled( enabled );
+		}
+		else
+		{
+			SetJointsEnabled( enabled );
+			SetCollidersEnabled( enabled );
+			SetBodiesEnabled( enabled );
+		}
+	}
+
+	void EnableComponents() => SetComponentsEnabled( true );
+	void DisableComponents() => SetComponentsEnabled( false );
 
 	internal void OnModelReloaded()
 	{

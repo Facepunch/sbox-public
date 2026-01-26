@@ -50,6 +50,25 @@ public partial class ComponentSheet : Widget
 	/// </summary>
 	internal bool Expanded { get; set; } = true;
 
+	internal bool ShowAdvanced
+	{
+		get
+		{
+			return TargetObject.Targets.OfType<Component>()
+				.Any( x => x.IsValid() && x.Flags.Contains( ComponentFlags.ShowAdvancedProperties ) );
+		}
+		set
+		{
+			foreach ( var component in TargetObject.Targets.OfType<Component>() )
+			{
+				if ( component.IsValid() )
+				{
+					component.Flags = component.Flags.WithFlag( ComponentFlags.ShowAdvancedProperties, value );
+				}
+			}
+		}
+	}
+
 	/// <summary>
 	/// Expands/shrinks the component in the component list.
 	/// </summary>
@@ -129,9 +148,10 @@ public partial class ComponentSheet : Widget
 		if ( !TryDragComponent( ev, out var component, out var moveDelta ) )
 			return;
 
-		using var scene = SceneEditorSession.Scope();
+		var session = SceneEditorSession.Resolve( component );
+		using var scene = session.Scene.Push();
 
-		using ( SceneEditorSession.Active.UndoScope( "Change Component Order" ).WithGameObjectChanges( component.GameObject, GameObjectUndoFlags.Components ).Push() )
+		using ( session.UndoScope( "Change Component Order" ).WithGameObjectChanges( component.GameObject, GameObjectUndoFlags.Components ).Push() )
 		{
 			component.Components.Move( component, moveDelta );
 		}
@@ -163,6 +183,7 @@ public partial class ComponentSheet : Widget
 
 		hc.Add( TargetObject );
 		hc.Add( ViewMode );
+		hc.Add( ShowAdvanced );
 
 		foreach ( var condition in hideShowConditions )
 		{
@@ -218,10 +239,11 @@ public partial class ComponentSheet : Widget
 
 		Content.Add( cs );
 
-		cs.AddObject( TargetObject, FilterProperties );
+		var showAdvanced = ShowAdvanced;
+		cs.AddObject( TargetObject, ( o ) => FilterProperties( o, showAdvanced ) );
 	}
 
-	bool FilterProperties( SerializedProperty o )
+	bool FilterProperties( SerializedProperty o, bool showAdvanced )
 	{
 		if ( o.PropertyType is null ) return false;
 
@@ -235,8 +257,9 @@ public partial class ComponentSheet : Widget
 		if ( ViewMode == ComponentViewMode.Events && !hideInEventTab ) return false;
 		if ( ViewMode != ComponentViewMode.Events && hideInEventTab ) return false;
 
+		if ( o.HasAttribute<AdvancedAttribute>() && showAdvanced == false ) return false;
 		if ( o.IsMethod ) return true;
-		if ( !o.HasAttribute<PropertyAttribute>() ) return false;
+		if ( o.HasAttribute<PropertyAttribute>() == false ) return false;
 
 		return true;
 	}

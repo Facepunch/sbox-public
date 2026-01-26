@@ -42,8 +42,10 @@ public class InspectorHeader : Widget
 
 		Layout.Clear( true );
 
+		Layout.AddSpacingCell( 4 );
+
 		expanderRect = Layout.AddRow();
-		expanderRect.AddSpacingCell( 10 );
+		expanderRect.AddSpacingCell( 16 );
 
 		iconRect = Layout.AddRow();
 		iconRect.AddSpacingCell( 22 );
@@ -53,13 +55,13 @@ public class InspectorHeader : Widget
 		var checkbox = BuildIcons();
 		if ( checkbox.IsValid() )
 		{
-			checkbox.FixedSize = 17;
+			checkbox.FixedSize = 24;
 			Layout.Add( checkbox );
 			Layout.AddSpacingCell( 8 );
 		}
 		else
 		{
-			Layout.AddSpacingCell( 17 + 8 );
+			Layout.AddSpacingCell( 24 + 8 );
 		}
 
 		// text 
@@ -138,14 +140,17 @@ public class InspectorHeader : Widget
 			bgColor = bgColor.Lighten( 0.5f );
 		}
 
-		Paint.SetBrushAndPen( Theme.ControlBackground );
-		var r = LocalRect;
-		r.Bottom = r.Top + 1;
-		Paint.DrawRect( r );
+		// Top border
+		{
+			Paint.SetBrushAndPen( Theme.ControlBackground );
+			var r = LocalRect;
+			r.Bottom = r.Top + 1;
+			Paint.DrawRect( r );
 
-		Paint.SetBrushAndPen( Theme.BorderLight );
-		r.Position += new Vector2( 0, 1 );
-		Paint.DrawRect( r );
+			Paint.SetBrushAndPen( Theme.BorderLight );
+			r.Position += new Vector2( 0, 1 );
+			Paint.DrawRect( r );
+		}
 
 		Paint.SetPen( Color.Saturate( 0.2f ).Lighten( 0.3f ).WithAlpha( (IsExpanded || !IsCollapsable ? 0.9f : 0.6f) * opacity ) );
 
@@ -159,7 +164,7 @@ public class InspectorHeader : Widget
 			}
 			else
 			{
-				Paint.SetPen( Color.WithAlpha( 0.1f * opacity ) );
+				Paint.SetPen( Color );
 				Paint.DrawIcon( expanderRect.InnerRect, "arrow_drop_down", 18, TextFlag.Center );
 			}
 		}

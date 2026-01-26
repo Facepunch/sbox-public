@@ -33,6 +33,11 @@ public partial class Texture : Resource, IDisposable
 	public override bool IsValid => native.IsValid;
 
 	/// <summary>
+	/// Flags providing hints about this texture
+	/// </summary>
+	public TextureFlags Flags { get; set; } = TextureFlags.None;
+
+	/// <summary>
 	/// Private constructor, use <see cref="FromNative(ITexture)"/>
 	/// </summary>
 	private Texture( ITexture native )
@@ -137,6 +142,11 @@ public partial class Texture : Resource, IDisposable
 	/// </summary>
 	public int LastUsed => native.IsValid ? g_pRenderDevice.GetTextureLastUsed( native ).Clamp( 0, 1000 ) : 1000;
 
+	/// <summary>
+	/// Gets if the texture has UAV access
+	/// </summary>
+	public bool UAVAccess => Desc.m_nFlags.HasFlag( RuntimeTextureSpecificationFlags.TSPEC_UAV );
+
 	internal RenderMultisampleType MultisampleType
 	{
 		get
@@ -175,7 +185,7 @@ public partial class Texture : Resource, IDisposable
 		//
 		// Try to load the texture again, make a new texture
 		//
-		var newTex = TryToLoad( filesystem, filename, false );
+		using var newTex = TryToLoad( filesystem, filename, false );
 
 		//
 		// If success, copy from this texture
@@ -303,4 +313,17 @@ public partial class Texture : Resource, IDisposable
 
 		IsLoaded = true;
 	}
+}
+
+/// <summary>
+/// Flags providing hints about a texture
+/// </summary>
+public enum TextureFlags
+{
+	None = 0,
+
+	/// <summary>
+	/// Hint that this texture has pre-multiplied alpha
+	/// </summary>
+	PremultipliedAlpha = 1 << 0,
 }

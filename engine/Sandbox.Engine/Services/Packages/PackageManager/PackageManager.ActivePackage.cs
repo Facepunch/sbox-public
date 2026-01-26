@@ -170,9 +170,6 @@ internal static partial class PackageManager
 			MountedFileSystem.Mount( FileSystem );
 			MountedFileSystem.Mount( AssemblyFileSystem );
 
-			if ( Application.IsUnitTest ) // todo: fully init the engine for unit test
-				return;
-
 			// Reload any already resident resources with the ones we've just mounted
 			NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
 
@@ -199,9 +196,6 @@ internal static partial class PackageManager
 			AssemblyFileSystem.Dispose();
 			AssemblyFileSystem = null;
 
-			if ( Application.IsUnitTest ) // todo: fully init the engine for unit test
-				return;
-
 			// Reload any resident resources that were just unmounted (they shouldn't be used & will appear as an error, or a local variant)
 			NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
 		}
@@ -227,7 +221,7 @@ internal static partial class PackageManager
 
 			Assert.AreNotEqual( 0, codeArchives.Length, "We have package files mounted" );
 
-			var group = new CompileGroup( Package.Ident );
+			using var group = new CompileGroup( Package.Ident );
 			group.AccessControl = AccessControl;
 			group.ReferenceProvider = this;
 

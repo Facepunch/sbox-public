@@ -95,8 +95,6 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 
 	internal TaskSource Task { get; set; }
 
-	internal SceneRefGizmo SceneRefGizmo { get; set; }
-
 	/// <summary>
 	/// Create a new GameObject with the given name. Will be created enabled.
 	/// </summary>
@@ -129,12 +127,6 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 		Id = Guid.NewGuid();
 		Name = name ?? "GameObject";
 		Parent = parent;
-
-		if ( Application.IsEditor )
-		{
-			// What a fucking joke
-			SceneRefGizmo = new SceneRefGizmo( this );
-		}
 
 		// seems like this is called automaically in OnEnabled?
 		if ( enabled )
@@ -211,8 +203,7 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 			if ( _net is null )
 				return;
 
-			Transform.ClearLocalInterpolation();
-			Msg_SetParent( value.Id, Transform.TargetWorld, _net.SnapshotVersion );
+			Msg_SetParent( value.Id, false );
 		}
 	}
 
@@ -264,11 +255,33 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 	}
 
 	/// <summary>
+	/// Can we update the transform to the target value. This takes network authority
+	/// into account.
+	/// </summary>
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	internal bool CanUpdateTransform( Transform currentValue, ref Transform targetValue )
+	{
+		if ( !IsValid || HasAuthority() )
+			return true;
+
+		if ( (NetworkFlags & NetworkFlags.NoPositionSync) == 0 )
+			targetValue.Position = currentValue.Position;
+
+		if ( (NetworkFlags & NetworkFlags.NoRotationSync) == 0 )
+			targetValue.Rotation = currentValue.Rotation;
+
+		if ( (NetworkFlags & NetworkFlags.NoScaleSync) == 0 )
+			targetValue.Scale = currentValue.Scale;
+
+		return true;
+	}
+
+	/// <summary>
 	/// Do we have authority over this <see cref="GameObject"/>? If it's networked, we have
 	/// authority if we're the network root, and we're not a proxy.
 	/// </summary>
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	internal bool HasAuthority()
+	private bool HasAuthority()
 	{
 		if ( !IsValid )
 			return false;
@@ -487,14 +500,13 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 		if ( _net is null )
 			return;
 
-		Transform.ClearLocalInterpolation();
-		Msg_SetParent( value.Id, Transform.TargetWorld, _net.SnapshotVersion );
+		Msg_SetParent( value.Id, keepWorldPosition );
 	}
 
 	/// <summary>
 	/// Set the parent of this GameObject from a remote change over the network.
 	/// </summary>
-	internal void SetParentFromNetwork( GameObject value, Transform? transform = null )
+	internal void SetParentFromNetwork( GameObject value, bool keepWorldPosition = false )
 	{
 		if ( this is Scene ) return;
 
@@ -503,9 +515,9 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 		if ( _parent == value )
 			return;
 
-		if ( transform.HasValue )
+		if ( keepWorldPosition )
 		{
-			var oldTransform = transform.Value;
+			var oldTransform = WorldTransform;
 			SetParentInternal( value ?? Scene );
 			_gameTransform.SetWorldInternal( oldTransform );
 		}

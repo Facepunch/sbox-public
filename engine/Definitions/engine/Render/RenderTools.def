@@ -78,4 +78,6 @@ native class VertexLayout as NativeEngine.VertexLayout
 
 	void Add( string semanticName, int semanticIndex, uint format, int offset );
 	void Build();
+
+	int m_Size;
 }

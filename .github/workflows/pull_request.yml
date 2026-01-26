@@ -13,7 +13,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const requiredChecks = ['Tests', 'Formatting'];
+            const requiredChecks = ['format', 'tests'];
 
             const pr = context.payload.pull_request;
             if (!pr) {
@@ -33,16 +33,8 @@ jobs:
 
               if (!match || match.conclusion !== 'success') {
                 const status = match ? (match.conclusion ?? match.status ?? 'unknown') : 'missing';
-                core.warning(`Required check '${requiredCheck}' did not pass (${status}). Removing triaged label.`);
-
-                await github.rest.issues.removeLabel({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: pr.number,
-                  name: 'triaged'
-                });
-
-                throw new Error('Cannot triage until required checks succeed.');
+                core.warning(`Required check '${requiredCheck}' did not pass (${status}).`);
+                throw new Error('Cannot triage until required checks succeed. Remove and re-add the triaged label to retry.');
               }
             }
 

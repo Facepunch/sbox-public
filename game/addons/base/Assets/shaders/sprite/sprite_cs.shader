@@ -51,7 +51,7 @@ CS
 		int TextureHandle;
 		int RenderFlags;
 		uint BillboardMode;
-		float FogStrength;
+		uint FogStrengthCutout;
 		uint Lighting;
 		float DepthFeather;
 		int SamplerIndex;

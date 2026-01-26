@@ -152,8 +152,14 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			var uploadedArtifacts = new HashSet<ArtifactFileInfo>();
 			var uploadedArtifactHashes = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 
-			// Upload build artifacts from original repository
-			if ( !TryUploadBuildArtifacts( repositoryRoot, remoteBase, dryRun, ref uploadedArtifacts, uploadedArtifactHashes ) )
+			// Upload windows binaries
+			if ( !TryUploadBuildArtifacts( repositoryRoot, remoteBase, "win64", dryRun, ref uploadedArtifacts, uploadedArtifactHashes ) )
+			{
+				return false;
+			}
+
+			// Upload linux binaries
+			if ( !TryUploadBuildArtifacts( repositoryRoot, remoteBase, "linuxsteamrt64", dryRun, ref uploadedArtifacts, uploadedArtifactHashes ) )
 			{
 				return false;
 			}
@@ -215,8 +221,8 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 				return false;
 			}
 
-			var uploadedTotalBytes = CalculateArtifactTotalSize( uploadedArtifacts );
-			Log.Info( $"Total artifact data uploaded: {Utility.FormatSize( uploadedTotalBytes )}" );
+			var manifestTotalBytes = CalculateArtifactTotalSize( uploadedArtifacts );
+			Log.Info( $"Total manifest artifact size: {Utility.FormatSize( manifestTotalBytes )}" );
 
 			return true;
 		}
@@ -263,9 +269,9 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		return false;
 	}
 
-	private static bool TryUploadBuildArtifacts( string repositoryRoot, string remoteBase, bool skipUpload, ref HashSet<ArtifactFileInfo> artifacts, HashSet<string> uploadedHashes )
+	private static bool TryUploadBuildArtifacts( string repositoryRoot, string remoteBase, string platform, bool skipUpload, ref HashSet<ArtifactFileInfo> artifacts, HashSet<string> uploadedHashes )
 	{
-		var buildArtifactsRoot = Path.Combine( repositoryRoot, "game", "bin", "win64" );
+		var buildArtifactsRoot = Path.Combine( repositoryRoot, "game", "bin", platform );
 		if ( !Directory.Exists( buildArtifactsRoot ) )
 		{
 			Log.Info( $"Build artifacts directory not found, skipping upload: {buildArtifactsRoot}" );
@@ -436,7 +442,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			}
 		}
 
-		if ( !Utility.RunProcess( "git", $"push public {PUBLIC_BRANCH} --force", relativeRepoPath ) )
+		if ( !Utility.RunProcess( "git", $"push public {PUBLIC_BRANCH}", relativeRepoPath ) )
 		{
 			Log.Error( "Failed to push to public repository" );
 			return null;
@@ -486,32 +492,19 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 
 	private static HashSet<string> GetAllPublicLfsFiles( string relativeRepoPath )
 	{
-		// Get base set
 		var trackedFiles = GetCurrentLfsFiles( relativeRepoPath );
 
-		// Extend with all lfs files from first commit to HEAD
-		var firstCommitHash = string.Empty;
-		if ( !Utility.RunProcess( "git", "rev-list --max-parents=0 HEAD", relativeRepoPath, onDataReceived: ( _, e ) =>
+		if ( !Utility.RunProcess( "git", "lfs ls-files --all --deleted --name-only", relativeRepoPath, onDataReceived: ( _, e ) =>
 		{
-			if ( !string.IsNullOrWhiteSpace( e.Data ) )
+			if ( string.IsNullOrWhiteSpace( e.Data ) )
 			{
-				firstCommitHash = e.Data.Trim();
+				return;
 			}
-		} ) )
-		{
-			Log.Error( "Failed find first commit" );
-			return null;
-		}
 
-		if ( !Utility.RunProcess( "git", $"lfs ls-files --name-only {firstCommitHash} HEAD", relativeRepoPath, onDataReceived: ( _, e ) =>
-		{
-			if ( !string.IsNullOrWhiteSpace( e.Data ) )
-			{
-				trackedFiles.Add( ToForwardSlash( e.Data.Trim() ) );
-			}
+			trackedFiles.Add( ToForwardSlash( e.Data.Trim() ) );
 		} ) )
 		{
-			Log.Error( "Failed to list LFS tracked files" );
+			Log.Error( "Failed to list historical LFS tracked files" );
 			return null;
 		}
 
@@ -602,16 +595,6 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			return true;
 		}
 
-		if ( duplicateManifestCount > 0 )
-		{
-			Log.Info( $"Skipped {duplicateManifestCount} duplicate manifest entries for {artifactLabel} artifacts" );
-		}
-
-		if ( duplicateUploadCount > 0 )
-		{
-			Log.Info( $"Skipped {duplicateUploadCount} duplicate upload candidates for {artifactLabel} artifacts" );
-		}
-
 		long batchBytes = 0;
 		foreach ( var upload in uniqueUploads )
 		{
@@ -620,21 +603,35 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 
 		if ( skipUpload )
 		{
-			Log.Info( $"Dry run skipping upload for {uniqueUploads.Count} unique {artifactLabel} artifacts ({Utility.FormatSize( batchBytes )})" );
+			Log.Info( $"Dry run: {uniqueUploads.Count} unique {artifactLabel} artifacts ({Utility.FormatSize( batchBytes )})" );
 			return true;
 		}
 
 		var maxParallelUploads = Math.Max( 1, Math.Min( MAX_PARALLEL_UPLOADS, Environment.ProcessorCount ) );
-		Log.Info( $"Uploading {uniqueUploads.Count} unique {artifactLabel} artifacts (up to {maxParallelUploads} concurrent uploads)..." );
+		Log.Info( $"Processing {uniqueUploads.Count} {artifactLabel} artifacts (up to {maxParallelUploads} concurrent)..." );
 
 		var failedUploads = new ConcurrentBag<string>();
+		long actualUploadedBytes = 0;
+		int skippedCount = 0;
+		int uploadedCount = 0;
+
 		Parallel.ForEach( uniqueUploads, new ParallelOptions { MaxDegreeOfParallelism = maxParallelUploads }, item =>
 		{
 			var (absolutePath, artifact) = item;
-			if ( !UploadArtifactFile( absolutePath, artifact, remoteBase ) )
+			var (success, wasSkipped) = UploadArtifactFile( absolutePath, artifact, remoteBase );
+			if ( !success )
 			{
 				Log.Error( $"Failed to upload {artifactLabel} artifact: {artifact.Path}" );
 				failedUploads.Add( artifact.Path );
+			}
+			else if ( wasSkipped )
+			{
+				Interlocked.Increment( ref skippedCount );
+			}
+			else
+			{
+				Interlocked.Add( ref actualUploadedBytes, artifact.Size );
+				Interlocked.Increment( ref uploadedCount );
 			}
 		} );
 
@@ -644,17 +641,28 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			return false;
 		}
 
-		Log.Info( $"Uploaded {uniqueUploads.Count} unique {artifactLabel} artifacts ({Utility.FormatSize( batchBytes )})" );
+		Log.Info( $"Uploaded {uploadedCount} {artifactLabel} artifacts ({Utility.FormatSize( actualUploadedBytes )}), {skippedCount} already existed" );
 
 		return true;
 	}
 
-	private static bool UploadArtifactFile( string localPath, ArtifactFileInfo artifact, string remoteBase )
+	private static (bool Success, bool WasSkipped) UploadArtifactFile( string localPath, ArtifactFileInfo artifact, string remoteBase )
 	{
 		var remotePath = $"{remoteBase}/artifacts/{artifact.Sha256}";
-		var sizeLabel = $" ({Utility.FormatSize( artifact.Size )})";
-		Log.Info( $"Uploading {artifact.Sha256}{sizeLabel}..." );
-		return Utility.RunProcess( "rclone", $"copyto \"{localPath}\" \"{remotePath}\" --ignore-existing -q", timeoutMs: 600000 );
+
+		// Check if the object already exists on remote using lsf
+		var existsOnRemote = false;
+		Utility.RunProcess( "rclone", $"lsf \"{remotePath}\" -q", timeoutMs: 60000,
+			onDataReceived: ( _, e ) => { if ( e.Data?.Contains( artifact.Sha256 ) == true ) existsOnRemote = true; } );
+
+		if ( existsOnRemote )
+		{
+			return (true, true);
+		}
+
+		// Use --no-check-dest since we already verified the file doesn't exist
+		var success = Utility.RunProcess( "rclone", $"copyto \"{localPath}\" \"{remotePath}\" --no-check-dest -q", timeoutMs: 600000 );
+		return (success, false);
 	}
 
 	private static bool UploadManifest( string commitHash, IEnumerable<ArtifactFileInfo> artifacts, string remoteBase )

@@ -45,8 +45,19 @@ class PreviewSprite : AssetPreview
 
 	public override void UpdateScene( float cycle, float timeStep )
 	{
+		var texture = spriteRenderer.Texture;
+		if ( texture.Width == 0 || texture.Height == 0 )
+			return;
+		var ratio = (float)texture.Width / texture.Height;
 		var pivotOffset = new Vector2( 0.5f, 0.5f ) - (CurrentAnimation?.Origin ?? new Vector2( 0.5f, 0.5f ));
-		PrimaryObject.WorldPosition = new Vector3( 0, pivotOffset.x, pivotOffset.y ) * 16;
+		if ( ratio > 1 )
+		{
+			PrimaryObject.WorldPosition = new Vector3( 0, pivotOffset.x, pivotOffset.y / ratio ) * 16;
+		}
+		else
+		{
+			PrimaryObject.WorldPosition = new Vector3( 0, pivotOffset.x * ratio, pivotOffset.y ) * 16;
+		}
 
 		spriteRenderer.TextureFilter = FilterMode;
 

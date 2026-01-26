@@ -3,7 +3,7 @@ using System.Reflection;
 
 namespace Sandbox.Services;
 
-public partial class ServiceApi
+public partial class ServiceApi : IDisposable
 {
 	public IPackageApi Package { get; }
 	public IVersionApi Version { get; }
@@ -25,10 +25,13 @@ public partial class ServiceApi
 			UrlParameterFormatter = new ParameterFormatter(),
 		};
 
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// HttpClient will dispose the handlers
 		client = new HttpClient( new LoggingHandler( new HttpClientHandler() ) )
 		{
 			BaseAddress = new Uri( url )
 		};
+#pragma warning restore CA2000 // Dispose objects before losing scope
 
 		Package = RestService.For<IPackageApi>( client, refitSettings );
 		Version = RestService.For<IVersionApi>( client, refitSettings );
@@ -45,6 +48,11 @@ public partial class ServiceApi
 	public void SetApiKey( string apiKey )
 	{
 		client.DefaultRequestHeaders.Add( "Authorization", $"Bearer {apiKey}" );
+	}
+
+	public void Dispose()
+	{
+		client?.Dispose();
 	}
 }
 

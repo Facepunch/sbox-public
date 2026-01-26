@@ -110,6 +110,15 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 
 	Task ResultsTask;
 
+	bool IsLoading
+	{
+		get => field; set
+		{
+			field = value;
+			Update();
+		}
+	}
+
 	public CloudAssetBrowser( Widget parent ) : this( parent, null )
 	{
 
@@ -145,6 +154,24 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 			{
 				OnPackageHighlight?.Invoke( packages.First().Package );
 			}
+		};
+
+		AssetList.OnPaintOverride = () =>
+		{
+			if ( IsLoading )
+			{
+				Paint.ClearBrush();
+				Paint.SetPen( Theme.TextLight );
+				Paint.DrawText( AssetList.LocalRect, "Searching...", TextFlag.Center );
+			}
+			else if ( !AssetList.Items.Any() )
+			{
+				Paint.ClearBrush();
+				Paint.SetPen( Theme.TextLight );
+				Paint.DrawText( AssetList.LocalRect, "No assets found", TextFlag.Center );
+			}
+
+			return false;
 		};
 
 		var body = new Widget( this );
@@ -314,6 +341,8 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 
 	async Task UpdateFromCloud( string q )
 	{
+		IsLoading = true;
+
 		AssetList.Clear();
 
 		if ( FilterAssetTypes?.Count > 0 )
@@ -331,9 +360,6 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 		q = q.Trim();
 
 		await FetchPackages( q, 400, 0 );
-
-		if ( !IsValid )
-			return;
 	}
 
 	List<FacetDropdown> FacetDropDowns = new();
@@ -367,124 +393,132 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 	bool _lastQueryReachedEnd = false;
 	async Task FetchPackages( string q, int take, int skip )
 	{
-		tokenSource?.Cancel();
-		tokenSource = new CancellationTokenSource();
-
-		if ( !IsValid )
-			return;
-
-		var token = tokenSource.Token;
-		var found = await Package.FindAsync( q, take, skip, token );
-
-		_lastQuery = q;
-		_lastTake = take;
-		_lastSkip = skip;
-		_lastQueryReachedEnd = found.Packages.Length < take;
-
-		if ( !IsValid || token.IsCancellationRequested || found == null )
-			return;
-
-		if ( found.Packages.Length == 0 )
-			return;
-
-
-		// build the sidebar facets
-		FacetLayout.Clear( true );
-
-		var facets = found.Facets;
-
+		try
 		{
-			// Add a type facet for the Browse tab
-			Dictionary<string, int> typeDict = new();
-			foreach ( var package in found.Packages )
+			IsLoading = true;
+
+			tokenSource?.Cancel();
+			tokenSource = new CancellationTokenSource();
+
+			if ( !IsValid )
+				return;
+
+			var token = tokenSource.Token;
+			var found = await Package.FindAsync( q, take, skip, token );
+
+			_lastQuery = q;
+			_lastTake = take;
+			_lastSkip = skip;
+			_lastQueryReachedEnd = found.Packages.Length < take;
+
+			if ( !IsValid || token.IsCancellationRequested || found == null )
+				return;
+
+			if ( found.Packages.Length == 0 )
+				return;
+
+			// build the sidebar facets
+			FacetLayout.Clear( true );
+
+			var facets = found.Facets;
+
 			{
-				if ( !typeDict.ContainsKey( package.TypeName ) )
-					typeDict[package.TypeName] = 0;
-				typeDict[package.TypeName]++;
-			}
-			var entries = new List<Package.Facet.Entry>();
-			foreach ( var facet in typeDict )
-			{
-				var entry = new Package.Facet.Entry( facet.Key, facet.Key, "category", facet.Value, new() );
-				entries.Add( entry );
-			}
-			var realFacet = new Package.Facet( "type", "Type", entries.ToArray() );
-			var newFacets = new List<Package.Facet> { realFacet };
-			newFacets.AddRange( facets );
-			facets = newFacets.ToArray();
-		}
-
-		if ( facets.Length > 0 )
-		{
-			var parts = q.Split( ' ' ).Select( x => x.Split( ':' ) );
-			Dictionary<string, string> facetTags = parts.Where( x => x.Length > 1 )
-				.GroupBy( x => x[0] ) // avoid duplicates
-				.ToDictionary( g => g.Key, g => g.First()[1] );
-
-			var newDropdowns = new List<FacetDropdown>();
-
-			foreach ( var facet in facets )
-			{
-				if ( BaseQuery?.Contains( $"{facet.Name}:" ) ?? false )
-					continue;
-
-				string selection = null;
-				facetTags.TryGetValue( facet.Name, out selection );
-
-				var dd = FacetLayout.Add( new FacetDropdown( facet, selection, this ) );
-				dd.OnChanged += UpdateAssetList;
-
-				if ( facet.Name == "type" && FilterAssetTypes is not null )
-					dd.Enabled = false;
-
-				newDropdowns.Add( dd );
-			}
-
-			FacetDropDowns = newDropdowns;
-		}
-
-		//
-		// Add them all to the list
-		//
-		foreach ( var item in found.Packages )
-		{
-			if ( item.TypeName == "game" || item.TypeName == "library" ) continue;
-			AssetList.AddItem( new PackageEntry( item ) );
-		}
-
-		if ( !string.IsNullOrEmpty( lastSortColumn ) )
-		{
-			SortAssetList( lastSortColumn, lastSortAscending );
-		}
-
-		//
-		// Get order modes
-		//
-		OrderMode.MouseLeftPress = () =>
-		{
-			var menu = new ContextMenu( this );
-
-			foreach ( var orderMode in found.Orders )
-			{
-				var option = menu.AddOption( orderMode.Title, orderMode.Icon, () =>
+				// Add a type facet for the Browse tab
+				Dictionary<string, int> typeDict = new();
+				foreach ( var package in found.Packages )
 				{
-					CurrentOrderMode = orderMode.Name;
-					OrderMode.Icon = orderMode.Icon;
-
-					UpdateAssetList();
-				} );
-
-				option.Checkable = true;
-				option.Checked = orderMode.Name == CurrentOrderMode;
+					if ( !typeDict.ContainsKey( package.TypeName ) )
+						typeDict[package.TypeName] = 0;
+					typeDict[package.TypeName]++;
+				}
+				var entries = new List<Package.Facet.Entry>();
+				foreach ( var facet in typeDict )
+				{
+					var entry = new Package.Facet.Entry( facet.Key, facet.Key, "category", facet.Value, new() );
+					entries.Add( entry );
+				}
+				var realFacet = new Package.Facet( "type", "Type", entries.ToArray() );
+				var newFacets = new List<Package.Facet> { realFacet };
+				newFacets.AddRange( facets );
+				facets = newFacets.ToArray();
 			}
 
-			menu.OpenAt( OrderMode.ScreenRect.BottomLeft, false );
-		};
+			if ( facets.Length > 0 )
+			{
+				var parts = q.Split( ' ' ).Select( x => x.Split( ':' ) );
+				Dictionary<string, string> facetTags = parts.Where( x => x.Length > 1 )
+					.GroupBy( x => x[0] ) // avoid duplicates
+					.ToDictionary( g => g.Key, g => g.First()[1] );
+
+				var newDropdowns = new List<FacetDropdown>();
+
+				foreach ( var facet in facets )
+				{
+					if ( BaseQuery?.Contains( $"{facet.Name}:" ) ?? false )
+						continue;
+
+					string selection = null;
+					facetTags.TryGetValue( facet.Name, out selection );
+
+					var dd = FacetLayout.Add( new FacetDropdown( facet, selection, this ) );
+					dd.OnChanged += UpdateAssetList;
+
+					if ( facet.Name == "type" && FilterAssetTypes is not null )
+						dd.Enabled = false;
+
+					newDropdowns.Add( dd );
+				}
+
+				FacetDropDowns = newDropdowns;
+			}
+
+			//
+			// Add them all to the list
+			//
+			foreach ( var item in found.Packages )
+			{
+				if ( item.TypeName == "game" || item.TypeName == "library" ) continue;
+				AssetList.AddItem( new PackageEntry( item ) );
+			}
+
+			if ( !string.IsNullOrEmpty( lastSortColumn ) )
+			{
+				SortAssetList( lastSortColumn, lastSortAscending );
+			}
+
+			//
+			// Get order modes
+			//
+			OrderMode.MouseLeftPress = () =>
+			{
+				var menu = new ContextMenu( this );
+
+				foreach ( var orderMode in found.Orders )
+				{
+					var option = menu.AddOption( orderMode.Title, orderMode.Icon, () =>
+					{
+						CurrentOrderMode = orderMode.Name;
+						OrderMode.Icon = orderMode.Icon;
+
+						UpdateAssetList();
+					} );
+
+					option.Checkable = true;
+					option.Checked = orderMode.Name == CurrentOrderMode;
+				}
+
+				menu.OpenAt( OrderMode.ScreenRect.BottomLeft, false );
+			};
+		}
+		finally
+		{
+			IsLoading = false;
+		}
 	}
 
 	public void LoadMore()
 	{
-		if ( _lastQueryReachedEnd || BaseQuery.StartsWith( "@referenced" ) )
+		if ( _lastQueryReachedEnd || (BaseQuery?.StartsWith( "@referenced" ) ?? false) )
 			return;
 		var skip = _lastSkip + _lastTake;
 		_ = FetchPackages( _lastQuery, _lastTake, skip );

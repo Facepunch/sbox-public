@@ -100,6 +100,8 @@ public partial class Scene : GameObject
 
 	internal virtual void DestroyInternal()
 	{
+		_all.Remove( this );
+
 		// Clearing the object index now means we can save time
 		// because we don't have to do it for each object.
 		// Note that we can't do this in Clear because we don't want to
@@ -154,15 +156,14 @@ public partial class Scene : GameObject
 	public IDisposable Push()
 	{
 		ThreadSafe.AssertIsMainThread();
-
 		var old = Game.ActiveScene;
 
 		Game.ActiveScene = this;
 
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// Disposed in DisposeAction
 		var timeScope = Time.Scope( TimeNow, TimeDelta );
-
-		// Make sure ActionGraphDebugger starts listening for ActionGraphs being deserialized / created
-		ActionGraphs.ActionGraphDebugger.Tick();
+#pragma warning restore CA2000 // Dispose objects before losing scope
 
 		return DisposeAction.Create( () =>
 		{

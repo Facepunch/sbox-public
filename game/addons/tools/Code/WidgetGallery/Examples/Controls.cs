@@ -43,10 +43,11 @@ internal class ControlsTest : Widget
 		public Rect RectValue { get; set; } = new Rect( 20, 20, 200, 100 );
 		public bool BoolValue { get; set; } = true;
 		public TestEnum EnumValue { get; set; } = TestEnum.Ireland;
+		public DecoratedEnum DecoratedEnumValue { get; set; } = DecoratedEnum.Pose;
 		public TestFlags FlagsValue { get; set; } = TestFlags.Bottom | TestFlags.Top;
 		public Model ModelValue { get; set; }
 		public Curve CurveValue { get; set; } = new Curve( new Curve.Frame( 0.0f, 0.5f ), new Curve.Frame( 1.0f, 1.0f ) );
-		public Gradient GradientValye { get; set; } = new Gradient( new Gradient.ColorFrame( 0.0f, Color.Cyan ), new Gradient.ColorFrame( 0.2f, Color.Red ), new Gradient.ColorFrame( 1.0f, Color.Yellow ) );
+		public Gradient GradientValue { get; set; } = new Gradient( new Gradient.ColorFrame( 0.0f, Color.Cyan ), new Gradient.ColorFrame( 0.2f, Color.Red ), new Gradient.ColorFrame( 1.0f, Color.Yellow ) );
 		public List<Vector3> ValueList { get; set; } = new List<Vector3>() { Vector3.Up, Vector3.Down };
 		public Dictionary<string, float> DictionaryValues { get; set; } = new() { { "garry", 6.3f }, { "helk", 4.6f } };
 		public Guid Guid { get; set; } = Guid.NewGuid();
@@ -65,13 +66,71 @@ internal class ControlsTest : Widget
 		public Dictionary<TestEnum, Vector3> OtherDictionaryValues { get; set; } = new() { { TestEnum.Scotland, Vector3.Up }, { TestEnum.Wales, Vector3.Down } };
 	}
 
+	public enum DecoratedEnum
+	{
+		/// <summary>
+		/// A car you can drive
+		/// </summary>
+		[Icon( "🚗" )]
+		Vehicle,
+
+		/// <summary>
+		/// A robot that eats you
+		/// </summary>
+		[Icon( "🤖" )]
+		Robot,
+
+		/// <summary>
+		/// A car that flies
+		/// </summary>
+		[Icon( "✈️" )]
+		Plane,
+
+		/// <summary>
+		/// A standing person doing a weird pose or something
+		/// </summary>
+		[Icon( "🕺🏼" )]
+		Pose
+	}
+
+
 	public enum TestEnum
 	{
 		NotApplicable,
 		England,
 		Ireland,
 		Wales,
-		Scotland
+		Scotland,
+		USA,
+		Canada,
+		Mexico,
+		France,
+		Germany,
+		Italy,
+		Spain,
+		Portugal,
+		Netherlands,
+		Belgium,
+		Switzerland,
+		Austria,
+		Poland,
+		Sweden,
+		Norway,
+		Denmark,
+		Finland,
+		Greece,
+		Turkey,
+		Russia,
+		Japan,
+		China,
+		India,
+		Australia,
+		NewZealand,
+		Brazil,
+		Argentina,
+		Chile,
+		SouthAfrica,
+		Egypt
 	}
 
 	[Flags]

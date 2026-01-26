@@ -7,7 +7,7 @@
 
 <root>
 
-    <Button onclick="@OpenPopup" Active=@(count > 0) class="circle" Icon="notifications"></Button>
+    <Button tooltip="#menu.notifications" onclick="@OpenPopup" Active=@(count > 0) class="circle" Icon="notifications"></Button>
 
     @if ( count > 0 )
     {
@@ -16,7 +16,6 @@
 
 
 </root>
-
 
 @code 
 {

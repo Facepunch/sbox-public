@@ -14,8 +14,8 @@ public partial class Material
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		if ( Application.IsUnitTest )
-			return default;
+		if ( filename.StartsWith( '/' ) || filename.StartsWith( '\\' ) )
+			filename = filename[1..];
 
 		if ( !string.IsNullOrWhiteSpace( filename ) && Directory.TryLoad( filename, ResourceType.Material, out object model ) && model is Material m )
 			return m;
@@ -31,9 +31,6 @@ public partial class Material
 	public static async Task<Material> LoadAsync( string filename )
 	{
 		ThreadSafe.AssertIsMainThread();
-
-		if ( Application.IsUnitTest )
-			return default;
 
 		if ( !string.IsNullOrWhiteSpace( filename ) && await Directory.TryLoadAsync( filename, ResourceType.Material ) is Material m )
 			return m;

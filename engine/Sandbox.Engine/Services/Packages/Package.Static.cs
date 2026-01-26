@@ -2,6 +2,7 @@
 using Sandbox.Engine;
 using Sandbox.Protobuf;
 using System.Collections.Concurrent;
+using System.Net.Http;
 using System.Threading;
 
 namespace Sandbox;
@@ -175,6 +176,11 @@ public partial class Package
 			}
 
 			(package as RemotePackage).UpdateFromDto( result );
+		}
+		catch ( HttpRequestException e )
+		{
+			Log.Warning( e, $"Failed to fetch package info for {identString}: {e.Message}" );
+			return null;
 		}
 		catch ( ApiException e )
 		{

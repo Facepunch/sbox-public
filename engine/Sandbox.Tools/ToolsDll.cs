@@ -1,5 +1,4 @@
 using NativeEngine;
-using Sandbox.ActionGraphs;
 using Sandbox.Audio;
 using Sandbox.Engine;
 using Sandbox.Internal;
@@ -35,8 +34,6 @@ internal class ToolsDll : IToolsDll
 		Sandbox.Generator.Processor.DefaultPackageAssetResolver = ResolvePackageAsset;
 
 		EditorCookie = new CookieContainer( "tools" );
-
-		ActionGraphDebugger.Enabled = true;
 
 		// make sure mixer is initialized at least once
 		Mixer.ResetToDefault();
@@ -304,5 +301,24 @@ internal class ToolsDll : IToolsDll
 			g_pToolFramework2.Tools_UnloadPending();
 		}
 	}
+
+
+	public Bitmap GetThumbnail( string filename )
+	{
+		var asset = AssetSystem.FindByPath( filename );
+		if ( asset is null ) return null;
+
+		var thumb = asset.GetAssetThumb( false );
+		if ( thumb is null ) return null;
+
+		// Sorry - we have no fast GetPixels
+		var pixels = thumb.GetPng();
+		return Bitmap.CreateFromBytes( pixels );
+	}
+
+	/// <summary>
+	/// Public access to the editor system, from Game-side
+	/// </summary>
+	public EditorSystem ActiveEditor { get; } = new EditorSystemPublic();
 
 }

@@ -37,7 +37,7 @@ public class RadialGradient : TextureGenerator
 		var w = Size.x.Clamp( 1, 1024 * 4 );
 		var h = Size.y.Clamp( 1, 1024 * 4 );
 
-		var bitmap = new Bitmap( w, h, IsHdr && !ConvertHeightToNormals );
+		using var bitmap = new Bitmap( w, h, IsHdr && !ConvertHeightToNormals );
 		bitmap.Clear( Color.Transparent );
 
 		bitmap.SetRadialGradient( bitmap.Rect.Size * Center, Scale * bitmap.Width, Gradient );
@@ -45,7 +45,8 @@ public class RadialGradient : TextureGenerator
 
 		if ( ConvertHeightToNormals )
 		{
-			bitmap = bitmap.HeightmapToNormalMap( NormalScale );
+			using var normalMap = bitmap.HeightmapToNormalMap( NormalScale );
+			return ValueTask.FromResult( normalMap.ToTexture() );
 		}
 
 		return ValueTask.FromResult( bitmap.ToTexture() );

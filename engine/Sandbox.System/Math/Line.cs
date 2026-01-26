@@ -208,37 +208,6 @@ public struct Line : System.IEquatable<Line>
 	}
 
 	/// <summary>
-	/// Returns this line, clamped on the positive side of a plane. Null if
-	/// line is fully clipped.
-	/// </summary>
-	internal Line? Clip( Plane plane )
-	{
-		var startDot = Vector3.Dot( Start, plane.Normal ) - plane.Distance;
-		var endDot = Vector3.Dot( End, plane.Normal ) - plane.Distance;
-
-		// Fully on positive side
-
-		if ( startDot >= 0f && endDot >= 0f )
-		{
-			return this;
-		}
-
-		// Fully on negative side
-
-		if ( startDot < 0f && endDot < 0f )
-		{
-			return null;
-		}
-
-		var t = -startDot / (endDot - startDot);
-		var clipped = Start + (End - Start) * t;
-
-		return startDot < 0f
-			? new Line( clipped, End )
-			: new Line( Start, clipped );
-	}
-
-	/// <summary>
 	/// Returns closest squared distance from this line to given point.
 	/// </summary>
 	public readonly float SqrDistance( Vector3 pos )

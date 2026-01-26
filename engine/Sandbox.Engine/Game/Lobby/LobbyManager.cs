@@ -59,7 +59,7 @@ internal static class LobbyManager
 
 	internal static unsafe void OnChatMessage( ulong lobbyid, ulong memberid, IntPtr v, int length )
 	{
-		var data = ByteStream.CreateReader( (void*)v, length );
+		using var data = ByteStream.CreateReader( (void*)v, length );
 
 		foreach ( var lobby in EnumerateLobbies( lobbyid ) )
 		{

@@ -41,10 +41,14 @@ bool IsOutsideBox( float2 vPos, float4 vRect, float4 vRadius, float4x4 matTransf
             ( length( vPos - br ) > vRadius.w && vPos.x > br.x && vPos.y > br.y );
 }
 
+float4x4 TransformMat < Attribute( "TransformMat" ); >; 
+
 void SoftwareScissoring( PS_INPUT i )
 {
 #if D_WORLDPANEL
-    float2 pixelPos = GetWorldPixelPosition( i );
+    // For world panels, calculate local position from UV and then transform (matches screen panel behaviour where clipping happens after transforms)
+    float2 localPos = ( BoxSize ) * ( i.vTexCoord.xy ) + BoxPosition;
+    float2 pixelPos = mul( TransformMat, float4( localPos, 0, 1 ) ).xy;
 #else
     float2 pixelPos = i.vPositionPanelSpace.xy;
 #endif

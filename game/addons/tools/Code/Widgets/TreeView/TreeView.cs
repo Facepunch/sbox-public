@@ -42,7 +42,7 @@ public partial class TreeView : BaseItemWidget
 	public TreeView( Widget parent = null ) : base( parent )
 	{
 		Margin = new Margin( 8, 8, 16, 8 );
-		IndentWidth = Theme.RowHeight * 0.5f;
+		IndentWidth = 20;
 		ExpandWidth = Theme.RowHeight;
 		ItemSpacing = 0;
 		ExpandForSelection = true;

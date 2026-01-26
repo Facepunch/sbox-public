@@ -8,7 +8,17 @@ public sealed class WarningFrame : Widget
 {
 	public Color Color { get; set; } = Color.Parse( "#FA9131" )!.Value;
 
-	public string? Text { get; set; }
+	public string? Text
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+
+			field = value;
+			Update();
+		}
+	}
 
 	public WarningFrame()
 	{

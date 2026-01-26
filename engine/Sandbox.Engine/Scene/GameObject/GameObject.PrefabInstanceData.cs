@@ -102,14 +102,15 @@ internal class PrefabInstanceData
 		_patch = patch;
 	}
 
+	private static readonly SerializeOptions _serializeOptions = new();
+
 	/// <summary>
 	/// Updates the cached patch that represents differences between this instance and its source prefab.
 	/// </summary>
 	public void RefreshPatch()
 	{
-		SerializeOptions options = new SerializeOptions();
 
-		var instanceData = _instanceRoot.SerializeStandard( options );
+		var instanceData = _instanceRoot.SerializeStandard( _serializeOptions );
 
 		RemapInstanceIdsToPrefabIds( ref instanceData );
 

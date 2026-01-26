@@ -42,37 +42,41 @@ partial class SoundHandle
 			return;
 		}
 
-		// Dipose local audio source if we're not listen local
+		// Dispose local audio source if we're not listen local
 		if ( _audioSource is not null )
 		{
 			_audioSource?.Dispose();
 			_audioSource = null;
 		}
 
-		_audioSources ??= new();
-
-		// Remove stale sources
-		foreach ( var listener in Listener.Removed )
+		// Remove stale sources - only if we have any
+		if ( _audioSources is { Count: > 0 } )
 		{
-			if ( _audioSources.Remove( listener, out var source ) )
+			foreach ( var removed in Listener.RemovedList )
 			{
-				source.Dispose();
+				if ( _audioSources.Remove( removed, out var source ) )
+				{
+					source.Dispose();
+				}
 			}
 		}
 
-		// Find listeners of this scene
-		var listeners = Listener.Active.Where( x => x.Scene == Scene );
+		// Find listeners of this scene and update sources
+		var scene = Scene;
 
-		// Add and update sources
-		foreach ( var listener in listeners )
+		foreach ( var listener in Listener.ActiveList )
 		{
+			if ( listener.Scene != scene ) continue;
+
+			_audioSources ??= new();
+
 			if ( !_audioSources.TryGetValue( listener, out var source ) )
 			{
 				source = new SteamAudioSource();
 				_audioSources[listener] = source;
 			}
 
-			source.UpdateFrom( this, Scene?.PhysicsWorld, listener.Position );
+			source.UpdateFrom( this, scene?.PhysicsWorld, listener.Position );
 		}
 	}
 

@@ -1,6 +1,7 @@
 ﻿using Facepunch.ActionGraphs;
 using Sandbox.ActionGraphs;
 using System;
+using System.IO;
 
 namespace Editor;
 
@@ -39,9 +40,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public bool IsPrefabSession => this is PrefabEditorSession;
 
-	/// <summary>
-	/// The scene for this session
-	/// </summary>
 	public Scene Scene { get; private set; }
 
 	internal Widget SceneDock { get; set; }
@@ -75,10 +73,10 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		SceneDock = EditorTypeLibrary.Create<Widget>( "SceneDock", new object[] { this } );
 		SceneDock.Name = $"SceneDock:{(Scene.Source?.ResourcePath ?? "untitled")}";
 
-		SetDockProperties();
-
 		SceneDock.Parent = EditorWindow;
 		SceneDock.Visible = true;
+
+		UpdateEditorTitle();
 
 		Dock();
 	}
@@ -204,25 +202,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		}
 	}
 
-	[EditorEvent.Frame]
-	private void SetDockProperties()
-	{
-		if ( !SceneDock.IsValid() )
-			return;
-
-		var title = Scene.Name.Trim();
-
-		if ( IsPrefabSession )
-		{
-			SceneDock.SetWindowIcon( "home_repair_service" );
-			SceneDock.WindowTitle = $"Prefab: {title}";
-		}
-		else
-		{
-			SceneDock.SetWindowIcon( "grid_4x4" );
-		}
-	}
-
 	internal void UpdateEditorTitle()
 	{
 		if ( !SceneDock.IsValid() )
@@ -235,8 +214,18 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 		if ( SceneDock is not null )
 		{
-			SceneDock.WindowTitle = name;
 			SceneDock.Name = $"SceneDock:{(Scene.Source?.ResourcePath ?? "untitled")}";
+
+			if ( IsPrefabSession )
+			{
+				SceneDock.SetWindowIcon( "home_repair_service" );
+				SceneDock.WindowTitle = $"Prefab: {name}";
+			}
+			else
+			{
+				SceneDock.SetWindowIcon( "grid_4x4" );
+				SceneDock.WindowTitle = name;
+			}
 		}
 	}
 
@@ -300,6 +289,8 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		}
 	}
 
+	BaseFileSystem Scene.ISceneEditorSession.TransientFilesystem => FileSystem.Transient;
+
 	public void Reload()
 	{
 		if ( Scene.Source is null )
@@ -314,72 +305,92 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	public void Save( bool saveAs )
 	{
 		bool isPrefab = Scene is PrefabScene;
-		var saveLocation = string.Empty;
+		string extension = isPrefab ? "prefab" : "scene";
+		string fileType = isPrefab ? "Prefab" : "Scene";
 
-		if ( Scene.Source is not null && AssetSystem.FindByPath( Scene.Source.ResourcePath ) is Asset sourceAsset )
+		var saveLocation = string.Empty;
+		if ( !saveAs && Scene.Source is not null && AssetSystem.FindByPath( Scene.Source.ResourcePath ) is Asset sourceAsset )
 		{
 			saveLocation = sourceAsset.AbsolutePath;
 		}
 		else
 		{
-			saveAs = true;
-		}
-
-		string extension = isPrefab ? "prefab" : "scene";
-		string fileType = isPrefab ? "Prefab" : "Scene";
-
-		if ( saveAs )
-		{
-			if ( string.IsNullOrEmpty( saveLocation ) )
+			saveLocation = ProjectCookie.GetString( $"LastSaveLocation.{extension}", string.Empty );
+			if ( !Directory.Exists( saveLocation ) )
 			{
-				saveLocation = System.IO.Path.Combine(
-					System.IO.Path.GetDirectoryName( ProjectCookie.GetString( $"LastSaveLocation.{extension}", Project.Current.GetAssetsPath() ) ),
-					$"untitled.{extension}" );
+				saveLocation = Project.Current.GetAssetsPath();
 			}
 
-			saveLocation = EditorUtility.SaveFileDialog( $"Save {fileType} As..", extension, saveLocation );
-
+			saveLocation = EditorUtility.SaveFileDialog( $"Save {fileType} As..", extension,
+				Path.Combine( saveLocation, $"untitled.{extension}" ) );
 			if ( saveLocation is null )
 				return;
 
-			ProjectCookie.SetString( $"LastSaveLocation.{extension}", System.IO.Path.GetDirectoryName( saveLocation ) );
+			if ( !saveLocation.NormalizeFilename( false ).StartsWith( Project.Current.GetAssetsPath().NormalizeFilename( false ) ) )
+			{
+				// enforce saving inside Assets/ - if it's outside, complain and let them retry
+				EditorUtility.DisplayDialog( $"Save Failed: Invalid location",
+					$"{fileType}s must be saved inside the Assets folder of your project", "Cancel", "Retry",
+					() => Save( true ) );
+				return;
+			}
+
+			ProjectCookie.SetString( $"LastSaveLocation.{extension}", Path.GetDirectoryName( saveLocation ) );
 		}
 
-		EditorEvent.Run( "scene.beforesave", SceneEditorSession.Active.Scene );
+		EditorEvent.Run( "scene.beforesave", Active.Scene );
 
-		if ( Scene is PrefabScene prefabScene )
-		{
-			var prefabFile = prefabScene.ToPrefabFile();
-			var asset = AssetSystem.CreateResource( "prefab", saveLocation );
-			asset.SaveToDisk( prefabFile );
+		var asset = AssetSystem.CreateResource( extension, saveLocation );
+		Assert.NotNull( asset, $"Failed to CreateResource for {fileType} at {saveLocation}" );
 
-			// Update this scene's path
-			Scene.Source = prefabFile;
-			Scene.Name = System.IO.Path.GetFileNameWithoutExtension( saveLocation );
-		}
-		else
-		{
-			var sceneFile = Scene.CreateSceneFile();
-			var asset = AssetSystem.CreateResource( "scene", saveLocation );
-			asset.SaveToDisk( sceneFile );
+		GameResource resource = Scene is PrefabScene prefabScene ? prefabScene.ToPrefabFile() : Scene.CreateSceneFile();
+		asset.SaveToDisk( resource );
 
-			// Update this scene's path
-			Scene.Source = sceneFile;
-			Scene.Name = System.IO.Path.GetFileNameWithoutExtension( saveLocation );
-		}
+		// Update this scene's path
+		Scene.Source = resource;
+		Scene.Name = System.IO.Path.GetFileNameWithoutExtension( saveLocation );
 
 		HasUnsavedChanges = false;
-		EditorEvent.Run( "scene.saved", SceneEditorSession.Active.Scene );
+		EditorEvent.Run( "scene.saved", Active.Scene );
 
 		UpdateEditorTitle();
 	}
 
 	/// <summary>
-	/// Resolve a scene to an editor session
+	/// Resolve a scene to an editor session. If it's a game scene, resolves the parent editor session.
 	/// </summary>
 	public static SceneEditorSession Resolve( Scene scene )
 	{
+		if ( scene.Editor is SceneEditorSession session )
+		{
+			if ( session is GameEditorSession gs )
+				return gs.Parent; // we want the editor session, not the game session
+
+			return session;
+		}
+
 		return All.FirstOrDefault( x => x.Scene == scene );
+	}
+
+	/// <summary>
+	/// Resolve a Component to an editor session.
+	/// </summary>
+	public static Scene.ISceneEditorSession Resolve( Component component ) => Resolve( component?.GameObject );
+
+	/// <summary>
+	/// Resolve a GameObject to an editor session.
+	/// </summary>
+	public static Scene.ISceneEditorSession Resolve( GameObject go )
+	{
+		if ( go is null ) return null;
+
+		var session = go.Scene.Editor;
+		if ( session is null )
+		{
+			Log.Error( $"Failed to resolve session for GameObject: {go}" );
+		}
+
+		return session;
 	}
 
 	/// <summary>
@@ -387,7 +398,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public static SceneEditorSession Resolve( SceneFile sceneFile )
 	{
-		return All.FirstOrDefault( x => x is not null && !x.IsPrefabSession
+		return All.FirstOrDefault( x => x is not null && !x.IsPrefabSession && x is not GameEditorSession
 			&& string.Equals( sceneFile.ResourcePath, x.Scene.Source?.ResourcePath, StringComparison.OrdinalIgnoreCase ) );
 	}
 
@@ -396,7 +407,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public static SceneEditorSession Resolve( PrefabFile prefabFile )
 	{
-		return All.FirstOrDefault( x => x is not null && x.IsPrefabSession
+		return All.FirstOrDefault( x => x is not null && x.IsPrefabSession && x is not GameEditorSession
 			&& string.Equals( prefabFile.ResourcePath, x.Scene.Source?.ResourcePath, StringComparison.OrdinalIgnoreCase ) );
 	}
 
@@ -463,7 +474,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			var openingScene = Scene.CreateEditorScene();
 			using var _ = openingScene.Push();
 
-			openingScene.Name = sceneFile.ResourceName.ToTitleCase();
 			openingScene.Load( sceneFile );
 
 			var session = new SceneEditorSession( openingScene );
@@ -481,7 +491,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			var openingScene = PrefabScene.CreateForEditing();
 			using var _ = openingScene.Push();
 
-			openingScene.Name = prefabFile.ResourceName.ToTitleCase();
 			openingScene.Load( prefabFile );
 
 			var session = new PrefabEditorSession( openingScene );
@@ -497,5 +506,57 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		{
 			yield return obj;
 		}
+	}
+
+	public Editor.SceneFolder GetSceneFolder()
+	{
+		if ( Scene?.Source?.ResourcePath == null )
+			return default;
+
+		if ( AssetSystem.FindByPath( Scene.Source.ResourcePath ) is Asset sourceAsset )
+		{
+			return new AssetFolderInstance( sourceAsset );
+		}
+
+		return default;
+	}
+}
+
+file class AssetFolderInstance : SceneFolder
+{
+	string _folder;
+	string _relativeFolder;
+	BaseFileSystem _fs;
+
+	public AssetFolderInstance( Asset sourceAsset )
+	{
+		var relativePath = sourceAsset.GetSourceFile( false );
+		var assetPath = sourceAsset.GetSourceFile( true );
+
+		var extension = System.IO.Path.GetExtension( assetPath ).Replace( ".", "_" );
+		_folder = System.IO.Path.ChangeExtension( assetPath, null );
+		_folder = $"{_folder}{extension}_data";
+
+		_relativeFolder = System.IO.Path.ChangeExtension( relativePath, null );
+		_relativeFolder = $"{_relativeFolder}{extension}_data".NormalizeFilename();
+
+		System.IO.Directory.CreateDirectory( _folder );
+
+		_fs = new LocalFileSystem( _folder );
+	}
+
+	~AssetFolderInstance()
+	{
+		MainThread.Queue( () => _fs?.Dispose() );
+	}
+
+	public override string WriteFile( string filename, byte[] data )
+	{
+		_fs.WriteAllBytes( filename, data );
+
+		if ( filename.StartsWith( '/' ) ) filename = filename[1..];
+
+		var absPath = System.IO.Path.Combine( _relativeFolder, filename );
+		return absPath;
 	}
 }

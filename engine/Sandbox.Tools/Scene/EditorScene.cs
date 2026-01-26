@@ -92,7 +92,6 @@ public static class EditorScene
 		var prefabScene = PrefabScene.CreateForEditing();
 		using ( prefabScene.Push() )
 		{
-			prefabScene.Name = resource.ResourceName.ToTitleCase();
 			prefabScene.Load( resource );
 
 			session = new PrefabEditorSession( prefabScene );
@@ -295,9 +294,12 @@ public static class EditorScene
 
 	public static void Stop()
 	{
+		Game.IsClosing = true;
+
 		SceneEditorSession.Active.StopPlaying();
 
 		Game.IsPlaying = false;
+		Game.IsPaused = false;
 
 		// Immediately stop active recordings so we don't get any black frames
 		ScreenRecorder.StopRecording();
@@ -310,6 +312,8 @@ public static class EditorScene
 			Game.ActiveScene?.Destroy();
 			Game.ActiveScene = null;
 		}
+
+		Game.IsClosing = false;
 
 		Sound.StopAll( 0.5f );
 
@@ -417,20 +421,20 @@ public static class EditorScene
 	[Shortcut( "editor.cut", "CTRL+X" )]
 	public static void Cut()
 	{
-		using var scope = SceneEditorSession.Scope();
-
-		var options = new GameObject.SerializeOptions();
-
 		var selection = EditorScene.Selection.OfType<GameObject>().ToArray();
 		if ( selection.Count() < 1 ) return;
 
+		var session = SceneEditorSession.Resolve( selection.FirstOrDefault() );
+		using var scene = session.Scene.Push();
+
+		var options = new GameObject.SerializeOptions();
 		var serializedObjects = selection.Select( x => x.Serialize( options ) ).ToArray();
 
 		EditorUtility.Clipboard.Copy( Json.Serialize( serializedObjects ) );
 
-		using ( SceneEditorSession.Active.UndoScope( "Cut" ).WithGameObjectDestructions( selection ).Push() )
+		using ( session.UndoScope( "Cut" ).WithGameObjectDestructions( selection ).Push() )
 		{
-			SceneEditorSession.Active.Selection.Clear();
+			session.Selection.Clear();
 			// Delete all objects in selection
 			foreach ( var go in selection )
 			{
@@ -476,9 +480,10 @@ public static class EditorScene
 	[Shortcut( "editor.paste", "CTRL+V" )]
 	public static void Paste()
 	{
-		using var scope = SceneEditorSession.Scope();
-
 		var selected = EditorScene.Selection.FirstOrDefault() as GameObject;
+
+		var session = SceneEditorSession.Resolve( selected ) ?? SceneEditorSession.Active;
+		using var scene = session.Scene.Push();
 
 		// Paste to scene root if nobody is selected
 		if ( selected is null )
@@ -498,10 +503,11 @@ public static class EditorScene
 	[Shortcut( "editor.paste-as-child", "CTRL+SHIFT+V" )]
 	public static void PasteAsChild()
 	{
-		using var scope = SceneEditorSession.Scope();
-
-		var selected = EditorScene.Selection.OfType<GameObject>().ToArray();
+		var selected = Selection.OfType<GameObject>().ToArray();
 		var first = selected.FirstOrDefault();
+
+		var session = SceneEditorSession.Resolve( first ) ?? SceneEditorSession.Active;
+		using var scene = session.Scene.Push();
 
 		// Paste to scene root if nobody is selected
 		if ( !first.IsValid() )
@@ -527,12 +533,11 @@ public static class EditorScene
 			if ( Json.Deserialize<IEnumerable<JsonObject>>( text ) is IEnumerable<JsonObject> serializedObjects )
 			{
 				var objCount = serializedObjects.Count();
-
 				if ( objCount == 0 ) return;
 
-				using var scope = SceneEditorSession.Scope();
-
-				using ( SceneEditorSession.Active.UndoScope( $"Paste {objCount} Objects" ).WithGameObjectCreations().Push() )
+				var session = SceneEditorSession.Resolve( targets.FirstOrDefault() );
+				using var scene = session.Scene.Push();
+				using ( session.UndoScope( $"Paste {objCount} Objects" ).WithGameObjectCreations().Push() )
 				{
 					EditorScene.Selection.Clear();
 
@@ -569,5 +574,14 @@ public static class EditorScene
 		{
 			Log.Warning( "Failed to paste, invalid JSON." );
 		}
+	}
+
+	/// <summary>
+	/// Capture a high resolution screenshot using the active scene camera.
+	/// </summary>
+	[ConCmd( "screenshot_highres", Help = "Take a high resolution screenshot you specify the width and height" )]
+	public static void TakeHighResScreenshot( int width, int height )
+	{
+		ScreenshotService.TakeHighResScreenshot( SceneEditorSession.Active.Scene, width, height );
 	}
 }

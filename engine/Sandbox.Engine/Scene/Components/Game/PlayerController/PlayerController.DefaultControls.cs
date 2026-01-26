@@ -43,7 +43,7 @@ public sealed partial class PlayerController : Component
 		{
 			GameObject.RunEvent<IEvents>( x => x.PreInput() );
 
-			if ( UseInputControls && UseLookControls )
+			if ( UseLookControls )
 			{
 				UpdateEyeAngles();
 				UpdateLookAt();

@@ -1,12 +1,14 @@
 namespace Sandbox;
 
+/// <summary>
+/// A set of hitboxes on a model. Hitboxes can be boxes, spheres or capsules.
+/// </summary>
 public class HitboxSet
 {
-	List<Box> all;
+	readonly List<Box> _all = new();
 
 	internal HitboxSet( ModelBones bones, CHitBoxSet set )
 	{
-		all = new();
 
 		// empty set
 		if ( !set.IsValid || set.numhitboxes() == 0 )
@@ -17,12 +19,18 @@ public class HitboxSet
 		for ( int i = 0; i < set.numhitboxes(); i++ )
 		{
 			var box = new Box( bones, set.pHitbox( i ) );
-			all.Add( box );
+			_all.Add( box );
 		}
 	}
 
-	public IReadOnlyList<Box> All => all;
+	/// <summary>
+	/// All hitboxes in this set
+	/// </summary>
+	public IReadOnlyList<Box> All => _all;
 
+	/// <summary>
+	/// A single hitbox on the model. This can be a box, sphere or capsule.
+	/// </summary>
 	public class Box
 	{
 		const int HITBOX_SHAPE_BOX = 0;
@@ -98,7 +106,7 @@ public class HitboxSet
 
 	internal void Dispose()
 	{
-		all.Clear();
+		_all.Clear();
 	}
 }
 

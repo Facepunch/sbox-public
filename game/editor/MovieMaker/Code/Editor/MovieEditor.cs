@@ -125,8 +125,10 @@ public partial class MovieEditor : Widget, IHotloadManaged
 
 		Layout.Add( splitter );
 
-		ListPanel = new ListPanel( this, Session );
+		// Timeline first, other panels depend on it
+
 		TimelinePanel = new TimelinePanel( this, Session );
+		ListPanel = new ListPanel( this, Session );
 		HistoryPanel = new HistoryPanel( this, Session );
 
 		splitter.AddWidget( ListPanel );
@@ -203,7 +205,7 @@ public partial class MovieEditor : Widget, IHotloadManaged
 			return;
 
 		Session.PlayheadTime = 0d;
-		Session.ScrollToPlayheadTime();
+		TimelinePanel?.Timeline.PanToPlayheadTime();
 	}
 
 	[Shortcut( "timeline.navtoend", "End", ShortcutType.Window )]
@@ -213,7 +215,7 @@ public partial class MovieEditor : Widget, IHotloadManaged
 			return;
 
 		Session.PlayheadTime = Session.Duration;
-		Session.ScrollToPlayheadTime();
+		TimelinePanel?.Timeline.PanToPlayheadTime();
 	}
 
 	[Shortcut( "editor.save", "CTRL+S" )]
@@ -243,48 +245,6 @@ public partial class MovieEditor : Widget, IHotloadManaged
 				Log.Warning( ex );
 			}
 		}
-	}
-
-	[Shortcut( "timeline.selectall", "CTRL+A" )]
-	public void OnSelectAll()
-	{
-		Session?.EditMode?.SelectAll();
-	}
-
-	[Shortcut( "timeline.cut", "CTRL+X" )]
-	public void OnCut()
-	{
-		Session?.EditMode?.Cut();
-	}
-
-	[Shortcut( "timeline.copy", "CTRL+C" )]
-	public void OnCopy()
-	{
-		Session?.EditMode?.Copy();
-	}
-
-	[Shortcut( "timeline.paste", "CTRL+V" )]
-	public void OnPaste()
-	{
-		Session?.EditMode?.Paste();
-	}
-
-	[Shortcut( "timeline.backspace", "BACKSPACE" )]
-	public void OnBackspace()
-	{
-		Session?.EditMode?.Backspace();
-	}
-
-	[Shortcut( "timeline.delete", "DEL" )]
-	public void OnDelete()
-	{
-		Session?.EditMode?.Delete();
-	}
-
-	[Shortcut( "timeline.insert", "TAB" )]
-	public void OnInsert()
-	{
-		Session?.EditMode?.Insert();
 	}
 
 	[Shortcut( "editor.undo", "CTRL+Z" )]
@@ -337,27 +297,30 @@ public partial class MovieEditor : Widget, IHotloadManaged
 
 	public void EnterSequence( MovieResource resource, MovieTransform transform, MovieTimeRange timeRange )
 	{
-		var timeOffset = transform.Inverse * Session!.TimeOffset;
-		var pixelsPerSecond = (float)(transform.Inverse.Scale.FrequencyScale * Session.PixelsPerSecond);
+		var oldTimeline = TimelinePanel!.Timeline;
 
-		Initialize( Session.Player, resource, new SessionContext( Session, transform, timeRange ) );
+		var timeOffset = transform.Inverse * oldTimeline.TimeOffset;
+		var pixelsPerSecond = (float)(transform.Inverse.Scale.FrequencyScale * oldTimeline.PixelsPerSecond);
 
-		Session.SetView( timeOffset, pixelsPerSecond );
+		Initialize( Session!.Player, resource, new SessionContext( Session, transform, timeRange ) );
+
+		TimelinePanel!.Timeline.SetView( timeOffset, pixelsPerSecond );
 	}
 
 	public void ExitSequence()
 	{
 		if ( Session?.Context is not { } context ) return;
 
-		var timeOffset = Session.SequenceTransform * Session!.TimeOffset;
-		var pixelsPerSecond = (float)(Session.SequenceTransform.Scale.FrequencyScale * Session.PixelsPerSecond);
+		var oldTimeline = TimelinePanel!.Timeline;
+		var timeOffset = Session.SequenceTransform * oldTimeline.TimeOffset;
+		var pixelsPerSecond = (float)(Session.SequenceTransform.Scale.FrequencyScale * oldTimeline.PixelsPerSecond);
 
 		var resource = Session.Resource;
 
 		Session.Save();
 		Initialize( Session.Player, context.Parent.Resource, context.Parent.Context );
 
-		Session.SetView( timeOffset, pixelsPerSecond );
+		TimelinePanel!.Timeline.SetView( timeOffset, pixelsPerSecond );
 
 		if ( resource is MovieResource movieResource )
 		{

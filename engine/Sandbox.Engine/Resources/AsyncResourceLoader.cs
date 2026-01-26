@@ -16,7 +16,10 @@ class AsyncResourceLoader : IDisposable
 
 	~AsyncResourceLoader()
 	{
-		Dispose();
+		if ( manifest.IsValid )
+		{
+			MainThread.QueueDispose( this );
+		}
 	}
 
 	public async Task WaitForLoad( CancellationToken token = default )
@@ -34,6 +37,8 @@ class AsyncResourceLoader : IDisposable
 	{
 		if ( manifest.IsValid )
 		{
+			ThreadSafe.AssertIsMainThread();
+
 			NativeEngine.g_pResourceSystem.DestroyResourceManifest( manifest );
 			manifest = default;
 		}
@@ -43,6 +48,8 @@ class AsyncResourceLoader : IDisposable
 
 	static public AsyncResourceLoader Load( string filename )
 	{
+		ThreadSafe.AssertIsMainThread();
+
 		var manifest = NativeEngine.g_pResourceSystem.LoadResourceInManifest( filename );
 		if ( manifest.IsNull ) return default;
 

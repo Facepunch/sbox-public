@@ -158,6 +158,8 @@ internal static class DedicatedServer
 				return;
 
 			sgs.SetServerName( value );
+			sgs.SetAdvertiseServerActive( true );
+
 			_name = value;
 		}
 	}
@@ -181,8 +183,22 @@ internal static class DedicatedServer
 				return;
 
 			sgs.SetMapName( value );
+			sgs.SetAdvertiseServerActive( true );
+
 			_mapName = value;
 		}
+	}
+
+	/// <summary>
+	/// Log a warning if the tags string is too long.
+	/// </summary>
+	private static void LogTagsLengthWarning( string tagsString )
+	{
+		if ( tagsString.Length <= 128 )
+			return;
+
+		var lost = tagsString[128..];
+		Log.Warning( $"Steam game tags exceed 128 char limit ({tagsString.Length} chars). Data dropped: \"{lost}\"" );
 	}
 
 	/// <summary>
@@ -201,7 +217,11 @@ internal static class DedicatedServer
 		_data[key] = value;
 
 		var tagsString = string.Join( ",", _data.Select( kv => $"{kv.Key}:{kv.Value}" ) );
-		sgs.SetGameTags( tagsString );
+
+		if ( tagsString.Length > 128 )
+			LogTagsLengthWarning( tagsString );
+
+		sgs.SetGameTags( tagsString[..Math.Min( 128, tagsString.Length )] );
 	}
 
 	/// <summary>
@@ -225,11 +245,11 @@ internal static class DedicatedServer
 
 		if ( !IsGameServerActive )
 		{
-			Steam.SteamGameServer_Init( Networking.Port, Networking.SharedQueryPort ? Defines.STEAMGAMESERVER_QUERY_PORT_SHARED : 27016, "1.0.0.0" );
+			Steam.SteamGameServer_Init( Networking.Port, Networking.QueryPort, "1.0.0.0" );
 			Networking.Bootstrap();
 
 			// Conna: we can abstract this stuff out later, but for now we only use Steam networking for dedicated servers.
-			if ( Networking.UseFakeIP )
+			if ( Networking.HideAddress )
 			{
 				var sns = Steam.SteamNetworkingSockets();
 				sns.BeginRequestFakeIP();
@@ -262,11 +282,20 @@ internal static class DedicatedServer
 				{ "api", Protocol.Api.ToString() }
 			};
 
+			// Add any user-set data
+			foreach ( var kvp in Networking.ServerData )
+			{
+				_data[kvp.Key] = kvp.Value;
+			}
+
 			var tagsString = string.Join( ",", _data.Select( kv => $"{kv.Key}:{kv.Value}" ) );
+
+			if ( tagsString.Length > 128 )
+				LogTagsLengthWarning( tagsString );
 
 			var sgs = Steam.SteamGameServer();
 			sgs.SetGameDescription( gameTitle );
-			sgs.SetGameTags( tagsString );
+			sgs.SetGameTags( tagsString[..Math.Min( 128, tagsString.Length )] );
 			sgs.SetMaxPlayerCount( config.MaxPlayers );
 			sgs.SetProduct( "sbox" );
 			sgs.SetModDir( "sbox" );
@@ -288,10 +317,8 @@ internal static class DedicatedServer
 					sgs.LogOnAnonymous();
 			}
 
-			sgs.SetAdvertiseServerActive( true );
-
 			var timeout = TimeSpan.FromSeconds( 10f );
-			var timeoutSource = new CancellationTokenSource( timeout );
+			using var timeoutSource = new CancellationTokenSource( timeout );
 			var delay = TimeSpan.FromMilliseconds( 100 );
 
 			while ( !sgs.BLoggedOn() )
@@ -302,17 +329,17 @@ internal static class DedicatedServer
 				await Task.Delay( delay, timeoutSource.Token );
 			}
 
-			if ( IpSocket is null )
-			{
-				IpSocket = new();
-				IpSocket.AutoDispose = false;
-			}
+			sgs.SetAdvertiseServerActive( true );
 
-			if ( IdSocket is null )
+			IpSocket ??= new SteamNetwork.IpListenSocket
 			{
-				IdSocket = new( 77 );
-				IdSocket.AutoDispose = false;
-			}
+				AutoDispose = false
+			};
+
+			IdSocket ??= new SteamNetwork.IdListenSocket( 77 )
+			{
+				AutoDispose = false
+			};
 
 			IsGameServerActive = true;
 

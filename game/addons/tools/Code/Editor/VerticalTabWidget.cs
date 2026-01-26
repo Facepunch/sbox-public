@@ -201,6 +201,12 @@ public class VerticalTab : Button
 			return;
 		}
 
+		if ( Paint.HasMouseOver )
+		{
+			Paint.SetBrush( Theme.SurfaceBackground );
+			Paint.DrawRect( LocalRect );
+		}
+
 		if ( IsActive )
 		{
 			Paint.SetBrush( Theme.Primary );

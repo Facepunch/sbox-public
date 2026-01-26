@@ -1,6 +1,7 @@
-﻿using System.Linq;
+﻿using Sandbox.MovieMaker;
+using Sandbox.MovieMaker.Compiled;
+using System.Linq;
 using System.Text.Json.Serialization;
-using Sandbox.MovieMaker;
 
 namespace Editor.MovieMaker;
 
@@ -25,7 +26,6 @@ public abstract partial record PropertySignal : IPropertySignal
 	/// For painting in the timeline.
 	/// </summary>
 	public virtual IEnumerable<MovieTimeRange> GetPaintHints( MovieTimeRange timeRange ) => [timeRange];
-	public virtual bool CanSmooth( MovieTimeRange range ) => false;
 }
 
 /// <summary>
@@ -60,25 +60,92 @@ public abstract partial record PropertySignal<T>() : PropertySignal, IPropertySi
 	public PropertySignal<T> Reduce( MovieTimeRange timeRange ) =>
 		Reduce( timeRange.Start, timeRange.End );
 
-	public T[] Sample( MovieTimeRange timeRange, int sampleRate )
-	{
-		var sampleCount = timeRange.Duration.GetFrameCount( sampleRate );
-		var samples = new T[sampleCount];
-
-		for ( var i = 0; i < sampleCount; i++ )
-		{
-			var time = timeRange.Start + MovieTime.FromFrames( i, sampleRate );
-
-			samples[i] = GetValue( time );
-		}
-
-		return samples;
-	}
-
 	protected abstract PropertySignal<T> OnReduce( MovieTime? start, MovieTime? end );
 
-	public PropertySignal<T> Smooth( MovieTime size ) => size <= 0d ? this : OnSmooth( size );
-	protected virtual PropertySignal<T> OnSmooth( MovieTime size ) => this;
+	public virtual IEnumerable<ICompiledPropertyBlock<T>> Compile( MovieTimeRange timeRange, int sampleRate )
+	{
+		var samples = Sample( timeRange, sampleRate );
+		var sampleSpans = new List<SampleSpan>();
+
+		FindConstantSpans( sampleSpans, samples );
+
+		// If we have this many identical samples in a row, just make it a constant block.
+		// Let's have a lower threshold for types that can't interpolate, like strings or ints
+
+		var canInterpolate = Interpolator.GetDefault<T>() is not null;
+		var minConstBlockSampleCount = canInterpolate
+			? Math.Max( sampleRate / 2, 10 )
+			: Math.Max( sampleRate / 4, 1 );
+
+		// We take an extra sample at the end so we can interpolate smoothly to the next span
+
+		var trailingExtraSamples = canInterpolate ? 1 : 0;
+
+		MergeSpans( sampleSpans, minConstBlockSampleCount );
+
+		foreach ( var span in sampleSpans )
+		{
+			var startTime = timeRange.Start + MovieTime.FromFrames( span.Start, sampleRate );
+			var endTime = timeRange.Start + MovieTime.FromFrames( span.Start + span.Count, sampleRate );
+
+			if ( span.IsConstant )
+			{
+				yield return new CompiledConstantBlock<T>( (startTime, endTime), samples[span.Start] );
+				continue;
+			}
+
+			var spanSamples = samples.Skip( span.Start ).Take( span.Count + trailingExtraSamples );
+
+			yield return new CompiledSampleBlock<T>( (startTime, endTime), 0d, sampleRate, [.. spanSamples] );
+		}
+	}
+
+	private readonly record struct SampleSpan( int Start, int Count, bool IsConstant );
+
+	/// <summary>
+	/// Appends all the ranges of <paramref name="samples"/> that have a constant value to <paramref name="sampleSpans"/>.
+	/// </summary>
+	private static void FindConstantSpans( List<SampleSpan> sampleSpans, IReadOnlyList<T> samples )
+	{
+		var comparer = EqualityComparer<T>.Default;
+
+		var currentSpanStart = 0;
+		var prevSample = samples[0];
+
+		for ( var i = 1; i < samples.Count; i++ )
+		{
+			var sample = samples[i];
+
+			if ( comparer.Equals( prevSample, sample ) ) continue;
+
+			sampleSpans.Add( new SampleSpan( currentSpanStart, i - currentSpanStart, true ) );
+
+			currentSpanStart = i;
+			prevSample = sample;
+		}
+
+		sampleSpans.Add( new SampleSpan( currentSpanStart, samples.Count - currentSpanStart, true ) );
+	}
+
+	/// <summary>
+	/// Merge sample spans that are less than <paramref name="minConstSampleCount"/>, marking them as non-constant.
+	/// </summary>
+	private static void MergeSpans( List<SampleSpan> sampleSpans, int minConstSampleCount )
+	{
+		if ( minConstSampleCount < 2 ) return;
+
+		for ( var i = sampleSpans.Count - 2; i >= 0; i-- )
+		{
+			var prev = sampleSpans[i];
+			var next = sampleSpans[i + 1];
+
+			if ( prev.IsConstant && prev.Count >= minConstSampleCount ) continue;
+			if ( next.IsConstant && next.Count >= minConstSampleCount ) continue;
+
+			sampleSpans.RemoveAt( i + 1 );
+			sampleSpans[i] = new SampleSpan( prev.Start, prev.Count + next.Count, false );
+		}
+	}
 }
 
 /// <summary>

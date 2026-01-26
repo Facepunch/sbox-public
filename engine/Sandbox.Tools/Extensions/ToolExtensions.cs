@@ -1,6 +1,8 @@
 ﻿using Sandbox.Internal;
 using System;
 using System.Collections.Immutable;
+using Facepunch.ActionGraphs;
+using Sandbox.ActionGraphs;
 
 namespace Sandbox;
 

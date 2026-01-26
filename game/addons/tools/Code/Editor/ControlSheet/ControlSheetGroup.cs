@@ -2,12 +2,17 @@
 
 namespace Editor;
 
-class ControlSheetGroup : Widget
+/// <summary>
+/// Represents a group of related controls within a control sheet, optionally with a collapsible header and property
+/// name display.
+/// </summary>
+public class ControlSheetGroup : Widget
 {
 	internal List<SerializedProperty> properties;
 	List<ControlSheetRow> rows = new();
 	string groupCookie;
 	Widget Body;
+	GroupHeader headerWidget;
 
 	bool hasHeader;
 
@@ -29,7 +34,6 @@ class ControlSheetGroup : Widget
 
 		bool closed = props.SelectMany( x => x.GetAttributes<GroupAttribute>() ).Any( x => x.StartFolded );
 		properties = props.ToList();
-		GroupHeader headerWidget = null;
 
 		if ( groupCookie is not null )
 		{
@@ -83,13 +87,12 @@ class ControlSheetGroup : Widget
 			firstOpen = () => BuildContents();
 			headerWidget.OnToggled += SetVisible;
 
-			if ( !closed )
-				headerWidget.Toggle();
+			// Defer initial expansion to the first frame to avoid building all content synchronously during inspector construction
+			_deferredExpand = !closed;
 		}
 		else
 		{
-			BuildContents();
-			Body.Visible = true;
+			_deferredExpand = true;
 		}
 
 		//
@@ -104,6 +107,7 @@ class ControlSheetGroup : Widget
 	}
 
 	Action firstOpen;
+	bool _deferredExpand;
 
 	void SetVisible( bool visible )
 	{
@@ -148,6 +152,22 @@ class ControlSheetGroup : Widget
 	{
 		if ( Parent is null )
 			return;
+
+		if ( _deferredExpand )
+		{
+			_deferredExpand = false;
+
+			if ( hasHeader )
+			{
+				// This will call BuildContents eventually
+				headerWidget?.Toggle();
+			}
+			else
+			{
+				BuildContents();
+				Body.Visible = true;
+			}
+		}
 
 		if ( visibilityDebounce < 0.2f )
 			return;
@@ -195,7 +215,7 @@ class ControlSheetGroup : Widget
 }
 
 
-file class GroupHeader : Widget
+class GroupHeader : Widget
 {
 	ControlSheetGroup groupControl;
 	Layout toggleLayout;
@@ -279,9 +299,8 @@ file class GroupHeader : Widget
 
 			menu.AddOption( revertAllActionName, "history", () =>
 			{
-				using var scene = SceneEditorSession.Scope();
-
-				using ( SceneEditorSession.Active.UndoScope( revertAllActionName ).WithComponentChanges( editedComponents ).Push() )
+				var session = SceneEditorSession.Resolve( editedComponents.FirstOrDefault() );
+				using ( session.UndoScope( revertAllActionName ).WithComponentChanges( editedComponents ).Push() )
 				{
 					groupControl.properties.ForEach( prop => EditorUtility.Prefabs.RevertPropertyChange( prop ) );
 				}
@@ -291,9 +310,8 @@ file class GroupHeader : Widget
 
 			menu.AddOption( applyAllActionName, "update", () =>
 			{
-				using var scene = SceneEditorSession.Scope();
-
-				using ( SceneEditorSession.Active.UndoScope( applyAllActionName ).WithComponentChanges( editedComponents ).Push() )
+				var session = SceneEditorSession.Resolve( editedComponents.FirstOrDefault() );
+				using ( session.UndoScope( applyAllActionName ).WithComponentChanges( editedComponents ).Push() )
 				{
 					groupControl.properties.ForEach( prop => EditorUtility.Prefabs.ApplyPropertyChange( prop ) );
 				}
@@ -310,9 +328,8 @@ file class GroupHeader : Widget
 
 				menu.AddOption( revertToggleActionName, "history", () =>
 				{
-					using var scene = SceneEditorSession.Scope();
-
-					using ( SceneEditorSession.Active.UndoScope( revertToggleActionName ).WithComponentChanges( editedComponents ).Push() )
+					var session = SceneEditorSession.Resolve( editedComponents.FirstOrDefault() );
+					using ( session.UndoScope( revertToggleActionName ).WithComponentChanges( editedComponents ).Push() )
 					{
 						EditorUtility.Prefabs.RevertPropertyChange( toggleProperty );
 					}
@@ -322,9 +339,8 @@ file class GroupHeader : Widget
 
 				menu.AddOption( applyToggleActionName, "update", () =>
 				{
-					using var scene = SceneEditorSession.Scope();
-
-					using ( SceneEditorSession.Active.UndoScope( applyToggleActionName ).WithComponentChanges( editedComponents ).Push() )
+					var session = SceneEditorSession.Resolve( editedComponents.FirstOrDefault() );
+					using ( session.UndoScope( applyToggleActionName ).WithComponentChanges( editedComponents ).Push() )
 					{
 						EditorUtility.Prefabs.ApplyPropertyChange( toggleProperty );
 					}

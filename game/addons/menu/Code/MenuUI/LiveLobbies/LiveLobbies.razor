@@ -4,11 +4,13 @@
 @namespace Menu
 
 @if (all.Count == 0)
+{
 	return;
+}
 
-<root>
+<root class="front-page-box">
 
-	<h2>Live Games</h2>
+	<h2>Quick Join</h2>
 
 	<div class="lobby-list">
     @foreach (var l in all.GroupBy( x => x.Game ).Take( 10 ).Select( x => x.OrderByDescending( x => x.Members ).First() ) )

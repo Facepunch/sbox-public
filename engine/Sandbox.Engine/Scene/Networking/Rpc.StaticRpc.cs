@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Reflection;
 
 namespace Sandbox;
 
@@ -28,7 +29,18 @@ public static partial class Rpc
 		{
 			try
 			{
-				method.Invoke( null, message.Arguments );
+				if ( message.GenericArguments is not null )
+				{
+					var methodInfo = method.MemberInfo as MethodInfo;
+					var genericTypes = Game.TypeLibrary.FromIdentities( message.GenericArguments );
+					var genericMethod = methodInfo.MakeGenericMethod( genericTypes );
+
+					genericMethod.Invoke( null, message.Arguments );
+				}
+				else
+				{
+					method.Invoke( null, message.Arguments );
+				}
 			}
 			catch ( Exception e )
 			{
@@ -38,10 +50,24 @@ public static partial class Rpc
 	}
 
 	/// <summary>
-	/// Called when a static RPC is called
+	/// Called when a static RPC is called with a single argument of an array type.
+	/// </summary>
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	public static void OnCallRpc<T>( WrappedMethod m, T[] argument )
+	{
+		OnCallRpcInternal( m, [argument] );
+	}
+
+	/// <summary>
+	/// Called when a static RPC is called with object parameters.
 	/// </summary>
 	[EditorBrowsable( EditorBrowsableState.Never )]
 	public static void OnCallRpc( WrappedMethod m, params object[] argumentList )
+	{
+		OnCallRpcInternal( m, argumentList );
+	}
+
+	static void OnCallRpcInternal( WrappedMethod m, in object[] argumentList )
 	{
 		var attribute = m.GetAttribute<RpcAttribute>();
 		if ( attribute is null ) return;
@@ -97,7 +123,13 @@ public static partial class Rpc
 		//
 		if ( attribute.Mode == RpcMode.Broadcast )
 		{
-			var msg = new StaticRpcMsg { MethodIdentity = m.MethodIdentity, Arguments = argumentList };
+			var msg = new StaticRpcMsg
+			{
+				MethodIdentity = m.MethodIdentity,
+				Arguments = argumentList,
+				GenericArguments = Game.TypeLibrary.ToIdentities( m.GenericArguments )
+			};
+
 			networkSystem.Broadcast( msg, Filter, attribute.Flags );
 			return;
 		}
@@ -113,7 +145,13 @@ public static partial class Rpc
 			if ( targetId == Connection.Local.Id ) return; // don't send to ourselves
 			if ( targetId == Guid.Empty ) return; // don't send to no-one
 
-			var msg = new StaticRpcMsg { MethodIdentity = m.MethodIdentity, Arguments = argumentList };
+			var msg = new StaticRpcMsg
+			{
+				MethodIdentity = m.MethodIdentity,
+				Arguments = argumentList,
+				GenericArguments = Game.TypeLibrary.ToIdentities( m.GenericArguments )
+			};
+
 			networkSystem.Send( targetId, msg, attribute.Flags );
 		}
 	}

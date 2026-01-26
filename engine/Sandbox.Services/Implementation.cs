@@ -22,11 +22,13 @@ public static class Backend
 	public static IStorageApi Storage { get; private set; }
 	public static IUtilityApi Utility { get; private set; }
 
+	private static HttpClient httpClient = null;
+
 	public static void Initialize( DelegatingHandler httpHandler, string url = "https://services.facepunch.com/sbox" )
 	{
 		var refitSettings = BuildSettings( url );
 
-		var httpClient = new HttpClient( httpHandler )
+		httpClient = new HttpClient( httpHandler )
 		{
 			BaseAddress = new Uri( url ),
 			Timeout = TimeSpan.FromMinutes( 15 )

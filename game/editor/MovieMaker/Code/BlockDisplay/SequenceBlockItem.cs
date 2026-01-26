@@ -19,9 +19,10 @@ public sealed class SequenceBlockItem : BlockItem<ProjectSequenceBlock>, IMovieD
 		get
 		{
 			var fullTimeRange = FullTimeRange;
+			var timeline = Parent.Timeline;
 
-			var min = Parent.Session.TimeToPixels( fullTimeRange.Start );
-			var max = Parent.Session.TimeToPixels( fullTimeRange.End );
+			var min = timeline.TimeToPixels( fullTimeRange.Start );
+			var max = timeline.TimeToPixels( fullTimeRange.End );
 
 			return SceneRect with { Left = min, Right = max };
 		}

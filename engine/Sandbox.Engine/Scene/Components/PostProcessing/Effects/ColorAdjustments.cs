@@ -16,6 +16,8 @@ public sealed class ColorAdjustments : BasePostProcess<ColorAdjustments>
 	[Range( 0, 2 ), Property] public float Brightness { get; set; } = 1.0f;
 	[Range( 0, 2 ), Property] public float Contrast { get; set; } = 1.0f;
 
+	private static readonly Material Shader = Material.FromShader( "shaders/postprocess/pp_color.shader" );
+
 	public override void Render()
 	{
 		Attributes.Set( "blend", GetWeighted( x => x.Blend, 0 ) );
@@ -24,7 +26,7 @@ public sealed class ColorAdjustments : BasePostProcess<ColorAdjustments>
 		Attributes.Set( "brightness", GetWeighted( x => x.Brightness, 1 ) );
 		Attributes.Set( "contrast", GetWeighted( x => x.Contrast, 1 ) );
 
-		var blit = BlitMode.WithBackbuffer( Material.FromShader( "shaders/postprocess/pp_color.shader" ), Stage.AfterPostProcess, 3000, false );
+		var blit = BlitMode.WithBackbuffer( Shader, Stage.AfterPostProcess, 3000, false );
 		Blit( blit, "ColorAdjustments" );
 	}
 

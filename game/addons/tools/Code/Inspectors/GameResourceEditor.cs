@@ -14,6 +14,10 @@ public partial class GameResourceEditor : BaseWindow, IAssetEditor
 		MaximumWidth = 800;
 		MinimumWidth = 300;
 		Layout = Layout.Column();
+
+		// Makes the window always on top of the editor only, not other applications
+		Parent = EditorWindow;
+		WindowFlags = WindowFlags.Dialog | WindowFlags.Customized | WindowFlags.CloseButton | WindowFlags.WindowSystemMenuHint | WindowFlags.WindowTitle;
 	}
 
 	public void AssetOpen( Asset asset )

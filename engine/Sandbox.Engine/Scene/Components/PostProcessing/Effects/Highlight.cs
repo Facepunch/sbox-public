@@ -12,6 +12,8 @@ public sealed class Highlight : BasePostProcess<Highlight>
 {
 	CommandList commands = new();
 
+	private static readonly Material Shader = Material.FromShader( "postprocess/objecthighlight/objecthighlight.shader" );
+
 	public override void Render()
 	{
 		var outlines = Scene.GetAll<HighlightOutline>();
@@ -50,7 +52,7 @@ public sealed class Highlight : BasePostProcess<Highlight>
 
 		foreach ( var model in glow.GetOutlineTargets() )
 		{
-			var shapeMat = glow.Material ?? Material.FromShader( "postprocess/objecthighlight/objecthighlight.shader" );
+			var shapeMat = glow.Material ?? Shader;
 
 			// Inside glow and stencil
 			if ( pass == OutlinePass.Inside )

@@ -1,0 +1,150 @@
+﻿@using Sandbox.Modals
+@using Sandbox
+@using Sandbox.UI
+@using Sandbox.Menu
+@using MenuProject.MenuUI.Components
+
+@inherits MenuProject.Modals.BaseModal
+
+<root>
+
+	<div class="inner">
+
+        <div class="tiles-container">
+        
+               <div class="left">
+                    @if (game is not null)
+                    {
+                        <GameInfoBox Package="@game"></GameInfoBox>
+                    }
+               </div>
+
+               <div class="right">
+                   
+                   @{
+                        var ident = game?.FullIdent.Split('#')[0] ?? "unknown/unknown";
+                        var url = $"https://sbox.game/game/pause/{ident}";
+                        //var url = $"https://localhost:44338/game/pause/{ident}";
+                        <WebPanel class="browser" Url="@url"></WebPanel>
+                    }
+
+               </div>
+
+        </div>
+
+        <div class="bottom-bar">
+
+            <div class="left">
+                <Button class="exit" Tooltip="Return to s&box main menu" Icon="west" @onclick="@(() => MenuUtility.CloseGame())" Text="Leave"></Button>
+            </div>
+
+            <div class="center">
+
+                @if (CanChangeMap)
+                {
+                    <Button class="circle" Tooltip="Change Map" Icon="map" onclick=@ChangeMap></Button>
+                }
+
+                @if (Networking.IsActive && game.GetValue<bool>("ShowPlayerList", true))
+                {
+                    <Button class="circle" Icon="groups" Tooltip="Player List" @onclick="@(() => Game.Overlay.ShowPlayerList())"></Button>
+                }
+
+                <Button class="circle" Tooltip="Reconfigure Controls" Icon="gamepad" @onclick="@(() => Game.Overlay.ShowBinds())"></Button>
+                <Button class="circle" Tooltip="Open Settings" Icon="settings" @onclick="@(() => Game.Overlay.ShowSettingsModal())"></Button>
+
+            </div>
+
+            <div class="right">
+                <Button class="resume" Icon="play_arrow" @onclick="@(() => this.Delete())" Text="Resume"></Button>
+            </div>
+
+        </div>
+
+	</div>
+
+</root>
+
+@code
+{
+
+    bool CanChangeMap
+    {
+        get
+        {
+            if ( Networking.IsActive && !Networking.IsHost ) return false;
+
+            return game.GetValue( "ShowChangeMap", false );
+        }
+    }
+
+    Package game;
+
+
+    void OnCreateGame( CreateGameResults x )
+    {
+        if ( Networking.IsActive && !Networking.IsHost )
+            return;
+
+        if ( !string.IsNullOrEmpty( x.MapIdent ) )
+        {
+            LaunchArguments.Map = x.MapIdent;
+        }
+
+        Game.Load( Game.Ident, true );
+
+        this.CloseModal( true );
+    }
+
+    void ChangeMap()
+    {
+        Game.Overlay.CreateGame( new CreateGameOptions( game, OnCreateGame ) );
+    }
+
+    public PauseModal() : base()
+    {
+        game = MenuUtility.GamePackage;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if ( !game.IsRemote )
+        {
+            var ident = game.FullIdent.Split('#')[0];
+            game = await Package.FetchAsync(ident, false) ?? game;
+            StateHasChanged();
+        }
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        CheckForDelete();
+    }
+
+    bool CheckForDelete()
+    {
+        if (MenuUtility.GamePackage == null)
+        {
+            Delete();
+            return true;
+        }
+
+        if (MenuUtility.GamePackage?.Ident != game?.Ident)
+        {
+            Delete();
+            return true;
+        }
+
+        return false;
+    }
+
+    public bool IsPauseMenuOpen()
+    {
+        if (CheckForDelete() ) 
+            return false;
+
+        return !HasClass( "hidden" );
+    }
+}

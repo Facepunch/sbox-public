@@ -82,10 +82,12 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 		var motionBlurEnabled = MotionBlur;
 		const float blurReciprocal = 0.02f;
 
-		var fogStrength = FogStrength;
+		var packedFogAndAlpha = SpriteData.PackFogAndAlphaCutout( this.FogStrength, 0.001f );
 		var depthFeather = DepthFeather;
 		var blurOpacity = BlurOpacity;
 		var origin = Pivot;
+		var renderFlags = SpriteFlags.None;
+		if ( ParticleEffect.SnapToFrame ) renderFlags |= SpriteFlags.SnapToFrame;
 
 		// Calculate aspect ratio - different for text vs sprite
 		var aspect = texture.Size.x / texture.Size.y;
@@ -154,9 +156,9 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 				spritePtr->TextureHandle = textureHandle;
 				spritePtr->TintColor = tintColor.RawInt;
 				spritePtr->OverlayColor = overlayColor.RawInt;
-				spritePtr->RenderFlags = 0;
+				spritePtr->RenderFlags = (int)renderFlags;
 				spritePtr->BillboardMode = billboardModeUint;
-				spritePtr->FogStrength = fogStrength;
+				spritePtr->FogStrengthCutout = packedFogAndAlpha;
 				spritePtr->Lighting = packedExponent;
 				spritePtr->DepthFeather = depthFeather;
 				spritePtr->SamplerIndex = samplerIndex;

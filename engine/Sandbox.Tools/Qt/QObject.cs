@@ -68,7 +68,8 @@ namespace Editor
 				}
 				catch ( System.Exception ex )
 				{
-					Log.Error( ex );
+					try { Log.Error( ex ); }
+					catch { }
 				}
 			};
 
@@ -88,7 +89,7 @@ namespace Editor
 			if ( _object.IsValid )
 			{
 				OnDestroyingLater();
-				_object.deleteLater();
+				_object.deleteMuchLater();
 			}
 		}
 

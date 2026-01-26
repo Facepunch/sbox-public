@@ -11,21 +11,6 @@ namespace Sandbox;
 [Icon( "favorite" )]
 public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor, ISpriteRenderGroup
 {
-	[Flags]
-	public enum FlipFlags
-	{
-		None = 0,
-
-		[Icon( "align_horizontal_center" )]
-		[Title( "Horizontal Flip" )]
-		[Description( "Flip the sprite horizontally around the origin." )]
-		FlipX = 2,
-		[Icon( "align_vertical_center" )]
-		[Title( "Vertical Flip" )]
-		[Description( "Flip the sprite vertically around the origin." )]
-		FlipY = 4
-	}
-
 	public enum BillboardMode
 	{
 		Always,
@@ -108,6 +93,13 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	/// </summary>
 	[Property, Category( "Visuals" ), Order( -200 )]
 	public bool Opaque { get; set; }
+
+	/// <summary>
+	/// Alpha threshold for discarding pixels. Pixels with alpha below this value will be discarded. 
+	/// Only used when Opaque is true. Range: 0.0 (transparent) to 1.0 (opaque). Default is 0.5.
+	/// </summary>
+	[Property, Category( "Visuals" ), Order( -200 ), Range( 0f, 1f )]
+	public float AlphaCutoff { get; set; } = 0.5f;
 
 	/// <summary>
 	/// Whether or not the sprite should be lit by the scene's lighting system. Otherwise it will be unlit/fullbright.

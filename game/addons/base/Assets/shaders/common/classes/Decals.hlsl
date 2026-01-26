@@ -8,9 +8,16 @@
 #include "common/Bindless.hlsl"
 #include "encoded_normals.fxc"
 
+//
+// Rotate a vector by a quaternion
+//
+float3 RotateVector( float3 v, float4 q )
+{
+    return v + 2.0 * cross( q.xyz, cross( q.xyz, v ) + q.w * v );
+}
+
 struct Decal
 {
-	// Inverse transform
 	float3 WorldPosition;
 	float4 Quat;
 	float3 Scale;
@@ -19,6 +26,9 @@ struct Decal
 	uint ExclusionBitMask;
 	uint ColorTint;
 	int ExtraDataOffset;
+
+	float3 GetCenter() { return -WorldPosition; }
+	float GetRadius() { return length( 0.5f / Scale ); }
 };
 
 StructuredBuffer<Decal> DecalBuffer < Attribute( "DecalsBuffer" ); >;
@@ -31,11 +41,6 @@ float4 UnpackColor(uint packedColor)
     float g = ((packedColor >> 8) & 0xFF) / 255.0;
     float r = (packedColor & 0xFF) / 255.0;
     return float4(r, g, b, a);
-}
-
-float3 RotateVector( float3 v, float4 q )
-{
-    return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
 }
 
 float3 TransformPoint( Decal decal, float3 position )
@@ -272,12 +277,10 @@ class Decals
 		return false;
 	}
 
-	static void Apply( float3 worldPos, float2 screenPos, in out Material material )
+	static void Apply( float3 worldPos, in out Material material )
 	{
-		const uint2 tile = GetTileForScreenPosition( screenPos );
-		const uint numDecals = GetNumDecals( tile );
-
-		if ( numDecals == 0 )
+		ClusterRange range = Cluster::Query( ClusterItemType_Decal, worldPos );
+		if ( range.Count == 0 )
 		{
 			return;
 		}
@@ -287,9 +290,9 @@ class Decals
 		float3 ddxWorldPos = ddx( worldPos );
 		float3 ddyWorldPos = ddy( worldPos );
 
-		for ( int j = 0; j < numDecals; j++ )
+		for ( uint j = 0; j < range.Count; j++ )
 		{
-			Decal decal = DecalBuffer[TranslateDecalIndex( j, tile )];
+			Decal decal = DecalBuffer[ Cluster::LoadItem( range, j ) ];
 			Decals::Resolve( decal, worldPos, ddxWorldPos, ddyWorldPos, material );
 		}
 	}

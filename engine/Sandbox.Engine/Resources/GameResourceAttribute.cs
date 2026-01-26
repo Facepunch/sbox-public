@@ -34,6 +34,20 @@ public class AssetTypeAttribute : System.Attribute, ITypeAttribute, IUninheritab
 	/// Flags for this asset type.
 	/// </summary>
 	public AssetTypeFlags Flags { get; set; }
+
+	/// <summary>
+	/// Find a resource type by its extension. The extension should have no period.
+	/// </summary>
+	public static TypeDescription FindTypeByExtension( string extension )
+	{
+		foreach ( var t in Game.TypeLibrary.GetTypesWithAttribute<AssetTypeAttribute>() )
+		{
+			if ( string.Equals( t.Attribute.Extension, extension, StringComparison.OrdinalIgnoreCase ) )
+				return t.Type;
+		}
+
+		return null;
+	}
 }
 
 /// <summary>
@@ -48,6 +62,11 @@ public enum AssetTypeFlags
 	/// it can only really exist as an asset file on disk, not inside another asset.
 	/// </summary>
 	NoEmbedding = 1 << 0,
+
+	/// <summary>
+	/// Include thumbnails when publishing as part of another package
+	/// </summary>
+	IncludeThumbnails = 1 << 1,
 }
 
 [Obsolete( "Use AssetType instead" )]

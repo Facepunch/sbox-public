@@ -3,7 +3,8 @@
 public abstract partial class Component
 {
 	/// <summary>
-	/// When implemented on a <see cref="Component"/> it can read and write data to and from a network snapshot.
+	/// When implemented on a <see cref="Component"/> or <see cref="GameObjectSystem"/> it can read and write
+	/// data to and from a network snapshot.
 	/// </summary>
 	public interface INetworkSnapshot
 	{

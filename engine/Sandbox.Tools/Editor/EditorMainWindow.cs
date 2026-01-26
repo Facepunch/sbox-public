@@ -1,5 +1,4 @@
 ﻿using NativeEngine;
-using System.Diagnostics;
 
 namespace Editor;
 
@@ -101,6 +100,7 @@ public class EditorMainWindow : DockWindow
 
 	private Option save;
 	private Option saveAs;
+	private Option saveAll;
 	private Option discard;
 	private Option undoOption;
 	private Option redoOption;
@@ -124,7 +124,7 @@ public class EditorMainWindow : DockWindow
 			FileMenu.AddSeparator();
 			save = FileMenu.AddOption( "Save", "save", EditorScene.SaveSession, "editor.save" );
 			saveAs = FileMenu.AddOption( "Save As..", "save_as", EditorScene.SaveSessionAs, "editor.save-as" );
-			FileMenu.AddOption( "Save All", null, EditorScene.SaveAllSessions, "editor.save-all" );
+			saveAll = FileMenu.AddOption( "Save All", null, EditorScene.SaveAllSessions, "editor.save-all" );
 			discard = FileMenu.AddOption( "Discard Changes", "auto_delete", EditorScene.Discard );
 			FileMenu.AddSeparator();
 			FileMenu.AddOption( "Close Project", "disabled_by_default", () => { showLauncherOnExit = true; Quit(); } );
@@ -312,7 +312,7 @@ public class EditorMainWindow : DockWindow
 		EditorScene.RestoreState();
 
 		// Register our menu bar and dock options, doesn't open anything
-		MenuAttribute.RegisterMenuBar( "Editor", MenuBar );
+		MenuBar.RegisterNamed( "Editor", MenuBar );
 		DockAttribute.RegisterWindow( "Editor", this );
 
 		// This will attempt to restore the last used layout (or default layout if first time)
@@ -407,7 +407,6 @@ public class EditorMainWindow : DockWindow
 		g_pToolFramework2.SetStallMonitorMainThreadWindow( _widget );
 
 		OnStartupLoadingFinished();
-		NativeEngine.EngineGlobal.UpdateWindowSize();
 	}
 
 	[Event( "refresh" )]
@@ -489,8 +488,9 @@ public class EditorMainWindow : DockWindow
 
 	private void OnFileMenuAboutToShow()
 	{
-		save.Enabled = SceneEditorSession.Active?.HasUnsavedChanges ?? true;
-		saveAs.Enabled = SceneEditorSession.Active?.HasUnsavedChanges ?? true;
+		save.Enabled = SceneEditorSession.Active?.HasUnsavedChanges ?? false;
+		saveAs.Enabled = SceneEditorSession.Active is not null;
+		saveAll.Enabled = SceneEditorSession.All.Any();
 		discard.Enabled = SceneEditorSession.Active?.HasUnsavedChanges ?? false;
 	}
 

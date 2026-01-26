@@ -33,7 +33,7 @@ internal class WindowsPlatform : Platform
 		using ( Process vsWhere = new Process() )
 		{
 			vsWhere.StartInfo.FileName = "src\\devtools\\bin\\win64\\vswhere";
-			vsWhere.StartInfo.Arguments = "-latest -prerelease -property installationPath";
+			vsWhere.StartInfo.Arguments = "-latest -prerelease -products * -property installationPath";
 			vsWhere.StartInfo.UseShellExecute = false;
 			vsWhere.StartInfo.RedirectStandardOutput = true;
 			vsWhere.StartInfo.CreateNoWindow = true;

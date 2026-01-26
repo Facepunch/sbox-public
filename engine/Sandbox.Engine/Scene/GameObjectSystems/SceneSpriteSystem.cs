@@ -231,6 +231,11 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 			flags |= InstanceGroupFlags.Additive;
 		}
 
+		if ( component.Opaque )
+		{
+			flags |= InstanceGroupFlags.Opaque;
+		}
+
 		RenderGroupKey renderGroupKey = new()
 		{
 			GroupFlags = flags,
@@ -281,6 +286,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		renderGroupObject.Flags.ExcludeGameLayer = (renderGroupKey.GroupFlags & InstanceGroupFlags.CastOnlyShadow) != 0;
 		renderGroupObject.Sorted = (renderGroupKey.GroupFlags & InstanceGroupFlags.Transparent) != 0;
 		renderGroupObject.Additive = (renderGroupKey.GroupFlags & InstanceGroupFlags.Additive) != 0;
+		renderGroupObject.Opaque = (renderGroupKey.GroupFlags & InstanceGroupFlags.Opaque) != 0;
 		renderGroupObject.Tags.SetFrom( new TagSet( renderGroupKey.Tags ) );
 		renderGroupKey.RenderLayer.Apply( renderGroupObject );
 
@@ -362,6 +368,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		CastShadow = 1 << 0,
 		CastOnlyShadow = 1 << 1,
 		Transparent = 1 << 2,
-		Additive = 1 << 3
+		Additive = 1 << 3,
+		Opaque = 1 << 4
 	}
 }

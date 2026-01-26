@@ -30,7 +30,7 @@ public class LocalTargetNodeType : INodeType
 	[Event( GetLocalNodeTypesEvent.EventName )]
 	public static void OnGetLocalNodeTypes( GetLocalNodeTypesEvent ev )
 	{
-		if ( ev.Graph.GetTargetType() is not { } targetType )
+		if ( ev.ActionGraph.GetTargetType() is not { } targetType )
 		{
 			return;
 		}

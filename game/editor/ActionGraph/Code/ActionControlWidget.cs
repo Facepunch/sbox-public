@@ -306,6 +306,8 @@ public sealed class ActionControlWidget : ControlWidget
 
 	private void UpdateProperty( ActionGraph graph )
 	{
+		if ( !SerializedProperty.IsValid ) return;
+
 		if ( SerializedProperty.PropertyType == typeof( ActionGraph ) )
 		{
 			SerializedProperty.SetValue( graph );
@@ -387,14 +389,7 @@ public sealed class ActionControlWidget : ControlWidget
 		var graph = PrepareGraphForEditing();
 		var view = ActionGraphView.Open( graph );
 
-		if ( _openView == view )
-		{
-			return;
-		}
-
 		_openView = view;
-
-		view.Saved += () => UpdateProperty( view.ActionGraph );
 	}
 
 	void Clear()

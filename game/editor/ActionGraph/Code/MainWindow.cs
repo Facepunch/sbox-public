@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Editor.ActionGraphs;
 
-public partial class MainWindow : DockWindow
+public partial class MainWindow : DockWindow, EditorEvent.ISceneView, IActionGraphEvents
 {
 	public event Action<object> SelectionChanged;
 	public event Action<Node.Input, int?> FocusedOnInput;
@@ -80,7 +80,9 @@ public partial class MainWindow : DockWindow
 			return null;
 		}
 
-		if ( !ActionGraphDebugger.TryGetGraph( guid, out var graph ) )
+		var graph = EditorNodeLibrary.GetGraphs( guid ).FirstOrDefault();
+
+		if ( graph is null )
 		{
 			return new StackRow( $"Unknown Action Graph ({guid})", null );
 		}
@@ -100,7 +102,23 @@ public partial class MainWindow : DockWindow
 
 		if ( graph.SourceLocation is not null )
 		{
-			row.MouseClick += () => EditorEvent.Run( "actiongraph.inspect", context );
+			row.MouseClick += () =>
+			{
+				var view = ActionGraphView.Open( graph );
+
+				switch ( context )
+				{
+					case Link l:
+						view.SelectLink( l );
+						break;
+
+					case Node n:
+						view.SelectNode( n );
+						break;
+				}
+
+				view.CenterOnSelection();
+			};
 		}
 
 		return row;
@@ -227,7 +245,8 @@ public partial class MainWindow : DockWindow
 		{
 			var debug = MenuBar.AddMenu( "Debug" );
 
-			debug.AddOption( "Log Last Compiled", "code", LogLastCompiled );
+			debug.AddOption( "Log Expression", "code", LogExpression );
+			debug.AddOption( "Log Instances", "list_alt", LogInstances );
 		}
 
 		UpdateMenuOptions( FocusedView?.UndoStack );
@@ -350,9 +369,14 @@ public partial class MainWindow : DockWindow
 		FocusedView?.CleanUp();
 	}
 
-	private void LogLastCompiled()
+	private void LogExpression()
 	{
-		FocusedView?.LogLastCompiled();
+		FocusedView?.LogExpression();
+	}
+
+	private void LogInstances()
+	{
+		FocusedView?.LogInstances();
 	}
 
 	internal void OnFocusView( ActionGraphView view )
@@ -381,7 +405,7 @@ public partial class MainWindow : DockWindow
 			.OfType<NodeUI>()
 			.MaxBy( n => n is CommentUI );
 
-		SelectionChanged?.Invoke( (object)node ?? view.Graph );
+		SelectionChanged?.Invoke( (object)node ?? view.EditorGraph );
 	}
 
 	public void SelectNode( Node node )
@@ -418,5 +442,15 @@ public partial class MainWindow : DockWindow
 	public void SelectLink( Link link )
 	{
 		SelectLinks( new[] { link } );
+	}
+
+	void EditorEvent.ISceneView.DrawGizmos( Scene scene )
+	{
+		SceneRefGizmo.Draw( scene );
+	}
+
+	void IActionGraphEvents.SceneReferenceTriggered( SceneReferenceTriggeredEvent ev )
+	{
+		SceneRefGizmo.Trigger( ev );
 	}
 }

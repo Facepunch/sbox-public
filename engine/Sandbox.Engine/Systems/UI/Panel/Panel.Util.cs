@@ -5,8 +5,8 @@ namespace Sandbox.UI;
 
 public partial class Panel
 {
-	internal float TimeNow => PanelRealTime.TimeNow;
-	internal float TimeDelta => PanelRealTime.TimeDelta;
+	internal double TimeNow => PanelRealTime.TimeNow;
+	internal double TimeDelta => PanelRealTime.TimeDelta;
 
 	/// <summary>
 	/// Can be used to store random data without sub-classing the panel.
@@ -36,8 +36,8 @@ public partial class Panel
 
 static class PanelRealTime
 {
-	public static float TimeNow;
-	public static float TimeDelta;
+	public static double TimeNow;
+	public static double TimeDelta;
 
 	public static void Update()
 	{

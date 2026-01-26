@@ -15,13 +15,28 @@
 
     <div class="loading-panel">       
 
-        <span class="loading-info">
-            <div class="status">@LoadingScreen.Title</div>
-            @if ( !string.IsNullOrWhiteSpace( LoadingScreen.Subtitle ) )
+        <div class="loading-info">
+
+            @if (string.IsNullOrWhiteSpace(LoadingScreen.Title ))
             {
-                <div class="eta">@LoadingScreen.Subtitle</div>
+                <div class="status">@LoadingScreen.Tasks.FirstOrDefault()?.Title</div>
+                @if (LoadingScreen.Tasks.Count > 1)
+                {
+                    var str = $"and {LoadingScreen.Tasks.Count-1} other tasks..";
+                    <div class="eta">@str</div>
+                }
             }
-        </span>
+            else
+            {
+
+                <div class="status">@LoadingScreen.Title</div>
+                @if ( !string.IsNullOrWhiteSpace( LoadingScreen.Subtitle ) )
+                {
+                    <div class="eta">@LoadingScreen.Subtitle</div>
+                }
+            }
+
+        </div>
 
         <div class="cancel-button" onclick=@MenuUtility.CancelLoading>Cancel</div>
     </div>
@@ -31,7 +46,7 @@
 @code
 {
 
-    protected override int BuildHash() => System.HashCode.Combine( LoadingScreen.IsVisible, LoadingScreen.Title, LoadingScreen.Subtitle, LoadingScreen.Media );
+    protected override int BuildHash() => System.HashCode.Combine(LoadingScreen.IsVisible, LoadingScreen.Title, LoadingScreen.Subtitle, LoadingScreen.Media, LoadingScreen.Tasks.Count);
 
     public override void Tick()
     {

@@ -13,12 +13,8 @@ internal static class TerrainClipmap
 			this.position = position;
 		}
 
+		[VertexLayout.Position]
 		public Vector3 position;
-
-		public static readonly VertexAttribute[] Layout =
-		{
-			new VertexAttribute( VertexAttributeType.Position, VertexAttributeFormat.Float32, 3 ),
-		};
 	}
 
 	public static Mesh GenerateMesh( int LodLevels, int LodExtentTexels, Material material )
@@ -61,7 +57,7 @@ internal static class TerrainClipmap
 		}
 
 		var mesh = new Mesh( material );
-		mesh.CreateVertexBuffer( vertices.Count, PosAndLodVertex.Layout, vertices );
+		mesh.CreateVertexBuffer( vertices.Count, vertices );
 		mesh.CreateIndexBuffer( indices.Count, indices );
 		return mesh;
 	}
@@ -212,7 +208,7 @@ internal static class TerrainClipmap
 		}
 
 		var mesh = new Mesh( material );
-		mesh.CreateVertexBuffer( vertices.Count, PosAndLodVertex.Layout, vertices );
+		mesh.CreateVertexBuffer( vertices.Count, vertices );
 		mesh.CreateIndexBuffer( indices.Count, indices );
 
 		return mesh;

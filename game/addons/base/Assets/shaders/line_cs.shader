@@ -73,16 +73,22 @@ CS
 		else
 		{
 			// If a straight line, use cross section based on the first two points
-			if( PointCount == 2 )
+			if ( PointCount == 2 )
 			{
-				float3 lineDir = normalize(prev.Position - next.Position);
-				float3 up = float3(0, 1, 0);
-				
-				// Check if line direction is nearly parallel to up vector
-				if (abs(dot(lineDir, up)) > 0.9f)
-					normal = normalize(cross(lineDir, float3(1, 0, 0)));
-				else
-					normal = normalize(cross(lineDir, up));
+				float3 lineDir = normalize( next.Position - prev.Position );
+				normal = cur.Normal;
+				normal -= lineDir * dot( normal, lineDir );
+
+				if ( length( normal ) < 1e-4 )
+				{
+					float3 up = float3( 0, 1, 0 );
+					if ( abs( dot( lineDir, up ) ) > 0.9f)
+						up = float3( 1, 0, 0 );
+
+					normal = up - lineDir * dot( up, lineDir );
+				}
+
+				normal = normalize( normal );
 			}
 			else
 				normal = normalize(cur.Normal);

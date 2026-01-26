@@ -21,9 +21,11 @@ internal static partial class InputRouter
 				return;
 		}
 
+		var modifiers = GetCurrentModifiers();
+
 		if ( mouse is not null )
 		{
-			mouse.IN_Button( down, button, false, EngineToModifier( ikeymods ) );
+			mouse.IN_Button( down, button, false, modifiers );
 		}
 
 		//
@@ -36,7 +38,7 @@ internal static partial class InputRouter
 			{
 				if ( context == mouse ) continue;
 
-				context.IN_ButtonReleased( button, EngineToModifier( ikeymods ) );
+				context.IN_ButtonReleased( button, modifiers );
 			}
 		}
 	}
@@ -234,6 +236,8 @@ internal static partial class InputRouter
 			SetButtonState( button, down );
 		}
 
+		var modifiers = GetCurrentModifiers();
+
 		if ( button == ButtonCode.KEY_ESCAPE )
 		{
 			if ( repeat )
@@ -250,7 +254,7 @@ internal static partial class InputRouter
 		{
 			if ( !down || repeat ) return;
 
-			IToolsDll.Current?.OnFunctionKey( button, EngineToModifier( ikeymods ) );
+			IToolsDll.Current?.OnFunctionKey( button, modifiers );
 
 			var bind = g_pInputService.GetBinding( button );
 			if ( string.IsNullOrEmpty( bind ) ) return;
@@ -276,7 +280,7 @@ internal static partial class InputRouter
 		var keyboard = Contexts.FirstOrDefault( x => x.KeyboardState != InputContext.InputState.Ignore );
 		if ( keyboard is not null )
 		{
-			keyboard.IN_Button( down, button, repeat, EngineToModifier( ikeymods ) );
+			keyboard.IN_Button( down, button, repeat, modifiers );
 		}
 
 		//
@@ -289,7 +293,7 @@ internal static partial class InputRouter
 			{
 				if ( context == keyboard ) continue;
 
-				context.IN_ButtonReleased( button, EngineToModifier( ikeymods ) );
+				context.IN_ButtonReleased( button, modifiers );
 			}
 		}
 	}
@@ -307,6 +311,7 @@ internal static partial class InputRouter
 	{
 		var value = new Vector2( x, y );
 		var mouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
+		var modifiers = GetCurrentModifiers();
 
 		if ( mouse is not null )
 		{
@@ -321,7 +326,7 @@ internal static partial class InputRouter
 				mouse.IN_Button( false, ButtonCode.MouseWheelUp, false, default );
 			}
 
-			mouse.IN_MouseWheel( value, EngineToModifier( ikeymods ) );
+			mouse.IN_MouseWheel( value, modifiers );
 		}
 	}
 
@@ -364,6 +369,25 @@ internal static partial class InputRouter
 		if ( (engine & 4) == 4 ) m |= KeyboardModifiers.Alt;
 		//if ( (m_nData2 & 8) == 8 ) m |= KeyboardModifiers.Windows;
 		//if ( (m_nData2 & 16) == 8 ) m |= KeyboardModifiers.Finger;
+
+		return m;
+	}
+
+	/// <summary>
+	/// Get the current modifier key state by checking the actual button state directly.
+	/// </summary>
+	static KeyboardModifiers GetCurrentModifiers()
+	{
+		KeyboardModifiers m = KeyboardModifiers.None;
+
+		if ( IsButtonDown( ButtonCode.KEY_LSHIFT ) || IsButtonDown( ButtonCode.KEY_RSHIFT ) )
+			m |= KeyboardModifiers.Shift;
+
+		if ( IsButtonDown( ButtonCode.KEY_LCONTROL ) || IsButtonDown( ButtonCode.KEY_RCONTROL ) )
+			m |= KeyboardModifiers.Ctrl;
+
+		if ( IsButtonDown( ButtonCode.KEY_LALT ) || IsButtonDown( ButtonCode.KEY_RALT ) )
+			m |= KeyboardModifiers.Alt;
 
 		return m;
 	}

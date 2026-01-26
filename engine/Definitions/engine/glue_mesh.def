@@ -3,9 +3,12 @@ include "sbox/glue_mesh.h"
 include "modellib/modelbuilder.h"
 include "meshutils/simplifyparams.h"
 include "vphysx/vphysx_collisionmesh_resource.h"
+include "meshutils/uvparamlscm.h"
 
-native struct SboxVertex_t is Sandbox.Vertex;
+native struct SboxVertex_t is Sandbox.Vertex
 native struct VertexField_t as NativeEngine.VertexField
+native enum GenerateUVsMode_t as NativeEngine.GenerateUVsMode_t
+native enum AlignEdgeUV_t as NativeEngine.AlignEdgeUV_t
 
 native class CBuilderMaterialGroup
 {
@@ -96,7 +99,7 @@ native class CPhysBodyDesc
 native static class MeshGlue as NativeEngine.MeshGlue
 {
 	IMesh CreateRenderMesh( IMaterial material, int nPrimType, string pName );
-	IModel CreateModel( CAnimationGroupBuilder anim, CPhysBodyDescArray pBodies, CBuilderMaterialGroupArray pMaterialGroups, float mass, StringToken surfaceProp, CastTo[float*] void* lodSwitchDistance, CastTo[HRenderMesh_InternalStrong**] void* meshes, int numMeshes, CastTo[int*] void* lodMasks, CastTo[MeshGroupMask_t*] void* meshGroupMasks, CastTo[SboxMeshGroupDesc_t*] void* meshGroups, int numMeshGroups, CastTo[Vector*] void* vertices, int numVertices, CastTo[uint32*] void* indices, int numIndices, CastTo[SboxSphereDesc_t*] void* spheres, int numSpheres, CastTo[SboxCapsuleDesc_t*] void* capsules, int numCapsules, CastTo[SboxBoxDesc_t*] void* boxes, int numBoxes, CastTo[SboxHullDesc_t*] void* hulls, int numHulls, CastTo[SboxMeshDesc_t*] void* meshShapes, int numMeshShapes, CastTo[SboxBoneDesc_t*] void* bones, int numBones, string boneNames, int startTraceVertex, int startTraceIndex, int numTraceVertices, int numTraceIndices, CastTo[MeshGroupMask_t] ulong _defaultMeshGroupMask );
+	IModel CreateModel( CAnimationGroupBuilder anim, CPhysBodyDescArray pBodies, CBuilderMaterialGroupArray pMaterialGroups, float mass, StringToken surfaceProp, CastTo[float*] void* lodSwitchDistance, CastTo[HRenderMesh_InternalStrong**] void* meshes, int numMeshes, CastTo[int*] void* lodMasks, CastTo[MeshGroupMask_t*] void* meshGroupMasks, CastTo[SboxMeshGroupDesc_t*] void* meshGroups, int numMeshGroups, CastTo[Vector*] void* vertices, int numVertices, CastTo[uint32*] void* indices, int numIndices, CastTo[uint8*] void* materials, CastTo[int*] void* surfaces, int numSurfaces, CastTo[SboxSphereDesc_t*] void* spheres, int numSpheres, CastTo[SboxCapsuleDesc_t*] void* capsules, int numCapsules, CastTo[SboxBoxDesc_t*] void* boxes, int numBoxes, CastTo[SboxHullDesc_t*] void* hulls, int numHulls, CastTo[SboxMeshDesc_t*] void* meshShapes, int numMeshShapes, CastTo[SboxBoneDesc_t*] void* bones, int numBones, string boneNames, int startTraceVertex, int startTraceIndex, int numTraceVertices, int numTraceIndices, CastTo[MeshGroupMask_t] ulong _defaultMeshGroupMask );
 
 	int GetModelNumVertices( IModel model );
 	void GetModelVertices( IModel model, CastTo[SboxVertex_t*] void* vertices, uint numVertices );
@@ -120,6 +123,7 @@ native static class MeshGlue as NativeEngine.MeshGlue
 	void SetMeshIndexBuffer( IMesh renderMesh, IndexBufferHandle_t hIB, void* pData, int nDataSize );
 
 	VertexBufferHandle_t CreateVertexBuffer( int nElementSizeInBytes, int nElementCount, string fieldNames, CastTo[VertexField_t*] void* pFields, int nFields, void* pData, int nDataSize );
+	VertexBufferHandle_t CreateVertexBuffer( int nElementCount, VertexLayout pLayout, void* pData );
 	IndexBufferHandle_t CreateIndexBuffer( int nElementCount, bool b32Bit, void* pData, int nDataSize );
 
 	void* LockVertexBuffer( VertexBufferHandle_t hVB, int nDataSize, int nDataOffset );
@@ -143,5 +147,16 @@ native static class MeshGlue as NativeEngine.MeshGlue
 	{
 		CTriangulatedPolygon polygon( pPolygonVerts, nullptr, nNumVerts );
 		polygon.ClipLineSegment( vA, vB, pOutSegmentPointsInside, nullptr );
+	}
+
+	inline void GenerateUVsForTriangles( int nNumVertices, CastTo[Vector*] void* VertexPositions, int nNumTriangles, CastTo[uint32*] void* pTriangleVertexIndices, CastTo[uint32*] void* pTriangleFaceIds, GenerateUVsMode_t nGenerationMode, AlignEdgeUV_t nEdgeAlignMode, int nAlignEdgeVertexIndexA, int nAlignEdgeVertexIndexB, CUtlVectorVector pOutVertexUVs )
+	{
+		CUtlVector< Vector2D > uvs;
+		GenerateUVsForTriangles( nNumVertices, VertexPositions, nNumTriangles, pTriangleVertexIndices, pTriangleFaceIds, nGenerationMode, nEdgeAlignMode, nAlignEdgeVertexIndexA, nAlignEdgeVertexIndexB, &uvs );
+
+		for ( int i = 0; i < uvs.Count(); ++i )
+		{
+			pOutVertexUVs->AddToTail( Vector( uvs[i].x, uvs[i].y, 0 ) );
+		}
 	}
 }

@@ -40,7 +40,7 @@ namespace Sandbox
 			/// </summary>
 			internal static Material DropShadow { get; set; }
 
-			internal static void Init()
+			internal static void InitStatic()
 			{
 				Basic = FromShader( "shaders/ui_basic.shader" );
 				Box = FromShader( "shaders/ui_cssbox.shader" );
@@ -50,6 +50,26 @@ namespace Sandbox
 				Filter = FromShader( "shaders/ui_filter.shader" );
 				DropShadow = FromShader( "shaders/ui_dropshadow.shader" );
 				BorderWrap = FromShader( "shaders/ui_borderwrap.shader" );
+			}
+
+			internal static void DisposeStatic()
+			{
+				Basic?.Dispose();
+				Basic = null;
+				Box?.Dispose();
+				Box = null;
+				BoxShadow?.Dispose();
+				BoxShadow = null;
+				Text?.Dispose();
+				Text = null;
+				BackdropFilter?.Dispose();
+				BackdropFilter = null;
+				Filter?.Dispose();
+				Filter = null;
+				DropShadow?.Dispose();
+				DropShadow = null;
+				BorderWrap?.Dispose();
+				BorderWrap = null;
 			}
 		}
 	}

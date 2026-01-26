@@ -1,6 +1,9 @@
 ﻿using System.Collections.Immutable;
 using System.Linq;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Sandbox.MovieMaker;
+using Sandbox.MovieMaker.Compiled;
 
 namespace Editor.MovieMaker;
 
@@ -9,20 +12,79 @@ namespace Editor.MovieMaker;
 partial record PropertySignal<T>
 {
 	public static implicit operator PropertySignal<T>( T value ) => new ConstantSignal<T>( value );
+	public static implicit operator PropertySignal<T>( CompiledConstantBlock<T> block ) => new ConstantSignal<T>( block.Serialized );
+}
+
+partial record PropertyBlock<T>
+{
+	public static implicit operator PropertyBlock<T>( CompiledConstantBlock<T> block ) =>
+		new ( new ConstantSignal<T>( block.Serialized ), block.TimeRange );
 }
 
 [JsonDiscriminator( "Constant" )]
-file sealed record ConstantSignal<T>( T Value ) : PropertySignal<T>
+[method: JsonConstructor]
+file sealed record ConstantSignal<T>( JsonNode? Serialized ) : PropertySignal<T>
 {
-	public override T GetValue( MovieTime time ) => Value;
+	private JsonNode? _serialized = Serialized;
 
-	public override bool IsIdentity =>
-		Transformer.GetDefault<T>() is { } transformer
-		&& EqualityComparer<T>.Default.Equals( Value, transformer.Identity );
+	private T? _value;
+	private bool _deserialized;
+	private bool _isIdentity;
+
+	[JsonPropertyName( "Value" )]
+	public JsonNode? Serialized
+	{
+		get => _serialized;
+		init
+		{
+			_serialized = value;
+			_value = default;
+			_isIdentity = false;
+			_deserialized = false;
+		}
+	}
+
+	public ConstantSignal( T value )
+		: this( Json.ToNode( value ) )
+	{
+		_value = value;
+		_isIdentity = Transformer.GetDefault<T>() is { } transformer && EqualityComparer<T>.Default.Equals( _value, transformer.Identity );
+		_deserialized = true;
+	}
+
+	private void EnsureDeserialized()
+	{
+		// Defer deserializing because some types (Sandbox.Model)
+		// can't be deserialized off the main thread
+
+		if ( _deserialized ) return;
+
+		_value = Json.FromNode<T>( Serialized );
+		_isIdentity = Transformer.GetDefault<T>() is { } transformer && EqualityComparer<T>.Default.Equals( _value, transformer.Identity );
+		_deserialized = true;
+	}
+
+	public override T GetValue( MovieTime time )
+	{
+		EnsureDeserialized();
+		return _value!;
+	}
+
+	[JsonIgnore]
+	public override bool IsIdentity
+	{
+		get
+		{
+			EnsureDeserialized();
+			return _isIdentity;
+		}
+	}
 
 	protected override PropertySignal<T> OnTransform( MovieTransform value ) => this;
 	protected override PropertySignal<T> OnReduce( MovieTime? start, MovieTime? end ) => this;
-	public override bool CanSmooth( MovieTimeRange range ) => false;
+
+	public override IEnumerable<ICompiledPropertyBlock<T>> Compile( MovieTimeRange timeRange, int sampleRate ) =>
+		[new CompiledConstantBlock<T>( timeRange, Serialized )];
 
 	public override IEnumerable<MovieTimeRange> GetPaintHints( MovieTimeRange timeRange ) => [timeRange.Start, timeRange.End - MovieTime.Epsilon];
 }

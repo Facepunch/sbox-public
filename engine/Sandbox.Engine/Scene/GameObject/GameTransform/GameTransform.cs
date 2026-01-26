@@ -1,5 +1,6 @@
 ﻿using Sandbox.Utility;
 using System.Runtime.CompilerServices;
+using Sandbox.Interpolation;
 
 namespace Sandbox;
 
@@ -99,7 +100,7 @@ public partial class GameTransform
 				return;
 			}
 
-			if ( !(GameObject?.HasAuthority() ?? true) )
+			if ( !(GameObject?.CanUpdateTransform( Local, ref value ) ?? false) )
 				return;
 
 			if ( Proxy is not null )
@@ -108,11 +109,7 @@ public partial class GameTransform
 				return;
 			}
 
-			var isFixedUpdate = GameObject?.Scene?.IsFixedUpdate ?? false;
-			var isEnabled = GameObject?.Enabled ?? false;
-			var isInterpolationDisabled = GameObject?.Flags.Contains( GameObjectFlags.NoInterpolation ) ?? false;
-
-			SetLocalTransform( value, FixedUpdateInterpolation && isFixedUpdate && isEnabled && !isInterpolationDisabled );
+			SetLocalTransform( value, ShouldInterpolate() );
 		}
 	}
 
@@ -202,7 +199,7 @@ public partial class GameTransform
 
 		set
 		{
-			if ( !(GameObject?.HasAuthority() ?? true) )
+			if ( !(GameObject?.CanUpdateTransform( World, ref value ) ?? false) )
 				return;
 
 			SetWorldInternal( value );
@@ -230,14 +227,16 @@ public partial class GameTransform
 			return;
 		}
 
+		var interpolate = ShouldInterpolate();
+
 		if ( !IsFollowingParent() )
 		{
-			Local = value;
+			SetLocalTransform( value, interpolate );
 			return;
 		}
 
 		var localTransform = GameObject.Parent.WorldTransform.ToLocal( value );
-		SetLocalTransform( localTransform );
+		SetLocalTransform( localTransform, interpolate );
 	}
 
 	/// <summary>
@@ -342,12 +341,11 @@ public partial class GameTransform
 		World = tx;
 	}
 
-
 	internal void FromNetwork( Transform transform, bool clearInterpolation )
 	{
 		if ( GameObject.Network.Interpolation && !clearInterpolation )
 		{
-			_networkTransformBuffer.Add( new( transform ), Time.Now );
+			_networkTransformBuffer.Add( new TransformState( transform ), Time.Now );
 			Interpolate = true;
 		}
 		else
@@ -358,7 +356,6 @@ public partial class GameTransform
 			SetLocalTransform( transform );
 		}
 	}
-
 
 	/// <summary>
 	/// Disable the proxy temporarily

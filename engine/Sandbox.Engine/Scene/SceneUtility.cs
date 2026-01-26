@@ -227,6 +227,7 @@ public static class SceneUtility
 			{
 				var go = new GameObject( true, "envmap" );
 				var c = go.AddComponent<EnvmapProbe>();
+				c.Mode = EnvmapProbe.EnvmapProbeMode.CustomTexture;
 				c.Texture = Texture.Load( "textures/cubemaps/default2.vtex" );
 				c.Bounds = BBox.FromPositionAndSize( Vector3.Zero, 100000 );
 			}

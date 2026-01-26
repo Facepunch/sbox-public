@@ -24,6 +24,16 @@ internal class Listener : IValid, IDisposable
 	public static IReadOnlyList<Listener> Removed => _removed.AsReadOnly();
 
 	/// <summary>
+	/// Direct access to active listeners list. Use for iteration without allocation.
+	/// </summary>
+	internal static List<Listener> ActiveList => _active;
+
+	/// <summary>
+	/// Direct access to removed listeners list. Use for iteration without allocation.
+	/// </summary>
+	internal static List<Listener> RemovedList => _removed;
+
+	/// <summary>
 	/// For the mixing thread to know which listeners have been removed.
 	/// </summary>
 	public static ConcurrentQueue<Listener> RemoveQueue => _removeQueue;

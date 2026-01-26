@@ -141,21 +141,21 @@ public static partial class Game
 			return;
 		}
 
+		// Might want to queue this up. do it the next frame?
+		// Be aware that this could be called from the GameDll or the MenuDll
+		// So anything here needs to be safe to call from either
+
+		if ( IGameInstance.Current is not null )
+		{
+			IGameInstance.Current.Close();
+			LaunchArguments.Reset();
+		}
+
 		// Standalone mode and Dedicated Server only: exit whole app
 		if ( Application.IsStandalone || Application.IsDedicatedServer )
 		{
 			Application.Exit();
 		}
-
-		// Might want to queue this up. do it the next frame?
-		// Be aware that this could be called from the GameDll or the MenuDll
-		// So anything here needs to be safe to call from either
-
-		if ( IGameInstance.Current is null )
-			return;
-
-		IGameInstance.Current.Close();
-		LaunchArguments.Reset();
 	}
 
 	/// <summary>
@@ -212,10 +212,19 @@ public static partial class Game
 	/// <summary>
 	/// Capture a screenshot. Saves it in Steam.
 	/// </summary>
-	[ConCmd( "screenshot" )]
+	[ConCmd( "screenshot", Help = "Take a screenshot and save it to your Steam screenshots" )]
 	public static void TakeScreenshot()
 	{
 		ScreenshotService.RequestCapture();
+	}
+
+	/// <summary>
+	/// Capture a high resolution screenshot using the active scene camera.
+	/// </summary>
+	[ConCmd( "screenshot_highres", Help = "Take a high resolution screenshot you specify the width and height" )]
+	public static void TakeHighResScreenshot( int width, int height )
+	{
+		ScreenshotService.TakeHighResScreenshot( Application.GetActiveScene(), width, height );
 	}
 
 	/// <summary>

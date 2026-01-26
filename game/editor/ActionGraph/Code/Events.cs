@@ -11,7 +11,7 @@ namespace Editor.ActionGraphs;
 
 public record ActionGraphEditorEvent( ActionGraphView View )
 {
-	public EditorActionGraph EditorGraph => View.Graph;
+	public EditorActionGraph EditorGraph => View.EditorGraph;
 	public ActionGraph ActionGraph => EditorGraph.Graph;
 }
 
@@ -105,8 +105,10 @@ public record GetGlobalNodeTypesEvent( ConcurrentBag<INodeType> Output )
 /// These will get filtered automatically when dragging from a plug, or
 /// if a filter string is typed in.
 /// </summary>
-public record GetLocalNodeTypesEvent( ActionGraph Graph, IEnumerable<INodeType> GlobalNodeTypes, ConcurrentBag<INodeType> Output )
+public record GetLocalNodeTypesEvent( EditorActionGraph EditorGraph, IEnumerable<INodeType> GlobalNodeTypes, ConcurrentBag<INodeType> Output )
 {
+	public ActionGraph ActionGraph => EditorGraph.Graph;
+
 	public const string EventName = "actiongraph.localnodes";
 }
 
@@ -118,7 +120,8 @@ public record QueryNodeTypesEvent( NodeQuery Query, IEnumerable<INodeType> Globa
 {
 	public const string EventName = "actiongraph.querynodes";
 
-	public ActionGraph Graph => ((EditorActionGraph)Query.Graph).Graph;
+	public EditorActionGraph EditorGraph => (EditorActionGraph)Query.Graph;
+	public ActionGraph ActionGraph => EditorGraph.Graph;
 }
 
 public record FindReflectionNodeTypesEvent( TypeDescription Type,

@@ -17,7 +17,6 @@ partial class MovieProject : IJsonPopulator
 	internal sealed record Model(
 		int SampleRate, MovieTime? Duration, VideoExportConfig? ExportConfig,
 		ImmutableDictionary<Guid, ProjectTrackModel> Tracks,
-		ImmutableDictionary<Guid, ProjectSourceClip.Model>? Sources,
 		ImmutableHashSet<MovieResource>? References );
 
 	public JsonNode Serialize() => JsonSerializer.SerializeToNode( Snapshot(), EditorJsonOptions )!;
@@ -29,7 +28,6 @@ partial class MovieProject : IJsonPopulator
 		return new Model(
 			SampleRate, Duration, ExportConfig,
 			Tracks.ToImmutableDictionary( x => x.Id, x => x.Serialize( EditorJsonOptions ) ),
-			scope.SourceClips.ToImmutableDictionary( x => x.Id, x => x.Serialize() ),
 			Tracks.OfType<ProjectSequenceTrack>().SelectMany( x => x.References ).ToImmutableHashSet() );
 	}
 
@@ -41,11 +39,6 @@ partial class MovieProject : IJsonPopulator
 
 		SampleRate = model.SampleRate;
 		ExportConfig = model.ExportConfig;
-
-		foreach ( var (id, sourceModel) in model.Sources ?? ImmutableDictionary<Guid, ProjectSourceClip.Model>.Empty )
-		{
-			scope.RegisterSourceClip( new ProjectSourceClip( id, sourceModel.Clip, sourceModel.Metadata ) );
-		}
 
 		_rootTrackList.Clear();
 		_trackDict.Clear();
@@ -109,8 +102,114 @@ partial class MovieProject : IJsonPopulator
 		}
 	}
 
-	public void Deserialize( JsonNode node ) =>
+	public void Deserialize( JsonNode node )
+	{
+		UpgradeLegacySources( node );
+
 		Restore( node.Deserialize<Model>( EditorJsonOptions )! );
+	}
+
+	private record LegacySourceClipModel( MovieClip Clip, JsonObject? Metadata );
+
+	private record LegacySourceRefModel( Guid Source, int TrackIndex, int BlockIndex,
+		[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )] MovieTransform Transform = default,
+		[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )] MovieTime SmoothingSize = default );
+
+	/// <summary>
+	/// We used to store recorded clips in a separate section, but now the
+	/// recordings are just stored as normal track data.
+	/// </summary>
+	private static void UpgradeLegacySources( JsonNode node )
+	{
+		var options = EditorJsonOptions;
+
+		var sourceModels = node["Sources"]?.Deserialize<ImmutableDictionary<Guid, LegacySourceClipModel>>( options );
+
+		if ( sourceModels is not { Count: > 0 } ) return;
+
+		if ( node[nameof( Model.Tracks )] is not JsonObject { Count: > 0 } tracksNode ) return;
+
+		foreach ( var (_, trackNode) in tracksNode )
+		{
+			if ( trackNode?[nameof( ProjectPropertyTrackModel.Blocks )] is not JsonArray { Count: > 0 } blockNodes ) continue;
+
+			foreach ( var blockNode in blockNodes )
+			{
+				if ( blockNode?[nameof( PropertyBlock<>.Signal )] is JsonObject signalNode )
+				{
+					blockNode[nameof( PropertyBlock<>.Signal )] = UpgradeLegacySources( signalNode, sourceModels, options );
+				}
+			}
+		}
+	}
+
+	private static IEnumerable<string> NestedSignalPropertyNames { get; } = ["Signal", "First", "Second"];
+
+	private static JsonObject UpgradeLegacySources( JsonObject signalNode, IReadOnlyDictionary<Guid, LegacySourceClipModel> sourceModels, JsonSerializerOptions options )
+	{
+		if ( signalNode["$type"]?.GetValue<string>() == "Source" )
+		{
+			try
+			{
+				var sourceRefModel = signalNode.Deserialize<LegacySourceRefModel>( options )!;
+				var sourceClipModel = sourceModels[sourceRefModel.Source];
+				var sourceTrack = (ICompiledPropertyTrack)sourceClipModel.Clip.Tracks[sourceRefModel.TrackIndex];
+				var sourceBlock = sourceTrack.Blocks[sourceRefModel.BlockIndex];
+
+				switch ( sourceBlock )
+				{
+					case ICompiledConstantBlock constBlock:
+						return new JsonObject
+						{
+							{ "$id", signalNode["$id"]?.GetValue<int>() },
+							{ "$type", "Constant" },
+							{ "Value", constBlock.Serialized }
+						};
+
+					case ICompiledSampleBlock:
+						{
+							var sourceNode = (JsonObject)JsonSerializer.SerializeToNode( sourceBlock, sourceBlock.GetType(), options )!;
+
+							sourceNode.Insert( 1, "$type", "Samples" );
+
+							// Smoothing is now a separate operator
+
+							if ( sourceRefModel.SmoothingSize.IsPositive )
+							{
+								return new JsonObject
+								{
+									{ "$id", signalNode["$id"]?.GetValue<int>() },
+									{ "$type", "Smooth" },
+									{ "Signal", sourceNode },
+									{ "Size", JsonSerializer.SerializeToNode( sourceRefModel.SmoothingSize, options ) }
+								};
+							}
+
+							sourceNode.Insert( 0, "$id", signalNode["$id"]?.GetValue<int>() );
+
+							return sourceNode;
+						}
+
+					default:
+						throw new NotImplementedException();
+				}
+			}
+			catch ( Exception ex )
+			{
+				Log.Error( ex, "Unable to upgrade legacy source block." );
+				return signalNode;
+			}
+		}
+
+		foreach ( var propertyName in NestedSignalPropertyNames )
+		{
+			if ( signalNode[propertyName] is not JsonObject nestedSignalNode ) continue;
+
+			signalNode[propertyName] = UpgradeLegacySources( nestedSignalNode, sourceModels, options );
+		}
+
+		return signalNode;
+	}
 }
 
 file sealed class MovieProjectConverter : JsonConverter<MovieProject>
@@ -144,11 +243,7 @@ file sealed class MovieSerializationContext : IDisposable
 	private readonly Dictionary<IPropertySignal, int> _signalsToId = new();
 	private readonly Dictionary<int, IPropertySignal> _signalsFromId = new();
 
-	private readonly Dictionary<Guid, ProjectSourceClip> _sources = new();
-
 	private readonly MovieSerializationContext? _parent;
-
-	public IEnumerable<ProjectSourceClip> SourceClips => _sources.Values.OrderBy( x => x.Id );
 
 	private MovieSerializationContext( MovieSerializationContext? parent )
 	{
@@ -175,18 +270,12 @@ file sealed class MovieSerializationContext : IDisposable
 
 	public void RegisterSignal( int id, IPropertySignal signal ) => _signalsFromId[id] = signal;
 	public IPropertySignal GetSignal( int id ) => _signalsFromId[id];
-	public ProjectSourceClip GetSourceClip( Guid id ) => _sources[id];
 
 	public void Dispose()
 	{
 		if ( Current != this ) throw new InvalidOperationException();
 
 		Current = _parent;
-	}
-
-	public void RegisterSourceClip( ProjectSourceClip value )
-	{
-		_sources[value.Id] = value;
 	}
 }
 
@@ -371,30 +460,5 @@ file class PropertySignalConverter<T> : JsonConverter<PropertySignal<T>>
 		MovieSerializationContext.Current!.RegisterSignal( id, signal );
 
 		return signal;
-	}
-}
-
-[JsonConverter( typeof(ProjectSourceClipConverter) )]
-partial record ProjectSourceClip
-{
-	public record Model( MovieClip Clip, [property: JsonPropertyOrder( -1 )] JsonObject? Metadata );
-
-	public Model Serialize() => new ( Clip, Metadata );
-}
-
-file class ProjectSourceClipConverter : JsonConverter<ProjectSourceClip>
-{
-	public override void Write( Utf8JsonWriter writer, ProjectSourceClip value, JsonSerializerOptions options )
-	{
-		MovieSerializationContext.Current?.RegisterSourceClip( value );
-
-		writer.WriteStringValue( value.Id );
-	}
-
-	public override ProjectSourceClip? Read( ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options )
-	{
-		var id = JsonSerializer.Deserialize<Guid>( ref reader, options );
-
-		return MovieSerializationContext.Current!.GetSourceClip( id );
 	}
 }

@@ -18,6 +18,7 @@ public static partial class Http
 
 	private static readonly HttpClient Client;
 
+	[System.Diagnostics.CodeAnalysis.SuppressMessage( "Reliability", "CA2000:Dispose objects before losing scope", Justification = "HttpClient will dispose handlers." )]
 	static Http()
 	{
 		var socketHttpHandler = new SocketsHttpHandler

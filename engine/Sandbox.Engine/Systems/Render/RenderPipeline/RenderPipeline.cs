@@ -12,7 +12,7 @@ internal partial class RenderPipeline
 	DepthNormalPrepassLayer DepthNormalSmallPrepass { get; } = new( false );
 	LightbinnerLayer LightbinnerLayer { get; } = new();
 	DepthDownsampleLayer DepthDownsampleLayer { get; } = new();
-	TiledCullingLayer TiledCullingLayer { get; } = new();
+	ClusteredCullingLayer ClusteredCullingLayer { get; } = new();
 	BloomLayer BloomLayer { get; } = new();
 	BloomDownsampleLayer BloomDownsampleLayer { get; } = new();
 	RefractionStencilLayer RefractionStencilLayer { get; } = new();
@@ -31,6 +31,9 @@ internal partial class RenderPipeline
 		{
 			LightbinnerLayer.Setup( pipelineAttributes );
 			LightbinnerLayer.AddToView( view, viewport );
+
+			ClusteredCullingLayer.Setup( view, viewport );
+			ClusteredCullingLayer.AddToView( view, viewport );
 		}
 
 
@@ -60,12 +63,10 @@ internal partial class RenderPipeline
 			view.GetRenderAttributesPtr().SetIntValue( "NormalsTextureIndex", gbufferColor.ColorTarget.Index );
 		}
 
-		// Compute Async: Depth downscale, tiled culling
+		// Compute Async: Depth downscale, clustered culling
 		{
 			DepthDownsampleLayer.Setup( viewport, rtDepth, msaaInput: msaa != MultisampleAmount.MultisampleNone, view );
 			DepthDownsampleLayer.AddToView( view, viewport );
-
-			TiledCullingLayer.AddToView( view, viewport );
 		}
 
 		// Bloom layer, Effects that only show up on bloom like a ghost effect

@@ -23,7 +23,6 @@ public sealed class LipSync : Component
 	public float MorphSmoothTime { get; set; } = 0.1f;
 
 	private SoundHandle _soundHandle;
-	private float[] _morphVelocity;
 
 	static readonly string[] VisemeNames = new string[]
 	{
@@ -112,9 +111,6 @@ public sealed class LipSync : Component
 		if ( !sceneModel.IsValid() )
 			return;
 
-		if ( _morphVelocity is null || morphCount != _morphVelocity.Length )
-			_morphVelocity = new float[morphCount];
-
 		for ( var morphIndex = 0; morphIndex < morphCount; morphIndex++ )
 		{
 			var morph = 0.0f;
@@ -126,7 +122,7 @@ public sealed class LipSync : Component
 
 			var current = sceneModel.Morphs.Get( morphIndex );
 			var target = (morph * MorphScale).Clamp( 0, 1 );
-			current = MathX.SmoothDamp( current, target, ref _morphVelocity[morphIndex], MorphSmoothTime, Time.Delta );
+			current = MathX.ExponentialDecay( current, target, MorphSmoothTime * 0.17f, Time.Delta );
 			current = Math.Max( 0, current );
 			sceneModel.Morphs.Set( morphIndex, current );
 		}

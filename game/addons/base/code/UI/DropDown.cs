@@ -23,10 +23,26 @@ namespace Sandbox.UI
 		/// </summary>
 		[Parameter] public System.Func<List<Option>> BuildOptions { get; set; }
 
+		private List<Option> _options = new();
+
 		/// <summary>
 		/// The options to show on click. You can edit these directly via this property.
 		/// </summary>
-		[Parameter] public List<Option> Options { get; set; } = new();
+		[Parameter]
+		public List<Option> Options
+		{
+			get => _options;
+			set
+			{
+				_options = value ?? new();
+
+				// Re-select current value to update display text with new options
+				if ( _value != null && _options.Count > 0 )
+				{
+					Select( _value?.ToString(), false );
+				}
+			}
+		}
 
 		Option selected;
 
@@ -42,11 +58,7 @@ namespace Sandbox.UI
 			get => _value;
 			set
 			{
-				if ( _valueHash == HashCode.Combine( value ) )
-					return;
-
-				if ( $"{_value}" == $"{value}" )
-					return;
+				if ( _valueHash == HashCode.Combine( value ) ) return;
 
 				_valueHash = HashCode.Combine( value );
 				_value = value;
@@ -79,11 +91,13 @@ namespace Sandbox.UI
 
 				if ( selected != null )
 				{
-					Value = $"{selected.Value}";
+					var v = $"{selected.Value}";
+
+					Value = v;
 					Icon = selected.Icon;
 					Text = selected.Title;
 
-					ValueChanged?.Invoke( Value.ToString() );
+					ValueChanged?.Invoke( v );
 					CreateEvent( "onchange" );
 					CreateValueEvent( "value", selected?.Value );
 				}
@@ -185,7 +199,15 @@ namespace Sandbox.UI
 		/// </summary>
 		protected virtual void Select( string value, bool triggerChange = true )
 		{
-			Select( Options.FirstOrDefault( x => string.Equals( x.Value.ToString(), value, StringComparison.OrdinalIgnoreCase ) ), triggerChange );
+			Select( Options.FirstOrDefault( x => IsOptionMatch( x, value ) ), triggerChange );
+		}
+
+		private bool IsOptionMatch( Option option, string value )
+		{
+			if ( option.Value == null || (option.Value is string stringValue && string.IsNullOrEmpty( value )) )
+				return string.IsNullOrEmpty( value );
+
+			return string.Equals( option.Value?.ToString(), value, StringComparison.OrdinalIgnoreCase );
 		}
 
 		protected override void OnParametersSet()

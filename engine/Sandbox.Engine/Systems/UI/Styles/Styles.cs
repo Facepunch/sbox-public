@@ -121,6 +121,7 @@ public partial class Styles : BaseStyles
 		{
 			p = p.SkipWhitespaceAndNewlines();
 			var property = p.ReadUntilOrEnd( " :;" );
+			property = StyleParser.GetPropertyFromAlias( property );
 
 			p = p.SkipWhitespaceAndNewlines();
 

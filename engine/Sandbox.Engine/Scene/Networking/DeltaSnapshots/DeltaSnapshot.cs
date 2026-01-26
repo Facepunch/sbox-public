@@ -136,8 +136,10 @@ internal class DeltaSnapshot : IObjectPoolEvent
 	/// <summary>
 	/// Copy the data from a <see cref="LocalSnapshotState"/>.
 	/// </summary>
-	public void CopyFrom( LocalSnapshotState state, int connectionCount )
+	public void CopyFrom( IDeltaSnapshot snapshotter, LocalSnapshotState state, int connectionCount )
 	{
+		LocalState = state;
+		Source = snapshotter;
 		SnapshotId = state.SnapshotId;
 		ObjectId = state.ObjectId;
 		Version = state.Version;
@@ -167,13 +169,15 @@ internal class DeltaSnapshot : IObjectPoolEvent
 	}
 
 	/// <summary>
-	/// Build a <see cref="DeltaSnapshot"/> from the specified dictionary of type and value.
+	/// Build a <see cref="DeltaSnapshot"/> from the specified dictionary of type and value. This will
+	/// return a pooled <see cref="DeltaSnapshot"/> so you'll want to call <see cref="DeltaSnapshot.Release"/>
+	/// when you're done with it.
 	/// </summary>
 	public static DeltaSnapshot From( Dictionary<int, byte[]> data )
 	{
-		var snapshot = new DeltaSnapshot();
+		var snapshot = Pool.Rent();
 
-		foreach ( var (slot, value) in data )
+		foreach ( (int slot, byte[] value) in data )
 		{
 			snapshot.AddSerialized( slot, value );
 		}

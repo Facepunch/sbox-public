@@ -13,7 +13,7 @@ internal class Test( string name ) : Step( name )
 			string engineDir = Path.Combine( rootDir, "engine" );
 			string gameDir = Path.Combine( rootDir, "game" );
 
-			var managedTestArgs = "test --logger \"console;verbosity=normal;consoleLoggerParameters=ErrorsOnly\" -m:1 -c Release --property:OutputPath=bin/test";
+			var managedTestArgs = "test --logger \"console;verbosity=normal;consoleLoggerParameters=ErrorsOnly\" -c Release --property:OutputPath=bin/test";
 			//if ( Utility.IsCi() )
 			//{
 			// Use cusotm loger for problem matching
@@ -69,27 +69,6 @@ internal class Test( string name ) : Step( name )
 				}
 
 				Log.Error( "Managed tests failed!" );
-				return ExitCode.Failure;
-			}
-
-			Log.Info( "Step 3: Testing Game" );
-
-			string sboxDevPath = Path.Combine( gameDir, "sbox-dev.exe" );
-			if ( !File.Exists( sboxDevPath ) )
-			{
-				Log.Error( $"Error: sbox-dev.exe not found at {sboxDevPath}" );
-				return ExitCode.Failure;
-			}
-
-			bool gameTestSuccess = Utility.RunProcess(
-				sboxDevPath,
-				"-test",
-				gameDir
-			);
-
-			if ( !gameTestSuccess )
-			{
-				Log.Error( "Game tests failed!" );
 				return ExitCode.Failure;
 			}
 

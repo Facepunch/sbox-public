@@ -23,21 +23,21 @@
             <cell class="glass with-padding is-label">
                 Master
             </cell>
-            <SliderControl Value:bind=@GlobalVolume class="glass with-grow" Min="@(0)" Max="@(1)" Step="@(0.01f)"></SliderControl>
+            <SliderControl Value:bind=@GlobalVolume class="glass with-grow" Min="@(0)" Max="@(1)" Step="@(0.01f)" NumberFormat="0.##%"></SliderControl>
         </row>
 
         <row class="with-gaps">
             <cell class="glass with-padding is-label">
                 Music
             </cell>
-            <SliderControl Value:bind=@MusicVolume class="glass with-grow" Min="@(0)" Max="@(1)" Step="@(0.01f)"></SliderControl>
+            <SliderControl Value:bind=@MusicVolume class="glass with-grow" Min="@(0)" Max="@(1)" Step="@(0.01f)" NumberFormat="0.##%"></SliderControl>
         </row>
 
         <row class="with-gaps">
             <cell class="glass with-padding is-label">
                 Voice
             </cell>
-            <SliderControl Value:bind=@VoiceVolume class="glass with-grow" Min="@(0)" Max="@(1)" Step="@(0.01f)"></SliderControl>
+            <SliderControl Value:bind=@VoiceVolume class="glass with-grow" Min="@(0)" Max="@(1)" Step="@(0.01f)" NumberFormat="0.##%"></SliderControl>
         </row>
 
     </div>

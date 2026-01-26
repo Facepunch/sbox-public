@@ -14,8 +14,16 @@ public abstract class SerializedObject : IEnumerable<SerializedProperty>, IValid
 	public virtual string TypeName { get => ""; }
 	public virtual string TypeTitle { get => ""; }
 
-	public virtual bool IsValid => true;
+	/// <summary>
+	/// Does the target object still exist?
+	/// </summary>
+	public virtual bool IsValid
+	{
+		// If parent isn't valid, we're not valid.
+		// If we have no parent, we're the root and always valid.
 
+		get => ParentProperty is null || ParentProperty.IsValid;
+	}
 
 	protected List<SerializedProperty> PropertyList;
 

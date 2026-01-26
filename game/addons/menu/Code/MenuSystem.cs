@@ -48,6 +48,9 @@ public partial class MenuSystem : IMenuSystem
 
 		Dev?.Delete();
 		Dev = null;
+
+		// Null so GC can have it's way
+		Instance = null;
 	}
 
 	Package oldGamePackage;

@@ -24,4 +24,27 @@ public partial class TestWrapSet
 	{
 		return null;
 	}
+	
+	[WrapSet]
+	public bool HasNoSetterToWrap
+	{
+		get => true;
+	}
+	
+	[WrapSet]
+	public bool FieldKeywordProperty
+	{
+		set
+		{
+			field = value;
+		}
+		get => field;
+	}
+	
+	[WrapSet]
+	public bool FieldKeywordPropertyAuto
+	{
+		set;
+		get => field;
+	}
 }

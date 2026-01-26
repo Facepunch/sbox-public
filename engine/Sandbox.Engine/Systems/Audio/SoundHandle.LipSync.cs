@@ -112,9 +112,6 @@ public partial class SoundHandle
 
 			fixed ( float* pVisemes = _visemes )
 			{
-				for ( int i = 0; i < _visemes.Length; i++ )
-					_visemes[i] = 0;
-
 				var frame = new OVRLipSync.Frame
 				{
 					Visemes = (IntPtr)pVisemes,

@@ -13,16 +13,16 @@ public sealed class Pixelate : BasePostProcess<Pixelate>
 	[Range( 0, 1 )]
 	[Property] public float Scale { get; set; } = 0.25f;
 
+	private static readonly Material Shader = Material.FromShader( "shaders/postprocess/pp_pixelate.shader" );
+
 	public override void Render()
 	{
-		var shader = Material.FromShader( "shaders/postprocess/pp_pixelate.shader" );
-
 		float scale = GetWeighted( x => x.Scale );
 		if ( scale.AlmostEqual( 0.0f ) ) return;
 
 		Attributes.Set( "scale", scale );
 
-		var blit = BlitMode.WithBackbuffer( shader, Stage.AfterPostProcess, 10000, true );
+		var blit = BlitMode.WithBackbuffer( Shader, Stage.AfterPostProcess, 10000, true );
 		Blit( blit, "Pixelate" );
 	}
 }

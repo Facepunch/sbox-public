@@ -54,7 +54,7 @@ public static class Directory
 	}
 
 	/// <summary>
-	/// Get information about all the current mounts
+	/// Get a specific mount by name
 	/// </summary>
 	public static BaseGameMount Get( string name )
 	{

@@ -20,10 +20,10 @@ public partial class SceneViewWidget
 		if ( !Session.IsPlaying ) return;
 		CurrentView = ViewMode.Game;
 
-		OnViewModeChanged();
-
 		_gameViewport = _viewports.FirstOrDefault().Value;
-		_gameViewport.StartPlay();
+		_gameViewport.SetGameView();
+
+		OnViewModeChanged();
 		_viewportTools.UpdateViewportFromCookie();
 	}
 
@@ -33,7 +33,7 @@ public partial class SceneViewWidget
 		if ( !_gameViewport.IsValid() ) return;
 		CurrentView = ViewMode.Scene;
 
-		_gameViewport.StopPlay();
+		_gameViewport.ClearGameView();
 		_gameViewport = null;
 
 		OnViewModeChanged();
@@ -47,11 +47,11 @@ public partial class SceneViewWidget
 
 		if ( CurrentView == ViewMode.Game )
 		{
-			_gameViewport.PossesGameCamera();
+			_gameViewport.OnPossessGame();
 		}
 		else if ( CurrentView == ViewMode.GameEjected )
 		{
-			_gameViewport.EjectGameCamera();
+			_gameViewport.OnEject();
 		}
 
 		OnViewModeChanged();
@@ -72,7 +72,7 @@ public partial class SceneViewWidget
 
 		foreach ( var viewport in _viewports.Values )
 		{
-			viewport.GizmoInstance.Selection = Session.Selection;
+			viewport.OnViewModeChanged( CurrentView );
 		}
 	}
 

@@ -9,19 +9,54 @@ namespace Editor.MovieMaker;
 
 partial class Session
 {
-	public IProjectTrack? GetTrack( GameObject go )
+	private T? GetTrackCore<T>( IValid obj, string name, GameObject? parent )
+		where T : IProjectReferenceTrack
 	{
-		return Project.Tracks
-			.OfType<ProjectReferenceTrack<GameObject>>()
-			.FirstOrDefault( x => Binder.Get( x ) is { IsBound: true } binder && binder.Value == go );
+		if ( parent is Scene )
+		{
+			parent = null;
+		}
+
+		var objType = obj.GetType();
+
+		// First look for a track that is currently bound to the given object
+
+		var bound = Project.Tracks
+			.OfType<T>()
+			.Where( x => x.TargetType == objType )
+			.FirstOrDefault( x => Binder.Get( x ) is { IsBound: true } bound && ReferenceEquals( bound.Value, obj ) );
+
+		if ( bound is not null ) return bound;
+
+		// Next, look for an unbound track with the same name
+
+		IEnumerable<T> availableTracks;
+
+		if ( parent is null )
+		{
+			availableTracks = Project.RootTracks.OfType<T>();
+			
+		}
+		else if( GetTrack( parent ) is { } parentTrack )
+		{
+			availableTracks = parentTrack.Children.OfType<T>();
+		}
+		else
+		{
+			return default;
+		}
+
+		return availableTracks
+			.Where( x => x.TargetType == objType )
+			.Where( x => x.Name == name )
+			.FirstOrDefault( x => !Binder.Get( x ).IsBound );
 	}
 
-	public IProjectTrack? GetTrack( Component cmp )
-	{
-		return Project.Tracks
-			.OfType<IProjectReferenceTrack>()
-			.FirstOrDefault( x => Binder.Get( x ) is { IsBound: true } binder && binder.Value == cmp );
-	}
+	public ProjectReferenceTrack<GameObject>? GetTrack( GameObject go ) =>
+		GetTrackCore<ProjectReferenceTrack<GameObject>>( go, go.Name, go.Parent );
+
+	public IProjectReferenceTrack? GetTrack( Component cmp ) =>
+		GetTrackCore<IProjectReferenceTrack>( cmp, cmp.GetType().Name, cmp.GameObject );
 
 	public IProjectTrack? GetTrack( GameObject go, string propertyPath )
 	{
@@ -64,9 +99,16 @@ partial class Session
 			.FirstOrDefault( x => x.Blocks.Any( y => y.Resource == resource ) );
 	}
 
-	public IProjectTrack GetOrCreateTrack( GameObject go )
+	public ProjectReferenceTrack<GameObject> GetOrCreateTrack( GameObject go )
 	{
-		if ( GetTrack( go ) is { } existing ) return existing;
+		if ( GetTrack( go ) is ProjectReferenceTrack<GameObject> existing )
+		{
+			// We might be re-using an existing unbound track, so should bind it here
+
+			Binder.Get( existing ).Bind( go );
+
+			return existing;
+		}
 
 		IProjectTrack? parentTrack = null;
 
@@ -87,7 +129,7 @@ partial class Session
 			}
 		}
 
-		var track = Project.AddReferenceTrack( go.Name, typeof(GameObject), parentTrack );
+		var track = (ProjectReferenceTrack<GameObject>)Project.AddReferenceTrack( go.Name, typeof(GameObject), parentTrack );
 
 		track.ReferenceId = go.Id;
 
@@ -106,9 +148,16 @@ partial class Session
 		return track;
 	}
 
-	public IProjectTrack GetOrCreateTrack( Component cmp )
+	public IProjectReferenceTrack GetOrCreateTrack( Component cmp )
 	{
-		if ( GetTrack( cmp ) is { } existing ) return existing;
+		if ( GetTrack( cmp ) is IProjectReferenceTrack existing )
+		{
+			// We might be re-using an existing unbound track, so should bind it here
+
+			Binder.Get( existing ).Bind( cmp );
+
+			return existing;
+		}
 
 		// Nest component tracks inside the containing game object's track
 		var goTrack = GetOrCreateTrack( cmp.GameObject );

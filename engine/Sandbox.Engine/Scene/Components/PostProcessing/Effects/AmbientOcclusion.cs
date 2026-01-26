@@ -145,6 +145,8 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 
 	CommandList commands = new CommandList( "Ambient Occlusion" );
 
+	private static readonly ComputeShader GtaoCs = new ComputeShader( "gtao_cs" );
+
 	public override void Render()
 	{
 		commands.Reset();
@@ -159,8 +161,6 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 
 		var AOTextureCurrent = pingPong ? AOTexture0 : AOTexture1;
 		var AOTexturePrev = pingPong ? AOTexture1 : AOTexture0;
-
-		var csAO = new ComputeShader( "gtao_cs" );
 
 		commands.Attributes.SetData( "GTAOConstants", GetGTAOConstants() );
 
@@ -182,19 +182,19 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 		// View depth chain
 		{
 			commands.Attributes.SetCombo( "D_PASS", GTAOPasses.ViewDepthChain );
-			commands.DispatchCompute( csAO, AOTextureCurrent.Size );
+			commands.DispatchCompute( GtaoCs, AOTextureCurrent.Size );
 		}
 
 		// Main pass
 		{
 			commands.Attributes.SetCombo( "D_PASS", GTAOPasses.MainPass );
-			commands.DispatchCompute( csAO, AOTextureCurrent.Size );
+			commands.DispatchCompute( GtaoCs, AOTextureCurrent.Size );
 		}
 
 		// Denoise
 		{
 			commands.Attributes.SetCombo( "D_PASS", DenoiseMode == DenoiseModes.Temporal ? GTAOPasses.DenoiseTemporal : GTAOPasses.DenoiseSpatial );
-			commands.DispatchCompute( csAO, AOTextureCurrent.Size );
+			commands.DispatchCompute( GtaoCs, AOTextureCurrent.Size );
 		}
 		commands.ResourceBarrierTransition( AOTextureCurrent, ResourceState.PixelShaderResource );
 

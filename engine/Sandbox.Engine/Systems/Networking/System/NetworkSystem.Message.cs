@@ -52,9 +52,7 @@ internal partial class NetworkSystem
 		}
 		catch ( Exception e )
 		{
-			IGameInstanceDll.Current?.Disconnect();
-			Log.Warning( e );
-			Log.Warning( "Disconnected - Connection has crashed!" );
+			Log.Error( e );
 		}
 	}
 
@@ -240,9 +238,7 @@ internal partial class NetworkSystem
 				}
 				catch ( Exception e )
 				{
-					IGameInstanceDll.Current?.Disconnect();
 					Log.Warning( e );
-					Log.Warning( "Disconnected - Connection has crashed!" );
 				}
 
 				return;
@@ -267,18 +263,12 @@ internal partial class NetworkSystem
 			catch ( Exception e )
 			{
 				Log.Warning( e );
-				OnConnectionCrashed( e.Message );
 			}
 
 			return;
 		}
 
 		Log.Info( $"Unhandled message type: {type} from {msg.Source}" );
-	}
-
-	void OnConnectionCrashed( string message )
-	{
-		Log.Warning( $"TODO: Disconnect on error ({message})" );
 	}
 
 	private void OnDeltaSnapshotMessage( InternalMessageType type, ByteStream data, Connection source )
@@ -291,9 +281,11 @@ internal partial class NetworkSystem
 		GameSystem?.OnCullStateChangeMessage( data, source );
 	}
 
-	private void OnReceiveClientTick( ByteStream data, Connection source )
+	internal void OnReceiveClientTick( ByteStream data, Connection source )
 	{
-		// visibility
+		NetworkDebugSystem.Current?.Record( NetworkDebugSystem.MessageType.UserCommands, data.Length );
+
+		// Read and apply visibility origins from the client
 		{
 			var count = data.Read<char>();
 
@@ -316,6 +308,21 @@ internal partial class NetworkSystem
 					source.VisibilityOrigins[i] = new Vector3( x, y, z );
 				}
 			}
+		}
+
+		// Read and apply the user command from this client
+		{
+			if ( data.ReadRemaining == 0 )
+				return;
+
+			// We should reject user commands from clients if we're not the host
+			if ( !Networking.IsHost )
+				return;
+
+			// This is a user command directly from another client
+			UserCommand cmd = default;
+			cmd.Deserialize( ref data );
+			source.Input.ApplyUserCommand( cmd );
 		}
 	}
 
@@ -349,7 +356,7 @@ internal partial class NetworkSystem
 
 		if ( rtt < 0 )
 		{
-			OnConnectionCrashed( "Rtt error" );
+			Log.Warning( "Round-trip time error! Round-trip time was less than zero." );
 			return;
 		}
 

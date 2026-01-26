@@ -28,7 +28,8 @@ public static partial class SceneExtensions
 	/// <param name="component"></param>
 	public static void CopyToClipboard( this Component component )
 	{
-		using var scope = SceneEditorSession.Scope();
+		var session = SceneEditorSession.Resolve( component );
+		using var scene = session.Scene.Push();
 
 		var result = component.Serialize();
 		if ( result is null ) return;
@@ -43,14 +44,15 @@ public static partial class SceneExtensions
 	public static void PasteValues( this Component target )
 	{
 		var text = EditorUtility.Clipboard.Paste();
-		using var scope = SceneEditorSession.Scope();
 
 		try
 		{
 			if ( JsonNode.Parse( text ) is not JsonObject pastedJso )
 				return;
 
-			using ( SceneEditorSession.Active.UndoScope( "Paste Component Values" ).WithComponentChanges( target ).Push() )
+			var session = SceneEditorSession.Resolve( target );
+			using var scene = session.Scene.Push();
+			using ( session.UndoScope( "Paste Component Values" ).WithComponentChanges( target ).Push() )
 			{
 				pastedJso.AsObject().Remove( "__guid" );
 				target.DeserializeImmediately( pastedJso );
@@ -80,7 +82,8 @@ public static partial class SceneExtensions
 	{
 		var text = EditorUtility.Clipboard.Paste();
 
-		using var scope = SceneEditorSession.Scope();
+		var session = SceneEditorSession.Resolve( target );
+		using var scene = session.Scene.Push();
 
 		try
 		{
@@ -94,7 +97,7 @@ public static partial class SceneExtensions
 				return;
 			}
 
-			using ( SceneEditorSession.Active.UndoScope( $"Paste {componentType.Name} As New" ).WithComponentCreations().Push() )
+			using ( session.UndoScope( $"Paste {componentType.Name} As New" ).WithComponentCreations().Push() )
 			{
 				SceneUtility.MakeIdGuidsUnique( pastedJso );
 
@@ -153,58 +156,5 @@ public static partial class SceneExtensions
 	public static void SetTargetTransform( this Rigidbody body, Transform? tx )
 	{
 		body.TargetTransform = tx;
-	}
-}
-
-/// <summary>
-/// Editor helpers for scene.ref nodes.
-/// </summary>
-public static class SceneReferenceHelper
-{
-	public static IReadOnlyDictionary<string, object> GetNodeProperties( GameObject go )
-	{
-		return new Dictionary<string, object>
-		{
-			{ "gameobject", GameObjectReference.FromInstance( go ) }
-		};
-	}
-
-	public static IReadOnlyDictionary<string, object> GetNodeProperties( Component component )
-	{
-		var t = TypeLibrary.GetType( component.GetType() );
-
-		return new Dictionary<string, object>
-		{
-			{ "component", ComponentReference.FromInstance( component ) }
-		};
-	}
-
-	public static IReadOnlyDictionary<string, object> GetNodeProperties( string prefabPath )
-	{
-		return new Dictionary<string, object>
-		{
-			{ "gameobject", GameObjectReference.FromPrefabPath( prefabPath ) }
-		};
-	}
-
-	private static Scene GetContainingScene( Node node )
-	{
-		return (node.ActionGraph.GetEmbeddedTarget() as GameObject)?.Scene ?? Game.ActiveScene;
-	}
-
-	public static GameObject ResolveTargetGameObject( Node node )
-	{
-		var scene = GetContainingScene( node );
-
-		return node.Properties.TryGetValue( "gameobject", out var prop ) && prop.Value is GameObjectReference goRef
-			? goRef.Resolve( scene ) : null;
-	}
-
-	public static Component ResolveTargetComponent( Node node )
-	{
-		var scene = GetContainingScene( node );
-
-		return node.Properties.TryGetValue( "component", out var prop ) && prop.Value is ComponentReference compRef
-			? compRef.Resolve( scene ) : null;
 	}
 }

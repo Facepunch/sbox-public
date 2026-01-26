@@ -1,5 +1,6 @@
 ﻿using System.Linq;
 using Sandbox.MovieMaker;
+using Sandbox.UI;
 
 namespace Editor.MovieMaker;
 
@@ -55,18 +56,6 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 	public IEnumerable<TimelineTrack> Tracks => _tracks;
 
-	public Rect VisibleRect
-	{
-		get
-		{
-			var screenRect = ScreenRect;
-			var topLeft = FromScreen( screenRect.TopLeft );
-			var bottomRight = FromScreen( screenRect.BottomRight );
-
-			return ToScene( new Rect( topLeft, bottomRight - topLeft ) );
-		}
-	}
-
 	private readonly SynchronizedSet<(MovieTime Time, Rect SceneRect), GraphicsItem> _snapTargets;
 
 	public Timeline( Session session )
@@ -74,13 +63,15 @@ public partial class Timeline : GraphicsView, ISnapSource
 		Session = session;
 		MinimumWidth = 256;
 
+		HorizontalScrollbar = ScrollbarMode.Off;
+
 		_tracks = new SynchronizedSet<TrackView, TimelineTrack>(
 			AddTrack, RemoveTrack, UpdateTrack );
 
-		_backgroundItem = new BackgroundItem( Session );
+		_backgroundItem = new BackgroundItem( this );
 		Add( _backgroundItem );
 
-		_gridItem = new GridItem( Session );
+		_gridItem = new GridItem( this );
 		Add( _gridItem );
 
 		_playhead = new TimeCursor( this, PlayheadColor, true ) { LabelFadeTime = 1f };
@@ -89,9 +80,9 @@ public partial class Timeline : GraphicsView, ISnapSource
 		_preview = new TimeCursor( this, PreviewColor, false );
 		Add( _preview );
 
-		ScrubBarTop = new ScrubBar( Session.Editor, true ) { Width = Width };
+		ScrubBarTop = new ScrubBar( this, true ) { Width = Width };
 		Add( ScrubBarTop );
-		ScrubBarBottom = new ScrubBar( Session.Editor, false ) { Width = Width };
+		ScrubBarBottom = new ScrubBar( this, false ) { Width = Width };
 		Add( ScrubBarBottom );
 
 		_snapTargets = new(
@@ -104,7 +95,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 			removeAction: item => item.Destroy(),
 			updateAction: ( target, item ) =>
 			{
-				var x = session.TimeToPixels( target.Time );
+				var x = TimeToPixels( target.Time );
 
 				item.Position = new Vector2( x, target.SceneRect.Top );
 				item.Height = target.SceneRect.Height;
@@ -114,7 +105,6 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 		Session.PlayheadChanged += UpdatePlayheadTime;
 		Session.PreviewChanged += UpdatePreviewTime;
-		Session.ViewChanged += UpdateView;
 
 		FocusMode = FocusMode.TabOrClickOrWheel;
 
@@ -134,34 +124,21 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 		Session.PlayheadChanged -= UpdatePlayheadTime;
 		Session.PreviewChanged -= UpdatePreviewTime;
-		Session.ViewChanged -= UpdateView;
 	}
 
 	private int _lastState;
-	private int _lastVisibleRectHash;
 
 	[EditorEvent.Frame]
 	public void Frame()
 	{
+		UpdateZoom();
+
 		_backgroundItem.Frame();
 
 		ScrubBarTop.Frame();
 		ScrubBarBottom.Frame();
 
-		UpdateScrubBars();
 		UpdateTracksIfNeeded();
-
-		var visibleRectHash = HashCode.Combine( VisibleRect, Session.PixelsPerSecond );
-
-		if ( visibleRectHash != _lastVisibleRectHash )
-		{
-			if ( (Application.KeyboardModifiers & KeyboardModifiers.Shift) != 0 && IsFocused )
-			{
-				UpdatePreviewTime( ToScene( _lastMouseLocalPos ) );
-			}
-		}
-
-		_lastVisibleRectHash = visibleRectHash;
 
 		if ( Session.PreviewTime is not null
 			&& (Application.KeyboardModifiers & KeyboardModifiers.Shift) == 0
@@ -173,7 +150,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 	private void UpdateTracksIfNeeded()
 	{
-		var state = HashCode.Combine( Session.PixelsPerSecond, Session.TimeOffset, Session.FrameRate, Session.TrackList.StateHash );
+		var state = HashCode.Combine( PixelsPerSecond, VisibleTimeRange, Session.FrameRate, Session.TrackList.StateHash );
 
 		if ( state == _lastState ) return;
 
@@ -181,41 +158,6 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 		UpdateTracks();
 		Update();
-	}
-
-	private void UpdateView()
-	{
-		UpdateSceneFrame();
-		UpdateScrubBars();
-
-		UpdatePlayheadTime( Session.PlayheadTime );
-		UpdatePreviewTime( Session.PreviewTime );
-
-		UpdateTracksIfNeeded();
-	}
-
-	private void UpdateScrubBars()
-	{
-		_backgroundItem.Update();
-
-		ScrubBarTop.PrepareGeometryChange();
-		ScrubBarBottom.PrepareGeometryChange();
-
-		var visibleRect = VisibleRect;
-
-		ScrubBarTop.Position = visibleRect.TopLeft;
-		ScrubBarBottom.Position = visibleRect.BottomLeft - new Vector2( 0f, ScrubBar.Height );
-
-		ScrubBarTop.Width = Width;
-		ScrubBarBottom.Width = Width;
-	}
-
-	protected override void OnResize()
-	{
-		base.OnResize();
-
-		UpdateScrubBars();
-		UpdateTracks();
 	}
 
 	private void UpdatePlayheadTime( MovieTime time )
@@ -238,36 +180,8 @@ public partial class Timeline : GraphicsView, ISnapSource
 		}
 	}
 
-	void UpdateSceneFrame()
-	{
-		const float leftMargin = 8f;
-
-		Session.TrackListViewHeight = Height - 64f;
-
-		var x = Session.TimeToPixels( Session.TimeOffset );
-
-		SceneRect = new Rect(
-			x - leftMargin,
-			Session.TrackListScrollPosition - Session.TrackListScrollOffset,
-			Width,
-			Height );
-
-		_backgroundItem.PrepareGeometryChange();
-		_backgroundItem.SceneRect = SceneRect;
-		_backgroundItem.Update();
-
-		_gridItem.PrepareGeometryChange();
-		_gridItem.SceneRect = SceneRect with { Left = SceneRect.Left + leftMargin };
-		_gridItem.Update();
-
-		UpdatePlayheadTime( Session.PlayheadTime );
-		UpdatePreviewTime( Session.PreviewTime );
-	}
-
 	public void UpdateTracks()
 	{
-		UpdateSceneFrame();
-
 		_tracks.Update( Session.TrackList.VisibleTracks );
 
 		Update();
@@ -298,12 +212,11 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 		if ( e.Accepted ) return;
 
-		// scoll
+		// pan
 		if ( e.HasShift )
 		{
-			Session.ScrollBySmooth( -e.Delta / 10.0f * (Session.PixelsPerSecond / 10.0f) );
-			Session.DispatchViewChanged();
-
+			PanImmediate( -e.Delta );
+			UpdatePreviewTime( ToScene( _lastMouseLocalPos ) );
 			e.Accept();
 			return;
 		}
@@ -311,7 +224,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 		// zoom
 		if ( e.HasCtrl )
 		{
-			Session.Zoom( e.Delta / 10.0f, _lastMouseTime );
+			ZoomSmooth( e.Delta / 240.0f, MouseScenePos.x );
 			e.Accept();
 			return;
 		}
@@ -323,18 +236,13 @@ public partial class Timeline : GraphicsView, ISnapSource
 			var nextTime = Session.PlayheadTime.Round( dt ) + Math.Sign( e.Delta ) * dt;
 
 			Session.PlayheadTime = nextTime;
-			Session.ScrollToPlayheadTime();
-
+			PanToPlayheadTime();
 			e.Accept();
 			return;
 		}
-
-		Session.TrackListScrollPosition -= e.Delta / 5f;
-		e.Accept();
 	}
 
 	private Vector2 _lastMouseLocalPos;
-	private MovieTime _lastMouseTime;
 
 	public Vector2 MouseScenePos => ToScene( _lastMouseLocalPos );
 
@@ -342,49 +250,52 @@ public partial class Timeline : GraphicsView, ISnapSource
 	{
 		base.OnMouseMove( e );
 
-		var delta = e.LocalPosition - _lastMouseLocalPos;
-		var scenePos = ToScene( e.LocalPosition );
-
-		if ( e.HasShift )
+		try
 		{
-			UpdatePreviewTime( scenePos );
-		}
+			var delta = e.LocalPosition - _lastMouseLocalPos;
+			var scenePos = ToScene( e.LocalPosition );
 
-		if ( e.ButtonState == MouseButtons.Left && IsDragging )
+			if ( e.HasShift )
+			{
+				UpdatePreviewTime( scenePos );
+			}
+
+			if ( e.ButtonState == MouseButtons.Left && IsDragging )
+			{
+				Drag( ToScene( e.LocalPosition ) );
+				e.Accepted = true;
+				return;
+			}
+
+			if ( e.ButtonState == 0 && !e.HasCtrl && GetItemAt( scenePos ) is { Selectable: true } item )
+			{
+				UpdateCursor( scenePos, item );
+				return;
+			}
+
+			if ( e.ButtonState == MouseButtons.Middle )
+			{
+				Translate( delta );
+			}
+
+			if ( e.ButtonState == MouseButtons.Right )
+			{
+				ScrubBarTop.Scrub( e.KeyboardModifiers, scenePos );
+			}
+
+			Session.EditMode?.MouseMove( e );
+		}
+		finally
 		{
-			Drag( ToScene( e.LocalPosition ) );
-			e.Accepted = true;
-			return;
+			_lastMouseLocalPos = e.LocalPosition;
 		}
-
-		if ( e.ButtonState == 0 && !e.HasCtrl && GetItemAt( scenePos ) is { Selectable: true } item )
-		{
-			UpdateCursor( scenePos, item );
-			return;
-		}
-
-		if ( e.ButtonState == MouseButtons.Middle )
-		{
-			Session.ScrollByImmediate( delta.x );
-			Session.DispatchViewChanged();
-		}
-
-		if ( e.ButtonState == MouseButtons.Right )
-		{
-			ScrubBarTop.Scrub( e.KeyboardModifiers, scenePos );
-		}
-
-		_lastMouseLocalPos = e.LocalPosition;
-		_lastMouseTime = Session.PixelsToTime( ToScene( e.LocalPosition ).x );
-
-		Session.EditMode?.MouseMove( e );
 	}
 
 	public void UpdatePreviewTime( Vector2 scenePos )
 	{
 		Session.PreviewTime = Application.MouseButtons != 0
-			? Session.ScenePositionToTime( scenePos )
-			: Session.PixelsToTime( scenePos.x );
+			? ScenePositionToTime( scenePos )
+			: PixelsToTime( scenePos.x );
 	}
 
 	public new GraphicsItem? GetItemAt( Vector2 scenePosition )
@@ -456,7 +367,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 		}
 
 		var scenePos = ToScene( e.LocalPosition );
-		var time = Session.ScenePositionToTime( scenePos, new SnapOptions( source => source is not TimeCursor ) );
+		var time = ScenePositionToTime( scenePos, new SnapOptions( source => source is not TimeCursor ) );
 
 		var accepted = false;
 
@@ -550,7 +461,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 		UpdateSnapTargets( [] );
 
 		var scenePos = ToScene( e.LocalPosition );
-		var time = Session.ScenePositionToTime( scenePos, new SnapOptions( source => source is not TimeCursor ), showSnap: false );
+		var time = ScenePositionToTime( scenePos, new SnapOptions( source => source is not TimeCursor ), showSnap: false );
 
 		// Detect double-click
 
@@ -645,7 +556,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 		if ( e.Key == KeyCode.Shift )
 		{
 			e.Accepted = true;
-			Session.PreviewTime = Session.ScenePositionToTime( ToScene( _lastMouseLocalPos ) );
+			Session.PreviewTime = ScenePositionToTime( ToScene( _lastMouseLocalPos ) );
 		}
 	}
 
@@ -699,7 +610,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 		_draggedBlocks.Clear();
 		_draggedBlocks.Add( _draggedBlock );
 
-		var time = Session.ScenePositionToTime( ToScene( ev.LocalPosition ) );
+		var time = ScenePositionToTime( ToScene( ev.LocalPosition ) );
 
 		_draggedBlock.TimeRange = (time, time + _draggedBlock.TimeRange.Duration);
 		_draggedBlock.Transform = new MovieTransform( time );
@@ -746,6 +657,48 @@ public partial class Timeline : GraphicsView, ISnapSource
 		if ( !isPrimary || !Session.FrameSnap ) yield break;
 
 		yield return new SnapTarget( sourceTime.Round( MovieTime.FromFrames( 1, Session.FrameRate ) ), -3, false );
+	}
+
+	[Shortcut( "timeline.selectall", "CTRL+A" )]
+	public void OnSelectAll()
+	{
+		Session.EditMode?.SelectAll();
+	}
+
+	[Shortcut( "timeline.cut", "CTRL+X" )]
+	public void OnCut()
+	{
+		Session.EditMode?.Cut();
+	}
+
+	[Shortcut( "timeline.copy", "CTRL+C" )]
+	public void OnCopy()
+	{
+		Session.EditMode?.Copy();
+	}
+
+	[Shortcut( "timeline.paste", "CTRL+V" )]
+	public void OnPaste()
+	{
+		Session.EditMode?.Paste();
+	}
+
+	[Shortcut( "timeline.backspace", "BACKSPACE" )]
+	public void OnBackspace()
+	{
+		Session.EditMode?.Backspace();
+	}
+
+	[Shortcut( "timeline.delete", "DEL" )]
+	public void OnDelete()
+	{
+		Session.EditMode?.Delete();
+	}
+
+	[Shortcut( "timeline.insert", "TAB" )]
+	public void OnInsert()
+	{
+		Session.EditMode?.Insert();
 	}
 }
 

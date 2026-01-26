@@ -61,8 +61,8 @@ public partial class Project
 			//
 			if ( Application.IsDedicatedServer )
 			{
-				var defines = compilerSettings.DefineConstants.Split( ';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries ).ToList();
-				if ( !defines.Any( x => x.Equals( "SERVER", StringComparison.OrdinalIgnoreCase ) ) )
+				var defines = compilerSettings.GetPreprocessorSymbols();
+				if ( !defines.Contains( "SERVER" ) )
 				{
 					compilerSettings.DefineConstants += ";SERVER";
 				}
@@ -96,7 +96,7 @@ public partial class Project
 
 			if ( BaseReferencingTypes.Contains( Config.Type ) && compilerName != "base" )
 			{
-				Compiler.AddReference( "package.base" );
+				Compiler.AddBaseReference();
 			}
 
 			Compiler.GeneratedCode.AppendLine( $"global using Microsoft.AspNetCore.Components;" );
@@ -121,7 +121,7 @@ public partial class Project
 
 				if ( compilerName != "toolbase" )
 				{
-					Compiler.AddReference( "package.toolbase" );
+					Compiler.AddToolBaseReference();
 					//await Project.WaitFor( "toolbase" );
 				}
 			}
@@ -130,7 +130,7 @@ public partial class Project
 
 			foreach ( var reference in PackageReferences() )
 			{
-				Compiler.AddReference( $"package.{reference}" );
+				Compiler.AddReference( reference );
 			}
 
 			foreach ( var reference in compilerSettings.DistinctAssemblyReferences )
@@ -151,13 +151,13 @@ public partial class Project
 		}
 	}
 
-	IEnumerable<string> PackageReferences()
+	IEnumerable<Package> PackageReferences()
 	{
-		if ( Config.Type == "game" )
+		if ( Config.Type == "game" && !IsBuiltIn )
 		{
 			foreach ( var library in Project.Libraries.Where( x => x.HasCodePath() ) )
 			{
-				yield return library.Package.GetIdent( false, false );
+				yield return library.Package;
 			}
 		}
 	}
@@ -173,8 +173,12 @@ public partial class Project
 		if ( !Active )
 			return;
 
+		// Horrific, but Current isn't avaliable yet, so this is the only way to tell if we're in the menu project
+		var path = Sandbox.Utility.CommandLine.GetSwitch( "-project", "" ).TrimQuoted();
+		var isMenu = path.EndsWith( "menu\\.sbproj" );
+
 		// only want menu editor code if we're in the menu project
-		if ( this != Current && Config.Ident == "menu" )
+		if ( Config.Ident == "menu" && !isMenu )
 			return;
 
 		if ( !HasEditorPath() )
@@ -193,11 +197,12 @@ public partial class Project
 		if ( Compiler is not null )
 		{
 			// reference the main code assembly		
-			EditorCompiler.AddReference( Compiler.AssemblyName );
+			EditorCompiler.AddReference( Compiler );
 		}
 
-		EditorCompiler.AddReference( "package.base" );
-		EditorCompiler.AddReference( "package.toolbase" );
+		EditorCompiler.AddBaseReference();
+		EditorCompiler.AddToolBaseReference();
+
 		EditorCompiler.AddReference( "Sandbox.Tools" );
 		EditorCompiler.AddReference( "Sandbox.Compiling" );
 		EditorCompiler.AddReference( "System.Diagnostics.Process" );
@@ -216,15 +221,15 @@ public partial class Project
 
 		foreach ( var reference in PackageReferences() )
 		{
-			EditorCompiler.AddReference( "package." + reference );
+			EditorCompiler.AddReference( reference );
 		}
 
-		if ( Config.Type == "game" )
+		if ( Config.Type == "game" && !IsBuiltIn )
 		{
 			// editor libraries
 			foreach ( var library in Libraries.Where( x => x.HasEditorPath() ) )
 			{
-				EditorCompiler.AddReference( $"package.{library.Package.GetIdent( false, false )}.editor" );
+				EditorCompiler.AddEditorReference( library.Package );
 			}
 		}
 

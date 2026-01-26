@@ -9,5 +9,6 @@
   "menu.multiplayer": "Server",
   "menu.maps": "Mappe",
   "menu.store": "Negozio",
-  "menu.games": "Giochi"
+  "menu.games": "Giochi",
+  "menu.notifications": "Notifiche"
 }

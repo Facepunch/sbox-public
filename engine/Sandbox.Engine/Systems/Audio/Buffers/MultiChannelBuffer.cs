@@ -24,7 +24,10 @@ public sealed class MultiChannelBuffer : IDisposable
 
 		for ( int i = 0; i < ChannelCount; i++ )
 		{
+#pragma warning disable CA2000 // Dispose objects before losing scope
+			// Dispose is handled in Dispose()
 			_buffers.Set( new AudioChannel( i ), new MixBuffer( _native.GetBuffer( i ) ) );
+#pragma warning restore CA2000 // Dispose objects before losing scope
 		}
 	}
 

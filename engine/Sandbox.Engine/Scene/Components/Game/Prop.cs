@@ -274,6 +274,15 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 			var rb = Components.GetOrCreate<Rigidbody>();
 
+			// Inherit body settings from model
+			var part = Model.Physics.Parts[0];
+			rb.MassOverride = part.Mass;
+			rb.LinearDamping = part.LinearDamping;
+			rb.AngularDamping = part.AngularDamping;
+			rb.OverrideMassCenter = part.OverrideMassCenter;
+			rb.MassCenterOverride = part.MassCenterOverride;
+			rb.GravityScale = part.GravityScale;
+
 			if ( StartAsleep )
 			{
 				rb.StartAsleep = true;
@@ -281,6 +290,20 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				if ( rb.PhysicsBody.IsValid() )
 				{
 					rb.PhysicsBody.Sleeping = true;
+				}
+			}
+
+			// Evaluate parameters from model data
+			if ( Model.Data is not null )
+			{
+				if ( Model.Data.ImpactDamage > -1 )
+				{
+					rb.ImpactDamage = Model.Data.ImpactDamage;
+				}
+
+				if ( Model.Data.MinImpactDamageSpeed > -1 )
+				{
+					rb.MinImpactDamageSpeed = Model.Data.MinImpactDamageSpeed;
 				}
 			}
 
@@ -498,6 +521,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			return gibs;
 
 		var rb = Components.Get<Rigidbody>();
+		var mr = Components.Get<ModelRenderer>();
 
 		gibs.EnsureCapacity( breaklist.Length );
 
@@ -531,6 +555,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			c.FadeTime = breakModel.FadeTime;
 			c.Model = model;
 			c.Enabled = true;
+			c.Tint = mr?.Tint ?? c.Tint;
 
 			gibs.Add( c );
 

@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  format:
+  tests:
     runs-on: [ windows-latest ]
     steps:
       - name: Full Checkout

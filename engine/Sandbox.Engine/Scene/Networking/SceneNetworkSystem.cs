@@ -11,17 +11,16 @@ namespace Sandbox;
 [Expose]
 public partial class SceneNetworkSystem : GameNetworkSystem
 {
-	internal static SceneNetworkSystem Instance { get; private set; }
+	internal static SceneNetworkSystem Instance { get; set; }
 	internal DeltaSnapshotSystem DeltaSnapshots { get; private set; }
 
 	private List<NetworkObject> BatchSpawnList { get; set; } = [];
-	private static bool IsSupressingSpawnMessages { get; set; }
+	private static bool IsSuppressingDestroyMessages { get; set; }
+	private static bool IsSuppressingSpawnMessages { get; set; }
 	private bool IsBatchNetworkSpawning { get; set; }
 	private int BatchNetworkSpawnCount { get; set; }
 
 	internal override bool IsHostBusy => !Game.ActiveScene?.IsLoading ?? true;
-
-	internal bool IsDisconnecting { get; set; }
 
 	internal SceneNetworkSystem( Internal.TypeLibrary typeLibrary, NetworkSystem system )
 	{
@@ -61,11 +60,24 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// </summary>
 	internal static IDisposable SuppressSpawnMessages()
 	{
-		IsSupressingSpawnMessages = true;
+		IsSuppressingSpawnMessages = true;
 
 		return new DisposeAction( () =>
 		{
-			IsSupressingSpawnMessages = false;
+			IsSuppressingSpawnMessages = false;
+		} );
+	}
+
+	/// <summary>
+	/// Any <see cref="GameObject">GameObjects</see> destroyed within this scope will not send destroy messages to other clients.
+	/// </summary>
+	internal static IDisposable SuppressDestroyMessages()
+	{
+		IsSuppressingDestroyMessages = true;
+
+		return new DisposeAction( () =>
+		{
+			IsSuppressingDestroyMessages = false;
 		} );
 	}
 
@@ -79,10 +91,18 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		if ( !Networking.IsActive || !Networking.IsHost )
 			return;
 
+		// Clear all pending scene loads before we load a new scene
+		PendingSceneLoads.Clear();
+
+		var mounedVpks = Game.ActiveScene.GetAllComponents<MapInstance>()
+			.Select( x => x.MapName )
+			.ToList();
+
 		var loadMsg = new LoadSceneBeginMsg
 		{
 			ShowLoadingScreen = options.ShowLoadingScreen,
-			MountedVPKs = Game.ActiveScene.GetAllComponents<MapInstance>().Select( x => x.MapName ).ToList(),
+			MountedVPKs = mounedVpks,
+			SceneId = Game.ActiveScene.Id,
 			Id = Guid.NewGuid()
 		};
 
@@ -93,11 +113,15 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		foreach ( var c in Connection.All )
 		{
+			if ( c == Connection.Local )
+				continue;
+
 			if ( c.State < Connection.ChannelState.Snapshot )
 				continue;
 
 			PendingSceneLoads[c.Id] = loadMsg.Id;
 			c.SendRawMessage( msg );
+			c.State = Connection.ChannelState.MountVPKs;
 		}
 
 		msg.Dispose();
@@ -159,14 +183,14 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 	/// <summary>
 	/// Broadcast the spawning of a networked object. This will add the networked object
-	/// to batch list if we're spawning as part of a batch, and will ignore the spawn message
+	/// to the batch list if we're spawning as part of a batch and will ignore the spawn message
 	/// entirely if we're supposed to be suppressing spawn messages.
 	/// </summary>
 	/// <param name="networkObject"></param>
 	internal void NetworkSpawnBroadcast( NetworkObject networkObject )
 	{
 		// We're not supposed to send spawn messages right now.
-		if ( IsSupressingSpawnMessages )
+		if ( IsSuppressingSpawnMessages )
 			return;
 
 		if ( IsBatchNetworkSpawning )
@@ -179,6 +203,20 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	}
 
 	/// <summary>
+	/// Broadcast the destruction of a networked object. The message will be ignored if we're
+	/// supposed to be suppressing destroy messages.
+	/// </summary>
+	/// <param name="networkObject"></param>
+	internal void NetworkDestroyBroadcast( NetworkObject networkObject )
+	{
+		if ( IsSuppressingDestroyMessages )
+			return;
+
+		var msg = new ObjectDestroyMsg { Guid = networkObject.GameObject.Id };
+		Broadcast( msg );
+	}
+
+	/// <summary>
 	/// Called when the host has provided us with a snapshot for a newly loaded scene.
 	/// </summary>
 	private async Task OnLoadSceneSnapshotMsg( LoadSceneSnapshotMsg msg, Connection connection, Guid msgId )
@@ -188,7 +226,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		await SetSnapshotAsync( msg.Snapshot );
 
 		// Let them know we have now loaded this scene.
-		var loadedMsg = new SceneLoadedMsg { Id = msg.Id };
+		var loadedMsg = new SceneLoadedMsg { SceneId = msg.SceneId, Id = msg.Id };
 		connection.SendMessage( loadedMsg, NetFlags.Reliable );
 
 		LoadingScreen.IsVisible = false;
@@ -198,17 +236,42 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// Called when a client has requested the snapshot for a newly loaded scene. This is usually
 	/// once they've done any preloading that they need to do.
 	/// </summary>
-	private void OnLoadSceneRequestSnapshotMsg( LoadSceneRequestSnapshotMsg msg, Connection connection, Guid msgId )
+	private async Task OnLoadSceneRequestSnapshotMsg( LoadSceneRequestSnapshotMsg msg, Connection connection, Guid msgId )
 	{
 		// If this connection doesn't have a pending scene load with this id then bail.
 		if ( !PendingSceneLoads.TryGetValue( connection.Id, out var id ) || id != msg.Id )
 			return;
 
-		var output = new LoadSceneSnapshotMsg { Id = msg.Id };
+		var activeScene = Game.ActiveScene;
+
+		if ( !activeScene.IsValid() || activeScene.Id != msg.SceneId )
+		{
+			PendingSceneLoads.Remove( connection.Id );
+			return;
+		}
+
+		// Don't send anything while the scene is still loading
+		while ( activeScene.IsValid() && activeScene.IsLoading )
+		{
+			if ( Game.ActiveScene != activeScene )
+				break;
+
+			await GameTask.Yield();
+		}
+
+		if ( Game.ActiveScene != activeScene || !activeScene.IsValid() )
+		{
+			PendingSceneLoads.Remove( connection.Id );
+			return;
+		}
+
+		connection.State = Connection.ChannelState.Snapshot;
+
+		var output = new LoadSceneSnapshotMsg { SceneId = msg.SceneId, Id = msg.Id };
 		var snapshot = new SnapshotMsg
 		{
 			GameObjectSystems = [],
-			NetworkObjects = new( 64 )
+			NetworkObjects = new List<object>( 64 )
 		};
 
 		GetSnapshot( default, ref snapshot );
@@ -234,10 +297,10 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			LoadingScreen.Title = "Loading Scene";
 		}
 
-		// Go ahead and destroy the scene immediately (if it exists.)
+		// Go ahead and destroy the scene
 		if ( Game.ActiveScene is not null )
 		{
-			Game.ActiveScene?.DestroyImmediate();
+			Game.ActiveScene.Destroy();
 			Game.ActiveScene = null;
 		}
 
@@ -245,7 +308,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		MountedVPKs = await MountMaps( msg.MountedVPKs );
 
 		// Let them know we would like a snapshot now.
-		var loadedMsg = new LoadSceneRequestSnapshotMsg { Id = msg.Id };
+		var loadedMsg = new LoadSceneRequestSnapshotMsg { SceneId = msg.SceneId, Id = msg.Id };
 		connection.SendMessage( loadedMsg, NetFlags.Reliable );
 	}
 
@@ -257,6 +320,16 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		// If this connection doesn't have a pending scene load with this id then bail.
 		if ( !PendingSceneLoads.TryGetValue( connection.Id, out var id ) || id != msg.Id )
 			return;
+
+		var activeScene = Game.ActiveScene;
+
+		if ( !activeScene.IsValid() || activeScene.Id != msg.SceneId )
+		{
+			PendingSceneLoads.Remove( connection.Id );
+			return;
+		}
+
+		connection.State = Connection.ChannelState.Connected;
 
 		PendingSceneLoads.Remove( connection.Id );
 		Instance?.OnJoined( connection );
@@ -281,6 +354,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		MountedVPKs = await MountMaps( msg.MountedVPKs );
 	}
 
+	private static readonly GameObject.SerializeOptions _snapshotSerializeOptions = new() { SceneForNetwork = true };
+
 	/// <summary>
 	/// A client has joined and wants a snapshot of the world.
 	/// </summary>
@@ -291,16 +366,13 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		msg.Time = Time.Now;
 
-		var o = new GameObject.SerializeOptions
-		{
-			SceneForNetwork = true
-		};
-
 		var analytic = new Api.Events.EventRecord( "SceneNetworkSystem.GetSnapshot" );
 
 		using ( analytic.ScopeTimer( "SceneTime" ) )
 		{
-			msg.SceneData = Game.ActiveScene.Serialize( o ).ToJsonString();
+			using var blobs = BlobDataSerializer.Capture();
+			msg.SceneData = Game.ActiveScene.Serialize( _snapshotSerializeOptions ).ToJsonString();
+			msg.BlobData = blobs.ToByteArray();
 		}
 
 		using ( analytic.ScopeTimer( "NetworkObjectTime" ) )
@@ -312,8 +384,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		foreach ( var system in systems )
 		{
+			var snapshotData = WriteGameObjectSystemSnapshot( system );
+
 			var type = new SnapshotMsg.GameObjectSystemData
 			{
+				SnapshotData = snapshotData,
 				TableData = system.WriteDataTable( true ),
 				Type = Game.TypeLibrary.GetType( system.GetType() ).Identity,
 				Id = system.Id
@@ -329,6 +404,31 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		analytic.SetValue( "Machine", Environment.MachineName );
 
 		analytic.Submit();
+	}
+
+	/// <summary>
+	/// Write any snapshot data from <see cref="Component.INetworkSnapshot"/> for a <see cref="GameObjectSystem"/>.
+	/// </summary>
+	private static byte[] WriteGameObjectSystemSnapshot( GameObjectSystem system )
+	{
+		if ( system is not Component.INetworkSnapshot snapshot )
+			return null;
+
+		var bs = ByteStream.Create( 512 );
+
+		try
+		{
+			snapshot.WriteSnapshot( ref bs );
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e );
+		}
+
+		var snapshotData = bs.ToArray();
+		bs.Dispose();
+
+		return snapshotData;
 	}
 
 	public override void Dispose()
@@ -368,28 +468,37 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	private IDisposable MountedVPKs { get; set; }
 	private async Task<IDisposable> MountMaps( List<string> maps )
 	{
-		// Lets see if any are cloud maps and mount those first
-		List<string> vpks = new();
-		foreach ( var map in maps )
+		List<string> vpks = [];
+
+		// Some safety here in-case the input list if null
+		if ( maps is not null )
 		{
-			if ( map.EndsWith( ".vpk" ) )
+			// Let's see if any are cloud maps and mount those first
+			foreach ( var map in maps )
 			{
-				vpks.Add( map );
-				continue;
+				// Ignore any entries that are null or empty
+				if ( string.IsNullOrEmpty( map ) )
+					continue;
+
+				if ( map.EndsWith( ".vpk" ) )
+				{
+					vpks.Add( map );
+					continue;
+				}
+
+				if ( !Package.TryParseIdent( map, out var parts ) )
+					continue;
+
+				var package = await Package.Fetch( map, false );
+				if ( package is null )
+					continue;
+
+				var fs = await package.MountAsync();
+				if ( fs is null ) continue;
+
+				var mapFileName = package.PrimaryAsset;
+				vpks.Add( mapFileName );
 			}
-
-			if ( !Package.TryParseIdent( map, out var parts ) )
-				continue;
-
-			var package = await Package.Fetch( map, false );
-			if ( package is null )
-				continue;
-
-			var fs = await package.MountAsync();
-			if ( fs is null ) continue;
-
-			var mapFileName = package.PrimaryAsset;
-			vpks.Add( mapFileName );
 		}
 
 		foreach ( var vpk in vpks )
@@ -403,7 +512,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	}
 
 	/// <summary>
-	/// We have recieved a snapshot of the world.
+	/// We have received a snapshot of the world.
 	/// </summary>
 	public override async Task SetSnapshotAsync( SnapshotMsg msg )
 	{
@@ -411,7 +520,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		if ( Game.ActiveScene is not null )
 		{
-			Game.ActiveScene?.DestroyImmediate();
+			Game.ActiveScene?.Destroy();
 			Game.ActiveScene = null;
 		}
 
@@ -421,20 +530,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		Time.Now = (float)msg.Time;
 		Game.ActiveScene.UpdateTimeFromHost( msg.Time );
 
-		foreach ( var s in msg.GameObjectSystems )
-		{
-			var type = Game.TypeLibrary.GetTypeByIdent( s.Type );
-			var system = Game.ActiveScene.GetSystemByType( type );
-
-			if ( system is null )
-				continue;
-
-			system.Id = s.Id;
-			system.ReadDataTable( s.TableData );
-		}
-
 		{
 			using var batchGroup = CallbackBatch.Batch();
+			using var blobs = BlobDataSerializer.LoadFromMemory( msg.BlobData );
 
 			if ( !string.IsNullOrWhiteSpace( msg.SceneData ) )
 			{
@@ -460,6 +558,20 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			}
 		}
 
+		foreach ( var s in msg.GameObjectSystems )
+		{
+			var type = Game.TypeLibrary.GetTypeByIdent( s.Type );
+			var system = Game.ActiveScene.GetSystemByType( type );
+
+			if ( system is null )
+				continue;
+
+			system.Id = s.Id;
+			system.ReadDataTable( s.TableData );
+
+			ReadGameObjectSystemSnapshot( system, s );
+		}
+
 		MountedVPKs?.Dispose();
 		MountedVPKs = null;
 
@@ -471,10 +583,37 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		if ( Game.ActiveScene.IsValid() )
 		{
+			Game.ActiveScene.Signal( GameObjectSystem.Stage.SceneLoaded );
+
 			Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
 		}
 
 		Game.IsPlaying = true;
+	}
+
+	/// <summary>
+	/// Read any snapshot data from <see cref="Component.INetworkSnapshot"/> for a <see cref="GameObjectSystem"/>.
+	/// </summary>
+	private static void ReadGameObjectSystemSnapshot( GameObjectSystem system, SnapshotMsg.GameObjectSystemData s )
+	{
+		if ( system is not Component.INetworkSnapshot snapshot )
+			return;
+
+		if ( s.SnapshotData is null )
+			return;
+
+		var bs = ByteStream.CreateReader( s.SnapshotData );
+
+		try
+		{
+			snapshot.ReadSnapshot( ref bs );
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e );
+		}
+
+		bs.Dispose();
 	}
 
 	/// <summary>
@@ -562,20 +701,23 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 				system.LocalSnapshotState.RemoveConnection( client.Id );
 			}
 
-			Action queue = default;
+			if ( Networking.IsHost )
+			{
+				Action queue = default;
 
-			foreach ( var c in Game.ActiveScene.GetAll<Component.INetworkListener>() )
-			{
-				queue += () => c.OnDisconnected( client );
-			}
+				foreach ( var c in Game.ActiveScene.GetAll<Component.INetworkListener>() )
+				{
+					queue += () => c.OnDisconnected( client );
+				}
 
-			try
-			{
-				queue?.Invoke();
-			}
-			catch ( Exception e )
-			{
-				Log.Error( e, "Exception when calling INetworkListener.OnDisconnected" );
+				try
+				{
+					queue?.Invoke();
+				}
+				catch ( Exception e )
+				{
+					Log.Error( e, "Exception when calling INetworkListener.OnDisconnected" );
+				}
 			}
 		}
 
@@ -602,7 +744,13 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			}
 		}
 
+		foreach ( var connection in Connection.All )
+		{
+			connection.Input.Clear();
+		}
+
 		DeltaSnapshots?.Reset();
+		UserCommand.Reset();
 	}
 
 	public override void OnBecameHost( Connection previousHost )
@@ -755,6 +903,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		using ( var _ = CallbackBatch.Batch() )
+		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
 		{
 			gameObject?.Deserialize( gameObjectJson, new GameObject.DeserializeOptions
 			{
@@ -823,6 +972,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		using ( var _ = CallbackBatch.Batch() )
+		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
 		{
 			component?.Deserialize( componentJson );
 		}
@@ -886,9 +1036,12 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		{
 			foreach ( var msg in message.CreateMsgs )
 			{
-				var go = new GameObject();
-				go.Deserialize( JsonNode.Parse( msg.JsonData ).AsObject() );
-				go.NetworkSpawnRemote( msg );
+				using ( BlobDataSerializer.LoadFromMemory( msg.BlobData ) )
+				{
+					var go = new GameObject();
+					go.Deserialize( JsonNode.Parse( msg.JsonData ).AsObject() );
+					go.NetworkSpawnRemote( msg );
+				}
 			}
 		}
 	}
@@ -910,6 +1063,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		var go = new GameObject();
 
 		using ( CallbackBatch.Batch() )
+		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
 		{
 			go.Deserialize( JsonNode.Parse( message.JsonData ).AsObject() );
 			go.NetworkSpawnRemote( message );
@@ -983,13 +1137,26 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		{
 			// If we're unowned and the source is not the host, we can't destroy.
 			if ( !source.IsHost )
+			{
+				Log.Warning( $"ObjectDestroy: Only the host can destroy unowned networked objects. {source.DisplayName} attempted to destroy {obj.Name}." );
 				return;
+			}
 		}
 		else
 		{
 			// If the source is not the owner and not the host, we can't destroy.
 			if ( !source.IsHost && obj._net.Owner != source.Id )
+			{
+				Log.Warning( $"ObjectDestroy: {source.DisplayName} attempted to destroy {obj.Name} but is not the owner. Owner is {obj._net.Owner}." );
 				return;
+			}
+
+			// If the source is the owner but not the host, check if they have permission to destroy.
+			if ( !source.IsHost && !source.CanDestroyObjects )
+			{
+				Log.Warning( $"ObjectDestroy: {source.DisplayName} attempted to destroy {obj.Name} but does not have CanDestroyObjects permission enabled." );
+				return;
+			}
 		}
 
 		obj._net.OnNetworkDestroy();
@@ -1111,6 +1278,7 @@ struct ObjectDestroyDescendantMsg
 struct ObjectRefreshDescendantMsg
 {
 	public string JsonData { get; set; }
+	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
 	public Guid ParentId { get; set; }
@@ -1125,6 +1293,7 @@ struct ObjectRefreshDescendantMsg
 struct ObjectRefreshComponentMsg
 {
 	public string JsonData { get; set; }
+	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
 	public Guid GameObjectId { get; set; }
@@ -1139,6 +1308,7 @@ struct ObjectRefreshComponentMsg
 struct ObjectRefreshMsg
 {
 	public string JsonData { get; set; }
+	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
 	public Guid Parent { get; set; }
@@ -1150,12 +1320,14 @@ struct LoadSceneBeginMsg
 {
 	public List<string> MountedVPKs { get; set; }
 	public bool ShowLoadingScreen { get; set; }
+	public Guid SceneId { get; set; }
 	public Guid Id { get; set; }
 }
 
 [Expose]
 struct LoadSceneRequestSnapshotMsg
 {
+	public Guid SceneId { get; set; }
 	public Guid Id { get; set; }
 }
 
@@ -1163,12 +1335,14 @@ struct LoadSceneRequestSnapshotMsg
 struct LoadSceneSnapshotMsg
 {
 	public SnapshotMsg Snapshot { get; set; }
+	public Guid SceneId { get; set; }
 	public Guid Id { get; set; }
 }
 
 [Expose]
 struct SceneLoadedMsg
 {
+	public Guid SceneId { get; set; }
 	public Guid Id { get; set; }
 }
 
@@ -1183,6 +1357,7 @@ struct ObjectCreateMsg
 {
 	public ushort SnapshotVersion { get; set; }
 	public string JsonData { get; set; }
+	public byte[] BlobData { get; set; }
 	public Transform Transform { get; set; }
 	public Guid Guid { get; set; }
 	public Guid Creator { get; set; }
@@ -1218,6 +1393,7 @@ struct SceneRpcMsg
 	public Guid Guid { get; set; }
 	public int MethodIdentity { get; set; }
 	public object[] Arguments { get; set; }
+	public int[] GenericArguments { get; set; }
 }
 
 [Expose]
@@ -1227,6 +1403,7 @@ struct ObjectRpcMsg
 	public Guid ComponentId { get; set; }
 	public int MethodIdentity { get; set; }
 	public object[] Arguments { get; set; }
+	public int[] GenericArguments { get; set; }
 }
 
 [Expose]
@@ -1234,4 +1411,5 @@ struct StaticRpcMsg
 {
 	public int MethodIdentity { get; set; }
 	public object[] Arguments { get; set; }
+	public int[] GenericArguments { get; set; }
 }

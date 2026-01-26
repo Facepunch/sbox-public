@@ -41,6 +41,8 @@
 
 @code
 {
+    public override bool SupportsMultiEdit => true;
+
 	[Parameter] public Action<float> OnValueChanged { get; set; }
 
 	/// <summary>
@@ -59,7 +61,7 @@
 	/// If set to 10, value will be rounded to 10's
 	/// If set to 0.1, value will be rounded to 0.1's
 	/// </summary>
-    [Parameter] public float Step { get; set; } = 1.0f;
+    [Parameter] public float Step { get; set; } = 0.001f;
 
 	/// <summary>
 	/// Show the range values above the slider

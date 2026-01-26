@@ -1,4 +1,7 @@
-﻿namespace Editor.TerrainEditor;
+﻿using Sandbox;
+using System.IO;
+
+namespace Editor.TerrainEditor;
 
 partial class TerrainComponentWidget : ComponentEditorWidget
 {
@@ -48,7 +51,7 @@ partial class TerrainComponentWidget : ComponentEditorWidget
 			var terrain = SerializedObject.Targets.FirstOrDefault() as Terrain;
 
 			MaterialList = new TerrainMaterialList( null, terrain );
-
+			MaterialList.HorizontalSizeMode = SizeMode.CanGrow;
 			var tlayout = container.Layout.AddColumn();
 			tlayout.Spacing = 8;
 			tlayout.Margin = 16;
@@ -147,36 +150,91 @@ partial class TerrainComponentWidget : ComponentEditorWidget
 		if ( SerializedObject.Targets.FirstOrDefault() is not Terrain terrain )
 			return;
 
-		var fd = new FileDialog( null ) { Title = "Import Splatmap from image file..." };
-		fd.SetFindFile();
+
+		var fd = new FileDialog( null ) { Title = "Import Splatmap(s) from image file(s)..." };
+		fd.SetFindExistingFiles();
 		fd.SetModeOpen();
 		fd.SetNameFilter( "Image File (*.png *.tga *.jpg *.psd)" );
 
 		if ( !fd.Execute() )
 			return;
 
-		var storage = terrain.Storage;
+		var files = fd.SelectedFiles;
+		if ( files.Count == 0 )
+			return;
 
-		using ( var bitmap = EditorUtility.LoadBitmap( fd.SelectedFile ) )
+		var resolution = terrain.Storage.Resolution;
+		var numPixels = resolution * resolution;
+
+		// Accumulate all weights from all splatmaps
+		var allWeights = new List<(int materialIndex, float weight)>[numPixels];
+		for ( int i = 0; i < numPixels; i++ )
 		{
-			Log.Info( storage.Resolution );
-			bitmap.Resize( storage.Resolution, storage.Resolution );
+			allWeights[i] = [];
+		}
 
-			var data = bitmap.EncodeTo( ImageFormat.RGBA8888 );
-			var numPixels = storage.Resolution * storage.Resolution;
-			var controlmap = new Color32[numPixels];
+		int materialIndexOffset = 0;
 
-			for ( var i = 0; i < numPixels; i++ )
+		// Load all splatmaps and accumulate weights
+		foreach ( var file in files )
+		{
+			using ( var bitmap = EditorUtility.LoadBitmap( file ) )
 			{
-				var r = data[(i * 4) + 0];
-				var g = data[(i * 4) + 1];
-				var b = data[(i * 4) + 2];
-				var a = data[(i * 4) + 3];
+				if ( bitmap.Width != resolution || bitmap.Height != resolution )
+				{
+					Log.Warning( $"Skipping {Path.GetFileName( file )}:  does not match terrain resolution " );
+					continue;
+				}
 
-				controlmap[i] = BalanceWeights( new Color32( r, g, b, a ) );
+				var data = bitmap.EncodeTo( ImageFormat.RGBA8888 );
+				for ( int i = 0; i < numPixels; i++ )
+				{
+					int byteOffset = i * 4;
+					float r = data[byteOffset + 0] / 255f;
+					float g = data[byteOffset + 1] / 255f;
+					float b = data[byteOffset + 2] / 255f;
+					float a = data[byteOffset + 3] / 255f;
+
+					allWeights[i].Add( (materialIndexOffset + 0, r) );
+					allWeights[i].Add( (materialIndexOffset + 1, g) );
+					allWeights[i].Add( (materialIndexOffset + 2, b) );
+					allWeights[i].Add( (materialIndexOffset + 3, a) );
+				}
 			}
 
-			storage.ControlMap = controlmap;
+			materialIndexOffset += 4;
+		}
+
+		// find top 2 contributors across all splatmaps, we dont care about the rest
+		for ( int i = 0; i < numPixels; i++ )
+		{
+			var weights = allWeights[i];
+
+			// Find top 2
+			weights.Sort( ( a, b ) => b.weight.CompareTo( a.weight ) );
+
+			// Get top 2 materials
+			int firstIdx = weights[0].materialIndex;
+			float firstWeight = weights[0].weight;
+
+			int secondIdx = weights.Count > 1 ? weights[1].materialIndex : firstIdx;
+			float secondWeight = weights.Count > 1 ? weights[1].weight : 0;
+
+			// Calculate blend factor
+			byte blendFactor = 0;
+			float totalWeight = firstWeight + secondWeight;
+			if ( totalWeight > 0.0001f )
+			{
+				float normalizedSecond = secondWeight / totalWeight;
+				blendFactor = (byte)Math.Clamp( (int)(normalizedSecond * 255f), 0, 255 );
+			}
+
+			// Clamp material indices to valid range
+			byte baseMat = (byte)Math.Clamp( firstIdx, 0, Math.Min( 31, terrain.Storage.Materials.Count - 1 ) );
+			byte overlayMat = (byte)Math.Clamp( secondIdx, 0, Math.Min( 31, terrain.Storage.Materials.Count - 1 ) );
+
+			var compactMaterial = new CompactTerrainMaterial( baseMat, overlayMat, blendFactor, false );
+			terrain.Storage.ControlMap[i] = compactMaterial.Packed;
 		}
 
 		terrain.SyncGPUTexture();

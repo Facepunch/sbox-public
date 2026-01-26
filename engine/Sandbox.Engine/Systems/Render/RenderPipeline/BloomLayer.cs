@@ -14,8 +14,6 @@ internal class BloomLayer : RenderLayer
 		ClearFlags = ClearFlags.Color;
 		Flags |= LayerFlags.NeedsPerViewLightingConstants;
 
-		Attributes.Set( "UseTiledRendering", false ); // We render at quarter res and with lighting and this fucks up the offsets of tiled rendering
-
 		ObjectFlagsRequired = SceneObjectFlags.EffectsBloomLayer;
 		ObjectFlagsExcluded = SceneObjectFlags.IsLight;
 	}
@@ -46,7 +44,7 @@ internal class BloomDownsampleLayer : ProceduralRenderLayer
 }
 internal class QuarterDepthDownsampleLayer : ProceduralRenderLayer
 {
-	private static Material DepthResolve = Material.Create( "depthresolve", "shaders/depthresolve.shader" );
+	private Material DepthResolve;
 	private bool MSAAInput;
 
 	public QuarterDepthDownsampleLayer()
@@ -55,6 +53,7 @@ internal class QuarterDepthDownsampleLayer : ProceduralRenderLayer
 		Flags |= LayerFlags.NeverRemove | LayerFlags.DoesntModifyColorBuffers;
 		ClearFlags = ClearFlags.Depth | ClearFlags.Stencil;
 		LayerType = SceneLayerType.Opaque;
+		DepthResolve = Material.Create( "depthresolve", "shaders/depthresolve.shader" );
 	}
 
 	public void Setup( ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle rtDepth, bool msaaInput, RenderTarget rtOutDepth )

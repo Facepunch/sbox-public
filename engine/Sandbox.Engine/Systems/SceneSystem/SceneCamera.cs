@@ -607,30 +607,6 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	}
 
 	/// <summary>
-	/// Projects a line in world space to screen coords, returning null if the line is
-	/// fully behind the camera.
-	/// </summary>
-	internal Line2D? ToScreen( Line worldLine )
-	{
-		var forward = Rotation.Forward;
-
-		// Clip line to be fully in front of near plane
-
-		if ( worldLine.Clip( new Plane( Position + forward * ZNear, forward ) ) is not { } clipped )
-		{
-			return null;
-		}
-
-		Frustum.WorldToView( clipped.Start, out var start );
-		Frustum.WorldToView( clipped.End, out var end );
-
-		return new Line2D( start, end )
-			.Remap(
-				new Rect( -1f, -1f, 2f, 2f ),
-				new Rect( 0f, Size.y, Size.x, -Size.y ) );
-	}
-
-	/// <summary>
 	/// Convert from world coords to normal screen corrds. The results will be between 0 and 1
 	/// </summary>
 	public Vector2 ToScreenNormal( Vector3 world )
@@ -745,7 +721,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 		OnPreRender( renderSize );
 
-		var setup = new CameraRenderer( "RenderToSwapChain", _cameraId );
+		using var setup = new CameraRenderer( "RenderToSwapChain", _cameraId );
 		setup.Configure( this, config );
 		setup.Native.Render( swapChain );
 	}
@@ -762,7 +738,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 		ConfigureView( in config );
 
-		var setup = new CameraRenderer( "RenderToTexture", _cameraId );
+		using var setup = new CameraRenderer( "RenderToTexture", _cameraId );
 		setup.Configure( this, config );
 		setup.Native.RenderToTexture( texture.native, Graphics.SceneView );
 	}
@@ -780,7 +756,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 		OnPreRender( renderSize );
 
-		var setup = new CameraRenderer( "RenderToBitmap", _cameraId );
+		using var setup = new CameraRenderer( "RenderToBitmap", _cameraId );
 		setup.Configure( this, config );
 
 		unsafe
@@ -819,6 +795,8 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 			setup.Native.CameraRotation = (Rotation * CubeRotations[i]).Angles();
 			setup.Native.RenderToCubeTexture( texture.native, i );
 		}
+
+		setup.Dispose();
 	}
 
 	private void RenderStereo( in ViewSetup config = default )
@@ -829,7 +807,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 			return;
 		}
 
-		var setup = new CameraRenderer( "RenderStereo", _cameraId );
+		using var setup = new CameraRenderer( "RenderStereo", _cameraId );
 		setup.Configure( this, config );
 
 		var n = setup.Native;
@@ -939,8 +917,8 @@ public enum SceneCameraDebugMode
 
 	[Title( "Shader IDs" ), Icon( "sell" )]
 	ShaderIDColor = 16,
-	[Title( "Tiled Rendering Lights" ), Icon( "view_module" )]
-	TiledRenderingQuads = 50,
+	[Title( "Clustered Light Culling" ), Icon( "scatter_plot" )]
+	ClusteredLightCulling = 50,
 
 	[Title( "Quad Overdraw" ), Icon( "signal_cellular_null" )]
 	QuadOverdraw = 100,

@@ -30,8 +30,6 @@ namespace Editor
 			}
 		}
 
-		private bool _toolTipsVisible;
-
 		/// <summary>
 		/// <para>
 		/// This property holds whether tooltips of menu actions should be visible.
@@ -45,11 +43,13 @@ namespace Editor
 		/// </summary>
 		public bool ToolTipsVisible
 		{
-			get => _toolTipsVisible;
-			set => _menu.setToolTipsVisible( _toolTipsVisible = value );
+			get => _menu.toolTipsVisible();
+			set => _menu.setToolTipsVisible( value );
 		}
 
 		private QAction _parentAction;
+
+		internal QAction GetParentAction() => _parentAction;
 
 		public override string ToolTip
 		{
@@ -73,10 +73,6 @@ namespace Editor
 		{
 			var ptr = Native.QMenu.Create( parent?._widget ?? default );
 			NativeInit( ptr );
-
-			// This is 99% the wanted behaviour, and 99% forgotten about
-			// meaning we're ending up with a shit load of unused menus
-			// hidden, just existing.
 			DeleteOnClose = true;
 		}
 
@@ -189,6 +185,56 @@ namespace Editor
 			return widget;
 		}
 
+		/// <summary>
+		/// Insert a widget at a specific position in the menu
+		/// </summary>
+		internal T InsertWidgetAt<T>( T widget, int position ) where T : Widget
+		{
+			var widgetAction = Native.CQNoDeleteWidgetAction.Create( _object );
+			widgetAction.setDefaultWidget( widget._widget );
+
+			if ( position == 0 )
+			{
+				// Insert at the very beginning - before the first item
+				var firstAction = Options.FirstOrDefault()?._action ?? Menus.FirstOrDefault()?.GetParentAction();
+				if ( firstAction.HasValue && !firstAction.Value.IsNull )
+				{
+					_menu.insertAction( firstAction.Value, widgetAction );
+				}
+				else
+				{
+					_menu.addAction( widgetAction );
+				}
+			}
+			else
+			{
+				// Get all actions and insert at the specified position
+				var actions = new List<QAction>();
+				foreach ( var opt in Options )
+				{
+					actions.Add( opt._action );
+				}
+				foreach ( var menu in Menus )
+				{
+					var action = menu.GetParentAction();
+					if ( action.IsValid )
+						actions.Add( action );
+				}
+
+				if ( position < actions.Count && actions[position].IsValid )
+				{
+					_menu.insertAction( actions[position], widgetAction );
+				}
+				else
+				{
+					_menu.addAction( widgetAction );
+				}
+			}
+
+			_widgets.Add( (widget, widgetAction) );
+			return widget;
+		}
+
 		private class Heading : Widget
 		{
 			public Label Label { get; }
@@ -196,7 +242,6 @@ namespace Editor
 			public Heading( string title ) : base( null )
 			{
 				Layout = Layout.Row();
-
 				Layout.Margin = 6;
 				Layout.Spacing = 4;
 
@@ -250,10 +295,10 @@ namespace Editor
 			return AddMenu( name );
 		}
 
-		List<Menu> Menus = new();
-		List<Option> Options = new();
+		protected List<Menu> Menus = [];
+		protected List<Option> Options = [];
 
-		private readonly List<(Widget Widget, QAction Action)> _widgets = new();
+		private readonly List<(Widget Widget, QAction Action)> _widgets = [];
 
 		public bool HasOptions => Options.Count > 0;
 		public bool HasMenus => Menus.Count > 0;
@@ -265,6 +310,39 @@ namespace Editor
 			.Where( x => x.Widget.IsValid && x.Action.IsValid )
 			.Select( x => x.Widget )
 			.ToArray();
+
+		/// <summary>
+		/// Get all options in this menu and all submenus recursively
+		/// </summary>
+		internal List<(Option Option, string FullPath)> GetAllOptionsRecursive( string pathPrefix = "" )
+		{
+			var result = new List<(Option, string)>();
+
+			foreach ( var option in Options )
+			{
+				var fullPath = string.IsNullOrEmpty( pathPrefix ) ? option.Text : $"{pathPrefix} > {option.Text}";
+				result.Add( (option, fullPath) );
+			}
+
+			foreach ( var menu in Menus )
+			{
+				var newPath = string.IsNullOrEmpty( pathPrefix ) ? menu.Title : $"{pathPrefix} > {menu.Title}";
+				result.AddRange( menu.GetAllOptionsRecursive( newPath ) );
+			}
+
+			return result;
+		}
+
+		/// <summary>
+		/// Remove this menu from its parent safely
+		/// </summary>
+		internal void RemoveFromParent()
+		{
+			if ( ParentMenu != null && _parentAction.IsValid )
+			{
+				ParentMenu._menu.removeAction( _parentAction );
+			}
+		}
 
 		public Menu AddMenu( string name, string icon = null )
 		{
@@ -411,17 +489,6 @@ namespace Editor
 				lastActive = new Option( a );
 				return lastActive;
 			}
-		}
-	}
-
-	/// <summary>
-	/// Identical to Menu except DeleteOnClose defaults to true
-	/// </summary>
-	public class ContextMenu : Menu
-	{
-		public ContextMenu( Widget parent = null ) : base( parent )
-		{
-			DeleteOnClose = true;
 		}
 	}
 }

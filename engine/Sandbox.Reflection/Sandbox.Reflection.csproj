@@ -21,7 +21,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-		<PackageReference Include="Facepunch.ActionGraphs" Version="1.9.22" />
+		<PackageReference Include="Facepunch.ActionGraphs" Version="1.9.26" />
   </ItemGroup>
 
   <ItemGroup>

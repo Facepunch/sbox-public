@@ -57,6 +57,18 @@ public partial class GameTransform
 		}
 	}
 
+	/// <summary>
+	/// This will be true if the GameObject is enabled, we're in a Fixed Update context, and interpolation
+	/// is not disabled for this GameObject.
+	/// </summary>
+	bool ShouldInterpolate()
+	{
+		var isEnabled = GameObject?.Enabled ?? false;
+		var isFixedUpdate = GameObject?.Scene?.IsFixedUpdate ?? false;
+		var isInterpolationDisabled = GameObject?.Flags.Contains( GameObjectFlags.NoInterpolation ) ?? false;
+
+		return FixedUpdateInterpolation && isFixedUpdate && isEnabled && !isInterpolationDisabled;
+	}
 
 	void UpdateInterpolatedLocal( in Transform value )
 	{

@@ -302,8 +302,6 @@ public class SoundscapeTrigger : Component
 
 		Soundscape.LoopedSound source;
 		float sourceVolume;
-		float soundVelocity = 0.0f;
-
 		public LoopedSoundEntry( Soundscape.LoopedSound sound, float internalVolume, float volume )
 		{
 			currentVolume = 0.0f;
@@ -326,7 +324,7 @@ public class SoundscapeTrigger : Component
 			var targetVolume = sourceVolume * internalVolume * Volume;
 			if ( Finished ) targetVolume = 0.0f;
 
-			currentVolume = MathX.SmoothDamp( currentVolume, targetVolume, ref soundVelocity, 5.0f, Time.Delta );
+			currentVolume = MathX.ExponentialDecay( currentVolume, targetVolume, 0.85f, Time.Delta );
 			handle.Volume = currentVolume;
 			handle.Position = head.Position;
 			handle.TargetMixer = TargetMixer.GetOrDefault();

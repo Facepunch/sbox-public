@@ -210,7 +210,15 @@ public class ImageFileGenerator : TextureGenerator
 			bitmap.InsertPadding( Padding );
 		}
 
-		if ( Rotate != 0 ) bitmap = bitmap.Rotate( Rotate );
+
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// Disposal is handled after creating the new bitmap to keep the source alive during processing
+		if ( Rotate != 0 )
+		{
+			var rotated = bitmap.Rotate( Rotate );
+			bitmap.Dispose();
+			bitmap = rotated;
+		}
 
 		if ( bitmap.Width > MaxSize || bitmap.Height > MaxSize )
 		{
@@ -221,7 +229,9 @@ public class ImageFileGenerator : TextureGenerator
 			newWidth = newWidth.Clamp( 1, 1024 * 8 );
 			newHeight = newHeight.Clamp( 1, 1024 * 8 );
 
-			bitmap = bitmap.Resize( newWidth, newHeight );
+			var resized = bitmap.Resize( newWidth, newHeight );
+			bitmap.Dispose();
+			bitmap = resized;
 		}
 
 		if ( Tint != Color.White || Tint.a != 1 )
@@ -240,15 +250,31 @@ public class ImageFileGenerator : TextureGenerator
 
 		//	if ( Posterize != 0 ) bitmap.Posterize( Posterize );
 
-		if ( FlipHorizontal ) bitmap = bitmap.FlipHorizontal();
-		if ( FlipVertical ) bitmap = bitmap.FlipVertical();
+		if ( FlipHorizontal )
+		{
+			var flipped = bitmap.FlipHorizontal();
+			bitmap.Dispose();
+			bitmap = flipped;
+		}
+		if ( FlipVertical )
+		{
+			var flipped = bitmap.FlipVertical();
+			bitmap.Dispose();
+			bitmap = flipped;
+		}
 
 		if ( ConvertHeightToNormals )
 		{
-			bitmap = bitmap.HeightmapToNormalMap( NormalScale );
+			var normalMap = bitmap.HeightmapToNormalMap( NormalScale );
+			bitmap.Dispose();
+			bitmap = normalMap;
 		}
+#pragma warning restore CA2000 // Dispose objects before losing scope
 
-		return bitmap.ToTexture();
+		var tex = bitmap.ToTexture();
+		bitmap?.Dispose();
+
+		return tex;
 	}
 
 	public override EmbeddedResource? CreateEmbeddedResource()

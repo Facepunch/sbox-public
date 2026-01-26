@@ -173,7 +173,7 @@ public class Morphs : Widget
 		Sliders.Clear();
 
 		var world = new SceneWorld();
-		var camera = new SceneCamera
+		using var camera = new SceneCamera
 		{
 			World = world,
 			AmbientLightColor = Color.White * 0.0f,

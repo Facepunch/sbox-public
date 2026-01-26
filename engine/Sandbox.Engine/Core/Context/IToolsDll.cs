@@ -1,4 +1,5 @@
-﻿using NativeEngine;
+﻿using Editor;
+using NativeEngine;
 
 namespace Sandbox.Engine;
 
@@ -42,7 +43,17 @@ internal unsafe interface IToolsDll
 	public bool IsGameViewVisible { get; }
 
 	/// <summary>
+	/// A public interface to the active editor system
+	/// </summary>
+	public EditorSystem ActiveEditor { get; }
+
+	/// <summary>
 	/// Called after the host network system is initialised, used to add additional package references etc. to dev servers 
 	/// </summary>
 	public Task OnInitializeHost();
+
+	/// <summary>
+	/// Get a thumbnail for the specified asset.Can return null if not immediately available. 
+	/// </summary>
+	Bitmap GetThumbnail( string filename );
 }

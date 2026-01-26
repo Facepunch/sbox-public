@@ -49,7 +49,7 @@ internal class UploadDocumentation( string name ) : Step( name )
 
 			var json = JsonSerializer.Serialize( payload );
 			var content = new StringContent( json, Encoding.UTF8, "application/json" );
-			var req = new HttpRequestMessage( HttpMethod.Post, url ) { Content = content };
+			using var req = new HttpRequestMessage( HttpMethod.Post, url ) { Content = content };
 
 			var response = await http.SendAsync( req );
 			Log.Info( $"Response Was: {response.StatusCode}" );

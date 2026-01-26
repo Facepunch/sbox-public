@@ -1,4 +1,6 @@
 ﻿
+using Sandbox.Rendering;
+
 namespace Sandbox;
 
 /// <summary>
@@ -177,6 +179,8 @@ public struct TrailTextureConfig
 		Scale = 1,
 		Offset = 0,
 		Scroll = 0,
+		FilterMode = FilterMode.Anisotropic,
+		TextureAddressMode = TextureAddressMode.Wrap
 	};
 
 	[Hide, Obsolete( "Use Material property instead" )]
@@ -207,11 +211,18 @@ public struct TrailTextureConfig
 	[Property]
 	public float Scroll { get; set; }
 
+	[Group( "Texture Coordinates" )]
+	[Property]
+	public FilterMode FilterMode { get; set; } = FilterMode.Anisotropic;
+
+	[Group( "Texture Coordinates" )]
+	[Property]
+	public TextureAddressMode TextureAddressMode { get; set; } = TextureAddressMode.Wrap;
+
 	/// <summary>
 	/// If true the texture will be clamped instead of repeating
 	/// </summary>
-	[Group( "Texture Coordinates" )]
-	[Property]
+	[Hide, Obsolete( "Use Texture Address Mode property instead" )]
 	public bool Clamp { get; set; }
 
 	public bool DoesMaterialUseLineShader( Material value )
