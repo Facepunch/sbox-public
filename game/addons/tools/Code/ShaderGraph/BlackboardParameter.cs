@@ -77,22 +77,16 @@ public abstract class BlackboardParameter : IBlackboardParameter
 			{
 				var targetType = classParameterType.Type.TargetType;
 
-				if ( !isSubgraph )
-				{
-					// Only show material parameters when not in a subgraph
-					if ( targetType == typeof( BoolBlackboardParameter ) ) return false;
-					if ( targetType == typeof( IntBlackboardParameter ) ) return false;
-					if ( targetType == typeof( FloatBlackboardParameter ) ) return false;
-					if ( targetType == typeof( Float2BlackboardParameter ) ) return false;
-					if ( targetType == typeof( Float3BlackboardParameter ) ) return false;
-					if ( targetType == typeof( Float4BlackboardParameter ) ) return false;
-					if ( targetType == typeof( ColorBlackboardParameter ) ) return false;
-				}
-				else
-				{
-					//TODO : Subgraph input parameters
-					throw new NotImplementedException();
-				}
+				// Only show material parameters when not in a subgraph
+				if ( isSubgraph && targetType == typeof( BoolBlackboardParameter ) ) return false;
+				if ( isSubgraph && targetType == typeof( IntBlackboardParameter ) ) return false;
+				if ( isSubgraph && targetType == typeof( FloatBlackboardParameter ) ) return false;
+				if ( isSubgraph && targetType == typeof( Float2BlackboardParameter ) ) return false;
+				if ( isSubgraph && targetType == typeof( Float3BlackboardParameter ) ) return false;
+				if ( isSubgraph && targetType == typeof( Float4BlackboardParameter ) ) return false;
+				if ( isSubgraph && targetType == typeof( ColorBlackboardParameter ) ) return false;
+
+				// TODO : Subgraph input parameters
 			}
 
 			return true;
