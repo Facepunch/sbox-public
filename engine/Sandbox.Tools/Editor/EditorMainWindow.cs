@@ -187,7 +187,7 @@ public class EditorMainWindow : DockWindow
 
 			help.AddOption( "Open Log Folder", "source", () => EditorUtility.OpenFolder( FileSystem.Root.GetFullPath( "/logs/" ) ) );
 			help.AddOption( "Developer Documentation", "article", () => EditorUtility.OpenFolder( "https://sbox.game/dev/" ) );
-			help.AddOption( "Report a Bug", "bug_report", () => EditorUtility.OpenFolder( "https://github.com/Facepunch/sbox-issues" ) );
+			help.AddOption( "Report a Bug", "bug_report", () => EditorUtility.OpenFolder( "https://github.com/Facepunch/sbox-public/issues" ) );
 
 			help.AddSeparator();
 			help.AddOption( "About s&box editor", "info", () =>

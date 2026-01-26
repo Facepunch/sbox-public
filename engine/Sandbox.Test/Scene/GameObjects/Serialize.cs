@@ -276,7 +276,7 @@ public class SerializeTest
 	/// <summary>
 	/// There was a regression when cloning a list of user defined objects, if the object had a property that was named "Prefab".
 	/// This could lead to a deserilziation issue in UpdateClonedIdsInJson when trying to rewire the GameObjectReferences.
-	/// https://github.com/Facepunch/sbox-issues/issues/7638
+	/// https://github.com/Facepunch/sbox-public/issues/2480
 	/// </summary>
 	[TestMethod]
 	public void CloneComponentWithPrefabList()
@@ -883,7 +883,7 @@ public class ComponentWithRequiredComponent : Component
 }
 
 
-// https://github.com/Facepunch/sbox-issues/issues/7638
+// https://github.com/Facepunch/sbox-public/issues/2480
 public class ComponentWithPrefabList : Component
 {
 	[Sandbox.Property] public readonly List<PrafbEntry> Decorations = new();
