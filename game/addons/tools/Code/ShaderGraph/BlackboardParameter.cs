@@ -59,15 +59,9 @@ public abstract class BlackboardParameter : IBlackboardParameter
 		return Identifier;
 	}
 
-	public virtual object GetValue()
-	{
-		throw new NotImplementedException();
-	}
+	public abstract object GetValue();
 
-	public virtual void SetValue( object value )
-	{
-		throw new NotImplementedException();
-	}
+	public abstract void SetValue( object value );
 
 	public static IEnumerable<IBlackboardParameterType> GetRelevantParameters( Dictionary<string, IBlackboardParameterType> availableParameters, bool isSubgraph )
 	{
