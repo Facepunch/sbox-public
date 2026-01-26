@@ -212,9 +212,4 @@ public sealed partial class ShaderGraph : IGraph
 	{
 		RemoveNode( (BaseNode)node );
 	}
-
-	//internal void AddParameter( IBlackboardParameter parameter )
-	//{
-	//	AddParameter( (BlackboardParameter)parameter );
-	//}
 }
