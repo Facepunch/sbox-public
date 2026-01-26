@@ -47,11 +47,6 @@ partial class ShaderGraph
 		DeserializeObject( this, root, options );
 		DeserializeNodes( root, options, subgraphPath, fileVersion );
 		DeserializeParameters( root, options );
-
-		if ( fileVersion < 2 )
-		{
-			AddParameters_v2Upgrade();
-		}
 	}
 
 	public IEnumerable<BaseNode> DeserializeNodes( string json )
@@ -147,9 +142,25 @@ partial class ShaderGraph
 				{
 					node = CreateUpgradedSubgraphInput_v1Upgrade( typeName, element, options );
 				}
-				else if ( fileVersion < 2 && ShouldConvertParameterNodeToConstant_v2Upgrade( typeName, element ) )
+				else if ( fileVersion < 2 && IsParameterNodeType_v2Upgrade( typeName ) ) 
 				{
-					node = ConvertToConstantNode_v2Upgrade( typeName, element, options );
+					if ( IsNamedParameterNode_v2Upgrade( element ) )
+					{
+						node = ConvertToConstantNode_v2Upgrade( typeName, element, options );
+					}
+					else
+					{
+						node = EditorTypeLibrary.Create<BaseNode>( typeName );
+						DeserializeObject( node, element, options );
+
+						var parameterID = AddBlackboardParameter_v2Upgrade( typeName, element, options );
+
+						if ( node is IParameterNode parameterNode )
+						{
+							parameterNode.BlackboardParameterIdentifier = parameterID;
+							node = (BaseNode)parameterNode;
+						}
+					}
 				}
 				else
 				{

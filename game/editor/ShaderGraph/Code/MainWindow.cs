@@ -1,6 +1,5 @@
 ﻿namespace Editor.ShaderGraph;
 
-
 [EditorForAssetType( "shdrfunc" )]
 public class MainWindowFunc : MainWindow, IAssetEditor
 {
@@ -135,7 +134,7 @@ public class MainWindow : DockWindow
 		_properties.Target = node != null ? node : _graph;
 
 		// TODO : Make it work when subgraph inputs.
-		if ( _properties.Target is IParameterNodeBase parameterNode )
+		if ( _properties.Target is IParameterNode parameterNode )
 		{
 			// For now only select a blackboard parameter when _graphView only has 1 selection.
 			if ( _graphView.SelectedItems.Count() == 1 )
@@ -982,7 +981,7 @@ public class MainWindow : DockWindow
 
 		AddToRecentFiles( path );
 
-		UpdateParameterNodes();
+		CheckParameter();
 
 		GeneratePreviewCode();
 	}
@@ -1339,7 +1338,7 @@ public class MainWindow : DockWindow
 		foreach ( var node in _graph.Nodes )
 		{
 			// TODO : Make it work when subgraph inputs.
-			if ( node is IParameterNodeBase parameterNode && parameterNode.BlackboardParameterIdentifier == identifier && parameterNode is BaseNode baseNode )
+			if ( node is IParameterNode parameterNode && parameterNode.BlackboardParameterIdentifier == identifier && parameterNode is BaseNode baseNode )
 			{
 				_graph.RemoveNode( baseNode );
 
@@ -1365,33 +1364,19 @@ public class MainWindow : DockWindow
 		_blackboardView.SetSelectedItem( parameter );
 	}
 
-	private void UpdateParameterNodes()
+	private void CheckParameter()
 	{
 		BlackboardErrors.Clear();
 
 		if ( _properties.Target is BlackboardParameter parameter )
 		{
 			// Dont update a node on the graph if we have any blackboard issues.
-			if ( parameter.CheckParameter( out var parameterIssues ) )
-			{
-				// TODO : Make it work when subgraph inputs.
-				foreach ( var parameterNode in _graph.Nodes.OfType<IParameterNodeBase>().Where( x => x.BlackboardParameterIdentifier == parameter.Identifier ) )
-				{
-					parameterNode.UpdateFromBlackboard( parameter );
-					
-					if ( parameterNode is BaseNode baseNode )
-					{
-						baseNode.Update();
-					}
-				}
-			}
-			else
+			if ( !parameter.CheckParameter( out var parameterIssues ) )
 			{
 				foreach ( var issue in parameterIssues )
 				{
 					BlackboardErrors.Add( new() { Node = null, Message = issue } );
 				}
-		
 			}
 		}
 	}
@@ -1400,7 +1385,7 @@ public class MainWindow : DockWindow
 	{
 		_preview.PostProcessing = _graphView.Graph.Domain == ShaderDomain.PostProcess;
 
-		UpdateParameterNodes();
+		CheckParameter();
 
 		if ( _properties.Target is BaseNode node )
 		{

@@ -1,24 +1,14 @@
-﻿using System.ComponentModel;
-using System.Text.Json.Serialization;
+﻿namespace Editor.ShaderGraph;
 
-namespace Editor.ShaderGraph;
-
-public interface IParameterNodeBase
+public interface IParameterNode
 {
-	string Name { get; set; }
+	string Name { get; }
 
 	Guid BlackboardParameterIdentifier { get; set; }
 
-	void UpdateFromBlackboard( IBlackboardParameter parameter );
-}
+	bool IsAttribute { get; }
 
-public interface IParameterNode<T> where T : IParameterUI
-{
-	string Name { get; set; }
-
-	bool IsAttribute { get; set; }
-
-	T UI { get; set; }
+	IParameterUI UI { get; }
 }
 
 public interface ITextureParameterNode
@@ -27,30 +17,72 @@ public interface ITextureParameterNode
 	TextureInput UI { get; set; }
 }
 
-public abstract class ParameterNode<T, PUI, BP> : ShaderNode, IParameterNodeBase, IParameterNode<PUI>, IErroringNode
-	where PUI : IParameterUI
-	where BP : IBlackboardParameter
+public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNode, IErroringNode where Y : BlackboardParameter
 {
+	private record SharedMaterialParameterData( string Name, object Value, IParameterUI ParameterUI, bool IsAttribute );
+
 	[Hide]
 	public override string Title => string.IsNullOrWhiteSpace( Name ) ?
 		$"{DisplayInfo.For( this ).Name}" :
 		$"{DisplayInfo.For( this ).Name} {Name}";
 
-	[Hide, Browsable( false )]
+	[Hide]
 	public Guid BlackboardParameterIdentifier { get; set; }
 
-	public T Value { get; set; }
+	[Hide]
+	public T Value
+	{
+		get => (T)GetSharedParameterData().Value;
+		set
+		{
+			if ( Graph is ShaderGraph graph )
+			{
+				graph.UpdateParameterValue( BlackboardParameterIdentifier, value );
 
-	public string Name { get; set; } = "";
+				Update();
+				IsDirty = true;
+			}
+		}
+	}
 
-	/// <summary>
-	/// If true, this parameter can be modified with <see cref="RenderAttributes"/>.
-	/// </summary>
-	[HideIf( nameof( IsSubgraph ), true )]
-	public bool IsAttribute { get; set; }
+	[Hide]
+	public string Name => GetSharedParameterData().Name;
 
-	[InlineEditor( Label = false ), Group( "UI" )]
-	public PUI UI { get; set; }
+	[Hide]
+	public bool IsAttribute => GetSharedParameterData().IsAttribute;
+
+	[Hide]
+	public IParameterUI UI => GetSharedParameterData().ParameterUI;
+
+	private SharedMaterialParameterData GetSharedParameterData()
+	{
+		if ( Graph is ShaderGraph graph )
+		{
+			var parameter = graph.FindParameterByGuid( BlackboardParameterIdentifier );
+
+			switch ( parameter )
+			{
+				case BoolBlackboardParameter v:
+					return new SharedMaterialParameterData( v.Name, v.Value, v.UI, v.IsAttribute );
+				case IntBlackboardParameter v:
+					return new SharedMaterialParameterData( v.Name, v.Value, v.UI, v.IsAttribute );
+				case FloatBlackboardParameter v:
+					return new SharedMaterialParameterData( v.Name, v.Value, v.UI, v.IsAttribute );
+				case Float2BlackboardParameter v:
+					return new SharedMaterialParameterData( v.Name, v.Value, v.UI, v.IsAttribute );
+				case Float3BlackboardParameter v:
+					return new SharedMaterialParameterData( v.Name, v.Value, v.UI, v.IsAttribute );
+				case Float4BlackboardParameter v:
+					return new SharedMaterialParameterData( v.Name, v.Value, v.UI, v.IsAttribute );
+				case ColorBlackboardParameter v:
+					return new SharedMaterialParameterData( v.Name, v.Value, v.UI, v.IsAttribute );
+				default:
+					throw new NotImplementedException();
+			}
+		}
+
+		return default;
+	}
 
 	protected NodeResult Component( string component, float value, GraphCompiler compiler )
 	{
@@ -61,28 +93,14 @@ public abstract class ParameterNode<T, PUI, BP> : ShaderNode, IParameterNodeBase
 		return new( NodeResultType.Float, $"{result}.{component}", true );
 	}
 
-	public virtual object GetDefaultValue()
+	protected Y GetParameter()
 	{
-		return default( T );
-	}
+		if ( Graph is ShaderGraph graph )
+		{
+			return (Y)graph.FindParameterByGuid( BlackboardParameterIdentifier );
+		}
 
-	public object GetValue()
-	{
-		return Value;
-	}
-
-	public void SetValue( object val )
-	{
-		Value = (T)val;
-	}
-
-	protected virtual void UpdateFromBlackboardParameter( BP parameter )
-	{
-	}
-
-	public void UpdateFromBlackboard( IBlackboardParameter parameter )
-	{
-		UpdateFromBlackboardParameter( (BP)parameter );
+		return null;
 	}
 
 	public List<string> GetErrors()
@@ -92,3 +110,4 @@ public abstract class ParameterNode<T, PUI, BP> : ShaderNode, IParameterNodeBase
 		return errors;
 	}
 }
+

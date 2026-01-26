@@ -476,7 +476,7 @@ public class ShaderGraphView : GraphView
 				if ( correspondingOutput is not null && correspondingNode is null )
 				{
 					var inputName = $"{input.Identifier}_{correspondingOutput?.Node?.Identifier}";
-					var existingParameterNode = nodesToAdd.OfType<IParameterNodeBase>().FirstOrDefault( x => x.Name == inputName );
+					var existingParameterNode = nodesToAdd.OfType<IParameterNode>().FirstOrDefault( x => x.Name == inputName );
 					if ( input.ConnectedOutput is not null )
 					{
 						previousOutputs[inputName] = input.ConnectedOutput;

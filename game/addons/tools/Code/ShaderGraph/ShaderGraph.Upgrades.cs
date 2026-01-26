@@ -43,22 +43,17 @@ partial class ShaderGraph
 		return false;
 	}
 
-	private static bool ShouldConvertParameterNodeToConstant_v2Upgrade( string typeName, JsonElement element )
+	private static bool IsNamedParameterNode_v2Upgrade( JsonElement element )
 	{
-		// Only upgrade if it's a parameter node type
-		if ( !IsParameterNodeTypeToConvertToConstant_v2Upgrade( typeName ) )
-			return false;
-
 		// Only convert if it dosent have a name (indicating it's meant to be a constant value)
 		if ( element.TryGetProperty( "Name", out var nameProperty ) )
 		{
 			return string.IsNullOrWhiteSpace( nameProperty.GetString() );
 		}
 
-		// No "Name" property? assume its ment to be a constant.
-		return true;
+		// No "Name" property? assume its ment to be a constant
+		return false;
 	}
-
 
 	private static bool ShouldUseNewParameterTypeName_v2Upgrade( string typeName )
 	{
@@ -88,7 +83,7 @@ partial class ShaderGraph
 		};
 	}
 
-	private static bool IsParameterNodeTypeToConvertToConstant_v2Upgrade( string typeName )
+	private static bool IsParameterNodeType_v2Upgrade( string typeName )
 	{
 		return typeName switch
 		{
@@ -215,113 +210,80 @@ partial class ShaderGraph
 			"Float2" => "Float2Parameter",
 			"Float3" => "Float3Parameter",
 			"Float4" => "ColorParameter",
-			_ => throw new Exception()
+			_ => throw new NotImplementedException()
 		};
 	}
 
-	private void AddParameters_v2Upgrade()
+	private Guid AddBlackboardParameter_v2Upgrade( string typeName, JsonElement element, JsonSerializerOptions options )
 	{
 		if ( IsSubgraph )
 		{
 			// TODO
 			throw new NotImplementedException();
-			/*
-			foreach ( var subgraphInput in Nodes.OfType<SubgraphInput>() )
-			{
-			}
-			*/
 		}
 		else
 		{
-			foreach ( var parameterNode in Nodes.OfType<IParameterNodeBase>() )
+			BlackboardParameter blackboardParameter = null;
+
+			// Common Data 
+			element.TryGetProperty( "Name", out var nameElement );
+			element.TryGetProperty( "Value", out var valueElement );
+			element.TryGetProperty( "Min", out var minElement );
+			element.TryGetProperty( "Max", out var maxElement );
+			element.TryGetProperty( "UI", out var uiElement );
+			element.TryGetProperty( "IsAttribute", out var isAttributeElement );
+
+			switch ( typeName )
 			{
-				if ( string.IsNullOrWhiteSpace( parameterNode.Name ) )
-					continue;
-
-				BlackboardParameter blackboardParameter = null;
-
-				if ( parameterNode is IntParameter intNode )
-				{
-					blackboardParameter = new IntBlackboardParameter()
-					{
-						Name = intNode.Name,
-						Value = intNode.Value,
-						UI = intNode.UI,
-						IsAttribute = intNode.IsAttribute,
-					};
-
-					intNode.BlackboardParameterIdentifier = blackboardParameter.Identifier;
-				}
-				else if ( parameterNode is BoolParameter boolNode )
-				{
-					blackboardParameter = new BoolBlackboardParameter()
-					{
-						Name = boolNode.Name,
-						Value = boolNode.Value,
-						UI = boolNode.UI,
-						IsAttribute = boolNode.IsAttribute,
-					};
-
-					boolNode.BlackboardParameterIdentifier = blackboardParameter.Identifier;
-				}
-				else if ( parameterNode is FloatParameter floatNode )
-				{
+				case nameof( FloatParameter ):
 					blackboardParameter = new FloatBlackboardParameter()
 					{
-						Name = floatNode.Name,
-						Value = floatNode.Value,
-						Min = floatNode.Min,
-						Max = floatNode.Max,
-						UI = floatNode.UI,
-						IsAttribute = floatNode.IsAttribute,
+						Name = nameElement.GetString(),
+						Value = valueElement.GetSingle(),
+						Min = minElement.GetSingle(),
+						Max = maxElement.GetSingle(),
+						UI = uiElement.Deserialize<FloatParameterUI>( options ),
+						IsAttribute = isAttributeElement.GetBoolean(),
 					};
-
-					floatNode.BlackboardParameterIdentifier = blackboardParameter.Identifier;
-				}
-				else if ( parameterNode is Float2Parameter float2Node )
-				{
+					break;
+				case nameof( Float2Parameter ):
 					blackboardParameter = new Float2BlackboardParameter()
 					{
-						Name = float2Node.Name,
-						Value = float2Node.Value,
-						Min = float2Node.Min,
-						Max = float2Node.Max,
-						UI = float2Node.UI,
-						IsAttribute = float2Node.IsAttribute,
+						Name = nameElement.GetString(),
+						Value = valueElement.Deserialize<Vector2>( options ),
+						Min = minElement.Deserialize<Vector2>( options ),
+						Max = maxElement.Deserialize<Vector2>( options ),
+						UI = uiElement.Deserialize<FloatParameterUI>( options ),
+						IsAttribute = isAttributeElement.GetBoolean(),
 					};
-
-					float2Node.BlackboardParameterIdentifier = blackboardParameter.Identifier;
-
-				}
-				else if ( parameterNode is Float3Parameter float3Node )
-				{
+					break;
+				case nameof( Float3Parameter ):
 					blackboardParameter = new Float3BlackboardParameter()
 					{
-						Name = float3Node.Name,
-						Value = float3Node.Value,
-						Min = float3Node.Min,
-						Max = float3Node.Max,
-						UI = float3Node.UI,
-						IsAttribute = float3Node.IsAttribute,
+						Name = nameElement.GetString(),
+						Value = valueElement.Deserialize<Vector3>( options ),
+						Min = minElement.Deserialize<Vector3>( options ),
+						Max = maxElement.Deserialize<Vector3>( options ),
+						UI = uiElement.Deserialize<FloatParameterUI>( options ),
+						IsAttribute = isAttributeElement.GetBoolean(),
 					};
-
-					float3Node.BlackboardParameterIdentifier = blackboardParameter.Identifier;
-				}
-				else if ( parameterNode is ColorParameter colorNode )
-				{
+					break;
+				case nameof( ColorParameter ):
 					blackboardParameter = new ColorBlackboardParameter()
 					{
-						Name = colorNode.Name,
-						Value = colorNode.Value,
-						UI = colorNode.UI,
-						IsAttribute = colorNode.IsAttribute,
+						Name = nameElement.GetString(),
+						Value = valueElement.Deserialize<Color>( options ),
+						UI = uiElement.Deserialize<ColorParameterUI>( options ),
+						IsAttribute = isAttributeElement.GetBoolean(),
 					};
-
-					colorNode.BlackboardParameterIdentifier = blackboardParameter.Identifier;
-				}
-
-				AddParameter( blackboardParameter );
+					break;
+				default:
+					throw new NotImplementedException();
 			}
+
+			AddParameter( blackboardParameter );
+
+			return blackboardParameter.Identifier;
 		}
 	}
 

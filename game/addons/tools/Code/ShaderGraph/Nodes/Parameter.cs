@@ -1,5 +1,4 @@
-﻿
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace Editor.ShaderGraph.Nodes;
 
@@ -8,7 +7,7 @@ namespace Editor.ShaderGraph.Nodes;
 /// </summary>
 [Title( "Bool" ), Category( "Parameters" ), Icon( "check_box" ), Order( 0 )]
 [Hide]
-public sealed class BoolParameter : ParameterNode<bool, BoolParameterUI, BoolBlackboardParameter>
+public sealed class BoolParameter : ParameterNode<bool, BoolBlackboardParameter>
 {
 	[Output( typeof( bool ) ), Title( "Value" )]
 	[Hide, Editor( nameof( Value ) )]
@@ -19,15 +18,6 @@ public sealed class BoolParameter : ParameterNode<bool, BoolParameterUI, BoolBla
 
 	public BoolParameter()
 	{
-		UI = new BoolParameterUI();
-	}
-
-	protected override void UpdateFromBlackboardParameter( BoolBlackboardParameter parameter )
-	{
-		Name = parameter.Name;
-		Value = parameter.Value;
-		UI = parameter.UI;
-		IsAttribute = parameter.IsAttribute;
 	}
 }
 
@@ -36,7 +26,7 @@ public sealed class BoolParameter : ParameterNode<bool, BoolParameterUI, BoolBla
 /// </summary>
 [Title( "Int" ), Category( "Parameters" ), Icon( "looks_one" ), Order( 1 )]
 [Hide]
-public sealed class IntParameter : ParameterNode<int, IntParameterUI, IntBlackboardParameter>
+public sealed class IntParameter : ParameterNode<int, IntBlackboardParameter>
 {
 	[Hide] public float Step => 1;
 
@@ -47,24 +37,11 @@ public sealed class IntParameter : ParameterNode<int, IntParameterUI, IntBlackbo
 		return compiler.ResultParameter( Name, Value, Min, Max, Min != Max, IsAttribute, UI );
 	};
 
-	[Group( "Range" )] public int Min { get; set; }
-	[Group( "Range" )] public int Max { get; set; }
+	[Hide] public int Min => GetParameter().Min;
+	[Hide] public int Max => GetParameter().Max;
 
 	public IntParameter()
 	{
-		Min = 0;
-		Max = 1;
-		UI = new IntParameterUI();
-	}
-
-	protected override void UpdateFromBlackboardParameter( IntBlackboardParameter parameter )
-	{
-		Name = parameter.Name;
-		Value = parameter.Value;
-		Min = parameter.Min;
-		Max = parameter.Max;
-		UI = parameter.UI;
-		IsAttribute = parameter.IsAttribute;
 	}
 }
 
@@ -73,9 +50,9 @@ public sealed class IntParameter : ParameterNode<int, IntParameterUI, IntBlackbo
 /// </summary>
 [Title( "Float" ), Category( "Parameters" ), Icon( "looks_one" ), Order( 2 )]
 [Hide]
-public sealed class FloatParameter : ParameterNode<float, FloatParameterUI, FloatBlackboardParameter>
+public sealed class FloatParameter : ParameterNode<float, FloatBlackboardParameter>
 {
-	[Hide] public float Step => UI.Step;
+	[Hide] public float Step => ((FloatParameterUI)GetParameter().UI).Step; //UI.Step;
 
 	[Output( typeof( float ) ), Title( "Value" )]
 	[Hide, Editor( nameof( Value ) ), Range( nameof( Min ), nameof( Max ), nameof( Step ) )]
@@ -84,24 +61,11 @@ public sealed class FloatParameter : ParameterNode<float, FloatParameterUI, Floa
 		return compiler.ResultParameter( Name, Value, Min, Max, Min != Max, IsAttribute, UI );
 	};
 
-	[Group( "Range" )] public float Min { get; set; }
-	[Group( "Range" )] public float Max { get; set; }
+	[Hide] public float Min => GetParameter().Min;
+	[Hide] public float Max => GetParameter().Max;
 
 	public FloatParameter()
 	{
-		Min = 0;
-		Max = 1;
-		UI = new FloatParameterUI();
-	}
-
-	protected override void UpdateFromBlackboardParameter( FloatBlackboardParameter parameter )
-	{
-		Name = parameter.Name;
-		Value = parameter.Value;
-		Min = parameter.Min;
-		Max = parameter.Max;
-		UI = parameter.UI;
-		IsAttribute = parameter.IsAttribute;
 	}
 }
 
@@ -110,7 +74,7 @@ public sealed class FloatParameter : ParameterNode<float, FloatParameterUI, Floa
 /// </summary>
 [Title( "Float2" ), Category( "Parameters" ), Icon( "looks_two" ), Order( 3 )]
 [Hide]
-public sealed class Float2Parameter : ParameterNode<Vector2, FloatParameterUI, Float2BlackboardParameter>
+public sealed class Float2Parameter : ParameterNode<Vector2, Float2BlackboardParameter>
 {
 	[Output( typeof( Vector2 ) ), Title( "XY" ), Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
@@ -118,14 +82,11 @@ public sealed class Float2Parameter : ParameterNode<Vector2, FloatParameterUI, F
 		return compiler.ResultParameter( Name, Value, Min, Max, Min != Max, IsAttribute, UI );
 	};
 
-	[Group( "Range" )] public Vector2 Min { get; set; }
-	[Group( "Range" )] public Vector2 Max { get; set; }
+	[Hide] public Vector2 Min => GetParameter().Min;
+	[Hide] public Vector2 Max => GetParameter().Max;
 
 	public Float2Parameter()
 	{
-		Min = 0;
-		Max = 1;
-		UI = new FloatParameterUI();
 	}
 
 	[JsonIgnore, Hide]
@@ -147,7 +108,7 @@ public sealed class Float2Parameter : ParameterNode<Vector2, FloatParameterUI, F
 	[Hide] public float MaxX => Max.x;
 	[Hide] public float MaxY => Max.y;
 
-	[Hide] public float Step => UI.Step;
+	[Hide] public float Step => GetParameter().UI.Step;
 
 	/// <summary>
 	/// X component of result
@@ -162,16 +123,6 @@ public sealed class Float2Parameter : ParameterNode<Vector2, FloatParameterUI, F
 	[Output( typeof( float ) ), Hide, Editor( nameof( ValueY ) ), Title( "Y" )]
 	[Range( nameof( MinY ), nameof( MaxY ), nameof( Step ) )]
 	public NodeResult.Func Y => ( GraphCompiler compiler ) => Component( "y", ValueY, compiler );
-
-	protected override void UpdateFromBlackboardParameter( Float2BlackboardParameter parameter )
-	{
-		Name = parameter.Name;
-		Value = parameter.Value;
-		Min = parameter.Min;
-		Max = parameter.Max;
-		UI = parameter.UI;
-		IsAttribute = parameter.IsAttribute;
-	}
 }
 
 /// <summary>
@@ -179,7 +130,7 @@ public sealed class Float2Parameter : ParameterNode<Vector2, FloatParameterUI, F
 /// </summary>
 [Title( "Float3" ), Category( "Parameters" ), Icon( "looks_3" ), Order( 4 )]
 [Hide]
-public sealed class Float3Parameter : ParameterNode<Vector3, FloatParameterUI, Float3BlackboardParameter>
+public sealed class Float3Parameter : ParameterNode<Vector3, Float3BlackboardParameter>
 {
 	[Output( typeof( Vector3 ) ), Title( "XYZ" ), Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
@@ -187,14 +138,11 @@ public sealed class Float3Parameter : ParameterNode<Vector3, FloatParameterUI, F
 		return compiler.ResultParameter( Name, Value, Min, Max, Min != Max, IsAttribute, UI );
 	};
 
-	[Group( "Range" )] public Vector3 Min { get; set; }
-	[Group( "Range" )] public Vector3 Max { get; set; }
+	[Hide] public Vector3 Min => GetParameter().Min;
+	[Hide] public Vector3 Max => GetParameter().Max;
 
 	public Float3Parameter()
 	{
-		Min = 0;
-		Max = 1;
-		UI = new FloatParameterUI();
 	}
 
 	[JsonIgnore, Hide]
@@ -225,7 +173,7 @@ public sealed class Float3Parameter : ParameterNode<Vector3, FloatParameterUI, F
 	[Hide] public float MaxY => Max.y;
 	[Hide] public float MaxZ => Max.z;
 
-	[Hide] public float Step => UI.Step;
+	[Hide] public float Step => GetParameter().UI.Step;
 
 	/// <summary>
 	/// X component of result
@@ -247,16 +195,6 @@ public sealed class Float3Parameter : ParameterNode<Vector3, FloatParameterUI, F
 	[Output( typeof( float ) ), Hide, Editor( nameof( ValueZ ) ), Title( "Z" )]
 	[Range( nameof( MinZ ), nameof( MaxZ ), nameof( Step ) )]
 	public NodeResult.Func Z => ( GraphCompiler compiler ) => Component( "z", ValueZ, compiler );
-
-	protected override void UpdateFromBlackboardParameter( Float3BlackboardParameter parameter )
-	{
-		Name = parameter.Name;
-		Value = parameter.Value;
-		Min = parameter.Min;
-		Max = parameter.Max;
-		UI = parameter.UI;
-		IsAttribute = parameter.IsAttribute;
-	}
 }
 
 /// <summary>
@@ -264,7 +202,7 @@ public sealed class Float3Parameter : ParameterNode<Vector3, FloatParameterUI, F
 /// </summary>
 [Title( "Float4" ), Category( "Parameters" ), Icon( "palette" ), Order( 5 )]
 [Hide]
-public sealed class Float4Parameter : ParameterNode<Vector4, FloatParameterUI, Float4BlackboardParameter>
+public sealed class Float4Parameter : ParameterNode<Vector4, Float4BlackboardParameter>
 {
 	[Output( typeof( Vector4 ) ), Title( "XYZW" ), Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
@@ -272,8 +210,12 @@ public sealed class Float4Parameter : ParameterNode<Vector4, FloatParameterUI, F
 		return compiler.ResultParameter( Name, Value, default, default, false, IsAttribute, UI );
 	};
 
-	[Group( "Range" )] public Vector4 Min { get; set; }
-	[Group( "Range" )] public Vector4 Max { get; set; }
+	[Hide] public Vector4 Min => GetParameter().Min;
+	[Hide] public Vector4 Max => GetParameter().Max;
+
+	public Float4Parameter()
+	{
+	}
 
 	[JsonIgnore, Hide]
 	public float ValueX
@@ -312,7 +254,7 @@ public sealed class Float4Parameter : ParameterNode<Vector4, FloatParameterUI, F
 	[Hide] public float MaxZ => Max.z;
 	[Hide] public float MaxW => Max.w;
 
-	[Hide] public float Step => UI.Step;
+	[Hide] public float Step => ((FloatParameterUI)GetParameter().UI).Step;
 
 	/// <summary>
 	/// X component of result
@@ -341,23 +283,6 @@ public sealed class Float4Parameter : ParameterNode<Vector4, FloatParameterUI, F
 	[Output( typeof( float ) ), Hide, Editor( nameof( ValueW ) ), Title( "W" )]
 	[Range( nameof( MinW ), nameof( MaxW ), nameof( Step ) )]
 	public NodeResult.Func W => ( GraphCompiler compiler ) => Component( "w", ValueW, compiler );
-
-	public Float4Parameter()
-	{
-		Min = 0;
-		Max = 1;
-		UI = new FloatParameterUI();
-	}
-
-	protected override void UpdateFromBlackboardParameter( Float4BlackboardParameter parameter )
-	{
-		Name = parameter.Name;
-		Value = parameter.Value;
-		Min = parameter.Min;
-		Max = parameter.Max;
-		UI = parameter.UI;
-		IsAttribute = parameter.IsAttribute;
-	}
 }
 
 /// <summary>
@@ -365,7 +290,7 @@ public sealed class Float4Parameter : ParameterNode<Vector4, FloatParameterUI, F
 /// </summary>
 [Title( "Color" ), Category( "Parameters" ), Icon( "palette" ), Order( 6 )]
 [Hide]
-public sealed class ColorParameter : ParameterNode<Color, ColorParameterUI, ColorBlackboardParameter>
+public sealed class ColorParameter : ParameterNode<Color, ColorBlackboardParameter>
 {
 	[Output( typeof( Color ) ), Title( "RGBA" )]
 	[Hide, Editor( nameof( Value ) )]
@@ -373,6 +298,10 @@ public sealed class ColorParameter : ParameterNode<Color, ColorParameterUI, Colo
 	{
 		return compiler.ResultParameter( Name, Value, default, default, false, IsAttribute, UI );
 	};
+
+	public ColorParameter()
+	{
+	}
 
 	[JsonIgnore, Hide]
 	public float ValueR
@@ -425,18 +354,4 @@ public sealed class ColorParameter : ParameterNode<Color, ColorParameterUI, Colo
 	/// </summary>
 	[Output( typeof( float ) ), Hide, Editor( nameof( ValueA ) ), Title( "Alpha" )]
 	public NodeResult.Func A => ( GraphCompiler compiler ) => Component( "a", ValueA, compiler );
-
-	public ColorParameter()
-	{
-		Value = Color.White;
-		UI = new ColorParameterUI();
-	}
-
-	protected override void UpdateFromBlackboardParameter( ColorBlackboardParameter parameter )
-	{
-		Name = parameter.Name;
-		Value = parameter.Value;
-		UI = parameter.UI;
-		IsAttribute = parameter.IsAttribute;
-	}
 }

@@ -144,6 +144,22 @@ public sealed partial class ShaderGraph : IGraph
 		_parameters.Add( parameter.Identifier, parameter );
 	}
 
+	public void UpdateParameter( BlackboardParameter parameter )
+	{
+		if ( parameter.Graph != this )
+			return;
+
+		_parameters[parameter.Identifier] = parameter;
+	}
+
+	public void UpdateParameterValue( Guid identifier, object value )
+	{
+		if ( !_parameters.ContainsKey( identifier ) )
+			throw new Exception( $"There is no parameter with the identifier : {identifier}" );
+
+		_parameters[identifier].SetValue( value );
+	}
+
 	public void RemoveParameter( BlackboardParameter parameter )
 	{
 		if ( parameter.Graph != this )
@@ -157,14 +173,14 @@ public sealed partial class ShaderGraph : IGraph
 		_parameters.Remove( identifier );
 	}
 
-	public BlackboardParameter FindParameterByGuid( Guid guid )
+	public BlackboardParameter FindParameterByGuid( Guid identifier )
 	{
-		if ( _parameters.TryGetValue( guid, out var parameter ) )
+		if ( _parameters.TryGetValue( identifier, out var parameter ) )
 		{
 			return parameter;
 		}
 
-		return null;
+		throw new Exception( $"There is no parameter with the identifier : {identifier}" );
 	}
 
 	public void ClearNodes()

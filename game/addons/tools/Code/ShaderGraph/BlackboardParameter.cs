@@ -41,7 +41,6 @@ public abstract class BlackboardParameter : IBlackboardParameter
 
 	public string Name { get; set; }
 
-
 	public BlackboardParameter()
 	{
 		NewIdentifier();
@@ -65,6 +64,11 @@ public abstract class BlackboardParameter : IBlackboardParameter
 		throw new NotImplementedException();
 	}
 
+	public virtual void SetValue( object value )
+	{
+		throw new NotImplementedException();
+	}
+
 	public static IEnumerable<IBlackboardParameterType> GetRelevantParameters( Dictionary<string, IBlackboardParameterType> availableParameters, bool isSubgraph )
 	{
 		return availableParameters.Values.Where( x =>
@@ -73,16 +77,22 @@ public abstract class BlackboardParameter : IBlackboardParameter
 			{
 				var targetType = classParameterType.Type.TargetType;
 
-				// Only show material parameters when not in a subgraph
-				if ( isSubgraph && targetType == typeof( BoolBlackboardParameter ) ) return false;
-				if ( isSubgraph && targetType == typeof( IntBlackboardParameter ) ) return false;
-				if ( isSubgraph && targetType == typeof( FloatBlackboardParameter ) ) return false;
-				if ( isSubgraph && targetType == typeof( Float2BlackboardParameter ) ) return false;
-				if ( isSubgraph && targetType == typeof( Float3BlackboardParameter ) ) return false;
-				if ( isSubgraph && targetType == typeof( Float4BlackboardParameter ) ) return false;
-				if ( isSubgraph && targetType == typeof( ColorBlackboardParameter ) ) return false;
-
-				// TODO : Subgraph input parameters
+				if ( isSubgraph )
+				{
+					// Only show material parameters when not in a subgraph
+					if ( targetType == typeof( BoolBlackboardParameter ) ) return false;
+					if ( targetType == typeof( IntBlackboardParameter ) ) return false;
+					if ( targetType == typeof( FloatBlackboardParameter ) ) return false;
+					if ( targetType == typeof( Float2BlackboardParameter ) ) return false;
+					if ( targetType == typeof( Float3BlackboardParameter ) ) return false;
+					if ( targetType == typeof( Float4BlackboardParameter ) ) return false;
+					if ( targetType == typeof( ColorBlackboardParameter ) ) return false;
+				}
+				else
+				{
+					//TODO : Subgraph input parameters
+					throw new NotImplementedException();
+				}
 			}
 
 			return true;
@@ -91,82 +101,43 @@ public abstract class BlackboardParameter : IBlackboardParameter
 
 	public static BaseNode InitilzeNode( BlackboardParameter parameter )
 	{
-		if ( parameter is BoolBlackboardParameter bbp )
+		switch ( parameter )
 		{
-			return new BoolParameter()
-			{
-				BlackboardParameterIdentifier = bbp.Identifier,
-				Name = bbp.Name,
-				Value = bbp.Value,
-				IsAttribute = bbp.IsAttribute,
-				UI = bbp.UI
-			};
-		}
-		else if ( parameter is IntBlackboardParameter ibp )
-		{
-			return new IntParameter()
-			{
-				BlackboardParameterIdentifier = ibp.Identifier,
-				Name = ibp.Name,
-				Value = ibp.Value,
-				IsAttribute = ibp.IsAttribute,
-				UI = ibp.UI
-			};
-		}
-		else if ( parameter is FloatBlackboardParameter fbp )
-		{
-			return new FloatParameter()
-			{
-				BlackboardParameterIdentifier = fbp.Identifier,
-				Name = fbp.Name,
-				Value = fbp.Value,
-				IsAttribute = fbp.IsAttribute,
-				UI = fbp.UI
-			};
-		}
-		else if ( parameter is Float2BlackboardParameter f2bp )
-		{
-			return new Float2Parameter()
-			{
-				BlackboardParameterIdentifier = f2bp.Identifier,
-				Name = f2bp.Name,
-				Value = f2bp.Value,
-				IsAttribute = f2bp.IsAttribute,
-				UI = f2bp.UI
-			};
-		}
-		else if ( parameter is Float3BlackboardParameter f3bp )
-		{
-			return new Float3Parameter()
-			{
-				BlackboardParameterIdentifier = f3bp.Identifier,
-				Name = f3bp.Name,
-				Value = f3bp.Value,
-				IsAttribute = f3bp.IsAttribute,
-				UI = f3bp.UI
-			};
-		}
-		else if ( parameter is Float4BlackboardParameter f4bp )
-		{
-			return new Float4Parameter()
-			{
-				BlackboardParameterIdentifier = f4bp.Identifier,
-				Name = f4bp.Name,
-				Value = f4bp.Value,
-				IsAttribute = f4bp.IsAttribute,
-				UI = f4bp.UI
-			};
-		}
-		else if ( parameter is ColorBlackboardParameter cbp )
-		{
-			return new ColorParameter()
-			{
-				BlackboardParameterIdentifier = cbp.Identifier,
-				Name = cbp.Name,
-				Value = cbp.Value,
-				IsAttribute = cbp.IsAttribute,
-				UI = cbp.UI
-			};
+			case BoolBlackboardParameter:
+				return new BoolParameter()
+				{
+					BlackboardParameterIdentifier = parameter.Identifier,
+				};
+			case IntBlackboardParameter:
+				return new IntParameter()
+				{
+					BlackboardParameterIdentifier = parameter.Identifier,
+				};
+			case FloatBlackboardParameter:
+				return new FloatParameter()
+				{
+					BlackboardParameterIdentifier = parameter.Identifier,
+				};
+			case Float2BlackboardParameter:
+				return new Float2Parameter()
+				{
+					BlackboardParameterIdentifier = parameter.Identifier,
+				};
+			case Float3BlackboardParameter:
+				return new Float3Parameter()
+				{
+					BlackboardParameterIdentifier = parameter.Identifier,
+				};
+			case Float4BlackboardParameter:
+				return new Float4Parameter()
+				{
+					BlackboardParameterIdentifier = parameter.Identifier,
+				};
+			case ColorBlackboardParameter:
+				return new ColorParameter()
+				{
+					BlackboardParameterIdentifier = parameter.Identifier,
+				};
 		}
 
 		throw new NotImplementedException();
@@ -192,7 +163,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 	}
 }
 
-public abstract class BlackboardMaterialParameter<T, Y> : BlackboardParameter where Y : IParameterUI
+public abstract class BlackboardMaterialParameter<T,Y> : BlackboardParameter where Y : IParameterUI
 {
 	[InlineEditor( Label = false ), Group( "Value" )]
 	public T Value { get; set; }
@@ -216,5 +187,15 @@ public abstract class BlackboardMaterialParameter<T, Y> : BlackboardParameter wh
 	public override object GetValue()
 	{
 		return Value;
+	}
+
+	public override void SetValue( object value )
+	{
+		if ( value.GetType() != typeof( T ) )
+		{
+			throw new InvalidCastException( $"Cannot cast {value.GetType()} to {typeof( T )}" );
+		}
+
+		Value = (T)value;
 	}
 }

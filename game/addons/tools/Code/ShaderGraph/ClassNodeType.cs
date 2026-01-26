@@ -124,7 +124,9 @@ public sealed class ParameterNodeType : ClassNodeType
 
 	public override INode CreateNode( IGraph graph )
 	{
-		base.CreateNode( graph );
-		return BlackboardParameter.InitilzeNode( Parameter );
+		var node = BlackboardParameter.InitilzeNode( Parameter );
+		node.Graph = graph;
+
+		return node;
 	}
 }

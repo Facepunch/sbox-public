@@ -203,7 +203,7 @@ public abstract class BaseNode : INode
 	{
 		if ( _graph is not null )
 		{
-			if ( Graph is ShaderGraph sg && !sg.IsSubgraph && this is IParameterNodeBase )
+			if ( Graph is ShaderGraph sg && !sg.IsSubgraph && this is IParameterNode )
 			{
 				Inputs = new List<IPlugIn>();
 			}
