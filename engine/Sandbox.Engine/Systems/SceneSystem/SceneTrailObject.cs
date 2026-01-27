@@ -130,7 +130,6 @@ internal class SceneTrailObject : SceneLineObject
 		}
 
 		Material = Texturing.Material;
-		Clamped = Texturing.Clamp;
 		Attributes.Set( "TextureRotation", Texturing.Rotation );
 
 		StartLine();
