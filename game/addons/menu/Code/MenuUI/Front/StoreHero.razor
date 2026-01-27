@@ -38,4 +38,7 @@
     {
         this.Navigate( "/itemstore" );
     }
+
+    // Include inventory count in hash so the UI updates after purchases
+    protected override int BuildHash() => HashCode.Combine( def?.Id, Sandbox.Services.Inventory.Items?.Count );
 }

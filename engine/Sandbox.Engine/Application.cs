@@ -1,10 +1,9 @@
-﻿using Sandbox.Engine;
+﻿using Editor;
+using Sandbox.Engine;
 using Sandbox.Engine.Settings;
 using Sandbox.Utility;
 using Sandbox.VR;
 using System.Globalization;
-using System.Reflection;
-using System.Runtime.InteropServices;
 
 namespace Sandbox;
 
@@ -224,5 +223,10 @@ public static class Application
 
 		return null;
 	}
+
+	/// <summary>
+	/// Get the current editor if any. Will return null if we're not in the editor, or there is no active editor session.
+	/// </summary>
+	public static EditorSystem Editor => IToolsDll.Current?.ActiveEditor;
 
 }

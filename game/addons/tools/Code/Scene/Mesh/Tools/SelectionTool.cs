@@ -280,14 +280,26 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 	void SelectElements()
 	{
 		var elements = Selection.OfType<T>().ToArray();
+
+		bool isConverting = Application.KeyboardModifiers.Contains( KeyboardModifiers.Alt );
+		var convertedElements = isConverting ?
+			ConvertSelectionToCurrentType().ToArray() : [];
+
 		var connectedElements = Application.KeyboardModifiers.Contains( KeyboardModifiers.Shift ) ?
 			GetConnectedSelectionElements().ToArray() : [];
 
 		Selection.Clear();
 
-		foreach ( var element in elements ) Selection.Add( element );
+		if ( !isConverting )
+		{
+			foreach ( var element in elements ) Selection.Add( element );
+		}
+
+		foreach ( var element in convertedElements ) Selection.Add( element );
 		foreach ( var element in connectedElements ) Selection.Add( element );
 	}
+
+	protected virtual IEnumerable<T> ConvertSelectionToCurrentType() => [];
 
 	protected virtual IEnumerable<T> GetConnectedSelectionElements() => [];
 

@@ -4,8 +4,8 @@ namespace Editor;
 internal class ProgressWindow : Dialog
 {
 	public string TaskTitle;
-	public float ProgressCurrent;
-	public float ProgressTotal;
+	public double ProgressCurrent;
+	public double ProgressTotal;
 
 	Button CancelButton;
 	CancellationTokenSource CancellationTokenSource;
@@ -72,7 +72,7 @@ internal class ProgressWindow : Dialog
 
 		if ( ProgressTotal > 0 )
 		{
-			var delta = ProgressCurrent / ProgressTotal;
+			var delta = (float)(ProgressCurrent / ProgressTotal);
 
 			scrollbarRect = scrollbarRect.Shrink( 1 );
 			scrollbarRect.Width *= delta;

@@ -117,8 +117,8 @@ public sealed class SessionHistory : IReadOnlyList<IHistoryItem>
 }
 
 internal sealed record SessionProperties(
-	MovieTime TimeOffset,
-	float PixelsPerSecond,
+	MovieTime? TimeOffset,
+	float? PixelsPerSecond,
 	int FrameRate );
 
 internal sealed record EditModeSnapshot(
@@ -132,10 +132,15 @@ partial class Session
 {
 	public SessionHistory History { get; }
 
-	internal SessionSnapshot Snapshot() => new (
-		Project.Snapshot(), 
-		EditMode?.Snapshot(),
-		new SessionProperties( TimeOffset, PixelsPerSecond, FrameRate ) );
+	internal SessionSnapshot Snapshot()
+	{
+		var timeline = Editor.TimelinePanel?.Timeline;
+
+		return new SessionSnapshot(
+			Project.Snapshot(),
+			EditMode?.Snapshot(),
+			new SessionProperties( timeline?.TimeOffset, timeline?.PixelsPerSecond, FrameRate ) );
+	}
 
 	internal bool Restore( SessionSnapshot snapshot )
 	{
@@ -146,7 +151,11 @@ partial class Session
 			EditMode?.Restore( data );
 		}
 
-		SetView( snapshot.Properties.TimeOffset, snapshot.Properties.PixelsPerSecond );
+		var timeline = Editor.TimelinePanel?.Timeline;
+
+		timeline?.SetView(
+			snapshot.Properties.TimeOffset ?? timeline.TimeOffset,
+			snapshot.Properties.PixelsPerSecond ?? timeline.PixelsPerSecond );
 
 		FrameRate = snapshot.Properties.FrameRate;
 

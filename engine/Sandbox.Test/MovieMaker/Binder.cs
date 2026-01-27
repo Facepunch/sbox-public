@@ -1,4 +1,7 @@
-﻿using Sandbox.MovieMaker;
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using Sandbox.MovieMaker;
 using Sandbox.MovieMaker.Compiled;
 using Sandbox.MovieMaker.Properties;
 
@@ -216,4 +219,76 @@ public sealed class BinderTests : SceneTests
 
 		Assert.IsTrue( TrackBinder.Default.Get( transformTrack ).IsValid );
 	}
+
+	[TestMethod]
+	public void ListCountProperty()
+	{
+		var goTrack = MovieClip.RootGameObject( "Example" );
+		var cmpTrack = goTrack.Component<ExampleComponent>();
+		var listTrack = cmpTrack.Property<List<Vector3>>( nameof( ExampleComponent.List ) );
+		var countTrack = listTrack.Property<int>( nameof( IList.Count ) );
+
+		var exampleObject = new GameObject( true, "Example" );
+		var component = exampleObject.AddComponent<ExampleComponent>();
+		var countProperty = TrackBinder.Default.Get( countTrack );
+
+		Assert.IsTrue( countProperty.IsBound );
+
+		component.List.Clear();
+
+		Assert.AreEqual( 0, countProperty.Value );
+
+		countProperty.Value = 4;
+
+		Assert.AreEqual( 4, component.List.Count );
+	}
+
+	[TestMethod]
+	public void ListItemProperty()
+	{
+		var goTrack = MovieClip.RootGameObject( "Example" );
+		var cmpTrack = goTrack.Component<ExampleComponent>();
+		var listTrack = cmpTrack.Property<List<Vector3>>( nameof( ExampleComponent.List ) );
+		var item0Track = listTrack.Item( 0 );
+		var item1Track = listTrack.Item( 1 );
+
+		var exampleObject = new GameObject( true, "Example" );
+		var component = exampleObject.AddComponent<ExampleComponent>();
+		var item0Property = TrackBinder.Default.Get( item0Track );
+		var item1Property = TrackBinder.Default.Get( item1Track );
+
+		component.List.Clear();
+
+		Assert.IsFalse( item0Property.IsBound );
+		Assert.IsFalse( item1Property.IsBound );
+
+		component.List.Add( new Vector3( 1f, 2f, 3f ) );
+
+		Assert.IsTrue( item0Property.IsBound );
+		Assert.IsFalse( item1Property.IsBound );
+
+		Assert.AreEqual( new Vector3( 1f, 2f, 3f ), item0Property.Value );
+
+		item0Property.Value = new Vector3( 10f, 20f, 30f );
+
+		Assert.AreEqual( new Vector3( 10f, 20f, 30f ), component.List[0] );
+	}
+
+	[TestMethod]
+	public void LineRendererVectorPointsProperty()
+	{
+		var goTrack = MovieClip.RootGameObject( "Example" );
+		var cmpTrack = goTrack.Component<LineRenderer>();
+
+		var cmpRef = TrackBinder.Default.Get( cmpTrack );
+		var property = TrackProperty.Create( cmpRef, nameof( LineRenderer.VectorPoints ) );
+
+		Assert.IsNotNull( property );
+		Assert.AreEqual( typeof( List<Vector3> ), property.TargetType );
+	}
+}
+
+public class ExampleComponent : Component
+{
+	[Property] public List<Vector3> List { get; } = new();
 }

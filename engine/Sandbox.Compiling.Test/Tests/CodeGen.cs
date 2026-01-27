@@ -259,10 +259,8 @@ namespace Generator
 			var tree = compiler.SyntaxTrees.First();
 			System.Console.WriteLine( tree.GetText().ToString() );
 
-			Assert.IsTrue( tree.GetText().ToString().Contains( "return (bool)WrapGet.OnWrapGetStatic(new global::Sandbox.WrappedPropertyGet<bool> { Value = _repback__StaticProperty" ), "Generated code should wrap static property get accessor" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "return (bool)OnWrapGet(new global::Sandbox.WrappedPropertyGet<bool> { Value = _repback__InstanceProperty" ), "Generated code should wrap instance property get accessor" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "_repback__InstanceProperty= true;" ), "Generated code should copy initializer" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "return _repback__FieldKeywordProperty;" ), "Field keyword is replaced in getter with backing field name" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "return (bool)WrapGet.OnWrapGetStatic(new global::Sandbox.WrappedPropertyGet<bool> { Value = field" ), "Generated code should wrap static property get accessor" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "return (bool)OnWrapGet(new global::Sandbox.WrappedPropertyGet<bool> { Value = field" ), "Generated code should wrap instance property get accessor" );
 		}
 
 		[TestMethod]
@@ -274,9 +272,6 @@ namespace Generator
 
 			Assert.IsTrue( tree.GetText().ToString().Contains( "WrapSet.OnWrapSetStatic(new global::Sandbox.WrappedPropertySet<bool> { Value = value, Object = null, Setter = (v) =>" ), "Generated code should wrap static property set accessor" );
 			Assert.IsTrue( tree.GetText().ToString().Contains( "OnWrapSet(new global::Sandbox.WrappedPropertySet<bool> { Value = value, Object = this, Setter = (v) =>" ), "Generated code should wrap instance property set accessor" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "_repback__FieldKeywordProperty = value;" ), "Field keyword is replaced in setter with backing field name" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "get => _repback__FieldKeywordPropertyAuto" ), "Field keyword is replaced in auto-getter with backing field name" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "_repback__FieldKeywordPropertyAuto = value" ), "Field keyword is replaced in setter with auto-getter" );
 		}
 
 		[TestMethod]

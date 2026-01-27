@@ -18,8 +18,11 @@ partial class VertexTool
 
 		public enum MergeRange
 		{
+			[Icon( "all_inclusive" ), Description( "Merge all vertices regardless of distance." )]
 			Infinite,
+			[Icon( "grid_on" ), Description( "Merge vertices within the current grid spacing." )]
 			Grid,
+			[Icon( "straighten" ), Description( "Merge vertices within a fixed distance." )]
 			Fixed,
 		}
 
@@ -304,6 +307,114 @@ partial class VertexTool
 			{
 				foreach ( var group in groups )
 					group.Key.Mesh.RemoveVertices( group.Select( x => x.Handle ) );
+			}
+		}
+
+		[Shortcut( "mesh.grow-selection", "KP_ADD", typeof( SceneViewWidget ) )]
+		private void GrowSelection()
+		{
+			if ( _vertices.Length == 0 ) return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Grow Selection" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				var newVertices = new HashSet<MeshVertex>();
+
+				foreach ( var vertex in _vertices )
+				{
+					if ( !vertex.IsValid() )
+						continue;
+
+					newVertices.Add( vertex );
+				}
+
+				foreach ( var vertex in _vertices )
+				{
+					if ( !vertex.IsValid() )
+						continue;
+
+					var mesh = vertex.Component.Mesh;
+
+					mesh.GetEdgesConnectedToVertex( vertex.Handle, out var edges );
+
+					foreach ( var edge in edges )
+					{
+						mesh.GetEdgeVertices( edge, out var vertexA, out var vertexB );
+
+						var otherVertex = vertexA == vertex.Handle ? vertexB : vertexA;
+						if ( otherVertex.IsValid )
+							newVertices.Add( new MeshVertex( vertex.Component, otherVertex ) );
+					}
+				}
+
+				selection.Clear();
+				foreach ( var vertex in newVertices )
+				{
+					if ( vertex.IsValid() )
+						selection.Add( vertex );
+				}
+			}
+		}
+
+		[Shortcut( "mesh.shrink-selection", "KP_MINUS", typeof( SceneViewWidget ) )]
+		private void ShrinkSelection()
+		{
+			if ( _vertices.Length == 0 ) return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Shrink Selection" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				var verticesToKeep = new HashSet<MeshVertex>();
+
+				foreach ( var vertex in _vertices )
+				{
+					if ( !vertex.IsValid() )
+						continue;
+
+					var mesh = vertex.Component.Mesh;
+					mesh.GetEdgesConnectedToVertex( vertex.Handle, out var edges );
+
+					bool isInterior = true;
+
+					foreach ( var edge in edges )
+					{
+						mesh.GetEdgeVertices( edge, out var vertexA, out var vertexB );
+						var otherVertex = vertexA == vertex.Handle ? vertexB : vertexA;
+
+						if ( !otherVertex.IsValid )
+						{
+							isInterior = false;
+							break;
+						}
+
+						var otherMeshVertex = new MeshVertex( vertex.Component, otherVertex );
+						if ( !_vertices.Contains( otherMeshVertex ) )
+						{
+							isInterior = false;
+							break;
+						}
+					}
+
+					if ( isInterior )
+					{
+						verticesToKeep.Add( vertex );
+					}
+				}
+
+				selection.Clear();
+				foreach ( var vertex in verticesToKeep )
+				{
+					if ( vertex.IsValid() )
+						selection.Add( vertex );
+				}
 			}
 		}
 	}

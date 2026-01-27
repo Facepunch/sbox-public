@@ -159,7 +159,7 @@ public class GenericControlWidget : ControlObjectWidget
 		string labelText = displayInfo.Name;
 
 		// If the type has a custom ToString(), use that instead of the type name.
-		if ( type.GetMethod( "ToString" ).DeclaringType != typeof( object ) )
+		if ( type.GetMethod( "ToString", Type.EmptyTypes ).DeclaringType != typeof( object ) )
 		{
 			labelText = value?.ToString() ?? labelText;
 		}

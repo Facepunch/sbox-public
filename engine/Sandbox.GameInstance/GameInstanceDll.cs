@@ -71,10 +71,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		PackageLoader.HotloadWatch( Game.GameAssembly ); // Sandbox.Game is per instance
 		PackageLoader.OnAfterHotload = OnAfterHotload;
 
-		{
-			ConVarSystem.AddAssembly( GetType().Assembly, "game" );
-			ConVarSystem.AddAssembly( Game.GameAssembly, "game" );
-		}
+		ConVarSystem.AddAssembly( Game.GameAssembly, "game" );
 	}
 
 	public Task Initialize()

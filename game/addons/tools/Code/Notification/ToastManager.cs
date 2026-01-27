@@ -5,7 +5,7 @@
 /// This is what's making those errors keep appearing. It's not your bad code, it's this bad class,
 /// blame this class - it's this classes fault you're getting annoyed.
 /// </summary>
-public static class NoticeManager
+public static class ToastManager
 {
 	class Entry
 	{
@@ -20,7 +20,7 @@ public static class NoticeManager
 
 		public void Tick( Vector3 idealPosition )
 		{
-			NoticeWidget nw = Widget as NoticeWidget;
+			ToastWidget nw = Widget as ToastWidget;
 
 			nw?.Tick();
 
@@ -151,7 +151,7 @@ public static class NoticeManager
 		if ( !EditorWindow.IsValid() ) return;
 
 		var rect = EditorWindow.ScreenGeometry.Shrink( 16 );
-		var y = rect.Bottom;
+		var y = rect.Bottom - 16;
 
 		foreach ( var e in Entries )
 		{
@@ -167,7 +167,7 @@ public static class NoticeManager
 				}
 
 				if ( e.TimeUntilRemove < 0.3f )
-					x -= 300;
+					x -= 400;
 			}
 
 			e.Tick( new Vector2( x, y - height ) );
@@ -188,6 +188,24 @@ public static class NoticeManager
 			}
 
 			Entries.Remove( r );
+		}
+	}
+
+	public static void AddProgress( IProgressSection section )
+	{
+		var existing = All.OfType<ProgressToast>().FirstOrDefault( x => x.Section == section );
+		if ( existing is null )
+		{
+			new ProgressToast( section );
+		}
+	}
+
+	public static void RemoveProgress( IProgressSection section )
+	{
+		var existing = All.OfType<ProgressToast>().FirstOrDefault( x => x.Section == section );
+		if ( existing is not null )
+		{
+			Remove( existing, 0.5f );
 		}
 	}
 }

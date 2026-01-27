@@ -14,6 +14,8 @@ public class EditorToolManager
 
 	public EditorTool CurrentTool { get; private set; }
 
+	public bool IsCurrentViewFocused { get; private set; }
+
 	public EditorTool CurrentSubTool => CurrentTool?.CurrentTool;
 	public List<EditorTool> ComponentTools { get; private set; } = new List<EditorTool>();
 
@@ -29,12 +31,14 @@ public class EditorToolManager
 
 	}
 
-	internal void Frame( CameraComponent camera, SceneEditorSession session )
+	internal void Frame( CameraComponent camera, SceneEditorSession session, bool isFocused )
 	{
 		CurrentSession = session;
 		UpdateTool( CurrentModeName );
 		UpdateSubTool( CurrentSubModeName );
 		UpdateSelection();
+
+		IsCurrentViewFocused = isFocused;
 
 		if ( CurrentTool is not null )
 		{

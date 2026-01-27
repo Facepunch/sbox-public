@@ -5,7 +5,7 @@ namespace Editor.MovieMaker;
 /// <summary>
 /// A bar with times and notches on it
 /// </summary>
-public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
+public class ScrubBar : BackgroundItem, ISnapSource, IMovieItem
 {
 	[FromTheme]
 	public static Color TimeLabelColor { get; set; } = Theme.Green.WithAlpha( 0.25f );
@@ -13,8 +13,7 @@ public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
 	[FromTheme]
 	public static new float Height { get; set; } = 24f;
 
-	public MovieEditor Editor { get; }
-	public Session Session { get; }
+	public Session Session => Timeline.Session;
 
 	public bool IsTop { get; }
 
@@ -22,10 +21,9 @@ public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
 
 	bool IMovieItem.OverridesMouseEvents => true;
 
-	public ScrubBar( MovieEditor timelineEditor, bool isTop )
+	public ScrubBar( Timeline timeline, bool isTop )
+		: base( timeline )
 	{
-		Session = timelineEditor.Session;
-		Editor = timelineEditor;
 		IsTop = isTop;
 
 		ZIndex = 450;
@@ -39,7 +37,7 @@ public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
 	private MovieTime _dragStartTime;
 	private float _panSpeed;
 
-	public void Frame()
+	public override void Frame()
 	{
 		Cursor = (Application.KeyboardModifiers & KeyboardModifiers.Alt) != 0
 			? CursorShape.IBeam
@@ -49,18 +47,19 @@ public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
 		{
 			var delta = -_panSpeed * RealTime.Delta;
 
-			Session.ScrollByImmediate( delta );
-			Session.DispatchViewChanged();
+			Timeline.PanImmediate( delta );
 
 			_lastScrub.ScenePos -= new Vector2( delta, 0f );
 
 			OnScrubUpdate();
 		}
+
+		base.Frame();
 	}
 
 	protected override void OnMousePressed( GraphicsMouseEvent e )
 	{
-		var time = Session.ScenePositionToTime( ToScene( e.LocalPosition ), new SnapOptions( source => source is not TimeCursor ) );
+		var time = Timeline.ScenePositionToTime( ToScene( e.LocalPosition ), new SnapOptions( source => source is not TimeCursor ) );
 
 		if ( e.MiddleMouseButton )
 		{
@@ -87,13 +86,13 @@ public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
 			// Alt+Click: set loop time range
 
 			_dragStartTime = time;
-			Session.LoopTimeRange = null;
+			Timeline.Session.LoopTimeRange = null;
 		}
 		else
 		{
 			// Click: set playhead time
 
-			Session.PlayheadTime = time;
+			Timeline.Session.PlayheadTime = time;
 		}
 
 		_panSpeed = 0f;
@@ -122,7 +121,7 @@ public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
 		menu.AddOption( "Set Start", "start", () =>
 		{
 			Session.LoopTimeRange = Session.LoopTimeRange is not { } range || range.End <= time
-				? (time, Session.Project.Duration)
+				? (time, Session.Duration)
 				: (time, range.End);
 		} ).Enabled = Session.LoopTimeRange is null || Session.LoopTimeRange.Value.End > time;
 
@@ -161,7 +160,7 @@ public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
 	{
 		var (modifiers, scenePos) = _lastScrub;
 
-		var sceneView = GraphicsView.SceneRect;
+		var sceneView = Timeline.VisibleRect;
 
 		if ( scenePos.x > sceneView.Right )
 		{
@@ -178,7 +177,7 @@ public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
 			_panSpeed = 0f;
 		}
 
-		var time = Session.ScenePositionToTime( scenePos, new SnapOptions( source => source is not TimeCursor ) );
+		var time = Timeline.ScenePositionToTime( scenePos, new SnapOptions( source => source is not TimeCursor ) );
 
 		if ( (modifiers & KeyboardModifiers.Alt) != 0 )
 		{
@@ -209,6 +208,8 @@ public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
 
 	protected override void OnPaint()
 	{
+		base.OnPaint();
+
 		var duration = Session.Duration;
 		var baseColor = Session.EditMode?.ScrubBarOverrideColor ?? Timeline.BackgroundColor;
 
@@ -235,8 +236,8 @@ public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
 
 		if ( Session.EditMode?.SourceTimeRange is { } pasteRange )
 		{
-			var startX = FromScene( Session.TimeToPixels( pasteRange.Start ) ).x;
-			var endX = FromScene( Session.TimeToPixels( pasteRange.End ) ).x;
+			var startX = FromScene( Timeline.TimeToPixels( pasteRange.Start ) ).x;
+			var endX = FromScene( Timeline.TimeToPixels( pasteRange.End ) ).x;
 
 			var rect = new Rect( new Vector2( startX, LocalRect.Top ), new Vector2( endX - startX, LocalRect.Height ) );
 
@@ -254,8 +255,8 @@ public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
 
 		if ( Session.LoopTimeRange is { } loopRange )
 		{
-			var startX = FromScene( Session.TimeToPixels( loopRange.Start ) ).x;
-			var endX = FromScene( Session.TimeToPixels( loopRange.End ) ).x;
+			var startX = FromScene( Timeline.TimeToPixels( loopRange.Start ) ).x;
+			var endX = FromScene( Timeline.TimeToPixels( loopRange.End ) ).x;
 
 			var rect = new Rect( new Vector2( startX, LocalRect.Top ), new Vector2( endX - startX, LocalRect.Height ) );
 
@@ -277,7 +278,7 @@ public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
 			Paint.DrawPolygon( rightCorner, rightCorner + up * 6f, rightCorner - new Vector2( 6f, 0f ) );
 		}
 
-		var range = Session.VisibleTimeRange;
+		var range = Timeline.VisibleTimeRange;
 
 		Paint.PenSize = 2;
 		Paint.Pen = Color.White.WithAlpha( 0.1f );
@@ -294,7 +295,7 @@ public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
 		Paint.Antialiasing = true;
 		Paint.SetFont( "Roboto", 8, 300 );
 
-		foreach ( var (style, interval) in Session.Ticks )
+		foreach ( var (style, interval) in Timeline.Ticks )
 		{
 			var height = Height;
 			var margin = 2f;
@@ -318,12 +319,12 @@ public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
 
 			for ( var t = t0; t <= t1; t += interval )
 			{
-				var x = FromScene( Session.TimeToPixels( t ) ).x;
+				var x = FromScene( Timeline.TimeToPixels( t ) ).x;
 
 				Paint.SetPen( TimeLabelColor );
 
 				var labelPos = new Vector2( x + 6, y );
-				var time = Session.PixelsToTime( ToScene( x ).x );
+				var time = Timeline.PixelsToTime( ToScene( x ).x );
 
 				if ( IsTop )
 				{
@@ -340,8 +341,8 @@ public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
 
 	private void DrawTimeRangeRect( MovieTimeRange timeRange )
 	{
-		var startX = FromScene( Session.TimeToPixels( timeRange.Start ) ).x;
-		var endX = FromScene( Session.TimeToPixels( timeRange.End ) ).x;
+		var startX = FromScene( Timeline.TimeToPixels( timeRange.Start ) ).x;
+		var endX = FromScene( Timeline.TimeToPixels( timeRange.End ) ).x;
 
 		Paint.DrawRect( new Rect( new Vector2( startX, LocalRect.Top ), new Vector2( endX - startX, LocalRect.Height ) ) );
 	}
@@ -367,7 +368,7 @@ public class ScrubBar : GraphicsItem, ISnapSource, IMovieItem
 
 		if ( !isPrimary ) yield break;
 
-		yield return new SnapTarget( sourceTime.Round( Session.MinorTick.Interval ), -2 );
-		yield return new SnapTarget( sourceTime.Round( Session.MajorTick.Interval ), -1 );
+		yield return new SnapTarget( sourceTime.Round( Timeline.MinorTick.Interval ), -2 );
+		yield return new SnapTarget( sourceTime.Round( Timeline.MajorTick.Interval ), -1 );
 	}
 }

@@ -393,6 +393,22 @@ public static partial class MathX
 	}
 
 	/// <summary>
+	/// Smoothly approach the target value using exponential decay.
+	/// Cheaper than SmoothDamp but doesn't track velocity for momentum.
+	/// Good for non-physical smoothing.
+	/// </summary>
+	/// <param name="current">Current value</param>
+	/// <param name="target">Target value to approach</param>
+	/// <param name="halflife">Time for the difference to reduce by 50%</param>
+	/// <param name="deltaTime">Time step</param>
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	public static float ExponentialDecay( float current, float target, float halflife, float deltaTime )
+	{
+		// log(0.5) == -0.69314718f
+		return target + (current - target) * MathF.Exp( -0.69314718f / halflife * deltaTime );
+	}
+
+	/// <summary>
 	/// Smoothly move towards the target
 	/// </summary>
 	public static float SmoothDamp( float current, float target, ref float velocity, float smoothTime, float deltaTime )

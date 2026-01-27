@@ -160,6 +160,7 @@ class ParticleTrail : Particle.BaseListener
 		so.Opaque = Renderer.Opaque;
 		so.BlendMode = Renderer.BlendMode;
 		so.Wireframe = Renderer.Wireframe;
+		so.SamplerState = new() { Filter = Renderer.Texturing.FilterMode, AddressModeU = Renderer.Texturing.TextureAddressMode, AddressModeV = Renderer.Texturing.TextureAddressMode };
 	}
 
 	public override void OnDisabled( Particle p )

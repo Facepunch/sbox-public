@@ -6,5 +6,5 @@ native class CBinauralEffect
 	static CBinauralEffect Create(); [new]
 	void Dispose(); [delete]
 
-	void Apply( Vector3 localDirection, float spatialBlend, CAudioMixDeviceBuffers input, CAudioMixDeviceBuffers output );
+	void Apply( Vector3 localDirection, float spatialBlend, bool useNearestInterpolation, CAudioMixDeviceBuffers input, CAudioMixDeviceBuffers output );
 }

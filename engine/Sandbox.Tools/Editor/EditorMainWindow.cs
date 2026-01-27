@@ -1,5 +1,4 @@
 ﻿using NativeEngine;
-using System.Diagnostics;
 
 namespace Editor;
 
@@ -188,7 +187,7 @@ public class EditorMainWindow : DockWindow
 
 			help.AddOption( "Open Log Folder", "source", () => EditorUtility.OpenFolder( FileSystem.Root.GetFullPath( "/logs/" ) ) );
 			help.AddOption( "Developer Documentation", "article", () => EditorUtility.OpenFolder( "https://sbox.game/dev/" ) );
-			help.AddOption( "Report a Bug", "bug_report", () => EditorUtility.OpenFolder( "https://github.com/Facepunch/sbox-issues" ) );
+			help.AddOption( "Report a Bug", "bug_report", () => EditorUtility.OpenFolder( "https://github.com/Facepunch/sbox-public/issues" ) );
 
 			help.AddSeparator();
 			help.AddOption( "About s&box editor", "info", () =>
@@ -313,7 +312,7 @@ public class EditorMainWindow : DockWindow
 		EditorScene.RestoreState();
 
 		// Register our menu bar and dock options, doesn't open anything
-		MenuAttribute.RegisterMenuBar( "Editor", MenuBar );
+		MenuBar.RegisterNamed( "Editor", MenuBar );
 		DockAttribute.RegisterWindow( "Editor", this );
 
 		// This will attempt to restore the last used layout (or default layout if first time)

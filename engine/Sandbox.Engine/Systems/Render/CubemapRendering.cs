@@ -92,7 +92,7 @@ internal static class CubemapRendering
 		if ( cubemapTexture.Depth != 6 ) throw new Exception( "Cubemap texture must have 6 faces" );
 		if ( cubemapTexture.Width != cubemapTexture.Height ) throw new Exception( "Cubemap texture must be square" );
 		if ( cubemapTexture.Width.IsPowerOfTwo() == false ) throw new Exception( "Cubemap texture must be power of two" );
-		if ( cubemapTexture.Mips != 7 ) throw new Exception( "Cubemap texture must have 7 mip levels" );
+		if ( cubemapTexture.Mips != 7 ) throw new Exception( $"Cubemap texture must have 7 mip levels (this has {cubemapTexture.Mips})" );
 
 		// Merge into a single command list for callers
 		var filter = new CommandList( "Cubemap.Filter" );
@@ -138,12 +138,10 @@ internal static class CubemapRendering
 		var cmd = new CommandList( "Cubemap.FilterGGX" );
 
 		cmd.Attributes.Set( "Source", cubemapTexture );
-		cmd.Attributes.Set( "Destination1", cubemapTexture, 1 );
-		cmd.Attributes.Set( "Destination2", cubemapTexture, 2 );
-		cmd.Attributes.Set( "Destination3", cubemapTexture, 3 );
-		cmd.Attributes.Set( "Destination4", cubemapTexture, 4 );
-		cmd.Attributes.Set( "Destination5", cubemapTexture, 5 );
-		cmd.Attributes.Set( "Destination6", cubemapTexture, 6 );
+		for ( int i = 1; i < cubemapTexture.Mips; i++ )
+		{
+			cmd.Attributes.Set( $"Destination{i}", cubemapTexture, i );
+		}
 		cmd.Attributes.SetCombo( "D_QUALITY", (int)filterType );
 		cmd.Attributes.SetCombo( "D_PASS", 1 );
 		cmd.Attributes.Set( "BaseResolution", cubemapTexture.Width );

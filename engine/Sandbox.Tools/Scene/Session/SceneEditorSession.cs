@@ -40,9 +40,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public bool IsPrefabSession => this is PrefabEditorSession;
 
-	/// <summary>
-	/// The scene for this session
-	/// </summary>
 	public Scene Scene { get; private set; }
 
 	internal Widget SceneDock { get; set; }
@@ -292,6 +289,8 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		}
 	}
 
+	BaseFileSystem Scene.ISceneEditorSession.TransientFilesystem => FileSystem.Transient;
+
 	public void Reload()
 	{
 		if ( Scene.Source is null )
@@ -376,16 +375,16 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// <summary>
 	/// Resolve a Component to an editor session.
 	/// </summary>
-	public static SceneEditorSession Resolve( Component component ) => Resolve( component?.GameObject );
+	public static Scene.ISceneEditorSession Resolve( Component component ) => Resolve( component?.GameObject );
 
 	/// <summary>
 	/// Resolve a GameObject to an editor session.
 	/// </summary>
-	public static SceneEditorSession Resolve( GameObject go )
+	public static Scene.ISceneEditorSession Resolve( GameObject go )
 	{
-		ArgumentNullException.ThrowIfNull( go, nameof( go ) );
+		if ( go is null ) return null;
 
-		var session = go.Scene.Editor as SceneEditorSession;
+		var session = go.Scene.Editor;
 		if ( session is null )
 		{
 			Log.Error( $"Failed to resolve session for GameObject: {go}" );
@@ -507,5 +506,57 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		{
 			yield return obj;
 		}
+	}
+
+	public Editor.SceneFolder GetSceneFolder()
+	{
+		if ( Scene?.Source?.ResourcePath == null )
+			return default;
+
+		if ( AssetSystem.FindByPath( Scene.Source.ResourcePath ) is Asset sourceAsset )
+		{
+			return new AssetFolderInstance( sourceAsset );
+		}
+
+		return default;
+	}
+}
+
+file class AssetFolderInstance : SceneFolder
+{
+	string _folder;
+	string _relativeFolder;
+	BaseFileSystem _fs;
+
+	public AssetFolderInstance( Asset sourceAsset )
+	{
+		var relativePath = sourceAsset.GetSourceFile( false );
+		var assetPath = sourceAsset.GetSourceFile( true );
+
+		var extension = System.IO.Path.GetExtension( assetPath ).Replace( ".", "_" );
+		_folder = System.IO.Path.ChangeExtension( assetPath, null );
+		_folder = $"{_folder}{extension}_data";
+
+		_relativeFolder = System.IO.Path.ChangeExtension( relativePath, null );
+		_relativeFolder = $"{_relativeFolder}{extension}_data".NormalizeFilename();
+
+		System.IO.Directory.CreateDirectory( _folder );
+
+		_fs = new LocalFileSystem( _folder );
+	}
+
+	~AssetFolderInstance()
+	{
+		MainThread.Queue( () => _fs?.Dispose() );
+	}
+
+	public override string WriteFile( string filename, byte[] data )
+	{
+		_fs.WriteAllBytes( filename, data );
+
+		if ( filename.StartsWith( '/' ) ) filename = filename[1..];
+
+		var absPath = System.IO.Path.Combine( _relativeFolder, filename );
+		return absPath;
 	}
 }

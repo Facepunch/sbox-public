@@ -110,7 +110,7 @@ public class EditorTool : IDisposable
 
 		try
 		{
-			if ( HasBoxSelectionMode() )
+			if ( HasBoxSelectionMode() && Manager.IsCurrentViewFocused )
 			{
 				UpdateBoxSelection();
 			}

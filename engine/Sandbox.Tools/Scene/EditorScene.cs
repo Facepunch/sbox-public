@@ -482,7 +482,7 @@ public static class EditorScene
 	{
 		var selected = EditorScene.Selection.FirstOrDefault() as GameObject;
 
-		var session = SceneEditorSession.Resolve( selected );
+		var session = SceneEditorSession.Resolve( selected ) ?? SceneEditorSession.Active;
 		using var scene = session.Scene.Push();
 
 		// Paste to scene root if nobody is selected
@@ -506,7 +506,7 @@ public static class EditorScene
 		var selected = Selection.OfType<GameObject>().ToArray();
 		var first = selected.FirstOrDefault();
 
-		var session = SceneEditorSession.Resolve( first );
+		var session = SceneEditorSession.Resolve( first ) ?? SceneEditorSession.Active;
 		using var scene = session.Scene.Push();
 
 		// Paste to scene root if nobody is selected

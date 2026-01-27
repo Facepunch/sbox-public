@@ -714,6 +714,7 @@ public class Preview : SceneRenderingWidget
 			}
 			{
 				var cubemap = new GameObject( true, "cubemap" ).GetOrAddComponent<EnvmapProbe>();
+				cubemap.Mode = EnvmapProbe.EnvmapProbeMode.CustomTexture;
 				cubemap.Texture = Texture.Load( "textures/cubemaps/default2.vtex" );
 			}
 			{

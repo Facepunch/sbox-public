@@ -22,7 +22,7 @@ public class ControlWidgets
 	/// Integer values should survive a round trip through <see cref="IntegerControlWidget.ValueToString"/> and <see cref="IntegerControlWidget.StringToValue"/>.
 	/// </para>
 	/// <para>
-	/// Reproduces <see href="https://github.com/Facepunch/sbox-issues/issues/6731">Facepunch/sbox-issues#6731</see>.
+	/// Reproduces <see href="https://github.com/Facepunch/sbox-public/issues/3385">Facepunch/sbox-public#3385</see>.
 	/// </para>
 	/// </summary>
 	[TestMethod]
@@ -57,7 +57,7 @@ public class ControlWidgets
 	/// Integer values should survive a round trip through <see cref="FloatControlWidget.ValueToString"/> and <see cref="FloatControlWidget.StringToValue"/>.
 	/// </para>
 	/// <para>
-	/// Reproduces <see href="https://github.com/Facepunch/sbox-issues/issues/6731">Facepunch/sbox-issues#6731</see>.
+	/// Reproduces <see href="https://github.com/Facepunch/sbox-public/issues/3385">Facepunch/sbox-public#3385</see>.
 	/// </para>
 	/// </summary>
 	[TestMethod]

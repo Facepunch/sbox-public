@@ -2,7 +2,7 @@
 
 namespace Editor;
 
-internal class CodeCompileNotice : NoticeWidget
+internal class CodeCompileNotice : ToastWidget
 {
 	CompileGroup CompilerGroup;
 
@@ -88,7 +88,7 @@ internal class CodeCompileNotice : NoticeWidget
 		{
 			isErrored = false;
 			BorderColor = Theme.Green;
-			NoticeManager.Remove( this, 1 );
+			ToastManager.Remove( this, 1 );
 
 			if ( EditorPreferences.NotificationSounds )
 				EditorUtility.PlayRawSound( "sounds/editor/success.wav" );
@@ -98,7 +98,7 @@ internal class CodeCompileNotice : NoticeWidget
 			isErrored = true;
 			BorderColor = Theme.Red;
 			Subtitle = "";
-			NoticeManager.Remove( this, EditorPreferences.ErrorNotificationTimeout );
+			ToastManager.Remove( this, EditorPreferences.ErrorNotificationTimeout );
 			AddDiagnostics();
 
 			if ( EditorPreferences.NotificationSounds )
@@ -157,7 +157,7 @@ internal class CodeCompileNotice : NoticeWidget
 	public static void OnCompileStarted( CompileGroup compiler )
 	{
 		// find an old notice to replace
-		var notice = NoticeManager.All.OfType<CodeCompileNotice>().FirstOrDefault( x => x.CompilerGroup.Name == compiler.Name );
+		var notice = ToastManager.All.OfType<CodeCompileNotice>().FirstOrDefault( x => x.CompilerGroup.Name == compiler.Name );
 		if ( !notice.IsValid() ) notice = new CodeCompileNotice( compiler );
 
 		notice.CompilerGroup = compiler;

@@ -1,9 +1,7 @@
-﻿using System;
-
-namespace Editor;
+﻿namespace Editor;
 
 
-public class NoticeWidget : Widget
+public class ToastWidget : Widget
 {
 	public string Title;
 	public string Subtitle;
@@ -16,7 +14,7 @@ public class NoticeWidget : Widget
 
 	System.Diagnostics.Stopwatch stopWatch;
 
-	public NoticeWidget() : base( null )
+	public ToastWidget() : base( null )
 	{
 		IsTooltip = true;
 		NoSystemBackground = true;
@@ -30,7 +28,7 @@ public class NoticeWidget : Widget
 		Layout = Layout.Column();
 		Layout.Margin = new Sandbox.UI.Margin( 48 + 8, 32 + 8, 16, 16 );
 
-		NoticeManager.Add( this );
+		ToastManager.Add( this );
 	}
 
 	/// <summary>
@@ -39,7 +37,7 @@ public class NoticeWidget : Widget
 	public virtual void Reset()
 	{
 		IsRunning = true;
-		NoticeManager.Reset( this );
+		ToastManager.Reset( this );
 	}
 
 	/// <summary>
@@ -65,7 +63,7 @@ public class NoticeWidget : Widget
 	{
 		if ( e.RightMouseButton )
 		{
-			NoticeManager.Dismiss( this );
+			ToastManager.Dismiss( this );
 			e.Accepted = true;
 			return;
 		}
@@ -97,7 +95,7 @@ public class NoticeWidget : Widget
 		Paint.TextAntialiasing = true;
 
 		Paint.ClearPen();
-		Paint.SetBrush( Color.Black.WithAlpha( 0.1f ) );
+		Paint.SetBrush( Color.Black.WithAlpha( 0.2f ) );
 
 		var shadow = LocalRect.Shrink( 3, 3, 0, 0 );
 
@@ -106,7 +104,7 @@ public class NoticeWidget : Widget
 		var rect = LocalRect.Shrink( 0, 0, 3, 3 );
 
 		Paint.SetPen( borderColor, 2 );
-		Paint.SetBrush( Theme.WindowBackground.WithAlpha( 0.9f ) );
+		Paint.SetBrush( Theme.WindowBackground.WithAlpha( 0.98f ) );
 		Paint.DrawRect( rect.Shrink( 2 ), 4 );
 
 		if ( ProgressDelta > 0 )

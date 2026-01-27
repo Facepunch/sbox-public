@@ -406,7 +406,6 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 		List<object> items = new List<object>();
 		var tagCounts = new Dictionary<string, int>();
 
-		AssetList.Clear();
 
 		await Task.Run( () =>
 		{

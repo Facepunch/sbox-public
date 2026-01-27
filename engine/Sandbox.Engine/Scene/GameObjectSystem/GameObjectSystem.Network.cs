@@ -40,6 +40,13 @@ public abstract partial class GameObjectSystem : IDeltaSnapshot
 
 	[EditorBrowsable( EditorBrowsableState.Never )]
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T>( in WrappedMethod m, T[] argument )
+	{
+		Rpc.OnCallInstanceRpc( this, m, [argument] );
+	}
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	protected void __rpc_Wrapper( in WrappedMethod m, params object[] argumentList )
 	{
 		Rpc.OnCallInstanceRpc( this, m, argumentList );
@@ -201,6 +208,7 @@ public abstract partial class GameObjectSystem : IDeltaSnapshot
 		var system = SceneNetworkSystem.Instance;
 		if ( system is null ) return null;
 
+		LocalSnapshotState.Begin();
 		LocalSnapshotState.SnapshotId = system.DeltaSnapshots.CreateSnapshotId( Id );
 		LocalSnapshotState.ObjectId = Id;
 

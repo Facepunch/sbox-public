@@ -346,6 +346,10 @@ internal class ConsoleWidget : Widget
 	{
 		ThreadSafe.AssertIsMainThread();
 
+		// Don't process messages if the widget has been destroyed
+		if ( !this.IsValid() )
+			return;
+
 		AddConsoleMessage( e );
 	}
 

@@ -1,0 +1,67 @@
+{
+  "RootObject": {
+    "__guid": "d4d6e824-ede0-44ce-b41d-c25017bf9bcd",
+    "__version": 1,
+    "Flags": 0,
+    "Name": "light - ddgi volume",
+    "Position": "0,0,0",
+    "Rotation": "0,0,0,1",
+    "Scale": "1,1,1",
+    "Tags": "",
+    "Enabled": true,
+    "NetworkMode": 2,
+    "NetworkInterpolation": true,
+    "NetworkOrphaned": 0,
+    "NetworkTransmit": true,
+    "OwnerTransfer": 1,
+    "Components": [
+      {
+        "__type": "Sandbox.DDGIVolume",
+        "__guid": "36fb3f90-a062-4157-a18e-97d910eaa17b",
+        "__enabled": true,
+        "Bounds": {
+          "Mins": "-512,-512,-256",
+          "Maxs": "512,512,512"
+        },
+        "DistanceTexture": null,
+        "IrradianceTexture": null,
+        "NormalBias": 5,
+        "OnComponentDestroy": null,
+        "OnComponentDisabled": null,
+        "OnComponentEnabled": null,
+        "OnComponentFixedUpdate": null,
+        "OnComponentStart": null,
+        "OnComponentUpdate": null,
+        "ProbeDensity": 8,
+        "ProbesPerFrame": 4
+      }
+    ],
+    "Children": [],
+    "__properties": {
+      "NetworkInterpolation": true,
+      "TimeScale": 1,
+      "WantsSystemScene": true,
+      "Metadata": {},
+      "NavMesh": {
+        "Enabled": false,
+        "IncludeStaticBodies": true,
+        "IncludeKeyframedBodies": true,
+        "EditorAutoUpdate": true,
+        "AgentHeight": 64,
+        "AgentRadius": 16,
+        "AgentStepSize": 18,
+        "AgentMaxSlope": 40,
+        "ExcludedBodies": "",
+        "IncludedBodies": ""
+      }
+    },
+    "__variables": []
+  },
+  "ResourceVersion": 2,
+  "ShowInMenu": true,
+  "MenuPath": "Light/Indirect Light Volume",
+  "MenuIcon": "light",
+  "DontBreakAsTemplate": false,
+  "__references": [],
+  "__version": 2
+}

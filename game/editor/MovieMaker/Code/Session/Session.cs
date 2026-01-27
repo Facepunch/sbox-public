@@ -61,8 +61,6 @@ public sealed partial class Session
 	private int _frameRate = 10;
 	private bool _frameSnap;
 	private bool _objectSnap;
-	private MovieTime _timeOffset;
-	private float _pixelsPerSecond;
 
 	private SessionInverseKinematics _ik;
 
@@ -85,18 +83,6 @@ public sealed partial class Session
 	{
 		get => _objectSnap;
 		set => _objectSnap = Cookies.ObjectSnap = value;
-	}
-
-	public MovieTime TimeOffset
-	{
-		get => _timeOffset;
-		private set => _timeOffset = Cookies.TimeOffset = MovieTime.Max( value, default );
-	}
-
-	public float PixelsPerSecond
-	{
-		get => _pixelsPerSecond;
-		private set => _pixelsPerSecond = Cookies.PixelsPerSecond = value;
 	}
 
 	private MovieTime _playheadTime;
@@ -164,27 +150,7 @@ public sealed partial class Session
 	public event Action<MovieTime?>? PreviewChanged;
 
 	public bool HasUnsavedChanges { get; private set; }
-
 	public EditMode? EditMode { get; private set; }
-
-	private SmoothDeltaFloat _smoothZoom = new() { Value = 100.0f, Target = 100.0f, SmoothTime = 0.3f };
-	private SmoothDeltaFloat _smoothPan = new() { Value = 0.0f, Target = 0f, SmoothTime = 0.3f };
-
-	public MovieTimeRange VisibleTimeRange
-	{
-		get
-		{
-			var minTime = PixelsToTime( 0f ) + TimeOffset;
-			var maxTime = PixelsToTime( Editor.TimelinePanel!.Width ) + TimeOffset;
-
-			return new( minTime, maxTime );
-		}
-	}
-
-	/// <summary>
-	/// Invoked when the view pans or changes scale.
-	/// </summary>
-	public event Action? ViewChanged;
 
 	public Session( IMovieResource? resource )
 	{
@@ -314,222 +280,10 @@ public sealed partial class Session
 		return EditMode is not null;
 	}
 
-	private readonly List<ISnapSource> _snapSources = new();
-
-	private static MovieTime ClampTime( MovieTime time, MovieTime? min, MovieTime? max )
-	{
-		if ( min is { } minTime )
-		{
-			time = MovieTime.Max( time, minTime );
-		}
-
-		if ( max is { } maxTime )
-		{
-			time = MovieTime.Min( time, maxTime );
-		}
-
-		return time;
-	}
-
-	public MovieTime ScenePositionToTime( Vector2 scenePos, SnapOptions? options = null, bool showSnap = true )
-	{
-		options ??= new SnapOptions();
-
-		var time = ClampTime( PixelsToTime( scenePos.x ), options.Min, options.Max );
-
-		var timeline = Editor.TimelinePanel?.Timeline;
-
-		if ( timeline is null ) return time;
-
-		_snapSources.Clear();
-		_snapSources.Add( timeline );
-
-		if ( ObjectSnap )
-		{
-			_snapSources.AddRange( GetSnapSources( scenePos, options, timeline.Items ) );
-		}
-
-		var primaryOffset = options.SnapOffsets.DefaultIfEmpty().MinBy( x => x.Absolute );
-		var ctx = new SnapContext( 
-			targetTime: time,
-			targetRange: (options.Min ?? default, options.Max ?? MovieTime.MaxValue),
-			maxDistance: PixelsToTime( 16f ),
-			sources: _snapSources );
-
-		foreach ( var offset in options.SnapOffsets.DefaultIfEmpty() )
-		{
-			ctx.Update( offset, offset == primaryOffset );
-		}
-
-		if ( showSnap )
-		{
-			timeline.UpdateSnapTargets( ctx.BestSources.Select( x => (x.Key, x.Value) ) );
-		}
-
-		return MovieTime.Max( ctx.BestTime, MovieTime.Zero );
-	}
-
-	private static IEnumerable<ISnapSource> GetSnapSources( Vector2 scenePos, SnapOptions options, IEnumerable<GraphicsItem> items )
-	{
-		foreach ( var item in items )
-		{
-			var sceneRect = item.GetRealSceneRect();
-
-			if ( sceneRect.Top > scenePos.y || sceneRect.Bottom < scenePos.y ) continue;
-
-			foreach ( var childSource in GetSnapSources( scenePos, options, item.Children ) )
-			{
-				yield return childSource;
-			}
-
-			if ( item is ISnapSource source && options.Filter?.Invoke( source ) is not false )
-			{
-				yield return source;
-			}
-		}
-	}
-
-	private sealed class SnapContext
-	{
-		public MovieTime TargetTime { get; }
-		public MovieTimeRange TargetRange { get; }
-		public MovieTime MaxDistance { get; }
-		public IReadOnlyList<ISnapSource> Sources { get; }
-
-		public SnapContext( MovieTime targetTime, MovieTimeRange targetRange, MovieTime maxDistance, IEnumerable<ISnapSource> sources )
-		{
-			TargetTime = targetTime;
-			TargetRange = targetRange;
-			MaxDistance = maxDistance;
-			Sources = [..sources];
-
-			BestTime = targetTime;
-		}
-
-		public MovieTime BestTime { get; private set; }
-		public float BestScore { get; private set; } = float.PositiveInfinity;
-		public Dictionary<MovieTime, Rect> BestSources { get; } = new();
-
-		public bool Update( MovieTime offset, bool isPrimary )
-		{
-			var changed = false;
-
-			foreach ( var source in Sources )
-			{
-				foreach ( var (snapTime, priority, show) in source.GetSnapTargets( TargetTime + offset, isPrimary ) )
-				{
-					var snappedTime = snapTime - offset;
-
-					if ( !TargetRange.Contains( snappedTime ) ) continue;
-
-					var timeDiff = (snappedTime - TargetTime).Absolute;
-					var force = priority < 0;
-
-					if ( !force && timeDiff * Math.Max( 4 - priority, 1 ) > MaxDistance * 4 ) continue;
-
-					var score = (float)(timeDiff.TotalSeconds / MaxDistance.TotalSeconds) - priority;
-
-					if ( score < BestScore )
-					{
-						if ( snappedTime != BestTime )
-						{
-							BestSources.Clear();
-						}
-
-						BestScore = score;
-						BestTime = snappedTime;
-
-						changed = true;
-					}
-
-					if ( !show || snappedTime != BestTime ) continue;
-
-					var rect = source.SceneSnapBounds;
-
-					if ( BestSources.TryGetValue( snapTime, out var existing ) )
-					{
-						rect.Add( existing );
-					}
-
-					BestSources[snapTime] = rect;
-				}
-			}
-
-			return changed;
-		}
-	}
-
-	public MovieTime PixelsToTime( float pixels ) => MovieTime.FromSeconds( PixelsToSeconds( pixels ) );
-
-	public float PixelsToSeconds( float pixels ) => pixels / PixelsPerSecond;
-
-	public float TimeToPixels( MovieTime time )
-	{
-		return (float)(time.TotalSeconds * PixelsPerSecond);
-	}
-
-	public void ScrollByImmediate( float x )
-	{
-		if ( x == 0 )
-			return;
-
-		_smoothPan.Value = Math.Max( 0f, _smoothPan.Value - PixelsToSeconds( x ) );
-		_smoothPan.Target = _smoothPan.Value;
-		_smoothPan.Velocity = 0;
-
-		TimeOffset = MovieTime.FromSeconds( _smoothPan.Target );
-	}
-
-	public void ScrollBySmooth( float x )
-	{
-		if ( x == 0 )
-			return;
-
-		_smoothPan.Target -= PixelsToSeconds( x );
-		_smoothPan.Target = Math.Max( 0f, _smoothPan.Target );
-	}
-
-	public void SetView( MovieTime timeOffset, float pixelsPerSecond )
-	{
-		_timeOffset = MovieTime.Max( timeOffset, default );
-		_pixelsPerSecond = pixelsPerSecond;
-
-		_smoothPan.Target = _smoothPan.Value = (float)TimeOffset.TotalSeconds;
-		_smoothZoom.Target = _smoothZoom.Value = PixelsPerSecond;
-
-		DispatchViewChanged();
-	}
-
 	public bool Frame()
 	{
 		TrackFrame();
 		PlaybackFrame();
-
-		var viewChanged = false;
-
-		if ( _smoothZoom.Update( RealTime.Delta ) )
-		{
-			var d = TimeToPixels( TimeOffset ) - TimeToPixels( _zoomOrigin );
-
-			PixelsPerSecond = _smoothZoom.Value;
-			PixelsPerSecond = PixelsPerSecond.Clamp( 5, 1024 );
-
-			var nd = TimeToPixels( TimeOffset ) - TimeToPixels( _zoomOrigin );
-			ScrollByImmediate( nd - d );
-
-			viewChanged = true;
-		}
-
-		if ( _smoothPan.Update( RealTime.Delta ) )
-		{
-			TimeOffset = MovieTime.FromSeconds( _smoothPan.Value );
-			viewChanged = true;
-		}
-
-		if ( viewChanged )
-		{
-			DispatchViewChanged();
-		}
 
 		EditMode?.Frame();
 
@@ -541,21 +295,11 @@ public sealed partial class Session
 		return true;
 	}
 
-	private MovieTime _zoomOrigin;
-
-	internal void Zoom( float v, MovieTime origin )
-	{
-		_zoomOrigin = origin;
-
-		_smoothZoom.Target = _smoothZoom.Target += (v * _smoothZoom.Target) * 0.01f;
-		_smoothZoom.Target = _smoothZoom.Target.Clamp( 5, 1024 );
-	}
-
 	internal void ClipModified()
 	{
 		Resource.StateHasChanged( Project );
 
-		if ( Resource is EmbeddedMovieResource )
+		if ( Resource is EmbeddedMovieResource && Player.Scene?.Editor is not null )
 		{
 			Player.Scene.Editor.HasUnsavedChanges = true;
 			return;
@@ -603,12 +347,6 @@ public sealed partial class Session
 		{
 			EditorUtility.PlayRawSound( "sounds/editor/success.wav" );
 		}
-	}
-
-	public void DispatchViewChanged()
-	{
-		ViewChanged?.Invoke();
-		EditMode?.ViewChanged( Editor.TimelinePanel!.Timeline.VisibleRect );
 	}
 
 	public static float GetGizmoAlpha( MovieTime time, MovieTimeRange range )
@@ -671,8 +409,10 @@ public sealed partial class Session
 		_ik.ShowContextMenu( ev );
 	}
 
-	public bool CanReferenceMovie( MovieResource resource )
+	public bool CanReferenceMovie( MovieResource? resource )
 	{
+		if ( resource is null ) return false;
+
 		var references = new HashSet<MovieResource>();
 		var refQueue = new Queue<MovieResource>();
 
@@ -747,25 +487,5 @@ public sealed partial class Session
 	public void SaveConfig()
 	{
 		EditorUtility.SaveProjectSettings( Config, $"/{ConfigFileName}" );
-	}
-
-	/// <summary>
-	/// How much space to leave around the playhead when auto-scrolling.
-	/// </summary>
-	[FromTheme]
-	public static float PlayheadMarginPixels { get; set; } = 128f;
-
-	public void ScrollToPlayheadTime()
-	{
-		var range = new MovieTimeRange( PlayheadTime - PixelsToTime( PlayheadMarginPixels ), PlayheadTime + PixelsToTime( PlayheadMarginPixels ) );
-
-		if ( range.Start < VisibleTimeRange.Start )
-		{
-			ScrollByImmediate( TimeToPixels( VisibleTimeRange.Start - range.Start ) );
-		}
-		else if ( range.End > VisibleTimeRange.End )
-		{
-			ScrollByImmediate( TimeToPixels( VisibleTimeRange.End - range.End ) );
-		}
 	}
 }

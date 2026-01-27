@@ -2945,9 +2945,27 @@ public sealed partial class PolygonMesh : IJsonConvert
 		TextureUAxis[hFace] = uAxis;
 		TextureVAxis[hFace] = vAxis;
 
-		ComputeFaceTextureCoordinatesFromParameters( new[] { hFace } );
+		ComputeFaceTextureCoordinatesFromParameters( [hFace] );
 
 		IsDirty = true;
+	}
+
+	/// <summary>
+	/// Set face vertex texture coord
+	/// </summary>
+	public void SetTextureCoord( HalfEdgeHandle faceVertex, Vector2 texcoord )
+	{
+		TextureCoord[faceVertex] = texcoord;
+
+		IsDirty = true;
+	}
+
+	/// <summary>
+	/// Get face vertex texture coord
+	/// </summary>
+	public Vector2 GetTextureCoord( HalfEdgeHandle faceVertex )
+	{
+		return TextureCoord[faceVertex];
 	}
 
 	/// <summary>
@@ -3325,7 +3343,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		return textureSize;
 	}
 
-	private bool IsEdgeSmooth( HalfEdgeHandle hEdge )
+	public bool IsEdgeSmooth( HalfEdgeHandle hEdge )
 	{
 		if ( IsEdgeOpen( hEdge ) )
 			return false;
@@ -4762,9 +4780,9 @@ public sealed partial class PolygonMesh : IJsonConvert
 		Topology.GetFacesConnectedToFullEdge( hEdge, out hOutFaceA, out hOutFaceB );
 	}
 
-	void FindBoundaryEdgesConnectedToFaces( IReadOnlyList<FaceHandle> faces, int faceCount, out List<HalfEdgeHandle> outBoundaryEdges )
+	public void FindBoundaryEdgesConnectedToFaces( IReadOnlyList<FaceHandle> faces, out List<HalfEdgeHandle> outBoundaryEdges )
 	{
-		Topology.FindFullEdgesConnectedToFaces( faces, faceCount, out var allConnectedEdges, out var edgeFaceCounts );
+		Topology.FindFullEdgesConnectedToFaces( faces, faces.Count, out var allConnectedEdges, out var edgeFaceCounts );
 
 		var connectedEdgesCount = allConnectedEdges.Length;
 		outBoundaryEdges = new( connectedEdgesCount );
@@ -4790,7 +4808,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		{
 			var faceIsland = faceIslands[islandIndex];
 
-			FindBoundaryEdgesConnectedToFaces( faceIsland, faceIsland.Count, out var boundaryEdges );
+			FindBoundaryEdgesConnectedToFaces( faceIsland, out var boundaryEdges );
 
 			var numEdges = boundaryEdges.Count;
 			var allEdgesOpen = numEdges > 0;
@@ -4860,7 +4878,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		return any;
 	}
 
-	void FindFaceIslands( IReadOnlyList<FaceHandle> faces, out List<List<FaceHandle>> outFaces )
+	public void FindFaceIslands( IReadOnlyList<FaceHandle> faces, out List<List<FaceHandle>> outFaces )
 	{
 		outFaces = [];
 

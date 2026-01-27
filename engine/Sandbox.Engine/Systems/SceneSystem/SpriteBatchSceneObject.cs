@@ -32,6 +32,19 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		AddressModeV = TextureAddressMode.Clamp,
 	};
 
+	/// <summary>
+	/// Flags for sprite rendering, must match SpriteFlags in sprite_ps.shader
+	/// </summary>
+	[Flags]
+	public enum SpriteFlags
+	{
+		None = 0x0,
+		CastShadows = 0x1,
+		FlipX = 0x2,
+		FlipY = 0x4,
+		SnapToFrame = 0x8
+	}
+
 	// GPU Resident representation of a sprite
 	[StructLayout( LayoutKind.Sequential, Pack = 16 )]
 	public struct SpriteData
@@ -369,9 +382,9 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 				pos = pos.RotateAround( transform.Position, transform.Rotation );
 				transform = transform.WithScale( scale ).WithPosition( pos );
 
-				var flipFlags = SpriteRenderer.FlipFlags.None;
-				if ( c.FlipHorizontal ) flipFlags |= SpriteRenderer.FlipFlags.FlipX;
-				if ( c.FlipVertical ) flipFlags |= SpriteRenderer.FlipFlags.FlipY;
+				var renderFlags = SpriteFlags.None;
+				if ( c.FlipHorizontal ) renderFlags |= SpriteFlags.FlipX;
+				if ( c.FlipVertical ) renderFlags |= SpriteFlags.FlipY;
 
 				var rgbe = c.Color.ToRgbe();
 				var alpha = (byte)(c.Color.a.Clamp( 0.0f, 1.0f ) * 255.0f);
@@ -394,7 +407,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 					TextureHandle = c.Texture is null ? Texture.Invalid.Index : c.Texture.Index,
 					TintColor = tintColor.RawInt,
 					OverlayColor = overlayColor.RawInt,
-					RenderFlags = (int)flipFlags,
+					RenderFlags = (int)renderFlags,
 					BillboardMode = (uint)c.Billboard,
 					FogStrengthCutout = packedFogAndAlpha,
 					Lighting = packedExponent,

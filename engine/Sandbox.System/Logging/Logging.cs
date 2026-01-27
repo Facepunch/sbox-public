@@ -54,11 +54,20 @@ internal static partial class Logging
 			Layout = "${date:format=yyyy/MM/dd HH\\:mm\\:ss.ffff}\t[${logger}] ${message}\t${exception:format=ToString}"
 		};
 
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// Config takes ownership of targets
+		var debugger_target = new NLog.Targets.DebuggerTarget
+		{
+			Layout = "${message:trimWhiteSpace=true}"
+		};
+#pragma warning restore CA2000 // Dispose objects before losing scope
+
 		//
 		// Targets
 		//
 		config.AddTarget( "file", file_target );
 		config.AddTarget( "console", game_target );
+		config.AddTarget( "debugger", debugger_target );
 		//config.AddTarget( "null", new NLog.Targets.NullTarget() );
 
 		config.LoggingRules.Clear();
@@ -72,6 +81,7 @@ internal static partial class Logging
 			rule.EnableLoggingForLevels( NLog.LogLevel.Trace, NLog.LogLevel.Fatal );
 			rule.Targets.Add( file_target );
 			rule.Targets.Add( game_target );
+			rule.Targets.Add( debugger_target );
 			//rule.Filters.Add( new WhenMethodFilter( TestLogFilter ) );
 
 			config.LoggingRules.Add( rule );

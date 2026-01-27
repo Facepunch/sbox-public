@@ -218,11 +218,10 @@ public partial class GameObject
 	/// <summary>
 	/// Make a request from the host to stop being the network owner of this game object.
 	/// </summary>
-	[Rpc.Broadcast]
+	[Rpc.Host]
 	void Msg_RequestDropOwnership( ushort snapshotVersion )
 	{
 		if ( _net is null ) return;
-		if ( !Networking.IsHost ) return;
 		if ( OwnerTransfer != OwnerTransfer.Request ) return;
 
 		var caller = Rpc.Caller;
@@ -269,11 +268,10 @@ public partial class GameObject
 	/// <summary>
 	/// Make a request from the host to become the network owner of this game object.
 	/// </summary>
-	[Rpc.Broadcast]
+	[Rpc.Host]
 	void Msg_RequestTakeOwnership( ushort snapshotVersion )
 	{
 		if ( _net is null ) return;
-		if ( !Networking.IsHost ) return;
 		if ( OwnerTransfer != OwnerTransfer.Request ) return;
 
 		// Can this caller take ownership?
@@ -339,11 +337,10 @@ public partial class GameObject
 	/// <summary>
 	/// Make a request from the host to assign ownership of this game object to the specified connection <see cref="Guid"/>.
 	/// </summary>
-	[Rpc.Broadcast]
+	[Rpc.Host]
 	void Msg_RequestAssignOwnership( Guid guid, ushort snapshotVersion )
 	{
 		if ( _net is null ) return;
-		if ( !Networking.IsHost ) return;
 		if ( OwnerTransfer != OwnerTransfer.Request ) return;
 
 		// Can this caller assign ownership?
@@ -420,9 +417,16 @@ public partial class GameObject
 
 	[EditorBrowsable( EditorBrowsableState.Never )]
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	protected void __rpc_Wrapper<T>( in WrappedMethod m, T[] argument )
+	{
+		Rpc.OnCallInstanceRpc( this, null, m, [argument] );
+	}
+
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	protected void __rpc_Wrapper( in WrappedMethod m, params object[] argumentList )
 	{
-		Rpc.OnCallInstanceRpc( this, default, m, argumentList );
+		Rpc.OnCallInstanceRpc( this, null, m, argumentList );
 	}
 
 	/// <summary>
@@ -703,7 +707,8 @@ public partial class GameObject
 		/// </summary>
 		public void Refresh()
 		{
-			if ( IsProxy && !Networking.IsHost ) return;
+			if ( !Active || (IsProxy && !Networking.IsHost) )
+				return;
 
 			var connection = Connection.Local;
 			if ( !connection.CanRefreshObjects )
@@ -723,7 +728,8 @@ public partial class GameObject
 		/// </summary>
 		public void Refresh( GameObject descendent )
 		{
-			if ( IsProxy && !Networking.IsHost ) return;
+			if ( !Active || (IsProxy && !Networking.IsHost) )
+				return;
 
 			var connection = Connection.Local;
 			if ( !connection.CanRefreshObjects )
@@ -742,7 +748,8 @@ public partial class GameObject
 		/// </summary>
 		public void Refresh( Component component )
 		{
-			if ( IsProxy && !Networking.IsHost ) return;
+			if ( !Active || (IsProxy && !Networking.IsHost) )
+				return;
 
 			var connection = Connection.Local;
 			if ( !connection.CanRefreshObjects )
@@ -799,12 +806,7 @@ public partial class GameObject
 
 			if ( !IsProxy )
 			{
-				// Clear interpolation and set that flag here.
-				go.Transform.ClearInterpolation();
-
-				// Force a delta snapshot for this object since we changed owner.
-				var system = SceneNetworkSystem.Instance;
-				system?.DeltaSnapshots?.Send( go._net, NetFlags.Reliable, true );
+				UpdateStateBeforeOwnerChange();
 			}
 
 			if ( !Networking.IsHost && go.OwnerTransfer == OwnerTransfer.Request )
@@ -829,12 +831,7 @@ public partial class GameObject
 
 			if ( !IsProxy )
 			{
-				// Clear interpolation and set that flag here.
-				go.Transform.ClearInterpolation();
-
-				// Force a delta snapshot for this object since we changed owner.
-				var system = SceneNetworkSystem.Instance;
-				system?.DeltaSnapshots?.Send( go._net, NetFlags.Reliable, true );
+				UpdateStateBeforeOwnerChange();
 			}
 
 			go.Msg_AssignOwnership( connectionId, go.Network.SnapshotVersion );
@@ -876,12 +873,7 @@ public partial class GameObject
 
 			if ( !IsProxy )
 			{
-				// Clear interpolation and set that flag here.
-				go.Transform.ClearInterpolation();
-
-				// Force a delta snapshot for this object since we changed owner.
-				var system = SceneNetworkSystem.Instance;
-				system?.DeltaSnapshots?.Send( go._net, NetFlags.Reliable, true );
+				UpdateStateBeforeOwnerChange();
 			}
 
 			if ( Networking.IsHost )
@@ -919,6 +911,26 @@ public partial class GameObject
 		public bool Spawn( Connection owner )
 		{
 			return go.NetworkSpawn( owner );
+		}
+
+		/// <summary>
+		/// Before we drop ownership (or assign ownership to somebody else), there are a few things
+		/// we want to do first. We want to let any listeners know so that they can react to it, we
+		/// want to clear interpolation, and finally, we want to force a full delta snapshot of the
+		/// object's state.
+		/// </summary>
+		private void UpdateStateBeforeOwnerChange()
+		{
+			// Let any listeners know that we're about to drop ownership and send
+			// a full state update to everyone
+			IGameObjectNetworkEvents.PostToGameObject( go, x => x.BeforeDropOwnership() );
+
+			// Clear interpolation and set that flag here
+			go.Transform.ClearInterpolation();
+
+			// Force a delta snapshot for this object since we changed the owner
+			var system = SceneNetworkSystem.Instance;
+			system?.DeltaSnapshots?.Send( go._net, NetFlags.Reliable, true );
 		}
 	}
 }

@@ -121,6 +121,7 @@ partial class EdgeTool
 
 					CreateButton( "Bevel", "straighten", "mesh.edge-bevel", Bevel, CanBevel(), row.Layout );
 					CreateButton( "Edge Cut Tool", "content_cut", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
+					CreateButton( "Edge Arch", "rounded_corner", "mesh.edge-arch-tool", OpenEdgeArchTool, CanArch(), row.Layout );
 
 					row.Layout.AddStretchCell();
 
@@ -777,6 +778,148 @@ partial class EdgeTool
 		void DefaultNormals()
 		{
 			SetNormals( PolygonMesh.EdgeSmoothMode.Default );
+		}
+		private bool CanArch()
+		{
+			return _edges.Any( x => x.IsOpen );
+		}
+
+		[Shortcut( "mesh.edge-arch-tool", "Y", typeof( SceneViewWidget ) )]
+		void OpenEdgeArchTool()
+		{
+			if ( !CanArch() )
+				return;
+
+			var edgeGroups = new List<EdgeArchEdges>();
+
+			foreach ( var group in _edgeGroups )
+			{
+				var component = group.Key;
+				var mesh = component.Mesh;
+
+				var originalMesh = new PolygonMesh();
+				originalMesh.Transform = mesh.Transform;
+				originalMesh.MergeMesh( mesh, Transform.Zero, out _, out _, out _ );
+
+				var openEdges = group
+					.Where( x => x.IsOpen )
+					.Select( x => x.Handle.Index )
+					.ToList();
+
+				if ( openEdges.Count > 0 )
+				{
+					edgeGroups.Add( new EdgeArchEdges
+					{
+						Component = component,
+						Mesh = originalMesh,
+						Edges = openEdges
+					} );
+				}
+			}
+
+			if ( edgeGroups.Count == 0 )
+				return;
+
+			var tool = new EdgeArchTool( edgeGroups.ToArray() );
+			tool.Manager = _tool.Manager;
+			_tool.CurrentTool = tool;
+		}
+
+		[Shortcut( "mesh.grow-selection", "KP_ADD", typeof( SceneViewWidget ) )]
+		private void GrowSelection()
+		{
+			if ( _edges.Length == 0 ) return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Grow Selection" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				var newEdges = new HashSet<MeshEdge>();
+
+				foreach ( var edge in _edges )
+				{
+					if ( !edge.IsValid() )
+						continue;
+
+					newEdges.Add( edge );
+				}
+
+				foreach ( var edge in _edges )
+				{
+					if ( !edge.IsValid() )
+						continue;
+
+					var mesh = edge.Component.Mesh;
+
+					mesh.GetEdgeVertices( edge.Handle, out var vertexA, out var vertexB );
+
+					mesh.GetEdgesConnectedToVertex( vertexA, out var edgesA );
+					mesh.GetEdgesConnectedToVertex( vertexB, out var edgesB );
+
+					foreach ( var adjacentEdge in edgesA.Concat( edgesB ) )
+					{
+						if ( adjacentEdge.IsValid )
+							newEdges.Add( new MeshEdge( edge.Component, adjacentEdge ) );
+					}
+				}
+
+				selection.Clear();
+				foreach ( var edge in newEdges )
+				{
+					if ( edge.IsValid() )
+						selection.Add( edge );
+				}
+			}
+		}
+
+		[Shortcut( "mesh.shrink-selection", "KP_MINUS", typeof( SceneViewWidget ) )]
+		private void ShrinkSelection()
+		{
+			if ( _edges.Length == 0 ) return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Shrink Selection" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				var edgesToKeep = new HashSet<MeshEdge>();
+
+				foreach ( var edge in _edges )
+				{
+					if ( !edge.IsValid() )
+						continue;
+
+					var mesh = edge.Component.Mesh;
+					mesh.GetEdgeVertices( edge.Handle, out var vertexA, out var vertexB );
+
+					mesh.GetEdgesConnectedToVertex( vertexA, out var edgesA );
+					bool allEdgesASelected = edgesA.All( e =>
+						_edges.Any( selectedEdge => selectedEdge.Component == edge.Component && selectedEdge.Handle == e )
+					);
+
+					mesh.GetEdgesConnectedToVertex( vertexB, out var edgesB );
+					bool allEdgesBSelected = edgesB.All( e =>
+						_edges.Any( selectedEdge => selectedEdge.Component == edge.Component && selectedEdge.Handle == e )
+					);
+
+					if ( allEdgesASelected && allEdgesBSelected )
+					{
+						edgesToKeep.Add( edge );
+					}
+				}
+
+				selection.Clear();
+				foreach ( var edge in edgesToKeep )
+				{
+					if ( edge.IsValid() )
+						selection.Add( edge );
+				}
+			}
 		}
 	}
 }

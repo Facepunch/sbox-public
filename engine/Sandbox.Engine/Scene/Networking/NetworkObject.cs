@@ -533,6 +533,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 		var flags = GameObject.Network.Flags;
 
+		LocalSnapshotState.Begin();
 		LocalSnapshotState.SnapshotId = system.DeltaSnapshots.CreateSnapshotId( Id );
 		LocalSnapshotState.ParentId = GameObject.Parent is Scene ? Guid.Empty : GameObject.Parent.Id;
 		LocalSnapshotState.ObjectId = Id;
