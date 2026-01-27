@@ -40,10 +40,18 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		set
 		{
 			if ( field == value )
+			{
+				UpdateIsOwner();
+				UpdateIsProxy();
+
 				return;
+			}
 
 			var oldOwner = field;
 			field = value;
+
+			UpdateIsOwner();
+			UpdateIsProxy();
 
 			OnOwnerChanged( field, oldOwner );
 		}
@@ -57,7 +65,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	/// <summary>
 	/// Is this networked object unowned?
 	/// </summary>
-	public bool IsUnowned { get; private set; }
+	public bool IsUnowned { get; private set; } = true;
 
 	/// <summary>
 	/// This is a proxy if we don't own this networked object.
@@ -73,6 +81,12 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		}
 
 		IsProxy = true;
+	}
+
+	private void UpdateIsOwner()
+	{
+		IsUnowned = Owner == Guid.Empty;
+		IsOwner = Owner == Connection.Local.Id;
 	}
 
 	/// <summary>
@@ -683,7 +697,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			}
 			else
 			{
-				// We're not the host so let's just clear the owner until we get the new randomly
+				// We're not the host, so let's just clear the owner until we get the new randomly
 				// selected owner from the host.
 				Owner = Guid.Empty;
 			}
@@ -836,11 +850,6 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 	void OnOwnerChanged( Guid newOwner, Guid prevOwner )
 	{
-		IsUnowned = newOwner == Guid.Empty;
-		IsOwner = newOwner == Connection.Local.Id;
-
-		UpdateIsProxy();
-
 		var wasOwner = (prevOwner == Connection.Local.Id) || (prevOwner == Guid.Empty && Networking.IsHost);
 		var isOwner = (newOwner == Connection.Local.Id) || (newOwner == Guid.Empty && Networking.IsHost);
 

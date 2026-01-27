@@ -173,7 +173,7 @@ public partial class GameObject
 			// Tell all children that we're the network root
 			UpdateNetworkRoot();
 
-			// Make this connection the owner
+			// Give ownership to this connection
 			_net.InitializeForConnection( options.Owner, options.StartEnabled );
 		}
 
