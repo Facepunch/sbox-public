@@ -169,7 +169,7 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 	internal readonly List<Hitbox> Hitboxes = new();
 
 	/// <summary>
-	/// Adds a hitbox to the model's hitbox list
+	/// Adds a hitbox to the models hitbox list
 	/// </summary>
 	/// <param name="hitbox"></param>
 	public void AddHitbox( Hitbox hitbox )
@@ -178,7 +178,7 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 	}
 
 	/// <summary>
-	/// Removes a hitbox from the model's hitbox list.
+	/// Removes a hitbox from the models hitbox list.
 	/// </summary>
 	/// <param name="hitbox"></param>
 	public void RemoveHitbox( Hitbox hitbox )
