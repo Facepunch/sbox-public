@@ -1,0 +1,116 @@
+name: Crash
+description: The game crashes
+title: "[Crash] <short summary>"
+type: Bug
+labels:
+  - crash
+body:
+  - type: markdown
+    attributes:
+      value: |
+        🔎 Please search existing issues first to avoid duplicates.
+
+        Provide **exact** crash details so we can fix it more easily.
+
+  - type: dropdown
+    id: branch
+    attributes:
+      label: Branch
+      description: Which branch were you on when the crash occurred?
+      options:
+        - staging
+        - release
+    validations:
+      required: true
+
+  - type: dropdown
+    id: crash_context
+    attributes:
+      label: Where did it crash?
+      options:
+        - Game
+        - Editor
+        - Dedicated Server
+        - Standalone
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / Commit
+      description: Exact game build number or short commit (e.g. september 0.6.0 or abcdef1).
+      placeholder: "e.g., september 0.6.0 / commit abcdef1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Minimal Repro Steps
+      description: Smallest sequence that reliably triggers the crash.
+      placeholder: |
+        1) Load game facepunch.sandbox
+        2) Spawn 1000 explosive barrels
+        3) Shoot the barrels
+        4) Crash occurs
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste relevant log lines around the crash or attach a log file.
+      placeholder: |
+        2025/09/03 15:46:39.6235	[Interop] Exception has been thrown by the target of an invocation.	System.Reflection.TargetInvocationException: Exception has been thrown by the target of an invocation.
+        ---> System.NullReferenceException: IPhysicsWorld was null when calling SetDebugScene
+          at Sandbox.Scene.CreatePhysicsWorld()
+          at Sandbox.ScenePhysicsSystem..ctor(Scene scene)
+          at InvokeStub_ScenePhysicsSystem..ctor(Object, Span`1)
+          at System.Reflection.MethodBaseInvoker.InvokeWithOneArg(Object obj, BindingFlags invokeAttr, Binder binder, Object[] parameters, CultureInfo culture)
+          --- End of inner exception stack trace ---
+
+  - type: input
+    id: steamid
+    attributes:
+      label: Steam Id
+      description: Your steam id, we need this to lookup the crashes related to you.
+      placeholder: "76561198147125546"
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: OS / Platform
+      options:
+        - Windows 11
+        - Windows 10
+        - Linux
+        - Steam Deck
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: os_version
+    attributes:
+      label: OS Version / Build
+      placeholder: "Windows 11 24H2 (26100.1234)"
+
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware & Drivers
+      description: CPU, RAM, GPU, VRAM, driver versions (GPU + audio), storage type.
+      placeholder: |
+        CPU: Ryzen 7 5800X | RAM: 32 GB
+        GPU: RTX 3070 (Driver 555.99) | VRAM: 8 GB
+        Audio: Realtek 6.0.9578.1
+        Storage: NVMe SSD
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      placeholder: |
+        Any extra info: controller/drivers, overlays (Steam/Discord), overclocking, background apps, etc.

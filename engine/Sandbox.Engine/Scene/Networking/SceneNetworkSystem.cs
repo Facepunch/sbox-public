@@ -531,8 +531,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		Game.ActiveScene.UpdateTimeFromHost( msg.Time );
 
 		{
-			using var batchGroup = CallbackBatch.Batch();
 			using var blobs = BlobDataSerializer.LoadFromMemory( msg.BlobData );
+			using var batchGroup = CallbackBatch.Batch();
 
 			if ( !string.IsNullOrWhiteSpace( msg.SceneData ) )
 			{

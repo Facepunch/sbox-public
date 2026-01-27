@@ -112,8 +112,6 @@ public static class SceneUtility
 	{
 		Assert.NotNull( Game.ActiveScene, "No Active Scene" );
 
-		using var batchGroup = CallbackBatch.Batch();
-
 		JsonObject json = null;
 
 		if ( template is PrefabScene prefabScene && prefabScene.Source is PrefabFile prefabFile )
@@ -134,6 +132,9 @@ public static class SceneUtility
 
 		if ( json is not null )
 		{
+			using var blobs = BlobDataSerializer.Load( null, null );
+			using var batchGroup = CallbackBatch.Batch();
+
 			go.Deserialize( json );
 		}
 

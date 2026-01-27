@@ -93,12 +93,13 @@ public partial class Scene : GameObject
 		{
 			using var optionsScope = ActionGraph.PushSerializationOptions( sceneFile.SerializationOptions with { ForceUpdateCached = IsEditor } );
 			using var sceneScope = Push();
-			using var batchGroup = CallbackBatch.Batch();
 
 			// Depending on if we load a scene from file or from memory, we need to account for that here
-			using var blobs = sceneFile.BinaryData != null
-				? BlobDataSerializer.LoadFromMemory( sceneFile.BinaryData )
-				: BlobDataSerializer.LoadFrom( sceneFile.ResourcePath );
+			using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, sceneFile.ResourcePath );
+			using var batchGroup = CallbackBatch.Batch();
+
+			// Clear cached binary data now that we've loaded it
+			sceneFile.BinaryData = null;
 
 			if ( sceneFile.GameObjects is not null )
 			{

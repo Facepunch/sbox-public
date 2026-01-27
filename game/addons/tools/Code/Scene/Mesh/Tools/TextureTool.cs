@@ -118,6 +118,79 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 		DrawBounds();
 	}
 
+	protected override IEnumerable<MeshFace> ConvertSelectionToCurrentType()
+	{
+		var selectedEdges = Selection.OfType<MeshEdge>().ToHashSet();
+		var selectedVertices = Selection.OfType<MeshVertex>().ToHashSet();
+
+		var candidateFaces = new HashSet<MeshFace>();
+
+		foreach ( var edge in selectedEdges )
+		{
+			if ( !edge.IsValid() )
+				continue;
+
+			var mesh = edge.Component.Mesh;
+			mesh.GetFacesConnectedToEdge( edge.Handle, out var faceA, out var faceB );
+
+			if ( faceA.IsValid )
+				candidateFaces.Add( new MeshFace( edge.Component, faceA ) );
+
+			if ( faceB.IsValid )
+				candidateFaces.Add( new MeshFace( edge.Component, faceB ) );
+		}
+
+		foreach ( var vertex in selectedVertices )
+		{
+			if ( !vertex.IsValid() )
+				continue;
+
+			var mesh = vertex.Component.Mesh;
+			mesh.GetFacesConnectedToVertex( vertex.Handle, out var faces );
+
+			foreach ( var face in faces )
+			{
+				if ( face.IsValid )
+					candidateFaces.Add( new MeshFace( vertex.Component, face ) );
+			}
+		}
+
+		foreach ( var face in candidateFaces )
+		{
+			if ( !face.IsValid() )
+				continue;
+
+			var mesh = face.Component.Mesh;
+
+			if ( selectedEdges.Count > 0 )
+			{
+				var faceEdges = mesh.GetFaceEdges( face.Handle );
+				bool allEdgesSelected = faceEdges.All( edge =>
+					selectedEdges.Contains( new MeshEdge( face.Component, edge ) )
+				);
+
+				if ( allEdgesSelected )
+				{
+					yield return face;
+					continue;
+				}
+			}
+
+			if ( selectedVertices.Count > 0 )
+			{
+				mesh.GetVerticesConnectedToFace( face.Handle, out var faceVertices );
+				bool allVerticesSelected = faceVertices.All( vertex =>
+					selectedVertices.Contains( new MeshVertex( face.Component, vertex ) )
+				);
+
+				if ( allVerticesSelected )
+				{
+					yield return face;
+				}
+			}
+		}
+	}
+
 	protected override IEnumerable<IMeshElement> GetAllSelectedElements()
 	{
 		foreach ( var group in Selection.OfType<MeshFace>()

@@ -471,5 +471,114 @@ partial class FaceTool
 				}
 			}
 		}
+
+		[Shortcut( "mesh.grow-selection", "KP_ADD", typeof( SceneViewWidget ) )]
+		private void GrowSelection()
+		{
+			if ( _faces.Length == 0 ) return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Grow Selection" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				var newFaces = new HashSet<MeshFace>();
+
+				foreach ( var face in _faces )
+				{
+					if ( !face.IsValid() )
+						continue;
+
+					newFaces.Add( face );
+				}
+
+				foreach ( var face in _faces )
+				{
+					if ( !face.IsValid() )
+						continue;
+
+					var mesh = face.Component.Mesh;
+					var edges = mesh.GetFaceEdges( face.Handle );
+
+					foreach ( var edge in edges )
+					{
+						mesh.GetFacesConnectedToEdge( edge, out var faceA, out var faceB );
+
+						if ( faceA.IsValid && faceA != face.Handle )
+							newFaces.Add( new MeshFace( face.Component, faceA ) );
+
+						if ( faceB.IsValid && faceB != face.Handle )
+							newFaces.Add( new MeshFace( face.Component, faceB ) );
+					}
+				}
+
+				selection.Clear();
+				foreach ( var face in newFaces )
+				{
+					if ( face.IsValid() )
+						selection.Add( face );
+				}
+			}
+		}
+
+		[Shortcut( "mesh.shrink-selection", "KP_MINUS", typeof( SceneViewWidget ) )]
+		private void ShrinkSelection()
+		{
+			if ( _faces.Length == 0 ) return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Shrink Selection" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				var facesToKeep = new HashSet<MeshFace>();
+
+				foreach ( var face in _faces )
+				{
+					if ( !face.IsValid() )
+						continue;
+
+					var mesh = face.Component.Mesh;
+					var edges = mesh.GetFaceEdges( face.Handle );
+					bool isInterior = true;
+
+					foreach ( var edge in edges )
+					{
+						mesh.GetFacesConnectedToEdge( edge, out var faceA, out var faceB );
+
+						var otherFace = faceA == face.Handle ? faceB : faceA;
+
+						if ( !otherFace.IsValid )
+						{
+							isInterior = false;
+							break;
+						}
+
+						var otherMeshFace = new MeshFace( face.Component, otherFace );
+						if ( !_faces.Contains( otherMeshFace ) )
+						{
+							isInterior = false;
+							break;
+						}
+					}
+
+					if ( isInterior )
+					{
+						facesToKeep.Add( face );
+					}
+				}
+
+				selection.Clear();
+				foreach ( var face in facesToKeep )
+				{
+					if ( face.IsValid() )
+						selection.Add( face );
+				}
+			}
+		}
 	}
 }

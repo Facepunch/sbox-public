@@ -63,33 +63,97 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 			AngleFromEdges( edges[0], edges[1] );
 	}
 
+	protected override IEnumerable<MeshEdge> ConvertSelectionToCurrentType()
+	{
+		var selectedFaces = Selection.OfType<MeshFace>().ToHashSet();
+		var selectedVertices = Selection.OfType<MeshVertex>().ToHashSet();
+
+		foreach ( var face in selectedFaces )
+		{
+			if ( !face.IsValid() )
+				continue;
+
+			var mesh = face.Component.Mesh;
+			var edges = mesh.GetFaceEdges( face.Handle );
+
+			foreach ( var edge in edges )
+			{
+				if ( edge.IsValid )
+					yield return new MeshEdge( face.Component, edge );
+			}
+		}
+
+		var candidateEdges = new HashSet<MeshEdge>();
+
+		foreach ( var vertex in selectedVertices )
+		{
+			if ( !vertex.IsValid() )
+				continue;
+
+			var mesh = vertex.Component.Mesh;
+			mesh.GetEdgesConnectedToVertex( vertex.Handle, out var edges );
+
+			foreach ( var edge in edges )
+			{
+				if ( edge.IsValid )
+					candidateEdges.Add( new MeshEdge( vertex.Component, edge ) );
+			}
+		}
+
+		foreach ( var edge in candidateEdges )
+		{
+			var mesh = edge.Component.Mesh;
+			mesh.GetEdgeVertices( edge.Handle, out var vertexA, out var vertexB );
+
+			bool bothVerticesSelected =
+				selectedVertices.Contains( new MeshVertex( edge.Component, vertexA ) ) &&
+				selectedVertices.Contains( new MeshVertex( edge.Component, vertexB ) );
+
+			if ( bothVerticesSelected )
+			{
+				yield return edge;
+			}
+		}
+	}
+
 	private static void DrawOpenEdge( MeshEdge edge )
 	{
-		var hFace = edge.Component.Mesh.GetHalfEdgeFace( edge.Handle );
-		var spacing = 2.0f;
+		var mesh = edge.Component.Mesh;
+		var hFace = mesh.GetHalfEdgeFace( edge.Handle );
+		var spacing = 1.5f;
+
 		if ( !hFace.IsValid )
 		{
-			hFace = edge.Component.Mesh.GetHalfEdgeFace( edge.Component.Mesh.GetOppositeHalfEdge( edge.Handle ) );
+			hFace = mesh.GetHalfEdgeFace( mesh.GetOppositeHalfEdge( edge.Handle ) );
 			spacing *= -1.0f;
 		}
+
+		if ( !hFace.IsValid )
+			return;
 
 		var line = edge.Line;
 		var a = edge.Transform.PointToWorld( line.Start );
 		var b = edge.Transform.PointToWorld( line.End );
-
-		edge.Component.Mesh.ComputeFaceNormal( hFace, out var normal );
-		var direction = (line.End - line.Start).Normal;
 		var length = a.Distance( b );
-		var tangent = normal.Cross( direction );
-		var numHashes = length / 5.0f;
 
-		for ( int i = 0; i < numHashes; ++i )
+		mesh.ComputeFaceNormal( hFace, out var normal );
+		var direction = (b - a).Normal;
+		var tangent = normal.Cross( direction );
+
+		var cameraDistance = Gizmo.Camera.Position.Distance( (a + b) * 0.5f );
+		var visualScale = (cameraDistance * 0.008f).Clamp( 0.05f, 3f );
+
+		spacing *= visualScale;
+
+		var hashSpacing = (2.5f * visualScale).Clamp( 0.5f, 50f );
+		var numHashes = Math.Max( 3, (int)(length / hashSpacing) );
+
+		for ( int i = 0; i < numHashes; i++ )
 		{
-			var d = i / numHashes * length;
-			var p = line.Start + direction * d;
-			var a2 = edge.Transform.PointToWorld( p );
-			var b2 = edge.Transform.PointToWorld( p + tangent * spacing );
-			Gizmo.Draw.Line( a2, b2 );
+			var t = i / (float)(numHashes - 1);
+			var position = Vector3.Lerp( a, b, t );
+			var hashEnd = position + tangent * spacing;
+			Gizmo.Draw.Line( position, hashEnd );
 		}
 	}
 
@@ -176,8 +240,11 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 
 	private void SelectEdgeLoop()
 	{
-		var edge = MeshTrace.GetClosestEdge( 8 );
-		if ( !edge.IsValid() )
+		var targetEdge = MeshTrace.GetClosestEdge( 8 );
+		if ( !targetEdge.IsValid() )
+			return;
+
+		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) && TrySelectEdgePath( targetEdge ) )
 			return;
 
 		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
@@ -185,10 +252,102 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 
 		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 		{
-			edge.Component.Mesh.FindEdgeLoopForEdges( [edge.Handle], out var hEdges );
+			targetEdge.Component.Mesh.FindEdgeLoopForEdges( [targetEdge.Handle], out var hEdges );
 			foreach ( var hEdge in hEdges )
-				Selection.Add( new MeshEdge( edge.Component, hEdge ) );
+				Selection.Add( new MeshEdge( targetEdge.Component, hEdge ) );
 		}
+	}
+
+	private bool TrySelectEdgePath( MeshEdge targetEdge )
+	{
+		var selected = Selection.OfType<MeshEdge>()
+			.Where( e => e.IsValid() && e.Component == targetEdge.Component )
+			.ToList();
+
+		if ( selected.Count == 0 || selected.Count > 2 )
+			return false;
+
+		var startEdge = selected.FirstOrDefault( e =>
+			e.Handle != targetEdge.Handle &&
+			e.Handle != targetEdge.Component.Mesh.GetOppositeHalfEdge( targetEdge.Handle )
+		);
+
+		if ( !startEdge.IsValid() )
+			return false;
+
+		var path = FindShortestEdgePath( startEdge, targetEdge );
+		if ( path == null || path.Count == 0 )
+			return false;
+
+		foreach ( var edge in path.Where( e => !Selection.Contains( e ) ) )
+			Selection.Add( edge );
+
+		return true;
+	}
+
+	private List<MeshEdge> FindShortestEdgePath( MeshEdge start, MeshEdge end )
+	{
+		if ( start.Component != end.Component )
+			return null;
+
+		var mesh = start.Component.Mesh;
+		var queue = new Queue<HalfEdgeHandle>();
+		var visited = new HashSet<HalfEdgeHandle>();
+		var parent = new Dictionary<HalfEdgeHandle, HalfEdgeHandle>();
+
+		var startHandle = start.Handle.Index < mesh.GetOppositeHalfEdge( start.Handle ).Index ?
+			start.Handle : mesh.GetOppositeHalfEdge( start.Handle );
+		var endHandle = end.Handle.Index < mesh.GetOppositeHalfEdge( end.Handle ).Index ?
+			end.Handle : mesh.GetOppositeHalfEdge( end.Handle );
+
+		queue.Enqueue( startHandle );
+		visited.Add( startHandle );
+
+		while ( queue.Count > 0 )
+		{
+			var current = queue.Dequeue();
+
+			if ( current == endHandle || mesh.GetOppositeHalfEdge( current ) == endHandle )
+			{
+				var path = new List<MeshEdge>();
+				var step = current;
+
+				while ( step.IsValid )
+				{
+					path.Add( new MeshEdge( start.Component, step ) );
+					if ( step == startHandle || mesh.GetOppositeHalfEdge( step ) == startHandle )
+						break;
+					if ( !parent.TryGetValue( step, out step ) )
+						break;
+				}
+
+				path.Reverse();
+				return path;
+			}
+
+			mesh.GetEdgeVertices( current, out var vertexA, out var vertexB );
+
+			mesh.GetEdgesConnectedToVertex( vertexA, out var edgesA );
+			mesh.GetEdgesConnectedToVertex( vertexB, out var edgesB );
+
+			foreach ( var neighbor in edgesA.Concat( edgesB ) )
+			{
+				if ( neighbor.IsValid && !visited.Contains( neighbor ) )
+				{
+					var oppositeNeighbor = mesh.GetOppositeHalfEdge( neighbor );
+					if ( !visited.Contains( oppositeNeighbor ) )
+					{
+						visited.Add( neighbor );
+						visited.Add( oppositeNeighbor );
+						parent[neighbor] = current;
+						parent[oppositeNeighbor] = current;
+						queue.Enqueue( neighbor );
+					}
+				}
+			}
+		}
+
+		return null;
 	}
 
 	private void SelectEdge()

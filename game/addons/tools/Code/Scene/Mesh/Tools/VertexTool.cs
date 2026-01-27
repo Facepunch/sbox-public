@@ -91,6 +91,39 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 		}
 	}
 
+	protected override IEnumerable<MeshVertex> ConvertSelectionToCurrentType()
+	{
+		foreach ( var face in Selection.OfType<MeshFace>() )
+		{
+			if ( !face.IsValid() )
+				continue;
+
+			var mesh = face.Component.Mesh;
+			mesh.GetVerticesConnectedToFace( face.Handle, out var vertices );
+
+			foreach ( var vertex in vertices )
+			{
+				if ( vertex.IsValid )
+					yield return new MeshVertex( face.Component, vertex );
+			}
+		}
+
+		foreach ( var edge in Selection.OfType<MeshEdge>() )
+		{
+			if ( !edge.IsValid() )
+				continue;
+
+			var mesh = edge.Component.Mesh;
+			mesh.GetEdgeVertices( edge.Handle, out var vertexA, out var vertexB );
+
+			if ( vertexA.IsValid )
+				yield return new MeshVertex( edge.Component, vertexA );
+
+			if ( vertexB.IsValid )
+				yield return new MeshVertex( edge.Component, vertexB );
+		}
+	}
+
 	private void SelectVertex()
 	{
 		var vertex = MeshTrace.GetClosestVertex( 8 );

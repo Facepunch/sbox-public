@@ -50,7 +50,7 @@ The game and editor can be run from the binaries in the game folder.
 
 If you would like to contribute to the engine, please see the [contributing guide](CONTRIBUTING.md).
 
-If you want to report bugs or request new features, see [sbox-issues](https://github.com/Facepunch/sbox-issues/).
+If you want to report bugs or request new features, see [sbox-issues](https://github.com/Facepunch/sbox-public/issues/).
 
 ## Documentation
 

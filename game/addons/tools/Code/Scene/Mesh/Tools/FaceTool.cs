@@ -1,4 +1,7 @@
 ﻿
+using HalfEdgeMesh;
+using System.Linq;
+
 namespace Editor.MeshEditor;
 
 /// <summary>
@@ -93,6 +96,79 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		}
 
 		DrawBounds();
+	}
+
+	protected override IEnumerable<MeshFace> ConvertSelectionToCurrentType()
+	{
+		var selectedEdges = Selection.OfType<MeshEdge>().ToHashSet();
+		var selectedVertices = Selection.OfType<MeshVertex>().ToHashSet();
+
+		var candidateFaces = new HashSet<MeshFace>();
+
+		foreach ( var edge in selectedEdges )
+		{
+			if ( !edge.IsValid() )
+				continue;
+
+			var mesh = edge.Component.Mesh;
+			mesh.GetFacesConnectedToEdge( edge.Handle, out var faceA, out var faceB );
+
+			if ( faceA.IsValid )
+				candidateFaces.Add( new MeshFace( edge.Component, faceA ) );
+
+			if ( faceB.IsValid )
+				candidateFaces.Add( new MeshFace( edge.Component, faceB ) );
+		}
+
+		foreach ( var vertex in selectedVertices )
+		{
+			if ( !vertex.IsValid() )
+				continue;
+
+			var mesh = vertex.Component.Mesh;
+			mesh.GetFacesConnectedToVertex( vertex.Handle, out var faces );
+
+			foreach ( var face in faces )
+			{
+				if ( face.IsValid )
+					candidateFaces.Add( new MeshFace( vertex.Component, face ) );
+			}
+		}
+
+		foreach ( var face in candidateFaces )
+		{
+			if ( !face.IsValid() )
+				continue;
+
+			var mesh = face.Component.Mesh;
+
+			if ( selectedEdges.Count > 0 )
+			{
+				var faceEdges = mesh.GetFaceEdges( face.Handle );
+				bool allEdgesSelected = faceEdges.All( edge =>
+					selectedEdges.Contains( new MeshEdge( face.Component, edge ) )
+				);
+
+				if ( allEdgesSelected )
+				{
+					yield return face;
+					continue;
+				}
+			}
+
+			if ( selectedVertices.Count > 0 )
+			{
+				mesh.GetVerticesConnectedToFace( face.Handle, out var faceVertices );
+				bool allVerticesSelected = faceVertices.All( vertex =>
+					selectedVertices.Contains( new MeshVertex( face.Component, vertex ) )
+				);
+
+				if ( allVerticesSelected )
+				{
+					yield return face;
+				}
+			}
+		}
 	}
 
 	protected override IEnumerable<IMeshElement> GetAllSelectedElements()
@@ -218,11 +294,14 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 
 	private void SelectContiguousFaces()
 	{
-		var face = TraceFace();
-		if ( !face.IsValid() )
+		var targetFace = TraceFace();
+		if ( !targetFace.IsValid() )
 			return;
 
-		if ( !face.Component.Mesh.GetFacesConnectedToFace( face.Handle, out var faces ) )
+		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) && TrySelectFacePath( targetFace ) )
+			return;
+
+		if ( !targetFace.Component.Mesh.GetFacesConnectedToFace( targetFace.Handle, out var faces ) )
 			return;
 
 		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
@@ -231,8 +310,85 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 		{
 			foreach ( var hFace in faces )
-				Selection.Add( new MeshFace( face.Component, hFace ) );
+				Selection.Add( new MeshFace( targetFace.Component, hFace ) );
 		}
+	}
+
+	private bool TrySelectFacePath( MeshFace targetFace )
+	{
+		var selected = Selection.OfType<MeshFace>()
+			.Where( f => f.IsValid() && f.Component == targetFace.Component )
+			.ToList();
+
+		if ( selected.Count == 0 || selected.Count > 2 )
+			return false;
+
+		var startFace = selected.FirstOrDefault( f => f.Handle != targetFace.Handle );
+
+		if ( !startFace.IsValid() )
+			return false;
+
+		var path = FindShortestFacePath( startFace, targetFace );
+		if ( path == null || path.Count == 0 )
+			return false;
+
+		foreach ( var face in path.Where( f => !Selection.Contains( f ) ) )
+			Selection.Add( face );
+
+		return true;
+	}
+
+	private List<MeshFace> FindShortestFacePath( MeshFace start, MeshFace end )
+	{
+		if ( start.Component != end.Component )
+			return null;
+
+		var mesh = start.Component.Mesh;
+		var queue = new Queue<FaceHandle>();
+		var visited = new HashSet<FaceHandle>();
+		var parent = new Dictionary<FaceHandle, FaceHandle>();
+
+		queue.Enqueue( start.Handle );
+		visited.Add( start.Handle );
+
+		while ( queue.Count > 0 )
+		{
+			var current = queue.Dequeue();
+
+			if ( current == end.Handle )
+			{
+				var path = new List<MeshFace>();
+				var step = end.Handle;
+
+				while ( step.IsValid )
+				{
+					path.Add( new MeshFace( start.Component, step ) );
+					if ( step == start.Handle )
+						break;
+					if ( !parent.TryGetValue( step, out step ) )
+						break;
+				}
+
+				path.Reverse();
+				return path;
+			}
+
+			var edges = mesh.GetFaceEdges( current );
+			foreach ( var edge in edges )
+			{
+				mesh.GetFacesConnectedToEdge( edge, out var faceA, out var faceB );
+
+				var neighbor = faceA == current ? faceB : faceA;
+				if ( neighbor.IsValid && !visited.Contains( neighbor ) )
+				{
+					visited.Add( neighbor );
+					parent[neighbor] = current;
+					queue.Enqueue( neighbor );
+				}
+			}
+		}
+
+		return null;
 	}
 
 	public override List<MeshFace> ExtrudeSelection( Vector3 delta = default )
