@@ -6,6 +6,7 @@ native accessor g_pResourceSystem as NativeEngine.g_pResourceSystem
 	void ReloadSymlinkedResidentResources();
 	void UpdateSimple();
 	bool HasPendingWork();
+	bool IsShuttingDown();
 
 	inline HResourceManifest LoadResourceInManifest( string name )
 	{
