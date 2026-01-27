@@ -41,7 +41,7 @@ public class Voice : Component
 	[Property, ToggleGroup( "LipSync", Label = "Lip Sync" )]
 	public bool LipSync { get; set; } = true;
 
-	[Property, Group( "LipSync" )]
+	[Property, Group( "LipSync" ), Change( nameof( OnRendererChange ) )]
 	public SkinnedModelRenderer Renderer { get; set; }
 
 	[Property, Group( "LipSync" ), Range( 0, 5 )]
@@ -423,5 +423,27 @@ public class Voice : Component
 			LastPlayed = 0;
 			UpdateSound();
 		} );
+	}
+
+	public void OnRendererChange( SkinnedModelRenderer _, SkinnedModelRenderer renderer )
+	{
+		if ( renderer.IsValid() && renderer.Model.MorphCount > 0 )
+		{
+			morphs = new float[renderer.Model.MorphCount];
+
+			if ( sound.IsValid() )
+			{
+				sound.LipSync.Enabled = LipSync;
+			}
+		}
+		else
+		{
+			morphs = null;
+
+			if ( sound.IsValid() )
+			{
+				sound.LipSync.Enabled = false;
+			}
+		}
 	}
 }
