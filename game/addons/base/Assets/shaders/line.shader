@@ -72,7 +72,6 @@ PS
 	
 	float g_DepthFeather < Attribute( "g_DepthFeather" ); >;
 	float g_FogStrength < Attribute( "g_FogStrength" ); >;
-	float g_flTextureRotation < Attribute( "TextureRotation" ); Default( 0.0 ); >;
 
 	int SamplerIndex < Attribute("SamplerIndex"); >;
 
@@ -186,19 +185,6 @@ PS
 		SamplerState sampler = Bindless::GetSampler( NonUniformResourceIndex( SamplerIndex ) );
 
 		float2 vUV = i.vTextureCoords.xy;
-
-		// Apply texture rotation around UV center (0.5, 0.5)
-		if ( g_flTextureRotation != 0.0 )
-		{
-			float flRadians = radians( g_flTextureRotation );
-			float flSin = sin( flRadians );
-			float flCos = cos( flRadians );
-			float2 vCenter = float2( 0.5, 0.5 );
-			vUV -= vCenter;
-			vUV = float2( vUV.x * flCos - vUV.y * flSin, vUV.x * flSin + vUV.y * flCos );
-			vUV += vCenter;
-		}
-
 		float4 texAlbedo = g_tColor.Sample(sampler, vUV) * float4(SrgbGammaToLinear(i.vVertexColor.rgb), i.vVertexColor.a);
 		float4 texNormal = g_tNormal.Sample(sampler, vUV);
 		float4 texRMA = g_tRma.Sample(sampler, vUV);

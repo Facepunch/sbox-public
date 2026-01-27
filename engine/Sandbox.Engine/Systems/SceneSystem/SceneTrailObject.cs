@@ -130,7 +130,6 @@ internal class SceneTrailObject : SceneLineObject
 		}
 
 		Material = Texturing.Material;
-		Attributes.Set( "TextureRotation", Texturing.Rotation );
 
 		StartLine();
 
@@ -179,7 +178,6 @@ public struct TrailTextureConfig
 		UnitsPerTexture = 10,
 		Scale = 1,
 		Offset = 0,
-		Rotation = 0,
 		Scroll = 0,
 		FilterMode = FilterMode.Anisotropic,
 		TextureAddressMode = TextureAddressMode.Wrap
@@ -208,10 +206,6 @@ public struct TrailTextureConfig
 	[Group( "Texture Coordinates" )]
 	[Property]
 	public float Offset { get; set; }
-
-	[Group( "Texture Coordinates" )]
-	[Property]
-	public float Rotation { get; set; }
 
 	[Group( "Texture Coordinates" )]
 	[Property]
