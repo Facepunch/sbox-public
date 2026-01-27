@@ -117,6 +117,7 @@ partial class ViewportTools
 	void SpawnProcess()
 	{
 		using var p = new Process();
+
 		p.StartInfo.FileName = "sbox.exe";
 		p.StartInfo.WorkingDirectory = Environment.CurrentDirectory;
 		p.StartInfo.CreateNoWindow = true;
@@ -125,6 +126,11 @@ partial class ViewportTools
 		p.StartInfo.UseShellExecute = false;
 
 		p.StartInfo.ArgumentList.Add( "-joinlocal" );
+
+		// Count existing instances and assign the next possible instance id
+		int instanceCount = Process.GetProcessesByName( "sbox" ).Length;
+		p.StartInfo.ArgumentList.Add( "+instanceid" );
+		p.StartInfo.ArgumentList.Add( (instanceCount + 1).ToString() );
 
 		if ( EditorPreferences.WindowedLocalInstances )
 		{

@@ -211,7 +211,6 @@ internal class LocalSnapshotState
 			Hasher.Append( _flagsBytes );
 
 		var hash = Hasher.GetCurrentHashAsUInt64();
-
 		AddSerialized( slot, value, hash );
 	}
 
@@ -219,7 +218,7 @@ internal class LocalSnapshotState
 	/// Add from a <see cref="SnapshotValueCache"/> cache. Can optionally choose to add the
 	/// parent <see cref="Guid"/> as a salt when hashing the value.
 	/// </summary>
-	public void AddCached<T>( SnapshotValueCache cache, int slot, T value, HashFlags hashFlags = HashFlags.Default )
+	public void AddCached<T>( SnapshotValueCache cache, int slot, in T value, HashFlags hashFlags = HashFlags.Default )
 	{
 		var cached = cache.GetCached( slot, value, out var isEqual );
 

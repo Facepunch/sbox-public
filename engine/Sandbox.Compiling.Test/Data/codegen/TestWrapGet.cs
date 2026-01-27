@@ -38,6 +38,25 @@ public partial class TestWrapGet
 		}
 	}
 	
+	[WrapGet]
+	public bool ComplexGetter
+	{
+		get
+		{
+			if ( true )
+			{
+				field = value;
+			}
+			else
+			{
+				SomeFunction();
+			}
+		}
+		set;
+	}
+	
+	void SomeFunction();
+	
 	private bool _hasNoGetterToWrap;
 	
 	[WrapGet]

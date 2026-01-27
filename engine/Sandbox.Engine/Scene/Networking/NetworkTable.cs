@@ -18,31 +18,17 @@ internal class NetworkTable : IDisposable
 		public Type TargetType;
 		public string DebugName;
 		public bool NeedsQuery;
-		public Func<Connection, bool> ControlCondition = c => true;
+		public Func<Connection, bool> ControlCondition = _ => true;
 		public Func<object> GetValue;
 		public Action<object> SetValue;
-		public Action<Entry> OnDirty;
-		public ulong SnapshotHash;
 		public int HashCodeValue;
 		public bool IsSerializerType;
 		public bool IsDeltaSnapshotType;
 		public bool IsReliableType;
+		public bool IsDirty;
 		public byte[] Serialized;
 		public bool Initialized;
 		public int Slot;
-
-		public bool IsDirty
-		{
-			get;
-			set
-			{
-				if ( field == value )
-					return;
-
-				field = value;
-				OnDirty?.Invoke( this );
-			}
-		}
 
 		bool INetworkProxy.IsProxy => !HasControl( Connection.Local );
 
@@ -279,11 +265,13 @@ internal class NetworkTable : IDisposable
 	/// <param name="snapshot"></param>
 	internal void WriteSnapshotState( LocalSnapshotState snapshot )
 	{
+		var localConnection = Connection.Local;
+
 		for ( var i = 0; i < _snapshotEntries.Count; i++ )
 		{
 			var entry = _snapshotEntries[i];
 
-			if ( !entry.HasControl() )
+			if ( !entry.HasControl( localConnection ) )
 				continue;
 
 			if ( entry.IsDeltaSnapshotType )
@@ -293,23 +281,24 @@ internal class NetworkTable : IDisposable
 				continue;
 			}
 
+			if ( entry.Serialized is not null )
+				continue;
+
+			var bs = ByteStream.Create( 4096 );
+
 			try
 			{
-				if ( entry.Serialized is null )
-				{
-					var bs = ByteStream.Create( 4096 );
-					WriteEntryToStream( entry, ref bs );
-					entry.Serialized = bs.ToArray();
-					entry.SnapshotHash = snapshot.Hash( entry.Serialized );
-					bs.Dispose();
-				}
-
-				snapshot.AddSerialized( entry.Slot, entry.Serialized, entry.SnapshotHash );
+				WriteEntryToStream( entry, ref bs );
+				entry.Serialized = bs.ToArray();
 			}
 			catch ( Exception e )
 			{
 				Log.Warning( e, $"Error when getting value {entry.DebugName} - {e.Message}" );
 			}
+
+			bs.Dispose();
+
+			snapshot.AddSerialized( entry.Slot, entry.Serialized );
 		}
 	}
 

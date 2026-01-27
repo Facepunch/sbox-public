@@ -52,17 +52,23 @@ public readonly ref struct WrappedPropertySet<T>
 	public Attribute[] Attributes { get; init; }
 
 	/// <summary>
-	/// Get the attribute of type, or null if it doesn't exist
+	/// Get the attributes of the specified type, or null if it doesn't exist.
 	/// </summary>
 	public U GetAttribute<U>() where U : System.Attribute
 	{
-		for ( int i = 0; i < Attributes.Length; i++ )
+		var attributes = Attributes;
+		var length = attributes.Length;
+
+		if ( length == 1 )
+			return attributes[0] as U;
+
+		for ( int i = 0; i < length; i++ )
 		{
-			if ( Attributes[i] is U t )
+			if ( attributes[i] is U t )
 				return t;
 		}
 
-		return default;
+		return null;
 	}
 }
 
@@ -108,16 +114,22 @@ public readonly ref struct WrappedPropertyGet<T>
 	public Attribute[] Attributes { get; init; }
 
 	/// <summary>
-	/// Get the attribute of type, or null if it doesn't exist
+	/// Get the attributes of the specified type, or null if it doesn't exist.
 	/// </summary>
 	public U GetAttribute<U>() where U : System.Attribute
 	{
-		for ( int i = 0; i < Attributes.Length; i++ )
+		var attributes = Attributes;
+		var length = attributes.Length;
+
+		if ( length == 1 )
+			return attributes[0] as U;
+
+		for ( int i = 0; i < length; i++ )
 		{
-			if ( Attributes[i] is U t )
+			if ( attributes[i] is U t )
 				return t;
 		}
 
-		return default;
+		return null;
 	}
 }

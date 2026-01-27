@@ -131,6 +131,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		if ( DidMountNetworkedFiles )
 		{
+			EngineFileSystem.Mounted.UnMount( NetworkedLargeFiles.Files );
 			EngineFileSystem.Mounted.UnMount( NetworkedSmallFiles.Files );
 			EngineFileSystem.ProjectSettings.UnMount( NetworkedConfigFiles.Files );
 			DidMountNetworkedFiles = false;

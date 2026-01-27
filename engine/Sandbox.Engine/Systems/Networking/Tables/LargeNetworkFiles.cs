@@ -6,6 +6,7 @@ namespace Sandbox;
 
 internal class LargeNetworkFiles
 {
+	public BaseFileSystem Files { get; private set; }
 	public StringTable StringTable { get; init; }
 
 	record struct LargeFileInfo( long Size, ulong CRC );
@@ -29,8 +30,9 @@ internal class LargeNetworkFiles
 	{
 		StringTable.Reset();
 
-		RedirectFileSystem?.Dispose();
+		Files?.Dispose();
 		RedirectFileSystem = AssetDownloadCache.CreateRedirectFileSystem();
+		Files = new BaseFileSystem( RedirectFileSystem );
 	}
 
 	/// <summary>

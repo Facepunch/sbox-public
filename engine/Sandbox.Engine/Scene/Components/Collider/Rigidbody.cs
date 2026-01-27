@@ -561,8 +561,11 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	{
 		if ( !_body.IsValid() ) return;
 
-		PreVelocity = _body.Velocity;
-		PreAngularVelocity = _body.AngularVelocity;
+		var angularVelocity = _body.AngularVelocity;
+		var velocity = _body.Velocity;
+
+		PreAngularVelocity = angularVelocity;
+		PreVelocity = velocity;
 
 		if ( TargetTransform.HasValue )
 		{
@@ -582,8 +585,25 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		if ( IsProxy )
 			return;
 
-		NetworkedAngularVelocity = _body.AngularVelocity;
-		NetworkedVelocity = _body.Velocity;
+		// Optimizations here to avoid the [Sync] wrapper where we can. There is overhead
+		// to wrapping properties, and this is a really hot path when you have a lot of
+		// physics objects.
+		if ( _body.MotionEnabled && !_body.Sleeping )
+		{
+			if ( _lastAngularVelocity != angularVelocity )
+				NetworkedAngularVelocity = angularVelocity;
+
+			if ( _lastVelocity != velocity )
+				NetworkedVelocity = velocity;
+		}
+		else
+		{
+			if ( _lastAngularVelocity != Vector3.Zero )
+				NetworkedAngularVelocity = Vector3.Zero;
+
+			if ( _lastVelocity != Vector3.Zero )
+				NetworkedVelocity = Vector3.Zero;
+		}
 	}
 
 	/// <summary>

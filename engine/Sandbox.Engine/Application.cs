@@ -56,6 +56,12 @@ public static class Application
 	internal static bool IsJoinLocal { get; private set; }
 
 	/// <summary>
+	/// A local instance Id assigned when the instance is spawned with -joinlocal. We can use
+	/// this to create a deterministic fake SteamId for example.
+	/// </summary>
+	internal static int LocalInstanceId { get; private set; }
+
+	/// <summary>
 	/// The engine's version string
 	/// </summary>
 	public static string Version { get; internal set; }
@@ -105,6 +111,7 @@ public static class Application
 		IsEditor = toolsMode;
 		IsJoinLocal = CommandLine.HasSwitch( "-joinlocal" );
 		IsBenchmark = Environment.GetEnvironmentVariable( "SBOX_MODE" ) == "BENCHMARK";
+		LocalInstanceId = CommandLine.GetSwitchInt( "+instanceid", 1 );
 	}
 
 	internal static void Shutdown()

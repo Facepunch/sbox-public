@@ -5,6 +5,8 @@ namespace Sandbox.Utility;
 
 public static class Steam
 {
+	internal static ulong BaseFakeSteamId => 90071996842377216;
+
 	/// <summary>
 	/// Return what type os SteamId this is
 	/// </summary>
@@ -20,7 +22,6 @@ public static class Steam
 	/// </summary>
 	public static string PersonaName { get; private set; } = "Unnammed Player";
 
-
 	internal static void InitializeClient()
 	{
 		if ( Application.IsUnitTest )
@@ -30,7 +31,11 @@ public static class Steam
 		var su = NativeEngine.Steam.SteamUser();
 		var utils = NativeEngine.Steam.SteamUtils();
 
-		if ( su.IsValid )
+		if ( Application.IsJoinLocal && Application.LocalInstanceId > 0 )
+		{
+			SteamId = BaseFakeSteamId + (ulong)Application.LocalInstanceId;
+		}
+		else if ( su.IsValid )
 		{
 			SteamId = su.GetSteamID();
 		}
