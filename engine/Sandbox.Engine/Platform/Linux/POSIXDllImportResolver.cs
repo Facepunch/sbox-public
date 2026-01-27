@@ -9,7 +9,7 @@ namespace Sandbox;
 
 public class SboxNativesResolver
 {
-	private static Dictionary<string,IntPtr> cachedLibHandles = new Dictionary<string, IntPtr>();
+	private static Dictionary<string, IntPtr> cachedLibHandles = new Dictionary<string, IntPtr>();
 	public static void SetupResolvers()
 	{
 		Assembly skiaSharpAssebmlyRef = typeof( SKAlphaType ).Assembly, harfBuzzSharpAssemblyRef = typeof( HarfBuzzSharp.Font ).Assembly;
@@ -29,14 +29,14 @@ public class SboxNativesResolver
 			IntPtr libHandle;
 			if ( OperatingSystem.IsLinux() )
 			{
-				libHandle =  NativeLibrary.Load( $"{NetCore.NativeDllPath}/libHarfBuzzSharp.so.0.60830.0" );
-				cachedLibHandles.Add(libraryName,libHandle);
+				libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/libHarfBuzzSharp.so.0.60830.0" );
+				cachedLibHandles.Add( libraryName, libHandle );
 				return libHandle;
 			}
 			else if ( OperatingSystem.IsMacOS() )
 			{
-				libHandle =  NativeLibrary.Load( $"{NetCore.NativeDllPath}/libHarfBuzzSharp.dylib" );
-				cachedLibHandles.Add(libraryName,libHandle);
+				libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/libHarfBuzzSharp.dylib" );
+				cachedLibHandles.Add( libraryName, libHandle );
 				return libHandle;
 			}
 		}
@@ -56,13 +56,13 @@ public class SboxNativesResolver
 			if ( OperatingSystem.IsLinux() )
 			{
 				libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/libSkiaSharp.so.116.0.0" );
-				cachedLibHandles.Add(libraryName,libHandle);
+				cachedLibHandles.Add( libraryName, libHandle );
 				return libHandle;
 			}
 			else if ( OperatingSystem.IsMacOS() )
 			{
 				libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/libSkiaSharp.dylib" );
-				cachedLibHandles.Add(libraryName,libHandle);
+				cachedLibHandles.Add( libraryName, libHandle );
 				return libHandle;
 			}
 		}
