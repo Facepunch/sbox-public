@@ -38,7 +38,7 @@ internal static class CreateInterface
 		if ( loadedModules.TryGetValue( dll, out var module ) )
 			return module;
 
-		if ( !NativeLibrary.TryLoad( NetCore.NativeDllPath+nativizedDLL, out module ) )
+		if ( !NativeLibrary.TryLoad( NetCore.NativeDllPath + nativizedDLL, out module ) )
 			return default;
 
 		loadedModules[dll] = module;
