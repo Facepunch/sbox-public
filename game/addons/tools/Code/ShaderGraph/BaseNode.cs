@@ -51,7 +51,7 @@ public abstract class BaseNode : INode
 	public virtual IEnumerable<IPlugOut> Outputs { get; protected set; }
 
 	[JsonIgnore, Hide, Browsable( false )]
-	public string ErrorMessage => null;
+	public string ErrorMessage { get; set; } = null;
 
 	[JsonIgnore, Hide, Browsable( false )]
 	public bool IsReachable => true;
@@ -75,6 +75,11 @@ public abstract class BaseNode : INode
 	public virtual void OnFrame()
 	{
 
+	}
+
+	public void ClearError()
+	{
+		ErrorMessage = null;
 	}
 
 	public string NewIdentifier()
