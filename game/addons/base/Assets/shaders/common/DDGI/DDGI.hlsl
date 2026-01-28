@@ -182,8 +182,12 @@ class DDGI
         // If we're in front of the mean surface distance, fully visible
         if (distanceToSample <= mean)
             return 1.0f;
-
+		
+		// Minimal stabilizer 
+		variance = max(variance, 0.0001f * mean * mean);
+		
         float delta = max(distanceToSample - mean, 0.0f);
+		delta = min(delta, mean * 3.0f); //Tries to avoid tails @test if neccesary
         float chebyshev = variance / (variance + delta * delta);
 
         // Sharpen the curve to reduce light leaking
