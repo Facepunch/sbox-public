@@ -1,4 +1,5 @@
 ﻿using Editor;
+using System.Threading;
 
 namespace Sandbox;
 
@@ -9,7 +10,7 @@ public partial class EnvmapProbe
 	/// </summary>
 	[Order( 10000 )]
 	[Button( "Bake Texture", "panorama_photosphere" ), WideMode( HasLabel = false ), HideIf( nameof( Mode ), (int)EnvmapProbeMode.CustomTexture )]
-	public async Task Bake()
+	public async Task Bake( CancellationToken ct = default )
 	{
 		if ( Scene.Editor is null )
 		{
@@ -17,6 +18,9 @@ public partial class EnvmapProbe
 			Log.Warning( "EnvmapProbe.Bake is an editor feature." );
 			return;
 		}
+
+		var sceneFolder = Scene.Editor.GetSceneFolder();
+		if ( sceneFolder is null ) return;
 
 		var cubemapSize = (int)Resolution;
 
@@ -26,12 +30,21 @@ public partial class EnvmapProbe
 							.WithFormat( ImageFormat.RGBA16161616F )
 							.Finish();
 
+		if ( ct.IsCancellationRequested )
+			return;
+
 		RenderCubemap( tex, CubemapRendering.GGXFilterType.Quality );
 
-		var sceneFolder = Scene.Editor.GetSceneFolder();
+		if ( ct.IsCancellationRequested )
+			return;
+
 		string filename = $"/envmap/bake_{Id}.vtex_c";
 
 		var vtexBytes = await tex.SaveToVtexAsync();
+
+		if ( ct.IsCancellationRequested )
+			return;
+
 		var path = sceneFolder.WriteFile( filename, vtexBytes );
 
 		BakedTexture = await Texture.LoadAsync( path );
@@ -50,6 +63,6 @@ public partial class EnvmapProbe
 
 		var components = Application.Editor.Scene.GetAll<EnvmapProbe>().Where( x => x.Mode == EnvmapProbeMode.Baked ).ToArray();
 
-		await Application.Editor.ForEachAsync( components, "Baking EnvMap Probes", x => x.Bake() );
+		await Application.Editor.ForEachAsync( components, "Baking EnvMap Probes", ( x, ct ) => x.Bake( ct ) );
 	}
 }

@@ -407,7 +407,7 @@ public static partial class Graphics
 		if ( srcTexture == null ) throw new ArgumentNullException( nameof( srcTexture ) );
 		if ( dstTexture == null ) throw new ArgumentNullException( nameof( dstTexture ) );
 
-		if ( srcTexture.ImageFormat != dstTexture.ImageFormat ) throw new ArgumentException( "Source and destination texture format must match!" );
+		if ( srcTexture.ImageFormat != dstTexture.ImageFormat && !srcTexture.ImageFormat.IsDepthFormat() ) throw new ArgumentException( "Source and destination texture format must match!" );
 
 		if ( srcMipSlice < 0 || srcMipSlice >= srcTexture.Mips ) throw new ArgumentException( $"{nameof( srcMipSlice )} out of bounds" );
 		if ( dstMipSlice < 0 || dstMipSlice >= dstTexture.Mips ) throw new ArgumentException( $"{nameof( dstMipSlice )} out of bounds" );
@@ -429,5 +429,18 @@ public static partial class Graphics
 		RenderTools.CopyTexture( Context, srcTexture.native, dstTexture.native, default, 0, 0,
 			(uint)srcMipSlice, (uint)srcArraySlice,
 			(uint)dstMipSlice, (uint)dstArraySlice );
+	}
+
+	/// <summary>
+	/// Forces the GPU to flush all pending commands and wait for completion.
+	/// Useful when you need to ensure GPU work is finished before proceeding.
+	/// Can be called outside of a render block.
+	/// </summary>
+	public static void FlushGPU()
+	{
+		if ( Application.IsHeadless )
+			return;
+
+		g_pRenderDevice.ForceFlushGPU( default );
 	}
 }

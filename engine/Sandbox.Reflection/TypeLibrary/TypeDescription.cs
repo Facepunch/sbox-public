@@ -605,6 +605,12 @@ public sealed class TypeDescription : ISourceLineProvider
 	/// </summary>
 	public MethodDescription GetMethod( string name ) => Methods.FirstOrDefault( x => !x.IsStatic && x.IsNamed( name ) );
 
+
+	/// <summary>
+	/// Get a method by name (will not find static methods)
+	/// </summary>
+	public MethodDescription GetStaticMethod( string name ) => Methods.FirstOrDefault( x => x.IsStatic && x.IsNamed( name ) );
+
 	/// <summary>
 	/// True if we're a generic type
 	/// </summary>

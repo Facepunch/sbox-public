@@ -58,14 +58,18 @@ public class ClothingIconControlWidget : ControlWidget
 
 	public static async Task SaveAllIcons()
 	{
-		using var progress = Progress.Start( "Rendering Icons" );
-		var token = Progress.GetCancel();
+		using var progress = Application.Editor.ProgressSection();
+		progress.Title = "Rendering Icons";
+
+		var token = progress.GetCancel();
 		var allClothes = AssetSystem.All.Where( x => x.AssetType.FileExtension == "clothing" ).ToArray();
 
 		int i = 0;
 		foreach ( var asset in allClothes )
 		{
-			Progress.Update( asset.Name, ++i, allClothes.Length );
+			progress.Title = asset.Name;
+			progress.Current = ++i;
+			progress.TotalCount = allClothes.Length;
 
 			var resource = asset.LoadResource<Clothing>();
 

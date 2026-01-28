@@ -12,7 +12,7 @@ public partial class Texture
 	/// (like EnvmapProbe's dynamic rendering). Face pairs are swapped and flipped to compensate
 	/// so the saved texture can be sampled normally.
 	/// </remarks>
-	public byte[] SaveToVtex()
+	public byte[] SaveToVtex( bool uncompressed = false )
 	{
 		var desc = Desc;
 
@@ -21,17 +21,14 @@ public partial class Texture
 			throw new System.NotSupportedException( "SaveToVtex does not yet support texture arrays" );
 		}
 
-		if ( desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_VOLUME_TEXTURE ) )
-		{
-			throw new System.NotSupportedException( "SaveToVtex does not yet support volume textures" );
-		}
-
 		bool isCubemap = desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_CUBE_TEXTURE );
+		bool isVolume = desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_VOLUME_TEXTURE );
+
 		int numFaces = isCubemap ? 6 : 1;
 
 		int width = Desc.m_nWidth;
 		int height = Desc.m_nHeight;
-		int depth = 1; // For vtex format, depth is 1 for cubemaps (face count is implied by flag)
+		int depth = Desc.m_nDepth; // For vtex format, depth is slice count for volumes or 1 for cubemaps
 		int mipCount = Desc.m_nNumMipLevels;
 
 		var writer = new VTexWriter();
@@ -68,10 +65,15 @@ public partial class Texture
 		if ( isCubemap )
 			flags |= VTexWriter.VTEX_Flags_t.VTEX_FLAG_CUBE_TEXTURE;
 
+		if ( isVolume )
+			flags |= VTexWriter.VTEX_Flags_t.VTEX_FLAG_VOLUME_TEXTURE;
+
 		if ( desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_NO_LOD ) )
 			flags |= VTexWriter.VTEX_Flags_t.VTEX_FLAG_NO_LOD;
 
 		writer.Header.Flags = flags;
+
+		writer.WantsUncompressed = uncompressed;
 
 		writer.CalculateFormat();
 
@@ -84,7 +86,7 @@ public partial class Texture
 
 		if ( streamingData.Length != expectedSize )
 		{
-			Log.Warning( $"SaveToVtex: Size mismatch for {width}x{height} {writer.Header.Format}! Got {streamingData.Length} bytes but expected {expectedSize}" );
+			Log.Warning( $"SaveToVtex: Size mismatch for {width}x{height}x{depth} {writer.Header.Format}! Got {streamingData.Length} bytes but expected {expectedSize}" );
 		}
 
 		// Write Source 2 resource container format

@@ -14,6 +14,7 @@ internal class VTexWriter
 {
 	Logger log = new Logger( "VTexWriter" );
 	public VTEX_Header_t Header = new VTEX_Header_t();
+	public bool WantsUncompressed { get; set; } = false;
 
 	/// <summary>
 	/// Given what we know, work out the best texture
@@ -30,7 +31,6 @@ internal class VTexWriter
 		// Use BC6H for HDR textures
 		//
 
-		bool wantsUncompressed = false; // todo flag
 		var bestFormat = VTexWriter.VTEX_Format_t.VTEX_FORMAT_BC7;
 
 		if ( Layers.All( x => x.Opaque ) )
@@ -50,10 +50,10 @@ internal class VTexWriter
 		// avoid 1x1 textures becoming 4x4 in bc
 		if ( Header.Width < 16 || Header.Height < 16 )
 		{
-			wantsUncompressed = true;
+			WantsUncompressed = true;
 		}
 
-		if ( wantsUncompressed )
+		if ( WantsUncompressed )
 		{
 			if ( Layers.Any( x => x.Hdr ) ) bestFormat = VTexWriter.VTEX_Format_t.VTEX_FORMAT_RGBA16161616F;
 			else bestFormat = VTexWriter.VTEX_Format_t.VTEX_FORMAT_RGBA8888;

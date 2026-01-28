@@ -12,7 +12,7 @@ internal class SnapshotValueCache
 	/// Get cached bytes from the specified value if they exist. If the value is different,
 	/// then re-serialize and cache again.
 	/// </summary>
-	public byte[] GetCached<T>( int slot, T value, out bool isEqual )
+	public byte[] GetCached<T>( int slot, in T value, out bool isEqual )
 	{
 		var hash = value?.GetHashCode() ?? 0;
 

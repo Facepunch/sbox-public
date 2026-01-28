@@ -59,6 +59,10 @@ internal partial class RenderPipeline
 			var smallPrepass = DepthNormalSmallPrepass.AddToView( view, viewport );
 			smallPrepass.SetBoundingVolumeSizeCullThresholdInPercent( -60 );
 
+			bool disableDepthPrepassCulling = view.GetRenderAttributesPtr().GetBoolValue( "NoPrepassCulling", false );
+			largePrepass.SetLayerNoCull( disableDepthPrepassCulling );
+			smallPrepass.SetLayerNoCull( disableDepthPrepassCulling );
+
 			// Pass that DepthNormals are enabled to the rest of the pipeline
 			view.GetRenderAttributesPtr().SetIntValue( "NormalsTextureIndex", gbufferColor.ColorTarget.Index );
 		}

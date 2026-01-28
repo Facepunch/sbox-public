@@ -23,14 +23,38 @@ partial class TextureTool
 		public bool HotspotTiling { get; set; } = false;
 		public bool HotspotConforming { get; set; } = true;
 
+		public bool SelectByMaterial { get; set; } = false;
+		public bool SelectByNormal { get; set; } = true;
+		[Range( 0.1f, 90f, slider: false ), Step( 1 ), Title( "Normal Threshold" )]
+		public float NormalThreshold { get; set; } = 12.0f;
+		public bool OverlaySelection { get; set; } = true;
+
 		public FaceSelectionWidget( SerializedObject so, MeshTool tool ) : base()
 		{
 			AddTitle( "Texture Mode", "gradient" );
+
+			_meshTool = tool;
+			_faces = [.. so.Targets.OfType<MeshFace>()];
+
+			_faceGroups = _faces.GroupBy( x => x.Component ).ToList();
+			_components = _faceGroups.Select( x => x.Key ).ToList();
 
 			HotspotTiling = EditorCookie.Get( nameof( HotspotTiling ), HotspotTiling );
 			HotspotConforming = EditorCookie.Get( nameof( HotspotConforming ), HotspotConforming );
 			TextureFit = EditorCookie.Get( nameof( TextureFit ), TextureFit );
 			TextureTreatAsOne = EditorCookie.Get( nameof( TextureTreatAsOne ), TextureTreatAsOne );
+			SelectByMaterial = EditorCookie.Get( "FaceTool.SelectByMaterial", false );
+			SelectByNormal = EditorCookie.Get( "FaceTool.SelectByNormal", true );
+			NormalThreshold = EditorCookie.Get( "FaceTool.NormalThreshold", 12.0f );
+			OverlaySelection = EditorCookie.Get( "FaceTool.OverlaySelection", true );
+
+			if ( _meshTool.CurrentTool is TextureTool tt )
+			{
+				tt.SelectByMaterial = SelectByMaterial;
+				tt.SelectByNormal = SelectByNormal;
+				tt.NormalThreshold = NormalThreshold;
+				tt.OverlaySelection = OverlaySelection;
+			}
 
 			var target = this.GetSerialized();
 			target.OnPropertyChanged = ( e ) =>
@@ -39,13 +63,12 @@ partial class TextureTool
 				EditorCookie.Set( nameof( HotspotConforming ), HotspotConforming );
 				EditorCookie.Set( nameof( TextureFit ), TextureFit );
 				EditorCookie.Set( nameof( TextureTreatAsOne ), TextureTreatAsOne );
+
+				EditorCookie.Set( "FaceTool.SelectByMaterial", SelectByMaterial );
+				EditorCookie.Set( "FaceTool.SelectByNormal", SelectByNormal );
+				EditorCookie.Set( "FaceTool.NormalThreshold", NormalThreshold );
+				EditorCookie.Set( "FaceTool.OverlaySelection", OverlaySelection );
 			};
-
-			_meshTool = tool;
-			_faces = [.. so.Targets.OfType<MeshFace>()];
-
-			_faceGroups = _faces.GroupBy( x => x.Component ).ToList();
-			_components = _faceGroups.Select( x => x.Key ).ToList();
 
 			bool hasSelectedFaces = _faces.Length > 0;
 
@@ -164,6 +187,56 @@ partial class TextureTool
 			}
 
 			Layout.AddStretchCell();
+
+			{
+				var group = AddGroup( "Filtered Selection [Alt + Double Click]" );
+				var normalRow = Layout.Row();
+				normalRow.Spacing = 4;
+
+				var materialRow = Layout.Row();
+				materialRow.Spacing = 4;
+
+				var useMaterial = ControlWidget.Create( target.GetProperty( nameof( SelectByMaterial ) ) );
+				useMaterial.FixedHeight = Theme.ControlHeight;
+
+				var materialLabel = new Label { Text = "Use Material" };
+
+				materialRow.Add( useMaterial );
+				materialRow.Add( materialLabel );
+				materialRow.AddStretchCell();
+
+				group.Add( materialRow );
+
+				var useNormal = ControlWidget.Create( target.GetProperty( nameof( SelectByNormal ) ) );
+				useNormal.FixedHeight = Theme.ControlHeight;
+
+				var normalLabel = new Label { Text = "Use Normal" };
+				var normalControl = ControlWidget.Create( target.GetProperty( nameof( NormalThreshold ) ) );
+				normalControl.FixedHeight = Theme.ControlHeight;
+				normalControl.FixedWidth = 72;
+
+				normalRow.Add( useNormal );
+				normalRow.Add( normalLabel );
+				normalRow.AddStretchCell();
+				normalRow.Add( normalControl );
+
+				group.Add( normalRow );
+			}
+
+			{
+				var group = AddGroup( "Display" );
+				var overlayRow = Layout.Row();
+				overlayRow.Spacing = 4;
+
+				var selectionOverlay = ControlWidget.Create( target.GetProperty( nameof( OverlaySelection ) ) );
+				var selectionOverlayLabel = new Label { Text = "Overlay Selection" };
+				selectionOverlay.FixedHeight = Theme.ControlHeight;
+
+				overlayRow.Add( selectionOverlay );
+				overlayRow.Add( selectionOverlayLabel );
+
+				group.Add( overlayRow );
+			}
 		}
 
 		[Shortcut( "mesh.fast-texture-tool", "CTRL+G", typeof( SceneViewWidget ) )]
