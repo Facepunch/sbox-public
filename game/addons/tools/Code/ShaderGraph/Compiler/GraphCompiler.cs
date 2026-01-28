@@ -103,6 +103,19 @@ public sealed partial class GraphCompiler
 		AddSubgraphs( Graph );
 	}
 
+	public void SetAttribute<T>( string name, T value )
+	{
+		if ( !ShaderResult.Attributes.ContainsKey( name ) )
+		{
+			OnAttribute?.Invoke( name, value );
+			ShaderResult.Attributes[name] = value;
+		}
+		else
+		{
+			// 
+		}
+	}
+
 	private void AddSubgraphs( ShaderGraph graph )
 	{
 		if ( graph != Graph )
