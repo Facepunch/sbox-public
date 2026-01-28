@@ -1,4 +1,5 @@
 ﻿using Editor.NodeEditor;
+using Editor.ShaderGraph.Nodes;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -142,13 +143,9 @@ partial class ShaderGraph
 				{
 					node = CreateUpgradedSubgraphInput_v1Upgrade( typeName, element, options );
 				}
-				else if ( fileVersion < 2 && ShouldUpgradeNodeType_v2Upgrade( typeName ) ) 
+				else if ( fileVersion < 2 && IsParameterNodeType_v2Upgrade( typeName ) )
 				{
 					if ( IsNamedParameterNode_v2Upgrade( element ) )
-					{
-						node = ConvertToConstantNode_v2Upgrade( typeName, element, options );
-					}
-					else if ( IsNamedTextureSamplerNode_v2Upgrade( element ) )
 					{
 						node = EditorTypeLibrary.Create<BaseNode>( typeName );
 						DeserializeObject( node, element, options );
@@ -163,16 +160,37 @@ partial class ShaderGraph
 					}
 					else
 					{
+						node = ConvertToConstantNode_v2Upgrade( typeName, element, options );
+					}
+				}
+				else if ( fileVersion < 2 && ShouldUpgradeSamplerNodeType_v2Upgrade( typeName ) )
+				{
+					if ( IsNamedTextureSamplerNode_v2Upgrade( element ) )
+					{
 						node = EditorTypeLibrary.Create<BaseNode>( typeName );
 						DeserializeObject( node, element, options );
+						node.Graph = this;
 
 						var parameterID = AddBlackboardParameter_v2Upgrade( typeName, element, options );
 
-						if ( node is IBlackboardNode blackboardNode )
+						var newTexture2DParameterNode = new Texture2DParameter()
 						{
-							blackboardNode.BlackboardParameterIdentifier = parameterID;
-							node = (BaseNode)blackboardNode;
-						}
+							Position = node.Position.WithX( node.Position.x - 192 ),
+							BlackboardParameterIdentifier = parameterID,
+						};
+
+						AddNode( newTexture2DParameterNode );
+
+						node.ConnectNode(
+							"Texture2D",
+							"Result",
+							newTexture2DParameterNode.Identifier
+						);
+					}
+					else
+					{
+						node = EditorTypeLibrary.Create<BaseNode>( typeName );
+						DeserializeObject( node, element, options );
 					}
 				}
 				else

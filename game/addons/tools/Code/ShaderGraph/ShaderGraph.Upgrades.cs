@@ -48,7 +48,7 @@ partial class ShaderGraph
 		// Only convert if it dosent have a name (indicating it's meant to be a constant value)
 		if ( element.TryGetProperty( "Name", out var nameProperty ) )
 		{
-			return string.IsNullOrWhiteSpace( nameProperty.GetString() );
+			return !string.IsNullOrWhiteSpace( nameProperty.GetString() );
 		}
 
 		// No "Name" property? assume its ment to be a constant
@@ -58,7 +58,7 @@ partial class ShaderGraph
 	{
 		if ( element.TryGetProperty( "UI", out var uiProperty ) && uiProperty.TryGetProperty( "Name", out var nameProperty ) )
 		{
-			return string.IsNullOrWhiteSpace( nameProperty.GetString() );
+			return !string.IsNullOrWhiteSpace( nameProperty.GetString() );
 		}
 
 		return false;
@@ -92,7 +92,7 @@ partial class ShaderGraph
 		};
 	}
 
-	private static bool ShouldUpgradeNodeType_v2Upgrade( string typeName )
+	private static bool IsParameterNodeType_v2Upgrade( string typeName )
 	{
 		return typeName switch
 		{
@@ -100,6 +100,14 @@ partial class ShaderGraph
 			"Float2Parameter" => true,
 			"Float3Parameter" => true,
 			"ColorParameter" => true,
+			_ => false
+		};
+	}
+
+	private static bool ShouldUpgradeSamplerNodeType_v2Upgrade( string typeName )
+	{
+		return typeName switch
+		{
 			"TextureSampler" => true,
 			"TextureTriplanar" => true,
 			"NormapMapTriplanar" => true,
@@ -295,6 +303,11 @@ partial class ShaderGraph
 					};
 					break;
 				case "TextureSampler":
+					if ( ContainsParameterWithName( textureInputNameElement.GetString() ) )
+					{
+						return FindParameter<Texture2DBlackboardParameter>( textureInputNameElement.GetString() ).Identifier;
+					}
+
 					blackboardParameter = new Texture2DBlackboardParameter()
 					{
 						Name = textureInputNameElement.GetString(),
@@ -303,6 +316,25 @@ partial class ShaderGraph
 					};
 					break;
 				case "TextureTriplanar":
+					if ( ContainsParameterWithName( textureInputNameElement.GetString() ) )
+					{
+						return FindParameter<Texture2DBlackboardParameter>( textureInputNameElement.GetString() ).Identifier;
+					}
+
+					blackboardParameter = new Texture2DBlackboardParameter()
+					{
+						Name = textureInputNameElement.GetString(),
+						DefaultTexture = imageElement.GetString(),
+						UI = uiElement.Deserialize<TextureInput>( options ),
+					};
+					break;
+
+				case "NormapMapTriplanar":
+					if ( ContainsParameterWithName( textureInputNameElement.GetString() ) )
+					{
+						return FindParameter<Texture2DBlackboardParameter>( textureInputNameElement.GetString() ).Identifier;
+					}
+
 					blackboardParameter = new Texture2DBlackboardParameter()
 					{
 						Name = textureInputNameElement.GetString(),
