@@ -196,7 +196,10 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 		OnModelChanged();
 	}
 
-	internal Action ModelChanged;
+	/// <summary>
+	/// Invoked when <see cref="Model"/> has been changed.
+	/// </summary>
+	public Action ModelChanged;
 
 	internal void OnModelChanged()
 	{
