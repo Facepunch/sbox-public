@@ -80,7 +80,7 @@ public struct NodeResult : IValid
 	{
 		if ( components > 4 )
 		{
-			throw new Exception( $"There is no float type with a component count of \"{components}\"" );
+			throw new Exception( $"There is no float type with a component count of `{components}`" );
 		}
 
 		if ( ResultType == NodeResultType.Bool || ResultType == NodeResultType.Texture2D || ResultType == NodeResultType.Invalid )
