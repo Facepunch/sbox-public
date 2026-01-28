@@ -4,7 +4,7 @@ public class BlackboardView : Widget
 {
 	private Button.Primary _addButton;
 	private Button.Danger _deleteButton;
-	private BlackboardParameterList _parameterListView; 
+	private BlackboardParameterList _parameterListView;
 	private BlackboardParameter _selectedParameter;
 
 	private readonly MainWindow _window;
@@ -106,7 +106,7 @@ public class BlackboardView : Widget
 		leftColumnTopLayout.Add( _addButton );
 
 		_parameterListView = leftColumn.Add( new BlackboardParameterList( null ), 1 );
-		_parameterListView.ItemClicked += (item) => OnItemClicked( (BlackboardParameter)item );
+		_parameterListView.ItemClicked += ( item ) => OnItemClicked( (BlackboardParameter)item );
 		_parameterListView.ItemDrag = ( item ) =>
 		{
 			var drag = new Drag( this );

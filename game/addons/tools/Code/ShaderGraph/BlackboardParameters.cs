@@ -176,7 +176,8 @@ public sealed class Texture2DBlackboardParameter : BlackboardTextureMaterialPara
 {
 	public Texture2DBlackboardParameter() : base()
 	{
-		UI = new TextureInput() {
+		UI = new TextureInput()
+		{
 			ImageFormat = TextureFormat.DXT5,
 			Type = TextureType.Tex2D,
 			SrgbRead = true,

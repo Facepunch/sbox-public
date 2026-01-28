@@ -487,6 +487,6 @@ public sealed class Texture2DParameter : ShaderNode, ITextureParameterNodeNew
 
 		var textureGlobal = compiler.ResultTexture( input, texture, Image );
 
-		return  new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
+		return new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
 	};
 }

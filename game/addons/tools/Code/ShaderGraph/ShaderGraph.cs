@@ -163,7 +163,7 @@ public sealed partial class ShaderGraph : IGraph
 
 		if ( parameter != null )
 			return parameter;
-		
+
 		return null;
 	}
 

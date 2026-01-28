@@ -152,7 +152,7 @@ public class MainWindow : DockWindow
 			}
 		}
 
-		if ( ( _properties.Target is ShaderGraph && oldTarget is BlackboardParameter ) || ( _properties.Target is BaseNode && oldTarget is BlackboardParameter ) )
+		if ( (_properties.Target is ShaderGraph && oldTarget is BlackboardParameter) || (_properties.Target is BaseNode && oldTarget is BlackboardParameter) )
 		{
 			_blackboardView.ClearSeletedItem();
 		}
@@ -1350,7 +1350,7 @@ public class MainWindow : DockWindow
 				//break;
 			}
 		}
-	
+
 		SetDirty();
 
 		_blackboardView.RebuildBuildFromGraph( false );

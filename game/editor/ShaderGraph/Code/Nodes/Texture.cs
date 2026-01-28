@@ -102,8 +102,8 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IE
 	};
 
 	[Hide]
-	public override string Title => string.IsNullOrWhiteSpace( UI.Name ) ? null : 
-		$"{DisplayInfo.For( this ).Name} {(ShowDefaults ?  $"( {UI.Name} )" : Name )}";
+	public override string Title => string.IsNullOrWhiteSpace( UI.Name ) ? null :
+		$"{DisplayInfo.For( this ).Name} {(ShowDefaults ? $"( {UI.Name} )" : Name)}";
 
 	protected TextureSamplerBase() : base()
 	{

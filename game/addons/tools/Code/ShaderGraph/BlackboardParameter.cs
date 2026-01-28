@@ -161,7 +161,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 	}
 }
 
-public abstract class BlackboardMaterialParameter<T,Y> : BlackboardParameter where Y : IParameterUI
+public abstract class BlackboardMaterialParameter<T, Y> : BlackboardParameter where Y : IParameterUI
 {
 	[InlineEditor( Label = false ), Group( "Value" )]
 	public T Value { get; set; }
@@ -207,8 +207,8 @@ public abstract class BlackboardTextureMaterialParameter : BlackboardParameter
 	[Hide]
 	private TextureInput _ui;
 	[InlineEditor( Label = false ), Group( "UI" )]
-	public TextureInput UI 
-	{ 
+	public TextureInput UI
+	{
 		get => _ui with { Name = Name };
 		set
 		{

@@ -267,9 +267,9 @@ public class ShaderGraphView : GraphView
 
 		if ( selectedNodes.Length > 1 && selectedNodes.All( x => x.Node is IConstantNode ) )
 		{
-			var convertOption = menu.AddOption( $"Convert {selectedNodes.Count()} Constants to {( Graph.IsSubgraph ? "Subgraph Inputs" : "Material Parameters" )}", "swap_horiz", () =>
+			var convertOption = menu.AddOption( $"Convert {selectedNodes.Count()} Constants to {(Graph.IsSubgraph ? "Subgraph Inputs" : "Material Parameters")}", "swap_horiz", () =>
 			{
-				using var undoScope = UndoScope( $"Convert {selectedNodes.Count()} Constants to {( Graph.IsSubgraph ? "Subgraph Inputs" : "Material Parameters" )}" );
+				using var undoScope = UndoScope( $"Convert {selectedNodes.Count()} Constants to {(Graph.IsSubgraph ? "Subgraph Inputs" : "Material Parameters")}" );
 				var lastNode = selectedNodes.First().Node as BaseNode;
 				foreach ( var node in selectedNodes )
 				{
@@ -325,11 +325,11 @@ public class ShaderGraphView : GraphView
 						using var undoScope = UndoScope( $"Convert {baseNode.DisplayInfo.Name} node to {nodeTypeTitle} {(Graph.IsSubgraph ? "Subgraph Input node" : "Material Parameter node")}" );
 
 						Graph.RemoveNode( baseNode );
-						
+
 						var newNode = ConvertConstantNodeToParameter( constantNode, parameterName, item.Node.Position );
-						
+
 						RebuildFromGraph();
-						
+
 						_window.OnNodeSelected( newNode );
 						SelectNode( newNode );
 					},
@@ -394,7 +394,7 @@ public class ShaderGraphView : GraphView
 			return null;
 
 		Graph?.AddParameter( (BlackboardParameter)parameter );
-		
+
 		return (BlackboardParameter)parameter;
 	}
 
