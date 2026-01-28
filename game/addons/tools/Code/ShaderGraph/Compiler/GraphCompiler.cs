@@ -633,8 +633,7 @@ public sealed partial class GraphCompiler
 
 		if ( isConstant )
 		{
-			OnAttribute?.Invoke( name, value );
-			ShaderResult.Attributes[name] = value;
+			SetAttribute( name, value );
 		}
 
 		return value switch
