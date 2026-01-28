@@ -209,6 +209,11 @@ partial class ShaderGraph
 					funcResult.CreateInputs();
 				}
 
+				if ( node is BaseNode.INodeInitialize nodeInitialize )
+				{
+					nodeInitialize.OnNodeCreated( options );
+				}
+
 				if ( node is SubgraphNode subgraphNode )
 				{
 					if ( !FileSystem.Content.FileExists( subgraphNode.SubgraphPath ) )

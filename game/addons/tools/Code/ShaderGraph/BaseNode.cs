@@ -181,6 +181,11 @@ public abstract class BaseNode : INode
 		}
 	}
 
+	public interface INodeInitialize
+	{
+		public void OnNodeCreated( JsonSerializerOptions options );
+	}
+
 	/// <summary>
 	/// Connects a <see cref="NodeResult.Func"/> property from another node to the <see cref="NodeInput"/> property on this <see cref="BaseNode"/> instance.
 	/// </summary>
