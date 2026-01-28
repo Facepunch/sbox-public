@@ -1,10 +1,13 @@
 ﻿namespace Editor.ShaderGraph;
 
-public interface IParameterNode
+public interface IBlackboardNode
+{
+	Guid BlackboardParameterIdentifier { get; set; }
+}
+
+public interface IParameterNode : IBlackboardNode
 {
 	string Name { get; }
-
-	Guid BlackboardParameterIdentifier { get; set; }
 
 	bool IsAttribute { get; }
 
