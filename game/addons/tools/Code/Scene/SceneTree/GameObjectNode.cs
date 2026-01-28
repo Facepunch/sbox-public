@@ -59,6 +59,22 @@ partial class GameObjectNode : TreeNode<GameObject>
 			hc.Add( Value.Network.IsOwner );
 			hc.Add( Value.IsProxy );
 			hc.Add( Value.Active );
+			hc.Add( Value.Tags ); // Include tags for custom icon and color changes
+
+			// Include custom icon from tags so changes trigger a node update
+			var iconTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) && !t.StartsWith( "icon_color_" ) );
+			if ( iconTag is not null )
+			{
+				var decoded = Editor.IconTagEncoding.DecodeIconFromTag( iconTag );
+				if ( !string.IsNullOrEmpty( decoded ) ) hc.Add( decoded );
+			}
+
+			// Also include persisted color tag so color changes invalidate the node
+			var colorTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_color_" ) );
+			if ( colorTag is not null )
+			{
+				hc.Add( colorTag );
+			}
 
 			foreach ( var val in Value.Children )
 			{
@@ -191,7 +207,6 @@ partial class GameObjectNode : TreeNode<GameObject>
 			pen = Theme.Yellow.WithAlpha( 0.6f );
 		}
 
-
 		//
 		// If there's a drag and drop happening, fade out nodes that aren't possible
 		//
@@ -261,6 +276,39 @@ partial class GameObjectNode : TreeNode<GameObject>
 		r.Left += 4;
 
 		var iconSize = 16;
+
+		// Apply custom icon and color overrides (after all default conditions)
+		var iconTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_" ) && !t.StartsWith( "icon_color_" ) );
+		if ( iconTag is not null )
+		{
+			var decoded = Editor.IconTagEncoding.DecodeIconFromTag( iconTag );
+			if ( !string.IsNullOrEmpty( decoded ) ) icon = decoded;
+		}
+
+		// Prefer persisted color tag (saved with scene)
+		var colorTag = Value.Tags.FirstOrDefault( t => t.StartsWith( "icon_color_" ) );
+		if ( colorTag is not null )
+		{
+			var hex = colorTag.Substring( 11 ); // Remove "icon_color_"
+												// Expecting AARRGGBB
+			if ( hex.Length == 8 )
+			{
+				if ( Color.TryParse( $"#{hex}", out var parsedColor ) )
+				{
+					iconColor = parsedColor;
+					overlayIconColor = parsedColor;
+				}
+			}
+			else if ( hex.Length == 6 )
+			{
+				// fallback RRGGBB -> assume full alpha
+				if ( Color.TryParse( $"#FF{hex}", out var parsedColor ) )
+				{
+					iconColor = parsedColor;
+					overlayIconColor = parsedColor;
+				}
+			}
+		}
 
 		Paint.Pen = iconColor.WithAlphaMultiplied( opacity );
 		Paint.DrawIcon( r, icon, iconSize, TextFlag.LeftCenter );
@@ -547,7 +595,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 			else
 			{
 				// No current selection - create at root level
-				return [null];
+				return new GameObject[] { null };
 			}
 		};
 
