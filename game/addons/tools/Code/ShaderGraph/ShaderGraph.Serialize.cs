@@ -142,11 +142,24 @@ partial class ShaderGraph
 				{
 					node = CreateUpgradedSubgraphInput_v1Upgrade( typeName, element, options );
 				}
-				else if ( fileVersion < 2 && IsParameterNodeType_v2Upgrade( typeName ) ) 
+				else if ( fileVersion < 2 && ShouldUpgradeNodeType_v2Upgrade( typeName ) ) 
 				{
 					if ( IsNamedParameterNode_v2Upgrade( element ) )
 					{
 						node = ConvertToConstantNode_v2Upgrade( typeName, element, options );
+					}
+					else if ( IsNamedTextureSamplerNode_v2Upgrade( element ) )
+					{
+						node = EditorTypeLibrary.Create<BaseNode>( typeName );
+						DeserializeObject( node, element, options );
+
+						var parameterID = AddBlackboardParameter_v2Upgrade( typeName, element, options );
+
+						if ( node is IBlackboardNode blackboardNode )
+						{
+							blackboardNode.BlackboardParameterIdentifier = parameterID;
+							node = (BaseNode)blackboardNode;
+						}
 					}
 					else
 					{
