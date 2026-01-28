@@ -147,6 +147,26 @@ public sealed partial class ShaderGraph : IGraph
 		throw new Exception( $"There is no parameter with the identifier : {identifier}" );
 	}
 
+	public BlackboardParameter FindParameter( string name )
+	{
+		var parameter = _parameters.Values.Where( x => x.Name == name ).FirstOrDefault();
+
+		if ( parameter != null )
+			return parameter;
+
+		return null;
+	}
+
+	public T FindParameter<T>( string name ) where T : BlackboardParameter
+	{
+		var parameter = _parameters.Values.OfType<T>().Where( x => x.Name == name ).FirstOrDefault();
+
+		if ( parameter != null )
+			return parameter;
+		
+		return null;
+	}
+
 	public bool ContainsParameterWithName( string name )
 	{
 		foreach ( var parameter in _parameters )
