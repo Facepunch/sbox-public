@@ -146,7 +146,7 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IE
 /// <summary>
 /// Sample a 2D Texture
 /// </summary>
-[Title( "Texture2D Sampler" ), Category( "Textures" ), Icon( "image" )]
+[Title( "Texture 2D Sampler" ), Category( "Textures" ), Icon( "image" )]
 public sealed class TextureSampler : TextureSamplerBase
 {
 	/// <summary>
