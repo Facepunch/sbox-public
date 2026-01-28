@@ -1,4 +1,5 @@
 ﻿using NativeEngine;
+using Sandbox.Engine.Settings;
 using Sandbox.UI;
 using System.Collections.Concurrent;
 using System.IO;
@@ -130,7 +131,7 @@ internal static class ScreenshotService
 
 			ResizeUI( camera, requestedSize );
 
-			renderTarget = RenderTarget.GetTemporary( width, height, ImageFormat.Default, ImageFormat.Default, MultisampleAmount.Multisample16x, 1, "HighResScreenshot" );
+			renderTarget = RenderTarget.GetTemporary( width, height, ImageFormat.Default, ImageFormat.Default, RenderSettings.Instance.AntiAliasQuality, 1, "HighResScreenshot" );
 			if ( renderTarget is null )
 			{
 				Log.Warning( "Failed to create render target for high-res screenshot." );
