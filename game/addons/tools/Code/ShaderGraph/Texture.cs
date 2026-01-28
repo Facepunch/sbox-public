@@ -68,6 +68,7 @@ public struct TextureInput
 	/// <summary>
 	/// Name that shows up in material editor
 	/// </summary>
+	[Hide, JsonIgnore]
 	public string Name { get; set; }
 
 	/// <summary>
@@ -78,6 +79,7 @@ public struct TextureInput
 	/// <summary>
 	/// Default color that shows up in material editor when using color control
 	/// </summary>
+	[Title( "Default Color" )]
 	public Color Default { get; set; }
 
 	/// <summary>

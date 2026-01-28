@@ -127,6 +127,7 @@ public class ShaderGraphView : GraphView
 					Float3BlackboardParameter => DisplayInfo.ForType( typeof( Float3Parameter ) ).Fullname,
 					Float4BlackboardParameter => DisplayInfo.ForType( typeof( Float4Parameter ) ).Fullname,
 					ColorBlackboardParameter => DisplayInfo.ForType( typeof( ColorParameter ) ).Fullname,
+					Texture2DBlackboardParameter => DisplayInfo.ForType( typeof( ColorParameter ) ).Fullname,
 					_ => throw new NotImplementedException(),
 				};
 

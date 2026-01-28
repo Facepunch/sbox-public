@@ -134,14 +134,14 @@ public class MainWindow : DockWindow
 		_properties.Target = node != null ? node : _graph;
 
 		// TODO : Make it work when subgraph inputs.
-		if ( _properties.Target is IParameterNode parameterNode )
+		if ( _properties.Target is IBlackboardNode blackboardNode )
 		{
 			// For now only select a blackboard parameter when _graphView only has 1 selection.
 			if ( _graphView.SelectedItems.Count() == 1 )
 			{
-				if ( parameterNode.BlackboardParameterIdentifier != default )
+				if ( blackboardNode.BlackboardParameterIdentifier != default )
 				{
-					var blackboardParameter = _graph.FindParameter( parameterNode.BlackboardParameterIdentifier );
+					var blackboardParameter = _graph.FindParameter( blackboardNode.BlackboardParameterIdentifier );
 					_blackboardView.SetSelectedItem( blackboardParameter );
 					_properties.Target = blackboardParameter;
 				}
@@ -1338,7 +1338,7 @@ public class MainWindow : DockWindow
 		foreach ( var node in _graph.Nodes )
 		{
 			// TODO : Make it work when subgraph inputs.
-			if ( node is IParameterNode parameterNode && parameterNode.BlackboardParameterIdentifier == identifier && parameterNode is BaseNode baseNode )
+			if ( node is IBlackboardNode blackboardNode && blackboardNode.BlackboardParameterIdentifier == identifier && blackboardNode is BaseNode baseNode )
 			{
 				_graph.RemoveNode( baseNode );
 

@@ -167,3 +167,25 @@ public sealed class ColorBlackboardParameter : BlackboardMaterialParameter<Color
 		UI = new ColorParameterUI();
 	}
 }
+
+/// <summary>
+/// Texture2D material parameter
+/// </summary>
+[Title( "Texture2D" ), Icon( "image" ), Order( 7 )]
+public sealed class Texture2DBlackboardParameter : BlackboardTextureMaterialParameter
+{
+	public Texture2DBlackboardParameter() : base()
+	{
+		UI = new TextureInput() {
+			ImageFormat = TextureFormat.DXT5,
+			Type = TextureType.Tex2D,
+			SrgbRead = true,
+			Default = Color.White,
+		};
+	}
+
+	public Texture2DBlackboardParameter( string name, TextureInput value )
+		: base( name, value )
+	{
+	}
+}

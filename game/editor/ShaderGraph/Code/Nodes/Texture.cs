@@ -7,6 +7,7 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IE
 	/// Texture to sample in preview
 	/// </summary>
 	[ImageAssetPath]
+	[Hide]
 	public string Image
 	{
 		get => _image;

@@ -20,6 +20,12 @@ public interface ITextureParameterNode
 	TextureInput UI { get; set; }
 }
 
+public interface ITextureParameterNodeNew : IBlackboardNode
+{
+	string Image { get; set; }
+	TextureInput UI { get; }
+}
+
 public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNode, IErroringNode where Y : BlackboardParameter
 {
 	private record SharedMaterialParameterData( string Name, object Value, IParameterUI ParameterUI, bool IsAttribute );

@@ -42,6 +42,8 @@ public sealed partial class GraphCompiler
 	public HashSet<string> PixelIncludes { get; private set; } = new();
 	public HashSet<string> VertexIncludes { get; private set; } = new();
 
+	public Dictionary<string, Texture> PreviewTextures = new();
+
 	/// <summary>
 	/// Is this compile for just the preview or not, preview uses attributes for constant values
 	/// </summary>
@@ -198,6 +200,46 @@ public sealed partial class GraphCompiler
 		}
 
 		return new( $"g_t{id}", result.SamplerStates.IndexOf( sampler ) );
+	}
+
+	/// <summary>
+	/// Register a texture and return the name of it
+	/// </summary>
+	internal string ResultTexture( TextureInput input, Texture texture )
+	{
+		var name = CleanName( input.Name );
+		name = string.IsNullOrWhiteSpace( name ) ? $"Texture_{StageName}_{ShaderResult.TextureInputs.Count}" : name;
+
+		if ( PreviewTextures.ContainsKey( $"g_t{name}" ) )
+		{
+			return $"g_t{name}";
+		}
+
+		var id = name;
+		int count = 0;
+
+		var result = ShaderResult;
+
+		while ( result.TextureInputs.ContainsKey( id ) )
+		{
+			id = $"{name}_{count++}";
+		}
+
+		OnAttribute?.Invoke( id, texture );
+
+		result.TextureInputs.Add( id, input );
+
+		if ( CurrentResultInput == "Albedo" )
+		{
+			result.RepresentativeTexture = $"g_t{id}";
+		}
+
+		if ( !PreviewTextures.ContainsKey( $"g_t{id}" ) )
+		{
+			PreviewTextures.Add( id, texture );
+		}
+
+		return $"g_t{id}";
 	}
 
 	/// <summary>
@@ -1036,9 +1078,11 @@ public sealed partial class GraphCompiler
 			foreach ( var (localResult, funcResult) in ShaderResult.Results )
 			{
 				sb.AppendLine( $"{funcResult.TypeName} {localResult} = {funcResult.Code};" );
-				//sb.AppendLine( $"if ( g_iStageId == {localId++} ) return {localResult.Cast( 4, 1.0f )};" );
 
-				if ( localResult.ResultType != NodeResultType.Bool )
+				if ( localResult.ResultType == NodeResultType.Bool )
+				{
+				}
+				else if ( localResult.ResultType != NodeResultType.Texture2D )
 				{
 					sb.AppendLine( $"if ( g_iStageId == {localId++} ) return {localResult.Cast( 4, 1.0f )};" );
 				}

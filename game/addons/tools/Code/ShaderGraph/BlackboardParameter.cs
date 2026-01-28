@@ -82,6 +82,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 				if ( isSubgraph && targetType == typeof( Float3BlackboardParameter ) ) return false;
 				if ( isSubgraph && targetType == typeof( Float4BlackboardParameter ) ) return false;
 				if ( isSubgraph && targetType == typeof( ColorBlackboardParameter ) ) return false;
+				if ( isSubgraph && targetType == typeof( Texture2DBlackboardParameter ) ) return false;
 
 				// TODO : Subgraph input parameters
 			}
@@ -126,6 +127,11 @@ public abstract class BlackboardParameter : IBlackboardParameter
 				};
 			case ColorBlackboardParameter:
 				return new ColorParameter()
+				{
+					BlackboardParameterIdentifier = parameter.Identifier,
+				};
+			case Texture2DBlackboardParameter:
+				return new Texture2DParameter()
 				{
 					BlackboardParameterIdentifier = parameter.Identifier,
 				};
@@ -188,5 +194,48 @@ public abstract class BlackboardMaterialParameter<T,Y> : BlackboardParameter whe
 		}
 
 		Value = (T)value;
+	}
+}
+
+public abstract class BlackboardTextureMaterialParameter : BlackboardParameter
+{
+	[ImageAssetPath]
+	[InlineEditor( Label = false ), Group( "Value" )]
+	public string DefaultTexture { get; set; }
+
+	[Hide]
+	private TextureInput _ui;
+	[InlineEditor( Label = false ), Group( "UI" )]
+	public TextureInput UI 
+	{ 
+		get => _ui with { Name = Name };
+		set
+		{
+			_ui = value;
+		}
+	}
+
+	public BlackboardTextureMaterialParameter() : base()
+	{
+	}
+
+	public BlackboardTextureMaterialParameter( string name, TextureInput value ) : base( name )
+	{
+		UI = value;
+	}
+
+	public override object GetValue()
+	{
+		return UI;
+	}
+
+	public override void SetValue( object value )
+	{
+		if ( value.GetType() != typeof( TextureInput ) )
+		{
+			throw new InvalidCastException( $"Cannot cast {value.GetType()} to {typeof( TextureInput )}" );
+		}
+
+		UI = (TextureInput)value;
 	}
 }

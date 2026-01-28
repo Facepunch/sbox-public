@@ -155,10 +155,10 @@ partial class ShaderGraph
 
 						var parameterID = AddBlackboardParameter_v2Upgrade( typeName, element, options );
 
-						if ( node is IParameterNode parameterNode )
+						if ( node is IBlackboardNode blackboardNode )
 						{
-							parameterNode.BlackboardParameterIdentifier = parameterID;
-							node = (BaseNode)parameterNode;
+							blackboardNode.BlackboardParameterIdentifier = parameterID;
+							node = (BaseNode)blackboardNode;
 						}
 					}
 				}
