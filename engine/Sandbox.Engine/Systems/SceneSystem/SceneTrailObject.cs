@@ -211,6 +211,7 @@ public struct TrailTextureConfig
 
 	[Group( "Texture Coordinates" )]
 	[Property]
+	[Range( 0, 360 )]
 	public float Rotation { get; set; }
 
 	[Group( "Texture Coordinates" )]
