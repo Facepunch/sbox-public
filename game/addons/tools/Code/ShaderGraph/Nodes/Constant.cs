@@ -9,7 +9,7 @@ namespace Editor.ShaderGraph.Nodes;
 public sealed class ConstantBool : ConstantNode<bool>
 {
 	[Output( typeof( bool ) ), Title( "Value" )]
-	[Hide, Editor( nameof( Value ) )]
+	[Hide, ValueEditor( nameof( Value ) )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		return compiler.ResultParameter( "", Value, default, default, false, false, default );
@@ -29,7 +29,7 @@ public sealed class ConstantInt : ConstantNode<int>
 	[Hide] public float Step => 1;
 
 	[Output( typeof( int ) ), Title( "Value" )]
-	[Hide, Editor( nameof( Value ) ), Range( nameof( Min ), nameof( Max ), nameof( Step ) )]
+	[Hide, ValueEditor( nameof( Value ) ), Range( nameof( Min ), nameof( Max ), nameof( Step ) )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		return compiler.ResultParameter( "", Value, default, default, false, false, default );
@@ -54,7 +54,7 @@ public sealed class ConstantFloat : ConstantNode<float>
 	public float Step { get; set; } = 0.0f;
 
 	[Output( typeof( float ) ), Title( "Value" )]
-	[Hide, Editor( nameof( Value ) ), Range( nameof( Min ), nameof( Max ), nameof( Step ) )]
+	[Hide, ValueEditor( nameof( Value ) ), Range( nameof( Min ), nameof( Max ), nameof( Step ) )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		return compiler.ResultParameter( "", Value, default, default, false, false, default );
@@ -114,14 +114,14 @@ public sealed class ConstantFloat2 : ConstantNode<Vector2>
 	/// <summary>
 	/// X component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueX ) ), Title( "X" )]
+	[Output( typeof( float ) ), Hide, ValueEditor( nameof( ValueX ) ), Title( "X" )]
 	[Range( nameof( MinX ), nameof( MaxX ), nameof( Step ) )]
 	public NodeResult.Func X => ( GraphCompiler compiler ) => Component( "x", ValueX, compiler );
 
 	/// <summary>
 	/// Y component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueY ) ), Title( "Y" )]
+	[Output( typeof( float ) ), Hide, ValueEditor( nameof( ValueY ) ), Title( "Y" )]
 	[Range( nameof( MinY ), nameof( MaxY ), nameof( Step ) )]
 	public NodeResult.Func Y => ( GraphCompiler compiler ) => Component( "y", ValueY, compiler );
 }
@@ -179,21 +179,21 @@ public sealed class ConstantFloat3 : ConstantNode<Vector3>
 	/// <summary>
 	/// X component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueX ) ), Title( "X" )]
+	[Output( typeof( float ) ), Hide, ValueEditor( nameof( ValueX ) ), Title( "X" )]
 	[Range( nameof( MinX ), nameof( MaxX ), nameof( Step ) )]
 	public NodeResult.Func X => ( GraphCompiler compiler ) => Component( "x", ValueX, compiler );
 
 	/// <summary>
 	/// Y component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueY ) ), Title( "Y" )]
+	[Output( typeof( float ) ), Hide, ValueEditor( nameof( ValueY ) ), Title( "Y" )]
 	[Range( nameof( MinY ), nameof( MaxY ), nameof( Step ) )]
 	public NodeResult.Func Y => ( GraphCompiler compiler ) => Component( "y", ValueY, compiler );
 
 	/// <summary>
 	/// Z component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueZ ) ), Title( "Z" )]
+	[Output( typeof( float ) ), Hide, ValueEditor( nameof( ValueZ ) ), Title( "Z" )]
 	[Range( nameof( MinZ ), nameof( MaxZ ), nameof( Step ) )]
 	public NodeResult.Func Z => ( GraphCompiler compiler ) => Component( "z", ValueZ, compiler );
 }
@@ -260,28 +260,28 @@ public sealed class ConstantFloat4 : ConstantNode<Vector4>
 	/// <summary>
 	/// X component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueX ) ), Title( "X" )]
+	[Output( typeof( float ) ), Hide, ValueEditor( nameof( ValueX ) ), Title( "X" )]
 	[Range( nameof( MinX ), nameof( MaxX ), nameof( Step ) )]
 	public NodeResult.Func X => ( GraphCompiler compiler ) => Component( "x", ValueX, compiler );
 
 	/// <summary>
 	/// Y component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueY ) ), Title( "Y" )]
+	[Output( typeof( float ) ), Hide, ValueEditor( nameof( ValueY ) ), Title( "Y" )]
 	[Range( nameof( MinY ), nameof( MaxY ), nameof( Step ) )]
 	public NodeResult.Func Y => ( GraphCompiler compiler ) => Component( "y", ValueY, compiler );
 
 	/// <summary>
 	/// Z component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueZ ) ), Title( "Z" )]
+	[Output( typeof( float ) ), Hide, ValueEditor( nameof( ValueZ ) ), Title( "Z" )]
 	[Range( nameof( MinZ ), nameof( MaxZ ), nameof( Step ) )]
 	public NodeResult.Func Z => ( GraphCompiler compiler ) => Component( "z", ValueZ, compiler );
 
 	/// <summary>
 	/// W component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueW ) ), Title( "W" )]
+	[Output( typeof( float ) ), Hide, ValueEditor( nameof( ValueW ) ), Title( "W" )]
 	[Range( nameof( MinW ), nameof( MaxW ), nameof( Step ) )]
 	public NodeResult.Func W => ( GraphCompiler compiler ) => Component( "W", ValueW, compiler );
 }
@@ -293,7 +293,7 @@ public sealed class ConstantFloat4 : ConstantNode<Vector4>
 public sealed class ConstantColor : ConstantNode<Color>
 {
 	[Output( typeof( Color ) ), Title( "RGBA" )]
-	[Hide, Editor( nameof( Value ) )]
+	[Hide, ValueEditor( nameof( Value ) )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		return compiler.ResultParameter( "", Value, default, default, false, false, default );
@@ -330,25 +330,25 @@ public sealed class ConstantColor : ConstantNode<Color>
 	/// <summary>
 	/// Red component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueR ) ), Title( "Red" )]
+	[Output( typeof( float ) ), Hide, ValueEditor( nameof( ValueR ) ), Title( "Red" )]
 	public NodeResult.Func R => ( GraphCompiler compiler ) => Component( "r", ValueR, compiler );
 
 	/// <summary>
 	/// Green component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueG ) ), Title( "Green" )]
+	[Output( typeof( float ) ), Hide, ValueEditor( nameof( ValueG ) ), Title( "Green" )]
 	public NodeResult.Func G => ( GraphCompiler compiler ) => Component( "g", ValueG, compiler );
 
 	/// <summary>
 	/// Green component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueB ) ), Title( "Blue" )]
+	[Output( typeof( float ) ), Hide, ValueEditor( nameof( ValueB ) ), Title( "Blue" )]
 	public NodeResult.Func B => ( GraphCompiler compiler ) => Component( "b", ValueB, compiler );
 
 	/// <summary>
 	/// Alpha component of result
 	/// </summary>
-	[Output( typeof( float ) ), Hide, Editor( nameof( ValueA ) ), Title( "Alpha" )]
+	[Output( typeof( float ) ), Hide, ValueEditor( nameof( ValueA ) ), Title( "Alpha" )]
 	public NodeResult.Func A => ( GraphCompiler compiler ) => Component( "a", ValueA, compiler );
 
 	public ConstantColor()

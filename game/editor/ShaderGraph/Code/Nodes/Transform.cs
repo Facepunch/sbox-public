@@ -301,7 +301,7 @@ public sealed class Blend : ShaderNode
 	public NodeInput B { get; set; }
 
 	[Input( typeof( float ) ), Title( "Fraction" )]
-	[Hide, Editor( nameof( Fraction ) )]
+	[Hide, ValueEditor( nameof( Fraction ) )]
 	public NodeInput C { get; set; }
 
 	[InputDefault( nameof( A ) )]

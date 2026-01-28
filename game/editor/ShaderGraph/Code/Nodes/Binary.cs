@@ -128,7 +128,7 @@ public sealed class Lerp : ShaderNode
 	public NodeInput B { get; set; }
 
 	[Input( typeof( float ) ), Title( "Fraction" )]
-	[Hide, Editor( nameof( Fraction ) )]
+	[Hide, ValueEditor( nameof( Fraction ) )]
 	public NodeInput C { get; set; }
 
 	[InputDefault( nameof( A ) )]
@@ -215,28 +215,28 @@ public sealed class RemapValue : ShaderNode
 	/// The minimum range of the input
 	/// </summary>
 	[Input( typeof( float ) ), Title( "In Min" )]
-	[Hide, Editor( nameof( InMin ) )]
+	[Hide, ValueEditor( nameof( InMin ) )]
 	public NodeInput B { get; set; }
 
 	/// <summary>
 	/// The maximum range of the input
 	/// </summary>
 	[Input( typeof( float ) ), Title( "In Max" )]
-	[Hide, Editor( nameof( InMax ) )]
+	[Hide, ValueEditor( nameof( InMax ) )]
 	public NodeInput C { get; set; }
 
 	/// <summary>
 	/// The output minimum range the input should map to
 	/// </summary>
 	[Input( typeof( float ) ), Title( "Out Min" )]
-	[Hide, Editor( nameof( OutMin ) )]
+	[Hide, ValueEditor( nameof( OutMin ) )]
 	public NodeInput D { get; set; }
 
 	/// <summary>
 	/// The output maximum range the input should map to
 	/// </summary>
 	[Input( typeof( float ) ), Title( "Out Max" )]
-	[Hide, Editor( nameof( OutMax ) )]
+	[Hide, ValueEditor( nameof( OutMax ) )]
 	public NodeInput E { get; set; }
 
 	/// <summary>

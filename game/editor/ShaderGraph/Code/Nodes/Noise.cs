@@ -63,12 +63,12 @@ public sealed class VoronoiNoise : ShaderNode
 	public NodeInput Coords { get; set; }
 
 	[Input( typeof( float ) ), Title( "Angle Offset" )]
-	[Hide, Editor( nameof( AngleOffset ) )]
+	[Hide, ValueEditor( nameof( AngleOffset ) )]
 	[MinMax( 0.0f, 6.28319f )]
 	public NodeInput A { get; set; }
 
 	[Input( typeof( float ) ), Title( "Cell Density" )]
-	[Hide, Editor( nameof( CellDensity ) )]
+	[Hide, ValueEditor( nameof( CellDensity ) )]
 	[MinMax( 0.0f, 100.0f )]
 	public NodeInput B { get; set; }
 

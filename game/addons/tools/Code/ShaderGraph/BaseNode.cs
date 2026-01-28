@@ -156,11 +156,11 @@ public abstract class BaseNode : INode
 	}
 
 	[System.AttributeUsage( AttributeTargets.Property )]
-	public class EditorAttribute : Attribute
+	public class ValueEditorAttribute : Attribute
 	{
 		public string ValueName;
 
-		public EditorAttribute( string valueName )
+		public ValueEditorAttribute( string valueName )
 		{
 			ValueName = valueName;
 		}
@@ -432,7 +432,7 @@ public class PlugInfo
 
 	public ValueEditor CreateEditor( NodeUI node, Plug plug, Type type )
 	{
-		var editor = Property?.GetCustomAttribute<BaseNode.EditorAttribute>();
+		var editor = Property?.GetCustomAttribute<BaseNode.ValueEditorAttribute>();
 
 		if ( editor is not null )
 		{
