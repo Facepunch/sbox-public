@@ -8,6 +8,14 @@ public class AssetEntry : IAssetListEntry
 {
 	private readonly Color TypeColor;
 
+	/// <summary>
+	/// Cached path used for identity (Equals/GetHashCode). This is set once at construction
+	/// and never changes, even if the file is renamed. This is critical because AssetEntry
+	/// is used as a key in hash-based collections (like SelectionSystem), and changing the
+	/// hash code after insertion would corrupt the collection's state.
+	/// </summary>
+	private readonly string _identityPath;
+
 	public readonly FileInfo FileInfo;
 	public readonly string TypeName;
 	public Asset Asset { get; private set; }
@@ -45,6 +53,7 @@ public class AssetEntry : IAssetListEntry
 	public AssetEntry( FileInfo fileInfo, Asset asset )
 	{
 		FileInfo = fileInfo;
+		_identityPath = fileInfo.FullName;
 
 		var fileExtension = Path.GetExtension( fileInfo.Name );
 
@@ -237,12 +246,14 @@ public class AssetEntry : IAssetListEntry
 			return false;
 		}
 
-		return FileInfo.FullName.Equals( ae.FileInfo.FullName );
+		var thisPath = _identityPath ?? FileInfo.FullName;
+		var otherPath = ae._identityPath ?? ae.FileInfo.FullName;
+		return thisPath.Equals( otherPath );
 	}
 
 	public override int GetHashCode()
 	{
-		return FileInfo.FullName.GetHashCode();
+		return (_identityPath ?? FileInfo.FullName).GetHashCode();
 	}
 }
 
