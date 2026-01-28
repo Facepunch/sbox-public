@@ -42,7 +42,33 @@ public class Voice : Component
 	public bool LipSync { get; set; } = true;
 
 	[Property, Group( "LipSync" )]
-	public SkinnedModelRenderer Renderer { get; set; }
+	public SkinnedModelRenderer Renderer
+	{
+		get;
+		set
+		{
+			field = value;
+
+			if ( field.IsValid() && field.Model.IsValid() && field.Model.MorphCount > 0 )
+			{
+				morphs = new float[field.Model.MorphCount];
+
+				if ( sound.IsValid() )
+				{
+					sound.LipSync.Enabled = LipSync;
+				}
+			}
+			else
+			{
+				morphs = null;
+
+				if ( sound.IsValid() )
+				{
+					sound.LipSync.Enabled = false;
+				}
+			}
+		}
+	}
 
 	[Property, Group( "LipSync" ), Range( 0, 5 )]
 	public float MorphScale { get; set; } = 3.0f;
@@ -152,7 +178,7 @@ public class Voice : Component
 
 		soundStream = new SoundStream( VoiceManager.SampleRate );
 
-		if ( Renderer.IsValid() && Renderer.Model.MorphCount > 0 )
+		if ( Renderer.IsValid() && Renderer.Model.IsValid() && Renderer.Model.MorphCount > 0 )
 		{
 			morphs = new float[Renderer.Model.MorphCount];
 		}
