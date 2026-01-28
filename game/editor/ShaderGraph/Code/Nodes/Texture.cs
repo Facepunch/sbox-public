@@ -146,7 +146,7 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IE
 /// <summary>
 /// Sample a 2D Texture
 /// </summary>
-[Title( "Texture 2D" ), Category( "Textures" ), Icon( "image" )]
+[Title( "Texture2D Sampler" ), Category( "Textures" ), Icon( "image" )]
 public sealed class TextureSampler : TextureSamplerBase
 {
 	/// <summary>
@@ -217,7 +217,7 @@ public sealed class TextureSampler : TextureSamplerBase
 /// <summary>
 /// Sample a Cube Texture
 /// </summary>
-[Title( "Texture Cube" ), Category( "Textures" ), Icon( "view_in_ar" )]
+[Title( "Texture Cube Sampler" ), Category( "Textures" ), Icon( "view_in_ar" )]
 public sealed class TextureCube : ShaderNode
 {
 	/// <summary>
@@ -328,7 +328,7 @@ public sealed class TextureCube : ShaderNode
 /// <summary>
 /// Sample a 2D texture from 3 directions, then blend based on a normal vector.
 /// </summary>
-[Title( "Texture Triplanar" ), Category( "Textures" ), Icon( "photo_library" )]
+[Title( "Texture2D Triplanar Sampler" ), Category( "Textures" ), Icon( "photo_library" )]
 public sealed class TextureTriplanar : TextureSamplerBase
 {
 	/// <summary>
@@ -403,7 +403,7 @@ public sealed class TextureTriplanar : TextureSamplerBase
 /// <summary>
 /// Sample a 2D texture from 3 directions, then blend based on a normal vector.
 /// </summary>
-[Title( "Normal Map Triplanar" ), Category( "Textures" ), Icon( "texture" )]
+[Title( "Texture2D Normal Map Triplanar Sampler" ), Category( "Textures" ), Icon( "texture" )]
 public sealed class NormapMapTriplanar : TextureSamplerBase
 {
 	/// <summary>
