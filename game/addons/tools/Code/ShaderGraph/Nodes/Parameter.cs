@@ -445,7 +445,7 @@ public sealed class Texture2DParameter : ShaderNode, ITextureParameterNodeNew
 		}
 		else
 		{
-			Log.Warning( $"Failed to compile {_image}" );
+			Log.Warning( $"Failed to compile '{_image}'" );
 		}
 	}
 
