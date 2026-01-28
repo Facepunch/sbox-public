@@ -103,16 +103,16 @@ public sealed class PhysicsBodyBuilder
 	/// </summary>
 	public enum SimplifyMethod
 	{
-		/// <summary>Quadratic Error Metric – prioritizes preserving shape accuracy.</summary>
+		/// <summary>Quadratic Error Metric - prioritizes preserving shape accuracy.</summary>
 		QEM,
 
-		/// <summary>Iterative Vertex Removal – removes vertices gradually.</summary>
+		/// <summary>Iterative Vertex Removal - removes vertices gradually.</summary>
 		IVR,
 
-		/// <summary>No simplification – use the exact points provided.</summary>
+		/// <summary>No simplification - use the exact points provided.</summary>
 		None,
 
-		/// <summary>Iterative Face Removal – removes faces to reduce complexity.</summary>
+		/// <summary>Iterative Face Removal - removes faces to reduce complexity.</summary>
 		IFR
 	}
 
