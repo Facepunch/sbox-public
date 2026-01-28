@@ -184,10 +184,10 @@ public abstract class BaseNode : INode
 	/// <summary>
 	/// Connects a <see cref="NodeResult.Func"/> property from another node to the <see cref="NodeInput"/> property on this <see cref="BaseNode"/> instance.
 	/// </summary>
-	/// <param name="inputName">The name of the <see cref="NodeInput"/> property on this <see cref="BaseNode"/> instance. That the specified <see cref="NodeResult.Func"/> property from another node in the graph will be connected to.</param>
-	/// <param name="targetOutputName">The name of the <see cref="NodeResult.Func"/> property from another node in the graph that will be connected to a <see cref="NodeInput"/> property on this <see cref="BaseNode"/> instance.</param>
-	/// <param name="targetOutputNodeIdentifier">The Identifier of another <see cref="BaseNode"/> from the graph that we are connecting from.</param>
-	internal void ConnectNode( string inputName, string targetOutputName, string targetOutputNodeIdentifier )
+	/// <param name="targetInputName">The internal input name on this <see cref="BaseNode"/> instance that will be connected to.</param>
+	/// <param name="sourceNodeOutputName">The internal output name of the source <see cref="BaseNode"/> that the new connection is coming from.</param>
+	/// <param name="sourceNodeIdentifier">The Identifier of the souce <see cref="BaseNode"/> that we are connecting from.</param>
+	internal void ConnectNode( string targetInputName, string sourceNodeOutputName, string sourceNodeIdentifier )
 	{
 		if ( Graph == null )
 		{
@@ -195,21 +195,21 @@ public abstract class BaseNode : INode
 		}
 
 		var graph = Graph as ShaderGraph;
-		var targetOutputNode = graph.Nodes.Where( x => x.Identifier == targetOutputNodeIdentifier ).FirstOrDefault();
+		var targetOutputNode = graph.Nodes.Where( x => x.Identifier == sourceNodeIdentifier ).FirstOrDefault();
 
 		if ( targetOutputNode != null )
 		{
-			var plugIn = Inputs.Where( x => x.Identifier == inputName ).FirstOrDefault();
-			var targetOutputPlug = targetOutputNode.Outputs.FirstOrDefault( x => x.Identifier == targetOutputName );
+			var plugIn = Inputs.Where( x => x.Identifier == targetInputName ).FirstOrDefault();
+			var targetOutputPlug = targetOutputNode.Outputs.FirstOrDefault( x => x.Identifier == sourceNodeOutputName );
 
 			if ( plugIn == null )
 			{
-				throw new Exception( $"Cannot find input with name '{inputName}' on node '{this}'" );
+				throw new Exception( $"Cannot find input with name '{targetInputName}' on node '{this}'" );
 			}
 
 			if ( targetOutputPlug == null )
 			{
-				throw new Exception( $"Cannot find output with name '{targetOutputName}' on node '{targetOutputNode}'" );
+				throw new Exception( $"Cannot find output with name '{sourceNodeOutputName}' on node '{targetOutputNode}'" );
 			}
 
 
@@ -217,7 +217,7 @@ public abstract class BaseNode : INode
 		}
 		else
 		{
-			throw new Exception( $"Cannot find node with Identifier '{targetOutputNodeIdentifier}'" );
+			throw new Exception( $"Cannot find node with Identifier '{sourceNodeIdentifier}'" );
 		}
 	}
 
