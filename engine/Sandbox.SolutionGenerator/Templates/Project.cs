@@ -54,8 +54,8 @@ internal partial class Project
 		if ( ProjectName == "Base Library" )
 		{
 			sb.AppendLine( $"	<ItemGroup>" );
-			sb.AppendLine( $"		<EmbeddedResource Include=\"..\\shaders\\**\\*.shader\" LinkBase=\"Shaders (Embedded)\" /> " );
-			sb.AppendLine( $"		<EmbeddedResource Include=\"..\\shaders\\**\\*.hlsl\" LinkBase=\"Shaders (Embedded)\" /> " );
+			sb.AppendLine( $"		<EmbeddedResource Include=\"../shaders/**/*.shader\" LinkBase=\"Shaders (Embedded)\" /> " );
+			sb.AppendLine( $"		<EmbeddedResource Include=\"../shaders/**/*.hlsl\" LinkBase=\"Shaders (Embedded)\" /> " );
 			sb.AppendLine( $"	</ItemGroup>" );
 			sb.AppendLine( $"" );
 		}
@@ -80,12 +80,12 @@ internal partial class Project
 
 		{
 			sb.AppendLine( $"	<ItemGroup>" );
-			sb.AppendLine( $"		<Analyzer Include=\"{ManagedRoot}\\Sandbox.CodeUpgrader.dll\"/> " );
-			sb.AppendLine( $"		<Analyzer Include=\"{ManagedRoot}\\Sandbox.Generator.dll\"/> " );
+			sb.AppendLine( $"		<Analyzer Include=\"{ManagedRoot}/Sandbox.CodeUpgrader.dll\"/> " );
+			sb.AppendLine( $"		<Analyzer Include=\"{ManagedRoot}/Sandbox.Generator.dll\"/> " );
 
 			foreach ( var entry in References )
 			{
-				sb.AppendLine( $"		<Reference Include=\"{ManagedRoot}\\{entry}\"/> " );
+				sb.AppendLine( $"		<Reference Include=\"{ManagedRoot}/{entry}\"/> " );
 			}
 
 			sb.AppendLine( $"	</ItemGroup>" );
