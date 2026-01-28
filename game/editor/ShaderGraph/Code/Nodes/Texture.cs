@@ -394,7 +394,7 @@ public sealed class TextureCube : ShaderNode
 /// <summary>
 /// Sample a 2D texture from 3 directions, then blend based on a normal vector.
 /// </summary>
-[Title( "Texture2D Triplanar Sampler" ), Category( "Textures" ), Icon( "photo_library" )]
+[Title( "Texture 2D Triplanar Sampler" ), Category( "Textures" ), Icon( "photo_library" )]
 public sealed class TextureTriplanar : TextureSamplerBase
 {
 	/// <summary>
@@ -516,7 +516,7 @@ public sealed class TextureTriplanar : TextureSamplerBase
 /// <summary>
 /// Sample a 2D texture from 3 directions, then blend based on a normal vector.
 /// </summary>
-[Title( "Texture2D Normal Map Triplanar Sampler" ), Category( "Textures" ), Icon( "texture" )]
+[Title( "Texture 2D Normal Map Triplanar Sampler" ), Category( "Textures" ), Icon( "texture" )]
 public sealed class NormapMapTriplanar : TextureSamplerBase
 {
 	/// <summary>
