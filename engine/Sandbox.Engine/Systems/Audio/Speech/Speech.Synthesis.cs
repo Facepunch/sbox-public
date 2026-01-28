@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if WINDOWS
+using System;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Speech.AudioFormat;
@@ -242,3 +243,4 @@ public sealed class Synthesizer
 	}
 
 }
+#endif
