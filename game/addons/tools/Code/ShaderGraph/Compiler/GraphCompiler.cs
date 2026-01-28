@@ -1,4 +1,5 @@
 ﻿using Editor.NodeEditor;
+using Editor.ShaderGraph.Nodes;
 using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -42,7 +43,7 @@ public sealed partial class GraphCompiler
 	public HashSet<string> PixelIncludes { get; private set; } = new();
 	public HashSet<string> VertexIncludes { get; private set; } = new();
 
-	public Dictionary<string, Texture> PreviewTextures = new();
+	public Dictionary<string, string> PreviewImages = new();
 
 	/// <summary>
 	/// Is this compile for just the preview or not, preview uses attributes for constant values
@@ -112,8 +113,18 @@ public sealed partial class GraphCompiler
 		}
 		else
 		{
-			// 
+			//
 		}
+	}
+
+	public string GetPreviewImage( string name )
+	{
+		return PreviewImages.GetValueOrDefault( name );
+	}
+
+	public bool TryGetPreviewImage( string name, out string imagePath )
+	{
+		return PreviewImages.TryGetValue( name, out imagePath );
 	}
 
 	private void AddSubgraphs( ShaderGraph graph )
@@ -185,74 +196,74 @@ public sealed partial class GraphCompiler
 	/// <summary>
 	/// Register a texture and return the name of it
 	/// </summary>
-	public (string, int) ResultTexture( Sampler sampler, TextureInput input, Texture texture )
+	public (string, int) ResultTexture( Sampler sampler, TextureInput input, Texture texture, bool textureInputConnected = false )
 	{
 		var name = CleanName( input.Name );
-		name = string.IsNullOrWhiteSpace( name ) ? $"Texture_{StageName}_{ShaderResult.TextureInputs.Count}" : name;
-
-		var id = name;
-		int count = 0;
-
 		var result = ShaderResult;
+		var globalName = "";
 
-		while ( result.TextureInputs.ContainsKey( id ) )
+		if ( !textureInputConnected )
 		{
-			id = $"{name}_{count++}";
+			name = string.IsNullOrWhiteSpace( name ) ? $"Texture_{StageName}_{ShaderResult.TextureInputs.Count}" : name;
+
+			if ( !result.TextureInputs.ContainsKey( name ) )
+				result.TextureInputs.Add( name, input );
+
+			if ( !result.SamplerStates.Contains( sampler ) )
+				result.SamplerStates.Add( sampler );
+
+			SetAttribute( name, texture );
+
+			globalName = $"g_t{name}";
+
+			if ( CurrentResultInput == "Albedo" )
+			{
+				result.RepresentativeTexture = globalName;
+			}
+
+			return new( globalName, result.SamplerStates.IndexOf( sampler ) );
 		}
 
 		if ( !result.SamplerStates.Contains( sampler ) )
 			result.SamplerStates.Add( sampler );
 
-		OnAttribute?.Invoke( id, texture );
-
-		result.TextureInputs.Add( id, input );
-
+		globalName = $"g_t{name}";
 		if ( CurrentResultInput == "Albedo" )
 		{
-			result.RepresentativeTexture = $"g_t{id}";
+			result.RepresentativeTexture = globalName;
 		}
 
-		return new( $"g_t{id}", result.SamplerStates.IndexOf( sampler ) );
+		return new( globalName, result.SamplerStates.IndexOf( sampler ) );
 	}
 
 	/// <summary>
-	/// Register a texture and return the name of it
+	/// Similar to <seealso cref="ResultTexture(Sampler, TextureInput, Texture, bool)"/> but just for <seealso cref="Texture2DParameter"/>
 	/// </summary>
-	internal string ResultTexture( TextureInput input, Texture texture )
+	internal string ResultTexture( TextureInput input, Texture texture, string imagePath )
 	{
 		var name = CleanName( input.Name );
 		name = string.IsNullOrWhiteSpace( name ) ? $"Texture_{StageName}_{ShaderResult.TextureInputs.Count}" : name;
 
-		if ( PreviewTextures.ContainsKey( $"g_t{name}" ) )
-		{
-			return $"g_t{name}";
-		}
-
-		var id = name;
-		int count = 0;
-
 		var result = ShaderResult;
-
-		while ( result.TextureInputs.ContainsKey( id ) )
+		if ( !result.TextureInputs.ContainsKey( name ) )
 		{
-			id = $"{name}_{count++}";
+			result.TextureInputs.Add( name, input );
 		}
 
-		OnAttribute?.Invoke( id, texture );
+		if ( !PreviewImages.ContainsKey( $"g_t{name}" ) )
+		{
+			PreviewImages.Add( $"g_t{name}", imagePath );
+		}
 
-		result.TextureInputs.Add( id, input );
+		SetAttribute( name, texture );
 
+		var globalName = $"g_t{name}";
 		if ( CurrentResultInput == "Albedo" )
 		{
-			result.RepresentativeTexture = $"g_t{id}";
+			result.RepresentativeTexture = globalName;
 		}
 
-		if ( !PreviewTextures.ContainsKey( $"g_t{id}" ) )
-		{
-			PreviewTextures.Add( id, texture );
-		}
-
-		return $"g_t{id}";
+		return globalName;
 	}
 
 	/// <summary>
@@ -1001,6 +1012,9 @@ public sealed partial class GraphCompiler
 
 			foreach ( var result in ShaderResult.Attributes )
 			{
+				if ( result.Value is Texture )
+					continue;
+
 				var typeName = result.Value switch
 				{
 					bool _ => "bool",

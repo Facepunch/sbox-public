@@ -475,6 +475,7 @@ public sealed class Texture2DParameter : ShaderNode, ITextureParameterNodeNew
 	[Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
+		Image = GetParameter().DefaultTexture;
 		var input = UI;
 		input.Type = TextureType.Tex2D;
 		input.DefaultTexture = _image;
@@ -484,8 +485,8 @@ public sealed class Texture2DParameter : ShaderNode, ITextureParameterNodeNew
 		var texture = string.IsNullOrWhiteSpace( TexturePath ) ? null : Texture.Load( TexturePath );
 		texture ??= Texture.White;
 
-		var textureGlobal = compiler.ResultTexture( input, texture );
+		var textureGlobal = compiler.ResultTexture( input, texture, Image );
 
-		return  new NodeResult( NodeResultType.Texture2D, textureGlobal );
+		return  new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
 	};
 }

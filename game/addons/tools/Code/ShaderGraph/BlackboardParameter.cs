@@ -130,10 +130,11 @@ public abstract class BlackboardParameter : IBlackboardParameter
 				{
 					BlackboardParameterIdentifier = parameter.Identifier,
 				};
-			case Texture2DBlackboardParameter:
+			case Texture2DBlackboardParameter v:
 				return new Texture2DParameter()
 				{
 					BlackboardParameterIdentifier = parameter.Identifier,
+					Image = v.DefaultTexture,
 				};
 		}
 

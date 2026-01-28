@@ -1,13 +1,15 @@
-﻿
-namespace Editor.ShaderGraph.Nodes;
+﻿namespace Editor.ShaderGraph.Nodes;
 
 public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IErroringNode
 {
+	[ShowIf( nameof( ShowDefaults ), true )]
+	public string Name { get; set; }
+
 	/// <summary>
 	/// Texture to sample in preview
 	/// </summary>
 	[ImageAssetPath]
-	[Hide]
+	[ShowIf( nameof( ShowDefaults ), true )]
 	public string Image
 	{
 		get => _image;
@@ -24,15 +26,25 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IE
 	}
 
 	private Asset _asset;
+	[JsonIgnore, Hide]
+	protected Asset Asset
+	{
+		get => _asset;
+		set
+		{
+			_asset = value;
+		}
+	}
+
 	private string _texture;
 	private string _image;
 	private string _resourceText;
 
 	[JsonIgnore, Hide]
-	protected Asset Asset => _asset;
+	protected string TexturePath => _texture;
 
 	[JsonIgnore, Hide]
-	protected string TexturePath => _texture;
+	protected bool ShowDefaults { get; set; } = true;
 
 	/// <summary>
 	/// How the texture is filtered and wrapped when sampled
@@ -81,6 +93,7 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IE
 	/// Settings for how this texture shows up in material editor
 	/// </summary>
 	[InlineEditor( Label = false ), Group( "UI" )]
+	[ShowIf( nameof( ShowDefaults ), true )]
 	public TextureInput UI { get; set; } = new TextureInput
 	{
 		ImageFormat = TextureFormat.DXT5,
@@ -89,12 +102,19 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IE
 	};
 
 	[Hide]
-	public override string Title => string.IsNullOrWhiteSpace( UI.Name ) ? null : $"{DisplayInfo.For( this ).Name} {UI.Name}";
+	public override string Title => string.IsNullOrWhiteSpace( UI.Name ) ? null : 
+		$"{DisplayInfo.For( this ).Name} {(ShowDefaults ?  $"( {UI.Name} )" : Name )}";
 
 	protected TextureSamplerBase() : base()
 	{
 		Image = "materials/dev/white_color.tga";
-		ExpandSize = new Vector2( 0, 8 + Inputs.Count() * 24 );
+		ExpandSize = new Vector2( 8, 8 + Inputs.Count() * 24 );
+	}
+
+	protected void SetNodeWidth( float width )
+	{
+		ExpandSize = ExpandSize.WithX( width );
+		Update();
 	}
 
 	public override void OnPaint( Rect rect )
@@ -150,6 +170,14 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IE
 public sealed class TextureSampler : TextureSamplerBase
 {
 	/// <summary>
+	/// Texture2D to sample from.
+	/// </summary>
+	[Title( "Texture2D" )]
+	[Input( typeof( Texture ) )]
+	[Hide]
+	public NodeInput Texture2D { get; set; }
+
+	/// <summary>
 	/// Coordinates to sample this texture (Defaults to vertex coordinates)
 	/// </summary>
 	[Title( "Coordinates" )]
@@ -166,6 +194,44 @@ public sealed class TextureSampler : TextureSamplerBase
 	{
 		var input = UI;
 		input.Type = TextureType.Tex2D;
+
+		var texture2DInput = compiler.Result( Texture2D );
+		if ( texture2DInput.IsValid )
+		{
+			if ( texture2DInput.ResultType != NodeResultType.Texture2D )
+			{
+				ErrorMessage = $"Input of `{nameof( Texture2D )}` must be of ResultType `{NodeResultType.Texture2D}`";
+				return NodeResult.Error( ErrorMessage );
+			}
+
+			ClearError();
+
+			if ( compiler.TryGetPreviewImage( texture2DInput.Code, out var imagePath ) )
+			{
+
+				Image = imagePath;
+				Name = "";
+				input.Name = texture2DInput.Code.TrimStart( "g_t" ).ToString();
+				ShowDefaults = false;
+
+				SetNodeWidth( 8 );
+			}
+			else
+			{
+				throw new Exception( $"Cannot find PreviewImage for texture input : {texture2DInput.Code}" );
+			}
+		}
+		else
+		{
+			ClearError();
+
+			Image = "materials/dev/white_color.tga";
+			input.Name = Name;
+			ShowDefaults = true;
+
+			SetNodeWidth( 64 );
+			UI = UI with { Name = Name };
+		}
 
 		CompileTexture();
 
@@ -332,6 +398,14 @@ public sealed class TextureCube : ShaderNode
 public sealed class TextureTriplanar : TextureSamplerBase
 {
 	/// <summary>
+	/// Texture2D to sample from.
+	/// </summary>
+	[Title( "Texture2D" )]
+	[Input( typeof( Texture ) )]
+	[Hide]
+	public NodeInput Texture2D { get; set; }
+
+	/// <summary>
 	/// Coordinates to sample this texture (Defaults to vertex position)
 	/// </summary>
 	[Title( "Coordinates" )]
@@ -356,6 +430,45 @@ public sealed class TextureTriplanar : TextureSamplerBase
 	{
 		var input = UI;
 		input.Type = TextureType.Tex2D;
+
+		var texture2DInput = compiler.Result( Texture2D );
+		if ( texture2DInput.IsValid )
+		{
+			if ( texture2DInput.ResultType != NodeResultType.Texture2D )
+			{
+				ErrorMessage = $"Input of `{nameof( Texture2D )}` must be of ResultType `{NodeResultType.Texture2D}`";
+				return NodeResult.Error( ErrorMessage );
+			}
+
+			ClearError();
+
+
+			if ( compiler.TryGetPreviewImage( texture2DInput.Code, out var imagePath ) )
+			{
+
+				Image = imagePath;
+				Name = "";
+				input.Name = texture2DInput.Code.TrimStart( "g_t" ).ToString();
+				ShowDefaults = false;
+
+				SetNodeWidth( 8 );
+			}
+			else
+			{
+				throw new Exception( $"Cannot find PreviewImage for texture input : {texture2DInput.Code}" );
+			}
+		}
+		else
+		{
+			ClearError();
+
+			Image = "materials/dev/white_color.tga";
+			input.Name = Name;
+			ShowDefaults = true;
+
+			SetNodeWidth( 64 );
+			UI = UI with { Name = Name };
+		}
 
 		CompileTexture();
 
@@ -407,6 +520,14 @@ public sealed class TextureTriplanar : TextureSamplerBase
 public sealed class NormapMapTriplanar : TextureSamplerBase
 {
 	/// <summary>
+	/// Texture2D to sample from.
+	/// </summary>
+	[Title( "Texture2D" )]
+	[Input( typeof( Texture ) )]
+	[Hide]
+	public NodeInput Texture2D { get; set; }
+
+	/// <summary>
 	/// Coordinates to sample this texture (Defaults to vertex position)
 	/// </summary>
 	[Title( "Coordinates" )]
@@ -424,7 +545,7 @@ public sealed class NormapMapTriplanar : TextureSamplerBase
 
 	public NormapMapTriplanar()
 	{
-		ExpandSize = new Vector2( 0f, 128f );
+		ExpandSize = new Vector2( 56f, 128f );
 
 		UI = new TextureInput
 		{
@@ -446,6 +567,44 @@ public sealed class NormapMapTriplanar : TextureSamplerBase
 	{
 		var input = UI;
 		input.Type = TextureType.Tex2D;
+
+		var texture2DInput = compiler.Result( Texture2D );
+		if ( texture2DInput.IsValid )
+		{
+			if ( texture2DInput.ResultType != NodeResultType.Texture2D )
+			{
+				ErrorMessage = $"Input of `{nameof( Texture2D )}` must be of ResultType `{NodeResultType.Texture2D}`";
+				return NodeResult.Error( ErrorMessage );
+			}
+
+			ClearError();
+
+			if ( compiler.TryGetPreviewImage( texture2DInput.Code, out var imagePath ) )
+			{
+
+				Image = imagePath;
+				Name = "";
+				input.Name = texture2DInput.Code.TrimStart( "g_t" ).ToString();
+				ShowDefaults = false;
+
+				SetNodeWidth( 8 );
+			}
+			else
+			{
+				throw new Exception( $"Cannot find PreviewImage for texture input : {texture2DInput.Code}" );
+			}
+		}
+		else
+		{
+			ClearError();
+
+			Image = "materials/dev/white_color.tga";
+			input.Name = Name;
+			ShowDefaults = true;
+
+			SetNodeWidth( 64 );
+			UI = UI with { Name = Name };
+		}
 
 		CompileTexture();
 
