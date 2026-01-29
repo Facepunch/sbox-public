@@ -153,7 +153,23 @@ public class BlackboardView : Widget
 		parameters = Graph.Parameters;
 		foreach ( var parameter in parameters )
 		{
-			var node = _treeView.AddItem( new BlackboardParameterNode( parameter ) );
+			var node = new BlackboardParameterNode( parameter );
+			node.OnParameterDeleted += ( p ) => 
+			{
+				var selected = _selectedParameter;
+
+				if ( _selectedParameter != null )
+				{
+					_selectedParameter = null;
+					OnParameterDeleted?.Invoke( parameter );
+				}
+
+				if ( !_graph.Parameters.Any() )
+				{
+					_deleteButton.Enabled = false;
+				}
+			};
+			_treeView.AddItem( node );
 			_treeView.Open( node );
 		}
 	}
@@ -829,6 +845,11 @@ file class BlackboardParameterNode : TreeNode<BlackboardParameter>
 
 	public override bool HasChildren => false;
 
+	///<summary>
+	///Called when a blackboard parameter is deleated.
+	///</summary>
+	public Action<BlackboardParameter> OnParameterDeleted {  get; set;}
+
 	public override string Name
 	{
 		get => Value.Name;
@@ -935,5 +956,17 @@ file class BlackboardParameterNode : TreeNode<BlackboardParameter>
 		}
 
 		return false;
+	}
+
+	public override bool OnContextMenu()
+	{
+		var m = new ContextMenu( TreeView ) { Searchable = false };
+
+		m.AddOption( "Delete", "delete", () => { OnParameterDeleted?.Invoke( Value ); }, "editor.delete" );
+		//m.AddOption( "Rename", "label", TreeView.BeginRename, "editor.rename" );
+
+		m.OpenAtCursor( false );
+
+		return true;
 	}
 }
