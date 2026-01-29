@@ -191,6 +191,10 @@ public class MainWindow : DockWindow
 	{
 		_shaderCompileErrors.Clear();
 
+		// Doing it in GeneratePreviewCode() instead when evaluating all the nodes.
+		// So that the Output widget dosent get cleared when you move a node or update the graph
+		// in any way. - QuackCola
+		/*
 		var compileErrors = new List<GraphCompiler.Error>();
 		foreach ( var node in _graph.Nodes )
 		{
@@ -200,7 +204,7 @@ public class MainWindow : DockWindow
 				if ( errors.Count > 0 )
 				{
 					_shaderCompileErrors.AddRange( errors );
-
+		
 					if ( IsSubgraph )
 					{
 						foreach ( var error in errors )
@@ -212,11 +216,11 @@ public class MainWindow : DockWindow
 			}
 		}
 		_output.Errors = compileErrors;
+		*/
 
 		if ( string.IsNullOrWhiteSpace( _generatedCode ) )
 		{
 			RestoreShader();
-
 			return;
 		}
 
@@ -415,10 +419,23 @@ public class MainWindow : DockWindow
 		var resultNode = _graph.Nodes.OfType<BaseResult>().FirstOrDefault();
 		var compiler = new GraphCompiler( _graph, true );
 		compiler.OnAttribute = OnAttribute;
+		var compileErrors = new List<GraphCompiler.Error>();
 
 		// Evaluate all nodes
 		foreach ( var node in _graph.Nodes.OfType<BaseNode>() )
 		{
+			if ( node is IErroringNode erroringNode )
+			{
+				var errors = erroringNode.GetErrors();
+				if ( errors.Count > 0 )
+				{
+					foreach ( var error in errors )
+					{
+						compileErrors.Add( new() { Message = error, Node = node } );
+					}
+				}
+			}
+
 			var property = node.GetType().GetProperties( BindingFlags.Instance | BindingFlags.Public | BindingFlags.Static )
 				.FirstOrDefault( x => x.GetGetMethod() != null && x.PropertyType == typeof( NodeResult.Func ) );
 
@@ -489,9 +506,10 @@ public class MainWindow : DockWindow
 
 		var code = compiler.Generate();
 
-		if ( compiler.Errors.Any() )
+		compileErrors.AddRange( compiler.Errors );
+		if ( compileErrors.Any() )
 		{
-			_output.Errors = compiler.Errors;
+			_output.Errors = compileErrors;
 			DockManager.RaiseDock( "Output" );
 
 			_generatedCode = null;
@@ -501,8 +519,7 @@ public class MainWindow : DockWindow
 			return null;
 		}
 
-		if ( _output != null )
-			_output.Clear();
+		_output?.Clear();
 
 		if ( _generatedCode != code )
 		{
