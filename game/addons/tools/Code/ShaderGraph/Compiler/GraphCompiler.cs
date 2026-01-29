@@ -666,6 +666,12 @@ public sealed partial class GraphCompiler
 		{
 			switch ( type )
 			{
+				case Type t when t == typeof( bool ):
+					return false;
+				case Type t when t == typeof( int ):
+					return 0;
+				case Type t when t == typeof( float ):
+					return 0.0f;
 				case Type t when t == typeof( Vector2 ):
 					return Vector2.Zero;
 				case Type t when t == typeof( Vector3 ):
@@ -674,17 +680,23 @@ public sealed partial class GraphCompiler
 					return Vector4.Zero;
 				case Type t when t == typeof( Color ):
 					return Color.White;
-				case Type t when t == typeof( int ):
-					return 0;
-				case Type t when t == typeof( float ):
-					return 0.0f;
-				case Type t when t == typeof( bool ):
-					return false;
+				case Type t when t == typeof( Texture ):
+					return "";
 			}
 		}
+
+		
 		if ( value is JsonElement el )
 		{
-			if ( type == typeof( float ) )
+			if ( type == typeof( bool ) )
+			{
+				value = el.GetBoolean();
+			}
+			else if ( type == typeof( int ) )
+			{
+				value = el.GetInt32();
+			}
+			else if ( type == typeof( float ) )
 			{
 				value = el.GetSingle();
 			}
@@ -704,12 +716,14 @@ public sealed partial class GraphCompiler
 			{
 				value = Color.Parse( el.GetString() ) ?? Color.White;
 			}
-			else if ( type == typeof( bool ) )
+			else if ( type == typeof( Texture ) )
 			{
-				value = el.GetBoolean();
+				value = el.GetString();
 			}
 		}
 
+
+		
 		return value;
 	}
 
@@ -747,13 +761,72 @@ public sealed partial class GraphCompiler
 				else
 				{
 					value = GetDefaultValue( lastNodeEntered, node.InputName, parentInput.Value.Item2 );
+
 					SubgraphStack.Add( lastStack );
 					Subgraph = lastSubgraph;
 					SubgraphNode = lastNode;
+
+					if ( parentInput.Value.Item1.InputType == InputType.Texture2D )
+					{
+						Log.Info( $"Got defaultValue of imagePath : {value}" );
+
+						// TEST
+						var textureInput = new TextureInput()
+						{
+							ImageFormat = TextureFormat.DXT5,
+							Type = TextureType.Tex2D,
+							SrgbRead = true,
+							Default = Color.White,
+						};
+
+						var texurePath = CompileTexture( (string)value, textureInput );
+						var textureGlobal = ResultTexture( textureInput, Texture.Load( texurePath ), (string)value );
+
+						var result = new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
+
+						return result;
+					}
 				}
 			}
 		}
 		return new();
+	}
+
+	private string CompileTexture( string path, TextureInput textureInput )
+	{
+		if ( string.IsNullOrWhiteSpace( path ) )
+			return "";
+
+		var resourceText = string.Format( ShaderTemplate.TextureDefinition,
+			path,
+			textureInput.ColorSpace,
+			textureInput.ImageFormat,
+			textureInput.Processor
+		);
+
+		var assetPath = $"shadergraph/textures/{path.Replace( ".", "_" )}_shadergraph.generated.vtex";
+
+		//if ( !CompiledTextures.TryGetValue( resourceText, out string precompiledTexturePath ) )
+		//{
+		//	CompiledTextures.Add( resourceText, assetPath );
+		//}
+		//else
+		//{
+		//	return precompiledTexturePath;
+		//}
+
+		var resourcePath = Editor.FileSystem.Root.GetFullPath( "/.source2/temp" );
+		resourcePath = System.IO.Path.Combine( resourcePath, assetPath );
+
+		if ( AssetSystem.CompileResource( resourcePath, resourceText ) )
+		{
+			return assetPath;
+		}
+		else
+		{
+			Log.Warning( $"Failed to compile {path}" );
+			return "";
+		}
 	}
 
 	private static int GetComponentCount( Type inputType )

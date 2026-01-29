@@ -2,6 +2,9 @@
 
 public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IErroringNode
 {
+	[Hide]
+	protected bool IsSubgraph => Graph is ShaderGraph graph && graph.IsSubgraph; 
+
 	[ShowIf( nameof( ShowDefaults ), true )]
 	public string Name { get; set; }
 
@@ -145,18 +148,18 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IE
 
 		if ( Graph is ShaderGraph sg && sg.IsSubgraph )
 		{
-			if ( string.IsNullOrWhiteSpace( UI.Name ) )
-			{
-				errors.Add( $"Texture parameter \"{DisplayInfo.For( this ).Name}\" is missing a name" );
-			}
-
-			foreach ( var node in sg.Nodes )
-			{
-				if ( node is ITextureParameterNode tpn && tpn != this && tpn.UI.Name == UI.Name )
-				{
-					errors.Add( $"Duplicate texture parameter name \"{UI.Name}\" on {DisplayInfo.For( this ).Name}" );
-				}
-			}
+			//if ( string.IsNullOrWhiteSpace( UI.Name ) )
+			//{
+			//	errors.Add( $"Texture parameter \"{DisplayInfo.For( this ).Name}\" is missing a name" );
+			//}
+			//
+			//foreach ( var node in sg.Nodes )
+			//{
+			//	if ( node is ITextureParameterNode tpn && tpn != this && tpn.UI.Name == UI.Name )
+			//	{
+			//		errors.Add( $"Duplicate texture parameter name \"{UI.Name}\" on {DisplayInfo.For( this ).Name}" );
+			//	}
+			//}
 		}
 
 		return errors;
@@ -221,7 +224,7 @@ public sealed class TextureSampler : TextureSamplerBase
 				throw new Exception( $"Cannot find PreviewImage for texture input : {texture2DInput.Code}" );
 			}
 		}
-		else
+		else if ( !IsSubgraph )
 		{
 			ClearError();
 
@@ -231,6 +234,31 @@ public sealed class TextureSampler : TextureSamplerBase
 
 			SetNodeWidth( 64 );
 			UI = UI with { Name = Name };
+		}
+		else
+		{
+			if ( texture2DInput.ResultType != NodeResultType.Texture2D )
+			{
+				ErrorMessage = $"Missing required input '{nameof( Texture2D )}'.";
+				return NodeResult.MissingInput( nameof( Texture2D ) );
+			}
+
+			ClearError();
+
+			if ( compiler.TryGetPreviewImage( texture2DInput.Code, out var imagePath ) )
+			{
+
+				Image = imagePath;
+				Name = "";
+				input.Name = texture2DInput.Code.TrimStart( "g_t" ).ToString();
+				ShowDefaults = false;
+
+				SetNodeWidth( 8 );
+			}
+			else
+			{
+				throw new Exception( $"Cannot find PreviewImage for texture input : {texture2DInput.Code}" );
+			}
 		}
 
 		CompileTexture();
@@ -458,7 +486,7 @@ public sealed class TextureTriplanar : TextureSamplerBase
 				throw new Exception( $"Cannot find PreviewImage for texture input : {texture2DInput.Code}" );
 			}
 		}
-		else
+		else if ( !IsSubgraph )
 		{
 			ClearError();
 
@@ -468,6 +496,16 @@ public sealed class TextureTriplanar : TextureSamplerBase
 
 			SetNodeWidth( 64 );
 			UI = UI with { Name = Name };
+		}
+		else
+		{
+			if ( texture2DInput.ResultType != NodeResultType.Texture2D )
+			{
+				ErrorMessage = $"Missing required input '{nameof( Texture2D )}'.";
+				return NodeResult.MissingInput( nameof( Texture2D ) );
+			}
+
+			ClearError();
 		}
 
 		CompileTexture();
@@ -594,7 +632,7 @@ public sealed class NormapMapTriplanar : TextureSamplerBase
 				throw new Exception( $"Cannot find PreviewImage for texture input : {texture2DInput.Code}" );
 			}
 		}
-		else
+		else if ( !IsSubgraph )
 		{
 			ClearError();
 
@@ -604,6 +642,16 @@ public sealed class NormapMapTriplanar : TextureSamplerBase
 
 			SetNodeWidth( 64 );
 			UI = UI with { Name = Name };
+		}
+		else
+		{
+			if ( texture2DInput.ResultType != NodeResultType.Texture2D )
+			{
+				ErrorMessage = $"Missing required input '{nameof( Texture2D )}'.";
+				return NodeResult.MissingInput( nameof( Texture2D ) );
+			}
+
+			ClearError();
 		}
 
 		CompileTexture();

@@ -7,6 +7,10 @@ namespace Editor.ShaderGraph;
 public sealed class SubgraphNode : ShaderNode, IErroringNode
 {
 	[Hide]
+	public bool IsSubgraph => Graph is ShaderGraph graph && graph.IsSubgraph;
+
+
+	[Hide]
 	public string SubgraphPath { get; set; }
 
 	[Hide, JsonIgnore]
@@ -89,6 +93,7 @@ public sealed class SubgraphNode : ShaderNode, IErroringNode
 				InputType.Float3 => typeof( Vector3 ),
 				InputType.Float4 => typeof( Vector4 ),
 				InputType.Color => typeof( Color ),
+				InputType.Texture2D => typeof( Texture ),
 				_ => throw new NotImplementedException()
 			};
 
@@ -259,7 +264,20 @@ internal class SubgraphNodeControlWidget : ControlWidget
 					return val;
 				}
 			};
+			var getterTextureInput = () =>
+			{
+				//if ( Node.DefaultValues.ContainsKey( name ) )
+				//{
+				//	return Node.DefaultValues[name];
+				//}
+				//else
+				{
+					return inputRef.Value.Item1.DefaultTextureInput;
+				}
+			};
 
+			var attributes = new List<Attribute>();
+			var properties = new List<SerializedProperty>();
 			var displayName = $"Default {name}";
 			if ( type == typeof( bool ) )
 			{
@@ -341,8 +359,44 @@ internal class SubgraphNodeControlWidget : ControlWidget
 					}, x => SetDefaultValue( name, x )
 				) );
 			}
+			else if ( !Node.IsSubgraph && type == typeof( Texture ) )
+			{
+				attributes.Add( new ImageAssetPathAttribute() );
+				properties.Add( EditorTypeLibrary.CreateProperty<string>(
+					"Default Texture", () =>
+					{
+						var val = getter();
+
+						if ( val is JsonElement el )
+						{
+							return el.GetString();
+						}
+
+						return (string)val;
+					}, x => SetDefaultValue( name, x ),
+					attributes.ToArray()
+				) );
+
+				properties.Add( EditorTypeLibrary.CreateProperty<TextureInput>(
+					displayName, () =>
+					{
+						var val = getterTextureInput();
+
+						//if ( val is JsonElement el )
+						//{
+						//	return JsonSerializer.Deserialize<TextureInput>( el )! with { Type = TextureType.Tex2D };
+						//}
+
+						return ((TextureInput)val) with { Type = TextureType.Tex2D };
+					}, x => SetDefaultValue( name, x ),
+					[new InlineEditorAttribute() { Label = false }, new WideModeAttribute() ]
+				) );
+
+				Sheet.AddGroup( displayName, properties.ToArray() );
+			}
 		}
 
+		/*
 		int textureInt = 0;
 		int defaultInt = 0;
 		foreach ( var node in Node.Subgraph.Nodes )
@@ -372,6 +426,7 @@ internal class SubgraphNodeControlWidget : ControlWidget
 				textureInt++;
 			}
 		}
+		*/
 	}
 
 	private void SetDefaultValue( string name, object value )

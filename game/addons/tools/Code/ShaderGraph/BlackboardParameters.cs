@@ -332,3 +332,33 @@ public sealed class ColorSubgraphInputBlackboardParameter : BlackboardSubgraphin
 	{
 	}
 }
+
+/// <summary>
+/// Texture2D subgraph input parameter
+/// </summary>
+[Title( "Texture2D" ), Icon( "image" ), Order( 7 )]
+public sealed class Texture2DSubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<string>
+{
+	[Hide,JsonIgnore]
+	public override InputType InputType => InputType.Texture2D;
+
+	[InlineEditor( Label = false ), Group( "Value" )]
+	[ImageAssetPath]
+	public override string Value { get; set; }
+
+	public Texture2DSubgraphInputBlackboardParameter() : base()
+	{
+		//UI = new TextureInput()
+		//{
+		//	ImageFormat = TextureFormat.DXT5,
+		//	Type = TextureType.Tex2D,
+		//	SrgbRead = true,
+		//	Default = Color.White,
+		//};
+	}
+
+	public Texture2DSubgraphInputBlackboardParameter( string name, string value )
+		: base( name, value )
+	{
+	}
+}

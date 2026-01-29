@@ -32,7 +32,7 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 	/// The type of the input parameter
 	/// </summary>
 	[Hide, JsonIgnore]
-	public InputType InputType => InputType.Color;
+	public InputType InputType => GetParameter().InputType;
 
 	//[Editor( "subgraphInputDefaultValue" )]
 	[Hide, JsonIgnore]
@@ -50,6 +50,9 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 			}
 		}
 	}
+
+	[Hide, JsonIgnore]
+	public TextureInput DefaultTextureInput { get; set; } = new() { Type = TextureType.Tex2D };
 
 	/// <summary>
 	/// Default value for float inputs
@@ -110,6 +113,84 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 		return default;
 	}
 
+#region Texture2D Stuff
+
+	[Hide]
+	private Asset _asset;
+	private string _texture;
+	private string _image;
+	private string _resourceText;
+
+	//[JsonIgnore, Hide]
+	//private Asset Asset => _asset;
+
+	[JsonIgnore, Hide]
+	private string TexturePath => _texture;
+
+	[JsonIgnore, Hide]
+	public string Image
+	{
+		get => _image;
+		set
+		{
+			_image = value;
+			_asset = AssetSystem.FindByPath( _image );
+
+			if ( _asset == null )
+				return;
+
+			CompileTexture();
+		}
+	}
+
+	// TEST
+	[JsonIgnore, Hide]
+	private TextureInput UI => new TextureInput()
+	{
+		ImageFormat = TextureFormat.DXT5,
+		Type = TextureType.Tex2D,
+		SrgbRead = true,
+		Default = Color.White,
+	};
+
+	private void CompileTexture()
+	{
+		if ( _asset == null )
+			return;
+
+		if ( string.IsNullOrWhiteSpace( _image ) )
+			return;
+
+		//var ui = UI;
+		//ui.DefaultTexture = _image;
+		//UI = ui;
+
+		var resourceText = string.Format( ShaderTemplate.TextureDefinition,
+			_image,
+			UI.ColorSpace,
+			UI.ImageFormat,
+			UI.Processor );
+
+		if ( _resourceText == resourceText )
+			return;
+
+		_resourceText = resourceText;
+
+		var assetPath = $"shadergraph/{_image.Replace( ".", "_" )}_shadergraph.generated.vtex";
+		var resourcePath = FileSystem.Root.GetFullPath( "/.source2/temp" );
+		resourcePath = System.IO.Path.Combine( resourcePath, assetPath );
+
+		if ( AssetSystem.CompileResource( resourcePath, resourceText ) )
+		{
+			_texture = assetPath;
+		}
+		else
+		{
+			Log.Warning( $"Failed to compile '{_image}'" );
+		}
+	}
+#endregion Texture2D Stuff
+
 	/// <summary>
 	/// Output for the input value
 	/// </summary>
@@ -128,11 +209,44 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 		// If we're in a subgraph context, just return the value directly
 		if ( compiler.Graph.IsSubgraph )
 		{
+			if ( InputType == InputType.Texture2D )
+			{
+				Image = (string)outputValue;
+				var input = UI;
+				input.Type = TextureType.Tex2D;
+				input.DefaultTexture = _image;
+
+				var texture = string.IsNullOrWhiteSpace( TexturePath ) ? null : Texture.Load( TexturePath );
+				texture ??= Texture.White;
+
+				var textureGlobal = compiler.ResultTexture( input, texture, Image );
+
+				return new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
+			}
+
 			return compiler.ResultValue( outputValue );
 		}
 
-		// For normal graphs, use ResultParameter to create a material parameter
-		return compiler.ResultParameter( InputName, outputValue, default, default, false, IsRequired, default );
+		if ( InputType == InputType.Texture2D )
+		{
+			Image = (string)outputValue;
+			var input = UI;
+			input.Type = TextureType.Tex2D;
+			input.DefaultTexture = _image;
+
+			var texture = string.IsNullOrWhiteSpace( TexturePath ) ? null : Texture.Load( TexturePath );
+			texture ??= Texture.White;
+
+			var textureGlobal = compiler.ResultTexture( input, texture, Image );
+
+			return new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
+		}
+		else
+		{
+			// For normal graphs, use ResultParameter to create a material parameter
+			return compiler.ResultParameter( InputName, outputValue, default, default, false, IsRequired, default );
+		}
+		
 	};
 
 	[JsonIgnore, Hide]
@@ -205,7 +319,10 @@ public enum InputType
 	Float4,
 
 	[Title( "Color" ), Icon( "palette" )]
-	Color
+	Color,
+
+	[Title( "Texture2D" ), Icon( "image" )]
+	Texture2D
 }
 
 [CustomEditor( typeof( object ), NamedEditor = "subgraphInputDefaultValue" )]

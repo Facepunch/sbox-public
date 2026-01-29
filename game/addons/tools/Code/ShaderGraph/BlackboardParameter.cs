@@ -113,6 +113,8 @@ public abstract class BlackboardParameter : IBlackboardParameter
 				if ( !isSubgraph && targetType == typeof( Float3SubgraphInputBlackboardParameter ) ) return false;
 				if ( !isSubgraph && targetType == typeof( Float4SubgraphInputBlackboardParameter ) ) return false;
 				if ( !isSubgraph && targetType == typeof( ColorSubgraphInputBlackboardParameter ) ) return false;
+				if ( !isSubgraph && targetType == typeof( Texture2DSubgraphInputBlackboardParameter ) ) return false;
+				
 			}
 
 			return true;
@@ -209,6 +211,12 @@ public abstract class BlackboardParameter : IBlackboardParameter
 					DefaultValue = Color.White,
 					BlackboardParameterIdentifier = parameter.Identifier,
 				};
+			case Texture2DSubgraphInputBlackboardParameter p:
+				return new SubgraphInput()
+				{
+					DefaultValue = "",
+					BlackboardParameterIdentifier = parameter.Identifier,
+				};
 			default:
 				throw new NotImplementedException();
 		}
@@ -283,7 +291,7 @@ public abstract class BlackboardSubgraphinputParameter<T> : BlackboardParameter,
 	public string InputDescription { get; set; } = "";
 
 	[InlineEditor( Label = false ), Group( "Value" )]
-	public T Value { get; set; }
+	public virtual T Value { get; set; }
 
 	/// <summary>
 	/// Whether this input is required (must have a connection in order to compile)
