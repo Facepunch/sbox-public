@@ -180,8 +180,9 @@ public unsafe struct Frustum : System.IEquatable<Frustum>
 		var halfHeight = orthoHeight * 0.5f;
 		var halfWidth = halfHeight * aspectRatio;
 
-		var min = (screenMin / screenSize) * 2.0f - Vector2.One;
-		var max = (screenMax / screenSize) * 2.0f - Vector2.One;
+		var screenSize2 = (Vector2)screenSize;
+		var min = (screenMin / screenSize2) * 2.0f - Vector2.One;
+		var max = (screenMax / screenSize2) * 2.0f - Vector2.One;
 
 		var left = min.x * halfWidth;
 		var right = max.x * halfWidth;
