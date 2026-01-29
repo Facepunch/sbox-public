@@ -99,6 +99,9 @@ public class DefaultEditor : ValueEditor
 		var shrink = 10f;
 		var extraWidth = 0f;
 		val = PaintHelper.FormatValue( type, rawVal, out extraWidth, out rawVal );
+
+		if ( string.IsNullOrWhiteSpace( val ) ) return;
+
 		var textSize = Paint.MeasureText( val ) + extraWidth;
 
 		var valueRect = new Rect( rect.Left - textSize.x - shrink * 2 - 8f, rect.Top, textSize.x + shrink * 2,
@@ -133,6 +136,11 @@ internal static class PaintHelper
 	{
 		extraWidth = 0f;
 		rawValue = value;
+		
+		if ( rawValue is JsonElement element )
+		{
+			rawValue = DeserializeElement( element, type );
+		}
 
 		switch ( rawValue )
 		{
@@ -185,6 +193,52 @@ internal static class PaintHelper
 			default:
 				return $"{rawValue}";
 		}
+	}
+
+	private static object DeserializeElement( JsonElement element, Type type )
+	{
+		if ( type == typeof( bool ) )
+		{
+			return bool.Parse( element.GetString() );
+		}
+		else if ( type == typeof( int ) )
+		{
+			return int.Parse( element.GetString() );
+		}
+		else if ( type == typeof( float ) )
+		{
+			return float.Parse( element.GetString() );
+		}
+		else if ( type == typeof( Vector2 ) )
+		{
+			return Vector2.Parse( element.GetString() );
+		}
+		else if ( type == typeof( Vector2Int ) )
+		{
+			return Vector2Int.Parse( element.GetString() );
+		}
+		else if ( type == typeof( Vector3 ) )
+		{
+			return Vector3.Parse( element.GetString() );
+		}
+		else if ( type == typeof( Vector3Int ) )
+		{
+			return Vector3Int.Parse( element.GetString() );
+		}
+		else if ( type == typeof( Vector4 ) )
+		{
+			return Vector4.Parse( element.GetString() );
+		}
+		else if ( type == typeof( Color ) )
+		{
+			return Color.Parse( element.GetString() );
+		}
+		else if ( type == typeof( Sampler ) )
+		{
+			return JsonSerializer.Deserialize<Sampler>( element )!;
+		}
+
+		throw new NotImplementedException();
 	}
 
 	public static void DrawValue( HandleConfig handleConfig, Rect valueRect, string text, float pulseScale = 1f, string icon = null, object rawValue = null )
