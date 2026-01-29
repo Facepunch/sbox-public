@@ -884,8 +884,8 @@ file class BlackboardParameterNode : TreeNode<BlackboardParameter>
 		var isEven = item.Row % 2 == 0;
 		var isHovered = item.Hovered;
 		var fullSpanRect = item.Rect;
-		fullSpanRect.Left = 0;
-		fullSpanRect.Right = TreeView.Width;
+		fullSpanRect.Left = 4;
+		fullSpanRect.Right = TreeView.Width - 4;
 		var textColor = Theme.TextControl;
 		var itemColor = Theme.ControlBackground;
 		var typeColor = Color.White;
