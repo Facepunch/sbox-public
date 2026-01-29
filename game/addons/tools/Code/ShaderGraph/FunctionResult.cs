@@ -231,36 +231,64 @@ public sealed class FunctionResult : BaseResult, IErroringNode
 		if ( !visited.Contains( "Albedo" ) )
 		{
 			var albedoResult = GetAlbedoResult( compiler );
+
+			if ( !albedoResult.IsValid )
+				return;
+
 			sb.AppendLine( $"m.Albedo = {albedoResult.Cast( 3 )};" );
 		}
 		if ( !visited.Contains( "Emission" ) )
 		{
 			var emissionResult = GetEmissionResult( compiler );
+
+			if ( !emissionResult.IsValid )
+				return;
+
 			sb.AppendLine( $"m.Emission = {emissionResult.Cast( 3 )};" );
 		}
 		if ( !visited.Contains( "Opacity" ) )
 		{
 			var opacityResult = GetOpacityResult( compiler );
+
+			if ( !opacityResult.IsValid )
+				return;
+
 			sb.AppendLine( $"m.Opacity = {opacityResult.Cast( 1 )};" );
 		}
 		if ( !visited.Contains( "Normal" ) )
 		{
 			var normalResult = GetNormalResult( compiler );
+
+			if ( !normalResult.IsValid )
+				return;
+
 			sb.AppendLine( $"m.Normal = {normalResult.Cast( 3 )};" );
 		}
 		if ( !visited.Contains( "Roughness" ) )
 		{
 			var roughnessResult = GetRoughnessResult( compiler );
+
+			if ( !roughnessResult.IsValid )
+				return;
+
 			sb.AppendLine( $"m.Roughness = {roughnessResult.Cast( 1 )};" );
 		}
 		if ( !visited.Contains( "Metalness" ) )
 		{
 			var metalnessResult = GetMetalnessResult( compiler );
+
+			if ( !metalnessResult.IsValid )
+				return;
+
 			sb.AppendLine( $"m.Metalness = {metalnessResult.Cast( 1 )};" );
 		}
 		if ( !visited.Contains( "AmbientOcclusion" ) )
 		{
 			var ambientOcclusionResult = GetAmbientOcclusionResult( compiler );
+
+			if ( !ambientOcclusionResult.IsValid )
+				return;
+
 			sb.AppendLine( $"m.AmbientOcclusion = {ambientOcclusionResult.Cast( 1 )};" );
 		}
 	}
