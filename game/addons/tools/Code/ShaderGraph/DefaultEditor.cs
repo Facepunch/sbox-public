@@ -80,7 +80,7 @@ public class DefaultEditor : ValueEditor
 				type = entry.inputNodeValueType;
 				if ( innerPlugIn.ConnectedOutput is not null )
 				{
-					rawVal = inputNode.GetValue();
+					rawVal = inputNode.DefaultValue;
 					val = rawVal.ToString();
 				}
 				else

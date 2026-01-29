@@ -122,7 +122,7 @@ public sealed class SubgraphNode : ShaderNode, IErroringNode
 
 			if ( !DefaultValues.ContainsKey( plug.Identifier ) )
 			{
-				DefaultValues[plug.Identifier] = subgraphInput.GetValue();
+				DefaultValues[plug.Identifier] = subgraphInput.DefaultValue;
 			}
 		}
 
@@ -263,7 +263,7 @@ internal class SubgraphNodeControlWidget : ControlWidget
 				}
 				else
 				{
-					var val = inputRef.Value.Item1.GetValue();
+					var val = inputRef.Value.inputNode.DefaultValue;
 					if ( val is JsonElement el ) return el.GetDouble();
 					return val;
 				}

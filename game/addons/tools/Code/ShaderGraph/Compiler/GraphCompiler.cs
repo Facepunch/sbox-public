@@ -385,6 +385,13 @@ public sealed partial class GraphCompiler
 					SubgraphNode = nodeId
 				};
 				var newResult = Result( newConnection );
+
+				if ( NodeErrors.Any() )
+				{
+					InputStack.Remove( input );
+					return default;
+				}
+
 				InputStack.Remove( input );
 				SubgraphStack.RemoveAt( SubgraphStack.Count - 1 );
 				Subgraph = newStack.Item2;
@@ -405,7 +412,16 @@ public sealed partial class GraphCompiler
 			{
 				if ( node is SubgraphInput subgraphInput && !string.IsNullOrWhiteSpace( subgraphInput.InputName ) )
 				{
-					var newResult = ResolveSubgraphInput( subgraphInput, ref value );
+					var newResult = ResolveSubgraphInput( subgraphInput, ref value, out var error );
+					
+					if ( !string.IsNullOrWhiteSpace( error.ErrorString ) )
+					{
+						NodeErrors.Add( error.Node, new List<string> { error.ErrorString } );
+
+						InputStack.Remove( input );
+						return default;
+					}
+
 					if ( newResult.IsValid )
 					{
 						InputStack.Remove( input );
@@ -727,10 +743,12 @@ public sealed partial class GraphCompiler
 		return value;
 	}
 
-	private NodeResult ResolveSubgraphInput( SubgraphInput node, ref object value )
+	private NodeResult ResolveSubgraphInput( SubgraphInput node, ref object value, out (SubgraphNode Node, string ErrorString) error )
 	{
 		var lastStack = SubgraphStack.LastOrDefault();
 		var lastNodeEntered = lastStack.Item1;
+		error = new();
+
 		if ( lastNodeEntered is not null )
 		{
 			var parentInput = lastNodeEntered.InputReferences.FirstOrDefault( x => x.Key.Identifier == node.InputName );
@@ -760,16 +778,14 @@ public sealed partial class GraphCompiler
 				}
 				else
 				{
-					value = GetDefaultValue( lastNodeEntered, node.InputName, parentInput.Value.Item2 );
+					value = GetDefaultValue( lastNodeEntered, node.InputName, parentInput.Value.inputNodeValueType );
 
 					SubgraphStack.Add( lastStack );
 					Subgraph = lastSubgraph;
 					SubgraphNode = lastNode;
 
-					if ( parentInput.Value.Item1.InputType == InputType.Texture2D )
+					if ( parentInput.Value.inputNode.InputType == InputType.Texture2D )
 					{
-						Log.Info( $"Got defaultValue of imagePath : {value}" );
-
 						// TEST
 						var textureInput = new TextureInput()
 						{

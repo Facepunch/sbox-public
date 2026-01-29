@@ -1,3 +1,4 @@
+using Editor.NodeEditor;
 using System.Text.Json.Serialization;
 
 namespace Editor.ShaderGraph;
@@ -9,9 +10,15 @@ namespace Editor.ShaderGraph;
 public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, BaseNode.INodeInitialize
 {
 	[Hide]
+	private bool IsPreviewInputEnabled => InputType != InputType.Texture2D;
+
+	[Hide]
 	public override string Title => string.IsNullOrWhiteSpace( InputName ) ?
 		$"Subgraph Input" :
 		$"{InputName} ({InputType})";
+
+	[JsonIgnore, Hide]
+	public override Color PrimaryColor => Color.Lerp( Theme.Green, Theme.Blue, 0.5f );
 
 	[Hide]
 	public Guid BlackboardParameterIdentifier { get; set; }
@@ -94,25 +101,10 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 	/// Preview input for testing values in subgraphs
 	/// </summary>
 	[Input( typeof( object ) ), Title( "Preview" ), Hide]
+	[ShowIf( nameof( IsPreviewInputEnabled ), true )]
 	public NodeInput PreviewInput { get; set; }
 
-	private ISubgraphInputBlackboardParameter GetParameter()
-	{
-		if ( Graph is ShaderGraph graph )
-		{
-			var parameter = graph.FindParameter( BlackboardParameterIdentifier );
-
-			if ( parameter is ISubgraphInputBlackboardParameter subgraphInputParameter )
-			{
-				return subgraphInputParameter;
-			}
-
-			return default;
-		}
-
-		return default;
-	}
-
+	
 #region Texture2D Stuff
 
 	[Hide]
@@ -191,6 +183,83 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 	}
 #endregion Texture2D Stuff
 
+
+	[Hide, JsonIgnore]
+	int _lastHashCode = 0;
+
+	public override void OnFrame()
+	{
+		var hashCode = new HashCode();
+		hashCode.Add( InputType );
+		var hc = hashCode.ToHashCode();
+		if ( hc != _lastHashCode )
+		{
+			_lastHashCode = hc;
+
+			CreatePreviewInput();
+			Update();
+		}
+	}
+
+	public SubgraphInput()
+	{
+	}
+
+	private void CreatePreviewInput()
+	{
+		var property = this.GetSerialized().GetProperty( nameof( PreviewInput ) );
+
+		if ( property.TryGetAttribute<ConditionalVisibilityAttribute>( out var conditionalVisibilityAttr ) )
+		{
+			if ( conditionalVisibilityAttr.TestCondition( this.GetSerialized() ) )
+			{
+				Inputs = new List<IPlugIn>();
+				return;
+			}
+		}
+		var propertyInfo = typeof( SubgraphInput ).GetProperty( property.Name );
+		if ( propertyInfo is null )
+		{
+			Inputs = new List<IPlugIn>();
+			return;
+		}
+		var info = new PlugInfo( propertyInfo );
+		var displayInfo = info.DisplayInfo;
+		displayInfo.Name = property.DisplayName;
+		info.DisplayInfo = displayInfo;
+		var plug = new BasePlugIn( this, info, info.Type );
+
+		Inputs = new List<IPlugIn>() { plug };
+	}
+
+	private ISubgraphInputBlackboardParameter GetParameter()
+	{
+		if ( Graph is ShaderGraph graph )
+		{
+			var parameter = graph.FindParameter( BlackboardParameterIdentifier );
+
+			if ( parameter is ISubgraphInputBlackboardParameter subgraphInputParameter )
+			{
+				return subgraphInputParameter;
+			}
+
+			return default;
+		}
+
+		return default;
+	}
+
+	public void OnNodeDeserialize( JsonElement element, JsonSerializerOptions options )
+	{
+	}
+
+	public List<string> GetErrors()
+	{
+		var errors = new List<string>();
+
+		return errors;
+	}
+
 	/// <summary>
 	/// Output for the input value
 	/// </summary>
@@ -211,87 +280,34 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 		{
 			if ( InputType == InputType.Texture2D )
 			{
-				Image = (string)outputValue;
-				var input = UI;
-				input.Type = TextureType.Tex2D;
-				input.DefaultTexture = _image;
-
-				var texture = string.IsNullOrWhiteSpace( TexturePath ) ? null : Texture.Load( TexturePath );
-				texture ??= Texture.White;
-
-				var textureGlobal = compiler.ResultTexture( input, texture, Image );
-
-				return new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
+				return new NodeResult( NodeResultType.Texture2D, ProcessTexture2D( compiler, outputValue ), true );
 			}
 
 			return compiler.ResultValue( outputValue );
 		}
-
-		if ( InputType == InputType.Texture2D )
-		{
-			Image = (string)outputValue;
-			var input = UI;
-			input.Type = TextureType.Tex2D;
-			input.DefaultTexture = _image;
-
-			var texture = string.IsNullOrWhiteSpace( TexturePath ) ? null : Texture.Load( TexturePath );
-			texture ??= Texture.White;
-
-			var textureGlobal = compiler.ResultTexture( input, texture, Image );
-
-			return new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
-		}
 		else
 		{
+			if ( InputType == InputType.Texture2D )
+			{
+				return new NodeResult( NodeResultType.Texture2D, ProcessTexture2D( compiler, outputValue ), true );
+			}
+
 			// For normal graphs, use ResultParameter to create a material parameter
 			return compiler.ResultParameter( InputName, outputValue, default, default, false, IsRequired, default );
-		}
-		
+		}	
 	};
 
-	[JsonIgnore, Hide]
-	public override Color PrimaryColor => Color.Lerp( Theme.Green, Theme.Blue, 0.5f );
-
-	public SubgraphInput()
+	private string ProcessTexture2D( GraphCompiler compiler, object outputValue )
 	{
-	}
+		Image = (string)outputValue;
+		var input = UI;
+		input.Type = TextureType.Tex2D;
+		input.DefaultTexture = _image;
 
-	public void OnNodeDeserialize( JsonElement element, JsonSerializerOptions options )
-	{
+		var texture = string.IsNullOrWhiteSpace( TexturePath ) ? null : Texture.Load( TexturePath );
+		texture ??= Texture.White;
 
-	}
-
-
-	public object GetValue()
-	{
-		return DefaultValue;
-	}
-
-	public List<string> GetErrors()
-	{
-		var errors = new List<string>();
-
-		if ( string.IsNullOrWhiteSpace( InputName ) )
-		{
-			errors.Add( "Input name cannot be empty" );
-		}
-
-		// Check for duplicate names in the same subgraph
-		//if ( Graph is ShaderGraph shaderGraph && shaderGraph.IsSubgraph )
-		//{
-		//	foreach ( var node in Graph.Nodes )
-		//	{
-		//		if ( node == this ) continue;
-		//
-		//		if ( node is SubgraphInput otherInput && otherInput.InputName == InputName )
-		//		{
-		//			errors.Add( $"Duplicate input name \"{InputName}\"" );
-		//			break;
-		//		}
-		//	}
-		//}
-
-		return errors;
+		return compiler.ResultTexture( input, texture, Image );
 	}
 }
 
