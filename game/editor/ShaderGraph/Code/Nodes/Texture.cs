@@ -247,6 +247,7 @@ public sealed class TextureSampler : TextureSamplerBase
 
 			if ( compiler.TryGetPreviewImage( texture2DInput.Code, out var imagePath ) )
 			{
+				ClearError();
 
 				Image = imagePath;
 				Name = "";
