@@ -113,6 +113,24 @@ public sealed class SubgraphNodeType : ClassNodeType
 	}
 }
 
+public sealed class SubgraphinputNodeType : ClassNodeType
+{
+	BlackboardParameter Parameter;
+
+	public SubgraphinputNodeType( TypeDescription type, BlackboardParameter parameter ) : base( type )
+	{
+		Parameter = parameter;
+	}
+
+	public override INode CreateNode( IGraph graph )
+	{
+		var node = BlackboardParameter.InitilzeNode( Parameter );
+		node.Graph = graph;
+
+		return node;
+	}
+}
+
 public sealed class ParameterNodeType : ClassNodeType
 {
 	BlackboardParameter Parameter;

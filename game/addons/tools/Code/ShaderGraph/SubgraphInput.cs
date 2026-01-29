@@ -6,88 +6,109 @@ namespace Editor.ShaderGraph;
 /// Defines an input for a subgraph with detailed configuration options
 /// </summary>
 [Title( "Subgraph Input" ), Category( "Subgraph" ), Icon( "input" )]
-public sealed class SubgraphInput : ShaderNode, IErroringNode
+public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, BaseNode.INodeInitialize
 {
 	[Hide]
 	public override string Title => string.IsNullOrWhiteSpace( InputName ) ?
 		$"Subgraph Input" :
 		$"{InputName} ({InputType})";
 
+	[Hide]
+	public Guid BlackboardParameterIdentifier { get; set; }
+
 	/// <summary>
 	/// The name of the input parameter
 	/// </summary>
-	[KeyProperty]
-	public string InputName { get; set; } = "";
+	[Hide, JsonIgnore]
+	public string InputName => GetParameter().Name;
 
 	/// <summary>
 	/// Description of what this input does
 	/// </summary>
-	[TextArea]
-	public string InputDescription { get; set; } = "";
+	[Hide, JsonIgnore]
+	public string InputDescription => GetParameter().InputDescription;
 
 	/// <summary>
 	/// The type of the input parameter
 	/// </summary>
-	public InputType InputType { get; set; } = InputType.Float;
+	[Hide, JsonIgnore]
+	public InputType InputType => InputType.Color;
 
-	/// <summary>
-	/// Default value for bool inputs
-	/// </summary>
-	[ShowIf( nameof( InputType ), InputType.Bool )]
-	public bool DefaultBool { get; set; } = false;
+	//[Editor( "subgraphInputDefaultValue" )]
+	[Hide, JsonIgnore]
+	public object DefaultValue
+	{
+		get => GetParameter().GetValue();
+		set
+		{
+			if ( Graph is ShaderGraph graph )
+			{
+				graph.UpdateParameterValue( BlackboardParameterIdentifier, value );
 
-	/// <summary>
-	/// Default value for int inputs
-	/// </summary>
-	[ShowIf( nameof( InputType ), InputType.Int )]
-	public int DefaultInt { get; set; } = 0;
+				Update();
+				IsDirty = true;
+			}
+		}
+	}
 
 	/// <summary>
 	/// Default value for float inputs
 	/// </summary>
-	[ShowIf( nameof( InputType ), InputType.Float )]
+	[Hide, JsonIgnore]
 	public float DefaultFloat { get; set; } = 0.0f;
 
 	/// <summary>
 	/// Default value for float2 inputs
 	/// </summary>
-	[ShowIf( nameof( InputType ), InputType.Float2 )]
+	[Hide, JsonIgnore]
 	public Vector2 DefaultFloat2 { get; set; } = Vector2.Zero;
 
 	/// <summary>
 	/// Default value for float3 inputs
 	/// </summary>
-	[ShowIf( nameof( InputType ), InputType.Float3 )]
+	[Hide, JsonIgnore]
 	public Vector3 DefaultFloat3 { get; set; } = Vector3.Zero;
-
-	/// <summary>
-	/// Default value for float4 inputs
-	/// </summary>
-	[ShowIf( nameof( InputType ), InputType.Float4 )]
-	public Vector4 DefaultFloat4 { get; set; } = Vector4.Zero;
 
 	/// <summary>
 	/// Default value for color inputs
 	/// </summary>
-	[ShowIf( nameof( InputType ), InputType.Color )]
+	[Hide, JsonIgnore]
 	public Color DefaultColor { get; set; } = Color.White;
 
 	/// <summary>
 	/// Whether this input is required (must have a connection in order to compile)
 	/// </summary>
-	public bool IsRequired { get; set; } = false;
+	[Hide, JsonIgnore]
+	public bool IsRequired => GetParameter().IsRequired;
 
 	/// <summary>
 	/// The order of this input port on the subgraph node
 	/// </summary>
-	[Title( "Order" )]
-	public int PortOrder { get; set; } = 0;
+	[Hide, JsonIgnore]
+	public int PortOrder => GetParameter().PortOrder;
 
 	/// <summary>
 	/// Preview input for testing values in subgraphs
 	/// </summary>
 	[Input( typeof( object ) ), Title( "Preview" ), Hide]
 	public NodeInput PreviewInput { get; set; }
+
+	private ISubgraphInputBlackboardParameter GetParameter()
+	{
+		if ( Graph is ShaderGraph graph )
+		{
+			var parameter = graph.FindParameter( BlackboardParameterIdentifier );
+
+			if ( parameter is ISubgraphInputBlackboardParameter subgraphInputParameter )
+			{
+				return subgraphInputParameter;
+			}
+
+			return default;
+		}
+
+		return default;
+	}
 
 	/// <summary>
 	/// Output for the input value
@@ -102,7 +123,7 @@ public sealed class SubgraphInput : ShaderNode, IErroringNode
 		}
 
 		// Use the appropriate default value based on input type
-		var outputValue = GetOutputValue();
+		var outputValue = DefaultValue;
 
 		// If we're in a subgraph context, just return the value directly
 		if ( compiler.Graph.IsSubgraph )
@@ -121,24 +142,15 @@ public sealed class SubgraphInput : ShaderNode, IErroringNode
 	{
 	}
 
-	private object GetOutputValue()
+	public void OnNodeDeserialize( JsonElement element, JsonSerializerOptions options )
 	{
-		return InputType switch
-		{
-			InputType.Bool => DefaultBool,
-			InputType.Int => DefaultInt,
-			InputType.Float => DefaultFloat,
-			InputType.Float2 => DefaultFloat2,
-			InputType.Float3 => DefaultFloat3,
-			InputType.Float4 => DefaultFloat4,
-			InputType.Color => DefaultColor,
-			_ => DefaultFloat
-		};
+
 	}
+
 
 	public object GetValue()
 	{
-		return GetOutputValue();
+		return DefaultValue;
 	}
 
 	public List<string> GetErrors()
@@ -151,19 +163,19 @@ public sealed class SubgraphInput : ShaderNode, IErroringNode
 		}
 
 		// Check for duplicate names in the same subgraph
-		if ( Graph is ShaderGraph shaderGraph && shaderGraph.IsSubgraph )
-		{
-			foreach ( var node in Graph.Nodes )
-			{
-				if ( node == this ) continue;
-
-				if ( node is SubgraphInput otherInput && otherInput.InputName == InputName )
-				{
-					errors.Add( $"Duplicate input name \"{InputName}\"" );
-					break;
-				}
-			}
-		}
+		//if ( Graph is ShaderGraph shaderGraph && shaderGraph.IsSubgraph )
+		//{
+		//	foreach ( var node in Graph.Nodes )
+		//	{
+		//		if ( node == this ) continue;
+		//
+		//		if ( node is SubgraphInput otherInput && otherInput.InputName == InputName )
+		//		{
+		//			errors.Add( $"Duplicate input name \"{InputName}\"" );
+		//			break;
+		//		}
+		//	}
+		//}
 
 		return errors;
 	}
@@ -194,4 +206,133 @@ public enum InputType
 
 	[Title( "Color" ), Icon( "palette" )]
 	Color
+}
+
+[CustomEditor( typeof( object ), NamedEditor = "subgraphInputDefaultValue" )]
+internal class SubgraphInputNodeControlWidget : ControlWidget
+{
+	public override bool SupportsMultiEdit => false;
+
+	SubgraphInput Node;
+	ControlSheet Sheet;
+
+	public SubgraphInputNodeControlWidget( SerializedProperty property ) : base( property )
+	{
+		Node = property.Parent.Targets.First() as SubgraphInput;
+
+		Layout = Layout.Column();
+		Layout.Spacing = 2;
+		Sheet = new ControlSheet();
+		Layout.Add( Sheet );
+
+		Rebuild();
+	}
+
+	protected override void OnPaint()
+	{
+
+	}
+
+	private void Rebuild()
+	{
+		Sheet.Clear( true );
+
+		var type = Node.DefaultValue.GetType();
+		var getter = () =>
+		{
+			if ( Node.DefaultValue is JsonElement el )
+				return el.GetDouble();
+
+			return Node.DefaultValue;
+		};
+
+		var displayName = $"Default {type.Name}";
+		if ( type == typeof( bool ) )
+		{
+			Sheet.AddRow( TypeLibrary.CreateProperty<bool>(
+				displayName, () =>
+				{
+					var val = getter();
+					if ( val is JsonElement el ) return bool.Parse( el.GetRawText() );
+					return (bool)val;
+				}, x => SetDefaultValue( x )
+			) );
+		}
+		else if ( type == typeof( int ) )
+		{
+			Sheet.AddRow( TypeLibrary.CreateProperty<int>(
+				displayName, () =>
+				{
+					var val = getter();
+					if ( val is JsonElement el ) return int.Parse( el.GetRawText() );
+					return (int)val;
+				}, x => SetDefaultValue( x )
+			) );
+		}
+		else if ( type == typeof( float ) )
+		{
+			Sheet.AddRow( TypeLibrary.CreateProperty<float>(
+				displayName, () =>
+				{
+					var val = getter();
+					if ( val is JsonElement el ) return float.Parse( el.GetRawText() );
+					return (float)val;
+				}, x => SetDefaultValue( x )
+			) );
+		}
+		else if ( type == typeof( Vector2 ) )
+		{
+			Sheet.AddRow( TypeLibrary.CreateProperty<Vector2>(
+				displayName, () =>
+				{
+					var val = getter();
+					if ( val is JsonElement el ) return Vector2.Parse( el.GetString() );
+					return (Vector2)val;
+				}, x => SetDefaultValue(  x )
+			) );
+		}
+		else if ( type == typeof( Vector3 ) )
+		{
+			Sheet.AddRow( TypeLibrary.CreateProperty<Vector3>(
+				displayName, () =>
+				{
+					var val = getter();
+					if ( val is JsonElement el ) return Vector3.Parse( el.GetString() );
+					return (Vector3)val;
+				}, x => SetDefaultValue( x )
+			) );
+		}
+		else if ( type == typeof( Vector4 ) )
+		{
+			Sheet.AddRow( TypeLibrary.CreateProperty<Vector4>(
+				displayName, () =>
+				{
+					var val = getter();
+					if ( val is JsonElement el ) return Vector4.Parse( el.GetString() );
+					return (Vector4)val;
+				}, x => SetDefaultValue( x )
+			) );
+		}
+		else if ( type == typeof( Color ) )
+		{
+			Sheet.AddRow( TypeLibrary.CreateProperty<Color>(
+				displayName, () =>
+				{
+					var val = getter();
+					if ( val is JsonElement el )
+					{
+						return Color.Parse( el.GetString() ) ?? Color.White;
+					}
+					return (Color)val;
+				}, x => SetDefaultValue( x )
+			) );
+		}
+	}
+
+	private void SetDefaultValue( object value )
+	{
+		Node.DefaultValue = value;
+		Node.Update();
+		Node.IsDirty = true;
+	}
 }

@@ -72,7 +72,7 @@ public sealed class SubgraphNode : ShaderNode, IErroringNode
 		var plugs = new List<IPlugIn>();
 		InputReferences.Clear();
 
-		// Get all SubgraphInput nodes only - no more legacy IParameterNode support
+		// Get all SubgraphInput nodes only.
 		var subgraphInputs = Subgraph.Nodes.OfType<SubgraphInput>()
 			.Where( x => !string.IsNullOrWhiteSpace( x.InputName ) )
 			.OrderBy( x => x.PortOrder )
@@ -89,7 +89,7 @@ public sealed class SubgraphNode : ShaderNode, IErroringNode
 				InputType.Float3 => typeof( Vector3 ),
 				InputType.Float4 => typeof( Vector4 ),
 				InputType.Color => typeof( Color ),
-				_ => typeof( float )
+				_ => throw new NotImplementedException()
 			};
 
 			var info = new PlugInfo()

@@ -5,9 +5,6 @@ using System.Text.Json.Serialization;
 
 namespace Editor.ShaderGraph;
 
-// TODO - Mabye it would be a good idea to add the blackboard shit to the base NodeEditor stuff.
-// If people dont want to use it make it so they dont have to. - QuackCola
-
 public record struct BlackboardConfig( string Name, Color Color );
 
 public interface IBlackboardParameter
@@ -15,6 +12,30 @@ public interface IBlackboardParameter
 	Guid Identifier { get; }
 
 	string Name { get; }
+
+	object GetValue();
+
+	void SetValue( object value );
+}
+
+public interface ISubgraphInputBlackboardParameter : IBlackboardParameter
+{
+	/// <summary>
+	/// Description of what this input does
+	/// </summary>
+	string InputDescription { get; set; }
+
+	/// <summary>
+	/// Whether this input is required (must have a connection in order to compile)
+	/// </summary>
+	bool IsRequired { get; set; }
+
+	/// <summary>
+	/// The order of this input port.
+	/// </summary>
+	int PortOrder { get; set; }
+
+	abstract InputType InputType { get; }
 }
 
 public interface IBlackboardParameterType
@@ -42,7 +63,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 		}
 	}
 
-	public string Name { get; set; }
+	public virtual string Name { get; set; }
 
 	public BlackboardParameter()
 	{
@@ -84,7 +105,14 @@ public abstract class BlackboardParameter : IBlackboardParameter
 				if ( isSubgraph && targetType == typeof( ColorBlackboardParameter ) ) return false;
 				if ( isSubgraph && targetType == typeof( Texture2DBlackboardParameter ) ) return false;
 
-				// TODO : Subgraph input parameters
+				// Only show subgraph input parameters when in a subgraph
+				if ( !isSubgraph && targetType == typeof( BoolSubgraphInputBlackboardParameter ) ) return false;
+				if ( !isSubgraph && targetType == typeof( IntSubgraphInputBlackboardParameter ) ) return false;
+				if ( !isSubgraph && targetType == typeof( FloatSubgraphInputBlackboardParameter ) ) return false;
+				if ( !isSubgraph && targetType == typeof( Float2SubgraphInputBlackboardParameter ) ) return false;
+				if ( !isSubgraph && targetType == typeof( Float3SubgraphInputBlackboardParameter ) ) return false;
+				if ( !isSubgraph && targetType == typeof( Float4SubgraphInputBlackboardParameter ) ) return false;
+				if ( !isSubgraph && targetType == typeof( ColorSubgraphInputBlackboardParameter ) ) return false;
 			}
 
 			return true;
@@ -95,6 +123,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 	{
 		switch ( parameter )
 		{
+			// Not In Subgraph
 			case BoolBlackboardParameter:
 				return new BoolParameter()
 				{
@@ -136,9 +165,53 @@ public abstract class BlackboardParameter : IBlackboardParameter
 					BlackboardParameterIdentifier = parameter.Identifier,
 					Image = v.DefaultTexture,
 				};
-		}
 
-		throw new NotImplementedException();
+			// In Subgraph
+			case BoolSubgraphInputBlackboardParameter p:
+				return new SubgraphInput()
+				{
+					DefaultValue = false,
+					BlackboardParameterIdentifier = parameter.Identifier,
+				};
+			case IntSubgraphInputBlackboardParameter p :
+				return new SubgraphInput()
+				{
+					DefaultValue = 0,
+					BlackboardParameterIdentifier = parameter.Identifier,
+				};
+			case FloatSubgraphInputBlackboardParameter p:
+				return new SubgraphInput()
+				{
+					DefaultValue = 0.0f,
+					BlackboardParameterIdentifier = parameter.Identifier,
+				};
+			case Float2SubgraphInputBlackboardParameter p:
+				return new SubgraphInput()
+				{
+					DefaultValue =  Vector2.Zero,
+					BlackboardParameterIdentifier = parameter.Identifier,
+				};
+			case Float3SubgraphInputBlackboardParameter p:
+				return new SubgraphInput()
+				{
+					DefaultValue = Vector3.Zero,
+					BlackboardParameterIdentifier = parameter.Identifier,
+				};
+			case Float4SubgraphInputBlackboardParameter p:
+				return new SubgraphInput()
+				{
+					DefaultValue = Vector4.Zero,
+					BlackboardParameterIdentifier = parameter.Identifier,
+				};
+			case ColorSubgraphInputBlackboardParameter p:
+				return new SubgraphInput()
+				{
+					DefaultValue = Color.White,
+					BlackboardParameterIdentifier = parameter.Identifier,
+				};
+			default:
+				throw new NotImplementedException();
+		}
 	}
 
 	/// <summary>
@@ -180,6 +253,59 @@ public abstract class BlackboardMaterialParameter<T, Y> : BlackboardParameter wh
 	{
 		Value = value;
 		IsAttribute = isAttribute;
+	}
+
+	public override object GetValue()
+	{
+		return Value;
+	}
+
+	public override void SetValue( object value )
+	{
+		if ( value.GetType() != typeof( T ) )
+		{
+			throw new InvalidCastException( $"Cannot cast {value.GetType()} to {typeof( T )}" );
+		}
+
+		Value = (T)value;
+	}
+}
+
+public abstract class BlackboardSubgraphinputParameter<T> : BlackboardParameter, ISubgraphInputBlackboardParameter
+{
+	[Title( "Input Name" )]
+	public override string Name { get; set; }
+
+	/// <summary>
+	/// Description of what this input does
+	/// </summary>
+	[TextArea]
+	public string InputDescription { get; set; } = "";
+
+	[InlineEditor( Label = false ), Group( "Value" )]
+	public T Value { get; set; }
+
+	/// <summary>
+	/// Whether this input is required (must have a connection in order to compile)
+	/// </summary>
+	public bool IsRequired { get; set; } = false;
+
+	/// <summary>
+	/// The order of this input port.
+	/// </summary>
+	[Title( "Order" )]
+	public int PortOrder { get; set; } = 0;
+
+	public abstract InputType InputType { get; }
+
+	public BlackboardSubgraphinputParameter() : base()
+	{
+
+	}
+
+	public BlackboardSubgraphinputParameter( string name, T value ) : base( name )
+	{
+		Value = value;
 	}
 
 	public override object GetValue()

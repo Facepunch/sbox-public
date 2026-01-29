@@ -38,6 +38,14 @@ internal static class ShaderGraphTheme
 			{ typeof( Float4BlackboardParameter ), new BlackboardConfig( "float4", HandleConfigs[typeof( Vector4 )].Color ) },
 			{ typeof( ColorBlackboardParameter ), new BlackboardConfig( "float4", HandleConfigs[typeof( Color )].Color ) },
 			{ typeof( Texture2DBlackboardParameter ), new BlackboardConfig( "Texture2D", HandleConfigs[typeof( Texture )].Color ) },
+
+			{ typeof( BoolSubgraphInputBlackboardParameter ), new BlackboardConfig( "bool", HandleConfigs[typeof( bool )].Color ) },
+			{ typeof( IntSubgraphInputBlackboardParameter ), new BlackboardConfig( "int", HandleConfigs[typeof( int )].Color ) },
+			{ typeof( FloatSubgraphInputBlackboardParameter ), new BlackboardConfig( "float", HandleConfigs[typeof( float )].Color ) },
+			{ typeof( Float2SubgraphInputBlackboardParameter ), new BlackboardConfig( "float2", HandleConfigs[typeof( Vector2 )].Color ) },
+			{ typeof( Float3SubgraphInputBlackboardParameter ), new BlackboardConfig( "float3", HandleConfigs[typeof( Vector3 )].Color ) },
+			{ typeof( Float4SubgraphInputBlackboardParameter ), new BlackboardConfig( "float4", HandleConfigs[typeof( Vector4 )].Color ) },
+			{ typeof( ColorSubgraphInputBlackboardParameter ), new BlackboardConfig( "float4", HandleConfigs[typeof( Color )].Color ) },
 		};
 	}
 }

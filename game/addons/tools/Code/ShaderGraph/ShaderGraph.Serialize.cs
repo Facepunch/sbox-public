@@ -46,8 +46,8 @@ partial class ShaderGraph
 		var fileVersion = GetVersion( root );
 
 		DeserializeObject( this, root, options );
-		DeserializeNodes( root, options, subgraphPath, fileVersion );
 		DeserializeParameters( root, options );
+		DeserializeNodes( root, options, subgraphPath, fileVersion );
 	}
 
 	public IEnumerable<BaseNode> DeserializeNodes( string json )
@@ -193,6 +193,10 @@ partial class ShaderGraph
 						DeserializeObject( node, element, options );
 					}
 				}
+				else if ( IsSubgraph && fileVersion < 2 && typeName == "SubgraphInput" )
+				{
+					node = UpgradeSubgraphinput_v2Upgrade( element, options );
+				}
 				else
 				{
 					node = EditorTypeLibrary.Create<BaseNode>( typeName );
@@ -211,7 +215,7 @@ partial class ShaderGraph
 
 				if ( node is BaseNode.INodeInitialize nodeInitialize )
 				{
-					nodeInitialize.OnNodeCreated( options );
+					nodeInitialize.OnNodeDeserialize( element, options );
 				}
 
 				if ( node is SubgraphNode subgraphNode )

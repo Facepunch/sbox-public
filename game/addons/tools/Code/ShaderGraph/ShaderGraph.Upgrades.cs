@@ -115,6 +115,7 @@ partial class ShaderGraph
 		};
 	}
 
+	// TODO : Should i just remove the old upgrader stuff??
 	/// <summary>
 	/// Create a new SubgraphInput node from a legacy parameter node
 	/// </summary>
@@ -128,14 +129,14 @@ partial class ShaderGraph
 		// Set input name from the parameter's Name property
 		if ( element.TryGetProperty( "Name", out var nameProperty ) )
 		{
-			subgraphInput.InputName = nameProperty.GetString();
+			//subgraphInput.InputName = nameProperty.GetString();
 		}
 
 		// Map the parameter type to InputType and set default values
 		switch ( typeName )
 		{
 			case "Float":
-				subgraphInput.InputType = InputType.Float;
+				//subgraphInput.InputType = InputType.Float;
 				if ( element.TryGetProperty( "Value", out var floatValue ) )
 				{
 					subgraphInput.DefaultFloat = floatValue.GetSingle();
@@ -143,7 +144,7 @@ partial class ShaderGraph
 				break;
 
 			case "Float2":
-				subgraphInput.InputType = InputType.Float2;
+				//subgraphInput.InputType = InputType.Float2;
 				if ( element.TryGetProperty( "Value", out var float2Value ) )
 				{
 					var vector2 = JsonSerializer.Deserialize<Vector2>( float2Value.GetRawText(), options );
@@ -152,7 +153,7 @@ partial class ShaderGraph
 				break;
 
 			case "Float3":
-				subgraphInput.InputType = InputType.Float3;
+				//subgraphInput.InputType = InputType.Float3;
 				if ( element.TryGetProperty( "Value", out var float3Value ) )
 				{
 					var vector3 = JsonSerializer.Deserialize<Vector3>( float3Value.GetRawText(), options );
@@ -161,7 +162,7 @@ partial class ShaderGraph
 				break;
 
 			case "Float4":
-				subgraphInput.InputType = InputType.Color;
+				//subgraphInput.InputType = InputType.Color;
 				if ( element.TryGetProperty( "Value", out var float4Value ) )
 				{
 					var color = JsonSerializer.Deserialize<Color>( float4Value.GetRawText(), options );
@@ -220,6 +221,80 @@ partial class ShaderGraph
 		}
 
 		throw new Exception( "Couldnt convert nameless Parameter node to Constant node" );
+	}
+
+	private SubgraphInput UpgradeSubgraphinput_v2Upgrade( JsonElement element, JsonSerializerOptions options ) 
+	{
+		element.TryGetProperty( "Identifier", out var identifierElement );
+		element.TryGetProperty( "InputName", out var inputNameElement );
+		element.TryGetProperty( "InputDescription", out var inputDescriptionElement );
+		element.TryGetProperty( "InputType", out var inputTypeElement );
+		element.TryGetProperty( "IsRequired", out var isRequiredElement );
+		element.TryGetProperty( "PortOrder", out var portOrderElement );
+
+		var inputName = inputNameElement.GetString();
+		var inputDescription = inputDescriptionElement.GetString();
+		var inputType = JsonSerializer.Deserialize<InputType>( inputTypeElement.GetRawText(), options );
+		var isRequired = isRequiredElement.GetBoolean();
+		var portOrder = portOrderElement.GetInt32();
+
+		object defaultValue = null;
+		BlackboardParameter parameter = null;
+		switch ( inputType )
+		{
+			case InputType.Float:
+				if ( element.TryGetProperty( "DefaultFloat", out var defaultFloatElement ) )
+				{
+					defaultValue = defaultFloatElement.GetSingle();
+					parameter = new FloatSubgraphInputBlackboardParameter( inputName, (float)defaultValue );
+				}
+				break;
+			case InputType.Float2:
+				if ( element.TryGetProperty( "DefaultFloat2", out var defaultFloat2Element ) )
+				{
+					defaultValue = JsonSerializer.Deserialize<Vector2>( defaultFloat2Element.GetRawText(), options );
+					parameter = new Float2SubgraphInputBlackboardParameter( inputName, (Vector2)defaultValue );
+				}
+				break;
+			case InputType.Float3:
+				if ( element.TryGetProperty( "DefaultFloat3", out var defaultFloat3Element ) )
+				{
+					defaultValue = JsonSerializer.Deserialize<Vector3>( defaultFloat3Element.GetRawText(), options );
+					parameter = new Float3SubgraphInputBlackboardParameter( inputName, (Vector3)defaultValue );
+				}
+				break;
+			case InputType.Color:
+				if ( element.TryGetProperty( "DefaultColor", out var defaultColorElement ) )
+				{
+					defaultValue = JsonSerializer.Deserialize<Color>( defaultColorElement.GetRawText(), options );
+					parameter = new ColorSubgraphInputBlackboardParameter( inputName, (Color)defaultValue );
+				}
+				break;
+			default:
+				throw new NotImplementedException();
+		}
+
+
+		if ( defaultValue == null )
+		{
+			throw new Exception();
+		}
+
+		if ( parameter is ISubgraphInputBlackboardParameter subgraphInputParameter )
+		{
+			subgraphInputParameter.InputDescription = inputDescription;
+			subgraphInputParameter.IsRequired = isRequired;
+			subgraphInputParameter.PortOrder = portOrder;
+
+			AddParameter( subgraphInputParameter );
+		}
+
+		return new SubgraphInput()
+		{
+			Identifier = identifierElement.GetString(),
+			BlackboardParameterIdentifier = parameter.Identifier,
+			DefaultValue = defaultValue
+		};
 	}
 
 	private static string GetNewParameterTypeName_v2Upgrade( string typeName )

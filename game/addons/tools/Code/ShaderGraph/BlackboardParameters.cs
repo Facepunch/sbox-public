@@ -1,4 +1,6 @@
-﻿namespace Editor.ShaderGraph;
+﻿using System.Text.Json.Serialization;
+
+namespace Editor.ShaderGraph;
 
 /// <summary>
 /// Bool value material parameter
@@ -186,6 +188,146 @@ public sealed class Texture2DBlackboardParameter : BlackboardTextureMaterialPara
 	}
 
 	public Texture2DBlackboardParameter( string name, TextureInput value )
+		: base( name, value )
+	{
+	}
+}
+
+/// <summary>
+/// Bool subgraph input parameter
+/// </summary>
+[Title( "Bool" ), Icon( "check_box" ), Order( 0 )]
+public sealed class BoolSubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<bool>
+{
+	[Hide, JsonIgnore]
+	public override InputType InputType => InputType.Bool;
+
+	public BoolSubgraphInputBlackboardParameter() : base()
+	{
+		Value = false;
+	}
+
+	public BoolSubgraphInputBlackboardParameter( string name, bool value )
+		: base( name, value )
+	{
+	}
+}
+
+/// <summary>
+/// Int subgraph input parameter
+/// </summary>
+[Title( "Int" ), Icon( "looks_one" ), Order( 1 )]
+public sealed class IntSubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<int>
+{
+	[Hide, JsonIgnore]
+	public override InputType InputType => InputType.Int;
+
+	public IntSubgraphInputBlackboardParameter() : base()
+	{
+		Value = 1;
+	}
+
+	public IntSubgraphInputBlackboardParameter( string name, int value )
+		: base( name, value )
+	{
+	}
+}
+
+/// <summary>
+/// Float subgraph input parameter
+/// </summary>
+[Title( "Float" ), Icon( "looks_one" ), Order( 2 )]
+public sealed class FloatSubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<float>
+{
+	[Hide, JsonIgnore]
+	public override InputType InputType => InputType.Float;
+
+	public FloatSubgraphInputBlackboardParameter() : base()
+	{
+		Value = 1.0f;
+	}
+
+	public FloatSubgraphInputBlackboardParameter( string name, float value )
+		: base( name, value )
+	{
+	}
+}
+
+/// <summary>
+/// Float2 subgraph input parameter
+/// </summary>
+[Title( "Float2" ), Icon( "looks_two" ), Order( 3 )]
+public sealed class Float2SubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<Vector2>
+{
+	[Hide, JsonIgnore]
+	public override InputType InputType => InputType.Float2;
+
+	public Float2SubgraphInputBlackboardParameter() : base()
+	{
+		Value = Vector2.One;
+	}
+
+	public Float2SubgraphInputBlackboardParameter( string name, Vector2 value )
+		: base( name, value )
+	{
+	}
+}
+
+/// <summary>
+/// Float3 subgraph input parameter
+/// </summary>
+[Title( "Float3" ), Icon( "looks_3" ), Order( 4 )]
+public sealed class Float3SubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<Vector3>
+{
+	[Hide, JsonIgnore]
+	public override InputType InputType => InputType.Float3;
+
+	public Float3SubgraphInputBlackboardParameter() : base()
+	{
+		Value = Vector3.One;
+	}
+
+	public Float3SubgraphInputBlackboardParameter( string name, Vector3 value )
+		: base( name, value )
+	{
+	}
+}
+
+/// <summary>
+/// Float4 subgraph input parameter
+/// </summary>
+[Title( "Float4" ), Icon( "looks_4" ), Order( 5 )]
+public sealed class Float4SubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<Vector4>
+{
+	[Hide, JsonIgnore]
+	public override InputType InputType => InputType.Float4;
+
+	public Float4SubgraphInputBlackboardParameter() : base()
+	{
+		Value = Vector4.One;
+	}
+
+	public Float4SubgraphInputBlackboardParameter( string name, Vector4 value )
+		: base( name, value )
+	{
+	}
+}
+
+/// <summary>
+/// Color subgraph input parameter
+/// </summary>
+[Title( "Color" ), Icon( "palette" ), Order( 6 )]
+public sealed class ColorSubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<Color>
+{
+	[Hide, JsonIgnore]
+	public override InputType InputType => InputType.Color;
+
+	public ColorSubgraphInputBlackboardParameter() : base()
+	{
+		Value = Color.White;
+	}
+
+	public ColorSubgraphInputBlackboardParameter( string name, Color value )
 		: base( name, value )
 	{
 	}

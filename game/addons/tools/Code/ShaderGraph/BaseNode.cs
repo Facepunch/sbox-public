@@ -183,7 +183,7 @@ public abstract class BaseNode : INode
 
 	public interface INodeInitialize
 	{
-		public void OnNodeCreated( JsonSerializerOptions options );
+		public void OnNodeDeserialize( JsonElement element, JsonSerializerOptions options );
 	}
 
 	/// <summary>
