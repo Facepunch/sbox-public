@@ -1,4 +1,4 @@
-﻿namespace Editor.ShaderGraph.Nodes;
+namespace Editor.ShaderGraph.Nodes;
 
 public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IErroringNode
 {
@@ -152,6 +152,67 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IE
 
 		return errors;
 	}
+
+	protected bool ProcessTexture2DInput( GraphCompiler compiler, NodeInput texture2D, ref TextureInput input, out NodeResult errorResult )
+	{
+		errorResult = default;
+		var texture2DInput = compiler.Result( texture2D );
+		if ( texture2DInput.IsValid )
+		{
+			if ( texture2DInput.ResultType != NodeResultType.Texture2D )
+			{
+				ErrorMessage = $"Input of `{nameof( texture2D )}` must be of ResultType `{NodeResultType.Texture2D}`";
+				errorResult = NodeResult.Error( ErrorMessage );
+
+				return false;
+			}
+
+			ClearError();
+
+			if ( compiler.TryGetPreviewImage( texture2DInput.Code, out var imagePath ) )
+			{
+
+				Image = imagePath;
+				Name = "";
+				input.Name = texture2DInput.Code.TrimStart( "g_t" ).ToString();
+				ShowDefaults = false;
+
+				SetNodeWidth( 8 );
+
+				return true;
+			}
+			else
+			{
+				throw new Exception( $"Cannot find PreviewImage for texture input : {texture2DInput.Code}" );
+			}
+		}
+		else
+		{
+			if ( !IsSubgraph )
+			{
+				ClearError();
+
+				Image = "materials/dev/white_color.tga";
+				input.Name = Name;
+				ShowDefaults = true;
+
+				SetNodeWidth( 64 );
+				UI = UI with { Name = Name };
+
+				return true;
+			}
+			else if ( IsSubgraph )
+			{
+				Image = "materials/dev/white_color.tga";
+				ErrorMessage = $"Missing required input '{nameof( texture2D )}'.";
+				errorResult = NodeResult.MissingInput( nameof( texture2D ) );
+
+				return false;
+			}
+		}
+
+		return false;
+	}
 }
 
 /// <summary>
@@ -186,50 +247,9 @@ public sealed class TextureSampler : TextureSamplerBase
 		var input = UI;
 		input.Type = TextureType.Tex2D;
 
-		var texture2DInput = compiler.Result( Texture2D );
-		if ( texture2DInput.IsValid )
+		if ( !ProcessTexture2DInput( compiler, Texture2D, ref input, out var errorResult ) )
 		{
-			if ( texture2DInput.ResultType != NodeResultType.Texture2D )
-			{
-				ErrorMessage = $"Input of `{nameof( Texture2D )}` must be of ResultType `{NodeResultType.Texture2D}`";
-				return NodeResult.Error( ErrorMessage );
-			}
-
-			ClearError();
-
-			if ( compiler.TryGetPreviewImage( texture2DInput.Code, out var imagePath ) )
-			{
-
-				Image = imagePath;
-				Name = "";
-				input.Name = texture2DInput.Code.TrimStart( "g_t" ).ToString();
-				ShowDefaults = false;
-
-				SetNodeWidth( 8 );
-			}
-			else
-			{
-				throw new Exception( $"Cannot find PreviewImage for texture input : {texture2DInput.Code}" );
-			}
-		}
-		else
-		{
-			if ( !IsSubgraph )
-			{
-				ClearError();
-
-				Image = "materials/dev/white_color.tga";
-				input.Name = Name;
-				ShowDefaults = true;
-
-				SetNodeWidth( 64 );
-				UI = UI with { Name = Name };
-			}
-			else if ( IsSubgraph )
-			{
-				ErrorMessage = $"Missing required input '{nameof( Texture2D )}'.";
-				return NodeResult.MissingInput( nameof( Texture2D ) );
-			}
+			return errorResult;
 		}
 
 		CompileTexture();
@@ -430,50 +450,9 @@ public sealed class TextureTriplanar : TextureSamplerBase
 		var input = UI;
 		input.Type = TextureType.Tex2D;
 
-		var texture2DInput = compiler.Result( Texture2D );
-		if ( texture2DInput.IsValid )
+		if ( !ProcessTexture2DInput( compiler, Texture2D, ref input, out var errorResult ) )
 		{
-			if ( texture2DInput.ResultType != NodeResultType.Texture2D )
-			{
-				ErrorMessage = $"Input of `{nameof( Texture2D )}` must be of ResultType `{NodeResultType.Texture2D}`";
-				return NodeResult.Error( ErrorMessage );
-			}
-
-			ClearError();
-
-			if ( compiler.TryGetPreviewImage( texture2DInput.Code, out var imagePath ) )
-			{
-
-				Image = imagePath;
-				Name = "";
-				input.Name = texture2DInput.Code.TrimStart( "g_t" ).ToString();
-				ShowDefaults = false;
-
-				SetNodeWidth( 8 );
-			}
-			else
-			{
-				throw new Exception( $"Cannot find PreviewImage for texture input : {texture2DInput.Code}" );
-			}
-		}
-		else
-		{
-			if ( !IsSubgraph )
-			{
-				ClearError();
-
-				Image = "materials/dev/white_color.tga";
-				input.Name = Name;
-				ShowDefaults = true;
-
-				SetNodeWidth( 64 );
-				UI = UI with { Name = Name };
-			}
-			else if ( IsSubgraph )
-			{
-				ErrorMessage = $"Missing required input '{nameof( Texture2D )}'.";
-				return NodeResult.MissingInput( nameof( Texture2D ) );
-			}
+			return errorResult;
 		}
 
 		CompileTexture();
@@ -574,50 +553,9 @@ public sealed class NormapMapTriplanar : TextureSamplerBase
 		var input = UI;
 		input.Type = TextureType.Tex2D;
 
-		var texture2DInput = compiler.Result( Texture2D );
-		if ( texture2DInput.IsValid )
+		if ( !ProcessTexture2DInput( compiler, Texture2D, ref input, out var errorResult ) )
 		{
-			if ( texture2DInput.ResultType != NodeResultType.Texture2D )
-			{
-				ErrorMessage = $"Input of `{nameof( Texture2D )}` must be of ResultType `{NodeResultType.Texture2D}`";
-				return NodeResult.Error( ErrorMessage );
-			}
-
-			ClearError();
-
-			if ( compiler.TryGetPreviewImage( texture2DInput.Code, out var imagePath ) )
-			{
-
-				Image = imagePath;
-				Name = "";
-				input.Name = texture2DInput.Code.TrimStart( "g_t" ).ToString();
-				ShowDefaults = false;
-
-				SetNodeWidth( 8 );
-			}
-			else
-			{
-				throw new Exception( $"Cannot find PreviewImage for texture input : {texture2DInput.Code}" );
-			}
-		}
-		else
-		{
-			if ( !IsSubgraph )
-			{
-				ClearError();
-
-				Image = "materials/dev/white_color.tga";
-				input.Name = Name;
-				ShowDefaults = true;
-
-				SetNodeWidth( 64 );
-				UI = UI with { Name = Name };
-			}
-			else if ( IsSubgraph )
-			{
-				ErrorMessage = $"Missing required input '{nameof( Texture2D )}'.";
-				return NodeResult.MissingInput( nameof( Texture2D ) );
-			}
+			return errorResult;
 		}
 
 		CompileTexture();
