@@ -14,6 +14,7 @@ namespace Editor.MovieMaker;
 public sealed class TrackListWidget : Widget
 {
 	public Session Session { get; }
+	public Timeline TimeLine { get; }
 
 	private SceneEditorSession SceneEditorSession { get; }
 
@@ -35,6 +36,7 @@ public sealed class TrackListWidget : Widget
 		: base( parent )
 	{
 		Session = session;
+		TimeLine = session.Editor.TimelinePanel!.Timeline;
 
 		SceneEditorSession = SceneEditorSession.Resolve( Session.Player.Scene );
 		SceneEditorSession.Selection.OnItemAdded += OnSelectionAdded;
@@ -67,7 +69,7 @@ public sealed class TrackListWidget : Widget
 		_rootTracks = new SynchronizedSet<TrackView, TrackWidget>(
 			AddRootTrack, RemoveRootTrack, UpdateChildTrack );
 
-		Session.ViewChanged += Session_ViewChanged;
+		TimeLine.ViewChanged += Timeline_ViewChanged;
 
 		Load( Session.TrackList );
 
@@ -88,25 +90,13 @@ public sealed class TrackListWidget : Widget
 
 	private void OnSelectionAdded( object item )
 	{
-		if ( Tracks.Any( x => x.IsFocused ) || Session.Editor.TimelinePanel?.Timeline.IsFocused is not true ) return;
+		if ( Tracks.Any( x => x.IsFocused ) || Session.Editor.TimelinePanel?.Timeline.IsFocused is true ) return;
 		if ( item is not GameObject go ) return;
 		if ( Tracks.FirstOrDefault( x => x.View.Target is ITrackReference<GameObject> { IsBound: true } target && target.Value == go ) is not { } track ) return;
 
-		track.Focus( false );
+		track.View.Select();
 
-		ScrollToTrack( track.View );
-	}
-
-	public void ScrollToTrack( TrackView trackView ) => ScrollToTrack( trackView.Track );
-
-	public void ScrollToTrack( IProjectTrack track )
-	{
-		if ( Tracks.FirstOrDefault( x => x.View.Track.Id == track.Id ) is not { } trackWidget ) return;
-
-		var maxScrollPos = trackWidget.Position.y + Session.TrackListHeaderHeight + Session.TrackListScrollOffset;
-		var minScrollPos = maxScrollPos - Session.TrackListViewHeight;
-
-		Session.TrackListScrollPosition = Math.Clamp( Session.TrackListScrollPosition, minScrollPos, maxScrollPos );
+		Session.Editor.TimelinePanel?.Timeline.ScrollToTrack( track.View );
 	}
 
 	protected override void OnPaint()
@@ -122,27 +112,31 @@ public sealed class TrackListWidget : Widget
 			_trackList.Changed -= TrackList_Changed;
 		}
 
-		Session.ViewChanged -= Session_ViewChanged;
+		TimeLine.ViewChanged -= Timeline_ViewChanged;
 		SceneEditorSession.Selection.OnItemAdded -= OnSelectionAdded;
 	}
 
 	protected override void OnWheel( WheelEvent e )
 	{
-		Session.TrackListScrollPosition -= e.Delta / 5f;
-		e.Accept();
+		Session.Editor.TimelinePanel?.Timeline.ScrollImmediate( e.Delta );
 	}
 
-	private Vector2 _lastMouseScreenPos;
+	private Vector2 _lastMouseLocalPos;
 
 	protected override void OnMousePress( MouseEvent e )
 	{
 		base.OnMousePress( e );
 
-		_lastMouseScreenPos = e.ScreenPosition;
+		_lastMouseLocalPos = e.LocalPosition;
 
 		if ( e.LeftMouseButton && !e.HasCtrl )
 		{
 			Session.TrackList.DeselectAll();
+		}
+
+		if ( e.ButtonState == MouseButtons.Middle )
+		{
+			e.Accepted = true;
 		}
 	}
 
@@ -150,15 +144,15 @@ public sealed class TrackListWidget : Widget
 	{
 		base.OnMouseMove( e );
 
-		var delta = e.ScreenPosition - _lastMouseScreenPos;
+		var delta = e.LocalPosition - _lastMouseLocalPos;
 
 		if ( e.ButtonState == MouseButtons.Middle )
 		{
-			Session.TrackListScrollPosition -= delta.y;
+			Session.Editor.TimelinePanel?.Timeline.ScrollImmediate( delta.y );
 			e.Accepted = true;
 		}
 
-		_lastMouseScreenPos = e.ScreenPosition;
+		_lastMouseLocalPos = e.LocalPosition;
 	}
 
 	private void Load( TrackListView trackList )
@@ -176,7 +170,7 @@ public sealed class TrackListWidget : Widget
 		TrackList_Changed( trackList );
 	}
 
-	private void Session_ViewChanged()
+	private void Timeline_ViewChanged( Rect visibleRect )
 	{
 		if ( _rootTracks.Count == 0 )
 		{
@@ -191,10 +185,9 @@ public sealed class TrackListWidget : Widget
 			.Max() - Timeline.RootTrackSpacing;
 
 		var headerHeight = _projectNavWidgets.Sum( x => x.Height ) + Timeline.RootTrackSpacing;
+		var timelinePosition = visibleRect.Top;
 
-		Session.TrackListHeaderHeight = headerHeight;
-
-		_trackContainer.Position = new Vector2( 0f, Session.TrackListScrollOffset - Session.TrackListScrollPosition - headerHeight );
+		_trackContainer.Position = new Vector2( 0f, -timelinePosition - headerHeight );
 		_trackContainer.FixedWidth = Width;
 		_trackContainer.FixedHeight = tracksHeight + headerHeight;
 	}
@@ -222,7 +215,7 @@ public sealed class TrackListWidget : Widget
 			CreatePlaceholder();
 		}
 
-		Session_ViewChanged();
+		Timeline_ViewChanged( TimeLine.VisibleRect );
 	}
 
 	private void CreatePlaceholder()
@@ -345,6 +338,15 @@ public sealed class TrackListWidget : Widget
 		TrackWidget.PopulatePresetMenu( menu, matchingPresets, trackViews );
 
 		menu.OpenAtCursor();
+	}
+
+	[Shortcut( "tracklist.selectall", "CTRL+A" )]
+	public void OnSelectAll()
+	{
+		foreach ( var track in Session.TrackList.VisibleTracks )
+		{
+			track.IsSelected = true;
+		}
 	}
 }
 

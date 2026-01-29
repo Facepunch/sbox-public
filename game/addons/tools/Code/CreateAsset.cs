@@ -123,34 +123,57 @@ public static class CreateAsset
 		return destName;
 	}
 
+	static void OpenCreateAssetFlyout( string resourceType, string defaultName, string extension, Action<string> onCreate )
+	{
+		AssetList.OpenCreateFlyout( resourceType, defaultName, extension,
+			name =>
+			{
+				if ( string.IsNullOrWhiteSpace( name ) ) return;
+				onCreate( name );
+			} );
+	}
+
 	static void CreateFromTemplate( string name, string defaultFile, DirectoryInfo folder )
 	{
-		var extension = System.IO.Path.GetExtension( defaultFile );
-
+		var extension = Path.GetExtension( defaultFile );
 		var sourceFile = FileSystem.Root.GetFullPath( $"/templates/{defaultFile}" );
-		if ( !System.IO.File.Exists( sourceFile ) )
+		if ( !File.Exists( sourceFile ) )
 		{
 			Log.Error( $"Can't create asset! Missing template: {defaultFile}" );
 			return;
 		}
 
-		string destName = GetNewFilename( folder, name, extension );
-		string destPath = Path.Combine( folder.FullName, destName );
-		System.IO.File.Copy( sourceFile, destPath );
+		var defaultName = Path.GetFileNameWithoutExtension( GetNewFilename( folder, name, extension ) );
 
-		var asset = AssetSystem.RegisterFile( destPath );
-		MainAssetBrowser.Instance?.Local.OnAssetCreated( asset, destPath );
+		OpenCreateAssetFlyout( name, defaultName, extension,
+			destName =>
+			{
+				var destPath = Path.Combine( folder.FullName, destName );
+
+				if ( File.Exists( destPath ) )
+					return;
+
+				File.Copy( sourceFile, destPath );
+				var asset = AssetSystem.RegisterFile( destPath );
+				MainAssetBrowser.Instance?.Local.OnAssetCreated( asset, destPath );
+			} );
 	}
 
 	public static void CreateGameResource( AssetTypeAttribute gameResource, DirectoryInfo folder )
 	{
-		int slash = gameResource.Name.LastIndexOf( '/' );
-		string name = slash == -1 ? gameResource.Name : gameResource.Name.Substring( slash + 1, gameResource.Name.Length - slash - 1 );
+		var slash = gameResource.Name.LastIndexOf( '/' );
+		var name = slash == -1 ? gameResource.Name : gameResource.Name.Substring( slash + 1, gameResource.Name.Length - slash - 1 );
+		var extension = $".{gameResource.Extension}";
+		var defaultName = Path.GetFileNameWithoutExtension( GetNewFilename( folder, name, extension ) );
 
-		string destName = GetNewFilename( folder, name, $".{gameResource.Extension}" );
-		string destPath = Path.Combine( folder.FullName, destName );
+		OpenCreateAssetFlyout( name, defaultName, extension,
+			destName =>
+			{
+				string destPath = Path.Combine( folder.FullName, destName );
+				if ( File.Exists( destPath ) ) return;
 
-		var asset = AssetSystem.CreateResource( gameResource.Extension, destPath );
-		MainAssetBrowser.Instance?.Local.OnAssetCreated( asset, destPath );
+				var asset = AssetSystem.CreateResource( gameResource.Extension, destPath );
+				MainAssetBrowser.Instance?.Local.OnAssetCreated( asset, destPath );
+			} );
 	}
 }

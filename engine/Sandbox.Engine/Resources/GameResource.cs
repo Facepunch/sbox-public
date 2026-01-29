@@ -1,4 +1,4 @@
-﻿using Facepunch.ActionGraphs;
+using Facepunch.ActionGraphs;
 using Sandbox.ActionGraphs;
 using Sandbox.Engine;
 using Sandbox.Internal;
@@ -48,6 +48,12 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 	/// </summary>
 	[Hide, JsonIgnore]
 	public sealed override bool HasUnsavedChanges => _unsavedChanges;
+
+	/// <summary>
+	/// Binary data to be written alongside the JSON file.
+	/// </summary>
+	[Hide, JsonIgnore]
+	internal byte[] BinaryData { get; set; }
 
 	/// <summary>
 	/// Should be called after the resource has been edited by the inspector
@@ -128,8 +134,9 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 	internal static GameResource GetPromise( System.Type type, string filename )
 	{
 		var path = FixPath( filename );
-		var hash = path.FastHash();
+		if ( string.IsNullOrEmpty( path ) ) return default;
 
+		var hash = path.FastHash();
 		var obj = Game.Resources.Get( type, hash ) as GameResource;
 		if ( obj != null ) return obj;
 
@@ -232,9 +239,16 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		JsonObject jsobj;
 
 		using ( PushSerializationScope() )
+		using ( var blobs = BlobDataSerializer.Capture() )
 		{
 			jsobj = Json.SerializeAsObject( this );
 			OnJsonSerialize( jsobj );
+
+			var capturedData = blobs.ToByteArray();
+			if ( capturedData != null || BinaryData == null )
+			{
+				BinaryData = capturedData;
+			}
 		}
 
 		jsobj["__version"] = ResourceVersion;
@@ -288,8 +302,12 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		JsonUpgrade( jso );
 		jso.Remove( "__version" );
 
+		// Load binary data for deserialization
+		using var blobs = BlobDataSerializer.Load( BinaryData, ResourcePath );
+
 		Deserialize( jso );
 
+		BinaryData = null;
 		_awaitingLoad = false;
 	}
 
@@ -323,6 +341,9 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		if ( newHash == _jsonHash )
 			return false;
 
+		// Load binary data from compiled resource binary blobs if present
+		BinaryData = Game.Resources.ReadCompiledResourceBlock( BlobDataSerializer.CompiledBlobName, data );
+
 		LoadFromJson( json );
 		LoadFromResource( data );
 		return true;
@@ -339,6 +360,24 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 
 		LastSavedSourceHash = jsonString.FastHash();
 		System.IO.File.WriteAllText( filename, jsonString );
+
+		// Write binary data if present
+		if ( BinaryData != null && BinaryData.Length > 0 )
+		{
+			try
+			{
+				var blobPath = filename + "_d";
+				System.IO.File.WriteAllBytes( blobPath, BinaryData );
+			}
+			catch ( Exception e )
+			{
+				Log.Warning( e, $"Failed to write binary data file: {e.Message}" );
+			}
+			finally
+			{
+				BinaryData = null;
+			}
+		}
 
 		IToolsDll.Current?.RunEvent<ResourceLibrary.IEventListener>( i => i.OnSave( this ) );
 	}
@@ -379,3 +418,4 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		}
 	}
 }
+

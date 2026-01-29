@@ -112,8 +112,6 @@ public static class SceneUtility
 	{
 		Assert.NotNull( Game.ActiveScene, "No Active Scene" );
 
-		using var batchGroup = CallbackBatch.Batch();
-
 		JsonObject json = null;
 
 		if ( template is PrefabScene prefabScene && prefabScene.Source is PrefabFile prefabFile )
@@ -134,6 +132,9 @@ public static class SceneUtility
 
 		if ( json is not null )
 		{
+			using var blobs = BlobDataSerializer.Load( null, null );
+			using var batchGroup = CallbackBatch.Batch();
+
 			go.Deserialize( json );
 		}
 
@@ -227,6 +228,7 @@ public static class SceneUtility
 			{
 				var go = new GameObject( true, "envmap" );
 				var c = go.AddComponent<EnvmapProbe>();
+				c.Mode = EnvmapProbe.EnvmapProbeMode.CustomTexture;
 				c.Texture = Texture.Load( "textures/cubemaps/default2.vtex" );
 				c.Bounds = BBox.FromPositionAndSize( Vector3.Zero, 100000 );
 			}

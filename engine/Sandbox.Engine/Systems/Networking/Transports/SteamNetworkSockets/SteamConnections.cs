@@ -1,4 +1,4 @@
-﻿using System.IO;
+﻿using System.Collections.Concurrent;
 using NativeEngine;
 using Sandbox.Internal;
 using Steamworks;
@@ -6,7 +6,6 @@ using Steamworks.Data;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
-using Sandbox.Compression;
 
 namespace Sandbox.Network;
 
@@ -240,6 +239,9 @@ internal static partial class SteamNetwork
 		private Channel<OutgoingSteamMessage> OutgoingMessages { get; } = Channel.CreateUnbounded<OutgoingSteamMessage>();
 		private Channel<IncomingSteamMessage> IncomingMessages { get; } = Channel.CreateUnbounded<IncomingSteamMessage>();
 
+		private const int MaxBatchSize = 256;
+		private readonly IntPtr[] _messageBatch = new IntPtr[MaxBatchSize];
+
 		/// <summary>
 		/// Send any queued outgoing messages and process any incoming messages to be queued for handling
 		/// on the main thread.
@@ -249,9 +251,36 @@ internal static partial class SteamNetwork
 			var net = Steam.SteamNetworkingSockets();
 			if ( !net.IsValid ) return;
 
+			int batchCount = 0;
+
 			while ( OutgoingMessages.Reader.TryRead( out var msg ) )
 			{
-				ProcessOutgoingMessage( msg );
+				var gcHandle = GCHandle.Alloc( msg.Data, GCHandleType.Pinned );
+				var dataPtr = gcHandle.AddrOfPinnedObject();
+
+				PinnedBuffers[dataPtr] = gcHandle;
+
+				var steamMsgPtr = Glue.Networking.AllocateMessageWithManagedBuffer( msg.Connection, dataPtr, msg.Data.Length, msg.Flags );
+				if ( steamMsgPtr == IntPtr.Zero )
+				{
+					// Allocation failed, clean up immediately
+					PinnedBuffers.TryRemove( dataPtr, out _ );
+					gcHandle.Free();
+					continue;
+				}
+
+				_messageBatch[batchCount++] = steamMsgPtr;
+
+				if ( batchCount >= MaxBatchSize )
+				{
+					FlushBatch( ref batchCount );
+				}
+			}
+
+			// Send any remaining messages
+			if ( batchCount > 0 )
+			{
+				FlushBatch( ref batchCount );
 			}
 
 			ProcessIncomingMessages( net );
@@ -287,17 +316,15 @@ internal static partial class SteamNetwork
 			}
 		}
 
-		/// <summary>
-		/// Send any queued outgoing messages via Steam Networking API. 
-		/// </summary>
-		/// <param name="msg"></param>
-		private void ProcessOutgoingMessage( in OutgoingSteamMessage msg )
+		private void FlushBatch( ref int count )
 		{
-			fixed ( byte* d = msg.Data )
+			fixed ( IntPtr* pMessages = _messageBatch )
 			{
-				Glue.Networking.SendMessage( msg.Connection, (IntPtr)d, msg.Data.Length, msg.Flags );
-				MessagesSent++;
+				Glue.Networking.SendMessages( (IntPtr)pMessages, count );
 			}
+
+			MessagesSent += count;
+			count = 0;
 		}
 
 		internal override void InternalSend( ByteStream stream, NetFlags flags )

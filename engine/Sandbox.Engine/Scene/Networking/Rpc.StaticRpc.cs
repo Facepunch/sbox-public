@@ -50,10 +50,24 @@ public static partial class Rpc
 	}
 
 	/// <summary>
-	/// Called when a static RPC is called
+	/// Called when a static RPC is called with a single argument of an array type.
+	/// </summary>
+	[EditorBrowsable( EditorBrowsableState.Never )]
+	public static void OnCallRpc<T>( WrappedMethod m, T[] argument )
+	{
+		OnCallRpcInternal( m, [argument] );
+	}
+
+	/// <summary>
+	/// Called when a static RPC is called with object parameters.
 	/// </summary>
 	[EditorBrowsable( EditorBrowsableState.Never )]
 	public static void OnCallRpc( WrappedMethod m, params object[] argumentList )
+	{
+		OnCallRpcInternal( m, argumentList );
+	}
+
+	static void OnCallRpcInternal( WrappedMethod m, in object[] argumentList )
 	{
 		var attribute = m.GetAttribute<RpcAttribute>();
 		if ( attribute is null ) return;

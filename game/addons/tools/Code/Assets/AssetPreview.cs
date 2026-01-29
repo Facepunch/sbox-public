@@ -92,6 +92,7 @@ public class AssetPreview : IDisposable
 			{
 				var go = new GameObject( true, "envmap" );
 				var c = go.AddComponent<EnvmapProbe>();
+				c.Mode = EnvmapProbe.EnvmapProbeMode.CustomTexture;
 				c.Texture = Texture.Load( "textures/cubemaps/default2.vtex" );
 				c.Bounds = BBox.FromPositionAndSize( Vector3.Zero, 100000 );
 			}
@@ -176,6 +177,9 @@ public class AssetPreview : IDisposable
 		var timeTaken = Stopwatch.StartNew();
 		using var bitmap = new Bitmap( config.Width, config.Height );
 		IsRenderingVideo = true;
+
+		// Update ScreenSize so FrameScene() calculates correct camera distance
+		ScreenSize = new Vector2Int( config.Width, config.Height );
 
 		for ( float i = 0; i < frames; i += 1.0f )
 		{

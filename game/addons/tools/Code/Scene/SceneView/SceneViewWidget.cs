@@ -331,14 +331,13 @@ file class ViewportToolBar : Widget
 		{
 			var scroller = new ScrollArea( null );
 			scroller.FixedWidth = 240;
+			scroller.FocusMode = FocusMode.None;
 			toolWidget.FixedWidth = 240;
 			scroller.HorizontalSizeMode = SizeMode.Flexible;
 			scroller.VerticalSizeMode = SizeMode.Flexible;
 			scroller.HorizontalScrollbarMode = ScrollbarMode.Off;
 			scroller.Canvas = toolWidget;
 			_sidebar.Add( scroller );
-
-			toolWidget.Focus();
 		}
 
 		// Update footer

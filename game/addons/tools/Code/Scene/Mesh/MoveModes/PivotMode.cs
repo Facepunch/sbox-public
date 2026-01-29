@@ -87,8 +87,9 @@ public sealed class PivotMode : MoveMode
 					var isSnapRange = screenDist < 20.0f;
 
 					var color = isSnapRange ? Theme.Green : Theme.Red;
+					var size = 8.0f * Gizmo.Camera.Position.Distance( tr.EndPosition ) / 1000.0f;
 					Gizmo.Draw.Color = color.WithAlpha( screenDist.Remap( 0, 100, 1.0f, 0.0f, true ) );
-					Gizmo.Draw.SolidSphere( bestVert.Value, 4 );
+					Gizmo.Draw.SolidSphere( bestVert.Value, size );
 
 					if ( isSnapRange )
 					{
@@ -122,7 +123,8 @@ public sealed class PivotMode : MoveMode
 
 			Gizmo.Draw.IgnoreDepth = true;
 			Gizmo.Draw.Color = Theme.Yellow;
-			Gizmo.Draw.SolidSphere( Vector3.Zero, 2 );
+			var size = 5.0f * Gizmo.Camera.Position.Distance( tr.EndPosition ) / 1000.0f;
+			Gizmo.Draw.SolidSphere( Vector3.Zero, size );
 
 			Gizmo.Draw.Color = Color.White.WithAlpha( 0.8f );
 			Gizmo.Draw.Line( Vector3.Zero, Vector3.Up * 16 );
@@ -138,7 +140,8 @@ public sealed class PivotMode : MoveMode
 			Gizmo.Draw.Line( Vector3.Zero, Vector3.Left * 16 );
 
 			Gizmo.Draw.Color = Color.White;
-			Gizmo.Draw.SolidSphere( Vector3.Zero, 1.5f );
+			var sizeCurent = 5.0f * Gizmo.Camera.Position.Distance( tool.Pivot ) / 1000.0f;
+			Gizmo.Draw.SolidSphere( Vector3.Zero, sizeCurent );
 		}
 
 		if ( Gizmo.IsLeftMouseDown )

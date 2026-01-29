@@ -26,18 +26,6 @@ internal class PolyMesh : IDisposable
 	private ushort[] _polysArray;
 
 	/// <summary>
-	/// The region id assigned to each polygon. [Size: #npolys]
-	/// </summary>
-	public Span<int> RegionIds => _regionIdsArray.AsSpan( 0, maxPolyCount );
-	private int[] _regionIdsArray;
-
-	/// <summary>
-	/// The user defined flags assigned to each polygon. [Size: #npolys]
-	/// </summary>
-	public Span<ushort> Flags => _flagsArray.AsSpan( 0, maxPolyCount );
-	private ushort[] _flagsArray;
-
-	/// <summary>
 	/// The area id assigned to each polygon. [Size: #npolys]
 	/// </summary>
 	public Span<int> Areas => _areasArray.AsSpan( 0, maxPolyCount );
@@ -76,16 +64,6 @@ internal class PolyMesh : IDisposable
 		{
 			if ( _polysArray != null ) ArrayPool<ushort>.Shared.Return( _polysArray );
 			_polysArray = ArrayPool<ushort>.Shared.Rent( maxTris * maxVertsPerPoly * 2 * 2 );
-		}
-		if ( _regionIdsArray == null || _regionIdsArray.Length < maxTris )
-		{
-			if ( _regionIdsArray != null ) ArrayPool<int>.Shared.Return( _regionIdsArray );
-			_regionIdsArray = ArrayPool<int>.Shared.Rent( maxTris * 2 );
-		}
-		if ( _flagsArray == null || _flagsArray.Length < maxTris )
-		{
-			if ( _flagsArray != null ) ArrayPool<ushort>.Shared.Return( _flagsArray );
-			_flagsArray = ArrayPool<ushort>.Shared.Rent( maxTris * 2 );
 		}
 		if ( _areasArray == null || _areasArray.Length < maxTris )
 		{

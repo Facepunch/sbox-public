@@ -422,7 +422,7 @@ PS_OUTPUT PS_FinalCombinerDoPostProcessing( FinalCombinerInput_t f, LightingTerm
 		toolVis.HandleDiffuseLighting( o.vColor.rgba );
 		toolVis.HandleSpecularLighting( o.vColor.rgba );
 		toolVis.HandleTransmissiveLighting( o.vColor.rgba );
-		toolVis.HandleLightingComplexity( o.vColor.rgba, f.vPositionSs.xy, f.vPositionWs.xyz, f.vNormalWs.xyz );
+		toolVis.HandleLightingComplexity( o.vColor.rgba, f.vPositionWs.xyz, f.vNormalWs.xyz );
 
 		toolVis.HandleAlbedo( o.vColor.rgba, vAlbedo.rgb );
 		toolVis.HandleReflectivity( o.vColor.rgba, vAlbedo.rgb );
@@ -430,7 +430,7 @@ PS_OUTPUT PS_FinalCombinerDoPostProcessing( FinalCombinerInput_t f, LightingTerm
 		toolVis.HandleDiffuseAmbientOcclusion( o.vColor.rgba, CalculateDiffuseAmbientOcclusion( f, lightingTerms ) );
 		toolVis.HandleSpecularAmbientOcclusion( o.vColor.rgba, CalculateSpecularAmbientOcclusion( f, lightingTerms ) );
 		toolVis.HandleShaderIDColor( o.vColor.rgba );
-		toolVis.HandleCubemapReflections( o.vColor.rgba, f.vPositionWs.xyz, f.vNormalWs.xyz, f.vPositionSs.xy );
+		toolVis.HandleCubemapReflections( o.vColor.rgba, f.vPositionWs.xyz, f.vNormalWs.xyz );
 
 		toolVis.HandleNormalTs( o.vColor.rgba, f.vNormalTs.xyz );
 		toolVis.HandleNormalWs( o.vColor.rgba, f.vNormalWs.xyz );
@@ -452,7 +452,7 @@ PS_OUTPUT PS_FinalCombinerDoPostProcessing( FinalCombinerInput_t f, LightingTerm
 		toolVis.HandleWrinkle( o.vColor, f.flWrinkle );
 
 		// Facepunch Pipeline
-		toolVis.HandleTiledRenderingColors( o.vColor, vAlbedo.rgb, f.vPositionSs.xy );
+		toolVis.HandleTiledRenderingColors( o.vColor, vAlbedo.rgb, f.vPositionWs.xyz );
 
 		o.vColor.rgb = saturate( o.vColor.rgb ); // turns off bloom in tools vis mode
 	}

@@ -39,6 +39,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		AddHandler<ObjectRefreshDescendantMsg>( OnObjectRefreshDescendant );
 		AddHandler<ObjectRefreshMsgAck>( OnObjectRefreshAck );
 		AddHandler<ObjectDestroyMsg>( OnObjectDestroy );
+		AddHandler<ObjectDetachMsg>( OnObjectDetach );
 		AddHandler<ObjectRpcMsg>( OnObjectMessage );
 		AddHandler<ObjectNetworkTableMsg>( OnNetworkTableChanges );
 		AddHandler<SceneNetworkTableMsg>( OnNetworkTableChanges );
@@ -200,6 +201,21 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		Broadcast( networkObject.GetCreateMessage() );
+	}
+
+	/// <summary>
+	/// Broadcast the detachment of a networked object.
+	/// </summary>
+	/// <param name="networkObject"></param>
+	internal void NetworkDetachBroadcast( NetworkObject networkObject )
+	{
+		var msg = new ObjectDetachMsg
+		{
+			Mode = networkObject.GameObject.NetworkMode,
+			Guid = networkObject.GameObject.Id
+		};
+
+		Broadcast( msg );
 	}
 
 	/// <summary>
@@ -370,7 +386,9 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		using ( analytic.ScopeTimer( "SceneTime" ) )
 		{
+			using var blobs = BlobDataSerializer.Capture();
 			msg.SceneData = Game.ActiveScene.Serialize( _snapshotSerializeOptions ).ToJsonString();
+			msg.BlobData = blobs.ToByteArray();
 		}
 
 		using ( analytic.ScopeTimer( "NetworkObjectTime" ) )
@@ -529,6 +547,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		Game.ActiveScene.UpdateTimeFromHost( msg.Time );
 
 		{
+			using var blobs = BlobDataSerializer.LoadFromMemory( msg.BlobData );
 			using var batchGroup = CallbackBatch.Batch();
 
 			if ( !string.IsNullOrWhiteSpace( msg.SceneData ) )
@@ -558,8 +577,10 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		foreach ( var s in msg.GameObjectSystems )
 		{
 			var type = Game.TypeLibrary.GetTypeByIdent( s.Type );
-			var system = Game.ActiveScene.GetSystemByType( type );
+			if ( type is null )
+				continue;
 
+			var system = Game.ActiveScene.GetSystemByType( type );
 			if ( system is null )
 				continue;
 
@@ -737,7 +758,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 			foreach ( var no in scene.networkedObjects )
 			{
-				no.ClearConnections();
+				no.OnHostChanged( previousHost, newHost );
 			}
 		}
 
@@ -900,6 +921,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		using ( var _ = CallbackBatch.Batch() )
+		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
 		{
 			gameObject?.Deserialize( gameObjectJson, new GameObject.DeserializeOptions
 			{
@@ -968,6 +990,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		using ( var _ = CallbackBatch.Batch() )
+		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
 		{
 			component?.Deserialize( componentJson );
 		}
@@ -1031,9 +1054,12 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		{
 			foreach ( var msg in message.CreateMsgs )
 			{
-				var go = new GameObject();
-				go.Deserialize( JsonNode.Parse( msg.JsonData ).AsObject() );
-				go.NetworkSpawnRemote( msg );
+				using ( BlobDataSerializer.LoadFromMemory( msg.BlobData ) )
+				{
+					var go = new GameObject();
+					go.Deserialize( JsonNode.Parse( msg.JsonData ).AsObject() );
+					go.NetworkSpawnRemote( msg );
+				}
 			}
 		}
 	}
@@ -1055,6 +1081,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		var go = new GameObject();
 
 		using ( CallbackBatch.Batch() )
+		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
 		{
 			go.Deserialize( JsonNode.Parse( message.JsonData ).AsObject() );
 			go.NetworkSpawnRemote( message );
@@ -1105,6 +1132,35 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		obj._net.OnNetworkTableMessage( message );
 	}
 
+	private void OnObjectDetach( ObjectDetachMsg message, Connection source, Guid msgId )
+	{
+		NetworkDebugSystem.Current?.Track( "OnObjectDetach", message );
+
+		var scene = Game.ActiveScene;
+		if ( !scene.IsValid() )
+			return;
+
+		var obj = scene.Directory.FindByGuid( message.Guid );
+		if ( obj is null )
+			return;
+
+		if ( obj._net is null )
+		{
+			// We can't just destroy arbitrary game objects.
+			Log.Warning( $"OnObjectDetach: Object {obj} is not networked" );
+			return;
+		}
+
+		if ( !source.IsHost )
+		{
+			Log.Warning( $"OnObjectDetach: Only the host can detach networked objects. {source.DisplayName} attempted to detach {obj.Name}." );
+			return;
+		}
+
+		obj.DetachFromNetwork();
+		obj.NetworkMode = message.Mode;
+	}
+
 	private void OnObjectDestroy( ObjectDestroyMsg message, Connection source, Guid msgId )
 	{
 		NetworkDebugSystem.Current?.Track( "OnObjectDestroy", message );
@@ -1128,13 +1184,26 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		{
 			// If we're unowned and the source is not the host, we can't destroy.
 			if ( !source.IsHost )
+			{
+				Log.Warning( $"ObjectDestroy: Only the host can destroy unowned networked objects. {source.DisplayName} attempted to destroy {obj.Name}." );
 				return;
+			}
 		}
 		else
 		{
 			// If the source is not the owner and not the host, we can't destroy.
 			if ( !source.IsHost && obj._net.Owner != source.Id )
+			{
+				Log.Warning( $"ObjectDestroy: {source.DisplayName} attempted to destroy {obj.Name} but is not the owner. Owner is {obj._net.Owner}." );
 				return;
+			}
+
+			// If the source is the owner but not the host, check if they have permission to destroy.
+			if ( !source.IsHost && !source.CanDestroyObjects )
+			{
+				Log.Warning( $"ObjectDestroy: {source.DisplayName} attempted to destroy {obj.Name} but does not have CanDestroyObjects permission enabled." );
+				return;
+			}
 		}
 
 		obj._net.OnNetworkDestroy();
@@ -1256,6 +1325,7 @@ struct ObjectDestroyDescendantMsg
 struct ObjectRefreshDescendantMsg
 {
 	public string JsonData { get; set; }
+	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
 	public Guid ParentId { get; set; }
@@ -1270,6 +1340,7 @@ struct ObjectRefreshDescendantMsg
 struct ObjectRefreshComponentMsg
 {
 	public string JsonData { get; set; }
+	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
 	public Guid GameObjectId { get; set; }
@@ -1284,6 +1355,7 @@ struct ObjectRefreshComponentMsg
 struct ObjectRefreshMsg
 {
 	public string JsonData { get; set; }
+	public byte[] BlobData { get; set; }
 	public byte[] TableData { get; set; }
 	public byte[] Snapshot { get; set; }
 	public Guid Parent { get; set; }
@@ -1332,6 +1404,7 @@ struct ObjectCreateMsg
 {
 	public ushort SnapshotVersion { get; set; }
 	public string JsonData { get; set; }
+	public byte[] BlobData { get; set; }
 	public Transform Transform { get; set; }
 	public Guid Guid { get; set; }
 	public Guid Creator { get; set; }
@@ -1353,6 +1426,13 @@ struct SceneNetworkTableMsg
 {
 	public Guid Guid { get; set; }
 	public byte[] TableData { get; set; }
+}
+
+[Expose]
+struct ObjectDetachMsg
+{
+	public NetworkMode Mode { get; set; }
+	public Guid Guid { get; set; }
 }
 
 [Expose]

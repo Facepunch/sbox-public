@@ -452,7 +452,7 @@ public class NavigationHost : Panel
 
 		if ( Current?.Panel is INavigatorPage toNav )
 		{
-			toNav.OnNavigationClose();
+			toNav.OnNavigationOpen();
 		}
 
 		RunNavigatedEvent();

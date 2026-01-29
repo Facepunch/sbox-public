@@ -12,7 +12,7 @@ internal partial class RenderPipeline
 	DepthNormalPrepassLayer DepthNormalSmallPrepass { get; } = new( false );
 	LightbinnerLayer LightbinnerLayer { get; } = new();
 	DepthDownsampleLayer DepthDownsampleLayer { get; } = new();
-	TiledCullingLayer TiledCullingLayer { get; } = new();
+	ClusteredCullingLayer ClusteredCullingLayer { get; } = new();
 	BloomLayer BloomLayer { get; } = new();
 	BloomDownsampleLayer BloomDownsampleLayer { get; } = new();
 	RefractionStencilLayer RefractionStencilLayer { get; } = new();
@@ -31,6 +31,9 @@ internal partial class RenderPipeline
 		{
 			LightbinnerLayer.Setup( pipelineAttributes );
 			LightbinnerLayer.AddToView( view, viewport );
+
+			ClusteredCullingLayer.Setup( view, viewport );
+			ClusteredCullingLayer.AddToView( view, viewport );
 		}
 
 
@@ -56,17 +59,18 @@ internal partial class RenderPipeline
 			var smallPrepass = DepthNormalSmallPrepass.AddToView( view, viewport );
 			smallPrepass.SetBoundingVolumeSizeCullThresholdInPercent( -60 );
 
+			bool disableDepthPrepassCulling = view.GetRenderAttributesPtr().GetBoolValue( "NoPrepassCulling", false );
+			largePrepass.SetLayerNoCull( disableDepthPrepassCulling );
+			smallPrepass.SetLayerNoCull( disableDepthPrepassCulling );
+
 			// Pass that DepthNormals are enabled to the rest of the pipeline
 			view.GetRenderAttributesPtr().SetIntValue( "NormalsTextureIndex", gbufferColor.ColorTarget.Index );
 		}
 
-		// Compute Async: Depth downscale, tiled culling
+		// Compute Async: Depth downscale, clustered culling
 		{
 			DepthDownsampleLayer.Setup( viewport, rtDepth, msaaInput: msaa != MultisampleAmount.MultisampleNone, view );
 			DepthDownsampleLayer.AddToView( view, viewport );
-
-			TiledCullingLayer.Setup( view );
-			TiledCullingLayer.AddToView( view, viewport );
 		}
 
 		// Bloom layer, Effects that only show up on bloom like a ghost effect

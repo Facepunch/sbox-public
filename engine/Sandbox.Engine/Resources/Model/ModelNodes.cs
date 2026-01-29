@@ -70,6 +70,19 @@ public class ModelPropData
 	/// </summary>
 	[JsonPropertyName( "explosive_force" ), Title( "Force Scale" )]
 	public float ExplosionForce { get; set; } = -1;
+
+	/// <summary>
+	/// Minimum impact damage speed to break this object.
+	/// </summary>
+	[JsonPropertyName( "min_impact_damage_speed" )]
+	public float MinImpactDamageSpeed { get; set; } = -1;
+
+	/// <summary>
+	/// The amount of damage this deals to other objects when it collides at high speed.
+	/// If set to -1, this will be calculated from the mass of the rigidbody.
+	/// </summary>
+	[JsonPropertyName( "impact_damage" )]
+	public float ImpactDamage { get; set; } = -1;
 }
 
 /// <summary>

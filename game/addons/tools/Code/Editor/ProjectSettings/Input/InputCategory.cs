@@ -1,7 +1,7 @@
 ﻿namespace Editor.ProjectSettingPages;
 
-[Title( "Input" )]
-internal sealed class InputCategory : ProjectInspector.Category
+[Title( "Input" ), Icon( "input" )]
+internal sealed class InputCategory : ProjectSettingsWindow.Category
 {
 	private Widget ActionsTree { get; set; }
 	private InputSettings InputSettings { get; set; }

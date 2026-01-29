@@ -158,6 +158,8 @@ internal static class DedicatedServer
 				return;
 
 			sgs.SetServerName( value );
+			sgs.SetAdvertiseServerActive( true );
+
 			_name = value;
 		}
 	}
@@ -181,6 +183,8 @@ internal static class DedicatedServer
 				return;
 
 			sgs.SetMapName( value );
+			sgs.SetAdvertiseServerActive( true );
+
 			_mapName = value;
 		}
 	}
@@ -241,11 +245,11 @@ internal static class DedicatedServer
 
 		if ( !IsGameServerActive )
 		{
-			Steam.SteamGameServer_Init( Networking.Port, Networking.SharedQueryPort ? Defines.STEAMGAMESERVER_QUERY_PORT_SHARED : 27016, "1.0.0.0" );
+			Steam.SteamGameServer_Init( Networking.Port, Networking.QueryPort, "1.0.0.0" );
 			Networking.Bootstrap();
 
 			// Conna: we can abstract this stuff out later, but for now we only use Steam networking for dedicated servers.
-			if ( Networking.UseFakeIP )
+			if ( Networking.HideAddress )
 			{
 				var sns = Steam.SteamNetworkingSockets();
 				sns.BeginRequestFakeIP();
@@ -313,8 +317,6 @@ internal static class DedicatedServer
 					sgs.LogOnAnonymous();
 			}
 
-			sgs.SetAdvertiseServerActive( true );
-
 			var timeout = TimeSpan.FromSeconds( 10f );
 			using var timeoutSource = new CancellationTokenSource( timeout );
 			var delay = TimeSpan.FromMilliseconds( 100 );
@@ -327,17 +329,17 @@ internal static class DedicatedServer
 				await Task.Delay( delay, timeoutSource.Token );
 			}
 
-			if ( IpSocket is null )
-			{
-				IpSocket = new();
-				IpSocket.AutoDispose = false;
-			}
+			sgs.SetAdvertiseServerActive( true );
 
-			if ( IdSocket is null )
+			IpSocket ??= new SteamNetwork.IpListenSocket
 			{
-				IdSocket = new( 77 );
-				IdSocket.AutoDispose = false;
-			}
+				AutoDispose = false
+			};
+
+			IdSocket ??= new SteamNetwork.IdListenSocket( 77 )
+			{
+				AutoDispose = false
+			};
 
 			IsGameServerActive = true;
 

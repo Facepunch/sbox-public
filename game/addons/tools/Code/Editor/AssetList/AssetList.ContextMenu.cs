@@ -500,6 +500,16 @@ public partial class AssetList
 			} );
 	}
 
+	public static void OpenCreateFlyout( string resourceType, string defaultName, string extension, Action<string> onCreated, Vector2? position = null )
+	{
+		OpenLineEditFlyout( defaultName, $"What do you want to name {resourceType}?", position,
+			name =>
+			{
+				if ( string.IsNullOrWhiteSpace( name ) ) return;
+				onCreated( $"{name}{extension}" );
+			} );
+	}
+
 	public static void OpenRenameFlyout( IAssetListEntry item, Vector2? position = null )
 	{
 		bool exactRename = item is AssetEntry ae && ae.Asset is null;

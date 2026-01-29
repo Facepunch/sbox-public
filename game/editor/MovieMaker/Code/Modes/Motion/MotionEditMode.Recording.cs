@@ -1,8 +1,4 @@
-﻿using System.Collections.Immutable;
-using Sandbox.MovieMaker;
-using System.Globalization;
-using System.Text.Json.Nodes;
-using System.Linq;
+﻿using Sandbox.MovieMaker;
 
 namespace Editor.MovieMaker;
 
@@ -17,33 +13,6 @@ partial class MotionEditMode
 	private MovieClipRecorder? _recorder;
 	private MovieTime _recordingLastTime;
 
-	/// <summary>
-	/// When recording, we don't want recorded tracks to play back. This clip has those tracks
-	/// filtered out, and live-updates its duration to match the recording.
-	/// </summary>
-	private sealed class FilteredClip : IMovieClip
-	{
-		private readonly ImmutableArray<ITrack> _tracks;
-		private readonly MovieClipRecorder _recorder;
-		private readonly ImmutableDictionary<Guid, IReferenceTrack> _referenceTracks;
-
-		public FilteredClip( IEnumerable<ITrack> tracks, MovieClipRecorder recorder )
-		{
-			_tracks = [..tracks];
-			_recorder = recorder;
-			_referenceTracks = _tracks.OfType<IReferenceTrack>()
-				.ToImmutableDictionary( x => x.Id, x => x );
-		}
-
-		public IEnumerable<ITrack> Tracks => _tracks;
-
-		// Add a second to the end so playback doesn't stop while we're recording.
-
-		public MovieTime Duration => _recorder.TimeRange.End + 1d;
-
-		public IReferenceTrack? GetTrack( Guid trackId ) => _referenceTracks.GetValueOrDefault( trackId );
-	}
-
 	protected override bool OnStartRecording()
 	{
 		ClearChanges();
@@ -53,6 +22,7 @@ partial class MotionEditMode
 		var startTime = Session.PlayheadTime.Floor( samplePeriod );
 
 		Session.PlayheadTime = startTime;
+		Session.Player.Clip = null;
 
 		var options = new RecorderOptions( Project.SampleRate );
 
@@ -65,11 +35,6 @@ partial class MotionEditMode
 			_recorder.Tracks.Add( (IProjectPropertyTrack)view.Track );
 		}
 
-		var playbackIgnoreTracks = Session.TrackList.AllTracks
-			.Where( x => !x.IsLocked )
-			.Select( x => x.Track );
-
-		Session.Player.Clip = new FilteredClip( ((IMovieClip)Session.Project).Tracks.Except( playbackIgnoreTracks ), _recorder );
 		Session.IsPlaying = true;
 
 		return true;
@@ -88,38 +53,13 @@ partial class MotionEditMode
 
 		Session.Player.Clip = Session.Project;
 
-		var compiled = recorder.ToClip();
-		var sourceClip = new ProjectSourceClip( Guid.NewGuid(), compiled, new JsonObject
-		{
-			{ "Date", DateTime.UtcNow.ToString( "o", CultureInfo.InvariantCulture ) },
-			{ "IsEditor", Session.Player.Scene.IsEditor },
-			{ "SceneSource", Json.ToNode( Session.Player.Scene.Source ) },
-			{ "MoviePlayer", Json.ToNode( Session.Player.Id ) }
-		} );
+		SetModification<BlendModification>( new TimeSelection( recorder.TimeRange, DefaultInterpolation ) )
+			.SetFromMovieClip( recorder.ToClip(), recorder.TimeRange, 0d, false );
 
-		foreach ( var trackRecorder in recorder.Tracks )
-		{
-			if ( Session.TrackList.Find( (IProjectTrack)trackRecorder.Track ) is not { } view )
-			{
-				continue;
-			}
-
-			view.ClearPreviewBlocks();
-
-			if ( view.Track is not IProjectPropertyTrack propertyTrack )
-			{
-				continue;
-			}
-
-			propertyTrack.AddRange( propertyTrack.CreateSourceBlocks( sourceClip ).Select( x => x.Shift( timeRange.Start ) ) );
-
-			view.MarkValueChanged();
-		}
+		CommitChanges();
+		DisplayAction( "radio_button_checked" );
 
 		Session.PlayheadTime = timeRange.End;
-		TimeSelection = new TimeSelection( timeRange, DefaultInterpolation );
-		
-		DisplayAction( "radio_button_checked" );
 	}
 
 	private void RecordingFrame()
@@ -136,7 +76,7 @@ partial class MotionEditMode
 				var track = (IProjectPropertyTrack)trackRecorder.Track;
 
 				if ( Session.TrackList.Find( track ) is not { } view ) continue;
-				if ( !view.IsExpanded ) continue;
+				if ( view.Parent?.IsExpanded is false ) continue;
 
 				var finishedBlocks = trackRecorder.FinishedBlocks;
 
@@ -151,7 +91,7 @@ partial class MotionEditMode
 			}
 		}
 
-		Session.ScrollToPlayheadTime();
+		Timeline.PanToPlayheadTime();
 
 		_recordingLastTime = time;
 	}

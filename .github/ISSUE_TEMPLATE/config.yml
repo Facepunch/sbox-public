@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: View Documentation
+    url: https://sbox.game/dev/doc/
+    about: Check the documentation to see if that solves your issue
+  - name: Ask on Forums
+    url: https://sbox.game/f/
+    about: Ask on the forums if you need help or have questions

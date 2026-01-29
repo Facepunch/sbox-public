@@ -56,6 +56,10 @@ internal static class PolyMeshBuilder
 #pragma warning restore CA2000 // Dispose objects before losing scope
 		mesh.Init( cset, maxVertsPerPoly, maxTris, maxVertices );
 
+		using var pooledRegionIds = new PooledSpan<int>( maxTris );
+		var regionIds = pooledRegionIds.Span;
+		regionIds.Clear();
+
 		using var pooledNextVert = new PooledSpan<int>( maxVertices );
 		var nextVert = pooledNextVert.Span;
 		nextVert.Clear();
@@ -205,7 +209,7 @@ internal static class PolyMeshBuilder
 
 				pj.CopyTo( mesh.Polys.Slice( mesh.PolyCount * maxVertsPerPoly * 2, maxVertsPerPoly * 2 ) );
 
-				mesh.RegionIds[mesh.PolyCount] = cont.Region;
+				regionIds[mesh.PolyCount] = cont.Region;
 				mesh.Areas[mesh.PolyCount] = cont.Area;
 				mesh.PolyCount++;
 			}
@@ -219,7 +223,7 @@ internal static class PolyMeshBuilder
 				if ( !CanRemoveVertex( mesh, (ushort)i ) )
 					continue;
 
-				if ( !RemoveVertex( mesh, (ushort)i, mesh.MaxPolys ) )
+				if ( !RemoveVertex( mesh, regionIds, (ushort)i, mesh.MaxPolys ) )
 				{
 					// Failed to remove vertex
 					Log.Error( $"rcBuildPolyMesh: Failed to remove edge vertex {i}." );
@@ -761,7 +765,7 @@ internal static class PolyMeshBuilder
 		return numOpenEdges <= 2;
 	}
 
-	private static bool RemoveVertex( PolyMesh mesh, ushort rem, int maxTris )
+	private static bool RemoveVertex( PolyMesh mesh, Span<int> regionIds, ushort rem, int maxTris )
 	{
 		int nvp = mesh.MaxVertsPerPoly;
 
@@ -812,7 +816,7 @@ internal static class PolyMeshBuilder
 						int eIndex = nedges * 4;
 						edges[eIndex + 0] = p2[k];
 						edges[eIndex + 1] = p2[j];
-						edges[eIndex + 2] = mesh.RegionIds[i];
+						edges[eIndex + 2] = regionIds[i];
 						edges[eIndex + 3] = mesh.Areas[i];
 						nedges++;
 					}
@@ -828,7 +832,7 @@ internal static class PolyMeshBuilder
 				// Clear the last half (adjacency info)
 				mesh.Polys.Slice( (i * nvp * 2) + nvp, nvp ).Fill( Constants.MESH_NULL_IDX );
 
-				mesh.RegionIds[i] = mesh.RegionIds[mesh.PolyCount - 1];
+				regionIds[i] = regionIds[mesh.PolyCount - 1];
 				mesh.Areas[i] = mesh.Areas[mesh.PolyCount - 1];
 				mesh.PolyCount--;
 				--i;
@@ -1068,7 +1072,7 @@ internal static class PolyMeshBuilder
 				p[j] = polys[i * nvp + j];
 
 			p.CopyTo( mesh.Polys.Slice( mesh.PolyCount * nvp * 2, nvp * 2 ) );
-			mesh.RegionIds[mesh.PolyCount] = pregs[i];
+			regionIds[mesh.PolyCount] = pregs[i];
 			mesh.Areas[mesh.PolyCount] = pareas[i];
 			mesh.PolyCount++;
 

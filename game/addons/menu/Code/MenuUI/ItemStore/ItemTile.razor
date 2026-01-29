@@ -80,4 +80,6 @@
 
         }
     }
+
+    protected override int BuildHash() => HashCode.Combine( Item.Id, CountInCart, Owned );
 }

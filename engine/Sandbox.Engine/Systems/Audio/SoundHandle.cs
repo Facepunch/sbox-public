@@ -165,6 +165,12 @@ public partial class SoundHandle : IValid, IDisposable
 	public Mixer TargetMixer { get; set; }
 
 	/// <summary>
+	/// Marks this sound as voice/speech audio (e.g., from VoiceComponent).
+	/// Voice sounds use cheaper HRTF interpolation since they don't benefit from bilinear filtering.
+	/// </summary>
+	internal bool IsVoice { get; set; }
+
+	/// <summary>
 	/// How many samples per second?
 	/// </summary>
 	public int SampleRate { get; private init; }
@@ -297,6 +303,28 @@ public partial class SoundHandle : IValid, IDisposable
 
 		// Compare names instead of mixers, because they may have deserialized etc
 		return TargetMixer.Name == mixer.Name;
+	}
+
+	/// <summary>
+	/// Gets the effective mixer this sound will play on.
+	/// Returns the TargetMixer if set, otherwise the default mixer.
+	/// </summary>
+	internal Mixer GetEffectiveMixer()
+	{
+		if ( _destroyed ) return null;
+		return TargetMixer ?? Mixer.Default;
+	}
+
+	/// <summary>
+	/// Returns true if this sound is ready to be mixed (has sampler, not finished, valid).
+	/// Used by both mixer and occlusion system to determine if sound should be processed.
+	/// </summary>
+	internal bool CanBeMixed()
+	{
+		if ( !IsValid ) return false;
+		if ( sampler is null ) return false;
+		if ( Finished ) return false;
+		return true;
 	}
 
 	public bool IsValid => !_destroyed;

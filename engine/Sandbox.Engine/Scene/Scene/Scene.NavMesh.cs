@@ -10,8 +10,12 @@ public partial class Scene : GameObject
 	/// </summary>
 	void Nav_Update()
 	{
-		if ( !NavMesh.IsEnabled || this is PrefabScene )
-			return;
+		if ( !NavMesh.IsEnabled || this is PrefabScene ) return;
+
+		if ( !NavMesh.IsLoaded && IsEditor )
+		{
+			SyncContext.RunBlocking( NavMesh.Load( PhysicsWorld ) );
+		}
 
 		if ( NavMesh.IsGenerating ) return;
 

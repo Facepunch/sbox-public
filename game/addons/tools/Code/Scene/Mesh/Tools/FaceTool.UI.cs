@@ -5,6 +5,15 @@ namespace Editor.MeshEditor;
 
 partial class FaceTool
 {
+	private const string ClipboardFaceDataType = "mesh_faces";
+
+	/// <summary>
+	/// Data structure for serializing face geometry to clipboard.
+	/// Faces reference vertices by index to preserve shared vertices between connected faces.
+	/// </summary>
+	private record struct ClipboardFaceData( int[] VertexIndices, string Material, Vector4 AxisU, Vector4 AxisV, Vector2 Scale );
+	private record struct ClipboardMeshData( Vector3[] Vertices, ClipboardFaceData[] Faces );
+
 	public override Widget CreateToolSidebar()
 	{
 		return new FaceSelectionWidget( GetSerializedSelection(), Tool );
@@ -20,6 +29,13 @@ partial class FaceTool
 		[Range( 0, 64, slider: false ), Step( 1 ), WideMode]
 		private Vector2Int NumCuts = 1;
 
+		public bool SelectByMaterial { get; set; } = false;
+		public bool SelectByNormal { get; set; } = true;
+
+		[Range( 0.1f, 90f, slider: false ), Step( 1 ), Title( "Normal Threshold" )]
+		public float NormalThreshold { get; set; } = 12.0f;
+		public bool OverlaySelection { get; set; } = true;
+
 		public FaceSelectionWidget( SerializedObject so, MeshTool tool ) : base()
 		{
 			AddTitle( "Face Mode", "change_history" );
@@ -31,6 +47,28 @@ partial class FaceTool
 
 			_faceGroups = _faces.GroupBy( x => x.Component ).ToList();
 			_components = _faceGroups.Select( x => x.Key ).ToList();
+
+			SelectByMaterial = EditorCookie.Get( "FaceTool.SelectByMaterial", false );
+			SelectByNormal = EditorCookie.Get( "FaceTool.SelectByNormal", true );
+			NormalThreshold = EditorCookie.Get( "FaceTool.NormalThreshold", 12.0f );
+			OverlaySelection = EditorCookie.Get( "FaceTool.OverlaySelection", true );
+
+			if ( _meshTool.CurrentTool is FaceTool ft )
+			{
+				ft.SelectByMaterial = SelectByMaterial;
+				ft.SelectByNormal = SelectByNormal;
+				ft.NormalThreshold = NormalThreshold;
+				ft.OverlaySelection = OverlaySelection;
+			}
+
+			var target = this.GetSerialized();
+			target.OnPropertyChanged = ( p ) =>
+			{
+				EditorCookie.Set( "FaceTool.SelectByMaterial", SelectByMaterial );
+				EditorCookie.Set( "FaceTool.SelectByNormal", SelectByNormal );
+				EditorCookie.Set( "FaceTool.NormalThreshold", NormalThreshold );
+				EditorCookie.Set( "FaceTool.OverlaySelection", OverlaySelection );
+			};
 
 			{
 				var group = AddGroup( "Move Mode" );
@@ -89,6 +127,57 @@ partial class FaceTool
 			}
 
 			Layout.AddStretchCell();
+
+			{
+				var group = AddGroup( "Filtered Selection [Alt + Double Click]" );
+
+				var normalRow = Layout.Row();
+				normalRow.Spacing = 4;
+
+				var materialRow = Layout.Row();
+				materialRow.Spacing = 4;
+
+				var useMaterial = ControlWidget.Create( target.GetProperty( nameof( SelectByMaterial ) ) );
+				useMaterial.FixedHeight = Theme.ControlHeight;
+
+				var materialLabel = new Label { Text = "Use Material" };
+
+				materialRow.Add( useMaterial );
+				materialRow.Add( materialLabel );
+				materialRow.AddStretchCell();
+
+				group.Add( materialRow );
+
+				var useNormal = ControlWidget.Create( target.GetProperty( nameof( SelectByNormal ) ) );
+				useNormal.FixedHeight = Theme.ControlHeight;
+
+				var normalLabel = new Label { Text = "Use Normal" };
+				var normalControl = ControlWidget.Create( target.GetProperty( nameof( NormalThreshold ) ) );
+				normalControl.FixedHeight = Theme.ControlHeight;
+				normalControl.FixedWidth = 72;
+
+				normalRow.Add( useNormal );
+				normalRow.Add( normalLabel );
+				normalRow.AddStretchCell();
+				normalRow.Add( normalControl );
+
+				group.Add( normalRow );
+			}
+
+			{
+				var group = AddGroup( "Display" );
+				var overlayRow = Layout.Row();
+				overlayRow.Spacing = 4;
+
+				var selectionOverlay = ControlWidget.Create( target.GetProperty( nameof( OverlaySelection ) ) );
+				var selectionOverlayLabel = new Label { Text = "Overlay Selection" };
+				selectionOverlay.FixedHeight = Theme.ControlHeight;
+
+				overlayRow.Add( selectionOverlay );
+				overlayRow.Add( selectionOverlayLabel );
+
+				group.Add( overlayRow );
+			}
 		}
 
 		[Shortcut( "mesh.edge-cut-tool", "C", typeof( SceneViewWidget ) )]
@@ -158,6 +247,130 @@ partial class FaceTool
 			{
 				foreach ( var group in groups )
 					group.Key.Mesh.RemoveFaces( group.Select( x => x.Handle ) );
+			}
+		}
+
+		[Shortcut( "editor.copy", "CTRL+C", typeof( SceneViewWidget ) )]
+		private void CopySelection()
+		{
+			if ( !_faceGroups.Any() )
+				return;
+
+			var vertexList = new List<Vector3>();
+			var vertexIndexMap = new Dictionary<Vector3, int>();
+			var faceDataList = new List<ClipboardFaceData>();
+
+			foreach ( var group in _faceGroups )
+			{
+				var mesh = group.Key.Mesh;
+
+				foreach ( var face in group )
+				{
+					if ( !face.IsValid )
+						continue;
+
+					var faceVertexIndices = new List<int>();
+
+					foreach ( var vertexHandle in mesh.GetFaceVertices( face.Handle ) )
+					{
+						var position = mesh.GetVertexPosition( vertexHandle );
+
+						if ( !vertexIndexMap.TryGetValue( position, out var index ) )
+						{
+							index = vertexList.Count;
+							vertexList.Add( position );
+							vertexIndexMap[position] = index;
+						}
+
+						faceVertexIndices.Add( index );
+					}
+
+					mesh.GetFaceTextureParameters( face.Handle, out var axisU, out var axisV, out var scale );
+
+					faceDataList.Add( new ClipboardFaceData(
+						faceVertexIndices.ToArray(),
+						face.Material?.ResourcePath,
+						axisU,
+						axisV,
+						scale
+					) );
+				}
+			}
+
+			var meshData = new ClipboardMeshData( vertexList.ToArray(), faceDataList.ToArray() );
+
+			var json = new JsonObject
+			{
+				["_type"] = ClipboardFaceDataType,
+				["_data"] = JsonNode.Parse( Json.Serialize( meshData ) )
+			};
+
+			EditorUtility.Clipboard.Copy( json.ToJsonString() );
+		}
+
+		[Shortcut( "editor.paste", "CTRL+V", typeof( SceneViewWidget ) )]
+		private void PasteSelection()
+		{
+			var clipboard = EditorUtility.Clipboard.Paste();
+			if ( string.IsNullOrWhiteSpace( clipboard ) || !clipboard.StartsWith( "{" ) )
+				return;
+
+			ClipboardMeshData meshData;
+			try
+			{
+				var json = JsonNode.Parse( clipboard );
+				if ( json?["_type"]?.ToString() != ClipboardFaceDataType )
+					return;
+
+				meshData = Json.Deserialize<ClipboardMeshData>( json["_data"].ToJsonString() );
+			}
+			catch
+			{
+				return;
+			}
+
+			if ( meshData.Faces == null || meshData.Faces.Length == 0 )
+				return;
+
+			if ( meshData.Vertices == null || meshData.Vertices.Length == 0 )
+				return;
+
+			if ( _components.Count == 0 )
+				return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Paste Faces" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				selection.Clear();
+
+				// Paste into the first selected component
+				var targetComponent = _components.First();
+				var mesh = targetComponent.Mesh;
+				var newVertices = mesh.AddVertices( meshData.Vertices );
+
+				// Create faces using the shared vertex handles
+				foreach ( var faceData in meshData.Faces )
+				{
+					if ( faceData.VertexIndices == null || faceData.VertexIndices.Length < 3 )
+						continue;
+					if ( faceData.VertexIndices.Any( i => i < 0 || i >= newVertices.Length ) )
+						continue;
+
+					var faceVertices = faceData.VertexIndices.Select( i => newVertices[i] ).ToArray();
+					var newFaceHandle = mesh.AddFace( faceVertices );
+					if ( !newFaceHandle.IsValid )
+						continue;
+
+					var material = string.IsNullOrEmpty( faceData.Material ) ? null : Material.Load( faceData.Material );
+					mesh.SetFaceMaterial( newFaceHandle, material );
+					mesh.SetFaceTextureParameters( newFaceHandle, faceData.AxisU, faceData.AxisV, faceData.Scale );
+
+					selection.Add( new MeshFace( targetComponent, newFaceHandle ) );
+				}
 			}
 		}
 
@@ -335,6 +548,115 @@ partial class FaceTool
 					{
 						selection.Add( new MeshFace( group.Key, hFace ) );
 					}
+				}
+			}
+		}
+
+		[Shortcut( "mesh.grow-selection", "KP_ADD", typeof( SceneViewWidget ) )]
+		private void GrowSelection()
+		{
+			if ( _faces.Length == 0 ) return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Grow Selection" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				var newFaces = new HashSet<MeshFace>();
+
+				foreach ( var face in _faces )
+				{
+					if ( !face.IsValid() )
+						continue;
+
+					newFaces.Add( face );
+				}
+
+				foreach ( var face in _faces )
+				{
+					if ( !face.IsValid() )
+						continue;
+
+					var mesh = face.Component.Mesh;
+					var edges = mesh.GetFaceEdges( face.Handle );
+
+					foreach ( var edge in edges )
+					{
+						mesh.GetFacesConnectedToEdge( edge, out var faceA, out var faceB );
+
+						if ( faceA.IsValid && faceA != face.Handle )
+							newFaces.Add( new MeshFace( face.Component, faceA ) );
+
+						if ( faceB.IsValid && faceB != face.Handle )
+							newFaces.Add( new MeshFace( face.Component, faceB ) );
+					}
+				}
+
+				selection.Clear();
+				foreach ( var face in newFaces )
+				{
+					if ( face.IsValid() )
+						selection.Add( face );
+				}
+			}
+		}
+
+		[Shortcut( "mesh.shrink-selection", "KP_MINUS", typeof( SceneViewWidget ) )]
+		private void ShrinkSelection()
+		{
+			if ( _faces.Length == 0 ) return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Shrink Selection" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				var facesToKeep = new HashSet<MeshFace>();
+
+				foreach ( var face in _faces )
+				{
+					if ( !face.IsValid() )
+						continue;
+
+					var mesh = face.Component.Mesh;
+					var edges = mesh.GetFaceEdges( face.Handle );
+					bool isInterior = true;
+
+					foreach ( var edge in edges )
+					{
+						mesh.GetFacesConnectedToEdge( edge, out var faceA, out var faceB );
+
+						var otherFace = faceA == face.Handle ? faceB : faceA;
+
+						if ( !otherFace.IsValid )
+						{
+							isInterior = false;
+							break;
+						}
+
+						var otherMeshFace = new MeshFace( face.Component, otherFace );
+						if ( !_faces.Contains( otherMeshFace ) )
+						{
+							isInterior = false;
+							break;
+						}
+					}
+
+					if ( isInterior )
+					{
+						facesToKeep.Add( face );
+					}
+				}
+
+				selection.Clear();
+				foreach ( var face in facesToKeep )
+				{
+					if ( face.IsValid() )
+						selection.Add( face );
 				}
 			}
 		}

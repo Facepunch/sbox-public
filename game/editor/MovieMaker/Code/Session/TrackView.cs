@@ -151,7 +151,7 @@ public sealed partial class TrackView : IComparable<TrackView>
 		Track = track;
 		Target = target;
 
-		_isExpanded = GetCookie( nameof( IsExpanded ), true );
+		_isExpanded = GetCookie( nameof( IsExpanded ), parent is null );
 		_isLockedSelf = GetCookie( nameof( IsLockedSelf ), false );
 
 		_children = new SynchronizedSet<IProjectTrack, TrackView>(
@@ -472,18 +472,15 @@ public sealed partial class TrackView : IComparable<TrackView>
 				break;
 
 			case IPropertyTrack propertyTrack:
+				// Don't apply this track if we're recording to it
+
+				if ( !IsLocked && TrackList.Session.IsRecording ) break;
 				if ( Target is not ITrackProperty { CanWrite: true } property ) break;
 
 				UpdatePreviewBlocks();
 
 				if ( _previewBlocks.GetBlock( time ) is IPropertySignal block )
 				{
-					if ( block is IDynamicBlock )
-					{
-						// Don't preview while recording
-						break;
-					}
-
 					property.Value = block.GetValue( time );
 				}
 				else

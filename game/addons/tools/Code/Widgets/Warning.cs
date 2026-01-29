@@ -14,8 +14,8 @@ public class WarningBox : Widget
 			_bgColor = value;
 			Label.Color = _bgColor;
 		}
-
 	}
+
 	public Label Label;
 
 	string _icon;
@@ -25,11 +25,13 @@ public class WarningBox : Widget
 		set
 		{
 			_icon = value;
-
 			SetProperty( "hasIcon", string.IsNullOrEmpty( _icon ) ? "1" : "0" );
 			Layout.Margin = new Margin( 32, 8, 8, 8 );
 		}
 	}
+
+	private const float IconMargin = 32;
+	private const float IconSize = 24;
 
 	public WarningBox( Widget parent = null ) : this( null, parent ) { }
 
@@ -53,19 +55,27 @@ public class WarningBox : Widget
 
 		Paint.ClearPen();
 
-		Paint.SetBrushRadial( LocalRect.TopLeft + new Vector2( 32, Height * 0.5f ), 400, BackgroundColor.Darken( 0.7f ), BackgroundColor.Darken( 0.7f ) );
+		var gradientCenter = LocalRect.TopLeft + new Vector2( IconMargin, Height * 0.5f );
+
+		Paint.SetBrushRadial( gradientCenter, 400, BackgroundColor.Darken( 0.6f ), BackgroundColor.Darken( 0.7f ) );
 		Paint.DrawRect( LocalRect, 2 );
 
-		Paint.SetBrushRadial( LocalRect.TopLeft + new Vector2( 32, Height * 0.5f ), 400, BackgroundColor.Darken( 0.5f ), BackgroundColor.Darken( 0.6f ) );
+		Paint.SetBrushRadial( gradientCenter, 400, BackgroundColor.Darken( 0.4f ), BackgroundColor.Darken( 0.45f ) );
 		Paint.DrawRect( LocalRect.Shrink( 1 ), 2 );
 
 		if ( !string.IsNullOrEmpty( _icon ) )
 		{
+			var iconRect = new Rect(
+				LocalRect.Left + (IconMargin - IconSize) * 0.5f,
+				LocalRect.Top + (Height - IconSize) * 0.5f,
+				IconSize,
+				IconSize
+			);
+
 			Paint.SetPen( BackgroundColor );
-			Paint.DrawIcon( LocalRect.Shrink( 8 ), _icon, 18, TextFlag.LeftTop );
+			Paint.DrawIcon( iconRect, _icon, 18, TextFlag.Center );
 		}
 	}
-
 }
 
 public class InformationBox : WarningBox
@@ -74,7 +84,7 @@ public class InformationBox : WarningBox
 
 	public InformationBox( string title, Widget parent = null ) : base( title, parent )
 	{
-		BackgroundColor = Theme.Blue;
+		BackgroundColor = Theme.Primary;
 		Icon = "info";
 	}
 }

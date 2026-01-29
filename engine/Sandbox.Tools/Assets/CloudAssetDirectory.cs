@@ -91,6 +91,17 @@ internal class CloudAssetDirectory : IDisposable
 	public void AddPackage( Package package )
 	{
 		packages.DeleteMany( x => x.FullIdent == package.FullIdent );
+		files.DeleteMany( x => x.Package == package.FullIdent && x.Revision != package.Revision.VersionId );
+
+		// tidy stale entries to keep it in sync with the database
+		var staleKeys = fileCache.Where( x => x.Value.Package == package.FullIdent && x.Value.Revision != package.Revision.VersionId )
+			.Select( x => x.Key )
+			.ToList();
+		foreach ( var key in staleKeys )
+		{
+			fileCache.Remove( key );
+		}
+
 		packages.Insert( package );
 
 		packageCache[package.FullIdent] = package;
@@ -157,12 +168,15 @@ internal class CloudAssetDirectory : IDisposable
 	}
 
 	/// <summary>
-	/// Validate that the files in this package are all present and correct. This is 
+	/// Validate that the files in this package are all present and correct. This is
 	/// done once when retriving the package.
 	/// </summary>
 	internal bool ValidatePackage( Package package )
 	{
-		return fileCache.Values.Where( x => x.Package == package.FullIdent ).AsParallel().All( x => FileSystem.Cloud.FileExists( x.Path ) );
+		return fileCache.Values
+			.Where( x => x.Package == package.FullIdent && x.Revision == package.Revision.VersionId )
+			.AsParallel()
+			.All( x => FileSystem.Cloud.FileExists( x.Path ) );
 	}
 
 	/// <summary>

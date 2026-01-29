@@ -8,9 +8,11 @@ namespace Sandbox.MovieMaker.Compiled;
 #nullable enable
 
 /// <inheritdoc cref="ITrack"/>
-public interface ICompiledTrack : ITrack
+public interface ICompiledTrack : ITrack, IComparable<ICompiledTrack>
 {
 	new ICompiledTrack? Parent { get; }
+
+	int IComparable<ICompiledTrack>.CompareTo( ICompiledTrack? other ) => TrackComparer.Compare( this, other );
 }
 
 /// <inheritdoc cref="IReferenceTrack"/>
@@ -27,6 +29,33 @@ public interface ICompiledBlockTrack : ICompiledTrack
 	IReadOnlyList<ICompiledBlock> Blocks { get; }
 
 	public MovieTimeRange TimeRange => Blocks.Count == 0 ? default : (Blocks[0].TimeRange.Start, Blocks[^1].TimeRange.End);
+}
+
+file static class TrackComparer
+{
+	public static int Compare( ICompiledTrack? a, ICompiledTrack? b )
+	{
+		if ( a is null && b is null ) return 0;
+		if ( a is null ) return -1;
+		if ( b is null ) return 1;
+
+		var aDepth = a.GetDepth();
+		var bDepth = b.GetDepth();
+
+		if ( aDepth != bDepth ) return aDepth - bDepth;
+
+		var nameCompare = a.Name.CompareTo( b.Name, StringComparison.Ordinal );
+		if ( nameCompare != 0 ) return nameCompare;
+
+		// Reference tracks can have the same name! Use track ID as a tie-breaker.
+
+		if ( a is ICompiledReferenceTrack aRef && b is ICompiledReferenceTrack bRef )
+		{
+			return aRef.Id.CompareTo( bRef.Id );
+		}
+
+		return 0;
+	}
 }
 
 public sealed record CompiledReferenceTrack<T>( Guid Id, string Name, CompiledReferenceTrack<GameObject>? Parent = null, Guid? ReferenceId = null ) : ICompiledReferenceTrack, IReferenceTrack<T>

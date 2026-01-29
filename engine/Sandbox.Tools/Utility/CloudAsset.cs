@@ -63,8 +63,9 @@ public class CloudAsset
 			return false;
 		}
 
-		using var progress = Progress.Start( windowTitle );
-		var cancel = Progress.GetCancel();
+		using var progress = Application.Editor.ProgressSection();
+		progress.Title = windowTitle;
+		var cancel = progress.GetCancel();
 
 		// Sol: for whatever reason some projects were being saved with multiple refs to different version of the same package?
 		// make sure we're only trying one ref of any package (prefer the newest, version-pinned one) otherwise stuff gets confusing
@@ -114,7 +115,10 @@ public class CloudAsset
 			if ( package == null )
 				return;
 
-			Progress.Update( $"Installing '{package.Title}'", ++i, total );
+			progress.Title = $"Installing '{package.Title}'";
+			progress.TotalCount = total;
+			progress.Current = ++i;
+
 			Log.Info( $"Installing '{package.FullIdent}' (version: {package.Revision.VersionId})" );
 			await AssetSystem.InstallAsync( package, false, null, cancel );
 

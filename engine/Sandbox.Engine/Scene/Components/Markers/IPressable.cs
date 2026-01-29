@@ -18,6 +18,11 @@ public abstract partial class Component
 		public record struct Event( Component Source, Ray? Ray = default );
 
 		/// <summary>
+		/// A tooltip to show when looking at this pressable
+		/// </summary>
+		public record struct Tooltip( string Title, string Icon, string Description, bool Enabled = true, IPressable Pressable = default );
+
+		/// <summary>
 		/// A player has started looking at this
 		/// </summary>
 		void Hover( Event e ) { }
@@ -50,11 +55,15 @@ public abstract partial class Component
 		/// </summary>
 		void Release( Event e ) { }
 
-
 		/// <summary>
 		/// Return true if the press is possible right now
 		/// </summary>
 		bool CanPress( Event e ) => true;
+
+		/// <summary>
+		/// Get a tooltip to show when looking at this pressable
+		/// </summary>
+		Tooltip? GetTooltip( Event e ) => null;
 	}
 
 }

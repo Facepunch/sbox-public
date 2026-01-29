@@ -1,4 +1,5 @@
 ﻿using Sandbox.MovieMaker;
+using Sandbox.MovieMaker.Compiled;
 
 namespace Editor.MovieMaker;
 
@@ -65,9 +66,22 @@ file sealed record HardCutOperation<T>( PropertySignal<T> First, PropertySignal<
 		return GetTransitionPaintHints( timeRange, Time );
 	}
 
-	public override bool CanSmooth( MovieTimeRange range )
+	public override IEnumerable<ICompiledPropertyBlock<T>> Compile( MovieTimeRange timeRange, int sampleRate )
 	{
-		return range.Start < Time && First.CanSmooth( range.ClampEnd( Time ) )
-			|| range.End > Time && Second.CanSmooth( range.ClampStart( Time ) );
+		if ( timeRange.End <= Time )
+		{
+			return First.Compile( timeRange, sampleRate );
+		}
+
+		if ( timeRange.Start >= Time )
+		{
+			return Second.Compile( timeRange, sampleRate );
+		}
+
+		return
+		[
+			..First.Compile( timeRange.ClampEnd( Time ), sampleRate ),
+			..Second.Compile( timeRange.ClampStart( Time ), sampleRate )
+		];
 	}
 }

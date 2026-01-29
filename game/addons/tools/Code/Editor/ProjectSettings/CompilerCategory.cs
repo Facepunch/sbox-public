@@ -1,7 +1,7 @@
 ﻿namespace Editor.ProjectSettingPages;
 
-[Title( "Compiler Setup" )]
-internal sealed class CompilerCategory : ProjectInspector.Category
+[Title( "Compiler Setup" ), Icon( "code" )]
+internal sealed class CompilerCategory : ProjectSettingsWindow.Category
 {
 	Compiler.Configuration configuration;
 

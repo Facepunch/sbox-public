@@ -289,7 +289,7 @@ public partial class DockManager : Widget
 			return;
 
 		var menu = new Menu( Parent );
-		menu.AddOption( $"Close Tab", "close", widget.Close );
+		menu.AddOption( $"Close Tab", "close", () => _tw.closeToolWindow( widget._widget, false ) );
 		// Weren't done right before, if we want them add them again
 		// Close Other Tabs
 		// menu.AddOption( $"Show {tabName} in Asset Browser", "manage_search", () => EditorEvent.Run( "assetsystem.highlight", session.Scene.Source.ResourcePath ); );

@@ -555,7 +555,7 @@ FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
 		material.Emission = o.vEmissive;
 		material.Metalness = flMetalness;
 
-		Decals::Apply( o.vPositionWs, o.vPositionSs.xy, material );
+		Decals::Apply( o.vPositionWs, material );
 
 		vAlbedo = material.Albedo;
 		o.vNormalWs = material.Normal;

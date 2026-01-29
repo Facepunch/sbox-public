@@ -14,8 +14,6 @@ public partial class Bitmap
 		const int width = 512;
 		const int height = 512;
 
-		var imageData = new Half[width * height * 4];
-		using var bitmap = new SKBitmap( width, height, SKColorType.RgbaF16, SKAlphaType.Unpremul );
 		var ies = new IES();
 
 		try
@@ -36,6 +34,7 @@ public partial class Bitmap
 		}
 
 		var brightness = 1.0f / ies.CandelasMax;
+		var imageData = new Half[width * height * 4];
 
 		for ( var y = 0; y < height; y++ )
 		{
@@ -59,6 +58,8 @@ public partial class Bitmap
 				imageData[idx + 3] = (Half)1.0f;
 			}
 		}
+
+		var bitmap = new SKBitmap( width, height, SKColorType.RgbaF16, SKAlphaType.Unpremul );
 
 		unsafe
 		{

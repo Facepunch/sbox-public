@@ -265,7 +265,7 @@ file class AssetRow : Widget
 		var addon = Asset.Publishing.CreateTemporaryProject();
 		addon.Config.Org = Project.Current.Config.Org;
 
-		ProjectInspector.OpenForProject( addon );
+		ProjectSettingsWindow.OpenForProject( addon );
 	}
 
 	public async Task RefreshStatus()

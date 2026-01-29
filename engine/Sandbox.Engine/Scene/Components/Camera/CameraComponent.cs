@@ -653,9 +653,11 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		if ( target is null || target.native.IsNull )
 			return false;
 
+		// TODO: we need to get rid of this guard, it's a hack
 		if ( !Graphics.IsActive )
 		{
 			Scene.PreCameraRender();
+			// TODO: not sure why we call this again PreCameraRender should init all cameras
 			InitializeRendering();
 		}
 

@@ -166,7 +166,8 @@ public static class LibrarySystem
 		// something like using( FileSystem.DeferChanges() ), but globally
 		//
 
-		using var progress = Progress.Start( "Installing Package" );
+		using var progress = Application.Editor.ProgressSection();
+		progress.Title = "Installing Package";
 
 		var package = await Package.FetchAsync( ident, false );
 		if ( package is null )
@@ -225,7 +226,7 @@ public static class LibrarySystem
 				if ( !version.Manifest.Files.Any( x => x.Path == existingFile ) || FileSystem.Libraries.GetCrc( fullPath ) != Convert.ToUInt64( newFile.Crc, 16 ) )
 				{
 					FileSystem.Libraries.DeleteFile( fullPath );
-					Progress.Update( $"Deleting {existingFile}" );
+					progress.Title = $"Deleting {existingFile}";
 				}
 			}
 		}
@@ -262,7 +263,7 @@ public static class LibrarySystem
 					var libraryPath = $"{folderName}/{file.Path}";
 					var targetPath = FileSystem.Libraries.GetFullPath( libraryPath );
 					await EditorUtility.DownloadAsync( file.Url, targetPath, null, token );
-					Progress.Update( file.Path );
+					progress.Title = file.Path;
 					bytesDownloading -= file.Size;
 					filesDownloading.Remove( file );
 				} );

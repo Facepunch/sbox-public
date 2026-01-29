@@ -3,9 +3,12 @@ include "sbox/glue_mesh.h"
 include "modellib/modelbuilder.h"
 include "meshutils/simplifyparams.h"
 include "vphysx/vphysx_collisionmesh_resource.h"
+include "meshutils/uvparamlscm.h"
 
-native struct SboxVertex_t is Sandbox.Vertex;
+native struct SboxVertex_t is Sandbox.Vertex
 native struct VertexField_t as NativeEngine.VertexField
+native enum GenerateUVsMode_t as NativeEngine.GenerateUVsMode_t
+native enum AlignEdgeUV_t as NativeEngine.AlignEdgeUV_t
 
 native class CBuilderMaterialGroup
 {
@@ -144,5 +147,16 @@ native static class MeshGlue as NativeEngine.MeshGlue
 	{
 		CTriangulatedPolygon polygon( pPolygonVerts, nullptr, nNumVerts );
 		polygon.ClipLineSegment( vA, vB, pOutSegmentPointsInside, nullptr );
+	}
+
+	inline void GenerateUVsForTriangles( int nNumVertices, CastTo[Vector*] void* VertexPositions, int nNumTriangles, CastTo[uint32*] void* pTriangleVertexIndices, CastTo[uint32*] void* pTriangleFaceIds, GenerateUVsMode_t nGenerationMode, AlignEdgeUV_t nEdgeAlignMode, int nAlignEdgeVertexIndexA, int nAlignEdgeVertexIndexB, CUtlVectorVector pOutVertexUVs )
+	{
+		CUtlVector< Vector2D > uvs;
+		GenerateUVsForTriangles( nNumVertices, VertexPositions, nNumTriangles, pTriangleVertexIndices, pTriangleFaceIds, nGenerationMode, nEdgeAlignMode, nAlignEdgeVertexIndexA, nAlignEdgeVertexIndexB, &uvs );
+
+		for ( int i = 0; i < uvs.Count(); ++i )
+		{
+			pOutVertexUVs->AddToTail( Vector( uvs[i].x, uvs[i].y, 0 ) );
+		}
 	}
 }

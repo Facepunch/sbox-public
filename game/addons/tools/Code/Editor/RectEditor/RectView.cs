@@ -130,6 +130,9 @@ public class RectView : Widget
 
 	private void DragCreateRect( Vector2 mousePos )
 	{
+		if ( Session.Settings.FastTextureSettings.ScaleMode == ScaleMode.WorldScale )
+			return;
+
 		var minStart = PixelToUV_OnGrid( DragStartPos );
 		var maxStart = PixelToUV_OnGrid( DragStartPos );
 		var current = PixelToUV_OnGrid( mousePos );
@@ -143,6 +146,7 @@ public class RectView : Widget
 			var meshRect = Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
 			if ( meshRect != null )
 			{
+
 				meshRect.Min = NewRect.TopLeft;
 				meshRect.Max = NewRect.BottomRight;
 
@@ -179,6 +183,9 @@ public class RectView : Widget
 
 	private void DragResizeRect( Vector2 mousePos )
 	{
+		if ( Session.Settings.FastTextureSettings.ScaleMode == ScaleMode.WorldScale )
+			return;
+
 		var currentUV = PixelToUV_OnGrid( mousePos );
 
 		foreach ( var rectangle in DraggingRectangles )
@@ -359,6 +366,17 @@ public class RectView : Widget
 			DragStartPos = e.LocalPosition;
 			DraggingRectangles.Clear();
 
+			if ( Session.Settings.IsFastTextureTool && Session.Settings.FastTextureSettings.ScaleMode == ScaleMode.WorldScale )
+			{
+				var meshRect = Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
+				if ( meshRect != null )
+				{
+					DraggingRectangles = [meshRect];
+					Document.SelectRectangle( meshRect, SelectionOperation.Set );
+				}
+				return;
+			}
+
 			var rectUnderCursor = GetFirstRectangleUnderCursor();
 			if ( rectUnderCursor is not null )
 			{
@@ -449,28 +467,45 @@ public class RectView : Widget
 
 	void RenderMaterial( Material material, Vector2 size )
 	{
-		var world = new SceneWorld
-		{
-			AmbientLightColor = Color.White
-		};
+		var world = new SceneWorld();
 
 		var camera = new SceneCamera
 		{
-			BackgroundColor = Color.Red,
+			BackgroundColor = Color.Black,
 			Ortho = true,
-			Position = Vector3.Backward,
-			Rotation = Rotation.Identity,
+			Rotation = Rotation.FromPitch( 90 ),
+			Position = Vector3.Up * 200,
 			OrthoHeight = 100,
-			AmbientLightColor = Color.White,
 			World = world
 		};
 
+		var light = new SceneLight( world )
+		{
+			Radius = 4000,
+			LightColor = Color.White * 0.8f,
+			Position = new Vector3( 0, 0, 100 ),
+			ShadowsEnabled = true
+		};
+
+		var debugMode = Session.Settings.FastTextureSettings.DebugMode;
+
+		camera.DebugMode = debugMode switch
+		{
+			DebugMode.Default => SceneCameraDebugMode.Normal,
+			DebugMode.Roughness => SceneCameraDebugMode.Roughness,
+			DebugMode.Normals => SceneCameraDebugMode.NormalMap,
+			_ => SceneCameraDebugMode.Normal,
+		};
+
 		var model = Model.Load( "models/dev/plane_blend.vmdl" );
-		var obj = new SceneObject( world, model )
+		var obj = new SceneObject( world, model );
+		obj.Transform = new Transform
 		{
 			Position = Vector3.Zero,
-			Rotation = Rotation.From( 90, 180, 0 ),
+			Rotation = Rotation.From( 0, 180, 0 ),
+			Scale = new Vector3( 1, size.x / size.y, 1 )
 		};
+
 		obj.SetMaterialOverride( material );
 
 		SourceImage = new Pixmap( size );
@@ -691,7 +726,7 @@ public class RectView : Widget
 		bool canResize = Document.SelectedRectangles.Count < 2 && HoveredCorner != 0;
 		var rectUnderCursor = GetFirstRectangleUnderCursor();
 
-		if ( canResize )
+		if ( canResize && Session.Settings.FastTextureSettings.ScaleMode != ScaleMode.WorldScale )
 		{
 			if ( HoveredCorner.x != 0 && HoveredCorner.y != 0 )
 			{
@@ -742,6 +777,11 @@ public class RectView : Widget
 		var vec = Vector2.Zero;
 		var tolerance = 0.02f;
 
+		if ( rectangle is Document.MeshRectangle && Session.Settings.FastTextureSettings.ScaleMode == ScaleMode.WorldScale )
+		{
+			return Vector2.Zero;
+		}
+
 		if ( MathF.Abs( position.x - rectangle.Min.x ) < tolerance )
 		{
 			vec += new Vector2( -1, 0 );
@@ -773,26 +813,34 @@ public class RectView : Widget
 			rectanglesItem?.OnPaint( this );
 		}
 
-		var rectangleUnderCursor = GetFirstRectangleUnderCursor();
-		foreach ( var rectangle in rectangles.Where( x => !Document.IsRectangleSelected( x ) && x != rectangleUnderCursor ) )
+		if ( !Session.Settings.IsFastTextureTool || Session.Settings.FastTextureSettings.ScaleMode != ScaleMode.WorldScale )
 		{
-			Paint.SetBrush( rectangle.Color.WithAlpha( 0.2f ) );
-			Paint.SetPen( Color.Black.WithAlpha( 192 / 255.0f ), 2 );
-			DrawRectangle( rectangle );
+			var rectangleUnderCursor = GetFirstRectangleUnderCursor();
+			foreach ( var rectangle in rectangles.Where( x => !Document.IsRectangleSelected( x ) && x != rectangleUnderCursor ) )
+			{
+				Paint.SetBrush( rectangle.Color.WithAlpha( 0.2f ) );
+				Paint.SetPen( Color.Black.WithAlpha( 192 / 255.0f ), 2 );
+				DrawRectangle( rectangle );
+			}
+
+			foreach ( var rectangle in Document.SelectedRectangles )
+			{
+				Paint.SetBrush( Color.White.WithAlpha( 0.1f ) );
+				Paint.SetPen( new Color32( 255, 255, 0 ), 3 );
+				DrawRectangle( rectangle, corner: (rectangle == rectangleUnderCursor && Document.SelectedRectangles.Count < 2) ? HoveredCorner : 0 );
+			}
+
+			if ( rectangleUnderCursor is not null && !Document.IsRectangleSelected( rectangleUnderCursor ) )
+			{
+				Paint.SetBrush( Color.Yellow.WithAlpha( 0.1f ) );
+				Paint.SetPen( Color.Yellow, 2 );
+				DrawRectangle( rectangleUnderCursor, corner: HoveredCorner );
+			}
 		}
 
-		foreach ( var rectangle in Document.SelectedRectangles )
+		if ( Session.Settings.IsFastTextureTool && Session.Settings.FastTextureSettings.ScaleMode == ScaleMode.WorldScale )
 		{
-			Paint.SetBrush( Color.White.WithAlpha( 0.1f ) );
-			Paint.SetPen( new Color32( 255, 255, 0 ), 3 );
-			DrawRectangle( rectangle, corner: (rectangle == rectangleUnderCursor && Document.SelectedRectangles.Count < 2) ? HoveredCorner : 0 );
-		}
-
-		if ( rectangleUnderCursor is not null && !Document.IsRectangleSelected( rectangleUnderCursor ) )
-		{
-			Paint.SetBrush( Color.Yellow.WithAlpha( 0.1f ) );
-			Paint.SetPen( Color.Yellow, 2 );
-			DrawRectangle( rectangleUnderCursor, corner: HoveredCorner );
+			DrawWorldScaleIndicators();
 		}
 	}
 
@@ -940,6 +988,19 @@ public class RectView : Widget
 			Paint.SetPen( new Color( 0, 0, 0, gridOpacity ) );
 			Paint.DrawLine( new Vector2( viewBounds.Left, y ), new Vector2( viewBounds.Right, y ) );
 		}
+	}
+
+	private void DrawWorldScaleIndicators()
+	{
+		var meshRect = Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
+		if ( meshRect == null || Session.Settings.FastTextureSettings.ScaleMode != ScaleMode.WorldScale )
+			return;
+
+		var originPixel = UVToPixel( meshRect.Min );
+
+		Paint.SetPen( Color.Cyan, 2 );
+		Paint.DrawLine( originPixel, originPixel + new Vector2( 16, 0 ) );
+		Paint.DrawLine( originPixel, originPixel + new Vector2( 0, 16 ) );
 	}
 
 	protected override void OnDoubleClick( MouseEvent e )

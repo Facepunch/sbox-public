@@ -47,7 +47,7 @@ internal static partial class Rules
 		"System.Private.CoreLib/System.Threading.Tasks.Task.get_IsCompletedSuccessfully()",
 		"System.Private.CoreLib/System.Threading.Tasks.Task.get_Status()",
 
-		"System.Private.CoreLib/System.Threading.Tasks.TaskExtensions.Unwrap<TResult>( System.Threading.Tasks.Task`1<System.Threading.Tasks.Task`1<TResult>> )", // https://github.com/Facepunch/sbox-issues/issues/5190
+		"System.Private.CoreLib/System.Threading.Tasks.TaskExtensions.Unwrap<TResult>( System.Threading.Tasks.Task`1<System.Threading.Tasks.Task`1<TResult>> )", // https://github.com/Facepunch/sbox-public/issues/4905
 
 		"System.Private.CoreLib/System.Threading.Tasks.TaskStatus",
 	};

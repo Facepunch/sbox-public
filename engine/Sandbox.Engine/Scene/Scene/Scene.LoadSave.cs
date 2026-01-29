@@ -1,4 +1,5 @@
 ﻿using Facepunch.ActionGraphs;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Sandbox;
@@ -38,6 +39,11 @@ public partial class Scene : GameObject
 		{
 			Log.Error( "No valid Scene was found in SceneLoadOptions." );
 			return false;
+		}
+
+		if ( sceneFile.ResourceName != null )
+		{
+			Name = sceneFile.ResourceName.ToTitleCase();
 		}
 
 		ProcessDeletes();
@@ -88,7 +94,13 @@ public partial class Scene : GameObject
 		{
 			using var optionsScope = ActionGraph.PushSerializationOptions( sceneFile.SerializationOptions with { ForceUpdateCached = IsEditor } );
 			using var sceneScope = Push();
+
+			// Depending on if we load a scene from file or from memory, we need to account for that here
+			using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, sceneFile.ResourcePath );
 			using var batchGroup = CallbackBatch.Batch();
+
+			// Clear cached binary data now that we've loaded it
+			sceneFile.BinaryData = null;
 
 			if ( sceneFile.GameObjects is not null )
 			{
@@ -242,7 +254,56 @@ public partial class Scene : GameObject
 		jso.Add( "Metadata", SerializeMetadata() );
 		jso.Add( "NavMesh", NavMesh.Serialize() );
 
+		if ( this is not PrefabScene )
+		{
+			var serializedSystems = SerializeGameObjectSystems();
+			if ( serializedSystems is not null )
+			{
+				jso.Add( "GameObjectSystems", serializedSystems );
+			}
+		}
+
 		return jso;
+	}
+
+	JsonNode SerializeGameObjectSystems()
+	{
+		var systemsToSerialize = new Dictionary<string, Dictionary<string, object>>();
+
+		foreach ( var system in GetSystems() )
+		{
+			var systemType = Game.TypeLibrary.GetType( system.GetType() );
+			if ( systemType is null ) continue;
+
+			var systemTypeName = systemType.FullName;
+			Dictionary<string, object> propertiesToSerialize = null;
+
+			foreach ( var property in systemType.Properties.Where( x => x.HasAttribute<PropertyAttribute>() ) )
+			{
+				if ( !property.CanWrite ) continue;
+
+				var currentValue = property.GetValue( system );
+				var hasGlobalValue = ProjectSettings.Systems.TryGetPropertyValue( systemType, property, out var globalValue );
+				var compareValue = hasGlobalValue ? globalValue : property.GetCustomAttribute<DefaultValueAttribute>()?.Value;
+
+				var currentJson = JsonSerializer.SerializeToNode( currentValue, Json.options );
+				var compareJson = JsonSerializer.SerializeToNode( compareValue, Json.options );
+
+				// Is this slow?
+				if ( !JsonNode.DeepEquals( currentJson, compareJson ) )
+				{
+					propertiesToSerialize ??= new Dictionary<string, object>();
+					propertiesToSerialize[property.Name] = currentValue;
+				}
+			}
+
+			if ( propertiesToSerialize is not null )
+			{
+				systemsToSerialize[systemTypeName] = propertiesToSerialize;
+			}
+		}
+
+		return systemsToSerialize.Any() ? JsonSerializer.SerializeToNode( systemsToSerialize, Json.options ) : null;
 	}
 
 	JsonObject SerializeMetadata()
@@ -285,6 +346,11 @@ public partial class Scene : GameObject
 			}
 		}
 
+		if ( data.TryGetPropertyValue( "GameObjectSystems", out var systemOverridesNode ) )
+		{
+			ApplyGameObjectSystemOverrides( systemOverridesNode );
+		}
+
 		//
 		// We don't want navmesh to be overwritten by system scene loads
 		//
@@ -293,7 +359,6 @@ public partial class Scene : GameObject
 			NavMesh.Deserialize( data["NavMesh"] as JsonObject );
 		}
 	}
-
 
 	/// <summary>
 	/// Create a new SceneFile from this scene
@@ -316,9 +381,11 @@ public partial class Scene : GameObject
 
 		using var sceneScope = Push();
 		using var optionsScope = target.PushSerializationScope();
+		using var blobs = BlobDataSerializer.Capture();
 
 		target.Id = Id;
 		target.GameObjects = Children.Select( x => x.Serialize() ).Where( x => x is not null ).ToArray();
 		target.SceneProperties = SerializeProperties();
+		target.BinaryData = blobs.ToByteArray();
 	}
 }

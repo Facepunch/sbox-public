@@ -131,7 +131,7 @@ class ShadingModelStandard
     static float4 Shade( Material m )
     {
         // Want it right before the lighting
-        Decals::Apply( m.WorldPosition, m.ScreenPosition.xy, m );
+        Decals::Apply( m.WorldPosition, m );
         
         // Do our magic alpha to coverage adjustment
         AdjustAlphaToCoverage( m );
@@ -208,14 +208,14 @@ class ShadingModelStandard
         toolVis.HandleDiffuseLighting(color);
         toolVis.HandleSpecularLighting(color);
         toolVis.HandleTransmissiveLighting(color);
-        toolVis.HandleLightingComplexity(color, (uint2)m.ScreenPosition.xy, m.WorldPosition, m.Normal);
+        toolVis.HandleLightingComplexity(color, m.WorldPosition, m.Normal);
         toolVis.HandleAlbedo(color, m.Albedo);
         toolVis.HandleReflectivity(color, m.Albedo);
         toolVis.HandleRoughness(color, float2(m.Roughness, m.Roughness));
         toolVis.HandleDiffuseAmbientOcclusion(color, min( m.AmbientOcclusion, min( lightingTerms.flBakedAmbientOcclusion, lightingTerms.flDynamicAmbientOcclusion ) ) );
         toolVis.HandleSpecularAmbientOcclusion(color,min( m.AmbientOcclusion, min( lightingTerms.flBakedAmbientOcclusion, lightingTerms.flDynamicAmbientOcclusion ) ) );
         toolVis.HandleShaderIDColor(color);
-        toolVis.HandleCubemapReflections(color, m.WorldPosition, m.Normal, (uint2)m.ScreenPosition.xy);
+        toolVis.HandleCubemapReflections(color, m.WorldPosition, m.Normal);
         toolVis.HandleNormalTs(color, m.TangentNormal);
         toolVis.HandleNormalWs(color, m.Normal);
         toolVis.HandleTangentUWs(color, m.WorldTangentU);
@@ -223,7 +223,7 @@ class ShadingModelStandard
         toolVis.HandleBentNormalWs(color, float3(0, 0, 0));
         toolVis.HandleGeometricRoughness(color, m.Normal);
         toolVis.HandleCurvature(color, 0);
-        toolVis.HandleTiledRenderingColors(color, m.Albedo, m.ScreenPosition.xy);
+        toolVis.HandleTiledRenderingColors(color, m.Albedo, m.WorldPosition);
 
 // What the fuck
 #ifdef g_tColor

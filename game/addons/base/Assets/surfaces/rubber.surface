@@ -3,10 +3,10 @@
   "AudioSurface": "Foam",
   "Description": "",
   "Friction": 0.8,
-  "Elasticity": 0.8,
+  "Elasticity": 0.4,
   "Density": 1200,
   "RollingResistance": 0,
-  "BounceThreshold": 60,
+  "BounceThreshold": 50,
   "Dampening": 0,
   "ImpactEffects": {
     "Regular": null,

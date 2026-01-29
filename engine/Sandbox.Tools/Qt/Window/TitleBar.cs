@@ -176,6 +176,9 @@ internal class TitleBar : Widget
 	}
 }
 
+/// <summary>
+/// A list of title bar buttons, at the top right of a window.
+/// </summary>
 public class TitleBarButtons : Widget
 {
 	public TitleBarButtons()
@@ -183,11 +186,24 @@ public class TitleBarButtons : Widget
 		Layout = Layout.Row();
 	}
 
+	/// <summary>
+	/// Adds a button to the title bar.
+	/// </summary>
+	/// <param name="icon"></param>
+	/// <param name="onClick"></param>
+	/// <returns></returns>
 	public Widget AddButton( string icon, Action onClick )
 	{
 		return Layout.Add( new TitleBarButton( icon, onClick ) );
 	}
 
+	/// <summary>
+	/// Adds a toggle button to the title bar.
+	/// </summary>
+	/// <param name="icon"></param>
+	/// <param name="onSet"></param>
+	/// <param name="initialValue"></param>
+	/// <returns></returns>
 	public Widget AddToggleButton( string icon, Action<bool> onSet, bool initialValue = false )
 	{
 		var b = Layout.Add( new TitleBarToggle( icon, onSet ) );
@@ -196,12 +212,23 @@ public class TitleBarButtons : Widget
 		return b;
 	}
 
+	/// <inheritdoc cref="AddToggleButton(string, Action{bool}, bool)"/>
 	public Widget AddToggleButton( Pixmap icon, Action<bool> onSet, bool initialValue = false )
 	{
 		var b = Layout.Add( new TitleBarToggle( icon, onSet ) );
 		b.Value = initialValue;
 
 		return b;
+	}
+
+	/// <summary>
+	/// Adds a custom widget to the title bar.
+	/// </summary>
+	/// <param name="widget"></param>
+	/// <returns></returns>
+	public Widget Add( Widget widget )
+	{
+		return Layout.Add( widget );
 	}
 }
 

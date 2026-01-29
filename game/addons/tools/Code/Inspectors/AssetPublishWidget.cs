@@ -116,7 +116,7 @@ sealed class AssetPublishWidget : Widget, AssetSystem.IEventListener
 
 		var settings = Layout.Add( new IconButton( "settings" ) );
 		settings.ToolTip = "Settings";
-		settings.OnClick = () => ProjectInspector.OpenForProject( addon );
+		settings.OnClick = () => ProjectSettingsWindow.OpenForProject( addon );
 
 		var package = await Package.FetchAsync( addon.Config.FullIdent, false );
 		if ( package is not null )

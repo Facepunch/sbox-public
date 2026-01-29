@@ -52,9 +52,7 @@ internal partial class NetworkSystem
 		}
 		catch ( Exception e )
 		{
-			IGameInstanceDll.Current?.Disconnect();
-			Log.Warning( e );
-			Log.Warning( "Disconnected - Connection has crashed!" );
+			Log.Error( e );
 		}
 	}
 

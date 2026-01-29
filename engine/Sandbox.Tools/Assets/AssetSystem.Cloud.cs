@@ -307,6 +307,8 @@ public static partial class AssetSystem
 		if ( EngineFileSystem.CoreContent.FileExists( entry.Path ) )
 			return;
 
+		CloudDirectory.AddFile( entry.Path, entry.Crc, entry.Size, package.FullIdent, package.Revision.VersionId );
+
 		//
 		// File exists - we should probably check crcs and shit
 		//
@@ -322,8 +324,6 @@ public static partial class AssetSystem
 		{
 			System.IO.File.Delete( targetFile );
 		}
-
-		CloudDirectory.AddFile( entry.Path, entry.Crc, entry.Size, package.FullIdent, package.Revision.VersionId );
 
 		if ( entry.Size == 0 )
 		{

@@ -1,4 +1,5 @@
 using Editor.MeshEditor;
+using Sandbox;
 using Sandbox.UI;
 
 namespace Editor.RectEditor;
@@ -478,6 +479,7 @@ public class RectViewToolbar : Widget
 				xInset.Icon = "swap_horiz";
 				xInset.MinimumWidth = 160;
 				xInset.Enabled = Settings.ScaleMode != ScaleMode.WorldScale;
+				col.AddSpacingCell( 8 );
 
 				var yInset = col.Add( new FloatControlWidget( so.GetProperty( nameof( FastTextureSettings.InsetY ) ) ) );
 				yInset.FixedHeight = Theme.RowHeight;
@@ -486,6 +488,28 @@ public class RectViewToolbar : Widget
 				yInset.Icon = "import_export";
 				yInset.MinimumWidth = 160;
 				yInset.Enabled = Settings.ScaleMode != ScaleMode.WorldScale;
+			} );
+
+			AddGroup( insetCol, "View Mode", layout =>
+			{
+				var debugview = new ComboBox();
+				debugview.AddItem( "Default", "texture" );
+				debugview.AddItem( "Roughness", "grain" );
+				debugview.AddItem( "Normals", "waves" );
+				debugview.CurrentIndex = ((int)Window.Settings.FastTextureSettings.DebugMode);
+				debugview.ItemChanged += () =>
+				{
+					Settings.DebugMode = debugview.CurrentIndex switch
+					{
+						0 => DebugMode.Default,
+						1 => DebugMode.Roughness,
+						2 => DebugMode.Normals,
+						_ => DebugMode.Default
+					};
+					Window._RectView?.SetMaterial( Material.Load( Window.Settings.ReferenceMaterial ) );
+				};
+
+				layout.Add( debugview );
 			} );
 		}
 

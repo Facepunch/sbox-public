@@ -1,9 +1,12 @@
-﻿using System;
+﻿using System.Collections;
 using System.Collections.Immutable;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 
 namespace Sandbox.MovieMaker.Compiled;
 
 #nullable enable
+
 /// <summary>
 /// A block of time where something happens in an <see cref="ICompiledTrack"/>.
 /// </summary>
@@ -55,16 +58,82 @@ public interface ICompiledPropertyBlock<T> : ICompiledPropertyBlock, IPropertyBl
 /// This block has a single constant value for the whole duration.
 /// Useful for value types that can't be interpolated, and change infrequently.
 /// </summary>
+public interface ICompiledConstantBlock : ICompiledPropertyBlock
+{
+	/// <summary>
+	/// Json-serialized constant value.
+	/// </summary>
+	JsonNode? Serialized { get; }
+}
+
+/// <summary>
+/// This block has a single constant value for the whole duration.
+/// Useful for value types that can't be interpolated, and change infrequently.
+/// </summary>
 /// <typeparam name="T">Property value type.</typeparam>
 /// <param name="TimeRange">Start and end time of this block.</param>
-/// <param name="Value">Constant value.</param>
+/// <param name="Serialized">Json-serialized constant value.</param>
 [Expose]
-public sealed record CompiledConstantBlock<T>( MovieTimeRange TimeRange, T Value ) : ICompiledPropertyBlock<T>
+[method: JsonConstructor]
+public sealed record CompiledConstantBlock<T>( MovieTimeRange TimeRange, JsonNode? Serialized ) : ICompiledPropertyBlock<T>, ICompiledConstantBlock
 {
-	public T GetValue( MovieTime time ) => Value;
+	private JsonNode? _serialized = Serialized;
+
+	private T? _value;
+	private bool _deserialized;
+
+	[JsonPropertyName( "Value" )]
+	public JsonNode? Serialized
+	{
+		get => _serialized;
+		init
+		{
+			_serialized = value;
+			_value = default;
+			_deserialized = false;
+		}
+	}
+
+	public CompiledConstantBlock( MovieTimeRange timeRange, T value )
+		: this( timeRange, Json.ToNode( value ) )
+	{
+		_value = value;
+		_deserialized = true;
+	}
+
+	public T GetValue( MovieTime time )
+	{
+		if ( _deserialized ) return _value!;
+
+		_value = Json.FromNode<T>( Serialized );
+		_deserialized = true;
+
+		return _value;
+	}
 
 	public ICompiledPropertyBlock<T> Shift( MovieTime offset ) =>
 		this with { TimeRange = TimeRange + offset };
+}
+
+/// <summary>
+/// This block contains an array of values sampled at uniform intervals.
+/// </summary>
+public interface ICompiledSampleBlock : ICompiledPropertyBlock
+{
+	/// <summary>
+	/// Time offset of the first sample.
+	/// </summary>
+	MovieTime Offset { get; }
+
+	/// <summary>
+	/// How many samples per second.
+	/// </summary>
+	int SampleRate { get; }
+
+	/// <summary>
+	/// Raw sample values.
+	/// </summary>
+	IReadOnlyList<object?> Samples { get; }
 }
 
 /// <summary>
@@ -76,14 +145,19 @@ public sealed record CompiledConstantBlock<T>( MovieTimeRange TimeRange, T Value
 /// <param name="SampleRate">How many samples per second.</param>
 /// <param name="Samples">Raw sample values.</param>
 [Expose]
-public sealed partial record CompiledSampleBlock<T>( MovieTimeRange TimeRange, MovieTime Offset, int SampleRate, ImmutableArray<T> Samples ) : ICompiledPropertyBlock<T>
+public sealed partial record CompiledSampleBlock<T>( MovieTimeRange TimeRange, MovieTime Offset, int SampleRate, ImmutableArray<T> Samples ) : ICompiledPropertyBlock<T>, ICompiledSampleBlock
 {
 	private readonly ImmutableArray<T> _samples = Validate( Samples );
+	private IReadOnlyList<object?>? _wrappedSamples;
 
 	public ImmutableArray<T> Samples
 	{
 		get => _samples;
-		init => _samples = Validate( value );
+		init
+		{
+			_samples = Validate( value );
+			_wrappedSamples = null;
+		}
 	}
 
 	public T GetValue( MovieTime time ) =>
@@ -102,7 +176,20 @@ public sealed partial record CompiledSampleBlock<T>( MovieTimeRange TimeRange, M
 		return samples;
 	}
 
+	IReadOnlyList<object?> ICompiledSampleBlock.Samples => _wrappedSamples ??= new ReadOnlyListWrapper<T>( _samples );
+
 #pragma warning disable SB3000
 	private static readonly IInterpolator<T>? _interpolator = Interpolator.GetDefault<T>();
 #pragma warning restore SB3000
+}
+
+file sealed class ReadOnlyListWrapper<T>( ImmutableArray<T> array ) : IReadOnlyList<object?>
+{
+	public IEnumerator<object?> GetEnumerator() => array.Cast<object?>().GetEnumerator();
+
+	IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+	public int Count => array.Length;
+
+	public object? this[int index] => array[index];
 }

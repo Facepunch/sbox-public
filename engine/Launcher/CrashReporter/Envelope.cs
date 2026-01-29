@@ -166,49 +166,6 @@ public sealed class Envelope( JsonObject header, List<EnvelopeItem> items )
 		return Items.FirstOrDefault( i => i.TryGetType() == "event" );
 	}
 
-	/*
-	public Minidump? TryGetMinidump()
-	{
-		var item = Items.FirstOrDefault( i => i.TryGetHeader( "attachment_type" ) == "event.minidump" );
-		if ( item is null )
-		{
-			return null;
-		}
-
-		return Minidump.FromBytes( item.Payload );
-	}
-
-	public List<Attachment> TryGetAttachments()
-	{
-		return Items
-			.Where( s => s.TryGetType() == "attachment" )
-			.Select( s => new Attachment( s.Header.TryGetString( "filename" ) ?? string.Empty, s.Payload ) )
-			.Where( a => !string.IsNullOrEmpty( a.Filename ) )
-			.ToList();
-	}
-
-	public EnvelopeException? TryGetException()
-	{
-		var payload = TryGetEvent()?.TryParseAsJson();
-		var os = payload?.TryGetString( "contexts.os.name" );
-
-		if ( payload?.TryGetProperty( "exception.values" )?.AsArray().FirstOrDefault()?.AsObject() is { } inproc )
-		{
-			return new EnvelopeException( inproc.TryGetString( "type" ), inproc.TryGetString( "value" ) );
-		}
-
-		if ( TryGetMinidump()?.Streams.Select( s => s.Data )
-				.OfType<Minidump.ExceptionStream>()
-				.FirstOrDefault() is { } minidump )
-		{
-			var code = minidump.ExceptionRec.Code.AsExceptionCode( os ?? string.Empty );
-			return new EnvelopeException( code?.Type, code?.Value );
-		}
-
-		return null;
-	}
-	*/
-
 	public FormattedEnvelope Format( JsonSerializerOptions? options = null )
 	{
 		options ??= new JsonSerializerOptions { WriteIndented = true };

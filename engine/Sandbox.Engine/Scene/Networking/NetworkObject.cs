@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Sandbox.Network;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
@@ -19,13 +20,13 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	/// <summary>
 	/// The <see cref="Guid"/> of the connection that created this.
 	/// </summary>
-	public Guid Creator { get; set; }
+	public Guid Creator { get; private set; }
 
 	public bool IsValid => GameObject.IsValid();
 
 	/// <summary>
-	/// If true then this object is spawning on the host, on behalf of another client. While it's
-	/// doing this we're going to act like the host is the owner.. so that anything that is called in
+	/// If true, then this object is spawning on the host, on behalf of another client. While it's
+	/// doing this, we're going to act like the host is the owner... so that anything called in
 	/// OnAwake will think we're not a proxy - until we've fully handed it off.
 	/// </summary>
 	bool _isNetworkSpawning;
@@ -39,10 +40,18 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		set
 		{
 			if ( field == value )
+			{
+				UpdateIsOwner();
+				UpdateIsProxy();
+
 				return;
+			}
 
 			var oldOwner = field;
 			field = value;
+
+			UpdateIsOwner();
+			UpdateIsProxy();
 
 			OnOwnerChanged( field, oldOwner );
 		}
@@ -51,26 +60,33 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	/// <summary>
 	/// Are we the owner of this networked object?
 	/// </summary>
-	public bool IsOwner => Owner == Connection.Local.Id;
+	public bool IsOwner { get; private set; }
 
 	/// <summary>
 	/// Is this networked object unowned?
 	/// </summary>
-	public bool IsUnowned => Owner == Guid.Empty;
+	public bool IsUnowned { get; private set; } = true;
 
 	/// <summary>
-	/// This is this a proxy if we don't own this networked object.
+	/// This is a proxy if we don't own this networked object.
 	/// </summary>
-	public bool IsProxy
-	{
-		get
-		{
-			if ( _isNetworkSpawning ) return false;
-			if ( IsOwner ) return false;
-			if ( IsUnowned && Networking.IsHost ) return false;
+	public bool IsProxy { get; private set; }
 
-			return true;
+	private void UpdateIsProxy()
+	{
+		if ( _isNetworkSpawning || IsOwner || (IsUnowned && Networking.IsHost) )
+		{
+			IsProxy = false;
+			return;
 		}
+
+		IsProxy = true;
+	}
+
+	private void UpdateIsOwner()
+	{
+		IsUnowned = Owner == Guid.Empty;
+		IsOwner = Owner == Connection.Local.Id;
 	}
 
 	/// <summary>
@@ -125,9 +141,13 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		// host spawning this object for other connections, then you probably want to act
 		// like the owner of it while OnAwake/OnEnabled is being called.
 		_isNetworkSpawning = true;
+		UpdateIsProxy();
+
 		GameObject.Enabled = enable;
 		CallNetworkSpawn( owner );
+
 		_isNetworkSpawning = false;
+		UpdateIsProxy();
 
 		// Tell the world that we're here
 		BroadcastNetworkSpawn( owner );
@@ -220,6 +240,19 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		GameObject.Destroy();
 	}
 
+	/// <summary>
+	/// Send a detach message to all other clients. Only the host can detach
+	/// a networked object.
+	/// </summary>
+	internal void SendNetworkDetach()
+	{
+		if ( SceneNetworkSystem.Instance is null ) return;
+		if ( Networking.IsDisconnecting ) return;
+		if ( !Networking.IsHost ) return;
+
+		SceneNetworkSystem.Instance.NetworkDetachBroadcast( this );
+	}
+
 	internal void SendNetworkDestroy()
 	{
 		if ( SceneNetworkSystem.Instance is null ) return;
@@ -240,11 +273,13 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 		var snapshot = ((IDeltaSnapshot)this).WriteSnapshotState();
 
+		using var blobs = BlobDataSerializer.Capture();
 		var msg = new ObjectRefreshMsg
 		{
 			Guid = GameObject.Id,
 			Parent = GameObject.Parent.Id,
 			JsonData = GameObject.Serialize( _refreshSerializeOptions ).ToJsonString(),
+			BlobData = blobs.ToByteArray(),
 			TableData = WriteReliableData(),
 			Snapshot = system.DeltaSnapshots.GetFullSnapshotData( snapshot )
 		};
@@ -286,11 +321,13 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		{
 			var snapshot = ((IDeltaSnapshot)this).WriteSnapshotState();
 
+			using var blobs = BlobDataSerializer.Capture();
 			var msg = new ObjectRefreshDescendantMsg
 			{
 				GameObjectId = GameObject.Id,
 				ParentId = go.Parent.Id,
 				JsonData = go.Serialize( _refreshDescendantSerializeOptions ).ToJsonString(),
+				BlobData = blobs.ToByteArray(),
 				TableData = WriteReliableData(),
 				Snapshot = system.DeltaSnapshots.GetFullSnapshotData( snapshot )
 			};
@@ -321,9 +358,11 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		{
 			var snapshot = ((IDeltaSnapshot)this).WriteSnapshotState();
 
+			using var blobs = BlobDataSerializer.Capture();
 			var msg = new ObjectRefreshComponentMsg
 			{
 				JsonData = component.Serialize().ToJsonString(),
+				BlobData = blobs.ToByteArray(),
 				GameObjectId = component.GameObject.Id,
 				TableData = WriteReliableData(),
 				Snapshot = system.DeltaSnapshots.GetFullSnapshotData( snapshot )
@@ -373,9 +412,18 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	}
 
 	/// <summary>
+	/// Called when the host has changed.
+	/// </summary>
+	internal void OnHostChanged( Connection previousHost, Connection newHost )
+	{
+		ClearConnections();
+		UpdateIsProxy();
+	}
+
+	/// <summary>
 	/// Clear all connections associated with the local snapshot state.
 	/// </summary>
-	internal void ClearConnections()
+	private void ClearConnections()
 	{
 		LocalSnapshotState.ClearConnections();
 	}
@@ -527,6 +575,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 		var flags = GameObject.Network.Flags;
 
+		LocalSnapshotState.Begin();
 		LocalSnapshotState.SnapshotId = system.DeltaSnapshots.CreateSnapshotId( Id );
 		LocalSnapshotState.ParentId = GameObject.Parent is Scene ? Guid.Empty : GameObject.Parent.Id;
 		LocalSnapshotState.ObjectId = Id;
@@ -596,6 +645,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			throw new( $"GameObject {GameObject.Id} ({GameObject.Name} has invalid parent" );
 		}
 
+		using var blobs = BlobDataSerializer.Capture();
 		var jsonData = GameObject.Serialize( _createSerializeOptions );
 		if ( jsonData is null )
 		{
@@ -608,6 +658,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			SnapshotVersion = GameObject._net.LocalSnapshotState.Version,
 			Transform = GameObject.Transform.TargetLocal,
 			JsonData = jsonData.ToJsonString(),
+			BlobData = blobs.ToByteArray(),
 			Creator = Creator,
 			Parent = GameObject.Parent.Id,
 			Owner = Owner,
@@ -646,7 +697,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			}
 			else
 			{
-				// We're not the host so let's just clear the owner until we get the new randomly
+				// We're not the host, so let's just clear the owner until we get the new randomly
 				// selected owner from the host.
 				Owner = Guid.Empty;
 			}
@@ -671,14 +722,17 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		if ( !scene.IsValid() ) return;
 
 		var oldTransform = GameObject.Transform.TargetLocal;
-		var jsonObj = JsonNode.Parse( message.JsonData ).AsObject();
+		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
+		{
+			var jsonObj = JsonNode.Parse( message.JsonData ).AsObject();
 
-		// Only the host can modify network flags after the object has been spawned.
-		if ( !source.IsHost )
-			jsonObj.Remove( GameObject.JsonKeys.NetworkFlags );
+			// Only the host can modify network flags after the object has been spawned.
+			if ( !source.IsHost )
+				jsonObj.Remove( GameObject.JsonKeys.NetworkFlags );
 
-		GameObject.SetParentFromNetwork( scene.Directory.FindByGuid( message.Parent ) );
-		GameObject.NetworkRefresh( jsonObj );
+			GameObject.SetParentFromNetwork( scene.Directory.FindByGuid( message.Parent ) );
+			GameObject.NetworkRefresh( jsonObj );
+		}
 
 		UpdateFromRefresh( source, message.TableData, message.Snapshot );
 
@@ -781,12 +835,15 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 	/// <summary>
 	/// Whether the specified <see cref="Connection"/> has control over this networked object. A connection
-	/// has control if the object is unowned and they are the host, or if they own it directly.
+	/// has control if the object is unowned, and they are the host, or if they own it directly.
 	/// </summary>
 	internal bool HasControl( Connection c )
 	{
 		if ( IsUnowned )
 			return c.IsHost;
+
+		if ( c == Connection.Local )
+			return IsOwner;
 
 		return c.Id == Owner;
 	}
