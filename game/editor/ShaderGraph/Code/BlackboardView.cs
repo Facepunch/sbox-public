@@ -106,6 +106,8 @@ public class BlackboardView : Widget
 		leftColumnTopLayout.Add( _addButton );
 
 		_treeView = new TreeView();
+		_treeView.Margin = 4;
+		_treeView.ItemSpacing = 4;
 		_treeView.BodyDropTarget = TreeView.DragDropTarget.None;
 		_treeView.BodyContextMenu = OpenTreeViewContextMenu;
 		_treeView.OnPaintOverride = () =>
