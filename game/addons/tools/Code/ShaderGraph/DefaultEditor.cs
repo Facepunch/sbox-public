@@ -75,9 +75,9 @@ public class DefaultEditor : ValueEditor
 		{
 			if ( subgraphNode.InputReferences.TryGetValue( innerPlugIn, out var entry ) )
 			{
-				var parameterNode = entry.Item1;
+				var parameterNode = entry.inputNode;
 				if ( parameterNode.IsRequired ) return;
-				type = entry.Item2;
+				type = entry.inputNodeValueType;
 				if ( innerPlugIn.ConnectedOutput is not null )
 				{
 					rawVal = parameterNode.GetValue();
