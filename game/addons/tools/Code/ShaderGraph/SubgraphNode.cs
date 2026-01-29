@@ -57,13 +57,13 @@ public sealed class SubgraphNode : ShaderNode, IErroringNode
 			CreateInputs();
 			CreateOutputs();
 
-			foreach ( var node in Subgraph.Nodes )
-			{
-				if ( node is ITextureParameterNode texNode && DefaultValues.TryGetValue( $"__tex_{texNode.UI.Name}", out var defaultTexVal ) )
-				{
-					texNode.Image = defaultTexVal.ToString();
-				}
-			}
+			//foreach ( var node in Subgraph.Nodes )
+			//{
+			//	if ( node is ITextureParameterNode texNode && DefaultValues.TryGetValue( $"__tex_{texNode.UI.Name}", out var defaultTexVal ) )
+			//	{
+			//		texNode.Image = defaultTexVal.ToString();
+			//	}
+			//}
 
 			Update();
 		}
@@ -193,9 +193,13 @@ public sealed class SubgraphNode : ShaderNode, IErroringNode
 		foreach ( var input in InputReferences )
 		{
 			var plug = input.Key;
-			var parameterNode = input.Value.Item1;
+			var parameterNode = input.Value.inputNode;
 			var inputName = parameterNode.InputName;
 			if ( string.IsNullOrWhiteSpace( inputName ) ) inputName = input.Key.DisplayInfo.Name;
+			if (  IsSubgraph && plug.Type == typeof( Texture ) && plug.ConnectedOutput is null )
+			{
+				errors.Add( $"Required Input \"{inputName}\" is missing on Node \"{Subgraph.Title}\"" );
+			}
 			if ( parameterNode.IsRequired && plug.ConnectedOutput is null )
 			{
 				errors.Add( $"Required Input \"{inputName}\" is missing on Node \"{Subgraph.Title}\"" );

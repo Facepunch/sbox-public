@@ -148,18 +148,6 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IE
 
 		if ( Graph is ShaderGraph sg && sg.IsSubgraph )
 		{
-			//if ( string.IsNullOrWhiteSpace( UI.Name ) )
-			//{
-			//	errors.Add( $"Texture parameter \"{DisplayInfo.For( this ).Name}\" is missing a name" );
-			//}
-			//
-			//foreach ( var node in sg.Nodes )
-			//{
-			//	if ( node is ITextureParameterNode tpn && tpn != this && tpn.UI.Name == UI.Name )
-			//	{
-			//		errors.Add( $"Duplicate texture parameter name \"{UI.Name}\" on {DisplayInfo.For( this ).Name}" );
-			//	}
-			//}
 		}
 
 		return errors;
