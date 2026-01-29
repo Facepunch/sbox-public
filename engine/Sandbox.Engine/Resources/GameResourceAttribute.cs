@@ -23,7 +23,26 @@ public class AssetTypeAttribute : System.Attribute, ITypeAttribute, IUninheritab
 	/// <summary>
 	/// File extension for this game resource.
 	/// </summary>
-	public string Extension { get; set; }
+	public string Extension
+	{
+		get;
+		set
+		{
+			if ( value.Length > 8 )
+			{
+				Log.Error( $"Resource extensions should be under 8 characters ({TargetType})" );
+				value = value.Substring( 0, 8 );
+			}
+
+			if ( !value.All( x => char.IsLetter( x ) ) )
+			{
+				Log.Error( $"Resource extensions can only contain letters ({TargetType})" );
+				value = "errored";
+			}
+
+			field = value;
+		}
+	}
 
 	/// <summary>
 	/// Category of this game resource, for grouping in UI.
@@ -107,18 +126,6 @@ public class GameResourceAttribute : AssetTypeAttribute
 
 	public GameResourceAttribute( string title, string extension, string description )
 	{
-		if ( extension.Length > 8 )
-		{
-			Log.Error( $"Resource extensions should be under 8 characters ({TargetType})" );
-			extension = extension.Substring( 0, 8 );
-		}
-
-		if ( !extension.All( x => char.IsLetter( x ) ) )
-		{
-			Log.Error( $"Resource extensions can only contain letters ({TargetType})" );
-			extension = "errored";
-		}
-
 		Name = title;
 		Description = description;
 		Extension = extension;
