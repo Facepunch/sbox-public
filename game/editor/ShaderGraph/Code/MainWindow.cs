@@ -501,7 +501,8 @@ public class MainWindow : DockWindow
 			return null;
 		}
 
-		_output.Clear();
+		if ( _output != null )
+			_output.Clear();
 
 		if ( _generatedCode != code )
 		{
