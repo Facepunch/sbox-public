@@ -70,7 +70,7 @@ public sealed class SubgraphNode : ShaderNode, IErroringNode
 	}
 
 	[Hide, JsonIgnore]
-	internal Dictionary<IPlugIn, (SubgraphInput, Type)> InputReferences = new();
+	internal Dictionary<IPlugIn, (SubgraphInput inputNode, Type inputNodeValueType)> InputReferences = new();
 	public void CreateInputs()
 	{
 		var plugs = new List<IPlugIn>();
