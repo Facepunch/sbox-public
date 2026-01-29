@@ -19,6 +19,12 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	/// </summary>
 	[Property, Group( "Attachment" )]
 	public LineRenderer LinkedRenderer { get; set; }
+	
+	/// <summary>
+	/// Controls the rope's target length. Set to 0 for initial length when enabled.
+	/// </summary>
+	[Property, Group( "Simulation" )]
+	public float TargetLength { get; set; } = 0f;
 
 	/// <summary>
 	/// Additional slack, added to the rope length.
@@ -65,7 +71,7 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	/// <summary>
 	/// The length the rope would like to have.
 	/// </summary>
-	private float targetRopeLength => initialRopeLength + Slack;
+	private float targetRopeLength => (TargetLength > 0f ? TargetLength : initialRopeLength) + Slack;
 
 	/// <summary>
 	/// Set on Initialize based on distance between attachment points and slack.
