@@ -77,6 +77,7 @@ public class DefaultEditor : ValueEditor
 			{
 				var inputNode = entry.inputNode;
 				if ( inputNode.IsRequired ) return;
+				if ( entry.inputNodeValueType == typeof( Texture ) ) return;
 				type = entry.inputNodeValueType;
 				if ( innerPlugIn.ConnectedOutput is not null )
 				{
