@@ -149,6 +149,18 @@
         } );
 
         //
+        // Verify cookie data
+        //
+        if ( Output.MaxPlayers < MinPlayers )
+        {
+            Output.MaxPlayers = MinPlayers;
+        }
+        if ( string.IsNullOrEmpty( Output.ServerName ) )
+        {
+            ServerName = $"{Sandbox.Utility.Steam.PersonaName}'s game";
+        }
+
+        //
         // Apply config / defaults
         //
         Players = Output.MaxPlayers;
