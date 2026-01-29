@@ -1,10 +1,12 @@
-﻿namespace Editor.ShaderGraph;
+﻿using System.Text;
+
+namespace Editor.ShaderGraph;
 
 public class BlackboardView : Widget
 {
 	private Button.Primary _addButton;
 	private Button.Danger _deleteButton;
-	private BlackboardParameterList _parameterListView;
+	private TreeView _treeView;
 	private BlackboardParameter _selectedParameter;
 
 	private readonly MainWindow _window;
@@ -45,8 +47,6 @@ public class BlackboardView : Widget
 			if ( _graph == value ) return;
 
 			_graph = value;
-
-			RebuildBuildFromGraph();
 		}
 	}
 
@@ -105,18 +105,68 @@ public class BlackboardView : Widget
 
 		leftColumnTopLayout.Add( _addButton );
 
-		_parameterListView = leftColumn.Add( new BlackboardParameterList( null ), 1 );
-		_parameterListView.ItemClicked += ( item ) => OnItemClicked( (BlackboardParameter)item );
-		_parameterListView.ItemDrag = ( item ) =>
+		_treeView = new TreeView();
+		_treeView.BodyDropTarget = TreeView.DragDropTarget.None;
+		_treeView.BodyContextMenu = OpenTreeViewContextMenu;
+		_treeView.OnPaintOverride = () =>
 		{
-			var drag = new Drag( this );
-			drag.Data.Object = item;
-			drag.Execute();
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.ControlBackground );
+			Paint.DrawRect( _treeView.LocalRect, Theme.ControlRadius );
 
-			return true;
+			return false;
+		};
+		_treeView.ItemClicked += ( item ) =>
+		{ 
+			var node = item as BlackboardParameterNode;
+
+			OnItemClicked( node.Value );
 		};
 
+		leftColumn.Add( _treeView, 1 );
+
 		Layout.Add( canvas );
+	}
+
+	/*
+	[EditorEvent.Frame]
+	public void CheckForChanges()
+	{
+		if ( TreeView != null && Graph != null )
+		{
+			Rebuild();
+		}
+
+	}
+	*/
+
+	public void Rebuild()
+	{
+		// Copy the current selection as we're about to kill it
+		var selection = _treeView.Selection.Select( x => x as BlackboardParameter );
+
+		// treeview will clear the selection, so give it a new one to clear
+		_treeView.Selection = new SelectionSystem();
+		_treeView.Clear();
+
+		IEnumerable<BlackboardParameter> parameters = Enumerable.Empty<BlackboardParameter>();
+		parameters = Graph.Parameters;
+		foreach ( var parameter in parameters )
+		{
+			var node = _treeView.AddItem( new BlackboardParameterNode( parameter ) );
+			_treeView.Open( node );
+		}
+	}
+
+	void OpenTreeViewContextMenu()
+	{
+		var rootItem = _treeView.Items.FirstOrDefault();
+		if ( rootItem is null ) return;
+
+		if ( rootItem is TreeNode node )
+		{
+			node.OnContextMenu();
+		}
 	}
 
 	internal IDisposable UndoScope( string name )
@@ -172,13 +222,13 @@ public class BlackboardView : Widget
 		SetSelectedItem( parameterInstance );
 
 		RebuildBuildFromGraph( true );
-
+		
 		OnParameterCreated?.Invoke( parameterInstance );
 	}
 
 	private void BuildFromParameters( IEnumerable<BlackboardParameter> parameters, bool preserveCurrentSelection = false )
 	{
-		_parameterListView.SetItems( parameters.Cast<object>() );
+		Rebuild();
 
 		if ( _selectedParameter != null )
 		{
@@ -198,7 +248,7 @@ public class BlackboardView : Widget
 	{
 		_selectedParameter = parameter;
 
-		_parameterListView.SelectItem( parameter );
+		_treeView.SelectItem( parameter );
 
 		_deleteButton.Enabled = true;
 	}
@@ -206,73 +256,11 @@ public class BlackboardView : Widget
 	public void ClearSeletedItem()
 	{
 		_selectedParameter = null;
-		_parameterListView.Selection.Clear();
+		//_parameterListView.Selection.Clear();
+
+		_treeView.Selection.Clear();
 
 		_deleteButton.Enabled = false;
-	}
-}
-
-class BlackboardParameterList : ListView
-{
-	public BlackboardParameterList( Widget widget ) : base( widget )
-	{
-		Margin = 6;
-		ItemSpacing = 4;
-		ItemSize = new Vector2( 0, 24 );
-		AcceptDrops = false;
-	}
-
-	protected override void PaintItem( VirtualWidget item )
-	{
-		var variable = item.Object as BlackboardParameter;
-		var rect = item.Rect;
-		var textColor = Theme.TextControl;
-		var itemColor = Theme.ControlBackground;
-		var typeColor = Color.White;
-
-		if ( ShaderGraphTheme.BlackboardConfigs.TryGetValue( variable.GetType(), out var blackboardConfig ) )
-		{
-			typeColor = blackboardConfig.Color;
-		}
-
-		if ( item.Hovered )
-		{
-			textColor = Color.White;
-			itemColor = Theme.Primary.Lighten( 0.1f ).Desaturate( 0.3f ).WithAlpha( 0.4f * 0.6f );
-		}
-		if ( item.Selected )
-		{
-			textColor = Theme.TextControl;
-			itemColor = Theme.Primary;
-		}
-
-		Paint.ClearPen();
-		Paint.SetBrush( itemColor );
-		Paint.DrawRect( rect, Theme.ControlRadius );
-
-		var iconRect = rect.Shrink( 4, 0, 0, 0 );
-		Paint.SetPen( typeColor );
-		Paint.DrawIcon( iconRect, "circle", 12f, TextFlag.LeftCenter );
-		rect.Left += 24f;
-
-		Paint.SetPen( textColor.WithAlpha( 0.7f ) );
-		Paint.SetBrush( textColor.WithAlpha( 0.7f ) );
-
-		var textRect = Paint.DrawText( rect.Shrink( 4, 0, 0, 0 ), $"{variable.Name}", TextFlag.LeftCenter );
-		var typeRect = Paint.DrawText( rect.Shrink( 0, 0, 4, 0 ), $"{DisplayInfo.ForType( variable.GetType() ).Name}", TextFlag.RightCenter );
-
-		//Paint.SetPen( Color.Gray.WithAlpha( 0.25f ) );
-		//Paint.SetBrush( Color.Gray.WithAlpha( 0.25f ) );
-		//Paint.DrawRect( typeRect.Grow( 2 ), Theme.ControlRadius );
-	}
-
-	protected override void OnPaint()
-	{
-		Paint.ClearPen();
-		Paint.SetBrush( Theme.ControlBackground );
-		Paint.DrawRect( LocalRect, 4 );
-
-		base.OnPaint();
 	}
 }
 
@@ -829,5 +817,123 @@ file class TypeFilterControlWidget : Widget
 		Paint.SetBrushAndPen( Theme.ControlBackground );
 		Paint.DrawRect( Paint.LocalRect, 0 );
 		return true;
+	}
+}
+
+file class BlackboardParameterNode : TreeNode<BlackboardParameter>
+{
+	public BlackboardParameterNode( BlackboardParameter p ) : base( p )
+	{
+		Height = Theme.RowHeight;
+	}
+
+	public override bool HasChildren => false;
+
+	public override string Name
+	{
+		get => Value.Name;
+		set => Value.Name = value;
+	}
+
+	public override string GetTooltip()
+	{
+		var sb = new StringBuilder();
+
+		sb.AppendLine( $"<h3>{Name}</h3>" );
+
+		return sb.ToString();
+	}
+
+	public override bool CanEdit => true;
+
+	public override int ValueHash
+	{
+		get
+		{
+			HashCode hc = new HashCode();
+			hc.Add( Value.Name );
+			
+			return hc.ToHashCode();
+		}
+	}
+
+	public override void OnPaint( VirtualWidget item )
+	{
+		var variable = Value;
+		var isEven = item.Row % 2 == 0;
+		var isHovered = item.Hovered;
+		var fullSpanRect = item.Rect;
+		fullSpanRect.Left = 0;
+		fullSpanRect.Right = TreeView.Width;
+		var textColor = Theme.TextControl;
+		var itemColor = Theme.ControlBackground;
+		var typeColor = Color.White;
+
+		if ( ShaderGraphTheme.BlackboardConfigs.TryGetValue( variable.GetType(), out var blackboardConfig ) )
+		{
+			typeColor = blackboardConfig.Color;
+		}
+	
+		if ( item.Hovered )
+		{
+			textColor = Color.White;
+			itemColor = Theme.Primary.Lighten( 0.1f ).Desaturate( 0.3f ).WithAlpha( 0.4f * 0.6f );
+
+			Paint.ClearPen();
+			Paint.SetBrush( itemColor );
+			Paint.DrawRect( fullSpanRect );
+
+			Paint.SetPen( Theme.TextControl );
+		}
+		if ( item.Selected )
+		{
+			textColor = Theme.TextControl;
+			itemColor = Theme.Primary;
+
+			Paint.ClearPen();
+			Paint.SetBrush( itemColor );
+			Paint.DrawRect( fullSpanRect );
+		}
+		else if ( isEven )
+		{
+			Paint.ClearPen();
+			Paint.SetBrush( itemColor );
+			Paint.DrawRect( fullSpanRect );
+		}
+
+		//Paint.ClearPen();
+		//Paint.SetBrush( itemColor );
+		//Paint.DrawRect( fullSpanRect, Theme.ControlRadius );
+
+		var iconRect = fullSpanRect.Shrink( 4, 0, 0, 0 );
+		Paint.SetPen( typeColor );
+		Paint.DrawIcon( iconRect, "circle", 12f, TextFlag.LeftCenter );
+		fullSpanRect.Left += 24f;
+
+		Paint.SetPen( textColor.WithAlpha( 0.7f ) );
+		Paint.SetBrush( textColor.WithAlpha( 0.7f ) );
+
+		var textRect = Paint.DrawText( fullSpanRect.Shrink( 4, 0, 0, 0 ), $"{variable.Name}", TextFlag.LeftCenter );
+		var typeRect = Paint.DrawText( fullSpanRect.Shrink( 0, 0, 4, 0 ), $"{DisplayInfo.ForType( variable.GetType() ).Name}", TextFlag.RightCenter );
+
+		//Paint.SetPen( Color.Gray.WithAlpha( 0.25f ) );
+		//Paint.SetBrush( Color.Gray.WithAlpha( 0.25f ) );
+		//Paint.DrawRect( typeRect.Grow( 2 ), Theme.ControlRadius );
+	}
+
+	public override bool OnDragStart()
+	{
+		var drag = new Drag( TreeView );
+
+		if ( TreeView.IsSelected( Value ) )
+		{
+			drag.Data.Object = Value;
+
+			drag.Execute();
+
+			return true;
+		}
+
+		return false;
 	}
 }

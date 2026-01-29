@@ -893,6 +893,7 @@ public class MainWindow : DockWindow
 		_generatedCode = "";
 		_properties.Target = _graph;
 
+		_blackboardView.Rebuild();
 		_output.Clear();
 
 		if ( !IsSubgraph )
@@ -974,6 +975,8 @@ public class MainWindow : DockWindow
 		_undoHistory.History = _undoStack.Names;
 		_generatedCode = "";
 		_properties.Target = _graph;
+
+		_blackboardView.Rebuild();
 
 		if ( addToPath )
 			AddFileHistory( path );
