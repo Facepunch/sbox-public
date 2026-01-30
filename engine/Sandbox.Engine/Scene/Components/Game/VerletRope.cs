@@ -19,7 +19,7 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	/// </summary>
 	[Property, Group( "Attachment" )]
 	public LineRenderer LinkedRenderer { get; set; }
-	
+
 	/// <summary>
 	/// Controls the rope's base length before <see cref="Slack"/> is applied. Set to 0 for initial length when enabled.
 	/// </summary>
