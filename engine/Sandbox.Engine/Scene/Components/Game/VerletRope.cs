@@ -24,13 +24,33 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	/// Controls the rope's base length before <see cref="Slack"/> is applied. Set to 0 for initial length when enabled.
 	/// </summary>
 	[Property, Group( "Simulation" )]
-	public float BaseLength { get; set; } = 0f;
+	public float BaseLength
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+
+			field = MathF.Max( 0f, value );
+			isAtRest = false; // Wake up rope when length changes
+		}
+	} = 0f;
 
 	/// <summary>
 	/// Additional slack, added to the rope length.
 	/// </summary>
 	[Property, Group( "Simulation" )]
-	public float Slack { get; set; } = 0;
+	public float Slack
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+
+			field = value;
+			isAtRest = false; // Wake up rope when slack changes
+		}
+	} = 0f;
 
 	/// <summary>
 	/// Number of segments in the rope. Higher values increase visual fidelity and collision accuracy but quickly reduce performance.
