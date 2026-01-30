@@ -21,10 +21,36 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	public LineRenderer LinkedRenderer { get; set; }
 
 	/// <summary>
+	/// Controls the rope's base length before <see cref="Slack"/> is applied. Set to 0 for initial length when enabled.
+	/// </summary>
+	[Property, Group( "Simulation" )]
+	public float BaseLength
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+
+			field = MathF.Max( 0f, value );
+			isAtRest = false; // Wake up rope when length changes
+		}
+	} = 0f;
+
+	/// <summary>
 	/// Additional slack, added to the rope length.
 	/// </summary>
 	[Property, Group( "Simulation" )]
-	public float Slack { get; set; } = 0;
+	public float Slack
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+
+			field = value;
+			isAtRest = false; // Wake up rope when slack changes
+		}
+	} = 0f;
 
 	/// <summary>
 	/// Number of segments in the rope. Higher values increase visual fidelity and collision accuracy but quickly reduce performance.
@@ -41,19 +67,19 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	/// <summary>
 	/// Rope stiffness factor. Higher values make the rope more rigid.
 	/// </summary>
-	[Property, Group( "Advanced", StartFolded = true )]
+	[Advanced, Property]
 	public float Stiffness { get; set; } = 0.7f;
 
 	/// <summary>
 	/// Dampens rope movement. Higher values make the rope settle faster.
 	/// </summary>
-	[Property, Group( "Advanced", StartFolded = true )]
+	[Advanced, Property]
 	public float DampingFactor { get; set; } = 0.2f;
 
 	/// <summary>
 	/// Controls how easily the rope bends. Lower values allow more bending, higher values make it stiffer.
 	/// </summary>
-	[Property, Group( "Advanced", StartFolded = true )]
+	[Advanced, Property]
 	public float SoftBendFactor { get; set; } = 0.3f;
 
 	/// <summary>
@@ -65,7 +91,7 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	/// <summary>
 	/// The length the rope would like to have.
 	/// </summary>
-	private float targetRopeLength => initialRopeLength + Slack;
+	private float targetRopeLength => (BaseLength > 0f ? BaseLength : initialRopeLength) + Slack;
 
 	/// <summary>
 	/// Set on Initialize based on distance between attachment points and slack.
