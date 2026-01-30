@@ -141,6 +141,37 @@ partial class TransformComponentWidget : ComponentEditorWidget
 		{
 			// ignore
 		}
+
+		// past this point should only show when editing a single object ingame
+		if ( SerializedObject.IsMultipleTargets )
+			return;
+		var session = SceneEditorSession.Resolve( gameObject.GetProperty( nameof( GameObject.Scene ) ).GetValue<Scene>() );
+		if ( session is null || !session.IsPlaying )
+			return;
+
+		// try to find the editor session version
+		var targetObject = session.Scene.Directory.FindByGuid( gameObject.GetProperty( nameof( GameObject.Id ) ).GetValue<Guid>() );
+		if ( !targetObject.IsValid() )
+			return;
+
+		menu.AddSeparator();
+		var localProperty = targetObject.GetSerialized().GetProperty( nameof( GameObject.LocalTransform ) );
+		var localSetter = menu.AddOption( "Apply Local to Scene", "save", () =>
+		{
+			using var scope = session.Scene.Push();
+			using ( session.UndoScope( "Apply to Scene" ).WithGameObjectChanges( targetObject, GameObjectUndoFlags.Properties ).Push() )
+				localProperty.SetValue<object>( gameObject.GetProperty( nameof( GameObject.LocalTransform ) ).GetValue<Transform>() );
+		} );
+		localSetter.Enabled = gameObject.GetProperty( nameof( GameObject.LocalTransform ) ).GetValue<Transform>() != localProperty.GetValue<Transform>();
+
+		var worldProperty = targetObject.GetSerialized().GetProperty( nameof( GameObject.WorldTransform ) );
+		var worldSetter = menu.AddOption( "Apply World to Scene", "save", () =>
+		{
+			using var scope = session.Scene.Push();
+			using ( session.UndoScope( "Apply to Scene" ).WithGameObjectChanges( targetObject, GameObjectUndoFlags.Properties ).Push() )
+				worldProperty.SetValue<object>( gameObject.GetProperty( nameof( GameObject.WorldTransform ) ).GetValue<Transform>() );
+		} );
+		worldSetter.Enabled = gameObject.GetProperty( nameof( GameObject.WorldTransform ) ).GetValue<Transform>() != worldProperty.GetValue<Transform>();
 	}
 }
 
