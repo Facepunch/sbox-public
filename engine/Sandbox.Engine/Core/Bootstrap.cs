@@ -61,7 +61,7 @@ internal static class Bootstrap
 				{
 					EngineFileSystem.InitializeDownloadsFolder();
 
-					string assetdownloadFolder = "/assets";
+					string assetdownloadFolder = "/Assets";
 					EngineFileSystem.DownloadedFiles.CreateDirectory( assetdownloadFolder );
 
 					AssetDownloadCache.Initialize( EngineFileSystem.DownloadedFiles.GetFullPath( assetdownloadFolder ) );
