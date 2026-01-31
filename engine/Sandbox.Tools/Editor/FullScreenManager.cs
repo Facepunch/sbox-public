@@ -5,6 +5,11 @@ namespace Editor;
 /// </summary>
 internal partial class FullScreenManager
 {
+	public FullScreenManager()
+	{
+		EditorEvent.Register( this );
+	}
+
 	public bool IsActive => Widget.IsValid();
 
 	/// <summary>
@@ -39,8 +44,6 @@ internal partial class FullScreenManager
 
 		Widget = null;
 		PreviousParent = null;
-
-		EditorEvent.Register( this );
 	}
 
 	[EditorEvent.Frame]
@@ -57,12 +60,18 @@ internal partial class FullScreenManager
 
 	private Vector2 GetTargetPosition()
 	{
-		return new Vector2( 0, EditorWindow.MenuWidget.Size.y );
+		var position = new Vector2( 0, EditorWindow.MenuWidget.Size.y );
+		if ( EditorWindow.IsMaximized )
+			position += 8;
+		return position;
 	}
 
 	private Vector2 GetTargetSize()
 	{
-		return EditorWindow.Size - Widget.Position - new Vector2( 0, EditorWindow.StatusBar.Size.y + 4 );
+		var size = EditorWindow.Size - Widget.Position - new Vector2( 0, EditorWindow.StatusBar.Size.y + 4 );
+		if ( EditorWindow.IsMaximized )
+			size -= 8;
+		return size;
 	}
 
 	private void SetWidgetLayout()
@@ -104,13 +113,5 @@ internal partial class FullScreenManager
 
 		// Lay the widget out
 		SetWidgetLayout();
-
-		// Maximized window has no margin - we need to account for that
-		// Typical window margin is 8,8,8,8 so we'll use those values
-		if ( EditorWindow.IsMaximized )
-		{
-			Widget.Position += new Vector2( 8, 8 );
-			Widget.Size -= new Vector2( 8, 8 );
-		}
 	}
 }
