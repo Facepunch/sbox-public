@@ -150,7 +150,7 @@ public partial class ColorPicker : Widget
 
 		var hueSlider = new HsvFloatControlWidget( so.GetProperty( nameof( Hue ) ), HueSliderPaint );
 		AlphaSlider = new HsvFloatControlWidget( so.GetProperty( nameof( Alpha ) ), AlphaSliderPaint );
-		RangeSlider = new HsvFloatControlWidget( so.GetProperty( nameof( Range ) ), RangeSliderPaint );
+		RangeSlider = new HsvFloatControlWidget( so.GetProperty( nameof( Range ) ), RangeSliderPaint, 3 );
 
 		so.OnPropertyStartEdit += ( p ) => EditingStarted?.Invoke();
 		so.OnPropertyFinishEdit += ( p ) => EditingFinished?.Invoke();
@@ -382,10 +382,11 @@ class HsvFloatControlWidget : FloatControlWidget
 	public override bool IncludeLabel => false;
 	public override bool IsWideMode => true;
 
-	public HsvFloatControlWidget( SerializedProperty property, Action<Rect, float> sliderPaint ) : base( property )
+	public HsvFloatControlWidget( SerializedProperty property, Action<Rect, float> sliderPaint, float curve = 1f ) : base( property )
 	{
 		Label = null;
 		Icon = "multiple_stop";
 		SliderPaint = sliderPaint;
+		SliderCurve = curve;
 	}
 }
