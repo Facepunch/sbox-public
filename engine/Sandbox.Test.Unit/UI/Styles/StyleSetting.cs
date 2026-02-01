@@ -630,7 +630,7 @@ public class StyleSetting
 		Assert.AreEqual( 1, styles.Transitions.List.Count );
 		Assert.AreEqual( "width", styles.Transitions.List[0].Property );
 		Assert.AreEqual( 10, styles.Transitions.List[0].Duration );
-		// Each property has an initial value, defined in the property’s definition table
+		// Each property has an initial value, defined in the property's definition table
 		// https://w3c.github.io/csswg-drafts/css-transitions/#transition-timing-function-property
 		Assert.AreEqual( "ease", styles.Transitions.List[0].TimingFunction );
 		Assert.AreEqual( 0, styles.Transitions.List[0].Delay.Value );
