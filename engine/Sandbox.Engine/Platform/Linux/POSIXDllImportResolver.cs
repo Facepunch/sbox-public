@@ -17,12 +17,12 @@ public class SboxNativesResolver
 		NativeLibrary.SetDllImportResolver( harfBuzzSharpAssemblyRef, HarfBuzzSharpImportResolver );
 	}
 
-	
+
 	~SboxNativesResolver()
 	{
-		foreach ( KeyValuePair<string,IntPtr> libHandle in cachedLibHandles )
+		foreach ( KeyValuePair<string, IntPtr> libHandle in cachedLibHandles )
 		{
-			NativeLibrary.Free(libHandle.Value);
+			NativeLibrary.Free( libHandle.Value );
 		}
 	}
 
@@ -55,7 +55,7 @@ public class SboxNativesResolver
 
 	private static IntPtr SkiaSharpImportResolver( string libraryName, Assembly assembly, DllImportSearchPath? searchPath )
 	{
-		
+
 		if ( libraryName == "libSkiaSharp" )
 		{
 			if ( cachedLibHandles.TryGetValue( libraryName, out IntPtr outPtr ) )
