@@ -36,8 +36,7 @@ file class ProjectTitleButton : Widget
 		}
 
 		var contentRect = LocalRect.Shrink( HorizontalPadding, 0 );
-
-		Package.TryGetCached( Project.Config.FullIdent, out var package );
+		var package = Project.Package;
 
 		// Calculate logo rect on the left side
 		var logoRect = contentRect;
