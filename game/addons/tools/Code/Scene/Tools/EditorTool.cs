@@ -223,6 +223,15 @@ public class EditorTool : IDisposable
 	}
 
 	/// <summary>
+	/// Create a widget to be added to the viewport toolbar when this tool is active.
+	/// This allows tools to add custom controls, options, or information to the main toolbar.
+	/// </summary>
+	public virtual Widget CreateToolbarWidget()
+	{
+		return null;
+	}
+
+	/// <summary>
 	/// Create a widget for this tool to be added at the bottom of the tools
 	/// </summary>
 	public virtual Widget CreateToolFooter()

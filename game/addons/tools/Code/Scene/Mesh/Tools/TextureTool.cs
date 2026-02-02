@@ -22,9 +22,6 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 	public bool SelectByNormal { get; set; } = true;
 	public float NormalThreshold { get; set; } = 12f;
 
-	//Display
-	public bool OverlaySelection { get; set; } = true;
-
 	public override void OnEnabled()
 	{
 		base.OnEnabled();
@@ -122,7 +119,7 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 
 		var selectionColor = Color.Yellow.WithAlpha( 0.1f );
 
-		if ( !OverlaySelection )
+		if ( !Tool.OverlaySelection )
 			selectionColor = Color.Transparent;
 
 		foreach ( var face in Selection.OfType<MeshFace>() )
