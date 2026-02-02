@@ -141,4 +141,45 @@ public class NetList
 			list[0] = 1;
 		} );
 	}
+
+	[TestMethod]
+	public void Slice()
+	{
+		using var list = new NetList<int>();
+
+		list.Add( 10 );
+		list.Add( 20 );
+		list.Add( 30 );
+		list.Add( 40 );
+		list.Add( 50 );
+
+		var middle = list.Slice( 1, 2 );
+
+		Assert.AreEqual( 2, middle.Count );
+		Assert.AreEqual( 20, middle[0] );
+		Assert.AreEqual( 30, middle[1] );
+
+		var empty = list.Slice( 4, 0 );
+
+		Assert.AreEqual( 0, empty.Count );
+
+		var full = list.Slice( 0, 5 );
+
+		Assert.AreEqual( 5, full.Count );
+		Assert.AreEqual( 10, full[0] );
+		Assert.AreEqual( 50, full[4] );
+
+		Assert.ThrowsException<ArgumentOutOfRangeException>( () =>
+		{
+			list.Slice( 1, -1 );
+		} );
+		Assert.ThrowsException<ArgumentException>( () =>
+		{
+			list.Slice( 1, 10 );
+		} );
+		Assert.ThrowsException<ArgumentException>( () =>
+		{
+			list.Slice( 5, 1 );
+		} );
+	}
 }
