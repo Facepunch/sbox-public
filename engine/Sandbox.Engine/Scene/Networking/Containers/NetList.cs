@@ -245,7 +245,7 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 			return [];
 		}
 
-		var output = new List<T>( length - start );
+		var output = new List<T>( length );
 		for ( var i = start; i < start + length; i++ )
 		{
 			output.Add( _list[i] );
