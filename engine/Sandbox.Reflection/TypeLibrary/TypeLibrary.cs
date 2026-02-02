@@ -3,6 +3,7 @@ using Sandbox.UI;
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.ComponentModel.DataAnnotations;
+using System.Threading.Tasks;
 
 namespace Sandbox.Internal;
 
@@ -144,6 +145,10 @@ public partial class TypeLibrary
 		typeof(ValueTuple<,,,,,>),
 		typeof(ValueTuple<,,,,,,>),
 		typeof(ValueTuple<,,,,,,,>),
+		typeof(Action),
+		typeof(Action<>),
+		typeof(Func<>),
+		typeof(Task<>),
 
 		// Sandbox
 		typeof(Rect),
