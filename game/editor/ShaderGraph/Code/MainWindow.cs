@@ -182,9 +182,11 @@ public class MainWindow : DockWindow
 					_properties.Target = _graph;
 				}
 			}
-
-			_properties.Target = node;
-			_preview.SetStage( _compiledNodes.IndexOf( node ) + 1 );
+			else
+			{
+				_properties.Target = node;
+				_preview.SetStage( _compiledNodes.IndexOf( node ) + 1 );
+			}
 		}
 	}
 
