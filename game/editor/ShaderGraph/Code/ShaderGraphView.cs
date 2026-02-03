@@ -28,7 +28,6 @@ public class ShaderGraphView : GraphView
 	}
 
 	public Action OnNewParameterNodeCreated { get; set; }
-	public Action OnConstantNodeConvertedToParameter { get; set; }
 
 	private readonly Dictionary<string, INodeType> AvailableNodes = new( StringComparer.OrdinalIgnoreCase );
 	private readonly Dictionary<string, IBlackboardParameterType> AvailableParameters = new( StringComparer.OrdinalIgnoreCase );
@@ -373,8 +372,6 @@ public class ShaderGraphView : GraphView
 				parameter.Name = parameterName;
 
 				node = ConvertConstantNodeToParameterNode( parameter, nodePosition );
-
-				OnConstantNodeConvertedToParameter?.Invoke();
 			}
 
 			if ( node != null )
