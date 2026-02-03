@@ -128,36 +128,51 @@ public class MainWindow : DockWindow
 		_preview.Material = Material.Load( "materials/core/shader_editor.vmat" );
 	}
 
-	public void OnNodeSelected( BaseNode node )
 	{
 		var oldTarget = _properties.Target;
-		_properties.Target = node != null ? node : _graph;
+		_properties.Target = selection != null ? selection : _graph;
 
-		// TODO : Make it work when subgraph inputs.
-		if ( _properties.Target is IBlackboardNode blackboardNode )
+		if ( _properties.Target is BlackboardParameter parameter )
 		{
-			// For now only select a blackboard parameter when _graphView only has 1 selection.
-			if ( _graphView.SelectedItems.Count() == 1 )
+			_blackboardView.SetSelectedItem( parameter );
+		}
+
+		if ( _properties.Target is ShaderGraph )
+		{
+			if ( oldTarget is BlackboardParameter )
 			{
-				if ( blackboardNode.BlackboardParameterIdentifier != default )
+				_blackboardView.ClearSeletedItem();
+			}
+		}
+
+		if ( _properties.Target is BaseNode node )
+		{
+			if ( oldTarget is BlackboardParameter )
+			{
+				_blackboardView.ClearSeletedItem();
+			}
+
+			// TODO : Make it work when subgraph inputs.
+			if ( node is IBlackboardNode blackboardNode )
+			{
+				// For now only select a blackboard parameter when _graphView only has 1 selection.
+				if ( _graphView.SelectedItems.Count() == 1 )
 				{
-					var blackboardParameter = _graph.FindParameter( blackboardNode.BlackboardParameterIdentifier );
-					_blackboardView.SetSelectedItem( blackboardParameter );
-					_properties.Target = blackboardParameter;
+					if ( blackboardNode.BlackboardParameterIdentifier != default )
+					{
+						var blackboardParameter = _graph.FindParameter( blackboardNode.BlackboardParameterIdentifier );
+						_blackboardView.SetSelectedItem( blackboardParameter );
+						_properties.Target = blackboardParameter;
+					}
+				}
+				else
+				{
+					_properties.Target = _graph;
 				}
 			}
-			else
-			{
-				_properties.Target = _graph;
-			}
-		}
 
-		if ( (_properties.Target is ShaderGraph && oldTarget is BlackboardParameter) || (_properties.Target is BaseNode && oldTarget is BlackboardParameter) )
-		{
-			_blackboardView.ClearSeletedItem();
+			_preview.SetStage( _compiledNodes.IndexOf( node ) + 1 );
 		}
-
-		_preview.SetStage( _compiledNodes.IndexOf( node ) + 1 );
 	}
 
 	public void OnGraphViewClicked()
@@ -165,7 +180,7 @@ public class MainWindow : DockWindow
 		// Fixes not being able to select the graph in the GraphView when the latest target was a BlackboardParameter.
 		if ( _properties.Target is BlackboardParameter )
 		{
-			OnNodeSelected( null );
+			OnSelected( null );
 			_blackboardView.ClearSeletedItem();
 		}
 	}

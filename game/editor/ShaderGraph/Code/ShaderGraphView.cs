@@ -301,6 +301,7 @@ public class ShaderGraphView : GraphView
 
 				// Select the last node in the list.
 				_window.OnNodeSelected( lastNode );
+				_window.OnSelected( lastNode );
 				SelectNode( lastNode );
 			} );
 		}
@@ -339,7 +340,7 @@ public class ShaderGraphView : GraphView
 
 						RebuildFromGraph();
 
-						_window.OnNodeSelected( newNode );
+						_window.OnSelected( newNode );
 						SelectNode( newNode );
 					},
 					$"Specify {(Graph.IsSubgraph ? "input" : "parameter")} name for the new {nodeTypeTitle} {(Graph.IsSubgraph ? "Subgraph Input node" : "Material Parameter node")}." );
@@ -695,11 +696,11 @@ public class ShaderGraphView : GraphView
 
 		if ( !item.IsValid() )
 		{
-			_window.OnNodeSelected( null );
+			_window.OnSelected( null );
 			return;
 		}
 
-		_window.OnNodeSelected( (BaseNode)item.Node );
+		_window.OnSelected( (BaseNode)item.Node );
 	}
 
 	protected override void OnMouseClick( MouseEvent e )
