@@ -1,7 +1,5 @@
 using Editor.NodeEditor;
-using Editor.ShaderGraph.Nodes;
 using System.Text.Json.Serialization;
-using static Sandbox.Material;
 
 namespace Editor.ShaderGraph;
 
