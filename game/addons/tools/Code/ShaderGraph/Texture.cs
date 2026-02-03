@@ -99,6 +99,9 @@ public struct TextureInput
 	/// </summary>
 	public string CustomExtension { get; set; }
 
+	[JsonIgnore, Hide]
+	public bool ShowGroups { get; set; } = true;
+
 	[Hide]
 	public readonly bool ShowExtension => string.IsNullOrWhiteSpace( CustomExtension );
 
@@ -150,12 +153,14 @@ public struct TextureInput
 	/// Primary group
 	/// </summary>
 	[InlineEditor( Label = false ), Group( "Group" )]
+	[ShowIf( nameof( ShowGroups ), true )]
 	public UIGroup PrimaryGroup { get; set; }
 
 	/// <summary>
 	/// Group within the primary group
 	/// </summary>
 	[InlineEditor( Label = false ), Group( "Sub Group" )]
+	[ShowIf( nameof( ShowGroups ), true )]
 	public UIGroup SecondaryGroup { get; set; }
 
 	[JsonIgnore, Hide]
@@ -180,5 +185,9 @@ public struct TextureInput
 			if ( Type == TextureType.TexCube ) return "CreateInputTextureCube";
 			return default;
 		}
+	}
+
+	public TextureInput()
+	{
 	}
 }

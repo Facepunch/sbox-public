@@ -24,6 +24,11 @@ internal class ShaderGraphGroupControlWidget : ControlWidget
 		}
 
 		var groupProperty = GetGroupProperty( property );
+		if ( !input.ShowGroups )
+		{
+			return;
+		}
+
 		var parentNode = GetShaderNode( property );
 		if ( groupProperty is not null && parentNode is not null )
 		{
@@ -57,6 +62,14 @@ internal class ShaderGraphGroupControlWidget : ControlWidget
 		{
 			SerializedProperty.SetValue<string>( _comboBox.CurrentText );
 		};
+	}
+
+		}
+		if ( originalProperty.PropertyType == typeof( TextureInput ) )
+		{
+			return originalProperty;
+		}
+		return GetGroupProperty( originalProperty.Parent?.ParentProperty );
 	}
 
 	SerializedProperty GetGroupProperty( SerializedProperty originalProperty )
