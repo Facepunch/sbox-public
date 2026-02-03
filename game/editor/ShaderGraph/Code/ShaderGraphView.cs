@@ -299,7 +299,6 @@ public class ShaderGraphView : GraphView
 				RebuildFromGraph();
 
 				// Select the last node in the list.
-				_window.OnNodeSelected( lastNode );
 				_window.OnSelected( lastNode );
 				SelectNode( lastNode );
 			} );
@@ -439,6 +438,9 @@ public class ShaderGraphView : GraphView
 		Add( nodeUI );
 
 		OnNewParameterNodeCreated?.Invoke();
+
+		_window.OnSelected( parameter );
+
 	}
 
 	private T CreateBlackboardParameter<T>( ShaderGraph graph ) where T : BlackboardParameter

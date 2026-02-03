@@ -128,6 +128,7 @@ public class MainWindow : DockWindow
 		_preview.Material = Material.Load( "materials/core/shader_editor.vmat" );
 	}
 
+	public void OnSelected( object selection )
 	{
 		var oldTarget = _properties.Target;
 		_properties.Target = selection != null ? selection : _graph;
