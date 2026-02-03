@@ -224,6 +224,10 @@ public sealed partial class GraphCompiler
 
 			return new( globalName, result.SamplerStates.IndexOf( sampler ) );
 		}
+		//else
+		//{
+		//	SetAttribute( name, texture );
+		//}
 
 		if ( !result.SamplerStates.Contains( sampler ) )
 			result.SamplerStates.Add( sampler );
@@ -237,9 +241,6 @@ public sealed partial class GraphCompiler
 		return new( globalName, result.SamplerStates.IndexOf( sampler ) );
 	}
 
-	/// <summary>
-	/// Similar to <seealso cref="ResultTexture(Sampler, TextureInput, Texture, bool)"/> but just for <seealso cref="Texture2DParameter"/>
-	/// </summary>
 	internal string ResultTexture( TextureInput input, Texture texture )
 	{
 		var name = CleanName( input.Name );
@@ -257,6 +258,31 @@ public sealed partial class GraphCompiler
 		}
 
 		SetAttribute( name, texture );
+
+		var globalName = $"g_t{name}";
+		if ( CurrentResultInput == "Albedo" )
+		{
+			result.RepresentativeTexture = globalName;
+		}
+
+		return globalName;
+	}
+
+	public string ResultTexture( TextureInput input )
+	{
+		var name = CleanName( input.Name );
+		name = string.IsNullOrWhiteSpace( name ) ? $"Texture_{StageName}_{ShaderResult.TextureInputs.Count}" : name;
+
+		var result = ShaderResult;
+		if ( !result.TextureInputs.ContainsKey( name ) )
+		{
+			result.TextureInputs.Add( name, input );
+		}
+
+		if ( !PreviewImages.ContainsKey( $"g_t{name}" ) )
+		{
+			PreviewImages.Add( $"g_t{name}", input.DefaultTexture );
+		}
 
 		var globalName = $"g_t{name}";
 		if ( CurrentResultInput == "Albedo" )

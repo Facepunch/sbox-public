@@ -22,7 +22,6 @@ public interface ITextureParameterNode
 
 public interface ITextureParameterNodeNew : IBlackboardNode
 {
-	string Image { get; set; }
 	TextureInput UI { get; }
 }
 

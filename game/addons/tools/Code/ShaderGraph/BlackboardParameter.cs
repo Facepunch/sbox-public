@@ -165,7 +165,6 @@ public abstract class BlackboardParameter : IBlackboardParameter
 				return new Texture2DParameter()
 				{
 					BlackboardParameterIdentifier = parameter.Identifier,
-					Image = v.Value.DefaultTexture,
 				};
 
 			// In Subgraph

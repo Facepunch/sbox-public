@@ -368,35 +368,6 @@ public sealed class Texture2DParameter : ShaderNode, ITextureParameterNodeNew
 		$"{DisplayInfo.For( this ).Name}" :
 		$"{UI.Name}";
 
-	[Hide]
-	private Asset _asset;
-	private string _texture;
-	private string _image;
-	private string _resourceText;
-
-	//[JsonIgnore, Hide]
-	//private Asset Asset => _asset;
-
-	[JsonIgnore, Hide]
-	private string TexturePath => _texture;
-
-	[JsonIgnore, Hide]
-	public string Image
-	{
-		get => _image;
-		set
-		{
-			_image = value;
-			_asset = AssetSystem.FindByPath( _image );
-
-			if ( _asset == null )
-				return;
-
-			CompileTexture();
-		}
-	}
-
-	[Hide]
 	public Guid BlackboardParameterIdentifier { get; set; }
 
 	[JsonIgnore, Hide]
@@ -412,80 +383,18 @@ public sealed class Texture2DParameter : ShaderNode, ITextureParameterNodeNew
 		return null;
 	}
 
-	private void CompileTexture()
-	{
-		if ( _asset == null )
-			return;
-
-		if ( string.IsNullOrWhiteSpace( _image ) )
-			return;
-
-		//var ui = UI;
-		//ui.DefaultTexture = _image;
-		//UI = ui;
-
-		var resourceText = string.Format( ShaderTemplate.TextureDefinition,
-			_image,
-			UI.ColorSpace,
-			UI.ImageFormat,
-			UI.Processor );
-
-		if ( _resourceText == resourceText )
-			return;
-
-		_resourceText = resourceText;
-
-		var assetPath = $"shadergraph/{_image.Replace( ".", "_" )}_shadergraph.generated.vtex";
-		var resourcePath = FileSystem.Root.GetFullPath( "/.source2/temp" );
-		resourcePath = System.IO.Path.Combine( resourcePath, assetPath );
-
-		if ( AssetSystem.CompileResource( resourcePath, resourceText ) )
-		{
-			_texture = assetPath;
-		}
-		else
-		{
-			Log.Warning( $"Failed to compile '{_image}'" );
-		}
-	}
-
 	public Texture2DParameter()
 	{
 	}
-
-	/*
-	public override void OnPaint( Rect rect )
-	{
-		rect = rect.Align( 130, TextFlag.LeftBottom ).Shrink( 3 );
-
-		Paint.SetBrush( "/image/transparent-small.png" );
-		Paint.DrawRect( rect.Shrink( 2 ), 2 );
-
-		Paint.SetBrush( Theme.ControlBackground.WithAlpha( 0.7f ) );
-		Paint.DrawRect( rect, 2 );
-
-		if ( Asset != null )
-		{
-			Paint.Draw( rect.Shrink( 2 ), Asset.GetAssetThumb( true ) );
-		}
-	}
-	*/
 
 	[Output( typeof( Texture ) ), Title( "Texture2D" )]
 	[Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		Image = GetParameter().Value.DefaultTexture;
-		var input = UI;
+		var input = GetParameter().Value;
 		input.Type = TextureType.Tex2D;
-		input.DefaultTexture = _image;
 
-		CompileTexture();
-
-		var texture = string.IsNullOrWhiteSpace( TexturePath ) ? null : Texture.Load( TexturePath );
-		texture ??= Texture.White;
-
-		var textureGlobal = compiler.ResultTexture( input, texture );
+		var textureGlobal = compiler.ResultTexture( input );
 
 		return new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
 	};
