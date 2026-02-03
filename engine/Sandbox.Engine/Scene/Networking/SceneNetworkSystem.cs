@@ -1,5 +1,6 @@
 ﻿using Sandbox.Network;
 using Sandbox.Utility;
+using System.Drawing;
 using System.IO;
 using System.Text.Json.Nodes;
 
@@ -644,11 +645,29 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	{
 		foreach ( var c in Game.ActiveScene.GetAll<Component.INetworkListener>() )
 		{
+#pragma warning disable CS0618 // Type or member is obsolete
 			if ( !c.AcceptConnection( channel, ref reason ) )
 				return false;
+#pragma warning restore CS0618 // Type or member is obsolete
 		}
 
 		return true;
+	}
+
+	public override async Task<string> RejectConnection( Connection channel )
+	{
+		foreach ( var c in Game.ActiveScene.GetAll<Component.INetworkListener>() )
+		{
+			var task = c.RejectConnection( channel );
+
+			// In case someone makes a mistake and writes a non-async RejectConnection function which returns null, we might freeze here.
+			// Therefore, we should null-check the task just in case.
+
+			if ( task is not null && await task is { } reason )
+				return reason;
+		}
+
+		return null;
 	}
 
 	public override void OnConnected( Connection client )
