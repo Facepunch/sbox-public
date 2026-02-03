@@ -1,5 +1,4 @@
-﻿using K4os.Compression.LZ4;
-using K4os.Compression.LZ4.Streams;
+﻿using Managed.SandboxEngine;
 using System.IO;
 using System.IO.Compression;
 
@@ -10,15 +9,15 @@ namespace Sandbox.Compression;
 /// </summary>
 public static class LZ4
 {
-	private static LZ4Level CompressionLevelToLZ4Level( CompressionLevel level )
+	private static int CompressionLevelToLZ4Level( CompressionLevel level )
 	{
 		return level switch
 		{
 			CompressionLevel.NoCompression => throw new ArgumentException( "NoCompression is not supported for LZ4." ),
-			CompressionLevel.Fastest => LZ4Level.L00_FAST,
-			CompressionLevel.Optimal => LZ4Level.L09_HC,
-			CompressionLevel.SmallestSize => LZ4Level.L12_MAX,
-			_ => LZ4Level.L00_FAST,
+			CompressionLevel.Fastest => 1, // Fast mode uses LZ4_compress_default
+			CompressionLevel.Optimal => 2,
+			CompressionLevel.SmallestSize => 12,
+			_ => 1,
 		};
 	}
 
@@ -28,20 +27,38 @@ public static class LZ4
 	/// <param name="data">Input buffer</param>
 	/// <param name="compressionLevel">Compression level to use</param>
 	/// <returns>Compressed LZ4 block data</returns>
-	public static byte[] CompressBlock( ReadOnlySpan<byte> data, System.IO.Compression.CompressionLevel compressionLevel = System.IO.Compression.CompressionLevel.Fastest )
+	public static byte[] CompressBlock( ReadOnlySpan<byte> data, CompressionLevel compressionLevel = CompressionLevel.Fastest )
 	{
 		if ( data.IsEmpty )
 			return Array.Empty<byte>();
 
-		int maxLength = LZ4Codec.MaximumOutputSize( data.Length );
-		var compressed = new byte[maxLength];
+		int maxLength = NativeEngine.LZ4Glue.CompressBound( data.Length );
+		using var compressed = new PooledSpan<byte>( maxLength );
 
-		int resultLength = LZ4Codec.Encode( data, compressed, CompressionLevelToLZ4Level( compressionLevel ) );
+		int resultLength;
+		unsafe
+		{
+			fixed ( byte* srcPtr = data )
+			fixed ( byte* dstPtr = compressed.Span )
+			{
+				int level = CompressionLevelToLZ4Level( compressionLevel );
+				if ( level <= 1 )
+				{
+					// Use fast compression
+					resultLength = NativeEngine.LZ4Glue.Compress( (nint)srcPtr, (nint)dstPtr, data.Length, maxLength );
+				}
+				else
+				{
+					// Use HC (high compression) mode
+					resultLength = NativeEngine.LZ4Glue.CompressHC( (nint)srcPtr, (nint)dstPtr, data.Length, maxLength, level );
+				}
+			}
+		}
+
 		if ( resultLength <= 0 )
 			throw new InvalidDataException( "LZ4 encode failed." );
 
-		Array.Resize( ref compressed, resultLength ); // trim to actual size
-		return compressed;
+		return compressed.Span.Slice( 0, resultLength ).ToArray();
 	}
 
 
@@ -53,42 +70,55 @@ public static class LZ4
 	/// <returns>Number of bytes written</returns>
 	public static int DecompressBlock( ReadOnlySpan<byte> src, Span<byte> dest )
 	{
-		int resultLength = LZ4Codec.Decode( src, dest );
-		if ( resultLength <= 0 )
+		int resultLength;
+		unsafe
+		{
+			fixed ( byte* srcPtr = src )
+			fixed ( byte* dstPtr = dest )
+			{
+				resultLength = NativeEngine.LZ4Glue.Decompress( (nint)srcPtr, (nint)dstPtr, src.Length, dest.Length );
+			}
+		}
+
+		if ( resultLength < 0 )
 			throw new InvalidDataException( "LZ4 decode failed." );
 
 		return resultLength;
 	}
 
 	/// <summary>
-	/// Encode data as an LZ4 frame.
+	/// Encode data as an LZ4 frame (standard LZ4 frame format, compatible with lz4 CLI).
 	/// </summary>
 	/// <param name="data">Input buffer</param>
 	/// <param name="compressionLevel">Compression level to use</param>
 	/// <returns>Compressed LZ4 frame data</returns>
-	public static byte[] CompressFrame( ReadOnlySpan<byte> data, System.IO.Compression.CompressionLevel compressionLevel = System.IO.Compression.CompressionLevel.Fastest )
+	public static byte[] CompressFrame( ReadOnlySpan<byte> data, CompressionLevel compressionLevel = CompressionLevel.Fastest )
 	{
 		if ( data.IsEmpty )
 			return Array.Empty<byte>();
 
-		try
-		{
-			using var outStream = new MemoryStream();
-			using ( var encoder = LZ4Stream.Encode( outStream, CompressionLevelToLZ4Level( compressionLevel ) ) )
-			{
-				encoder.Write( data );
-			}
+		int maxFrameSize = NativeEngine.LZ4Glue.CompressFrameBound( data.Length );
+		using var compressed = new PooledSpan<byte>( maxFrameSize );
 
-			return outStream.ToArray();
-		}
-		catch ( Exception ex )
+		int resultLength;
+		unsafe
 		{
-			throw new InvalidDataException( "Failed to encode LZ4.", ex );
+			fixed ( byte* srcPtr = data )
+			fixed ( byte* dstPtr = compressed.Span )
+			{
+				int level = CompressionLevelToLZ4Level( compressionLevel );
+				resultLength = NativeEngine.LZ4Glue.CompressFrame( (nint)srcPtr, (nint)dstPtr, data.Length, maxFrameSize, level );
+			}
 		}
+
+		if ( resultLength <= 0 )
+			throw new InvalidDataException( "LZ4 frame encode failed." );
+
+		return compressed.Span.Slice( 0, resultLength ).ToArray();
 	}
 
 	/// <summary>
-	/// Decode an LZ4 frame.
+	/// Decode an LZ4 frame (standard LZ4 frame format, compatible with lz4 CLI).
 	/// </summary>
 	/// <param name="data">Input buffer, compressed LZ4 frame data</param>
 	/// <returns>Uncompressed data</returns>
@@ -97,24 +127,43 @@ public static class LZ4
 		if ( data.IsEmpty )
 			return Array.Empty<byte>();
 
-		try
-		{
-			unsafe
-			{
-				fixed ( byte* ptr = data )
-				{
-					using var input = new UnmanagedMemoryStream( ptr, data.Length );
-					using var decompressor = LZ4Stream.Decode( input );
-					using var outStream = new MemoryStream();
+		if ( data.Length < 7 ) // Minimum LZ4 frame header size
+			throw new InvalidDataException( "LZ4 frame too small." );
 
-					decompressor.CopyTo( outStream );
-					return outStream.ToArray();
-				}
+		// Get the content size from frame header (we always set it during compression)
+		long contentSize;
+		unsafe
+		{
+			fixed ( byte* srcPtr = data )
+			{
+				contentSize = NativeEngine.LZ4Glue.GetFrameContentSize( (nint)srcPtr, data.Length );
 			}
 		}
-		catch ( Exception ex )
+
+		if ( contentSize < 0 )
+			throw new InvalidDataException( "Failed to read LZ4 frame header." );
+
+		if ( contentSize == 0 )
+			throw new InvalidDataException( "LZ4 frame does not contain content size. Use DecompressFrame overload with maxDecompressedSize." );
+
+		if ( contentSize > 1024 * 1024 * 1024 ) // Sanity check: max 1GB
+			throw new InvalidDataException( "LZ4 frame content size too large." );
+
+		var output = new byte[contentSize];
+
+		int resultLength;
+		unsafe
 		{
-			throw new InvalidDataException( "Failed to decode LZ4.", ex );
+			fixed ( byte* srcPtr = data )
+			fixed ( byte* dstPtr = output )
+			{
+				resultLength = NativeEngine.LZ4Glue.DecompressFrame( (nint)srcPtr, (nint)dstPtr, data.Length, (int)contentSize );
+			}
 		}
+
+		if ( resultLength < 0 )
+			throw new InvalidDataException( "LZ4 frame decode failed." );
+
+		return output.AsSpan( 0, resultLength ).ToArray();
 	}
 }
