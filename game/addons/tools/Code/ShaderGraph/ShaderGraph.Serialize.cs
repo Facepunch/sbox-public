@@ -8,7 +8,7 @@ namespace Editor.ShaderGraph;
 
 partial class ShaderGraph
 {
-	private static JsonSerializerOptions SerializerOptions( bool indented = false )
+	internal static JsonSerializerOptions SerializerOptions( bool indented = false )
 	{
 		var options = new JsonSerializerOptions
 		{
