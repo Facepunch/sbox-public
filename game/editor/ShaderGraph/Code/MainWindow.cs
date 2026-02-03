@@ -1414,14 +1414,6 @@ public class MainWindow : DockWindow
 		_blackboardView.RebuildBuildFromGraph( false );
 	}
 
-	private void OnBlackboardParameterSelected( BlackboardParameter parameter )
-	{
-		_graphView.ClearSelection();
-
-		_properties.Target = parameter;
-		_blackboardView.SetSelectedItem( parameter );
-	}
-
 	private void CheckParameter()
 	{
 		BlackboardErrors.Clear();
