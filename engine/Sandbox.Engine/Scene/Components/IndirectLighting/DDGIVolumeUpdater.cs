@@ -30,6 +30,11 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 	static ComputeShader DepthCopyShader = new ComputeShader( "common/DDGI/ddgi_depth_copy_cs" );
 	static ComputeShader IntegrateShader = new ComputeShader( "common/DDGI/ddgi_integrate_cs" );
 
+	/// <summary>
+	/// Whether to do a second pass on probes that are inside geometry so they have accurate bounces.
+	/// </summary>
+	private readonly bool BakeWithTwoPasses = true;
+
 	public DDGIProbeUpdaterCubemapper( IndirectLightVolume volume )
 	{
 		_volume = volume;
@@ -185,6 +190,7 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		var halfExtents = _volume.ComputeSpacing( probeCounts ) * _volume.WorldTransform.Scale.Abs();
 		var probeBounds = new BBox( -halfExtents, halfExtents );
 
+		var hitProbesList = new List<Vector3Int>();
 		var emptyProbesList = new List<Vector3Int>();
 
 		for ( int z = 0; z < probeCounts.z; z++ )
@@ -201,20 +207,38 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 							.Run();
 
 					if ( trace.Hit )
-						_pendingProbes.Add( probeIndex );
+						hitProbesList.Add( probeIndex );
 					else
 						emptyProbesList.Add( probeIndex );
 				}
 			}
 		}
 
-		// Make probes closer to the camera and that affect geometry render first
-		/*var eye = Application.Editor.Camera.WorldTransform;
-		_pendingProbes = _pendingProbes.OrderBy( x =>
+		if ( BakeWithTwoPasses )
 		{
-			return Vector3.DistanceBetween( _volume.GetProbeWorldPosition( x ), eye.Position );
-		} ).ToList();*/
+			// Make probes closer to the camera and that affect geometry render first
+			_pendingProbes.AddRange( hitProbesList );
+			var eye = Application.Editor.Camera.WorldTransform;
 
+			var trace = scene.Trace.Ray( eye.Position, eye.Position + eye.Forward * 10000 )
+				.UseRenderMeshes()
+				.Run();
+
+			var hitPos = trace.Hit ? trace.HitPosition : eye.Position + eye.Forward * 100;
+
+			_pendingProbes = _pendingProbes.OrderBy( x =>
+			{
+				return Vector3.DistanceBetween( _volume.GetProbeWorldPosition( x ), hitPos );
+			} ).ToList();
+
+			// Do a second pass for probes that hit geometry to make sure have accurate bounces
+			_pendingProbes.AddRange( _pendingProbes );
+		}
+		else
+		{
+			// Just render all probes that hit geometry first
+			_pendingProbes.AddRange( hitProbesList );
+		}
 		// Append empty probes at the end of the list
 		_pendingProbes.AddRange( emptyProbesList );
 	}
