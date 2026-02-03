@@ -1389,15 +1389,11 @@ public class MainWindow : DockWindow
 	{
 		BlackboardErrors.Clear();
 
-		if ( _properties.Target is BlackboardParameter parameter )
+		if ( _properties.Target is BlackboardParameter parameter && !parameter.CheckParameter( out var parameterIssues ) )
 		{
-			// Dont update a node on the graph if we have any blackboard issues.
-			if ( !parameter.CheckParameter( out var parameterIssues ) )
+			foreach ( var issue in parameterIssues )
 			{
-				foreach ( var issue in parameterIssues )
-				{
-					BlackboardErrors.Add( new() { Node = null, Message = issue } );
-				}
+				BlackboardErrors.Add( new() { Node = null, Message = issue } );
 			}
 		}
 	}
