@@ -159,8 +159,12 @@ internal partial class NetworkSystem
 
 			if ( !shouldReject )
 			{
-				denialReason = await GameSystem.RejectConnection( source );
-				shouldReject = denialReason is not null;
+				var result = await GameSystem.AcceptConnection( source );
+				if ( !result )
+				{
+					shouldReject = true;
+					denialReason = result.Reason;
+				}
 			}
 
 			if ( shouldReject )

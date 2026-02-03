@@ -30,9 +30,9 @@ public abstract partial class GameNetworkSystem : IDisposable
 		return true;
 	}
 
-	public virtual async Task<string> RejectConnection( Connection channel )
+	public virtual async Task<ConnectionRequestResult> AcceptConnection( Connection channel )
 	{
-		return null;
+		return ConnectionRequestResult.Accept();
 	}
 
 	public virtual void GetMountedVPKs( Connection source, ref MountedVPKsResponse msg ) { }

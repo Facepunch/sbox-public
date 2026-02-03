@@ -1,5 +1,25 @@
 ﻿namespace Sandbox;
 
+// TODO: where does this go?
+public struct ConnectionRequestResult
+{
+	public bool IsAccepted;
+	public string Reason;
+
+	public static ConnectionRequestResult Accept() => new()
+	{
+		IsAccepted = true,
+	};
+
+	public static ConnectionRequestResult Reject( string reason ) => new()
+	{
+		IsAccepted = false,
+		Reason = reason,
+	};
+
+	public static implicit operator bool( ConnectionRequestResult result ) => result.IsAccepted;
+}
+
 public abstract partial class Component
 {
 	/// <summary>
@@ -13,7 +33,7 @@ public abstract partial class Component
 		/// </summary>
 		/// <param name="channel"></param>
 		/// <param name="reason">The reason to display to the client.</param>
-		[Obsolete( "Use RejectConnection instead" )]
+		[Obsolete( $"Use the other overload" )]
 		bool AcceptConnection( Connection channel, ref string reason )
 		{
 			return true;
@@ -21,14 +41,13 @@ public abstract partial class Component
 
 		/// <summary>
 		/// Called on the host to decide whether to accept a <see cref="Connection"/>.
-		/// If any <see cref="Component"/> that implements this returns a reason to reject it,
-		/// the connection will be denied.
+		/// If any <see cref="Component"/> that implements this returns a rejection, the connection will be denied.
 		/// </summary>
 		/// <param name="channel"></param>
-		/// <returns>The reason to display to the client.</returns>
-		async Task<string> RejectConnection( Connection channel )
+		/// <returns></returns>
+		async Task<ConnectionRequestResult> AcceptConnection( Connection channel )
 		{
-			return null;
+			return ConnectionRequestResult.Accept();
 		}
 
 		/// <summary>

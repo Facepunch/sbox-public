@@ -654,20 +654,16 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		return true;
 	}
 
-	public override async Task<string> RejectConnection( Connection channel )
+	public override async Task<ConnectionRequestResult> AcceptConnection( Connection channel )
 	{
 		foreach ( var c in Game.ActiveScene.GetAll<Component.INetworkListener>() )
 		{
-			var task = c.RejectConnection( channel );
+			var result = await c.AcceptConnection( channel );
 
-			// In case someone makes a mistake and writes a non-async RejectConnection function which returns null, we might freeze here.
-			// Therefore, we should null-check the task just in case.
-
-			if ( task is not null && await task is { } reason )
-				return reason;
+			if ( !result ) return result;
 		}
 
-		return null;
+		return ConnectionRequestResult.Accept();
 	}
 
 	public override void OnConnected( Connection client )
