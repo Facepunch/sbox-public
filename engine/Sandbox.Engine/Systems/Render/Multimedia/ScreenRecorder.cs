@@ -139,11 +139,14 @@ internal static class ScreenRecorder
 			// Writer may be null very briefly during shutdown, instead of adding complex locks just handle the exception.
 			try
 			{
-				_videoWriter.AddFrame( pData, TimeSpan.FromSeconds( timestamp ) );
+				// Skip frames with mismatched resolution (can happen during resize or with ScenePanels)
+				if ( width == _videoWriter.Width && height == _videoWriter.Height )
+				{
+					_videoWriter.AddFrame( pData, TimeSpan.FromSeconds( timestamp ) );
+				}
 			}
 			catch ( NullReferenceException )
 			{
-
 			}
 		} );
 	}

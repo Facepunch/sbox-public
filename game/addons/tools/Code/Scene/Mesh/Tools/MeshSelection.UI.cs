@@ -34,19 +34,32 @@ partial class MeshSelection
 			{
 				var group = AddGroup( "Operations" );
 
-				var grid = Layout.Row();
-				grid.Spacing = 4;
+				{
+					var grid = Layout.Row();
+					grid.Spacing = 4;
 
-				CreateButton( "Set Origin To Pivot", "gps_fixed", "mesh.set-origin-to-pivot", SetOriginToPivot, _meshes.Length > 0, grid );
-				CreateButton( "Center Origin", "center_focus_strong", "mesh.center-origin", CenterOrigin, _meshes.Length > 0, grid );
-				CreateButton( "Merge Meshes", "join_full", "mesh.merge-meshes", MergeMeshes, _meshes.Length > 1, grid );
-				CreateButton( "Merge Meshes By Edge", "link", null, MergeMeshesByEdge, _meshes.Length > 1, grid );
-				CreateButton( "Bake Scale", "straighten", null, BakeScale, _meshes.Length > 0, grid );
-				CreateButton( "Save To Model", "save", null, SaveToModel, _meshes.Length > 0, grid );
+					CreateButton( "Set Origin To Pivot", "gps_fixed", "mesh.set-origin-to-pivot", SetOriginToPivot, _meshes.Length > 0, grid );
+					CreateButton( "Center Origin", "center_focus_strong", "mesh.center-origin", CenterOrigin, _meshes.Length > 0, grid );
+					CreateButton( "Merge Meshes", "join_full", "mesh.merge-meshes", MergeMeshes, _meshes.Length > 1, grid );
+					CreateButton( "Merge Meshes By Edge", "link", null, MergeMeshesByEdge, _meshes.Length > 1, grid );
 
-				grid.AddStretchCell();
+					grid.AddStretchCell();
 
-				group.Add( grid );
+					group.Add( grid );
+				}
+
+				{
+					var grid = Layout.Row();
+					grid.Spacing = 4;
+
+					CreateButton( "Flip Faces", "flip", "mesh.flip-all-mesh-faces", FlipMesh, _meshes.Length > 0, grid );
+					CreateButton( "Bake Scale", "straighten", null, BakeScale, _meshes.Length > 0, grid );
+					CreateButton( "Save To Model", "save", null, SaveToModel, _meshes.Length > 0, grid );
+
+					grid.AddStretchCell();
+
+					group.Add( grid );
+				}
 			}
 
 			{
@@ -149,6 +162,21 @@ partial class MeshSelection
 				foreach ( var mesh in _meshes )
 				{
 					BakeScale( mesh );
+				}
+			}
+		}
+
+		public void FlipMesh()
+		{
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Flip Mesh" )
+				.WithComponentChanges( _meshes )
+				.Push() )
+			{
+				foreach ( var mesh in _meshes )
+				{
+					mesh.Mesh.FlipAllFaces();
 				}
 			}
 		}
@@ -321,8 +349,7 @@ partial class MeshSelection
 			var targetPath = EditorUtility.SaveFileDialog( "Create Model..", "vmdl", "" );
 			if ( targetPath is null ) return;
 
-			var meshes = _meshes.Select( x => x.Mesh ).ToArray();
-			EditorUtility.CreateModelFromPolygonMeshes( meshes, targetPath );
+			EditorUtility.CreateModelFromMeshComponents( _meshes, targetPath );
 		}
 	}
 }

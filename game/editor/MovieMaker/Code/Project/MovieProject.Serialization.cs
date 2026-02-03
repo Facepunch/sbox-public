@@ -451,13 +451,18 @@ file class PropertySignalConverter<T> : JsonConverter<PropertySignal<T>>
 		}
 
 		var node = JsonSerializer.Deserialize<JsonObject>( ref reader, options )!;
-		var id = node["$id"]!.GetValue<int>();
 		var discriminator = node["$type"]!.GetValue<string>();
 		var type = GetType( discriminator );
 
 		var signal = (PropertySignal<T>)node.Deserialize( type, options )!;
 
-		MovieSerializationContext.Current!.RegisterSignal( id, signal );
+		if ( node["$id"]?.GetValue<int>() is { } id )
+		{
+			// Signals can be referenced multiple times if they have an ID,
+			// to avoid serializing them over and over again
+
+			MovieSerializationContext.Current!.RegisterSignal( id, signal );
+		}
 
 		return signal;
 	}

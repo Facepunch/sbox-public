@@ -33,7 +33,6 @@ COMMON
 	RWTexture3D<float2> DistanceVolume < Attribute( "DistanceVolume" ); >;
 	
 	float MaxProbeDistance < Attribute( "MaxProbeDistance" ); Default( 1000.0f ); >;
-	float DepthSharpness < Attribute( "DepthSharpness" ); Default( 2.0f ); >;
 	float EnergyLoss < Attribute( "EnergyLoss" ); Default( 2.0f ); >;
 	
 	int3 ProbeIndex < Attribute( "ProbeIndex" ); >;
@@ -50,79 +49,108 @@ COMMON
 		return float3( cos( phi ) * sinTheta, sin( phi ) * sinTheta, cosTheta );
 	}
 
-	float GetDepthDistance( TextureCube depthTex,float3 direction )
+	float GetDepthDistance( TextureCube depthTex, float3 direction )
 	{
-		float centerDepth = depthTex.SampleLevel(ProbeSampler, direction, 0.0f).r;
-		centerDepth = Depth::Normalize( centerDepth );
-		centerDepth = Depth::Linearize(centerDepth);
+		float depth = depthTex.SampleLevel( ProbeSampler, direction, 0.0f ).r;
+		depth = Depth::Normalize( depth );
+		depth = Depth::Linearize( depth );
 		
-		// The depth is the distance to the cube face along the viewing direction
-		// For cubemaps, the correction factor is simply the maximum absolute component
-		// This converts from face-distance to actual 3D distance from cube center
+		// Convert to perpendicular distance
 		float3 absDir = abs( direction );
 		float maxComponent = max( absDir.x, max( absDir.y, absDir.z ) );
-
-		centerDepth /= maxComponent;
-
-		return centerDepth;
+		
+		// Scale by the ratio of ray length to its dominant axis projection
+		float rayLengthFactor = length( direction ) / maxComponent;
+		
+		return depth * rayLengthFactor;
 	}
 
-	float3 SampleProbeData( TextureCube tex, float3 targetDirection, bool isDepth)
+	float3 SampleProbeIrradiance( TextureCube tex, float3 targetDirection )
 	{
-		uint sampleCount = 1024;
+		const uint sampleCount = 1024;
 		
-		float3 result = 0.0f.xxx;
+		float3 result = 0.0f;
 		float totalWeight = 0.0f;
 		
 		[loop]
 		for ( uint i = 0; i < sampleCount; ++i )
 		{
 			float3 rayDirection = FibonacciDirection( i, sampleCount );
-			
 			float weight = max( 0.0f, dot( targetDirection, rayDirection ) );
-			if ( isDepth )
-				weight = pow( weight, DepthSharpness );
-				
+			
 			if ( weight > 0.0f )
 			{
-				if ( isDepth )
-				{
-					float distance = GetDepthDistance( tex, rayDirection );
-					// Clamp distance to reasonable range to avoid artifacts
-					distance = clamp( distance, 0.01f, MaxProbeDistance );
-					result += float3( distance * weight, distance * distance * weight, 0.0f );
-				}
-				else
-				{
-					float3 radiance = tex.SampleLevel( ProbeSampler, rayDirection, 0.0f ).rgb; // Energy conservation
-					radiance = pow( radiance, 1.0f / EnergyLoss ); // Adjust for a more punchy look
-					result += radiance * weight;
-				}
-				
+				float3 radiance = tex.SampleLevel( ProbeSampler, rayDirection, 0.0f ).rgb;
+				radiance = pow( radiance, 1.0f / EnergyLoss );
+				result += radiance * weight;
 				totalWeight += weight;
 			}
 		}
 		
 		if ( totalWeight > 0.0f )
-		{
 			result /= totalWeight;
-			
-			// For depth: convert from (E[X], E[X^2]) to (mean, variance)
-			if ( isDepth )
-			{
-				float mean = result.x;                // E[X]
-				float ex2  = result.y;                // E[X^2]
-				float variance = max(ex2 - mean * mean, 0.0f);
-				// Apply variance floor: relative to squared mean plus absolute to avoid collapse
-				float varianceFloor = max(1e-4f * mean * mean, 1e-5f);
-				variance = max(variance, varianceFloor);
-				return float3( mean, variance, 0.0f );
-			}
-		}
-		if( !isDepth )
-			result = pow( result, EnergyLoss ); // Convert back to linear
+		
+		result = pow( result, EnergyLoss );
+		return result;
+	}
 
-		return float3( result );
+	float2 SampleProbeDistance( TextureCube depthTex, float3 targetDirection )
+	{
+		const uint sampleCount = 1024;
+		const float coneAngle = 0.15f; // Half-angle in radians (~8.6 degrees)
+		
+		float weightedDistance = 0.0f;
+		float weightedDistance2 = 0.0f;
+		float totalWeight = 0.0f;
+		
+		// Build orthonormal basis around target direction
+		float3 N = normalize( targetDirection );
+		float3 up = abs( N.z ) < 0.999f ? float3( 0, 0, 1 ) : float3( 1, 0, 0 );
+		float3 T = normalize( cross( up, N ) );
+		float3 B = cross( N, T );
+		
+		const float goldenRatio = 1.61803398874989484820459;
+		const float PI = 3.14159265358979323846264;
+		
+		[loop]
+		for ( uint i = 0; i < sampleCount; ++i )
+		{
+			// Fibonacci spiral within cone
+			float fi = (i + 0.5f);
+			float phi = 2.0f * PI * goldenRatio * fi;
+			float r = sqrt( fi / sampleCount );
+			
+			float theta = r * coneAngle;
+			float sinTheta = sin( theta );
+			float cosTheta = cos( theta );
+			
+			// Local direction in tangent space
+			float3 localDir = float3( cos( phi ) * sinTheta, sin( phi ) * sinTheta, cosTheta );
+			
+			// Transform to world space
+			float3 rayDirection = normalize( T * localDir.x + B * localDir.y + N * localDir.z );
+			
+			// Weight by cosine falloff from center (tighter samples = higher weight)
+			float weight = cosTheta;
+			
+			float distance = GetDepthDistance( depthTex, rayDirection );
+			distance = clamp( distance, 0.00f, MaxProbeDistance );
+			
+			weightedDistance += distance * weight;
+			weightedDistance2 += distance * distance * weight;
+			totalWeight += weight;
+		}
+		
+		if ( totalWeight > 0.0f )
+		{
+			float mean = weightedDistance / totalWeight;
+			float meanSq = weightedDistance2 / totalWeight;
+			float variance = meanSq - mean * mean;
+			
+			return float2( mean, variance );
+		}
+		
+		return float2( MaxProbeDistance, 0.0f );
 	}
 
 
@@ -146,7 +174,7 @@ CS
 	// Integrate irradiance from cubemap for a given direction
 	float4 IntegrateIrradiance( float3 direction )
 	{
-		float3 radiance = SampleProbeData( SourceProbe, direction, false ).rgb;
+		float3 radiance = SampleProbeIrradiance( SourceProbe, direction );
 		radiance = min( radiance, 65504.0f );
 		return float4( radiance, 1.0f );
 	}
@@ -154,7 +182,7 @@ CS
 	// Integrate distance moments from depth cubemap for a given direction
 	float4 IntegrateDistance( float3 direction )
 	{
-		float3 distanceData = SampleProbeData( SourceDepth, direction, true );
+		float2 distanceData = SampleProbeDistance( SourceDepth, direction );
 		float mean = min( distanceData.x, 65504.0f );
 		float variance = min( distanceData.y, 65504.0f );
 		return float4( mean, variance, 0, 0 );
@@ -227,5 +255,4 @@ CS
 		#endif
 	}
 }
-
 

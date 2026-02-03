@@ -28,6 +28,11 @@ public sealed partial class Session
 	public Session? Parent => Context?.Parent;
 
 	/// <summary>
+	/// How deep is this session nested? Root sessions have depth 0.
+	/// </summary>
+	public int Depth => Parent is null ? 0 : Parent.Depth + 1;
+
+	/// <summary>
 	/// Movie duration, including previewed changes.
 	/// </summary>
 	public MovieTime Duration => TrackList.Duration;

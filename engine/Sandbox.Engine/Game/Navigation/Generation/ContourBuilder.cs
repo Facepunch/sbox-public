@@ -1,10 +1,139 @@
 ﻿using System.Buffers;
+using System.Runtime.InteropServices;
 
 namespace Sandbox.Navigation.Generation;
 
 [SkipHotload]
+internal class ContourSet
+{
+	public List<Contour> Contours = new( 128 );
+	public Vector3 BMin;
+	public Vector3 BMax;
+	public float CellSize;
+	public float CellHeight;
+	public int Width;
+	public int Height;
+	public int BorderSize;
+	public float MaxError;
+}
+
+/// <summary>
+/// A contour representing a simplified region boundary.
+/// Vertices are stored as packed int4 (x, y, z, flags).
+/// Instances are pooled by ContourBuilderContext for reuse.
+/// </summary>
+[SkipHotload]
+internal class Contour
+{
+	public Span<int> Vertices => CollectionsMarshal.AsSpan( verticesList );
+	internal readonly List<int> verticesList = new( 64 );
+	public int VertexCount => verticesList.Count / 4;
+	public int Region;
+	public int Area;
+
+	public void Reset()
+	{
+		verticesList.Clear();
+		Region = 0;
+		Area = 0;
+	}
+
+	/// <summary>
+	/// Merge contour cb into ca at the specified vertex indices.
+	/// Uses provided buffer list to avoid allocations.
+	/// </summary>
+	public static void MergeContours( Contour ca, Contour cb, int ia, int ib, List<int> mergeBuffer )
+	{
+		int caVertexCount = ca.VertexCount;
+		int cbVertexCount = cb.VertexCount;
+		int maxVerts = caVertexCount + cbVertexCount + 2;
+
+		CollectionsMarshal.SetCount( mergeBuffer, maxVerts * 4 );
+		Span<int> mergedSpan = CollectionsMarshal.AsSpan( mergeBuffer );
+
+		int nv = 0;
+
+		// Copy contour A.
+		var caVerts = ca.Vertices;
+		for ( int i = 0; i <= caVertexCount; ++i )
+		{
+			int dst = nv * 4;
+			int src = ((ia + i) % caVertexCount) * 4;
+			mergedSpan[dst + 0] = caVerts[src + 0];
+			mergedSpan[dst + 1] = caVerts[src + 1];
+			mergedSpan[dst + 2] = caVerts[src + 2];
+			mergedSpan[dst + 3] = caVerts[src + 3];
+			nv++;
+		}
+
+		// Copy contour B
+		var cbVerts = cb.Vertices;
+		for ( int i = 0; i <= cbVertexCount; ++i )
+		{
+			int dst = nv * 4;
+			int src = ((ib + i) % cbVertexCount) * 4;
+			mergedSpan[dst + 0] = cbVerts[src + 0];
+			mergedSpan[dst + 1] = cbVerts[src + 1];
+			mergedSpan[dst + 2] = cbVerts[src + 2];
+			mergedSpan[dst + 3] = cbVerts[src + 3];
+			nv++;
+		}
+
+		// Resize ca's list and copy merged data
+		CollectionsMarshal.SetCount( ca.verticesList, nv * 4 );
+		mergedSpan.Slice( 0, nv * 4 ).CopyTo( ca.Vertices );
+
+		cb.verticesList.Clear();
+	}
+}
+
+[SkipHotload]
 internal static class ContourBuilder
 {
+	[SkipHotload]
+	public sealed class ContourBuilderContext
+	{
+		public List<int> Verts = new( 256 );
+		public List<int> VertsSimplified = new( 128 );
+		public List<byte> Flags = new( 4096 );
+		public ContourSet ContourSet = new();
+
+		/// <summary>
+		/// Scratch buffer for MergeContours to avoid allocations.
+		/// </summary>
+		public List<int> MergeBuffer = new( 512 );
+
+		/// <summary>
+		/// Pool of Contour instances for reuse. Contours are rented via RentContour()
+		/// and returned to pool when ClearContourSet() is called at the start of BuildContours.
+		/// </summary>
+		private readonly Stack<Contour> ContourPool = new( 256 );
+
+		/// <summary>
+		/// Rent a contour from the pool, sized for the given vertex count.
+		/// </summary>
+		public Contour RentContour( int vertexCount )
+		{
+			Contour c = ContourPool.TryPop( out var pooled ) ? pooled : new Contour();
+			CollectionsMarshal.SetCount( c.verticesList, vertexCount * 4 );
+			return c;
+		}
+
+		/// <summary>
+		/// Return all contours in ContourSet to the pool and clear the set.
+		/// Called at the start of BuildContours to recycle previous contours.
+		/// </summary>
+		public void ClearContourSet()
+		{
+			foreach ( var c in ContourSet.Contours )
+			{
+				c.Reset();
+				ContourPool.Push( c );
+			}
+			ContourSet.Contours.Clear();
+		}
+	}
+
 	[SkipHotload]
 	private static class ContourBuildFlags
 	{
@@ -151,7 +280,7 @@ internal static class ContourBuilder
 		return ch;
 	}
 
-	private static void WalkContour( int x, int y, int i, CompactHeightfield chf, Span<int> flags, List<int> points )
+	private static void WalkContour( int x, int y, int i, CompactHeightfield chf, Span<byte> flags, List<int> points )
 	{
 		// Choose the first non-connected edge
 		int dir = 0;
@@ -209,7 +338,7 @@ internal static class ContourBuilder
 				points.Add( pz );
 				points.Add( r );
 
-				flags[i] &= ~(1 << dir); // Remove visited edges
+				flags[i] = (byte)(flags[i] & ~(1 << dir)); // Remove visited edges
 				dir = (dir + 1) & 0x3; // Rotate CW
 			}
 			else
@@ -247,19 +376,14 @@ internal static class ContourBuilder
 	{
 		float pqx = qx - px;
 		float pqz = qz - pz;
-		float dx = x - px;
-		float dz = z - pz;
 		float d = pqx * pqx + pqz * pqz;
-		float t = pqx * dx + pqz * dz;
+		float t = pqx * (x - px) + pqz * (z - pz);
 		if ( d > 0 )
 			t /= d;
-		if ( t < 0 )
-			t = 0;
-		else if ( t > 1 )
-			t = 1;
+		t = Math.Clamp( t, 0f, 1f );
 
-		dx = px + t * pqx - x;
-		dz = pz + t * pqz - z;
+		float dx = px + t * pqx - x;
+		float dz = pz + t * pqz - z;
 
 		return dx * dx + dz * dz;
 	}
@@ -404,11 +528,23 @@ internal static class ContourBuilder
 			// add new point, else continue to next segment.
 			if ( maxi != -1 && maxd > (maxError * maxError) )
 			{
+				// Add space for the new point.
+				int insertIdx = i + 1;
+				CollectionsMarshal.SetCount( simplified, simplified.Count + 4 );
+				int n = simplified.Count / 4;
+				for ( int j = n - 1; j > insertIdx; --j )
+				{
+					simplified[j * 4 + 0] = simplified[(j - 1) * 4 + 0];
+					simplified[j * 4 + 1] = simplified[(j - 1) * 4 + 1];
+					simplified[j * 4 + 2] = simplified[(j - 1) * 4 + 2];
+					simplified[j * 4 + 3] = simplified[(j - 1) * 4 + 3];
+				}
 				// Add the point.
-				simplified.Insert( (i + 1) * 4 + 0, points[maxi * 4 + 0] );
-				simplified.Insert( (i + 1) * 4 + 1, points[maxi * 4 + 1] );
-				simplified.Insert( (i + 1) * 4 + 2, points[maxi * 4 + 2] );
-				simplified.Insert( (i + 1) * 4 + 3, maxi );
+				int maxiBase = maxi * 4;
+				simplified[insertIdx * 4 + 0] = points[maxiBase + 0];
+				simplified[insertIdx * 4 + 1] = points[maxiBase + 1];
+				simplified[insertIdx * 4 + 2] = points[maxiBase + 2];
+				simplified[insertIdx * 4 + 3] = maxi;
 			}
 			else
 			{
@@ -473,11 +609,23 @@ internal static class ContourBuilder
 				// add new point, else continue to next segment.
 				if ( maxi != -1 )
 				{
+					// Add space for the new point.
+					int insertIdx = i + 1;
+					CollectionsMarshal.SetCount( simplified, simplified.Count + 4 );
+					int n = simplified.Count / 4;
+					for ( int j = n - 1; j > insertIdx; --j )
+					{
+						simplified[j * 4 + 0] = simplified[(j - 1) * 4 + 0];
+						simplified[j * 4 + 1] = simplified[(j - 1) * 4 + 1];
+						simplified[j * 4 + 2] = simplified[(j - 1) * 4 + 2];
+						simplified[j * 4 + 3] = simplified[(j - 1) * 4 + 3];
+					}
 					// Add the point.
-					simplified.Insert( (i + 1) * 4 + 0, points[maxi * 4 + 0] );
-					simplified.Insert( (i + 1) * 4 + 1, points[maxi * 4 + 1] );
-					simplified.Insert( (i + 1) * 4 + 2, points[maxi * 4 + 2] );
-					simplified.Insert( (i + 1) * 4 + 3, maxi );
+					int maxiBase = maxi * 4;
+					simplified[insertIdx * 4 + 0] = points[maxiBase + 0];
+					simplified[insertIdx * 4 + 1] = points[maxiBase + 1];
+					simplified[insertIdx * 4 + 2] = points[maxiBase + 2];
+					simplified[insertIdx * 4 + 3] = maxi;
 				}
 				else
 				{
@@ -513,36 +661,25 @@ internal static class ContourBuilder
 	private static bool IntersectSegContour( int d0, int d1, int i, int n, Span<int> verts, Span<int> d0verts, Span<int> d1verts )
 	{
 		// For each edge (k,k+1) of P
-		Span<int> pverts = stackalloc int[4 * 4];
-		for ( int g = 0; g < 4; g++ )
-		{
-			pverts[g] = d0verts[d0 + g];
-			pverts[4 + g] = d1verts[d1 + g];
-		}
+		// Get slices for d0 and d1 vertices once
+		var d0Slice = d0verts.Slice( d0, 3 );
+		var d1Slice = d1verts.Slice( d1, 3 );
 
-		d0 = 0;
-		d1 = 4;
 		for ( int k = 0; k < n; k++ )
 		{
 			int k1 = Utils.Next( k, n );
 			// Skip edges incident to i.
 			if ( i == k || i == k1 )
 				continue;
-			int p0 = k * 4;
-			int p1 = k1 * 4;
-			for ( int g = 0; g < 4; g++ )
-			{
-				pverts[8 + g] = verts[p0 + g];
-				pverts[12 + g] = verts[p1 + g];
-			}
 
-			p0 = 8;
-			p1 = 12;
-			if ( Utils.VEqual2D( pverts.Slice( d0, 3 ), pverts.Slice( p0, 3 ) ) || Utils.VEqual2D( pverts.Slice( d1, 3 ), pverts.Slice( p0, 3 ) ) ||
-				Utils.VEqual2D( pverts.Slice( d0, 3 ), pverts.Slice( p1, 3 ) ) || Utils.VEqual2D( pverts.Slice( d1, 3 ), pverts.Slice( p1, 3 ) ) )
+			var p0Slice = verts.Slice( k * 4, 3 );
+			var p1Slice = verts.Slice( k1 * 4, 3 );
+
+			if ( Utils.VEqual2D( d0Slice, p0Slice ) || Utils.VEqual2D( d1Slice, p0Slice ) ||
+				Utils.VEqual2D( d0Slice, p1Slice ) || Utils.VEqual2D( d1Slice, p1Slice ) )
 				continue;
 
-			if ( Utils.Intersect2D( pverts.Slice( d0, 3 ), pverts.Slice( d1, 3 ), pverts.Slice( p0, 3 ), pverts.Slice( p1, 3 ) ) )
+			if ( Utils.Intersect2D( d0Slice, d1Slice, p0Slice, p1Slice ) )
 				return true;
 		}
 
@@ -551,51 +688,55 @@ internal static class ContourBuilder
 
 	private static bool InCone( int i, int n, Span<int> verts, int pj, Span<int> vertpj )
 	{
-		int pi = i * 4;
-		int pi1 = Utils.Next( i, n ) * 4;
-		int pin1 = Utils.Prev( i, n ) * 4;
-		Span<int> pverts = stackalloc int[4 * 4];
-		for ( int g = 0; g < 4; g++ )
-		{
-			pverts[g] = verts[pi + g];
-			pverts[4 + g] = verts[pi1 + g];
-			pverts[8 + g] = verts[pin1 + g];
-			pverts[12 + g] = vertpj[pj + g];
-		}
+		// Get slices directly from source arrays to avoid copying
+		var piSlice = verts.Slice( i * 4, 3 );
+		var pi1Slice = verts.Slice( Utils.Next( i, n ) * 4, 3 );
+		var pin1Slice = verts.Slice( Utils.Prev( i, n ) * 4, 3 );
+		var pjSlice = vertpj.Slice( pj, 3 );
 
-		pi = 0;
-		pi1 = 4;
-		pin1 = 8;
-		pj = 12;
 		// If P[i] is a convex vertex [ i+1 left or on (i-1,i) ].
-		if ( Utils.LeftOn2D( pverts.Slice( pin1, 3 ), pverts.Slice( pi, 3 ), pverts.Slice( pi1, 3 ) ) )
-			return Utils.Left2D( pverts.Slice( pi, 3 ), pverts.Slice( pj, 3 ), pverts.Slice( pin1, 3 ) ) && Utils.Left2D( pverts.Slice( pj, 3 ), pverts.Slice( pi, 3 ), pverts.Slice( pi1, 3 ) );
+		if ( Utils.LeftOn2D( pin1Slice, piSlice, pi1Slice ) )
+			return Utils.Left2D( piSlice, pjSlice, pin1Slice ) && Utils.Left2D( pjSlice, piSlice, pi1Slice );
 		// Assume (i-1,i,i+1) not collinear.
 		// else P[i] is reflex.
-		return !(Utils.LeftOn2D( pverts.Slice( pi, 3 ), pverts.Slice( pj, 3 ), pverts.Slice( pi1, 3 ) ) && Utils.LeftOn2D( pverts.Slice( pj, 3 ), pverts.Slice( pi, 3 ), pverts.Slice( pin1, 3 ) ));
+		return !(Utils.LeftOn2D( piSlice, pjSlice, pi1Slice ) && Utils.LeftOn2D( pjSlice, piSlice, pin1Slice ));
 	}
 
 	private static void RemoveDegenerateSegments( List<int> simplified )
 	{
 		// Remove adjacent vertices which are equal on xz-plane,
 		// or else the triangulator will get confused.
+		// Use in-place compaction instead of RemoveAt to avoid O(n²) complexity.
 		int npts = simplified.Count / 4;
+		int writeIdx = 0;
+
 		for ( int i = 0; i < npts; ++i )
 		{
-			int ni = Utils.Next( i, npts );
+			int ni = (i + 1) % npts;
+			int iBase = i * 4;
+			int niBase = ni * 4;
 
-			// if (Vequal(&simplified[i*4], &simplified[ni*4]))
-			if ( simplified[i * 4] == simplified[ni * 4]
-				&& simplified[i * 4 + 2] == simplified[ni * 4 + 2] )
+			// Check if this vertex equals the next (degenerate segment)
+			bool isDegenerate = simplified[iBase] == simplified[niBase]
+				&& simplified[iBase + 2] == simplified[niBase + 2];
+
+			if ( !isDegenerate )
 			{
-				// Degenerate segment, remove.
-				simplified.RemoveAt( i * 4 );
-				simplified.RemoveAt( i * 4 );
-				simplified.RemoveAt( i * 4 );
-				simplified.RemoveAt( i * 4 );
-				npts--;
+				// Keep this vertex - copy if needed
+				if ( writeIdx != i )
+				{
+					int writeBase = writeIdx * 4;
+					simplified[writeBase] = simplified[iBase];
+					simplified[writeBase + 1] = simplified[iBase + 1];
+					simplified[writeBase + 2] = simplified[iBase + 2];
+					simplified[writeBase + 3] = simplified[iBase + 3];
+				}
+				writeIdx++;
 			}
 		}
+
+		// Trim the list to the new size (SetCount directly sets _size, keeps capacity)
+		CollectionsMarshal.SetCount( simplified, writeIdx * 4 );
 	}
 
 	// Finds the lowest leftmost vertex of a contour.
@@ -619,7 +760,7 @@ internal static class ContourBuilder
 		return (minx, minz, leftmost);
 	}
 
-	private static void MergeRegionHoles( ContourRegion region, Span<ContourHole> regionHoles )
+	private static void MergeRegionHoles( ContourRegion region, Span<ContourHole> regionHoles, List<int> mergeBuffer )
 	{
 		// Sort holes from left to right.
 		for ( int i = 0; i < region.HoleCount; i++ )
@@ -705,7 +846,7 @@ internal static class ContourBuilder
 				continue;
 			}
 
-			Contour.MergeContours( region.Outline, hole, index, bestVertex );
+			Contour.MergeContours( region.Outline, hole, index, bestVertex, mergeBuffer );
 		}
 	}
 
@@ -722,77 +863,101 @@ internal static class ContourBuilder
 	/// See the #rcConfig documentation for more information on the configuration parameters.
 	///
 	/// @see rcAllocContourSet, CompactHeightfield, ContourSet, rcConfig
-	public static ContourSet BuildContours( CompactHeightfield chf, float maxError, int maxEdgeLen, List<int> vertsCache, List<int> vertsSimplifiedCache, ContourSet cset, int buildFlags = ContourBuildFlags.RC_CONTOUR_TESS_WALL_EDGES )
+	public static ContourSet BuildContours( CompactHeightfield chf, float maxError, int maxEdgeLen, ContourBuilderContext ctx, int buildFlags = ContourBuildFlags.RC_CONTOUR_TESS_WALL_EDGES )
 	{
 		int w = chf.Width;
 		int h = chf.Height;
 		int borderSize = chf.BorderSize;
 
-		cset.Contours.Clear();
+		ctx.ClearContourSet();
 
-		cset.BMin = chf.BMin;
-		cset.BMax = chf.BMax;
+		ctx.ContourSet.BMin = chf.BMin;
+		ctx.ContourSet.BMax = chf.BMax;
 		if ( borderSize > 0 )
 		{
 			// If the heightfield was build with bordersize, remove the offset.
 			float pad = borderSize * chf.CellSize;
-			cset.BMin.x += pad;
-			cset.BMin.z += pad;
-			cset.BMax.x -= pad;
-			cset.BMax.z -= pad;
+			ctx.ContourSet.BMin.x += pad;
+			ctx.ContourSet.BMin.z += pad;
+			ctx.ContourSet.BMax.x -= pad;
+			ctx.ContourSet.BMax.z -= pad;
 		}
 
-		cset.CellSize = chf.CellSize;
-		cset.CellHeight = chf.CellHeight;
-		cset.Width = chf.Width - chf.BorderSize * 2;
-		cset.Height = chf.Height - chf.BorderSize * 2;
-		cset.BorderSize = chf.BorderSize;
-		cset.MaxError = maxError;
+		ctx.ContourSet.CellSize = chf.CellSize;
+		ctx.ContourSet.CellHeight = chf.CellHeight;
+		ctx.ContourSet.Width = chf.Width - chf.BorderSize * 2;
+		ctx.ContourSet.Height = chf.Height - chf.BorderSize * 2;
+		ctx.ContourSet.BorderSize = chf.BorderSize;
+		ctx.ContourSet.MaxError = maxError;
 
-		using var pooledFlags = new PooledSpan<int>( chf.SpanCount );
-		Span<int> flags = pooledFlags.Span;
+		CollectionsMarshal.SetCount( ctx.Flags, chf.SpanCount );
+		Span<byte> flags = CollectionsMarshal.AsSpan( ctx.Flags );
+
+		var spans = chf.Spans;
+		var cells = chf.Cells;
 
 		// Mark boundaries.
 		for ( int y = 0; y < h; ++y )
 		{
+			int yOffset = y * w;
+			int yOffsetPlus = (y + 1) * w;
+			int yOffsetMinus = (y - 1) * w;
+
 			for ( int x = 0; x < w; ++x )
 			{
-				CompactCell c = chf.Cells[x + y * w];
+				CompactCell c = cells[x + yOffset];
 				for ( int i = c.Index, ni = c.Index + c.Count; i < ni; ++i )
 				{
-					int res = 0;
-					CompactSpan s = chf.Spans[i];
-					if ( chf.Spans[i].Region == 0 || (chf.Spans[i].Region & ContourRegionFlags.BORDER_REG) != 0 )
+					CompactSpan s = spans[i];
+					int region = s.Region;
+					if ( region == 0 || (region & ContourRegionFlags.BORDER_REG) != 0 )
 					{
 						flags[i] = 0;
 						continue;
 					}
 
-					for ( int dir = 0; dir < 4; ++dir )
-					{
-						int r = 0;
-						if ( Utils.GetCon( s, dir ) != Constants.NOT_CONNECTED )
-						{
-							int ax = x + Utils.GetDirOffsetX( dir );
-							int ay = y + Utils.GetDirOffsetZ( dir );
-							int ai = chf.Cells[ax + ay * w].Index + Utils.GetCon( s, dir );
-							r = chf.Spans[ai].Region;
-						}
+					int res = 0;
+					int con0 = Utils.GetCon( s, 0 );
+					int con1 = Utils.GetCon( s, 1 );
+					int con2 = Utils.GetCon( s, 2 );
+					int con3 = Utils.GetCon( s, 3 );
 
-						if ( r == chf.Spans[i].Region )
-							res |= (1 << dir);
+					if ( con0 != Constants.NOT_CONNECTED )
+					{
+						int ai = cells[(x - 1) + yOffset].Index + con0;
+						if ( spans[ai].Region == region )
+							res |= 1;
+					}
+					if ( con1 != Constants.NOT_CONNECTED )
+					{
+						int ai = cells[x + yOffsetPlus].Index + con1;
+						if ( spans[ai].Region == region )
+							res |= 2;
+					}
+					if ( con2 != Constants.NOT_CONNECTED )
+					{
+						int ai = cells[(x + 1) + yOffset].Index + con2;
+						if ( spans[ai].Region == region )
+							res |= 4;
+					}
+					if ( con3 != Constants.NOT_CONNECTED )
+					{
+						int ai = cells[x + yOffsetMinus].Index + con3;
+						if ( spans[ai].Region == region )
+							res |= 8;
 					}
 
-					flags[i] = res ^ 0xf; // Inverse, mark non connected edges.
+					flags[i] = (byte)(res ^ 0xf); // Inverse, mark non connected edges.
 				}
 			}
 		}
 
 		for ( int y = 0; y < h; ++y )
 		{
+			int yOffset = y * w;
 			for ( int x = 0; x < w; ++x )
 			{
-				CompactCell c = chf.Cells[x + y * w];
+				CompactCell c = cells[x + yOffset];
 				for ( int i = c.Index, ni = c.Index + c.Count; i < ni; ++i )
 				{
 					if ( flags[i] == 0 || flags[i] == 0xf )
@@ -801,29 +966,26 @@ internal static class ContourBuilder
 						continue;
 					}
 
-					int reg = chf.Spans[i].Region;
+					int reg = spans[i].Region;
 					if ( reg == 0 || (reg & ContourRegionFlags.BORDER_REG) != 0 )
 						continue;
 					int area = chf.Areas[i];
 
-					vertsCache.Clear();
-					vertsSimplifiedCache.Clear();
+					ctx.Verts.Clear();
+					ctx.VertsSimplified.Clear();
 
-					WalkContour( x, y, i, chf, flags, vertsCache );
-					SimplifyContour( vertsCache, vertsSimplifiedCache, maxError, maxEdgeLen, buildFlags );
-					RemoveDegenerateSegments( vertsSimplifiedCache );
+					WalkContour( x, y, i, chf, flags, ctx.Verts );
+					SimplifyContour( ctx.Verts, ctx.VertsSimplified, maxError, maxEdgeLen, buildFlags );
+					RemoveDegenerateSegments( ctx.VertsSimplified );
 
 					// Store region->contour remap info.
 					// Create contour.
-					if ( vertsSimplifiedCache.Count / 4 >= 3 )
+					if ( ctx.VertsSimplified.Count / 4 >= 3 )
 					{
-						Contour cont = new Contour( vertsSimplifiedCache.Count / 4 );
-						cset.Contours.Add( cont );
+						Contour cont = ctx.RentContour( ctx.VertsSimplified.Count / 4 );
+						ctx.ContourSet.Contours.Add( cont );
 
-						for ( int l = 0; l < cont.Vertices.Length; l++ )
-						{
-							cont.Vertices[l] = vertsSimplifiedCache[l];
-						}
+						CollectionsMarshal.AsSpan( ctx.VertsSimplified ).CopyTo( cont.Vertices );
 
 						if ( borderSize > 0 )
 						{
@@ -843,15 +1005,15 @@ internal static class ContourBuilder
 		}
 
 		// Merge holes if needed.
-		if ( cset.Contours.Count > 0 )
+		if ( ctx.ContourSet.Contours.Count > 0 )
 		{
 			// Calculate winding of all polygons.
-			using var pooledWinding = new PooledSpan<int>( cset.Contours.Count );
+			using var pooledWinding = new PooledSpan<int>( ctx.ContourSet.Contours.Count );
 			Span<int> winding = pooledWinding.Span;
 			int nholes = 0;
-			for ( int i = 0; i < cset.Contours.Count; ++i )
+			for ( int i = 0; i < ctx.ContourSet.Contours.Count; ++i )
 			{
-				Contour cont = cset.Contours[i];
+				Contour cont = ctx.ContourSet.Contours[i];
 				// If the contour is wound backwards, it is a hole.
 				winding[i] = CalcAreaOfPolygon2D( cont.Vertices, cont.VertexCount ) < 0 ? -1 : 1;
 				if ( winding[i] < 0 )
@@ -871,9 +1033,9 @@ internal static class ContourBuilder
 				using var pooledHoles = new PooledSpan<ContourHole>( nholes );
 				Span<ContourHole> holes = pooledHoles.Span;
 
-				for ( int i = 0; i < cset.Contours.Count; ++i )
+				for ( int i = 0; i < ctx.ContourSet.Contours.Count; ++i )
 				{
-					Contour cont = cset.Contours[i];
+					Contour cont = ctx.ContourSet.Contours[i];
 					// Positively wound contours are outlines, negative holes.
 					if ( winding[i] > 0 )
 					{
@@ -904,9 +1066,9 @@ internal static class ContourBuilder
 				}
 				Assert.Equals( currentHoleIndex, nholes );
 
-				for ( int i = 0; i < cset.Contours.Count; ++i )
+				for ( int i = 0; i < ctx.ContourSet.Contours.Count; ++i )
 				{
-					Contour cont = cset.Contours[i];
+					Contour cont = ctx.ContourSet.Contours[i];
 					if ( winding[i] < 0 )
 					{
 						ContourRegion reg = regions[cont.Region];
@@ -925,7 +1087,7 @@ internal static class ContourBuilder
 
 					if ( reg.Outline != null )
 					{
-						MergeRegionHoles( reg, holes.Slice( reg.HoleStartIndex, reg.HoleCount ) );
+						MergeRegionHoles( reg, holes.Slice( reg.HoleStartIndex, reg.HoleCount ), ctx.MergeBuffer );
 					}
 					else
 					{
@@ -939,7 +1101,7 @@ internal static class ContourBuilder
 			}
 		}
 
-		return cset;
+		return ctx.ContourSet;
 	}
 }
 

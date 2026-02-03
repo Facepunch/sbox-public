@@ -1,7 +1,7 @@
 ﻿namespace Editor.ProjectSettingPages;
 
-[Title( "Resource Files" )]
-internal sealed class ResourcesCategory : ProjectInspector.Category
+[Title( "Resource Files" ), Icon( "dataset" )]
+internal sealed class ResourcesCategory : ProjectSettingsWindow.Category
 {
 	WildcardPathWidget pathWidget;
 

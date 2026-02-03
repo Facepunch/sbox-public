@@ -577,8 +577,10 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		foreach ( var s in msg.GameObjectSystems )
 		{
 			var type = Game.TypeLibrary.GetTypeByIdent( s.Type );
-			var system = Game.ActiveScene.GetSystemByType( type );
+			if ( type is null )
+				continue;
 
+			var system = Game.ActiveScene.GetSystemByType( type );
 			if ( system is null )
 				continue;
 

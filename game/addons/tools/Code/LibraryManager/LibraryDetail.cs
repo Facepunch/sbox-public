@@ -128,7 +128,7 @@ class LibraryDetail : Widget
 					{
 						var project = LibrarySystem.All.FirstOrDefault( x => x.Project.Package.Ident == Package.Ident && x.Project.Package.Org == Package.Org )?.Project;
 						if ( project is null ) return;
-						ProjectInspector.OpenForProject( project );
+						ProjectSettingsWindow.OpenForProject( project );
 					}
 				};
 				if ( !isLocalPackage )

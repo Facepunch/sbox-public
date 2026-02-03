@@ -177,25 +177,19 @@ class DDGI
     static float ComputeVisibility(float distanceToSample, float2 meanVariance)
     {
         float mean = meanVariance.x;           // Mean distance
-        float variance = max(meanVariance.y, 1e-6f);
+        float variance = meanVariance.y;        // Variance of distance
 
         // If we're in front of the mean surface distance, fully visible
         if (distanceToSample <= mean)
             return 1.0f;
 
-        // Add a relative variance floor to soften transitions further with distance
-        float relativeFloor = max(1e-4f * mean * mean, 5e-5f);
-        variance = max(variance, relativeFloor);
-
         float delta = max(distanceToSample - mean, 0.0f);
         float chebyshev = variance / (variance + delta * delta);
 
-        // Use squared curve (softer than cubic) for smoother penumbra-like falloff
-        chebyshev = chebyshev * chebyshev;
+        // Sharpen the curve to reduce light leaking
+        chebyshev = pow(chebyshev, 3.0f);
 
-        // Blend in a soft minimum to prevent hard dark bands when variance collapses
-        const float minVis = 0.07f;
-        return max(chebyshev, minVis);
+        return chebyshev;
     }
 
     static bool IsEnabled()

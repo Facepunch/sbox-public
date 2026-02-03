@@ -88,7 +88,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		// So we need to show and dock them
 
 		// Restoring will open a blank SceneDock as an area for the others to dock on
-		var dummy = All.Where( x => EditorWindow.DockManager.IsDockOpen( x.SceneDock ) ).FirstOrDefault();
+		var dummy = All.Where( x => x.Scene.Source is null && EditorWindow.DockManager.IsDockOpen( x.SceneDock ) ).FirstOrDefault();
 
 		foreach ( var entry in All )
 		{
@@ -100,7 +100,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 		// Remove our dummy dock, unless it's the only one open somehow
 		if ( All.Count > 1 )
-			dummy.Destroy();
+			dummy?.Destroy();
 	}
 
 	void Dock()
@@ -267,7 +267,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// <summary>
 	/// Zoom the scene to view this bbox
 	/// </summary>
-	public void FrameTo( in BBox box )
+	public virtual void FrameTo( in BBox box )
 	{
 		BringToFront();
 		OnFrameTo?.Invoke( box );

@@ -226,6 +226,13 @@ public partial class Scene : GameObject
 
 	internal void RenderEnvmaps()
 	{
+		// Can't render envmaps while already inside a render pass
+		if ( Graphics.IsActive )
+		{
+			if ( !Application.IsRetail ) Log.Error( "Attempted to render envmaps while inside a render pass!" );
+			return;
+		}
+
 		// Don't update all at once to not overflow transform buffer in large scenes
 		const int maxSimultaniousUpdates = 5;
 		foreach ( var envmap in GetAllComponents<EnvmapProbe>().Where( x => x.Dirty ).Take( maxSimultaniousUpdates ) )

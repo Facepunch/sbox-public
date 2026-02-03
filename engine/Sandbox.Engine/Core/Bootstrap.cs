@@ -97,7 +97,8 @@ internal static class Bootstrap
 			Log.Error( ex );
 			ErrorReporter.Flush();
 			EngineGlobal.Plat_MessageBox( "Bootstrap::PreInit Error", $"Failed to bootstrap engine: {ex.Message}\n\n{ex.StackTrace}" );
-			Environment.Exit( 1 );
+			try { NLog.LogManager.Shutdown(); } catch { }
+			EngineGlobal.Plat_ExitProcess( 1 );
 		}
 	}
 
@@ -107,7 +108,8 @@ internal static class Bootstrap
 	internal static void EnvironmentExit( int nCode )
 	{
 		// When we exit the process from C++, make sure we flush the C# Sdk
-		ErrorReporter.Flush();
+		try { ErrorReporter.Flush(); } catch { }
+		try { NLog.LogManager.Shutdown(); } catch { }
 
 		// Calling Environment.Exit would be ideal but it calls C++ global destructors which fucks everything up
 		// Source 2 depends on the process just being terminated abruptly and doing no cleanup... :)
@@ -282,8 +284,8 @@ internal static class Bootstrap
 				This either means that we've messed something up, or you've edited a base addon - in that case, verify your game files.
 				Take a look at your Log files if you're still having problems.
 				""" );
-
-			Environment.Exit( 1 );
+			try { NLog.LogManager.Shutdown(); } catch { }
+			EngineGlobal.Plat_ExitProcess( 1 );
 		}
 	}
 

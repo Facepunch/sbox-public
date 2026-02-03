@@ -1,4 +1,3 @@
-using static Sandbox.TextRendering;
 
 namespace Editor.MeshEditor;
 

@@ -417,5 +417,47 @@ partial class VertexTool
 				}
 			}
 		}
+
+		[Shortcut( "mesh.snap-to-grid", "CTRL+B", typeof( SceneViewWidget ) )]
+		private void SnapToGrid()
+		{
+			if ( _vertices.Length == 0 )
+				return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			var grid = EditorScene.GizmoSettings.GridSpacing;
+			if ( grid <= 0 )
+				return;
+
+			using ( SceneEditorSession.Active.UndoScope( "Snap Vertices To Grid" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				foreach ( var vertex in _vertices )
+				{
+					var world = vertex.PositionWorld;
+
+					world = new Vector3(
+						MathF.Round( world.x / grid ) * grid,
+						MathF.Round( world.y / grid ) * grid,
+						MathF.Round( world.z / grid ) * grid
+					);
+
+					var local = vertex.Transform.PointToLocal( world );
+
+					vertex.Component.Mesh.SetVertexPosition( vertex.Handle, local );
+				}
+			}
+		}
+
+		[Shortcut( "mesh.frame-selection", "SHIFT+A", typeof( SceneViewWidget ) )]
+		private void FrameSelection()
+		{
+			if ( _vertices.Length == 0 )
+				return;
+
+			SelectionFrameUtil.FramePoints( _vertices.Select( v => v.PositionWorld ) );
+		}
 	}
 }

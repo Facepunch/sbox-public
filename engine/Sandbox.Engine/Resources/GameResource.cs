@@ -134,8 +134,9 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 	internal static GameResource GetPromise( System.Type type, string filename )
 	{
 		var path = FixPath( filename );
-		var hash = path.FastHash();
+		if ( string.IsNullOrEmpty( path ) ) return default;
 
+		var hash = path.FastHash();
 		var obj = Game.Resources.Get( type, hash ) as GameResource;
 		if ( obj != null ) return obj;
 

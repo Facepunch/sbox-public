@@ -352,7 +352,7 @@ public static class SceneEditorMenus
 
 				foreach ( var go in gos )
 				{
-					go.WorldPosition += delta;
+					go.WorldPosition -= delta;
 				}
 			}
 		}

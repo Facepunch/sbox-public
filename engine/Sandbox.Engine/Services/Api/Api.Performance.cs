@@ -115,7 +115,7 @@ internal static partial class Api
 					Time = delta,
 					Frames = FrameCount,
 					Avg = msPerFrame,
-					Memory = (int)(currentProc.PrivateMemorySize64 / 1048576),
+					Memory = (int)(currentProc.WorkingSet64 / (1024 * 1024)),
 					FrameBucket = FrameBucket.ToArray(), // need to copy
 					Stages = Stages.Where( x => x.Value.Calls > 0 ).ToDictionary( x => x.Key, x => x.Value ), // need to copy
 					Stats = BuildStats(),

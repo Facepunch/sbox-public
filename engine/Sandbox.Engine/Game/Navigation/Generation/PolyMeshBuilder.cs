@@ -1,4 +1,6 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Buffers;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Sandbox.Navigation.Generation;
 
@@ -21,10 +23,89 @@ internal static class PolyMeshBuilder
 		public ushort Poly1;
 	}
 
+	private const int EDGE_BUCKET_COUNT = 256;
+
+	/// <summary>
+	/// Edge hash map using parallel arrays with separate chaining.
+	/// Enables O(1) lookup of polygon edges for merge candidate search.
+	/// </summary>
+	[SkipHotload]
+	public sealed class PolyMeshBuilderContext
+	{
+		public List<int> Buckets = new( EDGE_BUCKET_COUNT );
+		public List<int> PolyIndices = new( 256 );
+		public List<int> EdgeIndices = new( 256 );
+		public List<int> V0s = new( 256 );
+		public List<int> V1s = new( 256 );
+		public List<int> Nexts = new( 256 );
+
+		public void Build( Span<ushort> polys, int npolys, int maxVerts )
+		{
+			int maxEdges = npolys * maxVerts;
+
+			CollectionsMarshal.SetCount( Buckets, EDGE_BUCKET_COUNT );
+			CollectionsMarshal.SetCount( PolyIndices, maxEdges );
+			CollectionsMarshal.SetCount( EdgeIndices, maxEdges );
+			CollectionsMarshal.SetCount( V0s, maxEdges );
+			CollectionsMarshal.SetCount( V1s, maxEdges );
+			CollectionsMarshal.SetCount( Nexts, maxEdges );
+
+			CollectionsMarshal.AsSpan( Buckets ).Fill( -1 );
+			int count = 0;
+
+			var buckets = CollectionsMarshal.AsSpan( Buckets );
+			var polyIndices = CollectionsMarshal.AsSpan( PolyIndices );
+			var edgeIndices = CollectionsMarshal.AsSpan( EdgeIndices );
+			var v0s = CollectionsMarshal.AsSpan( V0s );
+			var v1s = CollectionsMarshal.AsSpan( V1s );
+			var nexts = CollectionsMarshal.AsSpan( Nexts );
+
+			for ( int p = 0; p < npolys; ++p )
+			{
+				var poly = polys.Slice( p * maxVerts, maxVerts );
+				int nv = CountPolyVerts( poly );
+				for ( int e = 0; e < nv; ++e )
+				{
+					ushort ev0 = poly[e], ev1 = poly[(e + 1) % nv];
+					if ( ev0 > ev1 ) (ev0, ev1) = (ev1, ev0);
+
+					int bucket = ((ev0 * 31 + ev1) & 0x7FFFFFFF) % EDGE_BUCKET_COUNT;
+					polyIndices[count] = p;
+					edgeIndices[count] = e;
+					v0s[count] = ev0;
+					v1s[count] = ev1;
+					nexts[count] = buckets[bucket];
+					buckets[bucket] = count++;
+				}
+			}
+		}
+
+		[MethodImpl( MethodImplOptions.AggressiveInlining )]
+		public int GetBucket( ushort v0, ushort v1 )
+		{
+			if ( v0 > v1 ) (v0, v1) = (v1, v0);
+			return Buckets[((v0 * 31 + v1) & 0x7FFFFFFF) % EDGE_BUCKET_COUNT];
+		}
+
+		[MethodImpl( MethodImplOptions.AggressiveInlining )]
+		public bool TryGet( int idx, ushort ev0, ushort ev1, out int poly, out int edge, out int next )
+		{
+			next = Nexts[idx];
+			if ( V0s[idx] != ev0 || V1s[idx] != ev1 )
+			{
+				poly = edge = 0;
+				return false;
+			}
+			poly = PolyIndices[idx];
+			edge = EdgeIndices[idx];
+			return true;
+		}
+	}
+
 	/// <summary>
 	/// Builds a polygon mesh from a contour set.
 	/// </summary>
-	public static PolyMesh BuildPolyMesh( ContourSet cset, int maxVertsPerPoly )
+	public static PolyMesh BuildPolyMesh( ContourSet cset, int maxVertsPerPoly, PolyMeshBuilderContext ctx )
 	{
 		int maxVertices = 0;
 		int maxTris = 0;
@@ -56,6 +137,10 @@ internal static class PolyMeshBuilder
 #pragma warning restore CA2000 // Dispose objects before losing scope
 		mesh.Init( cset, maxVertsPerPoly, maxTris, maxVertices );
 
+		using var pooledRegionIds = new PooledSpan<int>( maxTris );
+		var regionIds = pooledRegionIds.Span;
+		regionIds.Clear();
+
 		using var pooledNextVert = new PooledSpan<int>( maxVertices );
 		var nextVert = pooledNextVert.Span;
 		nextVert.Clear();
@@ -77,7 +162,6 @@ internal static class PolyMeshBuilder
 		polys.Clear();
 
 		Span<ushort> pj = stackalloc ushort[maxVertsPerPoly];
-		Span<ushort> pk = stackalloc ushort[maxVertsPerPoly];
 		Span<ushort> pa = stackalloc ushort[maxVertsPerPoly];
 		Span<ushort> pb = stackalloc ushort[maxVertsPerPoly];
 		Span<ushort> tmpPoly = stackalloc ushort[maxVertsPerPoly];
@@ -142,56 +226,20 @@ internal static class PolyMeshBuilder
 			if ( npolys == 0 )
 				continue;
 
-			// Merge polygons.
+			// Merge triangles into larger convex polygons.
 			if ( maxVertsPerPoly > 3 )
 			{
-				for (; ; )
+				while ( TryFindBestMerge( polys, npolys, maxVertsPerPoly, mesh.Verts, ctx,
+					out int a, out int b, out int ea, out int eb ) )
 				{
-					// Find best polygons to merge.
-					int bestMergeVal = 0;
-					int bestPa = 0, bestPb = 0, bestEa = 0, bestEb = 0;
+					polys.Slice( a * maxVertsPerPoly, maxVertsPerPoly ).CopyTo( pa );
+					polys.Slice( b * maxVertsPerPoly, maxVertsPerPoly ).CopyTo( pb );
+					MergePolyVerts( pa, pb, ea, eb, tmpPoly );
 
-					for ( int j = 0; j < npolys - 1; ++j )
-					{
-						polys.Slice( j * maxVertsPerPoly, maxVertsPerPoly ).CopyTo( pj );
-
-						for ( int k = j + 1; k < npolys; ++k )
-						{
-							polys.Slice( k * maxVertsPerPoly, maxVertsPerPoly ).CopyTo( pk );
-
-							int ea = 0, eb = 0;
-							int v = GetPolyMergeValue( pj, pk, mesh.Verts, ref ea, ref eb );
-							if ( v > bestMergeVal )
-							{
-								bestMergeVal = v;
-								bestPa = j;
-								bestPb = k;
-								bestEa = ea;
-								bestEb = eb;
-							}
-						}
-					}
-
-					if ( bestMergeVal > 0 )
-					{
-						// Found best, merge.
-						polys.Slice( bestPa * maxVertsPerPoly, maxVertsPerPoly ).CopyTo( pa );
-						polys.Slice( bestPb * maxVertsPerPoly, maxVertsPerPoly ).CopyTo( pb );
-
-						MergePolyVerts( pa, pb, bestEa, bestEb, tmpPoly );
-
-						// Copy merged poly over the first poly
-						pa.CopyTo( polys.Slice( bestPa * maxVertsPerPoly, maxVertsPerPoly ) );
-
-						// Copy last poly over the second poly
-						polys.Slice( (npolys - 1) * maxVertsPerPoly, maxVertsPerPoly ).CopyTo( polys.Slice( bestPb * maxVertsPerPoly, maxVertsPerPoly ) );
-						npolys--;
-					}
-					else
-					{
-						// Could not merge any polygons, stop.
-						break;
-					}
+					pa.CopyTo( polys.Slice( a * maxVertsPerPoly, maxVertsPerPoly ) );
+					polys.Slice( (npolys - 1) * maxVertsPerPoly, maxVertsPerPoly )
+						.CopyTo( polys.Slice( b * maxVertsPerPoly, maxVertsPerPoly ) );
+					npolys--;
 				}
 			}
 
@@ -205,7 +253,7 @@ internal static class PolyMeshBuilder
 
 				pj.CopyTo( mesh.Polys.Slice( mesh.PolyCount * maxVertsPerPoly * 2, maxVertsPerPoly * 2 ) );
 
-				mesh.RegionIds[mesh.PolyCount] = cont.Region;
+				regionIds[mesh.PolyCount] = cont.Region;
 				mesh.Areas[mesh.PolyCount] = cont.Area;
 				mesh.PolyCount++;
 			}
@@ -219,7 +267,7 @@ internal static class PolyMeshBuilder
 				if ( !CanRemoveVertex( mesh, (ushort)i ) )
 					continue;
 
-				if ( !RemoveVertex( mesh, (ushort)i, mesh.MaxPolys ) )
+				if ( !RemoveVertex( mesh, regionIds, (ushort)i, mesh.MaxPolys, ctx ) )
 				{
 					// Failed to remove vertex
 					Log.Error( $"rcBuildPolyMesh: Failed to remove edge vertex {i}." );
@@ -554,82 +602,85 @@ internal static class PolyMeshBuilder
 	}
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	private static bool ULeft( Span<ushort> a, Span<ushort> b, Span<ushort> c )
+	private static bool ULeft( ReadOnlySpan<ushort> verts, int a, int b, int c )
 	{
-		return ((int)b[0] - (int)a[0]) * ((int)c[2] - (int)a[2]) -
-			   ((int)c[0] - (int)a[0]) * ((int)b[2] - (int)a[2]) < 0;
+		int ax = verts[a * 3], az = verts[a * 3 + 2];
+		int bx = verts[b * 3], bz = verts[b * 3 + 2];
+		int cx = verts[c * 3], cz = verts[c * 3 + 2];
+		return (bx - ax) * (cz - az) - (cx - ax) * (bz - az) < 0;
 	}
 
-	private static int GetPolyMergeValue( ReadOnlySpan<ushort> pa, ReadOnlySpan<ushort> pb, ReadOnlySpan<ushort> verts, ref int ea, ref int eb )
+	/// <summary>
+	/// Finds the best pair of polygons to merge (longest shared edge that preserves convexity).
+	/// </summary>
+	private static bool TryFindBestMerge( Span<ushort> polys, int npolys, int maxVerts,
+		ReadOnlySpan<ushort> verts, PolyMeshBuilderContext ctx,
+		out int bestPa, out int bestPb, out int bestEa, out int bestEb )
 	{
-		int na = CountPolyVerts( pa );
-		int nb = CountPolyVerts( pb );
+		ctx.Build( polys, npolys, maxVerts );
 
-		// If the merged polygon would be too big, do not merge.
-		if ( na + nb - 2 > pa.Length )
-			return -1;
+		int bestLen = 0;
+		bestPa = bestPb = bestEa = bestEb = 0;
 
-		// Check if the polygons share an edge.
-		ea = -1;
-		eb = -1;
-
-		for ( int i = 0; i < na; ++i )
+		for ( int p = 0; p < npolys; ++p )
 		{
-			ushort va0 = pa[i];
-			ushort va1 = pa[(i + 1) % na];
-			if ( va0 > va1 ) (va0, va1) = (va1, va0);
+			var polyP = polys.Slice( p * maxVerts, maxVerts );
+			int nvP = CountPolyVerts( polyP );
 
-			for ( int j = 0; j < nb; ++j )
+			for ( int e = 0; e < nvP; ++e )
 			{
-				ushort vb0 = pb[j];
-				ushort vb1 = pb[(j + 1) % nb];
-				if ( vb0 > vb1 ) (vb0, vb1) = (vb1, vb0);
+				ushort ev0 = polyP[e], ev1 = polyP[(e + 1) % nvP];
+				if ( ev0 > ev1 ) (ev0, ev1) = (ev1, ev0);
 
-				if ( va0 == vb0 && va1 == vb1 )
+				for ( int idx = ctx.GetBucket( ev0, ev1 ); idx != -1; )
 				{
-					ea = i;
-					eb = j;
-					break;
+					if ( !ctx.TryGet( idx, ev0, ev1, out int q, out int eq, out idx ) )
+						continue;
+					if ( q <= p ) continue;
+
+					var polyQ = polys.Slice( q * maxVerts, maxVerts );
+					int nvQ = CountPolyVerts( polyQ );
+
+					if ( nvP + nvQ - 2 > maxVerts ) continue;
+					if ( !CanMerge( polyP, nvP, e, polyQ, nvQ, eq, verts ) ) continue;
+
+					int len = EdgeLengthSq( polyP, e, nvP, verts );
+					if ( len > bestLen )
+					{
+						bestLen = len;
+						bestPa = p;
+						bestPb = q;
+						bestEa = e;
+						bestEb = eq;
+					}
 				}
 			}
 		}
 
-		// No common edge, cannot merge.
-		if ( ea == -1 || eb == -1 )
-			return -1;
+		return bestLen > 0;
+	}
 
-		// Check to see if the merged polygon would be convex.
-		ushort va, vb, vc;
+	/// <summary>
+	/// Checks if two polygons can be merged along a shared edge while preserving convexity.
+	/// </summary>
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	private static bool CanMerge( ReadOnlySpan<ushort> polyA, int nvA, int edgeA,
+								  ReadOnlySpan<ushort> polyB, int nvB, int edgeB,
+								  ReadOnlySpan<ushort> verts )
+	{
+		return ULeft( verts, polyA[(edgeA + nvA - 1) % nvA], polyA[edgeA], polyB[(edgeB + 2) % nvB] )
+			&& ULeft( verts, polyB[(edgeB + nvB - 1) % nvB], polyB[edgeB], polyA[(edgeA + 2) % nvA] );
+	}
 
-		va = pa[(ea + na - 1) % na];
-		vb = pa[ea];
-		vc = pb[(eb + 2) % nb];
-
-		Span<ushort> vaArr = [verts[va * 3], verts[va * 3 + 1], verts[va * 3 + 2]];
-		Span<ushort> vbArr = [verts[vb * 3], verts[vb * 3 + 1], verts[vb * 3 + 2]];
-		Span<ushort> vcArr = [verts[vc * 3], verts[vc * 3 + 1], verts[vc * 3 + 2]];
-
-		if ( !ULeft( vaArr, vbArr, vcArr ) )
-			return -1;
-
-		va = pb[(eb + nb - 1) % nb];
-		vb = pb[eb];
-		vc = pa[(ea + 2) % na];
-
-		vaArr = [verts[va * 3], verts[va * 3 + 1], verts[va * 3 + 2]];
-		vbArr = [verts[vb * 3], verts[vb * 3 + 1], verts[vb * 3 + 2]];
-		vcArr = [verts[vc * 3], verts[vc * 3 + 1], verts[vc * 3 + 2]];
-
-		if ( !ULeft( vaArr, vbArr, vcArr ) )
-			return -1;
-
-		va = pa[ea];
-		vb = pa[(ea + 1) % na];
-
-		int dx = verts[va * 3 + 0] - verts[vb * 3 + 0];
-		int dy = verts[va * 3 + 2] - verts[vb * 3 + 2];
-
-		return dx * dx + dy * dy;
+	/// <summary>
+	/// Computes the squared length of an edge (used for merge priority).
+	/// </summary>
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	private static int EdgeLengthSq( ReadOnlySpan<ushort> poly, int edge, int nv, ReadOnlySpan<ushort> verts )
+	{
+		int v0 = poly[edge] * 3, v1 = poly[(edge + 1) % nv] * 3;
+		int dx = verts[v0] - verts[v1], dz = verts[v0 + 2] - verts[v1 + 2];
+		return dx * dx + dz * dz;
 	}
 
 	private static void MergePolyVerts( Span<ushort> pa, ReadOnlySpan<ushort> pb, int ea, int eb, Span<ushort> tmp )
@@ -761,7 +812,7 @@ internal static class PolyMeshBuilder
 		return numOpenEdges <= 2;
 	}
 
-	private static bool RemoveVertex( PolyMesh mesh, ushort rem, int maxTris )
+	private static bool RemoveVertex( PolyMesh mesh, Span<int> regionIds, ushort rem, int maxTris, PolyMeshBuilderContext ctx )
 	{
 		int nvp = mesh.MaxVertsPerPoly;
 
@@ -812,7 +863,7 @@ internal static class PolyMeshBuilder
 						int eIndex = nedges * 4;
 						edges[eIndex + 0] = p2[k];
 						edges[eIndex + 1] = p2[j];
-						edges[eIndex + 2] = mesh.RegionIds[i];
+						edges[eIndex + 2] = regionIds[i];
 						edges[eIndex + 3] = mesh.Areas[i];
 						nedges++;
 					}
@@ -828,7 +879,7 @@ internal static class PolyMeshBuilder
 				// Clear the last half (adjacency info)
 				mesh.Polys.Slice( (i * nvp * 2) + nvp, nvp ).Fill( Constants.MESH_NULL_IDX );
 
-				mesh.RegionIds[i] = mesh.RegionIds[mesh.PolyCount - 1];
+				regionIds[i] = regionIds[mesh.PolyCount - 1];
 				mesh.Areas[i] = mesh.Areas[mesh.PolyCount - 1];
 				mesh.PolyCount--;
 				--i;
@@ -989,70 +1040,27 @@ internal static class PolyMeshBuilder
 			return true;
 		}
 
-		Span<ushort> pj = stackalloc ushort[nvp];
-		Span<ushort> pk = stackalloc ushort[nvp];
 		Span<ushort> pa = stackalloc ushort[nvp];
 		Span<ushort> pb = stackalloc ushort[nvp];
-		Span<ushort> lastPoly = stackalloc ushort[nvp];
 
-		// Merge polygons.
+		// Merge polygons using shared edge lookup.
 		if ( nvp > 3 )
 		{
-			for (; ; )
+			while ( TryFindBestMerge( polys, npolys, nvp, mesh.Verts, ctx,
+				out int a, out int b, out int ea, out int eb ) )
 			{
-				// Find best polygons to merge.
-				int bestMergeVal = 0;
-				int bestPa = 0, bestPb = 0, bestEa = 0, bestEb = 0;
+				polys.Slice( a * nvp, nvp ).CopyTo( pa );
+				polys.Slice( b * nvp, nvp ).CopyTo( pb );
+				MergePolyVerts( pa, pb, ea, eb, tmpPoly );
 
-				for ( int j = 0; j < npolys - 1; ++j )
-				{
-					polys.Slice( j * nvp, nvp ).CopyTo( pj );
+				if ( pregs[a] != pregs[b] )
+					pregs[a] = RC_MULTIPLE_REGS;
 
-					for ( int k = j + 1; k < npolys; ++k )
-					{
-						polys.Slice( k * nvp, nvp ).CopyTo( pk );
-
-						int ea = 0, eb = 0;
-						int v = GetPolyMergeValue( pj, pk, mesh.Verts, ref ea, ref eb );
-						if ( v > bestMergeVal )
-						{
-							bestMergeVal = v;
-							bestPa = j;
-							bestPb = k;
-							bestEa = ea;
-							bestEb = eb;
-						}
-					}
-				}
-
-				if ( bestMergeVal > 0 )
-				{
-					// Found best, merge.
-					polys.Slice( bestPa * nvp, nvp ).CopyTo( pa );
-					polys.Slice( bestPb * nvp, nvp ).CopyTo( pb );
-					MergePolyVerts( pa, pb, bestEa, bestEb, tmpPoly );
-
-					if ( pregs[bestPa] != pregs[bestPb] )
-						pregs[bestPa] = RC_MULTIPLE_REGS;
-
-					// Copy merged poly over the first poly
-					pa.CopyTo( polys.Slice( bestPa * nvp, nvp ) );
-
-					// Copy last poly over the second poly
-					if ( bestPb != npolys - 1 )
-					{
-						polys.Slice( (npolys - 1) * nvp, nvp ).CopyTo( lastPoly );
-						lastPoly.CopyTo( polys.Slice( bestPb * nvp, nvp ) );
-					}
-					pregs[bestPb] = pregs[npolys - 1];
-					pareas[bestPb] = pareas[npolys - 1];
-					npolys--;
-				}
-				else
-				{
-					// Could not merge any polygons, stop.
-					break;
-				}
+				pa.CopyTo( polys.Slice( a * nvp, nvp ) );
+				polys.Slice( (npolys - 1) * nvp, nvp ).CopyTo( polys.Slice( b * nvp, nvp ) );
+				pregs[b] = pregs[npolys - 1];
+				pareas[b] = pareas[npolys - 1];
+				npolys--;
 			}
 		}
 
@@ -1068,7 +1076,7 @@ internal static class PolyMeshBuilder
 				p[j] = polys[i * nvp + j];
 
 			p.CopyTo( mesh.Polys.Slice( mesh.PolyCount * nvp * 2, nvp * 2 ) );
-			mesh.RegionIds[mesh.PolyCount] = pregs[i];
+			regionIds[mesh.PolyCount] = pregs[i];
 			mesh.Areas[mesh.PolyCount] = pareas[i];
 			mesh.PolyCount++;
 

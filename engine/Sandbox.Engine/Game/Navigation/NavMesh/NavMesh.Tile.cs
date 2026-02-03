@@ -1,5 +1,8 @@
 ﻿using DotRecast.Detour;
+using Sandbox.Compression;
 using Sandbox.Navigation.Generation;
+using System.Buffers;
+using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 
 namespace Sandbox.Navigation;
@@ -8,11 +11,13 @@ internal class NavMeshTile : IDisposable
 {
 	public Vector2Int TilePosition;
 
-	private CompactHeightfield _cachedHeightField;
+	private byte[] _compressedHeightField;
 
 	private HashSet<NavMeshSpatialAuxiliaryData> _spatialData = new();
 
-	public bool IsHeightFieldValid => _cachedHeightField != null;
+	public bool IsHeightFieldValid => _compressedHeightField != null;
+
+	public byte[] CompressedHeightField => _compressedHeightField;
 
 	public void HeightfieldBuildComplete()
 	{
@@ -36,10 +41,7 @@ internal class NavMeshTile : IDisposable
 
 	public void Dispose()
 	{
-		if ( _cachedHeightField != null )
-		{
-			_cachedHeightField.Dispose();
-		}
+		_compressedHeightField = null;
 	}
 
 	public bool IsNavmeshBuildRequested { get; private set; } = false;
@@ -65,13 +67,18 @@ internal class NavMeshTile : IDisposable
 		RequestNavmeshBuild();
 	}
 
+	const int MaxTileByteSize = 96 * 1024 + 8;
+
 	public void SetCachedHeightField( CompactHeightfield chf )
 	{
-		if ( _cachedHeightField != null )
+		_compressedHeightField = null;
+
+		if ( chf == null )
 		{
-			_cachedHeightField.Dispose();
+			return;
 		}
-		_cachedHeightField = chf;
+
+		_compressedHeightField = Compress( chf );
 	}
 
 	public void DispatchNavmeshBuild( NavMesh navMesh )
@@ -83,7 +90,7 @@ internal class NavMeshTile : IDisposable
 
 		Task.Run( () =>
 		{
-			var chf = _cachedHeightField;
+			using var chf = DecompressCachedHeightField();
 			var navMeshData = BuildNavmesh( chf, generatorConfig, navMesh );
 
 			MainThread.Queue( () =>
@@ -111,16 +118,24 @@ internal class NavMeshTile : IDisposable
 
 		Task.Run( () =>
 		{
-			var heightFieldData = heightFieldGenerator.Generate();
+			CompactHeightfield heightFieldData = null;
+			try
+			{
+				heightFieldData = heightFieldGenerator.Generate();
+				SetCachedHeightField( heightFieldData );
+			}
+			finally
+			{
+				NavMesh.HeightFieldGeneratorPool.Return( heightFieldGenerator );
+			}
 
-			NavMesh.HeightFieldGeneratorPool.Return( heightFieldGenerator );
+			var hasHeightField = heightFieldData != null;
+			heightFieldData?.Dispose();
 
 			MainThread.Queue( () =>
 			{
-				SetCachedHeightField( heightFieldData );
-
 				// received nothing -> tile is empty
-				if ( heightFieldData == null )
+				if ( !hasHeightField )
 				{
 					IsNavmeshBuildRequested = false;
 					navMesh.UnloadTileOnMainThread( TilePosition );
@@ -144,6 +159,11 @@ internal class NavMeshTile : IDisposable
 
 	public DtMeshData BuildNavmesh( CompactHeightfield heightField, Config generatorConfig, NavMesh navMesh )
 	{
+		if ( heightField == null )
+		{
+			return null;
+		}
+
 		var navMeshGenerator = NavMesh.NavMeshGeneratorPool.Get();
 		navMeshGenerator.Init( generatorConfig, heightField );
 
@@ -281,5 +301,47 @@ internal class NavMeshTile : IDisposable
 		{
 			linkData.EndPositionOnNavMesh = NavMesh.FromNav( tile.data.verts[conPoly.verts[1]] );
 		}
+	}
+
+	private byte[] Compress( CompactHeightfield chf )
+	{
+		using var tileStream = ByteStream.Create( MaxTileByteSize );
+		tileStream.Write( chf );
+
+		var data = tileStream.ToSpan();
+
+		var compressed = LZ4.CompressBlock( data, System.IO.Compression.CompressionLevel.Fastest );
+		var payload = new byte[sizeof( int ) + compressed.Length];
+		BinaryPrimitives.WriteInt32LittleEndian( payload.AsSpan( 0, sizeof( int ) ), data.Length );
+		compressed.CopyTo( payload.AsSpan( sizeof( int ) ) );
+		return payload;
+	}
+
+	public CompactHeightfield DecompressCachedHeightField()
+	{
+		if ( _compressedHeightField == null )
+		{
+			return null;
+		}
+
+		var expectedLength = BinaryPrimitives.ReadInt32LittleEndian( _compressedHeightField.AsSpan().Slice( 0, sizeof( int ) ) );
+
+		if ( expectedLength == 0 )
+		{
+			return null;
+		}
+
+		var compressedBuffer = _compressedHeightField.AsSpan().Slice( sizeof( int ) );
+		using var decompressedBuffer = new PooledSpan<byte>( expectedLength );
+
+		LZ4.DecompressBlock( compressedBuffer, decompressedBuffer.Span );
+
+		var byteStream = ByteStream.CreateReader( decompressedBuffer.Span );
+
+		var cf = CompactHeightfield.Read( ref byteStream );
+
+		byteStream.Dispose();
+
+		return cf;
 	}
 }

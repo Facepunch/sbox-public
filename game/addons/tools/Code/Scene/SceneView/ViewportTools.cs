@@ -74,6 +74,7 @@ public partial class ViewportTools : Widget
 			BuildToolbarLeft( left );
 			AddSeparator( left );
 			BuildToolbarScene( left );
+			BuildToolExtensionToolbar( left );
 		}
 
 		toolbar.AddStretchCell();
@@ -97,6 +98,7 @@ public partial class ViewportTools : Widget
 	{
 		UpdateDimensions();
 		UpdateChildren();
+		UpdateToolExtensionToolbar();
 	}
 
 	int lastGeometryHash = -1;

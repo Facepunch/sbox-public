@@ -27,7 +27,6 @@ partial class TextureTool
 		public bool SelectByNormal { get; set; } = true;
 		[Range( 0.1f, 90f, slider: false ), Step( 1 ), Title( "Normal Threshold" )]
 		public float NormalThreshold { get; set; } = 12.0f;
-		public bool OverlaySelection { get; set; } = true;
 
 		public FaceSelectionWidget( SerializedObject so, MeshTool tool ) : base()
 		{
@@ -46,14 +45,12 @@ partial class TextureTool
 			SelectByMaterial = EditorCookie.Get( "FaceTool.SelectByMaterial", false );
 			SelectByNormal = EditorCookie.Get( "FaceTool.SelectByNormal", true );
 			NormalThreshold = EditorCookie.Get( "FaceTool.NormalThreshold", 12.0f );
-			OverlaySelection = EditorCookie.Get( "FaceTool.OverlaySelection", true );
 
 			if ( _meshTool.CurrentTool is TextureTool tt )
 			{
 				tt.SelectByMaterial = SelectByMaterial;
 				tt.SelectByNormal = SelectByNormal;
 				tt.NormalThreshold = NormalThreshold;
-				tt.OverlaySelection = OverlaySelection;
 			}
 
 			var target = this.GetSerialized();
@@ -67,7 +64,6 @@ partial class TextureTool
 				EditorCookie.Set( "FaceTool.SelectByMaterial", SelectByMaterial );
 				EditorCookie.Set( "FaceTool.SelectByNormal", SelectByNormal );
 				EditorCookie.Set( "FaceTool.NormalThreshold", NormalThreshold );
-				EditorCookie.Set( "FaceTool.OverlaySelection", OverlaySelection );
 			};
 
 			bool hasSelectedFaces = _faces.Length > 0;
@@ -221,21 +217,6 @@ partial class TextureTool
 				normalRow.Add( normalControl );
 
 				group.Add( normalRow );
-			}
-
-			{
-				var group = AddGroup( "Display" );
-				var overlayRow = Layout.Row();
-				overlayRow.Spacing = 4;
-
-				var selectionOverlay = ControlWidget.Create( target.GetProperty( nameof( OverlaySelection ) ) );
-				var selectionOverlayLabel = new Label { Text = "Overlay Selection" };
-				selectionOverlay.FixedHeight = Theme.ControlHeight;
-
-				overlayRow.Add( selectionOverlay );
-				overlayRow.Add( selectionOverlayLabel );
-
-				group.Add( overlayRow );
 			}
 		}
 
@@ -448,6 +429,34 @@ partial class TextureTool
 						selection.Add( face );
 				}
 			}
+		}
+
+		[Shortcut( "mesh.frame-selection", "SHIFT+A", typeof( SceneViewWidget ) )]
+		private void FrameSelection()
+		{
+			if ( _faces.Length == 0 )
+				return;
+
+			var points = new List<Vector3>();
+
+			foreach ( var group in _faces.GroupBy( f => f.Component ) )
+			{
+				var component = group.Key;
+				var mesh = component.Mesh;
+
+				foreach ( var face in group )
+				{
+					mesh.GetVerticesConnectedToFace(
+						face.Handle,
+						out var vertices
+					);
+
+					foreach ( var v in vertices )
+						points.Add( new MeshVertex( component, v ).PositionWorld );
+				}
+			}
+
+			SelectionFrameUtil.FramePoints( points );
 		}
 
 		private void AlignToGrid()

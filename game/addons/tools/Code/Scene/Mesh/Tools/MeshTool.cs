@@ -55,6 +55,7 @@ public partial class MeshTool : EditorTool
 		SetMoveMode<PositionMode>();
 
 		LoadActiveMaterial();
+		LoadToolbarCookies();
 	}
 
 	public override void OnSelectionChanged()

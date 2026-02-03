@@ -1,7 +1,7 @@
 ﻿namespace Editor.ProjectSettingPages;
 
-[Title( "Physics" )]
-internal sealed class PhysicsCategory : ProjectInspector.Category
+[Title( "Physics" ), Icon( "sports_cricket" )]
+internal sealed class PhysicsCategory : ProjectSettingsWindow.Category
 {
 	public override void OnInit( Project project )
 	{

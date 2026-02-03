@@ -75,20 +75,12 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	public float NormalBias { get; set; } = 5.0f;
 
 	/// <summary>
-	/// Controls the lobe width of the cosine re-weighting when generating distance moments.
-	/// Large exponents collapse variance and produce harsh shadows but seals leaks. Keep this modest.
-	/// </summary>
-	[Property, Range( 1.0f, 10.0f ), MakeDirty]
-	[Group( "Advanced Settings" )]
-	public float DepthSharpness { get; set; } = 2.0f;
-
-	/// <summary>
 	/// Controls how much less energy to conserve during probe integration.
 	/// Higher values give a harsher, more contrasty look.
 	/// </summary>
 	[Property, Range( 1.0f, 2.0f ), MakeDirty]
 	[Group( "Advanced Settings" )]
-	public float Contrast { get; set; } = 2.0f;
+	public float Contrast { get; set; } = 1.0f;
 
 	/// <summary>
 	/// Calculated probe count along each axis based on bounds and density.
@@ -191,8 +183,8 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 			Graphics.FlushGPU();
 
 			IrradianceTexture = SaveTexture( updater.GeneratedIrradianceTexture, "Irradiance" );
-			DistanceTexture = SaveTexture( updater.GeneratedDistanceTexture, "Distance" );
-			RelocationTexture = SaveTexture( GeneratedRelocationTexture, "Relocation", uncompressed: true );
+			DistanceTexture = SaveTexture( updater.GeneratedDistanceTexture, "Distance", ImageFormat.RG1616F ); // BC6H ideally, but block compression fucks precision too much
+			RelocationTexture = SaveTexture( GeneratedRelocationTexture, "Relocation", ImageFormat.RGBA16161616F );
 		}
 
 		Scene.Get<DDGIVolumeSystem>()?.MarkDirty();
@@ -246,7 +238,7 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	/// <summary>
 	/// Saves texture to disk and reloads it.
 	/// </summary>
-	private Texture SaveTexture( Texture source, string suffix, bool uncompressed = false )
+	private Texture SaveTexture( Texture source, string suffix, ImageFormat? format = null )
 	{
 		if ( source is null || source.IsError )
 			return source;
@@ -257,7 +249,7 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 		var sceneFolder = Scene.Editor.GetSceneFolder();
 		var filename = $"/ddgi/{GameObject?.Name ?? "DDGIVolume"}_{suffix}_{Id}.vtex_c";
 
-		var vtexBytes = source.SaveToVtex( uncompressed );
+		var vtexBytes = source.SaveToVtex( format );
 		var path = sceneFolder.WriteFile( filename, vtexBytes );
 
 		var saved = Texture.Load( path );
@@ -422,7 +414,7 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 
 		var components = Application.Editor.Scene.GetAll<IndirectLightVolume>().ToArray();
 
-		await Application.Editor.ForEachAsync( components, "Baking Light Volume Volumes", ( x, ct ) => x.BakeProbes( ct ) );
+		await Application.Editor.ForEachAsync( components, "Baking Indirect Light Volumes in Scene", ( x, ct ) => x.BakeProbes( ct ) );
 	}
 }
 

@@ -63,6 +63,9 @@ public sealed partial class NavMesh : IDisposable
 	[Hide]
 	public bool IsDirty { get; private set; } = false;
 
+	// Initial load or generation completed
+	internal bool IsLoaded = false;
+
 	/// <summary>
 	/// Should the generator include static bodies
 	/// </summary>
@@ -138,12 +141,12 @@ public sealed partial class NavMesh : IDisposable
 	/// <summary>
 	/// The width/height size of tile's on the xy-plane. [Limit: &gt;= 0] [Units: vx]
 	/// </summary>
-	private int TileSizeXYVoxels { get; set; } = 128;
+	private int TileSizeXYVoxels { get; set; } = 256;
 
 	private float TileSizeXYWorldSpace { get => TileSizeXYVoxels * CellSize; }
 
 	// We have DT_TILE_BITS(28) bits for tiles and DT_POLY_BITS(20) for poly's, so we can have 2^28 tiles and 2^20 polys
-	internal Vector2Int TileCount { get; set; } = new Vector2Int( 256, 256 ); // Sqrt( 1<< 28 ) = 16384
+	internal Vector2Int TileCount { get; set; } = new Vector2Int( 512, 512 ); // Sqrt( 1<< 28 ) = 16384
 
 	internal int MaxPolys = 1 << 20;
 
@@ -244,6 +247,37 @@ public sealed partial class NavMesh : IDisposable
 		}
 
 		IsDirty = false;
+	}
+
+	// In the future will handle loading from disk
+	// Right now it's the same as Generate
+	// should probably obsolete generate
+	internal async Task<bool> Load( PhysicsWorld world )
+	{
+		if ( IsGenerating )
+		{
+			Log.Warning( "NavMesh is already generating" );
+			return false;
+		}
+
+		try
+		{
+			IsGenerating = true;
+
+			Init();
+
+			WorldBounds = CalculateWorldBounds( world );
+
+			await GenerateTiles( world, WorldBounds );
+		}
+		finally
+		{
+			IsGenerating = false;
+			IsDirty = false;
+			IsLoaded = true;
+		}
+
+		return true;
 	}
 
 	public async Task<bool> Generate( PhysicsWorld world )
