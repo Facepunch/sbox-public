@@ -1,6 +1,5 @@
 ﻿using Sandbox.Network;
 using Sandbox.Utility;
-using System.Drawing;
 using System.IO;
 using System.Text.Json.Nodes;
 
