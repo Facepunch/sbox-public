@@ -15,16 +15,6 @@ public class BlackboardView : Widget
 	private readonly Dictionary<string, IBlackboardParameterType> AvailableParameters = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
-	/// Called when a blackboard parameter is selected.
-	/// </summary>
-	public Action<BlackboardParameter> OnParameterSelected { get; set; }
-
-	/// <summary>
-	/// Called when a blackboard parameter changes.
-	/// </summary>
-	public Action<BlackboardParameter> OnParameterChanged { get; set; }
-
-	/// <summary>
 	/// Called when a blackboard parameter is created.
 	/// </summary>
 	public Action<BlackboardParameter> OnParameterCreated { get; set; }
@@ -33,7 +23,6 @@ public class BlackboardView : Widget
 	/// Called when a blackboard parameter is deleated.
 	/// </summary>
 	public Action<BlackboardParameter> OnParameterDeleted { get; set; }
-
 
 	public Action OnDirty { get; set; }
 
@@ -223,7 +212,7 @@ public class BlackboardView : Widget
 	{
 		SetSelectedItem( parameter );
 
-		OnParameterSelected?.Invoke( parameter );
+		_window.OnSelected( parameter );
 	}
 
 	private void OnAddParameter( IBlackboardParameterType type )
