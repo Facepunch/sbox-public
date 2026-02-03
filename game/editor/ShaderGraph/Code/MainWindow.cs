@@ -130,23 +130,34 @@ public class MainWindow : DockWindow
 
 	public void OnSelected( object selection )
 	{
-		var oldTarget = _properties.Target;
-		_properties.Target = selection != null ? selection : _graph;
-
-		if ( _properties.Target is BlackboardParameter parameter )
+		if ( selection == null )
 		{
-			_blackboardView.SetSelectedItem( parameter );
+			_properties.Target = _graph;
+
+			return;
 		}
 
-		if ( _properties.Target is ShaderGraph )
+		var oldTarget = _properties.Target;
+		if ( selection is BlackboardParameter parameter )
+		{
+			if ( oldTarget is BaseNode )
+			{
+				_graphView.ClearSelection();
+			}
+
+			_properties.Target = parameter;
+			_blackboardView.SetSelectedItem( parameter );
+		}
+		else if ( selection is ShaderGraph )
 		{
 			if ( oldTarget is BlackboardParameter )
 			{
 				_blackboardView.ClearSeletedItem();
 			}
-		}
 
-		if ( _properties.Target is BaseNode node )
+			_properties.Target = _graph;
+		}
+		else if ( selection is BaseNode node )
 		{
 			if ( oldTarget is BlackboardParameter )
 			{
@@ -172,6 +183,7 @@ public class MainWindow : DockWindow
 				}
 			}
 
+			_properties.Target = node;
 			_preview.SetStage( _compiledNodes.IndexOf( node ) + 1 );
 		}
 	}
