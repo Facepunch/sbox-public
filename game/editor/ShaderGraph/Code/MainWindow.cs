@@ -1309,7 +1309,6 @@ public class MainWindow : DockWindow
 
 		_blackboardView = new BlackboardView( _blackboardCanvas, this );
 		_blackboardView.Graph = _graph;
-		_blackboardView.OnParameterSelected += OnBlackboardParameterSelected;
 		_blackboardView.OnParameterCreated += OnBlackboardParameterCreated;
 		_blackboardView.OnParameterDeleted += OnBlackboardParameterDeleted;
 		_blackboardView.OnDirty += () => SetDirty();
