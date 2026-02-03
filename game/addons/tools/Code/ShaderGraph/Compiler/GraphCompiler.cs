@@ -118,11 +118,6 @@ public sealed partial class GraphCompiler
 		}
 	}
 
-	public string GetPreviewImage( string name )
-	{
-		return PreviewImages.GetValueOrDefault( name );
-	}
-
 	public bool TryGetPreviewImage( string name, out string imagePath )
 	{
 		return PreviewImages.TryGetValue( name, out imagePath );
