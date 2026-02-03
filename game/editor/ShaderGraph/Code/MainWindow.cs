@@ -160,6 +160,16 @@ public class MainWindow : DockWindow
 		_preview.SetStage( _compiledNodes.IndexOf( node ) + 1 );
 	}
 
+	public void OnGraphViewClicked()
+	{
+		// Fixes not being able to select the graph in the GraphView when the latest target was a BlackboardParameter.
+		if ( _properties.Target is BlackboardParameter )
+		{
+			OnNodeSelected( null );
+			_blackboardView.ClearSeletedItem();
+		}
+	}
+
 	private void OpenGeneratedShader()
 	{
 		if ( _asset is null )

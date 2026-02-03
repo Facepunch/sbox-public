@@ -702,6 +702,21 @@ public class ShaderGraphView : GraphView
 		_window.OnNodeSelected( (BaseNode)item.Node );
 	}
 
+	protected override void OnMouseClick( MouseEvent e )
+	{
+		base.OnMouseClick( e );
+
+		var item = SelectedItems
+			.OfType<NodeUI>()
+			.OrderByDescending( n => n is CommentUI )
+			.FirstOrDefault();
+
+		if ( !item.IsValid() )
+		{
+			_window.OnGraphViewClicked();
+		}
+	}
+
 	protected override void OnNodeCreated( INode node )
 	{
 		if ( node is SubgraphNode subgraphNode )
