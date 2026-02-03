@@ -3,7 +3,26 @@ namespace Editor.ShaderGraph.Nodes;
 public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IErroringNode
 {
 	[Hide]
-	protected bool IsSubgraph => Graph is ShaderGraph graph && graph.IsSubgraph; 
+	protected bool IsSubgraph => Graph is ShaderGraph graph && graph.IsSubgraph;
+
+	private bool _showDefaults;
+	[JsonIgnore, Hide]
+	protected bool ShowDefaults 
+	{ 
+		get => _showDefaults; 
+		set
+		{
+
+			if ( IsSubgraph )
+			{
+				_showDefaults = false;
+			}
+			else
+			{
+				_showDefaults = value;
+			}
+		}
+	}
 
 	[ShowIf( nameof( ShowDefaults ), true )]
 	public string Name { get; set; }
@@ -45,9 +64,6 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IE
 
 	[JsonIgnore, Hide]
 	protected string TexturePath => _texture;
-
-	[JsonIgnore, Hide]
-	protected bool ShowDefaults { get; set; } = true;
 
 	/// <summary>
 	/// How the texture is filtered and wrapped when sampled

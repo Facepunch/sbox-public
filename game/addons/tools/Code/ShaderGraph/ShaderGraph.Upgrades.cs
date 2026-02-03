@@ -386,8 +386,7 @@ partial class ShaderGraph
 					blackboardParameter = new Texture2DBlackboardParameter()
 					{
 						Name = textureInputNameElement.GetString(),
-						DefaultTexture = imageElement.GetString(),
-						UI = uiElement.Deserialize<TextureInput>( options ),
+						Value = uiElement.Deserialize<TextureInput>( options ) with { DefaultTexture = imageElement.GetString() },
 					};
 					break;
 				case "TextureTriplanar":
@@ -399,8 +398,7 @@ partial class ShaderGraph
 					blackboardParameter = new Texture2DBlackboardParameter()
 					{
 						Name = textureInputNameElement.GetString(),
-						DefaultTexture = imageElement.GetString(),
-						UI = uiElement.Deserialize<TextureInput>( options ),
+						Value = uiElement.Deserialize<TextureInput>( options ) with { DefaultTexture = imageElement.GetString() },
 					};
 					break;
 
@@ -413,8 +411,7 @@ partial class ShaderGraph
 					blackboardParameter = new Texture2DBlackboardParameter()
 					{
 						Name = textureInputNameElement.GetString(),
-						DefaultTexture = imageElement.GetString(),
-						UI = uiElement.Deserialize<TextureInput>( options ),
+						Value = uiElement.Deserialize<TextureInput>( options ) with { DefaultTexture = imageElement.GetString() },
 					};
 					break;
 				default:

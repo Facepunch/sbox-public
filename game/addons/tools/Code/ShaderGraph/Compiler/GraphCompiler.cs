@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace Editor.ShaderGraph;
 
@@ -239,7 +240,7 @@ public sealed partial class GraphCompiler
 	/// <summary>
 	/// Similar to <seealso cref="ResultTexture(Sampler, TextureInput, Texture, bool)"/> but just for <seealso cref="Texture2DParameter"/>
 	/// </summary>
-	internal string ResultTexture( TextureInput input, Texture texture, string imagePath )
+	internal string ResultTexture( TextureInput input, Texture texture )
 	{
 		var name = CleanName( input.Name );
 		name = string.IsNullOrWhiteSpace( name ) ? $"Texture_{StageName}_{ShaderResult.TextureInputs.Count}" : name;
@@ -252,7 +253,7 @@ public sealed partial class GraphCompiler
 
 		if ( !PreviewImages.ContainsKey( $"g_t{name}" ) )
 		{
-			PreviewImages.Add( $"g_t{name}", imagePath );
+			PreviewImages.Add( $"g_t{name}", input.DefaultTexture );
 		}
 
 		SetAttribute( name, texture );
@@ -697,11 +698,10 @@ public sealed partial class GraphCompiler
 				case Type t when t == typeof( Color ):
 					return Color.White;
 				case Type t when t == typeof( Texture ):
-					return "";
+					return new TextureInput() { Type = TextureType.Tex2D };
 			}
 		}
 
-		
 		if ( value is JsonElement el )
 		{
 			if ( type == typeof( bool ) )
@@ -734,7 +734,8 @@ public sealed partial class GraphCompiler
 			}
 			else if ( type == typeof( Texture ) )
 			{
-				value = el.GetString();
+				var textureinput = JsonSerializer.Deserialize<TextureInput>( el, ShaderGraph.SerializerOptions() );
+				value = textureinput with { Type = TextureType.Tex2D };
 			}
 		}
 
@@ -786,21 +787,11 @@ public sealed partial class GraphCompiler
 
 					if ( parentInput.Value.inputNode.InputType == InputType.Texture2D )
 					{
-						// TEST
-						var textureInput = new TextureInput()
-						{
-							ImageFormat = TextureFormat.DXT5,
-							Type = TextureType.Tex2D,
-							SrgbRead = true,
-							Default = Color.White,
-						};
+						var textureInput = (TextureInput)value;
+						var texurePath = CompileTexture( textureInput );
+						var textureGlobal = ResultTexture( textureInput, Texture.Load( texurePath ) );
 
-						var texurePath = CompileTexture( (string)value, textureInput );
-						var textureGlobal = ResultTexture( textureInput, Texture.Load( texurePath ), (string)value );
-
-						var result = new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
-
-						return result;
+						return new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
 					}
 				}
 			}
@@ -808,19 +799,19 @@ public sealed partial class GraphCompiler
 		return new();
 	}
 
-	private string CompileTexture( string path, TextureInput textureInput )
+	public string CompileTexture( TextureInput textureInput )
 	{
-		if ( string.IsNullOrWhiteSpace( path ) )
+		if ( string.IsNullOrWhiteSpace( textureInput.DefaultTexture ) )
 			return "";
 
 		var resourceText = string.Format( ShaderTemplate.TextureDefinition,
-			path,
+			textureInput.DefaultTexture,
 			textureInput.ColorSpace,
 			textureInput.ImageFormat,
 			textureInput.Processor
 		);
 
-		var assetPath = $"shadergraph/textures/{path.Replace( ".", "_" )}_shadergraph.generated.vtex";
+		var assetPath = $"shadergraph/textures/{textureInput.DefaultTexture.Replace( ".", "_" )}_shadergraph.generated.vtex";
 
 		//if ( !CompiledTextures.TryGetValue( resourceText, out string precompiledTexturePath ) )
 		//{
@@ -840,7 +831,7 @@ public sealed partial class GraphCompiler
 		}
 		else
 		{
-			Log.Warning( $"Failed to compile {path}" );
+			Log.Warning( $"Failed to compile {textureInput.DefaultTexture}" );
 			return "";
 		}
 	}

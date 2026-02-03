@@ -400,7 +400,7 @@ public sealed class Texture2DParameter : ShaderNode, ITextureParameterNodeNew
 	public Guid BlackboardParameterIdentifier { get; set; }
 
 	[JsonIgnore, Hide]
-	public TextureInput UI => GetParameter().UI;
+	public TextureInput UI => GetParameter().Value;
 
 	private Texture2DBlackboardParameter GetParameter()
 	{
@@ -475,7 +475,7 @@ public sealed class Texture2DParameter : ShaderNode, ITextureParameterNodeNew
 	[Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		Image = GetParameter().DefaultTexture;
+		Image = GetParameter().Value.DefaultTexture;
 		var input = UI;
 		input.Type = TextureType.Tex2D;
 		input.DefaultTexture = _image;
@@ -485,7 +485,7 @@ public sealed class Texture2DParameter : ShaderNode, ITextureParameterNodeNew
 		var texture = string.IsNullOrWhiteSpace( TexturePath ) ? null : Texture.Load( TexturePath );
 		texture ??= Texture.White;
 
-		var textureGlobal = compiler.ResultTexture( input, texture, Image );
+		var textureGlobal = compiler.ResultTexture( input, texture );
 
 		return new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
 	};

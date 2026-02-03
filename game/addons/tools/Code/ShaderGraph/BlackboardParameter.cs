@@ -165,7 +165,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 				return new Texture2DParameter()
 				{
 					BlackboardParameterIdentifier = parameter.Identifier,
-					Image = v.DefaultTexture,
+					Image = v.Value.DefaultTexture,
 				};
 
 			// In Subgraph
@@ -334,19 +334,15 @@ public abstract class BlackboardSubgraphinputParameter<T> : BlackboardParameter,
 
 public abstract class BlackboardTextureMaterialParameter : BlackboardParameter
 {
-	[ImageAssetPath]
-	[InlineEditor( Label = false ), Group( "Value" )]
-	public string DefaultTexture { get; set; }
-
 	[Hide]
-	private TextureInput _ui;
-	[InlineEditor( Label = false ), Group( "UI" )]
-	public TextureInput UI
+	private TextureInput _value;
+	[InlineEditor( Label = false ), Group( "Value" )]
+	public TextureInput Value
 	{
-		get => _ui with { Name = Name };
+		get => _value with { Name = Name };
 		set
 		{
-			_ui = value;
+			_value = value;
 		}
 	}
 
@@ -356,12 +352,12 @@ public abstract class BlackboardTextureMaterialParameter : BlackboardParameter
 
 	public BlackboardTextureMaterialParameter( string name, TextureInput value ) : base( name )
 	{
-		UI = value;
+		Value = value;
 	}
 
 	public override object GetValue()
 	{
-		return UI;
+		return Value;
 	}
 
 	public override void SetValue( object value )
@@ -371,6 +367,6 @@ public abstract class BlackboardTextureMaterialParameter : BlackboardParameter
 			throw new InvalidCastException( $"Cannot cast {value.GetType()} to {typeof( TextureInput )}" );
 		}
 
-		UI = (TextureInput)value;
+		Value = (TextureInput)value;
 	}
 }

@@ -1,5 +1,7 @@
 using Editor.NodeEditor;
+using Editor.ShaderGraph.Nodes;
 using System.Text.Json.Serialization;
+using static Sandbox.Material;
 
 namespace Editor.ShaderGraph;
 
@@ -136,14 +138,14 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 	}
 
 	// TEST
-	[JsonIgnore, Hide]
-	private TextureInput UI => new TextureInput()
-	{
-		ImageFormat = TextureFormat.DXT5,
-		Type = TextureType.Tex2D,
-		SrgbRead = true,
-		Default = Color.White,
-	};
+	//[JsonIgnore, Hide]
+	//private TextureInput UI => new TextureInput()
+	//{
+	//	ImageFormat = TextureFormat.DXT5,
+	//	Type = TextureType.Tex2D,
+	//	SrgbRead = true,
+	//	Default = Color.White,
+	//};
 
 	private void CompileTexture()
 	{
@@ -156,12 +158,14 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 		//var ui = UI;
 		//ui.DefaultTexture = _image;
 		//UI = ui;
+		var parameter = GetParameter().GetValue();
+		var ui = (TextureInput)GetParameter().GetValue(); 
 
 		var resourceText = string.Format( ShaderTemplate.TextureDefinition,
 			_image,
-			UI.ColorSpace,
-			UI.ImageFormat,
-			UI.Processor );
+			ui.ColorSpace,
+			ui.ImageFormat,
+			ui.Processor );
 
 		if ( _resourceText == resourceText )
 			return;
@@ -299,15 +303,14 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 
 	private string ProcessTexture2D( GraphCompiler compiler, object outputValue )
 	{
-		Image = (string)outputValue;
-		var input = UI;
+		var input = (TextureInput)outputValue;
 		input.Type = TextureType.Tex2D;
-		input.DefaultTexture = _image;
+		Image = input.DefaultTexture;
 
 		var texture = string.IsNullOrWhiteSpace( TexturePath ) ? null : Texture.Load( TexturePath );
 		texture ??= Texture.White;
 
-		return compiler.ResultTexture( input, texture, Image );
+		return compiler.ResultTexture( input, texture );
 	}
 }
 

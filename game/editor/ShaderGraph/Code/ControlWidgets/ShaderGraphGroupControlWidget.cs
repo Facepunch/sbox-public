@@ -24,6 +24,9 @@ internal class ShaderGraphGroupControlWidget : ControlWidget
 		}
 
 		var groupProperty = GetGroupProperty( property );
+		var textureInputProperty = GetInputProperty( property );
+		var input = textureInputProperty.GetValue<TextureInput>();
+
 		if ( !input.ShowGroups )
 		{
 			return;
@@ -64,6 +67,11 @@ internal class ShaderGraphGroupControlWidget : ControlWidget
 		};
 	}
 
+	SerializedProperty GetInputProperty( SerializedProperty originalProperty )
+	{
+		if ( originalProperty is null )
+		{
+			return null;
 		}
 		if ( originalProperty.PropertyType == typeof( TextureInput ) )
 		{
@@ -95,6 +103,21 @@ internal class ShaderGraphGroupControlWidget : ControlWidget
 		{
 			return shaderNode;
 		}
+
 		return GetShaderNode( originalProperty.Parent?.ParentProperty );
+	}
+
+	BlackboardParameter GetBlackboardParameter( SerializedProperty originalProperty )
+	{
+		if ( originalProperty is null )
+		{
+			return null;
+		}
+		if ( originalProperty.Parent.Targets.First() is BlackboardParameter parameter )
+		{
+			return parameter;
+		}
+
+		return GetBlackboardParameter( originalProperty.Parent?.ParentProperty.Parent?.ParentProperty );
 	}
 }

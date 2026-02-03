@@ -94,6 +94,7 @@ public sealed class SubgraphNode : ShaderNode, IErroringNode
 				InputType.Float4 => typeof( Vector4 ),
 				InputType.Color => typeof( Color ),
 				InputType.Texture2D => typeof( Texture ),
+				//InputType.TextureCube => typeof( Texture ), // TODO
 				_ => throw new NotImplementedException()
 			};
 
@@ -254,7 +255,7 @@ internal class SubgraphNodeControlWidget : ControlWidget
 		foreach ( var inputRef in Node.InputReferences )
 		{
 			var name = inputRef.Key.Identifier;
-			var type = inputRef.Value.Item2;
+			var type = inputRef.Value.inputNodeValueType;
 			var getter = () =>
 			{
 				if ( Node.DefaultValues.ContainsKey( name ) )
@@ -266,17 +267,6 @@ internal class SubgraphNodeControlWidget : ControlWidget
 					var val = inputRef.Value.inputNode.DefaultValue;
 					if ( val is JsonElement el ) return el.GetDouble();
 					return val;
-				}
-			};
-			var getterTextureInput = () =>
-			{
-				//if ( Node.DefaultValues.ContainsKey( name ) )
-				//{
-				//	return Node.DefaultValues[name];
-				//}
-				//else
-				{
-					return inputRef.Value.Item1.DefaultTextureInput;
 				}
 			};
 
@@ -365,35 +355,19 @@ internal class SubgraphNodeControlWidget : ControlWidget
 			}
 			else if ( !Node.IsSubgraph && type == typeof( Texture ) )
 			{
-				attributes.Add( new ImageAssetPathAttribute() );
-				properties.Add( EditorTypeLibrary.CreateProperty<string>(
-					"Default Texture", () =>
+				properties.Add( EditorTypeLibrary.CreateProperty<TextureInput>(
+					displayName, () =>
 					{
 						var val = getter();
 
 						if ( val is JsonElement el )
 						{
-							return el.GetString();
+							return JsonSerializer.Deserialize<TextureInput>( el, ShaderGraph.SerializerOptions() )! with { Type = TextureType.Tex2D, ShowGroups = false };
 						}
 
-						return (string)val;
+						return ((TextureInput)val) with { Type = TextureType.Tex2D, ShowGroups = false };
 					}, x => SetDefaultValue( name, x ),
-					attributes.ToArray()
-				) );
-
-				properties.Add( EditorTypeLibrary.CreateProperty<TextureInput>(
-					displayName, () =>
-					{
-						var val = getterTextureInput();
-
-						//if ( val is JsonElement el )
-						//{
-						//	return JsonSerializer.Deserialize<TextureInput>( el )! with { Type = TextureType.Tex2D };
-						//}
-
-						return ((TextureInput)val) with { Type = TextureType.Tex2D };
-					}, x => SetDefaultValue( name, x ),
-					[new InlineEditorAttribute() { Label = false }, new WideModeAttribute() ]
+					[ new InlineEditorAttribute() { Label = false }, new WideModeAttribute() ]
 				) );
 
 				Sheet.AddGroup( displayName, properties.ToArray() );

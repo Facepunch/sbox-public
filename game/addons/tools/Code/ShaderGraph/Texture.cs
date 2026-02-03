@@ -85,7 +85,7 @@ public struct TextureInput
 	/// <summary>
 	/// Default texture that shows up in material editor
 	/// </summary>
-	[Hide, JsonIgnore]
+	[ImageAssetPath]
 	public string DefaultTexture { get; set; }
 
 	/// <summary>
