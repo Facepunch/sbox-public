@@ -31,6 +31,24 @@ public class VRTrackedObject : Component
 	}
 
 	/// <summary>
+	/// The type of pose to track from the controller
+	/// </summary>
+	public enum PoseTypes
+	{
+		/// <summary>
+		/// The grip pose - centered on the palm/grip of the controller.
+		/// Best for representing where the hand is holding the controller.
+		/// </summary>
+		Grip,
+
+		/// <summary>
+		/// The aim pose - pointing forward from the controller.
+		/// Best for aiming, pointing, or ray casting.
+		/// </summary>
+		Aim
+	}
+
+	/// <summary>
 	/// Represents transform values to update
 	/// </summary>
 	[Flags]
@@ -64,6 +82,13 @@ public class VRTrackedObject : Component
 	public PoseSources PoseSource { get; set; } = PoseSources.Head;
 
 	/// <summary>
+	/// Which pose type to use (only applies to hand controllers, not the head).
+	/// Grip is centered on the palm, Aim points forward for aiming/pointing.
+	/// </summary>
+	[Property]
+	public PoseTypes PoseType { get; set; } = PoseTypes.Grip;
+
+	/// <summary>
 	/// Which parts of the transform should be updated? (eg. rotation, position)
 	/// </summary>
 	[Property]
@@ -76,15 +101,15 @@ public class VRTrackedObject : Component
 	public bool UseRelativeTransform { get; set; } = false;
 
 	/// <summary>
-	/// Get the appropriate VR transform for the specified <see cref="PoseSource"/>
+	/// Get the appropriate VR transform for the specified <see cref="PoseSource"/> and <see cref="PoseType"/>
 	/// </summary>
 	private Transform GetTransform()
 	{
 		return PoseSource switch
 		{
 			PoseSources.Head => Input.VR.Head,
-			PoseSources.LeftHand => Input.VR.LeftHand.Transform,
-			PoseSources.RightHand => Input.VR.RightHand.Transform,
+			PoseSources.LeftHand => PoseType == PoseTypes.Aim ? Input.VR.LeftHand.AimTransform : Input.VR.LeftHand.Transform,
+			PoseSources.RightHand => PoseType == PoseTypes.Aim ? Input.VR.RightHand.AimTransform : Input.VR.RightHand.Transform,
 
 			_ => new Transform( Vector3.Zero, Rotation.Identity )
 		};
@@ -108,11 +133,16 @@ public class VRTrackedObject : Component
 
 		if ( TrackingType.Contains( TrackingTypes.Rotation ) )
 			GameObject.WorldRotation = newTransform.Rotation;
+
+		GameObject.Network.ClearInterpolation();
 	}
 
 	protected override void OnUpdate()
 	{
 		if ( !Enabled || Scene.IsEditor || !Game.IsRunningInVR )
+			return;
+
+		if ( IsProxy )
 			return;
 
 		UpdatePose();
@@ -121,6 +151,9 @@ public class VRTrackedObject : Component
 	protected override void OnPreRender()
 	{
 		if ( !Enabled || Scene.IsEditor || !Game.IsRunningInVR )
+			return;
+
+		if ( IsProxy )
 			return;
 
 		UpdatePose();

@@ -102,7 +102,9 @@ public class VRHand : Component
 			if ( bone is null )
 				continue;
 
-			var tx = GameObject.WorldTransform.ToLocal( entry.Transform );
+			// Joint transforms are in anchor-local space, convert to world space first
+			var worldTransform = Input.VR.Anchor.ToWorld( entry.Transform );
+			var tx = GameObject.WorldTransform.ToLocal( worldTransform );
 			tx = tx.WithPosition( tx.Position + offset.Position );
 			tx = tx.WithRotation( tx.Rotation * offset.Rotation );
 
@@ -115,12 +117,18 @@ public class VRHand : Component
 		if ( !Enabled || Scene.IsEditor || !Game.IsRunningInVR )
 			return;
 
+		if ( IsProxy )
+			return;
+
 		UpdatePose();
 	}
 
 	protected override void OnPreRender()
 	{
 		if ( !Enabled || Scene.IsEditor || !Game.IsRunningInVR )
+			return;
+
+		if ( IsProxy )
 			return;
 
 		UpdatePose();

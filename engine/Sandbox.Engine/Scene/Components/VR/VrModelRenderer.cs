@@ -59,6 +59,9 @@ public class VRModelRenderer : Component
 		if ( ModelRenderer == null )
 			return;
 
+		if ( IsProxy )
+			return;
+
 		var hand = (ModelSource == ModelSources.LeftHand) ? Input.VR.LeftHand : Input.VR.RightHand;
 		ModelRenderer.Model = hand.GetModel() ?? Model.Load( "models/dev/box.vmdl" );
 	}

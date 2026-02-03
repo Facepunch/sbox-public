@@ -29,9 +29,9 @@ public struct DigitalInput
 	/// </summary>
 	public readonly bool Active => _data.isActive;
 
-	internal DigitalInput( DigitalInput? previous, VRNative.BooleanAction action, InputSource inputSource )
+	internal DigitalInput( DigitalInput? previous, VRSystem.BooleanAction action, InputSource inputSource )
 	{
-		_data = VRNative.GetBooleanActionState( action, inputSource );
+		_data = VRSystem.GetBooleanActionState( action, inputSource );
 
 		if ( previous != null )
 		{
