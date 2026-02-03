@@ -164,7 +164,6 @@ public class MainWindow : DockWindow
 				_blackboardView.ClearSeletedItem();
 			}
 
-			// TODO : Make it work when subgraph inputs.
 			if ( node is IBlackboardNode blackboardNode )
 			{
 				// For now only select a blackboard parameter when _graphView only has 1 selection.
