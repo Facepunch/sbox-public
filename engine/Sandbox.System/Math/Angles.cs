@@ -132,7 +132,7 @@ public struct Angles : IEquatable<Angles>, IParsable<Angles>, IInterpolator<Angl
 	/// </summary>
 	public static Angles Parse( string str )
 	{
-		if ( TryParse( str, null, out var res ) )
+		if ( TryParse( str, CultureInfo.InvariantCulture, out var res ) )
 			return res;
 
 		return default;
