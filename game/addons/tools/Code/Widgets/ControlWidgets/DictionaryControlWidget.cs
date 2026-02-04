@@ -90,13 +90,14 @@ public class DictionaryControlWidget : ControlWidget
 
 			keyControl.ReadOnly = ReadOnly;
 			keyControl.Enabled = Enabled;
+			keyControl.FixedHeight = MathF.Max( keyControl.MinimumHeight, Theme.ControlHeight );
 
 			valControl.ReadOnly = ReadOnly;
 			valControl.Enabled = Enabled;
 
 			var index = y;
 			//grid.AddCell( 0, y, new IconButton( "drag_handle" ) { IconSize = 13, Foreground = Theme.ControlBackground, Background = Color.Transparent, FixedWidth = Theme.RowHeight, FixedHeight = Theme.RowHeight } );
-			grid.AddCell( 1, y, keyControl, 1, 1, keyControl.CellAlignment );
+			grid.AddCell( 1, y, keyControl, 1, 1, TextFlag.Center );
 			grid.AddCell( 2, y, new IconButton( ":" ) { IconSize = 13, Foreground = Theme.TextControl, Background = Color.Transparent, FixedWidth = Theme.RowHeight, FixedHeight = Theme.RowHeight } );
 			grid.AddCell( 3, y, valControl, 1, 1, valControl.CellAlignment );
 
