@@ -1,4 +1,4 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 public static partial class Gizmo
 {
@@ -44,11 +44,19 @@ public static partial class Gizmo
 						hasValueChanged = true;
 					}
 				}
+
+				using ( Sandbox.Gizmo.Scope( "view", 0, Gizmo.Transform.Rotation.Inverse * Gizmo.Camera.Rotation ) )
+                {
+                    if ( RotateSingle( "view", Color.White, out var angleDelta, 22.0f ) )
+                    {
+                        outValue *= Rotation.FromAxis(Vector3.Forward, angleDelta);
+                        hasValueChanged = true;
+                    }
+                }
 			}
 
 			return hasValueChanged;
 		}
-
 
 		/// <summary>
 		/// A single rotation axis
@@ -127,6 +135,5 @@ public static partial class Gizmo
 			angleDelta = angleDifference;
 			return true;
 		}
-
 	}
 }
