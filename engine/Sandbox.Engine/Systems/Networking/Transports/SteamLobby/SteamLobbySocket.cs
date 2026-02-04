@@ -200,7 +200,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		// Wait 2000ms for a host or time out
 		while ( timeout.Elapsed.TotalSeconds < 5f )
 		{
-			SteamNetwork.RunCallbacks();
+			Utility.Steam.RunCallbacks();
 
 			if ( lobby.hostConnection is not null )
 				return lobby;

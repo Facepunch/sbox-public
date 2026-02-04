@@ -137,8 +137,7 @@ internal static class EngineLoop
 		//
 		// Let the Steam API and Steam Game Server API think
 		//
-		NativeEngine.Steam.SteamGameServer_RunCallbacks();
-		NativeEngine.Steam.SteamAPI_RunCallbacks();
+		Utility.Steam.RunCallbacks();
 
 		//
 		// Update performance stats (should be called every frame)

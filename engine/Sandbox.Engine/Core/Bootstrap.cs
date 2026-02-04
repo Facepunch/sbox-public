@@ -183,8 +183,7 @@ internal static class Bootstrap
 			//
 			// Init vr system
 			//
-			if ( VRSystem.WantsInit )
-				VRSystem.Init();
+			VRSystem.Init();
 
 			//
 			// Init common engine shit

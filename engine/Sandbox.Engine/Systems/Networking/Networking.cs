@@ -403,7 +403,8 @@ public static partial class Networking
 
 		try
 		{
-			SteamNetwork.RunCallbacks();
+			Glue.Networking.RunCallbacks();
+
 			System?.Tick();
 			System?.SendTableUpdates();
 			System?.SendHeartbeat();

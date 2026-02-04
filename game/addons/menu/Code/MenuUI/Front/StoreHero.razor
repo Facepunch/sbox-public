@@ -27,6 +27,8 @@
         def = Sandbox.Services.Inventory.Definitions
                 .Where(x => x.SellEnd.HasValue) // is going to stop selling
                 .Where(x => x.SellEnd.Value > DateTimeOffset.UtcNow) // is currently for sale
+                .Where(x => x.SellStart.HasValue) // has a start time
+                .Where(x => x.SellStart.Value < DateTimeOffset.UtcNow) // has started to be for sale
                 .Where(x => !Sandbox.Services.Inventory.HasItem(x.Id)) // we don't own it
                 .OrderBy(x => new Guid())
                 .FirstOrDefault();

@@ -24,9 +24,9 @@ public struct AnalogInput
 	/// </summary>
 	public readonly bool Active => _data.isActive;
 
-	internal AnalogInput( AnalogInput? previous, VRNative.FloatAction action, InputSource inputSource )
+	internal AnalogInput( AnalogInput? previous, VRSystem.FloatAction action, InputSource inputSource )
 	{
-		_data = VRNative.GetFloatActionState( action, inputSource );
+		_data = VRSystem.GetFloatActionState( action, inputSource );
 
 		if ( previous != null )
 			Delta = Value - previous.Value.Value;

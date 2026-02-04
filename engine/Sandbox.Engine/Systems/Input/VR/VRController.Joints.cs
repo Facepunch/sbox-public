@@ -71,7 +71,7 @@ partial record VRController
 
 		if ( isCurl )
 		{
-			return VRNative.GetFingerCurl( _trackedDevice.InputSource, value );
+			return VRSystem.GetFingerCurl( _trackedDevice.InputSource, value );
 		}
 
 		return 0;

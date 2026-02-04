@@ -266,6 +266,53 @@ public sealed partial class IndirectLightVolume
 	}
 
 	/// <summary>
+	/// Loads probe data from an existing relocation texture.
+	/// This restores the Probes array after a scene reload.
+	/// </summary>
+	private void LoadProbesFromRelocationTexture()
+	{
+		if ( !Application.IsEditor )
+			return;
+
+		if ( Probes is not null )
+			return;
+
+		if ( !RelocationTexture.IsValid() )
+			return;
+
+		var counts = ProbeCounts;
+		var totalProbes = counts.x * counts.y * counts.z;
+
+		// Verify texture dimensions match current probe counts
+		if ( RelocationTexture.Width != counts.x ||
+			 RelocationTexture.Height != counts.y ||
+			 RelocationTexture.Depth != counts.z )
+		{
+			Log.Warning( $"RelocationTexture dimensions ({RelocationTexture.Width}x{RelocationTexture.Height}x{RelocationTexture.Depth}) don't match probe counts ({counts}), skipping load" );
+			return;
+		}
+
+		var pixelData = new Half[totalProbes * 4];
+		RelocationTexture.GetPixels3D( (0, 0, 0, counts.x, counts.y, counts.z), 0, pixelData.AsSpan(), ImageFormat.RGBA16161616F );
+
+		Probes = new Probe[totalProbes];
+
+		for ( int i = 0; i < totalProbes; i++ )
+		{
+			var pixelIndex = i * 4;
+			Probes[i] = new Probe
+			{
+				Offset = new Vector3(
+					(float)pixelData[pixelIndex + 0],
+					(float)pixelData[pixelIndex + 1],
+					(float)pixelData[pixelIndex + 2]
+				),
+				Active = (float)pixelData[pixelIndex + 3] > 0.5f
+			};
+		}
+	}
+
+	/// <summary>
 	/// Creates or updates the relocation texture from CPU offset data.
 	/// </summary>
 	private void UpdateRelocationTexture()

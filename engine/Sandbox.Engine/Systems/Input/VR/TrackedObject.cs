@@ -21,9 +21,16 @@ public record TrackedObject
 	public Angles AngularVelocity { get; private set; }
 
 	/// <summary>
-	/// The position and rotation of this tracked object in world space (based on the anchor position)
+	/// The grip pose transform of this tracked object in world space (centered on palm/grip).
+	/// This is the default transform used for hand positioning.
 	/// </summary>
 	public virtual Transform Transform => Input.VR.Anchor.ToWorld( _trackedDevice.Transform );
+
+	/// <summary>
+	/// The aim pose transform of this tracked object in world space (pointing forward).
+	/// Use this for aiming, pointing, or ray casting.
+	/// </summary>
+	public virtual Transform AimTransform => Input.VR.Anchor.ToWorld( _trackedDevice.AimTransform );
 
 	/// <summary>
 	/// Which part of the body this tracked object represents - waist, left shoulder, etc.

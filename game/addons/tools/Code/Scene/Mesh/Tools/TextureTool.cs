@@ -66,7 +66,7 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 			CreateFaceObject();
 		}
 
-		if ( Gizmo.IsHovered )
+		if ( Gizmo.IsHovered && !IsLassoSelecting )
 		{
 			SelectFace();
 

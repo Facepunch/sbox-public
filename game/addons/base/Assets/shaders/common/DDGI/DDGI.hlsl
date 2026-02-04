@@ -179,15 +179,26 @@ class DDGI
         float mean = meanVariance.x;           // Mean distance
         float variance = meanVariance.y;        // Variance of distance
 
-        // If we're in front of the mean surface distance, fully visible
-        if (distanceToSample <= mean)
+        // Minimum variance threshold to prevent numerical instability
+        // and overly harsh shadows from low-variance regions
+        const float minVariance = 0.001f;
+        variance = max(variance, minVariance);
+
+        // If we're clearly in front of the mean surface, fully visible
+        // Small epsilon to handle grazing angles
+        if (distanceToSample <= mean * 1.01f)
             return 1.0f;
 
-        float delta = max(distanceToSample - mean, 0.0f);
+        float delta = distanceToSample - mean;
         float chebyshev = variance / (variance + delta * delta);
 
         // Sharpen the curve to reduce light leaking
-        chebyshev = pow(chebyshev, 3.0f);
+        chebyshev = chebyshev * chebyshev * chebyshev; // pow(chebyshev, 3)
+        
+        // Apply a smooth threshold to cut off very low visibility values
+        // This helps eliminate residual light leak from the tail of the distribution
+        const float visibilityThreshold = 0.05f;
+        chebyshev = smoothstep(0.0f, visibilityThreshold * 2.0f, chebyshev) * chebyshev;
 
         return chebyshev;
     }
@@ -271,7 +282,14 @@ class DDGI
             float weight = 1.0f;
 
             float3 trueDirectionToProbe = normalize( relocatedProbePos - positionPs );
-            float wrapValue = (dot( trueDirectionToProbe, normalWs ) + 1.0f) * 0.5f;
+            
+            // Backface weight: aggressively reduce contribution from probes behind the surface
+            // Using a tighter wrap that doesn't add a constant offset
+            float backfaceDot = dot( trueDirectionToProbe, normalWs );
+            
+            // Smooth falloff that reaches zero at 90 degrees from normal
+            // This prevents probes on the other side of walls from contributing
+            float wrapValue = saturate( (backfaceDot + 1.0f) * 0.5f );
             weight *= (wrapValue * wrapValue) + 0.2f;
 
             float2 distanceMoments = SampleProbeDistance( volume, distanceTex, probeGridCoord, direction );
@@ -280,10 +298,14 @@ class DDGI
 
             float3 irradiance = SampleProbeIrradiance( volume, irradianceTex, probeGridCoord, -normalWs );
 
-            const float crushThreshold = 0.2f;
+            // Aggressively crush low weights to reduce light leaking
+            // Probes with very low visibility/backface weight are likely leaking
+            const float crushThreshold = 0.25f;
             if ( weight < crushThreshold )
             {
-                weight *= weight * weight * (1.0f / (crushThreshold * crushThreshold));
+                // Cubic falloff for smooth but aggressive crushing
+                float t = weight / crushThreshold;
+                weight = crushThreshold * t * t * t;
             }
 
             weight *= trilinear.x * trilinear.y * trilinear.z;

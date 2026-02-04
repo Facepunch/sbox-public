@@ -81,6 +81,11 @@ internal class NavMeshTile : IDisposable
 		_compressedHeightField = Compress( chf );
 	}
 
+	internal void SetCompressedHeightField( byte[] compressedData )
+	{
+		_compressedHeightField = compressedData;
+	}
+
 	public void DispatchNavmeshBuild( NavMesh navMesh )
 	{
 		var generatorConfig = navMesh.CreateTileGenerationConfig( TilePosition );
@@ -103,7 +108,7 @@ internal class NavMeshTile : IDisposable
 
 	}
 
-	public void DispatchHeightFieldBuild( NavMesh navMesh, PhysicsWorld physicsWorld )
+	public bool DispatchHeightFieldBuild( NavMesh navMesh, PhysicsWorld physicsWorld )
 	{
 		ThreadSafe.AssertIsMainThread();
 
@@ -115,6 +120,15 @@ internal class NavMeshTile : IDisposable
 		var heightFieldGenerator = NavMesh.HeightFieldGeneratorPool.Get();
 		heightFieldGenerator.Init( generatorConfig );
 		heightFieldGenerator.CollectGeometry( navMesh, physicsWorld, generatorConfig.Bounds );
+
+		if ( heightFieldGenerator.IsEmpty )
+		{
+			NavMesh.HeightFieldGeneratorPool.Return( heightFieldGenerator );
+			navMesh.UnloadTileOnMainThread( TilePosition );
+			IsNavmeshBuildRequested = false;
+			HeightfieldBuildComplete();
+			return false;
+		}
 
 		Task.Run( () =>
 		{
@@ -148,6 +162,8 @@ internal class NavMeshTile : IDisposable
 				HeightfieldBuildComplete();
 			} );
 		} );
+
+		return true;
 	}
 
 	List<Vector3> linkVertices = new();

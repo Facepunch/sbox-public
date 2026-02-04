@@ -109,8 +109,8 @@ internal class NavMeshTileCache : IDisposable
 
 			if ( tileCache.TryGetValue( tilePosition, out NavMeshTile tile ) )
 			{
-				tile.DispatchHeightFieldBuild( navMesh, physicsWorld );
-				heightfieldBuildsThisUpdate++;
+				var success = tile.DispatchHeightFieldBuild( navMesh, physicsWorld );
+				if ( success ) heightfieldBuildsThisUpdate++;
 			}
 		}
 

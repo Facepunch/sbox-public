@@ -11,6 +11,7 @@ namespace Editor.MeshEditor;
 [Group( "2" )]
 public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>( tool )
 {
+
 	public override void OnUpdate()
 	{
 		base.OnUpdate();
@@ -31,7 +32,7 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 			}
 		}
 
-		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection )
+		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection && !IsLassoSelecting )
 		{
 			SelectEdge();
 

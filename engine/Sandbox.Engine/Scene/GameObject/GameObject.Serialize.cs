@@ -313,7 +313,11 @@ public partial class GameObject
 				}
 
 				// Need to create those since they are not stored
-				PrefabInstance.InitMappingsForNestedInstance( node[JsonKeys.Id].Deserialize<Guid>() );
+				if ( !PrefabInstance.InitMappingsForNestedInstance( node[JsonKeys.Id].Deserialize<Guid>() ) )
+				{
+					PostDeserialize( options );
+					return;
+				}
 			}
 		}
 		// Handle full prefab instances
@@ -618,7 +622,7 @@ public partial class GameObject
 
 		if ( prefabFile == null || prefabFile.IsPromise )
 		{
-			Log.Warning( $"Unable to load prefab '{PrefabInstance.PrefabSource}'" );
+			Log.Warning( $"Unable to load prefab '{PrefabInstance.PrefabSource}'. Prefab is not loaded or does not exist." );
 			return false;
 		}
 

@@ -119,6 +119,7 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 		base.OnEnabled();
 		Transform.OnTransformChanged += OnDirty;
 
+		LoadProbesFromRelocationTexture();
 		OnDirty();
 	}
 

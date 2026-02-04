@@ -54,12 +54,18 @@ internal class PrefabInstanceData
 		UpdateLookups( validatedLookup );
 	}
 
-	public void InitMappingsForNestedInstance( Guid id )
+	public bool InitMappingsForNestedInstance( Guid id )
 	{
 		Assert.True( IsNested, "This method should only be called on a nested prefab instance." );
 
-
 		var prefabGameObject = _instanceRoot.OutermostPrefabInstanceRoot.PrefabInstance.FindPrefabGameObjectForInstanceId( id );
+
+		if ( prefabGameObject is null )
+		{
+			Log.Warning( $"Failed to init mappings for nested prefab instance {_instanceRoot}. Prefab is not loaded or does not exist." );
+			return false;
+		}
+
 		var instanceToPrefabMapping = new Dictionary<Guid, Guid>( _instanceRoot.OutermostPrefabInstanceRoot.PrefabInstance._instanceGuidToPrefabGuid );
 
 		// build a mapping all the way back to the original prefab
@@ -80,6 +86,12 @@ internal class PrefabInstanceData
 
 			// step up the hierarchy
 			prefabGameObject = prefabGameObject.OutermostPrefabInstanceRoot.PrefabInstance.FindPrefabGameObjectForInstanceId( prefabGameObject.Id );
+
+			if ( prefabGameObject is null )
+			{
+				Log.Warning( $"Failed to init mappings for nested prefab instance {_instanceRoot}. Prefab is not loaded or does not exist." );
+				return false;
+			}
 		}
 
 		instanceToPrefabMapping = AddNewObjectsToInstanceToPrefabLookup( _instanceRoot, instanceToPrefabMapping );
@@ -91,6 +103,8 @@ internal class PrefabInstanceData
 		}
 
 		InitLookups( prefabToInstanceMapping );
+
+		return true;
 	}
 
 	/// <summary>

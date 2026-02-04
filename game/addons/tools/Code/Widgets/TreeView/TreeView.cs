@@ -4,40 +4,30 @@ namespace Editor;
 
 public partial class TreeView : BaseItemWidget
 {
-	HashSet<object> openItems = new HashSet<object>();
+	readonly HashSet<object> openItems = [];
 
 	internal IEnumerable<object> OpenItems => openItems;
 
-	float _indentWidth;
 	/// <summary>
 	/// Additional horizontal indent for each subtree level.
 	/// </summary>
-	public float IndentWidth { get => _indentWidth; set { _indentWidth = value; OnLayoutChanged(); } }
+	public float IndentWidth { get => field; set { field = value; OnLayoutChanged(); } }
 
-	float _itemSpacing;
 	/// <summary>
 	/// Vertical spacing between each item.
 	/// </summary>
-	public float ItemSpacing { get => _itemSpacing; set { _itemSpacing = value; OnLayoutChanged(); } }
+	public float ItemSpacing { get => field; set { field = value; OnLayoutChanged(); } }
 
-	float _expandWidth;
 	/// <summary>
 	/// Width of the expand/collapse button.
 	/// </summary>
-	public float ExpandWidth { get => _expandWidth; set { _expandWidth = value; OnLayoutChanged(); } }
+	public float ExpandWidth { get => field; set { field = value; OnLayoutChanged(); } }
 
 	/// <summary>
 	/// If true, when an object is selected via SelectItem or dynamically via SelectionOverride, the treeview will
 	/// open all the items leading to that item and scroll to it.
 	/// </summary>
 	public bool ExpandForSelection { get; set; }
-
-	public enum DragDropTarget
-	{
-		None,
-		LastRoot
-	}
-	public DragDropTarget BodyDropTarget { get; set; } = DragDropTarget.None;
 
 	public TreeView( Widget parent = null ) : base( parent )
 	{
@@ -168,15 +158,16 @@ public partial class TreeView : BaseItemWidget
 
 		foreach ( var item in _items )
 		{
-			if ( !RecursiveLayout( item, ref config ) )
+			if ( !RecursiveLayout( item, ref config, out Rect r ) )
 				break;
 		}
 	}
 
 	public Func<object, bool> ShouldDisplayChild;
 
-	bool RecursiveLayout( object item, ref LayoutConfig config )
+	bool RecursiveLayout( object item, ref LayoutConfig config, out Rect outRect )
 	{
+		outRect = default;
 		config.IndexedObjects?.Add( ResolveObject( item ) );
 
 		bool isEnabled = GetItemIsEnabled( item );
@@ -191,11 +182,13 @@ public partial class TreeView : BaseItemWidget
 		var height = GetItemHeight( item );
 		var bottom = config.Top + height;
 
+		VirtualWidget lo = default;
+
 		if ( ShouldDisplayChild == null || (ShouldDisplayChild?.Invoke( item ) ?? false) )
 		{
 			if ( config.Layouts != null && bottom > config.Rect.Top && config.Top < config.Rect.Bottom )
 			{
-				var lo = new VirtualWidget();
+				lo = new VirtualWidget();
 				lo.Selected = IsSelected( item );
 				lo.Object = item;
 
@@ -205,6 +198,8 @@ public partial class TreeView : BaseItemWidget
 				lo.Column = config.Column;
 				lo.HasChildren = children;
 				lo.IsOpen = children && IsOpen( item );
+
+				outRect = lo.Rect;
 
 				config.Layouts?.Add( lo );
 			}
@@ -225,13 +220,29 @@ public partial class TreeView : BaseItemWidget
 
 		if ( open )
 		{
+			int childCount = 0;
+			Rect cr = default;
+
 			config.Column++;
 			foreach ( var child in GetChildren( item ) )
 			{
-				if ( !RecursiveLayout( child, ref config ) )
+				if ( !RecursiveLayout( child, ref config, out var childRect ) )
 					return false;
+
+				if ( childCount == 0 )
+				{
+					cr = childRect;
+				}
+				else
+				{
+					cr.Add( childRect );
+				}
+
+				childCount++;
 			}
 			config.Column--;
+
+			lo?.ChildrenRect = cr;
 		}
 
 		return true;
@@ -246,6 +257,7 @@ public partial class TreeView : BaseItemWidget
 
 		item.Indent = indent;
 		item.Rect.Left += indent;
+		item.ChildrenRect.Left += indent + IndentWidth;
 		if ( node != null )
 		{
 			node.OnPaint( item );
@@ -254,6 +266,7 @@ public partial class TreeView : BaseItemWidget
 		{
 			base.PaintItem( item );
 		}
+		item.ChildrenRect.Left -= indent + IndentWidth;
 		item.Rect.Left -= indent;
 		item.Indent = 0;
 
@@ -708,24 +721,6 @@ public partial class TreeView : BaseItemWidget
 		}
 
 		ScrollTo( rect.Top, rect.Height );
-	}
-
-	protected override VirtualWidget GetDragItem( DragEvent ev )
-	{
-		var item = GetItemAt( ev.LocalPosition );
-		if ( item is not null )
-			return item;
-
-		var value = BodyDropTarget switch
-		{
-			DragDropTarget.LastRoot => _items.LastOrDefault(),
-			_ => null
-		};
-
-		if ( value is null )
-			return null;
-
-		return FindVirtualWidget( value );
 	}
 
 	protected override bool OnDragItem( VirtualWidget item )

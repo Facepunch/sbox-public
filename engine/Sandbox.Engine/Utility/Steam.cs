@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using System.Runtime.InteropServices;
+using Sandbox.Network;
 
 namespace Sandbox.Utility;
 
@@ -49,6 +50,12 @@ public static class Steam
 		{
 			utils.InitFilterText( 0 );
 		}
+	}
+
+	internal static void RunCallbacks()
+	{
+		NativeEngine.Steam.SteamGameServer_RunCallbacks();
+		NativeEngine.Steam.SteamAPI_RunCallbacks();
 	}
 
 	/// <summary>

@@ -1,4 +1,5 @@
-﻿using Steamworks.Data;
+﻿using System.Runtime.InteropServices;
+using Steamworks.Data;
 
 namespace Steamworks
 {
@@ -10,20 +11,49 @@ namespace Steamworks
 	{
 		/// <summary>
 		/// Called if an exception happens during a callback/call result. This is needed because the
-		/// exception isn't always accessible when running async.. and can fail silently. With
+		/// exception isn't always accessible when running async... and can fail silently. With
 		/// this hooked you won't be stuck wondering what happened.
 		/// </summary>
-
 		internal static void OnClientCallback( int type, IntPtr data, int dataSize, bool isServer )
 		{
-			try
+			if ( ThreadSafe.IsMainThread )
 			{
-				ProcessCallback( (CallbackType)type, data, dataSize, isServer );
+				try
+				{
+					ProcessCallback( (CallbackType)type, data, dataSize, isServer );
+				}
+				catch ( Exception e )
+				{
+					Log.Error( e );
+				}
+
+				return;
 			}
-			catch ( Exception e )
+
+			// Copy the callback data immediately - Steam's pointer is only valid during the native callback
+			var dataCopy = new byte[dataSize];
+			Marshal.Copy( data, dataCopy, 0, dataSize );
+
+			MainThread.Queue( () =>
 			{
-				Log.Error( e );
-			}
+				try
+				{
+					var handle = GCHandle.Alloc( dataCopy, GCHandleType.Pinned );
+
+					try
+					{
+						ProcessCallback( (CallbackType)type, handle.AddrOfPinnedObject(), dataSize, isServer );
+					}
+					finally
+					{
+						handle.Free();
+					}
+				}
+				catch ( Exception e )
+				{
+					Log.Error( e );
+				}
+			} );
 		}
 
 		/// <summary>

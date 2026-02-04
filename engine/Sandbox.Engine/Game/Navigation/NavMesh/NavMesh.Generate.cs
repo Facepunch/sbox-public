@@ -74,8 +74,7 @@ public sealed partial class NavMesh
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		if ( !IsEnabled )
-			await Task.CompletedTask;
+		if ( !IsEnabled ) return;
 
 		var tilePosition = WorldPositionToTilePosition( worldPosition );
 		var tile = tileCache.GetOrAddTile( tilePosition );
@@ -129,8 +128,7 @@ public sealed partial class NavMesh
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		if ( !IsEnabled )
-			await Task.CompletedTask;
+		if ( !IsEnabled ) return;
 
 		var minMaxTileCoords = CalculateMinMaxTileCoords( bounds );
 
@@ -167,24 +165,33 @@ public sealed partial class NavMesh
 
 					try
 					{
-						var heightFieldGenerator = HeightFieldGeneratorPool.Get();
 						CompactHeightfield heightField;
-						try
+
+						// If not yet loaded and we have a cached heightfield from baked data, use it directly
+						if ( !IsLoaded && tile.IsHeightFieldValid )
 						{
-							heightFieldGenerator.Init( generatorConfig );
-
-							await GameTask.MainThread();
-							heightFieldGenerator.CollectGeometry( this, world, generatorConfig.Bounds );
-							await GameTask.WorkerThread();
-
-							heightField = heightFieldGenerator.Generate();
+							heightField = tile.DecompressCachedHeightField();
 						}
-						finally
+						else
 						{
-							HeightFieldGeneratorPool.Return( heightFieldGenerator );
-						}
+							var heightFieldGenerator = HeightFieldGeneratorPool.Get();
+							try
+							{
+								heightFieldGenerator.Init( generatorConfig );
 
-						tile.SetCachedHeightField( heightField );
+								await GameTask.MainThread();
+								heightFieldGenerator.CollectGeometry( this, world, generatorConfig.Bounds );
+								await GameTask.WorkerThread();
+
+								heightField = heightFieldGenerator.Generate();
+							}
+							finally
+							{
+								HeightFieldGeneratorPool.Return( heightFieldGenerator );
+							}
+
+							tile.SetCachedHeightField( heightField );
+						}
 
 						if ( heightField == null )
 						{

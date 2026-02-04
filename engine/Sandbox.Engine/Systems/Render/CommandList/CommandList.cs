@@ -418,6 +418,9 @@ public sealed unsafe partial class CommandList
 			var markerName = string.IsNullOrEmpty( DebugName ) ? "CommandList" : $"CommandList: {DebugName}";
 			Graphics.Context.BeginPixEvent( markerName );
 
+			// GPU Profiler timestamp
+			NativeEngine.CSceneSystem.SetManagedPerfMarker( Graphics.Context, DebugName ?? "CommandList" );
+
 			// Execute all commands
 			try
 			{

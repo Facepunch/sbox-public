@@ -1,4 +1,5 @@
 ﻿using System.Threading;
+using Sandbox.Utility;
 
 namespace Sandbox;
 
@@ -24,7 +25,7 @@ public static partial class Networking
 		_isClosing = true;
 	}
 
-	static Lock NetworkThreadLock = new Lock();
+	static readonly Lock NetworkThreadLock = new Lock();
 
 	private static void RunThread()
 	{
@@ -41,6 +42,8 @@ public static partial class Networking
 						system.ProcessMessagesInThread();
 					}
 				}
+
+				Steam.RunCallbacks();
 
 				Thread.Sleep( 1 );
 			}
