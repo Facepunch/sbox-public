@@ -68,7 +68,7 @@ internal static class Translation
 		//
 		if ( targetType == typeof( string ) )
 		{
-			convertedValue = FormattableString.Invariant($"{from}");
+			convertedValue = FormattableString.Invariant( $"{from}" );
 			return true;
 		}
 
@@ -104,7 +104,7 @@ internal static class Translation
 		//
 		if ( targetType == typeof( float ) )
 		{
-			if ( float.TryParse( from.ToString(),CultureInfo.InvariantCulture, out var f ) )
+			if ( float.TryParse( from.ToString(), CultureInfo.InvariantCulture, out var f ) )
 			{
 				convertedValue = f;
 				return true;
