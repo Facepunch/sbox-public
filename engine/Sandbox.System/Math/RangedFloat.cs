@@ -181,8 +181,8 @@ public partial struct RangedFloat
 	{
 		return Range switch
 		{
-			RangeType.Fixed => Min.ToString( "R" ),
-			RangeType.Between => $"{Min:R} {Max:R}",
+			RangeType.Fixed => Min.ToString( "R" ,CultureInfo.InvariantCulture),
+			RangeType.Between => FormattableString.Invariant($"{Min:R} {Max:R}"),
 			_ => "0"
 		};
 	}
