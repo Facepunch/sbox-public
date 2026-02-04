@@ -16,7 +16,7 @@ using System.Threading;
 [Icon( "grid_view" )]
 [EditorHandle( "materials/gizmo/lpv.png" )]
 [Alias( "DDGIVolume" )]
-public sealed partial class IndirectLightVolume : Component, Component.ExecuteInEditor
+public sealed partial class IndirectLightVolume : Component, Component.ExecuteInEditor, Component.DontExecuteOnServer
 {
 	/// <summary>
 	/// Behavior when a probe is detected inside geometry.
