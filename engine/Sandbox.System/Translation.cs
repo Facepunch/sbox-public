@@ -68,7 +68,7 @@ internal static class Translation
 		//
 		if ( targetType == typeof( string ) )
 		{
-			convertedValue = $"{from}";
+			convertedValue = FormattableString.Invariant($"{from}");
 			return true;
 		}
 
