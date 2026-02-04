@@ -248,9 +248,9 @@ public static partial class Gizmo
 	}
 
 	/// <summary>
-	/// Get the distance from a point on a plane
+	/// Get the vector distance from a point on a plane
 	/// </summary>
-	public static float GetMouseDistance( Vector3 position, Vector3 planeNormal )
+	public static Vector3 GetMouseDistanceVector( Vector3 position, Vector3 planeNormal )
 	{
 		var plane = new Plane( position, planeNormal );
 
@@ -258,7 +258,15 @@ public static partial class Gizmo
 
 		if ( a == null ) return 0.0f;
 
-		return (position - a.Value).Length;
+		return position - a.Value;
+	}
+
+	/// <summary>
+	/// Get the distance from a point on a plane
+	/// </summary>
+	public static float GetMouseDistance( Vector3 position, Vector3 planeNormal )
+	{
+		return GetMouseDistanceVector( position, planeNormal ).Length;
 	}
 
 	/// <summary>
