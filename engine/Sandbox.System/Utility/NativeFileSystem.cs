@@ -7,7 +7,7 @@ namespace Sandbox.Utility;
 /// <summary>
 /// Provides native file system operations with platform-specific implementations.
 /// </summary>
-public static partial class NativeFileSystem
+internal static partial class NativeFileSystem
 {
 	[DllImport( "kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true )]
 	private static extern IntPtr CreateFileW( string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes, uint dwCreationDisposition, uint dwFlagsAndAttributes, IntPtr hTemplateFile );

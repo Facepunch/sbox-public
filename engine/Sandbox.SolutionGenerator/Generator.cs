@@ -32,25 +32,22 @@ namespace Sandbox.SolutionGenerator
 		private string AttemptAbsoluteToRelative( string basePath, string targetPath )
 		{
 			string targetFileName = string.Empty;
-			string baseDir = NativeFileSystem.GetCanonicalPath( basePath );
-			string targetDir = NativeFileSystem.GetCanonicalPath( targetPath );
 
-			// If target is a file, extract the filename
 			if ( Path.HasExtension( targetPath ) )
 			{
 				targetFileName = Path.GetFileName( targetPath );
-				targetDir = NativeFileSystem.GetCanonicalPath( Path.GetDirectoryName( targetPath ) ?? targetPath );
+				targetPath = Path.GetDirectoryName( targetPath ) ?? targetPath;
 			}
 
-			// If base is a file, use its directory
 			if ( Path.HasExtension( basePath ) )
 			{
-				baseDir = NativeFileSystem.GetCanonicalPath( Path.GetDirectoryName( basePath ) ?? basePath );
+				basePath = Path.GetDirectoryName( basePath ) ?? basePath;
 			}
 
-			// Calculate relative path from base to target - this preserves casing when inputs are cased
-			string relativePath = Path.GetRelativePath( baseDir, targetDir );
-			relativePath = NormalizePath( relativePath );
+			string baseDir = NativeFileSystem.GetCanonicalPath( basePath );
+			string targetDir = NativeFileSystem.GetCanonicalPath( targetPath );
+
+			string relativePath = NormalizePath( Path.GetRelativePath( baseDir, targetDir ) );
 
 			if ( string.IsNullOrEmpty( targetFileName ) )
 				return relativePath;
