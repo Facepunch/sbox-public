@@ -112,7 +112,7 @@ public class EditorTool : IDisposable
 		{
 			if ( Manager.IsCurrentViewFocused )
 			{
-				if ( HasLassoSelectionMode() && (IsLassoSelecting || (Gizmo.IsAltPressed && Gizmo.IsLeftMouseDown)) )
+				if ( HasLassoSelectionMode() && (IsLassoSelecting || (Gizmo.IsAltPressed && Gizmo.IsLeftMouseDown && Gizmo.Pressed.CursorDelta.Length > 0.1f)) )
 				{
 					UpdateLassoSelection();
 				}
