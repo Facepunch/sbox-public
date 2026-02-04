@@ -361,7 +361,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public static SceneEditorSession Resolve( Scene scene )
 	{
-		if ( scene.Editor is SceneEditorSession session )
+		if ( scene.IsValid() && scene.Editor is SceneEditorSession session )
 		{
 			if ( session is GameEditorSession gs )
 				return gs.Parent; // we want the editor session, not the game session

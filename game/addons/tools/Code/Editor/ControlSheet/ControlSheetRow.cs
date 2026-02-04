@@ -284,6 +284,7 @@ class ControlSheetRow : Widget
 			menu.AddOption( $"Jump to code", "code", action: () => CodeEditor.OpenFile( property.SourceFile, property.SourceLine ) );
 		}
 
+		AddGameObjectOptions( menu );
 		AddComponentOptions( menu );
 
 		menu.OpenAt( e.ScreenPosition, false );
@@ -298,14 +299,14 @@ class ControlSheetRow : Widget
 	void AddComponentOptions( Menu menu )
 	{
 		// Are we editing the property of a component?
-		if ( !IsEditingComponent )
+		if ( !IsEditingComponent || property.IsMultipleValues )
 			return;
 
 		var component = EditedComponents.FirstOrDefault();
 
 		// Only show if we're editing in a game session
 		var session = SceneEditorSession.Resolve( component?.GameObject?.Scene );
-		if ( session is null )
+		if ( session is null || !session.IsPlaying )
 			return;
 
 		// try to find the version of this component in the editor session
@@ -329,6 +330,41 @@ class ControlSheetRow : Widget
 		} );
 		setter.Enabled = Json.Serialize( prop.GetValue<object>() ) != Json.Serialize( property.GetValue<object>() );
 	}
+
+	void AddGameObjectOptions( Menu menu )
+	{
+		if ( !IsEditingGameObject || property.IsMultipleValues )
+			return;
+
+		var gameObject = EditedGameObjects.FirstOrDefault();
+
+		// Only show if we're editing in a game session
+		var session = SceneEditorSession.Resolve( gameObject?.Scene );
+		if ( session is null || !session.IsPlaying )
+			return;
+
+		// try to find the version of this object in the editor session
+		var targetObject = session.Scene.Directory.FindByGuid( gameObject.Id );
+		if ( !targetObject.IsValid() ) return;
+
+		// get a serialized version of this object from that session
+		var so = targetObject.GetSerialized();
+		var prop = so.GetProperty( property.Name );
+
+		// add option to apply this value to that scene
+		menu.AddSeparator();
+		var setter = menu.AddOption( "Apply to Scene", "save", () =>
+		{
+			using var scope = session.Scene.Push();
+
+			using ( session.UndoScope( "Apply to Scene" ).WithGameObjectChanges( targetObject, GameObjectUndoFlags.Properties ).Push() )
+			{
+				prop.SetValue<object>( property.GetValue<object>() );
+			}
+		} );
+		setter.Enabled = Json.Serialize( prop.GetValue<object>() ) != Json.Serialize( property.GetValue<object>() );
+	}
+
 }
 
 internal class InfoBoxWidget : Widget
