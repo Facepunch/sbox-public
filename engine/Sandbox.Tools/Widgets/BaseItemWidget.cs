@@ -861,6 +861,8 @@ public partial class BaseItemWidget : BaseScrollWidget
 	[EditorEvent.Frame]
 	public void UpdateIfDirty()
 	{
+		if ( hovered is not null && (!Visible || !IsUnderMouse) )
+			InternalHoverChange( null );
 		if ( !Visible ) return;
 
 		UpdateDynamicSelection();
