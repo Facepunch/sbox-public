@@ -60,13 +60,18 @@ CS
 		{
 			material.BaseTextureId = PaintMaterialIndex;
 		}
-		else // Painting the Overlay layer
+		else if ( PaintLayer == 1 ) // Painting the Overlay layer
 		{
 			material.OverlayTextureId = PaintMaterialIndex;
 			
 			// Increase blend to make overlay material more visible
 			float newBlend = saturate( material.GetNormalizedBlend() + brushValue );
 			material.BlendFactor = uint( newBlend * 255.0 );
+		}
+		else // Painting both layers
+		{
+			material.BaseTextureId = PaintMaterialIndex;
+			material.OverlayTextureId = PaintMaterialIndex;
 		}
 
 		// Write back

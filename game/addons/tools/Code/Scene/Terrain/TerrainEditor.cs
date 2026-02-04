@@ -84,15 +84,23 @@ public class TerrainEditorTool : EditorTool
 			// Create named pages so we can hook into tab changes
 			var basePage = new Widget();
 			var overlayPage = new Widget();
+			var bothPage = new Widget();
 
 			tabs.AddPage( "Base", "layers", basePage );
 			tabs.AddPage( "Overlay", "landscape", overlayPage );
+			tabs.AddPage( "Both", "cloud", bothPage );
 
 			// Hook into tab selection changes
 			var tabBar = tabs.Children.OfType<SegmentedControl>().FirstOrDefault();
 			tabBar.OnSelectedChanged += ( selectedName ) =>
 			{
-				PaintTextureTool.ActiveLayer = selectedName == "Base" ? TerrainLayer.Base : TerrainLayer.Overlay;
+				PaintTextureTool.ActiveLayer = selectedName switch
+				{
+					"Base" => TerrainLayer.Base,
+					"Overlay" => TerrainLayer.Overlay,
+					"Both" => TerrainLayer.Both,
+					_ => TerrainLayer.Base
+				};
 			};
 
 			group.Add( tabs );
