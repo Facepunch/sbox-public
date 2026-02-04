@@ -93,7 +93,7 @@ public partial class SceneViewportWidget : Widget
 							.WithoutTags( "isdragdrop", "trigger" )
 							.UseRenderMeshes( currentDrop is MaterialDropObject )
 							.UsePhysicsWorld( currentDrop is not MaterialDropObject )
-							.Ray( _activeCamera.ScreenPixelToRay( ev.LocalPosition - Renderer.Position ), _activeCamera.ZFar + MathF.Abs( _activeCamera.ZNear ) )
+							.Ray( _activeCamera.ScreenPixelToRay( (ev.LocalPosition * DpiScale) - Renderer.Position ), _activeCamera.ZFar + MathF.Abs( _activeCamera.ZNear ) )
 							.Run();
 
 			if ( !tr.Hit )
