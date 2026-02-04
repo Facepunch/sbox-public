@@ -456,7 +456,7 @@ public partial class SceneViewportWidget : Widget
 		//
 
 		var hasMouseFocus = hasMouseInput;
-		if ( IsFocused && SceneViewWidget.Current.IsValid() )
+		if ( IsFocused && SceneViewWidget.Current.LastSelectedViewportWidget != this && SceneViewWidget.Current.IsValid() )
 		{
 			SceneViewWidget.Current.LastSelectedViewportWidget = this;
 		}

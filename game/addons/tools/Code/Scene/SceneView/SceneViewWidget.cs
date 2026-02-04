@@ -82,8 +82,14 @@ public partial class SceneViewWidget : Widget
 	public void Frame()
 	{
 		var session = Session;
-		if ( session is null ) return;
-		if ( !session.Scene.IsValid() ) return;
+		if ( session is null )
+		{
+			return;
+		}
+		if ( !session.Scene.IsValid() )
+		{
+			return;
+		}
 
 		using var scope = session.Scene.Push();
 
@@ -114,6 +120,12 @@ public partial class SceneViewWidget : Widget
 
 			if ( !shouldUpdate )
 				return;
+
+			if ( isActive )
+			{
+				// Log.Info("SceneViewWidget#Frame.L115 isActive");
+				Current = this;
+			}
 
 			session.Scene.EditorTick( RealTime.Now, RealTime.Delta );
 		}

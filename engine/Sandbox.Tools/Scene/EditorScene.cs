@@ -160,6 +160,9 @@ public static class EditorScene
 
 	static SceneEditorSession FindPlayableSession()
 	{
+		if ( SceneEditorSession.Active is not PrefabEditorSession )
+			return SceneEditorSession.Active;
+
 		// Current scene is good
 		if ( SceneEditorSession.Active?.Scene is not PrefabScene )
 			return SceneEditorSession.Active;
@@ -239,6 +242,7 @@ public static class EditorScene
 		if ( playableSession is null ) return;
 
 		OnPlayStore();
+		playableSession.MakeActive();
 
 		Game.IsPlaying = true;
 
