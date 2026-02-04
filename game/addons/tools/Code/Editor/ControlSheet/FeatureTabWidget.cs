@@ -288,6 +288,12 @@ public class FeatureTabOption : Widget
 		}
 
 		UpdateVisibility();
+
+		// Mark workspace as dirty when removing a feature
+		if ( SceneEditorSession.Active is not null )
+		{
+			SceneEditorSession.Active.HasUnsavedChanges = true;
+		}
 	}
 
 	protected override void OnContextMenu( ContextMenuEvent e )
@@ -354,6 +360,12 @@ public class FeatureTabOption : Widget
 		FeatureEnabled.As.Bool = true;
 		UpdateVisibility();
 		Owner.Select( this );
+
+		// Mark workspace as dirty when adding a feature
+		if ( SceneEditorSession.Active is not null )
+		{
+			SceneEditorSession.Active.HasUnsavedChanges = true;
+		}
 	}
 
 	protected override void OnPaint()
