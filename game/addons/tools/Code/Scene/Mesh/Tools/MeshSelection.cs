@@ -186,14 +186,20 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 			.Where( x => x.GetComponent<MeshComponent>().IsValid() )
 			.ToArray();
 
-		var connectedObjects = Application.KeyboardModifiers.Contains( KeyboardModifiers.Shift ) ? Selection.OfType<IMeshElement>()
+		var connectedObjects = Selection.OfType<IMeshElement>()
 			.Select( x => x.Component.GameObject )
-			.ToArray() : [];
+			.ToArray();
 
 		Selection.Clear();
 
 		foreach ( var go in objects ) Selection.Add( go );
 		foreach ( var go in connectedObjects ) Selection.Add( go );
+
+		// Only restore previous selection if we don't have any selected objects ready to go.
+		if ( !Selection.OfType<GameObject>().Any() )
+		{
+			RestorePreviousSelection<GameObject>();
+		}
 
 		OnSelectionChanged();
 
@@ -207,6 +213,8 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 		var undo = SceneEditorSession.Active.UndoSystem;
 		undo.OnUndo -= OnUndoRedo;
 		undo.OnRedo -= OnUndoRedo;
+
+		SaveCurrentSelection<GameObject>();
 	}
 
 	void OnUndoRedo( object _ )

@@ -41,6 +41,7 @@ public partial class MeshTool : EditorTool
 		yield return new EdgeTool( this );
 		yield return new FaceTool( this );
 		yield return new TextureTool( this );
+		yield return new VertexPaintTool( this );
 	}
 
 	public override void OnEnabled()
