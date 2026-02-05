@@ -39,4 +39,12 @@ internal static partial class SteamNetwork
 
 		handle.Free();
 	}
+
+	/// <summary>
+	/// This gets called by the SteamAPI, so only really need to call this in unit tests.
+	/// </summary>
+	internal static void RunCallbacks()
+	{
+		Glue.Networking.RunCallbacks();
+	}
 }
