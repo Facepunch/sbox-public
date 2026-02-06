@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 
 namespace Sandbox;
 
@@ -141,7 +142,7 @@ public partial class Particle : IDynamicFloatContext
 		Velocity = Velocity.WithFriction( amount, 100.0f );
 	}
 
-	public bool MoveWithCollision( in float bounce, in float friction, in float bumpiness, in float push, in bool die, in float dt, float radius, in SceneTrace trace )
+	internal bool MoveWithCollision( in float bounce, in float friction, in float bumpiness, in float push, in bool die, in float dt, float radius, in SceneTrace trace, ConcurrentBag<ParticleEffect.DeferredParticleForce> deferredForces )
 	{
 		const float surfaceOffset = 0.1f;
 
@@ -209,9 +210,9 @@ public partial class Particle : IDynamicFloatContext
 		//
 		// If we have push, then push the physics object we hit
 		//
-		if ( push != 0 )
+		if ( push != 0 && tr.Body is not null )
 		{
-			tr.Body.ApplyForceAt( tr.HitPosition, Velocity * tr.Body.Mass * push );
+			deferredForces?.Add( new( tr.Body, tr.HitPosition, Velocity * tr.Body.Mass * push ) );
 		}
 
 		HitPos = tr.HitPosition;

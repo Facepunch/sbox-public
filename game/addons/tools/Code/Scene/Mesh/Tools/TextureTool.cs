@@ -22,9 +22,6 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 	public bool SelectByNormal { get; set; } = true;
 	public float NormalThreshold { get; set; } = 12f;
 
-	//Display
-	public bool OverlaySelection { get; set; } = true;
-
 	public override void OnEnabled()
 	{
 		base.OnEnabled();
@@ -69,7 +66,7 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 			CreateFaceObject();
 		}
 
-		if ( Gizmo.IsHovered )
+		if ( Gizmo.IsHovered && !IsLassoSelecting )
 		{
 			SelectFace();
 
@@ -98,31 +95,12 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 				_faceObject.AddVertex( vertices.AsSpan() );
 			}
 
-			if ( Gizmo.WasRightMousePressed && Gizmo.KeyboardModifiers.Contains( KeyboardModifiers.Shift ) )
-			{
-				Tool.ActiveMaterial = _hoverFace.Material;
-			}
-
-			if ( Gizmo.IsRightMouseDown && Gizmo.KeyboardModifiers.Contains( KeyboardModifiers.Ctrl ) )
-			{
-				var material = mesh.GetFaceMaterial( _hoverFace.Handle );
-				if ( material != Tool.ActiveMaterial )
-				{
-					using ( SceneEditorSession.Active.UndoScope( "Paint Material" )
-						.WithComponentChanges( _hoverFace.Component )
-						.Push() )
-					{
-						mesh.SetFaceMaterial( _hoverFace.Handle, Tool.ActiveMaterial );
-					}
-				}
-			}
-
 			_hoverFace = default;
 		}
 
 		var selectionColor = Color.Yellow.WithAlpha( 0.1f );
 
-		if ( !OverlaySelection )
+		if ( !Tool.OverlaySelection )
 			selectionColor = Color.Transparent;
 
 		foreach ( var face in Selection.OfType<MeshFace>() )

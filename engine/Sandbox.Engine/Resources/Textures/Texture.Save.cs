@@ -12,7 +12,8 @@ public partial class Texture
 	/// (like EnvmapProbe's dynamic rendering). Face pairs are swapped and flipped to compensate
 	/// so the saved texture can be sampled normally.
 	/// </remarks>
-	public byte[] SaveToVtex( bool uncompressed = false )
+	/// <param name="formatOverride">Optional format override. If null, the format is automatically determined based on texture properties.</param>
+	public byte[] SaveToVtex( ImageFormat? formatOverride = null )
 	{
 		var desc = Desc;
 
@@ -73,9 +74,10 @@ public partial class Texture
 
 		writer.Header.Flags = flags;
 
-		writer.WantsUncompressed = uncompressed;
-
-		writer.CalculateFormat();
+		if ( formatOverride.HasValue )
+			writer.Header.Format = VTexWriter.RuntimeToVTEX_Format( formatOverride.Value ).Value;
+		else
+			writer.CalculateFormat();
 
 		var vtexData = writer.GetData();
 		var streamingData = writer.GetStreamingData();
@@ -136,8 +138,9 @@ public partial class Texture
 	/// <summary>
 	/// Asynchronously saves the current data to the VTEX platform and returns the resulting byte array.
 	/// </summary>
-	public async Task<byte[]> SaveToVtexAsync()
+	/// <param name="format">Optional format override. If null, the format is automatically determined based on texture properties.</param>
+	public async Task<byte[]> SaveToVtexAsync( ImageFormat? format = null )
 	{
-		return await Task.Run( () => SaveToVtex() );
+		return await Task.Run( () => SaveToVtex( format ) );
 	}
 }

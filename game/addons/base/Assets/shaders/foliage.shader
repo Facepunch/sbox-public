@@ -27,7 +27,7 @@ MODES
 {
     Forward();													    // Indicates this shader will be used for main rendering
     Depth( S_MODE_DEPTH );
-	ToolsShadingComplexity( "vr_tools_shading_complexity.shader" ); 	// Shows how expensive drawing is in debug view
+	ToolsShadingComplexity( "tools_shading_complexity.shader" ); 	// Shows how expensive drawing is in debug view
 }
 
 //=========================================================================================================================
@@ -179,7 +179,6 @@ PS
 	StaticCombo( S_GRAZING_FADE, F_GRAZING_FADE, Sys( ALL ) );
 
 	RenderState( CullMode, F_RENDER_BACKFACES ? NONE : DEFAULT );
-	RenderState( AlphaToCoverageEnable, false );
 
 	#if ( S_MODE_DEPTH == 0 )
 		RenderState( DepthFunc, EQUAL );
@@ -226,6 +225,24 @@ PS
 	#endif
 
 	#if S_ALPHA_TEST
+	float ApplyAlphaToCoverage( float opacity, float dist )
+	{
+		float eps = 1.0f / 255.0f;
+
+		// Clip first to try to kill the wave if we're in an area of all zero
+		clip( opacity - eps );
+
+		// Distance-based alpha reference for softer edges at distance
+		float distFactor = saturate( ( dist - g_flAlphaDistanceStart ) / max( g_flAlphaDistanceEnd - g_flAlphaDistanceStart, 0.001 ) );
+		float alphaRef = lerp( g_flAlphaTestReference, 0.1, distFactor );
+
+		// Sharp anti-aliased edge using shader derivatives
+		float sharpness = saturate( ( opacity - alphaRef ) / max( fwidth( opacity ), 0.0001 ) + 0.5 );
+
+		// Use sharpness as the opacity for alpha to coverage
+		return sharpness;
+	}
+
 	void ApplyAlphaTest( inout Material m, float dist )
 	{
 		float distFactor = saturate( ( dist - g_flAlphaDistanceStart ) / max( g_flAlphaDistanceEnd - g_flAlphaDistanceStart, 0.001 ) );
@@ -234,6 +251,7 @@ PS
 		clip( sharpness - 0.5 );
 		m.Opacity = 1.0;
 	}
+
 	#endif
 
 	#if S_GRAZING_FADE
@@ -279,7 +297,11 @@ PS
 		rim = pow( rim, g_flRimPower );
 		m.Emission += m.Albedo * rim * g_flRimStrength;
 	}
-
+	
+	// Force early-z in forward pass
+	#if ( S_MODE_DEPTH == 0 )
+		[earlydepthstencil]
+	#endif
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
 		Material m = Material::From( i );
@@ -324,7 +346,13 @@ PS
 		#endif
 
 		#if S_ALPHA_TEST
-			ApplyAlphaTest( m, dist );
+			// Old alpha test method for non-MSAA - clip pixels here
+			if (g_nMSAASampleCount == 1)
+			{
+				ApplyAlphaTest( m, dist );
+			}
+
+			float opacity = m.Opacity;
 		#endif
 
 		uint lightCount = Light::Count( m.WorldPosition );
@@ -348,6 +376,14 @@ PS
 		if ( g_flAmbientBoost > 0.0 )
 			m.Emission += m.Albedo * g_flAmbientBoost;
 
-		return ShadingModelStandard::Shade( i, m );
+		float4 output = ShadingModelStandard::Shade( i, m );
+
+		// Output custom alpha to coverage for foliage, overriding the one in shadingmodel
+		// Ensures we have smooth MSAA edges on foliage that are still sharp on distance
+		#if S_ALPHA_TEST
+			output.a = ApplyAlphaToCoverage( opacity, dist );
+		#endif
+
+		return output;
 	}
 }

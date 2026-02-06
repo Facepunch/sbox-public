@@ -219,9 +219,14 @@ public abstract partial class Asset
 	}
 
 	/// <summary>
-	/// Gets additional related files. This includes like .rect files for materials, all .fbx and .lxo files for models, etc.
+	/// Gets additional content-side related files. This includes like .rect files for materials, all .fbx and .lxo files for models, etc.
 	/// </summary>
-	public abstract List<string> GetAdditionalRelatedFiles();
+	public abstract List<string> GetAdditionalContentFiles();
+
+	/// <summary>
+	/// Gets additional game-side files to be packaged (e.g. navdata). These are files that are loaded by managed code, not as native resources.
+	/// </summary>
+	public abstract List<string> GetAdditionalGameFiles();
 
 	/// <summary>
 	/// Gets input dependencies for an asset. This'll be tga's for a texture and stuff like that.

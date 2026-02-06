@@ -27,6 +27,14 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 	int _renderedFace = 0;
 	Vector3Int _renderedIndex = 0;
 
+	static ComputeShader DepthCopyShader = new ComputeShader( "common/DDGI/ddgi_depth_copy_cs" );
+	static ComputeShader IntegrateShader = new ComputeShader( "common/DDGI/ddgi_integrate_cs" );
+
+	/// <summary>
+	/// Whether to do a second pass on probes that are inside geometry so they have accurate bounces.
+	/// </summary>
+	private readonly bool BakeWithTwoPasses = true;
+
 	public DDGIProbeUpdaterCubemapper( IndirectLightVolume volume )
 	{
 		_volume = volume;
@@ -47,16 +55,15 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 			if ( stage != Stage.AfterTransparent )
 				return;
 
-			// We dont render depth to cubemap, so we copy it manually
-			var depth = Texture.FromNative( Graphics.SceneLayer.GetDepthTarget() ); // FUCKING SHIT
+			// We don't render depth to cubemap, so we copy it manually using a compute shader
+			var depth = Texture.FromNative( Graphics.SceneLayer.GetDepthTarget() );
 
-			Graphics.CopyTexture( depth, _captureDepth, 0, 0, 0, _renderedFace );
+			CopyDepthToColor( depth, _captureDepth, _renderedFace );
 
 			depth.Dispose();
 
 			_renderedFace++;
 
-			// Hate this
 			if ( _renderedFace == 6 )
 				OnRenderFinish( _renderedIndex );
 		};
@@ -68,6 +75,24 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		InitializeProbeQueue();
 
 		EnsureResources();
+	}
+
+	/// <summary>
+	/// Copies depth texture values to a color texture array slice using a compute shader.
+	/// </summary>
+	void CopyDepthToColor( Texture srcDepth, Texture dstColor, int dstArraySlice )
+	{
+		var width = srcDepth.Width;
+		var height = srcDepth.Height;
+
+		var attrs = RenderAttributes.Pool.Get();
+		attrs.Set( "SourceDepth", srcDepth );
+		attrs.Set( "DestTextureArray", dstColor );
+		attrs.Set( "TextureSize", new Vector2Int( width, height ) );
+		attrs.Set( "DestArraySlice", dstArraySlice );
+
+		DepthCopyShader.DispatchWithAttributes( attrs, width, height, 1 );
+		RenderAttributes.Pool.Return( attrs );
 	}
 
 	void EnsureResources()
@@ -165,6 +190,7 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		var halfExtents = _volume.ComputeSpacing( probeCounts ) * _volume.WorldTransform.Scale.Abs();
 		var probeBounds = new BBox( -halfExtents, halfExtents );
 
+		var hitProbesList = new List<Vector3Int>();
 		var emptyProbesList = new List<Vector3Int>();
 
 		for ( int z = 0; z < probeCounts.z; z++ )
@@ -181,20 +207,38 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 							.Run();
 
 					if ( trace.Hit )
-						_pendingProbes.Add( probeIndex );
+						hitProbesList.Add( probeIndex );
 					else
 						emptyProbesList.Add( probeIndex );
 				}
 			}
 		}
 
-		// Make probes closer to the camera and that affect geometry render first
-		/*var eye = Application.Editor.Camera.WorldTransform;
-		_pendingProbes = _pendingProbes.OrderBy( x =>
+		if ( BakeWithTwoPasses )
 		{
-			return Vector3.DistanceBetween( _volume.GetProbeWorldPosition( x ), eye.Position );
-		} ).ToList();*/
+			// Make probes closer to the camera and that affect geometry render first
+			_pendingProbes.AddRange( hitProbesList );
+			var eye = Application.Editor.Camera.WorldTransform;
 
+			var trace = scene.Trace.Ray( eye.Position, eye.Position + eye.Forward * 10000 )
+				.UseRenderMeshes()
+				.Run();
+
+			var hitPos = trace.Hit ? trace.HitPosition : eye.Position + eye.Forward * 100;
+
+			_pendingProbes = _pendingProbes.OrderBy( x =>
+			{
+				return Vector3.DistanceBetween( _volume.GetProbeWorldPosition( x ), hitPos );
+			} ).ToList();
+
+			// Do a second pass for probes that hit geometry to make sure have accurate bounces
+			_pendingProbes.AddRange( _pendingProbes );
+		}
+		else
+		{
+			// Just render all probes that hit geometry first
+			_pendingProbes.AddRange( hitProbesList );
+		}
 		// Append empty probes at the end of the list
 		_pendingProbes.AddRange( emptyProbesList );
 	}
@@ -211,6 +255,7 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 								.Finish();
 
 		_captureDepth = Texture.CreateCube( cubemapSize, cubemapSize )
+								.WithUAVBinding()
 								.WithFormat( ImageFormat.R32F )
 								.Finish();
 	}
@@ -220,11 +265,11 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		Integrate( probeIndex );
 	}
 
-	ComputeShader IntegrateShader = new ComputeShader( "common/DDGI/ddgi_integrate_cs" );
+
 	private void Integrate( Vector3Int probeIndex )
 	{
 		// Encode our sample into the volume's textures
-		var attrs = new RenderAttributes();
+		var attrs = RenderAttributes.Pool.Get();
 		attrs.Set( "SourceProbe", _captureTexture );
 		attrs.Set( "SourceDepth", _captureDepth );
 
@@ -242,6 +287,8 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 		// Distance pass (14x14 interior + 2 border = 16x16 tile)
 		attrs.SetCombo( "D_PASS", 1 );
 		IntegrateShader.DispatchWithAttributes( attrs, 1, 1, 1 );
+
+		RenderAttributes.Pool.Return( attrs );
 	}
 
 	public void Dispose()

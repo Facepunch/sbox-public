@@ -65,7 +65,12 @@ internal class EmbeddedAsset : Asset
 		return [];
 	}
 
-	public override List<string> GetAdditionalRelatedFiles()
+	public override List<string> GetAdditionalContentFiles()
+	{
+		return [];
+	}
+
+	public override List<string> GetAdditionalGameFiles()
 	{
 		return [];
 	}

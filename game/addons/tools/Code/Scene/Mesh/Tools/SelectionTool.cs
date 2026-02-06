@@ -83,6 +83,42 @@ public abstract class SelectionTool : EditorTool
 	}
 
 	public override Widget CreateShortcutsWidget() => new SelectionToolShortcutsWidget( this );
+
+	/// <summary>
+	/// Stores the previous selection for each tool type so that re-entering the tool restores it.
+	/// </summary>
+	[SkipHotload]
+	protected static readonly Dictionary<Type, SelectionSystem> PreviousSelections = [];
+
+	public static IEnumerable<T> GetAllSelected<T>()
+	{
+		return PreviousSelections.Values
+			.SelectMany( s => s )
+			.OfType<T>()
+			.Distinct();
+	}
+
+	protected void SaveCurrentSelection<T>() where T : IValid
+	{
+		var stored = PreviousSelections.GetOrCreate( GetType() );
+		stored.Clear();
+
+		foreach ( var element in Selection.OfType<T>().Where( x => x.IsValid() ) )
+		{
+			stored.Add( element );
+		}
+	}
+
+	protected void RestorePreviousSelection<T>() where T : IValid
+	{
+		if ( !PreviousSelections.TryGetValue( GetType(), out var previousSelection ) )
+			return;
+
+		foreach ( var element in previousSelection.OfType<T>().Where( x => x.IsValid() ) )
+		{
+			Selection.Add( element );
+		}
+	}
 }
 
 file class SelectionToolShortcutsWidget( SelectionTool tool ) : Widget
@@ -103,11 +139,6 @@ file class SelectionToolShortcutsWidget( SelectionTool tool ) : Widget
 public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T : IMeshElement
 {
 	protected MeshTool Tool { get; private init; } = tool;
-
-	/// <summary>
-	/// Stores the previous selection for each tool type so that re-entering the tool restores it.
-	/// </summary>
-	private static readonly Dictionary<Type, SelectionSystem> _previousSelections = [];
 
 	readonly HashSet<MeshVertex> _vertexSelection = [];
 	readonly Dictionary<MeshVertex, Vector3> _transformVertices = [];
@@ -185,7 +216,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 		SceneEditorSession.Active.UndoSystem.OnUndo += ( _ ) => OnMeshSelectionChanged();
 		SceneEditorSession.Active.UndoSystem.OnRedo += ( _ ) => OnMeshSelectionChanged();
 
-		RestorePreviousSelection();
+		RestorePreviousSelection<T>();
 		SelectElements();
 		CalculateSelectionVertices();
 		OnMeshSelectionChanged();
@@ -193,35 +224,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 
 	public override void OnDisabled()
 	{
-		SaveCurrentSelection();
-	}
-
-	/// <summary>
-	/// Saves the current selection so it can be restored when re-entering this tool.
-	/// </summary>
-	private void SaveCurrentSelection()
-	{
-		var stored = _previousSelections.GetOrCreate( GetType() );
-		stored.Clear();
-
-		foreach ( var element in Selection.OfType<T>().Where( x => x.IsValid() ) )
-		{
-			stored.Add( element );
-		}
-	}
-
-	/// <summary>
-	/// Restores the previous selection if available.
-	/// </summary>
-	private void RestorePreviousSelection()
-	{
-		if ( !_previousSelections.TryGetValue( GetType(), out var previousSelection ) )
-			return;
-
-		foreach ( var element in previousSelection.OfType<T>().Where( x => x.IsValid() ) )
-		{
-			Selection.Add( element );
-		}
+		SaveCurrentSelection<T>();
 	}
 
 	public bool IsAllowedToSelect => Tool?.MoveMode?.AllowSceneSelection ?? true;
@@ -263,8 +266,44 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 			OnMeshSelectionChanged();
 		}
 
+		HandleGlobalMaterialOperations();
+
 		if ( IsAllowedToSelect )
 			DrawSelection();
+	}
+
+	/// <summary>
+	/// Handle Shift+RMB (pick material) and Ctrl+RMB (paint material) globally across all mesh tools.
+	/// </summary>
+	private void HandleGlobalMaterialOperations()
+	{
+		if ( Gizmo.WasRightMousePressed && Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
+		{
+			var face = TraceFace();
+			if ( face.IsValid() )
+			{
+				Tool.ActiveMaterial = face.Material;
+			}
+		}
+
+		if ( Gizmo.IsRightMouseDown && Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
+		{
+			var face = TraceFace();
+			if ( face.IsValid() )
+			{
+				var mesh = face.Component.Mesh;
+				var currentMaterial = mesh.GetFaceMaterial( face.Handle );
+				if ( currentMaterial != Tool.ActiveMaterial )
+				{
+					using ( SceneEditorSession.Active.UndoScope( "Paint Material" )
+						.WithComponentChanges( face.Component )
+						.Push() )
+					{
+						mesh.SetFaceMaterial( face.Handle, Tool.ActiveMaterial );
+					}
+				}
+			}
+		}
 	}
 
 	void UpdateMoveMode()
@@ -622,7 +661,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 
 	public MeshFace TraceFace()
 	{
-		if ( IsBoxSelecting )
+		if ( IsBoxSelecting || IsLassoSelecting )
 			return default;
 
 		var result = MeshTrace.Run();
@@ -652,6 +691,261 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 		}
 
 		return orientation;
+	}
+
+	//All the meshtools want the lasso selection mode
+	public override bool HasLassoSelectionMode() => true;
+
+	protected override void OnLassoSelect( List<Vector2> lassoPoints, bool isFinal )
+	{
+		if ( !isFinal ) return;
+
+		LassoSelection( lassoPoints );
+	}
+
+	/// <summary>
+	/// Check if a vertex position is occluded by geometry when viewed from the camera.
+	/// </summary>
+	protected bool IsVertexOccluded( Vector3 worldPos, Vector3 cameraPos )
+	{
+		var trace = Scene.Trace
+			.Ray( cameraPos, worldPos )
+			.UseRenderMeshes()
+			.Run();
+
+		if ( trace.Hit )
+		{
+			var distanceToVertex = Vector3.DistanceBetween( cameraPos, worldPos );
+			var distanceToHit = Vector3.DistanceBetween( cameraPos, trace.HitPosition );
+			return distanceToHit < distanceToVertex - 0.1f;
+		}
+
+		return false;
+	}
+
+	protected void LassoSelection( List<Vector2> lassoPoints )
+	{
+		var minX = float.MaxValue;
+		var maxX = float.MinValue;
+		var minY = float.MaxValue;
+		var maxY = float.MinValue;
+
+		foreach ( var p in lassoPoints )
+		{
+			if ( p.x < minX ) minX = p.x;
+			if ( p.x > maxX ) maxX = p.x;
+			if ( p.y < minY ) minY = p.y;
+			if ( p.y > maxY ) maxY = p.y;
+		}
+
+		var lassoBounds = new Rect( minX, minY, maxX - minX, maxY - minY );
+		var cameraPos = Gizmo.Camera.Position;
+		var cameraForward = Gizmo.Camera.Rotation.Forward;
+
+		HashSet<T> selection = [];
+		HashSet<T> previous = [];
+
+		foreach ( var component in Scene.GetAllComponents<MeshComponent>() )
+		{
+			var mesh = component.Mesh;
+			if ( mesh == null ) continue;
+
+			var worldBounds = component.GetWorldBounds();
+			var meshScreenBounds = GetScreenRectFromBounds( worldBounds );
+
+			if ( !lassoBounds.IsInside( meshScreenBounds ) )
+			{
+				if ( typeof( T ) == typeof( MeshVertex ) )
+				{
+					foreach ( var h in mesh.VertexHandles )
+						previous.Add( (T)(object)new MeshVertex( component, h ) );
+				}
+				else if ( typeof( T ) == typeof( MeshEdge ) )
+				{
+					foreach ( var h in mesh.HalfEdgeHandles )
+					{
+						if ( h.Index > mesh.GetOppositeHalfEdge( h ).Index )
+							continue;
+						previous.Add( (T)(object)new MeshEdge( component, h ) );
+					}
+				}
+				else if ( typeof( T ) == typeof( MeshFace ) )
+				{
+					foreach ( var h in mesh.FaceHandles )
+						previous.Add( (T)(object)new MeshFace( component, h ) );
+				}
+				continue;
+			}
+
+			var transform = component.Transform.World;
+
+			if ( typeof( T ) == typeof( MeshVertex ) )
+			{
+				foreach ( var h in mesh.VertexHandles )
+				{
+					var worldPos = transform.PointToWorld( mesh.GetVertexPosition( h ) );
+					var vertex = (T)(object)new MeshVertex( component, h );
+
+					var toVertex = worldPos - cameraPos;
+					if ( Vector3.Dot( toVertex, cameraForward ) < 0.1f )
+					{
+						previous.Add( vertex );
+						continue;
+					}
+
+					if ( !Tool.SelectionThrough && IsVertexOccluded( worldPos, cameraPos ) )
+					{
+						previous.Add( vertex );
+						continue;
+					}
+
+					var screenPos = Gizmo.Camera.ToScreen( worldPos );
+
+					if ( lassoBounds.IsInside( screenPos ) && IsPointInLasso( screenPos, lassoPoints ) )
+						selection.Add( vertex );
+					else
+						previous.Add( vertex );
+				}
+			}
+			else if ( typeof( T ) == typeof( MeshEdge ) )
+			{
+				foreach ( var h in mesh.HalfEdgeHandles )
+				{
+					if ( h.Index > mesh.GetOppositeHalfEdge( h ).Index )
+						continue;
+
+					mesh.GetEdgeVertices( h, out var vA, out var vB );
+					var worldPosA = transform.PointToWorld( mesh.GetVertexPosition( vA ) );
+					var worldPosB = transform.PointToWorld( mesh.GetVertexPosition( vB ) );
+					var edge = (T)(object)new MeshEdge( component, h );
+
+					var toVertexA = worldPosA - cameraPos;
+					var toVertexB = worldPosB - cameraPos;
+					bool aInFront = Vector3.Dot( toVertexA, cameraForward ) > 0.1f;
+					bool bInFront = Vector3.Dot( toVertexB, cameraForward ) > 0.1f;
+
+					if ( !aInFront && !bInFront )
+					{
+						previous.Add( edge );
+						continue;
+					}
+
+					if ( !Tool.SelectionThrough )
+					{
+						if ( aInFront && IsVertexOccluded( worldPosA, cameraPos ) )
+							aInFront = false;
+
+						if ( bInFront && IsVertexOccluded( worldPosB, cameraPos ) )
+							bInFront = false;
+
+						if ( !aInFront && !bInFront )
+						{
+							previous.Add( edge );
+							continue;
+						}
+					}
+
+					var screenPosA = Gizmo.Camera.ToScreen( worldPosA );
+					var screenPosB = Gizmo.Camera.ToScreen( worldPosB );
+
+					bool aInLasso = aInFront && lassoBounds.IsInside( screenPosA ) && IsPointInLasso( screenPosA, lassoPoints );
+					bool bInLasso = bInFront && lassoBounds.IsInside( screenPosB ) && IsPointInLasso( screenPosB, lassoPoints );
+
+					bool isSelected = Tool.LassoPartialSelection ? (aInLasso || bInLasso) : (aInLasso && bInLasso);
+
+					if ( isSelected )
+						selection.Add( edge );
+					else
+						previous.Add( edge );
+				}
+			}
+			else if ( typeof( T ) == typeof( MeshFace ) )
+			{
+				foreach ( var h in mesh.FaceHandles )
+				{
+					mesh.GetVerticesConnectedToFace( h, out var vertices );
+					var face = (T)(object)new MeshFace( component, h );
+
+					int inFrontCount = 0;
+					int inLassoCount = 0;
+					int totalCount = 0;
+
+					foreach ( var v in vertices )
+					{
+						var worldPos = transform.PointToWorld( mesh.GetVertexPosition( v ) );
+						totalCount++;
+
+						var toVertex = worldPos - cameraPos;
+						if ( Vector3.Dot( toVertex, cameraForward ) <= 0 )
+							continue;
+
+						if ( !Tool.SelectionThrough && IsVertexOccluded( worldPos, cameraPos ) )
+							continue;
+
+						inFrontCount++;
+
+						var screenPos = Gizmo.Camera.ToScreen( worldPos );
+						if ( lassoBounds.IsInside( screenPos ) && IsPointInLasso( screenPos, lassoPoints ) )
+							inLassoCount++;
+					}
+
+					if ( inFrontCount == 0 )
+					{
+						previous.Add( face );
+						continue;
+					}
+
+					bool isSelected = Tool.LassoPartialSelection ? (inLassoCount > 0) : (inLassoCount == totalCount);
+
+					if ( isSelected )
+						selection.Add( face );
+					else
+						previous.Add( face );
+				}
+			}
+		}
+
+		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
+		{
+			foreach ( var element in selection )
+			{
+				if ( Selection.Contains( element ) )
+					Selection.Remove( element );
+			}
+		}
+		else
+		{
+			foreach ( var element in selection )
+			{
+				if ( !Selection.Contains( element ) )
+					Selection.Add( element );
+			}
+
+			if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
+			{
+				foreach ( var element in previous )
+				{
+					if ( Selection.Contains( element ) )
+						Selection.Remove( element );
+				}
+			}
+		}
+	}
+
+	private Rect GetScreenRectFromBounds( BBox bounds )
+	{
+		var corners = bounds.Corners.ToArray();
+		var min = new Vector2( float.MaxValue, float.MaxValue );
+		var max = new Vector2( float.MinValue, float.MinValue );
+
+		foreach ( var corner in corners )
+		{
+			var screenPos = Gizmo.Camera.ToScreen( corner );
+			min = Vector2.Min( min, screenPos );
+			max = Vector2.Max( max, screenPos );
+		}
+
+		return new Rect( min.x, min.y, max.x - min.x, max.y - min.y );
 	}
 
 	[SkipHotload]

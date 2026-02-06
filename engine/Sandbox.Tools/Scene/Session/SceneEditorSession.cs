@@ -538,7 +538,7 @@ file class AssetFolderInstance : SceneFolder
 		_folder = $"{_folder}{extension}_data";
 
 		_relativeFolder = System.IO.Path.ChangeExtension( relativePath, null );
-		_relativeFolder = $"{_relativeFolder}{extension}_data".NormalizeFilename();
+		_relativeFolder = $"{_relativeFolder}{extension}_data".NormalizeFilename( false );
 
 		System.IO.Directory.CreateDirectory( _folder );
 
@@ -556,7 +556,6 @@ file class AssetFolderInstance : SceneFolder
 
 		if ( filename.StartsWith( '/' ) ) filename = filename[1..];
 
-		var absPath = System.IO.Path.Combine( _relativeFolder, filename );
-		return absPath;
+		return System.IO.Path.Combine( _relativeFolder, filename ).NormalizeFilename( false );
 	}
 }

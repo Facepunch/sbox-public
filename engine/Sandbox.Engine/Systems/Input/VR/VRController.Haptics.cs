@@ -57,8 +57,8 @@ partial record VRController
 	/// </summary>
 	public void StopAllHaptics()
 	{
-		VRNative.TriggerHapticVibration( 0, 0, 0, InputSource.LeftHand );
-		VRNative.TriggerHapticVibration( 0, 0, 0, InputSource.RightHand );
+		VRSystem.TriggerHapticVibration( 0, 0, 0, InputSource.LeftHand );
+		VRSystem.TriggerHapticVibration( 0, 0, 0, InputSource.RightHand );
 
 		ActiveHapticEffect = null;
 	}
@@ -72,6 +72,6 @@ partial record VRController
 		if ( frequency < 0.0f || frequency > 320.0f ) throw new ArgumentOutOfRangeException( "Frequency needs to be between 0.0 and 320.0 hz", "frequency" );
 		if ( amplitude < 0.0f || amplitude > 1.0f ) throw new ArgumentOutOfRangeException( "Amplitude needs to be between 0.0 and 1.0", "amplitude" );
 
-		VRNative.TriggerHapticVibration( duration, frequency, amplitude, _trackedDevice.InputSource );
+		VRSystem.TriggerHapticVibration( duration, frequency, amplitude, _trackedDevice.InputSource );
 	}
 }

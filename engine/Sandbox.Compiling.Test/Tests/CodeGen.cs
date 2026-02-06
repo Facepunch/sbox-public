@@ -222,13 +222,13 @@ namespace Generator
 
 			System.Console.WriteLine( tree.GetText().ToString() );
 
-			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = null, MethodIdentity = -1168963981, MethodName = \"TestWrappedStaticCall\", TypeName = \"TestWrapCall\"" ), "Generated code should wrap static method call" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = null !, MethodIdentity = -1168963981, MethodName = \"TestWrappedStaticCall\", TypeName = \"TestWrapCall\"" ), "Generated code should wrap static method call" );
 			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = this, MethodIdentity = -446800946, MethodName = \"TestWrappedInstanceCall\", TypeName = \"TestWrapCall\"" ), "Generated code should wrap instance method call" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = null, MethodIdentity = 1638661065, MethodName = \"TestWrappedStaticCallNoArg\", TypeName = \"TestWrapCall\"" ), "Generated code should wrap static method call with no arg" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = null !, MethodIdentity = 1638661065, MethodName = \"TestWrappedStaticCallNoArg\", TypeName = \"TestWrapCall\"" ), "Generated code should wrap static method call with no arg" );
 			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = this, MethodIdentity = -1769572979, MethodName = \"TestWrappedInstanceCallNoArg\", TypeName = \"TestWrapCall\"" ), "Generated code should wrap instance method call with no arg" );
 			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = this, MethodIdentity = 1201362747, MethodName = \"ExpressionBodiedBroadcast\", TypeName = \"TestWrapCall\"" ), "Generated code should wrap expression bodied method" );
 			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = this, MethodIdentity = -1316352073, MethodName = \"TestWrappedInstanceCallReturnType\", TypeName = \"TestWrapCall\"" ), "Generated code should wrap instance method call with return type" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = null, MethodIdentity = 1168636003, MethodName = \"TestAsyncTaskCall\", TypeName = \"TestWrapCall\", IsStatic = true" ), "Generated code should wrap async Task method call" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "Object = null !, MethodIdentity = 1168636003, MethodName = \"TestAsyncTaskCall\", TypeName = \"TestWrapCall\", IsStatic = true" ), "Generated code should wrap async Task method call" );
 			Assert.IsTrue( tree.GetText().ToString().Contains( "MethodName = \"MyGenericCall\", TypeName = \"TestWrapCall\", IsStatic = false, Attributes = __898531504__Attrs, GenericArguments = new[] { typeof(T) } }" ), "Generated code should include closed generic types" );
 			Assert.IsTrue( tree.GetText().ToString().Contains( "MethodName = \"MyGenericCallAsync\", TypeName = \"TestWrapCall\", IsStatic = false, Attributes = __1383690312__Attrs, GenericArguments = new[] { typeof(T) } }" ), "Generated code should include closed generic types when returning a Task" );
 		}
@@ -270,8 +270,8 @@ namespace Generator
 			var tree = compiler.SyntaxTrees.First();
 			System.Console.WriteLine( tree.GetText().ToString() );
 
-			Assert.IsTrue( tree.GetText().ToString().Contains( "WrapSet.OnWrapSetStatic(new global::Sandbox.WrappedPropertySet<bool> { Value = value, Object = null, Setter = __StaticProperty_WrapSet__CachedSetter" ), "Generated code should wrap static property set accessor" );
-			Assert.IsTrue( tree.GetText().ToString().Contains( "OnWrapSet(new global::Sandbox.WrappedPropertySet<bool> { Value = value, Object = this, Setter = __InstanceProperty_WrapSet__CachedSetter" ), "Generated code should wrap instance property set accessor" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "WrapSet.OnWrapSetStatic(new global::Sandbox.WrappedPropertySet<bool> { Value = value!, Object = null !, Setter = __StaticProperty_WrapSet__CachedSetter" ), "Generated code should wrap static property set accessor" );
+			Assert.IsTrue( tree.GetText().ToString().Contains( "OnWrapSet(new global::Sandbox.WrappedPropertySet<bool> { Value = value!, Object = this, Setter = __InstanceProperty_WrapSet__CachedSetter" ), "Generated code should wrap instance property set accessor" );
 		}
 
 		[TestMethod]

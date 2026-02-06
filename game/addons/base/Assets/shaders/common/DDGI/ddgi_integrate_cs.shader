@@ -96,12 +96,16 @@ COMMON
 
 	float2 SampleProbeDistance( TextureCube depthTex, float3 targetDirection )
 	{
-		const uint sampleCount = 1024;
-		const float coneAngle = 0.15f; // Half-angle in radians (~8.6 degrees)
+		const uint sampleCount = 256;
+		// Very tight cone - approximately 1 octahedral texel
+		const float coneAngle = 0.04f;
 		
 		float weightedDistance = 0.0f;
 		float weightedDistance2 = 0.0f;
 		float totalWeight = 0.0f;
+		
+		// Track min distance for conservative depth estimation
+		float minDistance = MaxProbeDistance;
 		
 		// Build orthonormal basis around target direction
 		float3 N = normalize( targetDirection );
@@ -130,11 +134,13 @@ COMMON
 			// Transform to world space
 			float3 rayDirection = normalize( T * localDir.x + B * localDir.y + N * localDir.z );
 			
-			// Weight by cosine falloff from center (tighter samples = higher weight)
-			float weight = cosTheta;
+			// Weight by cosine falloff from center
+			float weight = cosTheta * cosTheta; // Squared for tighter center focus
 			
 			float distance = GetDepthDistance( depthTex, rayDirection );
-			distance = clamp( distance, 0.00f, MaxProbeDistance );
+			distance = clamp( distance, 0.01f, MaxProbeDistance );
+			
+			minDistance = min( minDistance, distance );
 			
 			weightedDistance += distance * weight;
 			weightedDistance2 += distance * distance * weight;
@@ -145,7 +151,19 @@ COMMON
 		{
 			float mean = weightedDistance / totalWeight;
 			float meanSq = weightedDistance2 / totalWeight;
-			float variance = meanSq - mean * mean;
+			float variance = max( 0.0f, meanSq - mean * mean );
+			
+			// Conservative depth: bias strongly toward minimum distance
+			// This is the key to preventing light leaks - we'd rather have
+			// slightly darker shadows than any light bleeding through
+			float depthRange = mean - minDistance;
+			float conservativeBias = saturate( depthRange / max( mean, 0.1f ) );
+			
+			// Blend 50% toward minimum when there's depth discontinuity
+			mean = lerp( mean, minDistance, conservativeBias * 0.5f );
+			
+			// Also reduce variance at discontinuities to sharpen the shadow
+			variance *= (1.0f - conservativeBias * 0.5f);
 			
 			return float2( mean, variance );
 		}

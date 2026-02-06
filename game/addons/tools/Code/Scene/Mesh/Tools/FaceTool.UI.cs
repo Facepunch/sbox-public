@@ -34,7 +34,6 @@ partial class FaceTool
 
 		[Range( 0.1f, 90f, slider: false ), Step( 1 ), Title( "Normal Threshold" )]
 		public float NormalThreshold { get; set; } = 12.0f;
-		public bool OverlaySelection { get; set; } = true;
 
 		public FaceSelectionWidget( SerializedObject so, MeshTool tool ) : base()
 		{
@@ -51,14 +50,12 @@ partial class FaceTool
 			SelectByMaterial = EditorCookie.Get( "FaceTool.SelectByMaterial", false );
 			SelectByNormal = EditorCookie.Get( "FaceTool.SelectByNormal", true );
 			NormalThreshold = EditorCookie.Get( "FaceTool.NormalThreshold", 12.0f );
-			OverlaySelection = EditorCookie.Get( "FaceTool.OverlaySelection", true );
 
 			if ( _meshTool.CurrentTool is FaceTool ft )
 			{
 				ft.SelectByMaterial = SelectByMaterial;
 				ft.SelectByNormal = SelectByNormal;
 				ft.NormalThreshold = NormalThreshold;
-				ft.OverlaySelection = OverlaySelection;
 			}
 
 			var target = this.GetSerialized();
@@ -67,7 +64,6 @@ partial class FaceTool
 				EditorCookie.Set( "FaceTool.SelectByMaterial", SelectByMaterial );
 				EditorCookie.Set( "FaceTool.SelectByNormal", SelectByNormal );
 				EditorCookie.Set( "FaceTool.NormalThreshold", NormalThreshold );
-				EditorCookie.Set( "FaceTool.OverlaySelection", OverlaySelection );
 			};
 
 			{
@@ -80,21 +76,32 @@ partial class FaceTool
 			{
 				var group = AddGroup( "Operations" );
 
-				var grid = Layout.Row();
-				grid.Spacing = 4;
+				{
+					var row = new Widget { Layout = Layout.Row() };
+					row.Layout.Spacing = 4;
 
-				CreateButton( "Extract Faces", "content_cut", "mesh.extract-faces", ExtractFaces, _faces.Length > 0, grid );
-				CreateButton( "Detach Faces", "call_split", "mesh.detach-faces", DetachFaces, _faces.Length > 0, grid );
-				CreateButton( "Combine Faces", "join_full", "mesh.combine-faces", CombineFaces, _faces.Length > 0, grid );
+					CreateButton( "Extract Faces", "content_cut", "mesh.extract-faces", ExtractFaces, _faces.Length > 0, row.Layout );
+					CreateButton( "Detach Faces", "call_split", "mesh.detach-faces", DetachFaces, _faces.Length > 0, row.Layout );
+					CreateButton( "Combine Faces", "join_full", "mesh.combine-faces", CombineFaces, _faces.Length > 0, row.Layout );
+					CreateButton( "Collapse Faces", "unfold_less", "mesh.collapse", Collapse, _faces.Length > 0, row.Layout );
 
-				CreateButton( "Collapse Faces", "unfold_less", "mesh.collapse", Collapse, _faces.Length > 0, grid );
-				CreateButton( "Remove Bad Faces", "delete_sweep", "mesh.remove-bad-faces", RemoveBadFaces, _faces.Length > 0, grid );
-				CreateButton( "Flip All Faces", "flip", "mesh.flip-all-faces", FlipAllFaces, _faces.Length > 0, grid );
-				CreateButton( "Thicken Faces", "layers", "mesh.thicken-faces", ThickenFaces, _faces.Length > 0, grid );
+					row.Layout.AddStretchCell();
 
-				grid.AddStretchCell();
+					group.Add( row );
+				}
 
-				group.Add( grid );
+				{
+					var row = new Widget { Layout = Layout.Row() };
+					row.Layout.Spacing = 4;
+
+					CreateButton( "Remove Bad Faces", "delete_sweep", "mesh.remove-bad-faces", RemoveBadFaces, _faces.Length > 0, row.Layout );
+					CreateButton( "Flip All Faces", "flip", "mesh.flip-all-faces", FlipAllFaces, _faces.Length > 0, row.Layout );
+					CreateButton( "Thicken Faces", "layers", "mesh.thicken-faces", ThickenFaces, _faces.Length > 0, row.Layout );
+
+					row.Layout.AddStretchCell();
+
+					group.Add( row );
+				}
 			}
 
 			{
@@ -162,21 +169,6 @@ partial class FaceTool
 				normalRow.Add( normalControl );
 
 				group.Add( normalRow );
-			}
-
-			{
-				var group = AddGroup( "Display" );
-				var overlayRow = Layout.Row();
-				overlayRow.Spacing = 4;
-
-				var selectionOverlay = ControlWidget.Create( target.GetProperty( nameof( OverlaySelection ) ) );
-				var selectionOverlayLabel = new Label { Text = "Overlay Selection" };
-				selectionOverlay.FixedHeight = Theme.ControlHeight;
-
-				overlayRow.Add( selectionOverlay );
-				overlayRow.Add( selectionOverlayLabel );
-
-				group.Add( overlayRow );
 			}
 		}
 
@@ -659,6 +651,81 @@ partial class FaceTool
 						selection.Add( face );
 				}
 			}
+		}
+
+		[Shortcut( "mesh.snap-to-grid", "CTRL+B", typeof( SceneViewWidget ) )]
+		private void SnapToGrid()
+		{
+			if ( _faces.Length == 0 )
+				return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			var grid = EditorScene.GizmoSettings.GridSpacing;
+			if ( grid <= 0 )
+				return;
+
+			using ( SceneEditorSession.Active.UndoScope( "Snap Faces To Grid" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				foreach ( var group in _faces.GroupBy( f => f.Component ) )
+				{
+					var component = group.Key;
+					var mesh = component.Mesh;
+
+					var uniqueVertices = new HashSet<VertexHandle>();
+
+					foreach ( var face in group )
+					{
+						mesh.GetVerticesConnectedToFace( face.Handle, out var vertices );
+						foreach ( var v in vertices )
+							uniqueVertices.Add( v );
+					}
+
+					foreach ( var hVertex in uniqueVertices )
+					{
+						var world = new MeshVertex( component, hVertex ).PositionWorld;
+
+						world = new Vector3(
+							MathF.Round( world.x / grid ) * grid,
+							MathF.Round( world.y / grid ) * grid,
+							MathF.Round( world.z / grid ) * grid
+						);
+
+						var local = component.WorldTransform.PointToLocal( world );
+						mesh.SetVertexPosition( hVertex, local );
+					}
+				}
+			}
+		}
+
+		[Shortcut( "mesh.frame-selection", "SHIFT+A", typeof( SceneViewWidget ) )]
+		private void FrameSelection()
+		{
+			if ( _faces.Length == 0 )
+				return;
+
+			var points = new List<Vector3>();
+
+			foreach ( var group in _faces.GroupBy( f => f.Component ) )
+			{
+				var component = group.Key;
+				var mesh = component.Mesh;
+
+				foreach ( var face in group )
+				{
+					mesh.GetVerticesConnectedToFace(
+						face.Handle,
+						out var vertices
+					);
+
+					foreach ( var v in vertices )
+						points.Add( new MeshVertex( component, v ).PositionWorld );
+				}
+			}
+
+			SelectionFrameUtil.FramePoints( points );
 		}
 	}
 }

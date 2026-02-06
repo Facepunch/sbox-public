@@ -25,7 +25,7 @@ internal partial class CompactHeightfield : IByteParsable<CompactHeightfield>
 		ReadCells( ref stream, cells );
 
 		var spans = compactHeightfield.Spans;
-		ReadSpans( ref stream, spans, cells );
+		ReadSpans( ref stream, spans );
 
 		var areas = compactHeightfield.Areas;
 		ReadAreas( ref stream, areas );
@@ -51,7 +51,7 @@ internal partial class CompactHeightfield : IByteParsable<CompactHeightfield>
 		stream.Write( value.CellHeight );
 
 		WriteCells( ref stream, value.Cells );
-		WriteSpans( ref stream, value.Spans, value.Cells );
+		WriteSpans( ref stream, value.Spans );
 		WriteAreas( ref stream, value.Areas );
 	}
 
@@ -65,7 +65,7 @@ internal partial class CompactHeightfield : IByteParsable<CompactHeightfield>
 		var spanCursor = 0;
 		for ( var i = 0; i < cells.Length; i++ )
 		{
-			var count = stream.Read<int>();
+			var count = stream.Read<byte>();
 			ref var cell = ref cells[i];
 			cell.Index = spanCursor;
 			cell.Count = count;
@@ -77,43 +77,29 @@ internal partial class CompactHeightfield : IByteParsable<CompactHeightfield>
 	{
 		for ( var index = 0; index < cells.Length; index++ )
 		{
-			stream.Write( cells[index].Count );
+			stream.Write( (byte)cells[index].Count );
 		}
 	}
 
-	private static void ReadSpans( ref ByteStream stream, Span<CompactSpan> spans, ReadOnlySpan<CompactCell> cells )
+	private static void ReadSpans( ref ByteStream stream, Span<CompactSpan> spans )
 	{
-		var spanIndex = 0;
-		for ( var i = 0; i < cells.Length; i++ )
+		for ( var i = 0; i < spans.Length; i++ )
 		{
-			ref readonly var cell = ref cells[i];
-			for ( var j = 0; j < cell.Count; j++ )
-			{
-				ref var span = ref spans[spanIndex++];
-				span.StartY = stream.Read<ushort>();
-				span.Region = stream.Read<ushort>();
-
-				var packed = stream.Read<int>();
-				span.Con = packed & 0xFFFFFF;
-				span.Height = (byte)(packed >> 24);
-			}
+			ref var span = ref spans[i];
+			span.StartY = stream.Read<ushort>();
+			span.Region = stream.Read<ushort>();
+			span.connectionsAndHeight = stream.Read<int>();
 		}
 	}
 
-	private static void WriteSpans( ref ByteStream stream, ReadOnlySpan<CompactSpan> spans, ReadOnlySpan<CompactCell> cells )
+	private static void WriteSpans( ref ByteStream stream, ReadOnlySpan<CompactSpan> spans )
 	{
-		var spanIndex = 0;
-		for ( var i = 0; i < cells.Length; i++ )
+		for ( var i = 0; i < spans.Length; i++ )
 		{
-			ref readonly var cell = ref cells[i];
-			for ( var j = 0; j < cell.Count; j++ )
-			{
-				ref readonly var span = ref spans[spanIndex++];
-				stream.Write( span.StartY );
-				stream.Write( span.Region );
-				var packed = (span.Con & 0xFFFFFF) | ((span.Height & 0xFF) << 24);
-				stream.Write( packed );
-			}
+			ref readonly var span = ref spans[i];
+			stream.Write( span.StartY );
+			stream.Write( span.Region );
+			stream.Write( span.connectionsAndHeight );
 		}
 	}
 
@@ -149,5 +135,4 @@ internal partial class CompactHeightfield : IByteParsable<CompactHeightfield>
 			index += runLength;
 		}
 	}
-
 }

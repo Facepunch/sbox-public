@@ -15,7 +15,7 @@ public static partial class EditorUtility
 					return;
 
 				if ( value )
-					VRSystem.Init();
+					VRSystem.Enable();
 				else
 					VRSystem.Disable();
 			}

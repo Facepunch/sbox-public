@@ -94,7 +94,7 @@ public sealed partial class NavMesh : IDisposable
 	/// Constantly update the navigation mesh in the editor
 	/// </summary>
 	[Group( "Editor" )]
-	public bool EditorAutoUpdate { get; set; } = true;
+	public bool EditorAutoUpdate { get; set; } = false;
 
 	/// <summary>
 	/// Draw the navigation mesh in the editor
@@ -262,9 +262,13 @@ public sealed partial class NavMesh : IDisposable
 
 		try
 		{
+			IsEnabled = true;
 			IsGenerating = true;
+			IsEnabled = true;
 
 			Init();
+
+			await LoadFromBake();
 
 			WorldBounds = CalculateWorldBounds( world );
 
@@ -290,7 +294,9 @@ public sealed partial class NavMesh : IDisposable
 
 		try
 		{
+			IsEnabled = true;
 			IsGenerating = true;
+			IsEnabled = true;
 
 			Init();
 
@@ -302,6 +308,7 @@ public sealed partial class NavMesh : IDisposable
 		{
 			IsGenerating = false;
 			IsDirty = false;
+			IsLoaded = true;
 		}
 
 		return true;

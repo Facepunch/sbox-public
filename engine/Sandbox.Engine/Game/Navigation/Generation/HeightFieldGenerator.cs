@@ -22,6 +22,8 @@ class HeightFieldGenerator : IDisposable
 	CUtlVectorVector triangulationVertArrCache = CUtlVectorVector.Create( 0, 512 );
 	CUtlVectorUInt32 triangulationIndexArrCache = CUtlVectorUInt32.Create( 0, 1024 );
 
+	public bool IsEmpty => inputGeoVerticesCount < 3 || inputGeoIndicesCount < 3;
+
 	public void Dispose()
 	{
 		cachedHeightField?.Dispose();
@@ -47,6 +49,8 @@ class HeightFieldGenerator : IDisposable
 	{
 		inputGeoVertices ??= ArrayPool<Vector3>.Shared.Rent( 2048 );
 		inputGeoIndices ??= ArrayPool<int>.Shared.Rent( 4096 );
+		inputGeoVerticesCount = 0;
+		inputGeoIndicesCount = 0;
 		inputGeometryMaxZ = float.MinValue;
 		inputGeometryMinZ = float.MaxValue;
 		cfg = config;

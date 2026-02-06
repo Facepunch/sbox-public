@@ -120,7 +120,8 @@ internal partial class RenderPipeline
 
 		var mainCamera = IManagedCamera.GetMainCamera();
 
-		if ( viewCamera == mainCamera )
+		// Only record from the main camera that belongs to the active game scene
+		if ( viewCamera == mainCamera && viewCamera is SceneCamera sceneCamera && sceneCamera.World == Game.ActiveScene?.SceneWorld )
 		{
 			RecordMovieFrameLayer.AddToView( view, viewport );
 			PostRecordMovieFrameLayer.AddToView( view, viewport );

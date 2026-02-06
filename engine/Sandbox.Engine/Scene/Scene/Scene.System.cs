@@ -99,11 +99,11 @@ public partial class Scene
 		if ( overridesNode is null )
 			return;
 
-		Dictionary<string, Dictionary<string, object>> overrides;
+		Dictionary<string, JsonObject> overrides;
 
 		try
 		{
-			overrides = Json.FromNode<Dictionary<string, Dictionary<string, object>>>( overridesNode );
+			overrides = Json.FromNode<Dictionary<string, JsonObject>>( overridesNode );
 		}
 		catch ( System.Exception e )
 		{
@@ -126,10 +126,12 @@ public partial class Scene
 			{
 				if ( !property.CanWrite ) continue;
 
-				if ( properties.TryGetValue( property.Name, out var value ) )
+				if ( properties.TryGetPropertyValue( property.Name, out var valueNode ) )
 				{
 					try
 					{
+						// Deserialize the JSON node directly to the property's type
+						var value = Json.FromNode( valueNode, property.PropertyType );
 						property.SetValue( system, value );
 					}
 					catch ( Exception ex )

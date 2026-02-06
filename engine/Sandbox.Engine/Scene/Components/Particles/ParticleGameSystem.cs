@@ -47,6 +47,7 @@ sealed class ParticleGameSystem : GameObjectSystem
 		foreach ( var p in particles )
 		{
 			p.SpawnDeferredParticleCollisionPrefabs();
+			p.ApplyDeferredParticleForces();
 			p.PostStep();
 		}
 

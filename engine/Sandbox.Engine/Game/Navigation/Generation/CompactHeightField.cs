@@ -35,7 +35,7 @@ internal struct CompactSpan
 	[FieldOffset( 2 )]
 	public ushort Region;
 	[FieldOffset( 4 )]
-	private int connectionsAndHeight;
+	internal int connectionsAndHeight;
 
 	public int Con
 	{

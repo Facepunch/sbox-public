@@ -270,12 +270,12 @@ namespace Sandbox.Generator
 
 			if ( generatedFields.Add( setterFieldName ) )
 			{
-				master.AddToCurrentClass( $"[global::Sandbox.SkipHotload] private {staticModifier}global::System.Action<{propertyType}> {setterFieldName};\n", false );
+				master.AddToCurrentClass( $"[global::Sandbox.SkipHotload] private {staticModifier}global::System.Action<{propertyType}> {setterFieldName} = null!;\n", false );
 			}
 
 			if ( generatedFields.Add( getterFieldName ) )
 			{
-				master.AddToCurrentClass( $"[global::Sandbox.SkipHotload] private {staticModifier}global::System.Func<{propertyType}> {getterFieldName};\n", false );
+				master.AddToCurrentClass( $"[global::Sandbox.SkipHotload] private {staticModifier}global::System.Func<{propertyType}> {getterFieldName} = null!;\n", false );
 			}
 
 			// GET accessor
@@ -329,10 +329,11 @@ namespace Sandbox.Generator
 					IdentifierName( setterFieldName ),
 					setterLambda );
 
-				// Cached getter: __CachedGetter ??= () => PropertyName
+				// Cached getter: __CachedGetter ??= () => PropertyName!
 				// Calls the property by name, which goes through all wrapped getters
 				// This avoids inlining wrapped getter code which would cause recursion
-				var getterLambda = ParenthesizedLambdaExpression( IdentifierName( symbol.Name ) );
+				var getterLambda = ParenthesizedLambdaExpression(
+					PostfixUnaryExpression( SyntaxKind.SuppressNullableWarningExpression, IdentifierName( symbol.Name ) ) );
 
 				var cachedGetterExpr = AssignmentExpression(
 					SyntaxKind.CoalesceAssignmentExpression,
@@ -344,13 +345,13 @@ namespace Sandbox.Generator
 					AssignmentExpression(
 						SyntaxKind.SimpleAssignmentExpression,
 						IdentifierName( "Value" ),
-						IdentifierName( "value" ) ),
+						PostfixUnaryExpression( SyntaxKind.SuppressNullableWarningExpression, IdentifierName( "value" ) ) ), // Value = value!
 
 					AssignmentExpression(
 						SyntaxKind.SimpleAssignmentExpression,
 						IdentifierName( "Object" ),
 						symbol.IsStatic
-							? LiteralExpression( SyntaxKind.NullLiteralExpression )
+							? PostfixUnaryExpression( SyntaxKind.SuppressNullableWarningExpression, LiteralExpression( SyntaxKind.NullLiteralExpression ) ) // null!
 							: ThisExpression() ),
 
 					AssignmentExpression(
@@ -477,7 +478,7 @@ namespace Sandbox.Generator
 
 			if ( generatedFields.Add( getterFieldName ) )
 			{
-				master.AddToCurrentClass( $"[global::Sandbox.SkipHotload] private {staticModifier}global::System.Func<{propertyType}> {getterFieldName};\n", false );
+				master.AddToCurrentClass( $"[global::Sandbox.SkipHotload] private {staticModifier}global::System.Func<{propertyType}> {getterFieldName} = null!;\n", false );
 			}
 
 			// SET accessor
@@ -492,7 +493,11 @@ namespace Sandbox.Generator
 
 				// Get the current getter body - this allows get wrappers to chain
 				var directGetterBody = GetDirectGetterBody( existingGetter );
-				var getterLambda = ParenthesizedLambdaExpression( directGetterBody );
+				// Wrap expressions in null suppression to avoid CS8603 for nullable properties: () => field!
+				var getterLambdaBody = directGetterBody is ExpressionSyntax expr
+					? PostfixUnaryExpression( SyntaxKind.SuppressNullableWarningExpression, expr )
+					: directGetterBody;
+				var getterLambda = ParenthesizedLambdaExpression( getterLambdaBody );
 
 				// Cached getter: __CachedGetter ??= () => <current getter body>
 				var cachedGetterExpr = AssignmentExpression(
@@ -514,13 +519,13 @@ namespace Sandbox.Generator
 					AssignmentExpression(
 						SyntaxKind.SimpleAssignmentExpression,
 						IdentifierName( "Value" ),
-						defaultValueExpression ),
+						PostfixUnaryExpression( SyntaxKind.SuppressNullableWarningExpression, defaultValueExpression ) ), // Value = expr!
 
 					AssignmentExpression(
 						SyntaxKind.SimpleAssignmentExpression,
 						IdentifierName( "Object" ),
 						symbol.IsStatic
-							? LiteralExpression( SyntaxKind.NullLiteralExpression )
+							? PostfixUnaryExpression( SyntaxKind.SuppressNullableWarningExpression, LiteralExpression( SyntaxKind.NullLiteralExpression ) ) // null!
 							: ThisExpression() ),
 
 					AssignmentExpression(
@@ -565,11 +570,14 @@ namespace Sandbox.Generator
 
 				var returnTypeSyntax = ParseTypeName( propertyType );
 
+				// return ((PropertyType)callback(...))!;
 				statements.Add(
 					ReturnStatement(
-						CastExpression(
-							returnTypeSyntax,
-							invocation ) ) );
+						PostfixUnaryExpression(
+							SyntaxKind.SuppressNullableWarningExpression,
+							CastExpression(
+								returnTypeSyntax,
+								invocation ) ) ) );
 
 				var get = AccessorDeclaration( SyntaxKind.GetAccessorDeclaration )
 					.WithBody( Block( statements ) )
@@ -633,7 +641,7 @@ namespace Sandbox.Generator
 			}
 			else
 			{
-				genericArgsExpression = LiteralExpression( SyntaxKind.NullLiteralExpression );
+				genericArgsExpression = PostfixUnaryExpression( SyntaxKind.SuppressNullableWarningExpression, LiteralExpression( SyntaxKind.NullLiteralExpression ) ); // null!
 			}
 
 			var assignments = new List<ExpressionSyntax>
@@ -647,7 +655,7 @@ namespace Sandbox.Generator
 					SyntaxKind.SimpleAssignmentExpression,
 					IdentifierName( "Object" ),
 					symbol.IsStatic
-						? LiteralExpression( SyntaxKind.NullLiteralExpression )
+						? PostfixUnaryExpression( SyntaxKind.SuppressNullableWarningExpression, LiteralExpression( SyntaxKind.NullLiteralExpression ) ) // null!
 						: ThisExpression() ),
 
 				AssignmentExpression(

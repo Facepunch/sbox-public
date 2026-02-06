@@ -1,9 +1,20 @@
-﻿using System.Text.Json.Nodes;
+﻿using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Sandbox.Navigation;
 
 public sealed partial class NavMesh
 {
+	/// <summary>
+	/// The relative path to the baked navdata file (without _c suffix)
+	/// </summary>
+	private string _bakedDataPath;
+
+	/// <summary>
+	/// Get the navdata filename for this scene
+	/// </summary>
+	private readonly string _navDataFilename = "/navmesh/baked.navdata";
+
 	/// <summary>
 	/// Data saved in a Scene file
 	/// </summary>
@@ -21,6 +32,12 @@ public sealed partial class NavMesh
 		jso["AgentMaxSlope"] = AgentMaxSlope;
 		jso["ExcludedBodies"] = Json.ToNode( ExcludedBodies, typeof( TagSet ) );
 		jso["IncludedBodies"] = Json.ToNode( IncludedBodies, typeof( TagSet ) );
+
+		// Store reference to the baked data file as a RawFileReference
+		if ( !string.IsNullOrWhiteSpace( _bakedDataPath ) )
+		{
+			jso["BakedDataPath"] = JsonSerializer.SerializeToNode( FileReference.FromPath( _bakedDataPath ) );
+		}
 
 		return jso;
 	}
@@ -42,7 +59,13 @@ public sealed partial class NavMesh
 		AgentStepSize = (float)(jso["AgentStepSize"] ?? AgentStepSize);
 		AgentMaxSlope = (float)(jso["AgentMaxSlope"] ?? AgentMaxSlope);
 
-		ExcludedBodies = Json.FromNode( jso["ExcludedBodies"], typeof( TagSet ) ) as TagSet ?? ExcludedBodies;
-		IncludedBodies = Json.FromNode( jso["IncludedBodies"], typeof( TagSet ) ) as TagSet ?? IncludedBodies;
+		ExcludedBodies = Json.FromNode<TagSet>( jso["ExcludedBodies"] ) ?? ExcludedBodies;
+		IncludedBodies = Json.FromNode<TagSet>( jso["IncludedBodies"] ) ?? IncludedBodies;
+
+		// Load baked data path from RawFileReference
+		if ( jso["BakedDataPath"] is JsonObject bakedDataObj )
+		{
+			_bakedDataPath = bakedDataObj["path"]?.ToString();
+		}
 	}
 }

@@ -18,6 +18,11 @@ public class GameObjectSceneBrowser : Widget
 	public Button ConfirmButton { get; set; }
 
 	/// <summary>
+	/// This action is invoked when the selection is confirmed (double-click or button)
+	/// </summary>
+	public Action OnConfirm { get; set; }
+
+	/// <summary>
 	/// Component type to search for (null if searching for GameObjects)
 	/// </summary>
 	public Type ComponentType { get; set; }
@@ -42,12 +47,25 @@ public class GameObjectSceneBrowser : Widget
 			if ( firstObj is SceneGameObjectNode gameObjNode && ComponentType is null )
 			{
 				OnGameObjectSelect?.Invoke( gameObjNode.GameObject );
-				ConfirmButton.Enabled = true;
+				if ( ConfirmButton is not null )
+					ConfirmButton.Enabled = true;
 			}
 			if ( firstObj is SceneComponentNode componentNode )
 			{
 				OnComponentSelect?.Invoke( componentNode.Component );
-				ConfirmButton.Enabled = true;
+				if ( ConfirmButton is not null )
+					ConfirmButton.Enabled = true;
+			}
+		};
+		SceneTree.ItemActivated = ( obj ) =>
+		{
+			if ( obj is SceneGameObjectNode && ComponentType is null )
+			{
+				OnConfirm?.Invoke();
+			}
+			if ( obj is SceneComponentNode )
+			{
+				OnConfirm?.Invoke();
 			}
 		};
 		Locations = new SceneLocations( this );

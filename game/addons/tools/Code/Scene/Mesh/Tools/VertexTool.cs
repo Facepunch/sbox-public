@@ -39,6 +39,12 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 			{
 				var worldPos = transform.PointToWorld( mesh.GetVertexPosition( v ) );
 
+				if ( !Tool.SelectionThrough && IsVertexOccluded( worldPos, Gizmo.Camera.Position ) )
+				{
+					previous.Add( new MeshVertex( component, v ) );
+					continue;
+				}
+
 				if ( frustum.IsInside( worldPos ) )
 				{
 					selection.Add( new MeshVertex( component, v ) );
@@ -50,16 +56,30 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 			}
 		}
 
-		foreach ( var v in selection )
+		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 		{
-			if ( !Selection.Contains( v ) )
-				Selection.Add( v );
+			foreach ( var v in selection )
+			{
+				if ( Selection.Contains( v ) )
+					Selection.Remove( v );
+			}
 		}
-
-		foreach ( var v in previous )
+		else
 		{
-			if ( Selection.Contains( v ) )
-				Selection.Remove( v );
+			foreach ( var v in selection )
+			{
+				if ( !Selection.Contains( v ) )
+					Selection.Add( v );
+			}
+
+			if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
+			{
+				foreach ( var v in previous )
+				{
+					if ( Selection.Contains( v ) )
+						Selection.Remove( v );
+				}
+			}
 		}
 	}
 

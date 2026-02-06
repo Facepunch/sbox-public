@@ -12,7 +12,6 @@ public partial class StickyPopup : Widget
 		TranslucentBackground = true;
 		SetSizeMode( SizeMode.CanShrink, SizeMode.CanShrink );
 		Layout = Layout.Column();
-		Layout.Margin = 1;
 
 		All.Add( this );
 	}
@@ -55,20 +54,16 @@ public partial class StickyPopup : Widget
 
 		var scrollArea = new ScrollArea( this );
 		scrollArea.Canvas = new Widget( this );
-		scrollArea.Canvas.SetSizeMode( SizeMode.CanShrink, SizeMode.CanShrink );
-		scrollArea.TranslucentBackground = true;
-		scrollArea.NoSystemBackground = true;
 		scrollArea.SetStyles( "QScrollArea { border: 0px solid red; }" );
 
 		scrollArea.Canvas.Layout = Layout.Column();
-		scrollArea.Canvas.Layout.Margin = 8;
+		scrollArea.Canvas.Layout.Margin = new( 8, 0, 8, 8 );
 		scrollArea.Canvas.Name = "StickyPopupCanvas";
 
 		//
 		// Check for a custom inspector
 		// It'll take priority over the control sheet
 		//
-
 		var inspector = InspectorWidget.Create( so );
 		if ( inspector.IsValid() )
 		{
@@ -84,22 +79,25 @@ public partial class StickyPopup : Widget
 		Layout.Add( scrollArea );
 	}
 
-	protected override void DoLayout()
-	{
-		AdjustSize();
-		AlignTo( Owner );
-	}
-
 	protected override void OnPaint()
 	{
 		Paint.SetBrushAndPen( Theme.WindowBackground.WithAlpha( 0.9f ) );
 		Paint.DrawRect( LocalRect );
 	}
 
+	protected float PreferredWidth => 386f;
+	protected float MaxHeight => 512f;
+
 	protected override Vector2 SizeHint()
 	{
-		var baseHint = base.SizeHint();
-		return new Vector2( 386f, baseHint.y );
+		var totalHeight = Children.Sum( x => x is ScrollArea scrollArea ? scrollArea.Canvas.Height : x.Height );
+		return new Vector2( PreferredWidth, MathF.Min( totalHeight, MaxHeight ) );
+	}
+
+	protected override void DoLayout()
+	{
+		AdjustSize();
+		AlignTo( Owner );
 	}
 
 	protected override void OnKeyPress( KeyEvent e )

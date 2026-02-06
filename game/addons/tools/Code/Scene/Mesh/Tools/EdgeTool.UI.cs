@@ -52,6 +52,8 @@ partial class EdgeTool
 				CreateButton( "Connect", "link", "mesh.connect", Connect, CanConnect(), row.Layout );
 				CreateButton( "Extend", "call_made", "mesh.extend", Extend, CanExtend(), row.Layout );
 
+				row.Layout.AddStretchCell();
+
 				group.Add( row );
 			}
 
@@ -920,6 +922,83 @@ partial class EdgeTool
 						selection.Add( edge );
 				}
 			}
+		}
+
+		[Shortcut( "mesh.snap-to-grid", "CTRL+B", typeof( SceneViewWidget ) )]
+		private void SnapToGrid()
+		{
+			if ( _edges.Length == 0 )
+				return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			var grid = EditorScene.GizmoSettings.GridSpacing;
+			if ( grid <= 0 )
+				return;
+
+			using ( SceneEditorSession.Active.UndoScope( "Snap Edges To Grid" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				foreach ( var group in _edges.GroupBy( e => e.Component ) )
+				{
+					var component = group.Key;
+					var mesh = component.Mesh;
+
+					var uniqueVertices = new HashSet<VertexHandle>();
+
+					foreach ( var edge in group )
+					{
+						mesh.GetVerticesConnectedToEdge(
+							edge.Handle,
+							out var hA,
+							out var hB
+						);
+
+						uniqueVertices.Add( hA );
+						uniqueVertices.Add( hB );
+					}
+
+					foreach ( var hVertex in uniqueVertices )
+					{
+						var world = new MeshVertex( component, hVertex ).PositionWorld;
+
+						world = new Vector3(
+							MathF.Round( world.x / grid ) * grid,
+							MathF.Round( world.y / grid ) * grid,
+							MathF.Round( world.z / grid ) * grid
+						);
+
+						var local = component.WorldTransform.PointToLocal( world );
+						mesh.SetVertexPosition( hVertex, local );
+					}
+				}
+			}
+		}
+
+		[Shortcut( "mesh.frame-selection", "SHIFT+A", typeof( SceneViewWidget ) )]
+		private void FrameSelection()
+		{
+			if ( _edges.Length == 0 )
+				return;
+
+			var points = new List<Vector3>();
+
+			foreach ( var edge in _edges )
+			{
+				var mesh = edge.Component.Mesh;
+
+				mesh.GetVerticesConnectedToEdge(
+					edge.Handle,
+					out var hA,
+					out var hB
+				);
+
+				points.Add( new MeshVertex( edge.Component, hA ).PositionWorld );
+				points.Add( new MeshVertex( edge.Component, hB ).PositionWorld );
+			}
+
+			SelectionFrameUtil.FramePoints( points );
 		}
 	}
 }

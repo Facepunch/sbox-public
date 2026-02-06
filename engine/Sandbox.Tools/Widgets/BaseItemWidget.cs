@@ -100,6 +100,24 @@ public partial class BaseItemWidget : BaseScrollWidget
 	/// </summary>
 	public bool ToggleSelect { get; set; }
 
+	public enum DragDropTarget
+	{
+		None,
+		LastRoot,
+		Closest
+	}
+
+	/// <summary>
+	/// What shall we do if they drag something in and it's not over an item?
+	/// </summary>
+	public DragDropTarget BodyDropTarget { get; set; } = DragDropTarget.None;
+
+	/// <summary>
+	/// Gets or sets the maximum distance, in pixels, at which a target is considered close enough for drag-and-drop when in BodyDropTarget.Closest mode.
+	/// operations.
+	/// </summary>
+	public float DragDropTargetClosestThreshold { get; set; } = 32.0f;
+
 	public override bool ProvidesDebugMode => true;
 
 	Margin _margin;
@@ -122,7 +140,7 @@ public partial class BaseItemWidget : BaseScrollWidget
 		}
 	}
 
-	protected HashSet<VirtualWidget> ItemLayouts = new();
+	readonly protected HashSet<VirtualWidget> ItemLayouts = [];
 
 	public BaseItemWidget( Widget parent = null ) : base( parent )
 	{
@@ -453,7 +471,45 @@ public partial class BaseItemWidget : BaseScrollWidget
 	/// <summary>
 	/// Get the virtual item to use as a drop target for a given drag event
 	/// </summary>
-	protected virtual VirtualWidget GetDragItem( DragEvent ev ) => GetItemAt( ev.LocalPosition );
+	protected virtual VirtualWidget GetDragItem( DragEvent ev )
+	{
+		var item = GetItemAt( ev.LocalPosition );
+		if ( item is not null )
+			return item;
+
+		object fallbackItem = default;
+
+		if ( BodyDropTarget == DragDropTarget.LastRoot && ItemLayouts.Count > 0 )
+		{
+			fallbackItem = _items.LastOrDefault();
+		}
+
+		if ( BodyDropTarget == DragDropTarget.Closest )
+		{
+			var closestDist = float.MaxValue;
+			var closestItem = default( VirtualWidget );
+
+			foreach ( var widget in ItemLayouts )
+			{
+				var dist = widget.Rect.ClosestPoint( ev.LocalPosition ).Distance( ev.LocalPosition );
+				if ( dist > closestDist ) continue;
+
+				closestDist = dist;
+				closestItem = widget;
+			}
+
+			if ( closestDist > DragDropTargetClosestThreshold )
+				return null;
+
+			return closestItem;
+		}
+
+		if ( fallbackItem is null )
+			return default;
+
+		return FindVirtualWidget( fallbackItem );
+
+	}
 
 	public override void OnDragHover( DragEvent ev )
 	{
@@ -467,8 +523,22 @@ public partial class BaseItemWidget : BaseScrollWidget
 			ev.Action = a;
 			return;
 		}
+		else
+		{
+			CurrentItemDragEvent = ItemDragEvent.From( ev );
+			var a = OnBodyDragDrop( CurrentItemDragEvent );
+			SetDropTarget( a != DropAction.Ignore ? item : null );
+			ev.Action = a;
+			return;
+		}
+	}
 
-		ev.Action = DropAction.Ignore;
+	/// <summary>
+	/// Called when a drag drop is being dropped onto the canvas
+	/// </summary>
+	protected virtual DropAction OnBodyDragDrop( ItemDragEvent ev )
+	{
+		return DropAction.Ignore;
 	}
 
 	public override void OnDragDrop( DragEvent ev )
@@ -481,6 +551,12 @@ public partial class BaseItemWidget : BaseScrollWidget
 			var dragEvent = ItemDragEvent.From( ev, item );
 			dragEvent.IsDrop = true;
 			OnItemDrag( dragEvent );
+		}
+		else
+		{
+			var dragEvent = ItemDragEvent.From( ev );
+			dragEvent.IsDrop = true;
+			OnBodyDragDrop( dragEvent );
 		}
 
 		Dirty();
@@ -514,7 +590,7 @@ public partial class BaseItemWidget : BaseScrollWidget
 	/// Called when a dragged item is being hovered over this widget.
 	/// This is the place to make drag and drop previews.
 	/// </summary>
-	protected virtual DropAction OnItemDrag( ItemDragEvent e )
+	protected virtual DropAction OnItemDrag( ItemDragEvent e ) // TODO rename OnItemDragDrop
 	{
 		// this is all just backwards compatibility
 		// we should delete OnDragHoverItem and OnDropOnItem
@@ -1171,6 +1247,15 @@ public partial class BaseItemWidget : BaseScrollWidget
 			// left and right
 
 			return e;
+		}
+
+		internal static ItemDragEvent From( DragEvent ev )
+		{
+			return new ItemDragEvent
+			{
+				rootEvent = ev,
+				LocalPosition = ev.LocalPosition,
+			};
 		}
 	}
 

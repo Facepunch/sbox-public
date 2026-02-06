@@ -268,8 +268,7 @@ public sealed partial class Project
 		mockPackage.Org = new Package.Organization
 		{
 			Ident = Config.Org,
-			Title = Config.Org,
-			Thumb = "/ui/mainmenu/missing_package.png"
+			Title = Config.Org
 		};
 
 		mockPackage.Tags = Array.Empty<string>();
@@ -284,8 +283,6 @@ public sealed partial class Project
 		{
 			mockPackage.UpdateFromPackage( cachedPackage );
 		}
-
-		if ( string.IsNullOrWhiteSpace( mockPackage.Thumb ) ) mockPackage.Thumb = "/ui/mainmenu/missing_package.png";
 
 		return mockPackage;
 	}

@@ -24,9 +24,9 @@ public struct AnalogInput2D
 	/// </summary>
 	public readonly bool Active => _data.isActive;
 
-	internal AnalogInput2D( AnalogInput2D? previous, VRNative.Vector2Action action, InputSource inputSource )
+	internal AnalogInput2D( AnalogInput2D? previous, VRSystem.Vector2Action action, InputSource inputSource )
 	{
-		_data = VRNative.GetVector2ActionState( action, inputSource );
+		_data = VRSystem.GetVector2ActionState( action, inputSource );
 
 		if ( previous != null )
 			Delta = Value - previous.Value.Value;

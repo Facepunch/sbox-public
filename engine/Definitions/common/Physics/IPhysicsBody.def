@@ -127,4 +127,6 @@ native class IPhysicsBody as NativeEngine.IPhysicsBody
 	void ResetProxy();
 
 	void SetBullet( bool bEnabled );
+
+	void ApplyBuoyancyImpulse( Vector3 planeOrigin, Vector3 planeNormal, float buoyancy, float linearDrag, float angularDrag, Vector3 fluidVelocity, Vector3 gravity, float dt );
 }

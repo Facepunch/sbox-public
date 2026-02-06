@@ -60,6 +60,7 @@ public class MeshBuilding
 		var body = new PhysicsBody( world );
 		body.AddBoxShape( boxSize, Rotation.Identity );
 
+		navMesh.IsEnabled = true;
 		navMesh.Init();
 		Assert.AreNotEqual( navMesh.TileCount.Length, 0 );
 
@@ -173,5 +174,57 @@ public class MeshBuilding
 		Assert.AreNotEqual( 0, pathResult.Points.Count );
 
 		navMesh.Dispose();
+	}
+
+	[TestMethod]
+	public async Task Bake_Roundtrip_PreservesNavMesh()
+	{
+		// Generate a navmesh
+		var sourceNavMesh = new NavMesh();
+		var world = new PhysicsWorld();
+
+		var boxSize = BBox.FromPositionAndSize( 0, 500 );
+		var body = new PhysicsBody( world );
+		body.AddBoxShape( boxSize, Rotation.Identity );
+
+		var generated = await sourceNavMesh.Generate( world );
+		Assert.IsTrue( generated, "Failed to generate source navmesh" );
+
+		// Capture some data from source for comparison
+		var sourceRandomPoint = sourceNavMesh.GetRandomPoint();
+		Assert.IsTrue( sourceRandomPoint.HasValue, "Source navmesh should have valid points" );
+
+		// Bake the heightfield data to bytes (in-memory, no file I/O)
+		var bakedData = await sourceNavMesh.BakeDataToBytes();
+		Assert.IsNotNull( bakedData, "Baked data should not be null" );
+		Assert.IsTrue( bakedData.Length > 0, "Baked data should have content" );
+
+		// Create new navmesh and load from baked data directly
+		var loadedNavMesh = new NavMesh();
+		loadedNavMesh.IsEnabled = true;
+		loadedNavMesh.Init();
+		await loadedNavMesh.LoadFromBakedData( bakedData );
+
+		// Regenerate the navmesh from the loaded heightfield data
+		var loadedGenerated = await loadedNavMesh.Generate( world );
+		Assert.IsTrue( loadedGenerated, "Failed to generate navmesh from loaded baked data" );
+
+		// Verify the loaded navmesh is functional
+		var loadedRandomPoint = loadedNavMesh.GetRandomPoint();
+		Assert.IsTrue( loadedRandomPoint.HasValue, "Loaded navmesh should have valid points" );
+
+		// Test path finding on loaded navmesh
+		var pathResult = loadedNavMesh.CalculatePath( new CalculatePathRequest
+		{
+			Start = new Vector3( 200, 200, 250 ),
+			Target = new Vector3( -200, -200, 250 )
+		} );
+		Assert.IsTrue( pathResult.IsValid(), "Path should be valid on loaded navmesh" );
+		Assert.AreNotEqual( 0, pathResult.Points.Count, "Path should have points" );
+
+		world.Delete();
+
+		sourceNavMesh.Dispose();
+		loadedNavMesh.Dispose();
 	}
 }

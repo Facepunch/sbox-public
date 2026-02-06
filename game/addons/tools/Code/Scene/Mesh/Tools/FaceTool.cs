@@ -1,6 +1,5 @@
 ﻿
 using HalfEdgeMesh;
-using System.Linq;
 
 namespace Editor.MeshEditor;
 
@@ -20,9 +19,6 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 	public bool SelectByMaterial { get; set; } = false;
 	public bool SelectByNormal { get; set; } = true;
 	public float NormalThreshold { get; set; } = 12f;
-
-	//Display
-	public bool OverlaySelection { get; set; } = true;
 
 	public override void OnEnabled()
 	{
@@ -68,7 +64,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 			CreateFaceObject();
 		}
 
-		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection )
+		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection && !IsLassoSelecting )
 		{
 			SelectFace();
 
@@ -93,7 +89,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 
 		var selectionColor = Color.Yellow.WithAlpha( 0.1f );
 
-		if ( !OverlaySelection )
+		if ( !Tool.OverlaySelection )
 			selectionColor = Color.Transparent;
 
 		foreach ( var face in Selection.OfType<MeshFace>() )

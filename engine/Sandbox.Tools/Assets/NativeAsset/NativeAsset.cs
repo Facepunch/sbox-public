@@ -166,15 +166,38 @@ internal class NativeAsset : Asset
 	}
 
 	/// <summary>
-	/// Gets additional related files. This includes like .rect files for materials, all .fbx and .lxo files for models, etc.
+	/// Gets additional content-side related files. This includes like .rect files for materials, all .fbx and .lxo files for models, etc.
 	/// </summary>
-	public override List<string> GetAdditionalRelatedFiles()
+	public override List<string> GetAdditionalContentFiles()
 	{
 		var l = new List<string>();
 
 		for ( int i = 0; i < native.AdditionalRelatedFileCount(); i++ )
 		{
-			l.Add( native.GetAdditionalRelatedFile_Transient( i ) );
+			// Only include content-side files
+			if ( native.GetAdditionalRelatedFileLocation( i ) == AssetLocation_t.Content )
+			{
+				l.Add( native.GetAdditionalRelatedFile_Transient( i ) );
+			}
+		}
+
+		return l;
+	}
+
+	/// <summary>
+	/// Gets additional game-side files to be packaged (e.g. navdata). These are files that are loaded by managed code, not as native resources.
+	/// </summary>
+	public override List<string> GetAdditionalGameFiles()
+	{
+		var l = new List<string>();
+
+		for ( int i = 0; i < native.AdditionalRelatedFileCount(); i++ )
+		{
+			// Only include game-side files (registered via RegisterAdditionalRelatedFile_Game)
+			if ( native.GetAdditionalRelatedFileLocation( i ) == AssetLocation_t.Game )
+			{
+				l.Add( native.GetAdditionalRelatedFileRelativePath_Transient( i ) );
+			}
 		}
 
 		return l;

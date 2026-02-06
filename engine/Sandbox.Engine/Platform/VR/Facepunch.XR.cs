@@ -71,7 +71,7 @@ internal struct VulkanInfo
 };
 
 [StructLayout( LayoutKind.Sequential )]
-struct TextureSubmitInfo
+internal struct TextureSubmitInfo
 {
 	public ulong image;
 	public ulong depthImage;

@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Sandbox;
 
@@ -11,6 +12,7 @@ public class SystemsConfig : ConfigData
 	/// <summary>
 	/// Stores GameObjectSystems to property names to property values
 	/// </summary>
+	[JsonInclude]
 	protected Dictionary<string, Dictionary<string, object>> Systems { get; set; } = new();
 
 	/// <summary>
