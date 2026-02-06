@@ -172,7 +172,7 @@ public partial class FastPathTest
 
 	private static int TestProgram( IProgram program, string expectedOutput = "" )
 	{
-		var writer = new StringWriter();
+		using var writer = new StringWriter();
 
 		try
 		{

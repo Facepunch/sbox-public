@@ -221,7 +221,7 @@ internal static partial class PackageManager
 
 			Assert.AreNotEqual( 0, codeArchives.Length, "We have package files mounted" );
 
-			var group = new CompileGroup( Package.Ident );
+			using var group = new CompileGroup( Package.Ident );
 			group.AccessControl = AccessControl;
 			group.ReferenceProvider = this;
 

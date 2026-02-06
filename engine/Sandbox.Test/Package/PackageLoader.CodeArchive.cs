@@ -18,7 +18,7 @@ partial class PackageLoader
 
 	public async Task CompileCodeArchive( string packageName )
 	{
-		var packageLoader = new Sandbox.PackageLoader( "Test", GetType().Assembly );
+		using var packageLoader = new Sandbox.PackageLoader( "Test", GetType().Assembly );
 		var enroller = packageLoader.CreateEnroller( "test-enroller" );
 
 		var packageInfo = await Package.FetchAsync( packageName, false );
@@ -29,7 +29,7 @@ partial class PackageLoader
 		var codeArchives = packageInfo.Revision.Manifest.Files.Where( x => x.Path.EndsWith( ".cll" ) ).ToArray();
 		Assert.AreNotEqual( 0, codeArchives.Length, "We have package files mounted" );
 
-		var group = new CompileGroup( packageName );
+		using var group = new CompileGroup( packageName );
 
 		foreach ( var file in codeArchives )
 		{

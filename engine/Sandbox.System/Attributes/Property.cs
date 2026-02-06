@@ -52,7 +52,7 @@ public class InlineEditorAttribute : Attribute
 /// <summary>
 /// Some properties are not meant for the average user, hide them unless they really want to see them.
 /// </summary>
-[AttributeUsage( AttributeTargets.Property | AttributeTargets.Field )]
+[AttributeUsage( AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Method )]
 public class AdvancedAttribute : Attribute
 {
 }

@@ -1,7 +1,7 @@
 ﻿namespace Editor.ProjectSettingPages;
 
-[Title( "Project Setup" )]
-internal sealed class ProjectPage : ProjectInspector.Category
+[Title( "Configuration" )]
+internal sealed class ProjectPage : ProjectSettingsWindow.Category
 {
 	private class SelectorProperties
 	{

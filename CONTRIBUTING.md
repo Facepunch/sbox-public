@@ -1,6 +1,26 @@
 # Contributors guidelines
 
-If you want to report bugs or request new features, see [sbox-issues](https://github.com/Facepunch/sbox-issues/)
+## Reporting Bugs
+
+Please follow these guidelines when reporting a bug or crash:
+* Please don't report bugs with games or addons - report them to the author.
+* Please be thorough in your bug report. Tell us everything.
+* If you can recreate the bug give us a step by step.
+* Make sure your bug hasn't already been reported.
+
+### Proton
+
+For compatibility issues with Proton refer to [this issue](https://github.com/ValveSoftware/Proton/issues/4940).
+
+## Feature Requests
+
+Please follow these guidelines when requesting a feature:
+* Tell us why you need this feature, what does it add, what have you tried.
+* Make sure your feature hasn't already been requested.
+
+## Security Exploits
+
+If you've found a security exploit, please report it by visiting https://facepunch.com/security
 
 ## Making Changes
 

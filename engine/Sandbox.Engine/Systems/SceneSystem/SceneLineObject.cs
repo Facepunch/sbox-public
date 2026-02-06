@@ -36,7 +36,8 @@ public class SceneLineObject : SceneCustomObject
 		set => Attributes.Set( "BaseTexture", value ?? Texture.White );
 	}
 
-	public Material Material = Material.FromShader( "line" );
+	private static Material _defaultMaterial = Material.FromShader( "line" );
+	public Material Material = _defaultMaterial;
 
 	public CapStyle StartCap
 	{
@@ -52,8 +53,8 @@ public class SceneLineObject : SceneCustomObject
 
 	public FaceMode Face
 	{
-		get => (FaceMode)_cs.Attributes.GetInt( "FaceMode" );
-		set => _cs.Attributes.Set( "FaceMode", (int)value );
+		get => (FaceMode)_csAttributes.GetInt( "FaceMode" );
+		set => _csAttributes.Set( "FaceMode", (int)value );
 	}
 
 	public bool Wireframe
@@ -68,6 +69,7 @@ public class SceneLineObject : SceneCustomObject
 		set => Attributes.SetCombo( "D_ENABLE_LIGHTING", value );
 	}
 
+	[Obsolete( "Use Sampler State property instead" )]
 	public bool Clamped
 	{
 		get => _clamped;
@@ -86,6 +88,18 @@ public class SceneLineObject : SceneCustomObject
 	}
 
 	private bool _clamped = false;
+
+	public SamplerState SamplerState
+	{
+		get => _samplerState;
+		set
+		{
+			_samplerState = value;
+			Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( _samplerState ) );
+		}
+	}
+
+	private SamplerState _samplerState = new() { Filter = FilterMode.Anisotropic, MaxAnisotropy = 8, AddressModeU = TextureAddressMode.Wrap, AddressModeV = TextureAddressMode.Wrap };
 
 	public int Smoothness
 	{
@@ -136,7 +150,8 @@ public class SceneLineObject : SceneCustomObject
 		[VertexLayout.TexCoord] public Vector2 TextureCoord = default;
 	}
 
-	private readonly ComputeShader _cs = new( "line_cs" );
+	private static ComputeShader _cs = new( "line_cs" );
+	private RenderAttributes _csAttributes = new();
 	private GpuBuffer<LinePoint> _pointBuffer;
 	private GpuBuffer<LineVertex> _vertexBuffer;
 	private GpuBuffer<uint> _indexBuffer;
@@ -263,17 +278,17 @@ public class SceneLineObject : SceneCustomObject
 		if ( Face == FaceMode.Cylinder )
 		{
 			// Unsupported on Cylinder
-			_cs.Attributes.Set( "StartCap", 0 );
-			_cs.Attributes.Set( "EndCap", 0 );
+			_csAttributes.Set( "StartCap", 0 );
+			_csAttributes.Set( "EndCap", 0 );
 		}
 		else
 		{
-			_cs.Attributes.Set( "StartCap", (int)startCap );
-			_cs.Attributes.Set( "EndCap", (int)endCap );
+			_csAttributes.Set( "StartCap", (int)startCap );
+			_csAttributes.Set( "EndCap", (int)endCap );
 		}
 
-		_cs.Attributes.Set( "TessellationLevel", _tessellationLevel );
-		_cs.Attributes.Set( "RoundedCapSegments", _roundedCapSegments );
+		_csAttributes.Set( "TessellationLevel", _tessellationLevel );
+		_csAttributes.Set( "RoundedCapSegments", _roundedCapSegments );
 	}
 
 	public void Clear()
@@ -336,11 +351,11 @@ public class SceneLineObject : SceneCustomObject
 		if ( !_indexBuffer.IsValid() )
 			return;
 
-		_cs.Attributes.Set( "PointBuffer", _pointBuffer );
-		_cs.Attributes.Set( "VertexBuffer", _vertexBuffer );
-		_cs.Attributes.Set( "IndexBuffer", _indexBuffer );
-		_cs.Attributes.Set( "PointCount", _pointCount );
-		_cs.Dispatch( _pointCount, 1, 1 );
+		_csAttributes.Set( "PointBuffer", _pointBuffer );
+		_csAttributes.Set( "VertexBuffer", _vertexBuffer );
+		_csAttributes.Set( "IndexBuffer", _indexBuffer );
+		_csAttributes.Set( "PointCount", _pointCount );
+		_cs.DispatchWithAttributes( _csAttributes, _pointCount, 1, 1 );
 
 		Graphics.ResourceBarrierTransition( _vertexBuffer, ResourceState.UnorderedAccess, ResourceState.VertexOrIndexBuffer );
 		Graphics.ResourceBarrierTransition( _indexBuffer, ResourceState.UnorderedAccess, ResourceState.VertexOrIndexBuffer );

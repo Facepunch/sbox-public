@@ -24,11 +24,6 @@ native class QToolBar as Native.QToolBar : QWidget
 
 	ToolButtonStyle toolButtonStyle();
 	void setToolButtonStyle( ToolButtonStyle s );
-
-	inline void allowContextMenu( bool bEnabled )
-	{
-		self->setContextMenuPolicy( bEnabled ? Qt::ActionsContextMenu : Qt::PreventContextMenu );
-	}
 }
 
 

@@ -28,6 +28,14 @@ public partial class TestWrapCall
 			// Hello there!
 		}
 #endif
+
+#if SERVER
+		// Server-side code only
+#endif
+
+#if !SERVER
+		// Client-side code only
+#endif
 	}
 
 	[WrapCall]

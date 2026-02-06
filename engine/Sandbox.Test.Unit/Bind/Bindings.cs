@@ -6,84 +6,83 @@ namespace TestBind;
 [TestClass]
 public class Bindings
 {
-	public string One { get; set; }
-	public string Two { get; set; }
-
 	[TestMethod]
 	public void MethodBinding()
 	{
-		One = "one";
+		var target = new BindingTarget { One = "one" };
+		var source = new MethodProxy<string>( () => target.One, x => target.One = x );
 
-		var source = new MethodProxy<string>( () => One, x => One = x );
-
-		Assert.AreEqual( "one", One );
+		Assert.AreEqual( "one", target.One );
 		Assert.AreEqual( "one", source.Value );
 
-		One = "two";
+		target.One = "two";
 
-		Assert.AreEqual( "two", One );
+		Assert.AreEqual( "two", target.One );
 		Assert.AreEqual( "two", source.Value );
 
 		source.Value = "three";
 
-		Assert.AreEqual( "three", One );
+		Assert.AreEqual( "three", target.One );
 		Assert.AreEqual( "three", source.Value );
 
-		One = "four";
+		target.One = "four";
 
-		Assert.AreEqual( "four", One );
+		Assert.AreEqual( "four", target.One );
 		Assert.AreEqual( "four", source.Value );
 	}
 
 	[TestMethod]
 	public void MethodBindingReadOnly()
 	{
-		One = "one";
-
-		var source = new MethodProxy<string>( () => One, null );
+		var target = new BindingTarget { One = "one" };
+		var source = new MethodProxy<string>( () => target.One, null );
 
 		Assert.IsTrue( source.IsValid );
 		Assert.IsTrue( source.CanRead );
 		Assert.IsFalse( source.CanWrite );
 
-		Assert.AreEqual( "one", One );
+		Assert.AreEqual( "one", target.One );
 		Assert.AreEqual( "one", source.Value );
 
-		One = "two";
+		target.One = "two";
 
-		Assert.AreEqual( "two", One );
+		Assert.AreEqual( "two", target.One );
 		Assert.AreEqual( "two", source.Value );
 
-		One = "four";
+		target.One = "four";
 
-		Assert.AreEqual( "four", One );
+		Assert.AreEqual( "four", target.One );
 		Assert.AreEqual( "four", source.Value );
 	}
 
 	[TestMethod]
 	public void PropertyBinding()
 	{
-		One = "one";
+		var target = new BindingTarget { One = "one" };
+		var source = PropertyProxy.Create( target, nameof( BindingTarget.One ) );
 
-		var source = PropertyProxy.Create( this, "One" );
-
-		Assert.AreEqual( "one", One );
+		Assert.AreEqual( "one", target.One );
 		Assert.AreEqual( "one", source.Value );
 
-		One = "two";
+		target.One = "two";
 
-		Assert.AreEqual( "two", One );
+		Assert.AreEqual( "two", target.One );
 		Assert.AreEqual( "two", source.Value );
 
 		source.Value = "three";
 
-		Assert.AreEqual( "three", One );
+		Assert.AreEqual( "three", target.One );
 		Assert.AreEqual( "three", source.Value );
 
-		One = "four";
+		target.One = "four";
 
-		Assert.AreEqual( "four", One );
+		Assert.AreEqual( "four", target.One );
 		Assert.AreEqual( "four", source.Value );
+	}
+
+	private sealed class BindingTarget
+	{
+		public string One { get; set; }
 	}
 }
 

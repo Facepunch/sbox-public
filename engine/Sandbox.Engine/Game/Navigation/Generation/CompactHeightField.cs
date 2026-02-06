@@ -5,13 +5,25 @@ using System.Runtime.InteropServices;
 namespace Sandbox.Navigation.Generation;
 
 [SkipHotload]
-[StructLayout( LayoutKind.Explicit, Size = 8 )]
+[StructLayout( LayoutKind.Explicit, Size = 4 )]
 internal struct CompactCell
 {
 	[FieldOffset( 0 )]
-	public int Index;
-	[FieldOffset( 4 )]
-	public int Count;
+	private int indexAndCount;
+
+	// 24bit
+	public int Index
+	{
+		readonly get => indexAndCount & 0xFFFFFF;
+		set => indexAndCount = (indexAndCount & ~0xFFFFFF) | (value & 0xFFFFFF);
+	}
+
+	// 8bit
+	public int Count
+	{
+		readonly get => (indexAndCount >> 24) & 0xFF;
+		set => indexAndCount = (indexAndCount & 0xFFFFFF) | ((value & 0xFF) << 24);
+	}
 }
 
 [SkipHotload]
@@ -23,17 +35,17 @@ internal struct CompactSpan
 	[FieldOffset( 2 )]
 	public ushort Region;
 	[FieldOffset( 4 )]
-	private int connectionsAndHeight;
+	internal int connectionsAndHeight;
 
 	public int Con
 	{
-		get => connectionsAndHeight & 0xFFFFFF;
+		readonly get => connectionsAndHeight & 0xFFFFFF;
 		set => connectionsAndHeight = (connectionsAndHeight & ~0xFFFFFF) | (value & 0xFFFFFF);
 	}
 
 	public byte Height
 	{
-		get => (byte)((connectionsAndHeight >> 24) & 0xFF);
+		readonly get => (byte)((connectionsAndHeight >> 24) & 0xFF);
 		set => connectionsAndHeight = (connectionsAndHeight & 0xFFFFFF) | ((value & 0xFF) << 24);
 	}
 
@@ -47,9 +59,11 @@ internal partial class CompactHeightfield : IDisposable
 	public int SpanCount;
 	public int WalkableHeight;
 	public int WalkableClimb;
+
+	// Those two probably shouldn't be here they are only used during contour building
 	public int BorderSize;
-	public ushort MaxDistance;
 	public ushort MaxRegions;
+
 	public Vector3 BMin;
 	public Vector3 BMax;
 	public float CellSize;

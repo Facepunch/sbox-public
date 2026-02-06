@@ -120,11 +120,25 @@ public sealed class EnvelopeItem( JsonObject header, byte[] payload )
 	}
 }
 
-public sealed class Envelope( JsonObject header, IReadOnlyList<EnvelopeItem> items )
+public sealed class Envelope( JsonObject header, List<EnvelopeItem> items )
 {
 	public string? FilePath { get; internal set; }
 	public JsonObject Header { get; } = header;
-	public IReadOnlyList<EnvelopeItem> Items { get; } = items;
+	public IReadOnlyList<EnvelopeItem> Items => items;
+
+	public void AddItem( EnvelopeItem item ) => items.Add( item );
+
+	public void AddAttachment( string filename, byte[] data, string contentType = "application/octet-stream" )
+	{
+		var header = new JsonObject
+		{
+			["type"] = "attachment",
+			["length"] = data.Length,
+			["filename"] = filename,
+			["content_type"] = contentType
+		};
+		AddItem( new EnvelopeItem( header, data ) );
+	}
 
 	public string? TryGetDsn()
 	{
@@ -151,49 +165,6 @@ public sealed class Envelope( JsonObject header, IReadOnlyList<EnvelopeItem> ite
 	{
 		return Items.FirstOrDefault( i => i.TryGetType() == "event" );
 	}
-
-	/*
-	public Minidump? TryGetMinidump()
-	{
-		var item = Items.FirstOrDefault( i => i.TryGetHeader( "attachment_type" ) == "event.minidump" );
-		if ( item is null )
-		{
-			return null;
-		}
-
-		return Minidump.FromBytes( item.Payload );
-	}
-
-	public List<Attachment> TryGetAttachments()
-	{
-		return Items
-			.Where( s => s.TryGetType() == "attachment" )
-			.Select( s => new Attachment( s.Header.TryGetString( "filename" ) ?? string.Empty, s.Payload ) )
-			.Where( a => !string.IsNullOrEmpty( a.Filename ) )
-			.ToList();
-	}
-
-	public EnvelopeException? TryGetException()
-	{
-		var payload = TryGetEvent()?.TryParseAsJson();
-		var os = payload?.TryGetString( "contexts.os.name" );
-
-		if ( payload?.TryGetProperty( "exception.values" )?.AsArray().FirstOrDefault()?.AsObject() is { } inproc )
-		{
-			return new EnvelopeException( inproc.TryGetString( "type" ), inproc.TryGetString( "value" ) );
-		}
-
-		if ( TryGetMinidump()?.Streams.Select( s => s.Data )
-				.OfType<Minidump.ExceptionStream>()
-				.FirstOrDefault() is { } minidump )
-		{
-			var code = minidump.ExceptionRec.Code.AsExceptionCode( os ?? string.Empty );
-			return new EnvelopeException( code?.Type, code?.Value );
-		}
-
-		return null;
-	}
-	*/
 
 	public FormattedEnvelope Format( JsonSerializerOptions? options = null )
 	{

@@ -24,7 +24,15 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	/// Additional slack, added to the rope length.
 	/// </summary>
 	[Property, Group( "Simulation" )]
-	public float Slack { get; set; } = 0;
+	public float Slack
+	{
+		get;
+		set
+		{
+			field = MathF.Max( 0f, value );
+			WakeRope();
+		}
+	} = 0f;
 
 	/// <summary>
 	/// Number of segments in the rope. Higher values increase visual fidelity and collision accuracy but quickly reduce performance.
@@ -37,6 +45,21 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	/// </summary>
 	[Property, Group( "Simulation" )]
 	public float Radius { get; set; } = 1f;
+
+	/// <summary>
+	/// Controls the rope's length directly, will override the initial length and slack will not be applied.
+	/// When set to 0, the rope's initial length between attachment points is used.
+	/// </summary>
+	[Property, Group( "Advanced", StartFolded = true )]
+	public float LengthOverride
+	{
+		get;
+		set
+		{
+			field = MathF.Max( 0f, value );
+			WakeRope();
+		}
+	} = 0f;
 
 	/// <summary>
 	/// Rope stiffness factor. Higher values make the rope more rigid.
@@ -65,7 +88,7 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	/// <summary>
 	/// The length the rope would like to have.
 	/// </summary>
-	private float targetRopeLength => initialRopeLength + Slack;
+	private float targetRopeLength => (LengthOverride > 0f ? LengthOverride : initialRopeLength + Slack);
 
 	/// <summary>
 	/// Set on Initialize based on distance between attachment points and slack.
@@ -258,8 +281,7 @@ public class VerletRope : Component, Component.ExecuteInEditor
 
 			if ( startMoved || endMoved || timeSinceRest > 2f ) // Occasionally wake up ropes, so we can react to external collisions
 			{
-				isAtRest = false;
-				currentRestFrameCount = 0;
+				WakeRope();
 
 				if ( timeSinceRest > 2f )
 				{
@@ -272,6 +294,12 @@ public class VerletRope : Component, Component.ExecuteInEditor
 		// Update attachment positions for tracking
 		lastStartPos = WorldPosition;
 		lastEndPos = Attachment?.WorldPosition ?? lastEndPos;
+	}
+
+	private void WakeRope()
+	{
+		isAtRest = false;
+		currentRestFrameCount = 0;
 	}
 
 	void VerletIntegration( float dt )

@@ -1,5 +1,4 @@
 using Editor.MeshEditor;
-using Sandbox;
 using Sandbox.UI;
 
 namespace Editor.RectEditor;
@@ -10,6 +9,8 @@ public class FastTextureWindow : Window
 	private List<Vector2[]> OriginalUVs { get; set; } = new();
 	private List<Material> OriginalMaterials { get; set; } = new();
 	public RectView _RectView { get; private set; }
+
+	private IDisposable _undoScope;
 
 	public FastTextureWindow() : base()
 	{
@@ -29,13 +30,19 @@ public class FastTextureWindow : Window
 
 		_RectView.Layout.AddStretchCell();
 
-		DockManager.RegisterDockType( "Rect View", "space_dashboard", null, false );
-		DockManager.AddDock( null, _RectView, DockArea.Right, DockManager.DockProperty.HideOnClose, 0.0f );
+		Canvas = _RectView;
 
 		ToolBar.Visible = false;
 		MenuBar.Visible = false;
+	}
 
-		RestoreDefaultDockLayout();
+	public override void Close()
+	{
+		base.Destroy();
+	}
+
+	protected override void OnClosed()
+	{
 	}
 
 	public static void OpenWith( MeshFace[] faces, Material material = null )
@@ -57,10 +64,22 @@ public class FastTextureWindow : Window
 		OriginalUVs.Clear();
 		OriginalMaterials.Clear();
 
+		List<MeshComponent> components = new();
 		foreach ( var face in faces )
 		{
 			OriginalUVs.Add( face.TextureCoordinates.ToArray() );
 			OriginalMaterials.Add( face.Material );
+			if ( face.Component.IsValid() && !components.Contains( face.Component ) )
+			{
+				components.Add( face.Component );
+			}
+		}
+
+		if ( _undoScope == null )
+		{
+			_undoScope = SceneEditorSession.Active.UndoScope( "Fast Texture Tool" )
+				.WithComponentChanges( components )
+				.Push();
 		}
 
 		if ( material != null )
@@ -215,6 +234,18 @@ public class FastTextureWindow : Window
 	[Shortcut( "editor.confirm", "ENTER" )]
 	public void Confirm()
 	{
+		Close();
+	}
+
+	[Shortcut( "editor.fasttexture.resetuvs", "Shift+R" )]
+	public void ResetUVs()
+	{
+		_RectView?.ResetUV();
+		Update();
+	}
+
+	protected override bool OnClose()
+	{
 		var meshRect = Document?.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
 		if ( meshRect != null )
 		{
@@ -224,14 +255,10 @@ public class FastTextureWindow : Window
 
 		Settings.FastTextureSettings.Save();
 
-		Close();
-	}
+		_undoScope?.Dispose();
+		_undoScope = null;
 
-	[Shortcut( "editor.fasttexture.resetuvs", "Shift+R" )]
-	public void ResetUVs()
-	{
-		_RectView?.ResetUV();
-		Update();
+		return true;
 	}
 }
 
@@ -457,6 +484,7 @@ public class RectViewToolbar : Widget
 				xInset.Icon = "swap_horiz";
 				xInset.MinimumWidth = 160;
 				xInset.Enabled = Settings.ScaleMode != ScaleMode.WorldScale;
+				col.AddSpacingCell( 8 );
 
 				var yInset = col.Add( new FloatControlWidget( so.GetProperty( nameof( FastTextureSettings.InsetY ) ) ) );
 				yInset.FixedHeight = Theme.RowHeight;
@@ -465,6 +493,28 @@ public class RectViewToolbar : Widget
 				yInset.Icon = "import_export";
 				yInset.MinimumWidth = 160;
 				yInset.Enabled = Settings.ScaleMode != ScaleMode.WorldScale;
+			} );
+
+			AddGroup( insetCol, "View Mode", layout =>
+			{
+				var debugview = new ComboBox();
+				debugview.AddItem( "Default", "texture" );
+				debugview.AddItem( "Roughness", "grain" );
+				debugview.AddItem( "Normals", "waves" );
+				debugview.CurrentIndex = ((int)Window.Settings.FastTextureSettings.DebugMode);
+				debugview.ItemChanged += () =>
+				{
+					Settings.DebugMode = debugview.CurrentIndex switch
+					{
+						0 => DebugMode.Default,
+						1 => DebugMode.Roughness,
+						2 => DebugMode.Normals,
+						_ => DebugMode.Default
+					};
+					Window._RectView?.SetMaterial( Material.Load( Window.Settings.ReferenceMaterial ) );
+				};
+
+				layout.Add( debugview );
 			} );
 		}
 

@@ -12,36 +12,23 @@ internal class NetworkTable : IDisposable
 
 	public class Entry : INetworkProxy
 	{
-		public Type TargetType { get; init; }
-		public string DebugName { get; init; }
-		public bool NeedsQuery { get; set; }
-		public Func<Connection, bool> ControlCondition { get; init; } = c => true;
-		public Func<object> GetValue { get; init; }
-		public Action<object> SetValue { get; init; }
-		public Action<Entry> OnDirty { get; set; }
-		public ulong SnapshotHash { get; set; }
-		public int HashCodeValue { get; set; }
-		public bool IsSerializerType { get; private set; }
-		public bool IsDeltaSnapshotType { get; private set; }
-		public bool IsReliableType { get; set; }
-		public byte[] Serialized { get; set; }
-		public bool Initialized { get; set; }
-		public int Slot { get; private set; }
-
-		private bool InternalIsDirty { get; set; }
-
-		public bool IsDirty
-		{
-			get => InternalIsDirty;
-			set
-			{
-				if ( InternalIsDirty == value )
-					return;
-
-				InternalIsDirty = value;
-				OnDirty?.Invoke( this );
-			}
-		}
+		// We're making all of these fields because they're accessed on an extremely hot path.
+		// Being properties, the extra method call stacks up a lot when you have thousands and
+		// thousands of entries. It doesn't really matter though, this API is not public.
+		public Type TargetType;
+		public string DebugName;
+		public bool NeedsQuery;
+		public Func<Connection, bool> ControlCondition = _ => true;
+		public Func<object> GetValue;
+		public Action<object> SetValue;
+		public int HashCodeValue;
+		public bool IsSerializerType;
+		public bool IsDeltaSnapshotType;
+		public bool IsReliableType;
+		public bool IsDirty;
+		public byte[] Serialized;
+		public bool Initialized;
+		public int Slot;
 
 		bool INetworkProxy.IsProxy => !HasControl( Connection.Local );
 
@@ -278,11 +265,13 @@ internal class NetworkTable : IDisposable
 	/// <param name="snapshot"></param>
 	internal void WriteSnapshotState( LocalSnapshotState snapshot )
 	{
+		var localConnection = Connection.Local;
+
 		for ( var i = 0; i < _snapshotEntries.Count; i++ )
 		{
 			var entry = _snapshotEntries[i];
 
-			if ( !entry.HasControl() )
+			if ( !entry.HasControl( localConnection ) )
 				continue;
 
 			if ( entry.IsDeltaSnapshotType )
@@ -292,23 +281,24 @@ internal class NetworkTable : IDisposable
 				continue;
 			}
 
+			if ( entry.Serialized is not null )
+				continue;
+
+			var bs = ByteStream.Create( 4096 );
+
 			try
 			{
-				if ( entry.Serialized is null )
-				{
-					var bs = ByteStream.Create( 4096 );
-					WriteEntryToStream( entry, ref bs );
-					entry.Serialized = bs.ToArray();
-					entry.SnapshotHash = snapshot.Hash( entry.Serialized );
-					bs.Dispose();
-				}
-
-				snapshot.AddSerialized( entry.Slot, entry.Serialized, entry.SnapshotHash );
+				WriteEntryToStream( entry, ref bs );
+				entry.Serialized = bs.ToArray();
 			}
 			catch ( Exception e )
 			{
 				Log.Warning( e, $"Error when getting value {entry.DebugName} - {e.Message}" );
 			}
+
+			bs.Dispose();
+
+			snapshot.AddSerialized( entry.Slot, entry.Serialized );
 		}
 	}
 

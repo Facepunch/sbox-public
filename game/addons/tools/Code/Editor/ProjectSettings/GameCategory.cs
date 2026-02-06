@@ -1,7 +1,7 @@
 ﻿namespace Editor.ProjectSettingPages;
 
-[Title( "Game Setup" )]
-internal sealed class GameCategory : ProjectInspector.Category
+[Title( "Game Setup" ), Icon( "games" )]
+internal sealed class GameCategory : ProjectSettingsWindow.Category
 {
 	/// <summary>
 	/// This scene is loaded when the game starts.

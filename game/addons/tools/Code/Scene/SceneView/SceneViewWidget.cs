@@ -97,6 +97,11 @@ public partial class SceneViewWidget : Widget
 			selectionHash = session.Selection.GetHashCode();
 		}
 
+		if ( isActive )
+		{
+			Current = this;
+		}
+
 		// All this shit below is scene specific
 		if ( CurrentView != ViewMode.Game )
 		{
@@ -109,11 +114,6 @@ public partial class SceneViewWidget : Widget
 
 			if ( !shouldUpdate )
 				return;
-
-			if ( isActive )
-			{
-				Current = this;
-			}
 
 			session.Scene.EditorTick( RealTime.Now, RealTime.Delta );
 		}
@@ -331,14 +331,13 @@ file class ViewportToolBar : Widget
 		{
 			var scroller = new ScrollArea( null );
 			scroller.FixedWidth = 240;
+			scroller.FocusMode = FocusMode.None;
 			toolWidget.FixedWidth = 240;
 			scroller.HorizontalSizeMode = SizeMode.Flexible;
 			scroller.VerticalSizeMode = SizeMode.Flexible;
 			scroller.HorizontalScrollbarMode = ScrollbarMode.Off;
 			scroller.Canvas = toolWidget;
 			_sidebar.Add( scroller );
-
-			toolWidget.Focus();
 		}
 
 		// Update footer
@@ -377,8 +376,8 @@ file class EditorSubToolBarWidget : VerticalToolbarGroup
 	public EditorSubToolBarWidget( EditorTool tool ) : base( null, null, null )
 	{
 		_tool = tool;
-		FixedWidth = 32 + 4 + 4;
-		ContentMargins = 4;
+		FixedWidth = 32 + 4 + 1;
+		ContentMargins = 1;
 	}
 
 	public override void Build()

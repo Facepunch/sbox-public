@@ -20,15 +20,6 @@ class NavMeshGenerator : IDisposable
 			// Reuse memory
 			inputChf.CopyTo( chfWorkingCopy );
 		}
-
-		if ( contourSet == null )
-		{
-			contourSet = new ContourSet();
-		}
-		else
-		{
-			contourSet.Clear();
-		}
 	}
 
 	public void Dispose()
@@ -37,11 +28,6 @@ class NavMeshGenerator : IDisposable
 		{
 			chfWorkingCopy.Dispose();
 			chfWorkingCopy = null;
-		}
-		if ( contourSet != null )
-		{
-			contourSet.Dispose();
-			contourSet = null;
 		}
 	}
 
@@ -72,15 +58,17 @@ class NavMeshGenerator : IDisposable
 		}
 	}
 
-	private List<int> vertsCache = new( 256 );
-	private List<int> vertsSimplifiedCache = new( 128 );
 	private List<int> prevCache = new( 512 );
-	private ContourSet contourSet;
+
+	// Cached pools for reuse across Generate() calls
+	private PolyMeshBuilder.PolyMeshBuilderContext polyMeshBuilderContext = new();
+	private RegionBuilder.RegionBuilderContext regionBuilderContext = new();
+	private ContourBuilder.ContourBuilderContext contourBuilderContext = new();
 
 	public PolyMesh Generate()
 	{
 		// According to recast docs good for tiles
-		if ( !RegionBuilder.BuildLayerRegions( chfWorkingCopy, cfg.BorderSize, cfg.MinRegionArea, prevCache ) )
+		if ( !RegionBuilder.BuildLayerRegions( chfWorkingCopy, cfg.BorderSize, cfg.MinRegionArea, prevCache, regionBuilderContext ) )
 		{
 			//Log.Warning( "buildNavigation: Could not build layer regions.\n" );
 			return null;
@@ -91,9 +79,9 @@ class NavMeshGenerator : IDisposable
 		//
 
 		// Create contours.
-		ContourBuilder.BuildContours( chfWorkingCopy, cfg.MaxSimplificationError, cfg.MaxEdgeLen, vertsCache, vertsSimplifiedCache, contourSet );
+		ContourBuilder.BuildContours( chfWorkingCopy, cfg.MaxSimplificationError, cfg.MaxEdgeLen, contourBuilderContext );
 
-		if ( contourSet.Contours.Count == 0 )
+		if ( contourBuilderContext.ContourSet.Contours.Count == 0 )
 		{
 			//Log.Warning( "buildNavigation: No contours could be build for regions.\n" );
 
@@ -105,6 +93,6 @@ class NavMeshGenerator : IDisposable
 		//
 
 		// Build polygon navmesh from the contours.
-		return PolyMeshBuilder.BuildPolyMesh( contourSet, cfg.MaxVertsPerPoly );
+		return PolyMeshBuilder.BuildPolyMesh( contourBuilderContext.ContourSet, cfg.MaxVertsPerPoly, polyMeshBuilderContext );
 	}
 }

@@ -16,6 +16,7 @@ public class VirtualWidget
 	public float Indent;
 	public bool HasChildren;
 	public bool IsOpen;
+	public Rect ChildrenRect;
 
 	/// <summary>
 	/// Generically paint a background for this item

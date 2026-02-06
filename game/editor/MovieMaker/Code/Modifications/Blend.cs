@@ -42,12 +42,12 @@ public class BlendModification() : PerTrackModification<BlendOptions>( BlendOpti
 		};
 	}
 
-	public void SetFromTracks( IEnumerable<ICompiledPropertyTrack> tracks, MovieTimeRange timeRange, MovieTime offset, bool? isAdditive = null, JsonObject? metadata = null )
+	public void SetFromMovieClip( MovieClip clip, MovieTimeRange timeRange, MovieTime offset, bool? isAdditive = null ) =>
+		SetFromTracks( clip.Tracks.OfType<ICompiledPropertyTrack>(), timeRange, offset, isAdditive );
+
+	public void SetFromTracks( IEnumerable<ICompiledPropertyTrack> tracks, MovieTimeRange timeRange, MovieTime offset, bool? isAdditive = null )
 	{
 		var tracksCopy = tracks.ToArray();
-		var clip = MovieClip.FromTracks( tracksCopy.AsEnumerable() );
-		var source = new ProjectSourceClip( Guid.NewGuid(), clip, metadata );
-
 		var project = EditMode.Project;
 		var trackCount = project.Tracks.Count;
 
@@ -71,11 +71,11 @@ public class BlendModification() : PerTrackModification<BlendOptions>( BlendOpti
 		foreach ( var srcTrack in tracksCopy )
 		{
 			if ( project.GetOrAddTrack( srcTrack ) is not IProjectPropertyTrack dstTrack ) continue;
-			if ( source.AsBlocks( dstTrack ) is not { Count: > 0 } blocks ) continue;
+			if ( srcTrack.Blocks.Count == 0 ) continue;
 
 			var state = GetOrCreateTrackModificationPreview( dstTrack );
 
-			state.Modification = blocks.AsModification();
+			state.Modification = srcTrack.Blocks.ToProjectBlocks().AsModification();
 		}
 
 		Options = Options with

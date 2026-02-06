@@ -17,6 +17,8 @@ public sealed partial class Material : Resource
 	/// <returns>The new material.</returns>
 	public static Material Create( string materialName, string shader, bool anonymous = true )
 	{
+		// MaterialSystem2.CreateRawMaterial will also assert in native, but let's catch this in managed too.
+		ThreadSafe.AssertIsMainThread();
 		return FromNative( MaterialSystem2.CreateRawMaterial( materialName, shader, anonymous ) );
 	}
 
@@ -48,9 +50,10 @@ public sealed partial class Material : Resource
 	/// </summary>
 	public static Material FromShader( string path )
 	{
-		var shaderDir = Path.GetDirectoryName( path );
-		var shaderName = Path.GetFileNameWithoutExtension( path ).ToLower();
-		var shaderPath = Path.Combine( shaderDir, shaderName ).NormalizeFilename( false ).Replace( "/", "_" );
+		var pathSpan = path.AsSpan();
+		var shaderDirSpan = Path.GetDirectoryName( pathSpan );
+		var shaderNameSpan = Path.GetFileNameWithoutExtension( pathSpan );
+		var shaderPath = Path.Join( shaderDirSpan, shaderNameSpan ).NormalizeFilename( false, true, '_' );
 		if ( shaderMaterials.TryGetValue( shaderPath, out var material ) )
 			return material;
 

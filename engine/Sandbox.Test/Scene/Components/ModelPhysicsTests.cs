@@ -183,20 +183,12 @@ public class ModelPhysicsTests
 		Assert.IsTrue( initialJointCount > 0, "Should have joints when enabled" );
 		Assert.IsTrue( initialColliderCount > 0, "Should have colliders when enabled" );
 
-		// Disable should destroy physics
+		// Disable should disable physics components
 		modelPhysics.Enabled = false;
 
-		Assert.AreEqual( 0, modelPhysics.Bodies.Count, "Bodies should be cleared when disabled" );
-		Assert.AreEqual( 0, modelPhysics.Joints.Count, "Joints should be cleared when disabled" );
-
-		var colliderCount = 0;
-
-		foreach ( var collider in go.GetComponentsInChildren<Collider>( true ) )
-		{
-			colliderCount++;
-		}
-
-		Assert.AreEqual( 0, colliderCount, "Colliders should be cleared when disabled" );
+		Assert.IsTrue( modelPhysics.Bodies.All( b => !b.Component.Enabled ), "All bodies should be disabled when model physics is disabled" );
+		Assert.IsTrue( modelPhysics.Joints.All( j => !j.Component.Enabled ), "All joints should be disabled when model physics is disabled" );
+		Assert.IsTrue( go.GetComponentsInChildren<Collider>( true ).All( c => !c.Enabled ), "All colliders should be disabled when model physics is disabled" );
 	}
 
 	[TestMethod]
@@ -290,10 +282,13 @@ public class ModelPhysicsTests
 		for ( int i = 0; i < 3; i++ )
 		{
 			modelPhysics.Enabled = true;
+
 			Assert.IsTrue( modelPhysics.Bodies.Count > 0, $"Iteration {i}: Should have bodies when enabled" );
+			Assert.IsTrue( modelPhysics.Bodies.All( b => b.Component.Enabled ), $"Iteration {i}: All bodies should be enabled when model physics is enabled" );
 
 			modelPhysics.Enabled = false;
-			Assert.AreEqual( 0, modelPhysics.Bodies.Count, $"Iteration {i}: Should have no bodies when disabled" );
+
+			Assert.IsTrue( modelPhysics.Bodies.All( b => !b.Component.Enabled ), $"Iteration {i}: All bodies should be disabled when model physics is disabled" );
 		}
 	}
 

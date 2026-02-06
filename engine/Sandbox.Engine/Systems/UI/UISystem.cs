@@ -14,7 +14,6 @@ internal class UISystem
 	internal PanelRenderer Renderer = new PanelRenderer();
 
 	internal PanelInput Input { get; } = new();
-	internal VROverlayInput VROverlayInput { get; } = new();
 
 	internal List<RootPanel> RootPanels = new();
 	internal List<Panel> DeletionList = new();
@@ -175,8 +174,7 @@ internal class UISystem
 		//
 		Input.Tick( RootPanels.Where( p => !p.IsWorldPanel ).OrderByDescending( x => x.ComputedStyle?.ZIndex ?? 0 ), allowMouseInput && DoAnyPanelsWantMouseVisible() );
 
-		VROverlayInput.Tick( null, allowMouseInput && DoAnyPanelsWantMouseVisible() ); // Only needs to Tick it's own focused panel
-		WorldInputInternal.TickAll( RootPanels.Where( p => p.IsWorldPanel ) );
+		TickWorldInput();
 
 		//
 		// We tick focus here, after the layout. This way any styles that
@@ -278,6 +276,20 @@ internal class UISystem
 		}
 
 		Game.InputContext.UpdateInputFromUI( mouseState, Input.Hovered, Panel.MouseCapture is not null, buttonState, CurrentFocus );
+	}
+
+	void TickWorldInput()
+	{
+		foreach ( var scene in Scene.All )
+		{
+			var rootPanels = scene.GetAllComponents<WorldPanel>();
+			var worldInputs = scene.GetAllComponents<WorldInput>();
+
+			foreach ( var worldInput in worldInputs )
+			{
+				worldInput.WorldPanelInput.Tick( rootPanels.Select( x => x.GetPanel() as RootPanel ), true );
+			}
+		}
 	}
 
 	bool DoAnyPanelsWantMouseVisible()

@@ -12,49 +12,45 @@ namespace Editor;
 [Order( 0 )]
 public class NavTestSettings : EditorTool
 {
-	private NavigationWidgetWindow _overlay;
 	private bool _previousNavDrawState = false;
-	private bool _navDrawStateChangedManually = false;
+	internal bool NavDrawStateChangedManually = false;
 
 	public override void OnEnabled()
 	{
-		_overlay = new NavigationWidgetWindow( this );
-		AddOverlay( _overlay, TextFlag.RightBottom, 10 );
-
 		_previousNavDrawState = Scene.NavMesh.DrawMesh;
 		Scene.NavMesh.DrawMesh = true;
-		_navDrawStateChangedManually = false;
+		NavDrawStateChangedManually = false;
 	}
 
 	public override void OnDisabled()
 	{
-		_overlay?.Close();
-
-		if ( !_navDrawStateChangedManually )
+		if ( !NavDrawStateChangedManually )
 		{
 			// Restore previous state if we didn't change it manually
 			Scene.NavMesh.DrawMesh = _previousNavDrawState;
 		}
 	}
 
-	public override void OnUpdate()
+	public override Widget CreateToolSidebar()
 	{
-		_overlay.UpdateButton();
+		return new NavigationSettingsWidget( this );
 	}
 
 	/// <summary>
-	/// Overlay window for navigation settings
+	/// Sidebar widget for navigation settings
 	/// </summary>
-	private class NavigationWidgetWindow : WidgetWindow
+	private class NavigationSettingsWidget : ToolSidebarWidget
 	{
 		private readonly NavTestSettings Tool;
 		private readonly Checkbox EnabledCheckbox;
 		private readonly Checkbox EditorAutoRefresh;
 		private readonly Checkbox DebugCheckbox;
 
-		public NavigationWidgetWindow( NavTestSettings tool ) : base( tool.SceneOverlay, "Navigation Settings" )
+		public NavigationSettingsWidget( NavTestSettings tool ) : base()
 		{
 			Tool = tool;
+
+			AddTitle( "Settings", "edit_note" );
 
 			EnabledCheckbox = new Checkbox( "Enabled" )
 			{
@@ -63,6 +59,7 @@ public class NavTestSettings : EditorTool
 					Tool.Scene.NavMesh.IsEnabled = state == CheckState.On;
 				}
 			};
+			Layout.Add( EnabledCheckbox );
 
 			DebugCheckbox = new Checkbox( "Debug Render" )
 			{
@@ -72,9 +69,10 @@ public class NavTestSettings : EditorTool
 				},
 				Clicked = () =>
 				{
-					Tool._navDrawStateChangedManually = true;
+					Tool.NavDrawStateChangedManually = true;
 				}
 			};
+			Layout.Add( DebugCheckbox );
 
 			EditorAutoRefresh = new Checkbox( "Editor Auto Refresh" )
 			{
@@ -83,28 +81,31 @@ public class NavTestSettings : EditorTool
 					Tool.Scene.NavMesh.EditorAutoUpdate = state == CheckState.On;
 				}
 			};
-
-			// Build layout
-			Layout = Layout.Column();
-			Layout.Margin = 8;
-			Layout.Spacing = 4;
-			FixedWidth = 175.0f;
-
-			Layout.Add( EnabledCheckbox );
-			Layout.Add( DebugCheckbox );
 			Layout.Add( EditorAutoRefresh );
+
+			Layout.AddSpacingCell( 8 );
+
 			Layout.Add( new Button( "Rebuild", "autorenew" )
 			{
 				Clicked = () => Tool.Scene.NavMesh.SetDirty()
+			} );
+			Layout.Add( new Button( "Bake", "download" )
+			{
+				Clicked = () => NavMesh.BakeNavMesh()
 			} );
 			Layout.Add( new Button( "Settings", "edit_note" )
 			{
 				Clicked = () => OpenPopup()
 			} );
+
+			Layout.AddStretchCell();
 		}
 
-		public void UpdateButton()
+		protected override void OnPaint()
 		{
+			base.OnPaint();
+
+			// Update checkbox states
 			EnabledCheckbox!.State = Tool.Scene.NavMesh.IsEnabled ? CheckState.On : CheckState.Off;
 			DebugCheckbox!.State = Tool.Scene.NavMesh.DrawMesh ? CheckState.On : CheckState.Off;
 			EditorAutoRefresh!.State = Tool.Scene.NavMesh.EditorAutoUpdate ? CheckState.On : CheckState.Off;
@@ -131,12 +132,11 @@ public class NavTestSettings : EditorTool
 [Order( 0 )]
 public class NavTestTool : EditorTool
 {
-	private NavTestWindow Overlay;
 	internal Vector3 StartPoint;
 	internal Vector3 TargetPoint;
 	private bool CanTest => StartPoint != Vector3.Zero && TargetPoint != Vector3.Zero;
 
-	private NavMeshPathStatus CurrentStatus = NavMeshPathStatus.PathNotFound;
+	internal NavMeshPathStatus CurrentStatus = NavMeshPathStatus.PathNotFound;
 
 	private static readonly Dictionary<NavMeshPathStatus, Color> PathColorPalette = new()
 	{
@@ -153,18 +153,25 @@ public class NavTestTool : EditorTool
 	}
 	internal PickingState Picking = PickingState.None;
 
+	private bool _previousNavDrawState = false;
+
 	public override void OnEnabled()
 	{
-		Overlay = new NavTestWindow( this );
-		AddOverlay( Overlay, TextFlag.RightBottom, 10 );
+		_previousNavDrawState = Scene.NavMesh.DrawMesh;
+		Scene.NavMesh.DrawMesh = true;
 	}
 
 	public override void OnDisabled()
 	{
-		Overlay?.Close();
+		Scene.NavMesh.DrawMesh = _previousNavDrawState;
 	}
 
-	private void Pick( PickingState state )
+	public override Widget CreateToolSidebar()
+	{
+		return new NavTestWidget( this );
+	}
+
+	internal void Pick( PickingState state )
 	{
 		Picking = state;
 		SceneOverlay.Parent.Focus();
@@ -216,8 +223,8 @@ public class NavTestTool : EditorTool
 		// We made a selection, lets stop picking
 		if ( Gizmo.WasLeftMouseReleased )
 		{
-			// If we are picking start, we can switch to end picking
-			if ( Picking == PickingState.Start && TargetPoint == Vector3.Zero ) Picking = PickingState.Target;
+			// If we are picking start, automatically switch to end picking
+			if ( Picking == PickingState.Start ) Picking = PickingState.Target;
 			else Picking = PickingState.None;
 		}
 
@@ -241,8 +248,6 @@ public class NavTestTool : EditorTool
 
 	public override void OnUpdate()
 	{
-		Overlay.UpdateWidgets();
-
 		if ( !Scene.NavMesh.IsEnabled )
 		{
 			StartPoint = TargetPoint = Vector3.Zero;
@@ -305,47 +310,47 @@ public class NavTestTool : EditorTool
 	}
 
 	/// <summary>
-	/// Navigation testing tool overlay window
+	/// Navigation testing tool sidebar widget
 	/// </summary>
-	private class NavTestWindow : WidgetWindow
+	private class NavTestWidget : ToolSidebarWidget
 	{
 		private readonly NavTestTool Tool;
 		private readonly Button SelectStart;
 		private readonly Button SelectEnd;
 		private readonly Label StatusLabel;
 
-		public NavTestWindow( NavTestTool tool ) : base( tool.SceneOverlay, "Navigation Tester" )
+		public NavTestWidget( NavTestTool tool ) : base()
 		{
 			Tool = tool;
+
+			AddTitle( "Path Tester", "cruelty_free" );
 
 			StatusLabel = new Label( "Select a start and target position..." );
 			StatusLabel.Alignment = TextFlag.CenterHorizontally;
 			StatusLabel.ToolTip = "Status";
+			Layout.Add( StatusLabel );
+
+			Layout.AddSpacingCell( 8 );
 
 			SelectStart = new Button( "Pick Start", "ads_click" )
 			{
 				Clicked = () => Tool.Pick( PickingState.Start )
 			};
+			Layout.Add( SelectStart );
 
 			SelectEnd = new Button( "Pick Target", "ads_click" )
 			{
 				Clicked = () => Tool.Pick( PickingState.Target )
 			};
+			Layout.Add( SelectEnd );
 
-			Layout = Layout.Column();
-			Layout.Margin = 8;
-			FixedWidth = 150.0f;
-
-			var buttonRow = Layout.AddColumn();
-			buttonRow.Spacing = 4;
-			buttonRow.Add( StatusLabel );
-			buttonRow.AddSeparator();
-			buttonRow.Add( SelectStart );
-			buttonRow.Add( SelectEnd );
+			Layout.AddStretchCell();
 		}
 
-		internal void UpdateWidgets()
+		protected override void OnPaint()
 		{
+			base.OnPaint();
+
 			bool navmeshEnabled = Tool.Scene.NavMesh.IsEnabled;
 			bool hasStart = Tool.StartPoint != Vector3.Zero;
 			bool hasTarget = Tool.TargetPoint != Vector3.Zero;

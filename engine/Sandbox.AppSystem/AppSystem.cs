@@ -119,7 +119,7 @@ public class AppSystem
 
 			Console.WriteLine( $"Error: ({e.GetType()}) {e.Message}" );
 
-			Environment.Exit( 1 );
+			CrashShutdown();
 		}
 	}
 
@@ -128,6 +128,26 @@ public class AppSystem
 		EngineLoop.RunFrame( _appSystem, out bool wantsToQuit );
 
 		return !wantsToQuit;
+	}
+
+	/// <summary>
+	/// Emergency shutdown for crash scenarios. Uses Plat_ExitProcess to immediately
+	/// terminate without running finalizers, DLL destructors, or creating dumps.
+	/// </summary>
+	void CrashShutdown()
+	{
+		// Best effort to sve and flush things.
+		// Might now work because we are in an unstable state.
+
+		try { ConVarSystem.SaveAll(); } catch { }
+
+		try { ErrorReporter.Flush(); } catch { }
+
+		try { Api.Shutdown(); } catch { }
+
+		try { NLog.LogManager.Shutdown(); } catch { }
+
+		NativeEngine.EngineGlobal.Plat_ExitProcess( 1 );
 	}
 
 	public virtual void Shutdown()

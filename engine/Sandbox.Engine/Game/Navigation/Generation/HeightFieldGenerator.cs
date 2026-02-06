@@ -22,6 +22,8 @@ class HeightFieldGenerator : IDisposable
 	CUtlVectorVector triangulationVertArrCache = CUtlVectorVector.Create( 0, 512 );
 	CUtlVectorUInt32 triangulationIndexArrCache = CUtlVectorUInt32.Create( 0, 1024 );
 
+	public bool IsEmpty => inputGeoVerticesCount < 3 || inputGeoIndicesCount < 3;
+
 	public void Dispose()
 	{
 		cachedHeightField?.Dispose();
@@ -47,6 +49,8 @@ class HeightFieldGenerator : IDisposable
 	{
 		inputGeoVertices ??= ArrayPool<Vector3>.Shared.Rent( 2048 );
 		inputGeoIndices ??= ArrayPool<int>.Shared.Rent( 4096 );
+		inputGeoVerticesCount = 0;
+		inputGeoIndicesCount = 0;
 		inputGeometryMaxZ = float.MinValue;
 		inputGeometryMinZ = float.MaxValue;
 		cfg = config;
@@ -209,7 +213,10 @@ class HeightFieldGenerator : IDisposable
 		// Compact the heightfield so that it is faster to handle from now on.
 		// This will result more cache coherent data as well as the neighbours
 		// between walkable cells will be calculated.
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// chf is returned by this function, caller takes ownership
 		var chf = cachedHeightField.BuildCompactHeightfield( cfg.WalkableHeight, cfg.WalkableClimb );
+#pragma warning restore CA2000 // Dispose objects before losing scope
 
 		// Erode the walkable area by agent radius.
 		AreaFilter.ErodeWalkableArea( cfg.WalkableRadius, chf );

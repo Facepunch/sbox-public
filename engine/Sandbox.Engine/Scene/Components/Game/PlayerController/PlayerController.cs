@@ -146,6 +146,7 @@ public sealed partial class PlayerController : Component, IScenePhysicsEvents, C
 	{
 		base.OnEnabled();
 
+		EnableAnimationEvents();
 
 		if ( !Scene.IsEditor )
 		{

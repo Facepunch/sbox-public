@@ -61,6 +61,7 @@ internal partial class GameInstanceDll
 		else if ( !DidMountNetworkedFiles )
 		{
 			EngineFileSystem.ProjectSettings.Mount( NetworkedConfigFiles.Files );
+			FileSystem.Mounted.Mount( NetworkedLargeFiles.Files );
 			FileSystem.Mounted.Mount( NetworkedSmallFiles.Files );
 
 			NetworkedSmallFiles.Refresh();

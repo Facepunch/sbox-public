@@ -2,7 +2,7 @@
 
 namespace Editor.MeshEditor;
 
-[Title( "Sphere" ), Icon( "circle" )]
+[Title( "Sphere" ), Icon( "sports_baseball" )]
 internal class SpherePrimitive : PrimitiveBuilder
 {
 	[Title( "Number of sides" )]

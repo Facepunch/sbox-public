@@ -31,6 +31,17 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 
 		HeightMap?.Dispose();
 		ControlMap?.Dispose();
+
+		TerrainBuffer?.Dispose();
+		TerrainBuffer = null;
+
+		MaterialsBuffer?.Dispose();
+		MaterialsBuffer = null;
+
+		if ( !Scene.GetAllComponents<Terrain>().Any( t => t != this && t.Active ) )
+		{
+			Scene.RenderAttributes.Set( "TerrainCount", 0 );
+		}
 	}
 
 	void OnTerrainChanged()
@@ -46,6 +57,19 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 			return;
 
 		_so.Attributes.Set( "VertexDisplacement", UseVertexDisplacement );
+
+		if ( Storage is null )
+			return;
+
+		foreach ( var material in Storage.Materials )
+		{
+			// Tell texture streaming we want at least 4k textures if they have them
+			// We could make this way way smarter, if materials are further away from us we can request a lower mip
+			// if we're not using them at all, simply don't mark them as used
+
+			material.BCRTexture?.MarkUsed( 4096 );
+			material.NHOTexture?.MarkUsed( 4096 );
+		}
 	}
 
 	protected override void OnTagsChanged()

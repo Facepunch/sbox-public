@@ -29,7 +29,7 @@ public class TextTextureGenerator : TextureGenerator
 		var rect = new Rect( 0, 0, w, h );
 		rect = rect.Shrink( Margin );
 
-		var bitmap = new Bitmap( w, h, false );
+		using var bitmap = new Bitmap( w, h, false );
 		bitmap.Clear( Color.Transparent );
 		bitmap.DrawText( TextScope, rect, TextFlags );
 

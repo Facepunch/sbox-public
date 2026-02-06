@@ -122,8 +122,9 @@ public abstract class BaseBrushTool : EditorTool
 
 	protected virtual void OnPaint( Terrain terrain, TerrainPaintParameters paint )
 	{
-		// stupid?
 		int size = (int)Math.Floor( paint.BrushSettings.Size / terrain.Storage.TerrainSize * terrain.Storage.Resolution );
+		size = Math.Max( size, 1 );
+
 		var opacity = paint.BrushSettings.Opacity * (AllowBrushInvert && Gizmo.IsCtrlPressed ? -1.0f : 1.0f);
 
 		var cs = new ComputeShader( "terrain/cs_terrain_sculpt" );

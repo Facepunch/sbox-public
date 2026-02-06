@@ -29,6 +29,11 @@ native class IResourceCompilerContext
 		self->RegisterInputFileDependency( filename, (InputFileDependencyFlags_t) flags );
 	}
 
+	inline void RegisterAdditionalRelatedFile_Game( string filename )
+	{
+		self->RegisterAdditionalRelatedFile_Game( filename );
+	}
+
 	inline int WriteBlock( string blockName, void* data, int count )
 	{
 		auto blockId = MK_RSRC_BLOCK_ID( blockName[0], blockName[1], blockName[2], blockName[3] );

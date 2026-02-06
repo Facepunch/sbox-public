@@ -165,7 +165,7 @@ public sealed class LineRenderer : Renderer, Component.ExecuteInEditor
 		_so.EndCap = EndCap;
 		_so.Face = Face;
 		_so.Wireframe = Wireframe;
-		_so.Clamped = Texturing.Clamp;
+		_so.SamplerState = new() { Filter = Texturing.FilterMode, AddressModeU = Texturing.TextureAddressMode, AddressModeV = Texturing.TextureAddressMode };
 
 		_so.RenderingEnabled = true;
 		_so.Transform = transform;

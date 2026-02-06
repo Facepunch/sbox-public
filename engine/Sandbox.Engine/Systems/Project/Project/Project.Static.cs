@@ -1,6 +1,9 @@
 ﻿using Sandbox.Engine;
+using System.IO;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Sandbox;
 
@@ -170,6 +173,69 @@ public partial class Project
 		{
 			Log.Warning( e, $"Exception when generating {solutionName} ({e.Message})" );
 		}
+
+		if ( Current is not null )
+		{
+			WriteVsCodeWorkspace( Current );
+		}
+	}
+
+	private static readonly JsonSerializerOptions JsonWriteIndented = new() { WriteIndented = true };
+
+	public class VSCodeExtensions
+	{
+		[JsonPropertyName( "recommendations" )]
+		public string[] Recommendations { get; set; } = [];
+	}
+
+	class VSCodeSettings
+	{
+		[JsonPropertyName( "files.associations" )]
+		public Dictionary<string, string> FilesAssociations { get; set; } = [];
+
+		[JsonPropertyName( "slang.additionalSearchPaths" )]
+		public string[] SlangIncludePaths { get; set; } = [];
+
+		[JsonPropertyName( "slang.predefinedMacros" )]
+		public string[] SlangDefines { get; set; } = [];
+
+		[JsonPropertyName( "slang.workspaceFlavor" )]
+		public string SlangWorkspaceFlavor { get; set; } = "vfx";
+	}
+
+	/// <summary>
+	/// Writes a .vscode workspace configuration 
+	/// </summary>
+	/// <param name="project"></param>
+	static void WriteVsCodeWorkspace( Project project )
+	{
+		var projectPath = project.GetRootPath();
+
+		var vscodePath = Path.Combine( projectPath, ".vscode" );
+
+		Directory.CreateDirectory( vscodePath );
+
+		// Recommend C# Dev Kit and Slang extensions
+		var extensions = new VSCodeExtensions { Recommendations = ["ms-dotnettools.csdevkit", "shader-slang.slang-language-extension"] };
+		File.WriteAllText( Path.Combine( vscodePath, "extensions.json" ), JsonSerializer.Serialize( extensions, JsonWriteIndented ) );
+
+		// Associate file extensions (defaults to Unity ShaderLab) and set up Slang search paths
+		var settings = new VSCodeSettings
+		{
+			FilesAssociations = new() { { "*.shader", "slang" }, { "*.hlsl", "slang" } }
+		};
+
+		var shaderSearchPaths = new List<string> { EngineFileSystem.Root.GetFullPath( "/core/shaders" ) };
+
+		foreach ( var p in Project.All )
+		{
+			shaderSearchPaths.Add( Path.Combine( p.GetAssetsPath(), "shaders" ) );
+		}
+
+		settings.SlangIncludePaths = [.. shaderSearchPaths];
+		settings.SlangWorkspaceFlavor = "vfx";
+
+		File.WriteAllText( Path.Combine( vscodePath, "settings.json" ), JsonSerializer.Serialize( settings, JsonWriteIndented ) );
 	}
 
 	/// <summary>

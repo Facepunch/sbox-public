@@ -45,6 +45,7 @@ internal class WindowControlButton : Widget
 	protected override void OnMouseClick( MouseEvent e )
 	{
 		_onClick?.Invoke();
+		e.Accepted = true;
 	}
 
 	protected override void OnPaint()

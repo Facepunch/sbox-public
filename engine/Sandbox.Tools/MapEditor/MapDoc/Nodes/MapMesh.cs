@@ -90,7 +90,7 @@ public class MapMesh : MapNode
 			faceIndices.AddRange( face.Indices );
 			faceVertexCounts.Add( face.Indices.Count );
 
-			var material = Material.Load( face.Material ) ?? MapEditor.Hammer.CurrentMaterial ?? Material.Load( "materials/dev/reflectivity_30.vmat" ); // didn't specify a material? assign hammer current material
+			var material = (!string.IsNullOrEmpty( face.Material ) ? Material.Load( face.Material ) : null) ?? MapEditor.Hammer.CurrentMaterial ?? Material.Load( "materials/dev/reflectivity_30.vmat" ); // didn't specify a material? assign hammer current material
 			faceMaterials.Add( material.native );
 		}
 

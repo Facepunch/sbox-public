@@ -11,21 +11,6 @@ namespace Sandbox;
 [Icon( "favorite" )]
 public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor, ISpriteRenderGroup
 {
-	[Flags]
-	public enum FlipFlags
-	{
-		None = 0,
-
-		[Icon( "align_horizontal_center" )]
-		[Title( "Horizontal Flip" )]
-		[Description( "Flip the sprite horizontally around the origin." )]
-		FlipX = 2,
-		[Icon( "align_vertical_center" )]
-		[Title( "Vertical Flip" )]
-		[Description( "Flip the sprite vertically around the origin." )]
-		FlipY = 4
-	}
-
 	public enum BillboardMode
 	{
 		Always,
@@ -114,7 +99,6 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	/// Only used when Opaque is true. Range: 0.0 (transparent) to 1.0 (opaque). Default is 0.5.
 	/// </summary>
 	[Property, Category( "Visuals" ), Order( -200 ), Range( 0f, 1f )]
-	[ShowIf( nameof( Opaque ), true )]
 	public float AlphaCutoff { get; set; } = 0.5f;
 
 	/// <summary>

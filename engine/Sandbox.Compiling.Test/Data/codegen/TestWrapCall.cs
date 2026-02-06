@@ -20,6 +20,7 @@ public class WrapCall : Attribute
 	{
 		m.Resume();
 	}
+
 }
 
 public partial class TestWrapCall
@@ -55,12 +56,34 @@ public partial class TestWrapCall
 	}
 	
 	[WrapCall]
+	public void MyGenericCall<T>( int a, int b )
+	{
+		return default;
+	}
+	
+	[WrapCall]
+	public Task<T> MyGenericCallAsync<T>( int a )
+	{
+		return default;
+	}
+	
+	[WrapCall]
 	public void ExpressionBodiedBroadcast() => Log.Info( "Test." );
 
 	[WrapCall]
 	public bool TestWrappedInstanceCallReturnType( string arga )
 	{
 		return true;
+	}
+	
+	internal async Task<T> OnMethodInvoked<T>( WrappedMethod<Task<T>> m, int a )
+	{
+		return await m.Resume();
+	}
+	
+	internal void OnMethodInvoked( WrappedMethod m, params object[] argumentList )
+	{
+		
 	}
 	
 	internal bool OnMethodInvoked<T1>( WrappedMethod<bool> m, T1 arga )

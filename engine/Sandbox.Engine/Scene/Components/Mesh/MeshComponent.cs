@@ -179,10 +179,17 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 		// Only rebuild dirty meshes in editor.
 		if ( !Active ) return;
 		if ( !Scene.IsEditor ) return;
-		if ( Mesh is null || !Mesh.IsDirty ) return;
+		if ( Mesh is null ) return;
 
-		RebuildRenderMesh();
-		RebuildImmediately();
+		if ( Mesh.IsDirty )
+		{
+			RebuildRenderMesh();
+			RebuildImmediately();
+		}
+		else if ( Mesh.IsVertexDataDirty )
+		{
+			Mesh.UpdateVertexData();
+		}
 	}
 
 	protected override void OnTagsChanged()

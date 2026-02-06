@@ -53,22 +53,21 @@ public sealed partial class NavMesh
 
 		// In navspace
 		var searchRadius = request.Agent != null ? new Vector3( request.Agent.Radius * 2.01f, request.Agent.Height * 1.51f, request.Agent.Radius * 2.01f ) : crowd._agentPlacementHalfExtents;
+		var filter = request.Agent != null ? request.Agent.agentInternal.option.filter : crowd.GetDefaultFilter();
 
-		var startFound = query.FindNearestPoly( ToNav( request.Start ), searchRadius, DtQueryNoOpFilter.Shared, out var startPoly, out var startLocation, out _ );
+		var startFound = query.FindNearestPoly( ToNav( request.Start ), searchRadius, filter, out var startPoly, out var startLocation, out _ );
 		if ( !startFound.Succeeded() )
 		{
 			result.Status = NavMeshPathStatus.StartNotFound;
 			return result;
 		}
 
-		var targetFound = query.FindNearestPoly( ToNav( request.Target ), searchRadius, DtQueryNoOpFilter.Shared, out var targetPoly, out var targetLocation, out _ );
+		var targetFound = query.FindNearestPoly( ToNav( request.Target ), searchRadius, filter, out var targetPoly, out var targetLocation, out _ );
 		if ( !targetFound.Succeeded() )
 		{
 			result.Status = NavMeshPathStatus.TargetNotFound;
 			return result;
 		}
-
-		var filter = request.Agent != null ? request.Agent.agentInternal.option.filter : crowd.GetDefaultFilter();
 
 		// Quick search towards the goal.
 		var dtStatus = query.InitSlicedFindPath( startPoly, targetPoly, startLocation, targetLocation, filter, 0 );
@@ -77,12 +76,15 @@ public sealed partial class NavMesh
 			result.Status = NavMeshPathStatus.PathNotFound;
 			return result;
 		}
-		dtStatus = query.UpdateSlicedFindPath( crowd.Config().maxFindPathIterations, out var _ );
-		if ( dtStatus.Failed() )
+		do
 		{
-			result.Status = NavMeshPathStatus.PathNotFound;
-			return result;
-		}
+			dtStatus = query.UpdateSlicedFindPath( crowd.Config().maxFindPathIterations, out var _ );
+			if ( dtStatus.Failed() )
+			{
+				result.Status = NavMeshPathStatus.PathNotFound;
+				return result;
+			}
+		} while ( dtStatus.InProgress() );
 
 		result.Polygons = new( 128 );
 		dtStatus = query.FinalizeSlicedFindPath( ref result.Polygons );

@@ -15,5 +15,12 @@ native class QObject as Native.QObject
 	void setProperty( string key, bool value );
 	void setProperty( string key, float value );
 	void setProperty( string key, string value );
+
+	// Calling deleteLater via a singleShot with 0ms delay to avoid potential crashes
+	// when deleteLater is called from within certain event handlers.
+	inline void deleteMuchLater()
+	{
+		QTimer::singleShot( 0, (QObject*)self, &QObject::deleteLater );
+	}
 }
 

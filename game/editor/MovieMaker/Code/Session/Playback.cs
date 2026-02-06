@@ -55,6 +55,8 @@ public sealed partial class Session
 
 	public void ApplyFrame( MovieTime time )
 	{
+		if ( !Player.Scene.IsValid() ) return;
+
 		using var sceneScope = Player.Scene.Push();
 
 		_applyNextFrame = false;

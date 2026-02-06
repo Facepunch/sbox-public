@@ -498,7 +498,7 @@ namespace Hotload
 				InitOnlyHashSet.Add( i );
 			}
 
-			var cts = new CancellationTokenSource();
+			using var cts = new CancellationTokenSource();
 
 			Task.Run( () =>
 			{

@@ -37,14 +37,16 @@ public class TextureResourceCompiler : ResourceCompiler
 
 		Context.ResourceVersion = 1;
 
+		var desc = texture.Desc;
+
 		//
 		// Note: mipmaps don't work with PNG format ya doink
 		//
 
-		int width = texture.Width;
-		int height = texture.Height;
-		int depth = texture.Depth;
-		int mipCount = texture.Mips;
+		int width = desc.m_nWidth;
+		int height = desc.m_nHeight;
+		int depth = desc.m_nDepth;
+		int mipCount = desc.m_nNumMipLevels;
 
 		var writer = new VTexWriter();
 
@@ -59,7 +61,6 @@ public class TextureResourceCompiler : ResourceCompiler
 		writer.Header.Depth = (ushort)depth;
 		writer.Header.MipCount = (byte)mipCount;
 
-		var desc = texture.Desc;
 		var flags = VTexWriter.VTEX_Flags_t.NONE;
 
 		if ( desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_CUBE_TEXTURE ) )

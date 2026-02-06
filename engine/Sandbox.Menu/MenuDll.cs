@@ -124,10 +124,7 @@ internal sealed class MenuDll : IMenuDll
 			Game.TypeLibrary.RemoveAssembly( a.Assembly );
 		};
 
-		{
-			ConVarSystem.AddAssembly( Game.GameAssembly, "menu", "menu" );
-			ConVarSystem.AddAssembly( GetType().Assembly, "menu", "menu" );
-		}
+		ConVarSystem.AddAssembly( Game.GameAssembly, "menu", "menu" );
 
 		Json.Initialize();
 	}

@@ -14,7 +14,10 @@ internal static partial class Api
 		if ( Application.IsStandalone )
 			return;
 
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// Backend/HttpClient will take over ownership/disposal of this handler
 		Sandbox.Backend.Initialize( new CachingHandler() );
+#pragma warning restore CA2000 // Dispose objects before losing scope
 	}
 
 	internal static void Shutdown()

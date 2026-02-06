@@ -1,5 +1,6 @@
 ﻿using NLog;
 using System.Threading.Channels;
+using NLog.Targets;
 
 namespace Sandbox.Diagnostics;
 
@@ -14,7 +15,11 @@ internal static partial class Logging
 		_initialized = true;
 
 		var config = new NLog.Config.LoggingConfiguration();
+
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// Config takes ownership of targets
 		var game_target = new GameLog();
+#pragma warning restore CA2000 // Dispose objects before losing scope
 
 		NLog.LogManager.Setup().SetupExtensions( s =>
 		{
@@ -33,13 +38,20 @@ internal static partial class Logging
 		var gamePath = System.Environment.GetEnvironmentVariable( "FACEPUNCH_ENGINE", EnvironmentVariableTarget.User );
 		gamePath ??= AppContext.BaseDirectory;
 
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// Config takes ownership of targets
 		var file_target = new NLog.Targets.FileTarget
+#pragma warning restore CA2000 // Dispose objects before losing scope
 		{
 			FileName = System.IO.Path.Combine( gamePath, $"logs/{appName}.log" ),
+			ArchiveFileName = System.IO.Path.Combine( gamePath, "logs/" + appName + "-${date:format=yyyy-MM-dd}.zip" ),
 			ArchiveOldFileOnStartup = true,
+			ArchiveAboveSize = 512 * 1024 * 1024,
+			ArchiveEvery = FileArchivePeriod.Day,
 			OpenFileCacheSize = 10,
 			MaxArchiveFiles = 10,
 			KeepFileOpen = true,
+			EnableArchiveFileCompression = true,
 
 
 			//DeleteOldFileOnStartup = true,
@@ -47,11 +59,20 @@ internal static partial class Logging
 			Layout = "${date:format=yyyy/MM/dd HH\\:mm\\:ss.ffff}\t[${logger}] ${message}\t${exception:format=ToString}"
 		};
 
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// Config takes ownership of targets
+		var debugger_target = new NLog.Targets.DebuggerTarget
+		{
+			Layout = "${message:trimWhiteSpace=true}"
+		};
+#pragma warning restore CA2000 // Dispose objects before losing scope
+
 		//
 		// Targets
 		//
 		config.AddTarget( "file", file_target );
 		config.AddTarget( "console", game_target );
+		config.AddTarget( "debugger", debugger_target );
 		//config.AddTarget( "null", new NLog.Targets.NullTarget() );
 
 		config.LoggingRules.Clear();
@@ -65,6 +86,7 @@ internal static partial class Logging
 			rule.EnableLoggingForLevels( NLog.LogLevel.Trace, NLog.LogLevel.Fatal );
 			rule.Targets.Add( file_target );
 			rule.Targets.Add( game_target );
+			rule.Targets.Add( debugger_target );
 			//rule.Filters.Add( new WhenMethodFilter( TestLogFilter ) );
 
 			config.LoggingRules.Add( rule );

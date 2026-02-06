@@ -48,7 +48,7 @@ internal class AssemblyOrderer
 		// Read assembly metadata to extract name and dependencies
 		using ( var stream = new MemoryStream( assemblyBytes ) )
 		{
-			var reader = new PEReader( stream );
+			using var reader = new PEReader( stream );
 			var metadataReader = reader.GetMetadataReader();
 
 			var assemblyDef = metadataReader.GetAssemblyDefinition();

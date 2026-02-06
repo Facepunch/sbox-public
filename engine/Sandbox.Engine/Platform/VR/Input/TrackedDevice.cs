@@ -8,9 +8,14 @@ namespace Sandbox.VR;
 internal record TrackedDevice
 {
 	/// <summary>
-	/// This device's transform in absolute space
+	/// This device's grip pose transform in absolute space (centered on palm/grip)
 	/// </summary>
 	public Transform Transform;
+
+	/// <summary>
+	/// This device's aim pose transform in absolute space (pointing forward)
+	/// </summary>
+	public Transform AimTransform;
 
 	/// <summary>
 	/// Velocity in tracker space in inch/s
@@ -56,7 +61,7 @@ internal record TrackedDevice
 	{
 		InputSource = inputSource;
 
-		DeviceRole = VRNative.GetTrackedDeviceRoleForInputSource( InputSource );
+		DeviceRole = VRSystem.GetTrackedDeviceRoleForInputSource( InputSource );
 	}
 
 	/// <summary>
@@ -64,10 +69,12 @@ internal record TrackedDevice
 	/// </summary>
 	public virtual void Update()
 	{
-		var poseState = VRNative.GetPoseActionState( VRNative.PoseAction.HandPose, InputSource );
+		var gripPoseState = VRSystem.GetPoseActionState( VRSystem.PoseAction.GripPose, InputSource );
+		var aimPoseState = VRSystem.GetPoseActionState( VRSystem.PoseAction.AimPose, InputSource );
 
-		Transform = poseState.pose.GetTransform();
-		IsActive = poseState.isActive;
+		Transform = gripPoseState.pose.GetTransform();
+		AimTransform = aimPoseState.pose.GetTransform();
+		IsActive = gripPoseState.isActive;
 
 		DeviceType = GetDeviceType();
 	}

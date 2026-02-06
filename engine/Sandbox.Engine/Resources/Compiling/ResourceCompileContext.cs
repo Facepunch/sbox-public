@@ -32,6 +32,12 @@ public abstract class ResourceCompileContext
 	public abstract void AddCompileReference( string path );
 
 	/// <summary>
+	/// Add a game file reference. This file will be included in packages but is not a native resource.
+	/// Use this for arbitrary data files that are loaded by managed code (e.g. navdata files).
+	/// </summary>
+	public abstract void AddGameFileReference( string path );
+
+	/// <summary>
 	/// Get the streaming data to write to
 	/// </summary>
 	public DataStream StreamingData { get; internal set; }

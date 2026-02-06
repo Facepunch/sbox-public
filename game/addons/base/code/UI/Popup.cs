@@ -39,9 +39,19 @@ public partial class Popup : BasePopup
 		Left,
 
 		/// <summary>
+		/// To the right of the source panel, centered.
+		/// </summary>
+		Right,
+
+		/// <summary>
 		/// To the left of the source panel, aligned to the bottom.
 		/// </summary>
 		LeftBottom,
+
+		/// <summary>
+		/// To the right of the source panel, aligned to the bottom.
+		/// </summary>
+		RightBottom,
 
 		/// <summary>
 		/// Above the source panel, aligned to the left.
@@ -108,8 +118,16 @@ public partial class Popup : BasePopup
 				AddClass( "left" );
 				break;
 
+			case PositionMode.Right:
+				AddClass( "right" );
+				break;
+
 			case PositionMode.LeftBottom:
 				AddClass( "left-bottom" );
+				break;
+
+			case PositionMode.RightBottom:
+				AddClass( "right-bottom" );
 				break;
 
 			case PositionMode.AboveLeft:
@@ -290,6 +308,21 @@ public partial class Popup : BasePopup
 					Style.Top = rect.Top + rect.Height * 0.5f;
 					break;
 				}
+			case PositionMode.Right:
+			{
+				Style.Right = null;
+				Style.Left = rect.Right + PopupSourceOffset;
+				Style.Top = rect.Top + rect.Height * 0.5f;
+				break;
+			}
+			case PositionMode.RightBottom:
+			{
+				Style.Right = null;
+				Style.Left = rect.Right + PopupSourceOffset;
+				Style.Top = null;
+				Style.Bottom = (h - rect.Bottom);
+				break;
+			}
 			case PositionMode.LeftBottom:
 				{
 					Style.Left = null;

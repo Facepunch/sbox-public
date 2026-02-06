@@ -63,14 +63,15 @@ public partial class Texture
 
 		var normalizedFilename = filepath.NormalizeFilename( false );
 
+		if ( normalizedFilename.StartsWith( '/' ) )
+			normalizedFilename = normalizedFilename[1..];
+
 		if ( Find( normalizedFilename ) is Texture existing )
 			return existing;
 
-		var tex = TryToLoad( filesystem, filepath, warnOnMissing );
+		var tex = TryToLoad( filesystem, normalizedFilename, warnOnMissing );
 		if ( tex == null )
 			return null;
-
-		tex.SetIdFromResourcePath( normalizedFilename );
 
 		Loaded[normalizedFilename] = new WeakReference<Texture>( tex );
 
@@ -206,7 +207,9 @@ public partial class Texture
 		//
 		ThreadSafe.AssertIsMainThread();
 		var textureHandle = NativeGlue.Resources.GetTexture( filepath );
-		return new Texture( textureHandle );
+		var t = new Texture( textureHandle );
+		t.SetIdFromResourcePath( filepath );
+		return t;
 	}
 
 	/// <summary>

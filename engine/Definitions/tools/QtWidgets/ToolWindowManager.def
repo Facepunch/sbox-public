@@ -10,7 +10,7 @@ native class ToolWindowManager as Native.CToolWindowManager : QWidget
 
 	bool IsOpen( QWidget window );
 	void hideToolWindow( QWidget window );
-	void closeToolWindow( QWidget window );
+	void closeToolWindow( QWidget window, bool force );
 	void raiseToolWindow( QWidget window );
 
 	inline void AddWindowToArea( QWidget parent, QWidget window, Editor.DockManager.Area area, Editor.DockManager.DockProperty property, float pct )

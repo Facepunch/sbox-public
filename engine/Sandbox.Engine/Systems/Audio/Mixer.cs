@@ -241,9 +241,7 @@ public partial class Mixer
 
 	bool ShouldPlay( SoundHandle voice )
 	{
-		if ( !voice.IsValid ) return false;
-		if ( voice.sampler is null ) return false;
-		if ( voice.Finished ) return false;
+		if ( !voice.CanBeMixed() ) return false;
 		if ( !voice.IsTargettingMixer( this ) ) return false;
 
 		return true;
@@ -256,21 +254,19 @@ public partial class Mixer
 	{
 		// loop all playing sounds, mix them into buffer
 		// Can't do this in a thread because stream audio hrtf can't handle that
-		//	System.Threading.Tasks.Parallel.ForEach( voices.Where( ShouldPlay ).Take( _maxVoices ), voice =>
 		foreach ( var voice in voices.Where( ShouldPlay ).OrderByDescending( x => x._CreatedTime ).Take( _maxVoices ) )
 		{
 			lock ( voice )
 			{
 				// While yeah this is checked, we could have a race condition where sampler
 				// has become null while we were ordering and taking!
-				if ( !ShouldPlay( voice ) )
-					return;
+				if ( !ShouldPlay( voice ) ) continue;
 
 				MixVoice( voice );
 
 				Interlocked.Add( ref _voiceCount, 1 );
 			}
-		}// );
+		}
 	}
 
 	private bool ShouldMixVoices()
@@ -471,7 +467,10 @@ public partial class Mixer
 				pos += new Vector3( 1, 0, 0 );
 			}
 
-			source.ApplyBinauralMix( pos, 0.1f * Spacializing, _input, inputoutput );
+			var spacial = 0.1f * Spacializing;
+
+			// 2D sounds use very low spatialization, nearest neighbor is sufficient
+			source.ApplyBinauralMix( pos, spacial, useNearestInterpolation: true, _input, inputoutput );
 			return;
 		}
 		else
@@ -500,7 +499,13 @@ public partial class Mixer
 				}
 			}
 
-			source.ApplyBinauralMix( soundDirectionLocal, spacial, _input, inputoutput );
+			// Determine HRTF interpolation mode:
+			// - Voice/speech sounds don't benefit from bilinear interpolation
+			// - Player's own voice (loopback) uses nearest
+			// - Low spatial blend means minimal HRTF effect, nearest is sufficient
+			bool useNearest = voice.IsVoice || voice.Loopback || spacial < 0.5f;
+
+			source.ApplyBinauralMix( soundDirectionLocal, spacial, useNearest, _input, inputoutput );
 		}
 	}
 

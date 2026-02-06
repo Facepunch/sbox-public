@@ -160,7 +160,10 @@ public partial class Scene : GameObject
 
 		Game.ActiveScene = this;
 
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// Disposed in DisposeAction
 		var timeScope = Time.Scope( TimeNow, TimeDelta );
+#pragma warning restore CA2000 // Dispose objects before losing scope
 
 		return DisposeAction.Create( () =>
 		{
@@ -223,6 +226,13 @@ public partial class Scene : GameObject
 
 	internal void RenderEnvmaps()
 	{
+		// Can't render envmaps while already inside a render pass
+		if ( Graphics.IsActive )
+		{
+			if ( !Application.IsRetail ) Log.Error( "Attempted to render envmaps while inside a render pass!" );
+			return;
+		}
+
 		// Don't update all at once to not overflow transform buffer in large scenes
 		const int maxSimultaniousUpdates = 5;
 		foreach ( var envmap in GetAllComponents<EnvmapProbe>().Where( x => x.Dirty ).Take( maxSimultaniousUpdates ) )

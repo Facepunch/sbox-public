@@ -567,6 +567,33 @@ public class NetworkTests
 	}
 
 	/// <summary>
+	/// When destroying a scene with networked objects, those objects must not emit <see cref="ObjectDestroyMsg"/>
+	/// inside a <see cref="SceneNetworkSystem.SuppressDestroyMessages"/> scope.
+	/// </summary>
+	[TestMethod]
+	public void TestSuppressDestroyMessages()
+	{
+		using var testSystem = Helpers.InitializeHostWithTestConnection();
+		using var _ = SceneNetworkSystem.SuppressDestroyMessages();
+
+		// Scene contains a networked game object
+
+		var scene = Helpers.LoadSceneFromJson( "example.scene",
+			"""
+			{
+				"__guid": "86b89011-9646-4ee7-ad30-c0e11d258674",
+				"Name": "Networked Object",
+				"Enabled": true,
+				"NetworkMode": 1
+			}
+			""" );
+
+		scene.Destroy();
+
+		Assert.AreEqual( 0, testSystem.GetMessageCount<ObjectDestroyMsg>() );
+	}
+
+	/// <summary>
 	/// When loading a scene with networked objects, those objects must not emit <see cref="ObjectCreateMsg"/>
 	/// inside a <see cref="SceneNetworkSystem.SuppressSpawnMessages"/> scope.
 	/// </summary>

@@ -500,7 +500,17 @@ public partial class AssetList
 			} );
 	}
 
-	public static void OpenRenameFlyout( IAssetListEntry item, Vector2? position = null )
+	public static void OpenCreateFlyout( string resourceType, string defaultName, string extension, Action<string> onCreated, Vector2? position = null )
+	{
+		OpenLineEditFlyout( defaultName, $"What do you want to name {resourceType}?", position,
+			name =>
+			{
+				if ( string.IsNullOrWhiteSpace( name ) ) return;
+				onCreated( $"{name}{extension}" );
+			} );
+	}
+
+	public void OpenRenameFlyout( IAssetListEntry item, Vector2? position = null )
 	{
 		bool exactRename = item is AssetEntry ae && ae.Asset is null;
 
@@ -511,7 +521,12 @@ public partial class AssetList
 			name =>
 			{
 				if ( string.IsNullOrWhiteSpace( name ) ) return;
+
+				// rename WILL change the hashcode, but since selection's collection caches those
+				// we need to make sure it's updated - otherwise we'll get dupes!
+				bool wasSelected = Selection.Remove( item );
 				item.Rename( $"{name}{fileExt}" );
+				if ( wasSelected ) Selection.Add( item );
 			} );
 	}
 
@@ -575,7 +590,7 @@ public partial class AssetList
 			"editor.delete"
 			);
 
-			e.Menu.AddOption( $"Rename", "edit", action: () => OpenRenameFlyout( entry, e.ScreenPosition ), shortcut: "editor.rename" );
+			e.Menu.AddOption( $"Rename", "edit", action: () => e.AssetList.OpenRenameFlyout( entry, e.ScreenPosition ), shortcut: "editor.rename" );
 		}
 
 		if ( asset is not null )

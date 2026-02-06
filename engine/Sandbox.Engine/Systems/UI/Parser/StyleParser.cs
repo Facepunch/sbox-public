@@ -3,6 +3,23 @@
 internal static partial class StyleParser
 {
 	/// <summary>
+	/// Get the appropriate property name from a potential alias (color -> font-color).
+	/// This means we can define all our aliases in one place without any code re-use.
+	/// </summary>
+	internal static string GetPropertyFromAlias( string name )
+	{
+		switch ( name )
+		{
+			case "background-image-tint":
+				return "background-tint";
+			case "color":
+				return "font-color";
+			default:
+				return name;
+		}
+	}
+
+	/// <summary>
 	/// Parse the styles as you would if they were passed in an style="width: 100px" attribute
 	/// </summary>
 	internal static void ParseStyles( ref Parse p, Styles style, bool parentheses = false, StyleSheet sheet = null )
@@ -22,6 +39,7 @@ internal static partial class StyleParser
 				throw new System.Exception( "Parsing error - unexpected ':' at " );
 
 			var name = p.ReadUntil( ":" );
+			name = GetPropertyFromAlias( name );
 			if ( name == null )
 				break;
 

@@ -528,6 +528,15 @@ namespace Editor
 			set => _widget.setFocusPolicy( value );
 		}
 
+		/// <summary>
+		/// Enables or disables the context menu on this widget.
+		/// </summary>
+		public bool ContextMenuEnabled
+		{
+			get => _widget.contextMenuEnabled();
+			set => _widget.allowContextMenu( value );
+		}
+
 		internal enum Flag
 		{
 			WA_Disabled = 0,

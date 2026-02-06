@@ -93,12 +93,19 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 	{
 		{ "public/.gitignore", ".gitignore" },
 		{ "public/.gitattributes", ".gitattributes" },
+		{ "public/.github/PULL_REQUEST_TEMPLATE.md", ".github/PULL_REQUEST_TEMPLATE.md" },
+		{ "public/.github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/bug_report.yml" },
+		{ "public/.github/ISSUE_TEMPLATE/config.yml", ".github/ISSUE_TEMPLATE/config.yml" },
+		{ "public/.github/ISSUE_TEMPLATE/crash.yml", ".github/ISSUE_TEMPLATE/crash.yml" },
+		{ "public/.github/ISSUE_TEMPLATE/feature_request.yml", ".github/ISSUE_TEMPLATE/feature_request.yml" },
+		{ "public/.github/ISSUE_TEMPLATE/whitelist.yml", ".github/ISSUE_TEMPLATE/whitelist.yml" },
 		{ "public/.github/workflows/pull_request.yml", ".github/workflows/pull_request.yml" },
 		{ "public/.github/workflows/pull_request_checks.yml", ".github/workflows/pull_request_checks.yml" },
 		{ "public/.github/workflows/pull_request_formatting.yml", ".github/workflows/pull_request_formatting.yml" },
 		{ "public/README.md", "README.md" },
 		{ "public/LICENSE.md", "LICENSE.md" },
 		{ "public/CONTRIBUTING.md", "CONTRIBUTING.md" },
+		{ "public/SECURITY.md", "SECURITY.md" },
 		{ "public/Bootstrap.bat", "Bootstrap.bat" }
 	};
 
@@ -221,8 +228,8 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 				return false;
 			}
 
-			var uploadedTotalBytes = CalculateArtifactTotalSize( uploadedArtifacts );
-			Log.Info( $"Total artifact data uploaded: {Utility.FormatSize( uploadedTotalBytes )}" );
+			var manifestTotalBytes = CalculateArtifactTotalSize( uploadedArtifacts );
+			Log.Info( $"Total manifest artifact size: {Utility.FormatSize( manifestTotalBytes )}" );
 
 			return true;
 		}
@@ -595,16 +602,6 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			return true;
 		}
 
-		if ( duplicateManifestCount > 0 )
-		{
-			Log.Info( $"Skipped {duplicateManifestCount} duplicate manifest entries for {artifactLabel} artifacts" );
-		}
-
-		if ( duplicateUploadCount > 0 )
-		{
-			Log.Info( $"Skipped {duplicateUploadCount} duplicate upload candidates for {artifactLabel} artifacts" );
-		}
-
 		long batchBytes = 0;
 		foreach ( var upload in uniqueUploads )
 		{
@@ -613,14 +610,15 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 
 		if ( skipUpload )
 		{
-			Log.Info( $"Dry run skipping upload for {uniqueUploads.Count} unique {artifactLabel} artifacts ({Utility.FormatSize( batchBytes )})" );
+			Log.Info( $"Dry run: {uniqueUploads.Count} unique {artifactLabel} artifacts ({Utility.FormatSize( batchBytes )})" );
 			return true;
 		}
 
 		var maxParallelUploads = Math.Max( 1, Math.Min( MAX_PARALLEL_UPLOADS, Environment.ProcessorCount ) );
-		Log.Info( $"Uploading {uniqueUploads.Count} unique {artifactLabel} artifacts (up to {maxParallelUploads} concurrent uploads)..." );
+		Log.Info( $"Processing {uniqueUploads.Count} {artifactLabel} artifacts (up to {maxParallelUploads} concurrent)..." );
 
 		var failedUploads = new ConcurrentBag<string>();
+
 		Parallel.ForEach( uniqueUploads, new ParallelOptions { MaxDegreeOfParallelism = maxParallelUploads }, item =>
 		{
 			var (absolutePath, artifact) = item;
@@ -637,7 +635,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			return false;
 		}
 
-		Log.Info( $"Uploaded {uniqueUploads.Count} unique {artifactLabel} artifacts ({Utility.FormatSize( batchBytes )})" );
+		Log.Info( $"Uploaded {uniqueUploads.Count} {artifactLabel} artifacts ({Utility.FormatSize( batchBytes )})" );
 
 		return true;
 	}
@@ -645,8 +643,6 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 	private static bool UploadArtifactFile( string localPath, ArtifactFileInfo artifact, string remoteBase )
 	{
 		var remotePath = $"{remoteBase}/artifacts/{artifact.Sha256}";
-		var sizeLabel = $" ({Utility.FormatSize( artifact.Size )})";
-		Log.Info( $"Uploading {artifact.Sha256}{sizeLabel}..." );
 		return Utility.RunProcess( "rclone", $"copyto \"{localPath}\" \"{remotePath}\" --ignore-existing -q", timeoutMs: 600000 );
 	}
 

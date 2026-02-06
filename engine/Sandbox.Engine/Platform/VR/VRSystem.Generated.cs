@@ -2,7 +2,7 @@
 
 namespace Sandbox.VR;
 
-partial class VRNative
+internal static unsafe partial class VRSystem
 {
 
 	//

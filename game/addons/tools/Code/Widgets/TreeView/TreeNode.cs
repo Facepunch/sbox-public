@@ -349,6 +349,18 @@ public partial class TreeNode
 		RebuildOnDirty();
 	}
 
+	/// <summary>
+	/// Set so we don't have any child nodes
+	/// </summary>
+	public void ClearChildren()
+	{
+		if ( children.Count == 0 )
+			return;
+
+		children.Clear();
+		Dirty();
+	}
+
 
 	/// <summary>
 	/// Set the children to match this list.

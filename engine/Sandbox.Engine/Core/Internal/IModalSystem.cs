@@ -154,4 +154,30 @@ public struct WorkshopPublishOptions
 	/// https://steamcommunity.com/sharedfiles/filedetails/?id=######
 	/// </summary>
 	public Action<ulong> OnComplete { get; set; }
+
+	/// <summary>
+	/// Defined categories to show in the workshop publish modal
+	/// </summary>
+	public Dictionary<string, SerializedProperty> Categories { get; } = [];
+
+	/// <summary>
+	/// Adds a new category associated with the specified enum type to the collection. 
+	/// The user will be prompted to select one of the enum values when publishing.
+	/// This will be set on the file as keyvalues[name] = enum.ToString()
+	/// </summary>
+	public void AddCategory<TEnum>( string name ) where TEnum : struct, Enum
+	{
+		var t = Game.TypeLibrary.GetEnumDescription( typeof( TEnum ) );
+		if ( t == null )
+			throw new Exception( $"Type {typeof( TEnum ).FullName} is not registered in the TypeLibrary" );
+
+		KeyValues ??= [];
+		var kv = KeyValues;
+		var get = () => kv.TryGetValue( name, out string val ) ? (Enum.TryParse( val, true, out TEnum r ) ? r : default) : default;
+		var set = ( TEnum x ) => { kv[name] = x.ToString(); };
+
+		var prop = Game.TypeLibrary.CreateProperty( name, get, set );
+
+		Categories[name] = prop;
+	}
 }

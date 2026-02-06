@@ -29,36 +29,42 @@ internal static class Image
 	{
 		System.Runtime.CompilerServices.RuntimeHelpers.EnsureSufficientExecutionStack();
 
-		var data = SKData.Create( stream );
-		var codec = SKCodec.Create( data );
-
-		if ( codec == null )
+		using var data = SKData.Create( stream );
+		SKCodec codec = null;
+		try
 		{
-			Log.Warning( $"Error loading image: {debugName}" );
-			return default;
+			codec = SKCodec.Create( data );
+
+			if ( codec == null )
+			{
+				Log.Warning( $"Error loading image: {debugName}" );
+				return default;
+			}
+
+			var frameCount = codec.FrameCount;
+			if ( frameCount > 1 )
+			{
+				var animation = new Texture.Animation( codec );
+				codec = null; // ownership transferred to Animation
+
+				var texture = CreateTexture( animation.Bitmap, debugName );
+				animation.Texture = new System.WeakReference<Texture>( texture );
+				Texture.Animations.Add( animation );
+
+				return texture;
+			}
+			else
+			{
+				using var image = SKImage.FromEncodedData( data );
+				using var bitmap = SKBitmap.FromImage( image );
+
+				var texture = CreateTexture( bitmap, debugName );
+				return texture;
+			}
 		}
-
-		var frameCount = codec.FrameCount;
-		if ( frameCount > 1 )
+		finally
 		{
-			var animation = new Texture.Animation( codec );
-			var texture = CreateTexture( animation.Bitmap, debugName );
-			animation.Texture = new System.WeakReference<Texture>( texture );
-			Texture.Animations.Add( animation );
-
-			return texture;
-		}
-		else
-		{
-			using var image = SKImage.FromEncodedData( data );
-			using var bitmap = SKBitmap.FromImage( image );
-
-			var texture = CreateTexture( bitmap, debugName );
-
-			codec.Dispose();
-			data.Dispose();
-
-			return texture;
+			codec?.Dispose();
 		}
 	}
 
@@ -134,22 +140,29 @@ internal static class Image
 
 		try
 		{
+			Texture tex = default;
+
 			var extension = System.IO.Path.GetExtension( filename );
 			if ( extension == ".tga" || extension == ".psd" || extension == ".tif" )
 			{
-				return Load( filesystem, filename );
+				tex = Load( filesystem, filename );
 			}
 			else if ( extension == ".ies" )
 			{
 				var bytes = filesystem.ReadAllBytes( filename ).ToArray();
-				if ( Bitmap.CreateFromIesBytes( bytes ) is { } ies )
-					return ies.ToTexture();
+				using var iesBitmap = Bitmap.CreateFromIesBytes( bytes );
+
+				if ( iesBitmap is not null )
+					return iesBitmap.ToTexture();
 			}
 			else
 			{
 				using var stream = filesystem.OpenRead( filename );
-				return Load( stream, filename );
+				tex = Load( stream, filename );
 			}
+
+			tex?.SetIdFromResourcePath( filename );
+			return tex;
 		}
 		catch ( System.IO.FileNotFoundException e )
 		{

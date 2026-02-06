@@ -249,7 +249,7 @@ public sealed partial class KeyframeEditMode : EditMode
 		}
 
 		var scenePos = Timeline.ToScene( e.LocalPosition );
-		var time = Session.ScenePositionToTime( scenePos, showSnap: false );
+		var time = Timeline.ScenePositionToTime( scenePos, showSnap: false );
 		var timelineTrack = Timeline.Tracks.FirstOrDefault( x => x.SceneRect.IsInside( scenePos ) );
 
 		if ( !e.LeftMouseButton ) return;
@@ -576,10 +576,13 @@ public sealed partial class KeyframeEditMode : EditMode
 			{
 				var cutTime = _cutTimes.LastOrDefault( x => x <= handle.Time );
 
-				if ( cutTime != prevCutTime && block.Count > 0 )
+				if ( cutTime != prevCutTime )
 				{
-					blocks.Add( FinishBlock( block ) );
-					block.Clear();
+					if ( block.Count > 0 )
+					{
+						blocks.Add( FinishBlock( block ) );
+						block.Clear();
+					}
 
 					prevCutTime = cutTime;
 				}

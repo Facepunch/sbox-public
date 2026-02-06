@@ -28,7 +28,11 @@ class DirectSource : IDisposable
 
 	float? _occlusion;
 	float _targetOcclusion = 1.0f;
-	float _occlusionVelocity = 0.0f;
+
+	/// <summary>
+	/// Time tracking for occlusion updates, managed by SoundOcclusionSystem
+	/// </summary>
+	internal RealTimeUntil TimeUntilNextOcclusionCalc { get; set; } = 0;
 
 	public void Update( Transform position, Vector3 listenerPos, Mixer targetMixer, PhysicsWorld world )
 	{
@@ -36,13 +40,12 @@ class DirectSource : IDisposable
 		{
 			Transform = position;
 
+			// Smooth damp towards target occlusion (set by SoundOcclusionSystem)
 			if ( Occlusion && !ListenLocal )
 			{
-				_targetOcclusion = ComputeOcclusion( Transform.Position, listenerPos, OcclusionSize, targetMixer, world );
-
 				if ( _occlusion.HasValue )
 				{
-					_occlusion = MathX.SmoothDamp( _occlusion.Value, _targetOcclusion, ref _occlusionVelocity, 0.3f, RealTime.Delta );
+					_occlusion = MathX.ExponentialDecay( _occlusion.Value, _targetOcclusion, 0.05f, RealTime.Delta );
 				}
 				else
 				{
@@ -52,7 +55,6 @@ class DirectSource : IDisposable
 			else
 			{
 				_targetOcclusion = 1.0f;
-
 				Snap();
 			}
 		}
@@ -64,65 +66,23 @@ class DirectSource : IDisposable
 	public void Snap()
 	{
 		_occlusion = _targetOcclusion;
-		_occlusionVelocity = 0;
 	}
 
-	RealTimeUntil timeUntilNextOcclusionCalc = 0;
+	/// <summary>
+	/// Set the target occlusion value. Called by SoundOcclusionSystem after computing occlusion.
+	/// </summary>
+	internal void SetTargetOcclusion( float value )
+	{
+		lock ( _lock )
+		{
+			_targetOcclusion = value;
+		}
+	}
 
 	[ConVar] public static float snd_lowpass_power { get; set; } = 4;
 	[ConVar] public static float snd_lowpass_trans { get; set; } = 0.40f;
 	[ConVar] public static float snd_lowpass_dist { get; set; } = 0.85f;
 	[ConVar] public static float snd_gain_trans { get; set; } = 0.8f;
-
-	/// <summary>
-	/// Compute how occluded a sound is. Returns 0 if fully occluded, 1 if not occluded
-	/// </summary>
-	private float ComputeOcclusion( Vector3 position, Vector3 listener, float occlusionSize, Mixer targetMixer, PhysicsWorld world )
-	{
-		// Don't calculate occlusion every frame
-		if ( timeUntilNextOcclusionCalc > 0 )
-			return _targetOcclusion;
-
-		if ( !world.IsValid() )
-			return 1.0f;
-
-		var distance = Vector3.DistanceBetween( position, listener ).Remap( 0, 4096, 1, 0 );
-
-		timeUntilNextOcclusionCalc = distance.Remap( 0.15f, 2.0f ) * Random.Shared.Float( 0.95f, 1.15f );
-
-		int iRays = (occlusionSize.Remap( 0, 64, 1, 32 ) * distance).CeilToInt().Clamp( 1, 32 );
-		int iHits = 0;
-		var tags = targetMixer.GetOcclusionTags();
-
-		// tags are defined, but are empty, means hit nothing - so 0% occluded
-		// if it is null, then we just use the "world" tag
-		if ( tags is not null && tags.Count == 0 ) return 1.0f;
-
-		System.Threading.Tasks.Parallel.For( 0, iRays, i =>
-		{
-			var startPos = position + Vector3.Random * occlusionSize * 0.5f;
-
-			var tq = world.Trace.FromTo( startPos, listener );
-
-			if ( tags is null )
-			{
-				tq = tq.WithTag( "world" );
-			}
-			else
-			{
-				tq = tq.WithAnyTags( tags );
-			}
-
-			var tr = tq.Run();
-
-			if ( tr.Hit )
-			{
-				Interlocked.Add( ref iHits, 1 );
-			}
-		} );
-
-		return 1 - (iHits / (float)iRays);
-	}
 
 	public void Apply( in Listener listener, MultiChannelBuffer input, MultiChannelBuffer output, float occlusionMultiplier, float inputGain )
 	{

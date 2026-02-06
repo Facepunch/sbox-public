@@ -1,0 +1,21 @@
+
+include "sbox/glue_lz4.h"
+
+native static class LZ4Glue as NativeEngine.LZ4Glue
+{
+	int CompressBound( int inputSize );
+
+	int Compress( void* src, void* dst, int srcSize, int dstCapacity );
+
+	int CompressHC( void* src, void* dst, int srcSize, int dstCapacity, int compressionLevel );
+
+	int Decompress( void* src, void* dst, int compressedSize, int dstCapacity );
+
+	int CompressFrameBound( int inputSize );
+
+	int CompressFrame( void* src, void* dst, int srcSize, int dstCapacity, int compressionLevel );
+
+	long GetFrameContentSize( void* src, int srcSize );
+
+	int DecompressFrame( void* src, void* dst, int srcSize, int dstCapacity );
+}

@@ -1,7 +1,7 @@
 ﻿namespace Editor.ProjectSettingPages;
 
-[Title( "Packages" )]
-internal sealed class ReferencesCategory : ProjectInspector.Category
+[Title( "Packages" ), Icon( "inventory" )]
+internal sealed class ReferencesCategory : ProjectSettingsWindow.Category
 {
 	public List<string> PackageReferences { get; set; } = new List<string>();
 

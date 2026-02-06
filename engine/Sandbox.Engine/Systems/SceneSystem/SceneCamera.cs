@@ -721,7 +721,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 		OnPreRender( renderSize );
 
-		var setup = new CameraRenderer( "RenderToSwapChain", _cameraId );
+		using var setup = new CameraRenderer( "RenderToSwapChain", _cameraId );
 		setup.Configure( this, config );
 		setup.Native.Render( swapChain );
 	}
@@ -738,7 +738,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 		ConfigureView( in config );
 
-		var setup = new CameraRenderer( "RenderToTexture", _cameraId );
+		using var setup = new CameraRenderer( "RenderToTexture", _cameraId );
 		setup.Configure( this, config );
 		setup.Native.RenderToTexture( texture.native, Graphics.SceneView );
 	}
@@ -756,7 +756,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 		OnPreRender( renderSize );
 
-		var setup = new CameraRenderer( "RenderToBitmap", _cameraId );
+		using var setup = new CameraRenderer( "RenderToBitmap", _cameraId );
 		setup.Configure( this, config );
 
 		unsafe
@@ -795,6 +795,8 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 			setup.Native.CameraRotation = (Rotation * CubeRotations[i]).Angles();
 			setup.Native.RenderToCubeTexture( texture.native, i );
 		}
+
+		setup.Dispose();
 	}
 
 	private void RenderStereo( in ViewSetup config = default )
@@ -805,7 +807,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 			return;
 		}
 
-		var setup = new CameraRenderer( "RenderStereo", _cameraId );
+		using var setup = new CameraRenderer( "RenderStereo", _cameraId );
 		setup.Configure( this, config );
 
 		var n = setup.Native;
@@ -821,14 +823,14 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 				continue;
 
 			// PreRender
-			OnPreRender( VRNative.EyeRenderTargetSize );
+			OnPreRender( VRSystem.EyeRenderTargetSize );
 
 			// Save off clip planes, used for depth submit
-			VRNative.ClipPlanes.ZNear = ZNear;
-			VRNative.ClipPlanes.ZFar = ZFar;
+			VRSystem.ClipPlanes.ZNear = ZNear;
+			VRSystem.ClipPlanes.ZFar = ZFar;
 
 			// Grab overrides for this eye
-			var transform = VRNative.GetTransformForEye( n.CameraPosition, n.CameraRotation, eye );
+			var transform = VRSystem.GetTransformForEye( n.CameraPosition, n.CameraRotation, eye );
 			n.CameraPosition = transform.Position;
 			n.CameraRotation = transform.Rotation;
 
@@ -836,15 +838,15 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 			n.MiddleEyePosition = Position;
 			n.MiddleEyeRotation = Rotation.Angles();
 
-			n.OverrideProjection = VRNative.GetProjectionMatrix( ZNear, ZFar, eye );
+			n.OverrideProjection = VRSystem.GetProjectionMatrix( ZNear, ZFar, eye );
 			n.HasOverrideProjection = true;
 
 			n.FieldOfView = 0f; // Let clip bounds drive projection
-			n.ClipSpaceBounds = VRNative.GetClipForEye( eye );
+			n.ClipSpaceBounds = VRSystem.GetClipForEye( eye );
 
 			// Render
 			var submitThisEye = WantsStereoSubmit && eye == VREye.Right;
-			n.RenderStereo( iEye, (int)VRNative.EyeRenderTargetSize.x, (int)VRNative.EyeRenderTargetSize.y, submitThisEye );
+			n.RenderStereo( iEye, (int)VRSystem.EyeRenderTargetSize.x, (int)VRSystem.EyeRenderTargetSize.y, submitThisEye );
 		}
 
 		VRSystem.IsRendering = WantsStereoSubmit;
@@ -915,8 +917,8 @@ public enum SceneCameraDebugMode
 
 	[Title( "Shader IDs" ), Icon( "sell" )]
 	ShaderIDColor = 16,
-	[Title( "Tiled Rendering Lights" ), Icon( "view_module" )]
-	TiledRenderingQuads = 50,
+	[Title( "Clustered Light Culling" ), Icon( "scatter_plot" )]
+	ClusteredLightCulling = 50,
 
 	[Title( "Quad Overdraw" ), Icon( "signal_cellular_null" )]
 	QuadOverdraw = 100,

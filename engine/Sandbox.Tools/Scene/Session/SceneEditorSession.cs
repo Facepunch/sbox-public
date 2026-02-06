@@ -40,9 +40,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public bool IsPrefabSession => this is PrefabEditorSession;
 
-	/// <summary>
-	/// The scene for this session
-	/// </summary>
 	public Scene Scene { get; private set; }
 
 	internal Widget SceneDock { get; set; }
@@ -91,7 +88,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		// So we need to show and dock them
 
 		// Restoring will open a blank SceneDock as an area for the others to dock on
-		var dummy = All.Where( x => EditorWindow.DockManager.IsDockOpen( x.SceneDock ) ).FirstOrDefault();
+		var dummy = All.Where( x => x.Scene.Source is null && EditorWindow.DockManager.IsDockOpen( x.SceneDock ) ).FirstOrDefault();
 
 		foreach ( var entry in All )
 		{
@@ -103,7 +100,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 		// Remove our dummy dock, unless it's the only one open somehow
 		if ( All.Count > 1 )
-			dummy.Destroy();
+			dummy?.Destroy();
 	}
 
 	void Dock()
@@ -270,7 +267,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// <summary>
 	/// Zoom the scene to view this bbox
 	/// </summary>
-	public void FrameTo( in BBox box )
+	public virtual void FrameTo( in BBox box )
 	{
 		BringToFront();
 		OnFrameTo?.Invoke( box );
@@ -291,6 +288,8 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			UpdateEditorTitle();
 		}
 	}
+
+	BaseFileSystem Scene.ISceneEditorSession.TransientFilesystem => FileSystem.Transient;
 
 	public void Reload()
 	{
@@ -347,6 +346,10 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		GameResource resource = Scene is PrefabScene prefabScene ? prefabScene.ToPrefabFile() : Scene.CreateSceneFile();
 		asset.SaveToDisk( resource );
 
+		// Update this scene's path
+		Scene.Source = resource;
+		Scene.Name = System.IO.Path.GetFileNameWithoutExtension( saveLocation );
+
 		HasUnsavedChanges = false;
 		EditorEvent.Run( "scene.saved", Active.Scene );
 
@@ -354,11 +357,40 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	}
 
 	/// <summary>
-	/// Resolve a scene to an editor session
+	/// Resolve a scene to an editor session. If it's a game scene, resolves the parent editor session.
 	/// </summary>
 	public static SceneEditorSession Resolve( Scene scene )
 	{
+		if ( scene.Editor is SceneEditorSession session )
+		{
+			if ( session is GameEditorSession gs )
+				return gs.Parent; // we want the editor session, not the game session
+
+			return session;
+		}
+
 		return All.FirstOrDefault( x => x.Scene == scene );
+	}
+
+	/// <summary>
+	/// Resolve a Component to an editor session.
+	/// </summary>
+	public static Scene.ISceneEditorSession Resolve( Component component ) => Resolve( component?.GameObject );
+
+	/// <summary>
+	/// Resolve a GameObject to an editor session.
+	/// </summary>
+	public static Scene.ISceneEditorSession Resolve( GameObject go )
+	{
+		if ( go is null ) return null;
+
+		var session = go.Scene.Editor;
+		if ( session is null )
+		{
+			Log.Error( $"Failed to resolve session for GameObject: {go}" );
+		}
+
+		return session;
 	}
 
 	/// <summary>
@@ -366,7 +398,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public static SceneEditorSession Resolve( SceneFile sceneFile )
 	{
-		return All.FirstOrDefault( x => x is not null && !x.IsPrefabSession
+		return All.FirstOrDefault( x => x is not null && !x.IsPrefabSession && x is not GameEditorSession
 			&& string.Equals( sceneFile.ResourcePath, x.Scene.Source?.ResourcePath, StringComparison.OrdinalIgnoreCase ) );
 	}
 
@@ -375,7 +407,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public static SceneEditorSession Resolve( PrefabFile prefabFile )
 	{
-		return All.FirstOrDefault( x => x is not null && x.IsPrefabSession
+		return All.FirstOrDefault( x => x is not null && x.IsPrefabSession && x is not GameEditorSession
 			&& string.Equals( prefabFile.ResourcePath, x.Scene.Source?.ResourcePath, StringComparison.OrdinalIgnoreCase ) );
 	}
 
@@ -442,7 +474,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			var openingScene = Scene.CreateEditorScene();
 			using var _ = openingScene.Push();
 
-			openingScene.Name = sceneFile.ResourceName.ToTitleCase();
 			openingScene.Load( sceneFile );
 
 			var session = new SceneEditorSession( openingScene );
@@ -460,7 +491,6 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			var openingScene = PrefabScene.CreateForEditing();
 			using var _ = openingScene.Push();
 
-			openingScene.Name = prefabFile.ResourceName.ToTitleCase();
 			openingScene.Load( prefabFile );
 
 			var session = new PrefabEditorSession( openingScene );
@@ -476,5 +506,56 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		{
 			yield return obj;
 		}
+	}
+
+	public Editor.SceneFolder GetSceneFolder()
+	{
+		if ( Scene?.Source?.ResourcePath == null )
+			return default;
+
+		if ( AssetSystem.FindByPath( Scene.Source.ResourcePath ) is Asset sourceAsset )
+		{
+			return new AssetFolderInstance( sourceAsset );
+		}
+
+		return default;
+	}
+}
+
+file class AssetFolderInstance : SceneFolder
+{
+	string _folder;
+	string _relativeFolder;
+	BaseFileSystem _fs;
+
+	public AssetFolderInstance( Asset sourceAsset )
+	{
+		var relativePath = sourceAsset.GetSourceFile( false );
+		var assetPath = sourceAsset.GetSourceFile( true );
+
+		var extension = System.IO.Path.GetExtension( assetPath ).Replace( ".", "_" );
+		_folder = System.IO.Path.ChangeExtension( assetPath, null );
+		_folder = $"{_folder}{extension}_data";
+
+		_relativeFolder = System.IO.Path.ChangeExtension( relativePath, null );
+		_relativeFolder = $"{_relativeFolder}{extension}_data".NormalizeFilename( false );
+
+		System.IO.Directory.CreateDirectory( _folder );
+
+		_fs = new LocalFileSystem( _folder );
+	}
+
+	~AssetFolderInstance()
+	{
+		MainThread.Queue( () => _fs?.Dispose() );
+	}
+
+	public override string WriteFile( string filename, byte[] data )
+	{
+		_fs.WriteAllBytes( filename, data );
+
+		if ( filename.StartsWith( '/' ) ) filename = filename[1..];
+
+		return System.IO.Path.Combine( _relativeFolder, filename ).NormalizeFilename( false );
 	}
 }

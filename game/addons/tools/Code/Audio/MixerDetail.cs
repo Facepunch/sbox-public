@@ -186,6 +186,8 @@ public class MixerDetail : NavigationView
 	[EditorEvent.Frame]
 	public void Frame()
 	{
+		if ( !Visible ) return;
+
 		var h = mixer.ProcessorCount;
 
 		if ( _hc != h )

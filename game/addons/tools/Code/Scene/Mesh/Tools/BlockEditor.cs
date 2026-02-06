@@ -140,10 +140,25 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 			Gizmo.Draw.LineThickness = 2;
 			Gizmo.Draw.Color = Gizmo.Colors.Active.WithAlpha( 0.5f );
 			Gizmo.Draw.LineBBox( box );
-			Gizmo.Draw.Color = Gizmo.Colors.Left;
-			Gizmo.Draw.ScreenText( $"L: {box.Size.y:0.#}", box.Mins.WithY( box.Center.y ), Vector2.Up * 32, size: TextSize );
-			Gizmo.Draw.Color = Gizmo.Colors.Forward;
-			Gizmo.Draw.ScreenText( $"W: {box.Size.x:0.#}", box.Mins.WithX( box.Center.x ), Vector2.Up * 32, size: TextSize );
+
+			var textScope = new TextRendering.Scope
+			{
+				Text = null,
+				TextColor = Color.White,
+				FontSize = TextSize,
+				FontName = "Roboto Mono",
+				FontWeight = 400,
+				LineHeight = 1,
+				Outline = new TextRendering.Outline() { Color = Color.Black, Enabled = true, Size = 3 }
+			};
+
+			textScope.Text = $"L: {box.Size.y:0.#}";
+			textScope.TextColor = Gizmo.Colors.Left;
+			Gizmo.Draw.ScreenText( textScope, box.Mins.WithY( box.Center.y ), Vector2.Up * 32 );
+
+			textScope.Text = $"W: {box.Size.x:0.#}";
+			textScope.TextColor = Gizmo.Colors.Forward;
+			Gizmo.Draw.ScreenText( textScope, box.Mins.WithX( box.Center.x ), Vector2.Up * 32 );
 		}
 	}
 
@@ -235,20 +250,10 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 				BuildPreview();
 			}
 
-			Gizmo.Draw.IgnoreDepth = true;
-			Gizmo.Draw.LineThickness = 2;
-			Gizmo.Draw.Color = Gizmo.Colors.Active.WithAlpha( 0.5f );
-			Gizmo.Draw.LineBBox( box );
-			Gizmo.Draw.LineThickness = 3;
-			Gizmo.Draw.Color = Gizmo.Colors.Left;
-			Gizmo.Draw.ScreenText( $"L: {box.Size.y:0.#}", box.Maxs.WithY( box.Center.y ), Vector2.Up * 32, size: TextSize );
-			Gizmo.Draw.Line( box.Maxs.WithY( box.Mins.y ), box.Maxs.WithY( box.Maxs.y ) );
-			Gizmo.Draw.Color = Gizmo.Colors.Forward;
-			Gizmo.Draw.ScreenText( $"W: {box.Size.x:0.#}", box.Maxs.WithX( box.Center.x ), Vector2.Up * 32, size: TextSize );
-			Gizmo.Draw.Line( box.Maxs.WithX( box.Mins.x ), box.Maxs.WithX( box.Maxs.x ) );
-			Gizmo.Draw.Color = Gizmo.Colors.Up;
-			Gizmo.Draw.ScreenText( $"H: {box.Size.z:0.#}", box.Maxs.WithZ( box.Center.z ), Vector2.Up * 32, size: TextSize );
-			Gizmo.Draw.Line( box.Maxs.WithZ( box.Mins.z ), box.Maxs.WithZ( box.Maxs.z ) );
+			using ( Gizmo.Scope( "Bounds" ) )
+			{
+				DimensionDisplay.DrawBounds( box );
+			}
 		}
 
 		if ( _previewModel.IsValid() && !_previewModel.IsError )

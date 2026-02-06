@@ -22,12 +22,18 @@ public class VRAnchor : Component
 		if ( !Enabled || Scene.IsEditor || !Game.IsRunningInVR )
 			return;
 
+		if ( IsProxy )
+			return;
+
 		UpdateAnchor();
 	}
 
 	protected override void OnPreRender()
 	{
 		if ( !Enabled || Scene.IsEditor || !Game.IsRunningInVR )
+			return;
+
+		if ( IsProxy )
 			return;
 
 		UpdateAnchor();

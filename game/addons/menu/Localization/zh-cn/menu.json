@@ -9,5 +9,6 @@
   "menu.hub": "中心",
   "menu.games": "游戏",
   "menu.store": "商店",
-  "menu.multiplayer": "服务器"
+  "menu.multiplayer": "服务器",
+  "menu.notifications": "通知"
 }

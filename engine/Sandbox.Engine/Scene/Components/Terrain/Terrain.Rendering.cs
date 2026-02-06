@@ -98,6 +98,7 @@ public partial class Terrain
 		// We want these accessible globally too, probably
 		Scene.RenderAttributes.Set( "Terrain", TerrainBuffer );
 		Scene.RenderAttributes.Set( "TerrainMaterials", MaterialsBuffer );
+		Scene.RenderAttributes.Set( "TerrainCount", 1 );
 
 		_clipMapLodLevels = ClipMapLodLevels;
 		_clipMapLodExtentTexels = ClipMapLodExtentTexels;

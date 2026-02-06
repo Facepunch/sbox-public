@@ -186,14 +186,20 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 			.Where( x => x.GetComponent<MeshComponent>().IsValid() )
 			.ToArray();
 
-		var connectedObjects = Application.KeyboardModifiers.Contains( KeyboardModifiers.Shift ) ? Selection.OfType<IMeshElement>()
+		var connectedObjects = Selection.OfType<IMeshElement>()
 			.Select( x => x.Component.GameObject )
-			.ToArray() : [];
+			.ToArray();
 
 		Selection.Clear();
 
 		foreach ( var go in objects ) Selection.Add( go );
 		foreach ( var go in connectedObjects ) Selection.Add( go );
+
+		// Only restore previous selection if we don't have any selected objects ready to go.
+		if ( !Selection.OfType<GameObject>().Any() )
+		{
+			RestorePreviousSelection<GameObject>();
+		}
 
 		OnSelectionChanged();
 
@@ -207,6 +213,8 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 		var undo = SceneEditorSession.Active.UndoSystem;
 		undo.OnUndo -= OnUndoRedo;
 		undo.OnRedo -= OnUndoRedo;
+
+		SaveCurrentSelection<GameObject>();
 	}
 
 	void OnUndoRedo( object _ )
@@ -391,30 +399,8 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 	{
 		using ( Gizmo.Scope( "Bounds" ) )
 		{
-			Gizmo.Draw.IgnoreDepth = true;
-			Gizmo.Draw.Color = Color.White;
-			Gizmo.Draw.LineThickness = 4;
-
 			var box = CalculateSelectionBounds();
-			var textSize = 22 * Gizmo.Settings.GizmoScale * Application.DpiScale;
-
-			Gizmo.Draw.Color = Gizmo.Colors.Active.WithAlpha( 0.5f );
-			Gizmo.Draw.LineThickness = 1;
-			Gizmo.Draw.LineBBox( box );
-
-			Gizmo.Draw.LineThickness = 2;
-			Gizmo.Draw.Color = Gizmo.Colors.Left;
-			if ( box.Size.y > 0.01f )
-				Gizmo.Draw.ScreenText( $"L: {box.Size.y:0.#}", box.Maxs.WithY( box.Center.y ), Vector2.Up * 32, size: textSize );
-			Gizmo.Draw.Line( box.Maxs.WithY( box.Mins.y ), box.Maxs.WithY( box.Maxs.y ) );
-			Gizmo.Draw.Color = Gizmo.Colors.Forward;
-			if ( box.Size.x > 0.01f )
-				Gizmo.Draw.ScreenText( $"W: {box.Size.x:0.#}", box.Maxs.WithX( box.Center.x ), Vector2.Up * 32, size: textSize );
-			Gizmo.Draw.Line( box.Maxs.WithX( box.Mins.x ), box.Maxs.WithX( box.Maxs.x ) );
-			Gizmo.Draw.Color = Gizmo.Colors.Up;
-			if ( box.Size.z > 0.01f )
-				Gizmo.Draw.ScreenText( $"H: {box.Size.z:0.#}", box.Maxs.WithZ( box.Center.z ), Vector2.Up * 32, size: textSize );
-			Gizmo.Draw.Line( box.Maxs.WithZ( box.Mins.z ), box.Maxs.WithZ( box.Maxs.z ) );
+			DimensionDisplay.DrawBounds( box );
 		}
 	}
 

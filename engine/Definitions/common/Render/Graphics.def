@@ -21,3 +21,8 @@ managed static class Sandbox.Rendering.RenderPipeline
 	void InternalAddLayersToView( ISceneView view, RenderViewport viewport, HSceneViewRenderTarget hColor, HSceneViewRenderTarget hDepth, RenderMultisampleType nMSAA, CRenderAttributes pipelineAttributes, RenderViewport screenDimensions );
 	void InternalPipelineEnd( ISceneView view, RenderViewport viewport, HSceneViewRenderTarget hColor, HSceneViewRenderTarget hDepth, RenderMultisampleType nMSAA, CRenderAttributes pipelineAttributes, RenderViewport screenDimensions );
 }
+
+managed static class Sandbox.Rendering.Skybox3DPipeline
+{
+	void InternalAddLayersToView( ISceneView view, RenderViewport viewport, HSceneViewRenderTarget hColor, HSceneViewRenderTarget hDepth, CRenderAttributes pipelineAttributes );
+}

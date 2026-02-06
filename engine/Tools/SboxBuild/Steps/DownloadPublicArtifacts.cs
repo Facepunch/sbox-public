@@ -135,10 +135,13 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 
 	private static HttpClient CreateHttpClient()
 	{
+#pragma warning disable CA2000 // Dispose objects before losing scope
+		// HttpClient will dispose these handlers when it is disposed.
 		var handler = new HttpClientHandler
 		{
 			AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip
 		};
+#pragma warning restore CA2000 // Dispose objects before losing scope
 
 		return new HttpClient( handler )
 		{

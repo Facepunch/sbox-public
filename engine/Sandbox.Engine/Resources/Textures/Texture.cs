@@ -142,6 +142,11 @@ public partial class Texture : Resource, IDisposable
 	/// </summary>
 	public int LastUsed => native.IsValid ? g_pRenderDevice.GetTextureLastUsed( native ).Clamp( 0, 1000 ) : 1000;
 
+	/// <summary>
+	/// Gets if the texture has UAV access
+	/// </summary>
+	public bool UAVAccess => Desc.m_nFlags.HasFlag( RuntimeTextureSpecificationFlags.TSPEC_UAV );
+
 	internal RenderMultisampleType MultisampleType
 	{
 		get
@@ -180,7 +185,7 @@ public partial class Texture : Resource, IDisposable
 		//
 		// Try to load the texture again, make a new texture
 		//
-		var newTex = TryToLoad( filesystem, filename, false );
+		using var newTex = TryToLoad( filesystem, filename, false );
 
 		//
 		// If success, copy from this texture

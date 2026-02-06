@@ -1,111 +1,112 @@
 WorkshopPublishModal
 {
-    flex-shrink: 0;
-    z-index: 1100;
-    font-family: Poppins;
-    font-size: 1.2rem;
+	flex-shrink: 0;
+	z-index: 1100;
+	font-family: Poppins;
+	font-size: 1.2rem;
 
-    h1
-    {
-        font-weight: 700;
-        font-size: 2rem;
-        margin-bottom: 2rem;
-    }
+	h1
+	{
+		font-weight: 700;
+		font-size: 2rem;
+		margin-bottom: 2rem;
+	}
 
-    .success
-    {
-        justify-content: center;
-        padding: 10rem;
-        font-size: 10rem;
-        letter-spacing: -50px;
-    }
+	.success
+	{
+		justify-content: center;
+		padding: 10rem;
+		font-size: 10rem;
+		letter-spacing: -50px;
+	}
 
-    .progress-bar
-    {
-        margin: 1rem;
-        height: 64px;
-        background-color: #000a;
-        border-radius: 10px;
-        overflow: hidden;
+	.progress-bar
+	{
+		margin: 1rem;
+		height: 64px;
+		background-color: #000a;
+		border-radius: 10px;
+		overflow: hidden;
 
-        .fill
-        {
-            height: 100%;
-            background-color: #08f;
-            min-width: 3px;
-        }
-    }
+		.fill
+		{
+			height: 100%;
+			background-color: #08f;
+			min-width: 3px;
+		}
+	}
 
-    .actions
-    {
-        justify-content: flex-end;
-        gap: 1rem;
-    }
+	.actions
+	{
+		margin-top: 2rem;
+		justify-content: flex-end;
+		gap: 1rem;
+	}
 
 
-    .inner
-    {
-        width: 1100px;
-        pointer-events: all;
-        border-radius: 10px;
-        z-index: 100;
-        box-shadow: 10px 10px 150px #0005;
-        background-color: #1c202d;
+	.inner
+	{
+		width: 1100px;
+		pointer-events: all;
+		border-radius: 10px;
+		z-index: 100;
+		box-shadow: 10px 10px 150px #0005;
+		background-color: #1c202d;
 
-        &.progress
-        {
-            padding: 2rem;
-            flex-direction: column;
-        }
+		&.progress
+		{
+			padding: 2rem;
+			flex-direction: column;
+		}
 
-        .left
-        {
-            justify-content: center;
-            padding: 2rem;
+		.left
+		{
+			justify-content: center;
+			padding: 2rem;
 
-            .thumbnail
-            {
-                width: 350px;
-                height: 350px;
-                background-color: #fff1;
-                border-radius: 10px;
-                background-size: cover;
-                background-position: center;
-            }
-        }
+			.thumbnail
+			{
+				width: 350px;
+				height: 350px;
+				background-color: #fff1;
+				border-radius: 10px;
+				background-size: cover;
+				background-position: center;
+			}
+		}
 
-        .right
-        {
-            padding: 2rem;
-            padding-left: 0;
-            flex-grow: 1;
-            flex-direction: column;
+		.right
+		{
+			padding: 2rem;
+			padding-left: 0;
+			flex-grow: 1;
+			flex-direction: column;
 
-            .form-group
-            {
-                flex-grow: 1;
-                flex-direction: column;
-                gap: 2px;
+			.form-group
+			{
+				flex-grow: 1;
+				flex-direction: column;
+				gap: 2px;
 
-                .row
-                {
-                    > label
-                    {
-                        width: 130px;
-                        padding: 6px;
-                        color: #fffa;
-                    }
+				.row
+				{
+					> label
+					{
+						width: 130px;
+						padding: 6px;
+						color: #fffa;
+					}
 
-                    textentry
-                    {
-                        background-color: #0006;
-                        flex-grow: 1;
-                        border-radius: 8px;
-                    }
-                }
-            }
-        }
-    }
+					textentry, dropdown
+					{
+						background-color: #0006;
+						flex-grow: 1;
+						border-radius: 8px;
+					}
+				}
+			}
+		}
+	}
 }
 
 ButtonGroup

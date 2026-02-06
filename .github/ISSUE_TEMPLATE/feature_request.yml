@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest something you want to be able to do but can't.
+type: Feature
+body:
+  - type: textarea
+    id: what-cant-you-do
+    attributes:
+      label: What can't you do?
+      description: Describe in detail what you're unable to currently do
+      placeholder: I'm unable to...
+    validations:
+      required: true
+  - type: textarea
+    id: how-work
+    attributes:
+      label: How would you like it to work?
+      description: Describe in detail how the feature should work
+      placeholder: I want it to work by...
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried?
+      description: >-
+        Describe a few work arounds you have in place or what you have tried to
+        do thus far.
+      placeholder: I have tried...
+    validations:
+      required: true
+  - type: textarea
+    id: extra-context
+    attributes:
+      label: Additional context
+      description: Any extra details on the feature you're requesting

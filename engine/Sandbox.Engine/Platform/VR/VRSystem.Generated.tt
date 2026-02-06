@@ -19,7 +19,7 @@ using Facepunch.XR;
 
 namespace Sandbox.VR;
 
-partial class VRNative
+internal static unsafe partial class VRSystem
 {
 <#
 foreach ( var actionType in ActionTypes )

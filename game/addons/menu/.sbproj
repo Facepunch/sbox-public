@@ -22,8 +22,8 @@
       ]
     },
     "CsProjName": "",
-    "StartupScene": "scenes/menu-main-winter25.scene",
-    "MapStartupScene": "scenes/menu-main-winter25.scene",
+    "StartupScene": "scenes/menu-main.scene",
+    "MapStartupScene": "scenes/menu-main.scene",
     "MinPlayers": 1,
     "MaxPlayers": 16,
     "LaunchMode": "Normal",

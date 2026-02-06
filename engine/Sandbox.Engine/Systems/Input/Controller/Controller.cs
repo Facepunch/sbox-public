@@ -20,7 +20,9 @@ internal sealed partial class Controller
 		Log.Info( $"Detected {Controller.All.Count()} controllers" );
 		foreach ( var controller in Controller.All )
 		{
-			Log.Info( $"	> {controller.ControllerType}, Handle: {controller.SDLHandle}, Device ID: {controller.DeviceId}" );
+			Log.Info( $"\t> {controller.ControllerType}, Handle: {controller.SDLHandle}, Device ID: {controller.DeviceId}" );
+			Log.Info( $"\t\t> Color: {controller.LEDColor}, Type: {controller.ControllerType}, GlyphVendor: {controller.GlyphVendor}" );
+			Log.Info( $"\t\t> Accel: {controller.Accelerometer}, Gyro: {controller.Gyroscope}" );
 		}
 		Log.Info( "---------------------------------------------------------------------------" );
 	}

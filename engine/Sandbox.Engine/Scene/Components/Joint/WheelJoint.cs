@@ -422,22 +422,8 @@ public sealed class WheelJoint : Joint
 
 			using var __ = Gizmo.Scope();
 
-			if ( Body != null )
-			{
-				if ( !Scene.IsEditor && _joint.IsValid() )
-				{
-					Gizmo.Transform = _joint.Point1.Transform;
-				}
-				else
-				{
-					Gizmo.Transform = Gizmo.Transform with { Rotation = Body.WorldRotation * new Angles( 90, 0, 0 ) };
-				}
-
-			}
-
-			var top = Vector3.Forward * v.y;
-			var bottom = Vector3.Forward * v.x;
-			var h = Vector3.Left * 1;
+			var top = Vector3.Left * v.y;
+			var bottom = Vector3.Left * v.x;
 
 			Gizmo.Draw.LineThickness = 2;
 			Gizmo.Draw.Color = Gizmo.Colors.Forward.WithAlpha( 0.3f );

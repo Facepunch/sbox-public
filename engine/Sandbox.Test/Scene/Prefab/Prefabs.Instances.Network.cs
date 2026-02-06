@@ -1,4 +1,6 @@
-﻿namespace Prefab;
+﻿using System.Text.Json.Nodes;
+
+namespace Prefab;
 
 public partial class Instances
 {
@@ -161,6 +163,47 @@ public partial class Instances
 		deserializedGo2.Deserialize( serialized2 );
 
 		Assert.AreEqual( 0, deserializedGo2.Children.Count );
+	}
+
+	[TestMethod]
+	public void TestSerializePrefabInstanceSingleNetworkObjectKeepsPrefabSource()
+	{
+		var options = new GameObject.SerializeOptions
+		{
+			SingleNetworkObject = true
+		};
+
+		string originalPrefabSource;
+
+		JsonObject serializedData;
+
+		var scene = new Scene();
+
+		using ( scene.Push() )
+		{
+			var instance = PrefabWithNetworkedChildren.Clone();
+
+			Assert.IsNotNull( instance.PrefabInstance );
+
+			originalPrefabSource = instance.PrefabInstance.PrefabSource;
+
+			Assert.IsFalse( string.IsNullOrEmpty( originalPrefabSource ) );
+
+			serializedData = instance.Serialize( options );
+		}
+
+		var newScene = new Scene();
+
+		GameObject deserialized;
+
+		using ( newScene.Push() )
+		{
+			deserialized = new GameObject();
+			deserialized.Deserialize( serializedData );
+		}
+
+		Assert.IsNotNull( deserialized.PrefabInstance );
+		Assert.AreEqual( originalPrefabSource, deserialized.PrefabInstance.PrefabSource );
 	}
 
 	[TestMethod]

@@ -2,7 +2,7 @@
 
 public static class VRToggle
 {
-	[Event( "editor.titlebar.buttons.build" )]
+	[Event( "editor.titlebar.buttons.build", Priority = 10 )]
 	public static void OnBuildTitleBarButtons( TitleBarButtons titleBarButtons )
 	{
 		if ( EditorUtility.VR.HasHeadset )

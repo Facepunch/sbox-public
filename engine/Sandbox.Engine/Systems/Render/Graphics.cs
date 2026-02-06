@@ -430,4 +430,17 @@ public static partial class Graphics
 			(uint)srcMipSlice, (uint)srcArraySlice,
 			(uint)dstMipSlice, (uint)dstArraySlice );
 	}
+
+	/// <summary>
+	/// Forces the GPU to flush all pending commands and wait for completion.
+	/// Useful when you need to ensure GPU work is finished before proceeding.
+	/// Can be called outside of a render block.
+	/// </summary>
+	public static void FlushGPU()
+	{
+		if ( Application.IsHeadless )
+			return;
+
+		g_pRenderDevice.ForceFlushGPU( default );
+	}
 }

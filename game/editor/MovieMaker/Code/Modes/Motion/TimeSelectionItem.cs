@@ -140,9 +140,10 @@ partial class MotionEditMode
 			PrepareGeometryChange();
 
 			var timeRange = value.PeakTimeRange;
+			var timeline = EditMode.Timeline;
 
-			Position = new Vector2( EditMode.Session.TimeToPixels( timeRange.Start ), viewRect.Top );
-			Size = new Vector2( EditMode.Session.TimeToPixels( timeRange.Duration ), viewRect.Height );
+			Position = new Vector2( timeline.TimeToPixels( timeRange.Start ), viewRect.Top );
+			Size = new Vector2( timeline.TimeToPixels( timeRange.Duration ), viewRect.Height );
 
 			Update();
 		}
@@ -281,9 +282,10 @@ partial class MotionEditMode
 				var timeRange = Kind == FadeKind.FadeIn
 					? selection.FadeInTimeRange
 					: selection.FadeOutTimeRange;
+				var timeline = EditMode.Timeline;
 
-				Position = new Vector2( EditMode.Session.TimeToPixels( Kind == FadeKind.FadeIn ? timeRange.End : timeRange.Start ), viewRect.Top );
-				Size = new Vector2( EditMode.Session.TimeToPixels( timeRange.Duration ), viewRect.Height );
+				Position = new Vector2( timeline.TimeToPixels( Kind == FadeKind.FadeIn ? timeRange.End : timeRange.Start ), viewRect.Top );
+				Size = new Vector2( timeline.TimeToPixels( timeRange.Duration ), viewRect.Height );
 			}
 
 			Update();
@@ -472,7 +474,7 @@ partial class MotionEditMode
 				? ScrubBar.Height
 				: 0f;
 
-			Position = new Vector2( EditMode.Session.TimeToPixels( time ), viewRect.Top + margin );
+			Position = new Vector2( EditMode.Timeline.TimeToPixels( time ), viewRect.Top + margin );
 			Size = new Vector2( 8f, viewRect.Height - margin * 2f );
 		}
 

@@ -376,3 +376,6 @@ dotnet_naming_style.s_camelcase.capitalization = camel_case
 
 # RS2008: Enable analyzer release tracking
 dotnet_diagnostic.RS2008.severity = suggestion
+dotnet_diagnostic.CA2000.severity = error
+# Ugh... but trying to enforce this on textures is a lost cause
+dotnet_code_quality.CA2000.excluded_symbol_names = Texture

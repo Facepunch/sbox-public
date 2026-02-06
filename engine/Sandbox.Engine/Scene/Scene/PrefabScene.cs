@@ -38,6 +38,10 @@ public partial class PrefabScene : Scene, IJsonConvert
 
 		using var sourceScope = ActionGraph.PushSerializationOptions( file.SerializationOptions with { ForceUpdateCached = IsEditor } );
 		using var sceneScope = Push();
+		using var blobs = BlobDataSerializer.Load( file.BinaryData, file.ResourcePath );
+
+		// Clear cached binary data now that we've loaded it
+		file.BinaryData = null;
 
 		if ( file.RootObject is null )
 		{

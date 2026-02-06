@@ -34,18 +34,32 @@ partial class MeshSelection
 			{
 				var group = AddGroup( "Operations" );
 
-				var grid = Layout.Row();
-				grid.Spacing = 4;
+				{
+					var grid = Layout.Row();
+					grid.Spacing = 4;
 
-				CreateButton( "Set Origin To Pivot", "gps_fixed", "mesh.set-origin-to-pivot", SetOriginToPivot, _meshes.Length > 0, grid );
-				CreateButton( "Center Origin", "center_focus_strong", "mesh.center-origin", CenterOrigin, _meshes.Length > 0, grid );
-				CreateButton( "Merge Meshes", "join_full", "mesh.merge-meshes", MergeMeshes, _meshes.Length > 1, grid );
-				CreateButton( "Bake Scale", "straighten", null, BakeScale, _meshes.Length > 0, grid );
-				CreateButton( "Save To Model", "save", null, SaveToModel, _meshes.Length > 0, grid );
+					CreateButton( "Set Origin To Pivot", "gps_fixed", "mesh.set-origin-to-pivot", SetOriginToPivot, _meshes.Length > 0, grid );
+					CreateButton( "Center Origin", "center_focus_strong", "mesh.center-origin", CenterOrigin, _meshes.Length > 0, grid );
+					CreateButton( "Merge Meshes", "join_full", "mesh.merge-meshes", MergeMeshes, _meshes.Length > 1, grid );
+					CreateButton( "Merge Meshes By Edge", "link", null, MergeMeshesByEdge, _meshes.Length > 1, grid );
 
-				grid.AddStretchCell();
+					grid.AddStretchCell();
 
-				group.Add( grid );
+					group.Add( grid );
+				}
+
+				{
+					var grid = Layout.Row();
+					grid.Spacing = 4;
+
+					CreateButton( "Flip Faces", "flip", "mesh.flip-all-mesh-faces", FlipMesh, _meshes.Length > 0, grid );
+					CreateButton( "Bake Scale", "straighten", null, BakeScale, _meshes.Length > 0, grid );
+					CreateButton( "Save To Model", "save", null, SaveToModel, _meshes.Length > 0, grid );
+
+					grid.AddStretchCell();
+
+					group.Add( grid );
+				}
 			}
 
 			{
@@ -152,6 +166,21 @@ partial class MeshSelection
 			}
 		}
 
+		public void FlipMesh()
+		{
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Flip Mesh" )
+				.WithComponentChanges( _meshes )
+				.Push() )
+			{
+				foreach ( var mesh in _meshes )
+				{
+					mesh.Mesh.FlipAllFaces();
+				}
+			}
+		}
+
 		[Shortcut( "mesh.merge-meshes", "M", typeof( SceneViewWidget ) )]
 		public void MergeMeshes()
 		{
@@ -178,6 +207,90 @@ partial class MeshSelection
 				var selection = SceneEditorSession.Active.Selection;
 				selection.Set( sourceMesh.GameObject );
 			}
+		}
+
+		public void MergeMeshesByEdge()
+		{
+			if ( _meshes.Length < 2 ) return;
+
+			var touching = new List<(int a, int b)>();
+			for ( int i = 0; i < _meshes.Length; i++ )
+			{
+				for ( int j = i + 1; j < _meshes.Length; j++ )
+				{
+					if ( HasTouchingVertices( _meshes[i], _meshes[j], 0.1f ) )
+						touching.Add( (i, j) );
+				}
+			}
+
+			if ( touching.Count == 0 )
+				return;
+
+			var parent = Enumerable.Range( 0, _meshes.Length ).ToArray();
+			int Find( int x ) => parent[x] == x ? x : parent[x] = Find( parent[x] );
+			void Union( int x, int y ) => parent[Find( x )] = Find( y );
+
+			foreach ( var (a, b) in touching )
+				Union( a, b );
+
+			var groups = Enumerable.Range( 0, _meshes.Length )
+				.GroupBy( Find )
+				.Where( g => g.Count() > 1 )
+				.Select( g => g.ToList() )
+				.ToList();
+
+			using var scope = SceneEditorSession.Scope();
+
+			var toDestroy = groups.SelectMany( g => g.Skip( 1 ) ).Select( i => _meshes[i].GameObject ).ToList();
+
+			using ( SceneEditorSession.Active.UndoScope( "Merge Meshes By Edge" )
+				.WithGameObjectDestructions( toDestroy )
+				.WithComponentChanges( groups.Select( g => _meshes[g[0]] ) )
+				.Push() )
+			{
+				int totalWelded = 0;
+
+				foreach ( var group in groups )
+				{
+					var target = _meshes[group[0]];
+
+					foreach ( var i in group.Skip( 1 ) )
+					{
+						var source = _meshes[i];
+						target.Mesh.MergeMesh( source.Mesh, target.WorldTransform.ToLocal( source.WorldTransform ), out _, out _, out _ );
+						source.GameObject.Destroy();
+					}
+
+					totalWelded += target.Mesh.MergeVerticesWithinDistance( target.Mesh.VertexHandles.ToList(), 0.01f, true, false, out _ );
+					target.Mesh.ComputeFaceTextureCoordinatesFromParameters();
+					target.RebuildMesh();
+				}
+
+				SceneEditorSession.Active.Selection.Set( _meshes[groups[0][0]].GameObject );
+			}
+		}
+
+		static bool HasTouchingVertices( MeshComponent meshA, MeshComponent meshB, float threshold )
+		{
+			var boundsA = meshA.GetWorldBounds();
+			var boundsB = meshB.GetWorldBounds();
+
+			var expandedB = new BBox( boundsB.Mins - threshold, boundsB.Maxs + threshold );
+
+			if ( !boundsA.Overlaps( expandedB ) )
+				return false;
+
+			foreach ( var vA in meshA.Mesh.VertexHandles )
+			{
+				meshA.Mesh.GetVertexPosition( vA, meshA.WorldTransform, out var posA );
+				foreach ( var vB in meshB.Mesh.VertexHandles )
+				{
+					meshB.Mesh.GetVertexPosition( vB, meshB.WorldTransform, out var posB );
+					if ( posA.Distance( posB ) < threshold )
+						return true;
+				}
+			}
+			return false;
 		}
 
 		static void CenterMeshOrigin( MeshComponent meshComponent )
@@ -236,8 +349,7 @@ partial class MeshSelection
 			var targetPath = EditorUtility.SaveFileDialog( "Create Model..", "vmdl", "" );
 			if ( targetPath is null ) return;
 
-			var meshes = _meshes.Select( x => x.Mesh ).ToArray();
-			EditorUtility.CreateModelFromPolygonMeshes( meshes, targetPath );
+			EditorUtility.CreateModelFromMeshComponents( _meshes, targetPath );
 		}
 	}
 }

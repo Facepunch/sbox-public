@@ -1,8 +1,8 @@
 ﻿
 namespace Editor.ProjectSettingPages;
 
-[Title( "Cursors" )]
-internal sealed class CursorCategory : ProjectInspector.Category
+[Title( "Cursors" ), Icon( "mouse" )]
+internal sealed class CursorCategory : ProjectSettingsWindow.Category
 {
 	CursorSettings settings;
 

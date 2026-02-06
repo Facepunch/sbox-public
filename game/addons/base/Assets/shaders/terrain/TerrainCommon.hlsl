@@ -57,6 +57,8 @@ struct TerrainMaterial
 SamplerState g_sBilinearBorder < Filter( BILINEAR ); AddressU( BORDER ); AddressV( BORDER ); >;
 SamplerState g_sAnisotropic < Filter( ANISOTROPIC ); MaxAniso(8); >;
 
+int g_nTerrainCount < Attribute( "TerrainCount" ); Default( 0 ); >;
+
 StructuredBuffer<TerrainStruct> g_Terrains < Attribute( "Terrain" ); >;
 StructuredBuffer<TerrainMaterial> g_TerrainMaterials < Attribute( "TerrainMaterials" ); >;
 
@@ -65,18 +67,97 @@ StructuredBuffer<TerrainMaterial> g_TerrainMaterials < Attribute( "TerrainMateri
 // This should just be for accessing data, rendering related methods shouldn't be crammed in here
 class Terrain
 {
+    static int Count() { return g_nTerrainCount; }
     static TerrainStruct Get() { return g_Terrains[0]; }
-    
+
     static Texture2D GetHeightMap() { return Bindless::GetTexture2D( Get().HeightMapTexture ); }
     static Texture2D GetControlMap() { return Bindless::GetTexture2D( Get().ControlMapTexture ); }
 
-    static float GetHeight( float2 worldPos )
+    static float3 WorldToLocal( float3 worldPos )
+    {
+        return mul( Get().TransformInv, float4( worldPos, 1.0 ) ).xyz;
+    }
+
+    static float2 GetUV( float3 worldPos )
+    {
+        float3 localPos = WorldToLocal( worldPos );
+        Texture2D tHeightMap = GetHeightMap();
+        float2 texSize = TextureDimensions2D( tHeightMap, 0 );
+        return localPos.xy / ( texSize * Get().Resolution );
+    }
+
+    static bool IsInBounds( float3 worldPos )
+    {
+        if ( Count() <= 0 )
+            return false;
+
+        float2 uv = GetUV( worldPos );
+        return all( uv >= 0.0 ) && all( uv <= 1.0 );
+    }
+
+    static float GetHeight( float2 localPos )
     {
         Texture2D tHeightMap = GetHeightMap();
-        float2 texSize = TextureDimensions2D( tHeightMap, 0 ); // todo: store me in the struct...
+        float2 texSize = TextureDimensions2D( tHeightMap, 0 );
 
-        float2 heightUv = ( worldPos.xy ) / ( texSize * Get().Resolution );
+        float2 heightUv = localPos.xy / ( texSize * Get().Resolution );
         return tHeightMap.SampleLevel( g_sBilinearBorder, heightUv, 0 ).r * Get().HeightScale;
+    }
+
+    static float GetWorldHeight( float3 worldPos )
+    {
+        float3 localPos = WorldToLocal( worldPos );
+        float localHeight = GetHeight( localPos.xy );
+        return mul( Get().Transform, float4( localPos.xy, localHeight, 1.0 ) ).z;
+    }
+
+    static float GetDistanceToSurface( float3 worldPos )
+    {
+        return worldPos.z - GetWorldHeight( worldPos );
+    }
+
+    // Get a 0-1 blend factor for mesh blending based on distance to terrain surface
+    // Returns 1 at terrain surface, fading to 0 at blendLength distance above
+    static float GetBlendFactor( float3 worldPos, float blendLength )
+    {
+        float dist = GetDistanceToSurface( worldPos );
+        return 1.0 - saturate( dist / max( blendLength, 0.001 ) );
+    }
+
+    // Sample the terrain surface color at a world position
+    // Blends base and overlay material colors from the control map
+    static float3 SampleColor( float3 worldPos, float mipLevel = 6.0 )
+    {
+        if ( Get().ControlMapTexture <= 0 )
+            return float3( 1, 1, 1 );
+
+        float3 localPos = WorldToLocal( worldPos );
+        Texture2D tControlMap = GetControlMap();
+        float2 texSize = TextureDimensions2D( tControlMap, 0 );
+        float2 uv = localPos.xy / ( texSize * Get().Resolution );
+
+        CompactTerrainMaterial material = CompactTerrainMaterial::DecodeFromFloat( tControlMap.SampleLevel( g_sPointClamp, uv, 0 ).r  );
+
+        if ( g_TerrainMaterials[material.BaseTextureId].bcr_texid <= 0 )
+            return float3( 1, 1, 1 );
+
+        float2 texUV = localPos.xy / 32.0;
+
+        TerrainMaterial baseMat = g_TerrainMaterials[material.BaseTextureId];
+        float3 color = GetBindlessTexture2D( baseMat.bcr_texid )
+            .SampleLevel( g_sBilinearClamp, texUV * baseMat.uvscale, mipLevel ).rgb;
+
+        float materialBlend = material.GetNormalizedBlend();
+        
+        TerrainMaterial overlayMat = g_TerrainMaterials[material.OverlayTextureId];
+        if ( materialBlend > 0.01 && overlayMat.bcr_texid > 0 )
+        {
+            float3 overlayColor = GetBindlessTexture2D( overlayMat.bcr_texid )
+                .SampleLevel( g_sBilinearClamp, texUV * overlayMat.uvscale, mipLevel ).rgb;
+            color = lerp( color, overlayColor, materialBlend );
+        }
+
+        return color;
     }
 };
 
