@@ -56,34 +56,84 @@ internal static class TooltipSystem
 		}
 
 		//
-		// Given the mouse position, try to position the tooltip
-		// so it's not hanging off the screen. Not actually doing any
-		// kind of restrict to screen or anything.
+		// Position the tooltip relative to the mouse cursor,
+		// respecting screen boundaries with a 20px margin
 		//
 
+		if ( lastTooltip is not Panel tooltipPanel )
+			return;
+
 		var pos = InputRouter.MouseCursorPosition;
+		var tooltipSize = lastTooltip.OuterRect;
+		var screenSize = Screen.Size;
+		const float margin = 20f;
+		const float offset = 20f;
 
-		TextFlag align = 0;
+		// Use tooltip size if available, otherwise use a default estimate
+		var tooltipWidth = tooltipSize.Width > 0 ? tooltipSize.Width : 200f;
+		var tooltipHeight = tooltipSize.Height > 0 ? tooltipSize.Height : 50f;
 
-		if ( pos.x < Screen.Size.x * 0.70f )
+		var scaleFromScreen = tooltipPanel.ScaleFromScreen;
+
+		// Reset all position properties
+		tooltipPanel.Style.Left = null;
+		tooltipPanel.Style.Right = null;
+		tooltipPanel.Style.Top = null;
+		tooltipPanel.Style.Bottom = null;
+
+		// Calculate horizontal position
+		// Try to place tooltip to the right of cursor
+		float leftPos = pos.x + offset;
+
+		if ( leftPos + tooltipWidth + margin > screenSize.x )
 		{
-			align |= TextFlag.Right;
+			// Doesn't fit on right, try left
+			float rightPos = screenSize.x - (pos.x - offset);
+
+			if ( pos.x - offset - tooltipWidth - margin >= 0 )
+			{
+				// Fits on left
+				tooltipPanel.Style.Right = rightPos * scaleFromScreen;
+			}
+			else
+			{
+				// Doesn't fit on either side, clamp to right edge
+				leftPos = screenSize.x - tooltipWidth - margin;
+				tooltipPanel.Style.Left = leftPos * scaleFromScreen;
+			}
 		}
 		else
 		{
-			align |= TextFlag.Left;
+			// Fits on right
+			tooltipPanel.Style.Left = leftPos * scaleFromScreen;
 		}
 
-		if ( pos.y > Screen.Size.y * 0.1f )
+		// Calculate vertical position
+		// Try to place tooltip above cursor
+		float bottomPos = screenSize.y - (pos.y - offset);
+
+		if ( pos.y - offset - tooltipHeight - margin < 0 )
 		{
-			align |= TextFlag.Top;
+			// Doesn't fit above, try below
+			float topPos = pos.y + offset;
+
+			if ( topPos + tooltipHeight + margin <= screenSize.y )
+			{
+				// Fits below
+				tooltipPanel.Style.Top = topPos * scaleFromScreen;
+			}
+			else
+			{
+				// Doesn't fit on either side, clamp to bottom edge
+				topPos = screenSize.y - tooltipHeight - margin;
+				tooltipPanel.Style.Top = topPos * scaleFromScreen;
+			}
 		}
 		else
 		{
-			align |= TextFlag.Bottom;
+			// Fits above
+			tooltipPanel.Style.Bottom = bottomPos * scaleFromScreen;
 		}
-
-		lastTooltip.SetAbsolutePosition( align, pos, 20 );
 
 	}
 }
