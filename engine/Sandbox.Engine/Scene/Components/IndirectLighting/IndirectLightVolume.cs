@@ -202,11 +202,11 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 
 		var sceneBounds = BBox.FromPositionAndSize( WorldPosition );
 
-		foreach ( var hasBounds in Scene.GetAll<IHasBounds>() )
+		foreach ( var renderer in Scene.GetAll<Renderer>() )
 		{
-			if ( hasBounds is not Renderer component )
+			if ( renderer is not IHasBounds bounds )
 				continue;
-			sceneBounds = sceneBounds.AddBBox( hasBounds.LocalBounds.Transform( component.WorldTransform ) );
+			sceneBounds = sceneBounds.AddBBox( bounds.LocalBounds.Transform( renderer.WorldTransform ) );
 		}
 		foreach ( var terrain in Scene.GetAll<Terrain>() )
 		{
