@@ -100,7 +100,7 @@ public static partial class Gizmo
 				{
 					Sandbox.Gizmo.Draw.LineCircle( 0, size, sections: 64 );
 				}
-				else if (useHalfCircle)
+				else if ( useHalfCircle )
 				{
 					Sandbox.Gizmo.Draw.ScreenBiasedHalfCircle( 0, size );
 				}
@@ -194,7 +194,7 @@ public static partial class Gizmo
 				return false;
 
 			var localCameraRot = Gizmo.LocalCameraTransform.Rotation;
-			
+
 			// Use the same ray transformation as RotateSingle for consistent world/local space behavior
 			Vector3 pressPoint = Vector3.Zero;
 			var plane = new Plane( 0, Vector3.Forward );
@@ -203,10 +203,10 @@ public static partial class Gizmo
 				pressPoint = Pressed.Ray.ToLocal( Gizmo.Transform ).Position;
 			}
 			else if ( !plane.TryTrace( Pressed.Ray.ToLocal( Gizmo.Transform ), out pressPoint, true ) ) return false;
-			
+
 			var delta = Sandbox.Gizmo.GetMouseDelta( pressPoint, localCameraRot.Forward );
 
-			var dir = Vector3.Cross(delta, localCameraRot.Forward).Normal;
+			var dir = Vector3.Cross( delta, localCameraRot.Forward ).Normal;
 
 			var angleDifference = delta.Length * 1.5f;
 
@@ -215,8 +215,8 @@ public static partial class Gizmo
 
 			if ( angleDifference == 0.0f ) return false;
 
-			rotationDelta = Rotation.FromAxis(dir, angleDifference);
-			
+			rotationDelta = Rotation.FromAxis( dir, angleDifference );
+
 			return true;
 		}
 	}
