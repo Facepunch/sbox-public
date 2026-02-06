@@ -31,7 +31,7 @@ public static unsafe partial class Sound
 		if ( !soundFile.IsValid() )
 			return null;
 
-		var handle = PlayFile( soundFile.native.self, soundEvent.Volume.GetValue(), soundEvent.Pitch.GetValue(), 0.0f, fadeInTime );
+		var handle = PlayFile( soundFile, soundEvent.Volume.GetValue(), soundEvent.Pitch.GetValue(), 0.0f, fadeInTime );
 		if ( !handle.IsValid() )
 		{
 			handle?.Dispose();
