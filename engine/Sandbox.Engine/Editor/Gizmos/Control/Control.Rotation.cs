@@ -5,12 +5,12 @@ public static partial class Gizmo
 	public sealed partial class GizmoControls
 	{
 		/// <summary>
-		/// A full 3d rotation gizmo. If rotated will return true and newValue will be the new value
+		/// A full 3d rotation gizmo. If rotated will return true and outValue will be the rotation delta.
 		/// </summary>
-		public bool Rotate( string name, out Angles outValue )
+		public bool Rotate( string name, out Rotation outValue )
 		{
 			using var scaler = Gizmo.GizmoControls.PushFixedScale();
-			outValue = default;
+			outValue = Rotation.Identity;
 
 			bool hasValueChanged = false;
 
@@ -22,7 +22,7 @@ public static partial class Gizmo
 				{
 					if ( RotateSingle( "pitch", Sandbox.Gizmo.Colors.Pitch, out var angleDelta ) )
 					{
-						outValue += new Angles( angleDelta, 0, 0 );
+						outValue *= Rotation.FromAxis( Vector3.Left, angleDelta );
 						hasValueChanged = true;
 					}
 				}
@@ -31,7 +31,7 @@ public static partial class Gizmo
 				{
 					if ( RotateSingle( "yaw", Sandbox.Gizmo.Colors.Yaw, out var angleDelta ) )
 					{
-						outValue += new Angles( 0, angleDelta, 0 );
+						outValue *= Rotation.FromAxis( Vector3.Up, angleDelta );
 						hasValueChanged = true;
 					}
 				}
@@ -40,19 +40,34 @@ public static partial class Gizmo
 				{
 					if ( RotateSingle( "roll", Sandbox.Gizmo.Colors.Roll, out var angleDelta ) )
 					{
-						outValue += new Angles( 0, 0, angleDelta );
+						outValue *= Rotation.FromAxis( Vector3.Forward, angleDelta );
 						hasValueChanged = true;
 					}
 				}
 
+				float _angleDelta;
+				bool rotateSingle;
+
 				using ( Sandbox.Gizmo.Scope( "view", 0, Gizmo.Transform.Rotation.Inverse * Gizmo.Camera.Rotation ) )
-                {
-                    if ( RotateSingle( "view", Color.White, out var angleDelta, 22.0f ) )
-                    {
-                        outValue *= Rotation.FromAxis(Vector3.Forward, angleDelta);
-                        hasValueChanged = true;
-                    }
-                }
+				{
+					rotateSingle = RotateSingle( "view", Color.White, out _angleDelta, 22 );
+				}
+
+				using ( Sandbox.Gizmo.Scope( "view", 0, Rotation.Identity ) )
+				{
+					if ( rotateSingle )
+					{
+						var camForward = Gizmo.Transform.NormalToLocal( Gizmo.CameraTransform.Rotation.Forward );
+						outValue *= Rotation.FromAxis( camForward, _angleDelta );
+						hasValueChanged = true;
+					}
+				}
+
+				if ( RotateTrackball( "trackball", out var trackballRotation ) )
+				{
+					outValue *= trackballRotation;
+					hasValueChanged = true;
+				}
 			}
 
 			return hasValueChanged;
@@ -133,6 +148,62 @@ public static partial class Gizmo
 			if ( angleDifference == 0.0f ) return false;
 
 			angleDelta = angleDifference;
+			return true;
+		}
+
+		/// <summary>
+		/// Trackball rotation using camera-relative axes - allows free rotation by dragging a sphere in the center
+		/// </summary>
+		private bool RotateTrackball( string name, out Rotation rotationDelta )
+		{
+			rotationDelta = Rotation.Identity;
+			float size = 16.0f;
+			var sphere = new Sphere( Vector3.Zero, size );
+
+			using var _ = Sandbox.Gizmo.Scope( name );
+
+			// Draw solid white sphere with transparency
+			Sandbox.Gizmo.Draw.Color = Color.White.WithAlpha( 0.15f );
+
+			if ( Sandbox.Gizmo.IsHovered )
+			{
+				Sandbox.Gizmo.Draw.Color = Color.White.WithAlpha( 0.3f );
+			}
+
+			if ( Pressed.This )
+			{
+				Sandbox.Gizmo.Draw.Color = Color.White.WithAlpha( 0.5f );
+			}
+
+			// Draw solid sphere with higher polygon count (16 segments)
+			Sandbox.Gizmo.Draw.SolidSphere( Vector3.Zero, size, 16, 16 );
+
+			// Add sphere hitbox
+			Gizmo.Hitbox.Sphere( sphere );
+
+			if ( !Sandbox.Gizmo.IsHovered || !Pressed.This )
+				return false;
+
+			// Get mouse delta projected onto camera view plane
+			// This gives us mouse movement in world space relative to the view
+			var localCameraRot = Gizmo.LocalCameraTransform.Rotation;
+			var delta = Sandbox.Gizmo.GetMouseDelta( 0, localCameraRot.Forward );
+			
+			// Apply rotation speed similar to PhysGun
+			float rotateSpeed = 0.4f;
+			
+			// Build rotation just like PhysGun's DoRotate:
+			// Mouse X (delta along Right axis) rotates around Up axis (yaw)
+			// Mouse Y (delta along Up axis) rotates around Right axis (pitch)
+			float yawAngle = delta.Dot( localCameraRot.Right ) * rotateSpeed;
+			float pitchAngle = delta.Dot( localCameraRot.Up ) * rotateSpeed;
+			
+			var yawRot = Rotation.FromAxis( Vector3.Up, yawAngle );
+			var pitchRot = Rotation.FromAxis( Vector3.Right, pitchAngle );
+			
+			// Combine rotations
+			rotationDelta = yawRot * pitchRot;
+			
 			return true;
 		}
 	}
