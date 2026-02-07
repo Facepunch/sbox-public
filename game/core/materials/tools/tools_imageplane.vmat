@@ -1,13 +1,16 @@
-"Layer0"
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
 {
-	"shader"		"shaders/tools_textured_unlit.shader_c"
-	"F_TRANSLUCENT"		"1"
-	"F_UNLIT"			"1"
-	"g_flOpacityScale"		"1.000000"
-	"Attributes"
+	shader "shaders/tools_textured_unlit.shader"
+
+	//---- Translucent ----
+	F_TRANSLUCENT 1
+
+	Attributes
 	{
-		"mapbuilder.nodraw"		"1"
-		"mapbuilder.nonsolid"		"1"
-		"tools.toolsmaterial"		"1"
+		mapbuilder.nodraw "1"
+		mapbuilder.nonsolid "1"
+		tools.toolsmaterial "1"
 	}
 }
