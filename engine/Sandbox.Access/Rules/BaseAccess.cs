@@ -280,6 +280,7 @@ internal static partial class Rules
 
 		"System.Collections.Concurrent/System.Collections.Concurrent.ConcurrentBag*",
 		"System.Collections.Concurrent/System.Collections.Concurrent.ConcurrentDictionary*",
+		"System.Collections.Concurrent/System.Collections.Concurrent.ConcurrentStack*",
 		"System.Collections.Concurrent/System.Collections.Concurrent.BlockingCollection*",
 
 		"System.ObjectModel/System.ComponentModel.INotifyPropertyChanged*",
