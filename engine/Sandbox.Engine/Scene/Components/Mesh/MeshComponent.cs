@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Sandbox.Rendering;
 using static Sandbox.Component;
 using static Sandbox.ModelRenderer;
 
@@ -115,6 +116,23 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 			}
 		}
 	} = ShadowRenderType.On;
+
+	RenderOptions _renderOptions;
+
+	[Property, MakeDirty, Order( -100 ), InlineEditor( Label = false ), Group( "Advanced Rendering", StartFolded = true )]
+	public RenderOptions RenderOptions
+	{
+		get
+		{
+			_renderOptions ??= new( OnRenderOptionsChanged );
+			return _renderOptions;
+		}
+	}
+
+	private void OnRenderOptionsChanged()
+	{
+		UpdateSceneObject();
+	}
 
 	[JsonIgnore, Hide]
 	public Model Model { get; private set; }
@@ -307,5 +325,7 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 		_sceneObject.Tags.SetFrom( GameObject.Tags );
 		_sceneObject.ColorTint = Color;
 		_sceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
+		_sceneObject.Flags.ExcludeGameLayer = RenderType == ShadowRenderType.ShadowsOnly;
+		RenderOptions.Apply( _sceneObject );
 	}
 }
