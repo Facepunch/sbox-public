@@ -644,11 +644,25 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	{
 		foreach ( var c in Game.ActiveScene.GetAll<Component.INetworkListener>() )
 		{
+#pragma warning disable CS0618 // Type or member is obsolete
 			if ( !c.AcceptConnection( channel, ref reason ) )
 				return false;
+#pragma warning restore CS0618 // Type or member is obsolete
 		}
 
 		return true;
+	}
+
+	public override async Task<ConnectionRequestResult> AcceptConnection( Connection channel )
+	{
+		foreach ( var c in Game.ActiveScene.GetAll<Component.INetworkListener>() )
+		{
+			var result = await c.AcceptConnection( channel );
+
+			if ( !result ) return result;
+		}
+
+		return ConnectionRequestResult.Accept();
 	}
 
 	public override void OnConnected( Connection client )
