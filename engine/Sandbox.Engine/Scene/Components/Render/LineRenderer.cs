@@ -193,6 +193,7 @@ public sealed class LineRenderer : Renderer, Component.ExecuteInEditor
 
 		_so.Attributes.Set( "g_DepthFeather", DepthFeather );
 		_so.Attributes.Set( "g_FogStrength", FogStrength );
+		_so.Attributes.Set( "TextureRotation", Texturing.Rotation );
 		_so.Attributes.SetCombo( "D_BLEND", Additive ? 1 : 0 );
 		_so.Attributes.SetCombo( "D_OPAQUE", Opaque ? 1 : 0 );
 		_so.Attributes.Set( "g_bNonDirectionalDiffuseLighting", true );
