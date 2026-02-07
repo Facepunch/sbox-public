@@ -556,7 +556,7 @@ public struct Rotation : System.IEquatable<Rotation>, IParsable<Rotation>, IInte
 	/// </summary>
 	public static Rotation Parse( string str )
 	{
-		if ( TryParse( str, null, out var res ) )
+		if ( TryParse( str, CultureInfo.InvariantCulture, out var res ) )
 			return res;
 
 		return default;

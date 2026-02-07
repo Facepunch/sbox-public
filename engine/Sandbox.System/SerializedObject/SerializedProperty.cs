@@ -369,7 +369,7 @@ public abstract class SerializedProperty : IValid
 				return (T)value;
 
 			if ( typeof( T ) == typeof( string ) )
-				return (T)(object)$"{value}";
+				return (T)(object)FormattableString.Invariant( $"{value}" );
 
 			if ( value.GetType() == typeof( string ) )
 			{

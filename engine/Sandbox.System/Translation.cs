@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.Globalization;
 using System.Text.Json.Serialization;
 
 namespace Sandbox;
@@ -67,7 +68,7 @@ internal static class Translation
 		//
 		if ( targetType == typeof( string ) )
 		{
-			convertedValue = $"{from}";
+			convertedValue = FormattableString.Invariant( $"{from}" );
 			return true;
 		}
 
@@ -103,7 +104,7 @@ internal static class Translation
 		//
 		if ( targetType == typeof( float ) )
 		{
-			if ( float.TryParse( from.ToString(), out var f ) )
+			if ( float.TryParse( from.ToString(), CultureInfo.InvariantCulture, out var f ) )
 			{
 				convertedValue = f;
 				return true;

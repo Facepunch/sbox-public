@@ -3,6 +3,8 @@ using Sandbox;
 using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using System.Globalization;
+
 
 /// <summary>
 /// A float between two values, which can be randomized or fixed.
@@ -132,7 +134,7 @@ public partial struct RangedFloat
 	private static float? ParseOptionalFloat( Group group )
 	{
 		if ( !group.Success ) return default;
-		return float.TryParse( group.Value, out var value ) ? value : 0f;
+		return float.TryParse( group.Value, CultureInfo.InvariantCulture, out var value ) ? value : 0f;
 	}
 
 	private static int? ParseOptionalInt( Group group )
@@ -179,8 +181,8 @@ public partial struct RangedFloat
 	{
 		return Range switch
 		{
-			RangeType.Fixed => Min.ToString( "R" ),
-			RangeType.Between => $"{Min:R} {Max:R}",
+			RangeType.Fixed => Min.ToString( "R", CultureInfo.InvariantCulture ),
+			RangeType.Between => FormattableString.Invariant( $"{Min:R} {Max:R}" ),
 			_ => "0"
 		};
 	}
