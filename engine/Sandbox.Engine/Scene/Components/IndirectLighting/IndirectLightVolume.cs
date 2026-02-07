@@ -219,7 +219,7 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 		foreach ( var mesh in Scene.GetAll<MeshComponent>() )
 		{
 			var model = mesh.Model;
-			if (model is null)
+			if ( model is null )
 				continue;
 			sceneBounds = sceneBounds.AddBBox( model.RenderBounds.Transform( mesh.WorldTransform ) );
 		}
