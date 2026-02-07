@@ -86,7 +86,7 @@ public class CodeEditorControlWidget : ControlWidget
 				},
 				codeEditor.Description,
 				isSelected,
-				isInstalled 
+				isInstalled
 			);
 
 			// add the custom path entry separately if it exists
@@ -181,7 +181,7 @@ public class CodeEditorControlWidget : ControlWidget
 				if ( targetType != null )
 				{
 					EditorCookie.Set( $"CodeEditor.{targetType.Name}.Path", selectedFile );
-					
+
 					// Change current editor to the one we just mapped
 					CodeEditor.Current = EditorTypeLibrary.Create<ICodeEditor>( targetType );
 

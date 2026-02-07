@@ -34,10 +34,10 @@ public class Rider : ICodeEditor
 	}
 
 	public bool IsInstalled() => !string.IsNullOrEmpty( FindRider() );
-	
+
 	public bool MatchesExecutable( string fileName )
 	{
-		return fileName.Equals( "rider64.exe", StringComparison.OrdinalIgnoreCase ) || 
+		return fileName.Equals( "rider64.exe", StringComparison.OrdinalIgnoreCase ) ||
 			   fileName.Equals( "rider.exe", StringComparison.OrdinalIgnoreCase );
 	}
 
