@@ -200,6 +200,8 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 		if ( Scene is null )
 			return;
 
+		WorldScale = 1;
+		WorldRotation = Rotation.Identity;
 		var sceneBounds = BBox.FromPositionAndSize( WorldPosition );
 
 		foreach ( var renderer in Scene.GetAll<Renderer>() )
@@ -223,6 +225,7 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 				continue;
 			sceneBounds = sceneBounds.AddBBox( model.RenderBounds.Transform( mesh.WorldTransform ) );
 		}
+		sceneBounds = sceneBounds.Grow( 16 );
 
 		Bounds = sceneBounds;
 	}
