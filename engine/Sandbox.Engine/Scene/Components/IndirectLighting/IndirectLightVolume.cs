@@ -210,11 +210,19 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 		}
 		foreach ( var terrain in Scene.GetAll<Terrain>() )
 		{
-			terrain.UpdateShape();
+			var collision = terrain.EnableCollision; // isnt great but poking around in the heightmap is worse
+			terrain.EnableCollision = true;
 			sceneBounds = sceneBounds.AddBBox( terrain.GetWorldBounds() );
+			if ( !collision )
+				terrain.EnableCollision = false;
 		}
 		foreach ( var mesh in Scene.GetAll<MeshComponent>() )
-			sceneBounds = sceneBounds.AddBBox( mesh.GetWorldBounds() );
+		{
+			var model = mesh.Model;
+			if (model is null)
+				continue;
+			sceneBounds = sceneBounds.AddBBox( model.RenderBounds.Transform( mesh.WorldTransform ) );
+		}
 
 		Bounds = sceneBounds;
 	}
