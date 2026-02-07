@@ -253,7 +253,6 @@ public partial class SceneViewportWidget : Widget
 		_activeCamera.OrthographicHeight = CurrentOrthoHeight;
 		_activeCamera.DebugMode = State.RenderMode;
 		_activeCamera.WireframeMode = State.WireframeMode;
-		_activeCamera.CustomSize = Renderer.Size * DpiScale;
 
 		// If we're in 2D mode, we can optionally show the skybox
 		if ( State.Is2D )
