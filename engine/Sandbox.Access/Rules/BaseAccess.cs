@@ -63,6 +63,8 @@ internal static partial class Rules
 		"System.Private.CoreLib/System.Threading.SemaphoreSlim*",
 		"System.Private.CoreLib/System.Threading.SemaphoreFullException*",
 
+		"System.Private.CoreLib/System.Threading.ReaderWriterLockSlim*",
+
 		// Do not whitelist constructors or CreateDelegate
 		"System.Private.CoreLib/System.Delegate",
 		"System.Private.CoreLib/System.Delegate.Combine(*",
