@@ -229,6 +229,31 @@ public sealed class NetList<T> : INetworkSerializer, INetworkReliable, INetworkP
 	}
 
 	/// <summary>
+	/// <inheritdoc cref="List{T}.Slice"/>
+	/// </summary>
+	public List<T> Slice( int start, int length )
+	{
+		ArgumentOutOfRangeException.ThrowIfNegative( start, nameof( start ) );
+		ArgumentOutOfRangeException.ThrowIfNegative( length, nameof( length ) );
+		if ( _list.Count - start < length )
+		{
+			throw new ArgumentException( "start and length do not denote a valid range of elements" );
+		}
+
+		if ( length == 0 )
+		{
+			return [];
+		}
+
+		var output = new List<T>( length );
+		for ( var i = start; i < start + length; i++ )
+		{
+			output.Add( _list[i] );
+		}
+		return output;
+	}
+
+	/// <summary>
 	/// <inheritdoc cref="List{T}.Count"/>
 	/// </summary>
 	public int Count => _list.Count;
