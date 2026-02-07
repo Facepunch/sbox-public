@@ -1,3 +1,4 @@
+using System.Linq;
 using Editor.CodeEditors;
 
 namespace Editor;
@@ -34,14 +35,15 @@ public class CodeEditorControlWidget : ControlWidget
 
 		var comboBox = new ComboBox( this );
 		var codeEditors = EditorTypeLibrary.GetTypes<ICodeEditor>()
-			.Where( x => !x.IsInterface && !x.IsAbstract )
-			.Select( x =>
-			{
-				var instance = x.Create<ICodeEditor>();
-				return new { Type = x, Instance = instance, IsInstalled = instance?.IsInstalled() ?? false };
-			} )
-			.OrderByDescending( x => x.IsInstalled )
-			.ThenBy( x => x.Type.Name );
+				.Where( x => !x.IsInterface && !x.IsAbstract )
+				.Select( x =>
+				{
+					var instance = x.Create<ICodeEditor>();
+					return new { Type = x, Instance = instance, IsInstalled = instance?.IsInstalled() ?? false };
+				} )
+				.OrderByDescending( x => x.IsInstalled )
+				.ThenBy( x => x.Type.Name )
+				.ToList();
 
 		if ( !codeEditors.Any() )
 		{
@@ -69,24 +71,24 @@ public class CodeEditorControlWidget : ControlWidget
 			}
 
 			comboBox.AddItem(
-				codeEditor.Title,
-				codeEditor.Icon,
-				() =>
-				{
-					if ( !string.IsNullOrEmpty( EditorCookie.Get( pathKey, "" ) ) )
+					codeEditor.Title,
+					codeEditor.Icon,
+					() =>
 					{
-						EditorCookie.Set( pathKey, "" ); // Clear any override
-						CodeEditor.Current = codeEditor.Create<ICodeEditor>();
-						BuildUI(); // rebuild because we changed a cookie/item list
-					}
-					else
-					{
-						CodeEditor.Current = codeEditor.Create<ICodeEditor>();
-					}
-				},
-				codeEditor.Description,
-				isSelected,
-				isInstalled
+						if ( !string.IsNullOrEmpty( EditorCookie.Get( pathKey, "" ) ) )
+						{
+							EditorCookie.Set( pathKey, "" ); // Clear any override
+							SerializedProperty.SetValue( codeEditor.Create<ICodeEditor>() );
+							BuildUI(); // rebuild because we changed a cookie/item list
+						}
+						else
+						{
+							SerializedProperty.SetValue( codeEditor.Create<ICodeEditor>() );
+						}
+					},
+					codeEditor.Description,
+					isSelected,
+					isInstalled
 			);
 
 			// add the custom path entry separately if it exists
@@ -95,16 +97,16 @@ public class CodeEditorControlWidget : ControlWidget
 				bool isCustomSelected = CodeEditor.Current?.GetType() == instance?.GetType() && isUsingCustom;
 
 				comboBox.AddItem(
-					customPath,
-					"folder",
-					() =>
-					{
-						// cookie is already set, so just select it
-						CodeEditor.Current = codeEditor.Create<ICodeEditor>();
-					},
-					$"Manual override for {codeEditor.Title}",
-					isCustomSelected,
-					true // always considered "installed" if path is set
+						customPath,
+						"folder",
+						() =>
+						{
+							// cookie is already set, so just select it
+							SerializedProperty.SetValue( codeEditor.Create<ICodeEditor>() );
+						},
+						$"Manual override for {codeEditor.Title}",
+						isCustomSelected,
+						true // always considered "installed" if path is set
 				);
 			}
 		}
@@ -144,7 +146,7 @@ public class CodeEditorControlWidget : ControlWidget
 
 				// see if this exe belongs to a known editor class
 				var editorTypes = EditorTypeLibrary.GetTypes<ICodeEditor>()
-					.Where( x => !x.IsInterface && !x.IsAbstract );
+								.Where( x => !x.IsInterface && !x.IsAbstract );
 
 				foreach ( var type in editorTypes )
 				{
@@ -183,7 +185,7 @@ public class CodeEditorControlWidget : ControlWidget
 					EditorCookie.Set( $"CodeEditor.{targetType.Name}.Path", selectedFile );
 
 					// Change current editor to the one we just mapped
-					CodeEditor.Current = EditorTypeLibrary.Create<ICodeEditor>( targetType );
+					SerializedProperty.SetValue( EditorTypeLibrary.Create<ICodeEditor>( targetType ) );
 
 					BuildUI();
 				}

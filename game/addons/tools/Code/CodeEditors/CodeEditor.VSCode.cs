@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
@@ -59,8 +60,9 @@ public abstract class VSCodeBase : ICodeEditor
 		{
 			FileName = location,
 			Arguments = arguments,
-			CreateNoWindow = true,
-			WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
+			// CreateNoWindow avoids spawning a console window for GUI processes; do not set WindowStyle.Hidden
+			// so the editor UI can appear or be reused normally.
+			CreateNoWindow = true
 		};
 
 		try
@@ -74,7 +76,7 @@ public abstract class VSCodeBase : ICodeEditor
 	}
 
 	// Static cache to avoid hitting the registry on every frame/widget update
-	private static Dictionary<string, string> _cachedLocations = new Dictionary<string, string>();
+	private static readonly Dictionary<string, string> _cachedLocations = new Dictionary<string, string>();
 	private static readonly Regex _commandRegex = new Regex( "\"([^\"]+)\"", RegexOptions.IgnoreCase );
 
 	[System.Diagnostics.CodeAnalysis.SuppressMessage( "Interoperability", "CA1416:Validate platform compatibility", Justification = "Windows Registry required" )]
@@ -128,17 +130,8 @@ public abstract class VSCodeBase : ICodeEditor
 
 		// extracts the executable path from the registry command string
 		var match = _commandRegex.Match( value );
-		string path;
-
-		if ( match.Success )
-		{
-			path = match.Groups[1].Value;
-		}
-		else
-		{
-			// If Regex fails (no quotes?), assume the whole string is the path
-			path = value;
-		}
+		// Use a conditional expression to clearly express the two possible values
+		string path = match.Success ? match.Groups[1].Value : value;
 
 		// validate that the file actually exists
 		if ( !File.Exists( path ) )
@@ -191,7 +184,7 @@ public class VSCodiumEditor : VSCodeBase
 	public override string RegistryKey => "codium.exe";
 }
 
-[Title( "VSCodium" )]
+[Title( "VSCodium (Alt)" )]
 public class VSCodiumEditorAlt : VSCodeBase
 {
 	public override string RegistryKey => "VSCodium.exe";
