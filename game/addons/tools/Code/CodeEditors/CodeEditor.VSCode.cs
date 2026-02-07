@@ -1,20 +1,36 @@
 ﻿using System;
 using System.IO;
-using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 namespace Editor.CodeEditors;
 
-[Title( "Visual Studio Code" )]
-public class VisualStudioCode : ICodeEditor
+/// <summary></summary>
+public abstract class VSCodeBase : ICodeEditor
 {
+	public abstract string RegistryKey { get; }
+	public virtual bool IsPrimary => false;
+
 	public void OpenFile( string path, int? line, int? column )
 	{
-		var sln = CodeEditor.FindSolutionFromPath( System.IO.Path.GetDirectoryName( path ) );
+		var sln = CodeEditor.FindSolutionFromPath( Path.GetDirectoryName( path ) );
 		var rootPath = Path.GetDirectoryName( sln );
 
-		Launch( $"-g \"{path}:{line}:{column}\" \"{rootPath}\"" );
+		var args = $"-r -g \"{path}";
+
+		if ( line.HasValue )
+		{
+			args += $":{line.Value}";
+
+			if ( column.HasValue )
+			{
+				args += $":{column.Value}";
+			}
+		}
+
+		args += $"\" \"{rootPath}\"";
+
+		Launch( args );
 	}
 
 	public void OpenSolution()
@@ -25,54 +41,176 @@ public class VisualStudioCode : ICodeEditor
 	public void OpenAddon( Project addon )
 	{
 		var projectPath = (addon != null) ? addon.GetRootPath() : "";
-
 		Launch( $"\"{projectPath}\"" );
 	}
 
 	public bool IsInstalled() => !string.IsNullOrEmpty( GetLocation() );
 
-	private static void Launch( string arguments )
+	private void Launch( string arguments )
 	{
+		var location = GetLocation();
+		if ( string.IsNullOrEmpty( location ) )
+		{
+			Log.Warning( $"[CodeEditor] Could not find installation for {GetType().Name} (Key: {RegistryKey})" );
+			return;
+		}
+
 		var startInfo = new System.Diagnostics.ProcessStartInfo
 		{
-			FileName = GetLocation(),
+			FileName = location,
 			Arguments = arguments,
 			CreateNoWindow = true,
+			WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
 		};
 
-		System.Diagnostics.Process.Start( startInfo );
+		try
+		{
+			System.Diagnostics.Process.Start( startInfo );
+		}
+		catch ( System.Exception e )
+		{
+			Log.Error( e, $"[CodeEditor] Failed to launch {GetType().Name}" );
+		}
 	}
 
-	static string Location;
+	// Static cache to avoid hitting the registry on every frame/widget update
+	private static Dictionary<string, string> _cachedLocations = new Dictionary<string, string>();
+	private static readonly Regex _commandRegex = new Regex( "\"([^\"]+)\"", RegexOptions.IgnoreCase );
 
-	[System.Diagnostics.CodeAnalysis.SuppressMessage( "Interoperability", "CA1416:Validate platform compatibility", Justification = "<Pending>" )]
-	private static string GetLocation()
+	[System.Diagnostics.CodeAnalysis.SuppressMessage( "Interoperability", "CA1416:Validate platform compatibility", Justification = "Windows Registry required" )]
+	private string GetLocation()
 	{
-		if ( Location != null )
+		// check for a manual override cookie first
+		var cookiePath = EditorCookie.Get( $"CodeEditor.{GetType().Name}.Path", "" );
+		if ( !string.IsNullOrEmpty( cookiePath ) && File.Exists( cookiePath ) )
 		{
-			return Location;
+			return cookiePath;
 		}
+
+		// check static cache first
+		if ( _cachedLocations.TryGetValue( RegistryKey, out var cached ) )
+			return cached;
 
 		string value = null;
-		using ( var key = Registry.ClassesRoot.OpenSubKey( @"Applications\\Code.exe\\shell\\open\\command" ) )
+		try
 		{
-			value = key?.GetValue( "" ) as string;
+			using ( var key = Registry.ClassesRoot.OpenSubKey( $@"Applications\\{RegistryKey}\\shell\\open\\command" ) )
+			{
+				value = key?.GetValue( "" ) as string;
+			}
+
+			// fallback: check "app paths" which is standard for many apps in hklm
+			if ( string.IsNullOrEmpty( value ) )
+			{
+				using ( var key = Registry.LocalMachine.OpenSubKey( $@"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\{RegistryKey}" ) )
+				{
+					value = key?.GetValue( "" ) as string;
+				}
+			}
+
+			// fallback 2: check "app paths" in hkcu (per-user installs)
+			if ( string.IsNullOrEmpty( value ) )
+			{
+				using ( var key = Registry.CurrentUser.OpenSubKey( $@"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\{RegistryKey}" ) )
+				{
+					value = key?.GetValue( "" ) as string;
+				}
+			}
+		}
+		catch
+		{
+			// registry access failed (permissions, etc.)
+			// we continue to see if we found a value before the exception
 		}
 
-		if ( value == null )
-		{
+		if ( string.IsNullOrEmpty( value ) )
 			return null;
-		}
 
-		// Given `"C:\Program Files\Microsoft VS Code\Code.exe" "%1"` grab the first bit
-		Regex rgx = new Regex( "\"(.*)\" \".*\"", RegexOptions.IgnoreCase );
-		var matches = rgx.Matches( value );
-		if ( matches.Count == 0 || matches[0].Groups.Count < 2 )
+		// extracts the executable path from the registry command string
+		var match = _commandRegex.Match( value );
+		string path;
+
+		if ( match.Success )
 		{
-			return null;
+			path = match.Groups[1].Value;
+		}
+		else
+		{
+			// If Regex fails (no quotes?), assume the whole string is the path
+			path = value;
 		}
 
-		Location = matches[0].Groups[1].Value;
-		return Location;
+		// validate that the file actually exists
+		if ( !File.Exists( path ) )
+			return null;
+
+		_cachedLocations[RegistryKey] = path;
+		return path;
 	}
+
+	public bool MatchesExecutable( string fileName )
+	{
+		return string.Equals( RegistryKey, fileName, StringComparison.OrdinalIgnoreCase );
+	}
+}
+
+[Title( "Visual Studio Code" )]
+public class VisualStudioCode : VSCodeBase
+{
+	public override string RegistryKey => "Code.exe";
+	public override bool IsPrimary => true;
+}
+
+[Title( "VS Code Insiders" )]
+public class VSCodeInsidersEditor : VSCodeBase
+{
+	public override string RegistryKey => "Code - Insiders.exe";
+}
+
+[Title( "Cursor" )]
+public class CursorEditor : VSCodeBase
+{
+	public override string RegistryKey => "Cursor.exe";
+}
+
+[Title( "Windsurf" )]
+public class WindsurfEditor : VSCodeBase
+{
+	public override string RegistryKey => "Windsurf.exe";
+}
+
+[Title( "Trae" )]
+public class TraeEditor : VSCodeBase
+{
+	public override string RegistryKey => "Trae.exe";
+}
+
+[Title( "VSCodium" )]
+public class VSCodiumEditor : VSCodeBase
+{
+	public override string RegistryKey => "codium.exe";
+}
+
+[Title( "VSCodium" )]
+public class VSCodiumEditorAlt : VSCodeBase
+{
+	public override string RegistryKey => "VSCodium.exe";
+}
+
+[Title( "Void" )]
+public class VoidEditor : VSCodeBase
+{
+	public override string RegistryKey => "Void.exe";
+}
+
+[Title( "PearAI" )]
+public class PearAIEditor : VSCodeBase
+{
+	public override string RegistryKey => "PearAI.exe";
+}
+
+[Title( "Antigravity" )]
+public class AntigravityEditor : VSCodeBase
+{
+	public override string RegistryKey => "Antigravity.exe";
 }
