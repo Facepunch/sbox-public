@@ -53,12 +53,15 @@
                             </div>
                         </div>
 
-                        <div class="entry">
-                            <div class="is-label">Max Players</div>
-                            <div class="control">
-                                <SliderControl class="glass with-grow" Value:bind=@Players Min=@MinPlayers Max=@MaxPlayers Step=@(1) ShowTextEntry=@true />
+                        @if ( MinPlayers != MaxPlayers )
+                        {
+                            <div class="entry">
+                                <div class="is-label">Max Players</div>
+                                <div class="control">
+                                    <SliderControl class="glass with-grow" Value:bind=@Players Min=@MinPlayers Max=@MaxPlayers Step=@(1) ShowTextEntry=@true />
+                                </div>
                             </div>
-                        </div>
+                        }
                     }
 
                     if ( NeedsMap() )
