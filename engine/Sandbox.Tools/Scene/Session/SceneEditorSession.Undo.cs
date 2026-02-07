@@ -207,7 +207,16 @@ internal sealed class SceneUndoSnapshot : IDisposable
 				var comp = compRef.Resolve( scene );
 				if ( comp.IsValid() )
 				{
-					compRef.Resolve( scene )?.PostDeserialize();
+					comp.PostDeserialize();
+				}
+			}
+
+			foreach ( var compRef in ComponentRefs )
+			{
+				var comp = compRef.Resolve( scene );
+				if ( comp.IsValid() )
+				{
+					comp.Validate();
 				}
 			}
 		}
@@ -370,6 +379,8 @@ internal sealed class SceneUndoSnapshot : IDisposable
 
 	private HashSet<Component> _initialCapturedComponents = new();
 
+	private HashSet<Component> _capturedComponentsToValidate = new();
+
 	private Dictionary<GameObject, GameObjectReference> _destroyedGameObjects { get; } = new();
 
 	private Dictionary<Component, ComponentReference> _destroyedComponents { get; } = new();
@@ -383,6 +394,8 @@ internal sealed class SceneUndoSnapshot : IDisposable
 	private bool _captureSelections = false;
 
 	private bool _captureComponentChanges => _initialCapturedComponents.Count > 0;
+
+	private bool _validateComponents => _capturedComponentsToValidate.Count > 0;
 
 	private bool _captureGameObjectChanges => _initalCapturedGameObjects.Count > 0;
 
@@ -448,6 +461,9 @@ internal sealed class SceneUndoSnapshot : IDisposable
 
 		foreach ( var comp in builder.CapturedComponents )
 		{
+			// Only validate components that were specifically captured
+			_capturedComponentsToValidate.Add( comp );
+
 			// Need to capture the prefab root and only the prefab root if we edited an instance
 			if ( comp.GameObject.IsPrefabInstance )
 			{
@@ -658,6 +674,18 @@ internal sealed class SceneUndoSnapshot : IDisposable
 		if ( _initialState == disposeState )
 		{
 			return;
+		}
+
+		// Run OnValidate on specific components that were captured
+		if ( _validateComponents )
+		{
+			foreach ( var comp in _capturedComponentsToValidate )
+			{
+				if ( comp.IsValid() )
+				{
+					comp.OnValidateInternal();
+				}
+			}
 		}
 
 		// check if we have non selection changes
