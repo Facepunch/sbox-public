@@ -11,7 +11,17 @@ using System.Text.Json.Serialization;
 /// </summary>
 [JsonConverter( typeof( Sandbox.Internal.JsonConvert.Vector3Converter ) )]
 [StructLayout( LayoutKind.Sequential )]
-public partial struct Vector3 : System.IEquatable<Vector3>, IParsable<Vector3>, IInterpolator<Vector3>
+public partial struct Vector3 : System.IEquatable<Vector3>, IParsable<Vector3>, IInterpolator<Vector3>,
+	System.Numerics.IAdditionOperators<Vector3, Vector3, Vector3>,
+	System.Numerics.IAdditiveIdentity<Vector3, Vector3>,
+	System.Numerics.ISubtractionOperators<Vector3, Vector3, Vector3>,
+	System.Numerics.IUnaryNegationOperators<Vector3, Vector3>,
+	System.Numerics.IMultiplyOperators<Vector3, Vector3, Vector3>,
+	System.Numerics.IMultiplyOperators<Vector3, float, Vector3>,
+	System.Numerics.IMultiplicativeIdentity<Vector3, Vector3>,
+	System.Numerics.IDivisionOperators<Vector3, Vector3, Vector3>,
+	System.Numerics.IDivisionOperators<Vector3, float, Vector3>,
+	System.Numerics.IEqualityOperators<Vector3, Vector3, bool>
 {
 	internal System.Numerics.Vector3 _vec;
 
@@ -725,7 +735,7 @@ public partial struct Vector3 : System.IEquatable<Vector3>, IParsable<Vector3>, 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	public static Vector3 operator /( Vector3 c1, float f ) => System.Numerics.Vector3.Divide( c1._vec, f );
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	public static Vector3 operator /( Vector3 c1, in Vector3 c2 ) => System.Numerics.Vector3.Divide( c1._vec, c2._vec );
+	public static Vector3 operator /( Vector3 c1, Vector3 c2 ) => System.Numerics.Vector3.Divide( c1._vec, c2._vec );
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	public static Vector3 operator -( Vector3 value ) => System.Numerics.Vector3.Negate( value._vec );
 
@@ -752,6 +762,11 @@ public partial struct Vector3 : System.IEquatable<Vector3>, IParsable<Vector3>, 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	public readonly bool Equals( Vector3 o ) => _vec.Equals( o._vec );
 	public readonly override int GetHashCode() => _vec.GetHashCode();
+	#endregion
+
+	#region identity
+	public static Vector3 AdditiveIdentity => Zero;
+	public static Vector3 MultiplicativeIdentity => One;
 	#endregion
 
 	/// <summary>

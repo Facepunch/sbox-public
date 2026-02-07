@@ -7,7 +7,37 @@ using System.Text.Json.Serialization;
 
 [JsonConverter( typeof( Sandbox.Internal.JsonConvert.Vector3IntConverter ) )]
 [StructLayout( LayoutKind.Sequential )]
-public struct Vector3Int : IEquatable<Vector3Int>, IParsable<Vector3Int>
+public struct Vector3Int : IEquatable<Vector3Int>, IParsable<Vector3Int>,
+	System.Numerics.IAdditionOperators<Vector3Int, int, Vector3Int>,
+	System.Numerics.IAdditionOperators<Vector3Int, float, Vector3>,
+	System.Numerics.ISubtractionOperators<Vector3Int, int, Vector3Int>,
+	System.Numerics.ISubtractionOperators<Vector3Int, float, Vector3>,
+	System.Numerics.IMultiplyOperators<Vector3Int, int, Vector3Int>,
+	System.Numerics.IMultiplyOperators<Vector3Int, float, Vector3>,
+	System.Numerics.IDivisionOperators<Vector3Int, int, Vector3Int>,
+	System.Numerics.IDivisionOperators<Vector3Int, float, Vector3>,
+
+	System.Numerics.IAdditionOperators<Vector3Int, Vector2Int, Vector3Int>,
+	System.Numerics.ISubtractionOperators<Vector3Int, Vector2Int, Vector3Int>,
+
+	System.Numerics.IAdditionOperators<Vector3Int, Vector3Int, Vector3Int>,
+	System.Numerics.ISubtractionOperators<Vector3Int, Vector3Int, Vector3Int>,
+	System.Numerics.IMultiplyOperators<Vector3Int, Vector3Int, Vector3Int>,
+	System.Numerics.IDivisionOperators<Vector3Int, Vector3Int, Vector3Int>,
+
+	System.Numerics.IAdditionOperators<Vector3Int, Vector3, Vector3>,
+	System.Numerics.ISubtractionOperators<Vector3Int, Vector3, Vector3>,
+	System.Numerics.IMultiplyOperators<Vector3Int, Vector3, Vector3>,
+	System.Numerics.IDivisionOperators<Vector3Int, Vector3, Vector3>,
+
+	System.Numerics.IAdditionOperators<Vector3Int, Vector4, Vector4>,
+	System.Numerics.ISubtractionOperators<Vector3Int, Vector4, Vector4>,
+
+	System.Numerics.IUnaryNegationOperators<Vector3Int, Vector3Int>,
+
+	System.Numerics.IAdditiveIdentity<Vector3Int, Vector3Int>,
+	System.Numerics.IMultiplicativeIdentity<Vector3Int, Vector3Int>,
+	System.Numerics.IEqualityOperators<Vector3Int, Vector3Int, bool>
 {
 	/// <summary>
 	/// The X component of this integer vector.
@@ -510,6 +540,11 @@ public struct Vector3Int : IEquatable<Vector3Int>, IParsable<Vector3Int>
 	public override bool Equals( object obj ) => obj is Vector3Int o && Equals( o );
 	public bool Equals( Vector3Int o ) => x == o.x && y == o.y && z == o.z;
 	public override int GetHashCode() => HashCode.Combine( x, y, z );
+	#endregion
+
+	#region identity
+	public static Vector3Int AdditiveIdentity => Zero;
+	public static Vector3Int MultiplicativeIdentity => One;
 	#endregion
 
 	/// <summary>
