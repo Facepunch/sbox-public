@@ -135,7 +135,7 @@ public class CodeEditorControlWidget : ControlWidget
 			var fd = new FileDialog( null );
 			fd.Title = $"Locate editor executable";
 			fd.DefaultSuffix = "exe";
-			fd.SetNameFilter( "Executable Files (*.exe)" );
+			fd.SetNameFilter( "Executable Files (*.exe);;All Files (*)" );
 			if ( fd.Execute() )
 			{
 				var selectedFile = fd.SelectedFile;
