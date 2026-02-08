@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 
-namespace Sandbox.Utility;
+namespace Sandbox.SolutionGenerator;
 
 /// <summary>
 /// Provides native file system operations with platform-specific implementations.
@@ -30,7 +30,7 @@ internal static partial class NativeFileSystem
 	/// </summary>
 	/// <param name="path">The path to canonicalize.</param>
 	/// <returns>The canonical path, or the original path if canonicalization fails.</returns>
-	public static string GetCanonicalPath( string path )
+	internal static string GetCanonicalPath( string path )
 	{
 		if ( string.IsNullOrWhiteSpace( path ) || !Path.IsPathRooted( path ) )
 			return path;
