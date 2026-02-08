@@ -1,16 +1,16 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 public static partial class Gizmo
 {
 	public sealed partial class GizmoControls
 	{
 		/// <summary>
-		/// A full 3d rotation gizmo. If rotated will return true and newValue will be the new value
+		/// A full 3d rotation gizmo. If rotated will return true and outValue will be the rotation delta.
 		/// </summary>
-		public bool Rotate( string name, out Angles outValue )
+		public bool Rotate( string name, out Rotation outValue )
 		{
 			using var scaler = Gizmo.GizmoControls.PushFixedScale();
-			outValue = default;
+			outValue = Rotation.Identity;
 
 			bool hasValueChanged = false;
 
@@ -22,7 +22,7 @@ public static partial class Gizmo
 				{
 					if ( RotateSingle( "pitch", Sandbox.Gizmo.Colors.Pitch, out var angleDelta ) )
 					{
-						outValue += new Angles( angleDelta, 0, 0 );
+						outValue *= Rotation.FromAxis( Vector3.Left, angleDelta );
 						hasValueChanged = true;
 					}
 				}
@@ -31,7 +31,7 @@ public static partial class Gizmo
 				{
 					if ( RotateSingle( "yaw", Sandbox.Gizmo.Colors.Yaw, out var angleDelta ) )
 					{
-						outValue += new Angles( 0, angleDelta, 0 );
+						outValue *= Rotation.FromAxis( Vector3.Up, angleDelta );
 						hasValueChanged = true;
 					}
 				}
@@ -40,20 +40,43 @@ public static partial class Gizmo
 				{
 					if ( RotateSingle( "roll", Sandbox.Gizmo.Colors.Roll, out var angleDelta ) )
 					{
-						outValue += new Angles( 0, 0, angleDelta );
+						outValue *= Rotation.FromAxis( Vector3.Forward, angleDelta );
 						hasValueChanged = true;
 					}
+				}
+
+				float _angleDelta;
+				bool rotateSingle;
+
+				using ( Sandbox.Gizmo.Scope( "view", 0, Gizmo.Transform.Rotation.Inverse * Gizmo.Camera.Rotation ) )
+				{
+					rotateSingle = RotateSingle( "view", Color.White, out _angleDelta, 22, false );
+				}
+
+				using ( Sandbox.Gizmo.Scope( "view", 0, Rotation.Identity ) )
+				{
+					if ( rotateSingle )
+					{
+						var camForward = Gizmo.Transform.NormalToLocal( Gizmo.CameraTransform.Rotation.Forward );
+						outValue *= Rotation.FromAxis( camForward, _angleDelta );
+						hasValueChanged = true;
+					}
+				}
+
+				if ( RotateTrackball( "trackball", Color.White, out var trackballRotation ) )
+				{
+					outValue *= trackballRotation;
+					hasValueChanged = true;
 				}
 			}
 
 			return hasValueChanged;
 		}
 
-
 		/// <summary>
 		/// A single rotation axis
 		/// </summary>
-		public bool RotateSingle( string name, Color color, out float angleDelta, float size = 19.0f )
+		public bool RotateSingle( string name, Color color, out float angleDelta, float size = 19.0f, bool useHalfCircle = true )
 		{
 			angleDelta = 0;
 
@@ -77,9 +100,13 @@ public static partial class Gizmo
 				{
 					Sandbox.Gizmo.Draw.LineCircle( 0, size, sections: 64 );
 				}
-				else
+				else if ( useHalfCircle )
 				{
 					Sandbox.Gizmo.Draw.ScreenBiasedHalfCircle( 0, size );
+				}
+				else
+				{
+					Sandbox.Gizmo.Draw.LineCircle( 0, size, sections: 64 );
 				}
 			}
 
@@ -128,5 +155,69 @@ public static partial class Gizmo
 			return true;
 		}
 
+		/// <summary>
+		/// Trackball rotation using camera-relative axes - allows free rotation by dragging a sphere in the center
+		/// </summary>
+		private bool RotateTrackball( string name, Color color, out Rotation rotationDelta, float size = 16.0f )
+		{
+			rotationDelta = Rotation.Identity;
+			var sphere = new Sphere( Vector3.Zero, size );
+
+			using var _ = Sandbox.Gizmo.Scope( name );
+
+			Sandbox.Gizmo.Draw.Color = color.WithAlpha( 0.15f );
+
+			if ( !Sandbox.Gizmo.IsHovered )
+				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Draw.Color.Darken( 0.33f );
+
+			if ( Sandbox.Gizmo.IsHovered )
+			{
+				Sandbox.Gizmo.Draw.Color = color.WithAlpha( 0.3f );
+			}
+
+			if ( Pressed.Any && !Pressed.This )
+			{
+				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Draw.Color.WithAlphaMultiplied( 0.5f );
+			}
+
+			if ( Pressed.This )
+			{
+				Sandbox.Gizmo.Draw.Color = color.WithAlpha( 0.5f );
+			}
+
+			Sandbox.Gizmo.Draw.SolidSphere( Vector3.Zero, size, 24, 24 );
+
+			// Add sphere hitbox
+			Gizmo.Hitbox.Sphere( sphere );
+
+			if ( !Sandbox.Gizmo.IsHovered || !Pressed.This )
+				return false;
+
+			var localCameraRot = Gizmo.LocalCameraTransform.Rotation;
+
+			// Use the same ray transformation as RotateSingle for consistent world/local space behavior
+			Vector3 pressPoint = Vector3.Zero;
+			var plane = new Plane( 0, Vector3.Forward );
+			if ( Camera.Ortho && Camera.Rotation.Forward.Abs() != Transform.Forward.Abs() )
+			{
+				pressPoint = Pressed.Ray.ToLocal( Gizmo.Transform ).Position;
+			}
+			else if ( !plane.TryTrace( Pressed.Ray.ToLocal( Gizmo.Transform ), out pressPoint, true ) ) return false;
+
+			var delta = Sandbox.Gizmo.GetMouseDelta( pressPoint, localCameraRot.Forward );
+
+			var dir = Vector3.Cross( delta, localCameraRot.Forward ).Normal;
+
+			var angleDifference = delta.Length * 1.5f;
+
+			// don't let scale affect the drag amounts
+			angleDifference /= Gizmo.Transform.UniformScale;
+
+			if ( angleDifference == 0.0f ) return false;
+
+			rotationDelta = Rotation.FromAxis( dir, angleDifference );
+
+			return true;
+		}
 	}
 }
