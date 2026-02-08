@@ -7,19 +7,19 @@ public static unsafe partial class Sound
 	{
 	}
 
-	public static SoundHandle Play( string eventName )
+	public static SoundHandle Play( string eventName, float fadeInTime = 0.0f )
 	{
 		if ( Application.IsHeadless )
 			return SoundHandle.Empty;
 
 		var e = SoundEvent.Find( eventName );
-		if ( e is not null ) return Play( e );
+		if ( e is not null ) return Play( e, fadeInTime );
 
 		Log.Info( $"Couldn't find sound event {eventName}" );
 		return default;
 	}
 
-	public static SoundHandle Play( SoundEvent soundEvent )
+	public static SoundHandle Play( SoundEvent soundEvent, float fadeInTime = 0.0f )
 	{
 		if ( Application.IsHeadless )
 			return SoundHandle.Empty;
@@ -31,7 +31,7 @@ public static unsafe partial class Sound
 		if ( !soundFile.IsValid() )
 			return null;
 
-		var handle = PlayFile( soundFile, soundEvent.Volume.GetValue(), soundEvent.Pitch.GetValue() );
+		var handle = PlayFile( soundFile, soundEvent.Volume.GetValue(), soundEvent.Pitch.GetValue(), 0.0f, fadeInTime );
 		if ( !handle.IsValid() )
 		{
 			handle?.Dispose();
@@ -66,9 +66,9 @@ public static unsafe partial class Sound
 	/// Play a sound and set its position
 	/// </summary>
 	[ActionGraphNode( "sound.playat" ), Title( "Play Sound At" ), Group( "Audio" ), Icon( "volume_up" )]
-	public static SoundHandle Play( SoundEvent soundEvent, Vector3 position )
+	public static SoundHandle Play( SoundEvent soundEvent, Vector3 position, float fadeInTime = 0.0f )
 	{
-		var h = Play( soundEvent );
+		var h = Play( soundEvent, fadeInTime );
 		if ( h.IsValid() )
 		{
 			h.Position = position;
@@ -79,9 +79,9 @@ public static unsafe partial class Sound
 	/// <summary>
 	/// Play a sound and set its position
 	/// </summary>
-	public static SoundHandle Play( string eventName, Vector3 position )
+	public static SoundHandle Play( string eventName, Vector3 position, float fadeInTime = 0.0f )
 	{
-		var h = Play( eventName );
+		var h = Play( eventName, fadeInTime );
 		if ( h.IsValid() )
 		{
 			h.Position = position;
@@ -104,18 +104,18 @@ public static unsafe partial class Sound
 
 	[ActionGraphNode( "sound.playfile" ), Title( "Play Sound File" ), Group( "Audio" ), Icon( "volume_up" )]
 	[Obsolete( "Decibels are obsolete" )]
-	public static SoundHandle PlayFile( SoundFile soundFile, float volume, float pitch, float decibels, float delay )
+	public static SoundHandle PlayFile( SoundFile soundFile, float volume, float pitch, float decibels, float delay, float fadeInTime = 0.0f )
 	{
-		return PlayFile( soundFile.native.self, volume, pitch, delay, soundFile.ResourceName );
+		return PlayFile( soundFile.native.self, volume, pitch, delay, fadeInTime, soundFile.ResourceName );
 	}
 
 	[ActionGraphNode( "sound.playfile" ), Title( "Play Sound File" ), Group( "Audio" ), Icon( "volume_up" )]
-	public static SoundHandle PlayFile( SoundFile soundFile, float volume = 1.0f, float pitch = 1.0f, float delay = 0.0f )
+	public static SoundHandle PlayFile( SoundFile soundFile, float volume = 1.0f, float pitch = 1.0f, float delay = 0.0f, float fadeInTime = 0.0f )
 	{
-		return PlayFile( soundFile.native.self, volume, pitch, delay, soundFile.ResourceName );
+		return PlayFile( soundFile.native.self, volume, pitch, delay, fadeInTime, soundFile.ResourceName );
 	}
 
-	internal static SoundHandle PlayFile( CSfxTable soundFile, float volume = 1.0f, float pitch = 1.0f, float delay = 0.0f, string debugName = "" )
+	internal static SoundHandle PlayFile( CSfxTable soundFile, float volume = 1.0f, float pitch = 1.0f, float delay = 0.0f, float fadeInTime = 0.0f, string debugName = "" )
 	{
 		if ( soundFile.IsNull )
 			return default;
@@ -127,6 +127,12 @@ public static unsafe partial class Sound
 		handle.Name = debugName;
 		handle.Volume = volume;
 		handle.Pitch = pitch;
+
+		if ( fadeInTime > 0.0f )
+		{
+			handle.TimeUntilFadedIn = fadeInTime;
+			handle.IsFadingIn = true;
+		}
 
 		if ( handle.sampler is not null )
 		{
