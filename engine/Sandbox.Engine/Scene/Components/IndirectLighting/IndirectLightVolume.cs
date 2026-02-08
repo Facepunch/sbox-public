@@ -225,7 +225,7 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 				continue;
 			sceneBounds = sceneBounds.AddBBox( model.RenderBounds.Transform( mesh.WorldTransform ) );
 		}
-		sceneBounds = sceneBounds.Grow( 16 );
+		sceneBounds = sceneBounds.Translate( -WorldPosition ).Grow( 16 );
 
 		Bounds = sceneBounds;
 	}
