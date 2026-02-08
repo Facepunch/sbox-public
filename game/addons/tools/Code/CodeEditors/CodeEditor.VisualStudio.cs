@@ -23,6 +23,11 @@ public class VisualStudio : ICodeEditor
 
 	public bool IsInstalled() => !string.IsNullOrEmpty( FindVisualStudio() );
 
+	public bool MatchesExecutable( string fileName )
+	{
+		return fileName.Equals( "devenv.exe", StringComparison.OrdinalIgnoreCase );
+	}
+
 	/// <summary>
 	/// Uses vsopen to open the file in a currently running instance of Visual Studio.
 	/// Failing that it will launch it.
