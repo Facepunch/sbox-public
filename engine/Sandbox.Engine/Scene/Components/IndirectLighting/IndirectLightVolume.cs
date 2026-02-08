@@ -200,16 +200,32 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 		if ( Scene is null )
 			return;
 
-		WorldPosition = Vector3.Zero;
-		var sceneBounds = new BBox();
+		WorldScale = 1;
+		WorldRotation = Rotation.Identity;
+		var sceneBounds = BBox.FromPositionAndSize( WorldPosition );
 
-		foreach ( var obj in Scene.SceneWorld.SceneObjects )
+		foreach ( var renderer in Scene.GetAll<Renderer>() )
 		{
-			if ( obj.Bounds.Volume > 10000000 ) // Skip skybox
+			if ( renderer is not IHasBounds bounds )
 				continue;
-
-			sceneBounds = sceneBounds.AddBBox( obj.Bounds );
+			sceneBounds = sceneBounds.AddBBox( bounds.LocalBounds.Transform( renderer.WorldTransform ) );
 		}
+		foreach ( var terrain in Scene.GetAll<Terrain>() )
+		{
+			var collision = terrain.EnableCollision; // isnt great but poking around in the heightmap is worse
+			terrain.EnableCollision = true;
+			sceneBounds = sceneBounds.AddBBox( terrain.GetWorldBounds() );
+			if ( !collision )
+				terrain.EnableCollision = false;
+		}
+		foreach ( var mesh in Scene.GetAll<MeshComponent>() )
+		{
+			var model = mesh.Model;
+			if ( model is null )
+				continue;
+			sceneBounds = sceneBounds.AddBBox( model.RenderBounds.Transform( mesh.WorldTransform ) );
+		}
+		sceneBounds = sceneBounds.Translate( -WorldPosition ).Grow( 16 );
 
 		Bounds = sceneBounds;
 	}
