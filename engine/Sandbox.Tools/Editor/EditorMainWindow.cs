@@ -104,6 +104,7 @@ public class EditorMainWindow : DockWindow
 	private Option discard;
 	private Option undoOption;
 	private Option redoOption;
+	private Option gameMode;
 
 	internal EditorMainWindow()
 	{
@@ -155,10 +156,9 @@ public class EditorMainWindow : DockWindow
 			var gameMenu = MenuBar.AddMenu( "Game" );
 			gameMenu.AddOption( "Play", "play_arrow", EditorScene.TogglePlay, "editor.toggle-play" );
 
-			gameMenu.AddOption( new Option()
+			gameMode = gameMenu.AddOption( new Option()
 			{
 				Checkable = true,
-				Checked = EditorScene.PlayMode,
 				Toggled = ( b ) => EditorScene.PlayMode = b,
 				Text = "Play in Game Mode",
 				Icon = "sports_esports"
@@ -308,6 +308,9 @@ public class EditorMainWindow : DockWindow
 	{
 		// Load gizmo settings
 		EditorScene.RestoreState();
+
+		// Load game mode value
+		gameMode.Checked = EditorScene.PlayMode;
 
 		// Register our menu bar and dock options, doesn't open anything
 		MenuBar.RegisterNamed( "Editor", MenuBar );
