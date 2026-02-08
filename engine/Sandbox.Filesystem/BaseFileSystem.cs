@@ -153,7 +153,7 @@ public class BaseFileSystem
 		if ( path.Contains( ":" ) )
 			return path;
 
-		if ( system is Zio.FileSystems.SubFileSystem sfs )
+		if ( system is CasefoldSubFileSystem sfs )
 		{
 			return sfs.ConvertPathToInternal( FixPath( path ) );
 		}
@@ -172,7 +172,7 @@ public class BaseFileSystem
 
 	static string GetRelativePath( Zio.IFileSystem system, string path )
 	{
-		if ( system is Zio.FileSystems.SubFileSystem sfs )
+		if ( system is CasefoldSubFileSystem sfs )
 		{
 			try
 			{
@@ -313,7 +313,7 @@ public class BaseFileSystem
 	{
 		// Log.Trace( $"CreateFileSystem( {path} ) [{GetFullPath(path)}]" );
 
-		var sub = new Zio.FileSystems.SubFileSystem( system, FixPath( path ), false );
+		var sub = new CasefoldSubFileSystem( system, FixPath( path ), false );
 		return new BaseFileSystem( sub );
 	}
 
