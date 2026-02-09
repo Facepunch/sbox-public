@@ -65,7 +65,7 @@ public class VRTrackedObject : Component
 		Rotation,
 
 		/// <summary>
-		/// Update the rotation only
+		/// Update the position only
 		/// </summary>
 		Position,
 

@@ -266,8 +266,44 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 			OnMeshSelectionChanged();
 		}
 
+		HandleGlobalMaterialOperations();
+
 		if ( IsAllowedToSelect )
 			DrawSelection();
+	}
+
+	/// <summary>
+	/// Handle Shift+RMB (pick material) and Ctrl+RMB (paint material) globally across all mesh tools.
+	/// </summary>
+	private void HandleGlobalMaterialOperations()
+	{
+		if ( Gizmo.WasRightMousePressed && Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
+		{
+			var face = TraceFace();
+			if ( face.IsValid() )
+			{
+				Tool.ActiveMaterial = face.Material;
+			}
+		}
+
+		if ( Gizmo.IsRightMouseDown && Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
+		{
+			var face = TraceFace();
+			if ( face.IsValid() )
+			{
+				var mesh = face.Component.Mesh;
+				var currentMaterial = mesh.GetFaceMaterial( face.Handle );
+				if ( currentMaterial != Tool.ActiveMaterial )
+				{
+					using ( SceneEditorSession.Active.UndoScope( "Paint Material" )
+						.WithComponentChanges( face.Component )
+						.Push() )
+					{
+						mesh.SetFaceMaterial( face.Handle, Tool.ActiveMaterial );
+					}
+				}
+			}
+		}
 	}
 
 	void UpdateMoveMode()

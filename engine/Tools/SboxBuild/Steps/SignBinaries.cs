@@ -5,6 +5,7 @@ namespace Facepunch.Steps;
 internal class SignBinaries() : Step( "SignBinaries" )
 {
 	// All the stuff we compile directly, no third party
+	// (We compile Qt ourselves, so we sign that too)
 	private static readonly string[] Win64Binaries =
 	[
 		"animationsystem.dll",
@@ -23,6 +24,10 @@ internal class SignBinaries() : Step( "SignBinaries" )
 		"obj2dmx.exe",
 		"physicsbuilder.dll",
 		"propertyeditor.dll",
+		"Qt5Concurrent.dll",
+		"Qt5Core.dll",
+		"Qt5Gui.dll",
+		"Qt5Widgets.dll",
 		"rendersystemempty.dll",
 		"rendersystemvulkan.dll",
 		"resourcecompiler.dll",
@@ -37,6 +42,12 @@ internal class SignBinaries() : Step( "SignBinaries" )
 		"vpk.exe",
 		"vrad2.exe",
 		"vrad3.exe",
+		"qt5_plugins/imageformats/qgif.dll",
+		"qt5_plugins/imageformats/qico.dll",
+		"qt5_plugins/imageformats/qjpeg.dll",
+		"qt5_plugins/imageformats/qtga.dll",
+		"qt5_plugins/imageformats/qwbmp.dll",
+		"qt5_plugins/platforms/qwindows.dll",
 		"tools/animgraph_editor.dll",
 		"tools/hammer.dll",
 		"tools/met.dll",

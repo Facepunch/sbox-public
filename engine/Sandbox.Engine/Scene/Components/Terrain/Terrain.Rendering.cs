@@ -169,7 +169,7 @@ public partial class Terrain
 	}
 
 	/// <summary>
-	/// Upload the Terrain buffer, this should be called when materials are added, removed or modified.
+	/// Upload the Materials buffer, this should be called when materials are added, removed or modified.
 	/// </summary>
 	public unsafe void UpdateMaterialsBuffer()
 	{

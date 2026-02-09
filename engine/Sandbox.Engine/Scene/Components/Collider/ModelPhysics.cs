@@ -28,7 +28,7 @@ public sealed partial class ModelPhysics : Component, IScenePhysicsEvents, IHasM
 	internal int PhysicsRebuildCount { get; set; }
 
 	/// <summary>
-	/// Number of times the physics have been rebuilt. Debugging use only.
+	/// Number of times the physics have been destroyed. Debugging use only.
 	/// </summary>
 	internal int PhysicsDestroyCount { get; set; }
 

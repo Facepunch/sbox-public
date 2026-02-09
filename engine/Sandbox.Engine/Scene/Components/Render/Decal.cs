@@ -65,7 +65,7 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 	public ParticleFloat Scale { get; set; } = 1;
 
 	/// <summary>
-	/// Scale the width and height by this value
+	/// Rotation angle of the decal in degrees
 	/// </summary>
 	[Property]
 	public ParticleFloat Rotation { get; set; } = new ParticleFloat( 0, 360 );
@@ -77,7 +77,7 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 	public float Depth { get; set; } = 8;
 
 	/// <summary>
-	/// How long should this decal live for?
+	/// Parallax depth strength of the decal
 	/// </summary>
 	[Property, Header( "Properties" )]
 	public ParticleFloat Parallax { get; set; } = 1;

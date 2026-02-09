@@ -602,6 +602,70 @@
 							},
 						]
 					},
+					{
+						_class = "WeightList"
+						name = "EyeAM_R"
+						default_weight = 0.0
+						weights = 
+						[
+							{
+								bone = "eye_R"
+								weight = 1.0
+							},
+						]
+						master_morph_weight = -1.0
+						morph_weights = 
+						[
+							{
+								morph = "eyeLookDown_R"
+								weight = 1.0
+							},
+							{
+								morph = "eyeLookIn_R"
+								weight = 1.0
+							},
+							{
+								morph = "eyeLookOut_R"
+								weight = 1.0
+							},
+							{
+								morph = "eyeLookUp_R"
+								weight = 1.0
+							},
+						]
+					},
+					{
+						_class = "WeightList"
+						name = "EyeAM_L"
+						default_weight = 0.0
+						weights = 
+						[
+							{
+								bone = "eye_L"
+								weight = 1.0
+							},
+						]
+						master_morph_weight = -1.0
+						morph_weights = 
+						[
+							{
+								morph = "eyeLookDown_L"
+								weight = 1.0
+							},
+							{
+								morph = "eyeLookIn_L"
+								weight = 1.0
+							},
+							{
+								morph = "eyeLookOut_L"
+								weight = 1.0
+							},
+							{
+								morph = "eyeLookUp_L"
+								weight = 1.0
+							},
+						]
+					},
 				]
 			},
 			{
