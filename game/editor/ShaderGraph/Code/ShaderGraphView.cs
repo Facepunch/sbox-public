@@ -448,6 +448,8 @@ public class ShaderGraphView : GraphView
 		return (T)FindParameterType( typeof( T ) ).CreateParameter( graph );
 	}
 
+	// TODO : Fixup this function so it works properly with the blackboard
+	// changes.
 	private void CreateSubgraphFromSelection( string filePath )
 	{
 		if ( string.IsNullOrWhiteSpace( filePath ) ) return;
