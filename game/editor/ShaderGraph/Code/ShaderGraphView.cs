@@ -239,14 +239,14 @@ public class ShaderGraphView : GraphView
 	public override void PushUndo( string name )
 	{
 		Log.Info( $"Push Undo ({name})" );
-		_undoStack.PushUndo( name, Graph.SerializeNodes() );
+		_undoStack.PushUndo( name, Graph.UndoStackSerialize() );
 		_window.OnUndoPushed();
 	}
 
 	public override void PushRedo()
 	{
 		Log.Info( "Push Redo" );
-		_undoStack.PushRedo( Graph.SerializeNodes() );
+		_undoStack.PushRedo( Graph.UndoStackSerialize() );
 		_window.SetDirty();
 	}
 
