@@ -1,17 +1,21 @@
-﻿using System.Text;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Editor.ShaderGraph;
 
 public class BlackboardView : Widget
 {
-	private Button.Primary _addButton;
-	private Button.Danger _deleteButton;
+	bool queryDirty = false;
+	Layout Header;
+	Layout SubHeader;
+	LineEdit Search;
+	ToolButton SearchClear;
+
 	private TreeView _treeView;
 	private BlackboardParameter _selectedParameter;
 
 	private readonly MainWindow _window;
 	private readonly UndoStack _undoStack;
-
 	private readonly Dictionary<string, IBlackboardParameterType> AvailableParameters = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
@@ -41,58 +45,54 @@ public class BlackboardView : Widget
 
 	public BlackboardView( Widget parent, MainWindow window ) : base( parent )
 	{
-		Layout = Layout.Row();
-		FocusMode = FocusMode.TabOrClickOrWheel;
+		Layout = Layout.Column();
 
 		_window = window;
 		_undoStack = window.UndoStack;
 
-		var canvas = new Widget( null );
-		canvas.Layout = Layout.Row();
-		canvas.Layout.Spacing = 4;
+		BuildUI();
+	}
 
-		var leftColumn = canvas.Layout.AddColumn( 1, false );
-		leftColumn.Spacing = 4;
-		var leftColumnTopLayout = leftColumn.AddRow( 1, false );
-		leftColumnTopLayout.Spacing = 4;
+	public void BuildUI()
+	{
+		Layout.Clear( true );
+		Header = Layout.AddColumn();
 
-		leftColumnTopLayout.AddStretchCell();
+		SubHeader = Layout.AddRow();
+		SubHeader.Spacing = 2;
+		SubHeader.Margin = new Sandbox.UI.Margin( 0, 2 );
+		SubHeader.Alignment = TextFlag.LeftCenter;
 
-		_deleteButton = new Button.Danger( "Delete", "delete" );
-		_deleteButton.Enabled = false;
-		_deleteButton.ToolTip = $"Delete selected blackboard parameter";
-		_deleteButton.Clicked += () =>
+		var add = SubHeader.Add( new AddButton( "add" ) );
+		add.MouseLeftPress = CreateParameterMenu;
+
+		Search = SubHeader.Add( new LineEdit(), 1 );
+		Search.PlaceholderText = "⌕  Search";
+		Search.Layout = Layout.Row();
+		Search.Layout.AddStretchCell( 1 );
+		Search.TextChanged += x => queryDirty = true;
+		Search.FixedHeight = Theme.RowHeight;
+
+		SearchClear = Search.Layout.Add( new ToolButton( string.Empty, "clear", this ) );
+		SearchClear.MouseLeftPress = () =>
 		{
-			var parameter = _selectedParameter;
+			Search.Text = string.Empty;
+			Rebuild();
 
-			if ( _selectedParameter != null )
+			// make sure we're open to the stuff we picked from search
+			foreach ( var item in _treeView.Selection )
 			{
-				_selectedParameter = null;
-				OnParameterDeleted?.Invoke( parameter );
+				_treeView.ExpandPathTo( item );
 			}
+			_treeView.UpdateIfDirty();
 
-			if ( !_graph.Parameters.Any() )
+			var scrollTarget = _treeView.Selection.FirstOrDefault();
+			if ( scrollTarget is not null )
 			{
-				_deleteButton.Enabled = false;
+				_treeView.ScrollTo( scrollTarget );
 			}
 		};
-
-		leftColumnTopLayout.Add( _deleteButton );
-
-		_addButton = new Button.Primary( "Add", "new_label" );
-		_addButton.Enabled = true;
-		_addButton.ToolTip = $"Add new blackboard parameter";
-		_addButton.Clicked += () =>
-		{
-			var popup = new BlackboardPopupParameterTypeSelector( this, BlackboardParameter.GetRelevantParameters( AvailableParameters, Graph.IsSubgraph ) );
-			popup.OnSelect += ( t ) =>
-			{
-				OnAddParameter( t );
-			};
-			popup.OpenAtCursor();
-		};
-
-		leftColumnTopLayout.Add( _addButton );
+		SearchClear.Visible = false;
 
 		_treeView = new TreeView();
 		_treeView.Margin = 4;
@@ -108,31 +108,42 @@ public class BlackboardView : Widget
 			return false;
 		};
 		_treeView.ItemClicked += ( item ) =>
-		{ 
+		{
 			var node = item as BlackboardParameterNode;
 
 			OnItemClicked( node.Value );
 		};
 
-		leftColumn.Add( _treeView, 1 );
+		Layout.Add( _treeView, 1 );
 
-		Layout.Add( canvas );
+		CheckForChanges();
 	}
 
-	/*
 	[EditorEvent.Frame]
 	public void CheckForChanges()
 	{
-		if ( TreeView != null && Graph != null )
-		{
-			Rebuild();
-		}
+		if ( !queryDirty )
+			return;
 
+		queryDirty = false;
+		Rebuild();
 	}
-	*/
+
+	private void CreateParameterMenu()
+	{
+		var popup = new BlackboardPopupParameterTypeSelector( this, BlackboardParameter.GetRelevantParameters( AvailableParameters, Graph.IsSubgraph ) );
+		popup.OnSelect += ( t ) =>
+		{
+			OnAddParameter( t );
+		};
+		popup.OpenAtCursor();
+	}
 
 	public void Rebuild()
 	{
+		if ( Graph == null )
+			return;
+
 		// Copy the current selection as we're about to kill it
 		var selection = _treeView.Selection.Select( x => x as BlackboardParameter );
 
@@ -140,28 +151,60 @@ public class BlackboardView : Widget
 		_treeView.Selection = new SelectionSystem();
 		_treeView.Clear();
 
-		IEnumerable<BlackboardParameter> parameters = Enumerable.Empty<BlackboardParameter>();
-		parameters = Graph.Parameters;
-		foreach ( var parameter in parameters )
+		bool hasSearch = !string.IsNullOrEmpty( Search.Text );
+		SearchClear.Visible = hasSearch;
+
+		var parameters = Graph.Parameters;
+		if ( hasSearch )
 		{
-			var node = new BlackboardParameterNode( parameter );
-			node.OnParameterDeleted += ( p ) => 
+			// flat search view
+
+			var tokens = Regex.Matches( Search.Text, @"(\w+):(\S+)" )
+			  .ToDictionary( m => m.Groups[1].Value, m => m.Groups[2].Value );
+
+			var search = Regex.Replace( Search.Text, @"\b\w+:\S+\b", "" ).Trim();
+
+			foreach ( var parameter in parameters )
 			{
-				var selected = _selectedParameter;
 
-				if ( _selectedParameter != null )
-				{
-					_selectedParameter = null;
-					OnParameterDeleted?.Invoke( parameter );
-				}
+				if ( !parameter.Name.Contains( search, StringComparison.OrdinalIgnoreCase ) )
+					continue;
 
-				if ( !_graph.Parameters.Any() )
+				var node = new BlackboardParameterSearchNode( parameter );
+				node.OnParameterDeleted += ( p ) =>
 				{
-					_deleteButton.Enabled = false;
-				}
-			};
-			_treeView.AddItem( node );
-			_treeView.Open( node );
+					var selected = _selectedParameter;
+
+					if ( _selectedParameter != null )
+					{
+						_selectedParameter = null;
+						OnParameterDeleted?.Invoke( parameter );
+					}
+				};
+
+				_treeView.AddItem( node );
+				//_treeView.Open( node );
+			}
+		}
+		else
+		{
+			foreach ( var parameter in parameters )
+			{
+				var node = new BlackboardParameterNode( parameter );
+				node.OnParameterDeleted += ( p ) =>
+				{
+					var selected = _selectedParameter;
+
+					if ( _selectedParameter != null )
+					{
+						_selectedParameter = null;
+						OnParameterDeleted?.Invoke( parameter );
+					}
+				};
+
+				_treeView.AddItem( node );
+				_treeView.Open( node );
+			}
 		}
 	}
 
@@ -254,20 +297,54 @@ public class BlackboardView : Widget
 	public void SetSelectedItem( BlackboardParameter parameter )
 	{
 		_selectedParameter = parameter;
-
 		_treeView.SelectItem( parameter );
-
-		_deleteButton.Enabled = true;
 	}
 
 	public void ClearSeletedItem()
 	{
 		_selectedParameter = null;
-		//_parameterListView.Selection.Clear();
-
 		_treeView.Selection.Clear();
+	}
+}
 
-		_deleteButton.Enabled = false;
+file class AddButton : Widget
+{
+	public string Icon;
+
+	public AddButton( string icon ) : base( null )
+	{
+		Icon = icon;
+
+		Cursor = CursorShape.Finger;
+		FixedHeight = Theme.RowHeight;
+	}
+
+	protected override Vector2 SizeHint()
+	{
+		return new Vector2( Theme.RowHeight );
+	}
+
+	protected override void OnPaint()
+	{
+		Paint.ClearBrush();
+		Paint.ClearPen();
+
+		var color = Enabled ? Theme.ControlBackground : Theme.SurfaceBackground;
+
+		if ( Enabled && Paint.HasMouseOver )
+		{
+			color = color.Lighten( 0.1f );
+		}
+
+		Paint.ClearPen();
+		Paint.SetBrush( color );
+		Paint.DrawRect( LocalRect, Theme.ControlRadius );
+
+		Paint.ClearBrush();
+		Paint.ClearPen();
+		Paint.SetPen( Theme.Primary );
+
+		Paint.DrawIcon( LocalRect, Icon, 14, TextFlag.Center );
 	}
 }
 
@@ -959,5 +1036,13 @@ file class BlackboardParameterNode : TreeNode<BlackboardParameter>
 		m.OpenAtCursor( false );
 
 		return true;
+	}
+}
+
+file class BlackboardParameterSearchNode : BlackboardParameterNode
+{
+	public override bool HasChildren => false;
+	public BlackboardParameterSearchNode( BlackboardParameter p ) : base( p )
+	{
 	}
 }
