@@ -140,7 +140,7 @@ static class MixingThread
 		{
 			if ( voice.sampler is null ) return;
 			if ( voice.Finished ) return;
-			if ( voice.sampler.ShouldContinueMixing && !voice.IsFading ) return;
+			if ( voice.sampler.ShouldContinueMixing && !voice.IsFadingOut ) return;
 			if ( voice.TimeUntilFaded == false ) return;
 
 			voice.Finished = true;
