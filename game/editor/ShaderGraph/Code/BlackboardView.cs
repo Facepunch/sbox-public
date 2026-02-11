@@ -210,6 +210,9 @@ public class BlackboardView : Widget
 
 	void OpenTreeViewContextMenu()
 	{
+		if ( !_treeView.SelectedItems.Any() )
+			return;
+
 		var rootItem = _treeView.Items.FirstOrDefault();
 		if ( rootItem is null ) return;
 
