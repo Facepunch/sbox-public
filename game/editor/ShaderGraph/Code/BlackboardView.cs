@@ -17,6 +17,7 @@ public class BlackboardView : Widget
 	private readonly MainWindow _window;
 	private readonly UndoStack _undoStack;
 	private readonly Dictionary<string, IBlackboardParameterType> AvailableParameters = new( StringComparer.OrdinalIgnoreCase );
+	private readonly SelectionSystem Selection = new SelectionSystem();
 
 	/// <summary>
 	/// Called when a blackboard parameter is created.
@@ -95,6 +96,7 @@ public class BlackboardView : Widget
 		SearchClear.Visible = false;
 
 		_treeView = new TreeView();
+		_treeView.MultiSelect = false;
 		_treeView.Margin = 4;
 		_treeView.ItemSpacing = 4;
 		_treeView.BodyDropTarget = TreeView.DragDropTarget.None;
@@ -107,11 +109,11 @@ public class BlackboardView : Widget
 
 			return false;
 		};
-		_treeView.ItemClicked += ( item ) =>
-		{
-			var node = item as BlackboardParameterNode;
 
-			OnItemClicked( node.Value );
+		Selection.OnItemAdded += ( item ) =>
+		{
+			var parameter = item as BlackboardParameter;
+			OnItemClicked( parameter );
 		};
 
 		Layout.Add( _treeView, 1 );
@@ -183,11 +185,14 @@ public class BlackboardView : Widget
 				};
 
 				_treeView.AddItem( node );
-				//_treeView.Open( node );
 			}
+
+			_treeView.Selection = Selection;
 		}
 		else
 		{
+			_treeView.Selection = Selection;
+
 			foreach ( var parameter in parameters )
 			{
 				var node = new BlackboardParameterNode( parameter );
@@ -201,7 +206,7 @@ public class BlackboardView : Widget
 						OnParameterDeleted?.Invoke( parameter );
 					}
 				};
-
+				
 				_treeView.AddItem( node );
 				_treeView.Open( node );
 			}
@@ -300,7 +305,8 @@ public class BlackboardView : Widget
 	public void SetSelectedItem( BlackboardParameter parameter )
 	{
 		_selectedParameter = parameter;
-		_treeView.SelectItem( parameter );
+		//_treeView.SelectItem( parameter );
+		Selection.Set( parameter );
 	}
 
 	public void ClearSeletedItem()
