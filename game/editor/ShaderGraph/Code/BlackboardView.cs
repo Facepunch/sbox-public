@@ -206,7 +206,7 @@ public class BlackboardView : Widget
 						OnParameterDeleted?.Invoke( parameter );
 					}
 				};
-				
+
 				_treeView.AddItem( node );
 				_treeView.Open( node );
 			}
@@ -280,7 +280,7 @@ public class BlackboardView : Widget
 		SetSelectedItem( parameterInstance );
 
 		RebuildBuildFromGraph( true );
-		
+
 		OnParameterCreated?.Invoke( parameterInstance );
 	}
 
@@ -925,7 +925,7 @@ file class BlackboardParameterNode : TreeNode<BlackboardParameter>
 	///<summary>
 	///Called when a blackboard parameter is deleated.
 	///</summary>
-	public Action<BlackboardParameter> OnParameterDeleted {  get; set;}
+	public Action<BlackboardParameter> OnParameterDeleted { get; set; }
 
 	public override string Name
 	{
@@ -950,7 +950,7 @@ file class BlackboardParameterNode : TreeNode<BlackboardParameter>
 		{
 			HashCode hc = new HashCode();
 			hc.Add( Value.Name );
-			
+
 			return hc.ToHashCode();
 		}
 	}
@@ -971,7 +971,7 @@ file class BlackboardParameterNode : TreeNode<BlackboardParameter>
 		{
 			typeColor = blackboardConfig.Color;
 		}
-	
+
 		if ( item.Hovered )
 		{
 			textColor = Color.White;

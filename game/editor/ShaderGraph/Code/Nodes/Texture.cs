@@ -7,9 +7,9 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IE
 
 	private bool _showDefaults;
 	[JsonIgnore, Hide]
-	protected bool ShowDefaults 
-	{ 
-		get => _showDefaults; 
+	protected bool ShowDefaults
+	{
+		get => _showDefaults;
 		set
 		{
 
