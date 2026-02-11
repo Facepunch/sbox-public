@@ -179,11 +179,13 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 
 		commands.Attributes.SetCombo( "D_QUALITY", (UserQuality - 1).Clamp( 0, 2 ) );
 
-		// View depth chain
+		// View depth chain - each thread writes a 2x2 area, so dispatch at half resolution
 		{
 			commands.Attributes.SetCombo( "D_PASS", GTAOPasses.ViewDepthChain );
-			commands.DispatchCompute( GtaoCs, AOTextureCurrent.Size );
+			commands.DispatchCompute( GtaoCs, commands.ViewportSizeScaled( 2 ) );
 		}
+
+		commands.ResourceBarrierTransition( ViewDepthChainTexture, ResourceState.NonPixelShaderResource );
 
 		// Main pass
 		{
@@ -191,11 +193,15 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 			commands.DispatchCompute( GtaoCs, AOTextureCurrent.Size );
 		}
 
+		commands.ResourceBarrierTransition( WorkingAOTexture, ResourceState.NonPixelShaderResource );
+		commands.ResourceBarrierTransition( WorkingEdgesTexture, ResourceState.NonPixelShaderResource );
+
 		// Denoise
 		{
 			commands.Attributes.SetCombo( "D_PASS", DenoiseMode == DenoiseModes.Temporal ? GTAOPasses.DenoiseTemporal : GTAOPasses.DenoiseSpatial );
 			commands.DispatchCompute( GtaoCs, AOTextureCurrent.Size );
 		}
+
 		commands.ResourceBarrierTransition( AOTextureCurrent, ResourceState.PixelShaderResource );
 
 		//

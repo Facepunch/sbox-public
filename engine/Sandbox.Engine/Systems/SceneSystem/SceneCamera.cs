@@ -435,6 +435,19 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// </summary>
 	internal bool EnableEngineOverlays { get; set; } = false;
 
+	private static WeakReference<SceneCamera> _recordingCamera;
+
+	/// <summary>
+	/// The camera currently used for video/screenshot recording.
+	/// </summary>
+	internal static SceneCamera RecordingCamera
+	{
+		get => _recordingCamera?.TryGetTarget( out var cam ) == true ? cam : null;
+		set => _recordingCamera = value is not null ? new WeakReference<SceneCamera>( value ) : null;
+	}
+
+	internal bool IsRecordingCamera => RecordingCamera == this;
+
 	/// <summary>
 	/// The HMD eye that this camera is targeting.
 	/// Use <see cref="StereoTargetEye.None"/> for the user's monitor (i.e. the companion window).

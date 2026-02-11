@@ -63,7 +63,7 @@ public sealed class SphereCollider : Collider
 
 		var body = Rigidbody;
 		var world = Transform.TargetWorld;
-		var local = body.IsValid() ? body.Transform.TargetWorld.ToLocal( world ) : global::Transform.Zero;
+		var local = body.IsValid() ? body.Transform.TargetWorld.WithScale( 1.0f ).ToLocal( world ) : global::Transform.Zero;
 		var scale = world.Scale;
 
 		if ( scale.x.AlmostEqual( scale.y ) && scale.y.AlmostEqual( scale.z ) )

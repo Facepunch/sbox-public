@@ -29,6 +29,11 @@ public class SceneRenderingWidget : Frame
 
 	public bool EnableEngineOverlays { get; set; } = false;
 
+	// Track if we've locked this widget's size for recording
+	private bool _sizeLockedForRecording;
+	private Vector2 _savedMinSize;
+	private Vector2 _savedMaxSize;
+
 	public SceneRenderingWidget( Widget parent = null ) : base( parent )
 	{
 		SetFlag( Flag.WA_NativeWindow, true );
@@ -89,6 +94,28 @@ public class SceneRenderingWidget : Frame
 		if ( sceneCamera is not null )
 		{
 			sceneCamera.EnableEngineOverlays = EnableEngineOverlays;
+		}
+
+		// Set the recording camera for video/screenshot recording (only if this widget has focus)
+		if ( sceneCamera is not null && IsFocused )
+		{
+			SceneCamera.RecordingCamera = sceneCamera;
+		}
+
+		// Lock widget size during recording to prevent resolution changes
+		if ( ScreenRecorder.IsRecording() && sceneCamera?.IsRecordingCamera == true && !_sizeLockedForRecording )
+		{
+			_savedMinSize = MinimumSize;
+			_savedMaxSize = MaximumSize;
+			MinimumSize = Size;
+			MaximumSize = Size;
+			_sizeLockedForRecording = true;
+		}
+		else if ( !ScreenRecorder.IsRecording() && _sizeLockedForRecording )
+		{
+			MinimumSize = _savedMinSize;
+			MaximumSize = _savedMaxSize;
+			_sizeLockedForRecording = false;
 		}
 
 		if ( Camera.IsValid() )

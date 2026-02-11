@@ -328,14 +328,15 @@ public sealed partial class PolygonMesh : IJsonConvert
 	/// <summary>
 	/// Scale all vertices
 	/// </summary>
-	public void Scale( Vector3 scale )
+	public void Scale( Vector3 scale, bool recomputeUVs = true )
 	{
 		foreach ( var hVertex in Topology.VertexHandles )
 		{
 			Positions[hVertex] = Positions[hVertex] * scale;
 		}
 
-		ComputeFaceTextureCoordinatesFromParameters();
+		if ( recomputeUVs )
+			ComputeFaceTextureCoordinatesFromParameters();
 
 		IsDirty = true;
 	}

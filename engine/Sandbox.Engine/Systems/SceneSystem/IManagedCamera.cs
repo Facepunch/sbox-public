@@ -10,8 +10,7 @@ internal interface IManagedCamera
 	static Lock _directoryLock = new();
 	static Dictionary<int, WeakReference<IManagedCamera>> _directory = new();
 	static int _indexer = 1000;
-	static WeakReference<IManagedCamera> _mainCamera;
-	static Lock _mainCameraLock = new();
+
 
 	/// <summary>
 	/// Called when entering a specific pipeline stage
@@ -53,27 +52,7 @@ internal interface IManagedCamera
 		}
 	}
 
-	public static void SetMainCamera( IManagedCamera camera )
-	{
-		if ( camera == null ) return;
 
-		lock ( _mainCameraLock )
-		{
-			_mainCamera = new WeakReference<IManagedCamera>( camera );
-		}
-	}
-
-	public static IManagedCamera GetMainCamera()
-	{
-		lock ( _mainCameraLock )
-		{
-			if ( _mainCamera == null )
-				return null;
-			if ( !_mainCamera.TryGetTarget( out var cam ) )
-				return null;
-			return cam;
-		}
-	}
 
 	/// <summary>
 	/// keep the directory clean by trimming all the old ones

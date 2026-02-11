@@ -85,6 +85,7 @@ partial class MeshSelection
 				grid.Spacing = 4;
 
 				CreateButton( "Clipping Tool", "content_cut", "mesh.open-clipping-tool", OpenClippingTool, _meshes.Length > 0, grid );
+				CreateButton( "Mirror Tool", "flip", "mesh.mirror-tool", OpenMirrorTool, _meshes.Length > 0, grid );
 
 				grid.AddStretchCell();
 
@@ -92,6 +93,14 @@ partial class MeshSelection
 			}
 
 			Layout.AddStretchCell();
+		}
+
+		[Shortcut( "mesh.mirror-tool", "SHIFT+F", typeof( SceneViewWidget ) )]
+		void OpenMirrorTool()
+		{
+			var tool = new MirrorTool();
+			tool.Manager = _tool.Tool.Manager;
+			_tool.Tool.CurrentTool = tool;
 		}
 
 		[Shortcut( "mesh.open-clipping-tool", "C", typeof( SceneViewWidget ) )]

@@ -138,7 +138,7 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 	/// </summary>
 	bool HasBonePhysics()
 	{
-		return Model.IsValid() && Model.Physics is { Parts.Count: > 0, Joints.Count: > 0 };
+		return !Scene.IsEditor && Model.IsValid() && Model.Physics is { Parts.Count: > 0, Joints.Count: > 0 };
 	}
 
 	private void AddBoneMergeChild( SkinnedModelRenderer newChild )

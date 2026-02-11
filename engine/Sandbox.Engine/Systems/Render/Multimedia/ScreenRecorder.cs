@@ -77,17 +77,26 @@ internal static class ScreenRecorder
 
 		if ( _videoWriter == null )
 		{
-			var desc = g_pRenderDevice.GetOnDiskTextureDesc( nativeTexture );
-
-			_videoWriter = new VideoWriter( _filename, new VideoWriter.Config
+			try
 			{
-				Width = desc.m_nWidth,
-				Height = desc.m_nHeight,
-				FrameRate = VideoFrameRate,
-				Bitrate = VideoBitRate,
-				Codec = VideoWriter.Codec.H264,
-				Container = VideoWriter.Container.MP4
-			} );
+				var desc = g_pRenderDevice.GetOnDiskTextureDesc( nativeTexture );
+
+				_videoWriter = new VideoWriter( _filename, new VideoWriter.Config
+				{
+					Width = desc.m_nWidth,
+					Height = desc.m_nHeight,
+					FrameRate = VideoFrameRate,
+					Bitrate = VideoBitRate,
+					Codec = VideoWriter.Codec.H264,
+					Container = VideoWriter.Container.MP4
+				} );
+			}
+			catch ( Exception ex )
+			{
+				Log.Warning( $"Failed to start video recording: {ex.Message}" );
+				_isRecording = false;
+				return;
+			}
 		}
 
 		renderContext.ReadTextureAsync( nativeTexture, ( pData, format, mipLevel, width, height, _ ) =>

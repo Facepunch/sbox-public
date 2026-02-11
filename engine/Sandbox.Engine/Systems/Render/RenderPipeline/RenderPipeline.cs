@@ -115,15 +115,15 @@ internal partial class RenderPipeline
 			return;
 
 		var viewCamera = IManagedCamera.FindById( cameraId );
-		if ( viewCamera is null )
+		if ( viewCamera is not SceneCamera sceneCamera )
 			return;
 
-		var mainCamera = IManagedCamera.GetMainCamera();
-
-		// Only record from the main camera that belongs to the active game scene
-		if ( viewCamera == mainCamera && viewCamera is SceneCamera sceneCamera && sceneCamera.World == Game.ActiveScene?.SceneWorld )
+		// Only record from the camera explicitly marked for recording
+		if ( sceneCamera.IsRecordingCamera )
 		{
+			RecordMovieFrameLayer.ColorAttachment = rtColor;
 			RecordMovieFrameLayer.AddToView( view, viewport );
+			PostRecordMovieFrameLayer.ColorAttachment = rtColor;
 			PostRecordMovieFrameLayer.AddToView( view, viewport );
 		}
 	}

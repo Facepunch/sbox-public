@@ -20,13 +20,13 @@ internal partial class RenderPipeline
 
 	// Invoked after native side is done adding layers
 	// This can be moved to AddLayersToView once the entire pipeline is in C#
-	internal static void InternalPipelineEnd( ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle rtColor, SceneViewRenderTargetHandle rtDepth, RenderMultisampleType nMSAA, CRenderAttributes pipelineAttrs, RenderViewport screenSize )
+	internal static void InternalPipelineEnd( ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle rtFinalColor, SceneViewRenderTargetHandle rtDepth, RenderMultisampleType nMSAA, CRenderAttributes pipelineAttrs, RenderViewport screenSize )
 	{
 		// At this point a pipeline for this view should already exist, grab it
 		if ( !ActivePipelines.TryGetValue( view.self, out var renderPipeline ) )
 			return;
 
-		renderPipeline.PipelineEnd( view, viewport, rtColor, rtDepth, nMSAA, pipelineAttrs, screenSize );
+		renderPipeline.PipelineEnd( view, viewport, rtFinalColor, rtDepth, nMSAA, pipelineAttrs, screenSize );
 	}
 
 	/// <summary>
