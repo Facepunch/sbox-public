@@ -283,14 +283,6 @@ class DDGI
 
             float3 trueDirectionToProbe = normalize( relocatedProbePos - positionPs );
             
-            // Backface weight: aggressively reduce contribution from probes behind the surface
-            // Using a tighter wrap that doesn't add a constant offset
-            float backfaceDot = dot( trueDirectionToProbe, normalWs );
-            
-            // Smooth falloff that reaches zero at 90 degrees from normal
-            // This prevents probes on the other side of walls from contributing
-            float wrapValue = saturate( (backfaceDot + 1.0f) * 0.5f );
-            weight *= (wrapValue * wrapValue) + 0.2f;
 
             float2 distanceMoments = SampleProbeDistance( volume, distanceTex, probeGridCoord, direction );
             float visibility = ComputeVisibility( distanceToProbe, distanceMoments );
@@ -307,6 +299,14 @@ class DDGI
                 float t = weight / crushThreshold;
                 weight = crushThreshold * t * t * t;
             }
+
+            // Backface weight: aggressively reduce contribution from probes behind the surface
+            // Using a tighter wrap that doesn't add a constant offset
+            float backfaceDot = dot(trueDirectionToProbe, normalWs);
+
+            // Smooth falloff that reaches zero at 90 degrees from normal
+            // This prevents probes on the other side of walls from contributing
+            weight *= saturate(backfaceDot) + 0.01;
 
             weight *= trilinear.x * trilinear.y * trilinear.z;
 
