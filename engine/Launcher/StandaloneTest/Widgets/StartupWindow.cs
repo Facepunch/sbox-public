@@ -86,9 +86,11 @@ public partial class StartupWindow : Window
 				var heading = sidebar.Add( new Widget( Canvas ) { FixedHeight = 32 } );
 				heading.Layout = Layout.Row();
 				heading.Layout.Spacing = 0;
+				heading.Layout.Margin = 0; // ??? Does this even do anything?
 
 				var headingRow = heading.Layout;
 				headingRow.Add( new LogoWidget( Canvas ) );
+				headingRow.AddSpacingCell( -95 ); // This is so dumb.
 				headingRow.Add( new SidebarButton( $"{_Version}", "content_copy", OnVersionButtonPressed ) );
 			}
 
@@ -114,10 +116,6 @@ public partial class StartupWindow : Window
 			}
 
 			sidebar.AddStretchCell();
-			
-			// I would like it to be next to the S&box logo,
-			// but I just can't get the layout to do what I 
-			// want.
 
 			sidebar.AddSeparator();
 			
