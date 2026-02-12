@@ -3,7 +3,6 @@ using NativeEngine;
 using Sandbox.Engine.Settings;
 using Sandbox.Engine.Shaders;
 using Sandbox.Internal;
-using Sandbox.UI;
 using Sandbox.Utility;
 using System;
 using System.Diagnostics;
