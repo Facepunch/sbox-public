@@ -188,6 +188,7 @@ public class EditorMainWindow : DockWindow
 			help.AddOption( "Report a Bug", "bug_report", () => EditorUtility.OpenFolder( "https://github.com/Facepunch/sbox-public/issues" ) );
 
 			help.AddSeparator();
+			help.AddOption( "Copy Version Info ", "content_copy", () => EditorUtility.CopyVersionInfoToClipboard());
 			help.AddOption( "About s&box editor", "info", () =>
 			{
 				var aboutWidget = new AboutWidget();

@@ -3,6 +3,7 @@ using NativeEngine;
 using Sandbox.Engine.Settings;
 using Sandbox.Engine.Shaders;
 using Sandbox.Internal;
+using Sandbox.UI;
 using Sandbox.Utility;
 using System;
 using System.Diagnostics;
@@ -138,6 +139,14 @@ public static partial class EditorUtility
 		var destinationPath = System.IO.Path.Combine( directory, fileName );
 
 		return destinationPath;
+	}
+
+	/// <summary>
+	/// Copy the Application Version info to the clipboard for bug reports.
+	/// </summary>
+	public static void CopyVersionInfoToClipboard()
+	{
+		Clipboard.Copy(Sandbox.Application.Version);
 	}
 
 	/// <summary>
