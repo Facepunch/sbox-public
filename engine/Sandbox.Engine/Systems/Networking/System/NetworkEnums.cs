@@ -38,6 +38,13 @@ public enum NetFlags : uint
 	OwnerOnly = 32,
 
 	/// <summary>
+	/// When set, the caller will not execute the RPC method locally. The message is still sent to
+	/// all remote recipients as normal. This is useful when broadcasting sounds from a dedicated server,
+	/// where the server itself does not need to play the sound.
+	/// </summary>
+	SkipCaller = 64,
+
+	/// <summary>
 	/// Message will be sent unreliably, not grouped up with other messages and will be dropped if it can't be sent quickly.
 	/// </summary>
 	UnreliableNoDelay = Unreliable | SendImmediate | DiscardOnDelay

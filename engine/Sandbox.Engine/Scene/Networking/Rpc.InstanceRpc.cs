@@ -251,6 +251,9 @@ public static partial class Rpc
 			SendInstanceRpc( system, m, argumentList, attribute );
 		}
 
+		// Caller already handled this locally
+		if ( !Calling && attribute.Flags.Contains( NetFlags.SkipCaller ) ) return;
+
 		// Was filtered out
 		if ( Filter.HasValue && !Filter.Value.IsRecipient( Connection.Local ) ) return;
 
@@ -284,6 +287,9 @@ public static partial class Rpc
 		{
 			SendInstanceRpc( go, component, m, argumentList, attribute );
 		}
+
+		// Caller already handled this locally
+		if ( !Calling && attribute.Flags.Contains( NetFlags.SkipCaller ) ) return;
 
 		// Was filtered out
 		if ( Filter.HasValue && !Filter.Value.IsRecipient( Connection.Local ) ) return;
