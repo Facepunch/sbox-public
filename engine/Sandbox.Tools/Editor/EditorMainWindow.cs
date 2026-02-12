@@ -182,13 +182,16 @@ public class EditorMainWindow : DockWindow
 			debug.AddSeparator();
 
 			var help = MenuBar.AddMenu( "Help" );
+			
+			help.AddOption( "Copy Version Info ", "content_copy", () => EditorUtility.Clipboard.Copy( $"{Sandbox.Application.Version}") );
+
+			help.AddSeparator();
 
 			help.AddOption( "Open Log Folder", "source", () => EditorUtility.OpenFolder( FileSystem.Root.GetFullPath( "/logs/" ) ) );
 			help.AddOption( "Developer Documentation", "article", () => EditorUtility.OpenFolder( "https://sbox.game/dev/" ) );
 			help.AddOption( "Report a Bug", "bug_report", () => EditorUtility.OpenFolder( "https://github.com/Facepunch/sbox-public/issues" ) );
 
 			help.AddSeparator();
-			help.AddOption( "Copy Version Info ", "content_copy", () => EditorUtility.Clipboard.Copy($"{Sandbox.Application.Version}"));
 			help.AddOption( "About s&box editor", "info", () =>
 			{
 				var aboutWidget = new AboutWidget();
