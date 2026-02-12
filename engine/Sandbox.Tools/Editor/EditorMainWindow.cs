@@ -182,7 +182,7 @@ public class EditorMainWindow : DockWindow
 			debug.AddSeparator();
 
 			var help = MenuBar.AddMenu( "Help" );
-			
+
 			help.AddOption( "Copy Version Info", "content_copy", () => EditorUtility.Clipboard.Copy( Sandbox.Application.Version ) );
 
 			help.AddSeparator();

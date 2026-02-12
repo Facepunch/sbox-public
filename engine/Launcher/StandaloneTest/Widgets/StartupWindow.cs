@@ -10,14 +10,14 @@ public partial class StartupWindow : Window
 	private Layout Body { get; set; }
 
 	private Toggle CloseOnLaunch { get; set; }
-	
+
 	private string _gameFolder;
 
 	public StartupWindow()
 	{
 		_gameFolder = Environment.CurrentDirectory;
 		Sandbox.Application.TryLoadVersionInfo( _gameFolder );
-		
+
 		Canvas = new Widget( this );
 
 		Size = WindowSize;
@@ -95,7 +95,7 @@ public partial class StartupWindow : Window
 			sidebar.AddStretchCell();
 
 			sidebar.AddSeparator();
-			
+
 			CloseOnLaunch = sidebar.Add( new Toggle( "Close On Launch" ) );
 			CloseOnLaunch.Value = LauncherPreferences.CloseOnLaunch;
 			CloseOnLaunch.ValueChanged += ( v ) =>
