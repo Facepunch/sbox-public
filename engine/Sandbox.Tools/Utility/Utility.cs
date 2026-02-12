@@ -142,14 +142,6 @@ public static partial class EditorUtility
 	}
 
 	/// <summary>
-	/// Copy the Application Version info to the clipboard for bug reports.
-	/// </summary>
-	public static void CopyVersionInfoToClipboard()
-	{
-		Clipboard.Copy(Sandbox.Application.Version);
-	}
-
-	/// <summary>
 	/// Copies a file to a directory
 	/// </summary>
 	internal static void CopyFileToDirectory( string filePath, string directory, bool overwrite = true )
