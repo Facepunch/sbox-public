@@ -19,6 +19,9 @@ public partial class StartupWindow : Window
 
 	public StartupWindow()
 	{
+		_GameFolder = Environment.CurrentDirectory;
+		TryLoadVersionInfo();
+		
 		Canvas = new Widget( this );
 
 		Size = WindowSize;
@@ -34,9 +37,6 @@ public partial class StartupWindow : Window
 		CreateUI();
 
 		StatusBar.Destroy();
-
-		_GameFolder = Environment.CurrentDirectory;
-		TryLoadVersionInfo();
 	}
 
 	public override void Show()
@@ -85,12 +85,10 @@ public partial class StartupWindow : Window
 			{
 				var heading = sidebar.Add( new Widget( Canvas ) { FixedHeight = 32 } );
 				heading.Layout = Layout.Row();
+				heading.Layout.Spacing = 0;
 
 				var headingRow = heading.Layout;
 				headingRow.Add( new LogoWidget( Canvas ) );
-
-				// Alternatively this could be in the Development section, but
-				// I think it looks nicer here
 				headingRow.Add( new SidebarButton( $"{_Version}", "content_copy", OnVersionButtonPressed ) );
 			}
 
@@ -116,7 +114,13 @@ public partial class StartupWindow : Window
 			}
 
 			sidebar.AddStretchCell();
+			
+			// I would like it to be next to the S&box logo,
+			// but I just can't get the layout to do what I 
+			// want.
 
+			sidebar.AddSeparator();
+			
 			CloseOnLaunch = sidebar.Add( new Toggle( "Close On Launch" ) );
 			CloseOnLaunch.Value = LauncherPreferences.CloseOnLaunch;
 			CloseOnLaunch.ValueChanged += ( v ) =>
