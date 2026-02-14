@@ -68,7 +68,7 @@ public struct TextureInput
 	/// <summary>
 	/// Name that shows up in material editor
 	/// </summary>
-	[Hide, JsonIgnore]
+	[ShowIf( nameof( ShowName ), true )]
 	public string Name { get; set; }
 
 	/// <summary>
@@ -101,6 +101,9 @@ public struct TextureInput
 
 	[JsonIgnore, Hide]
 	public bool ShowGroups { get; set; } = true;
+
+	[JsonIgnore, Hide]
+	public bool ShowName { get; set; } = false;
 
 	[Hide]
 	public readonly bool ShowExtension => string.IsNullOrWhiteSpace( CustomExtension );

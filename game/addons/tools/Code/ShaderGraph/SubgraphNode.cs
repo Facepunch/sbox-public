@@ -362,10 +362,10 @@ internal class SubgraphNodeControlWidget : ControlWidget
 
 						if ( val is JsonElement el )
 						{
-							return JsonSerializer.Deserialize<TextureInput>( el, ShaderGraph.SerializerOptions() )! with { Type = TextureType.Tex2D, ShowGroups = false };
+							return JsonSerializer.Deserialize<TextureInput>( el, ShaderGraph.SerializerOptions() )! with { Type = TextureType.Tex2D, ShowName = true, ShowGroups = false };
 						}
 
-						return ((TextureInput)val) with { Type = TextureType.Tex2D, ShowGroups = false };
+						return ((TextureInput)val) with { Type = TextureType.Tex2D, ShowName = true, ShowGroups = false };
 					}, x => SetDefaultValue( name, x ),
 					[new InlineEditorAttribute() { Label = false }, new WideModeAttribute()]
 				) );
