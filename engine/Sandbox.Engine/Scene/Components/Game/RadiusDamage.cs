@@ -37,7 +37,7 @@ public sealed class RadiusDamage : Component
 	[Property] public TagSet ExtraOccludingTags { get; set; } = new TagSet();
 	
 	/// <summary>
-	/// Define extra tags for colliders that doesn't shield from damage.
+	/// Define extra tags for colliders that don't shield from damage.
 	/// "trigger", "gib", "debris", "player" tagged colliders never shield from damage
 	/// </summary>
 	[Property] public TagSet ExtraNotOccludingTags { get; set; } = new TagSet();
@@ -51,7 +51,7 @@ public sealed class RadiusDamage : Component
 	/// <summary>
 	/// Damage falloff over distance
 	/// </summary>
-	[Property] public Curve DamageFalloff { get; set; } = new Curve( new Curve.Frame( 1.0f, 1.0f ), new Curve.Frame( 0.0f, 0.0f ) );
+	[Property] public Curve DamageFalloff { get; set; } = new Curve( new Curve.Frame( 0.0f, 1.0f ), new Curve.Frame( 1.0f, 0.0f ) );
 
 	/// <summary>
 	/// Tags to apply to the damage
@@ -92,7 +92,7 @@ public sealed class RadiusDamage : Component
 		
 		if ( DamageFalloff.Frames.IsEmpty )
 		{
-			DamageFalloff = new Curve( new Curve.Frame( 1.0f, 1.0f ), new Curve.Frame( 0.0f, 0.0f ) );
+			DamageFalloff = new Curve( new Curve.Frame( 0.0f, 1.0f ), new Curve.Frame( 1.0f, 0.0f ) );
 		}
 
 		var dmg = new DamageInfo();
@@ -104,6 +104,11 @@ public sealed class RadiusDamage : Component
 		ApplyDamage( sphere, dmg, DamageFalloff, PhysicsForceScale, Occlusion, ExtraOccludingTags, ExtraNotOccludingTags );
 	}
 
+	public static void ApplyDamage( Sphere sphere, DamageInfo damage, float physicsForce = 1, GameObject ignore = null )
+	{
+		ApplyDamage(sphere, damage, new Curve( new Curve.Frame( 0.0f, 1.0f ), new Curve.Frame( 1.0f, 0.0f ) ), physicsForce, true , null, null, ignore);
+	}
+	
 	public static void ApplyDamage( Sphere sphere, DamageInfo damage, Curve damageFalloff, float physicsForce = 1,
 		bool occlusion = true, GameObject ignore = null )
 	{
@@ -119,9 +124,12 @@ public sealed class RadiusDamage : Component
 		var damageAmount = damage.Damage;
 		var objectsInArea = scene.FindInPhysics( sphere );
 
-		var occludingTags = extraOccludingTags ?? new TagSet();
+		var occludingTags = extraOccludingTags != null ? new TagSet(extraOccludingTags) : new TagSet();
 		occludingTags.Add( "map" );
-		var losTrace = scene.Trace.WithAnyTags(occludingTags).WithoutTags( "trigger", "gib", "debris", "player" ).WithoutTags(extraNotOccludingTags);
+		var losTrace = scene.Trace.WithAnyTags(occludingTags).WithoutTags( "trigger", "gib", "debris", "player" );
+		
+		if (extraNotOccludingTags != null)
+			losTrace = losTrace.WithoutTags(extraNotOccludingTags);
 
 		foreach ( var rb in objectsInArea.SelectMany( x => x.GetComponents<Rigidbody>() ).Distinct() )
 		{
@@ -146,7 +154,7 @@ public sealed class RadiusDamage : Component
 			var distance = rb.WorldPosition.Distance( sphere.Center );
 
 			var forceMagnitude = Math.Clamp( 10000000000f / (distance * distance + 1), 0, 10000000000f );
-			forceMagnitude += physicsForce * (1 - (damageFalloff.Evaluate( distance / sphere.Radius )));
+			forceMagnitude += physicsForce * damageFalloff.Evaluate( distance / sphere.Radius );
 
 			rb.ApplyForceAt( point, dir * forceMagnitude );
 		}
@@ -173,7 +181,7 @@ public sealed class RadiusDamage : Component
 
 			var distance = target.WorldPosition.Distance( point );
 
-			damage.Damage = damageFalloff.Evaluate( distance / sphere.Radius );
+			damage.Damage = damageAmount * damageFalloff.Evaluate( distance / sphere.Radius );
 			var direction = (target.WorldPosition - point).Normal;
 			var force = direction * distance * 50f;
 
