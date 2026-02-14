@@ -27,9 +27,7 @@ public sealed class Branch : ShaderNode
 		var resultPredicate = compiler.ResultOrDefault( Predicate, Enabled );
 		var results = compiler.Result( True, False, 0.0f, 0.0f );
 
-		return new NodeResult( results.Item1.ResultType, $"{resultPredicate} ?" +
-			$" {results.Item1} :" +
-			$" {results.Item2}" );
+		return new NodeResult( results.Item1.ResultType, $"{resultPredicate} ? {results.Item1} : {results.Item2}" );
 	};
 }
 
