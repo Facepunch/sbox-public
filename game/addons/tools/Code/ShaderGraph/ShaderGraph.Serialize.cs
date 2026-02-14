@@ -193,6 +193,10 @@ partial class ShaderGraph
 						DeserializeObject( node, element, options );
 					}
 				}
+				else if ( fileVersion < 2 && typeName == "Branch" )
+				{
+					node = UpgradeBranchNode_v2Upgrade( element, options );
+				}
 				else if ( IsSubgraph && fileVersion < 2 && typeName == "SubgraphInput" )
 				{
 					node = UpgradeSubgraphinput_v2Upgrade( element, options );

@@ -174,6 +174,77 @@ partial class ShaderGraph
 		return subgraphInput;
 	}
 
+	private BaseNode UpgradeBranchNode_v2Upgrade( JsonElement element, JsonSerializerOptions options )
+	{
+		element.TryGetProperty( "Name", out var nameElement );
+		element.TryGetProperty( "Enabled", out var enabledElement );
+
+		if ( string.IsNullOrWhiteSpace( nameElement.GetString() ) )
+		{
+			var compareNode = new Compare();
+
+			// Copy basic node properties
+			DeserializeObject( compareNode, element, options );
+
+			element.TryGetProperty( "Operator", out var operatorElement );
+			compareNode.Operator = operatorElement.Deserialize<Compare.OperatorType>( options );
+
+			return compareNode;
+		}
+		else
+		{
+			var branchNode = new Branch();
+
+			// Copy basic node properties
+			DeserializeObject( branchNode, element, options );
+			branchNode.Graph = this;
+
+			BaseNode parameterNode;
+
+			if ( !IsSubgraph )
+			{
+				var boolParameter = new BoolBlackboardParameter()
+				{
+					Name = nameElement.GetString(),
+					Value = enabledElement.GetBoolean()
+				};
+
+				AddParameter( boolParameter );
+
+				parameterNode = new BoolParameter()
+				{
+					Position = branchNode.Position.WithX( branchNode.Position.x - 192 ),
+					BlackboardParameterIdentifier = boolParameter.Identifier,
+				};
+			}
+			else
+			{
+				var boolParameter = new BoolSubgraphInputBlackboardParameter()
+				{
+					Name = nameElement.GetString(),
+					Value = enabledElement.GetBoolean()
+				};
+
+				AddParameter( boolParameter );
+
+				parameterNode = new SubgraphInput()
+				{
+					BlackboardParameterIdentifier = boolParameter.Identifier,
+				};
+			}
+
+			AddNode( parameterNode );
+
+			branchNode.ConnectNode(
+				nameof( Branch.Predicate ),
+				nameof( SubgraphInput.Result ),
+				parameterNode.Identifier
+			);
+
+			return branchNode;
+		}
+	}
+
 	private static BaseNode ConvertToConstantNode_v2Upgrade( string typeName, JsonElement element, JsonSerializerOptions options )
 	{
 		if ( element.TryGetProperty( "Value", out var valueElement ) )

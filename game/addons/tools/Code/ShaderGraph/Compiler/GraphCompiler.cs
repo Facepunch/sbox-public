@@ -687,7 +687,7 @@ public sealed partial class GraphCompiler
 
 		return value switch
 		{
-			bool v => isNamed ? new NodeResult( NodeResultType.Bool, $"{name}" ) : new NodeResult( NodeResultType.Bool, $"{v}" ),
+			bool v => isNamed ? new NodeResult( NodeResultType.Bool, $"{name}" ) : new NodeResult( NodeResultType.Bool, $"{v}", true ),
 			int v => isNamed ? new NodeResult( NodeResultType.Int, $"{name}" ) : new NodeResult( NodeResultType.Int, $"{v}", true ),
 			float v => isNamed ? new NodeResult( NodeResultType.Float, $"{name}" ) : new NodeResult( NodeResultType.Float, $"{v}", true ),
 			Vector2 v => isNamed ? new NodeResult( NodeResultType.Vector2, $"{name}" ) : new NodeResult( NodeResultType.Vector2, $"float2( {v.x}, {v.y} )" ),
