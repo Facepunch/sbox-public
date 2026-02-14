@@ -37,7 +37,7 @@ public abstract partial class Component
 			{
 				var currentValue = p.Getter();
 
-				if ( Equals( currentValue, p.Value ) )
+				if ( EqualityComparer<T>.Default.Equals( currentValue, p.Value ) )
 				{
 					p.Setter?.Invoke( p.Value );
 					return;

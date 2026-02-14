@@ -143,6 +143,8 @@ public enum ImageFormat : int
 	D32FS8,
 	RGBA32323232,
 	I16F,
+
+	RG3232,
 }
 
 internal static class ImageFormatExtensions

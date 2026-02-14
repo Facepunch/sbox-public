@@ -1,7 +1,7 @@
 ﻿namespace Editor.ProjectSettingPages;
 
-[Title( "Multiplayer" )]
-internal sealed class MultiplayerCategory : ProjectInspector.Category
+[Title( "Multiplayer" ), Icon( "wifi" )]
+internal sealed class MultiplayerCategory : ProjectSettingsWindow.Category
 {
 	/// <summary>
 	/// The minimum amount of players required to play this game.

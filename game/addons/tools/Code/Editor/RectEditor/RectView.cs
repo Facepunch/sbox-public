@@ -130,6 +130,9 @@ public class RectView : Widget
 
 	private void DragCreateRect( Vector2 mousePos )
 	{
+		if ( Session.Settings.FastTextureSettings.ScaleMode == ScaleMode.WorldScale )
+			return;
+
 		var minStart = PixelToUV_OnGrid( DragStartPos );
 		var maxStart = PixelToUV_OnGrid( DragStartPos );
 		var current = PixelToUV_OnGrid( mousePos );
@@ -143,6 +146,7 @@ public class RectView : Widget
 			var meshRect = Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
 			if ( meshRect != null )
 			{
+
 				meshRect.Min = NewRect.TopLeft;
 				meshRect.Max = NewRect.BottomRight;
 
@@ -179,6 +183,9 @@ public class RectView : Widget
 
 	private void DragResizeRect( Vector2 mousePos )
 	{
+		if ( Session.Settings.FastTextureSettings.ScaleMode == ScaleMode.WorldScale )
+			return;
+
 		var currentUV = PixelToUV_OnGrid( mousePos );
 
 		foreach ( var rectangle in DraggingRectangles )
@@ -358,6 +365,17 @@ public class RectView : Widget
 			DragState = DragState.WaitingForMovement;
 			DragStartPos = e.LocalPosition;
 			DraggingRectangles.Clear();
+
+			if ( Session.Settings.IsFastTextureTool && Session.Settings.FastTextureSettings.ScaleMode == ScaleMode.WorldScale )
+			{
+				var meshRect = Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
+				if ( meshRect != null )
+				{
+					DraggingRectangles = [meshRect];
+					Document.SelectRectangle( meshRect, SelectionOperation.Set );
+				}
+				return;
+			}
 
 			var rectUnderCursor = GetFirstRectangleUnderCursor();
 			if ( rectUnderCursor is not null )
@@ -708,7 +726,7 @@ public class RectView : Widget
 		bool canResize = Document.SelectedRectangles.Count < 2 && HoveredCorner != 0;
 		var rectUnderCursor = GetFirstRectangleUnderCursor();
 
-		if ( canResize )
+		if ( canResize && Session.Settings.FastTextureSettings.ScaleMode != ScaleMode.WorldScale )
 		{
 			if ( HoveredCorner.x != 0 && HoveredCorner.y != 0 )
 			{
@@ -759,6 +777,11 @@ public class RectView : Widget
 		var vec = Vector2.Zero;
 		var tolerance = 0.02f;
 
+		if ( rectangle is Document.MeshRectangle && Session.Settings.FastTextureSettings.ScaleMode == ScaleMode.WorldScale )
+		{
+			return Vector2.Zero;
+		}
+
 		if ( MathF.Abs( position.x - rectangle.Min.x ) < tolerance )
 		{
 			vec += new Vector2( -1, 0 );
@@ -790,26 +813,34 @@ public class RectView : Widget
 			rectanglesItem?.OnPaint( this );
 		}
 
-		var rectangleUnderCursor = GetFirstRectangleUnderCursor();
-		foreach ( var rectangle in rectangles.Where( x => !Document.IsRectangleSelected( x ) && x != rectangleUnderCursor ) )
+		if ( !Session.Settings.IsFastTextureTool || Session.Settings.FastTextureSettings.ScaleMode != ScaleMode.WorldScale )
 		{
-			Paint.SetBrush( rectangle.Color.WithAlpha( 0.2f ) );
-			Paint.SetPen( Color.Black.WithAlpha( 192 / 255.0f ), 2 );
-			DrawRectangle( rectangle );
+			var rectangleUnderCursor = GetFirstRectangleUnderCursor();
+			foreach ( var rectangle in rectangles.Where( x => !Document.IsRectangleSelected( x ) && x != rectangleUnderCursor ) )
+			{
+				Paint.SetBrush( rectangle.Color.WithAlpha( 0.2f ) );
+				Paint.SetPen( Color.Black.WithAlpha( 192 / 255.0f ), 2 );
+				DrawRectangle( rectangle );
+			}
+
+			foreach ( var rectangle in Document.SelectedRectangles )
+			{
+				Paint.SetBrush( Color.White.WithAlpha( 0.1f ) );
+				Paint.SetPen( new Color32( 255, 255, 0 ), 3 );
+				DrawRectangle( rectangle, corner: (rectangle == rectangleUnderCursor && Document.SelectedRectangles.Count < 2) ? HoveredCorner : 0 );
+			}
+
+			if ( rectangleUnderCursor is not null && !Document.IsRectangleSelected( rectangleUnderCursor ) )
+			{
+				Paint.SetBrush( Color.Yellow.WithAlpha( 0.1f ) );
+				Paint.SetPen( Color.Yellow, 2 );
+				DrawRectangle( rectangleUnderCursor, corner: HoveredCorner );
+			}
 		}
 
-		foreach ( var rectangle in Document.SelectedRectangles )
+		if ( Session.Settings.IsFastTextureTool && Session.Settings.FastTextureSettings.ScaleMode == ScaleMode.WorldScale )
 		{
-			Paint.SetBrush( Color.White.WithAlpha( 0.1f ) );
-			Paint.SetPen( new Color32( 255, 255, 0 ), 3 );
-			DrawRectangle( rectangle, corner: (rectangle == rectangleUnderCursor && Document.SelectedRectangles.Count < 2) ? HoveredCorner : 0 );
-		}
-
-		if ( rectangleUnderCursor is not null && !Document.IsRectangleSelected( rectangleUnderCursor ) )
-		{
-			Paint.SetBrush( Color.Yellow.WithAlpha( 0.1f ) );
-			Paint.SetPen( Color.Yellow, 2 );
-			DrawRectangle( rectangleUnderCursor, corner: HoveredCorner );
+			DrawWorldScaleIndicators();
 		}
 	}
 
@@ -959,6 +990,19 @@ public class RectView : Widget
 		}
 	}
 
+	private void DrawWorldScaleIndicators()
+	{
+		var meshRect = Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
+		if ( meshRect == null || Session.Settings.FastTextureSettings.ScaleMode != ScaleMode.WorldScale )
+			return;
+
+		var originPixel = UVToPixel( meshRect.Min );
+
+		Paint.SetPen( Color.Cyan, 2 );
+		Paint.DrawLine( originPixel, originPixel + new Vector2( 16, 0 ) );
+		Paint.DrawLine( originPixel, originPixel + new Vector2( 0, 16 ) );
+	}
+
 	protected override void OnDoubleClick( MouseEvent e )
 	{
 		base.OnDoubleClick( e );
@@ -1025,26 +1069,44 @@ public class RectView : Widget
 
 	public void FocusOnUV()
 	{
-		//Focus the view on the selected rectangle UVs
+		// Focus the view on the selected rectangle UVs
 		var selectedRect = Document.SelectedRectangles.FirstOrDefault();
 		if ( selectedRect is null )
 			return;
-		var rectCenter = selectedRect.Max + selectedRect.Min;
-		rectCenter *= 0.5f;
-		PanOffset = rectCenter - (0.5f / ZoomLevel);
+
+		var rectCenter = (selectedRect.Max + selectedRect.Min) * 0.5f;
+
+		// Center the rect in the view, GetDrawRect accounts for toolbar offset
+		PanOffset = rectCenter - new Vector2( 0.5f / ZoomLevel, 0.5f / ZoomLevel );
 		UpdateViewRect();
 		Update();
+	}
 
+	private float GetToolbarHeight()
+	{
+		if ( Session is not FastTextureWindow )
+			return 0f;
+
+		foreach ( var child in Children )
+		{
+			if ( child is RectViewToolbar toolbar )
+				return toolbar.Height;
+		}
+
+		return 140f; // Fallback to default height
 	}
 
 	private Rect GetDrawRect()
 	{
-		const int marigin = 16;
+		const int margin = 16;
 		const int drawSnapSize = 4;
 
+		var toolbarHeight = (int)GetToolbarHeight();
+		var topOffset = margin + toolbarHeight;
+
 		var imageSize = SourceImage is null ? 0 : SourceImage.Size;
-		var widgetWidth = System.Math.Max( (int)Width - (marigin * 2), 128 );
-		var widgetHeight = System.Math.Max( (int)Height - (marigin * 2), 128 );
+		var widgetWidth = System.Math.Max( (int)Width - (margin * 2), 128 );
+		var widgetHeight = System.Math.Max( (int)Height - margin - topOffset, 128 );
 		var imageWidth = System.Math.Max( (int)imageSize.x, 1 );
 		var imageHeight = System.Math.Max( (int)imageSize.y, 1 );
 
@@ -1078,7 +1140,10 @@ public class RectView : Widget
 		drawWidth = drawWidth / drawSnapSize * drawSnapSize;
 		drawHeight = drawHeight / drawSnapSize * drawSnapSize;
 
-		return new Rect( marigin, marigin, drawWidth, drawHeight );
+		var leftOffset = margin + (widgetWidth - drawWidth) / 2;
+		var verticalOffset = topOffset + (widgetHeight - drawHeight) / 2;
+
+		return new Rect( leftOffset, verticalOffset, drawWidth, drawHeight );
 	}
 
 	private int GetAssetRectIndexAtUV( Vector2 uv )

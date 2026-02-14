@@ -7,6 +7,8 @@ native enum SceneSystemWellKnownTextureObjectID_t as NativeEngine.SceneSystemWel
 
 native struct SceneVolumetricFogVolume_t is NativeEngine.SceneVolumetricFogVolume;
 
+native enum SceneSystemGPUProfilerMode_t as NativeEngine.SceneSystemGPUProfilerMode;
+
 native class SceneSystemPerFrameStats_t
 {
 	uint m_nTrianglesRendered;
@@ -162,4 +164,40 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 	// Ray Tracing
 	IRayTraceSceneWorld CreateRayTraceWorld( string pWorldDebugName, int nMaxRayTypes );
 	void DestroyRayTraceWorld( IRayTraceSceneWorld pRayTraceSceneWorld );
+
+	// GPU Profiler
+	void SetGPUProfilerMode( SceneSystemGPUProfilerMode_t eProfilerMode );
+	SceneSystemGPUProfilerMode_t GetGPUProfilerMode();
+
+	inline int GetGpuTimestampCount()
+	{
+		CUtlVector< SceneSystemTimestampFrameData_t > timestamps;
+		g_pSceneSystem->GetMostRecentTimestampFrameSummary( SWAP_CHAIN_HANDLE_INVALID, timestamps );
+		return timestamps.Count();
+	}
+
+	inline float GetGpuTimestampDuration( int index )
+	{
+		CUtlVector< SceneSystemTimestampFrameData_t > timestamps;
+		g_pSceneSystem->GetMostRecentTimestampFrameSummary( SWAP_CHAIN_HANDLE_INVALID, timestamps );
+		if ( index >= 0 && index < timestamps.Count() )
+		{
+			return timestamps[index].m_flDurationInMilliseconds;
+		}
+		return 0.0f;
+	}
+
+	inline string GetGpuTimestampName( int index )
+	{
+		CUtlVector< SceneSystemTimestampFrameData_t > timestamps;
+		g_pSceneSystem->GetMostRecentTimestampFrameSummary( SWAP_CHAIN_HANDLE_INVALID, timestamps );
+		if ( index >= 0 && index < timestamps.Count() )
+		{
+			return timestamps[index].m_sGroupName.Get();
+		}
+		return "";
+	}
+
+	// Managed timestamp support for CommandList etc.
+	bool SetManagedPerfMarker( IRenderContext ctx, string markerName );
 }

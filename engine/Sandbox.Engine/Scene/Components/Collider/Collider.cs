@@ -379,10 +379,7 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 		}
 
 		var world = Transform.TargetWorld;
-		var local = go.Transform.TargetWorld.ToLocal( world );
-
-		// Include world scale, we just want the relative offset
-		local = local.WithScale( world.Scale );
+		var local = go.Transform.TargetWorld.WithScale( 1.0f ).ToLocal( world );
 
 		// create the new shapes
 		body.native.SetTrigger( IsTrigger );

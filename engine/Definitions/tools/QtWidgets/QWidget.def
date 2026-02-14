@@ -101,6 +101,15 @@ native class QWidget as Native.QWidget : QObject
 	QPoint mapToGlobal( QPoint p);
     QPoint mapFromGlobal( QPoint p);
 
+	inline bool contextMenuEnabled()
+	{
+		return self->contextMenuPolicy() != Qt::PreventContextMenu;
+	}	
+	inline void allowContextMenu( bool bEnabled )
+	{
+		self->setContextMenuPolicy( bEnabled ? Qt::DefaultContextMenu : Qt::PreventContextMenu );
+	}
+
 	bool hasFocus();
 	FocusMode focusPolicy();
     void setFocusPolicy(FocusMode policy);

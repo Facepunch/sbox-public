@@ -14,6 +14,12 @@ public static class EditorShortcuts
 	}
 	static RealTimeSince _timeSinceInputsBlocked = 0f;
 
+	/// <summary>
+	/// Set this to true in a shortcut method to indicate the shortcut should not be consumed,
+	/// allowing other shortcuts with the same key binding to be tried.
+	/// </summary>
+	public static bool PassShortcut { get; set; }
+
 	internal static RealTimeSince _timeSinceGlobalShortcut = 0f;
 
 	[Event( "editor.created" )]
@@ -270,6 +276,11 @@ public static class EditorShortcuts
 				if ( MethodDesc.IsStatic || TargetKey == TypeKey )
 				{
 					MethodDesc?.Invoke( MethodDesc.IsStatic ? null : target );
+					if ( PassShortcut )
+					{
+						PassShortcut = false;
+						return false;
+					}
 					break;
 				}
 			}
@@ -286,6 +297,11 @@ public static class EditorShortcuts
 						if ( focusedTarget == null ) continue;
 						invoked = true;
 						MethodDesc?.Invoke( focusedTarget );
+						if ( PassShortcut )
+						{
+							PassShortcut = false;
+							return false;
+						}
 						break;
 					}
 				}

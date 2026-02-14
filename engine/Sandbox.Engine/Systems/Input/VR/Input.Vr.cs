@@ -21,7 +21,7 @@ public class VRInput
 			if ( value == 0 ) return;
 
 			_scale = value;
-			VRNative.WorldScale = 1.0f / value;
+			VRSystem.WorldScale = 1.0f / value;
 		}
 	}
 
@@ -83,7 +83,7 @@ public class VRInput
 		//
 		// Update HMD
 		//
-		_head = VRNative.GetHeadTransform();
+		_head = VRSystem.GetHeadTransform();
 
 		_objectList = new() { LeftHand, RightHand };
 	}

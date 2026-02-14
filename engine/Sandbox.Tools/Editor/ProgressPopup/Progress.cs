@@ -2,78 +2,102 @@
 using System.Threading;
 namespace Editor;
 
-
-
-public static class Progress
+class PopupProgress : IProgressSection
 {
-	static ProgressWindow currentWindow;
-	static int Popups;
+	public string Icon { get; set { field = value; UpdateWindow(); } }
+	public string Title { get; set { field = value; UpdateWindow(); } }
+	public string Subtitle { get; set { field = value; UpdateWindow(); } }
+	public double Current { get; set { field = value; UpdateWindow(); } }
+	public double TotalCount { get; set { field = value; UpdateWindow(); } }
 
-	class ProgressSection : IDisposable
+	ProgressWindow currentWindow;
+
+	public PopupProgress()
 	{
-		bool disposed;
-		string oldTitle;
+		currentWindow ??= new ProgressWindow();
 
-		public ProgressSection( string name )
-		{
-			currentWindow ??= new ProgressWindow();
-			//currentWindow.Parent = EditorMainWindow.Current;
-			Popups++;
+		// new state
+		currentWindow.Window.WindowTitle = "Progress..";
 
-			// save state
-			oldTitle = currentWindow.Window.WindowTitle;
-
-			// new state
-			currentWindow.Window.WindowTitle = name;
-
-			currentWindow.Show();
-		}
-
-		public void Dispose()
-		{
-			if ( disposed ) return;
-			disposed = true;
-
-			Popups--;
-
-			if ( Popups <= 0 )
-			{
-				Popups = 0;
-				currentWindow.Window.Destroy();
-				currentWindow = null;
-			}
-			else
-			{
-				// restore state
-				currentWindow.Window.WindowTitle = oldTitle;
-			}
-
-		}
+		currentWindow.Show();
 	}
 
-	public static IDisposable Start( string name )
+	~PopupProgress()
 	{
-		return new ProgressSection( name );
+		MainThread.QueueDispose( this );
 	}
 
-	public static void Update( string title, float current = 0, float total = 0 )
+	void UpdateWindow()
 	{
-		if ( currentWindow == null )
-			return;
-
-		currentWindow.TaskTitle = title;
-		currentWindow.ProgressCurrent = current;
-		currentWindow.ProgressTotal = total;
+		currentWindow.TaskTitle = Title;
+		currentWindow.ProgressCurrent = Current;
+		currentWindow.ProgressTotal = TotalCount;
 		currentWindow.Update();
 
 		Application.Spin();
 	}
 
-	public static CancellationToken GetCancel()
+	public void Dispose()
 	{
-		if ( currentWindow == null )
-			return CancellationToken.None;
+		currentWindow?.Window?.Destroy();
+		currentWindow = null;
 
-		return currentWindow.GetCancel();
+		GC.SuppressFinalize( this );
+	}
+
+	public CancellationToken GetCancel()
+	{
+		return currentWindow?.GetCancel() ?? CancellationToken.None;
+	}
+
+	public void Cancel()
+	{
+		// todo?
+	}
+}
+
+class PopupToast : IProgressSection
+{
+	public string Icon { get; set; }
+	public string Title { get; set; }
+	public string Subtitle { get; set; }
+	public double Current { get; set; }
+	public double TotalCount { get; set; }
+
+	CancellationTokenSource cts;
+
+	public PopupToast()
+	{
+		cts = new CancellationTokenSource();
+		Icon = "hourglass_bottom";
+		Title = "Progress..";
+
+		var toastManager = EditorTypeLibrary.GetType( "ToastManager" );
+		var update = toastManager.GetStaticMethod( "AddProgress" );
+		update?.Invoke( null, [(IProgressSection)this] );
+	}
+
+	~PopupToast()
+	{
+		MainThread.QueueDispose( this );
+	}
+
+	public void Dispose()
+	{
+		GC.SuppressFinalize( this );
+
+		var toastManager = EditorTypeLibrary.GetType( "ToastManager" );
+		var end = toastManager.GetStaticMethod( "RemoveProgress" );
+		end?.Invoke( null, [(IProgressSection)this] );
+	}
+
+	public CancellationToken GetCancel()
+	{
+		return cts.Token;
+	}
+
+	public void Cancel()
+	{
+		cts?.Cancel();
 	}
 }

@@ -1,5 +1,4 @@
 ﻿using NativeEngine;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace Sandbox;
@@ -13,7 +12,8 @@ internal static class ScreenRecorder
 	private static bool _firstFrame;
 	private static string _filename;
 	private static VideoWriter _videoWriter;
-	private static Stopwatch _recordingTimer;
+	private static RealTimeSince _recordingTimer;
+	private static RealTimeUntil _nextFrameTime;
 	private static object _timerLockObj = new();
 
 	/// <summary>
@@ -77,17 +77,26 @@ internal static class ScreenRecorder
 
 		if ( _videoWriter == null )
 		{
-			var desc = g_pRenderDevice.GetOnDiskTextureDesc( nativeTexture );
-
-			_videoWriter = new VideoWriter( _filename, new VideoWriter.Config
+			try
 			{
-				Width = desc.m_nWidth,
-				Height = desc.m_nHeight,
-				FrameRate = VideoFrameRate,
-				Bitrate = VideoBitRate,
-				Codec = VideoWriter.Codec.H264,
-				Container = VideoWriter.Container.MP4
-			} );
+				var desc = g_pRenderDevice.GetOnDiskTextureDesc( nativeTexture );
+
+				_videoWriter = new VideoWriter( _filename, new VideoWriter.Config
+				{
+					Width = desc.m_nWidth,
+					Height = desc.m_nHeight,
+					FrameRate = VideoFrameRate,
+					Bitrate = VideoBitRate,
+					Codec = VideoWriter.Codec.H264,
+					Container = VideoWriter.Container.MP4
+				} );
+			}
+			catch ( Exception ex )
+			{
+				Log.Warning( $"Failed to start video recording: {ex.Message}" );
+				_isRecording = false;
+				return;
+			}
 		}
 
 		renderContext.ReadTextureAsync( nativeTexture, ( pData, format, mipLevel, width, height, _ ) =>
@@ -96,19 +105,28 @@ internal static class ScreenRecorder
 
 			// Capture timestamp early to get an accurate timestamp
 			// need to lock as multiple threads may call this in parallel
-			TimeSpan timestamp;
+			float timestamp;
+			var frameInterval = 1.0f / VideoFrameRate;
 			lock ( _timerLockObj )
 			{
 				if ( _firstFrame )
 				{
 					// First frame should be 0 for accurate timing
-					timestamp = TimeSpan.Zero;
-					_recordingTimer = Stopwatch.StartNew();
+					timestamp = 0;
+					_recordingTimer = 0;
+					_nextFrameTime = frameInterval;
 					_firstFrame = false;
 				}
 				else
 				{
-					timestamp = TimeSpan.FromTicks( _recordingTimer.ElapsedTicks );
+					// Skip frames that arrive before the next scheduled frame time
+					if ( _nextFrameTime > 0 )
+						return;
+
+					timestamp = _recordingTimer;
+
+					// Schedule the next frame
+					_nextFrameTime = frameInterval;
 				}
 			}
 
@@ -130,12 +148,14 @@ internal static class ScreenRecorder
 			// Writer may be null very briefly during shutdown, instead of adding complex locks just handle the exception.
 			try
 			{
-				// Create a TimeSpan from microseconds
-				_videoWriter.AddFrame( pData, timestamp );
+				// Skip frames with mismatched resolution (can happen during resize or with ScenePanels)
+				if ( width == _videoWriter.Width && height == _videoWriter.Height )
+				{
+					_videoWriter.AddFrame( pData, TimeSpan.FromSeconds( timestamp ) );
+				}
 			}
 			catch ( NullReferenceException )
 			{
-
 			}
 		} );
 	}

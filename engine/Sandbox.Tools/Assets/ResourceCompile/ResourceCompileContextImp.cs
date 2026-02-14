@@ -65,6 +65,18 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 	}
 
 	/// <summary>
+	/// Add a game file reference. This file will be included in packages but is not a native resource.
+	/// These files are tracked as additional related files and will be packaged, but won't be loaded as resources.
+	/// </summary>
+	public override void AddGameFileReference( string path )
+	{
+		if ( !string.IsNullOrWhiteSpace( path ) )
+		{
+			_context.RegisterAdditionalRelatedFile_Game( path );
+		}
+	}
+
+	/// <summary>
 	/// Create a child resource
 	/// </summary>
 	public override Child CreateChild( string path )
@@ -163,6 +175,20 @@ unsafe class ResourceCompileContextImp : ResourceCompileContext, IDisposable
 
 		if ( element is JsonObject jsonobj )
 		{
+			//
+			// These are file references that should be packaged but aren't native resources
+			//
+			if ( jsonobj["$reference_type"]?.GetValue<string>() == Sandbox.FileReference.ReferenceTypeName )
+			{
+				var reference = JsonSerializer.Deserialize<Sandbox.FileReference>( jsonobj );
+				if ( !string.IsNullOrWhiteSpace( reference.Path ) )
+				{
+					AddGameFileReference( reference.Path );
+					Log.Trace( $"AddGameFileReference: {reference.Path}" );
+				}
+				return; // Don't recurse into this object further
+			}
+
 			foreach ( var e in jsonobj )
 			{
 				//

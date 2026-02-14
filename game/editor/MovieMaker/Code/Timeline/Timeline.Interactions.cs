@@ -265,6 +265,10 @@ partial class Timeline
 
 	private void Drag( Vector2 scenePos )
 	{
+		var visibleRect = VisibleRect;
+
+		scenePos.x = Math.Clamp( scenePos.x, visibleRect.Left, visibleRect.Right );
+
 		var isResizing = _resizedItems.Count > 0;
 		var itemLimits = isResizing
 			? _resizedItems.Select( x => GetDragLimits( x.Item, x.Edge ) )

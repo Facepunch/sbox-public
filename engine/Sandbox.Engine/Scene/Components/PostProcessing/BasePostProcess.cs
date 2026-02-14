@@ -79,7 +79,7 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 		public bool WantsBackbuffer;
 
 		/// <summary>
-		/// If both WantsBackbufferCopy and this is true the backbuffer will be mipped after being copied.
+		/// If both WantsBackbuffer and this is true the backbuffer will be mipped after being copied.
 		/// </summary>
 		public bool WantsBackbufferMips;
 

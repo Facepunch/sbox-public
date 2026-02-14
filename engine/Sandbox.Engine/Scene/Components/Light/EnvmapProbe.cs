@@ -10,7 +10,7 @@ namespace Sandbox;
 [Category( "Light" )]
 [Icon( "radio_button_unchecked" )]
 [Alias( "EnvmapComponent" )]
-public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor
+public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, Component.DontExecuteOnServer
 {
 	[Expose]
 	public enum EnvmapProbeMode

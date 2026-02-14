@@ -23,6 +23,8 @@ public partial class PrefabFile : GameResource
 	[JsonIgnore]
 	internal PrefabCacheScene CachedScene { get; set; }
 
+	private bool _loadedWhilePromise;
+
 	/// <summary>
 	/// Get the actual scene scene
 	/// </summary>
@@ -30,6 +32,8 @@ public partial class PrefabFile : GameResource
 	{
 		if ( CachedScene is not null )
 			return CachedScene;
+
+		_loadedWhilePromise = IsPromise;
 
 		CachedScene = new PrefabCacheScene()
 		{
@@ -43,7 +47,22 @@ public partial class PrefabFile : GameResource
 
 	protected override void PostLoad()
 	{
-		PostReload();
+		// Make sure our RootObjects name is consistent with the file name.
+		if ( RootObject is not null && RootObject[GameObject.JsonKeys.Name]?.GetValue<string>() != ResourceName )
+		{
+			RootObject[GameObject.JsonKeys.Name] = ResourceName;
+		}
+
+		// If loaded while promise, refresh now that all resources are available.
+		// Also need to update dependants
+		Assert.True( !_loadedWhilePromise || CachedScene is not null );
+		if ( _loadedWhilePromise && CachedScene is PrefabCacheScene cachedScene )
+		{
+			_loadedWhilePromise = false;
+			cachedScene.Refresh( this );
+		}
+
+		Register();
 	}
 
 	protected override void PostReload()
@@ -55,8 +74,7 @@ public partial class PrefabFile : GameResource
 			RootObject[GameObject.JsonKeys.Name] = ResourceName;
 		}
 
-
-		// Load the cached scene
+		// On hot-reload, refresh the cache and update dependencies
 		if ( CachedScene is PrefabCacheScene cachedScene )
 		{
 			cachedScene.Refresh( this );

@@ -30,9 +30,14 @@ public class ProjectSettings
 	internal static CursorSettings Cursor => Get<CursorSettings>( "Cursors.config" );
 
 	/// <summary>
-	/// Get the <see cref="Physics"/> from the active project settings.
+	/// Get the <see cref="PhysicsSettings"/> from the active project settings.
 	/// </summary>
 	public static PhysicsSettings Physics => Get<PhysicsSettings>( "Physics.config" );
+
+	/// <summary>
+	/// Get the <see cref="SystemsConfig"/> from the active project settings.
+	/// </summary>
+	public static SystemsConfig Systems => Get<SystemsConfig>( "Systems.config" );
 
 	/// <summary>
 	/// Reset any stored references to Project Settings.

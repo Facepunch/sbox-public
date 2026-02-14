@@ -51,7 +51,12 @@ public class ScrubBar : BackgroundItem, ISnapSource, IMovieItem
 
 			_lastScrub.ScenePos -= new Vector2( delta, 0f );
 
-			OnScrubUpdate();
+			UpdateScrubSpeed( _lastScrub.ScenePos );
+
+			if ( _lastScrub.KeyboardModifiers is { } modifiers )
+			{
+				PostScrub( modifiers, _lastScrub.ScenePos );
+			}
 		}
 
 		base.Frame();
@@ -140,26 +145,43 @@ public class ScrubBar : BackgroundItem, ISnapSource, IMovieItem
 		menu.OpenAtCursor();
 	}
 
-	private (KeyboardModifiers KeyboardModifiers, Vector2 ScenePos) _lastScrub;
+	private (KeyboardModifiers? KeyboardModifiers, Vector2 ScenePos) _lastScrub;
 
 	protected override void OnMouseMove( GraphicsMouseEvent e )
 	{
 		if ( !e.LeftMouseButton ) return;
 
-		Scrub( e.KeyboardModifiers, ToScene( e.LocalPosition ) );
+		Scrub( ToScene( e.LocalPosition ), e.KeyboardModifiers );
 	}
 
-	public void Scrub( KeyboardModifiers modifiers, Vector2 scenePos )
+	/// <summary>
+	/// Update scrub speed based on <paramref name="scenePos"/>, and if <paramref name="modifiers"/>
+	/// isn't null, perform whatever relevant mouse interaction is required (move playhead, change loop point etc).
+	/// </summary>
+	private void Scrub( Vector2 scenePos, KeyboardModifiers? modifiers )
 	{
 		_lastScrub = (modifiers, scenePos);
 
-		OnScrubUpdate();
+		UpdateScrubSpeed( scenePos );
+
+		if ( modifiers is not null )
+		{
+			PostScrub( modifiers.Value, scenePos );
+		}
+
+		Update();
 	}
 
-	private void OnScrubUpdate()
+	/// <summary>
+	/// Update scrub speed based on <paramref name="scenePos"/>, and optionally move the playhead.
+	/// </summary>
+	public void Scrub( Vector2 scenePos, bool movePlayhead )
 	{
-		var (modifiers, scenePos) = _lastScrub;
+		Scrub( scenePos, movePlayhead ? KeyboardModifiers.None : null );
+	}
 
+	private void UpdateScrubSpeed( Vector2 scenePos )
+	{
 		var sceneView = Timeline.VisibleRect;
 
 		if ( scenePos.x > sceneView.Right )
@@ -176,6 +198,13 @@ public class ScrubBar : BackgroundItem, ISnapSource, IMovieItem
 		{
 			_panSpeed = 0f;
 		}
+	}
+
+	private void PostScrub( KeyboardModifiers modifiers, Vector2 scenePos )
+	{
+		var sceneView = Timeline.VisibleRect;
+
+		scenePos.x = Math.Clamp( scenePos.x, sceneView.Left, sceneView.Right );
 
 		var time = Timeline.ScenePositionToTime( scenePos, new SnapOptions( source => source is not TimeCursor ) );
 
@@ -202,8 +231,6 @@ public class ScrubBar : BackgroundItem, ISnapSource, IMovieItem
 
 			Session.PlayheadTime = time;
 		}
-
-		Update();
 	}
 
 	protected override void OnPaint()

@@ -28,6 +28,57 @@ public sealed class ResizeMode : MoveMode
 		if ( size.y.AlmostEqual( 0.0f ) ) return;
 		if ( size.z.AlmostEqual( 0.0f ) ) return;
 
+		var meshTool = tool.Manager?.CurrentTool as MeshTool;
+		Vector3? snapTarget = null;
+
+		if ( meshTool?.VertexSnappingEnabled == true && Gizmo.IsLeftMouseDown )
+		{
+			var gizmoSize = 0.5f * Gizmo.Settings.GizmoScale * Application.DpiScale;
+
+			var closestVertex = tool.MeshTrace.GetClosestVertex( 8 );
+			if ( closestVertex.IsValid() )
+			{
+				var cameraDistance = Gizmo.Camera.Position.Distance( closestVertex.PositionWorld );
+				var scaledGizmo = gizmoSize * (cameraDistance / 50.0f).Clamp( 0.1f, 4.0f );
+
+				snapTarget = closestVertex.PositionWorld;
+
+				using ( Gizmo.Scope( "VertexSnapTarget" ) )
+				{
+					Gizmo.Draw.IgnoreDepth = true;
+					Gizmo.Draw.Color = Color.Green;
+					Gizmo.Draw.Sprite( snapTarget.Value, 8, null, false );
+
+					Gizmo.Transform = new Transform( snapTarget.Value, Rotation.LookAt( Gizmo.LocalCameraTransform.Rotation.Backward ) );
+					Gizmo.Draw.LineThickness = 2;
+					Gizmo.Draw.LineCircle( 0, Vector3.Forward, scaledGizmo );
+				}
+			}
+			else
+			{
+				var nearbyVertex = tool.MeshTrace.GetClosestVertex( 50 );
+				if ( nearbyVertex.IsValid() )
+				{
+					var cameraDistance = Gizmo.Camera.Position.Distance( nearbyVertex.PositionWorld );
+					var scaledGizmo = gizmoSize * (cameraDistance / 50.0f).Clamp( 0.1f, 4.0f );
+					var distance = Vector3.DistanceBetween( nearbyVertex.PositionWorld, tool.Pivot );
+
+					if ( distance > 5f )
+					{
+						using ( Gizmo.Scope( "VertexNearby" ) )
+						{
+							Gizmo.Draw.IgnoreDepth = true;
+
+							Gizmo.Draw.Color = Color.Red;
+							Gizmo.Transform = new Transform( nearbyVertex.PositionWorld, Rotation.LookAt( Gizmo.LocalCameraTransform.Rotation.Backward ) );
+							Gizmo.Draw.LineThickness = 2;
+							Gizmo.Draw.LineCircle( 0, Vector3.Forward, scaledGizmo );
+						}
+					}
+				}
+			}
+		}
+
 		using ( Gizmo.Scope( "box" ) )
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
@@ -35,10 +86,30 @@ public sealed class ResizeMode : MoveMode
 
 			if ( Gizmo.Control.BoundingBox( "resize", _box, out var outBox ) )
 			{
-				_deltaBox.Maxs += outBox.Maxs - _box.Maxs;
-				_deltaBox.Mins += outBox.Mins - _box.Mins;
+				var moveMins = outBox.Mins - _box.Mins;
+				var moveMaxs = outBox.Maxs - _box.Maxs;
+
+				_deltaBox.Maxs += moveMaxs;
+				_deltaBox.Mins += moveMins;
 
 				_box = Snap( _startBox, _deltaBox );
+
+				if ( snapTarget.HasValue )
+				{
+					var target = snapTarget.Value;
+					var threshold = 0.001f;
+
+					if ( MathF.Abs( moveMins.x ) > threshold ) _box.Mins.x = target.x;
+					if ( MathF.Abs( moveMins.y ) > threshold ) _box.Mins.y = target.y;
+					if ( MathF.Abs( moveMins.z ) > threshold ) _box.Mins.z = target.z;
+
+					if ( MathF.Abs( moveMaxs.x ) > threshold ) _box.Maxs.x = target.x;
+					if ( MathF.Abs( moveMaxs.y ) > threshold ) _box.Maxs.y = target.y;
+					if ( MathF.Abs( moveMaxs.z ) > threshold ) _box.Maxs.z = target.z;
+
+					_deltaBox.Mins = _box.Mins - _startBox.Mins;
+					_deltaBox.Maxs = _box.Maxs - _startBox.Maxs;
+				}
 
 				tool.StartDrag();
 

@@ -137,9 +137,9 @@ public class ParticleFloatControlWidget : ControlWidget
 					switch ( eval )
 					{
 						case ParticleFloat.EvaluationType.Seed:
-							return "Random from curve per particle";
-						case ParticleFloat.EvaluationType.Frame:
 							return "Random from curve";
+						case ParticleFloat.EvaluationType.Frame:
+							return "Random from curve (per frame)";
 						case ParticleFloat.EvaluationType.Life:
 							return "Curve over lifetime";
 						default:
@@ -150,11 +150,11 @@ public class ParticleFloatControlWidget : ControlWidget
 				switch ( eval )
 				{
 					case ParticleFloat.EvaluationType.Seed:
-						return "Random from range, per particle";
+						return "Random from range";
 					case ParticleFloat.EvaluationType.Frame:
 						return "Random from range (per frame)";
 					case ParticleFloat.EvaluationType.Life:
-						return "path between curve over lifetime, per particle";
+						return "Path between curves over lifetime";
 					default:
 						return "Unknown";
 				}
@@ -163,7 +163,7 @@ public class ParticleFloatControlWidget : ControlWidget
 					switch ( eval )
 					{
 						case ParticleFloat.EvaluationType.Seed:
-							return "Between range, per particle";
+							return "Random between range";
 						case ParticleFloat.EvaluationType.Frame:
 							return "Random between range (per frame)";
 						case ParticleFloat.EvaluationType.Life:
@@ -262,10 +262,10 @@ file class ParticleFloatConfigPopup : PopupWidget
 		grid.AddCell( 1, 0, MakeQuickMode( "casino", "Random", "Choose a value between two constants every frame", ParticleFloat.ValueType.Range, ParticleFloat.EvaluationType.Frame ) );
 
 		grid.AddCell( 0, 1, MakeQuickMode( "hdr_strong", "Range", "Choose a value between two constants", ParticleFloat.ValueType.Range, ParticleFloat.EvaluationType.Seed ) );
-		grid.AddCell( 1, 1, MakeQuickMode( "animation", "Lerp", "Lerp between two values over the lifetime of the particle", ParticleFloat.ValueType.Range, ParticleFloat.EvaluationType.Life ) );
+		grid.AddCell( 1, 1, MakeQuickMode( "animation", "Lerp", "Lerp between two values over the lifetime", ParticleFloat.ValueType.Range, ParticleFloat.EvaluationType.Life ) );
 
-		grid.AddCell( 0, 2, MakeQuickMode( "show_chart", "Curve", "Get the value by querying a curve over the particle's lifetime", ParticleFloat.ValueType.Curve, ParticleFloat.EvaluationType.Life ) );
-		grid.AddCell( 1, 2, MakeQuickMode( "area_chart", "Curve with Range", "Choose a path between two curves - over the lifetime of the particle", ParticleFloat.ValueType.CurveRange, ParticleFloat.EvaluationType.Life ) );
+		grid.AddCell( 0, 2, MakeQuickMode( "show_chart", "Curve", "Get the value by querying a curve over the lifetime", ParticleFloat.ValueType.Curve, ParticleFloat.EvaluationType.Life ) );
+		grid.AddCell( 1, 2, MakeQuickMode( "area_chart", "Curve with Range", "Choose a path between two curves over the lifetime", ParticleFloat.ValueType.CurveRange, ParticleFloat.EvaluationType.Life ) );
 
 		Layout.Add( grid );
 	}

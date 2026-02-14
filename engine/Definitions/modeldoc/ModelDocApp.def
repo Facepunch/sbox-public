@@ -60,6 +60,38 @@ native static class NativeEngine.ModelDoc
 		modelFile.CreateNode< CModelDocPhysicsMeshFromRender >( "", nullptr, MODELDOC_CREATE_NODE_DEFAULT );
 		return modelFile.SaveToFile( pVmdlFileFullPath, nullptr );
 	}
+
+	// Creates a model from meshes with per-mesh collision types
+	// nCollisionTypes: 0 = None, 1 = Mesh, 2 = Hull
+	inline bool CreateModelFromMeshesWithCollision( string pVmdlFileFullPath, CastTo[CModelMesh**] void* pMeshes, CastTo[int*] void* pCollisionTypes, int nMeshCount )
+	{
+		CModelDoc modelFile;
+
+		bool bHasMeshCollision = false;
+		bool bHasHullCollision = false;
+
+		for ( int i = 0; i < nMeshCount; ++i )
+		{
+			CModelDocRenderPrimitiveMesh *pRenderPrimitiveMesh = modelFile.CreateNode< CModelDocRenderPrimitiveMesh >( "", nullptr, MODELDOC_CREATE_NODE_DEFAULT );
+			pRenderPrimitiveMesh->CopyFrom( pMeshes[i] );
+
+			int nCollisionType = pCollisionTypes[i];
+			if ( nCollisionType == 1 ) bHasMeshCollision = true;
+			else if ( nCollisionType == 2 ) bHasHullCollision = true;
+		}
+
+		if ( bHasMeshCollision )
+		{
+			modelFile.CreateNode< CModelDocPhysicsMeshFromRender >( "", nullptr, MODELDOC_CREATE_NODE_DEFAULT );
+		}
+
+		if ( bHasHullCollision )
+		{
+			modelFile.CreateNode< CModelDocPhysicsHullFromRender >( "", nullptr, MODELDOC_CREATE_NODE_DEFAULT );
+		}
+
+		return modelFile.SaveToFile( pVmdlFileFullPath, nullptr );
+	}
 }
 
 native class CModelMesh

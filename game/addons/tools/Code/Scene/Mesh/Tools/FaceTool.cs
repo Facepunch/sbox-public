@@ -1,4 +1,6 @@
 ﻿
+using HalfEdgeMesh;
+
 namespace Editor.MeshEditor;
 
 /// <summary>
@@ -12,6 +14,11 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 {
 	MeshFace _hoverFace;
 	SceneDynamicObject _faceObject;
+
+	//Selection
+	public bool SelectByMaterial { get; set; } = false;
+	public bool SelectByNormal { get; set; } = true;
+	public float NormalThreshold { get; set; } = 12f;
 
 	public override void OnEnabled()
 	{
@@ -57,7 +64,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 			CreateFaceObject();
 		}
 
-		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection )
+		if ( Gizmo.IsHovered && Tool.MoveMode.AllowSceneSelection && !IsLassoSelecting )
 		{
 			SelectFace();
 
@@ -81,6 +88,10 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		}
 
 		var selectionColor = Color.Yellow.WithAlpha( 0.1f );
+
+		if ( !Tool.OverlaySelection )
+			selectionColor = Color.Transparent;
+
 		foreach ( var face in Selection.OfType<MeshFace>() )
 		{
 			var mesh = face.Component.Mesh;
@@ -93,6 +104,79 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		}
 
 		DrawBounds();
+	}
+
+	protected override IEnumerable<MeshFace> ConvertSelectionToCurrentType()
+	{
+		var selectedEdges = Selection.OfType<MeshEdge>().ToHashSet();
+		var selectedVertices = Selection.OfType<MeshVertex>().ToHashSet();
+
+		var candidateFaces = new HashSet<MeshFace>();
+
+		foreach ( var edge in selectedEdges )
+		{
+			if ( !edge.IsValid() )
+				continue;
+
+			var mesh = edge.Component.Mesh;
+			mesh.GetFacesConnectedToEdge( edge.Handle, out var faceA, out var faceB );
+
+			if ( faceA.IsValid )
+				candidateFaces.Add( new MeshFace( edge.Component, faceA ) );
+
+			if ( faceB.IsValid )
+				candidateFaces.Add( new MeshFace( edge.Component, faceB ) );
+		}
+
+		foreach ( var vertex in selectedVertices )
+		{
+			if ( !vertex.IsValid() )
+				continue;
+
+			var mesh = vertex.Component.Mesh;
+			mesh.GetFacesConnectedToVertex( vertex.Handle, out var faces );
+
+			foreach ( var face in faces )
+			{
+				if ( face.IsValid )
+					candidateFaces.Add( new MeshFace( vertex.Component, face ) );
+			}
+		}
+
+		foreach ( var face in candidateFaces )
+		{
+			if ( !face.IsValid() )
+				continue;
+
+			var mesh = face.Component.Mesh;
+
+			if ( selectedEdges.Count > 0 )
+			{
+				var faceEdges = mesh.GetFaceEdges( face.Handle );
+				bool allEdgesSelected = faceEdges.All( edge =>
+					selectedEdges.Contains( new MeshEdge( face.Component, edge ) )
+				);
+
+				if ( allEdgesSelected )
+				{
+					yield return face;
+					continue;
+				}
+			}
+
+			if ( selectedVertices.Count > 0 )
+			{
+				mesh.GetVerticesConnectedToFace( face.Handle, out var faceVertices );
+				bool allVerticesSelected = faceVertices.All( vertex =>
+					selectedVertices.Contains( new MeshVertex( face.Component, vertex ) )
+				);
+
+				if ( allVerticesSelected )
+				{
+					yield return face;
+				}
+			}
+		}
 	}
 
 	protected override IEnumerable<IMeshElement> GetAllSelectedElements()
@@ -218,21 +302,239 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 
 	private void SelectContiguousFaces()
 	{
-		var face = TraceFace();
-		if ( !face.IsValid() )
+		var targetFace = TraceFace();
+		if ( !targetFace.IsValid() )
 			return;
 
-		if ( !face.Component.Mesh.GetFacesConnectedToFace( face.Handle, out var faces ) )
+		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Alt ) && (SelectByNormal || SelectByMaterial) )
+		{
+			SelectFacesByNormal( targetFace );
 			return;
+		}
+
+		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) && TrySelectFacePath( targetFace ) )
+			return;
+
+		SelectAllConnectedFaces( targetFace );
+	}
+
+	/// <summary>
+	/// Select all faces connected to the target face through shared edges (flood-fill)
+	/// </summary>
+	private void SelectAllConnectedFaces( MeshFace startFace )
+	{
+		if ( !startFace.IsValid() )
+			return;
+
+		var mesh = startFace.Component.Mesh;
 
 		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
 			Selection.Clear();
 
-		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
+		var queue = new Queue<FaceHandle>();
+		var visited = new HashSet<FaceHandle>();
+
+		queue.Enqueue( startFace.Handle );
+		visited.Add( startFace.Handle );
+
+		while ( queue.Count > 0 )
 		{
-			foreach ( var hFace in faces )
-				Selection.Add( new MeshFace( face.Component, hFace ) );
+			var currentHandle = queue.Dequeue();
+
+			var meshFace = new MeshFace( startFace.Component, currentHandle );
+
+			if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
+			{
+				if ( Selection.Contains( meshFace ) )
+					Selection.Remove( meshFace );
+				else
+					Selection.Add( meshFace );
+			}
+			else
+			{
+				Selection.Add( meshFace );
+			}
+
+			var edges = mesh.GetFaceEdges( currentHandle );
+			foreach ( var edge in edges )
+			{
+				mesh.GetFacesConnectedToEdge( edge, out var faceA, out var faceB );
+
+				var neighbor = faceA == currentHandle ? faceB : faceA;
+				if ( neighbor.IsValid && !visited.Contains( neighbor ) )
+				{
+					visited.Add( neighbor );
+					queue.Enqueue( neighbor );
+				}
+			}
 		}
+	}
+
+	/// <summary>
+	/// Select connected faces with normals within a threshold angle (default 12 degrees)
+	/// Uses flood-fill to only select adjacent faces with similar normals
+	/// </summary>
+	private void SelectFacesByNormal( MeshFace targetFace )
+	{
+		if ( !targetFace.IsValid() )
+			return;
+
+		var mesh = targetFace.Component.Mesh;
+
+		Vector3 targetNormal = Vector3.Zero;
+		float dotThreshold = 1f;
+		if ( SelectByNormal )
+		{
+			mesh.ComputeFaceNormal( targetFace.Handle, out targetNormal );
+			dotThreshold = MathF.Cos( NormalThreshold * MathF.PI / 180f );
+		}
+
+		Material targetMaterial = null;
+		if ( SelectByMaterial )
+		{
+			targetMaterial = targetFace.Material;
+		}
+
+		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
+			Selection.Clear();
+
+		var queue = new Queue<FaceHandle>();
+		var visited = new HashSet<FaceHandle>();
+		var matchingFaces = new List<MeshFace>();
+
+		queue.Enqueue( targetFace.Handle );
+		visited.Add( targetFace.Handle );
+
+		while ( queue.Count > 0 )
+		{
+			var currentHandle = queue.Dequeue();
+			bool matches = true;
+
+			if ( SelectByNormal && matches )
+			{
+				mesh.ComputeFaceNormal( currentHandle, out var currentNormal );
+				float dot = Vector3.Dot( targetNormal, currentNormal );
+				matches = dot >= dotThreshold;
+			}
+
+			if ( SelectByMaterial && matches )
+			{
+				var currentFace = new MeshFace( targetFace.Component, currentHandle );
+				var currentMaterial = currentFace.Material;
+
+				matches = (targetMaterial == null && currentMaterial == null) || (targetMaterial != null && currentMaterial != null && targetMaterial.ResourcePath == currentMaterial.ResourcePath);
+			}
+
+			if ( matches )
+			{
+				matchingFaces.Add( new MeshFace( targetFace.Component, currentHandle ) );
+
+				var edges = mesh.GetFaceEdges( currentHandle );
+				foreach ( var edge in edges )
+				{
+					mesh.GetFacesConnectedToEdge( edge, out var faceA, out var faceB );
+
+					var neighbor = faceA == currentHandle ? faceB : faceA;
+					if ( neighbor.IsValid && !visited.Contains( neighbor ) )
+					{
+						visited.Add( neighbor );
+						queue.Enqueue( neighbor );
+					}
+				}
+			}
+		}
+
+		foreach ( var face in matchingFaces )
+		{
+			if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
+			{
+				if ( Selection.Contains( face ) )
+					Selection.Remove( face );
+				else
+					Selection.Add( face );
+			}
+			else
+			{
+				Selection.Add( face );
+			}
+		}
+	}
+
+	private bool TrySelectFacePath( MeshFace targetFace )
+	{
+		var selected = Selection.OfType<MeshFace>()
+			.Where( f => f.IsValid() && f.Component == targetFace.Component )
+			.ToList();
+
+		if ( selected.Count == 0 || selected.Count > 2 )
+			return false;
+
+		var startFace = selected.FirstOrDefault( f => f.Handle != targetFace.Handle );
+
+		if ( !startFace.IsValid() )
+			return false;
+
+		var path = FindShortestFacePath( startFace, targetFace );
+		if ( path == null || path.Count == 0 )
+			return false;
+
+		foreach ( var face in path.Where( f => !Selection.Contains( f ) ) )
+			Selection.Add( face );
+
+		return true;
+	}
+
+	private List<MeshFace> FindShortestFacePath( MeshFace start, MeshFace end )
+	{
+		if ( start.Component != end.Component )
+			return null;
+
+		var mesh = start.Component.Mesh;
+		var queue = new Queue<FaceHandle>();
+		var visited = new HashSet<FaceHandle>();
+		var parent = new Dictionary<FaceHandle, FaceHandle>();
+
+		queue.Enqueue( start.Handle );
+		visited.Add( start.Handle );
+
+		while ( queue.Count > 0 )
+		{
+			var current = queue.Dequeue();
+
+			if ( current == end.Handle )
+			{
+				var path = new List<MeshFace>();
+				var step = end.Handle;
+
+				while ( step.IsValid )
+				{
+					path.Add( new MeshFace( start.Component, step ) );
+					if ( step == start.Handle )
+						break;
+					if ( !parent.TryGetValue( step, out step ) )
+						break;
+				}
+
+				path.Reverse();
+				return path;
+			}
+
+			var edges = mesh.GetFaceEdges( current );
+			foreach ( var edge in edges )
+			{
+				mesh.GetFacesConnectedToEdge( edge, out var faceA, out var faceB );
+
+				var neighbor = faceA == current ? faceB : faceA;
+				if ( neighbor.IsValid && !visited.Contains( neighbor ) )
+				{
+					visited.Add( neighbor );
+					parent[neighbor] = current;
+					queue.Enqueue( neighbor );
+				}
+			}
+		}
+
+		return null;
 	}
 
 	public override List<MeshFace> ExtrudeSelection( Vector3 delta = default )

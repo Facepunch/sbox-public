@@ -811,6 +811,17 @@ public static partial class EditorUtility
 	}
 
 	/// <summary>
+	/// Gets a GameObjectSystem from its type
+	/// </summary>
+	/// <param name="scene"></param>
+	/// <param name="fromType"></param>
+	/// <returns></returns>
+	public static GameObjectSystem GetGameObjectSystem( Scene scene, TypeDescription fromType )
+	{
+		return scene.GetSystemByType( fromType );
+	}
+
+	/// <summary>
 	/// Compile a fucking shader. Takes a .shader file and compiles it.
 	/// </summary>
 	public static async Task<ShaderCompile.Results> CompileShader( string localPath, ShaderCompileOptions options, CancellationToken token = default )

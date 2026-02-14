@@ -63752,7 +63752,7 @@
 				{
 					_class = "CGroupAnimNode"
 					m_sName = "Eye look management & eye darts"
-					m_vecPosition = [ 5248.0, -576.0 ]
+					m_vecPosition = [ 5216.0, -576.0 ]
 					m_nNodeID = 
 					{
 						m_id = 1580054810
@@ -63794,13 +63794,34 @@
 							{
 								key = 
 								{
+									m_id = 83108677
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "Unnamed"
+									m_vecPosition = [ -752.0, -192.0 ]
+									m_nNodeID = 
+									{
+										m_id = 83108677
+									}
+									m_sNote = "This is a subtle idle layer that plays on top of everything else, which adds very small eye motions. The delta is precomputed in ModelDoc."
+									m_tagSpans = [  ]
+									m_sequenceName = "Eyes_Darts_delta"
+									m_playbackSpeed = 1.0
+									m_bLoop = true
+								}
+							},
+							{
+								key = 
+								{
 									m_id = 159903924
 								}
 								value = 
 								{
 									_class = "CGroupOutputAnimNode"
 									m_sName = "Unnamed"
-									m_vecPosition = [ 768.0, 0.0 ]
+									m_vecPosition = [ 832.0, 0.0 ]
 									m_nNodeID = 
 									{
 										m_id = 159903924
@@ -63818,7 +63839,7 @@
 											{
 												m_nodeID = 
 												{
-													m_id = 1955259253
+													m_id = 1925870048
 												}
 												m_outputID = 
 												{
@@ -63838,7 +63859,7 @@
 								{
 									_class = "CSelectorAnimNode"
 									m_sName = "Unnamed"
-									m_vecPosition = [ 64.0, -224.0 ]
+									m_vecPosition = [ 368.0, -224.0 ]
 									m_nNodeID = 
 									{
 										m_id = 212423388
@@ -63849,7 +63870,7 @@
 										{
 											m_nodeID = 
 											{
-												m_id = 981196828
+												m_id = 1450831702
 											}
 											m_outputID = 
 											{
@@ -63859,7 +63880,7 @@
 										{
 											m_nodeID = 
 											{
-												m_id = 1757215194
+												m_id = 971795499
 											}
 											m_outputID = 
 											{
@@ -63869,7 +63890,7 @@
 										{
 											m_nodeID = 
 											{
-												m_id = 1757215194
+												m_id = 971795499
 											}
 											m_outputID = 
 											{
@@ -63919,57 +63940,72 @@
 							{
 								key = 
 								{
-									m_id = 605756261
+									m_id = 621484906
 								}
 								value = 
 								{
-									_class = "CLookAtAnimNode"
-									m_sName = "Look At - Left Eye"
-									m_vecPosition = [ -320.0, -176.0 ]
+									_class = "CAimMatrixAnimNode"
+									m_sName = "Left eye aim matrix"
+									m_vecPosition = [ -17.0, -192.0 ]
 									m_nNodeID = 
 									{
-										m_id = 605756261
+										m_id = 621484906
 									}
 									m_sNote = ""
 									m_inputConnection = 
 									{
 										m_nodeID = 
 										{
-											m_id = 708006518
+											m_id = 1516170337
 										}
 										m_outputID = 
 										{
-											m_id = 1981291777
+											m_id = 4294967295
 										}
 									}
+									m_sequenceName = "Eyes_AimMatrix"
+									m_fAngleIncrement = 50.0
+									m_bCanLookStraightDown = false
 									m_target = "VectorParameter"
 									m_param = 
 									{
 										m_id = 1722198213
 									}
-									m_weightParam = 
-									{
-										m_id = 4294967295
-									}
-									m_lookatChainName = "EyeLLookChain"
 									m_attachmentName = "eye_L_forward"
-									m_flYawLimit = 35.0
-									m_flPitchLimit = 30.0
-									m_bResetBase = false
-									m_bLockWhenWaning = false
-									m_bUseHysteresis = false
-									m_flHysteresisInnerAngle = 1.0
-									m_flHysteresisOuterAngle = 20.0
+									m_blendMode = "AimMatrixBlendMode_BoneMask"
+									m_boneMaskName = "EyeAM_L"
+									m_bResetBase = true
+									m_bLockWhenWaning = true
 									m_damping = 
 									{
 										_class = "CAnimInputDamping"
 										m_speedFunction = "NoDamping"
-										m_fSpeedScale = 5.0
-										m_fMinSpeed = 100.0
-										m_fMaxTension = 10000.0
+										m_fSpeedScale = 40.0
+										m_fMinSpeed = 0.0
+										m_fMaxTension = 1000.0
 										m_fTension = 100.0
 										m_fDamping = 5.0
 									}
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 657611165
+								}
+								value = 
+								{
+									_class = "CCommentAnimNode"
+									m_sName = "Darts"
+									m_vecPosition = [ 576.0, -320.0 ]
+									m_nNodeID = 
+									{
+										m_id = 657611165
+									}
+									m_sNote = ""
+									m_commentText = "It\'s a bit inelegant but the eye darts are now cloned so that the human version can have them interact properly with the morphs.\n\nThey\'re also doubled up there because the aim matrices weaken them."
+									m_size = [ 368.0, 288.0 ]
+									m_color = [ 49, 139, 146, 255 ]
 								}
 							},
 							{
@@ -63981,7 +64017,7 @@
 								{
 									_class = "CGroupInputAnimNode"
 									m_sName = "Unnamed"
-									m_vecPosition = [ -512.0, 16.0 ]
+									m_vecPosition = [ -704.0, 224.0 ]
 									m_nNodeID = 
 									{
 										m_id = 708006518
@@ -64013,13 +64049,84 @@
 							{
 								key = 
 								{
+									m_id = 971795499
+								}
+								value = 
+								{
+									_class = "CAimMatrixAnimNode"
+									m_sName = "Right eye aim matrix"
+									m_vecPosition = [ 159.0, -192.0 ]
+									m_nNodeID = 
+									{
+										m_id = 971795499
+									}
+									m_sNote = ""
+									m_inputConnection = 
+									{
+										m_nodeID = 
+										{
+											m_id = 621484906
+										}
+										m_outputID = 
+										{
+											m_id = 4294967295
+										}
+									}
+									m_sequenceName = "Eyes_AimMatrix"
+									m_fAngleIncrement = 50.0
+									m_bCanLookStraightDown = false
+									m_target = "VectorParameter"
+									m_param = 
+									{
+										m_id = 1722198213
+									}
+									m_attachmentName = "eye_R_forward"
+									m_blendMode = "AimMatrixBlendMode_BoneMask"
+									m_boneMaskName = "EyeAM_R"
+									m_bResetBase = true
+									m_bLockWhenWaning = true
+									m_damping = 
+									{
+										_class = "CAnimInputDamping"
+										m_speedFunction = "NoDamping"
+										m_fSpeedScale = 40.0
+										m_fMinSpeed = 0.0
+										m_fMaxTension = 1000.0
+										m_fTension = 100.0
+										m_fDamping = 5.0
+									}
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 974963520
+								}
+								value = 
+								{
+									_class = "CCommentAnimNode"
+									m_sName = "TODO"
+									m_vecPosition = [ 576.0, 160.0 ]
+									m_nNodeID = 
+									{
+										m_id = 974963520
+									}
+									m_sNote = ""
+									m_commentText = "The morphs get to properly be controlled by the eyeballs... but only when it\'s aim_eyes driving them. Animation driving them does not currently enjoy these benefits..."
+									m_size = [ 368.0, 192.0 ]
+									m_color = [ 255, 0, 0, 255 ]
+								}
+							},
+							{
+								key = 
+								{
 									m_id = 981196828
 								}
 								value = 
 								{
 									_class = "CLookAtAnimNode"
 									m_sName = "Look At - Right Eye"
-									m_vecPosition = [ -144.0, -224.0 ]
+									m_vecPosition = [ -160.0, -336.0 ]
 									m_nNodeID = 
 									{
 										m_id = 981196828
@@ -64058,12 +64165,79 @@
 									{
 										_class = "CAnimInputDamping"
 										m_speedFunction = "NoDamping"
-										m_fSpeedScale = 5.0
-										m_fMinSpeed = 100.0
+										m_fSpeedScale = 40.0
+										m_fMinSpeed = 0.0
 										m_fMaxTension = 10000.0
 										m_fTension = 100.0
 										m_fDamping = 5.0
 									}
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1022884264
+								}
+								value = 
+								{
+									_class = "CAddAnimNode"
+									m_sName = "Add (eye darts)"
+									m_vecPosition = [ -320.0, 432.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1022884264
+									}
+									m_sNote = ""
+									m_baseInput = 
+									{
+										m_nodeID = 
+										{
+											m_id = 1326644959
+										}
+										m_outputID = 
+										{
+											m_id = 4294967295
+										}
+									}
+									m_additiveInput = 
+									{
+										m_nodeID = 
+										{
+											m_id = 1824624170
+										}
+										m_outputID = 
+										{
+											m_id = 4294967295
+										}
+									}
+									m_timingBehavior = "UseChild1"
+									m_flTimingBlend = 0.5
+									m_footMotionTiming = "Child1"
+									m_bResetBase = true
+									m_bResetAdditive = true
+									m_bApplyChannelsSeparately = true
+									m_bModelSpace = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1326644959
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "Unnamed"
+									m_vecPosition = [ -768.0, 432.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1326644959
+									}
+									m_sNote = "This is a subtle idle layer that plays on top of everything else, which adds very small eye motions. The delta is precomputed in ModelDoc."
+									m_tagSpans = [  ]
+									m_sequenceName = "Eyes_Darts_delta"
+									m_playbackSpeed = 1.0
+									m_bLoop = true
 								}
 							},
 							{
@@ -64075,7 +64249,7 @@
 								{
 									_class = "CLookAtAnimNode"
 									m_sName = "Look At - Left Eye"
-									m_vecPosition = [ -320.0, -224.0 ]
+									m_vecPosition = [ -321.0, -336.0 ]
 									m_nNodeID = 
 									{
 										m_id = 1389216160
@@ -64114,8 +64288,8 @@
 									{
 										_class = "CAnimInputDamping"
 										m_speedFunction = "NoDamping"
-										m_fSpeedScale = 5.0
-										m_fMinSpeed = 100.0
+										m_fSpeedScale = 40.0
+										m_fMinSpeed = 0.0
 										m_fMaxTension = 10000.0
 										m_fTension = 100.0
 										m_fDamping = 5.0
@@ -64125,57 +64299,293 @@
 							{
 								key = 
 								{
-									m_id = 1757215194
+									m_id = 1404046529
 								}
 								value = 
 								{
-									_class = "CLookAtAnimNode"
-									m_sName = "Look At - Right Eye"
-									m_vecPosition = [ -144.0, -176.0 ]
+									_class = "CAddAnimNode"
+									m_sName = "Add (eye darts)"
+									m_vecPosition = [ -512.0, -128.0 ]
 									m_nNodeID = 
 									{
-										m_id = 1757215194
+										m_id = 1404046529
 									}
 									m_sNote = ""
-									m_inputConnection = 
+									m_baseInput = 
 									{
 										m_nodeID = 
 										{
-											m_id = 605756261
+											m_id = 708006518
+										}
+										m_outputID = 
+										{
+											m_id = 1981291777
+										}
+									}
+									m_additiveInput = 
+									{
+										m_nodeID = 
+										{
+											m_id = 83108677
 										}
 										m_outputID = 
 										{
 											m_id = 4294967295
 										}
 									}
-									m_target = "VectorParameter"
-									m_param = 
+									m_timingBehavior = "UseChild1"
+									m_flTimingBlend = 0.5
+									m_footMotionTiming = "Child1"
+									m_bResetBase = true
+									m_bResetAdditive = true
+									m_bApplyChannelsSeparately = true
+									m_bModelSpace = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1450831702
+								}
+								value = 
+								{
+									_class = "CAddAnimNode"
+									m_sName = "Add (eye darts)"
+									m_vecPosition = [ 32.0, -336.0 ]
+									m_nNodeID = 
 									{
-										m_id = 1722198213
+										m_id = 1450831702
 									}
-									m_weightParam = 
+									m_sNote = ""
+									m_baseInput = 
+									{
+										m_nodeID = 
+										{
+											m_id = 981196828
+										}
+										m_outputID = 
+										{
+											m_id = 4294967295
+										}
+									}
+									m_additiveInput = 
+									{
+										m_nodeID = 
+										{
+											m_id = 1729043643
+										}
+										m_outputID = 
+										{
+											m_id = 4294967295
+										}
+									}
+									m_timingBehavior = "UseChild1"
+									m_flTimingBlend = 0.5
+									m_footMotionTiming = "Child1"
+									m_bResetBase = true
+									m_bResetAdditive = true
+									m_bApplyChannelsSeparately = true
+									m_bModelSpace = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1516170337
+								}
+								value = 
+								{
+									_class = "CAddAnimNode"
+									m_sName = "Add (eye darts)"
+									m_vecPosition = [ -304.0, -192.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1516170337
+									}
+									m_sNote = ""
+									m_baseInput = 
+									{
+										m_nodeID = 
+										{
+											m_id = 83108677
+										}
+										m_outputID = 
+										{
+											m_id = 4294967295
+										}
+									}
+									m_additiveInput = 
+									{
+										m_nodeID = 
+										{
+											m_id = 1404046529
+										}
+										m_outputID = 
+										{
+											m_id = 4294967295
+										}
+									}
+									m_timingBehavior = "UseChild1"
+									m_flTimingBlend = 0.5
+									m_footMotionTiming = "Child1"
+									m_bResetBase = true
+									m_bResetAdditive = true
+									m_bApplyChannelsSeparately = true
+									m_bModelSpace = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1729043643
+								}
+								value = 
+								{
+									_class = "CSequenceAnimNode"
+									m_sName = "Unnamed"
+									m_vecPosition = [ -192.0, -288.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1729043643
+									}
+									m_sNote = "This is a subtle idle layer that plays on top of everything else, which adds very small eye motions. The delta is precomputed in ModelDoc."
+									m_tagSpans = [  ]
+									m_sequenceName = "Eyes_Darts_delta"
+									m_playbackSpeed = 1.0
+									m_bLoop = true
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1824624170
+								}
+								value = 
+								{
+									_class = "CAddAnimNode"
+									m_sName = "Add (eye darts)"
+									m_vecPosition = [ -528.0, 496.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1824624170
+									}
+									m_sNote = ""
+									m_baseInput = 
+									{
+										m_nodeID = 
+										{
+											m_id = 708006518
+										}
+										m_outputID = 
+										{
+											m_id = 1981291777
+										}
+									}
+									m_additiveInput = 
+									{
+										m_nodeID = 
+										{
+											m_id = 1326644959
+										}
+										m_outputID = 
+										{
+											m_id = 4294967295
+										}
+									}
+									m_timingBehavior = "UseChild1"
+									m_flTimingBlend = 0.5
+									m_footMotionTiming = "Child1"
+									m_bResetBase = true
+									m_bResetAdditive = true
+									m_bApplyChannelsSeparately = true
+									m_bModelSpace = false
+								}
+							},
+							{
+								key = 
+								{
+									m_id = 1899129980
+								}
+								value = 
+								{
+									_class = "CSelectorAnimNode"
+									m_sName = "Unnamed"
+									m_vecPosition = [ 352.0, 224.0 ]
+									m_nNodeID = 
+									{
+										m_id = 1899129980
+									}
+									m_sNote = ""
+									m_children = 
+									[
+										{
+											m_nodeID = 
+											{
+												m_id = 1955259253
+											}
+											m_outputID = 
+											{
+												m_id = 4294967295
+											}
+										},
+										{
+											m_nodeID = 
+											{
+												m_id = 1022884264
+											}
+											m_outputID = 
+											{
+												m_id = 4294967295
+											}
+										},
+										{
+											m_nodeID = 
+											{
+												m_id = 1022884264
+											}
+											m_outputID = 
+											{
+												m_id = 4294967295
+											}
+										},
+									]
+									m_tags = 
+									[
+										{
+											m_id = 4294967295
+										},
+										{
+											m_id = 4294967295
+										},
+										{
+											m_id = 4294967295
+										},
+									]
+									m_selectionSource = "SelectionSource_Enum"
+									m_boolParamID = 
 									{
 										m_id = 4294967295
 									}
-									m_lookatChainName = "EyeRLookChain"
-									m_attachmentName = "eye_R_forward"
-									m_flYawLimit = 35.0
-									m_flPitchLimit = 30.0
-									m_bResetBase = false
-									m_bLockWhenWaning = false
-									m_bUseHysteresis = false
-									m_flHysteresisInnerAngle = 1.0
-									m_flHysteresisOuterAngle = 20.0
-									m_damping = 
+									m_enumParamID = 
 									{
-										_class = "CAnimInputDamping"
-										m_speedFunction = "NoDamping"
-										m_fSpeedScale = 5.0
-										m_fMinSpeed = 100.0
-										m_fMaxTension = 10000.0
-										m_fTension = 100.0
-										m_fDamping = 5.0
+										m_id = 736115688
 									}
+									m_intParamID = 
+									{
+										m_id = 4294967295
+									}
+									m_intParamMinValue = 0
+									m_intParamMaxValue = 2
+									m_blendDuration = 0.0
+									m_tagBehavior = "SelectorTagBehavior_OffWhenFinished"
+									m_bResetOnChange = true
+									m_bSyncCyclesOnChange = false
+									m_blendCurve = 
+									{
+										m_vControlPoint1 = [ 0.5, 0.0 ]
+										m_vControlPoint2 = [ 0.5, 1.0 ]
+									}
+									m_intParamNames = [  ]
 								}
 							},
 							{
@@ -64187,7 +64597,7 @@
 								{
 									_class = "CStateMachineAnimNode"
 									m_sName = "Eye Look management"
-									m_vecPosition = [ 288.0, 0.0 ]
+									m_vecPosition = [ 560.0, 0.0 ]
 									m_nNodeID = 
 									{
 										m_id = 1925870048
@@ -64369,11 +64779,11 @@
 											{
 												m_nodeID = 
 												{
-													m_id = 708006518
+													m_id = 1899129980
 												}
 												m_outputID = 
 												{
-													m_id = 1981291777
+													m_id = 4294967295
 												}
 											}
 											m_stateID = 
@@ -64401,7 +64811,7 @@
 								{
 									_class = "CSequenceAnimNode"
 									m_sName = "Unnamed"
-									m_vecPosition = [ 320.0, 64.0 ]
+									m_vecPosition = [ -399.999969, 288.0 ]
 									m_nNodeID = 
 									{
 										m_id = 1951096869
@@ -64422,7 +64832,7 @@
 								{
 									_class = "CAddAnimNode"
 									m_sName = "Add (eye darts)"
-									m_vecPosition = [ 560.0, 0.0 ]
+									m_vecPosition = [ -64.0, 224.0 ]
 									m_nNodeID = 
 									{
 										m_id = 1955259253
@@ -64432,11 +64842,11 @@
 									{
 										m_nodeID = 
 										{
-											m_id = 1925870048
+											m_id = 708006518
 										}
 										m_outputID = 
 										{
-											m_id = 4294967295
+											m_id = 1981291777
 										}
 									}
 									m_additiveInput = 

@@ -229,8 +229,9 @@ VS
 		}
 
 		PixelInput o;
-		o.vPositionWs = mul(transpose(transform), float4(v.position.xyz, 1)).xyz;
-		o.vPositionPs = Position3WsToPs( o.vPositionWs );
+		float3 vPositionWs = mul(transpose(transform), float4(v.position.xyz, 1)).xyz;
+		o.vPositionWs = vPositionWs - g_vHighPrecisionLightingOffsetWs.xyz;
+		o.vPositionPs = Position3WsToPs( vPositionWs );
 		o.instanceID = instanceID;
 		o.vNormalWs = worldNormal;
 		o.uv = blendedUV;
@@ -426,28 +427,28 @@ PS
 		if ( sprite.DepthFeather > 0 )
 		{
 			float3 pos = Depth::GetWorldPosition( i.vPositionSs.xy );
+			float3 spriteWorldPos = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
 
-			float dist = distance( pos, i.vPositionWithOffsetWs.xyz );
+			float dist = distance( pos, spriteWorldPos );
 			float feather = clamp(dist / sprite.DepthFeather, 0.0, 1.0 );
 			col.a *= feather;
 		}
 
 		if(hasLighting)
-		{ 
-			FinalCombinerInput_t finalCombinerInput;
-			finalCombinerInput.vPositionWs.xyz = i.vPositionWithOffsetWs.xyz;
+		{
+			FinalCombinerInput_t finalCombinerInput = (FinalCombinerInput_t)0;
+			finalCombinerInput.vPositionWithOffsetWs.xyz = i.vPositionWithOffsetWs.xyz;
+			finalCombinerInput.vPositionWs.xyz = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
 			finalCombinerInput.vRoughness = 1;
 			finalCombinerInput.vNormalWs = i.vNormalWs;
 			finalCombinerInput.vPositionSs = i.vPositionSs;
-			finalCombinerInput.vPositionWithOffsetWs.xyz = finalCombinerInput.vPositionWs.xyz - g_vHighPrecisionLightingOffsetWs.xyz;
-			finalCombinerInput.vSpecularColor = float3( 0.0, 0.0, 0.0 );
 
 			LightingTerms_t lightingTerms = InitLightingTerms();
 			ComputeDirectLighting( lightingTerms, finalCombinerInput );
 			CalculateIndirectLighting( lightingTerms, finalCombinerInput ); 
 
 			float4 lighting = float4( 0.0, 0.0, 0.0, 1.0 );
-			lighting.rgb += lightingTerms.vDiffuse.rgb;
+			lighting.rgb += lightingTerms.vDiffuse.rgb; 
 			lighting.rgb += lightingTerms.vIndirectDiffuse.rgb;
 
 			col *= lighting;
@@ -455,27 +456,8 @@ PS
 
 		if ( fogStrength > 0 ) 
 		{
-		#if (D_BLEND == 1)
-			const float3 vPositionToCameraWs = i.vPositionWithOffsetWs.xyz - g_vCameraPositionWs;
-
-			if ( g_bGradientFogEnabled )
-			{
-				col.a *= 1.0 - CalculateGradientFog( i.vPositionWithOffsetWs, vPositionToCameraWs ).a; 
-			}
-
-			if ( g_bCubemapFogEnabled )
-			{
-				col.a *= 1.0 - CalculateCubemapFog( i.vPositionWithOffsetWs, vPositionToCameraWs ).a;
-			}
-
-			if ( g_bVolumetricFogEnabled )
-			{
-				col.a *= CalculateVolumetricFog( i.vPositionWithOffsetWs.xyz, i.vPositionSs.xy ).a;
-			}
-		#else
-			float3 fogged = Fog::Apply( i.vPositionWithOffsetWs, i.vPositionSs.xy, col.rgb );
-			col.rgb = lerp( col.rgb, fogged, fogStrength );
-		#endif
+			float4 fogged = DoAtmospherics( i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz, i.vPositionSs.xy, col, D_BLEND == 1 );
+			col.rgb = lerp( col.rgb, fogged.rgb, fogStrength );
 		}
 
 		return col;

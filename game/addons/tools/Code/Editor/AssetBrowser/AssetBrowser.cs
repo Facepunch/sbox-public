@@ -758,17 +758,16 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 		if ( asset is null ) return;
 
 		var folder = System.IO.Path.GetDirectoryName( asset.AbsolutePath );
-
 		EditorWindow.DockManager.RaiseDock( this );
 
 		NavigateTo( folder );
 
 		// wait for the list to (successfully) populate before selecting the item
-		bool success = await RefreshTask;
+		var success = await RefreshTask;
 		if ( !success )
 			return;
 
-		AssetEntry entry = AssetList.Items.OfType<AssetEntry>().Where( x => x.Asset?.RelativePath == asset.RelativePath ).FirstOrDefault();
+		var entry = AssetList.Items.OfType<AssetEntry>().FirstOrDefault( x => x.Asset?.RelativePath == asset.RelativePath );
 		if ( entry is null )
 			return;
 
@@ -778,10 +777,9 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 
 	public void OnAssetCreated( Asset asset, string path )
 	{
-		var entry = AssetList.AddItem( new AssetEntry( new FileInfo( path ), asset ) );
+		var entry = new AssetEntry( new FileInfo( path ), asset );
+		AssetList.AddItem( entry );
 		AssetList.SelectItem( entry, skipEvents: true );
-
-		AssetList.OpenRenameFlyout( entry );
 	}
 
 	void AssetSystem.IEventListener.OnAssetTagsChanged()

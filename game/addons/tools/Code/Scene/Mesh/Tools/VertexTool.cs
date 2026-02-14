@@ -39,6 +39,12 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 			{
 				var worldPos = transform.PointToWorld( mesh.GetVertexPosition( v ) );
 
+				if ( !Tool.SelectionThrough && IsVertexOccluded( worldPos, Gizmo.Camera.Position ) )
+				{
+					previous.Add( new MeshVertex( component, v ) );
+					continue;
+				}
+
 				if ( frustum.IsInside( worldPos ) )
 				{
 					selection.Add( new MeshVertex( component, v ) );
@@ -50,16 +56,30 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 			}
 		}
 
-		foreach ( var v in selection )
+		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 		{
-			if ( !Selection.Contains( v ) )
-				Selection.Add( v );
+			foreach ( var v in selection )
+			{
+				if ( Selection.Contains( v ) )
+					Selection.Remove( v );
+			}
 		}
-
-		foreach ( var v in previous )
+		else
 		{
-			if ( Selection.Contains( v ) )
-				Selection.Remove( v );
+			foreach ( var v in selection )
+			{
+				if ( !Selection.Contains( v ) )
+					Selection.Add( v );
+			}
+
+			if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
+			{
+				foreach ( var v in previous )
+				{
+					if ( Selection.Contains( v ) )
+						Selection.Remove( v );
+				}
+			}
 		}
 	}
 
@@ -88,6 +108,39 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 
 			foreach ( var vertex in Selection.OfType<MeshVertex>() )
 				Gizmo.Draw.Sprite( vertex.PositionWorld, 8, null, false );
+		}
+	}
+
+	protected override IEnumerable<MeshVertex> ConvertSelectionToCurrentType()
+	{
+		foreach ( var face in Selection.OfType<MeshFace>() )
+		{
+			if ( !face.IsValid() )
+				continue;
+
+			var mesh = face.Component.Mesh;
+			mesh.GetVerticesConnectedToFace( face.Handle, out var vertices );
+
+			foreach ( var vertex in vertices )
+			{
+				if ( vertex.IsValid )
+					yield return new MeshVertex( face.Component, vertex );
+			}
+		}
+
+		foreach ( var edge in Selection.OfType<MeshEdge>() )
+		{
+			if ( !edge.IsValid() )
+				continue;
+
+			var mesh = edge.Component.Mesh;
+			mesh.GetEdgeVertices( edge.Handle, out var vertexA, out var vertexB );
+
+			if ( vertexA.IsValid )
+				yield return new MeshVertex( edge.Component, vertexA );
+
+			if ( vertexB.IsValid )
+				yield return new MeshVertex( edge.Component, vertexB );
 		}
 	}
 

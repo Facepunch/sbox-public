@@ -88,7 +88,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		// So we need to show and dock them
 
 		// Restoring will open a blank SceneDock as an area for the others to dock on
-		var dummy = All.Where( x => EditorWindow.DockManager.IsDockOpen( x.SceneDock ) ).FirstOrDefault();
+		var dummy = All.Where( x => x.Scene.Source is null && EditorWindow.DockManager.IsDockOpen( x.SceneDock ) ).FirstOrDefault();
 
 		foreach ( var entry in All )
 		{
@@ -100,7 +100,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 		// Remove our dummy dock, unless it's the only one open somehow
 		if ( All.Count > 1 )
-			dummy.Destroy();
+			dummy?.Destroy();
 	}
 
 	void Dock()
@@ -267,7 +267,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// <summary>
 	/// Zoom the scene to view this bbox
 	/// </summary>
-	public void FrameTo( in BBox box )
+	public virtual void FrameTo( in BBox box )
 	{
 		BringToFront();
 		OnFrameTo?.Invoke( box );
@@ -538,7 +538,7 @@ file class AssetFolderInstance : SceneFolder
 		_folder = $"{_folder}{extension}_data";
 
 		_relativeFolder = System.IO.Path.ChangeExtension( relativePath, null );
-		_relativeFolder = $"{_relativeFolder}{extension}_data".NormalizeFilename();
+		_relativeFolder = $"{_relativeFolder}{extension}_data".NormalizeFilename( false );
 
 		System.IO.Directory.CreateDirectory( _folder );
 
@@ -556,7 +556,6 @@ file class AssetFolderInstance : SceneFolder
 
 		if ( filename.StartsWith( '/' ) ) filename = filename[1..];
 
-		var absPath = System.IO.Path.Combine( _relativeFolder, filename );
-		return absPath;
+		return System.IO.Path.Combine( _relativeFolder, filename ).NormalizeFilename( false );
 	}
 }

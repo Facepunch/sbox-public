@@ -208,6 +208,7 @@ public sealed class CookieContainer
 		Timer = new Timer();
 		Timer.Elapsed += new ElapsedEventHandler( OnTimerElapsed );
 		Timer.Interval = 1000 * 60 * 1;
+		Timer.AutoReset = false; // we will restart manually, otherwise saves can overlap
 		Timer.Start();
 	}
 
@@ -221,7 +222,18 @@ public sealed class CookieContainer
 
 	private void OnTimerElapsed( object sender, ElapsedEventArgs e )
 	{
-		Save();
+		MainThread.Queue( () =>
+		{
+			try
+			{
+				Save();
+			}
+			finally
+			{
+				// reenable for next interval
+				Timer?.Start();
+			}
+		} );
 	}
 
 	private void Load()

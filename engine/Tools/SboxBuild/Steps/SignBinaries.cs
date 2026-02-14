@@ -5,6 +5,7 @@ namespace Facepunch.Steps;
 internal class SignBinaries() : Step( "SignBinaries" )
 {
 	// All the stuff we compile directly, no third party
+	// (We compile Qt ourselves, so we sign that too)
 	private static readonly string[] Win64Binaries =
 	[
 		"animationsystem.dll",
@@ -23,6 +24,10 @@ internal class SignBinaries() : Step( "SignBinaries" )
 		"obj2dmx.exe",
 		"physicsbuilder.dll",
 		"propertyeditor.dll",
+		"Qt5Concurrent.dll",
+		"Qt5Core.dll",
+		"Qt5Gui.dll",
+		"Qt5Widgets.dll",
 		"rendersystemempty.dll",
 		"rendersystemvulkan.dll",
 		"resourcecompiler.dll",
@@ -37,6 +42,12 @@ internal class SignBinaries() : Step( "SignBinaries" )
 		"vpk.exe",
 		"vrad2.exe",
 		"vrad3.exe",
+		"qt5_plugins/imageformats/qgif.dll",
+		"qt5_plugins/imageformats/qico.dll",
+		"qt5_plugins/imageformats/qjpeg.dll",
+		"qt5_plugins/imageformats/qtga.dll",
+		"qt5_plugins/imageformats/qwbmp.dll",
+		"qt5_plugins/platforms/qwindows.dll",
 		"tools/animgraph_editor.dll",
 		"tools/hammer.dll",
 		"tools/met.dll",
@@ -46,11 +57,16 @@ internal class SignBinaries() : Step( "SignBinaries" )
 	protected override ExitCode RunInternal()
 	{
 		string rootDir = Directory.GetCurrentDirectory();
-		string signtoolPath = Path.Combine( rootDir, "src", "devtools", "bin", "signtool.exe" );
 
-		if ( !File.Exists( signtoolPath ) )
+		var vaultUrl = Environment.GetEnvironmentVariable( "CODESIGN_AZURE_KEYVAULT_URL" );
+		var clientId = Environment.GetEnvironmentVariable( "CODESIGN_AZURE_CLIENT_ID" );
+		var clientSecret = Environment.GetEnvironmentVariable( "CODESIGN_AZURE_CLIENT_SECRET" );
+		var tenantId = Environment.GetEnvironmentVariable( "CODESIGN_AZURE_TENANT_ID" );
+
+		if ( string.IsNullOrEmpty( vaultUrl ) || string.IsNullOrEmpty( clientId ) ||
+			 string.IsNullOrEmpty( clientSecret ) || string.IsNullOrEmpty( tenantId ) )
 		{
-			Log.Error( $"Signtool not found at {signtoolPath}" );
+			Log.Error( "One or more Azure signing environment variables are missing (CODESIGN_AZURE_KEYVAULT_URL, CODESIGN_AZURE_CLIENT_ID, CODESIGN_AZURE_CLIENT_SECRET, CODESIGN_AZURE_TENANT_ID)" );
 			return ExitCode.Failure;
 		}
 
@@ -67,8 +83,8 @@ internal class SignBinaries() : Step( "SignBinaries" )
 			Log.Info( $"Signing {Path.GetFileName( file )}" );
 
 			bool success = Utility.RunProcess(
-				signtoolPath,
-				$"sign /n \"Facepunch Studios Ltd\" /q /tr http://timestamp.digicert.com /td SHA256 /fd SHA256 /sm \"{file}\"",
+				"AzureSignTool",
+				$"sign -kvu \"{vaultUrl}\" -kvi \"{clientId}\" -kvs \"{clientSecret}\" -kvt \"{tenantId}\" -kvc FPCodeSign -tr http://timestamp.digicert.com \"{file}\"",
 				rootDir
 			);
 

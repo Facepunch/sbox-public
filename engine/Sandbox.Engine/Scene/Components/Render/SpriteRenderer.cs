@@ -186,7 +186,7 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	}
 
 	/// <summary>
-	/// Whether or not the sprite is animated. This is true if the sprite has more than one animation or if the current animation has more than one frame.
+	/// Whether or not the sprite is animated. This is true if the sprite has more than one animation.
 	/// </summary>
 	public bool IsAnimated => (_sprite?.Animations?.Count ?? 0) > 1;
 

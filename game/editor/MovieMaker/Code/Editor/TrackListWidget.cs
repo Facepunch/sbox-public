@@ -179,10 +179,7 @@ public sealed class TrackListWidget : Widget
 			return;
 		}
 
-		var tracksHeight = _rootTracks
-			.Select( x => x.View.Position + x.View.Height + Timeline.RootTrackSpacing )
-			.DefaultIfEmpty( 64f )
-			.Max() - Timeline.RootTrackSpacing;
+		var tracksHeight = _trackList?.Height ?? 64f;
 
 		var headerHeight = _projectNavWidgets.Sum( x => x.Height ) + Timeline.RootTrackSpacing;
 		var timelinePosition = visibleRect.Top;

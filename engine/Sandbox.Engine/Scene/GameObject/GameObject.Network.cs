@@ -39,21 +39,27 @@ public partial class GameObject
 	/// </summary>
 	public NetworkMode NetworkMode
 	{
-		get => _networkMode;
+		get;
 		set
 		{
 			if ( _net is not null )
 			{
+				// The host can change the network mode of an existing networked object.
+				if ( Networking.IsHost && value != NetworkMode.Object )
+				{
+					field = value;
+					DetachFromNetwork();
+					return;
+				}
+
 				// We must always be `NetworkMode.Object` if we're a networked object.
-				_networkMode = NetworkMode.Object;
+				field = NetworkMode.Object;
 				return;
 			}
 
-			_networkMode = value;
+			field = value;
 		}
-	}
-
-	private NetworkMode _networkMode = NetworkMode.Snapshot;
+	} = NetworkMode.Snapshot;
 
 	/// <summary>
 	/// A component that can control our network visibility to a specific <see cref="Connection"/>.
@@ -93,6 +99,24 @@ public partial class GameObject
 	/// </summary>
 	[Obsolete( "Use Network.Interpolation or Network.Flags" )]
 	[Property, Expose] public bool NetworkInterpolation { get; set; } = true;
+
+	/// <summary>
+	/// Detach the network connection for this networked object. This will turn it into a regular
+	/// object for all clients, and it will no longer receive network updates.
+	/// </summary>
+	internal void DetachFromNetwork()
+	{
+		if ( _net is null )
+			return;
+
+		if ( Networking.IsHost )
+		{
+			_net.SendNetworkDetach();
+		}
+
+		ClearNetworking();
+		UpdateNetworkRoot();
+	}
 
 	/// <summary>
 	/// Spawn on the network. If you have permission to spawn entities, this will spawn on
@@ -149,7 +173,7 @@ public partial class GameObject
 			// Tell all children that we're the network root
 			UpdateNetworkRoot();
 
-			// Make this connection the owner
+			// Give ownership to this connection
 			_net.InitializeForConnection( options.Owner, options.StartEnabled );
 		}
 
@@ -191,6 +215,8 @@ public partial class GameObject
 		_net = new NetworkObject( this );
 		_net.Initialize( msg );
 
+		NetworkMode = NetworkMode.Object;
+
 		UpdateNetworkRoot();
 	}
 
@@ -209,7 +235,8 @@ public partial class GameObject
 
 	void ClearNetworking()
 	{
-		if ( _net is null ) return;
+		if ( _net is null )
+			return;
 
 		_net.Dispose();
 		_net = null;
@@ -527,7 +554,7 @@ public partial class GameObject
 		}
 
 		/// <summary>
-		/// Is this object networked
+		/// Is this object networked?
 		/// </summary>
 		public bool Active => go._net is not null;
 
@@ -537,7 +564,7 @@ public partial class GameObject
 		public GameObject RootGameObject => go;
 
 		/// <summary>
-		/// Are we the owner of this network object
+		/// Are we the owner of this network object?
 		/// </summary>
 		[ActionGraphInclude]
 		public bool IsOwner => OwnerId == Connection.Local.Id;
@@ -554,13 +581,13 @@ public partial class GameObject
 		public bool IsCreator => CreatorId == Connection.Local.Id;
 
 		/// <summary>
-		/// The Id of the create of this object
+		/// The Id of the creator of this object
 		/// </summary>
 		public Guid CreatorId => go._net?.Creator ?? Guid.Empty;
 
 		/// <summary>
-		/// Is this object a network proxy. A network proxy is a network object that is not being simulated on the local pc.
-		/// This means it's either owned by no-one and is being simulated by the host, or owned by another client.
+		/// Is this object a network proxy? A network proxy is a network object that is not being simulated on the local pc.
+		/// This means it's either owned by no-one and is being simulated by the host or owned by another client.
 		/// </summary>
 		[ActionGraphInclude]
 		public bool IsProxy => go._net?.IsProxy ?? false;

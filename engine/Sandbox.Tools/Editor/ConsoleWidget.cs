@@ -707,9 +707,7 @@ internal class ConsoleWidget : Widget
 
 				EditorUtility.InspectorObject = ev.Arguments[i];
 			}
-
-
-			if ( Uri.TryCreate( anchor, UriKind.RelativeOrAbsolute, out var uri ) )
+			else if ( Uri.TryCreate( anchor, UriKind.RelativeOrAbsolute, out var uri ) )
 			{
 				EditorUtility.OpenFile( anchor );
 			}

@@ -38,6 +38,9 @@ internal static partial class DebugOverlay
 	[ConVar( "overlay_pp", Help = "Draws an overlay showing current post process stack" )]
 	internal static int overlay_pp { get; set; } = 0;
 
+	[ConVar( "overlay_gpu", Help = "Draws an overlay showing GPU timing for render passes" )]
+	internal static int overlay_gpu { get; set; } = 0;
+
 	public static void Draw()
 	{
 		Vector2 pos = new Vector2( 100, 130 );
@@ -81,6 +84,16 @@ internal static partial class DebugOverlay
 		else
 		{
 			DebugOverlay.Allocations.Disabled();
+		}
+
+		// GPU Profiler
+		Diagnostics.GpuProfilerStats.Enabled = overlay_gpu == 1;
+		Diagnostics.GpuProfilerStats.Update();
+
+		if ( overlay_gpu == 1 )
+		{
+			DebugOverlay.GpuProfiler.Draw( ref pos );
+			pos.y += 20;
 		}
 	}
 }

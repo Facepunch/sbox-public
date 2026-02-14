@@ -344,9 +344,19 @@ public partial class Mixer
 		using var _ = _mixVoice.Start();
 		var volume = voice.Volume;
 
-		if ( voice.IsFading )
+		if ( voice.IsFadingOut )
 		{
 			volume *= voice.Fadeout.EvaluateDelta( (float)voice.TimeUntilFaded.Fraction );
+		}
+
+		if ( voice.IsFadingIn )
+		{
+			volume *= voice.Fadein.EvaluateDelta( (float)voice.TimeUntilFadedIn.Fraction );
+
+			if ( voice.TimeUntilFadedIn )
+			{
+				voice.IsFadingIn = false;
+			}
 		}
 
 		var samples = voice.sampler.GetLastReadSamples();

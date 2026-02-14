@@ -7,7 +7,7 @@
 public sealed class RadiusDamage : Component
 {
 	/// <summary>
-	/// Should the world shield victims from damage?
+	/// The radius of the damage area.
 	/// </summary>
 	[Property]
 	public float Radius { get; set; } = 512;

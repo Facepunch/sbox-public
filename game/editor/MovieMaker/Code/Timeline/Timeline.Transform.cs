@@ -79,6 +79,8 @@ public partial class Timeline
 
 	public void PanImmediate( float dx )
 	{
+		dx = Math.Min( dx, LeftRightMargin + VisibleRect.Left );
+
 		if ( dx == 0 )
 			return;
 
@@ -109,16 +111,21 @@ public partial class Timeline
 
 	private bool UpdateView()
 	{
+		var headerHeight = Session.Depth * TrackHeight;
 		var width = TimeToPixels( MovieTime.FromSeconds( 60d * 60d * 10d ) ) + LeftRightMargin * 2f;
-		var height = Session.TrackList.Height + TopBottomMargin * 2f;
+		var height = Session.TrackList.Height + TopBottomMargin * 2f + headerHeight;
 
-		VerticalScrollbar = height > Height ? ScrollbarMode.On : ScrollbarMode.Off;
+		// Slightly fudge height to account for how much space is reserved for scroll bars
+
+		const float scrollBarFudge = 4f;
+
+		VerticalScrollbar = height > Height - scrollBarFudge ? ScrollbarMode.On : ScrollbarMode.Off;
 
 		SceneRect = new Rect(
 			-LeftRightMargin,
-			-TopBottomMargin,
+			-TopBottomMargin - headerHeight,
 			Math.Max( Width, width ),
-			Math.Max( Height, height ) );
+			Math.Max( Height - scrollBarFudge, height ) );
 
 		var visibleRect = VisibleRect;
 
@@ -131,6 +138,12 @@ public partial class Timeline
 
 		UpdatePlayheadTime( Session.PlayheadTime );
 		UpdatePreviewTime( Session.PreviewTime );
+
+		if ( IsDragging )
+		{
+			var scenePos = ToScene( _lastMouseLocalPos );
+			Drag( scenePos );
+		}
 
 		ViewChanged?.Invoke( visibleRect );
 		Session.EditMode?.ViewChanged( visibleRect );

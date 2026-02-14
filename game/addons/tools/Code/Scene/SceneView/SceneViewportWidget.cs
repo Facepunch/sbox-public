@@ -93,11 +93,20 @@ public partial class SceneViewportWidget : Widget
 	float cameraOrbitDistance = 400;
 	bool doubleClick;
 
+	bool blockCameraForToolInput;
+	Vector2 blockCameraMousePosition;
+
 	protected override void OnDoubleClick( MouseEvent e )
 	{
 		base.OnDoubleClick( e );
 
 		doubleClick = true;
+
+		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Alt ) )
+		{
+			blockCameraForToolInput = true;
+			blockCameraMousePosition = e.LocalPosition;
+		}
 	}
 
 	protected override void OnVisibilityChanged( bool visible )
@@ -460,11 +469,38 @@ public partial class SceneViewportWidget : Widget
 			var rightDown = Application.MouseButtons.HasFlag( MouseButtons.Right );
 			var modifiers = Application.KeyboardModifiers;
 			var modifiersDown = modifiers.Contains( KeyboardModifiers.Shift ) || modifiers.HasFlag( KeyboardModifiers.Ctrl );
+
 			blockCamera = !blockCamera ? modifiersDown && !rightDown : modifiersDown;
+
+			if ( modifiers.HasFlag( KeyboardModifiers.Alt ) && rightDown && GizmoInstance.Input.IsHovered && !blockCameraForToolInput )
+			{
+				blockCameraForToolInput = true;
+				blockCameraMousePosition = Renderer.FromScreen( Application.CursorPosition );
+			}
+
+			if ( blockCameraForToolInput )
+			{
+				if ( Application.MouseButtons == MouseButtons.None )
+				{
+					blockCameraForToolInput = false;
+				}
+				else if ( Renderer.IsValid() )
+				{
+					var currentMousePos = Renderer.FromScreen( Application.CursorPosition );
+					var dragDistance = Vector2.DistanceBetween( blockCameraMousePosition, currentMousePos );
+
+					if ( dragDistance > 3f )
+					{
+						blockCameraForToolInput = false;
+					}
+				}
+			}
+
+			bool shouldBlockOrbit = blockCamera || (blockCameraForToolInput && GizmoInstance.Input.IsHovered);
 
 			_activeCamera.OrthographicHeight = State.CameraOrthoHeight;
 
-			if ( !blockCamera )
+			if ( !shouldBlockOrbit )
 			{
 				if ( GizmoInstance.OrbitCamera( _activeCamera, Renderer, ref cameraOrbitDistance ) )
 				{
@@ -477,7 +513,7 @@ public partial class SceneViewportWidget : Widget
 					GizmoInstance.Input.IsHovered = false;
 				}
 			}
-			else
+			else if ( blockCamera )
 			{
 				Renderer.Cursor = CursorShape.None;
 			}

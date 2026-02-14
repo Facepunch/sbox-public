@@ -60,6 +60,8 @@ public partial class Document
 
 		public override void OnPaint( RectView view )
 		{
+			var settings = Session?.Settings?.FastTextureSettings;
+
 			var originalPen = Paint.Pen;
 			Paint.SetPen( Color.White.WithAlpha( 0.8f ), 2 );
 			var transformedPositions = GetRectangleRelativePositions();
@@ -82,6 +84,9 @@ public partial class Document
 					Paint.DrawPolygon( facePoints.ToArray() );
 				}
 			}
+
+			if ( settings != null && settings.ScaleMode == ScaleMode.WorldScale )
+				return;
 
 			DrawIndexedLine( view, HoveredEdge.vertexA, HoveredEdge.vertexB, transformedPositions );
 			DrawIndexedLine( view, AlignEdgeVertexA, AlignEdgeVertexB, transformedPositions, 0.5f );
@@ -189,12 +194,12 @@ public partial class Document
 				ApplyEdgeAlignment( settings.Alignment );
 			}
 
-			ApplyFastTextureTransforms( settings, hasEdgeAlignment );
-			if ( currentMapping == MappingMode.UseExisting )
+			if ( currentMapping != MappingMode.UseExisting )
 			{
-				CalculateUVBounds();
+				ApplyFastTextureTransforms( settings, hasEdgeAlignment );
 			}
-			else if ( !resetBoundsFromUseExisting )
+
+			if ( currentMapping != MappingMode.UseExisting && !resetBoundsFromUseExisting )
 			{
 				Min = previousBounds.Min;
 				Max = previousBounds.Max;
@@ -221,10 +226,21 @@ public partial class Document
 					var rotated = new Vector2( -relative.y, relative.x );
 					UnwrappedVertexPositions[i] = center + rotated;
 				}
+
+				if ( UnwrappedVertexPositionsWorldSpace.Count == UnwrappedVertexPositions.Count )
+				{
+					var worldCenter = GetWorldSpaceMeshCenter();
+					for ( int i = 0; i < UnwrappedVertexPositionsWorldSpace.Count; i++ )
+					{
+						var pos = UnwrappedVertexPositionsWorldSpace[i];
+						var relative = pos - worldCenter;
+						var rotated = new Vector2( -relative.y, relative.x );
+						UnwrappedVertexPositionsWorldSpace[i] = worldCenter + rotated;
+					}
+				}
 			}
 
 			var flipHorizontal = settings.IsFlippedHorizontal;
-			if ( settings.Mapping == MappingMode.UnwrapSquare ) flipHorizontal = !flipHorizontal;
 
 			if ( flipHorizontal )
 			{
@@ -234,6 +250,17 @@ public partial class Document
 					var pos = UnwrappedVertexPositions[i];
 					pos.x = bounds.min.x + bounds.max.x - pos.x;
 					UnwrappedVertexPositions[i] = pos;
+				}
+
+				if ( UnwrappedVertexPositionsWorldSpace.Count == UnwrappedVertexPositions.Count )
+				{
+					var worldBounds = GetWorldSpaceMeshBounds();
+					for ( int i = 0; i < UnwrappedVertexPositionsWorldSpace.Count; i++ )
+					{
+						var pos = UnwrappedVertexPositionsWorldSpace[i];
+						pos.x = worldBounds.min.x + worldBounds.max.x - pos.x;
+						UnwrappedVertexPositionsWorldSpace[i] = pos;
+					}
 				}
 			}
 
@@ -246,7 +273,47 @@ public partial class Document
 					pos.y = bounds.min.y + bounds.max.y - pos.y;
 					UnwrappedVertexPositions[i] = pos;
 				}
+
+				if ( UnwrappedVertexPositionsWorldSpace.Count == UnwrappedVertexPositions.Count )
+				{
+					var worldBounds = GetWorldSpaceMeshBounds();
+					for ( int i = 0; i < UnwrappedVertexPositionsWorldSpace.Count; i++ )
+					{
+						var pos = UnwrappedVertexPositionsWorldSpace[i];
+						pos.y = worldBounds.min.y + worldBounds.max.y - pos.y;
+						UnwrappedVertexPositionsWorldSpace[i] = pos;
+					}
+				}
 			}
+		}
+		private Vector2 GetWorldSpaceMeshCenter()
+		{
+			if ( UnwrappedVertexPositionsWorldSpace.Count == 0 )
+				return Vector2.Zero;
+
+			var sum = Vector2.Zero;
+			foreach ( var pos in UnwrappedVertexPositionsWorldSpace )
+			{
+				sum += pos;
+			}
+			return sum / UnwrappedVertexPositionsWorldSpace.Count;
+		}
+
+		private (Vector2 min, Vector2 max) GetWorldSpaceMeshBounds()
+		{
+			if ( UnwrappedVertexPositionsWorldSpace.Count == 0 )
+				return (Vector2.Zero, Vector2.Zero);
+
+			var min = UnwrappedVertexPositionsWorldSpace[0];
+			var max = UnwrappedVertexPositionsWorldSpace[0];
+
+			foreach ( var pos in UnwrappedVertexPositionsWorldSpace )
+			{
+				min = Vector2.Min( min, pos );
+				max = Vector2.Max( max, pos );
+			}
+
+			return (min, max);
 		}
 
 		private Vector2 GetUnwrappedMeshCenter()
@@ -402,7 +469,28 @@ public partial class Document
 				FaceVertexIndices.Add( faceIndices );
 			}
 
+			OffsetUVsToVisibleRange();
 			CalculateUVBounds();
+		}
+		private void OffsetUVsToVisibleRange()
+		{
+			if ( UnwrappedVertexPositions.Count == 0 )
+				return;
+
+			Vector2 sum = Vector2.Zero;
+			foreach ( var pos in UnwrappedVertexPositions )
+				sum += pos;
+			Vector2 center = sum / UnwrappedVertexPositions.Count;
+
+			Vector2 offset = Vector2.Zero;
+			offset.x = center.x >= 0 ? -(int)(center.x) : -(int)(center.x - 1);
+			offset.y = center.y >= 0 ? -(int)(center.y) : -(int)(center.y - 1);
+
+			for ( int i = 0; i < UnwrappedVertexPositions.Count; i++ )
+				UnwrappedVertexPositions[i] += offset;
+
+			Min += offset;
+			Max += offset;
 		}
 
 		private void BuildUnwrappedMeshWithPlanarMapping( Vector3 cameraLeft, Vector3 cameraUp )
@@ -803,6 +891,16 @@ public partial class Document
 			{
 				var toVertex = UnwrappedVertexPositions[i] - uvA;
 				UnwrappedVertexPositions[i] = new Vector2( axisU.Dot( toVertex ), axisV.Dot( toVertex ) );
+			}
+
+			if ( UnwrappedVertexPositionsWorldSpace.Count == UnwrappedVertexPositions.Count )
+			{
+				var worldUvA = UnwrappedVertexPositionsWorldSpace[AlignEdgeVertexA];
+				for ( int i = 0; i < UnwrappedVertexPositionsWorldSpace.Count; i++ )
+				{
+					var toVertex = UnwrappedVertexPositionsWorldSpace[i] - worldUvA;
+					UnwrappedVertexPositionsWorldSpace[i] = new Vector2( axisU.Dot( toVertex ), axisV.Dot( toVertex ) );
+				}
 			}
 		}
 	}

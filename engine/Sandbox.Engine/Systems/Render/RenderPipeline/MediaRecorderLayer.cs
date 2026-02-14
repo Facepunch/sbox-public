@@ -62,8 +62,8 @@ internal class MediaRecorderOverlayLayer : ProceduralRenderLayer
 		var width = Graphics.Viewport.Width;
 		var height = Graphics.Viewport.Height;
 
-		const float rectSize = 8f;
-		var color = new Color( 255, 0, 0, 60 );
+		const float rectSize = 4f;
+		var color = new Color( 255, 0, 0, 10 );
 
 		// Draw top border
 		Graphics.DrawRoundedRectangle( new Rect( 0, 0, width, rectSize ), color );

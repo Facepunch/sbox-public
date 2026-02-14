@@ -23,14 +23,35 @@ partial class TextureTool
 		public bool HotspotTiling { get; set; } = false;
 		public bool HotspotConforming { get; set; } = true;
 
+		public bool SelectByMaterial { get; set; } = false;
+		public bool SelectByNormal { get; set; } = true;
+		[Range( 0.1f, 90f, slider: false ), Step( 1 ), Title( "Normal Threshold" )]
+		public float NormalThreshold { get; set; } = 12.0f;
+
 		public FaceSelectionWidget( SerializedObject so, MeshTool tool ) : base()
 		{
 			AddTitle( "Texture Mode", "gradient" );
+
+			_meshTool = tool;
+			_faces = [.. so.Targets.OfType<MeshFace>()];
+
+			_faceGroups = _faces.GroupBy( x => x.Component ).ToList();
+			_components = _faceGroups.Select( x => x.Key ).ToList();
 
 			HotspotTiling = EditorCookie.Get( nameof( HotspotTiling ), HotspotTiling );
 			HotspotConforming = EditorCookie.Get( nameof( HotspotConforming ), HotspotConforming );
 			TextureFit = EditorCookie.Get( nameof( TextureFit ), TextureFit );
 			TextureTreatAsOne = EditorCookie.Get( nameof( TextureTreatAsOne ), TextureTreatAsOne );
+			SelectByMaterial = EditorCookie.Get( "FaceTool.SelectByMaterial", false );
+			SelectByNormal = EditorCookie.Get( "FaceTool.SelectByNormal", true );
+			NormalThreshold = EditorCookie.Get( "FaceTool.NormalThreshold", 12.0f );
+
+			if ( _meshTool.CurrentTool is TextureTool tt )
+			{
+				tt.SelectByMaterial = SelectByMaterial;
+				tt.SelectByNormal = SelectByNormal;
+				tt.NormalThreshold = NormalThreshold;
+			}
 
 			var target = this.GetSerialized();
 			target.OnPropertyChanged = ( e ) =>
@@ -39,13 +60,11 @@ partial class TextureTool
 				EditorCookie.Set( nameof( HotspotConforming ), HotspotConforming );
 				EditorCookie.Set( nameof( TextureFit ), TextureFit );
 				EditorCookie.Set( nameof( TextureTreatAsOne ), TextureTreatAsOne );
+
+				EditorCookie.Set( "FaceTool.SelectByMaterial", SelectByMaterial );
+				EditorCookie.Set( "FaceTool.SelectByNormal", SelectByNormal );
+				EditorCookie.Set( "FaceTool.NormalThreshold", NormalThreshold );
 			};
-
-			_meshTool = tool;
-			_faces = [.. so.Targets.OfType<MeshFace>()];
-
-			_faceGroups = _faces.GroupBy( x => x.Component ).ToList();
-			_components = _faceGroups.Select( x => x.Key ).ToList();
 
 			bool hasSelectedFaces = _faces.Length > 0;
 
@@ -164,6 +183,41 @@ partial class TextureTool
 			}
 
 			Layout.AddStretchCell();
+
+			{
+				var group = AddGroup( "Filtered Selection [Alt + Double Click]" );
+				var normalRow = Layout.Row();
+				normalRow.Spacing = 4;
+
+				var materialRow = Layout.Row();
+				materialRow.Spacing = 4;
+
+				var useMaterial = ControlWidget.Create( target.GetProperty( nameof( SelectByMaterial ) ) );
+				useMaterial.FixedHeight = Theme.ControlHeight;
+
+				var materialLabel = new Label { Text = "Use Material" };
+
+				materialRow.Add( useMaterial );
+				materialRow.Add( materialLabel );
+				materialRow.AddStretchCell();
+
+				group.Add( materialRow );
+
+				var useNormal = ControlWidget.Create( target.GetProperty( nameof( SelectByNormal ) ) );
+				useNormal.FixedHeight = Theme.ControlHeight;
+
+				var normalLabel = new Label { Text = "Use Normal" };
+				var normalControl = ControlWidget.Create( target.GetProperty( nameof( NormalThreshold ) ) );
+				normalControl.FixedHeight = Theme.ControlHeight;
+				normalControl.FixedWidth = 72;
+
+				normalRow.Add( useNormal );
+				normalRow.Add( normalLabel );
+				normalRow.AddStretchCell();
+				normalRow.Add( normalControl );
+
+				group.Add( normalRow );
+			}
 		}
 
 		[Shortcut( "mesh.fast-texture-tool", "CTRL+G", typeof( SceneViewWidget ) )]
@@ -266,6 +320,143 @@ partial class TextureTool
 					ComputeHotspotUVsForFaces( mesh, group.Key.WorldTransform, faces, data, (int)size.x, (int)size.y, perFace, HotspotTiling, HotspotConforming );
 				}
 			}
+		}
+
+		[Shortcut( "mesh.grow-selection", "KP_ADD", typeof( SceneViewWidget ) )]
+		private void GrowSelection()
+		{
+			if ( _faces.Length == 0 ) return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Grow Selection" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				var newFaces = new HashSet<MeshFace>();
+
+				foreach ( var face in _faces )
+				{
+					if ( !face.IsValid() )
+						continue;
+
+					newFaces.Add( face );
+				}
+
+				foreach ( var face in _faces )
+				{
+					if ( !face.IsValid() )
+						continue;
+
+					var mesh = face.Component.Mesh;
+					var edges = mesh.GetFaceEdges( face.Handle );
+
+					foreach ( var edge in edges )
+					{
+						mesh.GetFacesConnectedToEdge( edge, out var faceA, out var faceB );
+
+						if ( faceA.IsValid && faceA != face.Handle )
+							newFaces.Add( new MeshFace( face.Component, faceA ) );
+
+						if ( faceB.IsValid && faceB != face.Handle )
+							newFaces.Add( new MeshFace( face.Component, faceB ) );
+					}
+				}
+
+				selection.Clear();
+				foreach ( var face in newFaces )
+				{
+					if ( face.IsValid() )
+						selection.Add( face );
+				}
+			}
+		}
+
+		[Shortcut( "mesh.shrink-selection", "KP_MINUS", typeof( SceneViewWidget ) )]
+		private void ShrinkSelection()
+		{
+			if ( _faces.Length == 0 ) return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Shrink Selection" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				var facesToKeep = new HashSet<MeshFace>();
+
+				foreach ( var face in _faces )
+				{
+					if ( !face.IsValid() )
+						continue;
+
+					var mesh = face.Component.Mesh;
+					var edges = mesh.GetFaceEdges( face.Handle );
+					bool isInterior = true;
+
+					foreach ( var edge in edges )
+					{
+						mesh.GetFacesConnectedToEdge( edge, out var faceA, out var faceB );
+
+						var otherFace = faceA == face.Handle ? faceB : faceA;
+
+						if ( !otherFace.IsValid )
+						{
+							isInterior = false;
+							break;
+						}
+
+						var otherMeshFace = new MeshFace( face.Component, otherFace );
+						if ( !_faces.Contains( otherMeshFace ) )
+						{
+							isInterior = false;
+							break;
+						}
+					}
+
+					if ( isInterior )
+					{
+						facesToKeep.Add( face );
+					}
+				}
+
+				selection.Clear();
+				foreach ( var face in facesToKeep )
+				{
+					if ( face.IsValid() )
+						selection.Add( face );
+				}
+			}
+		}
+
+		[Shortcut( "mesh.frame-selection", "SHIFT+A", typeof( SceneViewWidget ) )]
+		private void FrameSelection()
+		{
+			if ( _faces.Length == 0 )
+				return;
+
+			var points = new List<Vector3>();
+
+			foreach ( var group in _faces.GroupBy( f => f.Component ) )
+			{
+				var component = group.Key;
+				var mesh = component.Mesh;
+
+				foreach ( var face in group )
+				{
+					mesh.GetVerticesConnectedToFace(
+						face.Handle,
+						out var vertices
+					);
+
+					foreach ( var v in vertices )
+						points.Add( new MeshVertex( component, v ).PositionWorld );
+				}
+			}
+
+			SelectionFrameUtil.FramePoints( points );
 		}
 
 		private void AlignToGrid()

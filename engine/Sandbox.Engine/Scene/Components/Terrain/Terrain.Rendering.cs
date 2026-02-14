@@ -98,6 +98,7 @@ public partial class Terrain
 		// We want these accessible globally too, probably
 		Scene.RenderAttributes.Set( "Terrain", TerrainBuffer );
 		Scene.RenderAttributes.Set( "TerrainMaterials", MaterialsBuffer );
+		Scene.RenderAttributes.Set( "TerrainCount", 1 );
 
 		_clipMapLodLevels = ClipMapLodLevels;
 		_clipMapLodExtentTexels = ClipMapLodExtentTexels;
@@ -168,7 +169,7 @@ public partial class Terrain
 	}
 
 	/// <summary>
-	/// Upload the Terrain buffer, this should be called when materials are added, removed or modified.
+	/// Upload the Materials buffer, this should be called when materials are added, removed or modified.
 	/// </summary>
 	public unsafe void UpdateMaterialsBuffer()
 	{

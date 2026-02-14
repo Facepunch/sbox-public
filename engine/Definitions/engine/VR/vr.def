@@ -3,7 +3,6 @@
 managed static class Sandbox.VR.VRSystem
 {
 	bool InternalIsActive();
-	bool InternalWantsInit();
 
 	void BeginFrame();
 	void EndFrame();
@@ -11,6 +10,4 @@ managed static class Sandbox.VR.VRSystem
 
 	string GetVulkanInstanceExtensionsRequired();
 	string GetVulkanDeviceExtensionsRequired();
-
-	void RenderOverlays();
 }

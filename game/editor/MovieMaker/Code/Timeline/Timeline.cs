@@ -262,7 +262,12 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 			if ( e.ButtonState == MouseButtons.Left && IsDragging )
 			{
-				Drag( ToScene( e.LocalPosition ) );
+				Drag( scenePos );
+
+				// Scrub if we're dragging off the left / right edge of the timeline
+
+				ScrubBarTop.Scrub( scenePos, movePlayhead: false );
+
 				e.Accepted = true;
 				return;
 			}
@@ -280,7 +285,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 			if ( e.ButtonState == MouseButtons.Right )
 			{
-				ScrubBarTop.Scrub( e.KeyboardModifiers, scenePos );
+				ScrubBarTop.Scrub( scenePos, movePlayhead: true );
 			}
 
 			Session.EditMode?.MouseMove( e );

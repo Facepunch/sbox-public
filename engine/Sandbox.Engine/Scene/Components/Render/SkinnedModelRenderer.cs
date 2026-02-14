@@ -138,7 +138,7 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 	/// </summary>
 	bool HasBonePhysics()
 	{
-		return Model.IsValid() && Model.Physics is { Parts.Count: > 0, Joints.Count: > 0 };
+		return !Scene.IsEditor && Model.IsValid() && Model.Physics is { Parts.Count: > 0, Joints.Count: > 0 };
 	}
 
 	private void AddBoneMergeChild( SkinnedModelRenderer newChild )
@@ -208,10 +208,10 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 		}
 
 		_skinnedParent?._skinnedChildren.Remove( this );
+		_skinnedParent = potentialNewParent;
 
 		if ( potentialNewParent != null )
 		{
-			_skinnedParent = potentialNewParent;
 			_skinnedParent._skinnedChildren.Add( this );
 		}
 	}
@@ -253,7 +253,9 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 
 	protected override void OnDisabled()
 	{
-		UpdateSkinnedRendererParent();
+		_skinnedParent?._skinnedChildren.Remove( this ); // no need to run full update
+		_skinnedParent = null;
+
 		Scene.GetSystem<SceneAnimationSystem>().RemoveRenderer( this );
 	}
 

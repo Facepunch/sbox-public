@@ -52,6 +52,8 @@ partial class EdgeTool
 				CreateButton( "Connect", "link", "mesh.connect", Connect, CanConnect(), row.Layout );
 				CreateButton( "Extend", "call_made", "mesh.extend", Extend, CanExtend(), row.Layout );
 
+				row.Layout.AddStretchCell();
+
 				group.Add( row );
 			}
 
@@ -823,6 +825,180 @@ partial class EdgeTool
 			var tool = new EdgeArchTool( edgeGroups.ToArray() );
 			tool.Manager = _tool.Manager;
 			_tool.CurrentTool = tool;
+		}
+
+		[Shortcut( "mesh.grow-selection", "KP_ADD", typeof( SceneViewWidget ) )]
+		private void GrowSelection()
+		{
+			if ( _edges.Length == 0 ) return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Grow Selection" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				var newEdges = new HashSet<MeshEdge>();
+
+				foreach ( var edge in _edges )
+				{
+					if ( !edge.IsValid() )
+						continue;
+
+					newEdges.Add( edge );
+				}
+
+				foreach ( var edge in _edges )
+				{
+					if ( !edge.IsValid() )
+						continue;
+
+					var mesh = edge.Component.Mesh;
+
+					mesh.GetEdgeVertices( edge.Handle, out var vertexA, out var vertexB );
+
+					mesh.GetEdgesConnectedToVertex( vertexA, out var edgesA );
+					mesh.GetEdgesConnectedToVertex( vertexB, out var edgesB );
+
+					foreach ( var adjacentEdge in edgesA.Concat( edgesB ) )
+					{
+						if ( adjacentEdge.IsValid )
+							newEdges.Add( new MeshEdge( edge.Component, adjacentEdge ) );
+					}
+				}
+
+				selection.Clear();
+				foreach ( var edge in newEdges )
+				{
+					if ( edge.IsValid() )
+						selection.Add( edge );
+				}
+			}
+		}
+
+		[Shortcut( "mesh.shrink-selection", "KP_MINUS", typeof( SceneViewWidget ) )]
+		private void ShrinkSelection()
+		{
+			if ( _edges.Length == 0 ) return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Shrink Selection" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				var edgesToKeep = new HashSet<MeshEdge>();
+
+				foreach ( var edge in _edges )
+				{
+					if ( !edge.IsValid() )
+						continue;
+
+					var mesh = edge.Component.Mesh;
+					mesh.GetEdgeVertices( edge.Handle, out var vertexA, out var vertexB );
+
+					mesh.GetEdgesConnectedToVertex( vertexA, out var edgesA );
+					bool allEdgesASelected = edgesA.All( e =>
+						_edges.Any( selectedEdge => selectedEdge.Component == edge.Component && selectedEdge.Handle == e )
+					);
+
+					mesh.GetEdgesConnectedToVertex( vertexB, out var edgesB );
+					bool allEdgesBSelected = edgesB.All( e =>
+						_edges.Any( selectedEdge => selectedEdge.Component == edge.Component && selectedEdge.Handle == e )
+					);
+
+					if ( allEdgesASelected && allEdgesBSelected )
+					{
+						edgesToKeep.Add( edge );
+					}
+				}
+
+				selection.Clear();
+				foreach ( var edge in edgesToKeep )
+				{
+					if ( edge.IsValid() )
+						selection.Add( edge );
+				}
+			}
+		}
+
+		[Shortcut( "mesh.snap-to-grid", "CTRL+B", typeof( SceneViewWidget ) )]
+		private void SnapToGrid()
+		{
+			if ( _edges.Length == 0 )
+				return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			var grid = EditorScene.GizmoSettings.GridSpacing;
+			if ( grid <= 0 )
+				return;
+
+			using ( SceneEditorSession.Active.UndoScope( "Snap Edges To Grid" )
+				.WithComponentChanges( _components )
+				.Push() )
+			{
+				foreach ( var group in _edges.GroupBy( e => e.Component ) )
+				{
+					var component = group.Key;
+					var mesh = component.Mesh;
+
+					var uniqueVertices = new HashSet<VertexHandle>();
+
+					foreach ( var edge in group )
+					{
+						mesh.GetVerticesConnectedToEdge(
+							edge.Handle,
+							out var hA,
+							out var hB
+						);
+
+						uniqueVertices.Add( hA );
+						uniqueVertices.Add( hB );
+					}
+
+					foreach ( var hVertex in uniqueVertices )
+					{
+						var world = new MeshVertex( component, hVertex ).PositionWorld;
+
+						world = new Vector3(
+							MathF.Round( world.x / grid ) * grid,
+							MathF.Round( world.y / grid ) * grid,
+							MathF.Round( world.z / grid ) * grid
+						);
+
+						var local = component.WorldTransform.PointToLocal( world );
+						mesh.SetVertexPosition( hVertex, local );
+					}
+				}
+			}
+		}
+
+		[Shortcut( "mesh.frame-selection", "SHIFT+A", typeof( SceneViewWidget ) )]
+		private void FrameSelection()
+		{
+			if ( _edges.Length == 0 )
+				return;
+
+			var points = new List<Vector3>();
+
+			foreach ( var edge in _edges )
+			{
+				var mesh = edge.Component.Mesh;
+
+				mesh.GetVerticesConnectedToEdge(
+					edge.Handle,
+					out var hA,
+					out var hB
+				);
+
+				points.Add( new MeshVertex( edge.Component, hA ).PositionWorld );
+				points.Add( new MeshVertex( edge.Component, hB ).PositionWorld );
+			}
+
+			SelectionFrameUtil.FramePoints( points );
 		}
 	}
 }

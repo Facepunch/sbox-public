@@ -39,6 +39,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		AddHandler<ObjectRefreshDescendantMsg>( OnObjectRefreshDescendant );
 		AddHandler<ObjectRefreshMsgAck>( OnObjectRefreshAck );
 		AddHandler<ObjectDestroyMsg>( OnObjectDestroy );
+		AddHandler<ObjectDetachMsg>( OnObjectDetach );
 		AddHandler<ObjectRpcMsg>( OnObjectMessage );
 		AddHandler<ObjectNetworkTableMsg>( OnNetworkTableChanges );
 		AddHandler<SceneNetworkTableMsg>( OnNetworkTableChanges );
@@ -200,6 +201,21 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		}
 
 		Broadcast( networkObject.GetCreateMessage() );
+	}
+
+	/// <summary>
+	/// Broadcast the detachment of a networked object.
+	/// </summary>
+	/// <param name="networkObject"></param>
+	internal void NetworkDetachBroadcast( NetworkObject networkObject )
+	{
+		var msg = new ObjectDetachMsg
+		{
+			Mode = networkObject.GameObject.NetworkMode,
+			Guid = networkObject.GameObject.Id
+		};
+
+		Broadcast( msg );
 	}
 
 	/// <summary>
@@ -531,8 +547,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		Game.ActiveScene.UpdateTimeFromHost( msg.Time );
 
 		{
-			using var batchGroup = CallbackBatch.Batch();
 			using var blobs = BlobDataSerializer.LoadFromMemory( msg.BlobData );
+			using var batchGroup = CallbackBatch.Batch();
 
 			if ( !string.IsNullOrWhiteSpace( msg.SceneData ) )
 			{
@@ -561,8 +577,10 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		foreach ( var s in msg.GameObjectSystems )
 		{
 			var type = Game.TypeLibrary.GetTypeByIdent( s.Type );
-			var system = Game.ActiveScene.GetSystemByType( type );
+			if ( type is null )
+				continue;
 
+			var system = Game.ActiveScene.GetSystemByType( type );
 			if ( system is null )
 				continue;
 
@@ -740,7 +758,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 			foreach ( var no in scene.networkedObjects )
 			{
-				no.ClearConnections();
+				no.OnHostChanged( previousHost, newHost );
 			}
 		}
 
@@ -1114,6 +1132,35 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		obj._net.OnNetworkTableMessage( message );
 	}
 
+	private void OnObjectDetach( ObjectDetachMsg message, Connection source, Guid msgId )
+	{
+		NetworkDebugSystem.Current?.Track( "OnObjectDetach", message );
+
+		var scene = Game.ActiveScene;
+		if ( !scene.IsValid() )
+			return;
+
+		var obj = scene.Directory.FindByGuid( message.Guid );
+		if ( obj is null )
+			return;
+
+		if ( obj._net is null )
+		{
+			// We can't just destroy arbitrary game objects.
+			Log.Warning( $"OnObjectDetach: Object {obj} is not networked" );
+			return;
+		}
+
+		if ( !source.IsHost )
+		{
+			Log.Warning( $"OnObjectDetach: Only the host can detach networked objects. {source.DisplayName} attempted to detach {obj.Name}." );
+			return;
+		}
+
+		obj.DetachFromNetwork();
+		obj.NetworkMode = message.Mode;
+	}
+
 	private void OnObjectDestroy( ObjectDestroyMsg message, Connection source, Guid msgId )
 	{
 		NetworkDebugSystem.Current?.Track( "OnObjectDestroy", message );
@@ -1379,6 +1426,13 @@ struct SceneNetworkTableMsg
 {
 	public Guid Guid { get; set; }
 	public byte[] TableData { get; set; }
+}
+
+[Expose]
+struct ObjectDetachMsg
+{
+	public NetworkMode Mode { get; set; }
+	public Guid Guid { get; set; }
 }
 
 [Expose]

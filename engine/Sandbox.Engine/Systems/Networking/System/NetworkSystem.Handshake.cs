@@ -132,7 +132,7 @@ internal partial class NetworkSystem
 			return Task.CompletedTask;
 
 		//
-		// Lobbies and steam network connections are trusted so we can take the display name and Steam Id from them
+		// Lobbies and steam network connections are trusted, so we can take the display name and Steam Id from them,
 		// we shouldn't trust any other type of connection... but local TCP we can let slide.
 		//
 		if ( source is SteamLobbyConnection slob )
@@ -194,8 +194,8 @@ internal partial class NetworkSystem
 		msg.DisplayName = displayName;
 
 		//
-		// Add player info to the manager. This will get sent to all the other players
-		// so this player is part of the game now.
+		// Add player info to the manager. This will get sent to all the other players, so this
+		// player is part of the game now.
 		//
 		{
 			AddConnection( source, msg );
