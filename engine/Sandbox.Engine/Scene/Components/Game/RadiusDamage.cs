@@ -29,12 +29,29 @@ public sealed class RadiusDamage : Component
 	/// </summary>
 	[Property]
 	public bool Occlusion { get; set; } = true;
+	
+	/// <summary>
+	/// Define extra tags for colliders that shield from damage.
+	/// "map" tagged colliders always shield from damage if Occlusion is true
+	/// </summary>
+	[Property] public TagSet ExtraOccludingTags { get; set; } = new TagSet();
+	
+	/// <summary>
+	/// Define extra tags for colliders that doesn't shield from damage.
+	/// "trigger", "gib", "debris", "player" tagged colliders never shield from damage
+	/// </summary>
+	[Property] public TagSet ExtraNotOccludingTags { get; set; } = new TagSet();
 
 	/// <summary>
 	/// The amount of damage inflicted
 	/// </summary>
 	[Property]
 	public float DamageAmount { get; set; } = 100;
+	
+	/// <summary>
+	/// Damage falloff over distance
+	/// </summary>
+	[Property] public Curve DamageFalloff { get; set; } = new Curve( new Curve.Frame( 1.0f, 1.0f ), new Curve.Frame( 0.0f, 0.0f ) );
 
 	/// <summary>
 	/// Tags to apply to the damage
@@ -72,6 +89,11 @@ public sealed class RadiusDamage : Component
 	public void Apply()
 	{
 		var sphere = new Sphere( WorldPosition, Radius );
+		
+		if ( DamageFalloff.Frames.IsEmpty )
+		{
+			DamageFalloff = new Curve( new Curve.Frame( 1.0f, 1.0f ), new Curve.Frame( 0.0f, 0.0f ) );
+		}
 
 		var dmg = new DamageInfo();
 		dmg.Weapon = GameObject;
@@ -79,10 +101,16 @@ public sealed class RadiusDamage : Component
 		dmg.Tags.Add( DamageTags );
 		dmg.Attacker = Attacker;
 
-		ApplyDamage( sphere, dmg, PhysicsForceScale );
+		ApplyDamage( sphere, dmg, DamageFalloff, PhysicsForceScale, Occlusion, ExtraOccludingTags, ExtraNotOccludingTags );
 	}
 
-	public static void ApplyDamage( Sphere sphere, DamageInfo damage, float physicsForce = 1, GameObject ignore = null )
+	public static void ApplyDamage( Sphere sphere, DamageInfo damage, Curve damageFalloff, float physicsForce = 1,
+		bool occlusion = true, GameObject ignore = null )
+	{
+		ApplyDamage(sphere, damage, damageFalloff, physicsForce, occlusion, null, null, ignore);
+	}
+	
+	public static void ApplyDamage( Sphere sphere, DamageInfo damage, Curve damageFalloff, float physicsForce = 1, bool occlusion = true, TagSet extraOccludingTags = null, TagSet extraNotOccludingTags = null, GameObject ignore = null )
 	{
 		var scene = Game.ActiveScene;
 		if ( !scene.IsValid() ) return;
@@ -91,7 +119,9 @@ public sealed class RadiusDamage : Component
 		var damageAmount = damage.Damage;
 		var objectsInArea = scene.FindInPhysics( sphere );
 
-		var losTrace = scene.Trace.WithTag( "map" ).WithoutTags( "trigger", "gib", "debris", "player" );
+		var occludingTags = extraOccludingTags ?? new TagSet();
+		occludingTags.Add( "map" );
+		var losTrace = scene.Trace.WithAnyTags(occludingTags).WithoutTags( "trigger", "gib", "debris", "player" ).WithoutTags(extraNotOccludingTags);
 
 		foreach ( var rb in objectsInArea.SelectMany( x => x.GetComponents<Rigidbody>() ).Distinct() )
 		{
@@ -101,19 +131,22 @@ public sealed class RadiusDamage : Component
 			if ( ignore.IsValid() && ignore.IsDescendant( rb.GameObject ) )
 				continue;
 
-			// If the object isn't in line of sight, fuck it off
-			var tr = losTrace.Ray( point, rb.WorldPosition ).Run();
-			if ( tr.Hit && tr.GameObject.IsValid() )
+			if ( occlusion )
 			{
-				if ( !rb.GameObject.Root.IsDescendant( tr.GameObject ) )
-					continue;
+				// If the object isn't in line of sight, fuck it off
+				var tr = losTrace.Ray( point, rb.WorldPosition + rb.MassCenter ).Run();
+				if ( tr.Hit && tr.GameObject.IsValid() )
+				{
+					if ( !rb.GameObject.Root.IsDescendant( tr.GameObject ) )
+						continue;
+				}
 			}
 
 			var dir = (rb.WorldPosition - point).Normal;
 			var distance = rb.WorldPosition.Distance( sphere.Center );
 
 			var forceMagnitude = Math.Clamp( 10000000000f / (distance * distance + 1), 0, 10000000000f );
-			forceMagnitude += physicsForce * (1 - (distance / sphere.Radius));
+			forceMagnitude += physicsForce * (1 - (damageFalloff.Evaluate( distance / sphere.Radius )));
 
 			rb.ApplyForceAt( point, dir * forceMagnitude );
 		}
@@ -127,19 +160,20 @@ public sealed class RadiusDamage : Component
 			if ( ignore.IsValid() && ignore.IsDescendant( target.GameObject ) )
 				continue;
 
-			// If the object isn't in line of sight, fuck it off
 			var tr = losTrace.Ray( point, target.WorldPosition ).Run();
-			if ( tr.Hit && tr.GameObject.IsValid() )
+			if ( occlusion )
 			{
-				if ( !target.GameObject.Root.IsDescendant( tr.GameObject ) )
-					continue;
+				// If the object isn't in line of sight, fuck it off
+				if ( tr.Hit && tr.GameObject.IsValid() )
+				{
+					if ( !target.GameObject.Root.IsDescendant( tr.GameObject ) )
+						continue;
+				}
 			}
 
 			var distance = target.WorldPosition.Distance( point );
-			var distanceLinear = distance / sphere.Radius;
-			distanceLinear = distanceLinear.Clamp( 0, 1 );
 
-			damage.Damage = damageAmount * distanceLinear;
+			damage.Damage = damageFalloff.Evaluate( distance / sphere.Radius );
 			var direction = (target.WorldPosition - point).Normal;
 			var force = direction * distance * 50f;
 
