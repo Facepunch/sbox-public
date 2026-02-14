@@ -339,7 +339,7 @@ public sealed class ColorSubgraphInputBlackboardParameter : BlackboardSubgraphin
 [Title( "Texture2D" ), Icon( "image" ), Order( 7 )]
 public sealed class Texture2DSubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<TextureInput>
 {
-	[Hide,JsonIgnore]
+	[Hide, JsonIgnore]
 	public override InputType InputType => InputType.Texture2D;
 
 	//[InlineEditor( Label = false ), Group( "Value" )]

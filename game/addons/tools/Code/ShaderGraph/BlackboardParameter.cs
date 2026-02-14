@@ -114,7 +114,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 				if ( !isSubgraph && targetType == typeof( Float4SubgraphInputBlackboardParameter ) ) return false;
 				if ( !isSubgraph && targetType == typeof( ColorSubgraphInputBlackboardParameter ) ) return false;
 				if ( !isSubgraph && targetType == typeof( Texture2DSubgraphInputBlackboardParameter ) ) return false;
-				
+
 			}
 
 			return true;
@@ -174,7 +174,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 					DefaultValue = false,
 					BlackboardParameterIdentifier = parameter.Identifier,
 				};
-			case IntSubgraphInputBlackboardParameter p :
+			case IntSubgraphInputBlackboardParameter p:
 				return new SubgraphInput()
 				{
 					DefaultValue = 0,
@@ -189,7 +189,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 			case Float2SubgraphInputBlackboardParameter p:
 				return new SubgraphInput()
 				{
-					DefaultValue =  Vector2.Zero,
+					DefaultValue = Vector2.Zero,
 					BlackboardParameterIdentifier = parameter.Identifier,
 				};
 			case Float3SubgraphInputBlackboardParameter p:

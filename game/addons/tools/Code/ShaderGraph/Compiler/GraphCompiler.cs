@@ -435,7 +435,7 @@ public sealed partial class GraphCompiler
 				if ( node is SubgraphInput subgraphInput && !string.IsNullOrWhiteSpace( subgraphInput.InputName ) )
 				{
 					var newResult = ResolveSubgraphInput( subgraphInput, ref value, out var error );
-					
+
 					if ( !string.IsNullOrWhiteSpace( error.ErrorString ) )
 					{
 						NodeErrors.Add( error.Node, new List<string> { error.ErrorString } );
@@ -761,7 +761,7 @@ public sealed partial class GraphCompiler
 		}
 
 
-		
+
 		return value;
 	}
 

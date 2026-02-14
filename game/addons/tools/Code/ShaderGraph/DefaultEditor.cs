@@ -137,7 +137,7 @@ internal static class PaintHelper
 	{
 		extraWidth = 0f;
 		rawValue = value;
-		
+
 		if ( rawValue is JsonElement element )
 		{
 			rawValue = DeserializeElement( element, type );

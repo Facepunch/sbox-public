@@ -367,7 +367,7 @@ internal class SubgraphNodeControlWidget : ControlWidget
 
 						return ((TextureInput)val) with { Type = TextureType.Tex2D, ShowGroups = false };
 					}, x => SetDefaultValue( name, x ),
-					[ new InlineEditorAttribute() { Label = false }, new WideModeAttribute() ]
+					[new InlineEditorAttribute() { Label = false }, new WideModeAttribute()]
 				) );
 
 				Sheet.AddGroup( displayName, properties.ToArray() );

@@ -294,7 +294,7 @@ partial class ShaderGraph
 		throw new Exception( "Couldnt convert nameless Parameter node to Constant node" );
 	}
 
-	private SubgraphInput UpgradeSubgraphinput_v2Upgrade( JsonElement element, JsonSerializerOptions options ) 
+	private SubgraphInput UpgradeSubgraphinput_v2Upgrade( JsonElement element, JsonSerializerOptions options )
 	{
 		element.TryGetProperty( "Identifier", out var identifierElement );
 		element.TryGetProperty( "InputName", out var inputNameElement );

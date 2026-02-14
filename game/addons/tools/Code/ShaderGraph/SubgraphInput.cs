@@ -215,7 +215,7 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 
 			// For normal graphs, use ResultParameter to create a material parameter
 			return compiler.ResultParameter( InputName, outputValue, default, default, false, IsRequired, default );
-		}	
+		}
 	};
 
 	private string ProcessTexture2D( GraphCompiler compiler, TextureInput input )
@@ -336,7 +336,7 @@ internal class SubgraphInputNodeControlWidget : ControlWidget
 					var val = getter();
 					if ( val is JsonElement el ) return Vector2.Parse( el.GetString() );
 					return (Vector2)val;
-				}, x => SetDefaultValue(  x )
+				}, x => SetDefaultValue( x )
 			) );
 		}
 		else if ( type == typeof( Vector3 ) )
