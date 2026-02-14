@@ -197,7 +197,7 @@ public sealed class SubgraphNode : ShaderNode, IErroringNode
 			var parameterNode = input.Value.inputNode;
 			var inputName = parameterNode.InputName;
 			if ( string.IsNullOrWhiteSpace( inputName ) ) inputName = input.Key.DisplayInfo.Name;
-			if (  IsSubgraph && plug.Type == typeof( Texture ) && plug.ConnectedOutput is null )
+			if ( IsSubgraph && plug.Type == typeof( Texture ) && plug.ConnectedOutput is null )
 			{
 				errors.Add( $"Required Input \"{inputName}\" is missing on Node \"{Subgraph.Title}\"" );
 			}
