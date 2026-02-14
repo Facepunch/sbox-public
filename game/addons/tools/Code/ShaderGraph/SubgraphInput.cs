@@ -7,6 +7,7 @@ namespace Editor.ShaderGraph;
 /// Defines an input for a subgraph with detailed configuration options
 /// </summary>
 [Title( "Subgraph Input" ), Category( "Subgraph" ), Icon( "input" )]
+[Hide]
 public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, BaseNode.INodeInitialize
 {
 	[Hide]
