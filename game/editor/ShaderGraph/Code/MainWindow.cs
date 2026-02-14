@@ -191,7 +191,7 @@ public class MainWindow : DockWindow
 		}
 	}
 
-	public void OnGraphViewClicked()
+	internal void OnGraphViewClicked()
 	{
 		// Fixes not being able to select the graph in the GraphView when the latest target was a BlackboardParameter.
 		if ( _properties.Target is BlackboardParameter )
