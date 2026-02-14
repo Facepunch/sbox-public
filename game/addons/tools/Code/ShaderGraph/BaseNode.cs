@@ -196,7 +196,7 @@ public abstract class BaseNode : INode
 	{
 		if ( Graph == null )
 		{
-			throw new Exception();
+			throw new Exception( "Graph is null!!!" );
 		}
 
 		var graph = Graph as ShaderGraph;
