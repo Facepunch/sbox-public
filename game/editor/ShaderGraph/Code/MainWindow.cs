@@ -132,6 +132,8 @@ public class MainWindow : DockWindow
 	{
 		if ( selection == null )
 		{
+			_blackboardView.ClearSeletedItem();
+
 			_properties.Target = _graph;
 
 			return;
