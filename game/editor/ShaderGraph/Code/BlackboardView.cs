@@ -309,7 +309,7 @@ public class BlackboardView : Widget
 		Selection.Set( parameter );
 	}
 
-	public void ClearSeletedItem()
+	public void ClearSeletedParameter()
 	{
 		_selectedParameter = null;
 		_treeView.Selection.Clear();

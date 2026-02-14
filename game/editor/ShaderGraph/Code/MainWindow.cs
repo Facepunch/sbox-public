@@ -132,7 +132,7 @@ public class MainWindow : DockWindow
 	{
 		if ( selection == null )
 		{
-			_blackboardView.ClearSeletedItem();
+			_blackboardView.ClearSeletedParameter();
 
 			_properties.Target = _graph;
 
@@ -154,7 +154,7 @@ public class MainWindow : DockWindow
 		{
 			if ( oldTarget is BlackboardParameter )
 			{
-				_blackboardView.ClearSeletedItem();
+				_blackboardView.ClearSeletedParameter();
 			}
 
 			_properties.Target = _graph;
@@ -163,7 +163,7 @@ public class MainWindow : DockWindow
 		{
 			if ( oldTarget is BlackboardParameter )
 			{
-				_blackboardView.ClearSeletedItem();
+				_blackboardView.ClearSeletedParameter();
 			}
 
 			if ( node is IBlackboardNode blackboardNode )
@@ -197,7 +197,7 @@ public class MainWindow : DockWindow
 		if ( _properties.Target is BlackboardParameter )
 		{
 			OnSelected( null );
-			_blackboardView.ClearSeletedItem();
+			_blackboardView.ClearSeletedParameter();
 		}
 	}
 
