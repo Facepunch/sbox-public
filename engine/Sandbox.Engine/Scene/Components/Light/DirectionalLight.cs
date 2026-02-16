@@ -53,18 +53,12 @@ public class DirectionalLight : Light
 
 		Gizmo.Draw.Color = LightColor;
 
-		for ( float f = 0; f < MathF.PI * 2; f += 0.5f )
+		var segments = 12;
+		for ( var i = 0; i < segments; i++ )
 		{
-			var x = MathF.Sin( f );
-			var y = MathF.Cos( f );
-
-			var off = (x * Vector3.Left + y * Vector3.Up) * 5.0f;
-
-			Gizmo.Draw.Line( off, off + fwd * 30 );
+			var angle = MathF.PI * 2 * i / segments;
+			var off = (MathF.Sin( angle ) * Vector3.Left + MathF.Cos( angle ) * Vector3.Up) * 5.0f;
+			Gizmo.Draw.Line( off, off + Vector3.Forward * 30 );
 		}
-
-		//	Gizmo.Transform = Transform.Zero;
-		//	Gizmo.Draw.Sprite( GameObject.Transform.Position, 10, Texture.Load( FileSystem.Mounted, "/editor/directional_light.png" ) );
-
 	}
 }
