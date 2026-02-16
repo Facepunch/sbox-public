@@ -48,9 +48,6 @@ public class DirectionalLight : Light
 	protected override void DrawGizmos()
 	{
 		using var scope = Gizmo.Scope( $"light-{GetHashCode()}" );
-
-		var fwd = Vector3.Forward;
-
 		Gizmo.Draw.Color = LightColor;
 
 		var segments = 12;
