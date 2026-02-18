@@ -185,7 +185,7 @@ public class ShaderGraphView : GraphView
 						var parameter = CreateNewBlackboardParameter( classType );
 						parameter.Name = parameterName;
 
-						CreateNewParameterNode( parameter, clickPos );
+						CreateNewParameterNode( parameter, clickPos, true );
 					},
 					$"Specify a name for the {(isSubgraph ? "subgraph input" : "parameter")}" );
 				} );
@@ -338,7 +338,7 @@ public class ShaderGraphView : GraphView
 				var parameter = CreateNewBlackboardParameter( bpParameterType );
 				parameter.Name = parameterName;
 
-				node = ConvertConstantNodeToParameterNode( parameter, nodePosition );
+				node = CreateNewParameterNode( parameter, nodePosition, false );
 			}
 
 			if ( node != null )
@@ -372,7 +372,7 @@ public class ShaderGraphView : GraphView
 		return (BlackboardParameter)parameter;
 	}
 
-	private BaseNode ConvertConstantNodeToParameterNode( BlackboardParameter parameter, Vector2 position )
+	private BaseNode CreateNewParameterNode( BlackboardParameter parameter, Vector2 position, bool selectNode = false )
 	{
 		var node = BlackboardParameter.InitializeParameterNode( parameter );
 		node.Graph = Graph;
@@ -387,28 +387,11 @@ public class ShaderGraphView : GraphView
 		Add( nodeUI );
 
 		OnNewParameterNodeCreated?.Invoke();
+
+		if ( selectNode )
+			_window.OnSelected( parameter );
 
 		return node;
-	}
-
-	private void CreateNewParameterNode( BlackboardParameter parameter, Vector2 position )
-	{
-		var node = BlackboardParameter.InitializeParameterNode( parameter );
-		node.Graph = Graph;
-		node.Position = position.SnapToGrid( GridSize );
-
-		Graph?.AddNode( node );
-
-		OnNodeCreated( node );
-
-		var nodeUI = node.CreateUI( this );
-
-		Add( nodeUI );
-
-		OnNewParameterNodeCreated?.Invoke();
-
-		_window.OnSelected( parameter );
-
 	}
 
 	private T CreateBlackboardParameter<T>( ShaderGraph graph ) where T : BlackboardParameter
