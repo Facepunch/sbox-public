@@ -117,39 +117,7 @@ public class ShaderGraphView : GraphView
 
 		if ( ev.Data.Object is BlackboardParameter blackboardParameter )
 		{
-			if ( !Graph.IsSubgraph )
-			{
-				string nodeFullName = blackboardParameter switch
-				{
-					BoolBlackboardParameter => DisplayInfo.ForType( typeof( BoolParameter ) ).Fullname,
-					IntBlackboardParameter => DisplayInfo.ForType( typeof( IntParameter ) ).Fullname,
-					FloatBlackboardParameter => DisplayInfo.ForType( typeof( FloatParameter ) ).Fullname,
-					Float2BlackboardParameter => DisplayInfo.ForType( typeof( Float2Parameter ) ).Fullname,
-					Float3BlackboardParameter => DisplayInfo.ForType( typeof( Float3Parameter ) ).Fullname,
-					Float4BlackboardParameter => DisplayInfo.ForType( typeof( Float4Parameter ) ).Fullname,
-					ColorBlackboardParameter => DisplayInfo.ForType( typeof( ColorParameter ) ).Fullname,
-					Texture2DBlackboardParameter => DisplayInfo.ForType( typeof( Texture2DParameter ) ).Fullname,
-					_ => throw new NotImplementedException(),
-				};
-
-				if ( AvailableNodes.TryGetValue( nodeFullName, out var nodeType ) )
-				{
-					var parameterNodeType = new ParameterNodeType( ((ClassNodeType)nodeType).Type, blackboardParameter );
-
-					return parameterNodeType;
-				}
-			}
-			else
-			{
-				var nodeFullName = DisplayInfo.ForType( typeof( SubgraphInput ) ).Fullname;
-
-				if ( AvailableNodes.TryGetValue( nodeFullName, out var nodeType ) )
-				{
-					var subgraphinputNodeType = new SubgraphinputNodeType( ((ClassNodeType)nodeType).Type, blackboardParameter );
-
-					return subgraphinputNodeType;
-				}
-			}
+			return new ParameterNodeType( blackboardParameter );
 		}
 
 		return AvailableNodes.TryGetValue( ev.Data.Text, out var type )
