@@ -372,7 +372,7 @@ public class ShaderGraphView : GraphView
 		return (BlackboardParameter)parameter;
 	}
 
-	private BaseNode CreateNewParameterNode( BlackboardParameter parameter, Vector2 position, bool selectNode = false )
+	private BaseNode CreateNewParameterNode( BlackboardParameter parameter, Vector2 position, bool selectParameter = false )
 	{
 		var node = BlackboardParameter.InitializeParameterNode( parameter );
 		node.Graph = Graph;
@@ -388,7 +388,7 @@ public class ShaderGraphView : GraphView
 
 		OnNewParameterNodeCreated?.Invoke();
 
-		if ( selectNode )
+		if ( selectParameter )
 			_window.OnSelected( parameter );
 
 		return node;
