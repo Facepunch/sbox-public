@@ -78,6 +78,10 @@ public abstract class SelectionTool : EditorTool
 		Scale( origin, basis, scale );
 	}
 
+	public virtual void Shear( Vector3 origin, Rotation basis, Vector3 shearAxis, Vector3 constraintAxis, float amount )
+	{
+	}
+
 	public virtual void Nudge( Vector2 delta )
 	{
 	}
@@ -196,6 +200,21 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 			position *= scale;
 			position *= basis;
 			position += origin;
+
+			var transform = entry.Key.Transform;
+			entry.Key.Component.Mesh.SetVertexPosition( entry.Key.Handle, transform.PointToLocal( position ) );
+		}
+	}
+
+	public override void Shear( Vector3 origin, Rotation basis, Vector3 shearAxis, Vector3 constraintAxis, float amount )
+	{
+		foreach ( var entry in _transformVertices )
+		{
+			var position = (entry.Value - origin) * basis.Inverse;
+			var constraintPosition = Vector3.Dot( position, constraintAxis );
+
+			position += shearAxis * (constraintPosition * amount);
+			position = position * basis + origin;
 
 			var transform = entry.Key.Transform;
 			entry.Key.Component.Mesh.SetVertexPosition( entry.Key.Handle, transform.PointToLocal( position ) );

@@ -280,15 +280,15 @@ internal class UISystem
 
 	void TickWorldInput()
 	{
-		foreach ( var scene in Scene.All )
-		{
-			var rootPanels = scene.GetAllComponents<WorldPanel>();
-			var worldInputs = scene.GetAllComponents<WorldInput>();
+		var scene = Game.ActiveScene;
+		if ( !scene.IsValid() ) return;
 
-			foreach ( var worldInput in worldInputs )
-			{
-				worldInput.WorldPanelInput.Tick( rootPanels.Select( x => x.GetPanel() as RootPanel ), true );
-			}
+		var rootPanels = scene.GetAllComponents<WorldPanel>();
+		var worldInputs = scene.GetAllComponents<WorldInput>();
+
+		foreach ( var worldInput in worldInputs )
+		{
+			worldInput.WorldPanelInput.Tick( rootPanels.Select( x => x.GetPanel() as RootPanel ), true );
 		}
 	}
 

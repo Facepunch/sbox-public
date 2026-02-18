@@ -147,7 +147,7 @@ public partial class SoundFile : Resource, IValid
 
 		Loaded[filename] = soundFile;
 
-		soundFile.SetIdFromResourcePath( filename );
+		soundFile.RegisterWeakResourceId( filename );
 
 		return soundFile;
 	}
@@ -166,7 +166,7 @@ public partial class SoundFile : Resource, IValid
 			var soundFile = new SoundFile( sfx );
 			Loaded[filename] = soundFile;
 
-			soundFile.SetIdFromResourcePath( filename );
+			soundFile.RegisterWeakResourceId( filename );
 
 			g_pSoundSystem.PreloadSound( sfx );
 

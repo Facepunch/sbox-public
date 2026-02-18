@@ -99,7 +99,7 @@ public sealed partial class SoundStream : IHandle, IDisposable
 		if ( table.IsNull )
 			return default;
 
-		return Sound.PlayFile( table, volume, pitch, 0, "Sound Stream" );
+		return Sound.PlayFile( table, volume, pitch, 0, 0.0f, "Sound Stream" );
 	}
 
 	/// <summary>

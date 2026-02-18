@@ -3,33 +3,42 @@
 @using Sandbox.Network
 
 <root>
-
-    @if ( busy)
+    @if ( busy )
     {
         <div class="loading"><i>settings_ethernet</i></div>
     }
-    else if (lobbies.Count == 0)
+    else if ( filteredLobbies.Count == 0 )
     {
         <div class="notice">Sorry - no servers were found 😔</div>
     }
     else
     {
 		<div class="header row">
-			<div class="title">Name</div>
-			<div class="game">Game</div>
-			<div class="map">Map</div>
-			<div class="members">Players</div>
+			<h2 class="title" onclick="@(() => SetSort( "name" ))">Name</h2>
+			<h2 class="game" onclick="@(() => SetSort( "game" ))">Game</h2>
+			<h2 class="map" onclick="@(() => SetSort( "map" ))">Map</h2>
+			<h2 class="members" onclick="@(() => SetSort( "members" ))">Players</h2>
 		</div>
-        @foreach ( LobbyInformation lobby in lobbies.OrderBy(x => -x.Members) )
-        {
-            <ServerRow Server="@lobby"></ServerRow>
-        }
+        <VirtualList Items=@GetData() ItemHeight=@(48)>
+            <Item Context="item">
+                @if ( item is LobbyInformation lobby )
+                {
+                    <ServerRow Server="@lobby"></ServerRow>
+                }
+            </Item>
+        </VirtualList>
     }
 </root>
 
 @code
 {
-    ServerListConfig Config = default;
+    [Parameter]
+    public ServerListConfig Config { get; set; } = default;
+
+    /// <summary>
+    /// Opportunity to filter the shown list of servers
+    /// </summary>
+    [Parameter] public Func<LobbyInformation, bool> Filter { get; set; }
 
     public IEnumerable<Friend> Friends => MenuUtility.Friends.Where( x => !x.IsMe )
         .OrderBy( x => x.Name )
@@ -37,6 +46,52 @@
 
     bool busy;
     List<LobbyInformation> lobbies = new();
+
+    string sortBy;
+    bool sortDescending;
+
+    List<LobbyInformation> filteredLobbies => Filter is not null
+        ? lobbies.Where( Filter ).ToList()
+        : lobbies;
+
+    IEnumerable<object> GetData()
+    {
+        return ApplySort( filteredLobbies ).Cast<object>();
+    }
+
+    IEnumerable<LobbyInformation> ApplySort( IEnumerable<LobbyInformation> source )
+    {
+        if ( sortBy is null )
+            return source.OrderByDescending( x => x.Members );
+
+        Func<LobbyInformation, object> key = sortBy switch
+        {
+            "name" => x => x.Name,
+            "game" => x => x.Game,
+            "map" => x => x.Map,
+            "members" => x => x.Members,
+            _ => x => x.Members
+        };
+
+        return sortDescending
+            ? source.OrderByDescending( key )
+            : source.OrderBy( key );
+    }
+
+    void SetSort( string column )
+    {
+        if ( sortBy == column )
+        {
+            sortDescending = !sortDescending;
+        }
+        else
+        {
+            sortBy = column;
+            sortDescending = false;
+        }
+
+        StateHasChanged();
+    }
 
     protected override async Task OnParametersSetAsync()
     {

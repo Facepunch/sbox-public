@@ -24,6 +24,7 @@ internal sealed class MenuDll : IMenuDll
 	private PackageLoader Loader { get; set; }
 	private PackageLoader.Enroller Enroller { get; set; }
 	private Task AccountUpdateTask { get; set; }
+	private bool SceneDestroyedForGame { get; set; }
 
 	public Scene Scene => MenuScene.Scene;
 
@@ -251,6 +252,46 @@ internal sealed class MenuDll : IMenuDll
 	void LoadResources()
 	{
 		ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
+	}
+
+	public void OnGameEntered()
+	{
+		if ( Application.IsEditor )
+			return;
+
+		// Already destroyed (e.g. switching between games without returning to menu)
+		if ( SceneDestroyedForGame )
+			return;
+
+		using var scope = PushScope();
+
+		// Destroy the entire menu scene to free all resources
+		// (models, textures, lights, cameras, particles, etc.).
+		// The overlay UI (loading screen, pause menu, popups) lives in the
+		// menu's UISystem as RootPanels, not in the scene, so it survives.
+		if ( MenuScene.Scene is not null )
+		{
+			MenuScene.Scene.Destroy();
+			MenuScene.Scene = null;
+		}
+
+		SceneDestroyedForGame = true;
+	}
+
+	public void OnGameExited()
+	{
+		if ( Application.IsEditor )
+			return;
+
+		if ( !SceneDestroyedForGame )
+			return;
+
+		using var scope = PushScope();
+
+		SceneDestroyedForGame = false;
+
+		// Recreate the menu scene from scratch
+		SetupMenuScene();
 	}
 
 	private void SetupMenuScene()

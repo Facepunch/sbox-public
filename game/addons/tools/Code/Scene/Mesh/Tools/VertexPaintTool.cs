@@ -41,6 +41,11 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 
 	[Title( "Selected" )] bool PaintOnSelected { get; set; }
 	bool LimitToActiveMaterial { get; set; }
+	bool PaintBackfacing { get; set; }
+	/// <summary>
+	/// Show indicators for vertices that will be affected by the brush.
+	/// </summary>
+	bool ShowVerts { get; set; } = true;
 
 	[WideMode] PaintMode Mode { get; set; } = PaintMode.Blend;
 	[WideMode, Range( 10, 1000 )] float Radius { get; set; } = 50;
@@ -118,7 +123,19 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 
 	public override void OnUpdate()
 	{
-		var face = MeshTrace.TraceFace( out var hitPosition );
+		if ( PaintOnSelected && Gizmo.IsShiftPressed && Gizmo.WasRightMousePressed )
+		{
+			var addFace = MeshTrace.TraceFace( out _ );
+			if ( addFace.IsValid() && addFace.Component.Mesh.FindHalfEdgesConnectedToFace( addFace.Handle, out var edges ) )
+				AddEdges( edges );
+
+			return;
+		}
+
+		var face = PaintOnSelected
+			? TraceSelectedFace( out var hitPosition )
+			: MeshTrace.TraceFace( out hitPosition );
+
 		if ( !face.IsValid() )
 			return;
 
@@ -133,7 +150,7 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 			else if ( Gizmo.IsCtrlPressed )
 				Strength = (Strength - d.y * 0.002f).Clamp( 0, 1 );
 
-			DrawBrush( _lastHitPos, _lastHitNormal );
+			DrawBrush( _lastHitPos, _lastHitNormal, mesh );
 			return;
 		}
 
@@ -141,12 +158,6 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 
 		_lastHitPos = hitPosition;
 		_lastHitNormal = faceNormal;
-
-		if ( PaintOnSelected )
-		{
-			if ( _selectedFaceVertices.Count == 0 && !_selectedMeshes.Contains( face.Component ) )
-				return;
-		}
 
 		if ( Gizmo.WasLeftMousePressed )
 			BeginStroke( face.Component, hitPosition );
@@ -159,7 +170,7 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 
 		if ( !Gizmo.IsLeftMouseDown )
 		{
-			DrawBrush( hitPosition, faceNormal );
+			DrawBrush( hitPosition, faceNormal, mesh );
 			return;
 		}
 
@@ -169,7 +180,7 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 
 		if ( !Gizmo.WasLeftMousePressed && _distanceSinceLastDrop < DropSpacing )
 		{
-			DrawBrush( hitPosition, faceNormal );
+			DrawBrush( hitPosition, faceNormal, mesh );
 			return;
 		}
 
@@ -190,7 +201,7 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 			if ( (p - hitPosition).LengthSquared > radiusSq )
 				continue;
 
-			if ( faceNormal.Dot( vertexNormal ) <= 0.0f )
+			if ( !PaintBackfacing && faceNormal.Dot( vertexNormal ) <= 0.0f )
 				continue;
 
 			var prev = _prevColors[edge];
@@ -210,7 +221,7 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 			else mesh.SetVertexBlend( edge, new Color( c.x, c.y, c.z, c.w ) );
 		}
 
-		DrawBrush( hitPosition, faceNormal );
+		DrawBrush( hitPosition, faceNormal, mesh );
 	}
 
 	Vector4 GetBrushColor()
@@ -270,7 +281,7 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 		_undoScope = null;
 	}
 
-	void DrawBrush( Vector3 position, Vector3 normal )
+	void DrawBrush( Vector3 position, Vector3 normal, PolygonMesh mesh = null )
 	{
 		using ( Gizmo.Scope( "VertexPaintBrush", position, Rotation.LookAt( normal ) ) )
 		{
@@ -284,6 +295,52 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 			Gizmo.Draw.SolidSphere( Vector3.Forward * length, 2 );
 			Gizmo.Draw.LineCircle( Vector3.Zero, Radius, 32 );
 		}
+
+		if ( ShowVerts && mesh is not null )
+			DrawVertexIndicators( position, normal, mesh );
+	}
+
+	void DrawVertexIndicators( Vector3 brushPosition, Vector3 brushNormal, PolygonMesh mesh )
+	{
+		var indicatorRadius = Radius * 2f;
+		var radiusSq = indicatorRadius * indicatorRadius;
+
+		using ( Gizmo.Scope( "VertexIndicators" ) )
+		{
+			Gizmo.Draw.IgnoreDepth = true;
+
+			foreach ( var edge in mesh.HalfEdgeHandles )
+			{
+				if ( PaintOnSelected && _selectedMeshes.Count == 0 && !_selectedFaceVertices.Contains( edge ) )
+					continue;
+
+				if ( LimitToActiveMaterial && mesh.GetFaceMaterial( edge.Face ) != Tool.ActiveMaterial )
+					continue;
+
+				mesh.GetVertexPosition( edge.Vertex, mesh.Transform, out var p );
+
+				if ( (p - brushPosition).LengthSquared > radiusSq )
+					continue;
+
+				mesh.ComputeFaceNormal( edge.Face, out var vertexNormal );
+				if ( !PaintBackfacing && brushNormal.Dot( vertexNormal ) <= 0.0f )
+					continue;
+
+				var tint = GetVertexIndicatorColor( mesh, edge );
+
+				Gizmo.Draw.Color = tint;
+				Gizmo.Draw.Sprite( p, 8f, null, false );
+			}
+		}
+	}
+
+	Color GetVertexIndicatorColor( PolygonMesh mesh, HalfEdgeHandle edge )
+	{
+		if ( Mode == PaintMode.Color )
+			return mesh.GetVertexColor( edge );
+
+		var blend = mesh.GetVertexBlend( edge );
+		return new Color( blend.r, blend.g, blend.b, 1 );
 	}
 
 	static Vector4 ApplyColorPaint( Vector4 prevColor, Vector4 currentDelta, Vector4 brushColor, Vector4 brushMask, float strength, float falloff )
@@ -297,5 +354,46 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 		desired.w = MathX.LerpTo( current.w, desired.w, brushMask.w );
 
 		return desired - prevColor;
+	}
+
+	MeshFace TraceSelectedFace( out Vector3 hitPosition )
+	{
+		var ray = Gizmo.CurrentRay;
+		var depth = Gizmo.RayDepth;
+
+		for ( int i = 0; i < 32 && depth > 0f; i++ )
+		{
+			var result = MeshTrace.Ray( ray, depth ).Run();
+			if ( !result.Hit )
+				break;
+
+			var advance = result.Distance + 0.01f;
+			ray = new Ray( ray.Project( advance ), ray.Forward );
+			depth -= advance;
+
+			if ( result.Component is not MeshComponent component )
+				continue;
+
+			var face = new MeshFace( component, component.Mesh.TriangleToFace( result.Triangle ) );
+			if ( face.IsValid() && IsFaceSelected( face ) )
+			{
+				hitPosition = result.HitPosition;
+				return face;
+			}
+		}
+
+		hitPosition = default;
+		return default;
+	}
+
+	bool IsFaceSelected( MeshFace face )
+	{
+		if ( _selectedFaceVertices.Count > 0 )
+		{
+			return face.Component.Mesh.FindHalfEdgesConnectedToFace( face.Handle, out var edges )
+				&& edges.Any( e => _selectedFaceVertices.Contains( e ) );
+		}
+
+		return _selectedMeshes.Contains( face.Component );
 	}
 }

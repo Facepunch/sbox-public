@@ -71,14 +71,16 @@ internal class NavMeshTile : IDisposable
 
 	public void SetCachedHeightField( CompactHeightfield chf )
 	{
-		_compressedHeightField = null;
-
 		if ( chf == null )
 		{
+			_compressedHeightField = null;
 			return;
 		}
 
-		_compressedHeightField = Compress( chf );
+		// Atomic swap: compress first, then assign in one step to avoid
+		// a window where concurrent readers see null
+		var compressed = Compress( chf );
+		_compressedHeightField = compressed;
 	}
 
 	internal void SetCompressedHeightField( byte[] compressedData )

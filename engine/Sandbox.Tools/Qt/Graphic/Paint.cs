@@ -620,18 +620,22 @@ namespace Editor
 			}
 		}
 
-		public static void Draw( Rect r, Pixmap pixmap, float alpha = 1.0f )
+		public static void Draw( Rect r, Pixmap pixmap, float alpha = 1.0f, float borderRadius = 0 )
 		{
 			var src = new Rect( 0, 0, pixmap.Width, pixmap.Height );
-			Current.drawPixmap( r, pixmap.ptr, src, alpha );
+
+			if ( borderRadius > 0 )
+				Current.drawRoundedPixmap( r, pixmap.ptr, src, alpha, borderRadius );
+			else
+				Current.drawPixmap( r, pixmap.ptr, src, alpha );
 		}
 
-		public static void Draw( Rect r, string image, float alpha = 1.0f )
+		public static void Draw( Rect r, string image, float alpha = 1.0f, float borderRadius = 0 )
 		{
 			// find the image, and resize it to this size to make it nice
 			var pixmap = LoadImage( image, (int)(r.Size.x * _dpiScale), (int)(r.Size.y * _dpiScale) );
 
-			Draw( r, pixmap, alpha );
+			Draw( r, pixmap, alpha, borderRadius );
 		}
 
 		public static IDisposable ToPixmap( Pixmap pixmap )

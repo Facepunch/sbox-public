@@ -2,27 +2,26 @@
 namespace Editor.MeshEditor;
 
 /// <summary>
-/// Select and edit mesh objects.
+/// Select and edit objects.
 /// </summary>
-[Title( "Mesh Selection" )]
+[Title( "Object Selection" )]
 [Icon( "layers" )]
-[Alias( "tools.mesh-selection" )]
+[Alias( "tools.object-selection" )]
 [Group( "5" )]
-public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
+public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 {
 	public MeshTool Tool { get; private init; } = tool;
 
-	readonly Dictionary<MeshComponent, Transform> _startPoints = [];
+	readonly Dictionary<GameObject, Transform> _startPoints = [];
 	readonly Dictionary<MeshVertex, Vector3> _transformVertices = [];
 	IDisposable _undoScope;
 
 	MeshComponent[] _meshes = [];
+	GameObject[] _objects = [];
 
 	protected override void OnStartDrag()
 	{
 		if ( _startPoints.Count > 0 ) return;
-		if ( _meshes.Length == 0 ) return;
-		if ( _meshes.Any( x => !x.IsValid() ) ) return;
 
 		if ( Gizmo.IsShiftPressed )
 		{
@@ -37,15 +36,18 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 		else
 		{
 			_undoScope ??= SceneEditorSession.Active.UndoScope( "Transform Object(s)" )
-				.WithGameObjectChanges( _meshes.Select( x => x.GameObject ), GameObjectUndoFlags.Properties )
+				.WithGameObjectChanges( _objects, GameObjectUndoFlags.Properties )
 				.WithComponentChanges( _meshes )
 				.Push();
 		}
 
+		foreach ( var go in _objects )
+		{
+			_startPoints[go] = go.WorldTransform;
+		}
+
 		foreach ( var mesh in _meshes )
 		{
-			_startPoints[mesh] = mesh.WorldTransform;
-
 			foreach ( var vertex in mesh.Mesh.VertexHandles )
 			{
 				var v = new MeshVertex( mesh, vertex );
@@ -106,41 +108,47 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 
 	public override void Resize( Vector3 origin, Rotation basis, Vector3 scale )
 	{
-		foreach ( var startPoint in _startPoints )
-		{
-			var position = (startPoint.Value.Position - origin) * basis.Inverse;
-			position *= scale;
-			position *= basis;
-			position += origin;
+		var invBasis = basis.Inverse;
 
-			var component = startPoint.Key;
-			var transform = component.WorldTransform.WithPosition( position );
-			component.Mesh.SetTransform( transform );
+		foreach ( var entry in _startPoints )
+		{
+			var start = entry.Value;
+			var local = invBasis * (start.Position - origin);
+			local *= scale;
+			var position = origin + (basis * local);
+
+			if ( entry.Key.GetComponent<MeshComponent>() is { } mc && mc.IsValid() )
+			{
+				mc.Mesh.SetTransform( mc.WorldTransform.WithPosition( position ) );
+			}
+			else
+			{
+				entry.Key.WorldTransform = new Transform( position, start.Rotation, start.Scale * scale );
+			}
 		}
 
 		foreach ( var entry in _transformVertices )
 		{
-			var position = (entry.Value - origin) * basis.Inverse;
-			position *= scale;
-			position *= basis;
-			position += origin;
-
-			var transform = entry.Key.Component.Mesh.Transform;
-			entry.Key.Component.Mesh.SetVertexPosition( entry.Key.Handle, transform.PointToLocal( position ) );
+			var local = invBasis * (entry.Value - origin);
+			local *= scale;
+			var worldPos = origin + (basis * local);
+			var mesh = entry.Key.Component.Mesh;
+			mesh.SetVertexPosition( entry.Key.Handle, mesh.Transform.PointToLocal( worldPos ) );
 		}
 
-		foreach ( var startPoint in _startPoints )
+		foreach ( var start in _startPoints )
 		{
-			var component = startPoint.Key;
-			component.Mesh.ComputeFaceTextureCoordinatesFromParameters();
-			component.WorldTransform = component.Mesh.Transform;
-			component.RebuildMesh();
+			if ( start.Key.GetComponent<MeshComponent>() is not { } mc || !mc.IsValid() ) continue;
+
+			mc.Mesh.ComputeFaceTextureCoordinatesFromParameters();
+			mc.WorldTransform = mc.Mesh.Transform;
+			mc.RebuildMesh();
 		}
 	}
 
 	public override void Nudge( Vector2 direction )
 	{
-		if ( _meshes.Length == 0 ) return;
+		if ( _objects.Length == 0 ) return;
 
 		var viewport = SceneViewWidget.Current?.LastSelectedViewportWidget;
 		if ( !viewport.IsValid() ) return;
@@ -153,7 +161,7 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 
 		using var scope = SceneEditorSession.Scope();
 		using var undoScope = SceneEditorSession.Active.UndoScope( "Nudge Mesh(s)" )
-			.WithGameObjectChanges( _meshes.Select( x => x.GameObject ), GameObjectUndoFlags.Properties )
+			.WithGameObjectChanges( _objects, GameObjectUndoFlags.Properties )
 			.Push();
 
 		var rotation = CalculateSelectionBasis();
@@ -161,9 +169,9 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 
 		Pivot -= delta;
 
-		foreach ( var mesh in _meshes )
+		foreach ( var go in _objects )
 		{
-			mesh.WorldPosition -= delta;
+			go.WorldPosition -= delta;
 		}
 	}
 
@@ -176,14 +184,13 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 	{
 		if ( GlobalSpace ) return Rotation.Identity;
 
-		var mesh = _meshes.FirstOrDefault();
+		var mesh = _objects.FirstOrDefault();
 		return mesh.IsValid() ? mesh.WorldRotation : Rotation.Identity;
 	}
 
 	public override void OnEnabled()
 	{
 		var objects = Selection.OfType<GameObject>()
-			.Where( x => x.GetComponent<MeshComponent>().IsValid() )
 			.ToArray();
 
 		var connectedObjects = Selection.OfType<IMeshElement>()
@@ -236,27 +243,27 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 	{
 		if ( Tool is null ) return;
 		if ( Tool.MoveMode is null ) return;
-		if ( _meshes.Length == 0 ) return;
-		if ( _meshes.Any( x => !x.IsValid() ) ) return;
+		if ( _objects.Length == 0 ) return;
 
 		Tool.MoveMode.Update( this );
 	}
 
 	public override Vector3 CalculateSelectionOrigin()
 	{
-		var mesh = _meshes.FirstOrDefault();
+		var mesh = _objects.FirstOrDefault();
 		return mesh.IsValid() ? mesh.WorldPosition : default;
 	}
 
 	public override BBox CalculateSelectionBounds()
 	{
-		return BBox.FromPoints( _transformVertices
-			.Where( x => x.Key.IsValid() )
-			.Select( x => x.Key.Transform.PointToWorld( x.Key.Component.Mesh.GetVertexPosition( x.Key.Handle ) ) ) );
+		return BBox.FromBoxes( _objects
+			.Where( x => x.IsValid() )
+			.Select( x => x.GetBounds() ) );
 	}
 
 	public override void OnSelectionChanged()
 	{
+		_objects = Selection.OfType<GameObject>().ToArray();
 		_meshes = Selection.OfType<GameObject>()
 			.Select( x => x.GetComponent<MeshComponent>() )
 			.Where( x => x.IsValid() )
@@ -274,8 +281,6 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 		}
 
 		ClearPivot();
-
-		Tool?.MoveMode?.OnBegin( this );
 	}
 
 	void UpdateSelectionMode()
@@ -354,16 +359,16 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 		bool fullyInside = true;
 		bool removing = Gizmo.IsCtrlPressed;
 
-		foreach ( var mr in Scene.GetAllComponents<MeshComponent>() )
+		foreach ( var go in Scene.GetAllObjects( true ) )
 		{
-			var bounds = mr.GetWorldBounds();
+			var bounds = go.GetBounds();
 			if ( !frustum.IsInside( bounds, !fullyInside ) )
 			{
-				previous.Add( mr.GameObject );
+				previous.Add( go );
 				continue;
 			}
 
-			selection.Add( mr.GameObject );
+			selection.Add( go );
 		}
 
 		foreach ( var selectedObj in selection )
@@ -440,6 +445,8 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 
 		_pivotIndex = (_pivotIndex + direction + pivots.Count) % pivots.Count;
 		Pivot = pivots[_pivotIndex];
+
+		Tool?.MoveMode?.OnBegin( this );
 	}
 
 	public void PreviousPivot() => StepPivot( -1 );
@@ -449,11 +456,15 @@ public sealed partial class MeshSelection( MeshTool tool ) : SelectionTool
 	{
 		Pivot = CalculateSelectionOrigin();
 		_pivotIndex = 0;
+
+		Tool?.MoveMode?.OnBegin( this );
 	}
 
 	public void ZeroPivot()
 	{
 		Pivot = default;
 		_pivotIndex = 0;
+
+		Tool?.MoveMode?.OnBegin( this );
 	}
 }

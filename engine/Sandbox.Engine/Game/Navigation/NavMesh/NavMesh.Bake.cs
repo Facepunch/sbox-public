@@ -64,6 +64,22 @@ public sealed partial class NavMesh
 	/// </summary>
 	internal async Task<byte[]> BakeDataToBytes( Action<int, int> onProgress = null, CancellationToken cancelToken = default )
 	{
+		// Suspend auto-update so it doesn't dispatch new heightfield builds while we bake.
+		// Without this, WaitForHeightfieldBuilds would never finish because new builds
+		// are dispatched every frame.
+		var wasAutoUpdate = EditorAutoUpdate;
+		EditorAutoUpdate = false;
+
+		// Wait for any in-progress heightfield builds to finish first.
+		// Without this, SetCachedHeightField can mutate tiles concurrently during the bake.
+		await WaitForHeightfieldBuilds( cancelToken );
+
+		if ( cancelToken.IsCancellationRequested )
+		{
+			EditorAutoUpdate = wasAutoUpdate;
+			return null;
+		}
+
 		var minMaxTileCoords = CalculateMinMaxTileCoords( WorldBounds );
 
 		// Need one iteration to find out actual tile count
@@ -84,6 +100,7 @@ public sealed partial class NavMesh
 
 		if ( tiles.Count == 0 )
 		{
+			EditorAutoUpdate = wasAutoUpdate;
 			return null;
 		}
 
@@ -120,6 +137,9 @@ public sealed partial class NavMesh
 				onProgress?.Invoke( current, chunkCount );
 			} );
 		} );
+
+		// Restore auto-update now that bake is done
+		EditorAutoUpdate = wasAutoUpdate;
 
 		if ( cancelToken.IsCancellationRequested )
 			return null;
@@ -216,6 +236,18 @@ public sealed partial class NavMesh
 				}
 			} );
 		} );
+	}
+
+	/// <summary>
+	/// Waits for all in-progress heightfield builds to complete.
+	/// This ensures we snapshot a consistent state before baking.
+	/// </summary>
+	private async Task WaitForHeightfieldBuilds( CancellationToken cancelToken )
+	{
+		while ( !cancelToken.IsCancellationRequested && tileCache.HasAnyBuildsInProgress() )
+		{
+			await Task.Delay( 50, cancelToken ).ConfigureAwait( false );
+		}
 	}
 
 	private const int TilesPerChunk = 64;

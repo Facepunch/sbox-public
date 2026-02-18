@@ -17,9 +17,6 @@ public partial class ViewportOptions : Widget
 	public void Rebuild()
 	{
 		Layout.Clear( true );
-		if ( SceneViewportWidget.State.RenderMode == SceneCameraDebugMode.Albedo )
-			Layout.Add( new IconButton( "palette", ToggleAlbedoChart ) { ToolTip = "Toggle Albedo Chart", IsToggle = true, Background = Theme.ControlBackground } );
-
 		Layout.Add( new IconButton( "tune", OpenViewSettings ) { ToolTip = "View Settings", Background = Theme.ControlBackground } );
 	}
 
@@ -83,11 +80,5 @@ public partial class ViewportOptions : Widget
 		}
 
 		menu.OpenAtCursor();
-	}
-
-	void ToggleAlbedoChart()
-	{
-		bool current = ConsoleSystem.GetValueInt( "r_albedo_chart", 0 ) == 0 ? false : true;
-		ConsoleSystem.SetValue( "r_albedo_chart", !current );
 	}
 }

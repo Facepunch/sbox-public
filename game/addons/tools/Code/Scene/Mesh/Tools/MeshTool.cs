@@ -36,7 +36,7 @@ public partial class MeshTool : EditorTool
 	public override IEnumerable<EditorTool> GetSubtools()
 	{
 		yield return new PrimitiveTool( this );
-		yield return new MeshSelection( this );
+		yield return new ObjectSelection( this );
 		yield return new VertexTool( this );
 		yield return new EdgeTool( this );
 		yield return new FaceTool( this );
@@ -57,6 +57,11 @@ public partial class MeshTool : EditorTool
 
 		LoadActiveMaterial();
 		LoadToolbarCookies();
+	}
+
+	public override void OnUpdate()
+	{
+		AllowGameObjectSelection = CurrentTool?.GetType() == typeof( ObjectSelection );
 	}
 
 	public override void OnSelectionChanged()

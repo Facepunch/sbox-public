@@ -332,7 +332,7 @@ public static partial class EditorUtility
 			if ( !prefabFile.IsValid() )
 			{
 				prefabFile = new PrefabFile();
-				prefabFile.SetIdFromResourcePath( saveLocation );
+				prefabFile.RegisterWeakResourceId( saveLocation );
 				prefabFile.Register( saveLocation );
 			}
 
