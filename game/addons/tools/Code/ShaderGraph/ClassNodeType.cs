@@ -124,7 +124,7 @@ public sealed class SubgraphinputNodeType : ClassNodeType
 
 	public override INode CreateNode( IGraph graph )
 	{
-		var node = BlackboardParameter.InitilzeNode( Parameter );
+		var node = BlackboardParameter.InitializeParameterNode( Parameter );
 		node.Graph = graph;
 
 		return node;
@@ -142,7 +142,7 @@ public sealed class ParameterNodeType : ClassNodeType
 
 	public override INode CreateNode( IGraph graph )
 	{
-		var node = BlackboardParameter.InitilzeNode( Parameter );
+		var node = BlackboardParameter.InitializeParameterNode( Parameter );
 		node.Graph = graph;
 
 		return node;

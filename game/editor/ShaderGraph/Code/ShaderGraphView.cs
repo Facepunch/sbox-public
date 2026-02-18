@@ -406,7 +406,7 @@ public class ShaderGraphView : GraphView
 
 	private BaseNode ConvertConstantNodeToParameterNode( BlackboardParameter parameter, Vector2 position )
 	{
-		var node = BlackboardParameter.InitilzeNode( parameter );
+		var node = BlackboardParameter.InitializeParameterNode( parameter );
 		node.Graph = Graph;
 		node.Position = position.SnapToGrid( GridSize );
 
@@ -425,7 +425,7 @@ public class ShaderGraphView : GraphView
 
 	private void CreateNewParameterNode( BlackboardParameter parameter, Vector2 position )
 	{
-		var node = BlackboardParameter.InitilzeNode( parameter );
+		var node = BlackboardParameter.InitializeParameterNode( parameter );
 		node.Graph = Graph;
 		node.Position = position.SnapToGrid( GridSize );
 

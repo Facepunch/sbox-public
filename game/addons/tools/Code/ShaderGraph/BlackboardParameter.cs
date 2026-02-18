@@ -121,7 +121,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 		} );
 	}
 
-	public static BaseNode InitilzeNode( BlackboardParameter parameter )
+	public static BaseNode InitializeParameterNode( BlackboardParameter parameter )
 	{
 		switch ( parameter )
 		{
