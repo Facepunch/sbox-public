@@ -45,7 +45,7 @@ public class RotationEditorTool : EditorTool
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
 
-			if ( Gizmo.Control.Rotate( "rotation", out var rotationDelta ) )
+			if ( Gizmo.Control.Rotate( "rotation", out Rotation rotationDelta ) )
 			{
 				StartDrag( nonSceneGos );
 

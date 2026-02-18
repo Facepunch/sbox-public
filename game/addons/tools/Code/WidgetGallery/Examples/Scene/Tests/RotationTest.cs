@@ -12,7 +12,7 @@ internal class RotationSimple : ISceneTest
 		{
 			Gizmo.Draw.Color = Gizmo.Colors.Green;
 
-			if ( Gizmo.Control.Rotate( "my-arrow", out var rotationDelta ) )
+			if ( Gizmo.Control.Rotate( "my-arrow", out Rotation rotationDelta ) )
 			{
 				rotation = rotationDelta;
 			}

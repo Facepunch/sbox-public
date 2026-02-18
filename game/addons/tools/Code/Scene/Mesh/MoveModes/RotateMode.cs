@@ -30,7 +30,7 @@ public sealed class RotateMode : MoveMode
 			Gizmo.Hitbox.DepthBias = 0.01f;
 			Gizmo.Hitbox.CanInteract = CanUseGizmo;
 
-			if ( Gizmo.Control.Rotate( "rotation", out var rotationDelta ) )
+			if ( Gizmo.Control.Rotate( "rotation", out Rotation rotationDelta ) )
 			{
 				_moveDelta = rotationDelta;
 
