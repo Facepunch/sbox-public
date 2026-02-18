@@ -38,13 +38,16 @@ public class Voice : Component
 	[Description( "Play the sound of your own voice" )]
 	[Property] public bool Loopback { get; set; } = false;
 
-	[Property, Group( "Viseme" )]
+	[Property, ToggleGroup( "LipSync", Label = "Lip Sync" )]
+	public bool LipSync { get; set; } = true;
+
+	[Property, Group( "LipSync" )]
 	public SkinnedModelRenderer Renderer { get; set; }
 
-	[Property, Group( "Viseme" ), Range( 0, 5 )]
+	[Property, Group( "LipSync" ), Range( 0, 5 )]
 	public float MorphScale { get; set; } = 3.0f;
 
-	[Property, Group( "Viseme" ), Range( 0, 1 )]
+	[Property, Group( "LipSync" ), Range( 0, 1 )]
 	public float MorphSmoothTime { get; set; } = 0.1f;
 
 	/// <summary>
@@ -61,7 +64,6 @@ public class Voice : Component
 	private SoundStream soundStream;
 	private SoundHandle sound;
 	private float[] morphs;
-	private float[] morphVelocity;
 
 	private static readonly string[] VisemeNames = new string[]
 	{
@@ -153,7 +155,6 @@ public class Voice : Component
 		if ( Renderer.IsValid() && Renderer.Model.MorphCount > 0 )
 		{
 			morphs = new float[Renderer.Model.MorphCount];
-			morphVelocity = new float[Renderer.Model.MorphCount];
 		}
 
 		base.OnEnabledInternal();
@@ -240,6 +241,14 @@ public class Voice : Component
 		ApplyVisemes();
 		FadeMorphs();
 		UpdateSound();
+
+		// Stop the sound if we haven't received voice data for a while
+		// This also stops LipSync processing which runs per-frame
+		if ( sound.IsValid() && LastPlayed > 1.0f )
+		{
+			sound.Dispose();
+			sound = null;
+		}
 
 		if ( !VoiceManager.IsValid )
 			return;
@@ -332,7 +341,6 @@ public class Voice : Component
 		if ( morphCount != morphs.Length )
 		{
 			morphs = new float[morphCount];
-			morphVelocity = new float[morphCount];
 		}
 
 		var sceneModel = Renderer.SceneModel;
@@ -347,7 +355,7 @@ public class Voice : Component
 			var weight = sceneModel.Morphs.Get( i );
 			float target = LastPlayed < 0.2f ? morphs[i] : 0.0f;
 
-			weight = MathX.SmoothDamp( weight, target, ref morphVelocity[i], MorphSmoothTime, Time.Delta );
+			weight = MathX.ExponentialDecay( weight, target, MorphSmoothTime * 0.17f, Time.Delta );
 			sceneModel.Morphs.Set( i, Math.Max( 0, weight ) );
 		}
 	}
@@ -406,7 +414,8 @@ public class Voice : Component
 				sound.TargetMixer = TargetMixer;
 				sound.Distance = Distance;
 				sound.Falloff = Falloff;
-				sound.LipSync.Enabled = true;
+				sound.LipSync.Enabled = LipSync && Renderer.IsValid();
+				sound.IsVoice = true;
 			}
 
 			soundStream.WriteData( samples.Span );

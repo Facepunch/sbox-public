@@ -1,7 +1,7 @@
 namespace Editor.ProjectSettingPages;
 
-[Title( "Standalone" )]
-internal sealed class StandaloneCategory : ProjectInspector.Category
+[Title( "Game Exporting" ), Icon( "publish" )]
+internal sealed class StandaloneCategory : ProjectSettingsWindow.Category
 {
 	[Title( "Disable Whitelist" )]
 	public bool IsStandaloneOnly

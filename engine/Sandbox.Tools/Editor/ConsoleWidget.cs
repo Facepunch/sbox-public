@@ -346,6 +346,10 @@ internal class ConsoleWidget : Widget
 	{
 		ThreadSafe.AssertIsMainThread();
 
+		// Don't process messages if the widget has been destroyed
+		if ( !this.IsValid() )
+			return;
+
 		AddConsoleMessage( e );
 	}
 
@@ -703,9 +707,7 @@ internal class ConsoleWidget : Widget
 
 				EditorUtility.InspectorObject = ev.Arguments[i];
 			}
-
-
-			if ( Uri.TryCreate( anchor, UriKind.RelativeOrAbsolute, out var uri ) )
+			else if ( Uri.TryCreate( anchor, UriKind.RelativeOrAbsolute, out var uri ) )
 			{
 				EditorUtility.OpenFile( anchor );
 			}

@@ -14,6 +14,5 @@ public partial class Scene : GameObject
 			.OrderBy( x => x.IsMainCamera ? 0 : 1 )
 			.ThenBy( x => x.Priority )
 			.FirstOrDefault();
-		IManagedCamera.SetMainCamera( Camera?.SceneCamera );
 	}
 }

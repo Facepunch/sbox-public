@@ -176,10 +176,37 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	Vector3 _lastVelocity;
 	Vector3 _lastAngularVelocity;
 
-	[Sync( SyncFlags.Query )]
+	[Sync]
+	private Vector3 NetworkedVelocity
+	{
+		get;
+		set
+		{
+			_lastVelocity = value;
+			field = value;
+		}
+	}
+
+	[Sync]
+	private Vector3 NetworkedAngularVelocity
+	{
+		get;
+		set
+		{
+			_lastAngularVelocity = value;
+			field = value;
+		}
+	}
+
 	public Vector3 Velocity
 	{
-		get => _body?.Velocity ?? default;
+		get
+		{
+			if ( IsProxy )
+				return NetworkedVelocity;
+
+			return _body?.Velocity ?? default;
+		}
 		set
 		{
 			if ( _body.IsValid() && !IsProxy )
@@ -191,10 +218,15 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		}
 	}
 
-	[Sync( SyncFlags.Query )]
 	public Vector3 AngularVelocity
 	{
-		get => _body?.AngularVelocity ?? default;
+		get
+		{
+			if ( IsProxy )
+				return NetworkedAngularVelocity;
+
+			return _body?.AngularVelocity ?? default;
+		}
 		set
 		{
 			if ( _body.IsValid() && !IsProxy )
@@ -267,8 +299,8 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	}
 
 	/// <summary>
-	/// Gets or sets the inertia tensor for this body.  
-	/// By default, the inertia tensor is automatically calculated from the shapes attached to the body.  
+	/// Gets or sets the inertia tensor for this body.
+	/// By default, the inertia tensor is automatically calculated from the shapes attached to the body.
 	/// Setting this property overrides the automatically calculated inertia tensor until <see cref="ResetInertiaTensor"/> is called.
 	/// </summary>
 	public Vector3 InertiaTensor
@@ -282,8 +314,8 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	}
 
 	/// <summary>
-	/// Gets or sets the rotation applied to the inertia tensor.  
-	/// Like <see cref="InertiaTensor"/>, this acts as an override to the automatically calculated inertia tensor rotation  
+	/// Gets or sets the rotation applied to the inertia tensor.
+	/// Like <see cref="InertiaTensor"/>, this acts as an override to the automatically calculated inertia tensor rotation
 	/// and remains in effect until <see cref="ResetInertiaTensor"/> is called.
 	/// </summary>
 	public Rotation InertiaTensorRotation
@@ -317,8 +349,23 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		}
 	}
 
+	void IGameObjectNetworkEvents.BeforeDropOwnership()
+	{
+		// Before we drop ownership, we want to make sure the networked vars
+		// are fully synchronized with the PhysicsBody. This is because when
+		// we drop ownership, we'll send a packet about our current state to
+		// other clients, and we may not have updated these yet in the physics
+		// step.
+
+		if ( !_body.IsValid() )
+			return;
+
+		NetworkedAngularVelocity = _body.AngularVelocity;
+		NetworkedVelocity = _body.Velocity;
+	}
+
 	/// <summary>
-	/// Resets the inertia tensor and its rotation to the values automatically calculated from the attached colliders.  
+	/// Resets the inertia tensor and its rotation to the values automatically calculated from the attached colliders.
 	/// This removes any custom overrides set via <see cref="InertiaTensor"/> or <see cref="InertiaTensorRotation"/>.
 	/// </summary>
 	public void ResetInertiaTensor()
@@ -514,8 +561,11 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	{
 		if ( !_body.IsValid() ) return;
 
-		PreVelocity = _body.Velocity;
-		PreAngularVelocity = _body.AngularVelocity;
+		var angularVelocity = _body.AngularVelocity;
+		var velocity = _body.Velocity;
+
+		PreAngularVelocity = angularVelocity;
+		PreVelocity = velocity;
 
 		if ( TargetTransform.HasValue )
 		{
@@ -530,6 +580,29 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 
 			// Networked proxy should use velocity to move to world transform.
 			_body.Move( Transform.TargetWorld, Time.Delta );
+		}
+
+		if ( IsProxy )
+			return;
+
+		// Optimizations here to avoid the [Sync] wrapper where we can. There is overhead
+		// to wrapping properties, and this is a really hot path when you have a lot of
+		// physics objects.
+		if ( _body.MotionEnabled && !_body.Sleeping )
+		{
+			if ( _lastAngularVelocity != angularVelocity )
+				NetworkedAngularVelocity = angularVelocity;
+
+			if ( _lastVelocity != velocity )
+				NetworkedVelocity = velocity;
+		}
+		else
+		{
+			if ( _lastAngularVelocity != Vector3.Zero )
+				NetworkedAngularVelocity = Vector3.Zero;
+
+			if ( _lastVelocity != Vector3.Zero )
+				NetworkedVelocity = Vector3.Zero;
 		}
 	}
 

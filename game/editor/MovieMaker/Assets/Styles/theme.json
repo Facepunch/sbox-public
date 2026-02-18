@@ -2,10 +2,10 @@
   "CurveTilePixelsPerSample": "2",
   "ScrubBarHeight": "24",
   "ScrubBarTimeLabel": "#B0E24D3F",
-  "SessionPlayheadMarginPixels": "128",
   "TimelineBackground": "#181818",
   "TimelineInner": "#2A2A2A",
   "TimelineOuter": "#212121",
   "TimelinePlayhead": "#E6DB74",
+  "TimelinePlayheadMarginPixels": "128",
   "TimelinePreview": "#5A8DEB"
 }

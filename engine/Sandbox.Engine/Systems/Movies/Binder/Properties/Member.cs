@@ -243,6 +243,12 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 	{
 		if ( PrimitiveTypes.Contains( type ) ) return true;
 		if ( MathPrimitiveTypes.Contains( type ) ) return true;
+
+		if ( type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof( List<> ) )
+		{
+			return IsValidPropertyType( type.GetGenericArguments()[0] );
+		}
+
 		if ( TypeLibrary.GetType( type ) is null ) return false;
 		if ( type.IsAssignableTo( typeof( Component ) ) ) return true;
 		if ( type.IsAssignableTo( typeof( Resource ) ) ) return true;

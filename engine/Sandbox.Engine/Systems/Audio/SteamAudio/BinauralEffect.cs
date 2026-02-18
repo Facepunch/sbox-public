@@ -32,12 +32,12 @@ class BinauralEffect : IDisposable
 		_native = default;
 	}
 
-	internal void Apply( Vector3 direction, float spatialBlend, MultiChannelBuffer input, MultiChannelBuffer output )
+	internal void Apply( Vector3 direction, float spatialBlend, bool useNearestInterpolation, MultiChannelBuffer input, MultiChannelBuffer output )
 	{
 		if ( snd_steamaudio && _native.IsValid )
 		{
 			output.Silence();
-			_native.Apply( direction, spatialBlend, input._native, output._native );
+			_native.Apply( direction, spatialBlend, useNearestInterpolation, input._native, output._native );
 		}
 		else
 		{

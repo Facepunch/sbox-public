@@ -72,5 +72,34 @@ public static partial class Gizmo
 		/// Should we show lines representing GameObject references in action graphs?
 		/// </summary>
 		public bool DebugActionGraphs { get; set; } = false;
+
+		/// <summary>
+		/// Which gizmos are disabled
+		/// </summary>
+		private Dictionary<Type, bool> DisabledGizmos = new();
+
+		/// <summary>
+		/// Check if a gizmo type is enabled
+		/// </summary>
+		public bool IsGizmoEnabled( Type type )
+		{
+			return !DisabledGizmos.TryGetValue( type, out var disabled ) || !disabled;
+		}
+
+		/// <summary>
+		/// Set the enabled state of a gizmo type
+		/// </summary>
+		public void SetGizmoEnabled( Type type, bool enabled )
+		{
+			DisabledGizmos[type] = !enabled;
+		}
+
+		/// <summary>
+		/// Clear all enabled gizmos
+		/// </summary>
+		public void ClearEnabledGizmos()
+		{
+			DisabledGizmos.Clear();
+		}
 	}
 }

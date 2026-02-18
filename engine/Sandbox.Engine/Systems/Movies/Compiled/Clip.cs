@@ -27,8 +27,7 @@ public sealed partial class MovieClip : IMovieClip
 	{
 		// ReSharper disable once UseCollectionExpression
 		Tracks = tracks
-			.OrderBy( x => x.GetDepth() )
-			.ThenBy( x => x.Name )
+			.Order()
 			.ToImmutableArray();
 
 		_referenceTracks = tracks
@@ -96,7 +95,7 @@ public sealed partial class MovieClip : IMovieClip
 	/// Create a root <see cref="ICompiledReferenceTrack"/> that targets a <see cref="Sandbox.GameObject"/> with
 	/// the given <paramref name="name"/>. To create a nested track, use <see cref="CompiledClipExtensions.GameObject"/>.
 	/// </summary>
-	public static CompiledReferenceTrack<GameObject> RootGameObject( string name, Guid? id = null ) => new( id ?? Guid.NewGuid(), name );
+	public static CompiledReferenceTrack<GameObject> RootGameObject( string name, Guid? id = null, Guid? referenceId = null ) => new( id ?? Guid.NewGuid(), name, ReferenceId: referenceId );
 
 	/// <summary>
 	/// Create a root <see cref="ICompiledReferenceTrack"/> that targets a <see cref="Sandbox.Component"/> with

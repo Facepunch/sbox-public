@@ -143,7 +143,7 @@ public sealed class Synthesizer
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
 		// TODO we dont do any liefecycle management on SpeechSynthesizer sounds whatsoever, this needs a complete rework to fix the diagnoser warning
-		// related: https://github.com/Facepunch/sbox-issues/issues/5922
+		// related: https://github.com/Facepunch/sbox-public/issues/4184
 		var soundStream = new SoundStream( sampleRate );
 #pragma warning restore CA2000 // Dispose objects before losing scope
 		var stream = new MemoryStream();

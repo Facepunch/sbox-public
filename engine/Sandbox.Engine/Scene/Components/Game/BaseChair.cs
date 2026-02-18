@@ -301,5 +301,34 @@ public partial class BaseChair : Component, Component.IPressable, ISitTarget
 		so.SetAnimParameter( "duck", false );
 		so.Update( RealTime.Delta * 10.0f );
 	}
+
+	/// <summary>
+	/// The title of this chair's tooltip. Empty to disable.
+	/// </summary>
+	[Property, Feature( "Tooltip" )]
+	public string TooltipTitle { get; set; } = "Sit";
+
+	/// <summary>
+	/// The icon for this chair's tooltip. Either Material Icons or an Emoji.
+	/// </summary>
+	[Property, Feature( "Tooltip" )]
+	public string TooltipIcon { get; set; } = "airline_seat_recline_normal";
+
+	/// <summary>
+	/// A longer description for this chair's tooltip.
+	/// </summary>
+	[Property, Feature( "Tooltip" )]
+	public string TooltipDescription { get; set; } = "";
+
+	public virtual IPressable.Tooltip? GetTooltip( IPressable.Event e )
+	{
+		if ( string.IsNullOrWhiteSpace( TooltipTitle ) && string.IsNullOrWhiteSpace( TooltipIcon ) )
+			return default;
+
+		if ( IsOccupied )
+			return default;
+
+		return new IPressable.Tooltip( TooltipTitle, TooltipIcon, TooltipDescription );
+	}
 }
 

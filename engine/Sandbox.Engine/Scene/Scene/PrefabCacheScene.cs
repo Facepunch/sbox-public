@@ -81,8 +81,7 @@ internal partial class PrefabCacheScene : PrefabScene
 
 		foreach ( var dependant in dependantSet )
 		{
-			var prefabScene = (PrefabCacheScene)SceneUtility.GetPrefabScene( dependant );
-			prefabScene.Load( dependant );
+			dependant.CachedScene?.Load( dependant );
 		}
 	}
 
@@ -97,7 +96,13 @@ internal partial class PrefabCacheScene : PrefabScene
 				continue;
 			}
 
-			var prefabScene = (PrefabCacheScene)SceneUtility.GetPrefabScene( pf );
+			// Only check prefabs that already have a cached scene loaded.
+			// Prefabs without a cached scene will load fresh data when first accessed,
+			// so we don't need to force-load them just to check dependencies.
+			if ( pf.CachedScene is not PrefabCacheScene prefabScene )
+			{
+				continue;
+			}
 
 			if ( !prefabScene.IsValid() )
 			{

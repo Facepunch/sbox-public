@@ -17,7 +17,8 @@ using System.Reflection;
 /// </summary>
 internal static class NativeResourceCache
 {
-	static readonly TimeSpan SlidingExpiration = TimeSpan.FromSeconds( 30 );
+	const int ExpirationSeconds = 5;
+	static readonly TimeSpan SlidingExpiration = TimeSpan.FromSeconds( ExpirationSeconds );
 	static readonly MemoryCache MemoryCache = new( new MemoryCacheOptions() { } );
 
 	/// <summary>
@@ -35,7 +36,17 @@ internal static class NativeResourceCache
 		var cacheEntryOptions = new MemoryCacheEntryOptions().SetSlidingExpiration( SlidingExpiration );
 		MemoryCache.Set( key, value, cacheEntryOptions );
 
-		WeakTable.TryAdd( key, new WeakReference( value ) );
+		WeakTable[key] = new WeakReference( value );
+	}
+
+	/// <summary>
+	/// Remove a key from both caches. Used when a resource is explicitly disposed
+	/// so that a new instance can be created for the same native pointer.
+	/// </summary>
+	internal static void Remove( long key )
+	{
+		MemoryCache.Remove( key );
+		WeakTable.TryRemove( key, out _ );
 	}
 
 	internal static bool TryGetValue<T>( long key, out T value ) where T : class
@@ -45,10 +56,11 @@ internal static class NativeResourceCache
 			return true;
 		}
 
-		// If we missed the Cache, check our weak refs
-		if ( WeakTable.TryGetValue( key, out var weakValue ) && weakValue.Target is not null )
+		// If we missed the Cache, check our weak refs.
+		// Read Target once to avoid TOCTOU race with GC.
+		if ( WeakTable.TryGetValue( key, out var weakValue ) && weakValue.Target is T target )
 		{
-			value = weakValue.Target as T;
+			value = target;
 
 			// and add it back to the cache
 			Add( key, value );
@@ -66,7 +78,7 @@ internal static class NativeResourceCache
 	/// </summary>
 	internal static void Tick()
 	{
-		if ( LastScan < 30 )
+		if ( LastScan < ExpirationSeconds )
 			return;
 
 		LastScan = 0;
@@ -74,6 +86,50 @@ internal static class NativeResourceCache
 		// MemoryCache doesn't have its own timer for clearing anything...
 		// This will get rid of any expired stuff
 		StartScanForExpiredItemsIfNeeded( MemoryCache, DateTime.UtcNow );
+
+		// Prune dead WeakTable entries to prevent unbounded growth from procedural resources
+		foreach ( var kvp in WeakTable )
+		{
+			if ( kvp.Value.Target is null )
+			{
+				WeakTable.TryRemove( kvp.Key, out _ );
+			}
+		}
+
+	}
+
+	/// <summary>
+	/// Returns stats about the NativeResourceCache for debug overlays.
+	/// </summary>
+	internal static NativeCacheStats GetStats()
+	{
+		var stats = new NativeCacheStats();
+
+		foreach ( var kvp in WeakTable )
+		{
+			var target = kvp.Value.Target;
+			var alive = target is not null;
+			var typeName = alive ? target.GetType().Name : "(dead)";
+			stats.Entries.TryGetValue( typeName, out var count );
+			stats.Entries[typeName] = count + 1;
+		}
+
+		stats.WeakTableTotal = WeakTable.Count;
+		stats.MemoryCacheCount = MemoryCache.Count;
+
+		return stats;
+	}
+
+	internal struct NativeCacheStats
+	{
+		public Dictionary<string, int> Entries;
+		public int WeakTableTotal;
+		public int MemoryCacheCount;
+
+		public NativeCacheStats()
+		{
+			Entries = new();
+		}
 	}
 
 	/// <summary>

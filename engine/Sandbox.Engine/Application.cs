@@ -1,10 +1,9 @@
-﻿using Sandbox.Engine;
+﻿using Editor;
+using Sandbox.Engine;
 using Sandbox.Engine.Settings;
 using Sandbox.Utility;
 using Sandbox.VR;
 using System.Globalization;
-using System.Reflection;
-using System.Runtime.InteropServices;
 
 namespace Sandbox;
 
@@ -57,6 +56,12 @@ public static class Application
 	internal static bool IsJoinLocal { get; private set; }
 
 	/// <summary>
+	/// A local instance Id assigned when the instance is spawned with -joinlocal. We can use
+	/// this to create a deterministic fake SteamId for example.
+	/// </summary>
+	internal static int LocalInstanceId { get; private set; }
+
+	/// <summary>
 	/// The engine's version string
 	/// </summary>
 	public static string Version { get; internal set; }
@@ -106,6 +111,7 @@ public static class Application
 		IsEditor = toolsMode;
 		IsJoinLocal = CommandLine.HasSwitch( "-joinlocal" );
 		IsBenchmark = Environment.GetEnvironmentVariable( "SBOX_MODE" ) == "BENCHMARK";
+		LocalInstanceId = CommandLine.GetSwitchInt( "+instanceid", 1 );
 	}
 
 	internal static void Shutdown()
@@ -224,5 +230,10 @@ public static class Application
 
 		return null;
 	}
+
+	/// <summary>
+	/// Get the current editor if any. Will return null if we're not in the editor, or there is no active editor session.
+	/// </summary>
+	public static EditorSystem Editor => IToolsDll.Current?.ActiveEditor;
 
 }

@@ -54,7 +54,7 @@ class LibraryList : ListView
 
 		if ( project is not null )
 		{
-			m.AddOption( "Project Properties", "tune", () => ProjectInspector.OpenForProject( project.Project ) );
+			m.AddOption( "Project Properties", "tune", () => ProjectSettingsWindow.OpenForProject( project.Project ) );
 			m.AddSeparator();
 			m.AddOption( "Publish Project", "upload_file", () => PublishWizard.Open( project.Project ) );
 			m.AddSeparator();
@@ -106,7 +106,7 @@ class LibraryList : ListView
 
 			if ( !string.IsNullOrWhiteSpace( c.Thumb ) && !c.Thumb.StartsWith( "/" ) )
 			{
-				Paint.Draw( iconRect, c.Thumb );
+				Paint.Draw( iconRect, c.Thumb, borderRadius: 4 );
 			}
 			else
 			{

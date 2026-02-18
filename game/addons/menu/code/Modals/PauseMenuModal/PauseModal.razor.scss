@@ -25,7 +25,6 @@ PauseModal.modal
 	}
 }
 
-
 PauseModal.modal > .inner > .bottom-bar
 {
 	max-width: 1800px;
@@ -123,7 +122,6 @@ PauseModal.modal > .inner > .bottom-bar
 .options
 {
 	flex-direction: column;
-
 	font-size: 24px;
 	font-weight: bold;
 }
@@ -157,6 +155,21 @@ PauseModal .tiles-container
 		flex-grow: 1;
 		overflow: hidden;
 	}
+}
+
+PauseModal .tiles-container .info
+{
+	flex-direction: column;
+}
+
+PauseModal .tiles-container .info > h2
+{
+	font-size: 24px;
+}
+
+PauseModal .tiles-container .info > h3
+{
+	font-size: 18px;
 }
 
 .browser

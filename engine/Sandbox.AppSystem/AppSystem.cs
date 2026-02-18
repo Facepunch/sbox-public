@@ -119,7 +119,7 @@ public class AppSystem
 
 			Console.WriteLine( $"Error: ({e.GetType()}) {e.Message}" );
 
-			Environment.Exit( 1 );
+			CrashShutdown();
 		}
 	}
 
@@ -130,8 +130,31 @@ public class AppSystem
 		return !wantsToQuit;
 	}
 
+	/// <summary>
+	/// Emergency shutdown for crash scenarios. Uses Plat_ExitProcess to immediately
+	/// terminate without running finalizers, DLL destructors, or creating dumps.
+	/// </summary>
+	void CrashShutdown()
+	{
+		// Best effort to sve and flush things.
+		// Might now work because we are in an unstable state.
+
+		try { ConVarSystem.SaveAll(); } catch { }
+
+		try { ErrorReporter.Flush(); } catch { }
+
+		try { Api.Shutdown(); } catch { }
+
+		try { NLog.LogManager.Shutdown(); } catch { }
+
+		NativeEngine.EngineGlobal.Plat_ExitProcess( 1 );
+	}
+
 	public virtual void Shutdown()
 	{
+		// Tag crash reports during shutdown so they can be filtered in Sentry
+		NativeErrorReporter.SetTag( "shutdown_crash", "true" );
+
 		// Make sure game instance is closed
 		IGameInstanceDll.Current?.CloseGame();
 
@@ -206,6 +229,11 @@ public class AppSystem
 			NativeLibrary.Free( steamApiDll );
 			steamApiDll = default;
 		}
+		// Shut down error reporting last before unloading native DLLs,
+		// so crashpad stops monitoring. Any crash before this point
+		// during shutdown will still be properly reported.
+		NativeErrorReporter.Shutdown();
+
 		// Unload native dlls:
 		// At this point we should no longer need them.
 		// If we still hold references to native resources, we want it to crash here rather than on application exit.

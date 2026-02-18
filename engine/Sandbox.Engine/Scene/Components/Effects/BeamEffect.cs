@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using Sandbox.Rendering;
+using System.Runtime.CompilerServices;
 
 namespace Sandbox;
 
@@ -101,6 +102,11 @@ public sealed class BeamEffect : Component, Component.ExecuteInEditor, Component
 	/// This is pretty much the same as TextureOffset - but it's seperate so you can use offset for offset, and scroll to scroll.
 	/// </summary>
 	[Property] public ParticleFloat TextureScroll { get; set; } = 0.0f;
+
+	/// <summary>
+	/// Controls texture filtering on this beam effect.
+	/// </summary>
+	[Property] public FilterMode FilterMode { get; set; } = FilterMode.Anisotropic;
 
 	/// <summary>
 	/// Color gradient of the beam over its lifetime. Defines how the color changes from birth to death.
@@ -406,7 +412,8 @@ public sealed class BeamEffect : Component, Component.ExecuteInEditor, Component
 			Material = Material ?? _defaultMaterial,
 			UnitsPerTexture = texScale,
 			Offset = offset,
-			Clamp = false,
+			FilterMode = FilterMode,
+			TextureAddressMode = Rendering.TextureAddressMode.Wrap,
 			WorldSpace = true,
 		};
 
@@ -421,7 +428,7 @@ public sealed class BeamEffect : Component, Component.ExecuteInEditor, Component
 
 			lineRenderer.Texturing = lineRenderer.Texturing with
 			{
-				Clamp = true,
+				TextureAddressMode = Rendering.TextureAddressMode.Clamp,
 				Offset = 1 + (lerp * -chunksPerLength)
 			};
 

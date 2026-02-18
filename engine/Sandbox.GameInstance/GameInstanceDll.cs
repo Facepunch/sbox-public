@@ -71,10 +71,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		PackageLoader.HotloadWatch( Game.GameAssembly ); // Sandbox.Game is per instance
 		PackageLoader.OnAfterHotload = OnAfterHotload;
 
-		{
-			ConVarSystem.AddAssembly( GetType().Assembly, "game" );
-			ConVarSystem.AddAssembly( Game.GameAssembly, "game" );
-		}
+		ConVarSystem.AddAssembly( Game.GameAssembly, "game" );
 	}
 
 	public Task Initialize()
@@ -134,6 +131,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		if ( DidMountNetworkedFiles )
 		{
+			EngineFileSystem.Mounted.UnMount( NetworkedLargeFiles.Files );
 			EngineFileSystem.Mounted.UnMount( NetworkedSmallFiles.Files );
 			EngineFileSystem.ProjectSettings.UnMount( NetworkedConfigFiles.Files );
 			DidMountNetworkedFiles = false;
@@ -380,6 +378,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		Sound.StopAll( 0.2f );
 
 		ResetEnvironment();
+
+		IMenuDll.Current?.OnGameExited();
+
 		Mounting.MountUtility.TickPreviewRenders();
 	}
 
@@ -676,6 +677,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			if ( !Application.IsEditor )
 			{
 				Game.IsPlaying = true;
+
+				IMenuDll.Current?.OnGameEntered();
 			}
 		}
 		finally

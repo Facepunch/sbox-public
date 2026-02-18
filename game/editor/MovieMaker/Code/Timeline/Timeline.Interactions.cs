@@ -128,8 +128,8 @@ partial class Timeline
 	{
 		timeRange = timeRange.ClampStart( 0d );
 
-		var min = Session.TimeToPixels( timeRange.Start );
-		var max = Session.TimeToPixels( timeRange.End );
+		var min = TimeToPixels( timeRange.Start );
+		var max = TimeToPixels( timeRange.End );
 
 		return item.SceneRect with { Left = min, Right = max };
 	}
@@ -168,7 +168,7 @@ partial class Timeline
 	private bool StartDragging( Vector2 scenePos, GraphicsItem item )
 	{
 		_dragScope = null;
-		_lastDragTime = Session.ScenePositionToTime( scenePos );
+		_lastDragTime = ScenePositionToTime( scenePos );
 
 		_draggedItems.Clear();
 		_resizedItems.Clear();
@@ -265,6 +265,10 @@ partial class Timeline
 
 	private void Drag( Vector2 scenePos )
 	{
+		var visibleRect = VisibleRect;
+
+		scenePos.x = Math.Clamp( scenePos.x, visibleRect.Left, visibleRect.Right );
+
 		var isResizing = _resizedItems.Count > 0;
 		var itemLimits = isResizing
 			? _resizedItems.Select( x => GetDragLimits( x.Item, x.Edge ) )
@@ -281,7 +285,7 @@ partial class Timeline
 				.Order()
 				.ToArray();
 
-		var time = Session.ScenePositionToTime( scenePos, _dragSnapOptions! with { Min = minDragTime, Max = maxDragTime, SnapOffsets = snapOffsets } );
+		var time = ScenePositionToTime( scenePos, _dragSnapOptions! with { Min = minDragTime, Max = maxDragTime, SnapOffsets = snapOffsets } );
 		var delta = time - _lastDragTime;
 
 		if ( delta.IsZero ) return;

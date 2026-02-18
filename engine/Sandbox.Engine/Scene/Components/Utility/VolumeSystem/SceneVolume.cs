@@ -183,11 +183,11 @@ public struct SceneVolume
 	}
 
 	/// <summary>
-	/// Calculates the distance between the specified world transform and a given world position.
+	/// Calculates the shortest distance from the specified world position to the edge of this volume.
 	/// </summary>
-	/// <param name="worldTransform">The transform representing the reference point in world space from which the distance is measured.</param>
-	/// <param name="worldPosition">The position in world space to which the distance is calculated.</param>
-	/// <returns>The distance, in world units, between the reference transform and the specified world position.</returns>
+	/// <param name="worldTransform">The world transform of the volume.</param>
+	/// <param name="worldPosition">The position in world space to measure from.</param>
+	/// <returns>The distance, in world units, from the position to the volume edge.</returns>
 	public float GetEdgeDistance( in Transform worldTransform, in Vector3 worldPosition )
 	{
 		// A huge number to represent "infinity" in this context

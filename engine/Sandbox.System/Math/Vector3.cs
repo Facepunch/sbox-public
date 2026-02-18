@@ -237,13 +237,15 @@ public partial struct Vector3 : System.IEquatable<Vector3>, IParsable<Vector3>, 
 	/// </summary>
 	public readonly Vector3 ClampLength( float maxLength )
 	{
-		if ( LengthSquared <= 0.0 )
+		var lenSqr = LengthSquared;
+
+		if ( lenSqr <= 0.0f )
 			return Zero;
 
-		if ( LengthSquared < (maxLength * maxLength) )
+		if ( lenSqr <= maxLength * maxLength )
 			return this;
 
-		return Normal * maxLength;
+		return this * (maxLength / MathF.Sqrt( lenSqr ));
 	}
 
 	/// <summary>
@@ -259,9 +261,9 @@ public partial struct Vector3 : System.IEquatable<Vector3>, IParsable<Vector3>, 
 			return Zero;
 
 		if ( lenSqr <= minSqr )
-			return Normal * minLength;
+			return this * (minLength / MathF.Sqrt( lenSqr ));
 		if ( lenSqr >= maxSqr )
-			return Normal * maxLength;
+			return this * (maxLength / MathF.Sqrt( lenSqr ));
 
 		return this;
 	}
@@ -559,8 +561,8 @@ public partial struct Vector3 : System.IEquatable<Vector3>, IParsable<Vector3>, 
 	/// </summary>
 	public static void Sort( ref Vector3 min, ref Vector3 max )
 	{
-		var a = new Vector3( Math.Min( min.x, max.x ), Math.Min( min.y, max.y ), Math.Min( min.z, max.z ) );
-		var b = new Vector3( Math.Max( min.x, max.x ), Math.Max( min.y, max.y ), Math.Max( min.z, max.z ) );
+		var a = System.Numerics.Vector3.Min( min._vec, max._vec );
+		var b = System.Numerics.Vector3.Max( min._vec, max._vec );
 
 		min = a;
 		max = b;
@@ -574,9 +576,9 @@ public partial struct Vector3 : System.IEquatable<Vector3>, IParsable<Vector3>, 
 	/// <returns>True if nearly equal</returns>
 	public readonly bool AlmostEqual( in Vector3 v, float delta = 0.0001f )
 	{
-		if ( Math.Abs( x - v.x ) > delta ) return false;
-		if ( Math.Abs( y - v.y ) > delta ) return false;
-		if ( Math.Abs( z - v.z ) > delta ) return false;
+		if ( MathF.Abs( x - v.x ) > delta ) return false;
+		if ( MathF.Abs( y - v.y ) > delta ) return false;
+		if ( MathF.Abs( z - v.z ) > delta ) return false;
 
 		return true;
 	}
@@ -641,13 +643,13 @@ public partial struct Vector3 : System.IEquatable<Vector3>, IParsable<Vector3>, 
 		}
 		else
 		{
-			yaw = (float)(Math.Atan2( vec.y, vec.x ) * 180.0f / Math.PI);
+			yaw = MathF.Atan2( vec.y, vec.x ) * (180.0f / MathF.PI);
 			if ( yaw < 0.0f )
 			{
 				yaw += 360.0f;
 			}
-			tmp = (float)Math.Sqrt( vec.x * vec.x + vec.y * vec.y );
-			pitch = (float)(Math.Atan2( -vec.z, tmp ) * 180.0f / Math.PI);
+			tmp = MathF.Sqrt( vec.x * vec.x + vec.y * vec.y );
+			pitch = MathF.Atan2( -vec.z, tmp ) * (180.0f / MathF.PI);
 			if ( pitch < 0.0f )
 			{
 				pitch += 360.0f;
@@ -725,7 +727,7 @@ public partial struct Vector3 : System.IEquatable<Vector3>, IParsable<Vector3>, 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	public static Vector3 operator /( Vector3 c1, in Vector3 c2 ) => System.Numerics.Vector3.Divide( c1._vec, c2._vec );
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	public static Vector3 operator -( Vector3 value ) => new Vector3( -value.x, -value.y, -value.z );
+	public static Vector3 operator -( Vector3 value ) => System.Numerics.Vector3.Negate( value._vec );
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	public static implicit operator Vector3( Color value ) => new Vector3( value.r, value.g, value.b );

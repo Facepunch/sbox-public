@@ -98,6 +98,7 @@ public partial class Terrain
 		// We want these accessible globally too, probably
 		Scene.RenderAttributes.Set( "Terrain", TerrainBuffer );
 		Scene.RenderAttributes.Set( "TerrainMaterials", MaterialsBuffer );
+		Scene.RenderAttributes.Set( "TerrainCount", 1 );
 
 		_clipMapLodLevels = ClipMapLodLevels;
 		_clipMapLodExtentTexels = ClipMapLodExtentTexels;
@@ -149,6 +150,10 @@ public partial class Terrain
 		if ( Storage is null )
 			return;
 
+		// Buffer not yet created (e.g. during deserialization before OnEnabled)
+		if ( TerrainBuffer is null )
+			return;
+
 		var transform = Matrix.FromTransform( WorldTransform );
 
 		var gpuTerrain = new GPUTerrain()
@@ -168,7 +173,7 @@ public partial class Terrain
 	}
 
 	/// <summary>
-	/// Upload the Terrain buffer, this should be called when materials are added, removed or modified.
+	/// Upload the Materials buffer, this should be called when materials are added, removed or modified.
 	/// </summary>
 	public unsafe void UpdateMaterialsBuffer()
 	{
@@ -177,6 +182,10 @@ public partial class Terrain
 			return;
 
 		if ( Storage is null )
+			return;
+
+		// Buffer not yet created (e.g. during deserialization before OnEnabled)
+		if ( MaterialsBuffer is null )
 			return;
 
 		var gpuMaterials = new GPUTerrainMaterial[64];

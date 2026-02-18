@@ -76,6 +76,12 @@ public abstract class Plug : GraphicsItem
 				Paint.DrawRect( handleRect, 2.0f );
 				break;
 
+			case HandleShape.Circle:
+				Paint.DrawCircle( handleRect );
+				//Paint.SetBrush( color.Darken( 0.25f ) );
+				//Paint.DrawCircle( handleRect.Shrink( 1 ) );
+				break;
+
 			case HandleShape.Arrow:
 				Paint.DrawPolygon( handleRect.TopLeft, handleRect.Center with { x = handleRect.Right },
 					handleRect.BottomLeft );
@@ -217,7 +223,8 @@ public abstract class Plug : GraphicsItem
 public enum HandleShape
 {
 	Square,
-	Arrow
+	Circle,
+	Arrow,
 }
 
 public record struct HandleConfig( string Name, Color Color, HandleShape Shape = HandleShape.Square );

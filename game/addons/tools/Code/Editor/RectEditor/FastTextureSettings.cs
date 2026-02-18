@@ -62,6 +62,18 @@ public enum TileMode
 	Repeat
 }
 
+public enum DebugMode
+{
+	[Title( "Default" ), Icon( "texture" )]
+	Default,
+
+	[Title( "Roughness" ), Icon( "grain" )]
+	Roughness,
+
+	[Title( "Normals" ), Icon( "waves" )]
+	Normals
+}
+
 public class FastTextureSettings
 {
 	[Hide] private MappingMode _mapping = MappingMode.UnwrapSquare;
@@ -69,6 +81,7 @@ public class FastTextureSettings
 
 	[Hide] private ScaleMode _scaleMode = ScaleMode.Fit;
 	[Hide] private TileMode _tileMode = TileMode.MaintainAspect;
+	[Hide] private DebugMode _debugMode = DebugMode.Default;
 	[Hide] private float _repeat = 1.0f;
 
 	[Hide] private bool _isTileView;
@@ -211,6 +224,18 @@ public class FastTextureSettings
 		}
 	}
 
+	[Category( "Debug" ), WideMode( HasLabel = false )]
+	public DebugMode DebugMode
+	{
+		get => _debugMode;
+		set
+		{
+			if ( _debugMode == value ) return;
+			_debugMode = value;
+			OnSettingsChanged?.Invoke();
+		}
+	}
+
 	[Category( "Inset" )]
 	[WideMode( HasLabel = false )]
 	[Range( 0.0f, 32.0f ), Step( 1.0f )]
@@ -289,6 +314,7 @@ public class FastTextureSettings
 		public AlignmentMode Alignment { get; set; }
 		public ScaleMode ScaleMode { get; set; }
 		public TileMode TileMode { get; set; }
+		public DebugMode DebugMode { get; set; }
 		public float Repeat { get; set; }
 		public bool IsTileView { get; set; }
 		public bool ShowRects { get; set; }
@@ -314,6 +340,7 @@ public class FastTextureSettings
 			_alignment = dto.Alignment;
 			_scaleMode = dto.ScaleMode;
 			_tileMode = dto.TileMode;
+			_debugMode = dto.DebugMode;
 			_repeat = dto.Repeat;
 			_isTileView = dto.IsTileView;
 			_showRects = dto.ShowRects;
@@ -337,6 +364,7 @@ public class FastTextureSettings
 			Alignment = _alignment,
 			ScaleMode = _scaleMode,
 			TileMode = _tileMode,
+			DebugMode = _debugMode,
 			Repeat = _repeat,
 			IsTileView = _isTileView,
 			ShowRects = _showRects,

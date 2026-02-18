@@ -11,7 +11,7 @@ namespace Sandbox;
 public sealed class ChromaticAberration : BasePostProcess<ChromaticAberration>
 {
 	/// <summary>
-	/// Enable chromatic aberration
+	/// Strength of the chromatic aberration effect
 	/// </summary>
 	[Property, Range( 0, 1 )] public float Scale { get; set; } = 0.33f;
 

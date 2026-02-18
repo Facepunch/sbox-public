@@ -1,16 +1,14 @@
 ﻿namespace Sandbox.Resources;
 
 /// <summary>
-/// The VTex format is:
-/// 
-/// 1. Header (width, depth etc)
-/// 2. Extra data blocks
-/// 3. Streaming Data (encoded textures)
-///		- smallest mip 
-///		- mip
-///		- mip
-///		- main texture
-/// 
+/// Writes the VTEX data format (texture header and streaming data).
+///
+/// The format consists of:
+/// 1. Header (width, height, depth, format, flags, etc.)
+/// 2. Extra data blocks (not currently used)
+/// 3. Streaming data (encoded texture pixels)
+///    - Ordered from smallest mip to largest
+///    - For cubemaps: each mip contains all 6 faces in order (face 0-5)
 /// </summary>
 internal class VTexWriter
 {
@@ -32,7 +30,6 @@ internal class VTexWriter
 		// Use BC6H for HDR textures
 		//
 
-		bool wantsUncompressed = false; // todo flag
 		var bestFormat = VTexWriter.VTEX_Format_t.VTEX_FORMAT_BC7;
 
 		if ( Layers.All( x => x.Opaque ) )
@@ -51,11 +48,6 @@ internal class VTexWriter
 		// Don't bother compressing tiny textures
 		// avoid 1x1 textures becoming 4x4 in bc
 		if ( Header.Width < 16 || Header.Height < 16 )
-		{
-			wantsUncompressed = true;
-		}
-
-		if ( wantsUncompressed )
 		{
 			if ( Layers.Any( x => x.Hdr ) ) bestFormat = VTexWriter.VTEX_Format_t.VTEX_FORMAT_RGBA16161616F;
 			else bestFormat = VTexWriter.VTEX_Format_t.VTEX_FORMAT_RGBA8888;
@@ -92,19 +84,19 @@ internal class VTexWriter
 		log.Trace( $"Writing Textures: {Header.Format} / {outputFormat}" );
 
 		//
-		// Smallest mip first boys
+		// Smallest mip first, then by face (for cubemaps)
+		// Layout: [mip N face 0][mip N face 1]...[mip N face 5][mip N-1 face 0]...
 		//
-		foreach ( var layer in Layers.OrderByDescending( x => x.Mip ) )
+		foreach ( var layer in Layers.OrderByDescending( x => x.Mip ).ThenBy( x => x.Face ) )
 		{
 			var encoded = layer.Bitmap.ToFormat( outputFormat );
 
 			if ( encoded is null )
 			{
-				Log.Warning( $"Error encoding {layer.Mip} [{layer.Bitmap.Width}x{layer.Bitmap.Height}] to {outputFormat}" );
-				continue;
+				throw new System.Exception( $"Failed to encode mip {layer.Mip} face {layer.Face} [{layer.Bitmap.Width}x{layer.Bitmap.Height}] to {outputFormat}" );
 			}
 
-			log.Trace( $"Writing Bitmap: {layer.Mip} [{layer.Bitmap.Width}x{layer.Bitmap.Height}] [{encoded.Length}]" );
+			log.Trace( $"Writing Bitmap: mip {layer.Mip} face {layer.Face} [{layer.Bitmap.Width}x{layer.Bitmap.Height}] [{encoded.Length}]" );
 			buffer.Write( encoded );
 		}
 
@@ -113,6 +105,7 @@ internal class VTexWriter
 	}
 
 
+	[System.Runtime.InteropServices.StructLayout( System.Runtime.InteropServices.LayoutKind.Sequential, Pack = 1 )]
 	public struct VTEX_Header_t
 	{
 		public VTEX_Header_t() { }
@@ -218,6 +211,38 @@ internal class VTexWriter
 		}
 	}
 
+	public static VTEX_Format_t? RuntimeToVTEX_Format( ImageFormat n )
+	{
+		return n switch
+		{
+			ImageFormat.DXT1 => VTEX_Format_t.VTEX_FORMAT_BC1,
+			ImageFormat.DXT5 => VTEX_Format_t.VTEX_FORMAT_BC3,
+			ImageFormat.I8 => VTEX_Format_t.VTEX_FORMAT_I8,
+			ImageFormat.IA88 => VTEX_Format_t.VTEX_FORMAT_IA88,
+			ImageFormat.RGBA8888 => VTEX_Format_t.VTEX_FORMAT_RGBA8888,
+			ImageFormat.R16 => VTEX_Format_t.VTEX_FORMAT_R16,
+			ImageFormat.RG1616 => VTEX_Format_t.VTEX_FORMAT_RG1616,
+			ImageFormat.RGBA16161616 => VTEX_Format_t.VTEX_FORMAT_RGBA16161616,
+			ImageFormat.R16F => VTEX_Format_t.VTEX_FORMAT_R16F,
+			ImageFormat.RG1616F => VTEX_Format_t.VTEX_FORMAT_RG1616F,
+			ImageFormat.RGBA16161616F => VTEX_Format_t.VTEX_FORMAT_RGBA16161616F,
+			ImageFormat.R32F => VTEX_Format_t.VTEX_FORMAT_R32F,
+			ImageFormat.RG3232F => VTEX_Format_t.VTEX_FORMAT_RG3232F,
+			ImageFormat.RGB323232F => VTEX_Format_t.VTEX_FORMAT_RGB323232F,
+			ImageFormat.RGBA32323232F => VTEX_Format_t.VTEX_FORMAT_RGBA32323232F,
+			ImageFormat.BC6H => VTEX_Format_t.VTEX_FORMAT_BC6H,
+			ImageFormat.BC7 => VTEX_Format_t.VTEX_FORMAT_BC7,
+			ImageFormat.ATI2N => VTEX_Format_t.VTEX_FORMAT_BC5,
+			ImageFormat.R8G8B8_ETC2 => VTEX_Format_t.VTEX_FORMAT_ETC2,
+			ImageFormat.R8G8B8A8_ETC2_EAC => VTEX_Format_t.VTEX_FORMAT_ETC2_EAC,
+			ImageFormat.R11_EAC => VTEX_Format_t.VTEX_FORMAT_R11_EAC,
+			ImageFormat.RG11_EAC => VTEX_Format_t.VTEX_FORMAT_RG11_EAC,
+			ImageFormat.ATI1N => VTEX_Format_t.VTEX_FORMAT_BC4,
+			ImageFormat.BGRA8888 => VTEX_Format_t.VTEX_FORMAT_BGRA8888,
+			_ => null
+		};
+	}
+
 	public static bool IsCompressed( VTEX_Format_t format )
 	{
 		switch ( format )
@@ -243,18 +268,20 @@ internal class VTexWriter
 		public Bitmap Bitmap { get; set; }
 		public bool Opaque { get; set; }
 		public int Mip { get; set; }
+		public int Face { get; set; }
 		public bool Hdr { get; set; }
 		public bool IsPowerOfTwo => Bitmap.Width.IsPowerOfTwo() && Bitmap.Height.IsPowerOfTwo();
 	}
 
 	public List<TextureLayer> Layers = new();
 
-	internal void SetTexture( Bitmap bitmap, int mip )
+	internal void SetTexture( Bitmap bitmap, int mip, int face = 0 )
 	{
 		var layer = new TextureLayer
 		{
 			Bitmap = bitmap,
 			Mip = mip,
+			Face = face,
 			Opaque = bitmap.IsOpaque(),
 			Hdr = bitmap.IsFloatingPoint
 		};

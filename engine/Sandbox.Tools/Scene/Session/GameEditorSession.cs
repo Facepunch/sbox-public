@@ -24,4 +24,9 @@ public class GameEditorSession : SceneEditorSession
 	}
 
 	public override void StopPlaying() => Parent.StopPlaying();
+
+	public override void FrameTo( in BBox box )
+	{
+		Parent.FrameTo( box );
+	}
 }

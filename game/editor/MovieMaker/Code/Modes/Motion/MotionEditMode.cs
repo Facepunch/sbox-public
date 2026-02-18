@@ -67,7 +67,7 @@ public sealed partial class MotionEditMode : EditMode
 	protected override void OnMousePress( MouseEvent e )
 	{
 		var scenePos = Timeline.ToScene( e.LocalPosition );
-		var time = Session.ScenePositionToTime( scenePos );
+		var time = Timeline.ScenePositionToTime( scenePos );
 
 		if ( e.RightMouseButton )
 		{
@@ -81,7 +81,7 @@ public sealed partial class MotionEditMode : EditMode
 
 		if ( Timeline.GetItemAt( scenePos ) is TimeSelectionItem && !e.HasShift ) return;
 
-		_selectionStartTime = Session.ScenePositionToTime( scenePos );
+		_selectionStartTime = Timeline.ScenePositionToTime( scenePos );
 		_newTimeSelection = false;
 
 		Session.PlayheadTime = time;
@@ -96,13 +96,13 @@ public sealed partial class MotionEditMode : EditMode
 
 		e.Accepted = true;
 
-		var time = Session.ScenePositionToTime( Timeline.ToScene( e.LocalPosition ), new SnapOptions( x => x is not TimeSelectionItem ) );
+		var time = Timeline.ScenePositionToTime( Timeline.ToScene( e.LocalPosition ), new SnapOptions( x => x is not TimeSelectionItem ) );
 
 		// Only create a time selection when mouse has moved enough
 
 		if ( time == dragStartTime && TimeSelection is null ) return;
 
-		var (minTime, maxTime) = Session.VisibleTimeRange;
+		var (minTime, maxTime) = Timeline.VisibleTimeRange;
 
 		if ( time < minTime ) time = MovieTime.Zero;
 		if ( time > maxTime ) time = Session.Project!.Duration;
@@ -118,7 +118,7 @@ public sealed partial class MotionEditMode : EditMode
 	protected override void OnMouseRelease( MouseEvent e )
 	{
 		var scenePos = Timeline.ToScene( e.LocalPosition );
-		var time = Session.ScenePositionToTime( scenePos, showSnap: false );
+		var time = Timeline.ScenePositionToTime( scenePos, showSnap: false );
 
 		if ( e.RightMouseButton )
 		{
@@ -138,7 +138,7 @@ public sealed partial class MotionEditMode : EditMode
 
 		if ( TimeSelection is not { } selection ) return;
 
-		var timeRange = selection.PeakTimeRange.Clamp( Session.VisibleTimeRange );
+		var timeRange = selection.PeakTimeRange.Clamp( Timeline.VisibleTimeRange );
 
 		Session.PlayheadTime = timeRange.Start;
 		Session.PreviewTime = null;
@@ -261,7 +261,7 @@ public sealed partial class MotionEditMode : EditMode
 			selection = new TimeSelection( Session.PlayheadTime, DefaultInterpolation );
 		}
 
-		var delta = Math.Sign( e.Delta ) * Session.MinorTick.Interval;
+		var delta = Math.Sign( e.Delta ) * Timeline.MinorTick.Interval;
 
 		TimeSelection = selection.WithFadeDurationDelta( delta );
 

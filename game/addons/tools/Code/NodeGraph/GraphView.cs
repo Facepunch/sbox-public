@@ -466,7 +466,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		OnSelectionChanged?.Invoke();
 	}
 
-	internal void RemoveNode( NodeUI node )
+	public virtual void RemoveNode( NodeUI node )
 	{
 		var connections = Connections.Where( x => x.IsAttachedTo( node ) ).ToList();
 
@@ -565,7 +565,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		}
 	}
 
-	private void PopulateNodeMenu( Menu menu, Vector2 clickPos, Plug targetPlug = null, string filter = null )
+	protected virtual void PopulateNodeMenu( Menu menu, Vector2 clickPos, Plug targetPlug = null, string filter = null )
 	{
 		var visible = menu.Visible;
 
@@ -622,7 +622,7 @@ public class GraphView : GraphicsView, IGridSizeView
 			reduce: true );
 	}
 
-	private void OpenContextMenu( Vector2 pos, Vector2 clickPos, Plug targetPlug = null, Action onClose = null )
+	protected virtual void OpenContextMenu( Vector2 pos, Vector2 clickPos, Plug targetPlug = null, Action onClose = null )
 	{
 		var menu = new ContextMenu( this );
 		var anySelected = false;
@@ -695,7 +695,7 @@ public class GraphView : GraphicsView, IGridSizeView
 
 	}
 
-	private void CreateNodeMenu( Menu menu, Vector2 pos, Vector2 clickPos, Plug targetPlug = null )
+	protected virtual void CreateNodeMenu( Menu menu, Vector2 pos, Vector2 clickPos, Plug targetPlug = null )
 	{
 		menu.AboutToShow += () => PopulateNodeMenu( menu, clickPos, targetPlug );
 
@@ -705,7 +705,7 @@ public class GraphView : GraphicsView, IGridSizeView
 			onChange: s => PopulateNodeMenu( menu, clickPos, targetPlug, s ) );
 	}
 
-	public CommentUI CreateNewComment( string text, CommentColor color, Vector2 position, Vector2 size )
+	public virtual CommentUI CreateNewComment( string text, CommentColor color, Vector2 position, Vector2 size )
 	{
 		using var undoScope = UndoScope( "Add Comment" );
 
@@ -730,13 +730,13 @@ public class GraphView : GraphicsView, IGridSizeView
 		CreateNewNode( RerouteNodeType, position );
 	}
 
-	public NodeUI CreateNewNode( INodeType type, Vector2 position )
+	public virtual NodeUI CreateNewNode( INodeType type, Vector2 position )
 	{
 		return CreateNewNode( type, node =>
 			node.Position = position.SnapToGrid( GridSize ) );
 	}
 
-	public NodeUI CreateNewNode( INodeType type, Action<INode> onCreated = null )
+	public virtual NodeUI CreateNewNode( INodeType type, Action<INode> onCreated = null )
 	{
 		if ( type == null )
 			return null;
@@ -758,7 +758,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		return nodeUI;
 	}
 
-	protected NodeUI CreateNodeUI( INode node )
+	protected virtual NodeUI CreateNodeUI( INode node )
 	{
 		var item = node.CreateUI( this );
 		Add( item );
@@ -766,7 +766,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		return item;
 	}
 
-	public void CreateNewNode( INodeType type, Vector2 position, Plug targetPlug, bool selected = true )
+	public virtual void CreateNewNode( INodeType type, Vector2 position, Plug targetPlug, bool selected = true )
 	{
 		using var undoScope = UndoScope( "Add Node" );
 
@@ -932,7 +932,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		}
 	}
 
-	private Plug GetPlugAt( Vector2 scenePosition )
+	protected Plug GetPlugAt( Vector2 scenePosition )
 	{
 		var selectedItem = GetItemAt( scenePosition );
 
@@ -944,7 +944,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		return selectedItem as Plug;
 	}
 
-	private NodeUI GetNodeAt( Vector2 scenePosition )
+	protected NodeUI GetNodeAt( Vector2 scenePosition )
 	{
 		if ( GetPlugAt( scenePosition ) is { } plug )
 		{
@@ -1085,7 +1085,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		Preview = null;
 	}
 
-	private Connection CreateConnection( PlugOut nodeOutput, PlugIn dropTarget, bool uiOnly = false )
+	protected virtual Connection CreateConnection( PlugOut nodeOutput, PlugIn dropTarget, bool uiOnly = false )
 	{
 		ArgumentNullException.ThrowIfNull( nodeOutput );
 		ArgumentNullException.ThrowIfNull( dropTarget );
@@ -1110,7 +1110,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		return connection;
 	}
 
-	internal void RemoveConnection( Connection c )
+	public virtual void RemoveConnection( Connection c )
 	{
 		if ( c.Input.Inner.ConnectedOutput == c.Output.Inner )
 		{
@@ -1203,7 +1203,7 @@ public class GraphView : GraphicsView, IGridSizeView
 	/// <param name="insert">If true, we're inserting new nodes so there won't be any existing UI elements for them.</param>
 	/// <param name="offset">Optional position offset to apply to new nodes.</param>
 	/// <param name="selectNew">If true, select newly-created nodes and connections.</param>
-	public void BuildFromNodes( IEnumerable<INode> nodes, bool insert, Vector2 offset = default, bool selectNew = false )
+	public virtual void BuildFromNodes( IEnumerable<INode> nodes, bool insert, Vector2 offset = default, bool selectNew = false )
 	{
 		var nodesSet = nodes.ToImmutableHashSet();
 

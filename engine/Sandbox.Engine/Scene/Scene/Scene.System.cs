@@ -1,4 +1,6 @@
-﻿namespace Sandbox;
+﻿using System.Text.Json.Nodes;
+
+namespace Sandbox;
 
 [Expose]
 public partial class Scene
@@ -44,11 +46,99 @@ public partial class Scene
 
 			foreach ( var f in found )
 			{
-				var e = f.Create<GameObjectSystem>( new object[] { this } );
+				var e = f.Create<GameObjectSystem>( [this] );
 				if ( e is null ) continue;
+
+				ApplyGameObjectSystemConfig( e );
 
 				systems.Add( e );
 				AddObjectToDirectory( e );
+			}
+		}
+	}
+
+	/// <summary>
+	/// Apply configuration values to a GameObjectSystem with priority:
+	/// 1. Project-wide value (from <see cref="ProjectSettings.Systems"/>)
+	/// 2. Default value (already set by property initializer)
+	/// Scene-specific overrides are applied during deserialization via <see cref="ApplyGameObjectSystemOverrides"/>
+	/// </summary>
+	void ApplyGameObjectSystemConfig( GameObjectSystem system )
+	{
+		var systemType = Game.TypeLibrary.GetType( system.GetType() );
+		if ( systemType is null ) return;
+
+		using ( Push() )
+		{
+			foreach ( var property in systemType.Properties.Where( x => x.HasAttribute<PropertyAttribute>() ) )
+			{
+				if ( !property.CanWrite ) continue;
+
+				// Apply project-wide value if it exists
+				if ( ProjectSettings.Systems.TryGetPropertyValue( systemType, property, out var value ) )
+				{
+					try
+					{
+						property.SetValue( system, value );
+					}
+					catch ( Exception ex )
+					{
+						Log.Warning( $"Failed to apply config value to {systemType.FullName}.{property.Name}: {ex.Message}" );
+					}
+				}
+			}
+		}
+	}
+
+	/// <summary>
+	/// Apply scene-specific GameObjectSystem property overrides.
+	/// Called during scene deserialization.
+	/// </summary>
+	internal void ApplyGameObjectSystemOverrides( JsonNode overridesNode )
+	{
+		if ( overridesNode is null )
+			return;
+
+		Dictionary<string, JsonObject> overrides;
+
+		try
+		{
+			overrides = Json.FromNode<Dictionary<string, JsonObject>>( overridesNode );
+		}
+		catch ( System.Exception e )
+		{
+			Log.Warning( e, $"Error when deserializing GameObjectSystem overrides ({e.Message})" );
+			return;
+		}
+
+		if ( overrides is null || !overrides.Any() )
+			return;
+
+		foreach ( var system in systems )
+		{
+			var systemType = Game.TypeLibrary.GetType( system.GetType() );
+			if ( systemType is null ) continue;
+
+			if ( !overrides.TryGetValue( systemType.FullName, out var properties ) )
+				continue;
+
+			foreach ( var property in systemType.Properties.Where( x => x.HasAttribute<PropertyAttribute>() ) )
+			{
+				if ( !property.CanWrite ) continue;
+
+				if ( properties.TryGetPropertyValue( property.Name, out var valueNode ) )
+				{
+					try
+					{
+						// Deserialize the JSON node directly to the property's type
+						var value = Json.FromNode( valueNode, property.PropertyType );
+						property.SetValue( system, value );
+					}
+					catch ( Exception ex )
+					{
+						Log.Warning( $"Failed to apply scene override to {systemType.FullName}.{property.Name}: {ex.Message}" );
+					}
+				}
 			}
 		}
 	}

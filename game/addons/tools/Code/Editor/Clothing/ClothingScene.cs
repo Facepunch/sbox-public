@@ -144,11 +144,12 @@ public class ClothingScene
 		// envmap
 		{
 			var go = Scene.Directory.FindByName( "envmap" )?.FirstOrDefault() ?? new GameObject( true, "envmap" );
-			var light = go.GetOrAddComponent<EnvmapProbe>();
-			light.WorldPosition = new Vector3( 0, 0, 0 );
-			light.Texture = Texture.Load( "textures/cubemaps/default2.vtex" );
-			light.TintColor = Color.White * 0.4f;
-			light.Bounds = BBox.FromPositionAndSize( 0, 100000 );
+			var c = go.GetOrAddComponent<EnvmapProbe>();
+			c.WorldPosition = new Vector3( 0, 0, 0 );
+			c.Mode = EnvmapProbe.EnvmapProbeMode.CustomTexture;
+			c.Texture = Texture.Load( "textures/cubemaps/default2.vtex" );
+			c.TintColor = Color.White * 0.4f;
+			c.Bounds = BBox.FromPositionAndSize( 0, 100000 );
 		}
 
 		//{

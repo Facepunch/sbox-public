@@ -1,4 +1,6 @@
-﻿namespace Facepunch.InteropGen;
+﻿using System;
+
+namespace Facepunch.InteropGen;
 
 public class ArgDefinedStruct : Arg
 {
@@ -40,6 +42,16 @@ public class ArgDefinedStruct : Arg
 		return base.ReturnWrapCall( functionCall, native );
 	}
 
+	public override string GetNativeDelegateType( bool incoming )
+	{
+		if ( incoming && Name != null && Flags == null && !Type.IsPointer && !Type.IsEnum && !Type.HasAttribute( "small" ) )
+		{
+			return $"{NativeDelegateType}*";
+		}
+
+		return base.GetNativeDelegateType( incoming );
+	}
+
 	public override string ToInterop( bool native, string code = null )
 	{
 		return Type.IsPointer
@@ -47,6 +59,17 @@ public class ArgDefinedStruct : Arg
 			: !native && code == null && Name != null && Flags == null && !Type.IsEnum && !Type.HasAttribute( "small" )
 			? $"&{Name}"
 			: base.ToInterop( native, code );
+	}
+
+	public override string FromInterop( bool native, string code = null )
+	{
+		// non-small arg structs are passed as ptr, so read it as ptr
+		if ( native && Flags == null && !Type.IsPointer && !Type.IsEnum && !Type.HasAttribute( "small" ) )
+		{
+			return $"*{code ?? Name}";
+		}
+
+		return base.FromInterop( native, code );
 	}
 
 	public override string DefaultValue => $"{NativeType}()";

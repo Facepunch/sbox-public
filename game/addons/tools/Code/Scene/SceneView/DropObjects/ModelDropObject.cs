@@ -43,6 +43,7 @@ partial class ModelDropObject : BaseDropObject
 			if ( so.IsValid() )
 			{
 				so.Flags.CastShadows = true;
+				so.UpdateToBindPose();
 			}
 		}
 

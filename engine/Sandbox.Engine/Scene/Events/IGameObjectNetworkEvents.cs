@@ -6,6 +6,11 @@
 public interface IGameObjectNetworkEvents : ISceneEvent<IGameObjectNetworkEvents>
 {
 	/// <summary>
+	/// Called before we are about to drop ownership of a network GameObject
+	/// </summary>
+	internal void BeforeDropOwnership() { }
+
+	/// <summary>
 	/// Called when the owner of a network GameObject is changed
 	/// </summary>
 	void NetworkOwnerChanged( Connection newOwner, Connection previousOwner ) { }

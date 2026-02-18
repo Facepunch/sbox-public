@@ -3,12 +3,14 @@
 
 #include "light_probe_volume.fxc"
 #include "vr_environment_map.fxc"
+#include "common/DDGI/DDGI.hlsl"
 
 enum AmbientLightKind
 {
     EnvMapProbe,            // Image-based Lighting
     LightMapProbeVolume,    // Probe-based Lighting
-    LightMap2D              // 2D Lightmaps for static geometry
+    LightMap2D,             // 2D Lightmaps for static geometry
+    DDGI                    // Dynamic Diffuse Global Illumination
 };
 
 /// <summary>
@@ -18,7 +20,11 @@ class AmbientLight
 {
     static AmbientLightKind GetKind()
     {
-        if ( ProbeLight::UsesProbes() )
+        if ( DDGI::IsEnabled() )
+        {
+            return AmbientLightKind::DDGI;
+        }
+        else if ( ProbeLight::UsesProbes() )
         {
             return AmbientLightKind::LightMapProbeVolume;
         }
@@ -32,15 +38,17 @@ class AmbientLight
         }
     }
 
-    static float3 From( float3 WorldPosition, float2 ScreenPosition,  float3 WorldNormal, float2 LightMapUV = 0.0f )
+    static float3 From( float3 WorldPosition, float3 WorldNormal, float2 LightMapUV = 0.0f )
     {
         switch( GetKind() )
         {
+            case AmbientLightKind::DDGI:
+                return FromDDGI( WorldPosition, WorldNormal );
             case AmbientLightKind::EnvMapProbe:
-                return FromEnvMapProbe( WorldPosition, ScreenPosition, WorldNormal );
+                return FromEnvMapProbe( WorldPosition, WorldNormal );
                 break;
             case AmbientLightKind::LightMapProbeVolume:
-                return FromLightMapProbeVolume( WorldPosition, ScreenPosition, WorldNormal );
+                return FromLightMapProbeVolume( WorldPosition, WorldNormal );
                 break;
             case AmbientLightKind::LightMap2D:
                 return 0.0f;
@@ -48,12 +56,26 @@ class AmbientLight
         return 0.0f;
     }
 
-    static float3 FromEnvMapProbe(float3 WorldPosition, float2 ScreenPosition, float3 WorldNormal);
-    static float3 FromLightMapProbeVolume(float3 WorldPosition, float2 ScreenPosition, float3 WorldNormal);
+    static float3 FromDDGI(float3 WorldPosition, float3 WorldNormal);
+    static float3 FromEnvMapProbe(float3 WorldPosition, float3 WorldNormal);
+    static float3 FromLightMapProbeVolume(float3 WorldPosition, float3 WorldNormal);
     static float3 FromLightMap(float3 WorldPosition, float2 LightMapUV);
 };
 
-float3 AmbientLight::FromEnvMapProbe(float3 WorldPosition, float2 ScreenPosition, float3 WorldNormal)
+float3 AmbientLight::FromDDGI( float3 WorldPosition, float3 WorldNormal )
+{
+    DDGIVolume ddgiVolume = DDGI::GetVolume( WorldPosition );
+    if ( ddgiVolume.IsValid() )
+    {
+        float3 cameraDirWs = CalculatePositionToCameraDirWs( WorldPosition );
+        float3 ddgiIrradiance = DDGI::Evaluate(ddgiVolume, WorldPosition, WorldNormal, cameraDirWs);
+        return ddgiIrradiance;
+    }
+
+    return 0.0f;
+}
+
+float3 AmbientLight::FromEnvMapProbe(float3 WorldPosition, float3 WorldNormal)
 {
     float accumulatedDistance = 0.0f;
     float3 ambientLightColor = float3(0.0, 0.0, 0.0);
@@ -131,7 +153,7 @@ float3 AmbientLight::FromEnvMapProbe(float3 WorldPosition, float2 ScreenPosition
     return ambientLightColor;
 }
 
-float3 AmbientLight::FromLightMapProbeVolume(float3 WorldPosition, float2 ScreenPosition, float3 WorldNormal)
+float3 AmbientLight::FromLightMapProbeVolume(float3 WorldPosition, float3 WorldNormal)
 {
     float3 vAmbientCube[6];
     SampleLightProbeVolume(vAmbientCube, WorldPosition);

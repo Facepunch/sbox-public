@@ -257,7 +257,7 @@ public sealed class SessionRenderer
 					var nextTime = frameTime + MovieTime.FromSeconds( subFrameTime );
 
 					_session.PlayheadTime = nextTime;
-					_session.ScrollToPlayheadTime();
+					_session.Editor?.TimelinePanel?.Timeline.PanToPlayheadTime();
 
 					BeforeRenderFrame( captureCamera, config, nextTime - prevTime );
 

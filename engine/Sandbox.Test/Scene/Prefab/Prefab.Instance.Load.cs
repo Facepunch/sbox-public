@@ -10,8 +10,8 @@ public class InstanceLoadTests
 {
 	[TestMethod]
 	/// <summary>
-	/// https://github.com/Facepunch/sbox-issues/issues/9367
-	/// https://github.com/Facepunch/sbox-issues/issues/9346
+	/// https://github.com/Facepunch/sbox-public/issues/758
+	/// https://github.com/Facepunch/sbox-public/issues/779
 	/// </summary>
 	public void RepeatedAttemptToLoadMissingPrefab_ShouldNotThrowException()
 	{

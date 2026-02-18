@@ -21,6 +21,17 @@ internal interface IMenuDll
 	void OnRender( SwapChainHandle_t swapChain );
 	void LateTick();
 	void Reset();
+
+	/// <summary>
+	/// Called when a game session starts. Destroys the menu scene to free resources.
+	/// </summary>
+	void OnGameEntered();
+
+	/// <summary>
+	/// Called when a game session ends. Recreates the menu scene.
+	/// </summary>
+	void OnGameExited();
+
 	IDisposable PushScope();
 
 	public Scene Scene { get; }

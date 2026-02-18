@@ -31,6 +31,17 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 
 		HeightMap?.Dispose();
 		ControlMap?.Dispose();
+
+		TerrainBuffer?.Dispose();
+		TerrainBuffer = null;
+
+		MaterialsBuffer?.Dispose();
+		MaterialsBuffer = null;
+
+		if ( !Scene.GetAllComponents<Terrain>().Any( t => t != this && t.Active ) )
+		{
+			Scene.RenderAttributes.Set( "TerrainCount", 0 );
+		}
 	}
 
 	void OnTerrainChanged()

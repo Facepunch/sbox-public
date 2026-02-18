@@ -13,10 +13,17 @@ public sealed partial class PlayerController : Component
 	public Component Pressed { get; set; }
 
 	/// <summary>
+	/// The tooltip of the currently hovered Pressable object
+	/// </summary>
+	public List<IPressable.Tooltip> Tooltips { get; } = new List<IPressable.Tooltip>();
+
+	/// <summary>
 	/// Called in Update when Using is enabled
 	/// </summary>
 	public void UpdateLookAt()
 	{
+		Tooltips.Clear();
+
 		if ( !EnablePressing )
 			return;
 
@@ -45,7 +52,13 @@ public sealed partial class PlayerController : Component
 		// unless the IPressable says it wants to stop
 		if ( keepPressing && Pressed is IPressable p )
 		{
-			keepPressing = p.Pressing( new IPressable.Event { Ray = EyeTransform.ForwardRay, Source = this } );
+			var @event = new IPressable.Event { Ray = EyeTransform.ForwardRay, Source = this };
+			if ( p.GetTooltip( @event ) is { } tt )
+			{
+				tt.Pressable = p;
+				Tooltips.Add( tt );
+			}
+			keepPressing = p.Pressing( @event );
 		}
 
 		if ( GetDistanceFromGameObject( Pressed.GameObject, EyePosition ) > ReachLength )
@@ -88,9 +101,10 @@ public sealed partial class PlayerController : Component
 
 		// If it's pressable then send an update to the hovered component every frame
 		// This is to allow things like cursors to update their position
-		if ( Hovered is IPressable pressable )
+		if ( Hovered is IPressable p )
 		{
-			pressable.Look( new IPressable.Event { Ray = EyeTransform.ForwardRay, Source = this } );
+			var @event = new IPressable.Event { Ray = EyeTransform.ForwardRay, Source = this };
+			p.Look( @event );
 		}
 
 		// We are pressing "use", so press our hovered component
@@ -206,20 +220,35 @@ public sealed partial class PlayerController : Component
 
 			foreach ( var hit in hits )
 			{
-				if ( !hit.GameObject.IsValid() )
+				// Get the GameObject of the collider, not the physics body
+				var hitObject = hit.Collider?.GameObject ?? hit.GameObject;
+
+				if ( !hitObject.IsValid() )
 					continue;
 
 				// Allow our other components to provide something
 				Component foundComponent = default;
-				IEvents.PostToGameObject( GameObject, x => foundComponent = x.GetUsableComponent( hit.GameObject ) ?? foundComponent );
+				IEvents.PostToGameObject( GameObject, x => foundComponent = x.GetUsableComponent( hitObject ) ?? foundComponent );
 
 				if ( foundComponent.IsValid() )
 					return foundComponent;
 
 				// Check for IPressable components
-				foreach ( var c in hit.GameObject.GetComponents<IPressable>() )
+				foreach ( var c in hitObject.GetComponents<IPressable>() )
 				{
-					if ( !c.CanPress( new IPressable.Event { Ray = EyeTransform.ForwardRay, Source = this } ) )
+					var @event = new IPressable.Event { Ray = EyeTransform.ForwardRay, Source = this };
+
+					var canPress = c.CanPress( @event );
+
+					if ( c.GetTooltip( @event ) is { } tt )
+					{
+						tt.Enabled = tt.Enabled && canPress;
+						tt.Pressable = c;
+
+						Tooltips.Add( tt );
+					}
+
+					if ( !canPress )
 						continue;
 
 					return c as Component;

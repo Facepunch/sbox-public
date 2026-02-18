@@ -26,6 +26,8 @@ internal class LocalSnapshotState
 	public Guid ObjectId { get; set; }
 	public int Size { get; private set; }
 
+	private bool _isHashInvalid { get; set; }
+
 	[Flags]
 	public enum HashFlags
 	{
@@ -59,6 +61,7 @@ internal class LocalSnapshotState
 				return;
 
 			_parentIdBytes ??= new byte[16];
+			_isHashInvalid = true;
 
 			value.TryWriteBytes( _parentIdBytes );
 			field = value;
@@ -78,6 +81,7 @@ internal class LocalSnapshotState
 
 			_flagsBytes ??= new byte[1];
 			_flagsBytes[0] = (byte)value;
+			_isHashInvalid = true;
 
 			field = value;
 		}
@@ -86,7 +90,15 @@ internal class LocalSnapshotState
 	private byte[] _parentIdBytes;
 	private byte[] _flagsBytes;
 
-	private readonly XxHash3 _hasher = new();
+	private static readonly XxHash3 Hasher = new();
+
+	/// <summary>
+	/// Call this every time you begin updating the snapshot state.
+	/// </summary>
+	public void Begin()
+	{
+		_isHashInvalid = false;
+	}
 
 	/// <summary>
 	/// Remove a connection from stored state acknowledgements.
@@ -138,9 +150,9 @@ internal class LocalSnapshotState
 	/// </summary>
 	public ulong Hash( byte[] value )
 	{
-		_hasher.Reset();
-		_hasher.Append( value );
-		return _hasher.GetCurrentHashAsUInt64();
+		Hasher.Reset();
+		Hasher.Append( value );
+		return Hasher.GetCurrentHashAsUInt64();
 	}
 
 	/// <summary>
@@ -189,17 +201,16 @@ internal class LocalSnapshotState
 	/// <param name="hashFlags"></param>
 	public void AddSerialized( int slot, byte[] value, HashFlags hashFlags = HashFlags.Default )
 	{
-		_hasher.Reset();
-		_hasher.Append( value );
+		Hasher.Reset();
+		Hasher.Append( value );
 
 		if ( (hashFlags & HashFlags.WithParentId) != 0 && _parentIdBytes is not null )
-			_hasher.Append( _parentIdBytes );
+			Hasher.Append( _parentIdBytes );
 
 		if ( (hashFlags & HashFlags.WithNetworkFlags) != 0 && _flagsBytes is not null )
-			_hasher.Append( _flagsBytes );
+			Hasher.Append( _flagsBytes );
 
-		var hash = _hasher.GetCurrentHashAsUInt64();
-
+		var hash = Hasher.GetCurrentHashAsUInt64();
 		AddSerialized( slot, value, hash );
 	}
 
@@ -207,8 +218,13 @@ internal class LocalSnapshotState
 	/// Add from a <see cref="SnapshotValueCache"/> cache. Can optionally choose to add the
 	/// parent <see cref="Guid"/> as a salt when hashing the value.
 	/// </summary>
-	public void AddCached<T>( SnapshotValueCache cache, int slot, T value, HashFlags hashFlags = HashFlags.Default )
+	public void AddCached<T>( SnapshotValueCache cache, int slot, in T value, HashFlags hashFlags = HashFlags.Default )
 	{
-		AddSerialized( slot, cache.GetCached( slot, value ), hashFlags );
+		var cached = cache.GetCached( slot, value, out var isEqual );
+
+		if ( isEqual && !_isHashInvalid )
+			return;
+
+		AddSerialized( slot, cached, hashFlags );
 	}
 }

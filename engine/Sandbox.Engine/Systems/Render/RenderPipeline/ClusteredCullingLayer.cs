@@ -10,7 +10,7 @@ namespace Sandbox.Rendering;
 /// </summary>
 internal class ClusteredCullingLayer : ProceduralRenderLayer
 {
-	private static readonly IntVector3 ClusterCounts = new( 24, 16, 24 );
+	private static readonly IntVector3 ClusterCounts = new( 24, 16, 48 );
 
 	private const int MaxLightsPerCluster = 64;
 	private const int MaxEnvMapsPerCluster = 32;

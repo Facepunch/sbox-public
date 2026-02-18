@@ -196,11 +196,8 @@ public static partial class Networking
 	[ConVar( "net_debug", ConVarFlags.Protected )]
 	internal static bool Debug { get; set; }
 
-	[ConVar( "net_shared_query_port", ConVarFlags.Protected )]
-	internal static bool SharedQueryPort { get; set; } = true;
-
-	[ConVar( "net_use_fake_ip", ConVarFlags.Protected )]
-	internal static bool UseFakeIP { get; set; } = true;
+	[ConVar( "net_hide_address", ConVarFlags.Protected )]
+	internal static bool HideAddress { get; set; } = true;
 
 	[ConVar( "net_game_server_token", ConVarFlags.Protected )]
 	internal static string GameServerToken { get; set; } = string.Empty;
@@ -213,6 +210,9 @@ public static partial class Networking
 
 	[ConVar( "net_fakelag", ConVarFlags.Protected | ConVarFlags.Cheat, Help = "Simulate latency in ms" )]
 	internal static int FakeLag { get; set; } = 0;
+
+	[ConVar( "net_query_port", ConVarFlags.Protected )]
+	internal static int QueryPort { get; set; } = 27016;
 
 	[ConCmd( "hostname", ConVarFlags.Protected | ConVarFlags.Admin )]
 	private static void SetHostname( string name )
@@ -327,8 +327,6 @@ public static partial class Networking
 
 		utils.SetConfig( NetConfig.P2P_Transport_ICE_Enable, Defines.k_nSteamNetworkingConfig_P2P_Transport_ICE_Enable_All );
 		utils.SetConfig( NetConfig.P2P_STUN_ServerList, "stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302" );
-
-		utils.InitializeRelayNetwork();
 
 		sockets.StartAuthentication();
 	}

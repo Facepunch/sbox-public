@@ -30,7 +30,7 @@ internal static class Avatar
 
 				var placeholder = Texture.Create( 1, 1 ).WithName( "avatar" ).WithData( new byte[4] { 0, 0, 0, 0 } ).Finish();
 				placeholder.IsLoaded = false;
-				placeholder.SetIdFromResourcePath( filename );
+				placeholder.RegisterWeakResourceId( filename );
 
 				_ = LoadIntoTexture( filename, placeholder );
 
@@ -80,7 +80,7 @@ internal static class Avatar
 			// Bots, lets find steam profiles with Simpsons avatars and use those
 			// Edit: I could only find like 6 so lets use a bunch of random ones
 			//
-			if ( steamid >= 90071996842377216 )
+			if ( steamid >= Utility.Steam.BaseFakeSteamId )
 			{
 				steamid = SandboxSystem.Random.FromArray( new ulong[]
 				{

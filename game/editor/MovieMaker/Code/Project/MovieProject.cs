@@ -114,8 +114,6 @@ public sealed partial class MovieProject : IMovieClip, IMovieProject
 	/// </summary>
 	internal MovieProject( MovieClip clip )
 	{
-		var source = new ProjectSourceClip( Guid.NewGuid(), clip, null );
-
 		foreach ( var compiledTrack in clip.Tracks )
 		{
 			var parentTrack = compiledTrack.Parent is { } parent ? GetTrack( parent ) : null;
@@ -133,7 +131,7 @@ public sealed partial class MovieProject : IMovieClip, IMovieProject
 				{
 					var track = IProjectPropertyTrack.Create( this, Guid.NewGuid(), propertyTrack.Name, propertyTrack.TargetType );
 
-					track.SetBlocks( track.CreateSourceBlocks( source ) );
+					track.SetBlocks( propertyTrack.Blocks.ToProjectBlocks() );
 
 					AddTrackInternal( track, parentTrack );
 					continue;

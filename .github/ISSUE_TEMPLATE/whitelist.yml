@@ -1,0 +1,28 @@
+name: Whitelist
+description: I want to access something I can't
+type: Task
+labels:
+  - whitelist
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If you want to use reflection, look at TypeLibrary!
+  - type: textarea
+    id: disallowed
+    attributes:
+      label: What it is?
+      description: Including the whitelist error from the console is very helpful
+      placeholder: |
+        Whitelist Error: System.Private.CoreLib/System.Type.get_BaseType()
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-should-it-be
+    attributes:
+      label: Why do you need to use this?
+      description: Real use cases on why your game simply can't work without this
+      placeholder: ex. I can't add numbers and my game needs to check the answers for math questions
+    validations:
+      required: true

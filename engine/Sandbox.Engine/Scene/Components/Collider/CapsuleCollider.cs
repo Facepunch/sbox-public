@@ -83,10 +83,10 @@ public class CapsuleCollider : Collider
 
 		var body = Rigidbody;
 		var world = Transform.TargetWorld;
-		var local = body.IsValid() ? body.Transform.TargetWorld.ToLocal( world ) : global::Transform.Zero;
+		var local = body.IsValid() ? body.Transform.TargetWorld.WithScale( 1.0f ).ToLocal( world ) : global::Transform.Zero;
 		var scale = world.UniformScale;
-		var center1 = local.PointToWorld( Start ) * scale;
-		var center2 = local.PointToWorld( End ) * scale;
+		var center1 = local.PointToWorld( Start );
+		var center2 = local.PointToWorld( End );
 		var radius = Radius * scale;
 
 		Shape.UpdateCapsuleShape( center1, center2, radius );

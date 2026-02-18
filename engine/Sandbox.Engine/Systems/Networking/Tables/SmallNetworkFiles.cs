@@ -24,7 +24,7 @@ internal class SmallNetworkFiles
 		StringTable.Reset();
 
 		Files?.Dispose();
-		Files = new();
+		Files = new MemoryFileSystem();
 	}
 
 	/// <summary>

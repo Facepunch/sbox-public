@@ -23,10 +23,26 @@ namespace Sandbox.UI
 		/// </summary>
 		[Parameter] public System.Func<List<Option>> BuildOptions { get; set; }
 
+		private List<Option> _options = new();
+
 		/// <summary>
 		/// The options to show on click. You can edit these directly via this property.
 		/// </summary>
-		[Parameter] public List<Option> Options { get; set; } = new();
+		[Parameter]
+		public List<Option> Options
+		{
+			get => _options;
+			set
+			{
+				_options = value ?? new();
+
+				// Re-select current value to update display text with new options
+				if ( _value != null && _options.Count > 0 )
+				{
+					Select( _value?.ToString(), false );
+				}
+			}
+		}
 
 		Option selected;
 

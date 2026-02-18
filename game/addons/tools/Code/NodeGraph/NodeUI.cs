@@ -611,17 +611,50 @@ public partial class NodeUI : GraphicsItem
 
 		Node.OnPaint( rect );
 
+		var hasError = !string.IsNullOrWhiteSpace( Node.ErrorMessage );
+		var selectionOutline = SelectionOutline;
+
+		if ( hasError )
+		{
+			selectionOutline = Color.Red;
+
+			if ( !Paint.HasMouseOver )
+			{
+				selectionOutline = selectionOutline.Darken( 0.25f );
+			}
+		}
+
 		if ( Paint.HasSelected )
 		{
-			Paint.SetPen( SelectionOutline, 2.0f );
+			Paint.SetPen( selectionOutline, 2.0f );
 			Paint.ClearBrush();
 			Paint.DrawRect( rect, radius );
 		}
-		else if ( Paint.HasMouseOver )
+		else if ( Paint.HasMouseOver && !hasError )
 		{
-			Paint.SetPen( SelectionOutline, 1.0f );
+			Paint.SetPen( selectionOutline.Darken( 0.25f ), 1.0f );
 			Paint.ClearBrush();
 			Paint.DrawRect( rect, radius );
+		}
+		else if ( hasError )
+		{
+			Paint.SetPen( selectionOutline, 2.0f );
+			Paint.ClearBrush();
+			Paint.DrawRect( rect, radius );
+		}
+
+		if ( hasError )
+		{
+			var errorText = "ERROR!!!";
+			var errorRect = Paint.MeasureText( rect.Align( Size, TextFlag.CenterBottom ), errorText, TextFlag.CenterBottom )
+			.Grow( 4f, 0f, 4f, 0f );
+
+			Paint.SetBrush( Paint.HasMouseOver ? Color.Red : Color.Red.Darken( 0.25f ) );
+			Paint.ClearPen();
+			Paint.DrawRect( errorRect, 1f );
+
+			Paint.SetPen( Theme.TextControl );
+			Paint.DrawText( errorRect, errorText, TextFlag.CenterBottom );
 		}
 	}
 

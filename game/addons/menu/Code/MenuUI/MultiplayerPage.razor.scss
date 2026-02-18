@@ -1,15 +1,44 @@
 MultiplayerPage .button
 {
-    font-size: 1rem;
-    background-color: #467ee506;
-    padding: 8px 16px;
-    border-radius: 16px;
+	font-size: 1rem;
+	background-color: #467ee506;
+	border-radius: 50%;
+	color: #c6d4ee;
+	font-size: 13px;
+	padding: 16px 16px;
+
+	Label
+	{
+		text-transform: uppercase;
+		font-weight: 600;
+	}
+
+	IconPanel
+	{
+		color: #3777ee;
+		font-size: 2rem;
+	}
+
+	&:hover, &.active
+	{
+		font-size: 1rem;
+		background-color: #467ee5;
+		padding: 16px 16px;
+		border-radius: 50%;
+
+		IconPanel
+		{
+			color: #c6d4ee;
+		}
+	}
+
+	&.is-icon
+	{
+		padding: 8px 16px;
+	}
 }
 
-MultiplayerPage .button:hover
+MultiplayerPage span
 {
-    font-size: 1rem;
-    background-color: #467ee5;
-    padding: 8px 16px;
-    border-radius: 16px;
+	gap: 4px;
 }

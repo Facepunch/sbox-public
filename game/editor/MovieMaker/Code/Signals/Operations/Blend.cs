@@ -29,6 +29,4 @@ file sealed record BlendOperation<T>( PropertySignal<T> First, PropertySignal<T>
 
 	protected override PropertySignal<T> OnSmooth( MovieTime size ) =>
 		this with { First = First.Smooth( size ), Second = Second.Smooth( size ) };
-
-	public override bool CanSmooth( MovieTimeRange range ) => First.CanSmooth( range ) || Second.CanSmooth( range );
 }

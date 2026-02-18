@@ -18,13 +18,13 @@ internal class DeltaSnapshotSystem
 	internal class GuidUlongComparer : IEqualityComparer<Guid>
 	{
 		[MethodImpl( MethodImplOptions.AggressiveInlining )]
-		public bool Equals( Guid x, Guid y ) => x.Equals( y );
+		public bool Equals( Guid x, Guid y ) => x == y;
 
 		[MethodImpl( MethodImplOptions.AggressiveInlining )]
 		public int GetHashCode( Guid guid )
 		{
-			var lowBits = MemoryMarshal.Read<ulong>( MemoryMarshal.AsBytes( MemoryMarshal.CreateReadOnlySpan( in guid, 1 ) ) );
-			return (int)(lowBits ^ (lowBits >> 32));
+			var span = MemoryMarshal.Cast<Guid, long>( MemoryMarshal.CreateSpan( ref guid, 1 ) );
+			return (int)(span[0] ^ span[1]);
 		}
 	}
 
@@ -403,6 +403,8 @@ internal class DeltaSnapshotSystem
 		snapshot.AddReference();
 	}
 
+	private readonly HashSet<ushort> _invalidSnapshotIds = new( 32 );
+
 	public void OnDeltaSnapshotClusterAck( Connection source, ByteStream message )
 	{
 		var scene = Game.ActiveScene;
@@ -415,18 +417,19 @@ internal class DeltaSnapshotSystem
 		if ( cluster is null ) return;
 
 		var invalidSnapshotCount = message.Read<ushort>();
-		var invalidSnapshotIds = new HashSet<ushort>();
 		var connectionId = source.Id;
+
+		_invalidSnapshotIds.Clear();
 
 		for ( var i = 0; i < invalidSnapshotCount; i++ )
 		{
-			invalidSnapshotIds.Add( message.Read<ushort>() );
+			_invalidSnapshotIds.Add( message.Read<ushort>() );
 		}
 
 		foreach ( var snapshot in cluster.Snapshots )
 		{
 			// Did the client reject this particular snapshot? Maybe the game object didn't exist yet.
-			if ( invalidSnapshotIds.Contains( snapshot.SnapshotId ) )
+			if ( _invalidSnapshotIds.Contains( snapshot.SnapshotId ) )
 				continue;
 
 			IDeltaSnapshot snapshotter = scene.Directory.FindSystemByGuid( snapshot.ObjectId );
@@ -463,6 +466,8 @@ internal class DeltaSnapshotSystem
 		cluster.Release();
 	}
 
+	private readonly Dictionary<int, byte[]> _dataToProcess = new( 32 );
+
 	public void OnDeltaSnapshotCluster( Connection source, ByteStream reader )
 	{
 		var scene = Game.ActiveScene;
@@ -470,10 +475,9 @@ internal class DeltaSnapshotSystem
 
 		var clusterId = reader.Read<ushort>();
 		var connectionData = GetConnection( source );
-
 		var count = (int)reader.Read<ushort>();
-		var invalidSnapshotIds = new HashSet<ushort>();  // allocation
-		var currentData = new Dictionary<int, byte[]>();  // allocation
+
+		_invalidSnapshotIds.Clear();
 
 		for ( var i = 0; i < count; i++ )
 		{
@@ -482,12 +486,12 @@ internal class DeltaSnapshotSystem
 			var objectId = reader.Read<Guid>();
 			var dataCount = reader.Read<ushort>();
 
-			currentData.Clear();
+			_dataToProcess.Clear();
 
 			for ( var j = 0; j < dataCount; j++ )
 			{
 				var slot = reader.Read<int>();
-				currentData[slot] = reader.ReadArraySpan<byte>( 1024 * 1024 * 16 ).ToArray(); // allocation
+				_dataToProcess[slot] = reader.ReadArraySpan<byte>( 1024 * 1024 * 16 ).ToArray(); // allocation
 			}
 
 			IDeltaSnapshot snapshotter = scene.Directory.FindSystemByGuid( objectId );
@@ -500,11 +504,11 @@ internal class DeltaSnapshotSystem
 
 			if ( snapshotter is null || snapshotter.SnapshotVersion != version )
 			{
-				invalidSnapshotIds.Add( snapshotId );
+				_invalidSnapshotIds.Add( snapshotId );
 				continue;
 			}
 
-			var snapshot = DeltaSnapshot.From( currentData );
+			var snapshot = DeltaSnapshot.From( _dataToProcess );
 			snapshot.SnapshotId = snapshotId;
 			snapshot.Version = version;
 			snapshot.ObjectId = objectId;
@@ -525,15 +529,18 @@ internal class DeltaSnapshotSystem
 
 			if ( !snapshotter.OnSnapshot( source, finalSnapshot ) )
 			{
-				invalidSnapshotIds.Add( snapshotId );
+				_invalidSnapshotIds.Add( snapshotId );
 			}
+
+			finalSnapshot.Release();
+			snapshot.Release();
 		}
 
 		var ackBs = ByteStream.Create( 1024 );
 		ackBs.Write( clusterId );
-		ackBs.Write( (ushort)invalidSnapshotIds.Count );
+		ackBs.Write( (ushort)_invalidSnapshotIds.Count );
 
-		foreach ( var invalidSnapshotId in invalidSnapshotIds )
+		foreach ( var invalidSnapshotId in _invalidSnapshotIds )
 		{
 			ackBs.Write( invalidSnapshotId );
 		}
@@ -603,13 +610,14 @@ internal class DeltaSnapshotSystem
 		var objectId = reader.Read<Guid>();
 		var version = reader.Read<ushort>();
 		var snapshotId = reader.Read<ushort>();
-		var currentData = new Dictionary<int, byte[]>();
 		var dataCount = reader.Read<ushort>();
+
+		_dataToProcess.Clear();
 
 		for ( var i = 0; i < dataCount; i++ )
 		{
 			var slot = reader.Read<int>();
-			currentData[slot] = reader.ReadArraySpan<byte>( 1024 * 1024 * 16 ).ToArray();
+			_dataToProcess[slot] = reader.ReadArraySpan<byte>( 1024 * 1024 * 16 ).ToArray();
 		}
 
 		IDeltaSnapshot snapshotter = scene.Directory.FindSystemByGuid( objectId );
@@ -623,7 +631,7 @@ internal class DeltaSnapshotSystem
 		if ( snapshotter is null || snapshotter.SnapshotVersion != version )
 			return;
 
-		var snapshot = DeltaSnapshot.From( currentData );
+		var snapshot = DeltaSnapshot.From( _dataToProcess );
 		snapshot.SnapshotId = snapshotId;
 		snapshot.Version = version;
 		snapshot.ObjectId = objectId;
@@ -643,7 +651,11 @@ internal class DeltaSnapshotSystem
 		var finalSnapshot = state.ToDeltaSnapshot( snapshot.SnapshotId, version, snapshot.Keys, Time );
 
 		if ( !snapshotter.OnSnapshot( source, finalSnapshot ) )
+		{
+			finalSnapshot.Release();
+			snapshot.Release();
 			return;
+		}
 
 		var ackBs = ByteStream.Create( 1024 );
 		ackBs.Write( objectId );
@@ -652,6 +664,8 @@ internal class DeltaSnapshotSystem
 		System.Send( source, InternalMessageType.DeltaSnapshotAck, ackBs.ToArray(),
 			NetFlags.Unreliable | NetFlags.DiscardOnDelay );
 
+		finalSnapshot.Release();
+		snapshot.Release();
 		ackBs.Dispose();
 	}
 
@@ -660,13 +674,12 @@ internal class DeltaSnapshotSystem
 	/// </summary>
 	public ushort CreateSnapshotId( Guid objectId )
 	{
-		ushort snapshotId = 0;
+		ref var id = ref CollectionsMarshal.GetValueRefOrAddDefault( LastSentSnapshotIds, objectId, out bool exists );
 
-		if ( LastSentSnapshotIds.TryGetValue( objectId, out var id ) )
-			snapshotId = (ushort)(id + 1);
+		if ( exists )
+			id++;
 
-		LastSentSnapshotIds[objectId] = snapshotId;
-		return snapshotId;
+		return id;
 	}
 
 	/// <summary>

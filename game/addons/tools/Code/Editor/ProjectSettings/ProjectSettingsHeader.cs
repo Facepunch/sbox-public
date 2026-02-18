@@ -43,7 +43,7 @@ internal class ProjectSettingsHeader : Widget
 		if ( package?.Thumb != null )
 		{
 			Paint.SetPen( Theme.Text );
-			Paint.Draw( icon, package?.Thumb );
+			Paint.Draw( icon, package?.Thumb, borderRadius: 4 );
 		}
 		else
 		{

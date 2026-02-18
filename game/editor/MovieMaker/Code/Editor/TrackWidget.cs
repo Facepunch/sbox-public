@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
+using Sandbox.MovieMaker.Compiled;
 
 namespace Editor.MovieMaker;
 
@@ -163,7 +164,10 @@ public partial class TrackWidget : Widget
 	{
 		base.OnMousePress( e );
 
-		e.Accepted = true;
+		if ( !e.MiddleMouseButton )
+		{
+			e.Accepted = true;
+		}
 	}
 
 	protected override void OnMouseClick( MouseEvent e )
@@ -318,7 +322,7 @@ public partial class TrackWidget : Widget
 		_menu.OpenAtCursor();
 	}
 
-	private static void AddCommonContextMenuOptions( Menu menu, IReadOnlyList<TrackView> trackViews )
+	private void AddCommonContextMenuOptions( Menu menu, IReadOnlyList<TrackView> trackViews )
 	{
 		var anyLocked = trackViews.Any( x => x.IsLockedSelf );
 		var anyUnlocked = trackViews.Any( x => !x.IsLockedSelf );
@@ -352,6 +356,65 @@ public partial class TrackWidget : Widget
 				track.Remove();
 			}
 		} );
+
+		menu.AddOption( "Create Missing References", "person_add", () =>
+		{
+			var touched = new HashSet<TrackView>();
+
+			foreach ( var trackView in trackViews )
+			{
+				CreateTargets( trackView, touched );
+			}
+		} );
+	}
+
+	private void CreateTargets( TrackView view, HashSet<TrackView> touched )
+	{
+		if ( !touched.Add( view ) ) return;
+		if ( view.IsLocked ) return;
+		if ( view.Parent?.Target is { IsBound: false } ) return;
+
+		var binder = TrackList.Session.Binder;
+
+		using var sceneScope = binder.Scene.Push();
+
+		if ( view.Track is ProjectSequenceTrack sequenceTrack )
+		{
+			foreach ( var refTrack in sequenceTrack.ReferenceTracks )
+			{
+				CreateTarget( refTrack, binder.Get( refTrack ) );
+			}
+		}
+		else if ( view.Track is IReferenceTrack refTrack && view.Target is ITrackReference trackRef )
+		{
+			CreateTarget( refTrack, trackRef );
+		}
+
+		foreach ( var childView in view.Children )
+		{
+			CreateTargets( childView, touched );
+		}
+	}
+
+	private void CreateTarget( IReferenceTrack track, ITrackReference target )
+	{
+		var parentGo = target.Parent?.Value;
+
+		if ( target is ITrackReference<GameObject> { IsBound: false } goRef )
+		{
+			var go = new GameObject( parentGo, name: track.Name );
+
+			goRef.Bind( go );
+		}
+		else if ( parentGo is not null && target is { IsBound: false } cmpRef )
+		{
+			var typeDesc = TypeLibrary.GetType( target.TargetType );
+			if ( typeDesc is null ) return;
+
+			var cmp = parentGo.Components.Create( typeDesc );
+
+			cmpRef.Bind( cmp );
+		}
 	}
 
 	private bool? GetAggregateLockState( IEnumerable<TrackView> trackViews )

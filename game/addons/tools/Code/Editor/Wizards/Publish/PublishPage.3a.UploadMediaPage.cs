@@ -12,6 +12,8 @@ partial class PublishWizard
 
 		public override bool IsAutoStep => true;
 
+		static readonly Vector2Int VideoResolution = new( 1280, 720 );
+
 		Assets.AssetPreview videoWriter;
 
 		public string StateText;
@@ -32,8 +34,8 @@ partial class PublishWizard
 			status?.Invoke( "Creating Video" );
 			var data = await vid.CreateVideo( vid.VideoLength, new VideoWriter.Config
 			{
-				Width = 1280,
-				Height = 720,
+				Width = VideoResolution.x,
+				Height = VideoResolution.y,
 				FrameRate = 60
 			} );
 
@@ -74,15 +76,14 @@ partial class PublishWizard
 				return;
 
 			videoWriter = vid;
-			videoWriter.ScreenSize = new Vector2Int( 1280, 720 );
 			Update();
 
 			StateText = "Generating Video..";
 
 			var data = await vid.CreateVideo( vid.VideoLength, new VideoWriter.Config
 			{
-				Width = videoWriter.ScreenSize.x,
-				Height = videoWriter.ScreenSize.y,
+				Width = VideoResolution.x,
+				Height = VideoResolution.y,
 				FrameRate = 60
 			} );
 
@@ -125,7 +126,7 @@ partial class PublishWizard
 					}
 				}
 
-				scenePixmap ??= new Pixmap( videoWriter.ScreenSize.x, videoWriter.ScreenSize.y );
+				scenePixmap ??= new Pixmap( VideoResolution.x, VideoResolution.y );
 				Paint.Draw( LocalRect, scenePixmap );
 
 				videoWriter.Camera.RenderToPixmap( scenePixmap );

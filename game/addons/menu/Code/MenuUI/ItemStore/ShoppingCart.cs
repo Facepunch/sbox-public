@@ -59,7 +59,16 @@ public class ShoppingCart
 
 			if ( success )
 			{
+				var itemNames = Items.Select( x => x.Name ).ToList();
 				Items.Clear();
+
+				// Show a confirmation popup with the purchased items
+				var itemCount = itemNames.Count;
+				var message = itemCount == 1
+					? $"You purchased {itemNames.First()}!"
+					: $"You purchased {itemCount} items!";
+
+				MenuOverlay.Message( message, "check_circle" );
 			}
 		}
 		finally

@@ -3,4 +3,5 @@ native static class ErrorReports as NativeErrorReporter
 {
 	void SetTag( string key, string value );
 	void Breadcrumb( bool action, string category, string description );
+	void Shutdown();
 }

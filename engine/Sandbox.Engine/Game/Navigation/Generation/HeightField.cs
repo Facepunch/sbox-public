@@ -34,7 +34,7 @@ internal sealed class Heightfield : IDisposable
 
 	private int ColumnCount => Width * Height;
 
-	private const int _initialColumnCapacity = 64;
+	private const int _initialColumnCapacity = 48;
 
 	private int _columnCapacity = _initialColumnCapacity;
 	private int _totalSpanCount = 0;
@@ -101,7 +101,6 @@ internal sealed class Heightfield : IDisposable
 	public void GrowColumns()
 	{
 		var newCapacity = _columnCapacity * 2;
-		Log.Warning( $"Heightfield: Growing column capacity from {_columnCapacity} to {newCapacity}" );
 		var newSpans = ArrayPool<SpanData>.Shared.Rent( ColumnCount * newCapacity );
 		for ( int c = 0; c < ColumnCount; c++ )
 		{
@@ -190,18 +189,19 @@ internal sealed class Heightfield : IDisposable
 	{
 		if ( _isCompressed ) return;
 
-		var newSpans = ArrayPool<SpanData>.Shared.Rent( _totalSpanCount );
 		int currentOffset = 0;
 		for ( int c = 0; c < ColumnCount; c++ )
 		{
 			int count = _columnCounts[c];
 			_compressedColumnStarts[c] = currentOffset;
-			Array.Copy( _spans, c * _columnCapacity, newSpans, currentOffset, count );
+			if ( count > 0 )
+			{
+				int sourceOffset = c * _columnCapacity;
+				if ( sourceOffset != currentOffset ) Array.Copy( _spans, sourceOffset, _spans, currentOffset, count );
+			}
 			currentOffset += count;
 		}
 
-		ArrayPool<SpanData>.Shared.Return( _spans );
-		_spans = newSpans;
 		_isCompressed = true;
 	}
 

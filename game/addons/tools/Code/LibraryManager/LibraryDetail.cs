@@ -88,7 +88,7 @@ class LibraryDetail : Widget
 				var rect = new Rect( 0, icon.Size );
 				if ( !string.IsNullOrWhiteSpace( Package.Thumb ) && !Package.Thumb.StartsWith( "/" ) )
 				{
-					Paint.Draw( rect, Package.Thumb );
+					Paint.Draw( rect, Package.Thumb, borderRadius: 4 );
 				}
 				else
 				{
@@ -128,7 +128,7 @@ class LibraryDetail : Widget
 					{
 						var project = LibrarySystem.All.FirstOrDefault( x => x.Project.Package.Ident == Package.Ident && x.Project.Package.Org == Package.Org )?.Project;
 						if ( project is null ) return;
-						ProjectInspector.OpenForProject( project );
+						ProjectSettingsWindow.OpenForProject( project );
 					}
 				};
 				if ( !isLocalPackage )

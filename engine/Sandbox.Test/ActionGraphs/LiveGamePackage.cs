@@ -17,7 +17,7 @@ public class LiveGamePackage
 	/// package have no errors.
 	/// </summary>
 	[TestMethod]
-	[DataRow( "fish.sauna", 105400L, "scenes/finland.scene", 304,
+	[DataRow( "fish.sauna", 105400L, "scenes/finland.scene", 289,
 		"33319bc0-e128-4e9d-a45a-8dedd8e9cf81", // Unable to find node definition for 'event.endsession'
 		"6e10f594-201e-4859-b750-77442dbf67a7", // Unable to find type 'EventAreaFinder'
 		"ffc76fb6-66ea-43ca-a028-9521be9422b2"  // Unable to find type 'EventAreaFinder'

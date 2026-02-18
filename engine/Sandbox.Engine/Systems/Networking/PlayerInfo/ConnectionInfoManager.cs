@@ -140,6 +140,7 @@ internal sealed class ConnectionInfo
 	public DateTimeOffset ConnectionTime { get; internal set; }
 	public bool CanRefreshObjects { get; internal set; } = true;
 	public bool CanSpawnObjects { get; internal set; } = true;
+	public bool CanDestroyObjects { get; internal set; } = true;
 	public SteamId PartyId { get; internal set; }
 	internal Connection.ChannelState State { get; set; }
 
@@ -149,6 +150,7 @@ internal sealed class ConnectionInfo
 		ConnectionTime = DateTime.UtcNow;
 		CanSpawnObjects = Sandbox.ProjectSettings.Networking.ClientsCanSpawnObjects;
 		CanRefreshObjects = Sandbox.ProjectSettings.Networking.ClientsCanRefreshObjects;
+		CanDestroyObjects = Sandbox.ProjectSettings.Networking.ClientsCanDestroyObjects;
 	}
 
 	/// <summary>
@@ -204,6 +206,7 @@ internal sealed class ConnectionInfo
 		UpdateStringTable( "connect", ConnectionTime );
 		UpdateStringTable( "canSpawnObjects", CanSpawnObjects );
 		UpdateStringTable( "canRefreshObjects", CanRefreshObjects );
+		UpdateStringTable( "canDestroyObjects", CanDestroyObjects );
 		UpdateStringTable( "party", PartyRoom.Current?.Id ?? new( 0 ) );
 
 		foreach ( var (k, v) in UserData )
@@ -256,6 +259,9 @@ internal sealed class ConnectionInfo
 				break;
 			case "canRefreshObjects":
 				CanRefreshObjects = (bool)value;
+				break;
+			case "canDestroyObjects":
+				CanDestroyObjects = (bool)value;
 				break;
 			case "party":
 				PartyId = (SteamId)value;

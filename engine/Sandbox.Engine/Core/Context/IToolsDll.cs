@@ -1,4 +1,5 @@
-﻿using NativeEngine;
+﻿using Editor;
+using NativeEngine;
 
 namespace Sandbox.Engine;
 
@@ -40,6 +41,11 @@ internal unsafe interface IToolsDll
 	/// Is the game view visible, or is it in a tab in the background?
 	/// </summary>
 	public bool IsGameViewVisible { get; }
+
+	/// <summary>
+	/// A public interface to the active editor system
+	/// </summary>
+	public EditorSystem ActiveEditor { get; }
 
 	/// <summary>
 	/// Called after the host network system is initialised, used to add additional package references etc. to dev servers 

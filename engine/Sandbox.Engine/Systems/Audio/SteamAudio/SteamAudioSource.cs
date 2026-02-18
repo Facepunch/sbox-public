@@ -42,9 +42,9 @@ class SteamAudioSource : IDisposable
 	/// <summary>
 	/// Buffers should be mono in, stereo out
 	/// </summary>
-	public void ApplyBinauralMix( Vector3 direction, float spatialBlend, MultiChannelBuffer input, MultiChannelBuffer output )
+	public void ApplyBinauralMix( Vector3 direction, float spatialBlend, bool useNearestInterpolation, MultiChannelBuffer input, MultiChannelBuffer output )
 	{
-		_binauralEffect.Apply( direction, spatialBlend, input, output );
+		_binauralEffect.Apply( direction, spatialBlend, useNearestInterpolation, input, output );
 	}
 
 	/// <summary>
@@ -62,5 +62,22 @@ class SteamAudioSource : IDisposable
 		_direct.OcclusionSize = handle.OcclusionRadius;
 
 		_direct.Update( handle.Transform, listenerPos, handle.TargetMixer ?? Mixer.Default, world );
+	}
+
+	/// <summary>
+	/// Time tracking for occlusion updates, managed by SoundOcclusionSystem
+	/// </summary>
+	internal RealTimeUntil TimeUntilNextOcclusionCalc
+	{
+		get => _direct.TimeUntilNextOcclusionCalc;
+		set => _direct.TimeUntilNextOcclusionCalc = value;
+	}
+
+	/// <summary>
+	/// Set the target occlusion value. Called by SoundOcclusionSystem after computing occlusion.
+	/// </summary>
+	internal void SetTargetOcclusion( float value )
+	{
+		_direct.SetTargetOcclusion( value );
 	}
 }

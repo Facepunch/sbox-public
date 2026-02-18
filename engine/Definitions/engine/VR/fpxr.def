@@ -8,19 +8,24 @@ native struct fpxr::VulkanInfo as Facepunch.XR.VulkanInfo;
 native struct fpxr::InstanceInfo as Facepunch.XR.InstanceInfo;
 native struct fpxr::Event as Facepunch.XR.Event;
 native struct fpxr::TextureSubmitInfo as Facepunch.XR.TextureSubmitInfo;
+
 [small]
 native struct fpxr::InputBooleanActionState as Facepunch.XR.InputBooleanActionState;
 native struct fpxr::InputFloatActionState as Facepunch.XR.InputFloatActionState;
 native struct fpxr::InputVector2ActionState as Facepunch.XR.InputVector2ActionState;
 native struct fpxr::InputPoseActionState as Facepunch.XR.InputPoseActionState;
 native struct fpxr::InputPoseHandState as Facepunch.XR.InputPoseHandState;
+
 native struct fpxr::ViewInfo as Facepunch.XR.ViewInfo;
+
 [small]
 native struct fpxr::InstanceProperties as Facepunch.XR.InstanceProperties;
 native struct fpxr::Matrix as Facepunch.XR.XrMatrix;
 
 native enum fpxr::Finger as Sandbox.VR.FingerValue;
 native enum fpxr::HandPoseMotionRange as Sandbox.VR.MotionRange;
+
+native enum fpxr::SessionState as Facepunch.XR.SessionState;
 
 native class fpxr::ApplicationConfig as Facepunch.XR.ApplicationConfig
 {
@@ -41,6 +46,8 @@ native class fpxr::EventManager as Facepunch.XR.EventManager
     {
         return this->PumpEvent( *ev );
     }
+
+    SessionState GetSessionState();
 }
 
 native class fpxr::Compositor as Facepunch.XR.Compositor
@@ -61,6 +68,8 @@ native class fpxr::Compositor as Facepunch.XR.Compositor
 
     XRResult GetViewInfo( uint viewIndex, out ViewInfo outViewInfo );
     XRResult GetProjectionMatrix( uint viewIndex, float flNearZ, float flFarZ, out XrMatrix outViewInfo );
+
+	void Shutdown();
 }
 
 native class fpxr::Input as Facepunch.XR.Input
@@ -73,7 +82,6 @@ native class fpxr::Input as Facepunch.XR.Input
     XRResult TriggerHapticVibration(float duration, float frequency, float amplitude, InputSource inputSource);
 
     XRResult GetHandPoseState(InputSource inputSource, MotionRange motionRange, out InputPoseHandState outState);
-    float GetFingerCurl(InputSource inputSource, FingerValue finger);
 }
 
 [WindowsOnly]

@@ -209,14 +209,6 @@ namespace Sandbox.Generator
 			return true;
 		}
 
-		/// <summary>
-		/// If we have to generate a backing field, this is its name
-		/// </summary>
-		public static string BackingFieldName( this PropertyDeclarationSyntax prop )
-		{
-			return $"_repback__{prop.Identifier}";
-		}
-
 		public static INamedTypeSymbol GetType( this SemanticModel model, string name )
 		{
 			var type = model.Compilation.GetTypeByMetadataName( name );

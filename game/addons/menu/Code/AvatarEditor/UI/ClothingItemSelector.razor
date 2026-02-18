@@ -193,4 +193,7 @@
         return "Available";
     }
 
+    // Include inventory item count in the hash so the UI updates when items are purchased
+    protected override int BuildHash() => HashCode.Combine( main?.Name, sub?.Name, Sandbox.Services.Inventory.Items?.Count );
+
 }

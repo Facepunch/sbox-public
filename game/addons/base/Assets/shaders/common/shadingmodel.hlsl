@@ -131,7 +131,7 @@ class ShadingModelStandard
     static float4 Shade( Material m )
     {
         // Want it right before the lighting
-        Decals::Apply( m.WorldPosition, m.ScreenPosition.xy, m );
+        Decals::Apply( m.WorldPosition, m );
         
         // Do our magic alpha to coverage adjustment
         AdjustAlphaToCoverage( m );

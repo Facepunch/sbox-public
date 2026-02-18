@@ -38,14 +38,12 @@ public static partial class Inventory
 			_items.Add( new Item( result.Get( i ) ) );
 		}
 
-		//
-		// If we had items previously then notify of new items. This is usually
-		// caused by a call to Refresh after an in-game purchase.
-		//
+		// If we had items previously then notify of new items. This is usually caused by a call to Refresh after an in-game purchase.
 		if ( previousItems.Count() > 0 )
 		{
 			var newItems = _items.ToList();
 			newItems.RemoveAll( x => previousItems.Any( y => y.ItemId == x.ItemId ) );
+
 			return newItems.ToArray();
 		}
 
@@ -90,20 +88,24 @@ public static partial class Inventory
 			await Task.Delay( 500 );
 
 			var newItems = await Refresh();
-			if ( newItems.Count() == 0 )
+			if ( newItems.Length > 0 )
 			{
-				if ( timer.ElapsedSeconds > 20 )
-					return false;
+				foreach ( var item in newItems )
+				{
+					Log.Info( $"Got item {item.ItemId} ({item.Definition?.Name})" );
+				}
 
-				continue;
+				return true;
 			}
 
-			foreach ( var item in newItems )
+			if ( timer.ElapsedSeconds > 20 )
 			{
-				Log.Info( $"Got item {item.ItemId} ({item.Definition?.Name})" );
+				// Timed out waiting for items, but the checkout was successful.
+				// Do one final refresh to ensure we have the latest inventory state, even if we didn't detect the new items specifically.
+				Log.Warning( "Checkout succeeded but timed out waiting for new items to appear in inventory. Items may appear shortly." );
+				await Refresh();
+				return true;
 			}
-
-			return true;
 		}
 	}
 

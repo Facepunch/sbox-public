@@ -102,6 +102,7 @@ public sealed class TrailRenderer : Renderer, Component.ExecuteInEditor
 		_so.Opaque = Opaque;
 		_so.BlendMode = BlendMode;
 		_so.Face = Face;
+		_so.SamplerState = new() { Filter = Texturing.FilterMode, AddressModeU = Texturing.TextureAddressMode, AddressModeV = Texturing.TextureAddressMode };
 
 		if ( Emitting )
 		{

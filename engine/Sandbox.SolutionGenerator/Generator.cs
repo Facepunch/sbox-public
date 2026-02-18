@@ -17,59 +17,47 @@ namespace Sandbox.SolutionGenerator
 			return project;
 		}
 
-		private string NormalizePath( string path ) => new Uri( path ).LocalPath;
-
-		private string AttemptAbsoluteToRelative( string basePath, string relativePath, int maxDepth = 5 )
+		/// <summary>
+		/// Normalize the path to use forward slashes
+		/// </summary>
+		private string NormalizePath( string path )
 		{
-			string baseNormalized = NormalizePath( basePath );
-			string relativeNormalized = NormalizePath( relativePath );
-			string baseEnding = string.Empty;
+			return path.Replace( '\\', '/' );
+		}
 
-			if ( Path.HasExtension( baseNormalized ) )
+		/// <summary>
+		/// Converts a path to be relative to a base path, always returning forward slashes.
+		/// </summary>
+		private string AttemptAbsoluteToRelative( string basePath, string targetPath )
+		{
+			string targetFileName = string.Empty;
+
+			if ( Path.HasExtension( targetPath ) )
 			{
-				baseEnding = Path.GetFileName( baseNormalized );
-				baseNormalized = NormalizePath( baseNormalized.Substring( 0, baseNormalized.Length - baseEnding.Length ) );
+				targetFileName = Path.GetFileName( targetPath );
+				targetPath = Path.GetDirectoryName( targetPath ) ?? targetPath;
 			}
 
-			if ( Path.HasExtension( relativeNormalized ) )
+			if ( Path.HasExtension( basePath ) )
 			{
-				relativeNormalized = Path.GetDirectoryName( relativeNormalized );
+				basePath = Path.GetDirectoryName( basePath ) ?? basePath;
 			}
 
-			string finalPath = Path.GetRelativePath( relativeNormalized, basePath );
+			string baseDir = NativeFileSystem.GetCanonicalPath( basePath );
+			string targetDir = NativeFileSystem.GetCanonicalPath( targetPath );
 
-			// Exceed how far we want our relative path to go, bail out and use original path
-			if ( finalPath.Split( ".." ).Length > maxDepth )
-			{
-				if ( baseEnding == null )
-				{
-					return baseNormalized;
-				}
-				else
-				{
-					return Path.Combine( baseNormalized, baseEnding );
-				}
-			}
-			else
-			{
-				if ( baseEnding == null )
-				{
-					return finalPath;
-				}
-				else
-				{
-					return Path.Combine( finalPath, baseEnding );
-				}
-			}
+			string relativePath = NormalizePath( Path.GetRelativePath( baseDir, targetDir ) );
+
+			if ( string.IsNullOrEmpty( targetFileName ) )
+				return relativePath;
+
+			return relativePath + "/" + targetFileName;
 		}
 
 		private static readonly JsonSerializerOptions JsonWriteIndented = new() { WriteIndented = true };
 
 		public void Run( string gameExePath, string managedFolder, string solutionPath, string relativePath, string projectPath )
 		{
-			string normalizedRelativePath = NormalizePath( projectPath );
-			int relativePathoffset = normalizedRelativePath.Length + 1;
-
 			managedFolder = Path.Combine( relativePath, managedFolder );
 			solutionPath = Path.Combine( projectPath, solutionPath );
 			gameExePath = Path.Combine( relativePath, gameExePath );
@@ -80,8 +68,8 @@ namespace Sandbox.SolutionGenerator
 				{
 					ProjectName = p.Name,
 					ProjectReferences = "",
-					ManagedRoot = AttemptAbsoluteToRelative( managedFolder, p.CsprojPath ),
-					GameRoot = AttemptAbsoluteToRelative( relativePath, p.CsprojPath ),
+					ManagedRoot = AttemptAbsoluteToRelative( p.CsprojPath, managedFolder ),
+					GameRoot = AttemptAbsoluteToRelative( p.CsprojPath, relativePath ),
 					References = p.References,
 					GlobalStatic = p.GlobalStatic,
 					GlobalUsing = p.GlobalUsing,
@@ -109,7 +97,8 @@ namespace Sandbox.SolutionGenerator
 					var reference = Projects.FirstOrDefault( x => x.Name == proj || x.PackageIdent == proj );
 					if ( reference != null )
 					{
-						var path = NormalizePath( $"{reference.Path}\\{reference.Name}.csproj" );
+						var absolutePath = NormalizePath( $"{reference.Path}/{reference.Name}.csproj" );
+						var path = AttemptAbsoluteToRelative( p.CsprojPath, absolutePath );
 						csproj.ProjectReferences += $"		<ProjectReference Include=\"{System.Web.HttpUtility.HtmlEncode( path )}\" />\n";
 					}
 					else
@@ -126,11 +115,14 @@ namespace Sandbox.SolutionGenerator
 					var propertiesPath = Path.Combine( p.Path, "Properties" );
 					Directory.CreateDirectory( propertiesPath );
 
+					var absoluteExePath = Path.Combine( relativePath, "sbox-dev.exe" );
+					var relativeExePath = AttemptAbsoluteToRelative( propertiesPath, absoluteExePath );
+
 					var launchSettings = new LaunchSettings { Profiles = new() };
 					launchSettings.Profiles.Add( "Editor", new LaunchSettings.Profile
 					{
 						CommandName = "Executable",
-						ExecutablePath = Path.Combine( relativePath, "sbox-dev.exe" ),
+						ExecutablePath = relativeExePath,
 						CommandLineArgs = $"-project \"{p.SandboxProjectFilePath}\"",
 					} );
 
@@ -143,12 +135,7 @@ namespace Sandbox.SolutionGenerator
 
 			foreach ( var p in Projects )
 			{
-				string normalizedProjectPath = NormalizePath( p.CsprojPath );
-				if ( normalizedProjectPath.StartsWith( normalizedRelativePath ) )
-				{
-					normalizedProjectPath = normalizedProjectPath.Substring( relativePathoffset );
-				}
-
+				string normalizedProjectPath = AttemptAbsoluteToRelative( solutionPath, p.CsprojPath );
 				normalizedProjectPath = normalizedProjectPath.Trim( '/', '\\' );
 				slnx.AddProject( normalizedProjectPath, p.Folder );
 			}

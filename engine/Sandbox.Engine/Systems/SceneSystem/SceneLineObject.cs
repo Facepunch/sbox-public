@@ -69,6 +69,7 @@ public class SceneLineObject : SceneCustomObject
 		set => Attributes.SetCombo( "D_ENABLE_LIGHTING", value );
 	}
 
+	[Obsolete( "Use Sampler State property instead" )]
 	public bool Clamped
 	{
 		get => _clamped;
@@ -87,6 +88,18 @@ public class SceneLineObject : SceneCustomObject
 	}
 
 	private bool _clamped = false;
+
+	public SamplerState SamplerState
+	{
+		get => _samplerState;
+		set
+		{
+			_samplerState = value;
+			Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( _samplerState ) );
+		}
+	}
+
+	private SamplerState _samplerState = new() { Filter = FilterMode.Anisotropic, MaxAnisotropy = 8, AddressModeU = TextureAddressMode.Wrap, AddressModeV = TextureAddressMode.Wrap };
 
 	public int Smoothness
 	{

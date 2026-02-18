@@ -35,6 +35,8 @@ public ref struct RenderTargetHandle
 	public ref struct SizeHandle
 	{
 		public string Name { get; internal set; }
+
+		public int Divisor { get; internal set; }
 	}
 
 }

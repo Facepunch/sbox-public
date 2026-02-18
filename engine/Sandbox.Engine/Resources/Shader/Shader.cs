@@ -18,7 +18,7 @@ public partial class Shader : Resource
 
 		this.native = native;
 
-		SetIdFromResourcePath( name );
+		RegisterWeakResourceId( name );
 	}
 
 	internal Shader()

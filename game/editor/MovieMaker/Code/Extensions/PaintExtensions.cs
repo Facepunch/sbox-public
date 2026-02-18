@@ -171,19 +171,44 @@ internal static class PaintExtensions
 	}
 }
 
-public struct SmoothDeltaFloat
+public sealed class SmoothDeltaFloat
 {
-	public float Value;
-	public float Velocity;
-	public float Target;
-	public float SmoothTime;
+	private float _value;
+	private float _velocity;
+
+	public float SmoothTime { get; }
+
+	public float Value
+	{
+		get => _value;
+		set
+		{
+			_value = value;
+			Target = value;
+			_velocity = 0f;
+		}
+	}
+
+	public float Velocity => _velocity;
+	public float Target { get; set; }
+
+	public SmoothDeltaFloat( float smoothTime, float initial = 0f )
+	{
+		SmoothTime = smoothTime;
+		Value = Target = initial;
+	}
 
 	public bool Update( float delta )
 	{
-		if ( Value == Target )
-			return false;
+		if ( Math.Abs( _value - Target ) <= 0.001f )
+		{
+			var exact = _value.Equals( Target );
 
-		Value = MathX.SmoothDamp( Value, Target, ref Velocity, SmoothTime, delta );
+			_value = Target;
+			return !exact;
+		}
+
+		_value = MathX.SmoothDamp( _value, Target, ref _velocity, SmoothTime, delta );
 		return true;
 	}
 }

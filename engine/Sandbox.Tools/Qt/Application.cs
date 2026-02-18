@@ -1,4 +1,5 @@
 ﻿using Native;
+using Sandbox.Engine;
 using System;
 
 namespace Editor;
@@ -150,4 +151,9 @@ public static class Application
 	/// The Widget that is currently hovered
 	/// </summary>
 	public static Widget HoveredWidget => QObject.FindOrCreate( QApp.HoveredWidget() ) as Widget;
+
+	/// <summary>
+	/// Get the current editor if any. Will return null if we're not in the editor, or there is no active editor session.
+	/// </summary>
+	public static EditorSystem Editor => IToolsDll.Current?.ActiveEditor;
 }

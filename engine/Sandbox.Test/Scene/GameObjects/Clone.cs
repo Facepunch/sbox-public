@@ -271,7 +271,7 @@ public class CloneTests
 	{
 		// Load the nested prefab into the resource register so the outer prefab can find it.
 		var pfile = new PrefabFile();
-		pfile.SetIdFromResourcePath( "nestedprefabwithgameobjectvariable.prefab" );
+		pfile.RegisterWeakResourceId( "nestedprefabwithgameobjectvariable.prefab" );
 		pfile.LoadFromJson( NestedPrefabWithGameObjectVariable );
 
 		Game.Resources.Register( pfile );
@@ -431,7 +431,7 @@ public class CloneTests
 	{
 		// Load the nested prefab into the resource register so the prefab can find it.
 		var pfile = new PrefabFile();
-		pfile.SetIdFromResourcePath( "prefabwithselfreference.prefab" );
+		pfile.RegisterWeakResourceId( "prefabwithselfreference.prefab" );
 		pfile.LoadFromJson( PrefabWithSelfReference );
 		Game.Resources.Register( pfile );
 
@@ -526,7 +526,7 @@ public class CloneTests
 	{
 		// Load the nested prefab into the resource register so the prefab can find it.
 		var pfile = new PrefabFile();
-		pfile.SetIdFromResourcePath( "prefabwithRootreference.prefab" );
+		pfile.RegisterWeakResourceId( "prefabwithRootreference.prefab" );
 		pfile.LoadFromJson( PrefabWithRootReference );
 		Game.Resources.Register( pfile );
 

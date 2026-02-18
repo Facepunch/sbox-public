@@ -11,21 +11,6 @@ namespace Sandbox;
 [Icon( "favorite" )]
 public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor, ISpriteRenderGroup
 {
-	[Flags]
-	public enum FlipFlags
-	{
-		None = 0,
-
-		[Icon( "align_horizontal_center" )]
-		[Title( "Horizontal Flip" )]
-		[Description( "Flip the sprite horizontally around the origin." )]
-		FlipX = 2,
-		[Icon( "align_vertical_center" )]
-		[Title( "Vertical Flip" )]
-		[Description( "Flip the sprite vertically around the origin." )]
-		FlipY = 4
-	}
-
 	public enum BillboardMode
 	{
 		Always,
@@ -201,7 +186,7 @@ public sealed partial class SpriteRenderer : Renderer, Component.ExecuteInEditor
 	}
 
 	/// <summary>
-	/// Whether or not the sprite is animated. This is true if the sprite has more than one animation or if the current animation has more than one frame.
+	/// Whether or not the sprite is animated. This is true if the sprite has more than one animation.
 	/// </summary>
 	public bool IsAnimated => (_sprite?.Animations?.Count ?? 0) > 1;
 

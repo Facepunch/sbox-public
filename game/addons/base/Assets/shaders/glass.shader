@@ -174,7 +174,11 @@ PS
 
         m.Metalness = 0; // Glass is always non-metallic
 
-        float3 vViewRayWs = normalize(i.vPositionWithOffsetWs.xyz);
+        // Detect orthographic projection from the projection matrix
+        bool bOrtho = g_matViewToProjection[3].w != 0;
+
+        // Ortho: all view rays are parallel to camera forward; Perspective: rays diverge from camera position
+        float3 vViewRayWs = bOrtho ? g_vCameraDirWs : normalize(i.vPositionWithOffsetWs.xyz);
         float flNDotV = saturate(dot(-m.Normal, vViewRayWs));
         float3 vEnvBRDF = CalcBRDFReflectionFactor(flNDotV, m.Roughness, 0.04);
         
@@ -183,18 +187,27 @@ PS
             float4 vRefractionColor = 0;
 
             float flDepthPs = 1.0f - Depth::GetNormalized( i.vPositionSs.xy );
-            float3 vRefractionWs = RecoverWorldPosFromProjectedDepthAndRay(flDepthPs, normalize(i.vPositionWithOffsetWs.xyz)) - g_vCameraPositionWs;
+            float3 vRefractionWs = RecoverWorldPosFromProjectedDepthAndRay(flDepthPs, vViewRayWs) - g_vCameraPositionWs;
             float flDistanceVs = distance(i.vPositionWithOffsetWs.xyz, vRefractionWs);
 
             float3 vRefractRayWs = refract(vViewRayWs, m.Normal, 1.0 / g_flRefractionStrength);
             float3 vRefractWorldPosWs = i.vPositionWithOffsetWs.xyz + vRefractRayWs * flDistanceVs;
 
-            float4 vPositionPs = Position4WsToPs( float4(vRefractWorldPosWs, 0));
-
-            float2 vPositionSs = vPositionPs.xy / vPositionPs.w;
-            vPositionSs = vPositionSs * 0.5 + 0.5;
-
-            vPositionSs.y = 1.0 - vPositionSs.y;
+            // Calculate screen-space UV for refraction sampling
+            float2 vPositionSs;
+            if (bOrtho)
+            {
+                // Orthographic projection: use original screen position (refraction offset causes artifacts)
+                vPositionSs = i.vPositionSs.xy * g_vInvViewportSize.xy;
+            }
+            else
+            {
+                // Perspective projection: project refracted world position to screen space
+                float4 vPositionPs = Position4WsToPs(float4(vRefractWorldPosWs, 0));
+                vPositionSs = vPositionPs.xy / vPositionPs.w;
+                vPositionSs = vPositionSs * 0.5 + 0.5;
+                vPositionSs.y = 1.0 - vPositionSs.y;
+            }
 
             #if D_SKYBOX
             {

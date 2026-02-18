@@ -44,6 +44,8 @@ native static class global as NativeEngine.EngineGlobal
 
 	void Plat_SetNoAssert();
 
+	void Plat_ExitProcess( int exitCode );
+
 	inline string GetGameRootFolder()
 	{
 		static CPathBufferString gamePath;

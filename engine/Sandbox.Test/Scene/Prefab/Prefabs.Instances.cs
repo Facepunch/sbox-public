@@ -889,7 +889,7 @@ public partial class Instances
 			"Nested instance should receive updates from its prefab after parent instance broke from prefab" );
 	}
 
-	// https://github.com/Facepunch/sbox-issues/issues/9194
+	// https://github.com/Facepunch/sbox-public/issues/930
 	[TestMethod]
 	public void WriteGameObjectToPrefab_WithNestedInstance()
 	{

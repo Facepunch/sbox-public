@@ -10,7 +10,11 @@ public static class EditorScene
 	/// <summary>
 	/// Should the game start in play mode when hitting play, instead of playing the active scene.
 	/// </summary>
-	public static bool PlayMode { get; set; } = false;
+	public static bool PlayMode
+	{
+		get => ProjectCookie?.Get( "editor.playmode", false ) ?? false;
+		set => ProjectCookie?.Set( "editor.playmode", value );
+	}
 
 	public static Gizmo.SceneSettings GizmoSettings { get; private set; } = new Gizmo.SceneSettings();
 
@@ -482,7 +486,7 @@ public static class EditorScene
 	{
 		var selected = EditorScene.Selection.FirstOrDefault() as GameObject;
 
-		var session = SceneEditorSession.Resolve( selected );
+		var session = SceneEditorSession.Resolve( selected ) ?? SceneEditorSession.Active;
 		using var scene = session.Scene.Push();
 
 		// Paste to scene root if nobody is selected
@@ -506,7 +510,7 @@ public static class EditorScene
 		var selected = Selection.OfType<GameObject>().ToArray();
 		var first = selected.FirstOrDefault();
 
-		var session = SceneEditorSession.Resolve( first );
+		var session = SceneEditorSession.Resolve( first ) ?? SceneEditorSession.Active;
 		using var scene = session.Scene.Push();
 
 		// Paste to scene root if nobody is selected

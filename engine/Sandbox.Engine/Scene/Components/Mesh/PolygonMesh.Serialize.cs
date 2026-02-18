@@ -43,6 +43,12 @@ public partial class PolygonMesh
 				else if ( propertyName == nameof( Positions ) )
 					mesh.Positions.CopyFrom( JsonSerializer.Deserialize<Vector3[]>( ref reader ) );
 
+				else if ( propertyName == nameof( Blends ) )
+					mesh.Blends.CopyFrom( JsonSerializer.Deserialize<Color32[]>( ref reader ) );
+
+				else if ( propertyName == nameof( Colors ) )
+					mesh.Colors.CopyFrom( JsonSerializer.Deserialize<Color32[]>( ref reader ) );
+
 				else if ( propertyName == "TextureOrigin" )
 				{
 					if ( reader.TokenType == JsonTokenType.StartArray )
@@ -158,6 +164,12 @@ public partial class PolygonMesh
 
 		writer.WritePropertyName( nameof( mesh.Positions ) );
 		JsonSerializer.Serialize( writer, mesh.Positions );
+
+		writer.WritePropertyName( nameof( mesh.Blends ) );
+		JsonSerializer.Serialize( writer, mesh.Blends );
+
+		writer.WritePropertyName( nameof( mesh.Colors ) );
+		JsonSerializer.Serialize( writer, mesh.Colors );
 
 		writer.WritePropertyName( nameof( mesh.TextureCoord ) );
 		JsonSerializer.Serialize( writer, mesh.TextureCoord );

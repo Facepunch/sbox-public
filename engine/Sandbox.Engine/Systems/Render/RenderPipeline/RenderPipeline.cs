@@ -31,6 +31,9 @@ internal partial class RenderPipeline
 		{
 			LightbinnerLayer.Setup( pipelineAttributes );
 			LightbinnerLayer.AddToView( view, viewport );
+
+			ClusteredCullingLayer.Setup( view, viewport );
+			ClusteredCullingLayer.AddToView( view, viewport );
 		}
 
 
@@ -56,6 +59,10 @@ internal partial class RenderPipeline
 			var smallPrepass = DepthNormalSmallPrepass.AddToView( view, viewport );
 			smallPrepass.SetBoundingVolumeSizeCullThresholdInPercent( -60 );
 
+			bool disableDepthPrepassCulling = view.GetRenderAttributesPtr().GetBoolValue( "NoPrepassCulling", false );
+			largePrepass.SetLayerNoCull( disableDepthPrepassCulling );
+			smallPrepass.SetLayerNoCull( disableDepthPrepassCulling );
+
 			// Pass that DepthNormals are enabled to the rest of the pipeline
 			view.GetRenderAttributesPtr().SetIntValue( "NormalsTextureIndex", gbufferColor.ColorTarget.Index );
 		}
@@ -64,9 +71,6 @@ internal partial class RenderPipeline
 		{
 			DepthDownsampleLayer.Setup( viewport, rtDepth, msaaInput: msaa != MultisampleAmount.MultisampleNone, view );
 			DepthDownsampleLayer.AddToView( view, viewport );
-
-			ClusteredCullingLayer.Setup( view, viewport );
-			ClusteredCullingLayer.AddToView( view, viewport );
 		}
 
 		// Bloom layer, Effects that only show up on bloom like a ghost effect
@@ -111,14 +115,15 @@ internal partial class RenderPipeline
 			return;
 
 		var viewCamera = IManagedCamera.FindById( cameraId );
-		if ( viewCamera is null )
+		if ( viewCamera is not SceneCamera sceneCamera )
 			return;
 
-		var mainCamera = IManagedCamera.GetMainCamera();
-
-		if ( viewCamera == mainCamera )
+		// Only record from the camera explicitly marked for recording
+		if ( sceneCamera.IsRecordingCamera )
 		{
+			RecordMovieFrameLayer.ColorAttachment = rtColor;
 			RecordMovieFrameLayer.AddToView( view, viewport );
+			PostRecordMovieFrameLayer.ColorAttachment = rtColor;
 			PostRecordMovieFrameLayer.AddToView( view, viewport );
 		}
 	}

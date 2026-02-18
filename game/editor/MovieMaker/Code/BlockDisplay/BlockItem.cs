@@ -68,12 +68,12 @@ public abstract partial class BlockItem : GraphicsItem, ISnapSource
 
 	public void Layout()
 	{
-		var session = Parent.Session;
-		var width = session.TimeToPixels( TimeRange.Duration );
+		var timeline = Parent.Timeline;
+		var width = timeline.TimeToPixels( TimeRange.Duration );
 
 		PrepareGeometryChange();
 
-		Position = new Vector2( session.TimeToPixels( TimeRange.Start ), (Timeline.TrackHeight - Timeline.BlockHeight) * 0.5f );
+		Position = new Vector2( timeline.TimeToPixels( TimeRange.Start ), (Timeline.TrackHeight - Timeline.BlockHeight) * 0.5f );
 		Size = new Vector2( width, Timeline.BlockHeight );
 
 		if ( MathF.Abs( width - _prevWidth ) > 0.1f )

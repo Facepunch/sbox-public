@@ -36,7 +36,16 @@ public partial class Model
 		/// </summary>
 		public float ExplosionForce { get; } = -1;
 
+		/// <summary>
+		/// Minimum impact damage speed to break this object.
+		/// </summary>
+		public float MinImpactDamageSpeed { get; set; } = -1;
 
+		/// <summary>
+		/// The amount of damage this deals to other objects when it collides at high speed.
+		/// If set to -1, this will be calculated from the mass of the rigidbody.
+		/// </summary>
+		public float ImpactDamage { get; set; } = -1;
 
 		internal void Dispose()
 		{
@@ -57,6 +66,12 @@ public partial class Model
 					ExplosionDamage = propData.ExplosionDamage;
 					ExplosionForce = propData.ExplosionForce;
 				}
+
+				if ( propData.ImpactDamage > -1 )
+					ImpactDamage = propData.ImpactDamage;
+
+				if ( propData.MinImpactDamageSpeed > -1 )
+					MinImpactDamageSpeed = propData.MinImpactDamageSpeed;
 			}
 		}
 	}

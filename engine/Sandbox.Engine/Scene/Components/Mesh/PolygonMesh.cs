@@ -39,6 +39,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 	private class Submesh
 	{
+		public Mesh Mesh { get; set; }
 		public List<MeshVertex> Vertices { get; init; } = new();
 		public List<int> Indices { get; init; } = new();
 		public List<float> UvDensity { get; set; } = new();
@@ -59,6 +60,8 @@ public sealed partial class PolygonMesh : IJsonConvert
 	private Vector2 DefaultTextureSize => CalculateTextureSize( DefaultMaterial );
 
 	private VertexData<Vector3> Positions { get; init; }
+	private HalfEdgeData<Color32> Blends { get; init; }
+	private HalfEdgeData<Color32> Colors { get; init; }
 	private HalfEdgeData<Vector2> TextureCoord { get; init; }
 	private FaceData<Vector3> TextureUAxis { get; init; }
 	private FaceData<Vector3> TextureVAxis { get; init; }
@@ -147,6 +150,11 @@ public sealed partial class PolygonMesh : IJsonConvert
 	/// </summary>
 	public bool IsDirty { get; internal set; }
 
+	/// <summary>
+	/// Has there been changes to the vertex data?
+	/// </summary>
+	internal bool IsVertexDataDirty => _dirtyHalfEdges.Count > 0;
+
 	private Transform _transform = Transform.Zero;
 
 	/// <summary>
@@ -179,6 +187,8 @@ public sealed partial class PolygonMesh : IJsonConvert
 	public PolygonMesh()
 	{
 		Positions = Topology.CreateVertexData<Vector3>( nameof( Positions ) );
+		Blends = Topology.CreateHalfEdgeData<Color32>( nameof( Blends ) );
+		Colors = Topology.CreateHalfEdgeData<Color32>( nameof( Colors ) );
 		TextureCoord = Topology.CreateHalfEdgeData<Vector2>( nameof( TextureCoord ) );
 		TextureUAxis = Topology.CreateFaceData<Vector3>( nameof( TextureUAxis ) );
 		TextureVAxis = Topology.CreateFaceData<Vector3>( nameof( TextureVAxis ) );
@@ -318,14 +328,15 @@ public sealed partial class PolygonMesh : IJsonConvert
 	/// <summary>
 	/// Scale all vertices
 	/// </summary>
-	public void Scale( Vector3 scale )
+	public void Scale( Vector3 scale, bool recomputeUVs = true )
 	{
 		foreach ( var hVertex in Topology.VertexHandles )
 		{
 			Positions[hVertex] = Positions[hVertex] * scale;
 		}
 
-		ComputeFaceTextureCoordinatesFromParameters();
+		if ( recomputeUVs )
+			ComputeFaceTextureCoordinatesFromParameters();
 
 		IsDirty = true;
 	}
@@ -2537,6 +2548,54 @@ public sealed partial class PolygonMesh : IJsonConvert
 			yield return Positions[hVertex];
 	}
 
+	/// <summary>
+	/// Set the blend of a vertex
+	/// </summary>
+	public void SetVertexBlend( HalfEdgeHandle hFaceVertex, Color32 blend )
+	{
+		if ( !hFaceVertex.IsValid )
+			return;
+
+		Blends[hFaceVertex] = blend;
+
+		_dirtyHalfEdges.Add( hFaceVertex );
+	}
+
+	/// <summary>
+	/// Set the color of a vertex
+	/// </summary>
+	public void SetVertexColor( HalfEdgeHandle hFaceVertex, Color32 color )
+	{
+		if ( !hFaceVertex.IsValid )
+			return;
+
+		Colors[hFaceVertex] = color;
+
+		_dirtyHalfEdges.Add( hFaceVertex );
+	}
+
+	/// <summary>
+	/// Get the color of a vertex
+	/// </summary>
+	public Color32 GetVertexColor( HalfEdgeHandle hFaceVertex )
+	{
+		if ( !hFaceVertex.IsValid )
+			return default;
+
+		return Colors[hFaceVertex];
+	}
+
+	/// <summary>
+	/// Get the blend of a vertex
+	/// </summary>
+	public Color32 GetVertexBlend( HalfEdgeHandle hFaceVertex )
+	{
+		if ( !hFaceVertex.IsValid )
+			return default;
+
+		return Blends[hFaceVertex];
+	}
+
 	public void ComputeFaceNormal( FaceHandle hFace, out Vector3 pOutNormal )
 	{
 		var positions = GetFaceVertexPositions( hFace, Transform.Zero ).ToArray();
@@ -2945,9 +3004,27 @@ public sealed partial class PolygonMesh : IJsonConvert
 		TextureUAxis[hFace] = uAxis;
 		TextureVAxis[hFace] = vAxis;
 
-		ComputeFaceTextureCoordinatesFromParameters( new[] { hFace } );
+		ComputeFaceTextureCoordinatesFromParameters( [hFace] );
 
 		IsDirty = true;
+	}
+
+	/// <summary>
+	/// Set face vertex texture coord
+	/// </summary>
+	public void SetTextureCoord( HalfEdgeHandle faceVertex, Vector2 texcoord )
+	{
+		TextureCoord[faceVertex] = texcoord;
+
+		IsDirty = true;
+	}
+
+	/// <summary>
+	/// Get face vertex texture coord
+	/// </summary>
+	public Vector2 GetTextureCoord( HalfEdgeHandle faceVertex )
+	{
+		return TextureCoord[faceVertex];
 	}
 
 	/// <summary>
@@ -3211,6 +3288,52 @@ public sealed partial class PolygonMesh : IJsonConvert
 		IsDirty = true;
 	}
 
+	struct MeshVertexRef
+	{
+		public int SubmeshIndex;
+		public int VertexIndex;
+	}
+
+	readonly Dictionary<HalfEdgeHandle, List<MeshVertexRef>> _halfEdgeToMeshVertices = [];
+	readonly HashSet<HalfEdgeHandle> _dirtyHalfEdges = [];
+	readonly List<Submesh> _submeshes = [];
+
+	internal void UpdateVertexData()
+	{
+		if ( _dirtyHalfEdges.Count == 0 ) return;
+
+		var dirtySubmeshes = new HashSet<int>();
+
+		foreach ( var hEdge in _dirtyHalfEdges )
+		{
+			var blend = Blends[hEdge];
+			var color = Colors[hEdge];
+
+			if ( _halfEdgeToMeshVertices.TryGetValue( hEdge, out var refs ) )
+			{
+				foreach ( var vertex in refs )
+				{
+					var vertices = _submeshes[vertex.SubmeshIndex].Vertices;
+					var v = vertices[vertex.VertexIndex];
+					v.Blend = blend;
+					v.Color = color;
+					vertices[vertex.VertexIndex] = v;
+
+					dirtySubmeshes.Add( vertex.SubmeshIndex );
+				}
+			}
+		}
+
+		foreach ( var submeshIndex in dirtySubmeshes )
+		{
+			var submesh = _submeshes[submeshIndex];
+			var mesh = submesh.Mesh;
+			mesh.SetVertexBufferData( submesh.Vertices );
+		}
+
+		_dirtyHalfEdges.Clear();
+	}
+
 	/// <summary>
 	/// Triangulate the polygons into a model
 	/// </summary>
@@ -3224,6 +3347,8 @@ public sealed partial class PolygonMesh : IJsonConvert
 
 		var builder = Model.Builder;
 		var submeshes = new Dictionary<int, Submesh>();
+
+		_halfEdgeToMeshVertices.Clear();
 
 		foreach ( var hFace in Topology.FaceHandles )
 		{
@@ -3245,13 +3370,15 @@ public sealed partial class PolygonMesh : IJsonConvert
 			TriangulateFace( hFace, submesh );
 		}
 
+		_submeshes.Clear();
+		_submeshes.AddRange( submeshes.Values );
+
 		if ( _meshVertices.Count >= 3 && _meshIndices.Count >= 3 )
 		{
 			builder.AddCollisionHull( _meshVertices );
 			builder.AddCollisionMesh( _meshVertices, _meshIndices, _meshTriangleMaterials );
 			builder.AddTraceMesh( _meshVertices, _meshIndices );
 		}
-
 
 		foreach ( var submesh in submeshes.Values )
 		{
@@ -3279,6 +3406,8 @@ public sealed partial class PolygonMesh : IJsonConvert
 			}
 
 			builder.AddMesh( mesh );
+
+			submesh.Mesh = mesh;
 		}
 
 		IsDirty = false;
@@ -3325,7 +3454,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		return textureSize;
 	}
 
-	private bool IsEdgeSmooth( HalfEdgeHandle hEdge )
+	public bool IsEdgeSmooth( HalfEdgeHandle hEdge )
 	{
 		if ( IsEdgeOpen( hEdge ) )
 			return false;
@@ -4574,12 +4703,28 @@ public sealed partial class PolygonMesh : IJsonConvert
 			ComputeTangentSpaceForFaceVertex( faceEdge, out var u, out var v );
 			CalcTangentAndFlipFromBasis( u, v, normal, out var tangent );
 
+			int vertexIndex = vertices.Count;
+
 			vertices.Add( new MeshVertex
 			{
 				Position = vertexPositions[i],
 				Normal = normal,
 				Tangent = tangent,
 				Texcoord = TextureCoord[faceEdge],
+				Blend = Blends[faceEdge],
+				Color = Colors[faceEdge],
+			} );
+
+			if ( !_halfEdgeToMeshVertices.TryGetValue( faceEdge, out var list ) )
+			{
+				list = new List<MeshVertexRef>( 1 );
+				_halfEdgeToMeshVertices.Add( faceEdge, list );
+			}
+
+			list.Add( new MeshVertexRef
+			{
+				SubmeshIndex = submesh.Index,
+				VertexIndex = vertexIndex
 			} );
 		}
 
@@ -4762,9 +4907,9 @@ public sealed partial class PolygonMesh : IJsonConvert
 		Topology.GetFacesConnectedToFullEdge( hEdge, out hOutFaceA, out hOutFaceB );
 	}
 
-	void FindBoundaryEdgesConnectedToFaces( IReadOnlyList<FaceHandle> faces, int faceCount, out List<HalfEdgeHandle> outBoundaryEdges )
+	public void FindBoundaryEdgesConnectedToFaces( IReadOnlyList<FaceHandle> faces, out List<HalfEdgeHandle> outBoundaryEdges )
 	{
-		Topology.FindFullEdgesConnectedToFaces( faces, faceCount, out var allConnectedEdges, out var edgeFaceCounts );
+		Topology.FindFullEdgesConnectedToFaces( faces, faces.Count, out var allConnectedEdges, out var edgeFaceCounts );
 
 		var connectedEdgesCount = allConnectedEdges.Length;
 		outBoundaryEdges = new( connectedEdgesCount );
@@ -4790,7 +4935,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		{
 			var faceIsland = faceIslands[islandIndex];
 
-			FindBoundaryEdgesConnectedToFaces( faceIsland, faceIsland.Count, out var boundaryEdges );
+			FindBoundaryEdgesConnectedToFaces( faceIsland, out var boundaryEdges );
 
 			var numEdges = boundaryEdges.Count;
 			var allEdgesOpen = numEdges > 0;
@@ -4860,7 +5005,7 @@ public sealed partial class PolygonMesh : IJsonConvert
 		return any;
 	}
 
-	void FindFaceIslands( IReadOnlyList<FaceHandle> faces, out List<List<FaceHandle>> outFaces )
+	public void FindFaceIslands( IReadOnlyList<FaceHandle> faces, out List<List<FaceHandle>> outFaces )
 	{
 		outFaces = [];
 
@@ -4895,6 +5040,38 @@ public sealed partial class PolygonMesh : IJsonConvert
 				while ( hEdge != hStartEdge );
 			}
 		}
+	}
+
+	public bool GetFaceVerticesConnectedToVertex( VertexHandle hVertex, out List<HalfEdgeHandle> faceVertices )
+	{
+		return Topology.GetIncomingHalfEdgesConnectedToVertex( hVertex, out faceVertices );
+	}
+
+	public bool FindHalfEdgesConnectedToFace( FaceHandle face, out List<HalfEdgeHandle> halfEdges )
+	{
+		halfEdges = null;
+
+		if ( !face.IsValid )
+			return false;
+
+		int numHalfEdges = Topology.ComputeNumEdgesInFace( face );
+		if ( numHalfEdges <= 0 )
+			return false;
+
+		halfEdges = new List<HalfEdgeHandle>( numHalfEdges );
+		var startEdge = Topology.GetFirstEdgeInFaceLoop( face );
+		if ( !startEdge.IsValid )
+			return false;
+
+		var current = startEdge;
+		do
+		{
+			halfEdges.Add( current );
+			current = Topology.GetNextEdgeInFaceLoop( current );
+		}
+		while ( current != startEdge );
+
+		return halfEdges.Count > 0;
 	}
 
 	private static readonly Vector3[] FaceNormals =

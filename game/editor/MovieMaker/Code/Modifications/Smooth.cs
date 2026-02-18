@@ -13,8 +13,8 @@ file sealed class SmoothModification() : PerTrackModification<SmoothOptions>( Sm
 		return trackList.EditablePropertyTracks
 			.Select( x => x.Track )
 			.OfType<IProjectPropertyTrack>()
-			.Any( x => x.GetBlocks( selection.TotalTimeRange )
-				.Any( y => y.Signal.CanSmooth( selection.TotalTimeRange ) ) );
+			.Where( x => Interpolator.CanInterpolate( x.TargetType ) )
+			.Any( x => x.GetBlocks( selection.TotalTimeRange ).Any() );
 	}
 
 	public override void AddControls( ToolBarGroup group )

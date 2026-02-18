@@ -73,6 +73,7 @@ public sealed partial class PlayerController : Component
 	void EnableAnimationEvents()
 	{
 		if ( Renderer is null ) return;
+		Renderer.OnFootstepEvent -= OnFootstepEvent;
 		Renderer.OnFootstepEvent += OnFootstepEvent;
 	}
 

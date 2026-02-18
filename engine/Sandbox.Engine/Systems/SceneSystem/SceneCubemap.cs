@@ -24,11 +24,11 @@ public sealed class SceneCubemap : SceneLight
 	{
 	}
 
-	public SceneCubemap( SceneWorld sceneWorld, Texture texture, BBox bounds ) : this( sceneWorld, texture, bounds, Transform.Zero, Color.White, 0, 0.25f, 1 )
+	public SceneCubemap( SceneWorld sceneWorld, Texture texture, BBox bounds ) : this( sceneWorld, texture, bounds, Transform.Zero, Color.White, 0.25f, 1 )
 	{
 	}
 
-	internal SceneCubemap( SceneWorld sceneWorld, Texture texture, BBox bounds, Transform transform, Color tint, int priority, float feathering, int projectionMode = 0 ) : base()
+	internal SceneCubemap( SceneWorld sceneWorld, Texture texture, BBox bounds, Transform transform, Color tint, float feathering, int projectionMode = 0 ) : base()
 	{
 		Assert.IsValid( sceneWorld );
 
@@ -37,7 +37,6 @@ public sealed class SceneCubemap : SceneLight
 			CSceneSystem.CreateEnvMap( sceneWorld, projectionMode );
 		}
 
-		envMap.m_nRenderPriority = priority;
 		envMap.m_vColor = tint;
 		envMap.m_flFeathering = feathering;
 		envMap.m_vBoxProjectMins = bounds.Mins;
@@ -52,6 +51,19 @@ public sealed class SceneCubemap : SceneLight
 			envMap.CalculateRadianceSH();
 			envMap.CalculateNormalizationSH();
 			CSceneSystem.MarkEnvironmentMapObjectUpdated( this );
+		}
+	}
+
+	public int Priority
+	{
+		get => envMap.m_nRenderPriority;
+		set
+		{
+			if ( Priority == value )
+				return;
+
+			envMap.m_nRenderPriority = value;
+			RenderDirty();
 		}
 	}
 

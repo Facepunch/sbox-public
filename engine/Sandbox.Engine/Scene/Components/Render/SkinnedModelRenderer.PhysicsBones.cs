@@ -7,7 +7,6 @@ partial class SkinnedModelRenderer
 	/// Simulates bones using physics defined on the model.
 	/// </summary>
 	internal BonePhysics Physics { get; private set; }
-
 	internal class BonePhysics
 	{
 		/// <summary>
@@ -18,10 +17,13 @@ partial class SkinnedModelRenderer
 		readonly record struct Body( PhysicsBody PhysicsBody, int Bone )
 		{
 			public Transform WorldTransform { get; init; }
+			public Transform SimulatedWorld { get; init; }
+			public Transform TargetWorld { get; init; }
+
 			public PhysicsBody ParentBody { get; init; }
 			public int ParentBone { get; init; }
+			public int ParentBodyIndex { get; init; }
 		}
-
 		readonly record struct Joint( PhysicsJoint PhysicsJoint, Body Body1, Body Body2 );
 
 		readonly List<Body> _bodies = [];
@@ -97,6 +99,8 @@ partial class SkinnedModelRenderer
 					var parentBoneWorld = so.GetWorldSpaceAnimationTransform( body.ParentBone );
 					var boneWorld = parentBoneWorld.ToWorld( bodyLocal );
 
+					_bodies[i] = body with { WorldTransform = boneWorld };
+
 					// Transform bone world to modelspace.
 					var boneLocal = world.ToLocal( boneWorld );
 					so.SetBoneOverride( body.Bone, boneLocal );
@@ -129,6 +133,36 @@ partial class SkinnedModelRenderer
 
 			// Run at max substeps until there's a reason not to.
 			_physicsWorld.Step( Time.Now, Time.Delta, 64 );
+
+			for ( var i = 0; i < _bodies.Count; i++ )
+			{
+				var body = _bodies[i];
+
+				_bodies[i] = body with
+				{
+					SimulatedWorld = body.PhysicsBody.Transform,
+					TargetWorld = body.WorldTransform
+				};
+			}
+
+			for ( var i = 0; i < _bodies.Count; i++ )
+			{
+				var body = _bodies[i];
+
+				if ( body.PhysicsBody.BodyType == PhysicsBodyType.Dynamic )
+				{
+					if ( body.ParentBody is null ) continue;
+					if ( body.ParentBodyIndex < 0 ) continue;
+
+					var parent = _bodies[body.ParentBodyIndex];
+					var local = parent.SimulatedWorld.ToLocal( body.SimulatedWorld );
+					body.PhysicsBody.Transform = parent.TargetWorld.ToWorld( local );
+				}
+				else
+				{
+					body.PhysicsBody.Transform = body.TargetWorld;
+				}
+			}
 		}
 
 		public void DebugDraw()
@@ -167,7 +201,13 @@ partial class SkinnedModelRenderer
 
 				boneToBody[bone.Index] = body;
 
-				_bodies.Add( new Body( body, bone.Index ) { WorldTransform = boneWorld } );
+				_bodies.Add( new Body( body, bone.Index )
+				{
+					WorldTransform = boneWorld,
+					ParentBody = null,
+					ParentBone = -1,
+					ParentBodyIndex = -1
+				} );
 
 				foreach ( var sphere in part.Spheres )
 					body.AddSphereShape( sphere.Sphere ).Surface = sphere.Surface;
@@ -179,6 +219,10 @@ partial class SkinnedModelRenderer
 					body.AddHullShape( Vector3.Zero, Rotation.Identity, hull.GetPoints().ToList() ).Surface = hull.Surface;
 			}
 
+			var bodyToIndex = new Dictionary<PhysicsBody, int>( _bodies.Count );
+			for ( var i = 0; i < _bodies.Count; i++ )
+				bodyToIndex[_bodies[i].PhysicsBody] = i;
+
 			for ( var i = 0; i < _bodies.Count; i++ )
 			{
 				var body = _bodies[i];
@@ -189,9 +233,10 @@ partial class SkinnedModelRenderer
 
 				PhysicsBody parentBody = null;
 				var parentBone = -1;
+				var parentBodyIndex = -1;
+
 				var parentIndex = bone.Parent.Index;
 
-				// Walk up the skeleton until we find a keyframed parent body.
 				while ( parentIndex >= 0 )
 				{
 					if ( boneToBody.TryGetValue( parentIndex, out var physicsBody ) &&
@@ -199,13 +244,19 @@ partial class SkinnedModelRenderer
 					{
 						parentBody = physicsBody;
 						parentBone = parentIndex;
+						parentBodyIndex = bodyToIndex[physicsBody];
 						break;
 					}
 
 					parentIndex = bones.AllBones[parentIndex].Parent?.Index ?? -1;
 				}
 
-				_bodies[i] = body with { ParentBody = parentBody, ParentBone = parentBone };
+				_bodies[i] = body with
+				{
+					ParentBody = parentBody,
+					ParentBone = parentBone,
+					ParentBodyIndex = parentBodyIndex
+				};
 			}
 		}
 

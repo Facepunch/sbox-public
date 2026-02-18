@@ -14,7 +14,7 @@ public sealed partial class PlayerController : Component
 	public Vector3 EyePosition => EyeTransform.Position;
 
 	/// <summary>
-	/// The player's eye position, in first person mode
+	/// The player's eye transform, in first person mode
 	/// </summary>
 	public Transform EyeTransform { get; private set; }
 
@@ -43,7 +43,7 @@ public sealed partial class PlayerController : Component
 		{
 			GameObject.RunEvent<IEvents>( x => x.PreInput() );
 
-			if ( UseInputControls && UseLookControls )
+			if ( UseLookControls )
 			{
 				UpdateEyeAngles();
 				UpdateLookAt();

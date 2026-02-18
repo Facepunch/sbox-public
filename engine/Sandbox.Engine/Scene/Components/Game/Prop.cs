@@ -293,6 +293,20 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				}
 			}
 
+			// Evaluate parameters from model data
+			if ( Model.Data is not null )
+			{
+				if ( Model.Data.ImpactDamage > -1 )
+				{
+					rb.ImpactDamage = Model.Data.ImpactDamage;
+				}
+
+				if ( Model.Data.MinImpactDamageSpeed > -1 )
+				{
+					rb.MinImpactDamageSpeed = Model.Data.MinImpactDamageSpeed;
+				}
+			}
+
 			AddProcedural( rb );
 
 			return;

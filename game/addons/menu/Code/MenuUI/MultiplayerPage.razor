@@ -3,6 +3,8 @@
 @using MenuProject.MenuUI.Layout
 @using Sandbox;
 @using Sandbox.UI;
+@using Sandbox.Network;
+
 @page "/multiplayer"
 @inherits Panel
 
@@ -10,11 +12,21 @@
     <Page>
 
         <Left>
-            <div class="clicky button" onclick="@(() => ServerList.RefreshLobbies())"><WithIcon Icon="cached" Text="Refresh Server List"></WithIcon></div>
+            <TextEntry Icon="search" @ref="SearchEntry" placeholder="Search.." onchange="@OnSearchChanged"></TextEntry>
+            <h2><WithIcon Icon="filter_alt" Text="Filters"></WithIcon></h2>
+
+            <span>
+                <Button class="is-icon" Active="@(showEmpty)" Text="Show Empty" Icon="no_accounts" onclick=@ToggleShowEmpty />
+                <Button class="is-icon" Active="@(showFull)" Text="Show Full" Icon="join_full" onclick=@ToggleShowFull />
+            </span>
+
+            <div class="grow" />
+
+            <button class="clicky button" onclick="@(() => ServerList.RefreshLobbies())"><h2><WithIcon Icon="cached" Text="Refresh"></WithIcon></h2></button>
         </Left>
 
         <Body>
-            <ServerList @ref=ServerList></ServerList>
+            <ServerList @ref=ServerList Filter="@FilterLobby"></ServerList>
         </Body>
     </Page>
 </root>
@@ -22,4 +34,55 @@
 @code 
 {
     ServerList ServerList = default;
+    TextEntry SearchEntry = default;
+
+    bool showEmpty = true;
+    bool showFull = true;
+
+    string SearchText => SearchEntry?.Text?.Trim() ?? "";
+
+    bool FilterLobby( LobbyInformation lobby )
+    {
+        if ( !showEmpty && lobby.Members == 0 )
+            return false;
+
+        if ( !showFull && lobby.IsFull )
+            return false;
+
+        if ( SearchText.Length > 0 )
+        {
+            var search = SearchText;
+
+            if ( lobby.Name?.Contains( search, StringComparison.OrdinalIgnoreCase ) == true )
+                return true;
+
+            if ( lobby.Game?.Contains( search, StringComparison.OrdinalIgnoreCase ) == true )
+                return true;
+
+            if ( lobby.Data?.TryGetValue( "gameident", out var ident ) == true
+                && ident?.Contains( search, StringComparison.OrdinalIgnoreCase ) == true )
+                return true;
+
+            return false;
+        }
+
+        return true;
+    }
+
+    void OnSearchChanged()
+    {
+        ServerList.StateHasChanged();
+    }
+
+    void ToggleShowEmpty()
+    {
+        showEmpty = !showEmpty;
+        ServerList.StateHasChanged();
+    }
+
+    void ToggleShowFull()
+    {
+        showFull = !showFull;
+        ServerList.StateHasChanged();
+    }
 }

@@ -177,8 +177,9 @@ public class SkyBox2D : Component, Component.ExecuteInEditor
 		// -5 means it's of lowest priority in ordering
 		if ( SkyIndirectLighting )
 		{
-			_envProbe = new SceneCubemap( Scene.SceneWorld, SkyTexture, BBox.FromPositionAndSize( Vector3.Zero, int.MaxValue ), WorldTransform.WithScale( 1 ), Tint, -5, 0.01f );
+			_envProbe = new SceneCubemap( Scene.SceneWorld, SkyTexture, BBox.FromPositionAndSize( Vector3.Zero, int.MaxValue ), WorldTransform.WithScale( 1 ), Tint, 0.01f );
 			_envProbe.Tags.SetFrom( Tags );
+			_envProbe.Priority = -5;
 		}
 	}
 }

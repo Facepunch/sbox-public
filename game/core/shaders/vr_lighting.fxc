@@ -18,6 +18,7 @@ Texture2D g_tBlueNoise : register(t0) < Attribute("BlueNoise"); > ;
 
 #include "common/classes/_classes.hlsl"
 #include "common/BRDF.hlsl"
+#include "common/DDGI/DDGI.hlsl"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Debug visualization
@@ -569,9 +570,7 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 	bool bHasBakedLighting = true;
 	bool bHasCubeBrightnessNormalization = true;
 
-	//
-	// Add Baked Lighting Contribution
-	//
+
 	if ( LightmappedLight::UsesLightmaps() )
 	{
 		float3 vLightmapUVW = float3( finalCombinerData.vLightmapUV, 0 );
@@ -694,6 +693,25 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 		bHasBakedLighting = false;
 		bHasCubeBrightnessNormalization = false;
 		lightingTerms.vIndirectDiffuse.rgb = lerp( 1.0f, AmbientLightColor.rgb, AmbientLightColor.a ) ;
+	}
+
+    //
+    // Add DDGI indirect lighting
+	// This is done after lightmaps/probes because those actually calculate direct lighting on this block :^(
+    //
+	if ( DDGI::IsEnabled() )
+	{
+		DDGIVolume ddgiVolume = DDGI::GetVolume( vPositionWs );
+		if ( ddgiVolume.IsValid() )
+		{
+			float3 ddgiIrradiance = DDGI::Evaluate( ddgiVolume, vPositionWs, vNormalWs, vPositionToCameraDirWs.xyz );
+			lightingTerms.vIndirectDiffuse.rgb = ddgiIrradiance;
+
+			bHasBakedLighting = true;
+			bHasCubeBrightnessNormalization = true;
+
+			flTargetLuminanceOfCubemap = RelativeLuminance( ddgiIrradiance );
+		}
 	}
 
 	//

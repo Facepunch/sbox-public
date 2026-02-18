@@ -10,7 +10,7 @@ public class EnumControlWidget : ControlWidget
 	/// </summary>
 	public bool IsFlagsMode { get; init; }
 
-	EnumDescription enumDesc;
+	EnumDescription _enumDesc;
 
 	public override bool IsControlActive => base.IsControlActive || _menu.IsValid();
 
@@ -31,18 +31,27 @@ public class EnumControlWidget : ControlWidget
 			return;
 		}
 
-		Cursor = CursorShape.Finger;
+		_enumDesc = EditorTypeLibrary.GetEnumDescription( propertyType );
+
+		// Always use group button for small enums
+		if ( _enumDesc?.Count() < 4 )
+		{
+			Layout = Layout.Row();
+			Layout.Add( new GroupButtonControlWidget( property ) );
+			_enumDesc = default;
+			return;
+		}
+
 		IsFlagsMode = property.HasAttribute<FlagsAttribute>() || typeDesc.HasAttribute<FlagsAttribute>();
 
+		Cursor = CursorShape.Finger;
 		Layout = Layout.Row();
 		Layout.Spacing = 2;
-
-		enumDesc = EditorTypeLibrary.GetEnumDescription( propertyType );
 	}
 
 	protected override void PaintControl()
 	{
-		if ( enumDesc is null )
+		if ( _enumDesc is null )
 			return;
 
 		var value = SerializedProperty.GetValue<long>( 0 );
@@ -61,7 +70,7 @@ public class EnumControlWidget : ControlWidget
 		}
 		else if ( IsFlagsMode )
 		{
-			var e = enumDesc.GetEntries( value );
+			var e = _enumDesc.GetEntries( value );
 			var str = string.Join( ", ", e.Select( x => $"{x.Name}" ) );
 
 			Paint.SetPen( color );
@@ -69,7 +78,7 @@ public class EnumControlWidget : ControlWidget
 		}
 		else
 		{
-			var e = enumDesc.GetEntry( value );
+			var e = _enumDesc.GetEntry( value );
 
 			if ( !string.IsNullOrEmpty( e.Icon ) )
 			{
@@ -142,7 +151,7 @@ public class EnumControlWidget : ControlWidget
 	{
 		PropertyStartEdit();
 
-		if ( enumDesc is null )
+		if ( _enumDesc is null )
 			return;
 
 		_menu = new PopupWidget( null );
@@ -152,8 +161,11 @@ public class EnumControlWidget : ControlWidget
 		_menu.MinimumWidth = menuWidth;
 		_menu.MaximumWidth = menuWidth;
 		_menu.OnLostFocus += PropertyFinishEdit;
+		_menu.VerticalSizeMode = SizeMode.CanGrow | SizeMode.Expand;
 
 		var scroller = _menu.Layout.Add( new ScrollArea( this ), 1 );
+		scroller.NoSystemBackground = true;
+		scroller.TranslucentBackground = true;
 		scroller.Canvas = new Widget( scroller )
 		{
 			Layout = Layout.Column(),
@@ -161,7 +173,8 @@ public class EnumControlWidget : ControlWidget
 			MaximumWidth = menuWidth
 		};
 
-		var entries = IsFlagsMode ? enumDesc.AsEnumerable() : enumDesc;
+		var entries = IsFlagsMode ? _enumDesc.AsEnumerable() : _enumDesc;
+		float h = 0;
 
 		foreach ( var o in entries )
 		{
@@ -179,13 +192,23 @@ public class EnumControlWidget : ControlWidget
 					_menu.Close();
 				}
 			};
+
+			h += b.FixedHeight;
 		}
+
+		scroller.Canvas.AdjustSize();
 
 		_menu.Position = ScreenRect.BottomLeft;
 		_menu.Visible = true;
 		_menu.AdjustSize();
 		_menu.ConstrainToScreen();
 		_menu.OnPaintOverride = PaintMenuBackground;
+
+		if ( h < 200 )
+		{
+			scroller.FixedHeight = h;
+			_menu.FixedHeight = h;
+		}
 
 		if ( scroller.VerticalScrollbar.Minimum != scroller.VerticalScrollbar.Maximum )
 		{
@@ -195,8 +218,8 @@ public class EnumControlWidget : ControlWidget
 
 	bool PaintMenuBackground()
 	{
-		Paint.SetBrushAndPen( Theme.ControlBackground );
-		Paint.DrawRect( Paint.LocalRect, 0 );
+		Paint.SetBrushAndPen( Theme.ControlBackground, Theme.WidgetBackground, 1 );
+		Paint.DrawRect( Paint.LocalRect.Shrink( 1 ), 4 );
 		return true;
 	}
 
@@ -215,18 +238,21 @@ file class MenuOption : Widget
 		flagMode = flags;
 
 		Layout = Layout.Row();
-		Layout.Margin = 8;
-		VerticalSizeMode = SizeMode.CanGrow;
+		Layout.Margin = 0;
+		VerticalSizeMode = SizeMode.Default;
+		FixedHeight = Theme.RowHeight;
+		Cursor = CursorShape.Finger;
 
 		if ( !string.IsNullOrWhiteSpace( e.Icon ) )
 		{
-			Layout.Add( new IconButton( e.Icon ) { Background = Color.Transparent, TransparentForMouseEvents = true, IconSize = 18 } );
+			Layout.AddSpacingCell( 4 );
+			Layout.Add( new IconButton( e.Icon ) { Background = Color.Transparent, TransparentForMouseEvents = true, IconSize = 12, FixedSize = Theme.RowHeight } );
 		}
 
-		Layout.AddSpacingCell( 8 );
 		var c = Layout.AddColumn();
+		c.Margin = new Sandbox.UI.Margin( 8, 4 );
 		var title = c.Add( new Label( e.Title ) );
-		title.SetStyles( $"font-size: 12px; font-weight: bold; font-family: {Theme.DefaultFont}; color: white;" );
+		title.Color = Theme.Text;
 
 		if ( !string.IsNullOrWhiteSpace( e.Description ) )
 		{
@@ -234,6 +260,10 @@ file class MenuOption : Widget
 			desc.WordWrap = true;
 			desc.MinimumHeight = 1;
 			desc.VerticalSizeMode = SizeMode.CanGrow;
+			desc.Color = Theme.Text.WithAlpha( 0.5f );
+			FixedHeight = Theme.RowHeight * 2;
+
+			c.AddStretchCell();
 		}
 	}
 
@@ -248,8 +278,8 @@ file class MenuOption : Widget
 	{
 		if ( Paint.HasMouseOver || HasValue() )
 		{
-			Paint.SetBrushAndPen( Theme.Blue.WithAlpha( HasValue() ? 0.3f : 0.1f ) );
-			Paint.DrawRect( LocalRect.Shrink( 2 ), 2 );
+			Paint.SetBrushAndPen( Theme.Blue.WithAlpha( HasValue() ? 0.5f : 0.1f ) );
+			Paint.DrawRect( LocalRect );
 		}
 	}
 }

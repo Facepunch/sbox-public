@@ -64,7 +64,7 @@ public sealed class KeyframeHandle : GraphicsItem, IComparable<KeyframeHandle>, 
 	{
 		PrepareGeometryChange();
 
-		Position = new Vector2( Session.TimeToPixels( Time ), 0f );
+		Position = new Vector2( Parent.Timeline.TimeToPixels( Time ), 0f );
 		Size = new Vector2( 16f, Parent.Height );
 
 		Update();
