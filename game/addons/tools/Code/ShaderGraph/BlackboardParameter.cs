@@ -161,56 +161,56 @@ public abstract class BlackboardParameter : IBlackboardParameter
 				{
 					BlackboardParameterIdentifier = parameter.Identifier,
 				};
-			case Texture2DBlackboardParameter v:
+			case Texture2DBlackboardParameter:
 				return new Texture2DParameter()
 				{
 					BlackboardParameterIdentifier = parameter.Identifier,
 				};
 
 			// In Subgraph
-			case BoolSubgraphInputBlackboardParameter p:
+			case BoolSubgraphInputBlackboardParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = false,
 					BlackboardParameterIdentifier = parameter.Identifier,
 				};
-			case IntSubgraphInputBlackboardParameter p:
+			case IntSubgraphInputBlackboardParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = 0,
 					BlackboardParameterIdentifier = parameter.Identifier,
 				};
-			case FloatSubgraphInputBlackboardParameter p:
+			case FloatSubgraphInputBlackboardParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = 0.0f,
 					BlackboardParameterIdentifier = parameter.Identifier,
 				};
-			case Float2SubgraphInputBlackboardParameter p:
+			case Float2SubgraphInputBlackboardParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = Vector2.Zero,
 					BlackboardParameterIdentifier = parameter.Identifier,
 				};
-			case Float3SubgraphInputBlackboardParameter p:
+			case Float3SubgraphInputBlackboardParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = Vector3.Zero,
 					BlackboardParameterIdentifier = parameter.Identifier,
 				};
-			case Float4SubgraphInputBlackboardParameter p:
+			case Float4SubgraphInputBlackboardParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = Vector4.Zero,
 					BlackboardParameterIdentifier = parameter.Identifier,
 				};
-			case ColorSubgraphInputBlackboardParameter p:
+			case ColorSubgraphInputBlackboardParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = Color.White,
 					BlackboardParameterIdentifier = parameter.Identifier,
 				};
-			case Texture2DSubgraphInputBlackboardParameter p:
+			case Texture2DSubgraphInputBlackboardParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = "",
