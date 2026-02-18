@@ -133,7 +133,6 @@ public class MainWindow : DockWindow
 		if ( selection == null )
 		{
 			_blackboardView.ClearSeletedParameter();
-
 			_properties.Target = _graph;
 
 			return;
@@ -186,8 +185,9 @@ public class MainWindow : DockWindow
 			else
 			{
 				_properties.Target = node;
-				_preview.SetStage( _compiledNodes.IndexOf( node ) + 1 );
 			}
+
+			_preview.SetStage( _compiledNodes.IndexOf( node ) + 1 );
 		}
 	}
 
