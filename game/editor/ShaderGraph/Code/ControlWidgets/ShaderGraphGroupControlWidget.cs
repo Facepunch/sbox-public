@@ -26,6 +26,9 @@ internal class ShaderGraphGroupControlWidget : ControlWidget
 		var groupProperty = GetProperty<UIGroup>( property );
 		var parameterUIProperty = groupProperty.Parent?.ParentProperty;
 
+		if ( !parameterUIProperty.PropertyType.IsAssignableTo( typeof( IParameterUI ) ) )
+			return;
+
 		// Case for hiding Group properties.
 		if ( parameterUIProperty.PropertyType.IsAssignableFrom( typeof( TextureInput ) ) )
 		{
