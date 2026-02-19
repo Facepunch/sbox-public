@@ -49,7 +49,7 @@ public static partial class ConsoleSystem
 			x.Parameters.Length == 1 &&
 			x.Parameters[0].ParameterType == typeof( T ) );
 
-		var methodWithoutParams = method is not null ? null : type.Methods.FirstOrDefault( x =>
+		var methodWithoutParams = method is not null || methodSingleParam is not null ? null : type.Methods.FirstOrDefault( x =>
 			x.IsNamed( functionName ) &&
 			x.IsStatic == isStatic &&
 			x.Parameters.Length == 0 );
