@@ -49,7 +49,7 @@ public class RotationEditorTool : EditorTool
 			{
 				StartDrag( nonSceneGos );
 
-				moveDelta = rotationDelta;
+				moveDelta = Gizmo.Snap( rotationDelta );
 
 				foreach ( var entry in startPoints )
 				{

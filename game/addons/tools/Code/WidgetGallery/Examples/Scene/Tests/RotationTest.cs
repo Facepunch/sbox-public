@@ -14,7 +14,7 @@ internal class RotationSimple : ISceneTest
 
 			if ( Gizmo.Control.Rotation( "my-arrow", out Rotation rotationDelta ) )
 			{
-				rotation = rotationDelta;
+				rotation = Gizmo.Snap( rotationDelta );
 			}
 
 			using ( Gizmo.Scope( "Object", new Transform( 0, rotation ) ) )

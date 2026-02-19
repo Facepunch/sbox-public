@@ -32,7 +32,7 @@ public sealed class RotateMode : MoveMode
 
 			if ( Gizmo.Control.Rotation( "rotation", out Rotation rotationDelta ) )
 			{
-				_moveDelta = rotationDelta;
+				_moveDelta = Gizmo.Snap( rotationDelta );
 
 				tool.StartDrag();
 				tool.Rotate( _origin, _basis, _moveDelta );

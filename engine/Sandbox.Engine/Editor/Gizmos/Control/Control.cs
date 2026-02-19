@@ -244,7 +244,7 @@ public static partial class Gizmo
 
 			var localCameraRot = Transform.RotationToLocal( Camera.Rotation );
 
-			var delta = Sandbox.Gizmo.GetMouseDelta( 0, Rotation.FromAxis( localCameraRot.Forward, 0 ).Forward );
+			var delta = Sandbox.Gizmo.GetMouseDelta( 0, global::Rotation.FromAxis( localCameraRot.Forward, 0 ).Forward );
 			movement = Vector3.One.Dot( delta );
 
 			// Optional: Debug drawing
