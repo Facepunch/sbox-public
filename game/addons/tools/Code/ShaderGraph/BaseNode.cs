@@ -192,7 +192,7 @@ public abstract class BaseNode : INode
 	/// <param name="targetInputName">The internal input name on this <see cref="BaseNode"/> instance that will be connected to.</param>
 	/// <param name="sourceNodeOutputName">The internal output name of the source <see cref="BaseNode"/> that the new connection is coming from.</param>
 	/// <param name="sourceNodeIdentifier">The Identifier of the souce <see cref="BaseNode"/> that we are connecting from.</param>
-	internal void ConnectNode( string targetInputName, string sourceNodeOutputName, string sourceNodeIdentifier )
+	public void ConnectNode( string targetInputName, string sourceNodeOutputName, string sourceNodeIdentifier )
 	{
 		if ( Graph == null )
 		{

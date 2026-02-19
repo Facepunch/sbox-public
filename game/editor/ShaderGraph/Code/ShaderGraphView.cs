@@ -247,10 +247,27 @@ public class ShaderGraphView : GraphView
 			{
 				using var undoScope = UndoScope( $"Convert {selectedNodes.Count()} Constants to {(Graph.IsSubgraph ? "Subgraph Inputs" : "Material Parameters")}" );
 				var lastNode = selectedNodes.First().Node as BaseNode;
-				foreach ( var node in selectedNodes )
+				foreach ( var selectedNode in selectedNodes )
 				{
-					var baseNode = node.Node as BaseNode;
+					var baseNode = selectedNode.Node as BaseNode;
 					var constantNode = baseNode as IConstantNode;
+					Dictionary<IPlugIn, IPlugOut> oldConnections = new();
+
+					foreach ( var node in Graph.Nodes )
+					{
+						foreach ( var input in node.Inputs )
+						{
+							if ( input.ConnectedOutput is null )
+								continue;
+
+							if ( input.ConnectedOutput.Node == baseNode )
+							{
+								oldConnections[input] = input.ConnectedOutput;
+
+								continue;
+							}
+						}
+					}
 
 					Graph.RemoveNode( baseNode );
 
@@ -261,7 +278,21 @@ public class ShaderGraphView : GraphView
 						id++;
 					}
 
-					lastNode = ConvertConstantNodeToParameter( constantNode, $"{newName}{id}", node.Position );
+					lastNode = ConvertConstantNodeToParameter( constantNode, $"{newName}{id}", selectedNode.Position );
+
+					// fix connections
+					foreach ( var node in Graph.Nodes )
+					{
+						foreach ( var input in node.Inputs )
+						{
+							if ( input.ConnectedOutput is null && oldConnections.TryGetValue( input, out var correspondingOutput ) )
+							{
+								node.ConnectNode( input.Identifier, correspondingOutput.Identifier, lastNode.Identifier );
+
+								continue;
+							}
+						}
+					}
 				}
 
 				RebuildFromGraph();
@@ -300,9 +331,41 @@ public class ShaderGraphView : GraphView
 					{
 						using var undoScope = UndoScope( $"Convert {baseNode.DisplayInfo.Name} node to {nodeTypeTitle} {(Graph.IsSubgraph ? "Subgraph Input node" : "Material Parameter node")}" );
 
+						Dictionary<IPlugIn, IPlugOut> oldConnections = new();
+			
+						foreach ( var node in Graph.Nodes )
+						{
+							foreach ( var input in node.Inputs )
+							{
+								if ( input.ConnectedOutput is null )
+									continue;
+						
+								if ( input.ConnectedOutput.Node == baseNode )
+								{
+									oldConnections[input] = input.ConnectedOutput;
+
+									continue;
+								}
+							}
+						}
+
 						Graph.RemoveNode( baseNode );
 
 						var newNode = ConvertConstantNodeToParameter( constantNode, parameterName, item.Node.Position );
+
+						// fix connections
+						foreach ( var node in Graph.Nodes )
+						{
+							foreach ( var input in node.Inputs )
+							{
+								if ( input.ConnectedOutput is null && oldConnections.TryGetValue( input, out var correspondingOutput ) )
+								{
+									node.ConnectNode( input.Identifier, correspondingOutput.Identifier, newNode.Identifier );
+
+									continue;
+								}
+							}
+						}
 
 						RebuildFromGraph();
 
