@@ -63,7 +63,7 @@ public struct UIGroup
 	public int Priority { get; set; }
 }
 
-public struct TextureInput
+public struct TextureInput : IParameterUI
 {
 	/// <summary>
 	/// Name that shows up in material editor

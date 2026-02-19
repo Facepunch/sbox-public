@@ -22,25 +22,34 @@ internal class ShaderGraphGroupControlWidget : ControlWidget
 			_comboBox.AddItem( currentVal );
 			_comboBox.CurrentIndex = 1;
 		}
+	
+		var groupProperty = GetProperty<UIGroup>( property );
+		var parameterUIProperty = groupProperty.Parent?.ParentProperty;
 
-		var groupProperty = GetGroupProperty( property );
-		var textureInputProperty = GetInputProperty( property );
-		var input = textureInputProperty.GetValue<TextureInput>();
+		// Case for hiding Group properties.
+		if ( parameterUIProperty.PropertyType.IsAssignableFrom( typeof( TextureInput ) ) )
+		{
+			if ( !parameterUIProperty.GetValue<TextureInput>().ShowGroups )
+				return;
+		}
 
-		if ( !input.ShowGroups )
+		var blackboardProperty = parameterUIProperty.Parent;
+
+		if ( !blackboardProperty.TryGetProperty( nameof( BlackboardParameter.Graph ), out var graphProp ) )
 		{
 			return;
 		}
 
-		var parentNode = GetShaderNode( property );
-		if ( groupProperty is not null && parentNode is not null )
+		var graph = graphProp.GetValue<ShaderGraph>();
+		if ( groupProperty is not null && graph is not null )
 		{
-			foreach ( var node in parentNode.Graph.Nodes )
+			foreach ( var parameter in graph.Parameters )
 			{
-				var serialized = node.GetSerialized();
+				var serialized = parameter.GetSerialized();
+
 				foreach ( var prop in serialized )
 				{
-					if ( prop.PropertyType == typeof( IParameterUI ) || prop.PropertyType == typeof( TextureInput ) )
+					if ( prop.PropertyType.IsAssignableTo( typeof( IParameterUI ) ) )
 					{
 						if ( prop.TryGetAsObject( out var propObj ) )
 						{
@@ -67,57 +76,16 @@ internal class ShaderGraphGroupControlWidget : ControlWidget
 		};
 	}
 
-	SerializedProperty GetInputProperty( SerializedProperty originalProperty )
+	SerializedProperty GetProperty<T>( SerializedProperty originalProperty )
 	{
 		if ( originalProperty is null )
 		{
 			return null;
 		}
-		if ( originalProperty.PropertyType == typeof( TextureInput ) )
+		if ( originalProperty.PropertyType == typeof( T ) )
 		{
 			return originalProperty;
 		}
-		return GetGroupProperty( originalProperty.Parent?.ParentProperty );
-	}
-
-	SerializedProperty GetGroupProperty( SerializedProperty originalProperty )
-	{
-		if ( originalProperty is null )
-		{
-			return null;
-		}
-		if ( originalProperty.PropertyType == typeof( UIGroup ) )
-		{
-			return originalProperty;
-		}
-		return GetGroupProperty( originalProperty.Parent?.ParentProperty );
-	}
-
-	ShaderNode GetShaderNode( SerializedProperty originalProperty )
-	{
-		if ( originalProperty is null )
-		{
-			return null;
-		}
-		if ( originalProperty.Parent.Targets.First() is ShaderNode shaderNode )
-		{
-			return shaderNode;
-		}
-
-		return GetShaderNode( originalProperty.Parent?.ParentProperty );
-	}
-
-	BlackboardParameter GetBlackboardParameter( SerializedProperty originalProperty )
-	{
-		if ( originalProperty is null )
-		{
-			return null;
-		}
-		if ( originalProperty.Parent.Targets.First() is BlackboardParameter parameter )
-		{
-			return parameter;
-		}
-
-		return GetBlackboardParameter( originalProperty.Parent?.ParentProperty.Parent?.ParentProperty );
+		return GetProperty<T>( originalProperty.Parent?.ParentProperty );
 	}
 }
