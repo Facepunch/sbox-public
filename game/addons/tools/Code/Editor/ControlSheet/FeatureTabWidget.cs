@@ -94,7 +94,23 @@ public class FeatureTabWidget : Widget
 
 		TabLayout.Add( tab );
 
-		if ( Tabs.Count == 1 )
+		// Don't auto-select tabs for disabled features
+		if ( tab.FeatureEnabled is not null && !tab.FeatureEnabled.As.Bool )
+			return;
+
+		// Restore previously selected tab from cookie
+		if ( !string.IsNullOrEmpty( StateCookie ) )
+		{
+			var savedId = EditorCookie.Get<string>( $"featuretab.{StateCookie}", null );
+			if ( !string.IsNullOrWhiteSpace( savedId ) && tab.UniqueId == savedId )
+			{
+				Select( tab );
+				return;
+			}
+		}
+
+		// Select the first enabled tab
+		if ( !Tabs.Any( x => x != tab && x.IsSelected ) )
 		{
 			Select( tab );
 		}

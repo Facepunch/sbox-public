@@ -37,7 +37,7 @@ public interface IControlSheet
 			var features = properties.GroupBy( x => x.GetAttributes<FeatureAttribute>().FirstOrDefault()?.Identifier ?? defaultFeature ).ToDictionary( x => x.Key, x => x.ToList() );
 			if ( features.Count > 1 || (features.FirstOrDefault().Key ?? defaultFeature) != defaultFeature )
 			{
-				foreach ( var feature in features )
+				foreach ( var feature in features.OrderBy( x => x.Key != defaultFeature ).ThenBy( x => x.Key ) )
 				{
 					var csf = new Feature( feature.Value );
 					sheet.AddFeature( csf );
