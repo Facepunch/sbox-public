@@ -292,6 +292,8 @@ public class BlackboardView : Widget
 
 	private void OnAddParameter( IBlackboardParameterType type )
 	{
+		using var undoScope = UndoScope( "Add Parameter" );
+
 		int id = Graph._parameters.Count;
 		string name = $"Parameter{id}";
 
