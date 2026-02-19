@@ -250,7 +250,6 @@ public class BlackboardView : Widget
 		OnParameterDeleted?.Invoke();
 	}
 
-
 	internal IDisposable UndoScope( string name )
 	{
 		PushUndo( name );
