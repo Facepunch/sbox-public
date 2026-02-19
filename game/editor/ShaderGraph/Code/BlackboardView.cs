@@ -13,6 +13,7 @@ public class BlackboardView : Widget
 
 	private TreeView _treeView;
 	private BlackboardParameter _selectedParameter;
+	private bool _hasSelection => _selectedParameter != null;
 
 	private readonly MainWindow _window;
 	private readonly UndoStack _undoStack;
@@ -22,15 +23,9 @@ public class BlackboardView : Widget
 	public Action OnDirty { get; set; }
 
 	/// <summary>
-	/// Called after a parameter has been deleted.
-	/// </summary>
-	public Action OnParameterDeleted { get; set; }
-
-	/// <summary>
 	/// Called after a parameter bound node has been deleted.
 	/// </summary>
 	public Action OnParameterNodeDeleted { get; set; }
-
 
 	private ShaderGraph _graph;
 	public ShaderGraph Graph
@@ -113,33 +108,13 @@ public class BlackboardView : Widget
 
 		Selection.OnItemAdded += ( item ) =>
 		{
-			var parameter = item as BlackboardParameter;
-			OnItemClicked( parameter );
+			SetSelection( (BlackboardParameter)item );
+			SelectionChanged();
 		};
 
 		Layout.Add( _treeView, 1 );
 
 		CheckForChanges();
-	}
-
-	[EditorEvent.Frame]
-	public void CheckForChanges()
-	{
-		if ( !queryDirty )
-			return;
-
-		queryDirty = false;
-		Rebuild();
-	}
-
-	private void CreateParameterMenu()
-	{
-		var popup = new BlackboardPopupParameterTypeSelector( this, BlackboardParameter.GetRelevantParameters( AvailableParameters, Graph.IsSubgraph ) );
-		popup.OnSelect += ( t ) =>
-		{
-			OnAddParameter( t );
-		};
-		popup.OpenAtCursor();
 	}
 
 	public void Rebuild()
@@ -169,23 +144,21 @@ public class BlackboardView : Widget
 
 			foreach ( var parameter in parameters )
 			{
-
 				if ( !parameter.Name.Contains( search, StringComparison.OrdinalIgnoreCase ) )
 					continue;
 
-				var node = new BlackboardParameterSearchNode( parameter );
-				node.OnParameterDeleted += ( p ) =>
+				var treeNode = new BlackboardParameterSearchNode( parameter );
+				treeNode.OnParameterDeleted += ( p ) =>
 				{
-					var selected = _selectedParameter;
-
-					if ( _selectedParameter != null )
+					if ( _hasSelection )
 					{
-						_selectedParameter = null;
+						ClearSelection();
+						SelectionChanged();
 						DeleteParameter( parameter );
 					}
 				};
 
-				_treeView.AddItem( node );
+				_treeView.AddItem( treeNode );
 			}
 
 			_treeView.Selection = Selection;
@@ -196,25 +169,44 @@ public class BlackboardView : Widget
 
 			foreach ( var parameter in parameters )
 			{
-				var node = new BlackboardParameterNode( parameter );
-				node.OnParameterDeleted += ( p ) =>
+				var treeNode = new BlackboardParameterNode( parameter );
+				treeNode.OnParameterDeleted += ( p ) =>
 				{
-					var selected = _selectedParameter;
-
-					if ( _selectedParameter != null )
+					if ( _hasSelection )
 					{
-						_selectedParameter = null;
+						ClearSelection();
+						SelectionChanged();
 						DeleteParameter( parameter );
 					}
 				};
 
-				_treeView.AddItem( node );
-				_treeView.Open( node );
+				_treeView.AddItem( treeNode );
+				_treeView.Open( treeNode );
 			}
 		}
 	}
 
-	void OpenTreeViewContextMenu()
+	private void CreateParameterMenu()
+	{
+		var popup = new BlackboardPopupParameterTypeSelector( this, BlackboardParameter.GetRelevantParameters( AvailableParameters, Graph.IsSubgraph ) );
+		popup.OnSelect += ( t ) =>
+		{
+			CreateNewParameter( t );
+		};
+		popup.OpenAtCursor();
+	}
+
+	[EditorEvent.Frame]
+	public void CheckForChanges()
+	{
+		if ( !queryDirty )
+			return;
+
+		queryDirty = false;
+		Rebuild();
+	}
+
+	private void OpenTreeViewContextMenu()
 	{
 		if ( !_treeView.SelectedItems.Any() )
 			return;
@@ -226,28 +218,6 @@ public class BlackboardView : Widget
 		{
 			node.OnContextMenu();
 		}
-	}
-
-	private void DeleteParameter( BlackboardParameter parameter )
-	{
-		using var undoScope = UndoScope( "Delete Parameter" );
-
-		_window.OnSelected( null );
-		_graph?.RemoveParameter( parameter );
-
-		var identifier = parameter.Identifier;
-
-		foreach ( var node in _graph.Nodes )
-		{
-			if ( node is IBlackboardNode blackboardNode && blackboardNode.BlackboardParameterIdentifier == identifier && blackboardNode is BaseNode baseNode )
-			{
-				_graph.RemoveNode( baseNode );
-				OnParameterNodeDeleted?.Invoke();
-			}
-		}
-
-		_window.SetDirty();
-		OnParameterDeleted?.Invoke();
 	}
 
 	internal IDisposable UndoScope( string name )
@@ -282,14 +252,7 @@ public class BlackboardView : Widget
 		AvailableParameters.TryAdd( parameterType.Identifier, parameterType );
 	}
 
-	private void OnItemClicked( BlackboardParameter parameter )
-	{
-		SetSelectedItem( parameter );
-
-		_window.OnSelected( parameter );
-	}
-
-	private void OnAddParameter( IBlackboardParameterType type )
+	private void CreateNewParameter( IBlackboardParameterType type )
 	{
 		using var undoScope = UndoScope( "Add Parameter" );
 
@@ -302,42 +265,75 @@ public class BlackboardView : Widget
 
 		OnDirty?.Invoke();
 
-		SetSelectedItem( parameterInstance );
+		SetSelection( parameterInstance );
+		
+		SelectionChanged();
 
-		RebuildBuildFromGraph( true );
+		RebuildFromGraph( true );
+	}
 
-		_window?.OnSelected( parameterInstance );
+	private void DeleteParameter( BlackboardParameter parameter )
+	{
+		using var undoScope = UndoScope( "Delete Parameter" );
+
+		_graph?.RemoveParameter( parameter );
+
+		var identifier = parameter.Identifier;
+
+		foreach ( var node in _graph.Nodes )
+		{
+			if ( node is IBlackboardNode blackboardNode && blackboardNode.BlackboardParameterIdentifier == identifier && blackboardNode is BaseNode baseNode )
+			{
+				_graph.RemoveNode( baseNode );
+				OnParameterNodeDeleted?.Invoke();
+			}
+		}
+
+		_window.SetDirty();
+		RebuildFromGraph( false );
 	}
 
 	private void BuildFromParameters( IEnumerable<BlackboardParameter> parameters, bool preserveCurrentSelection = false )
 	{
 		Rebuild();
 
-		if ( _selectedParameter != null )
+		if ( _hasSelection )
 		{
-			var selection = Graph.FindParameter( _selectedParameter.Identifier );
-
-			SetSelectedItem( selection );
+			var parameter = Graph.FindParameter( _selectedParameter.Identifier );
+			SetSelection( parameter );
+			SelectionChanged();
 		}
 	}
 
-	public void RebuildBuildFromGraph( bool preserveCurrentSelection = false )
+	public void RebuildFromGraph( bool preserveCurrentSelection = false )
 	{
+		Rebuild();
+
 		if ( _graph is not null )
 			BuildFromParameters( _graph.Parameters, preserveCurrentSelection );
 	}
 
-	public void SetSelectedItem( BlackboardParameter parameter )
+	public void SetSelection( BlackboardParameter parameter )
 	{
 		_selectedParameter = parameter;
-		//_treeView.SelectItem( parameter );
 		Selection.Set( parameter );
 	}
 
-	public void ClearSeletedParameter()
+	public void ClearSelection()
 	{
 		_selectedParameter = null;
 		_treeView.Selection.Clear();
+	}
+
+	private void SelectionChanged()
+	{
+		if ( !_hasSelection )
+		{
+			_window.OnSelected( null );
+			return;
+		}
+
+		_window.OnSelected( _selectedParameter );
 	}
 }
 

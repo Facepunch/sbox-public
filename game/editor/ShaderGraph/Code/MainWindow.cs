@@ -132,7 +132,7 @@ public class MainWindow : DockWindow
 	{
 		if ( selection == null )
 		{
-			_blackboardView.ClearSeletedParameter();
+			_blackboardView.ClearSelection();
 			_properties.Target = _graph;
 
 			return;
@@ -147,13 +147,13 @@ public class MainWindow : DockWindow
 			}
 
 			_properties.Target = parameter;
-			_blackboardView.SetSelectedItem( parameter );
+			//_blackboardView.SetSelection( parameter );
 		}
 		else if ( selection is ShaderGraph )
 		{
 			if ( oldTarget is BlackboardParameter )
 			{
-				_blackboardView.ClearSeletedParameter();
+				_blackboardView.ClearSelection();
 			}
 
 			_properties.Target = _graph;
@@ -162,7 +162,7 @@ public class MainWindow : DockWindow
 		{
 			if ( oldTarget is BlackboardParameter )
 			{
-				_blackboardView.ClearSeletedParameter();
+				_blackboardView.ClearSelection();
 			}
 
 			if ( node is IBlackboardNode blackboardNode )
@@ -173,7 +173,7 @@ public class MainWindow : DockWindow
 					if ( blackboardNode.BlackboardParameterIdentifier != default )
 					{
 						var blackboardParameter = _graph.FindParameter( blackboardNode.BlackboardParameterIdentifier );
-						_blackboardView.SetSelectedItem( blackboardParameter );
+						_blackboardView.SetSelection( blackboardParameter );
 						_properties.Target = blackboardParameter;
 					}
 				}
@@ -197,7 +197,7 @@ public class MainWindow : DockWindow
 		if ( _properties.Target is BlackboardParameter )
 		{
 			OnSelected( null );
-			_blackboardView.ClearSeletedParameter();
+			_blackboardView.ClearSelection();
 		}
 	}
 
@@ -653,7 +653,7 @@ public class MainWindow : DockWindow
 			_graph.DeserializeParameters( op.undoBuffer );
 
 			_graphView.RebuildFromGraph();
-			_blackboardView.RebuildBuildFromGraph();
+			_blackboardView.RebuildFromGraph();
 
 			SetDirty();
 		}
@@ -675,7 +675,7 @@ public class MainWindow : DockWindow
 			_graph.DeserializeParameters( op.redoBuffer );
 
 			_graphView.RebuildFromGraph();
-			_blackboardView.RebuildBuildFromGraph();
+			_blackboardView.RebuildFromGraph();
 
 			SetDirty();
 		}
@@ -694,7 +694,7 @@ public class MainWindow : DockWindow
 			_graph.DeserializeParameters( op.redoBuffer );
 
 			_graphView.RebuildFromGraph();
-			_blackboardView.RebuildBuildFromGraph();
+			_blackboardView.RebuildFromGraph();
 
 			SetDirty();
 		}
@@ -1261,7 +1261,7 @@ public class MainWindow : DockWindow
 		_graphView.OnChildValuesChanged += ( w ) => SetDirty();
 		_graphView.OnNewParameterNodeCreated += () =>
 		{
-			_blackboardView.RebuildBuildFromGraph( true );
+			_blackboardView.RebuildFromGraph( true );
 		};
 		_graphCanvas.Layout.Add( _graphView, 1 );
 
@@ -1328,10 +1328,6 @@ public class MainWindow : DockWindow
 		_blackboardView = new BlackboardView( _blackboardCanvas, this );
 		_blackboardView.Graph = _graph;
 		_blackboardView.OnDirty += () => SetDirty();
-		_blackboardView.OnParameterDeleted += () => 
-		{
-			_blackboardView.RebuildBuildFromGraph( false );
-		};
 		_blackboardView.OnParameterNodeDeleted += () =>
 		{
 			_graphView.RebuildFromGraph();
