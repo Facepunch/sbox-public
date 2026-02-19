@@ -50,6 +50,10 @@ public class ResourceSystem
 	internal void OnHotload()
 	{
 		TypeCache.Clear();
+
+		// Regenerate all tracked textures so that code changes
+		// in texture generators are reflected immediately.
+		Resources.TextureGenerator.OnHotload();
 	}
 
 	internal void Clear()
