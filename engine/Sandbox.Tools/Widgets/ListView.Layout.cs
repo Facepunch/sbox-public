@@ -55,7 +55,17 @@ public partial class ListView
 		ItemLayouts.Clear();
 
 		if ( _items.Count == 0 )
+		{
+			if ( ItemScrollExit is not null )
+			{
+				foreach ( var item in old )
+				{
+					ItemScrollExit.Invoke( item.Object );
+				}
+			}
+
 			return;
+		}
 
 		var rect = CanvasRect;
 

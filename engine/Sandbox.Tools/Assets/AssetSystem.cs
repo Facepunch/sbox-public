@@ -170,7 +170,7 @@ public static partial class AssetSystem
 
 			if ( asset.HasCachedThumbnail )
 			{
-				asset.RebuildThumbnail( true );
+				asset.RebuildThumbnail( false );
 			}
 
 			if ( !asset.IsCompiled && asset.AssetType.IsGameResource )
