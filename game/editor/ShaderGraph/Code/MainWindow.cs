@@ -649,7 +649,7 @@ public class MainWindow : DockWindow
 			_graph.ClearNodes();
 			_graph.ClearParameters();
 
-			_graph.DeserializeNodes( op.undoBuffer );
+			_graph.DeserializeNodes( op.undoBuffer, true );
 			_graph.DeserializeParameters( op.undoBuffer );
 
 			_graphView.RebuildFromGraph();
@@ -671,7 +671,7 @@ public class MainWindow : DockWindow
 			_graph.ClearNodes();
 			_graph.ClearParameters();
 
-			_graph.DeserializeNodes( op.redoBuffer );
+			_graph.DeserializeNodes( op.redoBuffer, true );
 			_graph.DeserializeParameters( op.redoBuffer );
 
 			_graphView.RebuildFromGraph();
@@ -690,7 +690,7 @@ public class MainWindow : DockWindow
 			_graph.ClearNodes();
 			_graph.ClearParameters();
 
-			_graph.DeserializeNodes( op.redoBuffer );
+			_graph.DeserializeNodes( op.redoBuffer, true );
 			_graph.DeserializeParameters( op.redoBuffer );
 
 			_graphView.RebuildFromGraph();

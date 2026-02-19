@@ -50,11 +50,16 @@ partial class ShaderGraph
 		DeserializeNodes( root, options, subgraphPath, fileVersion );
 	}
 
-	public IEnumerable<BaseNode> DeserializeNodes( string json )
+	public IEnumerable<BaseNode> DeserializeNodes( string json, bool useCurrentVersion = false )
 	{
 		using var doc = JsonDocument.Parse( json, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip } );
 		var root = doc.RootElement;
 		var fileVersion = GetVersion( root );
+
+		if ( useCurrentVersion )
+		{
+			fileVersion = Version;
+		}
 
 		return DeserializeNodes( root, SerializerOptions(), null, fileVersion );
 	}
