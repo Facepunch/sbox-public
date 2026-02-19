@@ -43,6 +43,12 @@ public static partial class ConsoleSystem
 			x.Parameters[0].ParameterType == typeof( T ) &&
 			x.Parameters[1].ParameterType == typeof( T ) );
 
+		var methodSingleParam = method is not null ? null : type.Methods.FirstOrDefault( x =>
+			x.IsNamed( functionName ) &&
+			x.IsStatic == isStatic &&
+			x.Parameters.Length == 1 &&
+			x.Parameters[0].ParameterType == typeof( T ) );
+
 		var methodWithoutParams = method is not null ? null : type.Methods.FirstOrDefault( x =>
 			x.IsNamed( functionName ) &&
 			x.IsStatic == isStatic &&
@@ -79,7 +85,9 @@ public static partial class ConsoleSystem
 		try
 		{
 			if ( method is not null )
-				method.Invoke( p.Object, new[] { oldValue, p.Value } );
+				method.Invoke( p.Object, [oldValue, p.Value] );
+			else if ( methodSingleParam is not null )
+				methodSingleParam.Invoke( p.Object, [oldValue] );
 			else if ( methodWithoutParams is not null )
 				methodWithoutParams.Invoke( p.Object );
 			else
