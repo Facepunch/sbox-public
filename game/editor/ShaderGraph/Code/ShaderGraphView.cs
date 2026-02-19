@@ -253,18 +253,21 @@ public class ShaderGraphView : GraphView
 					var constantNode = baseNode as IConstantNode;
 					Dictionary<IPlugIn, IPlugOut> oldConnections = new();
 
-					foreach ( var node in Graph.Nodes )
+					if ( !Graph.IsSubgraph )
 					{
-						foreach ( var input in node.Inputs )
+						foreach ( var node in Graph.Nodes )
 						{
-							if ( input.ConnectedOutput is null )
-								continue;
-
-							if ( input.ConnectedOutput.Node == baseNode )
+							foreach ( var input in node.Inputs )
 							{
-								oldConnections[input] = input.ConnectedOutput;
+								if ( input.ConnectedOutput is null )
+									continue;
 
-								continue;
+								if ( input.ConnectedOutput.Node == baseNode )
+								{
+									oldConnections[input] = input.ConnectedOutput;
+
+									continue;
+								}
 							}
 						}
 					}
@@ -279,17 +282,20 @@ public class ShaderGraphView : GraphView
 					}
 
 					lastNode = ConvertConstantNodeToParameter( constantNode, $"{newName}{id}", selectedNode.Position );
-
-					// fix connections
-					foreach ( var node in Graph.Nodes )
+					
+					if ( !Graph.IsSubgraph )
 					{
-						foreach ( var input in node.Inputs )
+						// fix connections
+						foreach ( var node in Graph.Nodes )
 						{
-							if ( input.ConnectedOutput is null && oldConnections.TryGetValue( input, out var correspondingOutput ) )
+							foreach ( var input in node.Inputs )
 							{
-								node.ConnectNode( input.Identifier, correspondingOutput.Identifier, lastNode.Identifier );
+								if ( input.ConnectedOutput is null && oldConnections.TryGetValue( input, out var correspondingOutput ) )
+								{
+									node.ConnectNode( input.Identifier, correspondingOutput.Identifier, lastNode.Identifier );
 
-								continue;
+									continue;
+								}
 							}
 						}
 					}
@@ -333,18 +339,21 @@ public class ShaderGraphView : GraphView
 
 						Dictionary<IPlugIn, IPlugOut> oldConnections = new();
 			
-						foreach ( var node in Graph.Nodes )
+						if ( !Graph.IsSubgraph )
 						{
-							foreach ( var input in node.Inputs )
+							foreach ( var node in Graph.Nodes )
 							{
-								if ( input.ConnectedOutput is null )
-									continue;
-						
-								if ( input.ConnectedOutput.Node == baseNode )
+								foreach ( var input in node.Inputs )
 								{
-									oldConnections[input] = input.ConnectedOutput;
+									if ( input.ConnectedOutput is null )
+										continue;
 
-									continue;
+									if ( input.ConnectedOutput.Node == baseNode )
+									{
+										oldConnections[input] = input.ConnectedOutput;
+
+										continue;
+									}
 								}
 							}
 						}
@@ -353,16 +362,20 @@ public class ShaderGraphView : GraphView
 
 						var newNode = ConvertConstantNodeToParameter( constantNode, parameterName, item.Node.Position );
 
-						// fix connections
-						foreach ( var node in Graph.Nodes )
-						{
-							foreach ( var input in node.Inputs )
-							{
-								if ( input.ConnectedOutput is null && oldConnections.TryGetValue( input, out var correspondingOutput ) )
-								{
-									node.ConnectNode( input.Identifier, correspondingOutput.Identifier, newNode.Identifier );
 
-									continue;
+						if ( !Graph.IsSubgraph )
+						{
+							// fix connections
+							foreach ( var node in Graph.Nodes )
+							{
+								foreach ( var input in node.Inputs )
+								{
+									if ( input.ConnectedOutput is null && oldConnections.TryGetValue( input, out var correspondingOutput ) )
+									{
+										node.ConnectNode( input.Identifier, correspondingOutput.Identifier, newNode.Identifier );
+
+										continue;
+									}
 								}
 							}
 						}
