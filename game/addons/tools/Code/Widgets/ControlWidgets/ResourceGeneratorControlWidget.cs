@@ -14,6 +14,7 @@ public class ResourceGeneratorControlWidget : ControlWidget
 
 	bool _isDirty = false;
 	bool _isGenerating = false;
+	bool _initialized = false;
 
 	public ResourceGeneratorControlWidget( ResourceGenerator generator, SerializedProperty property ) : base( property )
 	{
@@ -36,7 +37,30 @@ public class ResourceGeneratorControlWidget : ControlWidget
 
 		BuildContent();
 
-		_ = UpdateGenerator();
+		_ = InitialGenerate();
+	}
+
+	/// <summary>
+	/// Generate the initial resource without marking the parent as dirty.
+	/// The property already has the correct value from deserialization, so we
+	/// only need to update the display (e.g. texture preview), not set the value.
+	/// </summary>
+	async Task InitialGenerate()
+	{
+		_isGenerating = true;
+
+		try
+		{
+			var resource = await Generator.FindOrCreateObjectAsync( ResourceGenerator.Options.Default, default );
+			OnResourceChanged( resource );
+			Update();
+		}
+		finally
+		{
+			_isGenerating = false;
+			_isDirty = false;
+			_initialized = true;
+		}
 	}
 
 	protected virtual void BuildContent()
@@ -101,6 +125,7 @@ public class ResourceGeneratorControlWidget : ControlWidget
 	{
 		if ( _isGenerating ) return;
 		if ( !_isDirty ) return;
+		if ( !_initialized ) return;
 
 		if ( Generator is not null )
 		{

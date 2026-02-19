@@ -332,6 +332,14 @@ public class AssetInspector : InspectorWidget
 
 					var so = gameResource.GetSerialized();
 
+					if ( isReadOnly )
+					{
+						//todo
+						//so = so.AsReadOnly();
+					}
+
+					sheet.AddObject( so, filter: FilterProperties );
+
 					so.OnPropertyChanged += x =>
 					{
 						if ( isReadOnly ) return;
@@ -340,13 +348,6 @@ public class AssetInspector : InspectorWidget
 						gameResource.StateHasChanged();
 					};
 
-					if ( isReadOnly )
-					{
-						//todo
-						//so = so.AsReadOnly();
-					}
-
-					sheet.AddObject( so, filter: FilterProperties );
 					ContentLayout.Add( sheet );
 					ContentLayout.AddStretchCell();
 				}
