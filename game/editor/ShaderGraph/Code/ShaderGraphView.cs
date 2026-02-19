@@ -337,6 +337,7 @@ public class ShaderGraphView : GraphView
 			{
 				var parameter = CreateNewBlackboardParameter( bpParameterType );
 				parameter.Name = parameterName;
+				parameter.SetValue( constantNode.GetValue() );
 
 				node = CreateNewParameterNode( parameter, nodePosition, false );
 			}

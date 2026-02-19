@@ -3,11 +3,17 @@
 public interface IConstantNode
 {
 	string Identifier { get; set; }
+	object GetValue();
 }
 
 public abstract class ConstantNode<T> : ShaderNode, IConstantNode
 {
 	public T Value { get; set; }
+
+	public object GetValue()
+	{
+		return Value;
+	}
 
 	protected NodeResult Component( string component, float value, GraphCompiler compiler )
 	{
