@@ -414,11 +414,36 @@ public class ShaderGraphView : GraphView
 		}
 		else
 		{
-			// TODO
-			throw new NotImplementedException();
-		}
+			string bptFullName = constantNode switch
+			{
+				ConstantBool => DisplayInfo.ForType( typeof( BoolSubgraphInputBlackboardParameter ) ).Fullname,
+				ConstantInt => DisplayInfo.ForType( typeof( IntSubgraphInputBlackboardParameter ) ).Fullname,
+				ConstantFloat => DisplayInfo.ForType( typeof( FloatSubgraphInputBlackboardParameter ) ).Fullname,
+				ConstantFloat2 => DisplayInfo.ForType( typeof( Float2SubgraphInputBlackboardParameter ) ).Fullname,
+				ConstantFloat3 => DisplayInfo.ForType( typeof( Float3SubgraphInputBlackboardParameter ) ).Fullname,
+				ConstantFloat4 => DisplayInfo.ForType( typeof( Float4SubgraphInputBlackboardParameter ) ).Fullname,
+				ConstantColor => DisplayInfo.ForType( typeof( ColorSubgraphInputBlackboardParameter ) ).Fullname,
+				_ => throw new NotImplementedException(),
+			};
 
-		throw new Exception( $"Unable to convert constant node \"{constantNode.GetType()}\" to subgraph input parameter." );
+			// Any connections will be broken and have to be reconnected by the user since the SubgraphInput node does not have the same outputs as the constant node.
+
+			if ( AvailableParameters.TryGetValue( bptFullName, out var bpParameterType ) )
+			{
+				var parameter = CreateNewBlackboardParameter( bpParameterType );
+				parameter.Name = parameterName;
+				parameter.SetValue( constantNode.GetValue() );
+
+				node = CreateNewParameterNode( parameter, nodePosition, false );
+			}
+
+			if ( node != null )
+			{
+				return node;
+			}
+
+			throw new Exception( $"Unable to convert constant node \"{constantNode.GetType()}\" to subgraph input parameter." );
+		}
 	}
 
 	protected BlackboardParameter CreateNewBlackboardParameter( IBlackboardParameterType type )
