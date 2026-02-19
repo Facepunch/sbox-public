@@ -1259,7 +1259,10 @@ public class MainWindow : DockWindow
 
 		_graphView.Graph = _graph;
 		_graphView.OnChildValuesChanged += ( w ) => SetDirty();
-		_graphView.OnNewParameterNodeCreated += () => OnNewParameterNodeCreated();
+		_graphView.OnNewParameterNodeCreated += () =>
+		{
+			_blackboardView.RebuildBuildFromGraph( true );
+		};
 		_graphCanvas.Layout.Add( _graphView, 1 );
 
 		_output = new Output( this );
@@ -1376,11 +1379,6 @@ public class MainWindow : DockWindow
 		}
 
 		Compile();
-	}
-
-	private void OnNewParameterNodeCreated()
-	{
-		_blackboardView.RebuildBuildFromGraph( true );
 	}
 
 	private void CheckParameter()
