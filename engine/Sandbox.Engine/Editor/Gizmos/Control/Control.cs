@@ -1,4 +1,4 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 public static partial class Gizmo
 {
@@ -22,7 +22,7 @@ public static partial class Gizmo
 		/// <summary>
 		/// A front left up position movement widget. If widget was moved then will return true and out will return the new position.
 		/// </summary>
-		public bool Position( string name, Vector3 position, out Vector3 newPos, Rotation? axisRotation = null, float squareSize = 3.0f )
+		public bool Position( string name, Vector3 position, out Vector3 newPos, global::Rotation? axisRotation = null, float squareSize = 3.0f )
 		{
 			if ( position.IsNaN )
 			{
@@ -32,7 +32,7 @@ public static partial class Gizmo
 
 			var localRotation = Transform.Rotation;
 			var localScale = Transform.UniformScale;
-			var axis = axisRotation ?? Rotation.Identity;
+			var axis = axisRotation ?? global::Rotation.Identity;
 
 			using var x = Sandbox.Gizmo.Scope( name, Vector3.Zero, axis );
 
@@ -40,7 +40,7 @@ public static partial class Gizmo
 
 			// I don't know if we should even be doing this here or leave it to the implementation
 			if ( Settings.GlobalSpace )
-				Transform = Transform.WithRotation( Rotation.Identity );
+				Transform = Transform.WithRotation( global::Rotation.Identity );
 
 			Sandbox.Gizmo.Draw.IgnoreDepth = true;
 
@@ -90,7 +90,7 @@ public static partial class Gizmo
 				{
 					Sandbox.Gizmo.Transform = Sandbox.Gizmo.Transform.ToWorld( new Transform( Vector3.Up * squareOffset + Vector3.Left * squareOffset ) );
 					Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Up;
-					if ( DragSquare( "left-up", squareSize, Rotation.LookAt( Vector3.Backward, Vector3.Up ), out var moved ) )
+					if ( DragSquare( "left-up", squareSize, global::Rotation.LookAt( Vector3.Backward, Vector3.Up ), out var moved ) )
 					{
 						movement += moved;
 					}
@@ -100,7 +100,7 @@ public static partial class Gizmo
 				{
 					Sandbox.Gizmo.Transform = Sandbox.Gizmo.Transform.ToWorld( new Transform( Vector3.Forward * squareOffset + Vector3.Left * squareOffset ) );
 					Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Left;
-					if ( DragSquare( "forward-left", squareSize, Rotation.LookAt( Vector3.Up, Vector3.Forward ), out var moved ) )
+					if ( DragSquare( "forward-left", squareSize, global::Rotation.LookAt( Vector3.Up, Vector3.Forward ), out var moved ) )
 					{
 						movement += moved;
 					}
@@ -110,7 +110,7 @@ public static partial class Gizmo
 				{
 					Sandbox.Gizmo.Transform = Sandbox.Gizmo.Transform.ToWorld( new Transform( Vector3.Forward * squareOffset + Vector3.Up * squareOffset ) );
 					Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Forward;
-					if ( DragSquare( "forward-up", squareSize, Rotation.LookAt( Vector3.Left, Vector3.Down ), out var moved ) )
+					if ( DragSquare( "forward-up", squareSize, global::Rotation.LookAt( Vector3.Left, Vector3.Down ), out var moved ) )
 					{
 						movement += moved;
 					}
@@ -162,7 +162,7 @@ public static partial class Gizmo
 			var localCam = Transform.RotationToLocal( Camera.Rotation );
 
 			// Use the camera to provide a plane that'll work for us
-			var rot = Rotation.LookAt( axis, Vector3.Up );
+			var rot = global::Rotation.LookAt( axis, Vector3.Up );
 
 			using var x = Sandbox.Gizmo.Scope( name, axis * axisOffset, rot );
 
@@ -200,7 +200,7 @@ public static partial class Gizmo
 				return false;
 
 			// use a plane that follows the axis but that uses the camera's plane
-			Gizmo.Transform = Gizmo.Transform.WithRotation( Rotation.LookAt( Transform.Rotation.Forward, Camera.Rotation.Forward ) );
+			Gizmo.Transform = Gizmo.Transform.WithRotation( global::Rotation.LookAt( Transform.Rotation.Forward, Camera.Rotation.Forward ) );
 
 
 			//
@@ -215,7 +215,7 @@ public static partial class Gizmo
 
 		}
 
-		public bool DragBox( string name, Vector3 size, Rotation rotation, out Vector3 movement )
+		public bool DragBox( string name, Vector3 size, global::Rotation rotation, out Vector3 movement )
 		{
 			movement = default;
 			var box = new BBox( -size * 0.5f, size * 0.5f );
@@ -266,7 +266,7 @@ public static partial class Gizmo
 		/// <summary>
 		/// Manipulate a 2d value by moving on 2 axis
 		/// </summary>
-		public bool DragSquare( string name, Vector2 size, Rotation rotation, out Vector3 movement, Action drawHandle = null )
+		public bool DragSquare( string name, Vector2 size, global::Rotation rotation, out Vector3 movement, Action drawHandle = null )
 		{
 			movement = default;
 			var bbox = new BBox( new Vector3( -0.01f, -size.x, -size.y ), new Vector3( 0.01f, size.x, size.y ) );

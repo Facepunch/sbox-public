@@ -7,10 +7,10 @@ public static partial class Gizmo
 		/// <summary>
 		/// A full 3d rotation gizmo. If rotated will return true and outValue will be the rotation delta.
 		/// </summary>
-		public bool Rotate( string name, out Rotation outValue )
+		public bool Rotation( string name, out global::Rotation outValue )
 		{
 			using var scaler = Gizmo.GizmoControls.PushFixedScale();
-			outValue = Rotation.Identity;
+			outValue = global::Rotation.Identity;
 
 			bool hasValueChanged = false;
 
@@ -18,29 +18,29 @@ public static partial class Gizmo
 			{
 				Sandbox.Gizmo.Draw.IgnoreDepth = true;
 
-				using ( Sandbox.Gizmo.Scope( "pitch", 0, Rotation.LookAt( Vector3.Left ) ) )
+				using ( Sandbox.Gizmo.Scope( "pitch", 0, global::Rotation.LookAt( Vector3.Left ) ) )
 				{
 					if ( RotateSingle( "pitch", Sandbox.Gizmo.Colors.Pitch, out var angleDelta ) )
 					{
-						outValue *= Rotation.FromAxis( Vector3.Left, angleDelta );
+						outValue *= global::Rotation.FromAxis( Vector3.Left, angleDelta );
 						hasValueChanged = true;
 					}
 				}
 
-				using ( Sandbox.Gizmo.Scope( "yaw", 0, Rotation.LookAt( Vector3.Up ) ) )
+				using ( Sandbox.Gizmo.Scope( "yaw", 0, global::Rotation.LookAt( Vector3.Up ) ) )
 				{
 					if ( RotateSingle( "yaw", Sandbox.Gizmo.Colors.Yaw, out var angleDelta ) )
 					{
-						outValue *= Rotation.FromAxis( Vector3.Up, angleDelta );
+						outValue *= global::Rotation.FromAxis( Vector3.Up, angleDelta );
 						hasValueChanged = true;
 					}
 				}
 
-				using ( Sandbox.Gizmo.Scope( "roll", 0, Rotation.LookAt( Vector3.Forward ) ) )
+				using ( Sandbox.Gizmo.Scope( "roll", 0, global::Rotation.LookAt( Vector3.Forward ) ) )
 				{
 					if ( RotateSingle( "roll", Sandbox.Gizmo.Colors.Roll, out var angleDelta ) )
 					{
-						outValue *= Rotation.FromAxis( Vector3.Forward, angleDelta );
+						outValue *= global::Rotation.FromAxis( Vector3.Forward, angleDelta );
 						hasValueChanged = true;
 					}
 				}
@@ -53,12 +53,12 @@ public static partial class Gizmo
 					rotateSingle = RotateSingle( "view", Color.White, out _angleDelta, 22, false );
 				}
 
-				using ( Sandbox.Gizmo.Scope( "view", 0, Rotation.Identity ) )
+				using ( Sandbox.Gizmo.Scope( "view", 0, global::Rotation.Identity ) )
 				{
 					if ( rotateSingle )
 					{
 						var camForward = Gizmo.Transform.NormalToLocal( Gizmo.CameraTransform.Rotation.Forward );
-						outValue *= Rotation.FromAxis( camForward, _angleDelta );
+						outValue *= global::Rotation.FromAxis( camForward, _angleDelta );
 						hasValueChanged = true;
 					}
 				}
@@ -73,7 +73,7 @@ public static partial class Gizmo
 			return hasValueChanged;
 		}
 
-		[Obsolete( "Use Rotate( string name, out Rotation outValue ) and WorldRotation = outValue rather than *=" )]
+		[Obsolete( "Use Rotation( string name, out global::Rotation outValue ) and WorldRotation = outValue rather than *=" )]
 		public bool Rotate( string name, out Angles outValue )
 		{
 			using var scaler = Gizmo.GizmoControls.PushFixedScale();
@@ -85,7 +85,7 @@ public static partial class Gizmo
 			{
 				Sandbox.Gizmo.Draw.IgnoreDepth = true;
 
-				using ( Sandbox.Gizmo.Scope( "pitch", 0, Rotation.LookAt( Vector3.Left ) ) )
+				using ( Sandbox.Gizmo.Scope( "pitch", 0, global::Rotation.LookAt( Vector3.Left ) ) )
 				{
 					if ( RotateSingle( "pitch", Sandbox.Gizmo.Colors.Pitch, out var angleDelta ) )
 					{
@@ -94,7 +94,7 @@ public static partial class Gizmo
 					}
 				}
 
-				using ( Sandbox.Gizmo.Scope( "yaw", 0, Rotation.LookAt( Vector3.Up ) ) )
+				using ( Sandbox.Gizmo.Scope( "yaw", 0, global::Rotation.LookAt( Vector3.Up ) ) )
 				{
 					if ( RotateSingle( "yaw", Sandbox.Gizmo.Colors.Yaw, out var angleDelta ) )
 					{
@@ -103,7 +103,7 @@ public static partial class Gizmo
 					}
 				}
 
-				using ( Sandbox.Gizmo.Scope( "roll", 0, Rotation.LookAt( Vector3.Forward ) ) )
+				using ( Sandbox.Gizmo.Scope( "roll", 0, global::Rotation.LookAt( Vector3.Forward ) ) )
 				{
 					if ( RotateSingle( "roll", Sandbox.Gizmo.Colors.Roll, out var angleDelta ) )
 					{
@@ -201,9 +201,9 @@ public static partial class Gizmo
 		/// <summary>
 		/// Trackball rotation using camera-relative axes - allows free rotation by dragging a sphere in the center
 		/// </summary>
-		private bool RotateTrackball( string name, Color color, out Rotation rotationDelta, float size = 16.0f )
+		private bool RotateTrackball( string name, Color color, out global::Rotation rotationDelta, float size = 16.0f )
 		{
-			rotationDelta = Rotation.Identity;
+			rotationDelta = global::Rotation.Identity;
 			var sphere = new Sphere( Vector3.Zero, size );
 
 			using var _ = Sandbox.Gizmo.Scope( name );
@@ -258,7 +258,7 @@ public static partial class Gizmo
 
 			if ( angleDifference == 0.0f ) return false;
 
-			rotationDelta = Rotation.FromAxis( dir, angleDifference ).Inverse;
+			rotationDelta = global::Rotation.FromAxis( dir, angleDifference ).Inverse;
 
 			return true;
 		}

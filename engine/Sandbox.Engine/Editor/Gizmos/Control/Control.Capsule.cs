@@ -15,7 +15,7 @@ public static partial class Gizmo
 			if ( diff.IsNearZeroLength )
 				return false;
 
-			var rot = Rotation.LookAt( diff );
+			var rot = global::Rotation.LookAt( diff );
 			var localCameraRot = Transform.RotationToLocal( Camera.Rotation );
 
 			Draw.LineThickness = 4.0f;

@@ -28,7 +28,7 @@ public static partial class Gizmo
 
 				using ( Hitbox.LineScope() )
 				{
-					var delta = Sandbox.Gizmo.GetMouseDistanceDelta( 0, Rotation.FromAxis( localCameraRot.Forward, 0 ).Forward );
+					var delta = Sandbox.Gizmo.GetMouseDistanceDelta( 0, global::Rotation.FromAxis( localCameraRot.Forward, 0 ).Forward );
 
 					if ( Pressed.This )
 					{

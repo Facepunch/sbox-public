@@ -7,7 +7,7 @@ public static partial class Gizmo
 		private static bool ArrowPoint( string name, Vector3 direction, float length, Color color, out float distance, ref bool pressed )
 		{
 			distance = 0.0f;
-			var rotation = Rotation.LookAt( direction, Vector3.Up );
+			var rotation = global::Rotation.LookAt( direction, Vector3.Up );
 			using var x = Scope( name, direction * length, rotation );
 			var worldBoxScale = Transform.UniformScale;
 			using var scaler = PushFixedScale();
@@ -47,7 +47,7 @@ public static partial class Gizmo
 				Transform = Transform.ToWorld( new Transform( Vector3.Backward * (length * 2.0f) ) );
 				using ( PushFixedScale() )
 				{
-					Transform = Transform.WithRotation( Rotation.LookAt( Transform.Rotation.Forward, Camera.Rotation.Forward ) );
+					Transform = Transform.WithRotation( global::Rotation.LookAt( Transform.Rotation.Forward, Camera.Rotation.Forward ) );
 					var delta = GetMouseDelta( Vector3.Zero, Vector3.Up );
 					distance = Vector3.Forward.Dot( GetMouseDelta( Vector3.Zero, Vector3.Up ) );
 					distance /= worldBoxScale;
