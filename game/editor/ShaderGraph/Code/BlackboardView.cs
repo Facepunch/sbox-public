@@ -305,7 +305,7 @@ public class BlackboardView : Widget
 
 		RebuildBuildFromGraph( true );
 
-		OnParameterCreated?.Invoke( parameterInstance );
+		_window?.OnSelected( parameterInstance );
 	}
 
 	private void BuildFromParameters( IEnumerable<BlackboardParameter> parameters, bool preserveCurrentSelection = false )
