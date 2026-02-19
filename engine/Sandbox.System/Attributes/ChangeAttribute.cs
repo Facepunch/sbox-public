@@ -4,7 +4,7 @@
 	/// This will invoke a method when the property changes. It can be used with any property but is especially useful
 	/// when combined with [Sync] or [ConVar].
 	/// <br/><br/>
-	/// If no name is provided, we will try to call On[PropertyName]Changed. The callback should have 2 arguments - oldValue and newValue, both of the same type as the property itself.
+	/// If no name is provided, we will try to call On[PropertyName]Changed. The callback may have up to 2 arguments in the order ( oldValue, newValue ), both of the same type as the property itself.
 	/// </summary>
 	[AttributeUsage( AttributeTargets.Property )]
 	[CodeGenerator( CodeGeneratorFlags.Instance | CodeGeneratorFlags.Static | CodeGeneratorFlags.WrapPropertySet, "Sandbox.ConsoleSystem.OnChangePropertySet", 10 )]

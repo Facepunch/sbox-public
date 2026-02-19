@@ -39,20 +39,8 @@ public static partial class ConsoleSystem
 		var method = type.Methods.FirstOrDefault( x =>
 			x.IsNamed( functionName ) &&
 			x.IsStatic == isStatic &&
-			x.Parameters.Length == 2 &&
-			x.Parameters[0].ParameterType == typeof( T ) &&
-			x.Parameters[1].ParameterType == typeof( T ) );
-
-		var methodSingleParam = method is not null ? null : type.Methods.FirstOrDefault( x =>
-			x.IsNamed( functionName ) &&
-			x.IsStatic == isStatic &&
-			x.Parameters.Length == 1 &&
-			x.Parameters[0].ParameterType == typeof( T ) );
-
-		var methodWithoutParams = method is not null || methodSingleParam is not null ? null : type.Methods.FirstOrDefault( x =>
-			x.IsNamed( functionName ) &&
-			x.IsStatic == isStatic &&
-			x.Parameters.Length == 0 );
+			x.Parameters.Length <= 2 &&
+			x.Parameters.All( p => p.ParameterType == typeof( T ) ) );
 
 		var oldValue = property.GetValue( p.Object );
 		var isTheSame = Equals( p.Value, oldValue );
@@ -86,10 +74,6 @@ public static partial class ConsoleSystem
 		{
 			if ( method is not null )
 				method.Invoke( p.Object, [oldValue, p.Value] );
-			else if ( methodSingleParam is not null )
-				methodSingleParam.Invoke( p.Object, [oldValue] );
-			else if ( methodWithoutParams is not null )
-				methodWithoutParams.Invoke( p.Object );
 			else
 				Log.Warning(
 					$"{type.Name}.{property.Name} has [Change] but we can not find {functionName}( {property.PropertyType} oldValue, {property.PropertyType} newValue )" );
