@@ -1324,9 +1324,15 @@ public class MainWindow : DockWindow
 
 		_blackboardView = new BlackboardView( _blackboardCanvas, this );
 		_blackboardView.Graph = _graph;
-		_blackboardView.OnParameterCreated += OnBlackboardParameterCreated;
-		_blackboardView.OnParameterDeleted += OnBlackboardParameterDeleted;
 		_blackboardView.OnDirty += () => SetDirty();
+		_blackboardView.OnParameterDeleted += () => 
+		{
+			_blackboardView.RebuildBuildFromGraph( false );
+		};
+		_blackboardView.OnParameterNodeDeleted += () =>
+		{
+			_graphView.RebuildFromGraph();
+		};
 
 		foreach ( var type in blackboardParameterTypes )
 		{
@@ -1375,46 +1381,6 @@ public class MainWindow : DockWindow
 	private void OnNewParameterNodeCreated()
 	{
 		_blackboardView.RebuildBuildFromGraph( true );
-	}
-
-	private void OnBlackboardParameterCreated( BlackboardParameter parameter )
-	{
-		if ( _properties.Target != parameter )
-		{
-			_properties.Target = parameter;
-		}
-	}
-
-	private void OnBlackboardParameterDeleted( BlackboardParameter parameter )
-	{
-		if ( _properties.Target == parameter )
-		{
-			_properties.Target = _graph;
-		}
-
-		_graph.RemoveParameter( parameter );
-
-		var identifier = parameter.Identifier;
-
-		foreach ( var node in _graph.Nodes )
-		{
-			// TODO : Make it work when subgraph inputs.
-			if ( node is IBlackboardNode blackboardNode && blackboardNode.BlackboardParameterIdentifier == identifier && blackboardNode is BaseNode baseNode )
-			{
-				_graph.RemoveNode( baseNode );
-
-				if ( _properties.Target == baseNode )
-					_properties.Target = _graph;
-
-				_graphView.RebuildFromGraph();
-
-				//break;
-			}
-		}
-
-		SetDirty();
-
-		_blackboardView.RebuildBuildFromGraph( false );
 	}
 
 	private void CheckParameter()

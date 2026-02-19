@@ -19,17 +19,18 @@ public class BlackboardView : Widget
 	private readonly Dictionary<string, IBlackboardParameterType> AvailableParameters = new( StringComparer.OrdinalIgnoreCase );
 	private readonly SelectionSystem Selection = new SelectionSystem();
 
-	/// <summary>
-	/// Called when a blackboard parameter is created.
-	/// </summary>
-	public Action<BlackboardParameter> OnParameterCreated { get; set; }
-
-	/// <summary>
-	/// Called when a blackboard parameter is deleated.
-	/// </summary>
-	public Action<BlackboardParameter> OnParameterDeleted { get; set; }
-
 	public Action OnDirty { get; set; }
+
+	/// <summary>
+	/// Called after a parameter has been deleted.
+	/// </summary>
+	public Action OnParameterDeleted { get; set; }
+
+	/// <summary>
+	/// Called after a parameter bound node has been deleted.
+	/// </summary>
+	public Action OnParameterNodeDeleted { get; set; }
+
 
 	private ShaderGraph _graph;
 	public ShaderGraph Graph
@@ -180,7 +181,7 @@ public class BlackboardView : Widget
 					if ( _selectedParameter != null )
 					{
 						_selectedParameter = null;
-						OnParameterDeleted?.Invoke( parameter );
+						DeleteParameter( parameter );
 					}
 				};
 
@@ -203,7 +204,7 @@ public class BlackboardView : Widget
 					if ( _selectedParameter != null )
 					{
 						_selectedParameter = null;
-						OnParameterDeleted?.Invoke( parameter );
+						DeleteParameter( parameter );
 					}
 				};
 
@@ -226,6 +227,29 @@ public class BlackboardView : Widget
 			node.OnContextMenu();
 		}
 	}
+
+	private void DeleteParameter( BlackboardParameter parameter )
+	{
+		using var undoScope = UndoScope( "Delete Parameter" );
+
+		_window.OnSelected( null );
+		_graph?.RemoveParameter( parameter );
+
+		var identifier = parameter.Identifier;
+
+		foreach ( var node in _graph.Nodes )
+		{
+			if ( node is IBlackboardNode blackboardNode && blackboardNode.BlackboardParameterIdentifier == identifier && blackboardNode is BaseNode baseNode )
+			{
+				_graph.RemoveNode( baseNode );
+				OnParameterNodeDeleted?.Invoke();
+			}
+		}
+
+		_window.SetDirty();
+		OnParameterDeleted?.Invoke();
+	}
+
 
 	internal IDisposable UndoScope( string name )
 	{
