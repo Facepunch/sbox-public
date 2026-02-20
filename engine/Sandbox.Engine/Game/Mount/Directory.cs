@@ -37,6 +37,7 @@ public static class Directory
 			{
 				var assembly = Assembly.LoadFile( assemblyName );
 				AddAssembly( assembly );
+				TryMountFilesystem( folderName );
 			}
 			catch ( System.Exception e )
 			{
@@ -95,7 +96,6 @@ public static class Directory
 		}
 		else
 		{
-			TryMountFilesystem( name );
 			await _system.Mount( name );
 		}
 

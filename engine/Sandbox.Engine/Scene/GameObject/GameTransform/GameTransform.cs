@@ -343,7 +343,7 @@ public partial class GameTransform
 
 	internal void FromNetwork( Transform transform, bool clearInterpolation )
 	{
-		if ( GameObject.Network.Interpolation && !clearInterpolation )
+		if ( !Application.IsHeadless && GameObject.Network.Interpolation && !clearInterpolation )
 		{
 			_networkTransformBuffer.Add( new TransformState( transform ), Time.Now );
 			Interpolate = true;

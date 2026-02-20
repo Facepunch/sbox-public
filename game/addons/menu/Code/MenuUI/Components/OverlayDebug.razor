@@ -12,7 +12,7 @@
 		<div class="children">
 
 			<h2>MenuOverlay</h2>
-			<div class="option" @onclick=@( () => { MenuOverlay.Message( "Message Title" ); } )>Message</div>
+			<div class="option" @onclick=@( () => { MenuOverlay.Show( "Message Title" ); } )>Message</div>
 			<div class="option" @onclick=@( () => { MenuOverlay.Question( "Want some crisps?", "people", () => {}, () => {} ); } )>Question</div>
 
 			<h2>ModalSystem</h2>

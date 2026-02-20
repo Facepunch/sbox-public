@@ -66,35 +66,6 @@
     width: 100%;
 }
 
-.image-viewer
-{
-    position: absolute;
-    left: 0px;
-    right: 0px;
-    top: 0px;
-    bottom: 0px;
-    z-index: 1010;
-    transition: all 0.2s ease-out;
-    opacity: 0;
-    transform: scale( 1 );
-    aspect-ratio: 1.1;
-    background-position: center;
-    background-size: contain;
-    background-color: #111;
-    background-repeat: no-repeat;
-    margin: 20px;
-    pointer-events: none;
-    transform: scale( 0.1 );
-    box-shadow: 0px 0px 100px 100px rgba( black, 0.4 );
-
-    &.active
-    {
-        opacity: 1;
-        pointer-events: all;
-        transform: scale( 1 );
-    }
-}
-
 .tooltip
 {
     background-color: #656e7e;

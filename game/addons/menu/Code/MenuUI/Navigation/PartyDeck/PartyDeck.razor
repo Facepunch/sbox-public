@@ -27,13 +27,50 @@
 {
     public bool WithChat { get; set; }
 
+    Toast _toast;
+
     protected override int BuildHash() => System.HashCode.Combine(PartyRoom.Current);
 
     public override void Tick()
     {
-        if ( WithChat && IsVisible )
+        if (WithChat && IsVisible)
         {
-            MenuUtility.SetVoiceListen( Input.Down("voice") );
+            MenuUtility.SetVoiceListen(Input.Down("voice"));
         }
+
+        UpdateJoinStatus();
+    }
+
+    void UpdateJoinStatus()
+    {
+        var party = PartyRoom.Current;
+        var shouldShow = party?.JoinState == PartyRoom.OwnerJoinState.Loading;
+
+        if (!shouldShow)
+        {
+            _toast?.Dismiss();
+            _toast = null;
+            return;
+        }
+
+        if (_toast is not null)
+            return;
+
+        var gameTitle = party?.PackageIdent ?? "unknown";
+
+        if (Package.TryGetCached(party?.PackageIdent ?? default, out var pkg))
+        {
+            gameTitle = pkg.Title;
+        }
+
+        _toast = new Toast()
+        {
+            Title = "Party leader is joining a game",
+            Message = $"Downloading {gameTitle}",
+            Icon = "hourglass_top",
+            ExtraClasses = "loading"
+        };
+
+        MenuOverlay.Instance?.BottomRight?.Queue(_toast, duration: 0, clickToDismiss: false);
     }
 }

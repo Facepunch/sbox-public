@@ -22,6 +22,9 @@ native static class WidgetUtil Native.WidgetUtil
 
 	static void SetWindowNoActivate( QWidget widget );
 
+	// Make an entire frameless window draggable by its client area
+	static void MakeWindowDraggable( QWidget widget );
+
 	//
 	// Text measuring tools
 	//

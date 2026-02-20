@@ -63,6 +63,11 @@ public partial class GameTransform
 	/// </summary>
 	bool ShouldInterpolate()
 	{
+		// If we're headless, don't interpolate. Interpolation here is for visual purposes only and we
+		// have no graphics.
+		if ( Application.IsHeadless )
+			return false;
+
 		var isEnabled = GameObject?.Enabled ?? false;
 		var isFixedUpdate = GameObject?.Scene?.IsFixedUpdate ?? false;
 		var isInterpolationDisabled = GameObject?.Flags.Contains( GameObjectFlags.NoInterpolation ) ?? false;
@@ -273,7 +278,6 @@ public partial class GameTransform
 			Interpolate = false;
 		}
 	}
-
 
 	/// <summary>
 	/// Temporarily disable Fixed Update Interpolation.

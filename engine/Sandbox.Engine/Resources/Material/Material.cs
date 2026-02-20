@@ -64,8 +64,8 @@ public sealed partial class Material : Resource
 	/// <summary>
 	/// Create a copy of this material
 	/// </summary>
-	public Material CreateCopy()
+	public Material CreateCopy( string name = null )
 	{
-		return FromNative( MaterialSystem2.CreateProceduralMaterialCopy( native, 0, true ) );
+		return FromNative( MaterialSystem2.CreateProceduralMaterialCopy( native, 0, true ), name );
 	}
 }
