@@ -23,7 +23,8 @@ namespace Editor
 			string geometryCookie = EditorCookie.GetString( "splash.geometry", null );
 			RestoreGeometry( geometryCookie );
 
-			Size = new( 700, 400 + InfoAreaHeight );
+			var aspect = (float)BackgroundImage.Height / BackgroundImage.Width;
+			Size = new( 700, (700 * aspect).FloorToInt() + InfoAreaHeight );
 
 			if ( geometryCookie is null )
 			{
