@@ -12,11 +12,7 @@ internal static partial class SteamNetwork
 
 	internal static void Initialize()
 	{
-		if ( Networking.Debug )
-		{
-			Glue.Networking.SetDebugFunction( 4, debugFunction );
-		}
-
+		Glue.Networking.SetDebugFunction( Networking.Debug ? 4 : 0, debugFunction );
 		Glue.Networking.SetFreeDataCallback( freeDataCallback );
 	}
 

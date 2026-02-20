@@ -33,7 +33,7 @@ internal static class ThumbLoader
 					.Finish();
 
 				placeholder.IsLoaded = false;
-				placeholder.SetIdFromResourcePath( $"{filename}.png" );
+				placeholder.RegisterWeakResourceId( $"{filename}.png" );
 
 				_ = LoadIntoTexture( filename, placeholder );
 

@@ -33,7 +33,7 @@ public class OrganizationControlWidget : ControlWidget
 		if ( orgName == "local" )
 		{
 			Paint.SetPen( Theme.Blue );
-			Paint.DrawIcon( iconRect, "computer", 28 );
+			Paint.DrawIcon( iconRect, "computer", iconRect.Height );
 
 			Paint.SetPen( Theme.Text );
 			Paint.SetDefaultFont( 8, 500 );
@@ -48,8 +48,7 @@ public class OrganizationControlWidget : ControlWidget
 		var org = EditorUtility.Account.Memberships.FirstOrDefault( x => x.Ident == orgName );
 		if ( org != null )
 		{
-			Paint.SetPen( Theme.Blue );
-			Paint.Draw( iconRect, org.Thumb );
+			Paint.Draw( iconRect, org.Thumb, borderRadius: 2 );
 
 			Paint.SetPen( Theme.Text );
 			Paint.SetDefaultFont();

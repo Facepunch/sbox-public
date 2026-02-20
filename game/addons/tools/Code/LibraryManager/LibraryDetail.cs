@@ -88,7 +88,7 @@ class LibraryDetail : Widget
 				var rect = new Rect( 0, icon.Size );
 				if ( !string.IsNullOrWhiteSpace( Package.Thumb ) && !Package.Thumb.StartsWith( "/" ) )
 				{
-					Paint.Draw( rect, Package.Thumb );
+					Paint.Draw( rect, Package.Thumb, borderRadius: 4 );
 				}
 				else
 				{

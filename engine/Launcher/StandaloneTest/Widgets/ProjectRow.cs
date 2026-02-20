@@ -199,7 +199,7 @@ public partial class ProjectRow : ItemRow
 
 		if ( hasThumb )
 		{
-			Paint.Draw( iconRect, Package.Thumb );
+			Paint.Draw( iconRect, Package.Thumb, borderRadius: 4 );
 		}
 		else
 		{

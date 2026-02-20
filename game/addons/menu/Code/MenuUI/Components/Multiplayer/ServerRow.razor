@@ -19,17 +19,16 @@
 		}
 	</div>
 	<div class="map" onclick=@OpenMapInfo>
-		@if (string.IsNullOrEmpty(MapPackage?.Thumb))
+		@if ( string.IsNullOrEmpty( MapPackage?.Thumb ) )
+        {
+            <i>map</i>
+        }
+        else
 		{
-			<i>map</i>
-		    <label>@Server.Map</label>
+            <img src="@MapPackage.Thumb" />
+		}
 
-		}
-		else
-		{
-			<img src="@MapPackage.Thumb" />
-		    <label>@(MapPackage.Title ?? Server.Map)</label>
-		}
+        <label>@(MapPackage?.Title ?? Server.Map)</label>
 	</div>
 	<div class="members">
 		<div class="current">@Server.Members</div>
@@ -38,7 +37,7 @@
 	</div>
 
 	<div class="controls" onclick=@( () => OnLobbySelected( Server ) )>
-		<Button class="clicky" icon="launch">Join</Button>
+		<Button class="clicky is-icon" icon="play_circle_filled"></Button>
 	</div>
 
 </root>
@@ -50,11 +49,11 @@
     Package GamePackage;
     Package MapPackage;
 
-    protected override void OnAfterTreeRender(bool firstTime)
+    protected override void OnAfterTreeRender( bool firstTime )
     {
-        base.OnAfterTreeRender(firstTime);
+        base.OnAfterTreeRender( firstTime );
 
-        if(firstTime)
+        if ( firstTime )
         {
             GetThumbnails();
         }
@@ -62,26 +61,26 @@
 
     void OpenMapInfo()
     {
-        if (MapPackage is null) return;
+        if ( MapPackage is null ) return;
 
         Game.Overlay.ShowPackageModal( MapPackage.FullIdent );
     }
 
-	async void GetThumbnails()
-	{
-		if (Server.Game.Contains(".") && !Server.Game.Contains("local."))
-		{
-			var gamePackage = await Package.FetchAsync(Server.Game, true);
-			if (gamePackage.Public)
-			{
-				GamePackage = gamePackage;
-			}
-		}
+    async void GetThumbnails()
+    {
+        if ( Server.Game.Contains( "." ) && !Server.Game.Contains( "local." ) )
+        {
+            var gamePackage = await Package.FetchAsync( Server.Game, true );
+            if ( gamePackage.Public )
+            {
+                GamePackage = gamePackage;
+            }
+        }
 
-		if (Server.Map.Contains(".") && !Server.Map.Contains(".vmap"))
-		{
-			var mapPackage = await Package.FetchAsync(Server.Map, true);
-			if (mapPackage.Public)
+        if ( Server.Map.Contains( "." ) && !Server.Map.Contains( ".vmap" ) )
+        {
+			var mapPackage = await Package.FetchAsync( Server.Map, true );
+			if ( mapPackage.Public )
 			{
 				MapPackage = mapPackage;
 			}

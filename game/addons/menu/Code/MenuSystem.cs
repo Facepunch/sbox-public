@@ -4,11 +4,11 @@ global using System;
 global using System.Collections.Generic;
 global using System.Linq;
 global using System.Threading.Tasks;
-global using static Sandbox.Internal.GlobalGameNamespace;
-using Menu;
+
 using Sandbox;
 using Sandbox.Audio;
 using Sandbox.Internal;
+using Sandbox.UI.Construct;
 using Sandbox.UI.Dev;
 
 [Library]
@@ -19,9 +19,6 @@ public partial class MenuSystem : IMenuSystem
 	DevLayer Dev;
 
 	public Action<Package> OnPackageSelected { get; set; }
-
-	[MenuConVar( "show_version_overlay" )]
-	public static bool ShowOverlay { get; set; } = true;
 
 	public void Init()
 	{
@@ -66,17 +63,20 @@ public partial class MenuSystem : IMenuSystem
 			if ( MenuUtility.GamePackage is not null )
 			{
 				var panel = new GameStarting();
-				panel.Parent = MenuOverlay.Instance.PopupCanvasTopLeft;
+				panel.Parent = MenuOverlay.Instance.TopLeft;
 			}
 		}
 
 		UpdateMusic();
 	}
 
-
 	public void Popup( string type, string title, string subtitle )
 	{
-		MenuOverlay.Message( type, title, subtitle );
+		var content = new Panel( null, "popup has-message" );
+		content.AddClass( type );
+		content.Add.Label( title, "message" );
+		content.Add.Label( subtitle, "subtitle" );
+		MenuOverlay.Queue( content );
 	}
 
 	/// <summary>
@@ -168,7 +168,7 @@ public partial class MenuSystem : IMenuSystem
 	void IMenuSystem.OnPackageClosed( Package package )
 	{
 		var panel = new GameClosedToast() { Package = package };
-		panel.Parent = MenuOverlay.Instance.PopupCanvasBottomRight;
+		MenuOverlay.Instance.BottomRight.Queue( panel, duration: 0 );
 	}
 
 	[MenuConCmd( "menu_packageclosed" )]

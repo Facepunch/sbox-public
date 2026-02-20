@@ -41,7 +41,7 @@ public sealed partial class AnimationGraph : Resource
 		Name = name;
 
 		UpdateNameToIndexMapping();
-		SetIdFromResourcePath( Name );
+		RegisterWeakResourceId( Name );
 	}
 
 	internal override void OnReloaded()

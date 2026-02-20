@@ -49,7 +49,10 @@
 
 	override protected async Task OnParametersSetAsync()
 	{
+		Style.Display = DisplayMode.None;
 		package = await Package.Fetch(Lobby.Game, true);
+
+		Style.Display = DisplayMode.Flex;
 		StateHasChanged();
 	}
 

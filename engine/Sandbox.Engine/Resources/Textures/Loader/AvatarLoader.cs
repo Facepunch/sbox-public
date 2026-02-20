@@ -30,7 +30,7 @@ internal static class Avatar
 
 				var placeholder = Texture.Create( 1, 1 ).WithName( "avatar" ).WithData( new byte[4] { 0, 0, 0, 0 } ).Finish();
 				placeholder.IsLoaded = false;
-				placeholder.SetIdFromResourcePath( filename );
+				placeholder.RegisterWeakResourceId( filename );
 
 				_ = LoadIntoTexture( filename, placeholder );
 

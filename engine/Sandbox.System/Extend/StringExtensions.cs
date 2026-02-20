@@ -698,12 +698,20 @@ public static partial class SandboxSystemExtensions
 	}
 
 	/// <summary>
-	/// Generate xxhash3 hash from given string.
+	/// Generate a 32-bit truncated xxhash3 hash from given string.
 	/// </summary>
 	public static int FastHash( this string str )
 	{
+		return (int)FastHash64( str );
+	}
+
+	/// <summary>
+	/// Generate a 64-bit xxhash3 hash from given string.
+	/// </summary>
+	public static ulong FastHash64( this string str )
+	{
 		// Must Match the version in Sandbox,CodeGen. Should only be changed after careful benchmarking.
-		return (int)XxHash3.HashToUInt64( GetUtf16Bytes( str ) );
+		return XxHash3.HashToUInt64( GetUtf16Bytes( str ) );
 	}
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]

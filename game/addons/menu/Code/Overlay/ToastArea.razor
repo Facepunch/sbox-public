@@ -1,0 +1,97 @@
+﻿@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+<root></root>
+
+@code
+{
+    record struct Entry(Panel Content, float Duration, bool ClickToDismiss);
+
+    readonly Queue<Entry> PendingQueue = new();
+    readonly List<Panel> ShownPanels = new();
+
+    /// <summary>
+    /// Queues a simple toast with a title, message, and icon.
+    /// </summary>
+    /// <param name="title"></param>
+    /// <param name="message"></param>
+    /// <param name="icon"></param>
+    /// <param name="duration"></param>
+    /// <returns></returns>
+    public Panel QueueToast(string title, string message, string icon = null, float duration = 4f)
+    {
+        var toast = new Toast()
+        {
+            Title = title,
+            Message = message,
+            Icon = icon
+        };
+
+        return Queue(toast, duration);
+    }
+
+    /// <summary>
+    /// Show a panel immediately, dismissing any previously shown panels.
+    /// </summary>
+    public Panel Show(Panel content, float duration = 4f, bool clickToDismiss = true)
+    {
+        // Dismiss all existing shown panels
+        for (int i = ShownPanels.Count - 1; i >= 0; i--)
+        {
+            Dismiss(ShownPanels[i]);
+        }
+
+        if (content is Toast toast)
+            toast.Area = this;
+
+        ShownPanels.Add(content);
+        content.Parent = this;
+
+        if (clickToDismiss)
+            content.AddEventListener("onmousedown", () => Dismiss(content));
+
+        if (duration > 0)
+            _ = AutoDismissAsync(content, duration);
+
+        return content;
+    }
+
+    /// <summary>
+    /// Queue a panel to be shown. By default, they'll stack in order.
+    /// Setting duration to 0 means it's up to you to remove it manually.
+    /// </summary>
+    public Panel Queue(Panel content, float duration = 4f, bool clickToDismiss = true)
+    {
+        ShownPanels.Add(content);
+        content.Parent = this;
+
+        if (content is Toast toast) 
+            toast.Area = this;
+
+        if (clickToDismiss)
+            content.AddEventListener("onmousedown", () => Dismiss(content));
+
+        if (duration > 0)
+            _ = AutoDismissAsync(content, duration);
+
+        return content;
+    }
+
+    /// <summary>
+    /// Dismiss a specific panel.
+    /// </summary>
+    public void Dismiss(Panel panel)
+    {
+        if (!panel.IsValid()) return;
+
+        ShownPanels.Remove(panel);
+        panel.Delete();
+    }
+
+    async Task AutoDismissAsync(Panel panel, float duration)
+    {
+        await GameTask.DelayRealtimeSeconds(duration);
+        if (IsValid) Dismiss(panel);
+    }
+}

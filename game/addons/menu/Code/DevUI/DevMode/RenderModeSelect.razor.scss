@@ -1,0 +1,31 @@
+RenderModeSelect
+{
+    padding: 1rem;
+    cursor: pointer;
+    font-family: Poppins;
+    font-weight: bold;
+    font-size: 14px;
+    border-radius: 10px;
+    background-color: #ffffff05;
+    color: #fffa;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+
+    i
+    {
+        font-size: 16px;
+        opacity: 0.7;
+    }
+}
+
+RenderModeSelect:hover
+{
+    background-color: #fff1;
+    color: #fff;
+
+    i
+    {
+        opacity: 1;
+    }
+}

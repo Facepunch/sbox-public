@@ -2,24 +2,152 @@
 @using MenuProject.MenuUI.Components.Multiplayer
 @using MenuProject.MenuUI.Layout
 @using Sandbox;
+@using Sandbox.Modals
 @using Sandbox.UI;
+@using Sandbox.Network;
+@using Sandbox.UI.Navigation
+
 @page "/multiplayer"
 @inherits Panel
+@implements INavigatorPage
 
 <root class="root">
     <Page>
 
         <Left>
-            <div class="clicky button" onclick="@(() => ServerList.RefreshLobbies())"><WithIcon Icon="cached" Text="Refresh Server List"></WithIcon></div>
+	        <TextEntry Icon="search" @ref="SearchEntry" placeholder="Search.." onchange="@OnSearchChanged"></TextEntry>
+
+	        @if ( GamePackage is not null )
+	        {
+		        <h2 class="filter-heading"><WithIcon Icon="sports_esports" Text="Game"></WithIcon></h2>
+
+		        <span>
+			        <Button class="is-icon" Active="@(true)" Text="@GamePackage.Title" Icon="clear" onclick=@ClearGamePackage />
+		        </span>
+	        }
+
+	        <h2 class="filter-heading"><WithIcon Icon="filter_alt" Text="Filters"></WithIcon></h2>
+
+	        <span>
+		        <Button class="is-icon" Active="@(showEmpty)" Text="Show Empty" Icon="no_accounts" onclick=@ToggleShowEmpty />
+		        <Button class="is-icon" Active="@(showFull)" Text="Show Full" Icon="join_full" onclick=@ToggleShowFull />
+	        </span>
+
+            <div class="grow" />
+
+            <button class="clicky button" onclick="@(() => ServerList.RefreshLobbies())"><h2><WithIcon Icon="cached" Text="Refresh"></WithIcon></h2></button>
         </Left>
 
         <Body>
-            <ServerList @ref=ServerList></ServerList>
+            <ServerList @ref=ServerList Config="@(new ServerListConfig( GamePackage?.FullIdent ))" Filter="@FilterLobby"></ServerList>
         </Body>
     </Page>
 </root>
 
 @code 
 {
-    ServerList ServerList = default;
+	/// <summary>
+	/// Specify a game package to show results for.
+	/// </summary>
+	[Parameter] public string Package { get; set; }
+
+	private bool _isLoadingGamePackage;
+	private Package GamePackage { get; set; }
+
+	public override void Tick()
+	{
+		if ( !string.IsNullOrEmpty( Package ) && ( GamePackage is null || GamePackage.FullIdent != Package ) )
+		{
+			if ( !_isLoadingGamePackage )
+				LoadGamePackage();
+		}
+
+		base.Tick();
+	}
+
+	private async void LoadGamePackage()
+	{
+		_isLoadingGamePackage = true;
+
+		GamePackage = await Sandbox.Package.Fetch( Package, false );
+
+		if ( GamePackage is not null && ServerList is not null )
+		{
+			ServerList.Config = new ServerListConfig( GamePackage.FullIdent );
+			ServerList.StateHasChanged();
+		}
+
+		StateHasChanged();
+
+		_isLoadingGamePackage = false;
+	}
+
+	ServerList ServerList = default;
+    TextEntry SearchEntry = default;
+
+    bool showEmpty = true;
+    bool showFull = true;
+
+    string SearchText => SearchEntry?.Text?.Trim() ?? "";
+
+    void ClearGamePackage()
+    {
+	    GamePackage = null;
+	    Package = null;
+
+	    StateHasChanged();
+    }
+
+    bool FilterLobby( LobbyInformation lobby )
+    {
+        if ( !showEmpty && lobby.Members == 0 )
+            return false;
+
+        if ( !showFull && lobby.IsFull )
+            return false;
+
+        if ( SearchText.Length > 0 )
+        {
+            var search = SearchText;
+
+            if ( lobby.Name?.Contains( search, StringComparison.OrdinalIgnoreCase ) == true )
+                return true;
+
+            if ( lobby.Game?.Contains( search, StringComparison.OrdinalIgnoreCase ) == true )
+                return true;
+
+            if ( lobby.Data?.TryGetValue( "gameident", out var ident ) == true
+                && ident?.Contains( search, StringComparison.OrdinalIgnoreCase ) == true )
+                return true;
+
+            return false;
+        }
+
+        return true;
+    }
+
+    void INavigatorPage.OnNavigationOpen()
+    {
+	    GamePackage = null;
+	    Package = null;
+
+	    StateHasChanged();
+    }
+
+    void OnSearchChanged()
+    {
+        ServerList.StateHasChanged();
+    }
+
+    void ToggleShowEmpty()
+    {
+        showEmpty = !showEmpty;
+        ServerList.StateHasChanged();
+    }
+
+    void ToggleShowFull()
+    {
+        showFull = !showFull;
+        ServerList.StateHasChanged();
+    }
 }

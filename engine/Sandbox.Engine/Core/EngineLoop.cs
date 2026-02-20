@@ -169,6 +169,7 @@ internal static class EngineLoop
 		// Expire any unused resources
 		//
 		NativeResourceCache.Tick();
+		Game.Resources.PruneWeakIndex();
 		Mounting.MountUtility.TickPreviewRenders();
 
 		//

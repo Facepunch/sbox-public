@@ -1,9 +1,7 @@
 ServerList
 {
 	flex-direction: column;
-	padding: 32px;
 	overflow: scroll;
-	padding-bottom: 140px;
 }
 
 .notice
@@ -20,86 +18,110 @@ ServerList
 	font-size: 1rem;
 }
 
+h2
+{
+	color: #c6d4ee;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+	flex-shrink: 0;
+	font-weight: 600;
+
+	i
+	{
+		color: #3777ee;
+		text-transform: none;
+		font-size: 22px;
+	}
+}
+
+.cell
+{
+	&:nth-child( even )
+	{
+		background-color: rgba( 0, 0, 0, 0.1 );
+	}
+}
+
 .row
 {
-    flex-shrink: 0;
-    flex-grow: 1;
-    border-radius: 8px;
+	flex-shrink: 0;
+	flex-grow: 1;
+	border-radius: 2px;
+	padding: 0px 48px;
 
-    > *
-    {
-        padding: 8px;
-        font-size: 15px;
-        white-space: nowrap;
-        align-items: center;
-    }
+	> *
+	{
+		padding: 8px;
+		font-size: 15px;
+		white-space: nowrap;
+		align-items: center;
+	}
 
-    .game, .map
-    {
-        width: 25%;
-    }
+	.game, .map
+	{
+		width: 25%;
+	}
 
-    .title
-    {
-        width: 30%;
-        font-weight: bold;
-    }
+	.title
+	{
+		width: 30%;
+	}
 
-    .members
-    {
-        flex-grow: 1;
-        justify-content: flex-end;
-    }
+	.members
+	{
+		flex-grow: 1;
+		justify-content: flex-end;
+	}
 
-    &:not(.header)
-    {
-        .game, .map
-        {
-            opacity: 0.3;
-            gap: 8px;
+	&:not(.header)
+	{
+		.game, .map
+		{
+			opacity: 0.3;
+			gap: 8px;
 
-            i
-            {
-                font-size: 24px;
-            }
+			i
+			{
+				font-size: 24px;
+			}
 
-            img
-            {
-                width: 24px;
-                height: 24px;
-            }
+			img
+			{
+				width: 24px;
+				height: 24px;
+			}
 
-            &:hover
-            {
-                opacity: 1;
-            }
-        }
+			&:hover
+			{
+				opacity: 1;
+			}
+		}
 
-        .game, .map
-        {
-            cursor: pointer;
-        }
+		.title
+		{
+			font-weight: bold;
+		}
 
+		.game, .map
+		{
+			cursor: pointer;
+		}
 
-        &:hover
-        {
-            background-color: #467de422;
-            color: #fff;
-        }
-    }
+		&:hover
+		{
+			background-color: #467de422;
+			color: #fff;
+		}
+	}
 
-    &.header
-    {
-        *
-        {
-            color: white;
-            opacity: 1;
-            font-weight: 400;
-        }
+	&.header
+	{
+		.members
+		{
+			justify-content: center;
+		}
 
-        .members
-        {
-            justify-content: center;
-        }
-    }
+		background-color: #101219dd;
+		padding: 8px 48px;
+	}
 }

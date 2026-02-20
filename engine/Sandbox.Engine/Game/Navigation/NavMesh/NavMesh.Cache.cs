@@ -237,6 +237,20 @@ internal class NavMeshTileCache : IDisposable
 		allSpatialExtraData.Add( data );
 	}
 
+	/// <summary>
+	/// Returns true if any tile has an in-progress heightfield or navmesh build.
+	/// Used to wait for a stable state before baking.
+	/// </summary>
+	public bool HasAnyBuildsInProgress()
+	{
+		foreach ( var tile in tileCache.Values )
+		{
+			if ( tile.IsHeightfieldBuildInProgress || tile.IsNavmeshBuildInProgress )
+				return true;
+		}
+		return false;
+	}
+
 	public void Dispose()
 	{
 		foreach ( var (_, tile) in tileCache )

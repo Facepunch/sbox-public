@@ -9,17 +9,24 @@ namespace Sandbox;
 public class ResourceSystem
 {
 	private Dictionary<int, Resource> ResourceIndex { get; } = new();
+	private Dictionary<int, WeakReference<Resource>> WeakIndex { get; } = new();
 
 	internal void Register( Resource resource )
 	{
-		Log.Trace( $"Registering {resource.GetType()} ( {resource.ResourcePath} ) as {resource.ResourceId}" );
-
 		ResourceIndex[resource.ResourceId] = resource;
 
 		if ( resource is GameResource gameResource && !gameResource.IsPromise )
 		{
 			IToolsDll.Current?.RunEvent<IEventListener>( i => i.OnRegister( gameResource ) );
 		}
+	}
+
+	/// <summary>
+	/// Register a resource with a weak reference, allowing GC to collect it when no longer in use.
+	/// </summary>
+	internal void RegisterWeak( Resource resource )
+	{
+		WeakIndex[resource.ResourceId] = new WeakReference<Resource>( resource );
 	}
 
 	internal void Unregister( Resource resource )
@@ -36,10 +43,8 @@ public class ResourceSystem
 
 			ResourceIndex.Remove( resource.ResourceId );
 		}
-		else
-		{
-			Log.Trace( $"Unregistering \"{resource.ResourcePath}\", but it wasn't registered" );
-		}
+
+		WeakIndex.Remove( resource.ResourceId );
 
 		if ( resource is GameResource gameResource && !gameResource.IsPromise )
 		{
@@ -54,6 +59,26 @@ public class ResourceSystem
 		// Regenerate all tracked textures so that code changes
 		// in texture generators are reflected immediately.
 		Resources.TextureGenerator.OnHotload();
+	}
+
+	/// <summary>
+	/// Prune dead entries from the WeakIndex to prevent unbounded growth.
+	/// Only runs every 30 seconds.
+	/// </summary>
+	TimeSince _lastWeakPrune;
+
+	internal void PruneWeakIndex()
+	{
+		if ( _lastWeakPrune < 30 )
+			return;
+
+		_lastWeakPrune = 0;
+
+		var dead = WeakIndex.Where( kvp => !kvp.Value.TryGetTarget( out _ ) ).Select( kvp => kvp.Key ).ToList();
+		foreach ( var key in dead )
+		{
+			WeakIndex.Remove( key );
+		}
 	}
 
 	internal void Clear()
@@ -74,19 +99,47 @@ public class ResourceSystem
 		}
 
 		ResourceIndex.Clear();
+		WeakIndex.Clear();
 
 		TypeCache.Clear();
 	}
 
 	internal Resource Get( System.Type t, int identifier )
 	{
-		if ( !ResourceIndex.TryGetValue( identifier, out var resource ) )
-			return null;
+		if ( ResourceIndex.TryGetValue( identifier, out var resource ) )
+		{
+			if ( resource.GetType().IsAssignableTo( t ) )
+				return resource;
 
-		if ( resource.GetType().IsAssignableTo( t ) )
-			return resource;
+			return null;
+		}
+
+		if ( WeakIndex.TryGetValue( identifier, out var weakRef ) && weakRef.TryGetTarget( out var weakResource ) )
+		{
+			if ( weakResource.GetType().IsAssignableTo( t ) )
+				return weakResource;
+		}
 
 		return null;
+	}
+
+	/// <summary>
+	/// Find all alive weak resources of a given type whose ResourcePath starts with the given prefix.
+	/// Used for hotload scenarios like SVG textures with query parameters.
+	/// </summary>
+	internal IEnumerable<T> FindWeakByPathPrefix<T>( string pathPrefix ) where T : Resource
+	{
+		foreach ( var kvp in WeakIndex )
+		{
+			if ( !kvp.Value.TryGetTarget( out var resource ) )
+				continue;
+
+			if ( resource is not T typed )
+				continue;
+
+			if ( resource.ResourcePath is not null && resource.ResourcePath.TrimStart( '/' ).StartsWith( pathPrefix, StringComparison.OrdinalIgnoreCase ) )
+				yield return typed;
+		}
 	}
 
 	internal Resource Get( System.Type t, string filepath )
@@ -103,10 +156,13 @@ public class ResourceSystem
 	/// <param name="identifier">Resource hash to look up.</param>
 	public T Get<T>( int identifier ) where T : Resource
 	{
-		if ( !ResourceIndex.TryGetValue( identifier, out var resource ) )
-			return default;
+		if ( ResourceIndex.TryGetValue( identifier, out var resource ) )
+			return resource as T;
 
-		return resource as T;
+		if ( WeakIndex.TryGetValue( identifier, out var weakRef ) && weakRef.TryGetTarget( out var weakResource ) )
+			return weakResource as T;
+
+		return default;
 	}
 
 	/// <summary>
@@ -162,6 +218,48 @@ public class ResourceSystem
 			}
 			return false;
 		} );
+	}
+
+	/// <summary>
+	/// Returns stats about the ResourceIndex and WeakIndex for debug overlays.
+	/// </summary>
+	internal ResourceStats GetResourceStats()
+	{
+		var stats = new ResourceStats();
+
+		foreach ( var resource in ResourceIndex.Values )
+		{
+			var typeName = resource.GetType().Name;
+			stats.StrongIndex.TryGetValue( typeName, out var count );
+			stats.StrongIndex[typeName] = count + 1;
+		}
+
+		foreach ( var kvp in WeakIndex )
+		{
+			var alive = kvp.Value.TryGetTarget( out var resource );
+			var typeName = alive ? resource.GetType().Name : "(dead)";
+			stats.WeakIndexEntries.TryGetValue( typeName, out var count );
+			stats.WeakIndexEntries[typeName] = count + 1;
+		}
+
+		stats.StrongTotal = ResourceIndex.Count;
+		stats.WeakTotal = WeakIndex.Count;
+
+		return stats;
+	}
+
+	internal struct ResourceStats
+	{
+		public Dictionary<string, int> StrongIndex;
+		public Dictionary<string, int> WeakIndexEntries;
+		public int StrongTotal;
+		public int WeakTotal;
+
+		public ResourceStats()
+		{
+			StrongIndex = new();
+			WeakIndexEntries = new();
+		}
 	}
 
 	/// <summary>
