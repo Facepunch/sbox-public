@@ -185,8 +185,8 @@ public class CodeEditorControlWidget : ControlWidget
 				}
 			}
 		};
-		Layout.AddSpacingCell(3);
+		Layout.AddSpacingCell( 3 );
 		Layout.Add( browseBtn );
-		Layout.AddSpacingCell(3);
+		Layout.AddSpacingCell( 3 );
 	}
 }
