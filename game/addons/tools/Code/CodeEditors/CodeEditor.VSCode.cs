@@ -6,11 +6,10 @@ using Microsoft.Win32;
 
 namespace Editor.CodeEditors;
 
-/// <summary></summary>
-public abstract class VSCodeBase : ICodeEditor
+[Title( "Visual Studio Code" )]
+public class VisualStudioCode : ICodeEditor
 {
-	public abstract string RegistryKey { get; }
-	public virtual bool IsPrimary => false;
+	public string RegistryKey => "Code.exe";
 
 	public void OpenFile( string path, int? line, int? column )
 	{
@@ -145,65 +144,4 @@ public abstract class VSCodeBase : ICodeEditor
 	{
 		return string.Equals( RegistryKey, fileName, StringComparison.OrdinalIgnoreCase );
 	}
-}
-
-[Title( "Visual Studio Code" )]
-public class VisualStudioCode : VSCodeBase
-{
-	public override string RegistryKey => "Code.exe";
-	public override bool IsPrimary => true;
-}
-
-[Title( "VS Code Insiders" )]
-public class VSCodeInsidersEditor : VSCodeBase
-{
-	public override string RegistryKey => "Code - Insiders.exe";
-}
-
-[Title( "Cursor" )]
-public class CursorEditor : VSCodeBase
-{
-	public override string RegistryKey => "Cursor.exe";
-}
-
-[Title( "Windsurf" )]
-public class WindsurfEditor : VSCodeBase
-{
-	public override string RegistryKey => "Windsurf.exe";
-}
-
-[Title( "Trae" )]
-public class TraeEditor : VSCodeBase
-{
-	public override string RegistryKey => "Trae.exe";
-}
-
-[Title( "VSCodium" )]
-public class VSCodiumEditor : VSCodeBase
-{
-	public override string RegistryKey => "codium.exe";
-}
-
-[Title( "VSCodium (Alt)" )]
-public class VSCodiumEditorAlt : VSCodeBase
-{
-	public override string RegistryKey => "VSCodium.exe";
-}
-
-[Title( "Void" )]
-public class VoidEditor : VSCodeBase
-{
-	public override string RegistryKey => "Void.exe";
-}
-
-[Title( "PearAI" )]
-public class PearAIEditor : VSCodeBase
-{
-	public override string RegistryKey => "PearAI.exe";
-}
-
-[Title( "Antigravity" )]
-public class AntigravityEditor : VSCodeBase
-{
-	public override string RegistryKey => "Antigravity.exe";
 }

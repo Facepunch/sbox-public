@@ -64,12 +64,6 @@ public class CodeEditorControlWidget : ControlWidget
 
 			bool isSelected = CodeEditor.Current?.GetType() == instance?.GetType() && !isUsingCustom;
 
-			// hide forks if they aren't installed (unless it's the main vs code or currently selected)
-			if ( !isInstalled && !isSelected && instance is VSCodeBase vsCode && !vsCode.IsPrimary )
-			{
-				continue;
-			}
-
 			comboBox.AddItem(
 					codeEditor.Title,
 					codeEditor.Icon,
@@ -131,7 +125,7 @@ public class CodeEditorControlWidget : ControlWidget
 		Layout.Add( comboBox );
 
 		var browseBtn = new IconButton( "folder_open" );
-		browseBtn.ToolTip = "Manually locate executable (if auto-detection fails)";
+		browseBtn.ToolTip = "Manually locate executable (if auto-detection fails, or to use a VS Code derivative)";
 		browseBtn.OnClick += () =>
 		{
 			var fd = new FileDialog( null );
@@ -154,7 +148,7 @@ public class CodeEditorControlWidget : ControlWidget
 					if ( instance == null ) continue;
 
 					bool isMatch = false;
-					if ( instance is VSCodeBase vsCode )
+					if ( instance is VisualStudioCode vsCode )
 					{
 						isMatch = vsCode.MatchesExecutable( fileName );
 					}
