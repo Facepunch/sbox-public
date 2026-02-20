@@ -17,6 +17,29 @@ static class StartupLoadProject
 
 	public static Logger Log = new( "Startup" );
 
+	static int CurrentStep;
+	static int TotalSteps;
+
+	/// <summary>
+	/// Advance the startup progress by one step, and update the splash screen.
+	/// </summary>
+	static void Step( string message )
+	{
+		EditorSplashScreen.SetMessage( message );
+		EditorSplashScreen.SetProgress( (float)CurrentStep / TotalSteps );
+		CurrentStep++;
+	}
+
+	/// <summary>
+	/// Report progress within the current step, useful for compiling assets/shaders progress reporting
+	/// </summary>
+	static void StepProgress( float subFraction )
+	{
+		float stepSize = 1.0f / TotalSteps;
+		float baseProgress = (float)(CurrentStep - 1) / TotalSteps;
+		EditorSplashScreen.SetProgress( baseProgress + stepSize * Math.Clamp( subFraction, 0f, 1f ) );
+	}
+
 	/// <summary>
 	/// Load the startup project for the first time
 	/// </summary>
@@ -29,7 +52,7 @@ static class StartupLoadProject
 
 		var path = Sandbox.Utility.CommandLine.GetSwitch( "-project", "" ).TrimQuoted();
 
-		Log.Info( $"Opening {path}" );
+		Step( "Opening Project" );
 
 		bool success = await OpenProject( path, default );
 
@@ -72,10 +95,15 @@ static class StartupLoadProject
 		if ( string.IsNullOrEmpty( path ) ) throw new ArgumentException( nameof( path ) );
 		Assert.IsNull( Project.Current );
 
+		// This kinda sucks but better than overcomplicating everything.. make sure to update the steps..
+		CurrentStep = 0;
+		TotalSteps = 16;
+
 		// should never be one existing once we remove all this shit
 		Project project = Project.AddFromFile( path, false );
 		var parentPackage = project.Config.GetMetaOrDefault<string>( "ParentPackage", null );
 
+		Step( "Initializing filesystem" );
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Init FileSystem" ) )
 		{
 			FileSystem.InitializeFromProject( project );
@@ -88,12 +116,15 @@ static class StartupLoadProject
 		Project.Current = project;
 		Project.Current.LastOpened = DateTime.Now;
 		project.Active = true;
+
+		Step( "Initializing asset system" );
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Init AssetSystem" ) )
 		{
 			AssetSystem.InitializeFromProject( project );
 		}
 
 		// Scan the project for libraries
+		Step( "Scanning libraries" );
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Init Libraries" ) )
 		{
 			LibrarySystem.InitializeFromProject( project );
@@ -103,7 +134,7 @@ static class StartupLoadProject
 		// We want to load all the built in projects before anything else. This gives us a baseline.
 		// Then if our "parentpackage" has a "base" package, it'll hotload over our baseline.
 		//
-		Log.Info( $"Load Builtin Projects" );
+		Step( "Loading built-in projects" );
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Builtin Projects" ) )
 		{
 			await PackageManager.InstallProjects( Project.All.Where( x => x.IsBuiltIn ).ToArray() );
@@ -114,9 +145,9 @@ static class StartupLoadProject
 		//
 		if ( project.Config.Type == "addon" && !string.IsNullOrWhiteSpace( parentPackage ) )
 		{
+			Step( $"Loading parent package ({parentPackage})" );
 			using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: ParentPackage" ) )
 			{
-				Log.Info( $"Load {parentPackage}" );
 				await PackageManager.InstallAsync( new PackageLoadOptions( parentPackage, "tools" ) );
 			}
 		}
@@ -124,32 +155,31 @@ static class StartupLoadProject
 		//
 		// This should really only load our current project, that we're editing right now
 		//
-		Log.Info( $"Syncing package manager" );
+		Step( "Syncing package manager" );
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Sync PackageManager" ) )
 		{
 			await Project.SyncWithPackageManager();
 		}
-
 
 		// This double Load shit is stupid, creates the compilers properly now that we've installed any dependant packages
 		project.Load();
 
 		ExportSettings( project );
 
-		Log.Info( $"Generating solution" );
+		Step( "Generating solution" );
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Generate Solution" ) )
 		{
 			await Project.GenerateSolution();
 		}
 
-		Log.Info( $"Creating Filesystem" );
+		Step( "Creating filesystem" );
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Update ProjectFilesystem" ) )
 		{
 			UpdateProjectFilesystem( project );
 		}
 
 		// Compiles and waits for the project in a bullshit way - this already starts happening way sooner
-		Log.Info( $"Compiling projects" );
+		Step( "Compiling projects" );
 
 		if ( await EditorUtility.Projects.Updated( project ) == false )
 		{
@@ -165,6 +195,7 @@ static class StartupLoadProject
 
 		if ( project.Config.Type == "addon" && !string.IsNullOrWhiteSpace( parentPackage ) )
 		{
+			Step( "Loading addon" );
 			using var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Load Addon" );
 
 			Log.Info( $"LoadGamePackageAsync" );
@@ -185,17 +216,18 @@ static class StartupLoadProject
 		}
 		else
 		{
+			Step( "Loading game" );
 			using var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Load Game" );
 
 			// It'd be nice to do a full end to end test, but this is as far as it'll go
 			if ( Sandbox.Application.IsUnitTest )
 				return true;
 
-			Log.Info( $"Loading game package" );
 			await GameInstanceDll.Current.LoadGamePackageAsync( project.Package.FullIdent, GameLoadingFlags.Host | GameLoadingFlags.Reload, ct );
 		}
 
 
+		Step( "Initializing mounts" );
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Init Mounts" ) )
 		{
 			// Mount any mounts that are required
@@ -205,7 +237,7 @@ static class StartupLoadProject
 		//
 		// Load the resources
 		//
-		Log.Info( "Importing custom assets" );
+		Step( "Importing custom assets" );
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Register CustomAssetTypes" ) )
 		{
 			AssetType.UpdateCustomTypes();
@@ -213,7 +245,7 @@ static class StartupLoadProject
 		}
 
 		// Download cloud assets afterwards, otherwise we don't have references
-		Log.Info( "Refreshing cloud assets" );
+		Step( "Refreshing cloud assets" );
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: DownloadCloudAssets" ) )
 		{
 			await RefreshCloudAssets( ct );
@@ -222,7 +254,10 @@ static class StartupLoadProject
 		// Go through and compile all assets
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: CompileAllAssets" ) )
 		{
+			Step( "Compiling shaders" );
 			await CompileAllShaders();
+
+			Step( "Compiling assets" );
 			CompileAllAssets();
 
 			FileWatch.Tick();
@@ -284,9 +319,12 @@ static class StartupLoadProject
 		options.ConsoleOutput = false;
 
 		FastTimer timer = FastTimer.StartNew();
-		foreach ( var r in gr )
+		for ( int i = 0; i < gr.Length; i++ )
 		{
-			await ShaderCompile.Compile( r.AbsolutePath, r.RelativePath, options, default );
+			EditorSplashScreen.SetMessage( $"Compiling shader {i + 1}/{gr.Length} {gr[i].RelativePath}" );
+			StepProgress( (float)i / gr.Length );
+
+			await ShaderCompile.Compile( gr[i].AbsolutePath, gr[i].RelativePath, options, default );
 		}
 		if ( sw.Elapsed.TotalSeconds > 2 )
 		{
@@ -302,13 +340,13 @@ static class StartupLoadProject
 
 		FastTimer timer = FastTimer.StartNew();
 
-		int i = 0;
-		foreach ( var r in gr )
+		for ( int i = 0; i < gr.Length; i++ )
 		{
-			i++;
-			Log.Info( $"Compiling {i}/{gr.Length} {r.Path}" );
+			EditorSplashScreen.SetMessage( $"Compiling asset {i + 1}/{gr.Length} {gr[i].Path}" );
+			StepProgress( (float)i / gr.Length );
+
 			IToolsDll.Current?.Spin();
-			r.Compile( false );
+			gr[i].Compile( false );
 		}
 
 		if ( sw.Elapsed.TotalSeconds > 2 )

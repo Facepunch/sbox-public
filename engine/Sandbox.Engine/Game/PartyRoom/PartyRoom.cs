@@ -3,6 +3,7 @@ using Sandbox.Engine;
 using Sandbox.Network;
 using Steamworks.Data;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Sandbox;
 
@@ -43,6 +44,10 @@ public partial class PartyRoom : ILobby
 
 	public void Leave()
 	{
+		_preloadCts?.Cancel();
+		_preloadCts = null;
+		_preloadTask = null;
+
 		steamLobby.Leave();
 		steamLobby = default;
 
@@ -89,7 +94,6 @@ public partial class PartyRoom : ILobby
 	/// </summary>
 	public bool VoiceCommunicationAllowed => IGameInstance.Current is null;
 
-	string lastConnect;
 	RealTimeSince timeSinceUpdate = 0;
 
 	bool _voiceRecording;
@@ -141,6 +145,21 @@ public partial class PartyRoom : ILobby
 		}
 	}
 
+	/// <summary>
+	/// Determine our state to be sent to other party members
+	/// </summary>
+	OwnerJoinState DetermineJoinState()
+	{
+		if ( Networking.System is not null && Networking.System.Sockets.OfType<SteamLobbySocket>().FirstOrDefault() is SteamLobbySocket )
+			return OwnerJoinState.Ready;
+
+		// Not LocalPackage -- otherwise the menu gets picked up 
+		if ( Application.GamePackage is not null && Application.GamePackage is not LocalPackage )
+			return OwnerJoinState.Loading;
+
+		return OwnerJoinState.None;
+	}
+
 	internal void Tick()
 	{
 		// Record the voice if voice button less than 0.3 seconds old
@@ -161,7 +180,10 @@ public partial class PartyRoom : ILobby
 			steamLobby.SetData( "package", Application.GamePackage?.FullIdent );
 			steamLobby.SetData( "packagetitle", Application.GamePackage?.Title );
 
-			if ( Networking.System is not null && Networking.System.Sockets.OfType<SteamLobbySocket>().FirstOrDefault() is SteamLobbySocket sl )
+			var state = DetermineJoinState();
+			steamLobby.SetData( "joinstate", state.ToString() );
+
+			if ( state is OwnerJoinState.Ready && Networking.System.Sockets.OfType<SteamLobbySocket>().FirstOrDefault() is SteamLobbySocket sl )
 			{
 				steamLobby.SetData( "gameaddress", sl.LobbySteamId.ToString() );
 			}
@@ -172,11 +194,40 @@ public partial class PartyRoom : ILobby
 		}
 		else
 		{
-			var connect = steamLobby.GetData( "gameaddress" );
-			if ( lastConnect != connect )
+			var joinState = JoinState;
+			if ( joinState != _lastJoinState )
 			{
-				lastConnect = connect;
-				OnConnectChanged( connect );
+				_lastJoinState = joinState;
+
+				if ( joinState is OwnerJoinState.None )
+				{
+					_preloadCts?.Cancel();
+					_preloadCts = null;
+					_preloadTask = null;
+					_lastConnectString = null;
+					NetworkConsoleCommands.Disconnect();
+				}
+
+				if ( joinState is OwnerJoinState.Loading )
+				{
+					PreloadPackageInBackground( steamLobby.GetData( "package" ) );
+				}
+			}
+
+			// While ready, watch for address changes
+			if ( joinState is OwnerJoinState.Ready )
+			{
+				var address = steamLobby.GetData( "gameaddress" );
+				if ( address != _lastConnectString && !string.IsNullOrWhiteSpace( address ) )
+				{
+					_lastConnectString = address;
+					NetworkConsoleCommands.Disconnect();
+					_ = ConnectAfterPreload( address );
+				}
+			}
+			else
+			{
+				_lastConnectString = null;
 			}
 		}
 	}
@@ -217,18 +268,6 @@ public partial class PartyRoom : ILobby
 
 				net.ReleaseMessage( ptr[i] );
 			}
-		}
-	}
-
-	void OnConnectChanged( string address )
-	{
-		Log.Info( $"Party Connect changed to '{lastConnect}'" );
-
-		NetworkConsoleCommands.Disconnect();
-
-		if ( address is not null )
-		{
-			NetworkConsoleCommands.ConnectToServer( address );
 		}
 	}
 
@@ -287,6 +326,11 @@ public partial class PartyRoom : ILobby
 	}
 
 	ulong ILobby.Id => steamLobby.Id;
+
+	/// <summary>
+	/// What package is this party's owner playing?
+	/// </summary>
+	public string PackageIdent => steamLobby.GetData( "package" );
 
 	void ILobby.OnMemberEnter( Friend friend )
 	{

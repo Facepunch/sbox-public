@@ -1,10 +1,11 @@
-﻿using Microsoft.CodeAnalysis.CSharp;
+﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace Sandbox;
 
 partial class Compiler
 {
-	private Generator.Processor RunGenerators( CSharpCompilation compiler, CompilerOutput output )
+	private Generator.Processor RunGenerators( CSharpCompilation compiler, List<SyntaxTree> syntaxTrees, CompilerOutput output )
 	{
 		var processor = new Generator.Processor()
 		{
@@ -14,11 +15,11 @@ partial class Compiler
 
 		if ( Group.AllowFastHotload && incrementalState.HasState )
 		{
-			processor.Run( compiler, incrementalState.Compilation, incrementalState.PreHotloadSyntaxTrees );
+			processor.Run( compiler, syntaxTrees, incrementalState.Compilation, incrementalState.PreHotloadSyntaxTrees );
 		}
 		else
 		{
-			processor.Run( compiler );
+			processor.Run( compiler, syntaxTrees );
 		}
 
 		output.Diagnostics.AddRange( processor.Diagnostics );

@@ -1,0 +1,32 @@
+﻿@using System;
+@using MenuProject.Overlay
+@using Sandbox;
+@using Sandbox.UI;
+
+@namespace MenuProject
+@inherits Panel
+
+<root class="toast @ExtraClasses">
+    <i>@Icon</i>
+    <div class="content">
+        <div class="title">@Title</div>
+        <div class="subtitle">@Message</div>
+    </div>
+</root>
+
+@code
+{
+    [Parameter] public string Title { get; set; }
+    [Parameter] public string Message { get; set; }
+    [Parameter] public string Icon { get; set; }
+    [Parameter] public string ExtraClasses { get; set; }
+
+    internal ToastArea Area;
+
+    /// <summary>
+    /// Dismisses this toast.
+    /// </summary>
+    public void Dismiss() => Area.Dismiss( this );
+
+    protected override int BuildHash() => HashCode.Combine( Title, Message, Icon );
+}

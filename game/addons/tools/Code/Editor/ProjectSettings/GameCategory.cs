@@ -14,7 +14,7 @@ internal sealed class GameCategory : ProjectSettingsWindow.Category
 	public SceneFile MapStartupScene { get; set; }
 
 	/// <summary>
-	/// This scene is loaded when the dedicated server starts.
+	/// This scene is loaded when the Dedicated Server starts.
 	/// </summary>
 	public SceneFile ServerStartupScene { get; set; }
 
@@ -76,9 +76,15 @@ internal sealed class GameCategory : ProjectSettingsWindow.Category
 		Launcher,
 
 		/// <summary>
-		/// Launching the game will try to join any lobby that is available. If no lobbies are available we will create a new game - which assumably will create a lobby.
+		/// Launching the game will try to join any lobby that is available. If no lobbies are available, we will create a new game - which assumably will create a lobby.
 		/// </summary>
 		[Icon( "fast_forward" )]
-		QuickPlay
+		QuickPlay,
+
+		/// <summary>
+		/// Launching the game will show a list of available servers. The game can only be hosted on a Dedicated Server.
+		/// </summary>
+		[Icon( "dns" )]
+		DedicatedServerOnly
 	}
 }

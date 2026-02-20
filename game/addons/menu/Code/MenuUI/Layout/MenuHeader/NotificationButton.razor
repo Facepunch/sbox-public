@@ -11,10 +11,8 @@
 
     @if ( count > 0 )
     {
-        <div class="count">@count</div>
+        <div class="count">@(count > 99 ? "+99" : $"{count}")</div>
     }
-
-
 </root>
 
 @code 

@@ -1,10 +1,16 @@
-﻿using MenuProject.Overlay.Overlays;
+﻿using MenuProject.Overlay;
+using MenuProject.Overlay.Overlays;
 using Sandbox;
 using Sandbox.UI.Construct;
 
 public partial class MenuOverlay : RootPanel
 {
 	public static MenuOverlay Instance;
+
+	public ToastArea Top;
+	public ToastArea BottomRight;
+	public ToastArea TopLeft;
+	public ToastArea TopCenter;
 
 	public static void Init()
 	{
@@ -18,25 +24,12 @@ public partial class MenuOverlay : RootPanel
 		Instance = null;
 	}
 
-	public Panel PopupCanvasTop;
-	public Panel PopupCanvas;
-	public Panel PopupCanvasTopLeft;
-	public Panel PopupCanvasBottomRight;
-
-	static Queue<Panel> Popups = new Queue<Panel>();
-	static Panel CurrentPopup;
-
 	public MenuOverlay()
 	{
-		PopupCanvas = Add.Panel( "popup_canvas" );
-		PopupCanvasTop = Add.Panel( "popup_canvas_top" );
-		PopupCanvasTopLeft = Add.Panel( "popup_canvas_topleft" );
-		PopupCanvasBottomRight = Add.Panel( "popup_canvas_bottomright" );
-
-		if ( !Application.IsEditor )
-		{
-			AddChild<VersionOverlay>();
-		}
+		Top = AddChild<ToastArea>( "popup_canvas" );
+		TopCenter = AddChild<ToastArea>( "popup_canvas_top" );
+		TopLeft = AddChild<ToastArea>( "popup_canvas_topleft" );
+		BottomRight = AddChild<ToastArea>( "popup_canvas_bottomright" );
 
 		AddChild<LoadingOverlay>();
 		AddChild<MicOverlay>();
@@ -48,170 +41,44 @@ public partial class MenuOverlay : RootPanel
 
 		var minimumHeight = 1080.0f * Screen.DesktopScale;
 
-		// If the screen height is less than 1080, it's less than supported
-		// so scale the screen size down.
 		if ( screenSize.Height < minimumHeight )
 		{
 			Scale *= screenSize.Height / minimumHeight;
 		}
 	}
 
-	/// <summary>
-	/// Dismiss the current popup
-	/// </summary>
-	public static async Task SkipPopup()
-	{
-		if ( CurrentPopup == null ) return;
+	public static void Show( Panel content, float duration = 4f )
+		=> Instance.Top.Show( content, duration );
 
-		CurrentPopup.Delete();
+	public static void Show( string message, string icon = "info", float duration = 4f )
+		=> Show( BuildMessage( message, icon ), duration );
 
-		await GameTask.DelayRealtimeSeconds( 0.3f );
+	public static void Queue( Panel content, float duration = 4f )
+		=> Instance.Top.Queue( content, duration );
 
-		CurrentPopup = null;
+	public static void Queue( string message, string icon = "info", float duration = 4f )
+		=> Queue( BuildMessage( message, icon ), duration );
 
-		_ = SwitchPopup();
-	}
-
-	/// <summary>
-	/// Dismiss the current popup
-	/// </summary>
-	static async Task SwitchPopup()
-	{
-		if ( Popups.Count == 0 )
-			return;
-
-		CurrentPopup = Popups.Dequeue();
-		CurrentPopup.Parent = Instance.PopupCanvas;
-
-		var popup = CurrentPopup;
-
-		if ( CurrentPopup.HasClass( "has-options" ) )
-			await GameTask.DelayRealtimeSeconds( 6.0f );
-
-		await GameTask.DelayRealtimeSeconds( 4.0f );
-
-
-		if ( CurrentPopup != popup )
-			return;
-
-		await SkipPopup();
-
-	}
-
-	/// <summary>
-	/// Dismiss the current popup
-	/// </summary>
-	public static void AddPopup( Panel popup, string withClass = "popup" )
-	{
-		if ( withClass is not null )
-		{
-			popup.AddClass( withClass );
-		}
-
-		popup.AddClass( "hidden" );
-
-		Popups.Enqueue( popup );
-
-		if ( CurrentPopup is null )
-		{
-			_ = SwitchPopup();
-		}
-	}
-
-	/// <summary>
-	/// Add a message
-	/// </summary>
-	public static void Message( string message, string icon = "info" )
-	{
-		var popup = new Panel( null, "has-message" );
-		if ( popup == null ) return;
-
-		popup.Add.Icon( icon );
-
-		popup.Add.Label( message, "message" );
-		popup.AddEventListener( "onmousedown", () => _ = SkipPopup() );
-
-		AddPopup( popup );
-	}
-
-	/// <summary>
-	/// Add a message
-	/// </summary>
-	public static void Message( string type, string message, string subtitle )
-	{
-		var popup = new Panel( null, "has-message" );
-		if ( popup == null ) return;
-
-		popup.AddClass( type );
-
-		popup.Add.Label( message, "message" );
-		popup.Add.Label( subtitle, "message" );
-		popup.AddEventListener( "onmousedown", () => _ = SkipPopup() );
-
-		AddPopup( popup );
-	}
-
-	/// <summary>
-	/// Add a message
-	/// </summary>
-	public static void Message( string message, Texture image )
-	{
-		var popup = new Panel( null, "has-message" );
-		if ( popup == null ) return;
-
-		var icon = popup.Add.Panel();
-		icon.AddClass( "iconpanel" );
-		icon.Style.SetBackgroundImage( image );
-
-		popup.Add.Label( message, "message" );
-		popup.AddEventListener( "onmousedown", () => _ = SkipPopup() );
-
-		AddPopup( popup );
-	}
-
-	/// <summary>
-	/// Add a message
-	/// </summary>
-	public static void Message( string message, string subtitle, Texture image )
-	{
-		var popup = new Panel( null, "has-message" );
-		if ( popup == null ) return;
-
-		var icon = popup.Add.Panel();
-		icon.AddClass( "iconpanel" );
-		icon.Style.SetBackgroundImage( image );
-
-		popup.Add.Label( message, "message" );
-
-		if ( subtitle != null )
-		{
-			popup.Add.Label( subtitle, "subtitle" );
-			popup.AddClass( "has-subtitle" );
-		}
-
-		popup.AddEventListener( "onmousedown", () => _ = SkipPopup() );
-
-		AddPopup( popup );
-	}
-
-	/// <summary>
-	/// Add a question
-	/// </summary>
 	public static void Question( string message, string icon, Action yes, Action no )
 	{
-		var popup = new Panel( null, "has-message has-options" );
-		if ( popup == null ) return;
+		var content = new Panel( null, "popup has-message has-options" );
+		content.Add.Icon( icon );
+		content.Add.Label( message, "message" );
 
-		popup.Add.Icon( icon );
-		popup.Add.Label( message, "message" );
+		var options = content.Add.Panel( "options" );
+		content.Add.Panel( "progress-bar" );
 
-		var options = popup.Add.Panel( "options" );
+		Instance.Top.Queue( content, duration: 10f, clickToDismiss: false );
 
-		options.AddChild( new Button( null, "close", null, () => { no?.Invoke(); _ = SkipPopup(); } ) );
-		options.AddChild( new Button( null, "done", null, () => { yes?.Invoke(); _ = SkipPopup(); } ) );
+		options.AddChild( new Button( null, "close", null, () => { no?.Invoke(); Instance.Top.Dismiss( content ); } ) );
+		options.AddChild( new Button( null, "done", null, () => { yes?.Invoke(); Instance.Top.Dismiss( content ); } ) );
+	}
 
-		popup.Add.Panel( "progress-bar" );
-
-		AddPopup( popup );
+	static Panel BuildMessage( string message, string icon )
+	{
+		var p = new Panel( null, "popup has-message" );
+		p.Add.Icon( icon );
+		p.Add.Label( message, "message" );
+		return p;
 	}
 }

@@ -22,6 +22,11 @@ public class CodeArchive
 	public List<SyntaxTree> SyntaxTrees { get; } = new();
 
 	/// <summary>
+	/// Hashes of source files, used for incremental compiles. Not serialized right now.
+	/// </summary>
+	public Dictionary<string, ulong> FileHashMap { get; } = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
 	/// Represents a file to send to the compiler along with all the code. This is usually
 	/// something that the generator turns into code, such as a Razor file.
 	/// </summary>

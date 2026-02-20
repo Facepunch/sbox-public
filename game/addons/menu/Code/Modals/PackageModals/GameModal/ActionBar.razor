@@ -7,12 +7,17 @@
 @using Sandbox.Network
 @using Sandbox.Modals
 @using Sandbox.DataModel
+@using Sandbox.UI.Navigation
 
 <root>
 
     <div class="left">
 
-        @if ( IsMultiplayerGame )
+	    @if ( IsDedicatedServerOnly )
+	    {
+		    <Button icon="list" class="@(LobbyCount == 0 ? "disabled" : "")" onclick=@OpenLobbyList>@LobbyCount Servers</Button>
+	    }
+	    else if ( IsMultiplayerGame )
         {
             <Button icon="list" class="@(LobbyCount == 0 ? "disabled" : "")" onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
         }
@@ -41,18 +46,25 @@
             }
             else
             {
-                var text = ((!IsMultiplayerGame || IsQuickPlayGame) ? "Play Game" : "New Game");
-                var classes = $"play { (IsReady() ? "" : "disabled") } ";
+	            @if ( IsDedicatedServerOnly )
+	            {
+		            <Button icon="auto_awesome" class="play" onclick=@ShowServerList>Find Game</Button>
+	            }
+	            else
+	            {
+		            var text = ((!IsMultiplayerGame || IsQuickPlayGame) ? "Play Game" : "New Game");
+		            var classes = $"play { (IsReady() ? "" : "disabled") } ";
 
-                <Button Icon="play_arrow" class="@classes" onclick=@OnPlay>
-                    @text
-                </Button>
+		            <Button Icon="play_arrow" class="@classes" onclick=@OnPlay>
+			            @text
+		            </Button>
 
-                @if (IsMultiplayerGame && !IsQuickPlayGame)
-                {
-                    var mpclasses = $"play {(LobbyCount == 0 ? "disabled" : "")} ";
-                    <Button icon="auto_awesome" class="@mpclasses" onclick=@OnJoinGame>Join Game</Button>
-                }
+		            @if (IsMultiplayerGame && !IsQuickPlayGame)
+		            {
+			            var mpclasses = $"play {(LobbyCount == 0 ? "disabled" : "")} ";
+			            <Button icon="auto_awesome" class="@mpclasses" onclick=@OnJoinGame>Join Game</Button>
+		            }
+	            }
             }
         }
         else
@@ -76,6 +88,7 @@
     bool IsVrOnly => Package.GetMeta<ControlModeSettings>("ControlModes")?.IsVROnly ?? false;
     bool IsMultiplayerGame => Package.Tags.Contains("multiplayer") || LobbyCount > 0 || Package.GetMeta<int>("MaxPlayers", 1) > 1;
     bool IsQuickPlayGame => Package.GetMeta( "LaunchMode", "default" ).ToLower() == "quickplay";
+    bool IsDedicatedServerOnly => Package.GetMeta( "LaunchMode", "default" ).ToLower() == "dedicatedserveronly";
     int LobbyCount => Modal?.Lobbies?.Count() ?? 0;
 
     protected override async Task OnParametersSetAsync()
@@ -109,6 +122,13 @@
         return false;
     }
 
+    private void ShowServerList()
+    {
+	    MenuUtility.CloseAllModals();
+
+	    MainMenu.Instance?.Navigator?.Navigate( $"/multiplayer?Package={Package.FullIdent}" );
+    }
+
     async void OnPlay()
     {
         if (!IsReady())
@@ -130,6 +150,12 @@
             // Don't join if we're already in a game
             if (Game.InGame)
                 return;
+
+            if ( IsDedicatedServerOnly )
+            {
+	            Game.Overlay.ShowServerList( new ServerListConfig( Package.FullIdent ) );
+	            return;
+            }
 
             if ( ShouldUseCreateGameModal() )
             {

@@ -68,7 +68,7 @@ class MaterialLoader( string fullPath ) : ResourceLoader<GameMount>
 			material = EmissiveMaterial;
 		}
 
-		material = material.CreateCopy();
+		material = material.CreateCopy( Path );
 
 		foreach ( var (key, value) in strings )
 		{

@@ -1,4 +1,0 @@
-"settings"
-{
-	"maxres"		"256"
-}
