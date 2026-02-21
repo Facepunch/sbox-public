@@ -144,6 +144,24 @@ internal partial class NetworkSystem
 
 		Log.Info( $"{msg.DisplayName} [{msg.SteamId}] is connecting" );
 
+		//
+		// If the lobby is set to FriendsOnly,
+		// only allow players who are Steam friends with the host.
+		//
+		if ( Config.Privacy == LobbyPrivacy.FriendsOnly && msg.SteamId != 0 )
+		{
+			var hostSteamId = Utility.Steam.SteamId;
+
+			// Host is always allowed
+			if ( msg.SteamId != hostSteamId.Value && !new Friend( msg.SteamId ).IsFriend )
+			{
+				Log.Info( $"Kicked {msg.DisplayName} [{msg.SteamId}] - not friends with host [{hostSteamId}]" );
+				source.Kick( "This lobby is Friends Only." );
+				return Task.CompletedTask;
+			}
+		}
+
+
 		var denialReason = "";
 
 		source.PreInfo = new ConnectionInfo( null )
