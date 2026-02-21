@@ -139,6 +139,9 @@ public static partial class Input
 	public static InputMotionData MotionData { get; internal set; }
 
 	/// <inheritdoc cref="GetButtonOrigin( string, bool )"/>
+	/// <remarks>
+	/// This will return <see langword="null"/> if no button was set in the action.
+	/// </remarks>
 	internal static string GetButtonOrigin( InputAction action, bool ignoreController = false )
 	{
 		if ( UsingController )
