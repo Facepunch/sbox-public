@@ -427,7 +427,7 @@ public partial class AssetList : ListView, AssetSystem.IEventListener
 	{
 		var iconRect = item.Rect.Shrink( 4, 4 );
 		iconRect.Width = iconRect.Height = 16;
-		Paint.Draw( iconRect, package.Thumb );
+		Paint.Draw( iconRect, package.Thumb, borderRadius: 2 );
 	}
 
 	private void DrawPackageEntry( VirtualWidget item, PackageEntry package )

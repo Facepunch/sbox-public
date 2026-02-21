@@ -47,6 +47,8 @@ class Program
 		var tags = sentryEvent?["tags"];
 		var processName = sentryEvent?["contexts"]?["process"]?["name"]?.GetValue<string>();
 
+		var shutdownCrash = tags?["shutdown_crash"]?.GetValue<string>() == "true";
+
 		var payload = new
 		{
 			sentry_event_id = eventId,
@@ -61,6 +63,7 @@ class Program
 			cpu = tags?["cpu"],
 			mode = tags?["mode"],
 			process_name = processName,
+			shutdown_crash = shutdownCrash,
 		};
 
 		try

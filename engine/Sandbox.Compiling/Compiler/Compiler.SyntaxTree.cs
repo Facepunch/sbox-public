@@ -121,6 +121,8 @@ partial class Compiler
 
 			if ( contents is null ) return;
 
+			var hash = contents.FastHash64();
+
 			lock ( targetArchive.FileMap )
 			{
 				targetArchive.FileMap[physicalPath] = localPath;
@@ -148,9 +150,18 @@ partial class Compiler
 
 				// Create syntax tree with file-specific options
 				SyntaxTree tree;
-				if ( oldTrees?.TryGetValue( physicalPath, out tree ) ?? false )
+				if ( oldTrees?.TryGetValue( physicalPath, out var existing ) ?? false )
 				{
-					tree = tree.WithChangedText( sourceText );
+					if ( incrementalState.FileHashMap.TryGetValue( physicalPath, out var oldHash ) && oldHash == hash )
+					{
+						// unchanged since last compile, reuse the existing tree
+						tree = existing;
+					}
+					else
+					{
+						// file content changed, create a new tree with the modified text
+						tree = existing.WithChangedText( sourceText );
+					}
 				}
 				else
 				{
@@ -175,18 +186,24 @@ partial class Compiler
 				lock ( targetArchive.SyntaxTrees )
 				{
 					targetArchive.SyntaxTrees.Add( tree );
+					targetArchive.FileHashMap[physicalPath] = hash;
 				}
 			}
 		} );
 	}
 
-	private static CSharpCompilation ReplaceSyntaxTrees( CSharpCompilation compilation, IList<SyntaxTree> syntaxTrees )
+	internal CSharpCompilation ReplaceSyntaxTrees( CSharpCompilation compilation, IList<SyntaxTree> syntaxTrees, out List<SyntaxTree> modifiedSyntaxTrees )
 	{
 		var oldTreeArray = compilation.SyntaxTrees;
+		modifiedSyntaxTrees = new List<SyntaxTree>();
 
-		var oldTrees = oldTreeArray
+		var compiled = oldTreeArray
 						.DistinctBy( x => x.FilePath )
 						.ToDictionary( x => x.FilePath, x => x );
+
+		var prevInputs = incrementalState.SyntaxTrees
+						.DistinctBy( t => t.FilePath )
+						.ToDictionary( t => t.FilePath );
 
 		var newTrees = syntaxTrees
 						.DistinctBy( x => x.FilePath )
@@ -197,7 +214,7 @@ partial class Compiler
 						.ToArray();
 
 		var added = syntaxTrees
-						.Where( x => !oldTrees.ContainsKey( x.FilePath ) )
+						.Where( x => !compiled.ContainsKey( x.FilePath ) )
 						.ToArray();
 
 		if ( removed.Length > 0 )
@@ -208,14 +225,29 @@ partial class Compiler
 		if ( added.Length > 0 )
 		{
 			compilation = compilation.AddSyntaxTrees( added );
+			modifiedSyntaxTrees.AddRange( added );
 		}
 
-		foreach ( var oldTree in oldTreeArray )
+		foreach ( var (path, newTree) in newTrees )
 		{
-			if ( newTrees.TryGetValue( oldTree.FilePath, out var newTree ) )
+			if ( !prevInputs.TryGetValue( path, out var prevInput ) )
+				continue; // handled as add
+
+			if ( !compiled.TryGetValue( path, out var compiledTree ) )
+				continue; // removed or not generated
+
+			if ( ReferenceEquals( prevInput, newTree ) )
+				continue;
+
+			if ( _currentArchive is not null )
 			{
-				compilation = compilation.ReplaceSyntaxTree( oldTree, newTree );
+				// special case for networked archives, where syntax trees are always different instances
+				if ( prevInput.GetText().ContentEquals( newTree.GetText() ) )
+					continue;
 			}
+
+			compilation = compilation.ReplaceSyntaxTree( compiledTree, newTree );
+			modifiedSyntaxTrees.Add( newTree );
 		}
 
 		return compilation;

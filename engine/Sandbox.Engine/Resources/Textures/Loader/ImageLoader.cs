@@ -161,7 +161,7 @@ internal static class Image
 				tex = Load( stream, filename );
 			}
 
-			tex?.SetIdFromResourcePath( filename );
+			tex?.RegisterWeakResourceId( filename );
 			return tex;
 		}
 		catch ( System.IO.FileNotFoundException e )

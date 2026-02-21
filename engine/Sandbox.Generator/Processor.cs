@@ -47,6 +47,7 @@ public class Processor
 	public Dictionary<string, string> AddonFileMap { get; set; } = new Dictionary<string, string>( StringComparer.OrdinalIgnoreCase );
 	public CSharpCompilation Compilation { get; set; }
 	public CSharpCompilation LastSuccessfulCompilation { get; set; }
+	public List<SyntaxTree> SyntaxTrees { get; set; }
 	public ImmutableArray<SyntaxTree> BeforeILHotloadProcessingTrees { get; set; }
 	public Exception Exception { get; internal set; }
 	public SourceProductionContext? Context { get; set; }
@@ -76,6 +77,7 @@ public class Processor
 	/// Can be called manually
 	/// </summary>
 	public void Run( CSharpCompilation compilation,
+		List<SyntaxTree> syntaxTrees = null,
 		CSharpCompilation lastSuccessfulCompilation = null,
 		ImmutableArray<SyntaxTree> lastBeforeIlHotloadProcessingTrees = default )
 	{
@@ -83,9 +85,12 @@ public class Processor
 		LastSuccessfulCompilation = lastSuccessfulCompilation;
 		BeforeILHotloadProcessingTrees = lastBeforeIlHotloadProcessingTrees;
 
+		syntaxTrees ??= compilation.SyntaxTrees.ToList();
+		SyntaxTrees = syntaxTrees;
+
 		try
 		{
-			if ( Compilation.SyntaxTrees.Count() > 0 )
+			if ( syntaxTrees.Any() )
 			{
 				var sync = new Sync();
 				ConcurrentBag<Worker> workers = new();
@@ -94,7 +99,7 @@ public class Processor
 				//
 				// Run all the processers in tasks so it's super fast
 				//
-				var result = System.Threading.Tasks.Parallel.ForEach( Compilation.SyntaxTrees, tree =>
+				var result = System.Threading.Tasks.Parallel.ForEach( syntaxTrees, tree =>
 				{
 					try
 					{
@@ -127,7 +132,7 @@ public class Processor
 					// Don't need to do this if just using Source Generator
 					if ( Context == null )
 					{
-						Compilation = Compilation.ReplaceSyntaxTree( worker.TreeInput, CSharpSyntaxTree.Create( worker.OutputNode, worker.TreeInput.Options as CSharpParseOptions, worker.TreeInput.FilePath, worker.TreeInput.Encoding ) );
+						ReplaceSyntaxTree( worker.TreeInput, CSharpSyntaxTree.Create( worker.OutputNode, worker.TreeInput.Options as CSharpParseOptions, worker.TreeInput.FilePath, worker.TreeInput.Encoding ) );
 
 						// Copy each worker's diagnostics so they're accessible outside of Sandbox.Generator
 						Diagnostics.AddRange( worker.Diagnostics );
@@ -180,5 +185,14 @@ public class Processor
 
 			Context?.ReportDiagnostic( Diagnostic.Create( desc, null ) );
 		}
+	}
+
+	public void ReplaceSyntaxTree( SyntaxTree oldTree, SyntaxTree newTree )
+	{
+		Compilation = Compilation.ReplaceSyntaxTree( oldTree, newTree );
+
+		// ensure the list of syntax trees is updated to reflect what's actually in the compilation
+		if ( SyntaxTrees.Remove( oldTree ) )
+			SyntaxTrees.Add( newTree );
 	}
 }

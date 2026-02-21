@@ -466,10 +466,17 @@ public static partial class Networking
 	/// </summary>
 	public static void CreateLobby( LobbyConfig config )
 	{
-		// Let's not make a lobby if we're in the editor and we're not playing a game.
+		// Let's not make a lobby if we're in the editor, and we're not playing a game.
 		// Editor tools could call this, and we don't want a lingering lobby.
 		if ( Application.IsEditor && !Game.IsPlaying )
 			throw new UnauthorizedAccessException( "Unable to create a lobby outside of a game" );
+
+		// If this game can only be hosted on a Dedicated Server, ensure that we are one. We'll allow
+		// the Editor to host a lobby as well, though, for testing and development purposes.
+		var launchMode = Application.GamePackage?.GetCachedMeta( "LaunchMode", "default" ).ToLower();
+
+		if ( launchMode == "dedicatedserveronly" && !Application.IsDedicatedServer && !Application.IsEditor )
+			throw new UnauthorizedAccessException( "This game can only be hosted on a Dedicated Server" );
 
 		if ( IsActive )
 			return;

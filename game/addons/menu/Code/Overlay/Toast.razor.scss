@@ -1,0 +1,95 @@
+﻿@keyframes hourglass-flip
+{
+	0%, 10%
+	{
+		transform: rotateZ( 0deg );
+	}
+
+	40%, 60%
+	{
+		transform: rotateZ( 180deg );
+	}
+
+	90%, 100%
+	{
+		transform: rotateZ( 360deg );
+	}
+}
+
+Toast
+{
+	padding: 16px 20px;
+	gap: 12px;
+	align-items: center;
+	min-width: 280px;
+	transition: all 0.3s ease;
+	pointer-events: all;
+
+	i
+	{
+		border-radius: 50%;
+		font-size: 24px;
+		color: #4a9eff;
+		opacity: 0.8;
+		transition: all 0.1s ease;
+	}
+
+	label
+	{
+		font-family: Poppins;
+	}
+
+	.content
+	{
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.title
+	{
+		font-size: 14px;
+		font-weight: 600;
+		color: rgba( 255, 255, 255, 0.9 );
+	}
+
+	.subtitle
+	{
+		font-size: 12px;
+		color: rgba( 255, 255, 255, 0.5 );
+	}
+
+	&.loading
+	{
+		i
+		{
+			animation: hourglass-flip 2s ease-in-out infinite;
+		}
+	}
+
+	&.ready
+	{
+		pointer-events: all;
+		cursor: default;
+
+		&:hover
+		{
+			.title
+			{
+				color: rgba( 255, 255, 255, 1 );
+			}
+
+			.subtitle
+			{
+				color: rgba( 255, 255, 255, 0.75 );
+			}
+
+			i
+			{
+				border-radius: 50%;
+				background-color: rgba( #4a9eff, 0.9 );
+				color: white;
+				transform: scale( 1.25 );
+			}
+		}
+	}
+}

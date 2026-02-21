@@ -25,7 +25,7 @@ internal static class Helpers
 
 		var prefabFile = new PrefabFile();
 		prefabFile.LoadFromJson( wrappedRootObject );
-		prefabFile.SetIdFromResourcePath( resourcePath );
+		prefabFile.RegisterWeakResourceId( resourcePath );
 		prefabFile.Register( resourcePath );
 
 		return new DisposeAction( () => Game.Resources.Unregister( prefabFile ) );
@@ -62,7 +62,7 @@ internal static class Helpers
 
 		var sceneFile = new SceneFile { GameObjects = gameObjectsJson.Select( Json.ParseToJsonObject ).ToArray() };
 
-		sceneFile.SetIdFromResourcePath( resourcePath );
+		sceneFile.RegisterWeakResourceId( resourcePath );
 
 		var options = new SceneLoadOptions();
 		options.SetScene( sceneFile );

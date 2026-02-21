@@ -49,7 +49,7 @@ internal static class SvgLoader
 			}
 
 			var tex = Texture.CreateFromSvgSource( svg, width, height, color );
-			tex?.SetIdFromResourcePath( url );
+			tex?.RegisterWeakResourceId( url );
 
 			return tex;
 		}

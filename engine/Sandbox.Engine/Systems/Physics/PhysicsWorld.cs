@@ -205,6 +205,7 @@ public sealed partial class PhysicsWorld : IHandle
 	internal Action<PhysicsIntersection> OnIntersectionHit { get; set; }
 	internal Action<PhysicsIntersectionEnd> OnIntersectionEnd { get; set; }
 	internal Action<PhysicsIntersection> OnIntersectionUpdate { get; set; }
+	internal Action<PhysicsBody> OnBodyOutOfBounds { get; set; }
 
 	unsafe void OnIntersection( VPhysIntersectionNotification_t* ptr )
 	{

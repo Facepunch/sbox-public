@@ -13,21 +13,27 @@
         <div class="tiles-container">
         
                <div class="left">
-                    @if (game is not null)
+                    @if ( game is not null )
                     {
                         <GameInfoBox Package="@game"></GameInfoBox>
+                    }
+                    else
+                    {
+                        <div class="info">
+                            <h2>@Game.Ident</h2>
+                            <h3>Unpublished Game -- no info to show</h3>
+                        </div>
                     }
                </div>
 
                <div class="right">
-                   
-                   @{
-                        var ident = game?.FullIdent.Split('#')[0] ?? "unknown/unknown";
+                   @if ( game is not null ) 
+                   {
+                        var ident = game.FullIdent.Split('#')[0] ?? "unknown/unknown";
                         var url = $"https://sbox.game/game/pause/{ident}";
                         //var url = $"https://localhost:44338/game/pause/{ident}";
                         <WebPanel class="browser" Url="@url"></WebPanel>
                     }
-
                </div>
 
         </div>
@@ -45,7 +51,7 @@
                     <Button class="circle" Tooltip="Change Map" Icon="map" onclick=@ChangeMap></Button>
                 }
 
-                @if (Networking.IsActive && game.GetValue<bool>("ShowPlayerList", true))
+                @if (Networking.IsActive && (game?.GetValue<bool>("ShowPlayerList", true) ?? true))
                 {
                     <Button class="circle" Icon="groups" Tooltip="Player List" @onclick="@(() => Game.Overlay.ShowPlayerList())"></Button>
                 }
@@ -74,7 +80,7 @@
         {
             if ( Networking.IsActive && !Networking.IsHost ) return false;
 
-            return game.GetValue( "ShowChangeMap", false );
+            return game?.GetValue( "ShowChangeMap", false ) ?? false;
         }
     }
 
@@ -125,7 +131,7 @@
 
     bool CheckForDelete()
     {
-        if (MenuUtility.GamePackage == null)
+        if ( !Game.InGame )
         {
             Delete();
             return true;

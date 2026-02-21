@@ -1141,7 +1141,7 @@ public sealed partial class PhysicsBody : IHandle
 	/// <summary>
 	/// Called on each active body after a "step"
 	/// </summary>
-	internal void OnActive( in Transform transform, in Vector3 velocity, in Vector3 linearVelocity )
+	internal void OnActive( in Transform transform, in Vector3 velocity, in Vector3 linearVelocity, bool fellAsleep, bool wentOutOfBounds )
 	{
 		prevStepTime = stepTime;
 		prevStepTransform = stepTime > 0 ? stepTransform : transform;
@@ -1150,6 +1150,11 @@ public sealed partial class PhysicsBody : IHandle
 		stepTime = World.CurrentTime;
 
 		Dirty();
+
+		if ( wentOutOfBounds )
+		{
+			World?.OnBodyOutOfBounds?.Invoke( this );
+		}
 	}
 
 	/// <summary>

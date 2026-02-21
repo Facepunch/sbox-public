@@ -17,12 +17,16 @@ internal static class ResourceLoader
 
 		var allResources = new List<GameResource>();
 
-		Clear();
 		foreach ( var file in allFiles )
 		{
 			var extension = System.IO.Path.GetExtension( file );
 
 			if ( !types.TryGetValue( extension, out var type ) )
+				continue;
+
+			// Skip resources that are already fully loaded - this allows calling this method
+			// multiple times (e.g. once per package) without redundant work.
+			if ( ResourceLibrary.TryGet<GameResource>( file.Trim( '/' ), out var existing ) && !existing.IsPromise )
 				continue;
 
 			try
@@ -63,12 +67,11 @@ internal static class ResourceLoader
 
 	static void AddWatcherForType( AssetTypeAttribute type )
 	{
-		if ( Watchers.TryGetValue( type.Name, out var watcher ) )
-		{
-			watcher.Dispose();
-		}
+		// Watcher already set up for this type - no need to allocate another one.
+		if ( Watchers.ContainsKey( type.Name ) )
+			return;
 
-		watcher = EngineFileSystem.Mounted.Watch( $"*.{type.Extension}_c" );
+		var watcher = EngineFileSystem.Mounted.Watch( $"*.{type.Extension}_c" );
 		watcher.OnChanges += ( w ) => OnAssetFilesChanged( w, type );
 
 		Watchers[type.Name] = watcher;

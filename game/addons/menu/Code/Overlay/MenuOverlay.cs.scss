@@ -19,6 +19,7 @@ MenuOverlay
 	justify-content: center;
 	margin: 100px;
 	z-index: 1100;
+	gap: 8px;
 }
 
 .popup_canvas_topleft
@@ -29,6 +30,7 @@ MenuOverlay
 	justify-content: center;
 	margin: 100px;
 	z-index: 1100;
+	gap: 8px;
 }
 
 .popup_canvas_bottomright
@@ -40,6 +42,7 @@ MenuOverlay
 	margin: 100px;
 	z-index: 1100;
 	flex-direction: column;
+	gap: 8px;
 }
 
 .popup_canvas
@@ -215,8 +218,159 @@ MenuOverlay
 
 	&:outro
 	{
+
 		transition: all 0.1s ease-out;
 		opacity: 0;
 		display: none;
+	}
+}
+
+.toast
+{
+	background-color: rgba(30, 30, 40, 0.95);
+	border-radius: 8px;
+	padding: 16px 20px;
+	gap: 12px;
+	align-items: center;
+	box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.5);
+	transition: all 0.2s ease;
+	min-width: 280px;
+	color: white;
+	pointer-events: all;
+
+	.icon
+	{
+		width: 40px;
+		height: 40px;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		text-align: center;
+		font-size: 22px;
+		color: $primary;
+		font-family: Material Icons;
+	}
+
+	.body
+	{
+		flex-direction: column;
+		justify-content: center;
+		gap: 2px;
+
+		.title
+		{
+			font-size: 14px;
+			font-weight: 600;
+		}
+
+		.message
+		{
+			font-size: 12px;
+			font-weight: 400;
+			opacity: 0.6;
+		}
+	}
+
+	&.pulse
+	{
+		animation: status-pulse 1s ease-in-out infinite;
+	}
+
+	&:intro
+	{
+		animation: none;
+		opacity: 0;
+		transform: translateY( 10px ) scale( 0.9 );
+	}
+
+	&:outro
+	{
+		animation: none;
+		opacity: 0;
+		transform: translateX( 128px );
+	}
+}
+
+@keyframes status-pulse
+{
+	0%
+	{
+		transform: scale( 1 );
+	}
+
+	50%
+	{
+		transform: scale( 1.05 );
+	}
+
+	100%
+	{
+		transform: scale( 1 );
+	}
+}
+
+@keyframes hourglass-flip
+{
+	0%
+	{
+		transform: rotateZ( 0deg );
+	}
+
+	15%
+	{
+		transform: rotateZ( -180deg );
+	}
+
+	50%
+	{
+		transform: rotateZ( -180deg );
+	}
+
+	65%
+	{
+		transform: rotateZ( -360deg );
+	}
+
+	100%
+	{
+		transform: rotateZ( -360deg );
+	}
+}
+
+@keyframes status-shake
+{
+	0%
+	{
+		transform: translateX( 0px );
+	}
+
+	15%
+	{
+		transform: translateX( -6px );
+	}
+
+	30%
+	{
+		transform: translateX( 5px );
+	}
+
+	45%
+	{
+		transform: translateX( -4px );
+	}
+
+	60%
+	{
+		transform: translateX( 3px );
+	}
+
+	75%
+	{
+		transform: translateX( -1px );
+	}
+
+	100%
+	{
+		transform: translateX( 0px );
 	}
 }

@@ -1,27 +1,31 @@
 ﻿
 namespace Editor.MeshEditor;
 
-partial class MeshSelection
+partial class ObjectSelection
 {
 	public override Widget CreateToolSidebar()
 	{
-		return new MeshSelectionWidget( GetSerializedSelection(), this );
+		return new ObjectSelectionWidget( GetSerializedSelection(), this );
 	}
 
-	public class MeshSelectionWidget : ToolSidebarWidget
+	public class ObjectSelectionWidget : ToolSidebarWidget
 	{
 		readonly MeshComponent[] _meshes;
-		readonly MeshSelection _tool;
+		readonly GameObject[] _gos;
+		readonly ObjectSelection _tool;
 
-		public MeshSelectionWidget( SerializedObject so, MeshSelection tool ) : base()
+		public ObjectSelectionWidget( SerializedObject so, ObjectSelection tool ) : base()
 		{
 			_tool = tool;
 
-			AddTitle( "Mesh Mode", "layers" );
+			AddTitle( "Object Mode", "layers" );
 
 			_meshes = so.Targets.OfType<GameObject>()
 				.Select( x => x.GetComponent<MeshComponent>() )
 				.Where( x => x.IsValid() )
+				.ToArray();
+
+			_gos = so.Targets.OfType<GameObject>()
 				.ToArray();
 
 			{
@@ -68,10 +72,10 @@ partial class MeshSelection
 				var grid = Layout.Row();
 				grid.Spacing = 4;
 
-				CreateButton( "Previous", "chevron_left", "mesh.previous-pivot", PreviousPivot, _meshes.Length > 0, grid );
-				CreateButton( "Next", "chevron_right", "mesh.next-pivot", NextPivot, _meshes.Length > 0, grid );
-				CreateButton( "Clear", "restart_alt", "mesh.clear-pivot", ClearPivot, _meshes.Length > 0, grid );
-				CreateButton( "World Origin", "language", "mesh.zero-pivot", ZeroPivot, _meshes.Length > 0, grid );
+				CreateButton( "Previous", "chevron_left", "mesh.previous-pivot", PreviousPivot, _gos.Length > 0, grid );
+				CreateButton( "Next", "chevron_right", "mesh.next-pivot", NextPivot, _gos.Length > 0, grid );
+				CreateButton( "Clear", "restart_alt", "mesh.clear-pivot", ClearPivot, _gos.Length > 0, grid );
+				CreateButton( "World Origin", "language", "mesh.zero-pivot", ZeroPivot, _gos.Length > 0, grid );
 
 				grid.AddStretchCell();
 
