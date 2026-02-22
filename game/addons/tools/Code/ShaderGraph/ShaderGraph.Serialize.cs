@@ -148,63 +148,100 @@ partial class ShaderGraph
 				{
 					node = CreateUpgradedSubgraphInput_v1Upgrade( typeName, element, options );
 				}
-				else if ( fileVersion < 2 && IsParameterNodeType_v2Upgrade( typeName ) )
+				else if ( fileVersion < 2 )
 				{
-					if ( IsNamedParameterNode_v2Upgrade( element ) )
+					if ( !IsSubgraph && IsParameterNodeType_v2Upgrade( typeName ) )
 					{
-						node = EditorTypeLibrary.Create<BaseNode>( typeName );
-						DeserializeObject( node, element, options );
-
-						var parameterID = AddBlackboardParameter_v2Upgrade( typeName, element, options );
-
-						if ( node is IBlackboardNode blackboardNode )
+						if ( IsNamedParameterNode_v2Upgrade( element ) )
 						{
-							blackboardNode.BlackboardParameterIdentifier = parameterID;
-							node = (BaseNode)blackboardNode;
+							node = EditorTypeLibrary.Create<BaseNode>( typeName );
+							DeserializeObject( node, element, options );
+
+							var parameter = CreateBlackboardParameter_v2Upgrade( typeName, element, options );
+
+							if ( !ContainsParameterWithName( parameter.Name ) )
+							{
+								AddParameter( parameter );
+							}
+
+							if ( node is IBlackboardNode blackboardNode )
+							{
+								blackboardNode.BlackboardParameterIdentifier = parameter.Identifier;
+								node = (BaseNode)blackboardNode;
+							}
+						}
+						else
+						{
+							node = ConvertToConstantNode_v2Upgrade( typeName, element, options );
 						}
 					}
-					else
+					else if ( ShouldUpgradeSamplerNodeType_v2Upgrade( typeName ) )
 					{
-						node = ConvertToConstantNode_v2Upgrade( typeName, element, options );
-					}
-				}
-				else if ( fileVersion < 2 && ShouldUpgradeSamplerNodeType_v2Upgrade( typeName ) )
-				{
-					if ( IsNamedTextureSamplerNode_v2Upgrade( element ) )
-					{
-						node = EditorTypeLibrary.Create<BaseNode>( typeName );
-						DeserializeObject( node, element, options );
-						node.Graph = this;
-
-						var parameterID = AddBlackboardParameter_v2Upgrade( typeName, element, options );
-
-						var newTexture2DParameterNode = new Texture2DParameter()
+						if ( IsNamedTextureSamplerNode_v2Upgrade( element ) )
 						{
-							Position = node.Position.WithX( node.Position.x - 192 ),
-							BlackboardParameterIdentifier = parameterID,
-						};
+							node = EditorTypeLibrary.Create<BaseNode>( typeName );
+							DeserializeObject( node, element, options );
+							node.Graph = this;
 
-						AddNode( newTexture2DParameterNode );
+							var parameter = CreateBlackboardParameter_v2Upgrade( typeName, element, options );
 
-						node.ConnectNode(
-							"Texture2D",
-							"Result",
-							newTexture2DParameterNode.Identifier
-						);
+							if ( !ContainsParameterWithName( parameter.Name ) )
+							{
+								AddParameter( parameter );
+							}
+
+							if ( !IsSubgraph )
+							{
+								var newTexture2DParameterNode = new Texture2DParameter()
+								{
+									Position = node.Position.WithX( node.Position.x - 192 ),
+									BlackboardParameterIdentifier = parameter.Identifier,
+								};
+
+								AddNode( newTexture2DParameterNode );
+
+								node.ConnectNode(
+									"Texture2D",
+									"Result",
+									newTexture2DParameterNode.Identifier
+								);
+							}
+							else
+							{
+								var subgraphInput = new SubgraphInput()
+								{
+									Position = node.Position.WithX( node.Position.x - 192 ),
+									BlackboardParameterIdentifier = parameter.Identifier,
+								};
+
+								AddNode( subgraphInput );
+
+								node.ConnectNode(
+									"Texture2D",
+									"Result",
+									subgraphInput.Identifier
+								);
+							}
+						}
+						else
+						{
+							node = EditorTypeLibrary.Create<BaseNode>( typeName );
+							DeserializeObject( node, element, options );
+						}
+					}
+					else if ( typeName == "Branch" )
+					{
+						node = UpgradeBranchNode_v2Upgrade( element, options );
+					}
+					else if ( IsSubgraph && typeName == "SubgraphInput" )
+					{
+						node = UpgradeSubgraphinput_v2Upgrade( element, options );
 					}
 					else
 					{
 						node = EditorTypeLibrary.Create<BaseNode>( typeName );
 						DeserializeObject( node, element, options );
 					}
-				}
-				else if ( fileVersion < 2 && typeName == "Branch" )
-				{
-					node = UpgradeBranchNode_v2Upgrade( element, options );
-				}
-				else if ( IsSubgraph && fileVersion < 2 && typeName == "SubgraphInput" )
-				{
-					node = UpgradeSubgraphinput_v2Upgrade( element, options );
 				}
 				else
 				{

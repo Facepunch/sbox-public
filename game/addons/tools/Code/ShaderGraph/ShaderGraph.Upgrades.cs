@@ -115,7 +115,6 @@ partial class ShaderGraph
 		};
 	}
 
-	// TODO : Should i just remove the old upgrader stuff??
 	/// <summary>
 	/// Create a new SubgraphInput node from a legacy parameter node
 	/// </summary>
@@ -296,6 +295,7 @@ partial class ShaderGraph
 
 	private SubgraphInput UpgradeSubgraphinput_v2Upgrade( JsonElement element, JsonSerializerOptions options )
 	{
+		element.TryGetProperty( "Position", out var nodePositionElement );
 		element.TryGetProperty( "Identifier", out var identifierElement );
 		element.TryGetProperty( "InputName", out var inputNameElement );
 		element.TryGetProperty( "InputDescription", out var inputDescriptionElement );
@@ -303,6 +303,7 @@ partial class ShaderGraph
 		element.TryGetProperty( "IsRequired", out var isRequiredElement );
 		element.TryGetProperty( "PortOrder", out var portOrderElement );
 
+		var nodePosition = JsonSerializer.Deserialize<Vector2>( nodePositionElement.GetRawText(), options );
 		var inputName = inputNameElement.GetString();
 		var inputDescription = inputDescriptionElement.GetString();
 		var inputType = JsonSerializer.Deserialize<InputType>( inputTypeElement.GetRawText(), options );
@@ -317,34 +318,31 @@ partial class ShaderGraph
 				if ( element.TryGetProperty( "DefaultFloat", out var defaultFloatElement ) )
 				{
 					defaultValue = defaultFloatElement.GetSingle();
-					parameter = new FloatSubgraphInputBlackboardParameter( inputName, (float)defaultValue );
 				}
 				break;
 			case InputType.Float2:
 				if ( element.TryGetProperty( "DefaultFloat2", out var defaultFloat2Element ) )
 				{
 					defaultValue = JsonSerializer.Deserialize<Vector2>( defaultFloat2Element.GetRawText(), options );
-					parameter = new Float2SubgraphInputBlackboardParameter( inputName, (Vector2)defaultValue );
 				}
 				break;
 			case InputType.Float3:
 				if ( element.TryGetProperty( "DefaultFloat3", out var defaultFloat3Element ) )
 				{
 					defaultValue = JsonSerializer.Deserialize<Vector3>( defaultFloat3Element.GetRawText(), options );
-					parameter = new Float3SubgraphInputBlackboardParameter( inputName, (Vector3)defaultValue );
 				}
 				break;
 			case InputType.Color:
 				if ( element.TryGetProperty( "DefaultColor", out var defaultColorElement ) )
 				{
 					defaultValue = JsonSerializer.Deserialize<Color>( defaultColorElement.GetRawText(), options );
-					parameter = new ColorSubgraphInputBlackboardParameter( inputName, (Color)defaultValue );
 				}
 				break;
 			default:
-				throw new NotImplementedException();
+				throw new NotImplementedException( $"Unknown inputType {inputType}" );
 		}
 
+		parameter = CreateBlackboardParameter_v2Upgrade( "SubgraphInput", element, options );
 
 		if ( defaultValue == null )
 		{
@@ -353,15 +351,21 @@ partial class ShaderGraph
 
 		if ( parameter is ISubgraphInputBlackboardParameter subgraphInputParameter )
 		{
+			subgraphInputParameter.Name = inputName;
 			subgraphInputParameter.InputDescription = inputDescription;
 			subgraphInputParameter.IsRequired = isRequired;
 			subgraphInputParameter.PortOrder = portOrder;
+			subgraphInputParameter.SetValue( defaultValue );
 
-			AddParameter( subgraphInputParameter );
+			if ( !ContainsParameterWithName( parameter.Name ) )
+			{
+				AddParameter( parameter );
+			}
 		}
 
 		return new SubgraphInput()
 		{
+			Position = nodePosition,
 			Identifier = identifierElement.GetString(),
 			BlackboardParameterIdentifier = parameter.Identifier,
 			DefaultValue = defaultValue
@@ -380,17 +384,53 @@ partial class ShaderGraph
 		};
 	}
 
-	private Guid AddBlackboardParameter_v2Upgrade( string typeName, JsonElement element, JsonSerializerOptions options )
+	private BlackboardParameter CreateBlackboardParameter_v2Upgrade( string nodeTypeName, JsonElement element, JsonSerializerOptions options )
 	{
+		BlackboardParameter blackboardParameter = null;
+
 		if ( IsSubgraph )
 		{
-			// TODO
-			throw new NotImplementedException();
+			if ( nodeTypeName == "TextureSampler" || nodeTypeName == "NormapMapTriplanar" || nodeTypeName == "NormapMapTriplanar" )
+			{
+				element.TryGetProperty( "UI", out var textureInputElement );
+				textureInputElement.TryGetProperty( "Name", out var textureInputNameElement );
+				element.TryGetProperty( "Image", out var imageElement );
+
+				if ( ContainsParameterWithName( textureInputNameElement.GetString() ) )
+				{
+					return FindParameter<Texture2DSubgraphInputBlackboardParameter>( textureInputNameElement.GetString() );
+				}
+
+				blackboardParameter = new Texture2DSubgraphInputBlackboardParameter()
+				{
+					Name = textureInputNameElement.GetString(),
+					Value = textureInputElement.Deserialize<TextureInput>( options ) with { DefaultTexture = imageElement.GetString() },
+				};
+
+			}
+			else if ( nodeTypeName == nameof( SubgraphInput ) )
+			{
+				element.TryGetProperty( "InputType", out var inputTypeElement );
+				var inputType = JsonSerializer.Deserialize<InputType>( inputTypeElement.GetRawText(), options );
+
+				blackboardParameter = inputType switch
+				{
+					InputType.Float => new FloatSubgraphInputBlackboardParameter( "", 0.0f ),
+					InputType.Float2 => new Float2SubgraphInputBlackboardParameter( "", Vector2.Zero ),
+					InputType.Float3 => new Float3SubgraphInputBlackboardParameter( "", Vector3.Zero ),
+					InputType.Color => new ColorSubgraphInputBlackboardParameter( "", Color.Black ),
+					_ => throw new NotImplementedException( $"Unknown inputType : {inputType}" ),
+				};
+			}
+			else
+			{
+				throw new NotImplementedException( $"Unknown node type : {nodeTypeName}" );
+			}
+
+			return blackboardParameter;
 		}
 		else
 		{
-			BlackboardParameter blackboardParameter = null;
-
 			// Parameter Node Data 
 			element.TryGetProperty( "Name", out var nameElement );
 			element.TryGetProperty( "Value", out var valueElement );
@@ -404,7 +444,7 @@ partial class ShaderGraph
 			textureInputElement.TryGetProperty( "Name", out var textureInputNameElement );
 			element.TryGetProperty( "Image", out var imageElement );
 
-			switch ( typeName )
+			switch ( nodeTypeName )
 			{
 				case nameof( FloatParameter ):
 					blackboardParameter = new FloatBlackboardParameter()
@@ -448,35 +488,10 @@ partial class ShaderGraph
 						IsAttribute = isAttributeElement.GetBoolean(),
 					};
 					break;
-				case "TextureSampler":
+				case string typename when (typename == "TextureSampler" || typename == "TextureTriplanar" || typename == "NormapMapTriplanar"):
 					if ( ContainsParameterWithName( textureInputNameElement.GetString() ) )
 					{
-						return FindParameter<Texture2DBlackboardParameter>( textureInputNameElement.GetString() ).Identifier;
-					}
-
-					blackboardParameter = new Texture2DBlackboardParameter()
-					{
-						Name = textureInputNameElement.GetString(),
-						Value = uiElement.Deserialize<TextureInput>( options ) with { DefaultTexture = imageElement.GetString() },
-					};
-					break;
-				case "TextureTriplanar":
-					if ( ContainsParameterWithName( textureInputNameElement.GetString() ) )
-					{
-						return FindParameter<Texture2DBlackboardParameter>( textureInputNameElement.GetString() ).Identifier;
-					}
-
-					blackboardParameter = new Texture2DBlackboardParameter()
-					{
-						Name = textureInputNameElement.GetString(),
-						Value = uiElement.Deserialize<TextureInput>( options ) with { DefaultTexture = imageElement.GetString() },
-					};
-					break;
-
-				case "NormapMapTriplanar":
-					if ( ContainsParameterWithName( textureInputNameElement.GetString() ) )
-					{
-						return FindParameter<Texture2DBlackboardParameter>( textureInputNameElement.GetString() ).Identifier;
+						return FindParameter<Texture2DBlackboardParameter>( textureInputNameElement.GetString() );
 					}
 
 					blackboardParameter = new Texture2DBlackboardParameter()
@@ -486,15 +501,10 @@ partial class ShaderGraph
 					};
 					break;
 				default:
-					throw new NotImplementedException();
+					throw new NotImplementedException( $"Unknown node type : {nodeTypeName}" );
 			}
 
-			if ( !ContainsParameterWithName( blackboardParameter.Name ) )
-			{
-				AddParameter( blackboardParameter );
-			}
-
-			return blackboardParameter.Identifier;
+			return blackboardParameter;
 		}
 	}
 

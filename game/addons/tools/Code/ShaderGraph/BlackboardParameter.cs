@@ -11,7 +11,7 @@ public interface IBlackboardParameter
 {
 	Guid Identifier { get; }
 
-	string Name { get; }
+	string Name { get; set; }
 
 	object GetValue();
 
