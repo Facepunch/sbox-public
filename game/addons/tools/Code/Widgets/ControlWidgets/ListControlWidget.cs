@@ -276,6 +276,7 @@ public class ListControlWidget : ControlWidget
 		}
 
 		preventRebuild = false;
+		buildHash = null;
 		Rebuild();
 	}
 

@@ -22,7 +22,7 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 	[Obsolete] public Texture NormalTexture { get; set; }
 	[Obsolete] public Texture RMOTexture { get; set; }
 
-	float _startTime;
+	double _startTime;
 	DecalSceneObject _sceneObject;
 	private uint _sequenceId = 0;
 	int _seed = 0;
@@ -149,7 +149,7 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 		_sceneObject = new DecalSceneObject( Scene.SceneWorld );
 
 		_seed = Random.Shared.Int( 10000 );
-		_startTime = Time.Now;
+		_startTime = Time.NowDouble;
 		_def = Random.Shared.FromList( Decals );
 		_isActive = true;
 
@@ -237,7 +237,7 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 			return;
 		}
 
-		float d = (Time.Now - _startTime) / lt;
+		float d = (float)(Time.NowDouble - _startTime) / lt;
 
 		if ( d >= 1 && !Looped && !Scene.IsEditor )
 		{

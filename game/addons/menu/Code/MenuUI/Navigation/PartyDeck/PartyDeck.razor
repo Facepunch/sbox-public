@@ -44,7 +44,7 @@
     void UpdateJoinStatus()
     {
         var party = PartyRoom.Current;
-        var shouldShow = party?.JoinState == PartyRoom.OwnerJoinState.Loading;
+        var shouldShow = party?.JoinState == PartyRoom.OwnerJoinState.Loading && party?.Owner is { IsMe: false };
 
         if (!shouldShow)
         {

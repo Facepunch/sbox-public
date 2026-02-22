@@ -112,7 +112,7 @@ public abstract partial class GameObjectSystem : IDeltaSnapshot
 			return p.Value;
 
 		if ( InterpolatedVars.TryGetValue( p.PropertyName, out var i ) )
-			return (T)i.Query( Time.Now );
+			return (T)i.Query( Time.NowDouble );
 
 		return p.Value;
 	}

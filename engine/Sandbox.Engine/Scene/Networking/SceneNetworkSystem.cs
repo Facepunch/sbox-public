@@ -380,7 +380,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		ThreadSafe.AssertIsMainThread();
 		using var _ = PerformanceStats.Timings.Network.Scope();
 
-		msg.Time = Time.Now;
+		msg.Time = Time.NowDouble;
 
 		var analytic = new Api.Events.EventRecord( "SceneNetworkSystem.GetSnapshot" );
 
@@ -544,6 +544,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		Game.ActiveScene.StartLoading();
 
 		Time.Now = (float)msg.Time;
+		Time.NowDouble = msg.Time;
 		Game.ActiveScene.UpdateTimeFromHost( msg.Time );
 
 		{
@@ -1227,7 +1228,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 	/// <summary>
 	/// A heartbeat has been received from the host. We should make sure our times are in sync.
 	/// </summary>
-	internal override void OnHeartbeat( float serverGameTime )
+	internal override void OnHeartbeat( double serverGameTime )
 	{
 		Game.ActiveScene?.UpdateTimeFromHost( serverGameTime );
 	}

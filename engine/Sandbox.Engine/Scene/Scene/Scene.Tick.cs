@@ -8,7 +8,7 @@ public partial class Scene : GameObject
 	FixedUpdate fixedUpdate = new FixedUpdate();
 	public bool IsFixedUpdate { get; private set; }
 
-	public float FixedDelta => fixedUpdate.Delta;
+	public float FixedDelta => (float)fixedUpdate.Delta;
 
 	[Obsolete( "Moved to Sandbox.ProjectSettings.PhysicsSettings" )] public float FixedUpdateFrequency { get; set; } = 50.0f;
 	[Obsolete( "Moved to Sandbox.ProjectSettings.PhysicsSettings" )] public int MaxFixedUpdates { get; set; } = 5;
@@ -123,7 +123,7 @@ public partial class Scene : GameObject
 			fixedUpdate.Frequency = ProjectSettings.Physics.FixedUpdateFrequency;
 
 			IsFixedUpdate = true;
-			fixedUpdate.Run( InternalFixedUpdate, Time.Now, ProjectSettings.Physics.MaxFixedUpdates );
+			fixedUpdate.Run( InternalFixedUpdate, Time.NowDouble, ProjectSettings.Physics.MaxFixedUpdates );
 			IsFixedUpdate = false;
 		}
 	}

@@ -85,9 +85,14 @@ public static partial class Input
 		{
 			return LoadGlyphTexture( "unknown", size, outline );
 		}
-		var key = GetButtonOrigin( action ).ToLowerInvariant();
 
-		key = GetButtonName( key );
+		var key = GetButtonOrigin( action );
+		if ( key is null )
+		{
+			return LoadGlyphTexture( "unknown", size, outline );
+		}
+
+		key = GetButtonName( key.ToLowerInvariant() );
 
 		if ( string.IsNullOrEmpty( key ) ) key = "UNBOUND";
 

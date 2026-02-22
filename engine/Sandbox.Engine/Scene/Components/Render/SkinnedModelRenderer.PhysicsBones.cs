@@ -87,10 +87,10 @@ partial class SkinnedModelRenderer
 					if ( body.ParentBody is null ) continue;
 
 					// Get where the physics body is.
-					var bodyWorld = body.PhysicsBody.GetLerpedTransform( Time.Now );
+					var bodyWorld = body.PhysicsBody.GetLerpedTransform( Time.NowDouble );
 
 					// Get where the kinematic root physics body is.
-					var parentBodyWorld = body.ParentBody.GetLerpedTransform( Time.Now );
+					var parentBodyWorld = body.ParentBody.GetLerpedTransform( Time.NowDouble );
 
 					// Transform physics into localspace relative to kinematic root.
 					var bodyLocal = parentBodyWorld.ToLocal( bodyWorld );
@@ -132,7 +132,7 @@ partial class SkinnedModelRenderer
 			}
 
 			// Run at max substeps until there's a reason not to.
-			_physicsWorld.Step( Time.Now, Time.Delta, 64 );
+			_physicsWorld.Step( Time.NowDouble, Time.Delta, 64 );
 
 			for ( var i = 0; i < _bodies.Count; i++ )
 			{

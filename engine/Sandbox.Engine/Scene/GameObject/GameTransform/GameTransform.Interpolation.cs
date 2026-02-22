@@ -77,13 +77,13 @@ public partial class GameTransform
 
 	void UpdateInterpolatedLocal( in Transform value )
 	{
-		var targetTime = Time.Now + Time.Delta;
+		var targetTime = Time.NowDouble + Time.Delta;
 		var shouldInterpolate = false;
 
 		if ( _targetLocal.Position != value.Position )
 		{
 			if ( _positionBuffer.IsEmpty )
-				_positionBuffer.Add( new( _targetLocal.Position ), Time.Now );
+				_positionBuffer.Add( new( _targetLocal.Position ), Time.NowDouble );
 
 			_positionBuffer.Add( new( value.Position ), targetTime );
 			_targetLocal.Position = value.Position;
@@ -93,7 +93,7 @@ public partial class GameTransform
 		if ( _targetLocal.Rotation != value.Rotation )
 		{
 			if ( _rotationBuffer.IsEmpty )
-				_rotationBuffer.Add( new( _targetLocal.Rotation ), Time.Now );
+				_rotationBuffer.Add( new( _targetLocal.Rotation ), Time.NowDouble );
 
 			_rotationBuffer.Add( new( value.Rotation ), targetTime );
 			_targetLocal.Rotation = value.Rotation;
@@ -103,7 +103,7 @@ public partial class GameTransform
 		if ( _targetLocal.Scale != value.Scale )
 		{
 			if ( _scaleBuffer.IsEmpty )
-				_scaleBuffer.Add( new( _targetLocal.Scale ), Time.Now );
+				_scaleBuffer.Add( new( _targetLocal.Scale ), Time.NowDouble );
 
 			_scaleBuffer.Add( new( value.Scale ), targetTime );
 			_targetLocal.Scale = value.Scale;
@@ -232,18 +232,18 @@ public partial class GameTransform
 		var tx = _interpolatedLocal;
 
 		// Use 0 window since entries are timestamped into the future
-		tx.Position = !_positionBuffer.IsEmpty ? _positionBuffer.Query( Time.Now ).Value : _targetLocal.Position;
-		tx.Rotation = !_rotationBuffer.IsEmpty ? _rotationBuffer.Query( Time.Now ).Rotation : _targetLocal.Rotation;
-		tx.Scale = !_scaleBuffer.IsEmpty ? _scaleBuffer.Query( Time.Now ).Value : _targetLocal.Scale;
+		tx.Position = !_positionBuffer.IsEmpty ? _positionBuffer.Query( Time.NowDouble ).Value : _targetLocal.Position;
+		tx.Rotation = !_rotationBuffer.IsEmpty ? _rotationBuffer.Query( Time.NowDouble ).Rotation : _targetLocal.Rotation;
+		tx.Scale = !_scaleBuffer.IsEmpty ? _scaleBuffer.Query( Time.NowDouble ).Value : _targetLocal.Scale;
 
 		float updateFreq = ProjectSettings.Physics.FixedUpdateFrequency.Clamp( 1, 1000 );
 		var fixedDelta = 1f / updateFreq;
 
 		// Keep more history to avoid culling data we might still need for interpolation
 		var cullOlderThanThreshold = fixedDelta * 2f;
-		_positionBuffer.CullOlderThan( Time.Now - cullOlderThanThreshold );
-		_rotationBuffer.CullOlderThan( Time.Now - cullOlderThanThreshold );
-		_scaleBuffer.CullOlderThan( Time.Now - cullOlderThanThreshold );
+		_positionBuffer.CullOlderThan( Time.NowDouble - cullOlderThanThreshold );
+		_rotationBuffer.CullOlderThan( Time.NowDouble - cullOlderThanThreshold );
+		_scaleBuffer.CullOlderThan( Time.NowDouble - cullOlderThanThreshold );
 
 		_interpolatedLocal = tx;
 		TransformChanged( true );
@@ -264,13 +264,13 @@ public partial class GameTransform
 		if ( !_networkTransformBuffer.IsEmpty )
 		{
 			var interpolationTime = Networking.InterpolationTime;
-			var state = _networkTransformBuffer.Query( Time.Now - interpolationTime );
+			var state = _networkTransformBuffer.Query( Time.NowDouble - interpolationTime );
 
 			_interpolatedLocal = state.Transform;
 			_targetLocal = _interpolatedLocal;
 			TransformChanged();
 
-			_networkTransformBuffer.CullOlderThan( Time.Now - (interpolationTime * 3f) );
+			_networkTransformBuffer.CullOlderThan( Time.NowDouble - (interpolationTime * 3f) );
 		}
 
 		if ( _networkTransformBuffer.IsEmpty )

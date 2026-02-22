@@ -248,7 +248,7 @@ public abstract partial class GameNetworkSystem : IDisposable
 	/// <summary>
 	/// A heartbeat has been received from the host. We should make sure our times are in sync.
 	/// </summary>
-	internal virtual void OnHeartbeat( float serverGameTime )
+	internal virtual void OnHeartbeat( double serverGameTime )
 	{
 
 	}
