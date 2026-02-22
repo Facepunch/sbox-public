@@ -13,16 +13,27 @@ partial class VertexPaintTool
 	{
 		readonly Widget _blendRow;
 		readonly ControlSheetRow _paintRow;
+		readonly Label _selectionCountLabel;
+		readonly VertexPaintTool _tool;
 
 		public VertexPaintToolWidget( VertexPaintTool tool ) : base()
 		{
+			_tool = tool;
+
 			AddTitle( "Vertex Paint Tool", "brush" );
 
 			var so = tool.GetSerialized();
 
 			{
 				var group = AddGroup( "Paint On" );
-				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.PaintOnSelected ) ) ) );
+				var control = ControlWidget.Create( so.GetProperty( nameof( tool.LimitMode ) ) );
+				control.FixedHeight = Theme.ControlHeight;
+				group.Add( control );
+
+				_selectionCountLabel = new Label( this );
+				_selectionCountLabel.SetStyles( "color: #888; font-size: 11px; margin-left: 12px; margin-top: 2px; margin-bottom: 2px;" );
+				group.Add( _selectionCountLabel );
+
 				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.LimitToActiveMaterial ) ) ) );
 				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.PaintBackfacing ) ) ) );
 			}
@@ -101,6 +112,7 @@ partial class VertexPaintTool
 
 				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.Radius ) ) ) );
 				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.Strength ) ) ) );
+				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.Hardness ) ) ) );
 				group.Add( _blendRow );
 				group.Add( _paintRow );
 
@@ -109,6 +121,7 @@ partial class VertexPaintTool
 			{
 				var group = AddGroup( "Visualization" );
 				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.ShowVerts ) ) ) );
+				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.ShowSelection ) ) ) );
 			}
 
 			Layout.AddStretchCell();
@@ -120,6 +133,32 @@ partial class VertexPaintTool
 		{
 			_blendRow.Visible = mode == PaintMode.Blend;
 			_paintRow.Visible = mode == PaintMode.Color;
+		}
+
+		[EditorEvent.Frame]
+		void UpdateSelectionCount()
+		{
+			if ( _tool.LimitMode == PaintLimitMode.Everything )
+			{
+				_selectionCountLabel.Visible = false;
+				return;
+			}
+
+			var (count, name) = _tool.LimitMode switch
+			{
+				PaintLimitMode.Objects => (_tool._selectedMeshes.Count,
+					_tool._selectedMeshes.Count == 1 ? "object" : "objects"),
+				PaintLimitMode.Faces => (SelectionTool.GetAllSelected<MeshFace>().Count(),
+					SelectionTool.GetAllSelected<MeshFace>().Count() == 1 ? "face" : "faces"),
+				PaintLimitMode.Edges => (SelectionTool.GetAllSelected<MeshEdge>().Count(),
+					SelectionTool.GetAllSelected<MeshEdge>().Count() == 1 ? "edge" : "edges"),
+				PaintLimitMode.Vertices => (SelectionTool.GetAllSelected<MeshVertex>().Count(),
+					SelectionTool.GetAllSelected<MeshVertex>().Count() == 1 ? "vertex" : "vertices"),
+				_ => (0, "selected")
+			};
+
+			_selectionCountLabel.Visible = true;
+			_selectionCountLabel.Text = $"{count} {name} selected";
 		}
 
 		class BlendWidget : Widget

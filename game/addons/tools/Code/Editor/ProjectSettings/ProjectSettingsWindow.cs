@@ -184,20 +184,24 @@ internal sealed class ProjectSettingsWindow : Window
 			AddCategoryToList( typeof( ReferencesCategory ), "Other" );
 			AddCategoryToList( typeof( CursorCategory ), "Other" );
 		}
-
-		if ( project.Config.Type == "map" )
+		else if ( project.Config.Type == "map" )
 		{
 			AddCategoryToList( typeof( ReferencesCategory ), "Project" );
 		}
-
-		if ( project.Config.Type == "library" )
+		else if ( project.Config.Type == "library" )
 		{
 			AddCategoryToList( typeof( CompilerCategory ), "Compiler" );
 		}
-
-		if ( project.Config.Type == "tool" )
+		else if ( project.Config.Type == "tool" )
 		{
 			AddCategoryToList( typeof( CompilerCategory ), "Compiler" );
+		}
+		else
+		{
+			//
+			// Always have a project category for other project types
+			//
+			AddCategoryToList( typeof( ProjectPage ), "Project" );
 		}
 
 		// Build the tree based on category counts
@@ -361,12 +365,16 @@ internal sealed class ProjectSettingsWindow : Window
 		Scroller.Canvas.Layout.AddStretchCell();
 	}
 
+	private static ProjectSettingsWindow _instance;
+
 	public static async void OpenForProject( Project project )
 	{
-		// Try to load the project first
+		if ( _instance.IsValid() )
+			_instance.Close();
+
 		await Package.FetchAsync( project.Config.FullIdent, false );
 
-		var window = new ProjectSettingsWindow( project );
+		_instance = new ProjectSettingsWindow( project );
 	}
 
 	protected override bool OnClose()

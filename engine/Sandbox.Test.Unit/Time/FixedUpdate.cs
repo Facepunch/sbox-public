@@ -11,7 +11,7 @@ public class FixedUpdateTests
 	[DataRow( 5, 5, 59 )]     // Standard case
 	[DataRow( 30, 5, 359 )]   // Higher frequency
 	[DataRow( 60, 5, 719 )]   // Same as frame rate
-	[DataRow( 120, 5, 1439 )] // Higher than frame rate
+	[DataRow( 120, 5, 1438 )] // Higher than frame rate
 	[DataRow( 1, 1, 11 )]     // maxSteps = 1, low frequency
 	[DataRow( 10, 1, 119 )]   // maxSteps = 1, medium frequency
 	[DataRow( 60, 2, 719 )]   // maxSteps = 2, high frequency (maxSteps doesn't limit here)
@@ -24,21 +24,21 @@ public class FixedUpdateTests
 		Action action = () =>
 		{
 			callTimes++;
-			Assert.AreEqual( Time.Delta, fixedDelta, "Fixed delta doesn't match!" );
+			Assert.AreEqual( Time.Delta, (float)fixedDelta, "Fixed delta doesn't match!" );
 
 			// Get the remainder as a number around 0
-			float remainder = (Time.Now % fixedDelta);
+			var remainder = (Time.NowDouble % fixedDelta);
 			if ( remainder > fixedDelta / 2 ) remainder = fixedDelta - remainder;
-			Assert.AreEqual( 0, remainder, 0.00001f, "Time.Now doesn't align with step!" );
+			Assert.AreEqual( 0d, remainder, 0.00001d, "Time.NowDouble doesn't align with step!" );
 		};
 
-		float time = 0;
-		float fps = 60;
-		float frameDelta = 1.0f / fps;
+		double time = 0.0;
+		double fps = 60.0;
+		double frameDelta = 1.0 / fps;
 		int loops = 0;
 
 		// Simulate 12 seconds (shorter time for faster test execution)
-		while ( time < 12.0f )
+		while ( time < 12d )
 		{
 			loops++;
 			fu.Run( action, time, maxSteps );
@@ -66,17 +66,17 @@ public class FixedUpdateTests
 
 		// Test various frequencies
 		fu.Frequency = 10;
-		Assert.AreEqual( 0.1f, fu.Delta, 0.00001f );
+		Assert.AreEqual( 0.1d, fu.Delta, 0.00001d );
 
 		fu.Frequency = 60;
-		Assert.AreEqual( 1.0f / 60, fu.Delta, 0.00001f );
+		Assert.AreEqual( 1d / 60, fu.Delta, 0.00001d );
 
 		fu.Frequency = 1;
-		Assert.AreEqual( 1.0f, fu.Delta, 0.00001f );
+		Assert.AreEqual( 1d, fu.Delta, 0.00001d );
 
 		// Test non-integer frequency
 		fu.Frequency = 16.7f; // Approx 60fps / 1000 * 16.7ms
-		Assert.AreEqual( 1.0f / 16.7f, fu.Delta, 0.00001f );
+		Assert.AreEqual( 1d / 16.7f, fu.Delta, 0.00001d );
 	}
 
 	[TestMethod]
@@ -169,9 +169,54 @@ public class FixedUpdateTests
 		Action action = () => callCount++;
 
 		// Jump ahead by a large amount (20 seconds = 200 updates at 10Hz)
-		fu.Run( action, 20.0f, 10 );
+		fu.Run( action, 20.0, 10 );
 
 		// Should be limited by maxSteps
 		Assert.AreEqual( 10, callCount );
+	}
+
+	[TestMethod]
+	public void TestHighElapsedTimePrecision()
+	{
+		var fu = new FixedUpdate();
+		fu.Frequency = 50; // 50Hz, typical fixed update rate
+		var fixedDelta = fu.Delta;
+
+		// 4 days in seconds - step count exceeds float's 2^24 integer precision limit
+		double baseTime = 345600.0;
+		double lastTime = 0.0;
+		int callCount = 0;
+
+		Action action = () =>
+		{
+			callCount++;
+			var now = Time.NowDouble;
+
+			// Every timestamp must be unique and properly spaced
+			if ( lastTime > 0.0 )
+			{
+				var gap = now - lastTime;
+				Assert.AreEqual( fixedDelta, gap, 0.0000001, "Consecutive fixed update timestamps must be exactly one delta apart!" );
+			}
+
+			lastTime = now;
+		};
+
+		// Warm up to the base time
+		fu.Run( action, baseTime, 1 );
+		callCount = 0;
+		lastTime = 0.0;
+
+		// Simulate a few frames at high elapsed time
+		double time = baseTime;
+		double frameDelta = 1d / 60;
+
+		for ( int i = 0; i < 120; i++ )
+		{
+			time += frameDelta;
+			fu.Run( action, time, 5 );
+		}
+
+		Assert.IsTrue( callCount > 0, "Should have had fixed updates" );
 	}
 }

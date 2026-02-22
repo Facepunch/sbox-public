@@ -94,6 +94,13 @@ public abstract class SelectionTool : EditorTool
 	[SkipHotload]
 	protected static readonly Dictionary<Type, SelectionSystem> PreviousSelections = [];
 
+	/// <summary>
+	/// Key used to store/restore previous selections. Tools sharing the same
+	/// element type (e.g. FaceTool and TextureTool both use MeshFace) will
+	/// share the same entry, keeping them in sync.
+	/// </summary>
+	protected virtual Type PreviousSelectionKey => GetType();
+
 	public static IEnumerable<T> GetAllSelected<T>()
 	{
 		return PreviousSelections.Values
@@ -102,9 +109,18 @@ public abstract class SelectionTool : EditorTool
 			.Distinct();
 	}
 
+	/// <summary>
+	/// Inject an element into the previous selection entry matching its type.
+	/// </summary>
+	public static void AddToPreviousSelections( object element )
+	{
+		var stored = PreviousSelections.GetOrCreate( element.GetType() );
+		stored.Add( element );
+	}
+
 	protected void SaveCurrentSelection<T>() where T : IValid
 	{
-		var stored = PreviousSelections.GetOrCreate( GetType() );
+		var stored = PreviousSelections.GetOrCreate( PreviousSelectionKey );
 		stored.Clear();
 
 		foreach ( var element in Selection.OfType<T>().Where( x => x.IsValid() ) )
@@ -115,7 +131,7 @@ public abstract class SelectionTool : EditorTool
 
 	protected void RestorePreviousSelection<T>() where T : IValid
 	{
-		if ( !PreviousSelections.TryGetValue( GetType(), out var previousSelection ) )
+		if ( !PreviousSelections.TryGetValue( PreviousSelectionKey, out var previousSelection ) )
 			return;
 
 		foreach ( var element in previousSelection.OfType<T>().Where( x => x.IsValid() ) )
@@ -144,6 +160,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 {
 	protected MeshTool Tool { get; private init; } = tool;
 
+	protected override Type PreviousSelectionKey => typeof( T );
 	readonly HashSet<MeshVertex> _vertexSelection = [];
 	readonly Dictionary<MeshVertex, Vector3> _transformVertices = [];
 	List<MeshFace> _transformFaces;

@@ -181,7 +181,7 @@ public static class SceneUtility
 	/// </summary>
 	static void RenderToBitmap( Bitmap bitmap, Func<GameObject> func )
 	{
-		var scene = Scene.CreateEditorScene();
+		var scene = new Scene();
 		scene.Name = "RenderGameObjectToBitmap";
 		try
 		{
@@ -242,10 +242,9 @@ public static class SceneUtility
 			}
 
 			// tick tick
-			float t = 0;
 			for ( int i = 0; i < 8; i++ )
 			{
-				scene.EditorTick( t += 0.1f, 0.1f );
+				scene.GameTick( 0.1f );
 			}
 
 			// place the camera
@@ -261,7 +260,7 @@ public static class SceneUtility
 
 			// render twice, for any temporal shit to kick in
 			camera.RenderToBitmap( bitmap );
-			scene.EditorTick( t += 0.1f, 0.1f );
+			scene.GameTick( 0.1f );
 			camera.RenderToBitmap( bitmap );
 
 			scene.Destroy();

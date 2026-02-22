@@ -111,7 +111,7 @@ public sealed partial class PhysicsWorld : IHandle
 	[UnmanagedFunctionPointer( CallingConvention.StdCall )]
 	unsafe delegate void ProcessIntersectionsDelegate_t( VPhysIntersectionNotification_t* ptr );
 
-	internal float CurrentTime;
+	internal double CurrentTime;
 	internal float CurrentDelta;
 
 	/// <summary>
@@ -126,7 +126,7 @@ public sealed partial class PhysicsWorld : IHandle
 	/// <summary>
 	/// Step simulation of this physics world. You can only do this on physics worlds that you manually create.
 	/// </summary>
-	public void Step( float worldTime, float delta, int subSteps )
+	public void Step( double worldTime, float delta, int subSteps )
 	{
 		Assert.True( IsTransient, "You can only step simulation of physics worlds that you create" );
 		if ( !world.IsValid ) return;
@@ -205,6 +205,7 @@ public sealed partial class PhysicsWorld : IHandle
 	internal Action<PhysicsIntersection> OnIntersectionHit { get; set; }
 	internal Action<PhysicsIntersectionEnd> OnIntersectionEnd { get; set; }
 	internal Action<PhysicsIntersection> OnIntersectionUpdate { get; set; }
+	internal Action<PhysicsBody> OnBodyOutOfBounds { get; set; }
 
 	unsafe void OnIntersection( VPhysIntersectionNotification_t* ptr )
 	{

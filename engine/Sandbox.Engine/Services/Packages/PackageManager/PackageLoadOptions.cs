@@ -50,6 +50,13 @@ internal struct PackageLoadOptions
 	public bool SkipAssetDownload { get; set; }
 
 	/// <summary>
+	/// If false, the resource system will not reload symlinked resident resources after mounting.
+	/// Set to false when batch-installing packages and call
+	/// <c>NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources()</c> once manually afterwards.
+	/// </summary>
+	public bool ReloadResources { get; set; } = true;
+
+	/// <summary>
 	/// Loading progress callbacks
 	/// </summary>
 	internal ILoadingInterface Loading { get; set; }

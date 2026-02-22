@@ -27,7 +27,8 @@ enum LightFlags
     ScreenspaceShadows = 0x20,    // screenspace shadows enabled
     LightCookieEnabled = 0x40,    // light cookie enabled
     FrustumFeathering = 0x80,     // frustum feathering enabled
-    IndexedLight = 0x100          // indexed baked lighting
+    IndexedLight = 0x100,         // indexed baked lighting
+    NoFogShadows = 0x200          // skip shadow sampling in volumetric fog
 };
 
 enum LightShape
@@ -81,7 +82,7 @@ class BinnedLight
     // Shadow
     float4 ShadowBounds[ MAX_SHADOW_FRUSTA_PER_LIGHT ];
     float4 LightCookieSheet;
-	float4 Unused1;
+	float4 ExtraData;
 	float4 Unused2;
 	float4 Unused3;
 	float4 Unused4;
@@ -120,6 +121,10 @@ class BinnedLight
     bool HasLightCookie()               { return ( Params.z & LightFlags::LightCookieEnabled ) != 0; }
     bool HasFrustumFeathering()         { return ( Params.z & LightFlags::FrustumFeathering ) != 0; }
     bool IsIndexedLight()               { return ( Params.z & LightFlags::IndexedLight ) != 0; }
+
+	float GetFogScale()    { return ExtraData.x; }
+	bool HasFogShadows()   { return ( Params.z & LightFlags::NoFogShadows ) == 0; }
+    
     Texture2D GetLightCookieTexture()   { return g_bindless_Texture2D[ Params.y ]; }
 
     float4 SampleLightCookie( float2 uv, float level = 0.0f )
