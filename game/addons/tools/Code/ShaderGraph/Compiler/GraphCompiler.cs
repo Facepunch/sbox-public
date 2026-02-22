@@ -212,7 +212,7 @@ public sealed partial class GraphCompiler
 
 			globalName = $"g_t{name}";
 
-			if ( CurrentResultInput == "Albedo" )
+			if ( CurrentResultInput == "Albedo" && !input.IsAttribute )
 			{
 				result.RepresentativeTexture = globalName;
 			}
@@ -228,7 +228,8 @@ public sealed partial class GraphCompiler
 			result.SamplerStates.Add( sampler );
 
 		globalName = $"g_t{name}";
-		if ( CurrentResultInput == "Albedo" )
+
+		if ( CurrentResultInput == "Albedo" && !input.IsAttribute )
 		{
 			result.RepresentativeTexture = globalName;
 		}
@@ -255,7 +256,8 @@ public sealed partial class GraphCompiler
 		SetAttribute( name, texture );
 
 		var globalName = $"g_t{name}";
-		if ( CurrentResultInput == "Albedo" )
+
+		if ( CurrentResultInput == "Albedo" && !input.IsAttribute )
 		{
 			result.RepresentativeTexture = globalName;
 		}
@@ -280,7 +282,8 @@ public sealed partial class GraphCompiler
 		}
 
 		var globalName = $"g_t{name}";
-		if ( CurrentResultInput == "Albedo" )
+
+		if ( CurrentResultInput == "Albedo" && !input.IsAttribute )
 		{
 			result.RepresentativeTexture = globalName;
 		}
