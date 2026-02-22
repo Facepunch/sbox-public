@@ -189,10 +189,20 @@ public sealed partial class GraphCompiler
 		result.Globals.Add( name, global );
 	}
 
+	public int ResultSampler( Sampler sampler )
+	{
+		var result = ShaderResult;
+
+		if ( !result.SamplerStates.Contains( sampler ) )
+			result.SamplerStates.Add( sampler );
+
+		return result.SamplerStates.IndexOf( sampler );
+	}
+
 	/// <summary>
 	/// Register a texture and return the name of it
 	/// </summary>
-	public (string, int) ResultTexture( Sampler sampler, TextureInput input, Texture texture, bool textureInputConnected = false )
+	public string ResultTexture( TextureInput input, Texture texture, bool textureInputConnected = false, bool storePreviewImage = false )
 	{
 		var name = CleanName( input.Name );
 		var result = ShaderResult;
@@ -205,10 +215,16 @@ public sealed partial class GraphCompiler
 			if ( !result.TextureInputs.ContainsKey( name ) )
 				result.TextureInputs.Add( name, input );
 
-			if ( !result.SamplerStates.Contains( sampler ) )
-				result.SamplerStates.Add( sampler );
+			if ( storePreviewImage )
+			{
+				if ( !PreviewImages.ContainsKey( $"g_t{name}" ) )
+				{
+					PreviewImages.Add( $"g_t{name}", input.DefaultTexture );
+				}
+			}
 
-			SetAttribute( name, texture );
+			if ( texture != null )
+				SetAttribute( name, texture );
 
 			globalName = $"g_t{name}";
 
@@ -217,71 +233,14 @@ public sealed partial class GraphCompiler
 				result.RepresentativeTexture = globalName;
 			}
 
-			return new( globalName, result.SamplerStates.IndexOf( sampler ) );
+			return globalName;
 		}
 		//else
 		//{
 		//	SetAttribute( name, texture );
 		//}
 
-		if ( !result.SamplerStates.Contains( sampler ) )
-			result.SamplerStates.Add( sampler );
-
 		globalName = $"g_t{name}";
-
-		if ( CurrentResultInput == "Albedo" && !input.IsAttribute )
-		{
-			result.RepresentativeTexture = globalName;
-		}
-
-		return new( globalName, result.SamplerStates.IndexOf( sampler ) );
-	}
-
-	internal string ResultTexture( TextureInput input, Texture texture )
-	{
-		var name = CleanName( input.Name );
-		name = string.IsNullOrWhiteSpace( name ) ? $"Texture_{StageName}_{ShaderResult.TextureInputs.Count}" : name;
-
-		var result = ShaderResult;
-		if ( !result.TextureInputs.ContainsKey( name ) )
-		{
-			result.TextureInputs.Add( name, input );
-		}
-
-		if ( !PreviewImages.ContainsKey( $"g_t{name}" ) )
-		{
-			PreviewImages.Add( $"g_t{name}", input.DefaultTexture );
-		}
-
-		SetAttribute( name, texture );
-
-		var globalName = $"g_t{name}";
-
-		if ( CurrentResultInput == "Albedo" && !input.IsAttribute )
-		{
-			result.RepresentativeTexture = globalName;
-		}
-
-		return globalName;
-	}
-
-	public string ResultTexture( TextureInput input )
-	{
-		var name = CleanName( input.Name );
-		name = string.IsNullOrWhiteSpace( name ) ? $"Texture_{StageName}_{ShaderResult.TextureInputs.Count}" : name;
-
-		var result = ShaderResult;
-		if ( !result.TextureInputs.ContainsKey( name ) )
-		{
-			result.TextureInputs.Add( name, input );
-		}
-
-		if ( !PreviewImages.ContainsKey( $"g_t{name}" ) )
-		{
-			PreviewImages.Add( $"g_t{name}", input.DefaultTexture );
-		}
-
-		var globalName = $"g_t{name}";
 
 		if ( CurrentResultInput == "Albedo" && !input.IsAttribute )
 		{
@@ -813,7 +772,7 @@ public sealed partial class GraphCompiler
 					{
 						var textureInput = (TextureInput)value;
 						var texurePath = CompileTexture( textureInput );
-						var textureGlobal = ResultTexture( textureInput, Texture.Load( texurePath ) );
+						var textureGlobal = ResultTexture( textureInput, Texture.Load( texurePath ), false, true );
 
 						return new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
 					}

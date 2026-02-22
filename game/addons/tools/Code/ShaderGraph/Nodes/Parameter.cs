@@ -394,7 +394,7 @@ public sealed class Texture2DParameter : ShaderNode, ITextureParameterNodeNew
 		var input = GetParameter().Value;
 		input.Type = TextureType.Tex2D;
 
-		var textureGlobal = compiler.ResultTexture( input );
+		var textureGlobal = compiler.ResultTexture( input, null, false, true );
 
 		return new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
 	};

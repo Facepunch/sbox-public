@@ -222,7 +222,7 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 	{
 		input.Type = TextureType.Tex2D;
 
-		return compiler.ResultTexture( input );
+		return compiler.ResultTexture( input, null, false, true );
 	}
 }
 

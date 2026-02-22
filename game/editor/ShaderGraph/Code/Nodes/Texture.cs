@@ -273,19 +273,20 @@ public sealed class TextureSampler : TextureSamplerBase
 		var texture = string.IsNullOrWhiteSpace( TexturePath ) ? null : Texture.Load( TexturePath );
 		texture ??= Texture.White;
 
-		var result = compiler.ResultTexture( Sampler, input, texture );
+		var sampler = compiler.ResultSampler( Sampler );
+		var textureGlobal = compiler.ResultTexture( input, texture );
 		var coords = compiler.Result( Coords );
 
 		if ( compiler.Stage == GraphCompiler.ShaderStage.Vertex )
 		{
-			return new NodeResult( NodeResultType.Color, $"{result.Item1}.SampleLevel(" +
-				$" g_sSampler{result.Item2}," +
+			return new NodeResult( NodeResultType.Color, $"{textureGlobal}.SampleLevel(" +
+				$" g_sSampler{sampler}," +
 				$" {(coords.IsValid ? $"{coords.Cast( 2 )}" : "i.vTextureCoords.xy")}, 0 )" );
 		}
 		else
 		{
-			return new NodeResult( NodeResultType.Color, $"Tex2DS( {result.Item1}," +
-				$" g_sSampler{result.Item2}," +
+			return new NodeResult( NodeResultType.Color, $"Tex2DS( {textureGlobal}," +
+				$" g_sSampler{sampler}," +
 				$" {(coords.IsValid ? $"{coords.Cast( 2 )}" : "i.vTextureCoords.xy")} )" );
 		}
 	};
@@ -387,11 +388,12 @@ public sealed class TextureCube : ShaderNode
 		var input = UI;
 		input.Type = TextureType.TexCube;
 
-		var result = compiler.ResultTexture( Sampler, input, Sandbox.Texture.Load( Texture ) );
+		var sampler = compiler.ResultSampler( Sampler );
+		var textureGlobal = compiler.ResultTexture( input, Sandbox.Texture.Load( Texture ) );
 		var coords = compiler.Result( Coords );
 
-		return new NodeResult( NodeResultType.Color, $"TexCubeS( {result.Item1}," +
-			$" g_sSampler{result.Item2}," +
+		return new NodeResult( NodeResultType.Color, $"TexCubeS( {textureGlobal}," +
+			$" g_sSampler{sampler}," +
 			$" {(coords.IsValid ? $"{coords.Cast( 3 )}" : ViewDirection.Result.Invoke( compiler ))} )" );
 	};
 
@@ -475,13 +477,14 @@ public sealed class TextureTriplanar : TextureSamplerBase
 
 		var texture = string.IsNullOrWhiteSpace( TexturePath ) ? null : Texture.Load( TexturePath );
 		texture ??= Texture.White;
-
-		var (tex, sampler) = compiler.ResultTexture( Sampler, input, texture );
+		
+		var sampler = compiler.ResultSampler( Sampler );
+		var textureGlobal = compiler.ResultTexture( input, texture );
 		var coords = compiler.Result( Coords );
 		var normal = compiler.Result( Normal );
 
 		var result = compiler.ResultFunction( "TexTriplanar_Color",
-			tex,
+			textureGlobal,
 			$"g_sSampler{sampler}",
 			coords.IsValid ? coords.Cast( 3 ) : "(i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz) / 39.3701",
 			normal.IsValid ? normal.Cast( 3 ) : "normalize( i.vNormalWs.xyz )" );
@@ -578,13 +581,14 @@ public sealed class NormapMapTriplanar : TextureSamplerBase
 
 		var texture = string.IsNullOrWhiteSpace( TexturePath ) ? null : Texture.Load( TexturePath );
 		texture ??= Texture.White;
-
-		var (tex, sampler) = compiler.ResultTexture( Sampler, input, texture );
+		
+		var sampler = compiler.ResultSampler( Sampler );
+		var textureGlobal = compiler.ResultTexture( input, texture );
 		var coords = compiler.Result( Coords );
 		var normal = compiler.Result( Normal );
 
 		var result = compiler.ResultFunction( "TexTriplanar_Normal",
-			tex,
+			textureGlobal,
 			$"g_sSampler{sampler}",
 			coords.IsValid ? coords.Cast( 3 ) : "(i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz) / 39.3701",
 			normal.IsValid ? normal.Cast( 3 ) : "normalize( i.vNormalWs.xyz )" );
