@@ -141,7 +141,13 @@ public enum DisplayMode
 	/// <summary>
 	/// Causes an element's children to appear as if they were direct children of the element's parent, ignoring the element itself. This can be useful when a wrapper element should be ignored.
 	/// </summary>
-	Contents = 2
+	Contents = 2,
+
+	/// <summary>
+	/// Inline-level flex container. Shrinks to content width while using flex layout internally.
+	/// Participates in inline flow rather than block flow.
+	/// </summary>
+	InlineFlex = 3
 }
 
 /// <summary>

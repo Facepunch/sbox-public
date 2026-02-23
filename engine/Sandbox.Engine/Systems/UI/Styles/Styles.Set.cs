@@ -909,6 +909,9 @@ namespace Sandbox.UI
 				case "contents":
 					Display = DisplayMode.Contents;
 					return true;
+				case "inline-flex":
+					Display = DisplayMode.InlineFlex;
+					return true;
 				default:
 					Log.Warning( $"Unhandled display property: {value}" );
 					return false;

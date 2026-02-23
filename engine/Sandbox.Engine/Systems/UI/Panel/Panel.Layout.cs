@@ -235,13 +235,49 @@ public partial class Panel
 		if ( ComputedStyle == null )
 			return;
 
-		YogaNode.Width = ComputedStyle.Width;
-		YogaNode.Height = ComputedStyle.Height;
+		// Handle width specially for inline-flex: default to auto (shrink-to-content)
+		// unless an explicit width is set via inline style OR CSS/SCSS stylesheet
+		var hasExplicitWidth = Style?.Width != null ||
+			(ComputedStyle.Width.HasValue && ComputedStyle.Width.Value.Unit != LengthUnit.Undefined);
+
+		if ( IsInlineFlex && !hasExplicitWidth )
+		{
+			YogaNode.Width = Length.Auto;
+		}
+		else
+		{
+			YogaNode.Width = ComputedStyle.Width;
+		}
+
+		// Handle height specially for inline-flex: default to auto (shrink-to-content)
+		// unless an explicit height is set via inline style OR CSS/SCSS stylesheet
+		var hasExplicitHeight = Style?.Height != null ||
+			(ComputedStyle.Height.HasValue && ComputedStyle.Height.Value.Unit != LengthUnit.Undefined);
+
+		if ( IsInlineFlex && !hasExplicitHeight )
+		{
+			YogaNode.Height = Length.Auto;
+		}
+		else
+		{
+			YogaNode.Height = ComputedStyle.Height;
+		}
+
 		YogaNode.MaxWidth = ComputedStyle.MaxWidth;
 		YogaNode.MaxHeight = ComputedStyle.MaxHeight;
 		YogaNode.MinWidth = ComputedStyle.MinWidth;
 		YogaNode.MinHeight = ComputedStyle.MinHeight;
-		YogaNode.Display = ComputedStyle.Display;
+
+		// For Yoga, both flex and inline-flex use the same display mode
+		// The difference is only in how we handle the width above
+		if ( ComputedStyle.Display == DisplayMode.InlineFlex )
+		{
+			YogaNode.Display = DisplayMode.Flex;
+		}
+		else
+		{
+			YogaNode.Display = ComputedStyle.Display;
+		}
 
 		YogaNode.Left = ComputedStyle.Left;
 		YogaNode.Right = ComputedStyle.Right;
@@ -265,14 +301,47 @@ public partial class Panel
 
 		YogaNode.PositionType = ComputedStyle.Position;
 		YogaNode.AspectRatio = ComputedStyle.AspectRatio;
-		YogaNode.FlexGrow = ComputedStyle.FlexGrow;
-		YogaNode.FlexShrink = ComputedStyle.FlexShrink;
+
+		// inline-flex defaults flex-grow/shrink to 0 (shrink-to-content); regular flex defers to ComputedStyle.
+		// Check if explicitly set via inline style OR CSS/SCSS (not the default value)
+		if ( IsInlineFlex )
+		{
+			// Check if flex-grow was explicitly set (default is 0, so we check if style has a value)
+			var hasExplicitFlexGrow = Style?.FlexGrow != null ||
+				(ComputedStyle.FlexGrow.HasValue && ComputedStyle.FlexGrow.Value != 0);
+
+			var hasExplicitFlexShrink = Style?.FlexShrink != null ||
+				(ComputedStyle.FlexShrink.HasValue && ComputedStyle.FlexShrink.Value != 1); // default is 1
+
+			YogaNode.FlexGrow = hasExplicitFlexGrow ? ComputedStyle.FlexGrow : 0;
+			YogaNode.FlexShrink = hasExplicitFlexShrink ? ComputedStyle.FlexShrink : 0;
+		}
+		else
+		{
+			YogaNode.FlexGrow = ComputedStyle.FlexGrow;
+			YogaNode.FlexShrink = ComputedStyle.FlexShrink;
+		}
+
 		YogaNode.FlexBasis = ComputedStyle.FlexBasis;
 		YogaNode.Wrap = ComputedStyle.FlexWrap;
 
 		YogaNode.AlignContent = ComputedStyle.AlignContent;
 		YogaNode.AlignItems = ComputedStyle.AlignItems;
-		YogaNode.AlignSelf = ComputedStyle.AlignSelf;
+
+		// For inline-flex, default to align-self: flex-start to prevent cross-axis stretching
+		// unless explicitly set via inline style OR CSS/SCSS
+		if ( IsInlineFlex )
+		{
+			var hasExplicitAlignSelf = Style?.AlignSelf != null ||
+				(ComputedStyle.AlignSelf.HasValue && ComputedStyle.AlignSelf.Value != Align.Auto);
+
+			YogaNode.AlignSelf = hasExplicitAlignSelf ? ComputedStyle.AlignSelf : Align.FlexStart;
+		}
+		else
+		{
+			YogaNode.AlignSelf = ComputedStyle.AlignSelf;
+		}
+
 		YogaNode.FlexDirection = ComputedStyle.FlexDirection;
 		YogaNode.JustifyContent = ComputedStyle.JustifyContent;
 		YogaNode.Overflow = ComputedStyle.Overflow;

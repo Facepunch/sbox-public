@@ -662,4 +662,34 @@ public partial class Panel : IPanel, IValid, IComponent
 		}
 	}
 
+	/// <summary>
+	/// Returns true if this panel uses inline-flex display mode.
+	/// Inline-flex containers shrink to fit their content instead of stretching to fill parent.
+	/// </summary>
+	[Hide]
+	public bool IsInlineFlex
+	{
+		get
+		{
+			// Check ComputedStyle first (used during layout), fall back to Style for pre-layout checks
+			var display = ComputedStyle?.Display ?? Style?.Display;
+			return display == DisplayMode.InlineFlex;
+		}
+	}
+
+	/// <summary>
+	/// Returns true if this panel uses flex or inline-flex display mode.
+	/// Both use flexbox layout for children, but differ in how the container itself is sized.
+	/// </summary>
+	[Hide]
+	public bool UseFlexLayout
+	{
+		get
+		{
+			// Check ComputedStyle first, fall back to Style, default to Flex
+			var display = ComputedStyle?.Display ?? Style?.Display ?? DisplayMode.Flex;
+			return display == DisplayMode.Flex || display == DisplayMode.InlineFlex;
+		}
+	}
+
 }

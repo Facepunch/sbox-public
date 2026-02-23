@@ -547,5 +547,11 @@ namespace Sandbox.UI
 				Yoga.YGNodeStyleSetGap( Node, YGGutter.YGGutterColumn, value?.GetPixels( 0 ) ?? float.NaN );
 			}
 		}
+
+		/// <summary>
+		/// Returns true if the panel uses inline-flex display mode.
+		/// Inline-flex containers shrink to fit their content instead of stretching.
+		/// </summary>
+		internal bool IsInlineFlex => _panel?.ComputedStyle?.Display == DisplayMode.InlineFlex;
 	}
 }
