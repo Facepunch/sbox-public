@@ -70,26 +70,6 @@ partial class ShaderGraph
 		var properties = type.GetProperties( BindingFlags.Instance | BindingFlags.Public )
 			.Where( x => x.GetSetMethod() != null );
 
-		if ( obj is ShaderGraph )
-		{
-			var sgTypeInstance = EditorTypeLibrary.Create( type.Name, type );
-
-			// if we have a valid version then set oldVersionNumber otherwise just use a version of 0.
-			var oldVersionNumber = GetVersion( doc );
-
-			// Upgrade only if we need to.
-			if ( sgTypeInstance is ShaderGraph sg && oldVersionNumber < sg.Version )
-			{
-				//var isSubgraph = false;
-				//if ( doc.TryGetProperty( nameof( IsSubgraph ), out var isSubgraphEelement ) )
-				//{
-				//	isSubgraph = isSubgraphEelement.GetBoolean();
-				//}
-
-				doc = UpgradeShaderGraph( oldVersionNumber, type, doc, options );//, isSubgraph );
-			}
-		}
-
 		foreach ( var nodeProperty in doc.EnumerateObject() )
 		{
 			var prop = properties.FirstOrDefault( x =>
