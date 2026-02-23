@@ -45,15 +45,6 @@ public partial class Texture : Resource, IDisposable
 		if ( native.IsNull ) throw new Exception( "Texture pointer cannot be null!" );
 		this.native = native;
 
-		if ( native.IsStrongHandleValid() )
-		{
-			lock ( LoadedByPointer )
-			{
-				IntPtr targetPointer = native.GetBindingPtr();
-				LoadedByPointer[targetPointer] = new WeakReference<Texture>( this );
-			}
-		}
-
 		UpdateSheetInfo();
 	}
 
@@ -165,18 +156,14 @@ public partial class Texture : Resource, IDisposable
 	{
 		if ( !native.IsNull )
 		{
-			if ( native.IsStrongHandleValid() )
-			{
-				IntPtr targetPointer = native.GetBindingPtr();
-
-				lock ( LoadedByPointer )
-				{
-					LoadedByPointer.Remove( targetPointer );
-				}
-			}
-
-			native.DestroyStrongHandle();
+			var n = native;
 			native = IntPtr.Zero;
+
+			// Evict from NativeResourceCache so a new wrapper can be created
+			// if the same native pointer is reused (e.g. RenderTarget pool, TextBlock rebuild).
+			NativeResourceCache.Remove( n.GetBindingPtr().ToInt64() );
+
+			MainThread.Queue( () => n.DestroyStrongHandle() );
 		}
 	}
 

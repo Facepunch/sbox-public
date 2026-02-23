@@ -31,7 +31,7 @@ internal static class ImageUrl
 				//
 				var placeholder = Texture.Create( 1, 1 ).WithName( "httpimg-placeholder" ).WithData( new byte[4] { 0, 0, 0, 0 } ).Finish();
 				_ = placeholder.ReplacementAsync( LoadFromUrl( filename ) );
-				placeholder.SetIdFromResourcePath( filename );
+				placeholder.RegisterWeakResourceId( filename );
 
 				entry.SlidingExpiration = TimeSpan.FromMinutes( 10 );
 				return placeholder;

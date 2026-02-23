@@ -435,6 +435,19 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// </summary>
 	internal bool EnableEngineOverlays { get; set; } = false;
 
+	private static WeakReference<SceneCamera> _recordingCamera;
+
+	/// <summary>
+	/// The camera currently used for video/screenshot recording.
+	/// </summary>
+	internal static SceneCamera RecordingCamera
+	{
+		get => _recordingCamera?.TryGetTarget( out var cam ) == true ? cam : null;
+		set => _recordingCamera = value is not null ? new WeakReference<SceneCamera>( value ) : null;
+	}
+
+	internal bool IsRecordingCamera => RecordingCamera == this;
+
 	/// <summary>
 	/// The HMD eye that this camera is targeting.
 	/// Use <see cref="StereoTargetEye.None"/> for the user's monitor (i.e. the companion window).
@@ -823,14 +836,14 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 				continue;
 
 			// PreRender
-			OnPreRender( VRNative.EyeRenderTargetSize );
+			OnPreRender( VRSystem.EyeRenderTargetSize );
 
 			// Save off clip planes, used for depth submit
-			VRNative.ClipPlanes.ZNear = ZNear;
-			VRNative.ClipPlanes.ZFar = ZFar;
+			VRSystem.ClipPlanes.ZNear = ZNear;
+			VRSystem.ClipPlanes.ZFar = ZFar;
 
 			// Grab overrides for this eye
-			var transform = VRNative.GetTransformForEye( n.CameraPosition, n.CameraRotation, eye );
+			var transform = VRSystem.GetTransformForEye( n.CameraPosition, n.CameraRotation, eye );
 			n.CameraPosition = transform.Position;
 			n.CameraRotation = transform.Rotation;
 
@@ -838,15 +851,15 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 			n.MiddleEyePosition = Position;
 			n.MiddleEyeRotation = Rotation.Angles();
 
-			n.OverrideProjection = VRNative.GetProjectionMatrix( ZNear, ZFar, eye );
+			n.OverrideProjection = VRSystem.GetProjectionMatrix( ZNear, ZFar, eye );
 			n.HasOverrideProjection = true;
 
 			n.FieldOfView = 0f; // Let clip bounds drive projection
-			n.ClipSpaceBounds = VRNative.GetClipForEye( eye );
+			n.ClipSpaceBounds = VRSystem.GetClipForEye( eye );
 
 			// Render
 			var submitThisEye = WantsStereoSubmit && eye == VREye.Right;
-			n.RenderStereo( iEye, (int)VRNative.EyeRenderTargetSize.x, (int)VRNative.EyeRenderTargetSize.y, submitThisEye );
+			n.RenderStereo( iEye, (int)VRSystem.EyeRenderTargetSize.x, (int)VRSystem.EyeRenderTargetSize.y, submitThisEye );
 		}
 
 		VRSystem.IsRendering = WantsStereoSubmit;

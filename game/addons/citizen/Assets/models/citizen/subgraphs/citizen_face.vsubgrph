@@ -15,7 +15,7 @@
 				{
 					_class = "CAddAnimNode"
 					m_sName = "Add blinks"
-					m_vecPosition = [ 416.0, -128.0 ]
+					m_vecPosition = [ 608.0, -176.0 ]
 					m_nNodeID = 
 					{
 						m_id = 107698845
@@ -81,8 +81,8 @@
 				value = 
 				{
 					_class = "CStateMachineAnimNode"
-					m_sName = "Unnamed"
-					m_vecPosition = [ 672.0, -112.0 ]
+					m_sName = "Human blinks"
+					m_vecPosition = [ 1056.0, -96.0 ]
 					m_nNodeID = 
 					{
 						m_id = 169646791
@@ -351,7 +351,7 @@
 				{
 					_class = "CSingleFrameAnimNode"
 					m_sName = "Unnamed"
-					m_vecPosition = [ 416.0, -48.0 ]
+					m_vecPosition = [ 816.0, -16.0 ]
 					m_nNodeID = 
 					{
 						m_id = 252505796
@@ -370,8 +370,8 @@
 				value = 
 				{
 					_class = "CStateMachineAnimNode"
-					m_sName = "Unnamed"
-					m_vecPosition = [ 672.0, -192.0 ]
+					m_sName = "Citizen blinks"
+					m_vecPosition = [ 1056.0, -240.0 ]
 					m_nNodeID = 
 					{
 						m_id = 298856494
@@ -984,7 +984,7 @@
 				{
 					_class = "CBoneMaskAnimNode"
 					m_sName = "Lipsync weightlist"
-					m_vecPosition = [ 1392.0, -560.0 ]
+					m_vecPosition = [ 1808.0, -560.0 ]
 					m_nNodeID = 
 					{
 						m_id = 502886029
@@ -1079,7 +1079,7 @@
 				{
 					_class = "CBoneMaskAnimNode"
 					m_sName = "Human blink"
-					m_vecPosition = [ 960.0, -320.0 ]
+					m_vecPosition = [ 1312.0, -320.0 ]
 					m_nNodeID = 
 					{
 						m_id = 861028884
@@ -2313,7 +2313,7 @@
 				{
 					_class = "CBlendAnimNode"
 					m_sName = "Blend 1D - Voice"
-					m_vecPosition = [ 1616.0, -512.0 ]
+					m_vecPosition = [ 1984.0, -448.0 ]
 					m_nNodeID = 
 					{
 						m_id = 1461986007
@@ -2383,7 +2383,7 @@
 				{
 					_class = "CSequenceAnimNode"
 					m_sName = "Unnamed"
-					m_vecPosition = [ 176.0, -112.0 ]
+					m_vecPosition = [ 320.0, -160.0 ]
 					m_nNodeID = 
 					{
 						m_id = 1471849108
@@ -2738,7 +2738,7 @@
 				{
 					_class = "CSelectorAnimNode"
 					m_sName = "Unnamed"
-					m_vecPosition = [ 1184.0, -384.0 ]
+					m_vecPosition = [ 1568.0, -384.0 ]
 					m_nNodeID = 
 					{
 						m_id = 1705100635
@@ -2984,7 +2984,7 @@
 				{
 					_class = "CGroupOutputAnimNode"
 					m_sName = "Unnamed"
-					m_vecPosition = [ 2080.0, -512.0 ]
+					m_vecPosition = [ 2512.0, -512.0 ]
 					m_nNodeID = 
 					{
 						m_id = 1855511115
@@ -3067,8 +3067,8 @@
 				value = 
 				{
 					_class = "CBoneMaskAnimNode"
-					m_sName = "Only Eyelid & Eyelid Morphs"
-					m_vecPosition = [ 960.0, -384.0 ]
+					m_sName = "Citizen - Only Eyelid & Eyelid Morphs"
+					m_vecPosition = [ 1280.0, -384.0 ]
 					m_nNodeID = 
 					{
 						m_id = 1997867381
@@ -3121,7 +3121,7 @@
 				{
 					_class = "CStateMachineAnimNode"
 					m_sName = "Optimisation"
-					m_vecPosition = [ 1808.0, -416.0 ]
+					m_vecPosition = [ 2224.0, -416.0 ]
 					m_nNodeID = 
 					{
 						m_id = 2099582625

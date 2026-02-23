@@ -132,6 +132,7 @@ public class ComponentControlWidget : ControlWidget
 		btnSelect.Enabled = false;
 
 		sceneBrowser.ConfirmButton = btnSelect;
+		sceneBrowser.OnConfirm = () => picker.Close();
 		sceneBrowser.SelectComponent( component );
 		sceneBrowser.OnComponentSelect = ( c ) =>
 		{

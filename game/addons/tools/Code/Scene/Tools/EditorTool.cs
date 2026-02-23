@@ -110,9 +110,16 @@ public class EditorTool : IDisposable
 
 		try
 		{
-			if ( HasBoxSelectionMode() && Manager.IsCurrentViewFocused )
+			if ( Manager.IsCurrentViewFocused )
 			{
-				UpdateBoxSelection();
+				if ( HasLassoSelectionMode() && (IsLassoSelecting || (Gizmo.IsAltPressed && Gizmo.IsLeftMouseDown && Gizmo.Pressed.CursorDelta.Length > 0.1f)) )
+				{
+					UpdateLassoSelection();
+				}
+				else if ( HasBoxSelectionMode() )
+				{
+					UpdateBoxSelection();
+				}
 			}
 
 			OnUpdate();
@@ -278,10 +285,17 @@ public class EditorTool : IDisposable
 	/// </summary>
 	public virtual bool HasBoxSelectionMode() => false;
 
+	/// <summary>
+	/// If true then this mode uses lasso selection (activated with Alt+Drag)
+	/// </summary>
+	public virtual bool HasLassoSelectionMode() => false;
+
 	Ray _ray1;
 	Ray _ray2;
+	List<Vector2> _lassoPoints = new();
 
 	protected bool IsBoxSelecting { get; private set; }
+	protected bool IsLassoSelecting { get; private set; }
 
 	private void UpdateBoxSelection()
 	{
@@ -333,12 +347,135 @@ public class EditorTool : IDisposable
 		}
 	}
 
+	private void UpdateLassoSelection()
+	{
+		if ( Gizmo.WasLeftMousePressed && !IsLassoSelecting )
+		{
+			_lassoPoints.Clear();
+			IsLassoSelecting = true;
+		}
+
+		if ( Gizmo.IsLeftMouseDown && IsLassoSelecting )
+		{
+			var currentPoint = Gizmo.Camera.ToScreen( Gizmo.CurrentRay.Project( 100 ) );
+
+			if ( _lassoPoints.Count == 0 || Vector2.Distance( _lassoPoints[^1], currentPoint ) > 5 )
+			{
+				_lassoPoints.Add( currentPoint );
+			}
+		}
+
+		if ( Gizmo.WasLeftMouseReleased && IsLassoSelecting )
+		{
+			if ( _lassoPoints.Count > 2 )
+			{
+				OnLassoSelect( _lassoPoints, true );
+			}
+
+			_lassoPoints.Clear();
+			IsLassoSelecting = false;
+			return;
+		}
+
+		if ( IsLassoSelecting && _lassoPoints.Count > 1 )
+		{
+			Color lassoColor;
+			if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
+			{
+				lassoColor = Theme.Red;
+			}
+			else if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
+			{
+				lassoColor = Theme.Green;
+			}
+			else
+			{
+				lassoColor = Theme.Blue;
+			}
+
+			DrawLasso( _lassoPoints, true, lassoColor );
+		}
+	}
+
+	private void DrawLasso( List<Vector2> points, bool isClosed, Color color )
+	{
+		if ( points.Count < 2 )
+			return;
+
+		using ( Gizmo.Scope( "Lasso" ) )
+		{
+			Gizmo.Draw.IgnoreDepth = true;
+			Gizmo.Draw.Color = color;
+			Gizmo.Draw.LineThickness = 2;
+
+			var worldPoints = new List<Vector3>( points.Count );
+			var planeDistance = 100f;
+
+			foreach ( var screenPoint in points )
+			{
+				var viewportX = screenPoint.x / Gizmo.Camera.Rect.Width;
+				var viewportY = screenPoint.y / Gizmo.Camera.Rect.Height;
+
+				var ray = Gizmo.Camera.GetRay( new Vector2( viewportX, viewportY ) );
+				var worldPos = ray.Project( planeDistance );
+				worldPoints.Add( worldPos );
+			}
+
+			//Maybe this should be it's own gizmo draw function?
+			for ( int i = 0; i < worldPoints.Count - 1; i++ )
+			{
+				Gizmo.Draw.Line( worldPoints[i], worldPoints[i + 1] );
+			}
+
+			if ( isClosed && worldPoints.Count > 2 )
+			{
+				Gizmo.Draw.Line( worldPoints[^1], worldPoints[0] );
+			}
+		}
+	}
+
+	/// <summary>
+	/// Called when the lasso selection changed or completed
+	/// </summary>
+	/// <param name="lassoPoints">Screen space points forming the lasso polygon</param>
+	/// <param name="isFinal">True when the user releases the mouse</param>
+	protected virtual void OnLassoSelect( List<Vector2> lassoPoints, bool isFinal )
+	{
+
+	}
+
 	/// <summary>
 	/// Called when the box selection changed
 	/// </summary>
 	protected virtual void OnBoxSelect( Frustum frustum, Rect screenRect, bool isFinal )
 	{
 
+	}
+
+	/// <summary>
+	/// Helper method to check if a screen point is inside the lasso polygon
+	/// Uses the ray casting algorithm
+	/// </summary>
+	protected static bool IsPointInLasso( Vector2 point, List<Vector2> lassoPoints )
+	{
+		if ( lassoPoints.Count < 3 )
+			return false;
+
+		int intersections = 0;
+		for ( int i = 0; i < lassoPoints.Count; i++ )
+		{
+			var p1 = lassoPoints[i];
+			var p2 = lassoPoints[(i + 1) % lassoPoints.Count];
+
+			if ( (p1.y > point.y) != (p2.y > point.y) )
+			{
+				float intersectX = (p2.x - p1.x) * (point.y - p1.y) / (p2.y - p1.y) + p1.x;
+				if ( point.x < intersectX )
+					intersections++;
+			}
+		}
+
+		return (intersections % 2) == 1;
 	}
 }
 

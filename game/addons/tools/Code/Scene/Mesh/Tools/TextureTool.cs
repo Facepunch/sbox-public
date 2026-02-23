@@ -66,7 +66,7 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 			CreateFaceObject();
 		}
 
-		if ( Gizmo.IsHovered )
+		if ( Gizmo.IsHovered && !IsLassoSelecting )
 		{
 			SelectFace();
 
@@ -93,25 +93,6 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 			if ( vertices is not null )
 			{
 				_faceObject.AddVertex( vertices.AsSpan() );
-			}
-
-			if ( Gizmo.WasRightMousePressed && Gizmo.KeyboardModifiers.Contains( KeyboardModifiers.Shift ) )
-			{
-				Tool.ActiveMaterial = _hoverFace.Material;
-			}
-
-			if ( Gizmo.IsRightMouseDown && Gizmo.KeyboardModifiers.Contains( KeyboardModifiers.Ctrl ) )
-			{
-				var material = mesh.GetFaceMaterial( _hoverFace.Handle );
-				if ( material != Tool.ActiveMaterial )
-				{
-					using ( SceneEditorSession.Active.UndoScope( "Paint Material" )
-						.WithComponentChanges( _hoverFace.Component )
-						.Push() )
-					{
-						mesh.SetFaceMaterial( _hoverFace.Handle, Tool.ActiveMaterial );
-					}
-				}
 			}
 
 			_hoverFace = default;

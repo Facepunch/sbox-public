@@ -7,10 +7,10 @@ class InterpolationBuffer<T>
 {
 	internal struct Entry
 	{
-		public readonly float Time;
+		public readonly double Time;
 		public readonly T State;
 
-		public Entry( T state, float time )
+		public Entry( T state, double time )
 		{
 			State = state;
 			Time = time;
@@ -50,7 +50,7 @@ class InterpolationBuffer<T>
 	/// </summary>
 	/// <param name="now">The time you want to query (usually now.)</param>
 	/// <exception cref="InvalidOperationException">Throws if there are no snapshots in the interpolation buffer.</exception>
-	public T Query( float now )
+	public T Query( double now )
 	{
 		if ( IsEmpty )
 			throw new InvalidOperationException( "No snapshots in interpolation buffer!" );
@@ -69,7 +69,7 @@ class InterpolationBuffer<T>
 			if ( fromTime <= now && now <= toTime )
 			{
 				var delta = now.Remap( fromTime, toTime );
-				return _interpolator.Interpolate( from.State, to.State, delta );
+				return _interpolator.Interpolate( from.State, to.State, (float)delta );
 			}
 		}
 
@@ -79,7 +79,7 @@ class InterpolationBuffer<T>
 	/// <summary>
 	/// Add a new state to the buffer at the specified time.
 	/// </summary>
-	public void Add( T state, float time )
+	public void Add( T state, double time )
 	{
 		if ( !IsEmpty && time < Last.Time )
 		{
@@ -112,7 +112,7 @@ class InterpolationBuffer<T>
 	/// <summary>
 	/// Cull entries in the buffer older than the specified time.
 	/// </summary>
-	public void CullOlderThan( float oldTime )
+	public void CullOlderThan( double oldTime )
 	{
 		// Entries are sorted by time, so we can just count and remove from the start
 		// This avoids the Predicate<T> allocation from RemoveAll

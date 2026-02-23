@@ -46,7 +46,7 @@ class AssetFilterNode : TreeNode
 		{
 			var iconSize = rect.Align( 18, TextFlag.LeftCenter );
 
-			Paint.Draw( iconSize, Icon );
+			Paint.Draw( iconSize, Icon, borderRadius: 2 );
 		}
 		else
 		{

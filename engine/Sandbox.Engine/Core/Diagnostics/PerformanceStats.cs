@@ -1,5 +1,4 @@
-﻿using Sandbox.VR;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 
 namespace Sandbox.Diagnostics;
@@ -158,10 +157,6 @@ public static partial class PerformanceStats
 
 		_history.Clear();
 		secondTimer.Restart();
-
-		// Fetch VR stats in VR mode
-		if ( VRSystem.IsActive )
-			VR = VRSystem.GetPerformanceStats();
 
 		FrameStats._current = new FrameStats( NativeEngine.CSceneSystem.GetPerFrameStats() );
 

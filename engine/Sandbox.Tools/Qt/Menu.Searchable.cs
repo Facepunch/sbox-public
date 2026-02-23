@@ -43,11 +43,11 @@ namespace Editor
 			{
 				_searchBox = new LineEdit( this )
 				{
-					PlaceholderText = "⌕  Search...",
-					MinimumWidth = 200
+					PlaceholderText = "⌕  Search",
+					MinimumWidth = 200,
+					ContextMenuEnabled = false
 				};
-
-				_searchBox.SetStyles( "font-size: 8pt; padding: 4px 16px; margin: 4px 2px 2px 4px;" );
+				_searchBox.SetStyles( "font-size: 8pt; padding: 2px 16px; margin: 0px 4px 4px 4px;" );
 				_searchBox.TextEdited += SearchMenu;
 
 				InsertWidgetAt( _searchBox, 0 );

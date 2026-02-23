@@ -59,6 +59,12 @@
       "path": "/input/grip/pose"
     },
     {
+      "name": "aim_pose",
+      "localized_name": "Aim Pose",
+      "type": "pose",
+      "path": "/input/aim/pose"
+    },
+    {
       "name": "vibration",
       "localized_name": "Vibration",
       "type": "vibration",

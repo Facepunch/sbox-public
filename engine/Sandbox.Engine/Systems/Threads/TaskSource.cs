@@ -206,9 +206,9 @@ public struct TaskSource
 
 	private async Task DelayInternal( int ms, CancellationToken ct )
 	{
-		var time = Time.Now + ms / 1000.0f;
+		var time = Time.NowDouble + ms / 1000.0;
 
-		while ( Time.Now < time )
+		while ( Time.NowDouble < time )
 		{
 			await Task.Delay( 1, ct );
 			CancelIfInvalid();
@@ -221,14 +221,14 @@ public struct TaskSource
 	/// A task that does nothing for given amount of time in seconds.
 	/// </summary>
 	/// <param name="seconds">>Time to wait in seconds.</param>
-	public Task DelaySeconds( float seconds ) => Delay( (int)(seconds * 1000.0f) );
+	public Task DelaySeconds( float seconds ) => Delay( (int)(seconds * 1000.0) );
 
 	/// <summary>
 	/// A task that does nothing for given amount of time in seconds.
 	/// </summary>
 	/// <param name="seconds">>Time to wait in seconds.</param>
 	/// <param name="ct">Token to cancel the delay early.</param>
-	public Task DelaySeconds( float seconds, CancellationToken ct ) => Delay( (int)(seconds * 1000.0f), ct );
+	public Task DelaySeconds( float seconds, CancellationToken ct ) => Delay( (int)(seconds * 1000.0), ct );
 
 	private record struct WorkerThreadAction( Action Action, TaskCompletionSource Tcs )
 	{

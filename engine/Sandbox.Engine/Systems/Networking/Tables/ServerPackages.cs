@@ -25,7 +25,7 @@ internal class ServerPackages
 		public bool IsErrored;
 		public PackageManager.ActivePackage activePackage;
 
-		internal async ValueTask<BaseFileSystem> DownloadAndMount( CancellationToken token )
+		internal async ValueTask<BaseFileSystem> DownloadAndMount( CancellationToken token, bool reloadResources = true )
 		{
 			// Already downloaded
 			if ( activePackage != null )
@@ -57,7 +57,8 @@ internal class ServerPackages
 					ContextTag = "game",
 					Loading = new UpdateLoadingScreen(),
 					AllowLocalPackages = true,
-					CancellationToken = token
+					CancellationToken = token,
+					ReloadResources = reloadResources
 				};
 
 				activePackage = await PackageManager.InstallAsync( o );
@@ -112,15 +113,19 @@ internal class ServerPackages
 
 		var sw = System.Diagnostics.Stopwatch.StartNew();
 
+		// Install all packages without triggering a resource reload per-package,
+		// then do a single reload at the end.
 		await entries.ForEachTaskAsync( async p =>
 		{
-			await ClientInstallPackage( p.Value );
+			await ClientInstallPackage( p.Value, reloadResources: false );
 		} );
+
+		NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
 
 		Log.Info( $"Installation Complete ({sw.Elapsed.TotalSeconds:0.00}s)" );
 	}
 
-	internal async Task ClientInstallPackage( StringTable.Entry entry )
+	internal async Task ClientInstallPackage( StringTable.Entry entry, bool reloadResources = true )
 	{
 		string ident = entry.Name;
 		if ( ident.StartsWith( "local." ) )
@@ -128,7 +133,7 @@ internal class ServerPackages
 
 		Log.Info( $"Installing server package: {ident}" );
 		ServerPackageInfo packageInfo = entry.Read<ServerPackageInfo>();
-		await DownloadAndMount( ident );
+		await DownloadAndMount( ident, reloadResources: reloadResources );
 	}
 
 	internal void AddRequirement( Package package, ServerPackageInfo info = default )
@@ -141,7 +146,7 @@ internal class ServerPackages
 		StringTable.Set( packageIdent, info );
 	}
 
-	internal async ValueTask<BaseFileSystem> DownloadAndMount( string packageIdent, CancellationToken token = default )
+	internal async ValueTask<BaseFileSystem> DownloadAndMount( string packageIdent, CancellationToken token = default, bool reloadResources = true )
 	{
 		ThreadSafe.AssertIsMainThread();
 
@@ -151,14 +156,14 @@ internal class ServerPackages
 		}
 
 		if ( Downloads.TryGetValue( packageIdent, out var dl ) )
-			return await dl.DownloadAndMount( token );
+			return await dl.DownloadAndMount( token, reloadResources );
 
 		dl = new();
 		dl.ident = packageIdent;
 
 		Downloads[packageIdent] = dl;
 
-		return await dl.DownloadAndMount( token );
+		return await dl.DownloadAndMount( token, reloadResources );
 	}
 
 	internal PackageDownload Get( string packageIdent )

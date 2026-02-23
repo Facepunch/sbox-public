@@ -87,7 +87,7 @@ public sealed class PlaneCollider : Collider
 
 		var body = Rigidbody;
 		var world = Transform.TargetWorld;
-		var local = body.IsValid() ? body.Transform.TargetWorld.ToLocal( world ) : global::Transform.Zero;
+		var local = body.IsValid() ? body.Transform.TargetWorld.WithScale( 1.0f ).ToLocal( world ) : global::Transform.Zero;
 
 		var vertices = GetVertices( local );
 		Shape.UpdateMesh( vertices, Indices );

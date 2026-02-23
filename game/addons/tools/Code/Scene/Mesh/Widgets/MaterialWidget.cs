@@ -79,7 +79,7 @@ class MaterialWidget : Widget
 
 		var drag = new Drag( this );
 		drag.Data.Object = asset;
-		drag.Data.Url = new Uri( $"file://{asset.AbsolutePath}" );
+		drag.Data.Url = new Uri( $"file:///{asset.AbsolutePath}" );
 		drag.Execute();
 	}
 

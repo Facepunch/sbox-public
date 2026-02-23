@@ -109,8 +109,8 @@ internal class NavMeshTileCache : IDisposable
 
 			if ( tileCache.TryGetValue( tilePosition, out NavMeshTile tile ) )
 			{
-				tile.DispatchHeightFieldBuild( navMesh, physicsWorld );
-				heightfieldBuildsThisUpdate++;
+				var success = tile.DispatchHeightFieldBuild( navMesh, physicsWorld );
+				if ( success ) heightfieldBuildsThisUpdate++;
 			}
 		}
 
@@ -235,6 +235,20 @@ internal class NavMeshTileCache : IDisposable
 	internal void AddSpatiaData( NavMeshSpatialAuxiliaryData data )
 	{
 		allSpatialExtraData.Add( data );
+	}
+
+	/// <summary>
+	/// Returns true if any tile has an in-progress heightfield or navmesh build.
+	/// Used to wait for a stable state before baking.
+	/// </summary>
+	public bool HasAnyBuildsInProgress()
+	{
+		foreach ( var tile in tileCache.Values )
+		{
+			if ( tile.IsHeightfieldBuildInProgress || tile.IsNavmeshBuildInProgress )
+				return true;
+		}
+		return false;
 	}
 
 	public void Dispose()

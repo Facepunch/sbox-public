@@ -4,6 +4,8 @@ public partial class Scene : GameObject
 {
 	public Navigation.NavMesh NavMesh { get; private set; } = new Navigation.NavMesh();
 
+	private Task _navMeshLoadTask;
+
 	/// <summary>
 	/// In editor this gets called every frame
 	/// In game this gets called every fixed update
@@ -14,7 +16,21 @@ public partial class Scene : GameObject
 
 		if ( !NavMesh.IsLoaded && IsEditor )
 		{
-			SyncContext.RunBlocking( NavMesh.Load( PhysicsWorld ) );
+			// Start loading if not already in progress
+			if ( _navMeshLoadTask is null || _navMeshLoadTask.IsCompleted )
+			{
+				_navMeshLoadTask = NavMesh.Load( PhysicsWorld );
+				_navMeshLoadTask.ContinueWith( t =>
+				{
+					_navMeshLoadTask = null;
+
+					if ( t.Exception != null )
+					{
+						Log.Warning( $"NavMesh load failed: {t.Exception.InnerException?.Message ?? t.Exception.Message}" );
+					}
+				} );
+			}
+			return;
 		}
 
 		if ( NavMesh.IsGenerating ) return;

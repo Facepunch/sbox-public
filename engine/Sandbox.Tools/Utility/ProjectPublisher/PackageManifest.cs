@@ -212,7 +212,7 @@ public partial class ProjectPublisher
 		{
 			if ( !IncludeSourceFiles ) return;
 
-			foreach ( var file in asset.GetAdditionalRelatedFiles() )
+			foreach ( var file in asset.GetAdditionalContentFiles() )
 			{
 				if ( !IncludeSourceFiles && !file.EndsWith( ".rect" ) )
 					continue;
@@ -248,7 +248,7 @@ public partial class ProjectPublisher
 					await CollectInputDependencies( a );
 				}
 
-				foreach ( var file in asset.GetAdditionalRelatedFiles() )
+				foreach ( var file in asset.GetAdditionalContentFiles() )
 				{
 					if ( !IncludeSourceFiles && !file.EndsWith( ".rect" ) )
 						continue;
@@ -259,6 +259,16 @@ public partial class ProjectPublisher
 
 					await CollectInputDependencies( ast );
 					await AddFile( ast.AbsolutePath, ast.RelativePath );
+				}
+
+				// Collect game-side files (data files to be packaged like navdata)
+				foreach ( var file in asset.GetAdditionalGameFiles() )
+				{
+					var absPath = FileSystem.Mounted.GetFullPath( file );
+					if ( !string.IsNullOrEmpty( absPath ) && System.IO.File.Exists( absPath ) )
+					{
+						await AddFile( absPath, file );
+					}
 				}
 
 				progress?.SetProgressMessage( $"Found {AddedAssets.Count:n0}" );

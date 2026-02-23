@@ -118,23 +118,14 @@ public static class SceneEditorMenus
 		if ( selectedObjects.Length == 0 )
 			return;
 
-		var bbox = new BBox();
+		var bbox = selectedObjects[0].GetBounds()
+			.AddBBox( BBox.FromPositionAndSize( selectedObjects[0].WorldPosition, 16 ) );
 
-		int i = 0;
-		foreach ( var entry in selectedObjects )
+		// Get the bounding box of the selected objects
+		for ( int i = 1; i < selectedObjects.Length; i++ )
 		{
-			if ( i++ == 0 )
-			{
-				bbox = BBox.FromPositionAndSize( entry.WorldPosition, 16 );
-			}
-
-			// get the bounding box of the selected objects
-			bbox = bbox.AddBBox( BBox.FromPositionAndSize( entry.WorldPosition, 16 ) );
-
-			foreach ( var model in entry.Components.GetAll<ModelRenderer>( FindMode.EnabledInSelfAndDescendants ) )
-			{
-				bbox = bbox.AddBBox( model.Bounds );
-			}
+			bbox = bbox.AddBBox( selectedObjects[i].GetBounds() );
+			bbox = bbox.AddBBox( BBox.FromPositionAndSize( selectedObjects[i].WorldPosition, 16 ) );
 		}
 
 		selectedObjects.First().Scene.Editor.FrameTo( bbox );

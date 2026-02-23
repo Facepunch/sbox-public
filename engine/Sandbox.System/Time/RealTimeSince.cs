@@ -15,6 +15,8 @@
 		double time;
 
 		public static implicit operator float( RealTimeSince ts ) => (float)(RealTime.GlobalNow - ts.time);
+		public static explicit operator double( RealTimeSince ts ) => RealTime.GlobalNow - ts.time;
+		public static implicit operator RealTimeSince( double ts ) => new() { time = RealTime.GlobalNow - ts };
 		public static implicit operator RealTimeSince( float ts ) => new() { time = RealTime.GlobalNow - ts };
 		public static bool operator <( in RealTimeSince ts, float f ) => ts.Relative < f;
 		public static bool operator >( in RealTimeSince ts, float f ) => ts.Relative > f;
@@ -64,6 +66,8 @@
 
 		public static implicit operator bool( RealTimeUntil ts ) => RealTime.GlobalNow >= ts.time;
 		public static implicit operator float( RealTimeUntil ts ) => (float)(ts.time - RealTime.GlobalNow);
+		public static explicit operator double( RealTimeUntil ts ) => ts.time - RealTime.GlobalNow;
+		public static implicit operator RealTimeUntil( double ts ) => new() { time = RealTime.GlobalNow + ts, startTime = RealTime.GlobalNow };
 		public static implicit operator RealTimeUntil( float ts ) => new() { time = RealTime.GlobalNow + ts, startTime = RealTime.GlobalNow };
 		public static bool operator <( in RealTimeUntil ts, float f ) => ts.Relative < f;
 		public static bool operator >( in RealTimeUntil ts, float f ) => ts.Relative > f;

@@ -82,22 +82,18 @@ public partial class TerrainStorage
 			bool isHole = holesData != null && holesData[i] != 0;
 
 			// Find the two materials with highest weights
-			var topTwo = new[] { (legacy.r, 0), (legacy.g, 1), (legacy.b, 2), (legacy.a, 3) }
-				.OrderByDescending( x => x.Item1 )
-				.Take( 2 )
-				.ToArray();
+			(byte w, byte id) best, second;
+			if ( legacy.r >= legacy.g ) { best = (legacy.r, 0); second = (legacy.g, 1); }
+			else { best = (legacy.g, 1); second = (legacy.r, 0); }
+			if ( legacy.b > best.w ) { second = best; best = (legacy.b, 2); } else if ( legacy.b > second.w ) second = (legacy.b, 2);
+			if ( legacy.a > best.w ) { second = best; best = (legacy.a, 3); } else if ( legacy.a > second.w ) second = (legacy.a, 3);
 
-			// Calculate blend factor between base and overlay
-			byte blendFactor = 0;
-			int totalWeight = topTwo[0].Item1 + topTwo[1].Item1;
-			if ( totalWeight > 0 )
-			{
-				blendFactor = (byte)((topTwo[1].Item1 * 255) / totalWeight);
-			}
+			int totalWeight = best.w + second.w;
+			byte blendFactor = totalWeight > 0 ? (byte)(second.w * 255 / totalWeight) : (byte)0;
 
 			compactData[i] = new CompactTerrainMaterial(
-				baseTextureId: (byte)topTwo[0].Item2,
-				overlayTextureId: (byte)topTwo[1].Item2,
+				baseTextureId: best.id,
+				overlayTextureId: second.id,
 				blendFactor: blendFactor,
 				isHole: isHole
 			);

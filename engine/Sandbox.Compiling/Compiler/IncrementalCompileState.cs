@@ -13,6 +13,9 @@ class IncrementalCompileState
 	public ImmutableArray<SyntaxTree> OldSyntaxTrees;
 	public ImmutableArray<SyntaxTree> SyntaxTrees;
 	public ImmutableArray<SyntaxTree> PreHotloadSyntaxTrees;
+
+	public ImmutableDictionary<string, ulong> FileHashMap { get; private set; }
+
 	public CSharpCompilation Compilation;
 
 	public bool HasState => Compilation is not null;
@@ -23,14 +26,18 @@ class IncrementalCompileState
 		OldSyntaxTrees = default;
 		SyntaxTrees = default;
 		PreHotloadSyntaxTrees = default;
+
+		FileHashMap = [];
 	}
 
-	internal void Update( ImmutableArray<SyntaxTree> syntaxTrees, ImmutableArray<SyntaxTree> beforeIlHotloadProcessingTrees, CSharpCompilation compiler )
+	internal void Update( CodeArchive archive, ImmutableArray<SyntaxTree> beforeIlHotloadProcessingTrees, CSharpCompilation compiler )
 	{
 		OldSyntaxTrees = SyntaxTrees;
-		SyntaxTrees = syntaxTrees;
+		SyntaxTrees = archive.SyntaxTrees.ToImmutableArray();
 		PreHotloadSyntaxTrees = beforeIlHotloadProcessingTrees;
 		Compilation = compiler;
+
+		FileHashMap = archive.FileHashMap.ToImmutableDictionary();
 	}
 
 	public Dictionary<string, object> GetChangeSummary( IEnumerable<BaseFileSystem> fileLocations = default )

@@ -336,7 +336,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	public List<GameObject> CollisionPrefab { get; set; }
 
 	/// <summary>
-	/// Will choose a random prefab to spawn from this list.
+	/// When true the collision prefab will be aligned with the surface it collides with.
 	/// </summary>
 	[Property, Feature( "Prefab" ), Title( "Align With Surface" )]
 	public bool CollisionPrefabAlign { get; set; }
@@ -569,14 +569,14 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 			var friction = Friction.Evaluate( p, 7579 );
 			var bumpiness = Bumpiness.Evaluate( p, 2380 );
 			var push = PushStrength.Evaluate( p, 5281 );
-			var die = DieOnCollisionChance.Evaluate( p, 4582 ) > 0.5f;
+			var die = DieOnCollisionChance.Evaluate( p, 4582 ) > Random.Shared.Float( 0, 1 );
 			var radius = MathF.Max( 0.01f, CollisionRadius );
 
 			if ( Scene.IsEditor ) push = 0;
 
 			var hitTime = Time.Now - p.HitTime;
 
-			var collided = p.MoveWithCollision( bounce, friction, bumpiness, push, die, timeScale, radius, _trace );
+			var collided = p.MoveWithCollision( bounce, friction, bumpiness, push, die, timeScale, radius, _trace, DeferredParticleForces );
 
 			if ( collided && hitTime > 0.3f && UsePrefabFeature && CollisionPrefabChance.Evaluate( delta, Random.Shared.Float( 0, 1 ) ) > Random.Shared.Float( 0, 1 ) )
 			{
@@ -795,6 +795,9 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	readonly record struct ParticleCollisionPrefab( GameObject prefabSource, Vector3 position, Rotation rotation );
 	ConcurrentBag<ParticleCollisionPrefab> ParticleCollisionPrefabs = [];
 
+	internal readonly record struct DeferredParticleForce( PhysicsBody body, Vector3 position, Vector3 force );
+	ConcurrentBag<DeferredParticleForce> DeferredParticleForces = [];
+
 	internal void SpawnDeferredParticleCollisionPrefabs()
 	{
 		foreach ( var collision in ParticleCollisionPrefabs )
@@ -812,6 +815,19 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		}
 
 		ParticleCollisionPrefabs.Clear();
+	}
+
+	internal void ApplyDeferredParticleForces()
+	{
+		foreach ( var force in DeferredParticleForces )
+		{
+			if ( force.body is not null && force.body.IsValid() )
+			{
+				force.body.ApplyForceAt( force.position, force.force );
+			}
+		}
+
+		DeferredParticleForces.Clear();
 	}
 
 	/// <summary>

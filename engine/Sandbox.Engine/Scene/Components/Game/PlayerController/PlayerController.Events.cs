@@ -40,7 +40,7 @@ public sealed partial class PlayerController : Component
 		void StartPressing( Component target ) { }
 
 		/// <summary>
-		/// We have started using something (use was pressed)
+		/// We have stopped using something
 		/// </summary>
 		void StopPressing( Component target ) { }
 

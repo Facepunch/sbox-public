@@ -24,7 +24,7 @@ internal interface IInterpolatedSyncVar
 	/// <summary>
 	/// Query the interpolated value at the provided time.
 	/// </summary>
-	public object Query( float time );
+	public object Query( double time );
 }
 
 /// <summary>
@@ -33,14 +33,14 @@ internal interface IInterpolatedSyncVar
 /// </summary>
 internal class InterpolatedSyncVar<T>( IInterpolator<T> interpolator ) : IInterpolatedSyncVar
 {
-	object IInterpolatedSyncVar.Query( float time ) => Query( time );
+	object IInterpolatedSyncVar.Query( double time ) => Query( time );
 
 	private readonly InterpolationBuffer<T> _buffer = new( interpolator );
 
 	/// <summary>
 	/// Query the value at the specified time.
 	/// </summary>
-	private T Query( float time )
+	private T Query( double time )
 	{
 		return _buffer.Query( time - Networking.InterpolationTime );
 	}
@@ -50,7 +50,7 @@ internal class InterpolatedSyncVar<T>( IInterpolator<T> interpolator ) : IInterp
 	/// </summary>
 	public void Update( T value )
 	{
-		_buffer.Add( value, Time.Now );
-		_buffer.CullOlderThan( Time.Now - (Networking.InterpolationTime * 3f) );
+		_buffer.Add( value, Time.NowDouble );
+		_buffer.CullOlderThan( Time.NowDouble - (Networking.InterpolationTime * 3f) );
 	}
 }

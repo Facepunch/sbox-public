@@ -332,6 +332,15 @@ public static partial class MathX
 	}
 
 	/// <summary>
+	/// Remap a double value from one range to another. Clamps value between newLow and newHigh.
+	/// </summary>
+	[MethodImpl( MethodImplOptions.AggressiveInlining )]
+	public static double Remap( this double value, double oldLow, double oldHigh, double newLow = 0, double newHigh = 1 )
+	{
+		return Remap( value, oldLow, oldHigh, newLow, newHigh, true );
+	}
+
+	/// <summary>
 	/// Remap a float value from a one range to another
 	/// </summary>
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]

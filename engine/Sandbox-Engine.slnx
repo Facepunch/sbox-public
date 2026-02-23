@@ -46,6 +46,7 @@
     <Project Path="Sandbox.Compiling/Sandbox.Compiling.csproj" />
   </Folder>
   <Folder Name="/Engine/Tier0/Mounting/">
+    <Project Path="Mounting/Sandbox.Mounting.GoldSrc/Sandbox.Mounting.GoldSrc.csproj" />
     <Project Path="Mounting/Sandbox.Mounting.NS2/Sandbox.Mounting.NS2.csproj" />
     <Project Path="Mounting/Sandbox.Mounting.Quake/Sandbox.Mounting.Quake.csproj" />
     <Project Path="Mounting/Sandbox.Mounting/Sandbox.Mounting.csproj" />

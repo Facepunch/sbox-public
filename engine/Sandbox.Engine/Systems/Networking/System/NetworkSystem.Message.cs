@@ -332,7 +332,7 @@ internal partial class NetworkSystem
 		if ( !source.IsHost ) return; // Ignore this heartbeat
 
 		var serverRealTime = data.Read<float>();
-		var serverGameTime = data.Read<float>();
+		var serverGameTime = data.Read<double>();
 
 		// Echo it back to the server, so they can work out our ping
 		{

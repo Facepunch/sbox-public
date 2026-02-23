@@ -49,7 +49,9 @@ native class IAsset
 	int AdditionalRelatedFileCount();
 	int AdditionalInputDependencyCount();
 	string GetAdditionalRelatedFile_Transient( int nIndex );
+	string GetAdditionalRelatedFileRelativePath_Transient( int nIndex );
 	string GetAdditionalInputDependency_Transient( int nIndex );
+	AssetLocation_t GetAdditionalRelatedFileLocation( int nIndex );
 
 	inline void GetUnrecognizedRelatedPaths( AssetRelatedPathType_t filterType, CUtlVectorString paths )
 	{

@@ -14,22 +14,25 @@ public partial class Texture
 		if ( native.IsNull )
 			return default;
 
-		IntPtr targetPointer = native.GetBindingPtr();
-
-		lock ( LoadedByPointer )
+		var instanceId = native.GetBindingPtr().ToInt64();
+		if ( NativeResourceCache.TryGetValue<Texture>( instanceId, out var cached ) )
 		{
-			if ( LoadedByPointer.TryGetValue( targetPointer, out var reference ) && reference.TryGetTarget( out var target ) )
+			// If the cached texture was explicitly disposed, evict it and create a fresh wrapper.
+			if ( !cached.IsValid )
 			{
-				native.DestroyStrongHandle(); // target contains a strong handle already!
-				return target;
+				NativeResourceCache.Remove( instanceId );
+			}
+			else
+			{
+				native.DestroyStrongHandle();
+				return cached;
 			}
 		}
 
-		return new Texture( native );
+		var texture = new Texture( native );
+		NativeResourceCache.Add( instanceId, texture );
+		return texture;
 	}
-
-	static Dictionary<string, WeakReference<Texture>> Loaded = new();
-	static Dictionary<IntPtr, WeakReference<Texture>> LoadedByPointer = new();
 
 	/// <summary>
 	/// Try to load a texture from given filesystem, by filename.
@@ -73,8 +76,6 @@ public partial class Texture
 		if ( tex == null )
 			return null;
 
-		Loaded[normalizedFilename] = new WeakReference<Texture>( tex );
-
 		return tex;
 	}
 
@@ -112,9 +113,10 @@ public partial class Texture
 
 	internal static void Hotload( BaseFileSystem filesystem, string filepath )
 	{
-		if ( Loaded.TryGetValue( filepath, out var texture ) && texture.TryGetTarget( out var target ) )
+		var existing = Game.Resources.Get<Texture>( filepath );
+		if ( existing is not null )
 		{
-			target.TryReload( filesystem, filepath );
+			existing.TryReload( filesystem, filepath );
 		}
 		else if ( filepath.StartsWith( "/" ) && TextureLoader.Image.IsAppropriate( filepath ) )
 		{
@@ -126,12 +128,9 @@ public partial class Texture
 			// SVGs can have query parameters appended to them, find the ones
 			// that match and reload with the same parameters
 			var svgPath = filepath.TrimStart( '/' );
-			var svgTargets = Loaded.Where( x => x.Key.TrimStart( '/' ).StartsWith( svgPath ) );
-
-			foreach ( var kvp in svgTargets )
+			foreach ( var svgTarget in Game.Resources.FindWeakByPathPrefix<Texture>( svgPath ) )
 			{
-				if ( kvp.Value.TryGetTarget( out var svgTarget ) )
-					svgTarget.TryReload( filesystem, kvp.Key );
+				svgTarget.TryReload( filesystem, svgTarget.ResourcePath );
 			}
 		}
 	}
@@ -207,8 +206,8 @@ public partial class Texture
 		//
 		ThreadSafe.AssertIsMainThread();
 		var textureHandle = NativeGlue.Resources.GetTexture( filepath );
-		var t = new Texture( textureHandle );
-		t.SetIdFromResourcePath( filepath );
+		var t = FromNative( textureHandle );
+		t?.RegisterWeakResourceId( filepath );
 		return t;
 	}
 
@@ -255,19 +254,10 @@ public partial class Texture
 	/// <returns>The already loaded texture, or null if it was not yet loaded.</returns>
 	public static Texture Find( string filepath )
 	{
-		//if ( Host.IsUnitTest ) return null;
 		if ( string.IsNullOrWhiteSpace( filepath ) ) return null;
 
 		filepath = filepath.NormalizeFilename( false );
 
-		if ( Loaded.TryGetValue( filepath, out var val ) )
-		{
-			if ( val.TryGetTarget( out var target ) )
-			{
-				return target;
-			}
-		}
-
-		return null;
+		return Game.Resources.Get<Texture>( filepath );
 	}
 }

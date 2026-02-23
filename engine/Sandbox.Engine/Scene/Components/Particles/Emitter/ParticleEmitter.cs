@@ -5,15 +5,30 @@ namespace Sandbox;
 /// </summary>
 public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Component.ITemporaryEffect
 {
+	/// <summary>
+	/// Whether the emitter should restart after finishing
+	/// </summary>
 	[Property, Group( "Emitter" )] public bool Loop { get; set; } = true;
+
+	/// <summary>
+	/// Whether to destroy the GameObject when the emitter finishes (only applies when Loop is false)
+	/// </summary>
 	[Property, Group( "Emitter" )] public bool DestroyOnEnd { get; set; } = false;
-	[Property, Group( "Emitter" )] public float Duration { get; set; } = 10.0f;
-	[Property, Group( "Emitter" )] public float Delay { get; set; } = 0.0f;
+
+	/// <summary>
+	/// How long the emitter should run for, after the Delay
+	/// </summary>
+	[Property, Group( "Emitter" )] public ParticleFloat Duration { get; set; } = 10.0f;
+
+	/// <summary>
+	/// How many seconds to wait before the emitter starts
+	/// </summary>
+	[Property, Group( "Emitter" )] public ParticleFloat Delay { get; set; } = 0.0f;
 
 	/// <summary>
 	/// How many particles to emit, in a burst
 	/// </summary>
-	[Property, Range( 0, 1000 ), Group( "Emitter" ), Title( "Initial Burst" )] public float Burst { get; set; } = 100.0f;
+	[Property, Range( 0, 1000 ), Group( "Emitter" ), Title( "Initial Burst" )] public ParticleFloat Burst { get; set; } = 100.0f;
 
 	/// <summary>
 	/// How many particles to emit over time
@@ -23,7 +38,7 @@ public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Co
 	/// <summary>
 	/// How many particles to emit per 100 units moved
 	/// </summary>
-	[Property, Range( 0, 1000 ), Group( "Emitter" )] public float RateOverDistance { get; set; } = 0.0f;
+	[Property, Range( 0, 1000 ), Group( "Emitter" )] public ParticleFloat RateOverDistance { get; set; } = 0.0f;
 
 	/// <summary>
 	/// 0-1, the life time of the emitter
@@ -45,6 +60,11 @@ public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Co
 	float emitted;
 	bool burstPending;
 	bool suspended;
+
+	float evaluatedDuration;
+	float evaluatedDelay;
+	float evaluatedBurst;
+	protected float evaluatedRateOverDistance;
 
 	ParticleEffect target;
 
@@ -85,10 +105,14 @@ public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Co
 		time = 0;
 		EmitRandom = Random.Shared.Float( 0, 1 );
 		burstPending = true;
+
+		evaluatedDuration = Duration.Evaluate( 0, Random.Shared.Float( 0, 1 ) );
+		evaluatedDelay = Delay.Evaluate( 0, Random.Shared.Float( 0, 1 ) );
+		evaluatedBurst = Burst.Evaluate( 0, Random.Shared.Float( 0, 1 ) );
 	}
 
-	bool IsStarted => time - Delay >= 0;
-	bool IsFinished => !burstPending && time > (Duration + Delay);
+	bool IsStarted => time - evaluatedDelay >= 0;
+	bool IsFinished => !burstPending && time > (evaluatedDuration + evaluatedDelay);
 
 	void OnParticleStep( float delta )
 	{
@@ -98,7 +122,7 @@ public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Co
 
 		time += delta;
 
-		float runTime = time - Delay;
+		float runTime = time - evaluatedDelay;
 		Delta = 0;
 
 		// not started yet
@@ -139,12 +163,13 @@ public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Co
 			}
 		}
 
-		if ( RateOverDistance > 0 )
+		Delta = time.Remap( evaluatedDelay, evaluatedDuration + evaluatedDelay, 0, 1 );
+
+		evaluatedRateOverDistance = RateOverDistance.Evaluate( Delta, EmitRandom );
+		if ( evaluatedRateOverDistance > 0 )
 		{
 			EmitOverDistance();
 		}
-
-		Delta = time.Remap( Delay, Duration + Delay, 0, 1 );
 
 		float targetEmission = GetRateCount() * runTime;
 		while ( !target.IsFull && emitted < targetEmission )
@@ -162,7 +187,7 @@ public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Co
 	/// <returns></returns>
 	protected virtual int GetBurstCount()
 	{
-		return (int)Burst;
+		return (int)evaluatedBurst;
 	}
 
 	/// <summary>
@@ -171,7 +196,7 @@ public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Co
 	/// <returns></returns>
 	protected virtual int GetRateCount()
 	{
-		return (int)Rate.Evaluate( Delta, 1 );
+		return (int)Rate.Evaluate( Delta, EmitRandom );
 	}
 
 	protected virtual void OnBurst()
@@ -200,7 +225,7 @@ public abstract class ParticleEmitter : Component, Component.ExecuteInEditor, Co
 		}
 
 		var delta = (lastPos.Value - pos).Length;
-		var particlePerUnit = 100.0f / RateOverDistance;
+		var particlePerUnit = 100.0f / evaluatedRateOverDistance;
 		lastPos = pos;
 
 		distanceTravelled += delta;

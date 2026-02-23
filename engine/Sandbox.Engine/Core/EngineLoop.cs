@@ -28,7 +28,7 @@ internal static class EngineLoop
 			g_pEngineServiceMgr.ExitMainLoop();
 		}
 
-		double time = RealTime.DoubleNow;
+		double time = RealTime.NowDouble;
 		FastTimer frameTimer = FastTimer.StartNew();
 
 		using ( _runFrame.Start() )
@@ -169,6 +169,7 @@ internal static class EngineLoop
 		// Expire any unused resources
 		//
 		NativeResourceCache.Tick();
+		Game.Resources.PruneWeakIndex();
 		Mounting.MountUtility.TickPreviewRenders();
 
 		//

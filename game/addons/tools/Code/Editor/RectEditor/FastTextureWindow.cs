@@ -1,5 +1,4 @@
 using Editor.MeshEditor;
-using Sandbox;
 using Sandbox.UI;
 
 namespace Editor.RectEditor;
@@ -31,13 +30,19 @@ public class FastTextureWindow : Window
 
 		_RectView.Layout.AddStretchCell();
 
-		DockManager.RegisterDockType( "Rect View", "space_dashboard", null, false );
-		DockManager.AddDock( null, _RectView, DockArea.Right, DockManager.DockProperty.HideOnClose, 0.0f );
+		Canvas = _RectView;
 
 		ToolBar.Visible = false;
 		MenuBar.Visible = false;
+	}
 
-		RestoreDefaultDockLayout();
+	public override void Close()
+	{
+		base.Destroy();
+	}
+
+	protected override void OnClosed()
+	{
 	}
 
 	public static void OpenWith( MeshFace[] faces, Material material = null )
@@ -253,7 +258,7 @@ public class FastTextureWindow : Window
 		_undoScope?.Dispose();
 		_undoScope = null;
 
-		return base.OnClose();
+		return true;
 	}
 }
 

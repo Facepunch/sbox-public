@@ -152,6 +152,9 @@ public class AppSystem
 
 	public virtual void Shutdown()
 	{
+		// Tag crash reports during shutdown so they can be filtered in Sentry
+		NativeErrorReporter.SetTag( "shutdown_crash", "true" );
+
 		// Make sure game instance is closed
 		IGameInstanceDll.Current?.CloseGame();
 
@@ -226,6 +229,11 @@ public class AppSystem
 			NativeLibrary.Free( steamApiDll );
 			steamApiDll = default;
 		}
+		// Shut down error reporting last before unloading native DLLs,
+		// so crashpad stops monitoring. Any crash before this point
+		// during shutdown will still be properly reported.
+		NativeErrorReporter.Shutdown();
+
 		// Unload native dlls:
 		// At this point we should no longer need them.
 		// If we still hold references to native resources, we want it to crash here rather than on application exit.

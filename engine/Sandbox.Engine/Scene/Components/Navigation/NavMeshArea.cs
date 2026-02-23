@@ -59,6 +59,8 @@ public class NavMeshArea : VolumeComponent, Component.ExecuteInEditor
 
 	protected override void OnDirty()
 	{
+		if ( !Active ) return;
+
 		UpdateNavMeshArea();
 	}
 

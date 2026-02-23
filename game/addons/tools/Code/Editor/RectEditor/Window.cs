@@ -368,7 +368,7 @@ public partial class Window : DockWindow, IAssetEditor
 		Settings = assetData.Settings ?? new Settings();
 		SetupSettingsCallbacks();
 
-		MaterialReferences = AssetSystem.All.Where( x => x.AssetType == AssetType.Material && x.GetAdditionalRelatedFiles()
+		MaterialReferences = AssetSystem.All.Where( x => x.AssetType == AssetType.Material && x.GetAdditionalContentFiles()
 			.Any( x => x.Contains( asset.Name ) ) )
 			.ToArray();
 		MaterialReference.SetReferences( MaterialReferences );

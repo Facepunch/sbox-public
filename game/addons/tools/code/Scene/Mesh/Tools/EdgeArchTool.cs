@@ -81,11 +81,13 @@ public partial class EdgeArchTool( EdgeArchEdges[] edges ) : EditorTool
 	private static Vector3[] ComputeControlPoints( PolygonMesh mesh, HalfEdgeHandle edgeHandle,
 		float arcHeight, float arcOffset )
 	{
+		var usedOpposite = false;
 		var faceHandle = mesh.GetHalfEdgeFace( edgeHandle );
 		if ( !faceHandle.IsValid )
 		{
 			var oppositeEdge = mesh.GetOppositeHalfEdge( edgeHandle );
 			faceHandle = mesh.GetHalfEdgeFace( oppositeEdge );
+			usedOpposite = true;
 		}
 
 		if ( !faceHandle.IsValid )
@@ -103,6 +105,9 @@ public partial class EdgeArchTool( EdgeArchEdges[] edges ) : EditorTool
 		var edgeDir = edgeVec.Normal;
 
 		var arcDir = faceNormal.Cross( edgeDir ).Normal;
+
+		if ( usedOpposite )
+			arcDir = -arcDir;
 
 		var scaledHeight = arcHeight * (4.0f / 3.0f);
 		var scaledOffset = arcOffset * (4.0f / 3.0f);

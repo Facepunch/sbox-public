@@ -112,7 +112,7 @@ public static class ILHotloadProcessor
 			new TextSpan( compilerExtraText.Length, 0 ),
 			$"{Environment.NewLine}[assembly: global::Sandbox.SupportsILHotloadAttribute(\"{oldAssemblyVersion}\")]" ) ) );
 
-		processor.Compilation = processor.Compilation.ReplaceSyntaxTree( compilerExtraTree, updatedCompilerExtraTree );
+		processor.ReplaceSyntaxTree( compilerExtraTree, updatedCompilerExtraTree );
 
 		//
 		// Apply changed syntax trees
@@ -121,8 +121,7 @@ public static class ILHotloadProcessor
 		foreach ( var updatedNewTree in updatedNewTrees )
 		{
 			var newTree = newTrees[updatedNewTree.FilePath];
-
-			processor.Compilation = processor.Compilation.ReplaceSyntaxTree( newTree, updatedNewTree );
+			processor.ReplaceSyntaxTree( newTree, updatedNewTree );
 		}
 	}
 

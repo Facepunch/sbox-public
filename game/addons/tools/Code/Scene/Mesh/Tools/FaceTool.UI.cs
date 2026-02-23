@@ -127,6 +127,7 @@ partial class FaceTool
 
 				CreateButton( "Fast Texture Tool", "texture", "mesh.fast-texture-tool", OpenFastTextureTool, true, grid );
 				CreateButton( "Edge Cut Tool", "content_cut", "mesh.edge-cut-tool", OpenEdgeCutTool, true, grid );
+				CreateButton( "Mirror Tool", "flip", "mesh.mirror-tool", OpenMirrorTool, _faces.Length > 0, grid );
 
 				grid.AddStretchCell();
 
@@ -170,6 +171,14 @@ partial class FaceTool
 
 				group.Add( normalRow );
 			}
+		}
+
+		[Shortcut( "mesh.mirror-tool", "SHIFT+F", typeof( SceneViewWidget ) )]
+		void OpenMirrorTool()
+		{
+			var tool = new MirrorTool();
+			tool.Manager = _meshTool.Manager;
+			_meshTool.CurrentTool = tool;
 		}
 
 		[Shortcut( "mesh.edge-cut-tool", "C", typeof( SceneViewWidget ) )]

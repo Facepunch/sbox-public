@@ -8,9 +8,9 @@ namespace Sandbox.Rendering;
 /// </summary>
 internal class Skybox3DPipeline
 {
-	[ConVar( "r_3d_skybox" )] static bool Enabled { get; set; } = true;
-	[ConVar( "r_3d_skybox_depth_prepass" )] static bool DepthPrepass { get; set; } = true;
-	[ConVar( "r_3d_skybox_depth_prepass_cull_threshold" )] static float DepthPrepassCullThreshold { get; set; } = 30.0f;
+	static bool Enabled => ConVarSystem.GetValue( "r_3d_skybox", "1", true ).ToBool();
+	static bool DepthPrepass => ConVarSystem.GetValue( "r_3d_skybox_depth_prepass", "1", true ).ToBool();
+	static float DepthPrepassCullThreshold => ConVarSystem.GetValue( "r_3d_skybox_depth_prepass_cull_threshold", "30", true ).ToFloat();
 
 	static ConcurrentQueue<Skybox3DPipeline> Pool = new();
 

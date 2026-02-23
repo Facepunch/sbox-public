@@ -104,6 +104,11 @@ public partial class SoundHandle : IValid, IDisposable
 	/// </summary>
 	public Curve Fadeout { get; set; } = new Curve( new( 0, 1 ), new( 1, 0 ) );
 
+	/// <summary>
+	/// The fadein curve for when the sound starts.
+	/// </summary>
+	public Curve Fadein { get; set; } = new Curve( new( 0, 0 ), new( 1, 1 ) );
+
 
 	[Obsolete( "This is not used anymore" )]
 	public float Decibels { get; set; } = 70.0f;
@@ -186,9 +191,19 @@ public partial class SoundHandle : IValid, IDisposable
 	internal RealTimeUntil TimeUntilFaded { get; set; }
 
 	/// <summary>
+	/// Time remaining until the fade-in completes
+	/// </summary>
+	internal RealTimeUntil TimeUntilFadedIn { get; set; }
+
+	/// <summary>
 	/// Have we started fading out?
 	/// </summary>
-	internal bool IsFading { get; set; }
+	internal bool IsFadingOut { get; set; }
+
+	/// <summary>
+	/// Are we currently fading in?
+	/// </summary>
+	internal bool IsFadingIn { get; set; }
 
 	/// <summary>
 	/// True if the sound has been stopped
@@ -228,12 +243,12 @@ public partial class SoundHandle : IValid, IDisposable
 
 	public void Stop( float fadeTime = 0.0f )
 	{
-		if ( Finished || IsFading ) return;
+		if ( Finished || IsFadingOut ) return;
 
 		if ( fadeTime > 0.0f )
 		{
 			TimeUntilFaded = fadeTime;
-			IsFading = true;
+			IsFadingOut = true;
 
 			return;
 		}

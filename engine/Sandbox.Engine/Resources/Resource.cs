@@ -68,15 +68,19 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 	}
 
 	/// <summary>
-	/// Sets the ResourcePath, ResourceName and ResourceId from a resource path
+	/// Sets the ResourcePath, ResourceName and ResourceId from a resource path.
+	/// Registers in the WeakIndex so the resource can be found by ResourceId for networking,
+	/// without preventing garbage collection.
+	/// This is intended for runtime/native resources only. Disk-based resources (GameResource)
+	/// should use <see cref="ResourceSystem.Register"/> instead.
 	/// </summary>
-	internal void SetIdFromResourcePath( string resourcePath )
+	internal void RegisterWeakResourceId( string resourcePath )
 	{
 		ResourcePath = FixPath( resourcePath );
 		ResourceName = System.IO.Path.GetFileNameWithoutExtension( ResourcePath );
 		ResourceId = ResourcePath.FastHash();
 
-		Game.Resources.Register( this );
+		Game.Resources.RegisterWeak( this );
 	}
 
 	/// <summary>
