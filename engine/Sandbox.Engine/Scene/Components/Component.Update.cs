@@ -33,11 +33,14 @@ public abstract partial class Component
 		{
 			Scene.pendingStartComponents.Remove( this );
 			_startCalled = true;
-			ExceptionWrap( "Start", OnStart );
+
+			try { OnStart(); }
+			catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'Start' on {this}" ); }
 
 			if ( Scene is not null && !Scene.IsEditor )
 			{
-				ExceptionWrap( "Start", OnComponentStart );
+				try { OnComponentStart?.Invoke(); }
+				catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'Start' on {this}" ); }
 			}
 		}
 	}
@@ -48,11 +51,14 @@ public abstract partial class Component
 		if ( !ShouldExecute ) return;
 
 		InternalOnStart();
-		ExceptionWrap( "Update", OnUpdate );
+
+		try { OnUpdate(); }
+		catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'Update' on {this}" ); }
 
 		if ( Scene is not null && !Scene.IsEditor )
 		{
-			ExceptionWrap( "Update", OnComponentUpdate );
+			try { OnComponentUpdate?.Invoke(); }
+			catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'Update' on {this}" ); }
 		}
 	}
 
@@ -62,11 +68,14 @@ public abstract partial class Component
 		if ( !ShouldExecute ) return;
 
 		InternalOnStart();
-		ExceptionWrap( "FixedUpdate", OnFixedUpdate );
+
+		try { OnFixedUpdate(); }
+		catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'FixedUpdate' on {this}" ); }
 
 		if ( Scene is not null && !Scene.IsEditor )
 		{
-			ExceptionWrap( "FixedUpdate", OnComponentFixedUpdate );
+			try { OnComponentFixedUpdate?.Invoke(); }
+			catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'FixedUpdate' on {this}" ); }
 		}
 	}
 }

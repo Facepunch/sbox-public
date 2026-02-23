@@ -39,7 +39,9 @@ internal class PostProcessLayers
 		if ( !Layers.TryGetValue( stage, out var list ) )
 			return;
 
-		foreach ( var entry in list.OrderBy( x => x.Order ) )
+		list.Sort();
+
+		foreach ( var entry in list )
 		{
 			entry.Render();
 		}
@@ -55,11 +57,13 @@ internal record struct WeightedEffect
 /// <summary>
 /// A layer is placed on a specific Render Stage is ordered relative to other layers on that stage
 /// </summary>
-internal class PostProcessLayer
+internal class PostProcessLayer : IComparable<PostProcessLayer>
 {
 	public CommandList CommandList;
 	public int Order;
 	public string Name;
+
+	public int CompareTo( PostProcessLayer other ) => Order.CompareTo( other.Order );
 
 	/// <summary>
 	/// Render this layer

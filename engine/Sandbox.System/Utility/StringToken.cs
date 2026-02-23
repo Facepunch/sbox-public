@@ -6,12 +6,19 @@ namespace Sandbox;
 /// We wrap this functionality up in the StringToken struct, because we can apply a bunch of compile time 
 /// optimizations to speed up the conversion.
 /// </summary>
-public struct StringToken
+public struct StringToken : IEquatable<StringToken>
 {
 	static ConcurrentDictionary<string, uint> Cache = new( StringComparer.OrdinalIgnoreCase );
 	static ConcurrentDictionary<uint, string> CacheReverse = new();
 
 	public uint Value;
+
+	public bool Equals( StringToken other ) => Value == other.Value;
+	public override bool Equals( object obj ) => obj is StringToken other && Value == other.Value;
+	public override int GetHashCode() => (int)Value;
+
+	public static bool operator ==( StringToken left, StringToken right ) => left.Value == right.Value;
+	public static bool operator !=( StringToken left, StringToken right ) => left.Value != right.Value;
 
 	public StringToken( string value )
 	{

@@ -20,6 +20,13 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 
 	private ConcurrentQueue<GameTransform> ChangedTransforms { get; } = new();
 
+	// Reusable lists to avoid per-frame allocations from Parallel.ForEach with IEnumerable<T>.
+	// Parallel.ForEach on IEnumerable uses a dynamic partitioner that allocates KeyValuePair<long, T>[]
+	// chunks internally; passing an IList<T> uses the static range partitioner instead.
+	private readonly List<SkinnedModelRenderer> _rootRenderers = new();
+	private readonly List<SkinnedModelRenderer> _boneMergeRoots = new();
+	private readonly List<SkinnedModelRenderer> _physRenderers = new();
+
 	private static int _animThreadCount = Math.Max( 1, Environment.ProcessorCount - 1 );
 
 	private static ParallelOptions _animParallelOptions = new()
@@ -38,11 +45,21 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 	{
 		using ( PerformanceStats.Timings.Animation.Scope() )
 		{
-			var rootRenderers = SkinnedRenderers.EnumerateLocked().Where( x => x.IsRootRenderer );
+			_rootRenderers.Clear();
+			_boneMergeRoots.Clear();
+
+			foreach ( var renderer in SkinnedRenderers.EnumerateLocked() )
+			{
+				if ( renderer.IsRootRenderer )
+					_rootRenderers.Add( renderer );
+
+				if ( !renderer.BoneMergeTarget.IsValid() && renderer.HasBoneMergeChildren )
+					_boneMergeRoots.Add( renderer );
+			}
 
 			// Skip out if we have a parent that is a skinned model, because we need to move relative to that
 			// and their bones haven't been worked out yet. They will get worked out after our parent is.
-			System.Threading.Tasks.Parallel.ForEach( rootRenderers, _animParallelOptions, ProcessRenderer );
+			System.Threading.Tasks.Parallel.ForEach( _rootRenderers, _animParallelOptions, ProcessRenderer );
 
 			// This is a good time to maintain decode caches
 			// Will copy local caches to the global cache and handle LRU eviction
@@ -50,8 +67,7 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 			Task.Run( g_pAnimationSystemUtils.MaintainDecodeCaches );
 
 			// Now merge any descendants without allocating per-merge delegates
-			var boneMergeRoots = SkinnedRenderers.EnumerateLocked().Where( x => !x.BoneMergeTarget.IsValid() && x.HasBoneMergeChildren );
-			System.Threading.Tasks.Parallel.ForEach( boneMergeRoots, _animParallelOptions, renderer => renderer.MergeDescendants( ChangedTransforms ) );
+			System.Threading.Tasks.Parallel.ForEach( _boneMergeRoots, _animParallelOptions, renderer => renderer.MergeDescendants( ChangedTransforms ) );
 
 			while ( ChangedTransforms.TryDequeue( out var tx ) )
 			{
@@ -94,7 +110,14 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 
 	void PhysicsStep()
 	{
-		var physRenderers = SkinnedRenderers.EnumerateLocked().Where( x => x.Physics != null );
-		System.Threading.Tasks.Parallel.ForEach( physRenderers, _animParallelOptions, renderer => renderer.Physics.Step() );
+		_physRenderers.Clear();
+
+		foreach ( var renderer in SkinnedRenderers.EnumerateLocked() )
+		{
+			if ( renderer.Physics != null )
+				_physRenderers.Add( renderer );
+		}
+
+		System.Threading.Tasks.Parallel.ForEach( _physRenderers, _animParallelOptions, renderer => renderer.Physics.Step() );
 	}
 }

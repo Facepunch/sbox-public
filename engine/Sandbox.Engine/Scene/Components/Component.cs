@@ -1,6 +1,5 @@
 ﻿using Sandbox.Internal;
 using Sandbox.Utility;
-using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Sandbox;
@@ -195,8 +194,11 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 
 	internal virtual void OnDestroyInternal()
 	{
-		ExceptionWrap( "OnDestroy", OnDestroy );
-		ExceptionWrap( "OnDestroy", OnComponentDestroy );
+		try { OnDestroy(); }
+		catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'OnDestroy' on {this}" ); }
+
+		try { OnComponentDestroy?.Invoke(); }
+		catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'OnDestroy' on {this}" ); }
 
 		// Unlink from GameObject now so we're no longer valid
 		GameObject = null;
@@ -222,7 +224,8 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 		if ( !ShouldExecute )
 			return;
 
-		ExceptionWrap( "OnPreRender", OnPreRender );
+		try { OnPreRender(); }
+		catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'OnPreRender' on {this}" ); }
 	}
 
 	private Action _onComponentUpdate;
@@ -369,24 +372,6 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 		}
 	}
 
-	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	void ExceptionWrap( string name, Action a )
-	{
-
-		if ( a is null )
-			return;
-
-		try
-		{
-			a();
-		}
-		catch ( System.Exception e )
-		{
-			Log.Error( e, $"Exception when calling '{name}' on {this}" );
-		}
-	}
-
-
 	/// <summary>
 	/// Called immediately after deserializing, and when a property is changed in the editor.
 	/// </summary>
@@ -405,7 +390,8 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 
 	internal void OnValidateInternal()
 	{
-		ExceptionWrap( "OnValidate", OnValidate );
+		try { OnValidate(); }
+		catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'OnValidate' on {this}" ); }
 	}
 
 	internal void Validate()

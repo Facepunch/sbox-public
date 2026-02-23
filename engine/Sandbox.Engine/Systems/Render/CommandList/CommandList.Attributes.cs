@@ -24,9 +24,9 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( (StringToken)entry.Object1, entry.Data1.x );
+				attrAccess.attributes.Set( entry.Token, entry.Data1.x );
 			}
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object4 = this, Data1 = new Vector4( f, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Data1 = new Vector4( f, 0, 0, 0 ) } );
 		}
 
 		public void Set( StringToken token, double f ) => Set( token, (float)f );
@@ -36,9 +36,9 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( (StringToken)entry.Object1, new Vector2( entry.Data1.x, entry.Data1.y ) );
+				attrAccess.attributes.Set( entry.Token, new Vector2( entry.Data1.x, entry.Data1.y ) );
 			}
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object4 = this, Data1 = new Vector4( vector2.x, vector2.y, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Data1 = new Vector4( vector2.x, vector2.y, 0, 0 ) } );
 		}
 
 		public void Set( StringToken token, Vector3 vector3 )
@@ -46,9 +46,9 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( (StringToken)entry.Object1, new Vector3( entry.Data1.x, entry.Data1.y, entry.Data1.z ) );
+				attrAccess.attributes.Set( entry.Token, new Vector3( entry.Data1.x, entry.Data1.y, entry.Data1.z ) );
 			}
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object4 = this, Data1 = new Vector4( vector3.x, vector3.y, vector3.z, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Data1 = new Vector4( vector3.x, vector3.y, vector3.z, 0 ) } );
 		}
 
 		public void Set( StringToken token, Vector4 vector4 )
@@ -56,9 +56,9 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( (StringToken)entry.Object1, entry.Data1 );
+				attrAccess.attributes.Set( entry.Token, entry.Data1 );
 			}
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object4 = this, Data1 = vector4 } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Data1 = vector4 } );
 		}
 
 		public void Set( StringToken token, int i )
@@ -66,9 +66,9 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( (StringToken)entry.Object1, (int)entry.Data1.x );
+				attrAccess.attributes.Set( entry.Token, (int)entry.Data1.x );
 			}
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object4 = this, Data1 = new Vector4( i, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Data1 = new Vector4( i, 0, 0, 0 ) } );
 		}
 
 		public void Set( StringToken token, bool b )
@@ -76,9 +76,9 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( (StringToken)entry.Object1, (int)entry.Data1.x != 0 );
+				attrAccess.attributes.Set( entry.Token, (int)entry.Data1.x != 0 );
 			}
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object4 = this, Data1 = new Vector4( b ? 1 : 0, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Data1 = new Vector4( b ? 1 : 0, 0, 0, 0 ) } );
 		}
 
 		public void Set( StringToken token, Matrix matrix )
@@ -86,9 +86,9 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( (StringToken)entry.Object1, (Matrix)entry.Object2 );
+				attrAccess.attributes.Set( entry.Token, (Matrix)entry.Object2 );
 			}
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object2 = matrix, Object4 = this } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object2 = matrix, Object4 = this } );
 		}
 
 		public void Set( StringToken token, GpuBuffer buffer )
@@ -96,9 +96,9 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( (StringToken)entry.Object1, (GpuBuffer)entry.Object2 );
+				attrAccess.attributes.Set( entry.Token, (GpuBuffer)entry.Object2 );
 			}
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object2 = buffer, Object4 = this } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object2 = buffer, Object4 = this } );
 		}
 
 		public void Set( StringToken token, Texture texture, int mip = -1 )
@@ -106,9 +106,9 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( (StringToken)entry.Object1, (Texture)entry.Object2, (int)entry.Data1.x );
+				attrAccess.attributes.Set( entry.Token, (Texture)entry.Object2, (int)entry.Data1.x );
 			}
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object2 = texture, Object4 = this, Data1 = new Vector4( mip, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object2 = texture, Object4 = this, Data1 = new Vector4( mip, 0, 0, 0 ) } );
 		}
 
 		public void Set( StringToken token, SamplerState samplerState )
@@ -116,9 +116,9 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( (StringToken)entry.Object1, (SamplerState)entry.Object2 );
+				attrAccess.attributes.Set( entry.Token, (SamplerState)entry.Object2 );
 			}
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object2 = samplerState, Object4 = this } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object2 = samplerState, Object4 = this } );
 		}
 
 		public void SetCombo( StringToken token, int value )
@@ -126,9 +126,9 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.SetCombo( (StringToken)entry.Object1, (int)entry.Data1.x );
+				attrAccess.attributes.SetCombo( entry.Token, (int)entry.Data1.x );
 			}
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object4 = this, Data1 = new Vector4( value, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Data1 = new Vector4( value, 0, 0, 0 ) } );
 		}
 
 		public void SetCombo( StringToken token, bool value )
@@ -136,9 +136,9 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.SetCombo( (StringToken)entry.Object1, (int)entry.Data1.x != 0 );
+				attrAccess.attributes.SetCombo( entry.Token, (int)entry.Data1.x != 0 );
 			}
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object4 = this, Data1 = new Vector4( value ? 1 : 0, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Data1 = new Vector4( value ? 1 : 0, 0, 0, 0 ) } );
 		}
 
 		public void SetCombo<T>( StringToken token, T t ) where T : unmanaged, Enum
@@ -146,9 +146,9 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.SetComboEnum( (StringToken)entry.Object1, (T)entry.Object2 );
+				attrAccess.attributes.SetComboEnum( entry.Token, (T)entry.Object2 );
 			}
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object2 = t, Object4 = this } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object2 = t, Object4 = this } );
 		}
 
 		public void SetData<T>( StringToken token, T data ) where T : unmanaged
@@ -156,9 +156,9 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.SetData( (StringToken)entry.Object1, (T)entry.Object2 );
+				attrAccess.attributes.SetData( entry.Token, (T)entry.Object2 );
 			}
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object2 = data, Object4 = this } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object2 = data, Object4 = this } );
 		}
 
 		/// <summary>
@@ -173,9 +173,9 @@ public sealed partial class CommandList
 						static void Execute( ref Entry entry, CommandList commandList )
 						{
 							var attrAccess = (AttributeAccess)entry.Object4;
-							attrAccess.attributes.Set( (StringToken)entry.Object1, Graphics.SceneLayer.GetColorTarget() );
+							attrAccess.attributes.Set( entry.Token, Graphics.SceneLayer.GetColorTarget() );
 						}
-						list.AddEntry( &Execute, new Entry { Object1 = token, Object4 = this } );
+						list.AddEntry( &Execute, new Entry { Token = token, Object4 = this } );
 					}
 					break;
 
@@ -184,9 +184,9 @@ public sealed partial class CommandList
 						static void Execute( ref Entry entry, CommandList commandList )
 						{
 							var attrAccess = (AttributeAccess)entry.Object4;
-							attrAccess.attributes.Set( (StringToken)entry.Object1, Graphics.SceneLayer.GetDepthTarget() );
+							attrAccess.attributes.Set( entry.Token, Graphics.SceneLayer.GetDepthTarget() );
 						}
-						list.AddEntry( &Execute, new Entry { Object1 = token, Object4 = this } );
+						list.AddEntry( &Execute, new Entry { Token = token, Object4 = this } );
 					}
 					break;
 
@@ -195,9 +195,9 @@ public sealed partial class CommandList
 						static void Execute( ref Entry entry, CommandList commandList )
 						{
 							var attrAccess = (AttributeAccess)entry.Object4;
-							attrAccess.attributes.SetCombo( (StringToken)entry.Object1, Graphics.IdealMsaaLevel != MultisampleAmount.MultisampleNone ? 1 : 0 );
+							attrAccess.attributes.SetCombo( entry.Token, Graphics.IdealMsaaLevel != MultisampleAmount.MultisampleNone ? 1 : 0 );
 						}
-						list.AddEntry( &Execute, new Entry { Object1 = token, Object4 = this } );
+						list.AddEntry( &Execute, new Entry { Token = token, Object4 = this } );
 					}
 					break;
 			}
@@ -217,10 +217,10 @@ public sealed partial class CommandList
 				}
 
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( (StringToken)entry.Object1, target.ColorTarget, (int)entry.Data1.x );
+				attrAccess.attributes.Set( entry.Token, target.ColorTarget, (int)entry.Data1.x );
 			}
 
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object5 = buffer.Name, Object4 = this, Data1 = new Vector4( mip, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object5 = buffer.Name, Object4 = this, Data1 = new Vector4( mip, 0, 0, 0 ) } );
 		}
 
 		/// <summary>
@@ -237,10 +237,10 @@ public sealed partial class CommandList
 				}
 
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( (StringToken)entry.Object1, target.ColorTarget.Index );
+				attrAccess.attributes.Set( entry.Token, target.ColorTarget.Index );
 			}
 
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object5 = buffer.Name, Object4 = this } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object5 = buffer.Name, Object4 = this } );
 		}
 
 		/// <summary>
@@ -259,11 +259,11 @@ public sealed partial class CommandList
 				var s = target.ColorTarget.Size;
 
 				var attrAccess = (AttributeAccess)entry.Object4;
-				if ( (int)entry.Data1.x != 0 ) attrAccess.attributes.Set( (StringToken)entry.Object1, new Vector2( 1.0f / s.x, 1.0f / s.y ) );
-				else attrAccess.attributes.Set( (StringToken)entry.Object1, s );
+				if ( (int)entry.Data1.x != 0 ) attrAccess.attributes.Set( entry.Token, new Vector2( 1.0f / s.x, 1.0f / s.y ) );
+				else attrAccess.attributes.Set( entry.Token, s );
 			}
 
-			list.AddEntry( &Execute, new Entry { Object1 = token, Object5 = size.Name, Object4 = this, Data1 = new Vector4( inverse ? 1 : 0, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Token = token, Object5 = size.Name, Object4 = this, Data1 = new Vector4( inverse ? 1 : 0, 0, 0, 0 ) } );
 		}
 
 		/// <summary>

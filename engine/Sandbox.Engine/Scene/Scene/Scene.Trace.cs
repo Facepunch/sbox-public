@@ -41,7 +41,7 @@ public partial class Scene : GameObject
 			}
 		}
 
-		foreach ( var system in systems )
+		foreach ( var system in systems.Values )
 		{
 			if ( system is GameObjectSystem.ITraceProvider traceProvider )
 			{
@@ -85,7 +85,7 @@ public partial class Scene : GameObject
 			}
 		}
 
-		foreach ( var system in systems )
+		foreach ( var system in systems.Values )
 		{
 			if ( system is GameObjectSystem.ITraceProvider traceProvider )
 			{
