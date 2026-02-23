@@ -160,8 +160,6 @@ internal partial class NetworkSystem
 			}
 		}
 
-		var denialReason = "";
-
 		source.PreInfo = new ConnectionInfo( null )
 		{
 			ConnectionId = source.Id,
