@@ -19,6 +19,7 @@ public class BlackboardView : Widget
 	private readonly Dictionary<string, IBlackboardParameterType> _availableParameters = new( StringComparer.OrdinalIgnoreCase );
 	private readonly SelectionSystem _selection = new SelectionSystem();
 
+	private BlackboardParameter _selectedParameter => _selection.OfType<BlackboardParameter>().FirstOrDefault();
 	private bool _hasSelection => _selection.Any();
 
 	/// <summary>
@@ -54,7 +55,7 @@ public class BlackboardView : Widget
 		BuildUI();
 	}
 
-	public void BuildUI()
+	private void BuildUI()
 	{
 		Layout.Clear( true );
 		_header = Layout.AddColumn();
@@ -65,7 +66,7 @@ public class BlackboardView : Widget
 		_subHeader.Alignment = TextFlag.LeftCenter;
 
 		_addButton = _subHeader.Add( new AddButton() );
-		_addButton.MouseLeftPress = CreateParameterPopupMenu;
+		_addButton.MouseLeftPress = CreateParameterTypeSelectionPopupMenu;
 
 		_search = _subHeader.Add( new LineEdit(), 1 );
 		_search.PlaceholderText = "⌕  Search";
@@ -115,10 +116,97 @@ public class BlackboardView : Widget
 			SetSelection( (BlackboardParameter)item );
 			SelectionChanged();
 		};
+		_selection.OnItemRemoved += ( item ) =>
+		{
+			if ( !_hasSelection )
+				_window.OnSelected( null );
+		};
 
 		Layout.Add( _treeView, 1 );
 
 		CheckForChanges();
+	}
+
+	private void OpenTreeViewContextMenu()
+	{
+		if ( !_hasSelection )
+			return;
+
+		var rootItem = _treeView.Items.FirstOrDefault();
+		if ( rootItem is null ) return;
+
+		if ( rootItem is TreeNode node )
+		{
+			node.OnContextMenu();
+		}
+	}
+
+	private void CreateParameterTypeSelectionPopupMenu()
+	{
+		var popup = new PopupWidget( this );
+		popup.Layout = Layout.Column();
+		popup.Width = ScreenRect.Width;
+
+		var scroller = popup.Layout.Add( new ScrollArea( this ), 1 );
+		scroller.Canvas = new Widget( scroller )
+		{
+			Layout = Layout.Column(),
+			VerticalSizeMode = SizeMode.CanGrow | SizeMode.Expand
+		};
+
+		IBlackboardParameterType[] avalibleTypes = BlackboardParameter.GetRelevantParameters( _availableParameters, Graph.IsSubgraph ).ToArray();
+
+		foreach ( var parameterType in avalibleTypes.OrderBy( x => x.Type.Order ) )
+		{
+			var entry = scroller.Canvas.Layout.Add( new ParameterTypeEntry( _addButton, parameterType ) );
+			entry.MouseLeftPress = () =>
+			{
+				CreateNewParameter( parameterType );
+				popup.Update();
+				popup.Close();
+			};
+		}
+
+		popup.Position = _addButton.ScreenRect.BottomLeft;
+		popup.Visible = true;
+		popup.AdjustSize();
+		popup.ConstrainToScreen();
+		popup.OnPaintOverride = () =>
+		{
+			Paint.SetBrushAndPen( Theme.ControlBackground );
+			Paint.DrawRect( Paint.LocalRect, 0 );
+			return true;
+		};
+	}
+
+	[EditorEvent.Frame]
+	private void CheckForChanges()
+	{
+		if ( !_queryDirty )
+			return;
+
+		_queryDirty = false;
+		Rebuild();
+	}
+
+	internal IDisposable UndoScope( string name )
+	{
+		PushUndo( name );
+		return new Sandbox.Utility.DisposeAction( () => PushRedo() );
+	}
+
+	public void PushUndo( string name )
+	{
+		Log.Info( $"Push Undo ({name})" );
+		_undoStack.PushUndo( name, Graph.UndoStackSerialize() );
+		_window.OnUndoPushed();
+	}
+
+	public void PushRedo()
+	{
+		Log.Info( "Push Redo" );
+		_undoStack.PushRedo( Graph.UndoStackSerialize() );
+		_window.SetDirty();
 	}
 
 	public void Rebuild()
@@ -190,88 +278,6 @@ public class BlackboardView : Widget
 		}
 	}
 
-	private void CreateParameterPopupMenu()
-	{
-		var popup = new PopupWidget( this );
-		popup.Layout = Layout.Column();
-		popup.Width = ScreenRect.Width;
-
-		var scroller = popup.Layout.Add( new ScrollArea( this ), 1 );
-		scroller.Canvas = new Widget( scroller )
-		{
-			Layout = Layout.Column(),
-			VerticalSizeMode = SizeMode.CanGrow | SizeMode.Expand
-		};
-
-		IBlackboardParameterType[] avalibleTypes = BlackboardParameter.GetRelevantParameters( _availableParameters, Graph.IsSubgraph ).ToArray();
-
-		foreach ( var parameterType in avalibleTypes.OrderBy( x => x.Type.Order ) )
-		{
-			var entry = scroller.Canvas.Layout.Add( new ParameterTypeEntry( _addButton, parameterType ) );
-			entry.MouseLeftPress = () =>
-			{
-				CreateNewParameter( parameterType );
-				popup.Update();
-				popup.Close();
-			};
-		}
-
-		popup.Position = _addButton.ScreenRect.BottomLeft;
-		popup.Visible = true;
-		popup.AdjustSize();
-		popup.ConstrainToScreen();
-		popup.OnPaintOverride = () =>
-		{
-			Paint.SetBrushAndPen( Theme.ControlBackground );
-			Paint.DrawRect( Paint.LocalRect, 0 );
-			return true;
-		};
-	}
-
-	[EditorEvent.Frame]
-	public void CheckForChanges()
-	{
-		if ( !_queryDirty )
-			return;
-
-		_queryDirty = false;
-		Rebuild();
-	}
-
-	private void OpenTreeViewContextMenu()
-	{
-		if ( !_treeView.SelectedItems.Any() )
-			return;
-
-		var rootItem = _treeView.Items.FirstOrDefault();
-		if ( rootItem is null ) return;
-
-		if ( rootItem is TreeNode node )
-		{
-			node.OnContextMenu();
-		}
-	}
-
-	internal IDisposable UndoScope( string name )
-	{
-		PushUndo( name );
-		return new Sandbox.Utility.DisposeAction( () => PushRedo() );
-	}
-
-	public void PushUndo( string name )
-	{
-		Log.Info( $"Push Undo ({name})" );
-		_undoStack.PushUndo( name, Graph.UndoStackSerialize() );
-		_window.OnUndoPushed();
-	}
-
-	public void PushRedo()
-	{
-		Log.Info( "Push Redo" );
-		_undoStack.PushRedo( Graph.UndoStackSerialize() );
-		_window.SetDirty();
-	}
-
 	public void AddParameterType<T>() where T : BlackboardParameter
 	{
 		AddParameterType( EditorTypeLibrary.GetType<T>() );
@@ -331,9 +337,7 @@ public class BlackboardView : Widget
 
 		if ( _hasSelection )
 		{
-			var selectedParameter = _selection.OfType<BlackboardParameter>().FirstOrDefault();
-
-			var parameter = Graph.FindParameter( selectedParameter.Identifier );
+			var parameter = Graph.FindParameter( _selectedParameter.Identifier );
 			SetSelection( parameter );
 			SelectionChanged();
 		}
@@ -365,8 +369,7 @@ public class BlackboardView : Widget
 			return;
 		}
 
-		var selectedParameter = _selection.OfType<BlackboardParameter>().FirstOrDefault();
-		_window.OnSelected( selectedParameter );
+		_window.OnSelected( _selectedParameter );
 	}
 }
 
