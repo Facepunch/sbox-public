@@ -348,7 +348,7 @@ partial class ShaderGraph
 			throw new Exception();
 		}
 
-		if ( parameter is ISubgraphInputBlackboardParameter subgraphInputParameter )
+		if ( parameter is IBlackboardSubgraphInputParameter subgraphInputParameter )
 		{
 			subgraphInputParameter.Name = inputName;
 			subgraphInputParameter.InputDescription = inputDescription;
@@ -414,10 +414,10 @@ partial class ShaderGraph
 
 				blackboardParameter = inputType switch
 				{
-					InputType.Float => new FloatSubgraphInputParameter( "", 0.0f ),
-					InputType.Float2 => new Float2SubgraphInputParameter( "", Vector2.Zero ),
-					InputType.Float3 => new Float3SubgraphInputParameter( "", Vector3.Zero ),
-					InputType.Color => new ColorSubgraphInputParameter( "", Color.Black ),
+					InputType.Float => new FloatSubgraphInputParameter() { Value = 0.0f },
+					InputType.Float2 => new Float2SubgraphInputParameter() { Value = Vector2.Zero },
+					InputType.Float3 => new Float3SubgraphInputParameter() { Value = Vector3.Zero },
+					InputType.Color => new ColorSubgraphInputParameter() { Value = Color.White },
 					_ => throw new NotImplementedException( $"Unknown inputType : {inputType}" ),
 				};
 			}

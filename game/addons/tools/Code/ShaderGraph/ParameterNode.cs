@@ -43,15 +43,6 @@ public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNode where Y :
 		}
 	}
 
-	protected NodeResult Component( string component, float value, GraphCompiler compiler )
-	{
-		if ( compiler.IsPreview )
-			return compiler.ResultValue( value );
-	
-		var result = compiler.Result( new NodeInput { Identifier = Identifier, Output = nameof( Result ) } );
-		return new( NodeResultType.Float, $"{result}.{component}", true );
-	}
-
 	protected Y GetParameter()
 	{
 		if ( Graph is ShaderGraph graph )
@@ -60,5 +51,14 @@ public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNode where Y :
 		}
 
 		return null;
+	}
+
+	protected NodeResult Component( string component, float value, GraphCompiler compiler )
+	{
+		if ( compiler.IsPreview )
+			return compiler.ResultValue( value );
+	
+		var result = compiler.Result( new NodeInput { Identifier = Identifier, Output = nameof( Result ) } );
+		return new( NodeResultType.Float, $"{result}.{component}", true );
 	}
 }

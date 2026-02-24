@@ -137,6 +137,16 @@ public sealed partial class ShaderGraph : IGraph
 		throw new Exception( $"There is no parameter with the identifier : {identifier}" );
 	}
 
+	public BlackboardParameter FindParameter( string name )
+	{
+		var parameter = _parameters.Values.FirstOrDefault( x => x.Name == name );
+
+		if ( parameter != null )
+			return parameter;
+
+		throw new Exception( $"There is no parameter with the name : {name}" );
+	}
+
 	public T FindParameter<T>( Guid identifier ) where T : BlackboardParameter
 	{
 		if ( _parameters.TryGetValue( identifier, out var parameter ) )
@@ -147,35 +157,19 @@ public sealed partial class ShaderGraph : IGraph
 		throw new Exception( $"There is no parameter with the identifier : {identifier}" );
 	}
 
-	public BlackboardParameter FindParameter( string name )
-	{
-		var parameter = _parameters.Values.Where( x => x.Name == name ).FirstOrDefault();
-
-		if ( parameter != null )
-			return parameter;
-
-		return null;
-	}
-
 	public T FindParameter<T>( string name ) where T : BlackboardParameter
 	{
-		var parameter = _parameters.Values.OfType<T>().Where( x => x.Name == name ).FirstOrDefault();
+		var parameter = _parameters.Values.OfType<T>().FirstOrDefault( x => x.Name == name );
 
 		if ( parameter != null )
 			return parameter;
 
-		return null;
+		throw new Exception( $"There is no parameter with the name : {name}" );
 	}
 
 	public bool ContainsParameterWithName( string name )
 	{
-		foreach ( var parameter in _parameters )
-		{
-			if ( name == parameter.Value.Name )
-				return true;
-		}
-
-		return false;
+		return _parameters.Any( x => x.Value.Name == name );
 	}
 
 	public void AddParameter( BlackboardParameter parameter )

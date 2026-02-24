@@ -595,7 +595,7 @@ public class ShaderGraphView : GraphView
 
 					if ( parameter != null )
 					{
-						if ( parameter is ISubgraphInputBlackboardParameter subgraphParameter )
+						if ( parameter is IBlackboardSubgraphInputParameter subgraphParameter )
 						{
 							subgraphParameter.PortOrder = nodesToAdd.Count;
 						}

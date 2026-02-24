@@ -18,7 +18,13 @@ public interface IBlackboardParameter
 	void SetValue( object value );
 }
 
-public interface ISubgraphInputBlackboardParameter : IBlackboardParameter
+public interface IBlackboardMaterialParameter : IBlackboardParameter
+{
+	bool IsAttribute { get; set; }
+	IParameterUI GetParameterUI();
+}
+
+public interface IBlackboardSubgraphInputParameter : IBlackboardParameter
 {
 	/// <summary>
 	/// Description of what this input does
@@ -71,12 +77,6 @@ public abstract class BlackboardParameter : IBlackboardParameter
 		Name = "";
 	}
 
-	public BlackboardParameter( string name )
-	{
-		NewIdentifier();
-		Name = name;
-	}
-
 	public Guid NewIdentifier()
 	{
 		Identifier = Guid.NewGuid();
@@ -86,6 +86,25 @@ public abstract class BlackboardParameter : IBlackboardParameter
 	public abstract object GetValue();
 
 	public abstract void SetValue( object value );
+
+	/// <summary>
+	/// Check parameter for any issues.
+	/// </summary>
+	/// <param name="issues">Any issues that are found.</param>
+	/// <returns>False when check has failed otherwise returns true when check has passed.</returns>
+	public bool CheckParameter( out List<string> issues )
+	{
+		issues = new List<string>();
+
+		if ( string.IsNullOrWhiteSpace( Name ) )
+		{
+			issues.Add( $"Parameter with identifier \"{Identifier}\" must have name!" );
+
+			return false;
+		}
+
+		return true;
+	}
 
 	public static IEnumerable<IBlackboardParameterType> GetRelevantParameters( Dictionary<string, IBlackboardParameterType> availableParameters, bool isSubgraph )
 	{
@@ -123,129 +142,93 @@ public abstract class BlackboardParameter : IBlackboardParameter
 
 	public static BaseNode InitializeParameterNode( BlackboardParameter parameter )
 	{
-		switch ( parameter )
+		return parameter switch
 		{
 			// Not In Subgraph
-			case BoolParameter:
-				return new BoolParameterNode()
-				{
-					ParameterIdentifier = parameter.Identifier,
-				};
-			case IntParameter:
-				return new IntParameterNode()
-				{
-					ParameterIdentifier = parameter.Identifier,
-				};
-			case FloatParameter:
-				return new FloatParameterNode()
-				{
-					ParameterIdentifier = parameter.Identifier,
-				};
-			case Float2Parameter:
-				return new Float2ParameterNode()
-				{
-					ParameterIdentifier = parameter.Identifier,
-				};
-			case Float3Parameter:
-				return new Float3ParameterNode()
-				{
-					ParameterIdentifier = parameter.Identifier,
-				};
-			case Float4Parameter:
-				return new Float4ParameterNode()
-				{
-					ParameterIdentifier = parameter.Identifier,
-				};
-			case ColorParameter:
-				return new ColorParameterNode()
-				{
-					ParameterIdentifier = parameter.Identifier,
-				};
-			case Texture2DParameter:
-				return new Texture2DParameterNode()
-				{
-					ParameterIdentifier = parameter.Identifier,
-				};
+			BoolParameter => new BoolParameterNode()
+			{
+				ParameterIdentifier = parameter.Identifier,
+			},
+			IntParameter => new IntParameterNode()
+			{
+				ParameterIdentifier = parameter.Identifier,
+			},
+			FloatParameter => new FloatParameterNode()
+			{
+				ParameterIdentifier = parameter.Identifier,
+			},
+			Float2Parameter => new Float2ParameterNode()
+			{
+				ParameterIdentifier = parameter.Identifier,
+			},
+			Float3Parameter => new Float3ParameterNode()
+			{
+				ParameterIdentifier = parameter.Identifier,
+			},
+			Float4Parameter => new Float4ParameterNode()
+			{
+				ParameterIdentifier = parameter.Identifier,
+			},
+			ColorParameter => new ColorParameterNode()
+			{
+				ParameterIdentifier = parameter.Identifier,
+			},
+			Texture2DParameter => new Texture2DParameterNode()
+			{
+				ParameterIdentifier = parameter.Identifier,
+			},
 
 			// In Subgraph
-			case BoolSubgraphInputParameter:
-				return new SubgraphInput()
-				{
-					DefaultValue = false,
-					ParameterIdentifier = parameter.Identifier,
-				};
-			case IntSubgraphInputParameter:
-				return new SubgraphInput()
-				{
-					DefaultValue = 0,
-					ParameterIdentifier = parameter.Identifier,
-				};
-			case FloatSubgraphInputParameter:
-				return new SubgraphInput()
-				{
-					DefaultValue = 0.0f,
-					ParameterIdentifier = parameter.Identifier,
-				};
-			case Float2SubgraphInputParameter:
-				return new SubgraphInput()
-				{
-					DefaultValue = Vector2.Zero,
-					ParameterIdentifier = parameter.Identifier,
-				};
-			case Float3SubgraphInputParameter:
-				return new SubgraphInput()
-				{
-					DefaultValue = Vector3.Zero,
-					ParameterIdentifier = parameter.Identifier,
-				};
-			case Float4SubgraphInputParameter:
-				return new SubgraphInput()
-				{
-					DefaultValue = Vector4.Zero,
-					ParameterIdentifier = parameter.Identifier,
-				};
-			case ColorSubgraphInputParameter:
-				return new SubgraphInput()
-				{
-					DefaultValue = Color.White,
-					ParameterIdentifier = parameter.Identifier,
-				};
-			case Texture2DSubgraphInputParameter:
-				return new SubgraphInput()
-				{
-					DefaultValue = "",
-					ParameterIdentifier = parameter.Identifier,
-				};
-			default:
-				throw new NotImplementedException();
-		}
-	}
-
-	/// <summary>
-	/// Check parameter for any issues.
-	/// </summary>
-	/// <param name="issues">Any issues that are found.</param>
-	/// <returns>False when check has failed otherwise returns true when check has passed.</returns>
-	public bool CheckParameter( out List<string> issues )
-	{
-		issues = new List<string>();
-
-		if ( string.IsNullOrWhiteSpace( Name ) )
-		{
-			issues.Add( $"Parameter with identifier \"{Identifier}\" must have name!" );
-
-			return false;
-		}
-
-		return true;
+			BoolSubgraphInputParameter => new SubgraphInput()
+			{
+				DefaultValue = false,
+				ParameterIdentifier = parameter.Identifier,
+			},
+			IntSubgraphInputParameter => new SubgraphInput()
+			{
+				DefaultValue = 0,
+				ParameterIdentifier = parameter.Identifier,
+			},
+			FloatSubgraphInputParameter => new SubgraphInput()
+			{
+				DefaultValue = 0.0f,
+				ParameterIdentifier = parameter.Identifier,
+			},
+			Float2SubgraphInputParameter => new SubgraphInput()
+			{
+				DefaultValue = Vector2.Zero,
+				ParameterIdentifier = parameter.Identifier,
+			},
+			Float3SubgraphInputParameter => new SubgraphInput()
+			{
+				DefaultValue = Vector3.Zero,
+				ParameterIdentifier = parameter.Identifier,
+			},
+			Float4SubgraphInputParameter => new SubgraphInput()
+			{
+				DefaultValue = Vector4.Zero,
+				ParameterIdentifier = parameter.Identifier,
+			},
+			ColorSubgraphInputParameter => new SubgraphInput()
+			{
+				DefaultValue = Color.White,
+				ParameterIdentifier = parameter.Identifier,
+			},
+			Texture2DSubgraphInputParameter => new SubgraphInput()
+			{
+				DefaultValue = "",
+				ParameterIdentifier = parameter.Identifier,
+			},
+			_ => throw new NotImplementedException(),
+		};
 	}
 }
 
-public abstract class BlackboardMaterialParameter<T, Y> : BlackboardParameter where Y : IParameterUI
+public abstract class BlackboardMaterialParameter<T,Y> : BlackboardParameter, IBlackboardMaterialParameter where Y : IParameterUI
 {
 	[InlineEditor( Label = false ), Group( "Value" )]
 	public T Value { get; set; }
-
+	
 	[InlineEditor( Label = false ), Group( "UI" )]
 	public Y UI { get; set; }
 
@@ -256,15 +239,14 @@ public abstract class BlackboardMaterialParameter<T, Y> : BlackboardParameter wh
 		IsAttribute = false;
 	}
 
-	public BlackboardMaterialParameter( string name, T value, bool isAttribute ) : base( name )
-	{
-		Value = value;
-		IsAttribute = isAttribute;
-	}
-
 	public override object GetValue()
 	{
 		return Value;
+	}
+
+	public IParameterUI GetParameterUI()
+	{
+		return UI;
 	}
 
 	public override void SetValue( object value )
@@ -278,7 +260,7 @@ public abstract class BlackboardMaterialParameter<T, Y> : BlackboardParameter wh
 	}
 }
 
-public abstract class BlackboardSubgraphinputParameter<T> : BlackboardParameter, ISubgraphInputBlackboardParameter
+public abstract class BlackboardSubgraphInputParameter<T> : BlackboardParameter, IBlackboardSubgraphInputParameter
 {
 	[Title( "Input Name" )]
 	public override string Name { get; set; }
@@ -305,14 +287,8 @@ public abstract class BlackboardSubgraphinputParameter<T> : BlackboardParameter,
 
 	public abstract InputType InputType { get; }
 
-	public BlackboardSubgraphinputParameter() : base()
+	public BlackboardSubgraphInputParameter() : base()
 	{
-
-	}
-
-	public BlackboardSubgraphinputParameter( string name, T value ) : base( name )
-	{
-		Value = value;
 	}
 
 	public override object GetValue()
@@ -347,11 +323,6 @@ public abstract class BlackboardTextureMaterialParameter : BlackboardParameter
 
 	public BlackboardTextureMaterialParameter() : base()
 	{
-	}
-
-	public BlackboardTextureMaterialParameter( string name, TextureInput value ) : base( name )
-	{
-		Value = value;
 	}
 
 	public override object GetValue()

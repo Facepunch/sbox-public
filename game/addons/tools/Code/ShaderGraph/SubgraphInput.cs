@@ -155,13 +155,13 @@ public sealed class SubgraphInput : ShaderNode, IParameterNode, IErroringNode, B
 		Inputs = new List<IPlugIn>() { plug };
 	}
 
-	private ISubgraphInputBlackboardParameter GetParameter()
+	private IBlackboardSubgraphInputParameter GetParameter()
 	{
 		if ( Graph is ShaderGraph graph )
 		{
 			var parameter = graph.FindParameter( ParameterIdentifier );
 
-			if ( parameter is ISubgraphInputBlackboardParameter subgraphInputParameter )
+			if ( parameter is IBlackboardSubgraphInputParameter subgraphInputParameter )
 			{
 				return subgraphInputParameter;
 			}

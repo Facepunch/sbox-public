@@ -254,7 +254,7 @@ public sealed class Float4ParameterNode : ParameterNode<Vector4, Float4Parameter
 	[Hide] public float MaxZ => Max.z;
 	[Hide] public float MaxW => Max.w;
 
-	[Hide] public float Step => ((FloatParameterUI)GetParameter().UI).Step;
+	[Hide] public float Step => GetParameter().UI.Step;
 
 	/// <summary>
 	/// X component of result
