@@ -602,7 +602,7 @@ public class ShaderGraphView : GraphView
 						subgraphInput.Position = node.Position - new Vector2( 240, 0 );
 						if ( subgraphInput is SubgraphInput subgraphInputNode )
 						{
-							subgraphInputNode.BlackboardParameterIdentifier = blackboardParameter.Identifier;
+							subgraphInputNode.ParameterIdentifier = parameter.Identifier;
 							subgraphInputNode.OnFrame(); // Trigger update to create outputs
 							input.ConnectedOutput = subgraphInputNode.Outputs.FirstOrDefault();
 							nodesToAdd.Add( subgraphInputNode );
@@ -619,7 +619,7 @@ public class ShaderGraphView : GraphView
 						subgraphInput.Position = node.Position - new Vector2( 240, 0 );
 						if ( subgraphInput is SubgraphInput subgraphInputNode )
 						{
-							subgraphInputNode.BlackboardParameterIdentifier = blackboardParameter.Identifier;
+							subgraphInputNode.ParameterIdentifier = defaultparameter.Identifier;
 							subgraphInputNode.OnFrame(); // Trigger update to create outputs
 							input.ConnectedOutput = subgraphInputNode.Outputs.FirstOrDefault();
 							nodesToAdd.Add( subgraphInputNode );

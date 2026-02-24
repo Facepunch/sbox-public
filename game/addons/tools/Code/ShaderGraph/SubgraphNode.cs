@@ -78,9 +78,9 @@ public sealed class SubgraphNode : ShaderNode, IErroringNode
 
 		// Get all SubgraphInput nodes only.
 		var subgraphInputs = Subgraph.Nodes.OfType<SubgraphInput>()
-			.Where( x => !string.IsNullOrWhiteSpace( x.InputName ) )
+			.Where( x => !string.IsNullOrWhiteSpace( x.Name ) )
 			.OrderBy( x => x.PortOrder )
-			.ThenBy( x => x.InputName );
+			.ThenBy( x => x.Name );
 
 		foreach ( var subgraphInput in subgraphInputs )
 		{
@@ -100,11 +100,11 @@ public sealed class SubgraphNode : ShaderNode, IErroringNode
 
 			var info = new PlugInfo()
 			{
-				Name = subgraphInput.InputName,
+				Name = subgraphInput.Name,
 				Type = type,
 				DisplayInfo = new DisplayInfo()
 				{
-					Name = subgraphInput.InputName,
+					Name = subgraphInput.Name,
 					Fullname = type.FullName
 				}
 			};
@@ -195,7 +195,7 @@ public sealed class SubgraphNode : ShaderNode, IErroringNode
 		{
 			var plug = input.Key;
 			var parameterNode = input.Value.inputNode;
-			var inputName = parameterNode.InputName;
+			var inputName = parameterNode.Name;
 			if ( string.IsNullOrWhiteSpace( inputName ) ) inputName = input.Key.DisplayInfo.Name;
 			if ( IsSubgraph && plug.Type == typeof( Texture ) && plug.ConnectedOutput is null )
 			{

@@ -144,10 +144,10 @@ partial class ShaderGraph
 								AddParameter( parameter );
 							}
 
-							if ( node is IBlackboardNode blackboardNode )
+							if ( node is IParameterNode parameterNode )
 							{
-								blackboardNode.ParameterIdentifier = parameter.Identifier;
-								node = (BaseNode)blackboardNode;
+								parameterNode.ParameterIdentifier = parameter.Identifier;
+								node = (BaseNode)parameterNode;
 							}
 						}
 						else

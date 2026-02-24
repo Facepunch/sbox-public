@@ -282,7 +282,7 @@ public class BlackboardView : Widget
 
 		foreach ( var node in _graph.Nodes )
 		{
-			if ( node is IBlackboardNode blackboardNode && blackboardNode.ParameterIdentifier == identifier && blackboardNode is BaseNode baseNode )
+			if ( node is IParameterNode parameterNode && parameterNode.ParameterIdentifier == identifier && parameterNode is BaseNode baseNode )
 			{
 				_graph.RemoveNode( baseNode );
 				OnParameterNodeDeleted?.Invoke();

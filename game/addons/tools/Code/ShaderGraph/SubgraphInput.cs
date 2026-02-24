@@ -8,15 +8,17 @@ namespace Editor.ShaderGraph;
 /// </summary>
 [Title( "Subgraph Input" ), Category( "Subgraph" ), Icon( "input" )]
 [Hide]
-public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, BaseNode.INodeInitialize
+public sealed class SubgraphInput : ShaderNode, IParameterNode, IErroringNode, BaseNode.INodeInitialize
 {
 	[Hide]
 	private bool IsPreviewInputEnabled => InputType != InputType.Texture2D;
 
 	[Hide]
-	public override string Title => string.IsNullOrWhiteSpace( InputName ) ?
+	public override string Title => string.IsNullOrWhiteSpace( Name ) ?
 		$"Subgraph Input" :
-		$"{InputName} ({InputType})";
+		$"{Name} ({InputType})";
+
+
 
 	[JsonIgnore, Hide]
 	public override Color PrimaryColor => Color.Lerp( Theme.Green, Theme.Blue, 0.5f );
@@ -28,7 +30,7 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 	/// The name of the input parameter
 	/// </summary>
 	[Hide, JsonIgnore]
-	public string InputName => GetParameter().Name;
+	public string Name => GetParameter().Name;
 
 	/// <summary>
 	/// Description of what this input does
@@ -214,7 +216,7 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 			}
 
 			// For normal graphs, use ResultParameter to create a material parameter
-			return compiler.ResultParameter( InputName, outputValue, default, default, false, IsRequired, default );
+			return compiler.ResultParameter( Name, outputValue, default, default, false, IsRequired, default );
 		}
 	};
 

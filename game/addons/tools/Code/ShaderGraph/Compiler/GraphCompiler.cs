@@ -394,7 +394,7 @@ public sealed partial class GraphCompiler
 		{
 			if ( Subgraph is not null )
 			{
-				if ( node is SubgraphInput subgraphInput && !string.IsNullOrWhiteSpace( subgraphInput.InputName ) )
+				if ( node is SubgraphInput subgraphInput && !string.IsNullOrWhiteSpace( subgraphInput.Name ) )
 				{
 					var newResult = ResolveSubgraphInput( subgraphInput, ref value, out var error );
 
@@ -735,7 +735,7 @@ public sealed partial class GraphCompiler
 
 		if ( lastNodeEntered is not null )
 		{
-			var parentInput = lastNodeEntered.InputReferences.FirstOrDefault( x => x.Key.Identifier == node.InputName );
+			var parentInput = lastNodeEntered.InputReferences.FirstOrDefault( x => x.Key.Identifier == node.Name );
 			if ( parentInput.Key is not null )
 			{
 				var lastSubgraph = Subgraph;
@@ -762,7 +762,7 @@ public sealed partial class GraphCompiler
 				}
 				else
 				{
-					value = GetDefaultValue( lastNodeEntered, node.InputName, parentInput.Value.inputNodeValueType );
+					value = GetDefaultValue( lastNodeEntered, node.Name, parentInput.Value.inputNodeValueType );
 
 					SubgraphStack.Add( lastStack );
 					Subgraph = lastSubgraph;

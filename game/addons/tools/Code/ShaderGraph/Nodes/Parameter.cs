@@ -13,7 +13,7 @@ public sealed class BoolParameter : ParameterNode<bool, BoolBlackboardParameter>
 	[Hide, ValueEditor( nameof( Value ) )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		return compiler.ResultParameter( Name, Value, default, default, false, IsAttribute, UI );
+		return compiler.ResultParameter( GetParameter().Name, Value, default, default, false, GetParameter().IsAttribute, GetParameter().UI );
 	};
 
 	public BoolParameter()
@@ -34,7 +34,7 @@ public sealed class IntParameter : ParameterNode<int, IntBlackboardParameter>
 	[Hide, ValueEditor( nameof( Value ) ), Range( nameof( Min ), nameof( Max ), nameof( Step ) )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		return compiler.ResultParameter( Name, Value, Min, Max, Min != Max, IsAttribute, UI );
+		return compiler.ResultParameter( GetParameter().Name, Value, Min, Max, Min != Max, GetParameter().IsAttribute, GetParameter().UI );
 	};
 
 	[Hide] public int Min => GetParameter().Min;
@@ -58,7 +58,7 @@ public sealed class FloatParameter : ParameterNode<float, FloatBlackboardParamet
 	[Hide, ValueEditor( nameof( Value ) ), Range( nameof( Min ), nameof( Max ), nameof( Step ) )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		return compiler.ResultParameter( Name, Value, Min, Max, Min != Max, IsAttribute, UI );
+		return compiler.ResultParameter( GetParameter().Name, Value, Min, Max, Min != Max, GetParameter().IsAttribute, GetParameter().UI );
 	};
 
 	[Hide] public float Min => GetParameter().Min;
@@ -79,7 +79,7 @@ public sealed class Float2Parameter : ParameterNode<Vector2, Float2BlackboardPar
 	[Output( typeof( Vector2 ) ), Title( "XY" ), Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		return compiler.ResultParameter( Name, Value, Min, Max, Min != Max, IsAttribute, UI );
+		return compiler.ResultParameter( GetParameter().Name, Value, Min, Max, Min != Max, GetParameter().IsAttribute, GetParameter().UI );
 	};
 
 	[Hide] public Vector2 Min => GetParameter().Min;
@@ -135,7 +135,7 @@ public sealed class Float3Parameter : ParameterNode<Vector3, Float3BlackboardPar
 	[Output( typeof( Vector3 ) ), Title( "XYZ" ), Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		return compiler.ResultParameter( Name, Value, Min, Max, Min != Max, IsAttribute, UI );
+		return compiler.ResultParameter( GetParameter().Name, Value, Min, Max, Min != Max, GetParameter().IsAttribute, GetParameter().UI );
 	};
 
 	[Hide] public Vector3 Min => GetParameter().Min;
@@ -207,7 +207,7 @@ public sealed class Float4Parameter : ParameterNode<Vector4, Float4BlackboardPar
 	[Output( typeof( Vector4 ) ), Title( "XYZW" ), Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		return compiler.ResultParameter( Name, Value, default, default, false, IsAttribute, UI );
+		return compiler.ResultParameter( GetParameter().Name, Value, default, default, false, GetParameter().IsAttribute, GetParameter().UI );
 	};
 
 	[Hide] public Vector4 Min => GetParameter().Min;
@@ -296,7 +296,7 @@ public sealed class ColorParameter : ParameterNode<Color, ColorBlackboardParamet
 	[Hide, ValueEditor( nameof( Value ) )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		return compiler.ResultParameter( Name, Value, default, default, false, IsAttribute, UI );
+		return compiler.ResultParameter( GetParameter().Name, Value, default, default, false, GetParameter().IsAttribute, GetParameter().UI );
 	};
 
 	public ColorParameter()
@@ -361,7 +361,7 @@ public sealed class ColorParameter : ParameterNode<Color, ColorBlackboardParamet
 /// </summary>
 [Title( "Texture 2D" ), Category( "Parameters" ), Icon( "image" ), Order( 7 )]
 [Hide]
-public sealed class Texture2DParameter : ShaderNode, ITextureParameterNodeNew
+public sealed class Texture2DParameter : ShaderNode
 {
 	[JsonIgnore, Hide]
 	public override string Title => string.IsNullOrWhiteSpace( UI.Name ) ?
