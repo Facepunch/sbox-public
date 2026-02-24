@@ -221,12 +221,15 @@ public class ShaderGraphView : GraphView
 	protected override void OnOpenContextMenu( Menu menu, Plug targetPlug )
 	{
 		var selectedNodes = SelectedItems.OfType<NodeUI>().ToArray();
+
+		// TODO : Commenting this stuff out since CreateSubgraphFromSelection dosent work quite right and needs to be fixed.
+		/*
 		if ( selectedNodes.Length > 1 && !selectedNodes.Any( x => x.Node is BaseResult ) )
 		{
 			menu.AddOption( "Create Custom Node...", "add_box", () =>
 			{
 				const string extension = "shdrfunc";
-
+				
 				var fd = new FileDialog( null );
 				fd.Title = "Create Shader Graph Function";
 				fd.Directory = Project.Current.RootDirectory.FullName;
@@ -236,10 +239,11 @@ public class ShaderGraphView : GraphView
 				fd.SetModeSave();
 				fd.SetNameFilter( $"ShaderGraph Function (*.{extension})" );
 				if ( !fd.Execute() ) return;
-
+			
 				CreateSubgraphFromSelection( fd.SelectedFile );
 			} );
 		}
+		*/
 
 		if ( selectedNodes.Length > 1 && selectedNodes.All( x => x.Node is IConstantNode ) )
 		{
@@ -341,7 +345,6 @@ public class ShaderGraphView : GraphView
 			
 						if ( !Graph.IsSubgraph )
 						{
-							// fix connections
 							foreach ( var node in Graph.Nodes )
 							{
 								foreach ( var input in node.Inputs )
@@ -362,7 +365,6 @@ public class ShaderGraphView : GraphView
 						Graph.RemoveNode( baseNode );
 
 						var newNode = ConvertConstantNodeToParameter( constantNode, parameterName, item.Node.Position );
-
 
 						if ( !Graph.IsSubgraph )
 						{
@@ -502,12 +504,10 @@ public class ShaderGraphView : GraphView
 		return (T)FindParameterType( typeof( T ) ).CreateParameter( graph );
 	}
 
-	// TODO : Fixup this function so it works properly with the blackboard
-	// changes.
 	private void CreateSubgraphFromSelection( string filePath )
 	{
 		if ( string.IsNullOrWhiteSpace( filePath ) ) return;
-
+		
 		var fileName = Path.GetFileNameWithoutExtension( filePath );
 		var subgraph = new ShaderGraph();
 		subgraph.Title = fileName.ToTitleCase();
@@ -516,6 +516,7 @@ public class ShaderGraphView : GraphView
 		// Grab all selected nodes
 		Vector2 rightmostPos = new Vector2( -9999, 0 );
 		var selectedNodes = SelectedItems.OfType<NodeUI>();
+		var selectedParameters = new List<Guid>();
 		Dictionary<IPlugIn, IPlugOut> oldConnections = new();
 		foreach ( var node in selectedNodes )
 		{
@@ -525,6 +526,7 @@ public class ShaderGraphView : GraphView
 			{
 				oldConnections[input] = input.ConnectedOutput;
 			}
+			
 			subgraph.AddNode( baseNode );
 
 			rightmostPos.y += baseNode.Position.y;
@@ -543,6 +545,7 @@ public class ShaderGraphView : GraphView
 			foreach ( var input in node.Inputs )
 			{
 				var correspondingOutput = oldConnections[input];
+			
 				var correspondingNode = subgraph.Nodes.FirstOrDefault( x => x.Identifier == correspondingOutput?.Node?.Identifier );
 				if ( correspondingOutput is not null && correspondingNode is null )
 				{
@@ -557,46 +560,47 @@ public class ShaderGraphView : GraphView
 						input.ConnectedOutput = (existingParameterNode as BaseNode).Outputs.FirstOrDefault();
 						continue;
 					}
+
+					BlackboardParameter parameter = null;
+					
+					if ( input.Type == typeof( bool ) )
+					{
+						parameter = CreateBlackboardParameter<BoolSubgraphInputParameter>( subgraph );
+					}
+					if ( input.Type == typeof( int ) )
+					{
+						parameter = CreateBlackboardParameter<IntSubgraphInputParameter>( subgraph );
+					}
 					if ( input.Type == typeof( float ) )
 					{
-						var blackboardParameter = CreateBlackboardParameter<FloatSubgraphInputBlackboardParameter>( subgraph );
-						blackboardParameter.PortOrder = nodesToAdd.Count;
-
-						subgraph.AddParameter( blackboardParameter );
-
-						var subgraphInput = FindNodeType( typeof( SubgraphInput ) ).CreateNode( subgraph );
-						subgraphInput.Position = node.Position - new Vector2( 240, 0 );
-						if ( subgraphInput is SubgraphInput subgraphInputNode )
-						{
-							subgraphInputNode.BlackboardParameterIdentifier = blackboardParameter.Identifier;
-							subgraphInputNode.OnFrame(); // Trigger update to create outputs
-							input.ConnectedOutput = subgraphInputNode.Outputs.FirstOrDefault();
-							nodesToAdd.Add( subgraphInputNode );
-						}
+						Log.Info( $"input.Type == typeof( float )" );
+						parameter = CreateBlackboardParameter<FloatSubgraphInputParameter>( subgraph );
 					}
 					else if ( input.Type == typeof( Vector2 ) )
 					{
-						var blackboardParameter = CreateBlackboardParameter<Float2SubgraphInputBlackboardParameter>( subgraph );
-						blackboardParameter.PortOrder = nodesToAdd.Count;
-
-						subgraph.AddParameter( blackboardParameter );
-
-						var subgraphInput = FindNodeType( typeof( SubgraphInput ) ).CreateNode( subgraph );
-						subgraphInput.Position = node.Position - new Vector2( 240, 0 );
-						if ( subgraphInput is SubgraphInput subgraphInputNode )
-						{
-							subgraphInputNode.BlackboardParameterIdentifier = blackboardParameter.Identifier;
-							subgraphInputNode.OnFrame(); // Trigger update to create outputs
-							input.ConnectedOutput = subgraphInputNode.Outputs.FirstOrDefault();
-							nodesToAdd.Add( subgraphInputNode );
-						}
+						parameter = CreateBlackboardParameter<Float2SubgraphInputParameter>( subgraph );
 					}
 					else if ( input.Type == typeof( Vector3 ) )
 					{
-						var blackboardParameter = CreateBlackboardParameter<Float3SubgraphInputBlackboardParameter>( subgraph );
-						blackboardParameter.PortOrder = nodesToAdd.Count;
+						parameter = CreateBlackboardParameter<Float3SubgraphInputParameter>( subgraph );
+					}
+					else if ( input.Type == typeof( Vector4 ) )
+					{
+						parameter = CreateBlackboardParameter<Float4SubgraphInputParameter>( subgraph );
+					}
+					else if ( input.Type == typeof( Color ) )
+					{
+						parameter = CreateBlackboardParameter<ColorSubgraphInputParameter>( subgraph );
+					}
 
-						subgraph.AddParameter( blackboardParameter );
+					if ( parameter != null )
+					{
+						if ( parameter is ISubgraphInputBlackboardParameter subgraphParameter )
+						{
+							subgraphParameter.PortOrder = nodesToAdd.Count;
+						}
+
+						subgraph.AddParameter( parameter );
 
 						var subgraphInput = FindNodeType( typeof( SubgraphInput ) ).CreateNode( subgraph );
 						subgraphInput.Position = node.Position - new Vector2( 240, 0 );
@@ -608,13 +612,15 @@ public class ShaderGraphView : GraphView
 							nodesToAdd.Add( subgraphInputNode );
 						}
 					}
-					else if ( input.Type == typeof( Color ) )
+					else
 					{
-						var blackboardParameter = CreateBlackboardParameter<ColorSubgraphInputBlackboardParameter>( subgraph );
-						blackboardParameter.PortOrder = nodesToAdd.Count;
+						var defaultparameter = CreateBlackboardParameter<FloatSubgraphInputParameter>( subgraph );
+						defaultparameter.Name = inputName;
+						defaultparameter.PortOrder = nodesToAdd.Count;
 
-						subgraph.AddParameter( blackboardParameter );
+						subgraph.AddParameter( defaultparameter );
 
+						// Default to float for unknown types
 						var subgraphInput = FindNodeType( typeof( SubgraphInput ) ).CreateNode( subgraph );
 						subgraphInput.Position = node.Position - new Vector2( 240, 0 );
 						if ( subgraphInput is SubgraphInput subgraphInputNode )
@@ -625,26 +631,10 @@ public class ShaderGraphView : GraphView
 							nodesToAdd.Add( subgraphInputNode );
 						}
 					}
-					else
-					{
-						throw new NotImplementedException();
-						// Default to float for unknown types
-						//var subgraphInput = FindNodeType( typeof( SubgraphInput ) ).CreateNode( subgraph );
-						//subgraphInput.Position = node.Position - new Vector2( 240, 0 );
-						//if ( subgraphInput is SubgraphInput subgraphInputNode )
-						//{
-						//	subgraphInputNode.InputName = inputName;
-						//	subgraphInputNode.InputType = InputType.Float;
-						//	subgraphInputNode.PortOrder = nodesToAdd.Count;
-						//	subgraphInputNode.OnFrame(); // Trigger update to create outputs
-						//	input.ConnectedOutput = subgraphInputNode.Outputs.FirstOrDefault();
-						//	nodesToAdd.Add( subgraphInputNode );
-						//}
-					}
 				}
 			}
 		}
-
+		
 		// Create Output/Result node
 		var frNode = FindNodeType( typeof( FunctionResult ) ).CreateNode( subgraph );
 		if ( frNode is FunctionResult resultNode )
