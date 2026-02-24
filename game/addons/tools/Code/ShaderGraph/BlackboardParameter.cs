@@ -129,42 +129,42 @@ public abstract class BlackboardParameter : IBlackboardParameter
 			case BoolBlackboardParameter:
 				return new BoolParameter()
 				{
-					BlackboardParameterIdentifier = parameter.Identifier,
+					ParameterIdentifier = parameter.Identifier,
 				};
 			case IntBlackboardParameter:
 				return new IntParameter()
 				{
-					BlackboardParameterIdentifier = parameter.Identifier,
+					ParameterIdentifier = parameter.Identifier,
 				};
 			case FloatBlackboardParameter:
 				return new FloatParameter()
 				{
-					BlackboardParameterIdentifier = parameter.Identifier,
+					ParameterIdentifier = parameter.Identifier,
 				};
 			case Float2BlackboardParameter:
 				return new Float2Parameter()
 				{
-					BlackboardParameterIdentifier = parameter.Identifier,
+					ParameterIdentifier = parameter.Identifier,
 				};
 			case Float3BlackboardParameter:
 				return new Float3Parameter()
 				{
-					BlackboardParameterIdentifier = parameter.Identifier,
+					ParameterIdentifier = parameter.Identifier,
 				};
 			case Float4BlackboardParameter:
 				return new Float4Parameter()
 				{
-					BlackboardParameterIdentifier = parameter.Identifier,
+					ParameterIdentifier = parameter.Identifier,
 				};
 			case ColorBlackboardParameter:
 				return new ColorParameter()
 				{
-					BlackboardParameterIdentifier = parameter.Identifier,
+					ParameterIdentifier = parameter.Identifier,
 				};
 			case Texture2DBlackboardParameter:
 				return new Texture2DParameter()
 				{
-					BlackboardParameterIdentifier = parameter.Identifier,
+					ParameterIdentifier = parameter.Identifier,
 				};
 
 			// In Subgraph
@@ -172,49 +172,49 @@ public abstract class BlackboardParameter : IBlackboardParameter
 				return new SubgraphInput()
 				{
 					DefaultValue = false,
-					BlackboardParameterIdentifier = parameter.Identifier,
+					ParameterIdentifier = parameter.Identifier,
 				};
 			case IntSubgraphInputBlackboardParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = 0,
-					BlackboardParameterIdentifier = parameter.Identifier,
+					ParameterIdentifier = parameter.Identifier,
 				};
 			case FloatSubgraphInputBlackboardParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = 0.0f,
-					BlackboardParameterIdentifier = parameter.Identifier,
+					ParameterIdentifier = parameter.Identifier,
 				};
 			case Float2SubgraphInputBlackboardParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = Vector2.Zero,
-					BlackboardParameterIdentifier = parameter.Identifier,
+					ParameterIdentifier = parameter.Identifier,
 				};
 			case Float3SubgraphInputBlackboardParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = Vector3.Zero,
-					BlackboardParameterIdentifier = parameter.Identifier,
+					ParameterIdentifier = parameter.Identifier,
 				};
 			case Float4SubgraphInputBlackboardParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = Vector4.Zero,
-					BlackboardParameterIdentifier = parameter.Identifier,
+					ParameterIdentifier = parameter.Identifier,
 				};
 			case ColorSubgraphInputBlackboardParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = Color.White,
-					BlackboardParameterIdentifier = parameter.Identifier,
+					ParameterIdentifier = parameter.Identifier,
 				};
 			case Texture2DSubgraphInputBlackboardParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = "",
-					BlackboardParameterIdentifier = parameter.Identifier,
+					ParameterIdentifier = parameter.Identifier,
 				};
 			default:
 				throw new NotImplementedException();

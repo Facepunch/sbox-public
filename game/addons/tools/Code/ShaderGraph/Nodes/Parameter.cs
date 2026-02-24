@@ -368,7 +368,7 @@ public sealed class Texture2DParameter : ShaderNode, ITextureParameterNodeNew
 		$"{DisplayInfo.For( this ).Name}" :
 		$"{UI.Name}";
 
-	public Guid BlackboardParameterIdentifier { get; set; }
+	public Guid ParameterIdentifier { get; set; }
 
 	[JsonIgnore, Hide]
 	public TextureInput UI => GetParameter().Value;
@@ -377,7 +377,7 @@ public sealed class Texture2DParameter : ShaderNode, ITextureParameterNodeNew
 	{
 		if ( Graph is ShaderGraph graph )
 		{
-			return graph.FindParameter<Texture2DBlackboardParameter>( BlackboardParameterIdentifier );
+			return graph.FindParameter<Texture2DBlackboardParameter>( ParameterIdentifier );
 		}
 
 		return null;

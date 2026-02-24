@@ -170,9 +170,9 @@ public class MainWindow : DockWindow
 				// For now only select a blackboard parameter when _graphView only has 1 selection.
 				if ( _graphView.SelectedItems.Count() == 1 )
 				{
-					if ( blackboardNode.BlackboardParameterIdentifier != default )
+					if ( blackboardNode.ParameterIdentifier != default )
 					{
-						var blackboardParameter = _graph.FindParameter( blackboardNode.BlackboardParameterIdentifier );
+						var blackboardParameter = _graph.FindParameter( blackboardNode.ParameterIdentifier );
 						_blackboardView.SetSelection( blackboardParameter );
 						_properties.Target = blackboardParameter;
 					}

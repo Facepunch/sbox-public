@@ -2,7 +2,7 @@
 
 public interface IBlackboardNode
 {
-	Guid BlackboardParameterIdentifier { get; set; }
+	Guid ParameterIdentifier { get; set; }
 }
 
 public interface IParameterNode : IBlackboardNode
@@ -35,7 +35,7 @@ public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNode, IErrorin
 		$"{DisplayInfo.For( this ).Name} {Name}";
 
 	[Hide]
-	public Guid BlackboardParameterIdentifier { get; set; }
+	public Guid ParameterIdentifier { get; set; }
 
 	[Hide]
 	public T Value
@@ -45,7 +45,7 @@ public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNode, IErrorin
 		{
 			if ( Graph is ShaderGraph graph )
 			{
-				graph.UpdateParameterValue( BlackboardParameterIdentifier, value );
+				graph.UpdateParameterValue( ParameterIdentifier, value );
 
 				Update();
 				IsDirty = true;
@@ -66,7 +66,7 @@ public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNode, IErrorin
 	{
 		if ( Graph is ShaderGraph graph )
 		{
-			var parameter = graph.FindParameter( BlackboardParameterIdentifier );
+			var parameter = graph.FindParameter( ParameterIdentifier );
 
 			switch ( parameter )
 			{
@@ -105,7 +105,7 @@ public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNode, IErrorin
 	{
 		if ( Graph is ShaderGraph graph )
 		{
-			return (Y)graph.FindParameter( BlackboardParameterIdentifier );
+			return (Y)graph.FindParameter( ParameterIdentifier );
 		}
 
 		return null;

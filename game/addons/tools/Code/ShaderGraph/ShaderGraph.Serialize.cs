@@ -146,7 +146,7 @@ partial class ShaderGraph
 
 							if ( node is IBlackboardNode blackboardNode )
 							{
-								blackboardNode.BlackboardParameterIdentifier = parameter.Identifier;
+								blackboardNode.ParameterIdentifier = parameter.Identifier;
 								node = (BaseNode)blackboardNode;
 							}
 						}
@@ -175,7 +175,7 @@ partial class ShaderGraph
 								var newTexture2DParameterNode = new Texture2DParameter()
 								{
 									Position = node.Position.WithX( node.Position.x - 192 ),
-									BlackboardParameterIdentifier = parameter.Identifier,
+									ParameterIdentifier = parameter.Identifier,
 								};
 
 								AddNode( newTexture2DParameterNode );
@@ -191,7 +191,7 @@ partial class ShaderGraph
 								var subgraphInput = new SubgraphInput()
 								{
 									Position = node.Position.WithX( node.Position.x - 192 ),
-									BlackboardParameterIdentifier = parameter.Identifier,
+									ParameterIdentifier = parameter.Identifier,
 								};
 
 								AddNode( subgraphInput );

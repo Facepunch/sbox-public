@@ -22,7 +22,7 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 	public override Color PrimaryColor => Color.Lerp( Theme.Green, Theme.Blue, 0.5f );
 
 	[Hide]
-	public Guid BlackboardParameterIdentifier { get; set; }
+	public Guid ParameterIdentifier { get; set; }
 
 	/// <summary>
 	/// The name of the input parameter
@@ -51,7 +51,7 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 		{
 			if ( Graph is ShaderGraph graph )
 			{
-				graph.UpdateParameterValue( BlackboardParameterIdentifier, value );
+				graph.UpdateParameterValue( ParameterIdentifier, value );
 
 				Update();
 				IsDirty = true;
@@ -157,7 +157,7 @@ public sealed class SubgraphInput : ShaderNode, IBlackboardNode, IErroringNode, 
 	{
 		if ( Graph is ShaderGraph graph )
 		{
-			var parameter = graph.FindParameter( BlackboardParameterIdentifier );
+			var parameter = graph.FindParameter( ParameterIdentifier );
 
 			if ( parameter is ISubgraphInputBlackboardParameter subgraphInputParameter )
 			{

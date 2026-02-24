@@ -213,7 +213,7 @@ partial class ShaderGraph
 				parameterNode = new BoolParameter()
 				{
 					Position = branchNode.Position.WithX( branchNode.Position.x - 192 ),
-					BlackboardParameterIdentifier = boolParameter.Identifier,
+					ParameterIdentifier = boolParameter.Identifier,
 				};
 			}
 			else
@@ -228,7 +228,7 @@ partial class ShaderGraph
 
 				parameterNode = new SubgraphInput()
 				{
-					BlackboardParameterIdentifier = boolParameter.Identifier,
+					ParameterIdentifier = boolParameter.Identifier,
 				};
 			}
 
@@ -367,7 +367,7 @@ partial class ShaderGraph
 		{
 			Position = nodePosition,
 			Identifier = identifierElement.GetString(),
-			BlackboardParameterIdentifier = parameter.Identifier,
+			ParameterIdentifier = parameter.Identifier,
 			DefaultValue = defaultValue
 		};
 	}
