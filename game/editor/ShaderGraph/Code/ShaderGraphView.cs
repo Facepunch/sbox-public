@@ -400,13 +400,13 @@ public class ShaderGraphView : GraphView
 		{
 			string bptFullName = constantNode switch
 			{
-				ConstantBool => DisplayInfo.ForType( typeof( BoolBlackboardParameter ) ).Fullname,
-				ConstantInt => DisplayInfo.ForType( typeof( IntBlackboardParameter ) ).Fullname,
-				ConstantFloat => DisplayInfo.ForType( typeof( FloatBlackboardParameter ) ).Fullname,
-				ConstantFloat2 => DisplayInfo.ForType( typeof( Float2BlackboardParameter ) ).Fullname,
-				ConstantFloat3 => DisplayInfo.ForType( typeof( Float3BlackboardParameter ) ).Fullname,
-				ConstantFloat4 => DisplayInfo.ForType( typeof( Float4BlackboardParameter ) ).Fullname,
-				ConstantColor => DisplayInfo.ForType( typeof( ColorBlackboardParameter ) ).Fullname,
+				ConstantBool => DisplayInfo.ForType( typeof( BoolParameter ) ).Fullname,
+				ConstantInt => DisplayInfo.ForType( typeof( IntParameter ) ).Fullname,
+				ConstantFloat => DisplayInfo.ForType( typeof( FloatParameter ) ).Fullname,
+				ConstantFloat2 => DisplayInfo.ForType( typeof( Float2Parameter ) ).Fullname,
+				ConstantFloat3 => DisplayInfo.ForType( typeof( Float3Parameter ) ).Fullname,
+				ConstantFloat4 => DisplayInfo.ForType( typeof( Float4Parameter ) ).Fullname,
+				ConstantColor => DisplayInfo.ForType( typeof( ColorParameter ) ).Fullname,
 				_ => throw new NotImplementedException(),
 			};
 
@@ -430,13 +430,13 @@ public class ShaderGraphView : GraphView
 		{
 			string bptFullName = constantNode switch
 			{
-				ConstantBool => DisplayInfo.ForType( typeof( BoolSubgraphInputBlackboardParameter ) ).Fullname,
-				ConstantInt => DisplayInfo.ForType( typeof( IntSubgraphInputBlackboardParameter ) ).Fullname,
-				ConstantFloat => DisplayInfo.ForType( typeof( FloatSubgraphInputBlackboardParameter ) ).Fullname,
-				ConstantFloat2 => DisplayInfo.ForType( typeof( Float2SubgraphInputBlackboardParameter ) ).Fullname,
-				ConstantFloat3 => DisplayInfo.ForType( typeof( Float3SubgraphInputBlackboardParameter ) ).Fullname,
-				ConstantFloat4 => DisplayInfo.ForType( typeof( Float4SubgraphInputBlackboardParameter ) ).Fullname,
-				ConstantColor => DisplayInfo.ForType( typeof( ColorSubgraphInputBlackboardParameter ) ).Fullname,
+				ConstantBool => DisplayInfo.ForType( typeof( BoolSubgraphInputParameter ) ).Fullname,
+				ConstantInt => DisplayInfo.ForType( typeof( IntSubgraphInputParameter ) ).Fullname,
+				ConstantFloat => DisplayInfo.ForType( typeof( FloatSubgraphInputParameter ) ).Fullname,
+				ConstantFloat2 => DisplayInfo.ForType( typeof( Float2SubgraphInputParameter ) ).Fullname,
+				ConstantFloat3 => DisplayInfo.ForType( typeof( Float3SubgraphInputParameter ) ).Fullname,
+				ConstantFloat4 => DisplayInfo.ForType( typeof( Float4SubgraphInputParameter ) ).Fullname,
+				ConstantColor => DisplayInfo.ForType( typeof( ColorSubgraphInputParameter ) ).Fullname,
 				_ => throw new NotImplementedException(),
 			};
 

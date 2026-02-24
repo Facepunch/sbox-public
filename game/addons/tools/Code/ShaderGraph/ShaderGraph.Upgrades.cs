@@ -96,10 +96,10 @@ partial class ShaderGraph
 	{
 		return typeName switch
 		{
-			"FloatParameter" => true,
-			"Float2Parameter" => true,
-			"Float3Parameter" => true,
-			"ColorParameter" => true,
+			"FloatParameterNode" => true,
+			"Float2ParameterNode" => true,
+			"Float3ParameterNode" => true,
+			"ColorParameterNode" => true,
 			_ => false
 		};
 	}
@@ -202,7 +202,7 @@ partial class ShaderGraph
 
 			if ( !IsSubgraph )
 			{
-				var boolParameter = new BoolBlackboardParameter()
+				var boolParameter = new BoolParameter()
 				{
 					Name = nameElement.GetString(),
 					Value = enabledElement.GetBoolean()
@@ -210,7 +210,7 @@ partial class ShaderGraph
 
 				AddParameter( boolParameter );
 
-				parameterNode = new BoolParameter()
+				parameterNode = new BoolParameterNode()
 				{
 					Position = branchNode.Position.WithX( branchNode.Position.x - 192 ),
 					ParameterIdentifier = boolParameter.Identifier,
@@ -218,7 +218,7 @@ partial class ShaderGraph
 			}
 			else
 			{
-				var boolParameter = new BoolSubgraphInputBlackboardParameter()
+				var boolParameter = new BoolSubgraphInputParameter()
 				{
 					Name = nameElement.GetString(),
 					Value = enabledElement.GetBoolean()
@@ -252,37 +252,36 @@ partial class ShaderGraph
 
 			switch ( typeName )
 			{
-				case "FloatParameter":
+				case "FloatParameterNode":
 					newNode = new ConstantFloat()
 					{
 						Value = valueElement.GetSingle()
 					};
 					break;
-				case "Float2Parameter":
+				case "Float2ParameterNode":
 					var vector2 = JsonSerializer.Deserialize<Vector2>( valueElement.GetRawText(), options );
 					newNode = new ConstantFloat2()
 					{
 						Value = vector2
 					};
 					break;
-				case "Float3Parameter":
+				case "Float3ParameterNode":
 					var vector3 = JsonSerializer.Deserialize<Vector3>( valueElement.GetRawText(), options );
 					newNode = new ConstantFloat3()
 					{
 						Value = vector3
 					};
 					break;
-				case "ColorParameter":
+				case "ColorParameterNode":
 					var color = JsonSerializer.Deserialize<Color>( valueElement.GetRawText(), options );
 					newNode = new ConstantColor()
 					{
 						Value = color
 					};
 					break;
+				default:
+					throw new Exception( $"Unknown typename : {typeName}" );
 			}
-
-			if ( newNode == null )
-				throw new Exception( "Couldnt convert nameless Parameter node to Constant node" );
 
 			// Copy basic node properties
 			DeserializeObject( newNode, element, options );
@@ -376,10 +375,10 @@ partial class ShaderGraph
 	{
 		return typeName switch
 		{
-			"Float" => "FloatParameter",
-			"Float2" => "Float2Parameter",
-			"Float3" => "Float3Parameter",
-			"Float4" => "ColorParameter",
+			"Float" => "FloatParameterNode",
+			"Float2" => "Float2ParameterNode",
+			"Float3" => "Float3ParameterNode",
+			"Float4" => "ColorParameterNode",
 			_ => throw new NotImplementedException()
 		};
 	}
@@ -398,10 +397,10 @@ partial class ShaderGraph
 
 				if ( ContainsParameterWithName( textureInputNameElement.GetString() ) )
 				{
-					return FindParameter<Texture2DSubgraphInputBlackboardParameter>( textureInputNameElement.GetString() );
+					return FindParameter<Texture2DSubgraphInputParameter>( textureInputNameElement.GetString() );
 				}
 
-				blackboardParameter = new Texture2DSubgraphInputBlackboardParameter()
+				blackboardParameter = new Texture2DSubgraphInputParameter()
 				{
 					Name = textureInputNameElement.GetString(),
 					Value = textureInputElement.Deserialize<TextureInput>( options ) with { DefaultTexture = imageElement.GetString() },
@@ -415,10 +414,10 @@ partial class ShaderGraph
 
 				blackboardParameter = inputType switch
 				{
-					InputType.Float => new FloatSubgraphInputBlackboardParameter( "", 0.0f ),
-					InputType.Float2 => new Float2SubgraphInputBlackboardParameter( "", Vector2.Zero ),
-					InputType.Float3 => new Float3SubgraphInputBlackboardParameter( "", Vector3.Zero ),
-					InputType.Color => new ColorSubgraphInputBlackboardParameter( "", Color.Black ),
+					InputType.Float => new FloatSubgraphInputParameter( "", 0.0f ),
+					InputType.Float2 => new Float2SubgraphInputParameter( "", Vector2.Zero ),
+					InputType.Float3 => new Float3SubgraphInputParameter( "", Vector3.Zero ),
+					InputType.Color => new ColorSubgraphInputParameter( "", Color.Black ),
 					_ => throw new NotImplementedException( $"Unknown inputType : {inputType}" ),
 				};
 			}
@@ -446,8 +445,8 @@ partial class ShaderGraph
 
 			switch ( nodeTypeName )
 			{
-				case nameof( FloatParameter ):
-					blackboardParameter = new FloatBlackboardParameter()
+				case nameof( FloatParameterNode ):
+					blackboardParameter = new FloatParameter()
 					{
 						Name = nameElement.GetString(),
 						Value = valueElement.GetSingle(),
@@ -457,8 +456,8 @@ partial class ShaderGraph
 						IsAttribute = isAttributeElement.GetBoolean(),
 					};
 					break;
-				case nameof( Float2Parameter ):
-					blackboardParameter = new Float2BlackboardParameter()
+				case nameof( Float2ParameterNode ):
+					blackboardParameter = new Float2Parameter()
 					{
 						Name = nameElement.GetString(),
 						Value = valueElement.Deserialize<Vector2>( options ),
@@ -468,8 +467,8 @@ partial class ShaderGraph
 						IsAttribute = isAttributeElement.GetBoolean(),
 					};
 					break;
-				case nameof( Float3Parameter ):
-					blackboardParameter = new Float3BlackboardParameter()
+				case nameof( Float3ParameterNode ):
+					blackboardParameter = new Float3Parameter()
 					{
 						Name = nameElement.GetString(),
 						Value = valueElement.Deserialize<Vector3>( options ),
@@ -479,8 +478,8 @@ partial class ShaderGraph
 						IsAttribute = isAttributeElement.GetBoolean(),
 					};
 					break;
-				case nameof( ColorParameter ):
-					blackboardParameter = new ColorBlackboardParameter()
+				case nameof( ColorParameterNode ):
+					blackboardParameter = new ColorParameter()
 					{
 						Name = nameElement.GetString(),
 						Value = valueElement.Deserialize<Color>( options ),
@@ -491,10 +490,10 @@ partial class ShaderGraph
 				case string typename when (typename == "TextureSampler" || typename == "TextureTriplanar" || typename == "NormapMapTriplanar"):
 					if ( ContainsParameterWithName( textureInputNameElement.GetString() ) )
 					{
-						return FindParameter<Texture2DBlackboardParameter>( textureInputNameElement.GetString() );
+						return FindParameter<Texture2DParameter>( textureInputNameElement.GetString() );
 					}
 
-					blackboardParameter = new Texture2DBlackboardParameter()
+					blackboardParameter = new Texture2DParameter()
 					{
 						Name = textureInputNameElement.GetString(),
 						Value = uiElement.Deserialize<TextureInput>( options ) with { DefaultTexture = imageElement.GetString() },

@@ -96,24 +96,24 @@ public abstract class BlackboardParameter : IBlackboardParameter
 				var targetType = classParameterType.Type.TargetType;
 
 				// Only show material parameters when not in a subgraph
-				if ( isSubgraph && targetType == typeof( BoolBlackboardParameter ) ) return false;
-				if ( isSubgraph && targetType == typeof( IntBlackboardParameter ) ) return false;
-				if ( isSubgraph && targetType == typeof( FloatBlackboardParameter ) ) return false;
-				if ( isSubgraph && targetType == typeof( Float2BlackboardParameter ) ) return false;
-				if ( isSubgraph && targetType == typeof( Float3BlackboardParameter ) ) return false;
-				if ( isSubgraph && targetType == typeof( Float4BlackboardParameter ) ) return false;
-				if ( isSubgraph && targetType == typeof( ColorBlackboardParameter ) ) return false;
-				if ( isSubgraph && targetType == typeof( Texture2DBlackboardParameter ) ) return false;
+				if ( isSubgraph && targetType == typeof( BoolParameter ) ) return false;
+				if ( isSubgraph && targetType == typeof( IntParameter ) ) return false;
+				if ( isSubgraph && targetType == typeof( FloatParameter ) ) return false;
+				if ( isSubgraph && targetType == typeof( Float2Parameter ) ) return false;
+				if ( isSubgraph && targetType == typeof( Float3Parameter ) ) return false;
+				if ( isSubgraph && targetType == typeof( Float4Parameter ) ) return false;
+				if ( isSubgraph && targetType == typeof( ColorParameter ) ) return false;
+				if ( isSubgraph && targetType == typeof( Texture2DParameter ) ) return false;
 
 				// Only show subgraph input parameters when in a subgraph
-				if ( !isSubgraph && targetType == typeof( BoolSubgraphInputBlackboardParameter ) ) return false;
-				if ( !isSubgraph && targetType == typeof( IntSubgraphInputBlackboardParameter ) ) return false;
-				if ( !isSubgraph && targetType == typeof( FloatSubgraphInputBlackboardParameter ) ) return false;
-				if ( !isSubgraph && targetType == typeof( Float2SubgraphInputBlackboardParameter ) ) return false;
-				if ( !isSubgraph && targetType == typeof( Float3SubgraphInputBlackboardParameter ) ) return false;
-				if ( !isSubgraph && targetType == typeof( Float4SubgraphInputBlackboardParameter ) ) return false;
-				if ( !isSubgraph && targetType == typeof( ColorSubgraphInputBlackboardParameter ) ) return false;
-				if ( !isSubgraph && targetType == typeof( Texture2DSubgraphInputBlackboardParameter ) ) return false;
+				if ( !isSubgraph && targetType == typeof( BoolSubgraphInputParameter ) ) return false;
+				if ( !isSubgraph && targetType == typeof( IntSubgraphInputParameter ) ) return false;
+				if ( !isSubgraph && targetType == typeof( FloatSubgraphInputParameter ) ) return false;
+				if ( !isSubgraph && targetType == typeof( Float2SubgraphInputParameter ) ) return false;
+				if ( !isSubgraph && targetType == typeof( Float3SubgraphInputParameter ) ) return false;
+				if ( !isSubgraph && targetType == typeof( Float4SubgraphInputParameter ) ) return false;
+				if ( !isSubgraph && targetType == typeof( ColorSubgraphInputParameter ) ) return false;
+				if ( !isSubgraph && targetType == typeof( Texture2DSubgraphInputParameter ) ) return false;
 
 			}
 
@@ -126,91 +126,91 @@ public abstract class BlackboardParameter : IBlackboardParameter
 		switch ( parameter )
 		{
 			// Not In Subgraph
-			case BoolBlackboardParameter:
-				return new BoolParameter()
+			case BoolParameter:
+				return new BoolParameterNode()
 				{
 					ParameterIdentifier = parameter.Identifier,
 				};
-			case IntBlackboardParameter:
-				return new IntParameter()
+			case IntParameter:
+				return new IntParameterNode()
 				{
 					ParameterIdentifier = parameter.Identifier,
 				};
-			case FloatBlackboardParameter:
-				return new FloatParameter()
+			case FloatParameter:
+				return new FloatParameterNode()
 				{
 					ParameterIdentifier = parameter.Identifier,
 				};
-			case Float2BlackboardParameter:
-				return new Float2Parameter()
+			case Float2Parameter:
+				return new Float2ParameterNode()
 				{
 					ParameterIdentifier = parameter.Identifier,
 				};
-			case Float3BlackboardParameter:
-				return new Float3Parameter()
+			case Float3Parameter:
+				return new Float3ParameterNode()
 				{
 					ParameterIdentifier = parameter.Identifier,
 				};
-			case Float4BlackboardParameter:
-				return new Float4Parameter()
+			case Float4Parameter:
+				return new Float4ParameterNode()
 				{
 					ParameterIdentifier = parameter.Identifier,
 				};
-			case ColorBlackboardParameter:
-				return new ColorParameter()
+			case ColorParameter:
+				return new ColorParameterNode()
 				{
 					ParameterIdentifier = parameter.Identifier,
 				};
-			case Texture2DBlackboardParameter:
-				return new Texture2DParameter()
+			case Texture2DParameter:
+				return new Texture2DParameterNode()
 				{
 					ParameterIdentifier = parameter.Identifier,
 				};
 
 			// In Subgraph
-			case BoolSubgraphInputBlackboardParameter:
+			case BoolSubgraphInputParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = false,
 					ParameterIdentifier = parameter.Identifier,
 				};
-			case IntSubgraphInputBlackboardParameter:
+			case IntSubgraphInputParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = 0,
 					ParameterIdentifier = parameter.Identifier,
 				};
-			case FloatSubgraphInputBlackboardParameter:
+			case FloatSubgraphInputParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = 0.0f,
 					ParameterIdentifier = parameter.Identifier,
 				};
-			case Float2SubgraphInputBlackboardParameter:
+			case Float2SubgraphInputParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = Vector2.Zero,
 					ParameterIdentifier = parameter.Identifier,
 				};
-			case Float3SubgraphInputBlackboardParameter:
+			case Float3SubgraphInputParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = Vector3.Zero,
 					ParameterIdentifier = parameter.Identifier,
 				};
-			case Float4SubgraphInputBlackboardParameter:
+			case Float4SubgraphInputParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = Vector4.Zero,
 					ParameterIdentifier = parameter.Identifier,
 				};
-			case ColorSubgraphInputBlackboardParameter:
+			case ColorSubgraphInputParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = Color.White,
 					ParameterIdentifier = parameter.Identifier,
 				};
-			case Texture2DSubgraphInputBlackboardParameter:
+			case Texture2DSubgraphInputParameter:
 				return new SubgraphInput()
 				{
 					DefaultValue = "",

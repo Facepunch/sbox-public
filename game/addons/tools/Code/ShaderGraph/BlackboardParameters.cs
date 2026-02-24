@@ -6,15 +6,15 @@ namespace Editor.ShaderGraph;
 /// Bool value material parameter
 /// </summary>
 [Title( "Bool" ), Icon( "check_box" ), Order( 0 )]
-public sealed class BoolBlackboardParameter : BlackboardMaterialParameter<bool, BoolParameterUI>
+public sealed class BoolParameter : BlackboardMaterialParameter<bool, BoolParameterUI>
 {
-	public BoolBlackboardParameter() : base()
+	public BoolParameter() : base()
 	{
 		UI = new BoolParameterUI();
 		Value = false;
 	}
 
-	public BoolBlackboardParameter( string name, bool value, bool isAttribute )
+	public BoolParameter( string name, bool value, bool isAttribute )
 		: base( name, value, isAttribute )
 	{
 		UI = new BoolParameterUI();
@@ -25,12 +25,12 @@ public sealed class BoolBlackboardParameter : BlackboardMaterialParameter<bool, 
 /// Int value material parameter
 /// </summary>
 [Title( "Int" ), Icon( "looks_one" ), Order( 1 )]
-public sealed class IntBlackboardParameter : BlackboardMaterialParameter<int, IntParameterUI>
+public sealed class IntParameter : BlackboardMaterialParameter<int, IntParameterUI>
 {
 	[Group( "Range" )] public int Min { get; set; }
 	[Group( "Range" )] public int Max { get; set; }
 
-	public IntBlackboardParameter() : base()
+	public IntParameter() : base()
 	{
 		Value = 1;
 		Min = 0;
@@ -38,7 +38,7 @@ public sealed class IntBlackboardParameter : BlackboardMaterialParameter<int, In
 		UI = new IntParameterUI();
 	}
 
-	public IntBlackboardParameter( string name, int value, bool isAttribute )
+	public IntParameter( string name, int value, bool isAttribute )
 		: base( name, value, isAttribute )
 	{
 		Min = 0;
@@ -51,12 +51,12 @@ public sealed class IntBlackboardParameter : BlackboardMaterialParameter<int, In
 /// Float value material parameter
 /// </summary>
 [Title( "Float" ), Icon( "looks_one" ), Order( 2 )]
-public sealed class FloatBlackboardParameter : BlackboardMaterialParameter<float, FloatParameterUI>
+public sealed class FloatParameter : BlackboardMaterialParameter<float, FloatParameterUI>
 {
 	[Group( "Range" )] public float Min { get; set; }
 	[Group( "Range" )] public float Max { get; set; }
 
-	public FloatBlackboardParameter() : base()
+	public FloatParameter() : base()
 	{
 		Value = 1.0f;
 		Min = 0.0f;
@@ -64,7 +64,7 @@ public sealed class FloatBlackboardParameter : BlackboardMaterialParameter<float
 		UI = new FloatParameterUI { Type = UIType.Default };
 	}
 
-	public FloatBlackboardParameter( string name, float value, bool isAttribute )
+	public FloatParameter( string name, float value, bool isAttribute )
 		: base( name, value, isAttribute )
 	{
 		Min = 0.0f;
@@ -77,12 +77,12 @@ public sealed class FloatBlackboardParameter : BlackboardMaterialParameter<float
 /// Float2 value material parameter
 /// </summary>
 [Title( "Float2" ), Icon( "looks_two" ), Order( 3 )]
-public sealed class Float2BlackboardParameter : BlackboardMaterialParameter<Vector2, FloatParameterUI>
+public sealed class Float2Parameter : BlackboardMaterialParameter<Vector2, FloatParameterUI>
 {
 	[Group( "Range" )] public Vector2 Min { get; set; }
 	[Group( "Range" )] public Vector2 Max { get; set; }
 
-	public Float2BlackboardParameter() : base()
+	public Float2Parameter() : base()
 	{
 		Value = Vector2.One;
 		Min = Vector2.Zero;
@@ -90,7 +90,7 @@ public sealed class Float2BlackboardParameter : BlackboardMaterialParameter<Vect
 		UI = new FloatParameterUI { Type = UIType.Default };
 	}
 
-	public Float2BlackboardParameter( string name, Vector2 value, bool isAttribute )
+	public Float2Parameter( string name, Vector2 value, bool isAttribute )
 		: base( name, value, isAttribute )
 	{
 		Min = Vector2.Zero;
@@ -103,12 +103,12 @@ public sealed class Float2BlackboardParameter : BlackboardMaterialParameter<Vect
 /// Float3 value material parameter
 /// </summary>
 [Title( "Float3" ), Icon( "looks_3" ), Order( 4 )]
-public sealed class Float3BlackboardParameter : BlackboardMaterialParameter<Vector3, FloatParameterUI>
+public sealed class Float3Parameter : BlackboardMaterialParameter<Vector3, FloatParameterUI>
 {
 	[Group( "Range" )] public Vector3 Min { get; set; }
 	[Group( "Range" )] public Vector3 Max { get; set; }
 
-	public Float3BlackboardParameter() : base()
+	public Float3Parameter() : base()
 	{
 		Value = Vector3.One;
 		Min = Vector3.Zero;
@@ -116,7 +116,7 @@ public sealed class Float3BlackboardParameter : BlackboardMaterialParameter<Vect
 		UI = new FloatParameterUI { Type = UIType.Default };
 	}
 
-	public Float3BlackboardParameter( string name, Vector3 value, bool isAttribute )
+	public Float3Parameter( string name, Vector3 value, bool isAttribute )
 		: base( name, value, isAttribute )
 	{
 		Min = Vector3.Zero;
@@ -129,12 +129,12 @@ public sealed class Float3BlackboardParameter : BlackboardMaterialParameter<Vect
 /// Float4 value material parameter
 /// </summary>
 [Title( "Float4" ), Icon( "looks_4" ), Order( 5 )]
-public sealed class Float4BlackboardParameter : BlackboardMaterialParameter<Vector4, FloatParameterUI>
+public sealed class Float4Parameter : BlackboardMaterialParameter<Vector4, FloatParameterUI>
 {
 	[Group( "Range" )] public Vector4 Min { get; set; }
 	[Group( "Range" )] public Vector4 Max { get; set; }
 
-	public Float4BlackboardParameter() : base()
+	public Float4Parameter() : base()
 	{
 		Value = Vector4.One;
 		Min = Vector4.Zero;
@@ -142,7 +142,7 @@ public sealed class Float4BlackboardParameter : BlackboardMaterialParameter<Vect
 		UI = new FloatParameterUI { Type = UIType.Default };
 	}
 
-	public Float4BlackboardParameter( string name, Vector4 value, bool isAttribute )
+	public Float4Parameter( string name, Vector4 value, bool isAttribute )
 		: base( name, value, isAttribute )
 	{
 		Min = Vector4.Zero;
@@ -155,15 +155,15 @@ public sealed class Float4BlackboardParameter : BlackboardMaterialParameter<Vect
 /// Color value material parameter
 /// </summary>
 [Title( "Color" ), Icon( "palette" ), Order( 6 )]
-public sealed class ColorBlackboardParameter : BlackboardMaterialParameter<Color, ColorParameterUI>
+public sealed class ColorParameter : BlackboardMaterialParameter<Color, ColorParameterUI>
 {
-	public ColorBlackboardParameter() : base()
+	public ColorParameter() : base()
 	{
 		Value = Color.White;
 		UI = new ColorParameterUI();
 	}
 
-	public ColorBlackboardParameter( string name, Color value, bool isAttribute )
+	public ColorParameter( string name, Color value, bool isAttribute )
 		: base( name, value, isAttribute )
 	{
 		UI = new ColorParameterUI();
@@ -174,9 +174,9 @@ public sealed class ColorBlackboardParameter : BlackboardMaterialParameter<Color
 /// Texture2D material parameter
 /// </summary>
 [Title( "Texture2D" ), Icon( "image" ), Order( 7 )]
-public sealed class Texture2DBlackboardParameter : BlackboardTextureMaterialParameter
+public sealed class Texture2DParameter : BlackboardTextureMaterialParameter
 {
-	public Texture2DBlackboardParameter() : base()
+	public Texture2DParameter() : base()
 	{
 		Value = new TextureInput()
 		{
@@ -187,7 +187,7 @@ public sealed class Texture2DBlackboardParameter : BlackboardTextureMaterialPara
 		};
 	}
 
-	public Texture2DBlackboardParameter( string name, TextureInput value )
+	public Texture2DParameter( string name, TextureInput value )
 		: base( name, value )
 	{
 	}
@@ -197,17 +197,17 @@ public sealed class Texture2DBlackboardParameter : BlackboardTextureMaterialPara
 /// Bool subgraph input parameter
 /// </summary>
 [Title( "Bool" ), Icon( "check_box" ), Order( 0 )]
-public sealed class BoolSubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<bool>
+public sealed class BoolSubgraphInputParameter : BlackboardSubgraphinputParameter<bool>
 {
 	[Hide, JsonIgnore]
 	public override InputType InputType => InputType.Bool;
 
-	public BoolSubgraphInputBlackboardParameter() : base()
+	public BoolSubgraphInputParameter() : base()
 	{
 		Value = false;
 	}
 
-	public BoolSubgraphInputBlackboardParameter( string name, bool value )
+	public BoolSubgraphInputParameter( string name, bool value )
 		: base( name, value )
 	{
 	}
@@ -217,17 +217,17 @@ public sealed class BoolSubgraphInputBlackboardParameter : BlackboardSubgraphinp
 /// Int subgraph input parameter
 /// </summary>
 [Title( "Int" ), Icon( "looks_one" ), Order( 1 )]
-public sealed class IntSubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<int>
+public sealed class IntSubgraphInputParameter : BlackboardSubgraphinputParameter<int>
 {
 	[Hide, JsonIgnore]
 	public override InputType InputType => InputType.Int;
 
-	public IntSubgraphInputBlackboardParameter() : base()
+	public IntSubgraphInputParameter() : base()
 	{
 		Value = 1;
 	}
 
-	public IntSubgraphInputBlackboardParameter( string name, int value )
+	public IntSubgraphInputParameter( string name, int value )
 		: base( name, value )
 	{
 	}
@@ -237,17 +237,17 @@ public sealed class IntSubgraphInputBlackboardParameter : BlackboardSubgraphinpu
 /// Float subgraph input parameter
 /// </summary>
 [Title( "Float" ), Icon( "looks_one" ), Order( 2 )]
-public sealed class FloatSubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<float>
+public sealed class FloatSubgraphInputParameter : BlackboardSubgraphinputParameter<float>
 {
 	[Hide, JsonIgnore]
 	public override InputType InputType => InputType.Float;
 
-	public FloatSubgraphInputBlackboardParameter() : base()
+	public FloatSubgraphInputParameter() : base()
 	{
 		Value = 1.0f;
 	}
 
-	public FloatSubgraphInputBlackboardParameter( string name, float value )
+	public FloatSubgraphInputParameter( string name, float value )
 		: base( name, value )
 	{
 	}
@@ -257,17 +257,17 @@ public sealed class FloatSubgraphInputBlackboardParameter : BlackboardSubgraphin
 /// Float2 subgraph input parameter
 /// </summary>
 [Title( "Float2" ), Icon( "looks_two" ), Order( 3 )]
-public sealed class Float2SubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<Vector2>
+public sealed class Float2SubgraphInputParameter : BlackboardSubgraphinputParameter<Vector2>
 {
 	[Hide, JsonIgnore]
 	public override InputType InputType => InputType.Float2;
 
-	public Float2SubgraphInputBlackboardParameter() : base()
+	public Float2SubgraphInputParameter() : base()
 	{
 		Value = Vector2.One;
 	}
 
-	public Float2SubgraphInputBlackboardParameter( string name, Vector2 value )
+	public Float2SubgraphInputParameter( string name, Vector2 value )
 		: base( name, value )
 	{
 	}
@@ -277,17 +277,17 @@ public sealed class Float2SubgraphInputBlackboardParameter : BlackboardSubgraphi
 /// Float3 subgraph input parameter
 /// </summary>
 [Title( "Float3" ), Icon( "looks_3" ), Order( 4 )]
-public sealed class Float3SubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<Vector3>
+public sealed class Float3SubgraphInputParameter : BlackboardSubgraphinputParameter<Vector3>
 {
 	[Hide, JsonIgnore]
 	public override InputType InputType => InputType.Float3;
 
-	public Float3SubgraphInputBlackboardParameter() : base()
+	public Float3SubgraphInputParameter() : base()
 	{
 		Value = Vector3.One;
 	}
 
-	public Float3SubgraphInputBlackboardParameter( string name, Vector3 value )
+	public Float3SubgraphInputParameter( string name, Vector3 value )
 		: base( name, value )
 	{
 	}
@@ -297,17 +297,17 @@ public sealed class Float3SubgraphInputBlackboardParameter : BlackboardSubgraphi
 /// Float4 subgraph input parameter
 /// </summary>
 [Title( "Float4" ), Icon( "looks_4" ), Order( 5 )]
-public sealed class Float4SubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<Vector4>
+public sealed class Float4SubgraphInputParameter : BlackboardSubgraphinputParameter<Vector4>
 {
 	[Hide, JsonIgnore]
 	public override InputType InputType => InputType.Float4;
 
-	public Float4SubgraphInputBlackboardParameter() : base()
+	public Float4SubgraphInputParameter() : base()
 	{
 		Value = Vector4.One;
 	}
 
-	public Float4SubgraphInputBlackboardParameter( string name, Vector4 value )
+	public Float4SubgraphInputParameter( string name, Vector4 value )
 		: base( name, value )
 	{
 	}
@@ -317,17 +317,17 @@ public sealed class Float4SubgraphInputBlackboardParameter : BlackboardSubgraphi
 /// Color subgraph input parameter
 /// </summary>
 [Title( "Color" ), Icon( "palette" ), Order( 6 )]
-public sealed class ColorSubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<Color>
+public sealed class ColorSubgraphInputParameter : BlackboardSubgraphinputParameter<Color>
 {
 	[Hide, JsonIgnore]
 	public override InputType InputType => InputType.Color;
 
-	public ColorSubgraphInputBlackboardParameter() : base()
+	public ColorSubgraphInputParameter() : base()
 	{
 		Value = Color.White;
 	}
 
-	public ColorSubgraphInputBlackboardParameter( string name, Color value )
+	public ColorSubgraphInputParameter( string name, Color value )
 		: base( name, value )
 	{
 	}
@@ -337,16 +337,12 @@ public sealed class ColorSubgraphInputBlackboardParameter : BlackboardSubgraphin
 /// Texture2D subgraph input parameter
 /// </summary>
 [Title( "Texture2D" ), Icon( "image" ), Order( 7 )]
-public sealed class Texture2DSubgraphInputBlackboardParameter : BlackboardSubgraphinputParameter<TextureInput>
+public sealed class Texture2DSubgraphInputParameter : BlackboardSubgraphinputParameter<TextureInput>
 {
 	[Hide, JsonIgnore]
 	public override InputType InputType => InputType.Texture2D;
 
-	//[InlineEditor( Label = false ), Group( "Value" )]
-	//[ImageAssetPath]
-	//public override string Value { get; set; }
-
-	public Texture2DSubgraphInputBlackboardParameter() : base()
+	public Texture2DSubgraphInputParameter() : base()
 	{
 		Value = new TextureInput()
 		{
@@ -357,7 +353,7 @@ public sealed class Texture2DSubgraphInputBlackboardParameter : BlackboardSubgra
 		};
 	}
 
-	public Texture2DSubgraphInputBlackboardParameter( string name, TextureInput value )
+	public Texture2DSubgraphInputParameter( string name, TextureInput value )
 		: base( name, value )
 	{
 	}

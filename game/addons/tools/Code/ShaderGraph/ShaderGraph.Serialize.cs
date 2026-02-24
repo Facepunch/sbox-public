@@ -172,7 +172,7 @@ partial class ShaderGraph
 
 							if ( !IsSubgraph )
 							{
-								var newTexture2DParameterNode = new Texture2DParameter()
+								var newTexture2DParameterNode = new Texture2DParameterNode()
 								{
 									Position = node.Position.WithX( node.Position.x - 192 ),
 									ParameterIdentifier = parameter.Identifier,
