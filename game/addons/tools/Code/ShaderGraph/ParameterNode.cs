@@ -27,7 +27,7 @@ public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNode where Y :
 	[Hide]
 	public string Name => GetParameter().Name;
 
-	[Hide,JsonIgnore]
+	[Hide, JsonIgnore]
 	public T Value
 	{
 		get => (T)GetParameter().GetValue();
@@ -57,7 +57,7 @@ public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNode where Y :
 	{
 		if ( compiler.IsPreview )
 			return compiler.ResultValue( value );
-	
+
 		var result = compiler.Result( new NodeInput { Identifier = Identifier, Output = nameof( Result ) } );
 		return new( NodeResultType.Float, $"{result}.{component}", true );
 	}

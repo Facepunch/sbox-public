@@ -22,7 +22,7 @@ internal class ShaderGraphGroupControlWidget : ControlWidget
 			_comboBox.AddItem( currentVal );
 			_comboBox.CurrentIndex = 1;
 		}
-	
+
 		var groupProperty = GetProperty<UIGroup>( property );
 		var parameterUIProperty = groupProperty.Parent?.ParentProperty;
 

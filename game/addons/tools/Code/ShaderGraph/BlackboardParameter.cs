@@ -225,11 +225,11 @@ public abstract class BlackboardParameter : IBlackboardParameter
 	}
 }
 
-public abstract class BlackboardMaterialParameter<T,Y> : BlackboardParameter, IBlackboardMaterialParameter where Y : IParameterUI
+public abstract class BlackboardMaterialParameter<T, Y> : BlackboardParameter, IBlackboardMaterialParameter where Y : IParameterUI
 {
 	[InlineEditor( Label = false ), Group( "Value" )]
 	public T Value { get; set; }
-	
+
 	[InlineEditor( Label = false ), Group( "UI" )]
 	public Y UI { get; set; }
 

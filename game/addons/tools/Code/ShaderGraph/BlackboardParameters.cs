@@ -6,7 +6,7 @@ namespace Editor.ShaderGraph;
 /// Bool value material parameter
 /// </summary>
 [Title( "Bool" ), Icon( "check_box" ), Order( 0 )]
-public sealed class BoolParameter : BlackboardMaterialParameter<bool,BoolParameterUI>
+public sealed class BoolParameter : BlackboardMaterialParameter<bool, BoolParameterUI>
 {
 	public BoolParameter() : base()
 	{
@@ -19,7 +19,7 @@ public sealed class BoolParameter : BlackboardMaterialParameter<bool,BoolParamet
 /// Int value material parameter
 /// </summary>
 [Title( "Int" ), Icon( "looks_one" ), Order( 1 )]
-public sealed class IntParameter : BlackboardMaterialParameter<int,IntParameterUI>
+public sealed class IntParameter : BlackboardMaterialParameter<int, IntParameterUI>
 {
 	[Group( "Range" )] public int Min { get; set; }
 	[Group( "Range" )] public int Max { get; set; }
@@ -55,7 +55,7 @@ public sealed class FloatParameter : BlackboardMaterialParameter<float, FloatPar
 /// Float2 value material parameter
 /// </summary>
 [Title( "Float2" ), Icon( "looks_two" ), Order( 3 )]
-public sealed class Float2Parameter : BlackboardMaterialParameter<Vector2,FloatParameterUI>
+public sealed class Float2Parameter : BlackboardMaterialParameter<Vector2, FloatParameterUI>
 {
 	[Group( "Range" )] public Vector2 Min { get; set; }
 	[Group( "Range" )] public Vector2 Max { get; set; }

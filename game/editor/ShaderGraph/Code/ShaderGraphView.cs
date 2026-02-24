@@ -286,7 +286,7 @@ public class ShaderGraphView : GraphView
 					}
 
 					lastNode = ConvertConstantNodeToParameter( constantNode, $"{newName}{id}", selectedNode.Position );
-					
+
 					if ( !Graph.IsSubgraph )
 					{
 						// fix connections
@@ -342,7 +342,7 @@ public class ShaderGraphView : GraphView
 						using var undoScope = UndoScope( $"Convert {baseNode.DisplayInfo.Name} node to {nodeTypeTitle} {(Graph.IsSubgraph ? "Subgraph Input node" : "Material Parameter node")}" );
 
 						Dictionary<IPlugIn, IPlugOut> oldConnections = new();
-			
+
 						if ( !Graph.IsSubgraph )
 						{
 							foreach ( var node in Graph.Nodes )
@@ -507,7 +507,7 @@ public class ShaderGraphView : GraphView
 	private void CreateSubgraphFromSelection( string filePath )
 	{
 		if ( string.IsNullOrWhiteSpace( filePath ) ) return;
-		
+
 		var fileName = Path.GetFileNameWithoutExtension( filePath );
 		var subgraph = new ShaderGraph();
 		subgraph.Title = fileName.ToTitleCase();
@@ -526,7 +526,7 @@ public class ShaderGraphView : GraphView
 			{
 				oldConnections[input] = input.ConnectedOutput;
 			}
-			
+
 			subgraph.AddNode( baseNode );
 
 			rightmostPos.y += baseNode.Position.y;
@@ -545,7 +545,7 @@ public class ShaderGraphView : GraphView
 			foreach ( var input in node.Inputs )
 			{
 				var correspondingOutput = oldConnections[input];
-			
+
 				var correspondingNode = subgraph.Nodes.FirstOrDefault( x => x.Identifier == correspondingOutput?.Node?.Identifier );
 				if ( correspondingOutput is not null && correspondingNode is null )
 				{
@@ -562,7 +562,7 @@ public class ShaderGraphView : GraphView
 					}
 
 					BlackboardParameter parameter = null;
-					
+
 					if ( input.Type == typeof( bool ) )
 					{
 						parameter = CreateBlackboardParameter<BoolSubgraphInputParameter>( subgraph );
@@ -634,7 +634,7 @@ public class ShaderGraphView : GraphView
 				}
 			}
 		}
-		
+
 		// Create Output/Result node
 		var frNode = FindNodeType( typeof( FunctionResult ) ).CreateNode( subgraph );
 		if ( frNode is FunctionResult resultNode )

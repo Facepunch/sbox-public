@@ -477,7 +477,7 @@ public sealed class TextureTriplanar : TextureSamplerBase
 
 		var texture = string.IsNullOrWhiteSpace( TexturePath ) ? null : Texture.Load( TexturePath );
 		texture ??= Texture.White;
-		
+
 		var sampler = compiler.ResultSampler( Sampler );
 		var textureGlobal = compiler.ResultTexture( input, texture );
 		var coords = compiler.Result( Coords );
@@ -581,7 +581,7 @@ public sealed class NormapMapTriplanar : TextureSamplerBase
 
 		var texture = string.IsNullOrWhiteSpace( TexturePath ) ? null : Texture.Load( TexturePath );
 		texture ??= Texture.White;
-		
+
 		var sampler = compiler.ResultSampler( Sampler );
 		var textureGlobal = compiler.ResultTexture( input, texture );
 		var coords = compiler.Result( Coords );

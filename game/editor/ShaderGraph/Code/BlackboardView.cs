@@ -15,7 +15,7 @@ public class BlackboardView : Widget
 
 	private readonly MainWindow _window;
 	private readonly UndoStack _undoStack;
-	
+
 	private readonly Dictionary<string, IBlackboardParameterType> _availableParameters = new( StringComparer.OrdinalIgnoreCase );
 	private readonly SelectionSystem _selection = new SelectionSystem();
 
@@ -304,7 +304,7 @@ public class BlackboardView : Widget
 		OnDirty?.Invoke();
 
 		SetSelection( parameterInstance );
-		
+
 		SelectionChanged();
 
 		RebuildFromGraph( true );
