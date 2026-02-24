@@ -4,7 +4,7 @@ namespace Editor.ShaderGraph.Nodes;
 /// <summary>
 /// If True, do this, if False, do that.
 /// </summary>
-[Title( "Switch" ), Category( "Logic" ), Icon( "alt_route" )]
+[Title( "Branch" ), Category( "Logic" ), Icon( "alt_route" )]
 public sealed class Branch : ShaderNode
 {
 	[Input( typeof( bool ) ), Hide]
