@@ -59,7 +59,9 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 
 			// Skip out if we have a parent that is a skinned model, because we need to move relative to that
 			// and their bones haven't been worked out yet. They will get worked out after our parent is.
-			System.Threading.Tasks.Parallel.ForEach( _rootRenderers, _animParallelOptions, ProcessRenderer );
+			// Use a load-balanced partitioner: work per root is highly uneven (clothed characters have many
+			// bone-merged children), so static range partitioning would cause severe thread idle time.
+			System.Threading.Tasks.Parallel.ForEach( Partitioner.Create( _rootRenderers, loadBalance: true ), _animParallelOptions, ProcessRenderer );
 
 			// This is a good time to maintain decode caches
 			// Will copy local caches to the global cache and handle LRU eviction
@@ -67,7 +69,7 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 			Task.Run( g_pAnimationSystemUtils.MaintainDecodeCaches );
 
 			// Now merge any descendants without allocating per-merge delegates
-			System.Threading.Tasks.Parallel.ForEach( _boneMergeRoots, _animParallelOptions, renderer => renderer.MergeDescendants( ChangedTransforms ) );
+			System.Threading.Tasks.Parallel.ForEach( Partitioner.Create( _boneMergeRoots, loadBalance: true ), _animParallelOptions, renderer => renderer.MergeDescendants( ChangedTransforms ) );
 
 			while ( ChangedTransforms.TryDequeue( out var tx ) )
 			{
@@ -118,6 +120,6 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 				_physRenderers.Add( renderer );
 		}
 
-		System.Threading.Tasks.Parallel.ForEach( _physRenderers, _animParallelOptions, renderer => renderer.Physics.Step() );
+		System.Threading.Tasks.Parallel.ForEach( Partitioner.Create( _physRenderers, loadBalance: true ), _animParallelOptions, renderer => renderer.Physics.Step() );
 	}
 }

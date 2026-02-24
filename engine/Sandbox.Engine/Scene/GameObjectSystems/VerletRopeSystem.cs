@@ -1,4 +1,6 @@
-﻿namespace Sandbox;
+﻿using System.Collections.Concurrent;
+
+namespace Sandbox;
 
 /// <summary>
 /// Simulates VerletRope components in parallel during PrePhysicsStep
@@ -20,6 +22,6 @@ internal sealed class VerletRopeGameSystem : GameObjectSystem
 		if ( _ropes.Count == 0 ) return;
 
 		var timeDelta = Time.Delta;
-		Sandbox.Utility.Parallel.ForEach( _ropes, rope => rope.Simulate( timeDelta ) );
+		System.Threading.Tasks.Parallel.ForEach( Partitioner.Create( _ropes, loadBalance: true ), rope => rope.Simulate( timeDelta ) );
 	}
 }

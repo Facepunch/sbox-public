@@ -33,6 +33,21 @@ public class ControlObjectWidget : ControlWidget
 		return true;
 	}
 
+
+	/// <summary>
+	/// Create a default instance of a type - arrays need special construction
+	/// </summary>
+	private static object CreateDefaultInstance( Type type )
+	{
+		if ( type.IsArray )
+		{
+			return Array.CreateInstance( type.GetElementType(), 0 );
+		}
+
+		return Activator.CreateInstance( type );
+	}
+
+
 	public ControlObjectWidget( SerializedProperty property, bool create ) : base( property )
 	{
 		try
@@ -42,7 +57,7 @@ public class ControlObjectWidget : ControlWidget
 			//
 			if ( create && property.GetValue<object>() == null && ShouldCreateInstanceWhenNull( property ) )
 			{
-				var newValue = Activator.CreateInstance( property.PropertyType );
+				var newValue = CreateDefaultInstance( property.PropertyType );
 				property.SetValue( newValue );
 			}
 		}
