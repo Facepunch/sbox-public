@@ -356,7 +356,7 @@ partial class ShaderGraph
 			subgraphInputParameter.PortOrder = portOrder;
 			subgraphInputParameter.SetValue( defaultValue );
 
-			if ( !ContainsParameterWithName( parameter.Name ) )
+			if ( !HasParameterWithName( parameter.Name ) )
 			{
 				AddParameter( parameter );
 			}
@@ -395,7 +395,7 @@ partial class ShaderGraph
 				textureInputElement.TryGetProperty( "Name", out var textureInputNameElement );
 				element.TryGetProperty( "Image", out var imageElement );
 
-				if ( ContainsParameterWithName( textureInputNameElement.GetString() ) )
+				if ( HasParameterWithName( textureInputNameElement.GetString() ) )
 				{
 					return FindParameter<Texture2DSubgraphInputParameter>( textureInputNameElement.GetString() );
 				}
@@ -488,7 +488,7 @@ partial class ShaderGraph
 					};
 					break;
 				case string typename when (typename == "TextureSampler" || typename == "TextureTriplanar" || typename == "NormapMapTriplanar"):
-					if ( ContainsParameterWithName( textureInputNameElement.GetString() ) )
+					if ( HasParameterWithName( textureInputNameElement.GetString() ) )
 					{
 						return FindParameter<Texture2DParameter>( textureInputNameElement.GetString() );
 					}

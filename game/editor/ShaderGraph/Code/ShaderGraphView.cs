@@ -280,7 +280,7 @@ public class ShaderGraphView : GraphView
 
 					var newName = $"{(Graph.IsSubgraph ? "SubgraphInput" : "MaterialParameter")}";
 					var id = 0;
-					while ( Graph.ContainsParameterWithName( $"{newName}{id}" ) )
+					while ( Graph.HasParameterWithName( $"{newName}{id}" ) )
 					{
 						id++;
 					}

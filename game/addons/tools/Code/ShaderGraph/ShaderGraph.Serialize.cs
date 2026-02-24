@@ -139,7 +139,7 @@ partial class ShaderGraph
 
 							var parameter = CreateBlackboardParameter_v2Upgrade( typeName, element, options );
 
-							if ( !ContainsParameterWithName( parameter.Name ) )
+							if ( !HasParameterWithName( parameter.Name ) )
 							{
 								AddParameter( parameter );
 							}
@@ -165,7 +165,7 @@ partial class ShaderGraph
 
 							var parameter = CreateBlackboardParameter_v2Upgrade( typeName, element, options );
 
-							if ( !ContainsParameterWithName( parameter.Name ) )
+							if ( !HasParameterWithName( parameter.Name ) )
 							{
 								AddParameter( parameter );
 							}

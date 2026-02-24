@@ -167,7 +167,7 @@ public sealed partial class ShaderGraph : IGraph
 		throw new Exception( $"There is no parameter with the name : {name}" );
 	}
 
-	public bool ContainsParameterWithName( string name )
+	public bool HasParameterWithName( string name )
 	{
 		return _parameters.Any( x => x.Value.Name == name );
 	}
