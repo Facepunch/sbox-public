@@ -8,8 +8,8 @@ public enum NodeResultType
 	Vector2,
 	Vector3,
 	Vector4,
-	Texture2D,
 	Color,
+	Texture2D,
 	Invalid
 }
 
