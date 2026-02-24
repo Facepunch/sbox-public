@@ -138,7 +138,7 @@ partial class ShaderGraph
 				//subgraphInput.InputType = InputType.Float;
 				if ( element.TryGetProperty( "Value", out var floatValue ) )
 				{
-					subgraphInput.DefaultFloat = floatValue.GetSingle();
+					subgraphInput.DefaultValue = floatValue.GetSingle();
 				}
 				break;
 
@@ -147,7 +147,7 @@ partial class ShaderGraph
 				if ( element.TryGetProperty( "Value", out var float2Value ) )
 				{
 					var vector2 = JsonSerializer.Deserialize<Vector2>( float2Value.GetRawText(), options );
-					subgraphInput.DefaultFloat2 = vector2;
+					subgraphInput.DefaultValue = vector2;
 				}
 				break;
 
@@ -156,7 +156,7 @@ partial class ShaderGraph
 				if ( element.TryGetProperty( "Value", out var float3Value ) )
 				{
 					var vector3 = JsonSerializer.Deserialize<Vector3>( float3Value.GetRawText(), options );
-					subgraphInput.DefaultFloat3 = vector3;
+					subgraphInput.DefaultValue = vector3;
 				}
 				break;
 
@@ -165,7 +165,7 @@ partial class ShaderGraph
 				if ( element.TryGetProperty( "Value", out var float4Value ) )
 				{
 					var color = JsonSerializer.Deserialize<Color>( float4Value.GetRawText(), options );
-					subgraphInput.DefaultColor = color;
+					subgraphInput.DefaultValue = color;
 				}
 				break;
 		}

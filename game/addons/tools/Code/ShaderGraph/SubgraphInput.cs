@@ -18,8 +18,6 @@ public sealed class SubgraphInput : ShaderNode, IParameterNode, IErroringNode, B
 		$"Subgraph Input" :
 		$"{Name} ({InputType})";
 
-
-
 	[JsonIgnore, Hide]
 	public override Color PrimaryColor => Color.Lerp( Theme.Green, Theme.Blue, 0.5f );
 
@@ -30,6 +28,7 @@ public sealed class SubgraphInput : ShaderNode, IParameterNode, IErroringNode, B
 	/// The name of the input parameter
 	/// </summary>
 	[Hide, JsonIgnore]
+	[Title( "Input Name" )]
 	public string Name => GetParameter().Name;
 
 	/// <summary>
@@ -60,33 +59,6 @@ public sealed class SubgraphInput : ShaderNode, IParameterNode, IErroringNode, B
 			}
 		}
 	}
-
-	[Hide, JsonIgnore]
-	public TextureInput DefaultTextureInput { get; set; } = new() { Type = TextureType.Tex2D };
-
-	/// <summary>
-	/// Default value for float inputs
-	/// </summary>
-	[Hide, JsonIgnore]
-	public float DefaultFloat { get; set; } = 0.0f;
-
-	/// <summary>
-	/// Default value for float2 inputs
-	/// </summary>
-	[Hide, JsonIgnore]
-	public Vector2 DefaultFloat2 { get; set; } = Vector2.Zero;
-
-	/// <summary>
-	/// Default value for float3 inputs
-	/// </summary>
-	[Hide, JsonIgnore]
-	public Vector3 DefaultFloat3 { get; set; } = Vector3.Zero;
-
-	/// <summary>
-	/// Default value for color inputs
-	/// </summary>
-	[Hide, JsonIgnore]
-	public Color DefaultColor { get; set; } = Color.White;
 
 	/// <summary>
 	/// Whether this input is required (must have a connection in order to compile)
