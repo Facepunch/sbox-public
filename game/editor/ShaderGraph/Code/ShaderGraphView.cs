@@ -341,6 +341,7 @@ public class ShaderGraphView : GraphView
 			
 						if ( !Graph.IsSubgraph )
 						{
+							// fix connections
 							foreach ( var node in Graph.Nodes )
 							{
 								foreach ( var input in node.Inputs )
