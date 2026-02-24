@@ -32,7 +32,7 @@ public sealed class Branch : ShaderNode
 }
 
 /// <summary>
-/// Compare Input A with Input B and output either True or False based on the result of the comparison.
+/// Compare Input 'A' with Input 'B' and output the input from either 'True' or 'False' based on the result of the comparison.
 /// </summary>
 [Title( "Compare" ), Category( "Logic" ), Icon( "compare" )]
 public sealed class Compare : ShaderNode
@@ -82,7 +82,20 @@ public sealed class Compare : ShaderNode
 		}
 	}
 
-	[Output]
+	[Output( typeof( bool ) ), Title( "Predicate" )]
+	[Description( "Either 'true' or 'false' depending on the result of the comparison with Input 'A' and Input 'B'." )]
+	[Hide]
+	public NodeResult.Func BoolResult => ( GraphCompiler compiler ) =>
+	{
+		var results = compiler.Result( True, False, 0.0f, 0.0f );
+		var resultA = compiler.ResultOrDefault( A, 0.0f );
+		var resultB = compiler.ResultOrDefault( B, 0.0f );
+
+		return new NodeResult( NodeResultType.Bool, $"{resultA} {Op} {resultB}" );
+	};
+
+	[Output, Title( "Result" )]
+	[Description( "Result from either the 'True' or 'False' inputs depending on the result of the comparison with Input 'A' and Input 'B'." )]
 	[Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
