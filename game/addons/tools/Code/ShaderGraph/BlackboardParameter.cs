@@ -219,7 +219,8 @@ public abstract class BlackboardParameter : IBlackboardParameter
 				DefaultValue = "",
 				ParameterIdentifier = parameter.Identifier,
 			},
-			_ => throw new NotImplementedException(),
+
+			_ => throw new NotImplementedException( $"Unknown parameter : {parameter.GetType()}" ),
 		};
 	}
 }
