@@ -34,8 +34,8 @@ public sealed class Branch : ShaderNode
 /// <summary>
 /// Compare Input 'A' with Input 'B' and output the input from either 'True' or 'False' based on the result of the comparison.
 /// </summary>
-[Title( "Compare" ), Category( "Logic" ), Icon( "compare" )]
-public sealed class Compare : ShaderNode
+[Title( "Comparison" ), Category( "Logic" ), Icon( "compare" )]
+public sealed class Comparison : ShaderNode
 {
 	[Hide]
 	public override string Title => $"{DisplayInfo.For( this ).Name} (A {Op} B)";

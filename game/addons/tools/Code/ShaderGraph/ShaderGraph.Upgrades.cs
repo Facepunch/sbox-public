@@ -179,15 +179,14 @@ partial class ShaderGraph
 
 		if ( string.IsNullOrWhiteSpace( nameElement.GetString() ) )
 		{
-			var compareNode = new Compare();
+			var comparisonNode = new Comparison();
 
 			// Copy basic node properties
-			DeserializeObject( compareNode, element, options );
+			DeserializeObject( comparisonNode, element, options );
 
 			element.TryGetProperty( "Operator", out var operatorElement );
-			compareNode.Operator = operatorElement.Deserialize<Compare.OperatorType>( options );
 
-			return compareNode;
+			return comparisonNode;
 		}
 		else
 		{
