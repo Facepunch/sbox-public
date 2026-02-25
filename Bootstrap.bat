@@ -17,12 +17,13 @@ echo [OK] Bootstrap completed successfully.
 exit /b 0
 
 :run_step
+set "stepName=%~1"
 echo.
-echo [STEP] %~1
+echo [STEP] %stepName%
 shift
 %*
 if errorlevel 1 (
-    echo [ERROR] Step failed: %~1
+    echo [ERROR] Step failed: %stepName%
     exit /b 1
 )
 exit /b 0
