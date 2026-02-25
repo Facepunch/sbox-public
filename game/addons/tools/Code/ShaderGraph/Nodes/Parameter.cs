@@ -368,6 +368,7 @@ public sealed class Texture2DParameterNode : ShaderNode
 		$"{DisplayInfo.For( this ).Name}" :
 		$"{UI.Name}";
 
+	[Hide]
 	public Guid ParameterIdentifier { get; set; }
 
 	[JsonIgnore, Hide]
