@@ -1,6 +1,6 @@
 namespace Editor.ShaderGraph.Nodes;
 
-public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IErroringNode
+public abstract class TextureSamplerBase : ShaderNode, ITextureSamplerNode, IErroringNode
 {
 	[Hide]
 	protected bool IsSubgraph => Graph is ShaderGraph graph && graph.IsSubgraph;

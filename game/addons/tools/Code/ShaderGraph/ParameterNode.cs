@@ -8,12 +8,6 @@ public interface IParameterNode
 	string Name { get; }
 }
 
-public interface ITextureParameterNode
-{
-	string Image { get; set; }
-	TextureInput UI { get; set; }
-}
-
 public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNode where Y : BlackboardParameter
 {
 	[Hide]

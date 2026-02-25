@@ -2,6 +2,12 @@
 
 namespace Editor.ShaderGraph;
 
+public interface ITextureSamplerNode
+{
+	string Image { get; set; }
+	TextureInput UI { get; set; }
+}
+
 public enum TextureExtension
 {
 	Color,

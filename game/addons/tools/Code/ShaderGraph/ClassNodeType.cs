@@ -13,9 +13,9 @@ public class TextureNodeType : ClassNodeType
 	public override INode CreateNode( IGraph graph )
 	{
 		var node = base.CreateNode( graph );
-		if ( node is ITextureParameterNode textureNode )
+		if ( node is ITextureSamplerNode textureSamplerNode )
 		{
-			textureNode.Image = ImagePath;
+			textureSamplerNode.Image = ImagePath;
 		}
 		return node;
 	}
