@@ -192,7 +192,7 @@ partial class ShaderGraph
 		else
 		{
 			var branchNode = EditorTypeLibrary.Create<Branch>( "Branch" );
-			
+
 			// Copy basic node properties
 			DeserializeObject( branchNode, element, options );
 			branchNode.Graph = this;
