@@ -192,8 +192,8 @@ partial class ShaderGraph
 		}
 		else
 		{
-			var branchNode = new Branch();
-
+			var branchNode = EditorTypeLibrary.Create<Branch>( "Branch" );
+			
 			// Copy basic node properties
 			DeserializeObject( branchNode, element, options );
 			branchNode.Graph = this;
@@ -228,6 +228,7 @@ partial class ShaderGraph
 
 				parameterNode = new SubgraphInput()
 				{
+					Position = branchNode.Position.WithX( branchNode.Position.x - 192 ),
 					ParameterIdentifier = boolParameter.Identifier,
 				};
 			}
