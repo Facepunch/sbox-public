@@ -217,6 +217,11 @@ partial class ShaderGraph
 					{
 						node = UpgradeSubgraphinput_v2Upgrade( element, options );
 					}
+					else if ( IsSubgraph && IsParameterNodeType_v2Upgrade( typeName ) ) 
+					{
+						// If we come across a parameter node in a subgraph. Just convert it to a constant.
+						node = ParameterNodeToConstantNode_v2Upgrade( typeName, element, options );
+					}
 					else
 					{
 						node = EditorTypeLibrary.Create<BaseNode>( typeName );
