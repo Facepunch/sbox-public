@@ -185,6 +185,7 @@ partial class ShaderGraph
 			DeserializeObject( comparisonNode, element, options );
 
 			element.TryGetProperty( "Operator", out var operatorElement );
+			comparisonNode.Operator = operatorElement.Deserialize<Comparison.OperatorType>( options );
 
 			return comparisonNode;
 		}
