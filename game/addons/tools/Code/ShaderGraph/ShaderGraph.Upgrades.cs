@@ -483,7 +483,7 @@ partial class ShaderGraph
 					{
 						Name = nameElement.GetString(),
 						Value = valueElement.Deserialize<Color>( options ),
-						UI = uiElement.Deserialize<ColorParameterUI>( options ),
+						UI = uiElement.Deserialize<ParameterUI>( options ),
 						IsAttribute = isAttributeElement.GetBoolean(),
 					};
 					break;

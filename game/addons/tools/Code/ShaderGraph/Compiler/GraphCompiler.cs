@@ -593,16 +593,16 @@ public sealed partial class GraphCompiler
 					options.Write( $"UiStep( {floatParameterUI.Step} ); " );
 				}
 			}
-			else if ( ui is IntParameterUI )
+			else if ( value is int )
 			{
 				options.Write( $"UiType( Slider ); " );
 
 			}
-			else if ( ui is BoolParameterUI )
+			else if ( value is bool )
 			{
 				options.Write( $"UiType( CheckBox ); " );
 			}
-			else if ( ui is ColorParameterUI )
+			else if ( value is Color )
 			{
 				options.Write( $"UiType( Color ); " );
 			}

@@ -29,7 +29,7 @@ public interface IParameterUI
 	string UIGroup { get; }
 }
 
-public struct BoolParameterUI : IParameterUI
+public struct ParameterUI : IParameterUI
 {
 	public int Priority { get; set; }
 
@@ -42,25 +42,7 @@ public struct BoolParameterUI : IParameterUI
 	[JsonIgnore, Hide]
 	public readonly string UIGroup => $"{PrimaryGroup.Name},{PrimaryGroup.Priority}/{SecondaryGroup.Name},{SecondaryGroup.Priority}/{Priority}";
 
-	public BoolParameterUI()
-	{
-	}
-}
-
-public struct IntParameterUI : IParameterUI
-{
-	public int Priority { get; set; }
-
-	[InlineEditor( Label = false ), Group( "Group" )]
-	public UIGroup PrimaryGroup { get; set; }
-
-	[InlineEditor( Label = false ), Group( "Sub Group" )]
-	public UIGroup SecondaryGroup { get; set; }
-
-	[JsonIgnore, Hide]
-	public readonly string UIGroup => $"{PrimaryGroup.Name},{PrimaryGroup.Priority}/{SecondaryGroup.Name},{SecondaryGroup.Priority}/{Priority}";
-
-	public IntParameterUI()
+	public ParameterUI()
 	{
 	}
 }
@@ -98,24 +80,6 @@ public struct FloatParameterUI : IParameterUI
 	public readonly string UIGroup => $"{PrimaryGroup.Name},{PrimaryGroup.Priority}/{SecondaryGroup.Name},{SecondaryGroup.Priority}/{Priority}";
 
 	public FloatParameterUI()
-	{
-	}
-}
-
-public struct ColorParameterUI : IParameterUI
-{
-	public int Priority { get; set; }
-
-	[InlineEditor( Label = false ), Group( "Group" )]
-	public UIGroup PrimaryGroup { get; set; }
-
-	[InlineEditor( Label = false ), Group( "Sub Group" )]
-	public UIGroup SecondaryGroup { get; set; }
-
-	[JsonIgnore, Hide]
-	public readonly string UIGroup => $"{PrimaryGroup.Name},{PrimaryGroup.Priority}/{SecondaryGroup.Name},{SecondaryGroup.Priority}/{Priority}";
-
-	public ColorParameterUI()
 	{
 	}
 }

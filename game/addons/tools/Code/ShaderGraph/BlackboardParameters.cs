@@ -6,12 +6,12 @@ namespace Editor.ShaderGraph;
 /// Bool value material parameter
 /// </summary>
 [Title( "Bool" ), Icon( "check_box" ), Order( 0 )]
-public sealed class BoolParameter : BlackboardMaterialParameter<bool, BoolParameterUI>
+public sealed class BoolParameter : BlackboardMaterialParameter<bool, ParameterUI>
 {
 	public BoolParameter() : base()
 	{
 		Value = false;
-		UI = new BoolParameterUI();
+		UI = new ParameterUI();
 	}
 }
 
@@ -19,7 +19,7 @@ public sealed class BoolParameter : BlackboardMaterialParameter<bool, BoolParame
 /// Int value material parameter
 /// </summary>
 [Title( "Int" ), Icon( "looks_one" ), Order( 1 )]
-public sealed class IntParameter : BlackboardMaterialParameter<int, IntParameterUI>
+public sealed class IntParameter : BlackboardMaterialParameter<int, ParameterUI>
 {
 	[Group( "Range" )] public int Min { get; set; }
 	[Group( "Range" )] public int Max { get; set; }
@@ -29,7 +29,7 @@ public sealed class IntParameter : BlackboardMaterialParameter<int, IntParameter
 		Value = 1;
 		Min = 0;
 		Max = 1;
-		UI = new IntParameterUI();
+		UI = new ParameterUI();
 	}
 }
 
@@ -109,12 +109,12 @@ public sealed class Float4Parameter : BlackboardMaterialParameter<Vector4, Float
 /// Color value material parameter
 /// </summary>
 [Title( "Color" ), Icon( "palette" ), Order( 6 )]
-public sealed class ColorParameter : BlackboardMaterialParameter<Color, ColorParameterUI>
+public sealed class ColorParameter : BlackboardMaterialParameter<Color, ParameterUI>
 {
 	public ColorParameter() : base()
 	{
 		Value = Color.White;
-		UI = new ColorParameterUI();
+		UI = new ParameterUI();
 	}
 }
 
