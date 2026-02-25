@@ -8,6 +8,7 @@
   "Resources": null,
   "PackageReferences": [],
   "EditorReferences": null,
+  "Mounts": null,
   "IsStandaloneOnly": false,
   "Metadata": {
     "MaxPlayers": 64,
