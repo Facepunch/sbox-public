@@ -159,6 +159,18 @@
         Settings = Package.GetMeta( "GameSettings", new List<GameSetting>() );
 
         //
+        // Verify cookie data
+        //
+        if ( Players < MinPlayers )
+        {
+            Players = MinPlayers;
+        }
+        if ( string.IsNullOrEmpty( ServerName ) )
+        {
+            ServerName = $"{Sandbox.Utility.Steam.PersonaName}'s game";
+        }
+
+        //
         // Initialize GameSettings dictionary with defaults if missing
         //
 

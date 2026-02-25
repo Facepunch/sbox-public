@@ -136,8 +136,7 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		var path = FixPath( filename );
 		if ( string.IsNullOrEmpty( path ) ) return default;
 
-		var hash = path.FastHash();
-		var obj = Game.Resources.Get( type, hash ) as GameResource;
+		var obj = Game.Resources.Get( type, path ) as GameResource;
 		if ( obj != null ) return obj;
 
 		obj = System.Activator.CreateInstance( type ) as GameResource;
@@ -158,7 +157,11 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 	{
 		ResourcePath = FixPath( filename );
 		ResourceName = System.IO.Path.GetFileNameWithoutExtension( ResourcePath );
+		// Keep this for backwards compat for now
+#pragma warning disable CS0618 // Type or member is obsolete
 		ResourceId = ResourcePath.FastHash();
+#pragma warning restore CS0618 // Type or member is obsolete
+		ResourceIdLong = ResourcePath.FastHash64();
 
 		Manifest = AsyncResourceLoader.Load( ResourcePath );
 
@@ -174,7 +177,11 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 
 		ResourcePath = FixPath( filename );
 		ResourceName = System.IO.Path.GetFileNameWithoutExtension( ResourcePath );
+		// Keep this for backwards compat for now
+#pragma warning disable CS0618 // Type or member is obsolete
 		ResourceId = ResourcePath.FastHash();
+#pragma warning restore CS0618 // Type or member is obsolete
+		ResourceIdLong = ResourcePath.FastHash64();
 
 		Game.Resources.Register( this );
 	}

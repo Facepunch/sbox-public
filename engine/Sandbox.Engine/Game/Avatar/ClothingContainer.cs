@@ -219,7 +219,7 @@ public partial class ClothingContainer
 
 	IEnumerable<Entry> GetSerializedEntities()
 	{
-		foreach ( var c in Clothing.OrderBy( x => x.Clothing?.ResourceId ).ThenBy( x => x.ItemDefinitionId ) )
+		foreach ( var c in Clothing.OrderBy( x => x.Clothing?.ResourcePath ).ThenBy( x => x.ItemDefinitionId ) )
 		{
 			yield return Entry.From( c );
 		}
@@ -297,7 +297,12 @@ public partial class ClothingContainer
 			}
 			else
 			{
-				add.Clothing = ResourceLibrary.Get<Clothing>( entry.Id );
+				// Try new path-based format first, then fall back to legacy int id for old saved avatars
+#pragma warning disable CS0618, CS0612 // Type or member is obsolete
+				add.Clothing = !string.IsNullOrEmpty( entry.Path )
+					? Game.Resources.Get<Clothing>( entry.Path )
+					: Game.Resources.Get<Clothing>( entry.LegacyId );
+#pragma warning restore CS0618, CS0612 // Type or member is obsolete
 				if ( add.Clothing == null ) continue;
 			}
 
@@ -309,13 +314,21 @@ public partial class ClothingContainer
 	/// <summary>
 	/// Used for serialization
 	/// </summary>
-	public class Entry
+	internal class Entry
 	{
 		/// <summary>
-		/// The resource id of this item. This means it's on disk somewhere.
+		/// The resource path of this item. This means it's on disk somewhere.
+		/// </summary>
+		[JsonPropertyName( "p" ), JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )]
+		internal string Path { get; set; }
+
+		/// <summary>
+		/// Legacy integer resource ID from before path-based serialization.
+		/// Kept for backwards compatibility when reading old saved avatars.
 		/// </summary>
 		[JsonPropertyName( "id" ), JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )]
-		public int Id { get; set; }
+		[Obsolete]
+		internal int LegacyId { get; set; }
 
 		/// <summary>
 		/// The Steam Inventory Item Definition Id. This means we should look up the item from the workshop.
@@ -331,18 +344,18 @@ public partial class ClothingContainer
 
 		internal static Entry From( ClothingEntry c )
 		{
-			var entry = new Entry { Id = c.Clothing?.ResourceId ?? default, Tint = c.Tint };
+			var entry = new Entry { Path = c.Clothing?.ResourcePath, Tint = c.Tint };
 
-			// If we have a itemid, store than instead of the resourceid
+			// If we have a Steam item id, store that instead of the path
 			if ( c.Clothing != null && c.Clothing.SteamItemDefinitionId.HasValue )
 			{
-				entry.Id = default;
+				entry.Path = default;
 				entry.ItemId = c.Clothing.SteamItemDefinitionId.Value;
 			}
 
-			if ( c.ItemDefinitionId != 0 )
+			if ( c.Clothing != null && c.ItemDefinitionId != 0 )
 			{
-				entry.Id = default;
+				entry.Path = default;
 				entry.ItemId = c.ItemDefinitionId;
 			}
 

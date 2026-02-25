@@ -6,7 +6,7 @@ namespace Editor.MovieMaker;
 
 partial class Session
 {
-	internal string CookiePrefix => $"moviemaker.{(Player.Resource as MovieResource)?.ResourceId.ToString() ?? Player.Id.ToString()}";
+	internal string CookiePrefix => $"moviemaker.{(Player.Resource as MovieResource)?.ResourcePath.FastHash64().ToString() ?? Player.Id.ToString()}";
 
 	public T GetCookie<T>( string key, T fallback )
 	{
