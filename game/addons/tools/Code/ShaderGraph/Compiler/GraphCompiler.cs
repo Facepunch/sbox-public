@@ -201,7 +201,7 @@ public sealed partial class GraphCompiler
 	}
 
 	/// <summary>
-	/// Register a texture and return the name of it
+	/// Register a texture and return the global name of it
 	/// </summary>
 	public string ResultTexture( TextureInput input, Texture texture, bool storePreviewImage = false )
 	{
