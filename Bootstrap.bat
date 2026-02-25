@@ -9,8 +9,13 @@ if errorlevel 1 (
 )
 
 call :run_step "Build engine" dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- build --config Developer
+if errorlevel 1 exit /b 1
+
 call :run_step "Build shaders" dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- build-shaders
+if errorlevel 1 exit /b 1
+
 call :run_step "Build content" dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- build-content
+if errorlevel 1 exit /b 1
 
 echo.
 echo [OK] Bootstrap completed successfully.
