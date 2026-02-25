@@ -152,7 +152,7 @@ partial class ShaderGraph
 						}
 						else
 						{
-							node = ConvertToConstantNode_v2Upgrade( typeName, element, options );
+							node = ParameterNodeToConstantNode_v2Upgrade( typeName, element, options );
 						}
 					}
 					else if ( ShouldUpgradeSamplerNodeType_v2Upgrade( typeName ) )

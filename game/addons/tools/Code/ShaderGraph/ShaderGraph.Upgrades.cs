@@ -245,7 +245,7 @@ partial class ShaderGraph
 		}
 	}
 
-	private static BaseNode ConvertToConstantNode_v2Upgrade( string typeName, JsonElement element, JsonSerializerOptions options )
+	private static BaseNode ParameterNodeToConstantNode_v2Upgrade( string typeName, JsonElement element, JsonSerializerOptions options )
 	{
 		if ( element.TryGetProperty( "Value", out var valueElement ) )
 		{
