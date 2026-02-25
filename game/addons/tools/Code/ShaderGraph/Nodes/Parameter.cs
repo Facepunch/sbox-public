@@ -361,12 +361,15 @@ public sealed class ColorParameterNode : ParameterNode<Color, ColorParameter>
 /// </summary>
 [Title( "Texture 2D" ), Category( "Parameters" ), Icon( "image" ), Order( 7 )]
 [Hide]
-public sealed class Texture2DParameterNode : ShaderNode
+public sealed class Texture2DParameterNode : ShaderNode, IParameterNode
 {
 	[JsonIgnore, Hide]
-	public override string Title => string.IsNullOrWhiteSpace( UI.Name ) ?
+	public override string Title => string.IsNullOrWhiteSpace( Name ) ?
 		$"{DisplayInfo.For( this ).Name}" :
-		$"{UI.Name}";
+		$"{Name}";
+
+	[Hide]
+	public string Name => UI.Name;
 
 	[Hide]
 	public Guid ParameterIdentifier { get; set; }
