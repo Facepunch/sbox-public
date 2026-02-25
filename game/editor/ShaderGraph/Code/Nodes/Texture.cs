@@ -1,38 +1,15 @@
 namespace Editor.ShaderGraph.Nodes;
 
-public abstract class TextureSamplerBase : ShaderNode, ITextureSamplerNode, IErroringNode
+public abstract class TextureSamplerBase : ShaderNode, IErroringNode
 {
 	[Hide]
 	protected bool IsSubgraph => Graph is ShaderGraph graph && graph.IsSubgraph;
 
-	private bool _showDefaults;
-	[JsonIgnore, Hide]
-	protected bool ShowDefaults
-	{
-		get => _showDefaults;
-		set
-		{
-
-			if ( IsSubgraph )
-			{
-				_showDefaults = false;
-			}
-			else
-			{
-				_showDefaults = value;
-			}
-		}
-	}
-
-	[ShowIf( nameof( ShowDefaults ), true )]
-	public string Name { get; set; }
-
 	/// <summary>
 	/// Texture to sample in preview
 	/// </summary>
-	[ImageAssetPath]
-	[ShowIf( nameof( ShowDefaults ), true )]
-	public string Image
+	[Hide, JsonIgnore]
+	protected string Image
 	{
 		get => _image;
 		set
@@ -79,15 +56,11 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureSamplerNode, IErr
 		if ( string.IsNullOrWhiteSpace( _image ) )
 			return;
 
-		var ui = UI;
-		ui.DefaultTexture = _image;
-		UI = ui;
-
 		var resourceText = string.Format( ShaderTemplate.TextureDefinition,
 			_image,
-			UI.ColorSpace,
-			UI.ImageFormat,
-			UI.Processor );
+			PreviewUI.ColorSpace,
+			PreviewUI.ImageFormat,
+			PreviewUI.Processor );
 
 		if ( _resourceText == resourceText )
 			return;
@@ -108,32 +81,19 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureSamplerNode, IErr
 		}
 	}
 
-	/// <summary>
-	/// Settings for how this texture shows up in material editor
-	/// </summary>
-	[InlineEditor( Label = false ), Group( "UI" )]
-	[ShowIf( nameof( ShowDefaults ), true )]
-	public TextureInput UI { get; set; } = new TextureInput
+	[Hide]
+	protected virtual TextureInput PreviewUI => new TextureInput
 	{
+		Type = TextureType.Tex2D,
 		ImageFormat = TextureFormat.DXT5,
 		SrgbRead = true,
 		Default = Color.White,
 	};
 
-	[Hide]
-	public override string Title => string.IsNullOrWhiteSpace( UI.Name ) ? null :
-		$"{DisplayInfo.For( this ).Name} {(ShowDefaults ? $"( {UI.Name} )" : Name)}";
-
 	protected TextureSamplerBase() : base()
 	{
 		Image = "materials/dev/white_color.tga";
 		ExpandSize = new Vector2( 8, 8 + Inputs.Count() * 24 );
-	}
-
-	protected void SetNodeWidth( float width )
-	{
-		ExpandSize = ExpandSize.WithX( width );
-		Update();
 	}
 
 	public override void OnPaint( Rect rect )
@@ -169,13 +129,13 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureSamplerNode, IErr
 		return errors;
 	}
 
-	protected bool ProcessTexture2DInput( GraphCompiler compiler, NodeInput texture2D, ref TextureInput input, out NodeResult errorResult )
+	protected bool ProcessTexture2DInput( GraphCompiler compiler, NodeInput texture2D, out NodeResult texture2DResult, out NodeResult errorResult )
 	{
 		errorResult = default;
-		var texture2DInput = compiler.Result( texture2D );
-		if ( texture2DInput.IsValid )
+		texture2DResult = compiler.Result( texture2D );
+		if ( texture2DResult.IsValid )
 		{
-			if ( texture2DInput.ResultType != NodeResultType.Texture2D )
+			if ( texture2DResult.ResultType != NodeResultType.Texture2D )
 			{
 				ErrorMessage = $"Input of `{nameof( texture2D )}` must be of ResultType `{NodeResultType.Texture2D}`";
 				errorResult = NodeResult.Error( ErrorMessage );
@@ -185,47 +145,21 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureSamplerNode, IErr
 
 			ClearError();
 
-			if ( compiler.TryGetPreviewImage( texture2DInput.Code, out var imagePath ) )
+			if ( compiler.TryGetPreviewImage( texture2DResult.Code, out var imagePath ) )
 			{
-
 				Image = imagePath;
-				Name = "";
-				input.Name = texture2DInput.Code.TrimStart( "g_t" ).ToString();
-				ShowDefaults = false;
-
-				SetNodeWidth( 8 );
 
 				return true;
 			}
 			else
 			{
-				throw new Exception( $"Cannot find PreviewImage for texture input : {texture2DInput.Code}" );
+				throw new Exception( $"Cannot find PreviewImage for texture input : {texture2DResult.Code}" );
 			}
 		}
-		else
-		{
-			if ( !IsSubgraph )
-			{
-				ClearError();
 
-				Image = "materials/dev/white_color.tga";
-				input.Name = Name;
-				ShowDefaults = true;
-
-				SetNodeWidth( 64 );
-				UI = UI with { Name = Name };
-
-				return true;
-			}
-			else if ( IsSubgraph )
-			{
-				Image = "materials/dev/white_color.tga";
-				ErrorMessage = $"Missing required input '{nameof( texture2D )}'.";
-				errorResult = NodeResult.MissingInput( nameof( texture2D ) );
-
-				return false;
-			}
-		}
+		Image = "materials/dev/white_color.tga";
+		ErrorMessage = $"Missing required input '{nameof( texture2D )}'.";
+		errorResult = NodeResult.MissingInput( nameof( texture2D ) );
 
 		return false;
 	}
@@ -260,10 +194,7 @@ public sealed class TextureSampler : TextureSamplerBase
 	[Output( typeof( Color ) ), Title( "RGBA" )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		var input = UI;
-		input.Type = TextureType.Tex2D;
-
-		if ( !ProcessTexture2DInput( compiler, Texture2D, ref input, out var errorResult ) )
+		if ( !ProcessTexture2DInput( compiler, Texture2D, out var texture2DResult, out var errorResult ) )
 		{
 			return errorResult;
 		}
@@ -274,7 +205,11 @@ public sealed class TextureSampler : TextureSamplerBase
 		texture ??= Texture.White;
 
 		var sampler = compiler.ResultSampler( Sampler );
-		var textureGlobal = compiler.ResultTexture( input, texture );
+		var textureGlobal = texture2DResult.Code;
+
+		var attributeName = texture2DResult.Code.TrimStart( "g_t" ).ToString();
+		compiler.SetAttribute( attributeName, texture );
+
 		var coords = compiler.Result( Coords );
 
 		if ( compiler.Stage == GraphCompiler.ShaderStage.Vertex )
@@ -458,6 +393,15 @@ public sealed class TextureTriplanar : TextureSamplerBase
 	[Hide]
 	public NodeInput Normal { get; set; }
 
+	[Hide]
+	protected override TextureInput PreviewUI => new TextureInput
+	{
+		Type = TextureType.Tex2D,
+		ImageFormat = TextureFormat.DXT5,
+		SrgbRead = true,
+		Default = Color.White,
+	};
+
 	/// <summary>
 	/// RGBA color result
 	/// </summary>
@@ -465,10 +409,7 @@ public sealed class TextureTriplanar : TextureSamplerBase
 	[Output( typeof( Color ) ), Title( "RGBA" )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		var input = UI;
-		input.Type = TextureType.Tex2D;
-
-		if ( !ProcessTexture2DInput( compiler, Texture2D, ref input, out var errorResult ) )
+		if ( !ProcessTexture2DInput( compiler, Texture2D, out var texture2DResult, out var errorResult ) )
 		{
 			return errorResult;
 		}
@@ -479,7 +420,11 @@ public sealed class TextureTriplanar : TextureSamplerBase
 		texture ??= Texture.White;
 
 		var sampler = compiler.ResultSampler( Sampler );
-		var textureGlobal = compiler.ResultTexture( input, texture );
+		var textureGlobal = texture2DResult.Code;
+
+		var attributeName = texture2DResult.Code.TrimStart( "g_t" ).ToString();
+		compiler.SetAttribute( attributeName, texture );
+
 		var coords = compiler.Result( Coords );
 		var normal = compiler.Result( Normal );
 
@@ -547,19 +492,21 @@ public sealed class NormapMapTriplanar : TextureSamplerBase
 	[Hide]
 	public NodeInput Normal { get; set; }
 
+	[Hide]
+	protected override TextureInput PreviewUI => new TextureInput
+	{
+		Type = TextureType.Tex2D,
+		ImageFormat = TextureFormat.DXT5,
+		SrgbRead = false,
+		ColorSpace = TextureColorSpace.Linear,
+		Extension = TextureExtension.Normal,
+		Processor = TextureProcessor.NormalizeNormals,
+		Default = new Color( 0.5f, 0.5f, 1f, 1f )
+	};
+
 	public NormapMapTriplanar()
 	{
 		ExpandSize = new Vector2( 56f, 128f );
-
-		UI = new TextureInput
-		{
-			ImageFormat = TextureFormat.DXT5,
-			SrgbRead = false,
-			ColorSpace = TextureColorSpace.Linear,
-			Extension = TextureExtension.Normal,
-			Processor = TextureProcessor.NormalizeNormals,
-			Default = new Color( 0.5f, 0.5f, 1f, 1f )
-		};
 	}
 
 	/// <summary>
@@ -569,10 +516,7 @@ public sealed class NormapMapTriplanar : TextureSamplerBase
 	[Output( typeof( Vector3 ) ), Title( "XYZ" )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		var input = UI;
-		input.Type = TextureType.Tex2D;
-
-		if ( !ProcessTexture2DInput( compiler, Texture2D, ref input, out var errorResult ) )
+		if ( !ProcessTexture2DInput( compiler, Texture2D, out var texture2DResult, out var errorResult ) )
 		{
 			return errorResult;
 		}
@@ -583,7 +527,11 @@ public sealed class NormapMapTriplanar : TextureSamplerBase
 		texture ??= Texture.White;
 
 		var sampler = compiler.ResultSampler( Sampler );
-		var textureGlobal = compiler.ResultTexture( input, texture );
+		var textureGlobal = texture2DResult.Code;
+
+		var attributeName = texture2DResult.Code.TrimStart( "g_t" ).ToString();
+		compiler.SetAttribute( attributeName, texture );
+
 		var coords = compiler.Result( Coords );
 		var normal = compiler.Result( Normal );
 

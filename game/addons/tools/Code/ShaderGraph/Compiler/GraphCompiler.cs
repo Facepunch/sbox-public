@@ -203,43 +203,27 @@ public sealed partial class GraphCompiler
 	/// <summary>
 	/// Register a texture and return the name of it
 	/// </summary>
-	public string ResultTexture( TextureInput input, Texture texture, bool textureInputConnected = false, bool storePreviewImage = false )
+	public string ResultTexture( TextureInput input, Texture texture, bool storePreviewImage = false )
 	{
 		var name = CleanName( input.Name );
 		var result = ShaderResult;
 		var globalName = "";
 
-		if ( !textureInputConnected )
+		name = string.IsNullOrWhiteSpace( name ) ? $"Texture_{StageName}_{ShaderResult.TextureInputs.Count}" : name;
+
+		if ( !result.TextureInputs.ContainsKey( name ) )
+			result.TextureInputs.Add( name, input );
+
+		if ( storePreviewImage )
 		{
-			name = string.IsNullOrWhiteSpace( name ) ? $"Texture_{StageName}_{ShaderResult.TextureInputs.Count}" : name;
-
-			if ( !result.TextureInputs.ContainsKey( name ) )
-				result.TextureInputs.Add( name, input );
-
-			if ( storePreviewImage )
+			if ( !PreviewImages.ContainsKey( $"g_t{name}" ) )
 			{
-				if ( !PreviewImages.ContainsKey( $"g_t{name}" ) )
-				{
-					PreviewImages.Add( $"g_t{name}", input.DefaultTexture );
-				}
+				PreviewImages.Add( $"g_t{name}", input.DefaultTexture );
 			}
-
-			if ( texture != null )
-				SetAttribute( name, texture );
-
-			globalName = $"g_t{name}";
-
-			if ( CurrentResultInput == "Albedo" && !input.IsAttribute )
-			{
-				result.RepresentativeTexture = globalName;
-			}
-
-			return globalName;
 		}
-		//else
-		//{
-		//	SetAttribute( name, texture );
-		//}
+
+		if ( texture != null )
+			SetAttribute( name, texture );
 
 		globalName = $"g_t{name}";
 
@@ -773,7 +757,7 @@ public sealed partial class GraphCompiler
 					{
 						var textureInput = (TextureInput)value;
 						var texurePath = CompileTexture( textureInput );
-						var textureGlobal = ResultTexture( textureInput, Texture.Load( texurePath ), false, true );
+						var textureGlobal = ResultTexture( textureInput, Texture.Load( texurePath ), true );
 
 						return new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
 					}

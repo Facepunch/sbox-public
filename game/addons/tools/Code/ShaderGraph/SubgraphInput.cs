@@ -196,7 +196,7 @@ public sealed class SubgraphInput : ShaderNode, IParameterNode, IErroringNode, B
 	{
 		input.Type = TextureType.Tex2D;
 
-		return compiler.ResultTexture( input, null, false, true );
+		return compiler.ResultTexture( input, null, true );
 	}
 }
 

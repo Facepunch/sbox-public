@@ -395,10 +395,10 @@ public sealed class Texture2DParameterNode : ShaderNode, IParameterNode
 	[Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		var input = GetParameter().Value;
+		var input = UI;
 		input.Type = TextureType.Tex2D;
 
-		var textureGlobal = compiler.ResultTexture( input, null, false, true );
+		var textureGlobal = compiler.ResultTexture( input, null, true );
 
 		return new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
 	};
