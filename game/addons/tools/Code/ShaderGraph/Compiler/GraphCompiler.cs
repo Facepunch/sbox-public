@@ -187,6 +187,9 @@ public sealed partial class GraphCompiler
 		result.Globals.Add( name, global );
 	}
 
+	/// <summary>
+	/// Register a sampler and return the <seealso cref="CompileResult.SamplerStates"/> index of it
+	/// </summary>
 	public int ResultSampler( Sampler sampler )
 	{
 		var result = ShaderResult;
