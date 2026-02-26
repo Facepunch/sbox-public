@@ -275,7 +275,7 @@ public class ShaderGraphView : GraphView
 
 		if ( selectedNodes.Length > 1 && selectedNodes.All( x => x.Node is IConstantNode ) )
 		{
-			var optionName = $"Convert {selectedNodes.Count()} Constants to {(Graph.IsSubgraph ? "Subgraph Inputs" : "Material Parameters")}";
+			var optionName = $"Convert {selectedNodes.Count()} constants to {(Graph.IsSubgraph ? "Subgraph Inputs" : "Material Parameters")}";
 			var convertOption = menu.AddOption( optionName, "swap_horiz", () =>
 			{
 				using var undoScope = UndoScope( optionName );
@@ -335,11 +335,11 @@ public class ShaderGraphView : GraphView
 					_ => throw new NotImplementedException( $"Unknown IConstantNode \"{constantNode.GetType()}\"" ),
 				};
 
-				var convertOption = menu.AddOption( $"Convert {baseNode.DisplayInfo.Name} to {nodeTypeTitle} {(Graph.IsSubgraph ? "Subgraph Input" : "Material Parameter")}", "swap_horiz", () =>
+				var convertOption = menu.AddOption( $"Convert constant to {(Graph.IsSubgraph ? "Subgraph Input" : "Material Parameter")}", "swap_horiz", () =>
 				{
 					Dialog.AskString( ( string parameterName ) =>
 					{
-						using var undoScope = UndoScope( $"Convert {baseNode.DisplayInfo.Name} node to {nodeTypeTitle} {(Graph.IsSubgraph ? "Subgraph Input node" : "Material Parameter node")}" );
+						using var undoScope = UndoScope( $"Convert constant to {(Graph.IsSubgraph ? "Subgraph Input" : "Material Parameter")}" );
 
 						Dictionary<IPlugIn, IPlugOut> oldOutputConnections = new();
 
