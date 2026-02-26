@@ -205,12 +205,17 @@ public class ShaderGraphView : GraphView
 				{
 					Dialog.AskString( ( string parameterName ) =>
 					{
+						using var undoScope = UndoScope( "Add Parameter" );
+
 						var parameter = CreateNewBlackboardParameter( classType );
 						parameter.Name = parameterName;
 
-						CreateNewParameterNode( parameter, clickPos, true );
-					},
-					$"Specify a name for the {(isSubgraph ? "subgraph input" : "parameter")}" );
+						var node = CreateNewParameterNode( parameter, clickPos );
+
+						SelectNode( node );
+						_window.OnSelected( parameter );
+
+					}, $"What do you want to name {classType.Type.Title} {(Graph.IsSubgraph ? "Subgraph Input" : "Material Parameter")}?" );
 				} );
 			}
 		}
