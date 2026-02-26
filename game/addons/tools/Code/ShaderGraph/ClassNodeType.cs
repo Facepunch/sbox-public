@@ -1,25 +1,7 @@
 ﻿using Editor.NodeEditor;
+using Editor.ShaderGraph.Nodes;
 
 namespace Editor.ShaderGraph;
-
-public class TextureNodeType : ClassNodeType
-{
-	string ImagePath;
-
-	public TextureNodeType( TypeDescription type, string imagePath ) : base( type )
-	{
-		ImagePath = imagePath;
-	}
-	public override INode CreateNode( IGraph graph )
-	{
-		var node = base.CreateNode( graph );
-		if ( node is ITextureSamplerNode textureSamplerNode )
-		{
-			textureSamplerNode.Image = ImagePath;
-		}
-		return node;
-	}
-}
 
 public class ClassNodeType : INodeType
 {
@@ -116,6 +98,9 @@ public sealed class SubgraphNodeType : ClassNodeType
 public sealed class ParameterNodeType : ClassNodeType
 {
 	BlackboardParameter Parameter;
+	Action OnNodeCreated;
+
+	string ImagePath;
 
 	public ParameterNodeType( TypeDescription type, BlackboardParameter parameter ) : base( type )
 	{
@@ -127,11 +112,58 @@ public sealed class ParameterNodeType : ClassNodeType
 		Parameter = parameter;
 	}
 
+	public ParameterNodeType( TypeDescription type, string imagePath, Action onNodeCreated ) : base( type )
+	{
+		ImagePath = imagePath;
+		OnNodeCreated = onNodeCreated;
+	}
+
 	public override INode CreateNode( IGraph graph )
 	{
-		var node = BlackboardParameter.InitializeParameterNode( Parameter );
-		node.Graph = graph;
+		var sg = graph as ShaderGraph;
 
-		return node;
+		if ( Parameter == null && !string.IsNullOrWhiteSpace( ImagePath ) )
+		{
+			var baseName = $"{(sg.IsSubgraph ? "SubgraphInput" : "MaterialParameter")}";
+			var id = 0;
+			while ( sg.HasParameterWithName( $"{baseName}{id}" ) )
+			{
+				id++;
+			}
+
+			var name = $"{baseName}{id}";
+
+			if ( sg.IsSubgraph )
+			{
+				Parameter = new Texture2DSubgraphInputParameter()
+				{
+					Name = name,
+					Value = new TextureInput() { DefaultTexture = ImagePath }
+				};
+			}
+			else
+			{
+				Parameter = new Texture2DParameter()
+				{
+					Name = name,
+					Value = new TextureInput() { DefaultTexture = ImagePath }
+				};
+			}
+
+			sg.AddParameter( Parameter );
+
+			var node = BlackboardParameter.InitializeParameterNode( Parameter );
+			node.Graph = sg;
+
+			OnNodeCreated?.Invoke();
+
+			return node;
+		}
+		else
+		{
+			var node = BlackboardParameter.InitializeParameterNode( Parameter );
+			node.Graph = sg;
+			return node;
+		}
 	}
 }

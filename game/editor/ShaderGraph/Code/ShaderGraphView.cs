@@ -4,8 +4,20 @@ namespace Editor.ShaderGraph;
 
 public class ShaderGraphView : GraphView
 {
+	private enum DragEventSource
+	{
+		NodePallete,
+		SubgraphAsset,
+		ImageFile,
+		BlackboardParameter,
+		Invalid
+	}
+
 	private readonly MainWindow _window;
+	private readonly BlackboardView _blackboard;
 	private readonly UndoStack _undoStack;
+
+	private DragEventSource _currentDragEventSource = DragEventSource.Invalid;
 
 	protected override string ClipboardIdent => "shadergraph";
 
@@ -27,8 +39,6 @@ public class ShaderGraphView : GraphView
 		set => base.Graph = value;
 	}
 
-	public Action OnNewParameterNodeCreated { get; set; }
-
 	private readonly Dictionary<string, INodeType> AvailableNodes = new( StringComparer.OrdinalIgnoreCase );
 	private readonly Dictionary<string, IBlackboardParameterType> AvailableParameters = new( StringComparer.OrdinalIgnoreCase );
 
@@ -36,9 +46,10 @@ public class ShaderGraphView : GraphView
 		? GridConnectionStyle.Instance
 		: ConnectionStyle.Default;
 
-	public ShaderGraphView( Widget parent, MainWindow window ) : base( parent )
+	public ShaderGraphView( Widget parent, MainWindow window, BlackboardView blackboard ) : base( parent )
 	{
 		_window = window;
+		_blackboard = blackboard;
 		_undoStack = window.UndoStack;
 
 		OnSelectionChanged += SelectionChanged;
@@ -102,6 +113,8 @@ public class ShaderGraphView : GraphView
 			{
 				if ( string.Equals( Path.GetExtension( asset.AssetPath ), ".shdrfunc", StringComparison.OrdinalIgnoreCase ) )
 				{
+					_currentDragEventSource = DragEventSource.SubgraphAsset;
+
 					return new SubgraphNodeType( asset.AssetPath, EditorTypeLibrary.GetType<SubgraphNode>() );
 				}
 				else
@@ -109,7 +122,13 @@ public class ShaderGraphView : GraphView
 					var realAsset = asset.GetAssetAsync().Result;
 					if ( realAsset.AssetType == AssetType.ImageFile )
 					{
-						return new TextureNodeType( EditorTypeLibrary.GetType<TextureSampler>(), asset.AssetPath );
+						_currentDragEventSource = DragEventSource.ImageFile;
+
+						return new ParameterNodeType( EditorTypeLibrary.GetType<Texture2DParameterNode>(), asset.AssetPath, () => 
+						{
+							_blackboard.RebuildFromGraph( true ); 
+						} 
+						);
 					}
 				}
 			}
@@ -117,8 +136,12 @@ public class ShaderGraphView : GraphView
 
 		if ( ev.Data.Object is BlackboardParameter blackboardParameter )
 		{
+			_currentDragEventSource = DragEventSource.BlackboardParameter;
+
 			return new ParameterNodeType( blackboardParameter );
 		}
+
+		_currentDragEventSource = DragEventSource.NodePallete;
 
 		return AvailableNodes.TryGetValue( ev.Data.Text, out var type )
 			? type
@@ -491,7 +514,10 @@ public class ShaderGraphView : GraphView
 
 		Add( nodeUI );
 
-		OnNewParameterNodeCreated?.Invoke();
+		if ( _blackboard is null )
+			Log.Error("null blackboard");
+
+		_blackboard.RebuildFromGraph( true );
 
 		if ( selectParameter )
 			_window.OnSelected( parameter );
@@ -769,6 +795,28 @@ public class ShaderGraphView : GraphView
 		{
 			subgraphNode.OnNodeCreated();
 		}
+	}
+
+	protected override void OnNodePreviewPreRemove( NodeUI nodePreview )
+	{
+		var node = nodePreview.Node as BaseNode;
+
+		if ( node is IParameterNode parameterNode )
+		{
+			if ( _currentDragEventSource == DragEventSource.ImageFile )
+			{
+				Graph.RemoveParameter( parameterNode.ParameterIdentifier );
+
+				_blackboard.RebuildFromGraph( true );
+			}
+		}
+
+		_currentDragEventSource = DragEventSource.Invalid;
+	}
+
+	protected override void OnDragDropFinish()
+	{
+		_currentDragEventSource = DragEventSource.Invalid;
 	}
 
 	[EditorEvent.Frame]

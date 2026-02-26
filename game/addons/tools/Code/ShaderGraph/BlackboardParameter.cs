@@ -216,7 +216,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 			},
 			Texture2DSubgraphInputParameter => new SubgraphInput()
 			{
-				DefaultValue = "",
+				DefaultValue = new TextureInput(),
 				ParameterIdentifier = parameter.Identifier,
 			},
 

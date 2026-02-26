@@ -1445,10 +1445,20 @@ public class GraphView : GraphicsView, IGridSizeView
 
 		if ( _nodePreview.IsValid() )
 		{
+			OnNodePreviewPreRemove( _nodePreview );
 			Graph.RemoveNode( _nodePreview.Node );
 			_nodePreview.Destroy();
 			_nodePreview = null;
 		}
+	}
+
+	/// <summary>
+	/// Called right before the preview <see cref="NodeUI"/> is removed.
+	/// </summary>
+	/// <param name="nodePreview"></param>
+	protected virtual void OnNodePreviewPreRemove( NodeUI nodePreview )
+	{
+
 	}
 
 	public override void OnDragDrop( DragEvent ev )
@@ -1466,6 +1476,7 @@ public class GraphView : GraphicsView, IGridSizeView
 
 		if ( _nodePreview.IsValid() )
 		{
+			OnNodePreviewPreRemove( _nodePreview );
 			Graph.RemoveNode( _nodePreview.Node );
 			_nodePreview.Destroy();
 			_nodePreview = null;
@@ -1477,5 +1488,15 @@ public class GraphView : GraphicsView, IGridSizeView
 		}
 
 		CreateNewNode( type, ToScene( ev.LocalPosition ), null );
+
+		OnDragDropFinish();
+	}
+
+	/// <summary>
+	/// Called when <see cref="OnDragDrop( DragEvent )"/> finishes.
+	/// </summary>
+	protected virtual void OnDragDropFinish()
+	{
+
 	}
 }

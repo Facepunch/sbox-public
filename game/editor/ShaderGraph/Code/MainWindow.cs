@@ -1232,7 +1232,24 @@ public class MainWindow : DockWindow
 
 		_graphCanvas.Layout.Add( graphToolBar );
 
-		_graphView = new ShaderGraphView( _graphCanvas, this );
+		_blackboardCanvas = new Widget( this ) { WindowTitle = $"Blackboard" };
+		_blackboardCanvas.Name = "Blackboard";
+		_blackboardCanvas.SetWindowIcon( "list" );
+		_blackboardCanvas.Layout = Layout.Row();
+		_blackboardCanvas.Layout.Spacing = 8;
+		_blackboardCanvas.Layout.Margin = 4;
+
+		_blackboardView = new BlackboardView( _blackboardCanvas, this );
+		_blackboardView.Graph = _graph;
+		_blackboardView.OnDirty += () => SetDirty();
+		_blackboardView.OnParameterNodeDeleted += () =>
+		{
+			_graphView.RebuildFromGraph();
+		};
+
+		_blackboardCanvas.Layout.Add( _blackboardView, 1 );
+
+		_graphView = new ShaderGraphView( _graphCanvas, this, _blackboardView );
 		_graphView.BilinearFiltering = false;
 
 		var nodeTypes = EditorTypeLibrary.GetTypes<ShaderNode>()
@@ -1251,6 +1268,11 @@ public class MainWindow : DockWindow
 			_graphView.AddParameterType( type );
 		}
 
+		foreach ( var type in blackboardParameterTypes )
+		{
+			_blackboardView.AddParameterType( type );
+		}
+
 		var subgraphs = AssetSystem.All.Where( x => x.Path.EndsWith( ".shdrfunc", StringComparison.OrdinalIgnoreCase ) );
 		foreach ( var subgraph in subgraphs )
 		{
@@ -1259,10 +1281,6 @@ public class MainWindow : DockWindow
 
 		_graphView.Graph = _graph;
 		_graphView.OnChildValuesChanged += ( w ) => SetDirty();
-		_graphView.OnNewParameterNodeCreated += () =>
-		{
-			_blackboardView.RebuildFromGraph( true );
-		};
 		_graphCanvas.Layout.Add( _graphView, 1 );
 
 		_output = new Output( this );
@@ -1317,28 +1335,6 @@ public class MainWindow : DockWindow
 		_properties = new Properties( this );
 		_properties.Target = _graph;
 		_properties.PropertyUpdated += OnPropertyUpdated;
-
-		_blackboardCanvas = new Widget( this ) { WindowTitle = $"Blackboard" };
-		_blackboardCanvas.Name = "Blackboard";
-		_blackboardCanvas.SetWindowIcon( "list" );
-		_blackboardCanvas.Layout = Layout.Row();
-		_blackboardCanvas.Layout.Spacing = 8;
-		_blackboardCanvas.Layout.Margin = 4;
-
-		_blackboardView = new BlackboardView( _blackboardCanvas, this );
-		_blackboardView.Graph = _graph;
-		_blackboardView.OnDirty += () => SetDirty();
-		_blackboardView.OnParameterNodeDeleted += () =>
-		{
-			_graphView.RebuildFromGraph();
-		};
-
-		foreach ( var type in blackboardParameterTypes )
-		{
-			_blackboardView.AddParameterType( type );
-		}
-
-		_blackboardCanvas.Layout.Add( _blackboardView, 1 );
 
 		_undoHistory = new UndoHistory( this, _undoStack );
 		_undoHistory.OnUndo = Undo;
