@@ -270,69 +270,41 @@ public class ShaderGraphView : GraphView
 
 		if ( selectedNodes.Length > 1 && selectedNodes.All( x => x.Node is IConstantNode ) )
 		{
-			var convertOption = menu.AddOption( $"Convert {selectedNodes.Count()} Constants to {(Graph.IsSubgraph ? "Subgraph Inputs" : "Material Parameters")}", "swap_horiz", () =>
+			var optionName = $"Convert {selectedNodes.Count()} Constants to {(Graph.IsSubgraph ? "Subgraph Inputs" : "Material Parameters")}";
+			var convertOption = menu.AddOption( optionName, "swap_horiz", () =>
 			{
-				using var undoScope = UndoScope( $"Convert {selectedNodes.Count()} Constants to {(Graph.IsSubgraph ? "Subgraph Inputs" : "Material Parameters")}" );
+				using var undoScope = UndoScope( optionName );
+				
 				var lastNode = selectedNodes.First().Node as BaseNode;
+				
 				foreach ( var selectedNode in selectedNodes )
 				{
 					var baseNode = selectedNode.Node as BaseNode;
 					var constantNode = baseNode as IConstantNode;
-					Dictionary<IPlugIn, IPlugOut> oldConnections = new();
+					Dictionary<IPlugIn, IPlugOut> oldOutputConnections = new();
 
 					if ( !Graph.IsSubgraph )
 					{
-						foreach ( var node in Graph.Nodes )
-						{
-							foreach ( var input in node.Inputs )
-							{
-								if ( input.ConnectedOutput is null )
-									continue;
-
-								if ( input.ConnectedOutput.Node == baseNode )
-								{
-									oldConnections[input] = input.ConnectedOutput;
-
-									continue;
-								}
-							}
-						}
+						oldOutputConnections = GatherConnectedOutputs( baseNode );
 					}
 
 					Graph.RemoveNode( baseNode );
 
-					var newName = $"{(Graph.IsSubgraph ? "SubgraphInput" : "MaterialParameter")}";
+					var baseName = $"{(Graph.IsSubgraph ? "SubgraphInput" : "MaterialParameter")}";
 					var id = 0;
-					while ( Graph.HasParameterWithName( $"{newName}{id}" ) )
+					while ( Graph.HasParameterWithName( $"{baseName}{id}" ) )
 					{
 						id++;
 					}
 
-					lastNode = ConvertConstantNodeToParameter( constantNode, $"{newName}{id}", selectedNode.Position );
-
-					if ( !Graph.IsSubgraph )
-					{
-						// fix connections
-						foreach ( var node in Graph.Nodes )
-						{
-							foreach ( var input in node.Inputs )
-							{
-								if ( input.ConnectedOutput is null && oldConnections.TryGetValue( input, out var correspondingOutput ) )
-								{
-									node.ConnectNode( input.Identifier, correspondingOutput.Identifier, lastNode.Identifier );
-
-									continue;
-								}
-							}
-						}
-					}
+					lastNode = ConvertConstantNodeToParameter( constantNode, $"{baseName}{id}", selectedNode.Position, oldOutputConnections );
 				}
 
 				RebuildFromGraph();
 
 				// Select the last node in the list.
-				_window.OnSelected( lastNode );
 				SelectNode( lastNode );
+				_window.OnSelected( lastNode );
 			} );
 		}
 
@@ -364,66 +336,58 @@ public class ShaderGraphView : GraphView
 					{
 						using var undoScope = UndoScope( $"Convert {baseNode.DisplayInfo.Name} node to {nodeTypeTitle} {(Graph.IsSubgraph ? "Subgraph Input node" : "Material Parameter node")}" );
 
-						Dictionary<IPlugIn, IPlugOut> oldConnections = new();
+						Dictionary<IPlugIn, IPlugOut> oldOutputConnections = new();
 
 						if ( !Graph.IsSubgraph )
 						{
-							foreach ( var node in Graph.Nodes )
-							{
-								foreach ( var input in node.Inputs )
-								{
-									if ( input.ConnectedOutput is null )
-										continue;
-
-									if ( input.ConnectedOutput.Node == baseNode )
-									{
-										oldConnections[input] = input.ConnectedOutput;
-
-										continue;
-									}
-								}
-							}
+							oldOutputConnections = GatherConnectedOutputs( baseNode );
 						}
 
 						Graph.RemoveNode( baseNode );
 
-						var newNode = ConvertConstantNodeToParameter( constantNode, parameterName, item.Node.Position );
-
-						if ( !Graph.IsSubgraph )
-						{
-							// fix connections
-							foreach ( var node in Graph.Nodes )
-							{
-								foreach ( var input in node.Inputs )
-								{
-									if ( input.ConnectedOutput is null && oldConnections.TryGetValue( input, out var correspondingOutput ) )
-									{
-										node.ConnectNode( input.Identifier, correspondingOutput.Identifier, newNode.Identifier );
-
-										continue;
-									}
-								}
-							}
-						}
+						var parameterNode = ConvertConstantNodeToParameter( constantNode, parameterName, item.Node.Position, oldOutputConnections );
 
 						RebuildFromGraph();
 
-						_window.OnSelected( newNode );
-						SelectNode( newNode );
+						SelectNode( parameterNode );
+						_window.OnSelected( parameterNode );
 					},
-					$"Specify {(Graph.IsSubgraph ? "input" : "parameter")} name for the new {nodeTypeTitle} {(Graph.IsSubgraph ? "Subgraph Input node" : "Material Parameter node")}." );
+					$"What do you want to name {nodeTypeTitle} {(Graph.IsSubgraph ? "Subgraph Input" : "Material Parameter")}?" );
 				} );
 			}
 		}
 	}
 
-	private BaseNode ConvertConstantNodeToParameter( IConstantNode constantNode, string parameterName, Vector2 nodePosition )
+	private Dictionary<IPlugIn, IPlugOut> GatherConnectedOutputs( BaseNode targetNode )
 	{
-		BaseNode node = null;
+		var oldConnections = new Dictionary<IPlugIn, IPlugOut>();
+
+		foreach ( var node in Graph.Nodes )
+		{
+			foreach ( var input in node.Inputs )
+			{
+				if ( input.ConnectedOutput is null )
+					continue;
+
+				if ( input.ConnectedOutput.Node == targetNode )
+				{
+					oldConnections[input] = input.ConnectedOutput;
+
+					continue;
+				}
+			}
+		}
+
+		return oldConnections;
+	}
+
+	private BaseNode ConvertConstantNodeToParameter( IConstantNode constantNode, string parameterName, Vector2 nodePosition, Dictionary<IPlugIn, IPlugOut> oldOutputConnections )
+	{
+		var parameterFullTypeName = "";
 
 		if ( !Graph.IsSubgraph )
 		{
-			string bptFullName = constantNode switch
+			parameterFullTypeName = constantNode switch
 			{
 				ConstantBool => DisplayInfo.ForType( typeof( BoolParameter ) ).Fullname,
 				ConstantInt => DisplayInfo.ForType( typeof( IntParameter ) ).Fullname,
@@ -432,28 +396,12 @@ public class ShaderGraphView : GraphView
 				ConstantFloat3 => DisplayInfo.ForType( typeof( Float3Parameter ) ).Fullname,
 				ConstantFloat4 => DisplayInfo.ForType( typeof( Float4Parameter ) ).Fullname,
 				ConstantColor => DisplayInfo.ForType( typeof( ColorParameter ) ).Fullname,
-				_ => throw new NotImplementedException(),
+				_ => throw new NotImplementedException( $"Unknown type : {constantNode.GetType()}" ),
 			};
-
-			if ( AvailableParameters.TryGetValue( bptFullName, out var bpParameterType ) )
-			{
-				var parameter = CreateNewBlackboardParameter( bpParameterType );
-				parameter.Name = parameterName;
-				parameter.SetValue( constantNode.GetValue() );
-
-				node = CreateNewParameterNode( parameter, nodePosition, false );
-			}
-
-			if ( node != null )
-			{
-				return node;
-			}
-
-			throw new Exception( $"Unable to convert constant node \"{constantNode.GetType()}\" to material parameter." );
 		}
 		else
 		{
-			string bptFullName = constantNode switch
+			parameterFullTypeName = constantNode switch
 			{
 				ConstantBool => DisplayInfo.ForType( typeof( BoolSubgraphInputParameter ) ).Fullname,
 				ConstantInt => DisplayInfo.ForType( typeof( IntSubgraphInputParameter ) ).Fullname,
@@ -462,27 +410,42 @@ public class ShaderGraphView : GraphView
 				ConstantFloat3 => DisplayInfo.ForType( typeof( Float3SubgraphInputParameter ) ).Fullname,
 				ConstantFloat4 => DisplayInfo.ForType( typeof( Float4SubgraphInputParameter ) ).Fullname,
 				ConstantColor => DisplayInfo.ForType( typeof( ColorSubgraphInputParameter ) ).Fullname,
-				_ => throw new NotImplementedException(),
+				_ => throw new NotImplementedException( $"Unknown type : {constantNode.GetType()}" ),
 			};
-
-			// Any connections will be broken and have to be reconnected by the user since the SubgraphInput node does not have the same outputs as the constant node.
-
-			if ( AvailableParameters.TryGetValue( bptFullName, out var bpParameterType ) )
-			{
-				var parameter = CreateNewBlackboardParameter( bpParameterType );
-				parameter.Name = parameterName;
-				parameter.SetValue( constantNode.GetValue() );
-
-				node = CreateNewParameterNode( parameter, nodePosition, false );
-			}
-
-			if ( node != null )
-			{
-				return node;
-			}
-
-			throw new Exception( $"Unable to convert constant node \"{constantNode.GetType()}\" to subgraph input parameter." );
 		}
+
+		if ( AvailableParameters.TryGetValue( parameterFullTypeName, out var bpParameterType ) )
+		{
+			var parameter = CreateNewBlackboardParameter( bpParameterType );
+			parameter.Name = parameterName;
+			parameter.SetValue( constantNode.GetValue() );
+
+			var parameterNode = CreateNewParameterNode( parameter, nodePosition );
+
+			if ( !Graph.IsSubgraph && oldOutputConnections.Any() )
+			{
+				// fixup any valid output connections
+				foreach ( var node in Graph.Nodes )
+				{
+					foreach ( var input in node.Inputs )
+					{
+						if ( input.ConnectedOutput is null && oldOutputConnections.TryGetValue( input, out var correspondingOutput ) )
+						{
+							node.ConnectNode( input.Identifier, correspondingOutput.Identifier, parameterNode.Identifier );
+
+							continue;
+						}
+					}
+				}
+			}
+
+			if ( parameterNode != null )
+			{
+				return parameterNode;
+			}
+		}
+
+		throw new Exception( $"Unable to convert constant node \"{constantNode.GetType()}\" to {( Graph.IsSubgraph ? "subgraph input" : "material" )} parameter" );
 	}
 
 	protected BlackboardParameter CreateNewBlackboardParameter( IBlackboardParameterType type )
@@ -500,7 +463,7 @@ public class ShaderGraphView : GraphView
 		return (BlackboardParameter)parameter;
 	}
 
-	private BaseNode CreateNewParameterNode( BlackboardParameter parameter, Vector2 position, bool selectParameter = false )
+	private BaseNode CreateNewParameterNode( BlackboardParameter parameter, Vector2 position)
 	{
 		var node = BlackboardParameter.InitializeParameterNode( parameter );
 		node.Graph = Graph;
@@ -514,13 +477,7 @@ public class ShaderGraphView : GraphView
 
 		Add( nodeUI );
 
-		if ( _blackboard is null )
-			Log.Error("null blackboard");
-
 		_blackboard.RebuildFromGraph( true );
-
-		if ( selectParameter )
-			_window.OnSelected( parameter );
 
 		return node;
 	}
