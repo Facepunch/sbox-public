@@ -1,4 +1,5 @@
 ﻿using Sandbox.Engine;
+using Sandbox.Rendering;
 
 namespace Sandbox.UI;
 
@@ -20,6 +21,10 @@ internal partial class PanelRenderer
 		public Matrix Matrix;
 	}
 
+	/// <summary>
+	/// Scope that updates the renderer's scissor state for child panels to inherit.
+	/// Does NOT modify any command lists - those are set up separately in BuildCommandList.
+	/// </summary>
 	internal class ClipScope : IDisposable
 	{
 		Rect Previous;
@@ -43,8 +48,6 @@ internal partial class PanelRenderer
 			renderer.ScissorGPU.CornerRadius = cornerRadius;
 			renderer.ScissorGPU.Matrix = globalMatrix;
 
-			SetScissorAttributes( renderer.ScissorGPU );
-
 			var tl = globalMatrix.Transform( scissorRect.TopLeft );
 			var tr = globalMatrix.Transform( scissorRect.TopRight );
 			var bl = globalMatrix.Transform( scissorRect.BottomLeft );
@@ -62,7 +65,6 @@ internal partial class PanelRenderer
 				Right = Math.Min( scissorRect.Right, Previous.Right ),
 				Bottom = Math.Min( scissorRect.Bottom, Previous.Bottom ),
 			};
-
 		}
 
 		public void Dispose()
@@ -70,25 +72,13 @@ internal partial class PanelRenderer
 			var renderer = GlobalContext.Current.UISystem.Renderer;
 			renderer.Scissor = Previous;
 			renderer.ScissorGPU = PreviousGPU;
-
-			SetScissorAttributes( renderer.ScissorGPU );
-		}
-
-		void SetScissorAttributes( GPUScissor scissor )
-		{
-			if ( scissor.Rect.Width == 0 && scissor.Rect.Height == 0 )
-			{
-				Graphics.Attributes.Set( "HasScissor", 0 );
-				return;
-			}
-
-			Graphics.Attributes.Set( "ScissorRect", scissor.Rect.ToVector4() );
-			Graphics.Attributes.Set( "ScissorCornerRadius", scissor.CornerRadius );
-			Graphics.Attributes.Set( "ScissorTransformMat", scissor.Matrix );
-			Graphics.Attributes.Set( "HasScissor", 1 );
 		}
 	}
 
+	/// <summary>
+	/// Create a clip scope for a panel's children. This updates the renderer's scissor state
+	/// so child panels will inherit the correct scissor when their command lists are built.
+	/// </summary>
 	public ClipScope Clip( Panel panel )
 	{
 		if ( (panel.ComputedStyle?.Overflow ?? OverflowMode.Visible) == OverflowMode.Visible )
@@ -100,19 +90,27 @@ internal partial class PanelRenderer
 		return new ClipScope( panel.Box.ClipRect, borderRadius, panel.GlobalMatrix ?? Matrix.Identity );
 	}
 
-	void InitScissor( Rect rect )
+	static void SetScissorAttributes( CommandList commandList, GPUScissor scissor )
 	{
-		Scissor = rect;
-		ScissorGPU = new() { Rect = rect };
+		if ( scissor.Rect.Width == 0 && scissor.Rect.Height == 0 )
+		{
+			commandList.Attributes.Set( "HasScissor", 0 );
+			return;
+		}
 
-		Graphics.Attributes.Set( "ScissorRect", rect.ToVector4() );
-		Graphics.Attributes.Set( "ScissorCornerRadius", Vector4.Zero );
-		Graphics.Attributes.Set( "ScissorTransformMat", Matrix.Identity );
-		Graphics.Attributes.Set( "HasScissor", 1 );
+		commandList.Attributes.Set( "ScissorRect", scissor.Rect.ToVector4() );
+		commandList.Attributes.Set( "ScissorCornerRadius", scissor.CornerRadius );
+		commandList.Attributes.Set( "ScissorTransformMat", scissor.Matrix );
+		commandList.Attributes.Set( "HasScissor", 1 );
 	}
 
-	[ConVar( ConVarFlags.Protected, Help = "Enable/disabling culling panel rendering based on overflow != visible. Turning this on or off should never affect visibility because the actual rendering should be culled using stencils. If it does, then the culling logic is wrong." )]
-	public static bool ui_cull { get; set; } = true;
+	void InitScissor( Rect rect, CommandList commandList )
+	{
+		Scissor = rect;
+		ScissorGPU = new() { Rect = rect, Matrix = Matrix.Identity };
+
+		SetScissorAttributes( commandList, ScissorGPU );
+	}
 
 	/// <summary>
 	/// Quick check to see if a panel should be culled based on the current scissor
@@ -123,8 +121,6 @@ internal partial class PanelRenderer
 		// This shit should be fast, so don't do complicated shit here
 		// Keep it simple AABB, doesn't matter if we miss some overflow because the shader will clear up anything else
 		//
-
-		if ( !ui_cull ) return false;
 
 		//
 		// Can't clip contents panels
@@ -168,5 +164,4 @@ internal partial class PanelRenderer
 
 		return !Scissor.IsInside( rect );
 	}
-
 }

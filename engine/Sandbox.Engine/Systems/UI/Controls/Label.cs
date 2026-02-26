@@ -1,4 +1,5 @@
 ﻿using Sandbox.Html;
+using Sandbox.Rendering;
 using System.Globalization;
 
 namespace Sandbox.UI
@@ -291,6 +292,7 @@ namespace Sandbox.UI
 			{
 				_textBlock = new TextBlock();
 				_textBlock.LookupStyles = HtmlStyleLookup;
+				_textBlock.OnTextureChanged = () => IsRenderDirty = true;
 			}
 
 			_textBlock.NoWrap = !Multiline;
@@ -387,11 +389,17 @@ namespace Sandbox.UI
 			_textRect.Size = _textBlock.BlockSize;
 		}
 
-		internal override void DrawContent( PanelRenderer renderer, ref RenderState state )
+		internal override void DrawContent( CommandList commandList, PanelRenderer renderer, ref RenderState state )
 		{
+			// Ensure texture is created if we have text but no texture yet
+			if ( _textBlock != null && _textBlock.Texture == null && !string.IsNullOrEmpty( _textBlock.Text ) )
+			{
+				_textBlock.SizeFinalized( Box.RectInner.Width, Box.RectInner.Height );
+			}
+
 			var rect = Box.RectInner;
 			rect.Position -= caretScroll;
-			_textBlock?.Render( renderer, ref state, ComputedStyle, rect, Opacity * state.RenderOpacity );
+			_textBlock?.BuildCommandList( commandList, renderer, ref state, ComputedStyle, rect, Opacity * state.RenderOpacity );
 		}
 
 		public int GetLetterAt( Vector2 pos )

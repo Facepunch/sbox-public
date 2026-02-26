@@ -19,6 +19,16 @@ public sealed partial class CommandList
 			_get = _getter;
 		}
 
+		public void Clear()
+		{
+			static void Execute( ref Entry entry, CommandList commandList )
+			{
+				var attrAccess = (AttributeAccess)entry.Object1;
+				attrAccess.attributes.Clear();
+			}
+			list.AddEntry( &Execute, new Entry { Object1 = this } );
+		}
+
 		public void Set( StringToken token, float f )
 		{
 			static void Execute( ref Entry entry, CommandList commandList )

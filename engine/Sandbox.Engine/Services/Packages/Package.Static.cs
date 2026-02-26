@@ -209,6 +209,17 @@ public partial class Package
 	}
 
 	/// <summary>
+	/// Mount a package by ident. This is the same as FetchAsync but it also mounts the package, which means it will be available for use right away.
+	/// If you just want the package information, use FetchAsync.
+	/// </summary>
+	public static async Task<Package> MountAsync( string identString, bool partial )
+	{
+		var pack = await FetchAsync( identString, partial, false );
+		await pack.MountAsync();
+		return pack;
+	}
+
+	/// <summary>
 	/// Find package information
 	/// </summary>
 	public static bool TryGetCached( string identString, out Package package, bool allowPartial = true )

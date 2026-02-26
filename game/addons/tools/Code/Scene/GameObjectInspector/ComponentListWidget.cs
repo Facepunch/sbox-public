@@ -277,7 +277,7 @@ public class ComponentListWidget : Widget
 		var replace = menu.AddMenu( "Replace Component", "find_replace" );
 		replace.AddWidget( new MenuComponentTypeSelectorWidget( replace )
 		{
-			OnSelect = ( t ) =>
+			OnComponentSelect = ( t ) =>
 			{
 				var session = SceneEditorSession.Resolve( gameObject );
 				using var scene = session.Scene.Push();
@@ -363,7 +363,7 @@ public class ComponentListWidget : Widget
 				var replace = menu.AddMenu( "Replace Components", "find_replace" );
 				replace.AddWidget( new MenuComponentTypeSelectorWidget( replace )
 				{
-					OnSelect = ( t ) =>
+					OnComponentSelect = ( t ) =>
 					{
 						var session = SceneEditorSession.Resolve( components.FirstOrDefault() );
 						using var scene = session.Scene.Push();
@@ -441,7 +441,7 @@ file class MenuComponentTypeSelectorWidget : ComponentTypeSelectorWidget
 
 	public MenuComponentTypeSelectorWidget( Widget parent ) : base( parent )
 	{
-		OnDestroy += () => Closed = true;
+		OnFinished += () => Closed = true;
 	}
 
 	protected override void OnVisibilityChanged( bool visible )

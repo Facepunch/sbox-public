@@ -107,6 +107,11 @@ internal class UISystem
 		{
 			RunDeferredDeletion();
 		}
+
+		using ( Performance.Scope( "Build Command Lists" ) )
+		{
+			BuildCommandLists();
+		}
 	}
 
 	internal void DirtyAllStyles()
@@ -158,6 +163,19 @@ internal class UISystem
 		{
 			if ( !RootPanels[i].IsValid ) continue;
 			RootPanels[i].PostLayout();
+		}
+	}
+
+	internal void BuildCommandLists()
+	{
+		// Build command lists for ALL root panels, including manually rendered
+		// and world panels. Only the rendering is separate - command list building
+		// must happen during the tick phase for all panels.
+		for ( int i = 0; i < RootPanels.Count(); i++ )
+		{
+			if ( !RootPanels[i].IsValid ) continue;
+
+			RootPanels[i].BuildCommandLists();
 		}
 	}
 
