@@ -21,11 +21,17 @@ namespace Editor
 			SetWindowIcon( Pixmap.FromFile( "logo_rounded.png" ) );
 			BackgroundImage = LoadSplashImage();
 
+			// load any saved geometry
+			string geometryCookie = EditorCookie.GetString( "splash.geometry", null );
+			RestoreGeometry( geometryCookie );
+
 			var aspect = (float)BackgroundImage.Height / BackgroundImage.Width;
 			Size = new( 700, (700 * aspect).FloorToInt() + InfoAreaHeight );
-			Position = ScreenGeometry.Contain( Size ).Position;
 
 			Show();
+
+			UpdateGeometry();
+			Position = ScreenGeometry.Contain( Size ).Position;
 
 			//
 			// Resample background image if dpi scale is gonna make us draw it bigger
@@ -75,7 +81,11 @@ namespace Editor
 		public static void StartupFinish()
 		{
 			if ( Singleton.IsValid() )
+			{
+				EditorCookie.Set( "splash.geometry", Singleton.SaveGeometry() );
 				Singleton.Destroy();
+			}
+
 			Singleton = null;
 		}
 
