@@ -89,7 +89,9 @@ public static partial class Networking
 			case FlagLz4:
 				{
 					int written = LZ4.DecompressBlock( payload.ToArray(), ReceiveBuffer );
-					return ReceiveBuffer.AsSpan( 0, written );
+					var result = ReceiveBuffer.AsSpan( 0, written );
+					TryRecordMessage( result );
+					return result;
 				}
 			default:
 				return data;

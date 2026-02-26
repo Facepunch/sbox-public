@@ -162,7 +162,7 @@ public readonly ref struct HudPainter
 		var texture = TextRendering.GetOrCreateTexture( scope, flag: flags );
 		if ( texture is null ) return rect;
 
-		list.Attributes.Set( "TextureIndex", texture.Index );
+		list.Attributes.Set( "Texture", texture );
 		rect = rect.Align( texture.Size, flags );
 		rect = rect.SnapToGrid();
 

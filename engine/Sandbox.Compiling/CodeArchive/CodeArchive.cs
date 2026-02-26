@@ -1,5 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using System.Collections.Concurrent;
 using System.Text.Json;
 
 namespace Sandbox;
@@ -24,7 +25,7 @@ public class CodeArchive
 	/// <summary>
 	/// Hashes of source files, used for incremental compiles. Not serialized right now.
 	/// </summary>
-	public Dictionary<string, ulong> FileHashMap { get; } = new( StringComparer.OrdinalIgnoreCase );
+	public ConcurrentDictionary<string, ulong> FileHashMap { get; } = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
 	/// Represents a file to send to the compiler along with all the code. This is usually

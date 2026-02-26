@@ -2,6 +2,8 @@
 #pragma warning disable CS0612
 #pragma warning disable CS0618
 
+using Sandbox.Rendering;
+
 namespace Sandbox.UI
 {
 	/// <summary>
@@ -100,7 +102,7 @@ namespace Sandbox.UI
 			base.Delete( immediate );
 		}
 
-		internal override void DrawContent( PanelRenderer renderer, ref RenderState state )
+		internal override void DrawContent( CommandList commandList, PanelRenderer renderer, ref RenderState state )
 		{
 			if ( Box.RectInner.Size.x <= 0 ) return;
 			if ( Box.RectInner.Size.y <= 0 ) return;
@@ -133,7 +135,7 @@ namespace Sandbox.UI
 				}
 			}
 
-			renderer.DrawBackgroundTexture( this, RenderTexture, state, Length.Contain );
+			renderer.BuildCommandList_BackgroundTexture( this, RenderTexture, state, Length.Contain );
 
 		}
 

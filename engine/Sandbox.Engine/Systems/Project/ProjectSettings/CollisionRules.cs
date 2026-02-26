@@ -122,6 +122,15 @@ public class CollisionRules : ConfigData
 		public override string ToString() => $"{Left}, {Right}";
 	}
 
+	private readonly record struct RuntimePair( StringToken Left, StringToken Right )
+	{
+		public bool Equals( RuntimePair other ) =>
+			(Left.Value == other.Left.Value && Right.Value == other.Right.Value) ||
+			(Left.Value == other.Right.Value && Right.Value == other.Left.Value);
+
+		public override int GetHashCode() => unchecked((int)(Left.Value + Right.Value));
+	}
+
 	public CollisionRules()
 	{
 		OnValidate();
@@ -143,6 +152,16 @@ public class CollisionRules : ConfigData
 	/// </summary>
 	[JsonIgnore]
 	public IEnumerable<string> Tags => Defaults.Keys.Union( Pairs.Keys.SelectMany( x => x ) );
+
+	private HashSet<StringToken> _runtimeTags;
+	private Dictionary<StringToken, Result> _runtimeDefaults;
+	private Dictionary<RuntimePair, Result> _runtimePairs;
+
+	/// <summary>
+	/// All known tags as <see cref="StringToken"/> values. Built during validation.
+	/// </summary>
+	[JsonIgnore]
+	internal IReadOnlySet<StringToken> RuntimeTags => _runtimeTags;
 
 	/// <summary>
 	/// Gets or sets <see cref="Pairs"/> in its serialized form for JSON.
@@ -211,29 +230,18 @@ public class CollisionRules : ConfigData
 	}
 
 	/// <summary>
-	/// For each known tag, what result does it have when tested against the given <paramref name="tag"/>?
+	/// Gets the collision rule for a pair of <see cref="StringToken"/> values.
 	/// </summary>
-	internal IReadOnlyDictionary<string, Result> GetCollisionRules( string tag )
+	internal Result GetCollisionRule( StringToken left, StringToken right )
 	{
-		return Tags.ToDictionary( x => x, x => GetCollisionRule( x, tag ), StringComparer.OrdinalIgnoreCase );
-	}
+		var key = new RuntimePair( left, right );
 
-	/// <summary>
-	/// For each known tag, what result does it have when tested against the given set of <paramref name="tags"/>?
-	/// </summary>
-	internal IReadOnlyDictionary<string, Result> GetCollisionRules( IEnumerable<string> tags )
-	{
-		return Tags.ToDictionary( x => x, x =>
+		if ( !_runtimePairs.TryGetValue( key, out var result ) )
 		{
-			var result = Result.Collide;
+			result = LeastColliding( _runtimeDefaults.GetValueOrDefault( left ), _runtimeDefaults.GetValueOrDefault( right ) );
+		}
 
-			foreach ( var tag in tags )
-			{
-				result = LeastColliding( result, GetCollisionRule( x, tag ) );
-			}
-
-			return result;
-		}, StringComparer.OrdinalIgnoreCase );
+		return LeastColliding( result, Result.Collide );
 	}
 
 	/// <summary>
@@ -243,6 +251,22 @@ public class CollisionRules : ConfigData
 	public void Clean()
 	{
 		OnValidate();
+	}
+
+	private void BuildRuntimeData()
+	{
+		_runtimeDefaults = new Dictionary<StringToken, Result>( Defaults.Count );
+		foreach ( var (tag, result) in Defaults ) _runtimeDefaults[tag] = result;
+
+		_runtimePairs = new Dictionary<RuntimePair, Result>( Pairs.Count );
+		foreach ( var (pair, result) in Pairs )
+		{
+			var key = new RuntimePair( pair.Left, pair.Right );
+			_runtimePairs[key] = _runtimePairs.TryGetValue( key, out var existing ) ? LeastColliding( result, existing ) : result;
+		}
+
+		_runtimeTags = [];
+		foreach ( var tag in Tags ) _runtimeTags.Add( tag );
 	}
 
 	protected override void OnValidate()
@@ -263,6 +287,8 @@ public class CollisionRules : ConfigData
 			["ladder"] = Result.Ignore,
 			["water"] = Result.Trigger,
 		};
+
+		BuildRuntimeData();
 	}
 
 	public override int GetHashCode()

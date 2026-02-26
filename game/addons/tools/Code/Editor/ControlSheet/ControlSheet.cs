@@ -51,7 +51,7 @@ public class ControlSheet : GridLayout, IControlSheet
 		{
 			if ( target is GameObject go ) return go.Id;
 			if ( target is Component cmp ) return cmp.Id;
-			if ( target is Resource rc ) return new Guid( rc.ResourceId, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 );
+			if ( target is Resource rc ) return new Guid( rc.ResourcePath.FastHash(), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 );
 		}
 
 		return FindGuid( so.ParentProperty?.Parent );

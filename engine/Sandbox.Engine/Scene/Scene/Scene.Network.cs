@@ -57,7 +57,7 @@ public partial class Scene : GameObject
 
 		// If we're the host, include any GameObjectSystems.
 		if ( Networking.IsHost )
-			objects = objects.Concat( systems );
+			objects = objects.Concat( systems.Values );
 
 		system.DeltaSnapshots.Send( objects, connectionsArray );
 

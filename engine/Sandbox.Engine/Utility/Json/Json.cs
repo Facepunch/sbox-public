@@ -42,6 +42,7 @@ public static partial class Json
 		options.Converters.Add( new BinaryConvert() );
 		options.Converters.Add( new JsonConvertFactory() );
 		options.Converters.Add( new MovieResourceConverter() );
+		options.Converters.Add( new AnyOfTypeConverterFactory() );
 		options.Converters.Add( new InterfaceConverterFactory() );
 
 		if ( typeLibrary is not null )

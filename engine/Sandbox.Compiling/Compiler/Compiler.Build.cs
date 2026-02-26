@@ -164,6 +164,12 @@ partial class Compiler
 
 		CSharpCompilation compiler;
 
+		List<SyntaxTree> inputSyntaxTrees =
+		[
+			.. archive.SyntaxTrees, // from source files
+			.. ProcessRazorFiles(archive, output) // processed razor files
+		];
+
 		List<SyntaxTree> modifiedSyntaxTrees;
 		if ( incrementalState.HasState )
 		{
@@ -178,23 +184,12 @@ partial class Compiler
 				compiler = compiler.WithReferences( refs );
 			}
 
-			compiler = ReplaceSyntaxTrees( compiler, archive.SyntaxTrees, out modifiedSyntaxTrees );
+			compiler = ReplaceSyntaxTrees( compiler, inputSyntaxTrees, out modifiedSyntaxTrees );
 		}
 		else
 		{
-			compiler = CSharpCompilation.Create( AssemblyName, archive.SyntaxTrees, refs, options );
+			compiler = CSharpCompilation.Create( AssemblyName, inputSyntaxTrees, refs, options );
 			modifiedSyntaxTrees = compiler.SyntaxTrees.ToList();
-		}
-
-		//
-		// Process Razor files and add the generated syntax trees to the compilation
-		//
-		// TODO: some incremental compilation here? instead of reparsing and reprocessing all razor files every time
-		var razorTrees = ProcessRazorFiles( archive, output );
-		if ( razorTrees.Count > 0 )
-		{
-			compiler = compiler.AddSyntaxTrees( razorTrees );
-			modifiedSyntaxTrees.AddRange( razorTrees );
 		}
 
 		bool ilHotloadSupported;
@@ -275,7 +270,7 @@ partial class Compiler
 			return;
 		}
 
-		incrementalState.Update( archive, beforeIlHotloadProcessingTrees, compiler );
+		incrementalState.Update( archive, inputSyntaxTrees, beforeIlHotloadProcessingTrees, compiler );
 
 		using ( var a_stream = new System.IO.MemoryStream( output.AssemblyData ) )
 		{

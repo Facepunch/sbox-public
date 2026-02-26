@@ -1,4 +1,4 @@
-﻿using Sandbox.Utility;
+using Sandbox.Utility;
 using System.Collections.Immutable;
 
 namespace Sandbox;
@@ -248,9 +248,9 @@ public static partial class Gizmo
 	}
 
 	/// <summary>
-	/// Get the distance from a point on a plane
+	/// Get the vector distance from a point on a plane
 	/// </summary>
-	public static float GetMouseDistance( Vector3 position, Vector3 planeNormal )
+	public static Vector3 GetMouseDistanceVector( Vector3 position, Vector3 planeNormal )
 	{
 		var plane = new Plane( position, planeNormal );
 
@@ -258,7 +258,15 @@ public static partial class Gizmo
 
 		if ( a == null ) return 0.0f;
 
-		return (position - a.Value).Length;
+		return position - a.Value;
+	}
+
+	/// <summary>
+	/// Get the distance from a point on a plane
+	/// </summary>
+	public static float GetMouseDistance( Vector3 position, Vector3 planeNormal )
+	{
+		return GetMouseDistanceVector( position, planeNormal ).Length;
 	}
 
 	/// <summary>
@@ -349,6 +357,45 @@ public static partial class Gizmo
 		var sz = !movement.roll.AlmostEqual( 0.0f );
 
 		return input.SnapToGrid( Settings.AngleSpacing, sx, sy, sz );
+	}
+
+	/// <summary>
+	/// Snaps a rotation delta to angle increments.
+	/// </summary>
+	/// <param name="rotationDelta">The rotation delta to snap</param>
+	/// <returns>A snapped rotation that aligns to the angle grid</returns>
+	public static Rotation Snap( Rotation rotationDelta )
+	{
+		// If control does the opposite behaviour
+		if ( Settings.SnapToAngles == IsCtrlPressed )
+			return rotationDelta;
+
+		// Extract axis and angle from quaternion
+		var quat = rotationDelta._quat;
+
+		// Calculate angle from w component (in degrees)
+		var angle = 2.0f * MathF.Acos( quat.W ) * 180.0f / MathF.PI;
+
+		var snappedAngle = angle.SnapToGrid( Settings.AngleSpacing );
+
+		if ( snappedAngle.AlmostEqual( 0.0f ) )
+			return Rotation.Identity;
+
+		// Calculate axis
+		var sinHalfAngle = MathF.Sqrt( 1.0f - quat.W * quat.W );
+		Vector3 axis;
+		if ( sinHalfAngle > 0.0001f )
+		{
+			axis = new Vector3( quat.X, quat.Y, quat.Z ) / sinHalfAngle;
+		}
+		else
+		{
+			// For very small angles, default to forward axis
+			axis = Vector3.Forward;
+		}
+
+		// Reconstruct rotation with snapped angle
+		return Rotation.FromAxis( axis, snappedAngle );
 	}
 
 	/// <summary>

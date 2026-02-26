@@ -30,10 +30,10 @@ class IncrementalCompileState
 		FileHashMap = [];
 	}
 
-	internal void Update( CodeArchive archive, ImmutableArray<SyntaxTree> beforeIlHotloadProcessingTrees, CSharpCompilation compiler )
+	internal void Update( CodeArchive archive, IEnumerable<SyntaxTree> syntaxTrees, ImmutableArray<SyntaxTree> beforeIlHotloadProcessingTrees, CSharpCompilation compiler )
 	{
 		OldSyntaxTrees = SyntaxTrees;
-		SyntaxTrees = archive.SyntaxTrees.ToImmutableArray();
+		SyntaxTrees = syntaxTrees.ToImmutableArray();
 		PreHotloadSyntaxTrees = beforeIlHotloadProcessingTrees;
 		Compilation = compiler;
 

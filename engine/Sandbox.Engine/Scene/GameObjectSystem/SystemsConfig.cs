@@ -55,6 +55,7 @@ public class SystemsConfig : ConfigData
 			if ( rawValue is JsonElement je )
 			{
 				value = je.Deserialize( property.PropertyType, Json.options );
+				properties[property.Name] = value;
 				return true;
 			}
 
@@ -69,12 +70,14 @@ public class SystemsConfig : ConfigData
 			if ( rawValue is IConvertible && property.PropertyType.IsAssignableTo( typeof( IConvertible ) ) )
 			{
 				value = Convert.ChangeType( rawValue, property.PropertyType );
+				properties[property.Name] = value;
 				return true;
 			}
 
 			// Fall back to JSON serialization for complex types
 			var json = JsonSerializer.Serialize( rawValue, Json.options );
 			value = JsonSerializer.Deserialize( json, property.PropertyType, Json.options );
+			properties[property.Name] = value;
 			return true;
 		}
 		catch ( Exception ex )

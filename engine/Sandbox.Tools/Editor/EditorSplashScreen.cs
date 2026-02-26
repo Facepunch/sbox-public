@@ -17,6 +17,8 @@ namespace Editor
 			Singleton = this;
 			DeleteOnClose = true;
 
+			WindowTitle = "Opening s&box Editor";
+			SetWindowIcon( Pixmap.FromFile( "window_icon.png" ) );
 			BackgroundImage = LoadSplashImage();
 
 			// load any saved geometry

@@ -28,6 +28,9 @@ public sealed partial class PostProcessSystem : GameObjectSystem<PostProcessSyst
 		if ( !EnablePostProcess )
 			return;
 
+		if ( Application.IsDedicatedServer )
+			return;
+
 		//
 		// Editor behavior is special
 		//

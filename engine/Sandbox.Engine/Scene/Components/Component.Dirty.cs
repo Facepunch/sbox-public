@@ -30,7 +30,8 @@ public abstract partial class Component
 	{
 		if ( !_dirty ) return;
 
-		ExceptionWrap( "OnDirty", OnDirty );
+		try { OnDirty(); }
+		catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'OnDirty' on {this}" ); }
 
 		_dirty = false;
 	}

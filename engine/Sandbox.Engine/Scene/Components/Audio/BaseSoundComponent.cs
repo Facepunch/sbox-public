@@ -81,7 +81,7 @@ public abstract class BaseSoundComponent : Component
 		}
 	}
 
-	[Group( "Sound" ), Button( "Test Sound", "play_arrow" ), HideIf( nameof( this.SoundEvent ), null ), WideMode]
+	[Group( "Sound" ), Button( "Test Sound", "play_arrow" ), HideIf( nameof( SoundEvent ), null ), WideMode]
 	protected void TestSound()
 	{
 		StopSound();

@@ -13,7 +13,7 @@ public partial class Panel
 	public Box Box { get; init; } = new Box();
 
 	/// <summary>
-	/// If true, calls <see cref="DrawContent( ref RenderState )"/>.
+	/// If true, calls <see cref="BuildContentCommandList(Rendering.CommandList, ref RenderState)"/>.
 	/// </summary>
 	[Hide]
 	public virtual bool HasContent => false;
@@ -168,7 +168,7 @@ public partial class Panel
 
 		if ( changed )
 		{
-			backgroundRenderDirty = true;
+			IsRenderDirty = true;
 
 			if ( Parent is not null )
 			{
@@ -347,7 +347,7 @@ public partial class Panel
 			// panel - which should be super duper fine.
 			TransformMatrix = ComputedStyle.BuildTransformMatrix( Box.Rect.Size );
 
-			backgroundRenderDirty = true;
+			IsRenderDirty = true;
 		}
 
 		//
