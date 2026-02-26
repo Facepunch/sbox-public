@@ -10,15 +10,15 @@ public static partial class Gizmo
 	/// </summary>
 	public static class Colors
 	{
-		public static Color Red { get; } = "#ff0000"; // fix these trash colors like what was that red, that was pink
+		public static Color Red { get; } = "#ff7096";
 		public static Color Forward => Red;
 		public static Color Pitch => Red;
 
-		public static Color Green { get; } = "#00ff00";
+		public static Color Green { get; } = "#ccff33";
 		public static Color Left => Green;
 		public static Color Yaw => Green;
 
-		public static Color Blue { get; } = "#0011ff";
+		public static Color Blue { get; } = "#00a8e8";
 		public static Color Up => Blue;
 		public static Color Roll => Blue;
 
