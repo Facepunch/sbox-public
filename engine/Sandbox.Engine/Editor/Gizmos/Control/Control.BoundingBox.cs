@@ -69,7 +69,15 @@ public static partial class Gizmo
 			using ( Scope( name ) )
 			{
 				Transform = Transform.ToWorld( new Transform( value.Center ) );
+				
+				var fillColor = Color.White.WithAlpha( 0.05f );
+				if ( Gizmo.IsHovered ) fillColor = Color.White.WithAlpha( 0.10f );
+				if ( Pressed.Any )	fillColor = Color.White.WithAlpha( 0.15f );
 
+				Draw.IgnoreDepth = true;
+				Draw.Color = fillColor;
+				Draw.SolidBox( BBox.FromPositionAndSize( Vector3.Zero, value.Size ) );
+				
 				var halfSize = value.Size * 0.5f;
 				var resized = false;
 				var resizeDist = 0.0f;
