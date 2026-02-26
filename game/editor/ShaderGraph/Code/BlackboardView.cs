@@ -294,8 +294,14 @@ public class BlackboardView : Widget
 	{
 		using var undoScope = UndoScope( "Add Parameter" );
 
-		int id = Graph._parameters.Count;
-		string name = $"Parameter{id}";
+		var baseName = $"{(Graph.IsSubgraph ? "SubgraphInput" : "MaterialParameter")}";
+		var id = 0;
+		while ( Graph.HasParameterWithName( $"{baseName}{id}" ) )
+		{
+			id++;
+		}
+
+		var name = $"{baseName}{id}";
 
 		var parameterInstance = (BlackboardParameter)type.CreateParameter( Graph, name );
 
