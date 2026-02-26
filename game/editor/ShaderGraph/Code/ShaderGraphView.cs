@@ -124,10 +124,10 @@ public class ShaderGraphView : GraphView
 					{
 						_currentDragEventSource = DragEventSource.ImageFile;
 
-						return new ParameterNodeType( EditorTypeLibrary.GetType<Texture2DParameterNode>(), asset.AssetPath, () => 
+						return new ParameterNodeType( EditorTypeLibrary.GetType<Texture2DParameterNode>(), asset.AssetPath, () =>
 						{
-							_blackboard.RebuildFromGraph( true ); 
-						} 
+							_blackboard.RebuildFromGraph( true );
+						}
 						);
 					}
 				}
@@ -279,9 +279,9 @@ public class ShaderGraphView : GraphView
 			var convertOption = menu.AddOption( optionName, "swap_horiz", () =>
 			{
 				using var undoScope = UndoScope( optionName );
-				
+
 				var lastNode = selectedNodes.First().Node as BaseNode;
-				
+
 				foreach ( var selectedNode in selectedNodes )
 				{
 					var baseNode = selectedNode.Node as BaseNode;
@@ -450,7 +450,7 @@ public class ShaderGraphView : GraphView
 			}
 		}
 
-		throw new Exception( $"Unable to convert constant node \"{constantNode.GetType()}\" to {( Graph.IsSubgraph ? "subgraph input" : "material" )} parameter" );
+		throw new Exception( $"Unable to convert constant node \"{constantNode.GetType()}\" to {(Graph.IsSubgraph ? "subgraph input" : "material")} parameter" );
 	}
 
 	private IBlackboardParameter CreateNewParameter( IBlackboardParameterType type )
@@ -463,7 +463,7 @@ public class ShaderGraphView : GraphView
 		return (T)_blackboard.CreateNewParameter( FindParameterType( typeof( T ) ) );
 	}
 
-	private BaseNode CreateNewParameterNode( IBlackboardParameter parameter, Vector2 position)
+	private BaseNode CreateNewParameterNode( IBlackboardParameter parameter, Vector2 position )
 	{
 		var node = BlackboardParameter.InitializeParameterNode( parameter );
 		node.Graph = Graph;
