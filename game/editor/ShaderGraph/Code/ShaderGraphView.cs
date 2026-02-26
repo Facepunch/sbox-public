@@ -207,7 +207,7 @@ public class ShaderGraphView : GraphView
 					{
 						using var undoScope = UndoScope( "Add Parameter" );
 
-						var parameter = CreatenNewParameter( classType );
+						var parameter = CreateNewParameter( classType );
 						parameter.Name = parameterName;
 
 						var node = CreateNewParameterNode( parameter, clickPos );
@@ -421,7 +421,7 @@ public class ShaderGraphView : GraphView
 
 		if ( AvailableParameters.TryGetValue( parameterFullTypeName, out var parameterType ) )
 		{
-			var parameter = CreatenNewParameter( parameterType );
+			var parameter = CreateNewParameter( parameterType );
 			parameter.Name = parameterName;
 			parameter.SetValue( constantNode.GetValue() );
 
@@ -453,7 +453,7 @@ public class ShaderGraphView : GraphView
 		throw new Exception( $"Unable to convert constant node \"{constantNode.GetType()}\" to {( Graph.IsSubgraph ? "subgraph input" : "material" )} parameter" );
 	}
 
-	private IBlackboardParameter CreatenNewParameter( IBlackboardParameterType type )
+	private IBlackboardParameter CreateNewParameter( IBlackboardParameterType type )
 	{
 		return _blackboard.CreateNewParameter( type );
 	}
