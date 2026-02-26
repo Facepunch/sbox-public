@@ -44,6 +44,12 @@ public abstract class BaseVirtualPanel : Panel
 	public Action OnLastCell { get; set; }
 
 	/// <summary>
+	/// The class name that will be assigned to the Cell panel
+	/// </summary>
+	[Parameter]
+	public string CellClass { get; set; } = "cell";
+
+	/// <summary>
 	/// Initializes the base virtual panel with default styles.
 	/// </summary>
 	protected BaseVirtualPanel()
@@ -300,7 +306,7 @@ public abstract class BaseVirtualPanel : Panel
 		{
 			panel?.Delete( true );
 
-			panel = Add.Panel( "cell" );
+			panel = Add.Panel( CellClass );
 			panel.Style.Position = PositionMode.Absolute;
 			panel.ChildContent = Item?.Invoke( data );
 
