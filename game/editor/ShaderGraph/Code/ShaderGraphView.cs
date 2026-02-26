@@ -308,8 +308,8 @@ public class ShaderGraphView : GraphView
 				RebuildFromGraph();
 
 				// Select the last node in the list.
-				SelectNode( lastNode );
 				_window.OnSelected( lastNode );
+				SelectNode( lastNode );
 			} );
 		}
 
@@ -354,8 +354,8 @@ public class ShaderGraphView : GraphView
 
 						RebuildFromGraph();
 
-						SelectNode( parameterNode );
 						_window.OnSelected( parameterNode );
+						SelectNode( parameterNode );
 					},
 					$"What do you want to name {nodeTypeTitle} {(Graph.IsSubgraph ? "Subgraph Input" : "Material Parameter")}?" );
 				} );
