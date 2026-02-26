@@ -290,20 +290,28 @@ public class BlackboardView : Widget
 		_availableParameters.TryAdd( parameterType.Identifier, parameterType );
 	}
 
+	public IBlackboardParameter CreateNewParameter( IBlackboardParameterType type, Action onCreated = null )
+	{
+		if ( type == null )
+			return null;
+
+		var parameter = type.CreateParameter( Graph );
+
+		if ( parameter == null )
+			return null;
+
+		onCreated?.Invoke();
+
+		Graph?.AddParameter( parameter );
+
+		return parameter;
+	}
+
 	private void CreateNewParameter( IBlackboardParameterType type )
 	{
 		using var undoScope = UndoScope( "Add Parameter" );
 
-		var baseName = $"{(Graph.IsSubgraph ? "SubgraphInput" : "MaterialParameter")}";
-		var id = 0;
-		while ( Graph.HasParameterWithName( $"{baseName}{id}" ) )
-		{
-			id++;
-		}
-
-		var name = $"{baseName}{id}";
-
-		var parameterInstance = (BlackboardParameter)type.CreateParameter( Graph, name );
+		var parameterInstance = (BlackboardParameter)type.CreateParameter( Graph );
 
 		Graph.AddParameter( parameterInstance );
 
@@ -357,7 +365,7 @@ public class BlackboardView : Widget
 			BuildFromParameters( _graph.Parameters, preserveCurrentSelection );
 	}
 
-	public void SetSelection( BlackboardParameter parameter )
+	public void SetSelection( IBlackboardParameter parameter )
 	{
 		_selection.Set( parameter );
 	}

@@ -207,7 +207,7 @@ public class ShaderGraphView : GraphView
 					{
 						using var undoScope = UndoScope( "Add Parameter" );
 
-						var parameter = CreateNewBlackboardParameter( classType );
+						var parameter = CreatenNewParameter( classType );
 						parameter.Name = parameterName;
 
 						var node = CreateNewParameterNode( parameter, clickPos );
@@ -419,9 +419,9 @@ public class ShaderGraphView : GraphView
 			};
 		}
 
-		if ( AvailableParameters.TryGetValue( parameterFullTypeName, out var bpParameterType ) )
+		if ( AvailableParameters.TryGetValue( parameterFullTypeName, out var parameterType ) )
 		{
-			var parameter = CreateNewBlackboardParameter( bpParameterType );
+			var parameter = CreatenNewParameter( parameterType );
 			parameter.Name = parameterName;
 			parameter.SetValue( constantNode.GetValue() );
 
@@ -453,22 +453,17 @@ public class ShaderGraphView : GraphView
 		throw new Exception( $"Unable to convert constant node \"{constantNode.GetType()}\" to {( Graph.IsSubgraph ? "subgraph input" : "material" )} parameter" );
 	}
 
-	protected BlackboardParameter CreateNewBlackboardParameter( IBlackboardParameterType type )
+	private IBlackboardParameter CreatenNewParameter( IBlackboardParameterType type )
 	{
-		if ( type == null )
-			return null;
-
-		var parameter = type.CreateParameter( Graph );
-
-		if ( parameter is null )
-			return null;
-
-		Graph?.AddParameter( (BlackboardParameter)parameter );
-
-		return (BlackboardParameter)parameter;
+		return _blackboard.CreateNewParameter( type );
 	}
 
-	private BaseNode CreateNewParameterNode( BlackboardParameter parameter, Vector2 position)
+	private T CreatenNewParameter<T>( ShaderGraph graph ) where T : IBlackboardParameter
+	{
+		return (T)_blackboard.CreateNewParameter( FindParameterType( typeof( T ) ) );
+	}
+
+	private BaseNode CreateNewParameterNode( IBlackboardParameter parameter, Vector2 position)
 	{
 		var node = BlackboardParameter.InitializeParameterNode( parameter );
 		node.Graph = Graph;
@@ -485,11 +480,6 @@ public class ShaderGraphView : GraphView
 		_blackboard.RebuildFromGraph( true );
 
 		return node;
-	}
-
-	private T CreateBlackboardParameter<T>( ShaderGraph graph ) where T : BlackboardParameter
-	{
-		return (T)FindParameterType( typeof( T ) ).CreateParameter( graph );
 	}
 
 	/// <summary>
@@ -556,32 +546,32 @@ public class ShaderGraphView : GraphView
 
 					if ( input.Type == typeof( bool ) )
 					{
-						parameter = CreateBlackboardParameter<BoolSubgraphInputParameter>( subgraph );
+						parameter = CreatenNewParameter<BoolSubgraphInputParameter>( subgraph );
 					}
 					if ( input.Type == typeof( int ) )
 					{
-						parameter = CreateBlackboardParameter<IntSubgraphInputParameter>( subgraph );
+						parameter = CreatenNewParameter<IntSubgraphInputParameter>( subgraph );
 					}
 					if ( input.Type == typeof( float ) )
 					{
 						Log.Info( $"input.Type == typeof( float )" );
-						parameter = CreateBlackboardParameter<FloatSubgraphInputParameter>( subgraph );
+						parameter = CreatenNewParameter<FloatSubgraphInputParameter>( subgraph );
 					}
 					else if ( input.Type == typeof( Vector2 ) )
 					{
-						parameter = CreateBlackboardParameter<Float2SubgraphInputParameter>( subgraph );
+						parameter = CreatenNewParameter<Float2SubgraphInputParameter>( subgraph );
 					}
 					else if ( input.Type == typeof( Vector3 ) )
 					{
-						parameter = CreateBlackboardParameter<Float3SubgraphInputParameter>( subgraph );
+						parameter = CreatenNewParameter<Float3SubgraphInputParameter>( subgraph );
 					}
 					else if ( input.Type == typeof( Vector4 ) )
 					{
-						parameter = CreateBlackboardParameter<Float4SubgraphInputParameter>( subgraph );
+						parameter = CreatenNewParameter<Float4SubgraphInputParameter>( subgraph );
 					}
 					else if ( input.Type == typeof( Color ) )
 					{
-						parameter = CreateBlackboardParameter<ColorSubgraphInputParameter>( subgraph );
+						parameter = CreatenNewParameter<ColorSubgraphInputParameter>( subgraph );
 					}
 
 					if ( parameter != null )
@@ -605,7 +595,7 @@ public class ShaderGraphView : GraphView
 					}
 					else
 					{
-						var defaultparameter = CreateBlackboardParameter<FloatSubgraphInputParameter>( subgraph );
+						var defaultparameter = CreatenNewParameter<FloatSubgraphInputParameter>( subgraph );
 						defaultparameter.Name = inputName;
 						defaultparameter.PortOrder = nodesToAdd.Count;
 

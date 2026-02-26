@@ -48,7 +48,7 @@ public interface IBlackboardParameterType
 {
 	public TypeDescription Type { get; }
 
-	IBlackboardParameter CreateParameter( ShaderGraph graph, string name = "" );
+	IBlackboardParameter CreateParameter( IGraph graph, string name = "" );
 }
 
 public abstract class BlackboardParameter : IBlackboardParameter
@@ -140,7 +140,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 		} );
 	}
 
-	public static BaseNode InitializeParameterNode( BlackboardParameter parameter )
+	public static BaseNode InitializeParameterNode( IBlackboardParameter parameter )
 	{
 		return parameter switch
 		{

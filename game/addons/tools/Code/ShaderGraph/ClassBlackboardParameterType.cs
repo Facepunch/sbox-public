@@ -1,4 +1,5 @@
-﻿using Editor.ShaderGraph;
+﻿using Editor.NodeEditor;
+using Editor.ShaderGraph;
 
 public class ClassBlackboardParameterType : IBlackboardParameterType
 {
@@ -10,8 +11,22 @@ public class ClassBlackboardParameterType : IBlackboardParameterType
 		Type = type;
 	}
 
-	public virtual IBlackboardParameter CreateParameter( ShaderGraph graph, string name = "" )
+	public virtual IBlackboardParameter CreateParameter( IGraph graph, string name = "" )
 	{
+		var sg = graph as ShaderGraph;
+
+		if ( string.IsNullOrWhiteSpace( name ) )
+		{
+			var baseName = $"{(sg.IsSubgraph ? "SubgraphInput" : "MaterialParameter")}";
+			var id = 0;
+			while ( sg.HasParameterWithName( $"{baseName}{id}" ) )
+			{
+				id++;
+			}
+
+			name = $"{baseName}{id}";
+		}
+
 		if ( EditorTypeLibrary.Create( Type.Name, Type.TargetType ) is BlackboardParameter parameter )
 		{
 			parameter.Name = name;
