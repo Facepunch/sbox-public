@@ -17,6 +17,16 @@ public class SboxNativesResolver
 		NativeLibrary.SetDllImportResolver( harfBuzzSharpAssemblyRef, HarfBuzzSharpImportResolver );
 	}
 
+	
+
+
+	~SboxNativesResolver()
+	{
+		foreach ( KeyValuePair<string, IntPtr> libHandle in cachedLibHandles )
+		{
+			NativeLibrary.Free( libHandle.Value );
+		}
+	}
 //TODO: Rename these files.
 	private static IntPtr HarfBuzzSharpImportResolver( string libraryName, Assembly assembly, DllImportSearchPath? searchPath )
 	{
