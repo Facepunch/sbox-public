@@ -74,7 +74,7 @@ namespace Sandbox.Internal.JsonConvert
 
 		public override void Write( Utf8JsonWriter writer, Vector2 val, JsonSerializerOptions options )
 		{
-			writer.WriteStringValue( $"{val.x:0.#################################},{val.y:0.#################################}" );
+			writer.WriteStringValue( FormattableString.Invariant($"{val.x:0.#################################},{val.y:0.#################################}") );
 		}
 		public override Vector2 ReadAsPropertyName( ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options )
 		{
