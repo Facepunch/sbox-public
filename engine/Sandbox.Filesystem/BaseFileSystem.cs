@@ -153,10 +153,17 @@ public class BaseFileSystem
 		if ( path.Contains( ":" ) )
 			return path;
 
-		if ( system is CasefoldSubFileSystem sfs )
+		if ( system is CasefoldSubFileSystem csfs )
+		{
+			return csfs.ConvertPathToInternal( FixPath( path ) );
+		}
+
+
+		if ( system is Zio.FileSystems.SubFileSystem sfs )
 		{
 			return sfs.ConvertPathToInternal( FixPath( path ) );
 		}
+
 
 		if ( system is Zio.FileSystems.AggregateFileSystem afs )
 		{
