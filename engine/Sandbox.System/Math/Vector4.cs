@@ -445,7 +445,7 @@ public struct Vector4 : System.IEquatable<Vector4>, IParsable<Vector4>
 	/// <returns></returns>
 	public override string ToString()
 	{
-		return FormattableString.Invariant($"{x:0.###},{y:0.###},{z:0.###},{w:0.###}");
+		return FormattableString.Invariant( $"{x:0.###},{y:0.###},{z:0.###},{w:0.###}" );
 	}
 
 	/// <summary>
