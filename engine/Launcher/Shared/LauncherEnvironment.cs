@@ -74,7 +74,7 @@ public static class LauncherEnvironment
 		// Put our native dll path first so that when looking up native dlls we'll
 		// always use the ones from our folder first
 		//
-		if (OperatingSystem.IsWindows())
+		if ( OperatingSystem.IsWindows() )
 		{
 			var path = System.Environment.GetEnvironmentVariable( "PATH" );
 			path = $"{nativeDllPath};{path}";
