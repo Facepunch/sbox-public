@@ -18,7 +18,7 @@ internal class CasefoldPhysicalFileSystem : PhysicalFileSystem
 	/// <returns>the same path with proper casing. This is just partially adjusted if only part of the path exists.</returns>
 	internal UPath Casepath( UPath inPath )
 	{
-        return ConvertPathFromInternalImpl(FileSystemStringCaseHelpers.Casepath(ConvertPathToInternalImpl(inPath)));
+		return ConvertPathFromInternalImpl( FileSystemStringCaseHelpers.Casepath( ConvertPathToInternalImpl( inPath ) ) );
 	}
 
 	//directory API
