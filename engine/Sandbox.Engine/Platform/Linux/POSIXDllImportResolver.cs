@@ -12,9 +12,12 @@ public class SboxNativesResolver
 	private static readonly Dictionary<string, IntPtr> cachedLibHandles = new Dictionary<string, IntPtr>();
 	public static void SetupResolvers()
 	{
-		Assembly skiaSharpAssebmlyRef = typeof( SKAlphaType ).Assembly, harfBuzzSharpAssemblyRef = typeof( HarfBuzzSharp.Font ).Assembly;
+		Assembly skiaSharpAssebmlyRef = typeof( SKAlphaType ).Assembly,
+		 harfBuzzSharpAssemblyRef = typeof( HarfBuzzSharp.Font ).Assembly,
+		 selfAssemblyRef = typeof(SboxNativesResolver).Assembly;
 		NativeLibrary.SetDllImportResolver( skiaSharpAssebmlyRef, SkiaSharpImportResolver );
 		NativeLibrary.SetDllImportResolver( harfBuzzSharpAssemblyRef, HarfBuzzSharpImportResolver );
+		NativeLibrary.SetDllImportResolver(selfAssemblyRef,SelfAssemblyResolver);
 	}
 
 	
@@ -26,6 +29,29 @@ public class SboxNativesResolver
 		{
 			NativeLibrary.Free( libHandle.Value );
 		}
+	}
+	private static IntPtr SelfAssemblyResolver( string libraryName, Assembly assembly, DllImportSearchPath? searchPath )
+	{
+		if (libraryName == "steam_api"){
+			if ( cachedLibHandles.TryGetValue( libraryName, out IntPtr outPtr ) )
+			{
+				return outPtr;
+			}
+			IntPtr libHandle;
+			if ( OperatingSystem.IsLinux() )
+			{
+				libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/libsteam_api.so" );
+				cachedLibHandles.Add( libraryName, libHandle );
+				return libHandle;
+			}
+			else if ( OperatingSystem.IsMacOS() )
+			{
+				libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/libsteam_api.dylib" );
+				cachedLibHandles.Add( libraryName, libHandle );
+				return libHandle;
+			}
+		}
+		return IntPtr.Zero;
 	}
 //TODO: Rename these files.
 	private static IntPtr HarfBuzzSharpImportResolver( string libraryName, Assembly assembly, DllImportSearchPath? searchPath )
