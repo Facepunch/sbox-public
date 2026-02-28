@@ -90,7 +90,10 @@ public class ComponentControlWidget : ControlWidget
 			Paint.SetPen( Theme.Green );
 			Paint.DrawIcon( rect, icon, 14, TextFlag.LeftCenter );
 			rect.Left += 22;
-			Paint.DrawText( rect, $"{component.GetType().Name} on ({component.GameObject?.Name ?? "null"})", TextFlag.LeftCenter );
+			var title = component.ToString();
+			if ( title == component.GetType().ToString() )
+				title = $"{component.GetType().Name} on ({component.GameObject?.Name ?? "null"})";
+			Paint.DrawText( rect, title, TextFlag.LeftCenter );
 			Cursor = CursorShape.Finger;
 		}
 
