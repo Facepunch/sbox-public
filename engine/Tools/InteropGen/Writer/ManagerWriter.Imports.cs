@@ -259,12 +259,15 @@ internal partial class ManagerWriter
 
 					foreach ( Variable f in c.Variables )
 					{
-						List<string> managedArgs = c.SelfArg( false, f.Static ).Select( x => $"{x.GetManagedDelegateType( true )}" ).ToList();
-						managedArgs.Add( f.Return.GetManagedDelegateType( true ) );
-						string managedArgss = $"{string.Join( ", ", managedArgs )}";
+						List<string> managedArgsGetter = c.SelfArg( false, f.Static ).Select( x => $"{x.GetManagedDelegateType( false )}" ).ToList();
+						List<string> managedArgsSetter = new List<string>(managedArgsGetter);
+						managedArgsGetter.Add( f.Return.GetManagedDelegateType( true ) );
+						managedArgsSetter.Add( f.Return.GetManagedDelegateType( false ) );
+						string managedArgssGet = $"{string.Join( ", ", managedArgsGetter )}";
+						string managedArgssSet = $"{string.Join( ", ", managedArgsSetter )}";
 
-						WriteLine( $"internal static delegate* unmanaged[SuppressGCTransition]<{managedArgss}> Get__{f.MangledName};\n" );
-						WriteLine( $"internal static delegate* unmanaged[SuppressGCTransition]<{managedArgss}, void> Set__{f.MangledName};\n" );
+						WriteLine( $"internal static delegate* unmanaged[SuppressGCTransition]<{managedArgssGet}> Get__{f.MangledName};\n" );
+						WriteLine( $"internal static delegate* unmanaged[SuppressGCTransition]<{managedArgssSet}, void> Set__{f.MangledName};\n" );
 					}
 				}
 				EndBlock();

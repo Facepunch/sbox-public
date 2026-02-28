@@ -56,7 +56,7 @@ public class ArgDefinedStruct : Arg
 	{
 		return Type.IsPointer
 			? code ?? Name
-			: !native && code == null && Name != null && Flags == null && !Type.IsEnum && !Type.HasAttribute( "small" )
+			: !native && (code == null || code == "value" ) && Name != null && Flags == null && !Type.IsEnum && !Type.HasAttribute( "small" )
 			? $"&{Name}"
 			: base.ToInterop( native, code );
 	}
