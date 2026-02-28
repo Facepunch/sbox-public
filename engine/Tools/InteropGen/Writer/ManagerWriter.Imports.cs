@@ -260,7 +260,7 @@ internal partial class ManagerWriter
 					foreach ( Variable f in c.Variables )
 					{
 						List<string> managedArgsGetter = c.SelfArg( false, f.Static ).Select( x => $"{x.GetManagedDelegateType( false )}" ).ToList();
-						List<string> managedArgsSetter = new List<string>(managedArgsGetter);
+						List<string> managedArgsSetter = new List<string>( managedArgsGetter );
 						managedArgsGetter.Add( f.Return.GetManagedDelegateType( true ) );
 						managedArgsSetter.Add( f.Return.GetManagedDelegateType( false ) );
 						string managedArgssGet = $"{string.Join( ", ", managedArgsGetter )}";
