@@ -294,6 +294,8 @@ file class SystemPropertyWrapper : SerializedProperty
 		}
 
 		var serializedValue = value.GetSerialized();
+		serializedValue.ParentProperty = this;
+
 		serializedValue.OnPropertyChanged += ( prop ) =>
 		{
 			var modifiedValue = serializedValue.Targets.FirstOrDefault();

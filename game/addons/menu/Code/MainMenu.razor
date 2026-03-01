@@ -27,22 +27,12 @@
             
         </ChildContent>
     </NavigationHost>
-
-	<Toasts></Toasts>
-
-    <div class="image-viewer @( showImage ? "active" : "" )" style="background-image: url( @viewImage ); transform-origin: @cursorPos.x% @cursorPos.y%;" @onclick="@( () => showImage = false )"></div>
-
 </div>
 
 @code
 {
     public static MainMenu Instance { get; private set; }
     public NavigationHost Navigator { get; protected set; }
-
-    bool showImage;
-    string viewImage;
-
-    Vector2 cursorPos;
 
     public MainMenu()
     {
@@ -73,13 +63,6 @@
         MenuUtility.Tick -= MenuTick;
     }
 
-    public void ShowPopup(string imageUrl)
-    {
-        cursorPos = (Mouse.Position / Screen.Size) * 100.0f;
-        viewImage = imageUrl;
-        showImage = true;
-    }
-
     static GameClosing gameClosingPanel;
 
     void MenuTick()
@@ -95,7 +78,7 @@
 				if (!gameClosingPanel.IsValid())
 				{
 					gameClosingPanel = new GameClosing();
-					gameClosingPanel.Parent = MenuOverlay.Instance.PopupCanvasTop;
+					gameClosingPanel.Parent = MenuOverlay.Instance.TopCenter;
 				}
 
 				gameClosingPanel.Progress = (et / holdDelay);

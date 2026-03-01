@@ -1,6 +1,6 @@
 ﻿using Sandbox;
 
-public partial class MenuOverlay : RootPanel, IAchievementListener
+public partial class MenuOverlay : IAchievementListener
 {
 	public void OnAchievementUnlocked( IAchievementListener.UnlockDescription data )
 	{
@@ -13,7 +13,7 @@ public partial class MenuOverlay : RootPanel, IAchievementListener
 		popup.Icon = data.Icon;
 		popup.Score = data.ScoreAdded;
 		popup.PlayerScore = data.TotalPlayerScore;
-		AddPopup( popup, null );
+		Top.Queue( popup, duration: 6f, clickToDismiss: false );
 	}
 
 	/*

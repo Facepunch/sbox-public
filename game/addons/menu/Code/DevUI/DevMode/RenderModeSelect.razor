@@ -1,0 +1,66 @@
+@namespace Sandbox.UI.Dev
+@inherits Panel
+
+<root>
+    <i>@CurrentIcon</i> @CurrentTitle
+</root>
+
+
+@code
+{
+    static readonly (SceneCameraDebugMode value, DisplayInfo info)[] DebugModes
+        = DisplayInfo.ForEnumValues<SceneCameraDebugMode>();
+
+    SceneCameraDebugMode _selectedMode;
+
+    string CurrentTitle => GetDisplayInfo().Name ?? _selectedMode.ToString();
+    string CurrentIcon => GetDisplayInfo().Icon ?? "image";
+
+    DisplayInfo GetDisplayInfo()
+    {
+        foreach ( var (value, info) in DebugModes )
+            if ( value == _selectedMode ) return info;
+
+        return default;
+    }
+
+    void SetMode( SceneCameraDebugMode mode )
+    {
+        _selectedMode = mode;
+        ConsoleSystem.Run( "mat_toolsvis", ((int)mode).ToString() );
+
+        if ( Game.ActiveScene?.Camera is CameraComponent cam )
+            cam.DebugMode = mode;
+
+        StateHasChanged();
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        var actual = Game.ActiveScene?.Camera?.DebugMode ?? SceneCameraDebugMode.Normal;
+        if ( _selectedMode != actual )
+        {
+            _selectedMode = actual;
+            StateHasChanged();
+        }
+
+        SetClass( "active", _selectedMode != SceneCameraDebugMode.Normal );
+    }
+
+    protected override void OnClick( MousePanelEvent e )
+    {
+        var popup = new Popup( this, Popup.PositionMode.BelowLeft, 4f );
+        popup.CloseWhenParentIsHidden = true;
+
+        foreach ( var (mode, info) in DebugModes )
+        {
+            var captured = mode;
+            var option = popup.AddOption( info.Name, info.Icon, () => SetMode( captured ) );
+
+            if ( mode == _selectedMode )
+                option.AddClass( "active" );
+        }
+    }
+}

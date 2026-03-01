@@ -7,6 +7,8 @@ public abstract class DropdownControlWidget<T> : ControlWidget
 {
 	public override bool SupportsMultiEdit => true;
 
+	protected PopupWidget _menu;
+
 	public DropdownControlWidget( SerializedProperty property ) : base( property )
 	{
 		Layout = Layout.Row();
@@ -23,22 +25,29 @@ public abstract class DropdownControlWidget<T> : ControlWidget
 
 	protected abstract IEnumerable<object> GetDropdownValues();
 
+	/// <summary>
+	/// Returns the display text shown in the dropdown button.
+	/// </summary>
+	protected virtual string GetDisplayText()
+	{
+		return SerializedProperty.GetValue<object>()?.ToString() ?? "None";
+	}
+
+	/// <summary>
+	/// Called when a dropdown item is selected. Override for custom selection behavior.
+	/// </summary>
+	protected virtual void OnItemSelected( object item )
+	{
+		if ( item is Entry e )
+			SerializedProperty.SetValue( e.Value );
+		else
+			SerializedProperty.SetValue( item );
+	}
+
 	protected override void PaintControl()
 	{
-		var value = SerializedProperty.GetValue<object>();
 		var color = IsControlHovered ? Theme.Blue : Theme.TextControl;
-		var rect = LocalRect;
-
-		rect = rect.Shrink( 8, 0 );
-
-		//var e = enumDesc.GetEntry( value );
-
-		//if ( !string.IsNullOrEmpty( e.Icon ) )
-		//{
-		//	Paint.SetPen( color.WithAlpha( 0.5f ) );
-		//	var i = Paint.DrawIcon( rect, e.Icon, 16, TextFlag.LeftCenter );
-		//	rect.Left += i.Width + 8;
-		//}
+		var rect = new Rect( 0, 0, Width, Theme.RowHeight ).Shrink( 8, 0 );
 
 		Paint.SetPen( color );
 		Paint.SetDefaultFont();
@@ -50,14 +59,12 @@ public abstract class DropdownControlWidget<T> : ControlWidget
 		}
 		else
 		{
-			Paint.DrawText( rect, value?.ToString() ?? "None", TextFlag.LeftCenter );
+			Paint.DrawText( rect, GetDisplayText(), TextFlag.LeftCenter );
 		}
 
 		Paint.SetPen( color );
 		Paint.DrawIcon( rect, "Arrow_Drop_Down", 17, TextFlag.RightCenter );
 	}
-
-	PopupWidget _menu;
 
 	public override void StartEditing()
 	{
@@ -101,15 +108,7 @@ public abstract class DropdownControlWidget<T> : ControlWidget
 			var b = scroller.Canvas.Layout.Add( new MenuOption<T>( o, SerializedProperty ) );
 			b.MouseLeftPress = () =>
 			{
-				if ( o is Entry e )
-				{
-					SerializedProperty.SetValue( e.Value );
-				}
-				else
-				{
-					SerializedProperty.SetValue( o );
-				}
-
+				OnItemSelected( o );
 				_menu.Update();
 				_menu.Close();
 			};

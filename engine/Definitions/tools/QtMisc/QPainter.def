@@ -48,6 +48,20 @@ native class QPainter
 		self->drawPixmap( r, pm, s );
 		self->setOpacity( f );
 	}
+	inline void drawRoundedPixmap( QRectF r, cref QPixmap pm, QRectF s, float alpha, float borderRadius )
+	{
+		self->save();
+		float f = self->opacity();
+		self->setOpacity( alpha * f );
+
+		QPainterPath path;
+		path.addRoundedRect( r, borderRadius, borderRadius );
+
+		self->setClipPath( path );
+
+		self->drawPixmap( r, pm, s );
+		self->restore();
+	}
 	void drawTiledPixmap( QRectF rect, cref QPixmap pm, QPointF offset );
 	void drawArc( QRectF rect, float a, float alen );
 	void drawPie( QRectF rect, float a, float alen );

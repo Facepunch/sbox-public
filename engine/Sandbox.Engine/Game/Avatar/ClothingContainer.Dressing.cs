@@ -29,7 +29,7 @@ public partial class ClothingContainer
 		// Find any clothing that needs downloading
 		// Download it, and apply it to the container.
 		//
-		foreach ( var item in Clothing.Where( x => x.Clothing == null || x.Clothing.ResourceId == 0 ).ToArray() )
+		foreach ( var item in Clothing.Where( x => x.Clothing == null || string.IsNullOrEmpty( x.Clothing.ResourcePath ) ).ToArray() )
 		{
 			if ( item.ItemDefinitionId == 0 ) continue;
 			var def = Sandbox.Services.Inventory.FindDefinition( item.ItemDefinitionId );

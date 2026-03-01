@@ -3,7 +3,7 @@
   "Sequences": [
     {
       "Source": "materials/startup_background_color.tga",
-      "IsLooping": true,
+      "IsLooping": false,
       "FlipBook": false,
       "Columns": 0,
       "Rows": 0,
@@ -11,7 +11,7 @@
     }
   ],
   "InputColorSpace": "Linear",
-  "OutputFormat": "DXT5",
+  "OutputFormat": "RGBA8888",
   "OutputColorSpace": "Linear",
   "OutputMipAlgorithm": "None",
   "OutputTypeString": "2D"

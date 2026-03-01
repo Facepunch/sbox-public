@@ -8,18 +8,51 @@ namespace Sandbox;
 
 public class ResourceSystem
 {
+	// Index of Json based, GameResources PrefabFile, DecalDefintions etc.
 	private Dictionary<int, Resource> ResourceIndex { get; } = new();
+
+	// Weak references to native resources (Model, Material, Texture, Shader, etc.) — GC-friendly.
+	private Dictionary<int, WeakReference<Resource>> WeakIndex { get; } = new();
+
+	private Dictionary<ulong, Resource> ResourceIndexLong { get; } = new();
+
+	private Dictionary<ulong, WeakReference<Resource>> WeakIndexLong { get; } = new();
+
+	/// Maps ResourceIdLong → path for all resources that exist on disk.
+	/// Populated at startup without loading anything; used as on-demand load fallback during
+	/// network deserialization when a resource hasn't been loaded on the client yet.
+	private Dictionary<ulong, string> PathIndex { get; } = new();
+
+	// Used to register resources path for use in networking
+	internal void RegisterPath( string path )
+	{
+		path = Resource.FixPath( path );
+		if ( string.IsNullOrEmpty( path ) ) return;
+		PathIndex[path.FastHash64()] = path;
+	}
 
 	internal void Register( Resource resource )
 	{
-		Log.Trace( $"Registering {resource.GetType()} ( {resource.ResourcePath} ) as {resource.ResourceId}" );
-
+#pragma warning disable CS0618 // Type or member is obsolete
 		ResourceIndex[resource.ResourceId] = resource;
+#pragma warning restore CS0618 // Type or member is obsolete
+		ResourceIndexLong[resource.ResourceIdLong] = resource;
 
 		if ( resource is GameResource gameResource && !gameResource.IsPromise )
 		{
 			IToolsDll.Current?.RunEvent<IEventListener>( i => i.OnRegister( gameResource ) );
 		}
+	}
+
+	/// <summary>
+	/// Register a resource with a weak reference, allowing GC to collect it when no longer in use.
+	/// </summary>
+	internal void RegisterWeak( Resource resource )
+	{
+#pragma warning disable CS0618 // Type or member is obsolete
+		WeakIndex[resource.ResourceId] = new WeakReference<Resource>( resource );
+#pragma warning restore CS0618 // Type or member is obsolete
+		WeakIndexLong[resource.ResourceIdLong] = new WeakReference<Resource>( resource );
 	}
 
 	internal void Unregister( Resource resource )
@@ -29,17 +62,14 @@ public class ResourceSystem
 
 		// Make sure we're unregistering the currently indexed resource
 
-		if ( ResourceIndex.TryGetValue( resource.ResourceId, out var existing ) && existing == resource )
-		{
-			// native asset system doesn't support asset removal right now,
-			// so just remove it from the index to ensure we don't retrieve it anymore
+		ResourceIndexLong.Remove( resource.ResourceIdLong );
+		WeakIndexLong.Remove( resource.ResourceIdLong );
 
-			ResourceIndex.Remove( resource.ResourceId );
-		}
-		else
-		{
-			Log.Trace( $"Unregistering \"{resource.ResourcePath}\", but it wasn't registered" );
-		}
+#pragma warning disable CS0618 // Type or member is obsolete
+		ResourceIndex.Remove( resource.ResourceId );
+		WeakIndex.Remove( resource.ResourceId );
+#pragma warning restore CS0618 // Type or member is obsolete
+
 
 		if ( resource is GameResource gameResource && !gameResource.IsPromise )
 		{
@@ -50,6 +80,32 @@ public class ResourceSystem
 	internal void OnHotload()
 	{
 		TypeCache.Clear();
+	}
+
+	/// <summary>
+	/// Prune dead entries from the WeakIndex to prevent unbounded growth.
+	/// Only runs every 30 seconds.
+	/// </summary>
+	TimeSince _lastWeakPrune;
+
+	internal void PruneWeakIndex()
+	{
+		if ( _lastWeakPrune < 30 )
+			return;
+
+		_lastWeakPrune = 0;
+
+		var dead = WeakIndex.Where( kvp => !kvp.Value.TryGetTarget( out _ ) ).Select( kvp => kvp.Key ).ToList();
+		foreach ( var key in dead )
+		{
+			WeakIndex.Remove( key );
+		}
+
+		var deadNative = WeakIndexLong.Where( kvp => !kvp.Value.TryGetTarget( out _ ) ).Select( kvp => kvp.Key ).ToList();
+		foreach ( var key in deadNative )
+		{
+			WeakIndexLong.Remove( key );
+		}
 	}
 
 	internal void Clear()
@@ -70,26 +126,54 @@ public class ResourceSystem
 		}
 
 		ResourceIndex.Clear();
+		WeakIndex.Clear();
+
+		ResourceIndexLong.Clear();
+		WeakIndexLong.Clear();
+		PathIndex.Clear();
 
 		TypeCache.Clear();
 	}
 
-	internal Resource Get( System.Type t, int identifier )
+	/// <summary>
+	/// Find all alive weak resources of a given type whose ResourcePath starts with the given prefix.
+	/// Used for hotload scenarios like SVG textures with query parameters.
+	/// </summary>
+	internal IEnumerable<T> FindWeakByPathPrefix<T>( string pathPrefix ) where T : Resource
 	{
-		if ( !ResourceIndex.TryGetValue( identifier, out var resource ) )
-			return null;
+		foreach ( var kvp in WeakIndex )
+		{
+			if ( !kvp.Value.TryGetTarget( out var resource ) )
+				continue;
 
-		if ( resource.GetType().IsAssignableTo( t ) )
-			return resource;
+			if ( resource is not T typed )
+				continue;
 
-		return null;
+			if ( resource.ResourcePath is not null && resource.ResourcePath.TrimStart( '/' ).StartsWith( pathPrefix, StringComparison.OrdinalIgnoreCase ) )
+				yield return typed;
+		}
 	}
 
 	internal Resource Get( System.Type t, string filepath )
 	{
 		filepath = Resource.FixPath( filepath );
+		ulong identifier = filepath.FastHash64();
 
-		return Get( t, filepath.FastHash() );
+		if ( ResourceIndexLong.TryGetValue( identifier, out var resource ) )
+		{
+			if ( resource.GetType().IsAssignableTo( t ) )
+				return resource;
+
+			return null;
+		}
+
+		if ( WeakIndexLong.TryGetValue( identifier, out var weakRef ) && weakRef.TryGetTarget( out var weakResource ) )
+		{
+			if ( weakResource.GetType().IsAssignableTo( t ) )
+				return weakResource;
+		}
+
+		return null;
 	}
 
 	/// <summary>
@@ -97,12 +181,33 @@ public class ResourceSystem
 	/// </summary>
 	/// <typeparam name="T">Resource type to get.</typeparam>
 	/// <param name="identifier">Resource hash to look up.</param>
+	[Obsolete( "Use Get<T>(path) instead. Identifier based access will be removed in a future update." )]
 	public T Get<T>( int identifier ) where T : Resource
 	{
-		if ( !ResourceIndex.TryGetValue( identifier, out var resource ) )
-			return default;
+		if ( ResourceIndex.TryGetValue( identifier, out var resource ) )
+			return resource as T;
 
-		return resource as T;
+		if ( WeakIndex.TryGetValue( identifier, out var weakRef ) && weakRef.TryGetTarget( out var weakResource ) )
+			return weakResource as T;
+
+		return default;
+	}
+
+	// Internal use only — do not expose ulong IDs publicly.
+	internal T GetByIdLong<T>( ulong idLong ) where T : Resource
+	{
+		if ( ResourceIndexLong.TryGetValue( idLong, out var resource ) )
+			return resource as T;
+
+		if ( WeakIndexLong.TryGetValue( idLong, out var weakRef ) && weakRef.TryGetTarget( out var weakResource ) )
+			return weakResource as T;
+
+		return default;
+	}
+
+	internal string LookupPath( ulong idLong )
+	{
+		return PathIndex.GetValueOrDefault( idLong );
 	}
 
 	/// <summary>
@@ -114,7 +219,7 @@ public class ResourceSystem
 	{
 		filepath = Resource.FixPath( filepath );
 
-		return Get<T>( filepath.FastHash() );
+		return GetByIdLong<T>( filepath.FastHash64() );
 	}
 
 	/// <summary>
@@ -158,6 +263,48 @@ public class ResourceSystem
 			}
 			return false;
 		} );
+	}
+
+	/// <summary>
+	/// Returns stats about the ResourceIndex and WeakIndex for debug overlays.
+	/// </summary>
+	internal ResourceStats GetResourceStats()
+	{
+		var stats = new ResourceStats();
+
+		foreach ( var resource in ResourceIndex.Values )
+		{
+			var typeName = resource.GetType().Name;
+			stats.StrongIndex.TryGetValue( typeName, out var count );
+			stats.StrongIndex[typeName] = count + 1;
+		}
+
+		foreach ( var kvp in WeakIndex )
+		{
+			var alive = kvp.Value.TryGetTarget( out var resource );
+			var typeName = alive ? resource.GetType().Name : "(dead)";
+			stats.WeakIndexEntries.TryGetValue( typeName, out var count );
+			stats.WeakIndexEntries[typeName] = count + 1;
+		}
+
+		stats.StrongTotal = ResourceIndex.Count;
+		stats.WeakTotal = WeakIndex.Count;
+
+		return stats;
+	}
+
+	internal struct ResourceStats
+	{
+		public Dictionary<string, int> StrongIndex;
+		public Dictionary<string, int> WeakIndexEntries;
+		public int StrongTotal;
+		public int WeakTotal;
+
+		public ResourceStats()
+		{
+			StrongIndex = new();
+			WeakIndexEntries = new();
+		}
 	}
 
 	/// <summary>
@@ -367,6 +514,7 @@ public static class ResourceLibrary
 	/// </summary>
 	/// <typeparam name="T">Resource type to get.</typeparam>
 	/// <param name="identifier">Resource hash to look up.</param>
+	[Obsolete( "Use Get<T>(filepath) instead. Identifier based access will be removed in a future update." )]
 	public static T Get<T>( int identifier ) where T : Resource => Game.Resources.Get<T>( identifier );
 
 	/// <summary>

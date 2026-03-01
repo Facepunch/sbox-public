@@ -360,7 +360,7 @@ internal partial class NetworkSystem
 			var bs = ByteStream.Create( 32 );
 			bs.Write( InternalMessageType.HeartbeatPing );
 			bs.Write( RealTime.Now ); // Real time
-			bs.Write( Time.Now ); // Game time
+			bs.Write( Time.NowDouble ); // Game time
 			c.SendRawMessage( bs );
 			bs.Dispose();
 		}

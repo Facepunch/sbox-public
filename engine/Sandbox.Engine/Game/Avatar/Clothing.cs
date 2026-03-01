@@ -443,7 +443,7 @@ public sealed partial class Clothing : GameResource
 	{
 		if ( !SteamItemDefinitionId.HasValue ) return false;
 		if ( SteamItemDefinitionId == 0 ) return false;
-		if ( ResourceId != 0 ) return false;
+		if ( !string.IsNullOrEmpty( ResourcePath ) ) return false;
 
 		return true;
 	}

@@ -61,7 +61,7 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 		if ( !_dragStarted )
 		{
-			EditorToolManager.SetSubTool( nameof( MeshSelection ) );
+			EditorToolManager.SetSubTool( nameof( ObjectSelection ) );
 			Tool.MeshTool.SetMoveMode<ResizeMode>();
 		}
 

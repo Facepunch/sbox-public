@@ -129,6 +129,7 @@ public abstract class Renderer : Component, SceneObjectCallbacks
 	internal virtual void OnSceneObjectCreated( SceneObject obj )
 	{
 		_sceneObject = obj;
+		_sceneObject.Tags.SetFrom( GameObject.Tags );
 		_sceneObject.CallbackTarget = this;
 		UpdateSceneObjectFlags();
 		RestoreRenderAttributes( obj.Attributes );

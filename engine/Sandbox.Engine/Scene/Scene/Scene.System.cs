@@ -5,14 +5,14 @@ namespace Sandbox;
 [Expose]
 public partial class Scene
 {
-	List<GameObjectSystem> systems = new List<GameObjectSystem>();
+	Dictionary<Type, GameObjectSystem> systems = new();
 
 	/// <summary>
 	/// Call dispose on all installed hooks
 	/// </summary>
 	void ShutdownSystems()
 	{
-		foreach ( var sys in systems )
+		foreach ( var sys in systems.Values )
 		{
 			// Can become null during hotload development
 			if ( sys is null ) continue;
@@ -51,7 +51,7 @@ public partial class Scene
 
 				ApplyGameObjectSystemConfig( e );
 
-				systems.Add( e );
+				systems[e.GetType()] = e;
 				AddObjectToDirectory( e );
 			}
 		}
@@ -111,10 +111,10 @@ public partial class Scene
 			return;
 		}
 
-		if ( overrides is null || !overrides.Any() )
+		if ( overrides is null || overrides.Count == 0 )
 			return;
 
-		foreach ( var system in systems )
+		foreach ( var system in systems.Values )
 		{
 			var systemType = Game.TypeLibrary.GetType( system.GetType() );
 			if ( systemType is null ) continue;
@@ -199,7 +199,7 @@ public partial class Scene
 	/// </summary>
 	public T GetSystem<T>() where T : GameObjectSystem
 	{
-		return systems.OfType<T>().FirstOrDefault();
+		return systems.TryGetValue( typeof( T ), out var sys ) ? sys as T : null;
 	}
 
 	/// <summary>
@@ -207,7 +207,7 @@ public partial class Scene
 	/// </summary>
 	public void GetSystem<T>( out T val ) where T : GameObjectSystem
 	{
-		val = systems.OfType<T>().FirstOrDefault();
+		val = systems.TryGetValue( typeof( T ), out var sys ) ? sys as T : null;
 	}
 
 	/// <summary>
@@ -215,14 +215,14 @@ public partial class Scene
 	/// </summary>
 	internal GameObjectSystem GetSystemByType( TypeDescription type )
 	{
-		return systems.FirstOrDefault( s => s.GetType() == type.TargetType );
+		return systems.TryGetValue( type.TargetType, out var sys ) ? sys : null;
 	}
 
 	/// <summary>
 	/// Get all systems belonging to this scene.
 	/// </summary>
-	internal IEnumerable<GameObjectSystem> GetSystems()
+	internal Dictionary<Type, GameObjectSystem>.ValueCollection GetSystems()
 	{
-		return systems;
+		return systems.Values;
 	}
 }

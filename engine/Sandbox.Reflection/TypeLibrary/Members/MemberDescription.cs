@@ -10,13 +10,22 @@ namespace Sandbox;
 [SkipHotload]
 public class MemberDescription : ISourceLineProvider, IMemberNameProvider, ITitleProvider, ICategoryProvider
 {
+	readonly TypeLibrary library;
 	internal MemberInfo MemberInfo;
 	internal DisplayInfo displayInfo;
 
 	/// <summary>
 	/// The type that we're a member of
 	/// </summary>
-	public TypeDescription TypeDescription { get; internal set; }
+	public TypeDescription TypeDescription { get; protected set; }
+
+	/// <summary>
+	/// The type that actually defined this member. This may be different from <see cref="TypeDescription"/> if this member is inherited from a base class.
+	/// </summary>
+	public TypeDescription DeclaringType
+	{
+		get => library.GetType( MemberInfo.DeclaringType );
+	}
 
 	/// <summary>
 	/// Unique identifier based on full name
@@ -128,8 +137,9 @@ public class MemberDescription : ISourceLineProvider, IMemberNameProvider, ITitl
 	string ITitleProvider.Value => Title;
 	string ICategoryProvider.Value => Group;
 
-	internal MemberDescription()
+	internal MemberDescription( TypeLibrary tl )
 	{
+		library = tl;
 	}
 
 	protected void Init( MemberInfo x )

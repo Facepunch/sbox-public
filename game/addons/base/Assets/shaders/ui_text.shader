@@ -36,7 +36,7 @@ PS
 	#include "ui/pixel.hlsl"
 	#include "common/classes/Fog.hlsl"
 
-	int TextureIndex < Attribute( "TextureIndex" ); >; 
+	Texture2D g_tTextTexture < Attribute( "Texture" ); SrgbRead( true ); >;
 	int SamplerIndex < Attribute( "SamplerIndex"); >;
 	float g_FogStrength < Attribute( "g_FogStrength" ); >;
 
@@ -93,8 +93,7 @@ PS
 
 		float mipBias = -1.5;
 		SamplerState sampler = Bindless::GetSampler( NonUniformResourceIndex( SamplerIndex ) );
-		Texture2D tex = GetBindlessTexture2D( TextureIndex + 1 );
-		float4 vColor = tex.SampleBias( sampler, vTexCoord, mipBias );
+		float4 vColor = g_tTextTexture.SampleBias( sampler, vTexCoord, mipBias );
 
 		o.vColor = vColor;
 

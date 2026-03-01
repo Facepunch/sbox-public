@@ -148,7 +148,6 @@ public partial class GameObject
 		if ( GameObjectVersion != 0 ) json[JsonKeys.Version] = GameObjectVersion;
 		json[JsonKeys.PrefabInstanceSource] = JsonValue.Create( PrefabInstance.PrefabSource );
 		json[JsonKeys.PrefabInstancePatch] = Json.ToNode( PrefabInstance.Patch );
-		PrefabInstance.ValidatePrefabLookup();
 		json[JsonKeys.PrefabIdToInstanceId] = Json.ToNode( PrefabInstance.PrefabToInstanceLookup );
 
 		return json;
@@ -861,8 +860,8 @@ public partial class GameObject
 				var id = bs.Read<Guid>();
 				return Game.ActiveScene.Directory.FindByGuid( id );
 			case NetworkReferenceType.Prefab:
-				var resourceId = bs.Read<int>();
-				var prefabFile = ResourceLibrary.Get<PrefabFile>( resourceId );
+				var resourceId = bs.Read<ulong>();
+				var prefabFile = Game.Resources.GetByIdLong<PrefabFile>( resourceId );
 				return SceneUtility.GetPrefabScene( prefabFile );
 			default:
 				return default;
@@ -880,7 +879,7 @@ public partial class GameObject
 		if ( go is PrefabScene prefabScene )
 		{
 			bs.Write( (byte)NetworkReferenceType.Prefab );
-			bs.Write( prefabScene.Source.ResourceId );
+			bs.Write( prefabScene.Source.ResourceIdLong );
 			return;
 		}
 

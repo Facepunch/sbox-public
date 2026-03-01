@@ -22,14 +22,14 @@ public static class RealTime
 	static double nowOffset;
 
 	/// <summary>
-	/// The time since game startup, in seconds.
+	/// The time since the game startup, in seconds.
 	/// </summary>
-	public static float Now => (float)DoubleNow;
+	public static float Now => (float)NowDouble;
 
 	/// <summary>
-	/// The time since game startup, in seconds.
+	/// The time since the game startup as a double, in seconds.
 	/// </summary>
-	internal static double DoubleNow => timeMeasure.ElapsedSeconds;
+	public static double NowDouble => timeMeasure.ElapsedSeconds;
 
 	/// <summary>
 	/// The number of a seconds since a set point in time. This value should match between servers and clients. If they have their timezone set correctly.

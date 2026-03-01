@@ -5,7 +5,10 @@ namespace Sandbox;
 
 public sealed partial class CameraComponent : Component, Component.ExecuteInEditor
 {
-	readonly record struct CommandListEntry( int Priority, CommandList List );
+	readonly record struct CommandListEntry( int Priority, CommandList List ) : IComparable<CommandListEntry>
+	{
+		public int CompareTo( CommandListEntry other ) => Priority.CompareTo( other.Priority );
+	}
 	Dictionary<Stage, List<CommandListEntry>> commandlists = new();
 
 	/// <summary>
@@ -71,7 +74,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 		if ( commandlists.TryGetValue( stage, out var list ) )
 		{
-			foreach ( var entry in list.OrderBy( x => x.Priority ) )
+			list.Sort();
+
+			foreach ( var entry in list )
 			{
 				using ( _executeCommandList.Start( entry.List.DebugName ) )
 				{

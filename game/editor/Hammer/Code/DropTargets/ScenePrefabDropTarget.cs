@@ -23,7 +23,7 @@ class PrefabDropTarget : IMapViewDropTarget
 		if ( SceneEditorSession.Active.Scene is PrefabScene prefabScene )
 		{
 			var currentPf = prefabScene.ToPrefabFile();
-			if ( currentPf.ResourceId == pf.ResourceId )
+			if ( currentPf == pf )
 			{
 				Log.Warning( "Cannot place the same prefab in itself." );
 				return;

@@ -158,13 +158,7 @@ public struct BBox : System.IEquatable<BBox>
 	/// <summary>
 	/// Scale this box by this amount and return
 	/// </summary>
-	internal readonly BBox Scale( in Vector3 scale )
-	{
-		return new BBox(
-			mins: System.Numerics.Vector3.FusedMultiplyAdd( -scale, Extents, Center ),
-			maxs: System.Numerics.Vector3.FusedMultiplyAdd( scale, Extents, Center )
-		);
-	}
+	internal readonly BBox Scale( in Vector3 scale ) => new( Mins * scale, Maxs * scale );
 
 	/// <summary>
 	/// Returns a random point within this AABB.

@@ -25,6 +25,7 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		PhysicsWorld.OnIntersectionHit += OnIntersectionHit;
 		PhysicsWorld.OnIntersectionUpdate += OnIntersectionUpdate;
 		PhysicsWorld.OnIntersectionEnd += OnIntersectionEnd;
+		PhysicsWorld.OnBodyOutOfBounds += OnBodyOutOfBounds;
 	}
 
 	public override void Dispose()
@@ -38,6 +39,7 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		PhysicsWorld.OnIntersectionHit -= OnIntersectionHit;
 		PhysicsWorld.OnIntersectionUpdate -= OnIntersectionUpdate;
 		PhysicsWorld.OnIntersectionEnd -= OnIntersectionEnd;
+		PhysicsWorld.OnBodyOutOfBounds -= OnBodyOutOfBounds;
 	}
 
 	void UpdatePhysics()
@@ -76,7 +78,7 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		}
 
 		// The actual physics step
-		Scene.PhysicsWorld.Step( Time.Now, Time.Delta, steps );
+		Scene.PhysicsWorld.Step( Time.NowDouble, Time.Delta, steps );
 
 		//
 		// Update the positions of the rigidbodies based on the new physics positions
@@ -96,7 +98,7 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		IScenePhysicsEvents.Post( x => x.PostPhysicsStep() );
 	}
 
-	internal void OnIntersectionStart( PhysicsIntersection o )
+	void OnIntersectionStart( PhysicsIntersection o )
 	{
 		if ( CollisionEvents is null ) return;
 
@@ -107,7 +109,7 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		}
 	}
 
-	internal void OnIntersectionHit( PhysicsIntersection o )
+	void OnIntersectionHit( PhysicsIntersection o )
 	{
 		if ( CollisionEvents is null ) return;
 
@@ -118,7 +120,7 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		}
 	}
 
-	internal void OnIntersectionUpdate( PhysicsIntersection o )
+	void OnIntersectionUpdate( PhysicsIntersection o )
 	{
 		if ( CollisionEvents is null ) return;
 
@@ -129,7 +131,7 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		}
 	}
 
-	internal void OnIntersectionEnd( PhysicsIntersectionEnd o )
+	void OnIntersectionEnd( PhysicsIntersectionEnd o )
 	{
 		if ( CollisionEvents is null ) return;
 
@@ -138,6 +140,13 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		{
 			e.OnCollisionStop( c );
 		}
+	}
+
+	void OnBodyOutOfBounds( PhysicsBody body )
+	{
+		var rb = body.Component as Rigidbody;
+		if ( rb.IsValid() == false ) return;
+		IScenePhysicsEvents.Post( x => x.OnOutOfBounds( rb ) );
 	}
 
 	void DebugDrawPhysics()

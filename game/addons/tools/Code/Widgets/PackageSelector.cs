@@ -170,7 +170,7 @@ public class PackageSelector : Dialog
 
 		var iconRect = rect.Shrink( 4, 4 );
 		iconRect.Width = iconRect.Height;
-		Paint.Draw( iconRect, package.Thumb );
+		Paint.Draw( iconRect, package.Thumb, borderRadius: 2 );
 	}
 
 	private void PaintAddonItem( VirtualWidget v )
@@ -189,7 +189,7 @@ public class PackageSelector : Dialog
 			fg = Color.White;
 			Paint.ClearPen();
 			Paint.SetBrush( Theme.Primary.WithAlpha( 0.9f ) );
-			Paint.DrawRect( rect, 2 );
+			Paint.DrawRect( rect, 4 );
 
 			Paint.SetPen( Theme.Text );
 		}
@@ -203,12 +203,12 @@ public class PackageSelector : Dialog
 		{
 			Paint.ClearPen();
 			Paint.SetBrush( Color.White.WithAlpha( 0.1f ) );
-			Paint.DrawRect( rect, 2 );
+			Paint.DrawRect( rect, 4 );
 		}
 
 		var iconRect = rect.Shrink( 8, 4 );
 		iconRect.Width = iconRect.Height;
-		Paint.Draw( iconRect, package.Thumb );
+		Paint.Draw( iconRect, package.Thumb, borderRadius: 2 );
 
 		var textRect = rect.Shrink( 4 );
 		textRect.Left = iconRect.Right + 8;

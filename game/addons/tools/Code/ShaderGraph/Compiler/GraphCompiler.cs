@@ -191,7 +191,7 @@ public sealed partial class GraphCompiler
 
 		result.TextureInputs.Add( id, input );
 
-		if ( CurrentResultInput == "Albedo" )
+		if ( CurrentResultInput == "Albedo" && !input.IsAttribute )
 		{
 			result.RepresentativeTexture = $"g_t{id}";
 		}

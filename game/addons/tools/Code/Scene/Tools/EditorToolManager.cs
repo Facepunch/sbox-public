@@ -78,6 +78,8 @@ public class EditorToolManager
 		// So that we update the sub tool immediately after updating the parent tool
 		currentSubMode = null;
 
+		var pendingSubTool = CurrentSubModeName;
+
 		CurrentTool?.Dispose();
 		CurrentTool = null;
 
@@ -92,6 +94,9 @@ public class EditorToolManager
 
 		CurrentTool = bestType.Type.Create<EditorTool>();
 		CurrentTool.InitializeInternal( this );
+
+		if ( pendingSubTool is not null )
+			CurrentSubModeName = pendingSubTool;
 	}
 
 	private void UpdateSubTool( string editMode )

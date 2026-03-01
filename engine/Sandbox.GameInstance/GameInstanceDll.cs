@@ -380,6 +380,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		Sound.StopAll( 0.2f );
 
 		ResetEnvironment();
+
+		IMenuDll.Current?.OnGameExited();
+
 		Mounting.MountUtility.TickPreviewRenders();
 	}
 
@@ -676,6 +679,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			if ( !Application.IsEditor )
 			{
 				Game.IsPlaying = true;
+
+				IMenuDll.Current?.OnGameEntered();
 			}
 		}
 		finally

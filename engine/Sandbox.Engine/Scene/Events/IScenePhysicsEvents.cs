@@ -15,4 +15,9 @@ public interface IScenePhysicsEvents : ISceneEvent<IScenePhysicsEvents>
 	/// Called after the physics step is run
 	/// </summary>
 	void PostPhysicsStep() { }
+
+	/// <summary>
+	/// Called when a rigidbody goes out of bounds.
+	/// </summary>
+	void OnOutOfBounds( Rigidbody body ) { }
 }

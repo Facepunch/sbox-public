@@ -93,7 +93,7 @@ internal static partial class PackageManager
 
 			ActivePackages.Add( o );
 
-			o.Mount();
+			o.Mount( options.ReloadResources );
 
 			return o;
 		}
@@ -165,13 +165,16 @@ internal static partial class PackageManager
 			}
 		}
 
-		private void Mount()
+		private void Mount( bool reloadResources = true )
 		{
 			MountedFileSystem.Mount( FileSystem );
 			MountedFileSystem.Mount( AssemblyFileSystem );
 
-			// Reload any already resident resources with the ones we've just mounted
-			NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
+			if ( reloadResources )
+			{
+				// Reload any already resident resources with the ones we've just mounted
+				NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
+			}
 
 			// Sandbox.FileSystem.Mounted.Mount( FileSystem );
 

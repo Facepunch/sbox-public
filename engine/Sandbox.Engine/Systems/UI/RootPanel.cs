@@ -213,6 +213,16 @@ public partial class RootPanel : Panel
 	}
 
 	/// <summary>
+	/// Build command lists for this panel and all children.
+	/// Called during the tick phase, before rendering.
+	/// </summary>
+	internal void BuildCommandLists( float opacity = 1.0f )
+	{
+		ThreadSafe.AssertIsMainThread();
+		GlobalContext.Current.UISystem.Renderer.BuildCommandLists( this, opacity );
+	}
+
+	/// <summary>
 	/// Render this panel manually. This gives more flexibility to where UI is rendered, to texture for example.
 	/// <see cref="RenderedManually"/> must be set to true.
 	/// </summary>

@@ -90,10 +90,10 @@ public static partial class Gizmo
 				Sandbox.Gizmo.Draw.LineSphere( sphere );
 			}
 
-			var transformedSphere = sphere;
-			transformedSphere.Center = Transform.PointToWorld( transformedSphere.Center );
+			// convert ray to local to the sphere
+			var ray = CurrentRay.ToLocal( Transform );
 
-			if ( !transformedSphere.Trace( CurrentRay, float.MaxValue, out float hitDistance ) )
+			if ( !sphere.Trace( ray, float.MaxValue, out float hitDistance ) )
 				return;
 
 			// too close

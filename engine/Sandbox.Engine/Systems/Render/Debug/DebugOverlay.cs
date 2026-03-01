@@ -41,10 +41,19 @@ internal static partial class DebugOverlay
 	[ConVar( "overlay_gpu", Help = "Draws an overlay showing GPU timing for render passes" )]
 	internal static int overlay_gpu { get; set; } = 0;
 
+	[ConVar( "overlay_resources", Help = "Draws an overlay showing registered resources and native cache" )]
+	internal static int overlay_resources { get; set; } = 0;
+
 	public static void Draw()
 	{
 		Vector2 pos = new Vector2( 100, 130 );
 		var activeScene = Application.GetActiveScene();
+
+		// Show current render debug mode on screen when not default
+		if ( ToolsVisualization.mat_toolsvis != SceneCameraDebugMode.Normal )
+		{
+			DebugOverlay.ToolsVisualization.Draw( ref pos );
+		}
 
 		if ( overlay_network_calls == 1 )
 		{
@@ -93,6 +102,12 @@ internal static partial class DebugOverlay
 		if ( overlay_gpu == 1 )
 		{
 			DebugOverlay.GpuProfiler.Draw( ref pos );
+			pos.y += 20;
+		}
+
+		if ( overlay_resources == 1 )
+		{
+			DebugOverlay.Resources.Draw( ref pos );
 			pos.y += 20;
 		}
 	}

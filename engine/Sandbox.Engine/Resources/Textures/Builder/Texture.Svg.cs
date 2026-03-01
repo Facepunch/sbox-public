@@ -13,8 +13,8 @@ public partial class Texture
 		var hash = HashCode.Combine( svgContents, width, height, color );
 		var cacheName = $"svg.{hash}";
 
-		if ( Loaded.TryGetValue( cacheName, out var texture ) && texture.TryGetTarget( out var tx ) )
-			return tx;
+		if ( Game.Resources.Get<Texture>( cacheName ) is Texture existing )
+			return existing;
 
 		try
 		{
@@ -62,7 +62,7 @@ public partial class Texture
 				canvas.Translate( -midX, -midY );
 				canvas.DrawPicture( svg.Picture, paint );
 
-				tx = Texture.Create( resolvedWidth, resolvedHeight, ImageFormat.BGRA8888 )
+				var tx = Texture.Create( resolvedWidth, resolvedHeight, ImageFormat.BGRA8888 )
 							.WithName( $"skiasvg" )
 							.WithData( bitmap.GetPixels(), resolvedWidth * resolvedHeight * bitmap.BytesPerPixel )
 							.WithMips()
@@ -71,7 +71,7 @@ public partial class Texture
 
 				if ( tx.IsValid() )
 				{
-					Loaded[cacheName] = new WeakReference<Texture>( tx );
+					tx.RegisterWeakResourceId( cacheName );
 				}
 
 				return tx;

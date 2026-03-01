@@ -38,7 +38,7 @@ public class Prefabs
 	{
 		// get prefab
 		var pfile = new PrefabFile();
-		pfile.SetIdFromResourcePath( resourceName );
+		pfile.RegisterWeakResourceId( resourceName );
 		pfile.LoadFromJson( json );
 
 		return SceneUtility.GetPrefabScene( pfile );
@@ -168,7 +168,7 @@ public class Prefabs
 
 		// Pretend we have source
 		scene.Source = new PrefabFile();
-		scene.Source.SetIdFromResourcePath( "test.prefab" );
+		scene.Source.RegisterWeakResourceId( "test.prefab" );
 
 		T comp;
 

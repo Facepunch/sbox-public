@@ -149,8 +149,6 @@ partial class Compiler
 		var conf = archive.Configuration;
 
 		var options = incrementalState.Compilation?.Options;
-
-
 		options ??= new CSharpCompilationOptions( OutputKind.DynamicallyLinkedLibrary )
 							.WithConcurrentBuild( true )
 							.WithGeneralDiagnosticOption( ReportDiagnostic.Info )
@@ -166,7 +164,13 @@ partial class Compiler
 
 		CSharpCompilation compiler;
 
+		List<SyntaxTree> inputSyntaxTrees =
+		[
+			.. archive.SyntaxTrees, // from source files
+			.. ProcessRazorFiles(archive, output) // processed razor files
+		];
 
+		List<SyntaxTree> modifiedSyntaxTrees;
 		if ( incrementalState.HasState )
 		{
 			compiler = incrementalState.Compilation
@@ -180,27 +184,19 @@ partial class Compiler
 				compiler = compiler.WithReferences( refs );
 			}
 
-			compiler = ReplaceSyntaxTrees( compiler, archive.SyntaxTrees );
+			compiler = ReplaceSyntaxTrees( compiler, inputSyntaxTrees, out modifiedSyntaxTrees );
 		}
 		else
 		{
-			compiler = CSharpCompilation.Create( AssemblyName, archive.SyntaxTrees, refs, options );
-		}
-
-		//
-		// Process Razor files and add the generated syntax trees to the compilation
-		//
-		var razorTrees = ProcessRazorFiles( archive, output );
-		if ( razorTrees.Count > 0 )
-		{
-			compiler = compiler.AddSyntaxTrees( razorTrees );
+			compiler = CSharpCompilation.Create( AssemblyName, inputSyntaxTrees, refs, options );
+			modifiedSyntaxTrees = compiler.SyntaxTrees.ToList();
 		}
 
 		bool ilHotloadSupported;
 		ImmutableArray<SyntaxTree> beforeIlHotloadProcessingTrees;
 
 		{
-			var processor = RunGenerators( compiler, output );
+			var processor = RunGenerators( compiler, modifiedSyntaxTrees, output );
 
 			compiler = processor.Compilation;
 
@@ -219,7 +215,7 @@ partial class Compiler
 		// run this after generators because they can contain user inputs too
 		if ( _config.Whitelist )
 		{
-			RunBlacklistWalker( compiler, output );
+			RunBlacklistWalker( compiler, modifiedSyntaxTrees, output );
 
 			// Errors, fail
 			if ( output.Diagnostics.Any( x => x.Severity == DiagnosticSeverity.Error ) )
@@ -274,7 +270,7 @@ partial class Compiler
 			return;
 		}
 
-		incrementalState.Update( archive.SyntaxTrees.ToImmutableArray(), beforeIlHotloadProcessingTrees, compiler );
+		incrementalState.Update( archive, inputSyntaxTrees, beforeIlHotloadProcessingTrees, compiler );
 
 		using ( var a_stream = new System.IO.MemoryStream( output.AssemblyData ) )
 		{

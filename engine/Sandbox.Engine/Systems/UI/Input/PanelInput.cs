@@ -16,6 +16,10 @@ internal class PanelInput
 	/// </summary>
 	public Panel Active { get; private set; }
 
+	/// <summary>
+	/// During a drag, the panel currently under the cursor (potential drop target)
+	/// </summary>
+	internal Panel DropTarget { get; private set; }
 
 	//public string LastCursor;
 
@@ -66,6 +70,7 @@ internal class PanelInput
 		if ( !hoveredAny )
 		{
 			SetHovered( null );
+			ClearDropTarget();
 		}
 	}
 
@@ -180,7 +185,10 @@ internal class PanelInput
 		}
 
 		if ( MouseStates[0].Dragged )
+		{
+			UpdateDropTarget( current );
 			return true;
+		}
 
 		SetHovered( current );
 
@@ -213,6 +221,27 @@ internal class PanelInput
 			var cursor = Hovered.ComputedStyle?.Cursor;
 			SetCursor( cursor );
 		}
+	}
+
+	void UpdateDropTarget( Panel current )
+	{
+		if ( current == DropTarget )
+			return;
+
+		var dragSource = MouseStates[0].DragTarget;
+
+		DropTarget?.CreateEvent( new PanelEvent( "ondragleave", dragSource ) );
+		DropTarget = current;
+		DropTarget?.CreateEvent( new PanelEvent( "ondragenter", dragSource ) );
+	}
+
+	void ClearDropTarget()
+	{
+		if ( DropTarget is null )
+			return;
+
+		DropTarget.CreateEvent( new PanelEvent( "ondragleave", MouseStates[0].DragTarget ) );
+		DropTarget = null;
 	}
 
 	bool CheckHover( Panel panel, Vector2 pos, ref Panel current )
@@ -408,6 +437,13 @@ internal class PanelInput
 			if ( Dragged && DragTarget != null )
 			{
 				DragTarget.CreateEvent( new DragEvent( "ondragend", DragTarget, StartHoldOffsetLocal, StartHoldOffsetScreen ) );
+
+				if ( Input.DropTarget != null )
+				{
+					Input.DropTarget.CreateEvent( new PanelEvent( "ondrop", DragTarget ) );
+				}
+
+				Input.ClearDropTarget();
 
 				Dragged = default;
 				DragTarget = default;

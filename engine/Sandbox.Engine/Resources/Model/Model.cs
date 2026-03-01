@@ -25,7 +25,7 @@ public sealed partial class Model : Resource
 		this.Name = name;
 		this.procedural = procedural;
 
-		SetIdFromResourcePath( Name );
+		RegisterWeakResourceId( Name );
 	}
 
 	internal void Dispose()

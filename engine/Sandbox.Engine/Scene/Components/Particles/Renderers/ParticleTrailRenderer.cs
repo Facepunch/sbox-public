@@ -146,6 +146,7 @@ class ParticleTrail : Particle.BaseListener
 	public override void OnEnabled( Particle p )
 	{
 		so = new SceneTrailObject( Renderer.Scene.SceneWorld );
+		so.Tags.SetFrom( Renderer.GameObject.Tags );
 		so.MaxPoints = Renderer.MaxPoints;
 		so.PointDistance = Renderer.PointDistance;
 		so.LifeTime = Renderer.LifeTime;

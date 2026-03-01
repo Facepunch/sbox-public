@@ -573,7 +573,25 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			}
 
 			var fileInfo = new FileInfo( absolutePath );
-			var sha256 = Utility.CalculateSha256( absolutePath );
+			var resolvedPath = absolutePath;
+
+			// Resolve symlinks, they'll get the same SHA256 hash anyway
+			if ( fileInfo.LinkTarget is not null )
+			{
+				var resolved = fileInfo.ResolveLinkTarget( returnFinalTarget: true );
+				if ( resolved?.Exists == true )
+				{
+					resolvedPath = resolved.FullName;
+					fileInfo = new FileInfo( resolvedPath );
+				}
+				else
+				{
+					Log.Warning( $"Failed to resolve symlink target for {repoPathNormalized}, skipping artifact" );
+					continue;
+				}
+			}
+
+			var sha256 = Utility.CalculateSha256( resolvedPath );
 			var artifact = new ArtifactFileInfo
 			{
 				Path = repoPathNormalized,

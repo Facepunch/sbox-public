@@ -453,7 +453,7 @@ public struct Vector4 : System.IEquatable<Vector4>, IParsable<Vector4>
 	/// </summary>
 	public static Vector4 Parse( string str )
 	{
-		if ( TryParse( str, null, out var res ) )
+		if ( TryParse( str, CultureInfo.InvariantCulture, out var res ) )
 			return res;
 
 		return default;

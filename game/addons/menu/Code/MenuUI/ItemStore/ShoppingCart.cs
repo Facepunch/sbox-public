@@ -68,7 +68,7 @@ public class ShoppingCart
 					? $"You purchased {itemNames.First()}!"
 					: $"You purchased {itemCount} items!";
 
-				MenuOverlay.Message( message, "check_circle" );
+				MenuOverlay.Show( message, "check_circle" );
 			}
 		}
 		finally

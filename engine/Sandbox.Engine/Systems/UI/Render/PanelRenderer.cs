@@ -1,4 +1,6 @@
-﻿namespace Sandbox.UI;
+﻿using Sandbox.Rendering;
+
+namespace Sandbox.UI;
 
 internal unsafe sealed partial class PanelRenderer
 {
@@ -23,14 +25,92 @@ internal unsafe sealed partial class PanelRenderer
 		SetRenderMode( "normal" );
 
 		LayerStack?.Clear();
-		Graphics.Attributes.Set( "LayerMat", Matrix.Identity );
-		DirtyFramebufferRegion.Clear();
-		InitScissor( Screen );
+
+		DefaultRenderTarget = Graphics.RenderTarget;
+
+		InitScissor( Screen, panel.CommandList );
+
 		Render( panel, new RenderState { X = Screen.Left, Y = Screen.Top, Width = Screen.Width, Height = Screen.Height, RenderOpacity = opacity } );
 	}
 
 	/// <summary>
-	/// Render a panel
+	/// Build command lists for a root panel and all its children.
+	/// Called during the tick phase, before rendering.
+	/// </summary>
+	public void BuildCommandLists( RootPanel panel, float opacity = 1.0f )
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		Screen = panel.PanelBounds;
+
+		// Initialize matrix state for build phase
+		MatrixStack.Clear();
+		MatrixStack.Push( Matrix.Identity );
+		Matrix = Matrix.Identity;
+
+		// Save off the default render target for layer restoration during build
+		DefaultRenderTarget = Graphics.RenderTarget;
+
+		LayerStack?.Clear();
+
+		InitScissor( Screen, panel.CommandList );
+
+		BuildCommandLists( (Panel)panel, new RenderState { X = Screen.Left, Y = Screen.Top, Width = Screen.Width, Height = Screen.Height, RenderOpacity = opacity } );
+	}
+
+	/// <summary>
+	/// Build command lists for a panel and its children.
+	/// </summary>
+	public void BuildCommandLists( Panel panel, RenderState state )
+	{
+		if ( panel?.ComputedStyle == null )
+			return;
+
+		if ( !panel.IsVisible )
+			return;
+
+		// Build transform command list (sets GlobalMatrix and TransformMat attribute)
+		BuildTransformCommandList( panel );
+
+		// Update layer (creates render target if needed for filters/masks)
+		panel.UpdateLayer( panel.ComputedStyle );
+
+		//
+		// Rebuild the command list if dirty
+		//
+		if ( panel.IsRenderDirty )
+		{
+			BuildCommandList( panel, ref state );
+
+			//
+			// Add Content = Text, Image (not children)
+			//
+			if ( panel.HasContent )
+			{
+				try
+				{
+					panel.DrawContent( panel.CommandList, this, ref state );
+				}
+				catch ( Exception e )
+				{
+					Log.Error( e );
+				}
+			}
+
+			// Build post-children layer commands (for filters/masks)
+			panel.BuildLayerPopCommands( this, DefaultRenderTarget );
+		}
+
+		// Build command lists for children
+		if ( panel.HasChildren )
+		{
+			panel.BuildCommandListsForChildren( this, ref state );
+		}
+	}
+
+	/// <summary>
+	/// Render a panel - executes pre-built command lists.
+	/// Command lists should be built during tick phase via BuildCommandLists.
 	/// </summary>
 	public void Render( Panel panel, RenderState state )
 	{
@@ -39,12 +119,6 @@ internal unsafe sealed partial class PanelRenderer
 
 		if ( !panel.IsVisible )
 			return;
-
-		//
-		// Save off render target - mainly for VR, if we're using a VROverlayPanel
-		// we want to default to using the render texture for that
-		//
-		var defaultRenderTarget = Graphics.RenderTarget;
 
 		//
 		// Push matrix before culling so Panel.GlobalMatrix is set
@@ -62,48 +136,36 @@ internal unsafe sealed partial class PanelRenderer
 
 		var renderMode = PushRenderMode( panel );
 
-		{
-			DrawBoxShadows( panel, ref state, false );
+		//
+		// Execute the pre-built command list
+		//
+		panel.CommandList.ExecuteOnRenderThread();
 
-			panel.PushLayer( this );
-			panel.DrawBackground( this, ref state );
-
-			DrawBoxShadows( panel, ref state, true );
-
-			//
-			// Content = Text, Image (not children)
-			//
-			if ( panel.HasContent )
-			{
-				try
-				{
-					panel.DrawContent( this, ref state );
-				}
-				catch ( System.Exception e )
-				{
-					Log.Error( e );
-				}
-			}
-		}
-
+		// Draw children
 		if ( panel.HasChildren )
 		{
 			panel.RenderChildren( this, ref state );
 		}
 
-		panel.PopLayer( this, defaultRenderTarget );
+		// Execute post-children layer commands (draws filtered result)
+		if ( panel.HasPanelLayer )
+		{
+			// Restore the default render target before executing layer commands.
+			Graphics.RenderTarget = DefaultRenderTarget;
+			panel.LayerCommandList.ExecuteOnRenderThread();
+		}
 
 		if ( pushed ) PopMatrix();
 		if ( renderMode ) PopRenderMode();
 	}
 
-	struct LayerEntry
+	internal struct LayerEntry
 	{
 		public Texture Texture;
 		public Matrix Matrix;
 	}
 
-	Stack<LayerEntry> LayerStack;
+	internal Stack<LayerEntry> LayerStack;
 
 	internal bool IsWorldPanel( Panel panel )
 	{
@@ -120,38 +182,38 @@ internal unsafe sealed partial class PanelRenderer
 	{
 		LayerStack ??= new Stack<LayerEntry>();
 
-		bool isWorldPanel = (panel is RootPanel { IsWorldPanel: true });
-
-		Graphics.RenderTarget = RenderTarget.From( texture );
-		Graphics.Attributes.Set( "LayerMat", mat );
-		Graphics.Attributes.SetCombo( "D_WORLDPANEL", 0 );
-
-		Graphics.Clear();
+		panel.CommandList.SetRenderTarget( RenderTarget.From( texture ) );
+		panel.CommandList.Attributes.Set( "LayerMat", mat );
+		panel.CommandList.Attributes.SetCombo( "D_WORLDPANEL", 0 );
+		panel.CommandList.Clear( Color.Transparent );
 
 		LayerStack.Push( new LayerEntry { Texture = texture, Matrix = mat } );
 	}
 
-	/// <returns>Will return <c>false</c> if we're at the top of the layer stack.</returns>
-	internal void PopLayer( Panel panel, RenderTarget defaultRenderTarget )
+	/// <summary>
+	/// Pop a layer and restore the previous render target.
+	/// Commands are written to the specified command list.
+	/// </summary>
+	internal void PopLayer( Panel panel, CommandList commandList, RenderTarget defaultRenderTarget )
 	{
-		DirtyFramebufferRegion.Clear();
 		LayerStack.Pop();
-
-		bool isWorldPanel = (panel is RootPanel { IsWorldPanel: true });
 
 		if ( LayerStack.TryPeek( out var top ) )
 		{
-			Graphics.RenderTarget = RenderTarget.From( top.Texture );
-			Graphics.Attributes.Set( "LayerMat", top.Matrix );
-
-			Graphics.Attributes.SetCombo( "D_WORLDPANEL", 0 );
+			commandList.SetRenderTarget( RenderTarget.From( top.Texture ) );
+			commandList.Attributes.Set( "LayerMat", top.Matrix );
+			commandList.Attributes.SetCombo( "D_WORLDPANEL", 0 );
 		}
 		else
 		{
-			Graphics.RenderTarget = defaultRenderTarget;
-			Graphics.Attributes.Set( "LayerMat", Matrix.Identity );
-
-			Graphics.Attributes.SetCombo( "D_WORLDPANEL", IsWorldPanel( panel ) );
+			commandList.Attributes.Set( "LayerMat", Matrix.Identity );
+			commandList.Attributes.SetCombo( "D_WORLDPANEL", IsWorldPanel( panel ) );
 		}
 	}
+
+	/// <summary>
+	/// The default render target for the current root panel render.
+	/// Set during Render() and used by layers to restore after popping.
+	/// </summary>
+	internal RenderTarget DefaultRenderTarget;
 }

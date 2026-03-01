@@ -121,5 +121,5 @@ native class IPhysicsJoint as NativeEngine.IPhysicsJoint
 managed static class Sandbox.Physics.PhysicsEngine
 {
 	static void OnPhysicsJointBreak( IPhysicsJoint joint );
-	static void OnActive( IPhysicsBody body, Transform transform, Vector3 velocity, Vector3 linearVelocity );
+	static void OnActive( IPhysicsBody body, Transform transform, Vector3 velocity, Vector3 linearVelocity, bool fellAsleep, bool wentOutOfBounds );
 }
