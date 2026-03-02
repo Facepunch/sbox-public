@@ -287,7 +287,7 @@ public sealed class Texture2DSubgraphInputParameter : BlackboardSubgraphInputPar
 /// <summary>
 /// TextureCube subgraph input parameter
 /// </summary>
-[Title( "TextureCube" ), Icon( "image" ), Order( 7 )]
+[Title( "TextureCube" ), Icon( "image" ), Order( 8 )]
 public sealed class TextureCubeSubgraphInputParameter : BlackboardSubgraphInputParameter<TextureInput>
 {
 	[Hide, JsonIgnore]
