@@ -8,23 +8,6 @@ namespace Editor.ShaderGraph;
 partial class ShaderGraph
 {
 	/// <summary>
-	/// Gets the version of the provided JsonElement. Returns 0 on failure.
-	/// </summary>
-	private static int GetVersion( JsonElement element )
-	{
-		if ( element.TryGetProperty( "__version", out var versionElement ) )
-		{
-			return versionElement.GetInt32();
-		}
-		else if ( element.TryGetProperty( nameof( Version ), out var oldVersionElement ) )
-		{
-			return oldVersionElement.GetInt32();
-		}
-
-		return 0;
-	}
-
-	/// <summary>
 	/// Handles node upgrades for the given <paramref name="fileVersion"/>. 
 	/// Returns true on a successful upgrade and false when no upgrade has been performed.
 	/// </summary>
