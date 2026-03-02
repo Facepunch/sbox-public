@@ -43,7 +43,7 @@ partial class ShaderGraph
 		using var doc = JsonDocument.Parse( json );
 		var root = doc.RootElement;
 		var options = SerializerOptions();
-		var fileVersion = GetVersion( root );
+		var fileVersion = GetGraphVersion( root );
 
 		DeserializeObject( this, root, options );
 		DeserializeParameters( root, options );
@@ -54,12 +54,7 @@ partial class ShaderGraph
 	{
 		using var doc = JsonDocument.Parse( json, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip } );
 		var root = doc.RootElement;
-		var fileVersion = GetVersion( root );
-
-		if ( useCurrentVersion )
-		{
-			fileVersion = Version;
-		}
+		var fileVersion = GetGraphVersion( root, useCurrentVersion );
 
 		return DeserializeNodes( root, SerializerOptions(), null, fileVersion );
 	}

@@ -4,6 +4,11 @@ namespace Editor.ShaderGraph;
 
 partial class ShaderGraph
 {
+	private int GetGraphVersion( JsonElement element, bool useCurrentVersion = false )
+	{
+		return useCurrentVersion ? Version : GetVersion( element );
+	}
+
 	/// <summary>
 	/// Gets the version of the provided JsonElement. Returns 0 on failure.
 	/// </summary>
