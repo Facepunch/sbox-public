@@ -1286,10 +1286,16 @@ public class MainWindow : DockWindow
 		_output = new Output( this );
 		_output.OnNodeSelected += ( node ) =>
 		{
-			var nodeUI = _graphView.SelectNode( node );
+			if ( node != null )
+			{
+				var nodeUI = _graphView.SelectNode( node );
 
-			_graphView.Scale = 1;
-			_graphView.CenterOn( nodeUI.Center );
+				if ( nodeUI != null )
+				{
+					_graphView.Scale = 1;
+					_graphView.CenterOn( nodeUI.Center );
+				}
+			}
 		};
 
 		_preview = new PreviewPanel( this, _graph.Model )
