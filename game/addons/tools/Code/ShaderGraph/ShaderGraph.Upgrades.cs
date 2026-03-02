@@ -8,6 +8,23 @@ namespace Editor.ShaderGraph;
 partial class ShaderGraph
 {
 	/// <summary>
+	/// Gets the version of the provided JsonElement. Returns 0 on failure.
+	/// </summary>
+	private static int GetVersion( JsonElement element )
+	{
+		if ( element.TryGetProperty( "__version", out var versionElement ) )
+		{
+			return versionElement.GetInt32();
+		}
+		else if ( element.TryGetProperty( nameof( Version ), out var oldVersionElement ) )
+		{
+			return oldVersionElement.GetInt32();
+		}
+
+		return 0;
+	}
+
+	/// <summary>
 	/// Check if a legacy parameter node should be upgraded to SubgraphInput.
 	/// </summary>
 	private static bool ShouldUpgradeToSubgraphInput( string typeName, JsonElement element )
