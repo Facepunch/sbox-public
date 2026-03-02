@@ -289,7 +289,7 @@ public abstract class BlackboardSubgraphInputParameter<T> : BlackboardParameter,
 	/// <summary>
 	/// Whether this input is required (must have a connection in order to compile)
 	/// </summary>
-	public bool IsRequired { get; set; } = false;
+	public virtual bool IsRequired { get; set; } = false;
 
 	/// <summary>
 	/// The order of this input port.

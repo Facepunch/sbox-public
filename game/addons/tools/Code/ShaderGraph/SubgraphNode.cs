@@ -354,6 +354,7 @@ internal class SubgraphNodeControlWidget : ControlWidget
 					}, x => SetDefaultValue( name, x )
 				) );
 			}
+			/*
 			else if ( !Node.IsSubgraph && type == typeof( Texture ) )
 			{
 				properties.Add( EditorTypeLibrary.CreateProperty<TextureInput>(
@@ -378,6 +379,7 @@ internal class SubgraphNodeControlWidget : ControlWidget
 
 				Sheet.AddGroup( displayName, properties.ToArray() );
 			}
+			*/
 		}
 
 		/*

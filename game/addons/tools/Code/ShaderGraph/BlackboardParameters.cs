@@ -268,6 +268,9 @@ public sealed class Texture2DSubgraphInputParameter : BlackboardSubgraphInputPar
 	[Hide, JsonIgnore]
 	public override InputType InputType => InputType.Texture2D;
 
+	[Hide, JsonIgnore]
+	public override bool IsRequired { get; set; } = true;
+
 	public Texture2DSubgraphInputParameter() : base()
 	{
 		Value = new TextureInput()
@@ -288,6 +291,9 @@ public sealed class TextureCubeSubgraphInputParameter : BlackboardSubgraphInputP
 {
 	[Hide, JsonIgnore]
 	public override InputType InputType => InputType.TextureCube;
+
+	[Hide, JsonIgnore]
+	public override bool IsRequired { get; set; } = true;
 
 	public TextureCubeSubgraphInputParameter() : base()
 	{
