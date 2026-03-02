@@ -99,7 +99,14 @@ class TypeSerializedProperty : SerializedProperty
 		if ( targetType is null )
 			return false;
 
-		if ( prop.GetValue( typeSerializedObject.GetTargetObject() ) is null )
+		var targetValue = prop.GetValue( typeSerializedObject.GetTargetObject() );
+
+		if ( targetValue is null )
+			return false;
+
+		targetType = szObj.TypeDescription.library.GetType( targetValue.GetType() );
+
+		if ( targetType is null )
 			return false;
 
 		obj = new TypeSerializedObject( () => prop.GetValue( typeSerializedObject.GetTargetObject() ), targetType, this );

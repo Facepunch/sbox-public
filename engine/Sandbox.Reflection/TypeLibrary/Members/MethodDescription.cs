@@ -1,4 +1,6 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Internal;
+
+namespace Sandbox;
 
 /// <summary>
 /// Describes a method. We use this class to wrap and return <see cref="MethodInfo">MethodInfo</see>'s that are safe to interact with.
@@ -36,14 +38,14 @@ public sealed class MethodDescription : MemberDescription
 	{
 		MethodDescription o = previous as MethodDescription;
 
-		o ??= new MethodDescription( td );
+		o ??= new MethodDescription( td.library );
 		o.TypeDescription = td;
 		o.InitMethod( i );
 
 		return o;
 	}
 
-	internal MethodDescription( TypeDescription td )
+	internal MethodDescription( TypeLibrary tl ) : base( tl )
 	{
 	}
 

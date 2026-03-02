@@ -148,7 +148,6 @@ public partial class GameObject
 		if ( GameObjectVersion != 0 ) json[JsonKeys.Version] = GameObjectVersion;
 		json[JsonKeys.PrefabInstanceSource] = JsonValue.Create( PrefabInstance.PrefabSource );
 		json[JsonKeys.PrefabInstancePatch] = Json.ToNode( PrefabInstance.Patch );
-		PrefabInstance.ValidatePrefabLookup();
 		json[JsonKeys.PrefabIdToInstanceId] = Json.ToNode( PrefabInstance.PrefabToInstanceLookup );
 
 		return json;
