@@ -8,29 +8,6 @@ namespace Editor.ShaderGraph;
 partial class ShaderGraph
 {
 	/// <summary>
-	/// Handles node upgrades for the given <paramref name="fileVersion"/>. 
-	/// Returns true on a successful upgrade and false when no upgrade has been performed.
-	/// </summary>
-	/// <param name="fileVersion">Current file version of the graph we are deserializing.</param>
-	/// <param name="typeName">Type name of the node we are attempting to upgrade.</param>
-	/// <param name="element">JsonElement of the node we are attempting to upgrade.</param>
-	/// <param name="options"></param>
-	/// <param name="node">Resulting upgraded node.</param>
-	private bool HandleNodeUpgrades( int fileVersion, string typeName, JsonElement element, JsonSerializerOptions options, ref BaseNode node )
-	{
-		// Check if this is a legacy parameter node that should be upgraded to SubgraphInput
-		// Only upgrade for old subgraph files (files without Version property aka. 0 -> 1)
-		if ( IsSubgraph && fileVersion < 1 && ShouldUpgradeToSubgraphInput( typeName, element ) )
-		{
-			node = CreateUpgradedSubgraphInput( typeName, element, options );
-
-			return true;
-		}
-
-		return false;
-	}
-
-	/// <summary>
 	/// Check if a legacy parameter node should be upgraded to SubgraphInput.
 	/// </summary>
 	private static bool ShouldUpgradeToSubgraphInput( string typeName, JsonElement element )
@@ -68,7 +45,7 @@ partial class ShaderGraph
 	/// <summary>
 	/// Create a new SubgraphInput node from a legacy parameter node
 	/// </summary>
-	private SubgraphInput CreateUpgradedSubgraphInput( string typeName, JsonElement element, JsonSerializerOptions options )
+	private static SubgraphInput CreateUpgradedSubgraphInput( string typeName, JsonElement element, JsonSerializerOptions options )
 	{
 		var subgraphInput = new SubgraphInput();
 
@@ -121,5 +98,106 @@ partial class ShaderGraph
 		}
 
 		return subgraphInput;
+	}
+
+	[JsonUpgrader( typeof( ShaderGraph ), 1 )]
+	internal static void Upgrader_v1( JsonObject obj, JsonSerializerOptions options )
+	{
+		if ( obj[JsonKeys.NodeArray] is not JsonArray oldNodeArray )
+			return;
+
+		if ( CheckIfSubgraph( obj ) )
+		{
+			var identifiers = new Dictionary<string, string>();
+			foreach ( var node in oldNodeArray )
+			{
+				if ( node[nameof( BaseNode.Identifier )] is not JsonValue identifierValue )
+					continue;
+
+				identifiers.Add( identifierValue.GetValue<string>(), $"{identifiers.Count}" );
+			}
+
+			var newNodeArray = new JsonArray();
+
+			foreach ( var jsonNode in oldNodeArray )
+			{
+				if ( jsonNode[JsonKeys.Class] is not JsonValue classValue )
+					continue;
+
+				var nodeElement = JsonSerializer.Deserialize<JsonElement>( jsonNode.AsObject().ToJsonString() );
+				var typeName = classValue.GetValue<string>();
+
+				if ( ShouldUpgradeToSubgraphInput( typeName, nodeElement ) )
+				{
+					var newNode = CreateUpgradedSubgraphInput( typeName, nodeElement, options );
+					var newNodeObject = new JsonObject { { JsonKeys.Class, newNode.GetType().Name } };
+
+					SerializeObject( newNode, newNodeObject, options, identifiers );
+
+					newNodeArray.Add( newNodeObject );
+				}
+				else
+				{
+					newNodeArray.Add( jsonNode.DeepClone() );
+				}
+			}
+
+			obj.Remove( JsonKeys.NodeArray );
+			obj.Add( JsonKeys.NodeArray, newNodeArray );
+		}
+	}
+
+	private static bool CheckIfSubgraph( JsonObject obj )
+	{
+		return obj.TryGetPropertyValue( nameof( ShaderGraph.IsSubgraph ), out var subgraphValue ) ? subgraphValue.GetValue<bool>() : false;
+	}
+}
+
+internal static class ShaderGraphJsonUpgrader
+{
+	private static (MethodDescription Method, JsonUpgraderAttribute Attribute)[] _methods;
+
+	[EditorEvent.Hotload]
+	[Event( "editor.created" )]
+	private static void UpdateUpgraders()
+	{
+		_methods = EditorTypeLibrary.GetMethodsWithAttribute<JsonUpgraderAttribute>().ToArray();
+	}
+
+	/// <summary>
+	/// Runs through all upgraders that match its class where our version is lower than the specified version.
+	/// </summary>
+	/// <param name="version">The current version that's serialized in the json object</param>
+	/// <param name="json"></param>
+	/// <param name="targetType"></param>
+	/// <param name="options"></param>
+	public static void Upgrade( int version, JsonObject json, Type targetType, JsonSerializerOptions options )
+	{
+		// This is normal, upgraders have not been initialized using UpdateUpgraders
+		// it's fine to ignore this.
+		if ( _methods is null )
+			return;
+
+		foreach ( var e in _methods
+			.Where( x => x.Attribute.Type == targetType )
+			.OrderBy( x => x.Attribute.Version )
+			.Where( x => x.Attribute.Version > version ) )
+		{
+			try
+			{
+				e.Method.Invoke( null, new object[] { json, options } );
+			}
+			catch ( Exception ex )
+			{
+				Log.Warning( ex, $"A shader graph version upgrader ({e.Attribute.Type}, version {e.Attribute.Version}) threw an exception while trying to upgrade, so we halted the upgrade." );
+				// Let's stop trying to upgrade because something is broken.
+				return;
+			}
+			finally
+			{
+				// Update our serialized version step by step.
+				json["__version"] = e.Attribute.Version;
+			}
+		}
 	}
 }

@@ -24,6 +24,16 @@ partial class ShaderGraph
 	}
 
 	/// <summary>
+	/// Json Keys used for serialization and deserialization.
+	/// </summary>
+	internal static class JsonKeys
+	{
+		internal const string Version = "__version";
+		internal const string Class = "_class";
+		internal const string NodeArray = "nodes";
+	}
+
+	/// <summary>
 	/// Gets the version of the provided JsonElement. Returns 0 on failure.
 	/// </summary>
 	private static int GetVersion( JsonElement element )
@@ -62,8 +72,27 @@ partial class ShaderGraph
 		// Check for the version so we can handle upgrades
 		var fileVersion = GetVersion( root );
 
+		if ( HandleGraphUpgrades( fileVersion, Json.ParseToJsonObject( json ), options, out JsonElement upgradedElement ) )
+		{
+			root = upgradedElement;
+		}
+
 		DeserializeObject( this, root, options );
 		DeserializeNodes( root, options, subgraphPath, fileVersion );
+	}
+
+	private bool HandleGraphUpgrades( int fileVersion, JsonObject json, JsonSerializerOptions options, out JsonElement upgradedElement )
+	{
+		upgradedElement = default;
+
+		if ( fileVersion >= Version ) 
+			return false;
+
+		ShaderGraphJsonUpgrader.Upgrade( fileVersion, json, typeof( ShaderGraph ), options );
+
+		upgradedElement = JsonSerializer.Deserialize<JsonElement>( json.ToJsonString(), options );
+
+		return true;
 	}
 
 	public IEnumerable<BaseNode> DeserializeNodes( string json, bool useCurrentVersion = false )
@@ -129,11 +158,8 @@ partial class ShaderGraph
 			}
 			else
 			{
-				if ( !HandleNodeUpgrades( fileVersion, typeName, element, options, ref node ) )
-				{
-					node = EditorTypeLibrary.Create<BaseNode>( typeName );
-					DeserializeObject( node, element, options );
-				}
+				node = EditorTypeLibrary.Create<BaseNode>( typeName );
+				DeserializeObject( node, element, options );
 
 				if ( identifiers != null && _nodes.ContainsKey( node.Identifier ) )
 				{
