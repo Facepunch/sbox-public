@@ -36,6 +36,8 @@ sealed class DDGIVolumeSystem : GameObjectSystem<DDGIVolumeSystem>
 
 	private void UpdateVolumes()
 	{
+		using var _ = PerformanceStats.Timings.Render.Scope();
+
 		if ( Application.IsHeadless || !_dirty )
 			return;
 

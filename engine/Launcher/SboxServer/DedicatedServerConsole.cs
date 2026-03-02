@@ -49,7 +49,7 @@ internal class DedicatedServerConsole
 		bottomLeft += $" NavMesh {PerformanceStats.Timings.NavMesh.AverageMs( 1 ):0.00}ms,";
 		bottomLeft += $" Animation {PerformanceStats.Timings.Animation.AverageMs( 1 ):0.00}ms";
 
-		var bottomRight = $"Scene {PerformanceStats.Timings.Scene.AverageMs( 60 ):0.00}ms";
+		var bottomRight = $"Update {PerformanceStats.Timings.Update.AverageMs( 60 ):0.00}ms";
 
 		var lineA = topRight.PadLeft( width );
 		lineA = topLeft + ((topLeft.Length < lineA.Length) ? lineA.Substring( topLeft.Length ) : "");

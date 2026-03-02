@@ -52,6 +52,9 @@ public partial class Mixer
 	/// </summary>
 	int _voiceCount;
 
+	/// Reused working list to avoid per-frame LINQ allocations.
+	readonly List<SoundHandle> _sortedVoices = new();
+
 	/// <summary>
 	/// Final mixed output buffer containing audio from all listeners.
 	/// </summary>
@@ -252,14 +255,23 @@ public partial class Mixer
 	/// </summary>
 	internal void MixVoices( List<SoundHandle> voices )
 	{
-		// loop all playing sounds, mix them into buffer
-		// Can't do this in a thread because stream audio hrtf can't handle that
-		foreach ( var voice in voices.Where( ShouldPlay ).OrderByDescending( x => x._CreatedTime ).Take( _maxVoices ) )
+		// Filter into reusable list and sort newest-first, avoiding LINQ allocations.
+		_sortedVoices.Clear();
+		foreach ( var voice in voices )
 		{
+			if ( ShouldPlay( voice ) ) _sortedVoices.Add( voice );
+		}
+
+		_sortedVoices.Sort( SoundHandle.ByCreatedTimeDescending );
+
+		// Can't do this in a thread because stream audio hrtf can't handle that
+		var limit = Math.Min( _sortedVoices.Count, _maxVoices );
+		for ( var i = 0; i < limit; i++ )
+		{
+			var voice = _sortedVoices[i];
 			lock ( voice )
 			{
-				// While yeah this is checked, we could have a race condition where sampler
-				// has become null while we were ordering and taking!
+				// Race condition: sampler may have become null since we filtered
 				if ( !ShouldPlay( voice ) ) continue;
 
 				MixVoice( voice );

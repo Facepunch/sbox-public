@@ -16,7 +16,6 @@ public static partial class PerformanceStats
 		public static Timings Async { get; } = Get( "Async", "#e9edc9" );
 		public static Timings Animation { get; } = Get( "Animation", "#ff70a6" );
 		public static Timings Audio { get; } = Get( "Audio", "#bdb2ff" );
-		public static Timings AudioMixingThread { get; } = Get( "AudioMixingThread", "#ff9f00" );
 		public static Timings Editor { get; } = Get( "Editor", "#7f8188" );
 		//	public static Timings Io { get; } = Get( "IO", "#b5838d" );
 		public static Timings Input { get; } = Get( "Input", "#e9ff70" );
@@ -26,16 +25,25 @@ public static partial class PerformanceStats
 		public static Timings Particles { get; } = Get( "Particles", "#f7aef8" );
 		public static Timings Physics { get; } = Get( "Physics", "#f37748" );
 		public static Timings Render { get; } = Get( "Render", "#8ac926" );
-		public static Timings Scene { get; } = Get( "Scene", "#56cbf9" );
+		public static Timings Update { get; } = Get( "Update", "#56cbf9" );
 		public static Timings Ui { get; } = Get( "UI", "#b4869f" );
 		public static Timings Video { get; } = Get( "Video", "#f5cac3" );
+		public static Timings GcPause { get; } = Get( "GcPause", "#00f5d4" );
 
 		/// <summary>
 		/// Return a list of the main top tier timings we're interested in
 		/// </summary>
 		public static IEnumerable<Timings> GetMain() => _main;
 
-		private static readonly ReadOnlyCollection<Timings> _main = new List<Timings> { Async, Animation, Audio, AudioMixingThread, Editor, Input, NavMesh, Network, Particles, Physics, Render, Scene, Ui, Video }.AsReadOnly();
+		private static readonly ReadOnlyCollection<Timings> _main = BuildMain();
+
+		private static ReadOnlyCollection<Timings> BuildMain()
+		{
+			var list = new List<Timings> { Async, Animation, Audio, GcPause, Input, NavMesh, Network, Particles, Physics, Render, Update, Ui, Video };
+			if ( Application.IsEditor )
+				list.Add( Editor );
+			return list.AsReadOnly();
+		}
 
 		public string Name { get; internal set; }
 		public Color Color { get; internal set; }
@@ -82,8 +90,7 @@ public static partial class PerformanceStats
 			{
 				var f = new Frame();
 				f.Calls = calls;
-				f.TotalMs += (float)(ticks * (1_000.0 / Stopwatch.Frequency));
-				f.TotalMs += (float)milliseconds;
+				f.TotalMs = (float)(ticks * (1_000.0 / Stopwatch.Frequency)) + (float)milliseconds;
 
 				History.PushFront( f );
 
@@ -105,18 +112,34 @@ public static partial class PerformanceStats
 
 			Interlocked.Increment( ref calls );
 
-			var o = new Performance.ScopeSection()
+			return new Performance.ScopeSection()
 			{
 				Source = this,
-				Timer = FastTimer.StartNew()
+				Timer = FastTimer.StartNew(),
+				// Only snapshot on main thread — GC.GetTotalPauseDuration() is process-wide,
+				// attributing from multiple threads simultaneously would double-subtract.
+				GcPauseTicksAtStart = ThreadSafe.IsMainThread ? GC.GetTotalPauseDuration().Ticks : -1
 			};
-
-			return o;
 		}
 
 		internal void ScopeFinished( ScopeSection section )
 		{
-			Interlocked.Add( ref ticks, section.Timer.ElapsedTicks );
+			var elapsedTicks = section.Timer.ElapsedTicks;
+
+			// Subtract any GC pause that occurred during this scope so per-system
+			// timings aren't inflated by GC.
+			if ( section.GcPauseTicksAtStart >= 0 )
+			{
+				var elapsedMs = elapsedTicks * (1_000.0 / Stopwatch.Frequency);
+				var gcMs = Math.Min(
+					TimeSpan.FromTicks( GC.GetTotalPauseDuration().Ticks - section.GcPauseTicksAtStart ).TotalMilliseconds,
+					elapsedMs );
+
+				if ( gcMs > 0 )
+					elapsedTicks -= (long)(gcMs * Stopwatch.Frequency / 1_000.0);
+			}
+
+			Interlocked.Add( ref ticks, elapsedTicks );
 			_superluminal.Dispose();
 		}
 
@@ -128,27 +151,37 @@ public static partial class PerformanceStats
 
 		public float AverageMs( int frames )
 		{
-			if ( History.Count() == 0 )
-				return 0;
+			int count = Math.Min( frames, History.Size );
+			if ( count == 0 ) return 0;
 
-			return History.Take( frames ).Average( x => x.TotalMs );
+			double sum = 0;
+			for ( int i = 0; i < count; i++ ) sum += History[i].TotalMs;
+			return (float)(sum / count);
 		}
 
 		public PeriodMetric GetMetric( int frames )
 		{
-			if ( History.Count() == 0 )
-				return default;
+			int count = Math.Min( frames, History.Size );
+			if ( count == 0 ) return default;
 
-			if ( frames == 1 )
+			if ( count == 1 )
 			{
-				var f = History.First();
+				var f = History[0];
 				return new PeriodMetric( f.TotalMs, f.TotalMs, f.TotalMs, f.Calls );
 			}
-			else
+
+			float min = float.MaxValue, max = float.MinValue;
+			double sum = 0;
+			int calls = 0;
+			for ( int i = 0; i < count; i++ )
 			{
-				var f = History.Take( frames );
-				return new PeriodMetric( f.Min( x => x.TotalMs ), f.Max( x => x.TotalMs ), f.Average( x => x.TotalMs ), f.Sum( x => x.Calls ) );
+				var f = History[i];
+				if ( f.TotalMs < min ) min = f.TotalMs;
+				if ( f.TotalMs > max ) max = f.TotalMs;
+				sum += f.TotalMs;
+				calls += f.Calls;
 			}
+			return new PeriodMetric( min, max, (float)(sum / count), calls );
 		}
 	}
 

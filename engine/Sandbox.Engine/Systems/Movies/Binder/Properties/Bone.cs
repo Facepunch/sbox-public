@@ -228,6 +228,8 @@ public sealed class MovieBoneAnimatorSystem : GameObjectSystem<MovieBoneAnimator
 	/// </summary>
 	public void UpdateBones()
 	{
+		using var _ = PerformanceStats.Timings.Animation.Scope();
+
 		foreach ( var (_, accessor) in _accessors )
 		{
 			accessor.ApplyOverrides();

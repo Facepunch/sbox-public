@@ -29,6 +29,10 @@ public partial class SoundHandle : IValid, IDisposable
 	/// </summary>
 	internal float _CreatedTime;
 
+	/// Sorts by creation time descending; static to avoid per-call allocations.
+	internal static readonly IComparer<SoundHandle> ByCreatedTimeDescending =
+		Comparer<SoundHandle>.Create( static ( x, y ) => y._CreatedTime.CompareTo( x._CreatedTime ) );
+
 	/// <summary>
 	/// An empty, do nothing sound, that we can return to avoid NREs
 	/// </summary>
