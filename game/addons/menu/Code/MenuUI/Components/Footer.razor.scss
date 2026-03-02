@@ -1,0 +1,134 @@
+@import '/styles/_Theme.scss';
+
+$footer-background: $default-900;
+
+Footer {
+    align-items: center;
+    width: 100%;
+    gap: 16px;
+    position: relative;
+    z-index: 1;
+    background: $footer-background;
+    border-top: 1px solid $default-border;
+    flex-shrink: 0;
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+
+    > .inner {
+        gap: 12px;
+        align-items: center;
+        width: 100%;
+        padding: 16px 64px; // Optical alignment against icon on close button in navbar
+        max-width: $screen-w-xl;
+    }
+
+    .friends {
+        align-items: center;
+        gap: 16px;
+    }
+
+    .friends-button {
+        @include border;
+        padding: 8px 10px;
+        padding-left: 12px;
+        pointer-events: all;
+        align-items: center;
+        gap: 6px;
+        background-color: $default-950;
+        border-radius: $rounding-large;
+
+        &:active {
+            sound-in: ui.button.press;
+        }
+
+        &:hover {
+            sound-in: ui.button.over;
+            cursor: pointer;
+            background-color: $default-800;
+        }
+
+        Label {
+            font-weight: 700;
+            color: $default-text-light;
+        }
+
+        icon {
+            font-size: $text-large;
+            font-weight: 700;
+            color: $default-text-light;
+        }
+
+        .friend-count {
+            font-size: $text-regular;
+            border-radius: $rounding-default;
+            background-color: black;
+            padding: 2px 6px;
+        }
+    }
+
+
+    Button {
+        padding: 8px 10px;
+        pointer-events: all;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid transparent; // Avoid layout shifts
+
+        &:active {
+            sound-in: ui.button.press;
+        }
+
+        &:hover {
+            sound-in: ui.button.over;
+            border: 1px solid $default-border;
+            cursor: pointer;
+            border-radius: $rounding-default;
+            background-color: rgba( $default-500, 0.1 );
+            backdrop-filter: blur( 10px );
+        }
+
+        &.close {
+            &:hover {
+                background-color: rgba( red, 0.1 );
+
+                iconpanel, Label {
+                    color: $default-text;
+                }
+            }
+        }
+
+        &.active {
+            border-radius: $rounding-default;
+            background-color: rgba( $default-500, 0.1 );
+
+            Label, iconpanel {
+                color: $default-text;
+            }
+        }
+
+        Label {
+            font-weight: 700;
+            color: $default-text-light;
+        }
+
+        iconpanel {
+            font-size: $text-large;
+            font-weight: 700;
+            color: $default-text-light;
+        }
+
+        &.unread {
+            &::after {
+                position: absolute;
+                top: 0;
+                right: 0;
+                width: 6px;
+                height: 6px;
+                background-color: $primary-blue;
+                border-radius: 500%;
+                animation: Pulse 5s infinite;
+            }
+        }
+    }
+}

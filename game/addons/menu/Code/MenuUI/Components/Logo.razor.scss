@@ -1,0 +1,11 @@
+Logo {
+    width: 32px;
+    height: 32px;
+    background-image: url( "/ui/sbox-logo-square.svg" );
+    background-size: cover;
+
+    &.large {
+        width: 64px;
+        height: 64px;
+    }
+}
