@@ -345,11 +345,18 @@ public class BlackboardView : Widget
 		RebuildFromGraph( false );
 	}
 
-	private void BuildFromParameters( IEnumerable<BlackboardParameter> parameters, bool preserveCurrentSelection = false )
+	private void BuildFromParameters( IEnumerable<BlackboardParameter> parameters, bool preserveSelection = false )
 	{
 		Rebuild();
 
-		if ( _hasSelection )
+
+		if ( !preserveSelection && _hasSelection )
+		{
+			_selection.Clear();
+			SelectionChanged();
+			return;
+		}
+		else if ( _hasSelection )
 		{
 			var parameter = Graph.FindParameter( _selectedParameter.Identifier );
 			SetSelection( parameter );
@@ -357,12 +364,12 @@ public class BlackboardView : Widget
 		}
 	}
 
-	public void RebuildFromGraph( bool preserveCurrentSelection = false )
+	public void RebuildFromGraph( bool preserveSelection = false )
 	{
 		Rebuild();
 
 		if ( _graph is not null )
-			BuildFromParameters( _graph.Parameters, preserveCurrentSelection );
+			BuildFromParameters( _graph.Parameters, preserveSelection );
 	}
 
 	public void SetSelection( IBlackboardParameter parameter )
