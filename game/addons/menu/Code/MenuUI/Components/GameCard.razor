@@ -1,0 +1,75 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using System.Globalization
+@namespace Sandbox.UI
+@inherits Panel
+
+<card class="game" onmouseup=@ShowGameModal>
+    <div class="image" style="background-image: url(@Image)">
+    </div>
+
+    <column>
+        @if (HasClass("list"))
+        {
+            <label class="medium">
+                @Package.Title
+            </label>
+
+            <row>
+                @if (Package.Usage.UsersNow > 0)
+                {
+                    <badge class="green" style="margin-right: 4px">
+                        @(Package.Usage.UsersNow + " online")
+                    </badge>
+                }
+
+                <icon class="eyebrow">
+                    access_time_filled
+                </icon>
+
+                <label class="eyebrow">
+                    @((DateTime.Now - Package.Updated).ToRelativeTimeString())
+                </label>
+            </row>
+
+            <icon class="play">
+                launch
+            </icon>
+        }
+        else
+        {
+            <label class="medium">
+                @Package.Title
+            </label>
+
+            <row>
+                <icon class="eyebrow">
+                    access_time_filled
+                </icon>
+
+                <label class="eyebrow">
+                    @((DateTime.Now - Package.Updated).ToRelativeTimeString())
+                </label>
+            </row>
+        }
+    </column>
+</card>
+
+@code {
+    [Property] public Sandbox.Package Package { get; set; }
+
+    protected override void OnAfterTreeRender(bool firstTime)
+    {
+        if (!firstTime)
+            return;
+    }
+
+    private void ShowGameModal()
+    {
+        Package.OpenModal();
+    }
+
+    public string Image => HasClass("list") ? Package.Thumb : Package.ThumbWide;
+
+    protected override int BuildHash() => System.HashCode.Combine(Package);
+}

@@ -65,6 +65,15 @@ partial record PropertySignal
 		return (PropertySignal)method.Invoke( null, [keyframes, baseSignal] )!;
 	}
 
+	public static PropertySignal<T> FromKeyframes<T>( IEnumerable<Keyframe<T>> keyframes, PropertySignal<T>? baseSignal = null )
+	{
+		var keyframeSignal = new KeyframeSignal<T>( [..keyframes] );
+
+		return baseSignal is not null
+			? baseSignal + keyframeSignal
+			: keyframeSignal;
+	}
+
 	private static PropertySignal FromKeyframesCore<T>( IEnumerable<Keyframe> keyframes, PropertySignal<T>? baseSignal = null )
 	{
 		var keyframeSignal = new KeyframeSignal<T>( [..keyframes.Select( x => (Keyframe<T>)x )] );

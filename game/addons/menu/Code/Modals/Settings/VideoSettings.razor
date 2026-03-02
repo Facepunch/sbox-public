@@ -34,6 +34,13 @@
             <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@VSyncOptions Value:bind=@VSync></ButtonGroup>
         </row>
 
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Framerate Limit (game)
+            </cell>
+            <SliderControl class="glass with-grow" Value:bind=@FrameRateLimit Min="@(0)" Max="@(500)" Step="@(1)" ShowTextEntry="@true"></SliderControl>
+        </row>
+
         <h2><i>brush</i>Quality</h2>
 
         <row class="with-gaps">
@@ -87,6 +94,7 @@
     public VolumetricFogQuality VolumetricFogQuality { get; set; }
     public PostProcessQuality PostProcessQuality { get; set; }
     public float MotionBlurScale { get; set; }
+    public int FrameRateLimit { get; set; }
 
     List<Option> VideoModeOptions = new List<Option>()
     {
@@ -150,7 +158,10 @@
         TextureDetail = MenuUtility.RenderSettings.TextureQuality;
         VolumetricFogQuality = MenuUtility.RenderSettings.VolumetricFogQuality;
         PostProcessQuality = MenuUtility.RenderSettings.PostProcessQuality;
-        MotionBlurScale = MenuUtility.RenderSettings.MotionBlurScale;    }
+        MotionBlurScale = MenuUtility.RenderSettings.MotionBlurScale;
+
+        // FrameRateLimit = MenuUtility.RenderSettings.FrameRateLimit; // TODO!!!
+    }
 
     public void OnRestore()
     {
@@ -205,6 +216,8 @@
         MenuUtility.RenderSettings.VolumetricFogQuality = VolumetricFogQuality;
         MenuUtility.RenderSettings.PostProcessQuality = PostProcessQuality;
         MenuUtility.RenderSettings.MotionBlurScale = MotionBlurScale;
+
+        // MenuUtility.RenderSettings.FrameRateLimit = FrameRateLimit; // TODO!!!
 
         MenuUtility.RenderSettings.Apply();
     }
