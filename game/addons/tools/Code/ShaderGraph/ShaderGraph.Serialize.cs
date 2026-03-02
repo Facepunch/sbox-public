@@ -103,7 +103,7 @@ partial class ShaderGraph
 			var typeDesc = EditorTypeLibrary.GetType( typeName );
 			var type = new ClassNodeType( typeDesc );
 
-			BaseNode node;
+			BaseNode node = null;
 			if ( typeDesc is null )
 			{
 				var missingNode = new MissingNode( typeName, element );
@@ -112,13 +112,7 @@ partial class ShaderGraph
 			}
 			else
 			{
-				// Check if this is a legacy parameter node that should be upgraded to SubgraphInput
-				// Only upgrade for old subgraph files (files without Version property aka. 0 -> 1)
-				if ( IsSubgraph && fileVersion < 1 && ShouldUpgradeToSubgraphInput( typeName, element ) )
-				{
-					node = CreateUpgradedSubgraphInput( typeName, element, options );
-				}
-				else
+				if ( !HandleNodeUpgrades( fileVersion, typeName, element, options, ref node ) )
 				{
 					node = EditorTypeLibrary.Create<BaseNode>( typeName );
 					DeserializeObject( node, element, options );
