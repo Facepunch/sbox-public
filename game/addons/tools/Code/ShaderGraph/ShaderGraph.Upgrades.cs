@@ -28,11 +28,11 @@ partial class ShaderGraph
 	/// Handles node upgrades for the given <paramref name="fileVersion"/>. 
 	/// Returns true on a successful upgrade and false when no upgrade has been performed.
 	/// </summary>
-	/// <param name="fileVersion"></param>
-	/// <param name="typeName"></param>
-	/// <param name="element"></param>
+	/// <param name="fileVersion">Current file version of the graph we are deserializing.</param>
+	/// <param name="typeName">Type name of the node we are attempting to upgrade.</param>
+	/// <param name="element">JsonElement of the node we are attempting to upgrade.</param>
 	/// <param name="options"></param>
-	/// <param name="node"></param>
+	/// <param name="node">Resulting upgraded node.</param>
 	private bool HandleNodeUpgrades( int fileVersion, string typeName, JsonElement element, JsonSerializerOptions options, ref BaseNode node )
 	{
 		// Check if this is a legacy parameter node that should be upgraded to SubgraphInput
