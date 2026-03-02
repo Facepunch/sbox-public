@@ -334,7 +334,7 @@ public sealed class TextureCube : ShaderNode
 		{
 			if ( textureCubeResult.ResultType != NodeResultType.TextureCube )
 			{
-				ErrorMessage = $"Input of `{nameof( TextureCubeInput )}` must be of ResultType `{NodeResultType.Texture2D}`";
+				ErrorMessage = $"Input of `{nameof( TextureCubeInput )}` must be of ResultType `{NodeResultType.TextureCube}`";
 	
 				return NodeResult.Error( ErrorMessage );
 			}
