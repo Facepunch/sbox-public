@@ -403,3 +403,51 @@ public sealed class Texture2DParameterNode : ShaderNode, IParameterNode
 		return new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
 	};
 }
+
+/// <summary>
+/// TextureCube
+/// </summary>
+[Title( "Texture Cube" ), Category( "Parameters" ), Icon( "image" ), Order( 8 )]
+[Hide]
+public sealed class TextureCubeParameterNode : ShaderNode, IParameterNode
+{
+	[JsonIgnore, Hide]
+	public override string Title => string.IsNullOrWhiteSpace( Name ) ?
+		$"{DisplayInfo.For( this ).Name}" :
+		$"{Name}";
+
+	[Hide]
+	public string Name => UI.Name;
+
+	[Hide]
+	public Guid ParameterIdentifier { get; set; }
+
+	[JsonIgnore, Hide]
+	public TextureInput UI => GetParameter().Value;
+
+	private TextureCubeParameter GetParameter()
+	{
+		if ( Graph is ShaderGraph graph )
+		{
+			return graph.FindParameter<TextureCubeParameter>( ParameterIdentifier );
+		}
+
+		return null;
+	}
+
+	public TextureCubeParameterNode()
+	{
+	}
+
+	[Output( typeof( Texture ) ), Title( "TextureCube" )]
+	[Hide]
+	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
+	{
+		var input = UI;
+		input.Type = TextureType.TexCube;
+
+		var textureGlobal = compiler.ResultTexture( input, null, true );
+
+		return new NodeResult( NodeResultType.TextureCube, textureGlobal, true );
+	};
+}

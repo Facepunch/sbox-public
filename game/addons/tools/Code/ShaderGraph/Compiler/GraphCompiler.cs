@@ -666,7 +666,9 @@ public sealed partial class GraphCompiler
 				case Type t when t == typeof( Color ):
 					return Color.White;
 				case Type t when t == typeof( Texture ):
-					return new TextureInput() { Type = TextureType.Tex2D };
+					var inputType = node.InputReferences.FirstOrDefault( x => x.Value.inputNode.Name == name ).Value.inputNode.InputType;
+
+					return new TextureInput() { Type = (inputType == InputType.Texture2D ? TextureType.Tex2D : TextureType.TexCube ) };
 			}
 		}
 
@@ -702,8 +704,10 @@ public sealed partial class GraphCompiler
 			}
 			else if ( type == typeof( Texture ) )
 			{
-				var textureinput = JsonSerializer.Deserialize<TextureInput>( el, ShaderGraph.SerializerOptions() );
-				value = textureinput with { Type = TextureType.Tex2D };
+				var inputType = node.InputReferences.FirstOrDefault( x => x.Value.inputNode.Name == name ).Value.inputNode.InputType;
+				var textureInput = JsonSerializer.Deserialize<TextureInput>( el, ShaderGraph.SerializerOptions() );
+				
+				value = textureInput with { Type = ( inputType == InputType.Texture2D ? TextureType.Tex2D : TextureType.TexCube ) };
 			}
 		}
 
@@ -753,13 +757,16 @@ public sealed partial class GraphCompiler
 					Subgraph = lastSubgraph;
 					SubgraphNode = lastNode;
 
-					if ( parentInput.Value.inputNode.InputType == InputType.Texture2D )
+
+					var inputNodeInputType = parentInput.Value.inputNode.InputType;
+					if ( inputNodeInputType == InputType.Texture2D || inputNodeInputType == InputType.TextureCube )
 					{
-						var textureInput = (TextureInput)value;
+						var resultType = (inputNodeInputType == InputType.Texture2D ? NodeResultType.Texture2D : NodeResultType.TextureCube);
+						var textureInput = ((TextureInput)value) with { Type = (inputNodeInputType == InputType.Texture2D ? TextureType.Tex2D : TextureType.TexCube ) };
 						var texurePath = CompileTexture( textureInput );
 						var textureGlobal = ResultTexture( textureInput, Texture.Load( texurePath ), true );
-
-						return new NodeResult( NodeResultType.Texture2D, textureGlobal, true );
+						
+						return new NodeResult( resultType, textureGlobal, true );
 					}
 				}
 			}
@@ -1060,7 +1067,7 @@ public sealed partial class GraphCompiler
 
 			foreach ( var result in ShaderResult.Attributes )
 			{
-				if ( result.Value is Texture )
+				if ( result.Value is Texture || result.Value == null )
 					continue;
 
 				var typeName = result.Value switch
@@ -1156,7 +1163,7 @@ public sealed partial class GraphCompiler
 				if ( localResult.ResultType == NodeResultType.Bool )
 				{
 				}
-				else if ( localResult.ResultType != NodeResultType.Texture2D )
+				else if ( localResult.ResultType != NodeResultType.Texture2D || localResult.ResultType != NodeResultType.TextureCube )
 				{
 					sb.AppendLine( $"if ( g_iStageId == {localId++} ) return {localResult.Cast( 4, 1.0f )};" );
 				}

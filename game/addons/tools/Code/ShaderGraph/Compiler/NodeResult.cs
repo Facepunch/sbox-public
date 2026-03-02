@@ -10,6 +10,7 @@ public enum NodeResultType
 	Vector4,
 	Color,
 	Texture2D,
+	TextureCube,
 	Invalid
 }
 
@@ -35,6 +36,7 @@ public struct NodeResult : IValid
 		NodeResultType.Vector4 => "float4",
 		NodeResultType.Color => "float4",
 		NodeResultType.Texture2D => "Texture2D",
+		NodeResultType.TextureCube => "TextureCube",
 		_ => null,
 	};
 
@@ -48,6 +50,7 @@ public struct NodeResult : IValid
 		NodeResultType.Vector4 => typeof( Vector4 ),
 		NodeResultType.Color => typeof( Color ),
 		NodeResultType.Texture2D => typeof( Texture ),
+		NodeResultType.TextureCube => typeof( Texture ),
 		_ => null,
 	};
 
@@ -83,7 +86,7 @@ public struct NodeResult : IValid
 			throw new Exception( $"There is no float type with a component count of `{components}`" );
 		}
 
-		if ( ResultType == NodeResultType.Bool || ResultType == NodeResultType.Texture2D || ResultType == NodeResultType.Invalid )
+		if ( ResultType == NodeResultType.Bool || ResultType == NodeResultType.Texture2D || ResultType == NodeResultType.TextureCube || ResultType == NodeResultType.Invalid )
 		{
 			throw new Exception( $"ResultType `{ResultType}` cannot be cast." );
 		}

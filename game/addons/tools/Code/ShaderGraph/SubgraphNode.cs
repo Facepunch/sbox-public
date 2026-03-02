@@ -94,7 +94,7 @@ public sealed class SubgraphNode : ShaderNode, IErroringNode
 				InputType.Float4 => typeof( Vector4 ),
 				InputType.Color => typeof( Color ),
 				InputType.Texture2D => typeof( Texture ),
-				//InputType.TextureCube => typeof( Texture ), // TODO
+				InputType.TextureCube => typeof( Texture ),
 				_ => throw new NotImplementedException()
 			};
 
@@ -256,6 +256,7 @@ internal class SubgraphNodeControlWidget : ControlWidget
 		{
 			var name = inputRef.Key.Identifier;
 			var type = inputRef.Value.inputNodeValueType;
+			var inputType = inputRef.Value.inputNode.InputType;
 			var getter = () =>
 			{
 				if ( Node.DefaultValues.ContainsKey( name ) )
@@ -365,7 +366,12 @@ internal class SubgraphNodeControlWidget : ControlWidget
 							return JsonSerializer.Deserialize<TextureInput>( el, ShaderGraph.SerializerOptions() )! with { Type = TextureType.Tex2D, ShowName = true, ShowGroups = false };
 						}
 
-						return ((TextureInput)val) with { Type = TextureType.Tex2D, ShowName = true, ShowGroups = false };
+						return ((TextureInput)val) with
+						{
+							Type = ( inputType == InputType.Texture2D ? TextureType.Tex2D : TextureType.TexCube ),
+							ShowName = true,
+							ShowGroups = false 
+						};
 					}, x => SetDefaultValue( name, x ),
 					[new InlineEditorAttribute() { Label = false }, new WideModeAttribute()]
 				) );

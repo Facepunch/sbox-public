@@ -258,6 +258,14 @@ public sealed class TextureSampler : TextureSamplerBase
 public sealed class TextureCube : ShaderNode
 {
 	/// <summary>
+	/// TextureCube to sample from.
+	/// </summary>
+	[Title( "TextureCube" )]
+	[Input( typeof( Texture ) )]
+	[Hide]
+	public NodeInput TextureCubeInput { get; set; }
+
+	/// <summary>
 	/// Coordinates to sample this cubemap
 	/// </summary>
 	[Title( "Coordinates" )]
@@ -268,7 +276,7 @@ public sealed class TextureCube : ShaderNode
 	/// <summary>
 	/// Texture to sample in preview
 	/// </summary>
-	[ImageAssetPath]
+	[Hide, JsonIgnore]
 	public string Texture { get; set; }
 
 	/// <summary>
@@ -277,12 +285,10 @@ public sealed class TextureCube : ShaderNode
 	[InlineEditor( Label = false ), Group( "Sampler" )]
 	public Sampler Sampler { get; set; }
 
-	/// <summary>
-	/// Settings for how this texture shows up in material editor
-	/// </summary>
-	[InlineEditor( Label = false ), Group( "UI" )]
-	public TextureInput UI { get; set; } = new TextureInput
+	[Hide]
+	public TextureInput PreviewUI => new TextureInput
 	{
+		Type = TextureType.TexCube,
 		ImageFormat = TextureFormat.DXT5,
 		SrgbRead = true,
 		Default = Color.White,
@@ -320,12 +326,44 @@ public sealed class TextureCube : ShaderNode
 	[Output( typeof( Color ) ), Title( "RGBA" )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
-		var input = UI;
+		var input = PreviewUI;
 		input.Type = TextureType.TexCube;
+		var textureCubeResult = compiler.Result( TextureCubeInput );
 
+		if ( textureCubeResult.IsValid )
+		{
+			if ( textureCubeResult.ResultType != NodeResultType.TextureCube )
+			{
+				ErrorMessage = $"Input of `{nameof( TextureCubeInput )}` must be of ResultType `{NodeResultType.Texture2D}`";
+	
+				return NodeResult.Error( ErrorMessage );
+			}
+
+			ClearError();
+
+			if ( compiler.TryGetPreviewImage( textureCubeResult.Code, out var imagePath ) )
+			{
+				Texture = imagePath;
+			}
+			else
+			{
+				throw new Exception( $"Cannot find PreviewImage for texture input : {textureCubeResult.Code}" );
+			}
+		}
+		else
+		{
+			Texture = "materials/skybox/skybox_workshop.vtex";
+			ErrorMessage = $"Missing required input 'TextureCube'.";
+			return NodeResult.MissingInput( "TextureCube" );
+		}
+
+		var texture = Sandbox.Texture.Load( Texture );
 		var sampler = compiler.ResultSampler( Sampler );
-		var textureGlobal = compiler.ResultTexture( input, Sandbox.Texture.Load( Texture ) );
+		var textureGlobal = textureCubeResult.Code;
 		var coords = compiler.Result( Coords );
+
+		var attributeName = textureCubeResult.Code.TrimStart( "g_t" ).ToString();
+		compiler.SetAttribute( attributeName, texture );
 
 		return new NodeResult( NodeResultType.Color, $"TexCubeS( {textureGlobal}," +
 			$" g_sSampler{sampler}," +

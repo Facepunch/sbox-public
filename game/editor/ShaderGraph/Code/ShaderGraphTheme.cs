@@ -38,6 +38,7 @@ internal static class ShaderGraphTheme
 			{ typeof( Float4Parameter ), new BlackboardConfig( "float4", HandleConfigs[typeof( Vector4 )].Color ) },
 			{ typeof( ColorParameter ), new BlackboardConfig( "float4", HandleConfigs[typeof( Color )].Color ) },
 			{ typeof( Texture2DParameter ), new BlackboardConfig( "Texture2D", HandleConfigs[typeof( Texture )].Color ) },
+			{ typeof( TextureCubeParameter ), new BlackboardConfig( "TextureCube", HandleConfigs[typeof( Texture )].Color ) },
 
 			{ typeof( BoolSubgraphInputParameter ), new BlackboardConfig( "bool", HandleConfigs[typeof( bool )].Color ) },
 			{ typeof( IntSubgraphInputParameter ), new BlackboardConfig( "int", HandleConfigs[typeof( int )].Color ) },
@@ -47,6 +48,7 @@ internal static class ShaderGraphTheme
 			{ typeof( Float4SubgraphInputParameter ), new BlackboardConfig( "float4", HandleConfigs[typeof( Vector4 )].Color ) },
 			{ typeof( ColorSubgraphInputParameter ), new BlackboardConfig( "float4", HandleConfigs[typeof( Color )].Color ) },
 			{ typeof( Texture2DSubgraphInputParameter ), new BlackboardConfig( "Texture2D", HandleConfigs[typeof( Texture )].Color ) },
+			{ typeof( TextureCubeSubgraphInputParameter ), new BlackboardConfig( "TextureCube", HandleConfigs[typeof( Texture )].Color ) },
 		};
 	}
 }

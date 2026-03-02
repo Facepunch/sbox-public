@@ -123,6 +123,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 				if ( isSubgraph && targetType == typeof( Float4Parameter ) ) return false;
 				if ( isSubgraph && targetType == typeof( ColorParameter ) ) return false;
 				if ( isSubgraph && targetType == typeof( Texture2DParameter ) ) return false;
+				if ( isSubgraph && targetType == typeof( TextureCubeParameter ) ) return false;
 
 				// Only show subgraph input parameters when in a subgraph
 				if ( !isSubgraph && targetType == typeof( BoolSubgraphInputParameter ) ) return false;
@@ -133,6 +134,7 @@ public abstract class BlackboardParameter : IBlackboardParameter
 				if ( !isSubgraph && targetType == typeof( Float4SubgraphInputParameter ) ) return false;
 				if ( !isSubgraph && targetType == typeof( ColorSubgraphInputParameter ) ) return false;
 				if ( !isSubgraph && targetType == typeof( Texture2DSubgraphInputParameter ) ) return false;
+				if ( !isSubgraph && targetType == typeof( TextureCubeSubgraphInputParameter ) ) return false;
 
 			}
 
@@ -177,6 +179,10 @@ public abstract class BlackboardParameter : IBlackboardParameter
 			{
 				ParameterIdentifier = parameter.Identifier,
 			},
+			TextureCubeParameter => new TextureCubeParameterNode()
+			{
+				ParameterIdentifier = parameter.Identifier,
+			},
 
 			// In Subgraph
 			BoolSubgraphInputParameter => new SubgraphInput()
@@ -216,7 +222,12 @@ public abstract class BlackboardParameter : IBlackboardParameter
 			},
 			Texture2DSubgraphInputParameter => new SubgraphInput()
 			{
-				DefaultValue = new TextureInput(),
+				DefaultValue = new TextureInput() { Type = TextureType.Tex2D },
+				ParameterIdentifier = parameter.Identifier,
+			},
+			TextureCubeSubgraphInputParameter => new SubgraphInput()
+			{
+				DefaultValue = new TextureInput() { Type = TextureType.TexCube },
 				ParameterIdentifier = parameter.Identifier,
 			},
 

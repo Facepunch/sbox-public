@@ -169,22 +169,35 @@ public sealed class SubgraphInput : ShaderNode, IParameterNode, IErroringNode, B
 
 		// Use the appropriate default value based on input type
 		var outputValue = DefaultValue;
+		var resultType = InputType switch
+		{
+			InputType.Bool => NodeResultType.Bool,
+			InputType.Int => NodeResultType.Int,
+			InputType.Float => NodeResultType.Float,
+			InputType.Float2 => NodeResultType.Vector2,
+			InputType.Float3 => NodeResultType.Vector3,
+			InputType.Float4 => NodeResultType.Vector4,
+			InputType.Color => NodeResultType.Color,
+			InputType.Texture2D => NodeResultType.Texture2D,
+			InputType.TextureCube => NodeResultType.TextureCube,
+			_ => throw new NotImplementedException( $"Unknown InputType \"{InputType}\"" ),
+		};
 
 		// If we're in a subgraph context, just return the value directly
 		if ( compiler.Graph.IsSubgraph )
 		{
-			if ( InputType == InputType.Texture2D )
+			if ( InputType == InputType.Texture2D || InputType == InputType.TextureCube )
 			{
-				return new NodeResult( NodeResultType.Texture2D, ProcessTexture2D( compiler, (TextureInput)outputValue ), true );
+				return new NodeResult( resultType, ProcessTexture2D( compiler, (TextureInput)outputValue, InputType == InputType.Texture2D ), true );
 			}
 
 			return compiler.ResultValue( outputValue );
 		}
 		else
 		{
-			if ( InputType == InputType.Texture2D )
+			if ( InputType == InputType.Texture2D || InputType == InputType.TextureCube )
 			{
-				return new NodeResult( NodeResultType.Texture2D, ProcessTexture2D( compiler, (TextureInput)outputValue ), true );
+				return new NodeResult( resultType, ProcessTexture2D( compiler, (TextureInput)outputValue, InputType == InputType.Texture2D ), true );
 			}
 
 			// For normal graphs, use ResultParameter to create a material parameter
@@ -192,9 +205,9 @@ public sealed class SubgraphInput : ShaderNode, IParameterNode, IErroringNode, B
 		}
 	};
 
-	private string ProcessTexture2D( GraphCompiler compiler, TextureInput input )
+	private string ProcessTexture2D( GraphCompiler compiler, TextureInput input, bool isTexture2D )
 	{
-		input.Type = TextureType.Tex2D;
+		input.Type = isTexture2D ? TextureType.Tex2D : TextureType.TexCube;
 
 		return compiler.ResultTexture( input, null, true );
 	}
@@ -227,7 +240,10 @@ public enum InputType
 	Color,
 
 	[Title( "Texture2D" ), Icon( "image" )]
-	Texture2D
+	Texture2D,
+
+	[Title( "TextureCube" ), Icon( "image" )]
+	TextureCube
 }
 
 [CustomEditor( typeof( object ), NamedEditor = "subgraphInputDefaultValue" )]

@@ -137,6 +137,24 @@ public sealed class Texture2DParameter : BlackboardTextureMaterialParameter
 }
 
 /// <summary>
+/// TextureCube material parameter
+/// </summary>
+[Title( "TextureCube" ), Icon( "image" ), Order( 8 )]
+public sealed class TextureCubeParameter : BlackboardTextureMaterialParameter
+{
+	public TextureCubeParameter() : base()
+	{
+		Value = new TextureInput()
+		{
+			ImageFormat = TextureFormat.DXT5,
+			Type = TextureType.TexCube,
+			SrgbRead = true,
+			Default = Color.White,
+		};
+	}
+}
+
+/// <summary>
 /// Bool subgraph input parameter
 /// </summary>
 [Title( "Bool" ), Icon( "check_box" ), Order( 0 )]
@@ -256,6 +274,27 @@ public sealed class Texture2DSubgraphInputParameter : BlackboardSubgraphInputPar
 		{
 			ImageFormat = TextureFormat.DXT5,
 			Type = TextureType.Tex2D,
+			SrgbRead = true,
+			Default = Color.White,
+		};
+	}
+}
+
+/// <summary>
+/// TextureCube subgraph input parameter
+/// </summary>
+[Title( "TextureCube" ), Icon( "image" ), Order( 7 )]
+public sealed class TextureCubeSubgraphInputParameter : BlackboardSubgraphInputParameter<TextureInput>
+{
+	[Hide, JsonIgnore]
+	public override InputType InputType => InputType.TextureCube;
+
+	public TextureCubeSubgraphInputParameter() : base()
+	{
+		Value = new TextureInput()
+		{
+			ImageFormat = TextureFormat.DXT5,
+			Type = TextureType.TexCube,
 			SrgbRead = true,
 			Default = Color.White,
 		};
