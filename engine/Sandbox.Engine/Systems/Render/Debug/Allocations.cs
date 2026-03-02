@@ -103,43 +103,58 @@ internal static partial class DebugOverlay
 			var x = pos.x;
 			var y = pos.y;
 
-			var scope = new TextRendering.Scope( "", Color.White, 11, "Roboto Mono", 600 );
-			scope.Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 2 };
-
+			var scope = new TextRendering.Scope( "", Color.White, 11, "Roboto Mono", 600 )
 			{
-				var lowestPauseMs = TimeSpan.FromTicks( _pauseTicksMin == long.MaxValue ? 0 : _pauseTicksMin ).TotalMilliseconds;
-				var highestPauseMs = TimeSpan.FromTicks( _pauseTicksMax ).TotalMilliseconds;
-				var sumMs = TimeSpan.FromTicks( _pauseTicksSum ).TotalMilliseconds;
-				var avgMs = _frameCount > 0 ? TimeSpan.FromTicks( _pauseTicksSum / _frameCount ).TotalMilliseconds : 0.0;
+				Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 2 }
+			};
+			var headerScope = new TextRendering.Scope( "", Color.White.WithAlpha( 0.9f ), 11, "Roboto Mono", 700 )
+			{
+				Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 2 }
+			};
+			var dimScope = new TextRendering.Scope( "", Color.White.WithAlpha( 0.78f ), 10, "Roboto Mono", 600 )
+			{
+				Outline = new TextRendering.Outline { Color = Color.Black, Enabled = true, Size = 2 }
+			};
 
-				var gcMemInfo = GC.GetGCMemoryInfo();
-				var mbPerSec = liveElapsed > 0 ? _allocBytesSum / (1024.0 * 1024.0 * liveElapsed) : 0.0;
-				var mbTotal = _allocBytesSum / (1024.0 * 1024.0);
-				var elapsedSecondsInt = (int)liveElapsed;
-				var windowLabel = elapsedSecondsInt >= 60 ? $"{elapsedSecondsInt / 60}m {elapsedSecondsInt % 60}s" : $"{elapsedSecondsInt}s";
-				const string Pad = "{0,-32}";
-				scope.Text = $"GC Pauses (tracked for {windowLabel})\n" +
-					string.Format( Pad, "Gen (0/1/2):" ) + $"{_gen0Sum + ls.Gc0} / {_gen1Sum + ls.Gc1} / {_gen2Sum + ls.Gc2}\n" +
-					string.Format( Pad, "Total:" ) + $"{mbTotal:N1} MB\n" +
-					string.Format( Pad, "Rate:" ) + $"{mbPerSec:N2} MB/s\n" +
-					string.Format( Pad, "Avg:" ) + $"{avgMs:N2}ms\n" +
-					string.Format( Pad, "Min:" ) + $"{lowestPauseMs:N2}ms\n" +
-					string.Format( Pad, "Max:" ) + $"{highestPauseMs:N2}ms\n" +
-					string.Format( Pad, "Sum:" ) + $"{sumMs:N2}ms\n" +
-					string.Format( Pad, $"Frames with >{StutterThresholdTicks / TimeSpan.TicksPerMillisecond}ms GC:" ) + $"{_stutterCount} frames\n" +
-					string.Format( Pad, "GC%:" ) + $"{sumMs / (liveElapsed * 1000.0) * 100.0:N2}%\n" +
-					string.Format( Pad, "GC% since process start:" ) + $"{gcMemInfo.PauseTimePercentage:N2}%\n";
-				Hud.DrawText( scope, new Rect( x, y, 512, 13 ), TextFlag.LeftTop );
+			var lowestPauseMs = TimeSpan.FromTicks( _pauseTicksMin == long.MaxValue ? 0 : _pauseTicksMin ).TotalMilliseconds;
+			var highestPauseMs = TimeSpan.FromTicks( _pauseTicksMax ).TotalMilliseconds;
+			var sumMs = TimeSpan.FromTicks( _pauseTicksSum ).TotalMilliseconds;
+			var avgMs = _frameCount > 0 ? TimeSpan.FromTicks( _pauseTicksSum / _frameCount ).TotalMilliseconds : 0.0;
 
-				y += 154;
-			}
+			var gcMemInfo = GC.GetGCMemoryInfo();
+			var mbPerSec = liveElapsed > 0 ? _allocBytesSum / (1024.0 * 1024.0 * liveElapsed) : 0.0;
+			var mbTotal = _allocBytesSum / (1024.0 * 1024.0);
+			var elapsedSecondsInt = (int)liveElapsed;
+			var windowLabel = elapsedSecondsInt >= 60 ? $"{elapsedSecondsInt / 60}m {elapsedSecondsInt % 60}s" : $"{elapsedSecondsInt}s";
 
+			headerScope.Text = $"GC Pauses (tracked for {windowLabel})";
+			Hud.DrawText( headerScope, new Rect( x, y, 512, 14 ), TextFlag.LeftTop );
 			y += 16;
 
-			scope.TextColor = new Color( 1f, 1f, 0.5f );
-			scope.Text = $"Top {_topAllocs.Count} Allocations";
-			Hud.DrawText( scope, new Vector2( x + 20, y ), TextFlag.LeftTop );
-			y += 16;
+			DrawSummaryRow( x, ref y, scope, dimScope, "Gen (0/1/2):", $"{_gen0Sum + ls.Gc0} / {_gen1Sum + ls.Gc1} / {_gen2Sum + ls.Gc2}" );
+			DrawSummaryRow( x, ref y, scope, dimScope, "Total:", $"{mbTotal:N1} MB" );
+			DrawSummaryRow( x, ref y, scope, dimScope, "Rate:", $"{mbPerSec:N2} MB/s" );
+			DrawSummaryRow( x, ref y, scope, dimScope, "Avg:", $"{avgMs:N2}ms" );
+			DrawSummaryRow( x, ref y, scope, dimScope, "Min:", $"{lowestPauseMs:N2}ms" );
+			DrawSummaryRow( x, ref y, scope, dimScope, "Max:", $"{highestPauseMs:N2}ms" );
+			DrawSummaryRow( x, ref y, scope, dimScope, "Sum:", $"{sumMs:N2}ms" );
+			DrawSummaryRow( x, ref y, scope, dimScope, $"Frames with >{StutterThresholdTicks / TimeSpan.TicksPerMillisecond}ms GC:", $"{_stutterCount} frames" );
+			DrawSummaryRow( x, ref y, scope, dimScope, "GC%:", $"{sumMs / (liveElapsed * 1000.0) * 100.0:N2}%" );
+			DrawSummaryRow( x, ref y, scope, dimScope, "GC% since process start:", $"{gcMemInfo.PauseTimePercentage:N2}%" );
+
+			y += 8;
+			headerScope.TextColor = new Color( 1f, 1f, 0.5f );
+			headerScope.Text = $"Top {_topAllocs.Count} Allocations";
+			Hud.DrawText( headerScope, new Rect( x, y, 512, 14 ), TextFlag.LeftTop );
+			y += 14;
+
+			dimScope.Text = "bytes";
+			Hud.DrawText( dimScope, new Rect( x + 10, y, 64, 12 ), TextFlag.RightTop );
+			dimScope.Text = "count";
+			Hud.DrawText( dimScope, new Rect( x + 80, y, 62, 12 ), TextFlag.RightTop );
+			dimScope.Text = "type";
+			Hud.DrawText( dimScope, new Rect( x + 152, y, 320, 12 ), TextFlag.LeftTop );
+			y += 14;
 
 			foreach ( var e in _topAllocs )
 			{
@@ -147,17 +162,17 @@ internal static partial class DebugOverlay
 
 				{
 					scope.Text = e.Bytes.FormatBytes();
-					Hud.DrawText( scope, new Rect( x + 20, y, 50, 13 ), TextFlag.RightTop );
+					Hud.DrawText( scope, new Rect( x + 10, y, 64, 13 ), TextFlag.RightTop );
 				}
 
 				{
 					scope.Text = e.Count.KiloFormat();
-					Hud.DrawText( scope, new Rect( x + 20, y, 75, 13 ), TextFlag.RightTop );
+					Hud.DrawText( scope, new Rect( x + 80, y, 62, 13 ), TextFlag.RightTop );
 				}
 
 				{
 					scope.Text = e.Name;
-					Hud.DrawText( scope, new Vector2( x + 100, y ), TextFlag.LeftTop );
+					Hud.DrawText( scope, new Vector2( x + 152, y ), TextFlag.LeftTop );
 				}
 
 				y += 14;
@@ -172,6 +187,16 @@ internal static partial class DebugOverlay
 			if ( name.StartsWith( "<GetAll>" ) ) return new Color( 1f, 1f, 0.7f );
 
 			return Color.White;
+		}
+
+		static void DrawSummaryRow( float x, ref float y, TextRendering.Scope valueScope, TextRendering.Scope labelScope, string label, string value )
+		{
+			labelScope.Text = label;
+			Hud.DrawText( labelScope, new Rect( x, y, 160, 13 ), TextFlag.LeftTop );
+			valueScope.Text = value;
+			valueScope.TextColor = Color.White.WithAlpha( 0.9f );
+			Hud.DrawText( valueScope, new Rect( x + 168, y, 320, 13 ), TextFlag.LeftTop );
+			y += 13;
 		}
 	}
 }

@@ -5,16 +5,12 @@
 @namespace MenuProject.Social
 
 <root>
-
-    <div class="@ButtonClasses" onmousedown=@CreateParty>
-        <i>celebration</i>
-        <span>#party</span>
-    </div>
+    <Button class="@ButtonClasses" onmousedown=@CreateParty Icon="celebration"></Button>
 </root>
 
 @code
 {
-    string ButtonClasses => $"vertical-button clicky create-party {(popup.IsValid() ? "active" : "")}";
+    string ButtonClasses => $"create-party {(popup.IsValid() ? "active" : "")}";
 
     CreatePartyMenu popup;
 
@@ -24,7 +20,7 @@
             return;
 
         popup = new CreatePartyMenu();
-        popup.SetPositioning( this, Popup.PositionMode.AboveCenter, 32 );
+        popup.SetPositioning( this, Popup.PositionMode.AboveLeft, 32 );
     }
 
     protected override int BuildHash() => HashCode.Combine(popup.IsValid());

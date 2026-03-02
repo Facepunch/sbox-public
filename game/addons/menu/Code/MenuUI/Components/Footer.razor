@@ -1,0 +1,40 @@
+@using MenuProject.Social
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox;
+@using System;
+@namespace Sandbox.UI
+@inherits Panel
+
+<root>
+    <div class="inner">
+
+        <div class="left">
+            <PartyDeck WithChat=@true></PartyDeck>
+        </div>
+
+        <div class="grow" />
+
+        <div class="right" onmouseup=@ShowFriendsModal>
+            <div class="friends-button">
+                <icon>
+                    people
+                </icon>
+                <Label>
+                    Friends
+                </Label>
+                <Label class="small friend-count">
+                    @MenuUtility.Friends.Count()
+                </Label>
+            </div>
+        </div>
+    </div>
+</root>
+
+@code {
+    void ShowFriendsModal()
+    {
+        MenuUtility.CloseAllModals();
+        ModalSystem.Instance.FriendsList(new Modals.FriendsListModalOptions());
+    }
+}

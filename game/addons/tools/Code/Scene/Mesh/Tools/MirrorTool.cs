@@ -1,16 +1,16 @@
 namespace Editor.MeshEditor;
 
 [Alias( "tools.mirror-tool" )]
-public partial class MirrorTool : EditorTool
+public partial class MirrorTool( string tool ) : EditorTool
 {
 	Plane? _hitPlane;
 	Plane? _plane;
 	Vector3 _point1;
 	Vector3 _point2;
 
-	readonly HashSet<MeshComponent> _meshes = [];
-	readonly Dictionary<MeshComponent, HashSet<HalfEdgeMesh.FaceHandle>> _faces = [];
-	readonly Dictionary<MeshComponent, Model> _preview = [];
+	readonly List<(Transform, GameObject)> _selectedObjects = [];
+
+	private IDisposable _undoScope;
 
 	void Reset()
 	{
@@ -18,31 +18,44 @@ public partial class MirrorTool : EditorTool
 		_plane = default;
 		_point1 = default;
 		_point2 = default;
+
+		_undoScope?.Dispose();
+		_undoScope = default;
 	}
 
 	public override void OnEnabled()
 	{
 		Reset();
 
-		_meshes.Clear();
-		_faces.Clear();
-		_preview.Clear();
+		using var scope = SceneEditorSession.Scope();
 
-		foreach ( var group in Selection.OfType<MeshFace>().GroupBy( f => f.Component ) )
-		{
-			_meshes.Add( group.Key );
-			_faces[group.Key] = [.. group.Select( f => f.Handle )];
-		}
+		_undoScope = SceneEditorSession.Active.UndoScope( "Mirror Selection" )
+			.WithGameObjectCreations()
+			.Push();
 
 		foreach ( var go in Selection.OfType<GameObject>() )
 		{
-			var mc = go.GetComponent<MeshComponent>();
-			if ( mc.IsValid() ) _meshes.Add( mc );
+			var copy = go.Clone( go.WorldTransform );
+			_selectedObjects.Add( new( go.WorldTransform, copy ) );
+
+			foreach ( var mc in copy.GetComponentsInChildren<MeshComponent>() )
+			{
+				mc.Mesh = BuildMesh( mc );
+			}
 		}
 
-		foreach ( var mc in _meshes )
+		if ( _selectedObjects.Count > 0 ) return;
+
+		foreach ( var group in Selection.OfType<MeshFace>().GroupBy( f => f.Component ) )
 		{
-			_preview[mc] = BuildMesh( mc ).Rebuild();
+			var tx = group.Key.WorldTransform;
+			var go = new GameObject( true, group.Key.GameObject.Name );
+			go.MakeNameUnique();
+			go.WorldTransform = tx;
+			var mc = go.Components.Create<MeshComponent>( false );
+			mc.Mesh = BuildMesh( group.Key, [.. group.Select( f => f.Handle )] );
+			mc.Enabled = true;
+			_selectedObjects.Add( new( tx, go ) );
 		}
 	}
 
@@ -50,49 +63,53 @@ public partial class MirrorTool : EditorTool
 	{
 		Reset();
 
-		_meshes.Clear();
-		_faces.Clear();
-		_preview.Clear();
+		_selectedObjects.Clear();
 	}
 
 	void Apply()
 	{
 		if ( !_plane.HasValue ) return;
 
-		using var scope = SceneEditorSession.Scope();
-		using ( SceneEditorSession.Active.UndoScope( "Mirror Selection" )
-			.WithGameObjectCreations()
-			.Push() )
+		Reset();
+
+		Selection.Clear();
+
+		foreach ( var (_, go) in _selectedObjects )
 		{
-			foreach ( var mc in _meshes )
-			{
-				var mesh = BuildMesh( mc );
+			Selection.Add( go );
+		}
 
-				var go = new GameObject( true, mc.GameObject.Name );
-				go.MakeNameUnique();
-				go.WorldTransform = MirrorTransform( mc.WorldTransform, _plane.Value );
+		_selectedObjects.Clear();
 
-				var c = go.Components.Create<MeshComponent>( false );
-				c.Mesh = mesh;
-				c.Enabled = true;
-			}
+		EditorToolManager.SetSubTool( tool );
+	}
+
+	void Cancel()
+	{
+		using var scope = SceneEditorSession.Scope();
+
+		foreach ( var (_, go) in _selectedObjects )
+		{
+			if ( go.IsValid() ) go.Destroy();
 		}
 
 		Reset();
+
+		_selectedObjects.Clear();
+
+		EditorToolManager.SetSubTool( tool );
 	}
 
-	void Cancel() => Reset();
-
-	PolygonMesh BuildMesh( MeshComponent mc )
+	static PolygonMesh BuildMesh( MeshComponent mc, HashSet<HalfEdgeMesh.FaceHandle> faces = null )
 	{
 		var mesh = new PolygonMesh();
 		mesh.SetSmoothingAngle( 40 );
 		mesh.Transform = mc.Mesh.Transform;
 		mesh.MergeMesh( mc.Mesh, Transform.Zero, out _, out _, out var newFaces );
 
-		if ( _faces.TryGetValue( mc, out var keepSourceFaces ) )
+		if ( faces is not null )
 		{
-			mesh.RemoveFaces( [.. newFaces.Where( kv => !keepSourceFaces.Contains( kv.Key ) ).Select( kv => kv.Value )] );
+			mesh.RemoveFaces( [.. newFaces.Where( kv => !faces.Contains( kv.Key ) ).Select( kv => kv.Value )] );
 		}
 
 		mesh.FlipAllFaces();
@@ -118,15 +135,17 @@ public partial class MirrorTool : EditorTool
 
 	public override void OnUpdate()
 	{
-		if ( _preview.Count == 0 ) return;
+		if ( _selectedObjects.Count == 0 ) return;
 
 		Gizmo.Draw.IgnoreDepth = true;
 
 		if ( _plane.HasValue )
 		{
-			foreach ( var (mc, model) in _preview )
+			foreach ( var (tx, copy) in _selectedObjects )
 			{
-				Gizmo.Draw.Model( model, MirrorTransform( mc.WorldTransform, _plane.Value ) );
+				if ( !copy.IsValid() ) continue;
+
+				copy.WorldTransform = MirrorTransform( tx, _plane.Value );
 			}
 
 			Gizmo.Draw.Color = Color.White;

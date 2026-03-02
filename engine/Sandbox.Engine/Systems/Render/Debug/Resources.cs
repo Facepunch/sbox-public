@@ -66,7 +66,8 @@ internal static partial class DebugOverlay
 			//
 			// WeakIndex (weak refs - runtime/native resources)
 			//
-			header.Text = $"WeakIndex (weak): {_resourceStats.WeakTotal}";
+			var weakDeadEntries = _resourceStats.WeakIndexEntries.GetValueOrDefault( "(dead)" );
+			header.Text = $"WeakIndex (weak): {_resourceStats.WeakTotal}, dead {weakDeadEntries:N0}";
 			header.TextColor = new Color( 0.6f, 1f, 0.7f );
 			Hud.DrawText( header, new Vector2( x, y ), TextFlag.LeftTop );
 			y += 16;
@@ -83,7 +84,8 @@ internal static partial class DebugOverlay
 			//
 			// NativeResourceCache
 			//
-			header.Text = $"NativeResourceCache (by handle): {_nativeCacheStats.WeakTableTotal} weak, {_nativeCacheStats.MemoryCacheCount} cached";
+			var nativeDeadEntries = _nativeCacheStats.Entries.GetValueOrDefault( "(dead)" );
+			header.Text = $"NativeResourceCache (by handle): {_nativeCacheStats.WeakTableTotal} weak, {_nativeCacheStats.MemoryCacheCount} cached, dead {nativeDeadEntries:N0}";
 			header.TextColor = new Color( 1f, 0.9f, 0.6f );
 			Hud.DrawText( header, new Vector2( x, y ), TextFlag.LeftTop );
 			y += 16;

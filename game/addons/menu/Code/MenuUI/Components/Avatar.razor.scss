@@ -1,0 +1,14 @@
+Avatar {
+    .avatar {
+        width: 24px;
+        height: 24px;
+        background-image: url( "/ui/sbox-logo-square.svg" );
+        background-size: cover;
+        border-radius: 100%;
+
+        &.large {
+            width: 64px;
+            height: 64px;
+        }
+    }
+}

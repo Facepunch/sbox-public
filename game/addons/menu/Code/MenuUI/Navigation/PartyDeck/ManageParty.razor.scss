@@ -4,7 +4,8 @@ ManageParty
     gap: 16px;
 }
 
-.members
-{
+.members {
     gap: 8px;
+    justify-content: flex-start;
+    align-items: flex-start;
 }

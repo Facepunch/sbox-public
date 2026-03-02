@@ -1,0 +1,24 @@
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox;
+@using System;
+@using Menu
+@inherits Panel
+@page "/home"
+
+<div class="page">
+
+    <column>
+        <LiveLobbies />
+        
+        <div class="grow" />
+        <News />
+    </column>
+
+    <HumanSwitcher />
+
+</div>
+
+@code
+{
+}

@@ -96,13 +96,6 @@ file sealed record SamplesSignal<T>(
 		base.OnSample( startTime, sampleRate, dst );
 	}
 
-	public override IEnumerable<ICompiledPropertyBlock<T>> Compile( MovieTimeRange timeRange, int sampleRate )
-	{
-		// TODO: fast-path if samples align
-
-		return base.Compile( timeRange, sampleRate );
-	}
-
 	public override IEnumerable<MovieTimeRange> GetPaintHints( MovieTimeRange timeRange ) =>
 		[timeRange.Clamp( TimeRange )];
 
