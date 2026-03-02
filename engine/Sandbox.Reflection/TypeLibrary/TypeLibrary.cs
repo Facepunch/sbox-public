@@ -576,8 +576,11 @@ public partial class TypeLibrary
 			return null;
 
 		var getTarget = () => property.GetValue<object>();
-		if ( getTarget() is null )
-			return null;
+		var value = getTarget();
+		if ( value is null ) return null;
+
+		// get type from the object, incase we're a derived type.
+		targetType = GetType( value.GetType() );
 
 		return new TypeSerializedObject( getTarget, targetType, property );
 	}
