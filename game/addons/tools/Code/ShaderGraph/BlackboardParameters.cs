@@ -280,6 +280,7 @@ public sealed class Texture2DSubgraphInputParameter : BlackboardSubgraphInputPar
 			SrgbRead = true,
 			Default = Color.White,
 		};
+		IsRequired = true;
 	}
 }
 
@@ -304,5 +305,6 @@ public sealed class TextureCubeSubgraphInputParameter : BlackboardSubgraphInputP
 			SrgbRead = true,
 			Default = Color.White,
 		};
+		IsRequired = true;
 	}
 }
