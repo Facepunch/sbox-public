@@ -17,6 +17,8 @@ internal sealed class NavMeshGameSystem : GameObjectSystem
 
 	void UpdateAgentGoundZ()
 	{
+		using var _ = PerformanceStats.Timings.NavMesh.Scope();
+
 		_agents.Clear();
 		Scene.GetAll<NavMeshAgent>( _agents );
 		if ( _agents.Count == 0 ) return;
