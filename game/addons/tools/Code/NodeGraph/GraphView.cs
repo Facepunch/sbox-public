@@ -1380,6 +1380,10 @@ public class GraphView : GraphicsView, IGridSizeView
 		}
 
 		var nodeUI = Items.OfType<NodeUI>().FirstOrDefault( x => x.Node == node );
+
+		if ( nodeUI == null )
+			return null;
+
 		nodeUI.Selected = true;
 
 		return nodeUI;
