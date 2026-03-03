@@ -17,6 +17,8 @@ internal sealed class VerletRopeGameSystem : GameObjectSystem
 
 	void UpdateRopes()
 	{
+		using var _ = PerformanceStats.Timings.Physics.Scope();
+
 		_ropes.Clear();
 		Scene.GetAll<VerletRope>( _ropes );
 		if ( _ropes.Count == 0 ) return;

@@ -1,4 +1,6 @@
-﻿namespace Sandbox.UI
+﻿using Sandbox.Rendering;
+
+namespace Sandbox.UI
 {
 	/// <summary>
 	/// A generic box that displays a given texture within itself.
@@ -29,6 +31,7 @@
 			Texture = await Texture.LoadAsync( name );
 
 			if ( !IsValid ) return;
+			IsRenderDirty = true;
 			YogaNode.MarkDirty(); // Update MeasureTexture
 		}
 
@@ -43,7 +46,7 @@
 			}
 		}
 
-		internal override void DrawContent( PanelRenderer renderer, ref RenderState state )
+		internal override void DrawContent( CommandList commandList, PanelRenderer renderer, ref RenderState state )
 		{
 			if ( Texture == null )
 				return;
@@ -58,7 +61,7 @@
 					_ => Length.Auto,
 				};
 
-				pr.DrawBackgroundTexture( this, Texture, state, length );
+				pr.BuildCommandList_BackgroundTexture( this, Texture, state, length, commandList );
 			}
 		}
 

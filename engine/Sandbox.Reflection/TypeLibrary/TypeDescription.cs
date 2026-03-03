@@ -12,7 +12,7 @@ namespace Sandbox;
 [SkipHotload]
 public sealed class TypeDescription : ISourceLineProvider
 {
-	internal Internal.TypeLibrary library { get; set; }
+	internal readonly Internal.TypeLibrary library;
 
 	/// <summary>
 	/// The type this class describes.

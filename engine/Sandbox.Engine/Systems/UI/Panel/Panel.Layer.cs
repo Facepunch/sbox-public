@@ -2,29 +2,11 @@ using Sandbox.Rendering;
 
 namespace Sandbox.UI;
 
-internal class PanelLayer : IDisposable
-{
-	public Vector2 Size { get; set; }
-	public Texture Texture { get; set; }
-
-	public PanelLayer( Vector2 size )
-	{
-		Size = size;
-		Texture = Texture.CreateRenderTarget()
-								.WithSize( Size )
-								.Create();
-	}
-
-	public void Dispose()
-	{
-		Texture?.Dispose();
-		Texture = null;
-	}
-}
-
 public partial class Panel
 {
-	PanelLayer PanelLayer;
+	string PanelLayerRTName => field ??= $"PanelLayer.{GetHashCode()}";
+
+	Vector2? _panelLayerSize;
 
 	bool NeedsLayer( Styles styles )
 	{
@@ -32,41 +14,23 @@ public partial class Panel
 		if ( styles.FilterDropShadow.Count > 0 ) return true;
 		if ( styles.MaskImage != null ) return true;
 
-		//
-		// While this works, it seems really pretty wasteful
-		//
-		//if ( styles.Overflow.HasValue && styles.Overflow != OverflowMode.Visible ) return true;
-
 		return false;
 	}
 
-	void UpdateLayer( Styles styles )
+	internal void UpdateLayer( Styles styles )
 	{
 		if ( NeedsLayer( styles ) )
 		{
 			var size = Box.RectOuter.Size;
 
-			//	if ( styles.Overflow.HasValue && styles.Overflow != OverflowMode.Visible )
-			//	{
-			//		size = Box.Rect.Size;
-			//	}
-
 			if ( size.x <= 1 ) return;
 			if ( size.y <= 1 ) return;
 
-			// TODO - add blur size margin
-			if ( PanelLayer != null && PanelLayer.Size == size )
-				return;
-
-			PanelLayer?.Dispose();
-			PanelLayer = null;
-
-			PanelLayer = new PanelLayer( size );
+			_panelLayerSize = size;
 		}
 		else
 		{
-			PanelLayer?.Dispose();
-			PanelLayer = null;
+			_panelLayerSize = null;
 		}
 	}
 
@@ -75,8 +39,8 @@ public partial class Panel
 	/// </summary>
 	internal void PushLayer( PanelRenderer render )
 	{
-		if ( PanelLayer == null ) return;
-		if ( ComputedStyle == null ) return;
+		if ( _panelLayerSize is null ) return;
+		if ( ComputedStyle is null ) return;
 		if ( !IsVisible ) return;
 
 		// we need to push a matrix to offset the panel position,
@@ -84,50 +48,65 @@ public partial class Panel
 		var mat = render.Matrix.Inverted;
 		mat *= Matrix.CreateTranslation( Box.RectOuter.Position * -1.0f );
 
-		render.PushLayer( this, PanelLayer.Texture, mat );
+		// get an RT handle for this panel layer
+		var handle = CommandList.GetRenderTarget( PanelLayerRTName, (int)_panelLayerSize?.x, (int)_panelLayerSize?.y, depthFormat: ImageFormat.None );
+
+		render.PushLayer( this, handle, mat );
 	}
 
-	RenderAttributes layerAttributes = new RenderAttributes();
-
 	/// <summary>
-	/// Called after rendering this panel
+	/// Build commands for post-children layer drawing (filters, masks, etc.)
+	/// These commands go into LayerCommandList and are executed after children.
 	/// </summary>
-	internal void PopLayer( PanelRenderer render, RenderTarget defaultRenderTarget )
+	internal void BuildLayerPopCommands( PanelRenderer render, RenderTarget defaultRenderTarget )
 	{
-		if ( PanelLayer == null ) return;
-		if ( ComputedStyle == null ) return;
+		if ( _panelLayerSize is null ) return;
+		if ( ComputedStyle is null ) return;
 		if ( !IsVisible ) return;
 
-		render.PopLayer( this, defaultRenderTarget );
+		LayerCommandList.Reset();
+
+		// Restore render target (pop from layer stack)
+		render.PopLayer( this, LayerCommandList, defaultRenderTarget );
+
+		LayerCommandList.InsertList( TransformCommandList );
+		LayerCommandList.InsertList( ClipCommandList );
+
+		BuildLayerPopCommandsInto( render, LayerCommandList );
+	}
+
+	private void BuildLayerPopCommandsInto( PanelRenderer render, CommandList commandList )
+	{
+		var attributes = commandList.Attributes;
 
 		//
 		// Shared attributes
 		//
-		layerAttributes.Set( "Texture", PanelLayer.Texture );
-		layerAttributes.Set( "BoxPosition", Box.RectOuter.Position );
-		layerAttributes.Set( "BoxSize", Box.RectOuter.Size );
+		attributes.Set( "Texture", new RenderTargetHandle { Name = PanelLayerRTName }.ColorTexture );
+		attributes.Set( "BoxPosition", Box.RectOuter.Position );
+		attributes.Set( "BoxSize", Box.RectOuter.Size );
 
 		//
 		// Pre-filter: draw shadows and border before everything else as separate layers
 		//
-		DrawPreFilterShadows();
-		DrawPreFilterBorder();
-		ResetPrefilterAttributes();
+		DrawPreFilterShadows( commandList );
+		DrawPreFilterBorder( commandList );
+		ResetPrefilterAttributes( commandList );
 
 		//
 		// Draw this panel, with filters
 		//
 		// Todo, awesome, smooth, multipass blur
 		float blurSize = ComputedStyle.FilterBlur.Value.GetPixels( 1.0f );
-		layerAttributes.Set( "FilterBlur", blurSize );
+		attributes.Set( "FilterBlur", blurSize );
 
-		layerAttributes.Set( "FilterSaturate", ComputedStyle.FilterSaturate.Value.GetFraction( 1.0f ) );
-		layerAttributes.Set( "FilterSepia", ComputedStyle.FilterSepia.Value.GetFraction( 1.0f ) );
-		layerAttributes.Set( "FilterBrightness", ComputedStyle.FilterBrightness.Value.GetPixels( 1.0f ) );
-		layerAttributes.Set( "FilterContrast", ComputedStyle.FilterContrast.Value.GetPixels( 1.0f ) );
-		layerAttributes.Set( "FilterInvert", ComputedStyle.FilterInvert.Value.GetPixels( 1.0f ) );
-		layerAttributes.Set( "FilterHueRotate", ComputedStyle.FilterHueRotate.Value.GetPixels( 1.0f ) );
-		layerAttributes.Set( "FilterTint", ComputedStyle.FilterTint ?? Vector4.One );
+		attributes.Set( "FilterSaturate", ComputedStyle.FilterSaturate.Value.GetFraction( 1.0f ) );
+		attributes.Set( "FilterSepia", ComputedStyle.FilterSepia.Value.GetFraction( 1.0f ) );
+		attributes.Set( "FilterBrightness", ComputedStyle.FilterBrightness.Value.GetPixels( 1.0f ) );
+		attributes.Set( "FilterContrast", ComputedStyle.FilterContrast.Value.GetPixels( 1.0f ) );
+		attributes.Set( "FilterInvert", ComputedStyle.FilterInvert.Value.GetPixels( 1.0f ) );
+		attributes.Set( "FilterHueRotate", ComputedStyle.FilterHueRotate.Value.GetPixels( 1.0f ) );
+		attributes.Set( "FilterTint", ComputedStyle.FilterTint ?? Vector4.One );
 
 		float growSize = blurSize;
 
@@ -135,7 +114,7 @@ public partial class Panel
 		// Handle masks
 		//
 		bool hasMask = ComputedStyle.MaskImage != null;
-		layerAttributes.SetCombo( "D_MASK_IMAGE", hasMask ? 1 : 0 );
+		attributes.SetCombo( "D_MASK_IMAGE", hasMask ? 1 : 0 );
 
 		if ( hasMask )
 		{
@@ -153,11 +132,11 @@ public partial class Panel
 
 			var maskCalc = ImageRect.Calculate( imageRectInput );
 
-			layerAttributes.Set( "MaskPos", maskCalc.Rect );
-			layerAttributes.Set( "MaskTexture", ComputedStyle?.MaskImage );
-			layerAttributes.Set( "MaskMode", (int)(ComputedStyle?.MaskMode ?? MaskMode.MatchSource) );
-			layerAttributes.Set( "MaskAngle", ComputedStyle?.MaskAngle?.GetPixels( 1.0f ) ?? 0.0f );
-			layerAttributes.Set( "MaskScope", (int)(ComputedStyle?.MaskScope ?? MaskScope.Default) );
+			attributes.Set( "MaskPos", maskCalc.Rect );
+			attributes.Set( "MaskTexture", ComputedStyle?.MaskImage );
+			attributes.Set( "MaskMode", (int)(ComputedStyle?.MaskMode ?? MaskMode.MatchSource) );
+			attributes.Set( "MaskAngle", ComputedStyle?.MaskAngle?.GetPixels( 1.0f ) ?? 0.0f );
+			attributes.Set( "MaskScope", (int)(ComputedStyle?.MaskScope ?? MaskScope.Default) );
 
 			var filter = (ComputedStyle?.ImageRendering ?? ImageRendering.Anisotropic) switch
 			{
@@ -186,8 +165,8 @@ public partial class Panel
 				_ => new SamplerState { Filter = filter }
 			};
 
-			layerAttributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( sampler ) );
-			layerAttributes.Set( "BorderSamplerIndex", SamplerState.GetBindlessIndex( new SamplerState
+			attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( sampler ) );
+			attributes.Set( "BorderSamplerIndex", SamplerState.GetBindlessIndex( new SamplerState
 			{
 				AddressModeU = TextureAddressMode.Border,
 				AddressModeV = TextureAddressMode.Border,
@@ -195,14 +174,14 @@ public partial class Panel
 			} ) );
 		}
 
-		layerAttributes.SetComboEnum( "D_BLENDMODE", render.OverrideBlendMode );
-		Graphics.DrawQuad( Box.RectOuter.Grow( growSize ).Ceiling(), Material.UI.Filter, Color.White, layerAttributes );
+		attributes.SetCombo( "D_BLENDMODE", render.OverrideBlendMode );
+		commandList.DrawQuad( Box.RectOuter.Grow( growSize ).Ceiling(), Material.UI.Filter, Color.White );
 	}
 
 	/// <summary>
-	/// Draws shadows for the current layer 
+	/// Draws shadows for the current layer into the specified command list.
 	/// </summary>
-	private void DrawPreFilterShadows()
+	private void DrawPreFilterShadows( CommandList commandList )
 	{
 		foreach ( var shadow in ComputedStyle.FilterDropShadow )
 		{
@@ -216,21 +195,21 @@ public partial class Panel
 			growSize *= MathF.Max( 1.0f, shadow.Blur * 2.0f );
 			outerRect = outerRect.Grow( growSize );
 
-			ResetPrefilterAttributes();
+			ResetPrefilterAttributes( commandList );
 
-			layerAttributes.Set( "FilterDropShadowScale", Box.RectOuter.Size / outerRect.Size );
-			layerAttributes.Set( "FilterDropShadowOffset", shadowSize );
-			layerAttributes.Set( "FilterDropShadowBlur", shadow.Blur );
-			layerAttributes.Set( "FilterDropShadowColor", shadow.Color );
+			commandList.Attributes.Set( "FilterDropShadowScale", Box.RectOuter.Size / outerRect.Size );
+			commandList.Attributes.Set( "FilterDropShadowOffset", shadowSize );
+			commandList.Attributes.Set( "FilterDropShadowBlur", shadow.Blur );
+			commandList.Attributes.Set( "FilterDropShadowColor", shadow.Color );
 
-			Graphics.DrawQuad( outerRect, Material.UI.DropShadow, Color.White, layerAttributes );
+			commandList.DrawQuad( outerRect, Material.UI.DropShadow, Color.White );
 		}
 	}
 
 	/// <summary>
-	/// Draws borders for the current layer
+	/// Draws borders for the current layer into the specified command list.
 	/// </summary>
-	private void DrawPreFilterBorder()
+	private void DrawPreFilterBorder( CommandList commandList )
 	{
 		float filterBorderWidth = ComputedStyle.FilterBorderWidth.Value.GetPixels( 1.0f );
 		filterBorderWidth *= ScaleToScreen;
@@ -242,24 +221,29 @@ public partial class Panel
 			// Grow outerRect so that it can fit the border
 			outerRect = outerRect.Grow( filterBorderWidth );
 
-			ResetPrefilterAttributes();
+			ResetPrefilterAttributes( commandList );
 
-			layerAttributes.Set( "FilterBorderWrapColorScale", Box.RectOuter.Size / outerRect.Size );
-			layerAttributes.Set( "FilterBorderWrapColor", ComputedStyle.FilterBorderColor.Value );
-			layerAttributes.Set( "FilterBorderWrapWidth", filterBorderWidth );
+			commandList.Attributes.Set( "FilterBorderWrapColorScale", Box.RectOuter.Size / outerRect.Size );
+			commandList.Attributes.Set( "FilterBorderWrapColor", ComputedStyle.FilterBorderColor.Value );
+			commandList.Attributes.Set( "FilterBorderWrapWidth", filterBorderWidth );
 
-			Graphics.DrawQuad( outerRect, Material.UI.BorderWrap, Color.White, layerAttributes );
+			commandList.DrawQuad( outerRect, Material.UI.BorderWrap, Color.White );
 		}
 	}
 
-	private void ResetPrefilterAttributes()
+	private void ResetPrefilterAttributes( CommandList commandList )
 	{
-		layerAttributes.Set( "FilterDropShadowScale", 0 );
-		layerAttributes.Set( "FilterDropShadowOffset", 0 );
-		layerAttributes.Set( "FilterDropShadowBlur", 0 );
-		layerAttributes.Set( "FilterDropShadowColor", 0 );
+		commandList.Attributes.Set( "FilterDropShadowScale", 0 );
+		commandList.Attributes.Set( "FilterDropShadowOffset", 0 );
+		commandList.Attributes.Set( "FilterDropShadowBlur", 0 );
+		commandList.Attributes.Set( "FilterDropShadowColor", 0 );
 
-		layerAttributes.Set( "FilterBorderWrapColor", 0 );
-		layerAttributes.Set( "FilterBorderWrapWidth", 0 );
+		commandList.Attributes.Set( "FilterBorderWrapColor", 0 );
+		commandList.Attributes.Set( "FilterBorderWrapWidth", 0 );
 	}
+
+	/// <summary>
+	/// Returns true if this panel has a layer that needs post-children rendering.
+	/// </summary>
+	internal bool HasPanelLayer => _panelLayerSize != null;
 }

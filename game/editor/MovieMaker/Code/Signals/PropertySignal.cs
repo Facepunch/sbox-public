@@ -83,10 +83,27 @@ public abstract partial record PropertySignal<T>() : PropertySignal, IPropertySi
 
 		MergeSpans( sampleSpans, minConstBlockSampleCount );
 
-		foreach ( var span in sampleSpans )
+		for ( var i = 0; i < sampleSpans.Count; i++ )
 		{
+			var span = sampleSpans[i];
+
 			var startTime = timeRange.Start + MovieTime.FromFrames( span.Start, sampleRate );
 			var endTime = timeRange.Start + MovieTime.FromFrames( span.Start + span.Count, sampleRate );
+
+			var startOffset = MovieTime.Zero;
+
+			// Need to make sure blocks exactly fill timeRange
+
+			if ( i == 0 )
+			{
+				startOffset = startTime - timeRange.Start;
+				startTime = timeRange.Start;
+			}
+
+			if ( i == sampleSpans.Count - 1 )
+			{
+				endTime = timeRange.End;
+			}
 
 			if ( span.IsConstant )
 			{
@@ -96,7 +113,7 @@ public abstract partial record PropertySignal<T>() : PropertySignal, IPropertySi
 
 			var spanSamples = samples.Skip( span.Start ).Take( span.Count + trailingExtraSamples );
 
-			yield return new CompiledSampleBlock<T>( (startTime, endTime), 0d, sampleRate, [.. spanSamples] );
+			yield return new CompiledSampleBlock<T>( (startTime, endTime), startOffset, sampleRate, [.. spanSamples] );
 		}
 	}
 

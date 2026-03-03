@@ -22,10 +22,16 @@ public class EntityTreeView : TreeView
 
 	protected void OnItemClicked( object value )
 	{
-		if ( value is not EntityDataNode entityNode )
+		if ( value is MapClass mapClass )
+		{
+			OnItemSelected?.Invoke( mapClass.Name );
 			return;
+		}
 
-		OnItemSelected.Invoke( entityNode.Value.Name );
+		if ( value is EntityDataNode entityNode )
+		{
+			OnItemSelected?.Invoke( entityNode.Value.Name );
+		}
 	}
 
 	protected override void OnPaint()

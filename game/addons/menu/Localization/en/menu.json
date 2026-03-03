@@ -1,4 +1,5 @@
 {
+    "menu.home": "Home",
     "menu.hub": "Hub",
     "menu.games": "Games",
     "menu.maps": "Maps",
@@ -8,6 +9,7 @@
     "menu.quit": "Quit",
     "menu.searchplaceholder": "Search..",
     "menu.notifications":  "Notifications",
+    "menu.avatar": "Avatar",
 
     "avatar.change": "Change",
     "avatar.changetip": "Change your appearance",

@@ -1,0 +1,74 @@
+@import "/styles/_Theme.scss";
+
+Carousel {
+    border-radius: $rounding-default;
+    flex-direction: column;
+    pointer-events: all;
+    position: relative;
+    align-items: flex-start;
+    gap: 12px;
+
+    .tabs {
+        flex-shrink: 0;
+        padding: 3px 3px;
+        border-radius: $rounding-default;
+        gap: 3px;
+        background-color: $default-950;
+        margin-left: -3px; // Optical alignment against border of carousel
+
+        Button {
+            padding: 6px 12px;
+            border-radius: $rounding-default;
+            transition: all 150ms $easing;
+            cursor: pointer;
+            background-color: rgba( $primary-blue, 0 );
+            font-weight: 700;
+
+            Label {
+                font-size: $text-regular;
+            }
+
+            &:hover {
+                background-color: rgba( $default-500, 0.1 );
+                backdrop-filter: blur( 10px );
+            }
+
+            &.current {
+                background-color: $primary-blue;
+                color: $default-text-light;
+            }
+        }
+    }
+
+    CarouselPage {
+        flex-shrink: 0;
+        width: 100%;
+        flex-direction: column;
+        transition: opacity 150ms ease;
+
+        &.inactive {
+            opacity: 0;
+            display: none;
+        }
+    }
+
+    Button.more {
+        @include border-transparent;
+        width: 100%;
+        background-color: $default-950;
+        padding: 6px 12px;
+        border-radius: $rounding-default;
+        transition: all 150ms $easing;
+        cursor: pointer;
+        font-weight: 700;
+        justify-content: center;
+
+        Label {
+            font-size: $text-regular;
+        }
+
+        &:hover {
+            background-color: $default-900;
+        }
+    }
+}

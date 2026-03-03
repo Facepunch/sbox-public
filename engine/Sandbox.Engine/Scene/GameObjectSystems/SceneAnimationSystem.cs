@@ -104,6 +104,8 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 
 	void FinishUpdate()
 	{
+		using var _ = PerformanceStats.Timings.Animation.Scope();
+
 		foreach ( var renderer in SkinnedRenderers.EnumerateLocked() )
 		{
 			renderer.FinishUpdate();
@@ -112,6 +114,8 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 
 	void PhysicsStep()
 	{
+		using var _ = PerformanceStats.Timings.Animation.Scope();
+
 		_physRenderers.Clear();
 
 		foreach ( var renderer in SkinnedRenderers.EnumerateLocked() )

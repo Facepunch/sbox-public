@@ -89,7 +89,7 @@ partial class ObjectSelection
 				grid.Spacing = 4;
 
 				CreateButton( "Clipping Tool", "content_cut", "mesh.open-clipping-tool", OpenClippingTool, _meshes.Length > 0, grid );
-				CreateButton( "Mirror Tool", "flip", "mesh.mirror-tool", OpenMirrorTool, _meshes.Length > 0, grid );
+				CreateButton( "Mirror Tool", "flip", "mesh.mirror-tool", OpenMirrorTool, _gos.Length > 0, grid );
 
 				grid.AddStretchCell();
 
@@ -102,7 +102,7 @@ partial class ObjectSelection
 		[Shortcut( "mesh.mirror-tool", "SHIFT+F", typeof( SceneViewWidget ) )]
 		void OpenMirrorTool()
 		{
-			var tool = new MirrorTool();
+			var tool = new MirrorTool( nameof( ObjectSelection ) );
 			tool.Manager = _tool.Tool.Manager;
 			_tool.Tool.CurrentTool = tool;
 		}

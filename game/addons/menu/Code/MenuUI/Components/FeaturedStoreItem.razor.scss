@@ -1,0 +1,117 @@
+@import "/styles/_Theme.scss";
+$size: 12px;
+
+FeaturedStoreItem {
+    position: absolute;
+    right: 310px;
+    top: 64px;
+    flex-direction: column;
+    background-color: $default-900;
+    box-shadow: 0 4px 16px rgba( black, 0.33 );
+    border-radius: $rounding-default;
+    padding: 6px;
+    gap: 6px;
+    align-items: center;
+    z-index: 150;
+    opacity: 0;
+    cursor: pointer;
+
+    &.enabled {
+        animation: BounceIn 350ms $easing forwards;
+        animation-delay: 1s;
+    }
+
+    Button.hide {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        z-index: 10;
+        background-color: $default-800;
+        border-radius: 50%;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 8px;
+        box-shadow: 0 0 16px rgba( black, 0.33 );
+        transition: opacity 150ms $easing;
+        opacity: 0;
+
+        &:hover {
+            background-color: $default-700;
+        }
+
+        iconpanel {
+            width: auto;
+            height: auto;
+            aspect-ratio: 1;
+            font-size: $text-small;
+            color: $default-text;
+        }
+    }
+
+    &:hover {
+        Button.hide {
+            opacity: 1;
+        }
+    }
+
+    .triangle {
+        transform: rotate( 90deg ) translate( -2px -16px );
+        color: $default-900;
+        font-size: 32px;
+        position: absolute;
+        left: 50%;
+        top: -16px;
+        width: 0px;
+        height: 0px;
+    }
+
+    Button {
+        align-items: center;
+        flex-direction: column;
+        padding: 8px 10px;
+        pointer-events: all;
+        align-items: center;
+        gap: 6px;
+
+        iconpanel {
+            width: 64px;
+            height: 64px;
+            background-size: cover;
+            background-position: center;
+        }
+
+        Label {
+            font-weight: 700;
+            color: $default-text;
+        }
+    }
+
+    div.cta {
+        Label {
+            font-size: $text-eyebrow;
+            text-transform: uppercase;
+            font-family: $font-heading;
+            font-weight: 700;
+        }
+
+        width: 100%;
+        justify-content: center;
+        background-color: $primary-blue;
+        padding: 6px 6px;
+        z-index: 2;
+        border-radius: $rounding-xsmall;
+    }
+}
+
+@keyframes BounceIn {
+    0% {
+        transform: translateY( -25px );
+        opacity: 0;
+    }
+
+    100% {
+        transform: translateY( 0px );
+        opacity: 1;
+    }
+}

@@ -6,39 +6,25 @@
 @if (package == null)
 	return;
 
-<root class="button">
+<div class="inner">
+    <div class="image" style="background-image: url(@package.Thumb)">
+    </div>
 
-	<div class="content">
+    <column>
+        <label class="title">
+            @package.Title
+        </label>
 
-		<div class="header">
-			<div class="title">@package.Title</div>
-		</div>
+        <row>
+            <badge>
+                <icon class="eyebrow">person</icon>
+                <label class="eyebrow">@($"{Lobby.Members} / {Lobby.MaxMembers}")</label>
+            </badge>
 
-
-		<div class="meta">
-			
-			<div class="head">
-                <img src="avatar:@(Lobby.OwnerId)" />
-            </div>
-
-			<div class="players">
-				<IconPanel>directions_run</IconPanel>
-				<label>@Lobby.Members</label>
-				<label class="smaller">/</label>
-				<label class="smaller">@Lobby.MaxMembers</label>
-			</div>
-
-			<div class="title">@Lobby.Name</div>
-		</div>
-
-	</div>
-
-	@{
-		var bg = package.Thumb;
-		<div class="icon" style="background-image: url( @bg )"></div>
-	}
-
-</root>
+            <label class="eyebrow">@Lobby.Name</label>
+        </row>
+    </column>
+</div>
 
 @code
 {

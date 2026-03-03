@@ -1,54 +1,44 @@
-﻿namespace Sandbox.UI
+﻿using Sandbox.Rendering;
+
+namespace Sandbox.UI;
+
+internal partial class PanelRenderer
 {
-	internal partial class PanelRenderer
+	internal Matrix Matrix;
+	Stack<Matrix> MatrixStack = new Stack<Matrix>();
+
+	/// <summary>
+	/// Calculate and store the transform matrix for a panel during build phase.
+	/// The TransformMat attribute is stored in the panel's TransformCommandList.
+	/// </summary>
+	private void BuildTransformCommandList( Panel panel )
 	{
-		internal Matrix Matrix;
-		Stack<Matrix> MatrixStack = new Stack<Matrix>();
+		panel.GlobalMatrix = panel.Parent?.GlobalMatrix ?? null;
+		panel.LocalMatrix = null;
 
-		internal void PopMatrix()
+		var style = panel.ComputedStyle;
+		Matrix transformMat;
+
+		if ( style.Transform.Value.IsEmpty() || panel.TransformMatrix == Matrix.Identity )
 		{
-			MatrixStack.Pop();
-			Matrix = MatrixStack.Peek();
-
-			SetMatrix( Matrix );
+			// No transform, just inherit parent's matrix
+			transformMat = panel.GlobalMatrix?.Inverted ?? Matrix.Identity;
 		}
-
-		internal void PushMatrix( Matrix mat )
+		else
 		{
-			MatrixStack.Push( mat );
-			SetMatrix( mat );
-		}
-
-		void SetMatrix( Matrix mat )
-		{
-			Matrix = mat;
-
-			Graphics.Attributes.Set( "TransformMat", mat );
-		}
-
-		private bool PushMatrix( Panel panel )
-		{
-			var style = panel.ComputedStyle;
-
-			panel.GlobalMatrix = panel.Parent?.GlobalMatrix ?? null;
-			panel.LocalMatrix = null;
-
-			if ( style.Transform.Value.IsEmpty() ) return false;
-			if ( panel.TransformMatrix == Matrix.Identity ) return false;
-
 			Vector3 origin = panel.Box.Rect.Position;
-
 			origin.x += style.TransformOriginX.Value.GetPixels( panel.Box.Rect.Width, 0.0f );
 			origin.y += style.TransformOriginY.Value.GetPixels( panel.Box.Rect.Height, 0.0f );
 
 			// Transform origin from parent's untransformed space to parent's transformed space
 			Vector3 transformedOrigin = panel.Parent?.GlobalMatrix?.Inverted.Transform( origin ) ?? origin;
 
-			Matrix *= Matrix.CreateTranslation( -transformedOrigin );
-			Matrix *= panel.TransformMatrix;
-			Matrix *= Matrix.CreateTranslation( transformedOrigin );
+			transformMat = panel.GlobalMatrix?.Inverted ?? Matrix.Identity;
+			transformMat *= Matrix.CreateTranslation( -transformedOrigin );
+			transformMat *= panel.TransformMatrix;
+			transformMat *= Matrix.CreateTranslation( transformedOrigin );
 
-			var mi = Matrix.Inverted;
+			var mi = transformMat.Inverted;
 
 			// Local is current takeaway parent
 			if ( panel.GlobalMatrix.HasValue )
@@ -61,11 +51,24 @@
 			}
 
 			panel.GlobalMatrix = mi;
-			PushMatrix( Matrix );
-
-			return true;
 		}
 
+		// Skip command list rebuild if transform and root status unchanged
+		var isRoot = panel is RootPanel;
+		if ( panel._lastTransformMat == transformMat && panel._lastTransformIsRoot == isRoot )
+			return;
 
+		panel._lastTransformMat = transformMat;
+		panel._lastTransformIsRoot = isRoot;
+
+		panel.TransformCommandList.Reset();
+
+		if ( isRoot )
+		{
+			panel.TransformCommandList.Attributes.Set( "LayerMat", Matrix.Identity );
+		}
+
+		panel.TransformCommandList.Attributes.Set( "TransformMat", transformMat );
 	}
+
 }

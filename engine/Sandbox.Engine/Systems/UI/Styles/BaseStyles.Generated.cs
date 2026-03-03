@@ -2200,7 +2200,7 @@ public abstract partial class BaseStyles
 	}
 	
 	internal ObjectFit? _objectfit;
-	
+
 	/// <summary>
 	/// Represents the <c>object-fit</c> CSS property.
 	/// </summary>
@@ -2214,7 +2214,55 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
+	internal Length? _outlinewidth;
+
+	/// <summary>
+	/// Represents the <c>outline-width</c> CSS property.
+	/// </summary>
+	public Length? OutlineWidth
+	{
+		get => _outlinewidth;
+		set
+		{
+			if ( _outlinewidth == value ) return;
+			_outlinewidth = value;
+			Dirty();
+		}
+	}
+
+	internal Color? _outlinecolor;
+
+	/// <summary>
+	/// Represents the <c>outline-color</c> CSS property.
+	/// </summary>
+	public Color? OutlineColor
+	{
+		get => _outlinecolor;
+		set
+		{
+			if ( _outlinecolor == value ) return;
+			_outlinecolor = value;
+			Dirty();
+		}
+	}
+
+	internal Length? _outlineoffset;
+
+	/// <summary>
+	/// Represents the <c>outline-offset</c> CSS property.
+	/// </summary>
+	public Length? OutlineOffset
+	{
+		get => _outlineoffset;
+		set
+		{
+			if ( _outlineoffset == value ) return;
+			_outlineoffset = value;
+			Dirty();
+		}
+	}
+
 
 	/// <summary>
 	/// Copy over only the styles that are set.
@@ -2359,6 +2407,9 @@ public abstract partial class BaseStyles
 		if ( a._animationtimingfunction != null ) _animationtimingfunction = a._animationtimingfunction;
 		if ( a._fontsmooth != null ) _fontsmooth = a._fontsmooth;
 		if ( a._objectfit != null ) _objectfit = a._objectfit;
+		if ( a._outlinewidth != null ) _outlinewidth = a._outlinewidth;
+		if ( a._outlinecolor != null ) _outlinecolor = a._outlinecolor;
+		if ( a._outlineoffset != null ) _outlineoffset = a._outlineoffset;
 	}
 
 	/// <summary>
@@ -2504,6 +2555,9 @@ public abstract partial class BaseStyles
 		_animationtimingfunction = a._animationtimingfunction;
 		_fontsmooth = a._fontsmooth;
 		_objectfit = a._objectfit;
+		_outlinewidth = a._outlinewidth;
+		_outlinecolor = a._outlinecolor;
+		_outlineoffset = a._outlineoffset;
 	}
 
 	/// <summary>
@@ -2834,6 +2888,15 @@ public abstract partial class BaseStyles
 		case "animation-timing-function":
 			AnimationTimingFunction = value.TrimQuoted( true );
 			return true;
+		case "outline-width":
+			OutlineWidth = Length.Parse( value );
+			return OutlineWidth.HasValue;
+		case "outline-color":
+			OutlineColor = Color.Parse( value );
+			return OutlineColor.HasValue;
+		case "outline-offset":
+			OutlineOffset = Length.Parse( value );
+			return OutlineOffset.HasValue;
 		default:
 			return false;
 		}
@@ -2981,6 +3044,9 @@ public abstract partial class BaseStyles
 			hash = HashCode.Combine( hash, _animationtimingfunction );
 			hash = HashCode.Combine( hash, _fontsmooth );
 			hash = HashCode.Combine( hash, _objectfit );
+			hash = HashCode.Combine( hash, _outlinewidth );
+			hash = HashCode.Combine( hash, _outlinecolor );
+			hash = HashCode.Combine( hash, _outlineoffset );
 
 		return hash;
 	}
@@ -3083,6 +3149,9 @@ public abstract partial class BaseStyles
 		LerpProperty( "text-stroke-color", from, to, delta );
 		LerpProperty( "text-stroke-width", from, to, delta );
 		LerpProperty( "animation-iteration-count", from, to, delta );
+		LerpProperty( "outline-width", from, to, delta );
+		LerpProperty( "outline-color", from, to, delta );
+		LerpProperty( "outline-offset", from, to, delta );
 	}
 	
 	/// <summary>
@@ -3371,9 +3440,18 @@ public abstract partial class BaseStyles
 			case "animation-iteration-count":
 				Lerp( ref _animationiterationcount, from._animationiterationcount, to._animationiterationcount, 1, delta );
 				break;
+			case "outline-width":
+				Lerp( ref _outlinewidth, from._outlinewidth, to._outlinewidth, 0, delta );
+				break;
+			case "outline-color":
+				Lerp( ref _outlinecolor, from._outlinecolor, to._outlinecolor, Color.Transparent, delta );
+				break;
+			case "outline-offset":
+				Lerp( ref _outlineoffset, from._outlineoffset, to._outlineoffset, 0, delta );
+				break;
 		}
 	}
-	
+
 	/// <summary>
 	/// Perform a deep copy of this stylesheet
 	/// </summary>
@@ -3518,6 +3596,9 @@ public abstract partial class BaseStyles
 		copy._animationtimingfunction = _animationtimingfunction;
 		copy._fontsmooth = _fontsmooth;
 		copy._objectfit = _objectfit;
+		copy._outlinewidth = _outlinewidth;
+		copy._outlinecolor = _outlinecolor;
+		copy._outlineoffset = _outlineoffset;
 		return copy;
 	}
 
@@ -3679,6 +3760,9 @@ public abstract partial class BaseStyles
 		if ( !_animationiterationcount.HasValue ) _animationiterationcount = 1;
 		if ( !_fontsmooth.HasValue ) _fontsmooth = UI.FontSmooth.Auto;
 		if ( !_objectfit.HasValue ) _objectfit = UI.ObjectFit.Cover;
+		if ( !_outlinewidth.HasValue ) _outlinewidth = 0;
+		if ( !_outlinecolor.HasValue ) _outlinecolor = Color.Transparent;
+		if ( !_outlineoffset.HasValue ) _outlineoffset = 0;
 	}
 
 	internal bool IsDefault( string name )
@@ -3823,8 +3907,11 @@ public abstract partial class BaseStyles
 			case "animation-timing-function": return (_animationtimingfunction == "ease");
 			case "font-smooth": return (_fontsmooth == UI.FontSmooth.Auto);
 			case "object-fit": return (_objectfit == UI.ObjectFit.Cover);
+			case "outline-width": return (_outlinewidth == 0);
+			case "outline-color": return (_outlinecolor == Color.Transparent);
+			case "outline-offset": return (_outlineoffset == 0);
 		}
-		
+
 		throw new Exception( $"Invalid property name '{name}'" );
 	}
 }

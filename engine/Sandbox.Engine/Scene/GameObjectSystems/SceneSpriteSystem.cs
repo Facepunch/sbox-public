@@ -204,6 +204,8 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 	private void UpdateSprites()
 	{
+		using var _ = PerformanceStats.Timings.Render.Scope();
+
 		if ( Application.IsHeadless )
 			return;
 

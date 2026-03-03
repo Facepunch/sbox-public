@@ -24,6 +24,8 @@ public static partial class Http
 		var socketHttpHandler = new SocketsHttpHandler
 		{
 			PooledConnectionLifetime = TimeSpan.FromMinutes( 2 ),
+			// Must be false — SocketsHttpHandler bypasses DelegatingHandler on redirects, allowing SSRF.
+			AllowAutoRedirect = false,
 		};
 
 		// Gives us 1 http client per game, so cookies don't persist etc.
@@ -124,15 +126,15 @@ public static partial class Http
 
 internal sealed class SboxHttpHandler : DelegatingHandler
 {
+	// Match .NET's default redirect limit
+	private const int MaxRedirects = 50;
+
 	public SboxHttpHandler( HttpMessageHandler innerHandler ) : base( innerHandler ) { }
 
 	private static void HandleRequest( HttpRequestMessage request )
 	{
-		// Check URI here because of redirects
 		if ( !Http.IsAllowed( request.RequestUri ) )
-		{
 			throw new InvalidOperationException( $"Access to '{request.RequestUri}' is not allowed." );
-		}
 
 		request.Headers.Remove( "User-Agent" );
 		request.Headers.TryAddWithoutValidation( "User-Agent", Http.UserAgent );
@@ -141,15 +143,103 @@ internal sealed class SboxHttpHandler : DelegatingHandler
 		request.Headers.TryAddWithoutValidation( "Referer", Http.Referrer );
 	}
 
+	private static bool IsRedirectStatus( HttpStatusCode status ) => status is
+		HttpStatusCode.MovedPermanently or
+		HttpStatusCode.Found or
+		HttpStatusCode.SeeOther or
+		HttpStatusCode.TemporaryRedirect or
+		HttpStatusCode.PermanentRedirect;
+
+	// Mirrors dotnet/runtime RedirectHandler.RequestRequiresForceGet.
+	private static HttpMethod RedirectMethod( HttpStatusCode status, HttpMethod original )
+	{
+		return status switch
+		{
+			HttpStatusCode.MovedPermanently or HttpStatusCode.Found
+				=> original == HttpMethod.Post ? HttpMethod.Get : original,
+			HttpStatusCode.SeeOther
+				=> (original == HttpMethod.Get || original == HttpMethod.Head) ? original : HttpMethod.Get,
+			_ => original, // 307/308: preserve
+		};
+	}
+
 	protected override HttpResponseMessage Send( HttpRequestMessage request, CancellationToken cancellationToken )
 	{
 		HandleRequest( request );
-		return base.Send( request, cancellationToken );
+		var response = base.Send( request, cancellationToken );
+
+		for ( int i = 0; i < MaxRedirects && IsRedirectStatus( response.StatusCode ); i++ )
+		{
+			var location = ResolveRedirectLocation( response, request.RequestUri );
+			if ( location is null ) break;
+			var status = response.StatusCode;
+			response.Dispose();
+
+			ApplyRedirect( request, status, location );
+			HandleRequest( request );
+			response = base.Send( request, cancellationToken );
+		}
+
+		return response;
 	}
 
-	protected override Task<HttpResponseMessage> SendAsync( HttpRequestMessage request, CancellationToken cancellationToken )
+	protected override async Task<HttpResponseMessage> SendAsync( HttpRequestMessage request, CancellationToken cancellationToken )
 	{
 		HandleRequest( request );
-		return base.SendAsync( request, cancellationToken );
+		var response = await base.SendAsync( request, cancellationToken );
+
+		for ( int i = 0; i < MaxRedirects && IsRedirectStatus( response.StatusCode ); i++ )
+		{
+			var location = ResolveRedirectLocation( response, request.RequestUri );
+			if ( location is null ) break;
+			var status = response.StatusCode;
+			response.Dispose();
+
+			ApplyRedirect( request, status, location );
+			HandleRequest( request );
+			response = await base.SendAsync( request, cancellationToken );
+		}
+
+		return response;
+	}
+
+	/// <summary>
+	/// Mutates <paramref name="request"/> in-place for the redirect, matching dotnet/runtime RedirectHandler:
+	/// - Always clears Authorization (credentials must not follow redirects)
+	/// - Coerces method to GET and clears Content for 301/302/303 POST requests
+	/// - 307/308 preserve method and content
+	/// </summary>
+	private static void ApplyRedirect( HttpRequestMessage request, HttpStatusCode status, Uri location )
+	{
+		request.RequestUri = location;
+		request.Headers.Authorization = null;
+
+		var method = RedirectMethod( status, request.Method );
+		if ( method != request.Method )
+		{
+			request.Method = method;
+			request.Content = null;
+			request.Headers.TransferEncodingChunked = false;
+		}
+	}
+
+	// Returns null to silently stop: missing Location or https→http downgrade.
+	private static Uri ResolveRedirectLocation( HttpResponseMessage response, Uri requestUri )
+	{
+		var location = response.Headers.Location;
+		if ( location is null ) return null;
+
+		if ( !location.IsAbsoluteUri )
+			location = new Uri( requestUri, location );
+
+		// Block https→http downgrade
+		if ( requestUri.Scheme == Uri.UriSchemeHttps && location.Scheme == Uri.UriSchemeHttp )
+			return null;
+
+		// RFC 7231 §7.1.2: inherit fragment if redirect has none
+		if ( !string.IsNullOrEmpty( requestUri.Fragment ) && string.IsNullOrEmpty( location.Fragment ) )
+			location = new UriBuilder( location ) { Fragment = requestUri.Fragment }.Uri;
+
+		return location;
 	}
 }

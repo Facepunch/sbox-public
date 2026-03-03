@@ -1,74 +1,79 @@
+@import '/styles/_Theme.scss';
 @import '/styles/mainmenu.scss';
 
-.mainmenu
-{
+.mainmenu {
     flex-direction: column;
     font-size: 14px;
-    pointer-events: all;
-
-    NavigationHost
-    {
-        flex-grow: 1;
-        flex-direction: column;
-        align-items: center;
-    }
-}
-
-.body
-{
-    flex-grow: 1;
-    flex-direction: column;
-    position: relative;
-   // width: 100%;
-}
-
-.is-vr 
-{
-    filter: drop-shadow(0px 0px 20px rgba( black, 0.5 ));
-}
-
-.side-navigation
-{
-    flex-shrink: 0;
-}
-
-> .mainmenu .navigator-body
-{
-    flex-grow: 1;
-
-    &.hidden
-    {
-        display: none;
-        opacity: 0;
-    }
-}
-
-.mainmenu-header, .mainmenu-footer
-{
-    flex-grow: 0;
-    flex-shrink: 0;
-}
-
-.mainmenu-header
-{
-    height: 90px;
-    z-index: 10;
-}
-
-.mainmenu-footer
-{
-    z-index: 10;
-}
-
-.mainmenu-content
-{
-    flex-grow: 1;
     width: 100%;
+    height: 100%;
+    pointer-events: all;
 }
 
-.tooltip
-{
+.tooltip {
     background-color: #656e7e;
     font-family: Poppins;
     border: none;
+}
+
+.page {
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+}
+
+.navigator-body {
+    // transition: transform 150ms ease, opacity 150ms ease, display 150ms ease;
+    pointer-events: all;
+    width: 100%;
+    height: 100%;
+    flex-grow: 1;
+
+    &.hidden {
+        display: none;
+        pointer-events: none;
+    }
+}
+
+NavigationHost {
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.navigator-canvas {
+    flex-grow: 1;
+
+    z-index: 0;
+}
+
+card {
+    @include border;
+    background-color: $default-950;
+    border-radius: $rounding-default;
+    padding: 20px;
+    width: 100%;
+    max-width: 400px;
+    flex-direction: column;
+
+    .title {
+        font-size: $text-heading;
+        font-weight: 700;
+        color: $default-text;
+    }
+
+    .description {
+        font-size: $text-regular;
+        color: $default-text-light;
+        flex-grow: 1;
+    }
+
+    Button {
+        align-self: flex-start;
+        padding: 8px 12px;
+
+        &:hover {
+            cursor: pointer;
+            border-radius: $rounding-default;
+            background-color: $default-950;
+        }
+    }
 }

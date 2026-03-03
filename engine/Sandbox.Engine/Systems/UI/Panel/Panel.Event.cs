@@ -245,6 +245,10 @@ public partial class Panel
 			InternalDragEvent( de );
 		}
 
+		if ( e.Is( "ondrop" ) ) OnDrop( e );
+		if ( e.Is( "ondragenter" ) ) OnDragEnter( e );
+		if ( e.Is( "ondragleave" ) ) OnDragLeave( e );
+
 		if ( e.Is( "onfocus" ) ) OnFocus( e );
 		if ( e.Is( "onblur" ) ) OnBlur( e );
 		if ( e.Is( "onback" ) ) OnBack( e );

@@ -6,12 +6,11 @@
 @inherits Panel
 
 <root>
-
-    <Button tooltip="#menu.notifications" onclick="@OpenPopup" Active=@(count > 0) class="circle" Icon="notifications"></Button>
+    <Button onclick="@OpenPopup" Active=@(count > 0) class=@($"circle {(count > 0 ? "unread" : "")}") Icon="notifications"></Button>
 
     @if ( count > 0 )
     {
-        <div class="count">@(count > 99 ? "+99" : $"{count}")</div>
+        <div class="unread">@(count > 99 ? "+99" : $"{count}")</div>
     }
 </root>
 

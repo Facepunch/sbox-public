@@ -140,9 +140,6 @@ public partial class Panel : IPanel, IValid, IComponent
 	internal virtual void RemoveFromLists()
 	{
 		Sandbox.Event.Unregister( this );
-
-		PanelLayer?.Dispose();
-		PanelLayer = null;
 	}
 
 	/// <summary>

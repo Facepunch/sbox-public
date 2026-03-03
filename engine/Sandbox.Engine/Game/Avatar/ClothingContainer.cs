@@ -320,7 +320,7 @@ public partial class ClothingContainer
 		/// The resource path of this item. This means it's on disk somewhere.
 		/// </summary>
 		[JsonPropertyName( "p" ), JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )]
-		internal string Path { get; set; }
+		public string Path { get; set; }
 
 		/// <summary>
 		/// Legacy integer resource ID from before path-based serialization.
@@ -328,7 +328,7 @@ public partial class ClothingContainer
 		/// </summary>
 		[JsonPropertyName( "id" ), JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )]
 		[Obsolete]
-		internal int LegacyId { get; set; }
+		public int LegacyId { get; set; }
 
 		/// <summary>
 		/// The Steam Inventory Item Definition Id. This means we should look up the item from the workshop.
@@ -353,7 +353,7 @@ public partial class ClothingContainer
 				entry.ItemId = c.Clothing.SteamItemDefinitionId.Value;
 			}
 
-			if ( c.Clothing != null && c.ItemDefinitionId != 0 )
+			if ( c.ItemDefinitionId != 0 )
 			{
 				entry.Path = default;
 				entry.ItemId = c.ItemDefinitionId;

@@ -448,6 +448,60 @@ public class StyleSelectorUsage
 		Assert.IsTrue( panels[8].ComputedStyle.IsDefault( "background-color" ) );
 		Assert.IsFalse( panels[9].ComputedStyle.IsDefault( "background-color" ) );
 	}
+
+	[TestMethod]
+	public void LastChildOnAppend()
+	{
+		var r = new RootPanel();
+		r.StyleSheet.Parse( ".one:last-child { background-color: yellow; }" );
+
+		var p1 = r.Add.Panel( "one" );
+		var p2 = r.Add.Panel( "one" );
+
+		r.Layout();
+
+		Assert.IsTrue( p1.ComputedStyle.IsDefault( "background-color" ) );   // p1 is NOT :last-child
+		Assert.IsFalse( p2.ComputedStyle.IsDefault( "background-color" ) );  // p2 IS :last-child
+	}
+
+	[TestMethod]
+	public void LastChildOnRemove()
+	{
+		var r = new RootPanel();
+		r.StyleSheet.Parse( ".one:last-child { background-color: yellow; }" );
+
+		var p1 = r.Add.Panel( "one" );
+		var p2 = r.Add.Panel( "one" );
+
+		r.Layout();
+
+		// Detach p2... p1 should become :last-child immediately
+		p2.Parent = null;
+
+		r.Layout();
+
+		Assert.IsFalse( p1.ComputedStyle.IsDefault( "background-color" ) );  // p1 is now :last-child
+	}
+
+	[TestMethod]
+	public void LastChildOnReorder()
+	{
+		var r = new RootPanel();
+		r.StyleSheet.Parse( ".one:last-child { background-color: yellow; }" );
+
+		var p1 = r.Add.Panel( "one" );
+		var p2 = r.Add.Panel( "one" );
+
+		r.Layout();
+
+		// Move p1 to the end: order becomes p2, p1
+		r.SetChildIndex( p1, 1 );
+
+		r.Layout();
+
+		Assert.IsTrue( p2.ComputedStyle.IsDefault( "background-color" ) );   // p2 is no longer :last-child
+		Assert.IsFalse( p1.ComputedStyle.IsDefault( "background-color" ) );  // p1 is now :last-child
+	}
 }
 
 public class MySpecialPanel : Panel

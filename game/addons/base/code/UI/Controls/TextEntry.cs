@@ -1,4 +1,5 @@
-﻿using Sandbox.UI.Construct;
+﻿using Sandbox.Rendering;
+using Sandbox.UI.Construct;
 using System.Globalization;
 
 namespace Sandbox.UI;
@@ -530,7 +531,7 @@ public partial class TextEntry : BaseControl
 	}
 
 
-	public override void DrawContent( ref RenderState state )
+	public override void BuildContentCommandList( CommandList commandList, ref RenderState state )
 	{
 		Label.ShouldDrawSelection = HasFocus;
 
@@ -546,7 +547,7 @@ public partial class TextEntry : BaseControl
 			var color = ComputedStyle.CaretColor ?? ComputedStyle.FontColor ?? Color.Black;
 			color.a *= blink ? 1.0f : 0f;
 
-			Graphics.DrawRoundedRectangle( caret, color );
+			commandList.DrawQuad( caret, Material.UI.Box, color );
 		}
 	}
 

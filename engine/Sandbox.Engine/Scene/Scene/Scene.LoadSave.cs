@@ -235,7 +235,7 @@ public partial class Scene : GameObject
 		}
 	}
 
-	internal JsonObject SerializeProperties()
+	public JsonObject SerializeProperties()
 	{
 		var jso = new JsonObject();
 

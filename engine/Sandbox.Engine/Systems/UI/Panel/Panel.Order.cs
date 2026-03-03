@@ -82,8 +82,7 @@ public partial class Panel
 
 		_children.Remove( child );
 		_children.Insert( newIndex, child );
-		child.UpdateSiblingIndex( newIndex, _children.Count );
-		IndexesDirty = true;
+		UpdateChildrenIndexes();
 
 		Assert.Equals( child.SiblingIndex, newIndex );
 	}

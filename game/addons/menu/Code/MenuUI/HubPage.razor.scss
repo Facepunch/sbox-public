@@ -1,30 +1,24 @@
-HomePage .top
-{
+HubPage .top {
     flex-shrink: 0;
     padding: 32px;
     padding-bottom: 0;
     z-index: 10;
 }
 
-HomePage .blocks
-{
+HubPage .blocks {
     padding: 32px;
     gap: 32px;
     flex-grow: 1;
     padding-top: 0;
-    
 }
 
-
-HomePage .blocks .block
-{
+HubPage .blocks .block {
     flex-grow: 1;
     flex-shrink: 0;
     flex-basis: 1;
     mask: linear-gradient( to bottom, black, white ) top top / 100% 64px;
 
-    > *
-    {
+    > * {
         padding-top: 64px;
         padding-bottom: 64px;
     }

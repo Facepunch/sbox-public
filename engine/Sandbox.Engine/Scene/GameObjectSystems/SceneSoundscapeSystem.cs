@@ -16,6 +16,8 @@ sealed class SceneSoundscapeSystem : GameObjectSystem<SceneSoundscapeSystem>
 
 	void Update()
 	{
+		using var _ = PerformanceStats.Timings.Audio.Scope();
+
 		if ( Scene.IsEditor )
 			return;
 

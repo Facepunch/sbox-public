@@ -125,8 +125,8 @@ internal sealed class SoundOcclusionSystem : GameObjectSystem
 		_tempHandles.Clear();
 		SoundHandle.GetActive( _tempHandles );
 
-		// Sort by creation time descending (newest first) to match mixer priority
-		_tempHandles.Sort( ( a, b ) => b._CreatedTime.CompareTo( a._CreatedTime ) );
+		// Sort by creation time descending (newest first) to match mixer priority.
+		_tempHandles.Sort( SoundHandle.ByCreatedTimeDescending );
 
 		// Track voice count per mixer to respect MaxVoices limits
 		_voiceCountByMixer.Clear();

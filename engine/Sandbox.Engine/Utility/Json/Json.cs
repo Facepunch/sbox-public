@@ -79,6 +79,14 @@ public static partial class Json
 	}
 
 	/// <summary>
+	/// Deserialize from a Utf8JsonReader to given type, using our engine specific options.
+	/// </summary>
+	public static T Deserialize<T>( ref Utf8JsonReader reader )
+	{
+		return JsonSerializer.Deserialize<T>( ref reader, options );
+	}
+
+	/// <summary>
 	/// Try to deserialize given source to given type. Return true if it was a success
 	/// </summary>
 	public static bool TryDeserialize( string source, System.Type t, out object obj )
@@ -123,6 +131,14 @@ public static partial class Json
 			return null;
 
 		return JsonSerializer.Serialize( source, options );
+	}
+
+	/// <summary>
+	/// Serialize to a Utf8JsonWriter using our engine specific options.
+	/// </summary>
+	public static void Serialize<T>( Utf8JsonWriter writer, T target )
+	{
+		JsonSerializer.Serialize( writer, target, options );
 	}
 
 	/// <summary>

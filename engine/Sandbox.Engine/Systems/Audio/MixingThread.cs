@@ -41,12 +41,9 @@ static class MixingThread
 	{
 		try
 		{
-			using ( PerformanceStats.Timings.AudioMixingThread.Scope() )
+			lock ( LockObject )
 			{
-				lock ( LockObject )
-				{
-					Mix();
-				}
+				Mix();
 			}
 		}
 		catch ( Exception e )

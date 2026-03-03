@@ -19,6 +19,16 @@ public sealed partial class CommandList
 			_get = _getter;
 		}
 
+		public void Clear()
+		{
+			static void Execute( ref Entry entry, CommandList commandList )
+			{
+				var attrAccess = (AttributeAccess)entry.Object1;
+				attrAccess.attributes.Clear();
+			}
+			list.AddEntry( &Execute, new Entry { Object1 = this } );
+		}
+
 		public void Set( StringToken token, float f )
 		{
 			static void Execute( ref Entry entry, CommandList commandList )
@@ -218,6 +228,26 @@ public sealed partial class CommandList
 
 				var attrAccess = (AttributeAccess)entry.Object4;
 				attrAccess.attributes.Set( entry.Token, target.ColorTarget, (int)entry.Data1.x );
+			}
+
+			list.AddEntry( &Execute, new Entry { Token = token, Object5 = buffer.Name, Object4 = this, Data1 = new Vector4( mip, 0, 0, 0 ) } );
+		}
+
+		/// <summary>
+		/// Set the depth texture from this named render target to this attribute
+		/// </summary>
+		public void Set( StringToken token, RenderTargetHandle.DepthTextureRef buffer, int mip = -1 )
+		{
+			static void Execute( ref Entry entry, CommandList commandList )
+			{
+				if ( commandList.state.GetRenderTarget( (string)entry.Object5 ) is not { } target )
+				{
+					Log.Warning( $"[{commandList.DebugName ?? "CommandList"}] Unknown rt: {(string)entry.Object5}" );
+					return;
+				}
+
+				var attrAccess = (AttributeAccess)entry.Object4;
+				attrAccess.attributes.Set( entry.Token, target.DepthTarget, (int)entry.Data1.x );
 			}
 
 			list.AddEntry( &Execute, new Entry { Token = token, Object5 = buffer.Name, Object4 = this, Data1 = new Vector4( mip, 0, 0, 0 ) } );

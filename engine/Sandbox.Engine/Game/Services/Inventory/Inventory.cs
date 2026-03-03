@@ -100,11 +100,8 @@ public static partial class Inventory
 
 			if ( timer.ElapsedSeconds > 20 )
 			{
-				// Timed out waiting for items, but the checkout was successful.
-				// Do one final refresh to ensure we have the latest inventory state, even if we didn't detect the new items specifically.
-				Log.Warning( "Checkout succeeded but timed out waiting for new items to appear in inventory. Items may appear shortly." );
-				await Refresh();
-				return true;
+				Log.Warning( "Checkout timed out waiting for new items. Purchase may have been cancelled, or items may appear shortly." );
+				return false;
 			}
 		}
 	}

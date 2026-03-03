@@ -1,0 +1,25 @@
+@import "/styles/_theme.scss";
+
+HorizontalGameList {
+    gap: 12px;
+    flex-direction: column;
+    transition: transform 500ms $easing, opacity 300ms $easing;
+
+    &.hidden {
+        display: none;
+        opacity: 0;
+        transform: translateX( -300px );
+    }
+
+    &.exiting {
+        display: none;
+        opacity: 0;
+        transform: translateX( 300px );
+    }
+
+    .games {
+        overflow-x: scroll;
+        gap: 12px;
+        flex-direction: row;
+    }
+}
