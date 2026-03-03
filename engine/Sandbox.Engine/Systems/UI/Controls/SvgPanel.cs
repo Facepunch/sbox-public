@@ -86,6 +86,7 @@ public partial class SvgPanel : Panel
 		}
 
 		texture = await Texture.LoadAsync( url );
+		IsRenderDirty = true;
 	}
 
 	internal override void DrawContent( CommandList commandList, PanelRenderer renderer, ref RenderState state )
@@ -95,7 +96,7 @@ public partial class SvgPanel : Panel
 
 		if ( renderer is PanelRenderer pr )
 		{
-			pr.BuildCommandList_BackgroundTexture( this, texture, state, Length.Cover );
+			pr.BuildCommandList_BackgroundTexture( this, texture, state, Length.Cover, commandList );
 		}
 	}
 }
