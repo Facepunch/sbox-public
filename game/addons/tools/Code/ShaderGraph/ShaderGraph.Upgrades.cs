@@ -7,7 +7,7 @@ namespace Editor.ShaderGraph;
 
 partial class ShaderGraph
 {
-#region Version 1 Upgrader
+	#region Version 1 Upgrader
 	/// <summary>
 	/// Check if a legacy parameter node should be upgraded to SubgraphInput.
 	/// </summary>
@@ -147,7 +147,7 @@ partial class ShaderGraph
 			obj.Add( JsonKeys.NodeArray, newNodeArray );
 		}
 	}
-#endregion Version 1 Upgrader
+	#endregion Version 1 Upgrader
 
 	private static bool CheckIsSubgraph( JsonObject obj )
 	{
