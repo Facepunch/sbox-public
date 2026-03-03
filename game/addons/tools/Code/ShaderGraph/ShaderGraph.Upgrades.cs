@@ -38,7 +38,6 @@ partial class ShaderGraph
 			"Float2" => true,
 			"Float3" => true,
 			"Float4" => true,
-			"TextureSampler" => true,
 			_ => false
 		};
 	}
