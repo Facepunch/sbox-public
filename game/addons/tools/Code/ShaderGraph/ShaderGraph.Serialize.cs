@@ -85,7 +85,7 @@ partial class ShaderGraph
 	{
 		upgradedElement = default;
 
-		if ( fileVersion >= Version ) 
+		if ( fileVersion >= Version )
 			return false;
 
 		ShaderGraphJsonUpgrader.Upgrade( fileVersion, json, typeof( ShaderGraph ), options );
