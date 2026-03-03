@@ -10,7 +10,8 @@ partial class Compiler
 		var processor = new Generator.Processor()
 		{
 			AddonName = Name,
-			AddonFileMap = output.Archive.FileMap
+			AddonFileMap = output.Archive.FileMap,
+			EnableCorelibPolyfills = _config.Whitelist
 		};
 
 		if ( Group.AllowFastHotload && incrementalState.HasState )
