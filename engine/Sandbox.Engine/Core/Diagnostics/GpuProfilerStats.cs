@@ -16,6 +16,7 @@ public static class GpuProfilerStats
 {
 	private static readonly List<GpuTimingEntry> _entries = new();
 	private static readonly Dictionary<string, float> _smoothedDurations = new();
+	private static readonly Dictionary<string, float> _maxDurations = new();
 	private static bool _enabled;
 
 	/// <summary>
@@ -35,6 +36,7 @@ public static class GpuProfilerStats
 			if ( !value )
 			{
 				_smoothedDurations.Clear();
+				_maxDurations.Clear();
 			}
 		}
 	}
@@ -55,6 +57,14 @@ public static class GpuProfilerStats
 	public static float GetSmoothedDuration( string name )
 	{
 		return _smoothedDurations.GetValueOrDefault( name, 0f );
+	}
+
+	/// <summary>
+	/// Get a decayed max duration for a given name (for display purposes)
+	/// </summary>
+	public static float GetMaxDuration( string name )
+	{
+		return _maxDurations.GetValueOrDefault( name, 0f );
 	}
 
 	internal static void Update()
@@ -90,6 +100,16 @@ public static class GpuProfilerStats
 				smoothed = duration;
 			}
 			_smoothedDurations[name] = smoothed;
+
+			if ( _maxDurations.TryGetValue( name, out var maxDuration ) )
+			{
+				maxDuration = duration > maxDuration ? duration : MathX.LerpTo( maxDuration, duration, Time.Delta * 0.25f );
+			}
+			else
+			{
+				maxDuration = duration;
+			}
+			_maxDurations[name] = maxDuration;
 
 			_entries.Add( new GpuTimingEntry
 			{

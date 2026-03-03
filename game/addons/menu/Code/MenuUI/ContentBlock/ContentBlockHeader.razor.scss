@@ -6,11 +6,21 @@
 	padding: 1rem;
 	padding-bottom: 1rem;
 	gap: 0.4rem;
-	color: #08f;
+	color: white;
+	transition: all 0.05s ease;
+
+	.chevron
+	{
+		align-self: center;
+		transition: all 0.05s ease;
+	}
 
 	&:hover
 	{
-		color: white;
+		.chevron
+		{
+			margin-left: 2px;
+		}
 	}
 }
 

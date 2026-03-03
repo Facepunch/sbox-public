@@ -1,0 +1,14 @@
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox;
+@using System;
+@namespace Sandbox.UI
+@inherits Panel
+
+<root>
+    <div class="avatar" style="background-image: url(avatar:@UserId)" />
+</root>
+
+@code {
+    [Property] public string UserId { get; set; } = Connection.Local.SteamId.ToString();
+}

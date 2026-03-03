@@ -1,8 +1,10 @@
 ﻿using Sandbox.Engine;
 using Sandbox.Internal;
 using Sandbox.Modals;
+using Sandbox.Rendering;
 using Sandbox.UI;
 using Sandbox.VR;
+using System.Threading;
 
 namespace Sandbox;
 
@@ -11,9 +13,11 @@ namespace Sandbox;
 /// </summary>
 internal class UISystem
 {
-	internal PanelRenderer Renderer = new PanelRenderer();
+	internal ThreadLocal<PanelRenderer> Renderer = new( () => new PanelRenderer() );
 
 	internal PanelInput Input { get; } = new();
+
+	internal readonly CommandList GlobalCommandList = new();
 
 	internal List<RootPanel> RootPanels = new();
 	internal List<Panel> DeletionList = new();
@@ -55,14 +59,24 @@ internal class UISystem
 
 	internal void Render( float opacity = 1.0f )
 	{
-		Graphics.Attributes.SetCombo( "D_WORLDPANEL", 0 );
-
-		for ( int i = RootPanels.Count() - 1; i >= 0; i-- )
+		using ( Performance.Scope( "Execute Command Lists" ) )
 		{
-			if ( !RootPanels[i].IsValid ) continue;
-			if ( RootPanels[i].RenderedManually || RootPanels[i].IsWorldPanel ) continue;
+			Graphics.Attributes.SetCombo( "D_WORLDPANEL", 0 );
+			GlobalCommandList.ExecuteOnRenderThread();
+		}
+	}
 
-			RootPanels[i].Render( opacity );
+	internal void CombineCommandLists()
+	{
+		GlobalCommandList.Reset();
+
+		for ( int i = RootPanels.Count - 1; i >= 0; i-- )
+		{
+			var root = RootPanels[i];
+			if ( !root.IsValid ) continue;
+			if ( root.RenderedManually || root.IsWorldPanel ) continue;
+
+			GlobalCommandList.InsertList( root.PanelCommandList );
 		}
 	}
 
@@ -111,6 +125,16 @@ internal class UISystem
 		using ( Performance.Scope( "Build Command Lists" ) )
 		{
 			BuildCommandLists();
+		}
+
+		using ( Performance.Scope( "Gather Command Lists" ) )
+		{
+			GatherCommandLists();
+		}
+
+		using ( Performance.Scope( "Combine Command Lists" ) )
+		{
+			CombineCommandLists();
 		}
 	}
 
@@ -168,14 +192,24 @@ internal class UISystem
 
 	internal void BuildCommandLists()
 	{
-		// Build command lists for ALL root panels, including manually rendered
-		// and world panels. Only the rendering is separate - command list building
-		// must happen during the tick phase for all panels.
-		for ( int i = 0; i < RootPanels.Count(); i++ )
+		for ( int i = 0; i < RootPanels.Count; i++ )
 		{
-			if ( !RootPanels[i].IsValid ) continue;
+			var root = RootPanels[i];
+			if ( !root.IsValid ) continue;
 
-			RootPanels[i].BuildCommandLists();
+			root.BuildCommandLists();
+		}
+	}
+
+	internal void GatherCommandLists()
+	{
+		for ( int i = 0; i < RootPanels.Count; i++ )
+		{
+			var root = RootPanels[i];
+			if ( !root.IsValid ) continue;
+			if ( root.RenderedManually ) continue;
+
+			root.GatherCommandLists();
 		}
 	}
 

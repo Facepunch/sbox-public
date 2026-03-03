@@ -210,7 +210,7 @@ internal static partial class DebugOverlay
 				TextFlag.CenterTop
 			);
 
-			position.y += graphHeight;
+			position.y += graphHeight + 20f;
 		}
 	}
 }

@@ -176,7 +176,7 @@ partial class FaceTool
 		[Shortcut( "mesh.mirror-tool", "SHIFT+F", typeof( SceneViewWidget ) )]
 		void OpenMirrorTool()
 		{
-			var tool = new MirrorTool();
+			var tool = new MirrorTool( nameof( FaceTool ) );
 			tool.Manager = _meshTool.Manager;
 			_meshTool.CurrentTool = tool;
 		}

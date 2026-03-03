@@ -1,29 +1,20 @@
-@using MenuProject.MenuUI.Layout.MenuHeader
 @using Sandbox.UI;
 @using Sandbox.UI.Navigation;
 @using Sandbox;
 @using System;
 @using Menu;
-@using MenuProject.Social;
-@using MenuProject.Footer;
 @inherits PanelComponent
 
 <div class="mainmenu">
-
-    <NavigationHost @ref="Navigator" DefaultUrl="/front" class="navigator"> 
+    
+    <NavigationHost DefaultUrl="/home" @ref="Navigator">
         <ChildContent>
 
-            <div class="mainmenu-header">
-                <MenuHeader />
-            </div>
+            <Navbar />
 
-            <div class="mainmenu-content">
-                <div id="MenuContent" slot="navigator-canvas"></div>
-            </div>
+            <div class="navigator-canvas" slot="navigator-canvas"></div>
 
-            <div class="mainmenu-footer">
-                <MenuFooter></MenuFooter>
-            </div>
+            <Footer />
             
         </ChildContent>
     </NavigationHost>

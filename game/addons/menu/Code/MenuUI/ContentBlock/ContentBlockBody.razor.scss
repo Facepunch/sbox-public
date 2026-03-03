@@ -1,0 +1,73 @@
+﻿@import "/styles/_Theme.scss";
+
+ContentBlockBody
+{
+	position: relative;
+
+	&:hover
+	{
+		.visible
+		{
+			opacity: 1;
+			cursor: pointer;
+			pointer-events: all;
+		}
+	}
+
+	> .content
+	{
+		overflow-x: scroll;
+		overflow-y: hidden;
+		gap: 1rem;
+		padding: 0 32px;
+	}
+
+	> .nav-button
+	{
+		@include border;
+		position: absolute;
+		z-index: 99;
+		width: 42px;
+		aspect-ratio: 1;
+		border-radius: 50%;
+		align-self: center;
+		justify-content: center;
+		padding: 0;
+		background-color: $default-950;
+		opacity: 0;
+		transition: all 0.1s ease;
+
+		.icon
+		{
+			font-size: 21px;
+			color: #70788b;
+			transition: all 0.1s ease;
+		}
+
+		&:active
+		{
+			sound-in: ui.button.press;
+		}
+
+		&:hover
+		{
+			sound-in: ui.button.over;
+			background-color: $default-800;
+
+			.icon
+			{
+				color: white;
+			}
+		}
+
+		&.left
+		{
+			left: 12px;
+		}
+
+		&.right
+		{
+			right: 12px;
+		}
+	}
+}

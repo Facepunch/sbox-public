@@ -1,0 +1,54 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using System.Globalization
+@namespace Sandbox.UI
+@inherits Panel
+
+<root>
+    @if ( Title != null )
+    {
+        <row>
+            <icon class="eyebrow">
+                @Icon
+            </icon>
+            <label class="eyebrow">
+                @Title
+            </label>
+        </row>
+    }
+
+    <div class="games">
+        @if ( Result != null )
+        {
+            @foreach (var item in Result.Packages.OrderByDescending( x => x.Usage.UsersNow ))
+            {
+                <GameCard class="list" Package=@(item) />
+            }
+        }
+    </div>
+</root>
+
+@code {
+    [Property] public string Icon { get; set; }
+    [Property] public string Title { get; set; }
+    [Property] public string Query { get; set; }
+
+    private Sandbox.Package.FindResult Result { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await UpdateList();
+    }
+
+    async Task UpdateList()
+    {
+        Result = await Package.FindAsync(Query, 3);
+
+        StateHasChanged();
+    }
+
+    protected override int BuildHash()
+    {
+        return System.HashCode.Combine(Result);
+    }
+}

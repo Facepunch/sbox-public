@@ -40,6 +40,11 @@ namespace Sandbox
 			/// </summary>
 			internal static Material DropShadow { get; set; }
 
+			/// <summary>
+			/// CSS Outline rendering
+			/// </summary>
+			internal static Material Outline { get; set; }
+
 			internal static void InitStatic()
 			{
 				Basic = FromShader( "shaders/ui_basic.shader" );
@@ -50,6 +55,7 @@ namespace Sandbox
 				Filter = FromShader( "shaders/ui_filter.shader" );
 				DropShadow = FromShader( "shaders/ui_dropshadow.shader" );
 				BorderWrap = FromShader( "shaders/ui_borderwrap.shader" );
+				Outline = FromShader( "shaders/ui_cssoutline.shader" );
 			}
 
 			internal static void DisposeStatic()
@@ -70,6 +76,8 @@ namespace Sandbox
 				DropShadow = null;
 				BorderWrap?.Dispose();
 				BorderWrap = null;
+				Outline?.Dispose();
+				Outline = null;
 			}
 		}
 	}

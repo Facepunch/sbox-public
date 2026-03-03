@@ -1,0 +1,37 @@
+@import "/styles/_theme.scss";
+
+HumanSwitcher {
+    width: 50%;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    transition: all 150ms $easing;
+    z-index: -10;
+
+    &:hover {
+        Button {
+            opacity: 1;
+        }
+    }
+
+    Button {
+        padding: 6px 12px;
+        color: $default-text;
+        opacity: 0;
+        border-radius: $rounding-xsmall;
+        transition: all 150ms ease;
+        border: 1px solid rgba( $default-50, 0.1 );
+        backdrop-filter: blur( 10px );
+
+        &:hover {
+            border: 1px solid rgba( $default-200, 0.1 );
+        }
+
+        Label {
+            font-weight: 700;
+            font-size: $text-eyebrow;
+            font-family: $font-heading;
+            text-transform: uppercase;
+        }
+    }
+}

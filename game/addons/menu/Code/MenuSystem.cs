@@ -154,7 +154,7 @@ public partial class MenuSystem : IMenuSystem
 		bool isAvatarMenu = Game.ActiveScene.Get<AvatarEditManager>() != null;
 		bool isLoadingScreen = LoadingScreen.IsVisible;
 
-		menu.Enabled = Game.IsMainMenuVisible && !isLoadingScreen && !isAvatarMenu;
+		menu.Enabled = false; // Game.IsMainMenuVisible && !isLoadingScreen && !isAvatarMenu;
 		menu.Update();
 
 		loading.Enabled = LoadingScreen.IsVisible && (IGameInstance.Current is null || IGameInstance.Current.IsLoading);

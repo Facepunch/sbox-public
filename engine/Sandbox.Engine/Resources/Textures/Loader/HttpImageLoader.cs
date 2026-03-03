@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Caching.Memory;
 using System.IO;
-using System.Net.Http;
+using System.Net.Http; // for HttpRequestException
 
 namespace Sandbox.TextureLoader;
 
@@ -44,13 +44,8 @@ internal static class ImageUrl
 		}
 	}
 
-	static HttpClient HttpClient;
-
 	internal static async Task<Texture> LoadFromUrl( string url )
 	{
-		HttpClient ??= new HttpClient();
-		var filename = url;
-
 		try
 		{
 			// I'd love to retry this multiple times, if it's a weird error that seems recoverable

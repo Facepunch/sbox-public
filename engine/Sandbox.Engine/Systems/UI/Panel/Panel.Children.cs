@@ -117,7 +117,7 @@ public partial class Panel
 			}
 
 			OnChildRemoved( p );
-			IndexesDirty = true;
+			UpdateChildrenIndexes();
 			SetNeedsPreLayout();
 		}
 		else
@@ -179,7 +179,15 @@ public partial class Panel
 		_renderChildren.Add( child );
 		_renderChildrenDirty = true;
 
-		child.UpdateSiblingIndex( _children.Count - 1, _children.Count );
+		var childCount = _children.Count;
+		if ( childCount >= 2 )
+		{
+			// Update the previous last-child immediately so it has the correct pseudo-classes BEFORE BuildStyleRules() runs.
+			// Without this, the previous last child temporarily keeps :last-child, causing incorrect styles for a single frame.
+			_children[childCount - 2].UpdateSiblingIndex( childCount - 2, childCount );
+		}
+
+		child.UpdateSiblingIndex( childCount - 1, childCount );
 		OnChildAdded( child );
 		SetNeedsPreLayout();
 
