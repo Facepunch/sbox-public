@@ -106,7 +106,7 @@ partial class ShaderGraph
 		if ( obj[JsonKeys.NodeArray] is not JsonArray oldNodeArray )
 			return;
 
-		if ( CheckIfSubgraph( obj ) )
+		if ( CheckIsSubgraph( obj ) )
 		{
 			var identifiers = new Dictionary<string, string>();
 			foreach ( var node in oldNodeArray )
@@ -147,7 +147,7 @@ partial class ShaderGraph
 		}
 	}
 
-	private static bool CheckIfSubgraph( JsonObject obj )
+	private static bool CheckIsSubgraph( JsonObject obj )
 	{
 		return obj.TryGetPropertyValue( nameof( ShaderGraph.IsSubgraph ), out var subgraphValue ) ? subgraphValue.GetValue<bool>() : false;
 	}
