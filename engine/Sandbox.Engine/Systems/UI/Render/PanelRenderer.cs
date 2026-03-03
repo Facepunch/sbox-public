@@ -79,15 +79,20 @@ internal sealed partial class PanelRenderer
 					Log.Error( e );
 				}
 			}
-
-			// Build post-children layer commands (for filters/masks)
-			panel.BuildLayerPopCommands( this, DefaultRenderTarget );
 		}
 
-		// Build command lists for children
+		// Build command lists for children BEFORE BuildLayerPopCommands so that the
+		// parent stays on the LayerStack while children are built
 		if ( panel.HasChildren )
 		{
 			panel.BuildCommandListsForChildren( this, ref state );
+		}
+
+		// Build post-children layer commands (for filters/masks) AFTER children so the
+		// parent's LayerStack entry is still present when children call PopLayer
+		if ( panel.HasPanelLayer )
+		{
+			panel.BuildLayerPopCommands( this, DefaultRenderTarget );
 		}
 
 		if ( renderMode ) PopRenderMode();

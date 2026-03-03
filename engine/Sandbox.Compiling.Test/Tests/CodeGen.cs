@@ -1,7 +1,10 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 
 namespace Generator
@@ -71,14 +74,16 @@ namespace Generator
 			return compiler;
 		}
 
-		CSharpCompilation BuildString( string contents, string assemblyName = "assembly_name" )
+		const string InputSyntaxTreePath = "Program.cs";
+
+		CSharpCompilation BuildString( string contents, string assemblyName = "assembly_name", bool asSourceGenerator = false, Action<Sandbox.Generator.Processor> configureProcessor = null, IEnumerable<MetadataReference> additionalReferences = null )
 		{
 			List<SyntaxTree> SyntaxTree = new List<SyntaxTree>();
 
 			{
 				var parseOptions = CSharpParseOptions.Default.WithLanguageVersion( LanguageVersion.Default );
 				var code = contents;
-				var tree = CSharpSyntaxTree.ParseText( text: code, options: parseOptions, path: "Program.cs", encoding: System.Text.Encoding.UTF8 );
+				var tree = CSharpSyntaxTree.ParseText( text: code, options: parseOptions, path: InputSyntaxTreePath, encoding: System.Text.Encoding.UTF8 );
 				SyntaxTree.Add( tree );
 			}
 
@@ -97,12 +102,21 @@ namespace Generator
 
 			refs.Add( MetadataReference.CreateFromFile( typeof( Networking ).Assembly.Location ) );
 			refs.Add( MetadataReference.CreateFromFile( typeof( ConCmdAttribute ).Assembly.Location ) ); // Sandbox.System
+			if ( additionalReferences is not null )
+			{
+				refs.AddRange( additionalReferences );
+			}
 
 			CSharpCompilation compiler = CSharpCompilation.Create( $"{assemblyName}.dll", SyntaxTree, refs, optn );
 
 			var processor = new Sandbox.Generator.Processor();
 			processor.AddonName = assemblyName;
 			processor.PackageAssetResolver = ( p ) => $"/{p}/model_mock.mdl";
+			configureProcessor?.Invoke( processor );
+			if ( asSourceGenerator )
+			{
+				processor.Context = new SourceProductionContext?( default );
+			}
 			processor.Run( compiler );
 
 			compiler = processor.Compilation;
@@ -346,6 +360,55 @@ namespace Generator
 			var tree = compiler.SyntaxTrees.First();
 
 			Assert.IsTrue( tree.GetText().ToString().Contains( "[return:DescriptionAttribute( \"Here's a description of the return value!\" )]" ) );
+		}
+
+		[TestMethod]
+		public void ArrayPoolSharedIsRedirectedForAddons()
+		{
+			var rewritten = RunArrayPoolRewrite( asSourceGenerator: false );
+
+			Assert.IsTrue( rewritten.Contains( "global::Sandbox.Internal.PublicArrayPool<int>.Shared" ), "Expected ArrayPool.Shared to be redirected to PublicArrayPool.Shared" );
+			Assert.IsFalse( rewritten.Contains( "return ArrayPool<int>.Shared" ), "Redirected code should not retain direct ArrayPool.Shared access" );
+		}
+
+		[TestMethod]
+		public void ArrayPoolSharedUnaffectedForEngineGenerators()
+		{
+			var rewritten = RunArrayPoolRewrite( asSourceGenerator: true );
+
+			Assert.IsTrue( rewritten.Contains( "return ArrayPool<int>.Shared" ), "Engine compilation should keep ArrayPool.Shared untouched" );
+			Assert.IsFalse( rewritten.Contains( "global::Sandbox.Internal.PublicArrayPool<int>.Shared" ), "Engine compilation should not inject PublicArrayPool helper" );
+		}
+
+		private string RunArrayPoolRewrite( bool asSourceGenerator )
+		{
+			const string Source = """
+	using System.Buffers;
+
+	public static class ArrayPoolConsumer
+	{
+		public static int[] Acquire()
+		{
+			return ArrayPool<int>.Shared.Rent(1);
+		}
+	}
+	""";
+
+			var additionalReferences = new[]
+			{
+				MetadataReference.CreateFromFile( typeof( ArrayPool<int> ).Assembly.Location )
+			};
+
+			var compiler = BuildString(
+				Source,
+				assemblyName: "array_pool_test",
+				asSourceGenerator: asSourceGenerator,
+				configureProcessor: processor => processor.EnableCorelibPolyfills = !asSourceGenerator,
+				additionalReferences: additionalReferences );
+
+			// BuildString hardcodes this path via CSharpSyntaxTree.ParseText(..., path: InputSyntaxTreePath)
+			var processedTree = compiler.SyntaxTrees.First( x => x.FilePath == InputSyntaxTreePath );
+			return processedTree.GetText().ToString();
 		}
 	}
 }
