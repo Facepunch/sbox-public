@@ -400,10 +400,23 @@ public sealed unsafe partial class CommandList
 
 		// TODO - check to make sure we don't create an infinite loop?
 		// maybe make a local int here, increment every call, throw exception if it's over 2?
-
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			((CommandList)entry.Object1).ExecuteOnRenderThread();
+			var other = (CommandList)entry.Object1;
+			if ( !other.Enabled )
+				return;
+
+			// Propagate state from parent so child entries can access renderTargets etc.
+			var previousState = other.state;
+			other.state = commandList.state;
+
+			for ( int i = 0; i < other._entries.Count; i++ )
+			{
+				var e = other._entries[i];
+				e.Execute( ref e, other );
+			}
+
+			other.state = previousState;
 		}
 
 		AddEntry( &Execute, new Entry { Object1 = otherBuffer } );

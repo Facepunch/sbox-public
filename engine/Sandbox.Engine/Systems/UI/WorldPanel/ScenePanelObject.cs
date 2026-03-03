@@ -34,6 +34,6 @@ internal sealed class ScenePanelObject : SceneCustomObject
 		mat *= Matrix.CreateScale( ScreenToWorldScale );
 		Graphics.Attributes.Set( "WorldMat", mat );
 
-		Panel?.Render();
+		Panel?.RenderManual();
 	}
 }

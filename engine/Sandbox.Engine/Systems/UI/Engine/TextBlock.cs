@@ -163,7 +163,10 @@ internal sealed class TextBlock : IDisposable
 
 		attributes.Set( "Texture", Texture );
 		attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = TextFilter } ) );
-		attributes.SetCombo( "D_BLENDMODE", renderer.OverrideBlendMode );
+
+		var bm = renderer.OverrideBlendMode;
+		if ( bm == BlendMode.Normal ) bm = BlendMode.PremultipliedAlpha;
+		attributes.SetCombo( "D_BLENDMODE", bm );
 
 		commandList.DrawQuad( textrect.Floor(), Material.UI.Text, color );
 	}
@@ -544,7 +547,7 @@ internal sealed class TextBlock : IDisposable
 
 		using var perfScope = Performance.Scope( "TextBlock.RebuildTexture" );
 
-		using ( var bitmap = new SKBitmap( width, height, SKColorType.Bgra8888, SKAlphaType.Unpremul ) )
+		using ( var bitmap = new SKBitmap( width, height, SKColorType.Bgra8888, SKAlphaType.Premul ) )
 		using ( var canvas = new SKCanvas( bitmap ) )
 		{
 			var o = new Topten.RichTextKit.TextPaintOptions

@@ -216,6 +216,9 @@ namespace Sandbox.UI
 
 				case "object-fit":
 					return SetObjectFit( value );
+
+				case "outline":
+					return SetOutline( value );
 			}
 
 			return base.Set( property, value );
@@ -2202,6 +2205,12 @@ namespace Sandbox.UI
 			}
 
 			return false;
+		}
+
+		bool SetOutline( string value )
+		{
+			// Same behaviour as border
+			return SetBorder( value, v => OutlineWidth = v, c => OutlineColor = c );
 		}
 
 		Length? GetAngleInDegrees( string value )

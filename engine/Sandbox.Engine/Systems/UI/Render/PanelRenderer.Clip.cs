@@ -32,7 +32,7 @@ internal partial class PanelRenderer
 
 		public ClipScope( Rect scissorRect, Vector4 cornerRadius, Matrix globalMatrix )
 		{
-			var renderer = GlobalContext.Current.UISystem.Renderer;
+			var renderer = GlobalContext.Current.UISystem.Renderer.Value;
 
 			Previous = renderer.Scissor;
 			PreviousGPU = renderer.ScissorGPU;
@@ -69,7 +69,7 @@ internal partial class PanelRenderer
 
 		public void Dispose()
 		{
-			var renderer = GlobalContext.Current.UISystem.Renderer;
+			var renderer = GlobalContext.Current.UISystem.Renderer.Value;
 			renderer.Scissor = Previous;
 			renderer.ScissorGPU = PreviousGPU;
 		}
@@ -90,7 +90,7 @@ internal partial class PanelRenderer
 		return new ClipScope( panel.Box.ClipRect, borderRadius, panel.GlobalMatrix ?? Matrix.Identity );
 	}
 
-	static void SetScissorAttributes( CommandList commandList, GPUScissor scissor )
+	internal static void SetScissorAttributes( CommandList commandList, GPUScissor scissor )
 	{
 		if ( scissor.Rect.Width == 0 && scissor.Rect.Height == 0 )
 		{
@@ -104,64 +104,16 @@ internal partial class PanelRenderer
 		commandList.Attributes.Set( "HasScissor", 1 );
 	}
 
-	void InitScissor( Rect rect, CommandList commandList )
+	void InitScissor( Rect rect )
 	{
 		Scissor = rect;
 		ScissorGPU = new() { Rect = rect, Matrix = Matrix.Identity };
+	}
 
+	void InitScissor( Rect rect, CommandList commandList )
+	{
+		InitScissor( rect );
 		SetScissorAttributes( commandList, ScissorGPU );
 	}
 
-	/// <summary>
-	/// Quick check to see if a panel should be culled based on the current scissor
-	/// </summary>
-	bool ShouldEarlyCull( Panel panel )
-	{
-		//
-		// This shit should be fast, so don't do complicated shit here
-		// Keep it simple AABB, doesn't matter if we miss some overflow because the shader will clear up anything else
-		//
-
-		//
-		// Can't clip contents panels
-		//
-		if ( panel.ComputedStyle.Display == DisplayMode.Contents )
-			return false;
-
-		var rect = panel.Box.Rect;
-
-		//
-		// Grow our rect by any shadows we might have
-		//
-		if ( panel.ComputedStyle.BoxShadow is ShadowList shadows && shadows.Count > 0 )
-		{
-			for ( int i = 0; i < shadows.Count; i++ )
-			{
-				var shadow = shadows[i];
-				if ( shadow.Inset ) continue;
-
-				var shadowRect = panel.Box.Rect + new Vector2( shadow.OffsetX, shadow.OffsetY );
-				rect.Add( shadowRect.Grow( shadow.Spread ) );
-			}
-		}
-
-		//
-		// AABB transform
-		//
-		if ( panel.GlobalMatrix.HasValue )
-		{
-			var mat = panel.GlobalMatrix.Value;
-			var tl = mat.Transform( rect.TopLeft );
-			var tr = mat.Transform( rect.TopRight );
-			var bl = mat.Transform( rect.BottomLeft );
-			var br = mat.Transform( rect.BottomRight );
-
-			var min = Vector2.Min( Vector2.Min( tl, tr ), Vector2.Min( bl, br ) );
-			var max = Vector2.Max( Vector2.Max( tl, tr ), Vector2.Max( bl, br ) );
-
-			rect = new Rect( min, max - min );
-		}
-
-		return !Scissor.IsInside( rect );
-	}
 }

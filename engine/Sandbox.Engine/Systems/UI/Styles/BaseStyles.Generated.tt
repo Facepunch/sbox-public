@@ -148,7 +148,10 @@ var Members = new Dictionary<string, (string TypeName, string DefaultValue, bool
 	{ "AnimationPlayState",			("string",				"\"running\"",					false)},
 	{ "AnimationTimingFunction",	("string",				"\"ease\"",						false)},
 	{ "FontSmooth",					("FontSmooth?",			"UI.FontSmooth.Auto",			true)},
-	{ "ObjectFit",					("ObjectFit?",			"UI.ObjectFit.Cover",			false)}
+	{ "ObjectFit",					("ObjectFit?",			"UI.ObjectFit.Cover",			false)},
+	{ "OutlineWidth",				("Length?",				"0",							false)},
+	{ "OutlineColor",				("Color?",				"Color.Transparent",			false)},
+	{ "OutlineOffset",				("Length?",				"0",							false)}
 };
 
 static bool IsTransitionable( string propertyName )
