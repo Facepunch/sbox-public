@@ -6,20 +6,17 @@
 	padding-bottom: 200px;
 }
 
+ContentBlockHero
+{
+	margin: 32px 32px 0 32px;
+}
+.content-block-header
+{
+	margin-left: 32px;
+}
 .content-blocks > *
 {
 	flex-shrink: 0;
-}
-
-
-.content-block-track
-{
-	overflow-x: scroll;
-	overflow-y: hidden;
-	padding: 0px 5rem;
-	gap: 1rem;
-	mask: linear-gradient( to right, white, white, white, white, white, white, black );
-	padding: 1rem;
 }
 
 .cblock

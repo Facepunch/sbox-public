@@ -135,7 +135,7 @@ namespace Sandbox.UI
 				}
 			}
 
-			renderer.BuildCommandList_BackgroundTexture( this, RenderTexture, state, Length.Contain );
+			renderer.BuildCommandList_BackgroundTexture( this, RenderTexture, state, Length.Contain, commandList );
 
 		}
 

@@ -1,4 +1,5 @@
-﻿using Sandbox.Rendering;
+using Sandbox.Engine;
+using Sandbox.Rendering;
 
 namespace Sandbox.UI;
 
@@ -11,6 +12,10 @@ public partial class Panel
 	internal readonly CommandList ClipCommandList = new(); // Don't execute directly - save off to this and then combine into main command list during rendering
 	internal readonly CommandList TransformCommandList = new(); // Stores TransformMat attribute, combined into main command list
 	internal readonly CommandList LayerCommandList = new(); // For post-children layer drawing (filters, masks, etc.)
+
+	internal int _lastScissorHash;
+	internal Matrix _lastTransformMat;
+	internal bool _lastTransformIsRoot;
 
 	internal virtual void DrawContent( CommandList commandList, PanelRenderer renderer, ref RenderState state )
 	{
@@ -47,24 +52,6 @@ public partial class Panel
 	{
 		// nothing by default
 	}
-
-	internal void RenderChildren( PanelRenderer render, ref RenderState state )
-	{
-		if ( _renderChildrenDirty )
-		{
-			_renderChildren.Sort( ( x, y ) => x.GetRenderOrderIndex() - y.GetRenderOrderIndex() );
-			_renderChildrenDirty = false;
-		}
-
-		// Render Children
-		{
-			for ( int i = 0; i < _renderChildren.Count; i++ )
-			{
-				render.Render( _renderChildren[i], state );
-			}
-		}
-	}
-
 	/// <summary>
 	/// Build command lists for all children. Called during tick phase.
 	/// </summary>
@@ -81,6 +68,24 @@ public partial class Panel
 		for ( int i = 0; i < _renderChildren.Count; i++ )
 		{
 			render.BuildCommandLists( _renderChildren[i], state );
+		}
+	}
+
+	/// <summary>
+	/// Gather children's pre-built command lists into the global command list.
+	/// Called during the gather phase after all per-panel CLs have been built.
+	/// </summary>
+	internal void GatherChildrenCommandLists( PanelRenderer render, ref RenderState state, CommandList globalCL )
+	{
+		if ( _renderChildrenDirty )
+		{
+			_renderChildren.Sort( ( x, y ) => x.GetRenderOrderIndex() - y.GetRenderOrderIndex() );
+			_renderChildrenDirty = false;
+		}
+
+		for ( int i = 0; i < _renderChildren.Count; i++ )
+		{
+			render.GatherPanel( _renderChildren[i], state, globalCL );
 		}
 	}
 }

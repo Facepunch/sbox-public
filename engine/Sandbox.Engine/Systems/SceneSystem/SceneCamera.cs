@@ -503,23 +503,19 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 	void IManagedCamera.OnRenderStage( Rendering.Stage renderStage )
 	{
-		// legacy stuff isn't thread safe
-		if ( ThreadSafe.IsMainThread )
+		switch ( renderStage )
 		{
-			switch ( renderStage )
-			{
-				case Rendering.Stage.AfterPostProcess:
-					{
-						OnRenderOverlay?.Invoke();
-						break;
-					}
+			case Rendering.Stage.AfterPostProcess:
+				{
+					OnRenderOverlay?.Invoke();
+					break;
+				}
 
-				case Rendering.Stage.AfterUI:
-					{
-						OnRenderUI?.Invoke();
-						break;
-					}
-			}
+			case Rendering.Stage.AfterUI:
+				{
+					OnRenderUI?.Invoke();
+					break;
+				}
 		}
 
 		// new stuff is commandlist based, so is total thread safe

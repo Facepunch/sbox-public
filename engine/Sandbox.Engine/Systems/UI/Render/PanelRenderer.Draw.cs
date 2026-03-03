@@ -26,9 +26,8 @@ internal partial class PanelRenderer
 		attributes.Set( "BorderRadius", borderRadius );
 	}
 
-	public void BuildCommandList_BackgroundTexture( Panel panel, Texture texture, in RenderState state, Length defaultSize )
+	public void BuildCommandList_BackgroundTexture( Panel panel, Texture texture, in RenderState state, Length defaultSize, CommandList commandList )
 	{
-		ThreadSafe.AssertIsMainThread();
 
 		var style = panel.ComputedStyle;
 		if ( style == null ) return;
@@ -36,11 +35,10 @@ internal partial class PanelRenderer
 		if ( texture == Texture.Invalid )
 			texture = null;
 
-		var attributes = panel.CommandList.Attributes;
+		var attributes = commandList.Attributes;
 
 		attributes.Set( "HasInverseScissor", 0 );
-		panel.CommandList.InsertList( panel.TransformCommandList );
-		panel.CommandList.InsertList( panel.ClipCommandList );
+		SetScissorAttributes( commandList, ScissorGPU );
 
 		var rect = panel.Box.Rect;
 		var opacity = panel.Opacity * state.RenderOpacity;
@@ -160,40 +158,37 @@ internal partial class PanelRenderer
 
 		attributes.SetCombo( "D_BLENDMODE", OverrideBlendMode );
 
-		panel.CommandList.DrawQuad( rect, Material.UI.Box, color );
+		commandList.DrawQuad( rect, Material.UI.Box, color );
 	}
 
 	private void BuildCommandList( Panel panel, ref RenderState state )
 	{
-		ThreadSafe.AssertIsMainThread();
-
 		panel.CommandList.Reset();
 
 		// Insert transform (TransformMat attribute)
 		panel.CommandList.InsertList( panel.TransformCommandList );
 
-		// Set up scissor from current renderer state
-		panel.ClipCommandList.Reset();
-		SetScissorAttributes( panel.ClipCommandList, ScissorGPU );
-
-		// Insert clip (scissor attributes)
 		panel.CommandList.InsertList( panel.ClipCommandList );
 
 		// Push layer so everything renders into the layer texture for filters/masks
 		panel.PushLayer( this );
 
 		// Draw backdrops (e.g. blurs)
-		BuildCommandList_Backdrop( panel, ref state );
+		BuildCommandList_Backdrop( panel, ref state, panel.CommandList );
 
 		// Draw box shadows (outset, underlay)
-		BuildCommandList_BoxShadows( panel, ref state, inset: false );
+		BuildCommandList_BoxShadows( panel, ref state, inset: false, panel.CommandList );
 
 		// Draw background (e.g. color, image)
-		BuildCommandList_Background( panel, ref state );
+		BuildCommandList_Background( panel, ref state, panel.CommandList );
 
 		// Draw box shadows (inset, overlay)
-		BuildCommandList_BoxShadows( panel, ref state, inset: true );
+		BuildCommandList_BoxShadows( panel, ref state, inset: true, panel.CommandList );
+
+		// Draw outline (renders outside the border, does not affect layout)
+		BuildCommandList_Outline( panel, ref state );
 
 		panel.IsRenderDirty = false;
 	}
+
 }

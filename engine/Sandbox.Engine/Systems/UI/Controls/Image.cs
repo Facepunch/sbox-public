@@ -31,6 +31,7 @@ namespace Sandbox.UI
 			Texture = await Texture.LoadAsync( name );
 
 			if ( !IsValid ) return;
+			IsRenderDirty = true;
 			YogaNode.MarkDirty(); // Update MeasureTexture
 		}
 
@@ -60,7 +61,7 @@ namespace Sandbox.UI
 					_ => Length.Auto,
 				};
 
-				pr.BuildCommandList_BackgroundTexture( this, Texture, state, length );
+				pr.BuildCommandList_BackgroundTexture( this, Texture, state, length, commandList );
 			}
 		}
 
