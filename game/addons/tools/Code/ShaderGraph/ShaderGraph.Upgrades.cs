@@ -158,7 +158,7 @@ internal static class ShaderGraphJsonUpgrader
 	private static (MethodDescription Method, JsonUpgraderAttribute Attribute)[] _methods;
 
 	[EditorEvent.Hotload]
-	[Event( "shadergraph.created", Priority = 100 )]
+	[Event( "shadergraph.created" )]
 	private static void UpdateUpgraders()
 	{
 		_methods = EditorTypeLibrary.GetMethodsWithAttribute<JsonUpgraderAttribute>().ToArray();
