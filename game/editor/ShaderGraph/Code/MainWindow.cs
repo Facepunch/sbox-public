@@ -106,6 +106,8 @@ public class MainWindow : DockWindow
 		Show();
 
 		CreateNew();
+
+		EditorEvent.Run( "shadergraph.created" );
 	}
 
 	public void AssetOpen( Asset asset )
