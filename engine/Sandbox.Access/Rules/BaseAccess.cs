@@ -92,6 +92,7 @@ internal static partial class Rules
 		"System.Text.RegularExpressions/System.Text.RegularExpressions.*",
 
 		"System.Private.CoreLib/System.Buffers.ArrayPool*",
+		"!System.Private.CoreLib/System.Buffers.ArrayPool.Shared*",
 
 		"System.Private.CoreLib/System.Convert.ToInt32*",
 

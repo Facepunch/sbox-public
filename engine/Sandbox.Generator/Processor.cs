@@ -51,6 +51,7 @@ public class Processor
 	public ImmutableArray<SyntaxTree> BeforeILHotloadProcessingTrees { get; set; }
 	public Exception Exception { get; internal set; }
 	public SourceProductionContext? Context { get; set; }
+	public bool EnableCorelibPolyfills { get; set; }
 
 	public List<Diagnostic> Diagnostics = new List<Diagnostic>();
 	public bool ILHotloadSupported { get; set; }
