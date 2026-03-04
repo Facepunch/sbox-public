@@ -546,6 +546,7 @@ FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
 	{
 		Material material = Material::Init();
 		material.WorldPosition = o.vPositionWs;
+		material.ScreenPosition = i.vPositionSs;
 		material.Albedo = vAlbedo;
 		material.Normal = o.vNormalWs;
 		material.WorldTangentU = o.vTangentUWs;
