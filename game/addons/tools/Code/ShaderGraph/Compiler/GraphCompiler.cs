@@ -433,7 +433,7 @@ public sealed partial class GraphCompiler
 
 			var id = ShaderResult.InputResults.Count;
 			var varName = $"l_{id}";
-			var localResult = new NodeResult( funcResult.Components, varName );
+			var localResult = new NodeResult( funcResult.ResultType, varName );
 
 			ShaderResult.InputResults.Add( input, localResult );
 			ShaderResult.Results.Add( (localResult, funcResult) );
@@ -464,9 +464,9 @@ public sealed partial class GraphCompiler
 			return (resultA, resultB);
 
 		if ( resultA.Components < resultB.Components )
-			return (new( resultB.Components, resultA.Cast( resultB.Components ) ), resultB);
+			return (new( resultB.ResultType, resultA.Cast( resultB.Components ) ), resultB);
 
-		return (resultA, new( resultA.Components, resultB.Cast( resultA.Components ) ));
+		return (resultA, new( resultA.ResultType, resultB.Cast( resultA.Components ) ));
 	}
 
 	/// <summary>
@@ -561,12 +561,12 @@ public sealed partial class GraphCompiler
 
 		return value switch
 		{
-			float v => isNamed ? new NodeResult( 1, $"{name}" ) : new NodeResult( 1, $"{v}", true ),
-			Vector2 v => isNamed ? new NodeResult( 2, $"{name}" ) : new NodeResult( 2, $"float2( {v.x}, {v.y} )" ),
-			Vector3 v => isNamed ? new NodeResult( 3, $"{name}" ) : new NodeResult( 3, $"float3( {v.x}, {v.y}, {v.z} )" ),
-			Vector4 v => isNamed ? new NodeResult( 4, $"{name}" ) : new NodeResult( 4, $"float4( {v.x}, {v.y}, {v.z}, {v.w} )" ),
-			Color v => isNamed ? new NodeResult( 4, $"{name}" ) : new NodeResult( 4, $"float4( {v.r}, {v.g}, {v.b}, {v.a} )" ),
-			bool v => isNamed ? new NodeResult( 0, $"{name}" ) : new NodeResult( 0, $"{v}" ),
+			float v => isNamed ? new NodeResult( NodeResultType.Float, $"{name}" ) : new NodeResult( NodeResultType.Float, $"{v}", true ),
+			Vector2 v => isNamed ? new NodeResult( NodeResultType.Vector2, $"{name}" ) : new NodeResult( NodeResultType.Vector2, $"float2( {v.x}, {v.y} )" ),
+			Vector3 v => isNamed ? new NodeResult( NodeResultType.Vector3, $"{name}" ) : new NodeResult( NodeResultType.Vector3, $"float3( {v.x}, {v.y}, {v.z} )" ),
+			Vector4 v => isNamed ? new NodeResult( NodeResultType.Vector4, $"{name}" ) : new NodeResult( NodeResultType.Vector4, $"float4( {v.x}, {v.y}, {v.z}, {v.w} )" ),
+			Color v => isNamed ? new NodeResult( NodeResultType.Vector4, $"{name}" ) : new NodeResult( NodeResultType.Vector4, $"float4( {v.r}, {v.g}, {v.b}, {v.a} )" ),
+			bool v => isNamed ? new NodeResult( NodeResultType.Bool, $"{name}" ) : new NodeResult( NodeResultType.Bool, $"{v}" ),
 			_ => throw new ArgumentException( "Unsupported attribute type", nameof( value ) )
 		};
 	}
