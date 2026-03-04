@@ -32,15 +32,23 @@ public class SboxNativesResolver
 	private static IntPtr SelfImportResolver( string libraryName, Assembly assembly, DllImportSearchPath? searchPath )
 	{
 
-		//NOTE: This will hijack every DllImport using this!
-		if ( cachedLibHandles.TryGetValue( libraryName, out IntPtr outPtr ) )
+		try
 		{
-			return outPtr;
+			
+			//NOTE: This will hijack every DllImport using this!
+			if ( cachedLibHandles.TryGetValue( libraryName, out IntPtr outPtr ) )
+			{
+				return outPtr;
+			}
+			IntPtr libHandle;
+			libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/${NetCore.NativizeModuleName(libraryName)}" );
+			cachedLibHandles.Add( libraryName, libHandle );
+			return libHandle;
+		} catch (DllNotFoundException)
+		{
+			//That's fine. Pull from system.
+			return IntPtr.Zero;
 		}
-		IntPtr libHandle;
-		libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/${NetCore.NativizeModuleName(libraryName)}" );
-		cachedLibHandles.Add( libraryName, libHandle );
-		return libHandle;
 	}
 	//TODO: Rename these files.
 	private static IntPtr HarfBuzzSharpImportResolver( string libraryName, Assembly assembly, DllImportSearchPath? searchPath )
