@@ -9,36 +9,11 @@ namespace NativeEngine;
 internal static class CreateInterface
 {
 	static Dictionary<string, IntPtr> loadedModules = new();
-	static string NativizeModuleName( string abstractDLL, bool shouldAlterLibName= true )
-	{
-		if ( OperatingSystem.IsWindows() )
-		{
-			return $"{abstractDLL}.dll";
-		}
-		else if ( OperatingSystem.IsLinux() )
-		{
-			if(shouldAlterLibName)
-				return $"lib{abstractDLL}.so";
-			else
-				return $"{abstractDLL}.so";
-		}
-		else if ( OperatingSystem.IsMacOS() )
-		{
-			if(shouldAlterLibName)
-				return $"lib{abstractDLL}.dylib";
-			else
-				return $"{abstractDLL}.dylib";
-		}
-		else
-		{
-			throw new Exception( "Cannot nativize the module name." );
-		}
-		;
-	}
+
 
 	static IntPtr LoadModule( string dll )
 	{
-		var nativizedDLL = NativizeModuleName( dll );
+		var nativizedDLL = NetCore.NativizeModuleName( dll );
 		if ( loadedModules.TryGetValue( dll, out var module ) )
 			return module;
 
