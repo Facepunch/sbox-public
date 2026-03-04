@@ -113,7 +113,7 @@ float2 MapSceneColorCoords( float2 vInput, float2 modes )
 
 		if ( graph.Domain is ShaderDomain.PostProcess )
 		{
-			return new NodeResult( 3, $"g_tColorBuffer.Sample( g_sAniso, {(
+			return new NodeResult( NodeResultType.Vector3, $"g_tColorBuffer.Sample( g_sAniso, {(
 				coords.IsValid
 				? $"{compiler.ResultFunction( func, coords.Cast( 2 ), uvModes )}"
 				: $"CalculateViewportUv( {compiler.ResultFunction( func, "i.vPositionSs.xy", uvModes )} )"
