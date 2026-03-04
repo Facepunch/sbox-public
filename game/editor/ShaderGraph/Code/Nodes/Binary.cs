@@ -40,7 +40,7 @@ public abstract class Binary : ShaderNode
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		var results = compiler.Result( A, B, DefaultA, DefaultB );
-		return new NodeResult( results.Item1.Components, $"{results.Item1} {Op} {results.Item2}" );
+		return new NodeResult( results.Item1.ResultType, $"{results.Item1} {Op} {results.Item2}" );
 	};
 
 	[JsonIgnore, Hide, Browsable( false )]
@@ -148,7 +148,7 @@ public sealed class Lerp : ShaderNode
 		var results = compiler.Result( A, B, DefaultA, DefaultB );
 		var fraction = compiler.Result( C );
 		var fractionType = fraction.IsValid && fraction.Components > 1 ? Math.Max( results.Item1.Components, results.Item2.Components ) : 1;
-		return new NodeResult( results.Item1.Components, $"lerp( {results.Item1}, {results.Item2}," +
+		return new NodeResult( results.Item1.ResultType, $"lerp( {results.Item1}, {results.Item2}," +
 			$" {(fraction.IsValid ? fraction.Cast( fractionType ) : compiler.ResultValue( Fraction ))} )" );
 	};
 }
@@ -194,7 +194,7 @@ public sealed class CrossProduct : ShaderNode
 	{
 		var a = compiler.ResultOrDefault( A, DefaultA ).Cast( 3 );
 		var b = compiler.ResultOrDefault( B, DefaultB ).Cast( 3 );
-		return new NodeResult( 3, $"cross( {a}, {b} )" );
+		return new NodeResult( NodeResultType.Vector3, $"cross( {a}, {b} )" );
 	};
 }
 
@@ -328,7 +328,16 @@ public sealed class RemapValue : ShaderNode
 		// Remap the normalized value to the output range
 		var remappedOutput = $"{normalizedInValue} * ( {outMaxValue} - {outMinValue} ) + {outMinValue}";
 
-		return new NodeResult( maxComponents, remappedOutput );
+		NodeResultType resultType = maxComponents switch
+		{
+			1 => NodeResultType.Float,
+			2 => NodeResultType.Vector2,
+			3 => NodeResultType.Vector3,
+			4 => NodeResultType.Vector4,
+			_ => NodeResultType.Invalid,
+		};
+
+		return new NodeResult( resultType, remappedOutput );
 	};
 }
 
@@ -362,7 +371,7 @@ public sealed class Arctan2 : ShaderNode
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		var results = compiler.Result( Y, X, DefaultY, DefaultX );
-		return new NodeResult( results.Item1.Components, $"atan2( {results.Item1}, {results.Item2} )" );
+		return new NodeResult( results.Item1.ResultType, $"atan2( {results.Item1}, {results.Item2} )" );
 	};
 }
 
@@ -408,7 +417,7 @@ public sealed class Power : ShaderNode
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		var results = compiler.Result( A, B, DefaultA, DefaultB );
-		return new NodeResult( results.Item1.Components, $"pow( {results.Item1}, {results.Item2} )" );
+		return new NodeResult( results.Item1.ResultType, $"pow( {results.Item1}, {results.Item2} )" );
 	};
 
 	public override void OnPaint( Rect rect )
