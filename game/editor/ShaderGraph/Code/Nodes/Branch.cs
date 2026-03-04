@@ -79,7 +79,7 @@ public sealed class Branch : ShaderNode
 		var resultA = useCondition ? compiler.ResultOrDefault( A, 0.0f ) : default;
 		var resultB = useCondition ? compiler.ResultOrDefault( B, 0.0f ) : default;
 
-		return new NodeResult( results.Item1.Components, $"{(useCondition ?
+		return new NodeResult( results.Item1.ResultType, $"{(useCondition ?
 			$"{resultA.Cast( 1 )} {Op} {resultB.Cast( 1 )}" : compiler.ResultParameter( Name, Enabled, default, default, false, IsAttribute, UI ))} ?" +
 			$" {results.Item1} :" +
 			$" {results.Item2}" );
