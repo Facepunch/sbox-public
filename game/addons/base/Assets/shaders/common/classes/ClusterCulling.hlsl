@@ -2,6 +2,7 @@
 #define COMMON_CLASSES_CLUSTER_CULLING_HLSL
 
 #include "common.fxc"
+#include "common/classes/Depth.hlsl"
 
 #ifdef CLUSTERED_LIGHT_CULLING_CS
     #define ClusteredBuffer RWStructuredBuffer
@@ -53,14 +54,11 @@ class Cluster
         return coord.x + d.x * ( coord.y + d.y * coord.z );
     }
 
-    static ClusterRange Query( ClusterItemType type, float3 positionWs )
+    static ClusterRange Query( ClusterItemType type, float4 positionSs )
     {
-        // World -> cluster coordinate
-        float4 clip = Position3WsToPs( positionWs );
-        float2 uv = saturate( clip.xy / max( clip.w, 1e-4f ) * 0.5f + 0.5f );
-        uv.y = 1.0f - uv.y;
-
-        float depth = clamp( abs( Position3WsToVs( positionWs ).z ), ClusterZParams.z, ClusterZParams.w );
+        // Screen position -> cluster coordinate
+        float2 uv = CalculateViewportUv( positionSs.xy );
+        float depth = clamp( Depth::Linearize( positionSs.z, positionSs.xy ), ClusterZParams.z, ClusterZParams.w );
         uint3 d = max( uint3( ClusterCounts.xyz ), 1 );
         uint3 coord = clamp( uint3( uv * d.xy, DepthToSlice( depth ) ), 0, d - 1 );
         uint flatIndex = coord.x + d.x * ( coord.y + d.y * coord.z );

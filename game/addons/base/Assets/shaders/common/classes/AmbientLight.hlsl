@@ -38,14 +38,14 @@ class AmbientLight
         }
     }
 
-    static float3 From( float3 WorldPosition, float3 WorldNormal, float2 LightMapUV = 0.0f )
+    static float3 From( float3 WorldPosition, float4 PositionSs, float3 WorldNormal, float2 LightMapUV = 0.0f )
     {
         switch( GetKind() )
         {
             case AmbientLightKind::DDGI:
                 return FromDDGI( WorldPosition, WorldNormal );
             case AmbientLightKind::EnvMapProbe:
-                return FromEnvMapProbe( WorldPosition, WorldNormal );
+                return FromEnvMapProbe( WorldPosition, PositionSs, WorldNormal );
                 break;
             case AmbientLightKind::LightMapProbeVolume:
                 return FromLightMapProbeVolume( WorldPosition, WorldNormal );
@@ -57,7 +57,7 @@ class AmbientLight
     }
 
     static float3 FromDDGI(float3 WorldPosition, float3 WorldNormal);
-    static float3 FromEnvMapProbe(float3 WorldPosition, float3 WorldNormal);
+    static float3 FromEnvMapProbe(float3 WorldPosition, float4 PositionSs, float3 WorldNormal);
     static float3 FromLightMapProbeVolume(float3 WorldPosition, float3 WorldNormal);
     static float3 FromLightMap(float3 WorldPosition, float2 LightMapUV);
 };
@@ -75,14 +75,14 @@ float3 AmbientLight::FromDDGI( float3 WorldPosition, float3 WorldNormal )
     return 0.0f;
 }
 
-float3 AmbientLight::FromEnvMapProbe(float3 WorldPosition, float3 WorldNormal)
+float3 AmbientLight::FromEnvMapProbe(float3 WorldPosition, float4 PositionSs, float3 WorldNormal)
 {
     float accumulatedDistance = 0.0f;
     float3 ambientLightColor = float3(0.0, 0.0, 0.0);
 
     // Todo: all this shit could just use EnvMap::From( Roughness 1.0f ) just overgoing the parallax stuff
     
-    ClusterRange range = Cluster::Query( ClusterItemType_EnvMap, WorldPosition );
+    ClusterRange range = Cluster::Query( ClusterItemType_EnvMap, PositionSs );
     if ( range.Count == 0 )
     {
         return lerp( ambientLightColor, AmbientLightColor.rgb, AmbientLightColor.a );

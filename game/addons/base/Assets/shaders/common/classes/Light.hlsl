@@ -35,10 +35,10 @@ struct Light
     float Visibility;
 
     // Gets the light structure given the world position and the light index.
-    static Light From( float3 vPositionWs, uint nLightIndex, float2 vLightMapUV = 0.0f );
+    static Light From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex, float2 vLightMapUV = 0.0f );
 
     // Number of lights in the current fragment.
-    static uint Count( float3 vPositionWs );
+    static uint Count( float4 vPositionSs );
 };
 
 class DynamicLight : Light
@@ -74,11 +74,11 @@ class DynamicLight : Light
     //
     // Creates the structure of a dynamic light from the current pixel input.
     //
-    static DynamicLight From( float3 vPositionWs, uint nLightIndex )
+    static DynamicLight From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex )
     {
         DynamicLight light = (DynamicLight)0;
 
-        ClusterRange range = Cluster::Query( ClusterItemType_Light, vPositionWs );
+        ClusterRange range = Cluster::Query( ClusterItemType_Light, vPositionSs );
         if ( range.Count == 0 )
         {
             return light;
@@ -94,9 +94,9 @@ class DynamicLight : Light
     //
     // Number of lights in the current fragment.
     //
-    static uint Count( float3 vPositionWs )
+    static uint Count( float4 vPositionSs )
     {
-        return Cluster::Query( ClusterItemType_Light, vPositionWs ).Count;
+        return Cluster::Query( ClusterItemType_Light, vPositionSs ).Count;
     }
 
     //
@@ -260,21 +260,21 @@ class StaticLight : Light
 
 //-----------------------------------------------------------------------------
 
-static Light Light::From( float3 vPositionWs, uint nLightIndex, float2 vLightMapUV )
+static Light Light::From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex, float2 vLightMapUV )
 {
-    uint dynamicCount = DynamicLight::Count( vPositionWs );
+    uint dynamicCount = DynamicLight::Count( vPositionSs );
 
     if ( nLightIndex < dynamicCount )
     {
-        return DynamicLight::From( vPositionWs, nLightIndex );
+        return DynamicLight::From( vPositionWs, vPositionSs, nLightIndex );
     }
 
     return StaticLight::From( vPositionWs, vLightMapUV, nLightIndex - dynamicCount );
 }
 
-static uint Light::Count( float3 vPositionWs )
+static uint Light::Count( float4 vPositionSs )
 {
-    return DynamicLight::Count( vPositionWs ) + StaticLight::Count();
+    return DynamicLight::Count( vPositionSs ) + StaticLight::Count();
 }
 
 //-----------------------------------------------------------------------------
