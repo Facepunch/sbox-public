@@ -95,7 +95,7 @@ class ToolsVis
     void HandleSpecularLighting(inout float4 vColor);
     void HandleTransmissiveLighting(inout float4 vColor);
     void HandleLightingComplexity(inout float4 vColor, uint nNumLights);
-    void HandleLightingComplexity(inout float4 vColor, float3 WorldPosition, float3 Normal);
+    void HandleLightingComplexity(inout float4 vColor, float3 WorldPosition, float4 PositionSs, float3 Normal);
     void HandleAlbedo(inout float4 vColor, float3 vAlbedo);
     void HandleReflectivity(inout float4 vColor, float3 vAlbedo);
     void HandleRoughness(inout float4 vColor, float2 vRoughness);
@@ -103,7 +103,7 @@ class ToolsVis
     void HandleDiffuseAmbientOcclusion(inout float4 vColor, float3 vDiffuseAmbientOcclusion);
     void HandleSpecularAmbientOcclusion(inout float4 vColor, float3 vSpecularAmbientOcclusion);
     void HandleShaderIDColor(inout float4 vColor);
-    void HandleCubemapReflections(inout float4 vColor, float3 WorldPosition, float3 WorldNormal);
+    void HandleCubemapReflections(inout float4 vColor, float3 WorldPosition, float4 PositionSs, float3 WorldNormal);
     void HandleNormalTs(inout float4 vColor, float3 vNormalTs);
     void HandleNormalWs(inout float4 vColor, float3 vNormalWs);
     void HandleTangentUWs(inout float4 vColor, float3 vTangentWs);
@@ -113,7 +113,7 @@ class ToolsVis
     void HandleCurvature(inout float4 vColor, float flCurvature);
     static void HandleEyeAndMouthMask(inout float4 vColor, float flEyeAndMouthMask);
     void HandleWrinkle(inout float4 vColor, float flWrinkle);
-    void HandleTiledRenderingColors(inout float4 vColor, float3 vAlbedo, float3 WorldPosition);
+    void HandleTiledRenderingColors(inout float4 vColor, float3 vAlbedo, float4 PositionSs);
     void ShadingComplexity(inout float4 vColor, float4 vComplexity);
     void ShowUVs(inout float4 vColor, float3 vAlbedo, Texture2D tex, float2 flUVs);
     void ShowMipUtilization(inout float4 vColor, float3 vAlbedo, Texture2D tex, float2 flUVs);
@@ -247,11 +247,11 @@ void ToolsVis::HandleLightingComplexity(inout float4 vColor, uint nNumLights)
 #endif
 }
 
-void ToolsVis::HandleLightingComplexity(inout float4 vColor, float3 WorldPosition, float3 Normal)
+void ToolsVis::HandleLightingComplexity(inout float4 vColor, float3 WorldPosition, float4 PositionSs, float3 Normal)
 {
     uint nNumLights = 0;
 
-    ClusterRange lightRange = Cluster::Query( ClusterItemType_Light, WorldPosition );
+    ClusterRange lightRange = Cluster::Query( ClusterItemType_Light, PositionSs );
 
     for (uint index = 0; index < lightRange.Count; index++)
     {
@@ -354,12 +354,12 @@ void ToolsVis::HandleShaderIDColor(inout float4 vColor)
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-void ToolsVis::HandleCubemapReflections(inout float4 vColor, float3 WorldPosition, float3 WorldNormal)
+void ToolsVis::HandleCubemapReflections(inout float4 vColor, float3 WorldPosition, float4 PositionSs, float3 WorldNormal)
 {
     [flatten]
     if ( ToolsVisMode == ToolsVisMode::CubemapReflections )
     {
-        vColor.rgb = EnvMap::From(WorldPosition, WorldNormal);
+        vColor.rgb = EnvMap::From(WorldPosition, PositionSs, WorldNormal);
     }
 }
 
@@ -466,14 +466,14 @@ void ToolsVis::HandleWrinkle(inout float4 vColor, float flWrinkle)
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-void ToolsVis::HandleTiledRenderingColors(inout float4 vColor, float3 vAlbedo, float3 WorldPosition)
+void ToolsVis::HandleTiledRenderingColors(inout float4 vColor, float3 vAlbedo, float4 PositionSs)
 {
     [flatten]
     if (ToolsVisMode == ToolsVisMode::TiledRenderingColors)
     {
-        ClusterRange lightRange = Cluster::Query( ClusterItemType_Light, WorldPosition );
-        ClusterRange envRange = Cluster::Query( ClusterItemType_EnvMap, WorldPosition );
-        ClusterRange decalRange = Cluster::Query( ClusterItemType_Decal, WorldPosition );
+        ClusterRange lightRange = Cluster::Query( ClusterItemType_Light, PositionSs );
+        ClusterRange envRange = Cluster::Query( ClusterItemType_EnvMap, PositionSs );
+        ClusterRange decalRange = Cluster::Query( ClusterItemType_Decal, PositionSs );
 
         float lightRatio = lightRange.Count / 8.0f;
         float envRatio = envRange.Count / 4.0f;
