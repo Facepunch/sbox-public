@@ -8,7 +8,6 @@ namespace Sandbox;
 public class SboxNativesResolver
 {
 	private static readonly Dictionary<string, IntPtr> cachedLibHandles = new Dictionary<string, IntPtr>();
-	private static bool isSDL3System = false;
 	public static void SetupResolvers()
 	{
 		Assembly skiaSharpAssebmlyRef = typeof( SKAlphaType ).Assembly,
