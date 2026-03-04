@@ -9,9 +9,7 @@ namespace NativeEngine;
 internal static class CreateInterface
 {
 	static Dictionary<string, IntPtr> loadedModules = new();
-
-	//this somewhat mimics V_GetFileExtension(DLL_EXT_STRING) back on Source 1
-	static string NativizeModuleName( string abstractDLL )
+	static string NativizeModuleName( string abstractDLL, bool shouldAlterLibName= true )
 	{
 		if ( OperatingSystem.IsWindows() )
 		{
@@ -19,11 +17,17 @@ internal static class CreateInterface
 		}
 		else if ( OperatingSystem.IsLinux() )
 		{
-			return $"lib{abstractDLL}.so";
+			if(shouldAlterLibName)
+				return $"lib{abstractDLL}.so";
+			else
+				return $"{abstractDLL}.so";
 		}
 		else if ( OperatingSystem.IsMacOS() )
 		{
-			return $"lib{abstractDLL}.dylib";
+			if(shouldAlterLibName)
+				return $"lib{abstractDLL}.dylib";
+			else
+				return $"{abstractDLL}.dylib";
 		}
 		else
 		{
