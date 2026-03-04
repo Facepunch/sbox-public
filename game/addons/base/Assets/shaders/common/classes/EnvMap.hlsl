@@ -9,12 +9,12 @@ float3 CalcParallaxReflectionCubemapLocal(float3 vPositionWs, float3 vNormalWs, 
 class EnvMap
 {
     // Computes the environment map color contribution
-    static float3 From(float3 WorldPosition, float3 WorldNormal, float2 Roughness = 0.0f)
+    static float3 From(float3 WorldPosition, float4 PositionSs, float3 WorldNormal, float2 Roughness = 0.0f)
     {
         float flDistAccumulated = 0.0f;
         float3 vColor = float3(0.0f, 0.0f, 0.0f);
 
-        ClusterRange range = Cluster::Query( ClusterItemType_EnvMap, WorldPosition );
+        ClusterRange range = Cluster::Query( ClusterItemType_EnvMap, PositionSs );
         if ( range.Count == 0 )
         {
             return vColor;

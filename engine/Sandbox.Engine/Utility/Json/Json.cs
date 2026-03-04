@@ -40,6 +40,7 @@ public static partial class Json
 
 		options.Converters.Add( new JsonStringEnumConverter( null, true ) );
 		options.Converters.Add( new BinaryConvert() );
+
 		options.Converters.Add( new JsonConvertFactory() );
 		options.Converters.Add( new MovieResourceConverter() );
 		options.Converters.Add( new AnyOfTypeConverterFactory() );

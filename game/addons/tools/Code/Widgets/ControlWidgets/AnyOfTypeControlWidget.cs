@@ -16,7 +16,7 @@ sealed class AnyOfTypeControlWidget : DropdownControlWidget<TypeDescription>
 	public AnyOfTypeControlWidget( SerializedProperty property ) : base( property )
 	{
 		_baseType = property.PropertyType.GenericTypeArguments[0];
-		_wrapperType = EditorTypeLibrary.GetType( typeof( AnyOfType<> ).MakeGenericType( _baseType ) );
+		_wrapperType = EditorTypeLibrary.GetType( typeof( AnyOfType<> ) );
 
 		Layout = Layout.Column();
 		Layout.AddSpacingCell( Theme.RowHeight );
@@ -59,7 +59,7 @@ sealed class AnyOfTypeControlWidget : DropdownControlWidget<TypeDescription>
 
 		if ( typeDesc is null )
 		{
-			SerializedProperty.SetValue( _wrapperType.Create<object>() );
+			SerializedProperty.SetValue( _wrapperType.CreateGeneric<object>( [_baseType] ) );
 			return;
 		}
 
@@ -78,7 +78,7 @@ sealed class AnyOfTypeControlWidget : DropdownControlWidget<TypeDescription>
 
 	void WriteWrapper( object instance )
 	{
-		SerializedProperty.SetValue( _wrapperType.Create<object>( [instance] ) );
+		SerializedProperty.SetValue( _wrapperType.CreateGeneric<object>( [_baseType], [instance] ) );
 	}
 
 	void RebuildPropertySheet( object instance )
