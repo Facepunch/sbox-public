@@ -2,7 +2,7 @@
 
 namespace Sandbox
 {
-	[AttributeUsage( AttributeTargets.Class )]
+	[AttributeUsage( AttributeTargets.Class | AttributeTargets.Struct )]
 	public class LibraryAttribute : System.Attribute, ITitleProvider, IDescriptionProvider, IClassNameProvider, IUninheritable
 	{
 		string Internal.ITitleProvider.Value => Title;
