@@ -33,9 +33,9 @@ internal static class Bootstrap
 		try
 		{
 			InitMinimal( EngineGlobal.GetGameRootFolder() );
-#if !WIN
+
 			SboxNativesResolver.SetupResolvers();
-#endif
+
 			StartupTiming = new Api.Events.EventRecord( $"StartupTiming.{(Application.IsEditor ? "Editor" : (Application.IsHeadless ? "Server" : "Game"))}" );
 			StartupTiming.StartTimer( "Time" );
 

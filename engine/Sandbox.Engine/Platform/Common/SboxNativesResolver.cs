@@ -1,8 +1,6 @@
-#if !WIN
-
-
 using System.Reflection;
 using System.Runtime.InteropServices;
+using NativeEngine;
 using SkiaSharp;
 
 namespace Sandbox;
@@ -10,17 +8,16 @@ namespace Sandbox;
 public class SboxNativesResolver
 {
 	private static readonly Dictionary<string, IntPtr> cachedLibHandles = new Dictionary<string, IntPtr>();
+	private static bool isSDL3System = false;
 	public static void SetupResolvers()
 	{
 		Assembly skiaSharpAssebmlyRef = typeof( SKAlphaType ).Assembly,
-		 harfBuzzSharpAssemblyRef = typeof( HarfBuzzSharp.Font ).Assembly,
-		 selfAssemblyRef = typeof(SboxNativesResolver).Assembly;
+				harfBuzzSharpAssemblyRef = typeof( HarfBuzzSharp.Font ).Assembly,
+				selfAssembly = typeof( SboxNativesResolver ).Assembly;
 		NativeLibrary.SetDllImportResolver( skiaSharpAssebmlyRef, SkiaSharpImportResolver );
 		NativeLibrary.SetDllImportResolver( harfBuzzSharpAssemblyRef, HarfBuzzSharpImportResolver );
-		NativeLibrary.SetDllImportResolver(selfAssemblyRef,SelfAssemblyResolver);
+		NativeLibrary.SetDllImportResolver( selfAssembly, SelfImportResolver );
 	}
-
-	
 
 
 	~SboxNativesResolver()
@@ -30,30 +27,22 @@ public class SboxNativesResolver
 			NativeLibrary.Free( libHandle.Value );
 		}
 	}
-	private static IntPtr SelfAssemblyResolver( string libraryName, Assembly assembly, DllImportSearchPath? searchPath )
+
+
+	private static IntPtr SelfImportResolver( string libraryName, Assembly assembly, DllImportSearchPath? searchPath )
 	{
-		if (libraryName == "steam_api"){
-			if ( cachedLibHandles.TryGetValue( libraryName, out IntPtr outPtr ) )
-			{
-				return outPtr;
-			}
-			IntPtr libHandle;
-			if ( OperatingSystem.IsLinux() )
-			{
-				libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/libsteam_api.so" );
-				cachedLibHandles.Add( libraryName, libHandle );
-				return libHandle;
-			}
-			else if ( OperatingSystem.IsMacOS() )
-			{
-				libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/libsteam_api.dylib" );
-				cachedLibHandles.Add( libraryName, libHandle );
-				return libHandle;
-			}
+
+		//NOTE: This will hijack every DllImport using this!
+		if ( cachedLibHandles.TryGetValue( libraryName, out IntPtr outPtr ) )
+		{
+			return outPtr;
 		}
-		return IntPtr.Zero;
+		IntPtr libHandle;
+		libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/${NetCore.NativizeModuleName(libraryName)}" );
+		cachedLibHandles.Add( libraryName, libHandle );
+		return libHandle;
 	}
-//TODO: Rename these files.
+	//TODO: Rename these files.
 	private static IntPtr HarfBuzzSharpImportResolver( string libraryName, Assembly assembly, DllImportSearchPath? searchPath )
 	{
 		if ( libraryName == "libHarfBuzzSharp" )
@@ -63,18 +52,9 @@ public class SboxNativesResolver
 				return outPtr;
 			}
 			IntPtr libHandle;
-			if ( OperatingSystem.IsLinux() )
-			{
-				libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/libHarfBuzzSharp.so.0.60830.0" );
-				cachedLibHandles.Add( libraryName, libHandle );
-				return libHandle;
-			}
-			else if ( OperatingSystem.IsMacOS() )
-			{
-				libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/libHarfBuzzSharp.dylib" );
-				cachedLibHandles.Add( libraryName, libHandle );
-				return libHandle;
-			}
+			libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/${NetCore.NativizeModuleName(libraryName,false)}" );
+			cachedLibHandles.Add( libraryName, libHandle );
+			return libHandle;
 		}
 		return IntPtr.Zero;
 	}
@@ -90,21 +70,11 @@ public class SboxNativesResolver
 				return outPtr;
 			}
 			IntPtr libHandle;
-			if ( OperatingSystem.IsLinux() )
-			{
-				libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/libSkiaSharp.so.116.0.0" );
-				cachedLibHandles.Add( libraryName, libHandle );
-				return libHandle;
-			}
-			else if ( OperatingSystem.IsMacOS() )
-			{
-				libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/libSkiaSharp.dylib" );
-				cachedLibHandles.Add( libraryName, libHandle );
-				return libHandle;
-			}
+			libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/${NetCore.NativizeModuleName(libraryName,false)}" );
+			cachedLibHandles.Add( libraryName, libHandle );
+			return libHandle;
 		}
 		return IntPtr.Zero;
 	}
 
 }
-#endif
