@@ -483,7 +483,7 @@ void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t 
 	o.vSpecular 	= float3( 0.0, 0.0, 0.0 );
 	o.vTransmissive = float3( 0.0, 0.0, 0.0 );
 
-	ClusterRange lightRange = Cluster::Query( ClusterItemType_Light, f.vPositionWs );
+	ClusterRange lightRange = Cluster::Query( ClusterItemType_Light, f.vPositionSs );
 
 	[loop]
 	for ( uint i = 0; i < lightRange.Count; i++ )
@@ -733,7 +733,7 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 		
         float flDistAccumulated = 0;
 
-		ClusterRange envRange = Cluster::Query( ClusterItemType_EnvMap, vPositionWs );
+		ClusterRange envRange = Cluster::Query( ClusterItemType_EnvMap, finalCombinerData.vPositionSs );
 
 		float2 vLevel = vSQRTRoughness.xy;
 		
