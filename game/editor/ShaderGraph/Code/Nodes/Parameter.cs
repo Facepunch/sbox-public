@@ -190,7 +190,7 @@ public sealed class Float3 : ParameterNode<Vector3,FloatParameterUI>
 /// 4 float values, normally used as a color
 /// </summary>
 [Title( "Color" ), Category( "Constants" ), Icon( "palette" )]
-public sealed class Float4 : ParameterNode<Color, ParameterUI>
+public sealed class Float4 : ParameterNode<Color, ColorParameterUI>
 {
 	[Output( typeof( Color ) ), Title( "RGBA" )]
 	[Hide, Editor( nameof( Value ) )]
@@ -254,6 +254,6 @@ public sealed class Float4 : ParameterNode<Color, ParameterUI>
 	public Float4()
 	{
 		Value = Color.White;
-		UI = new ParameterUI() { Type = UIType.Color };
+		UI = new ColorParameterUI() { Type = UIType.Color };
 	}
 }

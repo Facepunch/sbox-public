@@ -59,9 +59,9 @@ public struct GenericParameterUI : IParameterUI
 }
 
 /// <summary>
-/// ParameterUI for non float based values but can have differnt ui types. 
+/// For the Color value
 /// </summary>
-public struct ParameterUI : IParameterUI
+public struct ColorParameterUI : IParameterUI
 {
 	/// <summary>
 	/// Control type used in the material editor
@@ -80,7 +80,7 @@ public struct ParameterUI : IParameterUI
 	[JsonIgnore, Hide]
 	public readonly string UIGroup => $"{PrimaryGroup.Name},{PrimaryGroup.Priority}/{SecondaryGroup.Name},{SecondaryGroup.Priority}/{Priority}";
 
-	public ParameterUI()
+	public ColorParameterUI()
 	{
 	}
 }
