@@ -50,7 +50,7 @@ public sealed class Branch : ShaderNode
 	public bool Enabled { get; set; }
 
 	[InlineEditor]
-	public ParameterUI UI { get; set; }
+	public GenericParameterUI UI { get; set; }
 
 	[Hide]
 	private string Op

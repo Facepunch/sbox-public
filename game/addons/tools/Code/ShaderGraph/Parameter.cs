@@ -35,7 +35,31 @@ public interface IParameterUI
 }
 
 /// <summary>
-/// ParameterUI for non float based values. 
+/// ParameterUI with the bare minimum amount of settings.
+/// </summary>
+public struct GenericParameterUI : IParameterUI
+{
+	[Hide,JsonIgnore]
+	public UIType Type { get; set; } = UIType.Default;
+
+	public int Priority { get; set; }
+
+	[InlineEditor( Label = false ), Group( "Group" )]
+	public UIGroup PrimaryGroup { get; set; }
+
+	[InlineEditor( Label = false ), Group( "Sub Group" )]
+	public UIGroup SecondaryGroup { get; set; }
+
+	[JsonIgnore, Hide]
+	public readonly string UIGroup => $"{PrimaryGroup.Name},{PrimaryGroup.Priority}/{SecondaryGroup.Name},{SecondaryGroup.Priority}/{Priority}";
+
+	public GenericParameterUI()
+	{
+	}
+}
+
+/// <summary>
+/// ParameterUI for non float based values but can have differnt ui types. 
 /// </summary>
 public struct ParameterUI : IParameterUI
 {
