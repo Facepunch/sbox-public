@@ -37,7 +37,7 @@ public class EnumControlWidget : ControlWidget
 		if ( _enumDesc?.Count() < 4 )
 		{
 			Layout = Layout.Row();
-			Layout.Add( new GroupButtonControlWidget( property ) );
+			Layout.Add( new GroupButtonControlWidget( property, ShouldShowEntry ) );
 			_enumDesc = default;
 			return;
 		}
@@ -48,6 +48,8 @@ public class EnumControlWidget : ControlWidget
 		Layout = Layout.Row();
 		Layout.Spacing = 2;
 	}
+
+	protected virtual bool ShouldShowEntry( EnumDescription.Entry entry ) => true;
 
 	protected override void PaintControl()
 	{
@@ -180,6 +182,11 @@ public class EnumControlWidget : ControlWidget
 		{
 			if ( !o.Browsable )
 				continue;
+
+			if ( !ShouldShowEntry( o ) )
+			{
+				continue;
+			}
 
 			var b = scroller.Canvas.Layout.Add( new MenuOption( o, SerializedProperty, IsFlagsMode ) );
 			b.MouseLeftPress = () =>

@@ -6,12 +6,16 @@ public interface IParameterNode
 {
 	string Name { get; set; }
 	bool IsAttribute { get; set; }
-	ParameterUI UI { get; set; }
 
 	object GetValue();
 	void SetValue( object val );
 	Vector4 GetRangeMin();
 	Vector4 GetRangeMax();
+}
+
+public interface IParameterUINode<T> : IParameterNode where T : IParameterUI
+{
+	T UI { get; set; }
 }
 
 public interface ITextureParameterNode
@@ -20,7 +24,7 @@ public interface ITextureParameterNode
 	TextureInput UI { get; set; }
 }
 
-public abstract class ParameterNode<T> : ShaderNode, IParameterNode, IErroringNode
+public abstract class ParameterNode<T,Y> : ShaderNode, IParameterNode, IParameterUINode<Y>, IErroringNode where Y : IParameterUI
 {
 	[Hide]
 	protected bool IsSubgraph => (Graph is ShaderGraph shaderGraph && shaderGraph.IsSubgraph);
@@ -51,7 +55,7 @@ public abstract class ParameterNode<T> : ShaderNode, IParameterNode, IErroringNo
 	}
 
 	[InlineEditor( Label = false ), Group( "UI" )]
-	public ParameterUI UI { get; set; }
+	public Y UI { get; set; }
 
 	protected NodeResult Component( string component, float value, GraphCompiler compiler )
 	{

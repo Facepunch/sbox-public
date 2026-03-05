@@ -16,7 +16,7 @@ public class GroupButtonControlWidget : ControlWidget
 	public override bool SupportsMultiEdit => true;
 	protected virtual float? MenuWidthOverride => null;
 
-	public GroupButtonControlWidget( SerializedProperty property ) : base( property )
+	public GroupButtonControlWidget( SerializedProperty property, Func<EnumDescription.Entry, bool> shouldShowEntry ) : base( property )
 	{
 		var propertyType = property.NullableType ?? property.PropertyType;
 		var typeDesc = EditorTypeLibrary.GetType( propertyType );
@@ -38,6 +38,11 @@ public class GroupButtonControlWidget : ControlWidget
 		{
 			if ( !o.Browsable )
 				continue;
+
+			if ( !shouldShowEntry.Invoke( o ) )
+			{
+				continue;
+			}
 
 			var b = Layout.Add( new MenuOption( o, property, IsFlagsMode ) );
 			b.Enabled = !IsControlDisabled;
