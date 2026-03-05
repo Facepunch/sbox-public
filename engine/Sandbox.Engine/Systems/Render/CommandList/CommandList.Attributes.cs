@@ -6,7 +6,7 @@ public sealed partial class CommandList
 {
 	public unsafe class AttributeAccess
 	{
-		private readonly ConcurrentDictionary<string, RenderTarget> _renderTargets = new();
+		private readonly Dictionary<string, RenderTarget> _renderTargets = new();
 
 		internal Func<RenderAttributes> _get;
 		internal CommandList list;

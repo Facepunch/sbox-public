@@ -304,7 +304,7 @@ internal sealed partial class SharedArrayPool<T> : ArrayPool<T>
 		if ( !Interlocked.Exchange( ref _trimCallbackCreated, true ) )
 		{
 			// SBOX BEGIN: Gen2GcCallback is internal to System.Private.CoreLib; call via cached reflection delegate
-			SharedArrayPoolStatics.s_gen2GcCallbackRegister?.Invoke( s => ((SharedArrayPool<T>)s).Trim(), this );
+			SharedArrayPoolStatics.s_gen2GcCallbackRegister.Invoke( s => ((SharedArrayPool<T>)s).Trim(), this );
 			// SBOX END
 		}
 
@@ -521,25 +521,19 @@ internal static class SharedArrayPoolStatics
 	// SBOX BEGIN: Gen2GcCallback.Register is internal to System.Private.CoreLib.
 	// Cache a strongly-typed delegate so reflection cost is paid exactly once, and all SharedArrayPool<T>
 	// instantiations share the same delegate regardless of T.
-	internal static readonly Action<Func<object, bool>, object>? s_gen2GcCallbackRegister = CreateGen2GcCallbackRegister();
+	internal static readonly Action<Func<object, bool>, object> s_gen2GcCallbackRegister = CreateGen2GcCallbackRegister();
 
-	private static Action<Func<object, bool>, object>? CreateGen2GcCallbackRegister()
+	private static Action<Func<object, bool>, object> CreateGen2GcCallbackRegister()
 	{
-		try
-		{
-			var type = Type.GetType( "System.Gen2GcCallback, System.Private.CoreLib" );
-			var method = type?.GetMethod( "Register",
-				System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static );
-			if ( method is null ) return null;
-			return (Action<Func<object, bool>, object>)Delegate.CreateDelegate(
-				typeof( Action<Func<object, bool>, object> ), method );
-		}
-		catch
-		{
-			// The internal API changed shape or is unavailable in this runtime version.
-			// Trimming will simply not run, which is non-critical.
-			return null;
-		}
+		var type = typeof( object ).Assembly.GetType( "System.Gen2GcCallback" )
+			?? throw new InvalidOperationException( "Could not find System.Gen2GcCallback in System.Private.CoreLib." );
+		var method = type.GetMethod( "Register",
+			System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static,
+			binder: null,
+			types: [typeof( Func<object, bool> ), typeof( object )],
+			modifiers: null )
+			?? throw new InvalidOperationException( "Could not find Gen2GcCallback.Register(Func<object,bool>, object). The runtime signature may have changed." );
+		return (Action<Func<object, bool>, object>)Delegate.CreateDelegate( typeof( Action<Func<object, bool>, object> ), method );
 	}
 	// SBOX END
 
