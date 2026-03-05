@@ -2,6 +2,7 @@ $font-default: "Inter";
 $font-heading: "Poppins";
 
 $primary-blue: #3273eb;
+$primary-green: #31EB31;
 
 $default-50: #C2C9DB;
 $default-100: #B5BED4;
@@ -151,31 +152,33 @@ separator {
 }
 
 @mixin border {
-    border: 1px solid $default-border;
-    // box-shadow: 0 0 0 1px $default-border;
+    outline: 1px solid $default-border;
 
     &:hover {
-        border-color: rgba( $primary-blue, 0.5 );
-        // box-shadow: 0 0 0 1px rgba( $default-border, 0.5 );
+        outline-color: rgba( $primary-blue, 0.5 );
     }
 
     &:focus {
-        border-color: rgba( $primary-blue, 0.5 );
+        outline-color: rgba( $primary-blue, 0.5 );
     }
 }
 
 @mixin border-transparent {
-    border: 1px solid transparent;
+    outline: 1px solid transparent;
 
     &:hover {
-        border-color: rgba( $primary-blue, 0.5 );
+        outline-color: rgba( $primary-blue, 0.5 );
     }
 
     &:focus {
-        border-color: rgba( $primary-blue, 0.5 );
+        outline-color: rgba( $primary-blue, 0.5 );
     }
 }
 
 @mixin glow {
     box-shadow: 0 0 2px #7dabff, 0 0 3px rgba( $primary-blue, 1 ), 0 0 10px rgba( $primary-blue, 0.5 );
+}
+
+TextEntry {
+    caret-color: $default-300;
 }

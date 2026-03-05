@@ -6,18 +6,18 @@
 @if (Package is not null )
 {
     <root class="clicky" onmousedown="@( () => Package.OpenModal() )">
-        <div class="intro">Playing:</div>
-        <div class="title">@Package.Title</div>
+        <row>
+            <label class="small">@($"Playing '{Package.Title}'")</label>
+        </row>
     </root>
 }
 else
 {
-<root>
-
-    <div class="intro">Playing:</div>
-    <div class="title">@Title</div>
-
-</root>
+    <root>
+        <row>
+            <label class="small">@($"Playing '{Title}'")</label>
+        </row>
+    </root>
 }
 
 @code

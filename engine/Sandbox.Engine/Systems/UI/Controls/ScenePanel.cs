@@ -79,6 +79,41 @@ namespace Sandbox.UI
 			{
 				RenderScene.GameTick( RealTime.Delta );
 			}
+
+			if ( Box.RectInner.Size.x <= 0 ) return;
+			if ( Box.RectInner.Size.y <= 0 ) return;
+
+			// work out whether we should actually render the scene
+			bool shouldRender = shouldRenderNextFrame;
+			if ( !RenderOnce ) shouldRender = true;
+			if ( RenderTexture == null ) shouldRender = true;
+
+			var oldRt = RenderTexture;
+			RenderTexture = Texture.CreateRenderTarget( "__scenePanel", ImageFormat.RGBA8888, Box.RectInner.Size, RenderTexture );
+			if ( RenderTexture == null ) return;
+
+			// Texture changed - force an update
+			if ( oldRt != RenderTexture )
+			{
+				shouldRender = true;
+				IsRenderDirty = true;
+			}
+
+			if ( shouldRender )
+			{
+				// reset
+				shouldRenderNextFrame = false;
+
+				if ( Camera.World.IsValid() )
+				{
+					Camera.RenderToTexture( RenderTexture, null, default );
+				}
+				else if ( RenderScene.IsValid() && RenderScene.Camera.IsValid() )
+				{
+					RenderScene.PreCameraRender(); // TODO WTF?... terrible hack to get around Graphics.IsActive guard in RenderToTexture
+					RenderScene.Camera.RenderToTexture( RenderTexture );
+				}
+			}
 		}
 
 		internal bool shouldRenderNextFrame = true;
@@ -106,34 +141,6 @@ namespace Sandbox.UI
 		{
 			if ( Box.RectInner.Size.x <= 0 ) return;
 			if ( Box.RectInner.Size.y <= 0 ) return;
-
-			// work out whether we should actually render the scene
-			bool shouldRender = shouldRenderNextFrame;
-			if ( !RenderOnce ) shouldRender = true;
-			if ( RenderTexture == null ) shouldRender = true;
-
-			var oldRt = RenderTexture;
-			RenderTexture = Texture.CreateRenderTarget( "__scenePanel", ImageFormat.RGBA8888, Box.RectInner.Size, RenderTexture );
-			if ( RenderTexture == null ) return;
-
-			// Texture changed - force an update
-			if ( oldRt != RenderTexture ) shouldRender = true;
-
-			if ( shouldRender )
-			{
-				// reset
-				shouldRenderNextFrame = false;
-
-				if ( Camera.World.IsValid() )
-				{
-					Camera.RenderToTexture( RenderTexture, null, default );
-				}
-				else if ( RenderScene.IsValid() && RenderScene.Camera.IsValid() )
-				{
-					RenderScene.PreCameraRender(); // TODO WTF?... terrible hack to get around Graphics.IsActive guard in RenderToTexture
-					RenderScene.Camera.RenderToTexture( RenderTexture );
-				}
-			}
 
 			renderer.BuildCommandList_BackgroundTexture( this, RenderTexture, state, Length.Contain, commandList );
 

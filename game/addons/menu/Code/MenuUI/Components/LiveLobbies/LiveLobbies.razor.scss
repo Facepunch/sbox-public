@@ -124,6 +124,13 @@ LiveLobbyCard {
             opacity: 0;
         }
 
+        &:hover {
+            icon.play {
+                opacity: 1;
+                width: 64px;
+            }
+        }
+
         .image {
             border-radius: 0;
             position: absolute;

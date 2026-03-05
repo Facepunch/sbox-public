@@ -11,6 +11,7 @@ namespace Sandbox;
 /// </para>
 /// Serialization stores the concrete type name alongside the property values
 /// </summary>
+[Library]
 public readonly struct AnyOfType<T> where T : class
 {
 	/// <summary>
