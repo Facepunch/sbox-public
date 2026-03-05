@@ -24,7 +24,7 @@ public interface ITextureParameterNode
 	TextureInput UI { get; set; }
 }
 
-public abstract class ParameterNode<T,Y> : ShaderNode, IParameterNode, IParameterUINode<Y>, IErroringNode where Y : IParameterUI
+public abstract class ParameterNode<T, Y> : ShaderNode, IParameterNode, IParameterUINode<Y>, IErroringNode where Y : IParameterUI
 {
 	[Hide]
 	protected bool IsSubgraph => (Graph is ShaderGraph shaderGraph && shaderGraph.IsSubgraph);

@@ -107,7 +107,7 @@ public sealed class Float2 : ParameterNode<Vector2, FloatParameterUI>
 /// 3 float values
 /// </summary>
 [Title( "Float3" ), Category( "Constants" ), Icon( "looks_3" )]
-public sealed class Float3 : ParameterNode<Vector3,FloatParameterUI>
+public sealed class Float3 : ParameterNode<Vector3, FloatParameterUI>
 {
 	[Output( typeof( Vector3 ) ), Title( "XYZ" ), Hide]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>

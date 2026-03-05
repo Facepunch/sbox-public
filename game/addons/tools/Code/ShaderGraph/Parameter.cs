@@ -39,7 +39,7 @@ public interface IParameterUI
 /// </summary>
 public struct GenericParameterUI : IParameterUI
 {
-	[Hide,JsonIgnore]
+	[Hide, JsonIgnore]
 	public UIType Type { get; set; } = UIType.Default;
 
 	public int Priority { get; set; }
