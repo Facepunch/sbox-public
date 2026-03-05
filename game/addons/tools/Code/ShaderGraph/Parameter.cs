@@ -35,7 +35,7 @@ public interface IParameterUI
 }
 
 /// <summary>
-/// ParameterUI with the bare minimum amount of settings.
+/// Generic ParameterUI with the bare minimum amount of settings.
 /// </summary>
 public struct GenericParameterUI : IParameterUI
 {
@@ -86,7 +86,7 @@ public struct ParameterUI : IParameterUI
 }
 
 /// <summary>
-/// ParameterUI for float based values that can be stepped. 
+/// For float based values Like Float, Vector2, Vector3 and Vector4 
 /// </summary>
 public struct FloatParameterUI : IParameterUI
 {
