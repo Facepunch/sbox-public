@@ -77,6 +77,8 @@ public sealed partial class Model : Resource
 
 		DataCache?.Clear();
 
+		BaseModel = default;
+
 		IToolsDll.Current?.RunEvent( "model.reload", this );
 
 		foreach ( var scene in Scene.All )
@@ -118,7 +120,14 @@ public sealed partial class Model : Resource
 	/// </summary>
 	public MeshTraceRequest Trace => new() { targetModel = this };
 
-
+	/// <summary>
+	/// Base model of this model if one was used.
+	/// </summary>
+	internal Model BaseModel
+	{
+		get => field ??= FromNative( native.GetBaseModel() );
+		set;
+	}
 }
 
 internal interface IHasModel

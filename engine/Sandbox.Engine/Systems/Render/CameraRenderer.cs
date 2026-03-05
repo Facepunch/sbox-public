@@ -63,6 +63,11 @@ internal ref struct CameraRenderer
 		Attributes.Set( "ambientColor", ambientLight );
 		Attributes.Set( "clearColor", config.ClearColor ?? camera.BackgroundColor );
 
+		if ( DebugOverlay.ToolsVisualization.mat_toolsvis != SceneCameraDebugMode.Normal )
+		{
+			Attributes.Set( "ToolsVisMode", (int)DebugOverlay.ToolsVisualization.mat_toolsvis );
+		}
+
 		camera.GatherVolumetricFog( Attributes );
 		camera.GatherTonemapper( Attributes );
 		camera.CubemapFog?.Write( Attributes );

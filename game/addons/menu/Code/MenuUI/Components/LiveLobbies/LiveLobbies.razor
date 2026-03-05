@@ -20,10 +20,10 @@
     </row>
 
 	<div class="lobby-list" @ref="LobbyList">
-    @foreach (var l in all.GroupBy( x => x.Game ).Take( 10 ).Select( x => x.OrderByDescending( x => x.Members ).First() ).OrderByDescending( x => x.Members ) )
-    {
-		<LiveLobbyCard Lobby="@l"></LiveLobbyCard>
-    }
+        @foreach (var l in all.GroupBy( x => x.Game ).Take( 10 ).Select( x => x.OrderByDescending( x => x.Members ).First() ).OrderByDescending( x => x.Members ) )
+        {
+		    <LiveLobbyCard Lobby=@l></LiveLobbyCard>
+        }
 	</div>
 
 </root>

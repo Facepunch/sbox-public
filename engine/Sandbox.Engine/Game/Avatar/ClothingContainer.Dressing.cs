@@ -282,11 +282,10 @@ public partial class ClothingContainer
 
 	static bool DetermineHuman( SkinnedModelRenderer b, bool defaultValue = false )
 	{
-		if ( b is null ) return defaultValue;
-		if ( b.Model is null ) return defaultValue;
+		if ( b?.Model is null ) return defaultValue;
 
-		if ( b.Model.Name.Contains( "citizen.vmdl", StringComparison.OrdinalIgnoreCase ) ) return false;
-		return true;
+		var model = b.Model.BaseModel ?? b.Model;
+		return !model.Name.Contains( "citizen.vmdl", StringComparison.OrdinalIgnoreCase );
 	}
 
 	static bool IsValidModel( string modelName )

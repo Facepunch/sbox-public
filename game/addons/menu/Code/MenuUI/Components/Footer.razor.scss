@@ -19,13 +19,14 @@ Footer {
         gap: 12px;
         align-items: center;
         width: 100%;
-        padding: 16px 64px; // Optical alignment against icon on close button in navbar
+        padding: 16px 50px;
         max-width: $screen-w-xl;
     }
 
     .friends {
         align-items: center;
         gap: 16px;
+        padding-right: 16px;
     }
 
     .friends-button {
