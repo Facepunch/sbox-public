@@ -2,29 +2,29 @@
 
 HumanSwitcher {
     width: 50%;
-    align-items: center;
-    justify-content: center;
+    align-items: flex-end;
+    justify-content: flex-end;
     height: 100%;
     transition: all 150ms $easing;
     z-index: -10;
 
-    &:hover {
-        Button {
-            opacity: 1;
-        }
-    }
-
     Button {
-        padding: 6px 12px;
+        @include border;
+        padding: 12px 12px;
         color: $default-text;
-        opacity: 0;
         border-radius: $rounding-xsmall;
         transition: all 150ms ease;
-        border: 1px solid rgba( $default-50, 0.1 );
-        backdrop-filter: blur( 10px );
+        background-color: $default-900;
+        pointer-events: all;
+
+        .button-hover-menu {
+            position: absolute;
+            top: -42px;
+            right: 0;
+        }
 
         &:hover {
-            border: 1px solid rgba( $default-200, 0.1 );
+            background-color: $default-800;
         }
 
         Label {

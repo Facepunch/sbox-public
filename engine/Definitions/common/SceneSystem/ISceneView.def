@@ -7,7 +7,7 @@ native class ISceneView as NativeEngine.ISceneView
 {
 	RenderViewport GetMainViewport();
 	void* GetSwapChain();
-	void AddDependentView( ISceneView pView, int nSlot );
+	void AddDependentView( ISceneView pView );
 	CRenderAttributes GetRenderAttributesPtr();
 	ISceneLayer AddRenderLayer( string pszDebugName, RenderViewport viewport, StringToken eShaderMode, ISceneLayer pAddBefore );
 	ISceneLayer AddManagedProceduralLayer( string pszDebugName, RenderViewport viewport, SboxProceduralLayerCallback renderCallback, ISceneLayer pAddBefore, bool bDeleteWhenDone );

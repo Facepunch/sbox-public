@@ -2,7 +2,6 @@
 #define COMMON_CLASSES_CLUSTER_CULLING_HLSL
 
 #include "common.fxc"
-#include "common/classes/Depth.hlsl"
 
 #ifdef CLUSTERED_LIGHT_CULLING_CS
     #define ClusteredBuffer RWStructuredBuffer
@@ -58,7 +57,22 @@ class Cluster
     {
         // Screen position -> cluster coordinate
         float2 uv = CalculateViewportUv( positionSs.xy );
-        float depth = clamp( Depth::Linearize( positionSs.z, positionSs.xy ), ClusterZParams.z, ClusterZParams.w );
+
+        // Perspective: SV_Position.w = 1/viewDepth, so depth = 1/w.
+        // Ortho: SV_Position.w is always 1.0, so un-project clip-space Z instead.
+        // Uniform branch = free
+        float depth;
+        if ( g_matViewToProjection[3].w != 0 )
+        {
+            float4 vViewPos = mul( g_matProjectionToView, float4( 0.0, 0.0, positionSs.z, 1.0 ) );
+            depth = -( vViewPos.z / vViewPos.w );
+        }
+        else
+        {
+            depth = 1.0 / positionSs.w;
+        }
+
+        depth = clamp( depth, ClusterZParams.z, ClusterZParams.w );
         uint3 d = max( uint3( ClusterCounts.xyz ), 1 );
         uint3 coord = clamp( uint3( uv * d.xy, DepthToSlice( depth ) ), 0, d - 1 );
         uint flatIndex = coord.x + d.x * ( coord.y + d.y * coord.z );

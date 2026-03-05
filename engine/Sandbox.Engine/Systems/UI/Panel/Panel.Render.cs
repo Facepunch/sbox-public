@@ -17,6 +17,11 @@ public partial class Panel
 	internal Matrix _lastTransformMat;
 	internal bool _lastTransformIsRoot;
 
+	public void MarkRenderDirty()
+	{
+		IsRenderDirty |= true;
+	}
+
 	internal virtual void DrawContent( CommandList commandList, PanelRenderer renderer, ref RenderState state )
 	{
 		BuildContentCommandList( commandList, ref state );
@@ -24,12 +29,16 @@ public partial class Panel
 
 	/// <summary>
 	/// Called when <see cref="HasContent"/> is set to <see langword="true"/> to custom draw the panels content.
+	/// You'll probably want to call <see cref="MarkRenderDirty"/> when your content changes to ensure the command list gets rebuilt.
 	/// </summary>
 	public virtual void BuildContentCommandList( CommandList commandList, ref RenderState state )
 	{
 		// nothing by default
 	}
 
+	/// <summary>
+	/// You'll probably want to call <see cref="MarkRenderDirty"/> when your content changes to ensure the command list gets rebuilt.
+	/// </summary>
 	public virtual void BuildCommandList( CommandList commandList )
 	{
 		// nothing by default

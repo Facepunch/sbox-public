@@ -139,6 +139,12 @@ internal partial class PanelRenderer
 		{
 			BackgroundRepeat.RepeatX => new SamplerState { AddressModeV = TextureAddressMode.Clamp, Filter = filter },
 			BackgroundRepeat.RepeatY => new SamplerState { AddressModeU = TextureAddressMode.Clamp, Filter = filter },
+			BackgroundRepeat.NoRepeat => new SamplerState
+			{
+				AddressModeU = TextureAddressMode.Border,
+				AddressModeV = TextureAddressMode.Border,
+				Filter = filter
+			},
 			BackgroundRepeat.Clamp => new SamplerState
 			{
 				AddressModeU = TextureAddressMode.Clamp,
