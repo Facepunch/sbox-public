@@ -288,6 +288,7 @@ file static class ProjectExtensions
 		/// </summary>
 		public void AddToolAssemblyReferences()
 		{
+			project.References.Add( "Sandbox.AppSystem.dll" );
 			project.References.Add( "Sandbox.Tools.dll" );
 			project.References.Add( "Sandbox.Compiling.dll" );
 			project.References.Add( "Microsoft.CodeAnalysis.dll" );

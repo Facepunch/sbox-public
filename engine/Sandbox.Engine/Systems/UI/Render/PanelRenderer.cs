@@ -63,6 +63,9 @@ internal sealed partial class PanelRenderer
 		// Update layer (creates render target if needed for filters/masks)
 		panel.UpdateLayer( panel.ComputedStyle );
 
+		if ( panel.ComputedStyle?.BackgroundImage is { IsDirty: true } )
+			panel.IsRenderDirty = true;
+
 		if ( panel.IsRenderDirty || panel.HasPanelLayer )
 		{
 			BuildCommandList( panel, ref state );

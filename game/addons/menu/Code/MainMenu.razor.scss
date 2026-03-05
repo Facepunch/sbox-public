@@ -6,7 +6,7 @@
     font-size: 14px;
     width: 100%;
     height: 100%;
-    pointer-events: all;
+    pointer-events: auto;
 }
 
 .tooltip {
@@ -23,7 +23,7 @@
 
 .navigator-body {
     // transition: transform 150ms ease, opacity 150ms ease, display 150ms ease;
-    pointer-events: all;
+    pointer-events: auto;
     width: 100%;
     height: 100%;
     flex-grow: 1;
