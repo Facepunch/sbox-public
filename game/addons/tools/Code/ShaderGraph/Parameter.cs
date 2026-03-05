@@ -42,7 +42,7 @@ public struct ParameterUI : IParameterUI
 	/// <summary>
 	/// Control type used in the material editor
 	/// </summary>
-	[Editor( "shadergraph.uitype" )]
+	[Editor( "shadergraph.UIType" )]
 	public UIType Type { get; set; }
 
 	public int Priority { get; set; }
@@ -69,7 +69,7 @@ public struct FloatParameterUI : IParameterUI
 	/// <summary>
 	/// Control type used in the material editor
 	/// </summary>
-	[Editor( "shadergraph.uitype" )]
+	[Editor( "shadergraph.UIType" )]
 	public UIType Type { get; set; }
 
 	/// <summary>

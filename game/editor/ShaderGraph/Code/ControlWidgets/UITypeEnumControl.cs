@@ -1,7 +1,6 @@
 ﻿namespace Editor.ShaderGraph;
 
-
-[CustomEditor( typeof( UIType ), NamedEditor = "shadergraph.uitype" )]
+[CustomEditor( typeof( UIType ), NamedEditor = "shadergraph.UIType" )]
 internal class UITypeEnumControl : EnumControlWidget
 {
 	public override bool SupportsMultiEdit => false;
