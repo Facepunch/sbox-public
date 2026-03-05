@@ -604,6 +604,217 @@
           "Children": []
         },
         {
+          "__guid": "0122ec63-8eb4-402a-829f-b8c56e39532f",
+          "__version": 2,
+          "Flags": 0,
+          "Name": "big_button",
+          "Position": "255.9977,456,-48",
+          "Rotation": "-0.7071081,0,0.7071055,0",
+          "Scale": "1,1,1",
+          "Tags": "",
+          "Enabled": true,
+          "NetworkMode": 2,
+          "NetworkFlags": 0,
+          "NetworkOrphaned": 0,
+          "NetworkTransmit": true,
+          "OwnerTransfer": 1,
+          "Components": [
+            {
+              "__type": "Sandbox.Prop",
+              "__guid": "cd222aa9-a913-4431-bd97-5a4ed2cc6691",
+              "__enabled": true,
+              "Flags": 0,
+              "BodyGroups": 18446744073709551615,
+              "Health": 0,
+              "IsStatic": true,
+              "MaterialGroup": null,
+              "Model": "models/props/big_button/big_button.vmdl",
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null,
+              "OnPropBreak": null,
+              "OnPropTakeDamage": null,
+              "StartAsleep": false,
+              "Tint": "1,1,1,1"
+            },
+            {
+              "__type": "Sandbox.SkinnedModelRenderer",
+              "__guid": "62b5e94c-29ea-4d1d-96ea-59ad1380f978",
+              "__enabled": true,
+              "Flags": 0,
+              "AnimationGraph": null,
+              "BodyGroups": 18446744073709551615,
+              "BoneMergeTarget": null,
+              "CreateAttachments": false,
+              "CreateBoneObjects": false,
+              "LodOverride": null,
+              "MaterialGroup": null,
+              "MaterialOverride": null,
+              "Materials": null,
+              "Model": "models/props/big_button/big_button.vmdl",
+              "Morphs": {},
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null,
+              "Parameters": {
+                "bools": {},
+                "ints": {},
+                "floats": {},
+                "vectors": {},
+                "rotations": {}
+              },
+              "PlaybackRate": 1,
+              "RenderOptions": {
+                "GameLayer": true,
+                "OverlayLayer": false,
+                "BloomLayer": false,
+                "AfterUILayer": false
+              },
+              "RenderType": "On",
+              "Sequence": {
+                "Name": null,
+                "Looping": true,
+                "Blending": false
+              },
+              "Tint": "1,1,1,1",
+              "UseAnimGraph": true
+            },
+            {
+              "__type": "Sandbox.ModelCollider",
+              "__guid": "b5d13df3-c962-4a80-becf-653604b8420d",
+              "__enabled": true,
+              "Flags": 0,
+              "ColliderFlags": 0,
+              "Elasticity": null,
+              "Friction": null,
+              "IsTrigger": false,
+              "Model": "models/props/big_button/big_button.vmdl",
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null,
+              "OnObjectTriggerEnter": null,
+              "OnObjectTriggerExit": null,
+              "OnTriggerEnter": null,
+              "OnTriggerExit": null,
+              "RollingResistance": null,
+              "Static": true,
+              "Surface": null,
+              "SurfaceVelocity": "0,0,0"
+            },
+            {
+              "__type": "Sandbox.Mapping.Button",
+              "__guid": "18902436-b5c3-467d-94f4-9a96bde1c915",
+              "__enabled": true,
+              "Flags": 0,
+              "AnimationCurve": [
+                {
+                  "x": 0,
+                  "y": 0,
+                  "in": 0,
+                  "out": 0,
+                  "mode": "Mirrored"
+                },
+                {
+                  "x": 1,
+                  "y": 1,
+                  "in": 0,
+                  "out": 0,
+                  "mode": "Mirrored"
+                }
+              ],
+              "AnimationTime": 0.5,
+              "AutoReset": true,
+              "Mode": "Toggle",
+              "Move": false,
+              "MoveDelta": "0,0,0",
+              "MoveTarget": null,
+              "OffSound": null,
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null,
+              "OnPressed": {
+                "__version": 9,
+                "__guid": "ab363007-ccaa-46c7-9cef-1b706929c67e",
+                "__changeId": 17,
+                "UserData": {
+                  "Title": "On Pressed",
+                  "ReferencedComponentTypes": []
+                },
+                "Variables": [],
+                "Nodes": [
+                  {
+                    "Id": 0,
+                    "Type": "input",
+                    "UserData": {
+                      "Position": "-24,48"
+                    }
+                  },
+                  {
+                    "Id": 2,
+                    "Type": "scene.ref",
+                    "UserData": {
+                      "Position": "108,168"
+                    }
+                  },
+                  {
+                    "Id": 4,
+                    "Type": "call",
+                    "Properties": {
+                      "_isStatic": false,
+                      "_name": "Toggle",
+                      "_type": "Sandbox.Mapping.LinearMove"
+                    },
+                    "UserData": {
+                      "Position": "252,48"
+                    }
+                  }
+                ],
+                "Links": [
+                  {
+                    "SrcId": 0,
+                    "SrcName": "_signal",
+                    "DstId": 4,
+                    "DstName": "_signal"
+                  },
+                  {
+                    "SrcId": 2,
+                    "SrcName": "_result",
+                    "DstId": 4,
+                    "DstName": "_target"
+                  }
+                ],
+                "Defaults": {
+                  "$2.component": {
+                    "_type": "component",
+                    "component_id": "5e14ccc3-f9de-4a59-a5cd-861d06f62810",
+                    "go": "4ca89095-c1b8-4299-98a7-b80d9c49e11a",
+                    "component_type": "LinearMove"
+                  }
+                }
+              },
+              "OnReleased": null,
+              "OnSound": "sounds/button1.sound",
+              "OnStateChanged": null,
+              "OnTurnedOff": null,
+              "OnTurnedOn": null,
+              "ResetTime": 2
+            }
+          ],
+          "Children": []
+        },
+        {
           "__guid": "3e49e123-69ff-42cd-a4ff-73fb4ef6a087",
           "__version": 2,
           "Flags": 0,
@@ -151192,7 +151403,7 @@
               "Components": [
                 {
                   "__type": "Sandbox.Mapping.LinearMove",
-                  "__guid": "9a321fd9-909a-4c9c-bb79-d3da54a7637e",
+                  "__guid": "4258eab6-f52d-455d-b311-9bc33b668e19",
                   "__enabled": true,
                   "Flags": 0,
                   "AnimationCurve": [
@@ -151214,7 +151425,7 @@
                   "CloseFinishedSound": null,
                   "CloseSound": null,
                   "IsLocked": false,
-                  "MoveDistance": "0,-122,0",
+                  "MoveDistance": "0,122,0",
                   "MoveTime": 1,
                   "OnCloseEnd": null,
                   "OnCloseStart": null,
@@ -151438,7 +151649,7 @@
               "Components": [
                 {
                   "__type": "Sandbox.Mapping.LinearMove",
-                  "__guid": "8a4c2c10-383f-444a-914a-40fb681a828a",
+                  "__guid": "5e14ccc3-f9de-4a59-a5cd-861d06f62810",
                   "__enabled": true,
                   "Flags": 0,
                   "AnimationCurve": [
@@ -151452,16 +151663,16 @@
                     {
                       "x": 1,
                       "y": 1,
-                      "in": 0,
-                      "out": 0,
+                      "in": 0.11764716,
+                      "out": -0.11764716,
                       "mode": "Mirrored"
                     }
                   ],
                   "CloseFinishedSound": null,
-                  "CloseSound": null,
+                  "CloseSound": "sounds/heavy_metal_move1.sound",
                   "IsLocked": false,
-                  "MoveDistance": "0,-122,0",
-                  "MoveTime": 1,
+                  "MoveDistance": "0,122,0",
+                  "MoveTime": 1.2,
                   "OnCloseEnd": null,
                   "OnCloseStart": null,
                   "OnComponentDestroy": null,
@@ -151475,7 +151686,7 @@
                   "OnOpenStart": null,
                   "OnStateChanged": null,
                   "OpenFinishedSound": null,
-                  "OpenSound": null,
+                  "OpenSound": "sounds/heavy_metal_move1.sound",
                   "StartOpen": false
                 }
               ],
@@ -220615,7 +220826,7 @@
                   ]
                 },
                 {
-                  "__guid": "66220d7d-7f4f-463a-94a9-f5f0b94e1040",
+                  "__guid": "eb12589c-c20c-4ad6-b44d-ee9218b8b0c7",
                   "__version": 2,
                   "Flags": 0,
                   "Name": "Clothing - cardboard_king",
@@ -220632,7 +220843,7 @@
                   "Components": [
                     {
                       "__type": "Sandbox.SkinnedModelRenderer",
-                      "__guid": "9533feb7-55d7-490f-8a3c-77afdac5afef",
+                      "__guid": "22e8dfb7-1b87-4aad-95a2-de7ba0f3673b",
                       "__enabled": true,
                       "Flags": 0,
                       "AnimationGraph": null,
@@ -220684,7 +220895,7 @@
                   "Children": []
                 },
                 {
-                  "__guid": "c624ea63-7e38-4cdd-99fc-d849b6a502b8",
+                  "__guid": "1bcadfdf-917f-4052-aebb-0ce5781b6cd9",
                   "__version": 2,
                   "Flags": 0,
                   "Name": "Clothing - winter_coat",
@@ -220701,7 +220912,7 @@
                   "Components": [
                     {
                       "__type": "Sandbox.SkinnedModelRenderer",
-                      "__guid": "3b4ff2e3-a764-442c-9e27-53951a33e5fa",
+                      "__guid": "8a4ed71f-1942-4f2d-a9e0-dc319a41bc1a",
                       "__enabled": true,
                       "Flags": 0,
                       "AnimationGraph": null,
@@ -220753,7 +220964,7 @@
                   "Children": []
                 },
                 {
-                  "__guid": "2e04dcfb-c6a0-4ae1-ae36-f701d862a71c",
+                  "__guid": "4dd508a5-c9b6-4eb3-a8ca-780afcdb5d27",
                   "__version": 2,
                   "Flags": 0,
                   "Name": "Clothing - football_tshirt",
@@ -220770,7 +220981,7 @@
                   "Components": [
                     {
                       "__type": "Sandbox.SkinnedModelRenderer",
-                      "__guid": "6ab97f7e-ece8-4fb3-bf81-9d4fe60142fe",
+                      "__guid": "1dcccd67-4c86-47f2-addc-6026ac6b85fb",
                       "__enabled": true,
                       "Flags": 0,
                       "AnimationGraph": null,
@@ -220822,7 +221033,7 @@
                   "Children": []
                 },
                 {
-                  "__guid": "51b5e461-229a-4f5b-a08c-be0159dedb00",
+                  "__guid": "ebab867c-c84e-4518-b87b-89000b5c99f6",
                   "__version": 2,
                   "Flags": 0,
                   "Name": "Clothing - trainers",
@@ -220839,7 +221050,7 @@
                   "Components": [
                     {
                       "__type": "Sandbox.SkinnedModelRenderer",
-                      "__guid": "8fc78c6c-6ea7-4a13-b2d1-3e74f0d1e590",
+                      "__guid": "7f89daa4-87ef-4356-aeaa-df79fc122f70",
                       "__enabled": true,
                       "Flags": 0,
                       "AnimationGraph": null,
@@ -220891,7 +221102,7 @@
                   "Children": []
                 },
                 {
-                  "__guid": "5be22211-dd19-4e6f-b31a-8d61f2ac8d17",
+                  "__guid": "90aed549-14a0-4915-aed5-21dcab22ac1f",
                   "__version": 2,
                   "Flags": 0,
                   "Name": "Clothing - loose_jeans",
@@ -220908,7 +221119,7 @@
                   "Components": [
                     {
                       "__type": "Sandbox.SkinnedModelRenderer",
-                      "__guid": "cab4d1f4-831c-4e49-bb55-ddbe3888969f",
+                      "__guid": "1c3075c5-ba6b-4ad9-babc-c245fe2a0ace",
                       "__enabled": true,
                       "Flags": 0,
                       "AnimationGraph": null,
@@ -222854,7 +223065,7 @@
                   ]
                 },
                 {
-                  "__guid": "5575b69a-9bf2-41b8-93e5-c5c322e8df60",
+                  "__guid": "d67f0646-fbcc-46be-a74c-88ad1819f9f7",
                   "__version": 2,
                   "Flags": 0,
                   "Name": "Clothing - cardboard_king",
@@ -222871,7 +223082,7 @@
                   "Components": [
                     {
                       "__type": "Sandbox.SkinnedModelRenderer",
-                      "__guid": "48c87a54-a739-4cc2-b41d-0f7795b2fca9",
+                      "__guid": "dba348f6-fc02-49a3-80e5-fa6740d9e0e7",
                       "__enabled": true,
                       "Flags": 0,
                       "AnimationGraph": null,
@@ -222923,7 +223134,7 @@
                   "Children": []
                 },
                 {
-                  "__guid": "36975a42-3a76-495e-9683-d30e3027b120",
+                  "__guid": "a4860800-afdf-4392-8352-5f8f2c4741f1",
                   "__version": 2,
                   "Flags": 0,
                   "Name": "Clothing - winter_coat",
@@ -222940,7 +223151,7 @@
                   "Components": [
                     {
                       "__type": "Sandbox.SkinnedModelRenderer",
-                      "__guid": "02243c5c-57e5-4619-a4e3-e37ae80ad6be",
+                      "__guid": "fc2eb9e2-f8c1-44f5-a808-168004cdea6c",
                       "__enabled": true,
                       "Flags": 0,
                       "AnimationGraph": null,
@@ -222992,7 +223203,7 @@
                   "Children": []
                 },
                 {
-                  "__guid": "0f0ffcc7-0c3f-4392-a99b-171ae2792156",
+                  "__guid": "0c1ff6b4-3a89-4f79-9101-d1bd41c4a1bf",
                   "__version": 2,
                   "Flags": 0,
                   "Name": "Clothing - football_tshirt",
@@ -223009,7 +223220,7 @@
                   "Components": [
                     {
                       "__type": "Sandbox.SkinnedModelRenderer",
-                      "__guid": "8de0be88-4667-4852-bd35-0eda5c44061c",
+                      "__guid": "9fb86bd8-6a8f-4a54-bb89-c9428c8f0cd9",
                       "__enabled": true,
                       "Flags": 0,
                       "AnimationGraph": null,
@@ -223061,7 +223272,7 @@
                   "Children": []
                 },
                 {
-                  "__guid": "94b9a861-38fd-4c07-a986-ea4a930a4a4f",
+                  "__guid": "070017cb-db11-4a52-8591-c2c728984787",
                   "__version": 2,
                   "Flags": 0,
                   "Name": "Clothing - trainers",
@@ -223078,7 +223289,7 @@
                   "Components": [
                     {
                       "__type": "Sandbox.SkinnedModelRenderer",
-                      "__guid": "adca07ed-41d2-488a-9360-9b1b48718baf",
+                      "__guid": "60312f27-9c65-4af9-827d-ce21ed294845",
                       "__enabled": true,
                       "Flags": 0,
                       "AnimationGraph": null,
@@ -223130,7 +223341,7 @@
                   "Children": []
                 },
                 {
-                  "__guid": "4bb09220-1741-4df4-a646-c0b96b6ea8a4",
+                  "__guid": "95d55cf5-5b44-4b4f-b25f-743f720bd4ca",
                   "__version": 2,
                   "Flags": 0,
                   "Name": "Clothing - loose_jeans",
@@ -223147,7 +223358,7 @@
                   "Components": [
                     {
                       "__type": "Sandbox.SkinnedModelRenderer",
-                      "__guid": "34dc8ac7-5753-4bf2-861a-a3eeb37c40bf",
+                      "__guid": "2ea5e7f0-d157-4d17-80ca-baec6008419e",
                       "__enabled": true,
                       "Flags": 0,
                       "AnimationGraph": null,
@@ -223318,6 +223529,18 @@
               "OnComponentUpdate": null,
               "Radius": 128,
               "ThinCompensation": 5
+            },
+            {
+              "__type": "Sandbox.Mapping.CursorPresser",
+              "__guid": "3cbec26f-5dd1-4d9d-bc37-09135f0f9ffa",
+              "__enabled": true,
+              "Flags": 0,
+              "OnComponentDestroy": null,
+              "OnComponentDisabled": null,
+              "OnComponentEnabled": null,
+              "OnComponentFixedUpdate": null,
+              "OnComponentStart": null,
+              "OnComponentUpdate": null
             }
           ],
           "Children": []
@@ -223343,6 +223566,13 @@
       "AgentMaxSlope": 40,
       "ExcludedBodies": "",
       "IncludedBodies": ""
+    },
+    "GameObjectSystems": {
+      "Sandbox.Clutter.ClutterGridSystem": {
+        "Storage": {
+          "$blob": "b22e84aa-3ebe-4854-8fdf-1a5e9da33356"
+        }
+      }
     }
   },
   "ResourceVersion": 3,
@@ -223352,6 +223582,7 @@
     "facepunch.aircon_unit_medium_wall#50664",
     "facepunch.aircon_unit_wall_mounts#50662",
     "facepunch.airduct_a_vent_64x32#93850",
+    "facepunch.big_button#141958",
     "facepunch.binbag_flat_a2#17185",
     "facepunch.binbag_pile_a1#17186",
     "facepunch.brick_corner_128#88518",

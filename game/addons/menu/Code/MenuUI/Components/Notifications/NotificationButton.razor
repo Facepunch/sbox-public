@@ -7,11 +7,6 @@
 
 <root>
     <Button onclick="@OpenPopup" Active=@(count > 0) class=@($"circle {(count > 0 ? "unread" : "")}") Icon="notifications"></Button>
-
-    @if ( count > 0 )
-    {
-        <div class="unread">@(count > 99 ? "+99" : $"{count}")</div>
-    }
 </root>
 
 @code 

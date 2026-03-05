@@ -32,7 +32,7 @@ public static partial class Json
 		GlobalContext.Current.JsonSerializerOptions = new JsonSerializerOptions( JsonSerializerOptions.Default );
 		options.WriteIndented = true;
 		options.PropertyNameCaseInsensitive = true;
-		options.NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString | System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals;
+		options.NumberHandling = JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.AllowNamedFloatingPointLiterals;
 		options.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
 		options.ReadCommentHandling = JsonCommentHandling.Skip;
 		options.MaxDepth = 512;
@@ -88,6 +88,14 @@ public static partial class Json
 	}
 
 	/// <summary>
+	/// Deserialize from a Utf8JsonReader to given type, using our engine specific options.
+	/// </summary>
+	public static object Deserialize( ref Utf8JsonReader reader, System.Type t )
+	{
+		return JsonSerializer.Deserialize( ref reader, t, options );
+	}
+
+	/// <summary>
 	/// Try to deserialize given source to given type. Return true if it was a success
 	/// </summary>
 	public static bool TryDeserialize( string source, System.Type t, out object obj )
@@ -140,6 +148,14 @@ public static partial class Json
 	public static void Serialize<T>( Utf8JsonWriter writer, T target )
 	{
 		JsonSerializer.Serialize( writer, target, options );
+	}
+
+	/// <summary>
+	/// Serialize to a Utf8JsonWriter using our engine specific options.
+	/// </summary>
+	public static void Serialize( Utf8JsonWriter writer, object target, Type inputType )
+	{
+		JsonSerializer.Serialize( writer, target, inputType, options );
 	}
 
 	/// <summary>
