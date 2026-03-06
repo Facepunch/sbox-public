@@ -4,8 +4,17 @@ namespace Editor.ShaderGraph;
 
 public enum UIType
 {
+	/// <summary>
+	/// Default Control Type
+	/// </summary>
 	Default,
+	/// <summary>
+	/// Slider Control Type
+	/// </summary>
 	Slider,
+	/// <summary>
+	/// Color Control Type
+	/// </summary>
 	Color,
 }
 
@@ -35,7 +44,7 @@ public interface IParameterUI
 }
 
 /// <summary>
-/// Generic ParameterUI with the bare minimum amount of settings.
+/// Generic ParameterUI with the bare minimum amount of settings
 /// </summary>
 public struct GenericParameterUI : IParameterUI
 {
@@ -59,7 +68,7 @@ public struct GenericParameterUI : IParameterUI
 }
 
 /// <summary>
-/// For the Color value
+/// For the Color parameter
 /// </summary>
 public struct ColorParameterUI : IParameterUI
 {
@@ -86,7 +95,7 @@ public struct ColorParameterUI : IParameterUI
 }
 
 /// <summary>
-/// For float based values Like Float, Vector2, Vector3 and Vector4 
+/// For float based parameters Like Float, Float2 and Float3
 /// </summary>
 public struct FloatParameterUI : IParameterUI
 {
