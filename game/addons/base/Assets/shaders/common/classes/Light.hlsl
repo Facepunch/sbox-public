@@ -7,7 +7,8 @@
 #include "light_probe_volume.fxc"
 #include "baked_lighting_constants.fxc"
 
-struct LightQuery {
+struct LightQuery
+{
     ClusterRange Range;
     uint Count;
 };
@@ -293,7 +294,7 @@ static Light Light::From( float3 vPositionWs, LightQuery query, uint index, floa
         return light;
     }
 
-    return StaticLight::From( vPositionWs, vLightMapUV, index - dynamicCount);
+    return StaticLight::From( vPositionWs, vLightMapUV, index - dynamicCount );
 }
 
 static Light Light::From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex, float2 vLightMapUV )
