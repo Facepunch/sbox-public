@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -42,6 +43,10 @@ class Program
 		// Get a list of files we need to copy over
 		var files = System.IO.Directory.EnumerateFiles( Environment.CurrentDirectory, "*.cs", System.IO.SearchOption.AllDirectories ).Select( x => x.Replace( "\\", "/" ) ).ToArray();
 
+		files = Array.FindAll(files, (string path) =>
+		{
+			return !(path.Contains("/obj/.generated") || path.Contains( "/obj/"));
+		} );
 		Console.WriteLine( $"[{sw.Elapsed.TotalSeconds:0.00}] Got Files" );
 
 		List<SyntaxTree> SyntaxTree = new List<SyntaxTree>();
@@ -50,11 +55,24 @@ class Program
 		//
 		// Convert each file into a syntaxtree. Unless we have the destination file, and it's newer.
 		//
+		//properly skip bs
+		files = Array.FindAll(files.ToArray(),( string path ) =>
+		{
+			var relPath = Path.GetRelativePath($"{Environment.CurrentDirectory}",path);
+			var absDstPath = $"{Environment.CurrentDirectory}/obj/.generated/{relPath}";
+			var dstWriteTime = File.GetLastWriteTimeUtc(absDstPath);
+			var srcWriteTime = File.GetLastWriteTimeUtc(path);
+			bool finalCheck = srcWriteTime > dstWriteTime;
+			if ( !finalCheck )
+			{
+				targetPaths.Add(absDstPath);
+			}
+			return finalCheck;
+		} );
+
+		
 		Parallel.ForEach( files, file =>
 		{
-			// skip bs
-			if ( file.Contains( "/obj/.generated/" ) ) return;
-			if ( file.Contains( "/obj/" ) ) return;
 
 			AddTree( SyntaxTree, file, file );
 		} );
