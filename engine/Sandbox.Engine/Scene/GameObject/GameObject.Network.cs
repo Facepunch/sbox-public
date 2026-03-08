@@ -1,4 +1,4 @@
-﻿using Sandbox.Network;
+using Sandbox.Network;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
@@ -423,9 +423,13 @@ public partial class GameObject
 
 		if ( !net.dataTable.HasControl( slot ) )
 		{
-			if ( NetworkTable.IsReadingChanges )
-				p.Setter( p.Value );
+			var attribute = p.GetAttribute<SyncAttribute>();
+			var isPredicted = attribute?.Flags.HasFlag( SyncFlags.Predicted ) ?? false;
 
+			if ( !NetworkTable.IsReadingChanges && !isPredicted )
+				return;
+
+			p.Setter( p.Value );
 			return;
 		}
 
