@@ -1,5 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Sandbox.Utility;
 using System;
 using System.Collections.Generic;
@@ -43,9 +44,9 @@ class Program
 		// Get a list of files we need to copy over
 		var files = System.IO.Directory.EnumerateFiles( Environment.CurrentDirectory, "*.cs", System.IO.SearchOption.AllDirectories ).Select( x => x.Replace( "\\", "/" ) ).ToArray();
 
-		files = Array.FindAll(files, (string path) =>
+		files = Array.FindAll( files, ( string path ) =>
 		{
-			return !(path.Contains("/obj/.generated") || path.Contains( "/obj/"));
+			return !(path.Contains( "/obj/.generated" ) || path.Contains( "/obj/" ));
 		} );
 		Console.WriteLine( $"[{sw.Elapsed.TotalSeconds:0.00}] Got Files" );
 
@@ -56,21 +57,21 @@ class Program
 		// Convert each file into a syntaxtree. Unless we have the destination file, and it's newer.
 		//
 		//properly skip bs
-		files = Array.FindAll(files.ToArray(),( string path ) =>
+		files = Array.FindAll( files.ToArray(), ( string path ) =>
 		{
-			var relPath = Path.GetRelativePath($"{Environment.CurrentDirectory}",path);
+			var relPath = Path.GetRelativePath( $"{Environment.CurrentDirectory}", path );
 			var absDstPath = $"{Environment.CurrentDirectory}/obj/.generated/{relPath}";
-			var dstWriteTime = File.GetLastWriteTimeUtc(absDstPath);
-			var srcWriteTime = File.GetLastWriteTimeUtc(path);
+			var dstWriteTime = File.GetLastWriteTimeUtc( absDstPath );
+			var srcWriteTime = File.GetLastWriteTimeUtc( path );
 			bool finalCheck = srcWriteTime > dstWriteTime;
 			if ( !finalCheck )
 			{
-				targetPaths.Add(absDstPath);
+				targetPaths.Add( absDstPath );
 			}
 			return finalCheck;
 		} );
 
-		
+
 		Parallel.ForEach( files, file =>
 		{
 
