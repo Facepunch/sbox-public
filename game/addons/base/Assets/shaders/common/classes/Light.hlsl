@@ -7,6 +7,11 @@
 #include "light_probe_volume.fxc"
 #include "baked_lighting_constants.fxc"
 
+struct LightQuery {
+    ClusterRange Range;
+    uint Count;
+};
+
 //-----------------------------------------------------------------------------
 // Light structure
 //-----------------------------------------------------------------------------
@@ -34,7 +39,15 @@ struct Light
     // 1.0.
     float Visibility;
 
-    // Gets the light structure given the world position and the light index.
+    // Collect a range of lights to loop over. Use the result with Light::From
+    // to avoid calling Cluster::Query a bunch of extra times.
+    static LightQuery Query( float4 vPositionSs );
+
+    // Gets the light structure using cached information from Light::Query.
+    static Light From( float3 vPositionWs, LightQuery query, uint index, float2 vLightMapUV = 0.0f );
+
+    // Gets the light structure given the world position and the light index
+    // without cached information from LightQuery (slower).
     static Light From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex, float2 vLightMapUV = 0.0f );
 
     // Number of lights in the current fragment.
@@ -259,6 +272,29 @@ class StaticLight : Light
 };
 
 //-----------------------------------------------------------------------------
+
+static LightQuery Light::Query( float4 vPositionSs )
+{
+    ClusterRange range = Cluster::Query( ClusterItemType_Light, vPositionSs );
+    LightQuery query;
+    query.Range = range;
+    query.Count = range.Count + StaticLight::Count();
+    return query;
+}
+
+static Light Light::From( float3 vPositionWs, LightQuery query, uint index, float2 vLightMapUV )
+{
+    uint dynamicCount = query.Range.Count;
+
+    if ( index < dynamicCount )
+    {
+        DynamicLight light = (DynamicLight)0;
+        light.Init( vPositionWs, DynamicLightConstantByIndex( Cluster::LoadItem( query.Range, index ) ) );
+        return light;
+    }
+
+    return StaticLight::From( vPositionWs, vLightMapUV, index - dynamicCount);
+}
 
 static Light Light::From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex, float2 vLightMapUV )
 {
