@@ -39,7 +39,7 @@ class Program
 		System.IO.Directory.CreateDirectory( "obj/.generated" );
 
 		// Get a list of files that already exist in the directory
-		var looseFiles = System.IO.Directory.EnumerateFiles( $"{Environment.CurrentDirectory}/obj/.generated/", "*.cs", System.IO.SearchOption.AllDirectories ).ToList();
+		var looseFiles = System.IO.Directory.EnumerateFiles( $"{Environment.CurrentDirectory}/obj/.generated/", "*.cs", System.IO.SearchOption.AllDirectories ).Select( x => x.Replace( "\\", "/" ) ).ToList();
 
 		// Get a list of files we need to copy over
 		var files = System.IO.Directory.EnumerateFiles( Environment.CurrentDirectory, "*.cs", System.IO.SearchOption.AllDirectories ).Select( x => x.Replace( "\\", "/" ) ).ToArray();
