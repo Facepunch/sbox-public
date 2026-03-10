@@ -40,7 +40,7 @@ public class SboxNativesResolver
 				return outPtr;
 			}
 			IntPtr libHandle;
-			libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/${NetCore.NativizeModuleName(libraryName)}" );
+			libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/{NetCore.NativizeModuleName(libraryName)}" );
 			cachedLibHandles.Add( libraryName, libHandle );
 			return libHandle;
 		} catch (DllNotFoundException)
@@ -59,7 +59,7 @@ public class SboxNativesResolver
 				return outPtr;
 			}
 			IntPtr libHandle;
-			libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/${NetCore.NativizeModuleName(libraryName,false)}" );
+			libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/{NetCore.NativizeModuleName(libraryName,false)}" );
 			cachedLibHandles.Add( libraryName, libHandle );
 			return libHandle;
 		}
@@ -77,7 +77,7 @@ public class SboxNativesResolver
 				return outPtr;
 			}
 			IntPtr libHandle;
-			libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/${NetCore.NativizeModuleName(libraryName,false)}" );
+			libHandle = NativeLibrary.Load( $"{NetCore.NativeDllPath}/{NetCore.NativizeModuleName(libraryName,false)}" );
 			cachedLibHandles.Add( libraryName, libHandle );
 			return libHandle;
 		}
