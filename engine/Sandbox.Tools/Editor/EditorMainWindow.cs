@@ -343,6 +343,9 @@ public class EditorMainWindow : DockWindow
 
 	record struct LayoutFile( string Name, string Json );
 
+	private bool IsTheDefaultScene( SceneEditorSession s ) =>
+		s.Scene.Source is null && !s.HasUnsavedChanges;
+
 	protected override void RestoreDefaultDockLayout()
 	{
 		var layout = FileSystem.Config.ReadJsonOrDefault<LayoutFile>( $"/editor/layout/default.json", default );
@@ -350,6 +353,19 @@ public class EditorMainWindow : DockWindow
 		if ( layout.Json is null ) return;
 
 		DockManager.State = layout.Json;
+
+		// if we pressed Reset Layout we shouldn't open the startup scene.
+		if ( !EditorWindow.Visible )
+		{
+			var startupScene = Project.Current.Package.GetMeta<string>( "StartupScene", null );
+			if ( startupScene != null )
+			{
+				if ( SceneEditorSession.CreateFromPath( startupScene ) is not null )
+				{
+					SceneEditorSession.All.Where( IsTheDefaultScene ).FirstOrDefault()?.Destroy();
+				}
+			}
+		}
 	}
 
 	/// <summary>
