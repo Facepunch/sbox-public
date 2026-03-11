@@ -153,6 +153,6 @@ public sealed class VertexColor : ShaderNode
 [Title( "Tint" ), Category( "Variables" ), Icon( "palette" )]
 public sealed class Tint : ShaderNode
 {
-	[Hide, Output( typeof( Color ) )]
+	[Hide, Output( typeof( Vector4 ) )]
 	public static NodeResult.Func RGBA => ( GraphCompiler compiler ) => new( NodeResultType.Vector4, "i.vTintColor" );
 }
