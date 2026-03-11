@@ -160,7 +160,7 @@ public sealed class TextureSampler : TextureSamplerBase
 	/// RGBA color result
 	/// </summary>
 	[Hide]
-	[Output( typeof( Color ) ), Title( "RGBA" )]
+	[Output( typeof( Vector4 ) ), Title( "RGBA" )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		var input = UI;
@@ -279,7 +279,7 @@ public sealed class TextureCube : ShaderNode
 	/// RGBA color result
 	/// </summary>
 	[Hide]
-	[Output( typeof( Color ) ), Title( "RGBA" )]
+	[Output( typeof( Vector4 ) ), Title( "RGBA" )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		var input = UI;
@@ -350,7 +350,7 @@ public sealed class TextureTriplanar : TextureSamplerBase
 	/// RGBA color result
 	/// </summary>
 	[Hide]
-	[Output( typeof( Color ) ), Title( "RGBA" )]
+	[Output( typeof( Vector4 ) ), Title( "RGBA" )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		var input = UI;
