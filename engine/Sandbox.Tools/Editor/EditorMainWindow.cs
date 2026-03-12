@@ -358,7 +358,7 @@ public class EditorMainWindow : DockWindow
 		if ( !EditorWindow.Visible )
 		{
 			var startupScene = Project.Current.Package.GetMeta<string>( "StartupScene", null );
-			if ( startupScene != null )
+			if ( !string.IsNullOrWhiteSpace( startupScene ) )
 			{
 				if ( SceneEditorSession.CreateFromPath( startupScene ) is not null )
 				{
