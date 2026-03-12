@@ -292,11 +292,11 @@ public sealed class TileAndOffset : ShaderNode
 [Title( "Blend" ), Category( "Transform" ), Icon( "blender" )]
 public sealed class Blend : ShaderNode
 {
-	[Input( typeof( Color ) )]
+	[Input( typeof( Vector4 ) )]
 	[Hide]
 	public NodeInput A { get; set; }
 
-	[Input( typeof( Color ) )]
+	[Input( typeof( Vector4 ) )]
 	[Hide]
 	public NodeInput B { get; set; }
 
