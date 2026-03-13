@@ -35,7 +35,7 @@ public class GraphView : GraphicsView, IGridSizeView
 	Vector2 lastMouseScenePosition;
 
 	internal Plug DropTarget { get; set; }
-	internal Connection Preview { get; set; }
+	public Connection Preview { get; set; }
 
 	public virtual ConnectionStyle ConnectionStyle => ConnectionStyle.Default;
 
@@ -1120,7 +1120,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		Connections.Remove( c );
 	}
 
-	internal void RemoveConnections( PlugIn plugIn )
+	public void RemoveConnections( PlugIn plugIn )
 	{
 		var connections = Connections
 			.Where( x => x.Input == plugIn )
@@ -1133,7 +1133,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		}
 	}
 
-	internal void RemoveConnections( PlugOut plugOut )
+	public void RemoveConnections( PlugOut plugOut )
 	{
 		var connections = Connections
 			.Where( x => x.Output == plugOut )
@@ -1160,7 +1160,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		c.Destroy();
 	}
 
-	internal void NodePositionChanged( NodeUI node )
+	public void NodePositionChanged( NodeUI node )
 	{
 		foreach ( var connection in Connections )
 		{

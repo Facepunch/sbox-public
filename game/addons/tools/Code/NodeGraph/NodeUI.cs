@@ -253,7 +253,7 @@ public partial class NodeUI : GraphicsItem
 		base.OnHoverEnter( e );
 	}
 
-	private void UpdatePlugs( bool firstTime )
+	protected virtual void UpdatePlugs( bool firstTime )
 	{
 		if ( !IsValid )
 		{
