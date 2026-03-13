@@ -35,7 +35,7 @@ public class GraphView : GraphicsView, IGridSizeView
 	Vector2 lastMouseScenePosition;
 
 	internal Plug DropTarget { get; set; }
-	public Connection Preview { get; set; }
+	public Connection Preview { get; internal set; }
 
 	public virtual ConnectionStyle ConnectionStyle => ConnectionStyle.Default;
 
