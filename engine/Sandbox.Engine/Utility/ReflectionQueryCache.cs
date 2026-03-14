@@ -79,6 +79,7 @@ internal static class ReflectionQueryCache
 	private static bool ShouldSerializeMember( MemberDescription memberDesc )
 	{
 		if ( memberDesc is not PropertyDescription && memberDesc is not FieldDescription ) return false;
+		if ( memberDesc.IsStatic ) return false;
 
 		return memberDesc.HasAttribute<PropertyAttribute>() && !memberDesc.HasAttribute<JsonIgnoreAttribute>();
 	}

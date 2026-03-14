@@ -126,7 +126,7 @@
     {
 	    MenuUtility.CloseAllModals();
 
-	    MainMenu.Instance?.Navigator?.Navigate( $"/multiplayer?Package={Package.FullIdent}" );
+	    this.Navigate( $"/multiplayer?Package={Package.FullIdent}" );
     }
 
     async void OnPlay()

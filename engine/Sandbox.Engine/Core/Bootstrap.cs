@@ -185,18 +185,7 @@ internal static class Bootstrap
 			//
 			VRSystem.Init();
 
-			//
-			// Init common engine shit
-			//
-			{
-				Screen.UpdateFromEngine();
-				Material.UI.InitStatic();
-				Gizmo.GizmoDraw.InitStatic();
-				Model.InitStatic();
-				Texture.InitStatic();
-				CubemapRendering.InitStatic();
-				Graphics.InitStatic();
-			}
+			Screen.UpdateFromEngine();
 
 			if ( !Application.IsHeadless && !Application.IsStandalone )
 			{

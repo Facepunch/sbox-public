@@ -1122,8 +1122,29 @@ public sealed partial class PhysicsBody : IHandle
 	public Action<PhysicsIntersection> OnIntersectionStart { get; set; }
 	public Action<PhysicsIntersection> OnIntersectionUpdate { get; set; }
 	public Action<PhysicsIntersectionEnd> OnIntersectionEnd { get; set; }
-	internal Action<PhysicsIntersection> OnTriggerBegin { get; set; }
-	internal Action<PhysicsIntersectionEnd> OnTriggerEnd { get; set; }
+
+	internal CollisionEventSystem Listener { get; set; }
+
+	internal void DispatchIntersectionStart( PhysicsIntersection c )
+	{
+		Listener?.OnIntersectionStart( c );
+		OnIntersectionStart?.InvokeWithWarning( c );
+	}
+
+	internal void DispatchIntersectionUpdate( PhysicsIntersection c )
+	{
+		Listener?.OnIntersectionUpdate( c );
+		OnIntersectionUpdate?.InvokeWithWarning( c );
+	}
+
+	internal void DispatchIntersectionEnd( PhysicsIntersectionEnd c )
+	{
+		Listener?.OnIntersectionEnd( c );
+		OnIntersectionEnd?.InvokeWithWarning( c );
+	}
+
+	internal void DispatchTriggerBegin( PhysicsIntersection c ) => Listener?.OnTriggerBegin( c );
+	internal void DispatchTriggerEnd( PhysicsIntersectionEnd c ) => Listener?.OnTriggerEnd( c );
 
 	/// <summary>
 	/// Transform, on previous step

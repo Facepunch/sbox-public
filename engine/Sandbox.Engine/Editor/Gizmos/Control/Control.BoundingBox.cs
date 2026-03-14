@@ -25,11 +25,11 @@ public static partial class Gizmo
 			var db = Gizmo.Hitbox.DepthBias;
 			Gizmo.Hitbox.DepthBias = 0.01f;
 
-			Hitbox.Sphere( new Sphere( 0, hoverSphereRadius * Transform.UniformScale ) );
+			Hitbox.Sphere( new Sphere( 0, hoverSphereRadius ) );
 
 			Vector3 arrowFrom = Vector3.Forward * -(actualArrowHeadLength + actualSphereRadius);
 			Vector3 arrowTo = Vector3.Forward * -actualSphereRadius;
-			Hitbox.Sphere( new Sphere( arrowFrom / 2, hoverArrowHeadRadius * Transform.UniformScale ) );
+			Hitbox.Sphere( new Sphere( arrowFrom / 2, hoverArrowHeadRadius ) );
 
 			Gizmo.Hitbox.DepthBias = db;
 			color = IsHovered || Pressed.This ? Colors.Active : color;

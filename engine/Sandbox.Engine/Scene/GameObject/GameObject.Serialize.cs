@@ -448,7 +448,7 @@ public partial class GameObject
 				//
 				if ( componentType is null || componentType.TargetType.IsAbstract )
 				{
-					Log.Warning( $"TypeLibrary couldn't find Component type {componentTypeName}" );
+					Log.Warning( $"Missing Component: couldn't find Component type {componentTypeName} on {this}" );
 
 					var missing = new MissingComponent( componentJson );
 					Components.AddMissing( missing );

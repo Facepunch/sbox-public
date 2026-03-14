@@ -157,7 +157,7 @@ public partial class GameObject
 		NetworkOrphaned = original.NetworkOrphaned;
 		AlwaysTransmit = original.AlwaysTransmit;
 		OwnerTransfer = original.OwnerTransfer;
-		Tags.SetFrom( original.Tags );
+		Tags.CloneFrom( original.Tags );
 
 		if ( original.IsPrefabInstanceRoot || original is PrefabScene )
 		{

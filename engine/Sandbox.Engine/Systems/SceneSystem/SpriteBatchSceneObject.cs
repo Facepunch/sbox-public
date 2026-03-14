@@ -17,12 +17,12 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 	internal Dictionary<Guid, SpriteRenderer> Components = new();
 
-	private static readonly ComputeShader SpriteComputeShader = new( "sprite/sprite_cs" );
-	private static readonly ComputeShader SortComputeShader = new( "sort_cs" );
+	private static ComputeShader SpriteComputeShader = new( "sprite/sprite_cs" );
+	private static ComputeShader SortComputeShader = new( "sort_cs" );
 	private readonly RenderAttributes SortComputeShaderAttributes = new();
 	private readonly GpuBuffer<uint> SpriteAtomicCounter;
 
-	private static readonly Material SpriteMaterial = Material.FromShader( "sprite/sprite_ps.shader" );
+	private static Material SpriteMaterial = Material.FromShader( "sprite/sprite_ps.shader" );
 
 	internal Dictionary<Guid, SpriteGroup> SpriteGroups = [];
 

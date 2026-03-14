@@ -203,8 +203,16 @@ public partial class SceneViewportWidget : Widget
 	{
 		if ( !_activeCamera.IsValid() )
 		{
-			Renderer.Camera = Renderer.CreateSceneEditorCamera();
-			_activeCamera = Renderer.Camera;
+			if ( _editorCamera.IsValid() && _editorCamera.Scene == Session.Scene )
+			{
+				_activeCamera = _editorCamera;
+			}
+			else
+			{
+				_editorCamera = Renderer.CreateSceneEditorCamera();
+				_activeCamera = _editorCamera;
+			}
+			Renderer.Camera = _activeCamera;
 		}
 
 		_activeCamera.BackgroundColor = "#32415e";

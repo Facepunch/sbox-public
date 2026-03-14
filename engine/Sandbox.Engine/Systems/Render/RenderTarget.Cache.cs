@@ -143,4 +143,23 @@ public sealed partial class RenderTarget
 			}
 		}
 	}
+
+	/// <summary>
+	/// Destroy all cached render targets immediately. Called during shutdown
+	/// to release native texture handles before the resource system tears down.
+	/// </summary>
+	internal static void Shutdown()
+	{
+		EndOfFrame();
+
+		lock ( _lock )
+		{
+			for ( int i = All.Count - 1; i >= 0; i-- )
+			{
+				All[i].Destroy();
+			}
+
+			All.Clear();
+		}
+	}
 }

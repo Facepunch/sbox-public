@@ -94,7 +94,7 @@ public static partial class TextRendering
 		//Log.Info( $"TextManager: {total} ({deleted} deleted)" );
 	}
 
-	internal static void ClearCache()
+	internal static void Shutdown()
 	{
 		foreach ( var item in Dictionary )
 		{

@@ -114,6 +114,8 @@ internal class GameInstance : IGameInstance
 		if ( activePackage != null && !Application.IsStandalone )
 		{
 			Game.Language?.Shutdown();
+			Game.Language = null;
+
 			FileSystem.Mounted?.UnMount( activePackage.FileSystem );
 
 			activePackage = null;
@@ -164,13 +166,15 @@ internal class GameInstance : IGameInstance
 		Application.GamePackage = _package;
 		Application.ExceptionCount = default;
 
+		EngineFileSystem.ProjectSettings = new AggregateFileSystem();
+		Game.Language = new LanguageContainer();
+
 		//
 		// When joining a server, we don't mind if the package is missing or bullshit
 		// because they might have some assemblies that run the game.
 		//
 		if ( Package is null && IsDeveloperHost )
 		{
-			EngineFileSystem.ProjectSettings = new AggregateFileSystem();
 			LoadProjectSettings();
 			SetupFileWatch();
 			return true;
@@ -261,10 +265,9 @@ internal class GameInstance : IGameInstance
 
 		FileSystem.Mounted.Mount( activePackage.FileSystem );
 
-		EngineFileSystem.ProjectSettings = new AggregateFileSystem();
 		EngineFileSystem.ProjectSettings.Mount( activePackage.ProjectSettings );
-
-		Game.Language = new LanguageContainer( activePackage.Localization );
+		Game.Language.FileSystem.Mount( activePackage.Localization );
+		Game.Language.Refresh();
 
 		LoadProjectSettings();
 

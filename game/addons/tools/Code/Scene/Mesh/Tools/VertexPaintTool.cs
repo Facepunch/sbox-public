@@ -27,17 +27,46 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 		A
 	}
 
-	[Property]
-	public BlendMask ActiveBlendMask { get; set; }
-
-	Color32 Blend => ActiveBlendMask switch
+	struct Channel
 	{
-		BlendMask.R => new Color( 1, 0, 0, 0 ),
-		BlendMask.G => new Color( 0, 1, 0, 0 ),
-		BlendMask.B => new Color( 0, 0, 1, 0 ),
-		BlendMask.A => new Color( 0, 0, 0, 1 ),
-		_ => Color.Black
-	};
+		public bool Enabled;
+		[Range( 0, 1 )] public float Value;
+	}
+
+	readonly Channel[] _channels = new Channel[4];
+
+	Channel ChannelR { get => _channels[1]; set => _channels[1] = value; }
+	Channel ChannelG { get => _channels[2]; set => _channels[2] = value; }
+	Channel ChannelB { get => _channels[3]; set => _channels[3] = value; }
+	Channel ChannelA { get => _channels[0]; set => _channels[0] = value; }
+
+	void SetChannelEnableOther( int channel )
+	{
+		_channels[channel].Value = 1;
+		_channels[channel].Enabled = true;
+
+		for ( int i = 1; i < _channels.Length; i++ )
+		{
+			var id = (channel + i) % _channels.Length;
+			_channels[id].Value = 0;
+			_channels[id].Enabled = id >= channel;
+		}
+	}
+
+	void SetChannelDisableOther( int channel )
+	{
+		_channels[channel].Value = 1;
+		_channels[channel].Enabled = true;
+
+		for ( int i = 1; i < _channels.Length; i++ )
+		{
+			var id = (channel + i) % _channels.Length;
+			_channels[id].Value = 0;
+			_channels[id].Enabled = false;
+		}
+	}
+
+	Color Blend => new Color( ChannelR.Value, ChannelG.Value, ChannelB.Value, ChannelA.Value );
 
 	enum PaintLimitMode
 	{
@@ -98,6 +127,7 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 
 	public override void OnEnabled()
 	{
+		SetChannelEnableOther( 1 );
 		RebuildSelection();
 	}
 
@@ -330,14 +360,12 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 			};
 		}
 
-		return Mode == PaintMode.Color ?
-			Color :
-			Blend.ToColor();
+		return Mode == PaintMode.Color ? Color : Blend;
 	}
 
 	Vector4 GetVertexMask() => Mode == PaintMode.Color ?
 		new Vector4( 1, 1, 1, 0 ) :
-		new Vector4( 1, 1, 1, 1 );
+		new Vector4( ChannelR.Enabled ? 1 : 0, ChannelG.Enabled ? 1 : 0, ChannelB.Enabled ? 1 : 0, ChannelA.Enabled ? 1 : 0 );
 
 	void BeginStroke( MeshComponent component, Vector3 hitPosition )
 	{
@@ -476,7 +504,7 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 	{
 		using ( Gizmo.Scope( "VertexPaintBrush", position, Rotation.LookAt( normal ) ) )
 		{
-			var drawColor = Mode == PaintMode.Color ? Color : Blend.ToColor();
+			var drawColor = Mode == PaintMode.Color ? Color : Blend;
 			var length = MathX.LerpTo( 25f * 0.75f, 25f * 2f, Strength );
 
 			var sections = (int)(MathF.Sqrt( Radius ) * 5.0f).Clamp( 16, 64 );

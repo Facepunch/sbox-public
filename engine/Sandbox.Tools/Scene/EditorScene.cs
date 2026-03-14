@@ -453,7 +453,7 @@ public static class EditorScene
 		using ( SceneEditorSession.Active.UndoScope( "Select All" ).Push() )
 		{
 			Selection.Clear();
-			foreach ( var child in SceneEditorSession.Active.Scene.Children )
+			foreach ( var child in SceneEditorSession.Active.Scene.Children.Where( x => x.ShouldShowInHierarchy() ) )
 			{
 				Selection.Add( child );
 			}

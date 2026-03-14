@@ -1,4 +1,5 @@
-﻿using Sandbox.MovieMaker;
+﻿using Sandbox;
+using Sandbox.MovieMaker;
 using Sandbox.Rendering;
 using System.IO;
 using System.Reflection;
@@ -6,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using Sandbox.Utility;
 
 namespace Editor.MovieMaker;
 
@@ -235,88 +237,93 @@ public sealed class SessionRenderer
 
 		Task? prevFrameTask = null;
 
-		try
-		{
-			for ( var i = -1; i < frameCount; i++ )
-			{
-				if ( ct.IsCancellationRequested ) return;
+		using var _ = StartExport();
 
-				var isWarmup = i < 0;
+		for ( var i = -1; i < frameCount; i++ )
+		{
+			if ( ct.IsCancellationRequested ) return;
+
+			var isWarmup = i < 0;
+
+			if ( !isWarmup && subFrameCount > 1 )
+			{
+				accumulatedTex.Clear( new Color( 0f, 0f, 0f, 0f ) );
+			}
+
+			var frameTime = timeRange.Start + (isWarmup ? 0 : MovieTime.FromFrames( i, config.FrameRate ));
+
+			for ( var j = 0; j < (isWarmup ? config.WarmupFrameCount : subFrameCount); ++j )
+			{
+				var subFrameFraction = isWarmup ? 0f : (float)j / subFrameCount;
+				var subFrameTime = MathX.Lerp( exposureStart, exposureEnd, subFrameFraction ) / config.FrameRate;
+				var nextTime = frameTime + MovieTime.FromSeconds( subFrameTime );
+
+				_session.PlayheadTime = nextTime;
+				_session.Editor?.TimelinePanel?.Timeline.PanToPlayheadTime();
+
+				BeforeRenderFrame( captureCamera, config, nextTime - prevTime );
+
+				// Render a (sub)frame!
+
+				RenderToTextureMethod.Invoke( captureCamera, [subFrameTex, (Vector2?)null, default( ViewSetup )] );
 
 				if ( !isWarmup && subFrameCount > 1 )
 				{
-					accumulatedTex.Clear( new Color( 0f, 0f, 0f, 0f ) );
+					accumulate.Dispatch( subFrameTex.Width, subFrameTex.Height, 1 );
 				}
 
-				var frameTime = timeRange.Start + (isWarmup ? 0 : MovieTime.FromFrames( i, config.FrameRate ));
+				// Yield to let the scene viewport render when it wants to so we get a preview,
+				// and also so temporary resources get cleaned up periodically
 
-				for ( var j = 0; j < (isWarmup ? config.WarmupFrameCount : subFrameCount); ++j )
-				{
-					var subFrameFraction = isWarmup ? 0f : (float)j / subFrameCount;
-					var subFrameTime = MathX.Lerp( exposureStart, exposureEnd, subFrameFraction ) / config.FrameRate;
-					var nextTime = frameTime + MovieTime.FromSeconds( subFrameTime );
+				await Task.Yield();
 
-					_session.PlayheadTime = nextTime;
-					_session.Editor?.TimelinePanel?.Timeline.PanToPlayheadTime();
-
-					BeforeRenderFrame( captureCamera, config, nextTime - prevTime );
-
-					// Render a (sub)frame!
-
-					RenderToTextureMethod.Invoke( captureCamera, [subFrameTex, (Vector2?)null, default( ViewSetup )] );
-
-					if ( !isWarmup && subFrameCount > 1 )
-					{
-						accumulate.Dispatch( subFrameTex.Width, subFrameTex.Height, 1 );
-					}
-
-					// Yield to let the scene viewport render when it wants to so we get a preview,
-					// and also so temporary resources get cleaned up periodically
-
-					await Task.Yield();
-
-					prevTime = nextTime;
-				}
-
-				if ( isWarmup ) continue;
-
-				// Need to divide by alpha to convert from premultiplied
-
-				if ( subFrameCount > 1 )
-				{
-					alphaDivide.Dispatch( subFrameTex.Width, subFrameTex.Height, 1 );
-				}
-
-				// Have to wait for prev frame to finish writing, since it'll be using framePixels
-
-				if ( prevFrameTask is not null )
-				{
-					await prevFrameTask;
-				}
-
-				// Grab the frame from the GPU and add it to the video writer
-
-				var frameSourceTex = subFrameCount > 1 ? accumulatedTex : subFrameTex;
-
-				frameSourceTex.GetPixels( (0, 0, frameSourceTex.Width, frameSourceTex.Height), 0, 0,
-					MemoryMarshal.Cast<byte, Color32>( framePixels.AsSpan() ),
-					ImageFormat.RGBA8888, (frameSourceTex.Width, frameSourceTex.Height) );
-
-				prevFrameTask = onFrame.Invoke( frameTime, framePixels, ct );
+				prevTime = nextTime;
 			}
+
+			if ( isWarmup ) continue;
+
+			// Need to divide by alpha to convert from premultiplied
+
+			if ( subFrameCount > 1 )
+			{
+				alphaDivide.Dispatch( subFrameTex.Width, subFrameTex.Height, 1 );
+			}
+
+			// Have to wait for prev frame to finish writing, since it'll be using framePixels
 
 			if ( prevFrameTask is not null )
 			{
 				await prevFrameTask;
 			}
+
+			// Grab the frame from the GPU and add it to the video writer
+
+			var frameSourceTex = subFrameCount > 1 ? accumulatedTex : subFrameTex;
+
+			frameSourceTex.GetPixels( (0, 0, frameSourceTex.Width, frameSourceTex.Height), 0, 0,
+				MemoryMarshal.Cast<byte, Color32>( framePixels.AsSpan() ),
+				ImageFormat.RGBA8888, (frameSourceTex.Width, frameSourceTex.Height) );
+
+			prevFrameTask = onFrame.Invoke( frameTime, framePixels, ct );
 		}
-		finally
+
+		if ( prevFrameTask is not null )
 		{
-			foreach ( var particleEffect in _session.Player.Scene.GetAll<ParticleEffect>() )
-			{
-				particleEffect.Paused = false;
-			}
+			await prevFrameTask;
 		}
+	}
+
+	private IDisposable StartExport()
+	{
+		var editorSession = _session.Player.Scene.Editor as SceneEditorSession;
+		var wasUpdating = editorSession?.ShouldUpdate;
+
+		editorSession?.ShouldUpdate = false;
+
+		return DisposeAction.Create( () =>
+		{
+			editorSession?.ShouldUpdate = wasUpdating!.Value;
+		} );
 	}
 
 	private void BeforeRenderFrame( SceneCamera captureCamera, VideoExportConfig config, MovieTime deltaTime )
@@ -334,29 +341,9 @@ public sealed class SessionRenderer
 			? Screen.CreateVerticalFieldOfView( camera.FieldOfView, aspect )
 			: camera.FieldOfView;
 
-		// Make sure SkinnedModelRenderers have updated
+		// Simulate the scene
 
-		SignalMethod.Invoke( _session.Player.Scene, [GameObjectSystem.Stage.UpdateBones] );
-
-		// Step particle effects
-
-		foreach ( var particleEffect in _session.Player.Scene.GetAll<ParticleEffect>() )
-		{
-			try
-			{
-				particleEffect.Paused = false;
-				particleEffect.Step( (float)deltaTime.TotalSeconds );
-				particleEffect.Paused = true;
-			}
-			catch ( Exception ex )
-			{
-				Log.Warning( ex );
-			}
-		}
-
-		// Make sure ParticleGameSystem moves particle sprites to their new positions
-
-		SignalMethod.Invoke( _session.Player.Scene, [GameObjectSystem.Stage.FinishUpdate] );
+		_session.Player.Scene.EditorTick( (float)_session.PlayheadTime.TotalSeconds, (float)deltaTime.TotalSeconds );
 	}
 
 	private static MethodInfo RenderToTextureMethod { get; } = typeof( SceneCamera ).GetMethod( "RenderToTexture",

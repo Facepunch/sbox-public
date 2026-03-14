@@ -278,13 +278,30 @@ public partial class SoundHandle : IValid, IDisposable
 
 	bool _destroyed = false;
 
-	internal readonly Scene Scene;
+	/// <summary>
+	/// Weak reference to the scene, so we don't prevent GC of the scene
+	/// when sound handles are held in static queues.
+	/// </summary>
+	private readonly WeakReference<Scene> _sceneRef;
+
+	/// <summary>
+	/// Scene this sound belongs to. May return null if the scene has been collected.
+	/// </summary>
+	internal Scene Scene => _sceneRef is not null && _sceneRef.TryGetTarget( out var scene ) ? scene : null;
 
 	internal SoundHandle( CSfxTable soundHandle )
 	{
 		_sfx = soundHandle;
-		Scene = Game.ActiveScene;
-		SampleRate = _sfx.GetSound().m_rate();
+		_sceneRef = new WeakReference<Scene>( Game.ActiveScene );
+
+		// GetSound() returns a CStrongHandle copy that increments the
+		// native refcount. We must destroy it after reading the sample
+		// rate, otherwise the VSound_t struct falls off the stack and
+		// the native handle is never released.
+		var tempSound = _sfx.GetSound();
+		SampleRate = tempSound.m_rate();
+		tempSound.DestroyStrongHandle();
+
 		TryCreateMixer();
 		addQueue.Enqueue( this );
 		_CreatedTime = RealTime.Now;
@@ -483,11 +500,20 @@ public partial class SoundHandle : IValid, IDisposable
 	{
 		lock ( active )
 		{
+			// Drain pending additions first — handles created after the
+			// last TickAll() (e.g. UI button sounds on the exit click)
+			// would otherwise never enter `active` and never get disposed.
+			TickQueues();
+
 			foreach ( var handle in active )
 			{
 				if ( !handle.IsValid() ) continue;
 				handle.Dispose();
 			}
+
+			// No more TickQueues() will run after shutdown, so clear
+			// the set directly instead of relying on removalQueue.
+			active.Clear();
 		}
 	}
 

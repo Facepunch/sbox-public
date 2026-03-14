@@ -1,5 +1,4 @@
 ﻿using System.Collections.Immutable;
-using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Sandbox.MovieMaker;
@@ -8,6 +7,18 @@ using Sandbox.MovieMaker.Compiled;
 namespace Editor.MovieMaker;
 
 #nullable enable
+
+partial record PropertySignal
+{
+	public static PropertySignal<T> FromSamples<T>( MovieTime startTime, int sampleRate, IEnumerable<T> samples )
+	{
+		ImmutableArray<T> sampleArray = [.. samples];
+
+		var duration = MovieTime.FromFrames( sampleArray.Length, sampleRate );
+
+		return new SamplesSignal<T>( (startTime, startTime + duration), default, sampleRate, sampleArray );
+	}
+}
 
 partial record PropertySignal<T>
 {
@@ -32,15 +43,6 @@ partial record PropertySignal<T>
 		{
 			dst[i] = GetValue( startTime + MovieTime.FromFrames( i, sampleRate ) );
 		}
-	}
-
-	public static PropertySignal<T> FromSamples( MovieTime startTime, int sampleRate, IEnumerable<T> samples )
-	{
-		ImmutableArray<T> sampleArray = [..samples];
-
-		var duration = MovieTime.FromFrames( sampleArray.Length, sampleRate );
-
-		return new SamplesSignal<T>( (startTime, startTime + duration), default, sampleRate, sampleArray );
 	}
 
 	public static implicit operator PropertySignal<T>( CompiledSampleBlock<T> sampleBlock )

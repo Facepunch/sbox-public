@@ -38,6 +38,7 @@ public static class Directory
 				var assembly = Assembly.LoadFile( assemblyName );
 				AddAssembly( assembly );
 				TryMountFilesystem( folderName );
+				ReflectionUtility.RunAllStaticConstructors( assembly );
 			}
 			catch ( System.Exception e )
 			{

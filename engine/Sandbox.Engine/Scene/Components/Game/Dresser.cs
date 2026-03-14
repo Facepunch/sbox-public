@@ -76,7 +76,7 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 	[Property]
 	public List<string> WorkshopItems { get; set; }
 
-	protected override void OnStart()
+	protected override void OnAwake()
 	{
 		if ( IsProxy )
 			return;
@@ -92,6 +92,11 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 		{
 			ApplyAttributes();
 		}
+	}
+
+	protected override void OnDestroy()
+	{
+		CancelDressing();
 	}
 
 	async Task<Clothing> InstallWorkshopClothing( string ident, CancellationToken ct )

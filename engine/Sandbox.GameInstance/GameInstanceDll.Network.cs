@@ -30,6 +30,11 @@ internal partial class GameInstanceDll
 	readonly SmallNetworkFiles NetworkedConfigFiles = new( "ConfigFiles" );
 
 	/// <summary>
+	/// Hold and network any localization files.
+	/// </summary>
+	readonly SmallNetworkFiles NetworkedLangFiles = new( "LangFiles" );
+
+	/// <summary>
 	/// Hold and network any small files such as StyleSheets and compiled prefab assets.
 	/// </summary>
 	readonly LargeNetworkFiles NetworkedLargeFiles = new( "LargeFiles" );
@@ -56,16 +61,21 @@ internal partial class GameInstanceDll
 			}
 
 			AddFilesToNetwork( NetworkedConfigFiles, EngineFileSystem.ProjectSettings, [".config"] );
+			AddFilesToNetwork( NetworkedLangFiles, Game.Language.FileSystem, [".json"] );
 			BuildNetworkedFiles();
 		}
 		else if ( !DidMountNetworkedFiles )
 		{
 			EngineFileSystem.ProjectSettings.Mount( NetworkedConfigFiles.Files );
+			Game.Language.FileSystem.Mount( NetworkedLangFiles.Files );
+			Game.Language.Refresh();
+
 			FileSystem.Mounted.Mount( NetworkedLargeFiles.Files );
 			FileSystem.Mounted.Mount( NetworkedSmallFiles.Files );
 
 			NetworkedSmallFiles.Refresh();
 			NetworkedConfigFiles.Refresh();
+			NetworkedLangFiles.Refresh();
 
 			ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
 			FontManager.Instance.LoadAll( FileSystem.Mounted );
@@ -125,6 +135,7 @@ internal partial class GameInstanceDll
 		system.InstallTable( ServerPackages.StringTable );
 		system.InstallTable( NetworkedSmallFiles.StringTable );
 		system.InstallTable( NetworkedConfigFiles.StringTable );
+		system.InstallTable( NetworkedLangFiles.StringTable );
 		system.InstallTable( NetworkedLargeFiles.StringTable );
 		system.InstallTable( ReplicatedConvars.StringTable );
 

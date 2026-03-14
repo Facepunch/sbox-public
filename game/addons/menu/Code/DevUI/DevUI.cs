@@ -2,14 +2,10 @@
 
 public class DevLayer : RootPanel
 {
-	public static DevLayer Instance;
-
 	ExceptionNotification ExceptionNotification;
 
 	public DevLayer()
 	{
-		Instance = this;
-
 		AddChild<DeveloperMode>();
 		AddChild<ConsoleOverlay>();
 

@@ -53,9 +53,9 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 
 	CommandList command = new CommandList( "Depth Of Field" );
 
-	private static readonly ComputeShader ShaderCs = new ComputeShader( "postprocess_standard_dof_cs" );
+	private static ComputeShader ShaderCs = new ComputeShader( "postprocess_standard_dof_cs" );
 
-	private static readonly Material Shader = Material.FromShader( "postprocess_standard_dof.shader" );
+	private static Material Shader = Material.FromShader( "postprocess_standard_dof.shader" );
 
 	public override void Render()
 	{

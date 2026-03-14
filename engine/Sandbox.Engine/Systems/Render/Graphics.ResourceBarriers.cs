@@ -102,6 +102,32 @@ public static partial class Graphics
 	}
 
 	/// <summary>
+	/// Issues a UAV barrier for the given texture, ensuring writes from prior shader invocations
+	/// are visible to subsequent ones without changing the resource layout.
+	/// </summary>
+	/// <param name="texture">The texture to barrier.</param>
+	public static void UavBarrier( Texture texture )
+	{
+		var stage = RenderBarrierPipelineStageFlags_t.FragmentShaderBit | RenderBarrierPipelineStageFlags_t.ComputeShaderBit;
+		var access = RenderBarrierAccessFlags_t.ShaderReadBit | RenderBarrierAccessFlags_t.ShaderWriteBit;
+
+		Context.TextureBarrierTransition( texture.native, -1, stage, stage, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_GENERAL, access, access );
+	}
+
+	/// <summary>
+	/// Issues a UAV barrier for the given GPU buffer, ensuring writes from prior shader invocations
+	/// are visible to subsequent ones.
+	/// </summary>
+	/// <param name="buffer">The buffer to barrier.</param>
+	public static void UavBarrier( GpuBuffer buffer )
+	{
+		var stage = RenderBarrierPipelineStageFlags_t.FragmentShaderBit | RenderBarrierPipelineStageFlags_t.ComputeShaderBit;
+		var access = RenderBarrierAccessFlags_t.ShaderReadBit | RenderBarrierAccessFlags_t.ShaderWriteBit;
+
+		Context.BufferBarrierTransition( buffer.native, stage, stage, access, access );
+	}
+
+	/// <summary>
 	/// Figure out what flags Vulkan needs for the given ResourceState
 	/// </summary>
 	private static void ResourceStateToVulkanFlags( ResourceState resourceState, out RenderBarrierPipelineStageFlags_t dstStageFlags, out RenderBarrierAccessFlags_t accessFlags, out RenderImageLayout_t imageLayout, GpuBuffer.UsageFlags bufferUsageFlags = 0 )
@@ -166,6 +192,10 @@ public static partial class Graphics
 				imageLayout = RenderImageLayout_t.RENDER_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 				accessFlags = RenderBarrierAccessFlags_t.TransferReadBit;
 				dstStageFlags = RenderBarrierPipelineStageFlags_t.TransferBit;
+				break;
+			case ResourceState.IndirectArgument:
+				accessFlags = RenderBarrierAccessFlags_t.IndirectCommandReadBit;
+				dstStageFlags = RenderBarrierPipelineStageFlags_t.DrawIndirectBit;
 				break;
 		}
 	}

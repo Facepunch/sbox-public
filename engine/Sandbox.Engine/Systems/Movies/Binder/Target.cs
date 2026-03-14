@@ -145,7 +145,18 @@ public partial interface ITrackProperty<T> : ITrackProperty, ITrackTarget<T>
 	public bool Update( IPropertyTrack<T> track, MovieTime time )
 	{
 		if ( !IsBound || !CanWrite ) return false;
-		if ( !track.TryGetValue( time, out var value ) ) return false;
+		if ( !track.TryGetValue( time, out var value ) )
+		{
+			// Special handling for Enabled: false when there's no value
+
+			if ( track is { Parent: IReferenceTrack, Name: nameof( GameObject.Enabled ) } && this is ITrackProperty<bool> boolProperty )
+			{
+				boolProperty.Value = false;
+				return true;
+			}
+
+			return false;
+		}
 
 		Value = value;
 

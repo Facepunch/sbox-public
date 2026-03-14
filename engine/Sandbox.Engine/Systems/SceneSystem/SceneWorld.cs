@@ -102,6 +102,7 @@ public sealed partial class SceneWorld : IHandle
 		CSceneSystem.DestroyWorld( this );
 		native = IntPtr.Zero;
 		ActivePVS = default;
+		All.Remove( this );
 	}
 
 	internal void OnNativeInit( ISceneWorld ptr )
@@ -125,6 +126,16 @@ public sealed partial class SceneWorld : IHandle
 	{
 		if ( !native.IsValid ) return;
 		native.DeleteEndOfFrameObjects();
+	}
+
+	/// <summary>
+	/// Flush all system-wide queued scene object and world deletes.
+	/// Normally processed at end-of-frame by FinishRenderingViews,
+	/// but during shutdown no frame runs so we must flush manually.
+	/// </summary>
+	internal static void FlushQueuedDeletes()
+	{
+		CSceneSystem.PerformEndOfFrameDeletes();
 	}
 
 	/// <summary>

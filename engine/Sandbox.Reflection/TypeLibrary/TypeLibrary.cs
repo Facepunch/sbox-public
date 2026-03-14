@@ -158,6 +158,7 @@ public partial class TypeLibrary
 		typeof(Color.Rgba16),
 		typeof(Color32),
 		typeof(ColorHsv),
+		typeof(Gradient),
 		typeof(Capsule),
 		typeof(Line),
 		typeof(Transform),

@@ -104,7 +104,7 @@ public partial class Timeline
 		Center = new Vector2( TimeToPixels( timeOffset ) - size.x * 0.5f, Center.y );
 	}
 
-	private Rect? _lastVisibleRect;
+	private (Rect Rect, float PixelsPerSecond)? _lastView;
 
 	private const float LeftRightMargin = 8f;
 	private const float TopBottomMargin = 48f;
@@ -127,14 +127,14 @@ public partial class Timeline
 			Math.Max( Width, width ),
 			Math.Max( Height - scrollBarFudge, height ) );
 
-		var visibleRect = VisibleRect;
+		var view = (VisibleRect, PixelsPerSecond);
 
-		UpdateBackground( visibleRect );
-		UpdateScrubBars( visibleRect );
+		UpdateBackground( view.VisibleRect );
+		UpdateScrubBars( view.VisibleRect );
 
-		if ( visibleRect == _lastVisibleRect ) return false;
+		if ( view == _lastView ) return false;
 
-		_lastVisibleRect = visibleRect;
+		_lastView = view;
 
 		UpdatePlayheadTime( Session.PlayheadTime );
 		UpdatePreviewTime( Session.PreviewTime );
@@ -145,8 +145,8 @@ public partial class Timeline
 			Drag( scenePos );
 		}
 
-		ViewChanged?.Invoke( visibleRect );
-		Session.EditMode?.ViewChanged( visibleRect );
+		ViewChanged?.Invoke( view.VisibleRect );
+		Session.EditMode?.ViewChanged( view.VisibleRect );
 
 		return true;
 	}

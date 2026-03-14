@@ -166,6 +166,16 @@ internal static partial class Logging
 	internal static event Action<LogEvent> OnMessage;
 	internal static Action<Exception> OnException;
 
+	/// <summary>
+	/// Remove all OnMessage / OnException subscribers. Called during shutdown
+	/// so static delegates don't root addon panels (e.g. Console).
+	/// </summary>
+	public static void ClearListeners()
+	{
+		OnMessage = null;
+		OnException = null;
+	}
+
 	static Channel<LogEvent> QueuedMessages = Channel.CreateUnbounded<LogEvent>();
 
 	private static int callDepth = 0;
