@@ -343,9 +343,6 @@ public class EditorMainWindow : DockWindow
 
 	record struct LayoutFile( string Name, string Json );
 
-	private bool IsTheDefaultScene( SceneEditorSession s ) =>
-		s.Scene.Source is null && !s.HasUnsavedChanges;
-
 	protected override void RestoreDefaultDockLayout()
 	{
 		var layout = FileSystem.Config.ReadJsonOrDefault<LayoutFile>( $"/editor/layout/default.json", default );
@@ -354,16 +351,30 @@ public class EditorMainWindow : DockWindow
 
 		DockManager.State = layout.Json;
 
-		// if we pressed Reset Layout we shouldn't open the startup scene.
+		// This code should only execute on startup, not when a user presses Reset Layout
 		if ( !EditorWindow.Visible )
 		{
-			var startupScene = Project.Current.Package.GetMeta<string>( "StartupScene", null );
-			if ( !string.IsNullOrWhiteSpace( startupScene ) )
+			// The default layout json is static and doesn't know what a project's startup scene is
+			// We need to look it up and open it if it exists
+			TryToOpenStartupScene();
+		}
+	}
+
+	// The default scene is the empty scene editor that appears in default.json
+	private bool IsTheDefaultScene( SceneEditorSession s ) =>
+		s.Scene.Source is null && !s.HasUnsavedChanges;
+
+	void TryToOpenStartupScene()
+	{
+		var startupScene = Project.Current.Package.GetMeta<string>( "StartupScene", null );
+		if ( !string.IsNullOrWhiteSpace( startupScene ) )
+		{
+			var s = SceneEditorSession.CreateFromPath( startupScene );
+			var startupSceneEditorWasCreated = s is not null;
+
+			if ( startupSceneEditorWasCreated )
 			{
-				if ( SceneEditorSession.CreateFromPath( startupScene ) is not null )
-				{
-					SceneEditorSession.All.Where( IsTheDefaultScene ).FirstOrDefault()?.Destroy();
-				}
+				SceneEditorSession.All.Where( IsTheDefaultScene ).FirstOrDefault()?.Destroy();
 			}
 		}
 	}
