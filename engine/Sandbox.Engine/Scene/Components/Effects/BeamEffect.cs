@@ -414,7 +414,7 @@ public sealed class BeamEffect : Component, Component.ExecuteInEditor, Component
 			Offset = offset,
 			FilterMode = FilterMode,
 			TextureAddressMode = Rendering.TextureAddressMode.Wrap,
-			WorldSpace = true,
+			WorldSpace = Material is null,
 		};
 
 		if ( TravelBetweenPoints )
@@ -434,7 +434,15 @@ public sealed class BeamEffect : Component, Component.ExecuteInEditor, Component
 
 		}
 
-		lineRenderer.VectorPoints.Add( beam.StartPosition );
-		lineRenderer.VectorPoints.Add( beam.EndPosition );
+		if ( Material is null )
+		{
+			lineRenderer.VectorPoints.Add( beam.StartPosition );
+			lineRenderer.VectorPoints.Add( beam.EndPosition );
+		}
+		else
+		{
+			lineRenderer.VectorPoints.Add( lineRenderer.WorldTransform.PointToLocal( beam.StartPosition ) );
+			lineRenderer.VectorPoints.Add( lineRenderer.WorldTransform.PointToLocal( beam.EndPosition ) );
+		}
 	}
 }
