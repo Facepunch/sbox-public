@@ -37,12 +37,6 @@ partial class Compiler
 		public bool Whitelist { get; set; } = true;
 
 		/// <summary>
-		/// Game is being compiled for standalone export, the STANDALONE constant is enabled.
-		/// </summary>
-		[JsonIgnore]
-		public bool Standalone { get; set; } = false;
-
-		/// <summary>
 		/// If true, we'll compile with /unsafe. This means that the package won't be able to
 		/// be published on the platform.
 		/// </summary>
@@ -124,14 +118,13 @@ partial class Compiler
 							.ToHashSet();
 
 			if ( ReleaseMode == ReleaseMode.Debug )
+			{
 				symbols.Add( "DEBUG" );
+			}
 			else
+			{
 				symbols.Remove( "DEBUG" );
-
-			if ( Standalone )
-				symbols.Add( "STANDALONE" );
-			else
-				symbols.Remove( "STANDALONE" );
+			}
 
 			return symbols;
 		}
