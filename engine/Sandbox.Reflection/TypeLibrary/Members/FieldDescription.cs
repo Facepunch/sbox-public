@@ -14,7 +14,7 @@ public sealed class FieldDescription : MemberDescription
 	/// <inheritdoc cref="System.Reflection.FieldInfo.IsInitOnly"/>
 	public bool IsInitOnly { get; private set; }
 
-	FieldInfo FieldInfo => MemberInfo as FieldInfo;
+	internal FieldInfo FieldInfo => MemberInfo as FieldInfo;
 
 	internal static FieldDescription Create( FieldInfo i, TypeDescription td, MemberDescription previous )
 	{

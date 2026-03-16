@@ -61,12 +61,17 @@ public sealed partial class AnimationGraph : Resource
 		}
 	}
 
-	~AnimationGraph()
+	internal override void Destroy()
 	{
-		var n = native;
-		native = default;
+		if ( !native.IsNull )
+		{
+			var n = native;
+			native = default;
 
-		MainThread.Queue( () => n.DestroyStrongHandle() );
+			MainThread.Queue( () => n.DestroyStrongHandle() );
+		}
+
+		base.Destroy();
 	}
 
 	internal IAnimParameterList ParameterList => native.GetParameterList();

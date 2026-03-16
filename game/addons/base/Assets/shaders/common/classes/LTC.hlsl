@@ -147,7 +147,7 @@ void LTC::ClipQuadToHorizon(inout float3 vertices[5], out int vertexCount)
     vertexCount = entry.VertexCount;
     
     // Apply instructions to set vertices[0] to vertices[4]
-    for (i = 0; i < 5; i++) {
+    for ( int i = 0; i < 5; i++) {
         const LtcClipInstruction instr = entry.Instructions[i];
         if (instr.Type == 0) {
             vertices[i] = originalVertices[instr.IndexA];
@@ -237,12 +237,12 @@ float3 LTC::EvaluateLtc(float3 normal, float3 view, float3 position, float3x3 tr
         return float3(0, 0, 0);
 
     // Normalize vertices for integration
-    for ( i = 0; i < vertexCount; i++)
+    for ( int i = 0; i < vertexCount; i++)
         vertices[i] = normalize(vertices[i]);
 
     // Integrate edges using a loop
     float sum = 0;
-    for ( i = 0; i < vertexCount; i++)
+    for ( int i = 0; i < vertexCount; i++)
     {
         sum += IntegrateEdge(vertices[i], vertices[(i + 1) % vertexCount]);
     }

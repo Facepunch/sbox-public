@@ -6,11 +6,28 @@ public static class SceneEditorMenus
 	[Shortcut( "editor.duplicate", "CTRL+D" )]
 	public static void Duplicate()
 	{
-		var selection = EditorScene.Selection.OfType<GameObject>().ToArray();
-
 		using ( SceneEditorSession.Active.UndoScope( "Duplicate Object(s)" ).WithGameObjectCreations().Push() )
 		{
+			SceneTraceResult? tr = null;
+
+			if ( EditorPreferences.PasteAtCursor &&
+				 SceneViewWidget.Current?.LastSelectedViewportWidget is { } viewport &&
+				 viewport.IsValid() )
+			{
+				using ( viewport.GizmoInstance.Push() )
+					if ( viewport.TryGetCursorTracePosition( out var result ) )
+						tr = result;
+			}
+
 			DuplicateInternal();
+
+			if ( tr is { } trace )
+			{
+				EditorScene.PlaceBoundsOnSurface(
+					EditorScene.Selection.OfType<GameObject>(),
+					trace.HitPosition,
+					trace.Normal );
+			}
 		}
 	}
 
@@ -37,7 +54,6 @@ public static class SceneEditorMenus
 		foreach ( var entry in groups )
 		{
 			var clone = entry.Key.Clone();
-
 			clone.WorldTransform = entry.Key.WorldTransform;
 			entry.Value.AddSibling( clone, false );
 
@@ -92,8 +108,12 @@ public static class SceneEditorMenus
 			if ( lastSelected != null )
 			{
 				var nextSelect = lastSelected.GetNextSibling( false );
-				if ( !nextSelect.IsValid() )
-					nextSelect = lastSelected.Parent;
+				while ( nextSelect.IsValid() && nextSelect.Flags.Contains( GameObjectFlags.Hidden ) )
+					nextSelect = nextSelect.GetNextSibling( false );
+
+				for ( var p = lastSelected.Parent; !nextSelect.IsValid() && p.IsValid(); p = p.Parent )
+					if ( !p.Flags.Contains( GameObjectFlags.Hidden ) )
+						nextSelect = p;
 
 				if ( SceneEditorSession.Active.Selection.Contains( lastSelected ) )
 				{

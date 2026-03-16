@@ -53,6 +53,10 @@ file sealed record TransformOperation<T>( PropertySignal<T> Signal, MovieTransfo
 	protected override PropertySignal<T> OnTransform( MovieTransform transform ) =>
 		this with { Value = transform * Value };
 
-	protected override PropertySignal<T> OnReduce( MovieTime? start, MovieTime? end ) =>
-		(Value * Signal).Reduce( start, end );
+	protected override PropertySignal<T> OnReduce( MovieTime? start, MovieTime? end )
+	{
+		var reduced = Signal.Reduce( Value.Inverse * start, Value.Inverse * end );
+
+		return reduced != Signal ? Value * reduced : this;
+	}
 }

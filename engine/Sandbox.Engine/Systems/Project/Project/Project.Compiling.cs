@@ -235,6 +235,7 @@ public partial class Project
 
 		EditorCompiler.AddReference( "package.local.actiongraph" );
 		EditorCompiler.AddReference( "package.local.shadergraph" );
+		EditorCompiler.AddReference( "package.local.moviemaker" );
 		EditorCompiler.AddReference( "package.local.hammer" );
 
 		foreach ( var reference in compilerSettings.DistinctAssemblyReferences )

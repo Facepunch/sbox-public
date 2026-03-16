@@ -17,12 +17,12 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 	internal Dictionary<Guid, SpriteRenderer> Components = new();
 
-	private static readonly ComputeShader SpriteComputeShader = new( "sprite/sprite_cs" );
-	private static readonly ComputeShader SortComputeShader = new( "sort_cs" );
+	private static ComputeShader SpriteComputeShader = new( "sprite/sprite_cs" );
+	private static ComputeShader SortComputeShader = new( "sort_cs" );
 	private readonly RenderAttributes SortComputeShaderAttributes = new();
 	private readonly GpuBuffer<uint> SpriteAtomicCounter;
 
-	private static readonly Material SpriteMaterial = Material.FromShader( "sprite/sprite_ps.shader" );
+	private static Material SpriteMaterial = Material.FromShader( "sprite/sprite_ps.shader" );
 
 	internal Dictionary<Guid, SpriteGroup> SpriteGroups = [];
 
@@ -314,6 +314,42 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		GPUUploadQueued = true;
 	}
 
+	private void UpdateBoundsFromSprites( int spriteCount )
+	{
+		if ( spriteCount == 0 )
+		{
+			native.SetBoundsInfinite();
+			return;
+		}
+
+		var mins = new Vector3( float.MaxValue, float.MaxValue, float.MaxValue );
+		var maxs = new Vector3( float.MinValue, float.MinValue, float.MinValue );
+
+		int componentCount = Components.Count;
+		for ( int i = 0; i < componentCount; i++ )
+		{
+			var pos = SpriteDataBuffer[i].Position;
+			float halfSize = MathF.Max( SpriteDataBuffer[i].Scale.x, SpriteDataBuffer[i].Scale.y );
+			var expand = new Vector3( halfSize, halfSize, halfSize );
+			mins = Vector3.Min( mins, pos - expand );
+			maxs = Vector3.Max( maxs, pos + expand );
+		}
+
+		foreach ( var group in SpriteGroups.Values )
+		{
+			for ( int i = 0; i < group.Count; i++ )
+			{
+				var sprite = group.SharedSprites[group.Offset + i];
+				float halfSize = MathF.Max( sprite.Scale.x, sprite.Scale.y );
+				var expand = new Vector3( halfSize, halfSize, halfSize );
+				mins = Vector3.Min( mins, sprite.Position - expand );
+				maxs = Vector3.Max( maxs, sprite.Position + expand );
+			}
+		}
+
+		Bounds = new BBox( mins, maxs );
+	}
+
 	/// <summary>
 	/// Copy host buffers onto GPU
 	/// </summary>
@@ -437,6 +473,9 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 				currentOffset += spriteGroup.Count;
 			}
 		}
+
+		// Calculate the bounds from all sprite positions so we sort this batch correctly relative to other transparent objects (like TextRenderer)
+		UpdateBoundsFromSprites( spriteCount );
 
 		GPUUploadQueued = false;
 	}

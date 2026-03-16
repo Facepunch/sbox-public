@@ -50,14 +50,22 @@ public partial class WorkshopPublishModal : MenuProject.Modals.BaseModal
 		item.Tags = Options.Tags;
 		item.Thumbnail = Options.Thumbnail;
 		item.FileSystem = Options.StorageEntry.Files;
+		item.PublishedFileId = Options.PublishedFileId;
 
 		StateHasChanged();
 
 		await item.Submit();
 
+		if ( item.ItemId != 0 )
+		{
+			Options.StorageEntry?.SetMeta( "_workshopId", item.ItemId );
+		}
+
+		Options.OnComplete?.Invoke( item.ItemId );
+
 		StateHasChanged();
 
-		Log.Info( $"Published new workshop file {item.ItemId}" );
+		Log.Info( $"Published workshop file {item.ItemId}" );
 	}
 
 	void ViewOnWeb()

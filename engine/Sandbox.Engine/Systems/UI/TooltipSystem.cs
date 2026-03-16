@@ -8,6 +8,13 @@ internal static class TooltipSystem
 	static IPanel lastHovered;
 	static IPanel lastTooltip;
 
+	internal static void Clear()
+	{
+		lastTooltip?.Delete( true );
+		lastTooltip = null;
+		lastHovered = null;
+	}
+
 	internal static void SetHovered( IPanel current )
 	{
 		if ( lastHovered == current )

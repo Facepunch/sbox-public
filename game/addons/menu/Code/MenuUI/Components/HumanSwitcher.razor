@@ -1,0 +1,76 @@
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox;
+@using System;
+@namespace Sandbox.UI
+@inherits Panel
+
+<div>
+    <Button icon="tune">
+        <HoverMenu>
+            <Button Text="@CurrentModelMode" @onmousedown=@ToggleHuman></Button>
+        </HoverMenu>
+    </Button>
+</div>
+
+@code
+{
+    bool IsHuman => Scene.Directory.FindByName("Player Human").FirstOrDefault()?.Active ?? false;
+
+    string CurrentModelMode => IsHuman ? "Switch to Citizen" : "Switch to Human";
+
+    protected override int BuildHash() => System.HashCode.Combine(IsHuman);
+
+    async Task ToggleHuman()
+    {
+        var clothing = ClothingContainer.CreateFromLocalUser();
+        clothing.PrefersHuman = !clothing.PrefersHuman;
+
+        var human = Scene.Directory.FindByName("Player Human").FirstOrDefault();
+        var citizen = Scene.Directory.FindByName("Player Citizen").FirstOrDefault();
+
+        var fx = Scene.Camera.GetOrAddComponent<Pixelate>();
+        var gr = Scene.Camera.GetOrAddComponent<FilmGrain>();
+
+        fx.Enabled = true;
+        gr.Enabled = true;
+
+        var a = clothing.PrefersHuman;
+
+        RealTimeSince t = 0;
+        var transitionLength = 0.1f;
+
+        while (t < transitionLength)
+        {
+            fx.Scale = t.Relative.Remap(0, transitionLength, 0, 1f);
+            gr.Intensity = t.Relative.Remap(0, transitionLength, 0, 0.5f);
+
+            await Task.Delay(1);
+        }
+
+        await Task.Delay(50);
+
+        using (Scene.Push())
+        {
+            human.Enabled = a;
+            citizen.Enabled = !a;
+        }
+
+        t = 0;
+
+        while (t < transitionLength)
+        {
+            fx.Scale = t.Relative.Remap(0, transitionLength, 1f, 0);
+            gr.Intensity = t.Relative.Remap(0, transitionLength, 0.5f, 0f);
+            await Task.Delay(1);
+        }
+
+        using (Scene.Push())
+        {
+            fx.Enabled = false;
+            gr.Enabled = false;
+        }
+
+        _ = MenuUtility.SaveAvatar(clothing, true, 0);
+    }
+}

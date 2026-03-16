@@ -241,7 +241,7 @@ CS
 		uint3 probeIndex = (uint3)ProbeIndex;
 		
 		uint2 baseCoord = DDGI::BaseCoordinate( probeIndex.xy, DDGI_OCT_RESOLUTION );
-		bool isInterior = all( localPos >= 1 && localPos <= DDGI_OCT_RESOLUTION );
+		bool isInterior = all( and( localPos >= 1, localPos <= DDGI_OCT_RESOLUTION ) );
 
 		// Phase 1: Interior threads integrate, others initialize to zero
 		gs_ProbeData[localPos.y][localPos.x] = 0;

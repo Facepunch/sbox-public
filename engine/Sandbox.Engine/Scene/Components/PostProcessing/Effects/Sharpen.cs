@@ -16,7 +16,7 @@ public sealed class Sharpen : BasePostProcess<Sharpen>
 	[Range( 0, 5 )]
 	[Property] public float TexelSize { get; set; } = 1;
 
-	private static readonly Material Shader = Material.FromShader( "shaders/postprocess/pp_sharpen.shader" );
+	private static Material Shader = Material.FromShader( "shaders/postprocess/pp_sharpen.shader" );
 
 	public override void Render()
 	{

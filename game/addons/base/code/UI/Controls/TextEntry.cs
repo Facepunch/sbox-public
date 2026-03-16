@@ -549,6 +549,8 @@ public partial class TextEntry : BaseControl
 
 			commandList.DrawQuad( caret, Material.UI.Box, color );
 		}
+
+		MarkRenderDirty();
 	}
 
 	void RealtimeEmojiReplace()

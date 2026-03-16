@@ -1,6 +1,6 @@
-using Microsoft.Extensions.Caching.Memory;
 using Sandbox.Engine;
 using Sandbox.Mounting;
+using System.Threading;
 
 namespace Sandbox.TextureLoader;
 
@@ -9,11 +9,6 @@ namespace Sandbox.TextureLoader;
 /// </summary>
 internal static class ThumbLoader
 {
-	/// <summary>
-	/// Entries are cached on a sliding window, they will be released if not used for 10 minutes
-	/// </summary>
-	static readonly MemoryCache _cache = new( new MemoryCacheOptions() );
-
 	internal static bool IsAppropriate( string url )
 	{
 		return url.StartsWith( "thumb:" );
@@ -23,22 +18,20 @@ internal static class ThumbLoader
 	{
 		try
 		{
-			return _cache.GetOrCreate( filename, entry =>
-			{
-				entry.SetSlidingExpiration( TimeSpan.FromMinutes( 10 ) );
+			if ( Game.Resources.Get<Texture>( $"{filename}.png" ) is { } cached )
+				return cached;
 
-				var placeholder = Texture.Create( 1, 1 )
-					.WithName( "thumb" )
-					.WithData( new byte[4] { 0, 0, 0, 0 } )
-					.Finish();
+			var placeholder = Texture.Create( 1, 1 )
+				.WithName( "thumb" )
+				.WithData( new byte[4] { 0, 0, 0, 0 } )
+				.Finish();
 
-				placeholder.IsLoaded = false;
-				placeholder.RegisterWeakResourceId( $"{filename}.png" );
+			placeholder.IsLoaded = false;
+			placeholder.RegisterWeakResourceId( $"{filename}.png" );
 
-				_ = LoadIntoTexture( filename, placeholder );
+			_ = LoadIntoTexture( filename, placeholder );
 
-				return placeholder;
-			} );
+			return placeholder;
 		}
 		catch ( System.Exception e )
 		{
@@ -47,7 +40,7 @@ internal static class ThumbLoader
 		}
 	}
 
-	internal static async Task LoadIntoTexture( string url, Texture placeholder )
+	internal static async Task LoadIntoTexture( string url, Texture placeholder, CancellationToken ct = default )
 	{
 		try
 		{
@@ -55,6 +48,7 @@ internal static class ThumbLoader
 
 			// One day we'll support things like ?width=512 and ?mode=wide ?mode=tall
 
+			if ( ct.IsCancellationRequested ) return;
 
 			//
 			// if it's from a mount then get it from the mount system
@@ -72,14 +66,21 @@ internal static class ThumbLoader
 			if ( filename.Count( x => x == '/' || x == '\\' ) == 0 && filename.Count( '.' ) == 1 && Package.TryParseIdent( filename, out var ident ) )
 			{
 				var packageInfo = await Package.FetchAsync( $"{ident.org}.{ident.package}", true );
-				if ( packageInfo == null ) return;
+				if ( packageInfo == null || ct.IsCancellationRequested ) return;
 
-				var thumb = await ImageUrl.LoadFromUrl( packageInfo.Thumb );
-				if ( thumb == null ) return;
+				var thumb = await ImageUrl.LoadFromUrl( packageInfo.Thumb, ct );
+				if ( thumb == null || ct.IsCancellationRequested )
+				{
+					thumb?.Dispose();
+					return;
+				}
 
 				placeholder.CopyFrom( thumb );
+				thumb.Dispose();
 				return;
 			}
+
+			if ( ct.IsCancellationRequested ) return;
 
 			//
 			// if it's a resource, it can generate itself
@@ -93,11 +94,15 @@ internal static class ThumbLoader
 					if ( FileSystem.Mounted.FileExists( imageFile ) )
 					{
 						using var bitmap = Bitmap.CreateFromBytes( await FileSystem.Mounted.ReadAllBytesAsync( imageFile ) );
+						if ( ct.IsCancellationRequested ) return;
+
 						using var texture = bitmap.ToTexture();
 						placeholder.CopyFrom( texture );
 						return;
 					}
 				}
+
+				if ( ct.IsCancellationRequested ) return;
 
 				{
 					var bitmap = IToolsDll.Current?.GetThumbnail( filename );
@@ -110,10 +115,12 @@ internal static class ThumbLoader
 					}
 				}
 
+				if ( ct.IsCancellationRequested ) return;
+
 				// last resort - generate it!
 				{
 					using var bitmap = await ResourceLibrary.GetThumbnail( filename, 512, 512 );
-					if ( bitmap != null )
+					if ( bitmap != null && !ct.IsCancellationRequested )
 					{
 						using var downscaled = bitmap.Resize( 256, 256, true );
 						using var texture = downscaled.ToTexture();

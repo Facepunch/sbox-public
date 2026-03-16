@@ -33,6 +33,7 @@ internal class PageSceneView : Widget
 
 		sheet.AddProperty( () => EditorPreferences.BackfaceSelection );
 		sheet.AddProperty( () => EditorPreferences.BoundsPlacement );
+		sheet.AddProperty( () => EditorPreferences.PasteAtCursor );
 
 		Layout.Add( sheet );
 		Layout.AddStretchCell();

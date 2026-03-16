@@ -286,9 +286,50 @@ public sealed class BinderTests : SceneTests
 		Assert.IsNotNull( property );
 		Assert.AreEqual( typeof( List<Vector3> ), property.TargetType );
 	}
+
+	[TestMethod]
+	public void TemporaryEffectIsActive()
+	{
+		var goTrack = MovieClip.RootGameObject( "Example" );
+		var cmpTrack = goTrack.Component<ExampleTemporaryEffect>();
+
+		var cmpRef = TrackBinder.Default.Get( cmpTrack );
+		var property = TrackProperty.Create( cmpRef, nameof( Component.ITemporaryEffect.IsActive ) );
+
+		Assert.IsNotNull( property );
+		Assert.AreEqual( typeof( bool ), property.TargetType );
+		Assert.IsFalse( property.IsBound );
+
+		var exampleObject = new GameObject( true, "Example" );
+		var cmp = exampleObject.AddComponent<ExampleTemporaryEffect>() as Component.ITemporaryEffect;
+
+		Assert.IsTrue( property.IsBound );
+		Assert.IsTrue( cmp.IsActive );
+
+		property.Value = false;
+
+		Assert.IsFalse( cmp.IsActive );
+	}
 }
 
 public class ExampleComponent : Component
 {
 	[Property] public List<Vector3> List { get; } = new();
+}
+
+public class ExampleTemporaryEffect : Component, Component.ITemporaryEffect
+{
+	private bool _isActive;
+
+	bool ITemporaryEffect.IsActive => _isActive;
+
+	protected override void OnEnabled()
+	{
+		_isActive = true;
+	}
+
+	void ITemporaryEffect.DisableLooping()
+	{
+		_isActive = false;
+	}
 }

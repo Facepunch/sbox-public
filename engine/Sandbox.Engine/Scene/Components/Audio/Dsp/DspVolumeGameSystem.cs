@@ -33,6 +33,8 @@ sealed class DspVolumeGameSystem : GameObjectSystem<DspVolumeGameSystem>
 
 	void Update()
 	{
+		using var _ = PerformanceStats.Timings.Audio.Scope();
+
 		if ( Scene.IsEditor )
 			return;
 

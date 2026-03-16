@@ -4,10 +4,13 @@
 @inherits Panel
 
 <root class="content-block-header">
-    <a class="inner" href="@url">
-        <span class="icon">@Group.Icon </span>
-        <span class="title">@Group.Title</span>
-    </a>
+	<a class="inner" href="@url">
+		<span class="icon">@Group.Icon </span>
+		<span>
+			<span class="title">@Group.Title</span>
+			<icon class="chevron">chevron_right</icon>
+		</span>
+	</a>
 </root>
 
 @code
@@ -16,10 +19,4 @@
     public Package.ListResult.Grouping Group { get; set; }
 
     string url => $"/games/group?Query={Group.QueryString}&title={Group.Title}&icon={Group.Icon}";
-
-    void HeaderClicked()
-    {
-        
-    }
-
 }

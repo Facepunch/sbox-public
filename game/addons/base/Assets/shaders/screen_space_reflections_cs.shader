@@ -24,14 +24,13 @@ COMMON
 	#include "math_general.fxc"
 	#include "encoded_normals.fxc"
 
-    #define PASS_INTERSECT 0
-	#define PASS_REPROJECT 1
-	#define PASS_PREFILTER 2
-	#define PASS_RESOLVE_TEMPORAL 3
-	#define PASS_BILATERAL_UPSCALE 4
-    
+    #define PASS_INTERSECT 1
+	#define PASS_REPROJECT 2
+	#define PASS_PREFILTER 3
+	#define PASS_RESOLVE_TEMPORAL 4
+	#define PASS_BILATERAL_UPSCALE 5
 
-	DynamicCombo( D_PASS, 0..4, Sys( PC ) );
+	DynamicCombo( D_PASS, 1..5, Sys( PC ) );
 
 }
 
@@ -45,21 +44,22 @@ CS
 
 	#define floatx float4
     
-    Texture2D               PreviousFrameColor      < Attribute( "PreviousFrameColor" ); >;
+    int 					PreviousFrameColorIndex	< Attribute( "PreviousFrameColorIndex" ); >;
 	int 				    BlueNoiseIndex  		< Attribute( "BlueNoiseIndex" ); >;			// Blue noise texture
+    int 					PingIs0					< Attribute( "PingIs0" ); >;
 
-	Texture2D 				ReprojectedRadiance		< Attribute( "ReprojectedRadiance" ); >;
-	Texture2D 				Radiance				< Attribute( "Radiance" ); >;
-	Texture2D 				RadianceHistory			< Attribute( "RadianceHistory" ); >;
-    Texture2D 				AverageRadiance			< Attribute( "AverageRadiance" ); >;
-	Texture2D 				AverageRadianceHistory	< Attribute( "AverageRadianceHistory" ); >;
-	Texture2D 				Variance				< Attribute( "Variance" ); >;
-	Texture2D 				VarianceHistory			< Attribute( "VarianceHistory" ); >;
-	Texture2D 				SampleCount				< Attribute( "SampleCount" ); >;
-	Texture2D 				SampleCountHistory		< Attribute( "SampleCountHistory" ); >;
+    int 					ReprojectedRadianceIndex	< Attribute( "ReprojectedRadianceIndex" ); >;
+    int 					Radiance0Index				< Attribute( "Radiance0Index" ); >;
+    int 					Radiance1Index				< Attribute( "Radiance1Index" ); >;
+    int 					AverageRadiance0Index		< Attribute( "AverageRadiance0Index" ); >;
+    int 					AverageRadiance1Index		< Attribute( "AverageRadiance1Index" ); >;
+    int 					Variance0Index				< Attribute( "Variance0Index" ); >;
+    int 					Variance1Index				< Attribute( "Variance1Index" ); >;
+    int 					SampleCount0Index			< Attribute( "SampleCount0Index" ); >;
+    int 					SampleCount1Index			< Attribute( "SampleCount1Index" ); >;
 
-    Texture2D              DepthHistory             < Attribute( "DepthHistory" ); >;
-    Texture2D              GBufferHistory           < Attribute( "GBufferHistory" ); >;
+    int 					DepthHistoryIndex			< Attribute( "DepthHistoryIndex" ); >;
+    int 					GBufferHistoryIndex			< Attribute( "GBufferHistoryIndex" ); >;
     RWTexture2D<float>     RayLength                < Attribute( "RayLength" ); >;
     RWTexture2D<float4>    GBufferHistoryRW         < Attribute( "GBufferHistoryRW" ); >;
     RWTexture2D<float>     DepthHistoryRW           < Attribute( "DepthHistoryRW" ); >;
@@ -69,6 +69,8 @@ CS
 	RWTexture2D<float>		OutVariance				< Attribute( "OutVariance" ); >;
 	RWTexture2D<float4>		OutRadiance				< Attribute( "OutRadiance" ); >;
 	RWTexture2D<float>		OutSampleCount			< Attribute( "OutSampleCount" ); >;
+
+    StructuredBuffer<uint> ClassifiedTiles < Attribute("ClassifiedTiles"); >;
 
 	// Scale factor between full-res screen and SSR buffers: 1 = full, 2 = half, 4 = quarter
 	float 					Scale 				    < Attribute("Scale"); Default(1); >;
@@ -89,9 +91,114 @@ CS
     // Add roughness cutoff parameter - could be exposed through material properties
     float RoughnessCutoff < Attribute("RoughnessCutoff"); Default(0.8); > ; // Skip reflections on materials rougher than this
 
+    int GetRadiancePingIndex() { return PingIs0 != 0 ? Radiance0Index : Radiance1Index; }
+    int GetRadianceHistoryIndex() { return PingIs0 != 0 ? Radiance1Index : Radiance0Index; }
+    int GetAverageRadiancePingIndex() { return PingIs0 != 0 ? AverageRadiance0Index : AverageRadiance1Index; }
+    int GetAverageRadianceHistoryIndex() { return PingIs0 != 0 ? AverageRadiance1Index : AverageRadiance0Index; }
+    int GetVariancePingIndex() { return PingIs0 != 0 ? Variance0Index : Variance1Index; }
+    int GetVarianceHistoryIndex() { return PingIs0 != 0 ? Variance1Index : Variance0Index; }
+    int GetSampleCountPingIndex() { return PingIs0 != 0 ? SampleCount0Index : SampleCount1Index; }
+    int GetSampleCountHistoryIndex() { return PingIs0 != 0 ? SampleCount1Index : SampleCount0Index; }
+
+    Texture2D GetPreviousFrameColorTexture() { return Bindless::GetTexture2D( PreviousFrameColorIndex ); }
+    Texture2D GetDepthHistoryTexture() { return Bindless::GetTexture2D( DepthHistoryIndex ); }
+    Texture2D GetGBufferHistoryTexture() { return Bindless::GetTexture2D( GBufferHistoryIndex ); }
+    Texture2D GetReprojectedRadianceTexture() { return Bindless::GetTexture2D( ReprojectedRadianceIndex ); }
+
+    Texture2D GetRadianceTexture()
+    {
+        #if (D_PASS == PASS_RESOLVE_TEMPORAL)
+            return Bindless::GetTexture2D( GetRadianceHistoryIndex() );
+        #else
+            return Bindless::GetTexture2D( GetRadiancePingIndex() );
+        #endif
+    }
+
+    Texture2D GetRadianceHistoryTexture() { return Bindless::GetTexture2D( GetRadianceHistoryIndex() ); }
+    Texture2D GetAverageRadianceTexture() { return Bindless::GetTexture2D( GetAverageRadiancePingIndex() ); }
+    Texture2D GetAverageRadianceHistoryTexture() { return Bindless::GetTexture2D( GetAverageRadianceHistoryIndex() ); }
+
+    Texture2D GetVarianceTexture()
+    {
+        #if (D_PASS == PASS_RESOLVE_TEMPORAL)
+            return Bindless::GetTexture2D( GetVarianceHistoryIndex() );
+        #else
+            return Bindless::GetTexture2D( GetVariancePingIndex() );
+        #endif
+    }
+
+    Texture2D GetVarianceHistoryTexture() { return Bindless::GetTexture2D( GetVarianceHistoryIndex() ); }
+
+    Texture2D GetSampleCountTexture()
+    {
+        #if (D_PASS == PASS_RESOLVE_TEMPORAL)
+            return Bindless::GetTexture2D( GetSampleCountHistoryIndex() );
+        #else
+            return Bindless::GetTexture2D( GetSampleCountPingIndex() );
+        #endif
+    }
+
+    Texture2D GetSampleCountHistoryTexture()
+    {
+        #if (D_PASS == PASS_PREFILTER)
+            return Bindless::GetTexture2D( GetSampleCountPingIndex() );
+        #else
+            return Bindless::GetTexture2D( GetSampleCountHistoryIndex() );
+        #endif
+    }
+
 	//--------------------------------------------------------------------------------------
 
     float3 ScreenSpaceToViewSpace(float3 screen_space_position) { return InvProjectPosition(screen_space_position, g_matProjectionToView); }
+
+
+    //--------------------------------------------------------------------------------------------
+    //--- Helpers for tile classification and indirect dispatch
+    //--------------------------------------------------------------------------------------------
+    static const uint TILE_COORD_MASK = 0xFFFFu;
+    static const uint TILE_COORD_SHIFT = 16u;
+
+    uint2 UnpackTileCoord( uint packedTileCoord )
+    {
+        return uint2( packedTileCoord & TILE_COORD_MASK, (packedTileCoord >> TILE_COORD_SHIFT) & TILE_COORD_MASK );
+    }
+
+    int2 UnpackTileCoordInt( uint packedTileCoord )
+    {
+        uint2 tileCoord = UnpackTileCoord( packedTileCoord );
+        return int2( tileCoord.x, tileCoord.y );
+    }
+
+    #define INDIRECT ( D_PASS == PASS_INTERSECT || D_PASS == PASS_REPROJECT || D_PASS == PASS_PREFILTER || D_PASS == PASS_RESOLVE_TEMPORAL || D_PASS == PASS_BILATERAL_UPSCALE )
+
+    uint2 GetAdjustedDispatchThreadId( uint2 groupId, uint2 groupThreadId, inout uint2 remappedGroupId )
+    {
+        uint2 dispatchThreadId = groupId * 8u + groupThreadId;
+
+        #if INDIRECT
+            #if ( D_PASS == PASS_BILATERAL_UPSCALE )
+                // Each classified tile spawns groupsPerTile full-res dispatch groups
+                uint groupsPerAxis = max( 1u, (uint)round( ScaleInv ) );
+                uint groupsPerTile = groupsPerAxis * groupsPerAxis;
+                uint tileListIndex = groupId.x / groupsPerTile;
+                uint subGroupIndex = groupId.x - tileListIndex * groupsPerTile;
+                uint2 subGroupCoord = uint2( subGroupIndex % groupsPerAxis, subGroupIndex / groupsPerAxis );
+
+                uint packedTileCoord = ClassifiedTiles[ tileListIndex ];
+                uint2 tileCoord = UnpackTileCoord( packedTileCoord );
+
+                remappedGroupId = tileCoord * groupsPerAxis + subGroupCoord;
+                dispatchThreadId = remappedGroupId * 8u + groupThreadId;
+            #else
+                uint packedTileCoord = ClassifiedTiles[ groupId.x ];
+                int2 tileCoord = UnpackTileCoordInt( packedTileCoord );
+
+                dispatchThreadId = tileCoord * int2( 8, 8 ) + int2( groupThreadId );
+            #endif
+        #endif
+
+        return dispatchThreadId;
+    }
 
     //--------------------------------------------------------------------------------------
     
@@ -187,7 +294,7 @@ CS
             // ---------------------------------------------
             bool bValidSample = (trace.Confidence > 0.0f);
 
-            vColor += PreviousFrameColor[ vLastFramePositionHitSs ].rgb;
+            vColor += GetPreviousFrameColorTexture()[ vLastFramePositionHitSs ].rgb;
 
             flConfidence += bValidSample * InvSampleCount;
         }
@@ -204,23 +311,24 @@ CS
         GBufferHistoryRW[vDispatch] = float4( Normals::Sample( vDispatch * ScaleInv  ), Roughness::Sample( vDispatch * ScaleInv  ) );
         DepthHistoryRW[vDispatch] = Depth::GetNormalized( vDispatch * ScaleInv  );
     }
+    //--------------------------------------------------------------------------------------
 
-    void Pass_Reflections_BilateralUpscale(uint2 pixel_coordinate)
+    // Bilateral upscale constants
+    #define BILATERAL_RADIUS 1
+    static const float kSpatialSigma = 0.99f;
+    static const float kInvTwoSigmaSq = 1.0f / (2.0f * kSpatialSigma * kSpatialSigma);
+    static const float kDepthSharpness = 70.0f;
+    static const float kRoughnessSharpness = 4.0f;
+    static const float kNormalSharpness = 6.0f;
+
+    void Pass_Reflections_BilateralUpscale( uint2 pixel_coordinate )
     {
-        if (ScaleInv <= 1.0f)
-        {
-            return;
-        }
+        // Map full-res pixel to low-res coordinate space
+        float2 lowCoord = float2(pixel_coordinate) * Scale;
+        int2 baseCoord = (int2)floor(lowCoord);
+        float2 fractional = lowCoord - float2(baseCoord);
 
-        if (pixel_coordinate.x > Dimensions.x || pixel_coordinate.y > Dimensions.y)
-        {
-            return;
-        }
-
-        float2 lowCoord = pixel_coordinate * Scale;
-        float2 baseCoord = floor(lowCoord);
-        float2 fractional = lowCoord - baseCoord;
-
+        // Center pixel GBuffer (full-res) — read once
         float centerDepth = Depth::GetNormalized(pixel_coordinate);
         float centerRoughness = Roughness::Sample(pixel_coordinate);
         float3 centerNormal = Normals::Sample(pixel_coordinate);
@@ -229,38 +337,41 @@ CS
         float accumAlpha = 0.0f;
         float accumWeight = 0.0f;
 
-        const int radius = 2;
-        const float spatialSigma = 0.9f;
-        const float depthSharpness = 140.0f;
-        const float roughnessSharpness = 8.0f;
-        const float normalSharpness = 12.0f;
+        int2 ssrMax = (int2)SSRSize - 1;
 
-        for (int y = -radius; y <= radius; ++y)
+        [unroll]
+        for (int dy = -BILATERAL_RADIUS; dy <= BILATERAL_RADIUS; ++dy)
         {
-            for (int x = -radius; x <= radius; ++x)
+            int sampleY = baseCoord.y + dy;
+            if (sampleY < 0 || sampleY > ssrMax.y)
+                continue;
+
+            [unroll]
+            for (int dx = -BILATERAL_RADIUS; dx <= BILATERAL_RADIUS; ++dx)
             {
-                float2 offset = float2(x, y);
-                float2 sampleCoord = baseCoord + offset;
-
-                if (sampleCoord.x < 0.0f || sampleCoord.y < 0.0f || sampleCoord.x >= SSRSize.x || sampleCoord.y >= SSRSize.y)
+                int sampleX = baseCoord.x + dx;
+                if (sampleX < 0 || sampleX > ssrMax.x)
                     continue;
 
-                float2 delta = offset - fractional;
-                float spatialWeight = exp(-dot(delta, delta) / (2.0f * spatialSigma * spatialSigma));
-                if (spatialWeight <= 1e-5f)
-                    continue;
+                // Spatial weight: distance from ideal sub-pixel position
+                float2 delta = float2(dx, dy) - fractional;
+                float spatialWeight = exp(-dot(delta, delta) * kInvTwoSigmaSq);
 
-                float2 samplePixel = (sampleCoord + 0.5f) * ScaleInv;
-                samplePixel = clamp(samplePixel, float2(0.0f, 0.0f), Dimensions.xy - 1.0f);
+                // Sample low-res radiance
+                float2 uv = (float2(sampleX, sampleY) + 0.5f) * SSRInv;
+                float4 lowRadiance = GetRadianceTexture().SampleLevel(BilinearWrap, uv, 0.0f);
 
-                float4 lowRadiance = Tex2DLevelS(Radiance, BilinearWrap, (sampleCoord + 0.5f) * SSRInv, 0.0f);
+                // Map low-res center back to full-res for bilateral edge detection
+                float2 samplePixel = (float2(sampleX, sampleY) + 0.5f) * ScaleInv;
+                samplePixel = min(samplePixel, float2(Dimensions) - 1.0f);
+
                 float sampleDepth = Depth::GetNormalized(samplePixel);
                 float sampleRoughness = Roughness::Sample(samplePixel);
                 float3 sampleNormal = Normals::Sample(samplePixel);
 
-                float depthWeight = exp(-abs(centerDepth - sampleDepth) * depthSharpness);
-                float roughWeight = exp(-abs(centerRoughness - sampleRoughness) * roughnessSharpness);
-                float normalWeight = pow(saturate(dot(centerNormal, sampleNormal)), normalSharpness);
+                float depthWeight = exp(-abs(centerDepth - sampleDepth) * kDepthSharpness);
+                float roughWeight = exp(-abs(centerRoughness - sampleRoughness) * kRoughnessSharpness);
+                float normalWeight = pow(saturate(dot(centerNormal, sampleNormal)), kNormalSharpness);
 
                 float weight = spatialWeight;
                 weight *= (0.4f + 0.6f * depthWeight);
@@ -276,13 +387,14 @@ CS
 
         if (accumWeight <= 0.0f)
         {
-            float2 fallbackUv = (baseCoord + 0.5f) * SSRInv;
-            OutRadiance[pixel_coordinate] = Tex2DLevelS(Radiance, BilinearWrap, fallbackUv, 0.0f);
-            return;
+            float2 fallbackUv = (float2(baseCoord) + 0.5f) * SSRInv;
+            OutRadiance[pixel_coordinate] = GetRadianceTexture().SampleLevel(BilinearWrap, fallbackUv, 0.0f);
         }
-
-        float invWeight = rcp(accumWeight);
-        OutRadiance[pixel_coordinate] = float4(accumColor * invWeight, accumAlpha * invWeight);
+        else
+        {
+            float invWeight = rcp(accumWeight);
+            OutRadiance[pixel_coordinate] = float4(accumColor * invWeight, accumAlpha * invWeight);
+        }
     }
 
 	//--------------------------------------------------------------------------------------
@@ -290,36 +402,36 @@ CS
 	float	FFX_DNSR_Reflections_GetRandom(int2 pixel_coordinate) 					{ return Bindless::GetTexture2D(BlueNoiseIndex)[ pixel_coordinate % 256 ].x; }
 
 	float	FFX_DNSR_Reflections_LoadDepth(int2 pixel_coordinate) 					{ return Depth::GetNormalized( pixel_coordinate * ScaleInv  ); }
-	float	FFX_DNSR_Reflections_LoadDepthHistory(int2 pixel_coordinate) 			{ return DepthHistory[pixel_coordinate].x; }
-	float	FFX_DNSR_Reflections_SampleDepthHistory(float2 uv) 						{ return DepthHistory.SampleLevel( BilinearWrap, uv, 0 ).x; }
+    float	FFX_DNSR_Reflections_LoadDepthHistory(int2 pixel_coordinate) 			{ return GetDepthHistoryTexture()[pixel_coordinate].x; }
+    float	FFX_DNSR_Reflections_SampleDepthHistory(float2 uv) 						{ return GetDepthHistoryTexture().SampleLevel( BilinearWrap, uv, 0 ).x; }
 
-    float4	FFX_DNSR_Reflections_SampleAverageRadiance(float2 uv) 					{ return Tex2DLevelS( AverageRadiance, 		  BilinearWrap,	 uv, 0 ); }
-	float4	FFX_DNSR_Reflections_SamplePreviousAverageRadiance(float2 uv) 			{ return Tex2DLevelS( AverageRadianceHistory, BilinearWrap, 	 uv, 0 ); }
+    float4	FFX_DNSR_Reflections_SampleAverageRadiance(float2 uv) 					{ return GetAverageRadianceTexture().SampleLevel( BilinearWrap, uv, 0 ); }
+    float4	FFX_DNSR_Reflections_SamplePreviousAverageRadiance(float2 uv) 			{ return GetAverageRadianceHistoryTexture().SampleLevel( BilinearWrap, uv, 0 ); }
 	
-	float4	FFX_DNSR_Reflections_LoadRadiance(int2 pixel_coordinate) 				{ return Tex2DLoad	( Radiance, 			int3( pixel_coordinate, 0 ) ); }
-	float4	FFX_DNSR_Reflections_LoadRadianceHistory(int2 pixel_coordinate) 		{ return Tex2DLoad	( RadianceHistory, 		int3( pixel_coordinate, 0 ) ); }
-	float4	FFX_DNSR_Reflections_LoadRadianceReprojected(int2 pixel_coordinate) 	{ return Tex2DLoad	( ReprojectedRadiance, 	int3( pixel_coordinate, 0 ) ); }
-	float4	FFX_DNSR_Reflections_SampleRadianceHistory(float2 uv) 					{ return Tex2DLevelS( RadianceHistory, 		BilinearWrap, uv, 	0.0f ); }
+    float4	FFX_DNSR_Reflections_LoadRadiance(int2 pixel_coordinate) 				{ return GetRadianceTexture().Load( int3( pixel_coordinate, 0 ) ); }
+    float4	FFX_DNSR_Reflections_LoadRadianceHistory(int2 pixel_coordinate) 		{ return GetRadianceHistoryTexture().Load( int3( pixel_coordinate, 0 ) ); }
+    float4	FFX_DNSR_Reflections_LoadRadianceReprojected(int2 pixel_coordinate) 	{ return GetReprojectedRadianceTexture().Load( int3( pixel_coordinate, 0 ) ); }
+    float4	FFX_DNSR_Reflections_SampleRadianceHistory(float2 uv) 					{ return GetRadianceHistoryTexture().SampleLevel( BilinearWrap, uv, 0.0f ); }
 
-	float	FFX_DNSR_Reflections_LoadNumSamples(int2 pixel_coordinate) 				{ return Tex2DLoad	( SampleCount, 			int3( pixel_coordinate, 0 ) ).x; }
-	float	FFX_DNSR_Reflections_SampleNumSamplesHistory(float2 uv) 				{ return Tex2DLevelS( SampleCountHistory, 	BilinearWrap, uv, 	0.0f ).x; }
+    float	FFX_DNSR_Reflections_LoadNumSamples(int2 pixel_coordinate) 				{ return GetSampleCountTexture().Load( int3( pixel_coordinate, 0 ) ).x; }
+    float	FFX_DNSR_Reflections_SampleNumSamplesHistory(float2 uv) 				{ return GetSampleCountHistoryTexture().SampleLevel( BilinearWrap, uv, 0.0f ).x; }
 
 	float3	FFX_DNSR_Reflections_LoadWorldSpaceNormal(int2 pixel_coordinate) 		{ return Normals::Sample( pixel_coordinate * ScaleInv  ); }
-	float3	FFX_DNSR_Reflections_LoadWorldSpaceNormalHistory(int2 pixel_coordinate) { return GBufferHistory[pixel_coordinate].xyz; }
-	float3	FFX_DNSR_Reflections_SampleWorldSpaceNormalHistory(float2 uv) 			{ return GBufferHistory.SampleLevel( BilinearWrap, uv, 0).xyz; }
+    float3	FFX_DNSR_Reflections_LoadWorldSpaceNormalHistory(int2 pixel_coordinate) { return GetGBufferHistoryTexture()[pixel_coordinate].xyz; }
+    float3	FFX_DNSR_Reflections_SampleWorldSpaceNormalHistory(float2 uv) 			{ return GetGBufferHistoryTexture().SampleLevel( BilinearWrap, uv, 0).xyz; }
     
 	float3	FFX_DNSR_Reflections_LoadViewSpaceNormal(int2 pixel_coordinate) 		{ return Vector3WsToVs( Normals::Sample( pixel_coordinate * ScaleInv  ) ); }
 
 	float	FFX_DNSR_Reflections_LoadRoughness(int2 pixel_coordinate) 				{ return Roughness::Sample( pixel_coordinate * ScaleInv  ); }
-	float	FFX_DNSR_Reflections_LoadRoughnessHistory(int2 pixel_coordinate) 		{ return GBufferHistory[pixel_coordinate].w; } 
-	float	FFX_DNSR_Reflections_SampleRoughnessHistory(float2 uv) 					{ return GBufferHistory.SampleLevel( BilinearWrap, uv, 0).w; }
+    float	FFX_DNSR_Reflections_LoadRoughnessHistory(int2 pixel_coordinate) 		{ return GetGBufferHistoryTexture()[pixel_coordinate].w; } 
+    float	FFX_DNSR_Reflections_SampleRoughnessHistory(float2 uv) 					{ return GetGBufferHistoryTexture().SampleLevel( BilinearWrap, uv, 0).w; }
 
     float2 FFX_DNSR_Reflections_LoadMotionVector(int2 pixel_coordinate)             { return ( Motion::Get( ( pixel_coordinate + 0.5f ) * ScaleInv ).xy ) * InvDimensions; }
     float2 FFX_DNSR_Reflections_LoadMotionLength(int2 pixel_coordinate)             { return ( Motion::Get( ( pixel_coordinate  ) * ScaleInv ).xy) - ( pixel_coordinate * ScaleInv );}
 
-    float	FFX_DNSR_Reflections_SampleVarianceHistory(float2 uv) 					{ return Tex2DLevelS( VarianceHistory, BilinearWrap, uv, 0 ).x; }
+    float	FFX_DNSR_Reflections_SampleVarianceHistory(float2 uv) 					{ return GetVarianceHistoryTexture().SampleLevel( BilinearWrap, uv, 0 ).x; }
 	float	FFX_DNSR_Reflections_LoadRayLength(int2 pixel_coordinate) 				{ return RayLength[pixel_coordinate]; } // Todo: Implement
-	float	FFX_DNSR_Reflections_LoadVariance(int2 pixel_coordinate) 				{ return Tex2DLoad	( Variance, int3( pixel_coordinate, 0 ) ).x; }
+    float	FFX_DNSR_Reflections_LoadVariance(int2 pixel_coordinate) 				{ return GetVarianceTexture().Load( int3( pixel_coordinate, 0 ) ).x; }
 
     void	FFX_DNSR_Reflections_StoreRadianceReprojected(int2 pixel_coordinate, float3 value) 							{ OutReprojectedRadiance[pixel_coordinate.xy] 	= float4( value, 1.0f); }
 	void	FFX_DNSR_Reflections_StoreAverageRadiance(int2 pixel_coordinate, float3 value) 								{ OutAverageRadiance[pixel_coordinate.xy] 		= float4( value, 1.0f ); }
@@ -374,13 +486,22 @@ CS
                 uint2 groupID: SV_GroupID)
     {
         uint2 group_thread_id 		= groupThreadID;
-        uint2 dispatch_thread_id = dispatchThreadID;
+        uint2 remapped_group_id = groupID;
+        uint2 dispatch_thread_id = GetAdjustedDispatchThreadId( groupID, groupThreadID, remapped_group_id );
+
+        #if ( D_PASS == PASS_BILATERAL_UPSCALE )
+            if ( dispatch_thread_id.x >= Dimensions.x || dispatch_thread_id.y >= Dimensions.y )
+                return;
+        #endif
 
         const float flReconstructMin = 0.3f;
         const float flReconstructMax = 0.9f;
-        const float2 vMotionAmount = FFX_DNSR_Reflections_LoadMotionLength( dispatch_thread_id );
+        float g_temporal_stability_factor = 0.0f;
 
-        const float g_temporal_stability_factor = RemapValClamped( length( vMotionAmount ), 1.0f, 0.0f, flReconstructMin, flReconstructMax );
+        #if ( D_PASS != PASS_BILATERAL_UPSCALE )
+            const float2 vMotionAmount = FFX_DNSR_Reflections_LoadMotionLength( dispatch_thread_id );
+            g_temporal_stability_factor = RemapValClamped( length( vMotionAmount ), 1.0f, 0.0f, flReconstructMin, flReconstructMax );
+        #endif
 
         #if ( D_PASS == PASS_INTERSECT )
         {
@@ -416,7 +537,7 @@ CS
 			//
 			// Bilateral Upscale
             //
-            Pass_Reflections_BilateralUpscale(dispatch_thread_id);
+            Pass_Reflections_BilateralUpscale( dispatch_thread_id );
         }
 		#endif
 

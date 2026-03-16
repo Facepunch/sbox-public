@@ -219,12 +219,19 @@ file sealed class CompiledSampleBlockConverterFactory : JsonConverterFactory
 
 		try
 		{
-			var converterType = typeof( CompressedSampleBlockConverter<> )
-				.MakeGenericType( valueType );
+			if ( SandboxedUnsafe.IsAcceptablePod( valueType ) )
+			{
+				var converterType = typeof( CompressedSampleBlockConverter<> )
+					.MakeGenericType( valueType );
 
-			return (JsonConverter)Activator.CreateInstance( converterType )!;
+				return (JsonConverter)Activator.CreateInstance( converterType )!;
+			}
 		}
 		catch
+		{
+			//
+		}
+
 		{
 			var converterType = typeof( DefaultSampleBlockConverter<> )
 				.MakeGenericType( valueType );

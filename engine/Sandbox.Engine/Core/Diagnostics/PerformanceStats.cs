@@ -107,6 +107,8 @@ public static partial class PerformanceStats
 		GcPause = pauseTicks - _prevPauseTime;
 		_prevPauseTime = pauseTicks;
 
+		Timings.GcPause.AddMilliseconds( TimeSpan.FromTicks( GcPause ).TotalMilliseconds );
+
 		var gen0 = GC.CollectionCount( 0 );
 		var gen1 = GC.CollectionCount( 1 );
 		var gen2 = GC.CollectionCount( 2 );

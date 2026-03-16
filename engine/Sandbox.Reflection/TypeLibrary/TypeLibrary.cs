@@ -158,6 +158,7 @@ public partial class TypeLibrary
 		typeof(Color.Rgba16),
 		typeof(Color32),
 		typeof(ColorHsv),
+		typeof(Gradient),
 		typeof(Capsule),
 		typeof(Line),
 		typeof(Transform),
@@ -353,16 +354,6 @@ public partial class TypeLibrary
 		return $"{type.Assembly.GetName().Name}.{type.Name}".FastHash();
 	}
 
-	[System.Obsolete( "Use GetType" )]
-	internal TypeDescription GetTypeByName( string name, System.Type canBeAssignedTo )
-	{
-		return typedata
-					.Where( x => canBeAssignedTo == null || canBeAssignedTo.IsAssignableFrom( x.Key ) )
-					.Where( x => x.Value.IsNamed( name ) )
-					.Select( x => x.Value )
-					.FirstOrDefault();
-	}
-
 	/// <summary>
 	/// Get the description for a specific type. This will return null if you don't have whitelist access to the type.
 	/// For constructed generic types, this will give you the description of the generic type definition.
@@ -408,23 +399,35 @@ public partial class TypeLibrary
 	/// <summary>
 	/// Find a TypeDescription that derives from <typeparamref name="T"/>, by name
 	/// </summary>
-	public TypeDescription GetType<T>( string name ) => GetType<T>( name, false );
+	public TypeDescription GetType<T>( string name ) => GetType( typeof( T ), name, false, false );
 
 	/// <summary>
 	/// Find a TypeDescription that derives from T by name, which can be an Alias etc.
 	/// If preferAddonAssembly is true, then if there are conflicts we'll prefer types that are 
 	/// in addon code.
 	/// </summary>
-	public TypeDescription GetType<T>( string name, bool preferAddonAssembly ) => GetType( typeof( T ), name, preferAddonAssembly );
+	public TypeDescription GetType<T>( string name, bool preferAddonAssembly ) => GetType( typeof( T ), name, preferAddonAssembly, false );
+
+	/// <summary>
+	/// Find a TypeDescription that derives from T by name, which can be an Alias etc.
+	/// If preferAddonAssembly is true, then if there are conflicts we'll prefer types that are 
+	/// in addon code.
+	/// If exactFullName is true, the name must match the FullName of the type.
+	/// </summary>
+	public TypeDescription GetType<T>( string name, bool preferAddonAssembly, bool exactFullName ) => GetType( typeof( T ), name, preferAddonAssembly, exactFullName );
 
 	/// <summary>
 	/// Find a TypeDescription that derives from T by name, which can be an Alias etc.
 	/// If preferAddonAssembly is true, then if there are conflicts we'll prefer types that are 
 	/// in addon code.
 	/// </summary>
-	public TypeDescription GetType( Type type, string name, bool preferAddonAssembly = false )
+	/// <param name="type">The base type to search for, or null to search all types</param>
+	/// <param name="name">The name to search for, which can be an alias or the full name depending on the value of <paramref name="exactFullName"/></param>
+	/// <param name="preferAddonAssembly">If true, then if there are conflicts we'll prefer types that are in addon code.</param>
+	/// <param name="exactFullName">If true, the name must match the FullName (or alias) of the type</param>
+	public TypeDescription GetType( Type type, string name, bool preferAddonAssembly = false, bool exactFullName = false )
 	{
-		return Cached( HashCode.Combine( "GetType", type, name, preferAddonAssembly ), () => GetTypes( type ).Where( x => x.IsNamed( name ) ).OrderBy( x => (x.IsDynamicAssembly == preferAddonAssembly) ? 0 : 1 ).FirstOrDefault() );
+		return Cached( HashCode.Combine( "GetType", type, name, preferAddonAssembly, exactFullName ), () => GetTypes( type ).Where( x => x.IsNamed( name, exactFullName ) ).OrderBy( x => (x.IsDynamicAssembly == preferAddonAssembly) ? 0 : 1 ).FirstOrDefault() );
 
 	}
 
@@ -460,7 +463,7 @@ public partial class TypeLibrary
 	/// <summary>
 	/// Find a TypeDescription by name
 	/// </summary>
-	public TypeDescription GetType( string name ) => GetType( null, name, false );
+	public TypeDescription GetType( string name, bool exactFullName = false ) => GetType( null, name, false, exactFullName );
 
 	/// <summary>
 	/// Find a TypeDescription by name
@@ -576,8 +579,11 @@ public partial class TypeLibrary
 			return null;
 
 		var getTarget = () => property.GetValue<object>();
-		if ( getTarget() is null )
-			return null;
+		var value = getTarget();
+		if ( value is null ) return null;
+
+		// get type from the object, incase we're a derived type.
+		targetType = GetType( value.GetType() );
 
 		return new TypeSerializedObject( getTarget, targetType, property );
 	}

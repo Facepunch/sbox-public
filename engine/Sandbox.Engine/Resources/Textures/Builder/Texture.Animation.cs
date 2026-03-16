@@ -64,6 +64,11 @@ public partial class Texture
 			if ( !Decode() )
 				return;
 
+			// The texture may have been disposed between when Tick() captured
+			// the reference and when this background task actually runs.
+			if ( !texture.IsValid )
+				return;
+
 			// Update the texture pixels from the bitmap.
 			var width = Bitmap.Width;
 			var height = Bitmap.Height;

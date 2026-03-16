@@ -147,8 +147,8 @@ class HierarchicalRaymarch
 
         // Offset so the ray starts in the *centre* of its texel box
         float2 uvOffset = g_vInvViewportSize * exp2(finestMip) * g_vInvViewportSize;
-        uvOffset        = dir.xy < 0 ? -uvOffset : uvOffset;
-        float2 floorOff = dir.xy < 0 ? 0 : 1;
+        uvOffset        = select( dir.xy < 0, -uvOffset, uvOffset );
+        float2 floorOff = select( dir.xy < 0, 0, 1 );
 
         float  t;
         float3 pos;
@@ -162,7 +162,7 @@ class HierarchicalRaymarch
             if (any(pos.xyz <= 0) || any(pos.xyz >= 1)) break; // outside screen
 
             float2 mipPos = mipRes * pos.xy;
-            if (mip < 2) mipPos = dir.xy < 0 ? floor(mipPos) : ceil(mipPos);
+            if (mip < 2) mipPos = select( dir.xy < 0, floor(mipPos), ceil(mipPos) );
 
             float z = LoadDepth(mipPos, mip );
 

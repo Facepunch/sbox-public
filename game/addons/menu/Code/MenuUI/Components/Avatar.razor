@@ -1,0 +1,64 @@
+@using MenuProject.MenuUI.Popups
+@using Sandbox.Services.Players
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox;
+@using System;
+@namespace Sandbox.UI
+@inherits Panel
+
+<root>
+    <div class="avatar @CssClasses()" style="background-image: url(avatar:@UserId)" />
+</root>
+
+@code {
+    [Property] public long UserId { get; set; } = Connection.Local.SteamId;
+
+    Profile profile;
+
+    bool InParty => PartyRoom.Current is not null;
+    bool IsPartyMember => InParty && PartyRoom.Current.Members.Contains(new Friend(UserId));
+    bool IsPartyOwner => InParty && PartyRoom.Current.Owner == new Friend(UserId);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        profile = await Profile.Get(UserId);
+        StateHasChanged();
+    }
+
+    public string CssClasses()
+    {
+        var friend = new Friend(UserId);
+        if (friend.IsMe) return "me";
+        if (friend.IsPlayingThisGame && !string.IsNullOrEmpty(friend.GetRichPresence("connect"))) return "ingame joinable";
+        if (friend.IsPlayingThisGame) return "ingame";
+        if (friend.IsAway || friend.IsBusy || friend.IsSnoozing) return "online away";
+        if (!friend.IsOnline) return "offline";
+        if (friend.IsOnline) return "online";
+        return "online";
+    }
+
+    void OpenUserProfile()
+    {
+        Game.Overlay.ShowPlayer(UserId);
+    }
+
+    public void JoinGame()
+    {
+        MenuUtility.JoinFriendGame(new Friend(UserId));
+    }
+
+    FriendPopup popup;
+
+    protected override void OnMouseOver(MousePanelEvent e)
+    {
+        if (popup.IsValid())
+            return;
+
+        Popup.CloseAll();
+        popup = FriendPopup.Show(this, new Friend(UserId), Popup.PositionMode.AboveCenter, 32);
+    }
+
+    protected override int BuildHash() => HashCode.Combine(IsPartyOwner, CssClasses());
+
+}

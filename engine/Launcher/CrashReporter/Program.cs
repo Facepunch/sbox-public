@@ -77,7 +77,7 @@ class Program
 		}
 
 		// Open browser to crash report page (only if Sentry has the data)
-		if ( sentrySubmitted )
+		if ( sentrySubmitted && !shutdownCrash )
 		{
 			Process.Start( new ProcessStartInfo( $"https://sbox.game/crashes/{eventId}" ) { UseShellExecute = true } );
 		}

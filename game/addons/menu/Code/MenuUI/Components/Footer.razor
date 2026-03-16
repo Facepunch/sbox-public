@@ -1,0 +1,61 @@
+@using MenuProject
+@using MenuProject.Social
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox;
+@using System;
+@namespace Sandbox.UI
+@inherits Panel
+
+<root>
+    <div class="inner">
+
+        <div class="left">
+            <PartyDeck WithChat=@true />
+        </div>
+
+        <div class="grow" />
+
+        <div class="right">
+
+            <div class="friends">
+                @{
+
+                    foreach( var friend in ActiveFriends.Take( 12 ) )
+                    {
+                        if (PartyRoom.Current != null && PartyRoom.Current.Members.Contains(friend))
+                            continue;
+
+                        <Avatar class="large" UserId="@((long)friend.Id)" />
+                    }
+
+                }
+
+                <separator class="vertical" />
+            </div>
+
+            <Button Icon="people" onmouseup=@ShowFriendsModal />
+        </div>
+    </div>
+</root>
+
+@code {
+    public IEnumerable<Friend> ActiveFriends = Enumerable.Empty<Friend>();
+
+    void ShowFriendsModal()
+    {
+        MenuUtility.CloseAllModals();
+        ModalSystem.Instance.FriendsList(new Modals.FriendsListModalOptions());
+    }
+
+    TimeSince timeSinceUpdated = 100;
+
+    public override void Tick()
+    {
+        if (timeSinceUpdated < 3)
+            return;
+
+        ActiveFriends = MenuUtility.Friends.Where(x => x.IsPlayingThisGame && !x.IsMe).OrderBy(x => x.Name);
+        StateHasChanged();
+    }
+}

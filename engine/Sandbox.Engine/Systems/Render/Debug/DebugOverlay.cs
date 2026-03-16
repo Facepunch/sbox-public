@@ -5,6 +5,7 @@ namespace Sandbox;
 internal static partial class DebugOverlay
 {
 	static CommandList _overlay = new( "Engine Overlay" );
+	private const float OverlaySpacing = 16f;
 
 	public static CommandList CommandList => _overlay;
 
@@ -53,42 +54,43 @@ internal static partial class DebugOverlay
 		if ( ToolsVisualization.mat_toolsvis != SceneCameraDebugMode.Normal )
 		{
 			DebugOverlay.ToolsVisualization.Draw( ref pos );
+			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_network_calls == 1 )
 		{
 			DebugOverlay.NetworkCalls.Draw( ref pos );
-			pos.y += 20;
+			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_network_graph == 1 )
 		{
 			DebugOverlay.NetworkGraph.Draw( ref pos );
-			pos.y += 20;
+			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_profile == 1 )
 		{
 			DebugOverlay.Profiler.Draw( ref pos );
-			pos.y += 20;
+			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_frame == 1 )
 		{
 			DebugOverlay.Frame.Draw( ref pos );
-			pos.y += 20;
+			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_pp == 1 )
 		{
 			activeScene?.Camera?.PrintPostProcessDebugOverlay( ref pos, Hud );
-			pos.y += 20;
+			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_alloc == 1 )
 		{
 			DebugOverlay.Allocations.Draw( ref pos );
-			pos.y += 20;
+			pos.y += OverlaySpacing;
 		}
 		else
 		{
@@ -102,13 +104,13 @@ internal static partial class DebugOverlay
 		if ( overlay_gpu == 1 )
 		{
 			DebugOverlay.GpuProfiler.Draw( ref pos );
-			pos.y += 20;
+			pos.y += OverlaySpacing;
 		}
 
 		if ( overlay_resources == 1 )
 		{
 			DebugOverlay.Resources.Draw( ref pos );
-			pos.y += 20;
+			pos.y += OverlaySpacing;
 		}
 	}
 }

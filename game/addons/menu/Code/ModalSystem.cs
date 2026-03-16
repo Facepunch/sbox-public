@@ -193,7 +193,7 @@ public class ModalSystem : IModalSystem
 		Push( modal );
 	}
 
-	public void News( News news )
+	public void News( Sandbox.Services.News news )
 	{
 		Push( new PackageNewsModal { News = news } );
 	}

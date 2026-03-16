@@ -45,15 +45,7 @@ public static partial class Graphics
 
 	static void RenderUiOverlay()
 	{
-		using var _ = IMenuDll.Current?.PushScope();
-
-		Graphics.Attributes.SetCombo( "D_WORLDPANEL", 0 );
-
-		for ( int i = GlobalContext.Current.UISystem.RootPanels.Count() - 1; i >= 0; i-- )
-		{
-			if ( GlobalContext.Current.UISystem.RootPanels[i].RenderedManually || GlobalContext.Current.UISystem.RootPanels[i].IsWorldPanel ) continue;
-
-			GlobalContext.Current.UISystem.RootPanels[i].Render( 1 );
-		}
+		using var _ = GlobalContext.MenuScope();
+		GlobalContext.Current.UISystem.Render();
 	}
 }

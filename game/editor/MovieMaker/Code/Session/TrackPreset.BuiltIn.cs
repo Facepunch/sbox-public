@@ -8,11 +8,11 @@ public partial record TrackPreset
 {
 	private static TrackPreset TransformPreset { get; } = new(
 		new TrackPresetMetadata( "Transform", "Common",
-			Description: "Includes the LocalPosition, LocalRotation, and Enabled properties for this GameObject." ),
+			Description: "Includes the LocalPosition, LocalRotation, and LocalScale properties for this GameObject." ),
 		new TrackPresetNode( "Object", typeof(GameObject),
-			new TrackPresetNode( nameof(GameObject.Enabled), typeof(bool) ),
 			new TrackPresetNode( nameof(GameObject.LocalPosition), typeof(Vector3) ),
-			new TrackPresetNode( nameof(GameObject.LocalRotation), typeof(Rotation) ) ) );
+			new TrackPresetNode( nameof(GameObject.LocalRotation), typeof(Rotation) ),
+			new TrackPresetNode( nameof(GameObject.LocalScale), typeof(Vector3) ) ) );
 
 	private static TrackPreset PlayerControllerPreset { get; } = new(
 		new TrackPresetMetadata( "Player Controller - Procedural", "Common",

@@ -224,6 +224,7 @@ public sealed class MoviePlayer : Component
 	private void UpdateAnimationPlaybackRate( SkinnedModelRenderer renderer )
 	{
 		if ( renderer.SceneModel is not { } model ) return;
+		if ( renderer.BoneMergeTarget.IsValid() ) return;
 
 		// We're assuming SkinnedModelRenderer.PlaybackRate persists even if we change SceneModel.PlaybackRate,
 		// so we don't stomp relative playback rates

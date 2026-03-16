@@ -149,7 +149,6 @@ public partial class Scene : GameObject
 			FixedUpdate();
 		}
 
-		using ( PerformanceStats.Timings.Scene.Scope() )
 		{
 			ProcessDeletes();
 
@@ -159,6 +158,7 @@ public partial class Scene : GameObject
 			}
 
 			using ( _updateTimer.Start() )
+			using ( PerformanceStats.Timings.Update.Scope() )
 			{
 				PreTickReset();
 				InternalUpdate();
@@ -172,6 +172,7 @@ public partial class Scene : GameObject
 			if ( !Application.IsHeadless )
 			{
 				using ( _preRenderTimer.Start() )
+				using ( PerformanceStats.Timings.Render.Scope() )
 				{
 					PreRender();
 				}
@@ -288,6 +289,7 @@ public partial class Scene : GameObject
 
 			RunPendingStarts();
 
+			using ( PerformanceStats.Timings.Update.Scope() )
 			{
 				foreach ( var c in fixedUpdateComponents.EnumerateLocked() )
 				{

@@ -114,6 +114,12 @@ partial class PanelRenderer
 		{
 			BackgroundRepeat.RepeatX => new SamplerState { AddressModeV = TextureAddressMode.Clamp, Filter = filter },
 			BackgroundRepeat.RepeatY => new SamplerState { AddressModeU = TextureAddressMode.Clamp, Filter = filter },
+			BackgroundRepeat.NoRepeat => new SamplerState
+			{
+				AddressModeU = TextureAddressMode.Border,
+				AddressModeV = TextureAddressMode.Border,
+				Filter = filter
+			},
 			BackgroundRepeat.Clamp => new SamplerState
 			{
 				AddressModeU = TextureAddressMode.Clamp,
@@ -134,19 +140,18 @@ partial class PanelRenderer
 		attributes.SetCombo( "D_BLENDMODE", panel.BackgroundBlendMode );
 	}
 
-	private void BuildCommandList_Background( Panel panel, ref RenderState state )
+	private void BuildCommandList_Background( Panel panel, ref RenderState state, CommandList commandList )
 	{
-		ThreadSafe.AssertIsMainThread();
 
-		var attributes = panel.CommandList.Attributes;
-
-		attributes.Set( "HasInverseScissor", 0 );
-		panel.CommandList.InsertList( panel.ClipCommandList );
-
-		UpdateRenderAttributes( attributes, panel );
+		// Always reset inverse scissor — outset shadows may have set it to 1
+		commandList.Attributes.Set( "HasInverseScissor", 0 );
 
 		if ( panel.HasBackground )
 		{
+			var attributes = commandList.Attributes;
+
+			UpdateRenderAttributes( attributes, panel );
+
 			// Texture has just loaded, rect needs to be recalculated
 			{
 				var texture = panel.ComputedStyle.BackgroundImage;
@@ -195,22 +200,22 @@ partial class PanelRenderer
 			{
 				attributes.SetCombo( "D_BLENDMODE", OverrideBlendMode );
 				attributes.Set( "Texture", panel.ComputedStyle.BackgroundImage );
-				panel.CommandList.DrawQuad( rect, Material.UI.Box, color );
+				commandList.DrawQuad( rect, Material.UI.Box, color );
 			}
 			else
 			{
 				// Draw background color
 				attributes.SetCombo( "D_BLENDMODE", OverrideBlendMode );
 				attributes.Set( "Texture", Texture.Invalid );
-				panel.CommandList.DrawQuad( rect, Material.UI.Box, color );
+				commandList.DrawQuad( rect, Material.UI.Box, color );
 
 				// Draw background image with specified background-blend-mode
 				attributes.SetCombo( "D_BLENDMODE", panel.BackgroundBlendMode );
 				attributes.Set( "Texture", panel.ComputedStyle.BackgroundImage );
-				panel.CommandList.DrawQuad( rect, Material.UI.Box, color );
+				commandList.DrawQuad( rect, Material.UI.Box, color );
 			}
 		}
 
-		panel.BuildCommandList( panel.CommandList );
+		panel.BuildCommandList( commandList );
 	}
 }

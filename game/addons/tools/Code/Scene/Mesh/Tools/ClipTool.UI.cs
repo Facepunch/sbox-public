@@ -11,6 +11,8 @@ partial class ClipTool
 	public class ClipToolWidget : ToolSidebarWidget
 	{
 		readonly ClipTool _tool;
+		readonly Button _applyButton;
+		readonly Button _cancelButton;
 
 		public ClipToolWidget( ClipTool tool ) : base()
 		{
@@ -42,15 +44,15 @@ partial class ClipTool
 				var row = Layout.AddRow();
 				row.Spacing = 4;
 
-				var apply = new Button( "Apply", "done" );
-				apply.Clicked = Apply;
-				apply.ToolTip = "[Apply " + EditorShortcuts.GetKeys( "mesh.clip-apply" ) + "]";
-				row.Add( apply );
+				_applyButton = new Button( "Apply", "done" );
+				_applyButton.Clicked = Apply;
+				_applyButton.ToolTip = "[Apply " + EditorShortcuts.GetKeys( "mesh.clip-apply" ) + "]";
+				row.Add( _applyButton );
 
-				var cancel = new Button( "Cancel", "close" );
-				cancel.Clicked = Cancel;
-				cancel.ToolTip = "[Cancel " + EditorShortcuts.GetKeys( "mesh.clip-cancel" ) + "]";
-				row.Add( cancel );
+				_cancelButton = new Button( "Cancel", "close" );
+				_cancelButton.Clicked = Cancel;
+				_cancelButton.ToolTip = "[Cancel " + EditorShortcuts.GetKeys( "mesh.clip-cancel" ) + "]";
+				row.Add( _cancelButton );
 			}
 
 			Layout.AddStretchCell();
@@ -63,5 +65,13 @@ partial class ClipTool
 
 		[Shortcut( "mesh.clip-cancel", "ESC", typeof( SceneViewWidget ) )]
 		void Cancel() => _tool.Cancel();
+
+
+		[EditorEvent.Frame]
+		public void Frame()
+		{
+			_applyButton?.Enabled = _tool.CanApply;
+			_cancelButton?.Enabled = _tool.CanApply;
+		}
 	}
 }

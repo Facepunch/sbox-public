@@ -22,7 +22,7 @@ public abstract partial class Component
 
 		using ( CallbackBatch.Batch() )
 		{
-			CallbackBatch.Add( CommonCallback.Dirty, OnDirtyInternal, this, "OnDirty" );
+			CallbackBatch.Add( CommonCallback.Dirty, this, "OnDirty" );
 		}
 	}
 

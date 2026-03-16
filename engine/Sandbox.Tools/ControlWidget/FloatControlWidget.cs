@@ -271,6 +271,58 @@ public class FloatControlWidget : StringControlWidget
 			SliderWidget.Value = SerializedProperty.As.Float;
 		}
 	}
+
+	bool _keyEditing;
+
+	protected override void OnKeyPress( KeyEvent e )
+	{
+		if ( ReadOnly || !SerializedProperty.IsEditable )
+		{
+			base.OnKeyPress( e );
+			return;
+		}
+
+		if ( LineEdit.IsFocused && !LineEdit.HasSelectedText &&
+			(e.Key == KeyCode.Up || e.Key == KeyCode.Down) )
+		{
+			if ( !_keyEditing )
+			{
+				PropertyStartEdit();
+				_keyEditing = true;
+			}
+
+			var step = RangeStep > 0 ? RangeStep : 0.01f;
+			var value = SerializedProperty.As.Float;
+
+			value += (e.Key == KeyCode.Up) ? step : -step;
+
+			if ( HasRange && RangeClamped )
+				value = value.Clamp( Range.x, Range.y );
+
+			value = step > 0 ? value.SnapToGrid( step ) : value;
+
+			SerializedProperty.As.Float = value;
+			LineEdit.Text = ValueToString();
+
+			SignalValuesChanged();
+
+			e.Accepted = true;
+			return;
+		}
+
+		base.OnKeyPress( e );
+	}
+
+	protected override void OnKeyRelease( KeyEvent e )
+	{
+		if ( _keyEditing && (e.Key == KeyCode.Up || e.Key == KeyCode.Down) && !e.IsAutoRepeat )
+		{
+			PropertyFinishEdit();
+			_keyEditing = false;
+		}
+
+		base.OnKeyRelease( e );
+	}
 }
 
 public class FloatSlider : Widget

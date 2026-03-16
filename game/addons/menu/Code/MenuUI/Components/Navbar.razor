@@ -1,0 +1,75 @@
+﻿@using MenuProject
+@using MenuProject.MenuUI.Components.Notifications
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox;
+@using System;
+@namespace Sandbox.UI
+@inherits Panel
+
+<root class="@ComputedClass">
+    <div class="inner">
+        <Logo />
+
+        <div class="links">
+            <Button Href="/home" Icon="home">#menu.home</Button>
+            <Button Href="/hub" Icon="hub">#menu.hub</Button>
+            <Button href="/games/dash" icon="sports_esports" Text="#menu.games">
+                <HoverMenu>
+                    <Button Href="/games/dash" icon="diamond">Discover</Button>
+                    <Button Href="/games/group?Query=type:game sort:favourite&title=Favourite Games&Icon=💖" icon="favorite">Favourites</Button>
+                    <Button Href="/games/all" icon="manage_search">Search</Button>
+                </HoverMenu>
+            </Button>
+            <Button Href="/maps/all" Icon="map">#menu.maps</Button>
+            <Button Href="/multiplayer" Icon="view_list">#menu.multiplayer</Button>
+        </div>
+
+        <div class="grow" />
+
+        <div class="right">
+            <Button @onmouseup=@OpenAvatarScene Icon="emoji_people">#menu.avatar</Button>
+            <Button Href="/itemstore" class="unread" Icon="store">#menu.store</Button>
+
+            <separator class="vertical" />
+
+            <NotificationButton />
+            <Button onmouseup="@Settings" Icon="settings"></Button>
+
+            <div class="user-info">
+                <Avatar />
+                <Label>@Connection.Local.DisplayName</Label>
+            </div>
+
+        </div>
+
+        <Button onmouseup="@Quit" class="close" Icon="close"></Button>
+
+        <FeaturedStoreItem />
+    </div>
+</root>
+
+@code {
+    public string ComputedClass => (this.GetNavigator()?.CurrentUrlMatches("/home") ?? false) ? "clear" : "";
+
+    void Settings()
+    {
+        Game.Overlay.ShowSettingsModal();
+    }
+
+    void Quit()
+    {
+        ConsoleSystem.Run("quit");
+    }
+
+    void OpenAvatarScene()
+    {
+        var options = new SceneLoadOptions();
+        options.ShowLoadingScreen = false;
+        options.SetScene("/scenes/avatar.scene");
+
+        Game.ActiveScene.Load(options);
+    }
+
+    protected override int BuildHash() => HashCode.Combine(ComputedClass);
+}

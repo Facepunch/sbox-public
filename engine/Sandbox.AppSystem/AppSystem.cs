@@ -5,6 +5,7 @@ using Sandbox.Network;
 using Sandbox.Rendering;
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics.X86;
@@ -175,39 +176,98 @@ public class AppSystem
 		IMenuDll.Current?.Exiting();
 		IGameInstanceDll.Current?.Exiting();
 
+		// Flush API
+		Api.Shutdown();
+
 		SoundFile.Shutdown();
 		SoundHandle.Shutdown();
 		DedicatedServer.Shutdown();
 
-		// Flush API
-		Api.Shutdown();
+		// Flush queued scene object/world deletes that normally run at
+		// end-of-frame. During shutdown no frame is rendered, so native
+		// never fires FreeHandle for these — leaving HandleIndex entries
+		// that root SceneWorld/SceneModel trees.
+		SceneWorld.FlushQueuedDeletes();
+
+		Engine.InputRouter.Shutdown();
+		Diagnostics.Logging.ClearListeners();
+
+		// Flush mount utility preview cache — holds strong refs to textures
+		Mounting.MountUtility.FlushCache();
 
 		ConVarSystem.ClearNativeCommands();
 
 		// Whatever package still exists needs to fuck off
 		PackageManager.UnmountAll();
 
-		// Clear static resources
-		Texture.DisposeStatic();
-		Model.DisposeStatic();
-		Material.UI.DisposeStatic();
-		Gizmo.GizmoDraw.DisposeStatic();
-		CubemapRendering.DisposeStatic();
-		Graphics.DisposeStatic();
+		// Release all cached stylesheets — their Styles hold Lazy<Texture> refs
+		UI.StyleSheet.ResetStyleSheets();
 
-		TextRendering.ClearCache();
+		// Null all static native-resource and Panel references across every assembly loaded
+		// in this AppDomain — catches engine, base addon, menu addon, game dlls, etc.
+		// Only scan assemblies that actually reference the engine assembly; anything that
+		// doesn't reference it can't possibly hold statics of Texture, Panel, etc.
+		var engineAsmName = typeof( Texture ).Assembly.GetName().Name;
+		foreach ( var asm in AppDomain.CurrentDomain.GetAssemblies() )
+		{
+			// The engine assembly itself always qualifies
+			var isEngineAsm = asm.GetName().Name == engineAsmName;
 
-		NativeResourceCache.Clear();
+			// Dynamic assemblies have no manifest references but may still hold Panel statics
+			// (Razor-generated panels compile to dynamic assemblies)
+			var isDynamic = asm.IsDynamic;
+
+			// Static assemblies qualify only if they reference the engine
+			var referencesEngine = !isDynamic && asm.GetReferencedAssemblies().Any( r => r.Name == engineAsmName );
+
+			if ( !isEngineAsm && !isDynamic && !referencesEngine )
+				continue;
+
+			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( Texture ) );
+			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( Model ) );
+			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( Material ) );
+			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( ComputeShader ) );
+			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( Rendering.CommandList ) );
+			ReflectionUtility.NullStaticReferencesOfType( asm, typeof( UI.Panel ) );
+		}
+
+		Material.Shutdown();
+		TextRendering.Shutdown();
+		NativeResourceCache.ClearCache();
 
 		// Renderpipeline may hold onto native resources, clear them out
-		RenderPipeline.ClearPool();
+		RenderPipeline.Shutdown();
+
+		// Destroy all cached render targets immediately — must happen before
+		// GlobalContext.Shutdown() so ResourceSystem is still alive for Unregister calls.
+		RenderTarget.Shutdown();
+
+		// Drain the RenderAttributes pool — cleanup code above and GC
+		// finalizers may have returned items to the pool. Clear last so
+		// nothing can re-fill it.
+		RenderAttributes.Pool.Clear();
+
+		// Release all resources held by both contexts.
+		GlobalContext.Menu.Shutdown();
+		GlobalContext.Game.Shutdown();
+
+		// Drain any disposables queued for end-of-frame — no more frames
+		// will run during shutdown so these would otherwise leak.
+		EngineLoop.DrainFrameEndDisposables();
+		MainThread.RunQueues();
 
 		// Run GC and finalizers to clear any resources held by managed
 		GC.Collect();
 		GC.WaitForPendingFinalizers();
 
 		// Run the queue one more time, since some finalizers queue tasks
+		EngineLoop.DrainFrameEndDisposables();
 		MainThread.RunQueues();
+
+		GC.Collect();
+		GC.WaitForPendingFinalizers();
+
+		NativeResourceCache.HandleShutdownLeaks();
 
 		// print each scene that is leaked
 		foreach ( var leakedScene in Scene.All )
@@ -224,15 +284,16 @@ public class AppSystem
 			_appSystem = default;
 		}
 
+		// Shut down error reporting last before unloading native DLLs,
+		// so crashpad stops monitoring. Any crash before this point
+		// during shutdown will still be properly reported.
+		NativeErrorReporter.Shutdown();
+
 		if ( steamApiDll != IntPtr.Zero )
 		{
 			NativeLibrary.Free( steamApiDll );
 			steamApiDll = default;
 		}
-		// Shut down error reporting last before unloading native DLLs,
-		// so crashpad stops monitoring. Any crash before this point
-		// during shutdown will still be properly reported.
-		NativeErrorReporter.Shutdown();
 
 		// Unload native dlls:
 		// At this point we should no longer need them.

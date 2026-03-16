@@ -31,6 +31,26 @@ public class NavTestSettings : EditorTool
 		}
 	}
 
+	public override void OnUpdate()
+	{
+		if ( !Scene.NavMesh.CustomBounds )
+			return;
+
+		using ( Gizmo.Scope( "NavMesh Bounds", new Transform() ) )
+		{
+			Gizmo.Draw.Color = Color.Cyan.WithAlpha( 0.3f );
+			Gizmo.Draw.LineThickness = 2f;
+			Gizmo.Draw.LineBBox( Scene.NavMesh.Bounds );
+
+			if ( Gizmo.Control.BoundingBox( "Bounds", Scene.NavMesh.Bounds, out var newBounds ) )
+			{
+				Scene.NavMesh.Bounds = newBounds;
+				Scene.NavMesh.SetDirty();
+				SceneEditorSession.Active.HasUnsavedChanges = true;
+			}
+		}
+	}
+
 	public override Widget CreateToolSidebar()
 	{
 		return new NavigationSettingsWidget( this );
@@ -42,9 +62,6 @@ public class NavTestSettings : EditorTool
 	private class NavigationSettingsWidget : ToolSidebarWidget
 	{
 		private readonly NavTestSettings Tool;
-		private readonly Checkbox EnabledCheckbox;
-		private readonly Checkbox EditorAutoRefresh;
-		private readonly Checkbox DebugCheckbox;
 
 		public NavigationSettingsWidget( NavTestSettings tool ) : base()
 		{
@@ -52,36 +69,17 @@ public class NavTestSettings : EditorTool
 
 			AddTitle( "Settings", "edit_note" );
 
-			EnabledCheckbox = new Checkbox( "Enabled" )
-			{
-				StateChanged = state =>
-				{
-					Tool.Scene.NavMesh.IsEnabled = state == CheckState.On;
-				}
-			};
-			Layout.Add( EnabledCheckbox );
+			var so = EditorTypeLibrary.GetSerializedObject( SceneEditorSession.Active.Scene.NavMesh );
 
-			DebugCheckbox = new Checkbox( "Debug Render" )
-			{
-				StateChanged = state =>
-				{
-					Tool.Scene.NavMesh.DrawMesh = state == CheckState.On;
-				},
-				Clicked = () =>
-				{
-					Tool.NavDrawStateChangedManually = true;
-				}
-			};
-			Layout.Add( DebugCheckbox );
+			var control = new ControlSheet();
+			control.AddObject( so );
+			Layout.Add( control );
 
-			EditorAutoRefresh = new Checkbox( "Editor Auto Refresh" )
+			so.OnPropertyChanged = ( p ) =>
 			{
-				StateChanged = state =>
-				{
-					Tool.Scene.NavMesh.EditorAutoUpdate = state == CheckState.On;
-				}
+				SceneEditorSession.Active.Scene.NavMesh.SetDirty();
+				SceneEditorSession.Active.HasUnsavedChanges = true;
 			};
-			Layout.Add( EditorAutoRefresh );
 
 			Layout.AddSpacingCell( 8 );
 
@@ -93,31 +91,8 @@ public class NavTestSettings : EditorTool
 			{
 				Clicked = () => NavMesh.BakeNavMesh()
 			} );
-			Layout.Add( new Button( "Settings", "edit_note" )
-			{
-				Clicked = () => OpenPopup()
-			} );
 
 			Layout.AddStretchCell();
-		}
-
-		protected override void OnPaint()
-		{
-			base.OnPaint();
-
-			// Update checkbox states
-			EnabledCheckbox!.State = Tool.Scene.NavMesh.IsEnabled ? CheckState.On : CheckState.Off;
-			DebugCheckbox!.State = Tool.Scene.NavMesh.DrawMesh ? CheckState.On : CheckState.Off;
-			EditorAutoRefresh!.State = Tool.Scene.NavMesh.EditorAutoUpdate ? CheckState.On : CheckState.Off;
-		}
-
-		void OpenPopup()
-		{
-			var so = EditorTypeLibrary.GetSerializedObject( SceneEditorSession.Active.Scene.NavMesh );
-
-			EditorUtility.OpenControlSheet( so, null );
-
-			so.OnPropertyChanged = ( p ) => SceneEditorSession.Active.Scene.NavMesh.SetDirty();
 		}
 	}
 }

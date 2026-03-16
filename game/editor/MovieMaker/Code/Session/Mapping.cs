@@ -377,6 +377,7 @@ partial class Session
 	private void UpdateAnimationPlaybackRate( SkinnedModelRenderer renderer, float dt )
 	{
 		if ( renderer.SceneModel is not { } model ) return;
+		if ( renderer.BoneMergeTarget.IsValid() ) return;
 
 		if ( dt > 0f && IsEditorScene )
 		{
