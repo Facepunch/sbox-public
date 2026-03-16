@@ -8,6 +8,7 @@ partial class StandaloneExporter
 	{
 		var compilerSettings = Project.Config.GetCompileSettings();
 		compilerSettings.Whitelist = false;
+		compilerSettings.Standalone = true;
 
 		var generated = await EditorUtility.Projects.Compile( Project, compilerSettings, ( s ) => Logger.Info( $"[Compiler] {s}" ) );
 		if ( generated == null )
