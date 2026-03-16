@@ -192,7 +192,7 @@ public sealed class Float3 : ParameterNode<Vector3>
 [Title( "Color" ), Category( "Constants" ), Icon( "palette" )]
 public sealed class Float4 : ParameterNode<Color>
 {
-	[Output( typeof( Vector4 ) ), Title( "RGBA" )]
+	[Output( typeof( Color ) ), Title( "RGBA" )]
 	[Hide, Editor( nameof( Value ) )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
