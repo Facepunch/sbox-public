@@ -156,6 +156,11 @@ public struct WorkshopPublishOptions
 	public Action<ulong> OnComplete { get; set; }
 
 	/// <summary>
+	/// If set, update this existing workshop item instead of creating a new one.
+	/// </summary>
+	public ulong PublishedFileId { get; set; }
+
+	/// <summary>
 	/// Defined categories to show in the workshop publish modal
 	/// </summary>
 	public Dictionary<string, SerializedProperty> Categories { get; } = [];

@@ -231,7 +231,7 @@ public partial class RenderAttributes
 	public void Set( in StringToken k, in GpuBuffer value )
 	{
 		if ( !attributes.IsValid ) return;
-		attributes.SetBufferValue( k, value.native );
+		attributes.SetBufferValue( k, value is not null ? value.native : default );
 	}
 
 	/// <summary>

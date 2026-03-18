@@ -19,7 +19,8 @@ public abstract class ComponentEditorWidget : Widget
 
 	public static ComponentEditorWidget Create( SerializedObject obj )
 	{
-		var componentType = TypeLibrary.GetType( obj.TypeName ).TargetType;
+		var componentType = TypeLibrary.GetType( obj.TypeName )?.TargetType;
+		if ( componentType == null ) return null;
 
 		var editor = EditorTypeLibrary.GetTypesWithAttribute<CustomEditorAttribute>( false )
 					.Where( x => x.Type.TargetType.IsAssignableTo( typeof( ComponentEditorWidget ) ) )

@@ -122,7 +122,7 @@ partial class EdgeTool
 					row.Layout.Spacing = 4;
 
 					CreateButton( "Bevel", "straighten", "mesh.edge-bevel", Bevel, CanBevel(), row.Layout );
-					CreateButton( "Edge Cut Tool", "content_cut", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
+					CreateButton( "Edge Cut Tool", "polyline", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
 					CreateButton( "Edge Arch", "rounded_corner", "mesh.edge-arch-tool", OpenEdgeArchTool, CanArch(), row.Layout );
 
 					row.Layout.AddStretchCell();

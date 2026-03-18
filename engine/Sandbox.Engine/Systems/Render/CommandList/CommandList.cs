@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 
 namespace Sandbox.Rendering;
@@ -7,7 +8,19 @@ public sealed unsafe partial class CommandList
 {
 	readonly Lock _lock = new Lock();
 
-	public string DebugName { get; set; }
+	private string _debugName;
+	private string _markerName = "CommandList";
+
+	public string DebugName
+	{
+		get => _debugName;
+		set
+		{
+			_debugName = value;
+			_markerName = string.IsNullOrEmpty( value ) ? "CommandList" : string.Concat( "CommandList: ", value );
+		}
+	}
+
 	public bool Enabled { get; set; }
 	public Flag Flags { get; set; }
 
@@ -40,6 +53,8 @@ public sealed unsafe partial class CommandList
 		public object Object3;
 		public object Object4;
 		public object Object5;
+
+		public StringToken Token;
 
 		public Vector4 Data1;
 		public Vector4 Data2;
@@ -140,9 +155,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.Set( (StringToken)entry.Object1, entry.Data1.x );
+			Graphics.Attributes.Set( entry.Token, entry.Data1.x );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Data1 = new Vector4( f, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( f, 0, 0, 0 ) } );
 	}
 
 	[Obsolete] public void Set( StringToken token, double f ) => Set( token, (float)f );
@@ -152,9 +167,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.Set( (StringToken)entry.Object1, new Vector2( entry.Data1.x, entry.Data1.y ) );
+			Graphics.Attributes.Set( entry.Token, new Vector2( entry.Data1.x, entry.Data1.y ) );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Data1 = new Vector4( vector2.x, vector2.y, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( vector2.x, vector2.y, 0, 0 ) } );
 	}
 
 	[Obsolete]
@@ -162,9 +177,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.Set( (StringToken)entry.Object1, new Vector3( entry.Data1.x, entry.Data1.y, entry.Data1.z ) );
+			Graphics.Attributes.Set( entry.Token, new Vector3( entry.Data1.x, entry.Data1.y, entry.Data1.z ) );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Data1 = new Vector4( vector3.x, vector3.y, vector3.z, 0 ) } );
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( vector3.x, vector3.y, vector3.z, 0 ) } );
 	}
 
 	[Obsolete]
@@ -172,9 +187,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.Set( (StringToken)entry.Object1, entry.Data1 );
+			Graphics.Attributes.Set( entry.Token, entry.Data1 );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Data1 = vector4 } );
+		AddEntry( &Execute, new Entry { Token = token, Data1 = vector4 } );
 	}
 
 	[Obsolete]
@@ -182,9 +197,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.Set( (StringToken)entry.Object1, (int)entry.Data1.x );
+			Graphics.Attributes.Set( entry.Token, (int)entry.Data1.x );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Data1 = new Vector4( i, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( i, 0, 0, 0 ) } );
 	}
 
 	[Obsolete]
@@ -192,9 +207,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.Set( (StringToken)entry.Object1, (int)entry.Data1.x != 0 );
+			Graphics.Attributes.Set( entry.Token, (int)entry.Data1.x != 0 );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Data1 = new Vector4( b ? 1 : 0, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( b ? 1 : 0, 0, 0, 0 ) } );
 	}
 
 	[Obsolete]
@@ -202,9 +217,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.Set( (StringToken)entry.Object1, (Matrix)entry.Object2 );
+			Graphics.Attributes.Set( entry.Token, (Matrix)entry.Object2 );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Object2 = matrix } );
+		AddEntry( &Execute, new Entry { Token = token, Object2 = matrix } );
 	}
 
 	[Obsolete]
@@ -212,9 +227,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.Set( (StringToken)entry.Object1, (GpuBuffer)entry.Object2 );
+			Graphics.Attributes.Set( entry.Token, (GpuBuffer)entry.Object2 );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Object2 = buffer } );
+		AddEntry( &Execute, new Entry { Token = token, Object2 = buffer } );
 	}
 
 	[Obsolete]
@@ -222,9 +237,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.Set( (StringToken)entry.Object1, (Texture)entry.Object2 );
+			Graphics.Attributes.Set( entry.Token, (Texture)entry.Object2 );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Object2 = texture } );
+		AddEntry( &Execute, new Entry { Token = token, Object2 = texture } );
 	}
 
 	[Obsolete]
@@ -232,9 +247,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.SetCombo( (StringToken)entry.Object1, (int)entry.Data1.x );
+			Graphics.Attributes.SetCombo( entry.Token, (int)entry.Data1.x );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Data1 = new Vector4( value, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( value, 0, 0, 0 ) } );
 	}
 
 	[Obsolete]
@@ -242,9 +257,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.SetCombo( (StringToken)entry.Object1, (int)entry.Data1.x != 0 );
+			Graphics.Attributes.SetCombo( entry.Token, (int)entry.Data1.x != 0 );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Data1 = new Vector4( value ? 1 : 0, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( value ? 1 : 0, 0, 0, 0 ) } );
 	}
 
 	[Obsolete]
@@ -252,9 +267,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.SetComboEnum( (StringToken)entry.Object1, (T)entry.Object2 );
+			Graphics.Attributes.SetComboEnum( entry.Token, (T)entry.Object2 );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Object2 = t } );
+		AddEntry( &Execute, new Entry { Token = token, Object2 = t } );
 	}
 
 	[Obsolete]
@@ -262,9 +277,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.SetData( (StringToken)entry.Object1, (T)entry.Object2 );
+			Graphics.Attributes.SetData( entry.Token, (T)entry.Object2 );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Object2 = data } );
+		AddEntry( &Execute, new Entry { Token = token, Object2 = data } );
 	}
 
 	[Obsolete]
@@ -272,9 +287,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.FrameAttributes.Set( (StringToken)entry.Object1, (GpuBuffer)entry.Object2 );
+			Graphics.FrameAttributes.Set( entry.Token, (GpuBuffer)entry.Object2 );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Object2 = buffer } );
+		AddEntry( &Execute, new Entry { Token = token, Object2 = buffer } );
 	}
 
 	[Obsolete]
@@ -282,9 +297,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.FrameAttributes.Set( (StringToken)entry.Object1, (int)entry.Data1.x );
+			Graphics.FrameAttributes.Set( entry.Token, (int)entry.Data1.x );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Data1 = new Vector4( i, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( i, 0, 0, 0 ) } );
 	}
 
 	[Obsolete]
@@ -292,9 +307,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.FrameAttributes.Set( (StringToken)entry.Object1, (int)entry.Data1.x != 0 );
+			Graphics.FrameAttributes.Set( entry.Token, (int)entry.Data1.x != 0 );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Data1 = new Vector4( b ? 1 : 0, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( b ? 1 : 0, 0, 0, 0 ) } );
 	}
 
 	[Obsolete]
@@ -302,9 +317,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.FrameAttributes.Set( (StringToken)entry.Object1, entry.Data1.x );
+			Graphics.FrameAttributes.Set( entry.Token, entry.Data1.x );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Data1 = new Vector4( f, 0, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( f, 0, 0, 0 ) } );
 	}
 
 	[Obsolete] public void SetGlobal( StringToken token, double f ) => SetGlobal( token, (float)f );
@@ -314,9 +329,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.FrameAttributes.Set( (StringToken)entry.Object1, new Vector2( entry.Data1.x, entry.Data1.y ) );
+			Graphics.FrameAttributes.Set( entry.Token, new Vector2( entry.Data1.x, entry.Data1.y ) );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Data1 = new Vector4( vector2.x, vector2.y, 0, 0 ) } );
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( vector2.x, vector2.y, 0, 0 ) } );
 	}
 
 	[Obsolete]
@@ -324,9 +339,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.FrameAttributes.Set( (StringToken)entry.Object1, new Vector3( entry.Data1.x, entry.Data1.y, entry.Data1.z ) );
+			Graphics.FrameAttributes.Set( entry.Token, new Vector3( entry.Data1.x, entry.Data1.y, entry.Data1.z ) );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Data1 = new Vector4( vector3.x, vector3.y, vector3.z, 0 ) } );
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( vector3.x, vector3.y, vector3.z, 0 ) } );
 	}
 
 	[Obsolete]
@@ -334,9 +349,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.FrameAttributes.Set( (StringToken)entry.Object1, entry.Data1 );
+			Graphics.FrameAttributes.Set( entry.Token, entry.Data1 );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Data1 = vector4 } );
+		AddEntry( &Execute, new Entry { Token = token, Data1 = vector4 } );
 	}
 
 	[Obsolete]
@@ -344,9 +359,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.FrameAttributes.Set( (StringToken)entry.Object1, (Matrix)entry.Object2 );
+			Graphics.FrameAttributes.Set( entry.Token, (Matrix)entry.Object2 );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Object2 = matrix } );
+		AddEntry( &Execute, new Entry { Token = token, Object2 = matrix } );
 	}
 
 	[Obsolete]
@@ -354,9 +369,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.FrameAttributes.Set( (StringToken)entry.Object1, (Texture)entry.Object2 );
+			Graphics.FrameAttributes.Set( entry.Token, (Texture)entry.Object2 );
 		}
-		AddEntry( &Execute, new Entry { Object1 = token, Object2 = texture } );
+		AddEntry( &Execute, new Entry { Token = token, Object2 = texture } );
 	}
 
 	/// <summary>
@@ -385,10 +400,23 @@ public sealed unsafe partial class CommandList
 
 		// TODO - check to make sure we don't create an infinite loop?
 		// maybe make a local int here, increment every call, throw exception if it's over 2?
-
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			((CommandList)entry.Object1).ExecuteOnRenderThread();
+			var other = (CommandList)entry.Object1;
+			if ( !other.Enabled )
+				return;
+
+			// Propagate state from parent so child entries can access renderTargets etc.
+			var previousState = other.state;
+			other.state = commandList.state;
+
+			for ( int i = 0; i < other._entries.Count; i++ )
+			{
+				var e = other._entries[i];
+				e.Execute( ref e, other );
+			}
+
+			other.state = previousState;
 		}
 
 		AddEntry( &Execute, new Entry { Object1 = otherBuffer } );
@@ -415,11 +443,10 @@ public sealed unsafe partial class CommandList
 			state = ObjectPool<State>.Get();
 
 			// Begin a debug marker scope so PIX/RenderDoc show this list
-			var markerName = string.IsNullOrEmpty( DebugName ) ? "CommandList" : $"CommandList: {DebugName}";
-			Graphics.Context.BeginPixEvent( markerName );
+			Graphics.Context.BeginPixEvent( _markerName );
 
 			// GPU Profiler timestamp
-			NativeEngine.CSceneSystem.SetManagedPerfMarker( Graphics.Context, DebugName ?? "CommandList" );
+			NativeEngine.CSceneSystem.SetManagedPerfMarker( Graphics.Context, _debugName ?? "CommandList" );
 
 			// Execute all commands
 			try
@@ -948,6 +975,57 @@ public sealed unsafe partial class CommandList
 	}
 
 	/// <summary>
+	/// Clears the given texture to a solid color.
+	/// </summary>
+	/// <param name="texture">The texture to clear.</param>
+	/// <param name="color">The color to clear to. Defaults to transparent black.</param>
+	public void Clear( Texture texture, Color color = default )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			((Texture)entry.Object1).Clear( new Color( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w ) );
+		}
+
+		AddEntry( &Execute, new Entry { Object1 = texture, Data1 = new Vector4( color.r, color.g, color.b, color.a ) } );
+	}
+
+	/// <summary>
+	/// Clears the color texture of the given render target handle to a solid color.
+	/// </summary>
+	/// <param name="handle">The render target handle whose color texture to clear.</param>
+	/// <param name="color">The color to clear to. Defaults to transparent black.</param>
+	public void Clear( RenderTargetHandle handle, Color color = default )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			if ( commandList.state.GetRenderTarget( (string)entry.Object5 ) is not { } target )
+			{
+				Log.Warning( $"[{commandList.DebugName ?? "CommandList"}] Unknown rt: {(string)entry.Object5}" );
+				return;
+			}
+
+			target.ColorTarget.Clear( new Color( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w ) );
+		}
+
+		AddEntry( &Execute, new Entry { Object5 = handle.ColorTexture.Name, Data1 = new Vector4( color.r, color.g, color.b, color.a ) } );
+	}
+
+	/// <summary>
+	/// Fills the given GPU buffer with a repeated uint32 value.
+	/// </summary>
+	/// <param name="buffer">The buffer to clear.</param>
+	/// <param name="value">The uint32 value to fill with. Defaults to zero.</param>
+	public void Clear( GpuBuffer buffer, uint value = 0 )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			((GpuBuffer)entry.Object1).Clear( (uint)entry.Data1.x );
+		}
+
+		AddEntry( &Execute, new Entry { Object1 = buffer, Data1 = new Vector4( value, 0, 0, 0 ) } );
+	}
+
+	/// <summary>
 	/// Executes a barrier transition for the given GPU Texture Resource.
 	/// Transitions the texture resource to a new pipeline stage and access state.
 	/// </summary>
@@ -981,6 +1059,28 @@ public sealed unsafe partial class CommandList
 			}
 
 			Graphics.ResourceBarrierTransition( target.ColorTarget, (ResourceState)(int)entry.Data1.x, (int)entry.Data1.y );
+		}
+
+		AddEntry( &Execute, new Entry { Object5 = texture.Name, Data1 = new Vector4( (int)state, mip, 0, 0 ) } );
+	}
+
+	/// <summary>
+	/// Executes a barrier transition for the depth texture of the given render target handle.
+	/// </summary>
+	/// <param name="texture">The render target depth handle.</param>
+	/// <param name="state">The new resource state for the texture.</param>
+	/// <param name="mip">The mip level to transition (-1 for all mips).</param>
+	public void ResourceBarrierTransition( RenderTargetHandle.DepthTextureRef texture, ResourceState state, int mip = -1 )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			if ( commandList.state.GetRenderTarget( (string)entry.Object5 ) is not { } target )
+			{
+				Log.Warning( $"[{commandList.DebugName ?? "CommandList"}] Unknown rt: {(string)entry.Object5}" );
+				return;
+			}
+
+			Graphics.ResourceBarrierTransition( target.DepthTarget, (ResourceState)(int)entry.Data1.x, (int)entry.Data1.y );
 		}
 
 		AddEntry( &Execute, new Entry { Object5 = texture.Name, Data1 = new Vector4( (int)state, mip, 0, 0 ) } );
@@ -1028,6 +1128,36 @@ public sealed unsafe partial class CommandList
 		}
 
 		AddEntry( &Execute, new Entry { Object1 = buffer, Data1 = new Vector4( (int)before, (int)after, 0, 0 ) } );
+	}
+
+	/// <summary>
+	/// Issues a UAV barrier for the given texture, ensuring writes from prior shader invocations
+	/// are visible to subsequent ones without changing the resource layout.
+	/// </summary>
+	/// <param name="texture">The texture to barrier.</param>
+	public void UavBarrier( Texture texture )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.UavBarrier( (Texture)entry.Object1 );
+		}
+
+		AddEntry( &Execute, new Entry { Object1 = texture } );
+	}
+
+	/// <summary>
+	/// Issues a UAV barrier for the given GPU buffer, ensuring writes from prior shader invocations
+	/// are visible to subsequent ones.
+	/// </summary>
+	/// <param name="buffer">The buffer to barrier.</param>
+	public void UavBarrier( GpuBuffer buffer )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.UavBarrier( (GpuBuffer)entry.Object1 );
+		}
+
+		AddEntry( &Execute, new Entry { Object1 = buffer } );
 	}
 
 	/// <summary>
@@ -1100,5 +1230,29 @@ public sealed unsafe partial class CommandList
 		}
 
 		AddEntry( &Execute, new Entry { Object1 = texture, Data1 = new Vector4( (int)method, 0, 0, 0 ) } );
+	}
+
+	/// <summary>
+	/// Draws text within a rectangle using a prepared <see cref="TextRendering.Scope"/>.
+	/// </summary>
+	/// <param name="scope">The text rendering scope.</param>
+	/// <param name="rect">The rectangle to draw the text in.</param>
+	/// <param name="flags">Text alignment flags (optional).</param>
+	public void DrawText( TextRendering.Scope scope, Rect rect, TextFlag flags = TextFlag.LeftTop )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			var rect = new Rect( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w );
+			var scope = (TextRendering.Scope)entry.Object1;
+			var flags = (TextFlag)entry.Object2;
+			Graphics.DrawText( rect, scope, flags );
+		}
+
+		AddEntry( &Execute, new Entry
+		{
+			Object1 = scope,
+			Object2 = flags,
+			Data1 = new Vector4( rect.Left, rect.Top, rect.Width, rect.Height )
+		} );
 	}
 }

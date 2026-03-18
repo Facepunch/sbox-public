@@ -1,7 +1,6 @@
 ﻿using System.Data;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using static Sandbox.Json;
 
 namespace Sandbox;
 
@@ -10,7 +9,7 @@ public static partial class Json
 	/// <summary>
 	/// Uniquely identifies a tracked object by its type and identifier value.
 	/// </summary>
-	internal record struct ObjectIdentifier
+	public record struct ObjectIdentifier
 	{
 		[JsonInclude]
 		public string Type;
@@ -22,7 +21,7 @@ public static partial class Json
 	/// <summary>
 	/// Represents a property change to apply during patching.
 	/// </summary>
-	internal record struct PropertyOverride
+	public record struct PropertyOverride
 	{
 		/// <summary>The object whose property should be modified</summary>
 		[JsonInclude]
@@ -40,7 +39,7 @@ public static partial class Json
 	/// <summary>
 	/// Represents an object that needs to be added during patching.
 	/// </summary>
-	internal record struct AddedObject
+	public record struct AddedObject
 	{
 		/// <summary>The identifier for the new object</summary>
 		[JsonInclude]
@@ -70,7 +69,7 @@ public static partial class Json
 	/// <summary>
 	/// Represents an object that should be removed during patching.
 	/// </summary>
-	internal record struct RemovedObject
+	public record struct RemovedObject
 	{
 		/// <summary>The identifier of the object to remove</summary>
 		[JsonInclude]
@@ -80,7 +79,7 @@ public static partial class Json
 	/// <summary>
 	/// Represents an object that should be moved to a new location during patching.
 	/// </summary>
-	internal record struct MovedObject
+	public record struct MovedObject
 	{
 		/// <summary>The identifier of the object to move</summary>
 		[JsonInclude]
@@ -107,7 +106,7 @@ public static partial class Json
 	/// Defines characteristics of an object type that should be tracked within a JSON tree structure.
 	/// These definitions are used to identify, track, and manage specific types of objects during JSON diffing and patching operations.
 	/// </summary>
-	internal class TrackedObjectDefinition
+	public class TrackedObjectDefinition
 	{
 		/// <summary>
 		/// A unique identifier for this object type. This is used to categorize objects.
@@ -495,7 +494,7 @@ public static partial class Json
 	/// A patch contains all the operations needed to transform one JSON structure into another
 	/// while preserving object identity and relationships.
 	/// </remarks>
-	internal class Patch
+	public class Patch
 	{
 		/// <summary>
 		/// Objects that need to be added to the target structure.
@@ -529,7 +528,7 @@ public static partial class Json
 	/// <param name="newRoot">The updated JSON object tree</param>
 	/// <param name="definitions">Set of definitions for tracked object types in the JSON structure</param>
 	/// <returns>A Patch object containing all changes needed to transform oldRoot into newRoot</returns>
-	internal static Patch CalculateDifferences(
+	public static Patch CalculateDifferences(
 		JsonObject oldRoot,
 		JsonObject newRoot,
 		HashSet<TrackedObjectDefinition> definitions )
@@ -742,7 +741,7 @@ public static partial class Json
 	/// Operations are processed in this order: removals, additions, moves,
 	/// reordering, and finally property overrides.
 	/// </remarks>
-	internal static JsonObject ApplyPatch(
+	public static JsonObject ApplyPatch(
 		JsonObject sourceRoot,
 		Patch patch,
 		HashSet<TrackedObjectDefinition> definitions )

@@ -9,6 +9,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo( "Sandbox.Test.Unit" )]
 [assembly: InternalsVisibleTo( "Sandbox.Hotload.Test" )]
 [assembly: InternalsVisibleTo( "Sandbox.Engine" )]
+[assembly: InternalsVisibleTo( "Sandbox.AppSystem" )]
 [assembly: InternalsVisibleTo( "Sandbox.Tools" )]
 [assembly: InternalsVisibleTo( "Sandbox.Menu" )]
 [assembly: InternalsVisibleTo( "Sandbox.GameInstance" )]

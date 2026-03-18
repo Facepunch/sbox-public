@@ -1,16 +1,16 @@
 ﻿@using System;
 @using Sandbox;
 @using Sandbox.UI;
-@using MenuProject.Footer;
+@using MenuProject;
 @inherits Panel
 @namespace MenuProject.Social
 
 <root>
 
-    <div class="vertical-button clicky" onmousedown=@InviteSomeone>
+    <Button onmousedown=@InviteSomeone>
         <i>person_add</i>
         <span>Invite</span>
-    </div>
+    </Button>
 
     <div class="members">
         @foreach ( var member in PartyRoom.Current.Members )

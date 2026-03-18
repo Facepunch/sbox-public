@@ -40,41 +40,20 @@ public partial class Model
 	/// <summary>
 	/// A cube model
 	/// </summary>
-	public static Model Cube { get; internal set; }
+	public static Model Cube { get; internal set; } = Load( "models/dev/box.vmdl" );
 
 	/// <summary>
 	/// A sphere model
 	/// </summary>
-	public static Model Sphere { get; internal set; }
+	public static Model Sphere { get; internal set; } = Load( "models/dev/sphere.vmdl" );
 
 	/// <summary>
 	/// A plane model
 	/// </summary>
-	public static Model Plane { get; internal set; }
+	public static Model Plane { get; internal set; } = Load( "models/dev/plane.vmdl" );
 
 	/// <summary>
 	/// An error model
 	/// </summary>
-	public static Model Error { get; internal set; }
-
-
-	internal static void InitStatic()
-	{
-		Cube = Load( "models/dev/box.vmdl" );
-		Sphere = Load( "models/dev/sphere.vmdl" );
-		Plane = Load( "models/dev/plane.vmdl" );
-		Error = Load( "models/dev/error.vmdl" );
-	}
-
-	internal static void DisposeStatic()
-	{
-		Cube?.Dispose();
-		Cube = null;
-		Sphere?.Dispose();
-		Sphere = null;
-		Plane?.Dispose();
-		Plane = null;
-		Error?.Dispose();
-		Error = null;
-	}
+	public static Model Error { get; internal set; } = Load( "models/dev/error.vmdl" );
 }

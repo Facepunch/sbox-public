@@ -5,7 +5,25 @@ namespace Sandbox;
 
 internal static class ResourceLoader
 {
+	// Native resource extensions (with _c suffix) not covered by AssetTypeAttribute.
+	private static readonly HashSet<string> NativeExtensions = new( StringComparer.OrdinalIgnoreCase )
+	{
+		".vmat_c", ".vmdl_c", ".vtex_c", ".shader_c", ".vanmgrph_c"
+	};
 
+	/// Registers resource paths into PathIndex without loading them, for any file whose
+	/// extension is in <paramref name="extensions"/>. Called during LoadAllGameResource.
+	private static void RegisterPaths( ReadOnlySpan<string> files, IReadOnlySet<string> extensions )
+	{
+		foreach ( var file in files )
+		{
+			if ( !extensions.Contains( System.IO.Path.GetExtension( file ) ) )
+				continue;
+
+			// RegisterPath calls FixPath internally, which strips the _c suffix.
+			Game.Resources.RegisterPath( file );
+		}
+	}
 
 	internal static void LoadAllGameResource( BaseFileSystem fileSystem )
 	{
@@ -14,6 +32,12 @@ internal static class ResourceLoader
 			.ToDictionary( x => $".{x.Extension}_c", x => x, StringComparer.OrdinalIgnoreCase );
 
 		var allFiles = fileSystem.FindFile( "/", "*", true ).ToArray();
+
+		// Union GameResource extensions with native-only ones so PathIndex covers everything.
+		var allExtensions = new HashSet<string>( types.Keys, StringComparer.OrdinalIgnoreCase );
+		allExtensions.UnionWith( NativeExtensions );
+
+		RegisterPaths( allFiles, allExtensions );
 
 		var allResources = new List<GameResource>();
 

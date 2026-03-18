@@ -315,9 +315,10 @@ public static class SceneUtility
 	/// make sure that their OnEnable/OnDisable and other callbacks are called in a deterministic order,
 	/// and that they can find each other during creation.
 	/// </summary>
+	[Obsolete( "Use Scene.BatchGroup() instead" )]
 	public static void RunInBatchGroup( Action action )
 	{
-		using ( CallbackBatch.Isolated() )
+		using ( Game.ActiveScene?.BatchGroup() )
 		{
 			action?.Invoke();
 		}

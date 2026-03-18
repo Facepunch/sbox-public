@@ -20,4 +20,9 @@ public interface IScenePhysicsEvents : ISceneEvent<IScenePhysicsEvents>
 	/// Called when a rigidbody goes out of bounds.
 	/// </summary>
 	void OnOutOfBounds( Rigidbody body ) { }
+
+	/// <summary>
+	/// Called when a rigidbody goes to sleep.
+	/// </summary>
+	void OnFellAsleep( Rigidbody body ) { }
 }

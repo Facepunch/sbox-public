@@ -10,6 +10,7 @@ namespace Sandbox.MovieMaker;
 /// <summary>
 /// A container for a <see cref="MovieClip"/>, including optional <see cref="EditorData"/>.
 /// </summary>
+[JsonConverter( typeof( MovieResourceConverter ) )]
 public interface IMovieResource
 {
 	/// <summary>
@@ -134,7 +135,7 @@ public sealed class EmbeddedMovieResource : IMovieResource
 	}
 }
 
-internal sealed class MovieResourceConverter : JsonConverter<IMovieResource>
+file sealed class MovieResourceConverter : JsonConverter<IMovieResource>
 {
 	public override void Write( Utf8JsonWriter writer, IMovieResource value, JsonSerializerOptions options )
 	{

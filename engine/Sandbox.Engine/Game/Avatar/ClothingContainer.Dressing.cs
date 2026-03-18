@@ -29,7 +29,7 @@ public partial class ClothingContainer
 		// Find any clothing that needs downloading
 		// Download it, and apply it to the container.
 		//
-		foreach ( var item in Clothing.Where( x => x.Clothing == null || x.Clothing.ResourceId == 0 ).ToArray() )
+		foreach ( var item in Clothing.Where( x => x.Clothing == null || string.IsNullOrEmpty( x.Clothing.ResourcePath ) ).ToArray() )
 		{
 			if ( item.ItemDefinitionId == 0 ) continue;
 			var def = Sandbox.Services.Inventory.FindDefinition( item.ItemDefinitionId );
@@ -200,6 +200,11 @@ public partial class ClothingContainer
 		body.SetMaterialOverride( skinMaterial, "skin" );
 		body.SetMaterialOverride( eyesMaterial, "eyes" );
 
+		if ( isHuman )
+		{
+			EnsureHumanUnderwear( set, tags.Has( "female" ) );
+		}
+
 		//
 		// Create clothes models
 		//
@@ -280,13 +285,18 @@ public partial class ClothingContainer
 		}
 	}
 
+	// Default underwear paths, cached to avoid repeated allocations
+	const string DefaultUnderwearPath = "models/citizen_clothes/underwear/y_front_pants/y_front_pants_white.clothing";
+	const string DefaultBraPath = "models/citizen_clothes/underwear/bra/bra_white.clothing";
+	static readonly Lazy<Sandbox.Clothing> DefaultUnderwear = new( () => ResourceLibrary.Get<Sandbox.Clothing>( DefaultUnderwearPath ) );
+	static readonly Lazy<Sandbox.Clothing> DefaultBra = new( () => ResourceLibrary.Get<Sandbox.Clothing>( DefaultBraPath ) );
+
 	static bool DetermineHuman( SkinnedModelRenderer b, bool defaultValue = false )
 	{
-		if ( b is null ) return defaultValue;
-		if ( b.Model is null ) return defaultValue;
+		if ( b?.Model is null ) return defaultValue;
 
-		if ( b.Model.Name.Contains( "citizen.vmdl", StringComparison.OrdinalIgnoreCase ) ) return false;
-		return true;
+		var model = b.Model.BaseModel ?? b.Model;
+		return !model.Name.Contains( "citizen.vmdl", StringComparison.OrdinalIgnoreCase );
 	}
 
 	static bool IsValidModel( string modelName )
@@ -300,6 +310,28 @@ public partial class ClothingContainer
 		if ( model.IsError ) return false;
 
 		return true;
+	}
+
+	static void EnsureHumanUnderwear( List<ClothingEntry> set, bool isFemale )
+	{
+		bool hasUnderwear = set.Any( x => x.Clothing.Category is Sandbox.Clothing.ClothingCategory.Underwear or Sandbox.Clothing.ClothingCategory.Underpants );
+		if ( !hasUnderwear )
+			TryAddDefault( set, DefaultUnderwear.Value, isHuman: true );
+
+		if ( isFemale && !set.Any( x => x.Clothing.Category == Sandbox.Clothing.ClothingCategory.Bra ) )
+			TryAddDefault( set, DefaultBra.Value, isHuman: true );
+	}
+
+	static void TryAddDefault( List<ClothingEntry> set, Sandbox.Clothing clothing, bool isHuman )
+	{
+		if ( clothing is null ) return;
+
+		var entry = new ClothingEntry( clothing );
+
+		if ( !IsValidClothing( entry, isHuman ) ) return;
+		if ( set.Any( x => !(x.Clothing?.CanBeWornWith( clothing ) ?? true) ) ) return;
+
+		set.Add( entry );
 	}
 
 	static bool IsValidClothing( ClothingContainer.ClothingEntry e, bool targetIsHuman )

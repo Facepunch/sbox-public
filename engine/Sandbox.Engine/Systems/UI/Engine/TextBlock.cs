@@ -11,6 +11,8 @@ internal sealed class TextBlock : IDisposable
 	[ConVar( ConVarFlags.Protected, Help = "Enable rendering text to textures" )]
 	public static bool ui_rendertext { get; set; } = true;
 
+	public Action OnTextureChanged { get; set; }
+
 	public string Text { get; internal set; }
 
 	public bool ShouldDrawSelection = false;
@@ -25,7 +27,7 @@ internal sealed class TextBlock : IDisposable
 
 	public Vector2 BlockSize;
 
-	Texture Texture;
+	internal Texture Texture;
 
 	// we keep the last texture around incase we can re-use it
 	Texture LastTexture;
@@ -118,18 +120,15 @@ internal sealed class TextBlock : IDisposable
 		TextureRebuild = null;
 	}
 
-	RenderAttributes textAttr = new RenderAttributes();
-
 	/// <summary>
 	/// Proper Rendering
 	/// </summary>
-	internal void Render( PanelRenderer renderer, ref RenderState state, Styles currentStyle, Rect textrect, float opacity )
+	internal void BuildCommandList( CommandList commandList, PanelRenderer renderer, ref RenderState state, Styles currentStyle, Rect textrect, float opacity )
 	{
 		WaitTextureReady();
 
 		if ( Texture is null ) return;
 		if ( BlockSize == 0 ) return;
-		if ( !PanelRenderer.ui_drawtext ) return;
 
 		if ( currentStyle.TextAlign == TextAlign.Center )
 		{
@@ -157,19 +156,19 @@ internal sealed class TextBlock : IDisposable
 
 		if ( color.a <= 0 ) return;
 
+		var attributes = commandList.Attributes;
+
+		attributes.Set( "BoxPosition", textrect.Position );
+		attributes.Set( "BoxSize", textrect.Size );
+
+		attributes.Set( "Texture", Texture );
+		attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = TextFilter } ) );
+
 		var bm = renderer.OverrideBlendMode;
+		if ( bm == BlendMode.Normal ) bm = BlendMode.PremultipliedAlpha;
+		attributes.SetCombo( "D_BLENDMODE", bm );
 
-		if ( bm == BlendMode.Normal && Texture.Flags.Contains( TextureFlags.PremultipliedAlpha ) )
-			bm = BlendMode.PremultipliedAlpha;
-
-		textAttr.Set( "BoxPosition", textrect.Position );
-		textAttr.Set( "BoxSize", textrect.Size );
-
-		textAttr.Set( "TextureIndex", Texture.Index );
-		textAttr.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = TextFilter } ) );
-		textAttr.SetComboEnum( "D_BLENDMODE", bm );
-
-		Graphics.DrawQuad( textrect.Floor(), Material.UI.Text, color, textAttr );
+		commandList.DrawQuad( textrect.Floor(), Material.UI.Text, color );
 	}
 
 
@@ -384,8 +383,8 @@ internal sealed class TextBlock : IDisposable
 
 						var sty = Style.Copy();
 
-						sty.FontSize = s.FontSize?.GetPixels( 100 ) ?? sty.FontSize;
-						sty.FontSize = MathF.Round( sty.FontSize * 32.0f ) / 32.0f;
+						sty.FontSize = (style.FontSize ?? Length.Pixels( 13 ).Value).GetPixels( 100 );
+						sty.FontSize = MathF.Round( FontSize * 32.0f ) / 32.0f;
 						sty.FontFamily = s.FontFamily;
 						sty.TextColor = s.FontColor?.ToSk() ?? sty.TextColor;
 						sty.BackgroundColor = s.BackgroundColor?.ToSk() ?? sty.BackgroundColor;
@@ -591,6 +590,7 @@ internal sealed class TextBlock : IDisposable
 					LastTexture.Update( span, 0, 0, width, height );
 					Texture = LastTexture;
 					LastTexture = null;
+					OnTextureChanged?.Invoke();
 					return;
 				}
 
@@ -605,7 +605,7 @@ internal sealed class TextBlock : IDisposable
 									.WithDynamicUsage()
 									.Finish();
 
-			Texture.Flags |= TextureFlags.PremultipliedAlpha;
+			OnTextureChanged?.Invoke();
 		}
 	}
 

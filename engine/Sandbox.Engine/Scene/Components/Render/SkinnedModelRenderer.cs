@@ -253,6 +253,8 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 
 	protected override void OnDisabled()
 	{
+		_boneMergeTarget?.RemoveBoneMergeChild( this );
+
 		_skinnedParent?._skinnedChildren.Remove( this ); // no need to run full update
 		_skinnedParent = null;
 

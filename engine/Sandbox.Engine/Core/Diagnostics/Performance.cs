@@ -20,6 +20,10 @@ public static unsafe class Performance
 	{
 		internal Timings Source;
 		internal FastTimer Timer;
+		// Snapshot of total GC pause ticks at scope open so we can subtract
+		// GC pause time from this scope's elapsed (keeping per-system times accurate).
+		// -1 on non-main threads where attribution is unreliable.
+		internal long GcPauseTicksAtStart;
 
 		public void Dispose()
 		{

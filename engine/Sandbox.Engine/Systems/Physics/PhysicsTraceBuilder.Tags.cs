@@ -140,19 +140,17 @@
 		}
 
 		/// <summary>
-		/// Only return with any of these tags
+		/// Only return without this tag
 		/// </summary>
-		public unsafe PhysicsTraceBuilder WithoutTag( string tag )
+		public unsafe PhysicsTraceBuilder WithoutTag( StringToken tag )
 		{
-			var ident = StringToken.FindOrCreate( tag );
-
 			for ( int i = 0; i < PhysicsTrace.Request.NumTagFields; i++ )
 			{
-				if ( request.TagExclude[i] == ident ) return this;
+				if ( request.TagExclude[i] == tag.Value ) return this;
 
 				if ( request.TagExclude[i] == 0 )
 				{
-					request.TagExclude[i] = ident;
+					request.TagExclude[i] = tag.Value;
 					return this;
 				}
 			}
@@ -201,9 +199,11 @@
 		{
 			var t = this;
 			var maxHitResult = asTrigger ? CollisionRules.Result.Trigger : CollisionRules.Result.Collide;
+			StringToken tagToken = tag;
 
-			foreach ( var (other, result) in targetWorld.CollisionRules.GetCollisionRules( tag ) )
+			foreach ( var other in targetWorld.CollisionRules.RuntimeTags )
 			{
+				var result = targetWorld.CollisionRules.GetCollisionRule( other, tagToken );
 				t = result <= maxHitResult ? t.WithOptionalTag( other ) : t.WithoutTag( other );
 			}
 
@@ -224,9 +224,16 @@
 		{
 			var t = this;
 			var maxHitResult = asTrigger ? CollisionRules.Result.Trigger : CollisionRules.Result.Collide;
+			var collisionRules = targetWorld.CollisionRules;
 
-			foreach ( var (other, result) in targetWorld.CollisionRules.GetCollisionRules( tags ) )
+			foreach ( var other in collisionRules.RuntimeTags )
 			{
+				var result = CollisionRules.Result.Collide;
+				foreach ( var tag in tags )
+				{
+					var r = collisionRules.GetCollisionRule( other, tag );
+					if ( r > result ) result = r;
+				}
 				t = result <= maxHitResult ? t.WithOptionalTag( other ) : t.WithoutTag( other );
 			}
 

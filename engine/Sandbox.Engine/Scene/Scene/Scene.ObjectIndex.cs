@@ -27,6 +27,28 @@ public partial class Scene : GameObject
 	internal HashSetEx<Component> fixedUpdateComponents = new();
 	internal HashSetEx<Component> preRenderComponents = new();
 
+	// Per-type cache: maps a concrete type to the flat array of all indexable types
+	// (the type itself + base types up to the stop types, plus all their interfaces).
+	// Avoids repeated Type.GetInterfaces() allocations on every Add/Remove.
+	// ReflectionCache is IHotloadManaged and clears itself automatically after a hotload.
+	static readonly ReflectionCache<Type, Type[]> indexableTypesCache = new( rootType =>
+	{
+		var types = new List<Type>();
+		var t = rootType;
+		while ( t is not null )
+		{
+			if ( t == typeof( object ) ) break;
+			if ( t == typeof( Component ) ) break;
+			if ( t == typeof( GameObjectSystem ) ) break;
+
+			types.Add( t );
+			types.AddRange( t.GetInterfaces() );
+
+			t = t.BaseType;
+		}
+		return types.ToArray();
+	} );
+
 	/// <summary>
 	/// Should only be called when destroying the scene. This here just to avoid unregistering
 	/// all of the objects when we don't need to, because we're just quitting.
@@ -84,23 +106,9 @@ public partial class Scene : GameObject
 	{
 		if ( !objectsInIndex.Add( obj ) ) return;
 
-		var t = obj.GetType();
-		while ( t is not null )
+		foreach ( var t in indexableTypesCache[obj.GetType()] )
 		{
-			// We stop short of adding these base types because right now they
-			// have no value. I can see a use in the future for getting all components.
-			if ( t == typeof( object ) ) break;
-			if ( t == typeof( Component ) ) break;
-			if ( t == typeof( GameObjectSystem ) ) break;
-
 			objectIndex.GetOrCreate( t ).Add( obj );
-
-			foreach ( var i in t.GetInterfaces() )
-			{
-				objectIndex.GetOrCreate( i ).Add( obj );
-			}
-
-			t = t.BaseType;
 		}
 
 		// little bit of magic for components
@@ -119,21 +127,9 @@ public partial class Scene : GameObject
 	{
 		if ( !objectsInIndex.Remove( obj ) ) return;
 
-		var t = obj.GetType();
-		while ( t is not null )
+		foreach ( var t in indexableTypesCache[obj.GetType()] )
 		{
-			if ( t == typeof( object ) ) break;
-			if ( t == typeof( Component ) ) break;
-			if ( t == typeof( GameObjectSystem ) ) break;
-
 			objectIndex.GetOrCreate( t ).Remove( obj );
-
-			foreach ( var i in t.GetInterfaces() )
-			{
-				objectIndex.GetOrCreate( i ).Remove( obj );
-			}
-
-			t = t.BaseType;
 		}
 
 		// little bit of magic for components

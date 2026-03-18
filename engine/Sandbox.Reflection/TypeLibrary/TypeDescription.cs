@@ -12,7 +12,7 @@ namespace Sandbox;
 [SkipHotload]
 public sealed class TypeDescription : ISourceLineProvider
 {
-	internal Internal.TypeLibrary library { get; set; }
+	internal readonly Internal.TypeLibrary library;
 
 	/// <summary>
 	/// The type this class describes.
@@ -469,15 +469,19 @@ public sealed class TypeDescription : ISourceLineProvider
 	/// <summary>
 	/// Returns true if this is named the passed name, either through classname, target class name or an alias
 	/// </summary>
-	public bool IsNamed( string name )
+	/// <param name="name">The name to check</param>
+	/// <param name="exactFullName">If true, only the exact full name or aliases will match.</param>
+	public bool IsNamed( string name, bool exactFullName = false )
 	{
-		if ( string.Equals( name, ClassName, StringComparison.OrdinalIgnoreCase ) )
-			return true;
-
 		if ( string.Equals( name, displayInfo.Fullname, StringComparison.OrdinalIgnoreCase ) )
 			return true;
 
-		if ( Aliases.Any( x => string.Equals( name, x, StringComparison.OrdinalIgnoreCase ) ) )
+		if ( Aliases.Length > 0 && Aliases.Any( x => string.Equals( name, x, StringComparison.OrdinalIgnoreCase ) ) )
+			return true;
+
+		if ( exactFullName ) return false;
+
+		if ( string.Equals( name, ClassName, StringComparison.OrdinalIgnoreCase ) )
 			return true;
 
 		return string.Equals( Name, name, StringComparison.OrdinalIgnoreCase );

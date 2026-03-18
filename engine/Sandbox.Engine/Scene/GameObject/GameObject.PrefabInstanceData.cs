@@ -72,7 +72,8 @@ internal class PrefabInstanceData
 		while ( prefabGameObject is not PrefabCacheScene )
 		{
 			// extend mapping
-			foreach ( var (instanceId, prefabId) in instanceToPrefabMapping )
+			var mappingSnapshot = instanceToPrefabMapping.ToArray();
+			foreach ( var (instanceId, prefabId) in mappingSnapshot )
 			{
 				if ( prefabGameObject.OutermostPrefabInstanceRoot.PrefabInstance._instanceGuidToPrefabGuid.TryGetValue( prefabId, out var outerPrefabId ) )
 				{

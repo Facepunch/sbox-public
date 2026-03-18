@@ -318,7 +318,7 @@ public class ResourceControlWidget : ControlWidget
 			var prefab = asset.LoadResource<PrefabFile>();
 			var scenePrefab = prefabScene.ToPrefabFile();
 			if ( prefab is null ) return false;
-			if ( scenePrefab.ResourceId == prefab.ResourceId ) return false;
+			if ( scenePrefab == prefab ) return false;
 		}
 
 		return true;

@@ -513,10 +513,24 @@ internal sealed class SceneUndoSnapshot : IDisposable
 	public void Dispose()
 	{
 		if ( _alreadyDisposed )
-		{
 			return;
-		}
 
+		try
+		{
+			DisposeInternal();
+		}
+		finally
+		{
+			_session.Scene.Directory.OnComponentAdded -= OnComponentAdded;
+			_session.Scene.Directory.OnGameObjectAdded -= OnGameObjectAdded;
+
+			_session.IsUndoScopeOpen = false;
+			_alreadyDisposed = true;
+		}
+	}
+
+	void DisposeInternal()
+	{
 		using var sceneScope = _session.Scene.Push();
 
 		// Redo snapshots
@@ -651,9 +665,6 @@ internal sealed class SceneUndoSnapshot : IDisposable
 
 		var prefabInstanceRootsRequiringRefresh = new HashSet<GameObject>();
 
-		_session.Scene.Directory.OnComponentAdded -= OnComponentAdded;
-		_session.Scene.Directory.OnGameObjectAdded -= OnGameObjectAdded;
-
 		// if nothing changed, don't add an undo
 		if ( _initialState == disposeState )
 		{
@@ -751,9 +762,6 @@ internal sealed class SceneUndoSnapshot : IDisposable
 					disposeState.Selection.Restore( _session.Scene );
 				}
 			} );
-
-		_alreadyDisposed = true;
-		_session.IsUndoScopeOpen = false;
 	}
 
 	private void OnComponentAdded( Component comp )

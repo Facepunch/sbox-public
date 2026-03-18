@@ -1,4 +1,6 @@
-﻿namespace Sandbox.UI;
+﻿using Sandbox.Rendering;
+
+namespace Sandbox.UI;
 
 /// <summary>
 /// A generic panel that draws an SVG scaled to size
@@ -84,17 +86,17 @@ public partial class SvgPanel : Panel
 		}
 
 		texture = await Texture.LoadAsync( url );
+		IsRenderDirty = true;
 	}
 
-	internal override void DrawContent( PanelRenderer renderer, ref RenderState state )
+	internal override void DrawContent( CommandList commandList, PanelRenderer renderer, ref RenderState state )
 	{
 		if ( texture == null )
 			return;
 
 		if ( renderer is PanelRenderer pr )
 		{
-			pr.DrawBackgroundTexture( this, texture, state, Length.Cover );
+			pr.BuildCommandList_BackgroundTexture( this, texture, state, Length.Cover, commandList );
 		}
 	}
-
 }

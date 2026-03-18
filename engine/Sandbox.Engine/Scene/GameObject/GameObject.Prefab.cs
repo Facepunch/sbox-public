@@ -1,7 +1,4 @@
-﻿using System.Collections.ObjectModel;
-using System.Text.Json.Nodes;
-
-namespace Sandbox;
+﻿namespace Sandbox;
 
 public partial class GameObject
 {
@@ -180,7 +177,7 @@ public partial class GameObject
 	/// <summary>
 	/// Defines objects within a scene hierarchy we want to track for prefab diffing and patching.
 	/// </summary>
-	internal static HashSet<Json.TrackedObjectDefinition> DiffObjectDefinitions =
+	public static HashSet<Json.TrackedObjectDefinition> DiffObjectDefinitions =
 	[
 		Json.TrackedObjectDefinition.CreatePresenceBasedDefinition(
 			type: "GameObject",

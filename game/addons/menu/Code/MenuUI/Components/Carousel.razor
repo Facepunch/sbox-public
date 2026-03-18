@@ -1,0 +1,89 @@
+@using MenuProject
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox;
+@using System;
+@namespace Sandbox.UI
+@inherits Panel
+
+<root>
+    <div class="tabs">
+        @foreach (var page in Pages)
+        {
+            var index = Array.IndexOf(Pages, page);
+
+            <Button onmouseup=@(_ => { ActiveIndex = index; UpdatePageVisibility(); }) class="@(index == ActiveIndex ? "current" : "")">
+                @(page.Title)
+            </Button>
+        }
+    </div>
+
+    @ChildContent
+
+    <Button class="more" onmouseup=@(_ => this.Navigate("/games/all"))>
+        More...
+    </Button>
+</root>
+
+@code {
+    private CarouselPage[] Pages => Children.OfType<CarouselPage>().ToArray();
+
+    private int ActiveIndex = 0;
+
+    private CarouselPage ActivePage => Pages.ElementAtOrDefault(ActiveIndex);
+
+    private TimeSince TimeSinceCycled = 0;
+
+    private bool PauseCycling = false;
+
+    protected override void OnAfterTreeRender(bool firstTime)
+    {
+        if (ActivePage == null)
+            return;
+
+        UpdatePageVisibility();
+    }
+
+    public override void Tick() 
+    {
+        if (PauseCycling)
+        {
+            TimeSinceCycled = 0;
+        }
+
+        if (TimeSinceCycled > 5f)
+        {
+            Cycle();
+        }
+    }
+
+    protected override void OnMouseOver(MousePanelEvent e)
+    {
+        PauseCycling = true;
+    }
+
+    protected override void OnMouseOut(MousePanelEvent e)
+    {
+        PauseCycling = false;
+    }
+
+    private void Cycle()
+    {
+        TimeSinceCycled = 0;
+        ActiveIndex = (ActiveIndex + 1) % Pages.Length;
+        UpdatePageVisibility();
+    }
+
+    private void UpdatePageVisibility()
+    {
+        foreach (var page in Pages)
+        {
+            page.SetClass("inactive", page != ActivePage);
+        }
+    }
+
+    protected override int BuildHash()
+    {
+        return HashCode.Combine(ActiveIndex);
+    }
+}

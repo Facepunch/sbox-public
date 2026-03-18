@@ -355,10 +355,10 @@ PS
 			float opacity = m.Opacity;
 		#endif
 
-		uint lightCount = Light::Count( m.WorldPosition );
+		uint lightCount = Light::Count( m.ScreenPosition );
 		if ( lightCount > 0 )
 		{
-			Light light = Light::From( m.WorldPosition, 0, i.vLightmapUV );
+			Light light = Light::From( m.WorldPosition, m.ScreenPosition, 0, i.vLightmapUV );
 			float wrapScale = light.Attenuation; // Wrap lighting ignores shadows
 			float lightScale = light.Attenuation * light.Visibility;
 

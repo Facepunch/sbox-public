@@ -90,24 +90,17 @@ public sealed partial class Project
 
 			if ( Config.Type == "tool" )
 			{
-				project.References.Add( "Sandbox.Tools.dll" );
-				project.References.Add( "Sandbox.Compiling.dll" );
-				project.References.Add( "Microsoft.CodeAnalysis.dll" );
-				project.References.Add( "Microsoft.CodeAnalysis.CSharp.dll" );
-				project.References.Add( "Sandbox.Bind.dll" );
-				project.References.Add( "Facepunch.ActionGraphs.dll" );
-				project.References.Add( "SkiaSharp.dll" );
-				project.GlobalStatic.Add( "Sandbox.Internal.GlobalToolsNamespace" );
-				project.GlobalStatic.Add( "Sandbox.Internal.GlobalGameNamespace" );
+				project.AddToolAssemblyReferences();
+				project.AddToolsNamespaceGlobalStatic();
+				project.AddGameNamespaceGlobalStatic();
 
 				if ( Config.Ident != "toolbase" )
 					project.PackageReferences.Add( "local.toolbase" );
 			}
 			else if ( Config.Type == "game" || Config.Type == "library" )
 			{
-				project.GlobalUsing.Add( "Microsoft.AspNetCore.Components" );
-				project.GlobalUsing.Add( "Microsoft.AspNetCore.Components.Rendering" );
-				project.GlobalStatic.Add( "Sandbox.Internal.GlobalGameNamespace" );
+				project.AddAspComponentsGlobalUsing();
+				project.AddGameNamespaceGlobalStatic();
 
 				if ( !project.PackageReferences.Contains( "local.base" ) )
 				{
@@ -208,9 +201,8 @@ public sealed partial class Project
 		// Add standard references
 		if ( Config.Type == "game" || Config.Type == "library" )
 		{
-			project.GlobalUsing.Add( "Microsoft.AspNetCore.Components" );
-			project.GlobalUsing.Add( "Microsoft.AspNetCore.Components.Rendering" );
-			project.GlobalStatic.Add( "Sandbox.Internal.GlobalGameNamespace" );
+			project.AddAspComponentsGlobalUsing();
+			project.AddGameNamespaceGlobalStatic();
 
 			if ( !project.PackageReferences.Contains( "local.base" ) )
 			{
@@ -252,20 +244,11 @@ public sealed partial class Project
 			}
 		}
 
-		// tool includes
-		project.References.Add( "Sandbox.Tools.dll" );
-		project.References.Add( "Sandbox.Compiling.dll" );
-		project.References.Add( "Microsoft.CodeAnalysis.dll" );
-		project.References.Add( "Microsoft.CodeAnalysis.CSharp.dll" );
-		project.References.Add( "Sandbox.Bind.dll" );
-		project.References.Add( "Facepunch.ActionGraphs.dll" );
-		project.References.Add( "SkiaSharp.dll" );
-		project.GlobalStatic.Add( "Sandbox.Internal.GlobalToolsNamespace" );
-		project.GlobalStatic.Add( "Sandbox.Internal.GlobalGameNamespace" );
-		project.PackageReferences.Add( "local.toolbase" );
-		project.PackageReferences.Add( "actiongraph" );
-		project.PackageReferences.Add( "shadergraph" );
-		project.PackageReferences.Add( "hammer" );
+		project.AddToolAssemblyReferences();
+		project.AddToolPackageReferences();
+		project.AddToolsNamespaceGlobalStatic();
+		project.AddGameNamespaceGlobalStatic();
+
 		return project;
 	}
 
@@ -287,16 +270,71 @@ public sealed partial class Project
 			project.References.Add( $"{reference}.dll" );
 		}
 
-		// tool includes
-		project.References.Add( "Sandbox.Tools.dll" );
-		project.References.Add( "Sandbox.Compiling.dll" );
-		project.References.Add( "Microsoft.CodeAnalysis.dll" );
-		project.References.Add( "Microsoft.CodeAnalysis.CSharp.dll" );
-		project.References.Add( "Sandbox.Bind.dll" );
-		project.GlobalStatic.Add( "Sandbox.Internal.GlobalToolsNamespace" );
-		project.GlobalStatic.Add( "Sandbox.Internal.GlobalGameNamespace" );
-		project.PackageReferences.Add( "local.toolbase" );
+		project.AddToolAssemblyReferences();
+		project.AddToolPackageReferences();
+		project.AddToolsNamespaceGlobalStatic();
+		project.AddGameNamespaceGlobalStatic();
 
 		return project;
+	}
+}
+
+file static class ProjectExtensions
+{
+	extension( ProjectInfo project )
+	{
+		/// <summary>
+		/// Add references to non-package assemblies needed by tools / editor packages.
+		/// </summary>
+		public void AddToolAssemblyReferences()
+		{
+			project.References.Add( "Sandbox.AppSystem.dll" );
+			project.References.Add( "Sandbox.Tools.dll" );
+			project.References.Add( "Sandbox.Compiling.dll" );
+			project.References.Add( "Microsoft.CodeAnalysis.dll" );
+			project.References.Add( "Microsoft.CodeAnalysis.CSharp.dll" );
+			project.References.Add( "Sandbox.Bind.dll" );
+			project.References.Add( "Facepunch.ActionGraphs.dll" );
+			project.References.Add( "SkiaSharp.dll" );
+		}
+
+		/// <summary>
+		/// Add references to package assemblies needed by editor packages.
+		/// Includes <c>toolbase</c> and tools like <c>shadergraph</c>.
+		/// </summary>
+		public void AddToolPackageReferences()
+		{
+			project.PackageReferences.Add( "local.toolbase" );
+			project.PackageReferences.Add( "actiongraph" );
+			project.PackageReferences.Add( "shadergraph" );
+			project.PackageReferences.Add( "moviemaker" );
+			project.PackageReferences.Add( "hammer" );
+		}
+
+		/// <summary>
+		/// Add <c>Microsoft.AspNetCore.Components</c> and <c>Microsoft.AspNetCore.Components.Rendering</c>
+		/// as global using statements.
+		/// </summary>
+		public void AddAspComponentsGlobalUsing()
+		{
+			project.GlobalUsing.Add( "Microsoft.AspNetCore.Components" );
+			project.GlobalUsing.Add( "Microsoft.AspNetCore.Components.Rendering" );
+		}
+
+		/// <summary>
+		/// Add <c>Sandbox.Internal.GlobalToolsNamespace</c> as a global static statement.
+		/// </summary>
+		public void AddToolsNamespaceGlobalStatic()
+		{
+			project.GlobalStatic.Add( "Sandbox.Internal.GlobalToolsNamespace" );
+		}
+
+		/// <summary>
+		/// Add <c>Sandbox.Internal.GlobalGameNamespace</c> as a global static statement.
+		/// </summary>
+		public void AddGameNamespaceGlobalStatic()
+		{
+			project.GlobalStatic.Add( "Sandbox.Internal.GlobalGameNamespace" );
+		}
 	}
 }

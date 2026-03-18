@@ -104,6 +104,13 @@ internal partial class GlobalContext
 	public LanguageContainer Language { get; set; }
 
 	/// <summary>
+	/// Per-context lookup of loaded <see cref="Sandbox.Surface"/> instances by their physics index.
+	/// Kept here so Menu and Game contexts each maintain their own set, preventing
+	/// game-session teardown from clearing surfaces owned by the persistent menu context.
+	/// </summary>
+	internal Dictionary<int, Sandbox.Surface> Surfaces { get; } = new();
+
+	/// <summary>
 	/// The global context for the game, which holds references to various systems and libraries used throughout the game.
 	/// </summary>
 	public GlobalContext()
@@ -138,6 +145,37 @@ internal partial class GlobalContext
 
 		ResourceSystem?.Clear();
 		ResourceSystem = new ResourceSystem();
+
+		Surfaces.Clear();
+	}
+
+	/// <summary>
+	/// Called once at process shutdown. Clears and nulls all held references
+	/// without re-allocating — use <see cref="Reset"/> for the between-game teardown.
+	/// </summary>
+	public void Shutdown()
+	{
+		CancellationTokenSource?.Cancel();
+		CancellationTokenSource?.Dispose();
+		CancellationTokenSource = null;
+
+		UISystem?.Clear();
+		UISystem = null;
+
+		InputContext = null;
+
+		ResourceSystem?.Clear();
+		ResourceSystem = null;
+
+		Surfaces.Clear();
+
+		EventSystem?.Dispose();
+		EventSystem = null;
+
+		Cookies?.Dispose();
+		Cookies = null;
+
+		ActiveScene = null;
 	}
 
 	string _disabledReason;

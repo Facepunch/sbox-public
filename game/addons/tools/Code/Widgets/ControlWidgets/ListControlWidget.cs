@@ -5,7 +5,7 @@ namespace Editor;
 [CustomEditor( typeof( List<> ) )]
 [CustomEditor( typeof( Array ) )]
 [CustomEditor( typeof( NetList<> ) )]
-public class ListControlWidget : ControlWidget
+public class ListControlWidget : ControlObjectWidget
 {
 	public override bool SupportsMultiEdit => true;
 
@@ -49,10 +49,11 @@ public class ListControlWidget : ControlWidget
 		return sc;
 	}
 
-	public ListControlWidget( SerializedProperty property, SerializedCollection sc ) : base( property )
+	public ListControlWidget( SerializedProperty property, SerializedCollection sc ) : base( property, true )
 	{
 		Layout = Layout.Column();
 		Layout.Spacing = 2;
+		sc ??= GetCollection( property );
 
 		if ( sc is null && !property.IsMultipleValues ) return;
 
@@ -98,7 +99,7 @@ public class ListControlWidget : ControlWidget
 	public void Rebuild()
 	{
 		if ( preventRebuild ) return;
-
+		if ( Content is null ) return;
 
 		if ( Collection is not null )
 		{

@@ -2,7 +2,7 @@
 
 [CustomEditor( typeof( Dictionary<,> ) )]
 [CustomEditor( typeof( NetDictionary<,> ) )]
-public class DictionaryControlWidget : ControlWidget
+public class DictionaryControlWidget : ControlObjectWidget
 {
 	public override bool SupportsMultiEdit => false;
 
@@ -15,7 +15,7 @@ public class DictionaryControlWidget : ControlWidget
 	int? buildHash;
 	object buildValue;
 
-	public DictionaryControlWidget( SerializedProperty property ) : base( property )
+	public DictionaryControlWidget( SerializedProperty property ) : base( property, true )
 	{
 		Layout = Layout.Column();
 		Layout.Spacing = 2;
@@ -61,6 +61,8 @@ public class DictionaryControlWidget : ControlWidget
 
 	public void Rebuild()
 	{
+		if ( Content is null ) return;
+
 		if ( Collection is not null )
 		{
 			var hash = ValueHash;

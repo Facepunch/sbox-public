@@ -1,0 +1,42 @@
+@import "/styles/_Theme.scss";
+
+News {
+    aspect-ratio: 16 / 9;
+    flex-grow: 0;
+    flex-shrink: 0;
+    width: 400px;
+    pointer-events: all;
+
+    card {
+        @include border-transparent;
+        width: 400px;
+        aspect-ratio: 16/9;
+        flex-direction: column;
+        justify-content: flex-end;
+        cursor: pointer;
+        background-size: cover;
+        background-position: center;
+        padding: 16px;
+        transition: all 150ms $easing;
+        position: relative;
+        overflow: hidden;
+        background-image-tint: $default-100;
+        box-shadow: 0 12px 33px rgba( black, 0.33 );
+        gap: 3px;
+
+        label {
+            z-index: 1;
+        }
+
+        &::before {
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            pointer-events: none;
+            z-index: -1;
+            background: linear-gradient( to top, $default-950, rgba( $default-950, 0 ) );
+        }
+    }
+}

@@ -4,18 +4,7 @@ namespace Sandbox;
 
 public static partial class Graphics
 {
-	internal static ComputeShader MipMapGeneratorShader;
-
-	internal static void InitStatic()
-	{
-		MipMapGeneratorShader = new ComputeShader( "downsample_cs" );
-	}
-
-	internal static void DisposeStatic()
-	{
-		MipMapGeneratorShader?.Dispose();
-		MipMapGeneratorShader = null;
-	}
+	internal static ComputeShader MipMapGeneratorShader = new ComputeShader( "downsample_cs" );
 
 	/// <summary>
 	/// Which method to use when downsampling a texture

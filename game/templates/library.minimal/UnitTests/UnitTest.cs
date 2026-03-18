@@ -3,9 +3,18 @@ global using Microsoft.VisualStudio.TestTools.UnitTesting;
 [TestClass]
 public class TestInit
 {
+	public static Sandbox.TestAppSystem AppSystem;
+
 	[AssemblyInitialize]
-	public static void ClassInitialize( TestContext context )
+	public static void AssemblyInitialize( TestContext context )
 	{
-		Sandbox.Application.InitUnitTest();
+		AppSystem = new Sandbox.TestAppSystem();
+		AppSystem.Init();
+	}
+
+	[AssemblyCleanup]
+	public static void AssemblyCleanup()
+	{
+		AppSystem.Shutdown();
 	}
 }

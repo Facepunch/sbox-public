@@ -21,14 +21,30 @@ public class NavMeshArea : VolumeComponent, Component.ExecuteInEditor
 	/// <summary>
 	/// Whether navmesh generation in this area will be completely disabled. 
 	/// </summary>
-	[Property, MakeDirty]
-	public bool IsBlocker { get; set; } = true;
+	[Property]
+	public bool IsBlocker
+	{
+		get => _isBlocker;
+		set
+		{
+			_isBlocker = value;
+			if ( Active ) UpdateNavMeshArea();
+		}
+	}
 
 	/// <summary>
 	/// The NavMesh area definition to apply to this area.
 	/// </summary>
-	[Property, MakeDirty]
-	public NavMeshAreaDefinition Area { get; set; }
+	[Property]
+	public NavMeshAreaDefinition Area
+	{
+		get => _area;
+		set
+		{
+			_area = value;
+			if ( Active ) UpdateNavMeshArea();
+		}
+	}
 
 	/// <summary>
 	/// The collider this area's shape is based on.
@@ -54,15 +70,10 @@ public class NavMeshArea : VolumeComponent, Component.ExecuteInEditor
 		await ConvertColliderToSceneVolumeLoadTask();
 	}
 
+	private bool _isBlocker = true;
+	private NavMeshAreaDefinition _area;
 	private Collider _linkedCollider;
 	private NavMeshAreaData _navMeshArea;
-
-	protected override void OnDirty()
-	{
-		if ( !Active ) return;
-
-		UpdateNavMeshArea();
-	}
 
 	internal override void OnEnabledInternal()
 	{
@@ -126,12 +137,16 @@ public class NavMeshArea : VolumeComponent, Component.ExecuteInEditor
 
 	private void UpdateNavMeshArea()
 	{
+		if ( !IsBlocker && Area == null )
+		{
+			RemoveNavMeshArea();
+			return;
+		}
+
 		// Create area if it doesn't exist
 		if ( _navMeshArea == null )
 		{
 			_navMeshArea = new NavMeshAreaData();
-			_navMeshArea.IsBlocked = IsBlocker;
-			_navMeshArea.AreaDefinition = Area;
 			Scene.NavMesh.AddSpatiaData( _navMeshArea );
 		}
 

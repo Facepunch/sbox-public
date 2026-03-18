@@ -3,7 +3,7 @@ using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
-internal class Test( string name ) : Step( name )
+internal class Test( string name, bool noBuild = true ) : Step( name )
 {
 	protected override ExitCode RunInternal()
 	{
@@ -13,7 +13,9 @@ internal class Test( string name ) : Step( name )
 			string engineDir = Path.Combine( rootDir, "engine" );
 			string gameDir = Path.Combine( rootDir, "game" );
 
-			var managedTestArgs = "test --logger \"console;verbosity=normal;consoleLoggerParameters=ErrorsOnly\" -c Release --property:OutputPath=bin/test";
+			// --no-build: BuildManaged already compiled all projects in Sandbox-Engine.slnx (including test projects).
+			var noBuildFlag = noBuild ? " --no-build" : string.Empty;
+			var managedTestArgs = $"test --logger \"console;verbosity=normal;consoleLoggerParameters=ErrorsOnly\" -c Release{noBuildFlag}";
 			//if ( Utility.IsCi() )
 			//{
 			// Use cusotm loger for problem matching

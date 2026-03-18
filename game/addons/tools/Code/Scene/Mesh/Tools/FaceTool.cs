@@ -20,11 +20,35 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 	public bool SelectByNormal { get; set; } = true;
 	public float NormalThreshold { get; set; } = 12f;
 
+	Vector2Int _numCuts = 1;
+	private bool _showCuts = false;
+
+	[Range( 0, 64, slider: false ), Step( 1 ), WideMode]
+	public Vector2Int NumCuts
+	{
+		get => _numCuts;
+		set
+		{
+			if ( _numCuts == value )
+				return;
+
+			_numCuts = value;
+			_showCuts = true;
+		}
+	}
+
+	void ResetNumCuts()
+	{
+		_numCuts = 1;
+		_showCuts = false;
+	}
+
 	public override void OnEnabled()
 	{
 		base.OnEnabled();
 
 		CreateFaceObject();
+		ResetNumCuts();
 	}
 
 	private void CreateFaceObject()
@@ -44,6 +68,8 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		_faceObject = null;
 
 		_hoverFace = default;
+
+		ResetNumCuts();
 	}
 
 	public override void OnUpdate()
@@ -104,6 +130,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		}
 
 		DrawBounds();
+		RenderSubdivisionPreview();
 	}
 
 	protected override IEnumerable<MeshFace> ConvertSelectionToCurrentType()
@@ -621,5 +648,65 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		}
 
 		return unique;
+	}
+
+	const float QuadSliceCornerAngle = 60.0f;
+
+	void RenderSubdivisionPreview()
+	{
+		if ( !_showCuts )
+			return;
+
+		if ( NumCuts.x <= 0 && NumCuts.y <= 0 )
+			return;
+
+		Gizmo.Draw.Color = Color.White;
+
+		foreach ( var face in Selection.OfType<MeshFace>() )
+		{
+			if ( !face.IsValid() )
+				continue;
+
+			var mesh = face.Component.Mesh;
+			mesh.GetVerticesConnectedToFace( face.Handle, out var vertices );
+			if ( vertices.Length != 4 )
+			{
+				mesh.FindCornerVerticesForFace( face.Handle, QuadSliceCornerAngle, out var cornerVertices );
+				vertices = [.. cornerVertices];
+			}
+
+			if ( vertices.Length != 4 )
+				continue;
+
+			var positions = new Vector3[4];
+			for ( var i = 0; i < 4; ++i )
+			{
+				var localPos = mesh.GetVertexPosition( vertices[i] );
+				positions[i] = face.Transform.PointToWorld( localPos );
+			}
+
+			mesh.ComputeFaceNormal( face.Handle, out var localNormal );
+			var worldNormal = face.Transform.NormalToWorld( localNormal );
+
+			const float previewOffset = 0.5f;
+			for ( var i = 0; i < 4; ++i )
+			{
+				positions[i] += worldNormal * previewOffset;
+			}
+
+			DrawCutsAlongEdge( positions[0], positions[1], positions[3], positions[2], NumCuts.x );
+			DrawCutsAlongEdge( positions[0], positions[3], positions[1], positions[2], NumCuts.y );
+		}
+	}
+
+	static void DrawCutsAlongEdge( Vector3 edge0Pos0, Vector3 edge0Pos1, Vector3 edge1Pos0, Vector3 edge1Pos1, int cuts )
+	{
+		for ( var x = 0; x < cuts; x++ )
+		{
+			var t = (x + 1.0f) / (cuts + 1.0f);
+			var a = Vector3.Lerp( edge0Pos0, edge0Pos1, t );
+			var b = Vector3.Lerp( edge1Pos0, edge1Pos1, t );
+			Gizmo.Draw.Line( a, b );
+		}
 	}
 }

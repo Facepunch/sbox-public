@@ -38,6 +38,20 @@ native static class RenderTools as NativeEngine.RenderTools
 		}
 	}
 
+	inline void FillGPUBuffer( IRenderContext renderContext, RenderBufferHandle_t hBuffer, uint nFillValue )
+	{
+		// Uses vkCmdFillBuffer / ClearUnorderedAccessViewUint under the hood
+		if ( renderContext == nullptr )
+		{
+			CRenderContextPtr pRenderContext( g_pRenderDevice );
+			pRenderContext->FillGPUBuffer( hBuffer, nFillValue );
+		}
+		else
+		{
+			renderContext->FillGPUBuffer( hBuffer, nFillValue );
+		}
+	}
+
 	inline void CopyGPUBufferHiddenStructureCount( IRenderContext renderContext, RenderBufferHandle_t hSrcBuffer, RenderBufferHandle_t hDestBuffer, uint nDestBufferOffset )
 	{
 		// Create and submit

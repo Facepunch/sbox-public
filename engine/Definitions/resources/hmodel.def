@@ -11,6 +11,8 @@ native enum CModelSkeleton::BoneFlags_t as NativeEngine.BoneFlags;
 native class CModel as NativeEngine.IModel
 {
 	string GetModelName();
+	string GetBaseModelName();
+	IModel GetBaseModel();
 
 	bool IsTranslucent();
 	bool IsTranslucentTwoPass();

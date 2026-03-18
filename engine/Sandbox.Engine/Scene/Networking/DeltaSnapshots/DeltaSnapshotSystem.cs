@@ -297,28 +297,7 @@ internal class DeltaSnapshotSystem
 		// For empty connections, we still want to "receive" acknowledgements for benchmarking purposes
 		if ( target.Connection is EmptyConnection )
 		{
-			_ = ReceiveAckAfterDelay( 50, target, cluster.Id );
-		}
-	}
-
-	private async Task ReceiveAckAfterDelay( int delayMs, ConnectionData target, ushort clusterId )
-	{
-		try
-		{
-			await GameTask.Delay( delayMs );
-
-			var bs = ByteStream.Create( 32 );
-			bs.Write( clusterId );
-			bs.Write( (ushort)0 );
-			bs.Position = 0;
-
-			OnDeltaSnapshotClusterAck( target.Connection, bs );
-
-			bs.Dispose();
-		}
-		catch ( TaskCanceledException )
-		{
-			// Who cares.
+			_pendingEmptyAcks.Add( new PendingEmptyAck( target, cluster.Id, 0f ) );
 		}
 	}
 
@@ -692,6 +671,9 @@ internal class DeltaSnapshotSystem
 		Time = RealTime.Now;
 	}
 
+	private readonly record struct PendingEmptyAck( ConnectionData Target, ushort ClusterId, RealTimeSince TimeSince );
+	private readonly List<PendingEmptyAck> _pendingEmptyAcks = new();
+
 	/// <summary>
 	/// Tick the snapshot system and clear any out-of-date data.
 	/// </summary>
@@ -700,6 +682,35 @@ internal class DeltaSnapshotSystem
 		foreach ( var c in Connections.Values )
 		{
 			c.Tick();
+		}
+
+		ProcessPendingEmptyAcks();
+	}
+
+	private void ProcessPendingEmptyAcks()
+	{
+		for ( var i = _pendingEmptyAcks.Count - 1; i >= 0; i-- )
+		{
+			var ack = _pendingEmptyAcks[i];
+
+			if ( ack.TimeSince < 0.05f ) continue;
+
+			_pendingEmptyAcks.RemoveAt( i );
+
+			var bs = ByteStream.Create( 32 );
+
+			try
+			{
+				bs.Write( ack.ClusterId );
+				bs.Write( (ushort)0 );
+				bs.Position = 0;
+
+				OnDeltaSnapshotClusterAck( ack.Target.Connection, bs );
+			}
+			finally
+			{
+				bs.Dispose();
+			}
 		}
 	}
 

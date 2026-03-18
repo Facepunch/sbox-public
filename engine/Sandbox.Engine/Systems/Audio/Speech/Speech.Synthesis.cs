@@ -9,8 +9,9 @@ namespace Sandbox.Speech;
 /// <summary>
 /// A speech synthesis stream. Lets you write text into speech and output it to a <see cref="SoundHandle"/>.
 /// </summary>
-public sealed class Synthesizer
+public sealed class Synthesizer : IDisposable
 {
+	private bool _disposed;
 	public record struct InstalledVoice( string Name, string Gender, string Age );
 
 	private PromptBuilder Builder;
@@ -47,6 +48,16 @@ public sealed class Synthesizer
 			// Convert to our record struct type
 			.Select( x => new InstalledVoice() { Name = x.VoiceInfo.Name, Gender = x.VoiceInfo.Gender.ToString(), Age = x.VoiceInfo.Age.ToString() } )
 			.ToList();
+	}
+
+	~Synthesizer() => Dispose();
+
+	public void Dispose()
+	{
+		if ( _disposed ) return;
+		_disposed = true;
+		SpeechSynthesizer.Dispose();
+		GC.SuppressFinalize( this );
 	}
 
 	/// <summary>
@@ -142,12 +153,11 @@ public sealed class Synthesizer
 		const int sampleRate = 44100;
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
-		// TODO we dont do any liefecycle management on SpeechSynthesizer sounds whatsoever, this needs a complete rework to fix the diagnoser warning
-		// related: https://github.com/Facepunch/sbox-public/issues/4184
+		// SoundStream will be disposed by finalizer like other resources (e.g. Textures).
 		var soundStream = new SoundStream( sampleRate );
 #pragma warning restore CA2000 // Dispose objects before losing scope
-		var stream = new MemoryStream();
 
+		using var stream = new MemoryStream();
 		SpeechSynthesizer.SetOutputToAudioStream( stream, new SpeechAudioFormatInfo( sampleRate, AudioBitsPerSample.Sixteen, AudioChannel.Mono ) );
 		SpeechSynthesizer.Speak( Builder );
 
@@ -156,6 +166,10 @@ public sealed class Synthesizer
 
 		var data = AudioStreamHelpers.ReadPcmSamplesToEnd( stream );
 		soundStream.WriteData( data );
+
+		// Close the stream so it stops producing silent packets once the buffer
+		// drains, allowing IsPlaying to go false.
+		soundStream.Close();
 
 		return soundStream.Play();
 	}

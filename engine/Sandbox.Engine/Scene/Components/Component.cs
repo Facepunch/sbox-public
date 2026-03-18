@@ -1,6 +1,5 @@
 ﻿using Sandbox.Internal;
 using Sandbox.Utility;
-using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Sandbox;
@@ -11,6 +10,24 @@ namespace Sandbox;
 [Expose, ActionGraphIgnore, ActionGraphExposeWhenCached, Icon( "category" )]
 public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 {
+	/// <summary>
+	/// Invokes the callback for the given <paramref name="callback"/> type.
+	/// Called internally by <see cref="CallbackBatch"/> to avoid delegate allocations.
+	/// </summary>
+	internal void InvokeCallback( CommonCallback callback )
+	{
+		switch ( callback )
+		{
+			case CommonCallback.Awake: InternalOnAwake(); break;
+			case CommonCallback.Enable: OnEnabledInternal(); break;
+			case CommonCallback.Disable: OnDisabledInternal(); break;
+			case CommonCallback.Destroy: OnDestroyInternal(); break;
+			case CommonCallback.Validate: OnValidateInternal(); break;
+			case CommonCallback.Dirty: OnDirtyInternal(); break;
+			case CommonCallback.Loading: LaunchLoader(); break;
+		}
+	}
+
 	/// <summary>
 	/// The scene this Component is in. This is a shortcut for `GameObject.Scene`.
 	/// </summary>
@@ -59,7 +76,7 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 
 		if ( ShouldExecute )
 		{
-			CallbackBatch.Add( CommonCallback.Awake, InternalOnAwake, this, "OnAwake" );
+			CallbackBatch.Add( CommonCallback.Awake, this, "OnAwake" );
 		}
 	}
 
@@ -145,10 +162,13 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 		// These issues should be FIXED. Not HIDDEN. They will cause downstream issues.
 		//
 		{
-			var name = $"{GetType().Name} on ({GameObject?.Name ?? "null"})";
-
-			Assert.NotNull( Game.ActiveScene, $"Calling awake on {name} but active scene is null - not {GameObject.Scene}" );
-			Assert.AreEqual( GameObject.Scene, Game.ActiveScene, $"Calling awake on {name} but active scene is {Game.ActiveScene}, not {GameObject.Scene}" );
+			// Only pay to build the diagnostic strings when the assert would actually fire.
+			if ( Game.ActiveScene is null || GameObject.Scene != Game.ActiveScene )
+			{
+				var name = $"{GetType().Name} on ({GameObject?.Name ?? "null"})";
+				Assert.NotNull( Game.ActiveScene, $"Calling awake on {name} but active scene is null - not {GameObject.Scene}" );
+				Assert.AreEqual( GameObject.Scene, Game.ActiveScene, $"Calling awake on {name} but active scene is {Game.ActiveScene}, not {GameObject.Scene}" );
+			}
 		}
 
 		// Disable any interpolation during OnAwake. We might be created in a Fixed Update context.
@@ -195,8 +215,11 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 
 	internal virtual void OnDestroyInternal()
 	{
-		ExceptionWrap( "OnDestroy", OnDestroy );
-		ExceptionWrap( "OnDestroy", OnComponentDestroy );
+		try { OnDestroy(); }
+		catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'OnDestroy' on {this}" ); }
+
+		try { OnComponentDestroy?.Invoke(); }
+		catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'OnDestroy' on {this}" ); }
 
 		// Unlink from GameObject now so we're no longer valid
 		GameObject = null;
@@ -222,7 +245,8 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 		if ( !ShouldExecute )
 			return;
 
-		ExceptionWrap( "OnPreRender", OnPreRender );
+		try { OnPreRender(); }
+		catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'OnPreRender' on {this}" ); }
 	}
 
 	private Action _onComponentUpdate;
@@ -275,7 +299,7 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 
 			if ( ShouldExecute )
 			{
-				CallbackBatch.Add( CommonCallback.Enable, OnEnabledInternal, this, "OnEnabled" );
+				CallbackBatch.Add( CommonCallback.Enable, this, "OnEnabled" );
 			}
 
 			Scene.RegisterComponent( this );
@@ -284,7 +308,7 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 		{
 			if ( ShouldExecute )
 			{
-				CallbackBatch.Add( CommonCallback.Disable, OnDisabledInternal, this, "OnDisabled" );
+				CallbackBatch.Add( CommonCallback.Disable, this, "OnDisabled" );
 			}
 
 			Scene.UnregisterComponent( this );
@@ -329,7 +353,7 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 			return;
 
 		GameObject.Components.OnDestroyedInternal( this );
-		CallbackBatch.Add( CommonCallback.Destroy, OnDestroyInternal, this, "OnDestroy" );
+		CallbackBatch.Add( CommonCallback.Destroy, this, "OnDestroy" );
 
 		if ( _enabledState )
 		{
@@ -339,7 +363,7 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 
 			if ( ShouldExecute )
 			{
-				CallbackBatch.Add( CommonCallback.Disable, OnDisabledInternal, this, "OnDisabled" );
+				CallbackBatch.Add( CommonCallback.Disable, this, "OnDisabled" );
 			}
 		}
 	}
@@ -369,24 +393,6 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 		}
 	}
 
-	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	void ExceptionWrap( string name, Action a )
-	{
-
-		if ( a is null )
-			return;
-
-		try
-		{
-			a();
-		}
-		catch ( System.Exception e )
-		{
-			Log.Error( e, $"Exception when calling '{name}' on {this}" );
-		}
-	}
-
-
 	/// <summary>
 	/// Called immediately after deserializing, and when a property is changed in the editor.
 	/// </summary>
@@ -405,12 +411,13 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 
 	internal void OnValidateInternal()
 	{
-		ExceptionWrap( "OnValidate", OnValidate );
+		try { OnValidate(); }
+		catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'OnValidate' on {this}" ); }
 	}
 
 	internal void Validate()
 	{
-		CallbackBatch.Add( CommonCallback.Validate, OnValidateInternal, this, "OnValidate" );
+		CallbackBatch.Add( CommonCallback.Validate, this, "OnValidate" );
 	}
 
 	internal void OnRefreshInternal()

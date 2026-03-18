@@ -155,26 +155,23 @@ public partial class Scene : GameObject
 	/// </summary>
 	public IDisposable Push()
 	{
-		ThreadSafe.AssertIsMainThread();
-		var old = Game.ActiveScene;
+		return new ScenePushScope( this );
+	}
 
-		Game.ActiveScene = this;
-
-#pragma warning disable CA2000 // Dispose objects before losing scope
-		// Disposed in DisposeAction
-		var timeScope = Time.Scope( TimeNow, TimeDelta );
-#pragma warning restore CA2000 // Dispose objects before losing scope
+	/// <summary>
+	/// Collects anything inside into a batch group. A batchgroup is used with GameObject and Components to
+	/// make sure that their OnEnable/OnDisable and other callbacks are called in a deterministic order,
+	/// and that they can find each other during creation. <see cref="GameObject.NetworkSpawn()"/> calls will also be batched.
+	/// </summary>
+	public IDisposable BatchGroup()
+	{
+		var networkScope = SceneNetworkSystem.Instance?.NetworkSpawnBatch();
+		var callbackScope = CallbackBatch.Isolated();
 
 		return DisposeAction.Create( () =>
 		{
-			ThreadSafe.AssertIsMainThread();
-
-			if ( Game.ActiveScene == this )
-			{
-				Game.ActiveScene = old;
-			}
-
-			timeScope?.Dispose();
+			callbackScope?.Dispose();
+			networkScope?.Dispose();
 		} );
 	}
 
@@ -201,7 +198,7 @@ public partial class Scene : GameObject
 			obj.OnHotload();
 		}
 
-		foreach ( var obj in systems )
+		foreach ( var obj in systems.Values )
 		{
 			obj.OnHotload();
 		}
@@ -335,5 +332,41 @@ public partial class Scene : GameObject
 	public IEnumerable<GameObject> FindAllWithTag( string tag )
 	{
 		return Directory.AllGameObjects.Where( x => x.Tags.Has( tag ) );
+	}
+}
+
+/// <summary>
+/// Allocation-free scope returned by <see cref="Scene.Push"/>.
+/// Use with <c>using var</c> to keep it stack-allocated; storing as <c>IDisposable</c> will box it.
+/// </summary>
+internal struct ScenePushScope : IDisposable
+{
+	Scene _pushed;
+	Scene _prev;
+	double _prevNowDouble;
+	float _prevDelta;
+	float _prevNow;
+
+	internal ScenePushScope( Scene scene )
+	{
+		ThreadSafe.AssertIsMainThread();
+		_pushed = scene;
+		_prev = Game.ActiveScene;
+		_prevNowDouble = Time.NowDouble;
+		_prevDelta = Time.Delta;
+		_prevNow = Time.Now;
+		Game.ActiveScene = scene;
+		Time.Update( scene.TimeNow, scene.TimeDelta );
+	}
+
+	public void Dispose()
+	{
+		if ( _pushed is null ) return;
+		ThreadSafe.AssertIsMainThread();
+		if ( Game.ActiveScene == _pushed ) Game.ActiveScene = _prev;
+		Time.NowDouble = _prevNowDouble;
+		Time.Delta = _prevDelta;
+		Time.Now = _prevNow;
+		_pushed = null;
 	}
 }

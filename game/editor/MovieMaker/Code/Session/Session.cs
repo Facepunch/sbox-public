@@ -315,6 +315,8 @@ public sealed partial class Session
 
 	public void Save()
 	{
+		Resource.StateHasChanged( Project );
+
 		HasUnsavedChanges = false;
 
 		// If we're embedded, save the scene

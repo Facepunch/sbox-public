@@ -182,7 +182,7 @@ PS
 		minorGrid2 = saturate( minorGrid2 - axisLines2 ); // hack
 		minorGrid2 = lerp( minorGrid2, minorTargetWidth, saturate( uvDeriv * 2.0 - 1.0 ) );
 		minorGrid2 = minorInvertLine ? 1.0 - minorGrid2 : minorGrid2;
-		minorGrid2 = abs( uv.xy ) > 0.5 ? minorGrid2 : 0.0;
+		minorGrid2 = select( abs( uv.xy ) > 0.5, minorGrid2, 0.0 );
 
 		float minorGrid = lerp( minorGrid2.x, 1.0, minorGrid2.y );
 		float majorGrid = lerp( majorGrid2.x, 1.0, majorGrid2.y );

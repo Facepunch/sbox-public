@@ -1,0 +1,100 @@
+@import "/styles/_theme.scss";
+
+GameCard {
+    card.game {
+        @include border-transparent;
+        justify-content: space-between;
+        width: 400px;
+        padding: 0px;
+        border: none;
+
+        .image {
+            background-size: cover;
+            background-position: center;
+            border-radius: $rounding-small;
+            width: 100%;
+            aspect-ratio: 16/9;
+            margin-bottom: 6px;
+        }
+
+        cursor: pointer;
+        transition: all 150ms $easing;
+        border: 1px solid transparent; // AVoids layout shift on hover when border is applied
+
+        &:hover {
+            box-shadow: 0 0 16px rgba( black, 0.33 );
+
+            .image {
+                filter: brightness( 1.25 );
+                transition: all 150ms $easing;
+            }
+        }
+    }
+
+    &:not(.list) {
+        label.medium {
+            flex-shrink: 1;
+            text-overflow: ellipsis;
+        }
+
+        row {
+            flex-shrink: 0;
+        }
+    }
+
+    &.list {
+        card.game {
+            height: 70px;
+            max-width: 400px;
+            width: 400px;
+            align-items: center;
+            justify-content: flex-start;
+            flex-direction: row;
+            aspect-ratio: 0;
+            padding: 8px;
+            position: relative;
+            overflow: hidden;
+            padding-left: 82px;
+
+            icon.play {
+                border-radius: 0;
+                position: absolute;
+                top: 0;
+                right: 0;
+                bottom: 0;
+                font-size: 32px;
+                align-items: center;
+                text-align: center;
+                aspect-ratio: 1;
+                width: 32px;
+                transition: all 150ms $easing;
+                color: rgba( $primary-blue, 0.66 );
+                opacity: 0;
+            }
+
+            .image {
+                border-radius: 0;
+                position: absolute;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                aspect-ratio: 1;
+                width: 72px;
+                flex-grow: 0;
+                mask: linear-gradient( to right, white, black );
+                margin-bottom: 0;
+            }
+
+            &:hover {
+                icon.play {
+                    opacity: 1;
+                    width: 64px;
+                }
+            }
+
+            column {
+                gap: 2px;
+            }
+        }
+    }
+}
