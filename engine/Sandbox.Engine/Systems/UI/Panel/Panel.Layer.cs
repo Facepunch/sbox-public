@@ -26,6 +26,19 @@ public partial class Panel
 			if ( size.x <= 1 ) return;
 			if ( size.y <= 1 ) return;
 
+			// Extend the render target size to accommodate box-shadows outside the bounds
+			var shadowSpread = styles.BoxShadow.Sum( x => x.Spread );
+			var shadowBlur = styles.BoxShadow.Sum( x => x.Blur );
+			var shadowOffsetX = Math.Abs( styles.BoxShadow.Sum( x => x.OffsetX ) );
+			var shadowOffsetY = Math.Abs( styles.BoxShadow.Sum( x => x.OffsetY ) );
+
+			var maxShadow = Math.Max( Math.Max( shadowSpread + shadowBlur, shadowSpread + shadowOffsetX ), shadowSpread + shadowOffsetY );
+
+			if ( maxShadow > 0 )
+			{
+				size += new Vector2( maxShadow * 2, maxShadow * 2 );
+			}
+
 			_panelLayerSize = size;
 		}
 		else
