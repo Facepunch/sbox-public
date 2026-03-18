@@ -136,11 +136,7 @@ internal partial class NetworkSystem
 			return;
 		}
 
-<<<<<<< asyncrejectconnection
-		if ( !source.OnReceiveUserInfo( msg ) )
-=======
 		if ( !await source.OnReceiveUserInfo( msg ) )
->>>>>>> master
 			return;
 
 		//
@@ -182,7 +178,6 @@ internal partial class NetworkSystem
 
 		if ( GameSystem is not null )
 		{
-<<<<<<< asyncrejectconnection
 			var denialReason = "";
 			var shouldReject = !GameSystem.AcceptConnection( source, ref denialReason );
 
@@ -202,11 +197,6 @@ internal partial class NetworkSystem
 				source.Kick( denialReason );
 				return;
 			}
-=======
-			Log.Info( $"Kicking {msg.DisplayName} [{msg.SteamId}] - {denialReason}" );
-			source.Kick( denialReason );
-			return;
->>>>>>> master
 		}
 
 		source.PreInfo = null;
@@ -256,10 +246,6 @@ internal partial class NetworkSystem
 		GameSystem?.OnConnected( source );
 
 		source.SendMessage( output );
-<<<<<<< asyncrejectconnection
-		return;
-=======
->>>>>>> master
 	}
 
 	async Task On_Handshake_Welcome( Welcome msg, Connection source, Guid msgId )
