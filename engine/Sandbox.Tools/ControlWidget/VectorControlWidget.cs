@@ -16,6 +16,7 @@ public class VectorControlWidget : ControlWidget
 	public VectorControlWidget( SerializedProperty property ) : base( property )
 	{
 		Property = property;
+
 		property.TryGetAsObject( out obj );
 
 		if ( obj is null )

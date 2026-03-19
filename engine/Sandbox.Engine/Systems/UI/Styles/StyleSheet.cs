@@ -10,7 +10,7 @@ public class StyleSheet
 	/// Between sessions we clear the stylesheets, so one gamemode can't accidentally
 	/// use cached values from another.
 	/// </summary>
-	internal static void InitStyleSheets()
+	internal static void ResetStyleSheets()
 	{
 		foreach ( var sheet in Loaded )
 		{

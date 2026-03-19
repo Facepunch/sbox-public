@@ -105,7 +105,7 @@ internal static partial class SteamNetwork
 			return AuthenticatedSteamId > 0 && UserPermission.Has( AuthenticatedSteamId, permission );
 		}
 
-		internal override bool OnReceiveUserInfo( UserInfo info )
+		internal override async Task<bool> OnReceiveUserInfo( UserInfo info )
 		{
 			if ( info.AuthTicket == null || info.AuthTicket.Length == 0 )
 			{
@@ -140,7 +140,7 @@ internal static partial class SteamNetwork
 			existingConnection?.Close( 0, "Expired Session" );
 
 			AuthenticatedSteamId = info.SteamId;
-			return true;
+			return await base.OnReceiveUserInfo( info );
 		}
 
 		internal override void InternalSend( ByteStream stream, NetFlags flags )

@@ -1,5 +1,6 @@
 ﻿using Sandbox.MovieMaker;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -315,6 +316,8 @@ public sealed partial class Session
 
 	public void Save()
 	{
+		Resource.StateHasChanged( Project );
+
 		HasUnsavedChanges = false;
 
 		// If we're embedded, save the scene
@@ -414,7 +417,7 @@ public sealed partial class Session
 		_ik.ShowContextMenu( ev );
 	}
 
-	public bool CanReferenceMovie( MovieResource? resource )
+	public bool CanReferenceMovie( [NotNullWhen( true )] MovieResource? resource )
 	{
 		if ( resource is null ) return false;
 
@@ -478,15 +481,63 @@ public sealed partial class Session
 		}
 	}
 
+	private void ImportMovieFromGameData( string path, MovieTime time = default )
+	{
+		if ( !ResourceLibrary.TryGet( path, out MovieResource? existing ) )
+		{
+			existing = ImportMovieFromGameDataCore( path );
+		}
+
+		if ( !CanReferenceMovie( existing ) ) return;
+
+		ImportMovie( existing, time );
+	}
+
+	private static MovieResource? ImportMovieFromGameDataCore( string path )
+	{
+		try
+		{
+			var assetPath = Path.Combine( Sandbox.Project.Current.GetAssetsPath(), path );
+			var assetDir = Path.GetDirectoryName( assetPath )!;
+
+			Directory.CreateDirectory( assetDir );
+
+			var asset = AssetSystem.CreateResource( "movie", assetPath );
+
+			var resource = Sandbox.FileSystem.Data.ReadJson<EmbeddedMovieResource>( path );
+
+			asset.SaveToDisk( new MovieResource { Compiled = resource.Compiled } );
+
+			return ResourceLibrary.Get<MovieResource>( path );
+		}
+		catch ( Exception ex )
+		{
+			Log.Warning( ex, "Exception when attempting to import a movie." );
+			return null;
+		}
+	}
+
+	private readonly record struct ImportMenuItem( string Path, Action Action );
+
 	public void CreateImportMenu( Menu parent, MovieTime time = default )
 	{
-		var movies = ResourceLibrary.GetAll<MovieResource>().ToArray();
+		var existingMovies = ResourceLibrary.GetAll<MovieResource>()
+			.Where( CanReferenceMovie )
+			.Select( x => new ImportMenuItem( x.ResourcePath, () => ImportMovie( x, time ) ) );
+
+		var gameDataMovies = Sandbox.FileSystem.Data
+			.FindFile( "/", "*.movie", true )
+			.Select( x => new ImportMenuItem( $"Data/{x}", () => ImportMovieFromGameData( x, time ) ) );
+
+		var allMovies = existingMovies.Concat( gameDataMovies ).ToArray();
+
+		if ( allMovies.Length == 0 ) return;
 
 		var importMenu = parent.AddMenu( "Import Movie", "sim_card_download" );
 
-		importMenu.AddOptions( movies.Where( CanReferenceMovie ),
-			x => $"{x.ResourcePath}:video_file",
-			x => ImportMovie( x, time ) );
+		importMenu.AddOptions( allMovies,
+			x => $"{x.Path}:video_file",
+			x => x.Action() );
 	}
 
 	public void SaveConfig()

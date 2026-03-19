@@ -40,12 +40,7 @@ public sealed partial class Material : Resource
 		Attributes = new RenderAttributes( attributes );
 	}
 
-	~Material()
-	{
-		Dispose();
-	}
-
-	internal void Dispose()
+	internal override void Destroy()
 	{
 		// kill the native pointer - it does with the native material
 		// we want to reduce the risk that someone is holding on to it.
@@ -59,6 +54,8 @@ public sealed partial class Material : Resource
 
 			MainThread.Queue( () => n.DestroyStrongHandle() );
 		}
+
+		base.Destroy();
 	}
 
 	/// <summary>

@@ -12,7 +12,7 @@ public sealed class Highlight : BasePostProcess<Highlight>
 {
 	CommandList commands = new();
 
-	private static readonly Material Shader = Material.FromShader( "postprocess/objecthighlight/objecthighlight.shader" );
+	private static Material Shader = Material.FromShader( "postprocess/objecthighlight/objecthighlight.shader" );
 
 	public override void Render()
 	{

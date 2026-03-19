@@ -15,6 +15,7 @@ public static partial class TextRendering
 		public TextFlag Flags;
 		public Vector2 Clip;
 		public bool IsEmpty;
+		public Rendering.FilterMode FilterMode;
 
 		public RealTimeSince TimeSinceUsed;
 
@@ -39,7 +40,8 @@ public static partial class TextRendering
 		{
 			_scope = scope;
 			IsEmpty = string.IsNullOrEmpty( _scope.Text );
-
+			FilterMode = scope.FilterMode;
+			TimeSinceUsed = 0;
 			_effectMargin = default;
 
 			if ( scope.Outline.Enabled && scope.Outline.Size > 0 )

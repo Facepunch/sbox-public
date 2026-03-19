@@ -3,6 +3,7 @@ using System;
 using System.Collections.Immutable;
 using Facepunch.ActionGraphs;
 using Sandbox.ActionGraphs;
+using Sandbox.MovieMaker;
 
 namespace Sandbox;
 
@@ -216,5 +217,14 @@ public static partial class SandboxToolExtensions
 			return go.Name;
 
 		return sys.First().ToString();
+	}
+
+	/// <summary>
+	/// Creates a scope for applying a frame in a <see cref="MoviePlayer"/>.
+	/// Dispose after modifying any properties controlled by the movie.
+	/// </summary>
+	public static IDisposable BeginApplyFrame( this MoviePlayer player )
+	{
+		return player.BeginApplyFrameInternal();
 	}
 }

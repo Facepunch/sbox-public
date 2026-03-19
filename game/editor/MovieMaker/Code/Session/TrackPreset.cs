@@ -190,6 +190,7 @@ file abstract record DummyReference<T>( T Value, ITrackReference<GameObject>? Pa
 	public abstract string Name { get; }
 	public abstract Guid Id { get; }
 
+	public bool IsBound => true;
 	public bool IsActive => true;
 
 	Type ITrackTarget.TargetType => Value.GetType();
@@ -197,6 +198,7 @@ file abstract record DummyReference<T>( T Value, ITrackReference<GameObject>? Pa
 	private NotSupportedException NotSupportedInTrackBinder() =>
 		new( "This helper is used internally by TrackPresetNode, and should never be used in a TrackBinder." );
 
+	TrackBinder ITrackTarget.Binder => throw NotSupportedInTrackBinder();
 	void ITrackReference.Reset() => throw NotSupportedInTrackBinder();
 	void ITrackReference<T>.Bind( T? value ) => throw NotSupportedInTrackBinder();
 }

@@ -47,7 +47,7 @@ internal static partial class DebugOverlay
 
 	public static void Draw()
 	{
-		Vector2 pos = new Vector2( 100, 130 );
+		Vector2 pos = new Vector2( 64, 64 );
 		var activeScene = Application.GetActiveScene();
 
 		// Show current render debug mode on screen when not default

@@ -74,8 +74,8 @@ public class HomeWidget : Widget
 			Sort = _sort;
 
 			{
-				var search = menuRow.Add( new LineEdit() { PlaceholderText = "⌕  Search" }, 2 );
-				search.SetStyles( "border-radius: 3px;" );
+				var search = menuRow.Add( new LineEdit() { PlaceholderText = "⌕  Search" }, 1 );
+				search.SetStyles( $"border: 1px solid {Theme.ButtonBackground.Hex};" );
 				search.TextChanged += _ =>
 				{
 					Filter = search.Value;
@@ -84,7 +84,6 @@ public class HomeWidget : Widget
 				search.Blur();
 			}
 
-			menuRow.AddStretchCell( 1 );
 			//menuRow.Add( new IconButton( "cloud_download" )
 			//{
 			//	OnClick = ProjectDownload.OpenWindow,

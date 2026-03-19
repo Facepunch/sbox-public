@@ -16,7 +16,7 @@ public sealed class FilmGrain : BasePostProcess<FilmGrain>
 	[Range( 0, 1 )]
 	[Property] public float Response { get; set; } = 0.5f;
 
-	private static readonly Material Shader = Material.FromShader( "shaders/postprocess/pp_filmgrain.shader" );
+	private static Material Shader = Material.FromShader( "shaders/postprocess/pp_filmgrain.shader" );
 
 	public override void Render()
 	{

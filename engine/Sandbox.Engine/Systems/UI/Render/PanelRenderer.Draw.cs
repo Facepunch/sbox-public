@@ -176,14 +176,15 @@ internal partial class PanelRenderer
 
 		panel.CommandList.InsertList( panel.ClipCommandList );
 
+		// Draw box shadows (outset, underlay) before layer push so they render
+		// directly to the framebuffer and aren't clipped by the layer render target
+		BuildCommandList_BoxShadows( panel, ref state, inset: false, panel.CommandList );
+
 		// Push layer so everything renders into the layer texture for filters/masks
 		panel.PushLayer( this );
 
 		// Draw backdrops (e.g. blurs)
 		BuildCommandList_Backdrop( panel, ref state, panel.CommandList );
-
-		// Draw box shadows (outset, underlay)
-		BuildCommandList_BoxShadows( panel, ref state, inset: false, panel.CommandList );
 
 		// Draw background (e.g. color, image)
 		BuildCommandList_Background( panel, ref state, panel.CommandList );

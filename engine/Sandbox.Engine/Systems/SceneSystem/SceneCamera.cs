@@ -141,6 +141,12 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 				VolumetricFogImpl = null;
 			}
 
+			// Release native CStrongHandle copies held by texture tracking
+			// in our RenderAttributes. Without this, the handles survive until
+			// the RenderAttributes finalizer runs which may be after the
+			// resource system has already reported leaks.
+			Attributes?.Clear();
+
 			disposedValue = true;
 		}
 	}

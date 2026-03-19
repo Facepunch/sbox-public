@@ -44,6 +44,11 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 	internal Widget SceneDock { get; set; }
 
+	/// <summary>
+	/// Should we call <see cref="Scene.EditorTick"/> while this session is visible?
+	/// </summary>
+	public bool ShouldUpdate { get; set; } = true;
+
 	protected SceneEditorSession( Scene scene )
 	{
 		ArgumentNullException.ThrowIfNull( scene );

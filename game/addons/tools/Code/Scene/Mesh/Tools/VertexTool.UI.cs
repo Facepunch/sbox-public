@@ -92,7 +92,7 @@ partial class VertexTool
 					CreateButton( "Weld UVs", "scatter_plot", "mesh.vertex-weld-uvs", WeldUVs, _vertices.Length > 0, row.Layout );
 					CreateButton( "Bevel", "straighten", "mesh.bevel", Bevel, _vertices.Length > 0, row.Layout );
 					CreateButton( "Connect", "link", "mesh.connect", Connect, _vertices.Length > 1, row.Layout );
-					CreateButton( "Edge Cut Tool", "content_cut", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
+					CreateButton( "Edge Cut Tool", "polyline", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
 
 					row.Layout.AddStretchCell();
 

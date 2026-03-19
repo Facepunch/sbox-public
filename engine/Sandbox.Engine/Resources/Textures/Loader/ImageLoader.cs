@@ -138,6 +138,9 @@ internal static class Image
 	{
 		filename = filename.Normalize();
 
+		if ( Game.Resources.Get<Texture>( filename ) is { } cached )
+			return cached;
+
 		try
 		{
 			Texture tex = default;

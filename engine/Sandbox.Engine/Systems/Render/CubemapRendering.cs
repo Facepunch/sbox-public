@@ -8,18 +8,7 @@ namespace Sandbox;
 /// </summary>
 internal static class CubemapRendering
 {
-	static ComputeShader EnvmapFilter;
-
-	internal static void InitStatic()
-	{
-		EnvmapFilter = new( "envmap_filtering_cs" );
-	}
-
-	internal static void DisposeStatic()
-	{
-		EnvmapFilter?.Dispose();
-		EnvmapFilter = null;
-	}
+	static ComputeShader EnvmapFilter = new( "envmap_filtering_cs" );
 
 	/// <summary>
 	/// Specifies the quality level for GGX filtering of environment maps.

@@ -14,11 +14,19 @@ class CallbackBatch : System.IDisposable
 	static CallbackBatch Current { get; set; }
 	static Stack<CallbackBatch> Pool = new();
 
-	record struct ActionTarget( Action Action, object Target, string name, Scene Scene );
+	/// <summary>
+	/// Stores either a direct dispatch target (no delegate allocation) or a fallback action for closures.
+	/// </summary>
+	record struct ActionTarget( object Target, CommonCallback Callback, Action FallbackAction, string name, Scene Scene );
 
 	CallbackBatch _previous;
 
 	string Name;
+
+	/// <summary>
+	/// Pre-sorted CommonCallback values used in Execute() to avoid per-call LINQ OrderBy allocation.
+	/// </summary>
+	static readonly CommonCallback[] SortedCallbacks = Enum.GetValues<CommonCallback>().OrderBy( x => (int)x ).ToArray();
 
 	class Group
 	{
@@ -43,9 +51,13 @@ class CallbackBatch : System.IDisposable
 			{
 				try
 				{
-					using ( action.Scene?.Push() )
+					using var scope = action.Scene is not null ? new ScenePushScope( action.Scene ) : default;
+
+					switch ( action.Target )
 					{
-						action.Action();
+						case Component c: c.InvokeCallback( action.Callback ); break;
+						case GameObject go: go.InvokeCallback( action.Callback ); break;
+						default: action.FallbackAction?.Invoke(); break;
 					}
 				}
 				catch ( System.Exception e )
@@ -109,24 +121,56 @@ class CallbackBatch : System.IDisposable
 		return Current;
 	}
 
-	public static void Add( CommonCallback order, Action action, Component target, string name )
+	/// <summary>
+	/// Adds a direct-dispatch callback, avoiding a delegate allocation.
+	/// </summary>
+	internal static void Add( CommonCallback order, Component target, string name )
 	{
 		if ( Current is not null )
 		{
 			var group = Current.Groups.GetOrCreate( order );
-			group.Add( new ActionTarget( action, target, name, target.Scene ) );
+			group.Add( new ActionTarget( target, order, null, name, target.Scene ) );
 			return;
 		}
 
 		throw new System.Exception( $"CallbackBatch.Add called outside of a batch for '{order}'" );
 	}
 
+	/// <inheritdoc cref="Add(CommonCallback, Component, string)"/>
+	internal static void Add( CommonCallback order, GameObject target, string name )
+	{
+		if ( Current is not null )
+		{
+			var group = Current.Groups.GetOrCreate( order );
+			group.Add( new ActionTarget( target, order, null, name, target.Scene ) );
+			return;
+		}
+
+		throw new System.Exception( $"CallbackBatch.Add called outside of a batch for '{order}'" );
+	}
+
+	/// <summary>
+	/// Adds a closure-based fallback callback. Prefer the non-Action overloads to avoid delegate allocation.
+	/// </summary>
+	public static void Add( CommonCallback order, Action action, Component target, string name )
+	{
+		if ( Current is not null )
+		{
+			var group = Current.Groups.GetOrCreate( order );
+			group.Add( new ActionTarget( null, order, action, name, target.Scene ) );
+			return;
+		}
+
+		throw new System.Exception( $"CallbackBatch.Add called outside of a batch for '{order}'" );
+	}
+
+	/// <inheritdoc cref="Add(CommonCallback, Action, Component, string)"/>
 	public static void Add( CommonCallback order, Action action, GameObject target, string name )
 	{
 		if ( Current is not null )
 		{
 			var group = Current.Groups.GetOrCreate( order );
-			group.Add( new ActionTarget( action, target, name, target.Scene ) );
+			group.Add( new ActionTarget( null, order, action, name, target.Scene ) );
 			return;
 		}
 
@@ -141,10 +185,12 @@ class CallbackBatch : System.IDisposable
 		// so we create a new batch group, which will catch those and execute them in the right order too
 		using var batch = CallbackBatch.Batch();
 
-		foreach ( var group in Groups.OrderBy( x => x.Key ) )
+		// Iterate over pre-sorted callbacks instead of allocating OrderBy each time
+		foreach ( var key in SortedCallbacks )
 		{
-			group.Value.Execute( this );
-			group.Value.Clear();
+			if ( !Groups.TryGetValue( key, out var group ) ) continue;
+			group.Execute( this );
+			group.Clear();
 		}
 	}
 

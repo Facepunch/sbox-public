@@ -20,11 +20,9 @@ file sealed record MemberProperty<T>( ITrackTarget Parent, MemberDescription Mem
 	public bool IsValid => Member is { MemberInfo: not null };
 
 	/// <summary>
-	/// Default behaviour is to check if the parent is active. We need a special case for properties bound to
-	/// <see cref="GameObject.Enabled"/> or <see cref="Component.Enabled"/>, otherwise we'd never be able to record them
-	/// being false.
+	/// Default behaviour is to check if the parent is active.
 	/// </summary>
-	public bool IsActive => IsValid && (Parent.IsActive || Name == nameof( GameObject.Enabled ) && Parent is ITrackReference { IsBound: true });
+	public bool IsActive => IsValid && Parent.IsActive;
 	public bool CanWrite => IsValid && Member switch
 	{
 		PropertyDescription propDesc => propDesc.CanWrite,
@@ -67,10 +65,14 @@ file sealed record MemberProperty<T>( ITrackTarget Parent, MemberDescription Mem
 		switch ( Member )
 		{
 			case PropertyDescription propDesc:
+				if ( Equals( propDesc.GetValue( target ), value ) ) return;
+
 				propDesc.SetValue( target, value );
 				return;
 
 			case FieldDescription fieldDesc:
+				if ( Equals( fieldDesc.GetValue( target ), value ) ) return;
+
 				fieldDesc.SetValue( target, value );
 				return;
 
@@ -131,7 +133,9 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 
 	public ITrackProperty<T> CreateProperty<T>( ITrackTarget parent, string name )
 	{
-		return new MemberProperty<T>( parent, GetMember( parent, name )! );
+		var member = GetMember( parent, name )!;
+
+		return new MemberProperty<T>( parent, member );
 	}
 
 	// TODO: Because Type.IsPrimitive isn't allowed
@@ -168,6 +172,12 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 		typeof(Angles),
 		typeof(Rotation),
 
+		typeof(Curve),
+		typeof(Gradient),
+		typeof(ParticleGradient),
+		typeof(ParticleFloat),
+		typeof(ParticleVector3),
+
 		typeof(Transform),
 		typeof(TextRendering.Scope)
 	};
@@ -191,7 +201,7 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 
 		if ( AccessorTypes.Contains( type ) ) return true;
 
-		return false;
+		return TypeLibrary.GetType( type ) is { IsDynamicAssembly: true };
 	}
 
 	private static bool CanMakeTrackFromMember( MemberDescription member )
@@ -250,6 +260,7 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 		}
 
 		if ( TypeLibrary.GetType( type ) is null ) return false;
+		if ( type.IsValueType ) return true;
 		if ( type.IsAssignableTo( typeof( Component ) ) ) return true;
 		if ( type.IsAssignableTo( typeof( Resource ) ) ) return true;
 		if ( type == typeof( GameObject ) ) return true;

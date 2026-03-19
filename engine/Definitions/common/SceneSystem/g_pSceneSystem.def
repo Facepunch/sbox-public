@@ -86,6 +86,8 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
     ISceneWorld CreateWorld( string debugName );
     void DestroyWorld( ISceneWorld world );
 
+    void PerformEndOfFrameDeletes();
+
     inline void SetupPerObjectLighting( CRenderAttributes renderAttributes, CSceneObject pSceneObject, ISceneLayer pSceneLayerInterface )
     {
         g_pSceneSystem->SetupPerObjectLighting( *renderAttributes, pSceneObject, pSceneLayerInterface );

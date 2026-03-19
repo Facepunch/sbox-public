@@ -40,6 +40,8 @@ internal sealed class SessionInverseKinematics
 		return bonesTrackView;
 	}
 
+	private readonly HashSet<TrackView> _bonesTrackViews = new();
+
 	public void DrawGizmos()
 	{
 		var hasFocus = Gizmo.CurrentRay != default;
@@ -52,14 +54,20 @@ internal sealed class SessionInverseKinematics
 		Vector3? localTargetPosition = null;
 		Rotation? localTargetRotation = null;
 
-		var bonesTrackViews = _session.TrackList.UnlockedTracks
-			.Where( x => x.Name == "Bones" )
-			.Where( x => x.Track is IPropertyTrack<BoneAccessor> )
-			.OfType<TrackView?>();
+		_bonesTrackViews.Clear();
 
-		foreach ( var bonesTrackView in bonesTrackViews )
+		foreach ( var trackView in _session.TrackList.SelectedTracks )
 		{
-			if ( bonesTrackView is null ) continue;
+			var bonesTrackView = trackView.IsBoneTransform ? trackView.Parent : trackView;
+
+			if ( bonesTrackView is { Name: "Bones", Track: IPropertyTrack<BoneAccessor> } )
+			{
+				_bonesTrackViews.Add( bonesTrackView );
+			}
+		}
+
+		foreach ( var bonesTrackView in _bonesTrackViews )
+		{
 			if ( bonesTrackView.Parent?.Target is not ITrackReference<SkinnedModelRenderer> { IsBound: true, Value: { } renderer } ) continue;
 			if ( renderer.Model is not { } model || model.BoneCount == 0 ) continue;
 

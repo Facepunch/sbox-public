@@ -34,9 +34,9 @@ public class Bloom : BasePostProcess<Bloom>
 
 	CommandList command = new CommandList();
 
-	private static readonly Material Shader = Material.FromShader( "postprocess_bloom.shader" );
+	private static Material Shader = Material.FromShader( "postprocess_bloom.shader" );
 
-	private static readonly ComputeShader ShaderCs = new ComputeShader( "postprocess_bloom_cs" );
+	private static ComputeShader ShaderCs = new ComputeShader( "postprocess_bloom_cs" );
 
 	public override void Render()
 	{

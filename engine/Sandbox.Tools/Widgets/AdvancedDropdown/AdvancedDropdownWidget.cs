@@ -1,10 +1,12 @@
+using System;
+
 namespace Editor;
 
 /// <summary>
 /// A generic sliding hierarchical selector widget.
 /// Build a tree of <see cref="AdvancedDropdownItem"/> and hand it to this widget.
 /// </summary>
-public partial class AdvancedDropdownWidget : Widget
+public class AdvancedDropdownWidget : Widget
 {
 	/// <summary>
 	/// Called when a leaf item is selected. Receives the item's <see cref="AdvancedDropdownItem.Value"/>.
@@ -96,7 +98,7 @@ public partial class AdvancedDropdownWidget : Widget
 	/// </summary>
 	protected bool IsSearching => !string.IsNullOrWhiteSpace( searchString );
 
-	internal LineEdit Search { get; init; }
+	public LineEdit Search { get; init; }
 
 	public AdvancedDropdownWidget( Widget parent ) : base( parent )
 	{
@@ -349,23 +351,23 @@ public partial class AdvancedDropdownWidget : Widget
 	/// </summary>
 	public partial class AdvancedDropdownPanel : Widget
 	{
-		internal string Title { get; init; }
-		internal Widget CategoryHeader { get; init; }
+		public string Title { get; init; }
+		public Widget CategoryHeader { get; init; }
 		ScrollArea Scroller { get; init; }
 		internal AdvancedDropdownWidget Owner { get; set; }
 
 		/// <summary>
 		/// The item whose children this panel displays. Null for root panel.
 		/// </summary>
-		internal AdvancedDropdownItem SourceItem { get; set; }
+		public AdvancedDropdownItem SourceItem { get; set; }
 
-		internal List<Widget> ItemList { get; private set; } = new();
+		public List<Widget> ItemList { get; private set; } = new();
 		internal int CurrentItemId { get; private set; } = 0;
-		internal Widget CurrentItem { get; private set; }
+		public Widget CurrentItem { get; private set; }
 
-		internal bool IsManual { get; set; }
+		public bool IsManual { get; set; }
 
-		internal AdvancedDropdownPanel( Widget parent, AdvancedDropdownWidget owner, string title = null ) : base( parent )
+		public AdvancedDropdownPanel( Widget parent, AdvancedDropdownWidget owner, string title = null ) : base( parent )
 		{
 			Owner = owner;
 			Title = title;
@@ -501,7 +503,7 @@ public partial class AdvancedDropdownWidget : Widget
 		/// <summary>
 		/// Add an entry widget to this panel.
 		/// </summary>
-		internal Widget AddEntry( Widget entry )
+		public Widget AddEntry( Widget entry )
 		{
 			var layoutWidget = Scroller.Canvas.Layout.Add( entry );
 			ItemList.Add( entry );
@@ -512,13 +514,13 @@ public partial class AdvancedDropdownWidget : Widget
 			return layoutWidget;
 		}
 
-		internal void AddStretchCell()
+		public void AddStretchCell()
 		{
 			Scroller.Canvas.Layout.AddStretchCell( 1 );
 			Update();
 		}
 
-		internal void ClearEntries()
+		public void ClearEntries()
 		{
 			Scroller.Canvas.Layout.Clear( true );
 			ItemList.Clear();

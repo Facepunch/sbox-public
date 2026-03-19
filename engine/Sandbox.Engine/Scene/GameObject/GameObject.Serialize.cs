@@ -115,6 +115,9 @@ public partial class GameObject
 
 	private static readonly DeserializeOptions _defaultDeserializeOptions = new();
 
+	// Stashed by Deserialize(), consumed by InvokeCallback(Deserialize) to avoid a closure allocation.
+	private DeserializeOptions _pendingDeserializeOptions;
+
 	/// <summary>
 	/// Returns either a full JsonObject with all the GameObjects data,
 	/// or if this GameObject is a prefab instance, it will return an object containing the patch/diff between instance and prefab.
@@ -445,7 +448,7 @@ public partial class GameObject
 				//
 				if ( componentType is null || componentType.TargetType.IsAbstract )
 				{
-					Log.Warning( $"TypeLibrary couldn't find Component type {componentTypeName}" );
+					Log.Warning( $"Missing Component: couldn't find Component type {componentTypeName} on {this}" );
 
 					var missing = new MissingComponent( componentJson );
 					Components.AddMissing( missing );
@@ -573,7 +576,8 @@ public partial class GameObject
 
 		if ( Parent is null || (Parent.Flags & GameObjectFlags.Deserializing) == 0 )
 		{
-			CallbackBatch.Add( CommonCallback.Deserialize, () => PostDeserialize( options ), this, "PostDeserialize" );
+			_pendingDeserializeOptions = options;
+			CallbackBatch.Add( CommonCallback.Deserialize, this, "PostDeserialize" );
 		}
 
 		// Trigger OnEnabled after the GameObject has been deserialized fully, _enabled was set before, so OnAwake calls properly
