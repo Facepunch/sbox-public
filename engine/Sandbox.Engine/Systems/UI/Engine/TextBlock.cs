@@ -74,6 +74,7 @@ internal sealed class TextBlock : IDisposable
 	FilterMode TextFilter;
 	TextDecoration TextDecoration;
 	FontStyle FontStyle;
+	FontVariantNumeric? FontVariantNumeric;
 	WordBreak WordBreak;
 	TextTransform? TextTransform;
 	Length? LetterSpacing;
@@ -223,6 +224,7 @@ internal sealed class TextBlock : IDisposable
 		TextAlign = style.TextAlign.Value;
 		TextDecoration = style.TextDecorationLine.Value;
 		FontStyle = style.FontStyle.Value;
+		FontVariantNumeric = style.FontVariantNumeric;
 		AlignItems = style.AlignItems.Value;
 		LetterSpacing = style.LetterSpacing;
 		WordSpacing = style.WordSpacing;
@@ -240,7 +242,7 @@ internal sealed class TextBlock : IDisposable
 		hash = HashCode.Combine( hash, style.TextStrokeWidth, style.TextStrokeColor, style.TextDecorationColor, style.TextDecorationThickness, style.TextDecorationSkipInk, style.TextDecorationStyle );
 		hash = HashCode.Combine( hash, style.TextUnderlineOffset, style.TextOverlineOffset, style.TextLineThroughOffset, style.TextGradient, style.TextOverflow, style.WordBreak, style.LineHeight );
 		hash = HashCode.Combine( hash, style.WordSpacing );
-		hash = HashCode.Combine( hash, Smooth );
+		hash = HashCode.Combine( hash, Smooth, FontVariantNumeric );
 
 		if ( FontHash == hash && Block != null )
 			return false;
@@ -257,6 +259,7 @@ internal sealed class TextBlock : IDisposable
 		Style.FontSize = FontSize;
 		Style.FontWeight = FontWeight ?? 400;
 		Style.FontItalic = FontStyle != FontStyle.None;
+		Style.FontVariantNumeric = FontVariantNumeric ?? UI.FontVariantNumeric.Normal;
 		Style.TextColor = fontColor.ToSk();
 		Style.Underline = UnderlineStyle.None;
 		Style.StrokeInkSkip = style.TextDecorationSkipInk == TextSkipInk.All;
@@ -390,6 +393,7 @@ internal sealed class TextBlock : IDisposable
 						sty.BackgroundColor = s.BackgroundColor?.ToSk() ?? sty.BackgroundColor;
 						sty.FontWeight = s.FontWeight ?? sty.FontWeight;
 						sty.FontItalic = s.FontStyle == FontStyle.Italic;
+						sty.FontVariantNumeric = s.FontVariantNumeric ?? sty.FontVariantNumeric;
 						sty.Underline = s.TextDecorationLine == UI.TextDecoration.Underline ? UnderlineStyle.Solid : UnderlineStyle.None;
 						sty.UnderlineColor = sty.TextColor;
 						sty.LetterSpacing = s.LetterSpacing?.GetPixels( 1000.0f ) ?? sty.LetterSpacing;
