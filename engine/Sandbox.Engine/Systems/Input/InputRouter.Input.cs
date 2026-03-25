@@ -87,30 +87,34 @@ internal static partial class InputRouter
 	/// </summary>
 	internal static void OnMousePositionChange( float x, float y, float dx, float dy )
 	{
-		var delta = new Vector2( 0, 0 );
+		ApplyAbsoluteMousePosition( new Vector2( x, y ), new Vector2( dx, dy ) );
+	}
 
-		// if we're not in relative mode - take the delta from this
-		if ( !NativeEngine.InputSystem.GetRelativeMouseMode() )
+	/// <summary>
+	/// Shared absolute-position path for native and editor-driven mouse updates.
+	/// </summary>
+	internal static void ApplyAbsoluteMousePosition( Vector2 pos, Vector2 delta )
+	{
+		MouseCursorPosition = pos;
+
+		if ( InputSystem.GetRelativeMouseMode() )
 		{
-			delta = new Vector2( dx, dy );
-			MouseCursorDelta += delta;
+			delta = Vector2.Zero;
 		}
 
-		MouseCursorPosition = new Vector2( x, y );
-
-		// if this is set, we're in capture mode - so just update the position
-		// which will update the position of the cursor when we come out of it
+		// If this is set, we're in capture mode - so just update the position
+		// cache we restore when capture ends. This intentionally records the
+		// latest absolute position without moving the OS cursor.
 		if ( mouseCapturePosition is not null )
 		{
 			mouseCapturePosition = MouseCursorPosition;
 			return;
 		}
 
+		MouseCursorDelta += delta;
+
 		var mouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
-		if ( mouse is not null )
-		{
-			mouse.In_MousePosition( MouseCursorPosition, delta );
-		}
+		mouse?.In_MousePosition( MouseCursorPosition, delta );
 	}
 
 	internal static void OnGameControllerButton( int deviceId, GameControllerCode button, bool down )
