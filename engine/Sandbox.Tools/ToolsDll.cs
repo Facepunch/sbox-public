@@ -263,6 +263,8 @@ internal class ToolsDll : IToolsDll
 			Time.Update( scene.TimeNow, scene.TimeDelta );
 		}
 
+		GameMode.Tick();
+
 		// Escape was pressed in game and wasn't swallowed
 		// so lets change focus from the game window to the main editor
 		// window, which is going to free the mouse cursor from being captured
