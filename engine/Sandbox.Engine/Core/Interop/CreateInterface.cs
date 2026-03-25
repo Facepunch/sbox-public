@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System;
+using System.Runtime.InteropServices;
 
 namespace NativeEngine;
 
@@ -15,11 +16,20 @@ internal static class CreateInterface
 		if ( loadedModules.TryGetValue( dll, out var module ) )
 			return module;
 
-		if ( !NativeLibrary.TryLoad( dll, out module ) )
+		var platformDll = GetPlatformDllName( dll );
+		if ( !NativeLibrary.TryLoad( platformDll, out module ) )
 			return default;
 
 		loadedModules[dll] = module;
 		return module;
+	}
+
+	static string GetPlatformDllName( string dll )
+	{
+		if ( OperatingSystem.IsWindows() ) return dll;
+		if ( OperatingSystem.IsMacOS() ) return dll.Replace( ".dll", ".dylib" );
+		if ( OperatingSystem.IsLinux() ) return dll.Replace( ".dll", ".so" );
+		return dll;
 	}
 
 	[UnmanagedFunctionPointer( CallingConvention.Cdecl )]

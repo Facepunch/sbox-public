@@ -1,6 +1,7 @@
 ﻿using Sandbox.Internal;
 using Sandbox.Menu;
 using Sandbox.Network;
+using System;
 using System.Threading;
 
 namespace Sandbox;
@@ -120,7 +121,8 @@ internal class ServerPackages
 			await ClientInstallPackage( p.Value, reloadResources: false );
 		} );
 
-		NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
+		if ( !OperatingSystem.IsLinux() )
+			NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
 
 		Log.Info( $"Installation Complete ({sw.Elapsed.TotalSeconds:0.00}s)" );
 	}

@@ -121,6 +121,8 @@ public class CompileGroup : IDisposable
 			_compilers.Add( compiler );
 		}
 
+		log.Trace( $"CreateCompiler: added compiler '{name}', AssemblyName='{compiler.AssemblyName}'" );
+
 		return compiler;
 	}
 
@@ -359,7 +361,19 @@ public class CompileGroup : IDisposable
 		if ( reference == "package.local.base" )
 			reference = "package.base";
 
+		log.Trace( $"FindReferenceAsync: looking for '{reference}'" );
 		var compiler = FindCompilerByAssemblyName( reference );
+		log.Trace( $"FindReferenceAsync: FindCompilerByAssemblyName result: {compiler?.Name}" );
+
+		// Fallback: if not found by assembly name, try by package name (e.g., "base" for "package.base")
+		if ( compiler == null && reference.StartsWith( "package." ) )
+		{
+			var packageName = reference.Substring( "package.".Length );
+			log.Trace( $"FindReferenceAsync: trying package name '{packageName}'" );
+			compiler = FindCompilerByPackageName( packageName );
+			log.Trace( $"FindReferenceAsync: FindCompilerByPackageName result: {compiler?.Name}" );
+		}
+
 		if ( compiler != null )
 		{
 			//

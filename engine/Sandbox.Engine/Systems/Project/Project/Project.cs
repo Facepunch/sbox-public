@@ -178,12 +178,23 @@ public sealed partial class Project
 	/// <summary>
 	/// Absolute path to the Code folder of the project.
 	/// </summary>
-	public string GetCodePath() => System.IO.Path.Combine( RootDirectory.FullName, "Code" );
+	public string GetCodePath()
+	{
+		var lowerCodePath = System.IO.Path.Combine( RootDirectory.FullName, "code" );
+		var upperCodePath = System.IO.Path.Combine( RootDirectory.FullName, "Code" );
+
+		if ( System.IO.Directory.Exists( lowerCodePath ) )
+			return lowerCodePath;
+		if ( System.IO.Directory.Exists( upperCodePath ) )
+			return upperCodePath;
+
+		return lowerCodePath;
+	}
 
 	/// <summary>
 	/// Returns true if the Code path exists
 	/// </summary>
-	public bool HasCodePath() => RootDirectory is not null && System.IO.Directory.Exists( GetCodePath() );
+	public bool HasCodePath() => RootDirectory is not null && (System.IO.Directory.Exists( GetCodePath() ) || System.IO.Directory.Exists( System.IO.Path.Combine( RootDirectory.FullName, "Code" ) ));
 
 	/// <summary>
 	/// Absolute path to the Editor folder of the project.

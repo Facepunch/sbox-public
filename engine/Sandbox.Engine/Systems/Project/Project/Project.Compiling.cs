@@ -90,9 +90,11 @@ public partial class Project
 			if ( compilerName == "local.base" ) compilerName = "base";
 			if ( compilerName == "local.toolbase" ) compilerName = "toolbase";
 
-			Log.Trace( $"Create Compiler `{compilerName}`" );
+			Log.Trace( $"Create Compiler `{compilerName}` at path `{codePath}`" );
 
 			Compiler = CompileGroup.CreateCompiler( compilerName, codePath, compilerSettings );
+
+			Log.Trace( $"Create Compiler result: {Compiler?.Name}, AssemblyName: {Compiler?.AssemblyName}" );
 
 			if ( BaseReferencingTypes.Contains( Config.Type ) && compilerName != "base" )
 			{

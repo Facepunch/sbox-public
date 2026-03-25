@@ -1,4 +1,7 @@
-﻿namespace Sandbox;
+﻿using System;
+using System.Threading.Tasks;
+
+namespace Sandbox;
 
 /// <summary>
 /// Holds the state of a standalone game
@@ -76,7 +79,8 @@ internal partial class StandaloneGameInstance : GameInstance
 
 		FileSystem.Mounted.Mount( new LocalFileSystem( Standalone.GamePath ) );
 		NativeEngine.FullFileSystem.AddProjectPath( Ident, Standalone.GamePath );
-		NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
+		if ( !OperatingSystem.IsLinux() )
+			NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
 
 		EngineFileSystem.ProjectSettings = activePackage.ProjectSettings;
 

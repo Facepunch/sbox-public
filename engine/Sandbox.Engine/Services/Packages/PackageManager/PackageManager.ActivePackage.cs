@@ -170,7 +170,7 @@ internal static partial class PackageManager
 			MountedFileSystem.Mount( FileSystem );
 			MountedFileSystem.Mount( AssemblyFileSystem );
 
-			if ( reloadResources )
+			if ( reloadResources && !OperatingSystem.IsLinux() )
 			{
 				// Reload any already resident resources with the ones we've just mounted
 				NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
@@ -200,7 +200,8 @@ internal static partial class PackageManager
 			AssemblyFileSystem = null;
 
 			// Reload any resident resources that were just unmounted (they shouldn't be used & will appear as an error, or a local variant)
-			NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
+			if ( !OperatingSystem.IsLinux() )
+				NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
 		}
 
 		internal bool HasCodeArchives()
