@@ -312,11 +312,7 @@ internal static class Bootstrap
 		{
 			StartupTiming.FinishTimer( "Time" );
 			StartupTiming.SetValue( "package.ident", Application.GameIdent );
-
-			if ( !Application.IsStandalone )
-			{
-				StartupTiming.Submit( true );
-			}
+			StartupTiming.Submit( true );
 		}
 
 		if ( Application.IsBenchmark )
