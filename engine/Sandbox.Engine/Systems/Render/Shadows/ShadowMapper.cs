@@ -255,7 +255,7 @@ internal partial class ShadowMapper
 	internal static int GetDesiredResolution( int fixedSize )
 	{
 		// Round down to nearest power of two
-		int desiredSize = (int)BitOperations.RoundUpToPowerOf2( (uint)Math.Max( fixedSize + 1, 1 ) ) >> 1;
+		int desiredSize = (int)BitOperations.RoundUpToPowerOf2( (uint)Math.Max( fixedSize, 1 ) + 1 ) >> 1;
 
 		// Assume that someone manually overriding the size knows what they're doing and loosen the limits
 		// Any higher and the engine starts being a bit unhappy (texture gets deleted)
