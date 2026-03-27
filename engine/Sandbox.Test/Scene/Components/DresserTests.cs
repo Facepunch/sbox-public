@@ -61,8 +61,8 @@ public class DresserTests
 
 		clone.Enabled = true;
 
-		Assert.AreEqual( 0.42f, smr.Attributes.GetFloat( "skin_age" ), "Age should have been set by dresser" );
-		Assert.AreEqual( 0.84f, smr.Attributes.GetFloat( "skin_tint" ), "Tint should have been set by dresser" );
-		Assert.AreNotEqual( 0f /* default unset */, smr.GetFloat( "scale_height" ), "Height should have been set by dresser" );
+		Assert.AreEqual( 0.42f, smr2.Attributes.GetFloat( "skin_age" ), "Age should have been set by dresser" );
+		Assert.AreEqual( 0.84f, smr2.Attributes.GetFloat( "skin_tint" ), "Tint should have been set by dresser" );
+		Assert.AreNotEqual( 0f /* default unset */, smr2.GetFloat( "scale_height" ), "Height should have been set by dresser" );
 	}
 }
