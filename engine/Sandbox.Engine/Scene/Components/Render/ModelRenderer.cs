@@ -71,20 +71,47 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 		}
 	}
 
-	[Property, Model.BodyGroupMask, MakeDirty, ShowIf( nameof( HasBodyGroups ), true )]
+	[Property, Model.BodyGroupMask, ShowIf( nameof( HasBodyGroups ), true )]
 	[DefaultValue( ulong.MaxValue )]
-	public ulong BodyGroups { get => _bodyGroups; set => _bodyGroups = value; }
+	public ulong BodyGroups
+	{
+		get => _bodyGroups;
+		set
+		{
+			_bodyGroups = value;
+
+			OnPropertyDirty();
+		}
+	}
 
 	public bool HasBodyGroups => Model?.Parts.All.Sum( x => x.Choices.Count ) > 1;
 
-	[Property, Model.MaterialGroup, MakeDirty, ShowIf( nameof( HasMaterialGroups ), true )]
+	[Property, Model.MaterialGroup, ShowIf( nameof( HasMaterialGroups ), true )]
 	[DefaultValue( default )]
-	public string MaterialGroup { get; set; }
+	public string MaterialGroup
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	}
 
 	public bool HasMaterialGroups => Model?.MaterialGroupCount > 0 && MaterialOverride is null;
 
-	[Title( "Cast Shadows" ), Property, Category( "Lighting" ), MakeDirty]
-	public ShadowRenderType RenderType { get; set; } = ShadowRenderType.On;
+	[Title( "Cast Shadows" ), Property, Category( "Lighting" )]
+	public ShadowRenderType RenderType
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = ShadowRenderType.On;
 
 	private int? _lodOverride;
 

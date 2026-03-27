@@ -21,7 +21,17 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 	[Property] public bool UseMapFromLaunch { get; set; }
 
-	[Property, MakeDirty] public bool EnableCollision { get; set; } = true;
+	[Property]
+	public bool EnableCollision
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = true;
 
 	/// <summary>
 	/// True if the map is loaded

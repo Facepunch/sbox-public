@@ -34,8 +34,17 @@ public class SkyBox2D : Component, Component.ExecuteInEditor
 		}
 	}
 
-	[Property, Description( "Whether to use the skybox for lighting as an envmap probe" ), MakeDirty, DefaultValue( true )]
-	public bool SkyIndirectLighting { get; set; } = true;
+	[Property, Description( "Whether to use the skybox for lighting as an envmap probe" ), DefaultValue( true )]
+	public bool SkyIndirectLighting
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = true;
 
 	Material _material = Material.Load( "materials/skybox/skybox_day_01.vmat" ); // todo - better default
 

@@ -11,16 +11,66 @@
 [Alias( "SpotLightComponent" )]
 public class SpotLight : Light
 {
-	[Property, MakeDirty] public float Radius { get; set; } = 500;
+	[Property]
+	public float Radius
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 500;
 
 	[Range( 0, 90 )]
-	[Property, MakeDirty] public float ConeOuter { get; set; } = 45;
+	[Property]
+	public float ConeOuter
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 45;
 
 	[Range( 0, 90 )]
-	[Property, MakeDirty] public float ConeInner { get; set; } = 15;
+	[Property]
+	public float ConeInner
+	{
+		get;
+		set
+		{
+			field = value;
 
-	[Property, MakeDirty, Range( 0, 10 )] public float Attenuation { get; set; } = 1.0f;
-	[Property, MakeDirty] public Texture Cookie { get; set; }
+			OnPropertyDirty();
+		}
+	} = 15;
+
+	[Property, Range( 0, 10 )]
+	public float Attenuation
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 1.0f;
+	[Property]
+	public Texture Cookie
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	}
 
 	public SpotLight()
 	{

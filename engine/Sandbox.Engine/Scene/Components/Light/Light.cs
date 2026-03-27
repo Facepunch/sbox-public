@@ -10,16 +10,56 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 	/// <summary>
 	/// The main color of the light
 	/// </summary>
-	[Property, MakeDirty] public Color LightColor { get; set; } = "#E9FAFF";
+	[Property]
+	public Color LightColor
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = "#E9FAFF";
 
 	/// <summary>
 	/// Should this light cast shadows?
 	/// </summary>
-	[Property, MakeDirty] public bool Shadows { get; set; } = true;
+	[Property]
+	public bool Shadows
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = true;
 
 
-	[Property, MakeDirty, Category( "Fog Settings" )] public FogInfluence FogMode { get; set; } = FogInfluence.Enabled;
-	[Property, MakeDirty, Range( 0, 1 ), Category( "Fog Settings" )] public float FogStrength { get; set; } = 1.0f;
+	[Property, Category( "Fog Settings" )]
+	public FogInfluence FogMode
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = FogInfluence.Enabled;
+	[Property, Range( 0, 1 ), Category( "Fog Settings" )]
+	public float FogStrength
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 1.0f;
 
 
 	Color IColorProvider.ComponentColor => LightColor;

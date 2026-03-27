@@ -11,8 +11,28 @@
 [Alias( "PointLightComponent" )]
 public class PointLight : Light
 {
-	[Property, MakeDirty] public float Radius { get; set; } = 400;
-	[Property, MakeDirty, Range( 0, 10 )] public float Attenuation { get; set; } = 1.0f;
+	[Property]
+	public float Radius
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 400;
+	[Property, Range( 0, 10 )]
+	public float Attenuation
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 1.0f;
 	//	[Property, MakeDirty] public Texture Cookie { get; set; }
 
 	protected override SceneLight CreateSceneObject()

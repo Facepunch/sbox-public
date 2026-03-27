@@ -125,11 +125,29 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	[Property, ReadOnly, Group( "Mass" ), JsonIgnore]
 	public float Mass => _body.IsValid() ? _body.Mass : default;
 
-	[Property, Group( "Mass" ), MakeDirty]
-	public bool OverrideMassCenter { get; set; }
+	[Property, Group( "Mass" )]
+	public bool OverrideMassCenter
+	{
+		get;
+		set
+		{
+			field = value;
 
-	[Property, Title( "Mass Center Override" ), Group( "Mass" ), ShowIf( nameof( OverrideMassCenter ), true ), MakeDirty]
-	public Vector3 MassCenterOverride { get; set; }
+			OnPropertyDirty();
+		}
+	}
+
+	[Property, Title( "Mass Center Override" ), Group( "Mass" ), ShowIf( nameof( OverrideMassCenter ), true )]
+	public Vector3 MassCenterOverride
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	}
 
 	/// <summary>
 	/// Center of mass for this rigidbody in local space coordinates.
@@ -137,14 +155,32 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	[Property, ReadOnly, Group( "Mass" ), JsonIgnore]
 	public Vector3 MassCenter => _body.IsValid() ? _body.LocalMassCenter : default;
 
-	[Property, MakeDirty]
-	public PhysicsLock Locking { get; set; }
+	[Property]
+	public PhysicsLock Locking
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	}
 
 	[Property]
 	public bool StartAsleep { get; set; }
 
-	[Property, MakeDirty]
-	public RigidbodyFlags RigidbodyFlags { get; set; }
+	[Property]
+	public RigidbodyFlags RigidbodyFlags
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	}
 
 	/// <summary>
 	/// Whether this rigidbody can deal damage to damageable objects on high-speed impacts.
@@ -238,8 +274,17 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		}
 	}
 
-	[Property, MakeDirty]
-	public bool MotionEnabled { get; set; } = true;
+	[Property]
+	public bool MotionEnabled
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = true;
 
 
 	bool _collisionEventsEnabled = true;

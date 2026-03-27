@@ -24,7 +24,17 @@ public sealed class WorldPanel : Renderer, IRootPanelComponent
 	/// <summary>
 	/// How far can we interact with this world panel?
 	/// </summary>
-	[Property, MakeDirty] public float InteractionRange { get; set; } = 1000.0f;
+	[Property]
+	public float InteractionRange
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 1000.0f;
 
 	public enum HAlignment
 	{

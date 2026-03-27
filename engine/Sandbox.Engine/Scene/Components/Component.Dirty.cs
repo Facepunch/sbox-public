@@ -13,6 +13,9 @@ public abstract partial class Component
 		OnPropertyDirty();
 	}
 
+	/// <summary>
+	/// Marks the component as dirty
+	/// </summary>
 	protected void OnPropertyDirty()
 	{
 		if ( _dirty ) return;
@@ -48,6 +51,7 @@ public abstract partial class Component
 
 [AttributeUsage( AttributeTargets.Property )]
 [CodeGenerator( CodeGeneratorFlags.WrapPropertySet | CodeGeneratorFlags.Instance, "OnPropertyDirty" )]
+[Obsolete( "Call OnPropertyDirty in your property setter" )]
 public class MakeDirtyAttribute : Attribute
 {
 

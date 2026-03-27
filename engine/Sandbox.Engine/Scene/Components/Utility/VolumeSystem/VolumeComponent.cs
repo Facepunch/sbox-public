@@ -2,8 +2,17 @@
 
 public abstract class VolumeComponent : Component, VolumeSystem.IVolume
 {
-	[InlineEditor, Property, MakeDirty]
-	public SceneVolume SceneVolume { get; set; } = new SceneVolume();
+	[InlineEditor, Property]
+	public SceneVolume SceneVolume
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = new SceneVolume();
 
 	/// <summary>
 	/// True if SceneVolume.Type == SceneVolume.VolumeTypes.Infinite

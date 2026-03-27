@@ -87,12 +87,52 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 	}
 
 	[Space]
-	[Property, MakeDirty] public SceneCubemap.ProjectionMode Projection { get; set; }
-	[Property, MakeDirty] public Color TintColor { get; set; } = Color.White;
-	[Property, MakeDirty] public BBox Bounds { get; set; } = BBox.FromPositionAndSize( 0, 1024 );
+	[Property]
+	public SceneCubemap.ProjectionMode Projection
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	}
+	[Property]
+	public Color TintColor
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = Color.White;
+	[Property]
+	public BBox Bounds
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = BBox.FromPositionAndSize( 0, 1024 );
 
 
-	[Property, Range( -32.0f, 32.0f ), MakeDirty] public float Feathering { get; set; } = 8.0f;
+	[Property, Range( -32.0f, 32.0f )]
+	public float Feathering
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 8.0f;
 
 	/// <summary>
 	/// Gets or sets the priority level for the object.
@@ -117,9 +157,18 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 	/// <summary>
 	/// If this is set, the EnvmapProbe will use a custom cubemap texture instead of rendering dynamically
 	/// </summary>
-	[Property, MakeDirty]
+	[Property]
 	[ShowIf( nameof( Mode ), EnvmapProbeMode.CustomTexture )]
-	public Texture Texture { get; set; }
+	public Texture Texture
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	}
 
 	/// <summary>
 	/// The texture that was baked for this envmap probe
@@ -139,22 +188,58 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 	/// </summary>
 	[Header( "Rendering" )]
 	[HideIf( nameof( Mode ), EnvmapProbeMode.CustomTexture )]
-	[Property, MakeDirty]
+	[Property]
 	[EnumButtonGroup]
-	public CubemapResolution Resolution { get; set; } = CubemapResolution.Small;
+	public CubemapResolution Resolution
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = CubemapResolution.Small;
 
 	[HideIf( nameof( Mode ), EnvmapProbeMode.CustomTexture )]
-	[Property, MakeDirty]
-	public float ZNear { get; set; } = 16;
+	[Property]
+	public float ZNear
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 16;
 
 	[HideIf( nameof( Mode ), EnvmapProbeMode.CustomTexture )]
-	[Property, MakeDirty]
-	public float ZFar { get; set; } = 4096;
+	[Property]
+	public float ZFar
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 4096;
 
 	[Header( "Realtime Updates" )]
 	[ShowIf( nameof( Mode ), EnvmapProbeMode.Realtime )]
-	[Property, MakeDirty]
-	public CubemapDynamicUpdate UpdateStrategy { get; set; }
+	[Property]
+	public CubemapDynamicUpdate UpdateStrategy
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	}
 
 	/// <summary>
 	/// Only update dynamically if we're this close to it
@@ -179,8 +264,17 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 	/// </summary>
 	[HideIf( nameof( Mode ), EnvmapProbeMode.CustomTexture )]
 	[ShowIf( nameof( UpdateStrategy ), CubemapDynamicUpdate.OnEnabled )]
-	[Property, MakeDirty]
-	public bool MultiBounce { get; set; } = false;
+	[Property]
+	public bool MultiBounce
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = false;
 
 	protected override void OnEnabled()
 	{

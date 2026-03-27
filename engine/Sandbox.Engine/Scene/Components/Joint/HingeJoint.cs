@@ -24,36 +24,81 @@ public sealed class HingeJoint : Joint
 	/// Minimum angle it should be allowed to go
 	/// </summary>
 	[Title( "Min" ), Group( "Limit" )]
-	[Property, MakeDirty]
-	public float MinAngle { get; set; }
+	[Property]
+	public float MinAngle
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	}
 
 	/// <summary>
 	/// Maximum angle it should be allowed to go
 	/// </summary>
 	[Title( "Max" ), Group( "Limit" )]
-	[Property, MakeDirty]
-	public float MaxAngle { get; set; }
+	[Property]
+	public float MaxAngle
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	}
 
 	/// <summary>
 	/// Motor mode
 	/// </summary>
 	[Group( "Motor" )]
-	[Property, MakeDirty]
-	public MotorMode Motor { get; set; }
+	[Property]
+	public MotorMode Motor
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	}
 
 	/// <summary>
 	/// Hinge friction
 	/// </summary>
 	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.Disabled )]
-	public float Friction { get; set; }
+	[Property, ShowIf( nameof( Motor ), MotorMode.Disabled )]
+	public float Friction
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	}
 
 	/// <summary>
 	/// Target angle of motor
 	/// </summary>
 	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.TargetAngle )]
-	public float TargetAngle { get; set; }
+	[Property, ShowIf( nameof( Motor ), MotorMode.TargetAngle )]
+	public float TargetAngle
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	}
 
 	[Obsolete( $"Use {nameof( Frequency )}" )]
 	public float Fequency { get => Frequency; set => Frequency = value; }
@@ -62,29 +107,65 @@ public sealed class HingeJoint : Joint
 	/// Frequency of motor
 	/// </summary>
 	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.TargetAngle )]
-	public float Frequency { get; set; } = 1.0f;
+	[Property, ShowIf( nameof( Motor ), MotorMode.TargetAngle )]
+	public float Frequency
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 1.0f;
 
 	/// <summary>
 	/// Damping of motor
 	/// </summary>
 	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.TargetAngle )]
-	public float DampingRatio { get; set; } = 1.0f;
+	[Property, ShowIf( nameof( Motor ), MotorMode.TargetAngle )]
+	public float DampingRatio
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 1.0f;
 
 	/// <summary>
 	/// Target velocity of motor
 	/// </summary>
 	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.TargetVelocity )]
-	public float TargetVelocity { get; set; } = 0.0f;
+	[Property, ShowIf( nameof( Motor ), MotorMode.TargetVelocity )]
+	public float TargetVelocity
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 0.0f;
 
 	/// <summary>
 	/// Max torque of motor
 	/// </summary>
 	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.TargetVelocity )]
-	public float MaxTorque { get; set; } = 0.0f;
+	[Property, ShowIf( nameof( Motor ), MotorMode.TargetVelocity )]
+	public float MaxTorque
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 0.0f;
 
 	[Group( "State" )]
 	[Property, JsonIgnore]

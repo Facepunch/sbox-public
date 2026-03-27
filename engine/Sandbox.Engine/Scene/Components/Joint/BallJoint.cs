@@ -32,74 +32,173 @@ public sealed class BallJoint : Joint
 	/// Motor mode
 	/// </summary>
 	[Group( "Motor" )]
-	[Property, MakeDirty]
-	public MotorMode Motor { get; set; }
+	[Property]
+	public MotorMode Motor
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	}
 
 	/// <summary>
 	/// Enables or disables the swing limit.
 	/// </summary>
-	[Property, MakeDirty]
-	public bool SwingLimitEnabled { get; set; } = false;
+	[Property]
+	public bool SwingLimitEnabled
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = false;
 
 	/// <summary>
 	/// The minimum and maximum swing angles allowed by the joint in degrees.
 	/// </summary>
-	[Property, MakeDirty]
-	public Vector2 SwingLimit { get; set; } = new Vector2( 0, 90 );
+	[Property]
+	public Vector2 SwingLimit
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = new Vector2( 0, 90 );
 
 	/// <summary>
 	/// Enables or disables the twist limit.
 	/// </summary>
-	[Property, MakeDirty]
-	public bool TwistLimitEnabled { get; set; } = false;
+	[Property]
+	public bool TwistLimitEnabled
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = false;
 
 	/// <summary>
 	/// The minimum and maximum twist angles allowed by the joint in degrees.
 	/// </summary>
-	[Property, MakeDirty]
-	public Vector2 TwistLimit { get; set; } = new Vector2( -15, 15 );
+	[Property]
+	public Vector2 TwistLimit
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = new Vector2( -15, 15 );
 
 	/// <summary>
 	/// Joint friction.
 	/// </summary>
 	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.Disabled )]
-	public float Friction { get; set; } = 0.5f;
+	[Property, ShowIf( nameof( Motor ), MotorMode.Disabled )]
+	public float Friction
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 0.5f;
 
 	/// <summary>
 	/// Target angle of motor.
 	/// </summary>
 	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.TargetRotation )]
-	public Rotation TargetRotation { get; set; }
+	[Property, ShowIf( nameof( Motor ), MotorMode.TargetRotation )]
+	public Rotation TargetRotation
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	}
 
 	/// <summary>
 	/// Frequency of motor.
 	/// </summary>
 	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.TargetRotation )]
-	public float Frequency { get; set; } = 1.0f;
+	[Property, ShowIf( nameof( Motor ), MotorMode.TargetRotation )]
+	public float Frequency
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 1.0f;
 
 	/// <summary>
 	/// Damping of motor.
 	/// </summary>
 	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.TargetRotation )]
-	public float DampingRatio { get; set; } = 1.0f;
+	[Property, ShowIf( nameof( Motor ), MotorMode.TargetRotation )]
+	public float DampingRatio
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 1.0f;
 
 	/// <summary>
 	/// Target angular velocity of the motor.
 	/// </summary>
 	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.TargetVelocity )]
-	public Vector3 TargetVelocity { get; set; } = 0.0f;
+	[Property, ShowIf( nameof( Motor ), MotorMode.TargetVelocity )]
+	public Vector3 TargetVelocity
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 0.0f;
 
 	/// <summary>
 	/// Maximum torque the motor can apply when in velocity mode.
 	/// </summary>
 	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.TargetVelocity )]
-	public float MaxTorque { get; set; } = 0.0f;
+	[Property, ShowIf( nameof( Motor ), MotorMode.TargetVelocity )]
+	public float MaxTorque
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = 0.0f;
 
 	BallSocketJoint _joint;
 

@@ -50,10 +50,30 @@ public class Tonemapping : BasePostProcess<Tonemapping>
 	/// <summary>
 	/// Which tonemapping algorithm to use for color grading.
 	/// </summary>
-	[Property, MakeDirty] public TonemappingMode Mode { get; set; } = TonemappingMode.HableFilmic;
+	[Property]
+	public TonemappingMode Mode
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = TonemappingMode.HableFilmic;
 
 	[ShowIf( nameof( Mode ), TonemappingMode.HableFilmic )]
-	[Property, MakeDirty] public ExposureColorSpaceEnum ExposureMethod { get; set; } = ExposureColorSpaceEnum.RGB;
+	[Property]
+	public ExposureColorSpaceEnum ExposureMethod
+	{
+		get;
+		set
+		{
+			field = value;
+
+			OnPropertyDirty();
+		}
+	} = ExposureColorSpaceEnum.RGB;
 
 	private static Material Shader = Material.FromShader( "shaders/tonemapping/tonemapping.shader" );
 
