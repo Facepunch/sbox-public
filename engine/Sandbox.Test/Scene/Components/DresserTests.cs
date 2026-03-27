@@ -8,7 +8,6 @@ public class DresserTests
 	private static Model CitizenModel => Model.Load( "models/citizen/citizen.vmdl" );
 
 	[TestMethod]
-	[Ignore( "Set-Getting attributes on the SkinnedModelRenderer doesn't seem to do anything in unit tests?" )]
 	public void ChangingManualAttributes()
 	{
 		var scene = new Scene();
@@ -23,11 +22,11 @@ public class DresserTests
 
 		// Age
 		dresser.ManualAge = 0.42f;
-		Assert.AreEqual( 0.42f, smr.GetFloat( "skin_age" ), "Age should have been set by dresser" );
+		Assert.AreEqual( 0.42f, smr.Attributes.GetFloat( "skin_age" ), "Age should have been set by dresser" );
 
 		// Tint
 		dresser.ManualTint = 0.84f;
-		Assert.AreEqual( 0.84f, smr.GetFloat( "skin_tint" ), "Tint should have been set by dresser" );
+		Assert.AreEqual( 0.84f, smr.Attributes.GetFloat( "skin_tint" ), "Tint should have been set by dresser" );
 
 		// Height
 		dresser.ManualHeight = 0.14f;
