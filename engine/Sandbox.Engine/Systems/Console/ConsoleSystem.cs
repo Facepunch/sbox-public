@@ -30,7 +30,9 @@ public static partial class ConsoleSystem
 	/// </summary>
 	public static void OnChangePropertySet<T>( in WrappedPropertySet<T> p )
 	{
+#pragma warning disable CS0618 // Required for backwards compatibility
 		var attribute = p.GetAttribute<ChangeAttribute>();
+#pragma warning restore CS0618
 		var property = Game.TypeLibrary.GetMemberByIdent( p.MemberIdent ) as PropertyDescription;
 		var type = property.TypeDescription;
 		var functionName = attribute.Name ?? $"On{property.Name}Changed";

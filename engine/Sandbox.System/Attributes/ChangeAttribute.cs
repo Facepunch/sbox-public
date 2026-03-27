@@ -8,6 +8,7 @@
 	/// </summary>
 	[AttributeUsage( AttributeTargets.Property )]
 	[CodeGenerator( CodeGeneratorFlags.Instance | CodeGeneratorFlags.Static | CodeGeneratorFlags.WrapPropertySet, "Sandbox.ConsoleSystem.OnChangePropertySet", 10 )]
+	[Obsolete( "Use property setter" )]
 	public class ChangeAttribute : Attribute
 	{
 		/// <summary>

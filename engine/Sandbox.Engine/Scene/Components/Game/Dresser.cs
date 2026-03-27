@@ -59,21 +59,45 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 	[Header( "Manual Attributes" )]
 	[ShowIf( "Source", ClothingSource.Manual )]
 	[Property, Range( 0, 1 )]
-	[Change( nameof( OnManualChange ) )]
 	[Sync]
-	public float ManualHeight { get; set; } = 0.5f;
+	public float ManualHeight
+	{
+		get;
+		set
+		{
+			field = value;
+
+			ApplyAttributes();
+		}
+	} = 0.5f;
 
 	[ShowIf( "Source", ClothingSource.Manual )]
 	[Property, Range( 0, 1 )]
-	[Change( nameof( OnManualChange ) )]
 	[Sync]
-	public float ManualTint { get; set; } = 0.5f;
+	public float ManualTint
+	{
+		get;
+		set
+		{
+			field = value;
+
+			ApplyAttributes();
+		}
+	} = 0.5f;
 
 	[ShowIf( "Source", ClothingSource.Manual )]
 	[Property, Range( 0, 1 )]
-	[Change( nameof( OnManualChange ) )]
 	[Sync]
-	public float ManualAge { get; set; } = 0.5f;
+	public float ManualAge
+	{
+		get;
+		set
+		{
+			field = value;
+
+			ApplyAttributes();
+		}
+	} = 0.5f;
 
 	[Header( "Manual Items" )]
 	[ShowIf( "Source", ClothingSource.Manual )]
@@ -287,14 +311,6 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 		{
 			_ = Apply();
 		}
-	}
-
-	/// <summary>
-	/// Called when Height, Age or Tint is changed
-	/// </summary>
-	public void OnManualChange( float a, float b )
-	{
-		ApplyAttributes();
 	}
 
 	/// <summary>
