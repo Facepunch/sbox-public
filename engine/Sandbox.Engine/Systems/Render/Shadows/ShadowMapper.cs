@@ -252,6 +252,16 @@ internal partial class ShadowMapper
 		return Math.Clamp( desiredSize, 128, MaxResolution );
 	}
 
+	internal static int GetDesiredResolution( int fixedSize )
+	{
+		// Round down to nearest power of two
+		int desiredSize = (int)BitOperations.RoundUpToPowerOf2( (uint)Math.Max( fixedSize + 1, 1 ) ) >> 1;
+
+		// Assume that someone manually overriding the size knows what they're doing and loosen the limits
+		// Any higher and the engine starts being a bit unhappy (texture gets deleted)
+		return Math.Clamp( desiredSize, 1, 16384 );
+	}
+
 	/// <summary>
 	/// Find a cached shadow map or create a new one for the light and view.
 	/// Returns an index to the shadow maps structured buffer
