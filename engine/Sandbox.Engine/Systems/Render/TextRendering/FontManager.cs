@@ -1,4 +1,4 @@
-﻿using SkiaSharp;
+using SkiaSharp;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using Topten.RichTextKit;
@@ -79,21 +79,47 @@ internal class FontManager : FontMapper
 		}
 	}
 
-	/// <summary>
-	/// Tries to get the best matching font for the given style.
-	/// Will return a matching font family with the closest font weight and optionally slant.
-	/// </summary>
+	private static readonly (string suffix, int weight)[] WeightSuffixes = new[]
+	{
+		(" Thin", 100),
+		(" Hairline", 100),
+		(" ExtraLight", 200),
+		(" UltraLight", 200),
+		(" Light", 300),
+		(" Regular", 400),
+		(" Medium", 500),
+		(" SemiBold", 600),
+		(" DemiBold", 600),
+		(" ExtraBold", 800),
+		(" UltraBold", 800),
+		(" Bold", 700),
+		(" Black", 900),
+		(" Heavy", 900),
+	};
+
 	private SKTypeface GetBestTypeface( IStyle style )
 	{
-		// Must be of same family
 		var familyFonts = LoadedFonts.Values.Where( x => string.Equals( x.FamilyName, style.FontFamily, StringComparison.OrdinalIgnoreCase ) );
+
+		if ( !familyFonts.Any() )
+		{
+			var requestedFamily = style.FontFamily;
+			foreach ( var (suffix, _) in WeightSuffixes )
+			{
+				if ( requestedFamily.EndsWith( suffix, StringComparison.OrdinalIgnoreCase ) )
+				{
+					var baseFamily = requestedFamily.Substring( 0, requestedFamily.Length - suffix.Length );
+					familyFonts = LoadedFonts.Values.Where( x => string.Equals( x.FamilyName, baseFamily, StringComparison.OrdinalIgnoreCase ) );
+					if ( familyFonts.Any() ) break;
+				}
+			}
+		}
+
 		if ( !familyFonts.Any() ) return null;
 
-		// Get matching slants, if no matching fallback to regular
 		var slantFonts = familyFonts.Where( x => x.IsItalic == style.FontItalic );
 		if ( slantFonts.Any() ) familyFonts = slantFonts;
 
-		// Finally get the closest font weight
 		return familyFonts.Select( x => new { x, distance = Math.Abs( x.FontWeight - style.FontWeight ) } )
 			.OrderBy( x => x.distance )
 			.First().x;
