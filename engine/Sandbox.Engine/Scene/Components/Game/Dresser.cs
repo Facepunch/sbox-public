@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Components;
+using System.ComponentModel;
 using System.Threading;
 
 namespace Sandbox;
@@ -65,9 +67,12 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 		get;
 		set
 		{
+			if ( field == value )
+				return;
+
 			field = value;
 
-			ApplyAttributes();
+			OnManualChange();
 		}
 	} = 0.5f;
 
@@ -79,9 +84,12 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 		get;
 		set
 		{
+			if ( field == value )
+				return;
+
 			field = value;
 
-			ApplyAttributes();
+			OnManualChange();
 		}
 	} = 0.5f;
 
@@ -93,9 +101,12 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 		get;
 		set
 		{
+			if ( field == value )
+				return;
+
 			field = value;
 
-			ApplyAttributes();
+			OnManualChange();
 		}
 	} = 0.5f;
 
@@ -311,6 +322,31 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 		{
 			_ = Apply();
 		}
+	}
+
+	/// <summary>
+	/// Called when Height, Age or Tint is changed
+	/// </summary>
+	public void OnManualChange()
+	{
+		if ( Flags.HasFlag( ComponentFlags.Deserializing ) )
+		{
+			// Do nothing if the component is deserializing. This should be the first
+			// time the property is loaded, so we don't want to invoke a callback.
+			return;
+		}
+
+		var go = GameObject;
+		if ( go.IsValid()
+			 && (go.Flags.HasFlag( GameObjectFlags.Deserializing )
+				 || go.Flags.HasFlag( GameObjectFlags.Loading )) )
+		{
+			// Do nothing if the component's GameObject is deserializing or
+			// we're loading.
+			return;
+		}
+
+		ApplyAttributes();
 	}
 
 	/// <summary>
