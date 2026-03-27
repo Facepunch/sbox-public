@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace GameObjects.Components;
+﻿namespace GameObjects.Components;
 
 [TestClass]
 public class DresserTests
