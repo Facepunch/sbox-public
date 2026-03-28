@@ -254,7 +254,7 @@ public class SerializeTest
 	/// Even if the property is not marked with [Property] or [JsonInclude].
 	/// </summary>
 	[TestMethod]
-	public void CloneRquiredComponentProperty()
+	public void CloneRequiredComponentProperty()
 	{
 		AssertTypeLibraryReady( typeof( ModelRenderer ), typeof( ComponentIdTest ) );
 
@@ -271,6 +271,45 @@ public class SerializeTest
 
 		Assert.IsNotNull( cloneComp );
 		Assert.AreNotEqual( originalComp.Id, cloneComp.Id );
+	}
+
+	/// <summary>
+	/// If we clone a GameObject tree with a Component using [RequireComponent(FindMode = ...)].
+	/// The cloned Go should also have a reference to the cloned counterpart of the required component in descendants (according to FindMode).
+	/// Even if the property is not marked with [Property] or [JsonInclude].
+	/// </summary>
+	[TestMethod]
+	public void CloneRequiredComponentPropertyWithFindMode()
+	{
+		AssertTypeLibraryReady( typeof( ModelRenderer ), typeof( ComponentIdTest ) );
+
+		using var scope = new Scene().Push();
+
+		var original = new GameObject()
+		{
+			Name = "My Game Object"
+		};
+
+		var originalChild = new GameObject( original )
+		{
+			Name = "Child",
+		};
+
+		var originalComponentIdTest = originalChild.Components.Create<ComponentIdTest>();
+		var originalReqComponent = original.Components.Create<ComponentWithRequiredComponentAndFindMode>();
+
+		var clone = original.Clone();
+		var cloneChild = clone.Children.FirstOrDefault();
+
+		var cloneComponentIdTest = cloneChild.Components.Get<ComponentIdTest>();
+		var cloneReqComponent = clone.Components.Get<ComponentWithRequiredComponentAndFindMode>();
+
+		Assert.IsNotNull( cloneReqComponent );
+		Assert.IsNotNull( cloneComponentIdTest );
+		Assert.AreNotEqual( originalComponentIdTest.Id, cloneComponentIdTest.Id );
+		Assert.AreNotEqual( originalReqComponent.Id, cloneReqComponent.Id );
+
+		Assert.AreEqual( cloneReqComponent.RequiredComponent, cloneComponentIdTest );
 	}
 
 	/// <summary>
@@ -1011,6 +1050,11 @@ public class ComponentWithActionGraph : Component
 public class ComponentWithRequiredComponent : Component
 {
 	[RequireComponent]
+	public ComponentIdTest RequiredComponent { get; set; }
+}
+public class ComponentWithRequiredComponentAndFindMode : Component
+{
+	[RequireComponent( FindMode.EverythingInSelfAndDescendants )]
 	public ComponentIdTest RequiredComponent { get; set; }
 }
 
