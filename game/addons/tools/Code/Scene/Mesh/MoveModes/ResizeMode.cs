@@ -13,20 +13,21 @@ public sealed class ResizeMode : MoveMode
 	private BBox _startBox;
 	private BBox _deltaBox;
 	private BBox _box;
+	private Rotation _basis;
 
 	public override void OnBegin( SelectionTool tool )
 	{
-		_startBox = tool.CalculateSelectionBounds();
+		_basis = tool.CalculateSelectionBasis();
+		_startBox = tool.GlobalSpace
+			? tool.CalculateSelectionBounds()
+			: tool.CalculateLocalBounds();
+
 		_deltaBox = default;
 		_box = _startBox;
 	}
 
 	protected override void OnUpdate( SelectionTool tool )
 	{
-		var size = _startBox.Size;
-		if ( size.x.AlmostEqual( 0.0f ) ) return;
-		if ( size.y.AlmostEqual( 0.0f ) ) return;
-		if ( size.z.AlmostEqual( 0.0f ) ) return;
 
 		var meshTool = tool.Manager?.CurrentTool as MeshTool;
 		Vector3? snapTarget = null;
@@ -79,12 +80,12 @@ public sealed class ResizeMode : MoveMode
 			}
 		}
 
-		using ( Gizmo.Scope( "box" ) )
+		using ( Gizmo.Scope( "box", new Transform( Vector3.Zero, _basis ) ) )
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
 			Gizmo.Hitbox.CanInteract = CanUseGizmo;
 
-			if ( Gizmo.Control.BoundingBox( "resize", _box, out var outBox ) )
+			if ( Gizmo.Control.BoundingBox( "resize", _box, out var outBox, out _, allowPlanarResize: true ) )
 			{
 				var moveMins = outBox.Mins - _box.Mins;
 				var moveMaxs = outBox.Maxs - _box.Maxs;
@@ -96,7 +97,7 @@ public sealed class ResizeMode : MoveMode
 
 				if ( snapTarget.HasValue )
 				{
-					var target = snapTarget.Value;
+					var target = _basis.Inverse * snapTarget.Value;
 					var threshold = 0.001f;
 
 					if ( MathF.Abs( moveMins.x ) > threshold ) _box.Mins.x = target.x;
@@ -113,7 +114,7 @@ public sealed class ResizeMode : MoveMode
 
 				tool.StartDrag();
 
-				ResizeBBox( tool, _startBox, _box, Rotation.Identity );
+				ResizeBBox( tool, _startBox, _box, _basis );
 
 				tool.UpdateDrag();
 
@@ -135,15 +136,15 @@ public sealed class ResizeMode : MoveMode
 			maxs = Gizmo.Snap( maxs, movement.Maxs );
 		}
 
-		var spacing = 1.0f;
+		const float minSpacing = 0.001f;
 
-		mins.x = MathF.Min( mins.x, startBox.Maxs.x - spacing );
-		mins.y = MathF.Min( mins.y, startBox.Maxs.y - spacing );
-		mins.z = MathF.Min( mins.z, startBox.Maxs.z - spacing );
+		mins.x = MathF.Min( mins.x, startBox.Maxs.x - minSpacing );
+		mins.y = MathF.Min( mins.y, startBox.Maxs.y - minSpacing );
+		mins.z = MathF.Min( mins.z, startBox.Maxs.z - minSpacing );
 
-		maxs.x = MathF.Max( maxs.x, startBox.Mins.x + spacing );
-		maxs.y = MathF.Max( maxs.y, startBox.Mins.y + spacing );
-		maxs.z = MathF.Max( maxs.z, startBox.Mins.z + spacing );
+		maxs.x = MathF.Max( maxs.x, startBox.Mins.x + minSpacing );
+		maxs.y = MathF.Max( maxs.y, startBox.Mins.y + minSpacing );
+		maxs.z = MathF.Max( maxs.z, startBox.Mins.z + minSpacing );
 
 		return new BBox( mins, maxs );
 	}
@@ -151,8 +152,14 @@ public sealed class ResizeMode : MoveMode
 	static void ResizeBBox( SelectionTool tool, BBox prevBox, BBox newBox, Rotation basis )
 	{
 		var prevSize = prevBox.Size;
+		var newSize = newBox.Size;
 
-		var scale = newBox.Size / prevSize;
+		var scale = new Vector3(
+			prevSize.x.AlmostEqual( 0.0f ) ? 1.0f : newSize.x / prevSize.x,
+			prevSize.y.AlmostEqual( 0.0f ) ? 1.0f : newSize.y / prevSize.y,
+			prevSize.z.AlmostEqual( 0.0f ) ? 1.0f : newSize.z / prevSize.z
+		);
+
 		var dMin = newBox.Mins - prevBox.Mins;
 		var dMax = newBox.Maxs - prevBox.Maxs;
 
@@ -167,6 +174,6 @@ public sealed class ResizeMode : MoveMode
 		if ( MathF.Abs( dMax.z ) > MathF.Abs( dMin.z ) ) origin.z = prevBox.Mins.z;
 		else if ( MathF.Abs( dMin.z ) > MathF.Abs( dMax.z ) ) origin.z = prevBox.Maxs.z;
 
-		tool.Resize( origin, basis, scale );
+		tool.Resize( basis * origin, basis, scale );
 	}
 }

@@ -8,8 +8,12 @@ public partial class ClipTool : EditorTool
 	Plane? _plane;
 	Vector3 _point1;
 	Vector3 _point2;
+	bool _faceSelection;
+	bool _applied;
 
-	Dictionary<MeshComponent, PolygonMesh> _meshes = [];
+	readonly List<MeshEdge> _newEdges = [];
+
+	readonly Dictionary<MeshComponent, (PolygonMesh Mesh, HashSet<HalfEdgeMesh.FaceHandle> Faces)> _targets = [];
 
 	public bool CapNewSurfaces
 	{
@@ -17,10 +21,9 @@ public partial class ClipTool : EditorTool
 		set
 		{
 			if ( field == value ) return;
-
 			field = value;
 
-			ApplyClip();
+			ApplyClipPreview();
 		}
 	}
 
@@ -35,10 +38,9 @@ public partial class ClipTool : EditorTool
 		set
 		{
 			if ( field == value ) return;
-
 			field = value;
 
-			ApplyClip();
+			ApplyClipPreview();
 		}
 	}
 
@@ -48,14 +50,31 @@ public partial class ClipTool : EditorTool
 		_hitPlane = default;
 		_point1 = default;
 		_point2 = default;
+
+		_newEdges.Clear();
 	}
 
 	void CacheSelectedMeshes()
 	{
-		_meshes = Selection.OfType<GameObject>()
-			.Select( x => x.GetComponent<MeshComponent>() )
-			.Where( x => x.IsValid() )
-			.ToDictionary( x => x, x => x.Mesh );
+		_targets.Clear();
+
+		_faceSelection = false;
+
+		foreach ( var go in Selection.OfType<GameObject>() )
+		{
+			var mc = go.GetComponent<MeshComponent>();
+			if ( mc.IsValid() ) _targets[mc] = (mc.Mesh, null);
+		}
+
+		if ( _targets.Count == 0 )
+		{
+			_faceSelection = true;
+
+			foreach ( var group in Selection.OfType<MeshFace>().GroupBy( f => f.Component ) )
+			{
+				_targets[group.Key] = (group.Key.Mesh, [.. group.Select( f => f.Handle )]);
+			}
+		}
 
 		Reset();
 	}
@@ -63,12 +82,13 @@ public partial class ClipTool : EditorTool
 	public override void OnEnabled()
 	{
 		Reset();
-
 		CacheSelectedMeshes();
 	}
 
 	public override void OnSelectionChanged()
 	{
+		if ( _applied ) return;
+
 		CacheSelectedMeshes();
 	}
 
@@ -77,27 +97,110 @@ public partial class ClipTool : EditorTool
 		Cancel();
 	}
 
+	static Vector3 SnapToPlaneGrid( Vector3 point, Vector3 planeNormal )
+	{
+		var rotation = Rotation.LookAt( planeNormal );
+		var local = point * rotation.Inverse;
+		local = Gizmo.Snap( local, new Vector3( 0, 1, 1 ) );
+		return local * rotation;
+	}
+
+	Vector3 _dragStartP1;
+	Vector3 _dragStartP2;
+
 	public override void OnUpdate()
 	{
 		var tr = TracePlane();
 		UpdatePoints( tr );
 
-		foreach ( var mesh in _meshes )
-		{
-			DrawMesh( mesh.Key, mesh.Value );
-		}
+		foreach ( var (component, data) in _targets )
+			DrawMesh( component, data.Mesh );
 
 		DrawNewEdges();
 
-		if ( _hitPlane.HasValue )
+		if ( !_hitPlane.HasValue )
+			return;
+
+		var normal = _hitPlane.Value.Normal;
+
+		Gizmo.Draw.IgnoreDepth = true;
+		Gizmo.Draw.Color = Color.White;
+
+		using ( Gizmo.Scope( "clip_p1", _point1 ) )
 		{
-			Gizmo.Draw.IgnoreDepth = true;
-			Gizmo.Draw.Color = Color.White;
-			Gizmo.Draw.LineThickness = 4;
-			Gizmo.Draw.Sprite( _point1, 10, null, false );
-			Gizmo.Draw.Sprite( _point2, 10, null, false );
+			Gizmo.Hitbox.Sprite( 0, 12, false );
+
+			if ( Gizmo.WasLeftMousePressed && Gizmo.IsHovered )
+				_dragStartP1 = _point1;
+
+			if ( Gizmo.Pressed.This )
+			{
+				var drag = Gizmo.GetMouseDrag( 0, normal );
+				_point1 = SnapToPlaneGrid( _dragStartP1 - drag, normal );
+				UpdateClipPlane();
+			}
+
+			Gizmo.Draw.Sprite( 0, Gizmo.IsHovered ? 12 : 10, null, false );
+		}
+
+		using ( Gizmo.Scope( "clip_p2", _point2 ) )
+		{
+			Gizmo.Hitbox.Sprite( 0, 12, false );
+
+			if ( Gizmo.WasLeftMousePressed && Gizmo.IsHovered )
+				_dragStartP2 = _point2;
+
+			if ( Gizmo.Pressed.This )
+			{
+				var drag = Gizmo.GetMouseDrag( 0, normal );
+				_point2 = SnapToPlaneGrid( _dragStartP2 - drag, normal );
+				UpdateClipPlane();
+			}
+
+			Gizmo.Draw.Sprite( 0, Gizmo.IsHovered ? 12 : 10, null, false );
+		}
+
+		using ( Gizmo.Scope( "clip_line" ) )
+		{
+			using var _ = Gizmo.Hitbox.LineScope();
+
+			if ( Gizmo.WasLeftMousePressed && Gizmo.IsHovered )
+			{
+				_dragStartP1 = _point1;
+				_dragStartP2 = _point2;
+			}
+
+			if ( Gizmo.Pressed.This )
+			{
+				var drag = Gizmo.GetMouseDrag( _dragStartP1, normal );
+
+				_point1 = SnapToPlaneGrid( _dragStartP1 - drag, normal );
+				_point2 = SnapToPlaneGrid( _dragStartP2 - drag, normal );
+
+				UpdateClipPlane();
+			}
+
+			Gizmo.Draw.LineThickness = Gizmo.IsHovered ? 5 : 4;
 			Gizmo.Draw.Line( _point1, _point2 );
 		}
+	}
+
+	void UpdateClipPlane()
+	{
+		if ( !_hitPlane.HasValue )
+			return;
+
+		var up = _hitPlane.Value.Normal;
+		var right = _point2 - _point1;
+
+		if ( right.LengthSquared.AlmostEqual( 0.0f ) )
+			return;
+
+		var forward = up.Cross( right ).Normal;
+
+		_plane = new Plane( forward, _point1.Dot( forward ) );
+
+		ApplyClipPreview();
 	}
 
 	SceneTraceResult TracePlane()
@@ -105,6 +208,7 @@ public partial class ClipTool : EditorTool
 		if ( Gizmo.Pressed.Any ) return default;
 
 		SceneTraceResult tr = default;
+
 		if ( _hitPlane.HasValue )
 		{
 			var plane = _hitPlane.Value;
@@ -118,9 +222,10 @@ public partial class ClipTool : EditorTool
 		else
 		{
 			tr = MeshTrace.Run();
-			if ( tr.Hit == false )
+
+			if ( !tr.Hit )
 			{
-				var plane = new Plane( Vector3.Up, 0.0f );
+				var plane = new Plane( Vector3.Up, 0 );
 				if ( plane.TryTrace( Gizmo.CurrentRay, out var hit ) )
 				{
 					tr.Hit = true;
@@ -135,17 +240,14 @@ public partial class ClipTool : EditorTool
 
 	void UpdatePoints( SceneTraceResult tr )
 	{
-		if ( tr.Hit == false ) return;
+		if ( !tr.Hit ) return;
 
-		var rotation = Rotation.LookAt( tr.Normal );
-		var point = tr.HitPosition * rotation.Inverse;
-		point = Gizmo.Snap( point, new Vector3( 0, 1, 1 ) );
-		point *= rotation;
+		var point = SnapToPlaneGrid( tr.HitPosition, tr.Normal );
 
+		if ( !Gizmo.HasHovered )
 		{
 			Gizmo.Draw.IgnoreDepth = true;
 			Gizmo.Draw.Color = Color.White;
-			Gizmo.Draw.LineThickness = 4;
 			Gizmo.Draw.Sprite( point, 10, null, false );
 		}
 
@@ -156,119 +258,177 @@ public partial class ClipTool : EditorTool
 			_point2 = point;
 			_plane = default;
 		}
-		else if ( Gizmo.IsLeftMouseDown && point.AlmostEqual( _point1 ) == false )
+		else if ( Gizmo.IsLeftMouseDown && !point.AlmostEqual( _point1 ) )
 		{
 			_point2 = point;
 
 			var up = tr.Normal;
 			var right = _point2 - _point1;
 			var forward = up.Cross( right ).Normal;
+
 			_plane = new Plane( forward, _point1.Dot( forward ) );
 
-			ApplyClip();
+			ApplyClipPreview();
 		}
 	}
+
+	bool CanApply => _plane.HasValue && _targets.Count > 0;
 
 	void Apply()
 	{
-		if ( _plane.HasValue == false ) return;
-		if ( _meshes.Count == 0 ) return;
+		if ( !CanApply ) return;
 
-		var meshes = _meshes.Keys.Where( x => x.IsValid() );
-		if ( meshes.Any() == false ) return;
+		_applied = true;
+
+		var components = _targets.Keys.Where( x => x.IsValid() ).ToArray();
 
 		_newEdges.Clear();
-		_newFaces.Clear();
 
 		using var scope = SceneEditorSession.Scope();
 
-		foreach ( var (component, mesh) in _meshes )
-		{
-			component.Mesh = mesh;
-		}
+		foreach ( var (component, data) in _targets )
+			component.Mesh = data.Mesh;
 
 		using ( SceneEditorSession.Active.UndoScope( "Clip" )
-			.WithComponentChanges( meshes )
+			.WithComponentChanges( components )
+			.WithGameObjectCreations()
 			.Push() )
 		{
-			foreach ( var mesh in meshes )
+			Selection.Clear();
+
+			foreach ( var (component, data) in _targets.ToArray() )
 			{
-				ApplyClip( mesh );
+				if ( !component.IsValid() ) continue;
+
+				if ( _faceSelection == false && KeepMode == ClipKeepMode.Both )
+				{
+					var newMesh = ApplyClipBoth( component, data.Faces );
+					Selection.Add( newMesh.GameObject );
+				}
+				else
+				{
+					ApplyClip( component, _plane.Value, KeepMode, data.Faces );
+				}
+
+				if ( _faceSelection == false )
+				{
+					Selection.Add( component.GameObject );
+				}
 			}
 
-			foreach ( var key in _meshes.Keys )
+			if ( _faceSelection )
 			{
-				_meshes[key] = key.Mesh;
+				foreach ( var edge in _newEdges )
+				{
+					if ( !edge.IsValid() )
+						continue;
+
+					var mesh = edge.Component.Mesh;
+					mesh.GetFacesConnectedToEdge( edge.Handle, out var faceA, out var faceB );
+
+					if ( faceA.IsValid )
+						Selection.Add( new MeshFace( edge.Component, faceA ) );
+
+					if ( faceB.IsValid )
+						Selection.Add( new MeshFace( edge.Component, faceB ) );
+				}
 			}
+
+			foreach ( var key in _targets.Keys )
+				_targets[key] = (key.Mesh, _targets[key].Faces);
 		}
 
 		Reset();
-	}
 
-	void ApplyClip()
-	{
-		if ( _plane.HasValue == false ) return;
-
-		_newEdges.Clear();
-		_newFaces.Clear();
-
-		var meshes = _meshes.Keys.Where( x => x.IsValid() );
-		foreach ( var kv in _meshes )
-		{
-			if ( kv.Key.IsValid() == false ) continue;
-
-			var mesh = new PolygonMesh();
-			mesh.Transform = kv.Value.Transform;
-			mesh.MergeMesh( kv.Value, Transform.Zero, out _, out _, out _ );
-			kv.Key.Mesh = mesh;
-
-			ApplyClip( kv.Key );
-		}
-	}
-
-	readonly List<MeshEdge> _newEdges = [];
-	readonly List<MeshFace> _newFaces = [];
-
-	void ApplyClip( MeshComponent mesh )
-	{
-		var plane = _plane.Value;
-
-		if ( KeepMode == ClipKeepMode.Front )
-		{
-			plane = new Plane( -plane.Normal, -plane.Distance );
-		}
-
-		var transform = mesh.WorldTransform;
-		plane = new Plane( transform.Rotation.Inverse * plane.Normal, plane.Distance - Vector3.Dot( plane.Normal, transform.Position ) );
-
-		var newEdges = new List<HalfEdgeMesh.HalfEdgeHandle>();
-		var newFaces = new List<HalfEdgeMesh.FaceHandle>();
-		mesh.Mesh.ClipFacesByPlaneAndCap( [.. mesh.Mesh.FaceHandles], plane, KeepMode != ClipKeepMode.Both, CapNewSurfaces, newEdges, newFaces );
-		mesh.Mesh.ComputeFaceTextureCoordinatesFromParameters();
-		mesh.RebuildMesh();
-
-		foreach ( var edge in newEdges )
-		{
-			_newEdges.Add( new MeshEdge( mesh, edge ) );
-		}
-
-		foreach ( var face in newFaces )
-		{
-			_newFaces.Add( new MeshFace( mesh, face ) );
-		}
+		EditorToolManager.SetSubTool( _faceSelection ? nameof( FaceTool ) : nameof( ObjectSelection ) );
 	}
 
 	void Cancel()
 	{
-		foreach ( var mesh in _meshes )
+		foreach ( var (component, data) in _targets )
 		{
-			if ( mesh.Key.Mesh == mesh.Value ) continue;
+			if ( component.Mesh == data.Mesh ) continue;
 
-			mesh.Value.ComputeFaceTextureCoordinatesFromParameters();
-			mesh.Key.Mesh = mesh.Value;
+			data.Mesh.ComputeFaceTextureCoordinatesFromParameters();
+			component.Mesh = data.Mesh;
 		}
 
 		Reset();
+	}
+
+	MeshComponent ApplyClipBoth( MeshComponent mesh, HashSet<HalfEdgeMesh.FaceHandle> faces )
+	{
+		var newMesh = new PolygonMesh();
+		newMesh.Transform = mesh.Mesh.Transform;
+		newMesh.MergeMesh( mesh.Mesh, Transform.Zero, out _, out _, out var newFaces );
+
+		var go = new GameObject( true, mesh.GameObject.Name );
+		go.MakeNameUnique();
+		go.WorldTransform = mesh.WorldTransform;
+
+		var mc = go.Components.Create<MeshComponent>( false );
+		mc.Mesh = newMesh;
+
+		HashSet<HalfEdgeMesh.FaceHandle> remappedFaces = null;
+
+		if ( faces is not null )
+		{
+			remappedFaces = [.. faces.Where( newFaces.ContainsKey ).Select( f => newFaces[f] )];
+		}
+
+		var plane = _plane.Value;
+
+		ApplyClip( mesh, plane, ClipKeepMode.Front, faces );
+		ApplyClip( mc, plane, ClipKeepMode.Back, remappedFaces );
+
+		mc.Enabled = true;
+
+		return mc;
+	}
+
+	void ApplyClipPreview()
+	{
+		if ( !_plane.HasValue ) return;
+
+		_newEdges.Clear();
+
+		foreach ( var (component, data) in _targets )
+		{
+			if ( !component.IsValid() ) continue;
+
+			var mesh = new PolygonMesh();
+			mesh.Transform = data.Mesh.Transform;
+			mesh.MergeMesh( data.Mesh, Transform.Zero, out _, out _, out var newFaces );
+			component.Mesh = mesh;
+
+			HashSet<HalfEdgeMesh.FaceHandle> faces = null;
+
+			if ( data.Faces is not null )
+			{
+				faces = [.. data.Faces.Where( newFaces.ContainsKey ).Select( f => newFaces[f] )];
+			}
+
+			ApplyClip( component, _plane.Value, KeepMode, faces );
+		}
+	}
+
+	void ApplyClip( MeshComponent mesh, Plane plane, ClipKeepMode keepMode, HashSet<HalfEdgeMesh.FaceHandle> faces )
+	{
+		if ( keepMode == ClipKeepMode.Front )
+			plane = new Plane( -plane.Normal, -plane.Distance );
+
+		var transform = mesh.WorldTransform;
+		plane = new Plane( transform.Rotation.Inverse * plane.Normal, plane.Distance - Vector3.Dot( plane.Normal, transform.Position ) );
+
+		var faceSet = faces ?? mesh.Mesh.FaceHandles;
+		var newEdges = new List<HalfEdgeMesh.HalfEdgeHandle>();
+
+		mesh.Mesh.ClipFacesByPlaneAndCap( [.. faceSet], plane, keepMode != ClipKeepMode.Both, CapNewSurfaces, newEdges );
+		mesh.Mesh.ComputeFaceTextureCoordinatesFromParameters();
+		mesh.RebuildMesh();
+
+		foreach ( var edge in newEdges )
+			_newEdges.Add( new MeshEdge( mesh, edge ) );
 	}
 
 	void DrawNewEdges()
@@ -288,32 +448,26 @@ public partial class ClipTool : EditorTool
 
 	static void DrawMesh( MeshComponent component, PolygonMesh mesh )
 	{
-		if ( component.IsValid() == false ) return;
+		if ( !component.IsValid() ) return;
 
 		using ( Gizmo.ObjectScope( component.GameObject, component.WorldTransform ) )
+		using ( Gizmo.Scope( "Edges" ) )
 		{
-			using ( Gizmo.Scope( "Edges" ) )
-			{
-				var edgeColor = new Color( 0.3137f, 0.7843f, 1.0f, 1f );
+			var edgeColor = new Color( 0.3137f, 0.7843f, 1f, 1f );
 
-				Gizmo.Draw.LineThickness = 1;
-				Gizmo.Draw.IgnoreDepth = true;
-				Gizmo.Draw.Color = edgeColor.Darken( 0.3f ).WithAlpha( 0.2f );
+			Gizmo.Draw.LineThickness = 1;
+			Gizmo.Draw.IgnoreDepth = true;
+			Gizmo.Draw.Color = edgeColor.Darken( 0.3f ).WithAlpha( 0.2f );
 
-				foreach ( var v in mesh.GetEdges() )
-				{
-					Gizmo.Draw.Line( v );
-				}
+			foreach ( var v in mesh.GetEdges() )
+				Gizmo.Draw.Line( v );
 
-				Gizmo.Draw.Color = edgeColor;
-				Gizmo.Draw.IgnoreDepth = false;
-				Gizmo.Draw.LineThickness = 2;
+			Gizmo.Draw.Color = edgeColor;
+			Gizmo.Draw.IgnoreDepth = false;
+			Gizmo.Draw.LineThickness = 2;
 
-				foreach ( var v in mesh.GetEdges() )
-				{
-					Gizmo.Draw.Line( v );
-				}
-			}
+			foreach ( var v in mesh.GetEdges() )
+				Gizmo.Draw.Line( v );
 		}
 	}
 }

@@ -56,6 +56,15 @@ public partial class GameObject
 		/// </summary>
 		internal bool IgnoreComponents { get; set; }
 
+		/// <summary>
+		/// Skip null member values during serialization to reduce output size.
+		/// On the receive side, deserialize with <see cref="DeserializeOptions.ClearAbsentFields"/> set to
+		/// <see langword="true"/> so that missing keys are treated as an explicit null for reference/nullable types,
+		/// clearing any stale value on the receiver.
+		/// Value types are never skipped (they cannot be null) so they are always safe.
+		/// </summary>
+		internal bool SkipNulls { get; set; }
+
 		internal bool ShouldSave( GameObject gameObject )
 		{
 			var shouldIgnoreNotSavedFlag = SingleNetworkObject || SceneForNetwork;
@@ -106,6 +115,13 @@ public partial class GameObject
 		/// Makes sure child networked objects are not removed during refresh.
 		/// </summary>
 		internal bool IsNetworkRefresh { get; set; }
+
+		/// <summary>
+		/// When true, component properties absent from the JSON (e.g. omitted by
+		/// <see cref="SerializeOptions.SkipNulls"/>) are explicitly cleared to null/default
+		/// rather than left at their existing value.
+		/// </summary>
+		internal bool ClearAbsentFields { get; set; }
 
 		/// <summary>
 		/// Allows overriding the transform when deserializing. Will apply only to the root object.
@@ -482,7 +498,14 @@ public partial class GameObject
 					continue;
 				}
 
-				c.Deserialize( componentJson );
+				if ( options.ClearAbsentFields )
+				{
+					c.DeserializeInternal( componentJson, true );
+				}
+				else
+				{
+					c.Deserialize( componentJson );
+				}
 
 				if ( options.IsRefreshing )
 				{

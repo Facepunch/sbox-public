@@ -12,15 +12,17 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 	/// </summary>
 	[Property, MakeDirty] public Color LightColor { get; set; } = "#E9FAFF";
 
-	/// <summary>
-	/// Should this light cast shadows?
-	/// </summary>
-	[Property, MakeDirty] public bool Shadows { get; set; } = true;
-
-
 	[Property, MakeDirty, Category( "Fog Settings" )] public FogInfluence FogMode { get; set; } = FogInfluence.Enabled;
 	[Property, MakeDirty, Range( 0, 1 ), Category( "Fog Settings" )] public float FogStrength { get; set; } = 1.0f;
 
+	/// <summary>
+	/// Should this light cast shadows?
+	/// </summary>
+	[Property, MakeDirty, Category( "Shadows" ), Order( -10 )] public bool Shadows { get; set; } = true;
+
+	[Property, MakeDirty, Range( 0, 1 ), Category( "Shadows" ), Advanced] public float ShadowBias { get; set; } = 0.0005f;
+
+	[Property, MakeDirty, Range( 0, 1 ), Category( "Shadows" )] public float ShadowHardness { get; set; } = 0.0f;
 
 	Color IColorProvider.ComponentColor => LightColor;
 
@@ -72,11 +74,15 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 
 	protected virtual void UpdateSceneObject( SceneLight o )
 	{
+		o.Component = this;
 		o.LightColor = LightColor;
 		o.ShadowsEnabled = Shadows;
 
 		o.FogLighting = (SceneLight.FogLightingMode)FogMode; // these should map directly
 		o.FogStrength = FogStrength;
+
+		o.ShadowBias = ShadowBias;
+		o.ShadowHardness = ShadowHardness;
 	}
 
 	protected override void OnDirty()

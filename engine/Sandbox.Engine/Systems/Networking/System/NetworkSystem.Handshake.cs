@@ -121,23 +121,23 @@ internal partial class NetworkSystem
 		} );
 	}
 
-	Task On_Handshake_ClientInfo( UserInfo msg, Connection source, Guid msgId )
+	async Task On_Handshake_ClientInfo( UserInfo msg, Connection source, Guid msgId )
 	{
 		if ( source.IsHost )
-			return Task.CompletedTask;
+			return;
 
 		if ( msg.HandshakeId != source.HandshakeId )
-			return Task.CompletedTask;
+			return;
 
 		if ( source.State != Connection.ChannelState.LoadingServerInformation )
 		{
 			source.Kick( $"Invalid Handshake State {source.State}" );
 			Log.Info( $"Kicking {source.DisplayName} [{source.SteamId}] Invalid Handshake State {source.State}" );
-			return Task.CompletedTask;
+			return;
 		}
 
-		if ( !source.OnReceiveUserInfo( msg ) )
-			return Task.CompletedTask;
+		if ( !await source.OnReceiveUserInfo( msg ) )
+			return;
 
 		//
 		// Lobbies and steam network connections are trusted, so we can take the display name and Steam Id from them,
@@ -164,7 +164,7 @@ internal partial class NetworkSystem
 			{
 				Log.Info( $"Kicked {msg.DisplayName} [{msg.SteamId}] - not friends with host [{hostSteamId}]" );
 				source.Kick( "This lobby is Friends Only." );
-				return Task.CompletedTask;
+				return;
 			}
 		}
 
@@ -183,7 +183,7 @@ internal partial class NetworkSystem
 		{
 			Log.Info( $"Kicking {msg.DisplayName} [{msg.SteamId}] - {denialReason}" );
 			source.Kick( denialReason );
-			return Task.CompletedTask;
+			return;
 		}
 
 		source.PreInfo = null;
@@ -233,7 +233,6 @@ internal partial class NetworkSystem
 		GameSystem?.OnConnected( source );
 
 		source.SendMessage( output );
-		return Task.CompletedTask;
 	}
 
 	async Task On_Handshake_Welcome( Welcome msg, Connection source, Guid msgId )

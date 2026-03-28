@@ -34,6 +34,11 @@ internal partial class ManagerWriter
 				interfaceCode = " : System.IDisposable";
 			}
 
+			if ( t == "class" )
+			{
+				read_only = "";
+			}
+
 			if ( c.HasAttribute( "SharedDataPointer" ) )
 			{
 				t = "class";
@@ -43,19 +48,19 @@ internal partial class ManagerWriter
 				destruct = true;
 			}
 
-			StartBlock( $"{access} unsafe {st}partial {t} {c.ManagedName}{interfaceCode}" );
+			StartBlock( $"{access} unsafe {read_only}{st}partial {t} {c.ManagedName}{interfaceCode}" );
 			{
 
 				if ( !c.Accessor && !c.Static )
 				{
-					WriteLine( "internal IntPtr self;" );
+					WriteLine( $"internal {read_only}IntPtr self;" );
 					WriteLine();
 
 					if ( allowFromToPointer )
 					{
 						WriteLine( "// Allow blindly converting from an IntPtr" );
 						WriteLine( $"static public implicit operator IntPtr( {c.ManagedName} value ) => value.self;" );
-						WriteLine( $"static public implicit operator {c.ManagedName}( IntPtr value ) => new {c.ManagedName} {{ self = value }};" );
+						WriteLine( $"static public implicit operator {c.ManagedName}( IntPtr value ) => new {c.ManagedName}( value );" );
 						WriteLine( "" );
 					}
 
@@ -80,11 +85,13 @@ internal partial class ManagerWriter
 					WriteLine( "// Helpers to check validity" );
 					WriteLine( "" );
 					WriteLine( $"internal {read_only}bool IsNull{{ [MethodImpl( MethodImplOptions.AggressiveInlining )] get {{ return self == IntPtr.Zero; }} }}" );
+
 					WriteLine( $"internal {read_only}bool IsValid => !IsNull;" );
-					WriteLine( $"internal {read_only}IntPtr GetPointerAssertIfNull(){{ NullCheck(); return self; }}" );
 
 					WriteLine( "[MethodImpl( MethodImplOptions.AggressiveInlining )]" );
-					WriteLine( $"internal {read_only}void NullCheck( [CallerMemberName] string n = \"\" ) {{ if ( IsNull ) throw new System.NullReferenceException( $\"{c.ManagedName} was null when calling {{n}}\" ); }}" );
+					WriteLine( $"internal {read_only}IntPtr GetPointerAssertIfNull(){{ if ( self == IntPtr.Zero ) throw new System.NullReferenceException( \"{c.ManagedName} was null\" ); return self; }}" );
+
+					WriteLine( "[MethodImpl( MethodImplOptions.AggressiveInlining )]" );
 
 					WriteLine( $"public {read_only}override int GetHashCode() => self.GetHashCode();" );
 					WriteLine();
@@ -136,7 +143,7 @@ internal partial class ManagerWriter
 					{
 						if ( !c.Accessor && !c.Static && !f.Static )
 						{
-							Write( $"NullCheck(); " );
+							Write( $"if ( self == IntPtr.Zero ) throw new System.NullReferenceException( \"{c.ManagedName} was null when calling {f.Name}\" );" );
 						}
 						else
 						{
@@ -192,7 +199,7 @@ internal partial class ManagerWriter
 						{
 							if ( !c.Accessor && !c.Static && !f.Static )
 							{
-								Write( $"NullCheck(); " );
+								Write( $"if ( self == IntPtr.Zero ) throw new System.NullReferenceException( \"{c.ManagedName} was null when calling {f.Name}\" );" );
 							}
 
 							string call = $"{InternalNative}.Get__{f.MangledName}( {args} )";
@@ -214,10 +221,10 @@ internal partial class ManagerWriter
 						{
 							if ( !c.Accessor && !c.Static && !f.Static )
 							{
-								Write( $"NullCheck(); " );
+								Write( $"if ( self == IntPtr.Zero ) throw new System.NullReferenceException( \"{c.ManagedName} was null when calling {f.Name}\" );" );
 							}
 
-							string call = $"{InternalNative}.Set__{f.MangledName}( {args}{f.Return.ToInterop( false, "value" )} );";
+							string call = $"{InternalNative}.Set__{f.MangledName}( {args}{f.Return.ToInterop( false )} );";
 							call = f.Return.WrapFunctionCall( call, false ).Replace( "returnvalue", "value" );
 							Write( call );
 
@@ -263,8 +270,11 @@ internal partial class ManagerWriter
 						managedArgs.Add( f.Return.GetManagedDelegateType( true ) );
 						string managedArgss = $"{string.Join( ", ", managedArgs )}";
 
+						managedArgs[managedArgs.Count - 1] = f.Return.GetManagedDelegateType( false );
+						string setterArgss = $"{string.Join( ", ", managedArgs )}";
+
 						WriteLine( $"internal static delegate* unmanaged[SuppressGCTransition]<{managedArgss}> Get__{f.MangledName};\n" );
-						WriteLine( $"internal static delegate* unmanaged[SuppressGCTransition]<{managedArgss}, void> Set__{f.MangledName};\n" );
+						WriteLine( $"internal static delegate* unmanaged[SuppressGCTransition]<{setterArgss}, void> Set__{f.MangledName};\n" );
 					}
 				}
 				EndBlock();
@@ -299,14 +309,15 @@ internal partial class ManagerWriter
 			WriteLine( "/// <summary>" );
 			WriteLine( "/// This is a pointer but native pretends like it's a handle/struct using DECLARE_POINTER_HANDLE. We just treat it like a pointer." );
 			WriteLine( "/// </summary>" );
-			StartBlock( $"internal unsafe struct {c.ManagedName}" );
+			StartBlock( $"internal unsafe readonly struct {c.ManagedName}" );
 			{
-				WriteLine( "internal IntPtr self;" );
+				WriteLine( "internal readonly IntPtr self;" );
 				WriteLine();
 
 				WriteLine( "// Allow blindly converting from an IntPtr" );
 				WriteLine( $"static public implicit operator IntPtr( {c.ManagedName} value ) => value.self;" );
-				WriteLine( $"static public implicit operator {c.ManagedName}( IntPtr value ) => new {c.ManagedName} {{ self = value }};" );
+				WriteLine( $"static public implicit operator {c.ManagedName}( IntPtr value ) => new {c.ManagedName}( value );" );
+				WriteLine( $"public {c.ManagedName}( IntPtr value ) {{ self = value; }}" );
 				WriteLine( "" );
 			}
 			EndBlock();

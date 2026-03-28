@@ -480,7 +480,7 @@ public partial class GameObject
 		return Parent.FindNetworkRoot();
 	}
 
-	private static readonly DeserializeOptions _networkRefreshDeserializeOptions = new() { IsRefreshing = true, IsNetworkRefresh = true };
+	private static readonly DeserializeOptions _networkRefreshDeserializeOptions = new() { IsRefreshing = true, IsNetworkRefresh = true, ClearAbsentFields = true };
 
 	/// <summary>
 	/// Update hierarchy from a network refresh.

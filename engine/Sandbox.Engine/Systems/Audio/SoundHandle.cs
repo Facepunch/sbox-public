@@ -399,7 +399,7 @@ public partial class SoundHandle : IValid, IDisposable
 
 			DisposeSources();
 
-			MainThread.QueueDispose( sampler );
+			Audio.MixingThread.QueueSamplerDisposal( sampler );
 			sampler = null;
 
 			removalQueue.Enqueue( this );
@@ -425,7 +425,13 @@ public partial class SoundHandle : IValid, IDisposable
 
 		UpdateFollower();
 		TryCreateMixer();
-		UpdateSources();
+
+		// Pairs with lock(voice) in MixVoices, prevents UpdateSources disposing
+		// _audioSource/_audioSources while the audio thread is inside GetSource/ApplyDirectMix.
+		lock ( this )
+		{
+			UpdateSources();
+		}
 
 		_ticks++;
 	}

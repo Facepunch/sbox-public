@@ -256,11 +256,8 @@ void ToolsVis::HandleLightingComplexity(inout float4 vColor, float3 WorldPositio
     for (uint index = 0; index < lightRange.Count; index++)
     {
         uint lightIndex = Cluster::LoadItem( lightRange, index );
-        DynamicLight light;
-        light.Init( WorldPosition, DynamicLightConstantByIndex( lightIndex ) );
-
-        if (ToolsVisMode == ToolsVisMode::IndexedLightingCount && !light.LightData.IsIndexedLight() )
-            continue;
+        Light light;
+        light.Init( WorldPosition, DynamicLightConstantByIndex( lightIndex ), PositionSs.xy );
         
         if (light.Visibility > 0.0f && light.Attenuation > 0.0f && dot(light.Direction, Normal) > 0.0f)
             nNumLights++;
@@ -482,6 +479,11 @@ void ToolsVis::HandleTiledRenderingColors(inout float4 vColor, float3 vAlbedo, f
 
         vColor.rgb = vClusterColor * vAlbedo;
         vColor.b += envRatio;
+
+        // Bitch when we are not aligned
+        bool misaligned = fwidth(lightRange.BaseOffset) != 0;
+        if(misaligned && Blink(0.5))
+            vColor.r = 1;
     }
 }
 

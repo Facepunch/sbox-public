@@ -1,12 +1,13 @@
+@import "/styles/_theme.scss";
+
 AchievementSummary
 {
     flex-shrink: 0;
     font-family: Poppins;
-}
 
-.complete, .complete .content .title
-{
-    color: #b6ff00;
+    Progress {
+        margin-top: 3px;
+    }
 }
 
 .meta
@@ -16,7 +17,6 @@ AchievementSummary
     > *
     {
         align-items: center;
-        color: #6b7486;
         gap: 2px;
 
         > *
@@ -27,38 +27,8 @@ AchievementSummary
         .mine
         {
             opacity: 1;
-            color: #b6ff00;
-            font-weight: 600;
+            color: $primary-blue;
+            font-weight: 800;
         }
     }
-}
-
-.squares
-{
-    flex-direction: column;
-    flex-wrap: wrap-reverse;
-    max-height: 48px;
-    gap: 3px;
-}
-
-.squares .ach
-{
-    width: 21px;
-    height: 21px;
-    background-position: center;
-    background-size: contain;
-    opacity: 0.8;
-    border-radius: 3px;
-}
-
-.squares .ach.locked
-{
-    opacity: 0.3;
-    background-color: #111;
-    filter: saturate( 0 ) contrast( 0.8 );
-}
-
-.squares .ach:hover
-{
-    opacity: 1;
 }

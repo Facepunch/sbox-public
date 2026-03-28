@@ -85,14 +85,20 @@ static class SceneTraceMeshExtensions
 		distance = default;
 		hitPosition = default;
 
-		var result = trace.Run();
-		if ( !result.Hit || result.Component is not MeshComponent component )
-			return default;
+		var results = trace.RunAll();
 
-		hitPosition = result.HitPosition;
-		distance = result.Distance;
-		var face = component.Mesh.TriangleToFace( result.Triangle );
-		return new MeshFace( component, face );
+		foreach ( var result in results )
+		{
+			if ( !result.Hit || result.Component is not MeshComponent component )
+				continue;
+
+			hitPosition = result.HitPosition;
+			distance = result.Distance;
+			var face = component.Mesh.TriangleToFace( result.Triangle );
+			return new MeshFace( component, face );
+		}
+
+		return default;
 	}
 
 	struct MeshFaceTraceResult

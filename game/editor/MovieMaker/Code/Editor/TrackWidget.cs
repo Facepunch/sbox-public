@@ -1,12 +1,13 @@
 ﻿using Editor.NodeEditor;
 using Sandbox.MovieMaker;
+using Sandbox.MovieMaker.Compiled;
 using Sandbox.MovieMaker.Properties;
 using Sandbox.UI;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
-using Sandbox.MovieMaker.Compiled;
+using static Sandbox.Resources.ResourceCompileContext;
 
 namespace Editor.MovieMaker;
 
@@ -349,6 +350,41 @@ public partial class TrackWidget : Widget
 			} );
 		}
 
+		var anyExpanded = trackViews.Any( x => x is { IsExpanded: true, Children.Count: > 0 } );
+		var anyCollapsed = trackViews.Any( x => x is { IsExpanded: false, Children.Count: > 0 } );
+
+		if ( anyCollapsed )
+		{
+			menu.AddOption( "Expand", "add", () =>
+			{
+				foreach ( var track in trackViews )
+				{
+					if ( track is { IsExpanded: false, Children.Count: > 0 } )
+					{
+						track.IsExpanded = true;
+					}
+				}
+
+				View.TrackList.Update();
+			} );
+		}
+
+		if ( anyExpanded )
+		{
+			menu.AddOption( "Collapse", "remove", () =>
+			{
+				foreach ( var track in trackViews )
+				{
+					if ( track is { IsExpanded: true, Children.Count: > 0 } )
+					{
+						track.IsExpanded = false;
+					}
+				}
+
+				View.TrackList.Update();
+			} );
+		}
+
 		menu.AddOption( "Remove", "delete", () =>
 		{
 			foreach ( var track in trackViews )
@@ -357,64 +393,54 @@ public partial class TrackWidget : Widget
 			}
 		} );
 
-		menu.AddOption( "Create Missing References", "person_add", () =>
-		{
-			var touched = new HashSet<TrackView>();
-
-			foreach ( var trackView in trackViews )
-			{
-				CreateTargets( trackView, touched );
-			}
-		} );
-	}
-
-	private void CreateTargets( TrackView view, HashSet<TrackView> touched )
-	{
-		if ( !touched.Add( view ) ) return;
-		if ( view.IsLocked ) return;
-		if ( view.Parent?.Target is { IsBound: false } ) return;
-
+		var player = TrackList.Session.Player;
 		var binder = TrackList.Session.Binder;
+		var refTracks = GetUniqueReferenceTracks( trackViews );
 
-		using var sceneScope = binder.Scene.Push();
-
-		if ( view.Track is ProjectSequenceTrack sequenceTrack )
+		if ( refTracks.Any( x => !binder.Get( x ).IsBound ) )
 		{
-			foreach ( var refTrack in sequenceTrack.ReferenceTracks )
-			{
-				CreateTarget( refTrack, binder.Get( refTrack ) );
-			}
-		}
-		else if ( view.Track is IReferenceTrack refTrack && view.Target is ITrackReference trackRef )
-		{
-			CreateTarget( refTrack, trackRef );
-		}
-
-		foreach ( var childView in view.Children )
-		{
-			CreateTargets( childView, touched );
+			menu.AddOption( "Create Missing Targets", "person_add", () => player.UpdateTargets() );
 		}
 	}
 
-	private void CreateTarget( IReferenceTrack track, ITrackReference target )
+	/// <summary>
+	/// Gets all reference tracks, including descendants, of the given <paramref name="trackViews"/>.
+	/// </summary>
+	private IReadOnlyList<IReferenceTrack> GetUniqueReferenceTracks( IEnumerable<TrackView> trackViews )
 	{
-		var parentGo = target.Parent?.Value;
+		var queue = new Queue<TrackView>( trackViews );
+		var touched = new HashSet<IReferenceTrack>();
+		var list = new List<IReferenceTrack>();
 
-		if ( target is ITrackReference<GameObject> { IsBound: false } goRef )
+		while ( queue.TryDequeue( out var trackView ) )
 		{
-			var go = new GameObject( parentGo, name: track.Name );
+			switch ( trackView.Track )
+			{
+				case ProjectSequenceTrack sequenceTrack:
+					foreach ( var refTrack in sequenceTrack.ReferenceTracks )
+					{
+						if ( touched.Add( refTrack ) )
+						{
+							list.Add( refTrack );
+						}
+					}
+					break;
 
-			goRef.Bind( go );
+				case IProjectReferenceTrack refTrack:
+					if ( touched.Add( refTrack ) )
+					{
+						list.Add( refTrack );
+					}
+					break;
+			}
+
+			foreach ( var child in trackView.Children )
+			{
+				queue.Enqueue( child );
+			}
 		}
-		else if ( parentGo is not null && target is { IsBound: false } cmpRef )
-		{
-			var typeDesc = TypeLibrary.GetType( target.TargetType );
-			if ( typeDesc is null ) return;
 
-			var cmp = parentGo.Components.Create( typeDesc );
-
-			cmpRef.Bind( cmp );
-		}
+		return list;
 	}
 
 	private bool? GetAggregateLockState( IEnumerable<TrackView> trackViews )
@@ -947,6 +973,7 @@ file sealed class CollapseButton : Button
 	protected override void OnClicked()
 	{
 		Track.View.IsExpanded = !Track.View.IsExpanded;
+		Track.View.TrackList.Update();
 	}
 }
 
@@ -958,11 +985,16 @@ file sealed class ReflectionHelper<T>
 		return ControlWidget.Create( EditorTypeLibrary.CreateProperty( target.Name,
 			() => target.Value, value =>
 			{
-				track.ReferenceId = value switch
+				var metadata = track.Metadata ?? new TrackMetadata();
+
+				track.Metadata = metadata with
 				{
-					Component cmp => cmp.Id,
-					GameObject go => go.Id,
-					_ => null
+					ReferenceId = value switch
+					{
+						Component cmp => cmp.Id,
+						GameObject go => go.Id,
+						_ => null
+					}
 				};
 
 				target.Bind( value );

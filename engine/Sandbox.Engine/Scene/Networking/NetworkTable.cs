@@ -1,4 +1,5 @@
 using System.Collections;
+using Sandbox;
 
 namespace Sandbox.Network;
 
@@ -299,6 +300,8 @@ internal class NetworkTable : IDisposable
 			bs.Dispose();
 
 			snapshot.AddSerialized( entry.Slot, entry.Serialized );
+
+			NetworkDebugSystem.Current?.TrackSync( entry.DebugName, entry.Serialized.Length, outbound: true );
 		}
 	}
 
@@ -356,6 +359,8 @@ internal class NetworkTable : IDisposable
 				entry.IsDirty = false;
 				bs.Dispose();
 			}
+
+			NetworkDebugSystem.Current?.TrackSync( entry.DebugName, serialized.Length, outbound: false, source );
 		}
 	}
 
@@ -383,6 +388,8 @@ internal class NetworkTable : IDisposable
 					container.Write( bs );
 
 				count++;
+
+				NetworkDebugSystem.Current?.TrackSync( entry.DebugName, bs.Length, outbound: true );
 			}
 			catch ( Exception e )
 			{
@@ -509,6 +516,8 @@ internal class NetworkTable : IDisposable
 					container.Write( bs );
 
 				count++;
+
+				NetworkDebugSystem.Current?.TrackSync( entry.DebugName, bs.Length, outbound: true );
 			}
 			catch ( Exception e )
 			{
@@ -559,6 +568,8 @@ internal class NetworkTable : IDisposable
 					container.Write( bs );
 
 				count++;
+
+				NetworkDebugSystem.Current?.TrackSync( entry.DebugName, bs.Length, outbound: true );
 			}
 			catch ( Exception e )
 			{
@@ -587,7 +598,7 @@ internal class NetworkTable : IDisposable
 	/// <summary>
 	/// Read and apply any variables from the provided <see cref="ByteStream"/>.
 	/// </summary>
-	public void Read( ref ByteStream reader, ReadFilter filter = null )
+	public void Read( ref ByteStream reader, ReadFilter filter = null, Connection source = null )
 	{
 		var count = reader.Read<int>();
 		if ( count <= 0 ) return;
@@ -638,6 +649,8 @@ internal class NetworkTable : IDisposable
 				entry.IsDirty = false;
 				bs.Dispose();
 			}
+
+			NetworkDebugSystem.Current?.TrackSync( entry.DebugName, length, outbound: false, source );
 		}
 
 		container.Dispose();

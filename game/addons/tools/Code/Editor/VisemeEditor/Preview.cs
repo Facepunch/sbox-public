@@ -75,8 +75,8 @@ public class Preview : Widget
 
 			World = Scene.SceneWorld;
 
-			new SceneLight( World, new Vector3( 100, 100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
-			new SceneLight( World, new Vector3( -100, -100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
+			new ScenePointLight( World, new Vector3( 100, 100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
+			new ScenePointLight( World, new Vector3( -100, -100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
 		}
 
 		protected override void PreFrame()

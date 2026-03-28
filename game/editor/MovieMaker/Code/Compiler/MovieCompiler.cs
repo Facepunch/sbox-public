@@ -22,7 +22,11 @@ public sealed class MovieCompiler : ResourceCompiler
 
 		model = new EmbeddedMovieResource { Compiled = compiled };
 
-		Context.Data.Write( JsonSerializer.Serialize( model, EditorJsonOptions ) );
+		var json = JsonSerializer.Serialize( model, EditorJsonOptions );
+
+		json = Context.ScanJson( json );
+
+		Context.Data.Write( json );
 
 		return true;
 	}

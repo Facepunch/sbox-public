@@ -66,24 +66,29 @@ public partial class Texture : Resource, IDisposable
 	/// </summary>
 	internal void CopyFrom( Texture texture )
 	{
-		// Important - dispose the old handle, we're done with it!
-		// if we don't do this, we'll leak memory!
-		Dispose();
+		if ( !native.IsNull )
+		{
+			var n = native;
+			native = IntPtr.Zero;
+
+			// Evict from NativeResourceCache so a new wrapper can be created
+			// if the same native pointer is reused (e.g. RenderTarget pool, TextBlock rebuild).
+			NativeResourceCache.Remove( n.GetBindingPtr().ToInt64() );
+
+			MainThread.Queue( () => n.DestroyStrongHandle() );
+		}
 
 		// Copy the handle from the other texture.
 		// Important - we can't just use the handle because when
 		// they release it, it'll be a hanging pointer!
 		native = texture.native.CopyStrongHandle();
 
+		UpdateSheetInfo();
+
 		gotdesc = false;
 		_desc = default;
 
 		IsDirty = true;
-
-		// Dispose → Destroy → base.Destroy calls GC.SuppressFinalize,
-		// but we just acquired a new native handle that must be cleaned up.
-		// Re-register so the finalizer runs and destroys this handle.
-		GC.ReRegisterForFinalize( this );
 	}
 
 	internal CTextureDesc Desc

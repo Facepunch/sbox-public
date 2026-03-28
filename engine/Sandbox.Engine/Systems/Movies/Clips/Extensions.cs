@@ -1,5 +1,6 @@
 ﻿using System;
 using Sandbox.MovieMaker.Compiled;
+using Sandbox.MovieMaker.Properties;
 
 namespace Sandbox.MovieMaker;
 
@@ -103,6 +104,9 @@ public static class ClipExtensions
 	{
 		return (CompiledPropertyTrack<T>?)((IMovieClip)clip).GetProperty<T>( refTrackId, path );
 	}
+
+	public static CompiledPropertyTrack<BindingReference<T>>? GetReferenceProperty<T>( this MovieClip clip, params string[] path )
+		where T : class, IValid => clip.GetProperty<BindingReference<T>>( path );
 
 	private static bool HasMatchingFullPath( this ITrack track, IReadOnlyList<string> path )
 	{

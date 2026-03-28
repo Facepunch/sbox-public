@@ -1,3 +1,8 @@
+MODES
+{
+	Default();
+}
+
 CS
 {
 	#include "system.fxc"

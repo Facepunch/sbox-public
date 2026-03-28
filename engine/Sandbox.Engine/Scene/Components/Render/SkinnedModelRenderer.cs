@@ -269,6 +269,17 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 
 		Morphs.Apply();
 		Sequence.Apply();
+
+		//
+		// Merge our bones immediately if we have a parent. This avoids frame 0 flicker.
+		// Added March 2026 to fix avatar bind pose flicker when hovering clothing icons for preview
+		//
+		var skinParent = _boneMergeTarget ?? _skinnedParent;
+		if ( skinParent.IsValid() && skinParent.SceneModel.IsValid() && o is SceneModel sm )
+		{
+			sm.Transform = skinParent.SceneModel.Transform;
+			sm.MergeBones( skinParent.SceneModel );
+		}
 	}
 
 	protected override void UpdateObject()

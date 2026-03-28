@@ -15,9 +15,9 @@ public class PointLight : Light
 	[Property, MakeDirty, Range( 0, 10 )] public float Attenuation { get; set; } = 1.0f;
 	//	[Property, MakeDirty] public Texture Cookie { get; set; }
 
-	protected override SceneLight CreateSceneObject()
+	protected override ScenePointLight CreateSceneObject()
 	{
-		return new SceneLight( Scene.SceneWorld, WorldPosition, Radius, LightColor );
+		return new ScenePointLight( Scene.SceneWorld, WorldPosition, Radius, LightColor );
 	}
 
 	protected override void OnAwake()

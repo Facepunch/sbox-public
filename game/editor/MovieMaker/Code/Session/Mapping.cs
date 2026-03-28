@@ -131,7 +131,7 @@ partial class Session
 
 		var track = (ProjectReferenceTrack<GameObject>)Project.AddReferenceTrack( go.Name, typeof(GameObject), parentTrack );
 
-		track.ReferenceId = go.Id;
+		track.Metadata = new TrackMetadata( go.Id );
 
 		Binder.Get( track ).Bind( go );
 
@@ -163,7 +163,7 @@ partial class Session
 		var goTrack = GetOrCreateTrack( cmp.GameObject );
 		var track = Project.AddReferenceTrack( cmp.GetType().Name, cmp.GetType(), goTrack );
 
-		track.ReferenceId = cmp.Id;
+		track.Metadata = new TrackMetadata( cmp.Id );
 
 		Binder.Get( track ).Bind( cmp );
 

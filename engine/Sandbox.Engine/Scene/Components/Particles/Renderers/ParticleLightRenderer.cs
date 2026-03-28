@@ -60,7 +60,7 @@ public sealed class ParticleLightRenderer : ParticleController
 class ParticleLight : Particle.BaseListener
 {
 	public ParticleLightRenderer Renderer;
-	SceneLight so;
+	ScenePointLight so;
 
 	public ParticleLight( ParticleLightRenderer particleLightRenderer )
 	{
@@ -69,7 +69,7 @@ class ParticleLight : Particle.BaseListener
 
 	public override void OnEnabled( Particle p )
 	{
-		so = new SceneLight( Renderer.Scene.SceneWorld, p.Position, 100, Color.Red );
+		so = new ScenePointLight( Renderer.Scene.SceneWorld, p.Position, 100, Color.Red );
 	}
 
 	public override void OnDisabled( Particle p )

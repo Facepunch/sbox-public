@@ -10,21 +10,18 @@
 
 <root class="flex-column">
 
-    <h2><WithIcon Icon="history" Text="Keep Playing"></WithIcon></h2>
+    <row>
+        <icon class="eyebrow">
+            history
+        </icon>
+        <Label class="eyebrow">
+            Keep Playing
+        </Label>
+    </row>
 
     @foreach (var p in Packages.Take( 4 ) )
     {
-        <MediaCardWide Image="@p.ThumbWide" OnPressImage="@( () => p.OpenModal() )">
-            <Content>
-                <div class="title clicky" onmousedown="@( ()=> p.OpenModal() )">@p.Title</div>
-                <div class="meta flex-row flex-gap-8">
-
-                    <Meta Title="Likes" Icon="thumb_up" Value="@p.VotesUp.KiloFormat()" />
-                    <Meta Title="Players" Icon="people" Value="@p.Usage.Total.Users.KiloFormat()" />
-
-                </div>
-            </Content>
-        </MediaCardWide>
+        <GameCard class="list" Package=@p />
     }
 
 </root>
