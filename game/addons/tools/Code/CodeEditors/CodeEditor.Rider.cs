@@ -35,6 +35,12 @@ public class Rider : ICodeEditor
 
 	public bool IsInstalled() => !string.IsNullOrEmpty( FindRider() );
 
+	public bool MatchesExecutable( string fileName )
+	{
+		return fileName.Equals( "rider64.exe", StringComparison.OrdinalIgnoreCase ) ||
+			   fileName.Equals( "rider.exe", StringComparison.OrdinalIgnoreCase );
+	}
+
 	private static void Launch( string arguments )
 	{
 		var startInfo = new System.Diagnostics.ProcessStartInfo
@@ -57,7 +63,15 @@ public class Rider : ICodeEditor
 			return RiderPath;
 		}
 
-		// Always use whatever the user has open first as you can have multiple Rider installations
+		// check manual override cookie
+		var cookiePath = EditorCookie.Get( "CodeEditor.Rider.Path", "" );
+		if ( !string.IsNullOrEmpty( cookiePath ) && System.IO.File.Exists( cookiePath ) )
+		{
+			RiderPath = cookiePath;
+			return RiderPath;
+		}
+
+		// Always use whatever the user has open first as you can have multiple rider installations
 		foreach ( var p in System.Diagnostics.Process.GetProcessesByName( "rider64" ) )
 		{
 			RiderPath = p.MainModule.FileName;
