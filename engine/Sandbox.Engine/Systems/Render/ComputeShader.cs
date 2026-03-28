@@ -26,9 +26,9 @@ public class ComputeShader
 		ComputeMaterial = material;
 	}
 
-	internal void Dispose()
+	internal void Destroy()
 	{
-		ComputeMaterial.Dispose();
+		ComputeMaterial.Destroy();
 	}
 
 	/// <summary>

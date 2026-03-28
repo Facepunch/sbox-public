@@ -81,9 +81,9 @@ public partial class ProjectRow : ItemRow
 			Paint.Antialiasing = true;
 			Paint.ClearPen();
 
-			Paint.SetPen( Theme.SurfaceLightBackground );
-
 			if ( Paint.HasMouseOver )
+				Paint.SetPen( Theme.Text );
+			else
 				Paint.SetPen( Theme.TextLight );
 
 			Paint.DrawIcon( MoreButton.LocalRect, "more_vert", 16.0f );
@@ -108,12 +108,10 @@ public partial class ProjectRow : ItemRow
 			Paint.Antialiasing = true;
 			Paint.ClearPen();
 
-			if ( Project.Pinned )
+			if ( Project.Pinned || Paint.HasMouseOver )
 				Paint.SetPen( Theme.Text );
-			else if ( Paint.HasMouseOver )
-				Paint.SetPen( Theme.TextLight );
 			else
-				Paint.SetPen( Theme.SurfaceLightBackground );
+				Paint.SetPen( Theme.TextLight );
 
 			Paint.DrawIcon( PinButton.LocalRect, "push_pin", 16.0f );
 

@@ -25,13 +25,16 @@ internal partial class PanelRenderer
 	/// Scope that updates the renderer's scissor state for child panels to inherit.
 	/// Does NOT modify any command lists - those are set up separately in BuildCommandList.
 	/// </summary>
-	internal class ClipScope : IDisposable
+	internal ref struct ClipScope
 	{
 		Rect Previous;
 		GPUScissor PreviousGPU;
+		bool _disposed = false; // Whether this scope actually set a new scissor or not. If the panel had overflow: visible then we won't set a new scissor, so we can skip restoring the old one.
 
 		public ClipScope( Rect scissorRect, Vector4 cornerRadius, Matrix globalMatrix )
 		{
+			_disposed = true;
+
 			var renderer = GlobalContext.Current.UISystem.Renderer.Value;
 
 			Previous = renderer.Scissor;
@@ -69,6 +72,9 @@ internal partial class PanelRenderer
 
 		public void Dispose()
 		{
+			if ( !_disposed ) return;
+			_disposed = false;
+
 			var renderer = GlobalContext.Current.UISystem.Renderer.Value;
 			renderer.Scissor = Previous;
 			renderer.ScissorGPU = PreviousGPU;
@@ -81,8 +87,7 @@ internal partial class PanelRenderer
 	/// </summary>
 	public ClipScope Clip( Panel panel )
 	{
-		if ( (panel.ComputedStyle?.Overflow ?? OverflowMode.Visible) == OverflowMode.Visible )
-			return null;
+		if ( (panel.ComputedStyle?.Overflow ?? OverflowMode.Visible) == OverflowMode.Visible ) return default;
 
 		var size = (panel.Box.Rect.Width + panel.Box.Rect.Height) * 0.5f;
 		var borderRadius = new Vector4( panel.ComputedStyle.BorderTopLeftRadius?.GetPixels( size ) ?? 0, panel.ComputedStyle.BorderTopRightRadius?.GetPixels( size ) ?? 0, panel.ComputedStyle.BorderBottomLeftRadius?.GetPixels( size ) ?? 0, panel.ComputedStyle.BorderBottomRightRadius?.GetPixels( size ) ?? 0 );

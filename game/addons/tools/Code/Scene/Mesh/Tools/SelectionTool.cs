@@ -581,6 +581,9 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 	{
 		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 		{
+			using var scope = SceneEditorSession.Active
+				.UndoScope( "Update Selection" ).Push();
+
 			if ( Selection.Contains( element ) )
 			{
 				Selection.Remove( element );
@@ -596,14 +599,25 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 		{
 			if ( !Selection.Contains( element ) )
 			{
+				using var scope = SceneEditorSession.Active
+					.UndoScope( "Update Selection" ).Push();
+
 				Selection.Add( element );
 			}
 
 			return;
 		}
 
-		Selection.Set( element );
+		if ( !Selection.Contains( element ) || Selection.Count != 1 )
+		{
+			using var scope = SceneEditorSession.Active
+				.UndoScope( "Update Selection" ).Push();
+
+			Selection.Set( element );
+		}
 	}
+
+	IDisposable _selectionUndoScope;
 
 	public void UpdateSelection( IMeshElement element )
 	{
@@ -616,24 +630,48 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 			{
 				Select( element );
 			}
-			else if ( !IsMultiSelecting )
+			else if ( !IsMultiSelecting && Selection.Any() )
 			{
+				using var scope = SceneEditorSession.Active
+					.UndoScope( "Update Selection" ).Push();
+
 				Selection.Clear();
 			}
+
+			return;
 		}
-		else if ( Gizmo.IsLeftMouseDown && element.IsValid() )
+
+		if ( Gizmo.IsLeftMouseDown )
 		{
-			if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
+			if ( element.IsValid() )
 			{
-				if ( Selection.Contains( element ) )
-					Selection.Remove( element );
+				if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
+				{
+					if ( Selection.Contains( element ) )
+					{
+						_selectionUndoScope ??= SceneEditorSession.Active
+							.UndoScope( "Update Selection" ).Push();
+
+						Selection.Remove( element );
+					}
+				}
+				else
+				{
+					if ( !Selection.Contains( element ) )
+					{
+						_selectionUndoScope ??= SceneEditorSession.Active
+							.UndoScope( "Update Selection" ).Push();
+
+						Selection.Add( element );
+					}
+				}
 			}
-			else
-			{
-				if ( !Selection.Contains( element ) )
-					Selection.Add( element );
-			}
+
+			return;
 		}
+
+		_selectionUndoScope?.Dispose();
+		_selectionUndoScope = null;
 	}
 
 	protected override void OnStartDrag()
@@ -700,12 +738,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 		if ( IsBoxSelecting || IsLassoSelecting )
 			return default;
 
-		var result = MeshTrace.Run();
-		if ( !result.Hit || result.Component is not MeshComponent component )
-			return default;
-
-		var face = component.Mesh.TriangleToFace( result.Triangle );
-		return new MeshFace( component, face );
+		return MeshTrace.TraceFace();
 	}
 
 	public static Vector3 ComputeTextureVAxis( Vector3 normal ) => FaceDownVectors[GetOrientationForPlane( normal )];

@@ -1,5 +1,4 @@
 ﻿using System.Collections.Immutable;
-using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Sandbox.MovieMaker;
@@ -8,6 +7,18 @@ using Sandbox.MovieMaker.Compiled;
 namespace Editor.MovieMaker;
 
 #nullable enable
+
+partial record PropertySignal
+{
+	public static PropertySignal<T> FromSamples<T>( MovieTime startTime, int sampleRate, IEnumerable<T> samples )
+	{
+		ImmutableArray<T> sampleArray = [.. samples];
+
+		var duration = MovieTime.FromFrames( sampleArray.Length, sampleRate );
+
+		return new SamplesSignal<T>( (startTime, startTime + duration), default, sampleRate, sampleArray );
+	}
+}
 
 partial record PropertySignal<T>
 {
@@ -34,15 +45,6 @@ partial record PropertySignal<T>
 		}
 	}
 
-	public static PropertySignal<T> FromSamples( MovieTime startTime, int sampleRate, IEnumerable<T> samples )
-	{
-		ImmutableArray<T> sampleArray = [..samples];
-
-		var duration = MovieTime.FromFrames( sampleArray.Length, sampleRate );
-
-		return new SamplesSignal<T>( (startTime, startTime + duration), default, sampleRate, sampleArray );
-	}
-
 	public static implicit operator PropertySignal<T>( CompiledSampleBlock<T> sampleBlock )
 	{
 		return new SamplesSignal<T>( sampleBlock.TimeRange, sampleBlock.Offset, sampleBlock.SampleRate, sampleBlock.Samples );
@@ -57,12 +59,11 @@ partial record PropertyBlock<T>
 
 [JsonDiscriminator( "Samples" )]
 [JsonConverter( typeof( SamplesSignalConverterFactory ) )]
-[method: JsonConstructor]
 file sealed record SamplesSignal<T>(
 	MovieTimeRange TimeRange,
 	MovieTime Offset,
 	int SampleRate,
-	ImmutableArray<T> Samples ) : PropertySignal<T>
+	ImmutableArray<T> Samples ) : PropertySignal<T>, ILiteralSignal
 {
 	public override T GetValue( MovieTime time ) =>
 		Samples.Sample( time.Clamp( TimeRange ) - TimeRange.Start + Offset, SampleRate, _interpolator );
@@ -94,6 +95,35 @@ file sealed record SamplesSignal<T>(
 		}
 
 		base.OnSample( startTime, sampleRate, dst );
+	}
+
+	private bool CanReuseSamplesWhenCompiling( MovieTimeRange timeRange, int? sampleRate )
+	{
+		// If we want to compile to a lower sample rate, let's resample.
+		// There's no point resampling to a higher sample rate.
+
+		if ( sampleRate < SampleRate ) return false;
+
+		// We should only re-use the sample array if the compiled block
+		// would use all of it.
+
+		var sampleInterval = MovieTime.FromFrames( 1, SampleRate );
+
+		// We still want to use the first sample if the block's time range starts
+		// somewhere between the first and second samples, hence the biasing here.
+		// Same applies at the end of the block's time range.
+
+		return timeRange.Start < TimeRange.Start + sampleInterval && timeRange.End > TimeRange.End - sampleInterval;
+	}
+
+	public override IEnumerable<ICompiledPropertyBlock<T>> Compile( MovieTimeRange timeRange, int? sampleRate )
+	{
+		if ( CanReuseSamplesWhenCompiling( timeRange, sampleRate ) )
+		{
+			return [new CompiledSampleBlock<T>( timeRange, Offset + timeRange.Start - TimeRange.Start, SampleRate, Samples )];
+		}
+
+		return base.Compile( timeRange, sampleRate );
 	}
 
 	public override IEnumerable<MovieTimeRange> GetPaintHints( MovieTimeRange timeRange ) =>

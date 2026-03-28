@@ -51,8 +51,8 @@ internal class FontManager : FontMapper
 		// If we're loading new fonts, we may have cached it already
 		Cache.Clear();
 
-		var fontFiles = fileSystem.FindFile( "/fonts/", "*.ttf" )
-			.Union( fileSystem.FindFile( "/fonts/", "*.otf" ) );
+		var fontFiles = fileSystem.FindFile( "/fonts/", "*.ttf", true )
+			.Union( fileSystem.FindFile( "/fonts/", "*.otf", true ) );
 
 		Parallel.ForEach( fontFiles, ( string font ) =>
 		{

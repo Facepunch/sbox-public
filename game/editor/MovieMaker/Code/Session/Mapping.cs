@@ -131,7 +131,7 @@ partial class Session
 
 		var track = (ProjectReferenceTrack<GameObject>)Project.AddReferenceTrack( go.Name, typeof(GameObject), parentTrack );
 
-		track.ReferenceId = go.Id;
+		track.Metadata = new TrackMetadata( go.Id );
 
 		Binder.Get( track ).Bind( go );
 
@@ -163,7 +163,7 @@ partial class Session
 		var goTrack = GetOrCreateTrack( cmp.GameObject );
 		var track = Project.AddReferenceTrack( cmp.GetType().Name, cmp.GetType(), goTrack );
 
-		track.ReferenceId = cmp.Id;
+		track.Metadata = new TrackMetadata( cmp.Id );
 
 		Binder.Get( track ).Bind( cmp );
 
@@ -377,6 +377,7 @@ partial class Session
 	private void UpdateAnimationPlaybackRate( SkinnedModelRenderer renderer, float dt )
 	{
 		if ( renderer.SceneModel is not { } model ) return;
+		if ( renderer.BoneMergeTarget.IsValid() ) return;
 
 		if ( dt > 0f && IsEditorScene )
 		{

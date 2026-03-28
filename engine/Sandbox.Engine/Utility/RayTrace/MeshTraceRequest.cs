@@ -82,6 +82,54 @@ public partial struct MeshTraceRequest
 		};
 	}
 
+	public readonly unsafe Result[] RunAll()
+	{
+		var r = request;
+
+		if ( targetWorld != null && targetWorld.IsValid() )
+		{
+			if ( filterCallback is not null )
+			{
+				r.filterDelegate = (IntPtr)((delegate* unmanaged< int, byte >)&FilterFunctionInternal);
+				_currentfilterCallback = filterCallback;
+			}
+
+			var results = NativeEngine.CUtlVectorMeshTraceOutput.Create( 32, 32 );
+
+			try
+			{
+
+				if ( targetWorld.native.MeshTraceAll( r, results ) )
+				{
+					var hitCount = results.Count();
+					var output = new Result[hitCount];
+
+					for ( int i = 0; i < hitCount; i++ )
+					{
+						output[i] = Result.From( this, results.Element( i ) );
+					}
+
+					return output;
+				}
+			}
+			finally
+			{
+				_currentfilterCallback = default;
+
+				results.DeleteThis();
+			}
+		}
+
+		if ( targetModel is not null )
+		{
+			MeshTraceOutput result = default;
+			if ( targetModel.native.MeshTrace( r, ref result ) )
+				return [Result.From( this, result )];
+		}
+
+		return [];
+	}
+
 	/// <summary>
 	/// Casts a ray from point A to point B.
 	/// </summary>

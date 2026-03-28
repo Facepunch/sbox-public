@@ -20,6 +20,8 @@ native class ISceneWorld as NativeEngine.ISceneWorld
 		return self->MeshTrace( input, *output );
 	}
 
+	bool MeshTraceAll(MeshTraceInput input, CUtlVectorMeshTraceOutput results );
+
 	IPVS GetPVS();
 	void SetPVS( IPVS pPVS );
 

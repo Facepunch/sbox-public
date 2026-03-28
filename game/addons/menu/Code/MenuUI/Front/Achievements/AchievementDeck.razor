@@ -14,17 +14,22 @@
             <AchievementSummary Entry=@entry></AchievementSummary>
         }
     }
+    else
+    {
+        <Label class="small">No achievements yet - play something!</Label>
+    }
 
 </root>
 
-@code{
+@code {
     RealTimeUntil timeUntilRefresh = 0;
 
     Sandbox.Services.AchievementOverview[] Entries;
 
     async Task Update()
     {
-        Entries = await MenuUtility.GetAchievementOverviews( 20 );
+        Entries = await MenuUtility.GetAchievementOverviews(20);
+        Entries = Entries.Where(x => x.Unlocked > 0 && x.Total > 0).OrderByDescending(x => ((float)x.Unlocked / (float)x.Total)).ToArray();
         StateHasChanged();
     }
 
@@ -39,7 +44,7 @@
             return;
 
         timeUntilRefresh = 60 * 4;
-        
+
         _ = Update();
     }
 }

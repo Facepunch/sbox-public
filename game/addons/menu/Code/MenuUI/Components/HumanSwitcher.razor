@@ -1,4 +1,4 @@
-@using Sandbox.UI;
+﻿@using Sandbox.UI;
 @using Sandbox.UI.Navigation;
 @using Sandbox;
 @using System;
@@ -6,14 +6,14 @@
 @inherits Panel
 
 <div>
-    <Button Text="@CurrentModelMode" @onmousedown=@ToggleHuman></Button>
+    <Button icon="@CurrentModelMode" onclick="@ToggleHuman"></Button>
 </div>
 
 @code
 {
     bool IsHuman => Scene.Directory.FindByName("Player Human").FirstOrDefault()?.Active ?? false;
 
-    string CurrentModelMode => IsHuman ? "Switch to Citizen" : "Switch to Human";
+    string CurrentModelMode => IsHuman ? "🌭" : "🙎🏼";
 
     protected override int BuildHash() => System.HashCode.Combine(IsHuman);
 
@@ -27,7 +27,6 @@
 
         var fx = Scene.Camera.GetOrAddComponent<Pixelate>();
         var gr = Scene.Camera.GetOrAddComponent<FilmGrain>();
-        var b = Scene.Camera.GetOrAddComponent<Bloom>();
 
         fx.Enabled = true;
         gr.Enabled = true;

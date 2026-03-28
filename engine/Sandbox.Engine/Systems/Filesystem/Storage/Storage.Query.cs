@@ -37,6 +37,12 @@ public static partial class Storage
 	public class Query
 	{
 		/// <summary>
+		/// Specific workshop file IDs to query. When set, other filters are ignored
+		/// and the query returns details for these specific items.
+		/// </summary>
+		public List<ulong> FileIds { get; set; }
+
+		/// <summary>
 		/// Tags that the item must have all of to be included in results.
 		/// </summary>
 		public HashSet<string> TagsRequired { get; set; } = new( StringComparer.OrdinalIgnoreCase );
@@ -65,6 +71,12 @@ public static partial class Storage
 		/// Sort Order
 		/// </summary>
 		public SortOrder SortOrder { get; set; } = SortOrder.RankedByVote;
+
+		/// <summary>
+		/// Filter results to items published by this Steam ID. When set, uses
+		/// a user-specific query instead of a global one.
+		/// </summary>
+		public SteamId Author { get; set; }
 
 		/// <summary>
 		/// Number of days to consider for rank trend calculations

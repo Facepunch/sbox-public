@@ -21,6 +21,7 @@ class RenderQualityProfiles
 		SetGroupConVars( "TextureQuality", settings.TextureQuality.ToString() );
 		SetGroupConVars( "PostProcessQuality", settings.PostProcessQuality.ToString() );
 		SetGroupConVars( "VolumetricFogQuality", settings.VolumetricFogQuality.ToString() );
+		SetGroupConVars( "ShadowQuality", settings.ShadowQuality.ToString() );
 	}
 
 	/// <summary>

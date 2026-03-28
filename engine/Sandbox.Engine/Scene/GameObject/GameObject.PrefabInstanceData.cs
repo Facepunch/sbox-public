@@ -374,6 +374,8 @@ internal class PrefabInstanceData
 	public void UpdateGameObjectFromPrefab( GameObject go, bool revertChanges = false )
 	{
 		var prefabGameObject = FindPrefabGameObjectForInstanceId( go.Id );
+		if ( prefabGameObject is null ) return;
+
 		var prefabGameObjectJson = prefabGameObject.Serialize( new SerializeOptions { SerializePrefabForDiff = true } );
 		var validatedLookup = ValidatePrefabToInstanceIdLookup( _prefabGuidToInstanceGuid, PrefabSource );
 		UpdateLookups( validatedLookup );
@@ -667,6 +669,7 @@ internal class PrefabInstanceData
 		if ( prefabGuid == Guid.Empty ) return null;
 
 		var prefabScene = GameObject.GetPrefab( PrefabSource );
+		if ( prefabScene is null ) return null;
 
 		return prefabScene.Scene.Directory.FindComponentByGuid( prefabGuid );
 	}
@@ -677,6 +680,7 @@ internal class PrefabInstanceData
 		if ( prefabGuid == Guid.Empty ) return null;
 
 		var prefabScene = GameObject.GetPrefab( PrefabSource );
+		if ( prefabScene is null ) return null;
 
 		return prefabScene.Scene.Directory.FindByGuid( prefabGuid );
 	}

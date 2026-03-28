@@ -374,10 +374,6 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		PhysicsBody.ResetInertiaTensor();
 	}
 
-	internal Action<Collision> OnCollisionStart;
-	internal Action<Collision> OnCollisionUpdate;
-	internal Action<CollisionStop> OnCollisionStop;
-
 	/// <summary>
 	/// Gets the effective impact damage value. If ImpactDamage is not set,
 	/// calculates a default value based on the rigidbody's mass.
@@ -475,15 +471,10 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 
 		EnsureBodyCreated();
 
-		_collisionEvents?.Dispose();
-		_collisionEvents = new CollisionEventSystem( _body, GameObjectSource );
-		_collisionEvents.OnCollisionStart = ( c ) =>
-		{
-			HandleImpactDamage( c );
-			OnCollisionStart?.Invoke( c );
-		};
-		_collisionEvents.OnCollisionUpdate = OnCollisionUpdate;
-		_collisionEvents.OnCollisionStop = OnCollisionStop;
+		if ( _collisionEvents is not null )
+			_collisionEvents.Rebind( _body );
+		else
+			_collisionEvents = new CollisionEventSystem( _body, this );
 
 		Transform.OnTransformChanged += OnLocalTransformChanged;
 

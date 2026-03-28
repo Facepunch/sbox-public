@@ -35,6 +35,9 @@ native class IRenderContext as NativeEngine.IRenderContext
 
 	inline void TextureBarrierTransition( ITexture hSrc, int mips, RenderBarrierPipelineStageFlags_t srcStage, RenderBarrierPipelineStageFlags_t dstStage, RenderImageLayout_t layout, RenderBarrierAccessFlags_t srcFlags, RenderBarrierAccessFlags_t dstFlags )
 	{
+		if ( hSrc == RENDER_TEXTURE_HANDLE_INVALID )
+			return;
+
 		RenderUAVBarrier_t uavBarrier { hSrc, srcStage, dstStage, srcFlags, dstFlags, -1, -1, layout };
 
 		self->TextureBarrier( 1, &hSrc, &layout );

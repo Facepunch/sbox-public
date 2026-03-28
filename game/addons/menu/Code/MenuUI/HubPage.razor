@@ -10,25 +10,41 @@
 <root class="root">
     <Page>
 
-        <Left>
-
-            <RecentlyPlayed></RecentlyPlayed>
-
-            <hr />
-            <FavouritedGames></FavouritedGames>
-
-        </Left>
-
         <Body>
 
             <div class="blocks">
 
-                <div class="block"><PlayerFeed></PlayerFeed></div>
-                <div class="block"><AchievementDeck></AchievementDeck></div>
+                <div class="block">
+
+                    <label class="medium">
+                        Recommended For You
+                    </label>
+
+                    <HorizontalGameList Icon="group" Title="Played by Friends" Query="type:game sort:friends" Limit=@(5) />
+                    <HorizontalGameList Icon="history" Title="Jump Back In" Query="type:game sort:used" Limit=@(5) />
+
+                    <row>
+                        <label class="medium">
+                            Friend Activity
+                        </label>
+                    </row>
+                    <PlayerFeed></PlayerFeed>
+                </div>
 
             </div>
 
         </Body>
+
+        <Left>
+            <column style="gap: 12px;">
+                <row>
+                    <label class="medium">
+                        Your Achievements
+                    </label>
+                </row>
+                <AchievementDeck></AchievementDeck>
+            </column>
+        </Left>
     </Page>
 
 

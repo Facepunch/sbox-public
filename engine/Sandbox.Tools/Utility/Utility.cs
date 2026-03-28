@@ -852,12 +852,6 @@ public static partial class EditorUtility
 		return await ShaderCompile.Compile( path, localPath, options, token );
 	}
 
-	[EditorEvent.Hotload]
-	private static void ClearReflectionQueryCache()
-	{
-		ReflectionQueryCache.ClearTypeCache();
-	}
-
 	public static Asset GetAssetFromProject( Project project )
 	{
 		return project.ProjectSourceObject as Asset;

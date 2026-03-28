@@ -10,17 +10,13 @@ internal static class ScreenCaptureUtility
 	/// <summary>
 	/// Generates a suitable screenshot filename with timestamp
 	/// </summary>
-	public static string GenerateScreenshotFilename( string extension )
+	public static string GenerateScreenshotFilename( string extension, string filePath = "screenshots" )
 	{
-		// Extract path component
-		var filePath = "screenshots";
-
 		var fileName = ConsoleSystem.GetValue( "screenshot_prefix", "sbox_" );
 		if ( string.IsNullOrEmpty( fileName ) )
 		{
 			fileName = "sbox_";
 		}
-
 
 		// Format extension with dot if needed
 		string extensionSeparator = "";

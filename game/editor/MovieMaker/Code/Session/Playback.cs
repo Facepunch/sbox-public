@@ -66,6 +66,8 @@ public sealed partial class Session
 			MovieBoneAnimatorSystem.Current?.ClearBones( renderer );
 		}
 
+		using var scope = Player.BeginApplyFrame();
+
 		if ( IsOpenInEditor && SyncPlayback )
 		{
 			foreach ( var player in Player.Scene.GetAllComponents<MoviePlayer>() )

@@ -1,4 +1,6 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Engine;
+
+namespace Sandbox;
 
 /// <summary>
 /// A container for the current language, allowing access to translated phrases and language information.
@@ -15,18 +17,20 @@ public class LanguageContainer
 	/// </summary>
 	public Sandbox.Localization.LanguageInformation Current { get; internal set; }
 
-	Sandbox.Localization.PhraseCollection lang;
+	/// <summary>
+	/// FileSystem used for localization.
+	/// </summary>
+	internal BaseFileSystem FileSystem { get; private set; }
 
-	BaseFileSystem filesystem;
+	Sandbox.Localization.PhraseCollection lang;
 	FileWatch _watcher;
 
-	internal LanguageContainer( BaseFileSystem filesystem )
+	internal LanguageContainer()
 	{
-		this.filesystem = filesystem;
-		Tick();
+		FileSystem = new AggregateFileSystem();
 
-		_watcher = filesystem.Watch();
-		_watcher.OnChanges += x => OnFileChanged();
+		_watcher = FileSystem.Watch();
+		_watcher.OnChanges += x => Refresh();
 	}
 
 	string _previousLanguage;
@@ -49,6 +53,9 @@ public class LanguageContainer
 
 		// Switch to new language
 		AddFromPath( language );
+
+		// Notify UI system so we can update text if needed
+		GlobalContext.Current.UISystem.OnLanguageChanged();
 	}
 
 	void AddFromPath( string shortName )
@@ -62,7 +69,7 @@ public class LanguageContainer
 		if ( language != null ) Current = language;
 
 
-		foreach ( var file in filesystem.FindFile( shortName, "*.json" ) )
+		foreach ( var file in FileSystem.FindFile( shortName, "*.json" ) )
 		{
 			AddFile( $"{shortName}/{file}" );
 		}
@@ -73,7 +80,7 @@ public class LanguageContainer
 	{
 		try
 		{
-			var entries = filesystem.ReadJson<Dictionary<string, string>>( path );
+			var entries = FileSystem.ReadJson<Dictionary<string, string>>( path );
 			if ( entries == null ) return;
 
 			foreach ( var entry in entries )
@@ -89,9 +96,9 @@ public class LanguageContainer
 	}
 
 	/// <summary>
-	/// Called when a localization file has changed (and we should reload)
+	/// Called when file(s) have changed and we should reload next tick
 	/// </summary>
-	internal void OnFileChanged()
+	internal void Refresh()
 	{
 		// setting this to null will cause a reload in tick
 		_previousLanguage = null;
@@ -114,8 +121,8 @@ public class LanguageContainer
 		_watcher?.Dispose();
 		_watcher = null;
 
-		filesystem?.Dispose();
-		filesystem = null;
+		FileSystem?.Dispose();
+		FileSystem = null;
 	}
 }
 

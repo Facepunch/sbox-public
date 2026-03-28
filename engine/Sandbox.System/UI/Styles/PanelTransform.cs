@@ -270,9 +270,7 @@ namespace Sandbox.UI
 
 			internal static Entry Lerp( Entry a, Entry b, float delta )
 			{
-				var data = a.Type == EntryType.Rotation || a.Type == EntryType.Skew ?
-					Angles.Lerp( new Angles( a.Data ), new Angles( b.Data ), delta ).AsVector3() :
-					Vector3.Lerp( a.Data, b.Data, delta, false );
+				var data = Vector3.Lerp( a.Data, b.Data, delta, false );
 
 				return new Entry
 				{
@@ -287,9 +285,7 @@ namespace Sandbox.UI
 
 			internal static Entry Lerp( Entry a, Entry b, float delta, Vector2 dimensions )
 			{
-				var data = a.Type == EntryType.Rotation || a.Type == EntryType.Skew ?
-					Angles.Lerp( new Angles( a.Data ), new Angles( b.Data ), delta ).AsVector3() :
-					Vector3.Lerp( a.Data, b.Data, delta, false );
+				var data = Vector3.Lerp( a.Data, b.Data, delta, false );
 
 				return new Entry
 				{

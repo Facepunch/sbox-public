@@ -17,8 +17,14 @@ namespace Sandbox;
 /// </summary>
 public static partial class Networking
 {
-	internal const int MaxIncomingMessages = 32;
+	internal const int ReceiveBatchSize = 32;
 	internal static NetworkSystem System;
+
+	[ConVar( "net_max_outgoing", ConVarFlags.Protected, Help = "Maximum outgoing messages to send per tick. 0 = unlimited." )]
+	internal static int MaxOutgoingMessagesPerTick { get; set; } = 1024;
+
+	[ConVar( "net_max_incoming", ConVarFlags.Protected, Help = "Maximum incoming messages to receive per tick. 0 = unlimited." )]
+	internal static int ReceiveBatchSizePerTick { get; set; } = 1024;
 
 	internal static Dictionary<string, string> ServerData { get; set; } = new();
 
@@ -250,6 +256,10 @@ public static partial class Networking
 	/// </summary>
 	public static HostStats HostStats => System?.HostStats ?? default;
 
+	// Wire-level network stats for this machine, aggregated across all non-local connections.
+	// Post-compression, post-framing bytes as reported by the transport layer.
+	internal static ConnectionStats LocalStats { get; private set; }
+
 	/// <summary>
 	/// True if we can be considered the host of this session. Either we're not connected to a server, or we are host of a server.
 	/// </summary>
@@ -373,6 +383,7 @@ public static partial class Networking
 	{
 		MaxPlayers = 0;
 		ServerData.Clear();
+		LocalStats = default;
 	}
 
 	private static int? OldFakePacketLoss { get; set; }
@@ -399,6 +410,44 @@ public static partial class Networking
 		OldFakeLag = FakeLag;
 	}
 
+	/// <summary>
+	/// Aggregate wire stats across all active non-local connections, expose them via
+	/// <see cref="LocalStats"/>, and feed them into the performance telemetry pipeline
+	/// so they appear in activity updates alongside frametime and render stats.
+	/// </summary>
+	private static void UpdateLocalStats()
+	{
+		if ( System is null )
+		{
+			LocalStats = default;
+			return;
+		}
+
+		var totalIn = 0f;
+		var totalOut = 0f;
+		var totalPing = 0;
+		var connectionCount = 0;
+
+		// Iterate System.Connections (real wire connections in the NetworkSystem) rather than
+		// Connection.All, which allocates and includes mock ConnectionInfo entries with zero stats.
+		foreach ( var c in System.Connections )
+		{
+			var s = c.Stats;
+			totalIn += s.InBytesPerSecond;
+			totalOut += s.OutBytesPerSecond;
+			totalPing += s.Ping;
+			connectionCount++;
+		}
+
+		LocalStats = new ConnectionStats( "local" )
+		{
+			InBytesPerSecond = totalIn,
+			OutBytesPerSecond = totalOut,
+			// Average ping across real wire connections; on a client this is just the host ping
+			Ping = connectionCount > 0 ? totalPing / connectionCount : 0,
+		};
+	}
+
 	internal static void PreFrameTick()
 	{
 		UpdateFakeLag();
@@ -410,6 +459,7 @@ public static partial class Networking
 			System?.SendTableUpdates();
 			System?.SendHeartbeat();
 			System?.SendHostStats();
+			UpdateLocalStats();
 		}
 		catch ( Exception e )
 		{

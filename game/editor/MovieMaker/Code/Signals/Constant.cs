@@ -23,7 +23,7 @@ partial record PropertyBlock<T>
 
 [JsonDiscriminator( "Constant" )]
 [method: JsonConstructor]
-file sealed record ConstantSignal<T>( JsonNode? Serialized ) : PropertySignal<T>
+file sealed record ConstantSignal<T>( JsonNode? Serialized ) : PropertySignal<T>, ILiteralSignal
 {
 	private JsonNode? _serialized = Serialized;
 
@@ -83,7 +83,7 @@ file sealed record ConstantSignal<T>( JsonNode? Serialized ) : PropertySignal<T>
 	protected override PropertySignal<T> OnTransform( MovieTransform value ) => this;
 	protected override PropertySignal<T> OnReduce( MovieTime? start, MovieTime? end ) => this;
 
-	public override IEnumerable<ICompiledPropertyBlock<T>> Compile( MovieTimeRange timeRange, int sampleRate ) =>
+	public override IEnumerable<ICompiledPropertyBlock<T>> Compile( MovieTimeRange timeRange, int? sampleRate ) =>
 		[new CompiledConstantBlock<T>( timeRange, Serialized )];
 
 	public override IEnumerable<MovieTimeRange> GetPaintHints( MovieTimeRange timeRange ) => [timeRange.Start, timeRange.End - MovieTime.Epsilon];

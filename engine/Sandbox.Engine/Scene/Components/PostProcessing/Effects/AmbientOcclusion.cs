@@ -145,7 +145,7 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 
 	CommandList commands = new CommandList( "Ambient Occlusion" );
 
-	private static readonly ComputeShader GtaoCs = new ComputeShader( "gtao_cs" );
+	private static ComputeShader GtaoCs = new ComputeShader( "gtao_cs" );
 
 	public override void Render()
 	{

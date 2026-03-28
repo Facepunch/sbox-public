@@ -183,6 +183,8 @@ public static class SceneUtility
 	{
 		var scene = new Scene();
 		scene.Name = "RenderGameObjectToBitmap";
+		scene.PhysicsWorld?.Gravity = 0;
+
 		try
 		{
 			using var sceneScope = scene.Push();

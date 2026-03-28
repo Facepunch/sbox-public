@@ -24,7 +24,7 @@ sealed class DDGIVolumeSystem : GameObjectSystem<DDGIVolumeSystem>
 		ReleaseBuffer();
 
 		Scene?.RenderAttributes?.Set( "DDGI_VolumeCount", 0 );
-		//Scene?.RenderAttributes?.Set( "DDGI_Volumes", (GpuBuffer)null );
+		Scene?.RenderAttributes?.Set( "DDGI_Volumes", (GpuBuffer)null );
 
 		base.Dispose();
 	}
@@ -72,7 +72,7 @@ sealed class DDGIVolumeSystem : GameObjectSystem<DDGIVolumeSystem>
 		// No valid volumes: clear renderer attributes to avoid stale data.
 		ReleaseBuffer();
 		Scene.RenderAttributes.Set( "DDGI_VolumeCount", 0 );
-		//Scene.RenderAttributes.Set( "DDGI_Volumes", (GpuBuffer)null );
+		Scene.RenderAttributes.Set( "DDGI_Volumes", (GpuBuffer)null );
 	}
 
 	private void EnsureBufferCapacity( int count )

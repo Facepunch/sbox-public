@@ -59,7 +59,7 @@ public partial class AccessControl : IAssemblyResolver
 		var instance = new AssemblyAccess( this, bytes );
 		instance.Verify( out outStream );
 
-		if ( addToWhitelist )
+		if ( addToWhitelist && instance.Result.Success )
 		{
 			AddSafeAssembly( instance.Assembly.Name.Name, bytes );
 		}

@@ -80,7 +80,7 @@ public sealed partial class NavMesh
 			return null;
 		}
 
-		var minMaxTileCoords = CalculateMinMaxTileCoords( WorldBounds );
+		var minMaxTileCoords = CalculateMinMaxTileCoords( Bounds );
 
 		// Need one iteration to find out actual tile count
 		List<NavMeshTile> tiles = new();

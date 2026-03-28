@@ -92,9 +92,12 @@ public partial class PanelInspectorWidget : Widget
 
 	void SelectHighlightedPanel()
 	{
-		TreeView.SelectItem( HoveredPanel, false );
-		TreeView.UpdateIfDirty();
-		TreeView.ScrollTo( HoveredPanel );
+		if ( HoveredPanel != null )
+		{
+			TreeView.SelectItem( HoveredPanel, false );
+			TreeView.UpdateIfDirty();
+			TreeView.ScrollTo( HoveredPanel );
+		}
 
 		SelectedPanel = HoveredPanel;
 	}

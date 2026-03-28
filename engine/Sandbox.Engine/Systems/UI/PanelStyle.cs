@@ -85,7 +85,7 @@ public sealed class PanelStyle : Styles
 
 		foreach ( var child in panel.Children )
 		{
-			child.Style.InvalidateBroadphase();
+			child.Style?.InvalidateBroadphase();
 		}
 	}
 

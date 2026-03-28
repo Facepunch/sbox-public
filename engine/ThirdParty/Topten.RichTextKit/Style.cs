@@ -14,6 +14,7 @@
 // under the License.
 
 using SkiaSharp;
+using Sandbox.UI;
 
 namespace Topten.RichTextKit
 {
@@ -45,6 +46,7 @@ namespace Topten.RichTextKit
 			s.LetterSpacing = LetterSpacing;
 			s.WordSpacing = WordSpacing;
 			s.FontVariant = FontVariant;
+			s.FontVariantNumeric = FontVariantNumeric;
 			s.TextDirection = TextDirection;
 			s.ReplacementCharacter = ReplacementCharacter;
 			s._textEffects = _textEffects?.ToList();
@@ -146,6 +148,11 @@ namespace Topten.RichTextKit
 		/// The font variant (ie: super/sub-script) for text in this run.
 		/// </summary>
 		public FontVariant FontVariant { get; set; } = FontVariant.Normal;
+
+		/// <summary>
+		/// Numeric variant selection (eg: tabular-width numerals).
+		/// </summary>
+		public FontVariantNumeric FontVariantNumeric { get; set; } = FontVariantNumeric.Normal;
 
 		/// <summary>
 		/// Text direction override for this span

@@ -308,11 +308,13 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	/// <param name="channel"></param>
 	private unsafe void ProcessIncomingMessages( in ISteamNetworkingMessages net, int channel )
 	{
-		var ptr = stackalloc IntPtr[Networking.MaxIncomingMessages];
+		var ptr = stackalloc IntPtr[Networking.ReceiveBatchSize];
+		var maxIncoming = Networking.ReceiveBatchSizePerTick;
+		var totalReceived = 0;
 
 		while ( true )
 		{
-			var count = net.ReceiveMessagesOnChannel( channel, (IntPtr)ptr, Networking.MaxIncomingMessages );
+			var count = net.ReceiveMessagesOnChannel( channel, (IntPtr)ptr, Networking.ReceiveBatchSize );
 			if ( count == 0 ) return;
 
 			for ( var i = 0; i < count; i++ )
@@ -331,6 +333,11 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 				IncomingMessages.Writer.TryWrite( m );
 				net.ReleaseMessage( ptr[i] );
 			}
+
+			totalReceived += count;
+
+			if ( maxIncoming > 0 && totalReceived >= maxIncoming )
+				return;
 		}
 	}
 
@@ -364,9 +371,15 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		var net = Steam.SteamNetworkingMessages();
 		if ( !net.IsValid ) return;
 
+		var maxOutgoing = Networking.MaxOutgoingMessagesPerTick;
+		var outgoingCount = 0;
+
 		while ( OutgoingMessages.Reader.TryRead( out var msg ) )
 		{
 			ProcessOutgoingMessage( net, msg );
+
+			if ( maxOutgoing > 0 && ++outgoingCount >= maxOutgoing )
+				break;
 		}
 
 		ProcessIncomingMessages( net, NetworkChannel );

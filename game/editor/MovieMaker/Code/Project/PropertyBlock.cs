@@ -20,14 +20,6 @@ public interface IPaintHintBlock : ITrackBlock
 }
 
 /// <summary>
-/// A <see cref="ITrackBlock"/> that can change dynamically, usually for previewing edits / live recordings.
-/// </summary>
-public interface IDynamicBlock : ITrackBlock
-{
-	event Action<MovieTimeRange>? Changed;
-}
-
-/// <summary>
 /// A <see cref="IPropertyBlock"/> that can be added to a <see cref="IProjectPropertyTrack"/>.
 /// </summary>
 public interface IProjectPropertyBlock : IPropertyBlock, IPaintHintBlock
@@ -80,7 +72,7 @@ public sealed partial record PropertyBlock<T>( [property: JsonPropertyOrder( 100
 	public IEnumerable<ICompiledPropertyBlock<T>> Compile( ProjectPropertyTrack<T> track ) =>
 		Compile( track.Project.SampleRate );
 
-	public IEnumerable<ICompiledPropertyBlock<T>> Compile( int sampleRate = MovieProject.DefaultSampleRate )
+	public IEnumerable<ICompiledPropertyBlock<T>> Compile( int? sampleRate = null )
 	{
 		var compiled = Signal.Compile( TimeRange, sampleRate ).ToArray();
 

@@ -104,7 +104,9 @@ public partial class GameObject
 		else
 		{
 			clone.Name = Name;
-			clone.MakeNameUnique();
+			// Only make name unique in editor, in-game it isn't as important
+			// and we want to avoid the overhead & string allocation when generating a new name.
+			if ( Scene.IsEditor || (clone.Scene.IsValid() && clone.Scene.IsEditor) ) clone.MakeNameUnique();
 		}
 
 		// Not sure if we should do this here, we need to do it because it matches the old behaviour, where the clone is enabled before deserialization is completed.
@@ -155,7 +157,7 @@ public partial class GameObject
 		NetworkOrphaned = original.NetworkOrphaned;
 		AlwaysTransmit = original.AlwaysTransmit;
 		OwnerTransfer = original.OwnerTransfer;
-		Tags.SetFrom( original.Tags );
+		Tags.CloneFrom( original.Tags );
 
 		if ( original.IsPrefabInstanceRoot || original is PrefabScene )
 		{

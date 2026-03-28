@@ -79,6 +79,8 @@ public class KeyBind : Widget
 
 			return;
 		}
+
+		e.Accepted = true;
 	}
 
 	string AddModifiers( string keyStr, KeyboardModifiers modifiers )

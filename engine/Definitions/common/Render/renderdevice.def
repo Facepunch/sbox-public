@@ -35,6 +35,12 @@ native accessor g_pRenderDevice
 
 	RenderMultisampleType GetTextureMultisampleType( ITexture hTexture );
 
+	inline uint ComputeTextureMemorySize( ITexture hTexture )
+	{
+		const CTextureDesc *pDesc = g_pRenderDevice->GetTextureDesc( hTexture );
+		return g_pRenderDevice->ComputeTextureMemorySize( *pDesc );
+	}
+
 	IRenderContext CreateRenderContext( uint flags );
 	void ReleaseRenderContext( IRenderContext context );
 

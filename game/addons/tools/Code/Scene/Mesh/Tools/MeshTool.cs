@@ -42,6 +42,7 @@ public partial class MeshTool : EditorTool
 		yield return new FaceTool( this );
 		yield return new TextureTool( this );
 		yield return new VertexPaintTool( this );
+		yield return new DisplacementTool( this );
 	}
 
 	public override void OnEnabled()
@@ -72,6 +73,9 @@ public partial class MeshTool : EditorTool
 	[Shortcut( "tools.mesh-tool", "m", typeof( SceneViewWidget ) )]
 	public static void ActivateTool()
 	{
+		if ( EditorToolManager.CurrentModeName == nameof( MeshTool ) )
+			return;
+
 		EditorToolManager.SetTool( nameof( MeshTool ) );
 		EditorToolManager.SetSubTool( nameof( ObjectSelection ) );
 	}

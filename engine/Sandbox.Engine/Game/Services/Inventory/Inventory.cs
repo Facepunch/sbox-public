@@ -38,6 +38,8 @@ public static partial class Inventory
 			_items.Add( new Item( result.Get( i ) ) );
 		}
 
+		CurrentBlob = SerializeResult( result );
+
 		// If we had items previously then notify of new items. This is usually caused by a call to Refresh after an in-game purchase.
 		if ( previousItems.Count() > 0 )
 		{
@@ -49,6 +51,25 @@ public static partial class Inventory
 
 		result.Destroy();
 		return Array.Empty<Item>();
+	}
+
+	/// <summary>
+	/// That last serialized inventory proof for the local user, sent as part of UserInfo during connection
+	/// </summary>
+	internal static byte[] CurrentBlob { get; private set; } = Array.Empty<byte>();
+
+	private static unsafe byte[] SerializeResult( CSteamInventoryResult result )
+	{
+		var size = result.GetSerializedSize();
+		if ( size == 0 )
+			return Array.Empty<byte>();
+
+		var buffer = new byte[size];
+		fixed ( byte* ptr = buffer )
+		{
+			result.Serialize( ptr, size );
+		}
+		return buffer;
 	}
 
 	/// <summary>

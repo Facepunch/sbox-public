@@ -7,12 +7,9 @@ namespace Sandbox;
 /// </summary>
 class CollisionEventSystem : IDisposable
 {
-	private readonly PhysicsBody _body;
-	private readonly GameObject _gameObject;
-
-	public Action<Collision> OnCollisionStart;
-	public Action<CollisionStop> OnCollisionStop;
-	public Action<Collision> OnCollisionUpdate;
+	private PhysicsBody _body;
+	private GameObject _gameObject;
+	private Rigidbody _rigidbody;
 
 	public IReadOnlyCollection<Collider> Touching => _touchingColliders is null ? Array.Empty<Collider>() : _touchingColliders;
 
@@ -25,19 +22,28 @@ class CollisionEventSystem : IDisposable
 	private HashSet<Collider> TouchingColliders => _touchingColliders ??= new();
 	private HashSet<GameObject> TouchingObjects => _touchingObjects ??= new();
 
-	public CollisionEventSystem( PhysicsBody body, GameObject go = null )
+	public CollisionEventSystem( PhysicsBody body, Rigidbody rigidbody = null )
 	{
 		_body = body;
-		_gameObject = go ?? body.GameObject;
-
-		_body.OnIntersectionStart += OnIntersectionStart;
-		_body.OnIntersectionEnd += OnIntersectionEnd;
-		_body.OnIntersectionUpdate += OnIntersectionUpdate;
-		_body.OnTriggerBegin += OnTriggerBegin;
-		_body.OnTriggerEnd += OnTriggerEnd;
+		_rigidbody = rigidbody;
+		_gameObject = rigidbody?.GameObjectSource ?? body.GameObject;
+		_body.Listener = this;
 	}
 
-	private void OnTriggerBegin( PhysicsIntersection c )
+	/// <summary>
+	/// Swap to a new physics body without reallocating delegates.
+	/// </summary>
+	public void Rebind( PhysicsBody newBody )
+	{
+		if ( _body.IsValid() )
+			_body.Listener = null;
+
+		_body = newBody;
+		_gameObject = _rigidbody?.GameObjectSource ?? newBody.GameObject;
+		_body.Listener = this;
+	}
+
+	internal void OnTriggerBegin( PhysicsIntersection c )
 	{
 		var self = new CollisionSource( c.Self );
 		var other = new CollisionSource( c.Other );
@@ -47,7 +53,7 @@ class CollisionEventSystem : IDisposable
 		OnColliderTriggerStart( self.Collider, other.Collider, gameObject );
 	}
 
-	private void OnTriggerEnd( PhysicsIntersectionEnd c )
+	internal void OnTriggerEnd( PhysicsIntersectionEnd c )
 	{
 		var self = new CollisionSource( c.Self );
 		var other = new CollisionSource( c.Other );
@@ -61,13 +67,13 @@ class CollisionEventSystem : IDisposable
 		OnObjectTriggerStop( self.Collider, gameObject );
 	}
 
-	private void OnIntersectionStart( PhysicsIntersection c )
+	internal void OnIntersectionStart( PhysicsIntersection c )
 	{
 		var self = new CollisionSource( c.Self );
 		var other = new CollisionSource( c.Other );
 		var o = new Collision( self, other, c.Contact );
 
-		OnCollisionStart?.Invoke( o );
+		_rigidbody?.HandleImpactDamage( o );
 
 		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ICollisionListener>( x => x.OnCollisionStart( o ) );
 	}
@@ -77,24 +83,20 @@ class CollisionEventSystem : IDisposable
 		return false;
 	}
 
-	private void OnIntersectionEnd( PhysicsIntersectionEnd c )
+	internal void OnIntersectionEnd( PhysicsIntersectionEnd c )
 	{
 		var self = new CollisionSource( c.Self );
 		var other = new CollisionSource( c.Other );
 		var o = new CollisionStop( self, other );
 
-		OnCollisionStop?.Invoke( o );
-
 		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ICollisionListener>( x => x.OnCollisionStop( o ) );
 	}
 
-	private void OnIntersectionUpdate( PhysicsIntersection c )
+	internal void OnIntersectionUpdate( PhysicsIntersection c )
 	{
 		var self = new CollisionSource( c.Self );
 		var other = new CollisionSource( c.Other );
 		var o = new Collision( self, other, c.Contact );
-
-		OnCollisionUpdate?.Invoke( o );
 
 		_gameObject.Components.ExecuteEnabledInSelfAndDescendants<ICollisionListener>( x => x.OnCollisionUpdate( o ) );
 	}
@@ -244,13 +246,8 @@ class CollisionEventSystem : IDisposable
 		_touchingColliders?.Clear();
 		_touchingObjects?.Clear();
 
-		if ( !_body.IsValid() )
-			return;
+		if ( !_body.IsValid() ) return;
 
-		_body.OnIntersectionStart -= OnIntersectionStart;
-		_body.OnIntersectionEnd -= OnIntersectionEnd;
-		_body.OnIntersectionUpdate -= OnIntersectionUpdate;
-		_body.OnTriggerBegin -= OnTriggerBegin;
-		_body.OnTriggerEnd -= OnTriggerEnd;
+		if ( _body.Listener == this ) _body.Listener = null;
 	}
 }
