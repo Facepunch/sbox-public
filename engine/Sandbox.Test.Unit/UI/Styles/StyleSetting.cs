@@ -1,4 +1,4 @@
-using Sandbox.UI;
+ï»¿using Sandbox.UI;
 
 namespace UITest;
 
@@ -630,7 +630,7 @@ public class StyleSetting
 		Assert.AreEqual( 1, styles.Transitions.List.Count );
 		Assert.AreEqual( "width", styles.Transitions.List[0].Property );
 		Assert.AreEqual( 10, styles.Transitions.List[0].Duration );
-		// Each property has an initial value, defined in the property’s definition table
+		// Each property has an initial value, defined in the property's definition table
 		// https://w3c.github.io/csswg-drafts/css-transitions/#transition-timing-function-property
 		Assert.AreEqual( "ease", styles.Transitions.List[0].TimingFunction );
 		Assert.AreEqual( 0, styles.Transitions.List[0].Delay.Value );
@@ -1191,5 +1191,27 @@ public class StyleSetting
 		Assert.IsTrue( styles.BackdropFilterInvert.HasValue );
 		Assert.AreEqual( LengthUnit.Percentage, styles.BackdropFilterInvert.Value.Unit );
 		Assert.AreEqual( 70.0f, styles.BackdropFilterInvert.Value.Value );
+	}
+
+	[TestMethod]
+	public void SetFontVariantNumeric()
+	{
+		{
+			var styles = new Styles();
+			Assert.IsTrue( styles.Set( "font-variant-numeric", "tabular-nums" ) );
+			Assert.AreEqual( FontVariantNumeric.TabularNums, styles.FontVariantNumeric );
+		}
+
+		{
+			var styles = new Styles();
+			Assert.IsTrue( styles.Set( "font-variant-numeric", "normal" ) );
+			Assert.AreEqual( FontVariantNumeric.Normal, styles.FontVariantNumeric );
+		}
+
+		{
+			var styles = new Styles();
+			Assert.IsFalse( styles.Set( "font-variant-numeric", "lining-nums" ) );
+			Assert.IsNull( styles.FontVariantNumeric );
+		}
 	}
 }

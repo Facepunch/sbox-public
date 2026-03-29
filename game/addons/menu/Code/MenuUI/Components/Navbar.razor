@@ -50,7 +50,7 @@
 </root>
 
 @code {
-    public string ComputedClass => MainMenu.Instance.Navigator.CurrentUrlMatches("/home") ? "clear" : "";
+    public string ComputedClass => (this.GetNavigator()?.CurrentUrlMatches("/home") ?? false) ? "clear" : "";
 
     void Settings()
     {

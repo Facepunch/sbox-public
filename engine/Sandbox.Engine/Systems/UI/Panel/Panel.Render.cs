@@ -16,6 +16,7 @@ public partial class Panel
 	internal int _lastScissorHash;
 	internal Matrix _lastTransformMat;
 	internal bool _lastTransformIsRoot;
+	internal Matrix? _lastLayerMatrix;
 
 	public void MarkRenderDirty()
 	{

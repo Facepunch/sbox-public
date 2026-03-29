@@ -55,5 +55,5 @@ internal unsafe interface IToolsDll
 	/// <summary>
 	/// Get a thumbnail for the specified asset.Can return null if not immediately available. 
 	/// </summary>
-	Bitmap GetThumbnail( string filename );
+	Task<Bitmap> GetThumbnail( string filename );
 }

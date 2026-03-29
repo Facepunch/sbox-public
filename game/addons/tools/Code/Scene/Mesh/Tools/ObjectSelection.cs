@@ -177,7 +177,12 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 
 	public override BBox CalculateLocalBounds()
 	{
-		return CalculateSelectionBounds();
+		var invBasis = CalculateSelectionBasis().Inverse;
+
+		return BBox.FromPoints( _meshes
+			.Where( x => x.IsValid() )
+			.SelectMany( mc => mc.Mesh.VertexHandles
+				.Select( v => invBasis * mc.WorldTransform.PointToWorld( mc.Mesh.GetVertexPosition( v ) ) ) ) );
 	}
 
 	public override Rotation CalculateSelectionBasis()

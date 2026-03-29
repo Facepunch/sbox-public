@@ -15,6 +15,8 @@ public static partial class TextRendering
 		public TextFlag Flags;
 		public Vector2 Clip;
 		public bool IsEmpty;
+		public Rendering.FilterMode FilterMode;
+		internal int CacheKey;
 
 		public RealTimeSince TimeSinceUsed;
 
@@ -39,7 +41,8 @@ public static partial class TextRendering
 		{
 			_scope = scope;
 			IsEmpty = string.IsNullOrEmpty( _scope.Text );
-
+			FilterMode = scope.FilterMode;
+			TimeSinceUsed = 0;
 			_effectMargin = default;
 
 			if ( scope.Outline.Enabled && scope.Outline.Size > 0 )
@@ -231,6 +234,9 @@ public static partial class TextRendering
 									.Finish();
 			}
 
+			// Re-register so Tick() can evict this block again if it was evicted while
+			// a CommandList still held a reference and triggered a texture rebuild.
+			if ( CacheKey != 0 ) Dictionary.TryAdd( CacheKey, this );
 		}
 
 

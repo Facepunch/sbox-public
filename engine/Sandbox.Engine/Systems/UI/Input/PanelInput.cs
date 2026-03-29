@@ -35,6 +35,19 @@ internal class PanelInput
 		}
 	}
 
+	internal void Clear()
+	{
+		Hovered = null;
+		Active = null;
+		Selection = new Selection();
+
+		foreach ( var state in MouseStates )
+		{
+			state.Active = null;
+			state.DragTarget = null;
+		}
+	}
+
 	internal virtual void Tick( IEnumerable<RootPanel> panels, bool mouseIsActive )
 	{
 		bool hoveredAny = false;

@@ -36,7 +36,7 @@ public sealed class Vignette : BasePostProcess<Vignette>
 	/// </summary>
 	[Property] public Vector2 Center { get; set; } = new Vector2( 0.5f, 0.5f );
 
-	private static readonly Material Shader = Material.FromShader( "shaders/postprocess/pp_vignette.shader" );
+	private static Material Shader = Material.FromShader( "shaders/postprocess/pp_vignette.shader" );
 
 	public override void Render()
 	{

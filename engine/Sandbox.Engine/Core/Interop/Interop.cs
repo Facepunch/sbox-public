@@ -125,34 +125,6 @@ internal unsafe static partial class Interop
 		}
 	}
 
-	public unsafe ref struct InteropWString
-	{
-		public IntPtr Pointer;
-
-		public InteropWString( string str )
-		{
-			if ( str is null )
-				return;
-
-			uint nb = (uint)Encoding.Unicode.GetByteCount( str );
-			byte* mem = (byte*)NativeMemory.Alloc( nb + 2 );
-
-			fixed ( char* src = str )
-			{
-				Encoding.Unicode.GetBytes( src, str.Length, mem, (int)nb );
-			}
-
-			*(ushort*)(mem + nb) = 0;
-			Pointer = (IntPtr)mem;
-		}
-
-		public void Free()
-		{
-			NativeMemory.Free( (void*)Pointer );
-			Pointer = default;
-		}
-	}
-
 	/// <summary>
 	/// Called by the binding system to log an exception when calling a binding
 	/// </summary>

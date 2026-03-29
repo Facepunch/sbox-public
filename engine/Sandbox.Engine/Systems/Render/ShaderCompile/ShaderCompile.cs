@@ -74,6 +74,10 @@ public static class ShaderCompile
 		if ( NativeEngine.EngineGlobal.AppIsDedicatedServer() )
 			return;
 
+		// Not outside of editor, we dont even resourcecompiler there
+		if ( !Application.IsEditor )
+			return;
+
 		string dllName = "vfx_vulkan.dll";
 
 		if ( !native.IsNull )

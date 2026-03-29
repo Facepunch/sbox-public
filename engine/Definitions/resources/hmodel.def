@@ -5,6 +5,15 @@
 native struct MeshTraceInput
 native struct MeshTraceOutput
 
+native class CUtlVector<MeshTraceOutput> as NativeEngine.CUtlVectorMeshTraceOutput
+{
+	void DeleteThis(); [delete]
+	static CUtlVectorMeshTraceOutput Create( int growsize, int initialcapacity ); [new]
+
+	int Count();
+	MeshTraceOutput Element( int i );
+}
+
 native enum CModelSkeleton::BoneFlags_t as NativeEngine.BoneFlags;
 
 [ResourceHandle:HModel]

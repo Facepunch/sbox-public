@@ -1,6 +1,6 @@
+using Sandbox.Network;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using Sandbox.Network;
 
 namespace Sandbox;
 
@@ -30,8 +30,12 @@ public abstract partial class Connection
 	/// </summary>
 	/// <param name="info"></param>
 	/// <returns>Whether or not we want to allow this connection</returns>
-	internal virtual bool OnReceiveUserInfo( UserInfo info )
+	internal virtual async Task<bool> OnReceiveUserInfo( UserInfo info )
 	{
+		// Wait for inventory verification before connection completes
+		if ( info.InventoryBlob?.Length > 0 )
+			await ProcessInventoryBlobAsync( info.InventoryBlob );
+
 		return true;
 	}
 
@@ -463,6 +467,61 @@ public abstract partial class Connection
 
 	[ActionGraphInclude]
 	public string GetUserData( string key ) => Info?.GetUserData( key ) ?? default;
+
+	private HashSet<int> _verifiedInventoryItems;
+
+	/// <summary>
+	/// Check if this connection has a specific inventory item in their Steam Inventory
+	/// </summary>
+	public bool HasInventoryItem( int definitionId )
+	{
+		if ( this == Local )
+			return Services.Inventory.HasItem( definitionId );
+
+		return _verifiedInventoryItems?.Contains( definitionId ) ?? false;
+	}
+
+	private async Task ProcessInventoryBlobAsync( byte[] blob )
+	{
+		CSteamInventoryResult result;
+		unsafe
+		{
+			fixed ( byte* ptr = blob )
+			{
+				result = NativeEngine.SteamInventory.Deserialize( ptr, (uint)blob.Length );
+			}
+		}
+
+		if ( result.IsNull )
+		{
+			Log.Warning( $"Connection {Name}: inventory blob deserialization failed" );
+			return;
+		}
+
+		// Steam might take a sec to verify the inventory proof...
+		var deadline = global::System.DateTime.UtcNow.AddSeconds( 5 );
+		while ( result.IsPending() && global::System.DateTime.UtcNow < deadline )
+		{
+			await Task.Delay( 10 );
+		}
+
+		if ( !result.IsOk() )
+		{
+			Log.Warning( $"Connection {Name}: inventory result not OK after deserialization" );
+			result.Destroy();
+			return;
+		}
+
+		var items = new HashSet<int>();
+		for ( var i = 0; i < result.Count(); i++ )
+		{
+			var item = result.Get( i );
+			items.Add( (int)item.DefinitionId() );
+		}
+
+		_verifiedInventoryItems = items;
+		result.Destroy();
+	}
 
 	/// <summary>
 	/// New, updated UserInfo data arrived. Replace our old data with this.

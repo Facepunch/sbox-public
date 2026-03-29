@@ -56,6 +56,15 @@ public partial class GameObject
 		/// </summary>
 		internal bool IgnoreComponents { get; set; }
 
+		/// <summary>
+		/// Skip null member values during serialization to reduce output size.
+		/// On the receive side, deserialize with <see cref="DeserializeOptions.ClearAbsentFields"/> set to
+		/// <see langword="true"/> so that missing keys are treated as an explicit null for reference/nullable types,
+		/// clearing any stale value on the receiver.
+		/// Value types are never skipped (they cannot be null) so they are always safe.
+		/// </summary>
+		internal bool SkipNulls { get; set; }
+
 		internal bool ShouldSave( GameObject gameObject )
 		{
 			var shouldIgnoreNotSavedFlag = SingleNetworkObject || SceneForNetwork;
@@ -108,12 +117,22 @@ public partial class GameObject
 		internal bool IsNetworkRefresh { get; set; }
 
 		/// <summary>
+		/// When true, component properties absent from the JSON (e.g. omitted by
+		/// <see cref="SerializeOptions.SkipNulls"/>) are explicitly cleared to null/default
+		/// rather than left at their existing value.
+		/// </summary>
+		internal bool ClearAbsentFields { get; set; }
+
+		/// <summary>
 		/// Allows overriding the transform when deserializing. Will apply only to the root object.
 		/// </summary>
 		public Transform? TransformOverride { get; set; }
 	}
 
 	private static readonly DeserializeOptions _defaultDeserializeOptions = new();
+
+	// Stashed by Deserialize(), consumed by InvokeCallback(Deserialize) to avoid a closure allocation.
+	private DeserializeOptions _pendingDeserializeOptions;
 
 	/// <summary>
 	/// Returns either a full JsonObject with all the GameObjects data,
@@ -445,7 +464,7 @@ public partial class GameObject
 				//
 				if ( componentType is null || componentType.TargetType.IsAbstract )
 				{
-					Log.Warning( $"TypeLibrary couldn't find Component type {componentTypeName}" );
+					Log.Warning( $"Missing Component: couldn't find Component type {componentTypeName} on {this}" );
 
 					var missing = new MissingComponent( componentJson );
 					Components.AddMissing( missing );
@@ -479,7 +498,14 @@ public partial class GameObject
 					continue;
 				}
 
-				c.Deserialize( componentJson );
+				if ( options.ClearAbsentFields )
+				{
+					c.DeserializeInternal( componentJson, true );
+				}
+				else
+				{
+					c.Deserialize( componentJson );
+				}
 
 				if ( options.IsRefreshing )
 				{
@@ -573,7 +599,8 @@ public partial class GameObject
 
 		if ( Parent is null || (Parent.Flags & GameObjectFlags.Deserializing) == 0 )
 		{
-			CallbackBatch.Add( CommonCallback.Deserialize, () => PostDeserialize( options ), this, "PostDeserialize" );
+			_pendingDeserializeOptions = options;
+			CallbackBatch.Add( CommonCallback.Deserialize, this, "PostDeserialize" );
 		}
 
 		// Trigger OnEnabled after the GameObject has been deserialized fully, _enabled was set before, so OnAwake calls properly

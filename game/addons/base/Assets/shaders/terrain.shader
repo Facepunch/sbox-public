@@ -103,7 +103,7 @@ VS
             if( mat.HasFlag( TerrainFlags::NoTile ) )
                 baseLayerUV = Terrain_SampleSeamlessUV( baseLayerUV );
 
-            float4 baseNho = Bindless::GetTexture2D( mat.nho_texid ).SampleLevel( g_sAnisotropic, baseLayerUV, 0 );
+            float4 baseNho = Bindless::GetTexture2D( NonUniformResourceIndex( mat.nho_texid ) ).SampleLevel( g_sAnisotropic, baseLayerUV, 0 );
             float baseDisplacement = baseNho.b * mat.displacementscale;
             
             // Sample overlay material displacement
@@ -113,7 +113,7 @@ VS
             if( mat.HasFlag( TerrainFlags::NoTile ) )
                 overlayLayerUV = Terrain_SampleSeamlessUV( overlayLayerUV );
 
-            float4 overlayNho = Bindless::GetTexture2D( mat.nho_texid ).SampleLevel( g_sAnisotropic, overlayLayerUV, 0 );
+            float4 overlayNho = Bindless::GetTexture2D( NonUniformResourceIndex( mat.nho_texid ) ).SampleLevel( g_sAnisotropic, overlayLayerUV, 0 );
             float overlayDisplacement = overlayNho.b * mat.displacementscale;
             
             // Blend between base and overlay displacement
@@ -285,8 +285,8 @@ PS
                 layerUV = Terrain_SampleSeamlessUV( layerUV, uvAngle );
             }
 
-            Texture2D tBcr = Bindless::GetTexture2D( mat.bcr_texid );
-            Texture2D tNho = Bindless::GetTexture2D( mat.nho_texid );
+            Texture2D tBcr = Bindless::GetTexture2D( NonUniformResourceIndex( mat.bcr_texid ) );
+            Texture2D tNho = Bindless::GetTexture2D( NonUniformResourceIndex( mat.nho_texid ) );
 
             float4 bcr = tBcr.Sample( g_sAnisotropic, layerUV );
             float4 nho = tNho.Sample( g_sAnisotropic, layerUV );
@@ -387,8 +387,8 @@ PS
             baseSampleUV = Terrain_SampleSeamlessUV( baseUV, baseUvAngle );
         }
         
-        float4 baseBcr = Bindless::GetTexture2D( baseMat.bcr_texid ).Sample( g_sAnisotropic, baseSampleUV );
-        float4 baseNho = Bindless::GetTexture2D( baseMat.nho_texid ).Sample( g_sAnisotropic, baseSampleUV );
+        float4 baseBcr = Bindless::GetTexture2D( NonUniformResourceIndex( baseMat.bcr_texid ) ).Sample( g_sAnisotropic, baseSampleUV );
+        float4 baseNho = Bindless::GetTexture2D( NonUniformResourceIndex( baseMat.nho_texid ) ).Sample( g_sAnisotropic, baseSampleUV );
 
         float3 baseNormal = ComputeNormalFromRGTexture( baseNho.rg );
         baseNormal.xy = mul( baseUvAngle, baseNormal.xy );
@@ -406,8 +406,8 @@ PS
             overlaySampleUV = Terrain_SampleSeamlessUV( overlayUV, overlayUvAngle );
         }
         
-        float4 overlayBcr = Bindless::GetTexture2D( overlayMat.bcr_texid ).Sample( g_sAnisotropic, overlaySampleUV );
-        float4 overlayNho = Bindless::GetTexture2D( overlayMat.nho_texid ).Sample( g_sAnisotropic, overlaySampleUV );
+        float4 overlayBcr = Bindless::GetTexture2D( NonUniformResourceIndex( overlayMat.bcr_texid ) ).Sample( g_sAnisotropic, overlaySampleUV );
+        float4 overlayNho = Bindless::GetTexture2D( NonUniformResourceIndex( overlayMat.nho_texid ) ).Sample( g_sAnisotropic, overlaySampleUV );
 
         float3 overlayNormal = ComputeNormalFromRGTexture( overlayNho.rg );
         overlayNormal.xy = mul( overlayUvAngle, overlayNormal.xy );

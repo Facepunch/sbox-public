@@ -345,7 +345,7 @@ public partial class GameTransform
 	{
 		if ( !Application.IsHeadless && GameObject.Network.Interpolation && !clearInterpolation )
 		{
-			_networkTransformBuffer.Add( new TransformState( transform ), Time.NowDouble );
+			(_networkTransformBuffer ??= new( TransformState.CreateInterpolator() )).Add( new TransformState( transform ), Time.NowDouble );
 			Interpolate = true;
 		}
 		else

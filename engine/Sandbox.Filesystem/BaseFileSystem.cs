@@ -63,10 +63,18 @@ public class BaseFileSystem
 	{
 		folder = FixPath( folder );
 
-		foreach ( var path in system.EnumeratePaths( folder, pattern, recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly, Zio.SearchTarget.Directory ) )
+		List<string> foundDirs = new();
+
+		try
 		{
-			yield return path.FullName.Substring( folder.Length ).Trim( '/' );
+			foreach ( var path in system.EnumeratePaths( folder, pattern, recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly, Zio.SearchTarget.Directory ) )
+			{
+				foundDirs.Add( path.FullName.Substring( folder.Length ).Trim( '/' ) );
+			}
 		}
+		catch ( System.IO.DirectoryNotFoundException ) { } // If directory not found, doesn't matter
+
+		return foundDirs;
 	}
 
 	/// <summary>

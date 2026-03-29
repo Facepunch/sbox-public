@@ -63,11 +63,11 @@ public sealed class BoneAccessor
 	/// </summary>
 	public void ApplyOverrides()
 	{
-		_renderer.ClearPhysicsBones();
-
 		if ( _renderer.Model is not { } model ) return;
 		if ( _renderer.SceneModel is not { } sceneModel ) return;
 		if ( _parentSpaceOverrides.Count == 0 ) return;
+
+		_renderer.ClearPhysicsBones();
 
 		// TODO: I'm assuming parent bones are always listed before child bones
 

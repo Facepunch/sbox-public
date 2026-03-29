@@ -12,7 +12,7 @@ public sealed class Blur : BasePostProcess<Blur>
 {
 	[Range( 0, 1 ), Property] public float Size { get; set; } = 1.0f;
 
-	private static readonly Material Shader = Material.FromShader( "shaders/postprocess/pp_blur.shader" );
+	private static Material Shader = Material.FromShader( "shaders/postprocess/pp_blur.shader" );
 
 	public override void Render()
 	{

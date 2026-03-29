@@ -23,7 +23,7 @@
             <cell class="glass with-padding is-label">
                 Field Of View
             </cell>
-            <SliderControl Min="@(45)" Max="@(120)" Value:bind=@FieldOfView />
+            <SliderControl Min="@(45)" Max="@(120)" Step="@(1f)" Value:bind=@FieldOfView />
 
             <TextEntry Numeric=@true class="glass" Value:bind=@FieldOfView style="min-width: 50px;"></TextEntry>
         </row>

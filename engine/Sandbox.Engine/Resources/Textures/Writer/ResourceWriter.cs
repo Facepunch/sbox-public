@@ -18,7 +18,9 @@ internal class ResourceWriter
 
 	public ushort ResourceVersion { get; set; } = 0;
 
-	byte[] _dataBlock;
+	readonly record struct Block( uint TypeId, byte[] Data );
+	readonly List<Block> _blocks = [];
+
 	byte[] _streamingData;
 
 	/// <summary>
@@ -26,7 +28,16 @@ internal class ResourceWriter
 	/// </summary>
 	public void SetDataBlock( byte[] data )
 	{
-		_dataBlock = data;
+		RegisterAdditionalBlock( RESOURCE_BLOCK_ID_DATA, data );
+	}
+
+	public int RegisterAdditionalBlock( uint typeId, byte[] data )
+	{
+		ArgumentNullException.ThrowIfNull( data );
+
+		_blocks.Add( new Block( typeId, data ) );
+
+		return _blocks.Count - 1;
 	}
 
 	/// <summary>
@@ -42,8 +53,7 @@ internal class ResourceWriter
 	/// </summary>
 	public byte[] ToArray()
 	{
-		int blockCount = _dataBlock != null ? 1 : 0;
-		int dataBlockSize = _dataBlock?.Length ?? 0;
+		int blockCount = _blocks.Count;
 		int streamingSize = _streamingData?.Length ?? 0;
 
 		//
@@ -67,7 +77,14 @@ internal class ResourceWriter
 
 		int blockArrayPos = headerSize;                                    // 16
 		int dataBlockPos = blockArrayPos + (blockEntrySize * blockCount);  // 28
-		int nonStreamingSize = dataBlockPos + dataBlockSize;
+
+		int[] blockPositions = new int[blockCount];
+		int nonStreamingSize = dataBlockPos;
+		for ( int i = 0; i < blockCount; i++ )
+		{
+			blockPositions[i] = nonStreamingSize;
+			nonStreamingSize += _blocks[i].Data.Length;
+		}
 
 		using var buffer = ByteStream.Create( nonStreamingSize + streamingSize );
 
@@ -89,19 +106,22 @@ internal class ResourceWriter
 			buffer.Write( (uint)0 );
 		}
 
-		// ===== ResourceBlockEntry_t[0] - DATA block (12 bytes) =====
-		if ( _dataBlock != null )
+		for ( int i = 0; i < blockCount; i++ )
 		{
-			buffer.Write( RESOURCE_BLOCK_ID_DATA );           // offset 16: m_nBlockType = 'DATA'
-															  // offset 20: m_pBlockData.m_nOffset - relative from position 20, pointing to position 28
-			buffer.Write( (int)(dataBlockPos - 20) );         // = 8
-			buffer.Write( (uint)dataBlockSize );              // offset 24: m_nBlockSize
+			int entryPos = blockArrayPos + (i * blockEntrySize);
+			int pointerFieldPos = entryPos + 4;
+
+			var block = _blocks[i];
+			int dataPos = blockPositions[i];
+
+			buffer.Write( block.TypeId );
+			buffer.Write( (int)(dataPos - pointerFieldPos) );
+			buffer.Write( (uint)block.Data.Length );
 		}
 
-		// ===== Block data =====
-		if ( _dataBlock != null )
+		for ( int i = 0; i < blockCount; i++ )
 		{
-			buffer.Write( _dataBlock );                       // offset 28: DATA block content
+			buffer.Write( _blocks[i].Data );
 		}
 
 		// ===== Streaming data =====

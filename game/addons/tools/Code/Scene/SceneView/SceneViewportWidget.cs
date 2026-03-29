@@ -203,8 +203,16 @@ public partial class SceneViewportWidget : Widget
 	{
 		if ( !_activeCamera.IsValid() )
 		{
-			Renderer.Camera = Renderer.CreateSceneEditorCamera();
-			_activeCamera = Renderer.Camera;
+			if ( _editorCamera.IsValid() && _editorCamera.Scene == Session.Scene )
+			{
+				_activeCamera = _editorCamera;
+			}
+			else
+			{
+				_editorCamera = Renderer.CreateSceneEditorCamera();
+				_activeCamera = _editorCamera;
+			}
+			Renderer.Camera = _activeCamera;
 		}
 
 		_activeCamera.BackgroundColor = "#32415e";
@@ -325,44 +333,66 @@ public partial class SceneViewportWidget : Widget
 
 	SceneTraceResult? GetCursorTracePosition( Ray ray )
 	{
-		using ( GizmoInstance.Push() )
-		{
-			var tr = Session.Scene.Trace.Ray( ray, Gizmo.RayDepth )
-				.UseRenderMeshes( true )
-				.UsePhysicsWorld( false )
-				.Run();
+		var tr = Session.Scene.Trace.Ray( ray, Gizmo.RayDepth )
+			.UseRenderMeshes( true )
+			.UsePhysicsWorld( false )
+			.Run();
 
-			if ( tr.Hit ) return tr;
+		if ( tr.Hit ) return tr;
+		else
+		{
+			var plane = new Plane( Vector3.Up, 0.0f );
+			if ( plane.TryTrace( ray, out var point, true, Gizmo.RayDepth ) )
+			{
+				tr = default;
+				tr.Hit = true;
+				tr.Normal = plane.Normal;
+				tr.EndPosition = point;
+				tr.HitPosition = point;
+				return tr;
+			}
 		}
 
 		return null;
 	}
 
+	public bool TryGetCursorTracePosition( out SceneTraceResult tr )
+	{
+		if ( GetCursorTracePosition( Gizmo.CurrentRay ) is { } result )
+		{
+			tr = result;
+			return true;
+		}
+
+		tr = default;
+		return false;
+	}
+
 	Ray CursorTraceRay => _activeCamera.ScreenPixelToRay( initialMousePosition );
 
-	SceneTraceResult? GetCursorTracePosition() => GetCursorTracePosition( CursorTraceRay );
+	[Shortcut( "editor.paste", "CTRL+V" )]
+	void Paste()
+	{
+		using ( GizmoInstance.Push() )
+		{
+			if ( EditorPreferences.PasteAtCursor && TryGetCursorTracePosition( out var tr ) )
+			{
+				EditorScene.PasteAt( tr );
+			}
+			else
+			{
+				EditorScene.Paste();
+			}
+		}
+	}
 
 	void PasteAtCursor()
 	{
-		EditorScene.Paste();
-
-		var selections = Session.Selection.OfType<GameObject>().ToList();
-		if ( selections.Count == 0 ) return;
-
-		// Compute the average point of all selected objects
-		Vector3 middlePoint = Vector3.Zero;
-		foreach ( var go in selections )
-			middlePoint += go.WorldPosition;
-
-		middlePoint /= selections.Count;
-
-		// Reposition all game objects relative to new center
-		if ( GetCursorTracePosition() is SceneTraceResult hitPos )
+		using ( GizmoInstance.Push() )
 		{
-			foreach ( var go in selections )
+			if ( GetCursorTracePosition( CursorTraceRay ) is { } trace )
 			{
-				Vector3 offset = go.WorldPosition - middlePoint;
-				go.LocalPosition = hitPos.HitPosition + offset;
+				EditorScene.PasteAt( trace );
 			}
 		}
 	}
@@ -390,7 +420,7 @@ public partial class SceneViewportWidget : Widget
 			bool HasSelection = Session.Selection.OfType<GameObject>().Any();
 			menu.AddOption( "Cut", "content_cut", EditorScene.Cut, "editor.cut" ).Enabled = HasSelection;
 			menu.AddOption( "Copy", "content_copy", EditorScene.Copy, "editor.copy" ).Enabled = HasSelection;
-			menu.AddOption( "Paste", "content_paste", PasteAtCursor, "editor.paste" );
+			menu.AddOption( "Paste", "content_paste", PasteAtCursor );
 			menu.AddSeparator();
 			menu.AddOption( "Duplicate", "file_copy", SceneEditorMenus.Duplicate, "editor.duplicate" ).Enabled = HasSelection;
 			menu.AddOption( "Delete", "delete", SceneEditorMenus.Delete, "editor.delete" ).Enabled = HasSelection;
@@ -399,26 +429,29 @@ public partial class SceneViewportWidget : Widget
 
 			Menu addMenu = menu.AddMenu( "Create" );
 
-			var ray = CursorTraceRay;
-			var trace = GetCursorTracePosition( ray );
-
-			GameObjectNode.CreateObjectMenu( addMenu, null, go =>
+			using ( GizmoInstance.Push() )
 			{
-				if ( trace is { } tr )
+				var ray = CursorTraceRay;
+				var trace = GetCursorTracePosition( ray );
+
+				GameObjectNode.CreateObjectMenu( addMenu, null, go =>
 				{
-					var normal = tr.Normal;
-					var bounds = go.GetBounds();
-					var halfExtent = Vector3.Dot( bounds.Size, normal.Abs() ) / 2.0f;
-					go.LocalPosition = tr.HitPosition + normal * halfExtent;
-				}
+					if ( trace is { } tr )
+					{
+						var normal = tr.Normal;
+						var bounds = go.GetBounds();
+						var halfExtent = Vector3.Dot( bounds.Size, normal.Abs() ) / 2.0f;
+						go.LocalPosition = tr.HitPosition + normal * halfExtent;
+					}
 
-				EditorScene.Selection.Clear();
-				EditorScene.Selection.Add( go );
-			} );
+					EditorScene.Selection.Clear();
+					EditorScene.Selection.Add( go );
+				} );
 
-			var ev = new EditorEvent.ShowContextMenuEvent( Session, menu, ray, trace );
+				var ev = new EditorEvent.ShowContextMenuEvent( Session, menu, ray, trace );
 
-			EditorEvent.RunInterface<EditorEvent.ISceneView>( x => x.ShowContextMenu( ev ) );
+				EditorEvent.RunInterface<EditorEvent.ISceneView>( x => x.ShowContextMenu( ev ) );
+			}
 
 			menu.OpenAtCursor();
 		}
@@ -708,8 +741,20 @@ public partial class SceneViewportWidget : Widget
 
 	void FrameOn( BBox target )
 	{
+		// If we're in game mode, eject first so we have a camera to frame with
+		if ( !_activeCamera.IsValid() )
+		{
+			SceneView.ToggleEject();
+		}
+
+		if ( !_activeCamera.IsValid() )
+			return;
+
+		// Make sure the camera transform is up to date
+		_activeCamera.WorldPosition = State.CameraPosition;
+		_activeCamera.WorldRotation = State.CameraRotation;
+
 		var distance = MathX.SphereCameraDistance( target.Size.Length, _activeCamera.FieldOfView ) * 1.0f;
-		var targetPos = target.Center + distance * _activeCamera.WorldRotation.Backward;
 
 		cameraTargetPosition = target.Center + distance * _activeCamera.WorldRotation.Backward;
 		cameraOrbitDistance = target.Center.Distance( cameraTargetPosition.Value );

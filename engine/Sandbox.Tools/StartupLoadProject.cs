@@ -228,6 +228,15 @@ static class StartupLoadProject
 
 
 		Step( "Initializing mounts" );
+		//
+		// Register custom asset types before mounting, so that assets from mounts (like .prefab files) can be resolved by the asset system.
+		//
+		Log.Info( "Importing custom assets" );
+		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Register CustomAssetTypes" ) )
+		{
+			AssetType.UpdateCustomTypes();
+		}
+
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Init Mounts" ) )
 		{
 			// Mount any mounts that are required
@@ -235,12 +244,11 @@ static class StartupLoadProject
 		}
 
 		//
-		// Load the resources
+		// Import custom asset type files from content directories (including mounted ones)
 		//
 		Step( "Importing custom assets" );
 		using ( var _ = Bootstrap.StartupTiming?.ScopeTimer( $"Load Project: Register CustomAssetTypes" ) )
 		{
-			AssetType.UpdateCustomTypes();
 			AssetType.ImportCustomTypeFiles();
 		}
 

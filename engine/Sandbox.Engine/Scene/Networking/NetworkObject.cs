@@ -263,7 +263,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		SceneNetworkSystem.Instance.NetworkDestroyBroadcast( this );
 	}
 
-	private static readonly GameObject.SerializeOptions _refreshSerializeOptions = new() { SingleNetworkObject = true };
+	private static readonly GameObject.SerializeOptions _refreshSerializeOptions = new() { SingleNetworkObject = true, SkipNulls = true };
 
 	internal ObjectRefreshMsg GetRefreshMessage()
 	{
@@ -287,7 +287,9 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		return msg;
 	}
 
-	private static readonly GameObject.SerializeOptions _refreshDescendantSerializeOptions = new() { IgnoreChildren = true };
+	private static readonly GameObject.SerializeOptions _refreshDescendantSerializeOptions = new() { IgnoreChildren = true, SkipNulls = true };
+
+	private static readonly GameObject.SerializeOptions _componentRefreshSerializeOptions = new() { SkipNulls = true };
 
 	internal void SendNetworkRefresh( GameObject go )
 	{
@@ -361,7 +363,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 			using var blobs = BlobDataSerializer.Capture();
 			var msg = new ObjectRefreshComponentMsg
 			{
-				JsonData = component.Serialize().ToJsonString(),
+				JsonData = component.Serialize( _componentRefreshSerializeOptions ).ToJsonString(),
 				BlobData = blobs.ToByteArray(),
 				GameObjectId = component.GameObject.Id,
 				TableData = WriteReliableData(),
@@ -636,7 +638,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		LocalSnapshotState.ClearConnections();
 	}
 
-	private static readonly GameObject.SerializeOptions _createSerializeOptions = new() { SingleNetworkObject = true };
+	private static readonly GameObject.SerializeOptions _createSerializeOptions = new() { SingleNetworkObject = true, SkipNulls = true };
 
 	internal ObjectCreateMsg GetCreateMessage()
 	{
@@ -711,9 +713,9 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 		}
 	}
 
-	internal void OnNetworkTableMessage( ObjectNetworkTableMsg message )
+	internal void OnNetworkTableMessage( ObjectNetworkTableMsg message, Connection source = null )
 	{
-		ReadDataTable( message.TableData );
+		ReadDataTable( message.TableData, source: source );
 	}
 
 	internal void OnRefreshMessage( Connection source, ObjectRefreshMsg message )

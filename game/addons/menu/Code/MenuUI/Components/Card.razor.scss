@@ -1,0 +1,24 @@
+@import "/styles/_theme.scss";
+$border-size: 1px;
+
+Card {
+    @include border;
+    position: relative;
+    background-color: $default-950;
+    overflow: hidden;
+    border-radius: $rounding-default;
+    transition: all 150ms ease;
+
+    .inner {
+        position: absolute;
+        top: $border-size;
+        left: $border-size;
+        bottom: $border-size;
+        right: $border-size;
+        background-color: $default-950; 
+        padding: 8px;
+        border-radius: $rounding-small;
+        overflow: hidden;
+    }
+}
+

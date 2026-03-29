@@ -186,8 +186,8 @@ public class Morphs : Widget
 			BackgroundColor = Color.Transparent
 		};
 
-		new SceneLight( world, new Vector3( 100, 100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
-		new SceneLight( world, new Vector3( -100, -100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
+		new ScenePointLight( world, new Vector3( 100, 100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
+		new ScenePointLight( world, new Vector3( -100, -100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
 		new SceneCubemap( world, Texture.Load( "textures/cubemaps/default.vtex" ), BBox.FromPositionAndSize( Vector3.Zero, 5000 ) );
 		var sceneObject = new SceneModel( world, model, Transform.Zero.WithPosition( Vector3.Backward * 250 ) );
 		sceneObject.UseAnimGraph = false;

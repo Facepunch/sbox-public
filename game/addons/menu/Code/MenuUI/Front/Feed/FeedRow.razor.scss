@@ -1,25 +1,29 @@
-FeedRow
-{
+FeedRow {
     flex-shrink: 0;
     font-family: Poppins;
 
+    row {
+        align-items: center;
+        gap: 3px;
+    }
+
+    Avatar {
+        margin-right: 4px;
+    }
 }
 
-FeedRow .message
-{
+FeedRow .message {
     gap: 5px;
     flex-direction: row;
     font-size: 14px;
     font-weight: 600;
 }
 
-FeedRow .message .text
-{
+FeedRow .message .text {
     color: #d4def6;
 }
 
-FeedRow .meta
-{
+FeedRow .meta {
     color: #747e90;
     font-size: 12px;
 }

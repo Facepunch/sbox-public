@@ -1,3 +1,4 @@
+using static Sandbox.TextRendering;
 
 namespace Editor.MeshEditor;
 
@@ -36,7 +37,7 @@ public static class DimensionDisplay
 			var lineEnd = new Vector3( box.Maxs.x, yPos, zPos );
 			var midPoint = new Vector3( box.Center.x, yPos, zPos );
 
-			DrawDimensionLabel( midPoint, $"W:{box.Size.x:0.#}", Gizmo.Colors.Forward, textSize );
+			DrawDimensionLabel( midPoint, $"W:{box.Size.x:0.##}", Gizmo.Colors.Forward, textSize );
 			Gizmo.Draw.Color = Gizmo.Colors.Forward;
 			Gizmo.Draw.Line( lineStart, lineEnd );
 		}
@@ -53,7 +54,7 @@ public static class DimensionDisplay
 			var lineEnd = new Vector3( xPos, box.Maxs.y, zPos );
 			var midPoint = new Vector3( xPos, box.Center.y, zPos );
 
-			DrawDimensionLabel( midPoint, $"L:{box.Size.y:0.#}", Gizmo.Colors.Left, textSize );
+			DrawDimensionLabel( midPoint, $"L:{box.Size.y:0.##}", Gizmo.Colors.Left, textSize );
 			Gizmo.Draw.Color = Gizmo.Colors.Left;
 			Gizmo.Draw.Line( lineStart, lineEnd );
 		}
@@ -70,7 +71,7 @@ public static class DimensionDisplay
 			var lineEnd = new Vector3( xPos, yPos, box.Maxs.z );
 			var midPoint = new Vector3( xPos, yPos, box.Center.z );
 
-			DrawDimensionLabel( midPoint, $"H:{box.Size.z:0.#}", Gizmo.Colors.Up, textSize );
+			DrawDimensionLabel( midPoint, $"H:{box.Size.z:0.##}", Gizmo.Colors.Up, textSize );
 			Gizmo.Draw.Color = Gizmo.Colors.Up;
 			Gizmo.Draw.Line( lineStart, lineEnd );
 		}

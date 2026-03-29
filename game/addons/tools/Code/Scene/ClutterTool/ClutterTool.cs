@@ -14,11 +14,16 @@ public sealed class ClutterTool : EditorTool
 	public BrushSettings BrushSettings { get; private set; } = new();
 	[Property] public ClutterDefinition SelectedClutter { get; set; }
 
+	public ClutterTool()
+	{
+		RebuildSidebarOnSelectionChange = false;
+	}
+
 	private bool _erasing = false;
 	private bool _dragging = false;
 	private bool _painting = false;
 	private Vector3 _lastPaintPosition;
-	private float _paintDistanceThreshold = 50f;
+	private float _paintDistanceThreshold => BrushSettings.Size * 0.5f;
 
 	public override Widget CreateToolSidebar()
 	{
@@ -44,6 +49,7 @@ public sealed class ClutterTool : EditorTool
 				SelectedClutter = clutter;
 			};
 
+			SelectedClutter = _clutterList.SelectedClutter;
 			group.Add( _clutterList );
 		}
 
@@ -135,16 +141,30 @@ public sealed class ClutterTool : EditorTool
 		else
 		{
 			var instances = SelectedClutter.Scatterer.Value.Scatter( bounds, SelectedClutter, Random.Shared.Next(), Scene );
-			var count = (int)(instances.Count * BrushSettings.Opacity);
+			var desired = instances.Count * BrushSettings.Opacity;
+			var count = (int)desired;
+			if ( Random.Shared.NextSingle() < (desired - count) )
+				count++;
 
-			foreach ( var instance in instances.Take( count ) )
+
+			var placed = 0;
+			var radiusSq = brushRadius * brushRadius;
+			var center = tr.HitPosition;
+			foreach ( var instance in instances )
 			{
-				// Paint both models and prefabs
-				if ( instance.Entry != null && instance.Entry.HasAsset )
-				{
-					var t = instance.Transform;
-					system.Paint( instance.Entry, t.Position, t.Rotation, t.Scale.x );
-				}
+				if ( placed >= count ) break;
+
+				// Skip instances outside the circular brush
+				var pos = instance.Transform.Position;
+				var dx = pos.x - center.x;
+				var dy = pos.y - center.y;
+				if ( dx * dx + dy * dy > radiusSq ) continue;
+
+				if ( instance.Entry?.HasAsset is not true ) continue;
+
+				var t = instance.Transform;
+				system.Paint( instance.Entry, t.Position, t.Rotation, t.Scale.x );
+				placed++;
 			}
 		}
 

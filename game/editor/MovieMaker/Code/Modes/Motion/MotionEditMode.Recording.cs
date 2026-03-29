@@ -1,4 +1,5 @@
 ﻿using Sandbox.MovieMaker;
+using System.Linq;
 
 namespace Editor.MovieMaker;
 
@@ -10,7 +11,7 @@ partial class MotionEditMode
 
 	public override bool AllowRecording => true;
 
-	private MovieClipRecorder? _recorder;
+	private MovieRecorder? _recorder;
 	private MovieTime _recordingLastTime;
 
 	protected override bool OnStartRecording()
@@ -22,27 +23,38 @@ partial class MotionEditMode
 		var startTime = Session.PlayheadTime.Floor( samplePeriod );
 
 		Session.PlayheadTime = startTime;
-		Session.Player.Clip = null;
 
-		var options = new RecorderOptions( Project.SampleRate );
+		// Don't try to play back the in-progress recording
 
-		_recorder = new MovieClipRecorder( Session.Binder, options, startTime );
+		Session.Player.Clip = Project.Compile();
+
+		_recorder = new MovieRecorder( Session.Binder, CreateRecorderOptions() );
+		_recorder.Advance( startTime );
 		_stopPlayingAfterRecording = !Session.IsPlaying;
 		_recordingLastTime = startTime;
 
-		foreach ( var view in Session.TrackList.EditablePropertyTracks )
-		{
-			_recorder.Tracks.Add( (IProjectPropertyTrack)view.Track );
-		}
+		_recorder.Capture();
 
 		Session.IsPlaying = true;
 
 		return true;
 	}
 
+	private MovieRecorderOptions CreateRecorderOptions()
+	{
+		// If project is empty, auto-record renderers etc in the scene
+
+		return Project.Tracks.Count == 0
+			? MovieRecorderOptions.Default with { SampleRate = Project.SampleRate }
+			: new MovieRecorderOptions( Project.SampleRate )
+				.WithCaptureTracks( Session.TrackList.EditablePropertyTracks.Select( x => x.Track ) );
+	}
+
 	protected override void OnStopRecording()
 	{
 		if ( _recorder is not { } recorder ) return;
+
+		_recorder = null;
 
 		var timeRange = recorder.TimeRange;
 
@@ -64,31 +76,45 @@ partial class MotionEditMode
 
 	private void RecordingFrame()
 	{
-		if ( !Session.IsRecording ) return;
+		if ( !Session.IsRecording || _recorder is null ) return;
 
 		var time = Session.PlayheadTime;
 		var deltaTime = MovieTime.Max( time - _recordingLastTime, 0d );
 
-		if ( _recorder?.Advance( deltaTime ) is true )
+		_recorder.Advance( deltaTime );
+		_recorder.Capture();
+
+		var tracksAdded = false;
+
+		// First pass: add new tracks
+
+		foreach ( var trackRecorder in _recorder.RecordedThisFrame )
 		{
-			foreach ( var trackRecorder in _recorder.Tracks )
-			{
-				var track = (IProjectPropertyTrack)trackRecorder.Track;
+			var track = trackRecorder.Track;
 
-				if ( Session.TrackList.Find( track ) is not { } view ) continue;
-				if ( view.Parent?.IsExpanded is false ) continue;
+			if ( track is not IPropertyTrack ) continue;
+			if ( Session.TrackList.Find( track ) is not null ) continue;
 
-				var finishedBlocks = trackRecorder.FinishedBlocks;
+			Project.GetOrAddTrack( track );
+			tracksAdded = true;
+		}
 
-				if ( trackRecorder.CurrentBlock is { } current )
-				{
-					view.SetPreviewBlocks( [], [..finishedBlocks, current] );
-				}
-				else
-				{
-					view.SetPreviewBlocks( [], finishedBlocks );
-				}
-			}
+		// Add views for the new tracks
+
+		if ( tracksAdded )
+		{
+			Session.TrackList.Update();
+		}
+
+		foreach ( var trackRecorder in _recorder.RecordedThisFrame )
+		{
+			var track = trackRecorder.Track;
+
+			if ( track is not IPropertyTrack ) continue;
+			if ( Session.TrackList.Find( track ) is not { } view ) continue;
+			if ( view.Parent?.IsExpanded is false ) continue;
+
+			view.SetPreviewBlocks( [], trackRecorder.Blocks );
 		}
 
 		Timeline.PanToPlayheadTime();

@@ -51,15 +51,14 @@ public sealed class MethodDescription : MemberDescription
 
 	private void InitMethod( MethodInfo x )
 	{
-		base.Init( x );
-
 		IsStatic = x.IsStatic;
 		IsPublic = x.IsPublic;
 		IsFamily = x.IsFamily;
 		IsVirtual = x.IsVirtual;
 		IsSpecialName = x.IsSpecialName;
+		parameters = x.GetParameters();
 
-		parameters = methodInfo.GetParameters();
+		base.Init( x );
 	}
 
 	internal override void Dispose()
@@ -78,8 +77,7 @@ public sealed class MethodDescription : MemberDescription
 		var returnTypeName = ReturnType.Name.Split( "`" ).FirstOrDefault();
 		var declaringTypeName = TypeDescription?.FullName.Split( "`" ).FirstOrDefault()?.Replace( "+", "." );
 		var methodName = Name;
-		var parameterTypes = string.Join( ",", methodInfo.GetParameters()
-			.Select( p => p.ParameterType.Name.Split( "`" ).FirstOrDefault() ) );
+		var parameterTypes = string.Join( ",", Parameters.Select( p => p.ParameterType.Name.Split( "`" ).FirstOrDefault() ) );
 
 		return $"{returnTypeName}.{declaringTypeName}.{methodName}.{parameterTypes}";
 	}
@@ -95,22 +93,20 @@ public sealed class MethodDescription : MemberDescription
 	/// </summary>
 	/// <param name="targetObject">Should be null if this is static, otherwise should be the object this is a member of.</param>
 	/// <param name="parameters">An array of parameters to pass. Should be the same length as Parameters</param>
-	public void Invoke( object targetObject, object[] parameters = null )
+	public object Invoke( object targetObject, object[] parameters = null )
 	{
-		var methodParameters = methodInfo.GetParameters();
-		var args = new object[methodParameters.Length];
+		var args = new object[Parameters.Length];
 
-		for ( var i = 0; i < methodParameters.Length; i++ )
+		for ( var i = 0; i < Parameters.Length; i++ )
 		{
 			args[i] = (parameters != null && i < parameters.Length)
 				? parameters[i]
-				: methodParameters[i].HasDefaultValue
-					? methodParameters[i].DefaultValue
-					: throw new ArgumentException(
-						$"No value provided for parameter '{methodParameters[i].Name}' and it has no default value." );
+				: Parameters[i].HasDefaultValue
+					? Parameters[i].DefaultValue
+					: throw new ArgumentException( $"No value provided for parameter '{Parameters[i].Name}' and it has no default value." );
 		}
 
-		methodInfo.Invoke( targetObject, args );
+		return methodInfo.Invoke( targetObject, args );
 	}
 
 	/// <summary>
@@ -120,7 +116,7 @@ public sealed class MethodDescription : MemberDescription
 	/// <param name="parameters">An array of parameters to pass. Should be the same length as Parameters</param>
 	public T InvokeWithReturn<T>( object targetObject, object[] parameters = null )
 	{
-		return (T)methodInfo.Invoke( targetObject, parameters );
+		return (T)Invoke( targetObject, parameters );
 	}
 
 	/// <summary>

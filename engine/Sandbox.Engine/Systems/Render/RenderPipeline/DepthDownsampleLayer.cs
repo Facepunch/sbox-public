@@ -8,7 +8,7 @@ internal class DepthDownsampleLayer : ProceduralRenderLayer
 	RenderTarget DestDepth;
 	bool MSAAInput;
 
-	private static readonly ComputeShader DepthResolveShader = new ComputeShader( "shaders/depthresolve_cs.shader" );
+	private static ComputeShader DepthResolveShader = new ComputeShader( "shaders/depthresolve_cs.shader" );
 
 	public DepthDownsampleLayer()
 	{

@@ -525,6 +525,9 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 		gibs.EnsureCapacity( breaklist.Length );
 
+		// Batch anything we're spawning here
+		using var _ = Scene.BatchGroup();
+
 		foreach ( var breakModel in breaklist )
 		{
 			var model = Model.Load( breakModel.Model );

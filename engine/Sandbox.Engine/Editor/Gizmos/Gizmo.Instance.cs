@@ -131,6 +131,12 @@ public static partial class Gizmo
 
 		FastTimer timer;
 
+		/// <summary>
+		/// To handle multiple viewports, so we keep track of which viewport is being pressed.
+		/// </summary>
+		private static string activePressedPath;
+		private bool ownsActivePress;
+
 		public Instance()
 		{
 			World = new SceneWorld();
@@ -241,7 +247,27 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 		void MouseUpdate()
 		{
 			if ( !current.Input.IsHovered )
+			{
+				if ( ownsActivePress )
+				{
+					// Keep path alive in builder so Pressed.Any stays true until we regain hover and detect the actual release.
+					builder.PressedPath = current.PressedPath;
+				}
+				else if ( !string.IsNullOrEmpty( activePressedPath ) )
+				{
+					// Mirror the owning instance's path so Pressed.Any correctly returns true across all views.
+					builder.PressedPath = activePressedPath;
+				}
+
 				return;
+			}
+
+			// If we release the mouse outside of the viewport we pressed on, clear the stale press state.
+			if ( ownsActivePress && !current.Input.LeftMouse && !previous.Input.LeftMouse )
+			{
+				ownsActivePress = false;
+				activePressedPath = default;
+			}
 
 			//
 			// left mouse button just clicked
@@ -249,6 +275,8 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 			if ( previous.Input.LeftMouse == false && current.Input.LeftMouse == true )
 			{
 				current.PressedPath = current.HoveredPath;
+				activePressedPath = current.HoveredPath;
+				ownsActivePress = true;
 				pressed = current;
 			}
 
@@ -257,6 +285,9 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 			//
 			if ( previous.Input.LeftMouse == true && current.Input.LeftMouse == false )
 			{
+				ownsActivePress = false;
+				activePressedPath = default;
+
 				if ( current.HoveredPath == current.PressedPath )
 				{
 					current.Click = true;

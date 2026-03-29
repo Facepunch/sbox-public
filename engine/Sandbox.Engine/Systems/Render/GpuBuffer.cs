@@ -338,6 +338,18 @@ public partial class GpuBuffer : IValid, IDisposable
 	}
 
 	/// <summary>
+	/// Fills the entire buffer with a repeated uint32 value.
+	/// Uses the native GPU fill command (vkCmdFillBuffer) — no CPU-side allocation needed.
+	/// </summary>
+	/// <param name="value">The uint32 value to fill with. Defaults to zero.</param>
+	public void Clear( uint value = 0 )
+	{
+		ObjectDisposedException.ThrowIf( native == IntPtr.Zero, this );
+
+		RenderTools.FillGPUBuffer( Graphics.Context, native, value );
+	}
+
+	/// <summary>
 	/// Sets the counter value for <see cref="UsageFlags.Append"/> or <see cref="UsageFlags.Counter"/> structured buffers.
 	/// </summary>
 	public void SetCounterValue( uint counterValue )
