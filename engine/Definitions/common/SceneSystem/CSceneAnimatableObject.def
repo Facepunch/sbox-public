@@ -34,11 +34,13 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 	void SetAnimGraph( HAnimationGraph hGraph );
 	HAnimationGraph GetAnimGraph();
 
-	void SBox_SetFlexOverride( StringToken name, float flWeight );
-	void SBox_SetFlexOverride( int flexId, float flWeight );
+	void SBox_SetFlexOverride( StringToken name, float flWeight, float flFadeTime );
+	void SBox_SetFlexOverride( int flexId, float flWeight, float flFadeTime );
 	float SBox_GetFlexOverride( int flexId );
 	float SBox_GetFlexOverride( StringToken name );
-	void SBox_ClearFlexOverride();
+	void SBox_ClearFlexOverride( float flFadeTime );
+	void SBox_ClearFlexOverride( StringToken name, float flFadeTime );
+	void SBox_ClearFlexOverride( int flexId, float flFadeTime );
 
 	void DirectPlayback_PlaySequence( string pSequenceName );
 	void DirectPlayback_PlaySequence( string pSequenceName, Vector3 vTargetPos, float flFacingHeading, float flInterpTime );

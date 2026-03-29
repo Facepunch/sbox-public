@@ -127,7 +127,7 @@ public partial class Terrain
 			if ( _subdivisionFactorProperty == value )
 				return;
 
-			_subdivisionFactorProperty = value;
+			_subdivisionFactorProperty = value.Clamp( 1, 4 );
 
 			// Rebuild clipmap mesh when subdivision changes
 			CreateClipmapSceneObject();

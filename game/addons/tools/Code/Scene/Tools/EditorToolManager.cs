@@ -200,7 +200,10 @@ public class EditorToolManager
 	public void DisposeAll()
 	{
 		previousHash = -1;
+		currentMode = null;
+		currentSubMode = null;
 		CurrentTool?.Dispose();
+		CurrentTool = null;
 		foreach ( var tool in ComponentTools )
 			tool?.Dispose();
 		ComponentTools.Clear();

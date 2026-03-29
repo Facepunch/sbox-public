@@ -57,7 +57,7 @@ class Cluster
     {
         // Screen position -> cluster coordinate
         float2 uv = CalculateViewportUv( positionSs.xy );
-
+        
         // Perspective: SV_Position.w = 1/viewDepth, so depth = 1/w.
         // Ortho: SV_Position.w is always 1.0, so un-project clip-space Z instead.
         // Uniform branch = free
@@ -92,6 +92,11 @@ class Cluster
         range.Type = type;
         range.Count = min( count, capacity );
         range.BaseOffset = flatIndex * capacity;
+
+        // Use wave instrincts to avoid divergence across XYZ clusters across 2x2 quads
+        range.Count = QuadReadLaneAt( range.Count, 0 );
+        range.BaseOffset = QuadReadLaneAt( range.BaseOffset, 0 );
+
         return range;
     }
 

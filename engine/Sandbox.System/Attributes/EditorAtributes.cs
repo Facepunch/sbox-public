@@ -197,6 +197,23 @@ public class TitleAttribute : System.Attribute, ITitleProvider, ITitleAttribute,
 }
 
 /// <summary>
+/// Hint that this type is expected to be this. This is used internally for
+/// the editor UX to hint that a type of a value should be a specific type.
+/// </summary>
+public sealed class TypeHintAttribute : System.Attribute
+{
+	/// <summary>
+	/// The type we're hinting towards
+	/// </summary>
+	public Type HintedType { get; set; }
+
+	public TypeHintAttribute( Type hint )
+	{
+		HintedType = hint;
+	}
+}
+
+/// <summary>
 /// Sets the description of a type or a type member. This attribute is usually applied automatically by codegen based on the XML comment of the type or member.
 /// This info can then be retrieved via DisplayInfo library.
 /// </summary>

@@ -40,13 +40,12 @@ public interface ICompiledPropertyBlock : ICompiledBlock, IPropertyBlock
 	ICompiledBlock ICompiledBlock.Shift( MovieTime offset ) => Shift( offset );
 }
 
-
 /// <summary>
 /// Interface for blocks describing a property changing value over time.
 /// Typed version of <see cref="ICompiledPropertyBlock"/>.
 /// </summary>
 // ReSharper disable once TypeParameterCanBeVariant
-public interface ICompiledPropertyBlock<T> : ICompiledPropertyBlock, IPropertyBlock<T>
+public partial interface ICompiledPropertyBlock<T> : ICompiledPropertyBlock, IPropertyBlock<T>
 {
 	/// <inheritdoc cref="ICompiledBlock.Shift"/>
 	new ICompiledPropertyBlock<T> Shift( MovieTime offset );
@@ -168,6 +167,11 @@ public sealed partial record CompiledSampleBlock<T>( MovieTimeRange TimeRange, M
 
 	private static ImmutableArray<T> Validate( ImmutableArray<T> samples )
 	{
+		if ( typeof( T ).IsAssignableTo( typeof( Resource ) ) )
+		{
+			throw new ArgumentException( "Invalid sample value type.", nameof( T ) );
+		}
+
 		if ( samples.IsDefaultOrEmpty )
 		{
 			throw new ArgumentException( "Expected at least one sample.", nameof( Samples ) );

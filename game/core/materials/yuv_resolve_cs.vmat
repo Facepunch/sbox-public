@@ -1,0 +1,4 @@
+Layer0
+{
+	shader "shaders/yuv_resolve_cs.shader_c"
+}

@@ -198,6 +198,15 @@ public partial class MovieEditor : Widget, IHotloadManaged
 		Session.IsPlaying = !Session.IsPlaying;
 	}
 
+	[Shortcut( "timeline.recordtoggle", "ALT+F8", ShortcutType.Window )]
+	public void RecordToggle()
+	{
+		if ( Session is null )
+			return;
+
+		Session.IsRecording = !Session.IsRecording;
+	}
+
 	[Shortcut( "timeline.navtostart", "Home", ShortcutType.Window )]
 	public void NavigateToStart()
 	{
@@ -266,6 +275,12 @@ public partial class MovieEditor : Widget, IHotloadManaged
 	{
 		var activeEditorSession = SceneEditorSession.Active;
 		var activeScene = activeEditorSession?.Scene;
+
+		if ( activeScene?.IsLoading is true )
+		{
+			// Don't try to create a session while the scene is loading
+			activeScene = null;
+		}
 
 		// The current session exists
 		if ( Session is { } session )

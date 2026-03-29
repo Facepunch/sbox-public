@@ -58,6 +58,9 @@ internal static partial class Api
 				CollectStat( "GC1", PerformanceStats.Gen1Collections );
 				CollectStat( "GC2", PerformanceStats.Gen2Collections );
 				CollectStat( "Exceptions", PerformanceStats.Exceptions );
+				CollectStat( "NetworkIn", Networking.LocalStats.InBytesPerSecond );
+				CollectStat( "NetworkOut", Networking.LocalStats.OutBytesPerSecond );
+				CollectStat( "NetworkPing", Networking.LocalStats.Ping );
 			}
 
 			lastFrame = t;

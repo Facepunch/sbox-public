@@ -1,4 +1,5 @@
 ﻿using NativeEngine;
+using Sandbox.Engine;
 using System.Text.Json.Serialization;
 
 namespace Sandbox;
@@ -9,7 +10,12 @@ namespace Sandbox;
 [AssetType( Name = "Surface Description", Extension = "surface", Category = "Physics", Flags = AssetTypeFlags.NoEmbedding )]
 public partial class Surface : GameResource
 {
-	internal static Dictionary<int, Surface> All = new Dictionary<int, Surface>();
+	/// <summary>
+	/// Per-context lookup of loaded surfaces by their physics index.
+	/// Each GlobalContext (Menu, Game) owns its own dictionary so that
+	/// game-session teardown never clears entries belonging to the menu.
+	/// </summary>
+	internal static Dictionary<int, Surface> All => GlobalContext.Current.Surfaces;
 
 	[Hide]
 	[JsonIgnore]
@@ -104,6 +110,14 @@ public partial class Surface : GameResource
 	protected override void PostReload()
 	{
 		Create( true );
+	}
+
+	protected override void OnDestroy()
+	{
+		if ( All.TryGetValue( Index, out var v ) && v == this )
+		{
+			All.Remove( Index );
+		}
 	}
 
 	void Create( bool reload = false )

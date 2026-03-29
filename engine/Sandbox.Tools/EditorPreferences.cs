@@ -217,6 +217,16 @@ public static class EditorPreferences
 	}
 
 	/// <summary>
+	/// When enabled, pasted or duplicated objects are placed under the cursor and aligned to the hit surface.
+	/// </summary>
+	[Title( "Paste At Cursor" )]
+	public static bool PasteAtCursor
+	{
+		get => EditorCookie.Get( "SceneView.PasteAtCursor", true );
+		set => EditorCookie.Set( "SceneView.PasteAtCursor", value );
+	}
+
+	/// <summary>
 	/// Controls whether a sound is played for any undo/redo operation (success or failure)
 	/// </summary>
 	[Title( "Undo/Redo Sounds" )]

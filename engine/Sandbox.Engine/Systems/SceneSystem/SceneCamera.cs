@@ -141,6 +141,12 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 				VolumetricFogImpl = null;
 			}
 
+			// Release native CStrongHandle copies held by texture tracking
+			// in our RenderAttributes. Without this, the handles survive until
+			// the RenderAttributes finalizer runs which may be after the
+			// resource system has already reported leaks.
+			Attributes?.Clear();
+
 			disposedValue = true;
 		}
 	}
@@ -434,6 +440,13 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// Should this camera render engine overlays, you'd only want this on the main camera.
 	/// </summary>
 	internal bool EnableEngineOverlays { get; set; } = false;
+
+	/// <summary>
+	/// When true, rendering from this camera won't request higher mip levels from
+	/// the texture streaming system. Used by cubemap rendering to prevent envmap probes
+	/// from pulling in full-resolution textures across the entire map.
+	/// </summary>
+	internal bool ExcludeFromTextureStreaming { get; set; }
 
 	private static WeakReference<SceneCamera> _recordingCamera;
 

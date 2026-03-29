@@ -18,7 +18,6 @@
 			{
 				if ( value?.StartsWith( "https://" ) ?? false )
 				{
-					Log.Info( value );
 					Style.SetBackgroundImage( value );
 					base.Text = "";
 					return;

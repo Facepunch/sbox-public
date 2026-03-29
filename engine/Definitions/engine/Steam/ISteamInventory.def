@@ -20,6 +20,9 @@ native class CSteamInventoryResult
 	int Count();
 
 	CSteamItemInstance Get( int index );
+
+	uint GetSerializedSize();
+	bool Serialize( byte[] buffer, uint bufferSize );
 }
 
 native static class Steam.Inventory as NativeEngine.SteamInventory
@@ -40,6 +43,8 @@ native static class Steam.Inventory as NativeEngine.SteamInventory
 	void CheckOut( int[] defs, int count );
 	bool IsCheckingOut();
 	bool WasCheckoutSuccessful();
+
+	CSteamInventoryResult Deserialize( byte[] buffer, uint bufferSize );
 }
 
 managed static class Sandbox.Services.Inventory

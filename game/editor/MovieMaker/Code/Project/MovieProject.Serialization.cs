@@ -58,8 +58,7 @@ partial class MovieProject : IJsonPopulator
 						break;
 
 					case ProjectPropertyTrackModel propertyModel:
-						addedTracks[id] =
-							IProjectPropertyTrack.Create( this, id, propertyModel.Name, propertyModel.TargetType );
+						addedTracks[id] = IProjectPropertyTrack.Create( this, id, propertyModel.Name, propertyModel.TargetType );
 						break;
 
 					case ProjectSequenceTrackModel sequenceModel:
@@ -286,11 +285,31 @@ file sealed class MovieSerializationContext : IDisposable
 public abstract record ProjectTrackModel( string Name, Type TargetType,
 	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] Guid? ParentId );
 
-file sealed record ProjectReferenceTrackModel( string Name, Type TargetType, Guid? ParentId, Guid? ReferenceId )
-	: ProjectTrackModel( Name, TargetType, ParentId );
+file sealed record ProjectReferenceTrackModel( string Name, Type TargetType, Guid? ParentId,
+	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] TrackMetadata? Metadata )
+	: ProjectTrackModel( Name, TargetType, ParentId )
+{
+	[JsonIgnore( Condition = JsonIgnoreCondition.WhenWriting ), JsonPropertyName( "ReferenceId" )]
+	public Guid? LegacyReferenceId
+	{
+		get => null;
+		init
+		{
+			if ( value is null ) return;
 
-file sealed record ProjectPropertyTrackModel( string Name, Type TargetType, Guid? ParentId,
-	[property: JsonPropertyOrder( 100 ), JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] JsonArray? Blocks )
+			Metadata = new TrackMetadata( ReferenceId: value );
+		}
+	}
+}
+
+file enum BlockFormat
+{
+	Editor,
+	Compiled
+}
+
+file sealed record ProjectPropertyTrackModel( string Name, Type TargetType, Guid? ParentId, BlockFormat Format = BlockFormat.Editor,
+	[property: JsonPropertyOrder( 100 ), JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] JsonArray? Blocks = null )
 	: ProjectTrackModel( Name, TargetType, ParentId );
 
 file sealed record ProjectSequenceTrackModel( string Name, Guid? ParentId, ImmutableArray<ProjectSequenceBlockModel> Blocks )
@@ -317,14 +336,14 @@ partial class ProjectReferenceTrack<T>
 {
 	public override ProjectTrackModel Serialize( JsonSerializerOptions options )
 	{
-		return new ProjectReferenceTrackModel( Name, TargetType, Parent?.Id, ReferenceId );
+		return new ProjectReferenceTrackModel( Name, TargetType, Parent?.Id, Metadata );
 	}
 
 	public override void Deserialize( ProjectTrackModel model, JsonSerializerOptions options )
 	{
 		if ( model is not ProjectReferenceTrackModel refModel ) return;
 
-		ReferenceId = refModel.ReferenceId;
+		Metadata = refModel.Metadata;
 	}
 }
 
@@ -332,12 +351,33 @@ partial class ProjectPropertyTrack<T>
 {
 	public override ProjectTrackModel Serialize( JsonSerializerOptions options )
 	{
+		if ( Blocks.Count == 0 )
+		{
+			return new ProjectPropertyTrackModel( Name, TargetType, Parent?.Id );
+		}
+
 		MovieSerializationContext.Current?.ResetSignals();
 
-		return new ProjectPropertyTrackModel( Name, TargetType, Parent?.Id,
-			Blocks.Count != 0
-				? JsonSerializer.SerializeToNode( Blocks, EditorJsonOptions )!.AsArray()
-				: null );
+		var model = new ProjectPropertyTrackModel( Name, TargetType, Parent?.Id );
+
+		if ( Blocks.All( x => x.Signal is ILiteralSignal ) )
+		{
+			// Fast path: all blocks are literals so we can serialize in a compressed format
+
+			return model with
+			{
+				Format = BlockFormat.Compiled,
+				Blocks = JsonSerializer.SerializeToNode( Blocks.SelectMany( x => x.Compile() ), options )!.AsArray()
+			};
+		}
+		else
+		{
+			return model with
+			{
+				Format = BlockFormat.Editor,
+				Blocks = JsonSerializer.SerializeToNode( Blocks, options )!.AsArray()
+			};
+		}
 	}
 
 	public override void Deserialize( ProjectTrackModel model, JsonSerializerOptions options )
@@ -349,12 +389,28 @@ partial class ProjectPropertyTrack<T>
 		_blocks.Clear();
 		_blocksChanged = true;
 
-		if ( propertyModel.Blocks?.Deserialize<ImmutableArray<PropertyBlock<T>>>( options ) is not { } blocks )
+		switch ( propertyModel.Format )
 		{
-			return;
-		}
+			case BlockFormat.Editor:
+			{
+				if ( propertyModel.Blocks?.Deserialize<ImmutableArray<PropertyBlock<T>>>( options ) is { } blocks )
+				{
+					_blocks.AddRange( blocks );
+				}
 
-		_blocks.AddRange( blocks );
+				break;
+			}
+
+			case BlockFormat.Compiled:
+			{
+				if ( propertyModel.Blocks?.Deserialize<ImmutableArray<ICompiledPropertyBlock<T>>>( options ) is { } blocks )
+				{
+					_blocks.AddRange( blocks.Select( x => x.ToProjectBlock() ) );
+				}
+
+				break;
+			}
+		}
 	}
 }
 

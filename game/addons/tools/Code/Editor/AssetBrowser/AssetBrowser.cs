@@ -496,10 +496,7 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 			return false;
 
 		AssetList.SetItems( items );
-		if ( !string.IsNullOrEmpty( lastSortColumn ) )
-		{
-			SortAssetList( lastSortColumn, lastSortAscending );
-		}
+		SortAssetList( lastSortColumn, lastSortAscending );
 
 		Chips.ClearButKeepActive();
 
@@ -517,79 +514,25 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 
 	private void SortAssetList( string sortBy, bool ascending )
 	{
-		List<object> items;
+		var dirs = AssetList.Items.OfType<DirectoryEntry>();
+		var sortedDirs = ascending
+			? dirs.OrderBy( de => de.Name.ToLower() )
+			: dirs.OrderByDescending( de => de.Name.ToLower() );
 
-		switch ( sortBy )
+		Func<AssetEntry, IComparable> key = sortBy switch
 		{
-			case "Name":
-				items = AssetList.Items.OrderBy( x =>
-				{
-					string sort = "";
-					if ( x is AssetEntry ae )
-					{
-						sort = ae.Name.ToLower();
-					}
-					else if ( x is DirectoryEntry de )
-					{
-						// Directories always come first
-						sort = (ListHeader.SortAscending ? "! " : "z ") + de.Name.ToLower();
-					}
-					return sort;
-				} ).ToList();
-				break;
-			case "Date":
-				items = AssetList.Items.OrderBy( x =>
-				{
-					var date = DateTimeOffset.Now;
-					if ( x is AssetEntry ae )
-					{
-						date = ae.FileInfo?.LastWriteTime ?? date;
-					}
-					var sort = date.UtcTicks.ToString();
-					if ( x is DirectoryEntry de )
-					{
-						// Directories always come first
-						sort = (ListHeader.SortAscending ? "! " : "z ") + de.Name.ToLower();
-					}
-					return sort;
-				} ).ToList();
-				break;
-			case "Type":
-				items = AssetList.Items.OrderBy( x =>
-				{
-					var type = (x is AssetEntry ae) ? ae.TypeName : "";
-					var sort = type.ToLower();
-					if ( x is DirectoryEntry de )
-					{
-						// Directories always come first
-						sort = (ListHeader.SortAscending ? "! " : "z ") + de.Name.ToLower();
-					}
-					return sort;
-				} ).ToList();
-				break;
-			case "Size":
-				items = AssetList.Items.OrderBy( x =>
-				{
-					long size = (x is AssetEntry ae) ? (ae.FileInfo?.Length ?? 0) : 0;
-					if ( x is DirectoryEntry de )
-					{
-						// Directories always come first/last
-						size = -long.MaxValue + de.Name.ToLong();
-					}
-					return size;
-				} ).ToList();
-				break;
-			default:
-				items = AssetList.Items.ToList();
-				break;
-		}
+			"Date" => ae => ae.LastModified ?? DateTimeOffset.MinValue,
+			"Size" => ae => ae.Size ?? 0L,
+			"Type" => ae => ae.TypeName.ToLower(),
+			_ => ae => ae.Name.ToLower(),
+		};
 
-		if ( !ascending )
-		{
-			items.Reverse();
-		}
-		AssetList.SetItems( items );
+		var files = AssetList.Items.OfType<AssetEntry>();
+		var sortedFiles = ascending
+			? files.OrderBy( key ).ThenBy( ae => ae.Name.ToLower() )
+			: files.OrderByDescending( key ).ThenByDescending( ae => ae.Name.ToLower() );
 
+		AssetList.SetItems( sortedDirs.Cast<object>().Concat( sortedFiles ) );
 		lastSortColumn = sortBy;
 		lastSortAscending = ascending;
 	}

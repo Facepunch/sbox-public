@@ -145,12 +145,19 @@ internal class Program
 	private static void AddTestStep( RootCommand rootCommand )
 	{
 		var testsCommand = new Command( "test", "Run tests" );
-		testsCommand.SetHandler( () =>
+
+		var noBuildOption = new Option<bool>(
+			"--no-build",
+			description: "Skip building before running tests (assumes projects are already built)",
+			getDefaultValue: () => false );
+
+		testsCommand.AddOption( noBuildOption );
+		testsCommand.SetHandler( ( bool noBuild ) =>
 		{
-			var step = new Test( "Run Tests" );
+			var step = new Test( "Run Tests", noBuild );
 			ExitCode result = step.Run();
 			Environment.ExitCode = (int)result;
-		} );
+		}, noBuildOption );
 		rootCommand.Add( testsCommand );
 	}
 

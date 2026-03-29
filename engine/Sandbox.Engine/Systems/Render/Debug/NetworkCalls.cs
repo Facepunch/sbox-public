@@ -1,4 +1,4 @@
-﻿namespace Sandbox;
+namespace Sandbox;
 
 internal static partial class DebugOverlay
 {
@@ -23,14 +23,12 @@ internal static partial class DebugOverlay
 		internal static void Draw( ref Vector2 position )
 		{
 			var system = NetworkDebugSystem.Current;
-			if ( system is null || system.Stats.Count == 0 )
+			if ( system is null || system.InboundStats is not { Count: > 0 } )
 				return;
 
-			var sortedStats = system.Stats
-				.OrderByDescending( kv => kv.Value.TotalBytes )
-				.Take( 20 );
+			var sortedStats = system.InboundStats.OrderByDescending( kv => kv.Value.TotalBytes ).Take( 20 );
 
-			var totalBytesAll = system.Stats.Values.Sum( s => s.TotalBytes );
+			var totalBytesAll = system.InboundStats.Values.Sum( s => s.TotalBytes );
 
 			var x = position.x;
 			var y = position.y;

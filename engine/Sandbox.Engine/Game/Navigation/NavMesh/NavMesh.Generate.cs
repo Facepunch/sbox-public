@@ -275,8 +275,8 @@ public sealed partial class NavMesh
 
 	internal RectInt CalculateMinMaxTileCoords( BBox bounds )
 	{
-		var clampedMins = Vector3.Max( bounds.Mins, WorldBounds.Mins );
-		var clampedMaxs = Vector3.Min( bounds.Maxs, WorldBounds.Maxs );
+		var clampedMins = Vector3.Max( bounds.Mins, Bounds.Mins );
+		var clampedMaxs = Vector3.Min( bounds.Maxs, Bounds.Maxs );
 
 		var coordMin = WorldPositionToTilePosition( clampedMins );
 		var coordMax = WorldPositionToTilePosition( clampedMaxs );
@@ -292,6 +292,14 @@ public sealed partial class NavMesh
 	internal Config CreateTileGenerationConfig( Vector2Int tilePosition )
 	{
 		var tileBoundsWorld = CalculateTileBounds( tilePosition );
+
+		// When using custom bounds, clamp the per-tile Z range so geometry outside
+		// the specified vertical extent is excluded from heightfield generation.
+		if ( CustomBounds )
+		{
+			tileBoundsWorld.Mins = tileBoundsWorld.Mins.WithZ( Math.Max( tileBoundsWorld.Mins.z, Bounds.Mins.z ) );
+			tileBoundsWorld.Maxs = tileBoundsWorld.Maxs.WithZ( Math.Min( tileBoundsWorld.Maxs.z, Bounds.Maxs.z ) );
+		}
 
 		var cfg = Config.CreateValidatedConfig(
 			tilePosition,

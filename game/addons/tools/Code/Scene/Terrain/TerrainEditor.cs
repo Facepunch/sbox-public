@@ -65,12 +65,15 @@ public class TerrainEditorTool : EditorTool
 		}
 
 		// Brush Properties
+		ControlSheetRow opacityRow;
 		{
 			var group = sidebar.AddGroup( "Brush Properties" );
 
 			var so = BrushSettings.GetSerialized();
 			group.Add( ControlSheetRow.Create( so.GetProperty( nameof( BrushSettings.Size ) ) ) );
-			group.Add( ControlSheetRow.Create( so.GetProperty( nameof( BrushSettings.Opacity ) ) ) );
+
+			opacityRow = ControlSheetRow.Create( so.GetProperty( nameof( BrushSettings.Opacity ) ) );
+			group.Add( opacityRow );
 		}
 
 		// Active Layer
@@ -81,22 +84,23 @@ public class TerrainEditorTool : EditorTool
 			tabs.MaximumHeight = 40;
 			tabs.StateCookie = "TerrainEditorTool.Tabs";
 
-			// Create named pages so we can hook into tab changes
 			var basePage = new Widget();
 			var overlayPage = new Widget();
 
 			tabs.AddPage( "Base", "layers", basePage );
 			tabs.AddPage( "Overlay", "landscape", overlayPage );
 
-			// Hook into tab selection changes
 			var tabBar = tabs.Children.OfType<SegmentedControl>().FirstOrDefault();
 			tabBar.OnSelectedChanged += ( selectedName ) =>
 			{
 				PaintTextureTool.ActiveLayer = selectedName == "Base" ? TerrainLayer.Base : TerrainLayer.Overlay;
+				SetOpacityToolTip( opacityRow );
 			};
 
 			group.Add( tabs );
 		}
+
+		SetOpacityToolTip( opacityRow );
 
 		// Material selection
 		var terrain = GetSelectedComponent<Terrain>();
@@ -159,6 +163,18 @@ public class TerrainEditorTool : EditorTool
 		materialList.BuildItems();
 
 		asset.OpenInEditor();
+	}
+
+	static void SetOpacityToolTip( ControlSheetRow row )
+	{
+		var isOverlay = PaintTextureTool.ActiveLayer == TerrainLayer.Overlay;
+		var tip = isOverlay
+			? "Controls blend strength when painting overlay layers"
+			: "Opacity is only supported when painting overlay layers";
+
+		row.Enabled = isOverlay;
+		row.ToolTip = tip;
+		row.ControlWidget.ToolTip = tip;
 	}
 
 	public void DrawBrushPreview( Transform transform )

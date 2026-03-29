@@ -26,6 +26,7 @@ public abstract class ResourceLoader
 		{ ResourceType.Texture, ".vtex" },
 		{ ResourceType.Sound, ".vsnd" },
 		{ ResourceType.Material, ".vmat" },
+		{ ResourceType.PrefabFile, ".prefab" },
 	};
 
 	/// <summary>

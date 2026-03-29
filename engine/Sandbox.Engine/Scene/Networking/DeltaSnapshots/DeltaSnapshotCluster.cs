@@ -35,6 +35,7 @@ internal class DeltaSnapshotCluster : IObjectPoolEvent
 	{
 		TimeSinceCreated = 0f;
 		ReferenceCount = 1;
+		Id = ++s_nextAvailableId;
 	}
 
 	void IObjectPoolEvent.OnReturned()
@@ -55,7 +56,7 @@ internal class DeltaSnapshotCluster : IObjectPoolEvent
 	[ConVar( "net_max_cluster_size" )]
 	public static int MaxSize { get; set; } = 1200;
 
-	private ushort NextAvailableId { get; set; }
+	private static ushort s_nextAvailableId;
 
 	public List<DeltaSnapshot> Snapshots { get; init; } = new();
 	public RealTimeSince TimeSinceCreated { get; private set; } = 0f;
@@ -64,7 +65,7 @@ internal class DeltaSnapshotCluster : IObjectPoolEvent
 
 	public DeltaSnapshotCluster()
 	{
-		Id = ++NextAvailableId;
+		Id = ++s_nextAvailableId;
 	}
 
 	/// <summary>

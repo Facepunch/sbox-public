@@ -91,7 +91,7 @@ internal static partial class DebugOverlay
 			var colShare = colMax + ValueWidth;
 
 			DrawTitle( ref y, x );
-			DrawSummary( ref y, x, totalMs, _rows.Count );
+			DrawSummary( ref y, x, totalMs );
 			DrawHeader( ref y, colName, colAvg, colMax, colShare );
 
 			for ( var i = 0; i < _rows.Count; i++ )
@@ -109,11 +109,11 @@ internal static partial class DebugOverlay
 			y += RowHeight;
 		}
 
-		private static void DrawSummary( ref float y, float x, float totalMs, int shownRows )
+		private static void DrawSummary( ref float y, float x, float totalMs )
 		{
 			var fpsMax = 1000f / totalMs;
 			var color = totalMs > 16.67f ? new Color( 1f, 0.65f, 0.35f ) : Color.White.WithAlpha( 0.9f );
-			var scope = new TextRendering.Scope( $"GPU total {totalMs:F2}ms  ({fpsMax:F0} fps max)  shown {shownRows}", color, 11, "Roboto Mono", 700 ) { Outline = _outline };
+			var scope = new TextRendering.Scope( $"GPU total {totalMs:F2}ms  ({fpsMax:F0} fps max)", color, 11, "Roboto Mono", 700 ) { Outline = _outline };
 			Hud.DrawText( scope, new Rect( x, y, 560, RowHeight ), TextFlag.LeftCenter );
 			y += RowHeight;
 		}

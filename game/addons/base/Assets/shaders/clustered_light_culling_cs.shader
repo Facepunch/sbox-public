@@ -28,11 +28,11 @@ CS
 {
     bool IsLightVisible( uint index, Frustum frustum )
     {
-        BinnedLight light = BinnedLightBuffer[index];
+        BinnedLight light = BinnedLightBufferV2[index];
 
         return light.IsSpotLight()
-            ? frustum.ConeInside( light.GetPosition(), light.GetDirection(), light.GetDirectionUp(), light.GetRadius(), light.SpotLightInnerOuterConeCosines.y )
-            : frustum.SphereInside( light.GetPosition(), light.GetRadius() );
+            ? frustum.ConeInside( light.GetPosition(), light.GetDirection(), light.GetDirectionUp(), light.Radius, light.SpotLightInnerOuterConeCosines.y )
+            : frustum.SphereInside( light.GetPosition(), light.Radius );
     }
 
     bool IsEnvMapVisible( uint index, Frustum frustum )

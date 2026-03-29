@@ -44,10 +44,11 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 	/// </summary>
 	[Hide, JsonIgnore] public virtual bool HasUnsavedChanges => false;
 
-	internal void Destroy()
+	internal virtual void Destroy()
 	{
 		// Unregister on main thread
-		MainThread.Queue( () => { Game.Resources.Unregister( this ); } );
+		// Null check because resource lirbary may already be gone.
+		MainThread.Queue( () => { Game.Resources?.Unregister( this ); } );
 
 		if ( Manifest != default ) MainThread.QueueDispose( Manifest );
 		Manifest = default;

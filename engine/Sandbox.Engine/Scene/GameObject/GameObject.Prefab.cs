@@ -34,7 +34,7 @@ public partial class GameObject
 	/// </summary>
 	public static GameObject GetPrefab( string prefabFilePath )
 	{
-		var prefabFile = ResourceLibrary.Get<PrefabFile>( prefabFilePath );
+		var prefabFile = PrefabFile.Load( prefabFilePath );
 		if ( prefabFile is null ) return default;
 
 		return SceneUtility.GetPrefabScene( prefabFile );

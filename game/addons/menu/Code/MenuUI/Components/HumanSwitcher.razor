@@ -1,4 +1,4 @@
-@using Sandbox.UI;
+﻿@using Sandbox.UI;
 @using Sandbox.UI.Navigation;
 @using Sandbox;
 @using System;
@@ -6,18 +6,14 @@
 @inherits Panel
 
 <div>
-    <Button icon="tune">
-        <HoverMenu>
-            <Button Text="@CurrentModelMode" @onmousedown=@ToggleHuman></Button>
-        </HoverMenu>
-    </Button>
+    <Button icon="@CurrentModelMode" onclick="@ToggleHuman"></Button>
 </div>
 
 @code
 {
     bool IsHuman => Scene.Directory.FindByName("Player Human").FirstOrDefault()?.Active ?? false;
 
-    string CurrentModelMode => IsHuman ? "Switch to Citizen" : "Switch to Human";
+    string CurrentModelMode => IsHuman ? "🌭" : "🙎🏼";
 
     protected override int BuildHash() => System.HashCode.Combine(IsHuman);
 

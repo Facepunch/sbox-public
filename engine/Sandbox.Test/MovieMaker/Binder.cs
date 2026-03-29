@@ -1,9 +1,11 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using Sandbox.MovieMaker;
+﻿using Sandbox.MovieMaker;
 using Sandbox.MovieMaker.Compiled;
 using Sandbox.MovieMaker.Properties;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Text.Json.Nodes;
 
 namespace TestMovieMaker;
 
@@ -220,6 +222,59 @@ public sealed class BinderTests : SceneTests
 		Assert.IsTrue( TrackBinder.Default.Get( transformTrack ).IsValid );
 	}
 
+	/// <summary>
+	/// Properties with <see cref="GameObject"/> / <see cref="Component"/> values are interpreted as
+	/// <see cref="BindingReference{T}"/> properties.
+	/// </summary>
+	[TestMethod]
+	public void CreateReferenceProperty()
+	{
+		var rendererTrack = MovieClip.RootGameObject( "Example" ).Component<SkinnedModelRenderer>();
+		var rendererTarget = TrackBinder.Default.Get( rendererTrack );
+
+		var boneMergeTargetProperty = TrackProperty.Create( rendererTarget, nameof( SkinnedModelRenderer.BoneMergeTarget ) );
+
+		Assert.IsNotNull( boneMergeTargetProperty );
+		Assert.AreEqual( typeof( BindingReference<SkinnedModelRenderer> ), boneMergeTargetProperty.TargetType );
+	}
+
+	[TestMethod]
+	public void CreateListItemReferenceProperty()
+	{
+		var pointsTrack = MovieClip.RootGameObject( "Example" )
+			.Component<LineRenderer>()
+			.Property<List<GameObject>>( nameof( LineRenderer.Points ) );
+
+		var pointsProperty = TrackBinder.Default.Get( pointsTrack );
+		var pointProperty = TrackProperty.Create( pointsProperty, "0" );
+
+		Assert.IsNotNull( pointProperty );
+		Assert.AreEqual( typeof( BindingReference<GameObject> ), pointProperty.TargetType );
+	}
+
+	/// <summary>
+	/// Tests accessing a GameObject property block that references another track.
+	/// </summary>
+	[TestMethod]
+	public void ReferenceProperty()
+	{
+		var referencedTrack = MovieClip.RootGameObject( "Foo" );
+		var referencingTrack = MovieClip.RootGameObject( "Bar" )
+			.Component<VerletRope>()
+			.ReferenceProperty<GameObject>( nameof( VerletRope.Attachment ) )
+			.WithConstant( (0f, 1f), referencedTrack.Id );
+
+		var exampleObject = new GameObject( true, "Example" );
+
+		TrackBinder.Default.Get( referencedTrack ).Bind( exampleObject );
+
+		// referencingTrack says it contains whatever referencedTrack is bound to
+
+		Assert.IsTrue( referencingTrack.TryGetValue( 0.5f, out var value ) );
+
+		Assert.AreSame( exampleObject, value.Get( TrackBinder.Default ) );
+	}
+
 	[TestMethod]
 	public void ListCountProperty()
 	{
@@ -286,9 +341,379 @@ public sealed class BinderTests : SceneTests
 		Assert.IsNotNull( property );
 		Assert.AreEqual( typeof( List<Vector3> ), property.TargetType );
 	}
+
+	[TestMethod]
+	public void TemporaryEffectIsActive()
+	{
+		var goTrack = MovieClip.RootGameObject( "Example" );
+		var cmpTrack = goTrack.Component<ExampleTemporaryEffect>();
+
+		var cmpRef = TrackBinder.Default.Get( cmpTrack );
+		var property = TrackProperty.Create( cmpRef, nameof( Component.ITemporaryEffect.IsActive ) );
+
+		Assert.IsNotNull( property );
+		Assert.AreEqual( typeof( bool ), property.TargetType );
+		Assert.IsFalse( property.IsBound );
+
+		var exampleObject = new GameObject( true, "Example" );
+		var cmp = exampleObject.AddComponent<ExampleTemporaryEffect>() as Component.ITemporaryEffect;
+
+		Assert.IsTrue( property.IsBound );
+		Assert.IsTrue( cmp.IsActive );
+
+		property.Value = false;
+
+		Assert.IsFalse( cmp.IsActive );
+	}
+
+	/// <summary>
+	/// Given a clip, create any missing <see cref="GameObject"/>s and <see cref="Component"/>s
+	/// for each track.
+	/// </summary>
+	[TestMethod]
+	public void CreateTargets()
+	{
+		var clip = MovieClip.FromTracks(
+			MovieClip.RootGameObject( "Example" )
+				.Component<ModelRenderer>()
+				.Property<Color>( nameof( ModelRenderer.Tint ) )
+				.WithConstant( (0d, 10d), Color.Red ) );
+
+		var exampleTrack = clip.GetTrack( "Example" );
+		var rendererTrack = clip.GetTrack( "Example", nameof( ModelRenderer ) )!;
+
+		Assert.IsNotNull( exampleTrack );
+		Assert.IsNotNull( rendererTrack );
+
+		var binder = new TrackBinder();
+
+		var exampleRef = binder.Get( exampleTrack );
+		var rendererRef = binder.Get( rendererTrack );
+
+		// There are no game objects in the scene, these tracks shouldn't be bound to anything
+
+		Assert.IsFalse( exampleRef.IsBound );
+		Assert.IsFalse( rendererRef.IsBound );
+
+		// Create any objects needed to play the clip
+
+		binder.CreateTargets( clip );
+
+		// Now they should be bound
+
+		Assert.IsTrue( exampleRef.IsBound );
+		Assert.IsTrue( rendererRef.IsBound );
+	}
+
+	/// <summary>
+	/// When creating targets, each track should get a unique target even if they have the same name.
+	/// </summary>
+	[TestMethod]
+	public void CreateTargetsUniqueObjects()
+	{
+		var clip = MovieClip.FromTracks(
+			MovieClip.RootGameObject( "Example" ),
+			MovieClip.RootGameObject( "Example" ) );
+
+		var track1 = clip.Tracks[0];
+		var track2 = clip.Tracks[1];
+
+		Assert.AreEqual( "Example", track1.Name );
+		Assert.AreEqual( "Example", track2.Name );
+		Assert.AreNotSame( track1, track2 );
+
+		var binder = new TrackBinder();
+
+		var ref1 = binder.Get( track1 );
+		var ref2 = binder.Get( track2 );
+
+		Assert.IsFalse( ref1.IsBound );
+		Assert.IsFalse( ref2.IsBound );
+		Assert.AreNotSame( ref1, ref2 );
+
+		binder.CreateTargets( clip );
+
+		Assert.IsTrue( ref1.IsBound );
+		Assert.IsTrue( ref2.IsBound );
+		Assert.AreNotSame( ref1.Value, ref2.Value );
+	}
+
+	/// <summary>
+	/// When creating targets, each track should get a unique target even if they have the same component type.
+	/// </summary>
+	[TestMethod]
+	public void CreateTargetsUniqueComponents()
+	{
+		var root = MovieClip.RootGameObject( "Example" );
+
+		var clip = MovieClip.FromTracks(
+			root.Component<ModelRenderer>(),
+			root.Component<ModelRenderer>() );
+
+		var rendererTracks = clip.Tracks.OfType<CompiledReferenceTrack<ModelRenderer>>().ToArray();
+
+		var track1 = rendererTracks[0];
+		var track2 = rendererTracks[1];
+
+		Assert.AreNotSame( track1, track2 );
+		Assert.AreSame( track1.Parent, track2.Parent );
+
+		var binder = new TrackBinder();
+
+		var ref1 = binder.Get( track1 );
+		var ref2 = binder.Get( track2 );
+
+		Assert.IsFalse( ref1.IsBound );
+		Assert.IsFalse( ref2.IsBound );
+		Assert.AreNotSame( ref1, ref2 );
+
+		binder.CreateTargets( clip );
+
+		Assert.IsTrue( ref1.IsBound );
+		Assert.IsTrue( ref2.IsBound );
+		Assert.AreNotSame( ref1.Value, ref2.Value );
+		Assert.AreSame( ref1.Value!.GameObject, ref2.Value!.GameObject );
+	}
+
+	/// <summary>
+	/// Calling <see cref="TrackBinder.CreateTargets(IMovieClip, bool, GameObject)"/> should instantiate any relevant prefabs,
+	/// as specified by <see cref="TrackMetadata"/>, to set default property values.
+	/// </summary>
+	[TestMethod]
+	public void CreatePrefabTarget()
+	{
+		const string prefabPath = "prefabs/example.prefab";
+
+		RegisterSimplePrefab( prefabPath, new JsonObject
+		{
+			{ "__type", "ModelRenderer" },
+			{ "Tint", "1,0,0,1" }
+		} );
+
+		// Example track says it's using the above prefab in TrackMetadata
+
+		var clip = MovieClip.FromTracks(
+			MovieClip.RootGameObject( "Example", metadata: new TrackMetadata( PrefabSource: prefabPath ) )
+				.Component<ModelRenderer>()
+				.Property<bool>( nameof( ModelRenderer.Enabled ) )
+				.WithConstant( (0d, 10d), true ) );
+
+		var rendererTrack = clip.GetTrack( "Example", nameof( ModelRenderer ) ) as CompiledReferenceTrack<ModelRenderer>;
+
+		Assert.IsNotNull( rendererTrack );
+
+		var binder = new TrackBinder();
+		var rendererRef = binder.Get( rendererTrack );
+
+		binder.CreateTargets( clip );
+
+		var renderer = rendererRef.Value;
+
+		Assert.IsNotNull( renderer );
+
+		// Tint should be loaded from the prefab
+
+		Assert.AreEqual( Color.Red, renderer.Tint );
+	}
+
+	[TestMethod]
+	public void CreatePrefabTargetMultipleComponents()
+	{
+		const string prefabPath = "prefabs/example.prefab";
+
+		RegisterSimplePrefab( prefabPath, new JsonObject
+		{
+			{ "__type", "ModelRenderer" },
+			{ "Tint", "1,0,0,1" }
+		}, new JsonObject
+		{
+			{ "__type", "ModelRenderer" },
+			{ "Tint", "0,0,1,1" }
+		} );
+
+		// Example track says it's using the above prefab in TrackMetadata
+
+		var root = MovieClip.RootGameObject( "Example", metadata: new TrackMetadata( PrefabSource: prefabPath ) );
+
+		// Clip includes both ModelRenderers
+
+		var clip = MovieClip.FromTracks(
+			root.Component<ModelRenderer>()
+				.Property<bool>( nameof( ModelRenderer.Enabled ) )
+				.WithConstant( (0d, 10d), true ),
+			root.Component<ModelRenderer>()
+				.Property<bool>( nameof( ModelRenderer.Enabled ) )
+				.WithConstant( (0d, 10d), true ) );
+
+		var rendererTracks = clip.Tracks.OfType<CompiledReferenceTrack<ModelRenderer>>().ToArray();
+
+		Assert.AreEqual( 2, rendererTracks.Length );
+
+		var binder = new TrackBinder();
+		var rendererRef1 = binder.Get( rendererTracks[0] );
+		var rendererRef2 = binder.Get( rendererTracks[1] );
+
+		binder.CreateTargets( clip );
+
+		var renderer1 = rendererRef1.Value;
+		var renderer2 = rendererRef2.Value;
+
+		Assert.IsNotNull( renderer1 );
+		Assert.IsNotNull( renderer2 );
+		Assert.AreNotSame( renderer1, renderer2 );
+
+		// Tints should be loaded from the prefab
+
+		Assert.AreEqual( Color.Red, renderer1.Tint );
+		Assert.AreEqual( Color.Blue, renderer2.Tint );
+	}
+
+	/// <summary>
+	/// When <see cref="TrackBinder.CreateTargets(IMovieClip, bool, GameObject)"/> instantiates a prefab, it should only
+	/// create components that have tracks in the given clip. This is so we include all display-related components,
+	/// but exclude any that would try to do game logic like <see cref="PlayerController"/>, unless opted-in
+	/// by having a track.
+	/// </summary>
+	[TestMethod]
+	public void CreatePrefabTargetOnlyTrackComponents()
+	{
+		const string prefabPath = "prefabs/example.prefab";
+
+		RegisterSimplePrefab( prefabPath,
+			new JsonObject { { "__type", "ModelRenderer" } },
+			new JsonObject { { "__type", "PlayerController" } } );
+
+		// Example track says it's using the above prefab in TrackMetadata
+
+		var clip = MovieClip.FromTracks(
+			MovieClip.RootGameObject( "Example", metadata: new TrackMetadata( PrefabSource: prefabPath ) )
+				.Component<ModelRenderer>()
+				.Property<bool>( nameof( ModelRenderer.Enabled ) )
+				.WithConstant( (0d, 10d), true ) );
+
+		var exampleTrack = clip.GetTrack( "Example" ) as CompiledReferenceTrack<GameObject>;
+
+		Assert.IsNotNull( exampleTrack );
+
+		var binder = new TrackBinder();
+		var exampleRef = binder.Get( exampleTrack );
+
+		binder.CreateTargets( clip );
+
+		var go = exampleRef.Value;
+
+		Assert.IsNotNull( go );
+
+		// Only ModelRenderer should exist, not PlayerController
+
+		Assert.IsNotNull( go.GetComponent<ModelRenderer>() );
+		Assert.IsNull( go.GetComponent<PlayerController>() );
+	}
+
+	/// <summary>
+	/// Test (de)serializing a <see cref="TrackBinder"/>.
+	/// </summary>
+	[TestMethod]
+	public void SerializeBindings()
+	{
+		var binder = new TrackBinder();
+
+		var exampleTrack = MovieClip.RootGameObject( "Example" );
+		var target = binder.Get( exampleTrack );
+
+		// Make sure the object isn't called Example, or it will get auto-bound
+		// to the Example track.
+
+		var fooObject = new GameObject( "Foo" );
+
+		Assert.IsFalse( target.IsBound );
+
+		target.Bind( fooObject );
+
+		Assert.IsTrue( target.IsBound );
+
+		var jsonNode = binder.Serialize();
+
+		Console.WriteLine( jsonNode.ToJsonString( Json.options ) );
+
+		// Create a new empty binder
+
+		binder = new TrackBinder();
+		target = binder.Get( exampleTrack );
+
+		Assert.IsFalse( target.IsBound );
+
+		binder.Deserialize( jsonNode );
+
+		Assert.IsTrue( target.IsBound );
+	}
+
+	[TestMethod, Ignore]
+	public void GetPropertyBenchmark()
+	{
+		var propertyTrack = MovieClip.RootGameObject( "Example" )
+			.Property<Vector3>( nameof( GameObject.LocalPosition ) );
+
+		var propertyTarget = TrackBinder.Default.Get( propertyTrack );
+
+		var inst = new GameObject( propertyTrack.Name );
+
+		((ITrackReference<GameObject>)propertyTarget.Parent).Bind( inst );
+
+		Assert.IsTrue( propertyTarget.IsBound );
+
+		var sum = Vector3.Zero;
+
+		var timer = Stopwatch.StartNew();
+
+		var delegateTime = TimeSpan.Zero;
+		var reflectionTime = TimeSpan.Zero;
+
+		for ( var i = 0; i < 100; i++ )
+		{
+			var useDelegate = (i & 1) == 0;
+			var before = timer.Elapsed;
+
+			MemberProperty.UseDelegate = useDelegate;
+
+			for ( var j = 0; j < 1_000_000; j++ )
+			{
+				sum += propertyTarget.Value;
+			}
+
+			if ( useDelegate )
+			{
+				delegateTime += timer.Elapsed - before;
+			}
+			else
+			{
+				reflectionTime += timer.Elapsed - before;
+			}
+		}
+
+		Console.WriteLine( $"Delegate: {delegateTime.TotalSeconds:F3}s" );
+		Console.WriteLine( $"Reflection: {reflectionTime.TotalSeconds:F3}s" );
+	}
 }
 
 public class ExampleComponent : Component
 {
 	[Property] public List<Vector3> List { get; } = new();
+}
+
+public class ExampleTemporaryEffect : Component, Component.ITemporaryEffect
+{
+	private bool _isActive;
+
+	bool ITemporaryEffect.IsActive => _isActive;
+
+	protected override void OnEnabled()
+	{
+		_isActive = true;
+	}
+
+	void ITemporaryEffect.DisableLooping()
+	{
+		_isActive = false;
+	}
 }

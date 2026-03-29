@@ -159,4 +159,8 @@ native static class MeshGlue as NativeEngine.MeshGlue
 			pOutVertexUVs->AddToTail( Vector( uvs[i].x, uvs[i].y, 0 ) );
 		}
 	}
+
+	CUtlBuffer SerializeMeshBuffers( IModel model, int nMesh );
+	CUtlBuffer SerializeMeshData( IModel model, int nMesh );
+	CUtlBuffer SerializeModelData( IModel model );
 }

@@ -1,9 +1,11 @@
 ﻿using Sandbox.MovieMaker;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 
 namespace Editor.MovieMaker;
 
@@ -315,6 +317,8 @@ public sealed partial class Session
 
 	public void Save()
 	{
+		Resource.StateHasChanged( Project );
+
 		HasUnsavedChanges = false;
 
 		// If we're embedded, save the scene
@@ -414,7 +418,7 @@ public sealed partial class Session
 		_ik.ShowContextMenu( ev );
 	}
 
-	public bool CanReferenceMovie( MovieResource? resource )
+	public bool CanReferenceMovie( [NotNullWhen( true )] MovieResource? resource )
 	{
 		if ( resource is null ) return false;
 
@@ -478,15 +482,106 @@ public sealed partial class Session
 		}
 	}
 
+	private void ImportMovieFromGameData( string path, MovieTime time = default )
+	{
+		if ( ResourceLibrary.TryGet( path, out MovieResource existing ) )
+		{
+			ImportMovie( existing, time );
+			return;
+		}
+
+		Task.Run( async () =>
+		{
+			var movie = await ImportMovieFromGameDataAsync( path );
+
+			if ( movie is null ) return;
+
+			await MainThread.Wait();
+
+			ImportMovie( movie, time );
+		} );
+	}
+
+	private static async Task<MovieResource?> ImportMovieFromGameDataAsync( string path )
+	{
+		try
+		{
+			var assetPath = Path.Combine( Sandbox.Project.Current.GetAssetsPath(), path );
+			var assetDir = Path.GetDirectoryName( assetPath )!;
+
+			Directory.CreateDirectory( assetDir );
+
+			var json = await Sandbox.FileSystem.Data.ReadAllTextAsync( path );
+			var node = Json.ParseToJsonObject( json );
+
+			// Don't bother if the movie is empty
+
+			if ( node[nameof( MovieResource.Compiled )] is null ) return null;
+
+			// Need to install cloud assets referenced by the movie
+
+			if ( node["__references"]?.Deserialize<string[]>() is { Length: > 0 } references )
+			{
+				Log.Info( $"Installing {references.Length} cloud references used by movie." );
+
+				await MainThread.Wait();
+				await Task.WhenAll( references.Select( Cloud.Load ) );
+			}
+
+			// Copy the .movie to Assets/ and register it
+
+			await File.WriteAllTextAsync( assetPath, json );
+			await MainThread.Wait();
+
+			var asset = AssetSystem.RegisterFile( assetPath );
+			if ( asset is null )
+			{
+				Log.Warning( $"Failed to register movie asset at '{assetPath}'." );
+				return null;
+			}
+
+			await asset.CompileIfNeededAsync();
+			await MainThread.Wait();
+
+			var resource = asset.LoadResource<MovieResource>();
+			if ( resource is null )
+			{
+				Log.Warning( $"Failed to load MovieResource from asset '{assetPath}'." );
+				return null;
+			}
+
+			await resource.WaitForLoadAsync();
+
+			return resource;
+		}
+		catch ( Exception ex )
+		{
+			Log.Warning( ex, "Exception when attempting to import a movie." );
+			return null;
+		}
+	}
+
+	private readonly record struct ImportMenuItem( string Path, Action Action );
+
 	public void CreateImportMenu( Menu parent, MovieTime time = default )
 	{
-		var movies = ResourceLibrary.GetAll<MovieResource>().ToArray();
+		var existingMovies = ResourceLibrary.GetAll<MovieResource>()
+			.Where( CanReferenceMovie )
+			.Select( x => new ImportMenuItem( x.ResourcePath, () => ImportMovie( x, time ) ) );
+
+		var gameDataMovies = Sandbox.FileSystem.Data
+			.FindFile( "/", "*.movie", true )
+			.Select( x => new ImportMenuItem( $"Data/{x}", () => ImportMovieFromGameData( x, time ) ) );
+
+		var allMovies = existingMovies.Concat( gameDataMovies ).ToArray();
+
+		if ( allMovies.Length == 0 ) return;
 
 		var importMenu = parent.AddMenu( "Import Movie", "sim_card_download" );
 
-		importMenu.AddOptions( movies.Where( CanReferenceMovie ),
-			x => $"{x.ResourcePath}:video_file",
-			x => ImportMovie( x, time ) );
+		importMenu.AddOptions( allMovies,
+			x => $"{x.Path}:video_file",
+			x => x.Action() );
 	}
 
 	public void SaveConfig()

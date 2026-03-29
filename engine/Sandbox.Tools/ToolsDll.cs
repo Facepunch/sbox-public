@@ -302,13 +302,16 @@ internal class ToolsDll : IToolsDll
 		}
 	}
 
-
-	public Bitmap GetThumbnail( string filename )
+	/// <summary>
+	/// Return a thumbnail for this asset. This is used by the ThumbLoader, which allows people to load
+	/// thumbs using thumb:resource/path.vmdl etc.
+	/// </summary>
+	public async Task<Bitmap> GetThumbnail( string filename )
 	{
 		var asset = AssetSystem.FindByPath( filename );
 		if ( asset is null ) return null;
 
-		var thumb = asset.GetAssetThumb( false );
+		var thumb = await AssetThumbnail.GetAssetThumbAsync( asset );
 		if ( thumb is null ) return null;
 
 		// Sorry - we have no fast GetPixels

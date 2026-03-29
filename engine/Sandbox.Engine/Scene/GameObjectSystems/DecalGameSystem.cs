@@ -2,7 +2,7 @@
 
 public sealed class DecalGameSystem : GameObjectSystem<DecalGameSystem>
 {
-	[ConVar( "maxdecals" )]
+	[ConVar( "maxdecals", ConVarFlags.Saved | ConVarFlags.Protected )]
 	public static int MaxDecals { get; internal set; } = 1000;
 
 	/// <summary>
@@ -15,15 +15,17 @@ public sealed class DecalGameSystem : GameObjectSystem<DecalGameSystem>
 
 	}
 
+	[ConCmd( "r_cleardecals" )]
+	internal static void ClearDecalsCmd() => Current?.ClearDecals();
+
 	public void ClearDecals()
 	{
-		while ( _transients.Count > 0 )
+		foreach ( var decal in _transients.ToArray() )
 		{
-			var first = _transients.First;
-			first.Value.Destroy();
-
-			_transients.Remove( first );
+			decal.Destroy();
 		}
+
+		_transients.Clear();
 	}
 
 	internal void AddTransient( Decal decal )
@@ -39,7 +41,11 @@ public sealed class DecalGameSystem : GameObjectSystem<DecalGameSystem>
 			var first = _transients.First;
 			first.Value.Destroy();
 
-			_transients.Remove( first );
+			if ( first.List == _transients )
+			{
+				// If the decal was not removed by the destroy call, remove it here.
+				_transients.Remove( first );
+			}
 		}
 	}
 

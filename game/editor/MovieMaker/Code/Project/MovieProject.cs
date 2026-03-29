@@ -38,9 +38,11 @@ public sealed partial class MovieProject : IMovieClip, IMovieProject
 
 	public bool IsEmpty => Tracks.Count == 0;
 
-	public MovieTime Duration => _trackList.OfType<IProjectBlockTrack>()
+	private MovieTime? _duration;
+
+	public MovieTime Duration => _duration ??= _trackList.OfType<IProjectBlockTrack>()
 		.Select( x => x.TimeRange.End )
-		.DefaultIfEmpty( 0d )
+		.DefaultIfEmpty()
 		.Max();
 
 	public IReadOnlyList<IProjectTrack> Tracks
@@ -123,6 +125,8 @@ public sealed partial class MovieProject : IMovieClip, IMovieProject
 				case ICompiledReferenceTrack refTrack:
 				{
 					var track = IProjectReferenceTrack.Create( this, refTrack.Id, refTrack.Name, refTrack.TargetType );
+
+					track.Metadata = refTrack.Metadata;
 
 					AddTrackInternal( track, parentTrack );
 					continue;
@@ -256,9 +260,10 @@ public sealed partial class MovieProject : IMovieClip, IMovieProject
 
 			case IReferenceTrack referenceTrack:
 			{
-				if ( GetTrack( referenceTrack.Id ) is { } refTrackCopy ) return refTrackCopy;
+				if ( GetTrack( referenceTrack.Id ) is IProjectReferenceTrack refTrackCopy ) return refTrackCopy;
 
 				refTrackCopy = IProjectReferenceTrack.Create( this, referenceTrack.Id, referenceTrack.Name, referenceTrack.TargetType );
+				refTrackCopy.Metadata = referenceTrack.Metadata;
 
 				var parentCopy = track.Parent is { } parent ? GetOrAddTrack( parent ) : null;
 
@@ -345,6 +350,11 @@ public sealed partial class MovieProject : IMovieClip, IMovieProject
 	internal void InvalidateTracks()
 	{
 		_tracksChanged = true;
+	}
+
+	internal void InvalidateDuration()
+	{
+		_duration = null;
 	}
 
 	/// <summary>

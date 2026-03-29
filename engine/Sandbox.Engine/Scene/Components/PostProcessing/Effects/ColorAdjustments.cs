@@ -16,7 +16,7 @@ public sealed class ColorAdjustments : BasePostProcess<ColorAdjustments>
 	[Range( 0, 2 ), Property] public float Brightness { get; set; } = 1.0f;
 	[Range( 0, 2 ), Property] public float Contrast { get; set; } = 1.0f;
 
-	private static readonly Material Shader = Material.FromShader( "shaders/postprocess/pp_color.shader" );
+	private static Material Shader = Material.FromShader( "shaders/postprocess/pp_color.shader" );
 
 	public override void Render()
 	{

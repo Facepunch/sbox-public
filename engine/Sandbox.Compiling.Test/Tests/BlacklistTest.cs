@@ -392,6 +392,185 @@ public partial class BlacklistTest
 	}
 
 	/// <summary>
+	/// H1-3601675: UnsafeAccessorAttribute allows accessing private/internal runtime members (e.g. Type.GetType),
+	/// bypassing sandbox restrictions and enabling arbitrary type instantiation.
+	/// Using it should produce an SB500 error at compile time.
+	/// </summary>
+	[TestMethod]
+	public void UnsafeAccessorAttribute_IsBlocked()
+	{
+		var sourceCode = """
+			using System.Runtime.CompilerServices;
+
+			static class Exploit
+			{
+				[UnsafeAccessor( UnsafeAccessorKind.StaticMethod, Name = "GetType" )]
+				static extern Type GetTypeByName( string typeName, bool throwOnError, bool ignoreCase );
+			}
+			""";
+
+		CompileAndWalk( sourceCode, out var diagnostics );
+
+		Assert.IsTrue( diagnostics.Count >= 1, $"Expected at least 1 SB500, got {diagnostics.Count}" );
+		Assert.IsTrue( diagnostics.All( d => d.Id == "SB500" ) );
+	}
+
+	/// <summary>
+	/// Same exploit via a using alias, should still be caught.
+	/// </summary>
+	[TestMethod]
+	public void UnsafeAccessorAttribute_IsBlocked_ViaAlias()
+	{
+		var sourceCode = """
+			using UA = System.Runtime.CompilerServices.UnsafeAccessorAttribute;
+			using System.Runtime.CompilerServices;
+
+			static class Exploit
+			{
+				[UA( UnsafeAccessorKind.StaticMethod, Name = "GetType" )]
+				static extern Type GetTypeByName( string typeName, bool throwOnError, bool ignoreCase );
+			}
+			""";
+
+		CompileAndWalk( sourceCode, out var diagnostics );
+
+		Assert.IsTrue( diagnostics.Count >= 1, $"Expected at least 1 SB500, got {diagnostics.Count}" );
+		Assert.IsTrue( diagnostics.All( d => d.Id == "SB500" ) );
+	}
+
+	/// <summary>
+	/// The exploit redefines UnsafeAccessorAttribute locally in the same namespace using
+	/// #pragma warning disable CS0436, so the CLR still interprets it as the real attribute.
+	/// The blacklist must match on fully-qualified name regardless of which assembly defines the type.
+	/// </summary>
+	[TestMethod]
+	public void UnsafeAccessorAttribute_IsBlocked_LocalRedefinition()
+	{
+		var sourceCode = """
+			#pragma warning disable CS0436
+
+			namespace System.Runtime.CompilerServices
+			{
+				public sealed class UnsafeAccessorAttribute : global::System.Attribute
+				{
+					public UnsafeAccessorAttribute( int kind ) { }
+					public string Name { get; set; }
+				}
+			}
+
+			static class Exploit
+			{
+				[global::System.Runtime.CompilerServices.UnsafeAccessor( 2, Name = "GetType" )]
+				static extern global::System.Type GetTypeByName( global::System.Type _, string typeName );
+			}
+			""";
+
+		CompileAndWalk( sourceCode, out var diagnostics );
+
+		Assert.IsTrue( diagnostics.Count >= 1, $"Expected at least 1 SB500 diagnostic, got {diagnostics.Count}" );
+		Assert.IsTrue( diagnostics.All( d => d.Id == "SB500" ) );
+	}
+
+	/// <summary>
+	/// Full exploit pattern from the security report. Locally redefines UnsafeAccessorAttribute
+	/// and uses it to reach Type.GetType, then chains standard reflection to invoke arbitrary code.
+	/// All 3x UnsafeAccessor attribute usages must be flagged.
+	/// </summary>
+	[TestMethod]
+	public void FullExploitPattern_IsBlocked()
+	{
+		var sourceCode = """
+			#pragma warning disable CS0436
+			#pragma warning disable CS8618
+
+			using global::System;
+			using global::System.Reflection;
+
+			namespace System.Runtime.CompilerServices
+			{
+				public sealed class ModuleInitializerAttribute : Attribute { }
+
+				public sealed class UnsafeAccessorAttribute : Attribute
+				{
+					public UnsafeAccessorAttribute( int kind ) { }
+					public string Name { get; set; }
+				}
+			}
+
+			public static class Exploit
+			{
+				[global::System.Runtime.CompilerServices.ModuleInitializer]
+				public static void Init() => Run();
+
+				[global::System.Runtime.CompilerServices.UnsafeAccessor( 2, Name = "GetType" )]
+				private static extern Type Type_GetType( Type _, string typeName );
+
+				[global::System.Runtime.CompilerServices.UnsafeAccessor( 1, Name = "GetMethod" )]
+				private static extern MethodInfo Type_GetMethod( Type self, string name, Type[] paramTypes );
+
+				[global::System.Runtime.CompilerServices.UnsafeAccessor( 1, Name = "CreateDelegate" )]
+				private static extern Delegate MethodInfo_CreateDelegate( MethodInfo self, Type delegateType );
+
+				public static void Run()
+				{
+					var processType = Type_GetType( null, "System.Diagnostics.Process, System.Diagnostics.Process" );
+					var startMethod = Type_GetMethod( processType, "Start", new[] { typeof( string ) } );
+					var del = MethodInfo_CreateDelegate( startMethod, typeof( Action<string> ) );
+					del.DynamicInvoke( "calc.exe" );
+				}
+			}
+			""";
+
+		CompileAndWalk( sourceCode, out var diagnostics );
+
+		// 3x UnsafeAccessor attribute usages on different lines
+		Assert.IsTrue( diagnostics.Count >= 3, $"Expected at least 3 SB500 diagnostics, got {diagnostics.Count}: {string.Join( ", ", diagnostics.Select( d => d.GetMessage() ) )}" );
+		Assert.IsTrue( diagnostics.All( d => d.Id == "SB500" ) );
+	}
+
+	/// <summary>
+	/// Disables zero-initialization of local variables, exposing uninitialized stack memory.
+	/// </summary>
+	[TestMethod]
+	public void SkipLocalsInitAttribute_IsBlocked()
+	{
+		var sourceCode = """
+			using System.Runtime.CompilerServices;
+
+			static class Example
+			{
+				[SkipLocalsInit]
+				public static void Method() { }
+			}
+			""";
+
+		CompileAndWalk( sourceCode, out var diagnostics );
+
+		Assert.AreEqual( 1, diagnostics.Count );
+		Assert.AreEqual( "SB500", diagnostics.FirstOrDefault().Id );
+	}
+
+	/// <summary>
+	/// Allows replacing the async state machine infrastructure with a custom builder,
+	/// which can be used to hijack async execution flow.
+	/// </summary>
+	[TestMethod]
+	public void AsyncMethodBuilderAttribute_IsBlocked()
+	{
+		var sourceCode = """
+			using System.Runtime.CompilerServices;
+
+			[AsyncMethodBuilder( typeof( object ) )]
+			public class CustomTask { }
+			""";
+
+		CompileAndWalk( sourceCode, out var diagnostics );
+
+		Assert.AreEqual( 1, diagnostics.Count );
+		Assert.AreEqual( "SB500", diagnostics.FirstOrDefault().Id );
+	}
+
+	/// <summary>
 	/// Rewrite <paramref name="source"/> to replace references to <paramref name="fullyQualifiedMember"/> with
 	/// a different kind of qualification.
 	/// </summary>
