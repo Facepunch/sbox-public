@@ -199,6 +199,7 @@ public static class EditorScene
 	}
 
 	static JsonObject _mixerStore;
+	private static bool _vrModeStore;
 
 	/// <summary>
 	/// Store stuff before playing
@@ -206,12 +207,13 @@ public static class EditorScene
 	static void OnPlayStore()
 	{
 		_mixerStore = Sandbox.Audio.Mixer.Master.Serialize();
+		_vrModeStore = EditorUtility.VR.Enabled;
 	}
 
 	/// <summary>
 	/// Restore stuff before playing
 	/// </summary>
-	static void OnPlayRestore()
+	static async void OnPlayRestore()
 	{
 		if ( _mixerStore is not null )
 		{
@@ -219,6 +221,9 @@ public static class EditorScene
 			Sandbox.Audio.Mixer.Master.Deserialize( _mixerStore, TypeLibrary );
 		}
 
+		//We need some kind of delay here, if mode restores too quickly it leads to crash
+		await Task.Delay( 50 );
+		EditorUtility.VR.Enabled = _vrModeStore;
 	}
 
 	public static void PlayMap( Asset asset )
@@ -298,6 +303,9 @@ public static class EditorScene
 
 	public static void Stop()
 	{
+		// Exit vr mode to prevent editor crash
+		if ( EditorUtility.VR.Enabled ) EditorUtility.VR.Enabled = false;
+
 		// Close any open overlay modals so they don't persist in the next play session
 		IModalSystem.Current?.CloseAll( true );
 
