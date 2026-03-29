@@ -33,10 +33,23 @@ public partial class Component
 			return;
 		}
 
-		// Missing, so create it
+		if ( !findMode.Contains( FindMode.InSelf ) )
+		{
+			// Doesn't mention Self, don't create it anywhere then
+			return;
+		}
+
+		var startEnabled = findMode.Contains( FindMode.Enabled );
+		if ( !startEnabled && !findMode.Contains( FindMode.Disabled ) )
+		{
+			// Doesn't want either Enabled or Disabled, don't create anything
+			return;
+		}
+
+		// Missing in self, so create it
 		{
 			var typeDesc = Game.TypeLibrary.GetType( prop.PropertyType );
-			prop.SetValue( this, Components.Create( typeDesc ) );
+			prop.SetValue( this, Components.Create( typeDesc, startEnabled ) );
 		}
 	}
 }
