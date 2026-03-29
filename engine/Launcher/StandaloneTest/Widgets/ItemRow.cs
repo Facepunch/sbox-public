@@ -155,16 +155,16 @@ public partial class ItemRow : Widget
 
 				r.Right = LocalRect.Width - ButtonLayoutWidth;
 
-				x = Paint.DrawIcon( r, Icon, 12.0f, TextFlag.LeftTop );
+				x = Paint.DrawIcon( r, Icon, 12.0f, TextFlag.LeftCenter );
 				r.Left = x.Right + 4;
 
-				x = Paint.DrawText( r, Text, TextFlag.LeftTop );
+				x = Paint.DrawText( r, Text, TextFlag.LeftCenter );
 				r.Left = x.Right + 4;
 
 				if ( i != Info.Count - 1 )
 				{
 					// ascii bullet separator
-					x = Paint.DrawText( r, "•", TextFlag.LeftTop );
+					x = Paint.DrawText( r, "•", TextFlag.LeftCenter );
 					r.Left = x.Right + 4;
 				}
 			}

@@ -10,16 +10,25 @@ namespace Facepunch.Steps;
 /// <summary>
 /// Downloads public artifacts that match the current repository commit.
 /// </summary>
-internal class DownloadPublicArtifacts( string name ) : Step( name )
+internal class DownloadPublicArtifacts( string name, bool nativeBinariesOnly = false ) : Step( name )
 {
 	private const string BaseUrl = "https://artifacts.sbox.game";
 	private const int MaxParallelDownloads = 32;
 	private const int MaxDownloadAttempts = 3;
-	private const int MaxManifestLookbackCommits = 512;
+	private const int MaxManifestLookbackCommits = 128;
 	protected override ExitCode RunInternal()
 	{
 		try
 		{
+			// Deepen the shallow PR checkout so rev-list has enough commits to find a
+			// matching manifest. Fetch only the current PR branch to avoid pulling down
+			// every branch and tag from the remote.
+			var headRef = Environment.GetEnvironmentVariable( "GITHUB_HEAD_REF" );
+			if ( !string.IsNullOrEmpty( headRef ) )
+			{
+				Utility.RunProcess( "git", $"fetch --deepen={MaxManifestLookbackCommits} --no-tags origin {headRef}" );
+			}
+
 			var commitCandidates = ResolveCommitHistory( MaxManifestLookbackCommits );
 			if ( commitCandidates.Count == 0 )
 			{
@@ -63,7 +72,7 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 			}
 
 			var repoRoot = Path.TrimEndingDirectorySeparator( Path.GetFullPath( Directory.GetCurrentDirectory() ) );
-			return DownloadArtifacts( httpClient, manifest, repoRoot );
+			return DownloadArtifacts( httpClient, manifest, repoRoot, nativeBinariesOnly );
 		}
 		catch ( AggregateException ex )
 		{
@@ -81,7 +90,7 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 		}
 	}
 
-	private static ExitCode DownloadArtifacts( HttpClient httpClient, ArtifactManifest manifest, string repoRoot )
+	private static ExitCode DownloadArtifacts( HttpClient httpClient, ArtifactManifest manifest, string repoRoot, bool nativeBinariesOnly )
 	{
 		var updatedCount = 0;
 		var skippedCount = 0;
@@ -93,6 +102,12 @@ internal class DownloadPublicArtifacts( string name ) : Step( name )
 			if ( string.IsNullOrWhiteSpace( entry.Path ) || string.IsNullOrWhiteSpace( entry.Sha256 ) )
 			{
 				Log.Warning( $"Skipping manifest entry with missing path or hash: '{entry.Path ?? "<null>"}'." );
+				Interlocked.Increment( ref skippedCount );
+				return;
+			}
+
+			if ( nativeBinariesOnly && !entry.Path.StartsWith( "game/bin/", StringComparison.OrdinalIgnoreCase ) )
+			{
 				Interlocked.Increment( ref skippedCount );
 				return;
 			}

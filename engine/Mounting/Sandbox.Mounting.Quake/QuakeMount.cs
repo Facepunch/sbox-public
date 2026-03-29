@@ -50,14 +50,14 @@ public partial class QuakeMount : BaseGameMount
 		return data != null ? new MemoryStream( data ) : Stream.Null;
 	}
 
-	public byte[] GetFileBytes( string pakDir, string filename )
+	public byte[] GetFileBytes( string pakDir, string filename, int maxLength = -1 )
 	{
 		if ( !paks.TryGetValue( pakDir, out var pakList ) )
 			return null;
 
 		foreach ( var pak in pakList )
 		{
-			var data = pak.GetFileBytes( filename );
+			var data = pak.GetFileBytes( filename, maxLength );
 			if ( data != null )
 				return data;
 		}

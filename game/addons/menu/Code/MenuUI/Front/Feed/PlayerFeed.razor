@@ -9,8 +9,31 @@
 
     @if (Entries?.Length > 0)
     {
+        var currentTime = DateTimeOffset.Now.AddDays( 1 );
+
         @foreach (var entry in Entries)
         {
+            if ( entry.Timestamp < currentTime.AddDays( -1 ) )
+            {
+                currentTime = entry.Timestamp;
+
+                <row>
+                    @if ( currentTime.Day == DateTimeOffset.Now.Day )
+                    {
+                        <Label class="eyebrow">
+                            Today
+                        </Label>
+                    }
+                    else
+                    {
+                        <Label class="eyebrow">
+                            @($"{currentTime.Humanize()}")
+                        </Label>
+                    }
+                    <separator class="horizontal" />
+                </row>
+            }
+
             <FeedRow Entry=@entry></FeedRow>
         }
     }

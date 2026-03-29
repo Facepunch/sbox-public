@@ -395,6 +395,22 @@ public enum FontStyle
 }
 
 /// <summary>
+/// Possible values for <c>font-variant-numeric</c> CSS property.
+/// </summary>
+public enum FontVariantNumeric
+{
+	/// <summary>
+	/// Default numeric glyph behavior.
+	/// </summary>
+	Normal = 0,
+
+	/// <summary>
+	/// Use tabular-width digits if the font provides them.
+	/// </summary>
+	TabularNums = 1,
+}
+
+/// <summary>
 /// Possible values for <c>image-rendering</c> CSS property.
 /// </summary>
 public enum ImageRendering

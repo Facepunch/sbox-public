@@ -107,7 +107,7 @@ partial class ObjectSelection
 			_tool.Tool.CurrentTool = tool;
 		}
 
-		[Shortcut( "mesh.open-clipping-tool", "C", typeof( SceneViewWidget ) )]
+		[Shortcut( "mesh.open-clipping-tool", "SHIFT+X", typeof( SceneViewWidget ) )]
 		void OpenClippingTool()
 		{
 			var tool = new ClipTool();
@@ -352,6 +352,7 @@ partial class ObjectSelection
 			var scale = meshComponent.WorldScale;
 			meshComponent.WorldScale = 1.0f;
 			meshComponent.Mesh.Scale( scale );
+			meshComponent.Mesh.ComputeFaceTextureParametersFromCoordinates();
 			meshComponent.RebuildMesh();
 		}
 

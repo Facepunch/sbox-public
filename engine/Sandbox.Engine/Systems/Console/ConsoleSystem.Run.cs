@@ -72,6 +72,8 @@ public static partial class ConsoleSystem
 	/// </summary>
 	private static void RunInternal( ConsoleCommand command )
 	{
+		ThreadSafe.AssertIsMainThread();
+
 		if ( !CanRunCommand( command.Name ) )
 		{
 			Log.Info( $"Can't run command {command.Name}" );
@@ -79,7 +81,7 @@ public static partial class ConsoleSystem
 		}
 
 		var commandString = command.ToStringCommand();
-		ConVarSystem.Run( commandString );
+		ConVarSystem.RunSingle( commandString, allowProtected: Game.IsMenu );
 	}
 
 	private struct ConsoleCommand

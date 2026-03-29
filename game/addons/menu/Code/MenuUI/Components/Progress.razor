@@ -1,0 +1,35 @@
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox;
+@using System;
+@namespace Sandbox.UI
+@inherits Panel
+
+<root>
+    <div class="inner" @ref="Inner" />
+</root>
+
+@code {
+    [Property] public float Value { get; set; }
+    [Property] public float Max { get; set; } = 100;
+    public Panel Inner { get; set; }
+
+    protected override void OnAfterTreeRender(bool firstTime)
+    {
+        UpdateWidth();
+    }
+
+    void UpdateWidth()
+    {
+        if (Inner == null)
+        {
+            return;
+        }
+
+        var max = Max;
+        var percent = max <= 0f ? 0f : Value / max * 100f;
+        percent = Math.Clamp(percent, 0f, 100f);
+
+        Inner.Style.Width = Length.Percent(percent);
+    }
+}

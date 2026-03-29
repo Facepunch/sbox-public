@@ -1,4 +1,5 @@
 ﻿using Sandbox.Utility;
+using System.Collections.Concurrent;
 using System.Threading;
 
 namespace Sandbox.Audio;
@@ -14,6 +15,10 @@ static class MixingThread
 
 	static readonly Lock _lockObject = new Lock();
 
+	// Samplers queued for disposal between mix frames. Drained at the start of MixOneBuffer,
+	// after the previous frame's Parallel.ForEach has fully completed.
+	static readonly ConcurrentQueue<AudioSampler> _samplerDisposalQueue = new();
+
 	class MixingSettings
 	{
 		public List<Listener> Listeners;
@@ -23,6 +28,18 @@ static class MixingThread
 	static MixingSettings _settings = new MixingSettings();
 
 	internal static Lock LockObject => _lockObject;
+
+	/// <summary>
+	/// Queue an AudioSampler for disposal between mix frames, so the native CAudioMixer
+	/// is never freed while a mixing task still holds a reference to it.
+	/// </summary>
+	internal static void QueueSamplerDisposal( AudioSampler sampler )
+	{
+		if ( sampler is null )
+			return;
+
+		_samplerDisposalQueue.Enqueue( sampler );
+	}
 
 	internal static void UpdateGlobals()
 	{
@@ -39,6 +56,12 @@ static class MixingThread
 
 	internal static void MixOneBuffer()
 	{
+		// Drain samplers disposed since the last frame.
+		while ( _samplerDisposalQueue.TryDequeue( out var sampler ) )
+		{
+			sampler.Dispose();
+		}
+
 		try
 		{
 			lock ( LockObject )
@@ -119,10 +142,11 @@ static class MixingThread
 		System.Threading.Tasks.Parallel.ForEach( voices, voice =>
 		{
 			if ( !voice.IsValid ) return;
-			if ( voice.sampler is null ) return;
+			var sampler = voice.sampler;
+			if ( sampler is null ) return;
 			if ( voice.Finished ) return;
 
-			voice.sampler.Sample( voice.Pitch );
+			sampler.Sample( voice.Pitch );
 		} );
 	}
 
@@ -135,9 +159,10 @@ static class MixingThread
 
 		System.Threading.Tasks.Parallel.ForEach( voices, voice =>
 		{
-			if ( voice.sampler is null ) return;
+			var sampler = voice.sampler;
+			if ( sampler is null ) return;
 			if ( voice.Finished ) return;
-			if ( voice.sampler.ShouldContinueMixing && !voice.IsFadingOut ) return;
+			if ( sampler.ShouldContinueMixing && !voice.IsFadingOut ) return;
 			if ( voice.TimeUntilFaded == false ) return;
 
 			voice.Finished = true;

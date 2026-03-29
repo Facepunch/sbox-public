@@ -4,7 +4,8 @@ using NativeEngine;
 namespace Sandbox;
 
 /// <summary>
-/// A directional scene light that is used to mimic sun light in a <see cref="SceneWorld"/>. Direction is controlled by this objects' <see cref="Rotation"/>.
+/// A directional scene light that is used to mimic sun light in a <see cref="SceneWorld"/>.
+/// Direction is controlled by this object's <see cref="Rotation"/>.
 /// </summary>
 [Expose]
 public sealed class SceneDirectionalLight : SceneLight
@@ -37,6 +38,12 @@ public sealed class SceneDirectionalLight : SceneLight
 	{
 		get { return lightNative.GetShadowCascades(); }
 		set { lightNative.SetShadowCascades( value ); }
+	}
+
+	public float ShadowCascadeSplitRatio
+	{
+		get { return lightNative.GetShadowCascadeSplitRatio(); }
+		set { lightNative.SetShadowCascadeSplitRatio( value ); }
 	}
 
 	/// <summary>

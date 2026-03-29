@@ -70,7 +70,7 @@ public partial class ModelRenderer
 
 		var parent = GameObject;
 
-		var go = parent.Children.Where( x => a.IsNamed( x.Name ) && !x.Flags.Contains( GameObjectFlags.Bone ) ).FirstOrDefault();
+		var go = parent.Children.FirstOrDefault( x => a.IsNamed( x.Name ) && !x.Flags.Contains( GameObjectFlags.Bone ) );
 		if ( !go.IsValid() )
 		{
 			go = Scene.CreateObject( true );

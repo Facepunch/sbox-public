@@ -255,12 +255,6 @@ public partial class RootPanel : Panel
 		SkipTransitions();
 	}
 
-	[Event( "language.changed" )]
-	internal void OnLanguageChanged()
-	{
-		LanguageChanged();
-	}
-
 	/// <summary>
 	/// A list of panels that are waiting to have their styles re-evaluated
 	/// </summary>

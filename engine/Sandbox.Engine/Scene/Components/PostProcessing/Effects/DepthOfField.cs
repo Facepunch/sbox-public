@@ -53,9 +53,9 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 
 	CommandList command = new CommandList( "Depth Of Field" );
 
-	private static readonly ComputeShader ShaderCs = new ComputeShader( "postprocess_standard_dof_cs" );
+	private static ComputeShader ShaderCs = new ComputeShader( "postprocess_standard_dof_cs" );
 
-	private static readonly Material Shader = Material.FromShader( "postprocess_standard_dof.shader" );
+	private static Material Shader = Material.FromShader( "postprocess_standard_dof.shader" );
 
 	public override void Render()
 	{
@@ -117,6 +117,10 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 
 			command.Attributes.SetCombo( "D_PASS", BlurPasses.RhomboidBlur );
 			command.DispatchCompute( ShaderCs, Vertical.Size );
+
+			command.ResourceBarrierTransition( Vertical, ResourceState.PixelShaderResource );
+			command.ResourceBarrierTransition( Diagonal, ResourceState.PixelShaderResource );
+			command.ResourceBarrierTransition( Final, ResourceState.PixelShaderResource );
 
 			command.Attributes.SetCombo( "D_DOF_TYPE", type );
 			command.Attributes.SetCombo( "D_PASS", 0 );

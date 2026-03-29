@@ -202,20 +202,20 @@ float3 LTC::EvaluateLtc(float3 normal, float3 view, float3 position, float3x3 tr
     // Transform area light into tangent space
     transform = mul(transpose(transform), float3x3(T1, T2, normal));
 
-    float3 color = light.GetColor();
+    float3 color = light.Color;
 
     // Handle capsule lights with analytical integration
-    if (light.GetShape() == LightShape::Capsule)
+    if (light.Shape == LightShape::LightShapeCapsule)
     {
         float3 lightPosition = light.GetPosition();
         float3 forward = normalize(light.GetDirection());
-        float halfLength = light.GetShapeSize().y * 0.5;
+        float halfLength = light.ShapeSize.y * 0.5;
 
         // Transform capsule endpoints to tangent space
         float3 p1 = mul(transform, ( lightPosition - forward * halfLength ) - position);
         float3 p2 = mul(transform, ( lightPosition + forward * halfLength ) - position);
-        float radius = light.GetShapeSize().x;
-        
+        float radius = light.ShapeSize.x;
+
         return radius * Line(p1, p2) * color;
     }
     
@@ -281,12 +281,12 @@ float LTC::Line(float3 p1, float3 p2)
 // Extracts points from a light definition based on its shape
 void LTC::GetRectPoints(in BinnedLight light, in float3 position, in float3 normal, out float3 points[4])
 {
-    switch (light.GetShape())
+    switch (light.Shape)
     {
-        case LightShape::Sphere:
+        case LightShape::LightShapeSphere:
         {
             float3 lightPosition = light.GetPosition();
-            float radius = light.GetShapeSize().x;
+            float radius = light.ShapeSize.x;
             float3 toLight = lightPosition - position;
 
             // Create orthogonal basis for the silhouette plane
@@ -301,17 +301,17 @@ void LTC::GetRectPoints(in BinnedLight light, in float3 position, in float3 norm
             points[3] = lightPosition + (-right + up) * radius;
             break;
         }
-        case LightShape::Capsule:
+        case LightShape::LightShapeCapsule:
         {
             break;
         }
-        case LightShape::Rectangle:
+        case LightShape::LightShapeRectangle:
         {
             float3 lightPosition = light.GetPosition();
             float3 forward = normalize(light.GetDirection());
             float3 up = normalize(light.GetDirectionUp());
             float3 right = cross(up, forward);
-            float2 size = light.GetShapeSize();
+            float2 size = light.ShapeSize;
 
             float3 ex = size.y * right;
             float3 ey = size.x * up;

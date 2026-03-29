@@ -68,9 +68,15 @@ internal class Listener : IValid, IDisposable
 	public Vector3 Position => Transform.Position;
 
 	/// <summary>
-	/// Scene this listener belongs to.
+	/// Weak reference to the scene, so we don't prevent GC of the scene
+	/// when listeners are held in static lists.
 	/// </summary>
-	public readonly Scene Scene;
+	private readonly WeakReference<Scene> _sceneRef;
+
+	/// <summary>
+	/// Scene this listener belongs to. May return null if the scene has been collected.
+	/// </summary>
+	public Scene Scene => _sceneRef is not null && _sceneRef.TryGetTarget( out var scene ) ? scene : null;
 
 	private bool _destroyed;
 
@@ -82,7 +88,7 @@ internal class Listener : IValid, IDisposable
 
 	public Listener( Scene scene )
 	{
-		Scene = scene;
+		_sceneRef = new WeakReference<Scene>( scene );
 
 		_active.Add( this );
 	}

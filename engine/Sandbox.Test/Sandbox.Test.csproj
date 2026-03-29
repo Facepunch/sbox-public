@@ -54,5 +54,14 @@
     <Folder Include="Scene\Scene\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="MovieMaker\TestData\RawRotation.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="MovieMaker\TestData\RawTransform.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
 

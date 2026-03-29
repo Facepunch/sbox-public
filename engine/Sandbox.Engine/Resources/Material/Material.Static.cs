@@ -64,4 +64,18 @@ public sealed partial class Material : Resource
 		return material;
 	}
 
+	/// <summary>
+	/// Dispose all cached shader materials created via <see cref="FromShader(Shader)"/> and <see cref="FromShader(string)"/>.
+	/// Called during shutdown to release native strong handles before the resource system tears down.
+	/// </summary>
+	internal static void Shutdown()
+	{
+		foreach ( var material in shaderMaterials.Values )
+		{
+			material?.Destroy();
+		}
+
+		shaderMaterials.Clear();
+	}
+
 }

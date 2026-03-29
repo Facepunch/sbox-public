@@ -26,6 +26,41 @@ static class AssetThumbnail
 		return GetAssetThumb( asset )?.ptr ?? default;
 	}
 
+	/// <summary>
+	/// Get an asset thumb. Will generate it if not immediately available, but will wait for it to be generated before returning.
+	/// </summary>
+	internal static async Task<Pixmap> GetAssetThumbAsync( Asset asset )
+	{
+		ArgumentNullException.ThrowIfNull( asset, nameof( asset ) );
+
+		if ( asset.HasCachedThumbnail )
+		{
+			return asset.CachedThumbnail;
+		}
+
+		var fullPath = GetThumbnailFile( asset, false );
+		if ( System.IO.File.Exists( fullPath ) )
+		{
+			var pix = Pixmap.FromFile( fullPath );
+			asset.CachedThumbnail = pix;
+			return asset.CachedThumbnail;
+		}
+
+		// start an async render
+		QueueThumbBuild( asset );
+
+		// wait for it to come out of the list
+		while ( RenderQueue.Contains( asset ) || RenderingList.Contains( asset ) )
+		{
+			await Task.Delay( 100 );
+		}
+
+		// If it was null still
+		asset.CachedThumbnail ??= asset.AssetType.Icon256;
+
+		return asset.CachedThumbnail;
+	}
+
 	internal static Pixmap GetAssetThumb( Asset asset, bool generateIfNotInCache = true )
 	{
 		ArgumentNullException.ThrowIfNull( asset, nameof( asset ) );

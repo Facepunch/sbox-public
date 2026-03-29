@@ -160,7 +160,7 @@ internal static partial class DebugOverlay
 				legendPos.y += legendRowHeight + 2;
 			}
 
-			var samplesToAverage = (NetworkDebugSystem.SampleRate * 1).CeilToInt();
+			var samplesToAverage = (1.0f / NetworkDebugSystem.SampleRate).CeilToInt();
 			var recent = system.Samples.TakeLast( samplesToAverage );
 			var totalBytes = recent.Sum( s => s.BytesPerType.Values.Sum() );
 			var kbPerSecondIn = totalBytes / 1024f;

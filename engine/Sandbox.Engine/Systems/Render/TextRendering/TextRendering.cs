@@ -27,45 +27,44 @@ public static partial class TextRendering
 
 		if ( clip == default ) clip = 8096;
 
-		var hc = new HashCode();
-		hc.Add( scope );
-		hc.Add( clip );
-		hc.Add( flag );
-
-		// TextManager is caching this right now
-		var tb = GetOrCreateTextBlock( hc.ToHashCode(), out bool created );
-
-		if ( created )
-		{
-			tb.Clip = clip;
-			tb.Flags = flag;
-			tb.Initialize( scope );
-		}
-
+		var tb = GetOrCreateTextBlock( scope, flag, clip );
 		tb.MakeReady();
 		return tb.Texture;
 	}
 
-	static ConcurrentDictionary<int, TextBlock> Dictionary = new();
-
 	/// <summary>
-	/// We don't expose this because we don't want them to do something stupid like free
-	/// a textblock that they're still using
+	/// Resolves or creates a fully initialized <see cref="TextBlock"/> for the given scope.
+	/// Safe to call from any thread. MakeReady() must still be called on the render thread before drawing.
 	/// </summary>
-	internal static TextBlock GetOrCreateTextBlock( int hash, out bool created )
+	internal static TextBlock GetOrCreateTextBlock( in Scope scope, TextFlag flag, Vector2 clip )
 	{
-		Assert.False( Application.IsHeadless );
+		if ( Application.IsHeadless ) return null;
 
-		created = false;
+		var hc = new HashCode();
+		hc.Add( scope );
+		hc.Add( new Vector2( clip ) );
+		hc.Add( flag );
 
-		if ( Dictionary.TryGetValue( hash, out var textBlock ) )
-			return textBlock;
+		var hash = hc.ToHashCode();
 
-		created = true;
-		textBlock = new TextBlock();
-		Dictionary[hash] = textBlock;
-		return textBlock;
+		if ( Dictionary.TryGetValue( hash, out var tb ) )
+			return tb;
+
+		// Build a fully initialized candidate before publishing.
+		// If another thread wins the race, their instance is returned and ours is discarded.
+		var candidate = new TextBlock();
+		candidate.Clip = clip;
+		candidate.Flags = flag;
+		candidate.Initialize( scope );
+
+		// GetOrAdd is race-safe: only one instance wins the slot.
+		// Set CacheKey on the winner so MakeReady can re-register if Tick() evicts it.
+		var winner = Dictionary.GetOrAdd( hash, candidate );
+		winner.CacheKey = hash;
+		return winner;
 	}
+
+	static ConcurrentDictionary<int, TextBlock> Dictionary = new();
 
 	static RealTimeSince _timeSinceCleanup;
 
@@ -94,7 +93,7 @@ public static partial class TextRendering
 		//Log.Info( $"TextManager: {total} ({deleted} deleted)" );
 	}
 
-	internal static void ClearCache()
+	internal static void Shutdown()
 	{
 		foreach ( var item in Dictionary )
 		{

@@ -14,6 +14,7 @@
 // under the License.
 
 using HarfBuzzSharp;
+using Sandbox.UI;
 using SkiaSharp;
 using System.Runtime.InteropServices;
 using Topten.RichTextKit.Utils;
@@ -204,6 +205,11 @@ namespace Topten.RichTextKit
 		/// </summary>
 		const int overScale = 512;
 
+		static readonly Feature[] _tabularNumbersFeature = new[]
+		{
+			new Feature( new Tag( 't', 'n', 'u', 'm' ), 1 )
+		};
+
 
 
 		/// <summary>
@@ -324,7 +330,14 @@ namespace Topten.RichTextKit
 				buffer.GuessSegmentProperties();
 
 				// Shape it
-				_font.Shape( buffer );
+				if ( style.FontVariantNumeric == FontVariantNumeric.TabularNums )
+				{
+					_font.Shape( buffer, _tabularNumbersFeature );
+				}
+				else
+				{
+					_font.Shape( buffer );
+				}
 
 				// RTL?
 				bool rtl = buffer.Direction == Direction.RightToLeft;

@@ -386,8 +386,66 @@ public partial class ClothingContainer
 		return CreateFromJson( Avatar.AvatarJson );
 	}
 
+	/// <summary>
+	/// Create the container from a connection's avatar, filtered to only items they are verified to own.
+	/// </summary>
+	public static ClothingContainer CreateFromConnection( Connection connection, bool removeUnowned = true )
+	{
+		var clothing = CreateFromJson( connection.GetUserData( "avatar" ) );
+		if ( removeUnowned )
+		{
+			clothing.RemoveUnownedItems( connection );
+		}
+		return clothing;
+	}
+
+	/// <summary>
+	/// Removes any clothing items that require Steam inventory ownership but the local user doesn't own.
+	/// </summary>
+	public void RemoveUnownedItems()
+	{
+		Clothing.RemoveAll( entry =>
+		{
+			if ( entry.Clothing is not null )
+				return !entry.Clothing.HasPermissions();
+
+			if ( entry.ItemDefinitionId != 0 )
+				return !Services.Inventory.HasItem( entry.ItemDefinitionId );
+
+			return false;
+		} );
+	}
+
+	/// <summary>
+	/// Removes clothing items that the given connection is not verified to own.
+	/// </summary>
+	public void RemoveUnownedItems( Connection connection )
+	{
+		if ( connection == Connection.Local )
+		{
+			// Use the local steam inventory for the local player
+			RemoveUnownedItems();
+			return;
+		}
+
+		// Use Connection.HasInventoryItem for remote players
+		Clothing.RemoveAll( entry =>
+		{
+			var defId = entry.ItemDefinitionId != 0
+				? entry.ItemDefinitionId
+				: (entry.Clothing?.SteamItemDefinitionId ?? 0);
+
+			if ( defId == 0 )
+				return false;
+
+			return !connection.HasInventoryItem( defId );
+		} );
+	}
+
 	internal async Task Store( bool active, int slot )
 	{
+		RemoveUnownedItems();
+
 		var json = Serialize();
 
 		try

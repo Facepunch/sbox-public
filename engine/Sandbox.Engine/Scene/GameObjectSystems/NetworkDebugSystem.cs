@@ -1,19 +1,30 @@
 ﻿using Sandbox.Utility;
+using System.Diagnostics;
 
 namespace Sandbox;
 
 [Expose]
-sealed class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
+sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 {
 	[ConVar( "net_debug_culling", ConVarFlags.Protected )]
 	private static bool DebugCulling { get; set; }
+
+	[ConVar( "net_diag_record", ConVarFlags.Protected, Help = "Record network RPC stats for use with net_diag_dump" )]
+	private static bool NetworkRecord { get; set; }
 
 	public NetworkDebugSystem( Scene scene ) : base( scene )
 	{
 		Listen( Stage.FinishUpdate, 0, Tick, "Tick" );
 	}
 
-	internal readonly Dictionary<string, MessageStats> Stats = new();
+	internal Dictionary<string, MessageStats> InboundStats;
+	internal Dictionary<string, MessageStats> OutboundStats;
+	internal Dictionary<Guid, Dictionary<string, MessageStats>> ConnectionStats;
+
+	internal Dictionary<string, MessageStats> SyncVarInboundStats;
+	internal Dictionary<string, MessageStats> SyncVarOutboundStats;
+	internal Dictionary<Guid, Dictionary<string, MessageStats>> SyncVarConnectionStats;
+	private readonly Stopwatch _trackingTimer = new();
 
 	internal enum MessageType
 	{
@@ -53,34 +64,125 @@ sealed class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 		public int TotalCalls { get; private set; }
 		public int TotalBytes { get; private set; }
 		public int BytesPerMessage { get; private set; }
+		public int PeakBytes { get; private set; }
 		private CircularBuffer<int> History { get; set; } = new( 10 );
+		private int _historySum;
 
 		public void Add( int messageSize )
 		{
 			TotalCalls++;
 			TotalBytes += messageSize;
+			if ( messageSize > PeakBytes ) PeakBytes = messageSize;
+
+			if ( History.IsFull ) _historySum -= History.Front();
 			History.PushBack( messageSize );
-			BytesPerMessage = (int)History.Average( x => x );
+			_historySum += messageSize;
+			BytesPerMessage = _historySum / History.Size;
 		}
 	}
 
 	/// <summary>
-	/// Track an incoming message so that we can gather data about how frequently it is called
-	/// and the size of the messages.
+	/// How long stats have been accumulating since the last reset (or first tracked message).
 	/// </summary>
-	internal void Track<T>( string name, T message )
+	internal TimeSpan TrackingElapsed => _trackingTimer.Elapsed;
+
+	/// <summary>
+	/// Reset all accumulated RPC tracking stats.
+	/// </summary>
+	internal void Reset()
 	{
-		if ( DebugOverlay.overlay_network_calls == 0 )
+		InboundStats = null;
+		OutboundStats = null;
+		ConnectionStats = null;
+		SyncVarInboundStats = null;
+		SyncVarOutboundStats = null;
+		SyncVarConnectionStats = null;
+		_trackingTimer.Reset();
+	}
+
+	private void EnsureInitialized()
+	{
+		if ( _trackingTimer.IsRunning )
 			return;
 
-		var toBytes = Game.TypeLibrary.ToBytes( message );
+		InboundStats = new();
+		OutboundStats = new();
+		ConnectionStats = new();
+		SyncVarInboundStats = new();
+		SyncVarOutboundStats = new();
+		SyncVarConnectionStats = new();
+		_trackingTimer.Start();
+	}
 
-		if ( !Stats.TryGetValue( name, out var stat ) )
+	/// <summary>
+	/// Track a network message for diagnostic purposes.
+	/// </summary>
+	internal void Track<T>( string name, T message, bool outbound = false, Connection source = default )
+	{
+		if ( DebugOverlay.overlay_network_calls == 0 && !NetworkRecord )
+			return;
+
+		var bs = ByteStream.Create( 256 );
+		int msgSize;
+		try
 		{
-			stat = Stats[name] = new();
+			Game.TypeLibrary.ToBytes( message, ref bs );
+			msgSize = bs.Length;
+		}
+		finally
+		{
+			bs.Dispose();
 		}
 
-		stat.Add( toBytes.Length );
+		EnsureInitialized();
+
+		var stats = outbound ? OutboundStats : InboundStats;
+
+		if ( !stats.TryGetValue( name, out var stat ) )
+			stat = stats[name] = new();
+
+		stat.Add( msgSize );
+
+		// Per-connection breakdown for inbound messages
+		if ( !outbound && source is not null )
+		{
+			if ( !ConnectionStats.TryGetValue( source.Id, out var connStats ) )
+				connStats = ConnectionStats[source.Id] = new();
+
+			if ( !connStats.TryGetValue( name, out var connStat ) )
+				connStat = connStats[name] = new();
+
+			connStat.Add( msgSize );
+		}
+	}
+
+	/// <summary>
+	/// Track a sync var property update for diagnostic purposes.
+	/// </summary>
+	internal void TrackSync( string name, int bytes, bool outbound = false, Connection source = default )
+	{
+		if ( !NetworkRecord )
+			return;
+
+		EnsureInitialized();
+
+		var stats = outbound ? SyncVarOutboundStats : SyncVarInboundStats;
+
+		if ( !stats.TryGetValue( name, out var stat ) )
+			stat = stats[name] = new();
+
+		stat.Add( bytes );
+
+		if ( !outbound && source is not null )
+		{
+			if ( !SyncVarConnectionStats.TryGetValue( source.Id, out var connStats ) )
+				connStats = SyncVarConnectionStats[source.Id] = new();
+
+			if ( !connStats.TryGetValue( name, out var connStat ) )
+				connStat = connStats[name] = new();
+
+			connStat.Add( bytes );
+		}
 	}
 
 	/// <summary>
@@ -92,10 +194,20 @@ sealed class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 		if ( DebugOverlay.overlay_network_graph == 0 )
 			return;
 
-		var toBytes = Game.TypeLibrary.ToBytes( message );
+		var bs = ByteStream.Create( 256 );
+		int msgSize;
+		try
+		{
+			Game.TypeLibrary.ToBytes( message, ref bs );
+			msgSize = bs.Length;
+		}
+		finally
+		{
+			bs.Dispose();
+		}
 
-		if ( !_currentTick.BytesPerType.TryAdd( type, toBytes.Length ) )
-			_currentTick.BytesPerType[type] += toBytes.Length;
+		if ( !_currentTick.BytesPerType.TryAdd( type, msgSize ) )
+			_currentTick.BytesPerType[type] += msgSize;
 	}
 
 	/// <summary>

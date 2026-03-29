@@ -4,8 +4,8 @@ using System;
 class MaterialLoader( string fullPath ) : ResourceLoader<GameMount>
 {
 	private string FullPath { get; init; } = fullPath;
-	private static readonly Material ModelMaterial = Material.Create( "model", "model" );
-	private static readonly Material EmissiveMaterial = Material.Create( "emissive", "emissive" );
+	private static Material ModelMaterial = Material.Create( "model", "model" );
+	private static Material EmissiveMaterial = Material.Create( "emissive", "emissive" );
 
 	static MaterialLoader()
 	{

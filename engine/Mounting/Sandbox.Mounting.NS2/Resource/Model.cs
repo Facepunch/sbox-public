@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 {
 	private string FullPath { get; } = fullPath;
-	private static readonly Material DefaultMaterial = Material.Load( "materials/dev/primary_white.vmat" );
+	private static Material DefaultMaterial = Material.Load( "materials/dev/primary_white.vmat" );
 
 	[StructLayout( LayoutKind.Sequential, Pack = 1 )]
 	struct Vertex

@@ -218,6 +218,11 @@ internal static partial class InputRouter
 		CursorName = name;
 	}
 
+	internal static void Shutdown()
+	{
+		KeyboardFocusPanel = null;
+	}
+
 	internal static void ShutdownUserCursors()
 	{
 		if ( Application.IsHeadless )

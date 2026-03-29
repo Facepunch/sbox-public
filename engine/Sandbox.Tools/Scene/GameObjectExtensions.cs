@@ -6,6 +6,7 @@ public static partial class SceneExtensions
 	{
 		if ( target is null ) return false;
 		if ( target is Scene ) return false;
+		if ( target.Flags.Contains( GameObjectFlags.Hidden ) ) return false;
 
 		return true;
 	}

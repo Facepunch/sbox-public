@@ -228,6 +228,9 @@ class ControlSheetRow : Widget
 		e.Accepted = true;
 
 		var menu = new ContextMenu( this );
+
+		ControlWidget?.OnLabelContextMenu( menu );
+
 		menu.AddOption( $"Copy {property.DisplayName}", "content_copy", () =>
 		{
 			string str = ControlWidget.ToClipboardString();

@@ -1,7 +1,7 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using Sandbox.MovieMaker;
-using System.Linq;
+﻿using Sandbox.MovieMaker;
 using Sandbox.MovieMaker.Properties;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 
 namespace Editor.MovieMaker;
 
@@ -21,12 +21,11 @@ public sealed partial class TrackView : IComparable<TrackView>
 	public IProjectTrack Track { get; }
 	public ITrackTarget Target { get; }
 
-	public string Name => Track.Name;
+	private MovieTime? _duration;
 
-	public MovieTime Duration => _blocks.Select( x => x.TimeRange.End )
-		.Concat( _previewBlocks.Select( x => x.TimeRange.End ) )
-		.DefaultIfEmpty( MovieTime.Zero )
-		.Max();
+	public MovieTime Duration => _duration ??= CalculateDuration();
+
+	public string Name => Track.Name;
 
 	private IPropertyTrack<Transform>? _transformTrack;
 
@@ -73,7 +72,6 @@ public sealed partial class TrackView : IComparable<TrackView>
 			_isExpanded = value;
 
 			SetCookie( nameof( IsExpanded ), value );
-			TrackList.Update();
 		}
 	}
 
@@ -94,15 +92,7 @@ public sealed partial class TrackView : IComparable<TrackView>
 	public bool IsLocked => IsLockedSelf || Parent?.IsLocked is true;
 
 	public string Title => Track.Name;
-	public string Description
-	{
-		get
-		{
-			var path = Track.GetPath();
-			string[] propertyNames = [path.ReferenceTrack.Name, .. path.PropertyNames];
-			return string.Join( " \u2192 ", propertyNames );
-		}
-	}
+	public string Description => Track.GetPathString();
 
 	private readonly SynchronizedSet<IProjectTrack, TrackView> _children;
 
@@ -320,6 +310,34 @@ public sealed partial class TrackView : IComparable<TrackView>
 		return changed;
 	}
 
+	private void InvalidateDuration()
+	{
+		Track.Project.InvalidateDuration();
+		_duration = null;
+	}
+
+	private MovieTime CalculateDuration()
+	{
+		var duration = MovieTime.Zero;
+
+		if ( Track is IProjectBlockTrack blockTrack )
+		{
+			duration = MovieTime.Max( blockTrack.TimeRange.End, duration );
+		}
+
+		foreach ( var child in Children )
+		{
+			duration = MovieTime.Max( child.Duration, duration );
+		}
+
+		foreach ( var block in PreviewBlocks )
+		{
+			duration = MovieTime.Max( block.TimeRange.End, duration );
+		}
+
+		return duration;
+	}
+
 	private bool _removed;
 
 	internal void OnRemoved()
@@ -343,6 +361,8 @@ public sealed partial class TrackView : IComparable<TrackView>
 		_blocksInvalid = true;
 		_previewBlocksInvalid = true;
 		_dispatchValueChanged = true;
+
+		InvalidateDuration();
 
 		Parent?.MarkValueChanged();
 		TrackList.Session.ClipModified();

@@ -48,6 +48,11 @@ public partial class Panel
 		var mat = render.Matrix.Inverted;
 		mat *= Matrix.CreateTranslation( Box.RectOuter.Position * -1.0f );
 
+		// filter applies before transform, so we need to store it temporarily
+		CommandList.Attributes.Set( "TransformMat", Matrix.Identity );
+		_lastLayerMatrix = GlobalMatrix;
+		GlobalMatrix = null;
+
 		// get an RT handle for this panel layer
 		var handle = CommandList.GetRenderTarget( PanelLayerRTName, (int)_panelLayerSize?.x, (int)_panelLayerSize?.y, depthFormat: ImageFormat.None );
 
@@ -60,6 +65,13 @@ public partial class Panel
 	/// </summary>
 	internal void BuildLayerPopCommands( PanelRenderer render, RenderTarget defaultRenderTarget )
 	{
+		// Restore layer transform
+		if ( _lastLayerMatrix.HasValue )
+		{
+			GlobalMatrix = _lastLayerMatrix;
+			_lastLayerMatrix = null;
+		}
+
 		if ( _panelLayerSize is null ) return;
 		if ( ComputedStyle is null ) return;
 		if ( !IsVisible ) return;

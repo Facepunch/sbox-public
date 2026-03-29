@@ -1,0 +1,11 @@
+﻿managed static class Sandbox.Rendering.ShadowMapperCallbacks
+{
+	void InitForView( void* handle, ISceneView view );
+	void SetShaderAttributes( void* handle, CRenderAttributes attr );
+	void UploadToGPU( void* handle );
+
+	int DoDirectionalLight( void* handle, CSceneLightObject directionalLight, ISceneView view );
+	uint FindOrCreateShadowMaps( void* handle, CSceneLightObject obj, ISceneView view, float screenSize );
+
+	void OnLightRemoved( CSceneLightObject obj );
+}

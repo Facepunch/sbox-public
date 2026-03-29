@@ -126,6 +126,15 @@ internal static class CloneHelpers
 			return;
 		}
 
+		// Fast path: if the type implements ICloneable and is not a BCL/system type (whose Clone()
+		// is only a shallow copy that would silently skip GUID rewiring), call Clone() directly
+		// to avoid the JSON roundtrip overhead.
+		if ( originalValue is ICloneable cloneable && ReflectionQueryCache.IsICloneableSafe( valueType ) )
+		{
+			SetMemberValue( member, target, cloneable.Clone() );
+			return;
+		}
+
 		// Fallback to JSON
 		var clonedJson = Json.ToNode( originalValue, valueType );
 		UpdateClonedIdsInJson( clonedJson, originalIdToCloneId );
@@ -186,7 +195,12 @@ internal static class CloneHelpers
 /// </summary>
 internal static class MemberCopyCache
 {
+	// Compiled expression delegates come from cant be upgraded via hot upload -> skip.
+	// The cache is still cleared explicitly via ReflectionQueryCache.ClearTypeCache() during hotload.
+	[SkipHotload]
 	private static readonly Dictionary<MemberDescription, Action<object, object>> _cache = new();
+
+	internal static bool IsEmpty => _cache.Count == 0;
 
 	internal static void Clear() => _cache.Clear();
 

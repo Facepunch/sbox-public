@@ -28,20 +28,22 @@ public sealed partial class Model : Resource
 		RegisterWeakResourceId( Name );
 	}
 
-	internal void Dispose()
+	internal override void Destroy()
 	{
 		if ( !native.IsNull )
 		{
+			var path = ResourcePath;
+
 			var n = native;
 			native = default;
 
-			MainThread.Queue( () => n.DestroyStrongHandle() );
+			MainThread.Queue( () =>
+			{
+				n.DestroyStrongHandle();
+			} );
 		}
-	}
 
-	~Model()
-	{
-		Dispose();
+		base.Destroy();
 	}
 
 	/// <summary>

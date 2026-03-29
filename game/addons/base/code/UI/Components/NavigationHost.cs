@@ -488,10 +488,18 @@ public interface INavigatorPage
 public static class NavigationExtensions
 {
 	/// <summary>
+	/// Find the closest NavigationHost ancestor (or self)
+	/// </summary>
+	public static NavigationHost GetNavigator( this Panel panel )
+	{
+		return panel.AncestorsAndSelf.OfType<NavigationHost>().FirstOrDefault();
+	}
+
+	/// <summary>
 	/// Find the closest navigatorPanel ancestor and navigate to the given url
 	/// </summary>
 	public static Panel Navigate( this Panel panel, string url )
 	{
-		return panel.AncestorsAndSelf.OfType<NavigationHost>().FirstOrDefault()?.Navigate( url ) ?? null;
+		return panel.GetNavigator()?.Navigate( url ) ?? null;
 	}
 }

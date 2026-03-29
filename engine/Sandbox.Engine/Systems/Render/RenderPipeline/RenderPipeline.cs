@@ -36,6 +36,7 @@ internal partial class RenderPipeline
 			ClusteredCullingLayer.AddToView( view, viewport );
 		}
 
+		view.GetRenderAttributesPtr().SetIntValue( "ShadowFilterQuality", ShadowMapper.ShadowFilter );
 
 		// Depth Prepass with a small GBuffer ( Normals, Roughness )
 		{

@@ -24,9 +24,7 @@ internal static partial class DebugOverlay
 		static long _gen0Sum = 0;
 		static long _gen1Sum = 0;
 		static long _gen2Sum = 0;
-		static long _allocBytesSum = 0;
-
-
+		static long _allocBytesAtOpen = 0;
 
 		internal static void Disabled()
 		{
@@ -42,7 +40,7 @@ internal static partial class DebugOverlay
 			_gen0Sum = 0;
 			_gen1Sum = 0;
 			_gen2Sum = 0;
-			_allocBytesSum = 0;
+			_allocBytesAtOpen = 0;
 			_accumByType.Clear();
 			_topAllocs.Clear();
 		}
@@ -57,6 +55,7 @@ internal static partial class DebugOverlay
 			{
 				_openTime = now;
 				_lastFlushTime = now;
+				_allocBytesAtOpen = GC.GetTotalAllocatedBytes( precise: false );
 			}
 
 			var ls = Sandbox.Diagnostics.PerformanceStats.LastSecond;
@@ -69,7 +68,6 @@ internal static partial class DebugOverlay
 				{
 					var prev = _accumByType.GetValueOrDefault( e.Name );
 					_accumByType[e.Name] = (prev.Bytes + (long)e.TotalBytes, prev.Count + (long)e.Count);
-					_allocBytesSum += (long)e.TotalBytes;
 				}
 
 				_topAllocs.Clear();
@@ -122,25 +120,41 @@ internal static partial class DebugOverlay
 			var avgMs = _frameCount > 0 ? TimeSpan.FromTicks( _pauseTicksSum / _frameCount ).TotalMilliseconds : 0.0;
 
 			var gcMemInfo = GC.GetGCMemoryInfo();
-			var mbPerSec = liveElapsed > 0 ? _allocBytesSum / (1024.0 * 1024.0 * liveElapsed) : 0.0;
-			var mbTotal = _allocBytesSum / (1024.0 * 1024.0);
+			var allocBytesTotal = GC.GetTotalAllocatedBytes( precise: false ) - _allocBytesAtOpen;
+			var mbPerSec = liveElapsed > 0 ? allocBytesTotal / (1024.0 * 1024.0 * liveElapsed) : 0.0;
+			var mbTotal = allocBytesTotal / (1024.0 * 1024.0);
 			var elapsedSecondsInt = (int)liveElapsed;
 			var windowLabel = elapsedSecondsInt >= 60 ? $"{elapsedSecondsInt / 60}m {elapsedSecondsInt % 60}s" : $"{elapsedSecondsInt}s";
 
-			headerScope.Text = $"GC Pauses (tracked for {windowLabel})";
+			headerScope.Text = $"Allocations & GC ({windowLabel} window)";
 			Hud.DrawText( headerScope, new Rect( x, y, 512, 14 ), TextFlag.LeftTop );
 			y += 16;
 
 			DrawSummaryRow( x, ref y, scope, dimScope, "Gen (0/1/2):", $"{_gen0Sum + ls.Gc0} / {_gen1Sum + ls.Gc1} / {_gen2Sum + ls.Gc2}" );
-			DrawSummaryRow( x, ref y, scope, dimScope, "Total:", $"{mbTotal:N1} MB" );
-			DrawSummaryRow( x, ref y, scope, dimScope, "Rate:", $"{mbPerSec:N2} MB/s" );
-			DrawSummaryRow( x, ref y, scope, dimScope, "Avg:", $"{avgMs:N2}ms" );
-			DrawSummaryRow( x, ref y, scope, dimScope, "Min:", $"{lowestPauseMs:N2}ms" );
-			DrawSummaryRow( x, ref y, scope, dimScope, "Max:", $"{highestPauseMs:N2}ms" );
-			DrawSummaryRow( x, ref y, scope, dimScope, "Sum:", $"{sumMs:N2}ms" );
-			DrawSummaryRow( x, ref y, scope, dimScope, $"Frames with >{StutterThresholdTicks / TimeSpan.TicksPerMillisecond}ms GC:", $"{_stutterCount} frames" );
-			DrawSummaryRow( x, ref y, scope, dimScope, "GC%:", $"{sumMs / (liveElapsed * 1000.0) * 100.0:N2}%" );
-			DrawSummaryRow( x, ref y, scope, dimScope, "GC% since process start:", $"{gcMemInfo.PauseTimePercentage:N2}%" );
+			DrawSummaryRow( x, ref y, scope, dimScope, "Total / Rate:", $"{mbTotal:N1} MB / {mbPerSec:N2} MB/s" );
+			DrawSummaryRow( x, ref y, scope, dimScope, "Pause Avg / Min / Max:", $"{avgMs:N2}ms / {lowestPauseMs:N2}ms / {highestPauseMs:N2}ms" );
+			DrawSummaryRow( x, ref y, scope, dimScope, "GC Pause Sum:", $"{sumMs:N2}ms" );
+			DrawSummaryRow( x, ref y, scope, dimScope, "GC Pause %:", $"{sumMs / (liveElapsed * 1000.0) * 100.0:N2}% window, {gcMemInfo.PauseTimePercentage:N2}% lifetime" );
+			DrawSummaryRow( x, ref y, scope, dimScope, $"Stutters (>{StutterThresholdTicks / TimeSpan.TicksPerMillisecond}ms):", $"{_stutterCount} frames" );
+
+			y += 8;
+			headerScope.TextColor = new Color( 0.5f, 1f, 1f );
+			headerScope.Text = "Managed Heap (last GC)";
+			Hud.DrawText( headerScope, new Rect( x, y, 512, 14 ), TextFlag.LeftTop );
+			y += 16;
+
+			// Stats from GCMemoryInfo — these are the modern .NET equivalents of the
+			// .NET Framework "Memory performance counters" (PerformanceCounter objects).
+			var genInfo = gcMemInfo.GenerationInfo;
+			var heapFragPct = gcMemInfo.HeapSizeBytes > 0 ? (double)gcMemInfo.FragmentedBytes / gcMemInfo.HeapSizeBytes * 100.0 : 0.0;
+			DrawSummaryRow( x, ref y, scope, dimScope, "Heap (frag):", $"{gcMemInfo.HeapSizeBytes.FormatBytes()} ({heapFragPct:N1}%)" );
+			DrawSummaryRow( x, ref y, scope, dimScope, "Committed:", gcMemInfo.TotalCommittedBytes.FormatBytes() );
+			var g0 = genInfo.Length > 0 ? genInfo[0].SizeAfterBytes.FormatBytes() : "?";
+			var g1 = genInfo.Length > 1 ? genInfo[1].SizeAfterBytes.FormatBytes() : "?";
+			var g2 = genInfo.Length > 2 ? genInfo[2].SizeAfterBytes.FormatBytes() : "?";
+			DrawSummaryRow( x, ref y, scope, dimScope, "Gen (0/1/2):", $"{g0} / {g1} / {g2}" );
+			if ( genInfo.Length > 3 ) DrawSummaryRow( x, ref y, scope, dimScope, "LOH:", genInfo[3].SizeAfterBytes.FormatBytes() );
+			DrawSummaryRow( x, ref y, scope, dimScope, "Pinned / Pending Finalizer:", $"{gcMemInfo.PinnedObjectsCount} / {gcMemInfo.FinalizationPendingCount}" );
 
 			y += 8;
 			headerScope.TextColor = new Color( 1f, 1f, 0.5f );

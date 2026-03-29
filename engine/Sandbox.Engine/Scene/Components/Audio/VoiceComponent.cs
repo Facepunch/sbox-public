@@ -172,8 +172,11 @@ public class Voice : Component
 			recording = false;
 		}
 
-		sound?.Dispose();
-		sound = null;
+		if ( sound is not null )
+		{
+			sound.Finished = true;
+			sound = null;
+		}
 		soundStream?.Dispose();
 		soundStream = null;
 	}
@@ -244,9 +247,11 @@ public class Voice : Component
 
 		// Stop the sound if we haven't received voice data for a while
 		// This also stops LipSync processing which runs per-frame
+		// Use Finished instead of Dispose() so the audio thread can safely wrap up
+		// before TickInternal disposes it - avoids concurrent CBinauralEffect release/create.
 		if ( sound.IsValid() && LastPlayed > 1.0f )
 		{
-			sound.Dispose();
+			sound.Finished = true;
 			sound = null;
 		}
 

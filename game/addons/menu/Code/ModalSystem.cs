@@ -2,7 +2,6 @@
 using MenuProject.Modals.PauseMenuModal;
 using Sandbox;
 using Sandbox.Modals;
-using Sandbox.Services;
 
 public class ModalSystem : IModalSystem
 {
@@ -33,6 +32,8 @@ public class ModalSystem : IModalSystem
 		}
 
 		OpenModals.Clear();
+
+		_pauseModal?.SetClass( "hidden", true );
 	}
 
 	protected void Push( BaseModal modal )

@@ -147,15 +147,24 @@ public class Pack : IDisposable
 
 	public byte[] GetFileBytes( string filename )
 	{
+		return GetFileBytes( filename, -1 );
+	}
+
+	public byte[] GetFileBytes( string filename, int maxLength )
+	{
 		if ( !IsValid || string.IsNullOrEmpty( filename ) )
 			return null;
 
 		if ( !fileLookup.TryGetValue( filename, out var file ) )
 			return null;
 
-		var fileBytes = new byte[file.FileLength];
+		var bytesToRead = maxLength >= 0
+			? Math.Min( maxLength, file.FileLength )
+			: file.FileLength;
+
+		var fileBytes = new byte[bytesToRead];
 		packStream.Seek( file.FilePosition, SeekOrigin.Begin );
-		packStream.ReadExactly( fileBytes, 0, file.FileLength );
+		packStream.ReadExactly( fileBytes, 0, bytesToRead );
 		return fileBytes;
 	}
 
