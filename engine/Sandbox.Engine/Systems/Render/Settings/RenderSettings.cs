@@ -69,6 +69,16 @@ public partial class RenderSettings
 		}
 	}
 
+	public ShadowQuality ShadowQuality
+	{
+		get => VideoSettings.Get<ShadowQuality>( "shadow.quality", ShadowQuality.High );
+		set
+		{
+			VideoSettings.Set<ShadowQuality>( "shadow.quality", value );
+			Config.SetGroupConVars( "ShadowQuality", value.ToString() );
+		}
+	}
+
 	public float MotionBlurScale
 	{
 		get => VideoSettings.Get<float>( "motionblur.scale", 1.0f );

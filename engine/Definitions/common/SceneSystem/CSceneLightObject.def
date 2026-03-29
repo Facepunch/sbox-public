@@ -47,6 +47,9 @@ native class CSceneLightObject as NativeEngine.CSceneLightObject : CSceneObject
 	int GetShadowCascades();
 	void SetShadowCascades( int v );
 
+	float GetShadowCascadeSplitRatio();
+	void SetShadowCascadeSplitRatio( float v );
+
 	float GetCascadeDistanceScale();
 	void SetCascadeDistanceScale( float dist );
 

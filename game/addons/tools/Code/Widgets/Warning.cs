@@ -60,7 +60,7 @@ public class WarningBox : Widget
 		Paint.SetBrushRadial( gradientCenter, 400, BackgroundColor.Darken( 0.6f ), BackgroundColor.Darken( 0.7f ) );
 		Paint.DrawRect( LocalRect, 2 );
 
-		Paint.SetBrushRadial( gradientCenter, 400, BackgroundColor.Darken( 0.4f ), BackgroundColor.Darken( 0.45f ) );
+		Paint.SetBrushRadial( gradientCenter, 400, BackgroundColor.Darken( 0.7f ), BackgroundColor.Darken( 0.8f ) );
 		Paint.DrawRect( LocalRect.Shrink( 1 ), 2 );
 
 		if ( !string.IsNullOrEmpty( _icon ) )
@@ -84,7 +84,7 @@ public class InformationBox : WarningBox
 
 	public InformationBox( string title, Widget parent = null ) : base( title, parent )
 	{
-		BackgroundColor = Theme.Primary;
+		BackgroundColor = Theme.Green.Lighten( 0.33f );
 		Icon = "info";
 	}
 }

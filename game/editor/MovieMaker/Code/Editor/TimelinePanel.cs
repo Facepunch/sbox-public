@@ -31,7 +31,8 @@ public sealed class TimelinePanel : MovieEditorPanel
 		playPauseGroup.AddAction( navToStartDisplay, parent.NavigateToStart, () => session.PlayheadTime != 0d );
 
 		var recordDisplay = new ToolBarItemDisplay( "Toggle Record", "radio_button_checked",
-			"Start or stop recording live changes to tracks in the track list.",
+			"Start or stop recording live changes to tracks in the track list. Records the entire scene if the track list is empty.",
+			ShortcutIdentifier: "timeline.recordtoggle",
 			Background: false );
 
 		playPauseGroup.AddToggle( recordDisplay, () => session.IsRecording, x => session.IsRecording = x )

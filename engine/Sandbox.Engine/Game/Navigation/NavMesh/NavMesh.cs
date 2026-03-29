@@ -66,64 +66,71 @@ public sealed partial class NavMesh : IDisposable
 	// Initial load or generation completed
 	internal bool IsLoaded = false;
 
+
 	/// <summary>
 	/// Should the generator include static bodies
 	/// </summary>
-	[Group( "Generation Input" )]
+	[Header( "Generation Input" )]
 	public bool IncludeStaticBodies { get; set; } = true;
 
 	/// <summary>
 	/// Should the generator include keyframed bodies
 	/// </summary>
-	[Group( "Generation Input" )]
 	public bool IncludeKeyframedBodies { get; set; } = true;
 
 	/// <summary>
 	/// Don't include these bodies in the generation
 	/// </summary>
-	[Group( "Generation Input" )]
 	public TagSet ExcludedBodies { get; set; } = new();
 
 	/// <summary>
 	/// If any, we'll only include bodies with this tag
 	/// </summary>
-	[Group( "Generation Input" )]
 	public TagSet IncludedBodies { get; set; } = new();
+
+	/// <summary>
+	/// By Default , the navmesh will calculate bounds based on the world geometry, but if you want to override that, you can set custom bounds here.
+	/// </summary>
+	[Header( "Bounds" )]
+	public bool CustomBounds { get; set; } = false;
+
+	/// <summary>
+	/// The bounds to generate the navmesh within.
+	/// Won't take effect until regenerated or reloaded.
+	/// </summary>
+	[HideIf( nameof( CustomBounds ), false ), WideMode]
+	public BBox Bounds { get; set; } = default;
 
 	/// <summary>
 	/// Constantly update the navigation mesh in the editor
 	/// </summary>
-	[Group( "Editor" )]
+	[Header( "Editor" )]
 	public bool EditorAutoUpdate { get; set; } = false;
 
 	/// <summary>
 	/// Draw the navigation mesh in the editor
 	/// </summary>
-	[Group( "Editor" )]
 	public bool DrawMesh { get; set; }
 
 	/// <summary>
 	/// Height of the agent
 	/// </summary>
-	[Group( "Agent" )]
+	[Header( "Agent" )]
 	public float AgentHeight { get; set; } = 64.0f;
 
 	/// <summary>
 	/// The radius of the agent. This will change how much gap is left on the edges of surfaces, so they don't clip into walls.
 	/// </summary>
-	[Group( "Agent" )]
 	public float AgentRadius { get; set; } = 16.0f;
 
 	/// <summary>
 	/// The maximum height an agent can climb (step)
 	/// </summary>
-	[Group( "Agent" )]
 	public float AgentStepSize { get; set; } = 18.0f;
 
 	/// <summary>
 	/// The maximum slope an agent can walk up (in degrees)
 	/// </summary>
-	[Group( "Agent" )]
 	public float AgentMaxSlope { get; set; } = 40.0f;
 
 	// Tiling props not exposed until we are sure we want to expose them
@@ -151,8 +158,6 @@ public sealed partial class NavMesh : IDisposable
 	internal int MaxPolys = 1 << 20;
 
 	internal Action OnInit;
-
-	internal BBox WorldBounds;
 
 	private float TileHeightWorldSpace { get; set; } = 1048576f;
 
@@ -229,12 +234,12 @@ public sealed partial class NavMesh : IDisposable
 	{
 		if ( IsGenerating ) return;
 
-		WorldBounds = CalculateWorldBounds( world );
-		// accountf or a border incase world shrinks
-		WorldBounds = WorldBounds.Grow( TileSizeXYWorldSpace * 2 );
-		Gizmo.Draw.LineBBox( WorldBounds );
+		if ( !CustomBounds )
+		{
+			Bounds = CalculateWorldBounds( world );
+		}
 
-		var minMaxBounds = CalculateMinMaxTileCoords( WorldBounds );
+		var minMaxBounds = CalculateMinMaxTileCoords( Bounds );
 
 		// request full rebuild for every tile in bounds
 		for ( int x = minMaxBounds.Left; x <= minMaxBounds.Right; x++ )
@@ -270,9 +275,9 @@ public sealed partial class NavMesh : IDisposable
 
 			await LoadFromBake();
 
-			WorldBounds = CalculateWorldBounds( world );
+			if ( !CustomBounds ) Bounds = CalculateWorldBounds( world );
 
-			await GenerateTiles( world, WorldBounds );
+			await GenerateTiles( world, Bounds );
 		}
 		finally
 		{
@@ -300,9 +305,9 @@ public sealed partial class NavMesh : IDisposable
 
 			Init();
 
-			WorldBounds = CalculateWorldBounds( world );
+			if ( !CustomBounds ) Bounds = CalculateWorldBounds( world );
 
-			await GenerateTiles( world, WorldBounds );
+			await GenerateTiles( world, Bounds );
 		}
 		finally
 		{

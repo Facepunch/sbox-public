@@ -151,7 +151,7 @@ internal class ProjectTemplatesListView : ListView
 
 			r.Right = rect.Width;
 
-			x = Paint.DrawText( r, template.Description, TextFlag.LeftTop );
+			x = Paint.DrawText( r, template.Description, TextFlag.LeftCenter );
 			r.Left = x.Right + 4;
 		}
 	}

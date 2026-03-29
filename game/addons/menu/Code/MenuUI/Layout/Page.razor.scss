@@ -1,11 +1,10 @@
+@import "/styles/_theme.scss";
 
 Page
 {
-
     flex-grow: 1;
     position: relative;
     justify-content: center;
-    backdrop-filter: blur( 20px ) brightness( 0.33 ) contrast( 0.75 ) saturate( 1.5 );
 }
 
 Page VirtualList 
@@ -22,15 +21,14 @@ Page > .inner
     pointer-events: all;
     flex-direction: row;
     overflow: hidden;
-    max-width: 1800px;
-    background-color: #101219dd;
+    background-color: $default-950;
 }
 
 Page > .inner > .sidebar
 {
     flex-shrink: 0;
-    width: 500px;
-    background-color: #1b202caa;
+    width: 400px;
+    background-color: $default-900;
     overflow: hidden;
     flex-direction: column;
     pointer-events: all;
@@ -47,16 +45,16 @@ Page > .inner > .pagebody
 
 Page > .inner > .pagebody > .row
 {
-    padding: 32px;
+    padding: 50px;
     flex-direction: row;
 }
 
-Page > .inner > .sidebar
-{
-    flex-direction: column;
-    padding: 16px 32px;
-    overflow-y:scroll;
-}
+    Page > .inner > .sidebar {
+        flex-direction: column;
+        padding: 50px;
+        overflow-y: scroll;
+        box-shadow: 6px 0 36px rgba( black, 0.5 );
+    }
 
 Page > .inner > .sidebar > .flex-column
 {

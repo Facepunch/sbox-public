@@ -199,6 +199,8 @@ public sealed partial class EnvmapProbe : Component, Component.ExecuteInEditor, 
 	{
 		Transform.OnTransformChanged -= OnTransformChanged;
 
+		Dirty = false;
+
 		_sceneObject?.Delete();
 		_sceneObject = null;
 

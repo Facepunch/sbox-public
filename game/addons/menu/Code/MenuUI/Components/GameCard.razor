@@ -4,72 +4,108 @@
 @namespace Sandbox.UI
 @inherits Panel
 
-<card class="game" onmouseup=@ShowGameModal>
-    <div class="image" style="background-image: url(@Image)">
+<root class=@BuildClass() onmouseup=@ShowGameModal>
+    <div class="image" style="background-image: url(@(Image() ?? "/ui/sbox-logo-square.svg"))">
+        @if ( Size == SizeTypes.List )
+        {
+            <icon class="play">play_arrow</icon>
+        }
     </div>
 
     <column>
-        @if (HasClass("list"))
+        <label class="medium package-title">
+            @(Package?.Title ?? "Invalid Package")
+        </label>
+
+        @if (Package == null)
         {
-            <label class="medium">
-                @Package.Title
-            </label>
-
             <row>
-                @if (Package.Usage.UsersNow > 0)
-                {
-                    <badge class="green" style="margin-right: 4px">
-                        @(Package.Usage.UsersNow + " online")
-                    </badge>
-                }
-
-                <icon class="eyebrow">
-                    access_time_filled
-                </icon>
-
                 <label class="eyebrow">
-                    @((DateTime.Now - Package.Updated).ToRelativeTimeString())
+                    We couldn't find that package.
                 </label>
             </row>
-
-            <icon class="play">
-                launch
-            </icon>
         }
         else
         {
-            <label class="medium">
-                @Package.Title
-            </label>
-
             <row>
                 <icon class="eyebrow">
-                    access_time_filled
+                    thumb_up
                 </icon>
 
                 <label class="eyebrow">
-                    @((DateTime.Now - Package.Updated).ToRelativeTimeString())
+                    @Package.VotesUp
                 </label>
+
+                <icon class="eyebrow">
+                    thumb_down
+                </icon>
+
+                <label class="eyebrow">
+                    @Package.VotesDown
+                </label>
+
+                <div class="grow" />
+
+                @if (Package.Usage.UsersNow > 0)
+                {
+                    <badge class="package-users">
+                        <icon class="eyebrow">
+                            person
+                        </icon>
+
+                        <label class="eyebrow">
+                            @(Package.Usage.UsersNow)
+                        </label>
+                    </badge>
+                }
             </row>
         }
+
+        @* TODO: Display the same stuff here that we display under the action bar in the game modal (join game, new game, etc) *@
+        <Button class="play-button" Icon="play_arrow" onmouseup=@ShowGameModal />
     </column>
-</card>
+</root>
 
 @code {
-    [Property] public Sandbox.Package Package { get; set; }
-
-    protected override void OnAfterTreeRender(bool firstTime)
+    public enum SizeTypes
     {
-        if (!firstTime)
-            return;
+        Default,
+        Small,
+        Wide,
+        Tall,
+        List
     }
+
+    [Property] public Sandbox.Package Package { get; set; }
+    [Property] public SizeTypes Size { get; set; }
 
     private void ShowGameModal()
     {
-        Package.OpenModal();
+        Package?.OpenModal();
     }
 
-    public string Image => HasClass("list") ? Package.Thumb : Package.ThumbWide;
+    private string BuildClass()
+    {
+        return $"game {Size.ToString().ToLower()}";
+    }
+
+    private string VotePercentage => Package == null ? "0%" : ((int)((float)Package.VotesUp / (Package.VotesUp + Package.VotesDown + 1) * 100)).ToString() + "%";
+
+    public string Image()
+    {
+        switch (Size)
+        {
+            case SizeTypes.List:
+                return Package?.Thumb;
+            case SizeTypes.Tall:
+                return Package?.ThumbTall;
+            case SizeTypes.Wide:
+                return Package?.ThumbWide;
+            case SizeTypes.Small:
+            default:
+                return Package?.Thumb;
+        }
+    }
 
     protected override int BuildHash() => System.HashCode.Combine(Package);
 }

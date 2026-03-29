@@ -16,7 +16,7 @@ partial class EdgeCutTool
 		{
 			_tool = tool;
 
-			AddTitle( "Edge Cut Tool", "content_cut" );
+			AddTitle( "Edge Cut Tool", "polyline" );
 
 			{
 				var row = Layout.AddRow();

@@ -1,0 +1,14 @@
+@import "/styles/_theme.scss";
+
+Progress {
+    width: 100%;
+    height: 6px;
+    border-radius: $rounding-small;
+    overflow: hidden;
+    background-color: $default-800;
+    
+    .inner {
+        height: 100%;
+        background-color: $default-500;
+    }
+}

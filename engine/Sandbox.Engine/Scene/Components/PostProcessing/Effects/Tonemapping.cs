@@ -55,7 +55,7 @@ public class Tonemapping : BasePostProcess<Tonemapping>
 	[ShowIf( nameof( Mode ), TonemappingMode.HableFilmic )]
 	[Property, MakeDirty] public ExposureColorSpaceEnum ExposureMethod { get; set; } = ExposureColorSpaceEnum.RGB;
 
-	private static readonly Material Shader = Material.FromShader( "shaders/tonemapping/tonemapping.shader" );
+	private static Material Shader = Material.FromShader( "shaders/tonemapping/tonemapping.shader" );
 
 	public override void Render()
 	{

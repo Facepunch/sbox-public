@@ -11,7 +11,7 @@ public sealed class PropertyDescription : MemberDescription
 {
 	public override bool IsProperty => true;
 
-	PropertyInfo PropertyInfo => MemberInfo as PropertyInfo;
+	internal PropertyInfo PropertyInfo => MemberInfo as PropertyInfo;
 
 	internal static PropertyDescription Create( PropertyInfo i, TypeDescription td, MemberDescription previous )
 	{
@@ -72,7 +72,7 @@ public sealed class PropertyDescription : MemberDescription
 	/// <summary>
 	/// Whether the setter of this property is init only.
 	/// </summary>
-	bool IsSetMethodInitOnly { get; set; }
+	internal bool IsSetMethodInitOnly { get; set; }
 
 	/// <summary>
 	/// Property type.

@@ -144,7 +144,7 @@ class Terrain
         float2 texUV = localPos.xy / 32.0;
 
         TerrainMaterial baseMat = g_TerrainMaterials[material.BaseTextureId];
-        float3 color = GetBindlessTexture2D( baseMat.bcr_texid )
+        float3 color = Bindless::GetTexture2D( NonUniformResourceIndex( baseMat.bcr_texid ) )
             .SampleLevel( g_sBilinearClamp, texUV * baseMat.uvscale, mipLevel ).rgb;
 
         float materialBlend = material.GetNormalizedBlend();
@@ -152,7 +152,7 @@ class Terrain
         TerrainMaterial overlayMat = g_TerrainMaterials[material.OverlayTextureId];
         if ( materialBlend > 0.01 && overlayMat.bcr_texid > 0 )
         {
-            float3 overlayColor = GetBindlessTexture2D( overlayMat.bcr_texid )
+            float3 overlayColor = Bindless::GetTexture2D( NonUniformResourceIndex( overlayMat.bcr_texid ) )
                 .SampleLevel( g_sBilinearClamp, texUV * overlayMat.uvscale, mipLevel ).rgb;
             color = lerp( color, overlayColor, materialBlend );
         }

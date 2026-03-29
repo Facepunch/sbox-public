@@ -1,3 +1,4 @@
+global using Sandbox;
 global using Sandbox.Mounting;
 global using System.Collections.Generic;
 global using System.IO;

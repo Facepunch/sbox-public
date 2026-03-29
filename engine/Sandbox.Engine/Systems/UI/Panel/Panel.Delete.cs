@@ -94,6 +94,20 @@ public partial class Panel
 			YogaNode?.Dispose();
 			YogaNode = null;
 
+			// Destroy the razor render tree — Block.ElementPanel holds strong refs to
+			// dynamically-created child panels whose Style.StyleBlocks keep parsed
+			// stylesheet textures (gradients, masks, etc.) alive past shutdown.
+			renderTree?.Clear();
+			renderTree = null;
+
+			ComputedStyle = null;
+			StyleSheet = default;
+			GameObject = null;
+
+			// Drop the PanelStyle — its StyleBlocks[] cache holds StyleBlock refs
+			// whose Styles._backgroundImage/_maskImage keep textures alive.
+			Style = null;
+
 			_renderChildren = null;
 			_childrenHash = null;
 			_children = null;

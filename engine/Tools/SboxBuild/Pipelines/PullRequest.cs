@@ -9,18 +9,28 @@ internal class PullRequest
 	{
 		var builder = new PipelineBuilder( "Pull Request" );
 
-		// Add other steps
-		builder.AddStepGroup( "CodeGen",
-			[
-				new Steps.InteropGen( "Interop Gen" ),
-				new Steps.ShaderProc( "Shader Proc" )
-			] );
+		var touchesNative = Utility.PrTouchesNativeCode();
 
-		builder.AddStepGroup( "Native Build",
-			[
-				new GenerateSolutions( "Generate Solutions", BuildConfiguration.Retail ),
-				new BuildNative( "Compile Native", BuildConfiguration.Retail, clean: true )
-			] );
+		if ( touchesNative )
+		{
+			// Full native rebuild when src/ or interop definition files are changed
+			builder.AddStepGroup( "CodeGen",
+				[
+					new Steps.InteropGen( "Interop Gen" ),
+					new Steps.ShaderProc( "Shader Proc" )
+				] );
+
+			builder.AddStepGroup( "Native Build",
+				[
+					new GenerateSolutions( "Generate Solutions", BuildConfiguration.Retail ),
+					new BuildNative( "Compile Native", BuildConfiguration.Retail, clean: true )
+				] );
+		}
+		else
+		{
+			// C#-only PR: try to reuse pre-built public artifacts, fall back to native build if unavailable.
+			builder.AddStep( new DownloadPublicArtifactsOrBuildNative( "Native Artifacts" ) );
+		}
 
 		var managedSteps = new List<Step>
 		{

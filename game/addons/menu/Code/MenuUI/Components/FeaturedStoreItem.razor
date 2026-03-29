@@ -26,8 +26,7 @@
     {
         get
         {
-            var navigator = MainMenu.Instance?.Navigator;
-            return navigator != null && navigator.CurrentUrlMatches("/home");
+            return this.GetNavigator()?.CurrentUrlMatches("/home") ?? false;
         }
     }
 

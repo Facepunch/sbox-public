@@ -1,7 +1,6 @@
 ﻿using Facepunch.ActionGraphs;
 using Sandbox.ActionGraphs;
 using Sandbox.Engine;
-using Sandbox.MovieMaker;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -42,7 +41,6 @@ public static partial class Json
 		options.Converters.Add( new BinaryConvert() );
 
 		options.Converters.Add( new JsonConvertFactory() );
-		options.Converters.Add( new MovieResourceConverter() );
 		options.Converters.Add( new AnyOfTypeConverterFactory() );
 		options.Converters.Add( new InterfaceConverterFactory() );
 

@@ -22,13 +22,7 @@
 
 @code
 {
-    public static MainMenu Instance { get; private set; }
     public NavigationHost Navigator { get; protected set; }
-
-    public MainMenu()
-    {
-        Instance = this;
-    }
 
     override protected void OnEnabled()
     {

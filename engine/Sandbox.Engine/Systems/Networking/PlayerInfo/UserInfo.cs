@@ -12,6 +12,7 @@ internal struct UserInfo
 	public byte[] AuthTicket { get; set; }
 	public Guid HandshakeId { get; set; }
 	public bool IsVr { get; set; }
+	public byte[] InventoryBlob { get; set; }
 
 	/// <summary>
 	/// Build info for the local user, which will then get sent to the server and possibly shared between all clients
@@ -28,7 +29,8 @@ internal struct UserInfo
 				EngineVersion = Engine.Protocol.Network,
 				UserData = new(),
 				PartyId = PartyRoom.Current?.Id ?? new( 0 ),
-				IsVr = VR.VRSystem.IsActive
+				IsVr = VR.VRSystem.IsActive,
+				InventoryBlob = Services.Inventory.CurrentBlob
 			};
 
 			//

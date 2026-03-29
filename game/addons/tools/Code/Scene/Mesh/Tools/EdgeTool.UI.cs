@@ -1,6 +1,5 @@
 ﻿
 using HalfEdgeMesh;
-using System;
 
 namespace Editor.MeshEditor;
 
@@ -122,7 +121,7 @@ partial class EdgeTool
 					row.Layout.Spacing = 4;
 
 					CreateButton( "Bevel", "straighten", "mesh.edge-bevel", Bevel, CanBevel(), row.Layout );
-					CreateButton( "Edge Cut Tool", "content_cut", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
+					CreateButton( "Edge Cut Tool", "polyline", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
 					CreateButton( "Edge Arch", "rounded_corner", "mesh.edge-arch-tool", OpenEdgeArchTool, CanArch(), row.Layout );
 
 					row.Layout.AddStretchCell();
@@ -146,6 +145,29 @@ partial class EdgeTool
 			}
 
 			Layout.AddStretchCell();
+		}
+
+		[Shortcut( "editor.select-all", "CTRL+A", typeof( SceneViewWidget ) )]
+		private void SelectAll()
+		{
+			using var scope = SceneEditorSession.Scope();
+			using var undoScope = SceneEditorSession.Active.UndoScope( "Select All Edges" ).Push();
+
+			var selection = SceneEditorSession.Active.Selection;
+			selection.Clear();
+
+			foreach ( var edgeGroup in _edgeGroups )
+			{
+				var edges = edgeGroup.Key.Mesh.HalfEdgeHandles;
+
+				foreach ( var edge in edges )
+				{
+					if ( edge.Index > edgeGroup.Key.Mesh.GetOppositeHalfEdge( edge ).Index )
+						continue;
+
+					selection.Add( new MeshEdge( edgeGroup.Key, edge ) );
+				}
+			}
 		}
 
 		[Shortcut( "mesh.edge-cut-tool", "C", typeof( SceneViewWidget ) )]

@@ -233,7 +233,7 @@ internal partial class ManagerWriter : BaseWriter
 					foreach ( Variable f in c.Variables )
 					{
 						WriteLine( $"{namespc}.{InternalNative}.Get__{f.MangledName} = (delegate* unmanaged[SuppressGCTransition]<IntPtr, {f.Return.GetManagedDelegateType( true )}>)( nativeFunctions[{i++}] );" );
-						WriteLine( $"{namespc}.{InternalNative}.Set__{f.MangledName} = (delegate* unmanaged[SuppressGCTransition]<IntPtr, {f.Return.GetManagedDelegateType( true )}, void>)( nativeFunctions[{i++}] );" );
+						WriteLine( $"{namespc}.{InternalNative}.Set__{f.MangledName} = (delegate* unmanaged[SuppressGCTransition]<IntPtr, {f.Return.GetManagedDelegateType( false )}, void>)( nativeFunctions[{i++}] );" );
 					}
 				}
 

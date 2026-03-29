@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using Sandbox.MovieMaker;
+using Sandbox.MovieMaker.Properties;
 
 namespace Editor.MovieMaker.BlockDisplays;
 
@@ -43,11 +44,18 @@ partial class BlockItem
 	{
 		if ( BlockItemTypeCache.TryGetValue( targetBlockType, out var blockItemType ) ) return blockItemType;
 
+		if ( propertyType is not null && BindingReference.GetUnderlyingType( propertyType ) is { } underlyingType )
+		{
+			return BlockItemTypeCache[targetBlockType] = typeof(ReferenceBlockItem<>).MakeGenericType( underlyingType );
+		}
+
 		var bestBlockItemType = typeof(DefaultBlockItem);
 		var bestScore = int.MaxValue;
 
 		foreach ( var typeDesc in EditorTypeLibrary.GetTypes<BlockItem>() )
 		{
+			if ( typeDesc.TargetType == typeof(ReferenceBlockItem<>) ) continue;
+
 			var type = typeDesc.TargetType;
 			var baseDistance = 0;
 
@@ -73,9 +81,7 @@ partial class BlockItem
 			bestScore = score;
 		}
 
-		BlockItemTypeCache[targetBlockType] = bestBlockItemType;
-
-		return bestBlockItemType;
+		return BlockItemTypeCache[targetBlockType] = bestBlockItemType;
 	}
 
 	private static bool TryMakeGenericType( Type trackPreviewType, Type propertyType,
@@ -126,6 +132,7 @@ partial class BlockItem
 
 	private static int GetDistance( Type baseType, Type? derivedType )
 	{
+		if ( baseType == typeof(object) ) return int.MaxValue - 1;
 		if ( !baseType.IsAssignableFrom( derivedType ) ) return int.MaxValue;
 		if ( baseType.IsInterface && !derivedType.IsInterface ) return 1;
 

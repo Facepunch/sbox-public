@@ -29,7 +29,11 @@ public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 	public void Create()
 	{
 		if ( Editor is null ) return;
-		if ( !Editor.CanBuild ) return;
+		if ( !Editor.CanBuild )
+		{
+			Cancel();
+			return;
+		}
 
 		var mesh = Editor.Build();
 		if ( mesh is null ) return;

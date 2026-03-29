@@ -64,20 +64,25 @@ public abstract class ITagSet : IEnumerable<string>
 		if ( set == this )
 			return;
 
-		Action a = default;
-
 		//
 		// Remove missing tags
 		//
+		List<string> toRemove = null;
 		foreach ( var t in TryGetAll() )
 		{
 			if ( !set.Has( t ) )
 			{
-				a += () => Remove( t );
+				(toRemove ??= []).Add( t );
 			}
 		}
 
-		a?.Invoke();
+		if ( toRemove is not null )
+		{
+			foreach ( var t in toRemove )
+			{
+				Remove( t );
+			}
+		}
 
 		//
 		// add new tags

@@ -1,4 +1,5 @@
-﻿using System.Collections.Immutable;
+﻿using Sandbox.MovieMaker.Properties;
+using System.Collections.Immutable;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -8,7 +9,30 @@ namespace Sandbox.MovieMaker.Compiled;
 #nullable enable
 
 [JsonConverter( typeof( ClipConverter ) )]
-partial class MovieClip;
+partial class MovieClip
+{
+	public IMovieResource ToResource() => new EmbeddedMovieResource { Compiled = this };
+
+	internal ImmutableArray<Package> ResolvePrimaryPackages()
+	{
+		var packages = new HashSet<Package>();
+
+		foreach ( var track in Tracks.OfType<ICompiledPropertyTrack>() )
+		{
+			foreach ( var block in track.Blocks.OfType<ICompiledConstantBlock>() )
+			{
+				if ( block.Serialized is not { } node ) continue;
+
+				foreach ( var package in Cloud.ResolvePrimaryAssetsFromJson( node ) )
+				{
+					packages.Add( package );
+				}
+			}
+		}
+
+		return [.. packages];
+	}
+}
 
 file sealed class ClipConverter : JsonConverter<MovieClip>
 {
@@ -44,7 +68,7 @@ file sealed record ClipModel(
 	public MovieClip Deserialize( JsonSerializerOptions? options )
 	{
 		return Tracks is { Length: > 0 } rootTracks
-			? MovieClip.FromTracks( rootTracks.SelectMany( x => x.Deserialize( null, options ) ) )
+			? MovieClip.FromTracks( TrackModel.Deserialize( rootTracks, options ) )
 			: MovieClip.Empty;
 	}
 }
@@ -53,23 +77,36 @@ file enum TrackKind
 {
 	Reference,
 	Action,
-	Property
+	Property,
+	ReferenceProperty
 }
 
 [method: JsonConstructor]
 file sealed record TrackModel( TrackKind Kind, string Name, Type Type,
 	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] Guid? Id,
-	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] Guid? ReferenceId,
+	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] TrackMetadata? Metadata,
 	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] ImmutableArray<TrackModel>? Children,
-	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] ImmutableArray<JsonObject>? Blocks )
+	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )] JsonArray? Blocks )
 {
+	[JsonIgnore( Condition = JsonIgnoreCondition.WhenWriting ), JsonPropertyName( "ReferenceId" )]
+	public Guid? LegacyReferenceId
+	{
+		get => null;
+		init
+		{
+			if ( value is null ) return;
+
+			Metadata = new TrackMetadata( ReferenceId: value );
+		}
+	}
+
 	public TrackModel( ICompiledTrack track, ImmutableDictionary<ICompiledTrack, ImmutableArray<ICompiledTrack>> childDict, JsonSerializerOptions? options )
 		: this(
 			Kind: GetKind( track ),
 			Name: track.Name,
-			Type: track.TargetType,
+			Type: GetTypeForSerialization( track ),
 			Id: (track as IReferenceTrack)?.Id,
-			ReferenceId: (track as IReferenceTrack)?.ReferenceId,
+			Metadata: (track as IReferenceTrack)?.Metadata,
 			Children: GetChildTrackModels( track, childDict, options ),
 			Blocks: GetBlockModels( track, options ) )
 	{
@@ -86,39 +123,53 @@ file sealed record TrackModel( TrackKind Kind, string Name, Type Type,
 			return null;
 		}
 
-		return children
-			.Select( x => new TrackModel( x, childDict, options ) )
-			.ToImmutableArray();
+		return
+		[
+			..children.Select( x => new TrackModel( x, childDict, options ) )
+		];
 	}
 
-	private static ImmutableArray<JsonObject>? GetBlockModels(
+	private static JsonArray? GetBlockModels(
 		ICompiledTrack track,
 		JsonSerializerOptions? options )
 	{
-		if ( track is not ICompiledBlockTrack { Blocks.Count: > 0 } blockTrack )
+		if ( track is not ICompiledPropertyTrack { Blocks.Count: > 0 } blockTrack )
 		{
 			return null;
 		}
 
-		return
-		[
-			..blockTrack.Blocks
-				.Select( x => SerializeBlock( x, options ) )
-				.OfType<JsonObject>()
-		];
+		try
+		{
+			var blockType = typeof( ICompiledPropertyBlock<> ).MakeGenericType( track.TargetType );
+			var listType = typeof( IReadOnlyList<> ).MakeGenericType( blockType );
+
+			return JsonSerializer.SerializeToNode( blockTrack.Blocks, listType, options )?.AsArray();
+		}
+		catch ( Exception ex )
+		{
+			// Recover from a serialization exception so that the rest of the movie survives
+
+			Log.Error( ex, $"Exception when serializing blocks for track \"{track.GetPathString()}\"." );
+
+			return null;
+		}
 	}
 
-	public IEnumerable<ICompiledTrack> Deserialize( ICompiledTrack? parent, JsonSerializerOptions? options )
+	public static IReadOnlyList<ICompiledTrack> Deserialize( IEnumerable<TrackModel> models, JsonSerializerOptions? options )
+	{
+		return models.SelectMany( x => x.Deserialize( null, options ) ).ToArray();
+	}
+
+	private IEnumerable<ICompiledTrack> Deserialize( ICompiledTrack? parent, JsonSerializerOptions? options )
 	{
 		if ( (Type?)Type is null ) return [];
 
 		var track = Kind switch
 		{
-			TrackKind.Reference when Type == typeof( GameObject ) => new CompiledReferenceTrack<GameObject>(
-				Id ?? Guid.NewGuid(), Name, (CompiledReferenceTrack<GameObject>?)parent, ReferenceId ),
 			TrackKind.Reference => DeserializeReferenceTrack( parent, options ),
 			TrackKind.Action => new CompiledActionTrack( Name, Type, parent!, ImmutableArray<CompiledActionBlock>.Empty ),
 			TrackKind.Property => DeserializeHelper.Get( Type ).DeserializePropertyTrack( this, parent!, options ),
+			TrackKind.ReferenceProperty => DeserializeHelper.GetReference( Type ).DeserializePropertyTrack( this, parent!, options ),
 			_ => throw new NotImplementedException()
 		};
 
@@ -133,24 +184,20 @@ file sealed record TrackModel( TrackKind Kind, string Name, Type Type,
 		{
 			IReferenceTrack => TrackKind.Reference,
 			IActionTrack => TrackKind.Action,
+			IPropertyTrack when BindingReference.GetUnderlyingType( track.TargetType ) is not null => TrackKind.ReferenceProperty,
 			IPropertyTrack => TrackKind.Property,
 			_ => throw new NotImplementedException()
 		};
 	}
 
-	private static JsonObject? SerializeBlock( ICompiledBlock block, JsonSerializerOptions? options )
+	private static Type GetTypeForSerialization( ICompiledTrack track )
 	{
-		try
+		if ( track is IPropertyTrack )
 		{
-			return JsonSerializer.SerializeToNode( block, block.GetType(), options )!.AsObject();
+			return BindingReference.GetUnderlyingType( track.TargetType ) ?? track.TargetType;
 		}
-		catch ( Exception ex )
-		{
-			// Safety so we can serialize as much of the movie as possible
 
-			Log.Error( ex, $"Unable to serialize block of type {block.GetType()}." );
-			return null;
-		}
+		return track.TargetType;
 	}
 
 	private ICompiledReferenceTrack DeserializeReferenceTrack( ICompiledTrack? parent, JsonSerializerOptions? options )
@@ -160,9 +207,9 @@ file sealed record TrackModel( TrackKind Kind, string Name, Type Type,
 
 		return (ICompiledReferenceTrack)Activator.CreateInstance( trackType,
 			Id ?? Guid.NewGuid(),
-			Type.Name,
+			Name,
 			(CompiledReferenceTrack<GameObject>?)parent,
-			ReferenceId )!;
+			Metadata )!;
 	}
 }
 
@@ -170,6 +217,9 @@ file abstract class DeserializeHelper
 {
 	[SkipHotload]
 	private static Dictionary<Type, DeserializeHelper> Cache { get; } = new();
+
+	[SkipHotload]
+	private static Dictionary<Type, DeserializeHelper> ReferenceCache { get; } = new();
 
 	public static DeserializeHelper Get( Type type )
 	{
@@ -181,6 +231,15 @@ file abstract class DeserializeHelper
 		return Cache[type] = (DeserializeHelper)Activator.CreateInstance( helperType )!;
 	}
 
+	public static DeserializeHelper GetReference( Type type )
+	{
+		if ( ReferenceCache.TryGetValue( type, out var cached ) ) return cached;
+
+		var referenceType = typeof( BindingReference<> ).MakeGenericType( type );
+
+		return ReferenceCache[type] = Get( referenceType );
+	}
+
 	public abstract ICompiledTrack DeserializePropertyTrack( TrackModel model, ICompiledTrack parent, JsonSerializerOptions? options );
 }
 
@@ -189,19 +248,45 @@ file sealed class DeserializeHelper<T> : DeserializeHelper
 	public override ICompiledTrack DeserializePropertyTrack( TrackModel model, ICompiledTrack parent, JsonSerializerOptions? options )
 	{
 		return new CompiledPropertyTrack<T>( model.Name, parent,
-			model.Blocks?
-				.Select( x => DeserializePropertyBlock( x, options ) )
-				.ToImmutableArray()
+			model.Blocks?.Deserialize<ImmutableArray<ICompiledPropertyBlock<T>>>( options )
 			?? ImmutableArray<ICompiledPropertyBlock<T>>.Empty );
 	}
+}
 
-	private static ICompiledPropertyBlock<T> DeserializePropertyBlock( JsonObject node, JsonSerializerOptions? options )
+[JsonConverter( typeof( CompiledPropertyBlockConverterFactory ) )]
+partial interface ICompiledPropertyBlock<T>;
+
+file sealed class CompiledPropertyBlockConverterFactory : JsonConverterFactory
+{
+	public override bool CanConvert( Type typeToConvert ) =>
+		typeToConvert.IsConstructedGenericType && typeToConvert.GetGenericTypeDefinition() == typeof( ICompiledPropertyBlock<> );
+
+	public override JsonConverter CreateConverter( Type typeToConvert, JsonSerializerOptions options )
 	{
-		var hasSamples = node[nameof( CompiledSampleBlock<object>.Samples )] is not null;
+		var valueType = typeToConvert.GetGenericArguments()[0];
+
+		var converterType = typeof( CompiledPropertyBlockConverter<> )
+			.MakeGenericType( valueType );
+
+		return (JsonConverter)Activator.CreateInstance( converterType )!;
+	}
+}
+
+file sealed class CompiledPropertyBlockConverter<T> : JsonConverter<ICompiledPropertyBlock<T>>
+{
+	public override ICompiledPropertyBlock<T>? Read( ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options )
+	{
+		var obj = JsonSerializer.Deserialize<JsonObject>( ref reader, options )!;
+		var hasSamples = obj[nameof( CompiledSampleBlock<>.Samples )] is not null;
 
 		return hasSamples
-			? node.Deserialize<CompiledSampleBlock<T>>( options )!
-			: node.Deserialize<CompiledConstantBlock<T>>( options )!;
+			? obj.Deserialize<CompiledSampleBlock<T>>( options )!
+			: obj.Deserialize<CompiledConstantBlock<T>>( options )!;
+	}
+
+	public override void Write( Utf8JsonWriter writer, ICompiledPropertyBlock<T> value, JsonSerializerOptions options )
+	{
+		JsonSerializer.Serialize( writer, value, value.GetType(), options );
 	}
 }
 
@@ -217,14 +302,33 @@ file sealed class CompiledSampleBlockConverterFactory : JsonConverterFactory
 	{
 		var valueType = typeToConvert.GetGenericArguments()[0];
 
+		// TODO: don't hard-code this?
+
+		if ( valueType == typeof( Transform ) )
+		{
+			return new CompressedTransformSampleBlockConverter();
+		}
+
+		if ( valueType == typeof( Rotation ) )
+		{
+			return new CompressedRotationSampleBlockConverter();
+		}
+
 		try
 		{
-			var converterType = typeof( CompressedSampleBlockConverter<> )
-				.MakeGenericType( valueType );
+			if ( SandboxedUnsafe.IsAcceptablePod( valueType ) )
+			{
+				var converterType = typeof( CompressedSampleBlockConverter<> )
+					.MakeGenericType( valueType );
 
-			return (JsonConverter)Activator.CreateInstance( converterType )!;
+				return (JsonConverter)Activator.CreateInstance( converterType )!;
+			}
 		}
 		catch
+		{
+			//
+		}
+
 		{
 			var converterType = typeof( DefaultSampleBlockConverter<> )
 				.MakeGenericType( valueType );
@@ -234,7 +338,7 @@ file sealed class CompiledSampleBlockConverterFactory : JsonConverterFactory
 	}
 }
 
-file sealed class CompressedSampleBlockConverter<T> : JsonConverter<CompiledSampleBlock<T>>
+file class CompressedSampleBlockConverter<T> : JsonConverter<CompiledSampleBlock<T>>
 	where T : unmanaged
 {
 	private sealed record Model( MovieTimeRange TimeRange,
@@ -243,15 +347,28 @@ file sealed class CompressedSampleBlockConverter<T> : JsonConverter<CompiledSamp
 
 	public override void Write( Utf8JsonWriter writer, CompiledSampleBlock<T> value, JsonSerializerOptions options )
 	{
-		using var stream = ByteStream.Create( 16 * value.Samples.Length + 4 );
+		var stream = ByteStream.Create( 16 * value.Samples.Length + 4 );
 
-		stream.WriteArray( value.Samples.AsSpan() );
+		try
+		{
+			OnWriteSamples( ref stream, value.Samples.AsSpan() );
 
-		using var compressed = stream.Compress();
-		var base64 = Convert.ToBase64String( compressed.ToArray() );
-		var model = new Model( value.TimeRange, value.Offset, value.SampleRate, base64 );
+			using var compressed = stream.Compress();
 
-		JsonSerializer.Serialize( writer, model, options );
+			var base64 = Convert.ToBase64String( compressed.ToArray() );
+			var model = new Model( value.TimeRange, value.Offset, value.SampleRate, base64 );
+
+			JsonSerializer.Serialize( writer, model, options );
+		}
+		finally
+		{
+			stream.Dispose();
+		}
+	}
+
+	protected virtual void OnWriteSamples( ref ByteStream stream, ReadOnlySpan<T> samples )
+	{
+		stream.WriteArray( samples );
 	}
 
 	public override CompiledSampleBlock<T> Read( ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options )
@@ -267,9 +384,17 @@ file sealed class CompressedSampleBlockConverter<T> : JsonConverter<CompiledSamp
 		else if ( model.Samples.GetValue<string>() is { } base64 )
 		{
 			using var compressed = ByteStream.CreateReader( Convert.FromBase64String( base64 ) );
-			using var stream = compressed.Decompress();
 
-			samples = stream.ReadArraySpan<T>( 0x10_0000 ).ToImmutableArray();
+			var stream = compressed.Decompress();
+
+			try
+			{
+				samples = OnReadSamples( ref stream );
+			}
+			finally
+			{
+				stream.Dispose();
+			}
 		}
 		else
 		{
@@ -278,8 +403,38 @@ file sealed class CompressedSampleBlockConverter<T> : JsonConverter<CompiledSamp
 
 		return new CompiledSampleBlock<T>( model.TimeRange, model.Offset, model.SampleRate, samples );
 	}
+
+	protected virtual ImmutableArray<T> OnReadSamples( ref ByteStream stream )
+	{
+		return [.. stream.ReadArraySpan<T>( 0x10_0000 )];
+	}
 }
 
+file sealed class CompressedTransformSampleBlockConverter : CompressedSampleBlockConverter<Transform>
+{
+	protected override void OnWriteSamples( ref ByteStream stream, ReadOnlySpan<Transform> samples )
+	{
+		stream.WriteCompressed( samples );
+	}
+
+	protected override ImmutableArray<Transform> OnReadSamples( ref ByteStream stream )
+	{
+		return stream.ReadCompressedTransforms();
+	}
+}
+
+file sealed class CompressedRotationSampleBlockConverter : CompressedSampleBlockConverter<Rotation>
+{
+	protected override void OnWriteSamples( ref ByteStream stream, ReadOnlySpan<Rotation> samples )
+	{
+		stream.WriteCompressed( samples );
+	}
+
+	protected override ImmutableArray<Rotation> OnReadSamples( ref ByteStream stream )
+	{
+		return stream.ReadCompressedRotations();
+	}
+}
 
 file sealed class DefaultSampleBlockConverter<T> : JsonConverter<CompiledSampleBlock<T>>
 {

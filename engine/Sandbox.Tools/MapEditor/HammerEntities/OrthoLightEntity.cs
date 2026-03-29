@@ -150,8 +150,7 @@ class OrthoLightEntity : HammerEntityDefinition
 	internal enum ShadowType
 	{
 		No,
-		Yes,
-		BakedOnly
+		Yes
 	}
 
 	[Property, Category( "Shadows" ), DefaultValue( ShadowType.Yes ), Description( "Whether this light casts shadows." )]
@@ -190,9 +189,22 @@ class OrthoLightEntity : HammerEntityDefinition
 
 	internal enum DirectLightMode
 	{
+		/// <summary>
+		/// Disabled for direct lighting.
+		/// </summary>
 		None,
+		/// <summary>
+		/// Fully baked into lightmaps. No real-time shadow maps are generated.
+		/// </summary>
 		Baked,
+		/// <summary>
+		/// Fully dynamic with real-time shadow maps that include all objects. Not baked into lightmaps.
+		/// </summary>
 		Dynamic,
+		/// <summary>
+		/// Baked into lightmaps but also generates real-time shadow maps for dynamic objects only.
+		/// Static objects are excluded from shadow maps since their shadows come from lightmaps.
+		/// </summary>
 		Stationary
 	}
 

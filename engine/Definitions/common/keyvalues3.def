@@ -49,4 +49,12 @@ native class KeyValues3
 	int GetMemberCount();
 	KeyValues3 GetMember( int idx );
 	string GetMemberName( int idx );
+
+	inline CUtlBuffer Save()
+	{
+		CUtlString err;
+		CUtlBuffer *kv3DataBuf = new CUtlBuffer();
+		SaveKV3( KV3_ENCODING_BINARY_AUTO_COMPRESSED, KV3_FORMAT_GENERIC, self, &err, kv3DataBuf );
+		return kv3DataBuf;
+	}
 }

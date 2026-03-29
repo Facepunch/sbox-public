@@ -63,12 +63,6 @@ public static partial class Gizmo
 						hasValueChanged = true;
 					}
 				}
-
-				if ( RotateTrackball( "trackball", Color.White, out var trackballRotation ) )
-				{
-					delta *= trackballRotation;
-					hasValueChanged = true;
-				}
 			}
 
 			if ( hasValueChanged )
@@ -199,71 +193,6 @@ public static partial class Gizmo
 			if ( angleDifference == 0.0f ) return false;
 
 			angleDelta = -angleDifference;
-			return true;
-		}
-
-		/// <summary>
-		/// Trackball rotation using camera-relative axes - allows free rotation by dragging a sphere in the center
-		/// </summary>
-		private bool RotateTrackball( string name, Color color, out Rotation rotationDelta, float size = 16.0f )
-		{
-			rotationDelta = Rotation.Identity;
-			var sphere = new Sphere( Vector3.Zero, size );
-
-			using var _ = Sandbox.Gizmo.Scope( name );
-
-			Sandbox.Gizmo.Draw.Color = color.WithAlpha( 0.15f );
-
-			if ( !Sandbox.Gizmo.IsHovered )
-				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Draw.Color.Darken( 0.33f );
-
-			if ( Sandbox.Gizmo.IsHovered )
-			{
-				Sandbox.Gizmo.Draw.Color = color.WithAlpha( 0.3f );
-			}
-
-			if ( Pressed.Any && !Pressed.This )
-			{
-				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Draw.Color.WithAlphaMultiplied( 0.5f );
-			}
-
-			if ( Pressed.This )
-			{
-				Sandbox.Gizmo.Draw.Color = color.WithAlpha( 0.5f );
-			}
-
-			Sandbox.Gizmo.Draw.SolidSphere( Vector3.Zero, size, 24, 24 );
-
-			// Add sphere hitbox
-			Gizmo.Hitbox.Sphere( sphere );
-
-			if ( !Sandbox.Gizmo.IsHovered || !Pressed.This )
-				return false;
-
-			var localCameraRot = Gizmo.LocalCameraTransform.Rotation;
-
-			// Use the same ray transformation as RotateSingle for consistent world/local space behavior
-			Vector3 pressPoint = Vector3.Zero;
-			var plane = new Plane( 0, Vector3.Forward );
-			if ( Camera.Ortho && Camera.Rotation.Forward.Abs() != Transform.Forward.Abs() )
-			{
-				pressPoint = Pressed.Ray.ToLocal( Gizmo.Transform ).Position;
-			}
-			else if ( !plane.TryTrace( Pressed.Ray.ToLocal( Gizmo.Transform ), out pressPoint, true ) ) return false;
-
-			var delta = Sandbox.Gizmo.GetMouseDistanceVector( pressPoint, localCameraRot.Forward );
-
-			var dir = Vector3.Cross( delta, localCameraRot.Forward ).Normal;
-
-			var angleDifference = delta.Length * 1.5f;
-
-			// don't let scale affect the drag amounts
-			angleDifference /= Gizmo.Transform.UniformScale;
-
-			if ( angleDifference == 0.0f ) return false;
-
-			rotationDelta = Rotation.FromAxis( dir, angleDifference ).Inverse;
-
 			return true;
 		}
 	}

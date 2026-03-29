@@ -81,6 +81,7 @@ var Members = new Dictionary<string, (string TypeName, string DefaultValue, bool
 	{ "TextOverlineOffset",			("Length?",				"0",							true)},
 	{ "TextLineThroughOffset",		("Length?",				"0",							true)},
 	{ "FontStyle",					("FontStyle?",			"UI.FontStyle.None",			true)},
+	{ "FontVariantNumeric",			("FontVariantNumeric?",	"UI.FontVariantNumeric.Normal",	true)},
 	{ "Transform",					("PanelTransform?",		"new UI.PanelTransform()",		false)},
 	{ "TextTransform",				("TextTransform?",		"UI.TextTransform.None",		true)},
 	{ "TransformOriginX",			("Length?",				"Length.Percent( 50 ).Value",	false)},

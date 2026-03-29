@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Sandbox.MovieMaker;
@@ -10,15 +11,12 @@ namespace Sandbox.MovieMaker;
 /// </summary>
 /// <param name="Start">Minimum time in the range.</param>
 /// <param name="End">Maximum time in the range.</param>
+[JsonConverter( typeof( MovieTimeRangeConverter ) )]
 public readonly record struct MovieTimeRange( MovieTime Start, MovieTime End )
 {
-	[JsonIgnore]
 	public MovieTime Duration => End - Start;
-
-	[JsonIgnore]
 	public MovieTime Center => MovieTime.Lerp( Start, End, 0.5 );
 
-	[JsonIgnore]
 	public bool IsEmpty => Start >= End;
 
 	public MovieTimeRange? Intersect( MovieTimeRange other )
@@ -103,4 +101,37 @@ public readonly record struct MovieTimeRange( MovieTime Start, MovieTime End )
 	public static MovieTimeRange operator -( MovieTimeRange range, MovieTime offset ) => (range.Start - offset, range.End - offset);
 
 	#endregion
+}
+
+file sealed class MovieTimeRangeConverter : JsonConverter<MovieTimeRange>
+{
+	private readonly record struct LegacyModel( MovieTime Start, MovieTime End );
+
+	public override MovieTimeRange Read( ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options )
+	{
+		if ( reader.TokenType == JsonTokenType.StartObject )
+		{
+			var model = JsonSerializer.Deserialize<LegacyModel>( ref reader, options );
+
+			return new MovieTimeRange( model.Start, model.End );
+		}
+
+		var str = JsonSerializer.Deserialize<string>( ref reader, options );
+
+		Assert.NotNull( str );
+
+		var split = str!.IndexOf( ',' );
+
+		Assert.True( split > 0 );
+
+		var startTicks = int.Parse( str.AsSpan( 0, split ) );
+		var endTicks = int.Parse( str.AsSpan( split + 1 ) );
+
+		return new MovieTimeRange( MovieTime.FromTicks( startTicks ), MovieTime.FromTicks( endTicks ) );
+	}
+
+	public override void Write( Utf8JsonWriter writer, MovieTimeRange value, JsonSerializerOptions options )
+	{
+		writer.WriteStringValue( $"{value.Start.Ticks},{value.End.Ticks}" );
+	}
 }

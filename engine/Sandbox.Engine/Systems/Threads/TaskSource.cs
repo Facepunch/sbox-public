@@ -204,13 +204,54 @@ public struct TaskSource
 		await DelayInternal( ms, linkedCts.Token );
 	}
 
+	/// <summary>
+	/// Measured actual granularity of <see cref="Task.Delay( int )"/> on this platform/OS configuration.
+	/// Anything with more time remaining than this gets a single bulk <see cref="Task.Delay( int )"/>;
+	/// the sub-granularity tail is polled per frame.
+	/// </summary>
+	internal static readonly int DelayPollingThresholdMs = MeasureTimerGranularityMs();
+
+	private static int MeasureTimerGranularityMs()
+	{
+		// Fire off a few Task.Delay(1) calls synchronously on the thread-pool and measure
+		// how long they actually sleep.
+		// This is cross-platform and should be an estimate timeBeginPeriod() or equivalent.
+		const int Samples = 10;
+		var total = 0L;
+
+		for ( var i = 0; i < Samples; i++ )
+		{
+			var sw = System.Diagnostics.Stopwatch.StartNew();
+			Task.Delay( 1 ).Wait();
+			sw.Stop();
+			total += sw.ElapsedMilliseconds;
+		}
+
+		// Add 1ms to be safe
+		return (int)(total / Samples) + 1;
+	}
+
 	private async Task DelayInternal( int ms, CancellationToken ct )
 	{
+		// Capture the calling context so we resume on the same thread (main or worker).
+		// Fall back to main thread if called from outside an ExpirableSynchronizationContext.
+		var context = SynchronizationContext.Current as Sandbox.Tasks.ExpirableSynchronizationContext ?? SyncContext.MainThread;
+
 		var time = Time.NowDouble + ms / 1000.0;
+
+		// For delays longer than the threshold, sleep most of the duration with a single Task.Delay
+		// and only poll the remaining sub-threshold window.
+		var bulkMs = ms - DelayPollingThresholdMs;
+		if ( bulkMs > 0 )
+		{
+			await Task.Delay( bulkMs, ct );
+			CancelIfInvalid();
+		}
 
 		while ( Time.NowDouble < time )
 		{
-			await Task.Delay( 1, ct );
+			// Use SyncTask instead of Task.Delay( 1 ) to avoid allocations.
+			await new Sandbox.Tasks.SyncTask( context, cancellation: ct );
 			CancelIfInvalid();
 		}
 

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Immutable;
+using Sandbox.MovieMaker.Properties;
 
 namespace Sandbox.MovieMaker.Compiled;
 
@@ -13,8 +14,8 @@ public static class CompiledClipExtensions
 	/// Create a nested <see cref="ICompiledReferenceTrack"/> that targets a <see cref="Sandbox.GameObject"/> with
 	/// the given <paramref name="name"/>.
 	/// </summary>
-	public static CompiledReferenceTrack<GameObject> GameObject( this CompiledReferenceTrack<GameObject> track, string name, Guid? id = null, Guid? referenceId = null ) =>
-		new( id ?? Guid.NewGuid(), name, track, referenceId );
+	public static CompiledReferenceTrack<GameObject> GameObject( this CompiledReferenceTrack<GameObject> track, string name, Guid? id = null, TrackMetadata? metadata = null ) =>
+		new( id ?? Guid.NewGuid(), name, track, metadata );
 
 	/// <summary>
 	/// Create a nested <see cref="ICompiledReferenceTrack"/> that targets a <see cref="Sandbox.Component"/> with
@@ -23,24 +24,28 @@ public static class CompiledClipExtensions
 	public static ICompiledReferenceTrack Component( this CompiledReferenceTrack<GameObject> track,
 		Type type,
 		Guid? id = null,
-		Guid? referenceId = null ) =>
+		TrackMetadata? metadata = null ) =>
 		(ICompiledReferenceTrack)Activator.CreateInstance(
 			typeof( CompiledReferenceTrack<> ).MakeGenericType( type ),
-			id ?? Guid.NewGuid(), type.Name, track, referenceId )!;
+			id ?? Guid.NewGuid(), type.Name, track, metadata )!;
 
 	/// <summary>
 	/// Create a nested <see cref="ICompiledReferenceTrack"/> that targets a <see cref="Sandbox.Component"/> with
 	/// the type <typeparamref name="T"/>.
 	/// </summary>
-	public static CompiledReferenceTrack<T> Component<T>( this CompiledReferenceTrack<GameObject> track, Guid? id = null )
-		where T : Component => new( id ?? Guid.NewGuid(), typeof( T ).Name, track );
+	public static CompiledReferenceTrack<T> Component<T>( this CompiledReferenceTrack<GameObject> track, Guid? id = null, TrackMetadata? metadata = null )
+		where T : Component => new( id ?? Guid.NewGuid(), typeof( T ).Name, track, metadata );
 
 	/// <summary>
 	/// Create a nested <see cref="ICompiledPropertyTrack"/> that targets a property with the given <paramref name="name"/>
 	/// in the parent track.
 	/// </summary>
 	public static CompiledPropertyTrack<T> Property<T>( this ICompiledTrack track, string name, IEnumerable<ICompiledPropertyBlock<T>>? blocks = null ) =>
-		new( name, track, blocks?.ToImmutableArray() ?? ImmutableArray<ICompiledPropertyBlock<T>>.Empty );
+		new( name, track, blocks?.ToImmutableArray() ?? [] );
+
+	public static CompiledPropertyTrack<BindingReference<T>> ReferenceProperty<T>( this ICompiledTrack track, string name,
+		IEnumerable<ICompiledPropertyBlock<BindingReference<T>>>? blocks = null )
+		where T : class, IValid => track.Property( name, blocks );
 
 	/// <summary>
 	/// Create a nested <see cref="ICompiledPropertyTrack"/> that targets a property with the given <paramref name="name"/>

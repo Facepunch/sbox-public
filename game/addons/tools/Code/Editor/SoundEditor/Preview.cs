@@ -47,8 +47,8 @@ public class Preview : Widget
 
 			var world = Scene.SceneWorld;
 
-			new SceneLight( world, new Vector3( 100, 100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
-			new SceneLight( world, new Vector3( -100, -100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
+			new ScenePointLight( world, new Vector3( 100, 100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
+			new ScenePointLight( world, new Vector3( -100, -100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
 			SceneObject = new SceneModel( world, "models/citizen/citizen.vmdl", Transform.Zero.WithPosition( Vector3.Backward * 250 ) );
 		}
 
