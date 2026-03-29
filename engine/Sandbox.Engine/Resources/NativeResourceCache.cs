@@ -15,7 +15,7 @@ using System.Reflection;
 /// So we keep a sliding memory cache of the Resources - realistically these only need to live for an extra frame.
 /// But it's probably nice to keep around for longer if they're going to be used on and off.
 /// </summary>
-internal static class NativeResourceCache
+internal static partial class NativeResourceCache
 {
 	const int ExpirationSeconds = 5;
 	static readonly TimeSpan SlidingExpiration = TimeSpan.FromSeconds( ExpirationSeconds );
@@ -27,6 +27,31 @@ internal static class NativeResourceCache
 	/// </summary>
 	static readonly ConcurrentDictionary<long, WeakReference> WeakTable = new();
 
+	/// <summary>
+	/// When <see cref="LeakTracking"/> is enabled, stores the callstack captured at the time each resource
+	/// was added to the cache. This prevents WeakTable pruning so every allocation remains visible at
+	/// shutdown.
+	/// </summary>
+	static readonly ConcurrentDictionary<long, string> CallstackTable = new();
+
+	/// <summary>
+	/// When enabled, disables WeakTable entry pruning and captures allocation callstacks so that
+	/// resource leaks can be diagnosed at shutdown with full context.
+	/// </summary>
+	[ConVar( "resource_leak_tracking" )]
+	public static bool LeakTracking
+	{
+		get => field;
+		set
+		{
+			if ( value && !field )
+			{
+				Log.Warning( "resource_leak_tracking enabled — resources allocated before this point will not have callstacks and may not appear in the shutdown leak report." );
+			}
+			field = value;
+		}
+	} = false;
+
 	private static Action<MemoryCache, DateTime> StartScanForExpiredItemsIfNeeded { get; } = typeof( MemoryCache )
 		.GetMethod( nameof( StartScanForExpiredItemsIfNeeded ), BindingFlags.Instance | BindingFlags.NonPublic )
 		.CreateDelegate<Action<MemoryCache, DateTime>>();
@@ -37,6 +62,11 @@ internal static class NativeResourceCache
 		MemoryCache.Set( key, value, cacheEntryOptions );
 
 		WeakTable[key] = new WeakReference( value );
+
+		if ( LeakTracking )
+		{
+			CallstackTable[key] = new System.Diagnostics.StackTrace( skipFrames: 1, fNeedFileInfo: false ).ToString();
+		}
 	}
 
 	/// <summary>
@@ -47,6 +77,7 @@ internal static class NativeResourceCache
 	{
 		MemoryCache.Remove( key );
 		WeakTable.TryRemove( key, out _ );
+		CallstackTable.TryRemove( key, out _ );
 	}
 
 	internal static bool TryGetValue<T>( long key, out T value ) where T : class
@@ -87,12 +118,16 @@ internal static class NativeResourceCache
 		// This will get rid of any expired stuff
 		StartScanForExpiredItemsIfNeeded( MemoryCache, DateTime.UtcNow );
 
-		// Prune dead WeakTable entries to prevent unbounded growth from procedural resources
-		foreach ( var kvp in WeakTable )
+		// Prune dead WeakTable entries to prevent unbounded growth from procedural resources.
+		// Skipped when leak tracking is enabled so every allocation stays visible until shutdown.
+		if ( !LeakTracking )
 		{
-			if ( kvp.Value.Target is null )
+			foreach ( var kvp in WeakTable )
 			{
-				WeakTable.TryRemove( kvp.Key, out _ );
+				if ( kvp.Value.Target is null )
+				{
+					WeakTable.TryRemove( kvp.Key, out _ );
+				}
 			}
 		}
 
@@ -137,6 +172,60 @@ internal static class NativeResourceCache
 	/// </summary>
 	internal static void Clear()
 	{
+		ClearCache();
+
+		// When leak tracking is enabled, preserve the WeakTable and CallstackTable across
+		// game resets so that resources allocated before the reset remain visible to HandleShutdownLeaks() at shutdown.
+		if ( !LeakTracking ) ClearWeakTable();
+	}
+
+	internal static void ClearCache()
+	{
 		MemoryCache.Clear();
+	}
+
+	private static void ClearWeakTable()
+	{
+		WeakTable.Clear();
+		CallstackTable.Clear();
+	}
+
+	internal static void HandleShutdownLeaks()
+	{
+		int leaks = 0;
+
+		foreach ( var kvp in WeakTable )
+		{
+			if ( kvp.Value.Target is Resource resource && resource.IsValid() )
+			{
+				var resourceName = resource.ResourceName;
+				ulong resourceId = resource.ResourceIdLong;
+
+				if ( resource is Texture tex )
+				{
+					resourceName = "RenderTarget";
+					resourceId = (ulong)tex.native.self; // Texture resources can be render targets, which have a unique native pointer but have no name or path.
+				}
+				Log.Warning( $"NativeResourceCache: Resource still alive during shutown, this can indicate a leak: {resource.GetType().Name} [{resourceId}] {resourceName} ({resource.ResourcePath}) will be force destroyed." );
+				if ( LeakTracking && CallstackTable.TryGetValue( kvp.Key, out var callstack ) )
+				{
+					Log.Warning( $"NativeResourceCache: Allocation callstack:\n{callstack}" );
+				}
+				leaks++;
+			}
+		}
+
+		if ( leaks > 0 ) Log.Warning( $"NativeResourceCache: Total leaks: {leaks}" );
+
+		// Force destory all resources and than clear the cache to prevent any resurrected resources from being reported as leaks.
+		foreach ( var kvp in WeakTable )
+		{
+			if ( kvp.Value.Target is Resource resource && resource.IsValid() )
+			{
+				resource.Destroy();
+			}
+		}
+
+		ClearWeakTable();
 	}
 }

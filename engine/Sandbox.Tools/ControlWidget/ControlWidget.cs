@@ -299,6 +299,15 @@ public abstract class ControlWidget : Widget
 	}
 
 	/// <summary>
+	/// Called when right clicking a label in a ControlSheet for this widget. This allows
+	/// you to add advanced menu items for this widget at the top of the menu, before the default ones.
+	/// </summary>
+	public virtual void OnLabelContextMenu( ContextMenu menu )
+	{
+
+	}
+
+	/// <summary>
 	/// ActionGraph serializer needs hints about the GameObject that contains this property.
 	/// </summary>
 	private IDisposable PushSerializationOptions()

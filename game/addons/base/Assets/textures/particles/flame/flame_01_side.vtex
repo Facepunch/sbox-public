@@ -1,0 +1,18 @@
+{
+  "Images": null,
+  "Sequences": [
+    {
+      "Source": "textures/particles/flame/flame_01_side_color.png",
+      "IsLooping": true,
+      "FlipBook": true,
+      "Columns": 8,
+      "Rows": 8,
+      "Frames": 64
+    }
+  ],
+  "InputColorSpace": "Linear",
+  "OutputFormat": "DXT5",
+  "OutputColorSpace": "Linear",
+  "OutputMipAlgorithm": "None",
+  "OutputTypeString": "2D"
+}

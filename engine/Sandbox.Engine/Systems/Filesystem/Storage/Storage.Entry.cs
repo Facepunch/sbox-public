@@ -234,6 +234,13 @@ public static partial class Storage
 			options.KeyValues["type"] = Type;
 			options.KeyValues["source"] = "storage";
 
+			// Re-use existing workshop item if we've published before
+			var existingId = GetMeta<ulong>( "_workshopId" );
+			if ( existingId != 0 )
+			{
+				options.PublishedFileId = existingId;
+			}
+
 			Game.Overlay.WorkshopPublish( options );
 		}
 	}

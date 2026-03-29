@@ -5,7 +5,7 @@ namespace Sandbox;
 /// This moves the expensive physics traces out of the main sound tick loop
 /// and parallelizes them across all sounds rather than per-sound.
 /// </summary>
-internal sealed class SoundOcclusionSystem : GameObjectSystem
+internal sealed class SoundOcclusionSystem : GameObjectSystem<SoundOcclusionSystem>
 {
 	/// <summary>
 	/// Cached data for parallel occlusion updates.
@@ -14,11 +14,10 @@ internal sealed class SoundOcclusionSystem : GameObjectSystem
 	/// </summary>
 	record struct PendingOcclusionUpdate( SoundHandle Handle, Audio.SteamAudioSource Source, Vector3 ListenerPosition );
 
-	// Static lists to avoid allocations each frame
-	static readonly List<SoundHandle> _tempHandles = new();
-	static readonly List<PendingOcclusionUpdate> _pendingUpdates = new();
-	static readonly List<Audio.Listener> _sceneListeners = new();
-	static readonly Dictionary<Audio.Mixer, int> _voiceCountByMixer = new();
+	readonly List<SoundHandle> _tempHandles = new();
+	readonly List<PendingOcclusionUpdate> _pendingUpdates = new();
+	readonly List<Audio.Listener> _sceneListeners = new();
+	readonly Dictionary<Audio.Mixer, int> _voiceCountByMixer = new();
 
 	public SoundOcclusionSystem( Scene scene ) : base( scene )
 	{

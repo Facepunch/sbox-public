@@ -34,10 +34,14 @@ public partial class Scene : GameObject
 		{
 			var mt = Engine.Utility.RayTrace.MeshTraceRequest.From( trace.PhysicsTrace.request, SceneWorld, trace.CullMode );
 			mt.filterCallback = trace.NeedsFilterCallback ? trace.FilterCallback : default;
-			var meshTraceResult = mt.Run();
-			if ( meshTraceResult.Hit )
+			var meshTraceResults = mt.RunAll();
+
+			foreach ( var meshTraceResult in meshTraceResults )
 			{
-				results.Add( SceneTraceResult.From( this, meshTraceResult ) );
+				if ( meshTraceResult.Hit )
+				{
+					results.Add( SceneTraceResult.From( this, meshTraceResult ) );
+				}
 			}
 		}
 
@@ -667,9 +671,11 @@ public partial struct SceneTrace
 	/// </summary>
 	internal readonly bool FilterCallback( PhysicsShape shape )
 	{
-		var body = shape.Body;
-
-		return FilterCallback( body.GameObject );
+		//
+		// Use gameobject of the collider, gameobject of body could be an ancestor.
+		// Fallback to gameobject of body if collider is null, although this should never be the case.
+		//
+		return FilterCallback( shape.Collider?.GameObject ?? shape.Body?.GameObject );
 	}
 
 	/// <summary>
@@ -699,7 +705,6 @@ public partial struct SceneTrace
 		{
 			if ( go.IsAncestor( IgnoreHierarchy[i] ) ) return false;
 		}
-
 
 		return true;
 	}

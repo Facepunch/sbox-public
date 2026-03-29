@@ -127,23 +127,49 @@ public static class TrackProperty
 
 		if ( factory is null || targetType is null ) return null;
 
-		return factory.CreateProperty( parent, name, targetType );
+		var property = factory.CreateProperty( parent, name, targetType );
+
+		return targetType.CanMakeReference()
+			? property.AsReference()
+			: property;
 	}
 
 	public static ITrackProperty Create( ITrackTarget parent, string name, Type targetType )
 	{
-		var factory = Factories.FirstOrDefault( x => IsMatchingFactory( x, parent, name, targetType ) )
+		var innerType = targetType;
+
+		if ( BindingReference.GetUnderlyingType( targetType ) is { } type )
+		{
+			innerType = type;
+		}
+
+		var factory = Factories.FirstOrDefault( x => IsMatchingFactory( x, parent, name, innerType ) )
 			?? throw new Exception( "We should have at least found the UnknownPropertyFactory." );
 
-		return factory.CreateProperty( parent, name, targetType );
+		var property = factory.CreateProperty( parent, name, innerType );
+
+		return innerType != targetType
+			? property.AsReference()
+			: property;
 	}
 
 	public static IEnumerable<(string Name, string Category, Type Type)> GetAll( ITrackTarget parent )
 	{
 		return Factories.SelectMany( x => x.GetPropertyNames( parent )
-				.Select( y => (Name: y, Category: x.GetCategoryName( parent, y ), Type: x.GetTargetType( parent, y )) )
+				.Select( y => (Name: y, Category: x.GetCategoryName( parent, y ), Type: GetFinalTargetType( x, parent, y )) )
 				.Where( y => y.Type is not null && y.Type != typeof( Unknown ) ) )
 			.DistinctBy( x => x.Name )!;
+	}
+
+	private static Type? GetFinalTargetType( ITrackPropertyFactory factory, ITrackTarget parent, string name )
+	{
+		var type = factory.GetTargetType( parent, name );
+
+		if ( type is null ) return null;
+
+		return type.CanMakeReference()
+			? typeof( BindingReference<> ).MakeGenericType( type )
+			: type;
 	}
 
 	public static ITrackProperty<T> Create<T>( ITrackTarget parent, string name ) =>

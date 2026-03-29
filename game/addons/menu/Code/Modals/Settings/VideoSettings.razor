@@ -73,6 +73,13 @@
 
         <row class="with-gaps">
             <cell class="glass with-padding is-label">
+                Shadows
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@ShadowQualityOptions Value:bind=@ShadowQuality></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
                 Motion Blur Strength
             </cell>
             <SliderControl class="glass with-grow" Value:bind=@MotionBlurScale Min="@(0.0f)" Max="@(1.0f)" Step="@(0.01f)" ShowTextEntry="@true"></SliderControl>
@@ -93,6 +100,7 @@
     public TextureQuality TextureDetail { get; set; }
     public VolumetricFogQuality VolumetricFogQuality { get; set; }
     public PostProcessQuality PostProcessQuality { get; set; }
+    public ShadowQuality ShadowQuality { get; set; }
     public float MotionBlurScale { get; set; }
     public int FrameRateLimit { get; set; }
 
@@ -116,6 +124,7 @@
     List<Option> TextureDetailOptions = [new("Low", Sandbox.Engine.Settings.TextureQuality.Low), new("Medium", Sandbox.Engine.Settings.TextureQuality.Medium), new("High", Sandbox.Engine.Settings.TextureQuality.High)];
     List<Option> VolumetricFogQualityOptions = [new("Low", VolumetricFogQuality.Low), new("Medium", VolumetricFogQuality.Medium), new("High", VolumetricFogQuality.High)];
     List<Option> PostProcessOptions = [new("Low", PostProcessQuality.Low), new("Medium", PostProcessQuality.Medium), new("High", PostProcessQuality.High)];
+    List<Option> ShadowQualityOptions = [new("Low", ShadowQuality.Low), new("Medium", ShadowQuality.Medium), new("High", ShadowQuality.High)];
 
     List<Option> GetResolutionOptions()
     {
@@ -158,6 +167,7 @@
         TextureDetail = MenuUtility.RenderSettings.TextureQuality;
         VolumetricFogQuality = MenuUtility.RenderSettings.VolumetricFogQuality;
         PostProcessQuality = MenuUtility.RenderSettings.PostProcessQuality;
+        ShadowQuality = MenuUtility.RenderSettings.ShadowQuality;
         MotionBlurScale = MenuUtility.RenderSettings.MotionBlurScale;
 
         // FrameRateLimit = MenuUtility.RenderSettings.FrameRateLimit; // TODO!!!
@@ -215,6 +225,7 @@
         MenuUtility.RenderSettings.TextureQuality = TextureDetail;
         MenuUtility.RenderSettings.VolumetricFogQuality = VolumetricFogQuality;
         MenuUtility.RenderSettings.PostProcessQuality = PostProcessQuality;
+        MenuUtility.RenderSettings.ShadowQuality = ShadowQuality;
         MenuUtility.RenderSettings.MotionBlurScale = MotionBlurScale;
 
         // MenuUtility.RenderSettings.FrameRateLimit = FrameRateLimit; // TODO!!!

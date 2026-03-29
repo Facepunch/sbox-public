@@ -66,6 +66,14 @@ public class SystemsConfig : ConfigData
 				return true;
 			}
 
+			// Handle enums explicitly
+			if ( property.PropertyType.IsEnum && rawValue is IConvertible )
+			{
+				value = Enum.ToObject( property.PropertyType, Convert.ToInt32( rawValue ) );
+				properties[property.Name] = value;
+				return true;
+			}
+
 			// Only use Convert.ChangeType for primitive/convertible types
 			if ( rawValue is IConvertible && property.PropertyType.IsAssignableTo( typeof( IConvertible ) ) )
 			{

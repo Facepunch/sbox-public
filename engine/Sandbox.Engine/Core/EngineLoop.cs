@@ -294,10 +294,7 @@ internal static class EngineLoop
 		//
 		// Free anything that needs to be disposed of at end of frame
 		// 
-		while ( FrameEndDisposables.Reader.TryRead( out var disposable ) )
-		{
-			disposable.Dispose();
-		}
+		DrainFrameEndDisposables();
 
 		// Free render targets
 		RenderTarget.EndOfFrame();
@@ -430,4 +427,16 @@ internal static class EngineLoop
 	/// Queue something to be disposed of after the frame has ended and everything has finished rendering.
 	/// </summary>
 	internal static void DisposeAtFrameEnd( IDisposable disposable ) => FrameEndDisposables.Writer.TryWrite( disposable );
+
+	/// <summary>
+	/// Drain all queued frame-end disposables immediately. Called during shutdown
+	/// since no more frames will run to process them naturally.
+	/// </summary>
+	internal static void DrainFrameEndDisposables()
+	{
+		while ( FrameEndDisposables.Reader.TryRead( out var disposable ) )
+		{
+			disposable.Dispose();
+		}
+	}
 }

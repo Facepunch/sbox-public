@@ -23,8 +23,11 @@ public partial class Terrain
 	/// </summary>
 	void CreateBuffers()
 	{
-		TerrainBuffer ??= new( 1 );
-		MaterialsBuffer ??= new( 64 );
+		if ( TerrainBuffer != null )
+			return;
+
+		TerrainBuffer = new( 1 );
+		MaterialsBuffer = new( 64 );
 
 		var gpuTerrain = new GPUTerrain()
 		{

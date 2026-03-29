@@ -107,22 +107,24 @@ namespace Hotload
 			return result;
 		}
 
+		private TypeLibrary _oldTypeLibrary;
 		private NodeLibrary _oldNodeLibrary;
 
-		public TypeLibrary TypeLibrary;
+		public TypeLibrary TypeLibrary => Game.TypeLibrary;
 		public NodeLibrary Nodes => Game.NodeLibrary;
 
 		[TestInitialize]
 		public void Initialize()
 		{
+			_oldTypeLibrary = Game.TypeLibrary;
 			_oldNodeLibrary = Nodes;
 
 			ResetStaticFields<Before.ResetAttribute>();
 			ResetStaticFields<After.ResetAttribute>();
 			ResetStaticFields<ResetAttribute>();
 
-			TypeLibrary = new TypeLibrary();
-			TypeLibrary.AddAssembly( typeof( LogNodes ).Assembly, false );
+			Game.TypeLibrary = new TypeLibrary();
+			Game.TypeLibrary.AddAssembly( typeof( LogNodes ).Assembly, false );
 
 			Game.NodeLibrary = new NodeLibrary( new TypeLoader( () => TypeLibrary ), new GraphLoader() );
 
@@ -140,6 +142,7 @@ namespace Hotload
 		[TestCleanup]
 		public void Cleanup()
 		{
+			Game.TypeLibrary = _oldTypeLibrary;
 			Game.NodeLibrary = _oldNodeLibrary;
 		}
 	}

@@ -123,6 +123,9 @@ internal ref struct CameraRenderer
 			Native.OrthoSize = camera.OrthoHeight / camera.Size.y;
 		}
 
+		if ( camera.ExcludeFromTextureStreaming )
+			Native.SceneViewFlags |= NativeEngine.SceneViewFlags.SVF_NO_TEXTURE_STREAMING;
+
 		//
 		// add worlds
 		//

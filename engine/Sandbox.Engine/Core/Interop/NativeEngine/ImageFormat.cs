@@ -119,8 +119,6 @@ public enum ImageFormat : int
 	D24X8,
 	D24X4S4,
 	D24FS8,
-	D16_SHADOW,    // Specific formats for shadow mapping
-	D24X8_SHADOW,  // Specific formats for shadow mapping
 
 	DXT5_NM = 78,
 
@@ -161,8 +159,6 @@ internal static class ImageFormatExtensions
 			case ImageFormat.D24X8:
 			case ImageFormat.D24X4S4:
 			case ImageFormat.D24FS8:
-			case ImageFormat.D16_SHADOW:
-			case ImageFormat.D24X8_SHADOW:
 			case ImageFormat.D32FS8:
 				return true;
 			default:

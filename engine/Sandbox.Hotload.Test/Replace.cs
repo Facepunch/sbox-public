@@ -10,6 +10,7 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Sandbox;
+using Sandbox.Engine;
 using Sandbox.Upgraders;
 using Sandbox.Utility;
 
@@ -1424,6 +1425,28 @@ namespace Hotload
 
 			Assert.AreEqual( 1, _hashSetEx.Count );
 			Assert.AreEqual( 1, _hashSetEx.List.Count );
+		}
+
+		/// <summary>
+		/// Prove that <see cref="ReflectionQueryCache.ClearTypeCache"/> gets called
+		/// in <see cref="Sandbox.Engine.GlobalContext.OnHotload"/>.
+		/// </summary>
+		[TestMethod]
+		public void ReflectionQueryCacheClearOnHotload()
+		{
+			using var ctxScope = GlobalContext.GameScope();
+
+			// Do something that populates the cache
+
+			ReflectionQueryCache.OrderedSerializableMembers( typeof( GameObject ) );
+
+			Assert.IsFalse( ReflectionQueryCache.IsEmpty );
+
+			// This should clear the cache
+
+			Sandbox.Engine.GlobalContext.Current.OnHotload();
+
+			Assert.IsTrue( ReflectionQueryCache.IsEmpty );
 		}
 	}
 }

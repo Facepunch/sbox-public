@@ -26,6 +26,7 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		PhysicsWorld.OnIntersectionUpdate += OnIntersectionUpdate;
 		PhysicsWorld.OnIntersectionEnd += OnIntersectionEnd;
 		PhysicsWorld.OnBodyOutOfBounds += OnBodyOutOfBounds;
+		PhysicsWorld.OnBodyFellAsleep += OnBodyFellAsleep;
 	}
 
 	public override void Dispose()
@@ -40,6 +41,7 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		PhysicsWorld.OnIntersectionUpdate -= OnIntersectionUpdate;
 		PhysicsWorld.OnIntersectionEnd -= OnIntersectionEnd;
 		PhysicsWorld.OnBodyOutOfBounds -= OnBodyOutOfBounds;
+		PhysicsWorld.OnBodyFellAsleep -= OnBodyFellAsleep;
 	}
 
 	void UpdatePhysics()
@@ -147,6 +149,13 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		var rb = body.Component as Rigidbody;
 		if ( rb.IsValid() == false ) return;
 		IScenePhysicsEvents.Post( x => x.OnOutOfBounds( rb ) );
+	}
+
+	void OnBodyFellAsleep( PhysicsBody body )
+	{
+		var rb = body.Component as Rigidbody;
+		if ( rb.IsValid() == false ) return;
+		IScenePhysicsEvents.Post( x => x.OnFellAsleep( rb ) );
 	}
 
 	void DebugDrawPhysics()

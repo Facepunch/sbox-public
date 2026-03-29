@@ -172,6 +172,13 @@ namespace Editor
 				var url = _data.url();
 				if ( string.IsNullOrEmpty( url ) ) return default;
 
+				if ( url.StartsWith( "file:///" ) )
+				{
+					// hash is a valid char in filenames
+					// encode it so it's not misinterpreted  as a fragment, which breaks the path
+					url = url.Replace( "#", "%23" );
+				}
+
 				if ( Uri.TryCreate( url, new UriCreationOptions(), out var uri ) )
 				{
 					return uri;

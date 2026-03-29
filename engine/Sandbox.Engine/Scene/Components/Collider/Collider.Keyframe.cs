@@ -42,8 +42,10 @@ public abstract partial class Collider
 
 		_keyframeBody.Component = this;
 
-		_collisionEvents?.Dispose();
-		_collisionEvents = new CollisionEventSystem( _keyframeBody );
+		if ( _collisionEvents is not null )
+			_collisionEvents.Rebind( _keyframeBody );
+		else
+			_collisionEvents = new CollisionEventSystem( _keyframeBody );
 
 		if ( isKeyframed )
 		{

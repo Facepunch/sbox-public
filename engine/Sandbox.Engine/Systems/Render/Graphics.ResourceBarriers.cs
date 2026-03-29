@@ -14,6 +14,8 @@ public static partial class Graphics
 	/// <param name="mip">The mip level to transition (-1 for all mips).</param>
 	public static void ResourceBarrierTransition( Texture texture, ResourceState state, int mip = -1 )
 	{
+		ArgumentNullException.ThrowIfNull( texture );
+
 		RenderBarrierPipelineStageFlags_t srcStage, dstStage;
 		RenderBarrierAccessFlags_t barrierAccessFlags;
 		RenderImageLayout_t imageLayout;
@@ -36,6 +38,8 @@ public static partial class Graphics
 	/// <param name="state">The new resource state for the buffer.</param>
 	public static void ResourceBarrierTransition<T>( GpuBuffer<T> buffer, ResourceState state ) where T : unmanaged
 	{
+		ArgumentNullException.ThrowIfNull( buffer );
+
 		RenderBarrierPipelineStageFlags_t srcStage, dstStage;
 		RenderBarrierAccessFlags_t barrierAccessFlags;
 		RenderImageLayout_t imageLayout;
@@ -57,6 +61,8 @@ public static partial class Graphics
 	/// <param name="state">The new resource state for the buffer.</param>
 	public static void ResourceBarrierTransition( GpuBuffer buffer, ResourceState state )
 	{
+		ArgumentNullException.ThrowIfNull( buffer );
+
 		RenderBarrierPipelineStageFlags_t srcStage, dstStage;
 		RenderBarrierAccessFlags_t barrierAccessFlags;
 		RenderImageLayout_t imageLayout;
@@ -80,6 +86,8 @@ public static partial class Graphics
 	/// <param name="after">The desired resource state of the buffer after the transition.</param>
 	public static void ResourceBarrierTransition<T>( GpuBuffer<T> buffer, ResourceState before, ResourceState after ) where T : unmanaged
 	{
+		ArgumentNullException.ThrowIfNull( buffer );
+
 		ResourceStateToVulkanFlags( before, out var srcStage, out var srcFlags, out _, buffer.Usage );
 		ResourceStateToVulkanFlags( after, out var dstStage, out var dstFlags, out _, buffer.Usage );
 
@@ -95,10 +103,42 @@ public static partial class Graphics
 	/// <param name="after">The desired resource state of the buffer after the transition.</param>
 	public static void ResourceBarrierTransition( GpuBuffer buffer, ResourceState before, ResourceState after )
 	{
+		ArgumentNullException.ThrowIfNull( buffer );
+
 		ResourceStateToVulkanFlags( before, out var srcStage, out var srcFlags, out _, buffer.Usage );
 		ResourceStateToVulkanFlags( after, out var dstStage, out var dstFlags, out _, buffer.Usage );
 
 		Context.BufferBarrierTransition( buffer.native, srcStage, dstStage, srcFlags, dstFlags );
+	}
+
+	/// <summary>
+	/// Issues a UAV barrier for the given texture, ensuring writes from prior shader invocations
+	/// are visible to subsequent ones without changing the resource layout.
+	/// </summary>
+	/// <param name="texture">The texture to barrier.</param>
+	public static void UavBarrier( Texture texture )
+	{
+		ArgumentNullException.ThrowIfNull( texture );
+
+		var stage = RenderBarrierPipelineStageFlags_t.FragmentShaderBit | RenderBarrierPipelineStageFlags_t.ComputeShaderBit;
+		var access = RenderBarrierAccessFlags_t.ShaderReadBit | RenderBarrierAccessFlags_t.ShaderWriteBit;
+
+		Context.TextureBarrierTransition( texture.native, -1, stage, stage, RenderImageLayout_t.RENDER_IMAGE_LAYOUT_GENERAL, access, access );
+	}
+
+	/// <summary>
+	/// Issues a UAV barrier for the given GPU buffer, ensuring writes from prior shader invocations
+	/// are visible to subsequent ones.
+	/// </summary>
+	/// <param name="buffer">The buffer to barrier.</param>
+	public static void UavBarrier( GpuBuffer buffer )
+	{
+		ArgumentNullException.ThrowIfNull( buffer );
+
+		var stage = RenderBarrierPipelineStageFlags_t.FragmentShaderBit | RenderBarrierPipelineStageFlags_t.ComputeShaderBit;
+		var access = RenderBarrierAccessFlags_t.ShaderReadBit | RenderBarrierAccessFlags_t.ShaderWriteBit;
+
+		Context.BufferBarrierTransition( buffer.native, stage, stage, access, access );
 	}
 
 	/// <summary>
@@ -150,7 +190,7 @@ public static partial class Graphics
 			case ResourceState.NonPixelShaderResource:
 				imageLayout = RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 				accessFlags = RenderBarrierAccessFlags_t.ShaderReadBit;
-				dstStageFlags = RenderBarrierPipelineStageFlags_t.VertexInputBit;
+				dstStageFlags = RenderBarrierPipelineStageFlags_t.PreRasterizationShadersBit | RenderBarrierPipelineStageFlags_t.ComputeShaderBit;
 				break;
 			case ResourceState.PixelShaderResource:
 				imageLayout = RenderImageLayout_t.RENDER_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -166,6 +206,10 @@ public static partial class Graphics
 				imageLayout = RenderImageLayout_t.RENDER_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 				accessFlags = RenderBarrierAccessFlags_t.TransferReadBit;
 				dstStageFlags = RenderBarrierPipelineStageFlags_t.TransferBit;
+				break;
+			case ResourceState.IndirectArgument:
+				accessFlags = RenderBarrierAccessFlags_t.IndirectCommandReadBit;
+				dstStageFlags = RenderBarrierPipelineStageFlags_t.DrawIndirectBit;
 				break;
 		}
 	}

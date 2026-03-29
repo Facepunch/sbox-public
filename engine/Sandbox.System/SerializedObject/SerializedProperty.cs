@@ -493,6 +493,26 @@ public abstract partial class SerializedProperty : IValid
 	{
 		return new ActionBasedSerializedProperty<T>( title, title, "", get, set, attributes, null );
 	}
+
+	/// <summary>
+	/// If we're an object type, and this is a value type, we'll create a new instance
+	/// to fill the boxed value. That way everything will know what type it is and be able
+	/// to edit it.
+	/// </summary>
+	internal void CreateObjectValue()
+	{
+		var value = GetValue<object>();
+		if ( value != null ) return;
+
+		var type = PropertyType;
+
+		if ( TryGetAttribute<TypeHintAttribute>( out var typeHint ) )
+			type = typeHint.HintedType;
+
+		if ( !type.IsValueType ) return;
+
+		SetValue( GetDefault() );
+	}
 }
 
 /// <summary>

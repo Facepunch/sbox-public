@@ -5,10 +5,12 @@ namespace Sandbox;
 /// <summary>
 /// A thread-safe pool for reusing <see cref="RenderAttributes"/> instances.
 /// Returning to the pool clears the instance but does not free its memory, allowing for efficient reuse.
+/// Uses ConcurrentQueue instead of ConcurrentBag to avoid ThreadLocal strong handle roots
+/// that survive even after Clear/null.
 /// </summary>
 internal class RenderAttributePool
 {
-	private readonly ConcurrentBag<RenderAttributes> Pool = [];
+	private ConcurrentQueue<RenderAttributes> Pool = new();
 
 	/// <summary>
 	/// Get a pooled <see cref="RenderAttributes"/> instance.
@@ -16,7 +18,7 @@ internal class RenderAttributePool
 	/// </summary>
 	public RenderAttributes Get()
 	{
-		if ( Pool.TryTake( out var ra ) )
+		if ( Pool.TryDequeue( out var ra ) )
 			return ra;
 
 		return new RenderAttributes();
@@ -31,6 +33,19 @@ internal class RenderAttributePool
 		ArgumentNullException.ThrowIfNull( renderAttributes );
 
 		renderAttributes.Clear( false ); // don't free our memory, we want to reuse it
-		Pool.Add( renderAttributes );
+		Pool.Enqueue( renderAttributes );
+	}
+
+	/// <summary>
+	/// Dequeues all pooled instances and clears them, releasing native handles.
+	/// </summary>
+	public void Clear()
+	{
+		while ( Pool.TryDequeue( out var ra ) )
+		{
+			ra.Clear();
+		}
+
+		Pool.Clear();
 	}
 }

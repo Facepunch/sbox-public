@@ -199,7 +199,7 @@ public class ArgQString : Arg
 	{
 		code ??= Name;
 
-		return !native ? $"_str_{Name}.Pointer" : native ? $"{code}.unicode()" : base.ToInterop( native, code );
+		return !native ? $"(IntPtr)_str_{Name}" : native ? $"{code}.unicode()" : base.ToInterop( native, code );
 	}
 
 	public override string FromInterop( bool native, string code = null )
@@ -227,7 +227,7 @@ public class ArgQString : Arg
 		}
 		else if ( !native )
 		{
-			return $"var _str_{Name} = new {Definition.Current.StringTools}.InteropWString( {Name} ); try {{ {functionCall} }} finally {{ _str_{Name}.Free(); }} ";
+			return $"fixed( char* _str_{Name} = {Name} ) {{ {functionCall} }} ";
 		}
 
 		return base.WrapFunctionCall( functionCall, native );

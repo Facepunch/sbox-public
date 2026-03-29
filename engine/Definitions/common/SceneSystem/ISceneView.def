@@ -19,6 +19,7 @@ native class ISceneView as NativeEngine.ISceneView
 	
 	void AddWorldToRenderList( ISceneWorld pWorld );
 
+	Vector3 GetCameraPosition();
 	HSceneViewRenderTarget FindOrCreateRenderTarget( string pName, ITexture hTexture, int nFlags );
 
 	void SetParent( ISceneView pParent );

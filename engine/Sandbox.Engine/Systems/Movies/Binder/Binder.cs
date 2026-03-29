@@ -67,11 +67,11 @@ public sealed partial class TrackBinder( Scene? scene = null ) : IEnumerable<Key
 		{
 			// GameObject reference
 			IReferenceTrack refTrack when track.TargetType == typeof( GameObject ) =>
-				new GameObjectReference( parent as ITrackReference<GameObject>, track.Name, this, refTrack.Id, refTrack.ReferenceId ),
+				new GameObjectReference( this, parent as ITrackReference<GameObject>, track.Name, refTrack.Id, refTrack.Metadata?.ReferenceId ),
 
 			// Component reference
 			IReferenceTrack refTrack =>
-				CreateComponentReference( parent as ITrackReference<GameObject>, track.TargetType, this, refTrack.Id ),
+				CreateComponentReference( this, parent as ITrackReference<GameObject>, track.TargetType, refTrack.Id, refTrack.Metadata?.ReferenceId ),
 
 			// Member property within another track
 			IPropertyTrack =>
@@ -146,18 +146,7 @@ public sealed partial class TrackBinder( Scene? scene = null ) : IEnumerable<Key
 		}
 	}
 
-	public IEnumerator<KeyValuePair<Guid, IValid?>> GetEnumerator()
-	{
-		foreach ( var (guid, gameObject) in _gameObjectMap )
-		{
-			yield return new KeyValuePair<Guid, IValid?>( guid, gameObject );
-		}
-
-		foreach ( var (guid, component) in _componentMap )
-		{
-			yield return new KeyValuePair<Guid, IValid?>( guid, component );
-		}
-	}
+	public IEnumerator<KeyValuePair<Guid, IValid?>> GetEnumerator() => _trackIdToTarget.GetEnumerator();
 
 	IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

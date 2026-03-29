@@ -9,7 +9,6 @@ enum AmbientLightKind
 {
     EnvMapProbe,            // Image-based Lighting
     LightMapProbeVolume,    // Probe-based Lighting
-    LightMap2D,             // 2D Lightmaps for static geometry
     DDGI                    // Dynamic Diffuse Global Illumination
 };
 
@@ -24,13 +23,9 @@ class AmbientLight
         {
             return AmbientLightKind::DDGI;
         }
-        else if ( ProbeLight::UsesProbes() )
+        else if ( UsesBakedLightingFromProbe )
         {
             return AmbientLightKind::LightMapProbeVolume;
-        }
-        else if ( LightmappedLight::UsesLightmaps() )
-        {
-            return AmbientLightKind::LightMap2D;
         }
         else
         {
@@ -38,7 +33,7 @@ class AmbientLight
         }
     }
 
-    static float3 From( float3 WorldPosition, float4 PositionSs, float3 WorldNormal, float2 LightMapUV = 0.0f )
+    static float3 From( float3 WorldPosition, float4 PositionSs, float3 WorldNormal )
     {
         switch( GetKind() )
         {
@@ -50,8 +45,6 @@ class AmbientLight
             case AmbientLightKind::LightMapProbeVolume:
                 return FromLightMapProbeVolume( WorldPosition, WorldNormal );
                 break;
-            case AmbientLightKind::LightMap2D:
-                return 0.0f;
         }
         return 0.0f;
     }
@@ -59,7 +52,6 @@ class AmbientLight
     static float3 FromDDGI(float3 WorldPosition, float3 WorldNormal);
     static float3 FromEnvMapProbe(float3 WorldPosition, float4 PositionSs, float3 WorldNormal);
     static float3 FromLightMapProbeVolume(float3 WorldPosition, float3 WorldNormal);
-    static float3 FromLightMap(float3 WorldPosition, float2 LightMapUV);
 };
 
 float3 AmbientLight::FromDDGI( float3 WorldPosition, float3 WorldNormal )

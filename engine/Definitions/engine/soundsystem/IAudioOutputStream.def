@@ -13,6 +13,7 @@ native class CAudioStreamManaged
 	uint LatencySamplesCount();
 	void Pause();
 	void Resume();
+	void Close();
 	string GetName();
 	CSfxTable GetSfxTable();
 }

@@ -6,8 +6,8 @@
 #include "system.fxc"
 #include "common_samplers.fxc" // Move me
 #include "light_probe_volume.fxc"
-#include "baked_lighting_constants.fxc"
-#include "pcss.fxc"
+#include "Shadows/ProjectedShadow.hlsl"
+#include "Shadows/Obsolete.hlsl"
 #include "common/lightbinner.hlsl"
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -23,7 +23,6 @@ Texture2D g_tBlueNoise : register(t0) < Attribute("BlueNoise"); > ;
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Debug visualization
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-bool g_bShowLightmapTexels < Attribute( "g_bShowLightmapTexels" ); >;
 bool g_bShowLPVVoxels < Attribute( "g_bShowLPVVoxels" ); >;
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -123,17 +122,6 @@ void OpaqueFadeDepth( float flOpacity, float2 vPositionSs )
 	float flNoise = g_tBlueNoise.Load( int3( vPositionSs.xy % TextureDimensions2D( g_tBlueNoise, 0 ).xy, 0 ) ).g;
 	clip( mad( flOpacity, 2.0, -1.5 ) + flNoise );
 }
-
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------
-float GetLightmapUVCheckerboard( float2 vUV )
-{
-	int2 vDims = TextureDimensions2DArray( LightMap( 2 ), 0 );
-	int2 vUVInPixels = int2( vUV.xy * vDims.xy );
-	if ( ( ( vUVInPixels.x + vUVInPixels.y ) & 1 ) == 1 )
-		return 0.8f;
-	return 1.2f;
-}
-
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
 void ComputeDiffuseAndSpecularTerms( out float3 o_vDiffuseTerm, out float3 o_vSpecularTerm, out float3 o_vTransmissiveTerm,
@@ -282,33 +270,36 @@ float3 ComputePerVertexTransmissiveLighting( float3 vPositionWs, float3 vNormalW
 	return vTransmissiveLighting.rgb;
 }
 
+//---------------------------------------------------------------------------------------------------------------------------------------------------------
+// Sample shadow map depth to estimate how much geometry the light passes through.
+// Returns a Gaussian falloff: 1 = thin/unblocked, 0 = too thick to transmit.
+//---------------------------------------------------------------------------------------------------------------------------------------------------------
+float3 GetTransmissiveThicknessFromHit( const FinalCombinerInput_t f, float3 vHitPosition )
+{
+	float3 vThickness = f.vTransmissiveFalloff * length( f.vPositionWs.xyz - vHitPosition );
+	return exp( -vThickness * vThickness );
+}
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
-
-float3 ComputeTransmissiveThickness(
-							   const FinalCombinerInput_t f,
-							   const BinnedLight l,
-							   float3 vPositionTextureSpace,
-							   float3 vPositionToLightDirWs )
+// Binned light transmissive thickness path (spot/point/directional)
+//---------------------------------------------------------------------------------------------------------------------------------------------------------
+float3 GetTransmissiveThickness( const FinalCombinerInput_t f, const BinnedLight lightData )
 {
 	#if ( S_TRANSMISSIVE )
-	{
-		[branch] if ( any( f.vTransmissiveMask.rgb ) )
-		{
-			float3 vTransmit = float3( 0.367879, 0.367879, 0.367879 ); // exp( -1.0 )
+		const uint shadowIndex = lightData.ShadowMapIndex;
+		float3 vHitPosition = f.vPositionWs.xyz; // default: no occluder, zero thickness
 
-			float flLinearDepth =  ComputeShadow_ProjectiveDepthToLinearDepth( vPositionTextureSpace.z, l.ProjectedShadowDepthToLinearDepth.xyzw );
-			float flBlockerDepthPs = ComputeShadow_MinDepth_1x1( vPositionTextureSpace.xyz );
-			float flBlockerLinearDepth = ComputeShadow_ProjectiveDepthToLinearDepth( flBlockerDepthPs, l.ProjectedShadowDepthToLinearDepth.xyzw );
-			float3 vThickness = f.vTransmissiveFalloff * max( flLinearDepth - flBlockerLinearDepth, 1.0 );
-            vTransmit = exp(-vThickness.rgb * vThickness.rgb);
-            return vTransmit;
-		}
-	}
+		if ( lightData.Type == LightType::LightTypeSpot )
+			vHitPosition = ProjectedShadow::GetOccludedPosition( shadowIndex, f.vPositionWs.xyz, lightData.GetPosition(), lightData.Radius );
+		else if ( lightData.Type == LightType::LightTypePoint )
+			vHitPosition = ProjectedShadowCube::GetOccludedPosition( shadowIndex, f.vPositionWs.xyz, lightData.Radius );
+		else if ( lightData.Type == LightType::LightTypeDirectional )
+			vHitPosition = DirectionalLightShadow::GetOccludedPosition( f.vPositionWs.xyz );
+
+		return GetTransmissiveThicknessFromHit( f, vHitPosition );
 	#endif
 
-    // No transmissive
-    return 0.0f;
+	return 1.0f;
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -332,7 +323,7 @@ void ComputeDirectLightingForAreaLight( const FinalCombinerInput_t f, const Binn
 							normalize(vPositionToCameraDirWs),  // World-space view direction (V)
 							flRoughness,                     // Material roughness parameter
 							false
-		) * flShadow * flFalloff ) : lightData.GetColor();
+		) * flShadow * flFalloff ) : lightData.Color;
 	}
 
 	if( lightData.IsSpecularEnabled() )
@@ -354,7 +345,7 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLi
 {
 	const float2 vDiffuseExponent = ( ( 1.0 - f.vRoughness.xy ) * 0.8 ) + 0.6; // 0.8 and 0.6 are magic numbers;
 
-	float3 vLightColor		= lightData.GetColor();
+	float3 vLightColor		= lightData.Color;
 	float3 vLightPositionWs = lightData.GetPosition();
 	float3 vPositionToLightRayWs = vLightPositionWs - f.vPositionWs.xyz; // "L"
 	float3 vPositionToCameraDirWs = CalculatePositionToCameraDirWs( f.vPositionWs.xyz);
@@ -364,7 +355,7 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLi
 	float flDistToLightSq = dot( vPositionToLightRayWs.xyz, vPositionToLightRayWs.xyz );
 	float flNDotL = ClampToPositive( dot( f.vNormalWs.xyz, vPositionToLightDirWs.xyz ) );
 
-	if ( flDistToLightSq > lightData.GetRadiusSquared() && !bBaked ) // .z stores radius squared of light
+	if ( flDistToLightSq > lightData.RadiusSquared && !bBaked ) // .z stores radius squared of light
 	{
 		// Outside light range
 		return;
@@ -378,77 +369,61 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLi
 		return;
 	}
 	
-	bool isAreaLight = lightData.GetShapeSize().x > 1.0f;
+	bool isAreaLight = lightData.ShapeSize.x > 1.0f;
 	if( isAreaLight )
     {
 		// We do some weird math for falloff calculation in lightdesc for point lights, we only want the truncation value of this for area lights since
 		// LTC already does falloff by itself, this approximates the falloff value correctly, soon should use barn lights system without this bs
-		const float flAreaFalloff = ( lightData.FalloffParams.w * ( lightData.GetRadiusSquared() / 10000.0f ) ) * ( 1.0 - ( flDistToLightSq / lightData.GetRadiusSquared() ) );
+		const float flAreaFalloff = ( lightData.FalloffBias * ( lightData.RadiusSquared / 10000.0f ) ) * ( 1.0 - ( flDistToLightSq / lightData.RadiusSquared ) );
 
         ComputeDirectLightingForAreaLight(f, lightData, vDiffuse, vSpecular, vTransmissive, flAreaFalloff, bBaked );
 		return;
 	}
 
     float flSpotAtten = flConeToDirection * lightData.SpotLightInnerOuterConeCosines.z;
-    float flLightFalloff = CalculateDistanceFalloff(flDistToLightSq, lightData.FalloffParams.xyzw, 1.0);
+    float flLightFalloff = CalculateDistanceFalloff(flDistToLightSq, lightData.LinearFalloff, lightData.QuadraticFalloff, lightData.FalloffBias, 1.0);
 
-    [branch]
+	[branch]
 	if ( lightData.HasLightCookie() )
 	{
-		// Light cookie
-		float3 vPositionTextureSpace = Position3WsToShadowTextureSpace( f.vPositionWs.xyz, lightData.WorldToLightCookie );
-		float4 vCookieSample = lightData.SampleLightCookie( vPositionTextureSpace.xy );
+		float4 vCookieSample = lightData.SampleLightCookie( lightData.GetCookieUV( f.vPositionWs.xyz ) );
 		float3 vCookieColor = vCookieSample.rgb * vCookieSample.a;
 
 		// If baked, we just want the hue shift, we already have luminance
 		if ( bBaked && any(vCookieColor) )
 			vCookieColor = normalize( vCookieColor );
-			
+
 		vLightColor.rgb *= vCookieColor;
-		
 		flSpotAtten = 1.0f;
 	}
 
 	float flLightMask = bBaked ? 1.0f : flLightFalloff * flSpotAtten;
 
-	float flShadowScalar = 1.0;
+	float flShadowScalar = 1.0f;
+	float3 vTransmissiveThickness = 0.1f; // Default low, unshadowed lights look like shit for SSS since u cant derive thickness
+	const uint shadowIndex = lightData.ShadowMapIndex;
 
-	float3 vTransmissiveThickness = 1.0f;
-
-	[branch]
-	if ( lightData.HasDynamicShadows() )
+	if( lightData.HasDynamicShadows() )
 	{
-		[unroll ( MAX_SHADOW_FRUSTA_PER_LIGHT ) ]
-		for( uint i = 0; i < lightData.NumShadowFrusta(); i++ )
+		if ( lightData.Type == LightType::LightTypePoint )
 		{
-			float3 vPositionTextureSpace = Position3WsToShadowTextureSpace( f.vPositionWs.xyz, lightData.WorldToShadow[i] );
-			
-			[branch]
-			if( InsideShadowRegion( vPositionTextureSpace.xyz, lightData.ShadowBounds[i]) )
-            {
-				flShadowScalar = ComputeShadow( vPositionTextureSpace.xyz );
-				
-				// Subsurface scattering
-				if( lightData.IsTransmissiveEnabled() )
-					vTransmissiveThickness = ComputeTransmissiveThickness( f, lightData, vPositionTextureSpace.xyz, vPositionToLightDirWs );
-				
-				// Cascades
-				if( lightData.HasFrustumFeathering() )
-				{
-					float flDistanceToShadowEdge = DistanceToShadowEdge( vPositionTextureSpace.xy, lightData.ShadowBounds[i] );
-					
-					flDistanceToShadowEdge = RemapValClamped( flDistanceToShadowEdge, 0.9, 1.0, 0.0, 1.0 );
-					if( flDistanceToShadowEdge > 0 )
-					{
-						float flShadowScalarNext = ComputeShadow( f.vPositionWs.xyz, lightData.WorldToShadow[ i + 1 ], lightData.ShadowBounds[ i + 1 ] );
-						flShadowScalar = lerp( flShadowScalar, flShadowScalarNext, flDistanceToShadowEdge );
-					}
-					break;
-				}
-				else
-					break;
-			}
+			flShadowScalar = ProjectedShadowCube::GetVisibility( shadowIndex, f.vPositionWs.xyz );
 		}
+		else if ( lightData.Type == LightType::LightTypeSpot )
+		{
+			flShadowScalar = ProjectedShadow::GetVisibility( shadowIndex, f.vPositionWs.xyz, f.vPositionSs.xy );
+		}
+
+		// Dont do this fancy SSS stuff with shadows disabled else it looks shit, we calculate the thickness from the light surface
+		#if ( S_TRANSMISSIVE )
+			vTransmissiveThickness = GetTransmissiveThickness( f, lightData );
+		#endif
+	}
+
+	// Directional lights use their own CSM shadow path
+	if ( lightData.Type == LightType::LightTypeDirectional && g_DirectionalLightCascadeCount > 0 )
+	{
+		flShadowScalar = DirectionalLightShadow::GetVisibility( f.vPositionWs.xyz, f.vPositionSs.xy );
 	}
 
 	#if ( !S_TRANSMISSIVE )
@@ -456,7 +431,7 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLi
 		if ( flShadowScalar <= 0.0 )
 			return;
 	#endif
-
+	
 	float3 vDiffuseTerm, vSpecularTerm, vTransmissiveTerm;
 	ComputeDiffuseAndSpecularTerms(
 		vDiffuseTerm,
@@ -477,12 +452,71 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLi
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
+void ComputeDirectionalLight( const FinalCombinerInput_t f, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive )
+{
+	if ( g_DirectionalLightCascadeCount == 0 )
+		return;
+
+	const float2 vDiffuseExponent = ( ( 1.0 - f.vRoughness.xy ) * 0.8 ) + 0.6;
+
+	float3 vLightColor = g_DirectionalLightColor.rgb;
+
+	float3 vPositionToLightDirWs = -g_DirectionalLightDirection.xyz;
+	float3 vPositionToCameraDirWs = CalculatePositionToCameraDirWs( f.vPositionWs.xyz );
+	float flNDotL = ClampToPositive( dot( f.vNormalWs.xyz, vPositionToLightDirWs.xyz ) );
+
+	float flShadowScalar = DirectionalLightShadow::GetVisibility( f.vPositionWs.xyz, f.vPositionSs.xy );
+	float3 vTransmissiveThickness = 1.0f;
+
+	#if ( !S_TRANSMISSIVE )
+		if ( flShadowScalar <= 0.0 )
+			return;
+	#else
+		//blergh
+		float3 vHitPosition = DirectionalLightShadow::GetOccludedPosition( f.vPositionWs.xyz );
+		vTransmissiveThickness = GetTransmissiveThicknessFromHit( f, vHitPosition );
+	#endif
+
+	float3 vDiffuseTerm, vSpecularTerm, vTransmissiveTerm;
+	ComputeDiffuseAndSpecularTerms(
+		vDiffuseTerm,
+		vSpecularTerm,
+		vTransmissiveTerm,
+		true, 	// bDiffuse
+		true, 	// bSpecular
+		true, 	// bTransmissive
+		f,
+		vPositionToLightDirWs.xyz,
+		vPositionToCameraDirWs.xyz,
+		vDiffuseExponent.xy,
+		flNDotL );
+
+	vDiffuse.rgb 		+= vDiffuseTerm.rgb  * flShadowScalar * vLightColor.rgb;
+	vSpecular.rgb 		+= vSpecularTerm.rgb * flShadowScalar * vLightColor.rgb;
+	vTransmissive.rgb 	+= vTransmissiveTerm.rgb * f.vTransmissiveMask.rgb * vTransmissiveThickness.rgb * vLightColor.rgb;
+}
+
+//---------------------------------------------------------------------------------------------------------------------------------------------------------
 void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t f )
 {
 	o.vDiffuse 		= float3( 0.0, 0.0, 0.0 );
 	o.vSpecular 	= float3( 0.0, 0.0, 0.0 );
 	o.vTransmissive = float3( 0.0, 0.0, 0.0 );
 
+	// Directional light fast path — skip for baked surfaces since they get the
+	// directional light through the indexed baked light loop with per-texel strength
+	// and CSM shadows are sampled inside ComputeDirectLightingForLight.
+	if ( !LightmappedLight::UsesLightmaps() && !ProbeLight::UsesProbes() )
+		ComputeDirectionalLight( f, o.vDiffuse.rgb, o.vSpecular.rgb, o.vTransmissive.rgb );
+
+	// Cascade debug visualization — always runs regardless of baked/dynamic path
+	if ( DirectionalLightDebug > 0 && g_DirectionalLightCascadeCount > 0 )
+	{
+		float3 debugColor = DirectionalLightShadow::GetDebugColor( f.vPositionWs.xyz );
+		o.vDiffuse.rgb += debugColor;
+	}
+
+	// Dynamic lights from cluster culling
 	ClusterRange lightRange = Cluster::Query( ClusterItemType_Light, f.vPositionSs );
 
 	[loop]
@@ -494,24 +528,24 @@ void ComputeDirectLighting( inout LightingTerms_t o, const FinalCombinerInput_t 
 	}
 }
 
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------
-void CalcBakedLightingForLight( const FinalCombinerInput_t finalCombinerInput, int iLightIndex, float flStrength, float3 vPositionToCameraDirWs, inout float3 io_vDiffuse, inout float3 io_vSpecular, inout float3 io_vTransmissive )
+//---------------------------------------------------------------------------------------------------------------------------------------------------------
+void CalcBakedLightingForLight( const FinalCombinerInput_t finalCombinerInput, int iLightIndex, float flStrength,
+	inout float3 io_vDiffuse, inout float3 io_vSpecular, inout float3 io_vTransmissive )
 {
 	[branch]
 	if ( flStrength > 0.0001 )
-    {
-        BinnedLight lightData = BakedIndexedLightConstantByIndex( iLightIndex );
+	{
+		BinnedLight lightData = BakedIndexedLightConstantByIndex( iLightIndex );
 
 		float3 vDiffuse = 0;
 		float3 vSpecular = 0;
 		float3 vTransmissive = 0;
 
 		ComputeDirectLightingForLight( finalCombinerInput, lightData, vDiffuse, vSpecular, vTransmissive, true );
-		
-        io_vDiffuse += vDiffuse.xyz * flStrength;
-        io_vSpecular += vSpecular.xyz * flStrength;
-        io_vTransmissive += vTransmissive.xyz * flStrength;
 
+		io_vDiffuse += vDiffuse.xyz * flStrength;
+		io_vSpecular += vSpecular.xyz * flStrength;
+		io_vTransmissive += vTransmissive.xyz * flStrength;
 	}
 }
 
@@ -575,7 +609,6 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 	{
 		float3 vLightmapUVW = float3( finalCombinerData.vLightmapUV, 0 );
 		float4 vLightIndexFloats = Tex2DArrayS( LightMap( 0 ), g_sPointClamp, vLightmapUVW ).rgba;
-		float4 vLightStrengths = Tex2DArrayS( LightMap( 1 ), g_sTrilinearClamp, vLightmapUVW ).rgba;
 
 		// Ambient Highlight Direction (directional lightmap) data
 		float3 vIrradiance = Tex2DArrayS( LightMap( 2 ), g_sTrilinearClamp, vLightmapUVW ).rgb;
@@ -590,7 +623,7 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 		
 		fAmbientLuminanceRatio = lerp( 1, fAmbientLuminanceRatio, DIRECTIONAL_LIGHTMAP_STRENGTH );
 		// Force ambient luminance ratio to 1.0 if directional lightmaps are disabled.
-		fAmbientLuminanceRatio = saturate( fAmbientLuminanceRatio + IsLightMapDirectionalityDisabled() );
+		fAmbientLuminanceRatio = saturate( fAmbientLuminanceRatio );
 		
 		float3 vAmbientColor = fAmbientLuminanceRatio * vIrradiance;
 		float3 vDirectionalColor = (vIrradiance - vAmbientColor) / max( vHighlightDirTs.z, DIRECTIONAL_LIGHTMAP_MINZ );
@@ -605,22 +638,21 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 
 		lightingTerms.flBakedAmbientOcclusion = vAHDData.w;
 
-		vLightStrengths *= vLightStrengths;
 
-		int4 vLightIndices = int4( vLightIndexFloats.xyzw * 255.0 );
-
-		for( int i=0; i<4; i++ )
-		{
-			int nLightIndex = vLightIndices[i];
-			float flShadow = vLightStrengths[i];
-
-			CalcBakedLightingForLight( finalCombinerData, nLightIndex, flShadow, vPositionToCameraDirWs.xyz, lightingTerms.vDiffuse, lightingTerms.vSpecular, lightingTerms.vTransmissive );
-
-		}
-		
 		flTargetLuminanceOfCubemap = RelativeLuminance( vIrradiance.rgb );
 
 		lightingTerms.vIndirectDiffuse += float3( vIrradiance.xyz );
+
+		// Evaluate indexed baked lights from lightmap
+		float4 vLightStrengths = Tex2DArrayS( LightMap( 1 ), g_sTrilinearClamp, vLightmapUVW ).rgba;
+		vLightStrengths *= vLightStrengths;
+		int4 vLightIndices = int4( vLightIndexFloats.xyzw * 255.0 );
+
+		for ( int j = 0; j < 4; j++ )
+		{
+			CalcBakedLightingForLight( finalCombinerData, vLightIndices[j], vLightStrengths[j],
+				lightingTerms.vDiffuse, lightingTerms.vSpecular, lightingTerms.vTransmissive );
+		}
 	}
 	else if ( ProbeLight::UsesProbes() )
 	{
@@ -676,17 +708,17 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 			#endif
 		}
 
+		// Evaluate indexed baked lights from probe volume
 		int4 vLightIndices;
 		float4 vLightStrengths;
 		SampleLightProbeVolumeIndexedDirectLighting( vLightIndices, vLightStrengths, vPositionWs.xyz );
 
-		for( int i=0; i<4; i++ )
+		for ( int j = 0; j < 4; j++ )
 		{
-			int nLightIndex = vLightIndices[i];
-			float flShadow = vLightStrengths[i];
-
-			CalcBakedLightingForLight( finalCombinerData, nLightIndex, flShadow, vPositionToCameraDirWs.xyz, lightingTerms.vDiffuse, lightingTerms.vSpecular, lightingTerms.vTransmissive );
+			CalcBakedLightingForLight( finalCombinerData, vLightIndices[j], vLightStrengths[j],
+				lightingTerms.vDiffuse, lightingTerms.vSpecular, lightingTerms.vTransmissive );
 		}
+
 	}
 	else
 	{
@@ -870,20 +902,9 @@ void CalculateIndirectLighting( inout LightingTerms_t lightingTerms, const Final
 	// Setup final debug variables
 	// Tools Vis
 	//
-	if ( LightmappedLight::UsesLightmaps() || ProbeLight::UsesProbes() )
+	if ( UsesBakedLightingFromProbe && g_bShowLPVVoxels )
 	{
-		float flTexelMod = 1;
-
-		if ( g_bShowLightmapTexels && LightmappedLight::UsesLightmaps() )
-		{
-			flTexelMod = GetLightmapUVCheckerboard( finalCombinerData.vLightmapUV.xy );
-		}
-		
-		if ( g_bShowLPVVoxels && ProbeLight::UsesProbes() )
-		{
-			flTexelMod = GetLightProbeUVWCheckerboard( vPositionWs );
-		}
-
+		float flTexelMod = GetLightProbeUVWCheckerboard( vPositionWs );
 		lightingTerms.vIndirectSpecular.rgb *= flTexelMod;
 		lightingTerms.vIndirectDiffuse.rgb *= flTexelMod;
 		lightingTerms.vSpecular.rgb *= flTexelMod;

@@ -183,7 +183,10 @@ public sealed partial class CommandList
 						static void Execute( ref Entry entry, CommandList commandList )
 						{
 							var attrAccess = (AttributeAccess)entry.Object4;
-							attrAccess.attributes.Set( entry.Token, Graphics.SceneLayer.GetColorTarget() );
+
+							var handle = Graphics.SceneLayer.GetColorTarget();
+							attrAccess.attributes.Set( entry.Token, handle );
+							if ( !handle.IsNull ) handle.DestroyStrongHandle();
 						}
 						list.AddEntry( &Execute, new Entry { Token = token, Object4 = this } );
 					}
@@ -194,7 +197,10 @@ public sealed partial class CommandList
 						static void Execute( ref Entry entry, CommandList commandList )
 						{
 							var attrAccess = (AttributeAccess)entry.Object4;
-							attrAccess.attributes.Set( entry.Token, Graphics.SceneLayer.GetDepthTarget() );
+
+							var handle = Graphics.SceneLayer.GetDepthTarget();
+							attrAccess.attributes.Set( entry.Token, handle );
+							if ( !handle.IsNull ) handle.DestroyStrongHandle();
 						}
 						list.AddEntry( &Execute, new Entry { Token = token, Object4 = this } );
 					}

@@ -144,6 +144,87 @@ internal static class Utility
 		return Environment.GetEnvironmentVariable( "GITHUB_ACTIONS" ) != null;
 	}
 
+	/// <summary>
+	/// Returns true if the PR touches native C++ code or interop definitions,
+	/// meaning a full native rebuild is required.
+	/// Falls back to true (safe default) when not in a PR context or if the diff fails.
+	/// </summary>
+	public static bool PrTouchesNativeCode()
+	{
+		var baseRef = Environment.GetEnvironmentVariable( "GITHUB_BASE_REF" );
+		if ( string.IsNullOrEmpty( baseRef ) )
+		{
+			Log.Info( "GITHUB_BASE_REF not set; assuming native code is touched." );
+			return true;
+		}
+
+		var changedFiles = new List<string>();
+
+		// In shallow CI checkouts origin/{baseRef} won't exist until we fetch it.
+		// Fetch enough history to find the merge-base; a depth of 50 is sufficient for
+		// typical PR branch lengths while keeping the fetch fast.
+		RunProcess( "git", $"fetch --depth=128 origin {baseRef}" );
+
+		// Try to compute the merge-base (the true fork point of this PR against the base
+		// branch). Diffing HEAD against the merge-base avoids spurious "changes" when the
+		// PR branch is behind the base branch — git diff FETCH_HEAD HEAD would include all
+		// commits that exist on the base but not on the PR branch, incorrectly forcing a
+		// full native rebuild.
+		var mergeBaseLines = new List<string>();
+		var mergeBaseSuccess = RunProcess(
+			"git",
+			"merge-base FETCH_HEAD HEAD",
+			onDataReceived: ( _, e ) =>
+			{
+				if ( !string.IsNullOrWhiteSpace( e.Data ) )
+					mergeBaseLines.Add( e.Data.Trim() );
+			} );
+
+		string diffTarget;
+		if ( mergeBaseSuccess && mergeBaseLines.Count > 0 )
+		{
+			diffTarget = mergeBaseLines[0]; // SHA of the merge-base commit
+		}
+		else
+		{
+			// No merge-base found (very shallow clone or unrelated histories).
+			// Fall back to FETCH_HEAD — same as the previous behaviour; safe but may
+			// over-report changes.
+			Log.Warning( "Could not determine merge-base; falling back to FETCH_HEAD for diff." );
+			diffTarget = "FETCH_HEAD";
+		}
+
+		var success = RunProcess(
+			"git",
+			$"diff --name-only {diffTarget} HEAD",
+			onDataReceived: ( _, e ) =>
+			{
+				if ( !string.IsNullOrWhiteSpace( e.Data ) )
+					changedFiles.Add( e.Data.Trim() );
+			} );
+
+		if ( !success )
+		{
+			Log.Warning( "git diff failed; assuming native code is touched." );
+			return true;
+		}
+
+		var touchesNative = changedFiles.Any( f =>
+			f.StartsWith( "src/", StringComparison.OrdinalIgnoreCase ) ||
+			f.StartsWith( "engine/Definitions/", StringComparison.OrdinalIgnoreCase ) );
+
+		if ( touchesNative )
+		{
+			Log.Info( "PR touches native code or interop definitions; full native build required." );
+		}
+		else
+		{
+			Log.Info( $"PR does not touch native code ({changedFiles.Count} file(s) changed); public artifacts will be used." );
+		}
+
+		return touchesNative;
+	}
+
 	public static string CalculateSha256( string filePath )
 	{
 		using var sha256 = SHA256.Create();
