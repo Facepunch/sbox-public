@@ -26,8 +26,9 @@ public sealed partial class PlayerController : Component
 			{
 				var oldValue = ThirdPerson;
 				ThirdPerson = !ThirdPerson;
+				var newValue = ThirdPerson; // capture post-toggle value so all listeners observe the same transition
 				_cameraDistance = 20;
-				IEvents.PostToGameObject( GameObject, x => x.OnCameraModeChanged( oldValue, ThirdPerson ) );
+				IEvents.PostToGameObject( GameObject, x => x.OnCameraModeChanged( oldValue, newValue ) );
 			}
 		}
 
