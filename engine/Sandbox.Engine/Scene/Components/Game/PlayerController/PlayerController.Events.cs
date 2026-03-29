@@ -18,6 +18,11 @@ public sealed partial class PlayerController : Component
 		void PostCameraSetup( CameraComponent cam ) { }
 
 		/// <summary>
+		/// Called whenever the player switches between first and third person camera.
+		/// </summary>
+		void OnCameraModeChanged( bool oldValue, bool newValue ) {}
+
+		/// <summary>
 		/// The player has just jumped
 		/// </summary>
 		void OnJumped() { }
