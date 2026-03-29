@@ -7,7 +7,7 @@ public static partial class Gizmo
 		/// <summary>
 		/// Draw a solid cone shape
 		/// </summary>
-		public void SolidCone( Vector3 @base, Vector3 extent, float flRadius, int? segments = null )
+		public void SolidCone( Vector3 @base, Vector3 extent, float flRadius, int? segments = null, bool drawBase = true )
 		{
 			int nSegments = 10;
 
@@ -53,7 +53,7 @@ public static partial class Gizmo
 
 
 			// Draw the base.
-			if ( true )
+			if ( drawBase )
 			{
 				for ( int i = 1; i < nSegments - 1; i++ )
 				{
@@ -63,6 +63,15 @@ public static partial class Gizmo
 				}
 			}
 
+		}
+
+		/// <summary>
+		/// Draw a solid bicone shape
+		/// </summary>
+		public void SolidBicone( float coneLength, float flRadius )
+		{
+			SolidCone( 0, Vector3.Up * coneLength, flRadius, null, false );
+			SolidCone( 0, Vector3.Down * coneLength, flRadius, null, false );
 		}
 
 		/// <summary>

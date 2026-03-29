@@ -22,7 +22,7 @@ public static partial class Gizmo
 		/// <summary>
 		/// A front left up position movement widget. If widget was moved then will return true and out will return the new position.
 		/// </summary>
-		public bool Position( string name, Vector3 position, out Vector3 newPos, Rotation? axisRotation = null, float squareSize = 3.0f )
+		public bool Position( string name, Vector3 position, out Vector3 newPos, Rotation? axisRotation = null, float squareSize = 3.0f, bool drawBicone = false )
 		{
 			if ( position.IsNaN )
 			{
@@ -79,7 +79,7 @@ public static partial class Gizmo
 					var camRot = Transform.RotationToLocal( Camera.Rotation );
 
 					Sandbox.Gizmo.Draw.Color = Color.White.WithAlpha( 1.1f );
-					if ( DragSquare( "drag-camera", squareSize, camRot, out var moved, DrawPositionCenter ) )
+					if ( DragSquare( "drag-camera", squareSize, camRot, out var moved, () => DrawPositionCenter( drawBicone ) ) )
 					{
 						// movement is in camera space
 						movement += moved;
@@ -141,10 +141,23 @@ public static partial class Gizmo
 			return true;
 		}
 
-		static void DrawPositionCenter()
+		static void DrawPositionCenter( bool drawBicone = false )
 		{
-			Sandbox.Gizmo.Draw.LineThickness = 2.0f;
-			Sandbox.Gizmo.Draw.LineCircle( 0, Sandbox.Gizmo.IsHovered ? 0.6f : 0.5f, 8 );
+			if ( drawBicone )
+			{
+				Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.IsHovered ? Sandbox.Gizmo.Colors.Selected : Sandbox.Gizmo.Colors.Pivot;
+
+				using ( Sandbox.Gizmo.Scope() )
+				{
+					Sandbox.Gizmo.Transform = Transform.WithRotation( Rotation.Identity );
+					Sandbox.Gizmo.Draw.SolidBicone( 4.0f, 4.0f * 0.33f );
+				}
+			}
+			else
+			{
+				Sandbox.Gizmo.Draw.LineThickness = 2.0f;
+				Sandbox.Gizmo.Draw.LineCircle( 0, Sandbox.Gizmo.IsHovered ? 0.6f : 0.5f, 8 );
+			}
 		}
 
 		/// <summary>

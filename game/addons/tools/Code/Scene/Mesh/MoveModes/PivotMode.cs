@@ -35,7 +35,7 @@ public sealed class PivotMode : MoveMode
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
 
-			if ( Gizmo.Control.Position( "position", Vector3.Zero, out var delta, _basis ) )
+			if ( Gizmo.Control.Position( "position", Vector3.Zero, out var delta, _basis, drawBicone: true ) )
 			{
 				_pivot += delta;
 				tool.Pivot = Gizmo.Snap( _pivot * _basis.Inverse, delta * _basis.Inverse ) * _basis;
