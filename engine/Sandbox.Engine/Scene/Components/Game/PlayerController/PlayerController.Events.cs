@@ -19,7 +19,7 @@ public sealed partial class PlayerController : Component
 
 		/// <summary>
 		/// Called when the player toggles between first and third person by pressing the camera mode button.
-		/// does not trigger if ThirdPerson is set directly from code or inspector.
+		/// Does not trigger if ThirdPerson is set directly from code or the inspector.
 		/// </summary>
 		void OnCameraModeChanged( bool oldValue, bool newValue ) {}
 
