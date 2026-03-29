@@ -24,8 +24,10 @@ public sealed partial class PlayerController : Component
 		{
 			if ( Input.Pressed( ToggleCameraModeButton ) )
 			{
+				var oldValue = ThirdPerson;
 				ThirdPerson = !ThirdPerson;
 				_cameraDistance = 20;
+				IEvents.PostToGameObject( GameObject, x => x.OnCameraModeChanged( oldValue, ThirdPerson ) );
 			}
 		}
 
