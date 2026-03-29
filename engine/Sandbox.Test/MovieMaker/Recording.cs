@@ -5,6 +5,7 @@ using Sandbox.SceneTests;
 using System;
 using System.Text.Json.Nodes;
 using Sandbox.Internal;
+using Sandbox.MovieMaker.Properties;
 
 namespace TestMovieMaker;
 
@@ -79,6 +80,30 @@ public sealed class RecorderTests : SceneTests
 
 		Assert.IsTrue( posTrack.TryGetValue( MovieTime.Lerp( 0d, duration, 0.5 ), out var posC ) );
 		Assert.AreEqual( (startPos + endPos) * 0.5f, posC );
+	}
+
+	[TestMethod]
+	public void RecordTextRenderer()
+	{
+		var go = new GameObject( "Example" );
+		var renderer = go.AddComponent<TextRenderer>();
+
+		var options = new MovieRecorderOptions()
+			.WithDefaultComponentCapturers()
+			.WithCaptureAction( x => x.GetTrackRecorder( renderer )!.Capture() );
+
+		renderer.Text = "Hello, worlb!";
+
+		var clip = Record( options, 1d );
+
+		Console.WriteLine( Json.Serialize( clip ) );
+
+		var textTrack = clip.GetProperty<string>( go.Name, nameof( TextRenderer ), nameof( TextRenderer.TextScope ), nameof( TextRendering.Scope.Text ) );
+
+		Assert.IsNotNull( textTrack );
+
+		Assert.IsTrue( textTrack.TryGetValue( 0.5, out var value ) );
+		Assert.AreEqual( "Hello, worlb!", value );
 	}
 
 	/// <summary>
@@ -256,6 +281,65 @@ public sealed class RecorderTests : SceneTests
 		Assert.IsNotNull( tintTrack );
 	}
 
+	[TestMethod]
+	public void ChangingParent()
+	{
+		var foo = new GameObject( "Foo" );
+		var bar = new GameObject( "Bar" );
+
+		var options = new MovieRecorderOptions()
+			.WithCaptureGameObject( foo )
+			.WithCaptureGameObject( bar );
+
+		var recorder = new MovieRecorder( Game.ActiveScene, options );
+
+		recorder.Capture();
+		recorder.Advance( 0.9d );
+		recorder.Capture();
+		recorder.Advance( 0.1d );
+
+		foo.Parent = bar;
+
+		recorder.Capture();
+		recorder.Advance( 0.9d );
+		recorder.Capture();
+		recorder.Advance( 0.1d );
+
+		foo.Parent = null;
+
+		recorder.Capture();
+		recorder.Advance( 1d );
+		recorder.Capture();
+
+		var clip = recorder.ToClip();
+
+		Console.WriteLine( Json.Serialize( clip ) );
+
+		var barTrack = clip.GetReference<GameObject>( bar.Name );
+
+		Assert.IsNotNull( barTrack );
+
+		var parentTrack = clip.GetReferenceProperty<GameObject>( foo.Name, nameof( GameObject.Parent ) );
+
+		// Foo's parent changed, so we should have recorded a track for that
+
+		Assert.IsNotNull( parentTrack );
+
+		BindingReference<GameObject> parent;
+
+		Assert.IsTrue( parentTrack.TryGetValue( 0.5d, out parent ) );
+		Assert.AreEqual( null, parent.TrackId );
+		Assert.IsTrue( parentTrack.TryGetValue( 1.5d, out parent ) );
+		Assert.AreEqual( barTrack.Id, parent.TrackId );
+		Assert.IsTrue( parentTrack.TryGetValue( 2.5d, out parent ) );
+		Assert.AreEqual( null, parent.TrackId );
+
+		// We shouldn't have a Bar.Parent track, because its parent
+		// never changes
+
+		Assert.IsNull( clip.GetReferenceProperty<GameObject>( bar.Name, nameof( GameObject.Parent ) ) );
+	}
+
 	/// <summary>
 	/// We can use <see cref="MovieRecorder.Start"/> and <see cref="MovieRecorder.Stop"/> to capture every fixed update.
 	/// </summary>
@@ -305,5 +389,33 @@ public sealed class RecorderTests : SceneTests
 		// We actually have track data
 
 		Assert.IsTrue( tintTrack.TryGetValue( 5d, out _ ) );
+	}
+
+	[TestMethod]
+	public void RecordMultipleComponents()
+	{
+		var foo = new GameObject( "Foo" );
+
+		var renderer1 = foo.AddComponent<ModelRenderer>();
+		var renderer2 = foo.AddComponent<ModelRenderer>();
+
+		renderer1.Tint = Color.Red;
+		renderer2.Tint = Color.Blue;
+
+		var clip = Record( 1d );
+
+		var colorTracks = clip.Tracks.OfType<CompiledPropertyTrack<Color>>()
+			.Where( x => x.Name == nameof( ModelRenderer.Tint ) )
+			.ToArray();
+
+		Assert.AreEqual( 2, colorTracks.Length );
+
+		Assert.IsTrue( colorTracks[0].TryGetValue( 0.5, out var color1 ) );
+		Assert.IsTrue( colorTracks[1].TryGetValue( 0.5, out var color2 ) );
+
+		var colors = new[] { color1, color2 };
+
+		CollectionAssert.Contains( colors, Color.Red );
+		CollectionAssert.Contains( colors, Color.Blue );
 	}
 }

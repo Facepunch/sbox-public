@@ -61,8 +61,20 @@ partial class TrackBinder : IJsonPopulator
 		return true;
 	}
 
+	private static Scene? GetScene( IValid target )
+	{
+		return target switch
+		{
+			GameObject go => go.Scene,
+			Component cmp => cmp.Scene,
+			_ => null
+		};
+	}
+
 	private bool CanAutoBind( Guid trackId, IValid target )
 	{
+		if ( Scene != GetScene( target ) ) return false;
+
 		return !_targetToTrackId.TryGetValue( target, out var set ) || set.Count == 1 && set.Contains( trackId );
 	}
 
@@ -72,12 +84,7 @@ partial class TrackBinder : IJsonPopulator
 
 		if ( target is not null )
 		{
-			var scene = target switch
-			{
-				GameObject go => go.Scene,
-				Component cmp => cmp.Scene,
-				_ => null
-			};
+			var scene = GetScene( target );
 
 			Assert.AreEqual( Scene, scene, "Can't bind to an object from a different scene!" );
 		}
@@ -227,7 +234,9 @@ partial class TrackBinder : IJsonPopulator
 		/// </summary>
 		protected override GameObject? OnAutoBind()
 		{
-			if ( referenceId is { } refId && Binder.Scene.Directory.FindByGuid( refId ) is { } match )
+			// Have to check scene, because Scene.Directory can contain prefab scenes
+
+			if ( referenceId is { } refId && Binder.Scene.Directory.FindByGuid( refId ) is { } match && match.Scene == Binder.Scene )
 			{
 				return match;
 			}

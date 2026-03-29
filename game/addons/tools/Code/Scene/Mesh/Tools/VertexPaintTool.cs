@@ -245,6 +245,12 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 
 		var mesh = face.Component.Mesh;
 
+		if ( Gizmo.IsCtrlPressed && Gizmo.WasRightMousePressed )
+		{
+			PickColorFromMesh( face.Component, hitPosition );
+			return;
+		}
+
 		if ( Application.MouseButtons.HasFlag( MouseButtons.Middle ) )
 		{
 			_cursorLockPosition ??= Application.UnscaledCursorPosition;
@@ -346,6 +352,31 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 		}
 
 		DrawBrush( hitPosition, faceNormal, mesh );
+	}
+
+	void PickColorFromMesh( MeshComponent component, Vector3 hitPosition )
+	{
+		var mesh = component.Mesh;
+		HalfEdgeHandle closest = default;
+		var closestDist = float.MaxValue;
+
+		foreach ( var edge in mesh.HalfEdgeHandles )
+		{
+			mesh.GetVertexPosition( edge.Vertex, mesh.Transform, out var p );
+
+			var dist = (p - hitPosition).LengthSquared;
+
+			if ( dist < closestDist )
+			{
+				closestDist = dist;
+				closest = edge;
+			}
+		}
+
+		if ( !closest.IsValid )
+			return;
+
+		Color = mesh.GetVertexColor( closest );
 	}
 
 	Vector4 GetBrushColor()

@@ -1,6 +1,7 @@
 ﻿using Sandbox.Internal;
 using System;
 using System.Collections.Immutable;
+using System.Threading;
 using Facepunch.ActionGraphs;
 using Sandbox.ActionGraphs;
 using Sandbox.MovieMaker;
@@ -217,6 +218,16 @@ public static partial class SandboxToolExtensions
 			return go.Name;
 
 		return sys.First().ToString();
+	}
+
+	/// <summary>
+	/// Creates a task that completes when <paramref name="resource"/> is fully loaded.
+	/// </summary>
+	public static async Task WaitForLoadAsync( this Resource resource, CancellationToken ct = default )
+	{
+		if ( resource.Manifest is not { } manifest ) return;
+
+		await manifest.WaitForLoad( ct );
 	}
 
 	/// <summary>

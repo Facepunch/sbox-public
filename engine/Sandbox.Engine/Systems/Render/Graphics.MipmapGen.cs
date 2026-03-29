@@ -44,6 +44,8 @@ public static partial class Graphics
 	/// </summary>
 	public static void GenerateMipMaps( Texture texture, DownsampleMethod downsampleMethod = DownsampleMethod.Default, int initialMip = 0, int numMips = -1 )
 	{
+		ArgumentNullException.ThrowIfNull( texture );
+
 		AssertRenderBlock();
 		using var perfScope = Performance.Scope( "GenerateMips" );
 

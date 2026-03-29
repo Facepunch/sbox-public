@@ -56,17 +56,33 @@ public partial class SkinnedModelRenderer
 			}
 		}
 
-
 		/// <summary>
-		/// Set this value
+		/// Sets a morph override value.
+		/// Uses a default blend time to smoothly transition from
+		/// the animation-driven morph to this override.
 		/// </summary>
-		public void Set( string name, float f )
+		public void Set( string name, float weight )
 		{
-			_values[name] = f;
+			_values[name] = weight;
 
 			if ( renderer.SceneObject is SceneModel model )
 			{
-				model.Morphs.Set( name, f );
+				model.Morphs.Set( name, weight );
+			}
+		}
+
+		/// <summary>
+		/// Sets a morph override value with blending.
+		/// fadeTime controls how long it takes to blend between
+		/// the animation-driven morph and this override.
+		/// </summary>
+		public void Set( string name, float weight, float fadeTime )
+		{
+			_values[name] = weight;
+
+			if ( renderer.SceneObject is SceneModel model )
+			{
+				model.Morphs.Set( name, weight, fadeTime );
 			}
 		}
 
@@ -98,7 +114,8 @@ public partial class SkinnedModelRenderer
 		}
 
 		/// <summary>
-		/// Clear this value, don't override it
+		/// Clears the morph override and returns control to the animation.
+		/// Uses the default blend time to smoothly transition back.
 		/// </summary>
 		public void Clear( string name )
 		{
@@ -107,6 +124,20 @@ public partial class SkinnedModelRenderer
 			if ( renderer.SceneObject is SceneModel model )
 			{
 				model.Morphs.Reset( name );
+			}
+		}
+
+		/// <summary>
+		/// Clears the morph override and returns control to the animation.
+		/// fadeTime controls how long it takes to blend back to the animation-driven morph.
+		/// </summary>
+		public void Clear( string name, float fadeTime )
+		{
+			_values.Remove( name );
+
+			if ( renderer.SceneObject is SceneModel model )
+			{
+				model.Morphs.Reset( name, fadeTime );
 			}
 		}
 

@@ -1240,29 +1240,32 @@ public sealed unsafe partial class CommandList
 	/// <param name="flags">Text alignment flags (optional).</param>
 	public void DrawText( TextRendering.Scope scope, Rect rect, TextFlag flags = TextFlag.LeftTop )
 	{
-		// Resolve the Scope at entry-add time so we store a texture reference instead of
-		// boxing the Scope struct into object fields.
-		var tex = TextRendering.GetOrCreateTexture( scope, default, flags );
-		if ( !tex.IsValid ) return; // headless or invalid
+		// Resolve the TextBlock at entry-add time so we store a class reference instead of
+		// boxing the Scope struct and TextFlag enum into object fields.
+		var tb = TextRendering.GetOrCreateTextBlock( scope, flags, 8096 );
+		if ( tb is null ) return; // headless
+
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
 			var position = new Rect( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w );
 			var flags = (TextFlag)(int)entry.Data2.x;
-			var filter = (FilterMode)(int)entry.Data2.y;
-			var texture = (Texture)entry.Object1;
+			var tb = (TextRendering.TextBlock)entry.Object1;
 
-			Graphics.Attributes.Set( "Texture", texture );
-			Graphics.Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = filter } ) );
+			// MakeReady resets TimeSinceUsed, preventing Tick() from evicting this block
+			tb.MakeReady();
 
-			var rect = position.Align( texture.Size, flags );
+			Graphics.Attributes.Set( "Texture", tb.Texture );
+			Graphics.Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = tb.FilterMode } ) );
+
+			var rect = position.Align( tb.Texture.Size, flags );
 			Graphics.DrawQuad( rect.Floor(), Material.UI.Text, Color.White );
 		}
 
 		AddEntry( &Execute, new Entry
 		{
-			Object1 = tex,
+			Object1 = tb,
 			Data1 = new Vector4( rect.Left, rect.Top, rect.Width, rect.Height ),
-			Data2 = new Vector4( (float)(int)flags, (float)(int)scope.FilterMode, 0, 0 )
+			Data2 = new Vector4( (float)(int)flags, 0, 0, 0 )
 		} );
 	}
 }

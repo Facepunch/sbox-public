@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json.Nodes;
+using Sandbox.MovieMaker.Properties;
 using Sandbox.SceneTests;
 
 namespace TestMovieMaker;
@@ -13,12 +14,14 @@ public abstract class SceneTests
 {
 	private IDisposable? _sceneScope;
 	private TypeLibrary? _oldTypeLibrary;
+	private bool _oldMemberPropertyUseDelegate;
 
 	[TestInitialize]
 	public void TestInitialize()
 	{
 		_sceneScope = new Scene().Push();
 		_oldTypeLibrary = Game.TypeLibrary;
+		_oldMemberPropertyUseDelegate = MemberProperty.UseDelegate;
 
 		Game.TypeLibrary = new TypeLibrary();
 		Game.TypeLibrary.AddAssembly( typeof( Vector3 ).Assembly, false );
@@ -35,6 +38,7 @@ public abstract class SceneTests
 		_sceneScope?.Dispose();
 
 		Game.TypeLibrary = _oldTypeLibrary;
+		MemberProperty.UseDelegate = _oldMemberPropertyUseDelegate;
 	}
 
 	protected static void RegisterSimplePrefab( string resourcePath, params IEnumerable<JsonObject> componentJson )

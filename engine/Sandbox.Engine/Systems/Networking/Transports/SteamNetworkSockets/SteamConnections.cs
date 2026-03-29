@@ -252,6 +252,8 @@ internal static partial class SteamNetwork
 			if ( !net.IsValid ) return;
 
 			int batchCount = 0;
+			var maxOutgoing = Networking.MaxOutgoingMessagesPerTick;
+			var outgoingCount = 0;
 
 			while ( OutgoingMessages.Reader.TryRead( out var msg ) )
 			{
@@ -275,6 +277,9 @@ internal static partial class SteamNetwork
 				{
 					FlushBatch( ref batchCount );
 				}
+
+				if ( maxOutgoing > 0 && ++outgoingCount >= maxOutgoing )
+					break;
 			}
 
 			// Send any remaining messages
@@ -293,11 +298,13 @@ internal static partial class SteamNetwork
 		/// <param name="net"></param>
 		private void ProcessIncomingMessages( ISteamNetworkingSockets net )
 		{
-			var ptr = stackalloc IntPtr[Networking.MaxIncomingMessages];
+			var ptr = stackalloc IntPtr[Networking.ReceiveBatchSize];
+			var maxIncoming = Networking.ReceiveBatchSizePerTick;
+			var totalReceived = 0;
 
 			while ( true )
 			{
-				var count = Glue.Networking.GetConnectionMessages( handle, (nint)ptr, Networking.MaxIncomingMessages );
+				var count = Glue.Networking.GetConnectionMessages( handle, (nint)ptr, Networking.ReceiveBatchSize );
 				if ( count == 0 ) return;
 
 				for ( var i = 0; i < count; i++ )
@@ -313,6 +320,11 @@ internal static partial class SteamNetwork
 
 					MessagesRecieved++;
 				}
+
+				totalReceived += count;
+
+				if ( maxIncoming > 0 && totalReceived >= maxIncoming )
+					return;
 			}
 		}
 

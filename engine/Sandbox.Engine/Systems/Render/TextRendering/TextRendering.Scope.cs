@@ -26,6 +26,7 @@ public static partial class TextRendering
 		[JsonInclude] public int FontWeight;
 
 		[JsonInclude] public bool FontItalic;
+		[JsonInclude] public UI.FontVariantNumeric FontVariantNumeric;
 
 		[Range( 0, 5 )]
 		[JsonInclude] public float LineHeight;
@@ -60,6 +61,7 @@ public static partial class TextRendering
 			hc.Add( FontSize );
 			hc.Add( FontWeight );
 			hc.Add( FontItalic );
+			hc.Add( FontVariantNumeric );
 			hc.Add( LineHeight );
 			hc.Add( LetterSpacing );
 			hc.Add( WordSpacing );
@@ -83,6 +85,7 @@ public static partial class TextRendering
 			FontName = "Roboto",
 			FontSize = 64,
 			FontWeight = 400,
+			FontVariantNumeric = UI.FontVariantNumeric.Normal,
 			LineHeight = 1,
 			Shadow = new Shadow() { Color = Color.Black },
 			ShadowUnder = new Shadow() { Color = Color.Black },
@@ -99,6 +102,7 @@ public static partial class TextRendering
 			FontSize = size;
 			FontName = font;
 			FontWeight = weight;
+			FontVariantNumeric = UI.FontVariantNumeric.Normal;
 			LineHeight = 1;
 			Shadow = new Shadow() { Color = Color.Black };
 			ShadowUnder = new Shadow() { Color = Color.Black };
@@ -126,6 +130,7 @@ public static partial class TextRendering
 			style.FontSize = FontSize;
 			style.FontWeight = FontWeight;
 			style.FontItalic = FontItalic;
+			style.FontVariantNumeric = FontVariantNumeric;
 			style.TextColor = TextColor.ToSk();
 			style.Underline = Topten.RichTextKit.UnderlineStyle.None;
 			style.StrikeThrough = Topten.RichTextKit.StrikeThroughStyle.None;

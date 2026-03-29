@@ -41,6 +41,7 @@ internal sealed class SessionInverseKinematics
 	}
 
 	private readonly HashSet<TrackView> _bonesTrackViews = new();
+	private static Texture? _boneLockTexture;
 
 	public void DrawGizmos()
 	{
@@ -101,10 +102,11 @@ internal sealed class SessionInverseKinematics
 				Gizmo.Draw.LineThickness = isHovered || isSelected ? 2f : 1f;
 				Gizmo.Draw.Line( 0f, worldBoneTransform.PointToLocal( parentWorldTransform.Position ) );
 
+				_boneLockTexture ??= Texture.LoadFromFileSystem( "/editor/moviemaker/assets/lock.png", FileSystem.Root );
 
 				if ( isLocked )
 				{
-					Gizmo.Draw.Sprite( handleSphere.Center, radius * 4f, "https://files.facepunch.com/ziks/2025-06-06/lock.png" );
+					Gizmo.Draw.Sprite( handleSphere.Center, radius * 4f, _boneLockTexture );
 				}
 				else if ( _dragTarget is null && isHoveredOrSelected || hasBody )
 				{

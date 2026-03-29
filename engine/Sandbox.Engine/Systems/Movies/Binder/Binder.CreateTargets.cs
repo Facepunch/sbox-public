@@ -108,30 +108,27 @@ partial class TrackBinder
 
 		if ( track is IReferenceTrack<GameObject> goTrack && target is ITrackReference<GameObject> { IsBound: false } goRef )
 		{
-			if ( goTrack.Metadata?.PrefabSource is not { } prefabSource )
+			if ( goTrack.Metadata?.PrefabSource is { } prefabSource && GameObject.GetPrefab( prefabSource ) is { } prefab )
 			{
-				var go = new GameObject( parentGo, name: goTrack.Name );
-
-				go.Flags |= CreatedTargetGameObjectFlags;
-
-				BindCreatedTarget( goRef, go );
-			}
-			else
-			{
-				var prefab = GameObject.GetPrefab( prefabSource );
-
-				if ( prefab is null )
-				{
-					Log.Warning( $"Unknown prefab \"{prefabSource}\"" );
-					return;
-				}
-
-				var go = GameObject.GetPrefab( prefabSource ).Clone( Transform.Zero, parentGo, name: goTrack.Name );
+				var go = prefab.Clone( Transform.Zero, parentGo, name: goTrack.Name );
 
 				go.Flags |= CreatedTargetGameObjectFlags;
 
 				BindCreatedTarget( goRef, go );
 				RemoveUnboundTargets( go, goTrack, children );
+			}
+			else
+			{
+				if ( goTrack.Metadata?.PrefabSource is { } missingSource )
+				{
+					Log.Warning( $"Unknown prefab \"{missingSource}\"" );
+				}
+
+				var go = new GameObject( parentGo, name: goTrack.Name );
+
+				go.Flags |= CreatedTargetGameObjectFlags;
+
+				BindCreatedTarget( goRef, go );
 			}
 		}
 		else if ( target.Parent is not null && parentGo is not null && target is { IsBound: false } cmpRef )
@@ -174,10 +171,13 @@ partial class TrackBinder
 			}
 		}
 
+		var visitedTracks = new HashSet<IReferenceTrack>();
+
 		foreach ( var cmp in go.Components.GetAll().ToArray() )
 		{
 			var match = childTracks
-				.FirstOrDefault( x => x.TargetType == cmp.GetType() );
+				.Where( x => x.TargetType == cmp.GetType() )
+				.FirstOrDefault( x => !visitedTracks.Contains( x ) );
 
 			if ( match is null )
 			{
@@ -185,6 +185,8 @@ partial class TrackBinder
 			}
 			else
 			{
+				visitedTracks.Add( match );
+
 				cmp.Flags |= CreatedTargetComponentFlags;
 
 				BindCreatedTarget( Get( match ), cmp );

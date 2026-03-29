@@ -11,13 +11,23 @@ native class CFrustum
 	void InitOrthoCamera( Vector origin, Angles angles, float flNear, float flFar, float flWidth, float flHeight );
 	void SetCameraWidthHeight( float flWidth, float flHeight );
 
+	void BuildFrustumFromVectors( Vector3 origin, float flNear, float flFar, float flFOV, float flAspect, Vector3 forward, Vector3 left, Vector3 up );
+
+	inline Matrix GetView()
+	{
+		return VMatrix( self->GetView() );
+	}
 	Matrix GetProj();
 	Matrix GetInvProj();
 	Matrix GetReverseZProj();
 	Matrix GetInvReverseZProj();
 	Matrix GetViewProj();
 	Matrix GetInvViewProj();
-
+	Matrix GetInvReverseZViewProj();
+	Matrix GetInvReverseZViewProjTranspose();
+	Matrix GetReverseZViewProj();
+	Matrix GetReverseZViewProjTranspose();
+	
 	bool BoundingVolumeIntersectsFrustum( BBox box );
 
 	bool ScreenTransform( Vector3 world, cref out Vector3 result );

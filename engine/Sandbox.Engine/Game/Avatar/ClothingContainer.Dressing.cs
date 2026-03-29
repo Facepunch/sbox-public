@@ -141,9 +141,11 @@ public partial class ClothingContainer
 	/// </summary>
 	public void Apply( SkinnedModelRenderer body )
 	{
+		using var SceneScope = body.Scene.Push();
+
 		bool isHuman = DetermineHuman( body );
 
-		// remove out outfit
+		// remove our outfit
 		Reset( body );
 		Normalize();
 

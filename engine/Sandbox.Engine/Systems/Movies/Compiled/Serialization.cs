@@ -12,6 +12,26 @@ namespace Sandbox.MovieMaker.Compiled;
 partial class MovieClip
 {
 	public IMovieResource ToResource() => new EmbeddedMovieResource { Compiled = this };
+
+	internal ImmutableArray<Package> ResolvePrimaryPackages()
+	{
+		var packages = new HashSet<Package>();
+
+		foreach ( var track in Tracks.OfType<ICompiledPropertyTrack>() )
+		{
+			foreach ( var block in track.Blocks.OfType<ICompiledConstantBlock>() )
+			{
+				if ( block.Serialized is not { } node ) continue;
+
+				foreach ( var package in Cloud.ResolvePrimaryAssetsFromJson( node ) )
+				{
+					packages.Add( package );
+				}
+			}
+		}
+
+		return [.. packages];
+	}
 }
 
 file sealed class ClipConverter : JsonConverter<MovieClip>
@@ -118,10 +138,21 @@ file sealed record TrackModel( TrackKind Kind, string Name, Type Type,
 			return null;
 		}
 
-		var blockType = typeof( ICompiledPropertyBlock<> ).MakeGenericType( track.TargetType );
-		var listType = typeof( IReadOnlyList<> ).MakeGenericType( blockType );
+		try
+		{
+			var blockType = typeof( ICompiledPropertyBlock<> ).MakeGenericType( track.TargetType );
+			var listType = typeof( IReadOnlyList<> ).MakeGenericType( blockType );
 
-		return JsonSerializer.SerializeToNode( blockTrack.Blocks, listType, options )?.AsArray();
+			return JsonSerializer.SerializeToNode( blockTrack.Blocks, listType, options )?.AsArray();
+		}
+		catch ( Exception ex )
+		{
+			// Recover from a serialization exception so that the rest of the movie survives
+
+			Log.Error( ex, $"Exception when serializing blocks for track \"{track.GetPathString()}\"." );
+
+			return null;
+		}
 	}
 
 	public static IReadOnlyList<ICompiledTrack> Deserialize( IEnumerable<TrackModel> models, JsonSerializerOptions? options )

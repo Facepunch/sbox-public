@@ -1,8 +1,8 @@
-using System.Runtime.InteropServices;
-using System.Text;
 using Facepunch.XR;
 using NativeEngine;
 using Sandbox.Utility;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace Sandbox.VR;
 
@@ -329,7 +329,7 @@ internal static unsafe partial class VRSystem
 			return;
 
 		Compositor.Shutdown();
-		Compositor.self = IntPtr.Zero;
+		Compositor = default;
 	}
 
 	public static SessionState SessionState { get; private set; } = SessionState.Unknown;

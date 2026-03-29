@@ -56,6 +56,8 @@ internal static class ThumbLoader
 			if ( filename.StartsWith( "mount:" ) )
 			{
 				var t = MountUtility.GetPreviewTexture( filename );
+				if ( !t.IsValid() ) return;
+
 				placeholder.CopyFrom( t );
 				return;
 			}
@@ -104,8 +106,9 @@ internal static class ThumbLoader
 
 				if ( ct.IsCancellationRequested ) return;
 
+				if ( IToolsDll.Current != null )
 				{
-					var bitmap = IToolsDll.Current?.GetThumbnail( filename );
+					var bitmap = await IToolsDll.Current.GetThumbnail( filename );
 					if ( bitmap != null )
 					{
 						using var downscaled = bitmap.Resize( 256, 256, true );

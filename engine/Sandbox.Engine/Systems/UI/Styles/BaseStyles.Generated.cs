@@ -1126,6 +1126,22 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
+
+	internal FontVariantNumeric? _fontvariantnumeric;
+
+	/// <summary>
+	/// Represents the <c>font-variant-numeric</c> CSS property.
+	/// </summary>
+	public FontVariantNumeric? FontVariantNumeric
+	{
+		get => _fontvariantnumeric;
+		set
+		{
+			if ( _fontvariantnumeric == value ) return;
+			_fontvariantnumeric = value;
+			Dirty();
+		}
+	}
 	
 	internal PanelTransform? _transform;
 	
@@ -2339,6 +2355,7 @@ public abstract partial class BaseStyles
 		if ( a._textoverlineoffset != null ) _textoverlineoffset = a._textoverlineoffset;
 		if ( a._textlinethroughoffset != null ) _textlinethroughoffset = a._textlinethroughoffset;
 		if ( a._fontstyle != null ) _fontstyle = a._fontstyle;
+		if ( a._fontvariantnumeric != null ) _fontvariantnumeric = a._fontvariantnumeric;
 		if ( a._transform != null ) _transform = a._transform;
 		if ( a._texttransform != null ) _texttransform = a._texttransform;
 		if ( a._transformoriginx != null ) _transformoriginx = a._transformoriginx;
@@ -2487,6 +2504,7 @@ public abstract partial class BaseStyles
 		_textoverlineoffset = a._textoverlineoffset;
 		_textlinethroughoffset = a._textlinethroughoffset;
 		_fontstyle = a._fontstyle;
+		_fontvariantnumeric = a._fontvariantnumeric;
 		_transform = a._transform;
 		_texttransform = a._texttransform;
 		_transformoriginx = a._transformoriginx;
@@ -2976,6 +2994,7 @@ public abstract partial class BaseStyles
 			hash = HashCode.Combine( hash, _textoverlineoffset );
 			hash = HashCode.Combine( hash, _textlinethroughoffset );
 			hash = HashCode.Combine( hash, _fontstyle );
+			hash = HashCode.Combine( hash, _fontvariantnumeric );
 			hash = HashCode.Combine( hash, _transform );
 			hash = HashCode.Combine( hash, _texttransform );
 			hash = HashCode.Combine( hash, _transformoriginx );
@@ -3528,6 +3547,7 @@ public abstract partial class BaseStyles
 		copy._textoverlineoffset = _textoverlineoffset;
 		copy._textlinethroughoffset = _textlinethroughoffset;
 		copy._fontstyle = _fontstyle;
+		copy._fontvariantnumeric = _fontvariantnumeric;
 		copy._transform = _transform;
 		copy._texttransform = _texttransform;
 		copy._transformoriginx = _transformoriginx;
@@ -3624,6 +3644,7 @@ public abstract partial class BaseStyles
 		if ( _textoverlineoffset == null ) _textoverlineoffset = parent._textoverlineoffset;
 		if ( _textlinethroughoffset == null ) _textlinethroughoffset = parent._textlinethroughoffset;
 		if ( _fontstyle == null ) _fontstyle = parent._fontstyle;
+		if ( _fontvariantnumeric == null ) _fontvariantnumeric = parent._fontvariantnumeric;
 		if ( _texttransform == null ) _texttransform = parent._texttransform;
 		if ( _letterspacing == null ) _letterspacing = parent._letterspacing;
 		if ( _lineheight == null ) _lineheight = parent._lineheight;
@@ -3702,6 +3723,7 @@ public abstract partial class BaseStyles
 		if ( !_textoverlineoffset.HasValue ) _textoverlineoffset = 0;
 		if ( !_textlinethroughoffset.HasValue ) _textlinethroughoffset = 0;
 		if ( !_fontstyle.HasValue ) _fontstyle = UI.FontStyle.None;
+		if ( !_fontvariantnumeric.HasValue ) _fontvariantnumeric = UI.FontVariantNumeric.Normal;
 		if ( !_transform.HasValue ) _transform = new UI.PanelTransform();
 		if ( !_texttransform.HasValue ) _texttransform = UI.TextTransform.None;
 		if ( !_transformoriginx.HasValue ) _transformoriginx = Length.Percent( 50 ).Value;
@@ -3839,6 +3861,7 @@ public abstract partial class BaseStyles
 			case "text-overline-offset": return (_textoverlineoffset == 0);
 			case "text-line-through-offset": return (_textlinethroughoffset == 0);
 			case "font-style": return (_fontstyle == UI.FontStyle.None);
+			case "font-variant-numeric": return (_fontvariantnumeric == UI.FontVariantNumeric.Normal);
 			case "transform": return (_transform == new UI.PanelTransform());
 			case "text-transform": return (_texttransform == UI.TextTransform.None);
 			case "transform-origin-x": return (_transformoriginx == Length.Percent( 50 ).Value);

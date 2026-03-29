@@ -44,36 +44,3 @@ NavigationHost {
 
     z-index: 0;
 }
-
-card {
-    @include border;
-    background-color: $default-950;
-    border-radius: $rounding-default;
-    padding: 20px;
-    width: 100%;
-    max-width: 400px;
-    flex-direction: column;
-
-    .title {
-        font-size: $text-heading;
-        font-weight: 700;
-        color: $default-text;
-    }
-
-    .description {
-        font-size: $text-regular;
-        color: $default-text-light;
-        flex-grow: 1;
-    }
-
-    Button {
-        align-self: flex-start;
-        padding: 8px 12px;
-
-        &:hover {
-            cursor: pointer;
-            border-radius: $rounding-default;
-            background-color: $default-950;
-        }
-    }
-}

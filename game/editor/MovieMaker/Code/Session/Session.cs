@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 
 namespace Editor.MovieMaker;
 
@@ -483,17 +484,25 @@ public sealed partial class Session
 
 	private void ImportMovieFromGameData( string path, MovieTime time = default )
 	{
-		if ( !ResourceLibrary.TryGet( path, out MovieResource? existing ) )
+		if ( ResourceLibrary.TryGet( path, out MovieResource existing ) )
 		{
-			existing = ImportMovieFromGameDataCore( path );
+			ImportMovie( existing, time );
+			return;
 		}
 
-		if ( !CanReferenceMovie( existing ) ) return;
+		Task.Run( async () =>
+		{
+			var movie = await ImportMovieFromGameDataAsync( path );
 
-		ImportMovie( existing, time );
+			if ( movie is null ) return;
+
+			await MainThread.Wait();
+
+			ImportMovie( movie, time );
+		} );
 	}
 
-	private static MovieResource? ImportMovieFromGameDataCore( string path )
+	private static async Task<MovieResource?> ImportMovieFromGameDataAsync( string path )
 	{
 		try
 		{
@@ -502,13 +511,48 @@ public sealed partial class Session
 
 			Directory.CreateDirectory( assetDir );
 
-			var asset = AssetSystem.CreateResource( "movie", assetPath );
+			var json = await Sandbox.FileSystem.Data.ReadAllTextAsync( path );
+			var node = Json.ParseToJsonObject( json );
 
-			var resource = Sandbox.FileSystem.Data.ReadJson<EmbeddedMovieResource>( path );
+			// Don't bother if the movie is empty
 
-			asset.SaveToDisk( new MovieResource { Compiled = resource.Compiled } );
+			if ( node[nameof( MovieResource.Compiled )] is null ) return null;
 
-			return ResourceLibrary.Get<MovieResource>( path );
+			// Need to install cloud assets referenced by the movie
+
+			if ( node["__references"]?.Deserialize<string[]>() is { Length: > 0 } references )
+			{
+				Log.Info( $"Installing {references.Length} cloud references used by movie." );
+
+				await MainThread.Wait();
+				await Task.WhenAll( references.Select( Cloud.Load ) );
+			}
+
+			// Copy the .movie to Assets/ and register it
+
+			await File.WriteAllTextAsync( assetPath, json );
+			await MainThread.Wait();
+
+			var asset = AssetSystem.RegisterFile( assetPath );
+			if ( asset is null )
+			{
+				Log.Warning( $"Failed to register movie asset at '{assetPath}'." );
+				return null;
+			}
+
+			await asset.CompileIfNeededAsync();
+			await MainThread.Wait();
+
+			var resource = asset.LoadResource<MovieResource>();
+			if ( resource is null )
+			{
+				Log.Warning( $"Failed to load MovieResource from asset '{assetPath}'." );
+				return null;
+			}
+
+			await resource.WaitForLoadAsync();
+
+			return resource;
 		}
 		catch ( Exception ex )
 		{

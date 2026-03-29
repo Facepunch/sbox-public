@@ -1,0 +1,30 @@
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox;
+@using System;
+@namespace Sandbox.UI
+@inherits Panel
+
+<row onmouseup=@Toggle>
+    <div class="inner">
+        <div class="background" />
+
+        <div class="dot" />
+    </div>
+
+    <Label class="small">
+        @Label
+    </Label>
+</row>
+
+@code {
+    [Property] public string Label { get; set; }
+    public bool Value { get; private set; } = false;
+
+    void Toggle()
+    {
+        Value = !Value;
+
+        SetClass("active", Value);
+    }
+}

@@ -18,15 +18,41 @@ public class DirectionalLight : Light
 	[Property]
 	public Color SkyColor { get; set; }
 
-	public DirectionalLight()
+	public class CascadeVisualizer
 	{
-		LightColor = "#E9FAFF";
+		public Action Update;
 	}
+
+	/// <summary>
+	/// Number of cascades to split the view frustum into for the whole scene dynamic shadow.  
+	/// More cascades result in better shadow resolution, but adds significant rendering cost.
+	/// 
+	/// User settings will set a maximum.
+	/// </summary>
+	[Property, Group( "Shadows" ), Title( "Cascade Count" ), Range( 1, 4 ), MakeDirty]
+	[InfoBox( "More cascades gives better detail at the cost of performance. User quality settings override this." )]
+	public int ShadowCascadeCount { get; set; } = 4;
+
+	/// <summary>
+	/// Controls how cascades 2+ are distributed between the first cascade boundary and the far clip.
+	/// 0 is uniform, 1 is fully logarithmic.
+	/// </summary>
+	[Property, Group( "Shadows" ), Title( "Split ratio" ), Range( 0, 1 ), MakeDirty, HideIf( nameof( ShadowCascadeCount ), 1 )]
+	public float ShadowCascadeSplitRatio { get; set; } = 0.91f;
+
+	[Property, Group( "Shadows" ), HideIf( nameof( ShadowCascadeCount ), 1 )]
+	public CascadeVisualizer Visualizer { get; set; } = new();
 
 	protected override SceneLight CreateSceneObject()
 	{
 		var o = new SceneDirectionalLight( Scene.SceneWorld, WorldRotation, LightColor );
 		return o;
+	}
+
+	protected override void OnDirty()
+	{
+		base.OnDirty();
+		Visualizer.Update?.Invoke();
 	}
 
 	protected override void OnAwake()
@@ -42,7 +68,8 @@ public class DirectionalLight : Light
 
 		if ( l is SceneDirectionalLight o )
 		{
-			o.ShadowCascadeCount = 3;
+			o.ShadowCascadeCount = ShadowCascadeCount;
+			o.ShadowCascadeSplitRatio = ShadowCascadeSplitRatio;
 		}
 	}
 	protected override void DrawGizmos()

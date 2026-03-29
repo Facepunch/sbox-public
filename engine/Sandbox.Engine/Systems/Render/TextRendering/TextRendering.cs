@@ -36,7 +36,7 @@ public static partial class TextRendering
 	/// Resolves or creates a fully initialized <see cref="TextBlock"/> for the given scope.
 	/// Safe to call from any thread. MakeReady() must still be called on the render thread before drawing.
 	/// </summary>
-	private static TextBlock GetOrCreateTextBlock( in Scope scope, TextFlag flag, Vector2 clip )
+	internal static TextBlock GetOrCreateTextBlock( in Scope scope, TextFlag flag, Vector2 clip )
 	{
 		if ( Application.IsHeadless ) return null;
 
@@ -57,7 +57,11 @@ public static partial class TextRendering
 		candidate.Flags = flag;
 		candidate.Initialize( scope );
 
-		return Dictionary.GetOrAdd( hash, candidate );
+		// GetOrAdd is race-safe: only one instance wins the slot.
+		// Set CacheKey on the winner so MakeReady can re-register if Tick() evicts it.
+		var winner = Dictionary.GetOrAdd( hash, candidate );
+		winner.CacheKey = hash;
+		return winner;
 	}
 
 	static ConcurrentDictionary<int, TextBlock> Dictionary = new();

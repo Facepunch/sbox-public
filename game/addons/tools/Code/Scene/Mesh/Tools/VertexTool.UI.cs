@@ -103,6 +103,26 @@ partial class VertexTool
 			Layout.AddStretchCell();
 		}
 
+		[Shortcut( "editor.select-all", "CTRL+A", typeof( SceneViewWidget ) )]
+		private void SelectAll()
+		{
+			using var scope = SceneEditorSession.Scope();
+			using var undoScope = SceneEditorSession.Active.UndoScope( "Select All Vertices" ).Push();
+
+			var selection = SceneEditorSession.Active.Selection;
+			selection.Clear();
+
+			foreach ( var vertexGroup in _vertexGroups )
+			{
+				var vertices = vertexGroup.Key.Mesh.VertexHandles;
+
+				foreach ( var vertex in vertices )
+				{
+					selection.Add( new MeshVertex( vertexGroup.Key, vertex ) );
+				}
+			}
+		}
+
 		[Shortcut( "mesh.edge-cut-tool", "C", typeof( SceneViewWidget ) )]
 		void OpenEdgeCutTool()
 		{

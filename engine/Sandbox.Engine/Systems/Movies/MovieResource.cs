@@ -1,4 +1,5 @@
-﻿using Sandbox.MovieMaker.Compiled;
+﻿using System.Collections.Immutable;
+using Sandbox.MovieMaker.Compiled;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -113,7 +114,11 @@ public sealed class EmbeddedMovieResource : IMovieResource
 	public MovieClip? Compiled
 	{
 		get => _compiled ??= _project?.Compile();
-		set => _compiled = value;
+		set
+		{
+			_compiled = value;
+			ReferencedPackages = FindReferencedPackages( value );
+		}
 	}
 
 	/// <inheritdoc />
@@ -124,6 +129,10 @@ public sealed class EmbeddedMovieResource : IMovieResource
 		set => _editorData = value;
 	}
 
+	[JsonInclude]
+	[JsonPropertyName( "__references" )]
+	internal ImmutableArray<string> ReferencedPackages { get; set; } = [];
+
 	/// <inheritdoc />
 	public void StateHasChanged( IMovieProject project )
 	{
@@ -132,6 +141,30 @@ public sealed class EmbeddedMovieResource : IMovieResource
 		_compiled = null;
 		_editorData = null;
 		_project = project;
+	}
+
+	private static ImmutableArray<string> FindReferencedPackages( MovieClip? clip )
+	{
+		if ( clip is null || clip == MovieClip.Empty ) return [];
+
+		var packages = new HashSet<string>();
+
+		// Include current game's ident so we can import movies recorded in-game
+		// into empty editor projects
+
+		if ( Package.TryParseIdent( Game.Ident, out var parsed ) )
+		{
+			// Parse to strip out #local etc
+
+			packages.Add( $"{parsed.org}.{parsed.package}" );
+		}
+
+		foreach ( var package in clip.ResolvePrimaryPackages() )
+		{
+			packages.Add( $"{package.FullIdent}#{package.Revision.VersionId}" );
+		}
+
+		return [.. packages];
 	}
 }
 

@@ -1,10 +1,11 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Text.Json.Nodes;
-using Sandbox.MovieMaker;
+﻿using Sandbox.MovieMaker;
 using Sandbox.MovieMaker.Compiled;
 using Sandbox.MovieMaker.Properties;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Text.Json.Nodes;
 
 namespace TestMovieMaker;
 
@@ -408,7 +409,7 @@ public sealed class BinderTests : SceneTests
 	/// When creating targets, each track should get a unique target even if they have the same name.
 	/// </summary>
 	[TestMethod]
-	public void CreateTargetsUnique()
+	public void CreateTargetsUniqueObjects()
 	{
 		var clip = MovieClip.FromTracks(
 			MovieClip.RootGameObject( "Example" ),
@@ -438,7 +439,44 @@ public sealed class BinderTests : SceneTests
 	}
 
 	/// <summary>
-	/// Calling <see cref="TrackBinder.CreateTargets(IMovieClip, bool)"/> should instantiate any relevant prefabs,
+	/// When creating targets, each track should get a unique target even if they have the same component type.
+	/// </summary>
+	[TestMethod]
+	public void CreateTargetsUniqueComponents()
+	{
+		var root = MovieClip.RootGameObject( "Example" );
+
+		var clip = MovieClip.FromTracks(
+			root.Component<ModelRenderer>(),
+			root.Component<ModelRenderer>() );
+
+		var rendererTracks = clip.Tracks.OfType<CompiledReferenceTrack<ModelRenderer>>().ToArray();
+
+		var track1 = rendererTracks[0];
+		var track2 = rendererTracks[1];
+
+		Assert.AreNotSame( track1, track2 );
+		Assert.AreSame( track1.Parent, track2.Parent );
+
+		var binder = new TrackBinder();
+
+		var ref1 = binder.Get( track1 );
+		var ref2 = binder.Get( track2 );
+
+		Assert.IsFalse( ref1.IsBound );
+		Assert.IsFalse( ref2.IsBound );
+		Assert.AreNotSame( ref1, ref2 );
+
+		binder.CreateTargets( clip );
+
+		Assert.IsTrue( ref1.IsBound );
+		Assert.IsTrue( ref2.IsBound );
+		Assert.AreNotSame( ref1.Value, ref2.Value );
+		Assert.AreSame( ref1.Value!.GameObject, ref2.Value!.GameObject );
+	}
+
+	/// <summary>
+	/// Calling <see cref="TrackBinder.CreateTargets(IMovieClip, bool, GameObject)"/> should instantiate any relevant prefabs,
 	/// as specified by <see cref="TrackMetadata"/>, to set default property values.
 	/// </summary>
 	[TestMethod]
@@ -478,8 +516,60 @@ public sealed class BinderTests : SceneTests
 		Assert.AreEqual( Color.Red, renderer.Tint );
 	}
 
+	[TestMethod]
+	public void CreatePrefabTargetMultipleComponents()
+	{
+		const string prefabPath = "prefabs/example.prefab";
+
+		RegisterSimplePrefab( prefabPath, new JsonObject
+		{
+			{ "__type", "ModelRenderer" },
+			{ "Tint", "1,0,0,1" }
+		}, new JsonObject
+		{
+			{ "__type", "ModelRenderer" },
+			{ "Tint", "0,0,1,1" }
+		} );
+
+		// Example track says it's using the above prefab in TrackMetadata
+
+		var root = MovieClip.RootGameObject( "Example", metadata: new TrackMetadata( PrefabSource: prefabPath ) );
+
+		// Clip includes both ModelRenderers
+
+		var clip = MovieClip.FromTracks(
+			root.Component<ModelRenderer>()
+				.Property<bool>( nameof( ModelRenderer.Enabled ) )
+				.WithConstant( (0d, 10d), true ),
+			root.Component<ModelRenderer>()
+				.Property<bool>( nameof( ModelRenderer.Enabled ) )
+				.WithConstant( (0d, 10d), true ) );
+
+		var rendererTracks = clip.Tracks.OfType<CompiledReferenceTrack<ModelRenderer>>().ToArray();
+
+		Assert.AreEqual( 2, rendererTracks.Length );
+
+		var binder = new TrackBinder();
+		var rendererRef1 = binder.Get( rendererTracks[0] );
+		var rendererRef2 = binder.Get( rendererTracks[1] );
+
+		binder.CreateTargets( clip );
+
+		var renderer1 = rendererRef1.Value;
+		var renderer2 = rendererRef2.Value;
+
+		Assert.IsNotNull( renderer1 );
+		Assert.IsNotNull( renderer2 );
+		Assert.AreNotSame( renderer1, renderer2 );
+
+		// Tints should be loaded from the prefab
+
+		Assert.AreEqual( Color.Red, renderer1.Tint );
+		Assert.AreEqual( Color.Blue, renderer2.Tint );
+	}
+
 	/// <summary>
-	/// When <see cref="TrackBinder.CreateTargets(IMovieClip)"/> instantiates a prefab, it should only
+	/// When <see cref="TrackBinder.CreateTargets(IMovieClip, bool, GameObject)"/> instantiates a prefab, it should only
 	/// create components that have tracks in the given clip. This is so we include all display-related components,
 	/// but exclude any that would try to do game logic like <see cref="PlayerController"/>, unless opted-in
 	/// by having a track.
@@ -556,6 +646,53 @@ public sealed class BinderTests : SceneTests
 		binder.Deserialize( jsonNode );
 
 		Assert.IsTrue( target.IsBound );
+	}
+
+	[TestMethod, Ignore]
+	public void GetPropertyBenchmark()
+	{
+		var propertyTrack = MovieClip.RootGameObject( "Example" )
+			.Property<Vector3>( nameof( GameObject.LocalPosition ) );
+
+		var propertyTarget = TrackBinder.Default.Get( propertyTrack );
+
+		var inst = new GameObject( propertyTrack.Name );
+
+		((ITrackReference<GameObject>)propertyTarget.Parent).Bind( inst );
+
+		Assert.IsTrue( propertyTarget.IsBound );
+
+		var sum = Vector3.Zero;
+
+		var timer = Stopwatch.StartNew();
+
+		var delegateTime = TimeSpan.Zero;
+		var reflectionTime = TimeSpan.Zero;
+
+		for ( var i = 0; i < 100; i++ )
+		{
+			var useDelegate = (i & 1) == 0;
+			var before = timer.Elapsed;
+
+			MemberProperty.UseDelegate = useDelegate;
+
+			for ( var j = 0; j < 1_000_000; j++ )
+			{
+				sum += propertyTarget.Value;
+			}
+
+			if ( useDelegate )
+			{
+				delegateTime += timer.Elapsed - before;
+			}
+			else
+			{
+				reflectionTime += timer.Elapsed - before;
+			}
+		}
+
+		Console.WriteLine( $"Delegate: {delegateTime.TotalSeconds:F3}s" );
+		Console.WriteLine( $"Reflection: {reflectionTime.TotalSeconds:F3}s" );
 	}
 }
 

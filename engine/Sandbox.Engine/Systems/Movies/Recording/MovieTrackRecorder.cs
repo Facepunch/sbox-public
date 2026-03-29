@@ -299,7 +299,7 @@ internal sealed class MovieGameObjectTrackRecorder : MovieTrackRecorder<Compiled
 
 		if ( recorder is null )
 		{
-			// Create a new child recorder for this GameObject
+			// Create a new recorder for this Component
 
 			var track = Track.Component( component.GetType(), metadata: new TrackMetadata( ReferenceId: component.Id ) );
 			var recorderType = typeof( MovieComponentTrackRecorder<> ).MakeGenericType( component.GetType() );
@@ -333,6 +333,7 @@ internal sealed class MovieGameObjectTrackRecorder : MovieTrackRecorder<Compiled
 			FindPrefabSource( gameObject );
 		}
 
+		Property( nameof( GameObject.Parent ) ).Capture();
 		Property( nameof( GameObject.LocalPosition ) ).Capture();
 		Property( nameof( GameObject.LocalRotation ) ).Capture();
 		Property( nameof( GameObject.LocalScale ) ).Capture();
@@ -396,7 +397,7 @@ internal sealed class MovieComponentTrackRecorder<T> : MovieTrackRecorder<Compil
 
 internal sealed class MoviePropertyTrackRecorder<T> : MovieTrackRecorder<CompiledPropertyTrack<T>, ITrackProperty<T>>
 {
-	private static readonly bool MustUseConstantBlocks = typeof( T ).IsAssignableTo( typeof( Resource ) );
+	private static readonly bool MustUseConstantBlocks = typeof( T ).IsAssignableTo( typeof( Resource ) ) || BindingReference.GetUnderlyingType( typeof( T ) ) is not null;
 	private static readonly MovieTime MinimumConstantBlockDuration = MustUseConstantBlocks ? MovieTime.Zero : 1d;
 
 	private readonly List<ICompiledPropertyBlock<T>> _blocks = new();
@@ -471,6 +472,19 @@ internal sealed class MoviePropertyTrackRecorder<T> : MovieTrackRecorder<Compile
 		// GameObject/Component.Enabled should always be recorded, since we use it to show or hide objects
 
 		if ( Name == nameof( GameObject.Enabled ) && Parent is MovieGameObjectTrackRecorder or IMovieComponentTrackRecorder ) return;
+
+		// GameObject.Parent special case: default to the parent-parent track's ID
+
+		if ( Name == nameof( GameObject.Parent ) && Parent is MovieGameObjectTrackRecorder && typeof( T ) == typeof( BindingReference<GameObject> ) )
+		{
+			// Track.Parent is the GameObject, Track.Parent.Parent is the GameObject's parent
+
+			BindingReference<GameObject> defaultValue = (Track.Parent.Parent as ICompiledReferenceTrack)?.Id;
+
+			_defaultValue = (T)(object)defaultValue;
+			_isDefaultValue = true;
+			return;
+		}
 
 		// Default value is whatever the source prefab has for this property
 

@@ -47,6 +47,7 @@ internal static class CubemapRendering
 		camera.Position = cubemapTransform.Position;
 		camera.Rotation = cubemapTransform.Rotation;
 		camera.World = world;
+		camera.ExcludeFromTextureStreaming = true;
 
 		// We need to filter with GGX after rendering is done so that roughness levels sample correctly.
 		// SceneCameras don't abstract Command Lists directly, so we hook into the render stage for same behavior.

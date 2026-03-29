@@ -68,6 +68,8 @@ public class Bloom : BasePostProcess<Bloom>
 		// Dispatch compute at bloom RT size
 		command.DispatchCompute( ShaderCs, bloomRt.Size );
 
+		command.ResourceBarrierTransition( bloomRt, ResourceState.PixelShaderResource );
+
 		// Composite: sample the bloom texture in PS and apply selected mode
 		command.Attributes.Set( "BloomTexture", bloomRt.ColorTexture );
 		command.Attributes.Set( "CompositeMode", (int)Mode );

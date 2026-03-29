@@ -1,25 +1,39 @@
+@import "/styles/_theme.scss";
+
+HubPage {
+    background-color: $default-950;
+    align-items: center;
+    justify-content: center;
+}
+
+Page {
+    width: 100%;
+    max-width: $screen-w-xl;
+}
+
 HubPage .top {
     flex-shrink: 0;
-    padding: 32px;
+    padding: 50px;
     padding-bottom: 0;
     z-index: 10;
 }
 
 HubPage .blocks {
-    padding: 32px;
     gap: 32px;
     flex-grow: 1;
-    padding-top: 0;
 }
 
 HubPage .blocks .block {
     flex-grow: 1;
     flex-shrink: 0;
-    flex-basis: 1;
-    mask: linear-gradient( to bottom, black, white ) top top / 100% 64px;
+    flex-basis: 70%;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: scroll;
+    padding: 50px;
 
-    > * {
-        padding-top: 64px;
-        padding-bottom: 64px;
+    * {
+        flex-shrink: 0;
     }
 }
+

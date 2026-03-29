@@ -3,7 +3,12 @@
 HorizontalGameList {
     gap: 12px;
     flex-direction: column;
-    transition: transform 500ms $easing, opacity 300ms $easing;
+    position: relative;
+    margin-bottom: 32px;
+
+    &:hover {
+        z-index: 100;
+    }
 
     &.hidden {
         display: none;
@@ -18,8 +23,7 @@ HorizontalGameList {
     }
 
     .games {
-        overflow-x: scroll;
-        gap: 12px;
+        gap: 6px;
         flex-direction: row;
     }
 }

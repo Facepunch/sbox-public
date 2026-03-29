@@ -16,6 +16,7 @@ public static partial class TextRendering
 		public Vector2 Clip;
 		public bool IsEmpty;
 		public Rendering.FilterMode FilterMode;
+		internal int CacheKey;
 
 		public RealTimeSince TimeSinceUsed;
 
@@ -233,6 +234,9 @@ public static partial class TextRendering
 									.Finish();
 			}
 
+			// Re-register so Tick() can evict this block again if it was evicted while
+			// a CommandList still held a reference and triggered a texture rebuild.
+			if ( CacheKey != 0 ) Dictionary.TryAdd( CacheKey, this );
 		}
 
 
