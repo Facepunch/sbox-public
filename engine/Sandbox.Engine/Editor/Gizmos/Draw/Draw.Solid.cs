@@ -70,8 +70,9 @@ public static partial class Gizmo
 		/// </summary>
 		public void SolidBicone( float coneLength, float flRadius )
 		{
-			SolidCone( 0, Vector3.Up * coneLength, flRadius, null, false );
-			SolidCone( 0, Vector3.Down * coneLength, flRadius, null, false );
+			// Use named argument for drawBase to avoid brittle positional use of optional parameters.
+			SolidCone( 0, Vector3.Up * coneLength, flRadius, drawBase: false );
+			SolidCone( 0, Vector3.Down * coneLength, flRadius, drawBase: false );
 		}
 
 		/// <summary>
