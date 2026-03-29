@@ -1,4 +1,6 @@
-﻿namespace Editor.MeshEditor;
+﻿using static Sandbox.Gizmo.GizmoControls;
+
+namespace Editor.MeshEditor;
 
 /// <summary>
 /// Set the location of the gizmo for the current selection.
@@ -35,7 +37,7 @@ public sealed class PivotMode : MoveMode
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
 
-			if ( Gizmo.Control.Position( "position", Vector3.Zero, out var delta, _basis, drawBicone: true ) )
+			if ( Gizmo.Control.Position( "position", Vector3.Zero, out var delta, _basis, centerHandleStyle: PositionCenterHandleStyle.Bicone ) )
 			{
 				_pivot += delta;
 				tool.Pivot = Gizmo.Snap( _pivot * _basis.Inverse, delta * _basis.Inverse ) * _basis;
