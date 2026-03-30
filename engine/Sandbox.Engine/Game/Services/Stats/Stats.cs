@@ -20,7 +20,7 @@ public static partial class Stats
 		if ( package is null )
 			return Task.CompletedTask;
 
-		return Api.Stats.FlushWithBookmarkAsync( package, false, token );
+		return Api.Stats.FlushAsync( package, token );
 	}
 
 	/// <summary>
@@ -33,7 +33,7 @@ public static partial class Stats
 		if ( package is null )
 			return;
 
-		_ = Api.Stats.FlushWithBookmarkAsync( package, false, default );
+		_ = Api.Stats.FlushAsync( package, default );
 	}
 
 	/// <summary>
@@ -46,7 +46,7 @@ public static partial class Stats
 		if ( package is null )
 			return Task.CompletedTask;
 
-		return Api.Stats.FlushWithBookmarkAsync( package, true, token );
+		return Api.Stats.FlushAsync( package, token );
 	}
 
 	[MethodImpl( MethodImplOptions.NoInlining )]
