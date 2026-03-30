@@ -943,6 +943,19 @@
 			"Copyright": [
 				"Copyright (c) 2015 - 2020 0x0ade"
 			]
-		}		
+		},
+		{
+			"Name": "SharpGLTF",
+			"Comment": "SharpGLTF is a 100% .NET Standard 2.0 library designed to support Khronos Group glTF 2.0 file format.",
+			"UsedBy": [
+				"sbox-dev"
+			],
+			"License": "MIT",
+			"ProjectUrl": "https://github.com/vpenades/SharpGLTF",
+			"Linkage": "dynamic",
+			"Copyright": [
+				"2019 Vicente Penades"
+			]
+		}
 	]
 }

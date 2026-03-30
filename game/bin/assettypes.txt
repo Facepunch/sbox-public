@@ -629,6 +629,28 @@
 		},
 		{
 			_class = "CSimpleAssetTypeInfo"
+			m_Name = "gltf_asset"
+			m_FriendlyName = "glTF Scene File"
+			m_Ext = "gltf"
+			m_IconLg = "toolimages:assettypes/generic_lg.png"
+			m_IconSm = "toolimages:assettypes/generic_sm.png"
+			m_bHideTypeByDefault = false
+			m_bPrefersIconForThumbnail = false
+			m_Category = "Rendering"
+		},
+		{
+			_class = "CSimpleAssetTypeInfo"
+			m_Name = "glb_asset"
+			m_FriendlyName = "GLB Binary File"
+			m_Ext = "glb"
+			m_IconLg = "toolimages:assettypes/generic_lg.png"
+			m_IconSm = "toolimages:assettypes/generic_sm.png"
+			m_bHideTypeByDefault = false
+			m_bPrefersIconForThumbnail = false
+			m_Category = "Rendering"
+		},
+		{
+			_class = "CSimpleAssetTypeInfo"
 			m_Name = "meshgroup_file"
 			m_FriendlyName = "Meshgroup File"
 			m_Ext = "meshgrp"

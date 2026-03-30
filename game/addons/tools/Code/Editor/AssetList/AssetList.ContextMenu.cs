@@ -330,7 +330,9 @@ public partial class AssetList
 	{
 		"fbx",
 		"obj",
-		"dmx"
+		"dmx",
+		"gltf",
+		"glb"
 	};
 
 	[Event( "asset.contextmenu", Priority = 50 )]

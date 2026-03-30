@@ -462,6 +462,8 @@ public partial class ProjectPublisher
 				if ( file.EndsWith( ".cs", StringComparison.OrdinalIgnoreCase ) ) return false;
 				if ( file.EndsWith( ".razor", StringComparison.OrdinalIgnoreCase ) ) return false;
 				if ( file.EndsWith( ".fbx", StringComparison.OrdinalIgnoreCase ) ) return false;
+				if ( file.EndsWith( ".gltf", StringComparison.OrdinalIgnoreCase ) ) return false;
+				if ( file.EndsWith( ".glb", StringComparison.OrdinalIgnoreCase ) ) return false;
 			}
 
 			if ( DissallowedExtensions.Any( x => file.EndsWith( x, StringComparison.OrdinalIgnoreCase ) ) )

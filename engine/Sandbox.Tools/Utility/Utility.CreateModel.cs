@@ -15,6 +15,13 @@ public static partial class EditorUtility
 		if ( System.IO.File.Exists( modelFilename ) )
 			return null;
 
+		// glTF/GLB files are handled by our C# importer since the native pipeline doesn't support them
+		var ext = System.IO.Path.GetExtension( meshFile.AbsolutePath )?.ToLowerInvariant();
+		if ( ext is ".gltf" or ".glb" )
+		{
+			return GltfImporter.ImportToVmdl( meshFile.AbsolutePath, modelFilename );
+		}
+
 		// In the future we could just init all tools upfront
 		if ( !g_pToolFramework2.InitEngineTool( "modeldoc_editor" ) )
 			return null;

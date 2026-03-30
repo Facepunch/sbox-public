@@ -116,6 +116,7 @@ public partial class Project
 				Compiler.AddReference( "Sandbox.Bind" );
 				Compiler.AddReference( "Facepunch.ActionGraphs" );
 				Compiler.AddReference( "SkiaSharp" );
+				Compiler.AddReference( "SharpGLTF.Core" );
 				Compiler.AddReference( "Microsoft.CodeAnalysis" );
 				Compiler.AddReference( "Microsoft.CodeAnalysis.CSharp" );
 
@@ -213,6 +214,7 @@ public partial class Project
 		EditorCompiler.AddReference( "Sandbox.Bind" );
 		EditorCompiler.AddReference( "Facepunch.ActionGraphs" );
 		EditorCompiler.AddReference( "SkiaSharp" );
+		EditorCompiler.AddReference( "SharpGLTF.Core" );
 		EditorCompiler.AddReference( "Microsoft.CodeAnalysis" );
 		EditorCompiler.AddReference( "Microsoft.CodeAnalysis.CSharp" );
 
