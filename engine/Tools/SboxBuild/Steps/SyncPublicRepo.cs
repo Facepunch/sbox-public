@@ -76,6 +76,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 	private static readonly string[] RepoFilterShaderWhitelistGlobs =
 	{
 		"game/core/shaders/**/vr_*",
+		"game/core/shaders/**/*.hlsl",
 		"game/core/shaders/**/*.shader_c",
 		"game/core/shaders/common.fxc",
 		"game/core/shaders/common_samplers.fxc",
@@ -462,7 +463,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			}
 		}
 
-		if ( !Utility.RunProcess( "git", $"push public {PUBLIC_BRANCH}", relativeRepoPath ) )
+		if ( !Utility.RunProcess( "git", $"push public {PUBLIC_BRANCH} --force", relativeRepoPath ) )
 		{
 			Log.Error( "Failed to push to public repository" );
 			return null;

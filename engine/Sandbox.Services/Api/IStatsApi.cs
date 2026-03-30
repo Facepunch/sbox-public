@@ -14,10 +14,6 @@ public partial class ServiceApi
 
 		[Post( "/stats/batch" )]
 		Task Submit( [Body] object data );
-
-		// this is bollocks, delete it
-		[Get( "/stats/bookmark/" )]
-		Task<string> GetBookmark( string id );
 	}
 }
 

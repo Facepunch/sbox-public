@@ -109,7 +109,6 @@ native class IRenderContext as NativeEngine.IRenderContext
 	}
 
 	void Submit();
-	void SetAssociatedThreadIndex();
 
 	inline void BindRenderTargets( SwapChainHandle_t swapChain, bool color, bool depth )
 	{
