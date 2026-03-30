@@ -16,7 +16,8 @@ internal class NativeAsset : Asset
 		if ( AssetType.AssetTypeCache.TryGetValue( native.GetAssetTypeId(), out var type ) )
 			AssetType = type;
 
-		Assert.NotNull( AssetType ); // agh? Maybe we mock up an unknown type type?
+		if ( AssetType is null )
+			return;
 
 		AssetId = native.GetAssetIndexInt();
 		Name = native.GetFriendlyName_Transient().NormalizeFilename( false );

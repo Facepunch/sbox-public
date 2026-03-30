@@ -284,13 +284,23 @@ public class AssetType
 		if ( extension.EndsWith( "_c" ) )
 			extension = extension.Substring( 0, extension.Length - 2 );
 
-		return string.Equals( extension, FileExtension, StringComparison.InvariantCultureIgnoreCase );
+		if ( string.Equals( extension, FileExtension, StringComparison.InvariantCultureIgnoreCase ) )
+			return true;
+
+		for ( int i = 0; i < AllFileExtensions.Count; i++ )
+		{
+			if ( string.Equals( extension, AllFileExtensions[i], StringComparison.InvariantCultureIgnoreCase ) )
+				return true;
+		}
+
+		return false;
 	}
 
 	internal bool CouldBeIdentifiedAs( string name, bool fuzzy = false )
 	{
 		if ( string.Equals( FriendlyName, name, System.StringComparison.OrdinalIgnoreCase ) ) return true;
 		if ( string.Equals( FileExtension, name, System.StringComparison.OrdinalIgnoreCase ) ) return true;
+		if ( HasExtension( name ) ) return true;
 
 		if ( fuzzy )
 		{

@@ -173,7 +173,7 @@ public static partial class AssetSystem
 				asset.RebuildThumbnail( true );
 			}
 
-			if ( !asset.IsCompiled && asset.AssetType.IsGameResource )
+			if ( !asset.IsCompiled && asset.AssetType is not null && asset.AssetType.IsGameResource )
 			{
 				asset.Compile( false );
 			}

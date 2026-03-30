@@ -23,6 +23,10 @@ class PreviewSoundFile : AssetPreview
 	public override Widget CreateWidget( Widget parent )
 	{
 		previewWidget = new SoundPlayer( parent );
+
+		if ( soundFile is null )
+			return previewWidget;
+
 		previewWidget.SetSamples( samples, soundFile.Duration, soundFile.ResourcePath );
 
 		if ( AutoPlay )
@@ -44,6 +48,9 @@ class PreviewSoundFile : AssetPreview
 
 	public override async Task InitializeAsset()
 	{
+		if ( soundFile is null )
+			return;
+
 		await soundFile.LoadAsync();
 
 		samples = await soundFile.GetSamplesAsync();
