@@ -22,15 +22,22 @@ internal static partial class Api
 		/// Flush the stats and wait until they have been ingested by the backend, 
 		/// at which point they should be available in stats and leaderboard queries.
 		/// </summary>
-		public static async Task FlushWithBookmarkAsync( string package, bool useBookmark, CancellationToken token )
+		[Obsolete( "This is obsolete. Just flush now." )]
+		public static Task FlushWithBookmarkAsync( string package, bool useBookmark, CancellationToken token )
+		{
+			return FlushAsync( package, token );
+		}
+
+		/// <summary>
+		/// Flush the stats and wait until they have been ingested by the backend, 
+		/// at which point they should be available in stats and leaderboard queries.
+		/// </summary>
+		public static async Task FlushAsync( string package, CancellationToken token )
 		{
 			// no pending stats, and we flushed over 5 seconds ago
 			// so seems like they should be available by now.
 			if ( Pending.Count == 0 && TimeSinceFlushed > 5 )
-			{
-				//Log.Info( "Nothing pending - returning!" );
 				return;
-			}
 
 			if ( TimeSinceForceFlushed < 3 )
 				return;
@@ -45,45 +52,11 @@ internal static partial class Api
 					return;
 
 				// minimum period between
-				if ( TimeSinceForceFlushed < 30 )
-					await Task.Delay( TimeSpan.FromSeconds( 30 - TimeSinceForceFlushed.Relative ) );
-
-				var guid = Guid.NewGuid().ToString();
-
-				if ( useBookmark )
-				{
-					// create a special stat for us to determine ingress
-					SetValue( "facepunch.stats", "bookmark", 1, new Dictionary<string, object> { { "source", package } } );
-				}
+				if ( TimeSinceForceFlushed < 20 )
+					await Task.Delay( TimeSpan.FromSeconds( 20 - TimeSinceForceFlushed.Relative ), token );
 
 				// force flush it
 				await ForceFlushAsync();
-
-				if ( !useBookmark )
-					return;
-
-				if ( token.IsCancellationRequested )
-					return;
-
-				await Task.Delay( 1000 );
-
-				for ( int i = 0; i < 10; i++ )
-				{
-					if ( token.IsCancellationRequested )
-						return;
-
-					try
-					{
-						var r = await Sandbox.Backend.Stats.GetBookmark( guid );
-						if ( r == "found" ) break;
-					}
-					catch ( System.Exception e )
-					{
-						Log.Warning( e, $"Error when waiting for ingestion" );
-					}
-
-					await Task.Delay( 1000 + 500 * i );
-				}
 			}
 			finally
 			{
