@@ -12,6 +12,7 @@ public class AssetInspector : InspectorWidget
 	public Asset Asset { get; set; }
 	public Asset[] Assets { get; set; }
 	public Action OnSave { get; set; }
+	public Action OnReset { get; set; }
 
 	ToolBar ToolBar;
 
@@ -149,10 +150,11 @@ public class AssetInspector : InspectorWidget
 
 	protected override bool OnInspectorClose( object newObj = null )
 	{
-		if ( !Asset.TryLoadResource<GameResource>( out var gameResource ) || !gameResource.HasUnsavedChanges )
-		{
+		var generic = !Asset.TryLoadResource<GameResource>( out var gameResource ) || !gameResource.HasUnsavedChanges;
+		if ( generic && !Asset.HasUnsavedChanges )
 			return true;
-		}
+		if ( generic && OnSave is null && OnReset is null )
+			return true;
 
 		var popup = new PopupDialogWidget( "💾" );
 		popup.FixedWidth = 462;
@@ -165,7 +167,10 @@ public class AssetInspector : InspectorWidget
 		{
 			Clicked = () =>
 			{
-				SaveAsset( Asset, gameResource );
+				if ( generic )
+					OnSave?.Invoke();
+				else
+					SaveAsset( Asset, gameResource );
 				popup.Destroy();
 				// After we are done with the popup, retrigger the inspector change since we previously blocked it.
 				EditorUtility.InspectorObject = newObj;
@@ -176,7 +181,10 @@ public class AssetInspector : InspectorWidget
 		{
 			Clicked = () =>
 			{
-				ResetAsset( Asset, gameResource );
+				if ( generic )
+					OnReset?.Invoke();
+				else
+					ResetAsset( Asset, gameResource );
 				popup.Destroy();
 				EditorUtility.InspectorObject = newObj;
 			}
