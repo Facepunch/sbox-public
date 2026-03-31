@@ -55,6 +55,11 @@ class Cluster
 
     static ClusterRange Query( ClusterItemType type, float4 positionSs )
     {
+        // Snap positionSs to the top-left pixel of the 2x2 quad to avoid cluster divergence
+        // Todo: Z still diverges within the quad and cant derive it without reading from neighbour lanes
+        // Using QuadReadLaneAt causes issues on AMD GCN ( RX580 )
+        positionSs.xy = floor( positionSs.xy / 2.0 ) * 2.0 + 0.5;
+
         // Screen position -> cluster coordinate
         float2 uv = CalculateViewportUv( positionSs.xy );
         
@@ -92,10 +97,6 @@ class Cluster
         range.Type = type;
         range.Count = min( count, capacity );
         range.BaseOffset = flatIndex * capacity;
-
-        // Use wave instrincts to avoid divergence across XYZ clusters across 2x2 quads
-        range.Count = QuadReadLaneAt( range.Count, 0 );
-        range.BaseOffset = QuadReadLaneAt( range.BaseOffset, 0 );
 
         return range;
     }

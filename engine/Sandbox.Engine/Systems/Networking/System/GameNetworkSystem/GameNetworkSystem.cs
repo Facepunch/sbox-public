@@ -143,7 +143,7 @@ public abstract partial class GameNetworkSystem : IDisposable
 		}
 		else
 		{
-			targetConnection.SendRawMessage( bs, flags );
+			targetConnection.SendStream( bs, flags );
 		}
 	}
 
@@ -166,7 +166,7 @@ public abstract partial class GameNetworkSystem : IDisposable
 			Log.Warning( e, $"Error when trying to network serialize object: {e.Message}" );
 		}
 
-		connection.SendRawMessage( bs, flags );
+		connection.SendStream( bs, flags );
 		bs.Dispose();
 	}
 
@@ -188,7 +188,7 @@ public abstract partial class GameNetworkSystem : IDisposable
 				Log.Warning( e, $"Error when trying to network serialize object: {e.Message}" );
 			}
 
-			connection.SendRawMessage( bs, flags );
+			connection.SendStream( bs, flags );
 
 			bs.Dispose();
 		}
