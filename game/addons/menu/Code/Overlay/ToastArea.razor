@@ -89,9 +89,9 @@
         panel.Delete();
     }
 
-    async Task AutoDismissAsync(Panel panel, float duration)
+    async Task AutoDismissAsync( Panel panel, float duration )
     {
-        await GameTask.DelayRealtimeSeconds(duration);
+        await Task.DelaySeconds( duration, DeletionToken );
         if (IsValid) Dismiss(panel);
     }
 }

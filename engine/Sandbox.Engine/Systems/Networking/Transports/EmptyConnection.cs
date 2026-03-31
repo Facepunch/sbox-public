@@ -13,7 +13,7 @@ internal class EmptyConnection : Connection
 
 	internal override void InternalClose( int closeCode, string closeReason ) { }
 	internal override void InternalRecv( NetworkSystem.MessageHandler handler ) { }
-	internal override void InternalSend( ByteStream stream, NetFlags flags ) { }
+	internal override void InternalSend( byte[] data, NetFlags flags ) { }
 
 	public EmptyConnection( Guid id )
 	{

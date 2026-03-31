@@ -131,8 +131,6 @@ struct VS_INPUT
 struct PS_INPUT
 {
 	float3 vPositionWs : TEXCOORD1;
-	nointerpolation float3 SunDirectionWs : TEXCOORD2;
-	nointerpolation float3 SunColor : TEXCOORD3;
 
 	#if ( PROGRAM == VFX_PROGRAM_VS )
 		float4 vPositionPs	: SV_Position;
@@ -148,47 +146,8 @@ VS
 	// Includes -----------------------------------------------------------------------------------------------------------------------------------------------
 	#define IS_SPRITECARD 1
 	#include "system.fxc"
-	#include "vr_lighting.fxc"
-
-	// Combos -------------------------------------------------------------------------------------------------------------------------------------------------
-
-	// Constants ----------------------------------------------------------------------------------------------------------------------------------------------
 
 	// Main ---------------------------------------------------------------------------------------------------------------------------------------------------
-	int FindSunLightIndex()
-	{
-		[loop]
-		for ( uint lightIndex = 0u; lightIndex < uint( NumDynamicLights ); ++lightIndex )
-		{
-			BinnedLight light = BinnedLightBufferV2[ lightIndex ];
-
-			float3 lightPosition = light.GetPosition();
-			float FLOAT32_MAX = 3.402823466e+38;
-
-			if ( light.Radius == FLOAT32_MAX )
-			{
-				return lightIndex;
-			}
-		}
-		return -1;
-	}
-
-	void FetchSunLight( out float3 sunDirectionWs, out float3 sunColor )
-	{
-		sunDirectionWs = float3( 0.0f, 0.0f, 0.0f );
-		sunColor = float3( 0.0f, 0.0f, 0.0f );
-
-		int sunLightIndex = FindSunLightIndex();
-		
-		if ( sunLightIndex == -1 )
-			return;
-
-		BinnedLight sunLight = BinnedLightBufferV2[ sunLightIndex ];
-
-		sunDirectionWs = normalize( sunLight.GetPosition() );
-		sunColor = sunLight.Color;
-	}
-
 	PS_INPUT MainVs( const VS_INPUT i )
 	{
 		PS_INPUT o;
@@ -198,9 +157,6 @@ VS
 		o.vPositionPs = Position3WsToPs( vPositionWs );
 		o.vPositionWs = vPositionWs;
 
-		// Precalculate sun light direction and color instead of doing it in the pixel shader
-		FetchSunLight( o.SunDirectionWs, o.SunColor );
-		
 		return o;
 	}
 }
@@ -210,6 +166,7 @@ PS
 {
 	#include "vr_lighting.fxc"
 	#include "volumetric_fog.fxc"
+	#include "common/Shadow.hlsl"
 	
 	// Combos -------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -300,12 +257,15 @@ PS
 		float3 vRay = normalize( vPositionWs - g_vCameraPositionWs );
 		float3 vColor = Stars( vRay );
 
-		const float sunDirLengthSq = dot( i.SunDirectionWs, i.SunDirectionWs );
-		const float sunColorLengthSq = dot( i.SunColor, i.SunColor );
+		float3 sunDirectionWs = -g_DirectionalLightDirection.xyz;
+		float3 sunColor = g_DirectionalLightColor.rgb;
+
+		const float sunDirLengthSq = dot( sunDirectionWs, sunDirectionWs );
+		const float sunColorLengthSq = dot( sunColor, sunColor );
 		if ( sunDirLengthSq > 0.0f && sunColorLengthSq > 0.0f )
 		{
-			vColor += GetAtmosphere( vRay, i.SunDirectionWs, i.SunColor );
-			vColor += Sun( vRay, i.SunDirectionWs, i.SunColor );
+			vColor += GetAtmosphere( vRay, sunDirectionWs, sunColor );
+			vColor += Sun( vRay, sunDirectionWs, sunColor );
 		}
 
 		o.vColor0 = float4( vColor, 1.0 );
