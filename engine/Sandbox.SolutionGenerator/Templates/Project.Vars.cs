@@ -30,7 +30,7 @@ internal partial class Project
 	public string RootNamespace;
 	public string Nullable = "disable";
 	public string DefineConstants = "SANDBOX;DEBUG;TRACE";
-	public string NoWarn = "1701;1702;1591";
+	public string NoWarn = "1701;1702;1591;8974";
 	public string WarningsAsErrors = "";
 	public bool TreatWarningsAsErrors = false;
 	public bool IsEditorProject = false;
