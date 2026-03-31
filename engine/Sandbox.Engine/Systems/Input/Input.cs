@@ -155,9 +155,9 @@ public static partial class Input
 		var collection = InputBinds.FindCollection( loadedGame );
 
 		var bind = collection.Get( action.Name, 0 );
-		if ( string.IsNullOrEmpty( bind ) ) return action.KeyboardCode;
+		if ( string.IsNullOrEmpty( bind ) ) bind = action.KeyboardCode;
 
-		return bind;
+		return GetLocalKeyName( bind );
 	}
 
 	/// <summary>
@@ -179,5 +179,14 @@ public static partial class Input
 		}
 
 		return GetButtonOrigin( action, ignoreController );
+	}
+
+	/// <summary>
+	/// Convert a button code to its user-facing keyname (our best guess at what's painted on the physical key cap)
+	/// </summary>
+	internal static string GetLocalKeyName( string key )
+	{
+		var buttonCode = NativeEngine.InputSystem.StringToButtonCode( key );
+		return NativeEngine.InputSystem.GetKeyDisplayName( buttonCode );
 	}
 }

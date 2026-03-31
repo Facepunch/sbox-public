@@ -151,6 +151,7 @@ public static partial class Input
 		public static Texture GetGlyph( string key, InputGlyphSize size = InputGlyphSize.Small, bool outline = false )
 		{
 			if ( string.IsNullOrEmpty( key ) ) key = "UNBOUND";
+			key = GetLocalKeyName( key );
 			key = GetButtonName( key );
 			return LoadGlyphTexture( key, size, outline, noController: true );
 		}
