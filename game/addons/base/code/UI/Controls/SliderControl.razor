@@ -21,20 +21,22 @@
             </div>
         }
 
-        <div @ref="TrackPanel" class="track">
-            <div class="track-active" style="width: @(SliderPosition)%;"></div>
-            <div @ref="ThumbPanel" style="left: @(SliderPosition)%;" class="thumb">
-
-                @if (this.HasActive)
-                {
-                    <div class="value-tooltip">
-                        <label>@Value.ToString( NumberFormat )</label>
-                        <div class="tail"></div>
-                    </div>
-                }
-
-            </div>
-        </div>
+        <Panel @ref="TrackPanel" class="track">
+            <ChildContent>
+                <div class="track-active" style="width: @(SliderPosition)%;"></div>
+                <Panel @ref="ThumbPanel" style="left: @(SliderPosition)%;" class="thumb">
+                    <ChildContent>
+                        @if (this.HasActive)
+                        {
+                            <div class="value-tooltip">
+                                <label>@Value.ToString( NumberFormat )</label>
+                                <div class="tail"></div>
+                            </div>
+                        }
+                    </ChildContent>
+                </Panel>
+            </ChildContent>
+        </Panel>
 
     </div>
 </root>

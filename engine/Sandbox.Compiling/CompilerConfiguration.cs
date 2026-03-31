@@ -24,7 +24,7 @@ partial class Compiler
 
 		[Title( "Symbols" ), Description( "A list of pre-processor symbols to define when compiling, separated with semi-colons." )]
 		public string DefineConstants { get; set; } = "SANDBOX";
-		public string NoWarn { get; set; } = "1701;1702;1591;";
+		public string NoWarn { get; set; } = "1701;1702;1591;8974;";
 		public string WarningsAsErrors { get; set; } = "";
 		public bool TreatWarningsAsErrors { get; set; }
 		public bool Nullables { get; set; }

@@ -113,7 +113,7 @@ public class NavigationHost : Panel
 		//
 		// Make url absolute by adding it to parent url
 		//
-		if ( url?.StartsWith( "~/" ) ?? false && parent.IsValid() )
+		if ( (url?.StartsWith( "~/" ) ?? false) && parent.IsValid() )
 		{
 			url = $"{parent.CurrentUrl}/{url[2..]}";
 		}
