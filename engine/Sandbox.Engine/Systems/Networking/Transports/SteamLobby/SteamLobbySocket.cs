@@ -392,18 +392,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 			if ( !Connections.TryGetValue( msg.SteamId, out var connection ) )
 				continue;
 
-			Span<byte> data = Networking.DecodeStream( msg.Data );
-
-			using var stream = ByteStream.CreateReader( data );
-
-			var nwm = new NetworkSystem.NetworkMessage
-			{
-				Data = stream,
-				Source = connection
-			};
-
-			connection.MessagesRecieved++;
-			handler( nwm );
+			connection.OnRawPacketReceived( msg.Data, handler );
 		}
 	}
 

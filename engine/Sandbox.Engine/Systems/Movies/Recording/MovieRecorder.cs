@@ -335,9 +335,17 @@ public sealed partial class MovieRecorder
 /// <summary>
 /// Ticks all <see cref="MovieRecorder"/>s for the current scene.
 /// </summary>
-file sealed class MovieRecorderSystem : GameObjectSystem<MovieRecorderSystem>
+internal sealed class MovieRecorderSystem : GameObjectSystem<MovieRecorderSystem>
 {
 	private readonly HashSet<MovieRecorder> _activeRecorders = new();
+
+	/// <summary>
+	/// If true, only the host or editor sessions can use the <c>movie</c> command.
+	/// </summary>
+	[Property]
+	public bool DisableClientRecording { get; set; }
+
+	public bool CanUseMovieCommand => !DisableClientRecording || Game.IsEditor || Networking.IsHost;
 
 	public MovieRecorderSystem( Scene scene ) : base( scene )
 	{

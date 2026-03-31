@@ -299,7 +299,7 @@ internal sealed class MovieGameObjectTrackRecorder : MovieTrackRecorder<Compiled
 
 		if ( recorder is null )
 		{
-			// Create a new child recorder for this GameObject
+			// Create a new recorder for this Component
 
 			var track = Track.Component( component.GetType(), metadata: new TrackMetadata( ReferenceId: component.Id ) );
 			var recorderType = typeof( MovieComponentTrackRecorder<> ).MakeGenericType( component.GetType() );

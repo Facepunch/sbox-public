@@ -82,6 +82,30 @@ public sealed class RecorderTests : SceneTests
 		Assert.AreEqual( (startPos + endPos) * 0.5f, posC );
 	}
 
+	[TestMethod]
+	public void RecordTextRenderer()
+	{
+		var go = new GameObject( "Example" );
+		var renderer = go.AddComponent<TextRenderer>();
+
+		var options = new MovieRecorderOptions()
+			.WithDefaultComponentCapturers()
+			.WithCaptureAction( x => x.GetTrackRecorder( renderer )!.Capture() );
+
+		renderer.Text = "Hello, worlb!";
+
+		var clip = Record( options, 1d );
+
+		Console.WriteLine( Json.Serialize( clip ) );
+
+		var textTrack = clip.GetProperty<string>( go.Name, nameof( TextRenderer ), nameof( TextRenderer.TextScope ), nameof( TextRendering.Scope.Text ) );
+
+		Assert.IsNotNull( textTrack );
+
+		Assert.IsTrue( textTrack.TryGetValue( 0.5, out var value ) );
+		Assert.AreEqual( "Hello, worlb!", value );
+	}
+
 	/// <summary>
 	/// When using <see cref="MovieRecorderOptions.Default"/>, all <see cref="ModelRenderer"/>s should be recorded.
 	/// </summary>
@@ -365,5 +389,33 @@ public sealed class RecorderTests : SceneTests
 		// We actually have track data
 
 		Assert.IsTrue( tintTrack.TryGetValue( 5d, out _ ) );
+	}
+
+	[TestMethod]
+	public void RecordMultipleComponents()
+	{
+		var foo = new GameObject( "Foo" );
+
+		var renderer1 = foo.AddComponent<ModelRenderer>();
+		var renderer2 = foo.AddComponent<ModelRenderer>();
+
+		renderer1.Tint = Color.Red;
+		renderer2.Tint = Color.Blue;
+
+		var clip = Record( 1d );
+
+		var colorTracks = clip.Tracks.OfType<CompiledPropertyTrack<Color>>()
+			.Where( x => x.Name == nameof( ModelRenderer.Tint ) )
+			.ToArray();
+
+		Assert.AreEqual( 2, colorTracks.Length );
+
+		Assert.IsTrue( colorTracks[0].TryGetValue( 0.5, out var color1 ) );
+		Assert.IsTrue( colorTracks[1].TryGetValue( 0.5, out var color2 ) );
+
+		var colors = new[] { color1, color2 };
+
+		CollectionAssert.Contains( colors, Color.Red );
+		CollectionAssert.Contains( colors, Color.Blue );
 	}
 }

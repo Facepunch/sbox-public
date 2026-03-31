@@ -213,6 +213,41 @@ file sealed class LineRendererCapturer : ComponentCapturer<LineRenderer>
 	}
 }
 
+
+[Expose]
+file sealed class TextRendererCapturer : ComponentCapturer<TextRenderer>
+{
+	public static void CaptureTextRenderingScope( IMovieTrackRecorder recorder )
+	{
+		recorder.Property( nameof( TextRendering.Scope.Text ) ).Capture();
+		recorder.Property( nameof( TextRendering.Scope.TextColor ) ).Capture();
+		recorder.Property( nameof( TextRendering.Scope.FontName ) ).Capture();
+		recorder.Property( nameof( TextRendering.Scope.FontSize ) ).Capture();
+		recorder.Property( nameof( TextRendering.Scope.FontWeight ) ).Capture();
+		recorder.Property( nameof( TextRendering.Scope.FontItalic ) ).Capture();
+		recorder.Property( nameof( TextRendering.Scope.LineHeight ) ).Capture();
+		recorder.Property( nameof( TextRendering.Scope.LetterSpacing ) ).Capture();
+		recorder.Property( nameof( TextRendering.Scope.WordSpacing ) ).Capture();
+		recorder.Property( nameof( TextRendering.Scope.FilterMode ) ).Capture();
+		recorder.Property( nameof( TextRendering.Scope.FontSmooth ) ).Capture();
+		recorder.Property( nameof( TextRendering.Scope.Outline ) ).Capture();
+		recorder.Property( nameof( TextRendering.Scope.Shadow ) ).Capture();
+		recorder.Property( nameof( TextRendering.Scope.OutlineUnder ) ).Capture();
+		recorder.Property( nameof( TextRendering.Scope.ShadowUnder ) ).Capture();
+	}
+
+	protected override void OnCapture( IMovieTrackRecorder recorder, TextRenderer component )
+	{
+		CaptureTextRenderingScope( recorder.Property( nameof( TextRenderer.TextScope ) ) );
+
+		recorder.Property( nameof( TextRenderer.Scale ) ).Capture();
+		recorder.Property( nameof( TextRenderer.HorizontalAlignment ) ).Capture();
+		recorder.Property( nameof( TextRenderer.VerticalAlignment ) ).Capture();
+		recorder.Property( nameof( TextRenderer.BlendMode ) ).Capture();
+		recorder.Property( nameof( TextRenderer.FogStrength ) ).Capture();
+	}
+}
+
 [Expose]
 file sealed class ParticleEffectCapturer : ComponentCapturer<ParticleEffect>
 {
@@ -386,23 +421,7 @@ file sealed class ParticleTextRendererCapturer : ComponentCapturer<ParticleTextR
 {
 	protected override void OnCapture( IMovieTrackRecorder recorder, ParticleTextRenderer component )
 	{
-		var textScope = recorder.Property( nameof( ParticleTextRenderer.Text ) );
-
-		textScope.Property( nameof( TextRendering.Scope.Text ) ).Capture();
-		textScope.Property( nameof( TextRendering.Scope.TextColor ) ).Capture();
-		textScope.Property( nameof( TextRendering.Scope.FontName ) ).Capture();
-		textScope.Property( nameof( TextRendering.Scope.FontSize ) ).Capture();
-		textScope.Property( nameof( TextRendering.Scope.FontWeight ) ).Capture();
-		textScope.Property( nameof( TextRendering.Scope.FontItalic ) ).Capture();
-		textScope.Property( nameof( TextRendering.Scope.LineHeight ) ).Capture();
-		textScope.Property( nameof( TextRendering.Scope.LetterSpacing ) ).Capture();
-		textScope.Property( nameof( TextRendering.Scope.WordSpacing ) ).Capture();
-		textScope.Property( nameof( TextRendering.Scope.FilterMode ) ).Capture();
-		textScope.Property( nameof( TextRendering.Scope.FontSmooth ) ).Capture();
-		textScope.Property( nameof( TextRendering.Scope.Outline ) ).Capture();
-		textScope.Property( nameof( TextRendering.Scope.Shadow ) ).Capture();
-		textScope.Property( nameof( TextRendering.Scope.OutlineUnder ) ).Capture();
-		textScope.Property( nameof( TextRendering.Scope.ShadowUnder ) ).Capture();
+		TextRendererCapturer.CaptureTextRenderingScope( recorder.Property( nameof( ParticleTextRenderer.Text ) ) );
 
 		recorder.Property( nameof( ParticleTextRenderer.Pivot ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.Scale ) ).Capture();

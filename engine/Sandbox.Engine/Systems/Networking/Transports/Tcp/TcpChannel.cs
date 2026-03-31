@@ -160,7 +160,7 @@ internal class TcpChannel : Connection
 		}
 	}
 
-	internal override void InternalSend( ByteStream stream, NetFlags flags )
+	internal override void InternalSend( byte[] output, NetFlags flags )
 	{
 		if ( !client.Connected )
 			return;
@@ -171,8 +171,6 @@ internal class TcpChannel : Connection
 			if ( chance <= Networking.FakePacketLoss )
 				return;
 		}
-
-		byte[] output = Networking.EncodeStream( stream );
 
 		if ( Networking.FakeLag > 0 )
 		{
@@ -231,31 +229,18 @@ internal class TcpChannel : Connection
 	{
 		while ( incoming.Reader.TryRead( out byte[] data ) )
 		{
-			Span<byte> output = Networking.DecodeStream( data );
-
 			if ( Networking.FakeLag > 0 )
 			{
-				fakeLagIncoming.Enqueue( (output.ToArray(), Networking.FakeLag / 1000f, handler) );
+				fakeLagIncoming.Enqueue( (data, Networking.FakeLag / 1000f, handler) );
 				continue;
 			}
 
-			using ByteStream stream = ByteStream.CreateReader( output );
-
-			handler( new NetworkSystem.NetworkMessage
-			{
-				Data = stream,
-				Source = this
-			} );
-
-			MessagesRecieved++;
+			OnRawPacketReceived( data, handler );
 		}
 	}
 
 	private void InvokeMessageHandler( NetworkSystem.MessageHandler handler, byte[] data )
 	{
-		using ByteStream stream = ByteStream.CreateReader( data );
-		handler( new() { Data = stream, Source = this } );
-
-		MessagesRecieved++;
+		OnRawPacketReceived( data, handler );
 	}
 }

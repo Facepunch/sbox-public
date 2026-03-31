@@ -146,6 +146,11 @@ internal static class ByteStreamExtensions
 		{
 			var value = getValue( sample );
 
+			if ( value.IsInfinity || value.IsNaN )
+			{
+				value = default;
+			}
+
 			min = Vector3.Min( min, value );
 			max = Vector3.Max( max, value );
 		}
@@ -165,6 +170,12 @@ internal static class ByteStreamExtensions
 		stream.WriteDeltaEncoded( samples, x =>
 		{
 			var value = getValue( x );
+
+			if ( value.IsInfinity || value.IsNaN )
+			{
+				value = default;
+			}
+
 			return (Vector3B)((value - min) * scale);
 		} );
 	}
@@ -245,6 +256,13 @@ file readonly struct Quat32 : IEquatable<Quat32>,
 	public static explicit operator Quat32( Rotation rotation )
 	{
 		rotation = rotation.Normal;
+
+		// Survive a nonsense rotation
+
+		if ( !float.IsFinite( rotation.x ) || !float.IsFinite( rotation.y ) || !float.IsFinite( rotation.z ) || !float.IsFinite( rotation.w ) )
+		{
+			return default;
+		}
 
 		var absX = MathF.Abs( rotation.x );
 		var absY = MathF.Abs( rotation.y );

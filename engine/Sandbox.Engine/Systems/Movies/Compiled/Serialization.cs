@@ -138,10 +138,21 @@ file sealed record TrackModel( TrackKind Kind, string Name, Type Type,
 			return null;
 		}
 
-		var blockType = typeof( ICompiledPropertyBlock<> ).MakeGenericType( track.TargetType );
-		var listType = typeof( IReadOnlyList<> ).MakeGenericType( blockType );
+		try
+		{
+			var blockType = typeof( ICompiledPropertyBlock<> ).MakeGenericType( track.TargetType );
+			var listType = typeof( IReadOnlyList<> ).MakeGenericType( blockType );
 
-		return JsonSerializer.SerializeToNode( blockTrack.Blocks, listType, options )?.AsArray();
+			return JsonSerializer.SerializeToNode( blockTrack.Blocks, listType, options )?.AsArray();
+		}
+		catch ( Exception ex )
+		{
+			// Recover from a serialization exception so that the rest of the movie survives
+
+			Log.Error( ex, $"Exception when serializing blocks for track \"{track.GetPathString()}\"." );
+
+			return null;
+		}
 	}
 
 	public static IReadOnlyList<ICompiledTrack> Deserialize( IEnumerable<TrackModel> models, JsonSerializerOptions? options )

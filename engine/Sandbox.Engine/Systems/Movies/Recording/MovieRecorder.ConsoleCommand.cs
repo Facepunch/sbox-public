@@ -26,6 +26,12 @@ partial class MovieRecorder
 			return false;
 		}
 
+		if ( scene.GetSystem<MovieRecorderSystem>()?.CanUseMovieCommand is false )
+		{
+			Log.Warning( "Movie recording is disabled!" );
+			return false;
+		}
+
 		var fileName = ScreenCaptureUtility.GenerateScreenshotFilename( "movie", filePath: "movies" );
 
 		_recorder = new MovieRecorder( scene, MovieRecorderOptions.Default );

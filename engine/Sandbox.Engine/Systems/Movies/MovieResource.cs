@@ -117,10 +117,7 @@ public sealed class EmbeddedMovieResource : IMovieResource
 		set
 		{
 			_compiled = value;
-
-			ReferencedPackages = value?.ResolvePrimaryPackages()
-				.Select( x => $"{x.FullIdent}#{x.Revision.VersionId}" )
-				.ToImmutableArray() ?? [];
+			ReferencedPackages = FindReferencedPackages( value );
 		}
 	}
 
@@ -144,6 +141,30 @@ public sealed class EmbeddedMovieResource : IMovieResource
 		_compiled = null;
 		_editorData = null;
 		_project = project;
+	}
+
+	private static ImmutableArray<string> FindReferencedPackages( MovieClip? clip )
+	{
+		if ( clip is null || clip == MovieClip.Empty ) return [];
+
+		var packages = new HashSet<string>();
+
+		// Include current game's ident so we can import movies recorded in-game
+		// into empty editor projects
+
+		if ( Package.TryParseIdent( Game.Ident, out var parsed ) )
+		{
+			// Parse to strip out #local etc
+
+			packages.Add( $"{parsed.org}.{parsed.package}" );
+		}
+
+		foreach ( var package in clip.ResolvePrimaryPackages() )
+		{
+			packages.Add( $"{package.FullIdent}#{package.Revision.VersionId}" );
+		}
+
+		return [.. packages];
 	}
 }
 
