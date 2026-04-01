@@ -66,7 +66,7 @@ internal sealed class LocalPackage : Package
 
 	internal override IEnumerable<string> EnumeratePackageReferences()
 	{
-		if ( (Project.Config.Type == "game" || Project.Config.Type == "addon") && !Project.IsBuiltIn )
+		if ( (Project.Config.Type == "game" || Project.Config.Type == "addon") && !Project.IsBuiltIn && !Project.IsLocalBaseProject )
 		{
 			foreach ( var library in Project.Libraries.Where( x => x.HasCodePath() || x.HasEditorPath() ) )
 			{

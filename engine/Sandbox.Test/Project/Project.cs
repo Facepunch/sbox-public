@@ -1,5 +1,7 @@
 using Sandbox.Diagnostics;
 using System;
+using System.IO;
+using System.Linq;
 
 namespace Projects;
 
@@ -19,6 +21,35 @@ public class ProjectTests
 	public void TestCleanup()
 	{
 		Project.Clear();
+	}
+
+	string CreateTempProject( string root, string relativePath, string type, string ident, bool hasCode = true, bool hasEditor = false )
+	{
+		var projectRoot = Path.Combine( root, relativePath );
+		Directory.CreateDirectory( projectRoot );
+
+		if ( hasCode )
+			Directory.CreateDirectory( Path.Combine( projectRoot, "Code" ) );
+
+		if ( hasEditor )
+			Directory.CreateDirectory( Path.Combine( projectRoot, "Editor" ) );
+
+		var configText =
+$@"{{
+  ""Title"": ""{ident}"",
+  ""Type"": ""{type}"",
+  ""Org"": ""local"",
+  ""Ident"": ""{ident}"",
+  ""Schema"": 1,
+  ""HasAssets"": false,
+  ""HasCode"": {hasCode.ToString().ToLowerInvariant()},
+  ""CodePath"": ""Code"",
+  ""PackageReferences"": []
+}}";
+
+		File.WriteAllText( Path.Combine( projectRoot, ".sbproj" ), configText );
+
+		return Path.Combine( projectRoot, ".sbproj" );
 	}
 
 	/// <summary>
@@ -49,6 +80,55 @@ public class ProjectTests
 
 		await Project.SyncWithPackageManager();
 		await Project.CompileAsync();
+	}
+
+	[TestMethod]
+	public async Task BaseSolutionDoesNotReferenceLocalLibraries()
+	{
+		Project.AddFromFileBuiltIn( "addons/base/.sbproj" );
+
+		var tempRoot = Path.Combine( Environment.CurrentDirectory, ".source2", "test_download_cache", "project", Guid.NewGuid().ToString( "N" ) );
+		Directory.CreateDirectory( tempRoot );
+
+		try
+		{
+			var libraryPath = CreateTempProject( tempRoot, Path.Combine( "Libraries", "samplelib" ), "library", "samplelib", hasCode: true, hasEditor: true );
+			var addonPath = CreateTempProject( tempRoot, Path.Combine( "Addons", "sampleaddon" ), "addon", "sampleaddon", hasCode: true, hasEditor: true );
+
+			Project.AddFromFile( libraryPath );
+			var addon = Project.AddFromFile( addonPath );
+
+			await Project.SyncWithPackageManager();
+
+			Project.Current = addon;
+			await Project.GenerateSolution();
+
+			var baseProjectFile = Path.Combine( Environment.CurrentDirectory, "addons", "base", "Code", "Base Library.csproj" );
+			var addonProjectFile = Path.Combine( tempRoot, "Addons", "sampleaddon", "Code", "sampleaddon.csproj" );
+			var addonEditorProjectFile = Path.Combine( tempRoot, "Addons", "sampleaddon", "Editor", "sampleaddon.editor.csproj" );
+
+			var baseProjectText = File.ReadAllText( baseProjectFile );
+			var addonProjectText = File.ReadAllText( addonProjectFile );
+			var addonEditorProjectText = File.ReadAllText( addonEditorProjectFile );
+
+			Assert.IsFalse( baseProjectText.Contains( "samplelib.csproj" ), "local.base should not reference local library code projects." );
+			Assert.IsFalse( baseProjectText.Contains( "samplelib.editor.csproj" ), "local.base should not reference local library editor projects." );
+			Assert.IsTrue( addonProjectText.Contains( "samplelib.csproj" ), "Regular addons should still reference local library code projects." );
+			Assert.IsTrue( addonEditorProjectText.Contains( "samplelib.editor.csproj" ), "Regular addon editor projects should still reference local library editor projects." );
+
+			var baseProject = Project.FindByIdent( "local.base" );
+			var baseReferences = baseProject.Package.EnumeratePackageReferences().ToArray();
+			Assert.IsFalse( baseReferences.Contains( "local.samplelib" ), "local.base should not enumerate local libraries as package references." );
+		}
+		finally
+		{
+			Project.Current = null;
+
+			if ( Directory.Exists( tempRoot ) )
+			{
+				Directory.Delete( tempRoot, true );
+			}
+		}
 	}
 
 	/*

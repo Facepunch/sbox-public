@@ -102,13 +102,13 @@ public sealed partial class Project
 				project.AddAspComponentsGlobalUsing();
 				project.AddGameNamespaceGlobalStatic();
 
-				if ( Config.FullIdent != "local.base" && !project.PackageReferences.Contains( "local.base" ) )
+				if ( !IsLocalBaseProject && !project.PackageReferences.Contains( "local.base" ) )
 				{
 					project.PackageReferences.Add( "local.base" );
 				}
 			}
 
-			if ( Config.Type == "game" || Config.Type == "addon" )
+			if ( Config.Type == "game" || (Config.Type == "addon" && !IsLocalBaseProject) )
 			{
 				AddLibrariesToProject( project );
 
@@ -235,7 +235,7 @@ public sealed partial class Project
 			project.References.Add( $"{reference}.dll" );
 		}
 
-		if ( Config.Type == "game" || Config.Type == "addon" )
+		if ( Config.Type == "game" || (Config.Type == "addon" && !IsLocalBaseProject) )
 		{
 			// editor libraries
 			foreach ( var library in Libraries.Where( x => x.HasEditorPath() ) )

@@ -153,7 +153,7 @@ public partial class Project
 
 	IEnumerable<Package> PackageReferences()
 	{
-		if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
+		if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn && !IsLocalBaseProject )
 		{
 			foreach ( var library in Project.Libraries.Where( x => x.HasCodePath() ) )
 			{
@@ -224,7 +224,7 @@ public partial class Project
 			EditorCompiler.AddReference( reference );
 		}
 
-		if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
+		if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn && !IsLocalBaseProject )
 		{
 			// editor libraries
 			foreach ( var library in Libraries.Where( x => x.HasEditorPath() ) )

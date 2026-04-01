@@ -88,6 +88,9 @@ public sealed partial class Project
 	[JsonIgnore]
 	public bool IsBuiltIn { get; internal set; }
 
+	[JsonIgnore]
+	internal bool IsLocalBaseProject => Config?.FullIdent == "local.base";
+
 	/// <summary>
 	/// Called when the project is about to save
 	/// </summary>
