@@ -76,8 +76,26 @@ native static class NativeEngine.ModelDoc
 			pRenderPrimitiveMesh->CopyFrom( pMeshes[i] );
 
 			int nCollisionType = pCollisionTypes[i];
-			if ( nCollisionType == 1 ) bHasMeshCollision = true;
-			else if ( nCollisionType == 2 ) bHasHullCollision = true;
+			switch ( nCollisionType )
+			{
+			case 0: // None
+				pRenderPrimitiveMesh->SetPhysicsHint( CModelDocRenderPrimitiveMesh::PHYSICS_HINT_NONE );
+				break;
+
+			case 1: // Mesh
+				pRenderPrimitiveMesh->SetPhysicsHint( CModelDocRenderPrimitiveMesh::PHYSICS_HINT_MESH );
+				bHasMeshCollision = true;
+				break;
+
+			case 2: // Hull
+				pRenderPrimitiveMesh->SetPhysicsHint( CModelDocRenderPrimitiveMesh::PHYSICS_HINT_HULL );
+				bHasHullCollision = true;
+				break;
+
+			default:
+				pRenderPrimitiveMesh->SetPhysicsHint( CModelDocRenderPrimitiveMesh::PHYSICS_HINT_ALL );
+				break;
+			}
 		}
 
 		if ( bHasMeshCollision )
@@ -87,7 +105,8 @@ native static class NativeEngine.ModelDoc
 
 		if ( bHasHullCollision )
 		{
-			modelFile.CreateNode< CModelDocPhysicsHullFromRender >( "", nullptr, MODELDOC_CREATE_NODE_DEFAULT );
+			CModelDocPhysicsHullFromRender *pPhysicsHullFromRender = modelFile.CreateNode< CModelDocPhysicsHullFromRender >( "", nullptr, MODELDOC_CREATE_NODE_DEFAULT );
+			pPhysicsHullFromRender->SetHullMode( CModelDocPhysicsHullFromRender::HULL_MODE_HULL_PER_ELEMENT );
 		}
 
 		return modelFile.SaveToFile( pVmdlFileFullPath, nullptr );
