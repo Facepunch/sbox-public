@@ -35,17 +35,17 @@ public class ProjectTests
 			Directory.CreateDirectory( Path.Combine( projectRoot, "Editor" ) );
 
 		var configText =
-$@"{{
-  ""Title"": ""{ident}"",
-  ""Type"": ""{type}"",
-  ""Org"": ""local"",
-  ""Ident"": ""{ident}"",
-  ""Schema"": 1,
-  ""HasAssets"": false,
-  ""HasCode"": {hasCode.ToString().ToLowerInvariant()},
-  ""CodePath"": ""Code"",
-  ""PackageReferences"": []
-}}";
+		$@"{{
+		""Title"": ""{ident}"",
+		""Type"": ""{type}"",
+		""Org"": ""local"",
+		""Ident"": ""{ident}"",
+		""Schema"": 1,
+		""HasAssets"": false,
+		""HasCode"": {hasCode.ToString().ToLowerInvariant()},
+		""CodePath"": ""Code"",
+		""PackageReferences"": []
+		}}";
 
 		File.WriteAllText( Path.Combine( projectRoot, ".sbproj" ), configText );
 
