@@ -11,27 +11,25 @@ namespace Sandbox;
 [Alias( "ModelComponentMate", "ModelComponent" )]
 public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMaterialSetter, IHasBounds, IHasModel
 {
-	Model _model;
-
-	private ulong _bodyGroups = ulong.MaxValue;
+	ulong _bodyGroups = ulong.MaxValue;
 
 	[Property]
 	public Model Model
 	{
-		get => _model;
+		get;
 		set
 		{
-			if ( _model == value ) return;
+			if ( field == value ) return;
 
-			_model = value;
+			field = value;
 
 			if ( !GameObject.Flags.Contains( GameObjectFlags.Deserializing ) )
 			{
 				_bodyGroups = ulong.MaxValue;
 
-				if ( _model is not null && _model.native.GetNumMeshGroups() > 0 )
+				if ( field is not null && field.native.GetNumMeshGroups() > 0 )
 				{
-					_bodyGroups = _model.native.GetDefaultMeshGroupMask();
+					_bodyGroups = field.native.GetDefaultMeshGroupMask();
 				}
 			}
 
@@ -71,20 +69,50 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 		}
 	}
 
-	[Property, Model.BodyGroupMask, MakeDirty, ShowIf( nameof( HasBodyGroups ), true )]
+	[Property, Model.BodyGroupMask, ShowIf( nameof( HasBodyGroups ), true )]
 	[DefaultValue( ulong.MaxValue )]
-	public ulong BodyGroups { get => _bodyGroups; set => _bodyGroups = value; }
+	public ulong BodyGroups
+	{
+		get => _bodyGroups;
+		set
+		{
+			if ( _bodyGroups == value ) return;
+			_bodyGroups = value;
+
+			Update();
+		}
+	}
 
 	public bool HasBodyGroups => Model?.Parts.All.Sum( x => x.Choices.Count ) > 1;
 
-	[Property, Model.MaterialGroup, MakeDirty, ShowIf( nameof( HasMaterialGroups ), true )]
+	[Property, Model.MaterialGroup, ShowIf( nameof( HasMaterialGroups ), true )]
 	[DefaultValue( default )]
-	public string MaterialGroup { get; set; }
+	public string MaterialGroup
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			Update();
+		}
+	}
 
 	public bool HasMaterialGroups => Model?.MaterialGroupCount > 0 && MaterialOverride is null;
 
-	[Title( "Cast Shadows" ), Property, Category( "Lighting" ), MakeDirty]
-	public ShadowRenderType RenderType { get; set; } = ShadowRenderType.On;
+	[Title( "Cast Shadows" ), Property, Category( "Lighting" )]
+	public ShadowRenderType RenderType
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			Update();
+		}
+	} = ShadowRenderType.On;
 
 	private int? _lodOverride;
 
@@ -316,7 +344,7 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 		ShadowsOnly,
 	}
 
-	protected override void OnDirty()
+	void Update()
 	{
 		UpdateObject();
 		ApplyMaterialOverrides();

@@ -31,75 +31,244 @@ public sealed class BallJoint : Joint
 	/// <summary>
 	/// Motor mode
 	/// </summary>
-	[Group( "Motor" )]
-	[Property, MakeDirty]
-	public MotorMode Motor { get; set; }
+	[Property, Group( "Motor" )]
+	public MotorMode Motor
+	{
+		get;
+		set
+		{
+			if ( field == value )
+				return;
+
+			field = value;
+
+			if ( _joint.IsValid() )
+			{
+				ApplyMotor();
+				_joint.WakeBodies();
+			}
+		}
+	}
 
 	/// <summary>
 	/// Enables or disables the swing limit.
 	/// </summary>
-	[Property, MakeDirty]
-	public bool SwingLimitEnabled { get; set; } = false;
+	[Property]
+	public bool SwingLimitEnabled
+	{
+		get;
+		set
+		{
+			if ( field == value )
+				return;
+
+			field = value;
+
+			if ( _joint.IsValid() )
+			{
+				_joint.SwingLimitEnabled = value;
+				_joint.WakeBodies();
+			}
+		}
+	} = false;
 
 	/// <summary>
 	/// The minimum and maximum swing angles allowed by the joint in degrees.
 	/// </summary>
-	[Property, MakeDirty]
-	public Vector2 SwingLimit { get; set; } = new Vector2( 0, 90 );
+	[Property]
+	public Vector2 SwingLimit
+	{
+		get;
+		set
+		{
+			if ( field == value )
+				return;
+
+			field = value;
+
+			if ( _joint.IsValid() )
+			{
+				_joint.SwingLimit = value;
+				_joint.WakeBodies();
+			}
+		}
+	} = new( 0, 90 );
 
 	/// <summary>
 	/// Enables or disables the twist limit.
 	/// </summary>
-	[Property, MakeDirty]
-	public bool TwistLimitEnabled { get; set; } = false;
+	[Property]
+	public bool TwistLimitEnabled
+	{
+		get;
+		set
+		{
+			if ( field == value )
+				return;
+
+			field = value;
+
+			if ( _joint.IsValid() )
+			{
+				_joint.TwistLimitEnabled = value;
+				_joint.WakeBodies();
+			}
+		}
+	} = false;
 
 	/// <summary>
 	/// The minimum and maximum twist angles allowed by the joint in degrees.
 	/// </summary>
-	[Property, MakeDirty]
-	public Vector2 TwistLimit { get; set; } = new Vector2( -15, 15 );
+	[Property]
+	public Vector2 TwistLimit
+	{
+		get;
+		set
+		{
+			if ( field == value )
+				return;
+
+			field = value;
+
+			if ( _joint.IsValid() )
+			{
+				_joint.TwistLimit = value;
+				_joint.WakeBodies();
+			}
+		}
+	} = new( -15, 15 );
 
 	/// <summary>
 	/// Joint friction.
 	/// </summary>
-	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.Disabled )]
-	public float Friction { get; set; } = 0.5f;
+	[Property, Group( "Motor" ), ShowIf( nameof( Motor ), MotorMode.Disabled )]
+	public float Friction
+	{
+		get;
+		set
+		{
+			if ( field == value )
+				return;
+
+			field = value;
+
+			if ( _joint.IsValid() )
+			{
+				ApplyMotor();
+				_joint.WakeBodies();
+			}
+		}
+	} = 0.5f;
 
 	/// <summary>
 	/// Target angle of motor.
 	/// </summary>
-	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.TargetRotation )]
-	public Rotation TargetRotation { get; set; }
+	[Property, Group( "Motor" ), ShowIf( nameof( Motor ), MotorMode.TargetRotation )]
+	public Rotation TargetRotation
+	{
+		get;
+		set
+		{
+			if ( field == value )
+				return;
+
+			field = value;
+
+			if ( _joint.IsValid() )
+			{
+				ApplyMotor();
+				_joint.WakeBodies();
+			}
+		}
+	}
 
 	/// <summary>
 	/// Frequency of motor.
 	/// </summary>
-	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.TargetRotation )]
-	public float Frequency { get; set; } = 1.0f;
+	[Property, Group( "Motor" ), ShowIf( nameof( Motor ), MotorMode.TargetRotation )]
+	public float Frequency
+	{
+		get;
+		set
+		{
+			if ( field == value )
+				return;
+
+			field = value;
+
+			if ( _joint.IsValid() )
+			{
+				ApplyMotor();
+				_joint.WakeBodies();
+			}
+		}
+	} = 1.0f;
 
 	/// <summary>
 	/// Damping of motor.
 	/// </summary>
-	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.TargetRotation )]
-	public float DampingRatio { get; set; } = 1.0f;
+	[Property, Group( "Motor" ), ShowIf( nameof( Motor ), MotorMode.TargetRotation )]
+	public float DampingRatio
+	{
+		get;
+		set
+		{
+			if ( field == value )
+				return;
+
+			field = value;
+
+			if ( _joint.IsValid() )
+			{
+				ApplyMotor();
+				_joint.WakeBodies();
+			}
+		}
+	} = 1.0f;
 
 	/// <summary>
 	/// Target angular velocity of the motor.
 	/// </summary>
-	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.TargetVelocity )]
-	public Vector3 TargetVelocity { get; set; } = 0.0f;
+	[Property, Group( "Motor" ), ShowIf( nameof( Motor ), MotorMode.TargetVelocity )]
+	public Vector3 TargetVelocity
+	{
+		get;
+		set
+		{
+			if ( field == value )
+				return;
+
+			field = value;
+
+			if ( _joint.IsValid() )
+			{
+				ApplyMotor();
+				_joint.WakeBodies();
+			}
+		}
+	} = 0.0f;
 
 	/// <summary>
 	/// Maximum torque the motor can apply when in velocity mode.
 	/// </summary>
-	[Group( "Motor" )]
-	[Property, MakeDirty, ShowIf( nameof( Motor ), MotorMode.TargetVelocity )]
-	public float MaxTorque { get; set; } = 0.0f;
+	[Property, Group( "Motor" ), ShowIf( nameof( Motor ), MotorMode.TargetVelocity )]
+	public float MaxTorque
+	{
+		get;
+		set
+		{
+			if ( field == value )
+				return;
+
+			field = value;
+
+			if ( _joint.IsValid() )
+			{
+				ApplyMotor();
+				_joint.WakeBodies();
+			}
+		}
+	} = 0.0f;
 
 	BallSocketJoint _joint;
 
@@ -127,41 +296,36 @@ public sealed class BallJoint : Joint
 
 		_joint = PhysicsJoint.CreateBallSocket( point1, point2 );
 
-		UpdateProperties();
-
-		return _joint;
-	}
-
-	protected override void OnDirty()
-	{
-		base.OnDirty();
-
-		UpdateProperties();
-	}
-
-	private void UpdateProperties()
-	{
-		if ( !_joint.IsValid() )
-			return;
-
 		_joint.SwingLimitEnabled = SwingLimitEnabled;
 		_joint.SwingLimit = SwingLimit;
 		_joint.TwistLimitEnabled = TwistLimitEnabled;
 		_joint.TwistLimit = TwistLimit;
 
-		if ( Motor == MotorMode.Disabled )
-		{
-			_joint.Friction = Friction;
-		}
-		else if ( Motor == MotorMode.TargetRotation )
-		{
-			_joint.native.SetTargetRotation( TargetRotation, Frequency, DampingRatio );
-		}
-		else if ( Motor == MotorMode.TargetVelocity )
-		{
-			_joint.native.SetMotorVelocity( TargetVelocity, MaxTorque );
-		}
+		ApplyMotor();
 
 		_joint.WakeBodies();
+
+		return _joint;
+	}
+
+	void ApplyMotor()
+	{
+		if ( !_joint.IsValid() )
+			return;
+
+		switch ( Motor )
+		{
+			case MotorMode.Disabled:
+				_joint.Friction = Friction;
+				break;
+
+			case MotorMode.TargetRotation:
+				_joint.native.SetTargetRotation( TargetRotation, Frequency, DampingRatio );
+				break;
+
+			case MotorMode.TargetVelocity:
+				_joint.native.SetMotorVelocity( TargetVelocity, MaxTorque );
+				break;
+		}
 	}
 }

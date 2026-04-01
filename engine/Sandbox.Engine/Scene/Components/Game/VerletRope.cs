@@ -11,8 +11,18 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	/// <summary>
 	/// The GameObject the end of the rope attaches to.
 	/// </summary>
-	[Property, Group( "Attachment" ), MakeDirty]
-	public GameObject Attachment { get; set; }
+	[Property, Group( "Attachment" )]
+	public GameObject Attachment
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			Initialize();
+		}
+	}
 
 	/// <summary>
 	/// The LineRenderer used to visualize the rope.
@@ -37,8 +47,18 @@ public class VerletRope : Component, Component.ExecuteInEditor
 	/// <summary>
 	/// Number of segments in the rope. Higher values increase visual fidelity and collision accuracy but quickly reduce performance.
 	/// </summary>
-	[Property, Group( "Simulation" ), MakeDirty, Range( 1, 64 ), Step( 1 )]
-	public int SegmentCount { get; set; } = 16;
+	[Property, Group( "Simulation" ), Range( 1, 64 ), Step( 1 )]
+	public int SegmentCount
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			Initialize();
+		}
+	} = 16;
 
 	/// <summary>
 	/// Radius of the rope for collision detection.
@@ -195,13 +215,6 @@ public class VerletRope : Component, Component.ExecuteInEditor
 			initialRopeLength = span.Length;
 		}
 		Draw();
-	}
-
-	protected override void OnDirty()
-	{
-		base.OnDirty();
-
-		Initialize();
 	}
 
 	void Initialize()

@@ -18,24 +18,64 @@ namespace Sandbox;
 public sealed class NavMeshAgent : Component
 {
 	[Group( "Physical Properties" )]
-	[Property, MakeDirty]
-	public float Height { get; set; } = 64;
+	[Property]
+	public float Height
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			UpdateAgentParameters();
+		}
+	} = 64;
 
 	[Group( "Physical Properties" )]
-	[Property, MakeDirty]
-	public float Radius { get; set; } = 16;
+	[Property]
+	public float Radius
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			UpdateAgentParameters();
+		}
+	} = 16;
 
 	[Group( "Movement" )]
-	[Property, MakeDirty]
-	public float MaxSpeed { get; set; } = 120f;
+	[Property]
+	public float MaxSpeed
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			UpdateAgentParameters();
+		}
+	} = 120f;
 
 	/// <summary>
 	/// The maximum acceleration a agent can have. This is how fast the agent can change its velocity.
 	/// If you want snappy movement this should be as high or higher than <see cref="MaxSpeed"/>.
 	/// </summary>
 	[Group( "Movement" )]
-	[Property, MakeDirty]
-	public float Acceleration { get; set; } = 120f;
+	[Property]
+	public float Acceleration
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			UpdateAgentParameters();
+		}
+	} = 120f;
 
 	/// <summary>
 	/// Set the Position of the GameObject to the agent position every frame. You can turn this off and handle it yourself by using the AgentPosition property.
@@ -76,15 +116,35 @@ public sealed class NavMeshAgent : Component
 	/// Should the agent automatically traverse links when it reaches them? Or do you want to implement your own link traversal logic?
 	/// </summary>
 	[Group( "Constraints" )]
-	[Property, MakeDirty]
-	public bool AutoTraverseLinks { get; set; } = true;
+	[Property]
+	public bool AutoTraverseLinks
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			UpdateAgentParameters();
+		}
+	} = true;
 
 	/// <summary>
 	/// Gets or sets the separation factor used to control how strongly agents avoid crowding each other.
 	/// </summary>
 	[Group( "Avoidance" )]
-	[Property, MakeDirty, Range( 0, 1 )]
-	public float Separation { get; set; } = 0.25f;
+	[Property, Range( 0, 1 )]
+	public float Separation
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			UpdateAgentParameters();
+		}
+	} = 0.25f;
 
 	/// <summary>
 	/// Updated  with the agent's position, even if UpdatePosition is false
@@ -339,7 +399,7 @@ public sealed class NavMeshAgent : Component
 		agentInternal = null;
 	}
 
-	protected override void OnDirty()
+	void UpdateAgentParameters()
 	{
 		if ( agentInternal is null )
 			return;

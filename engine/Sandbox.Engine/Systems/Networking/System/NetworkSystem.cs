@@ -361,7 +361,7 @@ internal partial class NetworkSystem
 			bs.Write( InternalMessageType.HeartbeatPing );
 			bs.Write( RealTime.Now ); // Real time
 			bs.Write( Time.NowDouble ); // Game time
-			c.SendStream( bs );
+			c.SendStream( bs, NetFlags.Unreliable | NetFlags.SendImmediate );
 			bs.Dispose();
 		}
 	}
