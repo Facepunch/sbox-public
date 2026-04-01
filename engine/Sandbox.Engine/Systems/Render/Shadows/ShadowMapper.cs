@@ -284,13 +284,7 @@ internal partial class ShadowMapper
 		if ( !CSMEnabled )
 			return 0;
 
-		if ( sceneObject is not SceneDirectionalLight directionalLight )
-		{
-			Log.Error( $"DoDirectionalLight called with non-directional light {sceneObject}" );
-			return 0;
-		}
-
-		FindOrCreateDirectionalShadowMaps( directionalLight, view );
+		FindOrCreateDirectionalShadowMaps( sceneObject, view );
 		return 0;
 	}
 
