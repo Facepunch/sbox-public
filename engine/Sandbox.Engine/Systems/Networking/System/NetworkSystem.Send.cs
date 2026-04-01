@@ -20,18 +20,15 @@ internal partial class NetworkSystem
 				.Distinct();
 		}
 
+		// Encode once so every recipient gets the same wire bytes without re-compressing per connection.
+		var compressed = Connection.EncodeStream( msg );
+
 		foreach ( var c in availableConnections )
 		{
-			if ( c == Connection.Local )
-				continue;
-
-			if ( c.State < minimumState )
-				continue;
-
-			if ( filter.HasValue && !filter.Value.IsRecipient( c ) )
-				continue;
-
-			c.SendRawMessage( msg, flags );
+			if ( c == Connection.Local ) continue;
+			if ( c.State < minimumState ) continue;
+			if ( filter.HasValue && !filter.Value.IsRecipient( c ) ) continue;
+			c.Send( compressed, flags );
 		}
 	}
 

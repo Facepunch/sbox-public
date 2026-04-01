@@ -880,7 +880,7 @@ public partial class GameObject
 			bs.Write( RootGameObject.Id );
 			bs.Write( isCulled );
 
-			target.SendRawMessage( bs );
+			target.SendStream( bs );
 		}
 
 		/// <summary>

@@ -266,12 +266,12 @@ internal partial class ShadowMapper
 	/// Find or create shadow maps for a directional light (CSM).
 	/// Returns an index to the directional shadow buffer.
 	/// </summary>
-	internal unsafe void FindOrCreateDirectionalShadowMaps( SceneDirectionalLight light, ISceneView view )
+	internal unsafe void FindOrCreateDirectionalShadowMaps( SceneLight light, ISceneView view )
 	{
-		int numCascades = Math.Min( light.ShadowCascadeCount, MaxCascades );
+		int numCascades = Math.Min( light.lightNative.GetShadowCascades(), MaxCascades );
 		float farClip = CascadeDistance;
 		int shadowmapSize = MaxCascadeResolution;
-		float splitRatio = light.ShadowCascadeSplitRatio;
+		float splitRatio = light.lightNative.GetShadowCascadeSplitRatio();
 
 		// Baked lights exclude static objects from shadow maps, their static shadows come from lightmaps
 		var excludeFlags = (light.lightNative.GetLightFlags() & 32) != 0 // LIGHTTYPE_FLAGS_BAKED

@@ -3,14 +3,17 @@ ProfileImage
     position: relative;
     justify-content: center;
     flex-direction: column;
-    gap: 3px;
     flex-shrink: 0;
+    pointer-events: all;
+    width: 32px;
+    height: 32px;
+    overflow: visible;
 }
 
 ProfileImage > .inner
 {
-    width: 48px;
-    height: 48px;
+    width: 32px;
+    height: 32px;
     background-size: contain;
     border-radius: 1000px;
     //border: 2px solid #477fe7;
@@ -22,6 +25,11 @@ ProfileImage > .inner
     color: #fff;
     height: 16px;
     justify-content: center;
+    position: absolute;
+    bottom: -16px;
+    left: 50%;
+    transform: translateX( -50% );
+    white-space: nowrap;
 
     > .inner
     {
