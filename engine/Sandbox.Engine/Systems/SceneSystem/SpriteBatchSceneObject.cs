@@ -445,24 +445,25 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 				}
 			);
 
-			SpriteBuffer.SetData( SpriteDataBuffer );
 		}
 
-		// Upload each particle group directly to GPU with offset, unioning precomputed bounds
-		int currentOffset = Components.Count;
+		// Copy each particle group into the staging buffer so we can upload everything in a single GPU call.
+		// This avoids N separate SetData calls which each acquire a Vulkan command buffer and purge fenced resources.
+		int currentOffset = componentCount;
 		foreach ( var spriteGroup in SpriteGroups.Values )
 		{
-			unsafe
-			{
-				var sourceSpan = spriteGroup.SharedSprites.AsSpan( spriteGroup.Offset, spriteGroup.Count );
-
-				// Upload directly to GPU at the correct offset
-				SpriteBuffer.SetData( sourceSpan, currentOffset );
-				currentOffset += spriteGroup.Count;
-			}
+			var sourceSpan = spriteGroup.SharedSprites.AsSpan( spriteGroup.Offset, spriteGroup.Count );
+			sourceSpan.CopyTo( SpriteDataBuffer.AsSpan( currentOffset, spriteGroup.Count ) );
+			currentOffset += spriteGroup.Count;
 
 			boundsMin = Vector3.Min( boundsMin, spriteGroup.Bounds.Mins );
 			boundsMax = Vector3.Max( boundsMax, spriteGroup.Bounds.Maxs );
+		}
+
+		// Single GPU upload for all sprites (components + particle groups)
+		if ( spriteCount > 0 )
+		{
+			SpriteBuffer.SetData( SpriteDataBuffer.AsSpan( 0, spriteCount ) );
 		}
 
 		// Use a degenerate zero-size bounds for empty batches so they can be frustum-culled.

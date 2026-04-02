@@ -67,6 +67,9 @@ public static partial class Input
 			"]" => "rightbracket",
 			"rwin" => "windows",
 			"lwin" => "windows",
+			"left shift" => "shift",
+			"left ctrl" => "ctrl",
+			"left alt" => "alt",
 			_ => key
 		};
 	}
