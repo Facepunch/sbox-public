@@ -168,7 +168,7 @@ public partial class MenuSystem : IMenuSystem
 	void IMenuSystem.OnPackageClosed( Package package )
 	{
 		var panel = new GameClosedToast() { Package = package };
-		MenuOverlay.Instance.BottomRight.Queue( panel, duration: 0 );
+		MenuOverlay.Instance.BottomRight.Queue( panel, duration: 0, clickToDismiss: false );
 	}
 
 	[MenuConCmd( "menu_packageclosed" )]
