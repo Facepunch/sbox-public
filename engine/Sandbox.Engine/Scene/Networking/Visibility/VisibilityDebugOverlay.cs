@@ -178,7 +178,7 @@ public sealed class VisibilityDebugOverlay : GameObjectSystem<VisibilityDebugOve
 	/// </summary>
 	private void DrawTargetBBox( GameObject target, bool isVisible, float alpha )
 	{
-		var bounds = target.WorldBounds;
+		var bounds = target.GetBounds();
 		var color = isVisible
 			? new Color( 0f, 1f, 0f, alpha * 0.2f )
 			: new Color( 1f, 0f, 0f, alpha * 0.2f );
