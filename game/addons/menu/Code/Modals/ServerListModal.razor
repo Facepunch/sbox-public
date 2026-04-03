@@ -86,8 +86,7 @@
 
     void OnLobbySelected( LobbyInformation lobby )
     {
-        Networking.Connect(lobby.LobbyId);
+        MenuUtility.Connect( lobby.LobbyId );
 		OrganizationModal.LastOpened?.CloseModal( true );
-        CloseModal(true);
     }
 }

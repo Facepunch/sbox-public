@@ -1,5 +1,4 @@
 ﻿using Microsoft.CodeAnalysis.CSharp;
-using Sandbox.ActionGraphs;
 using Sandbox.Audio;
 using Sandbox.Diagnostics;
 using Sandbox.Internal;
@@ -125,6 +124,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	public void ResetEnvironment()
 	{
 		Log.Trace( "Game Menu - ResetEnvironment" );
+
 
 		// Use a new package loader for every game if we're not in editor
 		// The editor is only going to load 1 game and ToolsDll has a reference to it
@@ -482,8 +482,6 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		if ( !Game.IsPlaying ) return;
 		if ( activeScene is null ) return;
 		if ( Networking.IsConnecting ) return;
-
-		LoadingScreen.IsVisible = activeScene.IsLoading;
 
 		activeScene.GameTick( 0 ); // we already advanced time 
 

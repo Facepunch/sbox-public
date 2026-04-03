@@ -9,7 +9,7 @@ public abstract class Renderer : Component, SceneObjectCallbacks
 	RenderOptions _renderOptions;
 	SceneObject _sceneObject;
 
-	[Property, MakeDirty, Order( -100 ), InlineEditor( Label = false ), Group( "Advanced Rendering", StartFolded = true )]
+	[Property, Order( -100 ), InlineEditor( Label = false ), Group( "Advanced Rendering", StartFolded = true )]
 	public RenderOptions RenderOptions
 	{
 		get
