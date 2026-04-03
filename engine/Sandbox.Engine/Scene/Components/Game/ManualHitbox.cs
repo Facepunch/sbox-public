@@ -75,11 +75,6 @@ public sealed class ManualHitbox : Component, Component.ExecuteInEditor
 		}
 	}
 
-	protected override void OnDirty()
-	{
-		Rebuild();
-	}
-
 	protected override void OnEnabled()
 	{
 		Rebuild();
@@ -155,7 +150,7 @@ public sealed class ManualHitbox : Component, Component.ExecuteInEditor
 	/// </summary>
 	protected override void OnTagsChanged()
 	{
-		OnPropertyDirty();
+		Rebuild();
 	}
 
 }

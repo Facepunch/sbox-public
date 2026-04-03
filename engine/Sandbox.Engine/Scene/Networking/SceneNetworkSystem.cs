@@ -121,7 +121,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 				continue;
 
 			PendingSceneLoads[c.Id] = loadMsg.Id;
-			c.SendRawMessage( msg );
+			c.SendStream( msg );
 			c.State = Connection.ChannelState.MountVPKs;
 		}
 
@@ -297,7 +297,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		bs.Write( InternalMessageType.Packed );
 
 		Networking.System.Serialize( output, ref bs );
-		connection.SendRawMessage( bs );
+		connection.SendStream( bs );
 
 		bs.Dispose();
 	}

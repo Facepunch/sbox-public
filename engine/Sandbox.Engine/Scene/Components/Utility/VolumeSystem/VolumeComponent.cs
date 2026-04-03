@@ -2,7 +2,7 @@
 
 public abstract class VolumeComponent : Component, VolumeSystem.IVolume
 {
-	[InlineEditor, Property, MakeDirty]
+	[InlineEditor, Property]
 	public SceneVolume SceneVolume { get; set; } = new SceneVolume();
 
 	/// <summary>

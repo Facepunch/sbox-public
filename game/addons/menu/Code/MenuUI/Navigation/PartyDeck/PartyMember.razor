@@ -1,11 +1,12 @@
 ﻿@using System;
 @using Sandbox;
 @using Sandbox.UI;
+@using MenuProject.MenuUI.Popups;
 @inherits Panel
 @namespace MenuProject.Social
 
 
-<root class="partymember" tooltip=@Friend.Name style="background-image: url( avatar:@Friend.Id )" @onrightclick=@ShowFriendPopup>
+<root class="partymember" tooltip=@(Friend.IsMe ? null : Friend.Name) style="background-image: url( avatar:@Friend.Id )">
     
     @if ( IsOwner )
     {
@@ -27,11 +28,19 @@
 
     public bool IsTalking { get; set; } = true;
 
+    FriendPopup popup;
+
     protected override int BuildHash() => System.HashCode.Combine(IsTalking);
 
-    void ShowFriendPopup()
+    protected override void OnMouseOver( MousePanelEvent e )
     {
-        MenuHelpers.OpenFriendMenu(this, Friend);
+        base.OnMouseOver( e );
+
+        if ( !Friend.IsMe || popup.IsValid() )
+            return;
+
+        Popup.CloseAll();
+        popup = FriendPopup.Show( this, Friend, Popup.PositionMode.AboveCenter, 32 );
     }
 
     public PartyMember()

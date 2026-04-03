@@ -8,7 +8,7 @@ partial class MapInstance
 	private List<CollisionEventSystem> CollisionEvents { get; set; } = new();
 	private MapCollider Collider { get; set; }
 
-	protected override void OnDirty()
+	void OnEnableCollisionChanged()
 	{
 		AddCollision();
 

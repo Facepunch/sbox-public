@@ -107,6 +107,7 @@ public partial class Scene : GameObject
 		finally
 		{
 			_loadingMainTask = default;
+			LoadingScreen.IsVisible = false;
 		}
 	}
 }
