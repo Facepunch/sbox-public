@@ -926,7 +926,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 		Particles.Remove( p );
 
-		if ( Particle.Pool.Count < 512 )
+		if ( Particle.Pool.Count < 4096 )
 			Particle.Pool.Enqueue( p );
 
 		SceneMetrics.ParticlesDestroyed++;

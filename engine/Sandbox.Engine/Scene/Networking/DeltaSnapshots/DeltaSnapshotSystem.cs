@@ -83,6 +83,7 @@ internal class DeltaSnapshotSystem
 
 			foreach ( var sent in SentClusters )
 			{
+				sent.SentSnapshotIds.Clear();
 				ObjectPool<HashSet<(ushort, Guid)>>.Return( sent.SentSnapshotIds );
 				sent.Cluster.Release();
 			}
@@ -105,6 +106,7 @@ internal class DeltaSnapshotSystem
 				if ( sentCluster.Cluster.TimeSinceCreated <= 5f )
 					continue;
 
+				sentCluster.SentSnapshotIds.Clear();
 				ObjectPool<HashSet<(ushort, Guid)>>.Return( sentCluster.SentSnapshotIds );
 				sentCluster.Cluster.Release();
 				SentClusters.RemoveAt( i );
@@ -466,6 +468,7 @@ internal class DeltaSnapshotSystem
 			snapshotter.OnSnapshotAck( source, snapshot, state );
 		}
 
+		sentCluster.SentSnapshotIds.Clear();
 		ObjectPool<HashSet<(ushort, Guid)>>.Return( sentCluster.SentSnapshotIds );
 		connectionData.SentClusters.RemoveAt( sentIndex );
 		cluster.Release();

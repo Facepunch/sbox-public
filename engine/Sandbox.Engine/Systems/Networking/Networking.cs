@@ -1,11 +1,8 @@
-﻿using Sandbox.Compression;
-using Sandbox.Network;
+﻿using Sandbox.Network;
 using Sandbox.Utility;
 using Sentry;
 using Steamworks;
 using Steamworks.Data;
-using System.Buffers.Binary;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using Steam = NativeEngine.Steam;
@@ -27,82 +24,6 @@ public static partial class Networking
 	internal static int ReceiveBatchSizePerTick { get; set; } = 1024;
 
 	internal static Dictionary<string, string> ServerData { get; set; } = new();
-
-	private const byte FlagUncompressed = 0;
-	private const byte FlagLz4 = 1;
-
-	/// <summary>
-	/// The minimum byte count required to compress using LZ4 encoding. This number
-	/// was chosen because the overhead is often not worth it otherwise.
-	/// </summary>
-	private const int MinimumCompressionByteCount = 128;
-
-	/// <summary>
-	/// Try to encode the data from the specified <see cref="ByteStream"/> using LZ4 encoding.
-	/// If the data is less than the required byte count, the data will not be compressed.
-	/// </summary>
-	internal static byte[] EncodeStream( ByteStream stream )
-	{
-		var src = stream.ToSpan();
-
-		// Compress only if it’s large enough
-		if ( src.Length > MinimumCompressionByteCount )
-		{
-			var compressed = LZ4.CompressBlock( src );
-
-			// Only keep compression if it actually helped
-			if ( compressed.Length < src.Length )
-			{
-				var output = new byte[1 + sizeof( int ) + compressed.Length];
-				output[0] = FlagLz4;
-
-				BinaryPrimitives.WriteInt32LittleEndian( output.AsSpan( 1 ), src.Length );
-				compressed.CopyTo( output.AsSpan( 1 + sizeof( int ) ) );
-
-				return output;
-			}
-		}
-
-		var result = new byte[1 + sizeof( int ) + src.Length];
-		result[0] = FlagUncompressed;
-
-		BinaryPrimitives.WriteInt32LittleEndian( result.AsSpan( 1 ), src.Length );
-		src.CopyTo( result.AsSpan( 1 + sizeof( int ) ) );
-
-		return result;
-	}
-
-	private static readonly byte[] ReceiveBuffer = new byte[1024 * 1024 * 4];
-
-	/// <summary>
-	/// Try to decode the supplied data using LZ4. If the data cannot be decompressed, then the
-	/// original data will be returned.
-	/// </summary>
-	internal static Span<byte> DecodeStream( byte[] data )
-	{
-		if ( data.Length < 1 + sizeof( int ) )
-			return data;
-
-		var flag = data[0];
-		var originalLen = BinaryPrimitives.ReadInt32LittleEndian( data.AsSpan( 1, sizeof( int ) ) );
-		ReadOnlySpan<byte> payload = data.AsSpan( 1 + sizeof( int ) );
-
-		switch ( flag )
-		{
-			case FlagUncompressed:
-				return MemoryMarshal.CreateSpan( ref MemoryMarshal.GetArrayDataReference( data ), data.Length )
-					.Slice( 1 + sizeof( int ), originalLen );
-			case FlagLz4:
-				{
-					int written = LZ4.DecompressBlock( payload.ToArray(), ReceiveBuffer );
-					var result = ReceiveBuffer.AsSpan( 0, written );
-					TryRecordMessage( result );
-					return result;
-				}
-			default:
-				return data;
-		}
-	}
 
 	/// <summary>
 	/// Set data about the current server or lobby. Other players can query this
@@ -860,6 +781,7 @@ public static partial class Networking
 		var success = await AwaitSuccessfulConnection();
 		if ( success ) return true;
 
+		LoadingScreen.IsVisible = false;
 		Disconnect();
 		return false;
 	}

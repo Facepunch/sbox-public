@@ -5,10 +5,39 @@
   "Friction": 0.8,
   "Elasticity": 0.05,
   "Density": 700,
-  "Thickness": -1,
   "RollingResistance": 0,
   "BounceThreshold": 0,
+  "FluidLinearDrag": 0.1,
+  "FluidAngularDrag": 0.1,
   "Dampening": 0,
+  "ImpactEffects": {
+    "Regular": null,
+    "Bullet": null,
+    "BulletDecal": null,
+    "SoftParticles": null,
+    "SoftDecal": null,
+    "HardParticles": null,
+    "HardDecal": null
+  },
+  "ScrapeEffects": {
+    "RoughnessFactor": 0,
+    "RoughThreshold": 0,
+    "SmoothParticles": null,
+    "RoughParticles": null,
+    "SmoothDecal": null,
+    "RoughDecal": null
+  },
+  "Sounds": {
+    "FootLeft": null,
+    "FootRight": null,
+    "FootLaunch": null,
+    "FootLand": null,
+    "Bullet": null,
+    "ImpactHard": null,
+    "ImpactSoft": null,
+    "ScrapeRough": null,
+    "ScrapeSmooth": null
+  },
   "PrefabCollection": {
     "BulletImpact": {
       "_type": "gameobject",
@@ -17,10 +46,10 @@
     "BluntImpact": null
   },
   "SoundCollection": {
-    "FootLeft": "sounds/impacts/melee/impact-melee-glass.sound",
-    "FootRight": "sounds/impacts/melee/impact-melee-glass.sound",
-    "FootLaunch": null,
-    "FootLand": null,
+    "FootLeft": "sounds/footsteps/footstep-glass.sound",
+    "FootRight": "sounds/footsteps/footstep-glass.sound",
+    "FootLaunch": "sounds/footsteps/footstep-glass.sound",
+    "FootLand": "sounds/footsteps/footstep-glass.sound",
     "Bullet": "sounds/impacts/bullets/impact-bullet-glass.sound",
     "ImpactHard": "sounds/impacts/bullets/impact-bullet-glass.sound",
     "ImpactSoft": "sounds/impacts/melee/impact-melee-glass.sound",

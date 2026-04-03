@@ -13,7 +13,7 @@ public static class Protocol
 	/// <summary>
 	/// We cannot talk to servers or clients with a network protocol different to this.
 	/// </summary>
-	public static int Network => 1099;
+	public static int Network => 1100;
 }
 
 // Api Versions
@@ -26,6 +26,7 @@ public static class Protocol
 
 
 // Network Versions
+// 1100. 30th March 2026 - Compress-before-chunk, chunking moved to wire layer
 // 1099. 24th Feburary 2026 - ResourceId is now a long
 // 1098. 20th Feburary 2026 - Send network time as double
 // 1097. 13rd January 2026 - Support for binary blobs

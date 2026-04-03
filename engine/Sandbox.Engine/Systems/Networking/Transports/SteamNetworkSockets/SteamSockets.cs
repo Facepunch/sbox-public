@@ -226,18 +226,7 @@ internal static partial class SteamNetwork
 				if ( !Connections.TryGetValue( msg.Connection.Id, out var connection ) )
 					continue;
 
-				Span<byte> data = Networking.DecodeStream( msg.Data );
-
-				using var stream = ByteStream.CreateReader( data );
-
-				var nwm = new NetworkSystem.NetworkMessage
-				{
-					Data = stream,
-					Source = connection
-				};
-
-				connection.MessagesRecieved++;
-				handler( nwm );
+				connection.OnRawPacketReceived( msg.Data, handler );
 			}
 		}
 

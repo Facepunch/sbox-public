@@ -110,19 +110,6 @@ class EnvironmentLightEntity : HammerEntityDefinition
 	[Property, Category( "Shadows" ), DefaultValue( ShadowType.Yes ), Description( "Whether this light casts shadows." )]
 	internal ShadowType CastShadows { get; set; } = ShadowType.Yes;
 
-	[Property( "nearclipplane" ), Category( "Shadows" ), DefaultValue( 1.0f ), Description( "Distance for near clip plane for shadow map." )]
-	internal float ShadowNearClipPlane { get; set; } = 1.0f;
-
-	[Property( "numcascades" ), Category( "Shadows" ), DefaultValue( 3 ), MinMax( 1, 3 ), Description( "Number of shadow cascades to use." )]
-	internal int CascadeAmount { get; set; } = 3;
-
-	[Property, Category( "Shadows" ), DefaultValue( 0.0f )] internal float ShadowCascadeDistance0 { get; set; } = 0.0f;
-	[Property, Category( "Shadows" ), DefaultValue( 0.0f )] internal float ShadowCascadeDistance1 { get; set; } = 0.0f;
-	[Property, Category( "Shadows" ), DefaultValue( 0.0f )] internal float ShadowCascadeDistance2 { get; set; } = 0.0f;
-	[Property, Category( "Shadows" ), DefaultValue( 0.0f )] internal float ShadowCascadeResolution0 { get; set; } = 0.0f;
-	[Property, Category( "Shadows" ), DefaultValue( 0.0f )] internal float ShadowCascadeResolution1 { get; set; } = 0.0f;
-	[Property, Category( "Shadows" ), DefaultValue( 0.0f )] internal float ShadowCascadeResolution2 { get; set; } = 0.0f;
-
 	#endregion
 
 	// Internal thing used only during compile.
