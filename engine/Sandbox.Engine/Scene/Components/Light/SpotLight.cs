@@ -11,16 +11,79 @@
 [Alias( "SpotLightComponent" )]
 public class SpotLight : Light
 {
-	[Property, MakeDirty] public float Radius { get; set; } = 500;
+	SceneSpotLight _so;
+
+	[Property]
+	public float Radius
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			if ( _so.IsValid() )
+				_so.Radius = value;
+		}
+	} = 500;
 
 	[Range( 0, 90 )]
-	[Property, MakeDirty] public float ConeOuter { get; set; } = 45;
+	[Property]
+	public float ConeOuter
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			if ( _so.IsValid() )
+				_so.ConeOuter = value;
+		}
+	} = 45;
 
 	[Range( 0, 90 )]
-	[Property, MakeDirty] public float ConeInner { get; set; } = 15;
+	[Property]
+	public float ConeInner
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
 
-	[Property, MakeDirty, Range( 0, 10 )] public float Attenuation { get; set; } = 1.0f;
-	[Property, MakeDirty] public Texture Cookie { get; set; }
+			if ( _so.IsValid() )
+				_so.ConeInner = value;
+		}
+	} = 15;
+
+	[Property, Range( 0, 10 )]
+	public float Attenuation
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			if ( _so.IsValid() )
+				_so.QuadraticAttenuation = value;
+		}
+	} = 1.0f;
+
+	[Property]
+	public Texture Cookie
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			if ( _so.IsValid() )
+				_so.LightCookie = value;
+		}
+	}
 
 	public SpotLight()
 	{
@@ -29,7 +92,15 @@ public class SpotLight : Light
 
 	protected override SceneLight CreateSceneObject()
 	{
-		return new SceneSpotLight( Scene.SceneWorld, WorldPosition, LightColor );
+		return _so = new SceneSpotLight( Scene.SceneWorld, WorldPosition, LightColor )
+		{
+			Radius = Radius,
+			QuadraticAttenuation = Attenuation,
+			LightCookie = Cookie,
+			FallOff = 1,
+			ConeInner = ConeInner,
+			ConeOuter = ConeOuter
+		};
 	}
 
 	protected override void OnAwake()
@@ -37,23 +108,6 @@ public class SpotLight : Light
 		Tags.Add( "light_spot" );
 
 		base.OnAwake();
-	}
-
-	protected override void UpdateSceneObject( SceneLight o )
-	{
-		base.UpdateSceneObject( o );
-
-		o.Radius = Radius;
-		o.QuadraticAttenuation = Attenuation;
-		o.LightCookie = Cookie;
-		//o.ShadowTextureResolution = 4096;
-
-		if ( o is SceneSpotLight spot )
-		{
-			spot.FallOff = 1;
-			spot.ConeInner = ConeInner;
-			spot.ConeOuter = ConeOuter;
-		}
 	}
 
 	protected override void DrawGizmos()

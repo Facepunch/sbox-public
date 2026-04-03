@@ -140,7 +140,7 @@ public partial class Scene : GameObject
 				userCommand.Serialize( ref msg );
 			}
 
-			connection.SendRawMessage( msg, NetFlags.UnreliableNoDelay );
+			connection.SendStream( msg, NetFlags.UnreliableNoDelay );
 			msg.Dispose();
 		}
 	}

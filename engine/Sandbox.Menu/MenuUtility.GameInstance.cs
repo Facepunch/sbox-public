@@ -42,6 +42,8 @@ public static partial class MenuUtility
 	/// </summary>
 	public static void OpenGame( string ident, bool allowLaunchOverride = true, Dictionary<string, string> gameSettings = null )
 	{
+		CloseAllModals();
+
 		gameLoadingCts?.Cancel();
 		gameLoadingCts = new CancellationTokenSource();
 
@@ -110,7 +112,10 @@ public static partial class MenuUtility
 
 				// Try to join this one
 				if ( await Networking.TryConnectSteamId( lobby.LobbyId ) )
+				{
+					CloseAllModals();
 					return true;
+				}
 			}
 
 			Log.Info( $"Couldn't join a lobby - making a game" );

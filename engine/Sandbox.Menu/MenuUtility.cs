@@ -195,6 +195,15 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
+	/// Connect to a lobby and close all open modals.
+	/// </summary>
+	public static void Connect( ulong lobbyId )
+	{
+		CloseAllModals();
+		Networking.Connect( lobbyId );
+	}
+
+	/// <summary>
 	/// Close every open modal
 	/// </summary>
 	public static void CloseAllModals()

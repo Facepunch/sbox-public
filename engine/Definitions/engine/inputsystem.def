@@ -21,6 +21,7 @@ native accessor g_pInputSystem as NativeEngine.InputSystem
 	void DismissIME();
 
 	string CodeToString( ButtonCode code );
+	string GetKeyDisplayName( ButtonCode code );
 	ButtonCode StringToButtonCode( string pString );
 
 	ButtonCode VirtualKeyToButtonCode( int nVirtualKey );

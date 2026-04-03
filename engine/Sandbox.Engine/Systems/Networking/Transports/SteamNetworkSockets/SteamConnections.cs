@@ -143,12 +143,11 @@ internal static partial class SteamNetwork
 			return await base.OnReceiveUserInfo( info );
 		}
 
-		internal override void InternalSend( ByteStream stream, NetFlags flags )
+		internal override void InternalSend( byte[] data, NetFlags flags )
 		{
 			if ( !Socket.IsValid() )
 				return;
 
-			byte[] data = Networking.EncodeStream( stream );
 			Socket.SendMessage( Handle, data, flags.ToSteamFlags() );
 		}
 
@@ -339,14 +338,12 @@ internal static partial class SteamNetwork
 			count = 0;
 		}
 
-		internal override void InternalSend( ByteStream stream, NetFlags flags )
+		internal override void InternalSend( byte[] data, NetFlags flags )
 		{
-			byte[] output = Networking.EncodeStream( stream );
-
 			var message = new OutgoingSteamMessage
 			{
 				Connection = handle,
-				Data = output,
+				Data = data,
 				Flags = flags.ToSteamFlags()
 			};
 
@@ -357,17 +354,7 @@ internal static partial class SteamNetwork
 		{
 			while ( IncomingMessages.Reader.TryRead( out var msg ) )
 			{
-				Span<byte> output = Networking.DecodeStream( msg.Data );
-
-				using ByteStream stream = ByteStream.CreateReader( output );
-
-				var nwm = new NetworkSystem.NetworkMessage
-				{
-					Data = stream,
-					Source = this
-				};
-
-				handler( nwm );
+				OnRawPacketReceived( msg.Data, handler );
 			}
 		}
 

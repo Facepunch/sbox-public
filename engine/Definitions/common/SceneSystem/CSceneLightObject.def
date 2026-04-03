@@ -80,4 +80,6 @@ native class CSceneLightObject as NativeEngine.CSceneLightObject : CSceneObject
 
 	void SetLightSourceDim0( float v );
 	void SetLightSourceDim1( float v );
+
+	int GetLightType();
 }

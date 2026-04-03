@@ -101,6 +101,9 @@ partial class ModelPhysics
 
 		foreach ( var (bodyIndex, transform) in transforms )
 		{
+			if ( bodyIndex < 0 || bodyIndex >= Bodies.Count )
+				continue;
+
 			var component = Bodies[bodyIndex].Component;
 			if ( !component.IsValid() )
 				continue;
@@ -125,6 +128,9 @@ partial class ModelPhysics
 
 		foreach ( var (bodyIndex, transform) in transforms )
 		{
+			if ( bodyIndex < 0 || bodyIndex >= Bodies.Count )
+				continue;
+
 			var component = Bodies[bodyIndex].Component;
 			if ( !component.IsValid() )
 				continue;

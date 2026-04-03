@@ -1,4 +1,6 @@
-﻿namespace Sandbox;
+﻿using NativeEngine;
+
+namespace Sandbox;
 
 /// <summary>
 /// Emits light in all directions from a point in space.
@@ -11,13 +13,43 @@
 [Alias( "PointLightComponent" )]
 public class PointLight : Light
 {
-	[Property, MakeDirty] public float Radius { get; set; } = 400;
-	[Property, MakeDirty, Range( 0, 10 )] public float Attenuation { get; set; } = 1.0f;
-	//	[Property, MakeDirty] public Texture Cookie { get; set; }
+	ScenePointLight _so;
+
+	[Property]
+	public float Radius
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			if ( _so.IsValid() )
+				_so.Radius = value;
+		}
+	} = 400;
+
+	[Property, Range( 0, 10 )]
+	public float Attenuation
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			if ( _so.IsValid() )
+				_so.QuadraticAttenuation = value;
+		}
+	} = 1.0f;
 
 	protected override ScenePointLight CreateSceneObject()
 	{
-		return new ScenePointLight( Scene.SceneWorld, WorldPosition, Radius, LightColor );
+		return _so = new ScenePointLight( Scene.SceneWorld, WorldPosition, Radius, LightColor )
+		{
+			Radius = Radius,
+			QuadraticAttenuation = Attenuation
+		};
 	}
 
 	protected override void OnAwake()
@@ -25,15 +57,6 @@ public class PointLight : Light
 		Tags.Add( "light_point" );
 
 		base.OnAwake();
-	}
-
-	protected override void UpdateSceneObject( SceneLight o )
-	{
-		base.UpdateSceneObject( o );
-
-		o.Radius = Radius;
-		o.QuadraticAttenuation = Attenuation;
-		//	o.LightCookie = Cookie;
 	}
 
 	protected override void DrawGizmos()

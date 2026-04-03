@@ -127,7 +127,7 @@ internal class StringTable
 		bs.Write( Name );
 
 		BuildSnapshotMessage( ref bs );
-		source.SendRawMessage( bs );
+		source.SendStream( bs );
 
 		bs.Dispose();
 	}

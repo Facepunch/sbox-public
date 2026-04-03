@@ -111,7 +111,7 @@ internal partial class ShadowMapper
 
 				var textPos = new Vector2( screenPos.x, texRect.Bottom + 4 );
 
-				string lightType = light is ScenePointLight ? "Point" : light is SceneSpotLight ? "Spot" : "Light";
+				string lightType = light.lightNative.GetLightType() switch { 1 => "Point", 3 => "Spot", _ => "Light" };
 				var memSize = g_pRenderDevice.ComputeTextureMemorySize( entry.ShadowMap.native );
 
 				labelScope.Text = $"{lightType} {entry.CurrentResolution}px ({memSize.FormatBytes()})";
@@ -122,7 +122,7 @@ internal partial class ShadowMapper
 				Hud.DrawText( labelScope, textPos, TextFlag.CenterTop );
 				textPos.y += 12;
 
-				float halfAngle = light is SceneSpotLight spot ? spot.ConeOuter : 45f;
+				float halfAngle = light.lightNative.GetLightType() == 3 ? light.lightNative.GetPhi() : 45f;
 				float biasScale = ComputeBiasScale( halfAngle, light.Radius, entry.CurrentResolution );
 				labelScope.Text = $"BiasScale:{biasScale:F2} Const:{(int)(ShadowDepthBias * biasScale)} Slope:{ShadowSlopeScale * biasScale:F1}";
 				Hud.DrawText( labelScope, textPos, TextFlag.CenterTop );
