@@ -268,15 +268,12 @@ internal partial class ShadowMapper
 			return InvalidShadowIndex;
 		}
 
-		if ( sceneObject is SceneSpotLight spotlight )
-			return FindOrCreateProjectedShadowMap( spotlight, view, flScreenSize );
-
-		if ( sceneObject is ScenePointLight pointLight )
-			return FindOrCreateProjectedCubeShadowMap( pointLight, view, flScreenSize );
-
-		Log.Warning( $"FindOrCreateShadowMaps called with unsupported light type {sceneObject}" );
-
-		return InvalidShadowIndex;
+		return sceneObject.lightNative.GetLightType() switch
+		{
+			3 => FindOrCreateProjectedShadowMap( sceneObject, view, flScreenSize ),
+			1 => FindOrCreateProjectedCubeShadowMap( sceneObject, view, flScreenSize ),
+			_ => InvalidShadowIndex
+		};
 	}
 
 	internal int DoDirectionalLight( SceneLight sceneObject, ISceneView view )
@@ -284,13 +281,7 @@ internal partial class ShadowMapper
 		if ( !CSMEnabled )
 			return 0;
 
-		if ( sceneObject is not SceneDirectionalLight directionalLight )
-		{
-			Log.Error( $"DoDirectionalLight called with non-directional light {sceneObject}" );
-			return 0;
-		}
-
-		FindOrCreateDirectionalShadowMaps( directionalLight, view );
+		FindOrCreateDirectionalShadowMaps( sceneObject, view );
 		return 0;
 	}
 

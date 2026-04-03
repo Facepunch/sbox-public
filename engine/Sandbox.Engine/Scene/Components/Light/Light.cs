@@ -10,19 +10,92 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 	/// <summary>
 	/// The main color of the light
 	/// </summary>
-	[Property, MakeDirty] public Color LightColor { get; set; } = "#E9FAFF";
+	[Property]
+	public Color LightColor
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
 
-	[Property, MakeDirty, Category( "Fog Settings" )] public FogInfluence FogMode { get; set; } = FogInfluence.Enabled;
-	[Property, MakeDirty, Range( 0, 1 ), Category( "Fog Settings" )] public float FogStrength { get; set; } = 1.0f;
+			if ( _sceneObject.IsValid() )
+				_sceneObject.LightColor = value;
+		}
+	} = "#E9FAFF";
+
+	[Property, Category( "Fog Settings" )]
+	public FogInfluence FogMode
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			if ( _sceneObject.IsValid() )
+				_sceneObject.FogLighting = (SceneLight.FogLightingMode)value;
+		}
+	} = FogInfluence.Enabled;
+
+	[Property, Range( 0, 1 ), Category( "Fog Settings" )]
+	public float FogStrength
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			if ( _sceneObject.IsValid() )
+				_sceneObject.FogStrength = value;
+		}
+	} = 1.0f;
 
 	/// <summary>
 	/// Should this light cast shadows?
 	/// </summary>
-	[Property, MakeDirty, Category( "Shadows" ), Order( -10 )] public bool Shadows { get; set; } = true;
+	[Property, Category( "Shadows" ), Order( -10 )]
+	public bool Shadows
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
 
-	[Property, MakeDirty, Range( 0, 1 ), Category( "Shadows" ), Advanced] public float ShadowBias { get; set; } = 0.0005f;
+			if ( _sceneObject.IsValid() )
+				_sceneObject.ShadowsEnabled = value;
+		}
+	} = true;
 
-	[Property, MakeDirty, Range( 0, 1 ), Category( "Shadows" )] public float ShadowHardness { get; set; } = 0.0f;
+	[Property, Range( 0, 1 ), Category( "Shadows" ), Advanced]
+	public float ShadowBias
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			if ( _sceneObject.IsValid() )
+				_sceneObject.ShadowBias = value;
+		}
+	} = 0.0005f;
+
+	[Property, Range( 0, 1 ), Category( "Shadows" )]
+	public float ShadowHardness
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			if ( _sceneObject.IsValid() )
+				_sceneObject.ShadowHardness = value;
+		}
+	} = 0.0f;
 
 	Color IColorProvider.ComponentColor => LightColor;
 
@@ -54,7 +127,14 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 
 		if ( _sceneObject.IsValid() )
 		{
-			UpdateSceneObject( _sceneObject );
+			_sceneObject.Component = this;
+			_sceneObject.LightColor = LightColor;
+			_sceneObject.ShadowsEnabled = Shadows;
+			_sceneObject.FogLighting = (SceneLight.FogLightingMode)FogMode;
+			_sceneObject.FogStrength = FogStrength;
+			_sceneObject.ShadowBias = ShadowBias;
+			_sceneObject.ShadowHardness = ShadowHardness;
+
 			OnTransformChanged();
 			OnTagsChanged();
 
@@ -71,27 +151,6 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 	}
 
 	protected abstract SceneLight CreateSceneObject();
-
-	protected virtual void UpdateSceneObject( SceneLight o )
-	{
-		o.Component = this;
-		o.LightColor = LightColor;
-		o.ShadowsEnabled = Shadows;
-
-		o.FogLighting = (SceneLight.FogLightingMode)FogMode; // these should map directly
-		o.FogStrength = FogStrength;
-
-		o.ShadowBias = ShadowBias;
-		o.ShadowHardness = ShadowHardness;
-	}
-
-	protected override void OnDirty()
-	{
-		if ( _sceneObject.IsValid() )
-		{
-			UpdateSceneObject( _sceneObject );
-		}
-	}
 
 	void OnTransformChanged()
 	{

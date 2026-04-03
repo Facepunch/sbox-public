@@ -526,58 +526,64 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		gibs.EnsureCapacity( breaklist.Length );
 
 		// Batch anything we're spawning here
-		using var _ = Scene.BatchGroup();
-
-		foreach ( var breakModel in breaklist )
+		using ( Scene.BatchGroup() )
 		{
-			var model = Model.Load( breakModel.Model );
-			if ( model is null || model.IsError )
-				continue;
-
-			// Skip gibs we shouldn't spawn
-			if ( !spawnServerGibs && !breakModel.IsClientOnly ) continue;
-			if ( !spawnClientGibs && breakModel.IsClientOnly ) continue;
-
-			var gib = new GameObject( false, $"{GameObject.Name} (gib)" );
-
-			var offset = breakModel.Offset;
-			var placementOrigin = model.Attachments.GetTransform( "placementOrigin" );
-			if ( placementOrigin.HasValue )
-				offset = placementOrigin.Value.PointToLocal( offset );
-
-			gib.WorldPosition = WorldTransform.PointToWorld( offset );
-			gib.WorldRotation = WorldRotation;
-			gib.WorldScale = WorldScale;
-
-			foreach ( var tag in breakModel.CollisionTags.Split( ' ', StringSplitOptions.RemoveEmptyEntries ) )
+			foreach ( var breakModel in breaklist )
 			{
-				gib.Tags.Add( tag );
+				var model = Model.Load( breakModel.Model );
+				if ( model is null || model.IsError )
+					continue;
+
+				// Skip gibs we shouldn't spawn
+				if ( !spawnServerGibs && !breakModel.IsClientOnly ) continue;
+				if ( !spawnClientGibs && breakModel.IsClientOnly ) continue;
+
+				var gib = new GameObject( false, $"{GameObject.Name} (gib)" );
+
+				var offset = breakModel.Offset;
+				var placementOrigin = model.Attachments.GetTransform( "placementOrigin" );
+				if ( placementOrigin.HasValue )
+					offset = placementOrigin.Value.PointToLocal( offset );
+
+				gib.WorldPosition = WorldTransform.PointToWorld( offset );
+				gib.WorldRotation = WorldRotation;
+				gib.WorldScale = WorldScale;
+
+				foreach ( var tag in breakModel.CollisionTags.Split( ' ', StringSplitOptions.RemoveEmptyEntries ) )
+				{
+					gib.Tags.Add( tag );
+				}
+
+				var c = gib.Components.Create<Gib>( false );
+				c.FadeTime = breakModel.FadeTime;
+				c.Model = model;
+				c.Enabled = true;
+				c.Tint = mr?.Tint ?? c.Tint;
+
+				gibs.Add( c );
+
+				if ( breakModel.IsClientOnly )
+				{
+					gib.Tags.Add( "debris", "clientside" ); // no physics interactions
+				}
+				else if ( !IsProxy )
+				{
+					// Spawn on the network
+					gib.NetworkSpawn( true, null );
+				}
+
+				gib.Enabled = true;
 			}
+		}
 
-			var c = gib.Components.Create<Gib>( false );
-			c.FadeTime = breakModel.FadeTime;
-			c.Model = model;
-			c.Enabled = true;
-			c.Tint = mr?.Tint ?? c.Tint;
-
-			gibs.Add( c );
-
-			if ( breakModel.IsClientOnly )
+		// Transfer velocity from us to the gibs.
+		if ( rb.IsValid() )
+		{
+			foreach ( var gib in gibs )
 			{
-				gib.Tags.Add( "debris", "clientside" ); // no physics interactions
-			}
-			else if ( !IsProxy )
-			{
-				// Spawn on the network
-				gib.NetworkSpawn( true, null );
-			}
+				var phys = gib.Components.Get<Rigidbody>( true );
+				if ( !phys.IsValid() ) continue;
 
-			gib.Enabled = true;
-
-			var phys = gib.Components.Get<Rigidbody>( true );
-
-			if ( phys is not null && rb is not null )
-			{
 				// Compute linear velocity at the gibs spawn point.
 				var velocity = rb.PreVelocity + Vector3.Cross( rb.PreAngularVelocity, phys.MassCenter - rb.MassCenter );
 

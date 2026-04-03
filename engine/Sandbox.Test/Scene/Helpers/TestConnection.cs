@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Sandbox.Internal;
 using Sandbox.Network;
@@ -35,17 +35,19 @@ internal sealed class TestConnection : Connection
 		}
 	}
 
-	internal override void InternalSend( ByteStream stream, NetFlags flags )
+	internal override void InternalSend( byte[] data, NetFlags flags )
 	{
-		var reader = new ByteStream( stream.ToArray() );
+		if ( data[0] == FlagChunk )
+			throw new NotImplementedException( "TestConnection does not support chunked messages" );
+
+		// Decode the wire envelope and dispatch by InternalMessageType.
+		using var decoded = Connection.Decode( data );
+		var reader = ByteStream.CreateReader( decoded.Data );
 
 		var type = reader.Read<InternalMessageType>();
 
 		switch ( type )
 		{
-			case InternalMessageType.Chunk:
-				throw new NotImplementedException();
-
 			case InternalMessageType.Packed:
 				Messages.Add( new Message( type, GlobalGameNamespace.TypeLibrary.FromBytes<object>( ref reader ) ) );
 				break;
@@ -54,6 +56,8 @@ internal sealed class TestConnection : Connection
 				Messages.Add( new Message( type, reader.GetRemainingBytes().ToArray() ) );
 				break;
 		}
+
+		reader.Dispose();
 	}
 
 	internal override void InternalRecv( NetworkSystem.MessageHandler handler )

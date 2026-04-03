@@ -28,12 +28,6 @@ public static partial class Networking
 		if ( !IsRecordingMessages )
 			return;
 
-		// Skip fragments and anything too large to be compressed as a single unit.
-		if ( data.Length > 127 * 1024 )
-			return;
-		if ( data.Length > 0 && (InternalMessageType)data[0] == InternalMessageType.Chunk )
-			return;
-
 		var category = GetMessageCategory( data );
 		var bytes = data.ToArray();
 
