@@ -26,11 +26,22 @@ namespace Editor
 		/// </summary>
 		public bool IsPressed => CurrentlyPressedWidget == this;
 
-		internal void InternalWheelEvent( QWheelEvent e ) => OnWheel( new WheelEvent( e ) );
+		internal void InternalWheelEvent( QWheelEvent e ) => OnMouseWheel( new WheelEvent( e ) );
 
 		/// <summary>
 		/// Mouse wheel was scrolled while the mouse cursor was over this widget.
 		/// </summary>
+		protected virtual void OnMouseWheel( WheelEvent e )
+		{
+			#pragma warning disable CS0618 // Type or member is obsolete
+			OnWheel( e );
+			#pragma warning restore CS0618 // Type or member is obsolete
+		}
+
+		/// <summary>
+		/// Mouse wheel was scrolled while the mouse cursor was over this widget.
+		/// </summary>
+		[Obsolete( $"Use {nameof( OnMouseWheel )}" )]
 		protected virtual void OnWheel( WheelEvent e )
 		{
 
