@@ -34,7 +34,7 @@ internal partial class ShadowMapper
 	/// Finds a cached shadow map or creates a new one.
 	/// This is for a single shadow map like a spot light
 	/// </summary>
-	internal unsafe uint FindOrCreateProjectedShadowMap( SceneSpotLight light, ISceneView view, float flScreenSize )
+	internal unsafe uint FindOrCreateProjectedShadowMap( SceneLight light, ISceneView view, float flScreenSize )
 	{
 		// Cull shadows below the screen size threshold
 		if ( flScreenSize < (SizeCullThreshold / 100.0f) )
@@ -87,9 +87,9 @@ internal partial class ShadowMapper
 		ScaleBias._numerics[1, 3] = 0.5f;
 
 		CFrustum nativeFrustum = CFrustum.Create();
-		nativeFrustum.BuildFrustumFromVectors( light.Position, 1.0f, light.Radius, 2.0f * light.ConeOuter, 1.0f, light.Rotation.Forward, light.Rotation.Left, light.Rotation.Up );
+		nativeFrustum.BuildFrustumFromVectors( light.Position, 1.0f, light.Radius, 2.0f * light.lightNative.GetPhi(), 1.0f, light.Rotation.Forward, light.Rotation.Left, light.Rotation.Up );
 
-		float biasScale = ComputeBiasScale( light.ConeOuter, light.Radius, cacheEntry.CurrentResolution );
+		float biasScale = ComputeBiasScale( light.lightNative.GetPhi(), light.Radius, cacheEntry.CurrentResolution );
 
 		// Baked lights exclude static objects from shadow maps, their static shadows come from lightmaps
 		var excludeFlags = (light.lightNative.GetLightFlags() & 32) != 0 // LIGHTTYPE_FLAGS_BAKED

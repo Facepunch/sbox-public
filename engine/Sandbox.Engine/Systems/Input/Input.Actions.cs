@@ -60,6 +60,7 @@ public static partial class Input
 	[ActionGraphNode( "input.down" ), Pure, Category( "Input" ), Icon( "gamepad" )]
 	public static bool Down( [InputAction] string action, bool complainOnMissing = true )
 	{
+		if ( Application.IsHeadless ) return false;
 		if ( Suppressed ) return false;
 		if ( string.IsNullOrWhiteSpace( action ) ) return false;
 
@@ -96,6 +97,7 @@ public static partial class Input
 	[ActionGraphNode( "input.pressed" ), Pure, Category( "Input" ), Icon( "gamepad" )]
 	public static bool Pressed( [InputAction] string action )
 	{
+		if ( Application.IsHeadless ) return false;
 		if ( Suppressed ) return false;
 		return !WasDownLastCommand( action ) && Down( action );
 	}
@@ -106,6 +108,7 @@ public static partial class Input
 	[ActionGraphNode( "input.released" ), Pure, Category( "Input" ), Icon( "gamepad" )]
 	public static bool Released( [InputAction] string action )
 	{
+		if ( Application.IsHeadless ) return false;
 		if ( Suppressed ) return false;
 		return WasDownLastCommand( action ) && !Down( action );
 	}
