@@ -12,8 +12,18 @@ using Sandbox.Engine;
 public partial class ModelRenderer : MaterialAccessor.ITarget
 {
 
-	[Property, MakeDirty]
-	public Material MaterialOverride { get; set; }
+	[Property]
+	public Material MaterialOverride
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			UpdateObject();
+		}
+	}
 
 	Dictionary<string, Material> taggedMaterialOverrides;
 

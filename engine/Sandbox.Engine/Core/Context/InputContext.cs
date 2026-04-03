@@ -189,9 +189,9 @@ internal sealed class InputContext
 
 	internal void ReleaseAllButtons()
 	{
-		foreach ( var button in _pressed.ToArray() )
+		foreach ( var scanButtonCode in _pressed.ToArray() )
 		{
-			IN_ButtonReleased( button, KeyboardModifiers.None );
+			IN_ButtonReleased( scanButtonCode, scanButtonCode, KeyboardModifiers.None );
 		}
 	}
 
@@ -199,31 +199,30 @@ internal sealed class InputContext
 	/// This is called even if the context doesn't have focus.
 	/// It's just a place to unpress buttons, if they're down.
 	/// </summary>
-	internal void IN_ButtonReleased( ButtonCode button, KeyboardModifiers modifiers )
+	internal void IN_ButtonReleased( ButtonCode scanButtonCode, ButtonCode keyButtonCode, KeyboardModifiers modifiers )
 	{
 		if ( TrappingKeys )
 			return;
 
-		_blockingTextInput.Remove( button );
+		_blockingTextInput.Remove( scanButtonCode );
 
-		if ( !_pressed.Contains( button ) )
+		if ( !_pressed.Remove( scanButtonCode ) )
 			return;
 
-		_pressed.Remove( button );
-		TargetUISystem.InputEventQueue.AddButtonEvent( button, false, modifiers );
+		TargetUISystem.InputEventQueue.AddButtonEvent( keyButtonCode, false, modifiers );
 
-		var name = InputSystem.CodeToString( button );
+		var name = InputSystem.CodeToString( scanButtonCode );
 		if ( !string.IsNullOrWhiteSpace( name ) )
 		{
-			OnGameButton?.Invoke( button, name, false );
+			OnGameButton?.Invoke( scanButtonCode, name, false );
 		}
 	}
 
-	internal void IN_Button( bool pressed, ButtonCode button, bool repeat, KeyboardModifiers modifiers )
+	internal void IN_Button( bool pressed, ButtonCode scanButtonCode, ButtonCode keyButtonCode, bool repeat, KeyboardModifiers modifiers )
 	{
 		if ( TrappingKeys )
 		{
-			var name = InputSystem.CodeToString( button );
+			var name = InputSystem.CodeToString( scanButtonCode );
 			if ( !string.IsNullOrWhiteSpace( name ) )
 			{
 				TrappedKeys.Add( name );
@@ -237,22 +236,22 @@ internal sealed class InputContext
 			return;
 		}
 
-		if ( IsMouseButton( button ) )
+		if ( IsMouseButton( scanButtonCode ) )
 		{
-			OnMouseButton( button, pressed, modifiers );
+			OnMouseButton( scanButtonCode, pressed, modifiers );
 			return;
 		}
 
 		if ( pressed && KeyboardState == InputState.UI )
 		{
-			TargetUISystem.InputEventQueue.AddButtonTyped( button, modifiers );
+			TargetUISystem.InputEventQueue.AddButtonTyped( keyButtonCode, modifiers );
 		}
 
 		// We reserve some buttons that we handle ourselves, like function keys and ESCAPE.
-		if ( IsReservedButton( button ) )
+		if ( IsReservedButton( scanButtonCode ) )
 			return;
 
-		OnButton( button, pressed, repeat, modifiers );
+		OnButton( scanButtonCode, keyButtonCode, pressed, repeat, modifiers );
 	}
 
 	// cleanme
@@ -345,7 +344,7 @@ internal sealed class InputContext
 		};
 	}
 
-	void OnButton( ButtonCode button, bool down, bool repeat, KeyboardModifiers modifiers )
+	void OnButton( ButtonCode scanButtonCode, ButtonCode keyButtonCode, bool down, bool repeat, KeyboardModifiers modifiers )
 	{
 		// not right now
 		if ( repeat ) return;
@@ -354,14 +353,14 @@ internal sealed class InputContext
 		// we only want this if they don't have shift and alt etc
 		if ( modifiers == KeyboardModifiers.Ctrl && KeyboardState == InputState.UI )
 		{
-			if ( button == ButtonCode.KEY_C )
+			if ( keyButtonCode == ButtonCode.KEY_C )
 			{
 				if ( !down ) return;
 				TargetUISystem.InputEventQueue.QueueInputEvent( new CopyEvent() );
 				return;
 			}
 
-			if ( button == ButtonCode.KEY_V )
+			if ( keyButtonCode == ButtonCode.KEY_V )
 			{
 				if ( !down ) return;
 
@@ -373,7 +372,7 @@ internal sealed class InputContext
 				return;
 			}
 
-			if ( button == ButtonCode.KEY_X )
+			if ( keyButtonCode == ButtonCode.KEY_X )
 			{
 				if ( !down ) return;
 				TargetUISystem.InputEventQueue.QueueInputEvent( new CutEvent() );
@@ -385,26 +384,26 @@ internal sealed class InputContext
 		// but don't allow new presses
 		if ( KeyboardState == InputState.Game || !down )
 		{
-			var name = InputSystem.CodeToString( button );
+			var name = InputSystem.CodeToString( scanButtonCode );
 			if ( !string.IsNullOrWhiteSpace( name ) )
 			{
-				OnGameButton?.Invoke( button, name, down );
+				OnGameButton?.Invoke( scanButtonCode, name, down );
 			}
 		}
 
-		if ( _pressed.Contains( button ) == down )
+		if ( _pressed.Contains( scanButtonCode ) == down )
 			return;
 
-		if ( down ) _pressed.Add( button );
+		if ( down ) _pressed.Add( scanButtonCode );
 		else
 		{
-			_pressed.Remove( button );
-			_blockingTextInput.Remove( button );
+			_pressed.Remove( scanButtonCode );
+			_blockingTextInput.Remove( scanButtonCode );
 		}
 
 		if ( KeyboardState == InputState.UI || !down )
 		{
-			TargetUISystem.InputEventQueue.AddButtonEvent( button, down, modifiers );
+			TargetUISystem.InputEventQueue.AddButtonEvent( keyButtonCode, down, modifiers );
 		}
 	}
 

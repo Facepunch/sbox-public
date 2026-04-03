@@ -58,29 +58,69 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	/// <summary>
 	/// World-space bounding box that defines the volume coverage area.
 	/// </summary>
-	[Property, MakeDirty]
-	public BBox Bounds { get; set; } = BBox.FromPositionAndSize( Vector3.Zero, new Vector3( 512.0f ) );
+	[Property]
+	public BBox Bounds
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			MarkDirty();
+		}
+	} = BBox.FromPositionAndSize( Vector3.Zero, new Vector3( 512.0f ) );
 
 	/// <summary>
 	/// Number of probes per 1024 world units. Higher values increase probe resolution.
 	/// </summary>
-	[Property, Range( 1, 15 ), MakeDirty]
-	public int ProbeDensity { get; set; } = 8;
+	[Property, Range( 1, 15 )]
+	public int ProbeDensity
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			MarkDirty();
+		}
+	} = 8;
 
 	/// <summary>
 	/// Bias applied along surface normals to prevent self-occlusion artifacts.
 	/// </summary>
 	[Group( "Advanced Settings" )]
-	[Property, Range( -0.0f, 50.0f ), MakeDirty]
-	public float NormalBias { get; set; } = 5.0f;
+	[Property, Range( -0.0f, 50.0f )]
+	public float NormalBias
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			MarkDirty();
+		}
+	} = 5.0f;
 
 	/// <summary>
 	/// Controls how much less energy to conserve during probe integration.
 	/// Higher values give a harsher, more contrasty look.
 	/// </summary>
-	[Property, Range( 1.0f, 2.0f ), MakeDirty]
+	[Property, Range( 1.0f, 2.0f )]
 	[Group( "Advanced Settings" )]
-	public float Contrast { get; set; } = 1.0f;
+	public float Contrast
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			MarkDirty();
+		}
+	} = 1.0f;
 
 	/// <summary>
 	/// Calculated probe count along each axis based on bounds and density.
@@ -117,27 +157,26 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	protected override void OnEnabled()
 	{
 		base.OnEnabled();
-		Transform.OnTransformChanged += OnDirty;
+		Transform.OnTransformChanged += MarkDirty;
 
 		LoadProbesFromRelocationTexture();
-		OnDirty();
+		MarkDirty();
 	}
 
 	protected override void OnDisabled()
 	{
 		base.OnDisabled();
-		Transform.OnTransformChanged -= OnDirty;
+		Transform.OnTransformChanged -= MarkDirty;
 
 		_bakeCts?.Cancel();
 		_bakeCts?.Dispose();
 		_bakeCts = null;
 
-		Scene.Get<DDGIVolumeSystem>()?.MarkDirty();
+		MarkDirty();
 	}
 
-	protected override void OnDirty()
+	void MarkDirty()
 	{
-		base.OnDirty();
 		Scene.Get<DDGIVolumeSystem>()?.MarkDirty();
 	}
 

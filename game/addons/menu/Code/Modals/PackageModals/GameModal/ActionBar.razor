@@ -206,13 +206,7 @@
         LoadingScreen.Title = "Finding Game..";
         LoadingScreen.Subtitle = "Please wait while we find a game for you to join.";
 
-        if ( await MenuUtility.TryJoinLobby(Package.FullIdent) )
-        {
-            MenuUtility.CloseAllModals();
-            return true;
-        }
-
-        return false;
+        return await MenuUtility.TryJoinLobby(Package.FullIdent);
     }
 
     void OpenLobbyList()

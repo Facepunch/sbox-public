@@ -13,7 +13,7 @@ namespace Sandbox;
 [EditorHandle( "materials/gizmo/text_renderer.png" )]
 public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 {
-	SceneObject _sceneObject;
+	TextSceneObject _so;
 
 	/// <summary>
 	/// Represents the horizontal alignment of the text.
@@ -55,10 +55,16 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		set
 		{
 			_textScope = value;
-			OnPropertyDirty();
+
+			if ( _so.IsValid() )
+			{
+				_so.TextScope = value;
+				_so.CalculateBounds();
+			}
 		}
 	}
-	TextRendering.Scope _textScope = new TextRendering.Scope( "Hello! ❤", Color.White, 32.0f, "Poppins", 400 );
+
+	TextRendering.Scope _textScope = new( "Hello! ❤", Color.White, 32.0f, "Poppins", 400 );
 
 	/// <summary>
 	/// The size of the text in the world. This is different from the font size, which is defined in the TextScope and determines resolution of the rendered text.
@@ -66,15 +72,15 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 	[Property, Range( 0, 2 )]
 	public float Scale
 	{
-		get => _scale;
+		get;
 		set
 		{
-			if ( _scale == value ) return;
-			_scale = value;
-			OnPropertyDirty();
+			if ( field == value ) return;
+			field = value;
+
+			TransformChanged();
 		}
-	}
-	float _scale = 1.0f;
+	} = 1.0f;
 
 	/// <summary>
 	/// The horizontal alignment of the text in the world.
@@ -82,15 +88,18 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 	[Property]
 	public HAlignment HorizontalAlignment
 	{
-		get => _horizontalAlignment;
+		get;
 		set
 		{
-			if ( _horizontalAlignment == value ) return;
-			_horizontalAlignment = value;
-			OnPropertyDirty();
+			if ( field == value ) return;
+			field = value;
+
+			UpdateAlignment();
+
+			if ( _so.IsValid() )
+				_so.CalculateBounds();
 		}
-	}
-	HAlignment _horizontalAlignment = HAlignment.Center;
+	} = HAlignment.Center;
 
 	/// <summary>
 	/// The vertical alignment of the text in the world.
@@ -98,15 +107,18 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 	[Property]
 	public VAlignment VerticalAlignment
 	{
-		get => _verticalAlignment;
+		get;
 		set
 		{
-			if ( _verticalAlignment == value ) return;
-			_verticalAlignment = value;
-			OnPropertyDirty();
+			if ( field == value ) return;
+			field = value;
+
+			UpdateAlignment();
+
+			if ( _so.IsValid() )
+				_so.CalculateBounds();
 		}
-	}
-	VAlignment _verticalAlignment = VAlignment.Center;
+	} = VAlignment.Center;
 
 	/// <summary>
 	/// The blend mode of the text. This determines how the text is rendered over the world.
@@ -114,30 +126,52 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 	[Property]
 	public BlendMode BlendMode
 	{
-		get => _blendMode;
+		get;
 		set
 		{
-			if ( _blendMode == value ) return;
-			_blendMode = value;
-			OnPropertyDirty();
+			if ( field == value ) return;
+			field = value;
+
+			if ( _so.IsValid() )
+				_so.BlendMode = value;
 		}
-	}
-	BlendMode _blendMode = BlendMode.Normal;
+	} = BlendMode.Normal;
 
 	/// <summary>
 	/// The strength of the fog effect applied to the text. This determines how much the text blends with any fog in the scene.
 	/// </summary>
-	[Property, Range( 0, 1 )] public float FogStrength { get; set; } = 1.0f;
+	[Property, Range( 0, 1 )]
+	public float FogStrength
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			if ( _so.IsValid() )
+				_so.FogStrength = value;
+		}
+	} = 1.0f;
 
 	protected override void OnEnabled()
 	{
-		var so = new TextSceneObject( Scene.SceneWorld );
-		so.Transform = WorldTransform.WithScale( WorldScale * Scale );
-		so.Tags.SetFrom( GameObject.Tags );
-		_sceneObject = so;
-		OnSceneObjectCreated( _sceneObject );
+		var so = new TextSceneObject( Scene.SceneWorld )
+		{
+			Transform = WorldTransform.WithScale( WorldScale * Scale ),
+			BlendMode = BlendMode,
+			FogStrength = FogStrength,
+			TextScope = TextScope,
+		};
 
-		OnDirty();
+		UpdateAlignment();
+
+		so.CalculateBounds();
+
+		RenderOptions.Apply( so );
+
+		_so = so;
+		OnSceneObjectCreated( _so );
 
 		Transform.OnTransformChanged += TransformChanged;
 	}
@@ -146,29 +180,22 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 	{
 		Transform.OnTransformChanged -= TransformChanged;
 
-		BackupRenderAttributes( _sceneObject?.Attributes );
-		_sceneObject?.Delete();
-		_sceneObject = null;
+		BackupRenderAttributes( _so?.Attributes );
+		_so?.Delete();
+		_so = null;
 	}
 
 	protected override void OnRenderOptionsChanged()
 	{
-		if ( _sceneObject.IsValid() )
+		if ( _so.IsValid() )
 		{
-			RenderOptions.Apply( _sceneObject );
+			RenderOptions.Apply( _so );
 		}
 	}
 
-	protected override void OnDirty()
+	void UpdateAlignment()
 	{
-		if ( _sceneObject is not TextSceneObject so )
-			return;
-
-		var transform = WorldTransform;
-		so.Transform = transform.WithScale( transform.Scale * Scale );
-		so.BlendMode = BlendMode;
-		so.FogStrength = FogStrength;
-		so.TextScope = TextScope;
+		if ( !_so.IsValid() ) return;
 
 		var vCenter = VerticalAlignment switch
 		{
@@ -176,27 +203,22 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 			VAlignment.Bottom => TextFlag.Bottom,
 			_ => TextFlag.CenterVertically,
 		};
-		so.TextFlags = HorizontalAlignment switch
+
+		_so.TextFlags = HorizontalAlignment switch
 		{
 			HAlignment.Left => TextFlag.Left | vCenter | TextFlag.DontClip,
 			HAlignment.Center => TextFlag.CenterHorizontally | vCenter | TextFlag.DontClip,
 			HAlignment.Right => TextFlag.Right | vCenter | TextFlag.DontClip,
 			_ => TextFlag.CenterHorizontally | vCenter | TextFlag.DontClip,
 		};
-
-		RenderOptions.Apply( so );
-
-		so.CalculateBounds();
 	}
 
 	void TransformChanged()
 	{
-		if ( _sceneObject is not TextSceneObject so )
-			return;
+		if ( !_so.IsValid() ) return;
 
-		so.Transform = WorldTransform.WithScale( WorldScale * Scale );
-		so.CalculateBounds();
-
+		_so.Transform = WorldTransform.WithScale( WorldScale * Scale );
+		_so.CalculateBounds();
 	}
 
 	/// <summary>
@@ -204,9 +226,9 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 	/// </summary>
 	protected override void OnTagsChanged()
 	{
-		if ( !_sceneObject.IsValid() ) return;
+		if ( !_so.IsValid() ) return;
 
-		_sceneObject.Tags.SetFrom( GameObject.Tags );
+		_so.Tags.SetFrom( GameObject.Tags );
 	}
 
 	/// <summary>
@@ -219,7 +241,7 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		{
 			_textScope.TextColor = value;
 
-			if ( _sceneObject is TextSceneObject so )
+			if ( _so is TextSceneObject so )
 				so.TextScope = _textScope;
 		}
 	}
@@ -234,7 +256,7 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		{
 			_textScope.FontSize = value;
 
-			if ( _sceneObject is TextSceneObject so )
+			if ( _so is TextSceneObject so )
 				so.TextScope = _textScope;
 		}
 	}
@@ -245,7 +267,7 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		{
 			_textScope.FontWeight = value;
 
-			if ( _sceneObject is TextSceneObject so )
+			if ( _so is TextSceneObject so )
 				so.TextScope = _textScope;
 		}
 	}
@@ -257,7 +279,7 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		{
 			_textScope.FontName = value;
 
-			if ( _sceneObject is TextSceneObject so )
+			if ( _so is TextSceneObject so )
 				so.TextScope = _textScope;
 		}
 	}
@@ -269,7 +291,7 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		{
 			_textScope.Text = value;
 
-			if ( _sceneObject is TextSceneObject so )
+			if ( _so is TextSceneObject so )
 				so.TextScope = _textScope;
 		}
 	}
@@ -305,76 +327,76 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 			scope["FilterMode"] = "Bilinear";
 		}
 	}
-}
 
-file class TextSceneObject : SceneCustomObject
-{
-	public TextFlag TextFlags { get; set; } = TextFlag.DontClip | TextFlag.Center;
-	public BlendMode BlendMode { get; set; } = BlendMode.Normal;
-	public float FogStrength { get; set; } = 1.0f;
-
-	private TextRendering.Scope _textScope;
-	public TextRendering.Scope TextScope
+	class TextSceneObject : SceneCustomObject
 	{
-		get => _textScope;
-		set
+		public TextFlag TextFlags { get; set; } = TextFlag.DontClip | TextFlag.Center;
+		public BlendMode BlendMode { get; set; } = BlendMode.Normal;
+		public float FogStrength { get; set; } = 1.0f;
+
+		private TextRendering.Scope _textScope;
+		public TextRendering.Scope TextScope
 		{
-			_textScope = value;
-
-			var text = _textScope.Text;
-
-			if ( !string.IsNullOrWhiteSpace( text ) && text.Length > 1 && text[0] == '#' )
+			get => _textScope;
+			set
 			{
-				var token = text[1..];
-				text = Game.Language.GetPhrase( token );
+				_textScope = value;
 
-				if ( text != token )
+				var text = _textScope.Text;
+
+				if ( !string.IsNullOrWhiteSpace( text ) && text.Length > 1 && text[0] == '#' )
 				{
-					_textScope.Text = text;
+					var token = text[1..];
+					text = Game.Language.GetPhrase( token );
+
+					if ( text != token )
+					{
+						_textScope.Text = text;
+					}
 				}
 			}
 		}
-	}
 
-	public TextSceneObject( SceneWorld world ) : base( world )
-	{
-		RenderLayer = SceneRenderLayer.Default;
-	}
-
-	public override void RenderSceneObject()
-	{
-		if ( string.IsNullOrWhiteSpace( TextScope.Text ) )
-			return;
-
-		Graphics.Attributes.SetCombo( "D_WORLDPANEL", 1 );
-		Graphics.Attributes.SetComboEnum( "D_BLENDMODE", BlendMode );
-		Graphics.Attributes.Set( "g_FogStrength", FogStrength );
-
-		// Set a dummy WorldMat matrix so that ScenePanelObject doesn't break the transforms.
-		Matrix mat = Matrix.CreateRotation( Rotation.From( 0, -90, 90 ) );
-		Graphics.Attributes.Set( "WorldMat", mat );
-
-		Graphics.DrawText( new Rect( 0 ), TextScope, TextFlags );
-	}
-
-	public void CalculateBounds()
-	{
-		if ( string.IsNullOrWhiteSpace( TextScope.Text ) )
+		public TextSceneObject( SceneWorld world ) : base( world )
 		{
-			LocalBounds = BBox.FromPositionAndSize( 0, 1 );
-			return;
+			RenderLayer = SceneRenderLayer.Default;
 		}
 
-		var tx = Transform;
-		var scale = tx.Scale;
-		var x = Graphics.MeasureText( new Rect( 0 ), TextScope, TextFlags );
-		var center = new Vector3( 0.0f,
-			TextFlags.Contains( TextFlag.Right ) ? x.Width * 0.5f :
-			TextFlags.Contains( TextFlag.Left ) ? -x.Width * 0.5f : 0.0f,
-			TextFlags.Contains( TextFlag.Bottom ) ? x.Height * 0.5f :
-			TextFlags.Contains( TextFlag.Top ) ? -x.Height * 0.5f : 0.0f );
+		public override void RenderSceneObject()
+		{
+			if ( string.IsNullOrWhiteSpace( TextScope.Text ) )
+				return;
 
-		var bounds = BBox.FromPositionAndSize( center * scale, new Vector3( 2, x.Width * scale.y, x.Height * scale.z ) );
-		Bounds = bounds.Transform( tx.WithScale( 1 ) );
+			Graphics.Attributes.SetCombo( "D_WORLDPANEL", 1 );
+			Graphics.Attributes.SetComboEnum( "D_BLENDMODE", BlendMode );
+			Graphics.Attributes.Set( "g_FogStrength", FogStrength );
+
+			// Set a dummy WorldMat matrix so that ScenePanelObject doesn't break the transforms.
+			Matrix mat = Matrix.CreateRotation( Rotation.From( 0, -90, 90 ) );
+			Graphics.Attributes.Set( "WorldMat", mat );
+
+			Graphics.DrawText( new Rect( 0 ), TextScope, TextFlags );
+		}
+
+		public void CalculateBounds()
+		{
+			if ( string.IsNullOrWhiteSpace( TextScope.Text ) )
+			{
+				LocalBounds = BBox.FromPositionAndSize( 0, 1 );
+				return;
+			}
+
+			var tx = Transform;
+			var scale = tx.Scale;
+			var x = Graphics.MeasureText( new Rect( 0 ), TextScope, TextFlags );
+			var center = new Vector3( 0.0f,
+				TextFlags.Contains( TextFlag.Right ) ? x.Width * 0.5f :
+				TextFlags.Contains( TextFlag.Left ) ? -x.Width * 0.5f : 0.0f,
+				TextFlags.Contains( TextFlag.Bottom ) ? x.Height * 0.5f :
+				TextFlags.Contains( TextFlag.Top ) ? -x.Height * 0.5f : 0.0f );
+
+			var bounds = BBox.FromPositionAndSize( center * scale, new Vector3( 2, x.Width * scale.y, x.Height * scale.z ) );
+			Bounds = bounds.Transform( tx.WithScale( 1 ) );
+		}
 	}
 }

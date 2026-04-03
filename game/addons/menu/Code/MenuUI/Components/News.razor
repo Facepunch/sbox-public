@@ -8,6 +8,14 @@
     <Card class="news" style="background-image: url(@NewsImage)" onclick=@(OpenNewsUrl)>
         <ChildContent>
             <label class="eyebrow">Latest Update</label>
+
+            <label class="large">
+                @NewsTitle
+            </label>
+
+            <label class="small">
+                @NewsDescription
+            </label>
         </ChildContent>
     </Card>
 </root>
