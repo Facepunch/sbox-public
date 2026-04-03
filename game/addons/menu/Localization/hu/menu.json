@@ -1,14 +1,19 @@
 {
-  "party": "Parti",
-  "avatar.toggletype": "Váltás ember és állampolgár között",
-  "avatar.changetip": "Változtasd meg a megjelenésed",
-  "menu.settings": "Beállítások",
-  "avatar.change": "Változtatás",
-  "menu.quit": "Kilépés",
-  "menu.maps": "Térképek",
-  "menu.multiplayer": "Szerverek",
-  "menu.games": "Játékok",
-  "menu.store": "Bolt",
-  "menu.hub": "Központ",
-  "menu.notifications": "Értesítések"
+    "menu.home": "Főoldal",
+    "menu.hub": "Központ",
+    "menu.games": "Játékok",
+    "menu.maps": "Pályák",
+    "menu.multiplayer": "Szerverek",
+    "menu.store": "Bolt",
+    "menu.settings": "Beállítások",
+    "menu.quit": "Kilépés",
+    "menu.searchplaceholder": "Keresés..",
+    "menu.notifications":  "Értesítések",
+    "menu.avatar": "Avatár",
+
+    "avatar.change": "Módosítás",
+    "avatar.changetip": "Változtasd meg a kinézetedet",
+    "avatar.toggletype": "Váltás ember és polgár között",
+
+    "party": "Parti"
 }
