@@ -78,10 +78,18 @@ PS
     // Attributes ------------------------------------------------------------------------------------------
 
     // Transparency
+    RenderState(BlendEnable, true);
     #if (S_CHEAP_GLASS)
-        RenderState(BlendEnable, true);
         RenderState(SrcBlend, SRC_ALPHA);
         RenderState(DstBlend, INV_SRC_ALPHA);
+    #else
+        // Premultiplied alpha: refraction is pre-scaled by alpha, reflections stay additive.
+        // This allows multiple glass layers to composite their tints correctly.
+        RenderState(SrcBlend, ONE);
+        RenderState(DstBlend, INV_SRC_ALPHA);
+        RenderState(SrcBlendAlpha, ONE);
+        RenderState(DstBlendAlpha, INV_SRC_ALPHA);
+        RenderState(BlendOpAlpha, ADD);
     #endif
 
     // Hate this
@@ -181,7 +189,8 @@ PS
         float3 vViewRayWs = bOrtho ? g_vCameraDirWs : normalize(i.vPositionWithOffsetWs.xyz);
         float flNDotV = saturate(dot(-m.Normal, vViewRayWs));
         float3 vEnvBRDF = CalcBRDFReflectionFactor(flNDotV, m.Roughness, 0.04);
-        
+        float3 vOriginalAlbedo = m.Albedo;
+
         #if !S_CHEAP_GLASS
         {
             float4 vRefractionColor = 0;
@@ -239,6 +248,18 @@ PS
                 m.Albedo *= m.Roughness * AlbedoAbsorption;
             }
 
+            // Multi-layer glass compositing
+            // Scale emission for premultiplied alpha blend so previously
+            // rendered glass layers can show through this one
+            {
+                float flAvgFresnel = ( vEnvBRDF.x + vEnvBRDF.y + vEnvBRDF.z ) * ( 1.0 / 3.0 );
+                float flAlbedoLum = dot( vOriginalAlbedo, float3( 0.2126, 0.7152, 0.0722 ) );
+                float flGlassAlpha = saturate( flAvgFresnel + ( 1.0 - flAvgFresnel ) * sqrt( flAlbedoLum ) );
+
+                m.Emission *= flGlassAlpha;
+                m.Opacity = flGlassAlpha;
+            }
+
             if( ToolsVis::WantsToolsVis() )
             {
                 m.Albedo = m.Emission;
@@ -256,9 +277,6 @@ PS
         #endif
 
         float4 output = ShadingModelStandard::Shade( m );
-
-        if( !S_CHEAP_GLASS )
-            output.a = 1.0f; // FBCopy Glass shouldn't write to alpha
 
         return output;
     }
