@@ -313,17 +313,17 @@ public sealed partial class CommandList
 		/// <summary>
 		/// Takes a copy of the current viewport's color texture and stores it in targetName on renderAttributes.
 		/// </summary>
-		public RenderTargetHandle GrabFrameTexture( string token, Graphics.DownsampleMethod downsampleMethod )
+		public RenderTargetHandle GrabFrameTexture( string token, Graphics.DownsampleMethod downsampleMethod, int maxMips = 0 )
 		{
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object2;
-				var temp = Graphics.GrabFrameTexture( (string)entry.Object5, attrAccess.attributes, (Graphics.DownsampleMethod)(int)entry.Data1.x );
+				var temp = Graphics.GrabFrameTexture( (string)entry.Object5, attrAccess.attributes, (Graphics.DownsampleMethod)(int)entry.Data1.x, (int)entry.Data1.y );
 				commandList.state.renderTargets[(string)entry.Object5] = temp;
 				attrAccess._renderTargets[(string)entry.Object5] = temp;
 			}
 
-			list.AddEntry( &Execute, new Entry { Object5 = token, Object2 = this, Data1 = new Vector4( (int)downsampleMethod, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Object5 = token, Object2 = this, Data1 = new Vector4( (int)downsampleMethod, maxMips, 0, 0 ) } );
 
 			return new RenderTargetHandle { Name = token };
 		}
