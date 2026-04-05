@@ -241,10 +241,7 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 			_textScope.TextColor = value;
 
 			if ( _so.IsValid() )
-			{
 				_so.TextScope = _textScope;
-				_so.CalculateBounds();
-			}
 		}
 	}
 
