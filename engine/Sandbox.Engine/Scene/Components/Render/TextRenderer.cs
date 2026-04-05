@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Sandbox;
@@ -240,7 +240,7 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		{
 			_textScope.TextColor = value;
 
-			if ( _so is TextSceneObject so )
+if ( _so is TextSceneObject so )
 				so.TextScope = _textScope;
 		}
 	}
