@@ -255,8 +255,11 @@ if ( _so is TextSceneObject so )
 		{
 			_textScope.FontSize = value;
 
-			if ( _so is TextSceneObject so )
-				so.TextScope = _textScope;
+			if ( _so.IsValid() )
+			{
+				_so.TextScope = _textScope;
+				_so.CalculateBounds();
+			}
 		}
 	}
 	public int FontWeight
@@ -266,8 +269,11 @@ if ( _so is TextSceneObject so )
 		{
 			_textScope.FontWeight = value;
 
-			if ( _so is TextSceneObject so )
-				so.TextScope = _textScope;
+			if ( _so.IsValid() )
+			{
+				_so.TextScope = _textScope;
+				_so.CalculateBounds();
+			}
 		}
 	}
 
@@ -278,8 +284,11 @@ if ( _so is TextSceneObject so )
 		{
 			_textScope.FontName = value;
 
-			if ( _so is TextSceneObject so )
-				so.TextScope = _textScope;
+			if ( _so.IsValid() )
+			{
+				_so.TextScope = _textScope;
+				_so.CalculateBounds();
+			}
 		}
 	}
 
@@ -290,8 +299,11 @@ if ( _so is TextSceneObject so )
 		{
 			_textScope.Text = value;
 
-			if ( _so is TextSceneObject so )
-				so.TextScope = _textScope;
+			if ( _so.IsValid() )
+			{
+				_so.TextScope = _textScope;
+				_so.CalculateBounds();
+			}
 		}
 	}
 
