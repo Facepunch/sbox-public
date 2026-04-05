@@ -104,7 +104,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// The orthographic size for this camera while <see cref="Orthographic"/> is set to true.
 	/// </summary>
 	[Property]
-	public float OrthographicHeight { get; set; } = 1204;
+	public float OrthographicHeight { get; set; } = 1024;
 
 	/// <summary>
 	/// The HMD eye that this camera is targeting.
