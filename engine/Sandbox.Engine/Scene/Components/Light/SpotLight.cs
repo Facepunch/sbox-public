@@ -22,8 +22,6 @@ public class SpotLight : Light
 	[Property, MakeDirty, Range( 0, 10 )] public float Attenuation { get; set; } = 1.0f;
 	[Property, MakeDirty] public Texture Cookie { get; set; }
 
-	[Property, MakeDirty, Range( 0, 8, false ), Category( "Quality" ), Advanced] public float ResolutionMultiplier { get; set; } = 1.0f;
-
 	public SpotLight()
 	{
 		LightColor = "#E9FAFF";
@@ -48,7 +46,6 @@ public class SpotLight : Light
 		o.Radius = Radius;
 		o.QuadraticAttenuation = Attenuation;
 		o.LightCookie = Cookie;
-		o.ShadowResolutionScale = ResolutionMultiplier;
 		//o.ShadowTextureResolution = 4096;
 
 		if ( o is SceneSpotLight spot )
