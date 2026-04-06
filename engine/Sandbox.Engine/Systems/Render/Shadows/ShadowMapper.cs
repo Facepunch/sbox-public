@@ -16,6 +16,9 @@ internal partial class ShadowMapper
 	[ConVar( "r.shadows.maxresolution", Min = 128, Max = 4096, Help = "Max texture size (square) for a projected light shadow map, higher is better but uses more vram, these are scaled automatically too." )]
 	public static int MaxResolution { get; set; } = 1024; // Low/Med=512, High=1024, Very High=2048
 
+	[ConVar( "r.shadows.resolutionscale", Min = 0, Max = 4, Help = "Texture size multiplier for projected light shadow maps, globally increases shadow quality, higher is better but uses more vram." )]
+	public static float ResolutionScale { get; set; } = 1;
+
 	[ConVar( "r.shadows.quality", Min = 0, Max = 4, Help = "What filtering to use, higher is more GPU intensive. 0 = Off, 1 = Low, 2 = Med, 3 = High, 4 = Experimental Penumbra Shadows" )]
 	public static int ShadowFilter { get; set; } = 3;
 
@@ -240,26 +243,30 @@ internal partial class ShadowMapper
 		return MathF.Max( 1f, texelSize / ReferenceTexelSize );
 	}
 
-	internal static int GetDesiredResolution( float screenSizePercent, int viewportSize )
+	internal static int GetDesiredResolution( SceneLight light, float screenSizePercent, int viewportSize )
 	{
+		// if user forced a resolution use that (within reason)
+		var forced = light.ShadowTextureResolution;
+		if ( forced > 0 )
+		{
+			forced = (int)BitOperations.RoundUpToPowerOf2( (uint)Math.Max( forced, 1 ) ) >> 1;
+			return Math.Clamp( forced, 2, 16384 );
+		}
+
 		// screenSizePercent is a screen-area fraction from ComputeScreenSize.
 		// Convert to linear dimension: sqrt(area) gives the fraction of the viewport edge.
 		float linearSize = MathF.Sqrt( screenSizePercent ) * viewportSize;
 
+		// need to respect both the convar and scene light setting at the same time
+		// this allows the resolution to be scaled up or down using either one
+		float mult = MathF.Min( ResolutionScale * light.ShadowResolutionScale, MathF.Max( ResolutionScale, light.ShadowResolutionScale ) );
+
 		// Round down to nearest power of two
-		int desiredSize = (int)BitOperations.RoundUpToPowerOf2( (uint)Math.Max( linearSize, 1 ) ) >> 1;
+		int desiredSize = (int)BitOperations.RoundUpToPowerOf2( (uint)Math.Max( linearSize * mult, 1 ) ) >> 1;
 
-		return Math.Clamp( desiredSize, 128, MaxResolution );
-	}
-
-	internal static int GetDesiredResolution( int fixedSize )
-	{
-		// Round down to nearest power of two
-		int desiredSize = (int)BitOperations.RoundUpToPowerOf2( (uint)Math.Max( fixedSize, 1 ) + 1 ) >> 1;
-
-		// Assume that someone manually overriding the size knows what they're doing and loosen the limits
-		// Any higher and the engine starts being a bit unhappy (texture gets deleted)
-		return Math.Clamp( desiredSize, 1, 16384 );
+		// let the user scale past MaxResolution but not so much as to run out of vram and crash
+		var max = Math.Min( MaxResolution * Math.Max( mult.CeilToInt(), 1 ), 16384 );
+		return Math.Clamp( desiredSize, 128, max );
 	}
 
 	/// <summary>

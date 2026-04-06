@@ -65,6 +65,7 @@ public class SceneLight : SceneObject
 
 	/// <summary>
 	/// Get or set the resolution of the shadow map. If this is zero the engine will decide what it should use.
+	/// Using ShadowResolutionScale instead might be better.
 	/// </summary>
 	public int ShadowTextureResolution
 	{
@@ -146,6 +147,11 @@ public class SceneLight : SceneObject
 	public float ShadowBias { get; set; } = 0.0005f;
 
 	public float ShadowHardness { get; set; } = 0.0f;
+
+	/// <summary>
+	/// Multiplier atop the automatically scaled resolution. Set higher for important lights, lower for unimportant ones.
+	/// </summary>
+	public float ShadowResolutionScale { get; set; } = 1.0f;
 
 	internal override void OnTransformChanged( in Transform tx )
 	{

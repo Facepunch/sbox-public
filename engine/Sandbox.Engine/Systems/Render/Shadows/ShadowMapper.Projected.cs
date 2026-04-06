@@ -51,14 +51,8 @@ internal partial class ShadowMapper
 		}
 
 		// How big do we want it, it's okay if our cached is bigger, but not if it's smaller
-		int desiredResolution;
-		if ( light.ShadowTextureResolution <= 0 )
-		{
-			var mainViewport = view.GetMainViewport();
-			desiredResolution = GetDesiredResolution( flScreenSize, (int)Math.Max( mainViewport.Rect.Width, mainViewport.Rect.Height ) );
-		}
-		else
-			desiredResolution = GetDesiredResolution( light.ShadowTextureResolution );
+		var mainViewport = view.GetMainViewport();
+		var desiredResolution = GetDesiredResolution( light, flScreenSize, (int)Math.Max( mainViewport.Rect.Width, mainViewport.Rect.Height ) );
 
 		// If we are bigger than we need, queue us for a potential resize
 		// This will be done with a compute shader
