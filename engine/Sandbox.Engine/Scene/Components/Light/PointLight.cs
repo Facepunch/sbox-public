@@ -15,6 +15,8 @@ public class PointLight : Light
 	[Property, MakeDirty, Range( 0, 10 )] public float Attenuation { get; set; } = 1.0f;
 	//	[Property, MakeDirty] public Texture Cookie { get; set; }
 
+	[Property, MakeDirty, Range( 0, 8, false ), Category( "Quality" ), Advanced] public float ResolutionMultiplier { get; set; } = 1.0f;
+
 	protected override ScenePointLight CreateSceneObject()
 	{
 		return new ScenePointLight( Scene.SceneWorld, WorldPosition, Radius, LightColor );
@@ -33,6 +35,7 @@ public class PointLight : Light
 
 		o.Radius = Radius;
 		o.QuadraticAttenuation = Attenuation;
+		o.ShadowResolutionScale = ResolutionMultiplier;
 		//	o.LightCookie = Cookie;
 	}
 
