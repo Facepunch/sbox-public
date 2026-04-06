@@ -41,7 +41,7 @@ internal partial class ShadowMapper
 
 	GpuBuffer<GPUProjectedCubeShadow> GPUProjectedCubeShadowsBuffer { get; set; }
 
-	internal unsafe uint FindOrCreateProjectedCubeShadowMap( ScenePointLight light, ISceneView view, float flScreenSize )
+	internal unsafe uint FindOrCreateProjectedCubeShadowMap( SceneLight light, ISceneView view, float flScreenSize )
 	{
 		// Don't exceed GPU buffer capacity
 		if ( GPUProjectedCubeShadows.Count >= ProjectedCubeShadowBufferSize )

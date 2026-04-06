@@ -10,63 +10,55 @@ namespace Sandbox;
 public class SkyBox2D : Component, Component.ExecuteInEditor
 {
 	SceneCubemap _envProbe;
-	Color _tint = Color.White;
 
 	[Property]
 	public Color Tint
 	{
-		get => _tint;
+		get;
 		set
 		{
-			if ( _tint == value ) return;
+			if ( field == value ) return;
+			field = value;
 
-			_tint = value;
-
-			if ( _sceneObject is not null )
-			{
-				_sceneObject.SkyTint = Tint;
-			}
-
-			if ( _envProbe is not null )
-			{
-				_envProbe.TintColor = Tint;
-			}
+			_sceneObject?.SkyTint = value;
+			_envProbe?.TintColor = value;
 		}
-	}
+	} = Color.White;
 
-	[Property, Description( "Whether to use the skybox for lighting as an envmap probe" ), MakeDirty, DefaultValue( true )]
-	public bool SkyIndirectLighting { get; set; } = true;
+	[Property, Description( "Whether to use the skybox for lighting as an envmap probe" ), DefaultValue( true )]
+	public bool SkyIndirectLighting
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
 
-	Material _material = Material.Load( "materials/skybox/skybox_day_01.vmat" ); // todo - better default
+			if ( Active )
+				UpdateEnvProbe();
+		}
+	} = true;
 
 	[Property]
 	public Material SkyMaterial
 	{
-		get => _material;
+		get;
 		set
 		{
-			if ( _material == value ) return;
-
+			if ( field == value ) return;
 			if ( value.native.IsNull ) return;
 
 			// Only allow sky materials
 			if ( !value.ShaderName.Contains( "sky" ) ) return;
 
-			_material = value;
+			field = value;
 
-			if ( _sceneObject is not null )
-			{
-				_sceneObject.SkyMaterial = _material;
-			}
-
-			if ( _envProbe is not null )
-			{
-				_envProbe.Texture = SkyTexture;
-			}
+			_sceneObject?.SkyMaterial = value;
+			_envProbe?.Texture = SkyTexture;
 		}
-	}
+	} = Material.Load( "materials/skybox/skybox_day_01.vmat" );
 
-	public Texture SkyTexture => _material.GetTexture( "g_tSkyTexture" );
+	public Texture SkyTexture => SkyMaterial.GetTexture( "g_tSkyTexture" );
 
 	SceneSkyBox _sceneObject;
 
@@ -90,7 +82,8 @@ public class SkyBox2D : Component, Component.ExecuteInEditor
 
 		OnTransformChanged();
 		Transform.OnTransformChanged += OnTransformChanged;
-		OnDirty();
+
+		UpdateEnvProbe();
 	}
 
 	protected override void OnDisabled()
@@ -127,24 +120,6 @@ public class SkyBox2D : Component, Component.ExecuteInEditor
 			return;
 		}
 
-		/*
-		var startDisabled = kv.GetValue<bool>( "StartDisabled" );
-		var fogType = kv.GetValue<SceneSkyBox.FogType>( "fog_type" );
-		var fogMinStart = kv.GetValue<float>( "angular_fog_min_start" );
-		var fogMinEnd = kv.GetValue<float>( "angular_fog_min_end" );
-		var fogMaxStart = kv.GetValue<float>( "angular_fog_max_start" );
-		var fogMaxEnd = kv.GetValue<float>( "angular_fog_max_end" );
-
-		var fogParams = new SceneSkyBox.FogParamInfo
-		{
-			FogType = fogType,
-			FogMinStart = fogMinStart,
-			FogMinEnd = fogMinEnd,
-			FogMaxStart = fogMaxStart,
-			FogMaxEnd = fogMaxEnd,
-		};
-		*/
-
 		component.Tint = tintColor;
 		component.SkyMaterial = skyMaterial;
 		component.SkyIndirectLighting = usesIbl;
@@ -164,12 +139,8 @@ public class SkyBox2D : Component, Component.ExecuteInEditor
 		}
 	}
 
-	protected override void OnDirty()
+	void UpdateEnvProbe()
 	{
-		base.OnDirty();
-
-		if ( !Active ) return;
-
 		_envProbe?.Delete();
 		_envProbe = null;
 

@@ -64,7 +64,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 				var keysToRemove = rg.Value.SpriteGroups.Keys.ToList();
 				foreach ( var key in keysToRemove )
 				{
-					rg.Value.SpriteGroups.Remove( key );
+					rg.Value.UnregisterSpriteGroup( key );
 				}
 			}
 			return;
@@ -129,7 +129,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 			var keysToRemove = rg.Value.SpriteGroups.Keys.Where( id => !_activeParticleIds.Contains( id ) ).ToList();
 			foreach ( var key in keysToRemove )
 			{
-				rg.Value.SpriteGroups.Remove( key );
+				rg.Value.UnregisterSpriteGroup( key );
 			}
 		}
 
@@ -138,7 +138,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		{
 			foreach ( var rg in RenderGroups )
 			{
-				rg.Value.SpriteGroups.Remove( id );
+				rg.Value.UnregisterSpriteGroup( id );
 			}
 
 			// Create render group if needed

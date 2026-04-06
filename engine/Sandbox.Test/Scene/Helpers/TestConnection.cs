@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Sandbox.Internal;
 using Sandbox.Network;
@@ -41,8 +41,8 @@ internal sealed class TestConnection : Connection
 			throw new NotImplementedException( "TestConnection does not support chunked messages" );
 
 		// Decode the wire envelope and dispatch by InternalMessageType.
-		var decoded = Connection.DecodeStream( data );
-		var reader = ByteStream.CreateReader( decoded );
+		using var decoded = Connection.Decode( data );
+		var reader = ByteStream.CreateReader( decoded.Data );
 
 		var type = reader.Read<InternalMessageType>();
 

@@ -781,6 +781,7 @@ public static partial class Networking
 		var success = await AwaitSuccessfulConnection();
 		if ( success ) return true;
 
+		LoadingScreen.IsVisible = false;
 		Disconnect();
 		return false;
 	}

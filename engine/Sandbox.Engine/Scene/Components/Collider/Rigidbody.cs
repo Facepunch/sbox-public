@@ -29,14 +29,9 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 
 			_gravity = value;
 
-			if ( PhysicsBody is not null )
-			{
-				PhysicsBody.GravityEnabled = _gravity;
-			}
+			PhysicsBody?.GravityEnabled = _gravity;
 		}
 	}
-
-	float _gravityScale = 1.0f;
 
 	/// <summary>
 	/// Scale the gravity relative to <see cref="PhysicsWorld.Gravity"/>. 2 is double the gravity, etc.
@@ -44,62 +39,53 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	[Property]
 	public float GravityScale
 	{
-		get => _gravityScale;
+		get;
 		set
 		{
-			if ( _gravityScale == value )
+			if ( field == value )
 				return;
 
-			_gravityScale = value;
+			field = value;
 
-			if ( PhysicsBody is not null )
-			{
-				PhysicsBody.GravityScale = _gravityScale;
-			}
+			PhysicsBody?.GravityScale = field;
 		}
-	}
-
-	private float _linearDamping;
+	} = 1.0f;
 
 	[Property]
 	public float LinearDamping
 	{
-		get => _linearDamping;
+		get;
 		set
 		{
-			if ( _linearDamping == value )
+			if ( field == value )
 				return;
 
-			_linearDamping = value;
+			field = value;
 
 			if ( _body.IsValid() )
 			{
-				_body.LinearDamping = _linearDamping;
+				_body.LinearDamping = field;
 			}
 		}
 	}
-
-	private float _angularDamping;
 
 	[Property]
 	public float AngularDamping
 	{
-		get => _angularDamping;
+		get;
 		set
 		{
-			if ( _angularDamping == value )
+			if ( field == value )
 				return;
 
-			_angularDamping = value;
+			field = value;
 
 			if ( _body.IsValid() )
 			{
-				_body.AngularDamping = _angularDamping;
+				_body.AngularDamping = field;
 			}
 		}
 	}
-
-	float _massOverride;
 
 	/// <summary>
 	/// Override mass for this body, only when value is more than zero
@@ -107,17 +93,17 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	[Property, Title( "Mass Override" ), Group( "Mass" )]
 	public float MassOverride
 	{
-		get => _massOverride;
+		get;
 		set
 		{
-			if ( _massOverride == value )
+			if ( field == value )
 				return;
 
-			_massOverride = value;
+			field = value;
 
 			if ( _body.IsValid() )
 			{
-				_body.Mass = _massOverride;
+				_body.Mass = field;
 			}
 		}
 	}
@@ -125,11 +111,31 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	[Property, ReadOnly, Group( "Mass" ), JsonIgnore]
 	public float Mass => _body.IsValid() ? _body.Mass : default;
 
-	[Property, Group( "Mass" ), MakeDirty]
-	public bool OverrideMassCenter { get; set; }
+	[Property, Group( "Mass" )]
+	public bool OverrideMassCenter
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
 
-	[Property, Title( "Mass Center Override" ), Group( "Mass" ), ShowIf( nameof( OverrideMassCenter ), true ), MakeDirty]
-	public Vector3 MassCenterOverride { get; set; }
+			UpdateBody();
+		}
+	}
+
+	[Property, Title( "Mass Center Override" ), Group( "Mass" ), ShowIf( nameof( OverrideMassCenter ), true )]
+	public Vector3 MassCenterOverride
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			UpdateBody();
+		}
+	}
 
 	/// <summary>
 	/// Center of mass for this rigidbody in local space coordinates.
@@ -137,14 +143,33 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 	[Property, ReadOnly, Group( "Mass" ), JsonIgnore]
 	public Vector3 MassCenter => _body.IsValid() ? _body.LocalMassCenter : default;
 
-	[Property, MakeDirty]
-	public PhysicsLock Locking { get; set; }
+	[Property]
+	public PhysicsLock Locking
+	{
+		get;
+		set
+		{
+			field = value;
+
+			UpdateBody();
+		}
+	}
 
 	[Property]
 	public bool StartAsleep { get; set; }
 
-	[Property, MakeDirty]
-	public RigidbodyFlags RigidbodyFlags { get; set; }
+	[Property]
+	public RigidbodyFlags RigidbodyFlags
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			UpdateBody();
+		}
+	}
 
 	/// <summary>
 	/// Whether this rigidbody can deal damage to damageable objects on high-speed impacts.
@@ -220,13 +245,7 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 
 	public Vector3 AngularVelocity
 	{
-		get
-		{
-			if ( IsProxy )
-				return NetworkedAngularVelocity;
-
-			return _body?.AngularVelocity ?? default;
-		}
+		get => IsProxy ? NetworkedAngularVelocity : _body?.AngularVelocity ?? default;
 		set
 		{
 			if ( _body.IsValid() && !IsProxy )
@@ -238,8 +257,18 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		}
 	}
 
-	[Property, MakeDirty]
-	public bool MotionEnabled { get; set; } = true;
+	[Property]
+	public bool MotionEnabled
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			UpdateBody();
+		}
+	} = true;
 
 
 	bool _collisionEventsEnabled = true;
@@ -746,10 +775,6 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		_body.UseController = true;
 	}
 
-	protected override void OnDirty()
-	{
-		UpdateBody();
-	}
 	protected override void DrawGizmos()
 	{
 		base.DrawGizmos();

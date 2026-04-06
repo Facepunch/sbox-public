@@ -1,4 +1,4 @@
-﻿namespace Sandbox.Network;
+namespace Sandbox.Network;
 
 /// <summary>
 /// A mock channel. Allows passing this to RPCs when they're being called locally.
@@ -60,13 +60,13 @@ internal class MockConnection : Connection
 		if ( !TryGetRoutableHost( out var host ) )
 			return;
 
-		var decoded = DecodeStream( encoded );
+		using var decoded = Decode( encoded );
 
 		var wrapper = new TargetedInternalMessage
 		{
 			SenderId = Local.Id,
 			TargetId = Id,
-			Data = decoded.ToArray(),
+			Data = decoded.Data.ToArray(),
 			Flags = (byte)flags
 		};
 

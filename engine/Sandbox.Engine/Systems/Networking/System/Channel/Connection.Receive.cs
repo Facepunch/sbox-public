@@ -43,8 +43,6 @@ public abstract partial class Connection
 		if ( total <= 1 ) throw new InvalidDataException( "Chunk total must be > 1" );
 		if ( total > 1024 ) throw new InvalidDataException( $"Chunk total {total} exceeds 1024 limit" );
 
-		Log.Trace( $"Reading Chunk {index + 1} of {total} ({chunkData.Length}b, from {this})" );
-
 		if ( index == 0 )
 		{
 			// Pre-size to the upper bound: total chunks × max chunk size.
@@ -81,8 +79,6 @@ public abstract partial class Connection
 		chunkData.CopyTo( _chunkBuffer.AsSpan( _chunkBufferLength ) );
 		_chunkBufferLength += chunkData.Length;
 
-		Log.Trace( $"Chunk buffer is now {_chunkBufferLength}b" );
-
 		if ( index + 1 < total ) return; // Not the final chunk yet.
 
 		var assembledLength = _chunkBufferLength;
@@ -102,8 +98,8 @@ public abstract partial class Connection
 
 	private void DeliverDecoded( ReadOnlySpan<byte> encoded, NetworkSystem.MessageHandler handler )
 	{
-		var decoded = DecodeStream( encoded );
-		using var stream = ByteStream.CreateReader( decoded );
+		using var decoded = Decode( encoded );
+		using var stream = ByteStream.CreateReader( decoded.Data );
 		handler( new NetworkSystem.NetworkMessage { Source = this, Data = stream } );
 		MessagesRecieved++;
 	}

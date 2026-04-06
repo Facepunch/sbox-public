@@ -3,7 +3,7 @@ managed static class Sandbox.Engine.InputRouter
 	static void OnMouseMotion( float dx, float dy );
 	static void OnMousePositionChange( float x, float y, float dx, float dy );
 	static void OnMouseButton( ButtonCode button, bool state, int ikeymods );
-	static void OnKey( ButtonCode button, bool state, bool repeating, int ikeymods, int vkcode );
+	static void OnKey( ButtonCode scanButtonCode, ButtonCode keyButtonCode, bool state, bool repeating, int ikeymods );
 	static void OnText( uint key );
 	static void OnWindowActive( bool active );
 	static void OnMouseWheel( int x, int y, int ikeymods );

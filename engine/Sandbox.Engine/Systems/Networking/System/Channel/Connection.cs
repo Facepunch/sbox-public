@@ -316,7 +316,10 @@ public abstract partial class Connection
 	/// <see cref="ByteStream"/> for routing through the host before encoding happens.
 	/// All other code should prefer calling <see cref="Send"/> with already-encoded bytes.
 	/// </summary>
-	internal virtual void SendStream( ByteStream stream, NetFlags flags = NetFlags.Reliable ) => Send( EncodeStream( stream ), flags );
+	internal virtual void SendStream( ByteStream stream, NetFlags flags = NetFlags.Reliable )
+	{
+		Send( Encode( stream ), flags );
+	}
 
 	/// <summary>
 	/// Send an already wire-encoded payload. Chunks it into <see cref="MaxChunkSize"/> packets
@@ -335,8 +338,6 @@ public abstract partial class Connection
 		}
 
 		var chunks = (encoded.Length / (float)MaxChunkSize).CeilToInt();
-
-		Log.Trace( $"splitting {encoded.Length}b into {chunks} chunks" );
 
 		for ( var i = 0; i < chunks; i++ )
 		{

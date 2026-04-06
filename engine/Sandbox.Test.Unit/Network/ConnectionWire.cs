@@ -1,5 +1,6 @@
 using System;
 using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.IO;
 using Sandbox.Compression;
 
@@ -15,13 +16,13 @@ public class ConnectionWire
 		stream.Write( 42 );
 		stream.Write( "hello" );
 
-		var encoded = Connection.EncodeStream( stream );
+		var encoded = Connection.Encode( stream );
 
 		Assert.AreEqual( Connection.FlagRaw, encoded[0], "Small payload should use FlagRaw" );
 
-		var decoded = Connection.DecodeStream( encoded );
+		using var decoded = Connection.Decode( encoded );
 		var original = stream.ToSpan();
-		Assert.IsTrue( decoded.SequenceEqual( original ) );
+		Assert.IsTrue( decoded.Data.SequenceEqual( original ) );
 	}
 
 	[TestMethod]
@@ -32,13 +33,13 @@ public class ConnectionWire
 		for ( int i = 0; i < 200; i++ )
 			stream.Write( 0x41414141 );
 
-		var encoded = Connection.EncodeStream( stream );
+		var encoded = Connection.Encode( stream );
 
 		Assert.AreEqual( Connection.FlagCompressed, encoded[0], "Large repetitive payload should compress" );
 
-		var decoded = Connection.DecodeStream( encoded );
+		using var decoded = Connection.Decode( encoded );
 		var original = stream.ToSpan();
-		Assert.IsTrue( decoded.SequenceEqual( original ) );
+		Assert.IsTrue( decoded.Data.SequenceEqual( original ) );
 	}
 
 	[TestMethod]
@@ -54,35 +55,35 @@ public class ConnectionWire
 	}
 
 	[TestMethod]
-	public void DecodeStream_EmptyPacket_ReturnsEmpty()
+	public void Decode_EmptyPacket_ReturnsEmpty()
 	{
-		var result = Connection.DecodeStream( ReadOnlySpan<byte>.Empty );
-		Assert.AreEqual( 0, result.Length );
+		using var result = Connection.Decode( ReadOnlySpan<byte>.Empty );
+		Assert.AreEqual( 0, result.Data.Length );
 	}
 
 	[TestMethod]
-	public void DecodeStream_UnknownFlag_Throws()
+	public void Decode_UnknownFlag_Throws()
 	{
 		var packet = new byte[] { 0xFF, 0x01, 0x02 };
 		Assert.ThrowsException<InvalidOperationException>( () =>
 		{
-			Connection.DecodeStream( packet );
+			using var decoded = Connection.Decode( packet );
 		} );
 	}
 
 	[TestMethod]
-	public void DecodeStream_CompressedTooShort_Throws()
+	public void Decode_CompressedTooShort_Throws()
 	{
 		// FlagCompressed but no origLen bytes
 		var packet = new byte[] { Connection.FlagCompressed, 0x01 };
 		Assert.ThrowsException<InvalidDataException>( () =>
 		{
-			Connection.DecodeStream( packet );
+			using var decoded = Connection.Decode( packet );
 		} );
 	}
 
 	[TestMethod]
-	public void DecodeStream_CompressedNegativeOrigLen_Throws()
+	public void Decode_CompressedNegativeOrigLen_Throws()
 	{
 		// FlagCompressed + origLen = -1
 		var packet = new byte[1 + sizeof( int )];
@@ -91,12 +92,12 @@ public class ConnectionWire
 
 		Assert.ThrowsException<InvalidDataException>( () =>
 		{
-			Connection.DecodeStream( packet );
+			using var decoded = Connection.Decode( packet );
 		} );
 	}
 
 	[TestMethod]
-	public void DecodeStream_CompressedZeroOrigLen_Throws()
+	public void Decode_CompressedZeroOrigLen_Throws()
 	{
 		var packet = new byte[1 + sizeof( int )];
 		packet[0] = Connection.FlagCompressed;
@@ -104,12 +105,12 @@ public class ConnectionWire
 
 		Assert.ThrowsException<InvalidDataException>( () =>
 		{
-			Connection.DecodeStream( packet );
+			using var decoded = Connection.Decode( packet );
 		} );
 	}
 
 	[TestMethod]
-	public void DecodeStream_CompressedHugeOrigLen_Throws()
+	public void Decode_CompressedHugeOrigLen_Throws()
 	{
 		// origLen = int.MaxValue — way above MaxDecompressedSize
 		var packet = new byte[1 + sizeof( int ) + 4];
@@ -118,12 +119,12 @@ public class ConnectionWire
 
 		Assert.ThrowsException<InvalidDataException>( () =>
 		{
-			Connection.DecodeStream( packet );
+			using var decoded = Connection.Decode( packet );
 		} );
 	}
 
 	[TestMethod]
-	public void DecodeStream_CompressedSizeMismatch_Throws()
+	public void Decode_CompressedSizeMismatch_Throws()
 	{
 		// Craft a valid compressed packet but tamper the origLen to be larger than actual data.
 		var original = new byte[256];
@@ -138,7 +139,7 @@ public class ConnectionWire
 
 		Assert.ThrowsException<InvalidDataException>( () =>
 		{
-			Connection.DecodeStream( packet );
+			using var decoded = Connection.Decode( packet );
 		} );
 	}
 

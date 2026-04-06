@@ -1,4 +1,4 @@
-﻿namespace Sandbox.Network;
+namespace Sandbox.Network;
 
 internal partial class NetworkSystem
 {
@@ -21,14 +21,14 @@ internal partial class NetworkSystem
 		}
 
 		// Encode once so every recipient gets the same wire bytes without re-compressing per connection.
-		var compressed = Connection.EncodeStream( msg );
+		var encoded = Connection.Encode( msg );
 
 		foreach ( var c in availableConnections )
 		{
 			if ( c == Connection.Local ) continue;
 			if ( c.State < minimumState ) continue;
 			if ( filter.HasValue && !filter.Value.IsRecipient( c ) ) continue;
-			c.Send( compressed, flags );
+			c.Send( encoded, flags );
 		}
 	}
 

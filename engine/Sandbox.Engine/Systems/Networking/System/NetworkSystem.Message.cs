@@ -292,7 +292,7 @@ internal partial class NetworkSystem
 			ByteStream bs = ByteStream.Create( 512 );
 			bs.Write( InternalMessageType.HeartbeatPong );
 			bs.Write( serverRealTime ); // the time they sent
-			source.SendStream( bs );
+			source.SendStream( bs, NetFlags.Unreliable | NetFlags.SendImmediate );
 			bs.Dispose();
 		}
 
