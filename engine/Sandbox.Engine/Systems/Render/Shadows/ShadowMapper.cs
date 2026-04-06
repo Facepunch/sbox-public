@@ -246,27 +246,26 @@ internal partial class ShadowMapper
 	internal static int GetDesiredResolution( SceneLight light, float screenSizePercent, int viewportSize )
 	{
 		// if user forced a resolution use that (within reason)
-		var forced = light.ShadowTextureResolution;
-		if ( forced > 0 )
+		var forcedSize = light.ShadowTextureResolution;
+		if ( forcedSize > 0 )
 		{
-			forced = (int)BitOperations.RoundUpToPowerOf2( (uint)Math.Max( forced, 1 ) ) >> 1;
-			return Math.Clamp( forced, 2, 16384 );
+			forcedSize = (int)BitOperations.RoundUpToPowerOf2( (uint)Math.Max( forcedSize, 1 ) ) >> 1;
+			return Math.Clamp( forcedSize, 2, 16384 );
 		}
 
 		// screenSizePercent is a screen-area fraction from ComputeScreenSize.
 		// Convert to linear dimension: sqrt(area) gives the fraction of the viewport edge.
 		float linearSize = MathF.Sqrt( screenSizePercent ) * viewportSize;
+		linearSize = MathF.Min( linearSize, MaxResolution );
 
 		// need to respect both the convar and scene light setting at the same time
 		// this allows the resolution to be scaled up or down using either one
-		float mult = MathF.Min( ResolutionScale * light.ShadowResolutionScale, MathF.Max( ResolutionScale, light.ShadowResolutionScale ) );
+		linearSize *= MathF.Min( ResolutionScale * light.ShadowResolutionScale, MathF.Max( ResolutionScale, light.ShadowResolutionScale ) );
 
 		// Round down to nearest power of two
-		int desiredSize = (int)BitOperations.RoundUpToPowerOf2( (uint)Math.Max( linearSize * mult, 1 ) ) >> 1;
+		int desiredSize = (int)BitOperations.RoundUpToPowerOf2( (uint)Math.Max( linearSize + 1, 1 ) ) >> 1;
 
-		// let the user scale past MaxResolution but not so much as to run out of vram and crash
-		var max = Math.Min( MaxResolution * Math.Max( mult.CeilToInt(), 1 ), 16384 );
-		return Math.Clamp( desiredSize, 128, max );
+		return Math.Clamp( desiredSize, 128, 8192 );
 	}
 
 	/// <summary>
