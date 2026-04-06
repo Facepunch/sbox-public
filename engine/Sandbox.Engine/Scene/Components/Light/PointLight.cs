@@ -43,6 +43,20 @@ public class PointLight : Light
 		}
 	} = 1.0f;
 
+	[Property, Range( 0, 8, false ), Category( "Quality" ), Advanced]
+	public float ResolutionMultiplier
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			if ( _so.IsValid() )
+				_so.ShadowResolutionScale = value;
+		}
+	} = 1.0f;
+
 	protected override ScenePointLight CreateSceneObject()
 	{
 		return _so = new ScenePointLight( Scene.SceneWorld, WorldPosition, Radius, LightColor )
