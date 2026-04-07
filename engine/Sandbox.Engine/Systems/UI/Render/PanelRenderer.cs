@@ -48,13 +48,18 @@ internal sealed partial class PanelRenderer
 		// Build transform command list (sets GlobalMatrix and TransformMat attribute)
 		BuildTransformCommandList( panel );
 
-		// Update clip only when scissor actually changed
-		var scissorHash = HashCode.Combine( ScissorGPU.Rect, ScissorGPU.CornerRadius, ScissorGPU.Matrix );
+		// Use the drawing panel's GlobalMatrix so the shader correctly transforms
+		// screen-space pixels back to layout space for the scissor test, regardless
+		// of which ancestor defined the clip rect. Fixes #10162.
+		var panelMatrix = panel.GlobalMatrix ?? Matrix.Identity;
+		var scissorHash = HashCode.Combine( ScissorGPU.Rect, ScissorGPU.CornerRadius, panelMatrix );
 		if ( panel._lastScissorHash != scissorHash )
 		{
 			panel._lastScissorHash = scissorHash;
 			panel.ClipCommandList.Reset();
-			SetScissorAttributes( panel.ClipCommandList, ScissorGPU );
+			var scissor = ScissorGPU;
+			scissor.Matrix = panelMatrix;
+			SetScissorAttributes( panel.ClipCommandList, scissor );
 		}
 
 		// Track render mode so OverrideBlendMode is correct when baking D_BLENDMODE

@@ -38,7 +38,11 @@ internal partial class PanelRenderer
 		var attributes = commandList.Attributes;
 
 		attributes.Set( "HasInverseScissor", 0 );
-		SetScissorAttributes( commandList, ScissorGPU );
+
+		// Use drawing panel's GlobalMatrix for correct scissor transform (#10162)
+		var scissor = ScissorGPU;
+		scissor.Matrix = panel.GlobalMatrix ?? Matrix.Identity;
+		SetScissorAttributes( commandList, scissor );
 
 		var rect = panel.Box.Rect;
 		var opacity = panel.Opacity * state.RenderOpacity;
