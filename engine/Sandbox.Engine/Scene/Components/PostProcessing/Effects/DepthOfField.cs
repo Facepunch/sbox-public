@@ -20,6 +20,20 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 	internal static int Quality { get; set; } = 3;
 
 	/// <summary>
+	/// Game object to keep in focus, leave blank to set focus manually.
+	/// </summary>
+	[Property, Group( "Target" )]
+	public GameObject FocalTarget { get; set; }
+
+	/// <summary>
+	/// Offsets the focal distance relative to the FocalTarget.
+	/// </summary>
+	[Range( -100, 100, false )]
+	[HideIf( nameof( FocalTarget ), null )]
+	[Property, Group( "Target" )]
+	public float FocalOffset { get; set; }
+
+	/// <summary>
 	/// How blurry to make stuff that isn't in focus.
 	/// </summary>
 	[Range( 0, 100 )]
@@ -30,6 +44,7 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 	/// How far away from the camera to focus in world units.
 	/// </summary>
 	[Range( 1.0f, 1000 )]
+	[ShowIf( nameof( FocalTarget ), null )]
 	[Property, Group( "Focus" ), Icon( "horizontal_distribute" )]
 	public float FocalDistance { get; set; } = 200.0f;
 
@@ -65,7 +80,12 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 		float blurSize = GetWeighted( x => x.BlurSize, 0.0f );
 		if ( blurSize < 0.5f ) return;
 
-		float focalDistance = GetWeighted( x => x.FocalDistance, 200.0f );
+		float focalDistance = GetWeighted( ( x ) =>
+		{
+			if ( x.FocalTarget.IsValid() )
+				return Camera.WorldPosition.Distance( x.FocalTarget.WorldPosition ) + FocalOffset;
+			return x.FocalDistance;
+		}, 200.0f );
 		float focalLength = GetWeighted( x => x.FocusRange, 500.0f );
 
 		float stepScale = StepScales[Quality.Clamp( 0, 3 )];
