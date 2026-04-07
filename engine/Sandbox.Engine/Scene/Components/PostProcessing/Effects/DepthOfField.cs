@@ -85,7 +85,7 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 			if ( x.FocalTarget.IsValid() )
 			{
 				var cam = Scene.IsEditor ? Scene.Cameras.FirstOrDefault( ( c ) => c.IsSceneEditorCamera == true ) ?? x.Camera : x.Camera;
-				return cam.WorldPosition.Distance( x.FocalTarget.WorldPosition ) + FocalOffset;
+				return MathF.Max( cam.WorldRotation.Forward.Dot( x.FocalTarget.WorldPosition - cam.WorldPosition ) + FocalOffset, 15f );
 			}
 			return x.FocalDistance;
 		}, 200.0f );
