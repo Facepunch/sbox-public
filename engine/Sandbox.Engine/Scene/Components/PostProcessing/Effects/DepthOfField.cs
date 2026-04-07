@@ -22,7 +22,7 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 	/// <summary>
 	/// Game object to keep in focus, leave blank to set focus manually.
 	/// </summary>
-	[Property, Group( "Target" )]
+	[Property, Group( "Focus" )]
 	public GameObject FocalTarget { get; set; }
 
 	/// <summary>
@@ -30,7 +30,7 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 	/// </summary>
 	[Range( -100, 100, false )]
 	[HideIf( nameof( FocalTarget ), null )]
-	[Property, Group( "Target" )]
+	[Property, Group( "Focus" )]
 	public float FocalOffset { get; set; }
 
 	/// <summary>
