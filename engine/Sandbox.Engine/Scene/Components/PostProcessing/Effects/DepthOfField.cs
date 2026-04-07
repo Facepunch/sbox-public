@@ -83,7 +83,10 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 		float focalDistance = GetWeighted( ( x ) =>
 		{
 			if ( x.FocalTarget.IsValid() )
-				return Camera.WorldPosition.Distance( x.FocalTarget.WorldPosition ) + FocalOffset;
+			{
+				var cam = Scene.IsEditor ? Scene.Cameras.FirstOrDefault( ( c ) => c.IsSceneEditorCamera == true ) ?? x.Camera : x.Camera;
+				return cam.WorldPosition.Distance( x.FocalTarget.WorldPosition ) + FocalOffset;
+			}
 			return x.FocalDistance;
 		}, 200.0f );
 		float focalLength = GetWeighted( x => x.FocusRange, 500.0f );
