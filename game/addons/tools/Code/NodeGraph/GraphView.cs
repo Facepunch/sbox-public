@@ -177,7 +177,7 @@ public class GraphView : GraphicsView, IGridSizeView
 		_moveablePressed = false;
 	}
 
-	protected override void OnWheel( WheelEvent e )
+	protected override void OnMouseWheel( WheelEvent e )
 	{
 		Zoom( e.Delta > 0 ? 1.1f : 0.90f, e.Position );
 		if ( FadeOutBackground )

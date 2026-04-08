@@ -245,9 +245,9 @@ public class Timeline : Widget
 		PlayButton.StatusTip = SpriteEditor.IsPlaying ? "Pause" : "Play";
 	}
 
-	protected override void OnWheel( WheelEvent e )
+	protected override void OnMouseWheel( WheelEvent e )
 	{
-		base.OnWheel( e );
+		base.OnMouseWheel( e );
 
 		var delta = e.Delta;
 

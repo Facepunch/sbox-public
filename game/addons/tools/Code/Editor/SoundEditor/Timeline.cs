@@ -219,9 +219,9 @@ public class TimelineView : GraphicsView
 		Scrubbing = false;
 	}
 
-	protected override void OnWheel( WheelEvent e )
+	protected override void OnMouseWheel( WheelEvent e )
 	{
-		base.OnWheel( e );
+		base.OnMouseWheel( e );
 
 		e.Accept();
 

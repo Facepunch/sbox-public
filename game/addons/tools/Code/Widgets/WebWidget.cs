@@ -66,7 +66,7 @@ public class WebWidget : Widget
 		else Cursor = CursorShape.Arrow;
 	}
 
-	protected override void OnWheel( WheelEvent e ) => Surface?.TellMouseWheel( (int)e.Delta );
+	protected override void OnMouseWheel( WheelEvent e ) => Surface?.TellMouseWheel( (int)e.Delta );
 	protected override void OnMousePress( MouseEvent e ) => Surface.TellMouseButton( e.Button, true );
 	protected override void OnMouseReleased( MouseEvent e ) => Surface.TellMouseButton( e.Button, false );
 	protected override void OnFocus( FocusChangeReason reason ) => Surface.HasKeyFocus = true;

@@ -204,9 +204,9 @@ public partial class Timeline : GraphicsView, ISnapSource
 		return true;
 	}
 
-	protected override void OnWheel( WheelEvent e )
+	protected override void OnMouseWheel( WheelEvent e )
 	{
-		base.OnWheel( e );
+		base.OnMouseWheel( e );
 
 		Session.EditMode?.MouseWheel( e );
 

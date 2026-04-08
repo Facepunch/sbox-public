@@ -202,9 +202,9 @@ public class CurveEditor : GraphicsView
 		};
 	}
 
-	protected override void OnWheel( WheelEvent e )
+	protected override void OnMouseWheel( WheelEvent e )
 	{
-		base.OnWheel( e );
+		base.OnMouseWheel( e );
 
 		if ( e.Delta != 0 )
 		{

@@ -281,7 +281,7 @@ public partial class SoundPlayer : Widget
 			WaveForm.Update();
 		}
 
-		protected override void OnWheel( WheelEvent e )
+		protected override void OnMouseWheel( WheelEvent e )
 		{
 			ZoomLevel *= e.Delta > 0 ? 1.1f : 0.90f;
 			ZoomLevel = ZoomLevel.Clamp( 1.0f, 20.0f );

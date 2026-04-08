@@ -99,11 +99,11 @@ namespace Editor
 		/// </summary>
 		float SmoothValue;
 
-		protected override void OnWheel( WheelEvent e )
+		protected override void OnMouseWheel( WheelEvent e )
 		{
 			if ( !SmoothScrolling )
 			{
-				base.OnWheel( e );
+				base.OnMouseWheel( e );
 				return;
 			}
 

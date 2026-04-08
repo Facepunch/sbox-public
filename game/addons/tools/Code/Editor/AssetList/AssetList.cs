@@ -524,7 +524,7 @@ public partial class AssetList : ListView, AssetSystem.IEventListener
 		get => _viewMode;
 	}
 
-	protected override void OnWheel( WheelEvent e )
+	protected override void OnMouseWheel( WheelEvent e )
 	{
 		if ( e.HasCtrl )
 		{
@@ -543,7 +543,7 @@ public partial class AssetList : ListView, AssetSystem.IEventListener
 			return;
 		}
 
-		base.OnWheel( e );
+		base.OnMouseWheel( e );
 	}
 
 	void BuildAllIcons()

@@ -39,9 +39,9 @@ public class KeyBind : Widget
 		FocusMode = FocusMode.Click;
 	}
 
-	protected override void OnWheel( WheelEvent e )
+	protected override void OnMouseWheel( WheelEvent e )
 	{
-		base.OnWheel( e );
+		base.OnMouseWheel( e );
 
 		if ( IsTrapping )
 		{
