@@ -7,6 +7,16 @@
 #include "baked_lighting_constants.fxc"
 
 //-----------------------------------------------------------------------------
+// Light::Query result
+//-----------------------------------------------------------------------------
+struct LightRange
+{
+    ClusterRange ClusterRange;
+    uint DynamicCount;
+    uint Count;
+};
+
+//-----------------------------------------------------------------------------
 // Light structure
 //-----------------------------------------------------------------------------
 class Light
@@ -33,95 +43,43 @@ class Light
     // 1.0.
     float Visibility;
 
-    BinnedLight LightData;
+    // Initialize a dynamic light from BinnedLight data
+    void Init( float3 vPositionWs, BinnedLight lightData, float2 vPositionSs );
 
-    void Init( float3 vPositionWs, BinnedLight lightData, float2 screenPos );
-    static Light From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex, float2 vLightMapUV = 0.0f );
-    static uint Count( float4 vPositionSs );
-    float3 GetLightCookie(float3 vPositionWs);
-    float3 GetLightColor(float3 vPositionWs);
-    float3 GetLightDirection(float3 vPositionWs);
-    float3 GetLightPosition();
-    float GetLightAttenuation(float3 vPositionWs);
-    float Shadows(float3 vPositionWs, float2 screenPos);
+    // Collect a range of lights to loop over. Use the result with Light::Fetch
+    static LightRange Query( float4 vPositionSs );
+    static Light Fetch( LightRange query, uint index, float3 vPositionWs, float2 vPositionSs, float2 vLightMapUV = 0.0f );
 };
-
-//-----------------------------------------------------------------------------
-
-void Light::Init( float3 vPositionWs, BinnedLight lightData, float2 screenPos )
-{
-    LightData = lightData;
-
-    Color = GetLightColor( vPositionWs );
-    Direction = GetLightDirection( vPositionWs );
-    Position = GetLightPosition();
-    Attenuation = GetLightAttenuation( vPositionWs );
-    Visibility = Shadows( vPositionWs, screenPos );
-}
 
 // Light::From and Light::Count are implemented after StaticLight (forward reference)
 
-//-----------------------------------------------------------------------------
-
-float3 Light::GetLightCookie(float3 vPositionWs)
+void Light::Init( float3 vPositionWs, BinnedLight lightData, float2 vPositionSs )
 {
-    if ( !LightData.HasLightCookie() )
-        return 1.0f;
-
-    float4 vSample = LightData.SampleLightCookie( LightData.GetCookieUV( vPositionWs ) );
-    return vSample.rgb * vSample.a;
-}
-
-float3 Light::GetLightColor(float3 vPositionWs)
-{
-    return LightData.Color * GetLightCookie(vPositionWs);
-}
-
-float3 Light::GetLightDirection(float3 vPositionWs)
-{
-    float3 vLightDir = normalize(GetLightPosition() - vPositionWs);
-    return vLightDir;
-}
-
-float3 Light::GetLightPosition()
-{
-    return LightData.GetPosition();
-}
-
-float Light::GetLightAttenuation(float3 vPositionWs)
-{
-    const float3 vPositionToLightRayWs = GetLightPosition() - vPositionWs.xyz; // "L"
-    const float3 vPositionToLightDirWs = normalize(vPositionToLightRayWs.xyz);
-    const float flDistToLightSq = dot(vPositionToLightRayWs.xyz, vPositionToLightRayWs.xyz);
-
-    float flOuterConeCos = LightData.SpotLightInnerOuterConeCosines.y;
-    float flConeToDirection = dot(vPositionToLightDirWs.xyz, -LightData.GetDirection()) - flOuterConeCos;
-    if (flConeToDirection <= 0.0)
-    {
-        // Outside spotlight cone
-        return 0.0f;
+    Color = lightData.Color;
+    if ( lightData.HasLightCookie() ) {
+        float4 sample = lightData.SampleLightCookie( lightData.GetCookieUV( vPositionWs ) );
+        Color *= sample.rgb * sample.a;
     }
-
-    float flSpotAtten = flConeToDirection * LightData.SpotLightInnerOuterConeCosines.z;
-    float flLightFalloff = CalculateDistanceFalloff(flDistToLightSq, LightData.LinearFalloff, LightData.QuadraticFalloff, LightData.FalloffBias, 1.0);
-
-    float flLightMask = flLightFalloff * flSpotAtten;
-
-    return flLightMask;
-}
-
-float Light::Shadows(float3 vPositionWs, float2 screenPos)
-{
-    float flShadowScalar = 1.0;
-
-    if (LightData.Type == LightType::LightTypeDirectional)
-        flShadowScalar = DirectionalLightShadow::GetVisibility(vPositionWs, screenPos);
-    else if (LightData.Type == LightType::LightTypePoint)
-        flShadowScalar = ProjectedShadowCube::GetVisibility(LightData.ShadowMapIndex, vPositionWs);
-    else if (LightData.Type == LightType::LightTypeSpot)
-        flShadowScalar = ProjectedShadow::GetVisibility(LightData.ShadowMapIndex, vPositionWs, screenPos);
-
-    return flShadowScalar;
+    Position = lightData.GetPosition();
+    float3 offset = Position - vPositionWs;
+    Direction = normalize( offset );
+    // Attenuation
+    Attenuation = 0.0;
+    float flConeToDirection = dot( Direction, -lightData.GetDirection() ) - lightData.SpotLightInnerOuterConeCosines.y;
+    if ( flConeToDirection > 0.0 )
+    {
+        float flDistToLightSq = dot( offset, offset );
+        float flLightFalloff = CalculateDistanceFalloff( flDistToLightSq, lightData.LinearFalloff, lightData.QuadraticFalloff, lightData.FalloffBias, 1.0 );
+        Attenuation = flLightFalloff * flConeToDirection * lightData.SpotLightInnerOuterConeCosines.z;
+    }
+    // Visibility
+    Visibility = 1.0;
+    if ( lightData.Type == LightType::LightTypeDirectional )
+        Visibility = DirectionalLightShadow::GetVisibility( vPositionWs, vPositionSs );
+    else if ( lightData.Type == LightType::LightTypePoint )
+        Visibility = ProjectedShadowCube::GetVisibility( lightData.ShadowMapIndex, vPositionWs );
+    else if ( lightData.Type == LightType::LightTypeSpot )
+        Visibility = ProjectedShadow::GetVisibility( lightData.ShadowMapIndex, vPositionWs, vPositionSs );
 }
 
 //-----------------------------------------------------------------------------
@@ -239,31 +197,44 @@ class StaticLight
 };
 
 //-----------------------------------------------------------------------------
-// Light::From / Light::Count — defined here because they depend on StaticLight
+// Light::Query / Light::Fetch — defined here because they depend on StaticLight
 //-----------------------------------------------------------------------------
-
-static Light Light::From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex, float2 vLightMapUV )
+static LightRange Light::Query( float4 vPositionSs )
 {
-    uint dynamicCount = Cluster::Query( ClusterItemType_Light, vPositionSs ).Count;
-
-    if ( nLightIndex < dynamicCount )
-    {
-        Light light = (Light)0;
-
-        ClusterRange range = Cluster::Query( ClusterItemType_Light, vPositionSs );
-        uint clusterLocalIndex = min( nLightIndex, range.Count - 1 );
-        uint lightIndex = Cluster::LoadItem( range, clusterLocalIndex );
-
-        light.Init( vPositionWs, DynamicLightConstantByIndex( lightIndex ), vPositionSs.xy );
-        return light;
-    }
-
-    return StaticLight::From( vPositionWs, vLightMapUV, nLightIndex - dynamicCount, vPositionSs.xy );
+    ClusterRange range = Cluster::Query( ClusterItemType_Light, vPositionSs );
+    LightRange query;
+    query.ClusterRange = range;
+    query.Count = range.Count;
+    if ( g_DirectionalLightEnabled )
+        query.Count++;
+    query.DynamicCount = query.Count;
+    query.Count += StaticLight::Count();
+    return query;
 }
 
-static uint Light::Count( float4 vPositionSs )
+static Light Light::Fetch( LightRange query, uint index, float3 vPositionWs, float2 vPositionSs, float2 vLightMapUV )
 {
-    return Cluster::Query( ClusterItemType_Light, vPositionSs ).Count + StaticLight::Count();
+    if ( index < query.ClusterRange.Count ) 
+    {
+        // Initialize dynamic light
+        BinnedLight data = DynamicLightConstantByIndex( Cluster::LoadItem( query.ClusterRange, index ) );
+        Light light = (Light)0;
+        light.Init( vPositionWs, data, vPositionSs );
+        return light;
+    } 
+    else if ( g_DirectionalLightEnabled && index == query.ClusterRange.Count )
+    {
+        // Initialize directional light
+        Light light = (Light)0;
+        light.Color = g_DirectionalLightColor.rgb;
+        light.Position = 0.0;
+        light.Direction = -g_DirectionalLightDirection.xyz;
+        light.Attenuation = 1.0;
+        light.Visibility = DirectionalLightShadow::GetVisibility( vPositionWs, vPositionSs );
+        return light;
+    }
+    // static light
+    return StaticLight::From( vPositionWs, vLightMapUV, index - query.DynamicCount, vPositionSs );
 }
 
 #endif // LIGHT_HLSL
