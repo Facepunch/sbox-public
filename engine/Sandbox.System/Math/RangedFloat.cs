@@ -128,7 +128,7 @@ public partial struct RangedFloat
 		return Range == RangeType.Between ? SandboxSystem.Random.Float( Min, Max ) : Min;
 	}
 
-	[GeneratedRegex( """^[\[\]\s"]*(?<min>-?\d+(?:\.\d+)?)(?:[\s,;]+(?<max>-?\d+(?:\.\d+)?))?(?:[\s,;]+(?<format>\d+))?[\[\]\s"]*$""" )]
+	[GeneratedRegex( """^[\[\]\s"]*(?<min>-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:[\s,;]+(?<max>-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?))?(?:[\s,;]+(?<format>\d+))?[\[\]\s"]*$""" )]
 	private static partial Regex Pattern();
 
 	private static float? ParseOptionalFloat( Group group )
@@ -181,8 +181,8 @@ public partial struct RangedFloat
 	{
 		return Range switch
 		{
-			RangeType.Fixed => Min.ToString( "R", CultureInfo.InvariantCulture ),
-			RangeType.Between => FormattableString.Invariant( $"{Min:R} {Max:R}" ),
+			RangeType.Fixed => Min.ToString( "G9", CultureInfo.InvariantCulture ),
+			RangeType.Between => FormattableString.Invariant( $"{Min:G9} {Max:G9}" ),
 			_ => "0"
 		};
 	}

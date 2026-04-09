@@ -1,7 +1,7 @@
 ﻿@inherits Sandbox.UI.Panel
 @page "/hub"
+@using MenuProject.MenuUI.Components.New
 @using MenuProject.MenuUI.Front
-@using MenuProject.MenuUI.Front.Achievements
 @using MenuProject.MenuUI.Front.Feed
 @using MenuProject.MenuUI.Layout
 @using Sandbox;
@@ -22,6 +22,7 @@
 
                     <HorizontalGameList Icon="group" Title="Played by Friends" Query="type:game sort:friends" Limit=@(5) />
                     <HorizontalGameList Icon="history" Title="Jump Back In" Query="type:game sort:used" Limit=@(5) />
+                    <HorizontalGameList Icon="favorite" Title="Favourites" Query="type:game sort:favourites" Limit=@(5) />
 
                     <row>
                         <label class="medium">

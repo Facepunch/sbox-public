@@ -1,62 +1,35 @@
+@import "/styles/_Theme.scss";
+
+$background-lg-offset: -64px;
+
 .hero 
 {
-	min-height: 40vh;
 	position: relative;
-	overflow: hidden;
 	width: 100%;
 	justify-content: center;
-	align-items: center;
-	background-color: #000;
-	border-radius: 16px;
-	border: 1px solid #fff2;
-	cursor: pointer;
+	align-items: flex-end;
 	transition: all 0.3s ease;
-
-	&:hover 
-	{
-		border: 1px solid #08f4;
-		transition: all 0.1s ease;
-	}
+    margin-bottom: 16px;
+    margin-top: 32px;
 }
 
-.background-media
-{
-	height: 100%;
-	width: 100%;
+.background {
 	position: absolute;
+	top: $background-lg-offset;
+	right: $background-lg-offset;
+	left: $background-lg-offset;
+	bottom: -64px;
 	z-index: -1;
-	background-position: center;
+	background-position: center top;
 	background-size: cover;
-	opacity: 1;
-	transition: all 2s linear;
+	mix-blend-mode: overlay;
+	mask: linear-gradient( white, black );
+	z-index: -100;
+	transition: all 150ms ease;
+	background-image: linear-gradient( to bottom, $default-800, transparent );
 }
 
-.content
-{
+Carousel {
+	z-index: 100;
 	width: 100%;
-	max-width: 1100px;
-}
-
-.content > .left
-{
-	max-width: 250px;
-	flex-direction: column;
-	gap: 1rem;
-	text-shadow: 1px 1px 2px #000d;
-}
-
-.content > .left > .icon > img
-{
-	border-radius: 16px;
-	max-width: 150px;
-	box-shadow: 0px 0px 100px #000a, 0px 0px 20px #000a, 0px 0px 5px #000;
-	border: 1px solid #fff4;
-}
-
-.content > .left > .title
-{
-	font-weight: 700;
-	font-size: 4rem;
-	white-space: nowrap;
-	text-shadow: 2px 2px 5px #000d;
 }

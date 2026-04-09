@@ -1,5 +1,6 @@
 @using Sandbox;
 @using Sandbox.UI;
+@using MenuProject;
 @using System.Globalization
 @namespace Sandbox.UI
 @inherits Panel
@@ -33,36 +34,20 @@
                 </icon>
 
                 <label class="eyebrow">
-                    @Package.VotesUp
-                </label>
-
-                <icon class="eyebrow">
-                    thumb_down
-                </icon>
-
-                <label class="eyebrow">
-                    @Package.VotesDown
+                    @VotePercentage()
                 </label>
 
                 <div class="grow" />
 
                 @if (Package.Usage.UsersNow > 0)
                 {
-                    <badge class="package-users">
-                        <icon class="eyebrow">
-                            person
-                        </icon>
-
-                        <label class="eyebrow">
-                            @(Package.Usage.UsersNow)
-                        </label>
+                    <badge class="online package-users">
+                        <icon>person</icon>
+                        <label>@(Package.Usage.UsersNow)</label>
                     </badge>
                 }
             </row>
         }
-
-        @* TODO: Display the same stuff here that we display under the action bar in the game modal (join game, new game, etc) *@
-        <Button class="play-button" Icon="play_arrow" onmouseup=@ShowGameModal />
     </column>
 </root>
 
@@ -89,7 +74,15 @@
         return $"game {Size.ToString().ToLower()}";
     }
 
-    private string VotePercentage => Package == null ? "0%" : ((int)((float)Package.VotesUp / (Package.VotesUp + Package.VotesDown + 1) * 100)).ToString() + "%";
+    private string VotePercentage()
+    {
+        if (Package == null) return "Unrated";
+
+        if ( Package.VotesUp == 0 && Package.VotesDown == 0 )
+            return "Unrated";
+
+        return ((int)((float)Package.VotesUp / (Package.VotesUp + Package.VotesDown) * 100)).ToString() + "%";
+    }
 
     public string Image()
     {
@@ -102,8 +95,9 @@
             case SizeTypes.Wide:
                 return Package?.ThumbWide;
             case SizeTypes.Small:
-            default:
                 return Package?.Thumb;
+            default:
+                return Package?.ThumbWide;
         }
     }
 

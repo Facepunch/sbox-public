@@ -371,10 +371,20 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 
 		if ( !IsProxy )
 		{
-			var tx = go.WorldTransform;
-			tx.Position = body.Position;
-			tx.Rotation = body.Rotation;
-			go.WorldTransform = tx;
+			var currentWorldTx = go.WorldTransform;
+
+			// Only snap the GameObject to the physics body if there's a meaningful difference.
+			// A naive world→local round-trip loses precision at large world coordinates, which
+			// would introduce phantom transform overrides in prefab instances.
+			// Position: 1cm tolerance. Rotation: dot-product threshold (1 - 1e-6 ≈ 0.16°).
+			if ( !currentWorldTx.Position.AlmostEqual( body.Position, 0.01f ) ||
+				!currentWorldTx.Rotation.AlmostEqual( body.Rotation, 0.000001f ) )
+			{
+				currentWorldTx.Position = body.Position;
+				currentWorldTx.Rotation = body.Rotation;
+				go.WorldTransform = currentWorldTx;
+			}
+
 			go.Transform.ClearLocalInterpolation();
 		}
 

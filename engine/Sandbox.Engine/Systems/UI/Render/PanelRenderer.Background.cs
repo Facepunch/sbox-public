@@ -71,6 +71,12 @@ partial class PanelRenderer
 		}
 
 		var texture = style.BackgroundImage;
+		if ( texture?.ParentObject is VideoPlayer bgVideoPlayer )
+		{
+			if ( style.BackgroundPlaybackPaused == true ) bgVideoPlayer.Pause();
+			else bgVideoPlayer.Resume();
+		}
+
 		var backgroundRepeat = style.BackgroundRepeat ?? BackgroundRepeat.Repeat;
 		if ( texture is not null && texture != Texture.Invalid )
 		{

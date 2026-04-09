@@ -6,29 +6,18 @@
 @if (package == null)
 	return;
 
-<div class="inner">
-    <div class="image" style="background-image: url(@package.Thumb)">
-    </div>
+<ListCard Title=@package.Title Image=@package.Thumb>
+    <Bottom>
+        <label class="eyebrow">@Lobby.Name</label>
 
-    <column>
-        <label class="title">
-            @package.Title
-        </label>
+        <div class="grow" />
 
-        <row>
-            <badge>
-                <icon class="eyebrow">person</icon>
-                <label class="eyebrow">@($"{Lobby.Members} / {Lobby.MaxMembers}")</label>
-            </badge>
-
-            <label class="eyebrow">@Lobby.Name</label>
-        </row>
-    </column>
-
-    <icon class="play">
-        play_arrow
-    </icon>
-</div>
+        <badge>
+            <icon class="eyebrow">person</icon>
+            <label class="eyebrow">@($"{Lobby.Members} / {Lobby.MaxMembers}")</label>
+        </badge>
+    </Bottom>
+</ListCard>
 
 @code
 {

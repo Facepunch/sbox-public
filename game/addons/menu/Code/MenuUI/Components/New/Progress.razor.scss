@@ -5,10 +5,10 @@ Progress {
     height: 6px;
     border-radius: $rounding-small;
     overflow: hidden;
-    background-color: $default-800;
+    background-color: $default-900;
     
     .inner {
         height: 100%;
-        background-color: $default-500;
+        background-color: $default-800;
     }
 }

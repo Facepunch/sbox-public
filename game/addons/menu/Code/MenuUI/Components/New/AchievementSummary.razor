@@ -1,40 +1,36 @@
-@using System;
-@using MenuProject.MenuUI.Components
-@using Sandbox.UI;
-@using Sandbox;
+@inherits Sandbox.UI.Panel
 @using Menu;
-@inherits Panel;
+@using Sandbox;
+@using Sandbox.UI;
+@namespace MenuProject
 
+@if (Entry == null)
+    return;
 
-<root class="clicky">
-
-    <MediaCardWide Image="@Entry.Package.Thumb">
-        <Content>
-            <label class="title">
-                @Entry.Package.Title
-            </label>
-
-            <div class="meta">
-                <div>
+<ListCard Image=@Entry.Package.Thumb Title=@Entry.Package.Title>
+    <Bottom>
+        <column>
+            <row>
+                <row>
                     <icon class="eyebrow">apps</icon>
                     <label class="eyebrow mine">@Entry.Unlocked</label>
                     <label class="eyebrow">of</label>
                     <label class="eyebrow total">@Entry.Total</label>
-                </div>
+                </row>
 
-                <div>
+                <separator class="vertical" />
+
+                <row>
                     <icon class="eyebrow">emoji_events</icon>
                     <label class="eyebrow mine">@Entry.Score</label>
                     <label class="eyebrow">of</label>
                     <label class="eyebrow total">@Entry.TotalScore</label>
-                </div>
-            </div>
+                </row>
+            </row>
             <Progress Value=@Entry.Unlocked Max=@Entry.Total></Progress>
-
-        </Content>
-    </MediaCardWide>
-
-</root>
+        </column>
+    </Bottom>
+</ListCard>
 
 @code {
 

@@ -25,5 +25,6 @@ HorizontalGameList {
     .games {
         gap: 6px;
         flex-direction: row;
+        overflow: clip-whole;
     }
 }

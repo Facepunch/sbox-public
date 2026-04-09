@@ -11,6 +11,35 @@ internal partial class PanelRenderer
 	internal Rect Scissor;
 
 	/// <summary>
+	/// Accumulated clip rect from <see cref="OverflowMode.ClipWhole"/> ancestors.
+	/// Any panel whose bounds extend outside this rect will be skipped entirely.
+	/// Null when no clip-whole ancestor is active.
+	/// </summary>
+	internal Rect? ClipWholeRect;
+
+	internal bool IsOutsideClipWholeRect( Rect r )
+	{
+		if ( !ClipWholeRect.HasValue ) return false;
+		var clip = ClipWholeRect.Value;
+		return r.Left < clip.Left || r.Top < clip.Top || r.Right > clip.Right || r.Bottom > clip.Bottom;
+	}
+
+	/// <summary>
+	/// Accumulated clip rect from <see cref="OverflowMode.Scroll"/> and <see cref="OverflowMode.Hidden"/> ancestors.
+	/// Any panel whose bounds lie completely outside this rect will be skipped entirely (early cull).
+	/// Uses an overlap test so partially-visible panels still render.
+	/// Null when no scroll/hidden ancestor is active.
+	/// </summary>
+	internal Rect? ScrollCullRect;
+
+	internal bool IsOutsideScrollCullRect( Rect r )
+	{
+		if ( !ScrollCullRect.HasValue ) return false;
+		var clip = ScrollCullRect.Value;
+		return r.Right <= clip.Left || r.Bottom <= clip.Top || r.Left >= clip.Right || r.Top >= clip.Bottom;
+	}
+
+	/// <summary>
 	/// Scissor passed to gpu shader to be transformed
 	/// </summary>
 	internal GPUScissor ScissorGPU;
@@ -87,7 +116,8 @@ internal partial class PanelRenderer
 	/// </summary>
 	public ClipScope Clip( Panel panel )
 	{
-		if ( (panel.ComputedStyle?.Overflow ?? OverflowMode.Visible) == OverflowMode.Visible ) return default;
+		var overflow = panel.ComputedStyle?.Overflow ?? OverflowMode.Visible;
+		if ( overflow == OverflowMode.Visible || overflow == OverflowMode.ClipWhole ) return default;
 
 		var size = (panel.Box.Rect.Width + panel.Box.Rect.Height) * 0.5f;
 		var borderRadius = new Vector4( panel.ComputedStyle.BorderTopLeftRadius?.GetPixels( size ) ?? 0, panel.ComputedStyle.BorderTopRightRadius?.GetPixels( size ) ?? 0, panel.ComputedStyle.BorderBottomLeftRadius?.GetPixels( size ) ?? 0, panel.ComputedStyle.BorderBottomRightRadius?.GetPixels( size ) ?? 0 );

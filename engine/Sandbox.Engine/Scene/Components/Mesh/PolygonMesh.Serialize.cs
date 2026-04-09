@@ -34,6 +34,9 @@ public partial class PolygonMesh
 				var propertyName = reader.GetString();
 				reader.Read();
 
+				// Legacy: Position/Rotation are no longer written. They were world-space values
+				// that got overwritten by MeshComponent on enable. Kept for backward compat with
+				// old data that may not have TextureCoord and needs these to reconstruct UVs.
 				if ( propertyName == "Position" )
 					mesh._transform = mesh.Transform.WithPosition( JsonSerializer.Deserialize<Vector3>( ref reader ) );
 
@@ -70,6 +73,9 @@ public partial class PolygonMesh
 				else if ( propertyName == "TextureRotation" )
 					mesh.TextureRotationUnused.CopyFrom( JsonSerializer.Deserialize<Rotation[]>( ref reader ) );
 
+				// Legacy: Texture parameters are no longer written. They are world-space derived
+				// values recomputed at runtime from TextureCoord via ComputeFaceTextureParametersFromCoordinates().
+				// Kept for backward compat with old data that lacks TextureCoord.
 				else if ( propertyName == nameof( TextureUAxis ) )
 					mesh.TextureUAxis.CopyFrom( JsonSerializer.Deserialize<Vector3[]>( ref reader ) );
 
@@ -156,11 +162,10 @@ public partial class PolygonMesh
 		writer.WritePropertyName( nameof( mesh.Topology ) );
 		writer.WriteBase64StringValue( ms.ToArray() );
 
-		writer.WritePropertyName( "Position" );
-		JsonSerializer.Serialize( writer, mesh.Transform.Position );
-
-		writer.WritePropertyName( "Rotation" );
-		JsonSerializer.Serialize( writer, mesh.Transform.Rotation );
+		// Position, Rotation, TextureUAxis, TextureVAxis, TextureScale, TextureOffset are not
+		// serialized because they are world-space dependent and derived at runtime.
+		// MeshComponent sets Mesh.Transform = WorldTransform on enable/transform change, which
+		// triggers ComputeFaceTextureParametersFromCoordinates() to recompute them from TextureCoord.
 
 		writer.WritePropertyName( nameof( mesh.Positions ) );
 		JsonSerializer.Serialize( writer, mesh.Positions );
@@ -173,18 +178,6 @@ public partial class PolygonMesh
 
 		writer.WritePropertyName( nameof( mesh.TextureCoord ) );
 		JsonSerializer.Serialize( writer, mesh.TextureCoord );
-
-		writer.WritePropertyName( nameof( mesh.TextureUAxis ) );
-		JsonSerializer.Serialize( writer, mesh.TextureUAxis );
-
-		writer.WritePropertyName( nameof( mesh.TextureVAxis ) );
-		JsonSerializer.Serialize( writer, mesh.TextureVAxis );
-
-		writer.WritePropertyName( nameof( mesh.TextureScale ) );
-		JsonSerializer.Serialize( writer, mesh.TextureScale );
-
-		writer.WritePropertyName( nameof( mesh.TextureOffset ) );
-		JsonSerializer.Serialize( writer, mesh.TextureOffset );
 
 		writer.WritePropertyName( nameof( mesh.MaterialIndex ) );
 		JsonSerializer.Serialize( writer, mesh.MaterialIndex );

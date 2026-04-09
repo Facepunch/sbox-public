@@ -346,7 +346,22 @@ public partial class GameObject
 			var prefabFile = ResourceLibrary.Get<PrefabFile>( PrefabInstance.PrefabSource );
 			if ( !IsPrefabLoaded( prefabFile ) )
 			{
+				// Preserve patch and GUID mappings so the instance data survives save/load round-trips
+				// and can be fully restored when the prefab file comes back.
+				if ( node[JsonKeys.PrefabInstancePatch] is JsonObject stubPatchJson )
+				{
+					PrefabInstance.InitPatch( Json.FromNode<Json.Patch>( stubPatchJson ) );
+					PrefabInstance.InitLookups( node[JsonKeys.PrefabIdToInstanceId]?.Deserialize<Dictionary<Guid, Guid>>() ?? new Dictionary<Guid, Guid>() );
+				}
+
+				// Keep this object visible in the hierarchy as a disabled stub.
+				DeserializeId( node );
+				Name = $"[Missing Prefab] {PrefabInstance.PrefabSource}";
+				_enabled = false;
+				Flags |= GameObjectFlags.Error;
+
 				PostDeserialize( options );
+				UpdateEnabledStatus();
 				return;
 			}
 
@@ -737,7 +752,10 @@ public partial class GameObject
 			tx.Position = node[JsonKeys.Position]?.Deserialize<Vector3>() ?? Vector3.Zero;
 			tx.Rotation = node[JsonKeys.Rotation]?.Deserialize<Rotation>() ?? Rotation.Identity;
 			tx.Scale = node[JsonKeys.Scale]?.Deserialize<Vector3>() ?? Vector3.One;
-			LocalTransform = tx;
+
+			// Use exact (bitwise) equality to avoid Vector3.operator== swallowing tiny
+			// differences within its 0.0001 AlmostEqual tolerance during deserialization.
+			Transform.SetLocalTransformExact( tx );
 		}
 	}
 

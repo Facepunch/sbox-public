@@ -4,28 +4,20 @@
 @namespace Menu
 
 @if (all.Count == 0)
-{
 	return;
-}
 
-<root class="front-page-box">
-
+<root>
     <row>
-        <icon class="eyebrow">
-            sports_esports
-        </icon>
-        <Label class="eyebrow">
-            Quick Join
-        </Label>
+        <icon class="eyebrow">sports_esports</icon>
+        <label class="eyebrow">Quick Join</label>
     </row>
 
-	<div class="lobby-list" @ref="LobbyList">
+	<div class="lobby-list" @ref="LobbyList" CanDragScroll=@false>
         @foreach (var l in all.GroupBy( x => x.Game ).Take( 10 ).Select( x => x.OrderByDescending( x => x.Members ).First() ).OrderByDescending( x => x.Members ) )
         {
 		    <LiveLobbyCard Lobby=@l></LiveLobbyCard>
         }
 	</div>
-
 </root>
 
 @code
@@ -55,7 +47,7 @@
 
         if ( LobbyList != null )
         {
-            SetClass("mask", !LobbyList.IsScrollAtBottom);
+            SetClass("scroll", !LobbyList.IsScrollAtBottom);
         }
     }
 

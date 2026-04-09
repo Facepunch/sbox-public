@@ -220,7 +220,7 @@ internal partial class ShadowMapper
 				Origin = cascadeOrigin,
 				Angles = rotation.Angles(),
 				Near = 0f,
-				Far = MathF.Max( frustumRadius * 2f + casterExtension, FarClip ),
+				Far = frustumRadius * 2f + casterExtension,
 				Width = frustumRadius * 2f,
 				Height = frustumRadius * 2f,
 				SphereCenter = splitFrustumCenter,
@@ -294,6 +294,7 @@ internal partial class ShadowMapper
 		// native stuff does this WorldDirection shit, we can just do light.Rotation if stuff is rotated properly
 		var cascades = GetCascades( view.GetFrustum(), (-light.WorldDirection).EulerAngles.ToRotation(), numCascades, 1.0f, farClip, splitRatio, shadowmapSize, view.GetCameraPosition() ).ToArray();
 		var frustum = CFrustum.Create();
+		var exclusionFrustum = CFrustum.Create();
 		float baseHardness = 1.0f + light.ShadowHardness * 4.0f;
 		float maxHardnessForFullTexel = ShadowFilter switch
 		{
@@ -313,7 +314,13 @@ internal partial class ShadowMapper
 			frustum.InitOrthoCamera( cascade.Origin, cascade.Angles, cascade.Near, cascade.Far, cascade.Width, cascade.Height );
 
 			// Render shadow view
-			CSceneSystem.AddShadowView( CascadeNames[i], view, frustum, new( 0, 0, shadowmapSize, shadowmapSize ), rt.DepthTarget.native, 0, SceneObjectFlags.None, excludeFlags, ShadowDepthBias, ShadowSlopeScale );
+			CSceneSystem.AddShadowView( CascadeNames[i], view, frustum, new( 0, 0, shadowmapSize, shadowmapSize ), rt.DepthTarget.native, 0, SceneObjectFlags.None, excludeFlags, ShadowDepthBias, ShadowSlopeScale, i > 0 ? exclusionFrustum : default );
+
+			// Cache a sphere-sized exclusion frustum for the next cascade.
+			var exclusionForward = cascade.Angles.ToRotation().Forward;
+			var exclusionOrigin = cascade.SphereCenter - exclusionForward * cascade.SphereRadius;
+			var sphereDiagonal = cascade.SphereRadius * MathF.PI * 0.5f; // Box inside of sphere
+			exclusionFrustum.InitOrthoCamera( exclusionOrigin, cascade.Angles, 0f, sphereDiagonal, sphereDiagonal, sphereDiagonal );
 
 			// Set our gpu data
 			Matrix texScaleBiasMat = GetScaleBiasMatrix( shadowmapSize, 0 );
@@ -358,6 +365,7 @@ internal partial class ShadowMapper
 		CascadeDebugCount = cascades.Length;
 
 		frustum.Delete();
+		exclusionFrustum.Delete();
 
 		gpuShadowData.CascadeCount = (uint)numCascades;
 		gpuShadowData.InverseShadowMapSize = 1.0f / shadowmapSize;

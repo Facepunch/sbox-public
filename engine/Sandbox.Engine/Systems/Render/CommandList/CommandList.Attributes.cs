@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 
 namespace Sandbox.Rendering;
 
@@ -156,9 +157,19 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.SetComboEnum( entry.Token, (T)entry.Object2 );
+				attrAccess.attributes.SetCombo( entry.Token, (int)entry.Data1.x );
 			}
-			list.AddEntry( &Execute, new Entry { Token = token, Object2 = t, Object4 = this } );
+			// Store the enum as its integer value in Data1.x to avoid boxing into Object2.
+			// SetCombo(int) and SetComboEnum<T> both ultimately call SetComboValue(byte),
+			// so the GPU behaviour is identical.
+			var intValue = Unsafe.SizeOf<T>() switch
+			{
+				1 => Unsafe.As<T, byte>( ref t ),
+				2 => (int)Unsafe.As<T, short>( ref t ),
+				8 => (int)Unsafe.As<T, long>( ref t ),
+				_ => Unsafe.As<T, int>( ref t )
+			};
+			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Data1 = new Vector4( intValue, 0, 0, 0 ) } );
 		}
 
 		public void SetData<T>( StringToken token, T data ) where T : unmanaged

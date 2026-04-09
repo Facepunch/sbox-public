@@ -9,11 +9,14 @@
 
 <root class="@ComputedClass">
     <div class="inner">
-        <Logo />
 
         <div class="links">
-            <Button Href="/home" Icon="home">#menu.home</Button>
+            <Logo Href="/home" />
+
+            <separator class="vertical" />
+
             <Button Href="/hub" Icon="hub">#menu.hub</Button>
+
             <Button href="/games/dash" icon="sports_esports" Text="#menu.games">
                 <HoverMenu>
                     <Button Href="/games/dash" icon="diamond">Discover</Button>
@@ -25,8 +28,6 @@
             <Button Href="/multiplayer" Icon="view_list">#menu.multiplayer</Button>
         </div>
 
-        <div class="grow" />
-
         <div class="right">
             <Button @onmouseup=@OpenAvatarScene Icon="emoji_people">#menu.avatar</Button>
             <Button Href="/itemstore" class="unread" Icon="store">#menu.store</Button>
@@ -36,14 +37,8 @@
             <NotificationButton />
             <Button onmouseup="@Settings" Icon="settings"></Button>
 
-            <div class="user-info">
-                <Avatar />
-                <Label>@Connection.Local.DisplayName</Label>
-            </div>
-
+            <Button onmouseup="@Quit" class="close" Icon="close"></Button>
         </div>
-
-        <Button onmouseup="@Quit" class="close" Icon="close"></Button>
 
         <FeaturedStoreItem />
     </div>

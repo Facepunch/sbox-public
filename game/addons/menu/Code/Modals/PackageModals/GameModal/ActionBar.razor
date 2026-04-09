@@ -83,8 +83,6 @@
 
     protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount );
 
-    void ViewOrg() => Game.Overlay.ShowOrganizationModal(Package.Org);
-
     bool IsVrOnly => Package.GetMeta<ControlModeSettings>("ControlModes")?.IsVROnly ?? false;
     bool IsMultiplayerGame => Package.Tags.Contains("multiplayer") || LobbyCount > 0 || Package.GetMeta<int>("MaxPlayers", 1) > 1;
     bool IsQuickPlayGame => Package.GetMeta( "LaunchMode", "default" ).ToLower() == "quickplay";
@@ -100,28 +98,6 @@
         }
     }
 
-    bool isLoading = false;
-
-    bool ShouldUseCreateGameModal()
-    {
-        //
-        // Always show the create game modal if they have that option selected in their
-        // package in the options in the backend.
-        //
-        if ( Package.GetValue("UseCreateGameModal", false ) )
-        {
-            return true;
-        }
-
-        //
-        // If they have game settings to configure, always show game settings.
-        //
-        var settings = Package.GetMeta<List<GameSetting>>( "GameSettings", null );
-        if ( settings is not null && settings.Count() > 0 ) return true;
-
-        return false;
-    }
-
     private void ShowServerList()
     {
 	    MenuUtility.CloseAllModals();
@@ -129,75 +105,9 @@
 	    this.Navigate( $"/multiplayer?Package={Package.FullIdent}" );
     }
 
-    async void OnPlay()
+    void OnPlay()
     {
-        if (!IsReady())
-            return;
-
-        try
-        {
-            isLoading = true;
-            StateHasChanged();
-
-            if (IsQuickPlayGame)
-            {
-                if (await OnJoinGame())
-                    return;
-            }
-
-            MenuUtility.CloseAllModals();
-
-            // Don't join if we're already in a game
-            if (Game.InGame)
-                return;
-
-            if ( IsDedicatedServerOnly )
-            {
-	            Game.Overlay.ShowServerList( new ServerListConfig( Package.FullIdent ) );
-	            return;
-            }
-
-            if ( ShouldUseCreateGameModal() )
-            {
-                Game.Overlay.CreateGame( new CreateGameOptions( Package, x => {
-                    if (x.MaxPlayers > 1) LaunchArguments.MaxPlayers = x.MaxPlayers;
-
-                    if ( !string.IsNullOrEmpty( x.ServerName ) )
-                    {
-                        LaunchArguments.ServerName = x.ServerName;
-                    }
-
-                    LaunchArguments.Privacy = x.Privacy;
-
-                    if ( !string.IsNullOrEmpty( x.MapIdent ) )
-                    {
-                        MenuUtility.OpenGameWithMap( Package.FullIdent, x.MapIdent, x.GameSettings );
-                    }
-                    else
-                    {
-                        MenuUtility.OpenGame( Package.FullIdent, true, x.GameSettings );
-                    }
-                } ) );
-                return;
-            }
-
-            LoadingScreen.IsVisible = true;
-            LoadingScreen.Title = "Loading..";
-            LoadingScreen.Subtitle = "";
-
-            if (MapPackage is not null)
-            {
-                MenuUtility.OpenGameWithMap(Package.FullIdent, MapPackage.FullIdent);
-            }
-            else
-            {
-                MenuUtility.OpenGame(Package.FullIdent, true);
-            }
-        }
-        finally
-        {
-            isLoading = false;
-        }
+        MenuHelpers.PlayGame( Package );
     }
 
     async Task<bool> OnJoinGame()
@@ -216,12 +126,15 @@
 
     bool NeedsMap()
     {
-        // garry: there's a good argument here to say that none of this needs map shit
-        // should exist in this modal now. It should maybe all be moved into the CreateGame modal.
-        // either way - if we're using a create game dialog, it'll be handled there.
-        if ( ShouldUseCreateGameModal() ) return false;
-
         if (Package is null) return false;
+
+        if ( Package.GetValue( "UseCreateGameModal", false ) )
+            return false;
+
+        var settings = Package.GetMeta<List<GameSetting>>( "GameSettings", null );
+        if ( settings is not null && settings.Count > 0 )
+            return false;
+
         if (Package.GetValue("NeedsMap", false)) return true;
 
         // legacy
@@ -231,7 +144,6 @@
 
     bool IsReady()
     {
-        if (isLoading) return false;
         if (NeedsMap() && MapPackage is null) return false;
         return true;
     }

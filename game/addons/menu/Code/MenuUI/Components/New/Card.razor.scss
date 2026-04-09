@@ -1,5 +1,4 @@
 @import "/styles/_theme.scss";
-$border-size: 1px;
 
 Card {
     @include border;
@@ -11,10 +10,10 @@ Card {
 
     .inner {
         position: absolute;
-        top: $border-size;
-        left: $border-size;
-        bottom: $border-size;
-        right: $border-size;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 0;
         background-color: $default-950; 
         padding: 8px;
         border-radius: $rounding-small;

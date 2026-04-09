@@ -1,4 +1,6 @@
 ﻿
+using HalfEdgeMesh;
+
 namespace Editor.MeshEditor;
 
 partial class ObjectSelection
@@ -11,6 +13,7 @@ partial class ObjectSelection
 	public class ObjectSelectionWidget : ToolSidebarWidget
 	{
 		readonly MeshComponent[] _meshes;
+		readonly ModelRenderer[] _modelRenderers;
 		readonly GameObject[] _gos;
 		readonly ObjectSelection _tool;
 
@@ -23,6 +26,11 @@ partial class ObjectSelection
 			_meshes = so.Targets.OfType<GameObject>()
 				.Select( x => x.GetComponent<MeshComponent>() )
 				.Where( x => x.IsValid() )
+				.ToArray();
+
+			_modelRenderers = so.Targets.OfType<GameObject>()
+				.Select( x => x.GetComponent<ModelRenderer>() )
+				.Where( x => x.IsValid() && x.Model.IsValid() && x.Model.HasRenderMeshes() )
 				.ToArray();
 
 			_gos = so.Targets.OfType<GameObject>()
@@ -58,6 +66,7 @@ partial class ObjectSelection
 
 					CreateButton( "Flip Faces", "flip", "mesh.flip-all-mesh-faces", FlipMesh, _meshes.Length > 0, grid );
 					CreateButton( "Bake Scale", "straighten", null, BakeScale, _meshes.Length > 0, grid );
+					CreateButton( "Convert To Mesh", "auto_mode", "mesh.convert-model-to-mesh", ConvertModelsToMeshes, _modelRenderers.Length > 0, grid );
 					CreateButton( "Save To Model", "save", null, SaveToModel, _meshes.Length > 0, grid );
 
 					grid.AddStretchCell();
@@ -75,7 +84,6 @@ partial class ObjectSelection
 				CreateButton( "Previous", "chevron_left", "mesh.previous-pivot", PreviousPivot, _gos.Length > 0, grid );
 				CreateButton( "Next", "chevron_right", "mesh.next-pivot", NextPivot, _gos.Length > 0, grid );
 				CreateButton( "Clear", "restart_alt", "mesh.clear-pivot", ClearPivot, _gos.Length > 0, grid );
-				CreateButton( "Center", "center_focus_strong", "mesh.center-pivot", CenterPivot, _gos.Length > 0, grid );
 				CreateButton( "World Origin", "language", "mesh.zero-pivot", ZeroPivot, _gos.Length > 0, grid );
 
 				grid.AddStretchCell();
@@ -121,9 +129,6 @@ partial class ObjectSelection
 
 		[Shortcut( "mesh.next-pivot", "N+MWheelUp", typeof( SceneViewWidget ) )]
 		public void NextPivot() => _tool.NextPivot();
-
-		[Shortcut( "mesh.center-pivot", "Ctrl+Home", typeof( SceneViewWidget ) )]
-		public void CenterPivot() => _tool.CenterPivot();
 
 		[Shortcut( "mesh.clear-pivot", "Home", typeof( SceneViewWidget ) )]
 		public void ClearPivot() => _tool.ClearPivot();
@@ -194,6 +199,62 @@ partial class ObjectSelection
 				foreach ( var mesh in _meshes )
 				{
 					mesh.Mesh.FlipAllFaces();
+				}
+			}
+		}
+
+		[Shortcut( "mesh.convert-model-to-mesh", "CTRL+SHIFT+T", typeof( SceneViewWidget ) )]
+		public void ConvertModelsToMeshes()
+		{
+			if ( _modelRenderers.Length == 0 ) return;
+
+			using var scope = SceneEditorSession.Scope();
+			var destroyedComponents = _modelRenderers
+				.SelectMany( x => x.GameObject.Components.GetAll().Where( c => c.IsValid() && c is not MeshComponent ) )
+				.ToArray();
+
+			using ( SceneEditorSession.Active.UndoScope( "Convert Model(s) To Mesh" )
+				.WithComponentChanges( _modelRenderers )
+				.WithComponentCreations()
+				.WithComponentDestructions( destroyedComponents )
+				.WithGameObjectChanges( _modelRenderers.Select( x => x.GameObject ), GameObjectUndoFlags.Properties )
+				.Push() )
+			{
+				var newSelection = new List<GameObject>( _modelRenderers.Length );
+				var failed = 0;
+
+				foreach ( var modelRenderer in _modelRenderers )
+				{
+					if ( !TryBuildMeshFromModel( modelRenderer, out var polygonMesh ) )
+					{
+						failed++;
+						continue;
+					}
+
+					var gameObject = modelRenderer.GameObject;
+					var meshComponent = gameObject.Components.GetOrCreate<MeshComponent>();
+					meshComponent.Mesh = polygonMesh;
+					meshComponent.SmoothingAngle = 180.0f;
+
+					meshComponent.RebuildMesh();
+					foreach ( var component in gameObject.Components.GetAll().Where( c => c.IsValid() && c != meshComponent ).ToArray() )
+					{
+						component.Destroy();
+					}
+
+					newSelection.Add( gameObject );
+				}
+
+				if ( newSelection.Count > 0 )
+					SceneEditorSession.Active.Selection.Set( newSelection.ToArray() );
+
+				if ( newSelection.Count == 0 )
+				{
+					Log.Warning( "Convert To Mesh failed: no usable render mesh data on selected ModelRenderer(s)." );
+				}
+				else if ( failed > 0 )
+				{
+					Log.Warning( $"Convert To Mesh partially failed: converted {newSelection.Count}, skipped {failed}." );
 				}
 			}
 		}
@@ -369,5 +430,167 @@ partial class ObjectSelection
 
 			EditorUtility.CreateModelFromMeshComponents( _meshes, targetPath );
 		}
+
+		static bool TryBuildMeshFromModel( ModelRenderer renderer, out PolygonMesh polygonMesh )
+		{
+			return TryBuildMeshFromRenderData( renderer, out polygonMesh );
+		}
+
+		static bool TryBuildMeshFromRenderData( ModelRenderer renderer, out PolygonMesh polygonMesh )
+		{
+			polygonMesh = null;
+			if ( !renderer.IsValid() || !renderer.Model.IsValid() || !renderer.Model.HasRenderMeshes() )
+				return false;
+
+			var vertices = renderer.Model.GetVertices();
+			var indices = renderer.Model.GetIndices();
+			if ( vertices is null || indices is null || vertices.Length == 0 || indices.Length < 3 )
+				return false;
+
+			polygonMesh = new PolygonMesh
+			{
+				Transform = renderer.WorldTransform
+			};
+
+			var hasAnyFaces = false;
+			var vertexMap = new Dictionary<int, VertexHandle>( vertices.Length );
+			var usedDrawCalls = false;
+			var materialSlots = renderer.Model.Materials;
+
+			for ( int drawCall = 0; drawCall < materialSlots.Length; drawCall++ )
+			{
+				var indexStart = renderer.Model.GetIndexStart( drawCall );
+				var indexCount = renderer.Model.GetIndexCount( drawCall );
+				var baseVertex = renderer.Model.GetBaseVertex( drawCall );
+				if ( indexCount < 3 || indexStart < 0 )
+					continue;
+
+				var material = ResolveRenderMaterial( renderer, drawCall );
+				usedDrawCalls = true;
+
+				var end = Math.Min( indices.Length, indexStart + indexCount );
+				for ( int i = indexStart; i + 2 < end; i += 3 )
+				{
+					var ia = baseVertex + (int)indices[i];
+					var ib = baseVertex + (int)indices[i + 1];
+					var ic = baseVertex + (int)indices[i + 2];
+
+					if ( ia < 0 || ib < 0 || ic < 0 || ia >= vertices.Length || ib >= vertices.Length || ic >= vertices.Length )
+						continue;
+
+					if ( !vertexMap.TryGetValue( ia, out var va ) )
+					{
+						va = polygonMesh.AddVertex( vertices[ia].Position );
+						vertexMap[ia] = va;
+					}
+
+					if ( !vertexMap.TryGetValue( ib, out var vb ) )
+					{
+						vb = polygonMesh.AddVertex( vertices[ib].Position );
+						vertexMap[ib] = vb;
+					}
+
+					if ( !vertexMap.TryGetValue( ic, out var vc ) )
+					{
+						vc = polygonMesh.AddVertex( vertices[ic].Position );
+						vertexMap[ic] = vc;
+					}
+
+					var verts = new[] { va, vb, vc };
+					var face = polygonMesh.AddFace( verts );
+					if ( !face.IsValid )
+						continue;
+
+					polygonMesh.SetFaceTextureCoords( face, new[]
+					{
+						new Vector2( vertices[ia].TexCoord0.x, vertices[ia].TexCoord0.y ),
+						new Vector2( vertices[ib].TexCoord0.x, vertices[ib].TexCoord0.y ),
+						new Vector2( vertices[ic].TexCoord0.x, vertices[ic].TexCoord0.y )
+					} );
+
+					if ( material is not null )
+						polygonMesh.SetFaceMaterial( face, material );
+
+					hasAnyFaces = true;
+				}
+			}
+
+			if ( !hasAnyFaces && !usedDrawCalls )
+			{
+				var material = ResolveRenderMaterial( renderer, 0 );
+
+				for ( int i = 0; i + 2 < indices.Length; i += 3 )
+				{
+					var ia = (int)indices[i];
+					var ib = (int)indices[i + 1];
+					var ic = (int)indices[i + 2];
+
+					if ( ia < 0 || ib < 0 || ic < 0 || ia >= vertices.Length || ib >= vertices.Length || ic >= vertices.Length )
+						continue;
+
+					if ( !vertexMap.TryGetValue( ia, out var va ) )
+					{
+						va = polygonMesh.AddVertex( vertices[ia].Position );
+						vertexMap[ia] = va;
+					}
+
+					if ( !vertexMap.TryGetValue( ib, out var vb ) )
+					{
+						vb = polygonMesh.AddVertex( vertices[ib].Position );
+						vertexMap[ib] = vb;
+					}
+
+					if ( !vertexMap.TryGetValue( ic, out var vc ) )
+					{
+						vc = polygonMesh.AddVertex( vertices[ic].Position );
+						vertexMap[ic] = vc;
+					}
+
+					var verts = new[] { va, vb, vc };
+					var face = polygonMesh.AddFace( verts );
+					if ( !face.IsValid )
+						continue;
+
+					polygonMesh.SetFaceTextureCoords( face, new[]
+					{
+						new Vector2( vertices[ia].TexCoord0.x, vertices[ia].TexCoord0.y ),
+						new Vector2( vertices[ib].TexCoord0.x, vertices[ib].TexCoord0.y ),
+						new Vector2( vertices[ic].TexCoord0.x, vertices[ic].TexCoord0.y )
+					} );
+
+					if ( material is not null )
+						polygonMesh.SetFaceMaterial( face, material );
+
+					hasAnyFaces = true;
+				}
+			}
+
+			if ( !hasAnyFaces )
+			{
+				polygonMesh = null;
+				return false;
+			}
+
+			polygonMesh.ComputeFaceTextureParametersFromCoordinates();
+
+			return true;
+		}
+
+		static Material ResolveRenderMaterial( ModelRenderer renderer, int drawCall )
+		{
+			if ( renderer.MaterialOverride is not null )
+				return renderer.MaterialOverride;
+
+			var overrideMaterial = renderer.Materials.GetOverride( drawCall );
+			if ( overrideMaterial is not null )
+				return overrideMaterial;
+
+			var originalMaterial = renderer.Materials.GetOriginal( drawCall );
+			if ( originalMaterial is not null )
+				return originalMaterial;
+
+			return renderer.Model.Materials.ElementAtOrDefault( drawCall );
+		}
+
 	}
 }

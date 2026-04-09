@@ -4,13 +4,13 @@
 @inherits Panel
 
 <root class="content-block-header">
-	<a class="inner" href="@url">
-		<span class="icon">@Group.Icon </span>
-		<span>
-			<span class="title">@Group.Title</span>
-			<icon class="chevron">chevron_right</icon>
-		</span>
-	</a>
+    <row>
+        <a href=@url>
+            <label class="heading icon">@Group.Icon</label>
+            <label class="heading">@Group.Title</label>
+            <label class="heading icon chevron">chevron_right</label>
+        </a>
+    </row>
 </root>
 
 @code

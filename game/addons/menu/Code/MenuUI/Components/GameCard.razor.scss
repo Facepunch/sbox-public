@@ -18,10 +18,11 @@ GameCard {
         flex-grow: 1;
         flex-shrink: 0;
         transition: all 150ms ease;
+        border: 1px solid rgba( white, 0.025 );
     }
 
     column {
-        padding: 8px;
+        padding: 8px 2px; // Optically aligned
     }
 
     &.list {
@@ -45,7 +46,8 @@ GameCard {
     }
 
     &.small {
-        height: 150px;
+        height: 200px;
+        aspect-ratio: 3/4;
     }
 
     &.wide {
@@ -68,8 +70,8 @@ GameCard {
 
     .package-users {
         position: absolute;
-        bottom: 4px;
-        right: 0px;
+        top: 4px;
+        right: 3px;
         transition: all 150ms ease;
     }
 
@@ -77,18 +79,6 @@ GameCard {
         background-position: center;
         background-size: cover;
         border-radius: $rounding-small;
-    }
-
-    .play {
-        position: absolute;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        align-items: center;
-        color: $primary-blue;
-        opacity: 0;
-        font-size: 32px;
-        transition: all 150ms ease;
     }
 
     .play-button {
@@ -103,6 +93,10 @@ GameCard {
         border-radius: $rounding-small;
         opacity: 0;
         transition: all 150ms ease;
+
+        label {
+            color: $default-text;
+        }
 
         &:hover {
             background-color: $default-600;
@@ -138,15 +132,6 @@ GameCard {
             right: -$background-size;
             bottom: -42px;
             box-shadow: 0 0 25px rgba( black, 0.3 );
-        }
-
-        .package-users {
-            background-color: $default-700;
-        }
-
-        .play {
-            right: 16px;
-            opacity: 0.5;
         }
 
         z-index: 100;

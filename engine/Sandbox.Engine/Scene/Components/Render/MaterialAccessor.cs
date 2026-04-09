@@ -123,9 +123,12 @@ public sealed class MaterialAccessor : IJsonPopulator
 
 	void IJsonPopulator.Deserialize( JsonNode e )
 	{
+		// Clear all existing overrides before applying new ones,
+		_overrides.Clear();
+		_target.ClearOverrides();
+
 		if ( e is not JsonObject jso )
 		{
-			_overrides.Clear();
 			return;
 		}
 

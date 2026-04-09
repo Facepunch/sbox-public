@@ -151,7 +151,7 @@ public partial class MenuSystem : IMenuSystem
 
 	void UpdateMusic()
 	{
-		bool isAvatarMenu = Game.ActiveScene.Get<AvatarEditManager>() != null;
+		bool isAvatarMenu = Game.ActiveScene?.Get<AvatarEditManager>() != null;
 		bool isLoadingScreen = LoadingScreen.IsVisible;
 
 		menu.Enabled = false; // Game.IsMainMenuVisible && !isLoadingScreen && !isAvatarMenu;

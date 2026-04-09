@@ -75,10 +75,20 @@ public partial class Panel
 			_renderChildrenDirty = false;
 		}
 
+		var prevClipWhole = render.ClipWholeRect;
+		if ( ComputedStyle?.Overflow == OverflowMode.ClipWhole )
+			render.ClipWholeRect = prevClipWhole.HasValue ? IntersectRects( prevClipWhole.Value, Box.ClipRect ) : Box.ClipRect;
+
+		var prevScrollCull = render.ScrollCullRect;
+		var overflow = ComputedStyle?.Overflow;
+		if ( overflow == OverflowMode.Scroll || overflow == OverflowMode.Hidden )
+			render.ScrollCullRect = prevScrollCull.HasValue ? IntersectRects( prevScrollCull.Value, Box.ClipRect ) : Box.ClipRect;
+
 		for ( int i = 0; i < _renderChildren.Count; i++ )
-		{
 			render.BuildCommandLists( _renderChildren[i], state );
-		}
+
+		render.ClipWholeRect = prevClipWhole;
+		render.ScrollCullRect = prevScrollCull;
 	}
 
 	/// <summary>
@@ -93,9 +103,27 @@ public partial class Panel
 			_renderChildrenDirty = false;
 		}
 
+		var prevClipWhole = render.ClipWholeRect;
+		if ( ComputedStyle?.Overflow == OverflowMode.ClipWhole )
+			render.ClipWholeRect = prevClipWhole.HasValue ? IntersectRects( prevClipWhole.Value, Box.ClipRect ) : Box.ClipRect;
+
+		var prevScrollCull = render.ScrollCullRect;
+		var overflow = ComputedStyle?.Overflow;
+		if ( overflow == OverflowMode.Scroll || overflow == OverflowMode.Hidden )
+			render.ScrollCullRect = prevScrollCull.HasValue ? IntersectRects( prevScrollCull.Value, Box.ClipRect ) : Box.ClipRect;
+
 		for ( int i = 0; i < _renderChildren.Count; i++ )
-		{
 			render.GatherPanel( _renderChildren[i], state, globalCL );
-		}
+
+		render.ClipWholeRect = prevClipWhole;
+		render.ScrollCullRect = prevScrollCull;
 	}
+
+	private static Rect IntersectRects( Rect a, Rect b ) => new Rect()
+	{
+		Left = MathF.Max( a.Left, b.Left ),
+		Top = MathF.Max( a.Top, b.Top ),
+		Right = MathF.Min( a.Right, b.Right ),
+		Bottom = MathF.Min( a.Bottom, b.Bottom ),
+	};
 }

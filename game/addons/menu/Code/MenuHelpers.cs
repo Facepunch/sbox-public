@@ -1,7 +1,97 @@
 ﻿using Sandbox;
+using Sandbox.DataModel;
+using Sandbox.Modals;
+using Sandbox.Network;
 
 public static class MenuHelpers
 {
+	/// <summary>
+	/// General-purpose method to play a game package. Handles quickplay, dedicated servers,
+	/// create-game modal, VR-only checks, default map fetching, and direct launch.
+	/// </summary>
+	public static async void PlayGame( Package package )
+	{
+		// VR-only game but not in VR
+		var isVrOnly = package.GetMeta<ControlModeSettings>( "ControlModes" )?.IsVROnly ?? false;
+		if ( isVrOnly && !Application.IsVR )
+			return;
+
+		// QuickPlay: try to join an existing lobby first
+		var launchMode = package.GetMeta( "LaunchMode", "default" ).ToLower();
+		if ( launchMode == "quickplay" )
+		{
+			LoadingScreen.IsVisible = true;
+			LoadingScreen.Title = "Finding Game..";
+			LoadingScreen.Subtitle = "Please wait while we find a game for you to join.";
+
+			if ( await MenuUtility.TryJoinLobby( package.FullIdent ) )
+				return;
+		}
+
+		MenuUtility.CloseAllModals();
+
+		// Dedicated server only: show server list
+		if ( launchMode == "dedicatedserveronly" )
+		{
+			Game.Overlay.ShowServerList( new ServerListConfig( package.FullIdent ) );
+			return;
+		}
+
+		// Show create game modal if the package requires it
+		if ( ShouldUseCreateGameModal( package ) )
+		{
+			Game.Overlay.CreateGame( new CreateGameOptions( package, x =>
+			{
+				if ( x.MaxPlayers > 1 ) LaunchArguments.MaxPlayers = x.MaxPlayers;
+
+				if ( !string.IsNullOrEmpty( x.ServerName ) )
+					LaunchArguments.ServerName = x.ServerName;
+
+				LaunchArguments.Privacy = x.Privacy;
+
+				if ( !string.IsNullOrEmpty( x.MapIdent ) )
+					MenuUtility.OpenGameWithMap( package.FullIdent, x.MapIdent, x.GameSettings );
+				else
+					MenuUtility.OpenGame( package.FullIdent, true, x.GameSettings );
+			} ) );
+			return;
+		}
+
+		// Direct launch
+		LoadingScreen.IsVisible = true;
+		LoadingScreen.Title = "Loading..";
+		LoadingScreen.Subtitle = "";
+
+		// Fetch the default map if one is configured
+		var defaultMap = package.GetValue( "DefaultMap", "" );
+		if ( !string.IsNullOrWhiteSpace( defaultMap ) )
+		{
+			var mapPackage = await Package.FetchAsync( defaultMap, false );
+			if ( mapPackage is not null )
+			{
+				Log.Info( $"Default map configured ({defaultMap}), launching game with map." );
+				MenuUtility.OpenGameWithMap( package.FullIdent, mapPackage.FullIdent );
+				return;
+			}
+		}
+
+		Log.Info( "No default map configured, launching game directly: " + package.FullIdent );
+
+		MenuUtility.OpenGame( package.FullIdent, true );
+	}
+
+	static bool ShouldUseCreateGameModal( Package package )
+	{
+		if ( package.GetValue( "UseCreateGameModal", false ) )
+			return true;
+
+		var settings = package.GetMeta<List<GameSetting>>( "GameSettings", null );
+		if ( settings is not null && settings.Count > 0 )
+			return true;
+
+		return false;
+	}
+
 	public static string SANDBOX_IDENT => "facepunch.sandbox";
 
 	public static MenuPanel OpenFriendMenu( Panel source, Friend friend )

@@ -105,6 +105,18 @@ public class StyleSetting
 			Assert.IsTrue( styles.Set( "overflow", "scroll" ) );
 			Assert.AreEqual( OverflowMode.Scroll, styles.Overflow );
 		}
+
+		{
+			Styles styles = new Styles();
+			Assert.IsTrue( styles.Set( "overflow", "clip" ) );
+			Assert.AreEqual( OverflowMode.Clip, styles.Overflow );
+		}
+
+		{
+			Styles styles = new Styles();
+			Assert.IsTrue( styles.Set( "overflow", "clip-whole" ) );
+			Assert.AreEqual( OverflowMode.ClipWhole, styles.Overflow );
+		}
 	}
 
 	[TestMethod]
