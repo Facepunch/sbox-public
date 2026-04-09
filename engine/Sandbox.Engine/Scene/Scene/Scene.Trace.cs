@@ -667,43 +667,58 @@ public partial struct SceneTrace
 
 	/// <summary>
 	/// Return true if we should hit this shape.
-	/// We puposely keep this locked down, don't offer a user specified callback.
+	/// We purposely keep this locked down, don't offer a user specified callback.
 	/// </summary>
 	internal readonly bool FilterCallback( PhysicsShape shape )
 	{
+		var colliderObject = shape.Collider?.GameObject;
+		var bodyObject = shape.Body?.GameObject;
+
 		//
-		// Use gameobject of the collider, gameobject of body could be an ancestor.
-		// Fallback to gameobject of body if collider is null, although this should never be the case.
+		// Check both collider and body GameObjects.
+		// The user might ignore either one.
 		//
-		return FilterCallback( shape.Collider?.GameObject ?? shape.Body?.GameObject );
+		if ( colliderObject != null && IgnoreSingleObject.Contains( colliderObject ) )
+			return false;
+
+		if ( bodyObject != null && bodyObject != colliderObject && IgnoreSingleObject.Contains( bodyObject ) )
+			return false;
+
+		//
+		// Prefer the collider GameObject.
+		// Fall back to body if needed.
+		//
+		return FilterCallback( colliderObject ?? bodyObject );
 	}
 
 	/// <summary>
 	/// Return true if we should hit this sceneobject.
-	/// We puposely keep this locked down, don't offer a user specified callback.
+	/// We purposely keep this locked down, don't offer a user specified callback.
 	/// </summary>
 	internal readonly bool FilterCallback( SceneObject so )
 	{
-		return FilterCallback( so.GameObject );
-	}
-
-	internal readonly bool FilterCallback( GameObject go )
-	{
-		if ( go is null ) return true;
+		var go = so.GameObject;
 
 		//
-		// We're ignoring this object in particular
+		// Ignore this object directly
 		//
 		if ( IgnoreSingleObject.Contains( go ) )
 			return false;
 
-		//
-		// Object is an ancestor of an object we're ignoring the hierachy of
-		//
+		return FilterCallback( go );
+	}
 
+	readonly bool FilterCallback( GameObject go )
+	{
+		if ( go is null ) return true;
+
+		//
+		// Ignore anything under a hierarchy we're skipping
+		//
 		for ( int i = 0; i < IgnoreHierarchy.Length; i++ )
 		{
-			if ( go.IsAncestor( IgnoreHierarchy[i] ) ) return false;
+			if ( go.IsAncestor( IgnoreHierarchy[i] ) )
+				return false;
 		}
 
 		return true;

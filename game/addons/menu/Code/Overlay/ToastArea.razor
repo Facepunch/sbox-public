@@ -6,10 +6,9 @@
 
 @code
 {
-    record struct Entry(Panel Content, float Duration, bool ClickToDismiss);
+    record struct Entry(Panel Content, float Duration, bool ClickToDismiss, RealTimeSince Since);
 
-    readonly Queue<Entry> PendingQueue = new();
-    readonly List<Panel> ShownPanels = new();
+    readonly List<Entry> ShownPanels = new();
 
     /// <summary>
     /// Queues a simple toast with a title, message, and icon.
@@ -39,20 +38,17 @@
         // Dismiss all existing shown panels
         for (int i = ShownPanels.Count - 1; i >= 0; i--)
         {
-            Dismiss(ShownPanels[i]);
+            Dismiss(ShownPanels[i].Content);
         }
 
         if (content is Toast toast)
             toast.Area = this;
 
-        ShownPanels.Add(content);
+        ShownPanels.Add(new Entry(content, duration, clickToDismiss, 0));
         content.Parent = this;
 
         if (clickToDismiss)
             content.AddEventListener("onmousedown", () => Dismiss(content));
-
-        if (duration > 0)
-            _ = AutoDismissAsync(content, duration);
 
         return content;
     }
@@ -63,19 +59,28 @@
     /// </summary>
     public Panel Queue(Panel content, float duration = 4f, bool clickToDismiss = true)
     {
-        ShownPanels.Add(content);
-        content.Parent = this;
-
-        if (content is Toast toast) 
+        if (content is Toast toast)
             toast.Area = this;
+
+        ShownPanels.Add(new Entry(content, duration, clickToDismiss, 0));
+        content.Parent = this;
 
         if (clickToDismiss)
             content.AddEventListener("onmousedown", () => Dismiss(content));
 
-        if (duration > 0)
-            _ = AutoDismissAsync(content, duration);
-
         return content;
+    }
+
+    public override void Tick()
+    {
+        base.Tick();
+
+        for (int i = ShownPanels.Count - 1; i >= 0; i--)
+        {
+            var entry = ShownPanels[i];
+            if (entry.Duration > 0 && entry.Since >= entry.Duration)
+                Dismiss(entry.Content);
+        }
     }
 
     /// <summary>
@@ -85,13 +90,7 @@
     {
         if (!panel.IsValid()) return;
 
-        ShownPanels.Remove(panel);
+        ShownPanels.RemoveAll(e => e.Content == panel);
         panel.Delete();
-    }
-
-    async Task AutoDismissAsync( Panel panel, float duration )
-    {
-        await Task.DelaySeconds( duration, DeletionToken );
-        if (IsValid) Dismiss(panel);
     }
 }

@@ -363,7 +363,7 @@ public abstract partial class Connection
 
 	internal void Close( int reasonCode, string reasonString )
 	{
-		ReleaseChunkBuffer();
+		_chunkBufferLength = -1;
 		InternalClose( reasonCode, reasonString );
 	}
 

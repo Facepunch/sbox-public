@@ -454,7 +454,7 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLi
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
 void ComputeDirectionalLight( const FinalCombinerInput_t f, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive )
 {
-	if ( g_DirectionalLightCascadeCount == 0 )
+	if ( !g_DirectionalLightEnabled )
 		return;
 
 	const float2 vDiffuseExponent = ( ( 1.0 - f.vRoughness.xy ) * 0.8 ) + 0.6;
@@ -465,7 +465,14 @@ void ComputeDirectionalLight( const FinalCombinerInput_t f, inout float3 vDiffus
 	float3 vPositionToCameraDirWs = CalculatePositionToCameraDirWs( f.vPositionWs.xyz );
 	float flNDotL = ClampToPositive( dot( f.vNormalWs.xyz, vPositionToLightDirWs.xyz ) );
 
-	float flShadowScalar = DirectionalLightShadow::GetVisibility( f.vPositionWs.xyz, f.vPositionSs.xy );
+	float flShadowScalar = 1.0f;
+
+	// Only sample shadows if cascades exist
+	if ( g_DirectionalLightCascadeCount > 0 )
+	{
+		flShadowScalar = DirectionalLightShadow::GetVisibility( f.vPositionWs.xyz, f.vPositionSs.xy );
+	}
+
 	float3 vTransmissiveThickness = 1.0f;
 
 	#if ( !S_TRANSMISSIVE )

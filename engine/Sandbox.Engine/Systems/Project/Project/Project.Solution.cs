@@ -108,10 +108,9 @@ public sealed partial class Project
 				}
 			}
 
-			if ( Config.Type == "game" || Config.Type == "addon" )
+			if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
 			{
 				AddLibrariesToProject( project );
-
 			}
 		}
 
@@ -235,7 +234,7 @@ public sealed partial class Project
 			project.References.Add( $"{reference}.dll" );
 		}
 
-		if ( Config.Type == "game" || Config.Type == "addon" )
+		if ( (Config.Type == "game" || Config.Type == "addon") && !IsBuiltIn )
 		{
 			// editor libraries
 			foreach ( var library in Libraries.Where( x => x.HasEditorPath() ) )
@@ -309,6 +308,7 @@ file static class ProjectExtensions
 			project.PackageReferences.Add( "shadergraph" );
 			project.PackageReferences.Add( "moviemaker" );
 			project.PackageReferences.Add( "hammer" );
+			project.PackageReferences.Add( "dooeditor" );
 		}
 
 		/// <summary>

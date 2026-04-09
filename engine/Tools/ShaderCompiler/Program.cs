@@ -121,6 +121,10 @@ public static partial class Program
 			GC.Collect();
 			GC.WaitForPendingFinalizers();
 			MainThread.RunQueues();
+
+			// Sucks that we need to do this, but lets Hard-exit before ToolAppSystem.Dispose() triggers native engine teardown, to avoid crashses.
+			// Compilation is done at this point so a clean process exit is safe and avoids the whole teardown path.
+			NativeEngine.EngineGlobal.Plat_ExitProcess( failedList.Any() ? 1 : 0 );
 		}
 
 		return failedList.Any() ? 1 : 0;

@@ -3,7 +3,6 @@ using Sandbox.Internal;
 using Sandbox.Modals;
 using Sandbox.Rendering;
 using Sandbox.UI;
-using Sandbox.VR;
 using System.Threading;
 
 namespace Sandbox;

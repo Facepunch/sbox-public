@@ -73,6 +73,7 @@ internal partial class ShadowMapper
 		GPUProjectedShadows.Clear();
 		GPUProjectedCubeShadows.Clear();
 		GPUDirectionalLightData.CascadeCount = 0;
+		GPUDirectionalLightData.Enabled = false;
 		ShadowsAllocated = 0;
 
 		// Save statistics from last frame, then reset
@@ -278,6 +279,8 @@ internal partial class ShadowMapper
 
 	internal int DoDirectionalLight( SceneLight sceneObject, ISceneView view )
 	{
+		GPUDirectionalLightData.Enabled = true;
+
 		if ( !CSMEnabled )
 			return 0;
 

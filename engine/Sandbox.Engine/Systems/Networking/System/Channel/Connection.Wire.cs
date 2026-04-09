@@ -1,38 +1,9 @@
 using Sandbox.Compression;
 using Sandbox.Network;
-using System.Buffers;
 using System.Buffers.Binary;
 using System.IO;
 
 namespace Sandbox;
-
-/// <summary>
-/// Decoded wire packet with automatic ArrayPool cleanup on dispose.
-/// Only allocated when decompressing a <see cref="Connection.FlagCompressed"/> packet;
-/// raw packets return a zero-allocation slice of the receive buffer.
-/// <para>Always use with <see langword="using"/> — CA2000 does not enforce this for ref structs.</para>
-/// </summary>
-internal ref struct WirePacket
-{
-	public ReadOnlySpan<byte> Data;
-	private byte[] _rentedBuffer;
-
-	internal WirePacket( ReadOnlySpan<byte> data, byte[] rentedBuffer )
-	{
-		Data = data;
-		_rentedBuffer = rentedBuffer;
-	}
-
-	public void Dispose()
-	{
-		if ( _rentedBuffer != null )
-		{
-			ArrayPool<byte>.Shared.Return( _rentedBuffer );
-			_rentedBuffer = null;
-			Data = default;
-		}
-	}
-}
 
 public abstract partial class Connection
 {
@@ -48,6 +19,10 @@ public abstract partial class Connection
 	/// larger original length is treated as corrupt/malicious and rejected.
 	/// </summary>
 	private const int MaxDecompressedByteSize = 256 * 1024 * 1024;
+
+	// Static decode buffer — all decoding is synchronous on the network tick thread,
+	// so a single shared buffer with grow-to-high-water-mark is safe and zero-GC after warmup.
+	static byte[] _decodeBuffer;
 
 	/// <summary>
 	/// Encode a <see cref="ByteStream"/> into a wire-ready packet, applying LZ4 when beneficial.
@@ -65,7 +40,7 @@ public abstract partial class Connection
 			if ( compressed.Length < src.Length )
 			{
 				var outputSize = 1 + sizeof( int ) + compressed.Length;
-				var output = new byte[outputSize];
+				var output = GC.AllocateUninitializedArray<byte>( outputSize );
 				output[0] = FlagCompressed;
 				BinaryPrimitives.WriteInt32LittleEndian( output.AsSpan( 1 ), src.Length );
 				compressed.CopyTo( output.AsSpan( 1 + sizeof( int ) ) );
@@ -73,7 +48,7 @@ public abstract partial class Connection
 			}
 		}
 
-		var result = new byte[1 + src.Length];
+		var result = GC.AllocateUninitializedArray<byte>( 1 + src.Length );
 		result[0] = FlagRaw;
 		src.CopyTo( result.AsSpan( 1 ) );
 		return result;
@@ -83,17 +58,18 @@ public abstract partial class Connection
 	/// Decode a wire payload (<see cref="FlagRaw"/> or <see cref="FlagCompressed"/>).
 	/// <see cref="FlagChunk"/> packets must be fully reassembled by <see cref="OnRawPacketReceived"/>
 	/// before reaching this method.
-	/// Returns a disposable struct that manages the rented buffer lifetime.
+	/// Returns a span into either the source data (raw) or the static <see cref="_decodeBuffer"/> (compressed).
+	/// The span is only valid until the next call to <see cref="Decode"/>.
 	/// </summary>
-	internal static WirePacket Decode( ReadOnlySpan<byte> data )
+	internal static ReadOnlySpan<byte> Decode( ReadOnlySpan<byte> data )
 	{
 		if ( data.Length < 1 )
-			return new WirePacket( ReadOnlySpan<byte>.Empty, null );
+			return ReadOnlySpan<byte>.Empty;
 
 		switch ( data[0] )
 		{
 			case FlagRaw:
-				return new WirePacket( data.Slice( 1 ), null );
+				return data.Slice( 1 );
 			case FlagCompressed:
 				{
 					const int headerSize = 1 + sizeof( int ); // flag + origLen
@@ -104,18 +80,18 @@ public abstract partial class Connection
 					if ( origLen <= 0 || origLen > MaxDecompressedByteSize )
 						throw new InvalidDataException( $"Compressed origLen {origLen} out of range (1..{MaxDecompressedByteSize})" );
 
+					// Grow to high-water mark; never returned — zero GC after warmup.
+					if ( _decodeBuffer == null || _decodeBuffer.Length < origLen )
+						_decodeBuffer = GC.AllocateUninitializedArray<byte>( origLen );
+
 					var lz4Data = data.Slice( headerSize );
-					var rentedBuffer = ArrayPool<byte>.Shared.Rent( origLen );
-					int written = LZ4.DecompressBlock( lz4Data, rentedBuffer );
+					int written = LZ4.DecompressBlock( lz4Data, _decodeBuffer );
 
 					if ( written != origLen )
-					{
-						ArrayPool<byte>.Shared.Return( rentedBuffer );
 						throw new InvalidDataException( $"LZ4 decompressed {written}b but header claimed {origLen}b" );
-					}
 
-					Networking.TryRecordMessage( rentedBuffer.AsSpan( 0, origLen ) );
-					return new WirePacket( rentedBuffer.AsSpan( 0, origLen ), rentedBuffer );
+					Networking.TryRecordMessage( _decodeBuffer.AsSpan( 0, origLen ) );
+					return _decodeBuffer.AsSpan( 0, origLen );
 				}
 			default:
 				throw new InvalidOperationException( $"Unknown wire flag {data[0]}" );
@@ -129,7 +105,7 @@ public abstract partial class Connection
 	/// </summary>
 	internal static byte[] BuildChunkPacket( byte[] encoded, int offset, int length, int chunkIndex, int totalChunks )
 	{
-		var result = new byte[1 + sizeof( uint ) + sizeof( uint ) + length]; // 9-byte header
+		var result = GC.AllocateUninitializedArray<byte>( 1 + sizeof( uint ) + sizeof( uint ) + length ); // 9-byte header
 		result[0] = FlagChunk;
 		BinaryPrimitives.WriteUInt32LittleEndian( result.AsSpan( 1 ), (uint)chunkIndex );
 		BinaryPrimitives.WriteUInt32LittleEndian( result.AsSpan( 5 ), (uint)totalChunks );

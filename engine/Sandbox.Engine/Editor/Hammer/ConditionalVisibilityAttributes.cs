@@ -59,7 +59,7 @@ public class HideIfAttribute : ConditionalVisibilityAttribute
 	{
 		if ( so.TryGetProperty( PropertyName, out var property ) )
 		{
-			var value = property.GetValue<object>( so );
+			var value = property.GetValue<object>();
 			return Equals( value, Value );
 		}
 

@@ -1,19 +1,9 @@
-.content-blocks
-{
+.content-blocks {
 	flex-direction: column;
 	overflow-y: scroll;
-	overflow-x: hidden;
 	padding-bottom: 200px;
 }
 
-ContentBlockHero
-{
-	margin: 32px 32px 0 32px;
-}
-.content-block-header
-{
-	margin-left: 32px;
-}
 .content-blocks > *
 {
 	flex-shrink: 0;
@@ -24,4 +14,9 @@ ContentBlockHero
 	flex-direction: column;
 	flex-shrink: 0;
 	padding: 1rem 0;
+	align-items: flex-start;
+
+	&:hover {
+		z-index: 100;
+	}
 }

@@ -14,8 +14,7 @@ Page VirtualList
     gap: 8px;
 }
 
-Page > .inner
-{
+Page > .inner {
     flex-grow: 1;
     flex-shrink: 1;
     pointer-events: all;

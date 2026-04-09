@@ -22,6 +22,7 @@
 
 @code
 {
+    [Property] public GameObject Background { get; set; }
     public NavigationHost Navigator { get; protected set; }
 
     override protected void OnEnabled()
@@ -88,6 +89,9 @@
 	override protected void OnUpdate()
     {
         SetClass("is-vr", Application.IsVR);
-		SetClass("has-streamer-account", Sandbox.MenuEngine.Account.HasLinkedStreamerServices);
+        SetClass("has-streamer-account", Sandbox.MenuEngine.Account.HasLinkedStreamerServices);
+
+        var isInGame = Application.IsEditor ? false : Game.InGame;
+        Background.Enabled = Navigator?.CurrentUrl == "/home" && !isInGame;
 	}
 }

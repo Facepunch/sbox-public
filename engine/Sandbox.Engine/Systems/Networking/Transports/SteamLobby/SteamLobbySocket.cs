@@ -321,7 +321,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 			{
 				var msg = Unsafe.Read<SteamNetworkMessage>( (void*)ptr[i] );
 
-				var data = new byte[msg.Size];
+				var data = GC.AllocateUninitializedArray<byte>( msg.Size );
 				Marshal.Copy( (IntPtr)msg.Data, data, 0, data.Length );
 
 				var m = new IncomingMessage

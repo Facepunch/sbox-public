@@ -2,7 +2,8 @@ $font-default: "Inter";
 $font-heading: "Poppins";
 
 $primary-blue: #3273eb;
-$primary-green: #31EB31;
+$primary-blue-dark: #214D9E;
+$primary-green: #B5FFBA;
 
 $default-50: #C2C9DB;
 $default-100: #B5BED4;
@@ -36,178 +37,212 @@ $rounding-large: 8px;
 $easing: ease;
 
 $screen-w-xl: 1920px;
+$screen-w-md: 1280px;
 
-MainMenu
-{
-	font-size: $text-regular;
-	color: $default-text;
-	font-family: $font-default;
+MainMenu {
+    font-size: $text-regular;
+    color: $default-text;
+    font-family: $font-default;
 }
 
-label
-{
-	&.medium
-	{
-		font-size: $text-medium;
-		font-family: $font-heading;
-		font-weight: 600;
-	}
+label {
+    &.medium {
+        font-size: $text-medium;
+        font-family: $font-heading;
+        font-weight: 600;
+    }
 
-	&.large
-	{
-		font-size: $text-large;
-		font-family: $font-heading;
-		font-weight: 700;
-		text-transform: uppercase;
-	}
+    &.large {
+        font-size: $text-large;
+        font-family: $font-heading;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
 
-	&.small
-	{
-		font-weight: 600;
-		font-size: $text-small;
-	}
+    &.small {
+        font-weight: 600;
+        font-size: $text-small;
+    }
 
-	&.heading
-	{
-		font-family: $font-heading;
-		font-size: $text-heading;
-		font-weight: 700;
-	}
+    &.heading {
+        color: $default-text-light;
+        font-size: $text-heading;
+        font-family: $font-heading;
+        letter-spacing: 1px;
+        font-weight: 700;
+    }
 
-	&.eyebrow
-	{
-		font-family: $font-heading;
-		font-size: $text-eyebrow;
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
-		color: $default-100;
-		font-weight: 700;
-	}
+    &.eyebrow {
+        font-family: $font-heading;
+        font-size: $text-eyebrow;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: $default-100;
+        font-weight: 700;
+    }
 }
 
-icon
-{
-	font-family: "Material Icons";
-	font-size: $text-regular;
-	color: $default-text;
+icon {
+    font-family: "Material Icons";
+    font-size: $text-regular;
+    color: $default-text;
 
-    &.medium 
-    {
+    &.medium {
         font-size: $text-medium;
         font-family: "Material Icons";
     }
 
-	&.large
-	{
-		font-size: $text-large;
-	}
+    &.large {
+        font-size: $text-large;
+    }
 
-	&.small
-	{
-		font-size: $text-small;
-	}
+    &.small {
+        font-size: $text-small;
+    }
 
-	&.heading
-	{
-		font-size: $text-heading;
-	}
+    &.heading {
+        color: $default-text-light;
+        font-size: $text-medium;
+    }
 
-	&.eyebrow
-	{
-		font-size: $text-eyebrow;
-		color: $default-100;
-	}
+    &.eyebrow {
+        font-size: $text-eyebrow;
+        color: $default-100;
+    }
 }
 
 badge {
-    padding: 3px 6px;
+    padding: 2px 6px;
     pointer-events: all;
     align-items: center;
-    border-radius: $rounding-large;
+    border-radius: $rounding-small;
     background-color: $default-800;
     flex-shrink: 0;
-    gap: 6px;
+    gap: 4px;
+    // Optical alignment
+    padding-top: 3px;
+    padding-right: 5px;
 
-	Label
-	{
-		font-family: $font-heading;
-		font-size: $text-eyebrow;
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
-		color: $default-50;
-		font-weight: 700;
-	}
+    Label {
+        font-family: $font-heading;
+        font-size: $text-eyebrow;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: $default-50;
+        font-weight: 700;
+    }
+
+    icon {
+        font-size: $text-eyebrow;
+    }
+
+    &.online {
+        backdrop-filter: blur( 10px );
+        background-color: rgba( #4E6F51, 0.75 );
+        border: 0.5px solid rgba( $primary-green, 0.5 );
+
+        Label {
+            color: $primary-green;
+        }
+
+        icon {
+            color: $primary-green;
+        }
+    }
+
+    &.clear {
+        backdrop-filter: blur( 10px );
+        background-color: rgba( $default-900, 0.75 );
+        border: 0.5px solid $default-border;
+
+        Label {
+            color: $default-50;
+        }
+
+        icon {
+            color: $default-50;
+        }
+    }
 }
 
-row
-{
-	align-items: center;
-	gap: 6px;
+row {
+    align-items: center;
+    gap: 4px;
 }
 
-column
-{
-	flex-direction: column;
-	gap: 6px;
+column {
+    flex-direction: column;
+    gap: 4px;
 }
 
-div.grow
-{
-	flex-grow: 1;
+div.grow {
+    flex-grow: 1;
 }
 
-separator
-{
-	background-color: $default-border;
+separator {
+    background-color: rgba( $default-50, 0.1 );
 
     &.vertical {
         height: 100%;
-        min-height: 40px;
         width: 1px;
+        margin: 0 4px;
     }
 
     &.horizontal {
-        flex-grow: 1;
         height: 1px;
+        margin: 4px 0;
     }
 }
 
-@mixin border
-{
-	outline: 1px solid $default-border;
+@mixin border {
+    border: 1px solid $default-border;
 
-	&:hover
-	{
-		outline-color: rgba( $primary-blue, 0.5 );
-	}
+    &:hover {
+        border-color: rgba( $primary-blue, 1 );
+    }
 
-	&:focus
-	{
-		outline-color: rgba( $primary-blue, 0.5 );
-	}
+    &:focus {
+        border-color: rgba( $primary-blue, 1 );
+    }
 }
 
-@mixin border-transparent
-{
-	outline: 1px solid transparent;
+@mixin border-transparent {
+    border: 1px solid transparent;
 
-	&:hover
-	{
-		outline-color: rgba( $primary-blue, 0.5 );
-	}
+    &:hover {
+        border-color: rgba( $primary-blue, 1 );
+    }
 
-	&:focus
-	{
-		outline-color: rgba( $primary-blue, 0.5 );
-	}
+    &:focus {
+        border-color: rgba( $primary-blue, 1 );
+    }
 }
 
-@mixin glow
-{
-	box-shadow: 0 0 2px #7dabff, 0 0 3px rgba( $primary-blue, 1 ), 0 0 10px rgba( $primary-blue, 0.5 );
+@mixin glow {
+    box-shadow: 0 0 2px #7dabff, 0 0 3px rgba( $primary-blue, 1 ), 0 0 10px rgba( $primary-blue, 0.5 );
 }
 
-TextEntry
-{
-	caret-color: $default-300;
+@mixin card-hover {
+    @include border-transparent;
+    pointer-events: all;
+    cursor: pointer;
+    transition: all 150ms $easing;
+
+    .image {
+        transition: all 150ms $easing;
+    }
+
+    &:hover {
+        box-shadow: 0 0 16px rgba( black, 0.33 );
+
+        .image {
+            background-image-tint: $default-50;
+            filter: brightness( 2.0 );
+        }
+    }
 }
+
+TextEntry {
+    caret-color: $default-300;
+}
+

@@ -5,7 +5,7 @@ namespace Editor;
 /// <summary>
 /// A popup dialog to select a component type
 /// </summary>
-internal class ComponentTypeSelector : PopupWidget
+public class ComponentTypeSelector : PopupWidget
 {
 	public Action<TypeDescription> OnSelect
 	{

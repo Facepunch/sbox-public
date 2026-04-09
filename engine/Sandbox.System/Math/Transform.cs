@@ -345,21 +345,21 @@ public struct Transform : System.IEquatable<Transform>, IInterpolator<Transform>
 	}
 
 	#region equality
-	public static bool operator ==( Transform left, Transform right ) => left.Equals( right );
-	public static bool operator !=( Transform left, Transform right ) => !(left == right);
+	public static bool operator ==( Transform left, Transform right ) => left.AlmostEqual( right );
+	public static bool operator !=( Transform left, Transform right ) => !left.AlmostEqual( right );
 	public readonly override bool Equals( object obj ) => obj is Transform o && Equals( o );
-	public readonly bool Equals( Transform o ) => (Position, Scale, Rotation) == (o.Position, o.Scale, o.Rotation);
+	public readonly bool Equals( Transform o ) => Position.Equals( o.Position ) && Scale.Equals( o.Scale ) && Rotation.Equals( o.Rotation );
 	public readonly override int GetHashCode() => HashCode.Combine( Position, Scale, Rotation );
 
 	/// <summary>
 	/// Returns true if we're nearly equal to the passed transform.
 	/// </summary>
 	/// <param name="tx">The value to compare with</param>
-	/// <param name="delta">The max difference between component values</param>
+	/// <param name="delta">The max difference between component values (used for Position and Scale)</param>
 	/// <returns>True if nearly equal</returns>
 	public readonly bool AlmostEqual( in Transform tx, float delta = 0.0001f )
 	{
-		return Position.AlmostEqual( tx.Position, delta ) && Scale.AlmostEqual( tx.Scale, delta ) && Rotation.AlmostEqual( tx.Rotation, delta );
+		return Position.AlmostEqual( tx.Position, delta ) && Scale.AlmostEqual( tx.Scale, delta ) && Rotation.AlmostEqual( tx.Rotation );
 	}
 	#endregion
 

@@ -464,18 +464,27 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 				if ( file.Exists && file.Attributes.HasFlag( FileAttributes.Hidden ) )
 					continue;
 
-				var asset = AssetSystem.FindByPath( file.ToString() );
+				var path = file.ToString();
+				// pretend blobs are real assets for a moment so we can filter them out if they have a source file
+				var blob = file.Name.EndsWith( "_d" );
+				if ( blob )
+					path = path[..^2];
+				var asset = AssetSystem.FindByPath( path );
 
 				//
 				// Filter out compiled assets if we have a source asset
 				//
 				string sourcePath = asset?.GetSourceFile();
-				if ( file.Name.EndsWith( "_c" ) && !string.IsNullOrEmpty( sourcePath ) )
+				if ( (file.Name.EndsWith( "_c" ) || blob) && !string.IsNullOrEmpty( sourcePath ) )
 				{
 					// ( but only if the extensions are similar and would both be shown in this filter, eg so we don't hide .sounds because we have a .wav etc )
 					if ( Search.AssetTypes.ActiveTags.Count == 0 || file.Extension.Contains( System.IO.Path.GetExtension( sourcePath ) ) )
 						continue;
 				}
+
+				// can't load an asset or show the inspector from a blob
+				if ( blob )
+					asset = null;
 
 				if ( asset == null && HideNonAssets )
 					continue;

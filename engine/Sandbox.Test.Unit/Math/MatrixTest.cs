@@ -34,6 +34,6 @@ public class MatrixTest
 		var mat = Matrix.FromTransform( transform );
 		var tx = mat.ExtractTransform();
 
-		Assert.AreEqual( transform, tx );
+		Assert.IsTrue( transform.AlmostEqual( tx ) );
 	}
 }

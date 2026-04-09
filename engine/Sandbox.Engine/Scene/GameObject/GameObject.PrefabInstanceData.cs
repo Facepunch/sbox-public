@@ -124,6 +124,15 @@ internal class PrefabInstanceData
 	/// </summary>
 	public void RefreshPatch()
 	{
+		var prefabFile = ResourceLibrary.Get<PrefabFile>( PrefabSource );
+
+		// Prefab file is missing or not yet loaded — preserve the last known patch so the scene
+		// can still be saved and round-tripped. The data will be fully restored when the file returns.
+		if ( prefabFile is null || prefabFile.IsPromise || prefabFile.RootObject is null )
+		{
+			Log.Warning( $"Prefab '{PrefabSource}' is missing. Preserving last known patch for serialization." );
+			return;
+		}
 
 		var instanceData = _instanceRoot.SerializeStandard( _serializeOptions );
 

@@ -1,29 +1,31 @@
-﻿@import "/styles/_Theme.scss";
+﻿@import "/styles/_theme.scss";
 
-ContentBlockBody
-{
+ContentBlockBody {
 	position: relative;
 
-	&:hover
-	{
-		.visible
-		{
+	max-width: 100%;
+
+	&:hover {
+		.visible {
 			opacity: 1;
 			cursor: pointer;
 			pointer-events: all;
 		}
 	}
 
-	> .content
-	{
+	> .content-wrapper {
+		padding-top: 16px;
+		padding-bottom: 48px;
+	}
+
+	> .content {
+		padding: 16px 32px;
 		overflow-x: scroll;
 		overflow-y: hidden;
 		gap: 1rem;
-		padding: 0 32px;
 	}
 
-	> .nav-button
-	{
+	> .nav-button {
 		@include border;
 		position: absolute;
 		z-index: 99;
@@ -37,36 +39,30 @@ ContentBlockBody
 		opacity: 0;
 		transition: all 0.1s ease;
 
-		.icon
-		{
+		.icon {
 			font-size: 21px;
 			color: #70788b;
 			transition: all 0.1s ease;
 		}
 
-		&:active
-		{
+		&:active {
 			sound-in: ui.button.press;
 		}
 
-		&:hover
-		{
+		&:hover {
 			sound-in: ui.button.over;
 			background-color: $default-800;
 
-			.icon
-			{
+			.icon {
 				color: white;
 			}
 		}
 
-		&.left
-		{
+		&.left {
 			left: 12px;
 		}
 
-		&.right
-		{
+		&.right {
 			right: 12px;
 		}
 	}

@@ -1,0 +1,137 @@
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox;
+@using System;
+@namespace Sandbox.UI
+@inherits Panel
+
+<root>
+    <div class="content-wrapper">
+        <Button class="nav-button left" @ref=ScrollLeft @onclick=@(() => Scroll(false)) Icon="chevron_left" />
+
+        <div class="content" @ref=ContentParent>
+            @foreach (var item in Items)
+            {
+                @Item.Invoke(item)
+            }
+        </div>
+
+        <Button class="nav-button right" @ref=ScrollRight @onclick=@(() => Scroll(true)) Icon="chevron_right" />
+    </div>
+</root>
+
+@code {
+    [Parameter] public IEnumerable<object> Items { get; set; }
+    [Parameter] public RenderFragment<object> Item { get; set; }
+
+    [Parameter] public Action<object> OnItemChanged { get; set; }
+
+    private Panel ContentParent;
+    private Panel ScrollLeft;
+    private Panel ScrollRight;
+
+    private int ActiveIndex = 0;
+
+    private int LastIndex => ActiveIndex - 1 < 0 ? Items.Count() - 1 : ActiveIndex - 1;
+    private int NextIndex => ActiveIndex + 1 > Items.Count() - 1 ? 0 : ActiveIndex + 1;
+    private Panel LastPage => ContentParent.GetChild(LastIndex);
+    private Panel ActivePage => ContentParent.GetChild(ActiveIndex);
+    private Panel NextPage => ContentParent.GetChild(NextIndex);
+
+    public object ActiveItem => Items.ElementAt(ActiveIndex);
+
+    private TimeSince TimeSinceCycled = 0;
+
+    private bool PauseCycling = false;
+
+    protected override void OnParametersSet()
+    {
+        if (ActivePage == null)
+            return;
+
+        Scroll();
+    }
+
+    protected override void OnAfterTreeRender(bool firstTime)
+    {
+        if (ActivePage == null)
+            return;
+
+        UpdatePageVisibility();
+    }
+
+    public override void Tick()
+    {
+        if (PauseCycling)
+        {
+            TimeSinceCycled = 0;
+        }
+
+        if (TimeSinceCycled > 10f)
+        {
+            Scroll();
+        }
+    }
+
+    protected override void OnMouseOver(MousePanelEvent e)
+    {
+        PauseCycling = true;
+    }
+
+    protected override void OnMouseOut(MousePanelEvent e)
+    {
+        PauseCycling = false;
+    }
+
+    private void Scroll(bool forwards = true)
+    {
+        var lastActive = ActivePage;
+
+        TimeSinceCycled = 0;
+
+        if (forwards)
+            ActiveIndex++;
+        else
+            ActiveIndex--;
+
+        if (ActiveIndex > Items.Count() - 1)
+            ActiveIndex = 0;
+
+        if (ActiveIndex < 0)
+            ActiveIndex = Items.Count() - 1;
+
+        UpdatePageVisibility();
+    }
+
+    private void JumpTo(int index)
+    {
+        if (index < 0 || index > Items.Count() - 1)
+            return;
+
+        ActiveIndex = index;
+        UpdatePageVisibility();
+    }
+
+    private void UpdatePageVisibility()
+    {
+        foreach (var page in ContentParent.Children)
+        {
+            page.SetClass("hidden", page != NextPage && page != LastPage && page != ActivePage);
+            page.SetClass("exiting", page == LastPage);
+            page.SetClass("entering", page == NextPage);
+
+            if (page.HasClass("hidden"))
+            {
+                page.SkipTransitions();
+            }
+        }
+
+        OnItemChanged?.Invoke(ActiveItem);
+        ActivePage.StateHasChanged();
+    }
+
+    protected override int BuildHash()
+    {
+        return HashCode.Combine(ActiveIndex, Items);
+    }
+}

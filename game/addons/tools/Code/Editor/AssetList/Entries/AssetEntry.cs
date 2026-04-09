@@ -177,8 +177,11 @@ public class AssetEntry : IAssetListEntry
 		if ( !string.IsNullOrEmpty( compiledPath ) )
 		{
 			var compiled = new FileInfo( compiledPath );
-
 			compiled.MoveTo( compiled.GetNewPath( $"{newName}_c" ) );
+
+			var blob = new FileInfo( $"{compiledPath[..^2]}_d" );
+			if ( blob.Exists )
+				blob.MoveTo( compiled.GetNewPath( $"{newName}_d" ) );
 		}
 
 		FileInfo.MoveTo( FileInfo.GetNewPath( newName ) );

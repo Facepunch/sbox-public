@@ -60,13 +60,13 @@ internal class MockConnection : Connection
 		if ( !TryGetRoutableHost( out var host ) )
 			return;
 
-		using var decoded = Decode( encoded );
+		var decoded = Decode( encoded );
 
 		var wrapper = new TargetedInternalMessage
 		{
 			SenderId = Local.Id,
 			TargetId = Id,
-			Data = decoded.Data.ToArray(),
+			Data = decoded.ToArray(),
 			Flags = (byte)flags
 		};
 

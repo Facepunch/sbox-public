@@ -19,7 +19,18 @@ public enum OverflowMode
 	/// <summary>
 	/// Overflowing contents are hidden, but can be scrolled to.
 	/// </summary>
-	Scroll = 2
+	Scroll = 2,
+
+	/// <summary>
+	/// Overflowing contents are clipped, but unlike <see cref="Hidden"/>, does not create a scroll container and does not affect layout.
+	/// </summary>
+	Clip = 3,
+
+	/// <summary>
+	/// Child elements that extend outside the panel's bounds are hidden entirely, rather than pixel-clipped.
+	/// Does not create a scroll container and does not affect layout.
+	/// </summary>
+	ClipWhole = 4
 }
 
 /// <summary>

@@ -13,6 +13,8 @@ FormRow > .label
     flex-shrink: 0;
     white-space: nowrap;
     overflow: hidden;
+    align-items: center;
+    text-overflow: ellipsis;
 }
 
 FormRow > .content 

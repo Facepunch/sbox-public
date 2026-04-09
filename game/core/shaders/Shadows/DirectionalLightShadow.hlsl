@@ -19,7 +19,8 @@ cbuffer DirectionalLightCB
 	uint4 g_DirectionalLightShadowMapTextureIndex;
 	uint g_DirectionalLightCascadeCount;
     float g_DirectionalLightInverseShadowMapSize;
-	float2 g_DirectionalLightPadding;
+	float g_DirectionalLightPadding;
+	bool g_DirectionalLightEnabled;
     float4 g_DirectionalLightCascadeHardness;
     float4 g_DirectionalLightCascadeSpheres[MAX_CASCADE_COUNT]; // xyz = world center, w = radius squared
     float4 g_DirectionalLightShadowBias; // per-cascade depth bias, scaled by cascade size

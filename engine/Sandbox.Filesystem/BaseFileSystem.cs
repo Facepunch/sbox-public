@@ -562,7 +562,13 @@ public class BaseFileSystem
 		if ( filesystem == null ) return;
 		if ( filesystem.system == null ) return;
 
-		(system as Zio.FileSystems.AggregateFileSystem).RemoveFileSystem( filesystem.system );
+		if ( system is Zio.FileSystems.AggregateFileSystem fs )
+		{
+			if ( !fs.GetFileSystems().Contains( filesystem.system ) )
+				return;
+
+			fs.RemoveFileSystem( filesystem.system );
+		}
 	}
 
 	/// <summary>

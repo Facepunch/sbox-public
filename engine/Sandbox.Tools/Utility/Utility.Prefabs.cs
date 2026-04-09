@@ -196,6 +196,13 @@ public static partial class EditorUtility
 			if ( !go.IsValid() ) return;
 			if ( !go.IsPrefabInstance ) return;
 
+			if ( go.IsOutermostPrefabInstanceRoot )
+			{
+				go.PrefabInstance.ClearPatch( true );
+				go.UpdateFromPrefab();
+				return;
+			}
+
 			go.OutermostPrefabInstanceRoot.PrefabInstance.RevertGameObjectChanges( go );
 		}
 
@@ -277,20 +284,6 @@ public static partial class EditorUtility
 		}
 
 		/// <summary>
-		/// Revert a prefab instance to the state of the prefab.
-		/// </summary>
-		public static void RevertInstanceToPrefab( GameObject go )
-		{
-			if ( !go.IsPrefabInstance )
-			{
-				return;
-			}
-
-			go.OutermostPrefabInstanceRoot.PrefabInstance.ClearPatch( true );
-			go.UpdateFromPrefab();
-		}
-
-		/// <summary>
 		/// Write a prefab instance back to the prefab file and save it to disk.
 		/// </summary>
 		public static void WriteInstanceToPrefab( GameObject go, bool skipDiskWrite = false )
@@ -298,9 +291,15 @@ public static partial class EditorUtility
 			if ( !go.IsValid() ) return;
 			if ( !go.IsPrefabInstance ) return;
 
-			var prefabSource = go.OutermostPrefabInstanceRoot.PrefabInstanceSource;
+			if ( !go.IsOutermostPrefabInstanceRoot )
+			{
+				// Nested roots should go through ApplyGameObjectInstanceChangesToPrefab instead;
+				// writing them here corrupts GUIDs via MakeIdGuidsUnique on the wrong prefab.
+				Log.Warning( $"WriteInstanceToPrefab called with a non-outermost prefab root ({go}). Normalising to outermost root." );
+				go = go.OutermostPrefabInstanceRoot;
+			}
 
-			WriteGameObjectToPrefab( go, prefabSource, skipDiskWrite );
+			WriteGameObjectToPrefab( go, go.PrefabInstanceSource, skipDiskWrite );
 		}
 
 		private static (PrefabFile, Dictionary<Guid, Guid>) WriteGameObjectToPrefab( GameObject go, string saveLocation, bool skipDiskWrite = false )
@@ -410,6 +409,7 @@ public static partial class EditorUtility
 			{
 				var oldGo = go;
 				var oldGoSibling = go.GetNextSibling( false );
+				var originalWorldTransform = go.WorldTransform;
 				go = go.Clone();
 				if ( oldGoSibling != null )
 				{
@@ -419,9 +419,10 @@ public static partial class EditorUtility
 				{
 					go.Parent = oldGo.Parent;
 				}
+				// Restore world position after reparenting since Clone starts at origin
+				go.WorldTransform = originalWorldTransform;
 				oldGo.OutermostPrefabInstanceRoot.PrefabInstance.RemoveHierarchyFromLookup( oldGo );
 				oldGo.Destroy();
-
 			}
 
 			var (prefabFile, instanceToPrefabGuid) = WriteGameObjectToPrefab( go, saveLocation, skipDiskWrite );

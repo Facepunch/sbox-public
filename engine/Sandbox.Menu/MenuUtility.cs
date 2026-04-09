@@ -163,10 +163,7 @@ public static partial class MenuUtility
 	/// </summary>
 	public static void CancelLoading()
 	{
-		// Close the game
-		CloseGame();
-
-		// Close the loading screen
+		IGameInstanceDll.Current.Disconnect();
 		LoadingScreen.IsVisible = false;
 	}
 
@@ -287,8 +284,6 @@ public static partial class MenuUtility
 	/// </summary>
 	public static void RunTask( Func<Task> func )
 	{
-		if ( Application.IsEditor ) func();
-
 		// Post the *whole* function into the target context
 		MenuDll.AsyncContext.Post( async _ =>
 		{

@@ -6,7 +6,10 @@ using Sandbox.Compression;
 
 namespace Networking;
 
+// Decode uses a shared static buffer (single-threaded by design in production),
+// so these tests must not run in parallel with each other.
 [TestClass]
+[DoNotParallelize]
 public class ConnectionWire
 {
 	[TestMethod]
@@ -20,9 +23,9 @@ public class ConnectionWire
 
 		Assert.AreEqual( Connection.FlagRaw, encoded[0], "Small payload should use FlagRaw" );
 
-		using var decoded = Connection.Decode( encoded );
+		var decoded = Connection.Decode( encoded );
 		var original = stream.ToSpan();
-		Assert.IsTrue( decoded.Data.SequenceEqual( original ) );
+		Assert.IsTrue( decoded.SequenceEqual( original ) );
 	}
 
 	[TestMethod]
@@ -37,9 +40,9 @@ public class ConnectionWire
 
 		Assert.AreEqual( Connection.FlagCompressed, encoded[0], "Large repetitive payload should compress" );
 
-		using var decoded = Connection.Decode( encoded );
+		var decoded = Connection.Decode( encoded );
 		var original = stream.ToSpan();
-		Assert.IsTrue( decoded.Data.SequenceEqual( original ) );
+		Assert.IsTrue( decoded.SequenceEqual( original ) );
 	}
 
 	[TestMethod]
@@ -57,8 +60,8 @@ public class ConnectionWire
 	[TestMethod]
 	public void Decode_EmptyPacket_ReturnsEmpty()
 	{
-		using var result = Connection.Decode( ReadOnlySpan<byte>.Empty );
-		Assert.AreEqual( 0, result.Data.Length );
+		var result = Connection.Decode( ReadOnlySpan<byte>.Empty );
+		Assert.AreEqual( 0, result.Length );
 	}
 
 	[TestMethod]
@@ -67,7 +70,7 @@ public class ConnectionWire
 		var packet = new byte[] { 0xFF, 0x01, 0x02 };
 		Assert.ThrowsException<InvalidOperationException>( () =>
 		{
-			using var decoded = Connection.Decode( packet );
+			Connection.Decode( packet );
 		} );
 	}
 
@@ -78,7 +81,7 @@ public class ConnectionWire
 		var packet = new byte[] { Connection.FlagCompressed, 0x01 };
 		Assert.ThrowsException<InvalidDataException>( () =>
 		{
-			using var decoded = Connection.Decode( packet );
+			Connection.Decode( packet );
 		} );
 	}
 
@@ -92,7 +95,7 @@ public class ConnectionWire
 
 		Assert.ThrowsException<InvalidDataException>( () =>
 		{
-			using var decoded = Connection.Decode( packet );
+			Connection.Decode( packet );
 		} );
 	}
 
@@ -105,7 +108,7 @@ public class ConnectionWire
 
 		Assert.ThrowsException<InvalidDataException>( () =>
 		{
-			using var decoded = Connection.Decode( packet );
+			Connection.Decode( packet );
 		} );
 	}
 
@@ -119,7 +122,7 @@ public class ConnectionWire
 
 		Assert.ThrowsException<InvalidDataException>( () =>
 		{
-			using var decoded = Connection.Decode( packet );
+			Connection.Decode( packet );
 		} );
 	}
 
@@ -139,7 +142,7 @@ public class ConnectionWire
 
 		Assert.ThrowsException<InvalidDataException>( () =>
 		{
-			using var decoded = Connection.Decode( packet );
+			Connection.Decode( packet );
 		} );
 	}
 

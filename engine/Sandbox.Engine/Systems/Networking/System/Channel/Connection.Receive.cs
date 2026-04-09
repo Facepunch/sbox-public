@@ -1,5 +1,4 @@
 using Sandbox.Network;
-using System.Buffers;
 using System.Buffers.Binary;
 using System.IO;
 
@@ -7,8 +6,7 @@ namespace Sandbox;
 
 public abstract partial class Connection
 {
-	// Per-connection chunk reassembly buffer — rented from ArrayPool for the duration of a
-	// single chunked message assembly, then returned immediately after delivery.
+	// Per-connection chunk reassembly buffer — grown on demand to the high-water mark.
 	// _chunkBufferLength == -1 signals "no assembly in progress".
 	byte[] _chunkBuffer;
 	int _chunkBufferLength = -1;
@@ -45,10 +43,10 @@ public abstract partial class Connection
 
 		if ( index == 0 )
 		{
-			// Pre-size to the upper bound: total chunks × max chunk size.
-			if ( _chunkBuffer != null )
-				ArrayPool<byte>.Shared.Return( _chunkBuffer );
-			_chunkBuffer = ArrayPool<byte>.Shared.Rent( (int)total * MaxChunkSize );
+			// Grow the owned buffer to fit this message if needed.
+			var required = (int)total * MaxChunkSize;
+			if ( _chunkBuffer == null || _chunkBuffer.Length < required )
+				_chunkBuffer = GC.AllocateUninitializedArray<byte>( required );
 			_chunkBufferLength = 0;
 			_chunkExpectedIndex = 0;
 		}
@@ -82,39 +80,17 @@ public abstract partial class Connection
 		if ( index + 1 < total ) return; // Not the final chunk yet.
 
 		var assembledLength = _chunkBufferLength;
-		var assembledBuffer = _chunkBuffer;
 		_chunkBufferLength = -1;
-		_chunkBuffer = null;
+		// _chunkBuffer is intentionally kept — it will be reused for the next chunked message.
 
-		try
-		{
-			DeliverDecoded( assembledBuffer.AsSpan( 0, assembledLength ), handler );
-		}
-		finally
-		{
-			ArrayPool<byte>.Shared.Return( assembledBuffer );
-		}
+		DeliverDecoded( _chunkBuffer.AsSpan( 0, assembledLength ), handler );
 	}
 
 	private void DeliverDecoded( ReadOnlySpan<byte> encoded, NetworkSystem.MessageHandler handler )
 	{
-		using var decoded = Decode( encoded );
-		using var stream = ByteStream.CreateReader( decoded.Data );
+		var payload = Decode( encoded );
+		using var stream = ByteStream.CreateReader( payload );
 		handler( new NetworkSystem.NetworkMessage { Source = this, Data = stream } );
 		MessagesRecieved++;
-	}
-
-	/// <summary>
-	/// Returns the rented chunk reassembly buffer to the shared pool, if one is held.
-	/// Called from <see cref="Connection.Close"/>.
-	/// </summary>
-	internal void ReleaseChunkBuffer()
-	{
-		if ( _chunkBuffer != null )
-		{
-			ArrayPool<byte>.Shared.Return( _chunkBuffer );
-			_chunkBuffer = null;
-			_chunkBufferLength = -1;
-		}
 	}
 }

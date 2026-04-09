@@ -173,6 +173,10 @@ namespace Sandbox.UI
 				case "background-repeat":
 					return SetBackgroundRepeat( value );
 
+				case "background-playback-state":
+					BackgroundPlaybackPaused = value == "paused";
+					return true;
+
 				case "image-rendering":
 					return SetImageRendering( value );
 

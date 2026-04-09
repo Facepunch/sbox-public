@@ -1,0 +1,147 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using MenuProject.UI;
+@inherits Panel
+
+@if (Package == null) return;
+
+<div class="wrapper">
+    <Card onclick="@Clicked">
+        <ChildContent>
+            <div class="media-static" @key="@StaticMediaUrl" style="background-image: url( @StaticMediaUrl )"></div>
+
+            <div class="left">
+                <div class="media" @key="@MediaUrl" style="background-image: url( @MediaUrl )"></div>
+            </div>
+
+            <div class="right">
+                <row class="title-row">
+                    <div class="icon">
+                        <img src="@Package.Thumb" />
+                    </div>
+                    <column class="title-column">
+                        <Label class="eyebrow">
+                            Featured Game
+                        </Label>
+
+                        <Label class="large">
+                            @Package.Title
+                        </Label>
+                    </column>
+
+                    @if (Package.Usage.UsersNow > 0)
+                    {
+                        <badge class="online package-users">
+                            <icon>person</icon>
+                            <label>@(Package.Usage.UsersNow)</label>
+                        </badge>
+                    }
+                </row>
+
+                <separator class="horizontal" />
+
+                <div class="screenshots">
+                    @foreach (var screenshot in Screenshots)
+                    {
+                        <img src="@screenshot" class="screenshot" />
+                    }
+                </div>
+
+                <Label class="package-summary">
+                    @Package.Summary
+                </Label>
+
+                <row class="tags">
+                    @foreach (var tag in Tags)
+                    {
+                        <badge>
+                            @tag
+                        </badge>
+                    }
+                </row>
+
+                <div class="grow" />
+
+                <Button class="play-button" Icon="play_arrow" onclick=@PlayNow>
+                    <label class="eyebrow">Play Now</label>
+                </Button>
+            </div>
+        </ChildContent>
+    </Card>
+</div>
+
+@code
+{
+    [Parameter] public Package Package { get; set; }
+
+    string MediaUrl = "";
+    string StaticMediaUrl = "";
+
+    List<string> Screenshots = new();
+    List<string> Tags = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Package = await Package.FetchAsync(Package.FullIdent, false);
+        UpdateMedia();
+        StateHasChanged();
+    }
+
+    void UpdateMedia()
+    {
+        //
+        // Screenshot Grid
+        //
+        {
+            Screenshots = Package.Screenshots?.Where(x => !x.IsVideo).Select(x => x.Url).Take(4).ToList();
+        }
+
+        //
+        // Main media
+        //
+        {
+            var video = Package.Screenshots?.Where(x => x.IsVideo).FirstOrDefault()?.Url;
+            if (video != null)
+            {
+                video = video.Replace("medium.mp4", "high.mp4");
+                MediaUrl = video;
+            }
+        }
+
+        //
+        // Static media
+        //
+        {
+            var staticMedia = Package.ThumbWide;
+            StaticMediaUrl = staticMedia;
+        }
+
+        //
+        // Tags
+        //
+        {
+            Tags = Package.Tags.Take(5).ToList();
+        }
+    }
+
+    private string VotePercentage()
+    {
+        if (Package == null) return "Unrated";
+
+        if (Package.VotesUp == 0 && Package.VotesDown == 0)
+            return "Unrated";
+
+        return ((int)((float)Package.VotesUp / (Package.VotesUp + Package.VotesDown) * 100)).ToString() + "%";
+    }
+
+    void Clicked()
+    {
+        ContentBlocks.OnLaunch(Package);
+    }
+
+    void PlayNow( PanelEvent e )
+    {
+        e.StopPropagation();
+        MenuHelpers.PlayGame(Package);
+    }
+}

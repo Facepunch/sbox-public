@@ -156,7 +156,7 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 
 	protected override void OnEnabled()
 	{
-		var so = new TextSceneObject( Scene.SceneWorld )
+		_so = new TextSceneObject( Scene.SceneWorld )
 		{
 			Transform = WorldTransform.WithScale( WorldScale * Scale ),
 			BlendMode = BlendMode,
@@ -166,11 +166,10 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 
 		UpdateAlignment();
 
-		so.CalculateBounds();
+		_so.CalculateBounds();
 
-		RenderOptions.Apply( so );
+		RenderOptions.Apply( _so );
 
-		_so = so;
 		OnSceneObjectCreated( _so );
 
 		Transform.OnTransformChanged += TransformChanged;

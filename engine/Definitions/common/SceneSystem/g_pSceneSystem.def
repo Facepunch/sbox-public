@@ -75,8 +75,14 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
     void BeginRenderingDynamicView( ISceneView pView );
     //ISceneView AddDynamicView( string pszDebugName, ISceneView pParentView, CFrustum frustum, void* hSwapChain, ISceneWorld pWorld, RenderViewport mainViewport, void* pVis, int nPriority, int nViewProducerIndex );
 
-	ISceneView AddShadowView( string debugName, ISceneView pParentView, CFrustum frustum, RenderViewport_t mainViewport, ITexture rt, int rtIdx, ESceneObjectFlags requiredFlags, ESceneObjectFlags excludedFlags, int depthBias, float slopeScaledDepthBias );
-    ITexture GetWellKnownTexture( SceneSystemWellKnownTextureObjectID a );
+	ISceneView AddShadowView( string debugName, ISceneView pParentView, CFrustum frustum, RenderViewport_t mainViewport, ITexture rt, int rtIdx, ESceneObjectFlags requiredFlags, ESceneObjectFlags excludedFlags, int depthBias, float slopeScaledDepthBias, CFrustum exclusionFrustum );
+
+	inline ISceneView AddShadowView( string debugName, ISceneView pParentView, CFrustum frustum, RenderViewport_t mainViewport, ITexture rt, int rtIdx, ESceneObjectFlags requiredFlags, ESceneObjectFlags excludedFlags, int depthBias, float slopeScaledDepthBias )
+	{
+		return g_pSceneSystem->AddShadowView( debugName, pParentView, frustum, mainViewport, rt, rtIdx, requiredFlags, excludedFlags, depthBias, slopeScaledDepthBias, nullptr );
+	}
+    
+	ITexture GetWellKnownTexture( SceneSystemWellKnownTextureObjectID a );
     IMaterial GetWellKnownMaterialHandle( SceneSystemWellKnownMaterialObjectID a );
 	
     inline SceneSystemPerFrameStats_t GetPerFrameStats()

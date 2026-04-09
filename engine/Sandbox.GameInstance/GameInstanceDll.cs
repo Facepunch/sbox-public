@@ -20,6 +20,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	PackageLoader.Enroller AssemblyEnroller { get; set; }
 
 	private bool _isAssemblyLoadingPaused;
+	private CancellationTokenSource _loadGameCts;
 
 	public void Bootstrap()
 	{
@@ -367,6 +368,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 	public void CloseGame()
 	{
+		CancelLoad();
+
 		if ( gameInstance is null ) return;
 
 		ConVarSystem.SaveAll();
@@ -514,7 +517,16 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 	public void Disconnect()
 	{
+		// cancel any in-progress load right now instead of waiting for tick
+		CancelLoad();
 		Game.Close();
+	}
+
+	private void CancelLoad()
+	{
+		_loadGameCts?.Cancel();
+		_loadGameCts?.Dispose();
+		_loadGameCts = null;
 	}
 
 	/// <summary>
@@ -525,19 +537,35 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		try
 		{
 			ThreadSafe.AssertIsMainThread();
-			await LoadGamePackageAsyncInternal( ident, flags, ct );
+
+			_loadGameCts?.Cancel();
+			_loadGameCts?.Dispose();
+			_loadGameCts = CancellationTokenSource.CreateLinkedTokenSource( ct );
+
+			await LoadGamePackageAsyncInternal( ident, flags, _loadGameCts.Token );
 		}
 		catch ( System.Exception e )
 		{
-			LoadingScreen.IsVisible = false;
-			LoadingScreen.Media = null;
+			ResetEnvironment();
 
-			using ( IMenuDll.Current?.PushScope() )
+			if ( e is not OperationCanceledException )
 			{
-				IMenuSystem.Current?.Popup( "error", "Loading Error", $"There was an error when loading this game. {e.Message}" );
+				using ( IMenuDll.Current?.PushScope() )
+				{
+					IMenuSystem.Current?.Popup( "error", "Loading Error", $"There was an error when loading this game. {e.Message}" );
+				}
+
+				Log.Warning( e, e.Message );
+
+				if ( Application.IsEditor )
+				{
+					// raise in editor, load has failed and we should alert the user
+					throw;
+				}
 			}
 
-			Log.Warning( e, e.Message );
+			LoadingScreen.IsVisible = false;
+			LoadingScreen.Media = null;
 		}
 	}
 
@@ -617,12 +645,10 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 			if ( !await newInstance.LoadAsync( AssemblyEnroller, ct ) )
 			{
-				ResetEnvironment();
-				newInstance.Close();
-				newInstance.Shutdown();
-				newInstance = default;
+				if ( ct.IsCancellationRequested )
+					return;
 
-				throw new System.Exception( "Loading failed." );
+				throw new Exception( "GameInstance load failed" );
 			}
 
 			if ( ct.IsCancellationRequested )
@@ -666,10 +692,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			{
 				if ( !gameInstance.OpenStartupScene() )
 				{
-					ResetEnvironment();
-					LoadingScreen.IsVisible = false;
-					LoadingScreen.Media = null;
-					return;
+					throw new Exception( "Failed to load startup scene" );
 				}
 			}
 
@@ -853,8 +876,11 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			Log.Info( $" with map: '{LaunchArguments.Map}'" );
 		}
 
-		await IGameInstanceDll.Current.LoadGamePackageAsync( gameIdent, GameLoadingFlags.Host, default );
-		Log.Info( $"Load Complete" );
+		LoadingScreen.IsVisible = true;
+		LoadingScreen.Media = null;
+		LoadingScreen.Title = null;
+
+		await Current.LoadGamePackageAsync( gameIdent, GameLoadingFlags.Host, default );
 	}
 
 	public static void Create()
