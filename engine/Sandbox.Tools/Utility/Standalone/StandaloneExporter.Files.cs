@@ -65,6 +65,10 @@ partial class StandaloneExporter
 
 	private IEnumerable<string> GetCoreFiles( string engineDir )
 	{
+		// Add action sets (required for VR initialization)
+		if ( StandaloneManifest.IsVRProject )
+			return GetWhitelistedFiles( CoreWhitelist.Append( "cfg/fpxr/*" ).ToArray(), Path.Combine( engineDir, "core" ) );
+		
 		return GetWhitelistedFiles( CoreWhitelist, Path.Combine( engineDir, "core" ) );
 	}
 
