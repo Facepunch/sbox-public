@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 
 namespace Editor;
 
@@ -241,11 +241,11 @@ public static class EditorPreferences
 	//GENERAL -----------------
 	public enum NavigationStyleList
 	{
-	[Description( "Orbit:	Middle Click\nPan:	Shift + Middle Click\nZoom:	Cntrl + Middle Click" )]
+		[Description( "Orbit:	Middle Click\nPan:	Shift + Middle Click\nZoom:	Cntrl + Middle Click" )]
 		Blender,
-	[Description( "Orbit:	Alt + Left Click\nPan:	Alt + Middle Click\nZoom:	Alt + Right Click" )]
+		[Description( "Orbit:	Alt + Left Click\nPan:	Alt + Middle Click\nZoom:	Alt + Right Click" )]
 		Maya,
-	[Description( "Orbit:	Alt + Left Click\nPan:	Alt + Middle Click\nZoom:	Alt + Right Click" )]
+		[Description( "Orbit:	Alt + Left Click\nPan:	Alt + Middle Click\nZoom:	Alt + Right Click" )]
 		Cinema4D
 	}
 	public static NavigationStyleList NavigationStyle
@@ -262,7 +262,7 @@ public static class EditorPreferences
 	}
 
 	//ORBIT -------------------
-		//Invert
+	//Invert
 	[Title( "Invert Orbit X" )]
 	public static bool OrbitInvertHorizontal
 	{
@@ -275,7 +275,7 @@ public static class EditorPreferences
 		get => EditorCookie.Get( "OrbitInvertVertical", true );
 		set => EditorCookie.Set( "OrbitInvertVertical", value );
 	}
-			//Sensitivity
+	//Sensitivity
 	[Title( "Orbit sensitivity" )]
 	[Range( 0.1f, 2.0f )]
 	public static float OrbitSensitivity
@@ -297,7 +297,7 @@ public static class EditorPreferences
 		get => EditorCookie.Get( "PanInvertVertical", false );
 		set => EditorCookie.Set( "PanInvertVertical", value );
 	}
-			//Sensitivity
+	//Sensitivity
 	[Title( "Pan sensitivity" )]
 	[Range( 0.1f, 2.0f )]
 	public static float PanSensitivity
@@ -313,7 +313,7 @@ public static class EditorPreferences
 		get => EditorCookie.Get( "ZoomInvert", false );
 		set => EditorCookie.Set( "ZoomInvert", value );
 	}
-			//Sensitivity
+	//Sensitivity
 	[Title( "Zoom sensitivity" )]
 	[Range( 0.1f, 2.0f )]
 	public static float ZoomSensitivity
