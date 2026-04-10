@@ -327,7 +327,7 @@ public static class EditorPreferences
 		get => EditorCookie.Get( "ZoomSensitivity", 1.0f );
 		set => EditorCookie.Set( "ZoomSensitivity", value );
 	}
-	
+
 	/// <summary>
 	/// Overrides for any Editor shortcuts.
 	/// </summary>
