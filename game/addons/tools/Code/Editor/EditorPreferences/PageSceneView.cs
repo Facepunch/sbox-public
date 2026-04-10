@@ -26,39 +26,39 @@ internal class PageSceneView : Widget
 		cameraSheet.AddProperty( () => EditorPreferences.CameraZFar );
 		Layout.Add( cameraSheet );
 		Layout.AddSpacingCell( 12 );
-		
+
 		Layout.Add( new Label( "Camera Navigation" ) );
 		Layout.AddSpacingCell( 8 );
 		var cameraStyleSettings = new ControlSheet();
-		Layout.Add( cameraStyleSettings ); 
+		Layout.Add( cameraStyleSettings );
 		cameraStyleSettings.AddProperty( () => EditorPreferences.NavigationStyle );
 		cameraStyleSettings.AddProperty( () => EditorPreferences.CameraCursor );
 		Layout.AddSpacingCell( 8 );
 
 		var cameraOrbitSettings = new ControlSheet();
-		Layout.Add( cameraOrbitSettings ); 
+		Layout.Add( cameraOrbitSettings );
 		cameraOrbitSettings.AddProperty( () => EditorPreferences.OrbitSensitivity );
 		cameraOrbitSettings.AddProperty( () => EditorPreferences.OrbitInvertHorizontal );
 		cameraOrbitSettings.AddProperty( () => EditorPreferences.OrbitInvertVertical );
 		Layout.AddSpacingCell( 8 );
 
 		var cameraPanSettings = new ControlSheet();
-		Layout.Add( cameraPanSettings ); 
+		Layout.Add( cameraPanSettings );
 		cameraPanSettings.AddProperty( () => EditorPreferences.PanSensitivity );
 		cameraPanSettings.AddProperty( () => EditorPreferences.PanInvertHorizontal );
 		cameraPanSettings.AddProperty( () => EditorPreferences.PanInvertVertical );
 		Layout.AddSpacingCell( 8 );
 
 		var cameraZoomSettings = new ControlSheet();
-		Layout.Add( cameraZoomSettings ); 
-		cameraZoomSettings.AddProperty( () => EditorPreferences.ZoomSensitivity ); //ersetzt auch zoom speed von mauswheel
+		Layout.Add( cameraZoomSettings );
+		cameraZoomSettings.AddProperty( () => EditorPreferences.ZoomSensitivity );
 		cameraZoomSettings.AddProperty( () => EditorPreferences.ZoomInvert );
 		Layout.AddSpacingCell( 12 );
 
 		Layout.Add( new Label( "Flying Camera" ) );
 		Layout.AddSpacingCell( 8 );
 		var cameraMovementSheet = new ControlSheet();
-		Layout.Add( cameraMovementSheet ); 
+		Layout.Add( cameraMovementSheet );
 		cameraMovementSheet.AddProperty( () => EditorPreferences.CameraMovementSmoothing );
 		cameraMovementSheet.AddProperty( () => EditorPreferences.ScrollZoomSpeed );
 

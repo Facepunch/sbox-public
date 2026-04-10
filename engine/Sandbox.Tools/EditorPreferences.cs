@@ -238,18 +238,14 @@ public static class EditorPreferences
 		set => EditorCookie.Set( "UndoSounds", value );
 	}
 
-
-
-
-
-
-	///---------------------------------------------------------------------------------///
-
 	//GENERAL -----------------
 	public enum NavigationStyleList
 	{
+	[Description( "Orbit:	Middle Click\nPan:	Shift + Middle Click\nZoom:	Cntrl + Middle Click" )]
 		Blender,
+	[Description( "Orbit:	Alt + Left Click\nPan:	Alt + Middle Click\nZoom:	Alt + Right Click" )]
 		Maya,
+	[Description( "Orbit:	Alt + Left Click\nPan:	Alt + Middle Click\nZoom:	Alt + Right Click" )]
 		Cinema4D
 	}
 	public static NavigationStyleList NavigationStyle
@@ -288,7 +284,6 @@ public static class EditorPreferences
 		set => EditorCookie.Set( "OrbitSensitivity", value );
 	}
 
-
 	//PAN ---------------------
 	[Title( "Invert Pan X" )]
 	public static bool PanInvertHorizontal
@@ -311,7 +306,6 @@ public static class EditorPreferences
 		set => EditorCookie.Set( "PanSensitivity", value );
 	}
 
-
 	//ZOOM --------------------
 	[Title( "Invert Zoom" )]
 	public static bool ZoomInvert
@@ -328,13 +322,6 @@ public static class EditorPreferences
 		set => EditorCookie.Set( "ZoomSensitivity", value );
 	}
 	
-
-	///---------------------------------------------------------------------------------///
-
-
-
-
-
 	/// <summary>
 	/// Overrides for any Editor shortcuts.
 	/// </summary>

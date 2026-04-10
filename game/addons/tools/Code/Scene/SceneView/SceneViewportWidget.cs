@@ -525,8 +525,8 @@ public partial class SceneViewportWidget : Widget
 			}
 
 
-			// Huge hack, it is barely holding together tbh, I'd say the entire SceneViewportWidget.cs needs restructuring and adjustment cause it is filled with if/else and exception weirdness.
-			// would do it myself but man this new navigation logic already took 2 weeks.
+			// Huge hack, it is barely holding together tbh, I'd say the entire SceneViewportWidget.cs needs restructuring and adjustment cause it is filled with exception weirdness.
+			// would do it myself but man this new navigation logic already took 2 weeks and we are like 4 weeks away from S&box release.
 			// don't judge me for this - Fabian F.
 			if ( blockCameraForToolInput )
 			{
@@ -572,7 +572,7 @@ public partial class SceneViewportWidget : Widget
 
 			bool oldIsHovered = GizmoInstance.Input.IsHovered;
 
-			// This is where the magic happens.. This is such a mess... Sorry - Fabian F.
+			// This is where the magic happens.. - Fabian F.
 			if ( GizmoInstance.OrbitCamera( _activeCamera, Renderer, ref cameraOrbitDistance ) )
 			{
 				cameraTargetPosition = null;
@@ -590,8 +590,6 @@ public partial class SceneViewportWidget : Widget
 					GizmoInstance.Input.IsHovered = false;
 				}
 			}
-
-
 
 			State.CameraPosition = _activeCamera.WorldPosition;
 			State.CameraRotation = _activeCamera.WorldRotation;
