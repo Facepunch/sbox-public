@@ -123,6 +123,8 @@ public partial class Texture
 
 	private static int GetImageFormatSize( ImageFormat format, int width, int height )
 	{
+		if ( width <= 0 || height <= 0 ) throw new ArgumentException( "Width and height must be positive" );
+
 		return NativeEngine.ImageLoader.GetMemRequired( width, height, 1, 1, format );
 	}
 
@@ -153,6 +155,7 @@ public partial class Texture
 			dstSize.Y = srcRect.Height;
 
 		if ( srcRect.X < 0 || srcRect.Y < 0 ||
+			srcRect.Width <= 0 || srcRect.Height <= 0 ||
 			((long)srcRect.X + srcRect.Width) > Width ||
 			((long)srcRect.Y + srcRect.Height) > Height )
 		{
@@ -218,6 +221,7 @@ public partial class Texture
 			dstRect.H = srcRect.Height;
 
 		if ( srcRect.X < 0 || srcRect.Y < 0 ||
+			srcRect.Width <= 0 || srcRect.Height <= 0 ||
 			((long)srcRect.X + srcRect.Width) > Width ||
 			((long)srcRect.Y + srcRect.Height) > Height )
 		{
@@ -285,6 +289,7 @@ public partial class Texture
 			dstSize.Z = srcBox.Depth;
 
 		if ( srcBox.X < 0 || srcBox.Y < 0 || srcBox.Z < 0 ||
+			srcBox.Width <= 0 || srcBox.Height <= 0 || srcBox.Depth <= 0 ||
 			((long)srcBox.X + srcBox.Width) > Width ||
 			((long)srcBox.Y + srcBox.Height) > Height ||
 			((long)srcBox.Z + srcBox.Depth) > Depth )
@@ -423,6 +428,7 @@ public partial class Texture
 	public void GetPixelsAsync<T>( Action<ReadOnlySpan<T>> callback, ImageFormat dstFormat = ImageFormat.Default, (int X, int Y, int Width, int Height) srcRect = default, int slice = 0, int mip = 0 ) where T : unmanaged
 	{
 		if ( srcRect.X < 0 || srcRect.Y < 0 ||
+			srcRect.Width <= 0 || srcRect.Height <= 0 ||
 			((long)srcRect.X + srcRect.Width) > Width ||
 			((long)srcRect.Y + srcRect.Height) > Height )
 		{
@@ -487,6 +493,7 @@ public partial class Texture
 			srcBox.Depth = Depth;
 
 		if ( srcBox.X < 0 || srcBox.Y < 0 || srcBox.Z < 0 ||
+			srcBox.Width <= 0 || srcBox.Height <= 0 || srcBox.Depth <= 0 ||
 			((long)srcBox.X + srcBox.Width) > Width ||
 			((long)srcBox.Y + srcBox.Height) > Height ||
 			((long)srcBox.Z + srcBox.Depth) > Depth )

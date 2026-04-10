@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 
 namespace Sandbox.MovieMaker;
 
@@ -20,6 +21,11 @@ namespace Sandbox.MovieMaker;
 /// </summary>
 public interface ITrackTarget
 {
+	/// <summary>
+	/// The binder that created this target.
+	/// </summary>
+	TrackBinder Binder { get; }
+
 	/// <summary>
 	/// Name of this target, for debugging and editing.
 	/// </summary>
@@ -78,7 +84,7 @@ public interface ITrackReference : ITrackTarget
 	new ITrackReference<GameObject>? Parent { get; }
 
 	/// <summary>
-	/// Explicitly this reference to a particular object in the scene, or null to force it to stay unbound.
+	/// Explicitly bind this reference to a particular object in the scene, or null to force it to stay unbound.
 	/// </summary>
 	void Bind( IValid? value );
 
@@ -88,7 +94,6 @@ public interface ITrackReference : ITrackTarget
 	void Reset();
 
 	ITrackTarget? ITrackTarget.Parent => Parent;
-	bool ITrackTarget.IsBound => (Value as IValid).IsValid();
 }
 
 /// <inheritdoc cref="ITrackReference"/>
@@ -113,7 +118,12 @@ public partial interface ITrackProperty : ITrackTarget, IValid
 	new ITrackTarget Parent { get; }
 
 	/// <summary>
-	/// False if this member is readonly.
+	/// False if this member is write-only.
+	/// </summary>
+	bool CanRead => true;
+
+	/// <summary>
+	/// False if this member is read-only.
 	/// </summary>
 	bool CanWrite => true;
 
@@ -129,6 +139,7 @@ public partial interface ITrackProperty : ITrackTarget, IValid
 	bool Update( IPropertyTrack track, MovieTime time );
 
 	bool IValid.IsValid => true;
+	TrackBinder ITrackTarget.Binder => Parent.Binder;
 	bool ITrackTarget.IsBound => Parent is { IsBound: true };
 	bool ITrackTarget.IsActive => Parent is { IsActive: true };
 	ITrackTarget ITrackTarget.Parent => Parent;
@@ -141,10 +152,13 @@ public partial interface ITrackProperty<T> : ITrackProperty, ITrackTarget<T>
 	/// <inheritdoc cref="ITrackProperty.Value"/>
 	new T Value { get; set; }
 
+	T ITrackTarget<T>.Value => Value;
+
 	/// <inheritdoc cref="ITrackProperty.Update"/>
-	public bool Update( IPropertyTrack<T> track, MovieTime time )
+	bool Update( IPropertyTrack<T> track, MovieTime time )
 	{
 		if ( !IsBound || !CanWrite ) return false;
+
 		if ( !track.TryGetValue( time, out var value ) )
 		{
 			// Special handling for Enabled: false when there's no value
@@ -159,14 +173,13 @@ public partial interface ITrackProperty<T> : ITrackProperty, ITrackTarget<T>
 		}
 
 		Value = value;
-
 		return true;
 	}
 
-	T ITrackTarget<T>.Value => Value;
-
-	bool ITrackProperty.Update( IPropertyTrack track, MovieTime time ) =>
-		track is IPropertyTrack<T> typedTrack && Update( typedTrack, time );
+	bool ITrackProperty.Update( IPropertyTrack track, MovieTime time )
+	{
+		return track is IPropertyTrack<T> typedTrack && Update( typedTrack, time );
+	}
 
 	object? ITrackProperty.Value
 	{

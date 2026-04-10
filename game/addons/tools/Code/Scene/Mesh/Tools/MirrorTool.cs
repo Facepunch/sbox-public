@@ -113,7 +113,7 @@ public partial class MirrorTool( string tool ) : EditorTool
 		}
 
 		mesh.FlipAllFaces();
-		mesh.Scale( new Vector3( 1, -1, 1 ), false );
+		mesh.Scale( new Vector3( 1, -1, 1 ) );
 
 		return mesh;
 	}

@@ -47,7 +47,7 @@ internal static partial class DebugOverlay
 
 	public static void Draw()
 	{
-		Vector2 pos = new Vector2( 100, 130 );
+		Vector2 pos = new Vector2( 64, 64 );
 		var activeScene = Application.GetActiveScene();
 
 		// Show current render debug mode on screen when not default
@@ -112,5 +112,8 @@ internal static partial class DebugOverlay
 			DebugOverlay.Resources.Draw( ref pos );
 			pos.y += OverlaySpacing;
 		}
+
+		if ( ShadowMapper.DebugEnabled )
+			ShadowMapper.Draw( ref pos, Hud );
 	}
 }

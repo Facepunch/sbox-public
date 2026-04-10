@@ -34,10 +34,14 @@ public partial class Scene : GameObject
 		{
 			var mt = Engine.Utility.RayTrace.MeshTraceRequest.From( trace.PhysicsTrace.request, SceneWorld, trace.CullMode );
 			mt.filterCallback = trace.NeedsFilterCallback ? trace.FilterCallback : default;
-			var meshTraceResult = mt.Run();
-			if ( meshTraceResult.Hit )
+			var meshTraceResults = mt.RunAll();
+
+			foreach ( var meshTraceResult in meshTraceResults )
 			{
-				results.Add( SceneTraceResult.From( this, meshTraceResult ) );
+				if ( meshTraceResult.Hit )
+				{
+					results.Add( SceneTraceResult.From( this, meshTraceResult ) );
+				}
 			}
 		}
 
@@ -663,43 +667,59 @@ public partial struct SceneTrace
 
 	/// <summary>
 	/// Return true if we should hit this shape.
-	/// We puposely keep this locked down, don't offer a user specified callback.
+	/// We purposely keep this locked down, don't offer a user specified callback.
 	/// </summary>
 	internal readonly bool FilterCallback( PhysicsShape shape )
 	{
-		var body = shape.Body;
+		var colliderObject = shape.Collider?.GameObject;
+		var bodyObject = shape.Body?.GameObject;
 
-		return FilterCallback( body.GameObject );
+		//
+		// Check both collider and body GameObjects.
+		// The user might ignore either one.
+		//
+		if ( colliderObject != null && IgnoreSingleObject.Contains( colliderObject ) )
+			return false;
+
+		if ( bodyObject != null && bodyObject != colliderObject && IgnoreSingleObject.Contains( bodyObject ) )
+			return false;
+
+		//
+		// Prefer the collider GameObject.
+		// Fall back to body if needed.
+		//
+		return FilterCallback( colliderObject ?? bodyObject );
 	}
 
 	/// <summary>
 	/// Return true if we should hit this sceneobject.
-	/// We puposely keep this locked down, don't offer a user specified callback.
+	/// We purposely keep this locked down, don't offer a user specified callback.
 	/// </summary>
 	internal readonly bool FilterCallback( SceneObject so )
 	{
-		return FilterCallback( so.GameObject );
-	}
-
-	internal readonly bool FilterCallback( GameObject go )
-	{
-		if ( go is null ) return true;
+		var go = so.GameObject;
 
 		//
-		// We're ignoring this object in particular
+		// Ignore this object directly
 		//
 		if ( IgnoreSingleObject.Contains( go ) )
 			return false;
 
-		//
-		// Object is an ancestor of an object we're ignoring the hierachy of
-		//
+		return FilterCallback( go );
+	}
 
+	readonly bool FilterCallback( GameObject go )
+	{
+		if ( go is null ) return true;
+
+		//
+		// Ignore anything under a hierarchy we're skipping
+		//
 		for ( int i = 0; i < IgnoreHierarchy.Length; i++ )
 		{
-			if ( go.IsAncestor( IgnoreHierarchy[i] ) ) return false;
+			if ( go.IsAncestor( IgnoreHierarchy[i] ) )
+				return false;
 		}
-
 
 		return true;
 	}

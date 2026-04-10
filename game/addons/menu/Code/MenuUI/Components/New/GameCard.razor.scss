@@ -1,0 +1,153 @@
+@import "/styles/_theme.scss";
+$background-size: 8px;
+
+GameCard {
+    flex-shrink: 0;
+    flex-direction: column;
+    position: relative;
+    background-color: rgba( $default-950, 0 );
+    border-radius: $rounding-default;
+    transition: all 150ms ease;
+    flex-shrink: 0;
+    cursor: pointer;
+    z-index: 0;
+    height: 200px;
+
+    .image {
+        flex-grow: 1;
+        flex-shrink: 0;
+        transition: all 150ms ease;
+        border: 1px solid rgba( white, 0.025 );
+        aspect-ratio: 16 / 9;
+    }
+
+    column {
+        padding: 8px 2px; // Optically aligned
+    }
+
+    &.list {
+        width: 400px;
+        height: 64px;
+
+        .inner column {
+            flex-grow: 1;
+        }
+
+        .image {
+            height: 64px;
+            aspect-ratio: 1;
+            mask: linear-gradient( to right, white, black );
+        }
+
+        column {
+            gap: 3px;
+            justify-content: center;
+        }
+    }
+
+    &.wide {
+        height: 250px;
+
+        .package-title {
+            max-width: 300px;
+        }
+    }
+
+    &.small {
+        height: 200px;
+        aspect-ratio: 3/4;
+
+        .image {
+            aspect-ratio: 1;
+        }
+
+        .package-title {
+            max-width: 140px;
+        }
+    }
+
+    &.tall {
+        height: 400px;
+
+        .image {
+            aspect-ratio: 9/16;
+        }
+
+        .package-title {
+            max-width: 200px;
+        }
+    }
+
+    .package-title {
+        text-overflow: ellipsis;
+        max-height: 24px;
+        flex-shrink: 1;
+        max-width: 150px;
+        font-size: 14px;
+    }
+
+    .package-users {
+        position: absolute;
+        top: 4px;
+        right: 3px;
+        transition: all 150ms ease;
+    }
+
+    .image {
+        background-position: center;
+        background-size: cover;
+        border-radius: $rounding-small;
+    }
+
+    .play-button {
+        position: absolute;
+        bottom: -32px;
+        left: 0;
+        right: 0;
+        background-color: $primary-blue;
+        color: $default-text;
+        justify-content: center;
+        align-items: center;
+        border-radius: $rounding-small;
+        opacity: 0;
+        transition: all 150ms ease;
+
+        label {
+            color: $default-text;
+        }
+
+        &:hover {
+            background-color: $primary-blue-dark;
+        }
+    }
+
+    &::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 0;
+        background-color: rgba( $default-950, 0 );
+        transition: all 150ms ease;
+        z-index: -10;
+        border-radius: $rounding-large;
+        pointer-events: all;
+    }
+
+    &:hover {
+        transform: scale( 1.05 );
+
+        &::after {
+            background-color: $default-800;
+            top: -$background-size;
+            left: -$background-size;
+            right: -$background-size;
+            bottom: -$background-size;
+            box-shadow: 0 0 25px rgba( black, 0.3 );
+        }
+
+        z-index: 100;
+        background-color: $default-900;
+    }
+}

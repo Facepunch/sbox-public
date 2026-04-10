@@ -40,6 +40,7 @@ public abstract partial class BaseStyles : ICloneable
 		if ( bs._backgroundImage != null ) _backgroundImage = bs._backgroundImage;
 		if ( bs._maskImage != null ) _maskImage = bs._maskImage;
 		if ( bs._borderImageSource != null ) _borderImageSource = bs._borderImageSource;
+		if ( bs._backgroundPlaybackPaused.HasValue ) _backgroundPlaybackPaused = bs._backgroundPlaybackPaused;
 	}
 
 	/// <summary>
@@ -52,6 +53,7 @@ public abstract partial class BaseStyles : ICloneable
 		_backgroundImage = bs._backgroundImage;
 		_maskImage = bs._maskImage;
 		_borderImageSource = bs._borderImageSource;
+		_backgroundPlaybackPaused = bs._backgroundPlaybackPaused;
 	}
 
 	/// <summary>
@@ -94,6 +96,12 @@ public abstract partial class BaseStyles : ICloneable
 			case "scroll":
 				set( OverflowMode.Scroll );
 				return true;
+			case "clip":
+				set( OverflowMode.Clip );
+				return true;
+			case "clip-whole":
+				set( OverflowMode.ClipWhole );
+				return true;
 			case "visible":
 				set( OverflowMode.Visible );
 				return true;
@@ -119,7 +127,7 @@ public abstract partial class BaseStyles : ICloneable
 	{
 		var generated_hash = GetHashCodeGenerated();
 
-		generated_hash = HashCode.Combine( generated_hash, _backgroundImage, _borderImageSource, _maskImage );
+		generated_hash = HashCode.Combine( generated_hash, _backgroundImage, _borderImageSource, _maskImage, _backgroundPlaybackPaused );
 
 		return generated_hash;
 	}

@@ -32,7 +32,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 	}
 
 	private readonly ConcurrentBag<Guid> _activeParticleEmitters = new();
-	private readonly ConcurrentBag<(Guid id, ulong group, IBatchedParticleSpriteRenderer system, int offset, int count, int splotCount)> _particleProcessingResults = new();
+	private readonly ConcurrentBag<(Guid id, ulong group, IBatchedParticleSpriteRenderer system, int offset, int count, int splotCount, BBox bounds)> _particleProcessingResults = new();
 	private HashSet<Guid> _registeredSpriteRenderers = new();
 	private SpriteBatchSceneObject.SpriteData[] _sharedSprites;
 	private readonly List<SpriteRenderer> _allSprites = new();
@@ -64,7 +64,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 				var keysToRemove = rg.Value.SpriteGroups.Keys.ToList();
 				foreach ( var key in keysToRemove )
 				{
-					rg.Value.SpriteGroups.Remove( key );
+					rg.Value.UnregisterSpriteGroup( key );
 				}
 			}
 			return;
@@ -118,7 +118,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 			if ( result.SpriteCount == 0 ) return;
 
-			_particleProcessingResults.Add( (particleSystemID, rendergroup, systemInfo.System, systemInfo.Offset, result.SpriteCount, result.SplotCount) );
+			_particleProcessingResults.Add( (particleSystemID, rendergroup, systemInfo.System, systemInfo.Offset, result.SpriteCount, result.SplotCount, result.Bounds) );
 		} );
 
 		// Cleanup inactive particle emitters
@@ -129,16 +129,16 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 			var keysToRemove = rg.Value.SpriteGroups.Keys.Where( id => !_activeParticleIds.Contains( id ) ).ToList();
 			foreach ( var key in keysToRemove )
 			{
-				rg.Value.SpriteGroups.Remove( key );
+				rg.Value.UnregisterSpriteGroup( key );
 			}
 		}
 
 		// Register buffers to corresponding render groups
-		foreach ( var (id, rendergroup, system, offset, count, splotCount) in _particleProcessingResults )
+		foreach ( var (id, rendergroup, system, offset, count, splotCount, bounds) in _particleProcessingResults )
 		{
 			foreach ( var rg in RenderGroups )
 			{
-				rg.Value.SpriteGroups.Remove( id );
+				rg.Value.UnregisterSpriteGroup( id );
 			}
 
 			// Create render group if needed
@@ -149,7 +149,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 			}
 
 			// Register in correct render group using shared block with offset and precomputed splot count
-			RenderGroups[rendergroup].RegisterSprite( id, _sharedSprites, offset, count, splotCount );
+			RenderGroups[rendergroup].RegisterSprite( id, _sharedSprites, offset, count, splotCount, bounds );
 		}
 
 		// Final cleanup for systems that no longer exist

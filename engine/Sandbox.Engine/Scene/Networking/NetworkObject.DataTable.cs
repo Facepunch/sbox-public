@@ -44,8 +44,9 @@ internal sealed partial class NetworkObject
 			}
 		}
 
-		foreach ( var child in go.Children.Where( child => child.NetworkMode == NetworkMode.Snapshot ) )
+		foreach ( var child in go.Children )
 		{
+			if ( child.NetworkMode != NetworkMode.Snapshot ) continue;
 			// Conna: pass false here so that we don't add properties from child GameObjects. We only
 			// want to add properties from components on child GameObjects. This is because we don't
 			// want to add potentially hundreds of entries for OwnerTransfer, etc.
@@ -126,12 +127,12 @@ internal sealed partial class NetworkObject
 	/// <summary>
 	/// Read the network table data.
 	/// </summary>
-	private void ReadDataTable( byte[] data, NetworkTable.ReadFilter filter = null )
+	private void ReadDataTable( byte[] data, NetworkTable.ReadFilter filter = null, Connection source = null )
 	{
 		if ( data is null ) return;
 
 		var reader = ByteStream.CreateReader( data );
-		dataTable.Read( ref reader, filter );
+		dataTable.Read( ref reader, filter, source );
 		reader.Dispose();
 	}
 }

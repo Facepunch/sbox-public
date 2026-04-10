@@ -11,6 +11,7 @@ public abstract partial class Component : BytePack.ISerializer
 		var isSceneForNetwork = options?.SceneForNetwork ?? false;
 		var isSingleNetworkObject = options?.SingleNetworkObject ?? false;
 		var isNetworked = isSceneForNetwork || isSingleNetworkObject;
+		var skipNulls = options?.SkipNulls ?? false;
 
 		if ( isNetworked && Flags.Contains( ComponentFlags.NotNetworked ) )
 			return null;
@@ -61,6 +62,7 @@ public abstract partial class Component : BytePack.ISerializer
 			if ( member is FieldDescription field )
 			{
 				var value = field.GetValue( this );
+				if ( skipNulls && value is null ) continue;
 				try
 				{
 					json.Add( field.Name, Json.ToNode( value, field.FieldType ) );
@@ -73,6 +75,7 @@ public abstract partial class Component : BytePack.ISerializer
 			else if ( member is PropertyDescription prop )
 			{
 				var value = prop.GetValue( this );
+				if ( skipNulls && value is null ) continue;
 				try
 				{
 					json.Add( prop.Name, Json.ToNode( value, prop.PropertyType ) );
@@ -88,8 +91,19 @@ public abstract partial class Component : BytePack.ISerializer
 	}
 
 	JsonObject jsonData;
+	// When true, properties absent from jsonData are explicitly cleared in PostDeserialize
+	// rather than being left at their current value.
+	bool _clearAbsentFields;
 
-	public void Deserialize( JsonObject node )
+	public void Deserialize( JsonObject node ) => DeserializeInternal( node, false );
+
+	/// <summary>
+	/// When <paramref name="clearAbsentFields"/> is <see langword="true"/>, properties absent from
+	/// <paramref name="node"/> (e.g. omitted by <see cref="GameObject.SerializeOptions.SkipNulls"/>)
+	/// are explicitly cleared to null/default rather than left at their existing value.
+	/// Used for all network receive paths.
+	/// </summary>
+	internal void DeserializeInternal( JsonObject node, bool clearAbsentFields )
 	{
 		var serializedVersion = (int)(node[JsonKeys.Version] ?? 0);
 		if ( serializedVersion < ComponentVersion )
@@ -114,6 +128,7 @@ public abstract partial class Component : BytePack.ISerializer
 		}
 
 		jsonData = node;
+		_clearAbsentFields = clearAbsentFields;
 
 		InitializeComponent();
 
@@ -146,10 +161,17 @@ public abstract partial class Component : BytePack.ISerializer
 		{
 			foreach ( var field in ReflectionQueryCache.OrderedSerializableMembers( GetType() ) )
 			{
-				// Skip fields that are not PRESENT in json data
-				// Those should stay code defined defaults.
+				// Skip fields that are not PRESENT in json data.
+				// We want those to be set to code defined defaults, when deserializing older versions from disk.
+				//
+				// Except, during a network refresh with SkipNulls, a missing key means the sender had null for
+				// that property, so we explicitly clear it.
 				if ( !jsonData.ContainsKey( field.Name ) )
 				{
+					if ( _clearAbsentFields )
+					{
+						DeserializeProperty( field, null );
+					}
 					continue;
 				}
 
@@ -169,6 +191,7 @@ public abstract partial class Component : BytePack.ISerializer
 		finally
 		{
 			jsonData = null;
+			_clearAbsentFields = false;
 		}
 
 		CheckRequireComponent();
@@ -180,7 +203,7 @@ public abstract partial class Component : BytePack.ISerializer
 	/// </summary>
 	public void DeserializeImmediately( JsonObject node )
 	{
-		Deserialize( node );
+		DeserializeInternal( node, false );
 		PostDeserialize();
 	}
 

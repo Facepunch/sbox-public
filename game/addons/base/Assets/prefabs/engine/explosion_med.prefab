@@ -85,8 +85,8 @@
                   "mode": "Mirrored"
                 },
                 {
-                  "x": 0.28768247,
-                  "y": 0.891129,
+                  "x": 0.10375877,
+                  "y": 0.9838709,
                   "in": 0,
                   "out": -0,
                   "mode": "Mirrored"
@@ -108,8 +108,8 @@
                   "mode": "Mirrored"
                 },
                 {
-                  "x": 0.12208345,
-                  "y": 0.20478177,
+                  "x": 0.10028508,
+                  "y": 0.5273624,
                   "in": -0.04919114,
                   "out": 0.04919114,
                   "mode": "Mirrored"
@@ -143,7 +143,7 @@
               "Z": {
                 "Type": "Range",
                 "Evaluation": "Seed",
-                "Constants": "-40,-10,0,0"
+                "Constants": "0,40,0,0"
               }
             },
             "Damping": 3,
@@ -159,45 +159,33 @@
             "Gradient": {
               "Type": "Range",
               "Evaluation": "Particle",
-              "GradientA": {
-                "blend": "Linear",
-                "color": [
-                  {
-                    "t": 0.5,
-                    "c": "1,1,1,1"
-                  }
-                ],
-                "alpha": []
-              },
-              "GradientB": {
-                "blend": "Linear",
-                "color": [
-                  {
-                    "t": 0.5,
-                    "c": "1,1,1,1"
-                  }
-                ],
-                "alpha": []
-              },
-              "ConstantA": "0.73023,0.73023,0.73023,1",
-              "ConstantB": "0.35349,0.35349,0.35349,1"
+              "ConstantA": "0.45581,0.45581,0.45581,1",
+              "ConstantB": "0.15349,0.15349,0.15349,1"
             },
             "InitialVelocity": {
-              "X": 0,
-              "Y": 0,
+              "X": {
+                "Type": "Range",
+                "Evaluation": "Seed",
+                "Constants": "10,20,0,0"
+              },
+              "Y": {
+                "Type": "Range",
+                "Evaluation": "Seed",
+                "Constants": "10,20,0,0"
+              },
               "Z": {
                 "Type": "Range",
                 "Evaluation": "Seed",
-                "Constants": "100,50,0,0"
+                "Constants": "10,20,0,0"
               }
             },
             "Lifetime": {
               "Type": "Range",
               "Evaluation": "Seed",
-              "Constants": "3,5,0,0"
+              "Constants": "1,4,0,0"
             },
             "LocalSpace": 0,
-            "MaxParticles": 100,
+            "MaxParticles": 10,
             "OnComponentDestroy": null,
             "OnComponentDisabled": null,
             "OnComponentEnabled": null,
@@ -222,9 +210,60 @@
               "Constants": "0,360,0,0"
             },
             "Scale": {
-              "Type": "Range",
-              "Evaluation": "Seed",
-              "Constants": "200,300,0,0"
+              "Type": "CurveRange",
+              "Evaluation": "Life",
+              "CurveA": {
+                "rangey": "200,400",
+                "frames": [
+                  {
+                    "x": 0,
+                    "y": 0,
+                    "in": 0,
+                    "out": 0,
+                    "mode": "Mirrored"
+                  },
+                  {
+                    "x": 0.06948229,
+                    "y": 0.26375976,
+                    "in": -2.105615,
+                    "out": 2.105615,
+                    "mode": "Mirrored"
+                  },
+                  {
+                    "x": 1,
+                    "y": 0.89516145,
+                    "in": 0,
+                    "out": 0,
+                    "mode": "Mirrored"
+                  }
+                ]
+              },
+              "CurveB": {
+                "rangey": "200,400",
+                "frames": [
+                  {
+                    "x": 0,
+                    "y": 0,
+                    "in": 0,
+                    "out": 0,
+                    "mode": "Mirrored"
+                  },
+                  {
+                    "x": 0.07084469,
+                    "y": 0.33195832,
+                    "in": -2.9053092,
+                    "out": 2.9053092,
+                    "mode": "Mirrored"
+                  },
+                  {
+                    "x": 1,
+                    "y": 1,
+                    "in": 0,
+                    "out": 0,
+                    "mode": "Mirrored"
+                  }
+                ]
+              }
             },
             "SequenceId": 0,
             "SequenceSpeed": {
@@ -259,14 +298,14 @@
               "CurveB": [
                 {
                   "x": 0,
-                  "y": 0.049242426,
+                  "y": 0.049242437,
                   "in": 0,
                   "out": 0,
                   "mode": "Mirrored"
                 },
                 {
                   "x": 1,
-                  "y": 0.20454545,
+                  "y": 0.31854838,
                   "in": 0,
                   "out": 0,
                   "mode": "Mirrored"
@@ -311,7 +350,7 @@
               "AfterUILayer": false
             },
             "RotationOffset": 0,
-            "Scale": 1,
+            "Scale": 1.4,
             "Shadows": false,
             "SortMode": "Unsorted",
             "Sprite": {
@@ -326,7 +365,7 @@
                     "LoopMode": "Loop",
                     "Frames": [
                       {
-                        "Texture": "particles/smoke/smoke001.vtex",
+                        "Texture": "textures/particles/smoke/smoke_loop_d.vtex",
                         "BroadcastMessages": []
                       }
                     ]
@@ -344,7 +383,7 @@
             "__guid": "171c37b1-1dda-4c8f-84bc-381c5131eeb6",
             "__enabled": true,
             "Flags": 0,
-            "Burst": 20,
+            "Burst": 5,
             "Delay": 0,
             "DestroyOnEnd": false,
             "Duration": 2,
@@ -356,7 +395,7 @@
             "OnComponentStart": null,
             "OnComponentUpdate": null,
             "OnEdge": false,
-            "Radius": 64,
+            "Radius": 12,
             "Rate": 0,
             "RateOverDistance": 0,
             "Velocity": 286.36365
@@ -398,10 +437,10 @@
                   "mode": "Mirrored"
                 },
                 {
-                  "x": 0.296875,
+                  "x": 0.3015625,
                   "y": 1,
-                  "in": 0,
-                  "out": 0,
+                  "in": 0.4571427,
+                  "out": -0.4571427,
                   "mode": "Mirrored"
                 },
                 {
@@ -475,28 +514,8 @@
             "Gradient": {
               "Type": "Range",
               "Evaluation": "Particle",
-              "GradientA": {
-                "blend": "Linear",
-                "color": [
-                  {
-                    "t": 0.5,
-                    "c": "1,1,1,1"
-                  }
-                ],
-                "alpha": []
-              },
-              "GradientB": {
-                "blend": "Linear",
-                "color": [
-                  {
-                    "t": 0.5,
-                    "c": "1,1,1,1"
-                  }
-                ],
-                "alpha": []
-              },
-              "ConstantA": "0.91163,0.39801,0.24169,1",
-              "ConstantB": "0.90233,0.75012,0.36513,1"
+              "ConstantA": "0.91628,0.42405,0.21309,1",
+              "ConstantB": "1,0.6986,0.24651,1"
             },
             "InitialVelocity": {
               "X": 0,
@@ -673,7 +692,7 @@
               "AfterUILayer": false
             },
             "RotationOffset": 0,
-            "Scale": 1,
+            "Scale": 1.3,
             "Shadows": false,
             "SortMode": "Unsorted",
             "Sprite": {
@@ -688,7 +707,7 @@
                     "LoopMode": "Loop",
                     "Frames": [
                       {
-                        "Texture": "particles/explosion/explosion001.vtex",
+                        "Texture": "textures/particles/flame/explosion/explosion_01.vtex",
                         "BroadcastMessages": []
                       }
                     ]
@@ -712,26 +731,6 @@
             "LightColor": {
               "Type": "Range",
               "Evaluation": "Particle",
-              "GradientA": {
-                "blend": "Linear",
-                "color": [
-                  {
-                    "t": 0.5,
-                    "c": "1,1,1,1"
-                  }
-                ],
-                "alpha": []
-              },
-              "GradientB": {
-                "blend": "Linear",
-                "color": [
-                  {
-                    "t": 0.5,
-                    "c": "1,1,1,1"
-                  }
-                ],
-                "alpha": []
-              },
               "ConstantA": "1,0.66574,0.28372,1",
               "ConstantB": "0.9907,0.81199,0.16588,1"
             },
@@ -923,26 +922,6 @@
             "Gradient": {
               "Type": "Range",
               "Evaluation": "Particle",
-              "GradientA": {
-                "blend": "Linear",
-                "color": [
-                  {
-                    "t": 0.5,
-                    "c": "1,1,1,1"
-                  }
-                ],
-                "alpha": []
-              },
-              "GradientB": {
-                "blend": "Linear",
-                "color": [
-                  {
-                    "t": 0.5,
-                    "c": "1,1,1,1"
-                  }
-                ],
-                "alpha": []
-              },
               "ConstantA": "0.95814,0.2714,0.06239,1",
               "ConstantB": "0.95814,0.7157,0.1025,1"
             },
@@ -1126,7 +1105,7 @@
               "AfterUILayer": false
             },
             "RotationOffset": 0,
-            "Scale": 1,
+            "Scale": 0.05,
             "Shadows": false,
             "SortMode": "Unsorted",
             "Sprite": {
@@ -1165,26 +1144,6 @@
             "LightColor": {
               "Type": "Range",
               "Evaluation": "Particle",
-              "GradientA": {
-                "blend": "Linear",
-                "color": [
-                  {
-                    "t": 0.5,
-                    "c": "1,1,1,1"
-                  }
-                ],
-                "alpha": []
-              },
-              "GradientB": {
-                "blend": "Linear",
-                "color": [
-                  {
-                    "t": 0.5,
-                    "c": "1,1,1,1"
-                  }
-                ],
-                "alpha": []
-              },
               "ConstantA": "1,0.66574,0.28372,1",
               "ConstantB": "0.9907,0.81199,0.16588,1"
             },
@@ -1310,7 +1269,8 @@
         "AgentStepSize": 18,
         "AgentMaxSlope": 40,
         "ExcludedBodies": "",
-        "IncludedBodies": ""
+        "IncludedBodies": "",
+        "CustomBounds": false
       }
     },
     "__variables": []
@@ -1320,9 +1280,6 @@
   "MenuPath": null,
   "MenuIcon": null,
   "DontBreakAsTemplate": false,
-  "__references": [
-    "facepunch.explosion001#45287",
-    "facepunch.smoke001#45285"
-  ],
+  "__references": [],
   "__version": 2
 }

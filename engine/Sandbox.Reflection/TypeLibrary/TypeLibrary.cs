@@ -578,6 +578,8 @@ public partial class TypeLibrary
 		if ( targetType is null )
 			return null;
 
+		property.CreateObjectValue();
+
 		var getTarget = () => property.GetValue<object>();
 		var value = getTarget();
 		if ( value is null ) return null;

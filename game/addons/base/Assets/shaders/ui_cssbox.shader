@@ -339,8 +339,6 @@ PS
 
 			vBox.rgb = lerp( vBox.rgb, vImage.rgb, saturate( vImage.a + ( 1 - vBox.a ) ) );
 			vBox.a = max( vBox.a, vImage.a );
-			
-
 		}
 		
 		o.vColor = vBox;
@@ -351,7 +349,7 @@ PS
 		}
 
 		// corner curves
-		o.vColor.a *= saturate( -dist - 0.5 );
+		o.vColor.a *= smoothstep(-0.5, -0.5 + fwidth(dist), -dist);
 		
 		return UI_CommonProcessing_Post( i, o );
 	}

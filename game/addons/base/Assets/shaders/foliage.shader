@@ -358,7 +358,7 @@ PS
 		uint lightCount = Light::Count( m.ScreenPosition );
 		if ( lightCount > 0 )
 		{
-			Light light = Light::From( m.WorldPosition, m.ScreenPosition, 0, i.vLightmapUV );
+			Light light = Light::From( m.WorldPosition, m.ScreenPosition, 0 );
 			float wrapScale = light.Attenuation; // Wrap lighting ignores shadows
 			float lightScale = light.Attenuation * light.Visibility;
 

@@ -1,4 +1,6 @@
-﻿namespace Sandbox;
+﻿using System.Buffers;
+
+namespace Sandbox;
 
 /// <summary>
 /// Applies damage in a radius, with physics force, and optional occlusion
@@ -79,10 +81,10 @@ public sealed class RadiusDamage : Component
 		dmg.Tags.Add( DamageTags );
 		dmg.Attacker = Attacker;
 
-		ApplyDamage( sphere, dmg, PhysicsForceScale );
+		ApplyDamage( sphere, dmg, PhysicsForceScale, occlusion: Occlusion );
 	}
 
-	public static void ApplyDamage( Sphere sphere, DamageInfo damage, float physicsForce = 1, GameObject ignore = null )
+	public static void ApplyDamage( Sphere sphere, DamageInfo damage, float physicsForce = 1, GameObject ignore = null, bool occlusion = true )
 	{
 		var scene = Game.ActiveScene;
 		if ( !scene.IsValid() ) return;
@@ -90,24 +92,74 @@ public sealed class RadiusDamage : Component
 		var point = sphere.Center;
 		var damageAmount = damage.Damage;
 		var objectsInArea = scene.FindInPhysics( sphere );
+		var estimatedCount = (objectsInArea as ICollection<GameObject>)?.Count ?? 16;
 
-		var losTrace = scene.Trace.WithTag( "map" ).WithoutTags( "trigger", "gib", "debris", "player" );
+		var rigidbodies = new HashSet<Rigidbody>( estimatedCount );
+		var damageables = new HashSet<Component.IDamageable>( estimatedCount );
+		var rootToIndex = occlusion ? new Dictionary<GameObject, int>( estimatedCount ) : null;
+		var rootList = occlusion ? new List<GameObject>( estimatedCount ) : null;
 
-		foreach ( var rb in objectsInArea.SelectMany( x => x.GetComponents<Rigidbody>() ).Distinct() )
+		foreach ( var go in objectsInArea )
 		{
-			if ( rb.IsProxy ) continue;
-			if ( !rb.MotionEnabled ) continue;
+			foreach ( var rb in go.GetComponents<Rigidbody>() )
+			{
+				if ( rb.IsProxy || !rb.MotionEnabled ) continue;
+				if ( !rigidbodies.Add( rb ) ) continue;
 
+				if ( occlusion )
+				{
+					var root = rb.GameObject.Root;
+					if ( rootToIndex.TryAdd( root, rootList.Count ) )
+						rootList.Add( root );
+				}
+			}
+
+			foreach ( var d in go.GetComponentsInParent<Component.IDamageable>() )
+			{
+				if ( !damageables.Add( d ) ) continue;
+
+				if ( occlusion )
+				{
+					var root = (d as Component).GameObject.Root;
+					if ( rootToIndex.TryAdd( root, rootList.Count ) )
+						rootList.Add( root );
+				}
+			}
+		}
+
+		if ( rigidbodies.Count == 0 && damageables.Count == 0 ) return;
+
+		var traceCount = occlusion ? rootList.Count : 0;
+		var passedLos = occlusion ? ArrayPool<bool>.Shared.Rent( traceCount ) : null;
+		var traceHitPositions = occlusion ? ArrayPool<Vector3>.Shared.Rent( traceCount ) : null;
+
+		if ( occlusion && traceCount > 0 )
+		{
+			var losTrace = scene.PhysicsWorld.Trace.WithTag( "map" ).WithoutTags( "trigger", "gib", "debris", "player" );
+
+			System.Threading.Tasks.Parallel.For( 0, traceCount, idx =>
+			{
+				if ( ignore.IsValid() && ignore.IsDescendant( rootList[idx] ) )
+				{
+					passedLos[idx] = false;
+					return;
+				}
+
+				var tr = losTrace.Ray( point, rootList[idx].WorldPosition ).Run();
+				traceHitPositions[idx] = tr.HitPosition;
+
+				var hitObject = tr.Body?.GameObject;
+				passedLos[idx] = !tr.Hit || hitObject is null || rootList[idx].IsDescendant( hitObject );
+			} );
+		}
+
+		foreach ( var rb in rigidbodies )
+		{
 			if ( ignore.IsValid() && ignore.IsDescendant( rb.GameObject ) )
 				continue;
 
-			// If the object isn't in line of sight, fuck it off
-			var tr = losTrace.Ray( point, rb.WorldPosition ).Run();
-			if ( tr.Hit && tr.GameObject.IsValid() )
-			{
-				if ( !rb.GameObject.Root.IsDescendant( tr.GameObject ) )
-					continue;
-			}
+			if ( occlusion && !passedLos[rootToIndex[rb.GameObject.Root]] )
+				continue;
 
 			var dir = (rb.WorldPosition - point).Normal;
 			var distance = rb.WorldPosition.Distance( sphere.Center );
@@ -118,35 +170,29 @@ public sealed class RadiusDamage : Component
 			rb.ApplyForceAt( point, dir * forceMagnitude );
 		}
 
-		foreach ( var damageable in objectsInArea.SelectMany( x => x.GetComponentsInParent<Component.IDamageable>().Distinct() ) )
+		foreach ( var damageable in damageables )
 		{
-			// no proxy checks needed, it's up to the OnDamage call to filter
-
 			var target = damageable as Component;
 
 			if ( ignore.IsValid() && ignore.IsDescendant( target.GameObject ) )
 				continue;
 
-			// If the object isn't in line of sight, fuck it off
-			var tr = losTrace.Ray( point, target.WorldPosition ).Run();
-			if ( tr.Hit && tr.GameObject.IsValid() )
-			{
-				if ( !target.GameObject.Root.IsDescendant( tr.GameObject ) )
-					continue;
-			}
+			var rootIdx = occlusion ? rootToIndex[target.GameObject.Root] : -1;
+
+			if ( occlusion && !passedLos[rootIdx] )
+				continue;
 
 			var distance = target.WorldPosition.Distance( point );
-			var distanceLinear = distance / sphere.Radius;
-			distanceLinear = distanceLinear.Clamp( 0, 1 );
+			var distanceFalloff = 1 - (distance / sphere.Radius).Clamp( 0, 1 );
 
-			damage.Damage = damageAmount * distanceLinear;
-			var direction = (target.WorldPosition - point).Normal;
-			var force = direction * distance * 50f;
-
+			damage.Damage = damageAmount * distanceFalloff;
 			damage.Origin = sphere.Center;
-			damage.Position = tr.HitPosition;
+			damage.Position = occlusion ? traceHitPositions[rootIdx] : target.WorldPosition;
 			damageable.OnDamage( damage );
 		}
+
+		if ( passedLos is not null ) ArrayPool<bool>.Shared.Return( passedLos );
+		if ( traceHitPositions is not null ) ArrayPool<Vector3>.Shared.Return( traceHitPositions );
 
 		damage.Damage = damageAmount;
 	}

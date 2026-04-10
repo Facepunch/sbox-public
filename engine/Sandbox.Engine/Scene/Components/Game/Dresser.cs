@@ -37,6 +37,14 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 	public ClothingSource Source { get; set; }
 
 	/// <summary>
+	/// When using <see cref="ClothingSource.OwnerConnection"/>, strip any clothing items that are not owned in their Steam Inventory.
+	/// Disable only if your game handles ownership checks itself.
+	/// </summary>
+	[Property]
+	[ShowIf( nameof( Source ), ClothingSource.OwnerConnection )]
+	public bool RemoveUnownedItems { get; set; } = true;
+
+	/// <summary>
 	/// Who are we dressing? This should be the renderer of the body of a Citizen or Human
 	/// </summary>
 	[Property]
@@ -135,14 +143,12 @@ public sealed class Dresser : Component, Component.ExecuteInEditor
 	{
 		if ( Source == ClothingSource.OwnerConnection )
 		{
-			var clothing = new ClothingContainer();
-
 			if ( Network.Owner != null )
 			{
-				clothing.Deserialize( Network.Owner.GetUserData( "avatar" ) );
+				return ClothingContainer.CreateFromConnection( Network.Owner, RemoveUnownedItems );
 			}
 
-			return clothing;
+			return new ClothingContainer();
 		}
 
 		if ( Source == ClothingSource.LocalUser )

@@ -45,6 +45,12 @@ internal sealed partial class PanelRenderer
 		if ( !panel.IsVisible )
 			return;
 
+		if ( IsOutsideClipWholeRect( panel.Box.Rect ) )
+			return;
+
+		if ( IsOutsideScrollCullRect( panel.Box.Rect ) )
+			return;
+
 		// Build transform command list (sets GlobalMatrix and TransformMat attribute)
 		BuildTransformCommandList( panel );
 
@@ -127,13 +133,15 @@ internal sealed partial class PanelRenderer
 
 	/// <summary>
 	/// Gather a panel's pre-built CL into the global CL, then recurse children.
-	/// No culling here — the GPU-side scissor handles clipping. This keeps
-	/// the gather purely structural so it can be cached aggressively.
+	/// Applies the same culling as BuildCommandLists so stale command lists from
+	/// panels that have scrolled out of view are not included in the global CL.
 	/// </summary>
 	internal void GatherPanel( Panel panel, RenderState state, CommandList globalCL )
 	{
 		if ( panel?.ComputedStyle == null ) return;
 		if ( !panel.IsVisible ) return;
+		if ( IsOutsideClipWholeRect( panel.Box.Rect ) ) return;
+		if ( IsOutsideScrollCullRect( panel.Box.Rect ) ) return;
 
 		globalCL.InsertList( panel.CommandList );
 

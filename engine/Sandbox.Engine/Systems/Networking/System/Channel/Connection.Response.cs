@@ -22,7 +22,7 @@ public abstract partial class Connection
 		msg.Write( InternalMessageType.Packed );
 
 		System.Serialize( t, ref msg );
-		SendRawMessage( msg );
+		SendStream( msg );
 
 		msg.Dispose();
 
@@ -44,7 +44,7 @@ public abstract partial class Connection
 		msg.Write( InternalMessageType.Packed );
 
 		System.Serialize( t, ref msg );
-		SendRawMessage( msg );
+		SendStream( msg );
 
 		msg.Dispose();
 	}

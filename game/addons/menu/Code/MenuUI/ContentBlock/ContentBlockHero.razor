@@ -3,72 +3,37 @@
 @using MenuProject.UI;
 @inherits Panel
 
-@if (Current == null) return;
+@if (Group == null) return;
 
-<root class="hero bgcolor@BgColor" onclick="@Clicked">
+<root class="hero">
+    <div class="background"></div>
 
-    @if (BackgroundUrl != null)
-    {
-        <div class="background-media" @key="@BackgroundUrl" style="background-image: url( @BackgroundUrl )"></div>
-    }
-
-    <div class="content">
-
-        <div class="left">
-            <div class="icon"><img src="@Current.Thumb" /></div>
-            <div class="title">@Current.Title</div>
-            <div class="description">@Current.Summary</div>
-            <div class="buttons">
-
-            </div>
-        </div>
-
-    </div>
-
+    <Carousel @Items=@Packages @ref=Carousel>
+        <Item Context="item">
+            @if (item is Package package)
+            {
+                @if (package == null) return;
+                <ContentBlockHeroItem Package=@package />
+            }
+        </Item>
+    </Carousel>
 </root>
 
 @code
 {
-    [Parameter]
-    public Package.ListResult.Grouping Group { get; set; }
+    [Parameter] public Package.ListResult.Grouping Group { get; set; }
+    private List<Package> Packages { get; set; }
 
-    [Parameter]
-    public Package Current { get; set; }
-
-    string BackgroundUrl;
-    int BgColor = 0;
+    private Carousel Carousel { get; set; }
 
     protected override async Task OnParametersSetAsync()
     {
-        Current = Group.Packages.OrderBy( x => Guid.NewGuid() ).FirstOrDefault();
-        Current = await Package.FetchAsync( Current.FullIdent, false );
-        UpdateBackgroundMedia();
         StateHasChanged();
+        Packages = Group.Packages.ToList();
     }
 
-    void UpdateBackgroundMedia()
+    protected override int BuildHash()
     {
-        var bg = Current.VideoThumb ?? Current.ThumbWide;
-
-        var ss = Current.Screenshots?.OrderBy(x => Guid.NewGuid()).FirstOrDefault()?.Url;
-        if (ss != null)
-        {
-            bg = ss;
-        }
-
-        var video = Current.Screenshots?.Where(x => x.IsVideo).OrderBy(x => Guid.NewGuid()).FirstOrDefault()?.Url;
-        if (video != null)
-        {
-            video = video.Replace("medium.mp4", "high.mp4");
-            bg = video;
-        }
-
-        BackgroundUrl = bg;
-        BgColor = Random.Shared.Int(0, 4);
-    }
-
-    void Clicked()
-    {
-        ContentBlocks.OnLaunch(Current);
+        return HashCode.Combine(Carousel.ActiveItem);
     }
 }

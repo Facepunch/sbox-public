@@ -11187,6 +11187,13 @@
 									{
 										_class = "AnimFile"
 										name = "HoldItem_HandPoses"
+										children = 
+										[
+											{
+												_class = "AnimAddLayer"
+												anim_name = "_CONVERT_CITIZEN_ANIMS"
+											},
+										]
 										activity_name = ""
 										activity_weight = 1
 										weight_list_name = ""

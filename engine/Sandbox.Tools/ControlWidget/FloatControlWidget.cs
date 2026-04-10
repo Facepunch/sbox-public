@@ -34,6 +34,9 @@ public class FloatControlWidget : StringControlWidget
 
 	private FloatSlider SliderWidget;
 
+	IconButton _stepUpButton;
+	IconButton _stepDownButton;
+
 	public FloatControlWidget( SerializedProperty property ) : base( property )
 	{
 		Cursor = CursorShape.SizeH;
@@ -52,6 +55,8 @@ public class FloatControlWidget : StringControlWidget
 		if ( stepAttribute is not null )
 		{
 			RangeStep = stepAttribute.Step;
+
+			CreateStepButtons();
 		}
 
 		var clampAttribute = attributes.OfType<RangeAttribute>().FirstOrDefault();
@@ -64,6 +69,69 @@ public class FloatControlWidget : StringControlWidget
 				clampAttribute.Slider
 			);
 		}
+	}
+
+	void CreateStepButtons()
+	{
+		_stepUpButton ??= new IconButton( "expand_less", () => StepValue( +1 ), this );
+		_stepUpButton.Background = Color.Transparent;
+		_stepDownButton ??= new IconButton( "expand_more", () => StepValue( -1 ), this );
+		_stepDownButton.Background = Color.Transparent;
+
+		UpdateStepButtonState();
+	}
+
+	void StepValue( int direction )
+	{
+		if ( ReadOnly || !SerializedProperty.IsEditable )
+			return;
+
+		var old = SerializedProperty.As.Float;
+		var value = ApplyStep( old, direction );
+
+		if ( value == old )
+			return;
+
+		PropertyStartEdit();
+
+		SerializedProperty.As.Float = value;
+		LineEdit.Text = ValueToString();
+
+		SignalValuesChanged();
+		UpdateStepButtonState();
+
+		PropertyFinishEdit();
+	}
+
+	float ApplyStep( float value, int direction )
+	{
+		var step = RangeStep > 0 ? RangeStep : 0.01f;
+
+		value += direction * step;
+
+		if ( HasRange && RangeClamped )
+			value = value.Clamp( Range.x, Range.y );
+
+		return step > 0 ? value.SnapToGrid( step ) : value;
+	}
+
+	void UpdateStepButtonState()
+	{
+		if ( _stepUpButton is null )
+			return;
+
+		var value = SerializedProperty.As.Float;
+		var canStepUp = true;
+		var canStepDown = true;
+
+		if ( HasRange && RangeClamped )
+		{
+			canStepUp = value < Range.y;
+			canStepDown = value > Range.x;
+		}
+
+		_stepUpButton.Enabled = canStepUp && !ReadOnly;
+		_stepDownButton.Enabled = canStepDown && !ReadOnly;
 	}
 
 	public void MakeRanged( Vector2 range, float step, bool clamped, bool slider )
@@ -108,6 +176,34 @@ public class FloatControlWidget : StringControlWidget
 			SliderWidget.Size = sliderRect.Size;
 
 			rect.Left += SliderWidget.Width + 2;
+		}
+
+		if ( _stepUpButton is not null )
+		{
+			var buttonWidth = Theme.RowHeight * 0.5f;
+			var padding = 2.0f;
+
+			var upRect = new Rect(
+				rect.Right - buttonWidth - padding,
+				rect.Top,
+				buttonWidth,
+				rect.Height * 0.5f
+			);
+
+			var downRect = new Rect(
+				rect.Right - buttonWidth - padding,
+				rect.Center.y,
+				buttonWidth,
+				rect.Height * 0.5f
+			);
+
+			_stepUpButton.Position = upRect.Position;
+			_stepUpButton.FixedSize = upRect.Size;
+
+			_stepDownButton.Position = downRect.Position;
+			_stepDownButton.FixedSize = downRect.Size;
+
+			rect.Right -= buttonWidth + padding + 2;
 		}
 
 		LineEdit.Position = rect.Position;
@@ -266,10 +362,9 @@ public class FloatControlWidget : StringControlWidget
 	{
 		base.OnValueChanged();
 
-		if ( SliderWidget is not null )
-		{
-			SliderWidget.Value = SerializedProperty.As.Float;
-		}
+		SliderWidget?.Value = SerializedProperty.As.Float;
+
+		UpdateStepButtonState();
 	}
 
 	bool _keyEditing;
@@ -291,17 +386,7 @@ public class FloatControlWidget : StringControlWidget
 				_keyEditing = true;
 			}
 
-			var step = RangeStep > 0 ? RangeStep : 0.01f;
-			var value = SerializedProperty.As.Float;
-
-			value += (e.Key == KeyCode.Up) ? step : -step;
-
-			if ( HasRange && RangeClamped )
-				value = value.Clamp( Range.x, Range.y );
-
-			value = step > 0 ? value.SnapToGrid( step ) : value;
-
-			SerializedProperty.As.Float = value;
+			SerializedProperty.As.Float = ApplyStep( SerializedProperty.As.Float, (e.Key == KeyCode.Up) ? +1 : -1 );
 			LineEdit.Text = ValueToString();
 
 			SignalValuesChanged();

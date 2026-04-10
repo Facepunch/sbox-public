@@ -51,27 +51,30 @@
 
     <div class="items">
         <div class="container">
-                @foreach (var group in CurrentClothing().GroupBy(x => ClothingGroup(x)))
+            @{
+                var grouped = CurrentClothing()
+                    .GroupBy( GetGroup )
+                    .ToDictionary(x => x.Key, x => x );
+
+                foreach (var group in Enum.GetValues<Group>())
                 {
+                    if ( !grouped.TryGetValue( group, out var items ) )
+                        continue;
+
                     <div class="item-group">
-
-                        <div class="section-title">@group.Key</div>
-
+                        <div class="section-title">@(group.GetAttributeOfType<TitleAttribute>()?.Value ?? group.ToString())</div>
                         <div class="item-grid">
+                            @foreach (var item in items )
+                            {
+                                var c = "";
+                                if (Manager.IsSelected(item)) c = "active";
 
-                        @foreach (var item in group )
-                        {
-                             var c = "";
-                            if (Manager.IsSelected(item)) c = "active";
-
-                            <ClothingIcon tooltip="@item.Title" class="@c" onmouseover=@( () => Hovered( item ) ) onmouseout=@( () => Unhovered( item ) ) onclick=@( () => Clicked( item ) ) Icon=@item.Icon.Path></ClothingIcon>
-                        }
-
+                                <ClothingIcon tooltip="@item.Title" class="@c" onmouseover=@( () => Hovered( item ) ) onmouseout=@( () => Unhovered( item ) ) onclick=@( () => Clicked( item ) ) Icon=@item.Icon.Path></ClothingIcon>
+                            }
                         </div>
-
                     </div>
                 }
-
+            }
         </div>
     </div>
 
@@ -175,7 +178,19 @@
         Manager.OnClothingHover(null);
     }
 
-    string ClothingGroup(Clothing x)
+    enum Group
+    {
+        [Title("Purchased")]
+        Purchased,
+
+        [Title("Available")]
+        Available,
+
+        [Title("Unowned")]
+        Unowned,
+    }
+
+    Group GetGroup(Clothing x)
     {
         // If this is a steam item - and we don't own it
         // then put it at the bottom
@@ -184,13 +199,13 @@
             // Owned items go at the top
             if (Sandbox.Services.Inventory.HasItem(x.SteamItemDefinitionId.Value))
             {
-                return "Purchased";
+                return Group.Purchased;
             }
 
-            return "Unowned";
+            return Group.Unowned;
         }
 
-        return "Available";
+        return Group.Available;
     }
 
     // Include inventory item count in the hash so the UI updates when items are purchased

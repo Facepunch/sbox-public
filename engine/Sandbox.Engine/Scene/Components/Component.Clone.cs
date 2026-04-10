@@ -200,6 +200,8 @@ internal static class MemberCopyCache
 	[SkipHotload]
 	private static readonly Dictionary<MemberDescription, Action<object, object>> _cache = new();
 
+	internal static bool IsEmpty => _cache.Count == 0;
+
 	internal static void Clear() => _cache.Clear();
 
 	internal static void CopyTo( PropertyDescription prop, object source, object target )

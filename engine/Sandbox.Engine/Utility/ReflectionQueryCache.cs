@@ -6,7 +6,7 @@ namespace Sandbox;
 
 /// <summary>
 /// We cache results for some expensive reflection queries.
-/// This results in large performance improvements during various operations (Cloning, NetworkSpawn, Serilization...)
+/// This results in large performance improvements during various operations (Cloning, NetworkSpawn, Serialization...)
 /// </summary>
 internal static class ReflectionQueryCache
 {
@@ -18,9 +18,16 @@ internal static class ReflectionQueryCache
 	public record SyncVarPropertyAndAttribute( PropertyInfo Property, SyncAttribute Attribute );
 	private static Dictionary<Type, SyncVarPropertyAndAttribute[]> _syncVarMemberCache = new();
 
+	internal static bool IsEmpty => _isTypeCloneableByCopy.Count == 0
+		&& _isICloneableSafe.Count == 0
+		&& _orderedMemberCache.Count == 0
+		&& _requiredComponentMemberCache.Count == 0
+		&& _syncVarMemberCache.Count == 0
+		&& MemberCopyCache.IsEmpty;
+
 	/// <summary>
 	/// Clears the type cache, called after HotLoad and after a game ended.
-	/// Called from EditorUtilities.ClearCloneTypeCache and Game.Close
+	/// Called from <see cref="Sandbox.Engine.GlobalContext.OnHotload"/> and <see cref="Game.Close"/>.
 	/// </summary>
 	public static void ClearTypeCache()
 	{

@@ -35,7 +35,7 @@ public static class SceneEditorMenus
 	{
 		using var scope = SceneEditorSession.Scope();
 
-		var selection = EditorScene.Selection.OfType<GameObject>().Where( go => go.GetType() != typeof( Sandbox.Scene ) ).OrderBy( e => -e.Parent.Children.IndexOf( e ) ).ToArray();
+		var selection = EditorScene.Selection.OfType<GameObject>().Where( go => go is not Scene ).OrderBy( e => -e.Parent.Children.IndexOf( e ) ).ToArray();
 
 		if ( selection.Length == 0 ) return;
 
@@ -67,7 +67,7 @@ public static class SceneEditorMenus
 	{
 		using var scope = SceneEditorSession.Scope();
 
-		var selection = EditorScene.Selection.OfType<GameObject>().Where( go => go.GetType() != typeof( Sandbox.Scene ) ).ToArray();
+		var selection = EditorScene.Selection.OfType<GameObject>().Where( go => go is not Scene ).ToArray();
 		var first = selection.FirstOrDefault();
 
 		if ( !first.IsValid() )

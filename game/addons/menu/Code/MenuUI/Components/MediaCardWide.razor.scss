@@ -6,8 +6,9 @@ MediaCardWide
 
 MediaCardWide > .inner
 {
+    align-items: center;
     flex-direction: row;
-    gap: 16px;
+    gap: 12px;
     flex-shrink: 0;
     width: 100%;
 }
@@ -25,8 +26,8 @@ MediaCardWide > .inner > .image:hover
 
 MediaCardWide > .inner > .image > .inner
 {
-    width: 100px;
     height: 50px;
+    aspect-ratio: 1 / 1;
     background-size: cover;
     background-position: center;
     border-radius: 4px;

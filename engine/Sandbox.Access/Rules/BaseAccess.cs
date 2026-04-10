@@ -51,6 +51,7 @@ internal static partial class Rules
 		"System.Private.CoreLib/System.Tuple*",
 		"System.Private.CoreLib/System.Random*",
 		"System.Private.CoreLib/System.MemoryExtensions*",
+		"System.Private.CoreLib/System.IFormattable*",
 		"System.Private.CoreLib/System.IFormatProvider",
 		"System.Private.CoreLib/System.Version*",
 		"System.Private.CoreLib/System.MidpointRounding*",

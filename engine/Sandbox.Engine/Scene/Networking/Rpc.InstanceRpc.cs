@@ -1,4 +1,4 @@
-﻿using Sandbox.Utility;
+using Sandbox.Utility;
 using System.ComponentModel;
 using System.Reflection;
 
@@ -121,7 +121,7 @@ public static partial class Rpc
 		var rpcName = $"{typeDesc.FullName}.{method.Name}";
 		using var profiler = _ph.Start( rpcName );
 
-		NetworkDebugSystem.Current?.Track( rpcName, rpc );
+		NetworkDebugSystem.Current?.Track( rpcName, rpc, outbound: false, source );
 
 		using ( WithCaller( source ) )
 		{
@@ -172,7 +172,7 @@ public static partial class Rpc
 		var rpcName = $"{typeDesc.FullName}.{method.Name}";
 		using var profiler = _ph.Start( rpcName );
 
-		NetworkDebugSystem.Current?.Track( rpcName, rpc );
+		NetworkDebugSystem.Current?.Track( rpcName, rpc, outbound: false, source );
 
 		using ( WithCaller( source ) )
 		{
@@ -330,6 +330,7 @@ public static partial class Rpc
 		//
 		if ( attribute.Mode == RpcMode.Broadcast )
 		{
+			NetworkDebugSystem.Current?.Track( $"{m.TypeName}.{m.MethodName}", msg, outbound: true );
 			networkSystem.Broadcast( msg, Filter, attribute.Flags );
 			return;
 		}
@@ -343,6 +344,7 @@ public static partial class Rpc
 			if ( targetId == Connection.Local.Id ) return; // don't send to ourselves
 			if ( targetId == Guid.Empty ) return; // don't send to no-one
 
+			NetworkDebugSystem.Current?.Track( $"{m.TypeName}.{m.MethodName}", msg, outbound: true );
 			networkSystem.Send( targetId, msg, attribute.Flags );
 			return;
 		}
@@ -356,6 +358,7 @@ public static partial class Rpc
 			if ( targetId == Connection.Local.Id ) return; // don't send to ourselves
 			if ( targetId == Guid.Empty ) return; // don't send to no-one
 
+			NetworkDebugSystem.Current?.Track( $"{m.TypeName}.{m.MethodName}", msg, outbound: true );
 			networkSystem.Send( targetId, msg, attribute.Flags );
 		}
 	}
@@ -388,6 +391,7 @@ public static partial class Rpc
 		//
 		if ( attribute.Mode == RpcMode.Broadcast )
 		{
+			NetworkDebugSystem.Current?.Track( $"{m.TypeName}.{m.MethodName}", msg, outbound: true );
 			networkSystem.Broadcast( msg, Filter, attribute.Flags );
 			return;
 		}
@@ -402,6 +406,7 @@ public static partial class Rpc
 			if ( targetId == Connection.Local.Id ) return; // don't send to ourselves
 			if ( targetId == Guid.Empty ) return; // don't send to no-one
 
+			NetworkDebugSystem.Current?.Track( $"{m.TypeName}.{m.MethodName}", msg, outbound: true );
 			networkSystem.Send( targetId, msg, attribute.Flags );
 			return;
 		}
@@ -415,6 +420,7 @@ public static partial class Rpc
 			if ( targetId == Connection.Local.Id ) return; // don't send to ourselves
 			if ( targetId == Guid.Empty ) return; // don't send to no-one
 
+			NetworkDebugSystem.Current?.Track( $"{m.TypeName}.{m.MethodName}", msg, outbound: true );
 			networkSystem.Send( targetId, msg, attribute.Flags );
 		}
 	}

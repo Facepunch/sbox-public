@@ -7,7 +7,7 @@
 public sealed class TriggerHurt : Component
 {
 	/// <summary>
-	/// If not empty, the target must have one of these tags
+	/// These tags will be applied to the emitted <see cref="DamageInfo"/>
 	/// </summary>
 	[Property, Group( "Damage" )] public TagSet DamageTags { get; set; } = new();
 

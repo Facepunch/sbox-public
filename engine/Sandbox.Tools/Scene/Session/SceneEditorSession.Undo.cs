@@ -9,6 +9,7 @@ public partial class SceneEditorSession
 	public UndoSystem UndoSystem { get; } = new UndoSystem();
 
 	internal bool IsUndoScopeOpen = false;
+	bool _suppressUndoSounds = false;
 
 	private void InitUndo()
 	{
@@ -17,22 +18,49 @@ public partial class SceneEditorSession
 		// annoy everyone as much as possible
 		UndoSystem.OnUndo = ( x ) =>
 		{
-			if ( EditorPreferences.UndoSounds )
+			if ( !_suppressUndoSounds && EditorPreferences.UndoSounds )
 			{
 				EditorUtility.PlayRawSound( "sounds/editor/success.wav" );
 			}
 
 			HasUnsavedChanges = true;
 		};
+
 		UndoSystem.OnRedo = ( x ) =>
 		{
-			if ( EditorPreferences.UndoSounds )
+			if ( !_suppressUndoSounds && EditorPreferences.UndoSounds )
 			{
 				EditorUtility.PlayRawSound( "sounds/editor/success.wav" );
 			}
 
 			HasUnsavedChanges = true;
 		};
+	}
+
+	sealed class SuppressUndoSoundScope : IDisposable
+	{
+		readonly SceneEditorSession _session;
+		readonly bool _previous;
+
+		public SuppressUndoSoundScope( SceneEditorSession session )
+		{
+			_session = session;
+			_previous = session._suppressUndoSounds;
+			session._suppressUndoSounds = true;
+		}
+
+		public void Dispose()
+		{
+			_session._suppressUndoSounds = _previous;
+		}
+	}
+
+	/// <summary>
+	/// Temporarily disables undo/redo sounds.
+	/// </summary>
+	public IDisposable SuppressUndoSounds()
+	{
+		return new SuppressUndoSoundScope( this );
 	}
 
 	/// <summary>

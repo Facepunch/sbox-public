@@ -43,7 +43,7 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 	/// <summary>
 	/// Result of particle processing operation
 	/// </summary>
-	internal readonly record struct ParticleProcessResult( int SpriteCount, int SplotCount );
+	internal readonly record struct ParticleProcessResult( int SpriteCount, int SplotCount, BBox Bounds );
 
 	/// <summary>
 	/// Efficiently converts particle data directly into GPU-ready SpriteData format.
@@ -58,7 +58,7 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 		var count = particles.Length;
 
 		if ( count == 0 || destinationBuffer.Length < count )
-			return new( 0, 0 );
+			return new( 0, 0, default );
 
 		// Get texture from the renderer-specific implementation
 		var texture = RenderTexture ?? Texture.White;
@@ -94,6 +94,10 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 
 		int validCount = 0;
 		int totalSplotCount = 0;
+		var boundsMin = new Vector3( float.MaxValue, float.MaxValue, float.MaxValue );
+		var boundsMax = new Vector3( float.MinValue, float.MinValue, float.MinValue );
+		var pivotMaxX = MathF.Max( origin.x, 1f - origin.x );
+		var pivotMaxY = MathF.Max( origin.y, 1f - origin.y );
 
 		fixed ( SpriteData* destinationPtr = destinationBuffer )
 		{
@@ -135,6 +139,12 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 					scaleX *= aspect;
 				}
 
+				float halfSize = MathF.Max( pivotMaxX * 2f * scaleX, pivotMaxY * 2f * scaleY );
+				var expand = new Vector3( halfSize, halfSize, halfSize );
+				var particlePos = new Vector3( pos.x, pos.y, pos.z );
+				boundsMin = Vector3.Min( boundsMin, particlePos - expand );
+				boundsMax = Vector3.Max( boundsMax, particlePos + expand );
+
 				var rgbe = p.Color.ToRgbe();
 				var alpha = (byte)((p.Color.a * p.Alpha).Clamp( 0.0f, 1.0f ) * 255.0f);
 				var tintColor = new Color32( rgbe.r, rgbe.g, rgbe.b, alpha );
@@ -173,6 +183,6 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 			}
 		}
 
-		return new( validCount, totalSplotCount );
+		return new( validCount, totalSplotCount, new BBox( boundsMin, boundsMax ) );
 	}
 }

@@ -59,6 +59,21 @@ public class ClothingScene
 
 		container.Apply( Body );
 
+		// Remove any extra clothes (underwear) that was added by the ClothingContainer
+		foreach ( var child in Body.GameObject.Children.ToArray() )
+		{
+			if ( !child.Tags.Has( "clothing" ) ) continue;
+			if ( child.Name == $"Clothing - {clothing.ResourceName}" ) continue;
+
+			child.Destroy();
+		}
+
+		// Recomputer body groups
+		foreach ( var (name, value) in container.GetBodyGroups( new[] { clothing } ) )
+		{
+			Body.SetBodyGroup( name, value );
+		}
+
 		if ( wantsGreySkin )
 		{
 			var greySkin = Material.Load( "models/citizen/skin/citizen_skin_grey.vmat" );

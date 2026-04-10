@@ -230,8 +230,8 @@ public partial class Scene : GameObject
 			return;
 		}
 
-		// Don't update all at once to not overflow transform buffer in large scenes
-		const int maxSimultaniousUpdates = 5;
+		// We pre-render envmaps, we dont need to render them parallelly in a frame anymore, this can cause transform buffers and descriptor sets to balloon in complex scenes and cause crashes.
+		const int maxSimultaniousUpdates = 1;
 		foreach ( var envmap in GetAllComponents<EnvmapProbe>().Where( x => x.Dirty ).Take( maxSimultaniousUpdates ) )
 		{
 			envmap.RenderCubemap();

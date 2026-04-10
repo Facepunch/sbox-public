@@ -292,7 +292,7 @@ namespace Sandbox.UI
 			{
 				_textBlock = new TextBlock();
 				_textBlock.LookupStyles = HtmlStyleLookup;
-				_textBlock.OnTextureChanged = () => IsRenderDirty = true;
+				_textBlock.OnTextureChanged = MarkRenderDirty;
 			}
 
 			_textBlock.NoWrap = !Multiline;

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Reflection;
 
 namespace Sandbox;
@@ -23,7 +23,7 @@ public static partial class Rpc
 			return;
 		}
 
-		NetworkDebugSystem.Current?.Track( $"{method.TypeDescription.FullName}.{method.Name}", message );
+		NetworkDebugSystem.Current?.Track( $"{method.TypeDescription.FullName}.{method.Name}", message, outbound: false, source );
 
 		using ( WithCaller( source ) )
 		{
@@ -79,7 +79,6 @@ public static partial class Rpc
 		{
 			SendStaticRpc( m, argumentList, attribute );
 		}
-
 		// Was filtered out
 		if ( Filter.HasValue && !Filter.Value.IsRecipient( Connection.Local ) ) return;
 
@@ -130,6 +129,7 @@ public static partial class Rpc
 				GenericArguments = Game.TypeLibrary.ToIdentities( m.GenericArguments )
 			};
 
+			NetworkDebugSystem.Current?.Track( $"{m.TypeName}.{m.MethodName}", msg, outbound: true );
 			networkSystem.Broadcast( msg, Filter, attribute.Flags );
 			return;
 		}
@@ -152,6 +152,7 @@ public static partial class Rpc
 				GenericArguments = Game.TypeLibrary.ToIdentities( m.GenericArguments )
 			};
 
+			NetworkDebugSystem.Current?.Track( $"{m.TypeName}.{m.MethodName}", msg, outbound: true );
 			networkSystem.Send( targetId, msg, attribute.Flags );
 		}
 	}

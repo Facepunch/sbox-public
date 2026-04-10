@@ -58,7 +58,7 @@ file static class TrackComparer
 	}
 }
 
-public sealed record CompiledReferenceTrack<T>( Guid Id, string Name, CompiledReferenceTrack<GameObject>? Parent = null, Guid? ReferenceId = null ) : ICompiledReferenceTrack, IReferenceTrack<T>
+public sealed record CompiledReferenceTrack<T>( Guid Id, string Name, CompiledReferenceTrack<GameObject>? Parent = null, TrackMetadata? Metadata = null ) : ICompiledReferenceTrack, IReferenceTrack<T>
 	where T : class, IValid;
 
 /// <inheritdoc cref="IActionTrack"/>

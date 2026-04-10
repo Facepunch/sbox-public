@@ -13,7 +13,7 @@ HEADER
 FEATURES
 {
     #include "common/features.hlsl"
-    Feature( F_GLASS_QUALITY, 0..1( 0 ="Default Glass ( Refractive, Tinted )", 1 = "Simple Glass ( Faster To Render )" ), "Glass");
+    Feature( F_GLASS_QUALITY, 0..2( 0 ="Default Glass ( Refractive, Tinted )", 1 = "Simple Glass ( Faster To Render )", 2 = "Layered Glass ( Multi-Layer Compositing )" ), "Glass");
     Feature( F_OVERLAY_LAYER, 0..1, "Glass");
 }
 
@@ -69,7 +69,11 @@ VS
 PS
 {
     // Combos ----------------------------------------------------------------------------------------------
-    StaticCombo( S_CHEAP_GLASS, F_GLASS_QUALITY, Sys( ALL ) );
+    #define GLASS_REFRACTIVE 0
+    #define GLASS_CHEAP 1
+    #define GLASS_LAYERED 2
+
+    StaticCombo( S_GLASS_QUALITY, F_GLASS_QUALITY, Sys( ALL ) );
     StaticCombo( S_OVERLAY_LAYER, F_OVERLAY_LAYER, Sys( ALL ) );
     StaticCombo( S_MODE_DEPTH, 0..1, Sys(ALL) );
 
@@ -78,7 +82,16 @@ PS
     // Attributes ------------------------------------------------------------------------------------------
 
     // Transparency
-    #if (S_CHEAP_GLASS)
+    #if (S_GLASS_QUALITY == GLASS_LAYERED)
+        // Premultiplied alpha: refraction is pre-scaled by alpha, reflections stay additive.
+        // This allows multiple glass layers to composite their tints correctly.
+        RenderState(BlendEnable, true);
+        RenderState(SrcBlend, ONE);
+        RenderState(DstBlend, INV_SRC_ALPHA);
+        RenderState(SrcBlendAlpha, ONE);
+        RenderState(DstBlendAlpha, INV_SRC_ALPHA);
+        RenderState(BlendOpAlpha, ADD);
+    #elif (S_GLASS_QUALITY == GLASS_CHEAP)
         RenderState(BlendEnable, true);
         RenderState(SrcBlend, SRC_ALPHA);
         RenderState(DstBlend, INV_SRC_ALPHA);
@@ -93,7 +106,7 @@ PS
     #include "common/pixel.hlsl"
     #include "common/classes/Depth.hlsl"
 
-    BoolAttribute(bWantsFBCopyTexture, !S_CHEAP_GLASS );
+    BoolAttribute(bWantsFBCopyTexture, S_GLASS_QUALITY != GLASS_CHEAP );
     
     Texture2D g_tFrameBufferCopyTexture < Attribute("FrameBufferCopyTexture");   SrgbRead( false ); >;    
 
@@ -181,8 +194,9 @@ PS
         float3 vViewRayWs = bOrtho ? g_vCameraDirWs : normalize(i.vPositionWithOffsetWs.xyz);
         float flNDotV = saturate(dot(-m.Normal, vViewRayWs));
         float3 vEnvBRDF = CalcBRDFReflectionFactor(flNDotV, m.Roughness, 0.04);
-        
-        #if !S_CHEAP_GLASS
+        float3 vOriginalAlbedo = m.Albedo;
+
+        #if (S_GLASS_QUALITY != GLASS_CHEAP)
         {
             float4 vRefractionColor = 0;
 
@@ -239,6 +253,23 @@ PS
                 m.Albedo *= m.Roughness * AlbedoAbsorption;
             }
 
+            // Multi-layer glass compositing
+            // Convert transmission to premultiplied form:
+            // additive reflection stays in source color, while destination is
+            // attenuated by a scalar transmittance weight via alpha blending.
+            #if (S_GLASS_QUALITY == GLASS_LAYERED)
+            {
+                float3 vTransmission = saturate( ( 1.0f - vEnvBRDF ) * vOriginalAlbedo * ( 1.0f - m.Roughness * AlbedoAbsorption ) );
+                float flTransmittanceFloor = min( vTransmission.x, min( vTransmission.y, vTransmission.z ) );
+                float flGlassAlpha = 1.0f - flTransmittanceFloor;
+
+                // Move only the residual (channel-specific) transmission into source;
+                // the common transmission floor is handled by destination blend weight.
+                m.Emission = vRefractionColor.xyz * max( vTransmission - flTransmittanceFloor.xxx, 0.0f );
+                m.Opacity = saturate( flGlassAlpha );
+            }
+            #endif
+
             if( ToolsVis::WantsToolsVis() )
             {
                 m.Albedo = m.Emission;
@@ -257,8 +288,9 @@ PS
 
         float4 output = ShadingModelStandard::Shade( m );
 
-        if( !S_CHEAP_GLASS )
+        #if (S_GLASS_QUALITY == GLASS_REFRACTIVE)
             output.a = 1.0f; // FBCopy Glass shouldn't write to alpha
+        #endif
 
         return output;
     }

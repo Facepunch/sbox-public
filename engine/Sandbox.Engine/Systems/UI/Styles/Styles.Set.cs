@@ -143,6 +143,9 @@ namespace Sandbox.UI
 				case "font-style":
 					return SetFontStyle( value );
 
+				case "font-variant-numeric":
+					return SetFontVariantNumeric( value );
+
 				case "white-space":
 					return SetWhiteSpace( value );
 
@@ -169,6 +172,10 @@ namespace Sandbox.UI
 
 				case "background-repeat":
 					return SetBackgroundRepeat( value );
+
+				case "background-playback-state":
+					BackgroundPlaybackPaused = value == "paused";
+					return true;
 
 				case "image-rendering":
 					return SetImageRendering( value );
@@ -1257,6 +1264,22 @@ namespace Sandbox.UI
 
 			FontStyle = fs;
 			return true;
+		}
+
+		bool SetFontVariantNumeric( string value )
+		{
+			switch ( value.Trim().ToLowerInvariant() )
+			{
+				case "normal":
+					FontVariantNumeric = UI.FontVariantNumeric.Normal;
+					return true;
+				case "tabular-nums":
+					FontVariantNumeric = UI.FontVariantNumeric.TabularNums;
+					return true;
+				default:
+					Log.Warning( $"Unhandled font-variant-numeric property: {value}" );
+					return false;
+			}
 		}
 
 		bool SetWhiteSpace( string value )

@@ -32,6 +32,13 @@ public static class DebuggingMenus
 		set => ConsoleSystem.SetValue( "sc_visualize_sceneobjects", value ? "1" : "0" );
 	}
 
+	[Menu( "Editor", "Debug/Display Localization Keys", "translate" )]
+	public static bool ShowLocalizationKeys
+	{
+		get => ConsoleSystem.GetValueInt( "lang.showkeys" ) == 1;
+		set => ConsoleSystem.SetValue( "lang.showkeys", value ? "1" : "0" );
+	}
+
 	[Menu( "Editor", "Debug/Full Garbage Collection" )]
 	public static void FullCollection()
 	{

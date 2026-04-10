@@ -441,6 +441,13 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// </summary>
 	internal bool EnableEngineOverlays { get; set; } = false;
 
+	/// <summary>
+	/// When true, rendering from this camera won't request higher mip levels from
+	/// the texture streaming system. Used by cubemap rendering to prevent envmap probes
+	/// from pulling in full-resolution textures across the entire map.
+	/// </summary>
+	internal bool ExcludeFromTextureStreaming { get; set; }
+
 	private static WeakReference<SceneCamera> _recordingCamera;
 
 	/// <summary>

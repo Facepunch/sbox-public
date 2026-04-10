@@ -560,6 +560,11 @@ public static class ResourceLibrary
 		var type = typeof( T );
 		if ( type.IsSubclassOf( typeof( GameResource ) ) )
 		{
+			if ( type == typeof( PrefabFile ) )
+			{
+				return (T)(object)PrefabFile.Load( path );
+			}
+
 			// Really should be loaded already I think?
 			return Get<T>( path );
 		}

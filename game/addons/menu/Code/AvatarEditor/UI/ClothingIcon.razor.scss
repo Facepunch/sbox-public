@@ -1,4 +1,5 @@
-ClothingIcon {
+ClothingIcon
+{
     overflow: hidden;
     cursor: pointer;
     font-size: 10px;
@@ -14,23 +15,27 @@ ClothingIcon {
     height: 90px;
     aspect-ratio: 1;
 
-    &:hover {
+    &:hover
+    {
         background-color: #0088ff55;
         sound-in: ui.button.over;
     }
 
-    &.active {
+    &.active
+    {
         background-color: #0088ff;
     }
 
-    .avatar {
+    .avatar
+    {
         background-size: contain;
         pointer-events: none;
         width: 100%;
         height: 100%;
     }
 
-    .icon {
+    .icon
+    {
         font-family: Material Icons;
         font-size: 18px;
         padding: 2px 8px;
@@ -41,7 +46,8 @@ ClothingIcon {
         border-radius: 20px;
         opacity: 0.2;
 
-        &:hover {
+        &:hover
+        {
             opacity: 1;
         }
     }

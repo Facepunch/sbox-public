@@ -1,32 +1,23 @@
-.content-block-header a
+@import "/styles/_theme.scss";
+
+.content-block-header
 {
-	font-size: 1.5rem;
-	font-family: Poppins;
-	font-weight: 700;
-	padding: 1rem;
-	padding-bottom: 1rem;
-	gap: 0.4rem;
-	color: white;
-	transition: all 0.05s ease;
-
-	.chevron
-	{
-		align-self: center;
-		transition: all 0.05s ease;
-	}
-
-	&:hover
-	{
-		.chevron
-		{
-			margin-left: 2px;
-		}
-	}
+    padding: 0 16px;
 }
 
-.content-block-header > .inner
-{
-	padding: 1rem;
-	padding-left: 0;
-	cursor: pointer;
+.content-block-header a {
+    cursor: pointer;
+    justify-content: space-between;
+    align-items: center;
+    gap: 4px;
+
+    .chevron {
+        font-family: Material Icons;
+    }
+
+    &:hover {
+        .chevron {
+            margin-left: 2px;
+        }
+    }
 }

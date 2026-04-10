@@ -1,0 +1,32 @@
+@inherits Sandbox.UI.Panel
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Menu
+
+<root>
+    @if ( !string.IsNullOrEmpty( Image ) )
+    {
+        <div class="image" style="background-image: url(@Image)">
+        </div>        
+    }
+
+    <column>
+        @if ( !string.IsNullOrEmpty( Title ) ) 
+        {
+            <label class="title">
+                @Title
+            </label>
+        }
+
+        <row>
+            @Bottom
+        </row>
+    </column>
+</root>
+
+@code
+{
+    [Parameter] public string Image { get; set; } = null;
+    [Parameter] public string Title { get; set; } = null;
+    [Parameter] public RenderFragment Bottom { get; set; }
+}

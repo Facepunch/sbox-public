@@ -89,3 +89,25 @@ a:hover
 {
     color: white;
 }
+
+HtmlPanel ul,
+HtmlPanel ol
+{
+    flex-direction: column;
+    flex-shrink: 0;
+    margin: 4px 0;
+    padding-left: 8px;
+}
+
+HtmlPanel li
+{
+    flex-direction: row;
+    flex-shrink: 0;
+    margin: 2px 0;
+}
+
+HtmlPanel li .bullet
+{
+    flex-shrink: 0;
+    margin-right: 6px;
+}

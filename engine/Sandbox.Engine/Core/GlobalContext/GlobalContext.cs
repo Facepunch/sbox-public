@@ -194,7 +194,11 @@ internal partial class GlobalContext
 
 	internal void OnHotload()
 	{
-		ResourceSystem.OnHotload();
-		UISystem.OnHotload();
+		ReflectionQueryCache.ClearTypeCache();
+
+		// These systems might be null in unit tests
+
+		ResourceSystem?.OnHotload();
+		UISystem?.OnHotload();
 	}
 }

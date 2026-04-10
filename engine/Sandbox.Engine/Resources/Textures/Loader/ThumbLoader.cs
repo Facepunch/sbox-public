@@ -18,7 +18,7 @@ internal static class ThumbLoader
 	{
 		try
 		{
-			if ( Game.Resources.Get<Texture>( $"{filename}.png" ) is { } cached )
+			if ( Game.Resources.Get<Texture>( filename ) is { } cached )
 				return cached;
 
 			var placeholder = Texture.Create( 1, 1 )
@@ -27,7 +27,7 @@ internal static class ThumbLoader
 				.Finish();
 
 			placeholder.IsLoaded = false;
-			placeholder.RegisterWeakResourceId( $"{filename}.png" );
+			placeholder.RegisterWeakResourceId( filename );
 
 			_ = LoadIntoTexture( filename, placeholder );
 
@@ -56,6 +56,8 @@ internal static class ThumbLoader
 			if ( filename.StartsWith( "mount:" ) )
 			{
 				var t = MountUtility.GetPreviewTexture( filename );
+				if ( !t.IsValid() ) return;
+
 				placeholder.CopyFrom( t );
 				return;
 			}
@@ -104,8 +106,9 @@ internal static class ThumbLoader
 
 				if ( ct.IsCancellationRequested ) return;
 
+				if ( IToolsDll.Current != null )
 				{
-					var bitmap = IToolsDll.Current?.GetThumbnail( filename );
+					var bitmap = await IToolsDll.Current.GetThumbnail( filename );
 					if ( bitmap != null )
 					{
 						using var downscaled = bitmap.Resize( 256, 256, true );

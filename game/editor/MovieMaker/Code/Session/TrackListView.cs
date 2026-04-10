@@ -14,16 +14,16 @@ public sealed class TrackListView
 	public int StateHash { get; private set; }
 	public TrackView? LastSelected { get; set; }
 
-	public MovieTime Duration => MovieTime.Max( Session.Project.Duration,
-		_trackDict.Values
-			.Select( x => x.Duration )
-			.DefaultIfEmpty( MovieTime.Zero )
-			.Max() );
-
 	public float Height { get; private set; }
+
+	public MovieTime Duration => RootTracks
+		.Select( x => x.Duration )
+		.DefaultIfEmpty( MovieTime.Zero )
+		.Max();
 
 	private readonly SynchronizedSet<IProjectTrack, TrackView> _rootTracks;
 	private readonly Dictionary<IProjectTrack, TrackView> _trackDict = new();
+	private readonly Dictionary<Guid, TrackView> _tracksByGuid = new();
 
 	public IReadOnlyList<TrackView> RootTracks => _rootTracks;
 
@@ -39,6 +39,16 @@ public sealed class TrackListView
 		AllTracks.Where( x => x is { IsLocked: false, Target: ITrackProperty { CanWrite: true } } );
 
 	public TrackView? Find( IProjectTrack track ) => _trackDict.GetValueOrDefault( track );
+
+	public TrackView? Find( ITrack track )
+	{
+		return track switch
+		{
+			IProjectTrack projectTrack => Find( projectTrack ),
+			IReferenceTrack refTrack => _tracksByGuid.GetValueOrDefault( refTrack.Id ),
+			_ => track.Parent is { } parent ? Find( parent )?.Find( track.Name ) : null
+		};
+	}
 
 	public TrackView? Find( GameObject go ) => AllTracks.FirstOrDefault( x =>
 		x.Target is ITrackReference<GameObject> { IsBound: true } target && target.Value == go );
@@ -72,15 +82,38 @@ public sealed class TrackListView
 	private void RemoveRootTrack( TrackView item ) => item.OnRemoved();
 	private bool UpdateRootTrack( IProjectTrack source, TrackView item ) => item.Update();
 
+	private readonly HashSet<MovieResource> _oldReferences = new();
+	private readonly HashSet<MovieResource> _newReferences = new();
+
 	public void Update()
 	{
 		if ( !_rootTracks.Update( Session.Project.RootTracks.Order() ) ) return;
 
 		_trackDict.Clear();
+		_tracksByGuid.Clear();
+
+		_newReferences.Clear();
 
 		foreach ( var trackView in AllTracks )
 		{
 			_trackDict[trackView.Track] = trackView;
+			_tracksByGuid[trackView.Track.Id] = trackView;
+
+			foreach ( var reference in trackView.Track.References )
+			{
+				_newReferences.Add( reference );
+			}
+		}
+
+		if ( !_oldReferences.SetEquals( _newReferences ) )
+		{
+			_oldReferences.Clear();
+			_oldReferences.UnionWith( _newReferences );
+
+			if ( !Session.IsRecording )
+			{
+				Session.Player.UpdateTargets();
+			}
 		}
 
 		var position = 0f;

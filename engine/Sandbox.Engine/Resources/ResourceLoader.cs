@@ -84,21 +84,21 @@ internal static class ResourceLoader
 	}
 
 
-
-
-
 	static Dictionary<string, FileWatch> Watchers = new();
 
 	static void AddWatcherForType( AssetTypeAttribute type )
 	{
+		if ( string.IsNullOrEmpty( type.Extension ) )
+			return;
+
 		// Watcher already set up for this type - no need to allocate another one.
-		if ( Watchers.ContainsKey( type.Name ) )
+		if ( Watchers.ContainsKey( type.TargetType.AssemblyQualifiedName ) )
 			return;
 
 		var watcher = EngineFileSystem.Mounted.Watch( $"*.{type.Extension}_c" );
 		watcher.OnChanges += ( w ) => OnAssetFilesChanged( w, type );
 
-		Watchers[type.Name] = watcher;
+		Watchers[type.TargetType.AssemblyQualifiedName] = watcher;
 	}
 
 	private static void OnAssetFilesChanged( FileWatch watch, AssetTypeAttribute type )

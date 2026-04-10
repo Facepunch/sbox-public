@@ -89,6 +89,12 @@ public sealed partial class NavMesh : IDisposable
 	public TagSet IncludedBodies { get; set; } = new();
 
 	/// <summary>
+	/// Skip tile generation during scene load. Tiles can then be generated on demand
+	/// via <see cref="GenerateTile"/>, <see cref="RequestTileGeneration"/>, etc.
+	/// </summary>
+	public bool DeferGeneration { get; set; } = false;
+
+	/// <summary>
 	/// By Default , the navmesh will calculate bounds based on the world geometry, but if you want to override that, you can set custom bounds here.
 	/// </summary>
 	[Header( "Bounds" )]
@@ -273,11 +279,23 @@ public sealed partial class NavMesh : IDisposable
 
 			Init();
 
-			await LoadFromBake();
+			if ( !DeferGeneration )
+			{
+				await LoadFromBake();
 
-			if ( !CustomBounds ) Bounds = CalculateWorldBounds( world );
+				if ( !CustomBounds ) Bounds = CalculateWorldBounds( world );
 
-			await GenerateTiles( world, Bounds );
+				await GenerateTiles( world, Bounds );
+			}
+			else
+			{
+				if ( !string.IsNullOrEmpty( _bakedDataPath ) )
+				{
+					Log.Warning( "NavMesh: Baked data is ignored when DeferGeneration is enabled" );
+				}
+
+				if ( !CustomBounds ) Bounds = CalculateWorldBounds( world );
+			}
 		}
 		finally
 		{

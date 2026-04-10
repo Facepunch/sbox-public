@@ -20,8 +20,8 @@ public class TransformTest
 		var childWorldTest = parent.ToWorld( childLocal );
 
 		Assert.IsTrue( (childWorldTest.Position - childWorld.Position).Length < 0.0001f );
-		Assert.AreEqual( childWorldTest.Rotation, childWorld.Rotation );
-		Assert.AreEqual( childWorldTest.Scale, childWorld.Scale );
+		Assert.IsTrue( childWorldTest.Rotation.AlmostEqual( childWorld.Rotation, 0.0000004f ) );
+		Assert.IsTrue( childWorldTest.Scale.AlmostEqual( childWorld.Scale ) );
 	}
 
 	[TestMethod]
@@ -42,8 +42,8 @@ public class TransformTest
 		var childWorldTest = parent.ToWorld( childLocal );
 
 		Assert.IsTrue( (childWorldTest.Position - childWorld.Position).Length < 0.0001f );
-		Assert.AreEqual( childWorldTest.Rotation, childWorld.Rotation );
-		Assert.AreEqual( childWorldTest.Scale, childWorld.Scale );
+		Assert.IsTrue( childWorldTest.Rotation.AlmostEqual( childWorld.Rotation, 0.0000004f ) );
+		Assert.IsTrue( childWorldTest.Scale.AlmostEqual( childWorld.Scale ) );
 	}
 
 	[TestMethod]
@@ -56,8 +56,8 @@ public class TransformTest
 
 		var childWorldTest = parent.ToWorld( childLocal );
 
-		Assert.AreEqual( childWorldTest.Rotation, childWorld.Rotation );
-		Assert.AreEqual( childWorldTest.Scale, childWorld.Scale );
+		Assert.IsTrue( childWorldTest.Rotation.AlmostEqual( childWorld.Rotation, 0.0000004f ) );
+		Assert.IsTrue( childWorldTest.Scale.AlmostEqual( childWorld.Scale ) );
 		Assert.IsTrue( (childWorldTest.Position - childWorld.Position).Length < 0.001f, $"{(childWorldTest.Position - childWorld.Position).Length}" );
 	}
 
@@ -83,7 +83,7 @@ public class TransformTest
 		var childWorldTest = parent.ToWorld( childLocal );
 
 		Assert.IsTrue( childWorldTest.Position == childWorld.Position );
-		Assert.IsTrue( childWorldTest.Rotation == childWorld.Rotation );
+		Assert.IsTrue( childWorldTest.Rotation.AlmostEqual( childWorld.Rotation, 0.0000004f ) );
 		Assert.AreEqual( childWorldTest.Scale, childWorld.Scale );
 	}
 

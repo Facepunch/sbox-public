@@ -285,7 +285,7 @@ partial class VertexPaintTool
 				World = world
 			};
 
-			var light = new SceneLight( world )
+			var light = new ScenePointLight( world )
 			{
 				Radius = 4000,
 				LightColor = Color.White * 0.8f,

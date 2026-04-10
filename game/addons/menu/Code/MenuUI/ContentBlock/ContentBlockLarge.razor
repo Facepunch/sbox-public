@@ -9,9 +9,7 @@
 		<ChildContent>
 			@foreach ( var package in Group.Packages )
 			{
-				<PackageCard Package=@package 
-							OnLaunch="@( () => ContentBlocks.OnLaunch( package ) )"
-							OnMenu="@( () => ContentBlocks.OnMenu( this, package ) )"></PackageCard>
+                <GameCard Size=@GameCard.SizeTypes.Wide Package=@package></GameCard>
 			}
 		</ChildContent>
 	</ContentBlockBody>

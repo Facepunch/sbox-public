@@ -90,9 +90,11 @@ public abstract partial class BlockItem : GraphicsItem, ISnapSource
 
 	}
 
+	protected virtual Color BackgroundColor => Timeline.Colors.ChannelBackground.WithAlpha( 0.75f );
+
 	protected override void OnPaint()
 	{
-		Paint.SetBrushAndPen( Timeline.Colors.ChannelBackground.Lighten( Parent.View.IsLocked ? 0.2f : 0f ).WithAlpha( 0.75f ) );
+		Paint.SetBrushAndPen( BackgroundColor.Lighten( Parent.View.IsLocked ? 0.2f : 0f ) );
 		Paint.DrawRect( LocalRect );
 
 		if ( Parent.View.IsLocked ) return;
@@ -101,6 +103,18 @@ public abstract partial class BlockItem : GraphicsItem, ISnapSource
 		Paint.SetPen( Color.White.WithAlpha( 0.1f ) );
 		Paint.DrawLine( LocalRect.BottomLeft, LocalRect.TopLeft );
 		Paint.DrawLine( LocalRect.BottomRight, LocalRect.TopRight );
+	}
+
+	public void PaintText( MovieTimeRange range, string value )
+	{
+		var timeline = Parent.Timeline;
+
+		var origin = timeline.TimeToPixels( Block.TimeRange.Start );
+		var left = timeline.TimeToPixels( range.Start ) - origin;
+		var right = timeline.TimeToPixels( range.End ) - origin;
+
+		Paint.SetPen( Color.White.WithAlpha( 0.5f ), 12f );
+		Paint.DrawText( new Rect( left, LocalRect.Top, right - left, LocalRect.Height ), value );
 	}
 
 	public virtual IEnumerable<SnapTarget> GetSnapTargets( MovieTime sourceTime, bool isPrimary ) =>

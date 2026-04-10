@@ -141,9 +141,11 @@ public partial class ClothingContainer
 	/// </summary>
 	public void Apply( SkinnedModelRenderer body )
 	{
+		using var SceneScope = body.Scene.Push();
+
 		bool isHuman = DetermineHuman( body );
 
-		// remove out outfit
+		// remove our outfit
 		Reset( body );
 		Normalize();
 
@@ -314,11 +316,18 @@ public partial class ClothingContainer
 
 	static void EnsureHumanUnderwear( List<ClothingEntry> set, bool isFemale )
 	{
-		bool hasUnderwear = set.Any( x => x.Clothing.Category is Sandbox.Clothing.ClothingCategory.Underwear or Sandbox.Clothing.ClothingCategory.Underpants );
-		if ( !hasUnderwear )
-			TryAddDefault( set, DefaultUnderwear.Value, isHuman: true );
+		var hiddenParts = set.Select( x => x.Clothing.HideBody ).DefaultIfEmpty().Aggregate( ( a, b ) => a | b );
 
-		if ( isFemale && !set.Any( x => x.Clothing.Category == Sandbox.Clothing.ClothingCategory.Bra ) )
+		// Don't add underwear if legs are hidden
+		if ( !hiddenParts.HasFlag( Sandbox.Clothing.BodyGroups.Legs ) )
+		{
+			bool hasUnderwear = set.Any( x => x.Clothing.Category is Sandbox.Clothing.ClothingCategory.Underwear or Sandbox.Clothing.ClothingCategory.Underpants );
+			if ( !hasUnderwear )
+				TryAddDefault( set, DefaultUnderwear.Value, isHuman: true );
+		}
+
+		// Don't add bra if chest is hidden
+		if ( isFemale && !hiddenParts.HasFlag( Sandbox.Clothing.BodyGroups.Chest ) && !set.Any( x => x.Clothing.Category == Sandbox.Clothing.ClothingCategory.Bra ) )
 			TryAddDefault( set, DefaultBra.Value, isHuman: true );
 	}
 

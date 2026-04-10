@@ -118,6 +118,10 @@ public sealed class DepthOfField : BasePostProcess<DepthOfField>
 			command.Attributes.SetCombo( "D_PASS", BlurPasses.RhomboidBlur );
 			command.DispatchCompute( ShaderCs, Vertical.Size );
 
+			command.ResourceBarrierTransition( Vertical, ResourceState.PixelShaderResource );
+			command.ResourceBarrierTransition( Diagonal, ResourceState.PixelShaderResource );
+			command.ResourceBarrierTransition( Final, ResourceState.PixelShaderResource );
+
 			command.Attributes.SetCombo( "D_DOF_TYPE", type );
 			command.Attributes.SetCombo( "D_PASS", 0 );
 

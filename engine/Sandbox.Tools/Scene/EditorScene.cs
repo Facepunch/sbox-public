@@ -298,6 +298,9 @@ public static class EditorScene
 
 	public static void Stop()
 	{
+		// Close any open overlay modals so they don't persist in the next play session
+		IModalSystem.Current?.CloseAll( true );
+
 		Game.IsClosing = true;
 
 		SceneEditorSession.Active.StopPlaying();

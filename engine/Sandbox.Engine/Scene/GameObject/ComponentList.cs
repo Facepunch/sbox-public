@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace Sandbox;
+﻿namespace Sandbox;
 
 /// <summary>
 /// Flags to search for Components.
@@ -44,22 +42,46 @@ public enum FindMode
 	/// </summary>
 	InDescendants = 64,
 
-
+	[Hide]
 	EnabledInSelf = Enabled | InSelf,
+
+	[Hide]
 	EnabledInSelfAndDescendants = Enabled | InSelf | InDescendants,
+
+	[Hide]
 	EnabledInSelfAndChildren = Enabled | InSelf | InChildren,
 
+	[Hide]
 	DisabledInSelf = Disabled | InSelf,
+
+	[Hide]
 	DisabledInSelfAndDescendants = Disabled | InSelf | InDescendants,
+
+	[Hide]
 	DisabledInSelfAndChildren = Disabled | InSelf | InChildren,
 
+	[Hide]
 	EverythingInSelf = Enabled | InSelf | Disabled,
+
+	[Hide]
 	EverythingInSelfAndDescendants = Enabled | InSelf | Disabled | InDescendants,
+
+	[Hide]
 	EverythingInSelfAndChildren = Enabled | InSelf | Disabled | InChildren,
+
+	[Hide]
 	EverythingInSelfAndParent = Enabled | InSelf | Disabled | InParent,
+
+	[Hide]
 	EverythingInSelfAndAncestors = Enabled | InSelf | Disabled | InAncestors,
+
+	[Hide]
 	EverythingInAncestors = Enabled | Disabled | InAncestors,
+
+	[Hide]
 	EverythingInChildren = Enabled | Disabled | InChildren,
+
+	[Hide]
 	EverythingInDescendants = Enabled | Disabled | InDescendants,
 }
 
