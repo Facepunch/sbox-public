@@ -48,6 +48,7 @@ public static class EditorPreferences
 		set => EditorCookie.Set( "CompileNotifications", value );
 	}
 
+
 	/// <summary>
 	/// The amount of seconds to keep a notification open if it's an error
 	/// </summary>
@@ -148,12 +149,13 @@ public static class EditorPreferences
 	/// <summary>
 	/// How fast should the orbit camera zoom?
 	/// </summary>
-	[Title( "Orbit Zoom Speed" )]
-	[Range( 0.0f, 10.0f )]
-	public static float OrbitZoomSpeed
+	[Title( "Zoom Speed" )]
+	[Description( "Scroll Wheel Zoom" )]
+	[Range( 0.1f, 2.0f )]
+	public static float ScrollZoomSpeed
 	{
-		get => EditorCookie.Get( "SceneView.OrbitZoomSpeed", 1.0f );
-		set => EditorCookie.Set( "SceneView.OrbitZoomSpeed", value );
+		get => EditorCookie.Get( "SceneView.ScrollZoomSpeed", 1.0f );
+		set => EditorCookie.Set( "SceneView.ScrollZoomSpeed", value );
 	}
 
 	/// <summary>
@@ -235,6 +237,103 @@ public static class EditorPreferences
 		get => EditorCookie.Get( "UndoSounds", true );
 		set => EditorCookie.Set( "UndoSounds", value );
 	}
+
+
+
+
+
+
+	///---------------------------------------------------------------------------------///
+
+	//GENERAL -----------------
+	public enum NavigationStyleList
+	{
+		Blender,
+		Maya,
+		Cinema4D
+	}
+	public static NavigationStyleList NavigationStyle
+	{
+		get => EditorCookie.Get( "NavigationStyle", NavigationStyleList.Blender );
+		set => EditorCookie.Set( "NavigationStyle", value );
+	}
+
+	[Title( "Hide Cursor" )]
+	public static bool CameraCursor
+	{
+		get => EditorCookie.Get( "CameraCursor", false );
+		set => EditorCookie.Set( "CameraCursor", value );
+	}
+
+	//ORBIT -------------------
+		//Invert
+	[Title( "Invert Orbit X" )]
+	public static bool OrbitInvertHorizontal
+	{
+		get => EditorCookie.Get( "OrbitInvertHorizontal", true );
+		set => EditorCookie.Set( "OrbitInvertHorizontal", value );
+	}
+	[Title( "Invert Orbit Y" )]
+	public static bool OrbitInvertVertical
+	{
+		get => EditorCookie.Get( "OrbitInvertVertical", true );
+		set => EditorCookie.Set( "OrbitInvertVertical", value );
+	}
+			//Sensitivity
+	[Title( "Orbit sensitivity" )]
+	[Range( 0.1f, 2.0f )]
+	public static float OrbitSensitivity
+	{
+		get => EditorCookie.Get( "OrbitSensitivity", 1.0f );
+		set => EditorCookie.Set( "OrbitSensitivity", value );
+	}
+
+
+	//PAN ---------------------
+	[Title( "Invert Pan X" )]
+	public static bool PanInvertHorizontal
+	{
+		get => EditorCookie.Get( "PanInvertHorizontal", false );
+		set => EditorCookie.Set( "PanInvertHorizontal", value );
+	}
+	[Title( "Invert Pan Y" )]
+	public static bool PanInvertVertical
+	{
+		get => EditorCookie.Get( "PanInvertVertical", false );
+		set => EditorCookie.Set( "PanInvertVertical", value );
+	}
+			//Sensitivity
+	[Title( "Pan sensitivity" )]
+	[Range( 0.1f, 2.0f )]
+	public static float PanSensitivity
+	{
+		get => EditorCookie.Get( "PanSensitivity", 1f );
+		set => EditorCookie.Set( "PanSensitivity", value );
+	}
+
+
+	//ZOOM --------------------
+	[Title( "Invert Zoom" )]
+	public static bool ZoomInvert
+	{
+		get => EditorCookie.Get( "ZoomInvert", false );
+		set => EditorCookie.Set( "ZoomInvert", value );
+	}
+			//Sensitivity
+	[Title( "Zoom sensitivity" )]
+	[Range( 0.1f, 2.0f )]
+	public static float ZoomSensitivity
+	{
+		get => EditorCookie.Get( "ZoomSensitivity", 1.0f );
+		set => EditorCookie.Set( "ZoomSensitivity", value );
+	}
+	
+
+	///---------------------------------------------------------------------------------///
+
+
+
+
 
 	/// <summary>
 	/// Overrides for any Editor shortcuts.
