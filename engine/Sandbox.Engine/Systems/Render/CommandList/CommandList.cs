@@ -712,8 +712,8 @@ public sealed unsafe partial class CommandList
 	/// The index buffer defines a single-instance mesh template; the instance count controls how many copies are rendered.
 	/// </summary>
 	/// <remarks>
-	/// Per-instance data should be provided via a <see cref="RenderAttributes"/> bound structured buffer.
-	/// Use <c>SV_InstanceID</c> in shaders to index into the per-instance buffer.
+	/// Vertex data should be provided via a <see cref="RenderAttributes"/> bound buffer attribute and accessed in shaders using <c>SV_VertexID</c>.
+	/// Per-instance data should be provided via a <see cref="RenderAttributes"/> bound structured buffer and accessed using <c>SV_InstanceID</c>.
 	/// </remarks>
 	/// <param name="indexBuffer">The GPU buffer containing index data for one instance.</param>
 	/// <param name="material">The material to use for rendering.</param>
