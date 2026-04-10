@@ -248,6 +248,7 @@ public static class EditorPreferences
 		[Description( "Orbit:	Alt + Left Click\nPan:	Alt + Middle Click\nZoom:	Alt + Right Click" )]
 		Cinema4D
 	}
+
 	public static NavigationStyleList NavigationStyle
 	{
 		get => EditorCookie.Get( "NavigationStyle", NavigationStyleList.Blender );
@@ -269,12 +270,14 @@ public static class EditorPreferences
 		get => EditorCookie.Get( "OrbitInvertHorizontal", true );
 		set => EditorCookie.Set( "OrbitInvertHorizontal", value );
 	}
+
 	[Title( "Invert Orbit Y" )]
 	public static bool OrbitInvertVertical
 	{
 		get => EditorCookie.Get( "OrbitInvertVertical", true );
 		set => EditorCookie.Set( "OrbitInvertVertical", value );
 	}
+
 	//Sensitivity
 	[Title( "Orbit sensitivity" )]
 	[Range( 0.1f, 2.0f )]
@@ -291,12 +294,14 @@ public static class EditorPreferences
 		get => EditorCookie.Get( "PanInvertHorizontal", false );
 		set => EditorCookie.Set( "PanInvertHorizontal", value );
 	}
+
 	[Title( "Invert Pan Y" )]
 	public static bool PanInvertVertical
 	{
 		get => EditorCookie.Get( "PanInvertVertical", false );
 		set => EditorCookie.Set( "PanInvertVertical", value );
 	}
+
 	//Sensitivity
 	[Title( "Pan sensitivity" )]
 	[Range( 0.1f, 2.0f )]
@@ -313,6 +318,7 @@ public static class EditorPreferences
 		get => EditorCookie.Get( "ZoomInvert", false );
 		set => EditorCookie.Set( "ZoomInvert", value );
 	}
+
 	//Sensitivity
 	[Title( "Zoom sensitivity" )]
 	[Range( 0.1f, 2.0f )]
@@ -333,12 +339,16 @@ public static class EditorPreferences
 			{
 				var json = EditorCookie.GetString( "KeybindOverrides", null );
 				if ( string.IsNullOrEmpty( json ) )
+				{
 					_shortcutOverrides = new Dictionary<string, string>();
+				}
 				else
 				{
 					_shortcutOverrides = Json.Deserialize<Dictionary<string, string>>( json );
 					if ( _shortcutOverrides is null )
+					{
 						_shortcutOverrides = new Dictionary<string, string>();
+					}
 				}
 			}
 			return _shortcutOverrides;
@@ -350,7 +360,7 @@ public static class EditorPreferences
 		}
 	}
 
-	static Dictionary<string, string> _shortcutOverrides;
+	private static Dictionary<string, string> _shortcutOverrides;
 
 	/// <summary>
 	/// Whether new game instances spawned by the editor are in windowed mode.
