@@ -545,7 +545,7 @@ public partial class SceneViewportWidget : Widget
 					}
 				}
 			}
-			
+
 			bool isNavigating = false;
 			if ( style == EditorPreferences.NavigationStyleList.Blender )
 			{

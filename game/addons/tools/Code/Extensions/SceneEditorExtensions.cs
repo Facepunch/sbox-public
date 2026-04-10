@@ -217,7 +217,7 @@ public static class SceneEditorExtensions
 				break;
 		}
 
-if ( !(orbitActive || panActive || zoomActive) || !self.Input.IsHovered )
+		if ( !(orbitActive || panActive || zoomActive) || !self.Input.IsHovered )
 		{
 			if ( self.GetValue<bool>( "IsOrbiting" ) ||
 				 self.GetValue<bool>( "HasStoredPanDistance" ) ||
@@ -405,62 +405,62 @@ if ( !(orbitActive || panActive || zoomActive) || !self.Input.IsHovered )
 		}
 
 		else if ( panActive )
-{
-    float lastPanDistance = self.GetValue<float>( "LastPanDistance" );
-    bool hasStoredDistance = self.GetValue<bool>( "HasStoredPanDistance" );
+		{
+			float lastPanDistance = self.GetValue<float>( "LastPanDistance" );
+			bool hasStoredDistance = self.GetValue<bool>( "HasStoredPanDistance" );
 
-    Vector2 currentAbsoluteMousePos = Application.CursorPosition;
-    Vector2 currentMousePos = currentAbsoluteMousePos;
+			Vector2 currentAbsoluteMousePos = Application.CursorPosition;
+			Vector2 currentMousePos = currentAbsoluteMousePos;
 
-    if ( canvas.IsValid() )
-    {
-        currentMousePos -= canvas.ScreenPosition;
-    }
+			if ( canvas.IsValid() )
+			{
+				currentMousePos -= canvas.ScreenPosition;
+			}
 
-    if ( !hasStoredDistance )
-    {
-        var ray = camera.ScreenPixelToRay( currentMousePos );
-        var tr = camera.Scene.Trace.Ray( ray, 10000f )
-            .UseRenderMeshes( true )
-            .UsePhysicsWorld( false )
-            .Run();
+			if ( !hasStoredDistance )
+			{
+				var ray = camera.ScreenPixelToRay( currentMousePos );
+				var tr = camera.Scene.Trace.Ray( ray, 10000f )
+					.UseRenderMeshes( true )
+					.UsePhysicsWorld( false )
+					.Run();
 
-        Vector3 hitPointWorld;
-        bool rayHit = tr.Hit;
+				Vector3 hitPointWorld;
+				bool rayHit = tr.Hit;
 
-        self.SetValue( "PanRayHit", rayHit );
+				self.SetValue( "PanRayHit", rayHit );
 
-        if ( rayHit )
-        {
-            hitPointWorld = tr.HitPosition;
-            lastPanDistance = Vector3.Dot( hitPointWorld - camera.WorldPosition, camera.WorldRotation.Forward );
-            self.SetValue( "PanNoHitSpeed", 1.0f );
-        }
-        else
-        {
-            // NEU: Wenn kein Hit, verwende die aktuelle Orbit-Distanz als Referenz
-            float orbitDistance = distance > 0 ? distance : 500.0f;
-            
-            // Berechne eine sinnvolle Pan-Ebene in Blickrichtung
-            hitPointWorld = camera.WorldPosition + camera.WorldRotation.Forward * orbitDistance;
-            lastPanDistance = orbitDistance;
-            self.SetValue( "PanNoHitSpeed", 1.0f );
-        }
+				if ( rayHit )
+				{
+					hitPointWorld = tr.HitPosition;
+					lastPanDistance = Vector3.Dot( hitPointWorld - camera.WorldPosition, camera.WorldRotation.Forward );
+					self.SetValue( "PanNoHitSpeed", 1.0f );
+				}
+				else
+				{
+					// NEU: Wenn kein Hit, verwende die aktuelle Orbit-Distanz als Referenz
+					float orbitDistance = distance > 0 ? distance : 500.0f;
 
-        hasStoredDistance = true;
+					// Berechne eine sinnvolle Pan-Ebene in Blickrichtung
+					hitPointWorld = camera.WorldPosition + camera.WorldRotation.Forward * orbitDistance;
+					lastPanDistance = orbitDistance;
+					self.SetValue( "PanNoHitSpeed", 1.0f );
+				}
 
-        self.SetValue( "LastPanDistance", lastPanDistance );
-        self.SetValue( "HasStoredPanDistance", hasStoredDistance );
+				hasStoredDistance = true;
 
-        self.SetValue( "PanStartCameraPosition", camera.WorldPosition );
-        self.SetValue( "PanStartCameraRotation", camera.WorldRotation );
+				self.SetValue( "LastPanDistance", lastPanDistance );
+				self.SetValue( "HasStoredPanDistance", hasStoredDistance );
 
-        self.SetValue( "PanHitPointWorld", hitPointWorld );
-        self.SetValue( "PanTotalDelta", Vector2.Zero );
-        self.SetValue( "PanLastMousePos", currentAbsoluteMousePos );
+				self.SetValue( "PanStartCameraPosition", camera.WorldPosition );
+				self.SetValue( "PanStartCameraRotation", camera.WorldRotation );
 
-        self.SetValue( "LastAction", "pan" );
-    }
+				self.SetValue( "PanHitPointWorld", hitPointWorld );
+				self.SetValue( "PanTotalDelta", Vector2.Zero );
+				self.SetValue( "PanLastMousePos", currentAbsoluteMousePos );
+
+				self.SetValue( "LastAction", "pan" );
+			}
 
 			Vector3 storedHitPoint = self.GetValue<Vector3>( "PanHitPointWorld" );
 			Vector3 startCameraPos = self.GetValue<Vector3>( "PanStartCameraPosition" );
