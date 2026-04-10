@@ -20,6 +20,8 @@ public static class GameMode
 
 		widget.Focused += WidgetFocused;
 		widget.Blurred += WidgetBlurred;
+		widget.MouseTracking = true;
+		widget.MouseMove += OnPlayWidgetMouseMove;
 
 		NativeEngine.InputSystem.RegisterWindowWithSDL( widget._widget.winId() );
 		g_pEngineServiceMgr.SetEngineState( widget._widget.winId(), widget.SwapChain );
@@ -40,6 +42,8 @@ public static class GameMode
 
 		_inPlay.Focused -= WidgetFocused;
 		_inPlay.Blurred -= WidgetBlurred;
+		_inPlay.MouseMove -= OnPlayWidgetMouseMove;
+		_inPlay.MouseTracking = false;
 
 		NativeEngine.InputSystem.UnregisterWindowFromSDL( _inPlay._widget.winId() );
 
@@ -68,22 +72,15 @@ public static class GameMode
 		NativeEngine.InputSystem.OnEditorGameFocusChange( _inPlay._widget.winId(), false );
 	}
 
-	internal static void Tick()
+	private static void OnPlayWidgetMouseMove( Vector2 local )
 	{
-		// Keep game mouse position updated while the play widget is unfocused.
-		var playWidget = _inPlay;
-		if ( playWidget is null || playWidget.IsFocused )
-			return;
-
-		var local = playWidget.FromScreen( Application.CursorPosition );
-
-		// Don't snap to borders if cursor isn't over the widget.
-		if ( local.x < 0 || local.y < 0 || local.x >= playWidget.Size.x || local.y >= playWidget.Size.y )
+		// SDL handles position when the widget is focused; only fill in the gap when unfocused.
+		if ( _inPlay is null || _inPlay.IsFocused )
 			return;
 
 		var pos = new Vector2( (int)local.x, (int)local.y );
 		var delta = pos - InputRouter.MouseCursorPosition;
 
-		InputRouter.ApplyAbsoluteMousePosition( pos, delta );
+		InputRouter.OnMousePositionChange( pos.x, pos.y, delta.x, delta.y );
 	}
 }
