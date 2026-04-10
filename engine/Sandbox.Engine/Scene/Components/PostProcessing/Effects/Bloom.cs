@@ -32,7 +32,7 @@ public class Bloom : BasePostProcess<Bloom>
 
 	[Property] public FilterMode Filter { get; set; } = FilterMode.Bilinear;
 
-	CommandList command = new CommandList();
+	CommandList command = new CommandList( "Bloom" );
 
 	private static Material Shader = Material.FromShader( "postprocess_bloom.shader" );
 
@@ -67,6 +67,8 @@ public class Bloom : BasePostProcess<Bloom>
 
 		// Dispatch compute at bloom RT size
 		command.DispatchCompute( ShaderCs, bloomRt.Size );
+
+		command.ResourceBarrierTransition( bloomRt, ResourceState.PixelShaderResource );
 
 		// Composite: sample the bloom texture in PS and apply selected mode
 		command.Attributes.Set( "BloomTexture", bloomRt.ColorTexture );

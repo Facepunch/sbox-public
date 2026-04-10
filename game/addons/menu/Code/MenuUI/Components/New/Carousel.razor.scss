@@ -1,0 +1,106 @@
+@import "/styles/_Theme.scss";
+
+Carousel {
+    border-radius: $rounding-default;
+    flex-direction: column;
+    pointer-events: all;
+    position: relative;
+    align-items: center;
+    gap: 12px;
+
+    .content-wrapper {
+        width: 100%;
+        max-width: $screen-w-md;
+        height: 540px;
+        position: relative;
+
+        .nav-button {
+            @include border;
+            position: absolute;
+            z-index: 99;
+            width: 48px;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            align-self: center;
+            justify-content: center;
+            padding: 0;
+            background-color: $default-950;
+            opacity: 1;
+            cursor: pointer;
+            pointer-events: all;
+
+            .icon {
+                font-size: $text-large;
+                color: $default-text-light;
+                transition: all 150ms ease;
+            }
+
+            &:active {
+                sound-in: ui.button.press;
+            }
+
+            &:hover {
+                sound-in: ui.button.over;
+                background-color: $default-800;
+
+                .icon {
+                    color: $default-text;
+                }
+            }
+
+            &.left {
+                left: -96px;
+            }
+
+            &.right {
+                right: -96px;
+            }
+        }
+    }
+
+    .content {
+        width: 100%;
+        height: 100%;
+        padding: 2px;
+        flex-shrink: 0;
+        position: relative;
+
+        > * {
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            transform: translateX( 0px );
+            z-index: 10;
+            opacity: 1;
+            justify-content: center;
+            transition: transform 300ms $easing, filter 300ms $easing;
+
+            &.hidden, &.entering, &.exiting {
+                pointer-events: none;
+                z-index: -10;
+                filter: saturate( 0.3 );
+
+                * {
+                    background-playback-state: paused;
+                }
+            }
+
+            &.hidden {
+                opacity: 0;
+                transform: translateX( 1000px ) scale( 0.8 );
+            }
+
+            &.entering {
+                transform: translateX( 1180px ) scale( 0.8 );
+                mask: linear-gradient( to right, white, black 50% );
+            }
+
+            &.exiting {
+                transform: translateX( -1180px ) scale( 0.8 );
+                mask: linear-gradient( to right, black 50%, white );
+            }
+        }
+    }
+}

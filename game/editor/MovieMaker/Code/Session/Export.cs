@@ -328,18 +328,19 @@ public sealed class SessionRenderer
 
 	private void BeforeRenderFrame( SceneCamera captureCamera, VideoExportConfig config, MovieTime deltaTime )
 	{
-		var camera = _session.Player.Scene.Camera;
+		if ( _session.Player.Scene.Camera is { } camera )
+		{
+			// Update camera
 
-		// Update camera
+			var aspect = (float)config.Resolution.x / config.Resolution.y;
 
-		var aspect = (float)config.Resolution.x / config.Resolution.y;
+			camera.UpdateSceneCamera( captureCamera );
 
-		camera.UpdateSceneCamera( captureCamera );
-
-		captureCamera.Size = config.Resolution.x;
-		captureCamera.FieldOfView = camera.FovAxis == CameraComponent.Axis.Vertical
-			? Screen.CreateVerticalFieldOfView( camera.FieldOfView, aspect )
-			: camera.FieldOfView;
+			captureCamera.Size = config.Resolution.x;
+			captureCamera.FieldOfView = camera.FovAxis == CameraComponent.Axis.Vertical
+				? Screen.CreateVerticalFieldOfView( camera.FieldOfView, aspect )
+				: camera.FieldOfView;
+		}
 
 		// Simulate the scene
 

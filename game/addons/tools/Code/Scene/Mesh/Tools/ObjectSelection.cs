@@ -177,7 +177,12 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 
 	public override BBox CalculateLocalBounds()
 	{
-		return CalculateSelectionBounds();
+		var invBasis = CalculateSelectionBasis().Inverse;
+
+		return BBox.FromPoints( _meshes
+			.Where( x => x.IsValid() )
+			.SelectMany( mc => mc.Mesh.VertexHandles
+				.Select( v => invBasis * mc.WorldTransform.PointToWorld( mc.Mesh.GetVertexPosition( v ) ) ) ) );
 	}
 
 	public override Rotation CalculateSelectionBasis()
@@ -419,6 +424,8 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 
 		return
 		[
+			center,
+
 			new Vector3( mins.x, mins.y, mins.z ),
 			new Vector3( maxs.x, mins.y, mins.z ),
 			new Vector3( mins.x, maxs.y, mins.z ),
@@ -464,6 +471,17 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 	{
 		Pivot = default;
 		_pivotIndex = 0;
+
+		Tool?.MoveMode?.OnBegin( this );
+	}
+
+	public void CenterPivot()
+	{
+		var box = CalculateSelectionBounds();
+		if ( box.Size.Length <= 0 ) return;
+
+		_pivotIndex = 0;
+		Pivot = box.Center;
 
 		Tool?.MoveMode?.OnBegin( this );
 	}

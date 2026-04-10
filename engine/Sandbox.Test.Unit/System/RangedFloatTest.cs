@@ -47,7 +47,7 @@ public class RangedFloatTest
 	[TestMethod]
 	[DataRow( 1f, null, "1" )]
 	[DataRow( 1f, 1f, "1 1" )]
-	[DataRow( 0.19851673f, null, "0.19851673" )]
+	[DataRow( 0.19851673f, null, "0.198516726" )]
 	public void TestToString( float min, float? max, string str )
 	{
 		var range = max is null ? new RangedFloat( min ) : new RangedFloat( min, max.Value );
@@ -70,6 +70,29 @@ public class RangedFloatTest
 
 			Assert.AreEqual( src.ToString(), dst.ToString() );
 		}
+	}
+
+	/// <summary>
+	/// G9 format can produce scientific notation (e.g. 7.247925E-05).
+	/// Verify Parse handles these and the ToString/Parse round-trip contract holds.
+	/// </summary>
+	[TestMethod]
+	[DataRow( 7.247925E-05f, null )]
+	[DataRow( -7.247925E-05f, null )]
+	[DataRow( 1.23456789E+10f, null )]
+	[DataRow( -9.99999944E-11f, null )]
+	[DataRow( 7.247925E-05f, 1.5f )]
+	[DataRow( -1E-06f, 1E+06f )]
+	public void ScientificNotationRoundTrip( float min, float? max )
+	{
+		var src = max is null ? new RangedFloat( min ) : new RangedFloat( min, max.Value );
+		var str = src.ToString();
+		var dst = RangedFloat.Parse( str );
+
+		Assert.AreEqual( src.Min, dst.Min, $"Min mismatch: \"{str}\"" );
+		Assert.AreEqual( src.Max, dst.Max, $"Max mismatch: \"{str}\"" );
+		Assert.AreEqual( src.Range, dst.Range, $"Range type mismatch: \"{str}\"" );
+		Assert.AreEqual( str, dst.ToString(), $"Double round-trip mismatch" );
 	}
 }
 

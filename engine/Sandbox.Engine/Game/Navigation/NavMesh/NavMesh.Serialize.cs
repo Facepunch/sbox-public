@@ -32,6 +32,7 @@ public sealed partial class NavMesh
 		jso["AgentMaxSlope"] = AgentMaxSlope;
 		jso["ExcludedBodies"] = Json.ToNode( ExcludedBodies, typeof( TagSet ) );
 		jso["IncludedBodies"] = Json.ToNode( IncludedBodies, typeof( TagSet ) );
+		jso["DeferGeneration"] = DeferGeneration;
 		jso["CustomBounds"] = CustomBounds;
 		if ( CustomBounds ) jso["Bounds"] = Json.ToNode( Bounds, typeof( BBox ) );
 
@@ -63,6 +64,7 @@ public sealed partial class NavMesh
 
 		ExcludedBodies = Json.FromNode<TagSet>( jso["ExcludedBodies"] ) ?? ExcludedBodies;
 		IncludedBodies = Json.FromNode<TagSet>( jso["IncludedBodies"] ) ?? IncludedBodies;
+		DeferGeneration = (bool)(jso["DeferGeneration"] ?? DeferGeneration);
 		CustomBounds = (bool)(jso["CustomBounds"] ?? CustomBounds);
 		Bounds = CustomBounds && jso["Bounds"] is not null ? Json.FromNode<BBox>( jso["Bounds"] ) : default;
 

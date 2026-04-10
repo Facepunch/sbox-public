@@ -124,6 +124,15 @@ internal class PrefabInstanceData
 	/// </summary>
 	public void RefreshPatch()
 	{
+		var prefabFile = ResourceLibrary.Get<PrefabFile>( PrefabSource );
+
+		// Prefab file is missing or not yet loaded — preserve the last known patch so the scene
+		// can still be saved and round-tripped. The data will be fully restored when the file returns.
+		if ( prefabFile is null || prefabFile.IsPromise || prefabFile.RootObject is null )
+		{
+			Log.Warning( $"Prefab '{PrefabSource}' is missing. Preserving last known patch for serialization." );
+			return;
+		}
 
 		var instanceData = _instanceRoot.SerializeStandard( _serializeOptions );
 
@@ -374,6 +383,8 @@ internal class PrefabInstanceData
 	public void UpdateGameObjectFromPrefab( GameObject go, bool revertChanges = false )
 	{
 		var prefabGameObject = FindPrefabGameObjectForInstanceId( go.Id );
+		if ( prefabGameObject is null ) return;
+
 		var prefabGameObjectJson = prefabGameObject.Serialize( new SerializeOptions { SerializePrefabForDiff = true } );
 		var validatedLookup = ValidatePrefabToInstanceIdLookup( _prefabGuidToInstanceGuid, PrefabSource );
 		UpdateLookups( validatedLookup );
@@ -667,6 +678,7 @@ internal class PrefabInstanceData
 		if ( prefabGuid == Guid.Empty ) return null;
 
 		var prefabScene = GameObject.GetPrefab( PrefabSource );
+		if ( prefabScene is null ) return null;
 
 		return prefabScene.Scene.Directory.FindComponentByGuid( prefabGuid );
 	}
@@ -677,6 +689,7 @@ internal class PrefabInstanceData
 		if ( prefabGuid == Guid.Empty ) return null;
 
 		var prefabScene = GameObject.GetPrefab( PrefabSource );
+		if ( prefabScene is null ) return null;
 
 		return prefabScene.Scene.Directory.FindByGuid( prefabGuid );
 	}

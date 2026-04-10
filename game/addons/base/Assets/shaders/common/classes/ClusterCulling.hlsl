@@ -55,9 +55,14 @@ class Cluster
 
     static ClusterRange Query( ClusterItemType type, float4 positionSs )
     {
+        // Snap positionSs to the top-left pixel of the 2x2 quad to avoid cluster divergence
+        // Todo: Z still diverges within the quad and cant derive it without reading from neighbour lanes
+        // Using QuadReadLaneAt causes issues on AMD GCN ( RX580 )
+        positionSs.xy = floor( positionSs.xy / 2.0 ) * 2.0 + 0.5;
+
         // Screen position -> cluster coordinate
         float2 uv = CalculateViewportUv( positionSs.xy );
-
+        
         // Perspective: SV_Position.w = 1/viewDepth, so depth = 1/w.
         // Ortho: SV_Position.w is always 1.0, so un-project clip-space Z instead.
         // Uniform branch = free
@@ -92,6 +97,7 @@ class Cluster
         range.Type = type;
         range.Count = min( count, capacity );
         range.BaseOffset = flatIndex * capacity;
+
         return range;
     }
 

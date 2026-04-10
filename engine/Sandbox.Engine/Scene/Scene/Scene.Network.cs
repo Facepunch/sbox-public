@@ -53,7 +53,21 @@ public partial class Scene : GameObject
 		var connections = system.GetFilteredConnections( Connection.ChannelState.Connected );
 		var connectionsArray = connections as Connection[] ?? connections.ToArray();
 
-		var objects = networkedObjects.OfType<IDeltaSnapshot>();
+		// Partition objects into dirty (pending changes) and clean (fully ACK'd).
+		// Dirty objects are processed first so they end up in earlier clusters,
+		// which are less likely to be delayed under network congestion.
+		_dirtySnapshotObjects.Clear();
+		_cleanSnapshotObjects.Clear();
+
+		foreach ( var n in networkedObjects )
+		{
+			if ( n.LocalSnapshotState.UpdatedConnections.Count == 0 )
+				_dirtySnapshotObjects.Add( n );
+			else
+				_cleanSnapshotObjects.Add( n );
+		}
+
+		IEnumerable<IDeltaSnapshot> objects = _dirtySnapshotObjects.Concat( _cleanSnapshotObjects );
 
 		// If we're the host, include any GameObjectSystems.
 		if ( Networking.IsHost )
@@ -126,7 +140,7 @@ public partial class Scene : GameObject
 				userCommand.Serialize( ref msg );
 			}
 
-			connection.SendRawMessage( msg, NetFlags.UnreliableNoDelay );
+			connection.SendStream( msg, NetFlags.UnreliableNoDelay );
 			msg.Dispose();
 		}
 	}
@@ -135,6 +149,8 @@ public partial class Scene : GameObject
 	/// A cache of all the MapInstances that gets updated every frame
 	/// </summary>
 	readonly List<MapInstance> _networkMapInstanceCache = new();
+	readonly List<IDeltaSnapshot> _dirtySnapshotObjects = new();
+	readonly List<IDeltaSnapshot> _cleanSnapshotObjects = new();
 
 	/// <summary>
 	/// Are these bounds visible to the specified <see cref="Connection"/>?

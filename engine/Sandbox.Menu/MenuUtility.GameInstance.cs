@@ -4,49 +4,16 @@ namespace Sandbox;
 
 public static partial class MenuUtility
 {
-	static CancellationTokenSource gameLoadingCts = new CancellationTokenSource();
-
-	/// <summary>
-	/// Close the current game.
-	/// </summary>
-	public static void CloseGame()
-	{
-		// Editor only: just exit playmode
-		if ( IToolsDll.Current is not null )
-		{
-			IToolsDll.Current.ExitPlaymode();
-			return;
-		}
-
-		gameLoadingCts?.Cancel();
-
-		if ( IGameInstance.Current is not null )
-		{
-			IGameInstance.Current?.Close();
-		}
-		else
-		{
-			// Conna: game instance will call disconnect. If we don't have a game instance then we
-			// need to call it ourselves.
-			Networking.Disconnect();
-
-			Application.ClearGame();
-		}
-
-		LaunchArguments.Reset();
-	}
-
 	/// <summary>
 	/// A game has been opened. Load the game. If allowLaunchOverride then special launch conditions will be obeyed.
 	/// For example, we might join a lobby instead of loading the game, or we might open the launcher.
 	/// </summary>
 	public static void OpenGame( string ident, bool allowLaunchOverride = true, Dictionary<string, string> gameSettings = null )
 	{
-		gameLoadingCts?.Cancel();
-		gameLoadingCts = new CancellationTokenSource();
+		CloseAllModals();
 
 		if ( gameSettings is not null ) LaunchArguments.GameSettings = gameSettings;
-		_ = LoadAsync( ident, allowLaunchOverride, gameLoadingCts.Token );
+		_ = LoadAsync( ident, allowLaunchOverride );
 	}
 
 	/// <summary>
@@ -60,19 +27,12 @@ public static partial class MenuUtility
 		OpenGame( gameident, false );
 	}
 
-	static async Task LoadAsync( string ident, bool allowLaunchOverride, CancellationToken ct )
+	static async Task LoadAsync( string ident, bool allowLaunchOverride, CancellationToken ct = default )
 	{
 		ThreadSafe.AssertIsMainThread();
 		LoadingScreen.IsVisible = true;
 		LoadingScreen.Media = null;
-		LoadingScreen.Title = "Loading Game..";
-
-		var package = await Package.FetchAsync( ident, false );
-		if ( package is not null )
-		{
-			LoadingScreen.Title = package.Title;
-			LoadingScreen.Media = package.LoadingScreen.MediaUrl;
-		}
+		LoadingScreen.Title = null;
 
 		var flags = GameLoadingFlags.Host | GameLoadingFlags.Reload;
 		if ( Application.IsEditor ) flags |= GameLoadingFlags.Developer; // todo - is the package we're loading a local package
@@ -110,7 +70,10 @@ public static partial class MenuUtility
 
 				// Try to join this one
 				if ( await Networking.TryConnectSteamId( lobby.LobbyId ) )
+				{
+					CloseAllModals();
 					return true;
+				}
 			}
 
 			Log.Info( $"Couldn't join a lobby - making a game" );

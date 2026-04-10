@@ -69,8 +69,11 @@ partial class Compiler
 		/// </summary>
 		public HashSet<string> IgnoreFolders { get; set; } = new HashSet<string>();
 
-		static bool IsPermittedAssemblyReference( string assemblyName )
+		bool IsPermittedAssemblyReference( string assemblyName )
 		{
+			if ( !Whitelist )
+				return true;
+
 			return assemblyName.StartsWith( "Sandbox.", StringComparison.OrdinalIgnoreCase )
 				|| assemblyName.StartsWith( "Facepunch.", StringComparison.OrdinalIgnoreCase )
 				|| assemblyName == "Microsoft.AspNetCore.Components";

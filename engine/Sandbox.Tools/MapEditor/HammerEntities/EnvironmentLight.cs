@@ -104,25 +104,11 @@ class EnvironmentLightEntity : HammerEntityDefinition
 	internal enum ShadowType
 	{
 		No,
-		Yes,
-		BakedOnly
+		Yes
 	}
 
 	[Property, Category( "Shadows" ), DefaultValue( ShadowType.Yes ), Description( "Whether this light casts shadows." )]
 	internal ShadowType CastShadows { get; set; } = ShadowType.Yes;
-
-	[Property( "nearclipplane" ), Category( "Shadows" ), DefaultValue( 1.0f ), Description( "Distance for near clip plane for shadow map." )]
-	internal float ShadowNearClipPlane { get; set; } = 1.0f;
-
-	[Property( "numcascades" ), Category( "Shadows" ), DefaultValue( 3 ), MinMax( 1, 3 ), Description( "Number of shadow cascades to use." )]
-	internal int CascadeAmount { get; set; } = 3;
-
-	[Property, Category( "Shadows" ), DefaultValue( 0.0f )] internal float ShadowCascadeDistance0 { get; set; } = 0.0f;
-	[Property, Category( "Shadows" ), DefaultValue( 0.0f )] internal float ShadowCascadeDistance1 { get; set; } = 0.0f;
-	[Property, Category( "Shadows" ), DefaultValue( 0.0f )] internal float ShadowCascadeDistance2 { get; set; } = 0.0f;
-	[Property, Category( "Shadows" ), DefaultValue( 0.0f )] internal float ShadowCascadeResolution0 { get; set; } = 0.0f;
-	[Property, Category( "Shadows" ), DefaultValue( 0.0f )] internal float ShadowCascadeResolution1 { get; set; } = 0.0f;
-	[Property, Category( "Shadows" ), DefaultValue( 0.0f )] internal float ShadowCascadeResolution2 { get; set; } = 0.0f;
 
 	#endregion
 
@@ -206,9 +192,22 @@ class EnvironmentLightEntity : HammerEntityDefinition
 
 	internal enum DirectLightMode
 	{
+		/// <summary>
+		/// Disabled for direct lighting.
+		/// </summary>
 		None,
+		/// <summary>
+		/// Fully baked into lightmaps. No real-time shadow maps are generated.
+		/// </summary>
 		Baked,
+		/// <summary>
+		/// Fully dynamic with real-time shadow maps that include all objects. Not baked into lightmaps.
+		/// </summary>
 		Dynamic,
+		/// <summary>
+		/// Baked into lightmaps but also generates real-time shadow maps for dynamic objects only.
+		/// Static objects are excluded from shadow maps since their shadows come from lightmaps.
+		/// </summary>
 		Stationary
 	}
 

@@ -55,7 +55,7 @@ namespace Sandbox.Internal.JsonConvert
 
 		public override void Write( Utf8JsonWriter writer, Vector3 val, JsonSerializerOptions options )
 		{
-			writer.WriteStringValue( $"{val.x:0.#################################},{val.y:0.#################################},{val.z:0.#################################}" );
+			writer.WriteStringValue( string.Create( System.Globalization.CultureInfo.InvariantCulture, $"{val.x:G9},{val.y:G9},{val.z:G9}" ) );
 		}
 
 		public override Vector3 ReadAsPropertyName( ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options )
@@ -65,7 +65,7 @@ namespace Sandbox.Internal.JsonConvert
 
 		public override void WriteAsPropertyName( Utf8JsonWriter writer, Vector3 value, JsonSerializerOptions options )
 		{
-			writer.WritePropertyName( value.ToString() );
+			writer.WritePropertyName( string.Create( System.Globalization.CultureInfo.InvariantCulture, $"{value.x:G9},{value.y:G9},{value.z:G9}" ) );
 		}
 
 		public override bool CanConvert( Type typeToConvert )

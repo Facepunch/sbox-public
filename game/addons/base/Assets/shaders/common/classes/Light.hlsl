@@ -3,14 +3,13 @@
 
 #include "common/Shadow.hlsl"
 #include "common/lightbinner.hlsl"
-
 #include "light_probe_volume.fxc"
 #include "baked_lighting_constants.fxc"
 
 //-----------------------------------------------------------------------------
 // Light structure
 //-----------------------------------------------------------------------------
-struct Light
+class Light
 {
     // The color is an RGB value in the linear sRGB color space.
     float3 Color;
@@ -34,296 +33,62 @@ struct Light
     // 1.0.
     float Visibility;
 
-    // Gets the light structure given the world position and the light index.
-    static Light From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex, float2 vLightMapUV = 0.0f );
-
-    // Number of lights in the current fragment.
-    static uint Count( float4 vPositionSs );
-};
-
-class DynamicLight : Light
-{
     BinnedLight LightData;
 
-    //
-    // Main function that fills in the light data for the current light.
-    //
-    void Init( float3 vPositionWs, BinnedLight lightData )
-    {
-        LightData = lightData;
-        
-        // Get the light's color and intensity.
-        Color = GetLightColor( vPositionWs );
-
-        // Get the light's direction in world space.
-        Direction = GetLightDirection( vPositionWs );
-
-        // Get the position of the light in world space.
-        Position = GetLightPosition();
-
-        // Get the attenuation of the light based on the distance from the current
-        // fragment to the light in world space.
-        Attenuation = GetLightAttenuation( vPositionWs );
-
-        // Get the visibility factor computed from shadow maps or other occlusion
-        // data specific to the light being evaluated.
-        Visibility = GetLightVisibility( vPositionWs );
-
-    }
-
-    //
-    // Creates the structure of a dynamic light from the current pixel input.
-    //
-    static DynamicLight From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex )
-    {
-        DynamicLight light = (DynamicLight)0;
-
-        ClusterRange range = Cluster::Query( ClusterItemType_Light, vPositionSs );
-        if ( range.Count == 0 )
-        {
-            return light;
-        }
-
-        uint clusterLocalIndex = min( nLightIndex, range.Count - 1 );
-        uint lightIndex = Cluster::LoadItem( range, clusterLocalIndex );
-
-        light.Init( vPositionWs, DynamicLightConstantByIndex( lightIndex ) );
-        return light;
-    }
-
-    //
-    // Number of lights in the current fragment.
-    //
-    static uint Count( float4 vPositionSs )
-    {
-        return Cluster::Query( ClusterItemType_Light, vPositionSs ).Count;
-    }
-
-    //
-    // Helper functions
-    //
+    void Init( float3 vPositionWs, BinnedLight lightData, float2 screenPos );
+    static Light From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex, float2 vLightMapUV = 0.0f );
+    static uint Count( float4 vPositionSs );
     float3 GetLightCookie(float3 vPositionWs);
     float3 GetLightColor(float3 vPositionWs);
     float3 GetLightDirection(float3 vPositionWs);
     float3 GetLightPosition();
     float GetLightAttenuation(float3 vPositionWs);
-    float DynamicShadows(float3 vPositionWs);
-    float GetLightVisibility(float3 vPositionWs);
-};
-
-//-----------------------------------------------------------------------------
-// Lightmapped Probe lights
-//
-// These are lightmapped surfaces that incide with stationary lighting.
-// Can have dynamic shadows.
-//-----------------------------------------------------------------------------
-bool UsesBakedLightingFromProbe < Attribute( "UsesBakedLightingFromProbe" ); >;
-
-class ProbeLight : DynamicLight
-{
-    //
-    // Main function that fills in the light data for the current light.
-    //
-    void Init(float3 vPositionWs, uint nLightIndex, float lightStrength )
-    {
-        LightData = BakedIndexedLightConstantByIndex( nLightIndex );
-
-        // Get the light's color and intensity.
-        Color = GetLightColor( vPositionWs );
-
-        // Get the light's direction in world space.
-        Direction = GetLightDirection( vPositionWs );
-
-        // Get the position of the light in world space.
-        Position = GetLightPosition();
-
-        // Get the attenuation of the light based on the distance from the current
-        // fragment to the light in world space.
-        Attenuation = lightStrength * lightStrength;
-
-        // Get the visibility factor computed from shadow maps or other occlusion
-        // data specific to the light being evaluated.
-        Visibility = GetLightVisibility( vPositionWs );
-    }
-
-    //
-    // Creates the structure of a static probe light from the current pixel input.
-    //
-    static Light From( float3 vPositionWs, uint nLightIndex )
-    {
-		int4 vLightIndices;
-		float4 vLightStrengths;
-        SampleLightProbeVolumeIndexedDirectLighting( vLightIndices, vLightStrengths, vPositionWs );
-
-        ProbeLight light;
-        light.Init( vPositionWs, vLightIndices[ nLightIndex ], vLightStrengths[nLightIndex] );
-        return (Light)light;
-    }
-
-    static bool UsesProbes()
-    {
-        return UsesBakedLightingFromProbe;
-    }
-};
-
-//-----------------------------------------------------------------------------
-// Direct lightmapped light
-//-----------------------------------------------------------------------------
-bool UsesBakedLightmaps     < Attribute( "UsesBakedLightmaps" ); >;
-
-// Bless this
-#define LightMap( a ) Bindless::GetTexture2DArray( g_nLightmapTextureIndices[a] )
-
-#define DIRECTIONAL_LIGHTMAP_STRENGTH 1.0f
-#define DIRECTIONAL_LIGHTMAP_MINZ 0.05
-
-class LightmappedLight : ProbeLight
-{
-    static int4 GetLightmappedLightIndices( float2 vLightmapUV )
-    {
-        float3 vLightmapUVW = float3( vLightmapUV.xy, 0 );
-		float4 vLightIndexFloats = Tex2DArrayS( LightMap( 0 ), g_sPointClamp, vLightmapUVW ).rgba;
-
-        int4 vLightIndices = int4( vLightIndexFloats.xyzw * 255 );
-        return vLightIndices;
-    }
-    
-    static float4 GetLightmappedLightStrengths( float2 vLightmapUV )
-    {
-        float3 vLightmapUVW = float3( vLightmapUV.xy, 0 );
-		float4 vLightStrengths = Tex2DArrayS( LightMap( 1 ), g_sTrilinearClamp, vLightmapUVW ).rgba;
-        return vLightStrengths;
-    }
-    
-    //
-    // Creates the structure of a lightmapped light from the current pixel input.
-    //
-    static Light From( float3 vPositionWs, float2 vLightmapUV, uint nLightIndex )
-    {
-        // Translated light index from the lightmap to the global light index.
-        int nLightmappedIndex = GetLightmappedLightIndices( vLightmapUV )[nLightIndex];
-        // Get the light strength from the lightmap.
-        float fLightStrength = GetLightmappedLightStrengths( vLightmapUV )[nLightIndex];
-
-        if (fLightStrength < 0.0001)
-        {
-            return (Light)0;
-        }
-
-        LightmappedLight light;
-        light.Init( vPositionWs, nLightmappedIndex, fLightStrength );
-        return (Light)light;
-    }
-
-    static bool UsesLightmaps()
-    {
-        return UsesBakedLightmaps;
-    }
-};
-
-//-----------------------------------------------------------------------------
-// Indexed static lights
-// Could be just a single class?
-//-----------------------------------------------------------------------------
-class StaticLight : Light
-{
-    //
-    // Creates the structure of a static light from the current pixel input.
-    //
-    static Light From( float3 vPositionWs, float2 vLightmapUV, uint nLightIndex )
-    {
-        if ( LightmappedLight::UsesLightmaps() )
-            return LightmappedLight::From( vPositionWs, vLightmapUV, nLightIndex );
-        else if ( ProbeLight::UsesProbes() )
-            return ProbeLight::From( vPositionWs, nLightIndex );
-
-        // No static lights. Send a dummy light.
-        return (Light)0;
-    }
-
-    static bool UsesStaticLights()
-    {
-        return ( ProbeLight::UsesProbes() || LightmappedLight::UsesLightmaps() );
-    }
-   
-    static uint Count()
-    {
-        if ( UsesStaticLights() )
-        {
-            return 4; // 4 indices in XYZW of the texture
-        }
-
-        // No static lights.
-        return 0;
-    }
+    float Shadows(float3 vPositionWs, float2 screenPos);
 };
 
 //-----------------------------------------------------------------------------
 
-static Light Light::From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex, float2 vLightMapUV )
+void Light::Init( float3 vPositionWs, BinnedLight lightData, float2 screenPos )
 {
-    uint dynamicCount = DynamicLight::Count( vPositionSs );
+    LightData = lightData;
 
-    if ( nLightIndex < dynamicCount )
-    {
-        return DynamicLight::From( vPositionWs, vPositionSs, nLightIndex );
-    }
-
-    return StaticLight::From( vPositionWs, vLightMapUV, nLightIndex - dynamicCount );
+    Color = GetLightColor( vPositionWs );
+    Direction = GetLightDirection( vPositionWs );
+    Position = GetLightPosition();
+    Attenuation = GetLightAttenuation( vPositionWs );
+    Visibility = Shadows( vPositionWs, screenPos );
 }
 
-static uint Light::Count( float4 vPositionSs )
-{
-    return DynamicLight::Count( vPositionSs ) + StaticLight::Count();
-}
+// Light::From and Light::Count are implemented after StaticLight (forward reference)
 
 //-----------------------------------------------------------------------------
 
-//
-// Gets the light cookie
-//
-float3 DynamicLight::GetLightCookie(float3 vPositionWs)
+float3 Light::GetLightCookie(float3 vPositionWs)
 {
-    [branch]
-    if (LightData.HasLightCookie())
-    {
-        // Light cookie
-        float3 vPositionTextureSpace = Position3WsToShadowTextureSpace(vPositionWs.xyz, LightData.WorldToLightCookie);
-        float4 vCookieSample = LightData.SampleLightCookie( vPositionTextureSpace.xy );
+    if ( !LightData.HasLightCookie() )
+        return 1.0f;
 
-        return vCookieSample.rgb * vCookieSample.a;
-    }
-
-    return 1.0f;
+    float4 vSample = LightData.SampleLightCookie( LightData.GetCookieUV( vPositionWs ) );
+    return vSample.rgb * vSample.a;
 }
 
-//
-// Get the light's color and intensity.
-//
-float3 DynamicLight::GetLightColor(float3 vPositionWs)
+float3 Light::GetLightColor(float3 vPositionWs)
 {
-    return LightData.GetColor() * GetLightCookie(vPositionWs);
+    return LightData.Color * GetLightCookie(vPositionWs);
 }
 
-//
-// Get the light's direction in world space.
-//
-float3 DynamicLight::GetLightDirection(float3 vPositionWs)
+float3 Light::GetLightDirection(float3 vPositionWs)
 {
     float3 vLightDir = normalize(GetLightPosition() - vPositionWs);
     return vLightDir;
 }
 
-//
-// Get the position of the light in world space.
-//
-float3 DynamicLight::GetLightPosition()
+float3 Light::GetLightPosition()
 {
     return LightData.GetPosition();
 }
-// Get the attenuation of the light based on the distance from the current
-// fragment to the light in world space.
-float DynamicLight::GetLightAttenuation(float3 vPositionWs)
+
+float Light::GetLightAttenuation(float3 vPositionWs)
 {
     const float3 vPositionToLightRayWs = GetLightPosition() - vPositionWs.xyz; // "L"
     const float3 vPositionToLightDirWs = normalize(vPositionToLightRayWs.xyz);
@@ -338,48 +103,167 @@ float DynamicLight::GetLightAttenuation(float3 vPositionWs)
     }
 
     float flSpotAtten = flConeToDirection * LightData.SpotLightInnerOuterConeCosines.z;
-    float flLightFalloff = CalculateDistanceFalloff(flDistToLightSq, LightData.FalloffParams.xyzw, 1.0);
+    float flLightFalloff = CalculateDistanceFalloff(flDistToLightSq, LightData.LinearFalloff, LightData.QuadraticFalloff, LightData.FalloffBias, 1.0);
 
     float flLightMask = flLightFalloff * flSpotAtten;
 
     return flLightMask;
 }
 
-//
-// Computes the shadow factor for the current light.
-//
-float DynamicLight::DynamicShadows(float3 vPositionWs)
+float Light::Shadows(float3 vPositionWs, float2 screenPos)
 {
     float flShadowScalar = 1.0;
 
-    [branch]
-    if (LightData.HasDynamicShadows())
-    {
-        [unroll(MAX_SHADOW_FRUSTA_PER_LIGHT)]
-        for (uint i = 0; i < LightData.NumShadowFrusta(); i++)
-        {
-            const float3 vPositionTextureSpace = Position3WsToShadowTextureSpace(vPositionWs.xyz, LightData.WorldToShadow[i]);
-
-            [branch]
-            if (InsideShadowRegion(vPositionTextureSpace.xyz, LightData.ShadowBounds[i]))
-            {
-                flShadowScalar = ComputeShadow(vPositionTextureSpace.xyz);
-                break;
-            }
-        }
-    }
+    if (LightData.Type == LightType::LightTypeDirectional)
+        flShadowScalar = DirectionalLightShadow::GetVisibility(vPositionWs, screenPos);
+    else if (LightData.Type == LightType::LightTypePoint)
+        flShadowScalar = ProjectedShadowCube::GetVisibility(LightData.ShadowMapIndex, vPositionWs);
+    else if (LightData.Type == LightType::LightTypeSpot)
+        flShadowScalar = ProjectedShadow::GetVisibility(LightData.ShadowMapIndex, vPositionWs, screenPos);
 
     return flShadowScalar;
 }
 
-//
-// Get the visibility factor computed from shadow maps or other occlusion
-// data specific to the light being evaluated.
-//
-float DynamicLight::GetLightVisibility(float3 vPositionWs)
+//-----------------------------------------------------------------------------
+// Lightmapped Probe
+//-----------------------------------------------------------------------------
+bool UsesBakedLightingFromProbe < Attribute("UsesBakedLightingFromProbe"); > ;
+
+class ProbeLight
 {
-    return DynamicShadows(vPositionWs);
+    static bool UsesProbes()
+    {
+        return UsesBakedLightingFromProbe;
+    }
+
+    // Returns 4 baked light indices and their strengths from the probe volume
+    static void Init( float3 vPositionWs, out int4 indices, out float4 strengths )
+    {
+        SampleLightProbeVolumeIndexedDirectLighting( indices, strengths, vPositionWs );
+    }
+
+    // Get a Light from a probe at the given sub-index (0-3)
+    static Light From( float3 vPositionWs, uint subIndex, float2 screenPos )
+    {
+        Light light = (Light)0;
+
+        int4 indices;
+        float4 strengths;
+        Init( vPositionWs, indices, strengths );
+
+        int bakedIdx = indices[subIndex];
+        float strength = strengths[subIndex];
+
+        if ( bakedIdx < 0 || strength <= 0.0f )
+            return light;
+
+        BinnedLight bakedLight = BakedIndexedLightConstantByIndex( bakedIdx );
+        light.Init( vPositionWs, bakedLight, screenPos );
+        light.Attenuation = strength;
+
+        return light;
+    }
+};
+
+//-----------------------------------------------------------------------------
+// 2D Lightmap
+//-----------------------------------------------------------------------------
+bool UsesBakedLightmaps < Attribute("UsesBakedLightmaps"); > ;
+
+// Bless this
+#define LightMap(a) Bindless::GetTexture2DArray(g_nLightmapTextureIndices[a])
+
+#define DIRECTIONAL_LIGHTMAP_STRENGTH 1.0f
+#define DIRECTIONAL_LIGHTMAP_MINZ 0.05
+
+class LightmappedLight
+{
+    static bool UsesLightmaps()
+    {
+        return UsesBakedLightmaps;
+    }
+
+    // Reads baked light indices and strengths from a lightmap texture
+    static void Init( float2 vLightMapUV, out int4 indices, out float4 strengths )
+    {
+        indices = (int4)LightMap(0).SampleLevel( g_sPointClamp, float3( vLightMapUV, 0.0f ), 0 );
+        strengths = LightMap(1).SampleLevel( g_sTrilinearClamp, float3( vLightMapUV, 0.0f ), 0 );
+    }
+
+    static Light From( float3 vPositionWs, float2 vLightMapUV, uint subIndex, float2 screenPos )
+    {
+        Light light = (Light)0;
+
+        int4 indices;
+        float4 strengths;
+        Init( vLightMapUV, indices, strengths );
+
+        int bakedIdx = indices[subIndex];
+        float strength = strengths[subIndex];
+
+        if ( bakedIdx < 0 || strength <= 0.0f )
+            return light;
+
+        BinnedLight bakedLight = BakedIndexedLightConstantByIndex( bakedIdx );
+        light.Init( vPositionWs, bakedLight, screenPos );
+        light.Attenuation = strength;
+
+        return light;
+    }
+};
+
+//-----------------------------------------------------------------------------
+// Static light — dispatches between probe and lightmap sources
+//-----------------------------------------------------------------------------
+class StaticLight
+{
+    // Static lights contribute up to 4 lights (one per XYZW channel of the index/strength textures)
+    static uint Count()
+    {
+        if ( ProbeLight::UsesProbes() || LightmappedLight::UsesLightmaps() )
+            return 4;
+
+        return 0;
+    }
+
+    static Light From( float3 vPositionWs, float2 vLightMapUV, uint subIndex, float2 screenPos )
+    {
+        if ( ProbeLight::UsesProbes() )
+            return ProbeLight::From( vPositionWs, subIndex, screenPos );
+
+        if ( LightmappedLight::UsesLightmaps() )
+            return LightmappedLight::From( vPositionWs, vLightMapUV, subIndex, screenPos );
+
+        return (Light)0;
+    }
+};
+
+//-----------------------------------------------------------------------------
+// Light::From / Light::Count — defined here because they depend on StaticLight
+//-----------------------------------------------------------------------------
+
+static Light Light::From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex, float2 vLightMapUV )
+{
+    uint dynamicCount = Cluster::Query( ClusterItemType_Light, vPositionSs ).Count;
+
+    if ( nLightIndex < dynamicCount )
+    {
+        Light light = (Light)0;
+
+        ClusterRange range = Cluster::Query( ClusterItemType_Light, vPositionSs );
+        uint clusterLocalIndex = min( nLightIndex, range.Count - 1 );
+        uint lightIndex = Cluster::LoadItem( range, clusterLocalIndex );
+
+        light.Init( vPositionWs, DynamicLightConstantByIndex( lightIndex ), vPositionSs.xy );
+        return light;
+    }
+
+    return StaticLight::From( vPositionWs, vLightMapUV, nLightIndex - dynamicCount, vPositionSs.xy );
 }
 
+static uint Light::Count( float4 vPositionSs )
+{
+    return Cluster::Query( ClusterItemType_Light, vPositionSs ).Count + StaticLight::Count();
+}
 
 #endif // LIGHT_HLSL

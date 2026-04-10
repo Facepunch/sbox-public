@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 /// </summary>
 internal sealed class SpriteBatchSceneObject : SceneCustomObject
 {
-	internal readonly record struct SpriteGroup( SpriteData[] SharedSprites, int Offset, int Count );
+	internal readonly record struct SpriteGroup( SpriteData[] SharedSprites, int Offset, int Count, BBox Bounds );
 	public bool Sorted { get; set; } = false;
 	public bool Filtered { get; set; } = false;
 	public bool Additive { get; set; } = false;
@@ -163,6 +163,13 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 	bool GPUUploadQueued = false;
 
+	// Set by UploadOnHost after building the staging buffer,
+	// consumed by RenderSceneObject to do the actual GPU upload within a valid render context.
+	bool _gpuUploadPending = false;
+	int _pendingComponentCount = 0;
+	int _pendingSpriteCount = 0;
+	int _pendingSplotCount = 0;
+
 	GpuBuffer<SpriteData> SpriteBuffer;
 	GpuBuffer<SpriteData> SpriteBufferOut;
 
@@ -253,10 +260,11 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 	// Pre-allocated buffer to avoid GC allocations in hot path
 	private SpriteRenderer[] _componentBuffer = new SpriteRenderer[16];
+	private readonly object _boundsLock = new();
 
-	public void RegisterSprite( Guid ownerId, SpriteData[] sharedSprites, int offset, int count, int splotCount )
+	public void RegisterSprite( Guid ownerId, SpriteData[] sharedSprites, int offset, int count, int splotCount, BBox bounds )
 	{
-		SpriteGroups[ownerId] = new( sharedSprites, offset, count );
+		SpriteGroups[ownerId] = new( sharedSprites, offset, count, bounds );
 		_precomputedSplotCounts[ownerId] = splotCount;
 		OnChanged();
 	}
@@ -314,42 +322,6 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		GPUUploadQueued = true;
 	}
 
-	private void UpdateBoundsFromSprites( int spriteCount )
-	{
-		if ( spriteCount == 0 )
-		{
-			native.SetBoundsInfinite();
-			return;
-		}
-
-		var mins = new Vector3( float.MaxValue, float.MaxValue, float.MaxValue );
-		var maxs = new Vector3( float.MinValue, float.MinValue, float.MinValue );
-
-		int componentCount = Components.Count;
-		for ( int i = 0; i < componentCount; i++ )
-		{
-			var pos = SpriteDataBuffer[i].Position;
-			float halfSize = MathF.Max( SpriteDataBuffer[i].Scale.x, SpriteDataBuffer[i].Scale.y );
-			var expand = new Vector3( halfSize, halfSize, halfSize );
-			mins = Vector3.Min( mins, pos - expand );
-			maxs = Vector3.Max( maxs, pos + expand );
-		}
-
-		foreach ( var group in SpriteGroups.Values )
-		{
-			for ( int i = 0; i < group.Count; i++ )
-			{
-				var sprite = group.SharedSprites[group.Offset + i];
-				float halfSize = MathF.Max( sprite.Scale.x, sprite.Scale.y );
-				var expand = new Vector3( halfSize, halfSize, halfSize );
-				mins = Vector3.Min( mins, sprite.Position - expand );
-				maxs = Vector3.Max( maxs, sprite.Position + expand );
-			}
-		}
-
-		Bounds = new BBox( mins, maxs );
-	}
-
 	/// <summary>
 	/// Copy host buffers onto GPU
 	/// </summary>
@@ -361,20 +333,25 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		}
 
 		int spriteCount = SpriteCount;
+		int componentCount = Components.Count;
 
-		if ( SpriteDataBuffer == null || SpriteDataBuffer.Length < spriteCount )
+		// Staging buffer only needs to hold component sprites — particle groups
+		// are uploaded directly from SharedSprites in RenderSceneObject.
+		if ( componentCount > 0 && (SpriteDataBuffer == null || SpriteDataBuffer.Length < componentCount) )
 		{
 			if ( SpriteDataBufferRented )
 			{
 				ArrayPool<SpriteData>.Shared.Return( SpriteDataBuffer, clearArray: false );
 			}
 
-			SpriteDataBuffer = ArrayPool<SpriteData>.Shared.Rent( spriteCount );
+			SpriteDataBuffer = ArrayPool<SpriteData>.Shared.Rent( componentCount );
 			SpriteDataBufferRented = true;
 		}
 
+		var boundsMin = new Vector3( float.MaxValue, float.MaxValue, float.MaxValue );
+		var boundsMax = new Vector3( float.MinValue, float.MinValue, float.MinValue );
+
 		// Upload sprites
-		int componentCount = Components.Count;
 		if ( componentCount > 0 )
 		{
 			// Use pre-allocated buffer to avoid GC allocation
@@ -389,94 +366,112 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 				_componentBuffer[index++] = component;
 			}
 
-			Parallel.For( 0, componentCount, i =>
-			{
-				var c = _componentBuffer[i];
-				var transform = c.WorldTransform;
-				var spriteSize = c.Size;
-				var rotation = c.WorldRotation.Angles().AsVector3();
-
-				if ( c.Billboard == SpriteRenderer.BillboardMode.Always || c.Billboard == SpriteRenderer.BillboardMode.YOnly )
+			object boundsLock = _boundsLock;
+			Parallel.For<(Vector3 mins, Vector3 maxs)>(
+				0, componentCount,
+				() => (new Vector3( float.MaxValue, float.MaxValue, float.MaxValue ),
+					   new Vector3( float.MinValue, float.MinValue, float.MinValue )),
+				( i, _, local ) =>
 				{
-					// We only care about roll in this case
-					rotation.x = 0;
-					rotation.y = 0;
+					var c = _componentBuffer[i];
+					var transform = c.WorldTransform;
+					var spriteSize = c.Size;
+					var rotation = c.WorldRotation.Angles().AsVector3();
+
+					if ( c.Billboard == SpriteRenderer.BillboardMode.Always || c.Billboard == SpriteRenderer.BillboardMode.YOnly )
+					{
+						// We only care about roll in this case
+						rotation.x = 0;
+						rotation.y = 0;
+					}
+
+					spriteSize = spriteSize.Abs();
+
+					// Adjust for aspect ratio
+					var aspectRatio = (c.Texture?.Width ?? 1) / (float)(c.Texture?.Height ?? 1);
+					var size = spriteSize / 2f;
+					var pos = transform.Position;
+					var scale = new Vector3( transform.Scale.x * size.x, transform.Scale.y, transform.Scale.z * size.y );
+					if ( aspectRatio < 1f )
+						scale *= new Vector3( aspectRatio, 1f, 1f );
+					else
+						scale *= new Vector3( 1f, 1f, 1f / aspectRatio );
+
+					pos = pos.RotateAround( transform.Position, transform.Rotation );
+					transform = transform.WithScale( scale ).WithPosition( pos );
+
+					var renderFlags = SpriteFlags.None;
+					if ( c.FlipHorizontal ) renderFlags |= SpriteFlags.FlipX;
+					if ( c.FlipVertical ) renderFlags |= SpriteFlags.FlipY;
+
+					var rgbe = c.Color.ToRgbe();
+					var alpha = (byte)(c.Color.a.Clamp( 0.0f, 1.0f ) * 255.0f);
+					var tintColor = new Color32( rgbe.r, rgbe.g, rgbe.b, alpha );
+
+					var overlayRgbe = c.OverlayColor.ToRgbe();
+					var overlayAlpha = (byte)(c.OverlayColor.a.Clamp( 0.0f, 1.0f ) * 255.0f);
+					var overlayColor = new Color32( overlayRgbe.r, overlayRgbe.g, overlayRgbe.b, overlayAlpha );
+
+					int lightingFlag = c.Lighting ? 1 : 0;
+					uint packedExponent = (uint)(((byte)lightingFlag) | rgbe.a << 16);
+
+					uint packedFogAndAlpha = SpriteData.PackFogAndAlphaCutout( c.FogStrength, c.AlphaCutoff );
+
+					var spritePos = transform.Position;
+					var spriteScale = new Vector2( transform.Scale.x, transform.Scale.z );
+
+					SpriteDataBuffer[i] = new SpriteData
+					{
+						Position = spritePos,
+						Rotation = new( rotation.x, rotation.y, rotation.z ),
+						Scale = spriteScale,
+						TextureHandle = c.Texture is null ? Texture.Invalid.Index : c.Texture.Index,
+						TintColor = tintColor.RawInt,
+						OverlayColor = overlayColor.RawInt,
+						RenderFlags = (int)renderFlags,
+						BillboardMode = (uint)c.Billboard,
+						FogStrengthCutout = packedFogAndAlpha,
+						Lighting = packedExponent,
+						DepthFeather = c.DepthFeather,
+						SamplerIndex = SamplerState.GetBindlessIndex( sampler with { Filter = c.TextureFilter } ),
+						Offset = c.Pivot
+					};
+
+					var pivot = c.Pivot;
+					float halfSize = MathF.Max(
+						MathF.Max( pivot.x, 1f - pivot.x ) * 2f * spriteScale.x,
+						MathF.Max( pivot.y, 1f - pivot.y ) * 2f * spriteScale.y
+					);
+					var expand = new Vector3( halfSize, halfSize, halfSize );
+					return (Vector3.Min( local.mins, spritePos - expand ), Vector3.Max( local.maxs, spritePos + expand ));
+				},
+				local =>
+				{
+					lock ( boundsLock )
+					{
+						boundsMin = Vector3.Min( boundsMin, local.mins );
+						boundsMax = Vector3.Max( boundsMax, local.maxs );
+					}
 				}
+			);
 
-				spriteSize = spriteSize.Abs();
-
-				// Adjust for aspect ratio
-				var aspectRatio = (c.Texture?.Width ?? 1) / (float)(c.Texture?.Height ?? 1);
-				var size = spriteSize / 2f;
-				var pos = transform.Position;
-				var scale = new Vector3( transform.Scale.x * size.x, transform.Scale.y, transform.Scale.z * size.y );
-				if ( aspectRatio < 1f )
-					scale *= new Vector3( aspectRatio, 1f, 1f );
-				else
-					scale *= new Vector3( 1f, 1f, 1f / aspectRatio );
-
-				pos = pos.RotateAround( transform.Position, transform.Rotation );
-				transform = transform.WithScale( scale ).WithPosition( pos );
-
-				var renderFlags = SpriteFlags.None;
-				if ( c.FlipHorizontal ) renderFlags |= SpriteFlags.FlipX;
-				if ( c.FlipVertical ) renderFlags |= SpriteFlags.FlipY;
-
-				var rgbe = c.Color.ToRgbe();
-				var alpha = (byte)(c.Color.a.Clamp( 0.0f, 1.0f ) * 255.0f);
-				var tintColor = new Color32( rgbe.r, rgbe.g, rgbe.b, alpha );
-
-				var overlayRgbe = c.OverlayColor.ToRgbe();
-				var overlayAlpha = (byte)(c.OverlayColor.a.Clamp( 0.0f, 1.0f ) * 255.0f);
-				var overlayColor = new Color32( overlayRgbe.r, overlayRgbe.g, overlayRgbe.b, overlayAlpha );
-
-				int lightingFlag = c.Lighting ? 1 : 0;
-				uint packedExponent = (uint)(((byte)lightingFlag) | rgbe.a << 16);
-
-				uint packedFogAndAlpha = SpriteData.PackFogAndAlphaCutout( c.FogStrength, c.AlphaCutoff );
-
-				SpriteDataBuffer[i] = new SpriteData
-				{
-					Position = transform.Position,
-					Rotation = new( rotation.x, rotation.y, rotation.z ),
-					Scale = new( transform.Scale.x, transform.Scale.z ),
-					TextureHandle = c.Texture is null ? Texture.Invalid.Index : c.Texture.Index,
-					TintColor = tintColor.RawInt,
-					OverlayColor = overlayColor.RawInt,
-					RenderFlags = (int)renderFlags,
-					BillboardMode = (uint)c.Billboard,
-					FogStrengthCutout = packedFogAndAlpha,
-					Lighting = packedExponent,
-					DepthFeather = c.DepthFeather,
-					SamplerIndex = SamplerState.GetBindlessIndex( sampler with { Filter = c.TextureFilter } ),
-					Offset = c.Pivot
-				};
-			} );
 		}
 
-		// Upload components to GPU first
-		if ( Components.Count > 0 )
-		{
-			SpriteBuffer.SetData( SpriteDataBuffer );
-		}
-
-		// Upload each particle group directly to GPU with offset
-		int currentOffset = Components.Count;
 		foreach ( var spriteGroup in SpriteGroups.Values )
 		{
-			unsafe
-			{
-				var sourceSpan = spriteGroup.SharedSprites.AsSpan( spriteGroup.Offset, spriteGroup.Count );
-
-				// Upload directly to GPU at the correct offset
-				SpriteBuffer.SetData( sourceSpan, currentOffset );
-				currentOffset += spriteGroup.Count;
-			}
+			boundsMin = Vector3.Min( boundsMin, spriteGroup.Bounds.Mins );
+			boundsMax = Vector3.Max( boundsMax, spriteGroup.Bounds.Maxs );
 		}
 
-		// Calculate the bounds from all sprite positions so we sort this batch correctly relative to other transparent objects (like TextRenderer)
-		UpdateBoundsFromSprites( spriteCount );
+		// Use a degenerate zero-size bounds for empty batches so they can be frustum-culled.
+		Bounds = spriteCount > 0 ? new BBox( boundsMin, boundsMax ) : default;
 
+		// Defer the actual GPU upload to RenderSceneObject where we have a valid render context,
+		// avoiding expensive per-call CRenderContextPtr creation.
+		_pendingComponentCount = componentCount;
+		_pendingSpriteCount = spriteCount;
+		_pendingSplotCount = SplotCount;
+		_gpuUploadPending = true;
 		GPUUploadQueued = false;
 	}
 
@@ -486,7 +481,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 	private void PreSort()
 	{
-		if ( SpriteCount < 2 ) return;
+		if ( _pendingSpriteCount < 2 ) return;
 
 		// First we clear the buffers to prepare for sorting
 		SortComputeShaderAttributes.SetCombo( "D_CLEAR", 1 );
@@ -537,9 +532,32 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	{
 		base.RenderSceneObject();
 
-		if ( SpriteCount == 0 )
+		int spriteCount = _pendingSpriteCount;
+		int splotCount = _pendingSplotCount;
+
+		if ( spriteCount == 0 )
 		{
 			return;
+		}
+
+		// Upload sprite data to GPU once per frame, reusing the view's render context.
+		// All SetData calls here go through the existing renderContext->SetGPUBufferData()
+		// directly, avoiding expensive CRenderContextPtr creation per call.
+		if ( _gpuUploadPending )
+		{
+			if ( _pendingComponentCount > 0 )
+			{
+				SpriteBuffer.SetData( SpriteDataBuffer.AsSpan( 0, _pendingComponentCount ) );
+			}
+
+			int currentOffset = _pendingComponentCount;
+			foreach ( var group in SpriteGroups.Values )
+			{
+				SpriteBuffer.SetData( group.SharedSprites.AsSpan( group.Offset, group.Count ), currentOffset );
+				currentOffset += group.Count;
+			}
+
+			_gpuUploadPending = false;
 		}
 
 		if ( Sorted )
@@ -559,14 +577,14 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		attributes.Set( "Sprites", SpriteBuffer );
 		attributes.Set( "SpriteBufferOut", SpriteBufferOut );
 
-		attributes.Set( "SpriteCount", SpriteCount );
+		attributes.Set( "SpriteCount", spriteCount );
 		attributes.Set( "AtomicCounter", SpriteAtomicCounter );
 
 		// Sorting
 		attributes.Set( "DistanceBuffer", GPUDistanceBuffer );
 		attributes.Set( "CameraPosition", Graphics.CameraPosition );
 
-		SpriteComputeShader.DispatchWithAttributes( attributes, SpriteCount, 1, 1 );
+		SpriteComputeShader.DispatchWithAttributes( attributes, spriteCount, 1, 1 );
 
 		RenderAttributes.Pool.Return( attributes );
 
@@ -585,7 +603,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 		// Draw the sprites
 		Graphics.Attributes.Set( "IsSorted", Sorted ? 1 : 0 );
-		Graphics.Attributes.Set( "SpriteCount", SpriteCount + SplotCount );
+		Graphics.Attributes.Set( "SpriteCount", spriteCount + splotCount );
 
 		Graphics.Attributes.Set( "Filtered", Filtered );
 		Graphics.Attributes.Set( "Sprites", SpriteBufferOut );
@@ -594,6 +612,6 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		// Vertex Pulling
 		Graphics.Attributes.Set( "Vertices", VertexBuffer );
 		Graphics.Attributes.Set( "g_bNonDirectionalDiffuseLighting", true );
-		Graphics.DrawIndexedInstanced( IndexBuffer, SpriteMaterial, SpriteCount + SplotCount );
+		Graphics.DrawIndexedInstanced( IndexBuffer, SpriteMaterial, spriteCount + splotCount );
 	}
 }

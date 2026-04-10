@@ -34,11 +34,26 @@ internal partial class PanelRenderer
 		attributes.Set( "Sepia", style.BackdropFilterSepia.Value.GetPixels( 1.0f ) );
 		attributes.Set( "Invert", style.BackdropFilterInvert.Value.GetPixels( 1.0f ) );
 		attributes.Set( "HueRotate", style.BackdropFilterHueRotate.Value.GetPixels( 1.0f ) );
-		attributes.Set( "BlurScale", style.BackdropFilterBlur.Value.GetPixels( 1.0f ) );
+
+		var blurScale = style.BackdropFilterBlur.Value.GetPixels( 1.0f );
+		attributes.Set( "BlurScale", blurScale );
 
 		attributes.SetCombo( "D_BLENDMODE", OverrideBlendMode );
 
-		attributes.GrabFrameTexture( "FrameBufferCopyTexture", Graphics.DownsampleMethod.GaussianBlur );
+		if ( blurScale > 0 )
+		{
+			// Only generate the mip levels the shader will actually sample from.
+			// The shader reads at MIP level sqrt(BlurScale / 2) with trilinear filtering.
+			// Round up to even for render target pool stability.
+			int needed = (int)Math.Ceiling( Math.Sqrt( blurScale / 2.0f ) ) + 2;
+			int maxMips = ((needed + 1) / 2) * 2;
+			attributes.GrabFrameTexture( "FrameBufferCopyTexture", Graphics.DownsampleMethod.GaussianBlur, maxMips );
+		}
+		else
+		{
+			attributes.GrabFrameTexture( "FrameBufferCopyTexture", Graphics.DownsampleMethod.None );
+		}
+
 		commandList.DrawQuad( rect, Material.UI.BackdropFilter, color );
 	}
 }

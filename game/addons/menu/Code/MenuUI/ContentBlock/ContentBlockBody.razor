@@ -4,7 +4,7 @@
 @inherits Panel
 
 <root>
-	<Button class="nav-button left" @ref=ScrollLeft @onclick=@(() => Scroll(true)) Icon="chevron_left"/>
+    <Button class="nav-button left" @ref=ScrollLeft @onclick=@(() => Scroll(true)) Icon="chevron_left" />
 	<div class="content" @ref=ContentParent>
 		@ChildContent
 	</div>
@@ -13,33 +13,30 @@
 
 @code
 {
-	private const float ScrollVelocityFactor = 0.2f;
+    private const float ScrollVelocityFactor = 0.2f;
 
-	Panel ContentParent;
-	Panel ScrollLeft;
-	Panel ScrollRight;
+    Panel ContentParent;
+    Panel ScrollLeft;
+    Panel ScrollRight;
 
+    float ViewportWidth => ContentParent.Box.Rect.Width;
+    float ContentWidth => ContentParent.ScrollSize.x;
+    float CurrentX => ContentParent.ScrollOffset.x;
 
-	float ViewportWidth => ContentParent.Box.Rect.Width;
-	float ContentWidth => ContentParent.ScrollSize.x;
-	float CurrentX => ContentParent.ScrollOffset.x;
+    private void Scroll( bool left )
+    {
+        if ( ContentParent is null ) return;
 
-	private void Scroll( bool left )
-	{
-		if ( ContentParent is null ) return;
-
-		var remaining = left ? CurrentX : ContentWidth - CurrentX;
-		if ( remaining > 0 )
-		{
-			float velocity = ViewportWidth / 20;
-			ContentParent.ScrollVelocity = new Vector2( left ? -velocity : velocity, 0f );
-		}
+        var remaining = left ? CurrentX : ContentWidth - CurrentX;
+        if ( remaining > 0 )
+        {
+            float velocity = ViewportWidth / 20;
+            ContentParent.ScrollVelocity = new Vector2( left ? -velocity : velocity, 0f );
+        }
 	}
 
 	public override void Tick()
 	{
-		base.Tick();
-
 		UpdateVisiblity();
 	}
 
@@ -47,7 +44,13 @@
 	{
 		const float margin = 16;
 
-		ScrollLeft.SetClass( "visible", CurrentX > margin && !ContentParent.IsDragScrolling );
-		ScrollRight.SetClass( "visible", ContentWidth > ViewportWidth && (ContentWidth - CurrentX) > margin && !ContentParent.IsDragScrolling );
+        var canScrollLeft = CurrentX > margin;
+        var canScrollRight = ContentWidth > ViewportWidth && (ContentWidth - CurrentX) > margin;
+
+        ScrollLeft.SetClass("visible", canScrollLeft && !ContentParent.IsDragScrolling);
+        ScrollRight.SetClass("visible", canScrollRight && !ContentParent.IsDragScrolling);
+
+        ContentParent.SetClass("scrollable-left", canScrollLeft);
+        ContentParent.SetClass("scrollable-right", canScrollRight);
 	}
 }

@@ -29,8 +29,17 @@ public abstract partial class SerializedProperty
 
 		public override ref AsAccessor As => ref base.As;
 
-		public override bool TryGetAsObject( out SerializedObject obj ) => ProxyTarget.TryGetAsObject( out obj );
-		public override T GetValue<T>( T defaultValue = default ) => ProxyTarget.GetValue( defaultValue );
+		public override bool TryGetAsObject( out SerializedObject obj )
+		{
+			CreateObjectValue();
+			return ProxyTarget.TryGetAsObject( out obj );
+		}
+
+		public override T GetValue<T>( T defaultValue = default )
+		{
+			return ProxyTarget.GetValue( defaultValue );
+		}
+
 		public override void SetValue<T>( T value ) => ProxyTarget.SetValue( value );
 		public override IEnumerable<Attribute> GetAttributes() => ProxyTarget.GetAttributes();
 	}

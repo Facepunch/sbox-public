@@ -17,11 +17,6 @@ internal enum InternalMessageType : byte
 	HeartbeatPong,
 
 	/// <summary>
-	/// Is multiple chunks of the same message
-	/// </summary>
-	Chunk,
-
-	/// <summary>
 	/// Is a struct packed using TypeLibrary
 	/// </summary>
 	Packed,

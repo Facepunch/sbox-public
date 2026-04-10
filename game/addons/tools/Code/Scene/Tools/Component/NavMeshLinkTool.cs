@@ -46,7 +46,7 @@ class NavMeshLinkToolWindow : WidgetWindow
 	Vector3 newLinkstart = Vector3.Zero;
 	Vector3 newLinkEnd = Vector3.Zero;
 
-	Label helpLabel;
+	Editor.Label helpLabel;
 
 	Checkbox centerGameObjectCheckbox;
 
@@ -148,7 +148,7 @@ class NavMeshLinkToolWindow : WidgetWindow
 			{ ToolTip = "Center GameObject int the middle of the start and end points. This will always be the case for new links.", Value = true } );
 
 			var textRow = Layout.Row();
-			helpLabel = textRow.Add( new Label( "Press a button to start a new operation." ) );
+			helpLabel = textRow.Add( new Editor.Label( "Press a button to start a new operation." ) );
 
 			controlSheet.AddLayout( row );
 			controlSheet.AddLayout( settingsRow );

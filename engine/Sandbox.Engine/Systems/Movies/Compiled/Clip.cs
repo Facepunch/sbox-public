@@ -1,5 +1,5 @@
 ﻿using System.Collections.Immutable;
-
+using Sandbox.MovieMaker.Properties;
 using static Sandbox.Internal.GlobalGameNamespace;
 
 namespace Sandbox.MovieMaker.Compiled;
@@ -14,7 +14,7 @@ public sealed partial class MovieClip : IMovieClip
 	/// <summary>
 	/// A clip with no tracks.
 	/// </summary>
-	public static MovieClip Empty { get; } = FromTracks();
+	public static MovieClip Empty { get; } = new( ImmutableHashSet<ICompiledTrack>.Empty );
 
 	private readonly ImmutableDictionary<Guid, ICompiledReferenceTrack> _referenceTracks;
 
@@ -57,24 +57,14 @@ public sealed partial class MovieClip : IMovieClip
 	{
 		var allTracks = new HashSet<ICompiledTrack>();
 
-		// Find all root tracks
+		// Include parent tracks
 
 		foreach ( var track in tracks )
 		{
-			var parent = track;
-
-			while ( parent is not null && allTracks.Add( parent ) )
-			{
-				parent = parent.Parent;
-
-				// No cycles!
-
-				if ( parent == track )
-				{
-					throw new ArgumentException( "Track hierarchy must not have cycles.", nameof( Tracks ) );
-				}
-			}
+			DiscoverTracksInHierarchy( allTracks, track );
 		}
+
+		if ( allTracks.Count == 0 ) return Empty;
 
 		var referenceTracks = new Dictionary<Guid, ICompiledReferenceTrack>();
 
@@ -91,11 +81,19 @@ public sealed partial class MovieClip : IMovieClip
 		return new MovieClip( allTracks );
 	}
 
+	private static void DiscoverTracksInHierarchy( HashSet<ICompiledTrack> allTracks, ICompiledTrack track )
+	{
+		while ( allTracks.Add( track ) && track.Parent is { } parent )
+		{
+			track = parent;
+		}
+	}
+
 	/// <summary>
 	/// Create a root <see cref="ICompiledReferenceTrack"/> that targets a <see cref="Sandbox.GameObject"/> with
 	/// the given <paramref name="name"/>. To create a nested track, use <see cref="CompiledClipExtensions.GameObject"/>.
 	/// </summary>
-	public static CompiledReferenceTrack<GameObject> RootGameObject( string name, Guid? id = null, Guid? referenceId = null ) => new( id ?? Guid.NewGuid(), name, ReferenceId: referenceId );
+	public static CompiledReferenceTrack<GameObject> RootGameObject( string name, Guid? id = null, TrackMetadata? metadata = null ) => new( id ?? Guid.NewGuid(), name, Metadata: metadata );
 
 	/// <summary>
 	/// Create a root <see cref="ICompiledReferenceTrack"/> that targets a <see cref="Sandbox.Component"/> with

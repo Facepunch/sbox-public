@@ -125,6 +125,11 @@ public sealed class ModelHitboxes : Component, Component.ExecuteInEditor
 				shape = body.AddCapsuleShape( capsule.CenterA, capsule.CenterB, capsule.Radius );
 				shape.Tags.SetFrom( GameObject.Tags );
 			}
+			else if ( hb.Shape is Cone cone )
+			{
+				shape = body.AddConeShape( cone.CenterA, cone.CenterB, cone.RadiusA, cone.RadiusB );
+				shape.Tags.SetFrom( GameObject.Tags );
+			}
 			else if ( hb.Shape is BBox box )
 			{
 				shape = body.AddBoxShape( box.Center, Rotation.Identity, box.Extents );

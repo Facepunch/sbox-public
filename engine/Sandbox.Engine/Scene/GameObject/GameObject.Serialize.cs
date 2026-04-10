@@ -56,6 +56,15 @@ public partial class GameObject
 		/// </summary>
 		internal bool IgnoreComponents { get; set; }
 
+		/// <summary>
+		/// Skip null member values during serialization to reduce output size.
+		/// On the receive side, deserialize with <see cref="DeserializeOptions.ClearAbsentFields"/> set to
+		/// <see langword="true"/> so that missing keys are treated as an explicit null for reference/nullable types,
+		/// clearing any stale value on the receiver.
+		/// Value types are never skipped (they cannot be null) so they are always safe.
+		/// </summary>
+		internal bool SkipNulls { get; set; }
+
 		internal bool ShouldSave( GameObject gameObject )
 		{
 			var shouldIgnoreNotSavedFlag = SingleNetworkObject || SceneForNetwork;
@@ -106,6 +115,13 @@ public partial class GameObject
 		/// Makes sure child networked objects are not removed during refresh.
 		/// </summary>
 		internal bool IsNetworkRefresh { get; set; }
+
+		/// <summary>
+		/// When true, component properties absent from the JSON (e.g. omitted by
+		/// <see cref="SerializeOptions.SkipNulls"/>) are explicitly cleared to null/default
+		/// rather than left at their existing value.
+		/// </summary>
+		internal bool ClearAbsentFields { get; set; }
 
 		/// <summary>
 		/// Allows overriding the transform when deserializing. Will apply only to the root object.
@@ -330,7 +346,22 @@ public partial class GameObject
 			var prefabFile = ResourceLibrary.Get<PrefabFile>( PrefabInstance.PrefabSource );
 			if ( !IsPrefabLoaded( prefabFile ) )
 			{
+				// Preserve patch and GUID mappings so the instance data survives save/load round-trips
+				// and can be fully restored when the prefab file comes back.
+				if ( node[JsonKeys.PrefabInstancePatch] is JsonObject stubPatchJson )
+				{
+					PrefabInstance.InitPatch( Json.FromNode<Json.Patch>( stubPatchJson ) );
+					PrefabInstance.InitLookups( node[JsonKeys.PrefabIdToInstanceId]?.Deserialize<Dictionary<Guid, Guid>>() ?? new Dictionary<Guid, Guid>() );
+				}
+
+				// Keep this object visible in the hierarchy as a disabled stub.
+				DeserializeId( node );
+				Name = $"[Missing Prefab] {PrefabInstance.PrefabSource}";
+				_enabled = false;
+				Flags |= GameObjectFlags.Error;
+
 				PostDeserialize( options );
+				UpdateEnabledStatus();
 				return;
 			}
 
@@ -482,7 +513,14 @@ public partial class GameObject
 					continue;
 				}
 
-				c.Deserialize( componentJson );
+				if ( options.ClearAbsentFields )
+				{
+					c.DeserializeInternal( componentJson, true );
+				}
+				else
+				{
+					c.Deserialize( componentJson );
+				}
 
 				if ( options.IsRefreshing )
 				{
@@ -714,7 +752,10 @@ public partial class GameObject
 			tx.Position = node[JsonKeys.Position]?.Deserialize<Vector3>() ?? Vector3.Zero;
 			tx.Rotation = node[JsonKeys.Rotation]?.Deserialize<Rotation>() ?? Rotation.Identity;
 			tx.Scale = node[JsonKeys.Scale]?.Deserialize<Vector3>() ?? Vector3.One;
-			LocalTransform = tx;
+
+			// Use exact (bitwise) equality to avoid Vector3.operator== swallowing tiny
+			// differences within its 0.0001 AlmostEqual tolerance during deserialization.
+			Transform.SetLocalTransformExact( tx );
 		}
 	}
 

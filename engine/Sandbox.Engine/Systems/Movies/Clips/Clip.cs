@@ -1,5 +1,5 @@
-﻿using System;
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization;
 
 namespace Sandbox.MovieMaker;
 
@@ -55,13 +55,24 @@ public interface ITrack
 }
 
 /// <summary>
+/// Additional information used when editing or animating reference tracks.
+/// </summary>
+/// <param name="ReferenceId">ID of the <see cref="Component"/> or <see cref="GameObject"/> this track was created to target.</param>
+/// <param name="PrefabSource">For <see cref="GameObject"/> tracks, the prefab path that the original target object was instantiated from.</param>
+public sealed record TrackMetadata(
+	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )]
+	Guid? ReferenceId = null,
+	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )]
+	string? PrefabSource = null );
+
+/// <summary>
 /// Maps to an <see cref="ITrackReference"/> in a scene, which binds to a <see cref="GameObject"/>
 /// or <see cref="Component"/>.
 /// </summary>
 public interface IReferenceTrack : ITrack
 {
 	/// <summary>
-	/// ID for referencing this track. Must be unique in the containing <see cref="IMovieClip"/>,
+	/// Identifier for this track. Must be unique in the containing <see cref="IMovieClip"/>,
 	/// but different clips can share tracks as long as they have identical names, types,
 	/// and parent tracks.
 	/// </summary>
@@ -69,7 +80,11 @@ public interface IReferenceTrack : ITrack
 
 	/// <inheritdoc cref="ITrack.Parent"/>
 	new IReferenceTrack<GameObject>? Parent { get; }
-	Guid? ReferenceId { get; }
+
+	/// <summary>
+	/// Additional information used when editing or animating this track.
+	/// </summary>
+	TrackMetadata? Metadata { get; }
 
 	ITrack? ITrack.Parent => Parent;
 }
@@ -104,6 +119,7 @@ public interface IPropertyTrack : ITrack
 	/// </summary>
 	bool TryGetValue( MovieTime time, out object? value );
 
+	/// <inheritdoc cref="ITrack.Parent"/>
 	new ITrack Parent { get; }
 
 	ITrack ITrack.Parent => Parent;
@@ -182,3 +198,11 @@ public interface IPropertyBlock : ITrackBlock, IPropertySignal;
 /// </summary>
 // ReSharper disable once TypeParameterCanBeVariant
 public interface IPropertyBlock<T> : IPropertyBlock, IPropertySignal<T>;
+
+/// <summary>
+/// A <see cref="ITrackBlock"/> that can change dynamically, usually for previewing edits / live recordings.
+/// </summary>
+public interface IDynamicBlock : ITrackBlock
+{
+	event Action<MovieTimeRange>? Changed;
+}

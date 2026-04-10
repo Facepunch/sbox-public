@@ -1,0 +1,19 @@
+{
+  "Title": "Doo Editor",
+  "Type": "tool",
+  "Org": "local",
+  "Ident": "dooeditor",
+  "Schema": 1,
+  "IncludeSourceFiles": false,
+  "Resources": null,
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "Mounts": null,
+  "IsStandaloneOnly": false,
+  "Metadata": {
+    "Compiler": {
+      "TreatWarningsAsErrors": true
+    },
+    "ProjectTemplate": null
+  }
+}

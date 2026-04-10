@@ -183,9 +183,13 @@ public sealed class MusicPlayer : IDisposable
 
 	public void Dispose()
 	{
-		native?.Dispose();
+		if ( native is null )
+			return;
+
 		native.OnRepeated -= OnRepeatInternal;
 		native.OnFinished -= OnFinishedInternal;
+		native.Dispose();
+		native = null;
 
 		GC.SuppressFinalize( this );
 	}

@@ -518,13 +518,32 @@ public sealed partial class PhysicsBody : IHandle
 			var sinAlpha = MathF.Sin( alpha );
 			var cosAlpha = MathF.Cos( alpha );
 
-			points[2 * i + 0] = new Vector3( radius1 * cosAlpha, radius1 * sinAlpha, -halfHeight );
-			points[2 * i + 1] = new Vector3( radius2 * cosAlpha, radius2 * sinAlpha, halfHeight );
+			points[2 * i + 0] = new Vector3( -halfHeight, radius1 * cosAlpha, radius1 * sinAlpha );
+			points[2 * i + 1] = new Vector3( halfHeight, radius2 * cosAlpha, radius2 * sinAlpha );
 
 			alpha += deltaAlpha;
 		}
 
 		return AddHullShape( position, rotation, points );
+	}
+
+	/// <summary>
+	/// Add a cone shape to this body.
+	/// </summary>
+	public PhysicsShape AddConeShape( Vector3 a, Vector3 b, float radiusA, float radiusB, int slices = 16 )
+	{
+		slices = slices.Clamp( 4, 128 );
+
+		var axis = b - a;
+		var length = axis.Length;
+
+		if ( length <= 0 )
+			return AddSphereShape( a, radiusA );
+
+		var rotation = Rotation.LookAt( axis.Normal );
+		var position = (a + b) * 0.5f;
+
+		return AddConeShape( position, rotation, length, radiusA, radiusB, slices );
 	}
 
 	/// <inheritdoc cref="AddMeshShape(Span{Vector3}, Span{int})"/>

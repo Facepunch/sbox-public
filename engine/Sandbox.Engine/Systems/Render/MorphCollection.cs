@@ -11,14 +11,29 @@ public abstract class MorphCollection
 	public abstract void ResetAll();
 
 	/// <summary>
+	/// Reset all morphs to their default values.
+	/// </summary>
+	public abstract void ResetAll( float fadeTime );
+
+	/// <summary>
 	/// Reset morph number i to its default value.
 	/// </summary>
 	public abstract void Reset( int i );
 
 	/// <summary>
+	/// Reset morph number i to its default value.
+	/// </summary>
+	public abstract void Reset( int i, float fadeTime );
+
+	/// <summary>
 	/// Reset named morph to its default value.
 	/// </summary>
 	public abstract void Reset( string name );
+
+	/// <summary>
+	/// Reset named morph to its default value.
+	/// </summary>
+	public abstract void Reset( string name, float fadeTime );
 
 	/// <summary>
 	/// Set indexed morph to this value.
@@ -29,6 +44,16 @@ public abstract class MorphCollection
 	/// Set named morph to this value.
 	/// </summary>
 	public abstract void Set( string name, float weight );
+
+	/// <summary>
+	/// Set indexed morph to this value.
+	/// </summary>
+	public abstract void Set( int i, float weight, float fadeTime );
+
+	/// <summary>
+	/// Set named morph to this value.
+	/// </summary>
+	public abstract void Set( string name, float weight, float fadeTime );
 
 	/// <summary>
 	/// Get indexed morph value (Note: Currently, this only gets the override morph value)

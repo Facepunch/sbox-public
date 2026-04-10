@@ -1,0 +1,43 @@
+@import "/styles/_theme.scss";
+
+Avatar
+{
+	pointer-events: all;
+
+	.avatar
+	{
+		width: 24px;
+		height: 24px;
+		background-image: url( "/ui/sbox-logo-square.svg" );
+		background-size: cover;
+		border-radius: 100%;
+
+		&.online
+		{
+			outline: 1px solid $primary-green;
+		}
+
+		&.ingame
+		{
+			outline: 1px solid $primary-blue;
+		}
+	}
+
+	&.large
+	{
+		.avatar
+		{
+			width: 32px;
+			height: 32px;
+		}
+	}
+	
+    &.small
+    {
+        .avatar
+        {
+            width: 16px;
+            height: 16px;
+        }
+    }
+}

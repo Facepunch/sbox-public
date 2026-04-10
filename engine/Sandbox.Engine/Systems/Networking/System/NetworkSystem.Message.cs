@@ -91,8 +91,6 @@ internal partial class NetworkSystem
 		Connection?.GetIncomingMessages( HandleIncomingMessage );
 	}
 
-	MemoryStream chunkStream;
-
 	void HandleIncomingMessage( NetworkMessage msg )
 	{
 		// Conna: If this message is not from the host and we're still connecting, ignore it.
@@ -137,51 +135,6 @@ internal partial class NetworkSystem
 		if ( type == InternalMessageType.HeartbeatPong )
 		{
 			OnHeartbeatPongMessage( msg.Data, msg.Source );
-			return;
-		}
-
-		if ( type == InternalMessageType.Chunk )
-		{
-			var index = msg.Data.Read<uint>();
-			var total = msg.Data.Read<uint>();
-
-			if ( index < 0 ) throw new InvalidDataException();
-			if ( index + 1 > total ) throw new InvalidDataException();
-			if ( total <= 1 ) throw new InvalidDataException();
-			if ( total > 1024 ) throw new InvalidDataException();
-
-			if ( index == 0 )
-			{
-				chunkStream = new MemoryStream();
-			}
-
-			unsafe
-			{
-				Log.Trace( $"Reading Chunk {index + 1} of {total} (chunk is {msg.Data.ReadRemaining}b)" );
-
-				//
-				// This can happen when leaving a lobby (usually during connect), and then rejoining it..
-				// getting packets sennt during previous connection. Maybe need smarter headers to avoid it.
-				//
-				Assert.NotNull( chunkStream, $"Reading chunk {index + 1} but not started a chunk!" );
-
-				chunkStream.Write( msg.Data.GetRemainingBytes() );
-				Log.Trace( $"Total chuunk stream is now {chunkStream.Length}b long" );
-			}
-
-			if ( index + 1 == total )
-			{
-				var constructedMessage = new NetworkMessage();
-				constructedMessage.Source = msg.Source;
-				constructedMessage.Data = ByteStream.CreateReader( chunkStream.ToArray() ); //todo make suck less
-
-				chunkStream = null;
-
-				HandleIncomingMessage( constructedMessage );
-
-				constructedMessage.Data.Dispose();
-			}
-
 			return;
 		}
 
@@ -339,7 +292,7 @@ internal partial class NetworkSystem
 			ByteStream bs = ByteStream.Create( 512 );
 			bs.Write( InternalMessageType.HeartbeatPong );
 			bs.Write( serverRealTime ); // the time they sent
-			source.SendRawMessage( bs );
+			source.SendStream( bs, NetFlags.Unreliable | NetFlags.SendImmediate );
 			bs.Dispose();
 		}
 

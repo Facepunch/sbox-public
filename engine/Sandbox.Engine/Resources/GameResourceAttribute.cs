@@ -48,6 +48,11 @@ public class AssetTypeAttribute : System.Attribute, ITypeAttribute, IUninheritab
 
 		return null;
 	}
+
+	void ITypeAttribute.TypeRegister()
+	{
+		Name ??= TargetType.Name;
+	}
 }
 
 /// <summary>

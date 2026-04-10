@@ -7,6 +7,11 @@ namespace Editor.MovieMaker;
 
 #nullable enable
 
+/// <summary>
+/// A base signal that isn't composed of other signals.
+/// </summary>
+public interface ILiteralSignal : IPropertySignal;
+
 public abstract partial record PropertySignal : IPropertySignal
 {
 	[JsonIgnore]
@@ -62,9 +67,11 @@ public abstract partial record PropertySignal<T>() : PropertySignal, IPropertySi
 
 	protected abstract PropertySignal<T> OnReduce( MovieTime? start, MovieTime? end );
 
-	public virtual IEnumerable<ICompiledPropertyBlock<T>> Compile( MovieTimeRange timeRange, int sampleRate )
+	public virtual IEnumerable<ICompiledPropertyBlock<T>> Compile( MovieTimeRange timeRange, int? sampleRate )
 	{
-		var samples = Sample( timeRange, sampleRate );
+		var sampleRateOrDefault = sampleRate ?? MovieProject.DefaultSampleRate;
+
+		var samples = Sample( timeRange, sampleRateOrDefault );
 		var sampleSpans = new List<SampleSpan>();
 
 		FindConstantSpans( sampleSpans, samples );
@@ -74,8 +81,8 @@ public abstract partial record PropertySignal<T>() : PropertySignal, IPropertySi
 
 		var canInterpolate = Interpolator.GetDefault<T>() is not null;
 		var minConstBlockSampleCount = canInterpolate
-			? Math.Max( sampleRate / 2, 10 )
-			: Math.Max( sampleRate / 4, 1 );
+			? Math.Max( sampleRateOrDefault / 2, 10 )
+			: Math.Max( sampleRateOrDefault / 4, 1 );
 
 		// We take an extra sample at the end so we can interpolate smoothly to the next span
 
@@ -87,8 +94,8 @@ public abstract partial record PropertySignal<T>() : PropertySignal, IPropertySi
 		{
 			var span = sampleSpans[i];
 
-			var startTime = timeRange.Start + MovieTime.FromFrames( span.Start, sampleRate );
-			var endTime = timeRange.Start + MovieTime.FromFrames( span.Start + span.Count, sampleRate );
+			var startTime = timeRange.Start + MovieTime.FromFrames( span.Start, sampleRateOrDefault );
+			var endTime = timeRange.Start + MovieTime.FromFrames( span.Start + span.Count, sampleRateOrDefault );
 
 			var startOffset = MovieTime.Zero;
 
@@ -113,7 +120,7 @@ public abstract partial record PropertySignal<T>() : PropertySignal, IPropertySi
 
 			var spanSamples = samples.Skip( span.Start ).Take( span.Count + trailingExtraSamples );
 
-			yield return new CompiledSampleBlock<T>( (startTime, endTime), startOffset, sampleRate, [.. spanSamples] );
+			yield return new CompiledSampleBlock<T>( (startTime, endTime), startOffset, sampleRateOrDefault, [.. spanSamples] );
 		}
 	}
 

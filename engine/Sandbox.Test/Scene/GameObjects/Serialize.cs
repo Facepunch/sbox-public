@@ -749,6 +749,138 @@ public class SerializeTest
 		Assert.AreEqual( false, componentJson2[Component.JsonKeys.Enabled].GetValue<bool>() );
 	}
 
+	[TestMethod]
+	public void SkipNullsOmitsNullPropertiesFromJson()
+	{
+		AssertTypeLibraryReady( typeof( ComponentWithInitializer ) );
+
+		using var scope = new Scene().Push();
+
+		var go = new GameObject();
+		var comp = go.Components.Create<ComponentWithInitializer>();
+		comp.ReferenceTypeWithIntializer = null;
+
+		// SkipNulls should omit the null reference-type property entirely.
+		var options = new GameObject.SerializeOptions { SkipNulls = true };
+		var node = go.Serialize( options );
+
+		var compJson = node["Components"].AsArray()[0].AsObject();
+		Assert.IsFalse( compJson.ContainsKey( "ReferenceTypeWithIntializer" ),
+			"Null reference-type property should be absent from JSON when SkipNulls is true" );
+
+		// Value types are never null, so they must still be present.
+		Assert.IsTrue( compJson.ContainsKey( "ValueTypeWithIntializer" ),
+			"Value-type property must always be present even when SkipNulls is true" );
+	}
+
+	[TestMethod]
+	public void SkipNullsKeepsNonNullPropertiesInJson()
+	{
+		AssertTypeLibraryReady( typeof( ComponentWithInitializer ) );
+
+		using var scope = new Scene().Push();
+
+		var go = new GameObject();
+		var comp = go.Components.Create<ComponentWithInitializer>();
+		// Leave ReferenceTypeWithIntializer at its non-null default.
+
+		var options = new GameObject.SerializeOptions { SkipNulls = true };
+		var node = go.Serialize( options );
+
+		var compJson = node["Components"].AsArray()[0].AsObject();
+		Assert.IsTrue( compJson.ContainsKey( "ReferenceTypeWithIntializer" ),
+			"Non-null property must still appear in JSON when SkipNulls is true" );
+	}
+
+	[TestMethod]
+	public void ClearAbsentFieldsDeserializeClearsPropertiesAbsentFromJson()
+	{
+		AssertTypeLibraryReady( typeof( ComponentWithInitializer ) );
+
+		using var scope = new Scene().Push();
+
+		// Sender side: component has null, serialized with SkipNulls
+		var senderGo = new GameObject();
+		var senderComp = senderGo.Components.Create<ComponentWithInitializer>();
+		senderComp.ReferenceTypeWithIntializer = null;
+
+		var compJson = senderGo.Serialize( new GameObject.SerializeOptions { SkipNulls = true } )
+			["Components"].AsArray()[0].AsObject().DeepClone().AsObject();
+
+		// Sanity: SkipNulls caused the key to be omitted.
+		Assert.IsFalse( compJson.ContainsKey( "ReferenceTypeWithIntializer" ),
+			"SkipNulls should have omitted the null property from the serialized JSON" );
+
+		// Receiver side: component has a stale non-null value
+		var receiverGo = new GameObject();
+		var receiverComp = receiverGo.Components.Create<ComponentWithInitializer>();
+		receiverComp.ReferenceTypeWithIntializer = ComponentWithInitializer.TestReferenceType;
+
+		// ClearAbsentFields deserialization must clear the stale value even though the key is absent.
+		receiverComp.DeserializeInternal( compJson, true );
+		receiverComp.PostDeserialize();
+
+		Assert.IsNull( receiverComp.ReferenceTypeWithIntializer,
+			"ClearAbsentFields deserialization must clear a property that was absent (null/omitted) in the JSON" );
+	}
+
+	[TestMethod]
+	public void ClearAbsentFieldsOnDeserializeOptionsDeserializeClearsPropertiesAbsentFromJson()
+	{
+		AssertTypeLibraryReady( typeof( ComponentWithInitializer ) );
+
+		using var scope = new Scene().Push();
+
+		// Serialize a component with a null value using SkipNulls — the key is omitted from JSON.
+		var go = new GameObject();
+		var comp = go.Components.Create<ComponentWithInitializer>();
+		comp.ReferenceTypeWithIntializer = null;
+
+		var goJson = go.Serialize( new GameObject.SerializeOptions { SkipNulls = true } ).DeepClone().AsObject();
+
+		// Sanity: the key was omitted.
+		var compJson = goJson["Components"].AsArray()[0].AsObject();
+		Assert.IsFalse( compJson.ContainsKey( "ReferenceTypeWithIntializer" ),
+			"SkipNulls should have omitted the null property from the serialized JSON" );
+
+		// Without ClearAbsentFields: a freshly created component runs its initializer, and because the
+		// key is absent from JSON it keeps the initializer value.
+		var goWithout = new GameObject();
+		goWithout.Deserialize( goJson.DeepClone().AsObject() );
+		Assert.IsNotNull( goWithout.Components.Get<ComponentWithInitializer>().ReferenceTypeWithIntializer,
+			"Without ClearAbsentFields, the component initializer value must be preserved when the key is absent" );
+
+		// With ClearAbsentFields: even the initializer value must be cleared for absent keys,
+		// mirroring the network create/snapshot receive path.
+		var goWith = new GameObject();
+		goWith.Deserialize( goJson, new GameObject.DeserializeOptions { ClearAbsentFields = true } );
+		Assert.IsNull( goWith.Components.Get<ComponentWithInitializer>().ReferenceTypeWithIntializer,
+			"DeserializeOptions.ClearAbsentFields must clear the initializer value when the key is absent from JSON" );
+	}
+
+	[TestMethod]
+	public void NormalDeserializeDoesNotClearPropertiesAbsentFromJson()
+	{
+		AssertTypeLibraryReady( typeof( ComponentWithInitializer ) );
+
+		using var scope = new Scene().Push();
+
+		var go = new GameObject();
+		var comp = go.Components.Create<ComponentWithInitializer>();
+		comp.ReferenceTypeWithIntializer = ComponentWithInitializer.TestReferenceType;
+
+		// Build JSON without the property key.
+		var compJson = go.Serialize()["Components"].AsArray()[0].AsObject().DeepClone().AsObject();
+		compJson.Remove( "ReferenceTypeWithIntializer" );
+
+		// Normal deserialize should leave the existing value untouched.
+		comp.Deserialize( compJson );
+		comp.PostDeserialize();
+
+		Assert.AreEqual( ComponentWithInitializer.TestReferenceType, comp.ReferenceTypeWithIntializer,
+			"Normal deserialization must preserve an existing value when the key is absent from JSON" );
+	}
+
 	#region Action Graph Helpers
 
 	/// <summary>

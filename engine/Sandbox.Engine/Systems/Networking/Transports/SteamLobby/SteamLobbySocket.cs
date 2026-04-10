@@ -308,18 +308,20 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 	/// <param name="channel"></param>
 	private unsafe void ProcessIncomingMessages( in ISteamNetworkingMessages net, int channel )
 	{
-		var ptr = stackalloc IntPtr[Networking.MaxIncomingMessages];
+		var ptr = stackalloc IntPtr[Networking.ReceiveBatchSize];
+		var maxIncoming = Networking.ReceiveBatchSizePerTick;
+		var totalReceived = 0;
 
 		while ( true )
 		{
-			var count = net.ReceiveMessagesOnChannel( channel, (IntPtr)ptr, Networking.MaxIncomingMessages );
+			var count = net.ReceiveMessagesOnChannel( channel, (IntPtr)ptr, Networking.ReceiveBatchSize );
 			if ( count == 0 ) return;
 
 			for ( var i = 0; i < count; i++ )
 			{
 				var msg = Unsafe.Read<SteamNetworkMessage>( (void*)ptr[i] );
 
-				var data = new byte[msg.Size];
+				var data = GC.AllocateUninitializedArray<byte>( msg.Size );
 				Marshal.Copy( (IntPtr)msg.Data, data, 0, data.Length );
 
 				var m = new IncomingMessage
@@ -331,6 +333,11 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 				IncomingMessages.Writer.TryWrite( m );
 				net.ReleaseMessage( ptr[i] );
 			}
+
+			totalReceived += count;
+
+			if ( maxIncoming > 0 && totalReceived >= maxIncoming )
+				return;
 		}
 	}
 
@@ -364,9 +371,15 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		var net = Steam.SteamNetworkingMessages();
 		if ( !net.IsValid ) return;
 
+		var maxOutgoing = Networking.MaxOutgoingMessagesPerTick;
+		var outgoingCount = 0;
+
 		while ( OutgoingMessages.Reader.TryRead( out var msg ) )
 		{
 			ProcessOutgoingMessage( net, msg );
+
+			if ( maxOutgoing > 0 && ++outgoingCount >= maxOutgoing )
+				break;
 		}
 
 		ProcessIncomingMessages( net, NetworkChannel );
@@ -379,18 +392,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 			if ( !Connections.TryGetValue( msg.SteamId, out var connection ) )
 				continue;
 
-			Span<byte> data = Networking.DecodeStream( msg.Data );
-
-			using var stream = ByteStream.CreateReader( data );
-
-			var nwm = new NetworkSystem.NetworkMessage
-			{
-				Data = stream,
-				Source = connection
-			};
-
-			connection.MessagesRecieved++;
-			handler( nwm );
+			connection.OnRawPacketReceived( msg.Data, handler );
 		}
 	}
 
@@ -725,6 +727,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		//
 		if ( SteamLobby.GetData( "toxic" ) == "1" )
 		{
+			Networking.Disconnect();
 			IGameInstanceDll.Current.Disconnect();
 			IMenuSystem.ShowServerError( "Disconnected", "Inoperable Server State" );
 			Log.Warning( "Disconnecting - Inoperable Server State" );
@@ -733,6 +736,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 		if ( SteamLobby.GetData( "disbanded" ) == "1" )
 		{
+			Networking.Disconnect();
 			IGameInstanceDll.Current.Disconnect();
 			IMenuSystem.ShowServerError( "Disconnected", "Lobby Disbanded" );
 			Log.Warning( "Disconnecting - Lobby Disbanded" );

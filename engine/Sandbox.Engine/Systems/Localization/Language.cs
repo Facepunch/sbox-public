@@ -112,7 +112,9 @@ public class LanguageContainer
 	/// <returns>If found will return the phrase, else will return the token itself</returns>
 	public string GetPhrase( string textToken, Dictionary<string, object> data = null )
 	{
-		if ( lang == null ) return textToken;
+		if ( lang == null || Language.DisplayKeys )
+			return textToken;
+
 		return lang.GetPhrase( textToken, data );
 	}
 
@@ -132,6 +134,19 @@ public class LanguageContainer
 [SkipHotload]
 public static class Language
 {
+	[ConVar( "lang.showkeys", Help = "Show keys/phrases instead of translated text. Useful for debugging localization." )]
+	internal static bool DisplayKeys
+	{
+		get => field;
+		set
+		{
+			field = value;
+
+			// trigger labels etc to update
+			GlobalContext.Current.UISystem?.OnLanguageChanged();
+		}
+	} = false;
+
 	/// <summary>
 	/// The abbreviation for the language the user wants. This is set by the user in the options menu.
 	/// </summary>

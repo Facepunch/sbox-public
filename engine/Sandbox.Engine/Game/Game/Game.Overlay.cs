@@ -200,6 +200,19 @@ public static partial class Game
 		}
 
 		/// <summary>
+		/// Opens the pause menu overlay. This is the same menu that appears when pressing ESC.
+		/// </summary>
+		public static void ShowPauseMenu()
+		{
+			if ( IModalSystem.Current?.IsModalOpen == true )
+				return;
+
+			using var scope = GlobalContext.MenuScope();
+
+			IModalSystem.Current?.PauseMenu();
+		}
+
+		/// <summary>
 		/// Closes the top overlay if one exists
 		/// </summary>
 		public static void Close()

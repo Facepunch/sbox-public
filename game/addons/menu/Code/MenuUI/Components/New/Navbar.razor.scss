@@ -1,0 +1,159 @@
+@import '/styles/_Theme.scss';
+
+$navbar-background: $default-900;
+
+Navbar {
+	position: relative;
+	flex-shrink: 0;
+	border-bottom: 1px solid transparent; // Avoid shifting layout when changing from clear to non-clear
+	z-index: 100;
+	align-items: center;
+	justify-content: center;
+
+	.inner {
+		gap: 16px;
+		align-items: center;
+		width: 100%;
+		padding: 16px 50px;
+		max-width: $screen-w-xl;
+		justify-content: space-between;
+		position: relative;
+	}
+
+	&::before {
+		position: absolute;
+		top: 0;
+		right: 0;
+		bottom: -25px;
+		left: 0;
+		z-index: -10;
+		opacity: 0.75;
+		background: linear-gradient( to bottom, $navbar-background, rgba( $navbar-background, 0 ) );
+	}
+
+	&:not(.clear) {
+		background-color: $navbar-background;
+		border-bottom: 1px solid $default-border;
+		box-shadow: 0 0 128px rgba( $default-900, 0.5 );
+
+		&::before {
+			opacity: 0;
+			background: linear-gradient( to bottom, $navbar-background, rgba( $navbar-background, 1 ) );
+		}
+	}
+
+	.button-hover-menu {
+		background-color: $navbar-background;
+		padding: 6px;
+		border-radius: $rounding-default;
+
+		Button:hover {
+			background-color: $default-900;
+		}
+	}
+
+	Button {
+		padding: 6px 8px;
+		pointer-events: all;
+		align-items: center;
+		gap: 6px;
+		border: 1px solid transparent; // Avoid layout shifts
+		border-radius: $rounding-default;
+
+		&:active {
+			sound-in: ui.button.press;
+		}
+
+		&:hover {
+			sound-in: ui.button.over;
+			border: 1px solid $default-border;
+			cursor: pointer;
+			border-radius: $rounding-default;
+			background-color: rgba( $default-500, 0.1 );
+			backdrop-filter: blur( 10px );
+		}
+
+		&.close {
+			background-color: rgba( red, 0.1 );
+			border: 1px solid rgba( red, 0.1 );
+
+			iconpanel, Label {
+				color: $default-text;
+			}
+
+			&:hover {
+				background-color: rgba( red, 0.3 );
+				border: 1px solid rgba( red, 0.2 );
+			}
+		}
+
+		&.active {
+			background-color: rgba( $default-500, 0.1 );
+
+			Label, iconpanel {
+				color: $default-text;
+			}
+		}
+
+		Label {
+			font-weight: 700;
+			color: $default-text-light;
+		}
+
+		iconpanel {
+			font-size: $text-large;
+			font-weight: 700;
+			color: $default-text-light;
+		}
+
+		&.unread {
+			&::after {
+				position: absolute;
+				top: 0;
+				right: 0;
+				width: 6px;
+				height: 6px;
+				background-color: $primary-blue;
+				border-radius: 500%;
+				animation: Pulse 5s infinite;
+			}
+		}
+	}
+
+	.links {
+		align-items: center;
+		gap: 16px;
+	}
+
+	.right {
+		gap: 16px;
+		align-items: center;
+	}
+
+	separator.vertical {
+		height: 40px;
+	}
+}
+
+@keyframes Pulse
+{
+	0%
+	{
+		box-shadow: 0 0 0 0 rgba( $primary-blue, 0.7 );
+	}
+
+	10%
+	{
+		box-shadow: 0 0 0 5px rgba( $primary-blue, 0 );
+	}
+
+	20%
+	{
+		box-shadow: 0 0 0 0 rgba( $primary-blue, 0 );
+	}
+
+	100%
+	{
+		box-shadow: 0 0 0 0 rgba( $primary-blue, 0 );
+	}
+}

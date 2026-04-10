@@ -167,8 +167,8 @@ public sealed partial class NavMesh
 					{
 						CompactHeightfield heightField;
 
-						// If not yet loaded and we have a cached heightfield from baked data, use it directly
-						if ( !IsLoaded && tile.IsHeightFieldValid )
+						// Use baked heightfield data directly if available, avoiding expensive geometry collection
+						if ( tile.IsBakedHeightField && tile.IsHeightFieldValid )
 						{
 							heightField = tile.DecompressCachedHeightField();
 						}
@@ -227,6 +227,11 @@ public sealed partial class NavMesh
 	{
 		ThreadSafe.AssertIsMainThread();
 
+		// Tile may have been evicted (via UnloadTile) while an async build was in flight.
+		// Don't re-add it to the navmesh if it's no longer in the cache.
+		if ( !tileCache.HasTile( targetTile.TilePosition ) )
+			return;
+
 		var tileRef = navmeshInternal.GetTileRefAt( targetTile.TilePosition.x, targetTile.TilePosition.y, 0 );
 
 		if ( data == null )
@@ -259,6 +264,79 @@ public sealed partial class NavMesh
 		if ( tileRef != default )
 		{
 			navmeshInternal.RemoveTile( tileRef );
+		}
+	}
+
+	/// <summary>
+	/// Removes the navmesh tile at the given world position.
+	/// </summary>
+	public void UnloadTile( Vector3 worldPosition )
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		if ( !IsEnabled ) return;
+
+		var tilePosition = WorldPositionToTilePosition( worldPosition );
+		UnloadTileOnMainThread( tilePosition );
+		tileCache.RemoveTile( tilePosition );
+	}
+
+	/// <summary>
+	/// Removes all navmesh tiles overlapping with the given bounds.
+	/// </summary>
+	public void UnloadTiles( BBox bounds )
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		if ( !IsEnabled ) return;
+
+		var minMaxTileCoords = CalculateMinMaxTileCoords( bounds );
+
+		for ( int x = minMaxTileCoords.Left; x <= minMaxTileCoords.Right; x++ )
+		{
+			for ( int y = minMaxTileCoords.Top; y <= minMaxTileCoords.Bottom; y++ )
+			{
+				var tilePosition = new Vector2Int( x, y );
+				UnloadTileOnMainThread( tilePosition );
+				tileCache.RemoveTile( tilePosition );
+			}
+		}
+	}
+
+	/// <summary>
+	/// Queues the navmesh tile at the given world position for incremental generation
+	/// over subsequent frames. Fire-and-forget alternative to <see cref="GenerateTile"/>.
+	/// </summary>
+	public void RequestTileGeneration( Vector3 worldPosition )
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		if ( !IsEnabled ) return;
+
+		var tilePosition = WorldPositionToTilePosition( worldPosition );
+		var tile = tileCache.GetOrAddTile( tilePosition );
+		tile.RequestFullRebuild();
+	}
+
+	/// <summary>
+	/// Queues all navmesh tiles overlapping with the given bounds for incremental generation
+	/// over subsequent frames. Fire-and-forget alternative to <see cref="GenerateTiles"/>.
+	/// </summary>
+	public void RequestTilesGeneration( BBox bounds )
+	{
+		ThreadSafe.AssertIsMainThread();
+
+		if ( !IsEnabled ) return;
+
+		var minMaxTileCoords = CalculateMinMaxTileCoords( bounds );
+
+		for ( int x = minMaxTileCoords.Left; x <= minMaxTileCoords.Right; x++ )
+		{
+			for ( int y = minMaxTileCoords.Top; y <= minMaxTileCoords.Bottom; y++ )
+			{
+				var tile = tileCache.GetOrAddTile( new Vector2Int( x, y ) );
+				tile.RequestFullRebuild();
+			}
 		}
 	}
 

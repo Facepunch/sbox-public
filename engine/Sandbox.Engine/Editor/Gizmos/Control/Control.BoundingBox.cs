@@ -59,10 +59,10 @@ public static partial class Gizmo
 
 		public bool BoundingBox( string name, BBox value, out BBox outValue )
 		{
-			return BoundingBox( name, value, out outValue, out _ );
+			return BoundingBox( name, value, out outValue, out _, false );
 		}
 
-		public bool BoundingBox( string name, BBox value, out BBox outValue, out bool outPressed )
+		public bool BoundingBox( string name, BBox value, out BBox outValue, out bool outPressed, bool allowPlanarResize )
 		{
 			outValue = value;
 
@@ -76,46 +76,60 @@ public static partial class Gizmo
 				var resizeAxis = Vector3.Zero;
 				var pressed = false;
 
-				if ( ArrowPoint( "Forward", Vector3.Forward, halfSize.x, Colors.Forward, out var forwardDist, ref pressed ) )
+				const float planarThreshold = 0.1f;
+				bool isXPlanar = allowPlanarResize && halfSize.x < planarThreshold;
+				bool isYPlanar = allowPlanarResize && halfSize.y < planarThreshold;
+				bool isZPlanar = allowPlanarResize && halfSize.z < planarThreshold;
+
+				if ( !isXPlanar )
 				{
-					resized = true;
-					resizeDist = forwardDist;
-					resizeAxis = Vector3.Forward;
+					if ( ArrowPoint( "Forward", Vector3.Forward, halfSize.x, Colors.Forward, out var forwardDist, ref pressed ) )
+					{
+						resized = true;
+						resizeDist = forwardDist;
+						resizeAxis = Vector3.Forward;
+					}
+
+					if ( ArrowPoint( "Backward", Vector3.Backward, halfSize.x, Colors.Forward, out var backwardDist, ref pressed ) )
+					{
+						resized = true;
+						resizeDist = backwardDist;
+						resizeAxis = Vector3.Backward;
+					}
 				}
 
-				if ( ArrowPoint( "Backward", Vector3.Backward, halfSize.x, Colors.Forward, out var backwardDist, ref pressed ) )
+				if ( !isZPlanar )
 				{
-					resized = true;
-					resizeDist = backwardDist;
-					resizeAxis = Vector3.Backward;
+					if ( ArrowPoint( "Up", Vector3.Up, halfSize.z, Colors.Up, out var upDist, ref pressed ) )
+					{
+						resized = true;
+						resizeDist = upDist;
+						resizeAxis = Vector3.Up;
+					}
+
+					if ( ArrowPoint( "Down", Vector3.Down, halfSize.z, Colors.Up, out var downDist, ref pressed ) )
+					{
+						resized = true;
+						resizeDist = downDist;
+						resizeAxis = Vector3.Down;
+					}
 				}
 
-				if ( ArrowPoint( "Up", Vector3.Up, halfSize.z, Colors.Up, out var upDist, ref pressed ) )
+				if ( !isYPlanar )
 				{
-					resized = true;
-					resizeDist = upDist;
-					resizeAxis = Vector3.Up;
-				}
+					if ( ArrowPoint( "Left", Vector3.Left, halfSize.y, Colors.Left, out var leftDist, ref pressed ) )
+					{
+						resized = true;
+						resizeDist = leftDist;
+						resizeAxis = Vector3.Left;
+					}
 
-				if ( ArrowPoint( "Down", Vector3.Down, halfSize.z, Colors.Up, out var downDist, ref pressed ) )
-				{
-					resized = true;
-					resizeDist = downDist;
-					resizeAxis = Vector3.Down;
-				}
-
-				if ( ArrowPoint( "Left", Vector3.Left, halfSize.y, Colors.Left, out var leftDist, ref pressed ) )
-				{
-					resized = true;
-					resizeDist = leftDist;
-					resizeAxis = Vector3.Left;
-				}
-
-				if ( ArrowPoint( "Right", Vector3.Right, halfSize.y, Colors.Left, out var rightDist, ref pressed ) )
-				{
-					resized = true;
-					resizeDist = rightDist;
-					resizeAxis = Vector3.Right;
+					if ( ArrowPoint( "Right", Vector3.Right, halfSize.y, Colors.Left, out var rightDist, ref pressed ) )
+					{
+						resized = true;
+						resizeDist = rightDist;
+						resizeAxis = Vector3.Right;
+					}
 				}
 
 				outPressed = pressed;
@@ -124,7 +138,41 @@ public static partial class Gizmo
 				{
 					var center = value.Center + resizeAxis * (resizeDist * 0.5f);
 					halfSize = value.Size + resizeAxis.Abs() * resizeDist;
-					outValue = BBox.FromPositionAndSize( center, halfSize );
+
+					if ( allowPlanarResize )
+					{
+						var mins = center - halfSize * 0.5f;
+						var maxs = center + halfSize * 0.5f;
+
+						const float minSpacing = 0.1f;
+
+						if ( !isXPlanar && maxs.x - mins.x < minSpacing )
+						{
+							var mid = (mins.x + maxs.x) * 0.5f;
+							mins.x = mid - minSpacing * 0.5f;
+							maxs.x = mid + minSpacing * 0.5f;
+						}
+
+						if ( !isYPlanar && maxs.y - mins.y < minSpacing )
+						{
+							var mid = (mins.y + maxs.y) * 0.5f;
+							mins.y = mid - minSpacing * 0.5f;
+							maxs.y = mid + minSpacing * 0.5f;
+						}
+
+						if ( !isZPlanar && maxs.z - mins.z < minSpacing )
+						{
+							var mid = (mins.z + maxs.z) * 0.5f;
+							mins.z = mid - minSpacing * 0.5f;
+							maxs.z = mid + minSpacing * 0.5f;
+						}
+
+						outValue = new BBox( mins, maxs );
+					}
+					else
+					{
+						outValue = BBox.FromPositionAndSize( center, halfSize );
+					}
 
 					return true;
 				}

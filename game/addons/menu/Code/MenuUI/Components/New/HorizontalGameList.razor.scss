@@ -1,0 +1,30 @@
+@import "/styles/_theme.scss";
+
+HorizontalGameList {
+    gap: 12px;
+    flex-direction: column;
+    position: relative;
+    margin-bottom: 32px;
+
+    &:hover {
+        z-index: 100;
+    }
+
+    &.hidden {
+        display: none;
+        opacity: 0;
+        transform: translateX( -300px );
+    }
+
+    &.exiting {
+        display: none;
+        opacity: 0;
+        transform: translateX( 300px );
+    }
+
+    .games {
+        gap: 6px;
+        flex-direction: row;
+        overflow: clip-whole;
+    }
+}

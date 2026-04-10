@@ -1,6 +1,6 @@
 ﻿namespace Editor.Inspectors;
 
-[EditorForAssetType( "__fallback" )]
+[EditorForAssetType( "__fallback" ), EditorForAssetType( "vtex" )]
 public partial class GameResourceEditor : BaseWindow, IAssetEditor
 {
 	public bool CanOpenMultipleAssets => false;

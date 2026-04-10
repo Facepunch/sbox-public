@@ -144,6 +144,8 @@ public static partial class Input
 	/// </remarks>
 	internal static string GetButtonOrigin( InputAction action, bool ignoreController = false )
 	{
+		if ( Application.IsHeadless ) return action.KeyboardCode;
+
 		if ( UsingController )
 		{
 			return action.GamepadCode.ToString();
@@ -155,9 +157,9 @@ public static partial class Input
 		var collection = InputBinds.FindCollection( loadedGame );
 
 		var bind = collection.Get( action.Name, 0 );
-		if ( string.IsNullOrEmpty( bind ) ) return action.KeyboardCode;
+		if ( string.IsNullOrEmpty( bind ) ) bind = action.KeyboardCode;
 
-		return bind;
+		return GetLocalKeyName( bind );
 	}
 
 	/// <summary>
@@ -169,6 +171,8 @@ public static partial class Input
 	/// </summary>
 	public static string GetButtonOrigin( string name, bool ignoreController = false )
 	{
+		if ( Application.IsHeadless ) return name;
+
 		var action = InputActions?
 			.FirstOrDefault( x => string.Equals( x.Name, name, StringComparison.OrdinalIgnoreCase ) );
 
@@ -179,5 +183,15 @@ public static partial class Input
 		}
 
 		return GetButtonOrigin( action, ignoreController );
+	}
+
+	/// <summary>
+	/// Convert a button code to its user-facing keyname (our best guess at what's painted on the physical key cap)
+	/// </summary>
+	internal static string GetLocalKeyName( string key )
+	{
+		if ( Application.IsHeadless ) return key;
+		var buttonCode = NativeEngine.InputSystem.StringToButtonCode( key );
+		return NativeEngine.InputSystem.GetKeyDisplayName( buttonCode );
 	}
 }

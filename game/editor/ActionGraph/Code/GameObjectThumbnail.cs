@@ -63,7 +63,7 @@ public static class GameObjectThumbnail
 				ShadowTextureResolution = 1024
 			};
 
-			light = new SceneLight( go.Scene.SceneWorld, center - lightRotation.Forward * distance, distance * 1.5f,
+			light = new ScenePointLight( go.Scene.SceneWorld, center - lightRotation.Forward * distance, distance * 1.5f,
 				new Color( 1.0f, 0.9f, 0.9f ) * 10.0f );
 		}
 

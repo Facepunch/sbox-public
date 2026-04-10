@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 
 namespace Sandbox.Rendering;
 
@@ -156,9 +157,19 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.SetComboEnum( entry.Token, (T)entry.Object2 );
+				attrAccess.attributes.SetCombo( entry.Token, (int)entry.Data1.x );
 			}
-			list.AddEntry( &Execute, new Entry { Token = token, Object2 = t, Object4 = this } );
+			// Store the enum as its integer value in Data1.x to avoid boxing into Object2.
+			// SetCombo(int) and SetComboEnum<T> both ultimately call SetComboValue(byte),
+			// so the GPU behaviour is identical.
+			var intValue = Unsafe.SizeOf<T>() switch
+			{
+				1 => Unsafe.As<T, byte>( ref t ),
+				2 => (int)Unsafe.As<T, short>( ref t ),
+				8 => (int)Unsafe.As<T, long>( ref t ),
+				_ => Unsafe.As<T, int>( ref t )
+			};
+			list.AddEntry( &Execute, new Entry { Token = token, Object4 = this, Data1 = new Vector4( intValue, 0, 0, 0 ) } );
 		}
 
 		public void SetData<T>( StringToken token, T data ) where T : unmanaged
@@ -313,17 +324,17 @@ public sealed partial class CommandList
 		/// <summary>
 		/// Takes a copy of the current viewport's color texture and stores it in targetName on renderAttributes.
 		/// </summary>
-		public RenderTargetHandle GrabFrameTexture( string token, Graphics.DownsampleMethod downsampleMethod )
+		public RenderTargetHandle GrabFrameTexture( string token, Graphics.DownsampleMethod downsampleMethod, int maxMips = 0 )
 		{
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object2;
-				var temp = Graphics.GrabFrameTexture( (string)entry.Object5, attrAccess.attributes, (Graphics.DownsampleMethod)(int)entry.Data1.x );
+				var temp = Graphics.GrabFrameTexture( (string)entry.Object5, attrAccess.attributes, (Graphics.DownsampleMethod)(int)entry.Data1.x, (int)entry.Data1.y );
 				commandList.state.renderTargets[(string)entry.Object5] = temp;
 				attrAccess._renderTargets[(string)entry.Object5] = temp;
 			}
 
-			list.AddEntry( &Execute, new Entry { Object5 = token, Object2 = this, Data1 = new Vector4( (int)downsampleMethod, 0, 0, 0 ) } );
+			list.AddEntry( &Execute, new Entry { Object5 = token, Object2 = this, Data1 = new Vector4( (int)downsampleMethod, maxMips, 0, 0 ) } );
 
 			return new RenderTargetHandle { Name = token };
 		}

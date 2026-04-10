@@ -15,6 +15,9 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 	Vector3 _dragStartPos;
 	bool _dragStarted;
 	Model _previewModel;
+	bool _resizeDragging;
+	BBox _resizeBefore;
+	int _undoStartCount;
 
 	static float TextSize => 22 * Gizmo.Settings.GizmoScale * Application.DpiScale;
 
@@ -56,6 +59,8 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 	public override void OnCreated( MeshComponent component )
 	{
+		PopUndo();
+
 		var selection = SceneEditorSession.Active.Selection;
 		selection.Set( component.GameObject );
 
@@ -100,6 +105,7 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 			_box = null;
 			_dragStarted = true;
+			_undoStartCount = SceneEditorSession.Active.UndoSystem.Back.Count;
 		}
 		else
 		{
@@ -128,10 +134,14 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 				return;
 			}
 
+			var before = _box;
+
 			_box = new BBox( _dragStartPos, point + Vector3.Up * s_lastHeight );
 			_dragStarted = false;
 
 			BuildPreview();
+
+			PushUndo( "Create Preview Block", before, _box );
 		}
 		else
 		{
@@ -193,8 +203,11 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 	void Cancel()
 	{
+		PopUndo();
+
 		_box = null;
 		_dragStarted = false;
+		_resizeDragging = false;
 	}
 
 	public override void OnCancel()
@@ -225,6 +238,12 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 			if ( Gizmo.Control.BoundingBox( "Resize", box, out var outBox ) )
 			{
+				if ( !_resizeDragging )
+				{
+					_resizeDragging = true;
+					_resizeBefore = _box.Value;
+				}
+
 				_deltaBox.Maxs += outBox.Maxs - box.Maxs;
 				_deltaBox.Mins += outBox.Mins - box.Mins;
 
@@ -248,6 +267,12 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 				}
 
 				BuildPreview();
+			}
+			else if ( _resizeDragging && !Gizmo.IsLeftMouseDown )
+			{
+				_resizeDragging = false;
+
+				PushUndo( "Resize Block", _resizeBefore, _box );
 			}
 
 			using ( Gizmo.Scope( "Bounds" ) )
@@ -277,6 +302,24 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 	{
 		var mesh = Build();
 		_previewModel = mesh?.Rebuild();
+	}
+
+	void PushUndo( string name, BBox? before, BBox? after )
+	{
+		if ( before == after ) return;
+
+		PushUndo( name,
+			undo: () =>
+			{
+				_box = before;
+				BuildPreview();
+			},
+			redo: () =>
+			{
+				_box = after;
+				BuildPreview();
+			}
+		);
 	}
 
 	private static IEnumerable<TypeDescription> GetBuilderTypes()
