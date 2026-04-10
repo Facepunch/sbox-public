@@ -87,19 +87,11 @@ internal static partial class InputRouter
 	/// </summary>
 	internal static void OnMousePositionChange( float x, float y, float dx, float dy )
 	{
-		ApplyAbsoluteMousePosition( new Vector2( x, y ), new Vector2( dx, dy ) );
-	}
-
-	/// <summary>
-	/// Shared absolute-position path for native and editor-driven mouse updates.
-	/// </summary>
-	internal static void ApplyAbsoluteMousePosition( Vector2 pos, Vector2 delta )
-	{
-		MouseCursorPosition = pos;
+		MouseCursorPosition = new Vector2( x, y );
 
 		if ( InputSystem.GetRelativeMouseMode() )
 		{
-			delta = Vector2.Zero;
+			dx = dy = 0;
 		}
 
 		// If this is set, we're in capture mode - so just update the position
@@ -111,10 +103,10 @@ internal static partial class InputRouter
 			return;
 		}
 
-		MouseCursorDelta += delta;
+		MouseCursorDelta += new Vector2( dx, dy );
 
 		var mouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
-		mouse?.In_MousePosition( MouseCursorPosition, delta );
+		mouse?.In_MousePosition( MouseCursorPosition, new Vector2( dx, dy ) );
 	}
 
 	internal static void OnGameControllerButton( int deviceId, GameControllerCode button, bool down )
