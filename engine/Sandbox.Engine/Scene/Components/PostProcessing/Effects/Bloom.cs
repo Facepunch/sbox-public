@@ -32,7 +32,7 @@ public class Bloom : BasePostProcess<Bloom>
 
 	[Property] public FilterMode Filter { get; set; } = FilterMode.Bilinear;
 
-	CommandList command = new CommandList();
+	CommandList command = new CommandList( "Bloom" );
 
 	private static Material Shader = Material.FromShader( "postprocess_bloom.shader" );
 

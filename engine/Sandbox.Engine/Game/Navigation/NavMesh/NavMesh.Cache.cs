@@ -32,6 +32,11 @@ internal class NavMeshTileCache : IDisposable
 		return areaIdToDefinition[id];
 	}
 
+	public bool HasTile( Vector2Int tilePosition )
+	{
+		return tileCache.ContainsKey( tilePosition );
+	}
+
 	public void RemoveTile( Vector2Int tilePosition )
 	{
 		tileCache.Remove( tilePosition );

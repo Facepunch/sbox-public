@@ -40,6 +40,9 @@
 
         if ( citizen.IsValid() )
             citizen.Enabled = !clothing.PrefersHuman;
+
+        // Fetch resolutions now so opening the settings modal doesn't stutter later.
+        MenuProject.Settings.VideoSettings.FetchResolutions();
     }
 
     override protected void OnDisabled()

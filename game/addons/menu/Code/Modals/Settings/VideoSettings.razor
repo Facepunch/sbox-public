@@ -126,10 +126,24 @@
     List<Option> PostProcessOptions = [new("Low", PostProcessQuality.Low), new("Medium", PostProcessQuality.Medium), new("High", PostProcessQuality.High)];
     List<Option> ShadowQualityOptions = [new("Low", ShadowQuality.Low), new("Medium", ShadowQuality.Medium), new("High", ShadowQuality.High)];
 
-    List<Option> GetResolutionOptions()
+    static List<Option> _resolutionOptions = [];
+    public static List<Option> ResolutionOptions
+    {
+        get
+        {
+            if ( _resolutionOptions.Count == 0 )
+                FetchResolutions();
+
+            return _resolutionOptions;
+        }
+    }
+
+    /// <summary>
+    /// Fetches available resolutions from DXGI, can create stutters.
+    /// </summary>
+    public static void FetchResolutions()
     {
         var options = new List<Option>();
-
         var smallestAspect = 1.5f;
 
         var displayModes = MenuUtility.RenderSettings.DisplayModes( false )
@@ -138,11 +152,13 @@
 
         foreach ( var res in displayModes.GroupBy( x => $"{x.Width}x{x.Height}" ) )
         {
-            options.Add(new Option(res.Key, res.Key));
+            options.Add( new Option( res.Key, res.Key ) );
         }
 
-        return options;
+        _resolutionOptions = options;
     }
+
+    List<Option> GetResolutionOptions() => ResolutionOptions;
 
     protected override void OnAfterTreeRender(bool firstTime)
     {
