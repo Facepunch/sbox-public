@@ -49,11 +49,11 @@
 	{
 		var menu = MenuPanel.Open(this);
 
-		menu.AddOption("play_arrow", "Join Game", () => Networking.Connect(Lobby.LobbyId) );
+		menu.AddOption("play_arrow", "#menu.lobby.joingame", () => Networking.Connect(Lobby.LobbyId) );
 
 		menu.AddSpacer();
-		menu.AddOption("info", $"View Game Details", () => Game.Overlay.ShowGameModal(package.FullIdent));
-		menu.AddOption("corporate_fare", $"View Creator Details", () => Game.Overlay.ShowOrganizationModal(package.Org));
-		menu.AddOption("star", "Rate Game", () => Game.Overlay.ShowReviewModal(package));
+		menu.AddOption("info", "#menu.lobby.viewgame", () => Game.Overlay.ShowGameModal(package.FullIdent));
+		menu.AddOption("corporate_fare", "#menu.lobby.viewcreator", () => Game.Overlay.ShowOrganizationModal(package.Org));
+		menu.AddOption("star", "#menu.lobby.rategame", () => Game.Overlay.ShowReviewModal(package));
 	}
 }

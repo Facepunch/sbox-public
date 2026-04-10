@@ -15,14 +15,14 @@
 
     <column>
         <label class="medium package-title">
-            @(Package?.Title ?? "Invalid Package")
+            @(Package?.Title ?? "#menu.game.invalid")
         </label>
 
         @if (Package == null)
         {
             <row>
                 <label class="eyebrow">
-                    We couldn't find that package.
+                    #menu.game.notfound
                 </label>
             </row>
         }
@@ -76,10 +76,10 @@
 
     private string VotePercentage()
     {
-        if (Package == null) return "Unrated";
+        if (Package == null) return "#menu.game.unrated";
 
         if ( Package.VotesUp == 0 && Package.VotesDown == 0 )
-            return "Unrated";
+            return "#menu.game.unrated";
 
         return ((int)((float)Package.VotesUp / (Package.VotesUp + Package.VotesDown) * 100)).ToString() + "%";
     }

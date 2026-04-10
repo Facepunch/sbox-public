@@ -11,6 +11,27 @@
     "menu.notifications":  "Notifications",
     "menu.avatar": "Avatar",
 
+    "menu.games.discover": "Discover",
+    "menu.games.favourites": "Favourites",
+    "menu.games.search": "Search",
+
+    "menu.achievements.empty": "No achievements yet - play something!",
+    "menu.achievements.of": "of",
+
+    "menu.game.invalid": "Invalid Package",
+    "menu.game.notfound": "We couldn't find that package.",
+    "menu.game.unrated": "Unrated",
+
+    "menu.lobbies.quickjoin": "Quick Join",
+
+    "menu.lobby.joingame": "Join Game",
+    "menu.lobby.viewgame": "View Game Details",
+    "menu.lobby.viewcreator": "View Creator Details",
+    "menu.lobby.rategame": "Rate Game",
+
+    "menu.news.latestupdate": "Latest Update",
+    "menu.common.loading": "Loading...",
+
     "avatar.change": "Change",
     "avatar.changetip": "Change your appearance",
     "avatar.toggletype": "Switch between human and citizen",

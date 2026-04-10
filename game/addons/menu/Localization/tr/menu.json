@@ -1,14 +1,40 @@
 {
-  "party": "Parti",
-  "avatar.changetip": "Görünümünü değiştir",
-  "avatar.change": "Değiştir",
-  "menu.quit": "Çık",
-  "menu.multiplayer": "Sunucular",
-  "avatar.toggletype": "İnsan ve vatandaş arasında geçiş yap",
-  "menu.games": "Oyunlar",
-  "menu.settings": "Ayarlar",
-  "menu.hub": "Merkez",
-  "menu.maps": "Haritalar",
-  "menu.store": "Mağaza",
-  "menu.notifications": "Bildirimler"
+    "menu.home": "Ana Sayfa",
+    "menu.hub": "Merkez",
+    "menu.games": "Oyunlar",
+    "menu.maps": "Haritalar",
+    "menu.multiplayer": "Sunucular",
+    "menu.store": "Mağaza",
+    "menu.settings": "Ayarlar",
+    "menu.quit": "Çık",
+    "menu.searchplaceholder": "Ara..",
+    "menu.notifications":  "Bildirimler",
+    "menu.avatar": "Avatar",
+
+    "menu.games.discover": "Keşfet",
+    "menu.games.favourites": "Favoriler",
+    "menu.games.search": "Ara",
+
+    "menu.achievements.empty": "Henüz başarım yok - bir şeyler oyna!",
+    "menu.achievements.of": "/",
+
+    "menu.game.invalid": "Geçersiz Paket",
+    "menu.game.notfound": "Bu paket bulunamadı.",
+    "menu.game.unrated": "Değerlendirilmemiş",
+
+    "menu.lobbies.quickjoin": "Hızlı Katıl",
+
+    "menu.lobby.joingame": "Oyuna Katıl",
+    "menu.lobby.viewgame": "Oyun Detayları",
+    "menu.lobby.viewcreator": "Yapımcı Detayları",
+    "menu.lobby.rategame": "Oyunu Değerlendir",
+
+    "menu.news.latestupdate": "Son Güncelleme",
+    "menu.common.loading": "Yükleniyor...",
+
+    "avatar.change": "Değiştir",
+    "avatar.changetip": "Görünümünü değiştir",
+    "avatar.toggletype": "İnsan ve vatandaş arasında geçiş yap",
+
+    "party": "Parti"
 }
