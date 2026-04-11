@@ -1,5 +1,4 @@
-﻿
-namespace Editor;
+﻿namespace Editor;
 
 /// <summary>
 /// Move selected Gameobjects.<br/> <br/> 
@@ -51,7 +50,7 @@ public class PositionEditorTool : EditorTool
 
 		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
 		{
-			if ( startPoints.Count > 0)
+			if ( startPoints.Count > 0 )
 			{
 				var first = startPoints.First();
 				RepeatActionTool.RecordTranslate( first.Key.WorldPosition - first.Value.Position );

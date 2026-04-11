@@ -782,7 +782,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 				Scale( origin, basis, RepeatActionTool.ScaleDelta );
 				break;
 			case RepeatActionKind.Shear:
-				Shear( origin, basis, RepeatActionTool.ShearAxis, RepeatActionTool.constraintAxis, RepeatActionTool.ShearAmount );
+				Shear( origin, basis, RepeatActionTool.ShearAxis, RepeatActionTool.ConstraintAxis, RepeatActionTool.ShearAmount );
 				break;
 		}
 
