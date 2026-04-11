@@ -51,6 +51,13 @@ public class PositionEditorTool : EditorTool
 
 		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
 		{
+			if ( startPoints.Count > 0)
+			{
+				var first = startPoints.First();
+				RepeatActionTool.RecordTranslate( first.Key.WorldPosition - first.Value.Position );
+				RepeatActionTool.Commit();
+			}
+
 			ClearBodies();
 
 			startPoints.Clear();
@@ -87,6 +94,8 @@ public class PositionEditorTool : EditorTool
 	{
 		if ( startPoints.Count != 0 )
 			return;
+
+		RepeatActionTool.BeginCapture( Gizmo.IsShiftPressed );
 
 		if ( Gizmo.IsShiftPressed )
 		{

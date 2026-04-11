@@ -23,6 +23,8 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 	{
 		if ( _startPoints.Count > 0 ) return;
 
+		RepeatActionTool.BeginCapture( Gizmo.IsShiftPressed );
+
 		if ( Gizmo.IsShiftPressed )
 		{
 			_undoScope ??= SceneEditorSession.Active.UndoScope( "Duplicate Object(s)" )
@@ -58,14 +60,73 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 
 	protected override void OnEndDrag()
 	{
+		RepeatActionTool.Commit();
+
 		_startPoints.Clear();
 
 		_undoScope?.Dispose();
 		_undoScope = null;
 	}
 
+	public override void ExecuteRepeatAction()
+	{
+		if ( !RepeatActionTool.HasAction ) return;
+		if ( _objects.Length == 0 ) return;
+
+		var scopeBuilder = SceneEditorSession.Active.UndoScope( "Repeat Last Action" )
+			.WithGameObjectChanges( _objects, GameObjectUndoFlags.Properties )
+			.WithComponentChanges( _meshes );
+
+		if ( RepeatActionTool.WasDuplication )
+		{
+			scopeBuilder = scopeBuilder.WithGameObjectCreations();
+		}
+
+		using var scope = scopeBuilder.Push();
+
+		if ( RepeatActionTool.WasDuplication )
+		{
+			DuplicateSelection();
+			OnSelectionChanged();
+		}
+
+		foreach ( var go in _objects )
+		{
+			_startPoints[go] = go.WorldTransform;
+		}
+
+		foreach ( var mesh in _meshes )
+		{
+			foreach ( var vertex in mesh.Mesh.VertexHandles )
+			{
+				var v = new MeshVertex( mesh, vertex );
+				_transformVertices[v] = mesh.WorldTransform.PointToWorld( mesh.Mesh.GetVertexPosition( vertex ) );
+			}
+		}
+
+		var origin = CalculateSelectionOrigin();
+		var basis = CalculateSelectionBasis();
+
+		switch ( RepeatActionTool.Kind )
+		{
+			case RepeatActionKind.Translate:
+				Translate( RepeatActionTool.TranslateDelta );
+				break;
+			case RepeatActionKind.Rotate:
+				Rotate( RepeatActionTool.RotationCenter, RepeatActionTool.RotationBasis, RepeatActionTool.RotationDelta );
+				break;
+			case RepeatActionKind.Scale:
+				Scale( origin, basis, RepeatActionTool.ScaleDelta );
+				break;
+		}
+
+		_startPoints.Clear();
+		_transformVertices.Clear();
+	}
+
 	public override void Translate( Vector3 delta )
 	{
+		RepeatActionTool.RecordTranslate( delta );
 		foreach ( var entry in _startPoints )
 		{
 			entry.Key.WorldPosition = entry.Value.Position + delta;
@@ -74,6 +135,7 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 
 	public override void Rotate( Vector3 origin, Rotation basis, Rotation delta )
 	{
+		RepeatActionTool.RecordRotate( delta, origin, basis );
 		foreach ( var entry in _startPoints )
 		{
 			var rot = basis * delta * basis.Inverse;
@@ -88,6 +150,7 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 
 	public override void Scale( Vector3 origin, Rotation basis, Vector3 deltaScale )
 	{
+		RepeatActionTool.RecordScale( deltaScale );
 		foreach ( var entry in _startPoints )
 		{
 			var position = entry.Value.Position - origin;

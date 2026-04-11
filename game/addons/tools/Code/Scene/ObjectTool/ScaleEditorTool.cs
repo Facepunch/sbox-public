@@ -13,6 +13,7 @@
 public class ScaleEditorTool : EditorTool
 {
 	IDisposable undoScope;
+	Vector3 startScale;
 
 	public override void OnUpdate()
 	{
@@ -31,6 +32,12 @@ public class ScaleEditorTool : EditorTool
 			{
 				var delta = newScale - handleScale;
 
+				if ( undoScope == null )
+				{
+					RepeatActionTool.BeginCapture( false );
+					startScale = handleScale;
+				}
+
 				undoScope ??= SceneEditorSession.Active.UndoScope( "Transform Object(s)" ).WithGameObjectChanges( Selection.OfType<GameObject>(), GameObjectUndoFlags.All ).Push();
 
 				foreach ( var go in nonSceneGos )
@@ -46,6 +53,12 @@ public class ScaleEditorTool : EditorTool
 
 			if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
 			{
+				if ( undoScope != null )
+				{
+					RepeatActionTool.RecordScale( handleScale - startScale );
+					RepeatActionTool.Commit();
+				}
+
 				undoScope?.Dispose();
 				undoScope = null;
 			}

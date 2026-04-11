@@ -139,6 +139,8 @@ public abstract class SelectionTool : EditorTool
 			Selection.Add( element );
 		}
 	}
+
+	public virtual void ExecuteRepeatAction() { }
 }
 
 file class SelectionToolShortcutsWidget( SelectionTool tool ) : Widget
@@ -187,6 +189,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 
 	public override void Translate( Vector3 delta )
 	{
+		RepeatActionTool.RecordTranslate( delta );
 		foreach ( var entry in _transformVertices )
 		{
 			var position = entry.Value + delta;
@@ -197,6 +200,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 
 	public override void Rotate( Vector3 origin, Rotation basis, Rotation delta )
 	{
+		RepeatActionTool.RecordRotate( delta, origin, basis );
 		foreach ( var entry in _transformVertices )
 		{
 			var rotation = basis * delta * basis.Inverse;
@@ -211,6 +215,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 
 	public override void Scale( Vector3 origin, Rotation basis, Vector3 scale )
 	{
+		RepeatActionTool.RecordScale( scale );
 		foreach ( var entry in _transformVertices )
 		{
 			var position = (entry.Value - origin) * basis.Inverse;
@@ -225,6 +230,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 
 	public override void Shear( Vector3 origin, Rotation basis, Vector3 shearAxis, Vector3 constraintAxis, float amount )
 	{
+		RepeatActionTool.RecordShear( shearAxis, constraintAxis, amount );
 		foreach ( var entry in _transformVertices )
 		{
 			var position = (entry.Value - origin) * basis.Inverse;
@@ -679,6 +685,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 		if ( _transformVertices.Count != 0 )
 			return;
 
+		RepeatActionTool.BeginCapture( Gizmo.IsShiftPressed );
+
 		var components = Selection.OfType<IMeshElement>()
 			.Select( x => x.Component )
 			.Distinct();
@@ -726,11 +734,70 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 
 	protected override void OnEndDrag()
 	{
+		RepeatActionTool.Commit();
+
 		_transformVertices.Clear();
 		_transformFaces = null;
 
 		_undoScope?.Dispose();
 		_undoScope = null;
+	}
+
+	public override void ExecuteRepeatAction()
+	{
+		if ( !RepeatActionTool.HasAction ) return;
+
+		var meshElements = Selection.OfType<IMeshElement>();
+		if ( !meshElements.Any() ) return;
+
+		var components = meshElements.Select( x => x.Component ).Distinct();
+
+		using var scope = SceneEditorSession.Active.UndoScope( "Repeat Last Action" )
+			.WithComponentChanges( components )
+			.Push();
+
+		if ( RepeatActionTool.WasDuplication )
+		{
+			ExtrudeSelection();
+			CalculateSelectionVertices();
+		}
+
+		foreach ( var vertex in _vertexSelection )
+		{
+			_transformVertices[vertex] = vertex.PositionWorld;
+		}
+
+		var origin = CalculateSelectionOrigin();
+		var basis = CalculateSelectionBasis();
+
+		switch ( RepeatActionTool.Kind )
+		{
+			case RepeatActionKind.Translate:
+				Translate( RepeatActionTool.TranslateDelta );
+				break;
+			case RepeatActionKind.Rotate:
+				Rotate( RepeatActionTool.RotationCenter, basis, RepeatActionTool.RotationDelta );
+				break;
+			case RepeatActionKind.Scale:
+				Scale( origin, basis, RepeatActionTool.ScaleDelta );
+				break;
+			case RepeatActionKind.Shear:
+				Shear( origin, basis, RepeatActionTool.ShearAxis, RepeatActionTool.constraintAxis, RepeatActionTool.ShearAmount );
+				break;
+		}
+
+		var meshes = _transformVertices
+			.Select( x => x.Key.Component.Mesh )
+			.Distinct();
+
+		foreach ( var mesh in meshes )
+		{
+			mesh.ComputeFaceTextureCoordinatesFromParameters();
+		}
+
+		_transformVertices.Clear();
+		CalculateSelectionVertices();
+		Pivot = RepeatActionTool.Kind == RepeatActionKind.Rotate ? RepeatActionTool.RotationCenter : CalculateSelectionOrigin();
 	}
 
 	public MeshFace TraceFace()

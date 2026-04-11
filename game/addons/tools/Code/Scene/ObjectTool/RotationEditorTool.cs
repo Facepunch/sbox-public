@@ -27,6 +27,12 @@ public class RotationEditorTool : EditorTool
 
 		if ( !Gizmo.Pressed.Any && Gizmo.HasMouseFocus )
 		{
+			if ( startPoints.Any() )
+			{
+				var endBasis = Gizmo.Settings.GlobalSpace ? Rotation.Identity : handleRotation;
+				RepeatActionTool.RecordRotate( endBasis * moveDelta * endBasis.Inverse, handlePosition, endBasis );
+				RepeatActionTool.Commit();
+			}
 			startPoints.Clear();
 			moveDelta = Rotation.Identity;
 			handleRotation = nonSceneGos.FirstOrDefault()?.WorldRotation ?? Rotation.Identity;
@@ -83,6 +89,8 @@ public class RotationEditorTool : EditorTool
 	private void StartDrag( IEnumerable<GameObject> selectedGos )
 	{
 		if ( startPoints.Any() ) return;
+
+		RepeatActionTool.BeginCapture( Gizmo.IsShiftPressed );
 
 		if ( Gizmo.IsShiftPressed )
 		{
