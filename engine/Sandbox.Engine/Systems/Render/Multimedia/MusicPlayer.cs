@@ -143,6 +143,9 @@ public sealed class MusicPlayer : IDisposable
 	{
 		get
 		{
+			if ( native is not { HasAudio: true } )
+				return null;
+
 			var title = GetMeta( "title" );
 			return string.IsNullOrWhiteSpace( title ) ? GetMeta( "StreamTitle" ) : title;
 		}
