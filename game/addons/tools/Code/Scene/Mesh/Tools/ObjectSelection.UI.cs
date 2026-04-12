@@ -84,6 +84,7 @@ partial class ObjectSelection
 				CreateButton( "Previous", "chevron_left", "mesh.previous-pivot", PreviousPivot, _gos.Length > 0, grid );
 				CreateButton( "Next", "chevron_right", "mesh.next-pivot", NextPivot, _gos.Length > 0, grid );
 				CreateButton( "Clear", "restart_alt", "mesh.clear-pivot", ClearPivot, _gos.Length > 0, grid );
+				CreateButton( "Center", "center_focus_strong", "mesh.center-pivot", CenterPivot, _gos.Length > 0, grid );
 				CreateButton( "World Origin", "language", "mesh.zero-pivot", ZeroPivot, _gos.Length > 0, grid );
 
 				grid.AddStretchCell();
@@ -129,6 +130,9 @@ partial class ObjectSelection
 
 		[Shortcut( "mesh.next-pivot", "N+MWheelUp", typeof( SceneViewWidget ) )]
 		public void NextPivot() => _tool.NextPivot();
+
+		[Shortcut( "mesh.center-pivot", "Ctrl+Home", typeof( SceneViewWidget ) )]
+		public void CenterPivot() => _tool.CenterPivot();
 
 		[Shortcut( "mesh.clear-pivot", "Home", typeof( SceneViewWidget ) )]
 		public void ClearPivot() => _tool.ClearPivot();
