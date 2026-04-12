@@ -316,11 +316,9 @@ internal partial class ShadowMapper
 			// Render shadow view
 			CSceneSystem.AddShadowView( CascadeNames[i], view, frustum, new( 0, 0, shadowmapSize, shadowmapSize ), rt.DepthTarget.native, 0, SceneObjectFlags.None, excludeFlags, ShadowDepthBias, ShadowSlopeScale, i > 0 ? exclusionFrustum : default );
 
-			// Cache a sphere-sized exclusion frustum for the next cascade.
-			var exclusionForward = cascade.Angles.ToRotation().Forward;
-			var exclusionOrigin = cascade.SphereCenter - exclusionForward * cascade.SphereRadius;
-			var sphereDiagonal = cascade.SphereRadius * MathF.PI * 0.5f; // Box inside of sphere
-			exclusionFrustum.InitOrthoCamera( exclusionOrigin, cascade.Angles, 0f, sphereDiagonal, sphereDiagonal, sphereDiagonal );
+			// Cache an exclusion frustum sized to the largest square inscribed in the cascade's bounding sphere.
+			var size = cascade.SphereRadius / MathF.Sqrt( 2.0f );
+			exclusionFrustum.InitOrthoCamera( cascade.SphereCenter, cascade.Angles, -size * 0.5f, size * 0.5f, size, size );
 
 			// Set our gpu data
 			Matrix texScaleBiasMat = GetScaleBiasMatrix( shadowmapSize, 0 );
