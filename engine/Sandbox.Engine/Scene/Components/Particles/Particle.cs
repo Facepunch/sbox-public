@@ -53,6 +53,8 @@ public partial class Particle : IDynamicFloatContext
 	public Vector3 HitPos;
 	[ActionGraphInclude]
 	public Vector3 HitNormal;
+	[ActionGraphInclude]
+	public GameObject HitObject;
 
 	public float HitTime;
 	public float LastHitTime;
@@ -164,6 +166,7 @@ public partial class Particle : IDynamicFloatContext
 				{
 					HitPos = checkTrace.HitPosition;
 					HitNormal = checkTrace.Normal;
+					HitObject = checkTrace.GameObject;
 					HitTime = Time.Now;
 				}
 				else
@@ -217,6 +220,7 @@ public partial class Particle : IDynamicFloatContext
 
 		HitPos = tr.HitPosition;
 		HitNormal = tr.Normal;
+		HitObject = tr.GameObject;
 		HitTime = Time.Now;
 
 		var velocity = Velocity;
