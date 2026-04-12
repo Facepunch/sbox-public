@@ -591,7 +591,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 				{
 					Rotation angle = p.Angles;
 					Vector3 position = p.Position;
-					GameObject parent = null;
+					PhysicsBody body = null;
 
 					if ( CollisionPrefabAlign )
 					{
@@ -603,10 +603,10 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 						position = p.HitPos;
 					}
 
-					if ( CollisionPrefabParent ) parent = p.HitObject;
+					if ( CollisionPrefabParent ) body = p.HitBody;
 
 					// Queue the collision prefabs to spawn on the main thread
-					ParticleCollisionPrefabs.Add( new( prefabSource, parent, position, angle ) );
+					ParticleCollisionPrefabs.Add( new( prefabSource, body, position, angle ) );
 				}
 			}
 		}
@@ -801,7 +801,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		}
 	}
 
-	readonly record struct ParticleCollisionPrefab( GameObject prefabSource, GameObject parent, Vector3 position, Rotation rotation );
+	readonly record struct ParticleCollisionPrefab( GameObject prefabSource, PhysicsBody hitBody, Vector3 position, Rotation rotation );
 	ConcurrentBag<ParticleCollisionPrefab> ParticleCollisionPrefabs = [];
 
 	internal readonly record struct DeferredParticleForce( PhysicsBody body, Vector3 position, Vector3 force );
@@ -815,9 +815,14 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 				continue;
 
 			var go = collision.prefabSource.Clone( collision.position, collision.rotation );
-			if( collision.parent != null && collision.parent.IsValid() ) go.SetParent( collision.parent, true );
+			
 
-			go.Flags |= GameObjectFlags.Absolute | GameObjectFlags.Hidden | GameObjectFlags.NotSaved;
+			if ( collision.hitBody != null && collision.hitBody.IsValid() && collision.hitBody.GameObject.IsValid() )
+			{
+				go.SetParent( collision.hitBody.GameObject, true );
+				go.Flags |= GameObjectFlags.Hidden | GameObjectFlags.NotSaved;
+			}
+			else go.Flags |= GameObjectFlags.Absolute | GameObjectFlags.Hidden | GameObjectFlags.NotSaved;
 
 			if ( Scene.IsEditor )
 			{
