@@ -815,7 +815,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 				continue;
 
 			var go = collision.prefabSource.Clone( collision.position, collision.rotation );
-			
+
 
 			if ( collision.hitBody != null && collision.hitBody.IsValid() && collision.hitBody.GameObject.IsValid() )
 			{
