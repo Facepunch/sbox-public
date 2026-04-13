@@ -368,7 +368,7 @@ public partial class SceneViewportWidget : Widget
 		return false;
 	}
 
-	Ray CursorTraceRay => _activeCamera.ScreenPixelToRay( initialMousePosition );
+	Ray CursorTraceRay => Renderer.GetRay( initialMousePosition );
 
 	[Shortcut( "editor.paste", "CTRL+V" )]
 	void Paste()
