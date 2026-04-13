@@ -575,6 +575,19 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		return sceneCamera.GetRay( pixelPosition, ScreenRect.Size );
 	}
 
+	/// <summary>
+	/// Same as <see cref="ScreenPixelToRay(Vector2)"/> but uses an explicit screen size for
+	/// normalization. Use this when the caller's coordinate space differs from <see cref="ScreenRect"/>
+	/// (e.g. logical widget pixels vs. DPI-scaled physical pixels in the editor).
+	/// </summary>
+	public Ray ScreenPixelToRay( Vector2 pixelPosition, Vector2 screenSize )
+	{
+		EnsureSceneCameraCreated();
+		UpdateSceneCameraTransform( sceneCamera );
+
+		return sceneCamera.GetRay( pixelPosition, screenSize );
+	}
+
 	public Ray ScreenNormalToRay( Vector3 normalPosition )
 	{
 		var pixelPosition = new Vector3(
