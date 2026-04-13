@@ -6,6 +6,4 @@
 
 	int DoDirectionalLight( void* handle, CSceneLightObject directionalLight, ISceneView view );
 	uint FindOrCreateShadowMaps( void* handle, CSceneLightObject obj, ISceneView view, float screenSize );
-
-	void OnLightRemoved( CSceneLightObject obj );
 }

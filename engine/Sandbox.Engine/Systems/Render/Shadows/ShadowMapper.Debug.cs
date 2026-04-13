@@ -63,6 +63,45 @@ internal partial class ShadowMapper
 		y += 14;
 		y += 14;
 
+		// These stats track the health of shadow texture allocation.
+		int poolTextureCount = 0;
+		long poolMemorySize = 0;
+		foreach ( var (poolKey, stack) in ShadowMapper.TexturePool )
+		{
+			int count = stack.Count;
+			poolTextureCount += count;
+
+			// D16 = 2 bytes per pixel, cube maps have 6 faces
+			long bytesPerTexture = (long)poolKey.Resolution * poolKey.Resolution * 2 * (poolKey.IsCube ? 6 : 1);
+			poolMemorySize += bytesPerTexture * count;
+		}
+
+		header.Text = "Texture Pool";
+		header.TextColor = new Color( 1f, 0.85f, 0.4f );
+		Hud.DrawText( header, new Vector2( x, y ), TextFlag.LeftTop );
+		y += 14;
+
+		scope.Text = $"Pool Textures: {poolTextureCount} ({poolMemorySize.FormatBytes()})";
+		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
+		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
+		y += 14;
+
+		// Total textures alive = Created - Disposed. These should be in cache, pool, or in-flight.
+		// If in-flight grows indefinitely, textures are being orphaned.
+		int cacheCount = ShadowMapper.Cache.Where( x => x.Value.ShadowMap is not null ).Count();
+		int alive = (int)(ShadowMapper.TotalTexturesCreated - ShadowMapper.TotalTexturesDisposed);
+		int inFlight = alive - cacheCount - poolTextureCount;
+		scope.Text = $"Alive: {alive}  (cache: {cacheCount}, pool: {poolTextureCount}, in-flight: {inFlight})";
+		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
+		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
+		y += 14;
+		y += 14;
+
+		header.Text = "Cache";
+		header.TextColor = new Color( 1f, 0.85f, 0.4f );
+		Hud.DrawText( header, new Vector2( x, y ), TextFlag.LeftTop );
+		y += 14;
+
 		scope.Text = $"In Cache";
 		scope.TextColor = new Color( 0.6f, 0.9f, 1f );
 		Hud.DrawText( scope, new Vector2( x, y ), TextFlag.LeftTop );
