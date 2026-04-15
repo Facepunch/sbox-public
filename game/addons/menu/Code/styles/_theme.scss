@@ -137,7 +137,6 @@ badge {
     }
 
     &.online {
-        backdrop-filter: blur( 10px );
         background-color: rgba( #4E6F51, 0.75 );
         border: 0.5px solid rgba( $primary-green, 0.5 );
 

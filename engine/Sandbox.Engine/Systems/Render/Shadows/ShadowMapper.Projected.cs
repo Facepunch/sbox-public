@@ -63,7 +63,8 @@ internal partial class ShadowMapper
 			{
 				ShadowMap = AcquireTexture( desiredResolution, isCube: false ),
 				CurrentResolution = desiredResolution,
-				IsCube = false
+				IsCube = false,
+				DebugName = $"{light}_Shadow"
 			};
 			Cache.AddOrUpdate( light, cacheEntry );
 		}
@@ -97,7 +98,7 @@ internal partial class ShadowMapper
 			: SceneObjectFlags.None;
 
 		RenderViewport viewport = new( 0, 0, cacheEntry.CurrentResolution, cacheEntry.CurrentResolution );
-		CSceneSystem.AddShadowView( $"{light}_Shadow", view, nativeFrustum, viewport, cacheEntry.ShadowMap.native, 0, SceneObjectFlags.None, excludeFlags, (int)(ShadowDepthBias * biasScale), ShadowSlopeScale * biasScale );
+		CSceneSystem.AddShadowView( cacheEntry.DebugName, view, nativeFrustum, viewport, cacheEntry.ShadowMap.native, 0, SceneObjectFlags.None, excludeFlags, (int)(ShadowDepthBias * biasScale), ShadowSlopeScale * biasScale );
 
 		// Render targets don't use texture streaming surely, is this needed?
 		cacheEntry.ShadowMap.MarkUsed( 2048 );

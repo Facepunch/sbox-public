@@ -25,9 +25,4 @@ internal static class ShadowMapperCallbacks
 	internal static void UploadToGPU( IntPtr handle ) => Get( handle ).UploadToGPU();
 	internal static uint FindOrCreateShadowMaps( IntPtr handle, SceneLight sceneObject, ISceneView view, float flScreenSize ) => Get( handle ).FindOrCreateShadowMaps( sceneObject, view, flScreenSize );
 	internal static int DoDirectionalLight( IntPtr handle, SceneLight sceneObject, ISceneView view ) => Get( handle ).DoDirectionalLight( sceneObject, view );
-
-	internal static void OnLightRemoved( SceneLight sceneObject )
-	{
-		ShadowMapper.OnLightRemoved( sceneObject );
-	}
 }

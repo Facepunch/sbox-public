@@ -504,7 +504,7 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 		}
 	}
 
-	static void ComputeHotspotUVsForFaces( PolygonMesh mesh, Transform transform, IReadOnlyList<FaceHandle> faces, RectEditor.RectAssetData subrectInfo, int mappingWidth, int mappingHeight, bool perFace, bool useTiling, bool conforming )
+	static void ComputeHotspotUVsForFaces( PolygonMesh mesh, Transform transform, IReadOnlyList<FaceHandle> faces, RectEditor.RectAssetData subrectInfo, int mappingWidth, int mappingHeight, bool perFace, bool useTiling, bool conforming, bool allowMirrorHorizontal, bool allowMirrorVertical )
 	{
 		List<List<FaceHandle>> faceIslands = [];
 		if ( perFace )
@@ -554,6 +554,11 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 
 			RescaleUVsToRectangle( uvs, rectMin, rectMax, tileUV );
 
+			if ( allowMirrorHorizontal || allowMirrorVertical )
+			{
+				RandomlyMirrorUVs( uvs, allowMirrorHorizontal, allowMirrorVertical );
+			}
+
 			if ( tiling && useTiling )
 			{
 				var uOffset = Random.Shared.Float( -128.0f, 128.0f );
@@ -580,6 +585,32 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 		}
 
 		mesh.ComputeFaceTextureParametersFromCoordinates( faces );
+	}
+
+	static void RandomlyMirrorUVs( List<Vector2> uvs, bool allowMirrorHorizontal, bool allowMirrorVertical )
+	{
+		var flipU = allowMirrorHorizontal && Random.Shared.Float( 0.0f, 1.0f ) >= 0.5f;
+		var flipV = allowMirrorVertical && Random.Shared.Float( 0.0f, 1.0f ) >= 0.5f;
+		if ( !flipU && !flipV ) return;
+
+		ComputeUVBounds( uvs, out var min, out var max );
+
+		for ( int i = 0; i < uvs.Count; ++i )
+		{
+			var uv = uvs[i];
+
+			if ( flipU )
+			{
+				uv.x = max.x - (uv.x - min.x);
+			}
+
+			if ( flipV )
+			{
+				uv.y = max.y - (uv.y - min.y);
+			}
+
+			uvs[i] = uv;
+		}
 	}
 
 	enum AlignEdgeUV

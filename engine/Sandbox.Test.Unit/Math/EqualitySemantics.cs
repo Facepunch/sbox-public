@@ -159,4 +159,38 @@ public class EqualitySemantics
 		var outside = Rotation.FromAxis( Vector3.Up, 0.1f );
 		Assert.IsFalse( identity.AlmostEqual( outside ) );
 	}
+
+	/// <summary>
+	/// Two zero-length (default) quaternions must compare equal.
+	/// </summary>
+	[TestMethod]
+	public void Rotation_AlmostEqual_ZeroQuaternionsAreEqual()
+	{
+		Rotation a = default;
+		Rotation b = default;
+		Assert.IsTrue( a.AlmostEqual( b ), "Two zero quaternions should be considered equal" );
+		Assert.IsTrue( a == b, "operator == on zero quaternions should return true" );
+	}
+
+	/// <summary>
+	/// Zero vs non-zero quaternion must not be equal.
+	/// </summary>
+	[TestMethod]
+	public void Rotation_AlmostEqual_ZeroVsNonZeroNotEqual()
+	{
+		Rotation zero = default;
+		Assert.IsFalse( zero.AlmostEqual( Rotation.Identity ) );
+		Assert.IsFalse( zero == Rotation.Identity );
+	}
+
+	/// <summary>
+	/// default(Transform) == default(Transform) must be true.
+	/// </summary>
+	[TestMethod]
+	public void Transform_Default_EqualsDefault()
+	{
+		Transform a = default;
+		Transform b = default;
+		Assert.IsTrue( a == b, "default(Transform) == default(Transform) must be true" );
+	}
 }

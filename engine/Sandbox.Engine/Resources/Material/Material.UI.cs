@@ -19,6 +19,11 @@ namespace Sandbox
 			public static Material Box { get; internal set; } = FromShader( "shaders/ui_cssbox.shader" );
 
 			/// <summary>
+			/// Batched CSS Box rendering — reads per-box data from a StructuredBuffer
+			/// </summary>
+			internal static Material BatchedBox { get; set; } = FromShader( "shaders/ui_cssbox_batched.shader" );
+
+			/// <summary>
 			/// CSS Box Shadow rendering
 			/// </summary>
 			internal static Material BoxShadow { get; set; } = FromShader( "shaders/ui_cssshadow.shader" );

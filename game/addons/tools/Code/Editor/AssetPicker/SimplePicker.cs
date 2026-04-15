@@ -85,7 +85,7 @@ public abstract class SimplePicker : AssetPicker
 		if ( _tabSelect.SelectedIndex == 0 || !_showCloudTab )
 			items.AddRange( AssetSystem.All.Where( x => x.AssetType == AssetType && x.RelativePath.Contains( _search.Value ) && !ShouldFilterAsset( x ) ).Select( x => new AssetEntry( x ) ) );
 
-		if ( (_showCloud && !string.IsNullOrEmpty( _search.Value )) || _tabSelect.SelectedIndex == 1 )
+		if ( _tabSelect.SelectedIndex == 1 || (!_showCloudTab && _showCloud && !string.IsNullOrEmpty( _search.Value )) )
 		{
 			var token = _ct.Token;
 

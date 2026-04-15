@@ -381,7 +381,7 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// </summary>
 	public bool WireframeMode
 	{
-		get => Attributes.GetInt( "Wireframe" ) > 1;
+		get => Attributes.GetInt( "Wireframe" ) >= 1;
 		set => Attributes.Set( "Wireframe", value ? 1 : 0 );
 	}
 

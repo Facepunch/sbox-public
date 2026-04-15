@@ -1,4 +1,5 @@
-﻿
+﻿using HalfEdgeMesh;
+
 namespace Editor.MeshEditor;
 
 partial class TextureTool
@@ -22,6 +23,9 @@ partial class TextureTool
 
 		public bool HotspotTiling { get; set; } = false;
 		public bool HotspotConforming { get; set; } = true;
+		public bool HotspotUseActiveMaterial { get; set; } = true;
+		public bool HotspotAllowMirrorHorizontal { get; set; } = false;
+		public bool HotspotAllowMirrorVertical { get; set; } = false;
 
 		public bool SelectByMaterial { get; set; } = false;
 		public bool SelectByNormal { get; set; } = true;
@@ -40,6 +44,9 @@ partial class TextureTool
 
 			HotspotTiling = EditorCookie.Get( nameof( HotspotTiling ), HotspotTiling );
 			HotspotConforming = EditorCookie.Get( nameof( HotspotConforming ), HotspotConforming );
+			HotspotUseActiveMaterial = EditorCookie.Get( nameof( HotspotUseActiveMaterial ), HotspotUseActiveMaterial );
+			HotspotAllowMirrorHorizontal = EditorCookie.Get( nameof( HotspotAllowMirrorHorizontal ), HotspotAllowMirrorHorizontal );
+			HotspotAllowMirrorVertical = EditorCookie.Get( nameof( HotspotAllowMirrorVertical ), HotspotAllowMirrorVertical );
 			TextureFit = EditorCookie.Get( nameof( TextureFit ), TextureFit );
 			TextureTreatAsOne = EditorCookie.Get( nameof( TextureTreatAsOne ), TextureTreatAsOne );
 			SelectByMaterial = EditorCookie.Get( "FaceTool.SelectByMaterial", false );
@@ -58,6 +65,9 @@ partial class TextureTool
 			{
 				EditorCookie.Set( nameof( HotspotTiling ), HotspotTiling );
 				EditorCookie.Set( nameof( HotspotConforming ), HotspotConforming );
+				EditorCookie.Set( nameof( HotspotUseActiveMaterial ), HotspotUseActiveMaterial );
+				EditorCookie.Set( nameof( HotspotAllowMirrorHorizontal ), HotspotAllowMirrorHorizontal );
+				EditorCookie.Set( nameof( HotspotAllowMirrorVertical ), HotspotAllowMirrorVertical );
 				EditorCookie.Set( nameof( TextureFit ), TextureFit );
 				EditorCookie.Set( nameof( TextureTreatAsOne ), TextureTreatAsOne );
 
@@ -164,22 +174,51 @@ partial class TextureTool
 			if ( hasSelectedFaces )
 			{
 				var group = AddGroup( "Hotspot" );
-				var row = group.AddRow();
-				row.Spacing = 4;
 
 				{
-					row.Add( ControlWidget.Create( target.GetProperty( nameof( HotspotTiling ) ) ) ).FixedHeight = Theme.ControlHeight;
-					row.Add( new Label( "Tiling" ) );
+					var materialSourceRow = group.AddRow();
+					materialSourceRow.Spacing = 4;
+					materialSourceRow.Add( ControlWidget.Create( target.GetProperty( nameof( HotspotUseActiveMaterial ) ) ) ).FixedHeight = Theme.ControlHeight;
+					materialSourceRow.Add( new Label( "Use Active Material" ) );
+					materialSourceRow.AddStretchCell();
+				}
+
+				var optionsRow = group.AddRow();
+				optionsRow.Spacing = 4;
+
+				{
+					optionsRow.Add( ControlWidget.Create( target.GetProperty( nameof( HotspotTiling ) ) ) ).FixedHeight = Theme.ControlHeight;
+					optionsRow.Add( new Label( "Tiling" ) );
 				}
 
 				{
-					row.Add( ControlWidget.Create( target.GetProperty( nameof( HotspotConforming ) ) ) ).FixedHeight = Theme.ControlHeight;
-					row.Add( new Label( "Conforming" ) );
+					optionsRow.Add( ControlWidget.Create( target.GetProperty( nameof( HotspotConforming ) ) ) ).FixedHeight = Theme.ControlHeight;
+					optionsRow.Add( new Label( "Conforming" ) );
 				}
 
-				row.AddStretchCell();
+				optionsRow.AddStretchCell();
 
-				CreateButton( "Apply by Hotspot", "my_location", "mesh.apply-hotspot", ApplyMaterialByHotspot, true, row );
+				{
+					var mirrorHorizontalRow = group.AddRow();
+					mirrorHorizontalRow.Spacing = 4;
+					mirrorHorizontalRow.Add( ControlWidget.Create( target.GetProperty( nameof( HotspotAllowMirrorHorizontal ) ) ) ).FixedHeight = Theme.ControlHeight;
+					mirrorHorizontalRow.Add( new Label( "Allow Mirror Horizontal" ) );
+					mirrorHorizontalRow.AddStretchCell();
+				}
+
+				{
+					var mirrorVerticalRow = group.AddRow();
+					mirrorVerticalRow.Spacing = 4;
+					mirrorVerticalRow.Add( ControlWidget.Create( target.GetProperty( nameof( HotspotAllowMirrorVertical ) ) ) ).FixedHeight = Theme.ControlHeight;
+					mirrorVerticalRow.Add( new Label( "Allow Mirror Vertical" ) );
+					mirrorVerticalRow.AddStretchCell();
+				}
+
+				var applyRow = group.AddRow();
+				applyRow.Spacing = 4;
+				CreateButton( "Apply by Hotspot", "my_location", "mesh.apply-hotspot", () => ApplyMaterialByHotspot( _meshTool.ActiveMaterial, false ), true, applyRow );
+				CreateButton( "Apply by Hotspot (Per Face)", "texture", "mesh.apply-hotspot-per-face", () => ApplyMaterialByHotspot( _meshTool.ActiveMaterial, true ), true, applyRow );
+				applyRow.AddStretchCell();
 			}
 
 			Layout.AddStretchCell();
@@ -299,9 +338,7 @@ partial class TextureTool
 		void ApplyMaterialByHotspot( Material material, bool perFace )
 		{
 			using var scope = SceneEditorSession.Scope();
-
-			var data = RectEditor.RectAssetData.Find( AssetSystem.FindByPath( material.ResourcePath ) ) ?? EmptyRectData;
-			var size = CalculateTextureSize( material );
+			if ( HotspotUseActiveMaterial && (material is null || !material.IsValid()) ) return;
 
 			using ( SceneEditorSession.Active.UndoScope( "Apply Material By Hotspot" )
 				.WithComponentChanges( _components )
@@ -310,16 +347,38 @@ partial class TextureTool
 				foreach ( var group in _faceGroups )
 				{
 					var mesh = group.Key.Mesh;
-					var faces = group.Select( x => x.Handle ).ToArray();
-
-					foreach ( var face in faces )
+					if ( HotspotUseActiveMaterial )
 					{
-						mesh.SetFaceMaterial( face, material );
-					}
+						var faces = group.Select( x => x.Handle ).ToArray();
+						foreach ( var face in faces )
+						{
+							mesh.SetFaceMaterial( face, material );
+						}
 
-					ComputeHotspotUVsForFaces( mesh, group.Key.WorldTransform, faces, data, (int)size.x, (int)size.y, perFace, HotspotTiling, HotspotConforming );
+						ApplyHotspotForFaces( mesh, group.Key.WorldTransform, faces, material, perFace );
+					}
+					else
+					{
+						foreach ( var materialGroup in group.GroupBy( face => mesh.GetFaceMaterial( face.Handle ) ) )
+						{
+							var faces = materialGroup.Select( x => x.Handle ).ToArray();
+							ApplyHotspotForFaces( mesh, group.Key.WorldTransform, faces, materialGroup.Key, perFace );
+						}
+					}
 				}
 			}
+		}
+
+		private void ApplyHotspotForFaces( PolygonMesh mesh, Transform transform, FaceHandle[] faces, Material material, bool perFace )
+		{
+			if ( faces.Length == 0 ) return;
+
+			var resourcePath = material is not null && material.IsValid() ? material.ResourcePath : null;
+			var data = !string.IsNullOrEmpty( resourcePath )
+				? RectEditor.RectAssetData.Find( AssetSystem.FindByPath( resourcePath ) ) ?? EmptyRectData
+				: EmptyRectData;
+			var size = CalculateTextureSize( material );
+			ComputeHotspotUVsForFaces( mesh, transform, faces, data, (int)size.x, (int)size.y, perFace, HotspotTiling, HotspotConforming, HotspotAllowMirrorHorizontal, HotspotAllowMirrorVertical );
 		}
 
 		[Shortcut( "mesh.grow-selection", "KP_ADD", typeof( SceneViewWidget ) )]

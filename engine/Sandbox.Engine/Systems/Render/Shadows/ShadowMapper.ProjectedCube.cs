@@ -60,7 +60,8 @@ internal partial class ShadowMapper
 			{
 				ShadowMap = AcquireTexture( desiredResolution, isCube: true ),
 				CurrentResolution = desiredResolution,
-				IsCube = true
+				IsCube = true,
+				DebugName = $"{light}_Shadow"
 			};
 			Cache.AddOrUpdate( light, cacheEntry );
 		}
@@ -86,26 +87,23 @@ internal partial class ShadowMapper
 			? SceneObjectFlags.StaticObject
 			: SceneObjectFlags.None;
 
+		CFrustum nativeFrustum = CFrustum.Create();
+		RenderViewport viewport = new( 0, 0, desiredResolution, desiredResolution );
+
 		for ( int i = 0; i < 6; i++ )
 		{
-			CFrustum nativeFrustum = CFrustum.Create();
 			nativeFrustum.BuildFrustumFromVectors( light.Position, 1.0f, light.Radius, 90.0f, 1.0f, CubeRotations[i].Forward, CubeRotations[i].Left, CubeRotations[i].Up );
 
-			RenderViewport viewport = new( 0, 0, desiredResolution, desiredResolution );
 			CSceneSystem.AddShadowView(
-				$"{light}_Shadow",
+				cacheEntry.DebugName,
 				view, nativeFrustum, viewport, cacheEntry.ShadowMap.native, i, SceneObjectFlags.None, excludeFlags, (int)(ShadowDepthBias * biasScale), ShadowSlopeScale * biasScale
 			);
 
-			// Might not need to construct this like this, GetReverseZViewProj is fine if don't need the scale?
-			var matrix = nativeFrustum.GetReverseZProj() * (nativeFrustum.GetView() * Matrix.CreateScale( new Vector3( 1, 1, 1 ) ));
-
 			// Set our matrix in the GPU struct
-			((Matrix*)&shadow)[i] = matrix;
-
-			nativeFrustum.Delete();
-
+			((Matrix*)&shadow)[i] = nativeFrustum.GetReverseZViewProj();
 		}
+
+		nativeFrustum.Delete();
 
 		shadow.ShadowMapTextureCubeIndex = (uint)cacheEntry.ShadowMap.Index;
 		shadow.LightPosition = light.Position;

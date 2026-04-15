@@ -380,26 +380,40 @@ public static class EditorScene
 	}
 
 	/// <summary>
-	/// Update any/all instances of a prefab in any open sessions
+	/// Update any/all instances of a prefab in any open sessions.
+	/// Two passes are needed so that changes propagate through prefab dependency
+	/// chains regardless of iteration order (e.g. PrefabA → PrefabC → PrefabB).
 	/// </summary>
 	public static void UpdatePrefabInstances( PrefabFile prefab )
 	{
 		ArgumentNullException.ThrowIfNull( prefab );
 
-		var prefabSessions = SceneEditorSession.All
-			.OfType<PrefabEditorSession>();
+		var allSessions = SceneEditorSession.All;
 
-		// We need to update the prefab file itself, so that it has the latest changes
-		foreach ( var session in prefabSessions )
+		// If only the edited prefab session is open, there's nothing else to update
+		if ( allSessions.Count <= 1 )
+			return;
+
+		// First pass: update other open prefab sessions that may contain instances
+		// of this prefab, then write their changes so dependent prefabs stay current
+		foreach ( var session in allSessions )
 		{
-			UpdatePrefabInstancesInScene( session.Scene, prefab );
-			session.Scene.ToPrefabFile();
+			if ( session is not PrefabEditorSession prefabSession ) continue;
+
+			// The source prefab already has the latest changes via OnEdited
+			if ( prefabSession.Scene.Source == prefab ) continue;
+
+			UpdatePrefabInstancesInScene( prefabSession.Scene, prefab );
+			prefabSession.Scene.ToPrefabFile();
 		}
 
-		// And then update all prefab instances again
-		// This makes sure prefab dependencies are updated as well
-		foreach ( var session in SceneEditorSession.All )
+		// Second pass: re-process all sessions (except the source) so that
+		// multi-level prefab dependencies resolve even if pass 1 hit them
+		// in the wrong order
+		foreach ( var session in allSessions )
 		{
+			if ( session is PrefabEditorSession prefabSession && prefabSession.Scene.Source == prefab ) continue;
+
 			UpdatePrefabInstancesInScene( session.Scene, prefab );
 		}
 	}

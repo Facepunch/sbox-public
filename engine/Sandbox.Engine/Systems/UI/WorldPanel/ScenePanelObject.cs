@@ -29,9 +29,14 @@ internal sealed class ScenePanelObject : SceneCustomObject
 		//
 		// This converts it to front left up (instead of right, down, whatever)
 		// and we apply a sensible enough default scale.
+		// Then bake in the scene object's world transform so the shader
+		// doesn't need to read from the instancing transform buffer.
 		//
 		Matrix mat = Matrix.CreateRotation( Rotation.From( 0, 90, 90 ) );
 		mat *= Matrix.CreateScale( ScreenToWorldScale );
+		mat *= Matrix.CreateScale( Transform.Scale );
+		mat *= Matrix.CreateRotation( Transform.Rotation );
+		mat *= Matrix.CreateTranslation( Transform.Position );
 		Graphics.Attributes.Set( "WorldMat", mat );
 
 		Panel?.RenderManual();

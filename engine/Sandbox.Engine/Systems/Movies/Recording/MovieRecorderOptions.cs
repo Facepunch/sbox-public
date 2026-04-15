@@ -132,6 +132,8 @@ public sealed record MovieRecorderOptions( int SampleRate = MovieRecorderOptions
 			.WithCaptureAll<CameraComponent>( x => !x.IsSceneEditorCamera )
 			.WithCaptureAll<MapInstance>()
 			.WithCaptureAll<Renderer>()
+			.WithCaptureAll<Light>()
+			.WithCaptureAll<AmbientLight>()
 			.WithCaptureAll<ParticleEffect>()
 			.WithCaptureAll<ParticleEmitter>()
 			.WithCaptureAll<SoundPointComponent>();

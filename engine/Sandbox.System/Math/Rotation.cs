@@ -685,6 +685,9 @@ public struct Rotation : System.IEquatable<Rotation>, IParsable<Rotation>, IInte
 	/// <returns>True if nearly equal</returns>
 	public readonly bool AlmostEqual( in Rotation r, float delta = 0.0000001f )
 	{
+		// Exact match covers zero-length quaternions (default) where the dot-product metric below is undefined.
+		if ( _quat.Equals( r._quat ) ) return true;
+
 		return MathF.Abs( Quaternion.Dot( _quat, r._quat ) ) > 1.0f - delta;
 	}
 	#endregion

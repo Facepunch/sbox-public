@@ -464,3 +464,68 @@ file sealed class MapInstanceCapturer : ComponentCapturer<MapInstance>
 		recorder.Property( nameof( MapInstance.MapName ) ).Capture();
 	}
 }
+
+[Expose]
+file sealed class LightCapturer : ComponentCapturer<Light>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, Light component )
+	{
+		recorder.Property( nameof( Light.LightColor ) ).Capture();
+		recorder.Property( nameof( Light.FogMode ) ).Capture();
+		recorder.Property( nameof( Light.FogStrength ) ).Capture();
+		recorder.Property( nameof( Light.Shadows ) ).Capture();
+
+		if ( component.Shadows )
+		{
+			recorder.Property( nameof( Light.ShadowBias ) ).Capture();
+			recorder.Property( nameof( Light.ShadowHardness ) ).Capture();
+		}
+	}
+}
+
+[Expose]
+file sealed class PointLightCapturer : ComponentCapturer<PointLight>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, PointLight component )
+	{
+		recorder.Property( nameof( PointLight.Radius ) ).Capture();
+		recorder.Property( nameof( PointLight.Attenuation ) ).Capture();
+	}
+}
+
+[Expose]
+file sealed class SpotLightCapturer : ComponentCapturer<SpotLight>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, SpotLight component )
+	{
+		recorder.Property( nameof( SpotLight.Radius ) ).Capture();
+		recorder.Property( nameof( SpotLight.ConeOuter ) ).Capture();
+		recorder.Property( nameof( SpotLight.ConeInner ) ).Capture();
+		recorder.Property( nameof( SpotLight.Attenuation ) ).Capture();
+		recorder.Property( nameof( SpotLight.Cookie ) ).Capture();
+	}
+}
+
+[Expose]
+file sealed class DirectionalLightCapturer : ComponentCapturer<DirectionalLight>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, DirectionalLight component )
+	{
+		recorder.Property( nameof( DirectionalLight.SkyColor ) ).Capture();
+
+		if ( component.Shadows )
+		{
+			recorder.Property( nameof( DirectionalLight.ShadowCascadeCount ) ).Capture();
+			recorder.Property( nameof( DirectionalLight.ShadowCascadeSplitRatio ) ).Capture();
+		}
+	}
+}
+
+[Expose]
+file sealed class AmbientLightCapturer : ComponentCapturer<AmbientLight>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, AmbientLight component )
+	{
+		recorder.Property( nameof( AmbientLight.Color ) ).Capture();
+	}
+}

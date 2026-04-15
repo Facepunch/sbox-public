@@ -15,7 +15,7 @@
     "Server": {
       "commandName": "Executable",
       "executablePath": "../game/sbox-server.exe",
-      "commandLineArgs": "-noasserts +gamemode facepunch.sandbox +map facepunch.flatgrass",
+      "commandLineArgs": "-noasserts +game facepunch.sandbox facepunch.flatgrass",
       "workingDirectory": "../../game/",
       "nativeDebugging": true
     }

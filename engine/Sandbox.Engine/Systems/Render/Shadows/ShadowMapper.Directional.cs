@@ -68,10 +68,8 @@ internal partial class ShadowMapper
 	/// Cascade 0 is fixed to firstCascadeSize world units from the near plane.
 	/// Cascades 1+ use a logarithmic/uniform blend (PSSM) from firstCascadeSize to far.
 	/// </summary>
-	public static float[] CalculateSplitDistances( int numCascades, float near, float far, float lambda = 0.91f )
+	public static void CalculateSplitDistances( Span<float> splits, int numCascades, float near, float far, float lambda = 0.91f )
 	{
-		float[] splits = new float[numCascades];
-
 		float subNear = 1.0f;
 		float subRange = far - subNear;
 		float subRatio = far / MathF.Max( subNear, 1.0f );
@@ -84,8 +82,6 @@ internal partial class ShadowMapper
 			float d = lambda * (logSplit - uniformSplit) + uniformSplit;
 			splits[i] = Math.Clamp( d / far, 0.0f, 1.0f );
 		}
-
-		return splits;
 	}
 
 	struct Cascade
@@ -128,12 +124,13 @@ internal partial class ShadowMapper
 	}
 
 	/// <summary>
-	/// Given a camera view frustum, returns a given number of cascade frustums.
+	/// Given a camera view frustum, computes cascade frustums into the provided span.
+	/// Returns the number of cascades written.
 	/// </summary>
-	static IEnumerable<Cascade> GetCascades( CFrustum viewFrustum, Rotation rotation, int numCascades, float NearClip, float FarClip, float lambda, int shadowmapSize, Vector3 cameraPosition )
+	static int GetCascades( Span<Cascade> result, CFrustum viewFrustum, Rotation rotation, int numCascades, float NearClip, float FarClip, float lambda, int shadowmapSize, Vector3 cameraPosition )
 	{
 		// Project frustum corners into world space from clip space
-		var viewFrustumCorners = new Vector3[8];
+		Span<Vector3> viewFrustumCorners = stackalloc Vector3[8];
 		var invViewProj = viewFrustum.GetInvReverseZViewProjTranspose()._numerics;
 		for ( int i = 0; i < 8; i++ )
 		{
@@ -160,7 +157,8 @@ internal partial class ShadowMapper
 		float farPlaneScale = CalculateFarPlaneScale( fov, diagonalRatio );
 		FarClip *= farPlaneScale;
 
-		var splitDistances = CalculateSplitDistances( numCascades, NearClip, FarClip, lambda );
+		Span<float> splitDistances = stackalloc float[numCascades];
+		CalculateSplitDistances( splitDistances, numCascades, NearClip, FarClip, lambda );
 
 		// Remap frustum corners to the shadow coverage range [NearClip, FarClip] using
 		// depth-proportional interpolation, matching Unreal's GetShadowSplitBoundsDepthRange.
@@ -177,14 +175,16 @@ internal partial class ShadowMapper
 			viewFrustumCorners[i + 4] = Vector3.Lerp( origNear, origFar, tFar );
 		}
 
+		int count = Math.Min( numCascades, result.Length );
+
 		// Ortho for each cascade
-		for ( int cascade = 0; cascade < numCascades; cascade++ )
+		Span<Vector3> splitFrustumCorners = stackalloc Vector3[8];
+		for ( int cascade = 0; cascade < count; cascade++ )
 		{
 			var splitNear = cascade == 0 ? 0 : splitDistances[cascade - 1];
 			var splitFar = splitDistances[cascade];
 
 			// Lerp our splits along the main view frustum corners
-			Vector3[] splitFrustumCorners = new Vector3[8];
 			for ( int k = 0; k < 4; k++ )
 			{
 				splitFrustumCorners[k] = Vector3.Lerp( viewFrustumCorners[k], viewFrustumCorners[k + 4], splitNear );
@@ -214,8 +214,7 @@ internal partial class ShadowMapper
 			// Snap to nearest texel to prevent view-dependent shadow shimmer
 			cascadeOrigin = SnapToTexel( cascadeOrigin, rotation.Right, rotation.Up, lightForward, frustumRadius, shadowmapSize );
 
-
-			Cascade cascadeData = new()
+			result[cascade] = new Cascade
 			{
 				Origin = cascadeOrigin,
 				Angles = rotation.Angles(),
@@ -226,9 +225,9 @@ internal partial class ShadowMapper
 				SphereCenter = splitFrustumCenter,
 				SphereRadius = frustumRadius
 			};
-
-			yield return cascadeData;
 		}
+
+		return count;
 	}
 
 	/// <summary>
@@ -292,7 +291,9 @@ internal partial class ShadowMapper
 		DirectionalShadowMemorySize = 0;
 
 		// native stuff does this WorldDirection shit, we can just do light.Rotation if stuff is rotated properly
-		var cascades = GetCascades( view.GetFrustum(), (-light.WorldDirection).EulerAngles.ToRotation(), numCascades, 1.0f, farClip, splitRatio, shadowmapSize, view.GetCameraPosition() ).ToArray();
+		Span<Cascade> cascades = stackalloc Cascade[numCascades];
+		int cascadeCount = GetCascades( cascades, view.GetFrustum(), (-light.WorldDirection).EulerAngles.ToRotation(), numCascades, 1.0f, farClip, splitRatio, shadowmapSize, view.GetCameraPosition() );
+		cascades = cascades[..cascadeCount];
 		var frustum = CFrustum.Create();
 		var exclusionFrustum = CFrustum.Create();
 		float baseHardness = 1.0f + light.ShadowHardness * 4.0f;
@@ -360,7 +361,7 @@ internal partial class ShadowMapper
 			};
 		}
 
-		CascadeDebugCount = cascades.Length;
+		CascadeDebugCount = cascadeCount;
 
 		frustum.Delete();
 		exclusionFrustum.Delete();
