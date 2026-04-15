@@ -17,7 +17,7 @@ public static class Application
 	/// <summary>
 	/// Steam AppId of S&amp;box.
 	/// </summary>
-	public static ulong AppId { get; internal set; } = 590830;
+	public static ulong AppId { get; internal set; } = 480;
 
 	/// <summary>
 	/// True if we're running the engine as part of a unit test
