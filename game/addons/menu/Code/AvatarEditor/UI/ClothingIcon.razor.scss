@@ -18,7 +18,7 @@ ClothingIcon
     &:hover
     {
         background-color: #0088ff55;
-        sound-in: ui.button.over;
+        sound-in: "ui.button.over";
     }
 
     &.active

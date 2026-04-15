@@ -15,7 +15,7 @@
     box-shadow: 5px 5px 20px rgba( black, 0.5 );
     opacity: 1;
     transition: all 0.4s bounce-out;
-    sound-in: ui.popup.message.open;
+    sound-in: "ui.popup.message.open";
     overflow: hidden;
     padding-left: 70px;
     position: relative;

@@ -1,4 +1,4 @@
-﻿@import "/styles/_theme.scss";
+@import "/styles/_theme.scss";
 
 ContentBlockBody {
 	position: relative;
@@ -46,11 +46,11 @@ ContentBlockBody {
 		}
 
 		&:active {
-			sound-in: ui.button.press;
+			sound-in: "ui.button.press";
 		}
 
 		&:hover {
-			sound-in: ui.button.over;
+			sound-in: "ui.button.over";
 			background-color: $default-800;
 
 			.icon {

@@ -150,7 +150,7 @@ GameCard {
         transition: all 150ms ease;
         z-index: -10;
         border-radius: $rounding-large;
-        pointer-events: all;
+        pointer-events: none;
     }
 
     &:hover {
