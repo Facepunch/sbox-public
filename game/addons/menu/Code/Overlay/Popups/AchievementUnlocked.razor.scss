@@ -9,7 +9,7 @@ AchievementUnlocked
     font-size: 18px;
     font-weight: 600;
     box-shadow: 5px 5px 50px rgba( black, 0.5 );
-    sound-in: ui.popup.message.open; // todo achievement unlocked osund
+    sound-in: "ui.popup.message.open"; // todo achievement unlocked osund
     overflow: hidden;
     position: relative;
     z-index: 1000;
@@ -29,7 +29,7 @@ AchievementUnlocked:intro
     transition: all 0.3s ease-out;
     opacity: 0;
     transform: scale( 1.1 );
-    sound-in: ui.popup.message.close;
+    sound-in: "ui.popup.message.close";
 
     .b
     {

@@ -14,12 +14,12 @@ $button-size: 50px;
 
 	&:hover
 	{
-		sound-in: ui.button.over;
+		sound-in: "ui.button.over";
 	}
 
 	&:active
 	{
-		sound-in: ui.button.press;
+		sound-in: "ui.button.press";
 	}
 }
 

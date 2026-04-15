@@ -90,7 +90,7 @@ AvatarUI > .controls
 	{
 		opacity: 1;
 		background-color: #08f;
-		sound-in: ui.button.over;
+		sound-in: "ui.button.over";
 	}
 
 	&:active
@@ -98,7 +98,7 @@ AvatarUI > .controls
 		background-color: white;
 		color: #222;
 		opacity: 1;
-		sound-in: ui.button.press;
+		sound-in: "ui.button.press";
 	}
 }
 
@@ -176,13 +176,13 @@ ButtonGroup, .buttongroup
 	> *:hover
 	{
 		opacity: 1;
-		sound-in: ui.button.over;
+		sound-in: "ui.button.over";
 	}
 	
 	> *:active
 	{
 		background-color: #2af;
-		sound-in: ui.button.press;
+		sound-in: "ui.button.press";
 	}
 
 	> *.active
