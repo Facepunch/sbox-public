@@ -310,7 +310,19 @@ internal partial class GameInstanceDll
 			_netIncludePaths.AddRange( resourcePaths );
 		}
 
-		var fs = gameInstance.GameFileSystem;
+		// we have the include paths, let's create an aggregate filesystem for our game & libraries
+		var fs = new AggregateFileSystem();
+		fs.Mount( gameInstance.GameFileSystem );
+
+		// mount all referenced libraries
+		foreach ( string packageIdent in gameInstance.Package.EnumeratePackageReferences() )
+		{
+			if ( PackageManager.Find( packageIdent ) is not { } activePackage )
+				continue;
+
+			fs.Mount( activePackage.FileSystem );
+		}
+
 		var files = fs.FindFile( "/", "*", true );
 
 		foreach ( var file in files )
