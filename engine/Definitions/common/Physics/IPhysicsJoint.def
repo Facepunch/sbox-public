@@ -116,6 +116,13 @@ native class IPhysicsJoint as NativeEngine.IPhysicsJoint
 	float Wheel_GetSpinTorque();
 	float Wheel_GetSteeringAngle();
 	float Wheel_GetSteeringTorque();
+
+	void Parallel_SetHertz( float hertz );
+	float Parallel_GetHertz();
+	void Parallel_SetDampingRatio( float dampingRatio );
+	float Parallel_GetDampingRatio();
+	void Parallel_SetMaxTorque( float maxTorque );
+	float Parallel_GetMaxTorque();
 }
 
 managed static class Sandbox.Physics.PhysicsEngine

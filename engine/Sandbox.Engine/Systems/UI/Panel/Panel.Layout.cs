@@ -13,9 +13,9 @@ public partial class Panel
 	public Box Box { get; init; } = new Box();
 
 	/// <summary>
-	/// If true, calls <see cref="BuildContentCommandList(Rendering.CommandList, ref RenderState)"/>.
+	/// If true, calls <see cref="DrawContent(PanelRenderer, ref RenderState)"/>.
 	/// </summary>
-	[Hide]
+	[Hide, Obsolete( "Use Draw" )]
 	public virtual bool HasContent => false;
 
 	/// <summary>

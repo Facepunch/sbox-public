@@ -39,7 +39,8 @@ public class InvokeBlock : InspectorWidget
 
 		var invokeType = _invokeType.GetValue<Doo.InvokeType>();
 		var targetComponent = _targetComponent.GetValue<Doo.TargetComponent>();
-		var hasComponent = targetComponent.GetComponentType() != null;
+		var targetComponentType = targetComponent?.GetComponentType();
+		var hasComponent = targetComponentType != null;
 
 		var method = _memberProperty.GetCustomizable();
 		method.SetDisplayName( "Method" );
@@ -65,7 +66,7 @@ public class InvokeBlock : InspectorWidget
 			if ( hasComponent )
 			{
 				var methodSelect = cs.AddControl<ComponentMethodSelector>( method );
-				methodSelect.TargetComponentType = targetComponent.GetComponentType();
+				methodSelect.TargetComponentType = targetComponentType;
 			}
 		}
 		else
@@ -84,7 +85,7 @@ public class InvokeBlock : InspectorWidget
 		{
 			if ( targetComponent == null ) return;
 
-			if ( !methodDesc.DeclaringType.TargetType.IsAssignableFrom( targetComponent.GetComponentType() ) )
+			if ( !methodDesc.DeclaringType.TargetType.IsAssignableFrom( targetComponentType ) )
 				return;
 		}
 

@@ -708,6 +708,19 @@ public sealed unsafe partial class CommandList
 	}
 
 	/// <summary>
+	/// Draws indexed geometry with instancing. Each instance shares the same index buffer.
+	/// </summary>
+	public void DrawIndexedInstanced( GpuBuffer indexBuffer, Material material, int instanceCount, RenderAttributes attributes = null, Graphics.PrimitiveType primitiveType = Graphics.PrimitiveType.Triangles )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.DrawIndexedInstanced( (GpuBuffer)entry.Object1, (Material)entry.Object2, (int)entry.Data1.x, (RenderAttributes)entry.Object3, (Graphics.PrimitiveType)(int)entry.Data1.y );
+		}
+
+		AddEntry( &Execute, new Entry { Object1 = indexBuffer, Object2 = material, Data1 = new Vector4( instanceCount, (int)primitiveType, 0, 0 ), Object3 = attributes } );
+	}
+
+	/// <summary>
 	/// Get a screen sized temporary render target. You should release the returned handle when you're done to return the textures to the pool.
 	/// </summary>
 	/// <param name="name">The name of the render target handle.</param>

@@ -27,6 +27,8 @@ internal partial class NetworkSystem
 
 	void TableMessage( InternalMessageType type, NetworkMessage msg )
 	{
+		if ( !msg.Source.IsHost ) return;
+
 		var tableName = msg.Data.Read<string>();
 
 		var table = tables.FirstOrDefault( x => x.Name == tableName );

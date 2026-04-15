@@ -24,8 +24,6 @@ namespace Sandbox.UI
 		bool sizeFinalized;
 		Vector2 availableSpace;
 
-		public override bool HasContent => true;
-
 		[Category( "Selection" )]
 		public bool ShouldDrawSelection
 		{
@@ -389,7 +387,7 @@ namespace Sandbox.UI
 			_textRect.Size = _textBlock.BlockSize;
 		}
 
-		internal override void DrawContent( CommandList commandList, PanelRenderer renderer, ref RenderState state )
+		public override void OnDraw()
 		{
 			// Ensure texture is created if we have text but no texture yet
 			if ( _textBlock != null && _textBlock.Texture == null && !string.IsNullOrEmpty( _textBlock.Text ) )
@@ -399,7 +397,7 @@ namespace Sandbox.UI
 
 			var rect = Box.RectInner;
 			rect.Position -= caretScroll;
-			_textBlock?.BuildCommandList( commandList, renderer, ref state, ComputedStyle, rect, Opacity * state.RenderOpacity );
+			_textBlock?.BuildDescriptors( CachedDescriptors, CachedOverrideBlendMode, ComputedStyle, rect, CachedRenderOpacity );
 		}
 
 		public int GetLetterAt( Vector2 pos )

@@ -100,6 +100,12 @@ public partial class Panel
 			renderTree?.Clear();
 			renderTree = null;
 
+			if ( CachedDescriptors != null )
+			{
+				RenderLayer.Return( CachedDescriptors );
+				CachedDescriptors = null;
+			}
+
 			ComputedStyle = null;
 			StyleSheet = default;
 			GameObject = null;

@@ -312,20 +312,34 @@ public sealed class CableComponent : Component, Component.ExecuteInEditor
 		if ( mesh is null )
 			return;
 
-		var meshComponent = GameObject.Components.GetOrCreate<MeshComponent>();
-		meshComponent.Mesh = mesh;
-		meshComponent.SmoothingAngle = 180.0f;
-		meshComponent.Enabled = true;
+		var nodeObjects = GameObject.Children
+			.Where( child => child.GetComponent<CableNodeComponent>() is not null )
+			.ToArray();
 
-		foreach ( var child in GameObject.Children.ToArray() )
+		var existingMeshComponent = GameObject.GetComponent<MeshComponent>();
+		var undoScope = Scene?.Editor?
+			.UndoScope( "Make Cable Editable Mesh" )
+			.WithGameObjectDestructions( nodeObjects )
+			.WithComponentDestructions( this );
+
+		undoScope = existingMeshComponent is not null
+			? undoScope?.WithComponentChanges( existingMeshComponent )
+			: undoScope?.WithComponentCreations();
+
+		using ( undoScope?.Push() )
 		{
-			if ( child.GetComponent<CableNodeComponent>() is null )
-				continue;
+			var meshComponent = existingMeshComponent ?? GameObject.Components.GetOrCreate<MeshComponent>();
+			meshComponent.Mesh = mesh;
+			meshComponent.SmoothingAngle = 180.0f;
+			meshComponent.Enabled = true;
 
-			child.Destroy();
+			foreach ( var child in nodeObjects )
+			{
+				child.Destroy();
+			}
+
+			Destroy();
 		}
-
-		Destroy();
 	}
 
 	PolygonMesh BuildMesh( bool fastPreview = false )

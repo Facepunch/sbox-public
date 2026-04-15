@@ -122,9 +122,9 @@ internal sealed class TextBlock : IDisposable
 	}
 
 	/// <summary>
-	/// Proper Rendering
+	/// Build a text descriptor into the target RenderLayer.
 	/// </summary>
-	internal void BuildCommandList( CommandList commandList, PanelRenderer renderer, ref RenderState state, Styles currentStyle, Rect textrect, float opacity )
+	internal void BuildDescriptors( RenderLayer target, BlendMode blendMode, Styles currentStyle, Rect textrect, float opacity )
 	{
 		WaitTextureReady();
 
@@ -157,20 +157,21 @@ internal sealed class TextBlock : IDisposable
 
 		if ( color.a <= 0 ) return;
 
-		var attributes = commandList.Attributes;
+		var rect = textrect.Floor();
 
-		attributes.Set( "BoxPosition", textrect.Position );
-		attributes.Set( "BoxSize", textrect.Size );
+		var desc = new BoxDrawDescriptor( rect, new Color( 0, 0, 0, 0 ) )
+		{
+			BackgroundImage = Texture,
+			BackgroundRect = new Vector4( 0, 0, rect.Width, rect.Height ),
+			BackgroundTint = color,
+			OverrideBlendMode = blendMode == BlendMode.Normal ? BlendMode.PremultipliedAlpha : blendMode,
+			PremultiplyAlpha = true,
+			FilterMode = TextFilter,
+		};
 
-		attributes.Set( "Texture", Texture );
-		attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = TextFilter } ) );
-
-		var bm = renderer.OverrideBlendMode;
-		if ( bm == BlendMode.Normal ) bm = BlendMode.PremultipliedAlpha;
-		attributes.SetCombo( "D_BLENDMODE", bm );
-
-		commandList.DrawQuad( textrect.Floor(), Material.UI.Text, color );
+		target.Boxes.Add( desc );
 	}
+
 
 
 	public Rect CaretRect( int caretPosition )

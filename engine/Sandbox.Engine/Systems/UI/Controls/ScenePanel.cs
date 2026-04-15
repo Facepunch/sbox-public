@@ -44,11 +44,32 @@ namespace Sandbox.UI
 		/// <summary>
 		/// The Scene this panel renders.
 		/// </summary>
-		public Scene RenderScene { get; set; }
+		public Scene RenderScene
+		{
+			get => _renderScene;
+			set
+			{
+				if ( ReferenceEquals( _renderScene, value ) )
+					return;
+
+				// Clean up the existing scene if we own it
+				if ( _ownsScene && _renderScene.IsValid() )
+				{
+					_renderScene.Destroy();
+				}
+
+				_renderScene = value;
+				_ownsScene = false;
+			}
+		}
+
+		private Scene _renderScene;
+		private bool _ownsScene;
 
 		public ScenePanel()
 		{
-			RenderScene = new() { WantsSystemScene = false };
+			_renderScene = new() { WantsSystemScene = false };
+			_ownsScene = true;
 
 			Camera.FieldOfView = 60;
 			Camera.BackgroundColor = Color.Transparent;
@@ -124,26 +145,28 @@ namespace Sandbox.UI
 		/// </summary>
 		public void RenderNextFrame() => shouldRenderNextFrame = true;
 
-		public override bool HasContent => RenderScene.IsValid() || World != null;
-
 		public override void Delete( bool immediate = false )
 		{
 			RenderTexture?.Dispose();
 			RenderTexture = null;
 
-			RenderScene?.Destroy();
-			RenderScene = null;
+			// Only destroy the scene if we created it ourselves, if the user created it themselves then they should be the one destroying it
+			if ( _ownsScene )
+			{
+				_renderScene?.Destroy();
+			}
+
+			_renderScene = null;
 
 			base.Delete( immediate );
 		}
 
-		internal override void DrawContent( CommandList commandList, PanelRenderer renderer, ref RenderState state )
+		public override void OnDraw()
 		{
 			if ( Box.RectInner.Size.x <= 0 ) return;
 			if ( Box.RectInner.Size.y <= 0 ) return;
 
-			renderer.BuildCommandList_BackgroundTexture( this, RenderTexture, state, Length.Contain, commandList );
-
+			DrawBackgroundTexture( RenderTexture, Length.Contain );
 		}
 
 		public override void SetProperty( string name, string value )

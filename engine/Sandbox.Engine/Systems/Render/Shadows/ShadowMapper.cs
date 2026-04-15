@@ -124,11 +124,24 @@ internal partial class ShadowMapper
 		public int DesiredResolution;
 		public int DebugLightIndex;
 		public bool IsCube;
+		public string DebugName;
 	}
 
 	public static ConditionalWeakTable<SceneLight, LightEntry> Cache = new();
 
-	public static long MemorySize => Cache.Where( x => x.Value.ShadowMap is not null ).Sum( x => g_pRenderDevice.ComputeTextureMemorySize( x.Value.ShadowMap.native ) );
+	public static long MemorySize
+	{
+		get
+		{
+			long total = 0;
+			foreach ( var kvp in Cache )
+			{
+				if ( kvp.Value.ShadowMap is not null )
+					total += g_pRenderDevice.ComputeTextureMemorySize( kvp.Value.ShadowMap.native );
+			}
+			return total;
+		}
+	}
 
 	struct PooledTexture
 	{

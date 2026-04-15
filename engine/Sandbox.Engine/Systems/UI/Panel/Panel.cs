@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Sandbox.Internal;
+using Sandbox.Rendering;
 using System.Threading;
 
 namespace Sandbox.UI;
@@ -113,6 +114,7 @@ public partial class Panel : IPanel, IValid, IComponent
 		Style = new PanelStyle( this );
 		StyleSheet = new StyleSheetCollection( this );
 		Transitions = new Transitions( this );
+		LayerCommandList = new CommandList( $"UI Layer: {GetType().Name}" );
 
 		ElementName = GetType().Name.ToLower();
 		Switch( PseudoClass.Empty, true );

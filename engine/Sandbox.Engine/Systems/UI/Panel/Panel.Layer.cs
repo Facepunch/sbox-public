@@ -8,6 +8,9 @@ public partial class Panel
 
 	Vector2? _panelLayerSize;
 
+	// Cached layer state computed during Build for use during Gather
+	internal Matrix? CachedLayerMatrix;
+
 	bool NeedsLayer( Styles styles )
 	{
 		if ( HasFilter ) return true;
@@ -43,25 +46,35 @@ public partial class Panel
 		if ( ComputedStyle is null ) return;
 		if ( !IsVisible ) return;
 
-		// we need to push a matrix to offset the panel position,
-		// so we're drawing in the correct place
 		var mat = render.Matrix.Inverted;
 		mat *= Matrix.CreateTranslation( Box.RectOuter.Position * -1.0f );
 
-		// filter applies before transform, so we need to store it temporarily
-		CommandList.Attributes.Set( "TransformMat", Matrix.Identity );
+		// Store state for gather phase
+		CachedLayerMatrix = mat;
 		_lastLayerMatrix = GlobalMatrix;
 		GlobalMatrix = null;
+	}
 
-		// get an RT handle for this panel layer
-		var handle = CommandList.GetRenderTarget( PanelLayerRTName, (int)_panelLayerSize?.x, (int)_panelLayerSize?.y, depthFormat: ImageFormat.None );
+	/// <summary>
+	/// Called during Gather phase — push RT on the global command list.
+	/// </summary>
+	internal void PushLayerGather( PanelRenderer render, CommandList globalCL )
+	{
+		if ( _panelLayerSize is null ) return;
+		if ( CachedLayerMatrix is null ) return;
 
-		render.PushLayer( this, handle, mat );
+		// Set identity transform for layer content
+		globalCL.Attributes.Set( "TransformMat", Matrix.Identity );
+
+		var handle = globalCL.GetRenderTarget( PanelLayerRTName, (int)_panelLayerSize.Value.x, (int)_panelLayerSize.Value.y, depthFormat: ImageFormat.None );
+
+		render.PushLayer( this, globalCL, handle, CachedLayerMatrix.Value );
 	}
 
 	/// <summary>
 	/// Build commands for post-children layer drawing (filters, masks, etc.)
-	/// These commands go into LayerCommandList and are executed after children.
+	/// Called during Build phase after children are processed.
+	/// LayerStack is maintained during Build so PopLayer can set correct state.
 	/// </summary>
 	internal void BuildLayerPopCommands( PanelRenderer render, RenderTarget defaultRenderTarget )
 	{
@@ -78,11 +91,30 @@ public partial class Panel
 
 		LayerCommandList.Reset();
 
-		// Restore render target (pop from layer stack)
-		render.PopLayer( this, LayerCommandList, defaultRenderTarget );
+		// Find parent layer's matrix by walking up the tree.
+		// If no parent layer, use Identity.
+		// RT is set during Draw via PopLayer on the global CL — don't set it here,
+		// or it would override the parent layer's RT for nested layers.
+		var parentLayerMat = Matrix.Identity;
+		var isWorld = false;
+		var ancestor = Parent;
+		while ( ancestor != null )
+		{
+			if ( ancestor.HasPanelLayer && ancestor.CachedLayerMatrix.HasValue )
+			{
+				parentLayerMat = ancestor.CachedLayerMatrix.Value;
+				break;
+			}
+			ancestor = ancestor.Parent;
+		}
+		isWorld = render.IsWorldPanel( this );
 
-		LayerCommandList.InsertList( TransformCommandList );
-		LayerCommandList.InsertList( ClipCommandList );
+		LayerCommandList.Attributes.Set( "LayerMat", parentLayerMat );
+		LayerCommandList.Attributes.SetCombo( "D_WORLDPANEL", isWorld ? 1 : 0 );
+
+		// Apply transform/scissor from cached descriptor state
+		LayerCommandList.Attributes.Set( "TransformMat", CachedDescriptors.TransformMat );
+		PanelRenderer.SetScissorAttributes( LayerCommandList, CachedDescriptors.Scissor );
 
 		BuildLayerPopCommandsInto( render, LayerCommandList );
 	}
@@ -105,13 +137,9 @@ public partial class Panel
 		DrawPreFilterBorder( commandList );
 		ResetPrefilterAttributes( commandList );
 
-		//
-		// Draw this panel, with filters
-		//
-		// Todo, awesome, smooth, multipass blur
 		float blurSize = ComputedStyle.FilterBlur.Value.GetPixels( 1.0f );
-		attributes.Set( "FilterBlur", blurSize );
 
+		attributes.Set( "FilterBlur", blurSize );
 		attributes.Set( "FilterSaturate", ComputedStyle.FilterSaturate.Value.GetFraction( 1.0f ) );
 		attributes.Set( "FilterSepia", ComputedStyle.FilterSepia.Value.GetFraction( 1.0f ) );
 		attributes.Set( "FilterBrightness", ComputedStyle.FilterBrightness.Value.GetPixels( 1.0f ) );

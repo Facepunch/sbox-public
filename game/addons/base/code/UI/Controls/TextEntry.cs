@@ -86,7 +86,6 @@ public partial class TextEntry : BaseControl
 		set => Label.CaretPosition = value;
 	}
 
-	public override bool HasContent => true;
 
 	/// <summary>
 	/// Whether to allow automatic replacement of emoji codes with their actual unicode emoji characters. See <see cref="Emoji"/>.
@@ -531,7 +530,7 @@ public partial class TextEntry : BaseControl
 	}
 
 
-	public override void BuildContentCommandList( CommandList commandList, ref RenderState state )
+	public override void OnDraw()
 	{
 		Label.ShouldDrawSelection = HasFocus;
 
@@ -547,14 +546,7 @@ public partial class TextEntry : BaseControl
 			var color = ComputedStyle.CaretColor ?? ComputedStyle.FontColor ?? Color.Black;
 			color.a *= blink ? 1.0f : 0f;
 
-			commandList.Attributes.Set( "BoxPosition", new Vector2( caret.Left, caret.Top ) );
-			commandList.Attributes.Set( "BoxSize", new Vector2( caret.Width, caret.Height ) );
-			commandList.Attributes.Set( "BorderRadius", Vector4.Zero );
-			commandList.Attributes.Set( "HasBorder", 0 );
-			commandList.Attributes.SetCombo( "D_BACKGROUND_IMAGE", 0 );
-			commandList.Attributes.SetCombo( "D_BORDER_IMAGE", 0 );
-			commandList.Attributes.SetCombo( "D_BLENDMODE", BlendMode.Normal );
-			commandList.DrawQuad( caret, Material.UI.Box, color );
+			Draw.Rect( caret, color );
 		}
 
 		MarkRenderDirty();

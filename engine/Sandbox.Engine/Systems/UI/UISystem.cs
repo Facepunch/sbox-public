@@ -121,14 +121,15 @@ internal class UISystem
 			RunDeferredDeletion();
 		}
 
-		using ( Performance.Scope( "Build Command Lists" ) )
+		using ( Performance.Scope( "Build Descriptors" ) )
 		{
-			BuildCommandLists();
+			BuildDescriptors();
 		}
 
-		using ( Performance.Scope( "Gather Command Lists" ) )
+		using ( Performance.Scope( "Build Command Lists" ) )
 		{
-			GatherCommandLists();
+			PanelRenderer.Stats.Reset();
+			BuildCommandLists();
 		}
 
 		using ( Performance.Scope( "Combine Command Lists" ) )
@@ -189,26 +190,28 @@ internal class UISystem
 		}
 	}
 
-	internal void BuildCommandLists()
+	internal void BuildDescriptors()
 	{
 		for ( int i = 0; i < RootPanels.Count; i++ )
 		{
 			var root = RootPanels[i];
 			if ( !root.IsValid ) continue;
 
-			root.BuildCommandLists();
+			root.BuildDescriptors();
 		}
 	}
 
-	internal void GatherCommandLists()
+	internal void BuildCommandLists()
 	{
+		Renderer.Value.AdvanceFrame();
+
 		for ( int i = 0; i < RootPanels.Count; i++ )
 		{
 			var root = RootPanels[i];
 			if ( !root.IsValid ) continue;
 			if ( root.RenderedManually ) continue;
 
-			root.GatherCommandLists();
+			root.BuildCommandList();
 		}
 	}
 

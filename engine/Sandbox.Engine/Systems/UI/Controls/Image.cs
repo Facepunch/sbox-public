@@ -13,8 +13,6 @@ namespace Sandbox.UI
 		/// </summary>
 		public Texture Texture { get; set; }
 
-		public override bool HasContent => Texture != null;
-
 		public Image()
 		{
 			YogaNode.SetMeasureFunction( MeasureTexture );
@@ -46,23 +44,20 @@ namespace Sandbox.UI
 			}
 		}
 
-		internal override void DrawContent( CommandList commandList, PanelRenderer renderer, ref RenderState state )
+		public override void OnDraw()
 		{
 			if ( Texture == null )
 				return;
 
-			if ( renderer is PanelRenderer pr )
+			var length = ComputedStyle.ObjectFit switch
 			{
-				var length = ComputedStyle.ObjectFit switch
-				{
-					ObjectFit.Contain => Length.Contain,
-					ObjectFit.Cover => Length.Cover,
-					ObjectFit.Fill => Length.Percent( 100 ).Value,
-					_ => Length.Auto,
-				};
+				ObjectFit.Contain => Length.Contain,
+				ObjectFit.Cover => Length.Cover,
+				ObjectFit.Fill => Length.Percent( 100 ).Value,
+				_ => Length.Auto,
+			};
 
-				pr.BuildCommandList_BackgroundTexture( this, Texture, state, length, commandList );
-			}
+			DrawBackgroundTexture( Texture, length );
 		}
 
 		public override void SetProperty( string name, string value )
