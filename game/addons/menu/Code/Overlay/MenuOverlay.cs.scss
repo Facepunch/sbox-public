@@ -210,6 +210,10 @@ MenuOverlay
 	transform: translateY( 0px) scale( 1 );
 	box-shadow: 2px 2px 30px black;
 
+	* {
+		pointer-events: none;
+	}
+
 	&:intro
 	{
 		opacity: 0.5;
