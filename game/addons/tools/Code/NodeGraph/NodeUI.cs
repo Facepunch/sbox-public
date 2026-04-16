@@ -339,7 +339,7 @@ public partial class NodeUI : GraphicsItem
 	{
 		return new PlugIn( ui, plugIn );
 	}
-	
+
 	protected virtual PlugOut CreatePlugOut( NodeUI ui, IPlugOut plugOut )
 	{
 		return new PlugOut( ui, plugOut );
