@@ -147,7 +147,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			DidMountNetworkedFiles = false;
 		}
 
-		FontManager.Instance.Reset();
+		FontManager.Instance.Clear( false );
 		FontManager.Instance.LoadAll( FileSystem.Mounted );
 
 		AssemblyEnroller?.Dispose();

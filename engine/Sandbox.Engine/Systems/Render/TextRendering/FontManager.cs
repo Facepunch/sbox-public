@@ -1,5 +1,5 @@
-﻿using SkiaSharp;
-using System.Collections.Concurrent;
+﻿using Sandbox.Engine;
+using SkiaSharp;
 using System.Diagnostics.CodeAnalysis;
 using Topten.RichTextKit;
 
@@ -24,11 +24,24 @@ internal class FontManager : FontMapper
 {
 	public static FontManager Instance = new FontManager();
 
-	static ConcurrentDictionary<int, SKTypeface> LoadedFonts = new();
+	public IEnumerable<string> FontFamilies
+	{
+		get
+		{
+			lock ( LoadedFonts )
+			{
+				return LoadedFonts.Values.Select( x => x.Typeface.FamilyName ).Distinct().ToList();
+			}
+		}
+	}
 
-	static Dictionary<int, SKTypeface> Cache = new();
-
-	public static IEnumerable<string> FontFamilies => LoadedFonts.Values.Select( x => x.FamilyName ).Distinct();
+	struct LoadedTypeface
+	{
+		public SKTypeface Typeface;
+		public bool IsMenu;
+	}
+	Dictionary<int, LoadedTypeface> LoadedFonts = new();
+	Dictionary<int, SKTypeface> Cache = new();
 
 	private void Load( System.IO.Stream stream )
 	{
@@ -37,19 +50,36 @@ internal class FontManager : FontMapper
 		var face = SKTypeface.FromStream( stream );
 		if ( face is null ) return;
 
+		bool isMenu = GlobalContext.Current == GlobalContext.Menu;
+
 		var hash = HashCode.Combine( face.FamilyName, face.FontWeight, face.FontSlant );
+		lock ( LoadedFonts )
+		{
+			if ( LoadedFonts.ContainsKey( hash ) )
+			{
+				face.Dispose();
+				return;
+			}
 
-		LoadedFonts[hash] = face;
+			LoadedFonts[hash] = new()
+			{
+				Typeface = face,
+				IsMenu = isMenu
+			};
+		}
 
-		Log.Trace( $"Loaded font {face.FamilyName} weight {face.FontWeight}" );
+		Log.Trace( $"Loaded font {face.FamilyName} weight {face.FontWeight} (IsMenu: {isMenu})" );
 	}
 
 	List<FileWatch> watchers = new();
 
 	public void LoadAll( BaseFileSystem fileSystem )
 	{
-		// If we're loading new fonts, we may have cached it already
-		Cache.Clear();
+		lock ( Cache )
+		{
+			// empty cache new fonts can replace fallbacks and best-matches
+			Cache.Clear();
+		}
 
 		var fontFiles = fileSystem.FindFile( "/fonts/", "*.ttf", true )
 			.Union( fileSystem.FindFile( "/fonts/", "*.otf", true ) );
@@ -71,7 +101,10 @@ internal class FontManager : FontMapper
 
 	private void OnFontFilesChanged( FileWatch w, BaseFileSystem fs )
 	{
-		Cache.Clear();
+		lock ( Cache )
+		{
+			Cache.Clear();
+		}
 
 		foreach ( var file in w.Changes )
 		{
@@ -85,18 +118,22 @@ internal class FontManager : FontMapper
 	/// </summary>
 	private SKTypeface GetBestTypeface( IStyle style )
 	{
-		// Must be of same family
-		var familyFonts = LoadedFonts.Values.Where( x => string.Equals( x.FamilyName, style.FontFamily, StringComparison.OrdinalIgnoreCase ) );
-		if ( !familyFonts.Any() ) return null;
+		lock ( LoadedFonts )
+		{
+			// Must be of same family
+			var familyFonts = LoadedFonts.Values.Select( x => x.Typeface )
+			.Where( x => string.Equals( x.FamilyName, style.FontFamily, StringComparison.OrdinalIgnoreCase ) );
+			if ( !familyFonts.Any() ) return null;
 
-		// Get matching slants, if no matching fallback to regular
-		var slantFonts = familyFonts.Where( x => x.IsItalic == style.FontItalic );
-		if ( slantFonts.Any() ) familyFonts = slantFonts;
+			// Get matching slants, if no matching fallback to regular
+			var slantFonts = familyFonts.Where( x => x.IsItalic == style.FontItalic );
+			if ( slantFonts.Any() ) familyFonts = slantFonts;
 
-		// Finally get the closest font weight
-		return familyFonts.Select( x => new { x, distance = Math.Abs( x.FontWeight - style.FontWeight ) } )
-			.OrderBy( x => x.distance )
-			.First().x;
+			// Finally get the closest font weight
+			return familyFonts.Select( x => new { x, distance = Math.Abs( x.FontWeight - style.FontWeight ) } )
+				.OrderBy( x => x.distance )
+				.First().x;
+		}
 	}
 
 	public override SKTypeface TypefaceFromStyle( IStyle style, bool ignoreFontVariants )
@@ -121,7 +158,7 @@ internal class FontManager : FontMapper
 		return f;
 	}
 
-	public void Reset()
+	public void Clear( bool removeMenu )
 	{
 		foreach ( var watcher in watchers )
 		{
@@ -129,18 +166,22 @@ internal class FontManager : FontMapper
 		}
 		watchers.Clear();
 
-		foreach ( var (_, font) in LoadedFonts )
+		lock ( LoadedFonts )
 		{
-			font?.Dispose();
+			foreach ( var (hash, font) in LoadedFonts.ToArray() )
+			{
+				if ( !removeMenu && font.IsMenu )
+					continue;
+
+				LoadedFonts.Remove( hash );
+				font.Typeface?.Dispose();
+			}
 		}
 
-		foreach ( var (_, font) in Cache )
+		lock ( Cache )
 		{
-			font?.Dispose();
+			Cache.Clear();
 		}
-
-		LoadedFonts.Clear();
-		Cache.Clear();
 	}
 }
 

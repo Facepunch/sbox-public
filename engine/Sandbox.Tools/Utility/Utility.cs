@@ -665,7 +665,7 @@ public static partial class EditorUtility
 		return EngineGlobal.GetGameSearchPath();
 	}
 
-	public static IEnumerable<string> FontFamilies => FontManager.FontFamilies;
+	public static IEnumerable<string> FontFamilies => FontManager.Instance.FontFamilies;
 
 	/// <summary>
 	/// Access to the client's render settings
