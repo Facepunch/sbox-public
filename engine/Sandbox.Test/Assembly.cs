@@ -7,8 +7,8 @@ using Sandbox.Engine;
 using Sandbox.Internal;
 using System;
 
-// Only parallelize across isolated classes; stateful integration tests opt out explicitly.
-[assembly: Microsoft.VisualStudio.TestTools.UnitTesting.Parallelize( Workers = 0, Scope = Microsoft.VisualStudio.TestTools.UnitTesting.ExecutionScope.ClassLevel )]
+// Sandbox.Test exercises live engine state and currently requires main-thread, sequential execution.
+[assembly: DoNotParallelize]
 
 [TestClass]
 public class TestInit

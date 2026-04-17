@@ -37,3 +37,12 @@ jobs:
 
       - name: Test
         run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- test --no-build
+
+      - name: Upload managed test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: managed-test-results
+          path: engine/TestResults/**/*.trx
+          if-no-files-found: ignore
+          retention-days: 7
