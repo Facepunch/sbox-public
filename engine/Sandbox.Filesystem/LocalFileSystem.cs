@@ -10,8 +10,8 @@ internal class LocalFileSystem : BaseFileSystem
 	internal LocalFileSystem( string rootFolder, bool makereadonly = false )
 	{
 		Physical = new Zio.FileSystems.PhysicalFileSystem();
-
 		rootFolder = OperatingSystem.IsLinux() ? rootFolder : rootFolder.ToLowerInvariant();
+
 		var rootPath = Physical.ConvertPathFromInternal( rootFolder );
 		system = new Zio.FileSystems.SubFileSystem( Physical, rootPath );
 

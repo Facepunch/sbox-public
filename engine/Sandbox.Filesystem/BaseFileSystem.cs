@@ -586,7 +586,7 @@ public class BaseFileSystem
 	/// </summary>
 	internal BaseFileSystem CreateAndMount( string path )
 	{
-		var sub = new LocalFileSystem( FixPath ( path ) );
+		var sub = new LocalFileSystem( FixPath( path ) );
 		Mount( sub );
 		return sub;
 	}
@@ -633,6 +633,7 @@ public class BaseFileSystem
 			{
 				resolvedSegments.Add( segment );
 				continue;
+
 			} // If the folder exists already, do nothing.
 
 			try
