@@ -100,6 +100,10 @@ jobs:
               New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
             }
 
+            if ( Test-Path -LiteralPath $cachePath -PathType Leaf ) {
+              continue
+            }
+
             try {
               New-Item -ItemType HardLink -Path $cachePath -Target $sourcePath -ErrorAction Stop | Out-Null
             }
