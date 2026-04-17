@@ -423,9 +423,13 @@ public partial class GameObject
 
 		if ( !net.dataTable.HasControl( slot ) )
 		{
-			if ( NetworkTable.IsReadingChanges )
-				p.Setter( p.Value );
+			var attribute = p.GetAttribute<SyncAttribute>();
+			var isPredicted = attribute?.Flags.HasFlag( SyncFlags.Predicted ) ?? false;
 
+			if ( !NetworkTable.IsReadingChanges && !isPredicted )
+				return;
+
+			p.Setter( p.Value );
 			return;
 		}
 

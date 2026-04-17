@@ -622,4 +622,110 @@ public class NetworkTests
 	{
 		[Sync] public int SyncInt { get; set; }
 	}
+
+	private class PredictedNetworkTestComponent : Component
+	{
+		[Sync( SyncFlags.Predicted )] public int PredictedSyncInt { get; set; }
+	}
+
+	[TestMethod]
+	public void PredictedProperty_NonOwnerCanSetLocally()
+	{
+		Assert.IsNotNull( TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );
+
+		using var scope = new Scene().Push();
+
+		var client = new NetworkSystem( "client", TypeLibrary );
+		Networking.System = client;
+
+		var sceneSystem = new SceneNetworkSystem( TypeLibrary, client );
+		client.GameSystem = sceneSystem;
+
+		var client1 = new MockConnection( Guid.NewGuid() );
+		var client2 = new MockConnection( Guid.NewGuid() );
+
+		Connection.Local = client1;
+
+		var go = new GameObject();
+		var comp = go.Components.Create<PredictedNetworkTestComponent>();
+		comp.PredictedSyncInt = 100;
+
+		go.NetworkSpawn( Connection.Local );
+
+		Connection.Local = client2;
+
+		comp.PredictedSyncInt = 999;
+
+		Assert.AreEqual( 999, comp.PredictedSyncInt );
+	}
+
+	[TestMethod]
+	public void PredictedProperty_OverwrittenByNetwork()
+	{
+		Assert.IsNotNull( TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );
+
+		using var scope = new Scene().Push();
+
+		var client = new NetworkSystem( "client", TypeLibrary );
+		Networking.System = client;
+
+		var sceneSystem = new SceneNetworkSystem( TypeLibrary, client );
+		client.GameSystem = sceneSystem;
+
+		var client1 = new MockConnection( Guid.NewGuid() );
+		var client2 = new MockConnection( Guid.NewGuid() );
+
+		Connection.Local = client1;
+
+		var go = new GameObject();
+		go.Network.Interpolation = false;
+		var comp = go.Components.Create<PredictedNetworkTestComponent>();
+		comp.PredictedSyncInt = 100;
+
+		go.NetworkSpawn( Connection.Local );
+
+		IDeltaSnapshot networkObject = go._net;
+		var state = networkObject.WriteSnapshotState();
+		var snapshot = new DeltaSnapshot();
+		snapshot.CopyFrom( networkObject, state, 2 );
+
+		Connection.Local = client2;
+
+		comp.PredictedSyncInt = 999;
+		Assert.AreEqual( 999, comp.PredictedSyncInt );
+
+		using ( var reader = ByteStream.CreateReader( SerializeSnapshot( snapshot ) ) )
+		{
+			sceneSystem.DeltaSnapshots.OnDeltaSnapshot( client1, reader );
+		}
+
+		Assert.AreEqual( 100, comp.PredictedSyncInt );
+	}
+
+	[TestMethod]
+	public void PredictedProperty_RegisterSyncProps()
+	{
+		Assert.IsNotNull( Game.TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );
+
+		using var scope = new Scene().Push();
+
+		var testComponentType = Game.TypeLibrary.GetType<PredictedNetworkTestComponent>();
+		Assert.IsNotNull( testComponentType );
+
+		var testSyncPropertyType = testComponentType.GetProperty( "PredictedSyncInt" );
+		Assert.IsNotNull( testSyncPropertyType );
+
+		var testPropertyId = testSyncPropertyType.Identity;
+
+		var go = new GameObject();
+		var comp = go.Components.Create<PredictedNetworkTestComponent>();
+		comp.PredictedSyncInt = 42;
+
+		var propId = NetworkObject.GetPropertySlot( testPropertyId, comp.Id );
+
+		go.NetworkSpawn();
+
+		Assert.IsTrue( go._net.dataTable.IsRegistered( propId ) );
+		Assert.AreEqual( 42, comp.PredictedSyncInt );
+	}
 }

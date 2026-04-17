@@ -63,10 +63,12 @@ public abstract partial class Component
 
 			if ( !net.dataTable.HasControl( slot ) )
 			{
-				if ( !NetworkTable.IsReadingChanges )
+				var attribute = p.GetAttribute<SyncAttribute>();
+				var isPredicted = attribute?.Flags.HasFlag( SyncFlags.Predicted ) ?? false;
+
+				if ( !NetworkTable.IsReadingChanges && !isPredicted )
 					return;
 
-				var attribute = p.GetAttribute<SyncAttribute>();
 				var interpolate = attribute?.Flags.HasFlag( SyncFlags.Interpolate ) ?? false;
 
 				if ( interpolate && p.Value is not null )
