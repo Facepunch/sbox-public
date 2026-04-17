@@ -10,6 +10,7 @@ using System.Threading;
 namespace ActionGraphs;
 
 [TestClass]
+[DoNotParallelize]
 public class LiveGamePackage
 {
 	/// <summary>

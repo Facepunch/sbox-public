@@ -5,6 +5,7 @@ using System.Text.Json;
 namespace Prefab;
 
 [TestClass]
+[DoNotParallelize]
 public class Prefabs
 {
 	TypeLibrary TypeLibrary;

@@ -1,6 +1,7 @@
 ﻿namespace Prefab;
 
 [TestClass]
+[DoNotParallelize]
 /// <summary>
 /// Tests for PrefabInstanceData methods in GameObject.Prefab.cs
 /// </summary>

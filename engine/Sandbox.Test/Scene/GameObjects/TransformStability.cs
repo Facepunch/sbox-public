@@ -10,6 +10,7 @@ namespace GameObjects;
 /// conversions during deserialization are the typical offenders.
 /// </summary>
 [TestClass]
+[DoNotParallelize]
 public class TransformStability
 {
 	TypeLibrary TypeLibrary;

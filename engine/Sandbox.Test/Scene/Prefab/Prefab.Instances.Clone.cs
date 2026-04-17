@@ -1,6 +1,7 @@
 ﻿namespace Prefab;
 
 [TestClass]
+[DoNotParallelize]
 /// <summary>
 /// Tests for cloning prefab instances in different scenarios.
 /// </summary>

@@ -7,6 +7,7 @@ using System.IO;
 namespace Addon
 {
 	[TestClass]
+	[DoNotParallelize]
 	public class TemplateTests
 	{
 

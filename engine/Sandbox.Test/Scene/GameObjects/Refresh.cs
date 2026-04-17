@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 namespace GameObjects;
 
 [TestClass]
+[DoNotParallelize]
 public class Refresh
 {
 	TypeLibrary TypeLibrary;

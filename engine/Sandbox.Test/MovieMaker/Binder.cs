@@ -12,6 +12,7 @@ namespace TestMovieMaker;
 #nullable enable
 
 [TestClass]
+[DoNotParallelize]
 public sealed class BinderTests : SceneTests
 {
 	/// <summary>

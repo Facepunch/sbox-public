@@ -6,6 +6,7 @@ using System.Threading;
 namespace Engine;
 
 [TestClass]
+[DoNotParallelize]
 public class AsyncTasks
 {
 	private TaskSource TaskSource;

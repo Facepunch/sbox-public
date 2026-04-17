@@ -10,6 +10,7 @@ namespace ShaderGraph;
 /// These tests verify that shader graphs from the tools addon can compile correctly
 /// </summary>
 [TestClass]
+[DoNotParallelize]
 public class ShaderGraphTests
 {
 	private Sandbox.PackageLoader packageLoader;

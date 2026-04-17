@@ -4,6 +4,7 @@ using Steamworks.Data;
 namespace Engine;
 
 [TestClass]
+[DoNotParallelize]
 public class SteamServerTest
 {
 	[TestMethod]

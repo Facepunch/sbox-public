@@ -3,6 +3,7 @@
 namespace Addon
 {
 	[TestClass]
+	[DoNotParallelize]
 	public class BuiltInTests
 	{
 		/// <summary>

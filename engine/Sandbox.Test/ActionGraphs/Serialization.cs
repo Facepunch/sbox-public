@@ -14,6 +14,7 @@ namespace ActionGraphs
 	}
 
 	[TestClass]
+	[DoNotParallelize]
 	public class Serialization
 	{
 		private NodeLibrary _oldNodeLibrary;

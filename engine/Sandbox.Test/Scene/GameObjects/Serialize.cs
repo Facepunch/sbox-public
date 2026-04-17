@@ -8,6 +8,7 @@ using System.Text.Json.Nodes;
 namespace GameObjects;
 
 [TestClass]
+[DoNotParallelize]
 public class SerializeTest
 {
 	TypeLibrary TypeLibrary;

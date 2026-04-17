@@ -5,6 +5,7 @@ using System.Threading;
 namespace Packages;
 
 [TestClass]
+[DoNotParallelize]
 public class PackageManagement
 {
 	[TestInitialize]

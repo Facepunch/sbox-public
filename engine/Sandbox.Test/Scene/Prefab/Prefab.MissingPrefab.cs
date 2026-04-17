@@ -7,6 +7,7 @@ namespace Prefab;
 /// Tests for graceful handling of prefab instances whose source file has been deleted.
 /// </summary>
 [TestClass]
+[DoNotParallelize]
 public class MissingPrefabTests
 {
 	// A scene that holds a single prefab instance referencing a non-existent file.

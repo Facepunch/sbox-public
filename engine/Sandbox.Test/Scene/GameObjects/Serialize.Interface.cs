@@ -17,6 +17,7 @@ public interface IDisplay
 }
 
 [TestClass]
+[DoNotParallelize]
 public sealed class InterfaceTests
 {
 	[TestMethod]

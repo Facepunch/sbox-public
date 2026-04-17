@@ -3,6 +3,7 @@ using System;
 namespace Packages;
 
 [TestClass]
+[DoNotParallelize]
 public class PackageDownload
 {
 	[TestMethod]

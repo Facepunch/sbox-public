@@ -4,6 +4,7 @@ using System.Collections.Generic;
 namespace GameObjects;
 
 [TestClass]
+[DoNotParallelize]
 public class CloneTests
 {
 	TypeLibrary TypeLibrary;

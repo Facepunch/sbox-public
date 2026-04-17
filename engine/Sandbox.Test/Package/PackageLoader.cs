@@ -4,6 +4,7 @@ using System;
 namespace Packages;
 
 [TestClass]
+[DoNotParallelize]
 public partial class PackageLoader
 {
 	[TestInitialize]

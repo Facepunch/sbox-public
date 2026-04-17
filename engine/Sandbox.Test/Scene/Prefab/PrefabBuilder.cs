@@ -4,6 +4,7 @@ using System;
 namespace Prefab;
 
 [TestClass]
+[DoNotParallelize]
 public class PrefabBuilderTests
 {
 	[TestMethod]

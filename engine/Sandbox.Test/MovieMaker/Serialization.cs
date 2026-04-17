@@ -7,6 +7,7 @@ namespace TestMovieMaker;
 #nullable enable
 
 [TestClass]
+[DoNotParallelize]
 public sealed class SerializationTests : SceneTests
 {
 	/// <summary>

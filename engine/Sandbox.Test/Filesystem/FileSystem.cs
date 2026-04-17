@@ -5,6 +5,7 @@ using Sandbox.Diagnostics;
 namespace TestFileSystem;
 
 [TestClass]
+[DoNotParallelize]
 public partial class FileSystem
 {
 	[TestInitialize]

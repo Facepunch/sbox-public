@@ -3,6 +3,7 @@ using System;
 namespace GameObjects.Components;
 
 [TestClass]
+[DoNotParallelize]
 public class ModelPhysicsTests
 {
 	private static Model CitizenModel => Model.Load( "models/citizen/citizen.vmdl" );

@@ -8,6 +8,7 @@ namespace GameObjects;
 using static GlobalGameNamespace;
 
 [TestClass]
+[DoNotParallelize]
 public class NetworkTests
 {
 	private TypeLibrary _oldTypeLibrary;

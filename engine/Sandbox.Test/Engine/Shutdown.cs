@@ -1,6 +1,7 @@
 ﻿namespace Engine;
 
 [TestClass]
+[DoNotParallelize]
 public class Shutdown
 {
 	[TestMethod]

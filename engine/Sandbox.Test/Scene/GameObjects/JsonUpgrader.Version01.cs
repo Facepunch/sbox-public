@@ -9,6 +9,7 @@ using static Sandbox.Json;
 namespace GameObjects;
 
 [TestClass]
+[DoNotParallelize]
 public class JsonUpgrader01
 {
 	TypeLibrary TypeLibrary;

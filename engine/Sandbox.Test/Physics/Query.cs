@@ -2,6 +2,7 @@
 namespace Physics;
 
 [TestClass]
+[DoNotParallelize]
 public class Query
 {
 	/// <summary>

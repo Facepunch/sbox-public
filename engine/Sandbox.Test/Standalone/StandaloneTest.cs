@@ -10,6 +10,7 @@ namespace Standalone;
 /// Tests for the Standalone export pipeline
 /// </summary>
 [TestClass]
+[DoNotParallelize]
 public class StandaloneTest
 {
 	[TestInitialize]

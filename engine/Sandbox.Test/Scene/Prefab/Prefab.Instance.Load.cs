@@ -3,6 +3,7 @@
 namespace Prefab;
 
 [TestClass]
+[DoNotParallelize]
 /// <summary>
 /// Tests for loading prefabs, focusing on edge cases like missing prefab references.
 /// </summary>

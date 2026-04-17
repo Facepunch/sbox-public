@@ -4,6 +4,7 @@ using Sandbox.UI;
 namespace UI;
 
 [TestClass]
+[DoNotParallelize]
 public class ScenePanelTests
 {
 	[TestMethod]

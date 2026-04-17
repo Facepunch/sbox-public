@@ -1,6 +1,7 @@
 ﻿namespace Prefab;
 
 [TestClass]
+[DoNotParallelize]
 /// <summary>
 /// Tests for reparenting prefab instances in different scenarios.
 /// </summary>

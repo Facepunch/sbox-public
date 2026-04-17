@@ -9,6 +9,7 @@ namespace Prefab;
 /// Various prefab instance tests. No specific category.
 /// </summary>
 [TestClass]
+[DoNotParallelize]
 public partial class Instances
 {
 	[TestMethod]

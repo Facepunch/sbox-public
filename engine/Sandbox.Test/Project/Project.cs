@@ -4,6 +4,7 @@ using System;
 namespace Projects;
 
 [TestClass]
+[DoNotParallelize]
 public class ProjectTests
 {
 	[TestInitialize]

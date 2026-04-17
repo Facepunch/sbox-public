@@ -3,6 +3,7 @@
 namespace TestTexture;
 
 [TestClass]
+[DoNotParallelize]
 public class TextureTest
 {
 	[TestMethod]

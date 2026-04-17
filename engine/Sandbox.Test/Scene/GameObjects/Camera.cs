@@ -5,6 +5,7 @@ using System.Linq;
 namespace GameObjects;
 
 [TestClass]
+[DoNotParallelize]
 public class Camera
 {
 	[TestMethod]

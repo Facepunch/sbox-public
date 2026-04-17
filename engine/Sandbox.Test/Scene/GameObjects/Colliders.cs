@@ -1,6 +1,7 @@
 namespace GameObjects;
 
 [TestClass]
+[DoNotParallelize]
 public class Colliders
 {
 	[TestMethod]

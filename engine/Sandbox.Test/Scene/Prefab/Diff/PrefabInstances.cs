@@ -4,6 +4,7 @@ using System.Collections.Generic;
 namespace Prefab.Diff;
 
 [TestClass]
+[DoNotParallelize]
 public class PrefabInstance
 {
 	[TestMethod]

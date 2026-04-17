@@ -5,6 +5,7 @@ using System;
 namespace GameObjects;
 
 [TestClass]
+[DoNotParallelize]
 public class ComponentId
 {
 	Sandbox.Internal.TypeLibrary TypeLibrary;

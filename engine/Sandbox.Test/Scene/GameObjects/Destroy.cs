@@ -4,6 +4,7 @@ using System.Linq;
 namespace GameObjects;
 
 [TestClass]
+[DoNotParallelize]
 public class DestroyTests
 {
 	[TestMethod]

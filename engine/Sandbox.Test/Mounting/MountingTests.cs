@@ -5,6 +5,7 @@ using System.Linq;
 namespace Sandbox.Mounting;
 
 [TestClass]
+[DoNotParallelize]
 public partial class SourceTests
 {
 	Configuration Config => new();

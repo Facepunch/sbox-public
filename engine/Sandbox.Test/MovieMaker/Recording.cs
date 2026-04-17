@@ -12,6 +12,7 @@ namespace TestMovieMaker;
 #nullable enable
 
 [TestClass]
+[DoNotParallelize]
 public sealed class RecorderTests : SceneTests
 {
 	private static MovieClip Record( MovieTime duration, Action<MovieTime>? simulate = null ) =>
