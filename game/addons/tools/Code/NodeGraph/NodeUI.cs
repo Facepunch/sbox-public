@@ -298,7 +298,7 @@ public partial class NodeUI : GraphicsItem
 
 			if ( !match.IsValid() )
 			{
-				Inputs.Insert( index, new PlugIn( this, plug ) );
+				Inputs.Insert( index, CreatePlugIn( plug ) );
 			}
 			else if ( Inputs.IndexOf( match ) != index )
 			{
@@ -318,7 +318,7 @@ public partial class NodeUI : GraphicsItem
 
 			if ( !match.IsValid() )
 			{
-				Outputs.Insert( index, new PlugOut( this, plug ) );
+				Outputs.Insert( index, CreatePlugOut( plug ) );
 			}
 			else if ( Outputs.IndexOf( match ) != index )
 			{
@@ -333,6 +333,16 @@ public partial class NodeUI : GraphicsItem
 
 		Layout();
 		Graph?.NodePositionChanged( this );
+	}
+
+	protected virtual PlugIn CreatePlugIn( IPlugIn plugIn )
+	{
+		return new PlugIn( this, plugIn );
+	}
+
+	protected virtual PlugOut CreatePlugOut( IPlugOut plugOut )
+	{
+		return new PlugOut( this, plugOut );
 	}
 
 	protected virtual void Layout()
