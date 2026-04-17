@@ -128,7 +128,7 @@ public class PolygonMeshSerializationTests
 		var mesh2 = Json.Deserialize<PolygonMesh>( json1 );
 		var json2 = Json.Serialize( mesh2 );
 
-		Assert.AreEqual( json1, json2, "Second serialize should be identical — no drift from world-space recomputation" );
+		Assert.AreEqual( json1, json2, "Second serialize should be identical - no drift from world-space recomputation" );
 	}
 
 	[TestMethod]
@@ -177,7 +177,7 @@ public class PolygonMeshSerializationTests
 		var restored = Json.Deserialize<PolygonMesh>( json1 );
 		restored.Transform = new Transform( new Vector3( 500, -300, 100 ), Rotation.FromYaw( 90 ) );
 
-		// Re-serialize — should be unchanged since world-space fields are no longer written
+		// Re-serialize should be unchanged since world-space fields are no longer written
 		var json2 = Json.Serialize( restored );
 		Assert.AreEqual( json1, json2, "Mesh JSON should not change when the transform changes" );
 	}

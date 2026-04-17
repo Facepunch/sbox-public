@@ -48,7 +48,6 @@ public class Audio
 		Assert.AreEqual( buffer.LevelAvg, bufferTarget.LevelAvg, 0.001f );
 	}
 
-
 	[TestMethod]
 	public void MixFrom()
 	{
@@ -64,5 +63,4 @@ public class Audio
 		bufferTarget.MixFrom( buffer, 0.5f );
 		Assert.AreEqual( buffer.LevelAvg * 0.5f, bufferTarget.LevelAvg, 0.001f );
 	}
-
 }

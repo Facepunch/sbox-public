@@ -151,13 +151,21 @@ internal class Program
 			description: "Skip building before running tests (assumes projects are already built)",
 			getDefaultValue: () => false );
 
-		testsCommand.AddOption( noBuildOption );
-		testsCommand.SetHandler( ( bool noBuild ) =>
+		var projectOption = new Option<string[]>(
+			"--project",
+			description: "Optional test project path(s) to run instead of the full engine test set." )
 		{
-			var step = new Test( "Run Tests", noBuild );
+			AllowMultipleArgumentsPerToken = true
+		};
+
+		testsCommand.AddOption( noBuildOption );
+		testsCommand.AddOption( projectOption );
+		testsCommand.SetHandler( ( bool noBuild, string[] projects ) =>
+		{
+			var step = new Test( "Run Tests", noBuild, projects );
 			ExitCode result = step.Run();
 			Environment.ExitCode = (int)result;
-		}, noBuildOption );
+		}, noBuildOption, projectOption );
 		rootCommand.Add( testsCommand );
 	}
 

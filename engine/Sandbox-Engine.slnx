@@ -67,6 +67,7 @@
     <Project Path="Benchmark/Benchmark.csproj" />
     <Project Path="Sandbox.Hotload.Test/Sandbox.Hotload.Test.csproj" />
     <Project Path="Sandbox.Test/Sandbox.Test.csproj" />
+    <Project Path="Sandbox.Test.Parallel/Sandbox.Test.Parallel.csproj" />
     <Project Path="Sandbox.Test.Unit/Sandbox.Test.Unit.csproj" />
   </Folder>
   <Folder Name="/Tests/Resources/">

@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Immutable;
+using System;
 using System.IO;
 using System.Reflection;
 using Sandbox.MovieMaker;
@@ -132,7 +131,6 @@ public sealed class CompiledTests
 	private static bool AlmostEqual( Rotation a, Rotation b )
 	{
 		// A quaternion with all components negated represents the same rotation
-
 		return a.AlmostEqual( b, 0.01f ) || Negation( a ).AlmostEqual( b, 0.01f );
 	}
 
@@ -242,9 +240,6 @@ public sealed class CompiledTests
 			"Overlapping blocks" );
 	}
 
-	/// <summary>
-	/// Re-use the same <see cref="CompiledSampleBlock{T}"/> instance if no reduction needed.
-	/// </summary>
 	[TestMethod]
 	public void ReduceSamplesSameInstance()
 	{
@@ -253,9 +248,6 @@ public sealed class CompiledTests
 		Assert.AreSame( sampleBlock, sampleBlock.Reduce() );
 	}
 
-	/// <summary>
-	/// Reduce a <see cref="CompiledSampleBlock{T}"/> in a way that's aligned to the sample rate.
-	/// </summary>
 	[TestMethod]
 	public void ReduceSamplesAligned()
 	{
@@ -269,9 +261,6 @@ public sealed class CompiledTests
 		Assert.IsTrue( reduced.Samples.SequenceEqual( [1, 2, 3] ) );
 	}
 
-	/// <summary>
-	/// Reduce a <see cref="CompiledSampleBlock{T}"/> in a way that's not aligned to the sample rate.
-	/// </summary>
 	[TestMethod]
 	public void ReduceSamplesUnaligned()
 	{
@@ -285,10 +274,6 @@ public sealed class CompiledTests
 		Assert.IsTrue( reduced.Samples.SequenceEqual( [1, 2, 3, 4] ) );
 	}
 
-	/// <summary>
-	/// Turn a <see cref="CompiledSampleBlock{T}"/> into a <see cref="CompiledConstantBlock{T}"/> if we reduce down
-	/// to a single sample.
-	/// </summary>
 	[TestMethod]
 	public void ReduceSamplesIntoConstant()
 	{

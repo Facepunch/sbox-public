@@ -9,6 +9,17 @@ permissions:
 
 jobs:
   tests:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Sandbox.Test
+            project_args: --project engine\Sandbox.Test\Sandbox.Test.csproj
+          - name: Fast Managed Tests
+            project_args: --project engine\Sandbox.Test.Unit\Sandbox.Test.Unit.csproj --project engine\Sandbox.Test.Parallel\Sandbox.Test.Parallel.csproj
+          - name: Compiler Tests
+            project_args: --project engine\Sandbox.Compiling.Test\Sandbox.Compiling.Test.csproj --project engine\Sandbox.CodeUpgrader.Test\Sandbox.CodeUpgrader.Test.csproj
     runs-on: [ windows-latest ]
     env:
       NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
@@ -36,13 +47,13 @@ jobs:
         run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- build --config Developer
 
       - name: Test
-        run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- test --no-build
+        run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- test --no-build ${{ matrix.project_args }}
 
       - name: Upload managed test results
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: managed-test-results
+          name: managed-test-results-${{ matrix.name }}
           path: engine/TestResults/**/*.trx
           if-no-files-found: ignore
           retention-days: 7
