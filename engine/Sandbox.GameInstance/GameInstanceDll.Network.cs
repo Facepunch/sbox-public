@@ -298,21 +298,41 @@ internal partial class GameInstanceDll
 
 		Log.Info( "Building network files.." );
 
-		// include anything on resource paths
-		var project = Project.Current;
-		if ( project is not null && !string.IsNullOrWhiteSpace( project.Config.Resources ) )
-		{
-			var resourcePaths = project.Config.Resources.Split( "\n", StringSplitOptions.RemoveEmptyEntries )
-			.Select( x => x.Trim() )
-			.Where( x => !x.StartsWith( "//" ) )
-			.Select( x => x.NormalizeFilename( true, false ) );
+		// Create an aggregate filesystem to mount all important game directories to
+		var fs = new AggregateFileSystem();
+		fs.Mount( gameInstance.GameFileSystem );
 
-			_netIncludePaths.AddRange( resourcePaths );
+		if ( Project.Current is { } project )
+		{
+			// Mount the project transients if possible
+			if ( project.HasTransientsPath() )
+				fs.Mount( new LocalFileSystem( project.GetTransientsPath() ) );
+
+			// Include anything on resource paths
+			if ( !string.IsNullOrWhiteSpace( project.Config.Resources ) )
+			{
+				var resourcePaths = project.Config.Resources.Split( "\n", StringSplitOptions.RemoveEmptyEntries )
+					.Select( x => x.Trim() )
+					.Where( x => !x.StartsWith( "//" ) );
+
+				_netIncludePaths.AddRange( resourcePaths );
+			}
 		}
 
-		var fs = gameInstance.GameFileSystem;
-		var files = fs.FindFile( "/", "*", true );
+		// Mount all referenced libraries
+		foreach ( Project library in Project.Libraries.Where( v => v.Active && v.RootDirectory is not null ) )
+		{
+			// Mount the library transients if possible
+			if ( library.HasTransientsPath() )
+				fs.Mount( new LocalFileSystem( library.GetTransientsPath() ) );
 
+			// Mount the library root if possible (do it using the library's package fs)
+			if ( PackageManager.ActivePackages.FirstOrDefault( v => v.Package == library.Package ) is
+			    { } libraryPackage )
+				fs.Mount( libraryPackage.FileSystem );
+		}
+
+		var files = fs.FindFile( "/", "*", true );
 		foreach ( var file in files )
 		{
 			UpdateNetworkFile( fs, file );
