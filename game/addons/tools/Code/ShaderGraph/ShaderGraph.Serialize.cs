@@ -50,6 +50,11 @@ partial class ShaderGraph
 		return 0;
 	}
 
+	private static bool CheckIsSubgraph( JsonObject obj )
+	{
+		return obj.TryGetPropertyValue( nameof( ShaderGraph.IsSubgraph ), out var subgraphValue ) ? subgraphValue.GetValue<bool>() : false;
+	}
+
 	public string Serialize()
 	{
 		var doc = new JsonObject();
