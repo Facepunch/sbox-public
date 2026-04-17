@@ -211,6 +211,16 @@ public sealed partial class Project
 	/// </summary>
 	public bool HasAssetsPath() => RootDirectory is not null && System.IO.Directory.Exists( GetAssetsPath() );
 
+	/// <summary>
+	/// Absolute path to the .sbox/transient folder of the project, or <see langword="null"/> if not set.
+	/// </summary>
+	internal string GetTransientsPath() => System.IO.Path.Combine( RootDirectory.FullName, ".sbox", "transient" );
+
+	/// <summary>
+	/// Returns true if the .sbox/transient path exists
+	/// </summary>
+	internal bool HasTransientsPath() => RootDirectory is not null && System.IO.Directory.Exists( GetTransientsPath() );
+
 	internal void Save()
 	{
 		OnSaveProject?.Invoke();
