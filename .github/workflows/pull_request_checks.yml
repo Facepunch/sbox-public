@@ -12,6 +12,7 @@ jobs:
     runs-on: [ windows-latest ]
     env:
       NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+      PUBLIC_ARTIFACT_CACHE_DIR: ${{ github.workspace }}/.ci/public-artifacts
     steps:
       - name: Full Checkout
         uses: actions/checkout@v4
@@ -32,8 +33,80 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-dotnet10-nuget-
 
+      - name: Cache public artifacts
+        if: ${{ vars.ENABLE_PUBLIC_ARTIFACT_CACHE == 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PUBLIC_ARTIFACT_CACHE_DIR }}
+          key: ${{ runner.os }}-public-artifacts-${{ github.head_ref || github.ref_name }}-${{ github.event.pull_request.head.sha || github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-public-artifacts-${{ github.head_ref || github.ref_name }}-
+            ${{ runner.os }}-public-artifacts-
+
+      - name: Restore public artifacts from cache
+        if: ${{ vars.ENABLE_PUBLIC_ARTIFACT_CACHE == 'true' }}
+        shell: pwsh
+        run: |
+          if ( -not (Test-Path $env:PUBLIC_ARTIFACT_CACHE_DIR) ) {
+            Write-Host "No cached public artifacts found."
+            exit 0
+          }
+
+          robocopy $env:PUBLIC_ARTIFACT_CACHE_DIR $env:GITHUB_WORKSPACE /E /NFL /NDL /NJH /NJS /NP
+          if ( $LASTEXITCODE -gt 7 ) {
+            exit $LASTEXITCODE
+          }
+
       - name: Build
         run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- build --config Developer
+
+      - name: Stage public artifacts for cache save
+        if: ${{ vars.ENABLE_PUBLIC_ARTIFACT_CACHE == 'true' }}
+        shell: pwsh
+        run: |
+          function Resolve-ArtifactManifest {
+            $commits = git rev-list HEAD --max-count=128
+            foreach ( $commit in $commits ) {
+              $url = "https://artifacts.sbox.game/manifests/$commit.json"
+              try {
+                $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 20
+                return $response.Content | ConvertFrom-Json
+              }
+              catch {
+                continue
+              }
+            }
+
+            throw "Unable to resolve an artifact manifest for the current branch history."
+          }
+
+          if ( Test-Path $env:PUBLIC_ARTIFACT_CACHE_DIR ) {
+            Remove-Item -LiteralPath $env:PUBLIC_ARTIFACT_CACHE_DIR -Recurse -Force
+          }
+
+          New-Item -ItemType Directory -Path $env:PUBLIC_ARTIFACT_CACHE_DIR -Force | Out-Null
+
+          $manifest = Resolve-ArtifactManifest
+          foreach ( $entry in $manifest.files ) {
+            $relativePath = $entry.path.Replace( '/', '\' )
+            $sourcePath = Join-Path $env:GITHUB_WORKSPACE $relativePath
+            if ( -not (Test-Path -LiteralPath $sourcePath -PathType Leaf) ) {
+              continue
+            }
+
+            $cachePath = Join-Path $env:PUBLIC_ARTIFACT_CACHE_DIR $relativePath
+            $cacheDir = Split-Path -Parent $cachePath
+            if ( $cacheDir ) {
+              New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
+            }
+
+            try {
+              New-Item -ItemType HardLink -Path $cachePath -Target $sourcePath -ErrorAction Stop | Out-Null
+            }
+            catch {
+              Copy-Item -LiteralPath $sourcePath -Destination $cachePath -Force
+            }
+          }
 
       - name: Test
         run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- test --no-build
