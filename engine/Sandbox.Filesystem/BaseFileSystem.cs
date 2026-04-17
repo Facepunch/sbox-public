@@ -586,7 +586,7 @@ public class BaseFileSystem
 	/// </summary>
 	internal BaseFileSystem CreateAndMount( string path )
 	{
-		var sub = new LocalFileSystem( FixPath( path ) );
+		var sub = new LocalFileSystem( path );
 		Mount( sub );
 		return sub;
 	}
