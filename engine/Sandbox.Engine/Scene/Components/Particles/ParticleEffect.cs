@@ -816,7 +816,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 			var go = collision.prefabSource.Clone( collision.position, collision.rotation );
 
-			if( collision.hitBody != null && collision.hitBody.IsValid() && collision.hitBody.GameObject.IsValid() )
+			if ( collision.hitBody != null && collision.hitBody.IsValid() && collision.hitBody.GameObject.IsValid() )
 			{
 				go.SetParent( collision.hitBody.GameObject, true );
 				go.Flags |= GameObjectFlags.Hidden | GameObjectFlags.NotSaved;
