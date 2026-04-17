@@ -4,6 +4,8 @@ global using System.Linq;
 global using System.Threading.Tasks;
 global using Assert = Microsoft.VisualStudio.TestTools.UnitTesting.Assert;
 
+[assembly: Parallelize( Workers = 0, Scope = ExecutionScope.MethodLevel )]
+
 [TestClass]
 public class TestInit
 {
