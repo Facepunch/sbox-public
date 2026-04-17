@@ -336,6 +336,12 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	public List<GameObject> CollisionPrefab { get; set; }
 
 	/// <summary>
+	/// Will parent spawned prefab to surface gameobject, and follow it.
+	/// </summary>
+	[Property, Feature( "Prefab" ), Title( "Parent to Surface" )]
+	public bool CollisionPrefabParent { get; set; } = false;
+
+	/// <summary>
 	/// When true the collision prefab will be aligned with the surface it collides with.
 	/// </summary>
 	[Property, Feature( "Prefab" ), Title( "Align With Surface" )]
@@ -585,6 +591,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 				{
 					Rotation angle = p.Angles;
 					Vector3 position = p.Position;
+					PhysicsBody hitBody = null;
 
 					if ( CollisionPrefabAlign )
 					{
@@ -596,8 +603,10 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 						position = p.HitPos;
 					}
 
+					if ( CollisionPrefabParent ) hitBody = p.HitBody;
+
 					// Queue the collision prefabs to spawn on the main thread
-					ParticleCollisionPrefabs.Add( new( prefabSource, position, angle ) );
+					ParticleCollisionPrefabs.Add( new( prefabSource, hitBody, position, angle ) );
 				}
 			}
 		}
@@ -792,7 +801,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		}
 	}
 
-	readonly record struct ParticleCollisionPrefab( GameObject prefabSource, Vector3 position, Rotation rotation );
+	readonly record struct ParticleCollisionPrefab( GameObject prefabSource, PhysicsBody hitBody, Vector3 position, Rotation rotation );
 	ConcurrentBag<ParticleCollisionPrefab> ParticleCollisionPrefabs = [];
 
 	internal readonly record struct DeferredParticleForce( PhysicsBody body, Vector3 position, Vector3 force );
@@ -806,7 +815,13 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 				continue;
 
 			var go = collision.prefabSource.Clone( collision.position, collision.rotation );
-			go.Flags |= GameObjectFlags.Absolute | GameObjectFlags.Hidden | GameObjectFlags.NotSaved;
+
+			if( collision.hitBody != null && collision.hitBody.IsValid() && collision.hitBody.GameObject.IsValid() )
+			{
+				go.SetParent( collision.hitBody.GameObject, true );
+				go.Flags |= GameObjectFlags.Hidden | GameObjectFlags.NotSaved;
+			}
+			else go.Flags |= GameObjectFlags.Absolute | GameObjectFlags.Hidden | GameObjectFlags.NotSaved;
 
 			if ( Scene.IsEditor )
 			{
