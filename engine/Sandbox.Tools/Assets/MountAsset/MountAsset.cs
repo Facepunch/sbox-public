@@ -47,6 +47,7 @@ internal class MountAsset : Asset
 
 	public override List<Asset> GetReferences( bool deep ) => new List<Asset>();
 	public override List<Asset> GetDependants( bool deep ) => new List<Asset>();
+	public override List<Asset> GetParents( bool deep ) => new List<Asset>();
 	public override List<string> GetAdditionalContentFiles() => new List<string>();
 	public override List<string> GetAdditionalGameFiles() => new List<string>();
 	public override List<string> GetInputDependencies() => new List<string>();

@@ -203,6 +203,12 @@ public abstract partial class Asset
 	/// <param name="deep">Whether to recurse. For example, will also include maps that are using models which use this material asset, as opposed to returning just the models.</param>
 	public abstract List<Asset> GetDependants( bool deep );
 
+	/// <summary>
+	/// Returns assets that are parents of this asset (i.e. this asset is a compiled child resource of the returned assets).
+	/// </summary>
+	/// <param name="deep">Whether to recurse up the parent chain.</param>
+	public abstract List<Asset> GetParents( bool deep );
+
 	List<Asset> GetAssetList( NativeEngine.CUtlVectorAsset v, bool free )
 	{
 		var l = new List<Asset>();

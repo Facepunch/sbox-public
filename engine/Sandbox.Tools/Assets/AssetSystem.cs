@@ -274,11 +274,17 @@ public static partial class AssetSystem
 	/// </summary>
 	public static void DeleteOrphans()
 	{
+		// Only delete orphans from the current project's transient folder.
+		// Engine-shipped transients (e.g. addons/menu/Transients/) are shared
+		// across all projects and must not be deleted.
+		var transientRoot = FileSystem.Transient?.GetFullPath( "/" )?.NormalizeFilename( false );
+
 		var orphans = All
 						.Where( x => x.IsTrivialChild )
 						.Where( x => !x.IsDeleted )
 						.Where( x => x.AssetType == AssetType.Texture ) // Note - gib models can be trivial children too, but I don't want to push my luck
-						.Where( x => x.GetDependants( false ).Count == 0 )
+						.Where( x => transientRoot is not null && x.AbsolutePath.StartsWith( transientRoot, StringComparison.OrdinalIgnoreCase ) )
+						.Where( x => x.GetDependants( false ).Count == 0 && x.GetParents( false ).Count == 0 )
 						.ToArray();
 
 		foreach ( var o in orphans )
