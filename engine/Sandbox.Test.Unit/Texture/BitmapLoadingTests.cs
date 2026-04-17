@@ -24,28 +24,26 @@ public class BitmapLoadingTests
 	/// </summary>
 	private static byte[] CreateMinimalTga()
 	{
-		// TGA Header (18 bytes)
 		var header = new byte[]
 		{
-			0,      // ID length
-			0,      // Color map type (no color map)
-			2,      // Image type (uncompressed true-color)
-			0, 0, 0, 0, 0, // Color map specification (unused)
-			0, 0,   // X origin
-			0, 0,   // Y origin
-			2, 0,   // Width (2 pixels)
-			2, 0,   // Height (2 pixels)
-			32,     // Bits per pixel
-			0x20    // Image descriptor (top-left origin, 8 bits alpha)
+			0,
+			0,
+			2,
+			0, 0, 0, 0, 0,
+			0, 0,
+			0, 0,
+			2, 0,
+			2, 0,
+			32,
+			0x20
 		};
 
-		// Pixel data: 4 pixels, 4 bytes each (BGRA)
 		var pixels = new byte[]
 		{
-			255, 0, 0, 255,     // Blue
-			0, 255, 0, 255,     // Green
-			0, 0, 255, 255,     // Red
-			255, 255, 255, 255  // White
+			255, 0, 0, 255,
+			0, 255, 0, 255,
+			0, 0, 255, 255,
+			255, 255, 255, 255
 		};
 
 		var tga = new byte[header.Length + pixels.Length];

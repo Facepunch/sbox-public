@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Sandbox.Physics;
 
 namespace Physics;
@@ -83,9 +83,6 @@ public class Rules
 		return rules;
 	}
 
-	/// <summary>
-	/// Does sphere overlap test work against meshes?
-	/// </summary>
 	[TestMethod]
 	[DataRow( "solid", "solid", CollisionRules.Result.Collide )]
 	[DataRow( "player", "enemy", CollisionRules.Result.Ignore )]
