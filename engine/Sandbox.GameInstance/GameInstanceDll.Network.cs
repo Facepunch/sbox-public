@@ -328,7 +328,7 @@ internal partial class GameInstanceDll
 
 			// Mount the library root if possible (do it using the library's package fs)
 			if ( PackageManager.ActivePackages.FirstOrDefault( v => v.Package == library.Package ) is
-			    { } libraryPackage )
+				{ } libraryPackage )
 				fs.Mount( libraryPackage.FileSystem );
 		}
 
