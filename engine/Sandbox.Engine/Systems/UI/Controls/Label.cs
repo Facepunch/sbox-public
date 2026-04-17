@@ -1,4 +1,4 @@
-﻿using Sandbox.Html;
+using Sandbox.Html;
 using Sandbox.Rendering;
 using System.Globalization;
 
