@@ -586,7 +586,7 @@ public class BaseFileSystem
 	/// </summary>
 	internal BaseFileSystem CreateAndMount( string path )
 	{
-		var sub = new LocalFileSystem( path );
+		var sub = new LocalFileSystem( FixPath ( path ) );
 		Mount( sub );
 		return sub;
 	}
@@ -594,8 +594,10 @@ public class BaseFileSystem
 	/// <summary>
 	/// Zio wants good paths to start with '/' - so we add it here if it isn't already on
 	/// </summary>
-	internal static string FixPath( string path )
+	internal string FixPath( string path )
 	{
+		if ( OperatingSystem.IsLinux() ) path = ResolveExt4FilePath( path );
+
 		// Do not allow 0-32 ASCII stuff
 		if ( path.Any( c => char.IsControl( c ) ) ) throw new ArgumentException( "Path cannot contain control characters!", "path" );
 
@@ -604,6 +606,63 @@ public class BaseFileSystem
 
 		if ( path[0] == '/' ) return path;
 		return string.Concat( "/", path );
+	}
+
+	/// <summary>
+	/// Sometimes Linux filesystems cannot be resolved because the engine
+	/// attempts to compare a lowercase path to an uppercase one. This rebuilds
+	/// the folder and file paths in segments to allow the engine to build the uppercase
+	/// variant. This only applies to Zio mounts and will not fix managed calls to the native
+	/// engine.
+	/// </summary>
+	internal string ResolveExt4FilePath( string path )
+	{
+		if ( system is null ) return path;
+
+		var segments = path.Trim( '/' ).Split( '/', StringSplitOptions.RemoveEmptyEntries );
+		if ( segments.Length == 0 ) return path;
+
+		var resolvedSegments = new List<string>( segments.Length );
+
+		foreach ( var segment in segments )
+		{
+			var parentPath = new Zio.UPath( "/" + string.Join( "/", resolvedSegments ) );
+			var candidatePath = new Zio.UPath( parentPath.FullName.TrimEnd( '/' ) + "/" + segment );
+
+			if ( system.DirectoryExists( candidatePath ) )
+			{
+				resolvedSegments.Add( segment );
+				continue;
+			} // If the folder exists already, do nothing.
+
+			try
+			{
+				// BaseFileSystem seems to just handle directory mounts, nothing about file names. If that changes
+				// we can adjust this to Zio.SearchTarget.Both
+				var match = system.EnumeratePaths( parentPath, "*", SearchOption.TopDirectoryOnly, Zio.SearchTarget.Directory )
+					.FirstOrDefault( p => string.Equals( p.FullName.Substring( p.FullName.LastIndexOf( '/' ) + 1 ), segment, StringComparison.OrdinalIgnoreCase ) );
+
+				var fullName = match.FullName;
+				var resolved = string.IsNullOrEmpty( fullName ) ? segment : fullName.Substring( fullName.LastIndexOf( '/' ) + 1 );
+
+				if ( resolved != segment )
+					Log.Info( $"[ResolveExt4FilePath] Corrected folder '{segment}' -> '{resolved}' (parent: {parentPath})" );
+
+				resolvedSegments.Add( resolved );
+			}
+			catch ( System.IO.DirectoryNotFoundException )
+			{
+				Log.Info( $"[ResolveExt4FilePath] DirectoryNotFound at parent '{parentPath}', keeping segment '{segment}'" );
+				resolvedSegments.Add( segment );
+			}
+		}
+
+		var result = string.Join( "/", resolvedSegments );
+
+		if ( result != path.Trim( '/' ) )
+			Log.Info( $"[ResolveExt4FilePath] '{path}' -> '{result}'" );
+
+		return result;
 	}
 
 	/// <summary>
