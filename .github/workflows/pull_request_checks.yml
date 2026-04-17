@@ -53,9 +53,12 @@ jobs:
           }
 
           robocopy $env:PUBLIC_ARTIFACT_CACHE_DIR $env:GITHUB_WORKSPACE /E /NFL /NDL /NJH /NJS /NP
-          if ( $LASTEXITCODE -gt 7 ) {
-            exit $LASTEXITCODE
+          $robocopyExitCode = $LASTEXITCODE
+          if ( $robocopyExitCode -gt 7 ) {
+            exit $robocopyExitCode
           }
+
+          exit 0
 
       - name: Build
         run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- build --config Developer
