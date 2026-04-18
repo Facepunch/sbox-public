@@ -61,7 +61,7 @@ internal class BuildManaged( string name, bool clean = false, IEnumerable<string
 			Log.Info( "Step 5: Build Managed" );
 			var targets = this.projects.Count > 0
 				? this.projects.Select( x => ResolveProjectPath( rootDir, engineDir, x ) ).ToArray()
-				: [ "Sandbox-Engine.slnx" ];
+				: ["Sandbox-Engine.slnx"];
 
 			foreach ( var target in targets )
 			{
