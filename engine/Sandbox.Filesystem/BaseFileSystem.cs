@@ -602,7 +602,7 @@ public class BaseFileSystem
 		if ( path.Length < 1 )
 			return "/";
 
-		if ( path[0] != '/' ) path = string.Concat('/', path);
+		if ( path[0] != '/' ) path = string.Concat( '/', path );
 
 		if ( OperatingSystem.IsLinux() )
 			path = ManageExt4.ResolveLinuxFilePath( system, path );
@@ -618,7 +618,7 @@ public class BaseFileSystem
 	internal string NormalizePath( string path )
 	{
 		path = path.Replace( "\\", "/" );
-		if ( OperatingSystem.IsWindows() ) path = path.ToLowerInvariant(); 
+		if ( OperatingSystem.IsWindows() ) path = path.ToLowerInvariant();
 
 		return path;
 	}
