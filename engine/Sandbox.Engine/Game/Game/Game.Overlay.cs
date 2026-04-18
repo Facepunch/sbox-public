@@ -18,7 +18,7 @@ public static partial class Game
 	/// Game.Overlay.ShowGameModal("facepunch.sandbox");
 	///
 	/// // Check if any overlay is currently open
-	/// if (Game.Overlay.IsOpen)
+	/// if (Game.Overlay.IsOverlayOpen)
 	/// {
 	///     // Pause game logic or input
 	/// }
@@ -232,14 +232,20 @@ public static partial class Game
 			IModalSystem.Current?.CloseAll( immediate );
 		}
 
+		[Obsolete( "Use Game.Overlay.IsOverlayOpen" )]
+		public bool IsOpen => IsOverlayOpen;
+
+		[Obsolete( "Use Game.Overlay.IsPauseOpen" )]
+		public bool IsPauseMenuOpen => IsPauseOpen;
+
 		/// <summary>
 		/// Returns true if any overlay is open
 		/// </summary>
-		public static bool IsOpen => IModalSystem.Current?.IsModalOpen ?? false;
+		public static bool IsOverlayOpen => IModalSystem.Current?.IsModalOpen ?? false;
 
 		/// <summary>
 		/// Returns true if the pause menu overlay is open
 		/// </summary>
-		public static bool IsPauseMenuOpen => IModalSystem.Current?.IsPauseMenuOpen ?? false;
+		public static bool IsPauseOpen => IModalSystem.Current?.IsPauseMenuOpen ?? false;
 	}
 }
