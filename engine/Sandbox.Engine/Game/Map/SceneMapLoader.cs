@@ -312,6 +312,7 @@ public class SceneMapLoader : MapLoader
 		public TextSceneObject( SceneWorld sceneWorld ) : base( sceneWorld )
 		{
 			RenderLayer = SceneRenderLayer.Default;
+			managedNative.ExecuteOnMainThread = false;
 		}
 
 		public override void RenderSceneObject()
