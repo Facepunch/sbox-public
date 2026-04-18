@@ -1,9 +1,11 @@
-﻿using static Facepunch.Constants;
+using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
-internal class BuildManaged( string name, bool clean = false ) : Step( name )
+internal class BuildManaged( string name, bool clean = false, IEnumerable<string> projects = null ) : Step( name )
 {
+	private readonly IReadOnlyList<string> projects = projects?.Where( x => !string.IsNullOrWhiteSpace( x ) ).ToArray() ?? [];
+
 	protected override ExitCode RunInternal()
 	{
 		string engineDir = Path.Combine( Directory.GetCurrentDirectory(), "engine" );
@@ -57,8 +59,16 @@ internal class BuildManaged( string name, bool clean = false ) : Step( name )
 			}
 
 			Log.Info( "Step 5: Build Managed" );
-			if ( !Utility.RunDotnetCommand( engineDir, "build -c Release Sandbox-Engine.slnx -p:TreatWarningsAsErrors=true" ) )
-				return ExitCode.Failure;
+			var targets = this.projects.Count > 0
+				? this.projects.Select( x => ResolveProjectPath( rootDir, engineDir, x ) ).ToArray()
+				: [ "Sandbox-Engine.slnx" ];
+
+			foreach ( var target in targets )
+			{
+				Log.Info( $"Building managed target: {target}" );
+				if ( !Utility.RunDotnetCommand( engineDir, $"build -c Release \"{target}\" -p:TreatWarningsAsErrors=true" ) )
+					return ExitCode.Failure;
+			}
 
 			Log.Info( "Build completed successfully!" );
 			return ExitCode.Success;
@@ -68,5 +78,27 @@ internal class BuildManaged( string name, bool clean = false ) : Step( name )
 			Log.Error( $"Build failed with error: {ex}" );
 			return ExitCode.Failure;
 		}
+	}
+
+	private static string ResolveProjectPath( string rootDir, string engineDir, string projectPath )
+	{
+		if ( Path.IsPathRooted( projectPath ) )
+		{
+			return projectPath;
+		}
+
+		var rootCandidate = Path.Combine( rootDir, projectPath );
+		if ( File.Exists( rootCandidate ) )
+		{
+			return Path.GetFullPath( rootCandidate );
+		}
+
+		var engineCandidate = Path.Combine( engineDir, projectPath );
+		if ( File.Exists( engineCandidate ) )
+		{
+			return Path.GetFullPath( engineCandidate );
+		}
+
+		return projectPath;
 	}
 }

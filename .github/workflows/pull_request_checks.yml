@@ -15,11 +15,14 @@ jobs:
       matrix:
         include:
           - name: Sandbox.Test
-            project_args: --project engine\Sandbox.Test\Sandbox.Test.csproj
+            build_project_args: --project engine\Sandbox.Test\Sandbox.Test.csproj --project engine\Tools\ShaderCompiler\ShaderCompiler.csproj
+            test_project_args: --project engine\Sandbox.Test\Sandbox.Test.csproj
           - name: Fast Managed Tests
-            project_args: --project engine\Sandbox.Test.Unit\Sandbox.Test.Unit.csproj --project engine\Sandbox.Test.Parallel\Sandbox.Test.Parallel.csproj
+            build_project_args: --project engine\Sandbox.Test.Unit\Sandbox.Test.Unit.csproj --project engine\Sandbox.Test.Parallel\Sandbox.Test.Parallel.csproj
+            test_project_args: --project engine\Sandbox.Test.Unit\Sandbox.Test.Unit.csproj --project engine\Sandbox.Test.Parallel\Sandbox.Test.Parallel.csproj
           - name: Compiler Tests
-            project_args: --project engine\Sandbox.Compiling.Test\Sandbox.Compiling.Test.csproj --project engine\Sandbox.CodeUpgrader.Test\Sandbox.CodeUpgrader.Test.csproj
+            build_project_args: --project engine\Sandbox.Compiling.Test\Sandbox.Compiling.Test.csproj --project engine\Sandbox.CodeUpgrader.Test\Sandbox.CodeUpgrader.Test.csproj
+            test_project_args: --project engine\Sandbox.Compiling.Test\Sandbox.Compiling.Test.csproj --project engine\Sandbox.CodeUpgrader.Test\Sandbox.CodeUpgrader.Test.csproj
     runs-on: [ windows-latest ]
     env:
       NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
@@ -44,10 +47,10 @@ jobs:
             ${{ runner.os }}-dotnet10-nuget-
 
       - name: Build
-        run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- build --config Developer
+        run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- build --config Developer ${{ matrix.build_project_args }}
 
       - name: Test
-        run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- test --no-build ${{ matrix.project_args }}
+        run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- test --no-build ${{ matrix.test_project_args }}
 
       - name: Upload managed test results
         if: failure()

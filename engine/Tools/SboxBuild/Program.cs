@@ -56,17 +56,25 @@ internal class Program
 			description: "Skip building managed code",
 			getDefaultValue: () => false );
 
+		var projectOption = new Option<string[]>(
+			"--project",
+			description: "Optional managed project path(s) to build instead of the full managed solution." )
+		{
+			AllowMultipleArgumentsPerToken = true
+		};
+
 		buildCommand.AddOption( configOption );
 		buildCommand.AddOption( cleanOption );
 		buildCommand.AddOption( skipNativeOption );
 		buildCommand.AddOption( skipManagedOption );
+		buildCommand.AddOption( projectOption );
 
-		buildCommand.SetHandler( ( BuildConfiguration config, bool clean, bool skipNative, bool skipManaged ) =>
+		buildCommand.SetHandler( ( BuildConfiguration config, bool clean, bool skipNative, bool skipManaged, string[] projects ) =>
 		{
-			var pipeline = Build.Create( config, clean, skipNative, skipManaged );
+			var pipeline = Build.Create( config, clean, skipNative, skipManaged, projects );
 			ExitCode result = pipeline.Run();
 			Environment.ExitCode = (int)result;
-		}, configOption, cleanOption, skipNativeOption, skipManagedOption );
+		}, configOption, cleanOption, skipNativeOption, skipManagedOption, projectOption );
 
 		rootCommand.Add( buildCommand );
 	}

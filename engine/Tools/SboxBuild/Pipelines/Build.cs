@@ -9,7 +9,8 @@ internal class Build
 	public static Pipeline Create( BuildConfiguration configuration = BuildConfiguration.Developer,
 								 bool clean = false,
 								 bool skipNative = false,
-								 bool skipManaged = false )
+								 bool skipManaged = false,
+								 IEnumerable<string> managedProjects = null )
 	{
 		var builder = new PipelineBuilder( "Build" );
 		var isPublicSource = IsPublicSourceDistribution();
@@ -42,7 +43,7 @@ internal class Build
 		// Add managed build step if not skipped
 		if ( !skipManaged )
 		{
-			builder.AddStep( new BuildManaged( "Build Managed", clean ) );
+			builder.AddStep( new BuildManaged( "Build Managed", clean, managedProjects ) );
 		}
 
 		return builder.Build();
