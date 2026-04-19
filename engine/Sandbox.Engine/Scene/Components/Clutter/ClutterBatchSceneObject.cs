@@ -15,6 +15,7 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 
 	public ClutterBatchSceneObject( SceneWorld world ) : base( world )
 	{
+		managedNative.ExecuteOnMainThread = false;
 		Flags.IsOpaque = true;
 		Flags.IsTranslucent = false;
 		Flags.CastShadows = true;

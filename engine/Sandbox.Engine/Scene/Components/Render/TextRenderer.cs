@@ -359,6 +359,7 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		public TextSceneObject( SceneWorld world ) : base( world )
 		{
 			RenderLayer = SceneRenderLayer.Default;
+			managedNative.ExecuteOnMainThread = false;
 		}
 
 		public override void RenderSceneObject()

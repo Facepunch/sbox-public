@@ -28,7 +28,10 @@ sealed class LPVDebugGridObject : SceneCustomObject
 	public float SampleSize = 10f;
 	public IndirectLightVolume.Probe[] Probes;
 
-	public LPVDebugGridObject( SceneWorld sceneWorld ) : base( sceneWorld ) { }
+	public LPVDebugGridObject( SceneWorld sceneWorld ) : base( sceneWorld )
+	{
+		managedNative.ExecuteOnMainThread = false;
+	}
 
 	public void UpdateGrid( Transform transform, BBox lpvBounds, Vector3Int counts, float sampleSize, IndirectLightVolume.Probe[] probes = null )
 	{
