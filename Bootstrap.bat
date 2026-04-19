@@ -1,4 +1,5 @@
-@echo off
+@echo on
+cd /d "%~dp0"
 
 dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- build --config Developer
 dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- build-shaders
