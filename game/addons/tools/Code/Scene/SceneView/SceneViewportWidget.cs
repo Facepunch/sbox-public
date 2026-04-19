@@ -397,6 +397,16 @@ public partial class SceneViewportWidget : Widget
 		}
 	}
 
+
+
+
+
+
+
+
+
+
+
 	protected override void OnMouseReleased( MouseEvent e )
 	{
 		if ( SceneView.CurrentView == SceneViewWidget.ViewMode.Game )
@@ -498,12 +508,15 @@ public partial class SceneViewportWidget : Widget
 
 		if ( IsActiveWindow ) // don't update camera input if the editor window isn't active
 		{
-			// Block camera input when shift or ctrl was down first and right mouse pressed.
 			var rightDown = Application.MouseButtons.HasFlag( MouseButtons.Right );
 			var modifiers = Application.KeyboardModifiers;
 			var modifiersDown = modifiers.Contains( KeyboardModifiers.Shift ) || modifiers.HasFlag( KeyboardModifiers.Ctrl );
+			var middleDown = Application.MouseButtons.HasFlag( MouseButtons.Middle );
+			var altDown = Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Alt );
+			var style = EditorPreferences.NavigationStyle;
+			var ctrlDown = modifiers.HasFlag( KeyboardModifiers.Ctrl );
+			var shiftDown = modifiers.HasFlag( KeyboardModifiers.Shift );
 
-			blockCamera = !blockCamera ? modifiersDown && !rightDown : modifiersDown;
 
 			if ( modifiers.HasFlag( KeyboardModifiers.Alt ) && rightDown && GizmoInstance.Input.IsHovered && !blockCameraForToolInput )
 			{
@@ -511,6 +524,10 @@ public partial class SceneViewportWidget : Widget
 				blockCameraMousePosition = Renderer.FromScreen( Application.CursorPosition );
 			}
 
+
+			// Huge hack, it is barely holding together tbh, I'd say the entire SceneViewportWidget.cs needs restructuring and adjustment cause it is filled with exception weirdness.
+			// would do it myself but man this new navigation logic already took 2 weeks and we are like 4 weeks away from S&box release.
+			// don't judge me for this - Fabian F.
 			if ( blockCameraForToolInput )
 			{
 				if ( Application.MouseButtons == MouseButtons.None )
@@ -529,26 +546,49 @@ public partial class SceneViewportWidget : Widget
 				}
 			}
 
-			bool shouldBlockOrbit = blockCamera || (blockCameraForToolInput && GizmoInstance.Input.IsHovered);
+			bool isNavigating = false;
+			if ( style == EditorPreferences.NavigationStyleList.Blender )
+			{
+				isNavigating = middleDown;
+			}
+			else
+			{
+				isNavigating = altDown;
+			}
 
+			if ( isNavigating )
+			{
+				blockCamera = false;
+			}
+			else
+			{
+				modifiersDown = shiftDown || ctrlDown;
+				blockCamera = !blockCamera ? (modifiersDown && !rightDown) : modifiersDown;
+			}
+
+
+			bool shouldBlockOrbit = blockCamera && !isNavigating;
 			_activeCamera.OrthographicHeight = State.CameraOrthoHeight;
 
-			if ( !shouldBlockOrbit )
+			bool oldIsHovered = GizmoInstance.Input.IsHovered;
+
+			// This is where the magic happens.. - Fabian F.
+			if ( GizmoInstance.OrbitCamera( _activeCamera, Renderer, ref cameraOrbitDistance ) )
 			{
-				if ( GizmoInstance.OrbitCamera( _activeCamera, Renderer, ref cameraOrbitDistance ) )
+				cameraTargetPosition = null;
+				if ( !shouldBlockOrbit )
 				{
-					cameraTargetPosition = null;
-					GizmoInstance.Input.IsHovered = false;
-				}
-				else if ( GizmoInstance.FirstPersonCamera( _activeCamera, Renderer, State.View == ViewMode.Perspective ) )
-				{
-					cameraTargetPosition = null;
 					GizmoInstance.Input.IsHovered = false;
 				}
 			}
-			else if ( blockCamera )
+
+			else if ( GizmoInstance.FirstPersonCamera( _activeCamera, Renderer, State.View == ViewMode.Perspective ) )
 			{
-				Renderer.Cursor = CursorShape.None;
+				cameraTargetPosition = null;
+				if ( !shouldBlockOrbit )
+				{
+					GizmoInstance.Input.IsHovered = false;
+				}
 			}
 
 			State.CameraPosition = _activeCamera.WorldPosition;
