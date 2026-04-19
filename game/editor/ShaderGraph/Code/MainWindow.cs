@@ -332,45 +332,45 @@ public class MainWindow : DockWindow
 		switch ( value )
 		{
 			case Color v:
-				if (_float4Attributes.TryAdd(name, v))
+				if ( _float4Attributes.TryAdd( name, v ) )
 				{
-					_preview?.SetAttribute(name, v);
+					_preview?.SetAttribute( name, v );
 				}
 				break;
 			case Vector4 v:
-				if (_float4Attributes.TryAdd(name, v))
+				if ( _float4Attributes.TryAdd( name, v ) )
 				{
-					_preview?.SetAttribute(name, (Color)v);
+					_preview?.SetAttribute( name, (Color)v );
 				}
 				break;
 			case Vector3 v:
-				if (_float3Attributes.TryAdd(name, v))
+				if ( _float3Attributes.TryAdd( name, v ) )
 				{
-					_preview?.SetAttribute(name, v);
+					_preview?.SetAttribute( name, v );
 				}
 				break;
 			case Vector2 v:
-				if (_float2Attributes.TryAdd(name, v))
+				if ( _float2Attributes.TryAdd( name, v ) )
 				{
-					_preview?.SetAttribute(name, v);
+					_preview?.SetAttribute( name, v );
 				}
 				break;
 			case float v:
-				if (_floatAttributes.TryAdd(name, v))
+				if ( _floatAttributes.TryAdd( name, v ) )
 				{
-					_preview?.SetAttribute(name, v);
+					_preview?.SetAttribute( name, v );
 				}
 				break;
 			case bool v:
-				if (_boolAttributes.TryAdd(name, v))
+				if ( _boolAttributes.TryAdd( name, v ) )
 				{
-					_preview?.SetAttribute(name, v);
+					_preview?.SetAttribute( name, v );
 				}
 				break;
 			case Texture v:
-				if (_textureAttributes.TryAdd(name, v))
+				if ( _textureAttributes.TryAdd( name, v ) )
 				{
-					_preview?.SetAttribute(name, v);
+					_preview?.SetAttribute( name, v );
 				}
 				break;
 			default:
