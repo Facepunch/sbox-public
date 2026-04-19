@@ -332,32 +332,46 @@ public class MainWindow : DockWindow
 		switch ( value )
 		{
 			case Color v:
-				_float4Attributes.Add( name, v );
-				_preview?.SetAttribute( name, v );
+				if (_float4Attributes.TryAdd(name, v))
+				{
+					_preview?.SetAttribute(name, v);
+				}
 				break;
 			case Vector4 v:
-				_float4Attributes.Add( name, v );
-				_preview?.SetAttribute( name, (Color)v );
+				if (_float4Attributes.TryAdd(name, v))
+				{
+					_preview?.SetAttribute(name, (Color)v);
+				}
 				break;
 			case Vector3 v:
-				_float3Attributes.Add( name, v );
-				_preview?.SetAttribute( name, v );
+				if (_float3Attributes.TryAdd(name, v))
+				{
+					_preview?.SetAttribute(name, v);
+				}
 				break;
 			case Vector2 v:
-				_float2Attributes.Add( name, v );
-				_preview?.SetAttribute( name, v );
+				if (_float2Attributes.TryAdd(name, v))
+				{
+					_preview?.SetAttribute(name, v);
+				}
 				break;
 			case float v:
-				_floatAttributes.Add( name, v );
-				_preview?.SetAttribute( name, v );
+				if (_floatAttributes.TryAdd(name, v))
+				{
+					_preview?.SetAttribute(name, v);
+				}
 				break;
 			case bool v:
-				_boolAttributes.Add( name, v );
-				_preview?.SetAttribute( name, v );
+				if (_boolAttributes.TryAdd(name, v))
+				{
+					_preview?.SetAttribute(name, v);
+				}
 				break;
 			case Texture v:
-				_textureAttributes.Add( name, v );
-				_preview?.SetAttribute( name, v );
+				if (_textureAttributes.TryAdd(name, v))
+				{
+					_preview?.SetAttribute(name, v);
+				}
 				break;
 			default:
 				throw new InvalidOperationException( $"Unsupported attribute type: {value.GetType()}" );
