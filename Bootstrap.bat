@@ -1,4 +1,4 @@
-@echo on
+@echo off
 cd /d "%~dp0"
 
 dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- build --config Developer
