@@ -1,5 +1,4 @@
-﻿
-namespace Editor.MeshEditor;
+﻿namespace Editor.MeshEditor;
 
 partial class ClipTool
 {
@@ -62,6 +61,9 @@ partial class ClipTool
 
 		[Shortcut( "mesh.clip-apply", "enter", typeof( SceneViewWidget ) )]
 		void Apply() => _tool.Apply();
+
+		[Shortcut( "mesh.clip-apply-stay", "space", typeof( SceneViewWidget ) )]
+		void ApplyAndContinue() => _tool.Apply( false );
 
 		[Shortcut( "mesh.clip-cancel", "ESC", typeof( SceneViewWidget ) )]
 		void Cancel() => _tool.Cancel();

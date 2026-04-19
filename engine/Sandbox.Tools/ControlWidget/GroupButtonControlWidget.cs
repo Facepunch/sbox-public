@@ -145,5 +145,6 @@ file class MenuOption : Widget
 		}
 
 		property.SetValue( value );
+		SignalValuesChanged();
 	}
 }
