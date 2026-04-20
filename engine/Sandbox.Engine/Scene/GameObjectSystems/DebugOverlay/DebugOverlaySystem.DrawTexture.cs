@@ -24,6 +24,7 @@ file class DebugTextureSceneObject : SceneCustomObject
 
 	public DebugTextureSceneObject( SceneWorld sceneWorld ) : base( sceneWorld )
 	{
+		managedNative.ExecuteOnMainThread = false;
 		material = Material.FromShader( "shaders/Debug/screen_texture.shader" );
 	}
 

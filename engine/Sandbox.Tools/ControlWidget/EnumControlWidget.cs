@@ -145,6 +145,7 @@ public class EnumControlWidget : ControlWidget
 
 
 		SerializedProperty.SetValue( value );
+		SignalValuesChanged();
 	}
 
 	void OpenMenu()
