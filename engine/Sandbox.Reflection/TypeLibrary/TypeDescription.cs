@@ -699,7 +699,7 @@ public sealed class TypeDescription : ISourceLineProvider
 			if ( !type.IsGenericType )
 				return type;
 			var genericDefinition = type.GetGenericTypeDefinition();
-			var genericParams = type.GenericTypeArguments;
+			var genericParams = type.GetGenericArguments();
 			for ( int i = 0; i < genericParams.Length; i++ )
 			{
 				if ( substitutions.TryGetValue( genericParams[i], out var substitutedType ) )

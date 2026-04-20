@@ -367,6 +367,19 @@ public class TypeCollection
 		Assert.IsNull( badboy );
 	}
 
+	/// <summary>
+	/// 
+	/// </summary>
+	[TestMethod]
+	public void ObeyGenericConstraints2()
+	{
+		var tl = new Sandbox.Internal.TypeLibrary();
+		tl.AddAssembly( ThisAssembly, true );
+
+		var goodboy = tl.GetType( typeof( IConstraintBreaker3<> ) )
+									.MakeGenericType( [typeof( ConstraintBreaker3 )] );
+		Assert.IsNotNull( goodboy );
+	}
 
 	/// <summary>
 	/// 
@@ -439,5 +452,20 @@ public class ConstraintBreaker2<T> : ConstraintBreaker2TypeErased where T : ICon
 		value.DoSomething( value );
 		value.DoSomething2( value );
 		value.DoSomething3( value );
+	}
+}
+
+
+public interface IConstraintBreaker3<T> where T : IConstraintBreaker3<T>
+{
+	void DoSomething( T value );
+}
+
+[Expose]
+public class ConstraintBreaker3 : IConstraintBreaker3<ConstraintBreaker3>
+{
+	public void DoSomething( ConstraintBreaker3 value )
+	{
+
 	}
 }
