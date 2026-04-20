@@ -40,11 +40,11 @@ Footer {
         border-radius: $rounding-large;
 
         &:active {
-            sound-in: ui.button.press;
+            sound-in: "ui.button.press";
         }
 
         &:hover {
-            sound-in: ui.button.over;
+            sound-in: "ui.button.over";
             cursor: pointer;
             background-color: $default-800;
         }
@@ -77,11 +77,11 @@ Footer {
         border: 1px solid transparent; // Avoid layout shifts
 
         &:active {
-            sound-in: ui.button.press;
+            sound-in: "ui.button.press";
         }
 
         &:hover {
-            sound-in: ui.button.over;
+            sound-in: "ui.button.over";
             border: 1px solid $default-border;
             cursor: pointer;
             border-radius: $rounding-default;

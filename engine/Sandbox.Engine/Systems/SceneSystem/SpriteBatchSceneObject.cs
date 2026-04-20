@@ -1,6 +1,8 @@
 ﻿namespace Sandbox.Rendering;
 
+using NativeEngine;
 using System.Buffers;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 /// <summary>
@@ -164,9 +166,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 	bool GPUUploadQueued = false;
 
 	// Set by UploadOnHost after building the staging buffer,
-	// consumed by RenderSceneObject to do the actual GPU upload within a valid render context.
-	bool _gpuUploadPending = false;
-	int _pendingComponentCount = 0;
+	// consumed by RenderSceneObject for compute/draw dispatch.
 	int _pendingSpriteCount = 0;
 	int _pendingSplotCount = 0;
 
@@ -247,6 +247,7 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		CurrentBufferSize = (int)System.Numerics.BitOperations.RoundUpToPowerOf2( (uint)allocationSize );
 
 		SpriteBuffer?.Dispose();
+		SpriteBufferOut?.Dispose();
 		GPUSortingBuffer?.Dispose();
 		GPUDistanceBuffer?.Dispose();
 
@@ -308,16 +309,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 	public void OnChanged()
 	{
-		int requiredSize = SplotCount + SpriteCount;
-
 		// Clear cached splot count to force recalculation
 		_splotCount = 0;
-
-		// Only resize if we actually need more space
-		if ( requiredSize > CurrentBufferSize )
-		{
-			ResizeBuffers( requiredSize );
-		}
 
 		GPUUploadQueued = true;
 	}
@@ -333,7 +326,16 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		}
 
 		int spriteCount = SpriteCount;
+		int splotCount = SplotCount;
 		int componentCount = Components.Count;
+
+		// Resize GPU buffers here on the main thread, not in OnChanged,
+		// because RenderSceneObject may be using them concurrently on a render thread.
+		int requiredSize = splotCount + spriteCount;
+		if ( requiredSize > CurrentBufferSize )
+		{
+			ResizeBuffers( requiredSize );
+		}
 
 		// Staging buffer only needs to hold component sprites — particle groups
 		// are uploaded directly from SharedSprites in RenderSceneObject.
@@ -466,12 +468,40 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		// Use a degenerate zero-size bounds for empty batches so they can be frustum-culled.
 		Bounds = spriteCount > 0 ? new BBox( boundsMin, boundsMax ) : default;
 
-		// Defer the actual GPU upload to RenderSceneObject where we have a valid render context,
-		// avoiding expensive per-call CRenderContextPtr creation.
-		_pendingComponentCount = componentCount;
+		// Upload all sprite data to GPU through a single render context so that
+		// RenderSceneObject can run off the main thread without accessing
+		// shared mutable state (Components, SpriteGroups, SpriteDataBuffer).
+		var context = g_pRenderDevice.CreateRenderContext( 0 );
+
+		unsafe
+		{
+			if ( componentCount > 0 )
+			{
+				var bytes = MemoryMarshal.Cast<SpriteData, byte>( SpriteDataBuffer.AsSpan( 0, componentCount ) );
+				fixed ( byte* ptr = bytes )
+				{
+					RenderTools.SetGPUBufferData( context, SpriteBuffer.native, (IntPtr)ptr, (uint)bytes.Length, 0 );
+				}
+			}
+
+			int currentOffset = componentCount;
+			foreach ( var group in SpriteGroups.Values )
+			{
+				var bytes = MemoryMarshal.Cast<SpriteData, byte>( group.SharedSprites.AsSpan( group.Offset, group.Count ) );
+				uint byteOffset = (uint)(currentOffset * Unsafe.SizeOf<SpriteData>());
+				fixed ( byte* ptr = bytes )
+				{
+					RenderTools.SetGPUBufferData( context, SpriteBuffer.native, (IntPtr)ptr, (uint)bytes.Length, byteOffset );
+				}
+				currentOffset += group.Count;
+			}
+		}
+
+		context.Submit();
+		g_pRenderDevice.ReleaseRenderContext( context );
+
 		_pendingSpriteCount = spriteCount;
 		_pendingSplotCount = SplotCount;
-		_gpuUploadPending = true;
 		GPUUploadQueued = false;
 	}
 
@@ -538,26 +568,6 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		if ( spriteCount == 0 )
 		{
 			return;
-		}
-
-		// Upload sprite data to GPU once per frame, reusing the view's render context.
-		// All SetData calls here go through the existing renderContext->SetGPUBufferData()
-		// directly, avoiding expensive CRenderContextPtr creation per call.
-		if ( _gpuUploadPending )
-		{
-			if ( _pendingComponentCount > 0 )
-			{
-				SpriteBuffer.SetData( SpriteDataBuffer.AsSpan( 0, _pendingComponentCount ) );
-			}
-
-			int currentOffset = _pendingComponentCount;
-			foreach ( var group in SpriteGroups.Values )
-			{
-				SpriteBuffer.SetData( group.SharedSprites.AsSpan( group.Offset, group.Count ), currentOffset );
-				currentOffset += group.Count;
-			}
-
-			_gpuUploadPending = false;
 		}
 
 		if ( Sorted )

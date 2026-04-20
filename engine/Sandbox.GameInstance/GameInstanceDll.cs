@@ -125,6 +125,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	/// </summary>
 	public void ResetEnvironment()
 	{
+		using var scope = GlobalContext.GameScope();
+
 		Log.Trace( "Game Menu - ResetEnvironment" );
 
 
@@ -372,6 +374,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		CancelLoad();
 
 		if ( gameInstance is null ) return;
+
+		using var scope = GlobalContext.GameScope();
 
 		ConVarSystem.SaveAll();
 
@@ -726,6 +730,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			// Loading failed
 			if ( newInstance is not null )
 			{
+				using var _ = GlobalContext.GameScope();
+
 				newInstance.Close();
 				newInstance.Shutdown();
 				newInstance = default;

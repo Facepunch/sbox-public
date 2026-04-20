@@ -1,31 +1,25 @@
-
-FriendEntry
-{
+FriendEntry {
     flex-shrink: 0;
     max-height: 48px;
     flex-direction: row;
     align-items: center;
     cursor: pointer;
-    padding: 4px;
+    padding: 8px;
     border-radius: 64px;
 
-    &:hover
-    {
-        background-color: rgba( 255, 255, 255, 0.02 );
+    &:hover {
+        background-color: rgba(255, 255, 255, 0.02);
 
-        &:not( .active )
-        {
-            sound-in: ui.button.over;
+        &:not(.active) {
+            sound-in: "ui.button.over";
         }
     }
 
-    &.offline
-    {
+    &.offline {
         opacity: 0.4;
     }
 
-    .avatar
-    {
+    .avatar {
         width: 40px;
         height: 40px;
         background-size: cover;
@@ -33,21 +27,18 @@ FriendEntry
         margin-right: 8px;
     }
 
-    .info
-    {
+    .info {
         flex-direction: column;
         flex-grow: 1;
     }
 
-    .name
-    {
+    .name {
         font-size: 14px;
         color: #fff;
         font-weight: 600;
     }
 
-    .status
-    {
+    .status {
         flex-grow: 0;
         font-size: 10px;
         font-weight: 500;
@@ -55,37 +46,30 @@ FriendEntry
         color: white;
     }
 
-    &.ingame
-    {
-        .avatar
-        {
+    &.ingame {
+        .avatar {
             border: 2px solid #3472e6;
         }
 
-        .status
-        {
+        .status {
             color: #3472e6;
         }
     }
 
-    &.online .status
-    {
+    &.online .status {
         color: white;
-    }   
+    }
 
-    &.offline .status
-    {
+    &.offline .status {
         color: gray;
     }
 
-    .actions
-    {
+    .actions {
         flex-grow: 0;
         gap: 8px;
     }
 
-    .button-simple
-    {
+    .button-simple {
         align-items: center;
         cursor: pointer;
         font-size: 16px;
@@ -96,14 +80,12 @@ FriendEntry
         border-radius: 32px;
         background-color: transparent;
 
-        &:hover
-        {
+        &:hover {
             background-color: white;
             color: red;
 
-            &:not( .active )
-            {
-                sound-in: ui.button.over;
+            &:not(.active) {
+                sound-in: "ui.button.over";
             }
         }
     }

@@ -186,7 +186,7 @@
         ShadowQuality = MenuUtility.RenderSettings.ShadowQuality;
         MotionBlurScale = MenuUtility.RenderSettings.MotionBlurScale;
 
-        // FrameRateLimit = MenuUtility.RenderSettings.FrameRateLimit; // TODO!!!
+        FrameRateLimit = MenuUtility.RenderSettings.MaxFrameRate;
     }
 
     public void OnRestore()
@@ -244,7 +244,7 @@
         MenuUtility.RenderSettings.ShadowQuality = ShadowQuality;
         MenuUtility.RenderSettings.MotionBlurScale = MotionBlurScale;
 
-        // MenuUtility.RenderSettings.FrameRateLimit = FrameRateLimit; // TODO!!!
+        MenuUtility.RenderSettings.MaxFrameRate = FrameRateLimit;
 
         MenuUtility.RenderSettings.Apply();
     }

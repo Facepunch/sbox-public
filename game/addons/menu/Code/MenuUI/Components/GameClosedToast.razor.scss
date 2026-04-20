@@ -10,7 +10,7 @@ GameClosedToast
     box-shadow: 5px 5px 20px rgba( black, 0.8 );
     opacity: 1;
     transition: all 0.2s ease-out;
-    sound-in: ui.popup.message.open;
+    sound-in: "ui.popup.message.open";
     overflow: hidden;
     flex-direction: row;
     background-color: #1b202c;
@@ -112,6 +112,17 @@ GameClosedToast
         border-radius: 4px;
         box-shadow: 2px 2px 5px #0003;
     }
+
+    &:hover
+    {
+        > .close-progress
+        {
+            > .inner
+            {
+                background-color: #8e9ec244;
+            }
+        }
+    }
 }
 
 .top
@@ -208,12 +219,14 @@ GameClosedToast
     border-radius: 8px;
 
     &:hover
-    {
+    {		
+		sound-in: ui.button.over;
         background-color: #b2bfd822;
     }
 
     &.active
     {
+		sound-in: ui.button.over;
         color: white;
     }
 }

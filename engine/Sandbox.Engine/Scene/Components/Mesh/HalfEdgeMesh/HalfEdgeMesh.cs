@@ -44,7 +44,7 @@ internal enum EdgeConnectivityType
 	Any,    // Edge is open or closed (connected to 1 or 2 faces)
 }
 
-internal enum ComponentConnectivityType
+public enum ComponentConnectivityType
 {
 	None,   // None of the edges in the set are connected to any other edges
 	Mixed,  // Some of the edges are connected but not all edges are connected to a single group
