@@ -26,8 +26,10 @@ public class ButtonAttribute : System.Attribute
 [AttributeUsage( AttributeTargets.Property )]
 public class RequireComponentAttribute : System.Attribute
 {
-	public RequireComponentAttribute()
-	{
+	public FindMode FindMode { get; set; }
 
+	public RequireComponentAttribute( FindMode findMode = FindMode.EverythingInSelf )
+	{
+		FindMode = findMode;
 	}
 }
