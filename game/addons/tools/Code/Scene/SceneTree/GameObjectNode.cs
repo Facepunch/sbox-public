@@ -309,6 +309,16 @@ partial class GameObjectNode : TreeNode<GameObject>
 
 
 		}
+
+		if ( Value.Tags.Has( "hidden" ) )
+		{
+			var eyeRect = item.Rect;
+			eyeRect.Right -= 4;
+			eyeRect.Left = eyeRect.Right - 18;
+
+			Paint.Pen = Theme.TextControl;
+			Paint.DrawIcon( eyeRect, "visibility_off", 14, TextFlag.Center );
+		}
 	}
 
 	public override void OnRename( VirtualWidget item, string text, List<TreeNode> selection = null )
@@ -560,6 +570,8 @@ partial class GameObjectNode : TreeNode<GameObject>
 		m.AddOption( "Rename", "label", treeNode.TreeView.BeginRename, "editor.rename" ).Enabled = isObjectMenu;
 		m.AddOption( "Duplicate", "file_copy", SceneEditorMenus.Duplicate, "editor.duplicate" ).Enabled = isObjectMenu && !isPrefabRoot;
 		m.AddOption( "Delete", "delete", SceneEditorMenus.Delete, "editor.delete" ).Enabled = isObjectMenu && !isPrefabRoot;
+		m.AddOption( "Hide/Show", "visibility_off", SceneEditorMenus.ToggleVisibility, "editor.toggle-visibility" ).Enabled = isObjectMenu;
+		m.AddOption( "Isolate Selection", "filter_center_focus", SceneEditorMenus.IsolateSelection, "editor.isolate-selection" ).Enabled = isObjectMenu;
 
 		m.AddSeparator();
 

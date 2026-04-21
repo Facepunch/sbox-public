@@ -24,10 +24,10 @@ $text-eyebrow: 10px;
 $text-small: 12px;
 $text-regular: 14px;
 $text-medium: 16px;
-$text-large: 20px;
-$text-heading: 24px;
+$text-large: 16px;
+$text-heading: 16px;
 
-$default-border: $default-800;
+$default-border: rgba( $default-50, 0.1 );
 
 $rounding-xsmall: 2px;
 $rounding-small: 4px;
@@ -68,7 +68,6 @@ label {
         color: $default-text-light;
         font-size: $text-heading;
         font-family: $font-heading;
-        letter-spacing: 1px;
         font-weight: 700;
     }
 

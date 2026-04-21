@@ -327,7 +327,6 @@ internal sealed class SceneUndoSnapshot : IDisposable
 				go.Deserialize( State[i], new GameObject.DeserializeOptions { IsRefreshing = true } );
 			}
 
-
 			RestoreHierachy( scene );
 		}
 

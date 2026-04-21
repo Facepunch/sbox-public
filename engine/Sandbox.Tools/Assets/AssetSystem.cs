@@ -142,7 +142,12 @@ public static partial class AssetSystem
 
 		HasChanges = true;
 		Tick();
-		DeleteOrphans();
+
+		// Skip orphan pruning during startup. Custom GameResource types (e.g. .testr) are not
+		// yet registered when UpdateMods first fires (their C# assembly hasn't been compiled).
+		// Pruning here would incorrectly delete transient child assets (e.g. generated vtex_c)
+		// whose parent links can't be established until the types are registered.
+		if ( !StartupLoadProject.IsLoading ) DeleteOrphans();
 	}
 
 	[EditorEvent.Frame]
@@ -284,16 +289,24 @@ public static partial class AssetSystem
 						.Where( x => !x.IsDeleted )
 						.Where( x => x.AssetType == AssetType.Texture ) // Note - gib models can be trivial children too, but I don't want to push my luck
 						.Where( x => transientRoot is not null && x.AbsolutePath.StartsWith( transientRoot, StringComparison.OrdinalIgnoreCase ) )
-						.Where( x => x.GetDependants( false ).Count == 0 && x.GetParents( false ).Count == 0 )
 						.ToArray();
 
 		foreach ( var o in orphans )
 		{
-			log.Trace( $"Deleting Orphan \"{o}\"" );
+			var depCount = o.GetDependants( false ).Count;
+			var parentCount = o.GetParents( false ).Count;
+			var nativeAsset = o as NativeAsset;
+			var pendingDep = nativeAsset?.native.NeedAnyDependencyUpdate_Virtual() ?? false;
 
-			o.Delete();
-			UpdateQueue.Add( o );
-			HasChanges = true;
+			// Skip assets with pending dependency info - parent links may not be resolved yet.
+			if ( depCount == 0 && parentCount == 0 && !pendingDep )
+			{
+				log.Info( $"Deleting Orphan \"{o}\"" );
+
+				o.Delete();
+				UpdateQueue.Add( o );
+				HasChanges = true;
+			}
 		}
 	}
 

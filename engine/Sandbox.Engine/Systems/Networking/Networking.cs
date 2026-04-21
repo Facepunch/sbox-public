@@ -461,7 +461,7 @@ public static partial class Networking
 		//
 		// Did the menu want to override the lobby's max players?
 		//
-		if ( LaunchArguments.MaxPlayers > 1 )
+		if ( LaunchArguments.MaxPlayers > 0 )
 		{
 			config.MaxPlayers = LaunchArguments.MaxPlayers;
 		}
@@ -654,6 +654,8 @@ public static partial class Networking
 		LoadingScreen.Media = null;
 		LoadingScreen.Title = "Connecting";
 
+		OnTryConnect( target );
+
 		var count = 0;
 		while ( count < retries )
 		{
@@ -727,6 +729,7 @@ public static partial class Networking
 		LoadingScreen.Title = "Connecting";
 
 		LastConnectionString = steamId.ToString();
+		OnTryConnect( LastConnectionString );
 
 		if ( steamId.AccountType == SteamId.AccountTypes.Lobby )
 		{
@@ -834,6 +837,19 @@ public static partial class Networking
 		Disconnect();
 		IGameInstanceDll.Current.Disconnect( "Connection timed out." );
 		return false;
+	}
+
+	static void OnTryConnect( string address )
+	{
+		// if we're a non-leader in a party and we're connecting to a server that isn't what the leader is on, leave the party.
+		if ( PartyRoom.Current is { } party && !party.Owner.IsMe )
+		{
+			string partyAddress = party.GameAddress;
+			if ( string.IsNullOrEmpty( partyAddress ) || partyAddress != address )
+			{
+				party.Leave();
+			}
+		}
 	}
 
 	/// <summary>

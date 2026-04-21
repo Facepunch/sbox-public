@@ -131,6 +131,7 @@ public abstract class Renderer : Component, SceneObjectCallbacks
 		_sceneObject = obj;
 		_sceneObject.Tags.SetFrom( GameObject.Tags );
 		_sceneObject.CallbackTarget = this;
+
 		UpdateSceneObjectFlags();
 		RestoreRenderAttributes( obj.Attributes );
 	}

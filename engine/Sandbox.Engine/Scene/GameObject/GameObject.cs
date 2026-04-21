@@ -332,7 +332,7 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 		Components.ForEach( "OnParentChanged", false, c => c.OnParentChangedInternal( oldParent, parent ) );
 
 		// We should tell our children and they should tell their children, propogate it down
-		// as like a OnHeirachyChanged or something
+		// as like a OnHierarchyChanged or something
 	}
 
 	[ActionGraphInclude( AutoExpand = true )]

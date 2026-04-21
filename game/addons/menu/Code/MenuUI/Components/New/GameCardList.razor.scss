@@ -2,17 +2,15 @@
 
 GameCardList {
     flex-shrink: 0;
-    flex-direction: column;
+    flex-direction: row;
     position: relative;
     background-color: rgba( $default-950, 0 );
     border-radius: $rounding-default;
     transition: all 150ms ease;
-    flex-shrink: 0;
     cursor: pointer;
     z-index: 0;
     height: 64px;
     padding: 4px;
-    flex-direction: row;
     gap: 12px;
 
     .inner column {
@@ -25,7 +23,6 @@ GameCardList {
         aspect-ratio: 1;
         flex-grow: 0;
         flex-shrink: 0;
-        flex-grow: 0;
         background-position: center;
         background-size: cover;
         border-radius: $rounding-small;

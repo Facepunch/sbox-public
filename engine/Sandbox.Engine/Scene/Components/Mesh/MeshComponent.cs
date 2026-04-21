@@ -145,6 +145,8 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 
 	internal override void OnEnabledInternal()
 	{
+		GameObject.Tags.Add( "world" );
+
 		// Mesh needs to build before collider.
 		RebuildRenderMesh();
 

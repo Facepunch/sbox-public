@@ -6,7 +6,7 @@
 @inherits PanelComponent
 
 <div class="mainmenu">
-    
+
     <NavigationHost DefaultUrl="/home" @ref="Navigator">
         <ChildContent>
 
@@ -15,7 +15,7 @@
             <div class="navigator-canvas" slot="navigator-canvas"></div>
 
             <Footer />
-            
+
         </ChildContent>
     </NavigationHost>
 </div>
@@ -56,45 +56,46 @@
 
     void MenuTick()
     {
-		if (Game.InGame && !Application.IsEditor)
-		{
-			var startDelay = 0.2f;
-			var holdDelay = 1.5f;
+        if ( Game.InGame && !Application.IsEditor )
+        {
+            var startDelay = 0.2f;
+            var holdDelay = 1.5f;
 
-			if (MenuUtility.EscapeTime > startDelay)
-			{
-				var et = MenuUtility.EscapeTime - startDelay;
-				if (!gameClosingPanel.IsValid())
-				{
-					gameClosingPanel = new GameClosing();
-					gameClosingPanel.Parent = MenuOverlay.Instance.TopCenter;
-				}
+            if ( MenuUtility.EscapeTime > startDelay )
+            {
+                var et = MenuUtility.EscapeTime - startDelay;
 
-				gameClosingPanel.Progress = (et / holdDelay);
-				gameClosingPanel.StateHasChanged();
+                if ( !gameClosingPanel.IsValid() )
+                {
+                    gameClosingPanel = new GameClosing();
+                    gameClosingPanel.Parent = MenuOverlay.Instance.TopCenter;
+                }
 
-				if (gameClosingPanel.Progress > 1)
-					Game.Close();
-			}
-			else
-			{
-				gameClosingPanel?.Delete();
-				gameClosingPanel = null;
-			}
-		}
-		else
-		{
-			gameClosingPanel?.Delete();
-			gameClosingPanel = null;
+                gameClosingPanel.Progress = et / holdDelay;
+                gameClosingPanel.StateHasChanged();
+
+                if ( gameClosingPanel.Progress > 1 )
+                    Game.Close();
+            }
+            else
+            {
+                gameClosingPanel?.Delete();
+                gameClosingPanel = null;
+            }
         }
-	}
+        else
+        {
+            gameClosingPanel?.Delete();
+            gameClosingPanel = null;
+        }
+    }
 
-	override protected void OnUpdate()
+    override protected void OnUpdate()
     {
-        SetClass("is-vr", Application.IsVR);
-        SetClass("has-streamer-account", Sandbox.MenuEngine.Account.HasLinkedStreamerServices);
+        SetClass( "is-vr", Application.IsVR );
+        SetClass( "has-streamer-account", Sandbox.MenuEngine.Account.HasLinkedStreamerServices );
 
         var isInGame = Application.IsEditor ? false : Game.InGame;
         Background.Enabled = Navigator?.CurrentUrl == "/home" && !isInGame;
-	}
+    }
 }

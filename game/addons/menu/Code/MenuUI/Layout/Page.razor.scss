@@ -29,9 +29,12 @@ Page > .inner > .sidebar
     width: 400px;
     background-color: $default-900;
     overflow: hidden;
+    overflow-y: scroll;
     flex-direction: column;
     pointer-events: all;
     gap: 8px;
+    padding: 50px;
+    box-shadow: 6px 0 36px rgba( black, 0.5 );
 }
 
 Page > .inner > .pagebody
@@ -47,13 +50,6 @@ Page > .inner > .pagebody > .row
     padding: 50px;
     flex-direction: row;
 }
-
-    Page > .inner > .sidebar {
-        flex-direction: column;
-        padding: 50px;
-        overflow-y: scroll;
-        box-shadow: 6px 0 36px rgba( black, 0.5 );
-    }
 
 Page > .inner > .sidebar > .flex-column
 {

@@ -1,6 +1,8 @@
 using Sandbox.Engine;
 using Sandbox.Internal;
 using Steamworks;
+using Steamworks.Data;
+using System.Threading;
 
 namespace Sandbox;
 
@@ -39,10 +41,37 @@ internal static class LobbyManager
 		_lobbies.RemoveAll( x => !x.TryGetTarget( out var l ) || l == lobby );
 	}
 
+	static Dictionary<ulong, TaskCompletionSource<bool>> _refreshAwaiters = new();
+	internal static async Task<bool> Refresh( Lobby lobby )
+	{
+		if ( !SteamMatchmaking.Internal.RequestLobbyData( lobby.Id ) )
+			return false;
+
+		var awaiter = _refreshAwaiters.GetOrCreate( lobby.Id );
+
+		// wait 5s for a success, otherwise fail
+		using var cts = new CancellationTokenSource( TimeSpan.FromSeconds( 5 ) );
+		cts.Token.Register( () =>
+		{
+			if ( _refreshAwaiters.TryGetValue( lobby.Id, out var a ) )
+			{
+				_refreshAwaiters.Remove( lobby.Id );
+				a.TrySetResult( false );
+			}
+		} );
+
+		return await awaiter.Task;
+	}
+
 	internal static void OnDataUpdate( ulong lobbyid, ulong targetid )
 	{
 		if ( lobbyid == targetid )
 		{
+			if ( _refreshAwaiters.Remove( lobbyid, out var awaiter ) )
+			{
+				awaiter.TrySetResult( true );
+			}
+
 			foreach ( var lobby in EnumerateLobbies( lobbyid ) )
 			{
 				lobby.OnLobbyUpdated();
@@ -112,14 +141,14 @@ internal static class LobbyManager
 			return;
 
 		var friend = new Friend( memberid );
-		var partyRoom = new PartyRoom.Entry( new Steamworks.Data.Lobby( lobbyid ) );
+		var lobby = new Steamworks.Data.Lobby( lobbyid );
 
 		// TODO - store pending invites somewhere, or something?
 		// What if they're in a game?
 
 		using ( IMenuDll.Current?.PushScope() )
 		{
-			IMenuSystem.Current.Question( $"{friend.Name} invited you to a party!", "celebration", () => _ = partyRoom.Join(), null );
+			IMenuSystem.Current.Question( $"{friend.Name} invited you to a party!", "celebration", () => _ = PartyRoom.Join( lobby ), null );
 		}
 	}
 

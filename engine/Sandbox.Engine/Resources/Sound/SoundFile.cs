@@ -186,6 +186,35 @@ public partial class SoundFile : Resource, IValid
 	}
 
 	/// <summary>
+	/// Create a sound from raw PCM data.
+	/// </summary>
+	/// <param name="filename">Sound name</param>
+	/// <param name="data">Raw interleaved PCM data</param>
+	/// <param name="channels">Number of channels (1 = mono, 2 = stereo)</param>
+	/// <param name="rate">Sample rate (e.g. 44100)</param>
+	/// <param name="bits">Bits per sample (8, 16, 32)</param>
+	/// <param name="loop">Whether the sound should loop</param>
+	public static unsafe SoundFile FromPCM( string filename, Span<byte> data, int channels, uint rate, int bits, bool loop )
+	{
+		ThreadSafe.AssertIsMainThread( "SoundFile.FromPCM" );
+
+		if ( !filename.EndsWith( ".vsnd", StringComparison.OrdinalIgnoreCase ) )
+			filename = System.IO.Path.ChangeExtension( filename, "vsnd" );
+
+		if ( Loaded.TryGetValue( filename, out var sf ) )
+			return sf;
+
+		if ( data.Length <= 0 )
+			throw new ArgumentException( "Invalid data" );
+
+		var format = bits == 8 ? 1 : bits == 16 ? 0 : bits == 32 ? 3 : throw new ArgumentException( $"Unsupported bits: {bits}" );
+		var samples = (uint)(data.Length / (channels * (bits >> 3)));
+		var duration = samples / (float)rate;
+
+		return Create( filename, data, channels, rate, format, samples, duration, loop );
+	}
+
+	/// <summary>
 	/// Load from WAV.
 	/// </summary>
 	public static unsafe SoundFile FromWav( string filename, Span<byte> data, bool loop )

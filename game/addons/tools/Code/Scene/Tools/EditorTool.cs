@@ -55,6 +55,7 @@ public class EditorTool : IDisposable
 	/// </summary>
 	[JsonIgnore]
 	public SceneTrace MeshTrace => Trace.UseRenderMeshes( true, EditorPreferences.BackfaceSelection )
+										.WithoutTags( "hidden" )
 										.UsePhysicsWorld( false );
 
 
