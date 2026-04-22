@@ -104,7 +104,7 @@ class SoundBankLoader( string bankPath, SampleInformation info ) : ResourceLoade
 		}
 
 		// before we continue reading, let's figure out how long each sample is
-		for (var i = 0; i < numSamples; i++)
+		for ( var i = 0; i < numSamples; i++ )
 		{
 			var dataStart = samples[i].DataOffset;
 			long dataEnd;
@@ -112,7 +112,8 @@ class SoundBankLoader( string bankPath, SampleInformation info ) : ResourceLoade
 			{
 				// the sample ends at the offset for the next sample
 				dataEnd = samples[i + 1].DataOffset;
-			} else
+			}
+			else
 			{
 				// the sample ends at the end of the bank file data
 				dataEnd = sampleHeaderSize + nameTableSize + dataSize;
