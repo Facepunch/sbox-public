@@ -34,14 +34,6 @@ class SoundBankLoader( string bankPath, SampleInformation info ) : ResourceLoade
 		VORBIS
 	};
 
-	static int WidthForFormat( SoundFormat format ) => format switch
-	{
-		SoundFormat.PCM8 => 1,
-		SoundFormat.PCM16 => 2,
-		SoundFormat.PCM32 => 4,
-		_ => throw new InvalidDataException(),
-	};
-
 	static ulong Bits( ulong val, int start, int len )
 	{
 		var stop = start + len;
@@ -66,7 +58,6 @@ class SoundBankLoader( string bankPath, SampleInformation info ) : ResourceLoade
 		};
 	}
 
-	// CS4012: Parameters of type 'MountContext' cannot be declared in async methods
 	public static void AddSoundsFromBank( MountContext context, string bankPath, string relPath )
 	{
 		using var fs = File.OpenRead( bankPath );
@@ -161,16 +152,16 @@ class SoundBankLoader( string bankPath, SampleInformation info ) : ResourceLoade
 	protected override object Load()
 	{
 		using var fs = File.OpenRead( BankPath );
-
-		// read information
 		using var br = new BinaryReader( fs );
+
+		// read sample information
 		fs.Seek( Info.InfoOffset, SeekOrigin.Begin );
 
 		var raw = br.ReadUInt64();
 		var nextChunk = Bits( raw, 0, 1 );
 		var frequency = Frequency( Bits( raw, 1, 4 ) );
 		var channels = (int)(Bits( raw, 1 + 4, 1 ) + 1);
-		var samples = (int)Bits( raw, 1 + 4 + 1 + 28, 30 );
+		// var samples = (int)Bits( raw, 1 + 4 + 1 + 28, 30 ); - unused
 
 		while ( nextChunk != 0 )
 		{
@@ -201,15 +192,12 @@ class SoundBankLoader( string bankPath, SampleInformation info ) : ResourceLoade
 
 		if ( Info.Format == SoundFormat.MPEG )
 		{
-			var tempfname = $"ns2_{Guid.NewGuid()}.mp3";
-			File.WriteAllBytes( tempfname, fileBytes );
-			Log.Info( $"Wrote <a href=\"{tempfname}\">{tempfname}</a>" );
-			return null;
+			return SoundFile.FromMp3( Path, fileBytes, false );
 		}
 
 		if ( Info.Format == SoundFormat.PCM16 )
 		{
-			return SoundFile.FromPCM( Path, fileBytes, channels, (uint)frequency, 16, false );
+			return SoundFile.FromPcm( Path, fileBytes, channels, (uint)frequency, 16, false );
 		}
 
 		throw new NotImplementedException(); // NS2 only uses PCM16 (wav) and MPEG (mp3) samples.
