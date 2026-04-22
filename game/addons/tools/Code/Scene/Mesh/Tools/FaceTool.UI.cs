@@ -128,6 +128,7 @@ partial class FaceTool
 				CreateButton( "Edge Cut Tool", "polyline", "mesh.edge-cut-tool", OpenEdgeCutTool, true, grid );
 				CreateButton( "Mirror Tool", "flip", "mesh.mirror-tool", OpenMirrorTool, _faces.Length > 0, grid );
 				CreateButton( "Clipping Tool", "content_cut", "mesh.open-clipping-tool", OpenClippingTool, _faces.Length > 0, grid );
+				CreateButton( "Bridge", "device_hub", "mesh.bridge-tool", OpenBridgeTool, CanBridgeFaces(), grid );
 
 				grid.AddStretchCell();
 
@@ -171,6 +172,29 @@ partial class FaceTool
 
 				group.Add( normalRow );
 			}
+		}
+
+		bool CanBridgeFaces()
+		{
+			if ( _faces.Length < 2 )
+				return false;
+
+			var groups = _faces.GroupBy( f => f.Component ).ToList();
+			if ( groups.Count is < 1 or > 2 )
+				return false;
+
+			return true;
+		}
+
+		[Shortcut( "mesh.bridge-tool", "ALT+B", typeof( SceneViewWidget ) )]
+		void OpenBridgeTool()
+		{
+			if ( !CanBridgeFaces() )
+				return;
+
+			var tool = new BridgeTool( null, _faces );
+			tool.Manager = _meshTool.Manager;
+			_meshTool.CurrentTool = tool;
 		}
 
 		[Shortcut( "editor.select-all", "CTRL+A", typeof( SceneViewWidget ) )]

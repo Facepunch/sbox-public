@@ -1,6 +1,7 @@
 
 native static class ErrorReports as NativeErrorReporter
 {
+	void Init();
 	void SetTag( string key, string value );
 	void Breadcrumb( bool action, string category, string description );
 	void Shutdown();

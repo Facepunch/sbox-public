@@ -111,6 +111,7 @@ public partial class Package
 				{
 					await DownloadFileAsync( e, fs, progressCallback, token );
 				}
+				catch ( OperationCanceledException ) { }
 				catch ( Exception ex )
 				{
 					Log.Warning( ex, $"Error when downloading {FullIdent}/{e.File.Url}" );

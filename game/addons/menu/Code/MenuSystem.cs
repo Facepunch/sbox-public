@@ -139,7 +139,7 @@ public partial class MenuSystem : IMenuSystem
 			}
 
 			player.Volume = Volume * TargetVolume;
-			player.Position = new Vector3( 0, 0, 0 );
+			player.Position = Vector3.Zero;
 			player.ListenLocal = true;
 			player.TargetMixer = Mixer.FindMixerByName( "music" );
 		}
@@ -154,7 +154,7 @@ public partial class MenuSystem : IMenuSystem
 		bool isAvatarMenu = Game.ActiveScene?.Get<AvatarEditManager>() != null;
 		bool isLoadingScreen = LoadingScreen.IsVisible;
 
-		menu.Enabled = false; // Game.IsMainMenuVisible && !isLoadingScreen && !isAvatarMenu;
+		menu.Enabled = false;
 		menu.Update();
 
 		loading.Enabled = LoadingScreen.IsVisible && (IGameInstance.Current is null || IGameInstance.Current.IsLoading);

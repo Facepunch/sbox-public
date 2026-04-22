@@ -1,22 +1,14 @@
 
-$outline: #fff;
-$highlight: #5c5;
-
 WorkshopClothingIcon
 {
 	width: 100px;
 	height: 100px;
-
+	aspect-ratio: 1;
 	background-color: #0008;
 	border-radius: 4px;
 	padding: 4px;
 	flex-direction: column;
 	backdrop-filter: blur( 10px );
-
-	aspect-ratio: 1;
-	border-radius: 4px;
-	padding: 4px;
-	background-color: #0008;
 	transition: all 0.1s ease;
 	cursor: pointer;
 

@@ -115,7 +115,7 @@ class BinnedLight
 	bool HasFogShadows()                { return ( Flags & LightFlags::NoFogShadows ) == 0; }
     bool IsIndexedLight()               { return ( Flags & LightFlags::IndexedLight ) != 0; }
 
-    Texture2D GetLightCookieTexture()   { return g_bindless_Texture2D[ LightCookieTextureIndex ]; }
+    Texture2D GetLightCookieTexture()   { return Bindless::GetTexture2D( LightCookieTextureIndex ); }
 
     float4 SampleLightCookie( float2 uv, float level = 0.0f )
     {

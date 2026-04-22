@@ -169,10 +169,6 @@ mainmenupanel.has-overlay > .body
 {
 	flex-grow: 1;
 	pointer-events: all;
-	// padding-top: 32px;
-	// padding-left: 32px;
-	// padding-right: 32px;
-	// padding-bottom: 80px;
 }
 
 .toolbar
@@ -340,12 +336,6 @@ mainmenupanel.has-overlay > .body
 localgamelist
 {
 	padding-bottom: 90px;
-}
-
-
-.grow
-{
-	flex-grow: 1;
 }
 
 i

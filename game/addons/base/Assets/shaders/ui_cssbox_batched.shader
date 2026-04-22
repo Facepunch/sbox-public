@@ -243,7 +243,7 @@ PS
 	float4 AddImageBorder( float2 texCoord, float2 boxSize, float4 borderWidth, int borderImageIndex, int borderImageSamplerIndex, int borderImageMode, int borderImageFill, float4 borderImageSlice )
 	{
 		float4 BorderImageWidth = borderWidth;
-		Texture2D borderTex = Bindless::GetTexture2D( NonUniformResourceIndex( borderImageIndex ), false );
+		Texture2D borderTex = Bindless::GetTexture2D( borderImageIndex );
 		float2 vBorderImageSize = TextureDimensions2D( borderTex, 0 );
 		float4 vBorderPixelSize = borderImageSlice;
 		float4 vBorderPixelRatio = vBorderPixelSize / float4( vBorderImageSize.x, vBorderImageSize.y, vBorderImageSize.x, vBorderImageSize.y );
@@ -285,7 +285,7 @@ PS
 		else if ( vBoxTexCoord.y > boxSize.y - BorderImageWidth.w )
 			uv.y = ( ( vBoxTexCoord.y - ( boxSize.y - BorderImageWidth.w ) ) / BorderImageWidth.w ) * vBorderPixelRatio.w + ( 1.0 - vBorderPixelRatio.w );
 
-		float4 r = borderTex.Sample( Bindless::GetSampler( NonUniformResourceIndex( borderImageSamplerIndex ) ), uv );
+		float4 r = borderTex.Sample( Bindless::GetSampler( borderImageSamplerIndex ), uv );
 		r.xyz = SrgbGammaToLinear( r.xyz );
 		return r;
 	}
@@ -452,8 +452,9 @@ PS
 			float2 vUV = -vOffset + ( i.vTexCoord.xy * ( boxSize / bgSize ) );
 			vUV = RotateTexCoord( vUV, inst.BackgroundAngle );
 
-			Texture2D tex = Bindless::GetTexture2D( NonUniformResourceIndex( inst.TextureIndex ), false );
-			float4 vImage = tex.SampleBias( Bindless::GetSampler( NonUniformResourceIndex( inst.SamplerIndex ) ), vUV, -1.5 );
+			Texture2D tex = Bindless::GetTexture2D( inst.TextureIndex );
+			// float4 vImage = float4( 1, 0, 0, 1 );
+			float4 vImage = tex.SampleBias( Bindless::GetSampler( inst.SamplerIndex ), vUV, -1.5 );
 
 			int bgRepeat = inst.BackgroundRepeat;
 			if ( bgRepeat != 0 && bgRepeat != 4 )

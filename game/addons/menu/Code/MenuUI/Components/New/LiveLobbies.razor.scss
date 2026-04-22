@@ -26,15 +26,24 @@ LiveLobbies {
     }
 }
 
-LiveLobbyCard {
-    @include card-hover;
-    border-radius: $rounding-large;
-    flex-shrink: 0;
+LiveLobbyCard
+{
+	@include card-hover;
+	border-radius: $rounding-large;
+	flex-shrink: 0;
 
-    badge {
-        position: absolute;
-        bottom: 4px;
-        right: 4px;
-        border-radius: $rounding-small;
-    }
+	badge
+	{
+		position: absolute;
+		bottom: 4px;
+		right: 4px;
+		border-radius: $rounding-small;
+	}
+
+	&.disabled
+	{
+		opacity: 0.6;
+		pointer-events: none;
+		cursor: default;
+	}
 }

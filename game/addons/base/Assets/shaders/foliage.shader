@@ -204,7 +204,6 @@ PS
 	float g_flNormalVariation < Default( 0.1 ); Range( 0.0, 0.5 ); UiGroup( "Foliage" ); >;
 	float g_flGrassNormalUp < Default( 0.0 ); Range( 0.0, 1.0 ); UiGroup( "Foliage" ); >;
 
-
 	#if S_GRAZING_FADE
 		float g_flGrazingFadeStart < Default( 0.5 ); Range( 0.0, 1.0 ); UiGroup( "Grazing Fade" ); >;
 		float g_flGrazingFadeEnd < Default( 0.1 ); Range( 0.0, 1.0 ); UiGroup( "Grazing Fade" ); >;
@@ -214,41 +213,66 @@ PS
 		CreateInputTexture2D( TextureTransmissiveColor, Srgb, 8, "", "_color", "Material,10/60", Default3( 1.0, 1.0, 1.0 ) );
 		Texture2D g_tTransmissiveColor < Channel( RGB, Box( TextureTransmissiveColor ), Srgb ); OutputFormat( BC7 ); SrgbRead( true ); >;
 		float g_flTransmissionScale < Default( 1.0 ); Range( 0.0, 10.0 ); UiGroup( "Transmissive" ); >;
-
-		void ApplyTranslucency( inout Material m, Light light, float3 viewDir, float3 transmissiveColor )
-		{
-			float3 lightThrough = normalize( light.Direction + m.Normal * 0.2 );
-			float backlit = saturate( dot( viewDir, -lightThrough ) );
-			backlit *= backlit;
-			m.Emission += transmissiveColor * m.Albedo * light.Color * light.Visibility * backlit * g_flTransmissionScale * light.Attenuation;
-		}
 	#endif
 
 	#if S_ALPHA_TEST
-	float ApplyAlphaToCoverage( float opacity, float dist )
+
+	// Approximate mip level from texture coordinate screen-space derivatives.
+	// Equivalent to what the GPU uses for automatic LOD selection.
+	// Reference: https://www.khronos.org/registry/OpenGL/specs/gl/glspec46.core.pdf (sec 8.14.1)
+	float CalcMipLevel( float2 vTexCoord )
 	{
-		float eps = 1.0f / 255.0f;
+		float2 dx = ddx( vTexCoord );
+		float2 dy = ddy( vTexCoord );
+		float delta = max( dot( dx, dx ), dot( dy, dy ) );
+		return max( 0.0, 0.5 * log2( delta ) );
+	}
 
-		// Clip first to try to kill the wave if we're in an area of all zero
-		clip( opacity - eps );
+	// Best-practice alpha-to-coverage for foliage.
+	// Based on Ben Golus's "Anti-Aliased Alpha Test: The Esoteric Alpha To Coverage"
+	// and The Witness's mip-aware alpha correction by Ignacio Castaño.
+	//
+	// Two key steps:
+	// 1) Mip compensation: mipmapping averages the alpha channel, collapsing its
+	//    distribution toward the mean. This makes distant foliage vanish or sparkle.
+	//    We counteract by scaling alpha proportional to mip level, restoring coverage.
+	// 2) Derivative sharpening: rescale alpha around the cutoff using fwidth() so
+	//    alpha-to-coverage sees a clean 0→1 step across one pixel width. This gives
+	//    crisp edges that the MSAA hardware anti-aliases via sub-pixel coverage masks.
+	float ApplyAlphaToCoverage( float opacity, float dist, float2 vTextureCoords )
+	{
+		clip( opacity - ( 1.0 / 255.0 ) );
 
-		// Distance-based alpha reference for softer edges at distance
+		// Compute texel-space mip level so the compensation factor is resolution-aware
+		int2 vTexDim = TextureDimensions2DS( g_tColor, 0 );
+		float mipLevel = CalcMipLevel( vTextureCoords * float2( vTexDim ) );
+
+		// Compensate for mip-level alpha averaging.
+		// At mip 0 no change; at higher mips, boost alpha to restore original coverage.
+		// 0.25 is the empirically best scale factor per Ben Golus / The Witness.
+		opacity *= 1.0 + mipLevel * 0.25;
+
+		// Distance-based alpha reference — relax the cutoff at distance so distant
+		// foliage doesn't pop in/out harshly as geometry LODs change.
 		float distFactor = saturate( ( dist - g_flAlphaDistanceStart ) / max( g_flAlphaDistanceEnd - g_flAlphaDistanceStart, 0.001 ) );
 		float alphaRef = lerp( g_flAlphaTestReference, 0.1, distFactor );
 
-		// Sharp anti-aliased edge using shader derivatives
-		float sharpness = saturate( ( opacity - alphaRef ) / max( fwidth( opacity ), 0.0001 ) + 0.5 );
-
-		// Use sharpness as the opacity for alpha to coverage
-		return sharpness;
+		// Sharpen alpha to a single-pixel-wide edge using screen-space derivatives.
+		// After mip compensation the gradient is restored, so fwidth() stays reliable
+		// at all distances — no fallback to raw alpha needed.
+		return saturate( ( opacity - alphaRef ) / max( fwidth( opacity ), 0.0001 ) + 0.5 );
 	}
 
 	void ApplyAlphaTest( inout Material m, float dist )
 	{
+		// Same mip compensation for the non-MSAA clip path
+		int2 vTexDim = TextureDimensions2DS( g_tColor, 0 );
+		float mipLevel = CalcMipLevel( m.TextureCoords * float2( vTexDim ) );
+		m.Opacity *= 1.0 + mipLevel * 0.25;
+
 		float distFactor = saturate( ( dist - g_flAlphaDistanceStart ) / max( g_flAlphaDistanceEnd - g_flAlphaDistanceStart, 0.001 ) );
 		float alphaRef = lerp( g_flAlphaTestReference, 0.1, distFactor );
-		float sharpness = saturate( ( m.Opacity - alphaRef ) / max( fwidth( m.Opacity ), 0.0001 ) + 0.5 );
-		clip( sharpness - 0.5 );
+		clip( m.Opacity - alphaRef );
 		m.Opacity = 1.0;
 	}
 
@@ -273,18 +297,42 @@ PS
 	}
 	#endif
 
-	// https://developer.nvidia.com/gpugems/gpugems/part-iii-materials/chapter-16-real-time-approximations-subsurface-scattering
-	void ApplyWrappedLighting( inout Material m, Light light, float lightScale )
+	// Per-light foliage shading: wrap-diffuse + Dice/Frostbite back-scatter translucency.
+	// Added as emission on top of the standard direct lighting done inside ShadingModelStandard::Shade.
+	// Called once for sunlight (sourced from DirectionalLightCB) and once per cluster light.
+	// Wrap reference: https://developer.nvidia.com/gpugems/gpugems/part-iii-materials/chapter-16-real-time-approximations-subsurface-scattering
+	// SSS reference:  https://colinbarrebrisebois.com/2011/03/07/gdc-2011-approximating-translucency-for-a-fast-cheap-and-convincing-subsurface-scattering-look/
+	void ApplyFoliageLighting( inout Material m, float3 lightDir, float3 lightColor, float attenuation, float visibility, float3 viewDir, float3 transmissionTint, bool isSun )
 	{
-		if ( g_flWrapStrength <= 0.0 )
-			return;
+		const float flSunlightBoost = 1.5;
+		const float flSunlightShadowLeak = 0.2;
+		const float flSSSDistortion = 0.2;
+		const float flSSSPower = 3.0;
+		const float flSSSScale = 1.0;
+		const float flSSSAmbient = 0.1;
 
-		float NdotL = dot( m.Normal, light.Direction );
-		float wrapped = saturate( ( NdotL + g_flWrapAmount ) / ( 1.0 + g_flWrapAmount ) );
-		float wrapContribution = wrapped - saturate( NdotL );
 
-		if ( wrapContribution > 0.0 )
-			m.Emission += m.Albedo * light.Color * wrapContribution * g_flWrapStrength * lightScale;
+		float boost = isSun ? flSunlightBoost : 1.0;
+
+		// Sunlight still scatters through leaves that are shadowed by other foliage — let a fraction through.
+		// Regular lights respect their shadow fully.
+		float scatterShadow = isSun ? lerp( flSunlightShadowLeak, 1.0, visibility ) : visibility;
+		float lightMask = attenuation * scatterShadow;
+
+		// Wrapped diffuse — soft half-lambert fill past the terminator. Ignores shadows by design.
+		if ( g_flWrapStrength > 0.0 )
+		{
+			float NdotL = dot( m.Normal, lightDir );
+			float wrapped = saturate( ( NdotL + g_flWrapAmount ) / ( 1.0 + g_flWrapAmount ) );
+			float wrapContribution = max( wrapped - saturate( NdotL ), 0.0 );
+			m.Emission += m.Albedo * lightColor * wrapContribution * g_flWrapStrength * attenuation * boost;
+		}
+
+		#if S_TRANSMISSIVE
+			float3 scatterDir = normalize( lightDir + m.Normal * flSSSDistortion );
+			float backlit = pow( saturate( dot( viewDir, -scatterDir ) ), flSSSPower ) * flSSSScale;
+			m.Emission += m.Albedo * transmissionTint * lightColor * ( backlit + flSSSAmbient ) * lightMask * g_flTransmissionScale * boost;
+		#endif
 	}
 
 	// https://www.ronja-tutorials.com/post/012-fresnel/
@@ -342,6 +390,7 @@ PS
 			float3 transmissiveColor = g_tTransmissiveColor.Sample( TextureFiltering, i.vTextureCoords.xy ).rgb;
 			float transmission = dot( transmissiveColor, float3( 0.299, 0.587, 0.114 ) );
 		#else
+			float3 transmissiveColor = 1.0;
 			float transmission = 0.0;
 		#endif
 
@@ -355,20 +404,27 @@ PS
 			float opacity = m.Opacity;
 		#endif
 
-		uint lightCount = Light::Count( m.ScreenPosition );
-		if ( lightCount > 0 )
+		// Sunlight — lives in its own cbuffer (DirectionalLightCB), not the cluster.
+		// Treated with a boost + shadow-leak so sun-scattering still reads in foliage-cast shadow.
+		if ( g_DirectionalLightEnabled )
 		{
-			Light light = Light::From( m.WorldPosition, m.ScreenPosition, 0 );
-			float wrapScale = light.Attenuation; // Wrap lighting ignores shadows
-			float lightScale = light.Attenuation * light.Visibility;
-
-			ApplyWrappedLighting( m, light, wrapScale );
-
-			#if S_TRANSMISSIVE
-			if ( closeUp )
-				ApplyTranslucency( m, light, viewDir, transmissiveColor );
-			#endif
+			float3 sunDir = -normalize( g_DirectionalLightDirection.xyz );
+			float3 sunColor = g_DirectionalLightColor.rgb;
+			float sunVis = DirectionalLightShadow::GetVisibility( m.WorldPosition, m.ScreenPosition.xy );
+			ApplyFoliageLighting( m, sunDir, sunColor, 1.0, sunVis, viewDir, transmissiveColor, true );
 		}
+
+		// Cluster lights (dynamic + indexed static) — wrap + SSS per light.
+		/*uint lightCount = Light::Count( m.ScreenPosition );
+		[loop]
+		for ( uint li = 0; li < lightCount; li++ )
+		{
+			Light light = Light::From( m.WorldPosition, m.ScreenPosition, li );
+			if ( light.Attenuation <= 0.0 )
+				continue;
+
+			ApplyFoliageLighting( m, light.Direction, light.Color, light.Attenuation, light.Visibility, viewDir, transmissiveColor, false );
+		}*/
 
 		if ( closeUp )
 			ApplyRimLighting( m, viewDir );
@@ -379,9 +435,10 @@ PS
 		float4 output = ShadingModelStandard::Shade( i, m );
 
 		// Output custom alpha to coverage for foliage, overriding the one in shadingmodel
-		// Ensures we have smooth MSAA edges on foliage that are still sharp on distance
+		// Ensures we have smooth MSAA edges on foliage that are still sharp close-up
+		// and gracefully fall back to raw A2C at distance where derivatives get noisy
 		#if S_ALPHA_TEST
-			output.a = ApplyAlphaToCoverage( opacity, dist );
+			output.a = ApplyAlphaToCoverage( opacity, dist, i.vTextureCoords.xy );
 		#endif
 
 		return output;

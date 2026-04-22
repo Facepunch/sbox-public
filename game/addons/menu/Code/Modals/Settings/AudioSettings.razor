@@ -40,6 +40,13 @@
             <SliderControl Value:bind=@VoiceVolume class="glass with-grow" Min="@(0)" Max="@(1)" Step="@(0.01f)" NumberFormat="0.##%"></SliderControl>
         </row>
 
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Background Audio
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@BackgroundAudioOptions Value:bind=@BackgroundAudio></ButtonGroup>
+        </row>
+
     </div>
 
     <SettingsFooter OnCancel=@OnCancel OnRestore=@OnRestore OnApply=@OnApply></SettingsFooter>
@@ -52,6 +59,7 @@
     public float GlobalVolume { get; set; }
     public float MusicVolume { get; set; }
     public float VoiceVolume { get; set; }
+    public bool BackgroundAudio { get; set; }
 
     public string AudioDevice { get; set; }
 
@@ -64,6 +72,12 @@
 
         OnCancel();
     }
+
+	List<Option> BackgroundAudioOptions = new List<Option>()
+    {
+        new Option("Off", false),
+        new Option("On", true),
+    };
 
     List<Option> GetAudioDevices()
     {
@@ -87,6 +101,7 @@
         ConsoleSystem.SetValue("volume", 1.0f);
         ConsoleSystem.SetValue("music_volume", 1.0f);
         ConsoleSystem.SetValue("voip_volume", 1.0f);
+        ConsoleSystem.SetValue("snd_mute_losefocus", false);
     }
 
     public void OnCancel()
@@ -94,6 +109,7 @@
         GlobalVolume = ConsoleSystem.GetValue("volume").ToFloat();
         MusicVolume = ConsoleSystem.GetValue("music_volume").ToFloat();
         VoiceVolume = ConsoleSystem.GetValue("voip_volume").ToFloat();
+        BackgroundAudio = !ConsoleSystem.GetValue("snd_mute_losefocus").ToBool();
         AudioDevice = Sandbox.Internal.AudioSettings.GetActiveDevice().Id;
     }
 
@@ -103,5 +119,6 @@
         ConsoleSystem.SetValue("volume", GlobalVolume);
         ConsoleSystem.SetValue("music_volume", MusicVolume);
         ConsoleSystem.SetValue("voip_volume", VoiceVolume);
+        ConsoleSystem.SetValue("snd_mute_losefocus", !BackgroundAudio);
     }
 }

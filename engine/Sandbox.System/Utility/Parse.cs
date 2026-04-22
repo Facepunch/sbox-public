@@ -559,7 +559,7 @@ namespace Sandbox
 			if ( !p.IsLetter )
 				return false;
 
-			var w = p.ReadWord( null, true );
+			var w = p.ReadWord( ",", true );
 			switch ( w )
 			{
 				case "inset":

@@ -118,6 +118,14 @@ public abstract class SelectionTool : EditorTool
 		stored.Add( element );
 	}
 
+	public static void ClearPreviousSelections<T>()
+	{
+		if ( PreviousSelections.TryGetValue( typeof( T ), out var stored ) )
+		{
+			stored.Clear();
+		}
+	}
+
 	protected void SaveCurrentSelection<T>() where T : IValid
 	{
 		var stored = PreviousSelections.GetOrCreate( PreviousSelectionKey );

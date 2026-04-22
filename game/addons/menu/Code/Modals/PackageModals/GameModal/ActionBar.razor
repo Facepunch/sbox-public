@@ -15,11 +15,11 @@
 
 	    @if ( IsDedicatedServerOnly )
 	    {
-		    <Button icon="list" class="@(LobbyCount == 0 ? "disabled" : "")" onclick=@OpenLobbyList>@LobbyCount Servers</Button>
+		    <Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Servers</Button>
 	    }
 	    else if ( IsMultiplayerGame )
         {
-            <Button icon="list" class="@(LobbyCount == 0 ? "disabled" : "")" onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
+			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
         }
 
     </div>
@@ -48,21 +48,19 @@
             {
 	            @if ( IsDedicatedServerOnly )
 	            {
-		            <Button icon="auto_awesome" class="play" onclick=@ShowServerList>Find Game</Button>
+					<Button icon="auto_awesome" class="play" Disabled=@(!MenuHelpers.HasAuthority) onclick=@ShowServerList>Find Game</Button>
 	            }
 	            else
 	            {
 		            var text = ((!IsMultiplayerGame || IsQuickPlayGame) ? "Play Game" : "New Game");
-		            var classes = $"play { (IsReady() ? "" : "disabled") } ";
 
-		            <Button Icon="play_arrow" class="@classes" onclick=@OnPlay>
+					<Button Icon="play_arrow" class="play" Disabled=@(!MenuHelpers.HasAuthority || !IsReady()) onclick=@OnPlay>
 			            @text
 		            </Button>
 
 		            @if (IsMultiplayerGame && !IsQuickPlayGame)
 		            {
-			            var mpclasses = $"play {(LobbyCount == 0 ? "disabled" : "")} ";
-			            <Button icon="auto_awesome" class="@mpclasses" onclick=@OnJoinGame>Join Game</Button>
+						<Button icon="auto_awesome" class="play" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OnJoinGame>Join Game</Button>
 		            }
 	            }
             }
@@ -81,7 +79,7 @@
     [Parameter] public Package Package {get;set;}
     [Parameter] public Package MapPackage { get; set; }
 
-    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount );
+	protected override int BuildHash() => System.HashCode.Combine(Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority);
 
     bool IsVrOnly => Package.GetMeta<ControlModeSettings>("ControlModes")?.IsVROnly ?? false;
     bool IsMultiplayerGame => Package.Tags.Contains("multiplayer") || LobbyCount > 0 || Package.GetMeta<int>("MaxPlayers", 1) > 1;

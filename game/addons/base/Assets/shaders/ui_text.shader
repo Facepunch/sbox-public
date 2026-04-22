@@ -92,7 +92,7 @@ PS
 		float2 vTexCoord = i.vTexCoord.xy;
 
 		float mipBias = -1.5;
-		SamplerState sampler = Bindless::GetSampler( NonUniformResourceIndex( SamplerIndex ) );
+		SamplerState sampler = Bindless::GetSampler( SamplerIndex );
 		float4 vColor = g_tTextTexture.SampleBias( sampler, vTexCoord, mipBias );
 
 		o.vColor = vColor;

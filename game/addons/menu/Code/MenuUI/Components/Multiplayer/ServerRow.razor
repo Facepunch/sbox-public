@@ -36,8 +36,8 @@
 		<div class="maxmembers">@Server.MaxMembers</div>
 	</div>
 
-	<div class="controls" onclick=@( () => OnLobbySelected( Server ) )>
-		<Button class="clicky is-icon" icon="play_circle_filled"></Button>
+	<div class="controls" >
+		<Button class="clicky is-icon" Disabled=@(!MenuHelpers.HasAuthority) icon="play_circle_filled" onclick=@( () => OnLobbySelected( Server ) ) />
 	</div>
 
 </root>
@@ -97,5 +97,5 @@
 		Game.Overlay.ShowGameModal(Server.Game);
 	}
 
-	protected override int BuildHash() => System.HashCode.Combine(GamePackage?.Thumb, MapPackage?.Thumb);
+	protected override int BuildHash() => System.HashCode.Combine(GamePackage?.Thumb, MapPackage?.Thumb, MenuHelpers.HasAuthority);
 }

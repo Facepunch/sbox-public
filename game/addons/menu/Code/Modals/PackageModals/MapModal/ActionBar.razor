@@ -12,7 +12,7 @@
 
         @if ( LobbyCount > 0 )
         {
-            <Button icon="list" class="@(LobbyCount == 0 ? "disabled" : "")" onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
+			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
         }
 
     </div>
@@ -30,8 +30,7 @@
                 <Button icon="sports_esports" onclick=@SelectGame>@GamePackage.Title</Button>
 			}
 
-            var bc = $"play {(GamePackage is null ? "disabled" : "")}";
-            <Button icon="play_arrow" class="@bc" onclick=@OnPlay>Launch Map</Button>
+			<Button icon="play_arrow" class="play" Disabled=@(GamePackage is null || !MenuHelpers.HasAuthority) onclick=@OnPlay>Launch Map</Button>
 		}
 		else
 		{
@@ -50,7 +49,7 @@
     public static Package GamePackage { get; set; } = null;
     public static Package MapPackage { get; set; } = null;
 
-    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, LobbyCount );
+    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, LobbyCount, MenuHelpers.HasAuthority );
 
     int LobbyCount => Modal?.Lobbies?.Count() ?? 0;
 

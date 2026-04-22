@@ -186,6 +186,35 @@ public partial class SoundFile : Resource, IValid
 	}
 
 	/// <summary>
+	/// Create a sound from raw PCM data.
+	/// </summary>
+	/// <param name="filename">Sound name</param>
+	/// <param name="data">Raw interleaved PCM data</param>
+	/// <param name="channels">Number of channels (1 = mono, 2 = stereo)</param>
+	/// <param name="rate">Sample rate (e.g. 44100)</param>
+	/// <param name="bits">Bits per sample (8, 16, 32)</param>
+	/// <param name="loop">Whether the sound should loop</param>
+	public static unsafe SoundFile FromPcm( string filename, Span<byte> data, int channels, uint rate, int bits, bool loop )
+	{
+		ThreadSafe.AssertIsMainThread( "SoundFile.FromPcm" );
+
+		if ( !filename.EndsWith( ".vsnd", StringComparison.OrdinalIgnoreCase ) )
+			filename = System.IO.Path.ChangeExtension( filename, "vsnd" );
+
+		if ( Loaded.TryGetValue( filename, out var sf ) )
+			return sf;
+
+		if ( data.Length <= 0 )
+			throw new ArgumentException( "Invalid data" );
+
+		var format = bits == 8 ? 1 : bits == 16 ? 0 : bits == 32 ? 3 : throw new ArgumentException( $"Unsupported bits: {bits}" );
+		var samples = (uint)(data.Length / (channels * (bits >> 3)));
+		var duration = samples / (float)rate;
+
+		return Create( filename, data, channels, rate, format, samples, duration, loop );
+	}
+
+	/// <summary>
 	/// Load from WAV.
 	/// </summary>
 	public static unsafe SoundFile FromWav( string filename, Span<byte> data, bool loop )
@@ -211,6 +240,39 @@ public partial class SoundFile : Resource, IValid
 			else if ( soundData.BitsPerSample == 16 ) format = 0;
 		}
 		else if ( soundData.Format == 2 )
+		{
+			format = 3;
+		}
+
+		return Create( filename, pcmData, soundData.Channels, soundData.SampleRate, format, soundData.SampleCount, soundData.Duration, loop );
+	}
+
+	/// <summary>
+	/// Load from MP3.
+	/// </summary>
+	public static unsafe SoundFile FromMp3( string filename, Span<byte> data, bool loop )
+	{
+		ThreadSafe.AssertIsMainThread( "SoundFile.FromMp3" );
+
+		if ( !filename.EndsWith( ".vsnd", StringComparison.OrdinalIgnoreCase ) )
+			filename = System.IO.Path.ChangeExtension( filename, "vsnd" );
+
+		if ( Loaded.TryGetValue( filename, out var soundFile ) )
+			return soundFile;
+
+		if ( data.Length <= 0 )
+			throw new ArgumentException( "Invalid data" );
+
+		var soundData = SoundData.FromMP3( data );
+		var pcmData = soundData.PCMData ?? throw new ArgumentException( "Invalid MP3" );
+
+		var format = 0;
+		if ( soundData.Format == 1 )
+		{
+			if ( soundData.BitsPerSample == 8 ) format = 1;
+			else if ( soundData.BitsPerSample == 16 ) format = 0;
+		}
+		else if ( soundData.Format == 3 )
 		{
 			format = 3;
 		}

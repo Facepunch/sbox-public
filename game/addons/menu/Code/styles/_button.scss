@@ -14,12 +14,12 @@ $button-size: 50px;
 
 	&:hover
 	{
-		sound-in: ui.button.over;
+		sound-in: "ui.button.over";
 	}
 
 	&:active
 	{
-		sound-in: ui.button.press;
+		sound-in: "ui.button.press";
 	}
 }
 
@@ -69,6 +69,13 @@ Button
 	gap: 8px;
 	cursor: pointer;
 	padding: 8px 16px;
+
+	&.disabled
+	{
+		opacity: 0.2;
+		pointer-events: none;
+		cursor: default;
+	}
 }
 
 Button i
@@ -114,18 +121,15 @@ Button.uplight
 	color: #c6d4ee;
 	border-bottom: 4px solid #477fe700;
 	cursor: pointer;
+	padding: 8px 24px;
+	gap: 8px;
 	transition: all 0.2s ease;
+	text-shadow: 2px 2px 2px #0003;
 
 	IconPanel
 	{
 		color: #697180;
 	}
-
-	padding: 8px;
-	gap: 8px;
-	transition: all 0.2s ease;
-	text-shadow: 2px 2px 2px #0003;
-	padding: 8px 24px;
 
 	&:hover
 	{

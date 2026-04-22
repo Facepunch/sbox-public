@@ -62,7 +62,7 @@
 
                 <div class="grow" />
 
-                <Button class="play-button" Icon="play_arrow" onclick=@PlayNow>
+				<Button class="play-button" Disabled=@(!MenuHelpers.HasAuthority) Icon="play_arrow" onclick=@PlayNow>
                     <label class="eyebrow">Play Now</label>
                 </Button>
             </div>
@@ -79,6 +79,8 @@
 
     List<string> Screenshots = new();
     List<string> Tags = new();
+
+	protected override int BuildHash() => System.HashCode.Combine(MenuHelpers.HasAuthority);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -103,7 +105,6 @@
             var video = Package.Screenshots?.Where(x => x.IsVideo).FirstOrDefault()?.Url;
             if (video != null)
             {
-                video = video.Replace("medium.mp4", "high.mp4");
                 MediaUrl = video;
             }
         }

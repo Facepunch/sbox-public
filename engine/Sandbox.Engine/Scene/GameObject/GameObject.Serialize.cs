@@ -418,7 +418,7 @@ public partial class GameObject
 		Name = node.GetPropertyValue( "Name", Name );
 		DeserializeTransform( node, options );
 
-		_enabled = node.GetPropertyValue( "Enabled", false );
+		_enabled = node.GetPropertyValue( JsonKeys.Enabled, false );
 
 		using var batchGroup = CallbackBatch.Batch();
 
@@ -636,7 +636,7 @@ public partial class GameObject
 		}
 
 		// We only want to deserialize certain flags, the rest are runtime only.
-		const GameObjectFlags FlagsToKeep =
+		const GameObjectFlags flagsToKeep =
 						GameObjectFlags.ProceduralBone |
 						GameObjectFlags.EditorOnly |
 						GameObjectFlags.NotNetworked |
@@ -645,11 +645,10 @@ public partial class GameObject
 						GameObjectFlags.Hidden;
 
 		// Clear the flags we're about to deserialize
-		Flags &= ~FlagsToKeep;
+		Flags &= ~flagsToKeep;
 
 		// Copy set flags from source
-		Flags |= (inFlags & FlagsToKeep);
-
+		Flags |= (inFlags & flagsToKeep);
 	}
 
 	private bool IsPrefabLoaded( PrefabFile prefabFile )
@@ -1009,6 +1008,7 @@ public partial class GameObject
 		internal const string Rotation = "Rotation";
 		internal const string Scale = "Scale";
 		internal const string Enabled = "Enabled";
+		internal const string Hidden = "Hidden";
 		internal const string Tags = "Tags";
 		internal const string Version = "__version";
 		internal const string NetworkMode = "NetworkMode";

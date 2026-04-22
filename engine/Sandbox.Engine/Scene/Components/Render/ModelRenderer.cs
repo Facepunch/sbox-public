@@ -323,8 +323,10 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 	/// <summary>
 	/// Tags have been updated - lets update our scene object tags
 	/// </summary>
-	protected override void OnTagsChanged()
+	internal override void OnTagsUpdatedInternal()
 	{
+		base.OnTagsUpdatedInternal();
+
 		if ( !_sceneObject.IsValid() ) return;
 
 		_sceneObject.Tags.SetFrom( GameObject.Tags );

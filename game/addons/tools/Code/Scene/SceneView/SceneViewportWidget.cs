@@ -718,6 +718,7 @@ public partial class SceneViewportWidget : Widget
 		var tr = session.Scene.Trace.Ray( Gizmo.CurrentRay, Gizmo.RayDepth )
 					.UseRenderMeshes( true )
 					.UsePhysicsWorld( false )
+					.WithoutTags( "hidden" )
 					.Run();
 
 		if ( tr.Hit && tr.Component.IsValid() )

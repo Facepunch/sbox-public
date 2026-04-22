@@ -19,6 +19,12 @@
 		// engine is always initialized
 		Managed.SandboxEngine.NativeInterop.Initialize();
 
+		// Initialize native crash reporting (crashpad) as early as possible.
+		if ( Sandbox.Engine.ErrorReporter.IsUsingSentry )
+		{
+			NativeErrorReporter.Init();
+		}
+
 		// set engine paths etc
 		NativeEngine.EngineGlobal.Plat_SetModuleFilename( $"{gameFolder}\\sbox.exe" );
 		NativeEngine.EngineGlobal.Plat_SetCurrentDirectory( $"{gameFolder}" );

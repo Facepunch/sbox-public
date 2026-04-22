@@ -22,6 +22,8 @@ public partial class ClipTool : EditorTool
 			if ( field == value ) return;
 			field = value;
 
+			EditorCookie.Set( "ClipTool.CapNewSurfaces", value );
+
 			ApplyClipPreview();
 		}
 	}
@@ -38,6 +40,9 @@ public partial class ClipTool : EditorTool
 		{
 			if ( field == value ) return;
 			field = value;
+
+
+			EditorCookie.Set( "ClipTool.KeepMode", value );
 
 			ApplyClipPreview();
 		}
@@ -82,6 +87,9 @@ public partial class ClipTool : EditorTool
 
 	public override void OnEnabled()
 	{
+		KeepMode = EditorCookie.Get( "ClipTool.KeepMode", ClipKeepMode.Front );
+		CapNewSurfaces = EditorCookie.Get( "ClipTool.CapNewSurfaces", false );
+
 		Reset();
 		CacheSelectedMeshes();
 	}
@@ -500,5 +508,15 @@ public partial class ClipTool : EditorTool
 			foreach ( var v in mesh.GetEdges() )
 				Gizmo.Draw.Line( v );
 		}
+	}
+
+	void CycleMode()
+	{
+		KeepMode = KeepMode switch
+		{
+			ClipKeepMode.Front => ClipKeepMode.Back,
+			ClipKeepMode.Back => ClipKeepMode.Both,
+			_ => ClipKeepMode.Front
+		};
 	}
 }

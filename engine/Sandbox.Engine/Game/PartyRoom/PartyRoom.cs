@@ -1,6 +1,8 @@
 using NativeEngine;
 using Sandbox.Engine;
+using Sandbox.Modals;
 using Sandbox.Network;
+using Steamworks;
 using Steamworks.Data;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -20,6 +22,11 @@ public partial class PartyRoom : ILobby
 	/// The unique identifier of this lobby
 	/// </summary>
 	public SteamId Id => steamLobby.Id.Value;
+
+	/// <summary>
+	/// The server this party is playing on, if any. This is set by the owner of the party, and read by clients to know where to connect to.
+	/// </summary>
+	internal string GameAddress => steamLobby.GetData( "gameaddress" );
 
 	internal int NetworkChannel => (int)(Id % int.MaxValue);
 
@@ -301,6 +308,38 @@ public partial class PartyRoom : ILobby
 		return room;
 	}
 
+	internal static async Task<bool> Join( Lobby lobby )
+	{
+		Current?.Leave();
+
+		if ( Application.IsEditor )
+			return false;
+
+		var result = await lobby.Join();
+		if ( result != RoomEnter.Success )
+		{
+			switch ( result )
+			{
+				case RoomEnter.DoesntExist:
+					IModalSystem.Current?.Notice( "Joining failed", "The party doesn't exist anymore.", "heart_broken" );
+					break;
+				case RoomEnter.Full:
+					IModalSystem.Current?.Notice( "Joining failed", "The party is full.", "heart_broken" );
+					break;
+				default:
+					IModalSystem.Current?.Notice( "Joining failed", $"Failed to join the party: {result}.", "heart_broken" );
+					break;
+			}
+
+			Log.Warning( $"Failed to join lobby for party ({result})" );
+			return false;
+		}
+
+		Current = new PartyRoom( lobby );
+
+		return true;
+	}
+
 
 	/// <summary>
 	/// A list of members in this room
@@ -388,16 +427,7 @@ public partial class PartyRoom : ILobby
 
 		public async Task Join()
 		{
-			var result = await x.Join();
-			if ( result != Steamworks.RoomEnter.Success )
-			{
-				Log.Warning( $"Failed to join lobby for party ({result})" );
-				return;
-			}
-
-			Current?.Leave();
-
-			Current = new PartyRoom( x );
+			await PartyRoom.Join( x );
 		}
 	}
 }

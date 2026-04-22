@@ -62,7 +62,7 @@ class DirectionalLightShadow
 		float3 positionLs = mul( worldToShadow, float4( worldPosition, 1.0f ) ).xyz;
 
         ShadowPCFInput pcfInput;
-        pcfInput.ShadowMap = g_bindless_Texture2D[ NonUniformResourceIndex( g_DirectionalLightShadowMapTextureIndex[cascadeIndex] ) ];
+        pcfInput.ShadowMap = Bindless::GetTexture2D( g_DirectionalLightShadowMapTextureIndex[cascadeIndex] );
         pcfInput.ShadowPos = positionLs;
         pcfInput.InvShadowMapRes = g_DirectionalLightInverseShadowMapSize;
         pcfInput.Bias = g_DirectionalLightShadowBias[cascadeIndex];
@@ -86,7 +86,7 @@ class DirectionalLightShadow
 			posLs = mul( g_DirectionalLightWorldToShadowViewMatrices[cascade], float4( fragPos, 1 ) ).xyz;
 		}
 
-		float s = g_bindless_Texture2D[ NonUniformResourceIndex( g_DirectionalLightShadowMapTextureIndex[cascade] ) ].SampleLevel( g_sPointClamp, posLs.xy, 0 ).r;
+		float s = Bindless::GetTexture2D( g_DirectionalLightShadowMapTextureIndex[cascade] ).SampleLevel( g_sPointClamp, posLs.xy, 0 ).r;
 
 		// zGrad is the gradient of shadow-Z w.r.t. world position; 1/|zGrad| converts shadow-Z delta to world units
 		// Reversed-Z: s > posLs.z when occluder is closer to light than fragment

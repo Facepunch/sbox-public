@@ -1,4 +1,6 @@
-﻿namespace Editor.SpriteEditor;
+﻿using Sandbox.Resources;
+
+namespace Editor.SpriteEditor;
 
 public class Timeline : Widget
 {
@@ -190,6 +192,80 @@ public class Timeline : Widget
 	{
 		m.AddOption( "Add Empty Frame", "add", AddNewFrame );
 		m.AddOption( "Import Image(s)", "image", ImportImages );
+		m.AddOption( "Import from Spritesheet", "grid_view", ImportFromSpritesheet );
+	}
+
+	private void ImportFromSpritesheet()
+	{
+		if ( SpriteEditor.SelectedAnimation is null ) return;
+
+		var picker = AssetPicker.Create( this, AssetType.ImageFile, new()
+		{
+			EnableMultiselect = false,
+			EnableCloud = false
+		} );
+
+		picker.Window.StateCookie = "SpriteEditor.ImportSpritesheet";
+		picker.Window.RestoreFromStateCookie();
+		picker.Window.Title = $"Import Spritesheet - {SpriteEditor.Sprite.ResourceName} - {SpriteEditor.SelectedAnimation.Name}";
+		picker.OnAssetPicked = assets =>
+		{
+			var asset = assets.FirstOrDefault();
+			if ( asset is null ) return;
+
+			var importer = new SpritesheetImporter( this, asset.RelativePath );
+			importer.Antialiasing = SpriteEditor.Antialiasing;
+			importer.OnImport = ( path, frames ) => OnSpritesheetImport( path, frames );
+			importer.Show();
+		};
+
+		picker.Window.Show();
+	}
+
+	private void OnSpritesheetImport( string path, List<Rect> frames )
+	{
+		if ( SpriteEditor.SelectedAnimation is null ) return;
+		if ( frames.Count == 0 ) return;
+
+		var srcTexture = Texture.LoadFromFileSystem( path, FileSystem.Mounted );
+		if ( srcTexture is null )
+		{
+			Log.Warning( $"SpritesheetImporter: failed to load texture '{path}'" );
+			return;
+		}
+
+		SpriteEditor.ExecuteUndoableAction( $"Import Spritesheet ({frames.Count} frame{(frames.Count == 1 ? "" : "s")})", () =>
+		{
+			foreach ( var frame in frames )
+			{
+				// Clamp frame rect to the source texture bounds; skip any frames that lie entirely outside the texture bounds
+				var clampedLeft = Math.Clamp( (int)frame.Left, 0, srcTexture.Width );
+				var clampedTop = Math.Clamp( (int)frame.Top, 0, srcTexture.Height );
+				var clampedRight = Math.Clamp( (int)frame.Left + (int)frame.Width, 0, srcTexture.Width );
+				var clampedBottom = Math.Clamp( (int)frame.Top + (int)frame.Height, 0, srcTexture.Height );
+
+				if ( clampedRight <= clampedLeft || clampedBottom <= clampedTop ) continue;
+
+				// Use ImageFileGenerator to create cropped versions as EmbeddedResources, so if the source file is updated, the frames will update as well
+				var generator = new ImageFileGenerator
+				{
+					FilePath = path,
+					Cropping = new Sandbox.UI.Margin(
+						clampedLeft,
+						clampedTop,
+						srcTexture.Width - clampedRight,
+						srcTexture.Height - clampedBottom
+					)
+				};
+
+				var texture = generator.Create( ResourceGenerator.Options.Default );
+				if ( texture is null ) continue;
+
+				SpriteEditor.SelectedAnimation.Frames.Add( new Sprite.Frame { Texture = texture } );
+			}
+		} );
+
+		SpriteEditor.OnSpriteModified?.Invoke();
 	}
 
 	private void AddNewFrame()

@@ -8,7 +8,6 @@ GameCard {
     background-color: rgba( $default-950, 0 );
     border-radius: $rounding-default;
     transition: all 150ms ease;
-    flex-shrink: 0;
     cursor: pointer;
     z-index: 0;
     height: 200px;
@@ -19,6 +18,9 @@ GameCard {
         transition: all 150ms ease;
         border: 1px solid rgba( white, 0.025 );
         aspect-ratio: 16 / 9;
+        background-position: center;
+        background-size: cover;
+        border-radius: $rounding-small;
     }
 
     column {
@@ -40,7 +42,6 @@ GameCard {
             aspect-ratio: 1;
             flex-grow: 0;
             flex-shrink: 0;
-            flex-grow: 0;
         }
 
         column {
@@ -111,12 +112,6 @@ GameCard {
         }
     }
 
-    .image {
-        background-position: center;
-        background-size: cover;
-        border-radius: $rounding-small;
-    }
-
     .play-button {
         position: absolute;
         bottom: -32px;
@@ -150,7 +145,7 @@ GameCard {
         transition: all 150ms ease;
         z-index: -10;
         border-radius: $rounding-large;
-        pointer-events: all;
+        pointer-events: none;
     }
 
     &:hover {
