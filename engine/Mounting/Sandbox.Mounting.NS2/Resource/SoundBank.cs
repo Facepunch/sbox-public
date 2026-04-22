@@ -187,49 +187,6 @@ class SoundBankLoader( string bankPath, SampleInformation info ) : ResourceLoade
 			return null;
 		}
 
-		// how do I make a sound from just samples??
-		// for now, generate a temporary .wav and then load it
-
-		var tempf = new MemoryStream();
-
-		{
-			using var wb = new BinaryWriter( tempf );
-			var width = WidthForFormat( Info.Format );
-
-			wb.Write( 'R' );
-			wb.Write( 'I' );
-			wb.Write( 'F' );
-			wb.Write( 'F' );
-			wb.Write( 0 ); // filesize, will be filled in later
-			wb.Write( 'W' );
-			wb.Write( 'A' );
-			wb.Write( 'V' );
-			wb.Write( 'E' );
-			wb.Write( 'f' );
-			wb.Write( 'm' );
-			wb.Write( 't' );
-			wb.Write( ' ' );
-			wb.Write( 16 );
-			wb.Write( (short)1 );  // formatTag: PCM
-			wb.Write( (short)Info.Channels );
-			wb.Write( Info.Frequency );
-			var bytePerBloc = Info.Channels * width;
-			var bytePerSec = bytePerBloc * Info.Frequency;
-			wb.Write( bytePerSec );
-			wb.Write( (short)bytePerBloc );
-			wb.Write( (short)(width * 8) );
-			wb.Write( 'd' );
-			wb.Write( 'a' );
-			wb.Write( 't' );
-			wb.Write( 'a' );
-			wb.Write( fileBytes.Length );
-			wb.Write( fileBytes );
-			// go back and fill in size
-			var size = (int)tempf.Position - 8;
-			tempf.Seek( 4, SeekOrigin.Begin );
-			wb.Write( size );
-		}
-
-		return SoundFile.FromWav( Path, tempf.ToArray(), false );
+		return SoundFile.FromPCM( Path, fileBytes, Info.Channels, (uint)Info.Frequency, 16, false );
 	}
 }
