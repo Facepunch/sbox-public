@@ -10,5 +10,5 @@ native class CVideoRecorder as NativeEngine.CVideoRecorder
 	void AddVideoFrame( CastTo[uint8*] void* rgbaData, long captureTimeMicroS );
 	void AddAudioSamples( CAudioMixDeviceBuffers );
 
-	bool Initialize( string filename, int width, int height, int fps, int bitRateMb, int audioSampleRate, int audioChannels, string videoCodec );
+	bool Initialize( string filename, int width, int height, int fps, int bitRateMb, int audioSampleRate, int audioChannels, string videoCodec, int encodingPreset, string audioCodec, bool transparency );
 }

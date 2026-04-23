@@ -1,3 +1,5 @@
+using Sandbox.Engine;
+
 namespace Sandbox;
 
 partial class PartyRoom
@@ -53,7 +55,14 @@ partial class PartyRoom
 		{
 			var contents = stream.Read<string>();
 			Log.Info( $"[Party] {friend}: {contents}" );
+
 			OnChatMessage?.Invoke( friend, contents );
+
+			using ( GlobalContext.MenuScope() )
+			{
+				Event.EventSystem.RunInterface<IEventListener>( x => x.OnChatMessage( friend, contents ) );
+			}
+
 			return;
 		}
 		else if ( ident == MessageIdentity.Kicked )

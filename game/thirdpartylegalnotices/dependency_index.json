@@ -299,20 +299,6 @@
 			]
 		},
 		{
-			"Name": "mpg123",
-			"Comment": "High-performance MPEG audio (MP3) decoding library.",
-			"UsedBy": [
-				"soundssystem"
-			],
-			"License": "LGPL-2.1-only",
-			"ProjectUrl": "https://www.mpg123.de/",
-			"Linkage": "dynamic",
-			"Copyright": [
-				"1995-2013 Michael Hipp",
-				"1995-2013 Other contributors"
-			]
-		},
-		{
 			"Name": "OpenEXR",
 			"Comment": "High dynamic-range image file format library (OpenEXR/IlmBase).",
 			"UsedBy": [
@@ -904,20 +890,6 @@
 			]
 		},
 		{
-			"Name": "FFmpeg",
-			"Comment": "Audio and video encoding/decoding/transcoding framework (custom minimal build) using external components: OpenSSL (TLS/HTTPS), OpenH264 (H.264), libvpx (VP8/VP9), libaom (AV1), libopus (Opus), libvorbis (Vorbis), libogg (Ogg container), libFLAC (FLAC), libwebp (WebP), Vulkan Loader (Vulkan hwaccel/filters)",
-			"UsedBy": [
-				"engine2"
-			],
-			"License": "LGPL-3.0-only",
-			"ProjectUrl": "https://www.ffmpeg.org/",
-			"Linkage": "dynamic",
-			"Copyright": [
-				"2000-2024 FFmpeg developers",
-				"See License for a full list"
-			]
-		},
-		{
 			"Name": "ToolWindowManager",
 			"Comment": "ToolWindowManager is a Qt based tool window manager. This allows Qt projects to use docking functionality similar to QDockWidget, but since it's a separate component it's easier to customise and extend and so has a number of improvements over the built-in docking system.",
 			"UsedBy": [
@@ -943,6 +915,123 @@
 			"Copyright": [
 				"Copyright (c) 2015 - 2020 0x0ade"
 			]
-		}		
+		},
+		{
+			"Name": "dav1d",
+			"Comment": "AV1 cross-platform decoder focused on speed and correctness.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "BSD-2-Clause",
+			"ProjectUrl": "https://code.videolan.org/videolan/dav1d",
+			"Linkage": "static",
+			"Copyright": [
+				"2018-2025 VideoLAN and dav1d authors"
+			]
+		},
+		{
+			"Name": "SVT-AV1",
+			"Comment": "Scalable Video Technology for AV1 encoder.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "BSD-3-Clause-Clear",
+			"ProjectUrl": "https://gitlab.com/AOMediaCodec/SVT-AV1",
+			"Linkage": "static",
+			"Copyright": [
+				"2021 Alliance for Open Media"
+			]
+		},
+		{
+			"Name": "libvpx",
+			"Comment": "VP9 video codec library.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "BSD-3-Clause",
+			"ProjectUrl": "https://chromium.googlesource.com/webm/libvpx",
+			"Linkage": "static",
+			"Copyright": [
+				"2010 The WebM Project authors"
+			]
+		},
+		{
+			"Name": "libopus",
+			"Comment": "Opus interactive audio codec library.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "BSD-3-Clause",
+			"ProjectUrl": "https://opus-codec.org/",
+			"Linkage": "static",
+			"Copyright": [
+				"2001-2023 Xiph.Org, Skype Limited, Octasic, Jean-Marc Valin, Timothy B. Terriberry, CSIRO, Gregory Maxwell, Mark Borgerding, Erik de Castro Lopo, Mozilla, Amazon"
+			]
+		},
+		{
+			"Name": "libwebp",
+			"Comment": "WebP image codec library.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "BSD-3-Clause",
+			"ProjectUrl": "https://chromium.googlesource.com/webm/libwebp",
+			"Linkage": "static",
+			"Copyright": [
+				"2010 Google Inc."
+			]
+		},
+		{
+			"Name": "libwebm",
+			"Comment": "WebM container format parser and muxer library.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "BSD-3-Clause",
+			"ProjectUrl": "https://chromium.googlesource.com/webm/libwebm",
+			"Linkage": "static",
+			"Copyright": [
+				"2010 Google Inc."
+			]
+		},
+		{
+			"Name": "minimp4",
+			"Comment": "Minimalistic MP4 mux/demux single-header library.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "CC0-1.0",
+			"ProjectUrl": "https://github.com/lieff/minimp4",
+			"Linkage": "static",
+			"Copyright": [
+				"lieff"
+			]
+		},
+		{
+			"Name": "dr_libs",
+			"Comment": "Single-header audio decoding libraries (dr_flac, dr_mp3, dr_wav).",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "MIT-0",
+			"ProjectUrl": "https://github.com/mackron/dr_libs",
+			"Linkage": "static",
+			"Copyright": [
+				"2020 David Reid"
+			]
+		},
+		{
+			"Name": "libcurl",
+			"Comment": "HTTP client library for URL transfers.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "curl",
+			"ProjectUrl": "https://curl.se/libcurl/",
+			"Linkage": "static",
+			"Copyright": [
+				"1996-2026 Daniel Stenberg and many contributors"
+			]
+		}
 	]
 }

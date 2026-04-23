@@ -110,7 +110,13 @@ public sealed class VideoExportConfig
 	public int RecommendedBitrate => (int)MathF.Ceiling( Resolution.x * Resolution.y * FrameRate * RecommendedBitsPerPixel / 1_000_000 );
 
 	[Feature( "Encoding", Icon = "terminal" ), ShowIf( nameof( Mode ), ExportMode.VideoFile )]
-	public VideoWriter.Codec Codec { get; set; } = VideoWriter.Codec.H264;
+	public VideoWriter.Codec Codec { get; set; } = VideoWriter.Codec.VP9;
+
+	[Feature( "Encoding", Icon = "terminal" ), ShowIf( nameof( Mode ), ExportMode.VideoFile )]
+	public VideoWriter.EncodingPreset Preset { get; set; } = VideoWriter.EncodingPreset.Quality;
+
+	[Feature( "Encoding", Icon = "terminal" ), ShowIf( nameof( Mode ), ExportMode.VideoFile )]
+	public VideoWriter.AudioCodec AudioCodec { get; set; } = VideoWriter.AudioCodec.Opus;
 
 	/// <summary>
 	/// Describes how long the sensor is exposed for each output frame.
@@ -136,7 +142,9 @@ public sealed class VideoExportConfig
 		Height = Resolution.y,
 		Bitrate = UseRecommendedBitrate ? RecommendedBitrate : CustomBitrate,
 		Codec = Codec,
-		Container = GetContainerForExtension( Path.GetExtension( filePath ) )
+		Container = GetContainerForExtension( Path.GetExtension( filePath ) ),
+		Preset = Preset,
+		AudioCodec = AudioCodec
 	};
 
 	private static VideoWriter.Container GetContainerForExtension( string extension )

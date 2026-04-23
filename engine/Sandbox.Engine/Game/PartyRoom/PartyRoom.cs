@@ -28,6 +28,29 @@ public partial class PartyRoom : ILobby
 	/// </summary>
 	internal string GameAddress => steamLobby.GetData( "gameaddress" );
 
+	/// <summary>
+	/// The name of this lobby.
+	/// </summary>
+	public string Name
+	{
+		get => steamLobby.GetData( "name" );
+		set => steamLobby.SetData( "name", value );
+	}
+
+	/// <summary>
+	/// The maximum number of members allowed in this lobby.
+	/// </summary>
+	public int MaxMembers
+	{
+		get => steamLobby.MaxMembers;
+		set => steamLobby.MaxMembers = value;
+	}
+
+	/// <summary>
+	/// The current number of members in this lobby.
+	/// </summary>
+	public int MemberCount => steamLobby.MemberCount;
+
 	internal int NetworkChannel => (int)(Id % int.MaxValue);
 
 	PartyRoom( Lobby value )
@@ -51,6 +74,11 @@ public partial class PartyRoom : ILobby
 
 	public void Leave()
 	{
+		using ( GlobalContext.MenuScope() )
+		{
+			Event.EventSystem.RunInterface<IEventListener>( x => x.OnLeftParty( Current ) );
+		}
+
 		_preloadCts?.Cancel();
 		_preloadCts = null;
 		_preloadTask = null;
@@ -270,7 +298,14 @@ public partial class PartyRoom : ILobby
 				if ( iMessageType == MessageIdentity.VoiceMessage )
 				{
 					var message = data.ReadArraySpan<byte>( 1024 * 1024 );
-					OnVoiceData?.Invoke( new Friend( msg.IdentitySteamId ), message.ToArray() );
+					var voiceData = message.ToArray();
+
+					OnVoiceData?.Invoke( new Friend( msg.IdentitySteamId ), voiceData );
+
+					using ( GlobalContext.MenuScope() )
+					{
+						Event.EventSystem.RunInterface<IEventListener>( x => x.OnVoiceMessage( new Friend( msg.IdentitySteamId ), voiceData ) );
+					}
 				}
 
 				net.ReleaseMessage( ptr[i] );
@@ -335,7 +370,13 @@ public partial class PartyRoom : ILobby
 			return false;
 		}
 
+		Current?.Leave();
 		Current = new PartyRoom( lobby );
+
+		using ( GlobalContext.MenuScope() )
+		{
+			Event.EventSystem.RunInterface<IEventListener>( x => x.OnJoinedParty( Current ) );
+		}
 
 		return true;
 	}
@@ -375,12 +416,22 @@ public partial class PartyRoom : ILobby
 	{
 		Log.Info( $"Party member entered {friend}" );
 		OnJoin?.Invoke( friend );
+
+		using ( GlobalContext.MenuScope() )
+		{
+			Event.EventSystem.RunInterface<IEventListener>( x => x.OnMemberJoin( friend ) );
+		}
 	}
 
 	void ILobby.OnMemberLeave( Friend friend )
 	{
 		Log.Info( $"Party member leave {friend}" );
 		OnLeave?.Invoke( friend );
+
+		using ( GlobalContext.MenuScope() )
+		{
+			Event.EventSystem.RunInterface<IEventListener>( x => x.OnMemberLeave( friend ) );
+		}
 	}
 
 	void ILobby.OnMemberUpdated( Friend friend )

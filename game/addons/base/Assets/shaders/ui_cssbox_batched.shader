@@ -466,7 +466,13 @@ PS
 			}
 
 			vImage.xyz = SrgbGammaToLinear( vImage.xyz );
-			vImage *= bgTint;
+
+			#if ( D_BLENDMODE == 3 )
+				vImage.rgb *= bgTint.rgb;
+				vImage *= bgTint.a;
+			#else
+				vImage *= bgTint;
+			#endif
 
 			col.rgb = lerp( col.rgb, vImage.rgb, saturate( vImage.a + ( 1 - col.a ) ) );
 			col.a = max( col.a, vImage.a );

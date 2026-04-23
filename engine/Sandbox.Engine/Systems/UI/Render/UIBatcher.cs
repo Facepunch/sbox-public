@@ -91,7 +91,7 @@ internal class UIBatcher
 		return index;
 	}
 
-	internal void Draw( List<GPUBoxInstance> instances, CommandList cl, int worldPanelCombo = 0 )
+	internal void Draw( List<GPUBoxInstance> instances, CommandList cl, int worldPanelCombo = 0, BlendMode blendMode = BlendMode.Normal )
 	{
 		int count = instances?.Count ?? 0;
 		if ( count == 0 ) return;
@@ -118,7 +118,7 @@ internal class UIBatcher
 		cl.Attributes.Set( "HasScissor", 0 );
 		cl.Attributes.Set( "BoxInstances", (GpuBuffer)boxBuffer );
 		cl.Attributes.Set( "InstanceOffset", offset );
-		cl.Attributes.SetCombo( "D_BLENDMODE", (int)BlendMode.Normal );
+		cl.Attributes.SetCombo( "D_BLENDMODE", (int)blendMode );
 		cl.Attributes.SetCombo( "D_WORLDPANEL", worldPanelCombo );
 		cl.DrawIndexedInstanced( (GpuBuffer)quadIndexBuffer, Material.UI.BatchedBox, count );
 	}

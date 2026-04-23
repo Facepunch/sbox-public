@@ -79,9 +79,12 @@ public partial class Asset
 				//
 				// If we're publishing a map in a game project, then set the map's parent package as this game
 				//
-				if ( proj.Config.Type == "game" && !proj.Config.FullIdent.StartsWith( "local." ) )
+				if ( proj.Config.Type == "game" )
 				{
-					ProjectConfig.SetMeta( "ParentPackage", Project.Current.Config.FullIdent );
+					bool IsProjectParent = !proj.Config.FullIdent.StartsWith( "local." ) // not a local package
+						&& !string.Equals( proj.Config.FullIdent, ProjectConfig.FullIdent ); // not the same ident
+
+					ProjectConfig.SetMeta( "ParentPackage", IsProjectParent ? Project.Current.Config.FullIdent : null );
 				}
 
 				//

@@ -169,7 +169,7 @@ internal sealed class TextBlock : IDisposable
 			FilterMode = TextFilter,
 		};
 
-		target.Boxes.Add( desc );
+		target.AddBox( desc );
 	}
 
 

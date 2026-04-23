@@ -1,0 +1,45 @@
+﻿@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Popup
+@namespace MenuProject
+
+<root>
+
+    <div class="arrow"><i>arrow_drop_down</i></div>
+
+	<span class="header">
+		<label class="heading">@GetTitle()</label>
+		<badge>
+			<icon class="eyebrow">person</icon>
+			<label class="eyebrow">@($"{Party?.MemberCount ?? 1} / {Party?.MaxMembers ?? PartyDeck.MAX_MEMBERS}")</label>
+		</badge>
+	</span>
+
+    <div class="footer">
+		<Button class="clicky primary" Icon="logout" Disabled=@(Party is null) @onmousedown=@Leave>Leave</Button>
+	</div>
+
+</root>
+
+@code
+{
+	PartyRoom Party => PartyRoom.Current;
+
+	public PartyDeck PartyDeck { get; set; }
+
+	protected override int BuildHash() => System.HashCode.Combine(Party, Party?.MemberCount);
+	
+	string GetTitle()
+	{
+		if (Party is null || Party.Owner.IsMe)
+			return "Your Party";
+
+		return $"{Party.Owner.Name}'s Party";
+	}
+
+	public void Leave()
+	{
+		Party?.Leave();
+	}
+}

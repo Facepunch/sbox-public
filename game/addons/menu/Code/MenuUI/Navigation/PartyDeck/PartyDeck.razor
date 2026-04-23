@@ -1,76 +1,111 @@
 ﻿@using System;
 @using Sandbox;
 @using Sandbox.UI;
-@namespace MenuProject.Social
+@using MenuProject;
+@inherits Panel
+@namespace MenuProject
 
 <root>
-
-    @if (PartyRoom.Current is null)
-    {
-        <CreatePartyButton></CreatePartyButton>
-
-        @*
-            <AvailableParties></AvailableParties>
-        *@
-    }
-    else
-    {
-        if (WithChat)
+	<div class="members">
+		<Button class="party" onmousedown="@OpenMenu" Icon="celebration" Tooltip="Party" />
+		<separator class="vertical" />
+		<PartyMember Friend="@(new Friend(Connection.Local.SteamId))" />
+		@foreach (var member in Members.Where( x => !x.IsMe ) )
         {
-            <PartyChatBox></PartyChatBox>
-        }
-        <ManageParty></ManageParty>
-    }
+			<PartyMember Friend="@member" />
+		}
+		@if ( Party is null || Party.MemberCount < Party.MaxMembers )
+		{
+			<Button class="empty-slot" onmouseup="@InviteSomeone" Tooltip="Invite a friend" Icon="add"/>
+		}
+    </div>
 </root>
 
 @code
 {
-    public bool WithChat { get; set; }
+	static PartyRoom Party => PartyRoom.Current;
 
-    Toast _toast;
+	public const int MAX_MEMBERS = 8;
 
-    protected override int BuildHash() => System.HashCode.Combine(PartyRoom.Current);
+	public IEnumerable<Friend> Members => Party?.Members ?? Enumerable.Empty<Friend>();
 
-    public override void Tick()
-    {
-        if (WithChat && IsVisible)
-        {
-            MenuUtility.SetVoiceListen(Input.Down("voice"));
-        }
+	protected override int BuildHash() => System.HashCode.Combine( Party, Members.Count(), Party?.Owner );
 
-        UpdateJoinStatus();
+	PartyMenu menuPopup;
+
+	void OpenMenu()
+	{
+		if (menuPopup.IsValid())
+		{
+			menuPopup.Delete();
+			return;
+		}
+
+		menuPopup = new PartyMenu();
+		menuPopup.PartyDeck = this;
+		menuPopup.SetPositioning(this, Popup.PositionMode.AboveLeft, 32);
+	}
+
+	public async static Task EnsureLobbyExists()
+	{
+		if ( PartyRoom.Current is not null )
+			return;
+
+		var party = await PartyRoom.Create( MAX_MEMBERS, $"{Connection.Local.DisplayName}'s Party", false );
+		if ( party is null )
+		{
+			MenuOverlay.Instance?.BottomRight?.Queue( new Toast()
+			{
+				Title = "Failed to create party",
+				Icon = "cancel",
+			});
+		}
+	}
+
+	async Task InviteSomeone()
+	{
+		await EnsureLobbyExists();
+        MenuUtility.InviteOverlayToParty();
     }
 
-    void UpdateJoinStatus()
-    {
-        var party = PartyRoom.Current;
-        var shouldShow = party?.JoinState == PartyRoom.OwnerJoinState.Loading && party?.Owner is { IsMe: false };
+	public override void Tick()
+	{
+		MenuUtility.SetVoiceListen(Input.Down("voice"));
+		UpdateJoinStatus();
+	}
 
-        if (!shouldShow)
-        {
-            _toast?.Dismiss();
-            _toast = null;
-            return;
-        }
+	Toast _toast;
+	void UpdateJoinStatus()
+	{
+		var party = PartyRoom.Current;
+		var shouldShow = party?.JoinState == PartyRoom.OwnerJoinState.Loading && party?.Owner is { IsMe: false };
 
-        if (_toast is not null)
-            return;
+		if (!shouldShow)
+		{
+			_toast?.Dismiss();
+			_toast = null;
+			return;
+		}
 
-        var gameTitle = party?.PackageIdent ?? "unknown";
+		if (_toast is not null)
+			return;
 
-        if (Package.TryGetCached(party?.PackageIdent ?? default, out var pkg))
-        {
-            gameTitle = pkg.Title;
-        }
+		var gameTitle = party?.PackageIdent ?? "unknown";
 
-        _toast = new Toast()
-        {
-            Title = "Party leader is joining a game",
-            Message = $"Downloading {gameTitle}",
-            Icon = "hourglass_top",
-            ExtraClasses = "loading"
-        };
+		if (Package.TryGetCached(party?.PackageIdent ?? default, out var pkg))
+		{
+			gameTitle = pkg.Title;
+		}
 
-        MenuOverlay.Instance?.BottomRight?.Queue(_toast, duration: 0, clickToDismiss: false);
-    }
+		_toast = new Toast()
+		{
+			Title = "Party leader is joining a game",
+			Message = $"Downloading {gameTitle}",
+			Icon = "hourglass_top",
+			ExtraClasses = "loading"
+		};
+
+		MenuOverlay.Instance?.BottomRight?.Queue(_toast, duration: 0, clickToDismiss: false);
+	}
+
 }

@@ -19,7 +19,7 @@ internal class UIDrawBuffer
 
 	public void AddBox( in BoxDrawDescriptor desc )
 	{
-		ActiveLayer.Boxes.Add( desc );
+		ActiveLayer.AddBox( desc );
 	}
 
 	public void AddShadow( in ShadowDrawDescriptor desc )
@@ -29,7 +29,7 @@ internal class UIDrawBuffer
 
 	public void AddOutline( in OutlineDrawDescriptor desc )
 	{
-		ActiveLayer.Outlines.Add( desc );
+		ActiveLayer.AddOutline( desc );
 	}
 
 	public void AddBackdrop( in BackdropDrawDescriptor desc )

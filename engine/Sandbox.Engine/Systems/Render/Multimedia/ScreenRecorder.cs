@@ -13,7 +13,7 @@ internal static class ScreenRecorder
 	private static string _filename;
 	private static VideoWriter _videoWriter;
 	private static RealTimeSince _recordingTimer;
-	private static RealTimeUntil _nextFrameTime;
+	private static float _nextCaptureTime;
 	private static object _timerLockObj = new();
 
 	/// <summary>
@@ -27,6 +27,10 @@ internal static class ScreenRecorder
 	public static int VideoFrameRate { get; set; } = 60;
 	[ConVar( "video_Scale", Min = 1, Max = 800, Help = "Scale percentage for video recorder" )]
 	public static float VideoScale { get; set; } = 100f;
+	[ConVar( "video_codec", Help = "Video codec for screen recording" )]
+	public static VideoWriter.Codec VideoCodec { get; set; } = VideoWriter.Codec.AV1;
+	[ConVar( "video_audio_codec", Help = "Audio codec for screen recording" )]
+	public static VideoWriter.AudioCodec AudioCodec { get; set; } = VideoWriter.AudioCodec.Opus;
 
 	/// <summary>
 	/// Starts recording to the specified file.
@@ -87,8 +91,10 @@ internal static class ScreenRecorder
 					Height = desc.m_nHeight,
 					FrameRate = VideoFrameRate,
 					Bitrate = VideoBitRate,
-					Codec = VideoWriter.Codec.H264,
-					Container = VideoWriter.Container.MP4
+					Codec = VideoCodec,
+					Container = VideoWriter.Container.MP4,
+					Preset = VideoWriter.EncodingPreset.Fast,
+					AudioCodec = AudioCodec
 				} );
 			}
 			catch ( Exception ex )
@@ -111,22 +117,23 @@ internal static class ScreenRecorder
 			{
 				if ( _firstFrame )
 				{
-					// First frame should be 0 for accurate timing
-					timestamp = 0;
 					_recordingTimer = 0;
-					_nextFrameTime = frameInterval;
+					_nextCaptureTime = frameInterval;
 					_firstFrame = false;
+					timestamp = 0;
 				}
 				else
 				{
+					var now = (float)_recordingTimer;
+
 					// Skip frames that arrive before the next scheduled frame time
-					if ( _nextFrameTime > 0 )
+					if ( now < _nextCaptureTime )
 						return;
 
-					timestamp = _recordingTimer;
+					timestamp = now;
 
-					// Schedule the next frame
-					_nextFrameTime = frameInterval;
+					// Schedule the next frame (additive to prevent drift)
+					_nextCaptureTime += frameInterval;
 				}
 			}
 

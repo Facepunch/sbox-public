@@ -22,7 +22,8 @@ public class GameMount : BaseGameMount
 	{
 		{ ".model", ResourceType.Model },
 		{ ".dds", ResourceType.Texture },
-		{ ".material", ResourceType.Material }
+		{ ".material", ResourceType.Material },
+		{ ".fsb", ResourceType.Sound },
 	};
 
 	protected override Task Mount( MountContext context )
@@ -49,6 +50,10 @@ public class GameMount : BaseGameMount
 			else if ( resourceType == ResourceType.Material )
 			{
 				context.Add( resourceType, path, new MaterialLoader( fullPath ) );
+			}
+			else if ( resourceType == ResourceType.Sound )
+			{
+				SoundBankLoader.AddSoundsFromBank( context, fullPath, path );
 			}
 		}
 

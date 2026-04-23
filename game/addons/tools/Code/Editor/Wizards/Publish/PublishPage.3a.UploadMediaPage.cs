@@ -36,7 +36,10 @@ partial class PublishWizard
 			{
 				Width = VideoResolution.x,
 				Height = VideoResolution.y,
-				FrameRate = 60
+				FrameRate = 60,
+				Codec = VideoWriter.Codec.AV1,
+				Container = VideoWriter.Container.MP4,
+				Preset = VideoWriter.EncodingPreset.Balanced
 			} );
 
 			status?.Invoke( "Uploading Video" );
@@ -84,7 +87,10 @@ partial class PublishWizard
 			{
 				Width = VideoResolution.x,
 				Height = VideoResolution.y,
-				FrameRate = 60
+				FrameRate = 60,
+				Codec = VideoWriter.Codec.AV1,
+				Container = VideoWriter.Container.MP4,
+				Preset = VideoWriter.EncodingPreset.Balanced
 			} );
 
 			FinishedGen = true;

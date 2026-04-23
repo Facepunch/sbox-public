@@ -104,8 +104,6 @@ internal sealed class ProjectPage : ProjectSettingsWindow.Category
 				Properties.GameSupport = string.Join( ';', value );
 			}
 
-			var section = StartSection( "Target Information" );
-
 			cs.AddProperty( this, x => x.GameSupport );
 		}
 

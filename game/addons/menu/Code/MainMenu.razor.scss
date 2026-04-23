@@ -2,6 +2,7 @@
 @import '/styles/mainmenu.scss';
 
 .mainmenu {
+	position: relative;
     flex-direction: column;
     font-size: 14px;
     width: 100%;
@@ -47,4 +48,22 @@ NavigationHost {
 .navigator-canvas {
     flex-grow: 1;
     z-index: 0;
+}
+
+.overlay
+{
+	position: absolute;
+	left: 0;
+	right: 0;
+	height: 100%;
+	width: 100%;
+
+	> .overlay-container
+	{
+		position: relative;
+		max-width: $screen-w-xl;
+		margin: 0 auto;
+		width: 100%;
+		align-items: center;
+	}
 }

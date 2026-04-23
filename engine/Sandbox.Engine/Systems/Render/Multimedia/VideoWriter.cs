@@ -18,6 +18,9 @@ public sealed class VideoWriter : IDisposable
 		public int Bitrate;
 		public Codec Codec;
 		public Container Container;
+		public EncodingPreset Preset;
+		public AudioCodec AudioCodec;
+		public bool Transparency;
 
 		/// <summary>
 		/// Can this container support the codec.
@@ -25,23 +28,31 @@ public sealed class VideoWriter : IDisposable
 		public bool IsCodecSupported()
 		{
 			// Validate codec support based on container
+#pragma warning disable CS0618 // Intentional: H264/H265 are obsolete but still accepted for backward compat
 			return Container switch
 			{
-				Container.MP4 => Codec == Codec.H264 || Codec == Codec.H265,
-				Container.WebM => Codec == Codec.VP8 || Codec == Codec.VP9,
+				Container.MP4 => Codec is Codec.AV1 or Codec.VP9 or Codec.H264 or Codec.H265,
+				Container.WebM => Codec is Codec.AV1 or Codec.VP9 or Codec.VP8,
 				Container.WebP => Codec == Codec.WebP,
 				_ => false,
 			};
+#pragma warning restore CS0618
 		}
 
+#pragma warning disable CS0618 // Intentional: obsolete codecs still map for backward compat
 		internal string CodecName => Codec switch
 		{
-			Codec.H264 => "h264_vulkan",
-			Codec.H265 => "hevc_vulkan",
-			Codec.VP8 => "libvpx",
-			Codec.VP9 => "libvpx-vp9",
-			Codec.WebP => "libwebp_anim",
+			Codec.VP8 or Codec.VP9 or Codec.H264 or Codec.H265 => "vp9",
+			Codec.AV1 => "av1",
+			Codec.WebP => "webp",
 			_ => null,
+		};
+#pragma warning restore CS0618
+
+		internal string AudioCodecName => AudioCodec switch
+		{
+			AudioCodec.Opus => "opus",
+			_ => "opus",
 		};
 
 		internal string ContainerName => Container.ToString().ToLower();
@@ -51,19 +62,21 @@ public sealed class VideoWriter : IDisposable
 	public enum Codec
 	{
 		/// <summary>
-		/// H.264 codec (does not support transparency)
+		/// Obsolete: H.264 is no longer supported, if used will map to VP9 instead.
 		/// </summary>
+		[Obsolete( "H.264 is no longer supported, use VP9 instead" )]
 		H264,
 
 		/// <summary>
-		/// H.265 codec (does not support transparency)
-		/// Only supported on modern GPUS, will fallback to H.264 if not supported.
+		/// Obsolete: H.265 is no longer supported, if used will map to VP9 instead.
 		/// </summary>
+		[Obsolete( "H.265 is no longer supported, use VP9 instead" )]
 		H265,
 
 		/// <summary>
-		/// VP8 codec (does not support transparency)
+		/// Obsolete: VP8 is no longer supported, if used will map to VP9 instead.
 		/// </summary>
+		[Obsolete( "VP8 is no longer supported, use VP9 instead" )]
 		VP8,
 
 		/// <summary>
@@ -75,6 +88,46 @@ public sealed class VideoWriter : IDisposable
 		/// WebP codec (supports transparency)
 		/// </summary>
 		WebP,
+
+		/// <summary>
+		/// AV1 codec — excellent compression, slower encoding.
+		/// </summary>
+		AV1,
+	}
+
+	/// <summary>
+	/// Controls the speed/quality tradeoff of video encoding.
+	/// </summary>
+	[Expose]
+	public enum EncodingPreset
+	{
+		/// <summary>
+		/// Optimized for speed. Suitable for real-time recording.
+		/// </summary>
+		Fast,
+
+		/// <summary>
+		/// Balanced speed and quality.
+		/// </summary>
+		Balanced,
+
+		/// <summary>
+		/// Optimized for quality. Suitable for offline export.
+		/// </summary>
+		Quality,
+	}
+
+	/// <summary>
+	/// Audio codec to use for encoding.
+	/// </summary>
+	[Expose]
+	public enum AudioCodec
+	{
+		/// <summary>
+		/// Opus — high quality, open codec.
+		/// </summary>
+		Opus,
+
 	}
 
 	[Expose]
@@ -119,11 +172,11 @@ public sealed class VideoWriter : IDisposable
 		frameRate = config.FrameRate > 0 ? config.FrameRate : 60;
 		bitrate = config.Bitrate > 0 ? config.Bitrate : 8;
 
-		var audioSampleRate = 44100;
+		var audioSampleRate = (int)Audio.AudioEngine.SamplingRate;
 		var audioChannels = 2;
 
 		native = CVideoRecorder.Create();
-		native.Initialize( path, width, height, frameRate, bitrate, audioSampleRate, audioChannels, config.CodecName );
+		native.Initialize( path, width, height, frameRate, bitrate, audioSampleRate, audioChannels, config.CodecName, (int)config.Preset, config.AudioCodecName, config.Transparency );
 	}
 
 	~VideoWriter()

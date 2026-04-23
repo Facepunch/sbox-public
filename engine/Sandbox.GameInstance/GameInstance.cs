@@ -181,6 +181,11 @@ internal class GameInstance : IGameInstance
 			return true;
 		}
 
+		if ( Package.TypeName != "game" )
+		{
+			throw new Exception( $"Package {Ident} is not a game" );
+		}
+
 		var achievementTask = _package.GetAchievements();
 
 		Log.Trace( $"Install Async {Package.Title}" );

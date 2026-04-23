@@ -98,6 +98,7 @@ public partial class Panel
 				BackgroundRect = new Vector4( 0, 0, textRect.Width, textRect.Height ),
 				BackgroundTint = color,
 				OverrideBlendMode = BlendMode.PremultipliedAlpha,
+				PremultiplyAlpha = true,
 			} );
 		}
 
@@ -228,6 +229,6 @@ public partial class Panel
 			} ).Rect;
 		}
 
-		CachedDescriptors.Boxes.Add( desc );
+		CachedDescriptors.AddBox( desc );
 	}
 }

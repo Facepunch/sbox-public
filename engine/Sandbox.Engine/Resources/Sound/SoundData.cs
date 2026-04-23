@@ -100,4 +100,39 @@ internal class SoundData
 	private static readonly byte[] WAVE = Encoding.ASCII.GetBytes( "WAVE" );
 	private static readonly byte[] FMT = Encoding.ASCII.GetBytes( "fmt " );
 	private static readonly byte[] DATA = Encoding.ASCII.GetBytes( "data" );
+
+	public static unsafe SoundData FromMP3( Span<byte> data )
+	{
+		if ( data.Length <= 0 )
+			throw new ArgumentException( null, nameof( data ) );
+
+		using var pcm = CSimplePCMWaveData.Create();
+
+		fixed ( byte* p = data )
+		{
+			pcm.ParseMP3File( (IntPtr)p, data.Length );
+		}
+
+		int size = pcm.GetPCMSize();
+		if ( size <= 0 )
+			throw new ArgumentException( "Invalid MP3" );
+
+		var buffer = new byte[size];
+
+		fixed ( byte* dst = buffer )
+		{
+			Buffer.MemoryCopy( (void*)pcm.GetPCMData(), dst, size, size );
+		}
+
+		return new SoundData
+		{
+			Format = pcm.m_nBits == 32 ? (ushort)3 : (ushort)1,
+			Channels = (ushort)pcm.m_nChannels,
+			SampleRate = pcm.m_nSampleRate,
+			BitsPerSample = (ushort)pcm.m_nBits,
+			SampleCount = pcm.m_nSampleCount,
+			Duration = pcm.m_flDuration,
+			PCMData = buffer
+		};
+	}
 }

@@ -39,6 +39,7 @@ public class FastTextureWindow : Window
 
 	public override void Close()
 	{
+		SaveSettingsAndCleanup();
 		base.Destroy();
 	}
 
@@ -292,6 +293,12 @@ public class FastTextureWindow : Window
 
 	protected override bool OnClose()
 	{
+		SaveSettingsAndCleanup();
+		return true;
+	}
+
+	private void SaveSettingsAndCleanup()
+	{
 		var meshRect = Document?.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
 		if ( meshRect != null )
 		{
@@ -303,8 +310,6 @@ public class FastTextureWindow : Window
 
 		_undoScope?.Dispose();
 		_undoScope = null;
-
-		return true;
 	}
 }
 

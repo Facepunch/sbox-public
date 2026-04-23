@@ -1,5 +1,6 @@
 
 include "soundsystem/soundsystem.h"
+include "soundsystem/mp3_helpers.h"
 
 [small]
 native struct AudioDeviceDesc is NativeEngine.AudioDeviceDesc;
@@ -18,4 +19,29 @@ native accessor g_pSoundSystemInternal as g_pSoundSystem
 	CSfxTable PrecacheSound( string pSoundName );
 	CSfxTable CreateSound( string pSoundName, int nChannels, int nRate, int nFormat, int nSampleCount, float flDuration, bool bLoop, void* pData, int nDataSize );
 	void PreloadSound( CSfxTable pSfx );
+}
+
+native class CSimplePCMWaveData
+{
+	static CSimplePCMWaveData Create();[new]
+	void Dispose(); [delete]
+
+	void ParseMP3File( CastTo[uint8*] void* pData, CastTo[size_t] int nDataSize );
+
+	inline void* GetPCMData()
+	{
+		return self->m_pcmData.Base();
+	}
+
+	inline int GetPCMSize()
+	{
+		return self->m_pcmData.TellMaxPut();
+	}
+
+	uint m_nFormat;
+	uint m_nSampleRate;
+	uint m_nChannels;
+	uint m_nSampleCount;
+	uint m_nBits;
+	float m_flDuration;
 }

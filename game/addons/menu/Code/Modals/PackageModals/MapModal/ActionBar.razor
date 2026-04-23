@@ -56,9 +56,17 @@
     protected override async Task OnParametersSetAsync()
     {
         var target = this.Package.GetMeta<string>("ParentPackage", null);
-        if (string.IsNullOrWhiteSpace(target)) target = "facepunch.sandbox";
+        if ( !string.IsNullOrWhiteSpace( target ) )
+        {
+            var package = await Package.FetchAsync( target, false );
+            if ( package is not null && package.TypeName == "game" )
+            {
+                GamePackage = package;
+                return;
+            }
+        }
 
-        GamePackage = await Package.FetchAsync( target, false );
+        GamePackage = await Package.FetchAsync( MenuHelpers.SANDBOX_IDENT, false );
     }
 
     void OnPlay()

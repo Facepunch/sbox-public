@@ -770,5 +770,25 @@ partial class TextureTool
 				mesh.JustifyFaceTextureParameters( group.Select( x => x.Handle ), justification, extents );
 			}
 		}
+
+		[Shortcut( "editor.select-all", "CTRL+A", typeof( SceneViewWidget ) )]
+		private void SelectAll()
+		{
+			using var scope = SceneEditorSession.Scope();
+			using var undoScope = SceneEditorSession.Active.UndoScope( "Select All Faces" ).Push();
+
+			var selection = SceneEditorSession.Active.Selection;
+			selection.Clear();
+
+			foreach ( var faceGroup in _faceGroups )
+			{
+				var faces = faceGroup.Key.Mesh.FaceHandles;
+
+				foreach ( var face in faces )
+				{
+					selection.Add( new MeshFace( faceGroup.Key, face ) );
+				}
+			}
+		}
 	}
 }

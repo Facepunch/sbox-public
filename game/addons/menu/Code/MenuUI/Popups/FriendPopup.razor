@@ -1,6 +1,7 @@
 @using System;
 @using Sandbox;
 @using Sandbox.UI;
+@using MenuProject;
 
 @inherits Popup
 
@@ -172,7 +173,6 @@
         get
         {
             if (IsMe) return false;
-            if (PartyRoom.Current is null) return false;
             if (IsInParty) return false;
 
             return true;
@@ -222,8 +222,9 @@
         Delete();
     }
 
-    public void InviteToParty()
+    async Task InviteToParty()
     {
+		await PartyDeck.EnsureLobbyExists();
         MenuUtility.InviteToParty(Friend.Id);
         Delete();
     }

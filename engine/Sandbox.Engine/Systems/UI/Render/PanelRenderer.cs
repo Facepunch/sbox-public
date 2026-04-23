@@ -10,6 +10,7 @@ internal sealed partial class PanelRenderer
 
 	readonly UIBatcher batcher = new();
 	readonly List<GPUBoxInstance> pendingInstances = new();
+	readonly List<DeferredInstance> deferredInstances = new();
 	int batchIndex;
 
 	[ConVar( "ui_visualize_batches", Help = "Visualize UI draw batches with colored overlays" )]
@@ -58,6 +59,10 @@ internal sealed partial class PanelRenderer
 
 			LayerStack?.Clear();
 			pendingInstances.Clear();
+			deferredInstances.Clear();
+			deferredOrder = 0;
+			zDepth = 0;
+			pendingBlendMode = BlendMode.Normal;
 			backdropGrabActive = false;
 			batchIndex = 0;
 

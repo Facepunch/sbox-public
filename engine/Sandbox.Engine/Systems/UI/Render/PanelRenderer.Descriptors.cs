@@ -91,7 +91,7 @@ internal partial class PanelRenderer
 			} ).Rect;
 		}
 
-		target.Boxes.Add( desc );
+		target.AddBox( desc );
 	}
 
 	/// <summary>

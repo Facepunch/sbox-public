@@ -27,6 +27,7 @@
             "r_dof_quality": "1",
             "r_motionblur_quality": "0",
             "r_ao_quality": "1",
+            "r_ao_resolution": "4",
             "r_ssr_downsample_ratio": "0"
         },
         "Medium":
@@ -34,6 +35,7 @@
             "r_dof_quality": "2",
             "r_motionblur_quality": "1",
             "r_ao_quality": "2",
+            "r_ao_resolution": "2",
             "r_ssr_downsample_ratio": "4"
         },
         "High":
@@ -41,6 +43,7 @@
             "r_dof_quality": "3",
             "r_motionblur_quality": "2",
             "r_ao_quality": "3",
+            "r_ao_resolution": "2",
             "r_ssr_downsample_ratio": "2"
         }
     }, 

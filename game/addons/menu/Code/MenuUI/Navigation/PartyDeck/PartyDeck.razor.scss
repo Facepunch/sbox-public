@@ -1,108 +1,26 @@
-$primary: #3472e6 !default;
-$green: #97e634 !default;
+﻿@import '/styles/_Theme.scss';
 
-
-partydeck .vertical-button
+PartyDeck
 {
-    position: relative;
-    padding: 6px;
-    cursor: pointer;
-    flex-direction: column;
-    font-size: 10px;
-    font-family: poppins;
-    background-color: transparent;
-    color: #fffc;
-    gap: 4px;
-    align-items: center;
+	gap: 16px;
+	align-items: center;
 
+	.members
+	{
+		height: 32px;
+		gap: 8px;
+		justify-content: flex-start;
+		align-items: center;
 
-    > i
-    {
-        border: 1px solid #ffffff06;
-        background-color: #ffffff02;
-        color: $primary;
-        width: 48px;
-        height: 48px;
-        padding: 0px;
-        align-items: center;
-        justify-content: center;
-        border-radius: 100px;
-        flex-shrink: 0;
-        text-align: center;
-    }
-
-    &:hover
-    {
-        color: #fff;
-
-        i
-        {
-            border: 2px solid $primary;
-        }
-    }
-}
-
-partydeck .vertical-button > i
-{
-    font-size: 24px;
-    margin: 0;
-    padding: 0px;
-}
-
-
-
-.btn .overlay
-{
-    position: absolute;
-    right: -4px;
-    bottom: -4px;
-    font-size: 18px;
-    color: $primary;
-    align-items: center;
-    justify-content: center;
-    padding: 2px;
-    border-radius: 5px;
-}
-
-.btn.party
-{
-    background-position: center;
-    background-size: cover;
-    align-items: flex-end;
-
-    .membercount
-    {
-        background-color: $primary;
-        padding: 1px 4px;
-        border-radius: 10px;
-        font-weight: bold;
-        color: white;
-        margin-bottom: 3px;
-        font-size: 9px;
-        position: absolute;
-        top: 0px;
-        right: 0px;
-    }
-}
-
-.vertical-button.active
-{
-    color: #fff;
-
-    i
-    {
-        background-color: $primary;
-        color: #fff;
-    }
-}
-
-partydeck .btn.playing
-{
-    border: 2px solid $green;
-
-    .membercount
-    {
-        background-color: $green;
-        color: black;
-    }
+		> .empty-slot
+		{
+			height: 32px;
+			aspect-ratio: 1;
+			outline: 1px solid $default-border;
+			border-radius: 4px;
+			background-color: rgba( black, 0.1 );
+			padding: 0;
+			justify-content: center;
+		}
+	}
 }

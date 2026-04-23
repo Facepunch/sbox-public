@@ -565,7 +565,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			{
 				using ( IMenuDll.Current?.PushScope() )
 				{
-					IMenuSystem.Current?.Popup( "error", "Loading Error", $"There was an error when loading this game. {e.Message}" );
+					IModalSystem.Current?.Notice( "Loading Error", $"An error occurred when loading this game.\n\n{e.Message}", "error" );
 				}
 
 				Log.Warning( e, e.Message );

@@ -1,0 +1,116 @@
+﻿@using System;
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+@implements PartyRoom.IEventListener
+@namespace MenuProject
+
+<root>
+
+	<div class="output">
+
+		@foreach (var entry in Entries)
+		{
+            <div class="chat_entry row">
+                @if (entry.steamid > 0)
+                {
+                    <div class="avatar" style="background-image: url( avatar:@entry.steamid )"></div>
+                }
+				<div class="author">@entry.author</div>
+				<div class="message">@entry.message</div>
+			</div>
+		}
+	</div>
+
+	<div class="input row">
+		<TextEntry @ref="InputBox" onsubmit="@ChatFinished"/>
+	</div>
+	
+</root>
+
+@code
+{
+	TextEntry InputBox = default;
+
+	public record Entry( long steamid, string author, string message, RealTimeSince timeSinceAdded );
+	List<Entry> Entries = new();
+
+	public PartyChat()
+	{
+		//AddSystemText( $"Press \"{Input.GetButtonOrigin( "chat" )}\" to chat" );
+	}
+
+	public override void Tick()
+	{
+		if (InputBox is null)
+			return;
+
+		if ( Input.Pressed( "chat" ) )
+		{
+			InputBox.Focus();
+		}
+
+		if ( Entries.RemoveAll( x => x.timeSinceAdded > 20.0f ) > 0 )
+		{
+			StateHasChanged();
+		}
+
+		SetClass( "open", InputBox.HasFocus );
+	}
+
+	void ChatFinished()
+	{
+		var text = InputBox.Text;
+		InputBox.Text = "";
+
+		if (string.IsNullOrWhiteSpace(text))
+			return;
+
+		if ( PartyRoom.Current is null )
+		{
+			AddUserMessage( new Friend( Connection.Local.SteamId ), text );
+			return;
+		}
+
+		PartyRoom.Current.SendChatMessage( text );
+	}
+
+	void AddUserMessage(Friend friend, string message)
+	{
+		message = message.Truncate( 300 );
+
+		if (string.IsNullOrWhiteSpace(message))
+			return;
+
+		Entries.Add(new Entry((long)friend.Id, friend.Name, message, 0.0f));
+		StateHasChanged();
+	}
+
+	void PartyRoom.IEventListener.OnChatMessage(Friend friend, string message)
+	{
+		AddUserMessage(friend, message);
+	}
+
+	void PartyRoom.IEventListener.OnMemberJoin(Friend friend)
+	{
+		Entries.Add(new Entry(0, "👋", $"{friend.Name} joined the party", 0.0f));
+		StateHasChanged();
+	}
+
+	void PartyRoom.IEventListener.OnMemberLeave(Friend friend)
+	{
+		Entries.Add(new Entry(0, "🥀", $"{friend.Name} left the party", 0.0f));
+        StateHasChanged();
+    }
+
+    public void AddSystemText(string message)
+    {
+        message = message.Truncate(300);
+
+        if (string.IsNullOrWhiteSpace(message))
+            return;
+
+        Entries.Add(new Entry(0, "", message, 0.0f));
+        StateHasChanged();
+    }
+}

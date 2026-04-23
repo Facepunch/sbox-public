@@ -1,0 +1,99 @@
+﻿@import '/styles/_Theme.scss';
+
+PartyChat
+{
+	position: absolute;
+	height: 255px;
+	left: 50px;
+	bottom: 150px;
+	width: 380px;
+	font-weight: 600;
+	flex-direction: column;
+	font-size: 14px;
+	gap: 4px;
+
+	.output
+	{
+		flex-grow: 1;
+		flex-direction: column;
+		justify-content: flex-end;
+		align-items: stretch;
+		gap: 4px;
+		overflow: hidden;
+
+		&:empty
+		{
+			opacity: 0;
+		}
+
+		.chat_entry
+		{
+			padding: 4px;
+			gap: 6px;
+			align-items: flex-start;
+			flex-shrink: 0;
+
+			.avatar
+			{
+				height: 25px;
+				aspect-ratio: 1;
+				flex-shrink: 0;
+				background-position: center;
+				background-size: cover;
+				border-radius: 100%;
+				border-radius: 2px;
+			}
+
+			.author
+			{
+				height: 25px;
+				color: $primary-blue;
+				white-space: nowrap;
+				flex-shrink: 0;
+				align-items: center;
+				font-weight: 700;
+			}
+
+			.message
+			{
+				min-height: 25px;
+				color: #fff;
+				align-items: center;
+			}
+		}
+	}
+
+	.input
+	{
+		position: absolute;
+		bottom: -45px;
+		width: 100%;
+		height: 0px;
+		overflow: hidden;
+
+		textentry
+		{
+			color: $default-text;
+			font-size: 14px;
+			caret-color: $default-text;
+			color: white;
+			flex-grow: 1;
+		}
+	}
+
+	.row
+	{
+		background-color: rgba( $default-900, 0.8 );
+		backdrop-filter: blur( 5px );
+		border-radius: $rounding-small;
+	}
+
+	&.open
+	{
+		.input
+		{
+			outline: 1px solid rgba( $default-50, 0.7 );
+			height: 32px;
+		}
+	}
+}
