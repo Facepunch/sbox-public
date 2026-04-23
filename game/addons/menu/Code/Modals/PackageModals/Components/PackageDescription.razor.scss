@@ -1,17 +1,17 @@
 
 PackageDescription
 {
+    flex-direction: column;
     flex-shrink: 0;
     padding: 32px;
     color: #6f7688;
-    overflow: hidden;
     width: 100%;
     
 }
 
 PackageDescription HtmlPanel
 {
-    flex-grow: 1;
+    flex-grow: 0;
     flex-shrink: 0;
 }
 

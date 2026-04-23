@@ -1,24 +1,18 @@
 PackageReviews
 {
     flex-direction: column;
+    flex-shrink: 0;
+    max-width: 100%;
+    width: 100%;
 }
 
 PackageReviews .review-list
 {
     flex-direction: column;
     padding: 32px;
-    flex-shrink: 1;
-    gap: 1rem;
-    overflow: hidden;
-    width: 100%;
-}
-
-PackageReviews
-{
-    overflow: hidden;
-    max-width: 100%;
-    overflow-y: scroll;
     flex-shrink: 0;
+    gap: 1rem;
+    width: 100%;
 }
 
 PackageReviews > h2
