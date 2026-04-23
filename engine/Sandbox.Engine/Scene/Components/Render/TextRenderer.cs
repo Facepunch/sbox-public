@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Sandbox;
@@ -240,7 +240,7 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		{
 			_textScope.TextColor = value;
 
-			if ( _so is TextSceneObject so )
+if ( _so is TextSceneObject so )
 				so.TextScope = _textScope;
 		}
 	}
@@ -255,8 +255,11 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		{
 			_textScope.FontSize = value;
 
-			if ( _so is TextSceneObject so )
-				so.TextScope = _textScope;
+			if ( _so.IsValid() )
+			{
+				_so.TextScope = _textScope;
+				_so.CalculateBounds();
+			}
 		}
 	}
 	public int FontWeight
@@ -266,8 +269,11 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		{
 			_textScope.FontWeight = value;
 
-			if ( _so is TextSceneObject so )
-				so.TextScope = _textScope;
+			if ( _so.IsValid() )
+			{
+				_so.TextScope = _textScope;
+				_so.CalculateBounds();
+			}
 		}
 	}
 
@@ -278,8 +284,11 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		{
 			_textScope.FontName = value;
 
-			if ( _so is TextSceneObject so )
-				so.TextScope = _textScope;
+			if ( _so.IsValid() )
+			{
+				_so.TextScope = _textScope;
+				_so.CalculateBounds();
+			}
 		}
 	}
 
@@ -290,8 +299,11 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		{
 			_textScope.Text = value;
 
-			if ( _so is TextSceneObject so )
-				so.TextScope = _textScope;
+			if ( _so.IsValid() )
+			{
+				_so.TextScope = _textScope;
+				_so.CalculateBounds();
+			}
 		}
 	}
 
