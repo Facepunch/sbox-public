@@ -235,11 +235,11 @@ public static partial class Game
 		/// <summary>
 		/// Returns true if any overlay is open
 		/// </summary>
-		public bool IsOpen => IModalSystem.Current?.IsModalOpen ?? false;
+		public static bool IsOpen => IModalSystem.Current?.IsModalOpen ?? false;
 
 		/// <summary>
 		/// Returns true if the pause menu overlay is open
 		/// </summary>
-		public bool IsPauseMenuOpen => IModalSystem.Current?.IsPauseMenuOpen ?? false;
+		public static bool IsPauseMenuOpen => IModalSystem.Current?.IsPauseMenuOpen ?? false;
 	}
 }
