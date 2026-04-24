@@ -181,7 +181,7 @@ internal class GameInstance : IGameInstance
 			return true;
 		}
 
-		if ( Package.TypeName != "game" )
+		if ( Package.TypeName != "game" && !Application.IsEditor )
 		{
 			throw new Exception( $"Package {Ident} is not a game" );
 		}

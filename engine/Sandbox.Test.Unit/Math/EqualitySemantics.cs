@@ -47,8 +47,8 @@ public class EqualitySemantics
 		var a = Rotation.Identity;
 		var b = Rotation.Identity;
 
-		// Nudge one quaternion component by a tiny amount within the dot-product tolerance
-		b._quat.X += 5e-5f;
+		// Nudge one quaternion component by a tiny amount within the almost equals tolerance
+		b._quat.X += 5e-6f;
 
 		Assert.IsTrue( a == b, "operator == should use AlmostEqual and treat tiny differences as equal" );
 		Assert.IsFalse( a != b );
@@ -144,19 +144,19 @@ public class EqualitySemantics
 	}
 
 	/// <summary>
-	/// Default delta = 1e-7 ≈ 0.05° angular tolerance (near float32 precision floor).
+	/// Default delta = 1e-5 ≈ 0.0012° angular tolerance.
 	/// </summary>
 	[TestMethod]
-	public void Rotation_AlmostEqual_DefaultToleranceIsAbout0Point05Degrees()
+	public void Rotation_AlmostEqual_DefaultToleranceIsAbout0Point0012Degrees()
 	{
 		var identity = Rotation.Identity;
 
-		// 0.01° is within ~0.05° tolerance
-		var inside = Rotation.FromAxis( Vector3.Up, 0.01f );
+		// 0.001° is within ~0.0012° tolerance
+		var inside = Rotation.FromAxis( Vector3.Up, 0.001f );
 		Assert.IsTrue( identity.AlmostEqual( inside ) );
 
-		// 0.1° is outside ~0.05° tolerance
-		var outside = Rotation.FromAxis( Vector3.Up, 0.1f );
+		// 0.01° is outside ~0.0012° tolerance
+		var outside = Rotation.FromAxis( Vector3.Up, 0.01f );
 		Assert.IsFalse( identity.AlmostEqual( outside ) );
 	}
 

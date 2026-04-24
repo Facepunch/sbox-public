@@ -176,7 +176,8 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 
 		commands.Attributes.SetData( "GTAOConstants", GetGTAOConstants() );
 		commands.Attributes.Set( "ResolutionScale", scale );
-		commands.Attributes.Set( "BlueNoiseIndex", BlueNoise?.Index ?? 0 );
+		commands.Attributes.Set( "BlueNoise", BlueNoise );
+		commands.Attributes.SetValue( "D_MSAA_NORMALS", RenderValue.MsaaCombo );
 
 		// 
 		// Bind textures to the compute shader

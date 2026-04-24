@@ -30,8 +30,9 @@ class Bindless
     static inline Texture2DArray GetTexture2DArray( int nIndex ) { return g_bindless_Texture2DArray[ NonUniformResourceIndex(nIndex) ]; }
     static inline TextureCubeArray GetTextureCubeArray( int nIndex ) { return g_bindless_TextureCubeArray[ NonUniformResourceIndex(nIndex) ]; }
 
-    static inline SamplerState GetSampler( int nIndex ) { return g_bindless_Sampler[ NonUniformResourceIndex(nIndex) ]; }
-    static inline SamplerComparisonState GetSamplerComparison( int nIndex ) { return g_bindless_SamplerComparison[ NonUniformResourceIndex(nIndex) ]; }
+    // Samplers don't need NonUniformResourceIndex - they're wave-uniform and NUI on samplers crashes AMD RDNA 1/2 drivers
+    static inline SamplerState GetSampler( int nIndex ) { return g_bindless_Sampler[ nIndex ]; }
+    static inline SamplerComparisonState GetSamplerComparison( int nIndex ) { return g_bindless_SamplerComparison[ nIndex ]; }
 #else
     // Non-Fragment doesn't have the same need for NonUniformResourceIndex and we can't even use it in some cases (e.g. compute shader UAVs) so just do a direct index.
     static inline Texture2D GetTexture2D( int nIndex, bool srgb = false ){ return g_bindless_Texture2D[nIndex + (srgb ? 1 : 0)]; }

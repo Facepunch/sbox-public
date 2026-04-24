@@ -11,10 +11,40 @@ CS
 
     #include "common\classes\Depth.hlsl"
     #include "common\classes\Motion.hlsl"
-    #include "common\classes\Normals.hlsl"
     
     #include "common\thirdparty\XeGTAO.h"
     #include "common\thirdparty\XeGTAO.hlsl"
+
+    //-------------------------------------------------------------------------------------------------------------------
+
+    DynamicCombo( D_MSAA_NORMALS, 0..1, Sys( All ) );
+
+    // Bind directly, vary type on MSAA, Normals class does not do this
+    #if D_MSAA_NORMALS
+        Texture2DMS<float4>  g_tNormalsGBuffer  < Attribute("NormalsGBuffer"); >;
+    #else
+        Texture2D<float4>    g_tNormalsGBuffer  < Attribute("NormalsGBuffer"); >;
+    #endif
+
+    float3 SampleWorldNormal( int2 screenPos )
+    {
+        #if D_MSAA_NORMALS
+            float3 n = g_tNormalsGBuffer.Load( screenPos + g_vViewportOffset, 0 ).xyz;
+        #else
+            float3 n = g_tNormalsGBuffer.Load( int3( screenPos + g_vViewportOffset, 0 ) ).xyz;
+        #endif
+
+        // Zero normals = sky / missing geometry — reconstruct from depth
+        if ( all( n == 0 ) )
+        {
+            float3 c = Depth::GetWorldPosition( screenPos );
+            float3 r = Depth::GetWorldPosition( screenPos + int2( 1, 0 ) );
+            float3 u = Depth::GetWorldPosition( screenPos + int2( 0, 1 ) );
+            return -normalize( cross( r - c, u - c ) );
+        }
+
+        return 2.0f * n - 1.0f;
+    }
 
     //-------------------------------------------------------------------------------------------------------------------
 
@@ -28,13 +58,12 @@ CS
     int g_nResolutionScale < Attribute("ResolutionScale"); Default(1); >;
 
 
-    int g_nBlueNoiseIndex < Attribute("BlueNoiseIndex"); >;
+    Texture2D g_tBlueNoise < Attribute("BlueNoise"); >;
 
     //-------------------------------------------------------------------------------------------------------------------
 
     // input output textures for the first pass (XeGTAO_PrefilterDepths16x16)
 #if ( D_PASS == 0)
-    Texture2DMS<float>           g_srcRawDepth           < Attribute("RawDepth"); > ;           // source depth buffer data (in NDC space in DirectX)
     RWTexture2D<float>           g_outWorkingDepthMIP0   < Attribute("WorkingDepthMIP0"); > ;   // output viewspace depth MIP (these are views into g_srcWorkingDepth MIP levels)
     RWTexture2D<float>           g_outWorkingDepthMIP1   < Attribute("WorkingDepthMIP1"); > ;   // output viewspace depth MIP (these are views into g_srcWorkingDepth MIP levels)
     RWTexture2D<float>           g_outWorkingDepthMIP2   < Attribute("WorkingDepthMIP2"); > ;   // output viewspace depth MIP (these are views into g_srcWorkingDepth MIP levels)
@@ -142,7 +171,7 @@ CS
 
         // Full-res depth and world-space normal at this pixel (2 loads total)
         float  hiDepth  = g_tViewDepth.Load( int3( fullResPixel, 0 ) );
-        float3 hiNormal = Normals::Sample( fullResPixel );
+        float3 hiNormal = SampleWorldNormal( fullResPixel );
 
         // Depth edge-stopping: distance-proportional tolerance with exponential falloff
         float depthSigma = max( abs( hiDepth ) * 0.002, 0.05 );
@@ -167,7 +196,7 @@ CS
                 // Map coarse texel center to full-res for depth/normal reference
                 int2 fullPos = clamp( int2( ( float2( aoPos ) + 0.5 ) * fullPerAo ), int2( 0, 0 ), fullMax );
                 float  loDepth  = g_tViewDepth.Load( int3( fullPos, 0 ) );
-                float3 loNormal = Normals::Sample( fullPos );
+                float3 loNormal = SampleWorldNormal( fullPos );
 
                 // Spatial: Gaussian weight centered on the ideal sub-texel position.
                 // exp2(-d²) gives tight falloff — center≈1.0, adjacent≈0.5, corner≈0.25.
@@ -204,7 +233,7 @@ CS
         // Normals G-buffer is full resolution while AO can be reduced; map AO pixel to full-res texel.
         float2 fullResPosF = AoPosToFullResPos( (float2)pos + 0.5, consts.ViewportSize ) - 0.5;
         int2 fullResPos = clamp( (int2)fullResPosF, int2( 0, 0 ), int2( g_vViewportSize.xy ) - 1 );
-        lpfloat3 viewnormal = (lpfloat3)Vector3WsToVs( Normals::Sample( fullResPos ) );
+        lpfloat3 viewnormal = (lpfloat3)Vector3WsToVs( SampleWorldNormal( fullResPos ) );
         viewnormal.z = -viewnormal.z;
 
         return viewnormal;
@@ -250,7 +279,7 @@ CS
         float2 fullResPosF = AoPosToFullResPos( (float2)aoPos + 0.5, consts.ViewportSize ) - 0.5;
         int2 fullResPos = clamp( (int2)fullResPosF, int2( 0, 0 ), int2( g_vViewportSize.xy ) - 1 );
         depth = g_srcWorkingDepth.Load( int3( fullResPos, 0 ) );
-        normal = (lpfloat3)Vector3WsToVs( Normals::Sample( fullResPos ) );
+        normal = (lpfloat3)Vector3WsToVs( SampleWorldNormal( fullResPos ) );
         normal.z = -normal.z;
     }
 
@@ -339,7 +368,7 @@ CS
             {
                 // Blue noise: spatially uniform, temporally animated via Cranley-Patterson rotation
                 int2 noiseCoord = ( vDispatchId.xy + int2( sGTAOConsts.NoiseIndex * 7, sGTAOConsts.NoiseIndex * 3 ) ) % 256;
-                localNoise = lpfloat2( Bindless::GetTexture2D( g_nBlueNoiseIndex )[ noiseCoord ].rg );
+                localNoise = lpfloat2( g_tBlueNoise[ noiseCoord ].rg );
             }
             else
             {
