@@ -8,17 +8,22 @@ namespace Sandbox;
 /// </summary>
 internal static partial class Platform
 {
-	internal static bool IsLinux() => SandboxSystemExtensions.IsLinuxPlatform(); // returns true if running a linux filesystem
-	internal static System.Collections.Concurrent.ConcurrentDictionary<string, string> directoryCache = new( StringComparer.Ordinal ); // manages duplicate calls to same file
+	private static System.Collections.Concurrent.ConcurrentDictionary<string, string> directoryCache = new( StringComparer.Ordinal ); // manages duplicate calls to same file
+	private static bool PathExists( Zio.IFileSystem system, string path ) =>  ( system.DirectoryExists( path ) || system.FileExists( path ) ) ? true : false;
+	internal static bool IsLinuxPlatform() => SandboxSystemExtensions.IsLinuxPlatform(); // returns true if running a linux filesystem
 
+	/// <summary>
+	/// Rebuilds false missing file-paths by finding their uppercase variant
+	/// on case-sensitive Linux machines
+	/// </summary>
+	/// <param name="system"></param>
+	/// <param name="path"></param>
+	/// <returns></returns>
 	internal static string BuildZioPath( Zio.IFileSystem system, string path )
 	{
-		// ui imports are often hardcoded lowercase. this checks for lowercase only files
-		// and manages uppercase walks if needed. skip existing files.
-		var original = path;
-		path = path.ToLowerInvariant();
+		path = path.NormalizeFilename( true );
 
-		if ( system.DirectoryExists( path ) || system.FileExists( path ) )
+		if ( PathExists( system, path ) )
 			return path;
 
 		if ( directoryCache.TryGetValue( path, out var cached ) )
@@ -27,12 +32,14 @@ internal static partial class Platform
 		var segments = path.Trim('/').Split( '/', StringSplitOptions.RemoveEmptyEntries );
 		var resolved = ResolveCaseInsensitive( system, segments, path );
 
-		if ( resolved != path )
+		if ( !directoryCache.ContainsKey(path) && PathExists( system, resolved ) ) // don't cache missing paths
 		{
+			Log.Info($"[Platform] Cache resolved ... {path} -> {resolved}");
 			directoryCache.TryAdd( path, resolved );
-			Log.Info( $"[BuildZioPath] '{original}' -> '{resolved}'" );
 		}
+			
 
+		// return all paths, even nonexistent. possible directory or file creation
 		return resolved;
 	}
 
@@ -51,6 +58,6 @@ internal static partial class Platform
 			current = match;
 		}
 
-		return current.FullName;
+		return current.FullName.NormalizeFilename();
 	}
 }

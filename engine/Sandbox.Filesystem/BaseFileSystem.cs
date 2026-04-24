@@ -602,12 +602,8 @@ public class BaseFileSystem
 		if ( path.Length < 1 )
 			return "/";
 
-		if ( Platform.IsLinux() && system != null )
-		{
-			var before = path.NormalizeFilename( true );
-			path = Platform.BuildZioPath( system, before );
-			Log.Info( $"[FixPath] '{before}' -> '{path}'" );
-		}
+		if ( Platform.IsLinuxPlatform() && system != null ) // resolves linux filesystem misses
+			path = Platform.BuildZioPath( system, path );
 
 		if ( path[0] == '/' ) return path;
 		return string.Concat( "/", path );
