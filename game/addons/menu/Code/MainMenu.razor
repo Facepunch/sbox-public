@@ -34,8 +34,6 @@
     {
         base.OnEnabled();
 
-        MenuUtility.Tick += MenuTick;
-
         var human = Scene.Directory.FindByName("Player Human").FirstOrDefault();
         var citizen = Scene.Directory.FindByName("Player Citizen").FirstOrDefault();
         var clothing = ClothingContainer.CreateFromLocalUser();
@@ -50,50 +48,7 @@
         MenuProject.Settings.VideoSettings.FetchResolutions();
     }
 
-    override protected void OnDisabled()
-    {
-        base.OnDisabled();
 
-        MenuUtility.Tick -= MenuTick;
-    }
-
-    static GameClosing gameClosingPanel;
-
-    void MenuTick()
-    {
-        if ( Game.InGame && !Application.IsEditor )
-        {
-            var startDelay = 0.2f;
-            var holdDelay = 1.5f;
-
-            if ( MenuUtility.EscapeTime > startDelay )
-            {
-                var et = MenuUtility.EscapeTime - startDelay;
-
-                if ( !gameClosingPanel.IsValid() )
-                {
-                    gameClosingPanel = new GameClosing();
-                    gameClosingPanel.Parent = MenuOverlay.Instance.TopCenter;
-                }
-
-                gameClosingPanel.Progress = et / holdDelay;
-                gameClosingPanel.StateHasChanged();
-
-                if ( gameClosingPanel.Progress > 1 )
-                    Game.Close();
-            }
-            else
-            {
-                gameClosingPanel?.Delete();
-                gameClosingPanel = null;
-            }
-        }
-        else
-        {
-            gameClosingPanel?.Delete();
-            gameClosingPanel = null;
-        }
-    }
 
     override protected void OnUpdate()
     {
