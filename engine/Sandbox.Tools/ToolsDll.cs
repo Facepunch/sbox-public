@@ -220,6 +220,9 @@ internal class ToolsDll : IToolsDll
 		// only load if a tools context
 		if ( context != "tools" && context != "hammer" && package.Package is not LocalPackage ) return;
 
+		// The menu addon should never leak into other projects, its loading is handled in MenuDll.
+		if ( package.Package is LocalPackage { Project.Config.Ident: "menu" } && Project.Current?.Config?.Ident != "menu" ) return;
+
 		log.Trace( $" - Loading: {package.Package.FullIdent}" );
 
 		// make sure it's loaded into our context
