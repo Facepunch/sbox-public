@@ -604,9 +604,9 @@ public class BaseFileSystem
 
 		if ( Platform.IsLinux() && system != null )
 		{
-			path = Platform.BuildZioPath( system, path.NormalizeFilename( true ) );
-			var exists = system.FileExists( path ) || system.DirectoryExists( path );
-			Log.Info( $"[Ext4] FixPath: '{path}' exists={exists}" );
+			var before = path.NormalizeFilename( true );
+			path = Platform.BuildZioPath( system, before );
+			Log.Info( $"[FixPath] '{before}' -> '{path}'" );
 		}
 
 		if ( path[0] == '/' ) return path;

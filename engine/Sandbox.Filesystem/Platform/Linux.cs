@@ -15,6 +15,7 @@ internal static partial class Platform
 	{
 		// ui imports are often hardcoded lowercase. this checks for lowercase only files
 		// and manages uppercase walks if needed. skip existing files.
+		var original = path;
 		path = path.ToLowerInvariant();
 
 		if ( system.DirectoryExists( path ) || system.FileExists( path ) )
@@ -27,7 +28,10 @@ internal static partial class Platform
 		var resolved = ResolveCaseInsensitive( system, segments, path );
 
 		if ( resolved != path )
+		{
 			directoryCache.TryAdd( path, resolved );
+			Log.Info( $"[BuildZioPath] '{original}' -> '{resolved}'" );
+		}
 
 		return resolved;
 	}

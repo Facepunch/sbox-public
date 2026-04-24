@@ -177,7 +177,9 @@ public static partial class SandboxSystemExtensions
 		if ( Directory.Exists( combined ) || File.Exists( combined ) )
 			return combined;
 
-		return ResolveCaseInsensitive( enforceBasePath, parts ) ?? combined;
+		var resolved = ResolveCaseInsensitive( enforceBasePath, parts ) ?? combined;
+		Log.Info( $"[FindPlatformPath] '{combined}' -> '{resolved}'" );
+		return resolved;
 	}
 
 	private static string ResolveCaseInsensitive( bool enforceBasePath, params string[] parts )
