@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text.Json;
 using Zio.FileSystems;
 
@@ -222,7 +222,7 @@ public class BaseFileSystem
 	internal string GetRelativePath( string path )
 	{
 		if ( string.IsNullOrWhiteSpace( path ) ) return null;
-		return GetRelativePath( system, path.ToLowerInvariant() );
+		return GetRelativePath( system, NormalizeFilename( path ) );
 	}
 
 	/// <summary>
@@ -427,7 +427,7 @@ public class BaseFileSystem
 		if ( !WatchEnabled )
 			return;
 
-		path = path.ToLower();
+		path = NormalizeFilename ( path );
 
 		// Ignore common visual studio spam
 		if ( path.EndsWith( ".tmp" ) || path.EndsWith( "~" ) )
@@ -594,13 +594,20 @@ public class BaseFileSystem
 	/// <summary>
 	/// Zio wants good paths to start with '/' - so we add it here if it isn't already on
 	/// </summary>
-	internal static string FixPath( string path )
+	internal string FixPath( string path )
 	{
 		// Do not allow 0-32 ASCII stuff
 		if ( path.Any( c => char.IsControl( c ) ) ) throw new ArgumentException( "Path cannot contain control characters!", "path" );
 
 		if ( path.Length < 1 )
 			return "/";
+
+		if ( Platform.IsLinux() && system != null )
+		{
+			path = Platform.BuildZioPath( system, path.NormalizeFilename( true ) );
+			var exists = system.FileExists( path ) || system.DirectoryExists( path );
+			Log.Info( $"[Ext4] FixPath: '{path}' exists={exists}" );
+		}
 
 		if ( path[0] == '/' ) return path;
 		return string.Concat( "/", path );
@@ -611,6 +618,6 @@ public class BaseFileSystem
 	/// </summary>
 	internal static string NormalizeFilename( string filepath )
 	{
-		return filepath.ToLower().Replace( "\\", "/" ); // we can probably do more here
+		return filepath.NormalizeFilename( true );
 	}
 }
