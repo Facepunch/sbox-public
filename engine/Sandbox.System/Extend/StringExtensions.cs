@@ -94,7 +94,7 @@ public static partial class SandboxSystemExtensions
 	/// </summary>
 	public static string NormalizeFilename( this string str, bool enforceInitialSlash, bool enforceLowerCase, char targetSeparator = '/' )
 	{
-		if ( IsLinuxPlatform() ) enforceLowerCase = false; 
+		if ( IsLinuxPlatform() ) enforceLowerCase = false;
 
 		if ( str.Length == 0 )
 		{

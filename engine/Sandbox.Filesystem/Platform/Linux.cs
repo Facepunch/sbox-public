@@ -9,7 +9,7 @@ namespace Sandbox;
 internal static partial class Platform
 {
 	private static System.Collections.Concurrent.ConcurrentDictionary<string, string> directoryCache = new( StringComparer.Ordinal ); // manages duplicate calls to same file
-	private static bool PathExists( Zio.IFileSystem system, string path ) =>  ( system.DirectoryExists( path ) || system.FileExists( path ) ) ? true : false;
+	private static bool PathExists( Zio.IFileSystem system, string path ) => (system.DirectoryExists( path ) || system.FileExists( path )) ? true : false;
 	internal static bool IsLinuxPlatform() => SandboxSystemExtensions.IsLinuxPlatform(); // returns true if running a linux filesystem
 
 	/// <summary>
@@ -29,15 +29,11 @@ internal static partial class Platform
 		if ( directoryCache.TryGetValue( path, out var cached ) )
 			return cached;
 
-		var segments = path.Trim('/').Split( '/', StringSplitOptions.RemoveEmptyEntries );
+		var segments = path.Trim( '/' ).Split( '/', StringSplitOptions.RemoveEmptyEntries );
 		var resolved = ResolveCaseInsensitive( system, segments, path );
 
-		if ( !directoryCache.ContainsKey(path) && PathExists( system, resolved ) ) // don't cache missing paths
-		{
-			Log.Info($"[Platform] Cache resolved ... {path} -> {resolved}");
+		if ( !directoryCache.ContainsKey( path ) && PathExists( system, resolved ) ) // don't cache missing paths
 			directoryCache.TryAdd( path, resolved );
-		}
-			
 
 		// return all paths, even nonexistent. possible directory or file creation
 		return resolved;

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 using Zio.FileSystems;
 
@@ -427,7 +427,7 @@ public class BaseFileSystem
 		if ( !WatchEnabled )
 			return;
 
-		path = NormalizeFilename ( path );
+		path = NormalizeFilename( path );
 
 		// Ignore common visual studio spam
 		if ( path.EndsWith( ".tmp" ) || path.EndsWith( "~" ) )
