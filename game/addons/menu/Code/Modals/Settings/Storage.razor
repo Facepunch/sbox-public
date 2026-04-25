@@ -171,7 +171,7 @@
             SizeBreakdown[type] += entry.Size;
 
 
-            if (sw.ElapsedMilliseconds > 1 )
+            if (sw.ElapsedMilliseconds > 16)
             {
                 sw.Restart();
                 await Task.DelayRealtime( 1 );
