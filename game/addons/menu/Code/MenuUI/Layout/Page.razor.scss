@@ -2,9 +2,10 @@
 
 Page
 {
-    flex-grow: 1;
-    position: relative;
-    justify-content: center;
+	background-color: $default-950;
+	flex-grow: 1;
+	position: relative;
+	justify-content: center;
 }
 
 Page VirtualList 
@@ -20,7 +21,7 @@ Page > .inner {
     pointer-events: all;
     flex-direction: row;
     overflow: hidden;
-    background-color: $default-950;
+    width: 100%;
 }
 
 Page > .inner > .sidebar
@@ -41,7 +42,6 @@ Page > .inner > .pagebody
 {
     flex-grow: 1;
     flex-shrink: 1;
-    overflow: hidden;
     flex-direction: column;
 }
 

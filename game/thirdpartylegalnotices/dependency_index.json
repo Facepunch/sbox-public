@@ -956,6 +956,19 @@
 			]
 		},
 		{
+			"Name": "libyuv",
+			"Comment": "YUV color space conversion and scaling library.",
+			"UsedBy": [
+				"engine2"
+			],
+			"License": "BSD-3-Clause",
+			"ProjectUrl": "https://chromium.googlesource.com/libyuv/libyuv",
+			"Linkage": "static",
+			"Copyright": [
+				"2011 The LibYuv Project Authors"
+			]
+		},
+		{
 			"Name": "libopus",
 			"Comment": "Opus interactive audio codec library.",
 			"UsedBy": [

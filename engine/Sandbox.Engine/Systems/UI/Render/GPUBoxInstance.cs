@@ -34,6 +34,7 @@ struct GPUBoxInstance
 	public int ScissorIndex;
 	public int Mode;
 	public int TransformIndex;
+	public int InverseScissorIndex;
 
 	// Mode 1/2 (shadow): BackgroundAngle = blur, BackgroundRect = (spread, offset.x, offset.y, 0)
 	//                     BorderSize = inverse scissor rect (for outset clipping)
@@ -54,6 +55,7 @@ struct GPUBoxInstance
 			BackgroundAngle = desc.Blur,
 			BackgroundRect = new Vector4( desc.Spread, desc.Offset.x, desc.Offset.y, 0 ),
 			Mode = desc.Inset ? 2 : 1,
+			InverseScissorIndex = -1,
 		};
 	}
 
@@ -71,6 +73,7 @@ struct GPUBoxInstance
 			BackgroundRect = new Vector4( desc.PanelRect.Width, desc.PanelRect.Height, desc.Width, desc.Offset ),
 			BackgroundAngle = bloat,
 			Mode = 3,
+			InverseScissorIndex = -1,
 		};
 	}
 
@@ -112,6 +115,7 @@ struct GPUBoxInstance
 			BorderImageSlice = desc.BorderImageSlice,
 			BorderImageTint = hasBorderImage ? desc.BorderImageTint.RawInt : 0,
 			Flags = desc.PremultiplyAlpha ? 1 : 0,
+			InverseScissorIndex = -1,
 		};
 	}
 
@@ -150,6 +154,7 @@ internal struct ScissorInstance
 	public Vector4 Rect;
 	public Vector4 CornerRadius;
 	public Matrix TransformMat;
+	public int Invert;
 }
 
 /// <summary>

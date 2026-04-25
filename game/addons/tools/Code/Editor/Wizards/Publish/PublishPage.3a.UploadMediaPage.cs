@@ -38,7 +38,7 @@ partial class PublishWizard
 				Height = VideoResolution.y,
 				FrameRate = 60,
 				Codec = VideoWriter.Codec.AV1,
-				Container = VideoWriter.Container.MP4,
+				Container = VideoWriter.Container.WebM,
 				Preset = VideoWriter.EncodingPreset.Balanced
 			} );
 
@@ -89,7 +89,7 @@ partial class PublishWizard
 				Height = VideoResolution.y,
 				FrameRate = 60,
 				Codec = VideoWriter.Codec.AV1,
-				Container = VideoWriter.Container.MP4,
+				Container = VideoWriter.Container.WebM,
 				Preset = VideoWriter.EncodingPreset.Balanced
 			} );
 

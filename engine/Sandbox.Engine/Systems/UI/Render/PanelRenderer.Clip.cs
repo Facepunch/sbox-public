@@ -48,6 +48,7 @@ internal partial class PanelRenderer
 		public Rect Rect;
 		public Vector4 CornerRadius;
 		public Matrix Matrix;
+		public bool Invert;
 	}
 
 	/// <summary>

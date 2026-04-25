@@ -42,7 +42,8 @@ public sealed class VideoWriter : IDisposable
 #pragma warning disable CS0618 // Intentional: obsolete codecs still map for backward compat
 		internal string CodecName => Codec switch
 		{
-			Codec.VP8 or Codec.VP9 or Codec.H264 or Codec.H265 => "vp9",
+			Codec.VP8 or Codec.H264 or Codec.H265 => "av1",
+			Codec.VP9 => "vp9",
 			Codec.AV1 => "av1",
 			Codec.WebP => "webp",
 			_ => null,
@@ -62,13 +63,13 @@ public sealed class VideoWriter : IDisposable
 	public enum Codec
 	{
 		/// <summary>
-		/// Obsolete: H.264 is no longer supported, if used will map to VP9 instead.
+		/// Obsolete: H.264 is no longer supported, if used will map to AV1 instead.
 		/// </summary>
 		[Obsolete( "H.264 is no longer supported, use VP9 instead" )]
 		H264,
 
 		/// <summary>
-		/// Obsolete: H.265 is no longer supported, if used will map to VP9 instead.
+		/// Obsolete: H.265 is no longer supported, if used will map to AV1 instead.
 		/// </summary>
 		[Obsolete( "H.265 is no longer supported, use VP9 instead" )]
 		H265,
@@ -176,7 +177,7 @@ public sealed class VideoWriter : IDisposable
 		var audioChannels = 2;
 
 		native = CVideoRecorder.Create();
-		native.Initialize( path, width, height, frameRate, bitrate, audioSampleRate, audioChannels, config.CodecName, (int)config.Preset, config.AudioCodecName, config.Transparency );
+		native.Initialize( this.path, width, height, frameRate, bitrate, audioSampleRate, audioChannels, config.CodecName, config.ContainerName, (int)config.Preset, config.AudioCodecName, config.Transparency );
 	}
 
 	~VideoWriter()

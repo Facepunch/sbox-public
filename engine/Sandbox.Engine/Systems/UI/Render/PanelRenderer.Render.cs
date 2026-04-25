@@ -166,6 +166,7 @@ internal partial class PanelRenderer
 
 			gpu.ScissorIndex = scissorIndex;
 			gpu.TransformIndex = transformIndex;
+			gpu.InverseScissorIndex = ri.HasInverseScissor ? batcher.GetOrAddScissor( ri.InverseScissor ) : -1;
 
 			// Pack z-depth in the high bits, per-panel intra-pass in the low bits.
 			int sortPass = zDepth * 256 + (ri.Pass & 0xFF);
@@ -271,6 +272,8 @@ internal partial class PanelRenderer
 			if ( ri.BorderImage is not null )
 				gpu.BorderImageIndex = ri.BorderImage.Index;
 
+			gpu.InverseScissorIndex = ri.HasInverseScissor ? batcher.GetOrAddScissor( ri.InverseScissor ) : -1;
+
 			AddInstance( gpu, scissor, transform );
 		}
 	}
@@ -293,13 +296,15 @@ internal partial class PanelRenderer
 		Stats.FlushCount++;
 		Stats.DrawCalls++;
 
-		batcher.Draw( pendingInstances, cl, WorldPanelCombo, pendingBlendMode );
+		int combo = LayerStack.Count > 0 ? 0 : WorldPanelCombo;
+
+		batcher.Draw( pendingInstances, cl, combo, pendingBlendMode );
 		pendingInstances.Clear();
 		pendingBlendMode = BlendMode.Normal;
 
 		// Restore CL state that inline draws depend on
 		cl.Attributes.Set( "TransformMat", Matrix.Identity );
-		cl.Attributes.SetCombo( "D_WORLDPANEL", WorldPanelCombo );
+		cl.Attributes.SetCombo( "D_WORLDPANEL", combo );
 		if ( LayerStack.TryPeek( out var top ) )
 			cl.Attributes.Set( "LayerMat", top.Matrix );
 	}

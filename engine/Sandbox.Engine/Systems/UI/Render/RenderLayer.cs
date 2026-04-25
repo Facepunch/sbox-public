@@ -15,6 +15,8 @@ internal struct RenderInstance
 	public int Pass;
 	public Texture BackgroundImage;
 	public Texture BorderImage;
+	public bool HasInverseScissor;
+	public PanelRenderer.GPUScissor InverseScissor;
 }
 
 /// <summary>
@@ -48,6 +50,14 @@ internal class RenderLayer
 			GPU = GPUBoxInstance.FromShadow( desc ),
 			BlendMode = desc.Inset ? _buildBlendMode : BlendMode.Normal,
 			Pass = desc.Inset ? _buildPass : 0,
+			HasInverseScissor = !desc.Inset,
+			InverseScissor = !desc.Inset ? new PanelRenderer.GPUScissor
+			{
+				Rect = new Rect( desc.ScissorRect.x, desc.ScissorRect.y, desc.ScissorRect.z - desc.ScissorRect.x, desc.ScissorRect.w - desc.ScissorRect.y ),
+				CornerRadius = desc.ScissorCornerRadius,
+				Matrix = desc.ScissorTransformMat,
+				Invert = true,
+			} : default,
 		} );
 	}
 

@@ -1,3 +1,17 @@
+@import "/styles/_theme.scss";
+
+MultiplayerPage
+{
+	background-color: $default-950;
+}
+
+Page
+{
+	width: 100%;
+	max-width: $screen-w-xl;
+	margin: auto;
+}
+
 MultiplayerPage .button
 {
 	font-size: 1rem;

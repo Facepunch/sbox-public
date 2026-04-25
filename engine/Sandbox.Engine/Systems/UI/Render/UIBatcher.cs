@@ -60,7 +60,7 @@ internal class UIBatcher
 		if ( scissor.Rect.Width == 0 && scissor.Rect.Height == 0 )
 			return -1;
 
-		var hash = HashCode.Combine( scissor.Rect, scissor.CornerRadius, scissor.Matrix );
+		var hash = HashCode.Combine( scissor.Rect, scissor.CornerRadius, scissor.Matrix, scissor.Invert );
 
 		if ( scissorLookup.TryGetValue( hash, out var existing ) )
 			return existing;
@@ -71,6 +71,7 @@ internal class UIBatcher
 			Rect = scissor.Rect.ToVector4(),
 			CornerRadius = scissor.CornerRadius,
 			TransformMat = scissor.Matrix,
+			Invert = scissor.Invert ? 1 : 0,
 		} );
 
 		scissorLookup[hash] = index;

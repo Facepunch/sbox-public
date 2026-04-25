@@ -51,6 +51,7 @@ COMMON
 		int ScissorIndex;
 		int Mode;
 		int TransformIndex;
+		int InverseScissorIndex;
 	};
 
 	float4 UnpackColor( uint packed )
@@ -73,6 +74,7 @@ COMMON
 		float4 Rect;
 		float4 CornerRadius;
 		float4x4 TransformMat;
+		int Invert;
 	};
 
 	StructuredBuffer<BoxInstanceData> BoxInstances < Attribute( "BoxInstances" ); >;
@@ -427,6 +429,26 @@ PS
 	{
 		BoxInstanceData inst = BoxInstances[i.iInstanceID];
 
+		// Per-instance scissoring via lookup table. Must run before mode dispatch so shadows/outlines also get clipped.
+		if ( inst.ScissorIndex >= 0 )
+		{
+			ScissorData scissor = ScissorBuffer[inst.ScissorIndex];
+			float2 pixelPos = i.vPositionPanelSpace.xy;
+			bool outside = IsOutsideBox( pixelPos, scissor.Rect, scissor.CornerRadius, scissor.TransformMat );
+			bool shouldClip = scissor.Invert ? !outside : outside;
+			clip( shouldClip ? -1 : 1 );
+		}
+
+		// Second scissor slot (used by outset box-shadows to clip inside the panel rect)
+		if ( inst.InverseScissorIndex >= 0 )
+		{
+			ScissorData scissor = ScissorBuffer[inst.InverseScissorIndex];
+			float2 pixelPos = i.vPositionPanelSpace.xy;
+			bool outside = IsOutsideBox( pixelPos, scissor.Rect, scissor.CornerRadius, scissor.TransformMat );
+			bool shouldClip = scissor.Invert ? !outside : outside;
+			clip( shouldClip ? -1 : 1 );
+		}
+
 		if ( inst.Mode == 1 ) return RenderShadow( inst, i, false );
 		if ( inst.Mode == 2 ) return RenderShadow( inst, i, true );
 		if ( inst.Mode == 3 ) return RenderOutline( inst, i );
@@ -509,14 +531,6 @@ PS
 		else
 		{
 			col.a *= edge;
-		}
-
-		// Per-instance scissoring via lookup table
-		if ( inst.ScissorIndex >= 0 )
-		{
-			ScissorData scissor = ScissorBuffer[inst.ScissorIndex];
-			float2 pixelPos = i.vPositionPanelSpace.xy;
-			clip( IsOutsideBox( pixelPos, scissor.Rect, scissor.CornerRadius, scissor.TransformMat ) ? -1 : 1 );
 		}
 
 		return col;
