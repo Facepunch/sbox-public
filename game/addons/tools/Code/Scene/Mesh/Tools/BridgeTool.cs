@@ -178,7 +178,7 @@ public partial class BridgeTool( MeshEdge[] edges = null, MeshFace[] faces = nul
 	float _repeatsU;
 	float _repeatsV;
 
-	void UpdateBridge( int steps, int twist, PolygonMesh.BridgeUVMode uvMode, float repeatsU, float repeatsV )
+	void UpdateBridge( int steps, int twist, PolygonMesh.BridgeUVMode uvMode, float repeatsU, float repeatsV, Vector3 fromControlPointPosition, Vector3 toControlPointPosition )
 	{
 		if ( _editMesh is null ) return;
 
@@ -190,6 +190,8 @@ public partial class BridgeTool( MeshEdge[] edges = null, MeshFace[] faces = nul
 		_uvMode = uvMode;
 		_repeatsU = repeatsU;
 		_repeatsV = repeatsV;
+		_controlPoints[(int)BridgeControlPoint.From] = fromControlPointPosition;
+		_controlPoints[(int)BridgeControlPoint.To] = toControlPointPosition;
 
 		var mesh = new PolygonMesh();
 		mesh.Transform = _editMesh.Transform;
@@ -627,6 +629,19 @@ public partial class BridgeTool( MeshEdge[] edges = null, MeshFace[] faces = nul
 
 		_controlPoints[(int)cp] = controlPointPosition;
 
+		switch ( (int)cp )
+		{
+			case (int)BridgeControlPoint.From:
+				FromControlPointPosition = controlPointPosition;
+				break;
+			case (int)BridgeControlPoint.To:
+				ToControlPointPosition = controlPointPosition;
+				break;
+			default:
+				Console.WriteLine( $"Invalid control point index: {(int)cp}" );
+				break;
+		}
+
 		if ( _controlPointDragLocked )
 		{
 			var delta = controlPointPosition - basis.Position;
@@ -637,7 +652,7 @@ public partial class BridgeTool( MeshEdge[] edges = null, MeshFace[] faces = nul
 			SetControlPointFromDeltas( BridgeControlPoint.To, normalDelta, tangentDelta );
 		}
 
-		UpdateBridge( _steps, _twist, _uvMode, _repeatsU, _repeatsV );
+		UpdateBridge( _steps, _twist, _uvMode, _repeatsU, _repeatsV, _controlPoints[(int)BridgeControlPoint.From], _controlPoints[(int)BridgeControlPoint.To] );
 	}
 
 	static Vector3 GridSnapOnPlane( Vector3 point, Vector3 origin, Vector3 planeNormal, Vector3 tangent )
