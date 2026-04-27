@@ -350,6 +350,33 @@ public class EditorMainWindow : DockWindow
 		if ( layout.Json is null ) return;
 
 		DockManager.State = layout.Json;
+
+		// This code should only execute on startup, not when a user presses Reset Layout
+		if ( !EditorWindow.Visible )
+		{
+			// The default layout json is static and doesn't know what a project's startup scene is
+			// We need to look it up and open it if it exists
+			TryToOpenStartupScene();
+		}
+	}
+
+	// The default scene is the empty scene editor that appears in default.json
+	private bool IsTheDefaultScene( SceneEditorSession s ) =>
+		s.Scene.Source is null && !s.HasUnsavedChanges;
+
+	void TryToOpenStartupScene()
+	{
+		var startupScene = Project.Current.Package.GetMeta<string>( "StartupScene", null );
+		if ( !string.IsNullOrWhiteSpace( startupScene ) )
+		{
+			var s = SceneEditorSession.CreateFromPath( startupScene );
+			var startupSceneEditorWasCreated = s is not null;
+
+			if ( startupSceneEditorWasCreated )
+			{
+				SceneEditorSession.All.Where( IsTheDefaultScene ).FirstOrDefault()?.Destroy();
+			}
+		}
 	}
 
 	/// <summary>
