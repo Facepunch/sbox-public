@@ -93,15 +93,37 @@ Page > .inner > .sidebar hr
     flex-shrink: 0;
 }
 
-Page > .inner > .sidebar TextEntry
-{
-    background-color: #0f1016;
-    height: 42px;
-    border-radius: 16px;
-    width: 100%;
-    flex-shrink: 0;
-    padding: 8px;
-}
+    Page > .inner > .sidebar TextEntry {
+        background-color: $default-950;
+        backdrop-filter: blur( 10px );
+        color: $default-text;
+        padding: 8px 12px;
+        border-radius: $rounding-default;
+        pointer-events: all;
+        transition: all 150ms $easing;
+        border: 1px solid rgba( $default-50, 0.1 );
+
+        &.has-icon {
+            Label {
+                margin-left: 26px;
+            }
+        }
+
+        .placeholder {
+            font-size: $text-regular;
+        }
+
+        Label {
+            font-weight: 700;
+        }
+
+        iconpanel {
+            position: absolute;
+            left: 12px;
+            opacity: 0.25;
+            font-size: $text-large;
+        }
+    }
 
 Page > .inner > .sidebar p
 {

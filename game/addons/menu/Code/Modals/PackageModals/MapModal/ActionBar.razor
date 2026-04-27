@@ -48,6 +48,7 @@
     public Package Package {get;set;}
     public static Package GamePackage { get; set; } = null;
     public static Package MapPackage { get; set; } = null;
+    private static string _gamePackageInitializedFor;
 
     protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, LobbyCount, MenuHelpers.HasAuthority );
 
@@ -55,6 +56,9 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        if ( Package?.FullIdent == _gamePackageInitializedFor ) return;
+        _gamePackageInitializedFor = Package?.FullIdent;
+
         var target = this.Package.GetMeta<string>("ParentPackage", null);
         if ( !string.IsNullOrWhiteSpace( target ) )
         {
@@ -77,7 +81,7 @@
 
 	void SelectGame()
 	{
-		Game.Overlay.ShowPackageSelector("type:game sort:popular +mapselect", (pkg) => {
+		Game.Overlay.ShowPackageSelector("type:game sort:popular", (pkg) => {
 			GamePackage = pkg;
 			StateHasChanged();
 		});

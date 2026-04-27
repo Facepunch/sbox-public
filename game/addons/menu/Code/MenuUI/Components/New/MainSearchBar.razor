@@ -100,7 +100,7 @@
 
     async Task FetchAutocomplete()
     {
-        AutocompleteResult = await Package.FindAsync($"type:game sort:playersnow {SearchText?.Value}", 5);
+        AutocompleteResult = await Package.FindAsync($"type:game {SearchText?.Value}", 5);
     }
 
     Package[] ComputeSuggestedPackages()

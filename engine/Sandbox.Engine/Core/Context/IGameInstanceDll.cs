@@ -30,7 +30,7 @@ internal unsafe interface IGameInstanceDll
 	//
 	// Game Menu Shit
 	//
-	public Task LoadGamePackageAsync( string ident, GameLoadingFlags flags, CancellationToken ct );
+	public Task<bool> LoadGamePackageAsync( string ident, GameLoadingFlags flags, CancellationToken ct );
 
 	//
 	// Scene

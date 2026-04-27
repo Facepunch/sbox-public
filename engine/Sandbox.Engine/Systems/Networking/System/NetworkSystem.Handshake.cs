@@ -76,7 +76,13 @@ internal partial class NetworkSystem
 			{
 				LaunchArguments.Map = msg.MapPackage;
 
-				await IGameInstanceDll.Current.LoadGamePackageAsync( msg.GamePackage, flags, default );
+				bool success = await IGameInstanceDll.Current.LoadGamePackageAsync( msg.GamePackage, flags, default );
+				if ( !success )
+				{
+					// Failed to load the game package, we can't continue
+					Networking.Disconnect();
+					return;
+				}
 			}
 		}
 		else

@@ -143,6 +143,7 @@ public class EditorMainWindow : DockWindow
 			EditMenu.AddOption( "Cut", "cut", EditorScene.Cut, "editor.cut" );
 			EditMenu.AddOption( "Copy", "copy", EditorScene.Copy, "editor.copy" );
 			EditMenu.AddOption( "Paste", "paste", EditorScene.Paste, "editor.paste" );
+			EditMenu.AddOption( "Paste Special", "content_paste_go", EditorScene.PasteSpecial, "editor.paste-special" );
 			EditMenu.AddOption( "Paste As Child", null, EditorScene.PasteAsChild, "editor.paste-as-child" );
 			EditMenu.AboutToShow += OnEditMenuAboutToShow;
 		}

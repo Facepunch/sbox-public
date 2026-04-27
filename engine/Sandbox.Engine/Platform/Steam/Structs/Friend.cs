@@ -84,12 +84,15 @@ internal struct Friend
 	internal static Dictionary<ulong, int> _steamLevelCache = new();
 	internal static Dictionary<ulong, FriendGameInfo?> _gameInfoCache = new();
 
-	public string Name => _nameCache.GetOrCreate( Id.Value, SteamFriends.Internal.GetFriendPersonaName );
-	public Relationship Relationship => _relationshipCache.GetOrCreate( Id.Value, SteamFriends.Internal.GetFriendRelationship );
+	public string Name => !SteamFriends.IsInstalled ? null : _nameCache.GetOrCreate( Id.Value, SteamFriends.Internal.GetFriendPersonaName );
+	public Relationship Relationship => !SteamFriends.IsInstalled ? Steamworks.Relationship.None : _relationshipCache.GetOrCreate( Id.Value, SteamFriends.Internal.GetFriendRelationship );
 	public FriendState State
 	{
 		get
 		{
+			if ( !SteamFriends.IsInstalled )
+				return FriendState.Offline;
+
 			if ( !_stateCache.TryGetValue( Id.Value, out var val ) )
 			{
 				val = SteamFriends.Internal.GetFriendPersonaState( Id.Value );
@@ -99,9 +102,9 @@ internal struct Friend
 			return val;
 		}
 	}
-	public int SteamLevel => _steamLevelCache.GetOrCreate( Id.Value, SteamFriends.Internal.GetFriendSteamLevel );
+	public int SteamLevel => !SteamFriends.IsInstalled ? 0 : _steamLevelCache.GetOrCreate( Id.Value, SteamFriends.Internal.GetFriendSteamLevel );
 
-	public FriendGameInfo? GameInfo => _gameInfoCache.GetOrCreate( Id, x =>
+	public FriendGameInfo? GameInfo => !SteamFriends.IsInstalled ? null : _gameInfoCache.GetOrCreate( Id, x =>
 	{
 		FriendGameInfo_t gameInfo = default;
 		if ( !SteamFriends.Internal.GetFriendGamePlayed( x, ref gameInfo ) )
@@ -114,6 +117,9 @@ internal struct Friend
 	{
 		get
 		{
+			if ( !SteamFriends.IsInstalled )
+				yield break;
+
 			for ( int i = 0; i < 32; i++ )
 			{
 				var n = SteamFriends.Internal.GetFriendPersonaNameHistory( Id, i );
@@ -127,6 +133,7 @@ internal struct Friend
 
 	public bool IsIn( SteamId group_or_room )
 	{
+		if ( !SteamFriends.IsInstalled ) return false;
 		return SteamFriends.Internal.IsUserInSource( Id, group_or_room );
 	}
 
@@ -173,6 +180,7 @@ internal struct Friend
 
 	public string GetRichPresence( string key )
 	{
+		if ( !SteamFriends.IsInstalled ) return null;
 		var val = SteamFriends.Internal.GetFriendRichPresence( Id, key );
 		if ( string.IsNullOrEmpty( val ) ) return null;
 		return val;
@@ -183,6 +191,7 @@ internal struct Friend
 	/// </summary>
 	internal bool InviteToGame( string Text )
 	{
+		if ( !SteamFriends.IsInstalled ) return false;
 		return SteamFriends.Internal.InviteUserToGame( Id, Text );
 	}
 
@@ -210,6 +219,7 @@ internal struct Friend
 	/// </summary>
 	internal bool SendMessage( string message )
 	{
+		if ( !SteamFriends.IsInstalled ) return false;
 		return SteamFriends.Internal.ReplyToFriendMessage( Id, message );
 	}
 

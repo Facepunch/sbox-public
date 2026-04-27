@@ -3,6 +3,9 @@
 ContentBlockHeroItem {
 
     Card {
+        &:hover { sound-in: "ui.button.over"; }
+        &:active { sound-in: "ui.button.press"; }
+
         width: $screen-w-md;
         height: auto;
         flex-shrink: 0;

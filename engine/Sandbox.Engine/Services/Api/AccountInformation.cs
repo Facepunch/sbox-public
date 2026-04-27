@@ -70,9 +70,8 @@ internal class AccountInformation
 
 			if ( login.Id == 0 )
 			{
-				Log.Warning( "There was a problem retrieving account information, so we're offline" );
+				Log.Warning( "Failed to retrieve account information - starting in offline mode.." );
 				Api.StartOffline();
-
 				return;
 			}
 

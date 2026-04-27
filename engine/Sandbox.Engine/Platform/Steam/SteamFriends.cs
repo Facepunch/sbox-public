@@ -14,7 +14,7 @@ namespace Steamworks
 	{
 		internal static ISteamFriends Internal => Interface as ISteamFriends;
 
-		private static bool IsInstalled => Internal?.IsValid ?? false;
+		internal static bool IsInstalled => Internal?.IsValid ?? false;
 
 		internal override void InitializeInterface( bool server )
 		{

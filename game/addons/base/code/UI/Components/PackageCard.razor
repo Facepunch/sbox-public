@@ -1,62 +1,61 @@
 ﻿@using Sandbox;
 @using Sandbox.UI;
+@using System.Globalization
 @namespace Sandbox.UI
 @inherits Panel
 
+<root class=@BuildClass() @onrightclick=@OnCardRightClicked onclick=@OnCardClicked>
+    <div class="image" style="background-image: url(@(Image() ?? "/ui/sbox-logo-square.svg"))" />
 
-@{
-    var aspect = this.Box.RectOuter.Size.x / this.Box.RectOuter.Size.y;
-    var bg = Package.Thumb;
+    <column>
+        <label class="medium package-title">
+            @(Package?.Title ?? "Invalid Package")
+        </label>
 
-    if (aspect < 0.8f) bg = Package.ThumbTall;
-    if (aspect > 1.2f) bg = Package.ThumbWide;
-
-    if (this.HasHovered)
-    {
-        bg = Package.VideoThumb ?? bg;
-    }
-}
-
-<root class="card card-vertical card-package @FavouriteClass @RatingClass">
-
-    <div class="card-image" @onrightclick=@OnCardRightClicked onclick=@OnCardClicked style="background-image: url( @bg )">
-
-        @if ( Decorated )
+        @if (Package == null)
         {
-            <div class="card-decorator">
-                @if ( Package.Public == false )
-                {
-                    <i tooltip="This package is hidden from the public">visibility_off</i>
-                }
-                @if ( UsersNow > 0 )
-                {   
-                    <div class="player-count" tooltip="This many users are playing now">
-                        <i>sports_esports</i>
-                        <span> @UsersNow.KiloFormat() </span>
-                    </div>
-                }
-                else if ( Package.Usage.UsersNow > 0 )
-                {
-                    <div class="player-count" tooltip="This many users are playing now">
-                        <i>sports_esports</i>
-                        <span> @Package.Usage.UsersNow.KiloFormat() </span>
-                    </div>
-                }
-            </div>
+            <row>
+                <label class="eyebrow">
+                    We couldn't find that package.
+                </label>
+            </row>
         }
+        else
+        {
+            <row>
+                <icon class="eyebrow">
+                    thumb_up
+                </icon>
 
-    </div>
-    
-    <div class="package-card-body"> 
-        <label class="title" @onclick=@OnCardClicked>@Package.Title</label>
-        <label class="orgname" onclick=@( () => Game.Overlay.ShowOrganizationModal( Package.Org ) )>@Package.Org.Title</label>
-    </div>
+                <label class="eyebrow">
+                    @VotePercentage()
+                </label>
 
+                <div class="grow" />
+
+                @if (Package.Usage.UsersNow > 0)
+                {
+                    <badge class="online package-users">
+                        <icon>person</icon>
+                        <label>@(Package.Usage.UsersNow)</label>
+                    </badge>
+                }
+            </row>
+        }
+    </column>
 </root>
 
-@code
-{
-    [Parameter] public Package Package { get; set; }
+@code {
+    public enum SizeTypes
+    {
+        Default,
+        Small,
+        Wide,
+        Tall
+    }
+
+    [Property] public Sandbox.Package Package { get; set; }
+    [Property] public SizeTypes Size { get; set; }
 
     /// <summary>
     /// Called when the icon part of the card is pressed
@@ -67,72 +66,46 @@
     /// Called when the icon part of the card is right clicked
     /// </summary>
     [Parameter] public System.Action OnMenu { get; set; }
-
-    [Parameter] public bool Decorated { get; set; } = true;
-
-    public int UsersNow { get; set; }
-
-    protected override int BuildHash() => HashCode.Combine(Package, this.HasHovered, this.Box.RectOuter.Size);
-
-	string FavouriteClass => Package.Interaction.Favourite ? "is-favourite" : "";
-	string RatingClass
-	{
-		get
-		{
-			if (Package.Interaction.Rating == null) return "";
-			if (Package.Interaction.Rating == 0) return "is-rated-up";
-			if (Package.Interaction.Rating == 1) return "is-rated-down";
-
-			return "";
-		}
-	}
-
-	public string FormatHoursPlayed()
-	{
-		double minutes = Package.Interaction.Seconds / 60.0;
-
-		if ( minutes < 60 )
-			return minutes.ToString("0m");
-
-		double hours = Package.Interaction.Seconds / 60.0 / 60.0;
-
-		if (hours > 10)
-			return hours.ToString("0h");
-
-		return hours.ToString("0.#h");
-	}
-
-	public string UpdatedString()
-	{
-		return Package.Updated.LocalDateTime.ToRelativeTimeString();
-	}
-
-	void OnCardClicked()
-	{
-		OnLaunch?.Invoke();
-	}
-
-	void OnCardRightClicked()
-	{
-		OnMenu?.Invoke();
-	}
-
-    [Event("package.update.users")]
-    public void UpdateUsers( string ident, long value )
+    
+    void OnCardClicked()
     {
-        if (ident != Package.FullIdent) return;
-
-        var u = Package.Usage;
-        u.UsersNow = value;
-        Package.Usage = u;
-        StateHasChanged();
+        OnLaunch?.Invoke();
     }
 
-    [Event("package.update.favourites")]
-    public void UpdateFaves(string ident, long value)
+    void OnCardRightClicked()
     {
-        if (ident != Package.FullIdent) return;
-        Package.Favourited = (int) value;
-        StateHasChanged();
+        OnMenu?.Invoke();
     }
+
+    private string BuildClass()
+    {
+        return $"game {Size.ToString().ToLower()}";
+    }
+
+    private string VotePercentage()
+    {
+        if (Package == null) return "Unrated";
+
+        if (Package.VotesUp == 0 && Package.VotesDown == 0)
+            return "Unrated";
+
+        return ((int)((float)Package.VotesUp / (Package.VotesUp + Package.VotesDown) * 100)).ToString() + "%";
+    }
+
+    public string Image()
+    {
+        switch (Size)
+        {
+            case SizeTypes.Tall:
+                return Package?.ThumbTall;
+            case SizeTypes.Wide:
+                return Package?.ThumbWide;
+            case SizeTypes.Small:
+                return Package?.Thumb;
+            default:
+                return Package?.ThumbWide;
+        }
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine(Package);
 }

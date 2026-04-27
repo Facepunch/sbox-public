@@ -27,7 +27,7 @@ public sealed class AchievementOverview
 		}
 		catch ( Exception )
 		{
-			return default;
+			return Array.Empty<AchievementOverview>();
 		}
 	}
 	internal static AchievementOverview From( PlayerAchievementProgress p )

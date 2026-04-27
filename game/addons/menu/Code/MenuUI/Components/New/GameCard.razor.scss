@@ -3,6 +3,9 @@ $background-size: 8px;
 
 GameCard {
     flex-shrink: 0;
+
+    &:hover { sound-in: "ui.button.over"; }
+    &:active { sound-in: "ui.button.press"; }
     flex-direction: column;
     position: relative;
     background-color: rgba( $default-950, 0 );

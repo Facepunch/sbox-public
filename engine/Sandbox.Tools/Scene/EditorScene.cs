@@ -551,6 +551,13 @@ public static class EditorScene
 		PasteAsChildAt();
 	}
 
+	[Shortcut( "editor.paste-special", "CTRL+ALT+V" )]
+	public static void PasteSpecial()
+	{
+		var dialog = new ScenePasteSpecialDialog( ScenePasteSpecialDialog.Execute );
+		dialog.Show();
+	}
+
 	private static void ExecutableUndoablePaste( GameObject target, bool asChild, SceneTraceResult? tr )
 	{
 		ExecutableUndoablePaste( [target], asChild, tr );

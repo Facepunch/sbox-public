@@ -7,7 +7,6 @@ $column-width: 380px;
     width: 1300px;
     max-width: 1300px;
     height: 75%;
-    pointer-events: none;
     font-family: Poppins;
 }
 
@@ -104,6 +103,7 @@ $column-width: 380px;
     overflow-y: scroll;
     max-width: 900px;
     font-size: 14px;
+    pointer-events: all;
 }
 
 .megacard > .body-outer > .body > .footer

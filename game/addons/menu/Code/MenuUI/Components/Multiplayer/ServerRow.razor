@@ -71,7 +71,7 @@
         if ( Server.Game.Contains( "." ) && !Server.Game.Contains( "local." ) )
         {
             var gamePackage = await Package.FetchAsync( Server.Game, true );
-            if ( gamePackage.Public )
+			if (gamePackage?.Public ?? false)
             {
                 GamePackage = gamePackage;
             }
@@ -80,7 +80,7 @@
         if ( Server.Map.Contains( "." ) && !Server.Map.Contains( ".vmap" ) )
         {
 			var mapPackage = await Package.FetchAsync( Server.Map, true );
-			if ( mapPackage.Public )
+			if ( mapPackage?.Public ?? false )
 			{
 				MapPackage = mapPackage;
 			}

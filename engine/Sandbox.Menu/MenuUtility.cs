@@ -38,6 +38,12 @@ public static partial class MenuUtility
 		IMenuDll.Current?.RunEvent( "ui.skiptransitions" );
 	}
 
+	public static async Task<bool> RefreshAccountInfo()
+	{
+		await AccountInformation.Update();
+		return Api.IsConnected;
+	}
+
 	/// <summary>
 	/// If current game is active, return the package
 	/// </summary>
