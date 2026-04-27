@@ -106,7 +106,7 @@ public ref struct KeyEvent
 		NativeKeyCode = ptr.nativeVirtualKey();
 		NativeScanCode = ptr.nativeScanCode();
 		KeyboardModifiers = QtHelpers.Translate( ptr.modifiers() );
-		Name = GetKeyName();
+		Name = GetKeyName( Key, NativeKeyCode, Text );
 
 		if ( Key == KeyCode.Backspace ) Text = "";
 		if ( Key == KeyCode.Delete ) Text = "";
@@ -183,10 +183,10 @@ public ref struct KeyEvent
 		return name;
 	}
 
-	string GetKeyName()
+	internal static string GetKeyName( KeyCode key, uint nativeKeyCode, string text )
 	{
 		// Check if the key is a native key that isn't supported by KeyCode
-		switch ( NativeKeyCode )
+		switch ( nativeKeyCode )
 		{
 			case 0x0D: return "Enter"; // Enter
 			case 0x20: return "Space"; // Spacebar
@@ -250,15 +250,17 @@ public ref struct KeyEvent
 			case 0xDC: return "\\"; // Backslash
 			case 0xDD: return "]"; // Right bracket
 			case 0xDE: return "'"; // Apostrophe
+			case 0xA5: return "RAlt"; // VK_RMENU; reported as AltGr on some keyboard layouts
 		}
 
 		// If it's a Keycode, then remap a few keys to their more common names
-		switch ( Key )
+		switch ( key )
 		{
 			case KeyCode.Delete: return "Del";
 			case KeyCode.Escape: return "Esc";
 			case KeyCode.Insert: return "Ins";
 			case KeyCode.Control: return "Ctrl";
+			case KeyCode.AltGr: return "RAlt";
 			case KeyCode.BracketLeft: return "[";
 			case KeyCode.BracketRight: return "]";
 			case KeyCode.Equal: return "=";
@@ -274,13 +276,13 @@ public ref struct KeyEvent
 		}
 
 		// Otherwise, just return the name of the Enum
-		var keyName = Enum.GetName( typeof( KeyCode ), Key );
+		var keyName = Enum.GetName( typeof( KeyCode ), key );
 
 		// If keyName is null then we likely have a non-english keyboard layout
 		if ( keyName is null )
 		{
 			// Try to get the key name from the text
-			keyName = Text;
+			keyName = text;
 		}
 
 		return keyName;
