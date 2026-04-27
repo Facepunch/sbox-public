@@ -26,7 +26,12 @@
 		        </span>
 	        }
 
-	        <h2 class="filter-heading"><WithIcon Icon="filter_alt" Text="Filters"></WithIcon></h2>
+            <separator class="horizontal" />
+
+            <row>
+                <icon class="eyebrow">filter_altt</icon>
+                <Label class="eyebrow">Filters</Label>
+            </row>
 
 	        <span>
 		        <Button class="is-icon" Active="@(showEmpty)" Text="Show Empty" Icon="no_accounts" onclick=@ToggleShowEmpty />
@@ -35,7 +40,7 @@
 
             <div class="grow" />
 
-            <button class="clicky button" onclick="@(() => ServerList.RefreshLobbies())"><h2><WithIcon Icon="cached" Text="Refresh"></WithIcon></h2></button>
+            <Button Icon="cached" onclick="@(() => ServerList.RefreshLobbies())">Refresh</Button>
         </Left>
 
         <Body>
@@ -85,8 +90,8 @@
 	ServerList ServerList = default;
     TextEntry SearchEntry = default;
 
-    bool showEmpty = true;
-    bool showFull = true;
+    bool showEmpty = false;
+    bool showFull = false;
 
     string SearchText => SearchEntry?.Text?.Trim() ?? "";
 

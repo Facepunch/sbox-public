@@ -90,7 +90,7 @@ public partial class ProjectPublisher
 
 		foreach ( var cvar in vars )
 		{
-			var e = new GameSetting( cvar.Attribute.Name, cvar.Member.Name, cvar.Member.Group );
+			var e = new GameSetting( cvar.Attribute.Name, cvar.Member.Title, cvar.Member.Group );
 
 			if ( e.Min != 0f )
 			{

@@ -1,11 +1,14 @@
+@import "/styles/_theme.scss";
+
 PackageSummary
 {
     flex-direction: column;
     padding: 0px 24px;
     gap: 4px;
     font-family: Poppins;
-    color: #6f7688;
+    color: $default-text-light;
     font-size: 14px;
+    font-weight: 500;
 }
 
 .title

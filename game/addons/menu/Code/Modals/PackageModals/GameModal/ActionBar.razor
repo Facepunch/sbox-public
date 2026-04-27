@@ -79,7 +79,7 @@
     [Parameter] public Package Package {get;set;}
     [Parameter] public Package MapPackage { get; set; }
 
-	protected override int BuildHash() => System.HashCode.Combine(Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority);
+    protected override int BuildHash() => System.HashCode.Combine(Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority);
 
     bool IsVrOnly => Package.GetMeta<ControlModeSettings>("ControlModes")?.IsVROnly ?? false;
     bool IsMultiplayerGame => Package.Tags.Contains("multiplayer") || LobbyCount > 0 || Package.GetMeta<int>("MaxPlayers", 1) > 1;
@@ -98,9 +98,9 @@
 
     private void ShowServerList()
     {
-	    MenuUtility.CloseAllModals();
+        MenuUtility.CloseAllModals();
 
-	    this.Navigate( $"/multiplayer?Package={Package.FullIdent}" );
+        MenuSystem.Instance.Url = $"/multiplayer?Package={Package.FullIdent}";
     }
 
     void OnPlay()

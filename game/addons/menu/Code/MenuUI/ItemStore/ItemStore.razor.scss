@@ -35,3 +35,18 @@ CartButton
 {
     margin: 32px;
 }
+.owned-header
+{
+    width: 100%;
+    padding: 16px 8px 8px;
+    flex-shrink: 0;
+
+    h2
+    {
+        color: #717a8d;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        font-size: 13px;
+        font-weight: 600;
+    }
+}

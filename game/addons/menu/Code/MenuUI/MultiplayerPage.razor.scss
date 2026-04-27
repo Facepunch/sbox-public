@@ -12,43 +12,28 @@ Page
 	margin: auto;
 }
 
-MultiplayerPage .button
-{
-	font-size: 1rem;
-	background-color: #467ee506;
-	border-radius: 50%;
-	color: #c6d4ee;
-	font-size: 13px;
-	padding: 16px 16px;
 
-	Label
-	{
-		text-transform: uppercase;
-		font-weight: 600;
+MultiplayerPage Button {
+	@include border-transparent;
+	padding: 3px 6px;
+	color: $default-text;
+	border-radius: $rounding-small;
+	transition: all 150ms ease;
+	background-color: $default-800;
+	pointer-events: all;
+
+	label, iconpanel {
+		font-size: $text-regular;
 	}
 
-	IconPanel
-	{
-		color: #3777ee;
-		font-size: 2rem;
+	.button-hover-menu {
+		position: absolute;
+		top: -42px;
+		right: 0;
 	}
 
-	&:hover, &.active
-	{
-		font-size: 1rem;
-		background-color: #467ee5;
-		padding: 16px 16px;
-		border-radius: 50%;
-
-		IconPanel
-		{
-			color: #c6d4ee;
-		}
-	}
-
-	&.is-icon
-	{
-		padding: 8px 16px;
+	&:hover {
+		background-color: $default-800;
 	}
 }
 
@@ -59,4 +44,5 @@ MultiplayerPage .filter-heading {
 MultiplayerPage span
 {
 	gap: 4px;
+	flex-wrap: nowrap;
 }

@@ -1,133 +1,175 @@
+@import "/styles/_theme.scss";
+$background-size: 8px;
 
-$outline: #fff;
-$highlight: #5c5;
+PackageCard {
+	flex-shrink: 0;
 
-.card-package
-{
-	border: 1px solid transparent;
-	margin: 2px;
+	&:hover {
+		sound-in: "ui.button.over";
+	}
+
+	&:active {
+		sound-in: "ui.button.press";
+	}
+
 	flex-direction: column;
-	flex-grow: 1;
-	padding-bottom: 25px;
 	position: relative;
+	background-color: rgba( $default-950, 0 );
+	border-radius: $rounding-default;
+	transition: all 150ms ease;
+	cursor: pointer;
+	z-index: 0;
+	height: 200px;
 
-	.card-image
-	{
-		border-radius: 5px;
-		cursor: pointer;
+	.image {
+		flex-grow: 1;
+		flex-shrink: 0;
+		transition: all 150ms ease;
+		border: 1px solid rgba( white, 0.025 );
+		aspect-ratio: 16 / 9;
 		background-position: center;
 		background-size: cover;
+		border-radius: $rounding-small;
+	}
+
+	column {
+		padding: 8px 2px; // Optically aligned
+	}
+
+	&.list {
 		flex-grow: 1;
-		overflow: hidden;
-		transition: all 0.3s ease;
-		border: 1px solid #ffffff05;
-
-		&:hover
-		{
-			border: 1px solid #08f4;
-			transition: all 0.1s ease;
-		}
-
-		&:active
-		{
-			top: 5px;
-			left: 2px;
-		}
-	}
-
-	.package-card-body
-	{
-		position: absolute;
-		bottom: 0px;
-		width: 100%;
-		height: 25px;
-		font-size: 15px;
+		height: 64px;
 		flex-direction: row;
-		gap: 5px;
-		white-space: nowrap;
-		padding: 2px;
-		padding-bottom: 0;
-		overflow: hidden;
+		gap: 12px;
 
-		.orgname
-		{
-			flex-direction: row;
-			flex-shrink: 1;
-			color: #5A738B;
-			opacity: 0.5;
-		}
-
-		.title
-		{
-			font-weight: bold;
-			cursor: pointer;
+		.inner column {
 			flex-grow: 1;
+		}
+
+		.image {
+			height: 100%;
+			aspect-ratio: 1;
+			flex-grow: 0;
 			flex-shrink: 0;
-			text-overflow: ellipsis;
-
-			&:hover
-			{
-				text-decoration: underline;
-			}
 		}
 
-		.orgname
-		{
-			text-overflow: ellipsis;
-			white-space: nowrap;
-			cursor: pointer;
+		column {
+			gap: 3px;
+			justify-content: center;
+		}
 
-			&:hover
-			{
-				text-decoration: underline;
-				color: white;
-			}
+		.package-title {
+			flex-shrink: 0;
+			max-width: 500px;
+		}
+
+		.package-users {
+			position: absolute;
+			top: 1px;
+			right: 713px;
+			text-align: right;
 		}
 	}
 
-	&.is-favourite .body-meta .favourite
-	{
-		color: #fac;
+	&.wide {
+		height: 250px;
+
+		.package-title {
+			max-width: 300px;
+		}
 	}
 
-	&:intro
-	{
-		opacity: 0.0;
-		transform: scale( 0.8 );
+	&.small {
+		height: 200px;
+		aspect-ratio: 3/4;
+
+		.image {
+			aspect-ratio: 1;
+		}
+
+		.package-title {
+			max-width: 140px;
+		}
 	}
 
-	opacity: 1;
-	transition: all 0.3s ease-out;
-}
+	&.tall {
+		height: 400px;
 
-.card-decorator
-{
-	background-color: darken( rgba( $highlight, 0.7 ), 0.66 );
-	color: lighten( $highlight, 0.5 );
-	position: absolute;
-	right: 5px;
-	top: 5px;
-	padding: 3px 8px;
-	border-radius: 200px;
-	box-shadow: 2px 2px 16px #0002;
-	font-size: 12px;
-	font-weight: bold;
-	gap: 6px;
-	align-items: center;
-	justify-content: space-between;
+		.image {
+			aspect-ratio: 9/16;
+		}
 
-	i
-	{
-		font-size: 16px;
+		.package-title {
+			max-width: 200px;
+		}
 	}
 
-	&:empty
-	{
-		display: none;
+	.package-title {
+		text-overflow: ellipsis;
+		max-height: 24px;
+		flex-shrink: 1;
+		max-width: 150px;
+		font-size: 14px;
 	}
-}
 
-.player-count
-{
-	gap: 3px;
+	&:not(.list) {
+		.package-users {
+			position: absolute;
+			top: 4px;
+			right: 3px;
+			transition: all 150ms ease;
+		}
+	}
+
+	.play-button {
+		position: absolute;
+		bottom: -32px;
+		left: 0;
+		right: 0;
+		background-color: $primary-blue;
+		color: $default-text;
+		justify-content: center;
+		align-items: center;
+		border-radius: $rounding-small;
+		opacity: 0;
+		transition: all 150ms ease;
+
+		label {
+			color: $default-text;
+		}
+
+		&:hover {
+			background-color: $primary-blue-dark;
+		}
+	}
+
+	&::after {
+		content: "";
+		position: absolute;
+		top: 0;
+		left: 0;
+		bottom: 0;
+		right: 0;
+		background-color: rgba( $default-950, 0 );
+		transition: all 150ms ease;
+		z-index: -10;
+		border-radius: $rounding-large;
+		pointer-events: none;
+	}
+
+	&:hover {
+		transform: scale( 1.05 );
+
+		&::after {
+			background-color: $default-800;
+			top: -$background-size;
+			left: -$background-size;
+			right: -$background-size;
+			bottom: -$background-size;
+			box-shadow: 0 0 25px rgba( black, 0.3 );
+		}
+
+		z-index: 100;
+		background-color: $default-900;
+	}
 }

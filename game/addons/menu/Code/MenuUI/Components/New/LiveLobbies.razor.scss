@@ -11,17 +11,21 @@ LiveLobbies {
     gap: 12px;
 
     &.scroll {
-        mask: linear-gradient( to bottom, white, white 80%, black );
+        .lobby-list {
+            mask: linear-gradient( to bottom, white, white 80%, black );
+        }
     }
 
     &:not(.scroll) {
-        mask: linear-gradient( to top, white, white 80%, black );
+        .lobby-list {
+            mask: linear-gradient( to top, white, white 80%, black );
+        }
     }
 
     .lobby-list {
+        max-height: 400px;
         flex-direction: column;
         gap: 5px;
-        max-height: 400px;
         overflow: scroll;
     }
 }
