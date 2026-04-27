@@ -22,7 +22,7 @@ internal static class ScreenRecorder
 	public static bool IsRecording() => _isRecording;
 
 	[ConVar( "video_bitrate", Min = 1, Max = 100, Help = "Bit rate for video recorder (in Mbps)" )]
-	public static int VideoBitRate { get; set; } = 14;
+	public static int VideoBitRate { get; set; } = 10;
 	[ConVar( "video_framerate", Min = 1, Max = 1000, Help = "Frame rate for screen recording" )]
 	public static int VideoFrameRate { get; set; } = 60;
 	[ConVar( "video_Scale", Min = 1, Max = 800, Help = "Scale percentage for video recorder" )]

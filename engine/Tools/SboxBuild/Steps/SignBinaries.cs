@@ -39,7 +39,7 @@ internal class SignBinaries() : Step( "SignBinaries" )
 		"toolscenenodes.dll",
 		"vfx_vulkan.dll",
 		"visbuilder.dll",
-		"vpk.exe",
+
 		"vrad2.exe",
 		"vrad3.exe",
 		"qt5_plugins/imageformats/qgif.dll",
@@ -78,20 +78,20 @@ internal class SignBinaries() : Step( "SignBinaries" )
 			return ExitCode.Success;
 		}
 
-		foreach ( var file in filesToSign )
+		Log.Info( $"Signing {filesToSign.Count} files in a single batch..." );
+
+		var fileArgs = string.Join( " ", filesToSign.Select( f => $"\"{f}\"" ) );
+
+		bool success = Utility.RunProcess(
+			"AzureSignTool",
+			$"sign -kvu \"{vaultUrl}\" -kvi \"{clientId}\" -kvs \"{clientSecret}\" -kvt \"{tenantId}\" -kvc FPCodeSign -tr http://timestamp.digicert.com {fileArgs}",
+			rootDir
+		);
+
+		if ( !success )
 		{
-			Log.Info( $"Signing {Path.GetFileName( file )}" );
-
-			bool success = Utility.RunProcess(
-				"AzureSignTool",
-				$"sign -kvu \"{vaultUrl}\" -kvi \"{clientId}\" -kvs \"{clientSecret}\" -kvt \"{tenantId}\" -kvc FPCodeSign -tr http://timestamp.digicert.com \"{file}\"",
-				rootDir
-			);
-
-			if ( !success )
-			{
-				Log.Error( $"Failed to sign {file}" );
-			}
+			Log.Error( "Failed to sign files." );
+			return ExitCode.Failure;
 		}
 
 		Log.Info( $"Successfully signed {filesToSign.Count} files." );

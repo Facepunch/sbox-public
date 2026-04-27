@@ -29,7 +29,6 @@ internal class BuildRelease
 
 		// has to run after test because it make s&box.sln.. eh
 		builder.AddStep( new BuildAddons( "Build Addons" ) );
-		builder.AddStep( new GameCache() );
 
 		var slackWebhook = Environment.GetEnvironmentVariable( "SLACK_WEBHOOK_BUILDPIPELINE" );
 		if ( Utility.IsCi() && !string.IsNullOrEmpty( slackWebhook ) )

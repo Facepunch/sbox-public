@@ -9,6 +9,7 @@ internal class Upload
 	{
 		var builder = new PipelineBuilder( $"Upload for {target}" );
 
+		builder.AddStep( new GameCache() );
 		builder.AddStep( new UploadSymbolsStep( "Upload Symbols" ) );
 		builder.AddStep( new UploadDocumentation( "Upload Documentation" ) );
 		builder.AddStep( new SentryRelease( "Sentry Release", "fcpnch", "sbox-native" ) );
