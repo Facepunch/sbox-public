@@ -262,16 +262,18 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 	public override BBox CalculateSelectionBounds()
 	{
 		return BBox.FromBoxes( _objects
-			.Where( x => x.IsValid() )
+			.Where( x => x.IsValid() && !x.Tags.Has( "Hidden" ) )
 			.Select( x => x.GetBounds() ) );
 	}
 
 	public override void OnSelectionChanged()
 	{
-		_objects = Selection.OfType<GameObject>().ToArray();
+		_objects = Selection.OfType<GameObject>().ToArray()
+			.Where( x => !x.Tags.Has( "Hidden" ) )
+			.ToArray();
 		_meshes = Selection.OfType<GameObject>()
 			.Select( x => x.GetComponent<MeshComponent>() )
-			.Where( x => x.IsValid() )
+			.Where( x => x.IsValid() && !x.Tags.Has( "Hidden" ) )
 			.ToArray();
 
 		_transformVertices.Clear();
@@ -332,6 +334,7 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 
 	void Select( GameObject element )
 	{
+		if ( element.Tags.Has( "Hidden" ) ) return;
 		bool ctrl = Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl );
 		bool shift = Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift );
 		bool contains = Selection.Contains( element );
@@ -366,6 +369,7 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 
 		foreach ( var go in Scene.GetAllObjects( true ) )
 		{
+			if ( go.Tags.Has( "Hidden" ) ) continue;
 			var bounds = go.GetBounds();
 			if ( !frustum.IsInside( bounds, !fullyInside ) )
 			{
@@ -486,3 +490,4 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 		Tool?.MoveMode?.OnBegin( this );
 	}
 }
+
