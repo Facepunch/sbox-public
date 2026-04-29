@@ -1,5 +1,5 @@
 {
-  "Title": "Walker Map",
+  "Title": "Map",
   "Type": "addon",
   "Org": "local",
   "Ident": "map.minimal",
@@ -13,8 +13,7 @@
     "ProjectTemplate": {
       "Icon": "map",
       "Order": 1000,
-      "Description": "You want to make a map for Walker"
-    },
-    "ParentPackage": "facepunch.walker"
+      "Description": "Create a map that works for most games"
+    }
   }
 }

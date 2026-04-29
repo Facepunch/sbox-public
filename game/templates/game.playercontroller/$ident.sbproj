@@ -1,18 +1,15 @@
 {
-  "Title": "Game - Empty",
+  "Title": "Game - Player Controller",
   "Type": "game",
   "Org": "local",
-  "Ident": "game.minimal",
-  "Tags": null,
+  "Ident": "game.playercontroller",
   "Schema": 1,
-  "HasAssets": true,
-  "AssetsPath": "",
+  "IncludeSourceFiles": false,
   "Resources": null,
-  "MenuResources": "*",
-  "HasCode": true,
-  "CodePath": "/code/",
   "PackageReferences": [],
   "EditorReferences": null,
+  "Mounts": null,
+  "IsStandaloneOnly": false,
   "Metadata": {
     "MaxPlayers": 64,
     "MinPlayers": 1,
@@ -26,11 +23,11 @@
     "PerMapRanking": false,
     "LeaderboardType": "None",
     "CsProjName": "",
-    "StartupScene": "scenes/minimal.scene",
+    "StartupScene": "scenes/basic_example.scene",
     "ProjectTemplate": {
-      "Icon": "sports_esports",
-      "Order": -10,
-      "Description": "The bare minimum required to create a game in s&box"
+      "Icon": "directions_run",
+      "Order": 50,
+      "Description": "Contains a First Person, Third Person, and Top-Down Example"
     }
   }
 }

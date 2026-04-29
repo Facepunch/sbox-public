@@ -350,7 +350,16 @@ public class EditorMainWindow : DockWindow
 		if ( layout.Name is null ) return;
 		if ( layout.Json is null ) return;
 
-		DockManager.State = layout.Json;
+		var json = layout.Json;
+
+		// On first launch, open the project's startup scene instead of a blank untitled scene
+		var startupScene = Project.Current?.Config.GetMetaOrDefault<string>( "StartupScene", null );
+		if ( !string.IsNullOrWhiteSpace( startupScene ) )
+		{
+			json = json.Replace( "SceneDock:untitled", $"SceneDock:{startupScene}" );
+		}
+
+		DockManager.State = json;
 	}
 
 	/// <summary>
