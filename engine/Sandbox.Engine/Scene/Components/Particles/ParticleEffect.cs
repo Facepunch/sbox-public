@@ -9,7 +9,7 @@ namespace Sandbox;
 /// </summary>
 [Expose]
 [Title( "Particle Effect" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "shower" )]
 [EditorHandle( "materials/gizmo/particles.png" )]
 public sealed partial class ParticleEffect : Component, Component.ExecuteInEditor, Component.ITemporaryEffect, Component.ITintable

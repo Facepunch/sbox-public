@@ -12,7 +12,7 @@ using System.Threading;
 /// </summary>
 [Expose]
 [Title( "Indirect Light Volume (DDGI)" )]
-[Category( "Rendering" )]
+[Category( "Light" )]
 [Icon( "grid_view" )]
 [EditorHandle( "materials/gizmo/lpv.png" )]
 [Alias( "DDGIVolume" )]

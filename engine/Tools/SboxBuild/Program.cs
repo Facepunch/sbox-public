@@ -27,6 +27,7 @@ internal class Program
 
 		AddPullRequestPipeline( rootCommand );
 		AddDeployPipeline( rootCommand );
+		AddUploadCommand( rootCommand );
 
 		rootCommand.Invoke( args );
 		return Environment.ExitCode;
@@ -105,7 +106,7 @@ internal class Program
 
 	private static void AddDeployPipeline( RootCommand rootCommand )
 	{
-		var deployCommand = new Command( "deploy", "Run the deployment pipeline" );
+		var deployCommand = new Command( "deploy", "Build a release candidate for publishing" );
 
 		var targetOption = new Option<BuildTarget>(
 			"--target",
@@ -122,7 +123,7 @@ internal class Program
 
 		deployCommand.SetHandler( ( BuildTarget target, bool clean ) =>
 		{
-			var pipeline = Deploy.Create( target, clean );
+			var pipeline = BuildRelease.Create( target, clean );
 			ExitCode result = pipeline.Run();
 			Environment.ExitCode = (int)result;
 		}, targetOption, cleanOption );
@@ -220,5 +221,26 @@ internal class Program
 		}, option );
 
 		rootCommand.Add( syncCommand );
+	}
+
+	private static void AddUploadCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "upload", "Upload build to Steam, symbols, docs, and notify" );
+
+		var targetOption = new Option<BuildTarget>(
+			"--target",
+			description: "Target environment (Staging or Release)",
+			getDefaultValue: () => BuildTarget.Staging );
+
+		cmd.AddOption( targetOption );
+
+		cmd.SetHandler( ( BuildTarget target ) =>
+		{
+			var pipeline = Upload.Create( target );
+			ExitCode result = pipeline.Run();
+			Environment.ExitCode = (int)result;
+		}, targetOption );
+
+		rootCommand.Add( cmd );
 	}
 }

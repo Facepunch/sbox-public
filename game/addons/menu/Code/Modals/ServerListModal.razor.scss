@@ -11,7 +11,7 @@ ServerListModal
 		overflow-y: scroll;
 		background-color: #16181e;
 		min-height: 512px;
-		min-width: 512px;
+		min-width: 768px;
 		flex-direction: column;
 		border-radius: 16px;
 		padding: 16px;
@@ -76,8 +76,8 @@ ServerListModal
 			flex-grow: 0;
 			align-items: center;
 			justify-content: flex-end;
-			width: 50px;
-
+			width: 128px;
+			gap: 4px;
 
 			.sep
 			{

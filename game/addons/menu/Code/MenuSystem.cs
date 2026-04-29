@@ -4,7 +4,7 @@ global using System;
 global using System.Collections.Generic;
 global using System.Linq;
 global using System.Threading.Tasks;
-
+using MenuProject;
 using Sandbox;
 using Sandbox.Audio;
 using Sandbox.Internal;
@@ -135,8 +135,8 @@ public partial class MenuSystem : IMenuSystem
 
 	public string Url
 	{
-		get => MainMenuPanel.Instance.Navigator.CurrentUrl;
-		set => MainMenuPanel.Instance.Navigator.Navigate( value );
+		get => MainMenu.Instance.Navigator.CurrentUrl;
+		set => MainMenu.Instance.Navigator.Navigate( value );
 	}
 
 	public bool ForceCursorVisible => DeveloperMode.Open;

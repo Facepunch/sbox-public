@@ -11,9 +11,9 @@
 <root>
     <div class="window">
         <div class="header">
-            <i>room_preferences</i>
+			<div class="icon" style="background-image: url( @Package.Thumb );"></div>
             <div class="title">
-                <label>@Package.Title</label><i>arrow_forward_ios</i><label>Create Game</label>
+                <label>@Package.Title</label><i>arrow_forward_ios</i><label class="main medium">Create Game</label>
             </div>
         </div>
 
@@ -39,23 +39,30 @@
                 {
                     @if ( IsMultiplayerGame )
                     {
-                        <div class="entry">
+						<div class="row">
                             <div class="is-label">Server Name</div>
                             <div class="control">
                                  <TextEntry Value:bind=@ServerName />
                             </div>
                         </div>
 
-                        <div class="entry">
+						<div class="row">
                             <div class="is-label">Privacy</div>
                             <div class="control">
-                                 <DropDown Value:bind=@Privacy />
+								<ButtonGroup class="bg-round" Value:bind=@Privacy >
+									<ChildContent>
+										@{foreach (var item in TypeLibrary.GetEnumDescription(typeof(Sandbox.Network.LobbyPrivacy)))
+										{
+											<Button class="clicky" Text=@item.Title Icon=@item.Icon Value=@item.ObjectValue />
+										}}
+									</ChildContent>
+								</ButtonGroup>
                             </div>
                         </div>
 
                         @if ( MinPlayers != MaxPlayers )
                         {
-                            <div class="entry">
+							<div class="row">
                                 <div class="is-label">Max Players</div>
                                 <div class="control">
                                     <SliderControl class="glass with-grow" Value:bind=@Players Min=@MinPlayers Max=@MaxPlayers Step=@(1) ShowTextEntry=@true />
@@ -66,10 +73,10 @@
 
                     if ( NeedsMap() )
                     {
-                        <div class="entry">
+						<div class="row">
                             <div class="is-label">Map</div>
                             <div class="control">
-                                 <Button icon="map" onclick=@SelectMap>@(MapPackage?.Title ?? "Select Map")</Button>
+                                <MapSelector MapPackage=@MapPackage OnValueChanged =@OnMapSelected />
                             </div>
                         </div>
                     }
@@ -77,19 +84,23 @@
 
                 @foreach ( var e in settings )
                 {
-                    <div class="entry">
+                    <div class="row">
                         <div class="is-label">@e.Title.ToTitleCase()</div>
                         <div class="control">
                             @if ( IsCheckbox( e ) )
                             {
-                                <SwitchControl Value=@(Output.GameSettings[e.Name].ToBool()) OnValueChanged=@((bool x) => { Output.GameSettings[e.Name] = x.ToString(); }) />
+								<ButtonGroup class="bg-round" Value=@(Output.GameSettings[e.Name].ToBool()) ValueChanged=@((object x) => { Output.GameSettings[e.Name] = x.ToString(); })>
+									<ChildContent>
+										<Button class="clicky" Text="Off" Value="@false"></Button>
+										<Button class="clicky" Text="On" Value="@true"></Button>
+									</ChildContent>
+								</ButtonGroup>
                             }
                             else if ( IsNumeric( e, out var flValue ) )
                             {
                                 @if ( e.Max is not null ) 
                                 {
-                                    <SliderControl Value=@(Output.GameSettings[e.Name].ToFloat()) OnValueChanged=@((float x) => { Output.GameSettings[e.Name] = x.ToString(); }) class="glass with-grow" Min="@(e.Min ?? 0)" Max="@(e.Max ?? 100)" Step="@(e.Step ?? 1)" />
-                                    <label>@Output.GameSettings[e.Name]</label>
+                                    <SliderControl Value=@(Output.GameSettings[e.Name].ToFloat()) OnValueChanged=@((float x) => { Output.GameSettings[e.Name] = x.ToString(); }) class="glass with-grow" Min="@(e.Min ?? 0)" Max="@(e.Max ?? 100)" Step="@(e.Step ?? 1)" ShowTextEntry="@true" />
                                 }
                                 else
                                 {
@@ -245,16 +256,10 @@
         return string.Equals( launchMode, "launcher", StringComparison.OrdinalIgnoreCase );
     }
 
-    void SelectMap()
+    void OnMapSelected( Package pkg )
     {
-        var mapTarget = Package.GetValue( "MapTarget", Package.FullIdent );
-
-        Game.Overlay.ShowPackageSelector( $"type:map sort:popular target:{mapTarget}", (pkg) =>
-        {
-            MapPackage = pkg;
-            Output = Output with { MapIdent = pkg.FullIdent };
-            StateHasChanged();
-        } );
+        Output = Output with { MapIdent = pkg.FullIdent };
+        StateHasChanged();
     }
 
     private string GetGroupName( string group )

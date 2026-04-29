@@ -7,31 +7,68 @@
     {
         <div class="loading"><i>settings_ethernet</i></div>
     }
-    else if ( filteredLobbies.Count == 0 )
+    else if ( viewMode == ViewMode.GameGroup )
     {
-        <div class="notice">Sorry - no servers were found 😔</div>
+        @if ( gameGroups.Count == 0 )
+        {
+            <div class="notice">Sorry - no servers were found 😔</div>
+        }
+        else
+        {
+            <VirtualList Items=@(gameGroups.Cast<object>()) ItemHeight=@(56)>
+                <Item Context="item">
+                    @if ( item is GameGroup group )
+                    {
+                        <GameGroupRow GameIdent="@group.GameIdent"
+                                      TotalPlayers="@group.TotalPlayers"
+                                      ServerCount="@group.ServerCount"
+                                      OnGroupClick="@(() => ScopeToGame( group ))" />
+                    }
+                </Item>
+            </VirtualList>
+        }
     }
     else
     {
-		<div class="header row">
-			<h2 class="title" onclick="@(() => SetSort( "name" ))">Name</h2>
-			<h2 class="game" onclick="@(() => SetSort( "game" ))">Game</h2>
-			<h2 class="map" onclick="@(() => SetSort( "map" ))">Map</h2>
-			<h2 class="members" onclick="@(() => SetSort( "members" ))">Players</h2>
-		</div>
-        <VirtualList Items=@GetData() ItemHeight=@(48)>
-            <Item Context="item">
-                @if ( item is LobbyInformation lobby )
-                {
-                    <ServerRow Server="@lobby"></ServerRow>
-                }
-            </Item>
-        </VirtualList>
+        @if ( scopedGame is not null )
+        {
+            <GameGroupRow GameIdent="@scopedGroup.GameIdent"
+                          TotalPlayers="@scopedGroup.TotalPlayers"
+                          ServerCount="@scopedGroup.ServerCount"
+                          OnGroupClick=@BackToGames>
+                <Left><i>arrow_back</i></Left>
+            </GameGroupRow>
+        }
+
+        @if ( serverLobbies.Count == 0 )
+        {
+            <div class="notice">Sorry - no servers were found 😔</div>
+        }
+        else
+        {
+            <div class="header row">
+                <h2 class="title" onclick="@(() => SetSort( "name" ))">Name</h2>
+                <h2 class="map" onclick="@(() => SetSort( "map" ))">Map</h2>
+                <h2 class="members" onclick="@(() => SetSort( "members" ))">Players</h2>
+            </div>
+            <VirtualList Items=@GetServerData() ItemHeight=@(48)>
+                <Item Context="item">
+                    @if ( item is LobbyInformation lobby )
+                    {
+                        <ServerRow Server="@lobby"></ServerRow>
+                    }
+                </Item>
+            </VirtualList>
+        }
     }
 </root>
 
 @code
 {
+    enum ViewMode { GameGroup, ServerList }
+
+    record GameGroup( string GameIdent, int TotalPlayers, int ServerCount );
+
     [Parameter]
     public ServerListConfig Config { get; set; } = default;
 
@@ -40,24 +77,40 @@
     /// </summary>
     [Parameter] public Func<LobbyInformation, bool> Filter { get; set; }
 
-    public IEnumerable<Friend> Friends => MenuUtility.Friends.Where( x => !x.IsMe )
-        .OrderBy( x => x.Name )
-        .OrderBy( x => x.IsAway || x.IsBusy || x.IsSnoozing );
-
     bool busy;
     List<LobbyInformation> lobbies = new();
 
     string sortBy;
     bool sortDescending;
 
-    List<LobbyInformation> filteredLobbies => Filter is not null
-        ? lobbies.Where( Filter ).ToList()
-        : lobbies;
+    ViewMode viewMode;
+    string scopedGame;
+    GameGroup scopedGroup;
 
-    IEnumerable<object> GetData()
+    List<LobbyInformation> filteredLobbies => lobbies is null ? [] :
+        Filter is not null
+            ? lobbies.Where( Filter ).ToList()
+            : lobbies;
+
+    List<GameGroup> gameGroups => filteredLobbies
+        .GroupBy( x => x.Game )
+        .Select( g => new GameGroup( g.Key, g.Sum( x => x.Members ), g.Count() ) )
+        .OrderByDescending( g => g.TotalPlayers )
+        .ToList();
+
+    List<LobbyInformation> serverLobbies
     {
-        return ApplySort( filteredLobbies ).Cast<object>();
+        get
+        {
+            var source = scopedGame is not null
+                ? filteredLobbies.Where( x => x.Game == scopedGame )
+                : filteredLobbies;
+
+            return ApplySort( source ).ToList();
+        }
     }
+
+    IEnumerable<object> GetServerData() => serverLobbies.Cast<object>();
 
     IEnumerable<LobbyInformation> ApplySort( IEnumerable<LobbyInformation> source )
     {
@@ -67,7 +120,6 @@
         Func<LobbyInformation, object> key = sortBy switch
         {
             "name" => x => x.Name,
-            "game" => x => x.Game,
             "map" => x => x.Map,
             "members" => x => x.Members,
             _ => x => x.Members
@@ -81,9 +133,7 @@
     void SetSort( string column )
     {
         if ( sortBy == column )
-        {
             sortDescending = !sortDescending;
-        }
         else
         {
             sortBy = column;
@@ -93,8 +143,32 @@
         StateHasChanged();
     }
 
+    void ScopeToGame( GameGroup group )
+    {
+        scopedGame = group.GameIdent;
+        scopedGroup = group;
+        viewMode = ViewMode.ServerList;
+        StateHasChanged();
+    }
+
+    void BackToGames()
+    {
+        scopedGame = null;
+        scopedGroup = null;
+        viewMode = ViewMode.GameGroup;
+        StateHasChanged();
+    }
+
     protected override async Task OnParametersSetAsync()
     {
+        // If an external game filter is applied, skip the grouped view
+        viewMode = string.IsNullOrEmpty( Config.GamePackageFilter )
+            ? ViewMode.GameGroup
+            : ViewMode.ServerList;
+
+        scopedGame = null;
+        scopedGroup = null;
+
         await RefreshLobbies();
     }
 
@@ -107,19 +181,14 @@
 
         var filters = new Dictionary<string, string>
         {
-	        { "game", Config.GamePackageFilter },
-	        { "map", Config.MapPackageFilter },
+            { "game", Config.GamePackageFilter },
+            { "map", Config.MapPackageFilter },
         };
-        
+
         lobbies = await Networking.QueryLobbies( filters );
-        
+
         busy = false;
 
         StateHasChanged();
-    }
-
-    void OnLobbySelected( LobbyInformation lobby )
-    {
-        Networking.Connect(lobby.LobbyId);
     }
 }

@@ -4,7 +4,7 @@
 /// Emits particles within/along a cone shape.
 /// </summary>
 [Title( "Cone Emitter" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "change_history" )]
 public sealed class ParticleConeEmitter : ParticleEmitter
 {

@@ -19,6 +19,10 @@ Navbar {
 		justify-content: space-between;
 	}
 
+	.store-wrapper {
+		position: relative;
+	}
+
 	&::before {
 		position: absolute;
 		top: 0;
@@ -42,12 +46,22 @@ Navbar {
 	}
 
 	.button-hover-menu {
-		background-color: $navbar-background;
-		padding: 6px;
+		background-color: $default-800;
+		padding: 4px;
 		border-radius: $rounding-default;
+		border: 1px solid $default-border;
+		box-shadow: 0 8px 24px rgba( black, 0.5 );
+		gap: 2px;
+		min-width: 160px;
 
-		Button:hover {
-			background-color: $default-900;
+		Button {
+			border-radius: $rounding-small;
+			width: 100%;
+
+			&:hover {
+				border-color: transparent;
+				background-color: rgba( $default-500, 0.15 );
+			}
 		}
 	}
 
@@ -129,6 +143,16 @@ Navbar {
 		gap: 16px;
 		align-items: center;
 		z-index: -10;
+	}
+
+	MainSearchBar {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		pointer-events: none;
+		z-index: 200;
 	}
 
 	separator.vertical {

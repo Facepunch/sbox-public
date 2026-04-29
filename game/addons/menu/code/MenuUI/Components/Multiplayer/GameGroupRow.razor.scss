@@ -1,0 +1,84 @@
+GameGroupRow
+{
+	flex-shrink: 0;
+	flex-grow: 1;
+	border-radius: 2px;
+	padding: 0px 48px;
+	cursor: pointer;
+	align-items: center;
+
+	&:hover
+	{
+		background-color: #467de422;
+		color: #fff;
+	}
+
+	.game-thumb
+	{
+		width: 70px;
+		height: 70px;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		margin-right: 12px;
+
+		i
+		{
+			font-size: 28px;
+			color: #3777ee;
+		}
+
+		img
+		{
+			border-radius: 4px;
+		}
+	}
+
+	.game-info
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		align-items: flex-start;
+		overflow: hidden;
+	}
+
+	.game-title
+	{
+		font-weight: bold;
+		font-size: 15px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.game-summary
+	{
+		font-size: 12px;
+		opacity: 0.5;
+	}
+
+	.left
+	{
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		margin-right: 4px;
+
+		i
+		{
+			font-size: 20px;
+			opacity: 0.6;
+		}
+	}
+
+	.chevron
+	{
+		opacity: 0.4;
+		align-items: center;
+
+		i
+		{
+			font-size: 20px;
+		}
+	}
+}

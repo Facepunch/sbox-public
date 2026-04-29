@@ -4,7 +4,7 @@
 /// Emits particles within a box shape.
 /// </summary>
 [Title( "Box Emitter" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "check_box_outline_blank" )]
 public sealed class ParticleBoxEmitter : ParticleEmitter
 {

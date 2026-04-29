@@ -1,0 +1,50 @@
+@import "/styles/_theme.scss";
+
+MapSelector
+{
+    position: relative;
+    height: 100%;
+    aspect-ratio: 16 / 9;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    pointer-events: all;
+    cursor: pointer;
+    background-position: center;
+    background-size: cover;
+    background-color: $default-950;
+    border-radius: $rounding-small;
+    transition: all .1s ease-out;
+    outline: 1px solid $default-border;
+
+    &:hover
+    {
+        outline: 1px solid $default-50;
+    }
+
+    &::after
+    {
+        position: absolute;
+        bottom: 0;
+        background: linear-gradient( to bottom, transparent 0%, rgba($default-950, 0.95) 99% );
+        height: 100%;
+        width: 100%;
+        border-radius: $rounding-small;
+    }
+
+    > .bottom
+    {
+        padding: 8px 16px;
+        gap: 8px;
+		color: white;
+        align-items: center;
+
+        label
+        {
+            white-space: nowrap;
+            text-overflow: ellipsis;
+			text-shadow: 0px 0px 2px #0005;
+        }
+    }
+}

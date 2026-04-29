@@ -410,5 +410,92 @@ namespace Generator
 			var processedTree = compiler.SyntaxTrees.First( x => x.FilePath == InputSyntaxTreePath );
 			return processedTree.GetText().ToString();
 		}
+
+		[TestMethod]
+		public void StringBuilderIsRedirectedForAddons()
+		{
+			var rewritten = RunStringBuilderRewrite( asSourceGenerator: false );
+			var stripped = rewritten.Replace( "global::Sandbox.Internal.SafeStringBuilder", "" );
+
+			Assert.IsTrue( rewritten.Contains( "global::Sandbox.Internal.SafeStringBuilder" ) );
+			Assert.IsFalse( stripped.Contains( "StringBuilder" ), "All StringBuilder references should be rewritten in addon mode" );
+		}
+
+		[TestMethod]
+		public void StringBuilderFullyQualifiedIsRedirectedForAddons()
+		{
+			var rewritten = RunStringBuilderQualifiedRewrite( asSourceGenerator: false );
+
+			Assert.IsTrue( rewritten.Contains( "global::Sandbox.Internal.SafeStringBuilder" ) );
+			Assert.IsFalse( rewritten.Contains( "System.Text.StringBuilder" ) );
+		}
+
+		[TestMethod]
+		public void StringBuilderFullyQualifiedUnaffectedForEngineGenerators()
+		{
+			var rewritten = RunStringBuilderQualifiedRewrite( asSourceGenerator: true );
+
+			Assert.IsTrue( rewritten.Contains( "System.Text.StringBuilder" ) );
+			Assert.IsFalse( rewritten.Contains( "global::Sandbox.Internal.SafeStringBuilder" ) );
+		}
+
+		private string RunStringBuilderQualifiedRewrite( bool asSourceGenerator )
+		{
+			const string Source = """
+	public static class StringBuilderQualifiedConsumer
+	{
+		public static string Build()
+		{
+			System.Text.StringBuilder sb = new System.Text.StringBuilder(100);
+			sb.Append("Hello");
+			return sb.ToString();
+		}
+	}
+	""";
+
+			var compiler = BuildString(
+				Source,
+				assemblyName: "stringbuilder_qualified_test",
+				asSourceGenerator: asSourceGenerator,
+				configureProcessor: processor => processor.EnableCorelibPolyfills = !asSourceGenerator );
+
+			var processedTree = compiler.SyntaxTrees.First( x => x.FilePath == InputSyntaxTreePath );
+			return processedTree.GetText().ToString();
+		}
+
+		[TestMethod]
+		public void StringBuilderUnaffectedForEngineGenerators()
+		{
+			var rewritten = RunStringBuilderRewrite( asSourceGenerator: true );
+
+			Assert.IsTrue( rewritten.Contains( "new StringBuilder(" ) );
+			Assert.IsFalse( rewritten.Contains( "global::Sandbox.Internal.SafeStringBuilder" ) );
+		}
+
+		private string RunStringBuilderRewrite( bool asSourceGenerator )
+		{
+			const string Source = """
+	using System.Text;
+
+	public static class TestConsumer
+	{
+		public static string Build()
+		{
+			StringBuilder sb = new StringBuilder(100);
+			sb.Append("Hello");
+			return sb.ToString();
+		}
+	}
+	""";
+
+			var compiler = BuildString(
+				Source,
+				assemblyName: "stringbuilder_test",
+				asSourceGenerator: asSourceGenerator,
+				configureProcessor: processor => processor.EnableCorelibPolyfills = !asSourceGenerator );
+
+			var processedTree = compiler.SyntaxTrees.First( x => x.FilePath == InputSyntaxTreePath );
+			return processedTree.GetText().ToString();
+		}
 	}
 }

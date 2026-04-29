@@ -1,7 +1,7 @@
 ﻿namespace Sandbox.Mapping;
 
 [EditorHandle( Icon = "touch_app" )]
-[Category( "Gameplay" ), Alias( "Button" ), Icon( "touch_app" )]
+[Category( "Mapping" ), Alias( "Button" ), Icon( "touch_app" )]
 public sealed class Button : Component, Component.IPressable
 {
 	/// <summary>
@@ -15,34 +15,28 @@ public sealed class Button : Component, Component.IPressable
 	[Property, Group( "Sound" )] public SoundEvent OffSound { get; set; }
 
 	/// <summary>
-	/// Called when the button's state changes.
-	/// </summary>
-	[Property, Group( "Events" )]
-	public Action<bool> OnStateChanged { get; set; }
-
-	/// <summary>
 	/// Called when the button is pressed. Receives the GameObject that pressed it.
 	/// </summary>
-	[Property, Group( "Events" )]
-	public Action<GameObject> OnPressed { get; set; }
+	[Property, Group( "Events" ), Doo.ArgumentHint<GameObject>( "user", Help = "The person using the button." )]
+	public Doo OnPressed { get; set; }
 
 	/// <summary>
 	/// Called when the button is released. Receives the GameObject that released it.
 	/// </summary>
-	[Property, Group( "Events" )]
-	public Action<GameObject> OnReleased { get; set; }
+	[Property, Group( "Events" ), Doo.ArgumentHint<GameObject>( "user", Help = "The person has stopped using the button." )]
+	public Doo OnReleased { get; set; }
 
 	/// <summary>
 	/// Called when the button turns on. Receives the GameObject that activated it.
 	/// </summary>
-	[Property, Group( "Events" )]
-	public Action<GameObject> OnTurnedOn { get; set; }
+	[Property, Group( "Events" ), Doo.ArgumentHint<GameObject>( "user", Help = "The person who activated the button." )]
+	public Doo OnTurnedOn { get; set; }
 
 	/// <summary>
 	/// Called when the button turns off.
 	/// </summary>
 	[Property, Group( "Events" )]
-	public Action OnTurnedOff { get; set; }
+	public Doo OnTurnedOff { get; set; }
 
 	/// <summary>
 	/// The button's behavior mode.
@@ -114,15 +108,13 @@ public sealed class Button : Component, Component.IPressable
 
 	void OnButtonStateChanged( bool isOn )
 	{
-		OnStateChanged?.Invoke( isOn );
-
 		if ( isOn )
 		{
-			OnTurnedOn?.Invoke( _lastPresser );
+			Run( OnTurnedOn, c => c.SetArgument( "user", _lastPresser ) );
 		}
 		else
 		{
-			OnTurnedOff?.Invoke();
+			Run( OnTurnedOff );
 		}
 	}
 
@@ -244,7 +236,7 @@ public sealed class Button : Component, Component.IPressable
 			return;
 
 		_lastPresser = presser;
-		OnPressed?.Invoke( presser );
+		Run( OnPressed, c => c.SetArgument( "user", _lastPresser ) );
 
 		switch ( Mode )
 		{
@@ -272,7 +264,7 @@ public sealed class Button : Component, Component.IPressable
 	[Rpc.Host]
 	private void Release( GameObject presser )
 	{
-		OnReleased?.Invoke( presser );
+		Run( OnReleased, c => c.SetArgument( "user", _lastPresser ) );
 
 		// For continuous mode, turn off when released
 		if ( Mode == ButtonMode.Continuous && IsOn )
@@ -341,5 +333,40 @@ public sealed class Button : Component, Component.IPressable
 		if ( time < 1f ) return;
 
 		IsAnimating = false;
+	}
+
+	[Property, Feature( "Tooltip" )]
+	public string TooltipTitle { get; set; } = "Press";
+
+	[Property, Feature( "Tooltip" ), IconName]
+	public string TooltipIcon { get; set; } = "touch_app";
+
+	[Property, Feature( "Tooltip" )]
+	public string TooltipDescription { get; set; } = "";
+
+	[Header( "Off State" )]
+	[ShowIf( "Mode", ButtonMode.Toggle )]
+	[Property, Feature( "Tooltip" )]
+	public string TooltipTitleOff { get; set; } = "Press";
+
+	[ShowIf( "Mode", ButtonMode.Toggle )]
+	[Property, Feature( "Tooltip" ), IconName]
+	public string TooltipIconOff { get; set; } = "touch_app";
+
+	[ShowIf( "Mode", ButtonMode.Toggle )]
+	[Property, Feature( "Tooltip" )]
+	public string TooltipDescriptionOff { get; set; } = "";
+
+	IPressable.Tooltip? IPressable.GetTooltip( IPressable.Event e )
+	{
+		if ( string.IsNullOrWhiteSpace( TooltipTitle ) && string.IsNullOrWhiteSpace( TooltipIcon ) )
+			return default;
+
+		if ( Mode == ButtonMode.Toggle && IsOn )
+		{
+			return new IPressable.Tooltip( TooltipTitleOff, TooltipIconOff, TooltipDescriptionOff );
+		}
+
+		return new IPressable.Tooltip( TooltipTitle, TooltipIcon, TooltipDescription );
 	}
 }

@@ -9,7 +9,7 @@
 <root class="gameshub">
     <Page>
 		<Body>
-            @if (Result == null)
+			@if (_isLoading)
             {
                 <LoadingPanel></LoadingPanel>
             }
@@ -24,26 +24,34 @@
 @code 
 {
 
-    Package.ListResult Result;
+	private bool _isLoading = false;
 
-    protected override async Task OnParametersSetAsync()
-    {
-        await UpdateList();
-    }
+	Package.ListResult Result;
 
-    async Task UpdateList()
-    {
-        //
-        // Just calling this here for now so I can guage speed on the backend
-        // - it's not actually being used anywhere yet
-        //
-        Result = await Package.ListAsync("aa8913bd-495e-44d1-a8e1-288e69427f0d");
+	protected override async Task OnParametersSetAsync()
+	{
+		await UpdateList();
+	}
 
-        StateHasChanged();
-    }
+	async Task UpdateList()
+	{
+		if (_isLoading) return;
+
+		try
+		{
+			_isLoading = true;
+			Result = await Package.ListAsync("aa8913bd-495e-44d1-a8e1-288e69427f0d");
+		}
+		finally
+		{
+			_isLoading = false;
+		}
+
+		StateHasChanged();
+	}
 
 	protected override int BuildHash()
 	{
-        return System.HashCode.Combine(Result);
+		return System.HashCode.Combine(Result, _isLoading);
 	}
 }

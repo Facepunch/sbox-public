@@ -1,0 +1,39 @@
+﻿@inherits Sandbox.UI.Panel
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Menu
+
+<root style="background-image: url(@(MapPackage?.ThumbWide ?? ""))">
+    <div class="bottom">
+        <icon>map</icon>
+        <h3>@(MapPackage?.Title ?? "Default Map")</h3>
+    </div>
+</root>
+
+@code 
+{
+    public Package MapPackage;
+    public Package GamePackage;
+
+    public Action<Package> OnValueChanged;
+
+
+    protected override void OnMouseUp(MousePanelEvent e)
+    {
+        base.OnMouseUp(e);
+        OpenSelector();
+    }
+
+    public void OpenSelector()
+    {
+        var mapTarget = GamePackage?.GetValue("MapTarget", GamePackage?.FullIdent);
+
+        Game.Overlay.ShowPackageSelector($"type:map sort:popular target:{mapTarget}", (pkg) =>
+        {
+            MapPackage = pkg;
+
+            OnValueChanged?.Invoke(pkg);
+            StateHasChanged();
+        });
+    }
+}

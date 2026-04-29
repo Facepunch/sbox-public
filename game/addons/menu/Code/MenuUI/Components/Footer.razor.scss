@@ -11,7 +11,7 @@ Footer {
     background: $footer-background;
     border-top: 1px solid $default-border;
     flex-shrink: 0;
-    z-index: 100;
+    z-index: 1000;
     align-items: center;
     justify-content: center;
 

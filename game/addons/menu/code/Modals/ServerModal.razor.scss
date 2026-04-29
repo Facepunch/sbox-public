@@ -1,0 +1,161 @@
+@import '../styles/_theme.scss';
+@import '../styles/mainmenu.scss';
+
+ServerModal
+{
+	.window
+	{
+		width: 520px;
+		font-family: $font-default;
+		border-radius: $rounding-large;
+		flex-direction: column;
+		overflow: hidden;
+		pointer-events: all;
+	}
+
+	.banner
+	{
+		width: 100%;
+		height: 220px;
+		background-size: cover;
+		background-position: center center;
+		background-color: $default-900;
+		flex-shrink: 0;
+		position: relative;
+	}
+
+	.banner-gradient
+	{
+		position: absolute;
+		width: 100%;
+		height: 100%;
+		background: linear-gradient( to bottom, transparent 30%, rgba( #000, 0.85 ) 100% );
+		flex-direction: column;
+		justify-content: flex-end;
+	}
+
+	.banner-info
+	{
+		padding: 16px 20px 12px 20px;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 8px;
+	}
+
+	.server-name
+	{
+		font-family: $font-heading;
+		font-size: 22px;
+		font-weight: 700;
+		color: white;
+		text-shadow: 0 1px 6px rgba( black, 0.8 );
+		flex-grow: 1;
+	}
+
+	.player-badge
+	{
+		background-color: rgba( black, 0.55 );
+		border: 1px solid rgba( white, 0.15 );
+		border-radius: $rounding-default;
+		padding: 4px 10px;
+		align-items: center;
+		gap: 6px;
+		flex-shrink: 0;
+
+		i
+		{
+			font-size: 14px;
+			color: $default-50;
+		}
+
+		span
+		{
+			font-size: 13px;
+			font-weight: 600;
+			color: white;
+		}
+	}
+
+	.details
+	{
+		flex-direction: column;
+		padding: 12px 16px;
+		gap: 4px;
+		background-color: $default-900;
+	}
+
+	.detail-row
+	{
+		align-items: center;
+		gap: 12px;
+		padding: 8px 10px;
+		border-radius: $rounding-default;
+		cursor: default;
+		transition: background-color 0.15s ease;
+
+		&:hover
+		{
+			background-color: $default-800;
+			cursor: pointer;
+		}
+	}
+
+	.thumb
+	{
+		width: 48px;
+		height: 48px;
+		border-radius: $rounding-small;
+		background-color: $default-800;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+
+		i
+		{
+			font-size: 22px;
+			color: $default-400;
+		}
+	}
+
+	.thumb-img
+	{
+		width: 100%;
+		height: 100%;
+		background-size: cover;
+		background-position: center;
+	}
+
+	.info
+	{
+		flex-direction: column;
+		gap: 2px;
+		flex-grow: 1;
+	}
+
+	.info .title
+	{
+		font-size: 14px;
+		font-weight: 600;
+		color: $default-text;
+	}
+
+	.detail-row.unavailable
+	{
+		opacity: 0.4;
+		cursor: default;
+
+		&:hover
+		{
+			background-color: transparent;
+		}
+	}
+
+	.footer
+	{
+		padding: 12px 16px;
+		justify-content: flex-end;
+		gap: 8px;
+		background-color: $default-950;
+	}
+}

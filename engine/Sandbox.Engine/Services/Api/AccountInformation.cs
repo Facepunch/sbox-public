@@ -70,9 +70,8 @@ internal class AccountInformation
 
 			if ( login.Id == 0 )
 			{
-				Log.Warning( "There was a problem retrieving account information, so we're offline" );
+				Log.Warning( "Failed to retrieve account information - starting in offline mode.." );
 				Api.StartOffline();
-
 				return;
 			}
 
@@ -81,6 +80,9 @@ internal class AccountInformation
 
 			SteamId = login.Id;
 			Session = login.Session;
+
+			// Only ~1% of users will submit analytic events
+			Api.Events.SamplingEnabled = login.Id % 100 == 0;
 			Links = login.Links?.Select( x => (StreamService)x ).ToList() ?? new();
 			Favourites = login.Favourites?.Select( x => RemotePackage.FromDto( x ) ).ToList() ?? new();
 			Memberships = login.Memberships?.Select( x => Package.Organization.FromDto( x ) ).ToList() ?? new();

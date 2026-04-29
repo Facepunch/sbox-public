@@ -1,0 +1,127 @@
+@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+@using Sandbox;
+@using Sandbox.Network;
+
+<root>
+	<div class="window">
+
+		<div class="banner" style="background-image: url( @BannerImage )">
+			<div class="banner-gradient">
+				<div class="banner-info">
+					<label class="server-name">@Server.Name</label>
+					<div class="player-badge">
+						<i>people</i>
+						<span>@Server.Members / @Server.MaxMembers</span>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="details">
+
+			<div class="detail-row" onclick=@OpenGameInfo>
+				<div class="thumb">
+					@if ( string.IsNullOrEmpty( GamePackage?.Thumb ) )
+					{
+						<i>sports_esports</i>
+					}
+					else
+					{
+						<div class="thumb-img" style="background-image: url( @GamePackage.Thumb )"></div>
+					}
+				</div>
+				<div class="info">
+					<label class="eyebrow">Game</label>
+					<label class="title">@(GamePackage?.Title ?? Server.Game)</label>
+				</div>
+			</div>
+
+			<div class="detail-row @(MapUnavailable ? "unavailable" : "")" onclick=@OpenMapInfo>
+				<div class="thumb">
+					@if ( string.IsNullOrEmpty( MapPackage?.Thumb ) )
+					{
+						<i>map</i>
+					}
+					else
+					{
+						<div class="thumb-img" style="background-image: url( @MapPackage.Thumb )"></div>
+					}
+				</div>
+				<div class="info">
+					<label class="eyebrow">Map</label>
+					<label class="title">@(MapPackage?.Title ?? (MapUnavailable ? "Unknown" : Server.Map))</label>
+				</div>
+			</div>
+
+		</div>
+
+		<div class="footer">
+			<Button class="clicky" onclick=@(() => CloseModal( false ))>Cancel</Button>
+			<Button class="clicky primary" Disabled=@(!MenuHelpers.HasAuthority) Icon="play_circle_filled" onclick=@JoinServer>Join Server</Button>
+		</div>
+
+	</div>
+</root>
+
+@code
+{
+	public LobbyInformation Server { get; set; }
+
+	Package GamePackage;
+	Package MapPackage;
+
+	string BannerImage => GamePackage?.ThumbWide ?? GamePackage?.Thumb;
+	bool MapUnavailable => MapPackage is null && string.IsNullOrEmpty( Server.Map );
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		base.OnAfterTreeRender( firstTime );
+
+		if ( firstTime )
+			LoadPackages();
+	}
+
+	async void LoadPackages()
+	{
+		if ( Server.Game.Contains( '.' ) && !Server.Game.Contains( "local." ) )
+		{
+			var pkg = await Package.FetchAsync( Server.Game, true );
+			if ( pkg?.Public ?? false )
+			{
+				GamePackage = pkg;
+				StateHasChanged();
+			}
+		}
+
+		if ( Server.Map.Contains( '.' ) && !Server.Map.Contains( ".vmap" ) )
+		{
+			var pkg = await Package.FetchAsync( Server.Map, true );
+			if ( pkg?.Public ?? false )
+			{
+				MapPackage = pkg;
+				StateHasChanged();
+			}
+		}
+	}
+
+	void JoinServer()
+	{
+		MenuUtility.Connect( Server.LobbyId );
+		CloseModal( true );
+	}
+
+	void OpenGameInfo()
+	{
+		if ( GamePackage is null ) return;
+		Game.Overlay.ShowGameModal( Server.Game );
+	}
+
+	void OpenMapInfo()
+	{
+		if ( MapPackage is null ) return;
+		Game.Overlay.ShowPackageModal( MapPackage.FullIdent );
+	}
+
+	protected override int BuildHash() => System.HashCode.Combine( Server.LobbyId, GamePackage?.Thumb, MapPackage?.Thumb, MenuHelpers.HasAuthority );
+}

@@ -34,9 +34,9 @@
 
     private int LastIndex => ActiveIndex - 1 < 0 ? Items.Count() - 1 : ActiveIndex - 1;
     private int NextIndex => ActiveIndex + 1 > Items.Count() - 1 ? 0 : ActiveIndex + 1;
-    private Panel LastPage => ContentParent.GetChild(LastIndex);
-    private Panel ActivePage => ContentParent.GetChild(ActiveIndex);
-    private Panel NextPage => ContentParent.GetChild(NextIndex);
+    private Panel LastPage => ContentParent?.GetChild(LastIndex);
+    private Panel ActivePage => ContentParent?.GetChild(ActiveIndex);
+    private Panel NextPage => ContentParent?.GetChild(NextIndex);
 
     public object ActiveItem => Items.ElementAt(ActiveIndex);
 

@@ -8,7 +8,7 @@ namespace Sandbox;
 /// </summary>
 [Expose]
 [Title( "Particle Model Renderer" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "category" )]
 public sealed class ParticleModelRenderer : ParticleController, Component.ExecuteInEditor
 {

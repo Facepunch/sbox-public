@@ -7,7 +7,7 @@ namespace Sandbox;
 /// </summary>
 [Expose]
 [Title( "Particle Light Renderer" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "tips_and_updates" )]
 public sealed class ParticleLightRenderer : ParticleController
 {

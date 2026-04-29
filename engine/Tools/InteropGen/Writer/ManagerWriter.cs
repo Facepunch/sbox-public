@@ -97,17 +97,18 @@ internal partial class ManagerWriter : BaseWriter
 				WriteLine( "if ( _initialized ) return;" );
 				WriteLine();
 
-				WriteLine( $"if ( !NativeLibrary.TryLoad( System.IO.Path.Combine( NetCore.NativeDllPath, \"{definitions.NativeDll}\" ), out var nativeDll ) )" );
-				WriteLine( $"	Sandbox.Interop.NativeAssemblyLoadFailed( \"{definitions.NativeDll}\" );" );
+				WriteLine( $"var _nativeDllName = Sandbox.Interop.GetNativeLibraryName( \"{definitions.NativeDll}\" );" );
+				WriteLine( $"if ( !NativeLibrary.TryLoad( System.IO.Path.Combine( NetCore.NativeDllPath, _nativeDllName ), out var nativeDll ) )" );
+				WriteLine( $"	Sandbox.Interop.NativeAssemblyLoadFailed( _nativeDllName );" );
 				WriteLine( "_nativeLibraryHandle = nativeDll;" );
 
 				WriteLine();
 				WriteLine( $"IntPtr nativeInitPtr = NativeLibrary.GetExport( nativeDll, \"igen_{definitions.Ident}\" );" );
-				WriteLine( $"if ( nativeInitPtr == IntPtr.Zero ) throw new System.Exception( \"Couldn't load from {definitions.NativeDll}\" );" );
+				WriteLine( $"if ( nativeInitPtr == IntPtr.Zero ) throw new System.Exception( $\"Couldn't find igen_{definitions.Ident} in {{_nativeDllName}}\" );" );
 
 				WriteLine();
 				WriteLine( $"var nativeInit = Marshal.GetDelegateForFunctionPointer<NetCoreImportDelegate>( nativeInitPtr );" );
-				WriteLine( $"if ( nativeInit == null ) throw new System.Exception( \"Couldn't load from {definitions.NativeDll}\" );" );
+				WriteLine( $"if ( nativeInit == null ) throw new System.Exception( $\"Couldn't load from {{_nativeDllName}}\" );" );
 
 				int i = 0;
 

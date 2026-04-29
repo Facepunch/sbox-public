@@ -1,0 +1,48 @@
+@using System;
+@using Sandbox;
+
+@namespace Sandbox.UI
+
+@if ( Global.IsApiConnected )
+	return;
+
+<root>
+	<div class="offline-popup">
+		<Label>You are offline</Label>
+
+		<div class="right">
+
+			<Button class="clicky primary"
+				Disabled=@IsReconnecting
+				Icon ="cached"
+				Text=@(IsReconnecting ? "Reconnecting.." : "Reconnect")
+				onclick=@Reconnect />
+
+		</div>
+	</div>    
+</root>
+
+@code
+{
+	public bool IsReconnecting { get; private set; }
+
+	protected override int BuildHash() => HashCode.Combine( Global.IsApiConnected, IsReconnecting );
+
+	public async void Reconnect()
+	{
+		if ( IsReconnecting || Global.IsApiConnected )
+			return;
+
+		try
+		{
+			IsReconnecting = true;
+			await MenuUtility.RefreshAccountInfo();
+		}
+		finally
+		{
+			IsReconnecting = false;
+		}
+
+		FindRootPanel().StateHasChanged();
+	}
+}

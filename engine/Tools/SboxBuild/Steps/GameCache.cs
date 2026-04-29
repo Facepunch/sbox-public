@@ -11,7 +11,7 @@ internal class GameCache() : Step( "GameCache" )
 
 		try
 		{
-			Utility.RunProcess( exePath, $"--quiet", null );
+			Utility.RunProcess( exePath, "--quiet", null );
 			Console.WriteLine( "GameCache operations completed successfully!" );
 			return ExitCode.Success;
 		}

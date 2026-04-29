@@ -1,5 +1,4 @@
 ﻿using System.Runtime.CompilerServices;
-using Sandbox.ActionGraphs;
 using System.Threading;
 
 namespace Sandbox;
@@ -325,6 +324,15 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 		// Network owner could have changed
 		//
 		UpdateNetworkRoot();
+
+		//
+		// We might become (in)active now. oldParent is null during the constructor, we don't want
+		// to update enabled status there.
+		//
+		if ( oldParent is not null && Enabled && oldParent.Active != parent.Active )
+		{
+			UpdateEnabledStatus();
+		}
 
 		//
 		// Let components react to this

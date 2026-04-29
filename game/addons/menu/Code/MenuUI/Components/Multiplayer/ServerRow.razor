@@ -1,43 +1,29 @@
-﻿@using Sandbox.Modals;
-@using Sandbox.UI;
+﻿@using Sandbox.UI;
 @using Sandbox;
 @using Sandbox.Network;
 
-<root class="row">
+<root class="row @RowClass" onclick=@OpenServerModal>
 
 	<div class="title">@Server.Name</div>
-	<div class="game" @onclick=@OpenGameInfo>
-		@if (string.IsNullOrEmpty(GamePackage?.Thumb))
-		{
-			<i>sports_esports</i>
-		    <label>@Server.Game</label>
-		}
-		else
-		{
-			<img src="@GamePackage.Thumb" />
-		    <label>@GamePackage.Title</label>
-		}
-	</div>
-	<div class="map" onclick=@OpenMapInfo>
-		@if ( string.IsNullOrEmpty( MapPackage?.Thumb ) )
-        {
-            <i>map</i>
-        }
-        else
-		{
-            <img src="@MapPackage.Thumb" />
-		}
+	@if ( MapPackage is not null || !string.IsNullOrEmpty( Server.Map ) )
+	{
+		<div class="map" onclick=@OpenMapInfo>
+			@if ( string.IsNullOrEmpty( MapPackage?.Thumb ) )
+	        {
+	            <i>map</i>
+	        }
+	        else
+			{
+	            <img src="@MapPackage.Thumb" />
+			}
 
-        <label>@(MapPackage?.Title ?? Server.Map)</label>
-	</div>
+	        <label>@(MapPackage?.Title ?? Server.Map)</label>
+		</div>
+	}
 	<div class="members">
 		<div class="current">@Server.Members</div>
 		<div class="sep">/</div>
 		<div class="maxmembers">@Server.MaxMembers</div>
-	</div>
-
-	<div class="controls" >
-		<Button class="clicky is-icon" Disabled=@(!MenuHelpers.HasAuthority) icon="play_circle_filled" onclick=@( () => OnLobbySelected( Server ) ) />
 	</div>
 
 </root>
@@ -46,7 +32,6 @@
 {
     public LobbyInformation Server { get; set; }
 
-    Package GamePackage;
     Package MapPackage;
 
     protected override void OnAfterTreeRender( bool firstTime )
@@ -59,6 +44,11 @@
         }
     }
 
+    void OpenServerModal()
+    {
+        ModalSystem.Instance.Server( Server );
+    }
+
     void OpenMapInfo()
     {
         if ( MapPackage is null ) return;
@@ -68,34 +58,18 @@
 
     async void GetThumbnails()
     {
-        if ( Server.Game.Contains( "." ) && !Server.Game.Contains( "local." ) )
-        {
-            var gamePackage = await Package.FetchAsync( Server.Game, true );
-            if ( gamePackage.Public )
-            {
-                GamePackage = gamePackage;
-            }
-        }
-
         if ( Server.Map.Contains( "." ) && !Server.Map.Contains( ".vmap" ) )
         {
 			var mapPackage = await Package.FetchAsync( Server.Map, true );
-			if ( mapPackage.Public )
+			if ( mapPackage?.Public ?? false )
 			{
 				MapPackage = mapPackage;
+                StateHasChanged();
 			}
 		}
 	}
 
-	void OnLobbySelected( LobbyInformation lobby )
-	{
-		MenuUtility.Connect( lobby.LobbyId );
-	}
+	protected override int BuildHash() => System.HashCode.Combine( MapPackage?.Thumb, Server.Members );
 
-	void OpenGameInfo()
-	{
-		Game.Overlay.ShowGameModal(Server.Game);
-	}
-
-	protected override int BuildHash() => System.HashCode.Combine(GamePackage?.Thumb, MapPackage?.Thumb, MenuHelpers.HasAuthority);
+	string RowClass => Server.IsFull ? "full" : Server.Members == 0 ? "empty" : "";
 }

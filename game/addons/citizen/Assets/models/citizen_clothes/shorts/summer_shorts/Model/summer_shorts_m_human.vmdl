@@ -1,4 +1,4 @@
-<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
 {
 	rootNode = 
 	{
@@ -64,6 +64,7 @@
 							[
 								"summer_shorts_LOD0",
 								"summer_shorts_LOD0_Summer_Shorts",
+								"human_male_legs_cut",
 							]
 						}
 					},
@@ -85,6 +86,7 @@
 							[
 								"summer_shorts_LOD1",
 								"Summer_Shorts_summer_shorts_LOD1",
+								"human_male_legs_cut",
 							]
 						}
 					},
@@ -106,6 +108,7 @@
 							[
 								"summer_shorts_LOD2",
 								"Summer_Shorts_summer_shorts_LOD2",
+								"human_male_legs_cut",
 							]
 						}
 					},
@@ -127,6 +130,7 @@
 							[
 								"summer_shorts_LOD3",
 								"Summer_Shorts_summer_shorts_LOD3",
+								"human_male_legs_cut",
 							]
 						}
 					},

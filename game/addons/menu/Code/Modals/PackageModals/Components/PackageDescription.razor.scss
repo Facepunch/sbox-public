@@ -1,10 +1,10 @@
+@import "/styles/_theme.scss";
 
 PackageDescription
 {
     flex-shrink: 0;
     padding: 32px;
-    color: #6f7688;
-    overflow: hidden;
+    color: $default-text;
     width: 100%;
     
 }

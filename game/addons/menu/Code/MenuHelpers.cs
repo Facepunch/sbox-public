@@ -37,8 +37,6 @@ public static class MenuHelpers
 				return;
 		}
 
-		MenuUtility.CloseAllModals();
-
 		// Dedicated server only: show server list
 		if ( launchMode == "dedicatedserveronly" )
 		{
@@ -67,6 +65,7 @@ public static class MenuHelpers
 		}
 
 		// Direct launch
+		MenuUtility.CloseAllModals();
 		LoadingScreen.IsVisible = true;
 		LoadingScreen.Title = "Loading..";
 		LoadingScreen.Subtitle = "";

@@ -565,6 +565,7 @@ partial class GameObjectNode : TreeNode<GameObject>
 		m.AddOption( "Copy", "content_copy", EditorScene.Copy, "editor.copy" ).Enabled = isObjectMenu;
 		m.AddOption( "Paste", "content_paste", EditorScene.Paste, "editor.paste" );
 		m.AddOption( "Paste As Child", null, EditorScene.PasteAsChild, "editor.paste-as-child" ).Enabled = isObjectMenu;
+		m.AddOption( "Paste Special", "content_paste_go", EditorScene.PasteSpecial, "editor.paste-special" );
 		m.AddOption( "Create Group", "file_copy", SceneEditorMenus.Group, "editor.group" ).Enabled = isObjectMenu && !isPrefabRoot;
 		m.AddSeparator();
 		m.AddOption( "Rename", "label", treeNode.TreeView.BeginRename, "editor.rename" ).Enabled = isObjectMenu;

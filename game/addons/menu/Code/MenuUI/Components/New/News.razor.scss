@@ -8,13 +8,17 @@ News {
     pointer-events: all;
 
     Card {
-        @include border;
+        box-shadow: 0 0 0 1px $default-border;
         width: 400px;
         aspect-ratio: 16/9;
         cursor: pointer;
         transition: all 150ms $easing;
         position: relative;
         overflow: hidden;
+
+        &:hover {
+            box-shadow: 0 0 0 1px rgba( $primary-blue, 1 );
+        }
         gap: 3px;
 
         background-color: transparent;

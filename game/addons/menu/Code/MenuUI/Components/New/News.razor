@@ -45,6 +45,8 @@
     public async Task GetLatestNews()
     {
         var p = await Package.Fetch("facepunch/news", false);
+		if ( p is null ) return;
+
         var news = p.LatestNewsPost;
 
         NewsTitle = news.Title;

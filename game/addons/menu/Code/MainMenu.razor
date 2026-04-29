@@ -15,6 +15,7 @@
             <div class="navigator-canvas" slot="navigator-canvas"></div>
 			<div class="overlay">
 				<div class="overlay-container">
+					<OfflineMode />
 					<PartyChat />
 				</div>
 			</div>
@@ -30,9 +31,13 @@
     [Property] public GameObject Background { get; set; }
     public NavigationHost Navigator { get; protected set; }
 
+    public static MainMenu Instance { get; private set; }
+
     override protected void OnEnabled()
     {
         base.OnEnabled();
+
+        Instance = this;
 
         var human = Scene.Directory.FindByName("Player Human").FirstOrDefault();
         var citizen = Scene.Directory.FindByName("Player Citizen").FirstOrDefault();

@@ -134,12 +134,9 @@ namespace Sandbox.UI
 
 			if ( type.IsEnum )
 			{
-				var names = type.GetEnumNames();
-				var values = type.GetEnumValues();
-
-				for ( int i = 0; i < names.Length; i++ )
+				foreach ( var item in TypeLibrary.GetEnumDescription( type ) )
 				{
-					Options.Add( new Option( names[i], values.GetValue( i ) ) );
+					Options.Add( new Option( item.Title, item.Icon, item.ObjectValue ) );
 				}
 
 				return;

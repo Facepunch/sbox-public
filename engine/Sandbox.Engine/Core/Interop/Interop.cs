@@ -149,6 +149,28 @@ internal unsafe static partial class Interop
 	}
 
 	/// <summary>
+	/// Converts a base library name to its platform-specific filename.
+	/// e.g. "engine2" → "engine2.dll" (Windows), "libengine2.so" (Linux), "libengine2.dylib" (macOS)
+	/// </summary>
+	internal static string GetNativeLibraryName( string baseName )
+	{
+		var dir = System.IO.Path.GetDirectoryName( baseName ) ?? "";
+		var name = System.IO.Path.GetFileNameWithoutExtension( baseName );
+
+		var platformName = true switch
+		{
+			_ when OperatingSystem.IsWindows() => $"{name}.dll",
+			_ when OperatingSystem.IsLinux() => $"lib{name}.so",
+			_ when OperatingSystem.IsMacOS() => $"lib{name}.dylib",
+			_ => throw new PlatformNotSupportedException()
+		};
+
+		return string.IsNullOrEmpty( dir )
+			? platformName
+			: System.IO.Path.Combine( dir, platformName );
+	}
+
+	/// <summary>
 	/// used to pass a string back to native
 	/// </summary>
 	public unsafe struct PassBackString

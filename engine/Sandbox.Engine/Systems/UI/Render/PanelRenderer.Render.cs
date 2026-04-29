@@ -204,6 +204,8 @@ internal partial class PanelRenderer
 			pendingInstances.Add( d.Instance );
 		}
 
+		FlushBatch( cl );
+
 		deferredInstances.Clear();
 		deferredOrder = 0;
 		zDepth = 0;
@@ -301,6 +303,8 @@ internal partial class PanelRenderer
 		batcher.Draw( pendingInstances, cl, combo, pendingBlendMode );
 		pendingInstances.Clear();
 		pendingBlendMode = BlendMode.Normal;
+
+		backdropGrabActive = false;
 
 		// Restore CL state that inline draws depend on
 		cl.Attributes.Set( "TransformMat", Matrix.Identity );

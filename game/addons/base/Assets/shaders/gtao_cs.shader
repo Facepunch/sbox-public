@@ -194,7 +194,7 @@ CS
                 float ao = g_tCoarseAO.Load( int3( aoPos, 0 ) );
 
                 // Map coarse texel center to full-res for depth/normal reference
-                int2 fullPos = clamp( int2( ( float2( aoPos ) + 0.5 ) * fullPerAo ), int2( 0, 0 ), fullMax );
+                int2 fullPos = clamp( int2( aoPos * fullPerAo ), int2( 0, 0 ), fullMax );
                 float  loDepth  = g_tViewDepth.Load( int3( fullPos, 0 ) );
                 float3 loNormal = SampleWorldNormal( fullPos );
 

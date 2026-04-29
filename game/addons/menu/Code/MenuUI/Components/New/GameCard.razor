@@ -5,7 +5,7 @@
 @namespace Sandbox.UI
 @inherits Panel
 
-<root class=@BuildClass() onclick=@ShowGameModal>
+<root class=@BuildClass() onclick=@ShowGameModal onrightclick=@ShowGameMenu>
     <div class="image" style="background-image: url(@(Image() ?? "/ui/sbox-logo-square.svg"))" />
 
     <column>
@@ -61,6 +61,11 @@
     private void ShowGameModal()
     {
         Package?.OpenModal();
+    }
+
+    private void ShowGameMenu()
+    {
+        MenuHelpers.OpenPackageMenu(this, Package);
     }
 
     private string BuildClass()

@@ -145,6 +145,11 @@ public class ModalSystem : IModalSystem
 		Push( modal );
 	}
 
+	public void Server( Sandbox.Network.LobbyInformation lobby )
+	{
+		Push( new ServerModal { Server = lobby } );
+	}
+
 	public void PlayerList()
 	{
 		var modal = new PlayerListModal();

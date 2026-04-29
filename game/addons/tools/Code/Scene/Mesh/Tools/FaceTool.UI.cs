@@ -427,6 +427,134 @@ partial class FaceTool
 			}
 		}
 
+		[Shortcut( "mesh.paste.special", "CTRL+ALT+V", typeof( SceneViewWidget ) )]
+		private void PasteSpecial()
+		{
+			var clipboard = EditorUtility.Clipboard.Paste();
+			if ( string.IsNullOrWhiteSpace( clipboard ) || !clipboard.StartsWith( "{" ) )
+				return;
+
+			ClipboardMeshData meshData;
+			try
+			{
+				var json = JsonNode.Parse( clipboard );
+				if ( json?["_type"]?.ToString() != ClipboardFaceDataType )
+					return;
+
+				meshData = Json.Deserialize<ClipboardMeshData>( json["_data"].ToJsonString() );
+			}
+			catch
+			{
+				return;
+			}
+
+			if ( meshData.Faces is not { Length: > 0 } || meshData.Vertices is not { Length: > 0 } )
+				return;
+
+			if ( _components.Count == 0 )
+				return;
+
+			var dialog = new ScenePasteSpecialDialog( options =>
+			{
+				ExecuteFacePasteSpecial( meshData, options );
+			} );
+			dialog.Show();
+		}
+
+		private void ExecuteFacePasteSpecial( ClipboardMeshData meshData, ScenePasteSpecialDialog.PasteSpecialOptions options )
+		{
+			var localCenter = meshData.Vertices.Aggregate( Vector3.Zero, ( sum, v ) => sum + v ) / meshData.Vertices.Length;
+
+			var sourceTransform = _components.First().GameObject.WorldTransform;
+			var worldCenter = sourceTransform.PointToWorld( localCenter );
+
+			var session = SceneEditorSession.Active;
+			using var scene = session.Scene.Push();
+
+			using ( session.UndoScope( $"Paste Special Faces ({options.Copies} copies)" ).WithGameObjectCreations().Push() )
+			{
+				EditorScene.Selection.Clear();
+
+				var allPasted = new List<GameObject>();
+				var meshesToAssign = new List<(MeshComponent comp, PolygonMesh mesh)>();
+
+				for ( int i = 0; i < options.Copies; i++ )
+				{
+					var go = session.Scene.CreateObject();
+					go.Name = "Pasted Mesh";
+
+					if ( options.RelativeToLast && allPasted.Count > 0 )
+					{
+						var prev = allPasted[^1];
+						var localOffset = prev.WorldRotation * options.Offset;
+						go.WorldPosition = prev.WorldPosition + localOffset;
+						go.WorldRotation = prev.WorldRotation * options.Rotation.ToRotation();
+					}
+					else if ( !options.CenterOriginal )
+					{
+						go.WorldPosition = options.Offset * (i + 1);
+						go.WorldRotation = (options.Rotation * (i + 1)).ToRotation();
+					}
+					else
+					{
+						go.WorldPosition = worldCenter + options.Offset * i;
+						go.WorldRotation = sourceTransform.Rotation * (options.Rotation * i).ToRotation();
+					}
+
+					go.MakeNameUnique();
+					allPasted.Add( go );
+
+					var meshComponent = go.AddComponent<MeshComponent>();
+					meshesToAssign.Add( (meshComponent, BuildPolygonMesh( meshData, localCenter )) );
+				}
+
+				foreach ( var (comp, mesh) in meshesToAssign )
+					comp.Mesh = mesh;
+
+				if ( options.GroupCopies && allPasted.Count > 0 )
+				{
+					var group = session.Scene.CreateObject();
+					group.Name = "Paste Group";
+
+					foreach ( var go in allPasted )
+						go.SetParent( group );
+
+					EditorScene.Selection.Add( group );
+				}
+				else
+				{
+					foreach ( var go in allPasted )
+						EditorScene.Selection.Add( go );
+				}
+			}
+		}
+
+		private static PolygonMesh BuildPolygonMesh( ClipboardMeshData meshData, Vector3 center )
+		{
+			var mesh = new PolygonMesh();
+			var centeredVerts = meshData.Vertices.Select( v => v - center ).ToArray();
+			var vertices = mesh.AddVertices( centeredVerts );
+
+			foreach ( var faceData in meshData.Faces )
+			{
+				if ( faceData.VertexIndices is not { Length: >= 3 } )
+					continue;
+				if ( faceData.VertexIndices.Any( idx => idx < 0 || idx >= vertices.Length ) )
+					continue;
+
+				var faceVertices = faceData.VertexIndices.Select( idx => vertices[idx] ).ToArray();
+				var handle = mesh.AddFace( faceVertices );
+				if ( !handle.IsValid )
+					continue;
+
+				var material = string.IsNullOrEmpty( faceData.Material ) ? null : Material.Load( faceData.Material );
+				mesh.SetFaceMaterial( handle, material );
+				mesh.SetFaceTextureParameters( handle, faceData.AxisU, faceData.AxisV, faceData.Scale );
+			}
+
+			return mesh;
+		}
+
 		[Shortcut( "mesh.extract-faces", "ALT+N", typeof( SceneViewWidget ) )]
 		private void ExtractFaces()
 		{

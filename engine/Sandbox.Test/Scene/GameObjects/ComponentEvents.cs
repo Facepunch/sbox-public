@@ -1,6 +1,3 @@
-using Sandbox;
-using System.Linq;
-
 namespace GameObjects;
 
 [TestClass]
@@ -144,6 +141,102 @@ public class ComponentEvents
 		Assert.AreEqual( 1, o.EnabledCalls );
 		Assert.AreEqual( 1, o.DisabledCalls );
 		Assert.AreEqual( 1, o.DestroyCalls );
+	}
+
+	/// <summary>
+	/// Parent objects should update their descendants enabled state
+	/// when they toggle <see cref="GameObject.Enabled"/>.
+	/// </summary>
+	[TestMethod]
+	public void Child_StartParentDisabled()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var parent = new GameObject( name: "Parent", enabled: false );
+		var child = new GameObject( parent, name: "Child" );
+
+		var o = child.Components.Create<OrderTestComponent>();
+
+		Assert.AreEqual( 0, o.AwakeCalls ); // awake shouldn't call until the gameobject is active
+		Assert.AreEqual( 0, o.EnabledCalls );
+		Assert.AreEqual( 0, o.DisabledCalls );
+
+		parent.Enabled = true;
+		scene.GameTick();
+
+		Assert.AreEqual( 1, o.AwakeCalls );
+		Assert.AreEqual( 1, o.EnabledCalls );
+		Assert.AreEqual( 0, o.DisabledCalls );
+
+		parent.Enabled = false;
+		scene.GameTick();
+
+		Assert.AreEqual( 1, o.EnabledCalls );
+		Assert.AreEqual( 1, o.DisabledCalls );
+		Assert.AreEqual( 0, o.DestroyCalls );
+
+		parent.Destroy();
+		scene.GameTick();
+
+		Assert.AreEqual( 1, o.EnabledCalls );
+		Assert.AreEqual( 1, o.DisabledCalls );
+		Assert.AreEqual( 1, o.DestroyCalls );
+	}
+
+	/// <summary>
+	/// Objects should update their enabled state when changing to an inactive parent.
+	/// </summary>
+	[TestMethod]
+	public void Child_MoveToDisabledParent()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var parent = new GameObject( name: "Parent", enabled: false );
+		var child = new GameObject( name: "Child" );
+
+		var o = child.Components.Create<OrderTestComponent>();
+
+		Assert.AreEqual( 1, o.AwakeCalls );
+		Assert.AreEqual( 1, o.EnabledCalls );
+		Assert.AreEqual( 0, o.DisabledCalls );
+
+		scene.GameTick();
+
+		// Nest under an inactive parent, should become inactive itself
+		child.Parent = parent;
+
+		Assert.AreEqual( 1, o.EnabledCalls );
+		Assert.AreEqual( 1, o.DisabledCalls );
+	}
+
+	/// <summary>
+	/// Objects should update their enabled state when changing from an inactive parent.
+	/// </summary>
+	[TestMethod]
+	public void Child_MoveFromDisabledParent()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var parent = new GameObject( name: "Parent", enabled: false );
+		var child = new GameObject( parent, name: "Child" );
+
+		var o = child.Components.Create<OrderTestComponent>();
+
+		Assert.AreEqual( 0, o.AwakeCalls ); // awake shouldn't call until the gameobject is active
+		Assert.AreEqual( 0, o.EnabledCalls );
+		Assert.AreEqual( 0, o.DisabledCalls );
+
+		scene.GameTick();
+
+		// Move to scene root, should become active
+		child.Parent = null;
+
+		Assert.AreEqual( 1, o.AwakeCalls );
+		Assert.AreEqual( 1, o.EnabledCalls );
+		Assert.AreEqual( 0, o.DisabledCalls );
 	}
 }
 

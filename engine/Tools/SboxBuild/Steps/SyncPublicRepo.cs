@@ -300,11 +300,12 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			return true;
 		}
 
-		// Inline matcher: include everything, exclude managed root folder and pdbs
+		// Inline matcher: include everything, exclude managed root folder, pdbs, and debug symbols
 		var matcher = new Matcher( StringComparison.OrdinalIgnoreCase, preserveFilterOrder: true );
 		matcher.AddInclude( "**/*" );
 		matcher.AddExclude( "managed/**" );
 		matcher.AddExclude( "**/*.pdb" );
+		matcher.AddExclude( "**/*.dbg" );
 
 		var filesToUpload = matcher
 			.GetResultsInFullPath( buildArtifactsRoot )
