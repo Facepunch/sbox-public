@@ -50,6 +50,8 @@
                 <h2 class="title" onclick="@(() => SetSort( "name" ))">Name</h2>
                 <h2 class="map" onclick="@(() => SetSort( "map" ))">Map</h2>
                 <h2 class="members" onclick="@(() => SetSort( "members" ))">Players</h2>
+                <h2 class="ping-icon" onclick="@(() => SetSort( "ping" ))">Ping</h2>
+                <h2 class="ping-value"></h2>
             </div>
             <VirtualList Items=@GetServerData() ItemHeight=@(48)>
                 <Item Context="item">
@@ -122,6 +124,7 @@
             "name" => x => x.Name,
             "map" => x => x.Map,
             "members" => x => x.Members,
+            "ping" => x => x.Ping,
             _ => x => x.Members
         };
 

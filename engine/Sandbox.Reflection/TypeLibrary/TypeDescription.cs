@@ -1,5 +1,6 @@
 ﻿using Sandbox.Internal;
 using System.Collections.Concurrent;
+using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 
 namespace Sandbox;
@@ -632,6 +633,34 @@ public sealed class TypeDescription : ISourceLineProvider
 	public Type[] Interfaces { get; private set; }
 
 	/// <summary>
+	/// Compiled factory delegate for parameterless construction.
+	/// Avoids Activator.CreateInstance + DefaultBinder overhead on every call.
+	/// </summary>
+	private Func<object> _parameterlessFactory;
+	private bool _parameterlessFactoryResolved;
+
+	private Func<object> GetParameterlessFactory()
+	{
+		if ( _parameterlessFactoryResolved )
+			return _parameterlessFactory;
+
+		_parameterlessFactoryResolved = true;
+
+		if ( TargetType.IsAbstract || TargetType.IsInterface )
+			return null;
+
+		var ctor = TargetType.GetConstructor( Type.EmptyTypes );
+		if ( ctor is null )
+			return null;
+
+		_parameterlessFactory = Expression.Lambda<Func<object>>(
+			Expression.Convert( Expression.New( ctor ), typeof( object ) )
+		).Compile();
+
+		return _parameterlessFactory;
+	}
+
+	/// <summary>
 	/// Create an instance of this class, return it as a T.
 	/// If it can't be cast to a T we won't create it and will return null.
 	/// </summary>
@@ -641,6 +670,13 @@ public sealed class TypeDescription : ISourceLineProvider
 
 		if ( !TargetType.IsAssignableTo( type ) )
 			return default;
+
+		if ( args is null or { Length: 0 } )
+		{
+			var factory = GetParameterlessFactory();
+			if ( factory is not null )
+				return (T)factory();
+		}
 
 		return (T)System.Activator.CreateInstance( TargetType, args );
 	}

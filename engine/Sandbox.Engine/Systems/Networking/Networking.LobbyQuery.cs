@@ -82,6 +82,7 @@ public static partial class Networking
 					Map = e.Map,
 					Members = e.Players,
 					MaxMembers = e.MaxPlayers,
+					Ping = e.Ping,
 					Data = new()
 				};
 
@@ -203,6 +204,7 @@ public static partial class Networking
 			var item = new LobbyInformation();
 			item.LobbyId = l.Id;
 			item.OwnerId = l.Owner.Id;
+			item.Ping = -1;
 
 			item.MaxMembers = l.MaxMembers;
 			item.Members = l.MemberCount;

@@ -5,25 +5,41 @@
 <root class="row @RowClass" onclick=@OpenServerModal>
 
 	<div class="title">@Server.Name</div>
-	@if ( MapPackage is not null || !string.IsNullOrEmpty( Server.Map ) )
-	{
-		<div class="map" onclick=@OpenMapInfo>
+	<div class="map" onclick=@OpenMapInfo>
+		@if ( MapPackage is not null || !string.IsNullOrEmpty( Server.Map ) )
+		{
 			@if ( string.IsNullOrEmpty( MapPackage?.Thumb ) )
-	        {
-	            <i>map</i>
-	        }
-	        else
 			{
-	            <img src="@MapPackage.Thumb" />
+				<i>map</i>
+			}
+			else
+			{
+				<img src="@MapPackage.Thumb" />
 			}
 
-	        <label>@(MapPackage?.Title ?? Server.Map)</label>
-		</div>
-	}
+			<label>@(MapPackage?.Title ?? Server.Map)</label>
+		}
+	</div>
 	<div class="members">
 		<div class="current">@Server.Members</div>
 		<div class="sep">/</div>
 		<div class="maxmembers">@Server.MaxMembers</div>
+	</div>
+	<div class="ping-icon @PingClass">
+		@if ( Server.Ping >= 0 )
+		{
+			<i>@PingIcon</i>
+		}
+	</div>
+	<div class="ping-value @PingClass">
+		@if ( Server.Ping >= 0 )
+		{
+			<label>@(Server.Ping)</label>
+		}
+		else
+		{
+			<label>—</label>
+		}
 	</div>
 
 </root>
@@ -69,7 +85,28 @@
 		}
 	}
 
-	protected override int BuildHash() => System.HashCode.Combine( MapPackage?.Thumb, Server.Members );
+	protected override int BuildHash() => System.HashCode.Combine( MapPackage?.Thumb, Server.Members, Server.Ping );
 
 	string RowClass => Server.IsFull ? "full" : Server.Members == 0 ? "empty" : "";
+
+	string PingClass
+	{
+		get
+		{
+			if ( Server.Ping < 0 ) return "unknown";
+			if ( Server.Ping < 50 ) return "good";
+			if ( Server.Ping < 100 ) return "okay";
+			return "bad";
+		}
+	}
+
+	string PingIcon
+	{
+		get
+		{
+			if ( Server.Ping < 50 ) return "signal_cellular_alt";
+			if ( Server.Ping < 100 ) return "signal_cellular_alt_2_bar";
+			return "signal_cellular_alt_1_bar";
+		}
+	}
 }

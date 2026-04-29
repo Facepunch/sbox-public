@@ -99,6 +99,11 @@ public struct LobbyInformation
 	public string Map;
 	public string Game;
 
+	/// <summary>
+	/// Ping in milliseconds. Only available for dedicated servers, -1 if unknown.
+	/// </summary>
+	public int Ping;
+
 	public Dictionary<string, string> Data;
 
 	/// <summary>

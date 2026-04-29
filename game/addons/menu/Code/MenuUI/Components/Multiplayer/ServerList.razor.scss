@@ -68,13 +68,38 @@ h2
 
 	.title
 	{
-		width: 67%;
+		flex-grow: 1;
 	}
 
 	.members
 	{
-		flex-grow: 1;
+		width: 100px;
+		flex-shrink: 0;
 		justify-content: flex-end;
+	}
+
+	.ping-icon
+	{
+		width: 24px;
+		flex-shrink: 0;
+		margin-left: 16px;
+		justify-content: center;
+		align-items: center;
+
+		&.good { color: #4ade80; }
+		&.okay { color: #facc15; }
+		&.bad { color: #f87171; }
+	}
+
+	.ping-value
+	{
+		width: 56px;
+		flex-shrink: 0;
+
+		&.good { color: #4ade80; }
+		&.okay { color: #facc15; }
+		&.bad { color: #f87171; }
+		&.unknown { opacity: 0.3; }
 	}
 
 	&:not(.header)
@@ -141,11 +166,6 @@ h2
 
 	&.header
 	{
-		.members
-		{
-			justify-content: center;
-		}
-
 		background-color: #101219dd;
 		padding: 8px 48px;
 	}
