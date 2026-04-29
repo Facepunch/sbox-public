@@ -19,6 +19,23 @@ public sealed partial class Project
 		return false;
 	}
 
+	/// <summary>
+	/// Get the compiler settings adjusted with Project.Config.
+	/// </summary>
+	/// <returns></returns>
+	Compiler.Configuration GetEffectiveCompileSettings()
+	{
+		var compilerSettings = Config.GetCompileSettings();
+
+		if ( Config.IsStandaloneOnly )
+		{
+			compilerSettings.Unsafe = true;
+			compilerSettings.Whitelist = false;
+		}
+
+		return compilerSettings;
+	}
+
 	internal async Task GenerateProject( Sandbox.SolutionGenerator.Generator generator )
 	{
 		// justify the async
@@ -51,7 +68,7 @@ public sealed partial class Project
 			//
 			// Code project
 			//
-			var compilerSettings = Config.GetCompileSettings();
+			var compilerSettings = GetEffectiveCompileSettings();
 
 			if ( Config.Type == "game" )
 			{
@@ -183,7 +200,7 @@ public sealed partial class Project
 		if ( !HasServersideCode() )
 			return default;
 
-		var serverSettings = Config.GetCompileSettings();
+		var serverSettings = GetEffectiveCompileSettings();
 		serverSettings.DefineConstants += ";SERVER";
 
 		var project = generator.AddProject( Config.Type,
@@ -222,7 +239,7 @@ public sealed partial class Project
 		if ( !HasEditorPath() )
 			return default;
 
-		var compilerSettings = Config.GetCompileSettings();
+		var compilerSettings = GetEffectiveCompileSettings();
 		var project = generator.AddProject( "tool", $"{Config.FullIdent}.editor", $"{projectName}.editor", GetEditorPath(), compilerSettings );
 		project.IsEditorProject = true;
 
@@ -257,7 +274,7 @@ public sealed partial class Project
 		if ( !dirinfo.Exists )
 			return default;
 
-		var compilerSettings = Config.GetCompileSettings();
+		var compilerSettings = GetEffectiveCompileSettings();
 		var project = generator.AddProject( "unittest", $"{Config.FullIdent}.unittest", $"{projectName}.unittest", dirinfo.FullName, compilerSettings );
 		project.IsUnitTestProject = true;
 
