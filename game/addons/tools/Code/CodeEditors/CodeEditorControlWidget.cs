@@ -1,4 +1,6 @@
-﻿
+
+using Editor.CodeEditors;
+
 namespace Editor;
 
 [CustomEditor( typeof( ICodeEditor ) )]
@@ -7,6 +9,8 @@ public class CodeEditorControlWidget : ControlWidget
 	public CodeEditorControlWidget( SerializedProperty property ) : base( property )
 	{
 		Layout = Layout.Row();
+		Layout.Spacing = 4;
+		Layout.Margin = new Sandbox.UI.Margin( 0, 0, 4, 0 );
 
 		var comboBox = new ComboBox( this );
 
@@ -24,6 +28,9 @@ public class CodeEditorControlWidget : ControlWidget
 		{
 			if ( codeEditor.TargetType == typeof( ICodeEditor ) ) continue;
 
+			// Skip CustomCodeEditor from auto-discovery, we handle it separately
+			if ( codeEditor.TargetType == typeof( CustomCodeEditor ) ) continue;
+
 			var instance = codeEditor.Create<ICodeEditor>();
 
 			comboBox.AddItem(
@@ -36,11 +43,82 @@ public class CodeEditorControlWidget : ControlWidget
 			);
 		}
 
-		if ( CodeEditor.Current is not null )
+		// If a custom editor path is configured, add it with the exe name
+		var customPath = CustomCodeEditor.CustomPath;
+		if ( !string.IsNullOrEmpty( customPath ) )
 		{
-			comboBox.TrySelectNamed( DisplayInfo.ForType( CodeEditor.Current.GetType() ).Name );
+			var exeName = System.IO.Path.GetFileNameWithoutExtension( customPath );
+			comboBox.AddItem(
+				exeName,
+				null,
+				() => property.SetValue( new CustomCodeEditor() ),
+				customPath,
+				false,
+				System.IO.File.Exists( customPath )
+			);
 		}
 
-		Layout.Add( comboBox );
+		if ( CodeEditor.Current is not null )
+		{
+			if ( CodeEditor.Current is CustomCodeEditor && !string.IsNullOrEmpty( customPath ) )
+			{
+				comboBox.TrySelectNamed( System.IO.Path.GetFileNameWithoutExtension( customPath ) );
+			}
+			else
+			{
+				comboBox.TrySelectNamed( DisplayInfo.ForType( CodeEditor.Current.GetType() ).Name );
+			}
+		}
+
+		Layout.Add( comboBox, 1 );
+		Layout.Add( new IconButton( "more_horiz", () => BrowseForEditor( property, comboBox ) )
+		{
+			ToolTip = "Browse for a code editor executable"
+		} );
+	}
+
+	private void BrowseForEditor( SerializedProperty property, ComboBox comboBox )
+	{
+		var fd = new FileDialog( null )
+		{
+			Title = "Select Code Editor",
+		};
+
+		if ( OperatingSystem.IsWindows() )
+		{
+			fd.DefaultSuffix = ".exe";
+			fd.SetNameFilter( "Executables (*.exe)" );
+		}
+		else
+		{
+			fd.SetNameFilter( "All files (*)" );
+		}
+
+		fd.SetFindExistingFile();
+		fd.SetModeOpen();
+
+		if ( !fd.Execute() ) return;
+
+		var selectedPath = fd.SelectedFile;
+		if ( string.IsNullOrEmpty( selectedPath ) ) return;
+
+		CustomCodeEditor.CustomPath = selectedPath;
+
+		var exeName = System.IO.Path.GetFileNameWithoutExtension( selectedPath );
+
+		if ( comboBox.FindIndex( exeName ) is null )
+		{
+			comboBox.AddItem(
+				exeName,
+				null,
+				() => property.SetValue( new CustomCodeEditor() ),
+				selectedPath,
+				false,
+				true
+			);
+		}
+
+		property.SetValue( new CustomCodeEditor() );
+		comboBox.TrySelectNamed( exeName );
 	}
 }
