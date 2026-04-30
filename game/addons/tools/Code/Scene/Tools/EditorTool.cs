@@ -4,16 +4,11 @@ namespace Editor;
 
 public class EditorTool : IDisposable
 {
-	[JsonIgnore]
-	public EditorToolManager Manager { get; internal set; }
-	[JsonIgnore]
-	public SelectionSystem Selection => Manager.CurrentSession.Selection;
-	[JsonIgnore]
-	public Scene Scene => Manager.CurrentSession.Scene;
-	[JsonIgnore]
-	public Widget SceneOverlay => SceneOverlayWidget.Active;
-	[JsonIgnore]
-	public CameraComponent Camera { get; private set; }
+	[JsonIgnore] public EditorToolManager Manager { get; internal set; }
+	[JsonIgnore] public SelectionSystem Selection => Manager.CurrentSession.Selection;
+	[JsonIgnore] public Scene Scene => Manager.CurrentSession.Scene;
+	[JsonIgnore] public Widget SceneOverlay => SceneOverlayWidget.Active;
+	[JsonIgnore] public CameraComponent Camera { get; private set; }
 
 	List<Widget> overlayWidgets = new();
 	List<EditorTool> _tools = new();
@@ -27,6 +22,7 @@ public class EditorTool : IDisposable
 	public bool RebuildSidebarOnSelectionChange { get; set; } = true;
 
 	private EditorTool _currentTool;
+
 	[JsonIgnore]
 	public EditorTool CurrentTool
 	{
@@ -55,8 +51,8 @@ public class EditorTool : IDisposable
 	/// </summary>
 	[JsonIgnore]
 	public SceneTrace MeshTrace => Trace.UseRenderMeshes( true, EditorPreferences.BackfaceSelection )
-										.WithoutTags( "hidden" )
-										.UsePhysicsWorld( false );
+		.WithoutTags( "hidden" )
+		.UsePhysicsWorld( false );
 
 
 	/// <summary>
@@ -113,7 +109,8 @@ public class EditorTool : IDisposable
 		{
 			if ( Manager.IsCurrentViewFocused )
 			{
-				if ( HasLassoSelectionMode() && (IsLassoSelecting || (Gizmo.IsAltPressed && Gizmo.IsLeftMouseDown && Gizmo.Pressed.CursorDelta.Length > 0.1f)) )
+				if ( HasLassoSelectionMode() && (IsLassoSelecting || (Gizmo.IsAltPressed && Gizmo.IsLeftMouseDown &&
+																	  Gizmo.Pressed.CursorDelta.Length > 0.1f)) )
 				{
 					UpdateLassoSelection();
 				}
@@ -134,22 +131,18 @@ public class EditorTool : IDisposable
 
 	public virtual void OnUpdate()
 	{
-
 	}
 
 	public virtual void OnEnabled()
 	{
-
 	}
 
 	public virtual void OnDisabled()
 	{
-
 	}
 
 	public virtual void OnSelectionChanged()
 	{
-
 	}
 
 	/// <summary>
@@ -331,7 +324,8 @@ public class EditorTool : IDisposable
 		IsBoxSelecting = true;
 
 		var frustum = Gizmo.Camera.GetFrustum( Rect.FromPoints( c1, c2 ) );
-		Rect rect = new Rect( MathF.Min( c1.x, c2.x ), MathF.Min( c1.y, c2.y ), MathF.Abs( c1.x - c2.x ), MathF.Abs( c1.y - c2.y ) );
+		Rect rect = new Rect( MathF.Min( c1.x, c2.x ), MathF.Min( c1.y, c2.y ), MathF.Abs( c1.x - c2.x ),
+			MathF.Abs( c1.y - c2.y ) );
 
 		OnBoxSelect( frustum, rect, Gizmo.WasLeftMouseReleased );
 
@@ -344,15 +338,20 @@ public class EditorTool : IDisposable
 
 		// Paint the selection rectangle
 		{
-			Gizmo.Draw.ScreenRect( rect, Theme.Blue.WithAlpha( 0.1f ), new Vector4( 1.0f ), Theme.Blue, new Vector4( 1.0f ) );
+			Gizmo.Draw.ScreenRect( rect, Theme.Blue.WithAlpha( 0.1f ), new Vector4( 1.0f ), Theme.Blue,
+				new Vector4( 1.0f ) );
 		}
 	}
 
 	private void UpdateLassoSelection()
 	{
-		if ( Gizmo.WasLeftMousePressed && !IsLassoSelecting )
+		if ( Gizmo.IsLeftMouseDown )
 		{
-			_lassoPoints.Clear();
+			if ( !IsLassoSelecting )
+			{
+				_lassoPoints.Clear();
+			}
+
 			IsLassoSelecting = true;
 		}
 
@@ -442,7 +441,6 @@ public class EditorTool : IDisposable
 	/// <param name="isFinal">True when the user releases the mouse</param>
 	protected virtual void OnLassoSelect( List<Vector2> lassoPoints, bool isFinal )
 	{
-
 	}
 
 	/// <summary>
@@ -450,7 +448,6 @@ public class EditorTool : IDisposable
 	/// </summary>
 	protected virtual void OnBoxSelect( Frustum frustum, Rect screenRect, bool isFinal )
 	{
-
 	}
 
 	/// <summary>
@@ -479,4 +476,3 @@ public class EditorTool : IDisposable
 		return (intersections % 2) == 1;
 	}
 }
-
