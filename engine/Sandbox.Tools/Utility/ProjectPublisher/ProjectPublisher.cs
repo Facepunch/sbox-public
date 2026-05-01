@@ -645,7 +645,6 @@ public partial class ProjectPublisher
 	/// </summary>
 	public static bool CanPublishFile( Asset a )
 	{
-		// Assets marked as 'EditorOnly' will not be uploaded when the project type of the current project is not 'library'
 		if ( Project.Current.Package.TypeName != "library" && a.AssetType.Flags.HasFlag( AssetTypeFlags.EditorOnly ) ) return false;
 
 		// Core/base shaders should never be uploaded
