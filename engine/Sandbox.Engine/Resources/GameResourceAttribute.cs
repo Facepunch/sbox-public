@@ -74,7 +74,7 @@ public enum AssetTypeFlags
 	IncludeThumbnails = 1 << 1,
 
 	/// <summary>
-	/// If set then this resource cannot be published when uploading a game.
+	/// If set then this resource cannot be uploaded as part of a game or addon. Only when the project that is being uploaded is a libary, can the resource be uploaded.
 	/// </summary>
 	EditorOnly = 1 << 2,
 }
