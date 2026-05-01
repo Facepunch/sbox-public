@@ -513,7 +513,7 @@ public partial class ProjectPublisher
 	public static bool CanPublishFile( Asset a )
 	{
 		// Assets marked as 'EditorOnly' will not be uploaded when the current project is a game project
-		if ( Project.Current.Package.TypeName == "game" && a.AssetType.Flags.HasFlag( AssetTypeFlags.EditorOnly ) ) return false;
+		if ( Project.Current.Package.TypeName != "library" && a.AssetType.Flags.HasFlag( AssetTypeFlags.EditorOnly ) ) return false;
 
 		// Core/base shaders should never be uploaded
 		// Ideally I'd just check against mod_base and mod_core but we have weird c# filesystem
