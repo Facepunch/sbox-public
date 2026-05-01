@@ -112,6 +112,13 @@ internal class LargeNetworkFiles
 					{
 						Log.Info( $"Skipping downloading {fileName} - we already have it" );
 					}
+
+					var absPath = EngineFileSystem.Mounted.GetFullPath( fileName );
+					if ( !string.IsNullOrEmpty( absPath ) && System.IO.File.Exists( absPath ) )
+					{
+						RedirectFileSystem?.AddAbsFile( fileName, absPath );
+					}
+
 					return;
 				}
 			}
@@ -190,6 +197,8 @@ internal class LargeNetworkFiles
 		}
 
 		downloadQueue.Clear();
+
+		NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
 
 		Log.Info( $"Download Complete ({downloadQueue.Count()} files total) ({sw.Elapsed.TotalSeconds:0.00}s)" );
 	}
