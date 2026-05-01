@@ -91,10 +91,15 @@ public enum AssetTypeFlags
 	IncludeThumbnails = 1 << 1,
 
 	/// <summary>
+	/// If set then this resource cannot be uploaded as part of a game or addon. Only when the project that is being uploaded is a libary, can the resource be uploaded.
+	/// </summary>
+	EditorOnly = 1 << 2,
+
+	/// <summary>
 	/// Load and publish the original file without invoking a resource compiler or producing an _c file.
 	/// The resource reads its source data through Resource.OnLoaded.
 	/// </summary>
-	Uncompiled = 1 << 2,
+	Uncompiled = 1 << 3,
 }
 
 [Obsolete( "Use AssetType instead" )]
