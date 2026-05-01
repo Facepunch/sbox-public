@@ -72,6 +72,11 @@ public enum AssetTypeFlags
 	/// Include thumbnails when publishing as part of another package
 	/// </summary>
 	IncludeThumbnails = 1 << 1,
+
+	/// <summary>
+	/// If set then this resource cannot be published when uploading a game.
+	/// </summary>
+	EditorOnly = 1 << 2,
 }
 
 [Obsolete( "Use AssetType instead" )]
