@@ -92,7 +92,7 @@ partial class VertexTool
 					CreateButton( "Weld UVs", "scatter_plot", "mesh.vertex-weld-uvs", WeldUVs, _vertices.Length > 0, row.Layout );
 					CreateButton( "Bevel", "straighten", "mesh.bevel", Bevel, _vertices.Length > 0, row.Layout );
 					CreateButton( "Connect", "link", "mesh.connect", Connect, _vertices.Length > 1, row.Layout );
-					CreateButton( "Edge Cut Tool", "content_cut", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
+					CreateButton( "Edge Cut Tool", "polyline", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
 
 					row.Layout.AddStretchCell();
 
@@ -101,6 +101,26 @@ partial class VertexTool
 			}
 
 			Layout.AddStretchCell();
+		}
+
+		[Shortcut( "mesh.select-all", "CTRL+A", typeof( SceneViewWidget ) )]
+		private void SelectAll()
+		{
+			using var scope = SceneEditorSession.Scope();
+			using var undoScope = SceneEditorSession.Active.UndoScope( "Select All Vertices" ).Push();
+
+			var selection = SceneEditorSession.Active.Selection;
+			selection.Clear();
+
+			foreach ( var vertexGroup in _vertexGroups )
+			{
+				var vertices = vertexGroup.Key.Mesh.VertexHandles;
+
+				foreach ( var vertex in vertices )
+				{
+					selection.Add( new MeshVertex( vertexGroup.Key, vertex ) );
+				}
+			}
 		}
 
 		[Shortcut( "mesh.edge-cut-tool", "C", typeof( SceneViewWidget ) )]

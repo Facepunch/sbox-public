@@ -200,9 +200,9 @@ public partial struct Color : IEquatable<Color>
 
 		if ( srgb )
 		{
-			FloatR = FloatR <= 0.0031308f ? FloatR * 12.92f : MathF.Pow( FloatR, 1.0f / 2.4f ) * 1.055f - 0.055f;
-			FloatG = FloatG <= 0.0031308f ? FloatG * 12.92f : MathF.Pow( FloatG, 1.0f / 2.4f ) * 1.055f - 0.055f;
-			FloatB = FloatB <= 0.0031308f ? FloatB * 12.92f : MathF.Pow( FloatB, 1.0f / 2.4f ) * 1.055f - 0.055f;
+			FloatR = SrgbLinearToGamma( FloatR );
+			FloatG = SrgbLinearToGamma( FloatG );
+			FloatB = SrgbLinearToGamma( FloatB );
 		}
 
 		return new Color32
@@ -213,6 +213,30 @@ public partial struct Color : IEquatable<Color>
 			a = (byte)(FloatA * 255.999f).FloorToInt(),
 		};
 	}
+
+	private static float SrgbGammaToLinear( float c )
+	{
+		return c <= 0.04045f
+			? c / 12.92f
+			: MathF.Pow( (c + 0.055f) / 1.055f, 2.4f );
+	}
+
+	private static float SrgbLinearToGamma( float c )
+	{
+		return c <= 0.0031308f
+			? c * 12.92f
+			: 1.055f * MathF.Pow( c, 1.0f / 2.4f ) - 0.055f;
+	}
+
+	/// <summary>
+	/// Convert from sRGB to linear space, preserving alpha.
+	/// </summary>
+	internal Color ToLinear() => new Color( SrgbGammaToLinear( r ), SrgbGammaToLinear( g ), SrgbGammaToLinear( b ), a );
+
+	/// <summary>
+	/// Convert from linear space to sRGB, preserving alpha.
+	/// </summary>
+	internal Color ToSrgb() => new Color( SrgbLinearToGamma( r ), SrgbLinearToGamma( g ), SrgbLinearToGamma( b ), a );
 
 	/// <summary>
 	/// Returns a new color with each component being the minimum of the 2 given colors.

@@ -1,4 +1,6 @@
-﻿using System.Text.Json.Serialization;
+﻿using Sandbox.Services;
+using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 using System.Threading;
 
 namespace Sandbox;
@@ -163,6 +165,7 @@ public partial class Package
 		/// <summary>
 		/// The trend is a number that represents whether it's been popular recently. Higher means more popular.
 		/// </summary>
+		[Obsolete]
 		public double Trend { get; set; }
 	}
 
@@ -268,7 +271,53 @@ public partial class Package
 	/// </summary>
 	public int Referenced { get; set; }
 
-	public record struct ReviewStats( int Total, float Score );
+	public readonly struct ReviewStats
+	{
+		/// <summary>
+		/// Gets the total number of ratings, including positive, negative, and promise ratings.
+		/// </summary>
+		public readonly int Total => PositiveRatings + NegativeRatings + PromiseRatings;
+
+		/// <summary>
+		/// A normalized score from 0 to 1, where 1 means all ratings are positive.
+		/// </summary>
+		public readonly float Score;
+
+		/// <summary>
+		/// Gets the number of positive ratings associated with the item.
+		/// </summary>
+		public readonly int PositiveRatings;
+
+		/// <summary>
+		/// Gets the number of negative ratings associated with the item.
+		/// </summary>
+		public readonly int NegativeRatings;
+
+		/// <summary>
+		/// Represents the number of promise ratings associated with the current instance.
+		/// </summary>
+		public readonly int PromiseRatings;
+
+		/// <summary>
+		/// Gets a read-only dictionary containing the count of each positive review tag associated with the item.
+		/// </summary>
+		public readonly ImmutableDictionary<Review.PositiveTags, int> PositiveTags;
+
+		/// <summary>
+		/// Gets a read-only dictionary containing the negative review tags and their corresponding counts.
+		/// </summary>
+		public readonly ImmutableDictionary<Review.NegativeTags, int> NegativeTags;
+
+		internal ReviewStats( PackageReviewStats reviews )
+		{
+			Score = reviews?.ToPercentage() ?? 0;
+			PositiveRatings = reviews?.PositiveRatings ?? 0;
+			NegativeRatings = reviews?.NegativeRatings ?? 0;
+			PromiseRatings = reviews?.PromiseRatings ?? 0;
+			PositiveTags = reviews?.PositiveTags.ToImmutableDictionary( x => (Review.PositiveTags)x.Key, x => x.Value ) ?? ImmutableDictionary<Review.PositiveTags, int>.Empty;
+			NegativeTags = reviews?.NegativeTags.ToImmutableDictionary( x => (Review.NegativeTags)x.Key, x => x.Value ) ?? ImmutableDictionary<Review.NegativeTags, int>.Empty;
+		}
+	}
 
 	/// <summary>
 	/// Stats for the reviews. Gives the number of reviews, and the fraction of the total score.

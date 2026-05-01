@@ -38,6 +38,12 @@ public static partial class MenuUtility
 		IMenuDll.Current?.RunEvent( "ui.skiptransitions" );
 	}
 
+	public static async Task<bool> RefreshAccountInfo()
+	{
+		await AccountInformation.Update();
+		return Api.IsConnected;
+	}
+
 	/// <summary>
 	/// If current game is active, return the package
 	/// </summary>
@@ -163,11 +169,7 @@ public static partial class MenuUtility
 	/// </summary>
 	public static void CancelLoading()
 	{
-		// Close the game
-		CloseGame();
-
-		// Close the loading screen
-		LoadingScreen.IsVisible = false;
+		IGameInstanceDll.Current.Disconnect();
 	}
 
 	/// <summary>
@@ -192,6 +194,15 @@ public static partial class MenuUtility
 		{
 			PartyRoom.Current?.SetBroadcastVoice();
 		}
+	}
+
+	/// <summary>
+	/// Connect to a lobby and close all open modals.
+	/// </summary>
+	public static void Connect( ulong lobbyId )
+	{
+		CloseAllModals();
+		Networking.Connect( lobbyId );
 	}
 
 	/// <summary>
@@ -268,9 +279,9 @@ public static partial class MenuUtility
 	/// <summary>
 	/// Post a review for a package
 	/// </summary>
-	public static Task PostReview( string packageIdent, Sandbox.Services.Review.ReviewScore score, string content )
+	public static Task PostReview( string packageIdent, Sandbox.Services.Review.ReviewScore score, string content, Sandbox.Services.Review.PositiveTags positives, Sandbox.Services.Review.NegativeTags negatives )
 	{
-		return Sandbox.Services.Review.Post( packageIdent, score, content );
+		return Sandbox.Services.Review.Post( packageIdent, score, content, positives, negatives );
 	}
 
 	/// <summary>
@@ -278,8 +289,6 @@ public static partial class MenuUtility
 	/// </summary>
 	public static void RunTask( Func<Task> func )
 	{
-		if ( Application.IsEditor ) func();
-
 		// Post the *whole* function into the target context
 		MenuDll.AsyncContext.Post( async _ =>
 		{
@@ -305,9 +314,21 @@ public class StoragePublish
 	public Bitmap Thumbnail { get; set; }
 	public BaseFileSystem FileSystem { get; set; }
 
+	/// <summary>
+	/// If set, update this existing workshop item instead of creating a new one.
+	/// </summary>
+	public ulong PublishedFileId { get; set; }
+
 	public async Task Submit()
 	{
-		item = await Sandbox.Services.Ugc.CreateCommunityItem();
+		if ( PublishedFileId != 0 )
+		{
+			item = Sandbox.Services.Ugc.OpenItem( PublishedFileId );
+		}
+		else
+		{
+			item = await Sandbox.Services.Ugc.CreateCommunityItem();
+		}
 
 		string _imagePath = null;
 		string _dataPath = null;

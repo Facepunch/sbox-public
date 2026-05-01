@@ -38,6 +38,8 @@ public static partial class Inventory
 			_items.Add( new Item( result.Get( i ) ) );
 		}
 
+		CurrentBlob = SerializeResult( result );
+
 		// If we had items previously then notify of new items. This is usually caused by a call to Refresh after an in-game purchase.
 		if ( previousItems.Count() > 0 )
 		{
@@ -49,6 +51,25 @@ public static partial class Inventory
 
 		result.Destroy();
 		return Array.Empty<Item>();
+	}
+
+	/// <summary>
+	/// That last serialized inventory proof for the local user, sent as part of UserInfo during connection
+	/// </summary>
+	internal static byte[] CurrentBlob { get; private set; } = Array.Empty<byte>();
+
+	private static unsafe byte[] SerializeResult( CSteamInventoryResult result )
+	{
+		var size = result.GetSerializedSize();
+		if ( size == 0 )
+			return Array.Empty<byte>();
+
+		var buffer = new byte[size];
+		fixed ( byte* ptr = buffer )
+		{
+			result.Serialize( ptr, size );
+		}
+		return buffer;
 	}
 
 	/// <summary>
@@ -100,11 +121,8 @@ public static partial class Inventory
 
 			if ( timer.ElapsedSeconds > 20 )
 			{
-				// Timed out waiting for items, but the checkout was successful.
-				// Do one final refresh to ensure we have the latest inventory state, even if we didn't detect the new items specifically.
-				Log.Warning( "Checkout succeeded but timed out waiting for new items to appear in inventory. Items may appear shortly." );
-				await Refresh();
-				return true;
+				Log.Warning( "Checkout timed out waiting for new items. Purchase may have been cancelled, or items may appear shortly." );
+				return false;
 			}
 		}
 	}

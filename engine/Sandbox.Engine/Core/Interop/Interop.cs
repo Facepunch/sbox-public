@@ -125,34 +125,6 @@ internal unsafe static partial class Interop
 		}
 	}
 
-	public unsafe ref struct InteropWString
-	{
-		public IntPtr Pointer;
-
-		public InteropWString( string str )
-		{
-			if ( str is null )
-				return;
-
-			uint nb = (uint)Encoding.Unicode.GetByteCount( str );
-			byte* mem = (byte*)NativeMemory.Alloc( nb + 2 );
-
-			fixed ( char* src = str )
-			{
-				Encoding.Unicode.GetBytes( src, str.Length, mem, (int)nb );
-			}
-
-			*(ushort*)(mem + nb) = 0;
-			Pointer = (IntPtr)mem;
-		}
-
-		public void Free()
-		{
-			NativeMemory.Free( (void*)Pointer );
-			Pointer = default;
-		}
-	}
-
 	/// <summary>
 	/// Called by the binding system to log an exception when calling a binding
 	/// </summary>
@@ -174,6 +146,28 @@ internal unsafe static partial class Interop
 		string errorMessage = $"Failed to load native library '{libraryName}'. Error Code: {Marshal.GetLastWin32Error()}/{Marshal.GetLastSystemError()}";
 
 		throw new NativeAssemblyLoadException( errorMessage, Marshal.GetLastWin32Error() );
+	}
+
+	/// <summary>
+	/// Converts a base library name to its platform-specific filename.
+	/// e.g. "engine2" → "engine2.dll" (Windows), "libengine2.so" (Linux), "libengine2.dylib" (macOS)
+	/// </summary>
+	internal static string GetNativeLibraryName( string baseName )
+	{
+		var dir = System.IO.Path.GetDirectoryName( baseName ) ?? "";
+		var name = System.IO.Path.GetFileNameWithoutExtension( baseName );
+
+		var platformName = true switch
+		{
+			_ when OperatingSystem.IsWindows() => $"{name}.dll",
+			_ when OperatingSystem.IsLinux() => $"lib{name}.so",
+			_ when OperatingSystem.IsMacOS() => $"lib{name}.dylib",
+			_ => throw new PlatformNotSupportedException()
+		};
+
+		return string.IsNullOrEmpty( dir )
+			? platformName
+			: System.IO.Path.Combine( dir, platformName );
 	}
 
 	/// <summary>

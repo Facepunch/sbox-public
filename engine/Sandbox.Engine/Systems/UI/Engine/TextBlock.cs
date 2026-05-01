@@ -11,6 +11,8 @@ internal sealed class TextBlock : IDisposable
 	[ConVar( ConVarFlags.Protected, Help = "Enable rendering text to textures" )]
 	public static bool ui_rendertext { get; set; } = true;
 
+	public Action OnTextureChanged { get; set; }
+
 	public string Text { get; internal set; }
 
 	public bool ShouldDrawSelection = false;
@@ -25,7 +27,7 @@ internal sealed class TextBlock : IDisposable
 
 	public Vector2 BlockSize;
 
-	Texture Texture;
+	internal Texture Texture;
 
 	// we keep the last texture around incase we can re-use it
 	Texture LastTexture;
@@ -72,6 +74,7 @@ internal sealed class TextBlock : IDisposable
 	FilterMode TextFilter;
 	TextDecoration TextDecoration;
 	FontStyle FontStyle;
+	FontVariantNumeric? FontVariantNumeric;
 	WordBreak WordBreak;
 	TextTransform? TextTransform;
 	Length? LetterSpacing;
@@ -118,18 +121,15 @@ internal sealed class TextBlock : IDisposable
 		TextureRebuild = null;
 	}
 
-	RenderAttributes textAttr = new RenderAttributes();
-
 	/// <summary>
-	/// Proper Rendering
+	/// Build a text descriptor into the target RenderLayer.
 	/// </summary>
-	internal void Render( PanelRenderer renderer, ref RenderState state, Styles currentStyle, Rect textrect, float opacity )
+	internal void BuildDescriptors( RenderLayer target, BlendMode blendMode, Styles currentStyle, Rect textrect, float opacity )
 	{
 		WaitTextureReady();
 
 		if ( Texture is null ) return;
 		if ( BlockSize == 0 ) return;
-		if ( !PanelRenderer.ui_drawtext ) return;
 
 		if ( currentStyle.TextAlign == TextAlign.Center )
 		{
@@ -157,20 +157,21 @@ internal sealed class TextBlock : IDisposable
 
 		if ( color.a <= 0 ) return;
 
-		var bm = renderer.OverrideBlendMode;
+		var rect = textrect.Floor();
 
-		if ( bm == BlendMode.Normal && Texture.Flags.Contains( TextureFlags.PremultipliedAlpha ) )
-			bm = BlendMode.PremultipliedAlpha;
+		var desc = new BoxDrawDescriptor( rect, new Color( 0, 0, 0, 0 ) )
+		{
+			BackgroundImage = Texture,
+			BackgroundRect = new Vector4( 0, 0, rect.Width, rect.Height ),
+			BackgroundTint = color,
+			OverrideBlendMode = blendMode == BlendMode.Normal ? BlendMode.PremultipliedAlpha : blendMode,
+			PremultiplyAlpha = true,
+			FilterMode = TextFilter,
+		};
 
-		textAttr.Set( "BoxPosition", textrect.Position );
-		textAttr.Set( "BoxSize", textrect.Size );
-
-		textAttr.Set( "TextureIndex", Texture.Index );
-		textAttr.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = TextFilter } ) );
-		textAttr.SetComboEnum( "D_BLENDMODE", bm );
-
-		Graphics.DrawQuad( textrect.Floor(), Material.UI.Text, color, textAttr );
+		target.AddBox( desc );
 	}
+
 
 
 	public Rect CaretRect( int caretPosition )
@@ -224,6 +225,7 @@ internal sealed class TextBlock : IDisposable
 		TextAlign = style.TextAlign.Value;
 		TextDecoration = style.TextDecorationLine.Value;
 		FontStyle = style.FontStyle.Value;
+		FontVariantNumeric = style.FontVariantNumeric;
 		AlignItems = style.AlignItems.Value;
 		LetterSpacing = style.LetterSpacing;
 		WordSpacing = style.WordSpacing;
@@ -241,7 +243,7 @@ internal sealed class TextBlock : IDisposable
 		hash = HashCode.Combine( hash, style.TextStrokeWidth, style.TextStrokeColor, style.TextDecorationColor, style.TextDecorationThickness, style.TextDecorationSkipInk, style.TextDecorationStyle );
 		hash = HashCode.Combine( hash, style.TextUnderlineOffset, style.TextOverlineOffset, style.TextLineThroughOffset, style.TextGradient, style.TextOverflow, style.WordBreak, style.LineHeight );
 		hash = HashCode.Combine( hash, style.WordSpacing );
-		hash = HashCode.Combine( hash, Smooth );
+		hash = HashCode.Combine( hash, Smooth, FontVariantNumeric );
 
 		if ( FontHash == hash && Block != null )
 			return false;
@@ -258,6 +260,7 @@ internal sealed class TextBlock : IDisposable
 		Style.FontSize = FontSize;
 		Style.FontWeight = FontWeight ?? 400;
 		Style.FontItalic = FontStyle != FontStyle.None;
+		Style.FontVariantNumeric = FontVariantNumeric ?? UI.FontVariantNumeric.Normal;
 		Style.TextColor = fontColor.ToSk();
 		Style.Underline = UnderlineStyle.None;
 		Style.StrokeInkSkip = style.TextDecorationSkipInk == TextSkipInk.All;
@@ -384,13 +387,14 @@ internal sealed class TextBlock : IDisposable
 
 						var sty = Style.Copy();
 
-						sty.FontSize = s.FontSize?.GetPixels( 100 ) ?? sty.FontSize;
-						sty.FontSize = MathF.Round( sty.FontSize * 32.0f ) / 32.0f;
+						sty.FontSize = (style.FontSize ?? Length.Pixels( 13 ).Value).GetPixels( 100 );
+						sty.FontSize = MathF.Round( FontSize * 32.0f ) / 32.0f;
 						sty.FontFamily = s.FontFamily;
 						sty.TextColor = s.FontColor?.ToSk() ?? sty.TextColor;
 						sty.BackgroundColor = s.BackgroundColor?.ToSk() ?? sty.BackgroundColor;
 						sty.FontWeight = s.FontWeight ?? sty.FontWeight;
 						sty.FontItalic = s.FontStyle == FontStyle.Italic;
+						sty.FontVariantNumeric = s.FontVariantNumeric ?? sty.FontVariantNumeric;
 						sty.Underline = s.TextDecorationLine == UI.TextDecoration.Underline ? UnderlineStyle.Solid : UnderlineStyle.None;
 						sty.UnderlineColor = sty.TextColor;
 						sty.LetterSpacing = s.LetterSpacing?.GetPixels( 1000.0f ) ?? sty.LetterSpacing;
@@ -459,6 +463,7 @@ internal sealed class TextBlock : IDisposable
 		LastTexture = Texture;
 
 		Texture = null;
+		OnTextureChanged?.Invoke();
 	}
 
 	int lastSizeHash = 0;
@@ -591,6 +596,7 @@ internal sealed class TextBlock : IDisposable
 					LastTexture.Update( span, 0, 0, width, height );
 					Texture = LastTexture;
 					LastTexture = null;
+					OnTextureChanged?.Invoke();
 					return;
 				}
 
@@ -605,7 +611,7 @@ internal sealed class TextBlock : IDisposable
 									.WithDynamicUsage()
 									.Finish();
 
-			Texture.Flags |= TextureFlags.PremultipliedAlpha;
+			OnTextureChanged?.Invoke();
 		}
 	}
 

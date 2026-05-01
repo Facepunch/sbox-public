@@ -1,0 +1,23 @@
+@import "/styles/_theme.scss";
+
+Logo {
+    aspect-ratio: 1;
+    height: 32px;
+    background-image: url( "/ui/sbox_ident_default.svg" );
+    background-size: cover;
+    background-position: center;
+    pointer-events: all;
+    cursor: pointer;
+
+    &.large {
+        height: 64px;
+    }
+
+    &:hover {
+        filter: drop-shadow( 0 0 6px $primary-blue );
+    }
+
+    &.active {
+        filter: drop-shadow( 0 0 9px $primary-blue );
+    }
+}

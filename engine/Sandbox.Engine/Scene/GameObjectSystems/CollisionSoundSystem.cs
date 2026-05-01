@@ -80,6 +80,8 @@ public sealed class CollisionSoundSystem : GameObjectSystem<CollisionSoundSystem
 	/// </summary>
 	void ProcessQueue()
 	{
+		using var _ = PerformanceStats.Timings.Audio.Scope();
+
 		if ( lastRan < 0.05f ) return;
 		lastRan = 0;
 

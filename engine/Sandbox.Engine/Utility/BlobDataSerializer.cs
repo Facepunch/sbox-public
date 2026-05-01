@@ -34,7 +34,14 @@ internal static class BlobDataSerializer
 			return Guid.Empty;
 
 		var blobs = _current.Blobs;
-		var guid = Guid.NewGuid();
+
+		var guid = blob.BlobId;
+		if ( guid == Guid.Empty )
+		{
+			guid = Guid.NewGuid();
+			blob.BlobId = guid;
+		}
+
 		blobs[guid] = blob;
 		return guid;
 	}
@@ -50,6 +57,8 @@ internal static class BlobDataSerializer
 
 		if ( Activator.CreateInstance( expectedType ) is not BlobData instance )
 			return null;
+
+		instance.BlobId = guid;
 
 		var stream = ByteStream.CreateReader( blobData );
 		try

@@ -9,6 +9,7 @@ public abstract partial class Component
 
 	internal void DrawGizmosInternal()
 	{
-		ExceptionWrap( "DrawGizmos", DrawGizmos );
+		try { DrawGizmos(); }
+		catch ( System.Exception e ) { Log.Error( e, $"Exception when calling 'DrawGizmos' on {this}" ); }
 	}
 }

@@ -6,24 +6,21 @@ GameClosedToast
     font-family: "poppins";
     font-size: 18px;
     font-weight: 600;
-    pointer-events: none;
+    pointer-events: all;
     box-shadow: 5px 5px 20px rgba( black, 0.8 );
     opacity: 1;
     transition: all 0.2s ease-out;
-    sound-in: ui.popup.message.open;
+    sound-in: "ui.popup.message.open";
     overflow: hidden;
-    flex-direction: row;
+    flex-direction: column;
     background-color: #1b202c;
     border: 1px solid #8e9ec244;
-    opacity: 1;
     padding: 16px;
     margin-bottom: 16px;
     height: 190px;
     width: 350px;
-    pointer-events: all;
     position: relative;
     left: 0px;
-    flex-direction: column;
     gap: 8px;
 
     &:intro
@@ -106,11 +103,21 @@ GameClosedToast
 
     .button
     {
-        padding: 0;
         background-color: white;
         padding: 1px 4px;
         border-radius: 4px;
         box-shadow: 2px 2px 5px #0003;
+    }
+
+    &:hover
+    {
+        > .close-progress
+        {
+            > .inner
+            {
+                background-color: #8e9ec244;
+            }
+        }
     }
 }
 
@@ -131,6 +138,8 @@ GameClosedToast
 .body
 {
     flex-grow: 1;
+    gap: 8px;
+    padding: 0;
 }
 
 .close
@@ -186,12 +195,6 @@ GameClosedToast
 }
 
 
-.body
-{
-    gap: 8px;
-    padding: 0px;
-}
-
 .body .option
 {
     flex-grow: 1;
@@ -208,12 +211,14 @@ GameClosedToast
     border-radius: 8px;
 
     &:hover
-    {
+    {		
+		sound-in: ui.button.over;
         background-color: #b2bfd822;
     }
 
     &.active
     {
+		sound-in: ui.button.over;
         color: white;
     }
 }

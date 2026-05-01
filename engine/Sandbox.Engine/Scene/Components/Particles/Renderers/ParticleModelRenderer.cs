@@ -8,7 +8,7 @@ namespace Sandbox;
 /// </summary>
 [Expose]
 [Title( "Particle Model Renderer" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "category" )]
 public sealed class ParticleModelRenderer : ParticleController, Component.ExecuteInEditor
 {
@@ -182,6 +182,7 @@ file class ParticleModel : Particle.BaseListener
 		var entry = Random.Shared.FromList( Renderer.Choices );
 		var model = entry?.Model;
 		so = new SceneObject( Renderer.Scene.SceneWorld, model ?? Model.Cube );
+		so.Tags.SetFrom( Renderer.GameObject.Tags );
 
 		if ( model is not null )
 		{

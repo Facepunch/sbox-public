@@ -13,9 +13,22 @@ class PreviewPrefab : AssetPreview
 	}
 
 	/// <summary>
-	/// Create the model or whatever needs to be viewed
+	/// Only initialize if we're in the live preview, so we don't load a whole scene when showing a thumbnail
 	/// </summary>
 	public override Task InitializeAsset()
+	{
+		if ( !IsRenderingThumbnail )
+			return Task.CompletedTask;
+
+		return LoadPrefabContent();
+	}
+
+	public override Widget CreateWidget( Widget parent )
+	{
+		return new ThumbnailPreviewWidget( this, LoadPrefabContent );
+	}
+
+	internal Task LoadPrefabContent()
 	{
 		using ( EditorUtility.DisableTextureStreaming() )
 		{

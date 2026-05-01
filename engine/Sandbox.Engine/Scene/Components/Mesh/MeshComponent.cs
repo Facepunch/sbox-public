@@ -28,7 +28,7 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 
 			field = value;
 
-			RebuildMesh();
+			RebuildMesh( true );
 		}
 	}
 
@@ -145,6 +145,8 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 
 	internal override void OnEnabledInternal()
 	{
+		GameObject.Tags.Add( "world" );
+
 		// Mesh needs to build before collider.
 		RebuildRenderMesh();
 
@@ -176,12 +178,17 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 
 	public void RebuildMesh()
 	{
+		RebuildMesh( false );
+	}
+
+	void RebuildMesh( bool forceRebuild )
+	{
 		// Only rebuild dirty meshes in editor.
 		if ( !Active ) return;
 		if ( !Scene.IsEditor ) return;
 		if ( Mesh is null ) return;
 
-		if ( Mesh.IsDirty )
+		if ( forceRebuild || Mesh.IsDirty )
 		{
 			RebuildRenderMesh();
 			RebuildImmediately();

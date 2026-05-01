@@ -7,14 +7,19 @@
 @using Sandbox.Network
 @using Sandbox.Modals
 @using Sandbox.DataModel
+@using Sandbox.UI.Navigation
 
 <root>
 
     <div class="left">
 
-        @if ( IsMultiplayerGame )
+	    @if ( IsDedicatedServerOnly )
+	    {
+		    <Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Servers</Button>
+	    }
+	    else if ( IsMultiplayerGame )
         {
-            <Button icon="list" class="@(LobbyCount == 0 ? "disabled" : "")" onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
+			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
         }
 
     </div>
@@ -41,18 +46,23 @@
             }
             else
             {
-                var text = ((!IsMultiplayerGame || IsQuickPlayGame) ? "Play Game" : "New Game");
-                var classes = $"play { (IsReady() ? "" : "disabled") } ";
+	            @if ( IsDedicatedServerOnly )
+	            {
+					<Button icon="auto_awesome" class="play" Disabled=@(!MenuHelpers.HasAuthority) onclick=@ShowServerList>View Servers</Button>
+	            }
+	            else
+	            {
+		            var text = ((!IsMultiplayerGame || IsQuickPlayGame) ? "Play Game" : "New Game");
 
-                <Button Icon="play_arrow" class="@classes" onclick=@OnPlay>
-                    @text
-                </Button>
+					<Button Icon="play_arrow" class="play" Disabled=@(!MenuHelpers.HasAuthority || !IsReady()) onclick=@OnPlay>
+			            @text
+		            </Button>
 
-                @if (IsMultiplayerGame && !IsQuickPlayGame)
-                {
-                    var mpclasses = $"play {(LobbyCount == 0 ? "disabled" : "")} ";
-                    <Button icon="auto_awesome" class="@mpclasses" onclick=@OnJoinGame>Join Game</Button>
-                }
+		            @if (IsMultiplayerGame && !IsQuickPlayGame)
+		            {
+						<Button icon="auto_awesome" class="play" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OnJoinGame>Join Game</Button>
+		            }
+	            }
             }
         }
         else
@@ -69,13 +79,12 @@
     [Parameter] public Package Package {get;set;}
     [Parameter] public Package MapPackage { get; set; }
 
-    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount );
-
-    void ViewOrg() => Game.Overlay.ShowOrganizationModal(Package.Org);
+    protected override int BuildHash() => System.HashCode.Combine(Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority);
 
     bool IsVrOnly => Package.GetMeta<ControlModeSettings>("ControlModes")?.IsVROnly ?? false;
     bool IsMultiplayerGame => Package.Tags.Contains("multiplayer") || LobbyCount > 0 || Package.GetMeta<int>("MaxPlayers", 1) > 1;
     bool IsQuickPlayGame => Package.GetMeta( "LaunchMode", "default" ).ToLower() == "quickplay";
+    bool IsDedicatedServerOnly => Package.GetMeta( "LaunchMode", "default" ).ToLower() == "dedicatedserveronly";
     int LobbyCount => Modal?.Lobbies?.Count() ?? 0;
 
     protected override async Task OnParametersSetAsync()
@@ -87,91 +96,16 @@
         }
     }
 
-    bool isLoading = false;
-
-    bool ShouldUseCreateGameModal()
+    private void ShowServerList()
     {
-        //
-        // Always show the create game modal if they have that option selected in their
-        // package in the options in the backend.
-        //
-        if ( Package.GetValue("UseCreateGameModal", false ) )
-        {
-            return true;
-        }
+        MenuUtility.CloseAllModals();
 
-        //
-        // If they have game settings to configure, always show game settings.
-        //
-        var settings = Package.GetMeta<List<GameSetting>>( "GameSettings", null );
-        if ( settings is not null && settings.Count() > 0 ) return true;
-
-        return false;
+        MenuSystem.Instance.Url = $"/multiplayer?Package={Package.FullIdent}";
     }
 
-    async void OnPlay()
+    void OnPlay()
     {
-        if (!IsReady())
-            return;
-
-        try
-        {
-            isLoading = true;
-            StateHasChanged();
-
-            if (IsQuickPlayGame)
-            {
-                if (await OnJoinGame())
-                    return;
-            }
-
-            MenuUtility.CloseAllModals();
-
-            // Don't join if we're already in a game
-            if (Game.InGame)
-                return;
-
-            if ( ShouldUseCreateGameModal() )
-            {
-                Game.Overlay.CreateGame( new CreateGameOptions( Package, x => {
-                    if (x.MaxPlayers > 1) LaunchArguments.MaxPlayers = x.MaxPlayers;
-
-                    if ( !string.IsNullOrEmpty( x.ServerName ) )
-                    {
-                        LaunchArguments.ServerName = x.ServerName;
-                    }
-
-                    LaunchArguments.Privacy = x.Privacy;
-
-                    if ( !string.IsNullOrEmpty( x.MapIdent ) )
-                    {
-                        MenuUtility.OpenGameWithMap( Package.FullIdent, x.MapIdent, x.GameSettings );
-                    }
-                    else
-                    {
-                        MenuUtility.OpenGame( Package.FullIdent, true, x.GameSettings );
-                    }
-                } ) );
-                return;
-            }
-
-            LoadingScreen.IsVisible = true;
-            LoadingScreen.Title = "Loading..";
-            LoadingScreen.Subtitle = "";
-
-            if (MapPackage is not null)
-            {
-                MenuUtility.OpenGameWithMap(Package.FullIdent, MapPackage.FullIdent);
-            }
-            else
-            {
-                MenuUtility.OpenGame(Package.FullIdent, true);
-            }
-        }
-        finally
-        {
-            isLoading = false;
-        }
+        MenuHelpers.PlayGame( Package );
     }
 
     async Task<bool> OnJoinGame()
@@ -180,12 +114,12 @@
         LoadingScreen.Title = "Finding Game..";
         LoadingScreen.Subtitle = "Please wait while we find a game for you to join.";
 
-        if ( await MenuUtility.TryJoinLobby(Package.FullIdent) )
-        {
-            MenuUtility.CloseAllModals();
+        bool success = await MenuUtility.TryJoinLobby(Package.FullIdent);
+        if (success)
             return true;
-        }
-
+            
+        LoadingScreen.IsVisible = false;
+        ModalSystem.Instance.Notice( "Join Game Failed", "Couldn't join any available games", "search_off" );
         return false;
     }
 
@@ -196,12 +130,15 @@
 
     bool NeedsMap()
     {
-        // garry: there's a good argument here to say that none of this needs map shit
-        // should exist in this modal now. It should maybe all be moved into the CreateGame modal.
-        // either way - if we're using a create game dialog, it'll be handled there.
-        if ( ShouldUseCreateGameModal() ) return false;
-
         if (Package is null) return false;
+
+        if ( Package.GetValue( "UseCreateGameModal", false ) )
+            return false;
+
+        var settings = Package.GetMeta<List<GameSetting>>( "GameSettings", null );
+        if ( settings is not null && settings.Count > 0 )
+            return false;
+
         if (Package.GetValue("NeedsMap", false)) return true;
 
         // legacy
@@ -211,7 +148,6 @@
 
     bool IsReady()
     {
-        if (isLoading) return false;
         if (NeedsMap() && MapPackage is null) return false;
         return true;
     }

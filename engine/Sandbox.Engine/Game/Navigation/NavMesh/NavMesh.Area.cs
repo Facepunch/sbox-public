@@ -57,7 +57,7 @@ internal class NavMeshAreaData : NavMeshSpatialAuxiliaryData
 
 	protected override RectInt CalculateCurrentOverlappingTiles( NavMesh navMesh )
 	{
-		if ( Volume.Type == SceneVolume.VolumeTypes.Infinite ) return navMesh.CalculateMinMaxTileCoords( navMesh.WorldBounds );
+		if ( Volume.Type == SceneVolume.VolumeTypes.Infinite ) return navMesh.CalculateMinMaxTileCoords( navMesh.Bounds );
 
 		return navMesh.CalculateMinMaxTileCoords( WorldBounds );
 	}

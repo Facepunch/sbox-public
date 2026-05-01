@@ -2,6 +2,8 @@
 #pragma warning disable CS0612
 #pragma warning disable CS0618
 
+using Sandbox.Rendering;
+
 namespace Sandbox.UI
 {
 	/// <summary>
@@ -42,11 +44,32 @@ namespace Sandbox.UI
 		/// <summary>
 		/// The Scene this panel renders.
 		/// </summary>
-		public Scene RenderScene { get; set; }
+		public Scene RenderScene
+		{
+			get => _renderScene;
+			set
+			{
+				if ( ReferenceEquals( _renderScene, value ) )
+					return;
+
+				// Clean up the existing scene if we own it
+				if ( _ownsScene && _renderScene.IsValid() )
+				{
+					_renderScene.Destroy();
+				}
+
+				_renderScene = value;
+				_ownsScene = false;
+			}
+		}
+
+		private Scene _renderScene;
+		private bool _ownsScene;
 
 		public ScenePanel()
 		{
-			RenderScene = new() { WantsSystemScene = false };
+			_renderScene = new() { WantsSystemScene = false };
+			_ownsScene = true;
 
 			Camera.FieldOfView = 60;
 			Camera.BackgroundColor = Color.Transparent;
@@ -77,31 +100,7 @@ namespace Sandbox.UI
 			{
 				RenderScene.GameTick( RealTime.Delta );
 			}
-		}
 
-		internal bool shouldRenderNextFrame = true;
-
-		/// <summary>
-		/// Render the panel again next frame. This is meant to be used with RenderOnce, where
-		/// you might want to render on demand or only once.
-		/// </summary>
-		public void RenderNextFrame() => shouldRenderNextFrame = true;
-
-		public override bool HasContent => RenderScene.IsValid() || World != null;
-
-		public override void Delete( bool immediate = false )
-		{
-			RenderTexture?.Dispose();
-			RenderTexture = null;
-
-			RenderScene?.Destroy();
-			RenderScene = null;
-
-			base.Delete( immediate );
-		}
-
-		internal override void DrawContent( PanelRenderer renderer, ref RenderState state )
-		{
 			if ( Box.RectInner.Size.x <= 0 ) return;
 			if ( Box.RectInner.Size.y <= 0 ) return;
 
@@ -115,7 +114,11 @@ namespace Sandbox.UI
 			if ( RenderTexture == null ) return;
 
 			// Texture changed - force an update
-			if ( oldRt != RenderTexture ) shouldRender = true;
+			if ( oldRt != RenderTexture )
+			{
+				shouldRender = true;
+				IsRenderDirty = true;
+			}
 
 			if ( shouldRender )
 			{
@@ -132,9 +135,38 @@ namespace Sandbox.UI
 					RenderScene.Camera.RenderToTexture( RenderTexture );
 				}
 			}
+		}
 
-			renderer.DrawBackgroundTexture( this, RenderTexture, state, Length.Contain );
+		internal bool shouldRenderNextFrame = true;
 
+		/// <summary>
+		/// Render the panel again next frame. This is meant to be used with RenderOnce, where
+		/// you might want to render on demand or only once.
+		/// </summary>
+		public void RenderNextFrame() => shouldRenderNextFrame = true;
+
+		public override void Delete( bool immediate = false )
+		{
+			RenderTexture?.Dispose();
+			RenderTexture = null;
+
+			// Only destroy the scene if we created it ourselves, if the user created it themselves then they should be the one destroying it
+			if ( _ownsScene )
+			{
+				_renderScene?.Destroy();
+			}
+
+			_renderScene = null;
+
+			base.Delete( immediate );
+		}
+
+		public override void OnDraw()
+		{
+			if ( Box.RectInner.Size.x <= 0 ) return;
+			if ( Box.RectInner.Size.y <= 0 ) return;
+
+			DrawBackgroundTexture( RenderTexture, Length.Contain );
 		}
 
 		public override void SetProperty( string name, string value )

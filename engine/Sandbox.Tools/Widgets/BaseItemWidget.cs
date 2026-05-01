@@ -550,13 +550,13 @@ public partial class BaseItemWidget : BaseScrollWidget
 		{
 			var dragEvent = ItemDragEvent.From( ev, item );
 			dragEvent.IsDrop = true;
-			OnItemDrag( dragEvent );
+			ev.Action = OnItemDrag( dragEvent );
 		}
 		else
 		{
 			var dragEvent = ItemDragEvent.From( ev );
 			dragEvent.IsDrop = true;
-			OnBodyDragDrop( dragEvent );
+			ev.Action = OnBodyDragDrop( dragEvent );
 		}
 
 		Dirty();

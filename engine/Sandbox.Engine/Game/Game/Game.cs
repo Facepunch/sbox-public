@@ -83,7 +83,7 @@ public static partial class Game
 	/// <summary>
 	/// Return true if we're running on a handheld device (the deck). Will always be false serverside.
 	/// </summary>
-	public static bool IsRunningOnHandheld { get; internal set; }
+	public static bool IsRunningOnHandheld => Steamworks.SteamClient.IsValid && Steamworks.SteamUtils.IsRunningOnSteamDeck;
 
 	/// <summary>
 	/// A shared random that is automatically seeded on tick
@@ -148,13 +148,27 @@ public static partial class Game
 		if ( IGameInstance.Current is not null )
 		{
 			IGameInstance.Current.Close();
-			LaunchArguments.Reset();
+		}
+		else
+		{
+			// Conna: game instance will call disconnect. If we don't have a game instance then we
+			// need to call it ourselves.
+			Networking.Disconnect();
+
+			Application.ClearGame();
 		}
 
-		// Standalone mode and Dedicated Server only: exit whole app
+		LaunchArguments.Reset();
+
 		if ( Application.IsStandalone || Application.IsDedicatedServer )
 		{
+			// exit whole app
 			Application.Exit();
+		}
+		else
+		{
+			// return to menu
+			IMenuDll.Current?.OnGameExited();
 		}
 	}
 
@@ -202,11 +216,10 @@ public static partial class Game
 		Application.ClearGame();
 
 		LoadingScreen.IsVisible = true;
+		LoadingScreen.Media = null;
+		LoadingScreen.Title = null;
 
-		// Load new game
-		Log.Info( $"Loading {gameIdent}.." );
 		await IGameInstanceDll.Current.LoadGamePackageAsync( gameIdent, GameLoadingFlags.Host, default );
-		Log.Info( $"Loading {gameIdent} complete!" );
 	}
 
 	/// <summary>

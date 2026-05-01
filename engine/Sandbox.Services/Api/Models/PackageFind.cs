@@ -53,11 +53,6 @@ public struct FindPackageQuery
 	public string SearchString;
 
 	/// <summary>
-	/// References this package id
-	/// </summary>
-	public long WithReference;
-
-	/// <summary>
 	/// Org name
 	/// </summary>
 	public string Org;
@@ -106,10 +101,10 @@ public struct FindPackageQuery
 		Random,
 		Trending,
 
+		FavouriteCount,
 		ThumbsUp,
 		ThumbsDown,
-		Favourites,
-		InCollections,
+		InCollections_REMOVEME,
 
 		/// <summary>
 		/// Order by recently used
@@ -133,15 +128,14 @@ public struct FindPackageQuery
 		None
 	}
 
-	public static FindPackageQuery Parse( string query )
+	public static FindPackageQuery Parse( string query, long steamid )
 	{
 		if ( string.IsNullOrWhiteSpace( query ) )
 			return default;
 
 		var find = new FindPackageQuery
 		{
-			GetTotalCount = true,
-			GetFacets = true
+			SteamId = steamid
 		};
 
 		var tokens = query.ToLowerInvariant().Split( ' ', StringSplitOptions.RemoveEmptyEntries );
@@ -165,16 +159,20 @@ public struct FindPackageQuery
 
 			// Handle key:value pairs
 			var colonIndex = token.IndexOf( ':' );
-			if ( colonIndex > 0 && colonIndex < token.Length - 1 )
+			if ( colonIndex >= 0 )
 			{
-				var key = token[..colonIndex];
-				var value = token[(colonIndex + 1)..].Trim();
-
-				if ( !ProcessToken( ref find, key, value ) )
+				// ignore malformed tokens like "org:" or ":org"
+				if ( colonIndex > 0 && colonIndex < token.Length - 1 )
 				{
-					// Unknown tokens become facets
-					find.Facets ??= new();
-					find.Facets[key] = value;
+					var key = token[..colonIndex];
+					var value = token[(colonIndex + 1)..].Trim();
+
+					if ( !ProcessToken( ref find, key, value ) )
+					{
+						// Unknown tokens become facets
+						find.Facets ??= new();
+						find.Facets[key] = value;
+					}
 				}
 			}
 			else
@@ -200,10 +198,12 @@ public struct FindPackageQuery
 				return true;
 
 			case "sort":
-				if ( value == "favourite" )
+
+				// TODO: this needs to move to "is:fave"
+				if ( value == "favourite" || value == "favourites" || value == "favorites" || value == "favorite" )
 				{
 					find.FavouritesSteamId = find.SteamId;
-					find.Sort = SortMode.None;
+					find.Sort = SortMode.Used;
 				}
 				else
 				{
@@ -232,8 +232,12 @@ public struct FindPackageQuery
 				return true;
 
 			case "is":
+
 				if ( value == "unplayed" )
 					find.Unplayed = true;
+
+				if ( value == "fave" )
+					find.FavouritesSteamId = find.SteamId;
 				// Note: "owner" case was tracked but never used in original
 				return true;
 
@@ -275,8 +279,7 @@ public struct FindPackageQuery
 			"newest" => SortMode.Created,
 			"upvotes" => SortMode.ThumbsUp,
 			"downvotes" => SortMode.ThumbsDown,
-			"favourite" or "favorites" or "favourites" => SortMode.Favourites,
-			"collections" => SortMode.InCollections,
+			"favcount" => SortMode.FavouriteCount,
 			"friends" => SortMode.Friends,
 			"random" => SortMode.Random,
 			"popular" => SortMode.Popular,

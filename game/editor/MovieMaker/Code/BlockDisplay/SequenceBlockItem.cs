@@ -213,6 +213,8 @@ public sealed class SequenceBlockItem : BlockItem<ProjectSequenceBlock>, IMovieD
 		Block.TimeRange += delta;
 		Block.Transform += delta;
 
+		Parent.View.MarkValueChanged();
+
 		Layout();
 	}
 
@@ -236,6 +238,8 @@ public sealed class SequenceBlockItem : BlockItem<ProjectSequenceBlock>, IMovieD
 
 			Block.Transform += localStartTime.GetFrameIndex( duration ) * duration;
 		}
+
+		Parent.View.MarkValueChanged();
 
 		Layout();
 	}

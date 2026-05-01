@@ -479,7 +479,7 @@ public class RectView : Widget
 			World = world
 		};
 
-		var light = new SceneLight( world )
+		var light = new ScenePointLight( world )
 		{
 			Radius = 4000,
 			LightColor = Color.White * 0.8f,
@@ -569,9 +569,9 @@ public class RectView : Widget
 		UpdateScaledBackgroundImage();
 	}
 
-	protected override void OnWheel( WheelEvent e )
+	protected override void OnMouseWheel( WheelEvent e )
 	{
-		base.OnWheel( e );
+		base.OnMouseWheel( e );
 
 		var mouseUV = PixelToUV( e.Position );
 

@@ -3,7 +3,7 @@
 namespace Sandbox;
 
 [Expose]
-public class RenderOptions : IJsonPopulator, IEquatable<RenderOptions>
+public class RenderOptions : IJsonPopulator, IEquatable<RenderOptions>, ICloneable
 {
 	Action onDirty;
 
@@ -15,23 +15,38 @@ public class RenderOptions : IJsonPopulator, IEquatable<RenderOptions>
 	/// <summary>
 	/// Regular game rendering layers
 	/// </summary>
-	[MakeDirty] public bool Game { get; set; } = true;
+	public bool Game
+	{
+		get;
+		set { field = value; onDirty?.InvokeWithWarning(); }
+	} = true;
 
 	/// <summary>
 	/// Rendered above everything else
 	/// </summary>
-	[MakeDirty] public bool Overlay { get; set; }
+	public bool Overlay
+	{
+		get;
+		set { field = value; onDirty?.InvokeWithWarning(); }
+	}
 
 	/// <summary>
 	/// Rendererd during bloom
 	/// </summary>
-	[MakeDirty] public bool Bloom { get; set; }
+	public bool Bloom
+	{
+		get;
+		set { field = value; onDirty?.InvokeWithWarning(); }
+	}
 
 	/// <summary>
 	/// Rendered after the UI is rendered
 	/// </summary>
-	[MakeDirty] public bool AfterUI { get; set; }
-
+	public bool AfterUI
+	{
+		get;
+		set { field = value; onDirty?.InvokeWithWarning(); }
+	}
 
 	/// <summary>
 	/// Apply these options to a SceneObject
@@ -46,12 +61,6 @@ public class RenderOptions : IJsonPopulator, IEquatable<RenderOptions>
 		obj.Flags.SetFlag( Rendering.SceneObjectFlags.UIOverlayLayer, AfterUI );
 	}
 
-	public void OnPropertyDirty<T>( in WrappedPropertySet<T> p )
-	{
-		p.Setter( p.Value );
-		onDirty?.InvokeWithWarning();
-	}
-
 	internal RenderOptions Clone()
 	{
 		RenderOptions cloned = new( null )
@@ -63,6 +72,8 @@ public class RenderOptions : IJsonPopulator, IEquatable<RenderOptions>
 		};
 		return cloned;
 	}
+
+	object ICloneable.Clone() => Clone();
 
 	public override bool Equals( object obj ) => Equals( obj as RenderOptions );
 	public virtual bool Equals( RenderOptions obj )

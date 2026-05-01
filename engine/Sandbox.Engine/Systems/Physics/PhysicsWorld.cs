@@ -111,7 +111,7 @@ public sealed partial class PhysicsWorld : IHandle
 	[UnmanagedFunctionPointer( CallingConvention.StdCall )]
 	unsafe delegate void ProcessIntersectionsDelegate_t( VPhysIntersectionNotification_t* ptr );
 
-	internal float CurrentTime;
+	internal double CurrentTime;
 	internal float CurrentDelta;
 
 	/// <summary>
@@ -126,7 +126,7 @@ public sealed partial class PhysicsWorld : IHandle
 	/// <summary>
 	/// Step simulation of this physics world. You can only do this on physics worlds that you manually create.
 	/// </summary>
-	public void Step( float worldTime, float delta, int subSteps )
+	public void Step( double worldTime, float delta, int subSteps )
 	{
 		Assert.True( IsTransient, "You can only step simulation of physics worlds that you create" );
 		if ( !world.IsValid ) return;
@@ -205,6 +205,8 @@ public sealed partial class PhysicsWorld : IHandle
 	internal Action<PhysicsIntersection> OnIntersectionHit { get; set; }
 	internal Action<PhysicsIntersectionEnd> OnIntersectionEnd { get; set; }
 	internal Action<PhysicsIntersection> OnIntersectionUpdate { get; set; }
+	internal Action<PhysicsBody> OnBodyOutOfBounds { get; set; }
+	internal Action<PhysicsBody> OnBodyFellAsleep { get; set; }
 
 	unsafe void OnIntersection( VPhysIntersectionNotification_t* ptr )
 	{
@@ -220,9 +222,8 @@ public sealed partial class PhysicsWorld : IHandle
 			if ( ptr->Reason == IntersectionEventType_t.TouchBegin )
 			{
 				OnIntersectionStart?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
-
-				a.Body.OnIntersectionStart?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
-				b.Body.OnIntersectionStart?.InvokeWithWarning( new PhysicsIntersection( b, a, c ) );
+				a.Body.DispatchIntersectionStart( new PhysicsIntersection( a, b, c ) );
+				b.Body.DispatchIntersectionStart( new PhysicsIntersection( b, a, c ) );
 			}
 			else if ( ptr->Reason == IntersectionEventType_t.Hit )
 			{
@@ -231,26 +232,24 @@ public sealed partial class PhysicsWorld : IHandle
 			else if ( ptr->Reason == IntersectionEventType_t.TouchEnd )
 			{
 				OnIntersectionEnd?.InvokeWithWarning( new PhysicsIntersectionEnd( a, b ) );
-
-				a.Body.OnIntersectionEnd?.InvokeWithWarning( new PhysicsIntersectionEnd( a, b ) );
-				b.Body.OnIntersectionEnd?.InvokeWithWarning( new PhysicsIntersectionEnd( b, a ) );
+				a.Body.DispatchIntersectionEnd( new PhysicsIntersectionEnd( a, b ) );
+				b.Body.DispatchIntersectionEnd( new PhysicsIntersectionEnd( b, a ) );
 			}
 			else if ( ptr->Reason == IntersectionEventType_t.TouchPersists )
 			{
 				OnIntersectionUpdate?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
-
-				a.Body.OnIntersectionUpdate?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
-				b.Body.OnIntersectionUpdate?.InvokeWithWarning( new PhysicsIntersection( b, a, c ) );
+				a.Body.DispatchIntersectionUpdate( new PhysicsIntersection( a, b, c ) );
+				b.Body.DispatchIntersectionUpdate( new PhysicsIntersection( b, a, c ) );
 			}
 			else if ( ptr->Reason == IntersectionEventType_t.TriggerBegin )
 			{
-				a.Body.OnTriggerBegin?.InvokeWithWarning( new PhysicsIntersection( a, b, c ) );
-				b.Body.OnTriggerBegin?.InvokeWithWarning( new PhysicsIntersection( b, a, c ) );
+				a.Body.DispatchTriggerBegin( new PhysicsIntersection( a, b, c ) );
+				b.Body.DispatchTriggerBegin( new PhysicsIntersection( b, a, c ) );
 			}
 			else if ( ptr->Reason == IntersectionEventType_t.TriggerEnd )
 			{
-				a.Body.OnTriggerEnd?.InvokeWithWarning( new PhysicsIntersectionEnd( a, b ) );
-				b.Body.OnTriggerEnd?.InvokeWithWarning( new PhysicsIntersectionEnd( b, a ) );
+				a.Body.DispatchTriggerEnd( new PhysicsIntersectionEnd( a, b ) );
+				b.Body.DispatchTriggerEnd( new PhysicsIntersectionEnd( b, a ) );
 			}
 		}
 		catch ( System.Exception e )

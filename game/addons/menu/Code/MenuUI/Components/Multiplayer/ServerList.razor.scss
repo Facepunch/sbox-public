@@ -1,9 +1,17 @@
 ServerList
 {
 	flex-direction: column;
-	padding: 32px;
 	overflow: scroll;
-	padding-bottom: 140px;
+
+	VirtualList
+	{
+		flex-grow: 1;
+
+		.row
+		{			
+			flex-grow: 1;
+		}
+	}
 }
 
 .notice
@@ -16,90 +24,158 @@ ServerList
 .loading
 {
 	justify-content: center;
-	padding: 50px;
-	font-size: 1rem;
+	align-items: center;
+	height: 100%;
+}
+
+h2
+{
+	color: #c6d4ee;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+	flex-shrink: 0;
+	font-weight: 600;
+
+	i
+	{
+		color: #3777ee;
+		text-transform: none;
+		font-size: 22px;
+	}
+}
+
+.cell
+{
+	background-color: rgba( 0, 0, 0, 0.1 );
+
+	&:nth-child( even )
+	{
+		background-color: rgba( 0, 0, 0, 0.05 );
+	}
 }
 
 .row
 {
-    flex-shrink: 0;
-    flex-grow: 1;
-    border-radius: 8px;
+	flex-shrink: 0;
+	border-radius: 2px;
+	padding: 0px 48px;
+	cursor: pointer;
 
-    > *
-    {
-        padding: 8px;
-        font-size: 15px;
-        white-space: nowrap;
-        align-items: center;
-    }
+	> *
+	{
+		padding: 8px;
+		font-size: 15px;
+		white-space: nowrap;
+		align-items: center;
+	}
 
-    .game, .map
-    {
-        width: 25%;
-    }
+	.game, .map
+	{
+		width: 30%;
+	}
 
-    .title
-    {
-        width: 30%;
-        font-weight: bold;
-    }
+	.title
+	{
+		flex-grow: 1;
+	}
 
-    .members
-    {
-        flex-grow: 1;
-        justify-content: flex-end;
-    }
+	.members
+	{
+		width: 100px;
+		flex-shrink: 0;
+		justify-content: flex-end;
+	}
 
-    &:not(.header)
-    {
-        .game, .map
-        {
-            opacity: 0.3;
-            gap: 8px;
+	.ping-icon
+	{
+		width: 24px;
+		flex-shrink: 0;
+		margin-left: 16px;
+		justify-content: center;
+		align-items: center;
 
-            i
-            {
-                font-size: 24px;
-            }
+		&.good { color: #4ade80; }
+		&.okay { color: #facc15; }
+		&.bad { color: #f87171; }
+	}
 
-            img
-            {
-                width: 24px;
-                height: 24px;
-            }
+	.ping-value
+	{
+		width: 56px;
+		flex-shrink: 0;
 
-            &:hover
-            {
-                opacity: 1;
-            }
-        }
+		&.good { color: #4ade80; }
+		&.okay { color: #facc15; }
+		&.bad { color: #f87171; }
+		&.unknown { opacity: 0.3; }
+	}
 
-        .game, .map
-        {
-            cursor: pointer;
-        }
+	&:not(.header)
+	{
+		.game, .map
+		{
+			opacity: 0.3;
+			gap: 8px;
 
+			i
+			{
+				font-size: 24px;
+			}
 
-        &:hover
-        {
-            background-color: #467de422;
-            color: #fff;
-        }
-    }
+			img
+			{
+				width: 24px;
+				height: 24px;
+			}
 
-    &.header
-    {
-        *
-        {
-            color: white;
-            opacity: 1;
-            font-weight: 400;
-        }
+			&:hover
+			{
+				opacity: 1;
+			}
+		}
 
-        .members
-        {
-            justify-content: center;
-        }
-    }
+		.title
+		{
+			font-weight: bold;
+		}
+
+		.game, .map
+		{
+			cursor: pointer;
+		}
+
+		&:hover
+		{
+			background-color: #467de422;
+			color: #fff;
+		}
+
+		&.full
+		{
+			background-color: rgba( 180, 40, 30, 0.10 );
+
+			&:hover
+			{
+				background-color: rgba( 180, 40, 30, 0.20 );
+			}
+		}
+
+		&.empty
+		{
+			opacity: 0.25;
+
+			&:hover
+			{
+				opacity: .75;
+				background-color: #467de422;
+			}
+		}
+	}
+
+	&.header
+	{
+		background-color: #101219dd;
+		padding: 8px 48px;
+		flex-grow: 0;
+	}
 }

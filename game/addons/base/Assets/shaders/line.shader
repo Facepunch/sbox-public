@@ -182,7 +182,7 @@ PS
 
 		float4 col = 0;
 		
-		SamplerState sampler = Bindless::GetSampler( NonUniformResourceIndex( SamplerIndex ) );
+		SamplerState sampler = Bindless::GetSampler( SamplerIndex );
 
 		float2 vUV = i.vTextureCoords.xy;
 		float4 texAlbedo = g_tColor.Sample(sampler, vUV) * float4(SrgbGammaToLinear(i.vVertexColor.rgb), i.vVertexColor.a);

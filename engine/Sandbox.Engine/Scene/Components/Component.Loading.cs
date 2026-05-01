@@ -38,6 +38,6 @@ public partial class Component
 
 	internal void OnLoadInternal()
 	{
-		CallbackBatch.Add( CommonCallback.Loading, LaunchLoader, this, "LaunchLoader" );
+		CallbackBatch.Add( CommonCallback.Loading, this, "LaunchLoader" );
 	}
 }

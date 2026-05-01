@@ -680,12 +680,12 @@ public class ModelPhysicsTests
 
 			GameObject go = default;
 
-			SceneUtility.RunInBatchGroup( () =>
+			using ( scene.BatchGroup() )
 			{
 				go = new GameObject( false );
 				go.Deserialize( jsonObject, new GameObject.DeserializeOptions { TransformOverride = new Transform( targetPos ) } );
 				go.Enabled = true;
-			} );
+			}
 
 			// spawn it a bit away
 			var modelPhysics = go.GetComponent<ModelPhysics>();
@@ -735,12 +735,12 @@ public class ModelPhysicsTests
 
 			GameObject go = default;
 
-			SceneUtility.RunInBatchGroup( () =>
+			using ( scene.BatchGroup() )
 			{
 				go = new GameObject( false );
 				go.Deserialize( jsonObject, new GameObject.DeserializeOptions { TransformOverride = new Transform( targetPos ) } );
 				go.Enabled = true;
-			} );
+			}
 
 			// spawn it a bit away
 			var modelPhysics = go.GetComponent<ModelPhysics>();

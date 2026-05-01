@@ -111,9 +111,10 @@ public class Rules
 	public void FromTag( string tag, CollisionRules.Result result, params string[] expected )
 	{
 		var rules = Create();
-		var set = rules.GetCollisionRules( tag )
-			.Where( x => x.Value == result )
-			.Select( x => x.Key )
+		StringToken tagToken = tag;
+		var set = rules.RuntimeTags
+			.Where( x => rules.GetCollisionRule( x, tagToken ) == result )
+			.Select( x => StringToken.GetValue( x.Value ) )
 			.ToHashSet();
 
 		foreach ( var other in set )
@@ -141,9 +142,18 @@ public class Rules
 		var tags = tagsCsv.Split( ',' );
 
 		var rules = Create();
-		var set = rules.GetCollisionRules( tags )
-			.Where( x => x.Value == result )
-			.Select( x => x.Key )
+		var set = rules.RuntimeTags
+			.Where( x =>
+			{
+				var r = CollisionRules.Result.Collide;
+				foreach ( var tag in tags )
+				{
+					var cr = rules.GetCollisionRule( x, tag );
+					if ( cr > r ) r = cr;
+				}
+				return r == result;
+			} )
+			.Select( x => StringToken.GetValue( x.Value ) )
 			.ToHashSet();
 
 		foreach ( var other in set )

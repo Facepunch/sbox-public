@@ -129,20 +129,11 @@ internal class GlobalParser : BaseParser
 
 	public void nativedll( string str )
 	{
-		// engine2.dll -> libengine2.so on Linux, libengine2.dylib on macOS
 		string dir = Path.GetDirectoryName( str ) ?? "";
 		string baseName = Path.GetFileNameWithoutExtension( str );
 
-		if ( OperatingSystem.IsLinux() )
-		{
-			str = Path.Combine( dir, $"lib{baseName}.so" );
-		}
-		else if ( OperatingSystem.IsMacOS() )
-		{
-			str = Path.Combine( dir, $"lib{baseName}.dylib" );
-		}
-
-		definition.NativeDll = str.Trim();
+		// normalize to forward slashes
+		definition.NativeDll = string.IsNullOrEmpty( dir ) ? baseName : $"{dir}/{baseName}".Replace( '\\', '/' );
 	}
 
 	public void inherit( string str )

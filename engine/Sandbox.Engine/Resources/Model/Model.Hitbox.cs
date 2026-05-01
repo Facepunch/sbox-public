@@ -36,6 +36,7 @@ public class HitboxSet
 		const int HITBOX_SHAPE_BOX = 0;
 		const int HITBOX_SHAPE_SPHERE = 1;
 		const int HITBOX_SHAPE_CAPSULE = 2;
+		const int HITBOX_SHAPE_CYLINDER = 3;
 
 		internal Box( ModelBones bones, CHitBox cHitBox )
 		{
@@ -48,6 +49,7 @@ public class HitboxSet
 			{
 				HITBOX_SHAPE_SPHERE => new Sphere( cHitBox.m_vMinBounds, cHitBox.m_flShapeRadius ),
 				HITBOX_SHAPE_CAPSULE => new Capsule( cHitBox.m_vMinBounds, cHitBox.m_vMaxBounds, cHitBox.m_flShapeRadius ),
+				HITBOX_SHAPE_CYLINDER => new Cone( cHitBox.m_vMinBounds, cHitBox.m_vMaxBounds, cHitBox.m_flShapeRadius, cHitBox.m_flShapeRadius ),
 				_ => new BBox( cHitBox.m_vMinBounds, cHitBox.m_vMaxBounds )
 			};
 
@@ -83,6 +85,7 @@ public class HitboxSet
 				if ( Shape is Sphere sphere ) return sphere.RandomPointInside;
 				if ( Shape is BBox bbox ) return bbox.RandomPointInside;
 				if ( Shape is Capsule capsule ) return capsule.RandomPointInside;
+				if ( Shape is Cone cone ) return cone.RandomPointInside;
 
 				throw new NotImplementedException();
 			}
@@ -98,6 +101,7 @@ public class HitboxSet
 				if ( Shape is Sphere sphere ) return sphere.RandomPointOnEdge;
 				if ( Shape is BBox bbox ) return bbox.RandomPointOnEdge;
 				if ( Shape is Capsule capsule ) return capsule.RandomPointOnEdge;
+				if ( Shape is Cone cone ) return cone.RandomPointOnEdge;
 
 				throw new NotImplementedException();
 			}

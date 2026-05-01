@@ -39,11 +39,15 @@ public interface IMenuSystem
 	/// </summary>
 	public void OnPackageClosed( Package package );
 
+	/// <summary>
+	/// The backend is telling us that the number of users playing has changed
+	/// </summary>
+	void PackageUsageChanged( string packageIdent, long userCount );
 
-	internal static void ShowServerError( string title, string subtitle )
-	{
-		Current?.Popup( "error", title, subtitle );
-	}
+	/// <summary>
+	/// Notifies that the number of favourites for the specified package has changed.
+	/// </summary>
+	void PackageFavouritesChanged( string packageIdent, long value );
 
 	/// <summary>
 	/// True if we want to force the cursor to be visible and swallow input.

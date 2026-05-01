@@ -746,7 +746,8 @@ public partial class Instances
 		instance.PrefabInstance.RefreshPatch();
 
 		// Revert instance to prefab
-		EditorUtility.Prefabs.RevertInstanceToPrefab( instance );
+		Assert.IsTrue( instance.IsPrefabInstanceRoot, "Instance should be a prefab instance root." );
+		EditorUtility.Prefabs.RevertGameObjectInstanceChanges( instance );
 
 		// Assert that transform, name, and flags are not reverted
 		Assert.AreEqual( new Transform( new Vector3( 100, 200, 300 ), Rotation.FromYaw( 45 ), Vector3.One ), instance.LocalTransform );
@@ -947,6 +948,208 @@ public partial class Instances
 
 		// 8. Verify id mapping is intact
 		Assert.IsTrue( baseInstance.PrefabInstance.InstanceToPrefabLookup.ContainsKey( nestedOriginalId ) );
+	}
+
+	/// <summary>
+	/// Regression: Selecting a nested prefab child in the scene tree and clicking "Apply to Prefab"
+	/// triggered MakeIdGuidsUnique on the outer prefab JSON, randomising all GUIDs.
+	/// Minimal repro: two-level nesting, one inner prefab inside one outer prefab.
+	/// </summary>
+	[TestMethod]
+	public void WriteInstanceToPrefab_CalledOnNestedRoot_DoesNotRandomiseOuterPrefabGuids()
+	{
+		using var innerPrefab = Sandbox.SceneTests.Helpers.RegisterPrefabFromJson( "__nestedPrefab.prefab", _basicPrefabSource );
+		using var outerPrefab = Sandbox.SceneTests.Helpers.RegisterPrefabFromJson( "__outerPrefab.prefab", _outerPrefabWithNestedPrefabSource );
+
+		var outerPrefabFile = ResourceLibrary.Get<PrefabFile>( "__outerPrefab.prefab" );
+		var outerPrefabScene = SceneUtility.GetPrefabScene( outerPrefabFile );
+
+		var originalRootGuid = outerPrefabFile.RootObject["__guid"]!.GetValue<Guid>();
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var outerInstance = outerPrefabScene.Clone( Vector3.Zero );
+		Assert.IsTrue( outerInstance.IsOutermostPrefabInstanceRoot );
+		Assert.AreEqual( 1, outerInstance.Children.Count );
+
+		// The nested child is what the user right-clicks in the scene tree
+		var nestedRoot = outerInstance.Children[0];
+		Assert.IsTrue( nestedRoot.IsNestedPrefabInstanceRoot );
+		Assert.IsFalse( nestedRoot.IsOutermostPrefabInstanceRoot );
+
+		var outerInstanceGuid = outerInstance.Id;
+
+		// Simulates right-click → "Apply to Prefab" being called with the nested root
+		EditorUtility.Prefabs.WriteInstanceToPrefab( nestedRoot, true );
+
+		Assert.AreEqual( originalRootGuid, outerPrefabFile.RootObject["__guid"]!.GetValue<Guid>(),
+			"Outer prefab GUIDs must not be replaced when writing a nested prefab root" );
+		Assert.AreEqual( outerInstanceGuid, outerInstance.Id,
+			"Outer instance GUID must not be randomised" );
+	}
+
+	/// <summary>
+	/// Regression: WriteInstanceToPrefab called with a nested prefab root (IsPrefabInstanceRoot=true
+	/// but IsOutermostPrefabInstanceRoot=false) used to compute isWritingBackToExistingInstance=false,
+	/// which triggered MakeIdGuidsUnique on the outer prefab JSON and cascaded to randomise every GUID
+	/// in both the prefab file and all scene instances via ValidatePrefabToInstanceIdLookup.
+	/// </summary>
+	[TestMethod]
+	public void WriteInstanceToPrefab_WithNestedPrefabRoot_DoesNotRandomiseGuids()
+	{
+		// 1. Register all three levels of nested prefab
+		using var nnPrefab = Sandbox.SceneTests.Helpers.RegisterPrefabFromJson( "__nested_nested.prefab", _nestedNestedPrefabSource );
+		using var nPrefab = Sandbox.SceneTests.Helpers.RegisterPrefabFromJson( "__nested.prefab", _nestedPrefabSource );
+		using var bPrefab = Sandbox.SceneTests.Helpers.RegisterPrefabFromJson( "__base.prefab", _basePrefabSource );
+
+		var basePrefabFile = ResourceLibrary.Get<PrefabFile>( "__base.prefab" );
+		var basePrefabScene = SceneUtility.GetPrefabScene( basePrefabFile );
+
+		// Record the outer prefab's root GUID before any writes
+		var originalOuterPrefabRootGuid = basePrefabFile.RootObject["__guid"]!.GetValue<Guid>();
+
+		// 2. Spawn a scene instance of the base (outer) prefab
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var outerInstance = basePrefabScene.Clone( Vector3.Zero );
+		Assert.IsTrue( outerInstance.IsOutermostPrefabInstanceRoot );
+		Assert.AreEqual( 1, outerInstance.Children.Count, "Outer instance should have one nested child" );
+
+		var innerInstance = outerInstance.Children[0];
+		Assert.IsTrue( innerInstance.IsNestedPrefabInstanceRoot, "Child should be a nested prefab root" );
+		Assert.IsFalse( innerInstance.IsOutermostPrefabInstanceRoot, "Child must NOT be the outermost root" );
+
+		// Record the outer instance's GUID — this must survive the write
+		var outerInstanceGuid = outerInstance.Id;
+
+		// 3. Call WriteInstanceToPrefab with the NESTED root (reproduction case for the bug).
+		//    Before the fix this silently ran MakeIdGuidsUnique on the outer prefab JSON,
+		//    replacing every __guid, then wrote a fresh file that made ValidatePrefabToInstanceIdLookup
+		//    assign Guid.NewGuid() to every mapping, changing the GUID of outerInstance.
+		EditorUtility.Prefabs.WriteInstanceToPrefab( innerInstance, true );
+
+		// 4. The outer prefab JSON root GUID must be unchanged — MakeIdGuidsUnique must NOT have run
+		var afterOuterPrefabRootGuid = basePrefabFile.RootObject["__guid"]!.GetValue<Guid>();
+		Assert.AreEqual( originalOuterPrefabRootGuid, afterOuterPrefabRootGuid,
+			"WriteInstanceToPrefab must not replace prefab GUIDs when called with a nested prefab root" );
+
+		// 5. The outer scene instance GUID must also be unchanged
+		Assert.AreEqual( outerInstanceGuid, outerInstance.Id,
+			"Scene instance GUID must not be randomised after writing a nested prefab root" );
+
+	}
+
+	/// <summary>
+	/// Regression: RevertInstanceToPrefab on a nested prefab instance root was clearing the
+	/// ENTIRE outermost patch (ClearPatch), which wiped overrides on unrelated objects.
+	/// Nested roots should only revert their own changes, leaving the outermost patch intact.
+	/// </summary>
+	[TestMethod]
+	public void RevertInstanceToPrefab_OnNestedRoot_PreservesOutermostOverrides()
+	{
+		// 1. Register 3-level nested prefab
+		using var nnPrefab = Sandbox.SceneTests.Helpers.RegisterPrefabFromJson( "__rvt_nn.prefab", _nestedNestedPrefabSource );
+		using var nPrefab = Sandbox.SceneTests.Helpers.RegisterPrefabFromJson( "__rvt_n.prefab", _nestedPrefabSource.Replace( "__nested_nested.prefab", "__rvt_nn.prefab" ) );
+		using var bPrefab = Sandbox.SceneTests.Helpers.RegisterPrefabFromJson( "__rvt_b.prefab", _basePrefabSource.Replace( "__nested.prefab", "__rvt_n.prefab" ) );
+
+		var basePrefabFile = ResourceLibrary.Get<PrefabFile>( "__rvt_b.prefab" );
+		var basePrefabScene = SceneUtility.GetPrefabScene( basePrefabFile );
+
+		// 2. Instantiate and make an override on the outermost root's component
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var outerInstance = basePrefabScene.Clone( Vector3.Zero );
+
+		Assert.IsTrue( outerInstance.IsOutermostPrefabInstanceRoot );
+		var renderer = outerInstance.Components.Get<ModelRenderer>();
+		Assert.IsNotNull( renderer );
+
+		// Override the outermost root's Tint to Blue (prefab default is Red)
+		renderer.Tint = Color.Blue;
+		outerInstance.PrefabInstance.RefreshPatch();
+		Assert.IsTrue( outerInstance.PrefabInstance.IsModified(), "Outermost should have overrides after modifying Tint" );
+
+		// 3. Revert the NESTED (middle) instance root — this must NOT touch the outermost patch
+		var middleInstance = outerInstance.Children[0];
+		Assert.IsTrue( middleInstance.IsNestedPrefabInstanceRoot );
+		EditorUtility.Prefabs.RevertGameObjectInstanceChanges( middleInstance );
+
+		// 4. The outermost root's Tint override must still be Blue
+		var rendererAfter = outerInstance.Components.Get<ModelRenderer>();
+		Assert.IsNotNull( rendererAfter );
+		Assert.AreEqual( Color.Blue, rendererAfter.Tint,
+			"Outermost root's Tint override should be preserved after reverting a nested instance" );
+
+		// The outermost patch should still report as modified
+		Assert.IsTrue( outerInstance.PrefabInstance.IsModified(),
+			"Outermost patch should still contain overrides after reverting a nested root" );
+	}
+
+	/// <summary>
+	/// Regression test: ConvertGameObjectToPrefab on a GameObject that IsPrefabInstance must
+	/// preserve the original world transform. Previously Clone() created the object at world
+	/// origin and the subsequent AddSibling / SetParent call baked that zeroed world-origin
+	/// as the local transform relative to the parent, placing it far from the intended position.
+	/// </summary>
+	[TestMethod]
+	public void ConvertGameObjectToPrefab_WhenIsPrefabInstance_PreservesWorldTransform()
+	{
+		var innerPrefabLocation = "__nestedPrefab.prefab";
+		var outerPrefabLocation = "___convert_outer.prefab";
+		var saveLocation = "___converted.prefab";
+
+		using var innerPrefab = Sandbox.SceneTests.Helpers.RegisterPrefabFromJson( innerPrefabLocation, _basicPrefabSource );
+		using var outerPrefab = Sandbox.SceneTests.Helpers.RegisterPrefabFromJson( outerPrefabLocation, _outerPrefabWithNestedPrefabSource );
+
+		var outerPrefabFile = ResourceLibrary.Get<PrefabFile>( outerPrefabLocation );
+		var outerPrefabScene = SceneUtility.GetPrefabScene( outerPrefabFile );
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		// Spawn the outer prefab at a non-trivial world position so that the parent
+		// and the nested child both have well-defined non-zero transforms.
+		var expectedWorldPosition = new Vector3( 100f, 200f, 300f );
+		var outerInstance = outerPrefabScene.Clone( expectedWorldPosition );
+		Assert.IsTrue( outerInstance.IsPrefabInstanceRoot, "Outer instance should be a prefab instance root" );
+
+		// The nested child is the first (and only) child — it is a prefab instance.
+		Assert.AreEqual( 1, outerInstance.Children.Count );
+		var nestedInstance = outerInstance.Children[0];
+		Assert.IsTrue( nestedInstance.IsPrefabInstance, "Nested child should be a prefab instance" );
+
+		// Give the nested instance a distinct world position so we can verify it is kept.
+		var nestedWorldPosition = new Vector3( 150f, 250f, 350f );
+		nestedInstance.WorldPosition = nestedWorldPosition;
+
+		// Act: convert the *nested* prefab instance to a new prefab.
+		EditorUtility.Prefabs.ConvertGameObjectToPrefab( nestedInstance, saveLocation, true );
+
+		// Flush deferred destructions so the old object is removed from the hierarchy.
+		scene.GameTick();
+
+		var newPrefab = ResourceLibrary.Get<PrefabFile>( saveLocation );
+
+		try
+		{
+			// After conversion the original nestedInstance is destroyed and replaced by a new
+			// GameObject.  We find it as the first child of the outer instance.
+			Assert.AreEqual( 1, outerInstance.Children.Count );
+			var convertedGo = outerInstance.Children[0];
+			Assert.IsTrue( convertedGo.IsPrefabInstanceRoot, "Converted object should now be a prefab instance root" );
+
+			// The key assertion: world position must be preserved, not reset to origin.
+			var actualWorldPos = convertedGo.WorldPosition;
+			Assert.AreEqual( nestedWorldPosition.x, actualWorldPos.x, 0.01f, "World X must be preserved after ConvertGameObjectToPrefab" );
+			Assert.AreEqual( nestedWorldPosition.y, actualWorldPos.y, 0.01f, "World Y must be preserved after ConvertGameObjectToPrefab" );
+			Assert.AreEqual( nestedWorldPosition.z, actualWorldPos.z, 0.01f, "World Z must be preserved after ConvertGameObjectToPrefab" );
+		}
+		finally
+		{
+			if ( newPrefab is not null ) Game.Resources.Unregister( newPrefab );
+		}
 	}
 
 	// Innermost prefab definition

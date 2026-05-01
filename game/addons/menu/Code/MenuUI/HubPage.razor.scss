@@ -1,0 +1,39 @@
+@import "/styles/_theme.scss";
+
+HubPage {
+    background-color: $default-950;
+    align-items: center;
+    justify-content: center;
+}
+
+Page {
+    width: 100%;
+    max-width: $screen-w-xl;
+}
+
+HubPage .top {
+    flex-shrink: 0;
+    padding: 50px;
+    padding-bottom: 0;
+    z-index: 10;
+}
+
+HubPage .blocks {
+    gap: 32px;
+    flex-grow: 1;
+}
+
+HubPage .blocks .block {
+    flex-grow: 1;
+    flex-shrink: 0;
+    flex-basis: 70%;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: scroll;
+    padding: 50px;
+
+    * {
+        flex-shrink: 0;
+    }
+}
+

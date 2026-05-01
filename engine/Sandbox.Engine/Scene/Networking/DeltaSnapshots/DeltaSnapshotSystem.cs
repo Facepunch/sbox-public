@@ -28,9 +28,11 @@ internal class DeltaSnapshotSystem
 		}
 	}
 
+	internal readonly record struct SentCluster( DeltaSnapshotCluster Cluster, HashSet<(ushort SnapshotId, Guid ObjectId)> SentSnapshotIds );
+
 	internal class ConnectionData
 	{
-		public List<DeltaSnapshotCluster> SentClusters { get; set; } = new( 128 );
+		public List<SentCluster> SentClusters { get; set; } = new( 128 );
 		public Dictionary<Guid, List<DeltaSnapshot>> SentSnapshots { get; set; } = new( GuidComparer );
 		public Dictionary<Guid, RemoteSnapshotState> ReceivedSnapshotStates { get; set; } = new( GuidComparer );
 		public Dictionary<Guid, RemoteSnapshotState> RemoteSnapshotStates { get; set; } = new( GuidComparer );
@@ -79,9 +81,11 @@ internal class DeltaSnapshotSystem
 
 			SentSnapshots.Clear();
 
-			foreach ( var cluster in SentClusters )
+			foreach ( var sent in SentClusters )
 			{
-				cluster.Release();
+				sent.SentSnapshotIds.Clear();
+				ObjectPool<HashSet<(ushort, Guid)>>.Return( sent.SentSnapshotIds );
+				sent.Cluster.Release();
 			}
 
 			SentClusters.Clear();
@@ -97,11 +101,14 @@ internal class DeltaSnapshotSystem
 
 			for ( var i = SentClusters.Count - 1; i >= 0; i-- )
 			{
-				var cluster = SentClusters[i];
-				if ( cluster.TimeSinceCreated <= 5f )
+				var sentCluster = SentClusters[i];
+
+				if ( sentCluster.Cluster.TimeSinceCreated <= 5f )
 					continue;
 
-				cluster.Release();
+				sentCluster.SentSnapshotIds.Clear();
+				ObjectPool<HashSet<(ushort, Guid)>>.Return( sentCluster.SentSnapshotIds );
+				sentCluster.Cluster.Release();
 				SentClusters.RemoveAt( i );
 			}
 
@@ -181,7 +188,7 @@ internal class DeltaSnapshotSystem
 	private Dictionary<DeltaSnapshot, SnapshotData> ClusterBuffer { get; set; } = new();
 
 	private void SendCluster( ConnectionData target, DeltaSnapshotCluster cluster,
-		NetFlags flags = NetFlags.UnreliableNoDelay )
+		NetFlags flags = NetFlags.Unreliable | NetFlags.SendImmediate )
 	{
 		if ( cluster.Snapshots.Count == 0 )
 			return;
@@ -207,11 +214,17 @@ internal class DeltaSnapshotSystem
 				for ( var j = 0; j < snapshot.Entries.Count; j++ )
 				{
 					var entry = snapshot.Entries[j];
+					var slot = entry.Slot;
 
 					if ( entry.LocalState?.Connections?.Contains( connectionId ) ?? false )
-						continue;
+					{
+						// We've already sent this value to this connection, but only skip
+						// if the prediction is still valid (waiting for ACK). If prediction
+						// expired without ACK, fall through to resend.
+						if ( state.TryGetHash( slot, out _, Time ) )
+							continue;
+					}
 
-					var slot = entry.Slot;
 					var value = entry.Value;
 
 					if ( state.TryGetHash( slot, out var oldHash, Time ) )
@@ -287,38 +300,23 @@ internal class DeltaSnapshotSystem
 			dataToSend.Release();
 		}
 
+		var sentSnapshotIds = ObjectPool<HashSet<(ushort, Guid)>>.Get();
+		foreach ( var snapshot in ClusterBuffer.Keys )
+		{
+			sentSnapshotIds.Add( (snapshot.SnapshotId, snapshot.ObjectId) );
+		}
+
 		ClusterBuffer.Clear();
 
 		System.Send( target.Connection, InternalMessageType.DeltaSnapshotCluster, writer.ToSpan(), flags );
 
-		target.SentClusters.Add( cluster );
+		target.SentClusters.Add( new SentCluster( cluster, sentSnapshotIds ) );
 		cluster.AddReference();
 
 		// For empty connections, we still want to "receive" acknowledgements for benchmarking purposes
 		if ( target.Connection is EmptyConnection )
 		{
-			_ = ReceiveAckAfterDelay( 50, target, cluster.Id );
-		}
-	}
-
-	private async Task ReceiveAckAfterDelay( int delayMs, ConnectionData target, ushort clusterId )
-	{
-		try
-		{
-			await GameTask.Delay( delayMs );
-
-			var bs = ByteStream.Create( 32 );
-			bs.Write( clusterId );
-			bs.Write( (ushort)0 );
-			bs.Position = 0;
-
-			OnDeltaSnapshotClusterAck( target.Connection, bs );
-
-			bs.Dispose();
-		}
-		catch ( TaskCanceledException )
-		{
-			// Who cares.
+			_pendingEmptyAcks.Add( new PendingEmptyAck( target, cluster.Id, 0f ) );
 		}
 	}
 
@@ -413,8 +411,12 @@ internal class DeltaSnapshotSystem
 		var connectionData = GetConnection( source );
 
 		var clusterId = message.Read<ushort>();
-		var cluster = connectionData.SentClusters.FirstOrDefault( c => c.Id == clusterId );
-		if ( cluster is null ) return;
+		var sentIndex = connectionData.SentClusters.FindIndex( c => c.Cluster.Id == clusterId );
+		if ( sentIndex < 0 ) return;
+
+		var sentCluster = connectionData.SentClusters[sentIndex];
+		var sentSnapshotIds = sentCluster.SentSnapshotIds;
+		var cluster = sentCluster.Cluster;
 
 		var invalidSnapshotCount = message.Read<ushort>();
 		var connectionId = source.Id;
@@ -428,6 +430,10 @@ internal class DeltaSnapshotSystem
 
 		foreach ( var snapshot in cluster.Snapshots )
 		{
+			// Skip snapshots that were never actually sent to this connection.
+			if ( !sentSnapshotIds.Contains( (snapshot.SnapshotId, snapshot.ObjectId) ) )
+				continue;
+
 			// Did the client reject this particular snapshot? Maybe the game object didn't exist yet.
 			if ( _invalidSnapshotIds.Contains( snapshot.SnapshotId ) )
 				continue;
@@ -462,7 +468,9 @@ internal class DeltaSnapshotSystem
 			snapshotter.OnSnapshotAck( source, snapshot, state );
 		}
 
-		connectionData.SentClusters.Remove( cluster );
+		sentCluster.SentSnapshotIds.Clear();
+		ObjectPool<HashSet<(ushort, Guid)>>.Return( sentCluster.SentSnapshotIds );
+		connectionData.SentClusters.RemoveAt( sentIndex );
 		cluster.Release();
 	}
 
@@ -692,6 +700,9 @@ internal class DeltaSnapshotSystem
 		Time = RealTime.Now;
 	}
 
+	private readonly record struct PendingEmptyAck( ConnectionData Target, ushort ClusterId, RealTimeSince TimeSince );
+	private readonly List<PendingEmptyAck> _pendingEmptyAcks = new();
+
 	/// <summary>
 	/// Tick the snapshot system and clear any out-of-date data.
 	/// </summary>
@@ -700,6 +711,35 @@ internal class DeltaSnapshotSystem
 		foreach ( var c in Connections.Values )
 		{
 			c.Tick();
+		}
+
+		ProcessPendingEmptyAcks();
+	}
+
+	private void ProcessPendingEmptyAcks()
+	{
+		for ( var i = _pendingEmptyAcks.Count - 1; i >= 0; i-- )
+		{
+			var ack = _pendingEmptyAcks[i];
+
+			if ( ack.TimeSince < 0.05f ) continue;
+
+			_pendingEmptyAcks.RemoveAt( i );
+
+			var bs = ByteStream.Create( 32 );
+
+			try
+			{
+				bs.Write( ack.ClusterId );
+				bs.Write( (ushort)0 );
+				bs.Position = 0;
+
+				OnDeltaSnapshotClusterAck( ack.Target.Connection, bs );
+			}
+			finally
+			{
+				bs.Dispose();
+			}
 		}
 	}
 

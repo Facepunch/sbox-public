@@ -47,7 +47,7 @@ internal static class MaterialMenu
 		if ( isTextureSheet )
 		{
 			var paths = entries.Select( x => System.IO.Path.ChangeExtension( x.Asset.Path, System.IO.Path.GetExtension( x.Asset.AbsolutePath ) ) );
-			var file = TextureEditor.TextureFile.CreateDefault( paths );
+			var file = Inspectors.TextureInspector.TextureFile.CreateDefault( paths );
 			var json = Json.Serialize( file );
 			System.IO.File.WriteAllText( fd.SelectedFile, json );
 
@@ -60,7 +60,7 @@ internal static class MaterialMenu
 			{
 				var path = System.IO.Path.ChangeExtension( p.Asset.Path, System.IO.Path.GetExtension( p.Asset.AbsolutePath ) );
 				bool noCompress = p.Asset.MetaData.Get<bool>( "nocompress" );
-				var file = TextureEditor.TextureFile.CreateDefault( [path], noCompress );
+				var file = Inspectors.TextureInspector.TextureFile.CreateDefault( [path], noCompress );
 				var json = Json.Serialize( file );
 				var outPath = System.IO.Path.Combine( System.IO.Path.GetDirectoryName( fd.SelectedFile ), System.IO.Path.GetFileNameWithoutExtension( path ) + ".vtex" );
 				System.IO.File.WriteAllText( outPath, json );

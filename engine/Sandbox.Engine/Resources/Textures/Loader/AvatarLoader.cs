@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Caching.Memory;
 using NativeEngine;
+using Sandbox.Engine;
 using Steamworks;
 using Steamworks.Data;
+using System.Threading;
 
 namespace Sandbox.TextureLoader;
 
@@ -11,9 +13,11 @@ namespace Sandbox.TextureLoader;
 internal static class Avatar
 {
 	/// <summary>
-	/// Entries are cached on a sliding window, they will be released if not used for 10 minutes
+	/// Caches raw avatar pixel data from Steam API responses to avoid repeat network requests.
 	/// </summary>
-	static readonly MemoryCache _cache = new( new MemoryCacheOptions() );
+	static readonly MemoryCache _dataCache = new( new MemoryCacheOptions() );
+
+	record struct AvatarData( int Width, int Height, byte[] Pixels );
 
 	internal static bool IsAppropriate( string url )
 	{
@@ -24,18 +28,16 @@ internal static class Avatar
 	{
 		try
 		{
-			return _cache.GetOrCreate( filename, entry =>
-			{
-				entry.SetSlidingExpiration( TimeSpan.FromMinutes( 10 ) );
+			if ( Game.Resources.Get<Texture>( filename ) is { } cached )
+				return cached;
 
-				var placeholder = Texture.Create( 1, 1 ).WithName( "avatar" ).WithData( new byte[4] { 0, 0, 0, 0 } ).Finish();
-				placeholder.IsLoaded = false;
-				placeholder.SetIdFromResourcePath( filename );
+			var placeholder = Texture.Create( 1, 1 ).WithName( "avatar" ).WithData( new byte[4] { 0, 0, 0, 0 } ).Finish();
+			placeholder.IsLoaded = false;
+			placeholder.RegisterWeakResourceId( filename );
 
-				_ = LoadIntoTexture( filename, placeholder );
+			_ = LoadIntoTexture( filename, placeholder );
 
-				return placeholder;
-			} );
+			return placeholder;
 		}
 		catch ( System.Exception e )
 		{
@@ -44,7 +46,7 @@ internal static class Avatar
 		}
 	}
 
-	internal static async Task LoadIntoTexture( string url, Texture placeholder )
+	internal static async Task LoadIntoTexture( string url, Texture placeholder, CancellationToken ct = default )
 	{
 		try
 		{
@@ -116,20 +118,34 @@ internal static class Avatar
 				} );
 			}
 
-			var result = size == 0 ? await SteamFriends.GetMediumAvatarAsync( steamid ) :  // 0
-						(size == 1 ? await SteamFriends.GetLargeAvatarAsync( steamid ) :  // 1
-									 await SteamFriends.GetSmallAvatarAsync( steamid )); // 2
-			if ( !result.HasValue )
+			if ( ct.IsCancellationRequested ) return;
+
+			// Cache key based on resolved steamid + size
+			var cacheKey = $"{steamid}:{size}";
+
+			if ( !_dataCache.TryGetValue( cacheKey, out AvatarData cached ) )
 			{
-				Log.Warning( $"AvatarLoader - Couldn't get avatar for {steamid} ({url})" );
-				return;
+				var result = size == 0 ? await SteamFriends.GetMediumAvatarAsync( steamid ) :  // 0
+							(size == 1 ? await SteamFriends.GetLargeAvatarAsync( steamid ) :  // 1
+										 await SteamFriends.GetSmallAvatarAsync( steamid )); // 2
+				if ( !result.HasValue )
+				{
+					Log.Warning( $"AvatarLoader - Couldn't get avatar for {steamid} ({url})" );
+					return;
+				}
+
+				cached = new AvatarData( (int)result.Value.Width, (int)result.Value.Height, result.Value.Data );
+				_dataCache.Set( cacheKey, cached, new MemoryCacheEntryOptions()
+					.SetSlidingExpiration( TimeSpan.FromMinutes( 10 ) ) );
 			}
 
-			//Log.Info( $"Got Avatar For {steamid} ({result.Value.Width} x {result.Value.Height})" );
+			//Log.Info( $"Got Avatar For {steamid} ({cached.Width} x {cached.Height})" );
 
-			using var texture = Texture.Create( (int)result.Value.Width, (int)result.Value.Height, ImageFormat.RGBA8888 )
+			if ( ct.IsCancellationRequested ) return;
+
+			using var texture = Texture.Create( cached.Width, cached.Height, ImageFormat.RGBA8888 )
 					.WithName( "avatar" )
-					.WithData( result.Value.Data )
+					.WithData( cached.Pixels )
 					.Finish();
 
 			//
@@ -140,6 +156,8 @@ internal static class Avatar
 
 			if ( size != 0 )
 				return;
+
+			if ( ct.IsCancellationRequested ) return;
 
 			//
 			// If we want the animated texture, request if they have it and load it from the url.
@@ -153,10 +171,12 @@ internal static class Avatar
 			if ( string.IsNullOrWhiteSpace( item ) )
 				return;
 
+			if ( ct.IsCancellationRequested ) return;
+
 			//
 			// Download animated image into placeholder
 			//
-			await placeholder.ReplacementAsync( ImageUrl.LoadFromUrl( item ) );
+			await placeholder.ReplacementAsync( ImageUrl.LoadFromUrl( item, ct ) );
 		}
 		finally
 		{

@@ -55,6 +55,7 @@ public class SystemsConfig : ConfigData
 			if ( rawValue is JsonElement je )
 			{
 				value = je.Deserialize( property.PropertyType, Json.options );
+				properties[property.Name] = value;
 				return true;
 			}
 
@@ -65,16 +66,26 @@ public class SystemsConfig : ConfigData
 				return true;
 			}
 
+			// Handle enums explicitly
+			if ( property.PropertyType.IsEnum && rawValue is IConvertible )
+			{
+				value = Enum.ToObject( property.PropertyType, Convert.ToInt32( rawValue ) );
+				properties[property.Name] = value;
+				return true;
+			}
+
 			// Only use Convert.ChangeType for primitive/convertible types
 			if ( rawValue is IConvertible && property.PropertyType.IsAssignableTo( typeof( IConvertible ) ) )
 			{
 				value = Convert.ChangeType( rawValue, property.PropertyType );
+				properties[property.Name] = value;
 				return true;
 			}
 
 			// Fall back to JSON serialization for complex types
 			var json = JsonSerializer.Serialize( rawValue, Json.options );
 			value = JsonSerializer.Deserialize( json, property.PropertyType, Json.options );
+			properties[property.Name] = value;
 			return true;
 		}
 		catch ( Exception ex )

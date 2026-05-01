@@ -1,8 +1,8 @@
-.content-blocks
-{
+@import "/styles/_Theme.scss";
+
+.content-blocks {
 	flex-direction: column;
 	overflow-y: scroll;
-	overflow-x: hidden;
 	padding-bottom: 200px;
 }
 
@@ -11,20 +11,17 @@
 	flex-shrink: 0;
 }
 
-
-.content-block-track
-{
-	overflow-x: scroll;
-	overflow-y: hidden;
-	padding: 0px 5rem;
-	gap: 1rem;
-	mask: linear-gradient( to right, white, white, white, white, white, white, black );
-	padding: 1rem;
-}
-
 .cblock
 {
+	width: 100%;
+	max-width: $screen-w-xl;
+	margin: auto;
 	flex-direction: column;
 	flex-shrink: 0;
 	padding: 1rem 0;
+	align-items: flex-start;
+
+	&:hover {
+		z-index: 100;
+	}
 }

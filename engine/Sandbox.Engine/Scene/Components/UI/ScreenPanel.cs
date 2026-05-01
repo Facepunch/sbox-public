@@ -91,6 +91,7 @@ public sealed class ScreenPanel : Component, IRootPanelComponent
 			return;
 
 		rootPanel.Style.ZIndex = ZIndex;
+		rootPanel.Style.Opacity = Opacity;
 		rootPanel.AutoScale = AutoScreenScale;
 		rootPanel.ManualScale = Scale;
 		rootPanel.ScaleStrategy = ScaleStrategy;
@@ -100,7 +101,7 @@ public sealed class ScreenPanel : Component, IRootPanelComponent
 	{
 		if ( !rootPanel.IsValid() ) return;
 
-		rootPanel.RenderManual( Opacity );
+		rootPanel.RenderManual();
 	}
 }
 
@@ -145,6 +146,8 @@ class GameRootPanel : RootPanel
 			{
 				Scale = 2.33f;
 			}
+
+			Scale *= ManualScale;
 		}
 		else
 		{

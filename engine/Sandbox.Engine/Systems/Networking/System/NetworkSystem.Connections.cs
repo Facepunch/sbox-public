@@ -157,9 +157,7 @@ internal partial class NetworkSystem
 		if ( Connection.Local.State == Connection.ChannelState.Unconnected )
 			return;
 
-		IGameInstanceDll.Current.Disconnect();
-		IMenuSystem.ShowServerError( "Disconnected", reasonString );
-		Log.Warning( $"Disconnecting - {reasonString}" );
+		IGameInstanceDll.Current.Disconnect( $"You have been disconnected from the server.\nReason: {reasonString}" );
 	}
 
 	/// <summary>

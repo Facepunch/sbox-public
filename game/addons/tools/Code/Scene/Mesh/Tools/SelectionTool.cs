@@ -94,6 +94,13 @@ public abstract class SelectionTool : EditorTool
 	[SkipHotload]
 	protected static readonly Dictionary<Type, SelectionSystem> PreviousSelections = [];
 
+	/// <summary>
+	/// Key used to store/restore previous selections. Tools sharing the same
+	/// element type (e.g. FaceTool and TextureTool both use MeshFace) will
+	/// share the same entry, keeping them in sync.
+	/// </summary>
+	protected virtual Type PreviousSelectionKey => GetType();
+
 	public static IEnumerable<T> GetAllSelected<T>()
 	{
 		return PreviousSelections.Values
@@ -102,9 +109,26 @@ public abstract class SelectionTool : EditorTool
 			.Distinct();
 	}
 
+	/// <summary>
+	/// Inject an element into the previous selection entry matching its type.
+	/// </summary>
+	public static void AddToPreviousSelections( object element )
+	{
+		var stored = PreviousSelections.GetOrCreate( element.GetType() );
+		stored.Add( element );
+	}
+
+	public static void ClearPreviousSelections<T>()
+	{
+		if ( PreviousSelections.TryGetValue( typeof( T ), out var stored ) )
+		{
+			stored.Clear();
+		}
+	}
+
 	protected void SaveCurrentSelection<T>() where T : IValid
 	{
-		var stored = PreviousSelections.GetOrCreate( GetType() );
+		var stored = PreviousSelections.GetOrCreate( PreviousSelectionKey );
 		stored.Clear();
 
 		foreach ( var element in Selection.OfType<T>().Where( x => x.IsValid() ) )
@@ -115,7 +139,7 @@ public abstract class SelectionTool : EditorTool
 
 	protected void RestorePreviousSelection<T>() where T : IValid
 	{
-		if ( !PreviousSelections.TryGetValue( GetType(), out var previousSelection ) )
+		if ( !PreviousSelections.TryGetValue( PreviousSelectionKey, out var previousSelection ) )
 			return;
 
 		foreach ( var element in previousSelection.OfType<T>().Where( x => x.IsValid() ) )
@@ -144,6 +168,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 {
 	protected MeshTool Tool { get; private init; } = tool;
 
+	protected override Type PreviousSelectionKey => typeof( T );
 	readonly HashSet<MeshVertex> _vertexSelection = [];
 	readonly Dictionary<MeshVertex, Vector3> _transformVertices = [];
 	List<MeshFace> _transformFaces;
@@ -248,6 +273,23 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 
 	public bool IsAllowedToSelect => Tool?.MoveMode?.AllowSceneSelection ?? true;
 
+	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
+	{
+		bool hasSelection = Selection.OfType<IMeshElement>().Any( x => x.IsValid() );
+
+		if ( hasSelection )
+		{
+			menu.AddSeparator();
+
+			var sel = menu.AddMenu( "Selection", "select_all" );
+			AddMenuOption( sel, "Grow Selection (+)", "add", "mesh.grow-selection", true );
+			AddMenuOption( sel, "Shrink Selection (-)", "remove", "mesh.shrink-selection", true );
+		}
+
+		menu.AddSeparator();
+		menu.AddOption( "Lift Material", "colorize", () => LiftMaterialFromContextTrace( trace ), "mesh.lift-material" );
+	}
+
 	public override void OnUpdate()
 	{
 		GlobalSpace = Gizmo.Settings.GlobalSpace;
@@ -298,11 +340,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 	{
 		if ( Gizmo.WasRightMousePressed && Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
 		{
-			var face = TraceFace();
-			if ( face.IsValid() )
-			{
-				Tool.ActiveMaterial = face.Material;
-			}
+			LiftMaterialFromHoveredFace();
 		}
 
 		if ( Gizmo.IsRightMouseDown && Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
@@ -322,6 +360,36 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 					}
 				}
 			}
+		}
+	}
+
+	private void LiftMaterialFromHoveredFace()
+	{
+		var face = TraceFace();
+		if ( face.IsValid() )
+		{
+			Tool.ActiveMaterial = face.Material;
+		}
+	}
+
+	[Shortcut( "mesh.lift-material", "SHIFT+RMB", typeof( SceneViewWidget ) )]
+	private void LiftMaterial()
+	{
+		LiftMaterialFromHoveredFace();
+	}
+
+	private void LiftMaterialFromContextTrace( SceneTraceResult? trace )
+	{
+		if ( trace is not { Hit: true } hit )
+			return;
+
+		if ( hit.Component is not MeshComponent component || component.Mesh is null )
+			return;
+
+		var face = new MeshFace( component, component.Mesh.TriangleToFace( hit.Triangle ) );
+		if ( face.IsValid() )
+		{
+			Tool.ActiveMaterial = face.Material;
 		}
 	}
 
@@ -455,6 +523,9 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 		}
 	}
 
+	[Shortcut( "mesh.invert-selection", "CTRL+I", typeof( SceneViewWidget ) )]
+	protected void InvertCurrentSelection() => InvertSelection();
+
 	public virtual List<MeshFace> ExtrudeSelection( Vector3 delta = default )
 	{
 		return [];
@@ -564,6 +635,9 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 	{
 		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
 		{
+			using var scope = SceneEditorSession.Active
+				.UndoScope( "Update Selection" ).Push();
+
 			if ( Selection.Contains( element ) )
 			{
 				Selection.Remove( element );
@@ -579,14 +653,25 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 		{
 			if ( !Selection.Contains( element ) )
 			{
+				using var scope = SceneEditorSession.Active
+					.UndoScope( "Update Selection" ).Push();
+
 				Selection.Add( element );
 			}
 
 			return;
 		}
 
-		Selection.Set( element );
+		if ( !Selection.Contains( element ) || Selection.Count != 1 )
+		{
+			using var scope = SceneEditorSession.Active
+				.UndoScope( "Update Selection" ).Push();
+
+			Selection.Set( element );
+		}
 	}
+
+	IDisposable _selectionUndoScope;
 
 	public void UpdateSelection( IMeshElement element )
 	{
@@ -599,24 +684,48 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 			{
 				Select( element );
 			}
-			else if ( !IsMultiSelecting )
+			else if ( !IsMultiSelecting && Selection.Any() )
 			{
+				using var scope = SceneEditorSession.Active
+					.UndoScope( "Update Selection" ).Push();
+
 				Selection.Clear();
 			}
+
+			return;
 		}
-		else if ( Gizmo.IsLeftMouseDown && element.IsValid() )
+
+		if ( Gizmo.IsLeftMouseDown )
 		{
-			if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
+			if ( element.IsValid() )
 			{
-				if ( Selection.Contains( element ) )
-					Selection.Remove( element );
+				if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
+				{
+					if ( Selection.Contains( element ) )
+					{
+						_selectionUndoScope ??= SceneEditorSession.Active
+							.UndoScope( "Update Selection" ).Push();
+
+						Selection.Remove( element );
+					}
+				}
+				else
+				{
+					if ( !Selection.Contains( element ) )
+					{
+						_selectionUndoScope ??= SceneEditorSession.Active
+							.UndoScope( "Update Selection" ).Push();
+
+						Selection.Add( element );
+					}
+				}
 			}
-			else
-			{
-				if ( !Selection.Contains( element ) )
-					Selection.Add( element );
-			}
+
+			return;
 		}
+
+		_selectionUndoScope?.Dispose();
+		_selectionUndoScope = null;
 	}
 
 	protected override void OnStartDrag()
@@ -683,12 +792,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 		if ( IsBoxSelecting || IsLassoSelecting )
 			return default;
 
-		var result = MeshTrace.Run();
-		if ( !result.Hit || result.Component is not MeshComponent component )
-			return default;
-
-		var face = component.Mesh.TriangleToFace( result.Triangle );
-		return new MeshFace( component, face );
+		return MeshTrace.TraceFace();
 	}
 
 	public static Vector3 ComputeTextureVAxis( Vector3 normal ) => FaceDownVectors[GetOrientationForPlane( normal )];
@@ -965,6 +1069,111 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 		}
 
 		return new Rect( min.x, min.y, max.x - min.x, max.y - min.y );
+	}
+
+	protected void WrapTextureToSelection( MeshFace sourceFace )
+	{
+		var faces = Selection.OfType<MeshFace>().ToArray();
+		if ( faces.Length == 0 ) return;
+
+		using var scope = SceneEditorSession.Scope();
+		using var undoScope = SceneEditorSession.Active.UndoScope( "Wrap Texture To Selection" )
+			.WithComponentChanges( faces.Select( x => x.Component ).Distinct() )
+			.Push();
+
+		foreach ( var face in faces )
+		{
+			WrapTexture( sourceFace, face );
+		}
+	}
+
+	protected void WrapTexture( MeshFace targetFace )
+	{
+		if ( !targetFace.IsValid() || Selection.LastOrDefault() is not MeshFace sourceFace )
+			return;
+
+		using var scope = SceneEditorSession.Scope();
+		using var undoScope = SceneEditorSession.Active.UndoScope( "Wrap Texture" )
+			.WithComponentChanges( [targetFace.Component] )
+			.Push();
+
+		WrapTexture( sourceFace, targetFace );
+	}
+
+	static void WrapTexture( MeshFace sourceFace, MeshFace targetFace )
+	{
+		if ( !sourceFace.IsValid() )
+			return;
+
+		if ( !targetFace.IsValid() )
+			return;
+
+		var sourceMesh = sourceFace.Component.Mesh;
+		var targetMesh = targetFace.Component.Mesh;
+
+		targetFace.Material = sourceFace.Material;
+		sourceMesh.GetFaceTextureParameters( sourceFace.Handle, out var vAxisU, out var vAxisV, out var vScale );
+
+		PolygonMesh.GetBestPlanesForEdgeBetweenFaces( sourceMesh, sourceFace.Handle, sourceFace.Transform,
+			targetMesh, targetFace.Handle, targetFace.Transform,
+			out var fromPlane, out var toPlane );
+
+		RotateTextureCoordinatesAroundEdge( fromPlane, toPlane, ref vAxisU, ref vAxisV, vScale );
+
+		targetMesh.SetFaceTextureParameters( targetFace.Handle, vAxisU, vAxisV, vScale );
+	}
+
+	static void RotateTextureCoordinatesAroundEdge( Plane fromPlane, Plane toPlane, ref Vector4 pInOutAxisU, ref Vector4 pInOutAxisV, Vector2 scale )
+	{
+		Vector3 vAxisUOld = (Vector3)pInOutAxisU;
+		Vector3 vAxisVOld = (Vector3)pInOutAxisV;
+		var flShiftUOld = pInOutAxisU.w * scale.x;
+		var flShiftVOld = pInOutAxisV.w * scale.y;
+
+		var vEdge = fromPlane.Normal.Cross( toPlane.Normal ).Normal;
+		var vEdgePoint = Plane.GetIntersection( fromPlane, toPlane, new Plane( vEdge, 0.0f ) );
+
+		var vAxisUNew = vAxisUOld;
+		var vAxisVNew = vAxisVOld;
+		var flShiftUNew = flShiftUOld;
+		var flShiftVNew = flShiftVOld;
+
+		if ( vEdgePoint.HasValue )
+		{
+			var vProjFromNormal = fromPlane.Normal - vEdge * vEdge.Dot( fromPlane.Normal );
+			var vProjToNormal = toPlane.Normal - vEdge * vEdge.Dot( toPlane.Normal );
+
+			vProjFromNormal = vProjFromNormal.Normal;
+			vProjToNormal = vProjToNormal.Normal;
+
+			var flPlanesDot = vProjFromNormal.Dot( vProjToNormal ).Clamp( -1.0f, 1.0f );
+			var flRotationAngle = MathF.Acos( flPlanesDot ) * (180.0f / System.MathF.PI);
+
+			if ( flPlanesDot < 0.0f )
+			{
+				flRotationAngle = 180.0f - flRotationAngle;
+			}
+
+			var mEdgeRotation = Rotation.FromAxis( vEdge, flRotationAngle );
+			vAxisUNew = vAxisUOld * mEdgeRotation;
+			vAxisVNew = vAxisVOld * mEdgeRotation;
+
+			var edgePoint = vEdgePoint.Value;
+			var flPointU = (Vector3.Dot( vAxisUOld, edgePoint ) + flShiftUOld) / scale.x;
+			var flPointV = (Vector3.Dot( vAxisVOld, edgePoint ) + flShiftVOld) / scale.y;
+
+			var flNewPointUnshiftedU = Vector3.Dot( vAxisUNew, edgePoint ) / scale.x;
+			var flNewPointUnshiftedV = Vector3.Dot( vAxisVNew, edgePoint ) / scale.y;
+
+			var flNeededShiftU = flPointU - flNewPointUnshiftedU;
+			var flNeededShiftV = flPointV - flNewPointUnshiftedV;
+
+			flShiftUNew = flNeededShiftU * scale.x;
+			flShiftVNew = flNeededShiftV * scale.y;
+		}
+
+		pInOutAxisU = new Vector4( vAxisUNew, flShiftUNew / scale.x );
+		pInOutAxisV = new Vector4( vAxisVNew, flShiftVNew / scale.y );
 	}
 
 	[SkipHotload]

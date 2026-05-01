@@ -36,6 +36,7 @@ internal partial class RenderPipeline
 			ClusteredCullingLayer.AddToView( view, viewport );
 		}
 
+		view.GetRenderAttributesPtr().SetIntValue( "ShadowFilterQuality", ShadowMapper.ShadowFilter );
 
 		// Depth Prepass with a small GBuffer ( Normals, Roughness )
 		{
@@ -65,6 +66,7 @@ internal partial class RenderPipeline
 
 			// Pass that DepthNormals are enabled to the rest of the pipeline
 			view.GetRenderAttributesPtr().SetIntValue( "NormalsTextureIndex", gbufferColor.ColorTarget.Index );
+			view.GetRenderAttributesPtr().SetTextureValue( "NormalsGBuffer", gbufferColor.ColorTarget.native, -1 );
 		}
 
 		// Compute Async: Depth downscale, clustered culling

@@ -1,34 +1,23 @@
-﻿@using Sandbox.Modals;
-@using Sandbox.UI;
+﻿@using Sandbox.UI;
 @using Sandbox;
 @using Sandbox.Network;
 
-<root class="row">
+<root class="row @RowClass" onclick=@OpenServerModal>
 
 	<div class="title">@Server.Name</div>
-	<div class="game" @onclick=@OpenGameInfo>
-		@if (string.IsNullOrEmpty(GamePackage?.Thumb))
-		{
-			<i>sports_esports</i>
-		    <label>@Server.Game</label>
-		}
-		else
-		{
-			<img src="@GamePackage.Thumb" />
-		    <label>@GamePackage.Title</label>
-		}
-	</div>
 	<div class="map" onclick=@OpenMapInfo>
-		@if (string.IsNullOrEmpty(MapPackage?.Thumb))
+		@if ( MapPackage is not null || !string.IsNullOrEmpty( Server.Map ) )
 		{
-			<i>map</i>
-		    <label>@Server.Map</label>
+			@if ( string.IsNullOrEmpty( MapPackage?.Thumb ) )
+			{
+				<i>map</i>
+			}
+			else
+			{
+				<img src="@MapPackage.Thumb" />
+			}
 
-		}
-		else
-		{
-			<img src="@MapPackage.Thumb" />
-		    <label>@(MapPackage.Title ?? Server.Map)</label>
+			<label>@(MapPackage?.Title ?? Server.Map)</label>
 		}
 	</div>
 	<div class="members">
@@ -36,9 +25,21 @@
 		<div class="sep">/</div>
 		<div class="maxmembers">@Server.MaxMembers</div>
 	</div>
-
-	<div class="controls" onclick=@( () => OnLobbySelected( Server ) )>
-		<Button class="clicky" icon="launch">Join</Button>
+	<div class="ping-icon @PingClass">
+		@if ( Server.Ping >= 0 )
+		{
+			<i>@PingIcon</i>
+		}
+	</div>
+	<div class="ping-value @PingClass">
+		@if ( Server.Ping >= 0 )
+		{
+			<label>@(Server.Ping)</label>
+		}
+		else
+		{
+			<label>—</label>
+		}
 	</div>
 
 </root>
@@ -47,56 +48,65 @@
 {
     public LobbyInformation Server { get; set; }
 
-    Package GamePackage;
     Package MapPackage;
 
-    protected override void OnAfterTreeRender(bool firstTime)
+    protected override void OnAfterTreeRender( bool firstTime )
     {
-        base.OnAfterTreeRender(firstTime);
+        base.OnAfterTreeRender( firstTime );
 
-        if(firstTime)
+        if ( firstTime )
         {
             GetThumbnails();
         }
     }
 
-    void OpenMapInfo()
+    void OpenServerModal()
     {
-        if (MapPackage is null) return;
-
-        Game.Overlay.ShowPackageModal( MapPackage.FullIdent );
+        ModalSystem.Instance.Server( Server );
     }
 
-	async void GetThumbnails()
-	{
-		if (Server.Game.Contains(".") && !Server.Game.Contains("local."))
-		{
-			var gamePackage = await Package.FetchAsync(Server.Game, true);
-			if (gamePackage.Public)
-			{
-				GamePackage = gamePackage;
-			}
-		}
+    void OpenMapInfo()
+    {
+        if ( MapPackage is null ) return;
 
-		if (Server.Map.Contains(".") && !Server.Map.Contains(".vmap"))
-		{
-			var mapPackage = await Package.FetchAsync(Server.Map, true);
-			if (mapPackage.Public)
+        Game.Overlay.ShowMapModal( MapPackage.FullIdent );
+    }
+
+    async void GetThumbnails()
+    {
+        if ( Server.Map.Contains( "." ) && !Server.Map.Contains( ".vmap" ) )
+        {
+			var mapPackage = await Package.FetchAsync( Server.Map, true );
+			if ( mapPackage?.Public ?? false )
 			{
 				MapPackage = mapPackage;
+                StateHasChanged();
 			}
 		}
 	}
 
-	void OnLobbySelected( LobbyInformation lobby )
+	protected override int BuildHash() => System.HashCode.Combine( MapPackage?.Thumb, Server.Members, Server.Ping );
+
+	string RowClass => Server.IsFull ? "full" : Server.Members == 0 ? "empty" : "";
+
+	string PingClass
 	{
-		Networking.Connect( lobby.LobbyId );
+		get
+		{
+			if ( Server.Ping < 0 ) return "unknown";
+			if ( Server.Ping < 50 ) return "good";
+			if ( Server.Ping < 100 ) return "okay";
+			return "bad";
+		}
 	}
 
-	void OpenGameInfo()
+	string PingIcon
 	{
-		Game.Overlay.ShowGameModal(Server.Game);
+		get
+		{
+			if ( Server.Ping < 50 ) return "signal_cellular_alt";
+			if ( Server.Ping < 100 ) return "signal_cellular_alt_2_bar";
+			return "signal_cellular_alt_1_bar";
+		}
 	}
-
-	protected override int BuildHash() => System.HashCode.Combine(GamePackage?.Thumb, MapPackage?.Thumb);
 }

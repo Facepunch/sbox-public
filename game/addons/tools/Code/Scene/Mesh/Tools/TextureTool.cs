@@ -117,6 +117,28 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 		DrawBounds();
 	}
 
+	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
+	{
+		base.BuildSceneContextMenu( menu, ray, trace );
+
+		bool any = Selection.OfType<MeshFace>().Any( x => x.IsValid() );
+
+		if ( any )
+		{
+			menu.AddSeparator();
+
+			var ops = menu.AddMenu( "Texture Operations", "gradient" );
+			AddMenuOption( ops, "Apply Material", "format_color_fill", "mesh.apply-material", true );
+			AddMenuOption( ops, "Apply by Hotspot", "my_location", "mesh.apply-hotspot", true );
+			AddMenuOption( ops, "Apply by Hotspot (Per Face)", "texture", "mesh.apply-hotspot-per-face", true );
+			AddMenuOption( ops, "Fast Texture Tool", "edit", "mesh.fast-texture-tool", true );
+
+			var sel = menu.AddMenu( "Texture Selection", "select_all" );
+			AddMenuOption( sel, "Invert Selection", "swap_vert", InvertCurrentSelection, "mesh.invert-selection", true );
+			sel.AddOption( "Select All", "select_all", () => InvokeShortcut( "mesh.select-all" ), "mesh.select-all" );
+		}
+	}
+
 	protected override IEnumerable<MeshFace> ConvertSelectionToCurrentType()
 	{
 		var selectedEdges = Selection.OfType<MeshEdge>().ToHashSet();
@@ -210,105 +232,13 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 		{
 			if ( Gizmo.IsShiftPressed )
 			{
-				WrapTextureToSelection();
+				WrapTextureToSelection( _hoverFace );
 			}
 			else
 			{
-				WrapTexture();
+				WrapTexture( _hoverFace );
 			}
 		}
-	}
-
-	private void WrapTextureToSelection()
-	{
-		foreach ( var face in Selection.OfType<MeshFace>() )
-		{
-			WrapTexture( _hoverFace, face );
-		}
-	}
-
-	private void WrapTexture()
-	{
-		if ( !_hoverFace.IsValid() || Selection.LastOrDefault() is not MeshFace face )
-			return;
-
-		WrapTexture( face, _hoverFace );
-	}
-
-	private static void WrapTexture( MeshFace sourceFace, MeshFace targetFace )
-	{
-		if ( !sourceFace.IsValid() )
-			return;
-
-		if ( !targetFace.IsValid() )
-			return;
-
-		var sourceMesh = sourceFace.Component.Mesh;
-		var targetMesh = targetFace.Component.Mesh;
-
-		targetFace.Material = sourceFace.Material;
-		sourceMesh.GetFaceTextureParameters( sourceFace.Handle, out var vAxisU, out var vAxisV, out var vScale );
-
-		PolygonMesh.GetBestPlanesForEdgeBetweenFaces( sourceMesh, sourceFace.Handle, sourceFace.Transform,
-			targetMesh, targetFace.Handle, targetFace.Transform,
-			out var fromPlane, out var toPlane );
-
-		RotateTextureCoordinatesAroundEdge( fromPlane, toPlane, ref vAxisU, ref vAxisV, vScale );
-
-		targetMesh.SetFaceTextureParameters( targetFace.Handle, vAxisU, vAxisV, vScale );
-	}
-
-	private static void RotateTextureCoordinatesAroundEdge( Plane fromPlane, Plane toPlane, ref Vector4 pInOutAxisU, ref Vector4 pInOutAxisV, Vector2 scale )
-	{
-		Vector3 vAxisUOld = (Vector3)pInOutAxisU;
-		Vector3 vAxisVOld = (Vector3)pInOutAxisV;
-		var flShiftUOld = pInOutAxisU.w * scale.x;
-		var flShiftVOld = pInOutAxisV.w * scale.y;
-
-		var vEdge = fromPlane.Normal.Cross( toPlane.Normal ).Normal;
-		var vEdgePoint = Plane.GetIntersection( fromPlane, toPlane, new Plane( vEdge, 0.0f ) );
-
-		var vAxisUNew = vAxisUOld;
-		var vAxisVNew = vAxisVOld;
-		var flShiftUNew = flShiftUOld;
-		var flShiftVNew = flShiftVOld;
-
-		if ( vEdgePoint.HasValue )
-		{
-			var vProjFromNormal = fromPlane.Normal - vEdge * vEdge.Dot( fromPlane.Normal );
-			var vProjToNormal = toPlane.Normal - vEdge * vEdge.Dot( toPlane.Normal );
-
-			vProjFromNormal = vProjFromNormal.Normal;
-			vProjToNormal = vProjToNormal.Normal;
-
-			var flPlanesDot = vProjFromNormal.Dot( vProjToNormal ).Clamp( -1.0f, 1.0f );
-			var flRotationAngle = System.MathF.Acos( flPlanesDot ) * (180.0f / System.MathF.PI);
-
-			if ( flPlanesDot < 0.0f )
-			{
-				flRotationAngle = 180.0f - flRotationAngle;
-			}
-
-			var mEdgeRotation = Rotation.FromAxis( vEdge, flRotationAngle );
-			vAxisUNew = vAxisUOld * mEdgeRotation;
-			vAxisVNew = vAxisVOld * mEdgeRotation;
-
-			var edgePoint = vEdgePoint.Value;
-			var flPointU = (Vector3.Dot( vAxisUOld, edgePoint ) + flShiftUOld) / scale.x;
-			var flPointV = (Vector3.Dot( vAxisVOld, edgePoint ) + flShiftVOld) / scale.y;
-
-			var flNewPointUnshiftedU = Vector3.Dot( vAxisUNew, edgePoint ) / scale.x;
-			var flNewPointUnshiftedV = Vector3.Dot( vAxisVNew, edgePoint ) / scale.y;
-
-			var flNeededShiftU = flPointU - flNewPointUnshiftedU;
-			var flNeededShiftV = flPointV - flNewPointUnshiftedV;
-
-			flShiftUNew = flNeededShiftU * scale.x;
-			flShiftVNew = flNeededShiftV * scale.y;
-		}
-
-		pInOutAxisU = new Vector4( vAxisUNew, flShiftUNew / scale.x );
-		pInOutAxisV = new Vector4( vAxisVNew, flShiftVNew / scale.y );
 	}
 
 	private void SelectAllConnectedFaces( MeshFace startFace )
@@ -596,7 +526,7 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 		}
 	}
 
-	static void ComputeHotspotUVsForFaces( PolygonMesh mesh, Transform transform, IReadOnlyList<FaceHandle> faces, RectEditor.RectAssetData subrectInfo, int mappingWidth, int mappingHeight, bool perFace, bool useTiling, bool conforming )
+	static void ComputeHotspotUVsForFaces( PolygonMesh mesh, Transform transform, IReadOnlyList<FaceHandle> faces, RectEditor.RectAssetData subrectInfo, int mappingWidth, int mappingHeight, bool perFace, bool useTiling, bool conforming, bool allowMirrorHorizontal, bool allowMirrorVertical )
 	{
 		List<List<FaceHandle>> faceIslands = [];
 		if ( perFace )
@@ -646,6 +576,11 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 
 			RescaleUVsToRectangle( uvs, rectMin, rectMax, tileUV );
 
+			if ( allowMirrorHorizontal || allowMirrorVertical )
+			{
+				RandomlyMirrorUVs( uvs, allowMirrorHorizontal, allowMirrorVertical );
+			}
+
 			if ( tiling && useTiling )
 			{
 				var uOffset = Random.Shared.Float( -128.0f, 128.0f );
@@ -672,6 +607,32 @@ public sealed partial class TextureTool( MeshTool tool ) : SelectionTool<MeshFac
 		}
 
 		mesh.ComputeFaceTextureParametersFromCoordinates( faces );
+	}
+
+	static void RandomlyMirrorUVs( List<Vector2> uvs, bool allowMirrorHorizontal, bool allowMirrorVertical )
+	{
+		var flipU = allowMirrorHorizontal && Random.Shared.Float( 0.0f, 1.0f ) >= 0.5f;
+		var flipV = allowMirrorVertical && Random.Shared.Float( 0.0f, 1.0f ) >= 0.5f;
+		if ( !flipU && !flipV ) return;
+
+		ComputeUVBounds( uvs, out var min, out var max );
+
+		for ( int i = 0; i < uvs.Count; ++i )
+		{
+			var uv = uvs[i];
+
+			if ( flipU )
+			{
+				uv.x = max.x - (uv.x - min.x);
+			}
+
+			if ( flipV )
+			{
+				uv.y = max.y - (uv.y - min.y);
+			}
+
+			uvs[i] = uv;
+		}
 	}
 
 	enum AlignEdgeUV

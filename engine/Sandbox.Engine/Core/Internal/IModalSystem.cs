@@ -13,6 +13,7 @@ public interface IModalSystem
 	public void Review( Package package );
 	public void PackageSelect( string query, Action<Package> onPackageSelected, Action<string> onFilterChanged = null );
 	public void FriendsList( in FriendsListModalOptions options );
+	public void Server( Sandbox.Network.LobbyInformation lobby );
 	public void ServerList( in ServerListConfig config );
 	public void Settings( string page = "" );
 	public void CreateGame( in CreateGameOptions options );
@@ -20,6 +21,7 @@ public interface IModalSystem
 	public void News( Sandbox.Services.News newsitem );
 	public void PlayerList();
 	public void WorkshopPublish( in WorkshopPublishOptions options );
+	public void Notice( string title, string message, string icon );
 
 	/// <summary>
 	/// The menu that is shown when escape is pressed while playing.
@@ -154,6 +156,11 @@ public struct WorkshopPublishOptions
 	/// https://steamcommunity.com/sharedfiles/filedetails/?id=######
 	/// </summary>
 	public Action<ulong> OnComplete { get; set; }
+
+	/// <summary>
+	/// If set, update this existing workshop item instead of creating a new one.
+	/// </summary>
+	public ulong PublishedFileId { get; set; }
 
 	/// <summary>
 	/// Defined categories to show in the workshop publish modal

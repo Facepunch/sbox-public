@@ -5,7 +5,25 @@ namespace Sandbox;
 
 internal static class ResourceLoader
 {
+	// Native resource extensions (with _c suffix) not covered by AssetTypeAttribute.
+	private static readonly HashSet<string> NativeExtensions = new( StringComparer.OrdinalIgnoreCase )
+	{
+		".vmat_c", ".vmdl_c", ".vtex_c", ".shader_c", ".vanmgrph_c"
+	};
 
+	/// Registers resource paths into PathIndex without loading them, for any file whose
+	/// extension is in <paramref name="extensions"/>. Called during LoadAllGameResource.
+	private static void RegisterPaths( ReadOnlySpan<string> files, IReadOnlySet<string> extensions )
+	{
+		foreach ( var file in files )
+		{
+			if ( !extensions.Contains( System.IO.Path.GetExtension( file ) ) )
+				continue;
+
+			// RegisterPath calls FixPath internally, which strips the _c suffix.
+			Game.Resources.RegisterPath( file );
+		}
+	}
 
 	internal static void LoadAllGameResource( BaseFileSystem fileSystem )
 	{
@@ -15,14 +33,24 @@ internal static class ResourceLoader
 
 		var allFiles = fileSystem.FindFile( "/", "*", true ).ToArray();
 
+		// Union GameResource extensions with native-only ones so PathIndex covers everything.
+		var allExtensions = new HashSet<string>( types.Keys, StringComparer.OrdinalIgnoreCase );
+		allExtensions.UnionWith( NativeExtensions );
+
+		RegisterPaths( allFiles, allExtensions );
+
 		var allResources = new List<GameResource>();
 
-		Clear();
 		foreach ( var file in allFiles )
 		{
 			var extension = System.IO.Path.GetExtension( file );
 
 			if ( !types.TryGetValue( extension, out var type ) )
+				continue;
+
+			// Skip resources that are already fully loaded - this allows calling this method
+			// multiple times (e.g. once per package) without redundant work.
+			if ( ResourceLibrary.TryGet<GameResource>( file.Trim( '/' ), out var existing ) && !existing.IsPromise )
 				continue;
 
 			try
@@ -56,22 +84,21 @@ internal static class ResourceLoader
 	}
 
 
-
-
-
 	static Dictionary<string, FileWatch> Watchers = new();
 
 	static void AddWatcherForType( AssetTypeAttribute type )
 	{
-		if ( Watchers.TryGetValue( type.Name, out var watcher ) )
-		{
-			watcher.Dispose();
-		}
+		if ( string.IsNullOrEmpty( type.Extension ) )
+			return;
 
-		watcher = EngineFileSystem.Mounted.Watch( $"*.{type.Extension}_c" );
+		// Watcher already set up for this type - no need to allocate another one.
+		if ( Watchers.ContainsKey( type.TargetType.AssemblyQualifiedName ) )
+			return;
+
+		var watcher = EngineFileSystem.Mounted.Watch( $"*.{type.Extension}_c" );
 		watcher.OnChanges += ( w ) => OnAssetFilesChanged( w, type );
 
-		Watchers[type.Name] = watcher;
+		Watchers[type.TargetType.AssemblyQualifiedName] = watcher;
 	}
 
 	private static void OnAssetFilesChanged( FileWatch watch, AssetTypeAttribute type )

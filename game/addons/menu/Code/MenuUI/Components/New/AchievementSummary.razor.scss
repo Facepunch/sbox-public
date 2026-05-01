@@ -1,0 +1,15 @@
+@import "/styles/_theme.scss";
+
+AchievementSummary {
+    @include card-hover;
+    border-radius: $rounding-large;
+    flex-shrink: 0;
+
+    Progress {
+        margin-top: 2px;
+    }
+
+    ListCard {
+        padding-left: 72px;
+    }
+}

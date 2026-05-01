@@ -138,6 +138,9 @@ internal static class Image
 	{
 		filename = filename.Normalize();
 
+		if ( Game.Resources.Get<Texture>( filename ) is { } cached )
+			return cached;
+
 		try
 		{
 			Texture tex = default;
@@ -161,7 +164,7 @@ internal static class Image
 				tex = Load( stream, filename );
 			}
 
-			tex?.SetIdFromResourcePath( filename );
+			tex?.RegisterWeakResourceId( filename );
 			return tex;
 		}
 		catch ( System.IO.FileNotFoundException e )

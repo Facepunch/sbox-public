@@ -130,4 +130,19 @@ public partial class Panel
 			}
 		}
 	}
+
+	/// <summary>
+	/// Called when a panel is being dragged over this panel. Fires continuously as the cursor moves.
+	/// </summary>
+	protected virtual void OnDragEnter( PanelEvent e ) { }
+
+	/// <summary>
+	/// Called when a panel being dragged leaves this panel's bounds.
+	/// </summary>
+	protected virtual void OnDragLeave( PanelEvent e ) { }
+
+	/// <summary>
+	/// Called when a dragged panel is released over this panel.
+	/// </summary>
+	protected virtual void OnDrop( PanelEvent e ) { }
 }

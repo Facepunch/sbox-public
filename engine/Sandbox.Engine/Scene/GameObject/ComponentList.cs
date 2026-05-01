@@ -42,22 +42,46 @@ public enum FindMode
 	/// </summary>
 	InDescendants = 64,
 
-
+	[Hide]
 	EnabledInSelf = Enabled | InSelf,
+
+	[Hide]
 	EnabledInSelfAndDescendants = Enabled | InSelf | InDescendants,
+
+	[Hide]
 	EnabledInSelfAndChildren = Enabled | InSelf | InChildren,
 
+	[Hide]
 	DisabledInSelf = Disabled | InSelf,
+
+	[Hide]
 	DisabledInSelfAndDescendants = Disabled | InSelf | InDescendants,
+
+	[Hide]
 	DisabledInSelfAndChildren = Disabled | InSelf | InChildren,
 
+	[Hide]
 	EverythingInSelf = Enabled | InSelf | Disabled,
+
+	[Hide]
 	EverythingInSelfAndDescendants = Enabled | InSelf | Disabled | InDescendants,
+
+	[Hide]
 	EverythingInSelfAndChildren = Enabled | InSelf | Disabled | InChildren,
+
+	[Hide]
 	EverythingInSelfAndParent = Enabled | InSelf | Disabled | InParent,
+
+	[Hide]
 	EverythingInSelfAndAncestors = Enabled | InSelf | Disabled | InAncestors,
+
+	[Hide]
 	EverythingInAncestors = Enabled | Disabled | InAncestors,
+
+	[Hide]
 	EverythingInChildren = Enabled | Disabled | InChildren,
+
+	[Hide]
 	EverythingInDescendants = Enabled | Disabled | InDescendants,
 }
 
@@ -68,12 +92,14 @@ public class ComponentList
 	/// <summary>
 	/// This is the hard list of components.
 	/// This isn't a HashSet because we need the order to stay.
+	/// Lazily initialized so GameObjects without components don't allocate.
 	/// </summary>
-	List<Component> _list;
+	List<Component> _internalList;
+	List<Component> _list => _internalList ??= new List<Component>();
+
 	internal ComponentList( GameObject o )
 	{
 		go = o;
-		_list = new List<Component>();
 	}
 
 	/// <summary>
@@ -81,7 +107,7 @@ public class ComponentList
 	/// </summary>
 	public IEnumerable<Component> GetAll()
 	{
-		return _list;
+		return _internalList is null ? Enumerable.Empty<Component>() : _list;
 	}
 
 	/// <summary>
@@ -89,6 +115,7 @@ public class ComponentList
 	/// </summary>
 	internal void OnHotload()
 	{
+		if ( _internalList is null ) return;
 		_list.RemoveAll( x => x is null );
 	}
 
@@ -211,7 +238,7 @@ public class ComponentList
 		//
 		// Find in self
 		//
-		if ( find.Contains( FindMode.InSelf ) )
+		if ( find.Contains( FindMode.InSelf ) && _internalList is not null )
 		{
 			for ( int i = 0; i < _list.Count; i++ )
 			{
@@ -292,20 +319,23 @@ public class ComponentList
 	// Calling this directly is faster than going through Execute
 	internal void ExecuteEnabledInSelfAndDescendants<T>( Action<T> action )
 	{
-		if ( !go.IsValid() || !go.Enabled )
-			return;
+		if ( !go.IsValid() || !go.Enabled ) return;
 
-		// Check components on this GameObject
-		for ( int i = 0; i < _list.Count; i++ )
+		if ( _internalList is not null )
 		{
-			var component = _list[i];
-			if ( component is null ) continue;
-
-			if ( component is T target && component.Active )
+			// Check components on this GameObject
+			for ( int i = 0; i < _list.Count; i++ )
 			{
-				action.Invoke( target );
+				var component = _list[i];
+				if ( component is null ) continue;
+
+				if ( component is T target && component.Active )
+				{
+					action.Invoke( target );
+				}
 			}
 		}
+
 		// Recurse to children
 		for ( int i = go.Children.Count - 1; i >= 0; i-- )
 		{
@@ -335,7 +365,7 @@ public class ComponentList
 		//
 		// Execute in self
 		//
-		if ( find.Contains( FindMode.InSelf ) )
+		if ( find.Contains( FindMode.InSelf ) && _internalList is not null )
 		{
 			for ( int i = 0; i < _list.Count; i++ )
 			{
@@ -412,17 +442,18 @@ public class ComponentList
 	/// <summary>
 	/// Allows linq style queries
 	/// </summary>
-	public Component FirstOrDefault( Func<Component, bool> value ) => _list.FirstOrDefault( value );
+	public Component FirstOrDefault( Func<Component, bool> value ) => _internalList is null ? null : _internalList.FirstOrDefault( value );
 
 	/// <summary>
 	/// Amount of components - including disabled
 	/// </summary>
-	public int Count => _list.Count;
+	public int Count => _internalList is null ? 0 : _internalList.Count;
 
 	public void ForEach<T>( string name, bool includeDisabled, Action<T> action )
 	{
-		if ( !includeDisabled && !go.Active )
-			return;
+		if ( _internalList is null ) return;
+
+		if ( !includeDisabled && !go.Active ) return;
 
 		for ( int i = _list.Count - 1; i >= 0 && i < _list.Count; i-- )
 		{
@@ -455,6 +486,7 @@ public class ComponentList
 
 	internal void RemoveNull()
 	{
+		if ( _internalList is null ) return;
 		_list.RemoveAll( x => x is null );
 	}
 
@@ -468,7 +500,7 @@ public class ComponentList
 
 	internal int IndexOf( Component baseComponent )
 	{
-		return _list.IndexOf( baseComponent );
+		return _internalList is null ? -1 : _list.IndexOf( baseComponent );
 	}
 
 	/// <summary>

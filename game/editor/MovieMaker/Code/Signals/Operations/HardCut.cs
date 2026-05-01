@@ -66,7 +66,7 @@ file sealed record HardCutOperation<T>( PropertySignal<T> First, PropertySignal<
 		return GetTransitionPaintHints( timeRange, Time );
 	}
 
-	public override IEnumerable<ICompiledPropertyBlock<T>> Compile( MovieTimeRange timeRange, int sampleRate )
+	public override IEnumerable<ICompiledPropertyBlock<T>> Compile( MovieTimeRange timeRange, int? sampleRate )
 	{
 		if ( timeRange.End <= Time )
 		{

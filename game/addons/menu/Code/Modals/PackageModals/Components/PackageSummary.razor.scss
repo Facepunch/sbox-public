@@ -1,11 +1,14 @@
+@import "/styles/_theme.scss";
+
 PackageSummary
 {
     flex-direction: column;
     padding: 0px 24px;
     gap: 4px;
     font-family: Poppins;
-    color: #6f7688;
+    color: $default-text-light;
     font-size: 14px;
+    font-weight: 500;
 }
 
 .title
@@ -15,16 +18,34 @@ PackageSummary
     color: white;
 }
 
-.orgname
+.org
 {
-    font-weight: 550;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
     cursor: pointer;
-    color: #bcc9e2;
 
     &:hover
     {
-        color: white;
+        .orgname
+        {
+            color: white;
+        }
     }
+}
+
+.org-thumb
+{
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    background-size: cover;
+}
+
+.orgname
+{
+    font-weight: 550;
+    color: #bcc9e2;
 }
 
 

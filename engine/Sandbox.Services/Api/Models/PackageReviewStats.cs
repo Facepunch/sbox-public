@@ -3,35 +3,32 @@ namespace Sandbox.Services;
 
 public class PackageReviewStats
 {
-	public struct Group
-	{
-		public int Rating { get; set; }
+	[JsonPropertyName( "p" )]
+	public int PositiveRatings { get; set; }
 
-		public long Total { get; set; }
-	}
+	[JsonPropertyName( "n" )]
+	public int NegativeRatings { get; set; }
 
-	public List<Group> Scores { get; set; } = new();
+	[JsonPropertyName( "o" )]
+	public int PromiseRatings { get; set; }
 
-	[JsonIgnore]
-	public Group Positive => Scores.FirstOrDefault( x => x.Rating == (int)ReviewScore.Positive );
+	[JsonPropertyName( "pt" )]
+	public Dictionary<ReviewPositiveTags, int> PositiveTags { get; set; } = new();
 
-	[JsonIgnore]
-	public Group Negative => Scores.FirstOrDefault( x => x.Rating == (int)ReviewScore.Negative );
-
-	[JsonIgnore]
-	public Group Promise => Scores.FirstOrDefault( x => x.Rating == (int)ReviewScore.Promise );
+	[JsonPropertyName( "nt" )]
+	public Dictionary<ReviewNegativeTags, int> NegativeTags { get; set; } = new();
 
 	[JsonIgnore]
-	public long Count => Scores.Sum( x => x.Total );
+	public long Count => PositiveRatings + NegativeRatings + PromiseRatings;
 
 	public float ToPercentage()
 	{
 		var count = Count;
 		if ( count == 0 ) return 0;
 
-		float score = (Positive.Total * 100) + (Promise.Total * 50);
+		float score = (PositiveRatings * 100) + (PromiseRatings * 50);
 
-		score /= (Positive.Total + Promise.Total + Negative.Total);
+		score /= (PositiveRatings + PositiveRatings + NegativeRatings);
 
 		return score;
 	}

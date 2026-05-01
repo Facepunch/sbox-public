@@ -2,7 +2,6 @@
 using MenuProject.Modals.PauseMenuModal;
 using Sandbox;
 using Sandbox.Modals;
-using Sandbox.Services;
 
 public class ModalSystem : IModalSystem
 {
@@ -33,6 +32,8 @@ public class ModalSystem : IModalSystem
 		}
 
 		OpenModals.Clear();
+
+		_pauseModal?.SetClass( "hidden", true );
 	}
 
 	protected void Push( BaseModal modal )
@@ -125,6 +126,7 @@ public class ModalSystem : IModalSystem
 		modal.Org = org;
 		Push( modal );
 	}
+
 	public void Review( Package package )
 	{
 		var modal = new ReviewModal();
@@ -141,6 +143,11 @@ public class ModalSystem : IModalSystem
 	{
 		var modal = new ServerListModal( config );
 		Push( modal );
+	}
+
+	public void Server( Sandbox.Network.LobbyInformation lobby )
+	{
+		Push( new ServerModal { Server = lobby } );
 	}
 
 	public void PlayerList()
@@ -193,7 +200,7 @@ public class ModalSystem : IModalSystem
 		Push( modal );
 	}
 
-	public void News( News news )
+	public void News( Sandbox.Services.News news )
 	{
 		Push( new PackageNewsModal { News = news } );
 	}
@@ -201,6 +208,16 @@ public class ModalSystem : IModalSystem
 	public void WorkshopPublish( in WorkshopPublishOptions options )
 	{
 		Push( new WorkshopPublishModal { Options = options } );
+	}
+
+	public void Notice( string title, string message, string icon )
+	{
+		Push( new NoticeModal()
+		{
+			Title = title,
+			Message = message,
+			Icon = icon
+		} );
 	}
 
 	public bool IsModalOpen => HasModalsOpen();

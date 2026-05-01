@@ -22,9 +22,6 @@ public class PackageUsageStats
 		public long Sessions { get; set; }
 
 		[JsonIgnore]
-		public TimeSpan CombinedTime => TimeSpan.FromSeconds( Seconds );
-
-		[JsonIgnore]
 		public TimeSpan AverageTime => TimeSpan.FromSeconds( Seconds / MathF.Max( Users, 1 ) );
 	}
 
@@ -34,5 +31,4 @@ public class PackageUsageStats
 	public Group Day { get; set; }
 
 	public long UsersNow { get; set; }
-	public double Trend { get; set; }
 }

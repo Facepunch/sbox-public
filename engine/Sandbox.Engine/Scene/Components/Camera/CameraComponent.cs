@@ -10,7 +10,7 @@ namespace Sandbox;
 /// </summary>
 [Expose]
 [Title( "Camera" )]
-[Category( "Camera" )]
+[Category( "Rendering" )]
 [Icon( "videocam" )]
 [EditorHandle( "materials/gizmo/camera.png" )]
 public sealed partial class CameraComponent : Component, Component.ExecuteInEditor, Component.ISceneStage

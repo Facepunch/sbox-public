@@ -1,4 +1,5 @@
-﻿using Sandbox.MovieMaker;
+﻿using Sandbox;
+using Sandbox.MovieMaker;
 using Sandbox.Rendering;
 using System.IO;
 using System.Reflection;
@@ -6,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using Sandbox.Utility;
 
 namespace Editor.MovieMaker;
 
@@ -72,6 +74,12 @@ public sealed class VideoExportConfig
 	public Vector2Int Resolution { get; set; } = new( 1920, 1080 );
 
 	/// <summary>
+	/// MSAA level to use when rendering.
+	/// </summary>
+	[Feature( "Dimensions", Icon = "grain" )]
+	public MultisampleAmount MultisampleAmount { get; set; } = MultisampleAmount.Multisample8x;
+
+	/// <summary>
 	/// How many frames to render and discard before exporting, to warm up any temporal ray traced elements.
 	/// </summary>
 	[JsonIgnore, Hide]
@@ -108,7 +116,13 @@ public sealed class VideoExportConfig
 	public int RecommendedBitrate => (int)MathF.Ceiling( Resolution.x * Resolution.y * FrameRate * RecommendedBitsPerPixel / 1_000_000 );
 
 	[Feature( "Encoding", Icon = "terminal" ), ShowIf( nameof( Mode ), ExportMode.VideoFile )]
-	public VideoWriter.Codec Codec { get; set; } = VideoWriter.Codec.H264;
+	public VideoWriter.Codec Codec { get; set; } = VideoWriter.Codec.VP9;
+
+	[Feature( "Encoding", Icon = "terminal" ), ShowIf( nameof( Mode ), ExportMode.VideoFile )]
+	public VideoWriter.EncodingPreset Preset { get; set; } = VideoWriter.EncodingPreset.Quality;
+
+	[Feature( "Encoding", Icon = "terminal" ), ShowIf( nameof( Mode ), ExportMode.VideoFile )]
+	public VideoWriter.AudioCodec AudioCodec { get; set; } = VideoWriter.AudioCodec.Opus;
 
 	/// <summary>
 	/// Describes how long the sensor is exposed for each output frame.
@@ -134,7 +148,9 @@ public sealed class VideoExportConfig
 		Height = Resolution.y,
 		Bitrate = UseRecommendedBitrate ? RecommendedBitrate : CustomBitrate,
 		Codec = Codec,
-		Container = GetContainerForExtension( Path.GetExtension( filePath ) )
+		Container = GetContainerForExtension( Path.GetExtension( filePath ) ),
+		Preset = Preset,
+		AudioCodec = AudioCodec
 	};
 
 	private static VideoWriter.Container GetContainerForExtension( string extension )
@@ -205,7 +221,14 @@ public sealed class SessionRenderer
 
 		using var captureCamera = new SceneCamera( "Video Export Camera" );
 
-		using var subFrameTex = Texture.CreateRenderTarget( "VideoExportSubFrame", ImageFormat.RGBA16161616, config.Resolution );
+		var multisampleCount = config.MultisampleAmount.SampleCount;
+
+		using var subFrameTex = Texture.CreateRenderTarget()
+			.WithFormat( ImageFormat.RGBA16161616 )
+			.WithSize( config.Resolution.x, config.Resolution.y )
+			.WithMSAA( config.MultisampleAmount )
+			.Create( "VideoExportSubFrame" );
+
 		using var accumulatedTex = Texture.Create( config.Resolution.x, config.Resolution.y, ImageFormat.RGBA32323232F )
 			.WithName( "VideoExportAccumulated" )
 			.WithUAVBinding()
@@ -223,7 +246,7 @@ public sealed class SessionRenderer
 
 		accumulate.Attributes.Set( "Subframe", subFrameTex );
 		accumulate.Attributes.Set( "Accumulated", accumulatedTex );
-		accumulate.Attributes.Set( "InvFrames", 1f / subFrameCount );
+		accumulate.Attributes.Set( "InvFrames", 1f / (subFrameCount * multisampleCount) );
 
 		var alphaDivide = new ComputeShader( "moviemaker_alphadivide_cs" );
 
@@ -235,128 +258,114 @@ public sealed class SessionRenderer
 
 		Task? prevFrameTask = null;
 
-		try
-		{
-			for ( var i = -1; i < frameCount; i++ )
-			{
-				if ( ct.IsCancellationRequested ) return;
+		using var _ = StartExport();
 
-				var isWarmup = i < 0;
+		for ( var i = -1; i < frameCount; i++ )
+		{
+			if ( ct.IsCancellationRequested ) return;
+
+			var isWarmup = i < 0;
+
+			if ( !isWarmup && subFrameCount > 1 )
+			{
+				accumulatedTex.Clear( new Color( 0f, 0f, 0f, 0f ) );
+			}
+
+			var frameTime = timeRange.Start + (isWarmup ? 0 : MovieTime.FromFrames( i, config.FrameRate ));
+
+			for ( var j = 0; j < (isWarmup ? config.WarmupFrameCount : subFrameCount); ++j )
+			{
+				var subFrameFraction = isWarmup ? 0f : (float)j / subFrameCount;
+				var subFrameTime = MathX.Lerp( exposureStart, exposureEnd, subFrameFraction ) / config.FrameRate;
+				var nextTime = frameTime + MovieTime.FromSeconds( subFrameTime );
+
+				_session.PlayheadTime = nextTime;
+				_session.Editor?.TimelinePanel?.Timeline.PanToPlayheadTime();
+
+				BeforeRenderFrame( captureCamera, config, nextTime - prevTime );
+
+				// Render a (sub)frame!
+
+				RenderToTextureMethod.Invoke( captureCamera, [subFrameTex, (Vector2?)null, default( ViewSetup )] );
 
 				if ( !isWarmup && subFrameCount > 1 )
 				{
-					accumulatedTex.Clear( new Color( 0f, 0f, 0f, 0f ) );
+					accumulate.Dispatch( subFrameTex.Width, subFrameTex.Height, multisampleCount );
 				}
 
-				var frameTime = timeRange.Start + (isWarmup ? 0 : MovieTime.FromFrames( i, config.FrameRate ));
+				// Yield to let the scene viewport render when it wants to so we get a preview,
+				// and also so temporary resources get cleaned up periodically
 
-				for ( var j = 0; j < (isWarmup ? config.WarmupFrameCount : subFrameCount); ++j )
-				{
-					var subFrameFraction = isWarmup ? 0f : (float)j / subFrameCount;
-					var subFrameTime = MathX.Lerp( exposureStart, exposureEnd, subFrameFraction ) / config.FrameRate;
-					var nextTime = frameTime + MovieTime.FromSeconds( subFrameTime );
+				await Task.Yield();
 
-					_session.PlayheadTime = nextTime;
-					_session.Editor?.TimelinePanel?.Timeline.PanToPlayheadTime();
-
-					BeforeRenderFrame( captureCamera, config, nextTime - prevTime );
-
-					// Render a (sub)frame!
-
-					RenderToTextureMethod.Invoke( captureCamera, [subFrameTex, (Vector2?)null, default( ViewSetup )] );
-
-					if ( !isWarmup && subFrameCount > 1 )
-					{
-						accumulate.Dispatch( subFrameTex.Width, subFrameTex.Height, 1 );
-					}
-
-					// Yield to let the scene viewport render when it wants to so we get a preview,
-					// and also so temporary resources get cleaned up periodically
-
-					await Task.Yield();
-
-					prevTime = nextTime;
-				}
-
-				if ( isWarmup ) continue;
-
-				// Need to divide by alpha to convert from premultiplied
-
-				if ( subFrameCount > 1 )
-				{
-					alphaDivide.Dispatch( subFrameTex.Width, subFrameTex.Height, 1 );
-				}
-
-				// Have to wait for prev frame to finish writing, since it'll be using framePixels
-
-				if ( prevFrameTask is not null )
-				{
-					await prevFrameTask;
-				}
-
-				// Grab the frame from the GPU and add it to the video writer
-
-				var frameSourceTex = subFrameCount > 1 ? accumulatedTex : subFrameTex;
-
-				frameSourceTex.GetPixels( (0, 0, frameSourceTex.Width, frameSourceTex.Height), 0, 0,
-					MemoryMarshal.Cast<byte, Color32>( framePixels.AsSpan() ),
-					ImageFormat.RGBA8888, (frameSourceTex.Width, frameSourceTex.Height) );
-
-				prevFrameTask = onFrame.Invoke( frameTime, framePixels, ct );
+				prevTime = nextTime;
 			}
+
+			if ( isWarmup ) continue;
+
+			// Need to divide by alpha to convert from premultiplied
+
+			if ( subFrameCount > 1 )
+			{
+				alphaDivide.Dispatch( subFrameTex.Width, subFrameTex.Height, 1 );
+			}
+
+			// Have to wait for prev frame to finish writing, since it'll be using framePixels
 
 			if ( prevFrameTask is not null )
 			{
 				await prevFrameTask;
 			}
+
+			// Grab the frame from the GPU and add it to the video writer
+
+			var frameSourceTex = subFrameCount > 1 ? accumulatedTex : subFrameTex;
+
+			frameSourceTex.GetPixels( (0, 0, frameSourceTex.Width, frameSourceTex.Height), 0, 0,
+				MemoryMarshal.Cast<byte, Color32>( framePixels.AsSpan() ),
+				ImageFormat.RGBA8888, (frameSourceTex.Width, frameSourceTex.Height) );
+
+			prevFrameTask = onFrame.Invoke( frameTime, framePixels, ct );
 		}
-		finally
+
+		if ( prevFrameTask is not null )
 		{
-			foreach ( var particleEffect in _session.Player.Scene.GetAll<ParticleEffect>() )
-			{
-				particleEffect.Paused = false;
-			}
+			await prevFrameTask;
 		}
+	}
+
+	private IDisposable StartExport()
+	{
+		var editorSession = _session.Player.Scene.Editor as SceneEditorSession;
+		var wasUpdating = editorSession?.ShouldUpdate;
+
+		editorSession?.ShouldUpdate = false;
+
+		return DisposeAction.Create( () =>
+		{
+			editorSession?.ShouldUpdate = wasUpdating!.Value;
+		} );
 	}
 
 	private void BeforeRenderFrame( SceneCamera captureCamera, VideoExportConfig config, MovieTime deltaTime )
 	{
-		var camera = _session.Player.Scene.Camera;
-
-		// Update camera
-
-		var aspect = (float)config.Resolution.x / config.Resolution.y;
-
-		camera.UpdateSceneCamera( captureCamera );
-
-		captureCamera.Size = config.Resolution.x;
-		captureCamera.FieldOfView = camera.FovAxis == CameraComponent.Axis.Vertical
-			? Screen.CreateVerticalFieldOfView( camera.FieldOfView, aspect )
-			: camera.FieldOfView;
-
-		// Make sure SkinnedModelRenderers have updated
-
-		SignalMethod.Invoke( _session.Player.Scene, [GameObjectSystem.Stage.UpdateBones] );
-
-		// Step particle effects
-
-		foreach ( var particleEffect in _session.Player.Scene.GetAll<ParticleEffect>() )
+		if ( _session.Player.Scene.Camera is { } camera )
 		{
-			try
-			{
-				particleEffect.Paused = false;
-				particleEffect.Step( (float)deltaTime.TotalSeconds );
-				particleEffect.Paused = true;
-			}
-			catch ( Exception ex )
-			{
-				Log.Warning( ex );
-			}
+			// Update camera
+
+			var aspect = (float)config.Resolution.x / config.Resolution.y;
+
+			camera.UpdateSceneCamera( captureCamera );
+
+			captureCamera.Size = config.Resolution.x;
+			captureCamera.FieldOfView = camera.FovAxis == CameraComponent.Axis.Vertical
+				? Screen.CreateVerticalFieldOfView( camera.FieldOfView, aspect )
+				: camera.FieldOfView;
 		}
 
-		// Make sure ParticleGameSystem moves particle sprites to their new positions
+		// Simulate the scene
 
-		SignalMethod.Invoke( _session.Player.Scene, [GameObjectSystem.Stage.FinishUpdate] );
+		_session.Player.Scene.EditorTick( (float)_session.PlayheadTime.TotalSeconds, (float)deltaTime.TotalSeconds );
 	}
 
 	private static MethodInfo RenderToTextureMethod { get; } = typeof( SceneCamera ).GetMethod( "RenderToTexture",
@@ -369,4 +378,21 @@ public sealed class SessionRenderer
 partial class Session
 {
 	public SessionRenderer Renderer { get; }
+}
+
+file static class Extensions
+{
+	extension( MultisampleAmount ms )
+	{
+		public int SampleCount => ms switch
+		{
+			MultisampleAmount.MultisampleNone => 1,
+			MultisampleAmount.Multisample2x => 2,
+			MultisampleAmount.Multisample4x => 4,
+			MultisampleAmount.Multisample6x => 6,
+			MultisampleAmount.Multisample8x => 8,
+			MultisampleAmount.Multisample16x => 16,
+			_ => throw new NotImplementedException()
+		};
+	}
 }

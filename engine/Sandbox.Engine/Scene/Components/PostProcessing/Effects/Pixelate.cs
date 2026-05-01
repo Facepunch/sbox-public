@@ -13,7 +13,7 @@ public sealed class Pixelate : BasePostProcess<Pixelate>
 	[Range( 0, 1 )]
 	[Property] public float Scale { get; set; } = 0.25f;
 
-	private static readonly Material Shader = Material.FromShader( "shaders/postprocess/pp_pixelate.shader" );
+	private static Material Shader = Material.FromShader( "shaders/postprocess/pp_pixelate.shader" );
 
 	public override void Render()
 	{

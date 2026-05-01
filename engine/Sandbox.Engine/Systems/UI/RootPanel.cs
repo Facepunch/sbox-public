@@ -1,4 +1,5 @@
 ﻿using Sandbox.Engine;
+using Sandbox.Rendering;
 
 namespace Sandbox.UI;
 
@@ -49,10 +50,18 @@ public partial class RootPanel : Panel
 	/// </summary>
 	internal Vector2 MousePos;
 
+	/// <summary>
+	/// Single flat command list used by the flat rendering path.
+	/// All panels record into this one list instead of per-panel lists.
+	/// </summary>
+	internal readonly CommandList PanelCommandList;
+
 	public RootPanel()
 	{
 		Style.Width = Length.Percent( 100 );
 		Style.Height = Length.Percent( 100 );
+
+		PanelCommandList = new CommandList( $"UI Root: {GetType().Name}" );
 
 		GlobalContext.Current.UISystem.AddRoot( this );
 		AddToLists();
@@ -208,8 +217,23 @@ public partial class RootPanel : Panel
 
 	internal void Render( float opacity = 1.0f )
 	{
-		ThreadSafe.AssertIsMainThread();
-		GlobalContext.Current.UISystem.Renderer.Render( this, opacity );
+		PanelCommandList.ExecuteOnRenderThread();
+	}
+
+	/// <summary>
+	/// Build descriptors for this panel and all children.
+	/// Called during the tick phase, before gathering.
+	/// </summary>
+	internal void BuildDescriptors( float opacity = 1.0f )
+	{
+		var renderer = GlobalContext.Current.UISystem.Renderer;
+		renderer.BuildDescriptors( this, opacity );
+	}
+
+	internal void BuildCommandList( float opacity = 1.0f )
+	{
+		var renderer = GlobalContext.Current.UISystem.Renderer;
+		renderer.BuildCommandList( this, opacity );
 	}
 
 	/// <summary>
@@ -223,6 +247,7 @@ public partial class RootPanel : Panel
 		if ( !RenderedManually && !IsWorldPanel )
 			throw new Exception( $"{nameof( RenderedManually )} must be set to true to render this panel manually." );
 
+		BuildCommandList( opacity );
 		Render( opacity );
 	}
 
@@ -230,12 +255,6 @@ public partial class RootPanel : Panel
 	internal void SkipAllTransitions()
 	{
 		SkipTransitions();
-	}
-
-	[Event( "language.changed" )]
-	internal void OnLanguageChanged()
-	{
-		LanguageChanged();
 	}
 
 	/// <summary>

@@ -6,7 +6,7 @@ public partial class ServiceApi
 {
 	public interface IVersionApi
 	{
-		[Get( "/package/versions/{packageIdent}" )]
+		[Get( "/package/versions/2/{packageIdent}" )]
 		Task<PackageVersion[]> GetList( string packageIdent );
 	}
 }

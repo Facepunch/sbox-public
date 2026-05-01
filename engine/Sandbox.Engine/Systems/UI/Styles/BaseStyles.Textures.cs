@@ -8,6 +8,7 @@ namespace Sandbox.UI
 		internal Lazy<Texture> _backgroundImage;
 		internal Lazy<Texture> _maskImage;
 		internal Lazy<Texture> _borderImageSource;
+		internal bool? _backgroundPlaybackPaused;
 
 		public Texture BackgroundImage
 		{
@@ -62,6 +63,21 @@ namespace Sandbox.UI
 					return;
 
 				_borderImageSource = new Lazy<Texture>( value );
+				Dirty();
+			}
+		}
+
+		/// <summary>
+		/// Controls whether the background video is paused. Mirrors <c>animation-play-state</c>.
+		/// Maps to the CSS property <c>background-playback-state: paused | running</c>.
+		/// </summary>
+		public bool? BackgroundPlaybackPaused
+		{
+			get => _backgroundPlaybackPaused;
+			set
+			{
+				if ( _backgroundPlaybackPaused == value ) return;
+				_backgroundPlaybackPaused = value;
 				Dirty();
 			}
 		}

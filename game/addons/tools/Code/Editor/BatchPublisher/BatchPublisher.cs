@@ -15,7 +15,11 @@ public class BatchPublisher : BaseWindow
 
 	public static void FromAssetsWithEnablePublish( Asset[] assets )
 	{
-		if ( assets.All( x => x.Publishing.Enabled ) )
+		var allEnabled = assets.All( x => x.Publishing.Enabled );
+		var orgs = assets.Select( x => x.Publishing.ProjectConfig.Org ).Distinct().ToArray();
+		var hasConsistentOrg = orgs.Length == 1 && orgs[0] != "local" && !string.IsNullOrWhiteSpace( orgs[0] );
+
+		if ( allEnabled && hasConsistentOrg )
 		{
 			FromAssets( assets );
 			return;
@@ -171,9 +175,32 @@ public class BatchPublisher : BaseWindow
 		}
 
 		await Task.WhenAll( t );
+		HideCompleted();
 
 		//await RefreshList();
 		Enabled = true;
+
+		var anyRemaining = AssetList.Canvas.Children.OfType<AssetRow>().Any( x => x.Visible );
+		if ( !anyRemaining )
+		{
+			ShowCompletionMessage();
+		}
+	}
+
+	void ShowCompletionMessage()
+	{
+		AssetList.Canvas.Layout.Clear( true );
+
+		var container = AssetList.Canvas.Layout.AddColumn();
+		container.AddStretchCell();
+
+		var label = container.Add( new Label( "🎉 All assets published!" ) { Alignment = TextFlag.Center } );
+		label.SetStyles( "font-size: 18px;" );
+
+		container.AddStretchCell();
+
+		PublishButton.Text = "Done";
+		PublishButton.Enabled = false;
 	}
 
 	void HideCompleted()

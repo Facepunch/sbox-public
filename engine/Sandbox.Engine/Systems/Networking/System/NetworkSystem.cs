@@ -206,7 +206,7 @@ internal partial class NetworkSystem
 			return;
 		}
 
-		Networking.StartReconnecting( data );
+		_ = Networking.ClientReconnect( data );
 	}
 
 	/// <summary>
@@ -360,8 +360,8 @@ internal partial class NetworkSystem
 			var bs = ByteStream.Create( 32 );
 			bs.Write( InternalMessageType.HeartbeatPing );
 			bs.Write( RealTime.Now ); // Real time
-			bs.Write( Time.Now ); // Game time
-			c.SendRawMessage( bs );
+			bs.Write( Time.NowDouble ); // Game time
+			c.SendStream( bs, NetFlags.Unreliable | NetFlags.SendImmediate );
 			bs.Dispose();
 		}
 	}

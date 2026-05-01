@@ -1,5 +1,6 @@
 ﻿using Sandbox.Internal;
 using System.Collections.Concurrent;
+using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 
 namespace Sandbox;
@@ -12,7 +13,7 @@ namespace Sandbox;
 [SkipHotload]
 public sealed class TypeDescription : ISourceLineProvider
 {
-	internal Internal.TypeLibrary library { get; set; }
+	internal readonly Internal.TypeLibrary library;
 
 	/// <summary>
 	/// The type this class describes.
@@ -320,6 +321,10 @@ public sealed class TypeDescription : ISourceLineProvider
 		GenericArguments = type.GetGenericArguments();
 		Interfaces = type.GetInterfaces();
 
+		// Reset cached factory so it recompiles against the new Type after hotload
+		_parameterlessFactory = null;
+		_parameterlessFactoryResolved = false;
+
 		var members = type.GetMembers( BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static )
 								.Where( x => ShouldExposeMember( x, library, this ) )
 								.ToList();
@@ -469,15 +474,19 @@ public sealed class TypeDescription : ISourceLineProvider
 	/// <summary>
 	/// Returns true if this is named the passed name, either through classname, target class name or an alias
 	/// </summary>
-	public bool IsNamed( string name )
+	/// <param name="name">The name to check</param>
+	/// <param name="exactFullName">If true, only the exact full name or aliases will match.</param>
+	public bool IsNamed( string name, bool exactFullName = false )
 	{
-		if ( string.Equals( name, ClassName, StringComparison.OrdinalIgnoreCase ) )
-			return true;
-
 		if ( string.Equals( name, displayInfo.Fullname, StringComparison.OrdinalIgnoreCase ) )
 			return true;
 
-		if ( Aliases.Any( x => string.Equals( name, x, StringComparison.OrdinalIgnoreCase ) ) )
+		if ( Aliases.Length > 0 && Aliases.Any( x => string.Equals( name, x, StringComparison.OrdinalIgnoreCase ) ) )
+			return true;
+
+		if ( exactFullName ) return false;
+
+		if ( string.Equals( name, ClassName, StringComparison.OrdinalIgnoreCase ) )
 			return true;
 
 		return string.Equals( Name, name, StringComparison.OrdinalIgnoreCase );
@@ -628,6 +637,34 @@ public sealed class TypeDescription : ISourceLineProvider
 	public Type[] Interfaces { get; private set; }
 
 	/// <summary>
+	/// Compiled factory delegate for parameterless construction.
+	/// Avoids Activator.CreateInstance + DefaultBinder overhead on every call.
+	/// </summary>
+	private Func<object> _parameterlessFactory;
+	private bool _parameterlessFactoryResolved;
+
+	private Func<object> GetParameterlessFactory()
+	{
+		if ( _parameterlessFactoryResolved )
+			return _parameterlessFactory;
+
+		_parameterlessFactoryResolved = true;
+
+		if ( TargetType.IsAbstract || TargetType.IsInterface )
+			return null;
+
+		var ctor = TargetType.GetConstructor( Type.EmptyTypes );
+		if ( ctor is null )
+			return null;
+
+		_parameterlessFactory = Expression.Lambda<Func<object>>(
+			Expression.Convert( Expression.New( ctor ), typeof( object ) )
+		).Compile();
+
+		return _parameterlessFactory;
+	}
+
+	/// <summary>
 	/// Create an instance of this class, return it as a T.
 	/// If it can't be cast to a T we won't create it and will return null.
 	/// </summary>
@@ -637,6 +674,13 @@ public sealed class TypeDescription : ISourceLineProvider
 
 		if ( !TargetType.IsAssignableTo( type ) )
 			return default;
+
+		if ( args is null or { Length: 0 } )
+		{
+			var factory = GetParameterlessFactory();
+			if ( factory is not null )
+				return (T)factory();
+		}
 
 		return (T)System.Activator.CreateInstance( TargetType, args );
 	}

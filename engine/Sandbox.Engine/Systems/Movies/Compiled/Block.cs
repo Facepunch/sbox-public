@@ -16,6 +16,12 @@ public interface ICompiledBlock : ITrackBlock
 	/// Move this block by the given time <paramref name="offset"/>.
 	/// </summary>
 	ICompiledBlock Shift( MovieTime offset );
+
+	/// <summary>
+	/// Trim this block down to the given <paramref name="range"/>.
+	/// </summary>
+	/// <param name="range">Time range to clamp to.</param>
+	ICompiledBlock Clamp( MovieTimeRange range );
 }
 
 /// <summary>
@@ -25,8 +31,10 @@ public interface ICompiledBlock : ITrackBlock
 [Expose]
 public sealed record CompiledActionBlock( MovieTimeRange TimeRange ) : ICompiledBlock
 {
-	// ReSharper disable once WithExpressionModifiesAllMembers
+	// ReSharper disable WithExpressionModifiesAllMembers
 	public ICompiledBlock Shift( MovieTime offset ) => this with { TimeRange = TimeRange + offset };
+	public ICompiledBlock Clamp( MovieTimeRange range ) => this with { TimeRange = TimeRange.Clamp( range ) };
+	// ReSharper restore WithExpressionModifiesAllMembers
 }
 
 /// <summary>
@@ -37,21 +45,28 @@ public interface ICompiledPropertyBlock : ICompiledBlock, IPropertyBlock
 	/// <inheritdoc cref="ICompiledBlock.Shift"/>
 	new ICompiledPropertyBlock Shift( MovieTime offset );
 
-	ICompiledBlock ICompiledBlock.Shift( MovieTime offset ) => Shift( offset );
-}
+	/// <inheritdoc cref="ICompiledBlock.Clamp"/>
+	new ICompiledPropertyBlock Clamp( MovieTimeRange timeRange );
 
+	ICompiledBlock ICompiledBlock.Shift( MovieTime offset ) => Shift( offset );
+	ICompiledBlock ICompiledBlock.Clamp( MovieTimeRange range ) => Clamp( range );
+}
 
 /// <summary>
 /// Interface for blocks describing a property changing value over time.
 /// Typed version of <see cref="ICompiledPropertyBlock"/>.
 /// </summary>
 // ReSharper disable once TypeParameterCanBeVariant
-public interface ICompiledPropertyBlock<T> : ICompiledPropertyBlock, IPropertyBlock<T>
+public partial interface ICompiledPropertyBlock<T> : ICompiledPropertyBlock, IPropertyBlock<T>
 {
 	/// <inheritdoc cref="ICompiledBlock.Shift"/>
 	new ICompiledPropertyBlock<T> Shift( MovieTime offset );
 
+	/// <inheritdoc cref="ICompiledBlock.Clamp"/>
+	new ICompiledPropertyBlock<T> Clamp( MovieTimeRange range );
+
 	ICompiledPropertyBlock ICompiledPropertyBlock.Shift( MovieTime offset ) => Shift( offset );
+	ICompiledPropertyBlock ICompiledPropertyBlock.Clamp( MovieTimeRange range ) => Clamp( range );
 }
 
 /// <summary>
@@ -111,8 +126,13 @@ public sealed record CompiledConstantBlock<T>( MovieTimeRange TimeRange, JsonNod
 		return _value;
 	}
 
+	/// <inheritdoc cref="ICompiledBlock.Shift"/>
 	public ICompiledPropertyBlock<T> Shift( MovieTime offset ) =>
-		this with { TimeRange = TimeRange + offset };
+		offset == MovieTime.Zero ? this : this with { TimeRange = TimeRange + offset };
+
+	/// <inheritdoc cref="ICompiledBlock.Clamp"/>
+	public ICompiledPropertyBlock<T> Clamp( MovieTimeRange range ) =>
+		range.Contains( TimeRange ) ? this : this with { TimeRange = TimeRange.Clamp( range ) };
 }
 
 /// <summary>
@@ -163,11 +183,75 @@ public sealed partial record CompiledSampleBlock<T>( MovieTimeRange TimeRange, M
 	public T GetValue( MovieTime time ) =>
 		Samples.Sample( time.Clamp( TimeRange ) - TimeRange.Start + Offset, SampleRate, _interpolator );
 
+	/// <inheritdoc cref="ICompiledBlock.Shift"/>
 	public ICompiledPropertyBlock<T> Shift( MovieTime offset ) =>
-		this with { TimeRange = TimeRange + offset };
+		offset == MovieTime.Zero ? this : this with { TimeRange = TimeRange + offset };
+
+	/// <inheritdoc cref="ICompiledBlock.Clamp"/>
+	public ICompiledPropertyBlock<T> Clamp( MovieTimeRange range )
+	{
+		range = TimeRange.Clamp( range );
+
+		if ( range == TimeRange )
+		{
+			return this;
+		}
+
+		var clamped = this with
+		{
+			TimeRange = range,
+			Offset = Offset + range.Start - TimeRange.Start
+		};
+
+		return clamped.Reduce();
+	}
+
+	/// <summary>
+	/// Returns a property block with only sample data within <see cref="TimeRange"/>.
+	/// Returns the current instance if it represents an irreducible block.
+	/// If only one sample is needed, will return a <see cref="CompiledConstantBlock{T}"/>.
+	/// </summary>
+	public ICompiledPropertyBlock<T> Reduce()
+	{
+		// Time range relative to the first sample
+
+		MovieTimeRange localRange = (Offset, Offset + TimeRange.Duration);
+
+		var firstSampleIndex = Math.Clamp( localRange.Start.GetFrameIndex( SampleRate ), 0, _samples.Length - 1 );
+		var newOffset = localRange.Start - MovieTime.FromFrames( firstSampleIndex, SampleRate );
+
+		var sampleDuration = localRange.Duration + newOffset;
+
+		// We include the next sample after the end of the time range so we can interpolate to it
+
+		var sampleCount = sampleDuration.IsPositive
+			? Math.Min( sampleDuration.GetFrameCount( SampleRate ) + 1, _samples.Length - firstSampleIndex )
+			: 1;
+
+		if ( sampleCount <= 1 )
+		{
+			return new CompiledConstantBlock<T>( TimeRange, _samples[firstSampleIndex] );
+		}
+
+		if ( firstSampleIndex == 0 && sampleCount == _samples.Length )
+		{
+			return this;
+		}
+
+		return this with
+		{
+			Samples = _samples.Slice( firstSampleIndex, sampleCount ),
+			Offset = newOffset
+		};
+	}
 
 	private static ImmutableArray<T> Validate( ImmutableArray<T> samples )
 	{
+		if ( typeof( T ).IsAssignableTo( typeof( Resource ) ) )
+		{
+			throw new ArgumentException( "Invalid sample value type.", nameof( T ) );
+		}
+
 		if ( samples.IsDefaultOrEmpty )
 		{
 			throw new ArgumentException( "Expected at least one sample.", nameof( Samples ) );

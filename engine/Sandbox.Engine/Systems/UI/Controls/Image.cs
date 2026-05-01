@@ -1,4 +1,6 @@
-﻿namespace Sandbox.UI
+﻿using Sandbox.Rendering;
+
+namespace Sandbox.UI
 {
 	/// <summary>
 	/// A generic box that displays a given texture within itself.
@@ -10,8 +12,6 @@
 		/// The texture being displayed by this panel.
 		/// </summary>
 		public Texture Texture { get; set; }
-
-		public override bool HasContent => Texture != null;
 
 		public Image()
 		{
@@ -29,6 +29,7 @@
 			Texture = await Texture.LoadAsync( name );
 
 			if ( !IsValid ) return;
+			IsRenderDirty = true;
 			YogaNode.MarkDirty(); // Update MeasureTexture
 		}
 
@@ -43,23 +44,20 @@
 			}
 		}
 
-		internal override void DrawContent( PanelRenderer renderer, ref RenderState state )
+		public override void OnDraw()
 		{
 			if ( Texture == null )
 				return;
 
-			if ( renderer is PanelRenderer pr )
+			var length = ComputedStyle.ObjectFit switch
 			{
-				var length = ComputedStyle.ObjectFit switch
-				{
-					ObjectFit.Contain => Length.Contain,
-					ObjectFit.Cover => Length.Cover,
-					ObjectFit.Fill => Length.Percent( 100 ).Value,
-					_ => Length.Auto,
-				};
+				ObjectFit.Contain => Length.Contain,
+				ObjectFit.Cover => Length.Cover,
+				ObjectFit.Fill => Length.Percent( 100 ).Value,
+				_ => Length.Auto,
+			};
 
-				pr.DrawBackgroundTexture( this, Texture, state, length );
-			}
+			DrawBackgroundTexture( Texture, length );
 		}
 
 		public override void SetProperty( string name, string value )

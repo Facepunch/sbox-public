@@ -1,4 +1,6 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Internal;
+
+namespace Sandbox;
 
 /// <summary>
 /// Describes a field. We use this class to wrap and return <see cref="FieldInfo">FieldInfo</see>'s that are safe to interact with.
@@ -12,20 +14,20 @@ public sealed class FieldDescription : MemberDescription
 	/// <inheritdoc cref="System.Reflection.FieldInfo.IsInitOnly"/>
 	public bool IsInitOnly { get; private set; }
 
-	FieldInfo FieldInfo => MemberInfo as FieldInfo;
+	internal FieldInfo FieldInfo => MemberInfo as FieldInfo;
 
 	internal static FieldDescription Create( FieldInfo i, TypeDescription td, MemberDescription previous )
 	{
 		FieldDescription o = previous as FieldDescription;
 
-		o ??= new FieldDescription();
+		o ??= new FieldDescription( td.library );
 		o.TypeDescription = td;
 		o.InitField( i );
 
 		return o;
 	}
 
-	internal FieldDescription()
+	internal FieldDescription( TypeLibrary tl ) : base( tl )
 	{
 
 	}

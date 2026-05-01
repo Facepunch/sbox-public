@@ -34,18 +34,13 @@ public sealed partial class Material : Resource
 		this.native = native;
 		this.Name = name;
 
-		SetIdFromResourcePath( name );
+		RegisterWeakResourceId( name );
 
 		CRenderAttributes attributes = this.native.GetRenderAttributes();
 		Attributes = new RenderAttributes( attributes );
 	}
 
-	~Material()
-	{
-		Dispose();
-	}
-
-	internal void Dispose()
+	internal override void Destroy()
 	{
 		// kill the native pointer - it does with the native material
 		// we want to reduce the risk that someone is holding on to it.
@@ -59,13 +54,15 @@ public sealed partial class Material : Resource
 
 			MainThread.Queue( () => n.DestroyStrongHandle() );
 		}
+
+		base.Destroy();
 	}
 
 	/// <summary>
 	/// Create a copy of this material
 	/// </summary>
-	public Material CreateCopy()
+	public Material CreateCopy( string name = null )
 	{
-		return FromNative( MaterialSystem2.CreateProceduralMaterialCopy( native, 0, true ) );
+		return FromNative( MaterialSystem2.CreateProceduralMaterialCopy( native, 0, true ), name );
 	}
 }

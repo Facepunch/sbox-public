@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using NativeEngine;
 using Sandbox.Engine;
 using Sandbox.Services;
@@ -23,28 +23,26 @@ internal static class NetworkConsoleCommands
 	[ConCmd( "joinlobby", ConVarFlags.Protected )]
 	public static async Task FindAndJoinLobby()
 	{
-		LoadingScreen.IsVisible = true;
-		LoadingScreen.Title = "Fetching Lobbies";
-
 		if ( Networking.IsActive )
 		{
-			LoadingScreen.IsVisible = false;
 			Log.Warning( "You are already connected to a server." );
 			return;
 		}
 
-		var q = Steamworks.SteamMatchmaking.LobbyList;
-		q = q.FilterDistanceWorldwide();
+		var q = Steamworks.SteamMatchmaking.LobbyList
+			.FilterDistanceWorldwide()
+			.WithKeyValue( "lobby_type", "scene" )
+			.WithMaxResults( 2000 );
 
-		q = q.WithKeyValue( "lobby_type", "scene" );
-
-		q = q.WithMaxResults( 2000 );
-
+		Log.Info( "Finding best lobby..." );
 		var lobbies = await q.RequestAsync( default );
+
+		if ( Networking.IsActive )
+			return;
 
 		if ( !lobbies.Any() )
 		{
-			LoadingScreen.IsVisible = false;
+			Log.Info( "No lobbies found" );
 			return;
 		}
 
@@ -54,8 +52,6 @@ internal static class NetworkConsoleCommands
 		}
 
 		var chosen = lobbies.First();
-
-		LoadingScreen.Title = "Joining Lobby";
 		Networking.Connect( chosen.Id );
 	}
 

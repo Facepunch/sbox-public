@@ -11,7 +11,7 @@
 
 <root>
 
-    <MegaCard Icon="@Package.ThumbWide">
+    <MegaCard>
         <Metrics>
             <PackageMetrics Package="@Package" />
         </Metrics>
@@ -50,7 +50,7 @@
 
         </Tabs>
         <Left>
-            <PackageSummary Package=@Package></PackageSummary>
+            <PackageHero Package="@Package" class="sidebar" MaxTags=@(8) />
 
             @if (achList is not null)
             {

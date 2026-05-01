@@ -157,8 +157,8 @@ public class Visemes : Widget
 			BackgroundColor = Color.Transparent
 		};
 
-		new SceneLight( World, new Vector3( 100, 100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
-		new SceneLight( World, new Vector3( -100, -100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
+		new ScenePointLight( World, new Vector3( 100, 100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
+		new ScenePointLight( World, new Vector3( -100, -100, 100 ), 500, Color.White * 4 ).ShadowsEnabled = false;
 		new SceneCubemap( World, Texture.Load( "textures/cubemaps/default.vtex" ), BBox.FromPositionAndSize( Vector3.Zero, 5000 ) );
 	}
 

@@ -4,7 +4,7 @@
 /// Emits particles within a sphere shape.
 /// </summary>
 [Title( "Sphere Emitter" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "radio_button_unchecked" )]
 public sealed class ParticleSphereEmitter : ParticleEmitter
 {

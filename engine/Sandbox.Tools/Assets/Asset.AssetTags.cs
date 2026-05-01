@@ -89,6 +89,10 @@ public partial class Asset
 	bool suppressTagSaving = false;
 	internal void UpdateAutoTags()
 	{
+		// this hasn't been initialised yet
+		if ( AssetType is null )
+			return;
+
 		suppressTagSaving = true;
 
 		foreach ( var tag in AssetTagSystem.All.Where( x => x.AutoTag ) )

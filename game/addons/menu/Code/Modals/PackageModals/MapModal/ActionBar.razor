@@ -12,7 +12,7 @@
 
         @if ( LobbyCount > 0 )
         {
-            <Button icon="list" class="@(LobbyCount == 0 ? "disabled" : "")" onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
+			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
         }
 
     </div>
@@ -30,8 +30,7 @@
                 <Button icon="sports_esports" onclick=@SelectGame>@GamePackage.Title</Button>
 			}
 
-            var bc = $"play {(GamePackage is null ? "disabled" : "")}";
-            <Button icon="play_arrow" class="@bc" onclick=@OnPlay>Launch Map</Button>
+			<Button icon="play_arrow" class="play" Disabled=@(GamePackage is null || !MenuHelpers.HasAuthority) onclick=@OnPlay>Launch Map</Button>
 		}
 		else
 		{
@@ -49,17 +48,29 @@
     public Package Package {get;set;}
     public static Package GamePackage { get; set; } = null;
     public static Package MapPackage { get; set; } = null;
+    private static string _gamePackageInitializedFor;
 
-    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, LobbyCount );
+    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, LobbyCount, MenuHelpers.HasAuthority );
 
     int LobbyCount => Modal?.Lobbies?.Count() ?? 0;
 
     protected override async Task OnParametersSetAsync()
     {
-        var target = this.Package.GetMeta<string>("ParentPackage", null);
-        if (string.IsNullOrWhiteSpace(target)) target = "facepunch.sandbox";
+        if ( Package?.FullIdent == _gamePackageInitializedFor ) return;
+        _gamePackageInitializedFor = Package?.FullIdent;
 
-        GamePackage = await Package.FetchAsync( target, false );
+        var target = this.Package.GetMeta<string>("ParentPackage", null);
+        if ( !string.IsNullOrWhiteSpace( target ) )
+        {
+            var package = await Package.FetchAsync( target, false );
+            if ( package is not null && package.TypeName == "game" )
+            {
+                GamePackage = package;
+                return;
+            }
+        }
+
+        GamePackage = await Package.FetchAsync( MenuHelpers.SANDBOX_IDENT, false );
     }
 
     void OnPlay()
@@ -70,7 +81,7 @@
 
 	void SelectGame()
 	{
-		Game.Overlay.ShowPackageSelector("type:game sort:popular +mapselect", (pkg) => {
+		Game.Overlay.ShowPackageSelector("type:game sort:popular", (pkg) => {
 			GamePackage = pkg;
 			StateHasChanged();
 		});

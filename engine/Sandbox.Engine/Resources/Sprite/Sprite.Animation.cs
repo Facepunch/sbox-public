@@ -65,7 +65,7 @@ public partial class Sprite
 	/// </summary>
 	public class BroadcastEvent
 	{
-		[KeyProperty]
+		[KeyProperty, EnumDropdown]
 		public BroadcastEventType Type { get; set; } = BroadcastEventType.CustomMessage;
 
 		[KeyProperty, ShowIf( nameof( Type ), BroadcastEventType.CustomMessage )]

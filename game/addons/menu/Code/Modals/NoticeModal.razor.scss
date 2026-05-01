@@ -1,0 +1,49 @@
+@import '../styles/_theme.scss';
+@import '../styles/mainmenu.scss';
+
+NoticeModal
+{
+	.window
+	{
+		z-index: 1000;
+		width: 500px;
+		min-height: 200px;
+		font-family: $font-default;
+		border-radius: $rounding-default;
+		flex-direction: column;
+		gap: 16px;
+		padding: 8px;
+		pointer-events: all;
+	}
+
+	.content
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		gap: 8px;
+	}
+
+	.body
+	{
+		padding: 12px;
+		font-size: $text-regular;
+		border-radius: $rounding-default;
+		background-color: $default-950;
+		flex-grow: 1;
+		text-align: center;
+		justify-content: center;
+		white-space: pre-line;
+	}
+
+	.header
+	{
+		justify-content: center;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.footer
+	{
+		justify-content: center;
+	}
+}

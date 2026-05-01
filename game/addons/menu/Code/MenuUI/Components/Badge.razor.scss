@@ -1,0 +1,89 @@
+@import "/styles/_theme.scss";
+
+Badge
+{
+	padding: 2px 6px;
+	padding-top: 3px;
+	pointer-events: all;
+	align-items: center;
+	border-radius: $rounding-small;
+	background-color: $default-800;
+	flex-shrink: 0;
+	gap: 4px;
+	flex-direction: row-reverse;
+
+	label
+	{
+		font-family: $font-heading;
+		font-size: $text-eyebrow;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: $default-50;
+		font-weight: 700;
+	}
+
+	label.number
+	{
+		background-color: rgba(black, 0.5);
+		padding: 1px 4px;
+		border-radius: $rounding-xsmall;
+		margin-left: 2px;
+	}
+
+	icon
+	{
+		font-size: $text-eyebrow;
+		color: $default-50;
+	}
+
+	&.online
+	{
+		background-color: rgba(black, 0.9);
+
+		label, icon
+		{
+			color: white;
+		}
+	}
+
+	&.clear
+	{
+		background-color: rgba($default-900, 0.75);
+		border: 0.5px solid $default-border;
+
+		label, icon
+		{
+			color: $default-50;
+		}
+	}
+
+	&.positive
+	{
+		background-color: rgba( $primary-green, 0.1 );
+
+		label, icon
+		{
+			color: $primary-green;
+		}
+	}
+
+	&.negative
+	{
+		background-color: rgba( $primary-red, 0.1 );
+
+		label, icon
+		{
+			color: $primary-red;
+		}
+	}
+
+	&.promise
+	{
+		background-color: rgba( $primary-yellow, 0.1 );
+
+		label, icon
+		{
+			color: $primary-yellow;
+		}
+	}
+}

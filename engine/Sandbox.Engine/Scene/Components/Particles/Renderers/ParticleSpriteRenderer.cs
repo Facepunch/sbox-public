@@ -7,7 +7,7 @@ namespace Sandbox;
 /// </summary>
 [Expose]
 [Title( "Particle Sprite Renderer" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "favorite" )]
 public sealed partial class ParticleSpriteRenderer : ParticleRenderer, Component.ExecuteInEditor, IBatchedParticleSpriteRenderer
 {

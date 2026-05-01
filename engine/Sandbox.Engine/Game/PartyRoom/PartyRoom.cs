@@ -1,8 +1,11 @@
 using NativeEngine;
 using Sandbox.Engine;
+using Sandbox.Modals;
 using Sandbox.Network;
+using Steamworks;
 using Steamworks.Data;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Sandbox;
 
@@ -19,6 +22,34 @@ public partial class PartyRoom : ILobby
 	/// The unique identifier of this lobby
 	/// </summary>
 	public SteamId Id => steamLobby.Id.Value;
+
+	/// <summary>
+	/// The server this party is playing on, if any. This is set by the owner of the party, and read by clients to know where to connect to.
+	/// </summary>
+	internal string GameAddress => steamLobby.GetData( "gameaddress" );
+
+	/// <summary>
+	/// The name of this lobby.
+	/// </summary>
+	public string Name
+	{
+		get => steamLobby.GetData( "name" );
+		set => steamLobby.SetData( "name", value );
+	}
+
+	/// <summary>
+	/// The maximum number of members allowed in this lobby.
+	/// </summary>
+	public int MaxMembers
+	{
+		get => steamLobby.MaxMembers;
+		set => steamLobby.MaxMembers = value;
+	}
+
+	/// <summary>
+	/// The current number of members in this lobby.
+	/// </summary>
+	public int MemberCount => steamLobby.MemberCount;
 
 	internal int NetworkChannel => (int)(Id % int.MaxValue);
 
@@ -43,6 +74,15 @@ public partial class PartyRoom : ILobby
 
 	public void Leave()
 	{
+		using ( GlobalContext.MenuScope() )
+		{
+			Event.EventSystem.RunInterface<IEventListener>( x => x.OnLeftParty( Current ) );
+		}
+
+		_preloadCts?.Cancel();
+		_preloadCts = null;
+		_preloadTask = null;
+
 		steamLobby.Leave();
 		steamLobby = default;
 
@@ -89,7 +129,6 @@ public partial class PartyRoom : ILobby
 	/// </summary>
 	public bool VoiceCommunicationAllowed => IGameInstance.Current is null;
 
-	string lastConnect;
 	RealTimeSince timeSinceUpdate = 0;
 
 	bool _voiceRecording;
@@ -141,6 +180,21 @@ public partial class PartyRoom : ILobby
 		}
 	}
 
+	/// <summary>
+	/// Determine our state to be sent to other party members
+	/// </summary>
+	OwnerJoinState DetermineJoinState()
+	{
+		if ( Networking.System is not null && Networking.System.Sockets.OfType<SteamLobbySocket>().FirstOrDefault() is SteamLobbySocket )
+			return OwnerJoinState.Ready;
+
+		// Not LocalPackage -- otherwise the menu gets picked up 
+		if ( Application.GamePackage is not null && Application.GamePackage is not LocalPackage )
+			return OwnerJoinState.Loading;
+
+		return OwnerJoinState.None;
+	}
+
 	internal void Tick()
 	{
 		// Record the voice if voice button less than 0.3 seconds old
@@ -161,7 +215,10 @@ public partial class PartyRoom : ILobby
 			steamLobby.SetData( "package", Application.GamePackage?.FullIdent );
 			steamLobby.SetData( "packagetitle", Application.GamePackage?.Title );
 
-			if ( Networking.System is not null && Networking.System.Sockets.OfType<SteamLobbySocket>().FirstOrDefault() is SteamLobbySocket sl )
+			var state = DetermineJoinState();
+			steamLobby.SetData( "joinstate", state.ToString() );
+
+			if ( state is OwnerJoinState.Ready && Networking.System.Sockets.OfType<SteamLobbySocket>().FirstOrDefault() is SteamLobbySocket sl )
 			{
 				steamLobby.SetData( "gameaddress", sl.LobbySteamId.ToString() );
 			}
@@ -172,11 +229,40 @@ public partial class PartyRoom : ILobby
 		}
 		else
 		{
-			var connect = steamLobby.GetData( "gameaddress" );
-			if ( lastConnect != connect )
+			var joinState = JoinState;
+			if ( joinState != _lastJoinState )
 			{
-				lastConnect = connect;
-				OnConnectChanged( connect );
+				_lastJoinState = joinState;
+
+				if ( joinState is OwnerJoinState.None )
+				{
+					_preloadCts?.Cancel();
+					_preloadCts = null;
+					_preloadTask = null;
+					_lastConnectString = null;
+					NetworkConsoleCommands.Disconnect();
+				}
+
+				if ( joinState is OwnerJoinState.Loading )
+				{
+					PreloadPackageInBackground( steamLobby.GetData( "package" ) );
+				}
+			}
+
+			// While ready, watch for address changes
+			if ( joinState is OwnerJoinState.Ready )
+			{
+				var address = steamLobby.GetData( "gameaddress" );
+				if ( address != _lastConnectString && !string.IsNullOrWhiteSpace( address ) )
+				{
+					_lastConnectString = address;
+					NetworkConsoleCommands.Disconnect();
+					_ = ConnectAfterPreload( address );
+				}
+			}
+			else
+			{
+				_lastConnectString = null;
 			}
 		}
 	}
@@ -212,23 +298,18 @@ public partial class PartyRoom : ILobby
 				if ( iMessageType == MessageIdentity.VoiceMessage )
 				{
 					var message = data.ReadArraySpan<byte>( 1024 * 1024 );
-					OnVoiceData?.Invoke( new Friend( msg.IdentitySteamId ), message.ToArray() );
+					var voiceData = message.ToArray();
+
+					OnVoiceData?.Invoke( new Friend( msg.IdentitySteamId ), voiceData );
+
+					using ( GlobalContext.MenuScope() )
+					{
+						Event.EventSystem.RunInterface<IEventListener>( x => x.OnVoiceMessage( new Friend( msg.IdentitySteamId ), voiceData ) );
+					}
 				}
 
 				net.ReleaseMessage( ptr[i] );
 			}
-		}
-	}
-
-	void OnConnectChanged( string address )
-	{
-		Log.Info( $"Party Connect changed to '{lastConnect}'" );
-
-		NetworkConsoleCommands.Disconnect();
-
-		if ( address is not null )
-		{
-			NetworkConsoleCommands.ConnectToServer( address );
 		}
 	}
 
@@ -240,7 +321,7 @@ public partial class PartyRoom : ILobby
 
 	public static async Task<PartyRoom> Create( int maxMembers, string name, bool ispublic )
 	{
-		var lobby = await Steamworks.SteamMatchmaking.CreateLobbyAsync( maxMembers );
+		var lobby = await Steamworks.SteamMatchmaking.CreateLobbyAsync( ispublic ? LobbyType.Public : LobbyType.Private, maxMembers );
 
 		if ( !lobby.HasValue )
 		{
@@ -250,16 +331,49 @@ public partial class PartyRoom : ILobby
 
 		lobby.Value.SetData( "name", name );
 
-		if ( !ispublic )
-		{
-			lobby.Value.SetPrivate();
-		}
-
 		var room = new PartyRoom( lobby.Value );
 
 		Current = room;
 
 		return room;
+	}
+
+	internal static async Task<bool> Join( Lobby lobby )
+	{
+		Current?.Leave();
+
+		if ( Application.IsEditor )
+			return false;
+
+		var result = await lobby.Join();
+		if ( result != RoomEnter.Success )
+		{
+			switch ( result )
+			{
+				case RoomEnter.DoesntExist:
+					IModalSystem.Current?.Notice( "Joining failed", "The party doesn't exist anymore.", "heart_broken" );
+					break;
+				case RoomEnter.Full:
+					IModalSystem.Current?.Notice( "Joining failed", "The party is full.", "heart_broken" );
+					break;
+				default:
+					IModalSystem.Current?.Notice( "Joining failed", $"Failed to join the party: {result}.", "heart_broken" );
+					break;
+			}
+
+			Log.Warning( $"Failed to join lobby for party ({result})" );
+			return false;
+		}
+
+		Current?.Leave();
+		Current = new PartyRoom( lobby );
+
+		using ( GlobalContext.MenuScope() )
+		{
+			Event.EventSystem.RunInterface<IEventListener>( x => x.OnJoinedParty( Current ) );
+		}
+
+		return true;
 	}
 
 
@@ -288,16 +402,31 @@ public partial class PartyRoom : ILobby
 
 	ulong ILobby.Id => steamLobby.Id;
 
+	/// <summary>
+	/// What package is this party's owner playing?
+	/// </summary>
+	public string PackageIdent => steamLobby.GetData( "package" );
+
 	void ILobby.OnMemberEnter( Friend friend )
 	{
 		Log.Info( $"Party member entered {friend}" );
 		OnJoin?.Invoke( friend );
+
+		using ( GlobalContext.MenuScope() )
+		{
+			Event.EventSystem.RunInterface<IEventListener>( x => x.OnMemberJoin( friend ) );
+		}
 	}
 
 	void ILobby.OnMemberLeave( Friend friend )
 	{
 		Log.Info( $"Party member leave {friend}" );
 		OnLeave?.Invoke( friend );
+
+		using ( GlobalContext.MenuScope() )
+		{
+			Event.EventSystem.RunInterface<IEventListener>( x => x.OnMemberLeave( friend ) );
+		}
 	}
 
 	void ILobby.OnMemberUpdated( Friend friend )
@@ -344,16 +473,7 @@ public partial class PartyRoom : ILobby
 
 		public async Task Join()
 		{
-			var result = await x.Join();
-			if ( result != Steamworks.RoomEnter.Success )
-			{
-				Log.Warning( $"Failed to join lobby for party ({result})" );
-				return;
-			}
-
-			Current?.Leave();
-
-			Current = new PartyRoom( x );
+			await PartyRoom.Join( x );
 		}
 	}
 }

@@ -18,7 +18,7 @@ public partial class ServiceApi : IDisposable
 
 	HttpClient client;
 
-	public ServiceApi( string url = "https://services.facepunch.com/sbox" )
+	public ServiceApi( string url = "https://public.facepunch.com/sbox" )
 	{
 		var refitSettings = new RefitSettings
 		{

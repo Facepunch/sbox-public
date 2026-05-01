@@ -55,7 +55,7 @@ partial class ModelPhysics
 				continue;
 
 			// Set transform to lerped physics transform.
-			var bodyTransform = body.GetLerpedTransform( Time.Now ).WithScale( component.WorldScale );
+			var bodyTransform = body.GetLerpedTransform( Time.NowDouble ).WithScale( component.WorldScale );
 			component.WorldTransform = bodyTransform;
 
 			// Bone overrides are in modelspace, strip off our world transform from body world transform.
@@ -101,6 +101,9 @@ partial class ModelPhysics
 
 		foreach ( var (bodyIndex, transform) in transforms )
 		{
+			if ( bodyIndex < 0 || bodyIndex >= Bodies.Count )
+				continue;
+
 			var component = Bodies[bodyIndex].Component;
 			if ( !component.IsValid() )
 				continue;
@@ -125,6 +128,9 @@ partial class ModelPhysics
 
 		foreach ( var (bodyIndex, transform) in transforms )
 		{
+			if ( bodyIndex < 0 || bodyIndex >= Bodies.Count )
+				continue;
+
 			var component = Bodies[bodyIndex].Component;
 			if ( !component.IsValid() )
 				continue;

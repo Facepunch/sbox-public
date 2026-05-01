@@ -93,15 +93,10 @@ VS
 
 PS
 {
+	#include "common/blendmode.hlsl"
+
 	RenderState( DepthEnable, true );
 	RenderState( DepthWriteEnable, false );
-	RenderState( BlendEnable, true );
-	RenderState( SrcBlend, SRC_ALPHA );
-	RenderState( DstBlend, INV_SRC_ALPHA );
-	RenderState( BlendOp, ADD );
-	RenderState( SrcBlendAlpha, ONE );
-	RenderState( DstBlendAlpha, INV_SRC_ALPHA );
-	RenderState( BlendOpAlpha, ADD );
 
 	// Described in https://blog.frost.kiwi/analytical-anti-aliasing/
 	float LineAAA( float v, float thickness )

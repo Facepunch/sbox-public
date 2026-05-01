@@ -14,6 +14,25 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 
 	public override bool HasBoxSelectionMode() => true;
 
+	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
+	{
+		base.BuildSceneContextMenu( menu, ray, trace );
+
+		int count = Selection.OfType<MeshVertex>().Count( x => x.IsValid() );
+		if ( count == 0 ) return;
+
+		menu.AddSeparator();
+
+		var ops = menu.AddMenu( "Vertex Operations", "build" );
+		AddMenuOption( ops, "Merge Verts", "merge", "mesh.merge", count > 1 );
+		AddMenuOption( ops, "Connect Verts", "link", "mesh.connect", count > 1 );
+		AddMenuOption( ops, "Bevel Verts", "straighten", "mesh.bevel", true );
+
+		var sel = menu.AddMenu( "Vertex Selection", "select_all" );
+		AddMenuOption( sel, "Invert Selection", "swap_vert", InvertCurrentSelection, "mesh.invert-selection", true );
+		sel.AddOption( "Select All", "select_all", () => InvokeShortcut( "mesh.select-all" ), "mesh.select-all" );
+	}
+
 	protected override void OnBoxSelect( Frustum frustum, Rect screenRect, bool isFinal )
 	{
 		HashSet<MeshVertex> selection = [];

@@ -1,3 +1,17 @@
+@import "/styles/_theme.scss";
+
+MapsPage
+{
+	background-color: $default-950;
+}
+
+Page
+{
+	width: 100%;
+	max-width: $screen-w-xl;
+	margin: auto;
+}
+
 MapsPage packagelist virtualgrid
 {
     padding: 32px;

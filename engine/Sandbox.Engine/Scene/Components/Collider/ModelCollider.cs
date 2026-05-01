@@ -19,7 +19,7 @@ public class ModelCollider : Collider, IHasModel
 		{
 			_model = value;
 
-			Rebuild();
+			UpdateShape();
 		}
 	}
 
@@ -35,6 +35,14 @@ public class ModelCollider : Collider, IHasModel
 				_model = renderer.Model;
 			}
 		}
+	}
+
+	internal override void UpdateShape()
+	{
+		base.UpdateShape();
+
+		// Because we rebuild the physics shapes, allow rigidbody to apply their properties.
+		Rigidbody?.UpdateBody();
 	}
 
 	protected override void DrawGizmos()

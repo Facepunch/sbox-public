@@ -1,5 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Text;
 using System.Collections.Concurrent;
 
 namespace Sandbox;
@@ -18,6 +19,10 @@ partial class Compiler
 		if ( razorFiles.Count == 0 )
 			return [];
 
+		var oldTrees = incrementalState.HasState ? incrementalState.SyntaxTrees
+						.DistinctBy( x => x.FilePath )
+						.ToDictionary( x => x.FilePath, x => x ) : null;
+
 		var trees = new ConcurrentBag<SyntaxTree>();
 		var diagnostics = new ConcurrentBag<Diagnostic>();
 
@@ -35,15 +40,32 @@ partial class Compiler
 
 			try
 			{
-				// Use the existing RazorProcessor to generate C# code from the Razor file
-				// Pass the root namespace so Razor can auto-generate @namespace directives from folder structure
-				var generatedCode = Sandbox.Razor.RazorProcessor.GenerateFromSource( file.Text, file.LocalPath, archive.Configuration.RootNamespace, !archive.Version_UsesOldRazorNamespaces );
-
 				// Create the generated file path using the same naming convention
 				string filePath = $"_gen_{filenameOnly}_{hash:x}.cs";
 
-				// Parse the generated C# code into a syntax tree
-				var tree = CSharpSyntaxTree.ParseText( generatedCode, path: filePath, encoding: System.Text.Encoding.UTF8 );
+				SyntaxTree tree = null;
+				if ( oldTrees?.TryGetValue( filePath, out tree ) == true
+					&& incrementalState.FileHashMap.TryGetValue( file.LocalPath, out var oldHash )
+					&& oldHash == archive.FileHashMap[file.LocalPath] )
+				{
+					// file is unchanged, just reuse existing tree
+				}
+				else
+				{
+					// Use the existing RazorProcessor to generate C# code from the Razor file
+					// Pass the root namespace so Razor can auto-generate @namespace directives from folder structure
+					var generatedCode = Sandbox.Razor.RazorProcessor.GenerateFromSource( file.Text, file.LocalPath, archive.Configuration.RootNamespace, !archive.Version_UsesOldRazorNamespaces );
+
+					var sourceText = SourceText.From( generatedCode, Encoding.UTF8 );
+					if ( tree is not null )
+					{
+						tree = tree.WithChangedText( sourceText );
+					}
+					else
+					{
+						tree = CSharpSyntaxTree.ParseText( sourceText, path: filePath );
+					}
+				}
 
 				// Check for duplicates
 				if ( trees.Any( x => x.FilePath == filePath ) )

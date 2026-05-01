@@ -56,6 +56,15 @@ public partial class GameObject
 		/// </summary>
 		internal bool IgnoreComponents { get; set; }
 
+		/// <summary>
+		/// Skip null member values during serialization to reduce output size.
+		/// On the receive side, deserialize with <see cref="DeserializeOptions.ClearAbsentFields"/> set to
+		/// <see langword="true"/> so that missing keys are treated as an explicit null for reference/nullable types,
+		/// clearing any stale value on the receiver.
+		/// Value types are never skipped (they cannot be null) so they are always safe.
+		/// </summary>
+		internal bool SkipNulls { get; set; }
+
 		internal bool ShouldSave( GameObject gameObject )
 		{
 			var shouldIgnoreNotSavedFlag = SingleNetworkObject || SceneForNetwork;
@@ -108,12 +117,22 @@ public partial class GameObject
 		internal bool IsNetworkRefresh { get; set; }
 
 		/// <summary>
+		/// When true, component properties absent from the JSON (e.g. omitted by
+		/// <see cref="SerializeOptions.SkipNulls"/>) are explicitly cleared to null/default
+		/// rather than left at their existing value.
+		/// </summary>
+		internal bool ClearAbsentFields { get; set; }
+
+		/// <summary>
 		/// Allows overriding the transform when deserializing. Will apply only to the root object.
 		/// </summary>
 		public Transform? TransformOverride { get; set; }
 	}
 
 	private static readonly DeserializeOptions _defaultDeserializeOptions = new();
+
+	// Stashed by Deserialize(), consumed by InvokeCallback(Deserialize) to avoid a closure allocation.
+	private DeserializeOptions _pendingDeserializeOptions;
 
 	/// <summary>
 	/// Returns either a full JsonObject with all the GameObjects data,
@@ -148,7 +167,6 @@ public partial class GameObject
 		if ( GameObjectVersion != 0 ) json[JsonKeys.Version] = GameObjectVersion;
 		json[JsonKeys.PrefabInstanceSource] = JsonValue.Create( PrefabInstance.PrefabSource );
 		json[JsonKeys.PrefabInstancePatch] = Json.ToNode( PrefabInstance.Patch );
-		PrefabInstance.ValidatePrefabLookup();
 		json[JsonKeys.PrefabIdToInstanceId] = Json.ToNode( PrefabInstance.PrefabToInstanceLookup );
 
 		return json;
@@ -328,7 +346,22 @@ public partial class GameObject
 			var prefabFile = ResourceLibrary.Get<PrefabFile>( PrefabInstance.PrefabSource );
 			if ( !IsPrefabLoaded( prefabFile ) )
 			{
+				// Preserve patch and GUID mappings so the instance data survives save/load round-trips
+				// and can be fully restored when the prefab file comes back.
+				if ( node[JsonKeys.PrefabInstancePatch] is JsonObject stubPatchJson )
+				{
+					PrefabInstance.InitPatch( Json.FromNode<Json.Patch>( stubPatchJson ) );
+					PrefabInstance.InitLookups( node[JsonKeys.PrefabIdToInstanceId]?.Deserialize<Dictionary<Guid, Guid>>() ?? new Dictionary<Guid, Guid>() );
+				}
+
+				// Keep this object visible in the hierarchy as a disabled stub.
+				DeserializeId( node );
+				Name = $"[Missing Prefab] {PrefabInstance.PrefabSource}";
+				_enabled = false;
+				Flags |= GameObjectFlags.Error;
+
 				PostDeserialize( options );
+				UpdateEnabledStatus();
 				return;
 			}
 
@@ -385,7 +418,7 @@ public partial class GameObject
 		Name = node.GetPropertyValue( "Name", Name );
 		DeserializeTransform( node, options );
 
-		_enabled = node.GetPropertyValue( "Enabled", false );
+		_enabled = node.GetPropertyValue( JsonKeys.Enabled, false );
 
 		using var batchGroup = CallbackBatch.Batch();
 
@@ -446,7 +479,7 @@ public partial class GameObject
 				//
 				if ( componentType is null || componentType.TargetType.IsAbstract )
 				{
-					Log.Warning( $"TypeLibrary couldn't find Component type {componentTypeName}" );
+					Log.Warning( $"Missing Component: couldn't find Component type {componentTypeName} on {this}" );
 
 					var missing = new MissingComponent( componentJson );
 					Components.AddMissing( missing );
@@ -480,7 +513,14 @@ public partial class GameObject
 					continue;
 				}
 
-				c.Deserialize( componentJson );
+				if ( options.ClearAbsentFields )
+				{
+					c.DeserializeInternal( componentJson, true );
+				}
+				else
+				{
+					c.Deserialize( componentJson );
+				}
 
 				if ( options.IsRefreshing )
 				{
@@ -574,7 +614,8 @@ public partial class GameObject
 
 		if ( Parent is null || (Parent.Flags & GameObjectFlags.Deserializing) == 0 )
 		{
-			CallbackBatch.Add( CommonCallback.Deserialize, () => PostDeserialize( options ), this, "PostDeserialize" );
+			_pendingDeserializeOptions = options;
+			CallbackBatch.Add( CommonCallback.Deserialize, this, "PostDeserialize" );
 		}
 
 		// Trigger OnEnabled after the GameObject has been deserialized fully, _enabled was set before, so OnAwake calls properly
@@ -595,7 +636,7 @@ public partial class GameObject
 		}
 
 		// We only want to deserialize certain flags, the rest are runtime only.
-		const GameObjectFlags FlagsToKeep =
+		const GameObjectFlags flagsToKeep =
 						GameObjectFlags.ProceduralBone |
 						GameObjectFlags.EditorOnly |
 						GameObjectFlags.NotNetworked |
@@ -604,11 +645,10 @@ public partial class GameObject
 						GameObjectFlags.Hidden;
 
 		// Clear the flags we're about to deserialize
-		Flags &= ~FlagsToKeep;
+		Flags &= ~flagsToKeep;
 
 		// Copy set flags from source
-		Flags |= (inFlags & FlagsToKeep);
-
+		Flags |= (inFlags & flagsToKeep);
 	}
 
 	private bool IsPrefabLoaded( PrefabFile prefabFile )
@@ -711,7 +751,10 @@ public partial class GameObject
 			tx.Position = node[JsonKeys.Position]?.Deserialize<Vector3>() ?? Vector3.Zero;
 			tx.Rotation = node[JsonKeys.Rotation]?.Deserialize<Rotation>() ?? Rotation.Identity;
 			tx.Scale = node[JsonKeys.Scale]?.Deserialize<Vector3>() ?? Vector3.One;
-			LocalTransform = tx;
+
+			// Use exact (bitwise) equality to avoid Vector3.operator== swallowing tiny
+			// differences within its 0.0001 AlmostEqual tolerance during deserialization.
+			Transform.SetLocalTransformExact( tx );
 		}
 	}
 
@@ -861,8 +904,8 @@ public partial class GameObject
 				var id = bs.Read<Guid>();
 				return Game.ActiveScene.Directory.FindByGuid( id );
 			case NetworkReferenceType.Prefab:
-				var resourceId = bs.Read<int>();
-				var prefabFile = ResourceLibrary.Get<PrefabFile>( resourceId );
+				var resourceId = bs.Read<ulong>();
+				var prefabFile = Game.Resources.GetByIdLong<PrefabFile>( resourceId );
 				return SceneUtility.GetPrefabScene( prefabFile );
 			default:
 				return default;
@@ -880,7 +923,7 @@ public partial class GameObject
 		if ( go is PrefabScene prefabScene )
 		{
 			bs.Write( (byte)NetworkReferenceType.Prefab );
-			bs.Write( prefabScene.Source.ResourceId );
+			bs.Write( prefabScene.Source.ResourceIdLong );
 			return;
 		}
 
@@ -965,6 +1008,7 @@ public partial class GameObject
 		internal const string Rotation = "Rotation";
 		internal const string Scale = "Scale";
 		internal const string Enabled = "Enabled";
+		internal const string Hidden = "Hidden";
 		internal const string Tags = "Tags";
 		internal const string Version = "__version";
 		internal const string NetworkMode = "NetworkMode";

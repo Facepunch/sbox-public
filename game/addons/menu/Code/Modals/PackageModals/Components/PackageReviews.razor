@@ -3,44 +3,114 @@
 @using Sandbox;
 @using Sandbox.UI
 @using Menu;
+@using static Sandbox.Services.Review
 
 <root>
+    <PackageReviewsHeader Package=@Package />
 
-    <Grid Padding Gap>
-        <ChildContent>
-            <StatCard Icon="how_to_reg" Value="@Package.Reviews.Total.ToMetric()" Subtitle="Reviews"></StatCard>
-            <StatCard Icon="insights" Value="@($"{Math.Round( Package.Reviews.Score)}%" )" Subtitle="Score"></StatCard>
-            <Button class="review-button" Icon="rate_review" Text="Write Review" @onmousedown="@WriteReview"></Button>
-        </ChildContent>
-    </Grid>
+    <div class="tag-filters">
 
-    <h2>Latest Reviews</h2>
+        <label class="eyebrow">Reviews</label>
 
-    <div class="review-list">
-        @foreach (var review in Reviews )
+        <div class="tag-filter-group">
+            <Badge Type="positive" Number=@Package.Reviews.PositiveRatings>Recommended</Badge>
+            <Badge Type="positive" Number=@Package.Reviews.PromiseRatings>Shows Promise</Badge>
+            <Badge Type="positive" Number=@Package.Reviews.NegativeRatings>Needs Work</Badge>
+        </div>
+
+        @if (Package.Reviews.PositiveTags.Sum(x => x.Value) > 0)
         {
-            <UserComment Player="@review.Player" Date="@review.Updated" Details="@($"{review.PlayTime.Humanize( 1 )} played")">
-                <TopBar>
-                    @if (review.Score == Sandbox.Services.Review.ReviewScore.Positive)
-                    {
-                        <div class="rating-stamp rating-positive"><div class="icon">😍</div><div class="text">Recommended</div></div>
-                    }
+            <label class="eyebrow">Positives</label>
 
-                    @if (review.Score == Sandbox.Services.Review.ReviewScore.Negative)
-                    {
-                        <div class="rating-stamp rating-negative"><div class="icon">💩</div><div class="text">Needs Work</div></div>
-                    }
+            <div class="tag-filter-group">
+                @foreach (var tag in Package.Reviews.PositiveTags.Where(x => x.Value > 0).OrderByDescending(x => x.Value))
+                {
+                    <Badge Type="positive" Number=@tag.Value>
+                        @tag.Key
+                    </Badge>
+                }
+            </div>
+        }
 
-                    @if (review.Score == Sandbox.Services.Review.ReviewScore.Promise)
-                    {
-                        <div class="rating-stamp rating-promise"><div class="icon">😐</div><div class="text">Shows Promise</div></div>
-                    }
-                </TopBar>
-                <Content>@review.Content</Content>
-            </UserComment>
+        @if (Package.Reviews.NegativeTags.Sum(x => x.Value) > 0)
+        {
+            <label class="eyebrow">Negatives</label>
+
+            <div class="tag-filter-group">
+                @foreach (var tag in Package.Reviews.NegativeTags.Where(x => x.Value > 0).OrderByDescending(x => x.Value))
+                {
+                    <Badge Type="negative" Number=@tag.Value>@tag.Key</Badge>
+                }
+            </div>
         }
     </div>
 
+    <div class="review-list">
+        @if (Reviews.Count == 0 && TotalCount == 0)
+        {
+            <div class="no-reviews">No reviews yet. Be the first to write one!</div>
+        }
+        else
+        {
+            @if (TotalPages > 1)
+            {
+                <div class="pagination">
+                    <Button class="pagination-button" Icon="chevron_left" Disabled=@(!HasPreviousPage) @onmousedown="@PreviousPage" />
+                    @foreach (var page in GetPageNumbers())
+                    {
+                        <Button class="@GetPageButtonClass(page)" Text=@(page.ToString()) @onmousedown="@(() => GoToPage(page))" />
+                    }
+                    <Button class="pagination-button" Icon="chevron_right" Disabled=@(!HasNextPage) @onmousedown="@NextPage" />
+                </div>
+            }
+
+            @foreach (var review in Reviews)
+            {
+                <UserComment Player="@review.Player" Date="@review.Updated" TimePlayed="Played for @review.PlayTime.Humanize(1)" class="@GetReviewClass(review.Score)">
+                    <TopBar>
+                        @if (review.Score == ReviewScore.Positive)
+                        {
+                            <Badge Type="positive" class="clear">
+                                <icon>thumb_up</icon>
+                                Recommended
+                            </Badge>
+                        }
+                        else if (review.Score == ReviewScore.Negative)
+                        {
+                            <Badge Type="negative" class="clear">
+                                <icon>thumb_down</icon>
+                                Needs Work
+                            </Badge>
+                        }
+                        else if (review.Score == ReviewScore.Promise)
+                        {
+                            <Badge Type="promise" class="clear">
+                                <icon>thumbs_up_down</icon>
+                                Shows Promise
+                            </Badge>
+                        }
+                    </TopBar>
+                    <Content>
+                        <label class="review-content">@review.Content</label>
+
+                        @if (review.Positives != Sandbox.Services.Review.PositiveTags.None || review.Negatives != Sandbox.Services.Review.NegativeTags.None)
+                        {
+                            <div class="review-tags">
+                                @foreach (var flag in GetPositiveFlags(review.Positives))
+                                {
+                                    <Badge Type="positive">@flag</Badge>
+                                }
+                                @foreach (var flag in GetNegativeFlags(review.Negatives))
+                                {
+                                    <Badge Type="negative">@flag</Badge>
+                                }
+                            </div>
+                        }
+                    </Content>
+                </UserComment>
+            }
+        }
+    </div>
 </root>
 
 @code
@@ -49,14 +119,74 @@
 
     List<Sandbox.Services.Review> Reviews = new();
 
+    int CurrentPage = 1;
+    int TotalCount = 0;
+    const int PageSize = 30;
+
+    int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
+    bool HasPreviousPage => CurrentPage > 1;
+    bool HasNextPage => CurrentPage < TotalPages;
+
     protected override async Task OnParametersSetAsync()
     {
-        Reviews = (await Sandbox.Services.Review.Fetch(Package.FullIdent, 100, 0)).ToList();
+        CurrentPage = 1;
+        await FetchReviews();
     }
 
-    void WriteReview()
+    async Task FetchReviews()
     {
-        Game.Overlay.ShowReviewModal( Package );
+        var skip = (CurrentPage - 1) * PageSize;
+        var page = await Sandbox.Services.Review.FetchEx(Package.FullIdent, PageSize, skip);
+        Reviews = page.Posts?.ToList() ?? new();
+        TotalCount = page.Count;
     }
 
+    async Task GoToPage(int page)
+    {
+        if (page < 1 || page > TotalPages) return;
+        CurrentPage = page;
+        await FetchReviews();
+    }
+
+    async Task PreviousPage() => await GoToPage(CurrentPage - 1);
+    async Task NextPage() => await GoToPage(CurrentPage + 1);
+
+    IEnumerable<int> GetPageNumbers()
+    {
+        const int maxVisible = 5;
+        int start = Math.Max(1, CurrentPage - maxVisible / 2);
+        int end = Math.Min(TotalPages, start + maxVisible - 1);
+        start = Math.Max(1, end - maxVisible + 1);
+
+        for (int i = start; i <= end; i++)
+            yield return i;
+    }
+
+    string GetPageButtonClass(int page) => page == CurrentPage ? "pagination-button current" : "pagination-button";
+
+    static IEnumerable<string> GetPositiveFlags(Sandbox.Services.Review.PositiveTags tags)
+    {
+        foreach (Sandbox.Services.Review.PositiveTags value in Enum.GetValues(typeof(Sandbox.Services.Review.PositiveTags)))
+        {
+            if (value != Sandbox.Services.Review.PositiveTags.None && tags.HasFlag(value))
+                yield return value.ToString();
+        }
+    }
+
+    static IEnumerable<string> GetNegativeFlags(Sandbox.Services.Review.NegativeTags tags)
+    {
+        foreach (Sandbox.Services.Review.NegativeTags value in Enum.GetValues(typeof(Sandbox.Services.Review.NegativeTags)))
+        {
+            if (value != Sandbox.Services.Review.NegativeTags.None && tags.HasFlag(value))
+                yield return value.ToString();
+        }
+    }
+
+    string GetReviewClass(Sandbox.Services.Review.ReviewScore score) => score switch
+    {
+        Sandbox.Services.Review.ReviewScore.Positive => "positive",
+        Sandbox.Services.Review.ReviewScore.Negative => "negative",
+        Sandbox.Services.Review.ReviewScore.Promise => "promise",
+        _ => ""
+    };
 }

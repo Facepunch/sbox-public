@@ -114,6 +114,8 @@ internal class GameInstance : IGameInstance
 		if ( activePackage != null && !Application.IsStandalone )
 		{
 			Game.Language?.Shutdown();
+			Game.Language = null;
+
 			FileSystem.Mounted?.UnMount( activePackage.FileSystem );
 
 			activePackage = null;
@@ -149,6 +151,7 @@ internal class GameInstance : IGameInstance
 		Log.Trace( $"LoadAsync: {Ident} (dev:{IsDeveloperHost})" );
 		SentrySdk.AddBreadcrumb( $"Loading Game {Ident}", "gameinstance.load" );
 
+		LoadingScreen.Title = "Fetching Package Info";
 		_package = await Package.FetchAsync( Ident, false );
 
 		if ( !IsDeveloperHost )
@@ -163,6 +166,9 @@ internal class GameInstance : IGameInstance
 		Application.GameIdent = Package is null ? Ident : $"{_package.Org.Ident}.{_package.Ident}";
 		Application.GamePackage = _package;
 		Application.ExceptionCount = default;
+
+		EngineFileSystem.ProjectSettings = new AggregateFileSystem();
+		Game.Language = new LanguageContainer();
 
 		//
 		// When joining a server, we don't mind if the package is missing or bullshit
@@ -208,10 +214,16 @@ internal class GameInstance : IGameInstance
 			return true;
 		}
 
+		if ( Package.TypeName != "game" && !Application.IsEditor )
+		{
+			throw new Exception( $"Package {Ident} is not a game" );
+		}
+
 		var achievementTask = _package.GetAchievements();
 
 		Log.Trace( $"Install Async {Package.Title}" );
 		LoadingScreen.Title = $"Installing {Package.Title}";
+		LoadingScreen.Media = Package.LoadingScreen.MediaUrl;
 
 		var identWithVersion = Package.FullIdent;
 
@@ -293,10 +305,9 @@ internal class GameInstance : IGameInstance
 
 		FileSystem.Mounted.Mount( activePackage.FileSystem );
 
-		EngineFileSystem.ProjectSettings = new AggregateFileSystem();
 		EngineFileSystem.ProjectSettings.Mount( activePackage.ProjectSettings );
-
-		Game.Language = new LanguageContainer( activePackage.Localization );
+		Game.Language.FileSystem.Mount( activePackage.Localization );
+		Game.Language.Refresh();
 
 		LoadProjectSettings();
 

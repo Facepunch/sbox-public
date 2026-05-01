@@ -34,6 +34,13 @@
             <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@VSyncOptions Value:bind=@VSync></ButtonGroup>
         </row>
 
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Framerate Limit (game)
+            </cell>
+            <SliderControl class="glass with-grow" Value:bind=@FrameRateLimit Min="@(0)" Max="@(500)" Step="@(1)" ShowTextEntry="@true"></SliderControl>
+        </row>
+
         <h2><i>brush</i>Quality</h2>
 
         <row class="with-gaps">
@@ -66,6 +73,13 @@
 
         <row class="with-gaps">
             <cell class="glass with-padding is-label">
+                Shadows
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@ShadowQualityOptions Value:bind=@ShadowQuality></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
                 Motion Blur Strength
             </cell>
             <SliderControl class="glass with-grow" Value:bind=@MotionBlurScale Min="@(0.0f)" Max="@(1.0f)" Step="@(0.01f)" ShowTextEntry="@true"></SliderControl>
@@ -86,7 +100,9 @@
     public TextureQuality TextureDetail { get; set; }
     public VolumetricFogQuality VolumetricFogQuality { get; set; }
     public PostProcessQuality PostProcessQuality { get; set; }
+    public ShadowQuality ShadowQuality { get; set; }
     public float MotionBlurScale { get; set; }
+    public int FrameRateLimit { get; set; }
 
     List<Option> VideoModeOptions = new List<Option>()
     {
@@ -108,11 +124,26 @@
     List<Option> TextureDetailOptions = [new("Low", Sandbox.Engine.Settings.TextureQuality.Low), new("Medium", Sandbox.Engine.Settings.TextureQuality.Medium), new("High", Sandbox.Engine.Settings.TextureQuality.High)];
     List<Option> VolumetricFogQualityOptions = [new("Low", VolumetricFogQuality.Low), new("Medium", VolumetricFogQuality.Medium), new("High", VolumetricFogQuality.High)];
     List<Option> PostProcessOptions = [new("Low", PostProcessQuality.Low), new("Medium", PostProcessQuality.Medium), new("High", PostProcessQuality.High)];
+    List<Option> ShadowQualityOptions = [new("Low", ShadowQuality.Low), new("Medium", ShadowQuality.Medium), new("High", ShadowQuality.High)];
 
-    List<Option> GetResolutionOptions()
+    static List<Option> _resolutionOptions = [];
+    public static List<Option> ResolutionOptions
+    {
+        get
+        {
+            if ( _resolutionOptions.Count == 0 )
+                FetchResolutions();
+
+            return _resolutionOptions;
+        }
+    }
+
+    /// <summary>
+    /// Fetches available resolutions from DXGI, can create stutters.
+    /// </summary>
+    public static void FetchResolutions()
     {
         var options = new List<Option>();
-
         var smallestAspect = 1.5f;
 
         var displayModes = MenuUtility.RenderSettings.DisplayModes( false )
@@ -121,11 +152,13 @@
 
         foreach ( var res in displayModes.GroupBy( x => $"{x.Width}x{x.Height}" ) )
         {
-            options.Add(new Option(res.Key, res.Key));
+            options.Add( new Option( res.Key, res.Key ) );
         }
 
-        return options;
+        _resolutionOptions = options;
     }
+
+    List<Option> GetResolutionOptions() => ResolutionOptions;
 
     protected override void OnAfterTreeRender(bool firstTime)
     {
@@ -150,7 +183,11 @@
         TextureDetail = MenuUtility.RenderSettings.TextureQuality;
         VolumetricFogQuality = MenuUtility.RenderSettings.VolumetricFogQuality;
         PostProcessQuality = MenuUtility.RenderSettings.PostProcessQuality;
-        MotionBlurScale = MenuUtility.RenderSettings.MotionBlurScale;    }
+        ShadowQuality = MenuUtility.RenderSettings.ShadowQuality;
+        MotionBlurScale = MenuUtility.RenderSettings.MotionBlurScale;
+
+        FrameRateLimit = MenuUtility.RenderSettings.MaxFrameRate;
+    }
 
     public void OnRestore()
     {
@@ -204,7 +241,10 @@
         MenuUtility.RenderSettings.TextureQuality = TextureDetail;
         MenuUtility.RenderSettings.VolumetricFogQuality = VolumetricFogQuality;
         MenuUtility.RenderSettings.PostProcessQuality = PostProcessQuality;
+        MenuUtility.RenderSettings.ShadowQuality = ShadowQuality;
         MenuUtility.RenderSettings.MotionBlurScale = MotionBlurScale;
+
+        MenuUtility.RenderSettings.MaxFrameRate = FrameRateLimit;
 
         MenuUtility.RenderSettings.Apply();
     }

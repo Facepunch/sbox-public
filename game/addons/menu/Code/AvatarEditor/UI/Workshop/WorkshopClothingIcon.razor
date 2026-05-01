@@ -51,23 +51,4 @@
     {
         OnMenu?.Invoke();
     }
-
-    [Event("package.update.users")]
-    public void UpdateUsers(string ident, long value)
-    {
-        if (ident != Package.FullIdent) return;
-
-        var u = Package.Usage;
-        u.UsersNow = value;
-        Package.Usage = u;
-        StateHasChanged();
-    }
-
-    [Event("package.update.favourites")]
-    public void UpdateFaves(string ident, long value)
-    {
-        if (ident != Package.FullIdent) return;
-        Package.Favourited = (int)value;
-        StateHasChanged();
-    }
 }

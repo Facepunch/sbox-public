@@ -1,53 +1,54 @@
+@import "/styles/_theme.scss";
 
 Page
 {
-
-    flex-grow: 1;
-    position: relative;
-    justify-content: center;
-    backdrop-filter: blur( 20px ) brightness( 0.33 ) contrast( 0.75 ) saturate( 1.5 );
+	background-color: $default-950;
+	flex-grow: 1;
+	position: relative;
+	justify-content: center;
 }
 
-Page > .inner
+Page VirtualList 
 {
+    width: 100%;
+    height: 100%;
+    gap: 8px;
+}
+
+Page > .inner {
     flex-grow: 1;
     flex-shrink: 1;
     pointer-events: all;
     flex-direction: row;
     overflow: hidden;
-    max-width: 1800px;
-    background-color: #101219dd;
+    width: 100%;
 }
 
 Page > .inner > .sidebar
 {
     flex-shrink: 0;
-    width: 500px;
-    background-color: #1b202caa;
+    width: 400px;
+    background-color: $default-900;
     overflow: hidden;
+    overflow-y: scroll;
     flex-direction: column;
     pointer-events: all;
+    gap: 8px;
+    padding: 50px;
+    box-shadow: 6px 0 36px rgba( black, 0.5 );
 }
 
 Page > .inner > .pagebody
 {
     flex-grow: 1;
     flex-shrink: 1;
-    overflow: hidden;
     flex-direction: column;
 }
 
 Page > .inner > .pagebody > .row
 {
-    padding: 32px;
+    padding: 50px;
     flex-direction: row;
-}
-
-Page > .inner > .sidebar
-{
-    flex-direction: column;
-    padding: 16px 32px;
-    overflow-y:scroll;
 }
 
 Page > .inner > .sidebar > .flex-column
@@ -92,15 +93,37 @@ Page > .inner > .sidebar hr
     flex-shrink: 0;
 }
 
-Page > .inner > .sidebar TextEntry
-{
-    background-color: #0f1016;
-    height: 42px;
-    border-radius: 20px;
-    width: 100%;
-    flex-shrink: 0;
-    padding: 8px;
-}
+    Page > .inner > .sidebar TextEntry {
+        background-color: $default-950;
+        backdrop-filter: blur( 10px );
+        color: $default-text;
+        padding: 8px 12px;
+        border-radius: $rounding-default;
+        pointer-events: all;
+        transition: all 150ms $easing;
+        border: 1px solid rgba( $default-50, 0.1 );
+
+        &.has-icon {
+            Label {
+                margin-left: 26px;
+            }
+        }
+
+        .placeholder {
+            font-size: $text-regular;
+        }
+
+        Label {
+            font-weight: 700;
+        }
+
+        iconpanel {
+            position: absolute;
+            left: 12px;
+            opacity: 0.25;
+            font-size: $text-large;
+        }
+    }
 
 Page > .inner > .sidebar p
 {

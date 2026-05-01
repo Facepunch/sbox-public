@@ -521,7 +521,9 @@ namespace Sandbox.UI
 			{
 				if ( Initialized && _overflow == value ) return;
 				_overflow = value;
-				Yoga.YGNodeStyleSetOverflow( Node, value ?? OverflowMode.Visible );
+				// Clip and ClipWhole behave like Visible for layout purposes — they only affect rendering, not layout.
+				var yogaOverflow = (value == OverflowMode.Clip || value == OverflowMode.ClipWhole) ? OverflowMode.Visible : (value ?? OverflowMode.Visible);
+				Yoga.YGNodeStyleSetOverflow( Node, yogaOverflow );
 			}
 		}
 

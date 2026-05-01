@@ -24,7 +24,7 @@ public sealed class ChromaticAberration : BasePostProcess<ChromaticAberration>
 	/// </summary>
 	[Property] public Vector3 Offset { get; set; } = new Vector3( 6f, 2f, 4.0f );
 
-	private static readonly Material Shader = Material.FromShader( "shaders/postprocess/pp_chromaticaberration.shader" );
+	private static Material Shader = Material.FromShader( "shaders/postprocess/pp_chromaticaberration.shader" );
 
 	public override void Render()
 	{

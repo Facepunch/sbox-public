@@ -18,7 +18,7 @@ public partial class Shader : Resource
 
 		this.native = native;
 
-		SetIdFromResourcePath( name );
+		RegisterWeakResourceId( name );
 	}
 
 	internal Shader()
@@ -26,12 +26,17 @@ public partial class Shader : Resource
 		native = CVfx.Create( "__debugShader" );
 	}
 
-	~Shader()
+	internal override void Destroy()
 	{
-		var n = native;
-		native = default;
+		if ( !native.IsNull )
+		{
+			var n = native;
+			native = default;
 
-		MainThread.Queue( () => n.DestroyStrongHandle() );
+			MainThread.Queue( () => n.DestroyStrongHandle() );
+		}
+
+		base.Destroy();
 	}
 
 	const int VFX_CHECK_MD5_AGAINST_SOURCE = (1 << 0);

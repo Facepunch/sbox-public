@@ -64,9 +64,13 @@ DeveloperMode > .right
 
 .popup-panel
 {
+    padding: 4px;
+    gap: 2px;
+
     .button
     {
         background-color: $control;
+        border-radius: 3px;
 
         &:nth-child( even )
         {

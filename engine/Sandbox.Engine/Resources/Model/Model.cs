@@ -25,23 +25,25 @@ public sealed partial class Model : Resource
 		this.Name = name;
 		this.procedural = procedural;
 
-		SetIdFromResourcePath( Name );
+		RegisterWeakResourceId( Name );
 	}
 
-	internal void Dispose()
+	internal override void Destroy()
 	{
 		if ( !native.IsNull )
 		{
+			var path = ResourcePath;
+
 			var n = native;
 			native = default;
 
-			MainThread.Queue( () => n.DestroyStrongHandle() );
+			MainThread.Queue( () =>
+			{
+				n.DestroyStrongHandle();
+			} );
 		}
-	}
 
-	~Model()
-	{
-		Dispose();
+		base.Destroy();
 	}
 
 	/// <summary>
@@ -76,6 +78,8 @@ public sealed partial class Model : Resource
 		_parts = default;
 
 		DataCache?.Clear();
+
+		BaseModel = default;
 
 		IToolsDll.Current?.RunEvent( "model.reload", this );
 
@@ -118,7 +122,14 @@ public sealed partial class Model : Resource
 	/// </summary>
 	public MeshTraceRequest Trace => new() { targetModel = this };
 
-
+	/// <summary>
+	/// Base model of this model if one was used.
+	/// </summary>
+	internal Model BaseModel
+	{
+		get => field ??= FromNative( native.GetBaseModel() );
+		set;
+	}
 }
 
 internal interface IHasModel

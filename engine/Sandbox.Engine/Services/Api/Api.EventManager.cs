@@ -9,11 +9,19 @@ internal static partial class Api
 		private static List<EventRecord> Pending = new();
 
 		/// <summary>
+		/// Only ~1% of users will submit analytic events, determined by SteamId.
+		/// </summary>
+		internal static bool SamplingEnabled { get; set; }
+
+		/// <summary>
 		/// Add an event to the queue. You should not use this event again.
 		/// </summary>
 		private static void Add( EventRecord e )
 		{
-			if ( !Application.IsRetail )
+			if ( !Application.IsRetail || Application.IsStandalone )
+				return;
+
+			if ( !SamplingEnabled )
 				return;
 
 			Pending.Add( e );
@@ -91,12 +99,15 @@ internal static partial class Api
 		/// </summary>
 		internal static async Task PostEventsAsync( EventRecord[] records )
 		{
+			if ( Sandbox.Backend.Account is null )
+				return;
+
 			var values = new
 			{
 				Events = records
 			};
 
-			await Sandbox.Backend.Account?.SubmitEvents( values );
+			await Sandbox.Backend.Account.SubmitEvents( values );
 		}
 	}
 }

@@ -137,6 +137,7 @@ namespace Sandbox
 			if ( type == Types.PhysicsPulleyJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PulleyJoint( h ) );
 			if ( type == Types.PhysicsMotorJoint ) return New( ptr, ( h ) => new Sandbox.Physics.ControlJoint( h ) );
 			if ( type == Types.PhysicsWheelJoint ) return New( ptr, ( h ) => new Sandbox.Physics.WheelJoint( h ) );
+			if ( type == Types.PhysicsParallelJoint ) return New( ptr, ( h ) => new Sandbox.Physics.UprightJoint( h ) );
 			if ( type == Types.PhysicsFilterJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint( h ) );
 			if ( type == Types.PhysicsJoint ) return New( ptr, ( h ) => new Sandbox.Physics.PhysicsJoint( h ) );
 
@@ -196,6 +197,7 @@ namespace Sandbox
 			internal static uint PhysicsConicalJoint { get; } = StringToken.FindOrCreate( "PhysicsConicalJoint" );
 			internal static uint PhysicsMotorJoint { get; } = StringToken.FindOrCreate( "PhysicsMotorJoint" );
 			internal static uint PhysicsWheelJoint { get; } = StringToken.FindOrCreate( "PhysicsWheelJoint" );
+			internal static uint PhysicsParallelJoint { get; } = StringToken.FindOrCreate( "PhysicsParallelJoint" );
 			internal static uint PhysicsFilterJoint { get; } = StringToken.FindOrCreate( "PhysicsFilterJoint" );
 			internal static uint PhysicsPulleyJoint { get; } = StringToken.FindOrCreate( "PhysicsPulleyJoint" );
 			internal static uint PhysicsGenericJoint { get; } = StringToken.FindOrCreate( "PhysicsGenericJoint" );

@@ -895,9 +895,9 @@ public class Preview : SceneRenderingWidget
 		}
 	}
 
-	protected override void OnWheel( WheelEvent e )
+	protected override void OnMouseWheel( WheelEvent e )
 	{
-		base.OnWheel( e );
+		base.OnMouseWheel( e );
 
 		Zoom( e.Delta * -0.1f );
 	}

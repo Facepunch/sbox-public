@@ -65,6 +65,11 @@ internal class EmbeddedAsset : Asset
 		return [];
 	}
 
+	public override List<Asset> GetParents( bool deep )
+	{
+		return [];
+	}
+
 	public override List<string> GetAdditionalContentFiles()
 	{
 		return [];

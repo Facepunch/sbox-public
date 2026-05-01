@@ -82,6 +82,7 @@ public static partial class Networking
 					Map = e.Map,
 					Members = e.Players,
 					MaxMembers = e.MaxPlayers,
+					Ping = e.Ping,
 					Data = new()
 				};
 
@@ -155,6 +156,7 @@ public static partial class Networking
 		q = q.WithKeyValue( "protocol", $"{Protocol.Network}" );
 		q = q.WithKeyValue( "api", $"{Protocol.Api}" );
 		q = q.WithNotEqual( "toxic", 1 );
+		q = q.WithNotEqual( "disbanded", 1 );
 
 		foreach ( var filter in filters )
 		{
@@ -202,6 +204,7 @@ public static partial class Networking
 			var item = new LobbyInformation();
 			item.LobbyId = l.Id;
 			item.OwnerId = l.Owner.Id;
+			item.Ping = -1;
 
 			item.MaxMembers = l.MaxMembers;
 			item.Members = l.MemberCount;
@@ -219,54 +222,6 @@ public static partial class Networking
 		}
 
 		return found;
-	}
-
-	/// <summary>
-	/// The client has been told to reconnect to the server. So disconnect and keep trying to connect.
-	/// </summary>
-	internal static void StartReconnecting( ReconnectMsg data )
-	{
-		IGameInstanceDll.Current?.CloseGame();
-
-		LoadingScreen.IsVisible = true;
-		LoadingScreen.Title = "Server Loading..";
-
-		var lastConnection = LastConnectionString;
-
-		Disconnect();
-
-		if ( string.IsNullOrWhiteSpace( lastConnection ) )
-		{
-			Log.Warning( "Tried to reconnect but no connection string" );
-			LoadingScreen.IsVisible = false;
-			return;
-		}
-
-		_ = Reconnect( data, lastConnection );
-	}
-
-	/// <summary>
-	/// The client has been told to reconnect to the server. Keep trying for 30 seconds.
-	/// </summary>
-	static async Task Reconnect( ReconnectMsg data, string address )
-	{
-		await Task.Delay( 1000 );
-
-		RealTimeSince timeSinceStarted = 0;
-
-		Log.Info( $"Reconnecting to {address}" );
-
-		while ( timeSinceStarted < 60f )
-		{
-			if ( !await TryConnect( address, 1 ) )
-				continue;
-
-			Log.Info( "Reconnect succeeded." );
-			return;
-		}
-
-		LoadingScreen.IsVisible = false;
-		Log.Info( "Reconnect failed." );
 	}
 
 }

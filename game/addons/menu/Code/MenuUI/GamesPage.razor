@@ -4,6 +4,7 @@
 @using Sandbox;
 @using Sandbox.UI;
 @using MenuProject.UI;
+@using Sandbox.UI.Navigation
 @page "/games/all"
 @inherits Panel
 
@@ -16,12 +17,12 @@
             <div class="flex-column flex-gap-32">
 
                 <div class="flex-column flex-gap-16">
-                    <GamePackageSortOrder Value:bind="@filterOrder" ></GamePackageSortOrder> 
+                    <GamePackageSortOrder Value:bind="@filterOrder"></GamePackageSortOrder>
                 </div>
 
                 <TextEntry @ref="SearchEntry" placeholder="Search games..."></TextEntry>
 
-                @if ( Result?.Properties is not null && Result.Properties.Length > 0 )
+                @if (Result?.Properties is not null && Result.Properties.Length > 0)
                 {
                     <div class="flex-column flex-gap-16">
                         <h2><WithIcon Icon="filter_alt" Text="Filters"></WithIcon></h2>
@@ -29,7 +30,7 @@
                     </div>
                 }
 
-                @if ( Result?.Facets is not null)
+                @if (Result?.Facets is not null)
                 {
                     foreach (var facet in Result.Facets)
                     {
@@ -40,22 +41,34 @@
                     }
                 }
 
-				<div class="flex-column flex-gap-16">
-					<h2><WithIcon Icon="tag" Text="Tags"></WithIcon></h2>
-					<PackageTagFilter Result=@Result Selected="@SelectedTags"></PackageTagFilter>
-				</div>
+                <div class="flex-column flex-gap-16">
+                    <h2><WithIcon Icon="tag" Text="Tags"></WithIcon></h2>
+                    <PackageTagFilter Result=@Result Selected="@SelectedTags"></PackageTagFilter>
+                </div>
 
-			</div>
+            </div>
 
-		</Left>
+        </Left>
 
-		<Body>
-			<PackageList @ref=PackageList ShowFilters="@false" Query=@($"type:game sort:{filterOrder} {GetQuery()}")  OnSelected=@Selected OnMenu=@Menu Take=@(200)></PackageList>
-		</Body>
-	</Page>
+        <Body>
+            <PackageList @ref=PackageList ShowFilters="@false" Query=@($"type:game sort:{filterOrder} {GetQuery()}") OnSelected=@Selected OnMenu=@Menu Take=@(200)></PackageList>
+        </Body>
+    </Page>
 </root>
 
 @code {
+
+    [Parameter]
+    public string Query 
+    { 
+        get => field; 
+        set
+        {
+            NeedsSetQuery = true;
+            field = value;
+        }
+    }
+
     string filterOrder = "rankweek";
 
     TextEntry SearchEntry = default;
@@ -70,9 +83,23 @@
     public GamesPage()
     {
         // Default to showing VR games in VR mode
-        if ( Application.IsVR )
+        if (Application.IsVR)
         {
             SelectedTags.Add("vr");
+        }
+    }
+
+    private bool NeedsSetQuery = false;
+    public override void Tick()
+    {
+        if (!NeedsSetQuery) return;
+        if (!IsVisible) return;
+        if (!SearchEntry.IsValid()) return;
+
+        if ( SearchEntry.Text != Query )
+        {
+            SearchEntry.Text = Query;
+            NeedsSetQuery = false;
         }
     }
 
@@ -99,7 +126,7 @@
 
     protected override int BuildHash()
     {
-        return System.HashCode.Combine(Result, GetQuery(), filterOrder);
+        return System.HashCode.Combine(Result, GetQuery(), filterOrder, NeedsSetQuery, Query);
     }
 
     void Selected(Package package)

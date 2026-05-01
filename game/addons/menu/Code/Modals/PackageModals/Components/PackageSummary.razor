@@ -8,7 +8,10 @@
 
 <root>
     <label class="title">@Package.Title</label>
-    <label class="orgname" onclick=@OrgClicked>@Package.Org.Title</label>
+    <div class="org" onclick=@OrgClicked>
+        <img class="org-thumb" src=@Package.Org.Thumb />
+        <label class="orgname">@Package.Org.Title</label>
+    </div>
 
     @if (!string.IsNullOrWhiteSpace(Package.Summary))
     {

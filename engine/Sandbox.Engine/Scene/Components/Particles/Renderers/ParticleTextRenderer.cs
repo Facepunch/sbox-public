@@ -8,7 +8,7 @@ namespace Sandbox;
 /// </summary>
 [Expose]
 [Title( "Particle Text Renderer" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "text_fields" )]
 public sealed class ParticleTextRenderer : ParticleRenderer, Component.ExecuteInEditor, IBatchedParticleSpriteRenderer
 {

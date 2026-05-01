@@ -1,0 +1,105 @@
+@import "/styles/_theme.scss";
+
+MainSearchBar {
+    .autocomplete {
+        position: absolute;
+        top: -32px;
+        left: 0;
+        right: 0;
+        height: 100vh;
+        align-items: flex-start;
+        justify-content: center;
+        pointer-events: none;
+        transition: all 150ms $easing;
+
+        .wrapper {
+            position: relative;
+            padding: 12px;
+            background-color: $default-950;
+            width: 800px;
+            border-radius: $rounding-large;
+            padding-top: 118px;
+            opacity: 0;
+            transform: translateY( -12px );
+            transition: all 150ms $easing;
+        }
+
+        .inner-empty, .inner-query {
+            flex-direction: column;
+            width: 100%;
+        }
+
+        .inner-query {
+            display: none;
+            gap: 12px;
+
+            icon {
+                color: $default-text-light;
+            }
+        }
+    }
+
+    &.has-query {
+        .inner-empty {
+            display: none;
+        }
+
+        .inner-query {
+            display: flex;
+        }
+    }
+
+    &.autocomplete-active {
+        .autocomplete {
+            pointer-events: all;
+            background-color: rgba( black, 0.9 );
+            backdrop-filter: blur( 10px );
+
+            .wrapper {
+                pointer-events: all;
+                opacity: 1;
+                transform: translateY( 0 );
+                box-shadow: 0 0 16px rgba( black, 0.33 );
+            }
+
+            TextEntry.textentry {
+                width: 640px;
+                background-color: $default-950;
+                backdrop-filter: blur( 0px );
+            }
+        }
+    }
+
+    TextEntry.textentry {
+        position: absolute;
+        top: 50px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: rgba( $default-950, 0.3 );
+        box-shadow: 0 0 32px rgba( $default-900, 0.5 );
+        backdrop-filter: blur( 10px );
+        color: $default-text;
+        padding: 8px 12px;
+        width: 500px;
+        border-radius: $rounding-default;
+        pointer-events: all;
+        transition: all 150ms $easing;
+        border: 1px solid rgba( $default-50, 0.1 );
+
+        .placeholder {
+            font-size: $text-regular;
+        }
+
+        Label {
+            font-weight: 700;
+            margin-left: 26px;
+        }
+
+        iconpanel {
+            position: absolute;
+            left: 12px;
+            opacity: 0.25;
+            font-size: $text-large;
+        }
+    }
+}

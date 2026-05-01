@@ -1,7 +1,8 @@
 ﻿using System.Data;
+using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using static Sandbox.Json;
+using Sandbox.Hashing;
 
 namespace Sandbox;
 
@@ -10,7 +11,7 @@ public static partial class Json
 	/// <summary>
 	/// Uniquely identifies a tracked object by its type and identifier value.
 	/// </summary>
-	internal record struct ObjectIdentifier
+	public record struct ObjectIdentifier
 	{
 		[JsonInclude]
 		public string Type;
@@ -22,7 +23,7 @@ public static partial class Json
 	/// <summary>
 	/// Represents a property change to apply during patching.
 	/// </summary>
-	internal record struct PropertyOverride
+	public record struct PropertyOverride
 	{
 		/// <summary>The object whose property should be modified</summary>
 		[JsonInclude]
@@ -40,7 +41,7 @@ public static partial class Json
 	/// <summary>
 	/// Represents an object that needs to be added during patching.
 	/// </summary>
-	internal record struct AddedObject
+	public record struct AddedObject
 	{
 		/// <summary>The identifier for the new object</summary>
 		[JsonInclude]
@@ -70,7 +71,7 @@ public static partial class Json
 	/// <summary>
 	/// Represents an object that should be removed during patching.
 	/// </summary>
-	internal record struct RemovedObject
+	public record struct RemovedObject
 	{
 		/// <summary>The identifier of the object to remove</summary>
 		[JsonInclude]
@@ -80,7 +81,7 @@ public static partial class Json
 	/// <summary>
 	/// Represents an object that should be moved to a new location during patching.
 	/// </summary>
-	internal record struct MovedObject
+	public record struct MovedObject
 	{
 		/// <summary>The identifier of the object to move</summary>
 		[JsonInclude]
@@ -107,7 +108,7 @@ public static partial class Json
 	/// Defines characteristics of an object type that should be tracked within a JSON tree structure.
 	/// These definitions are used to identify, track, and manage specific types of objects during JSON diffing and patching operations.
 	/// </summary>
-	internal class TrackedObjectDefinition
+	public class TrackedObjectDefinition
 	{
 		/// <summary>
 		/// A unique identifier for this object type. This is used to categorize objects.
@@ -244,8 +245,8 @@ public static partial class Json
 		/// <summary>The previous sibling element when contained in an array (null if first or not in array)</summary>
 		public TrackedObject PreviousElement;
 
-		/// <summary>The path to this object in the JSON structure</summary>
-		public string Path;
+		/// <summary>Hash of the path to this object in the JSON structure</summary>
+		public ulong PathHash;
 
 		/// <summary>Child objects belonging to this object</summary>
 		public LinkedList<TrackedObject> Children = new();
@@ -301,7 +302,7 @@ public static partial class Json
 	{
 		public TrackedObject Root;
 		public Dictionary<ObjectIdentifier, TrackedObject> IdToTrackedObject = new( 128 );
-		public HashSet<string> TrackedPaths = new( 128 );
+		public HashSet<ulong> TrackedPaths = new( 128 );
 	}
 
 	private static (ObjectIdentifier?, TrackedObjectDefinition) TryGetObjectIdentifier(
@@ -374,7 +375,7 @@ public static partial class Json
 
 		var clonedRoot = root.DeepClone().AsObject();
 
-		TraverseNode( clonedRoot, "", definitions, result, null, null, false );
+		TraverseNode( clonedRoot, 0UL, definitions, result, null, null, false );
 
 		// Sanitize objects to remove tracked objects
 		foreach ( var (objId, trackedObj) in result.IdToTrackedObject )
@@ -388,7 +389,7 @@ public static partial class Json
 
 	private static void TraverseNode(
 		JsonNode node,
-		string path,
+		ulong pathHash,
 		HashSet<TrackedObjectDefinition> definitions,
 		TrackedObjects result,
 		TrackedObject parent,
@@ -413,7 +414,7 @@ public static partial class Json
 					Parent = parent,
 					ContainerProperty = containerProperty,
 					IsContainedInArray = containerIsArray,
-					Path = path,
+					PathHash = pathHash,
 				};
 				result.IdToTrackedObject[currentIdentifier.Value] = trackedObj;
 				if ( parent != null )
@@ -427,7 +428,7 @@ public static partial class Json
 					result.Root = result.IdToTrackedObject[currentIdentifier.Value];
 				}
 
-				result.TrackedPaths.Add( path );
+				result.TrackedPaths.Add( pathHash );
 
 				if ( matchedDefintion.Atomic )
 				{
@@ -439,13 +440,18 @@ public static partial class Json
 			// Traverse child properties
 			foreach ( var (propName, propValue) in jsonObject )
 			{
-				var newPath = AppendToPath( path, propName );
+				// Simple values (strings, numbers, bools, null) can't contain tracked
+				// objects — skip them entirely.
+				if ( propValue is not (JsonObject or JsonArray) )
+					continue;
+
+				var newPathHash = HashAppend( pathHash, propName );
 				var newParent = currentIdentifier.HasValue && result.IdToTrackedObject.ContainsKey( currentIdentifier.Value ) ? result.IdToTrackedObject[currentIdentifier.Value] : parent;
 				// Reset containerproperty name if we found a tracked object
 				var newContainerProperty = currentIdentifier.HasValue ? propName : $"{containerProperty}.{propName}";
 				TraverseNode(
 					propValue,
-					newPath,
+					newPathHash,
 					definitions,
 					result,
 					newParent,
@@ -460,7 +466,7 @@ public static partial class Json
 			for ( int i = 0; i < jsonArray.Count; i++ )
 			{
 				var item = jsonArray[i];
-				var childPath = AppendToPath( path, i );
+				var childPathHash = HashAppend( pathHash, i );
 
 				if ( item is JsonObject jsonArrayObject )
 				{
@@ -468,12 +474,12 @@ public static partial class Json
 					var (elementId, _) = TryGetObjectIdentifier( jsonArrayObject, parent?.Id.Type, definitions );
 
 					// Process this object
-					TraverseNode( item, childPath, definitions, result, parent, containerProperty, true );
+					TraverseNode( item, childPathHash, definitions, result, parent, containerProperty, true );
 
 					// If we found a valid identifier, update its node with previous element info
 					if ( elementId.HasValue && result.IdToTrackedObject.TryGetValue( elementId.Value, out var trackedObj ) )
 					{
-						result.TrackedPaths.Add( path );
+						result.TrackedPaths.Add( pathHash );
 
 						// Set the previous element reference
 						trackedObj.PreviousElement = previousElement;
@@ -495,7 +501,7 @@ public static partial class Json
 	/// A patch contains all the operations needed to transform one JSON structure into another
 	/// while preserving object identity and relationships.
 	/// </remarks>
-	internal class Patch
+	public class Patch
 	{
 		/// <summary>
 		/// Objects that need to be added to the target structure.
@@ -529,7 +535,7 @@ public static partial class Json
 	/// <param name="newRoot">The updated JSON object tree</param>
 	/// <param name="definitions">Set of definitions for tracked object types in the JSON structure</param>
 	/// <returns>A Patch object containing all changes needed to transform oldRoot into newRoot</returns>
-	internal static Patch CalculateDifferences(
+	public static Patch CalculateDifferences(
 		JsonObject oldRoot,
 		JsonObject newRoot,
 		HashSet<TrackedObjectDefinition> definitions )
@@ -581,7 +587,8 @@ public static partial class Json
 					var propName = property.Key;
 					var newValue = property.Value;
 
-					if ( oldObjects.TrackedPaths.Contains( AppendToPath( newObj.Value.Path, propName ) ) || newObjects.TrackedPaths.Contains( AppendToPath( newObj.Value.Path, propName ) ) )
+					var propPathHash = HashAppend( newObj.Value.PathHash, propName );
+					if ( oldObjects.TrackedPaths.Contains( propPathHash ) || newObjects.TrackedPaths.Contains( propPathHash ) )
 					{
 						// Skip tracked properties
 						continue;
@@ -644,17 +651,17 @@ public static partial class Json
 
 	private static JsonObject StripNestedObjects(
 		TrackedObject original,
-		HashSet<string> trackedPaths )
+		HashSet<ulong> trackedPaths )
 	{
 		var sanitized = original.Data;
-		RemoveTrackedObjects( sanitized, original.Path, trackedPaths );
+		RemoveTrackedObjects( sanitized, original.PathHash, trackedPaths );
 		return sanitized;
 	}
 
 	private static void RemoveTrackedObjects(
 		JsonNode node,
-		string path,
-		HashSet<string> trackedPaths )
+		ulong pathHash,
+		HashSet<ulong> trackedPaths )
 	{
 		if ( node is JsonObject jsonObject )
 		{
@@ -663,24 +670,24 @@ public static partial class Json
 			{
 				var propName = property.Key;
 				var propValue = property.Value;
-				var propPath = AppendToPath( path, propName );
+				var propHash = HashAppend( pathHash, propName );
 
 				if ( propValue is JsonObject propObject )
 				{
 					// Check if the object is tracked
-					if ( trackedPaths.Contains( propPath ) )
+					if ( trackedPaths.Contains( propHash ) )
 					{
 						jsonObject.Remove( propName );
 						continue;
 					}
 
 					// Recursively process this object if it's not tracked itself
-					RemoveTrackedObjects( propObject, propPath, trackedPaths );
+					RemoveTrackedObjects( propObject, propHash, trackedPaths );
 				}
 				else if ( propValue is JsonArray propArray )
 				{
 					// Check if the array itself is tracked
-					if ( trackedPaths.Contains( propPath ) )
+					if ( trackedPaths.Contains( propHash ) )
 					{
 						propArray.Clear();
 						continue;
@@ -691,8 +698,8 @@ public static partial class Json
 					{
 						if ( propArray[i] is JsonObject arrayObj )
 						{
-							var itemPath = AppendToPath( propPath, i );
-							if ( trackedPaths.Contains( itemPath ) )
+							var itemHash = HashAppend( propHash, i );
+							if ( trackedPaths.Contains( itemHash ) )
 							{
 								// Remove tracked array items
 								propArray.RemoveAt( i );
@@ -700,7 +707,7 @@ public static partial class Json
 							else
 							{
 								// Recursively process untracked objects in the array
-								RemoveTrackedObjects( arrayObj, itemPath, trackedPaths );
+								RemoveTrackedObjects( arrayObj, itemHash, trackedPaths );
 							}
 						}
 					}
@@ -742,7 +749,7 @@ public static partial class Json
 	/// Operations are processed in this order: removals, additions, moves,
 	/// reordering, and finally property overrides.
 	/// </remarks>
-	internal static JsonObject ApplyPatch(
+	public static JsonObject ApplyPatch(
 		JsonObject sourceRoot,
 		Patch patch,
 		HashSet<TrackedObjectDefinition> definitions )
@@ -898,24 +905,27 @@ public static partial class Json
 	}
 
 	/// <summary>
-	/// Helper method to append a property name to a path string
+	/// Combine a parent path hash with a property name segment using XxHash3.
+	/// Produces a deterministic 64-bit hash without allocating any strings.
 	/// </summary>
-	private static string AppendToPath( string path, string property )
+	private static ulong HashAppend( ulong parentHash, string segment )
 	{
-		if ( string.IsNullOrEmpty( path ) )
-			return property;
+		var bytes = MemoryMarshal.AsBytes( segment.AsSpan() );
+		var segmentHash = XxHash3.HashToUInt64( bytes );
 
-		return string.Concat( path, ".", property );
+		// Mix parent and segment hashes to make order-dependent
+		return parentHash * 6364136223846793005UL + segmentHash;
 	}
 
 	/// <summary>
-	/// Helper method to append an array index to a path string
+	/// Combine a parent path hash with an array index segment.
 	/// </summary>
-	private static string AppendToPath( string path, int index )
+	private static ulong HashAppend( ulong parentHash, int index )
 	{
-		if ( string.IsNullOrEmpty( path ) )
-			return index.ToString();
+		// Hash the index value directly as bytes — no int.ToString() allocation
+		var bytes = MemoryMarshal.AsBytes( new ReadOnlySpan<int>( in index ) );
+		var indexHash = XxHash3.HashToUInt64( bytes );
 
-		return string.Concat( path, ".", index.ToString() );
+		return parentHash * 6364136223846793005UL + indexHash;
 	}
 }

@@ -165,9 +165,10 @@ internal sealed class ProjectSettingsWindow : Window
 			categoriesBySection[sectionName].Add( (categoryType, icon, title) );
 		}
 
+		AddCategoryToList( typeof( ProjectPage ), "Project" );
+
 		if ( project.Config.Type == "game" )
 		{
-			AddCategoryToList( typeof( ProjectPage ), "Project" );
 			AddCategoryToList( typeof( GameCategory ), "Project" );
 			AddCategoryToList( typeof( StandaloneCategory ), "Project" );
 			AddCategoryToList( typeof( SystemsPage ), "Systems" );
@@ -184,18 +185,15 @@ internal sealed class ProjectSettingsWindow : Window
 			AddCategoryToList( typeof( ReferencesCategory ), "Other" );
 			AddCategoryToList( typeof( CursorCategory ), "Other" );
 		}
-
-		if ( project.Config.Type == "map" )
+		else if ( project.Config.Type == "map" )
 		{
 			AddCategoryToList( typeof( ReferencesCategory ), "Project" );
 		}
-
-		if ( project.Config.Type == "library" )
+		else if ( project.Config.Type == "library" )
 		{
 			AddCategoryToList( typeof( CompilerCategory ), "Compiler" );
 		}
-
-		if ( project.Config.Type == "tool" )
+		else if ( project.Config.Type == "tool" )
 		{
 			AddCategoryToList( typeof( CompilerCategory ), "Compiler" );
 		}
@@ -361,12 +359,16 @@ internal sealed class ProjectSettingsWindow : Window
 		Scroller.Canvas.Layout.AddStretchCell();
 	}
 
+	private static ProjectSettingsWindow _instance;
+
 	public static async void OpenForProject( Project project )
 	{
-		// Try to load the project first
+		if ( _instance.IsValid() )
+			_instance.Close();
+
 		await Package.FetchAsync( project.Config.FullIdent, false );
 
-		var window = new ProjectSettingsWindow( project );
+		_instance = new ProjectSettingsWindow( project );
 	}
 
 	protected override bool OnClose()

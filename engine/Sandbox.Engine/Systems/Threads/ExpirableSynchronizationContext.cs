@@ -412,9 +412,15 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 					SetSynchronizationContext( data.Source );
 				}
 
-				var job = new ExecutingJob { State = data.State, StartTime = _timer.Elapsed };
+				// Only allocate an ExecutingJob when the watchdog is active;
+				// when _executingJobs is null this would create thousands of pointless objects.
+				ExecutingJob job = null;
 
-				_executingJobs?.Enqueue( job );
+				if ( _executingJobs is not null )
+				{
+					job = new ExecutingJob { State = data.State, StartTime = _timer.Elapsed };
+					_executingJobs.Enqueue( job );
+				}
 
 				try
 				{
@@ -430,7 +436,7 @@ internal class ExpirableSynchronizationContext : SynchronizationContext
 				}
 				finally
 				{
-					job.IsCompleted = true;
+					job?.IsCompleted = true;
 
 					if ( data.Source != this )
 					{

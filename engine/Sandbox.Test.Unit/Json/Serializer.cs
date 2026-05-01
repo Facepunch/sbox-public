@@ -8,7 +8,7 @@ public class Serialization
 		var json = Json.Serialize( obj );
 		var obj_from = Json.Deserialize<T>( json );
 
-		Assert.AreEqual( obj.ToString(), obj_from.ToString() ); // comparing via string to avoid expected accuracy issues
+		Assert.AreEqual( obj, obj_from );
 	}
 
 	[TestMethod]
@@ -19,6 +19,16 @@ public class Serialization
 		RoundTripTest( new Vector3( -1, 0, 0 ) );
 		RoundTripTest( new Vector3( -10, -10, -10 ) );
 		RoundTripTest( new Vector3( 10030.12f, 1000.543f, 1340.1234f ) );
+
+		// Fuzz with a fixed seed to catch precision loss across a wide range of float values
+		var rng = new System.Random( 42 );
+		for ( var i = 0; i < 1000; i++ )
+		{
+			var x = (float)(rng.NextDouble() * 20000.0 - 10000.0);
+			var y = (float)(rng.NextDouble() * 20000.0 - 10000.0);
+			var z = (float)(rng.NextDouble() * 20000.0 - 10000.0);
+			RoundTripTest( new Vector3( x, y, z ) );
+		}
 	}
 
 	[TestMethod]
@@ -29,6 +39,13 @@ public class Serialization
 		RoundTripTest( new Vector3Int( -1, 0, 0 ) );
 		RoundTripTest( new Vector3Int( -10, -10, -10 ) );
 		RoundTripTest( new Vector3Int( 0, -1, 0 ) );
+
+		// Fuzz with a fixed seed for broad integer coverage
+		var rng = new System.Random( 42 );
+		for ( var i = 0; i < 1000; i++ )
+		{
+			RoundTripTest( new Vector3Int( rng.Next( -10000, 10000 ), rng.Next( -10000, 10000 ), rng.Next( -10000, 10000 ) ) );
+		}
 	}
 
 	[TestMethod]
@@ -36,6 +53,10 @@ public class Serialization
 	{
 		RoundTripTest( new Angles( 0, 0, 0 ) );
 		RoundTripTest( new Angles( 180, 12, 45 ) );
+
+		var rng = new System.Random( 42 );
+		for ( var i = 0; i < 1000; i++ )
+			RoundTripTest( new Angles( (float)(rng.NextDouble() * 360 - 180), (float)(rng.NextDouble() * 360 - 180), (float)(rng.NextDouble() * 360 - 180) ) );
 	}
 
 	[TestMethod]
@@ -46,6 +67,10 @@ public class Serialization
 		RoundTripTest( new Vector2( -180.3f, 12.234f ) );
 		RoundTripTest( new Vector2( -180.3f, -12.234f ) );
 		RoundTripTest( new Vector2( -134534680.553f, -13453456.2434f ) );
+
+		var rng = new System.Random( 42 );
+		for ( var i = 0; i < 1000; i++ )
+			RoundTripTest( new Vector2( (float)(rng.NextDouble() * 20000 - 10000), (float)(rng.NextDouble() * 20000 - 10000) ) );
 	}
 
 	[TestMethod]
@@ -56,6 +81,10 @@ public class Serialization
 		RoundTripTest( new Vector2Int( -1, 0 ) );
 		RoundTripTest( new Vector2Int( -10, -10 ) );
 		RoundTripTest( new Vector2Int( 0, -1 ) );
+
+		var rng = new System.Random( 42 );
+		for ( var i = 0; i < 1000; i++ )
+			RoundTripTest( new Vector2Int( rng.Next( -10000, 10000 ), rng.Next( -10000, 10000 ) ) );
 	}
 
 	[TestMethod]
@@ -64,6 +93,10 @@ public class Serialization
 		RoundTripTest( Rotation.FromAxis( Vector3.Up, 45 ) );
 		RoundTripTest( Rotation.FromAxis( Vector3.Up, -45 ) );
 		RoundTripTest( Rotation.FromAxis( Vector3.Up + Vector3.Right, -45 ) );
+
+		var rng = new System.Random( 42 );
+		for ( var i = 0; i < 1000; i++ )
+			RoundTripTest( Rotation.FromAxis( new Vector3( (float)(rng.NextDouble() * 2 - 1), (float)(rng.NextDouble() * 2 - 1), (float)(rng.NextDouble() * 2 - 1) ), (float)(rng.NextDouble() * 360) ) );
 	}
 
 	[TestMethod]
@@ -99,4 +132,6 @@ public class Serialization
 			// UpVector is default
 		} );
 	}
+
 }
+

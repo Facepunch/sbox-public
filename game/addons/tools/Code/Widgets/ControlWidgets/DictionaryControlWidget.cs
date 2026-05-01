@@ -2,7 +2,7 @@
 
 [CustomEditor( typeof( Dictionary<,> ) )]
 [CustomEditor( typeof( NetDictionary<,> ) )]
-public class DictionaryControlWidget : ControlWidget
+public class DictionaryControlWidget : ControlObjectWidget
 {
 	public override bool SupportsMultiEdit => false;
 
@@ -15,7 +15,7 @@ public class DictionaryControlWidget : ControlWidget
 	int? buildHash;
 	object buildValue;
 
-	public DictionaryControlWidget( SerializedProperty property ) : base( property )
+	public DictionaryControlWidget( SerializedProperty property ) : base( property, true )
 	{
 		Layout = Layout.Column();
 		Layout.Spacing = 2;
@@ -61,6 +61,8 @@ public class DictionaryControlWidget : ControlWidget
 
 	public void Rebuild()
 	{
+		if ( Content is null ) return;
+
 		if ( Collection is not null )
 		{
 			var hash = ValueHash;
@@ -96,7 +98,7 @@ public class DictionaryControlWidget : ControlWidget
 
 			var index = y;
 			//grid.AddCell( 0, y, new IconButton( "drag_handle" ) { IconSize = 13, Foreground = Theme.ControlBackground, Background = Color.Transparent, FixedWidth = Theme.RowHeight, FixedHeight = Theme.RowHeight } );
-			grid.AddCell( 1, y, keyControl, 1, 1, keyControl.CellAlignment );
+			grid.AddCell( 1, y, keyControl, 1, 1, TextFlag.Top );
 			grid.AddCell( 2, y, new IconButton( ":" ) { IconSize = 13, Foreground = Theme.TextControl, Background = Color.Transparent, FixedWidth = Theme.RowHeight, FixedHeight = Theme.RowHeight } );
 			grid.AddCell( 3, y, valControl, 1, 1, valControl.CellAlignment );
 

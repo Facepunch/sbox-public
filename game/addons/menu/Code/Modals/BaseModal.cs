@@ -10,6 +10,22 @@ public class BaseModal : Panel
 
 		var bg = AddChild<Panel>( "modal-background" );
 		bg.AddEventListener( "onmousedown", () => CloseModal( false ) );
+
+		AcceptsFocus = true;
+	}
+
+	protected override void OnVisibilityChanged()
+	{
+		if ( IsVisible )
+		{
+			Focus();
+		}
+	}
+
+	protected override void OnEscape( PanelEvent e )
+	{
+		CloseModal( false );
+		e.StopPropagation();
 	}
 
 	public void CloseModal( bool success )

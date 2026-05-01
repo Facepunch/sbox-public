@@ -1,0 +1,133 @@
+@namespace Menu
+@using Sandbox;
+@using Sandbox.UI;
+@inherits Panel
+
+@if (Package == null) return;
+
+<root>
+    <div class="hero-background" style="background-image: url(@StaticMediaUrl)"></div>
+    
+    <div class="hero-media">
+        <div class="media-static" style="background-image: url(@StaticMediaUrl)"></div>
+        @if (!string.IsNullOrEmpty(MediaUrl))
+        {
+            <div class="media" style="background-image: url(@MediaUrl)"></div>
+        }
+    </div>
+
+    <div class="hero-content">
+        <div class="hero-header">
+            <div class="hero-icon">
+                <img src="@Package.Thumb" />
+            </div>
+            <column class="hero-title">
+                <label class="large">@Package.Title</label>
+                @if (Package.Org != null)
+                {
+                    <div class="hero-org" onclick="@OrgClicked">
+                        <img src="@Package.Org.Thumb" />
+                        <label class="eyebrow">@Package.Org.Title</label>
+                    </div>
+                }
+            </column>
+
+            @if (Package.Usage.UsersNow > 0)
+            {
+                <badge class="online hero-users">
+                    <icon>person</icon>
+                    <label>@Package.Usage.UsersNow</label>
+                </badge>
+            }
+        </div>
+
+        @if (Screenshots.Count > 0)
+        {
+            <div class="hero-screenshots">
+                @foreach (var screenshot in Screenshots)
+                {
+                    <img src="@screenshot" class="screenshot" />
+                }
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(Package.Summary))
+        {
+            <label class="hero-summary">@Package.Summary</label>
+        }
+
+        @if (Tags.Count > 0)
+        {
+            <row class="hero-tags">
+                @foreach (var tag in Tags)
+                {
+                    <badge>@tag</badge>
+                }
+            </row>
+        }
+
+        @if (Actions != null)
+        {
+            <div class="hero-actions">
+                @Actions
+            </div>
+        }
+    </div>
+</root>
+
+@code
+{
+    [Parameter] public Package Package { get; set; }
+    [Parameter] public RenderFragment Actions { get; set; }
+    [Parameter] public int MaxScreenshots { get; set; } = 4;
+    [Parameter] public int MaxTags { get; set; } = 5;
+
+    string MediaUrl = "";
+    string StaticMediaUrl = "";
+    List<string> Screenshots = new();
+    List<string> Tags = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Package == null) return;
+
+        // Set static media immediately from available data
+        StaticMediaUrl = Package.ThumbWide ?? "";
+        
+        // Fetch full package data if needed for screenshots
+        if (Package.Screenshots == null || !Package.Screenshots.Any())
+        {
+            Package = await Package.FetchAsync(Package.FullIdent, false);
+        }
+
+        UpdateMedia();
+    }
+
+    void UpdateMedia()
+    {
+        if (Package == null) return;
+
+        Screenshots = Package.Screenshots?
+            .Where(x => !x.IsVideo)
+            .Select(x => x.Url)
+            .Take(MaxScreenshots)
+            .ToList() ?? new();
+
+        var video = Package.Screenshots?.FirstOrDefault(x => x.IsVideo)?.Url;
+        MediaUrl = video ?? "";
+
+        StaticMediaUrl = Package.ThumbWide ?? "";
+
+        Tags = Package.Tags?.Take(MaxTags).ToList() ?? new();
+    }
+
+    void OrgClicked()
+    {
+        if (Package?.Org != null)
+        {
+            Game.Overlay.ShowOrganizationModal(Package.Org);
+        }
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine(Package?.FullIdent);
+}

@@ -149,8 +149,6 @@ public readonly ref struct HudPainter
 		return DrawText( scope, rect, flags );
 	}
 
-	private static readonly Material TextShader = Material.FromShader( "shaders/ui_text.shader" );
-
 	/// <summary>
 	/// Draws text within a rectangle using a prepared <see cref="TextRendering.Scope"/>.
 	/// </summary>
@@ -162,15 +160,14 @@ public readonly ref struct HudPainter
 		var texture = TextRendering.GetOrCreateTexture( scope, flag: flags );
 		if ( texture is null ) return rect;
 
-		list.Attributes.Set( "TextureIndex", texture.Index );
 		rect = rect.Align( texture.Size, flags );
 		rect = rect.SnapToGrid();
 
-		list.DrawQuad( rect.SnapToGrid(), TextShader, Color.White );
+		list.DrawText( scope, rect, flags );
 		return rect;
 	}
 
-	private static readonly Material LineShader = Material.FromShader( "shaders/Hud/line.shader" );
+	private static Material LineShader = Material.FromShader( "shaders/Hud/line.shader" );
 
 	/// <summary>
 	/// Draws a line between two points with the specified width and color.
@@ -182,11 +179,12 @@ public readonly ref struct HudPainter
 	/// <param name="corners">Optional corner flags for line end caps.</param>
 	public void DrawLine( Vector2 a, Vector2 b, float width, Color color, Vector4 corners = default )
 	{
+		Color c = color.ToLinear();
 		list.Attributes.Set( "LineStart", a );
 		list.Attributes.Set( "LineEnd", b );
 		list.Attributes.Set( "LineThickness", width );
-		list.Attributes.Set( "ColorStart", color );
-		list.Attributes.Set( "ColorEnd", color );
+		list.Attributes.Set( "ColorStart", c );
+		list.Attributes.Set( "ColorEnd", c );
 		list.Attributes.Set( "EndCaps", 0 ); // flags 1 2  - use corners
 		list.Attributes.Set( "TransformMat", Matrix.Identity );
 

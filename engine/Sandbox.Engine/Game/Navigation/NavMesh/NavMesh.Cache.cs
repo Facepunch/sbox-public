@@ -32,6 +32,11 @@ internal class NavMeshTileCache : IDisposable
 		return areaIdToDefinition[id];
 	}
 
+	public bool HasTile( Vector2Int tilePosition )
+	{
+		return tileCache.ContainsKey( tilePosition );
+	}
+
 	public void RemoveTile( Vector2Int tilePosition )
 	{
 		tileCache.Remove( tilePosition );
@@ -235,6 +240,20 @@ internal class NavMeshTileCache : IDisposable
 	internal void AddSpatiaData( NavMeshSpatialAuxiliaryData data )
 	{
 		allSpatialExtraData.Add( data );
+	}
+
+	/// <summary>
+	/// Returns true if any tile has an in-progress heightfield or navmesh build.
+	/// Used to wait for a stable state before baking.
+	/// </summary>
+	public bool HasAnyBuildsInProgress()
+	{
+		foreach ( var tile in tileCache.Values )
+		{
+			if ( tile.IsHeightfieldBuildInProgress || tile.IsNavmeshBuildInProgress )
+				return true;
+		}
+		return false;
 	}
 
 	public void Dispose()

@@ -130,6 +130,17 @@ partial class Mesh
 		return hEdge.Face;
 	}
 
+	public FaceHandle GetFaceConnectedToFullEdge( HalfEdgeHandle hFullEdge )
+	{
+		if ( !hFullEdge.IsValid )
+			return FaceHandle.Invalid;
+
+		if ( hFullEdge.Face.IsValid )
+			return hFullEdge.Face;
+
+		return hFullEdge.OppositeEdge.Face;
+	}
+
 	public FaceHandle FindFaceConnectingFullEdges( HalfEdgeHandle hEdgeA, HalfEdgeHandle hEdgeB )
 	{
 		GetFacesConnectedToFullEdge( hEdgeA, out var hFaceA1, out var hFaceA2 );
@@ -638,5 +649,106 @@ partial class Mesh
 		Assert.True( ribCount == numRibs );
 
 		return numRibs;
+	}
+
+	public void FindFacesConnectedToFullEdges( IReadOnlyList<HalfEdgeHandle> edgeList, List<FaceHandle> outFaces, List<int> outFaceEdgeCounts )
+	{
+		outFaces.Clear();
+		outFaceEdgeCounts?.Clear();
+
+		var uniqueFaces = new Dictionary<FaceHandle, int>();
+
+		for ( int i = 0; i < edgeList.Count; i++ )
+		{
+			GetFacesConnectedToFullEdge( edgeList[i], out var faceA, out var faceB );
+
+			if ( faceA.IsValid && !uniqueFaces.ContainsKey( faceA ) )
+				uniqueFaces.Add( faceA, uniqueFaces.Count );
+
+			if ( faceB.IsValid && !uniqueFaces.ContainsKey( faceB ) )
+				uniqueFaces.Add( faceB, uniqueFaces.Count );
+		}
+
+		foreach ( var kv in uniqueFaces )
+			outFaces.Add( kv.Key );
+
+		if ( outFaceEdgeCounts != null )
+		{
+			outFaceEdgeCounts.AddRange( new int[outFaces.Count] );
+
+			for ( int i = 0; i < edgeList.Count; i++ )
+			{
+				GetFacesConnectedToFullEdge( edgeList[i], out var faceA, out var faceB );
+
+				if ( faceA.IsValid && uniqueFaces.TryGetValue( faceA, out var indexA ) )
+					outFaceEdgeCounts[indexA]++;
+
+				if ( faceB.IsValid && uniqueFaces.TryGetValue( faceB, out var indexB ) )
+					outFaceEdgeCounts[indexB]++;
+			}
+		}
+	}
+
+	public void FindOpenEdgeIslands( IReadOnlyList<HalfEdgeHandle> edges, out List<List<HalfEdgeHandle>> outHalfEdgeIslandList, out List<List<HalfEdgeHandle>> outFullEdgeIslandList )
+	{
+		outHalfEdgeIslandList = new();
+		outFullEdgeIslandList = new();
+
+		var edgeSearchList = new List<HalfEdgeHandle>( edges.Count );
+
+		for ( int iEdge = 0; iEdge < edges.Count; ++iEdge )
+		{
+			GetHalfEdgesConnectedToFullEdge( edges[iEdge], out var hHalfEdgeA, out var hHalfEdgeB );
+
+			var hFaceA = GetFaceConnectedToHalfEdge( hHalfEdgeA );
+			var hFaceB = GetFaceConnectedToHalfEdge( hHalfEdgeB );
+
+			if ( hFaceA == FaceHandle.Invalid && hFaceB != FaceHandle.Invalid )
+			{
+				edgeSearchList.Add( hHalfEdgeA );
+			}
+			else if ( hFaceB == FaceHandle.Invalid && hFaceA != FaceHandle.Invalid )
+			{
+				edgeSearchList.Add( hHalfEdgeB );
+			}
+		}
+
+		while ( edgeSearchList.Count > 0 )
+		{
+			var hLoopStartEdge = edgeSearchList[0];
+			var hCurrentEdge = hLoopStartEdge;
+			int nCurrentEdgeIndex = 0;
+
+			do
+			{
+				int nPrevEdgeIndex = nCurrentEdgeIndex;
+				hCurrentEdge = hCurrentEdge.NextEdge;
+				nCurrentEdgeIndex = edgeSearchList.IndexOf( hCurrentEdge );
+
+				if ( nPrevEdgeIndex == -1 && nCurrentEdgeIndex != -1 )
+					break;
+			}
+			while ( hCurrentEdge != hLoopStartEdge );
+
+			Assert.True( nCurrentEdgeIndex != -1 );
+			if ( nCurrentEdgeIndex == -1 )
+				break;
+
+			var islandHalfEdgeList = new List<HalfEdgeHandle>();
+			var islandFullEdgeList = new List<HalfEdgeHandle>();
+
+			outHalfEdgeIslandList.Add( islandHalfEdgeList );
+			outFullEdgeIslandList.Add( islandFullEdgeList );
+
+			while ( nCurrentEdgeIndex != -1 )
+			{
+				islandHalfEdgeList.Add( hCurrentEdge );
+				islandFullEdgeList.Add( GetFullEdgeForHalfEdge( hCurrentEdge ) );
+				edgeSearchList.RemoveAt( nCurrentEdgeIndex );
+
+				hCurrentEdge = hCurrentEdge.NextEdge;
+				nCurrentEdgeIndex = edgeSearchList.IndexOf( hCurrentEdge );
+			}
+		}
 	}
 }

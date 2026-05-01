@@ -5,7 +5,7 @@
 /// </summary>
 [Expose]
 [Title( "Model Emitter" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "soap" )]
 public sealed class ParticleModelEmitter : ParticleEmitter
 {

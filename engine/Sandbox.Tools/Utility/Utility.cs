@@ -665,7 +665,7 @@ public static partial class EditorUtility
 		return EngineGlobal.GetGameSearchPath();
 	}
 
-	public static IEnumerable<string> FontFamilies => FontManager.FontFamilies;
+	public static IEnumerable<string> FontFamilies => FontManager.Instance.FontFamilies;
 
 	/// <summary>
 	/// Access to the client's render settings
@@ -850,12 +850,6 @@ public static partial class EditorUtility
 		var path = fs.GetFullPath( localPath );
 
 		return await ShaderCompile.Compile( path, localPath, options, token );
-	}
-
-	[EditorEvent.Hotload]
-	private static void ClearReflectionQueryCache()
-	{
-		ReflectionQueryCache.ClearTypeCache();
 	}
 
 	public static Asset GetAssetFromProject( Project project )

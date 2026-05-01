@@ -113,6 +113,8 @@ public class Button : Panel, INavigationEvent
 		get => TextLabel?.Text;
 		set
 		{
+			if ( !TextLabel.IsValid() ) return;
+
 			if ( string.IsNullOrEmpty( value ) )
 			{
 				TextLabel.Style.Display = DisplayMode.None;
@@ -135,6 +137,8 @@ public class Button : Panel, INavigationEvent
 		get => HelpLabel?.Text;
 		set
 		{
+			if ( !HelpLabel.IsValid() ) return;
+
 			if ( string.IsNullOrEmpty( value ) )
 			{
 				HelpLabel.Style.Display = DisplayMode.None;

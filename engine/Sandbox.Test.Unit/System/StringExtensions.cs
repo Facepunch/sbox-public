@@ -137,6 +137,32 @@ public class StringExtensions
 		Assert.IsTrue( "one two three".WildcardMatch( "one two three" ) );
 		Assert.IsTrue( "one two three".WildcardMatch( "one TWO three" ) );
 		Assert.IsFalse( "one two three".WildcardMatch( "seven eight nine" ) );
+
+		// '?' matches exactly one character
+		Assert.IsTrue( "abc".WildcardMatch( "a?c" ) );
+		Assert.IsFalse( "ac".WildcardMatch( "a?c" ) );
+		Assert.IsTrue( "aXc".WildcardMatch( "a?c" ) );
+
+		// '\' escapes the next character, so \* matches a literal *
+		Assert.IsTrue( "a*c".WildcardMatch( @"a\*c" ) );
+		Assert.IsFalse( "abc".WildcardMatch( @"a\*c" ) );
+
+		// Note: '\' does NOT escape '?' in MatchesSimpleExpression — '?' still matches any single char
+		Assert.IsTrue( "a?c".WildcardMatch( @"a\?c" ) );
+		Assert.IsTrue( "abc".WildcardMatch( @"a\?c" ) );
+
+		// Normalized paths (forward slashes) work correctly
+		Assert.IsTrue( "/models/characters/hero.vmdl_c".WildcardMatch( "/models/*" ) );
+		Assert.IsTrue( "/models/characters/hero.vmdl_c".WildcardMatch( "*.vmdl_c" ) );
+		Assert.IsTrue( "/textures/floor.vtex_c".WildcardMatch( "/textures/*.vtex_c" ) );
+
+		// Null safety
+		Assert.IsFalse( ((string)null).WildcardMatch( "*" ) );
+		Assert.IsFalse( "test".WildcardMatch( null ) );
+
+		// Multiple wildcards
+		Assert.IsTrue( "models/props/chair.vmdl_c".WildcardMatch( "*props*vmdl_c" ) );
+		Assert.IsFalse( "models/props/chair.vtex_c".WildcardMatch( "*props*vmdl_c" ) );
 	}
 
 	[TestMethod]

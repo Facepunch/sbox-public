@@ -2,7 +2,6 @@
 using Sandbox.Tasks;
 using System;
 using System.IO;
-using System.Threading.Tasks;
 
 namespace Facepunch.MenuBuild;
 
@@ -19,6 +18,7 @@ class Program
 			Project.AddFromFileBuiltIn( "editor/ShaderGraph/.sbproj" );
 			Project.AddFromFileBuiltIn( "editor/MovieMaker/.sbproj" );
 			Project.AddFromFileBuiltIn( "editor/Hammer/.sbproj" );
+			Project.AddFromFileBuiltIn( "editor/DooEditor/DooEditor.sbproj" );
 			var menuProject = Project.AddFromFile( "addons/menu/.sbproj" );
 
 			SyncContext.RunBlocking( Project.CompileAsync() );

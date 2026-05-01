@@ -9,6 +9,7 @@ public partial class SceneEditorSession
 	public UndoSystem UndoSystem { get; } = new UndoSystem();
 
 	internal bool IsUndoScopeOpen = false;
+	bool _suppressUndoSounds = false;
 
 	private void InitUndo()
 	{
@@ -17,22 +18,49 @@ public partial class SceneEditorSession
 		// annoy everyone as much as possible
 		UndoSystem.OnUndo = ( x ) =>
 		{
-			if ( EditorPreferences.UndoSounds )
+			if ( !_suppressUndoSounds && EditorPreferences.UndoSounds )
 			{
 				EditorUtility.PlayRawSound( "sounds/editor/success.wav" );
 			}
 
 			HasUnsavedChanges = true;
 		};
+
 		UndoSystem.OnRedo = ( x ) =>
 		{
-			if ( EditorPreferences.UndoSounds )
+			if ( !_suppressUndoSounds && EditorPreferences.UndoSounds )
 			{
 				EditorUtility.PlayRawSound( "sounds/editor/success.wav" );
 			}
 
 			HasUnsavedChanges = true;
 		};
+	}
+
+	sealed class SuppressUndoSoundScope : IDisposable
+	{
+		readonly SceneEditorSession _session;
+		readonly bool _previous;
+
+		public SuppressUndoSoundScope( SceneEditorSession session )
+		{
+			_session = session;
+			_previous = session._suppressUndoSounds;
+			session._suppressUndoSounds = true;
+		}
+
+		public void Dispose()
+		{
+			_session._suppressUndoSounds = _previous;
+		}
+	}
+
+	/// <summary>
+	/// Temporarily disables undo/redo sounds.
+	/// </summary>
+	public IDisposable SuppressUndoSounds()
+	{
+		return new SuppressUndoSoundScope( this );
 	}
 
 	/// <summary>
@@ -299,7 +327,6 @@ internal sealed class SceneUndoSnapshot : IDisposable
 				go.Deserialize( State[i], new GameObject.DeserializeOptions { IsRefreshing = true } );
 			}
 
-
 			RestoreHierachy( scene );
 		}
 
@@ -513,10 +540,24 @@ internal sealed class SceneUndoSnapshot : IDisposable
 	public void Dispose()
 	{
 		if ( _alreadyDisposed )
-		{
 			return;
-		}
 
+		try
+		{
+			DisposeInternal();
+		}
+		finally
+		{
+			_session?.Scene?.Directory?.OnComponentAdded -= OnComponentAdded;
+			_session?.Scene?.Directory?.OnGameObjectAdded -= OnGameObjectAdded;
+
+			_session?.IsUndoScopeOpen = false;
+			_alreadyDisposed = true;
+		}
+	}
+
+	void DisposeInternal()
+	{
 		using var sceneScope = _session.Scene.Push();
 
 		// Redo snapshots
@@ -651,9 +692,6 @@ internal sealed class SceneUndoSnapshot : IDisposable
 
 		var prefabInstanceRootsRequiringRefresh = new HashSet<GameObject>();
 
-		_session.Scene.Directory.OnComponentAdded -= OnComponentAdded;
-		_session.Scene.Directory.OnGameObjectAdded -= OnGameObjectAdded;
-
 		// if nothing changed, don't add an undo
 		if ( _initialState == disposeState )
 		{
@@ -751,9 +789,6 @@ internal sealed class SceneUndoSnapshot : IDisposable
 					disposeState.Selection.Restore( _session.Scene );
 				}
 			} );
-
-		_alreadyDisposed = true;
-		_session.IsUndoScopeOpen = false;
 	}
 
 	private void OnComponentAdded( Component comp )

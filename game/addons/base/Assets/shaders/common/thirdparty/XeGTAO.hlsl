@@ -191,7 +191,7 @@ void XeGTAO_DecodeVisibilityBentNormal( const uint packedValue, out lpfloat visi
     visibility = decoded.w;
 }
 
-void XeGTAO_OutputWorkingTerm( const uint2 pixCoord, lpfloat visibility, lpfloat3 bentNormal, RWTexture2D<lpfloat> outWorkingAOTerm )
+void XeGTAO_OutputWorkingTerm( const uint2 pixCoord, lpfloat visibility, lpfloat3 bentNormal, RWTexture2D<float> outWorkingAOTerm )
 {
     //visibility = saturate( visibility / lpfloat(XE_GTAO_OCCLUSION_TERM_SCALE) );
 #ifdef XE_GTAO_COMPUTE_BENT_NORMALS
@@ -239,12 +239,12 @@ lpfloat3x3 XeGTAO_RotFromToMatrix( lpfloat3 from, lpfloat3 to )
 }
 
 void XeGTAO_MainPass( const uint2 pixCoord, lpfloat sliceCount, lpfloat stepsPerSlice, const lpfloat2 localNoise, lpfloat3 viewspaceNormal, const GTAOConstants consts, 
-    Texture2D<lpfloat> sourceViewspaceDepth, SamplerState depthSampler, RWTexture2D<lpfloat> outWorkingAOTerm, RWTexture2D<lpfloat> outWorkingEdges )
+    Texture2D<float> sourceViewspaceDepth, SamplerState depthSampler, RWTexture2D<float> outWorkingAOTerm, RWTexture2D<float> outWorkingEdges )
 {                                                                       
     float2 normalizedScreenPos = (pixCoord + 0.5.xx) * consts.ViewportPixelSize;
 
-    lpfloat4 valuesUL   = sourceViewspaceDepth.GatherRed( depthSampler, float2( pixCoord * consts.ViewportPixelSize )               );
-    lpfloat4 valuesBR   = sourceViewspaceDepth.GatherRed( depthSampler, float2( pixCoord * consts.ViewportPixelSize ), int2( 1, 1 ) );
+    lpfloat4 valuesUL   = (lpfloat4)sourceViewspaceDepth.GatherRed( depthSampler, float2( pixCoord * consts.ViewportPixelSize )               );
+    lpfloat4 valuesBR   = (lpfloat4)sourceViewspaceDepth.GatherRed( depthSampler, float2( pixCoord * consts.ViewportPixelSize ), int2( 1, 1 ) );
 
     // viewspace Z at the center
     lpfloat viewspaceZ  = valuesUL.y; //sourceViewspaceDepth.SampleLevel( depthSampler, normalizedScreenPos, 0 ).x; 
@@ -610,7 +610,7 @@ lpfloat XeGTAO_ClampDepth( float depth )
 }
 
 groupshared lpfloat g_scratchDepths[8][8];
-void XeGTAO_PrefilterDepths16x16( uint2 dispatchThreadID /*: SV_DispatchThreadID*/, uint2 groupThreadID /*: SV_GroupThreadID*/, const GTAOConstants consts, Texture2D sourceNDCDepth, SamplerState depthSampler, RWTexture2D<lpfloat> outDepth0, RWTexture2D<lpfloat> outDepth1, RWTexture2D<lpfloat> outDepth2, RWTexture2D<lpfloat> outDepth3, RWTexture2D<lpfloat> outDepth4 )
+void XeGTAO_PrefilterDepths16x16( uint2 dispatchThreadID /*: SV_DispatchThreadID*/, uint2 groupThreadID /*: SV_GroupThreadID*/, const GTAOConstants consts, Texture2D sourceNDCDepth, SamplerState depthSampler, RWTexture2D<float> outDepth0, RWTexture2D<float> outDepth1, RWTexture2D<float> outDepth2, RWTexture2D<float> outDepth3, RWTexture2D<float> outDepth4 )
 {
     // MIP 0
     const uint2 baseCoord = dispatchThreadID;
@@ -727,7 +727,9 @@ void XeGTAO_DecodeGatherPartial( const uint4 packedValue, out AOTermType outDeco
 #endif
 }
 
-lpfloat XeGTAO_Denoise( const uint2 pixCoordBase, const GTAOConstants consts, Texture2D sourceAOTerm, Texture2D<lpfloat> sourceEdges, SamplerState texSampler )
+// Returns two AO values: .x for pixCoordBase, .y for pixCoordBase + int2(1,0)
+// Each thread processes 2 horizontal pixels as a performance optimization (shared gather reads)
+lpfloat2 XeGTAO_Denoise( const uint2 pixCoordBase, const GTAOConstants consts, Texture2D sourceAOTerm, Texture2D<float> sourceEdges, SamplerState texSampler )
 {
     const lpfloat blurAmount = (lpfloat)consts.DenoiseBlurBeta;
     const lpfloat diagWeight = 0.85 * 0.5;
@@ -741,14 +743,14 @@ lpfloat XeGTAO_Denoise( const uint2 pixCoordBase, const GTAOConstants consts, Te
 
     // gather edge and visibility quads, used later
     const float2 gatherCenter = float2( pixCoordBase.x, pixCoordBase.y ) * consts.ViewportPixelSize;
-    lpfloat4 edgesQ0        = sourceEdges.GatherRed( texSampler, gatherCenter, int2( 0, 0 ) );
-    lpfloat4 edgesQ1        = sourceEdges.GatherRed( texSampler, gatherCenter, int2( 2, 0 ) );
-    lpfloat4 edgesQ2        = sourceEdges.GatherRed( texSampler, gatherCenter, int2( 1, 2 ) );
+    lpfloat4 edgesQ0        = (lpfloat4)sourceEdges.GatherRed( texSampler, gatherCenter, int2( 0, 0 ) );
+    lpfloat4 edgesQ1        = (lpfloat4)sourceEdges.GatherRed( texSampler, gatherCenter, int2( 2, 0 ) );
+    lpfloat4 edgesQ2        = (lpfloat4)sourceEdges.GatherRed( texSampler, gatherCenter, int2( 1, 2 ) );
 
-    lpfloat4 visQ0 = ( sourceAOTerm.GatherRed( texSampler, gatherCenter, int2( 0, 0 ) ) );
-    lpfloat4 visQ1 = ( sourceAOTerm.GatherRed( texSampler, gatherCenter, int2( 2, 0 ) ) );
-    lpfloat4 visQ2 = ( sourceAOTerm.GatherRed( texSampler, gatherCenter, int2( 0, 2 ) ) );
-    lpfloat4 visQ3 = ( sourceAOTerm.GatherRed( texSampler, gatherCenter, int2( 2, 2 ) ) );
+    lpfloat4 visQ0 = (lpfloat4)sourceAOTerm.GatherRed( texSampler, gatherCenter, int2( 0, 0 ) );
+    lpfloat4 visQ1 = (lpfloat4)sourceAOTerm.GatherRed( texSampler, gatherCenter, int2( 2, 0 ) );
+    lpfloat4 visQ2 = (lpfloat4)sourceAOTerm.GatherRed( texSampler, gatherCenter, int2( 0, 2 ) );
+    lpfloat4 visQ3 = (lpfloat4)sourceAOTerm.GatherRed( texSampler, gatherCenter, int2( 2, 2 ) );
 
     for( int side = 0; side < 2; side++ )
     {
@@ -810,7 +812,7 @@ lpfloat XeGTAO_Denoise( const uint2 pixCoordBase, const GTAOConstants consts, Te
         aoTerm[side] = sum / sumWeight;
         
     }
-    return aoTerm[0];
+    return lpfloat2(aoTerm[0], aoTerm[1]);
 }
 
 

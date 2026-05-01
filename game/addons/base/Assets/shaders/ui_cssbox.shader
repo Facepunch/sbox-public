@@ -252,7 +252,7 @@ PS
 		else if( vBoxTexCoord.y > BoxSize.y - BorderImageWidth.w )
 			uv.y = ( ( (vBoxTexCoord.y - ( BoxSize.y - BorderImageWidth.w) ) / BorderImageWidth.w) * vBorderPixelRatio.w ) + ( 1.0 - vBorderPixelRatio.w );
 
-		float4 r = g_tBorderImage.Sample( Bindless::GetSampler( NonUniformResourceIndex( ClampSamplerIndex ) ), uv );
+		float4 r = g_tBorderImage.Sample( Bindless::GetSampler( ClampSamplerIndex ), uv );
 		r.xyz = SrgbGammaToLinear( r.xyz );
 		return r;
 	}
@@ -310,7 +310,7 @@ PS
 
 			float mipBias = -1.5; // negative = sharper, positive = blurrier
 	
-			vImage = g_tColor.SampleBias( Bindless::GetSampler( NonUniformResourceIndex( SamplerIndex ) ), vUV, mipBias );
+			vImage = g_tColor.SampleBias( Bindless::GetSampler( SamplerIndex ), vUV, mipBias );
 
 			// Clamping UV? NoRepeat (3) will clamp both
 			if ( BgRepeat != 0 && BgRepeat != 4 )
@@ -339,8 +339,6 @@ PS
 
 			vBox.rgb = lerp( vBox.rgb, vImage.rgb, saturate( vImage.a + ( 1 - vBox.a ) ) );
 			vBox.a = max( vBox.a, vImage.a );
-			
-
 		}
 		
 		o.vColor = vBox;
@@ -351,7 +349,7 @@ PS
 		}
 
 		// corner curves
-		o.vColor.a *= saturate( -dist - 0.5 );
+		o.vColor.a *= smoothstep(-0.5, -0.5 + fwidth(dist), -dist);
 		
 		return UI_CommonProcessing_Post( i, o );
 	}

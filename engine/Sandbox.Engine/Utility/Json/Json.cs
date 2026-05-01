@@ -1,7 +1,6 @@
 ﻿using Facepunch.ActionGraphs;
 using Sandbox.ActionGraphs;
 using Sandbox.Engine;
-using Sandbox.MovieMaker;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -32,7 +31,7 @@ public static partial class Json
 		GlobalContext.Current.JsonSerializerOptions = new JsonSerializerOptions( JsonSerializerOptions.Default );
 		options.WriteIndented = true;
 		options.PropertyNameCaseInsensitive = true;
-		options.NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString | System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals;
+		options.NumberHandling = JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.AllowNamedFloatingPointLiterals;
 		options.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
 		options.ReadCommentHandling = JsonCommentHandling.Skip;
 		options.MaxDepth = 512;
@@ -40,8 +39,9 @@ public static partial class Json
 
 		options.Converters.Add( new JsonStringEnumConverter( null, true ) );
 		options.Converters.Add( new BinaryConvert() );
+
 		options.Converters.Add( new JsonConvertFactory() );
-		options.Converters.Add( new MovieResourceConverter() );
+		options.Converters.Add( new AnyOfTypeConverterFactory() );
 		options.Converters.Add( new InterfaceConverterFactory() );
 
 		if ( typeLibrary is not null )
@@ -75,6 +75,22 @@ public static partial class Json
 	public static T Deserialize<T>( string source )
 	{
 		return JsonSerializer.Deserialize<T>( source, options );
+	}
+
+	/// <summary>
+	/// Deserialize from a Utf8JsonReader to given type, using our engine specific options.
+	/// </summary>
+	public static T Deserialize<T>( ref Utf8JsonReader reader )
+	{
+		return JsonSerializer.Deserialize<T>( ref reader, options );
+	}
+
+	/// <summary>
+	/// Deserialize from a Utf8JsonReader to given type, using our engine specific options.
+	/// </summary>
+	public static object Deserialize( ref Utf8JsonReader reader, System.Type t )
+	{
+		return JsonSerializer.Deserialize( ref reader, t, options );
 	}
 
 	/// <summary>
@@ -122,6 +138,22 @@ public static partial class Json
 			return null;
 
 		return JsonSerializer.Serialize( source, options );
+	}
+
+	/// <summary>
+	/// Serialize to a Utf8JsonWriter using our engine specific options.
+	/// </summary>
+	public static void Serialize<T>( Utf8JsonWriter writer, T target )
+	{
+		JsonSerializer.Serialize( writer, target, options );
+	}
+
+	/// <summary>
+	/// Serialize to a Utf8JsonWriter using our engine specific options.
+	/// </summary>
+	public static void Serialize( Utf8JsonWriter writer, object target, Type inputType )
+	{
+		JsonSerializer.Serialize( writer, target, inputType, options );
 	}
 
 	/// <summary>

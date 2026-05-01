@@ -1,0 +1,38 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@inherits Panel
+
+@if (Package == null) return;
+
+<div class="wrapper">
+    <Card onclick="@Clicked">
+        <ChildContent>
+            <PackageHero Package="@Package" class="large">
+                <Actions>
+                    <Button class="play-button" Disabled=@(!MenuHelpers.HasAuthority) Icon="play_arrow" @onclick=@PlayNow>
+                        <label class="eyebrow">Play Now</label>
+                    </Button>
+                </Actions>
+            </PackageHero>
+        </ChildContent>
+    </Card>
+</div>
+
+@code
+{
+    [Parameter] public Package Package { get; set; }
+
+    protected override int BuildHash() => System.HashCode.Combine(MenuHelpers.HasAuthority, Package?.FullIdent);
+
+    void Clicked()
+    {
+        ContentBlocks.OnLaunch(Package);
+    }
+
+    void PlayNow(PanelEvent e)
+    {
+        e.StopPropagation();
+        MenuHelpers.PlayGame(Package);
+    }
+}

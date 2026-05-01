@@ -106,6 +106,7 @@ class ResolutionModeButton : Button
 			new Option( "Free Size", "fit_screen", () => view.SetFreeSize() ),
 			new Option( "16:9 Aspect", "aspect_ratio", () => view.SetForceAspect( 16.0f / 9.0f ) ),
 			new Option( "21:9 Aspect", "aspect_ratio", () => view.SetForceAspect( 21.0f / 9.0f ) ),
+			new Option( "32:9 Aspect", "aspect_ratio", () => view.SetForceAspect( 32.0f / 9.0f ) ),
 			new Option( "4:3 Aspect", "aspect_ratio", () => view.SetForceAspect( 4.0f / 3.0f ) ),
 			new Option( "9:16 Aspect", "aspect_ratio", () => view.SetForceAspect( 9.0f / 16.0f ) ),
 			new Option( "Steam Deck", "stay_current_landscape", () => view.SetForceResolution( new( 1280, 800 ) ) ),

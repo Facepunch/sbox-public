@@ -102,10 +102,9 @@ partial class TransformComponentWidget : ComponentEditorWidget
 
 		menu.AddSeparator();
 
-		menu.AddOption( "Reset", "restart_alt", () =>
-		{
-			SerializedObject.GetProperty( UseLocal ? "Local" : "World" ).SetValue( Transform.Zero );
-		} );
+		menu.AddOption( "Reset", "restart_alt", () => DoTransformEdit( "Reset Transform",
+			() => SerializedObject.GetProperty( UseLocal ? "Local" : "World" ).SetValue( Transform.Zero ) ) );
+
 		menu.AddSeparator();
 
 		menu.AddOption( "Copy Local Transform", "content_copy", () =>
@@ -126,20 +125,30 @@ partial class TransformComponentWidget : ComponentEditorWidget
 			var tx = Json.Deserialize<Transform>( clipText );
 			if ( tx != default )
 			{
-				menu.AddOption( "Paste as Local Transform", "content_paste", () =>
-				{
-					SerializedObject.GetProperty( "Local" ).SetValue( tx );
-				} );
+				menu.AddOption( "Paste as Local Transform", "content_paste",
+					() => DoTransformEdit( "Paste Local Transform", () => SerializedObject.GetProperty( "Local" ).SetValue( tx ) ) );
 
-				menu.AddOption( "Paste as World Transform", "content_paste", () =>
-				{
-					SerializedObject.GetProperty( "World" ).SetValue( tx );
-				} );
+				menu.AddOption( "Paste as World Transform", "content_paste",
+					() => DoTransformEdit( "Paste World Transform", () => SerializedObject.GetProperty( "World" ).SetValue( tx ) ) );
 			}
 		}
 		catch ( System.Exception )
 		{
 			// ignore
+		}
+	}
+
+	void DoTransformEdit( string name, Action action )
+	{
+		var targets = gameObject.Targets.OfType<GameObject>();
+		var session = SceneEditorSession.Resolve( targets.FirstOrDefault() );
+
+		using var scene = session.Scene.Push();
+		using ( session.UndoScope( name )
+			.WithGameObjectChanges( targets, GameObjectUndoFlags.Properties )
+			.Push() )
+		{
+			action();
 		}
 	}
 }
@@ -182,17 +191,23 @@ file class TransformControlledBanner : Widget
 	protected override void OnMouseClick( MouseEvent e )
 	{
 		var flagsProp = targetObject.GetProperty( nameof( GameObject.Flags ) );
-		GameObjectFlags flags = flagsProp.GetValue<GameObjectFlags>();
+		var targets = targetObject.Targets.OfType<GameObject>();
 
-		if ( flags.HasFlag( GameObjectFlags.ProceduralBone ) )
-		{
-			flags &= ~GameObjectFlags.ProceduralBone;
-		}
-		else
-		{
-			flags |= GameObjectFlags.ProceduralBone;
-		}
+		var session = SceneEditorSession.Resolve( targets.FirstOrDefault() );
+		using var scene = session.Scene.Push();
 
-		flagsProp.SetValue( flags );
+		using ( session.UndoScope( "Toggle Procedural Bone" )
+			.WithGameObjectChanges( targets, GameObjectUndoFlags.Properties )
+			.Push() )
+		{
+			GameObjectFlags flags = flagsProp.GetValue<GameObjectFlags>();
+
+			if ( flags.HasFlag( GameObjectFlags.ProceduralBone ) )
+				flags &= ~GameObjectFlags.ProceduralBone;
+			else
+				flags |= GameObjectFlags.ProceduralBone;
+
+			flagsProp.SetValue( flags );
+		}
 	}
 }

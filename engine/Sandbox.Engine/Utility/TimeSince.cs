@@ -17,10 +17,12 @@ namespace Sandbox;
 [StructLayout( LayoutKind.Sequential )]
 public struct TimeSince : IEquatable<TimeSince>
 {
-	float time;
+	double time;
 
-	public static implicit operator float( TimeSince ts ) => Time.Now - ts.time;
-	public static implicit operator TimeSince( float ts ) => new() { time = Time.Now - ts };
+	public static explicit operator double( TimeSince ts ) => Time.NowDouble - ts.time;
+	public static implicit operator float( TimeSince ts ) => (float)(Time.NowDouble - ts.time);
+	public static implicit operator TimeSince( double ts ) => new() { time = Time.NowDouble - ts };
+	public static implicit operator TimeSince( float ts ) => new() { time = Time.NowDouble - ts };
 	public static bool operator <( in TimeSince ts, float f ) => ts.Relative < f;
 	public static bool operator >( in TimeSince ts, float f ) => ts.Relative > f;
 	public static bool operator <=( in TimeSince ts, float f ) => ts.Relative <= f;
@@ -33,7 +35,7 @@ public struct TimeSince : IEquatable<TimeSince>
 	/// <summary>
 	/// Time at which the timer reset happened, based on <see cref="Time.Now"/>.
 	/// </summary>
-	public float Absolute => time;
+	public float Absolute => (float)time;
 
 	/// <summary>
 	/// Time passed since last reset, in seconds.
@@ -65,11 +67,12 @@ public struct TimeSince : IEquatable<TimeSince>
 [StructLayout( LayoutKind.Sequential )]
 public struct TimeUntil : IEquatable<TimeUntil>
 {
-	private float time;
-	private float startTime;
+	private double time;
+	private double startTime;
 
-	public static implicit operator bool( TimeUntil ts ) => Time.Now >= ts.time;
-	public static implicit operator float( TimeUntil ts ) => ts.time - Time.Now;
+	public static implicit operator bool( TimeUntil ts ) => Time.NowDouble >= ts.time;
+	public static explicit operator double( TimeUntil ts ) => ts.time - Time.NowDouble;
+	public static implicit operator float( TimeUntil ts ) => (float)(ts.time - Time.NowDouble);
 	public static bool operator <( in TimeUntil ts, float f ) => ts.Relative < f;
 	public static bool operator >( in TimeUntil ts, float f ) => ts.Relative > f;
 	public static bool operator <=( in TimeUntil ts, float f ) => ts.Relative <= f;
@@ -78,12 +81,13 @@ public struct TimeUntil : IEquatable<TimeUntil>
 	public static bool operator >( in TimeUntil ts, int f ) => ts.Relative > f;
 	public static bool operator <=( in TimeUntil ts, int f ) => ts.Relative <= f;
 	public static bool operator >=( in TimeUntil ts, int f ) => ts.Relative >= f;
-	public static implicit operator TimeUntil( float ts ) => new() { time = Time.Now + ts, startTime = Time.Now };
+	public static implicit operator TimeUntil( double ts ) => new() { time = Time.NowDouble + ts, startTime = Time.NowDouble };
+	public static implicit operator TimeUntil( float ts ) => new() { time = Time.NowDouble + ts, startTime = Time.NowDouble };
 
 	/// <summary>
 	/// Time to which we are counting down to, based on <see cref="Time.Now"/>.
 	/// </summary>
-	public float Absolute => time;
+	public float Absolute => (float)time;
 
 	/// <summary>
 	/// The actual countdown, in seconds.
@@ -93,12 +97,12 @@ public struct TimeUntil : IEquatable<TimeUntil>
 	/// <summary>
 	/// Amount of seconds passed since the countdown started.
 	/// </summary>
-	public float Passed => (Time.Now - startTime);
+	public float Passed => (float)(Time.NowDouble - startTime);
 
 	/// <summary>
 	/// The countdown, but as a fraction, i.e. a value from 0 (start of countdown) to 1 (end of countdown)
 	/// </summary>
-	public float Fraction => Math.Clamp( (Time.Now - startTime) / (time - startTime), 0.0f, 1.0f );
+	public float Fraction => (float)Math.Clamp( (Time.NowDouble - startTime) / (time - startTime), 0.0f, 1.0f );
 
 	public override string ToString() => $"{Relative}";
 

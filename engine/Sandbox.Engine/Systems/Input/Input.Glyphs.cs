@@ -67,6 +67,9 @@ public static partial class Input
 			"]" => "rightbracket",
 			"rwin" => "windows",
 			"lwin" => "windows",
+			"left shift" => "shift",
+			"left ctrl" => "ctrl",
+			"left alt" => "alt",
 			_ => key
 		};
 	}
@@ -85,9 +88,14 @@ public static partial class Input
 		{
 			return LoadGlyphTexture( "unknown", size, outline );
 		}
-		var key = GetButtonOrigin( action ).ToLowerInvariant();
 
-		key = GetButtonName( key );
+		var key = GetButtonOrigin( action );
+		if ( key is null )
+		{
+			return LoadGlyphTexture( "unknown", size, outline );
+		}
+
+		key = GetButtonName( key.ToLowerInvariant() );
 
 		if ( string.IsNullOrEmpty( key ) ) key = "UNBOUND";
 
@@ -146,6 +154,7 @@ public static partial class Input
 		public static Texture GetGlyph( string key, InputGlyphSize size = InputGlyphSize.Small, bool outline = false )
 		{
 			if ( string.IsNullOrEmpty( key ) ) key = "UNBOUND";
+			key = GetLocalKeyName( key );
 			key = GetButtonName( key );
 			return LoadGlyphTexture( key, size, outline, noController: true );
 		}

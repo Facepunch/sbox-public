@@ -98,7 +98,7 @@ PS
 
 	float4 FetchLayeredTexel( float2 uv )
 	{
-		float4 vColor = g_tColor.Sample( Bindless::GetSampler( NonUniformResourceIndex( BorderSamplerIndex ) ), uv );
+		float4 vColor = g_tColor.Sample( Bindless::GetSampler( BorderSamplerIndex ), uv );
 
 		// Contrast
 		vColor.rgb = saturate( (vColor.rgb - 0.5f) * FilterContrast + 0.5f );
@@ -191,7 +191,7 @@ PS
 			//
 			float4 vMask;
 
-			vMask = g_tMask.Sample( Bindless::GetSampler( NonUniformResourceIndex( SamplerIndex ) ), vUV );
+			vMask = g_tMask.Sample( Bindless::GetSampler( SamplerIndex ), vUV );
 
 			//
 			// Figure out what we should use as the mask value
@@ -215,7 +215,7 @@ PS
 			{
 				// Sample from original texture, we're using a mask-scope value of "filter"
 				// so we use this for blending
-				float4 origColor = g_tColor.Sample( Bindless::GetSampler( NonUniformResourceIndex( BorderSamplerIndex ) ), uv );
+				float4 origColor = g_tColor.Sample( Bindless::GetSampler( BorderSamplerIndex ), uv );
 				o.vColor = lerp( origColor, o.vColor, mask );
 			}
 		}

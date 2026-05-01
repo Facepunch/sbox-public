@@ -224,7 +224,7 @@ public static partial class Graphics
 	{
 		var texture = TextRendering.GetOrCreateTexture( scope, flag: flags );
 
-		Attributes.Set( "TextureIndex", texture.Index );
+		Attributes.Set( "Texture", texture );
 		Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = scope.FilterMode } ) );
 
 		var rect = position.Align( texture.Size, flags );
@@ -240,7 +240,7 @@ public static partial class Graphics
 	{
 		var texture = TextRendering.GetOrCreateTexture( scope, flag: flags );
 
-		Attributes.Set( "TextureIndex", texture.Index );
+		Attributes.Set( "Texture", texture );
 		Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = scope.FilterMode } ) );
 
 		var rect = position.Align( texture.Size, flags );

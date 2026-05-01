@@ -1,133 +1,198 @@
+@import "/styles/_theme.scss";
+$background-size: 8px;
 
-$outline: #fff;
-$highlight: #5c5;
-
-.card-package
+PackageCard
 {
-	border: 1px solid transparent;
-	margin: 2px;
-	flex-direction: column;
-	flex-grow: 1;
-	padding-bottom: 25px;
-	position: relative;
+	flex-shrink: 0;
 
-	.card-image
+	&:hover
 	{
-		border-radius: 5px;
-		cursor: pointer;
+		sound-in: "ui.button.over";
+	}
+
+	&:active
+	{
+		sound-in: "ui.button.press";
+	}
+
+	flex-direction: column;
+	position: relative;
+	background-color: rgba( $default-950, 0 );
+	border-radius: $rounding-default;
+	transition: all 150ms ease;
+	cursor: pointer;
+	z-index: 0;
+	height: 200px;
+
+	.image
+	{
+		flex-grow: 1;
+		flex-shrink: 0;
+		transition: all 150ms ease;
+		border: 1px solid rgba( white, 0.025 );
+		aspect-ratio: 16 / 9;
 		background-position: center;
 		background-size: cover;
+		border-radius: $rounding-small;
+		position: relative;
+	}
+
+	column
+	{
+		padding: 8px 2px; // Optically aligned
+	}
+
+	&.list
+	{
 		flex-grow: 1;
-		overflow: hidden;
-		transition: all 0.3s ease;
-		border: 1px solid #ffffff05;
+		height: 64px;
+		flex-direction: row;
+		gap: 12px;
+		padding: 4px;
+
+		.inner column
+		{
+			flex-grow: 1;
+		}
+
+		.image
+		{
+			height: 100%;
+			aspect-ratio: 1;
+			flex-grow: 0;
+			flex-shrink: 0;
+		}
+
+		column
+		{
+			gap: 3px;
+			justify-content: center;
+		}
+
+		.package-title
+		{
+			flex-shrink: 0;
+			max-width: 500px;
+		}
+
+		.package-users
+		{
+			top: 1px;
+			right: 1px;
+		}
 
 		&:hover
 		{
-			border: 1px solid #08f4;
-			transition: all 0.1s ease;
-		}
+			background-color: $default-800;
+			transform: none;
 
-		&:active
-		{
-			top: 5px;
-			left: 2px;
+			&::after
+			{
+				display: none;
+			}
 		}
 	}
 
-	.package-card-body
+	&.wide
+	{
+		height: 250px;
+
+		.package-title
+		{
+			max-width: 300px;
+		}
+	}
+
+	&.small
+	{
+		height: 200px;
+		aspect-ratio: 3/4;
+
+		.image
+		{
+			aspect-ratio: 1;
+		}
+
+		.package-title
+		{
+			max-width: 140px;
+		}
+	}
+
+	&.tall
+	{
+		height: 400px;
+
+		.image
+		{
+			aspect-ratio: 9/16;
+		}
+
+		.package-title
+		{
+			max-width: 200px;
+		}
+	}
+
+	.package-title
+	{
+		text-overflow: ellipsis;
+		max-height: 24px;
+		flex-shrink: 1;
+		max-width: 150px;
+		font-size: 14px;
+	}
+
+	.package-users
 	{
 		position: absolute;
-		bottom: 0px;
-		width: 100%;
-		height: 25px;
-		font-size: 15px;
-		flex-direction: row;
-		gap: 5px;
-		white-space: nowrap;
-		padding: 2px;
-		padding-bottom: 0;
-		overflow: hidden;
+		bottom: 4px;
+		right: 4px;
+		background-color: rgba( 10, 10, 10, 0.95 );
+		padding: 3px 5px;
+		border-radius: 2px;
+		justify-content: center;
+		align-items: center;
+		gap: 3px;
+		font-size: 11px;
+		color: #def;
+		border: 1px solid #444;
+	}
 
-		.orgname
+	// Hover effect (not for list)
+	&:not(.list)
+	{
+		&::after
 		{
-			flex-direction: row;
-			flex-shrink: 1;
-			color: #5A738B;
-			opacity: 0.5;
+			content: "";
+			position: absolute;
+			top: 0;
+			left: 0;
+			bottom: 0;
+			right: 0;
+			background-color: rgba( $default-950, 0 );
+			transition: all 150ms ease;
+			z-index: -10;
+			border-radius: $rounding-large;
+			pointer-events: none;
 		}
 
-		.title
+		&:hover
 		{
-			font-weight: bold;
-			cursor: pointer;
-			flex-grow: 1;
-			flex-shrink: 0;
-			text-overflow: ellipsis;
+			transform: scale( 1.05 );
 
-			&:hover
+			&::after
 			{
-				text-decoration: underline;
+				background-color: $default-800;
+				top: -$background-size;
+				left: -$background-size;
+				right: -$background-size;
+				bottom: -$background-size;
+				box-shadow: 0 0 25px rgba( black, 0.3 );
 			}
-		}
 
-		.orgname
-		{
-			text-overflow: ellipsis;
-			white-space: nowrap;
-			cursor: pointer;
-
-			&:hover
-			{
-				text-decoration: underline;
-				color: white;
-			}
+			z-index: 100;
+			background-color: $default-900;
 		}
 	}
-
-	&.is-favourite .body-meta .favourite
-	{
-		color: #fac;
-	}
-
-	&:intro
-	{
-		opacity: 0.0;
-		transform: scale( 0.8 );
-	}
-
-	opacity: 1;
-	transition: all 0.3s ease-out;
-}
-
-.card-decorator
-{
-	background-color: darken( rgba( $highlight, 0.7 ), 0.66 );
-	color: lighten( $highlight, 0.5 );
-	position: absolute;
-	right: 5px;
-	top: 5px;
-	padding: 3px 8px;
-	border-radius: 200px;
-	box-shadow: 2px 2px 16px #0002;
-	font-size: 12px;
-	font-weight: bold;
-	gap: 6px;
-	align-items: center;
-	justify-content: space-between;
-
-	i
-	{
-		font-size: 16px;
-	}
-
-	&:empty
-	{
-		display: none;
-	}
-}
-
-.player-count
-{
-	gap: 3px;
 }

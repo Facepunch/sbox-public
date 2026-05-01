@@ -47,6 +47,8 @@ class Program
 		var tags = sentryEvent?["tags"];
 		var processName = sentryEvent?["contexts"]?["process"]?["name"]?.GetValue<string>();
 
+		var shutdownCrash = tags?["shutdown_crash"]?.GetValue<string>() == "true";
+
 		var payload = new
 		{
 			sentry_event_id = eventId,
@@ -61,12 +63,13 @@ class Program
 			cpu = tags?["cpu"],
 			mode = tags?["mode"],
 			process_name = processName,
+			shutdown_crash = shutdownCrash,
 		};
 
 		try
 		{
 			using var client = new HttpClient();
-			await client.PostAsJsonAsync( "https://services.facepunch.com/sbox/event/crash/1/", payload );
+			await client.PostAsJsonAsync( "https://public.facepunch.com/sbox/event/crash/1/", payload );
 		}
 		catch ( Exception ex )
 		{
@@ -74,7 +77,7 @@ class Program
 		}
 
 		// Open browser to crash report page (only if Sentry has the data)
-		if ( sentrySubmitted )
+		if ( sentrySubmitted && !shutdownCrash )
 		{
 			Process.Start( new ProcessStartInfo( $"https://sbox.game/crashes/{eventId}" ) { UseShellExecute = true } );
 		}

@@ -236,4 +236,20 @@ public static class Application
 	/// </summary>
 	public static EditorSystem Editor => IToolsDll.Current?.ActiveEditor;
 
+
+	[ConCmd( "version", Help = "Print info about the game version" )]
+	internal static void PrintVersion()
+	{
+		Log.Info( $"s&box version {Version} ({VersionDate})" );
+
+		if ( GamePackage is { } game )
+		{
+			Log.Info( $"Game: {game.GetIdent( false, true )} ({game.Revision?.Created})" );
+		}
+
+		if ( MapPackage is { } map )
+		{
+			Log.Info( $"Map: {map.GetIdent( false, true )} ({map.Revision?.Created})" );
+		}
+	}
 }

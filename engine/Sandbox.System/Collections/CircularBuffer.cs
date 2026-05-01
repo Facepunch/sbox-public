@@ -288,26 +288,63 @@ public class CircularBuffer<T> : IEnumerable<T>
 
 	#region IEnumerable<T> implementation
 	/// <summary>
-	/// Returns an enumerator that iterates through this buffer.
+	/// Returns a struct-based enumerator that iterates through this buffer without any heap allocation.
+	/// The compiler's duck-typing for <see langword="foreach"/> will prefer this overload over the interface
+	/// methods, so <c>foreach (var x in buffer)</c> is zero-alloc.
 	/// </summary>
-	/// <returns>An enumerator that can be used to iterate this collection.</returns>
-	public IEnumerator<T> GetEnumerator()
-	{
-		foreach ( ArraySegment<T> segment in ToArraySegments() )
-		{
-			for ( int i = 0; i < segment.Count; i++ )
-			{
-				yield return segment.Array[segment.Offset + i];
-			}
-		}
-	}
+	public Enumerator GetEnumerator() => new Enumerator( this );
+
+	IEnumerator<T> IEnumerable<T>.GetEnumerator() => new Enumerator( this );
 	#endregion
 	#region IEnumerable implementation
-	IEnumerator IEnumerable.GetEnumerator()
-	{
-		return (IEnumerator)GetEnumerator();
-	}
+	IEnumerator IEnumerable.GetEnumerator() => new Enumerator( this );
 	#endregion
+
+	/// <summary>
+	/// Zero-allocation enumerator for <see cref="CircularBuffer{T}"/>.
+	/// Returned as a value type so <see langword="foreach"/> never allocates.
+	/// </summary>
+	public struct Enumerator : IEnumerator<T>
+	{
+		private readonly T[] _buffer;
+		private readonly int _start;
+		private readonly int _size;
+		private readonly int _capacity;
+		private int _index;
+
+		internal Enumerator( CircularBuffer<T> owner )
+		{
+			_buffer = owner._buffer;
+			_start = owner._start;
+			_size = owner._size;
+			_capacity = owner._buffer.Length;
+			_index = -1;
+		}
+
+		public ref T CurrentRef
+		{
+			get
+			{
+				int raw = _start + _index;
+				return ref _buffer[raw < _capacity ? raw : raw - _capacity];
+			}
+		}
+
+		public T Current
+		{
+			get
+			{
+				int raw = _start + _index;
+				return _buffer[raw < _capacity ? raw : raw - _capacity];
+			}
+		}
+
+		object IEnumerator.Current => Current;
+
+		public bool MoveNext() => ++_index < _size;
+		public void Reset() => _index = -1;
+		public void Dispose() { }
+	}
 
 	private void ThrowIfEmpty( string message = "Cannot access an empty buffer." )
 	{

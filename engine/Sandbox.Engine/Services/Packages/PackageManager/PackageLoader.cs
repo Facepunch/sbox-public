@@ -504,16 +504,7 @@ internal sealed partial class PackageLoader : IDisposable
 
 			if ( !ToolsMode )
 			{
-				try
-				{
-					var ft = FastTimer.StartNew();
-					ReflectionUtility.PreJIT( incoming.Assembly );
-					Log.Trace( $"PreJit {incoming.Name} took {ft.Elapsed.TotalSeconds:0.00}" );
-				}
-				catch ( Exception ex )
-				{
-					Log.Warning( ex, $"{ex.GetType().Name} thrown while calling PreJIT on {incoming.Name} ({ex.Message})" );
-				}
+				_ = ReflectionUtility.PreJITAsync( incoming.Assembly );
 			}
 
 			//

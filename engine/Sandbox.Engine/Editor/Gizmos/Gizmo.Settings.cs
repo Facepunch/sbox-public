@@ -1,4 +1,6 @@
-﻿namespace Sandbox;
+﻿using System.Text.Json.Serialization;
+
+namespace Sandbox;
 
 public static partial class Gizmo
 {
@@ -76,22 +78,22 @@ public static partial class Gizmo
 		/// <summary>
 		/// Which gizmos are disabled
 		/// </summary>
-		private Dictionary<Type, bool> DisabledGizmos = new();
+		[JsonInclude]
+		Dictionary<string, bool> DisabledGizmos { get; set; } = [];
 
 		/// <summary>
 		/// Check if a gizmo type is enabled
 		/// </summary>
-		public bool IsGizmoEnabled( Type type )
-		{
-			return !DisabledGizmos.TryGetValue( type, out var disabled ) || !disabled;
-		}
+		public bool IsGizmoEnabled( Type type ) => type is not null && !DisabledGizmos.GetValueOrDefault( type.FullName );
 
 		/// <summary>
 		/// Set the enabled state of a gizmo type
 		/// </summary>
 		public void SetGizmoEnabled( Type type, bool enabled )
 		{
-			DisabledGizmos[type] = !enabled;
+			if ( type is null ) return;
+
+			DisabledGizmos[type.FullName] = !enabled;
 		}
 
 		/// <summary>

@@ -464,18 +464,27 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 				if ( file.Exists && file.Attributes.HasFlag( FileAttributes.Hidden ) )
 					continue;
 
-				var asset = AssetSystem.FindByPath( file.ToString() );
+				var path = file.ToString();
+				// pretend blobs are real assets for a moment so we can filter them out if they have a source file
+				var blob = file.Name.EndsWith( "_d" );
+				if ( blob )
+					path = path[..^2];
+				var asset = AssetSystem.FindByPath( path );
 
 				//
 				// Filter out compiled assets if we have a source asset
 				//
 				string sourcePath = asset?.GetSourceFile();
-				if ( file.Name.EndsWith( "_c" ) && !string.IsNullOrEmpty( sourcePath ) )
+				if ( (file.Name.EndsWith( "_c" ) || blob) && !string.IsNullOrEmpty( sourcePath ) )
 				{
 					// ( but only if the extensions are similar and would both be shown in this filter, eg so we don't hide .sounds because we have a .wav etc )
 					if ( Search.AssetTypes.ActiveTags.Count == 0 || file.Extension.Contains( System.IO.Path.GetExtension( sourcePath ) ) )
 						continue;
 				}
+
+				// can't load an asset or show the inspector from a blob
+				if ( blob )
+					asset = null;
 
 				if ( asset == null && HideNonAssets )
 					continue;
@@ -496,10 +505,7 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 			return false;
 
 		AssetList.SetItems( items );
-		if ( !string.IsNullOrEmpty( lastSortColumn ) )
-		{
-			SortAssetList( lastSortColumn, lastSortAscending );
-		}
+		SortAssetList( lastSortColumn, lastSortAscending );
 
 		Chips.ClearButKeepActive();
 
@@ -517,79 +523,25 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 
 	private void SortAssetList( string sortBy, bool ascending )
 	{
-		List<object> items;
+		var dirs = AssetList.Items.OfType<DirectoryEntry>();
+		var sortedDirs = ascending
+			? dirs.OrderBy( de => de.Name.ToLower() )
+			: dirs.OrderByDescending( de => de.Name.ToLower() );
 
-		switch ( sortBy )
+		Func<AssetEntry, IComparable> key = sortBy switch
 		{
-			case "Name":
-				items = AssetList.Items.OrderBy( x =>
-				{
-					string sort = "";
-					if ( x is AssetEntry ae )
-					{
-						sort = ae.Name.ToLower();
-					}
-					else if ( x is DirectoryEntry de )
-					{
-						// Directories always come first
-						sort = (ListHeader.SortAscending ? "! " : "z ") + de.Name.ToLower();
-					}
-					return sort;
-				} ).ToList();
-				break;
-			case "Date":
-				items = AssetList.Items.OrderBy( x =>
-				{
-					var date = DateTimeOffset.Now;
-					if ( x is AssetEntry ae )
-					{
-						date = ae.FileInfo?.LastWriteTime ?? date;
-					}
-					var sort = date.UtcTicks.ToString();
-					if ( x is DirectoryEntry de )
-					{
-						// Directories always come first
-						sort = (ListHeader.SortAscending ? "! " : "z ") + de.Name.ToLower();
-					}
-					return sort;
-				} ).ToList();
-				break;
-			case "Type":
-				items = AssetList.Items.OrderBy( x =>
-				{
-					var type = (x is AssetEntry ae) ? ae.TypeName : "";
-					var sort = type.ToLower();
-					if ( x is DirectoryEntry de )
-					{
-						// Directories always come first
-						sort = (ListHeader.SortAscending ? "! " : "z ") + de.Name.ToLower();
-					}
-					return sort;
-				} ).ToList();
-				break;
-			case "Size":
-				items = AssetList.Items.OrderBy( x =>
-				{
-					long size = (x is AssetEntry ae) ? (ae.FileInfo?.Length ?? 0) : 0;
-					if ( x is DirectoryEntry de )
-					{
-						// Directories always come first/last
-						size = -long.MaxValue + de.Name.ToLong();
-					}
-					return size;
-				} ).ToList();
-				break;
-			default:
-				items = AssetList.Items.ToList();
-				break;
-		}
+			"Date" => ae => ae.LastModified ?? DateTimeOffset.MinValue,
+			"Size" => ae => ae.Size ?? 0L,
+			"Type" => ae => ae.TypeName.ToLower(),
+			_ => ae => ae.Name.ToLower(),
+		};
 
-		if ( !ascending )
-		{
-			items.Reverse();
-		}
-		AssetList.SetItems( items );
+		var files = AssetList.Items.OfType<AssetEntry>();
+		var sortedFiles = ascending
+			? files.OrderBy( key ).ThenBy( ae => ae.Name.ToLower() )
+			: files.OrderByDescending( key ).ThenByDescending( ae => ae.Name.ToLower() );
 
+		AssetList.SetItems( sortedDirs.Cast<object>().Concat( sortedFiles ) );
 		lastSortColumn = sortBy;
 		lastSortAscending = ascending;
 	}

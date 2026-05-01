@@ -29,7 +29,7 @@ namespace Sandbox.Generator
 		/// <summary>
 		/// The compilation model
 		/// </summary>
-		CSharpCompilation Compilation;
+		internal CSharpCompilation Compilation { get; }
 
 		/// <summary>
 		/// The original Syntax Tree
@@ -41,6 +41,11 @@ namespace Sandbox.Generator
 		/// If it's false then we're probably intellisense or compiling externally
 		/// </summary>
 		public bool IsFullGeneration { get; private set; }
+
+		/// <summary>
+		/// True when corelib polyfills should run. Requires a full generation pass and the processor flag.
+		/// </summary>
+		public bool CorelibPolyfillsEnabled => IsFullGeneration && Processor?.EnableCorelibPolyfills == true;
 
 		/// <summary>
 		/// Any syntax trees we added
@@ -204,6 +209,38 @@ namespace Sandbox.Generator
 			StringTokenUpgrader.VisitInvocation( ref node, location, symlist, this );
 
 			return node;
+		}
+
+		public override SyntaxNode VisitIdentifierName( IdentifierNameSyntax node )
+		{
+			var rewritten = StringBuilderRedirect.VisitIdentifierName( node, this );
+			if ( rewritten is not null )
+				return rewritten;
+
+			return base.VisitIdentifierName( node );
+		}
+
+		public override SyntaxNode VisitQualifiedName( QualifiedNameSyntax node )
+		{
+			// Check before visiting children so the original node is used for semantic-model queries
+			// and we avoid descending into a qualified name we're about to replace entirely.
+			var rewritten = StringBuilderRedirect.VisitQualifiedName( node, this );
+			if ( rewritten is not null )
+				return rewritten;
+
+			return base.VisitQualifiedName( node );
+		}
+
+		public override SyntaxNode VisitMemberAccessExpression( MemberAccessExpressionSyntax node )
+		{
+			var visited = base.VisitMemberAccessExpression( node ) as ExpressionSyntax;
+			if ( visited is null )
+			{
+				return visited;
+			}
+
+			var rewritten = ArrayPoolSharedRedirect.VisitMemberAccess( node, visited, this );
+			return rewritten ?? visited;
 		}
 
 		public override SyntaxNode VisitBlock( BlockSyntax node )

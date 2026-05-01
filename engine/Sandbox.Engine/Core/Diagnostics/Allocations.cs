@@ -163,9 +163,6 @@ class GCEventListener : EventListener
 
 		switch ( eventData.EventName )
 		{
-			case "GCHeapStats_V1":
-				ProcessHeapStats( eventData );
-				break;
 			case "GCAllocationTick_V4":
 				ProcessAllocationEvent( eventData );
 				break;
@@ -189,17 +186,5 @@ class GCEventListener : EventListener
 		value.Bytes += (ulong)eventData.Payload[3];
 
 		_writer[tl] = value;
-	}
-
-	private void ProcessHeapStats( EventWrittenEventArgs eventData )
-	{
-		//_gen0Size.TrackValue( (ulong)eventData.Payload[0] );
-		//_gen0Promoted.TrackValue( (ulong)eventData.Payload[1] );
-		//_gen1Size.TrackValue( (ulong)eventData.Payload[2] );
-		//_gen1Promoted.TrackValue( (ulong)eventData.Payload[3] );
-		//_gen2Size.TrackValue( (ulong)eventData.Payload[4] );
-		//_gen2Survived.TrackValue( (ulong)eventData.Payload[5] );
-		//_lohSize.TrackValue( (ulong)eventData.Payload[6] );
-		//_lohSurvived.TrackValue( (ulong)eventData.Payload[7] );
 	}
 }

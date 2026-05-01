@@ -106,7 +106,7 @@ class LibraryList : ListView
 
 			if ( !string.IsNullOrWhiteSpace( c.Thumb ) && !c.Thumb.StartsWith( "/" ) )
 			{
-				Paint.Draw( iconRect, c.Thumb );
+				Paint.Draw( iconRect, c.Thumb, borderRadius: 4 );
 			}
 			else
 			{

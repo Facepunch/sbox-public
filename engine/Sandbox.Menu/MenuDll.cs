@@ -24,6 +24,7 @@ internal sealed class MenuDll : IMenuDll
 	private PackageLoader Loader { get; set; }
 	private PackageLoader.Enroller Enroller { get; set; }
 	private Task AccountUpdateTask { get; set; }
+	private bool SceneDestroyedForGame { get; set; }
 
 	public Scene Scene => MenuScene.Scene;
 
@@ -61,15 +62,15 @@ internal sealed class MenuDll : IMenuDll
 			{
 				// No menu or citizen addon in standalone
 				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, $"/base/code" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, $"/base/assets" );
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, $"/base/Assets" );
 			}
 			else
 			{
 				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/base/code/" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/base/assets/" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/menu/code/" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/menu/assets/" );
-				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/citizen/assets/" );
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/base/Assets/" );
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/menu/Code/" );
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/menu/Assets/" );
+				FileSystem.Mounted.CreateAndMount( EngineFileSystem.Addons, "/citizen/Assets/" );
 			}
 
 			FileSystem.Mounted.CreateAndMount( EngineFileSystem.Root, "/core/" );
@@ -79,13 +80,8 @@ internal sealed class MenuDll : IMenuDll
 		//
 		// Localization from menu 
 		//
-		{
-			var localizationFolder = new AggregateFileSystem();
-			localizationFolder.CreateAndMount( EngineFileSystem.Addons, "/menu/localization/" );
-
-			Game.Language = new LanguageContainer( localizationFolder );
-		}
-
+		Game.Language = new LanguageContainer();
+		Game.Language.FileSystem.CreateAndMount( EngineFileSystem.Addons, "/menu/localization/" );
 
 
 		//
@@ -137,7 +133,7 @@ internal sealed class MenuDll : IMenuDll
 		// LoopEvent.Init
 		//
 		{
-			StyleSheet.InitStyleSheets();
+			StyleSheet.ResetStyleSheets();
 			GlobalContext.Current.Reset();
 		}
 
@@ -241,6 +237,15 @@ internal sealed class MenuDll : IMenuDll
 			// Expire async context to prevent lingering tasks
 			AsyncContext.Expire( null );
 
+			// Release panel references held by input context — these keep
+			// the entire menu panel tree (and its TextBlock textures) alive.
+			if ( InputContext is not null )
+			{
+				InputContext.KeyboardFocusPanel = null;
+				InputContext.MouseFocusPanel = null;
+				InputContext = null;
+			}
+
 			// Clear global context
 			GlobalContext.Current.Reset();
 
@@ -251,6 +256,46 @@ internal sealed class MenuDll : IMenuDll
 	void LoadResources()
 	{
 		ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
+	}
+
+	public void OnGameEntered()
+	{
+		if ( Application.IsEditor )
+			return;
+
+		// Already destroyed (e.g. switching between games without returning to menu)
+		if ( SceneDestroyedForGame )
+			return;
+
+		using var scope = PushScope();
+
+		// Destroy the entire menu scene to free all resources
+		// (models, textures, lights, cameras, particles, etc.).
+		// The overlay UI (loading screen, pause menu, popups) lives in the
+		// menu's UISystem as RootPanels, not in the scene, so it survives.
+		if ( MenuScene.Scene is not null )
+		{
+			MenuScene.Scene.Destroy();
+			MenuScene.Scene = null;
+		}
+
+		SceneDestroyedForGame = true;
+	}
+
+	public void OnGameExited()
+	{
+		if ( Application.IsEditor )
+			return;
+
+		if ( !SceneDestroyedForGame )
+			return;
+
+		using var scope = PushScope();
+
+		SceneDestroyedForGame = false;
+
+		// Recreate the menu scene from scratch
+		SetupMenuScene();
 	}
 
 	private void SetupMenuScene()

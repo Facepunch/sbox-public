@@ -19,6 +19,22 @@ RWTexture2DArray<float4> g_bindless_RWTexture2DArray[] EXTERNAL_DESC_SET( u, g_g
 
 class Bindless
 {
+
+#if PROGRAM == VFX_PROGRAM_PS
+    // everything applies NonUniformResourceIndex because that's what you want 99% of the time
+    // we can do uniform variants but only if we prove that they're actually faster in the cases
+    static inline Texture2D GetTexture2D( int nIndex, bool srgb = false ){ return g_bindless_Texture2D[NonUniformResourceIndex(nIndex + (srgb ? 1 : 0))]; }
+    static inline Texture2DMS<float4> GetTexture2DMS( int nIndex ) { return g_bindless_Texture2DMS[ NonUniformResourceIndex(nIndex) ]; }
+    static inline Texture3D GetTexture3D( int nIndex ) { return g_bindless_Texture3D[ NonUniformResourceIndex(nIndex) ]; }
+    static inline TextureCube GetTextureCube( int nIndex ) { return g_bindless_TextureCube[ NonUniformResourceIndex(nIndex) ]; }
+    static inline Texture2DArray GetTexture2DArray( int nIndex ) { return g_bindless_Texture2DArray[ NonUniformResourceIndex(nIndex) ]; }
+    static inline TextureCubeArray GetTextureCubeArray( int nIndex ) { return g_bindless_TextureCubeArray[ NonUniformResourceIndex(nIndex) ]; }
+
+    // Samplers don't need NonUniformResourceIndex - they're wave-uniform and NUI on samplers crashes AMD RDNA 1/2 drivers
+    static inline SamplerState GetSampler( int nIndex ) { return g_bindless_Sampler[ nIndex ]; }
+    static inline SamplerComparisonState GetSamplerComparison( int nIndex ) { return g_bindless_SamplerComparison[ nIndex ]; }
+#else
+    // Non-Fragment doesn't have the same need for NonUniformResourceIndex and we can't even use it in some cases (e.g. compute shader UAVs) so just do a direct index.
     static inline Texture2D GetTexture2D( int nIndex, bool srgb = false ){ return g_bindless_Texture2D[nIndex + (srgb ? 1 : 0)]; }
     static inline Texture2DMS<float4> GetTexture2DMS( int nIndex ) { return g_bindless_Texture2DMS[ nIndex ]; }
     static inline Texture3D GetTexture3D( int nIndex ) { return g_bindless_Texture3D[ nIndex ]; }
@@ -28,11 +44,12 @@ class Bindless
 
     static inline SamplerState GetSampler( int nIndex ) { return g_bindless_Sampler[ nIndex ]; }
     static inline SamplerComparisonState GetSamplerComparison( int nIndex ) { return g_bindless_SamplerComparison[ nIndex ]; }
+#endif
 
 #if PROGRAM == VFX_PROGRAM_CS
-    static inline RWTexture2D<float4> GetRWTexture2D( int nIndex ) { return g_bindless_RWTexture2D[ nIndex ]; }
-    static inline RWTexture3D<float4> GetRWTexture3D( int nIndex ) { return g_bindless_RWTexture3D[ nIndex ]; }
-    static inline RWTexture2DArray<float4> GetRWTexture2DArray( int nIndex ) { return g_bindless_RWTexture2DArray[ nIndex ]; }
+    static inline RWTexture2D<float4> GetRWTexture2D( int nIndex ) { return g_bindless_RWTexture2D[ NonUniformResourceIndex(nIndex) ]; }
+    static inline RWTexture3D<float4> GetRWTexture3D( int nIndex ) { return g_bindless_RWTexture3D[ NonUniformResourceIndex(nIndex) ]; }
+    static inline RWTexture2DArray<float4> GetRWTexture2DArray( int nIndex ) { return g_bindless_RWTexture2DArray[ NonUniformResourceIndex(nIndex) ]; }
 #endif
 };
 

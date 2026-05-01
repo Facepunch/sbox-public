@@ -30,7 +30,7 @@ internal unsafe interface IGameInstanceDll
 	//
 	// Game Menu Shit
 	//
-	public Task LoadGamePackageAsync( string ident, GameLoadingFlags flags, CancellationToken ct );
+	public Task<bool> LoadGamePackageAsync( string ident, GameLoadingFlags flags, CancellationToken ct );
 
 	//
 	// Scene
@@ -49,7 +49,7 @@ internal unsafe interface IGameInstanceDll
 	/// <summary>
 	/// Called when the "disconnect" command is ran.
 	/// </summary>
-	public void Disconnect();
+	public void Disconnect( string message = null );
 
 	/// <summary>
 	/// Closes the current GameInstance immediately

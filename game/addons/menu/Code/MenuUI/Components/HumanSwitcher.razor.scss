@@ -1,0 +1,39 @@
+@import "/styles/_theme.scss";
+
+HumanSwitcher
+{
+	width: 50%;
+	align-items: flex-end;
+	justify-content: flex-end;
+	height: 100%;
+	transition: all 150ms $easing;
+	z-index: -10;
+
+	Button
+	{
+		@include border;
+		padding: 8px;
+		color: $default-text;
+		border-radius: $rounding-xsmall;
+		transition: all 150ms ease;
+		background-color: $default-900;
+		pointer-events: all;
+
+		.button-hover-menu
+		{
+			position: absolute;
+			top: -42px;
+			right: 0;
+		}
+
+		&:hover
+		{
+			background-color: $default-800;
+		}
+
+		.icon
+		{
+			font-size: 3rem;
+		}
+	}
+}

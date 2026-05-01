@@ -76,6 +76,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 	private static readonly string[] RepoFilterShaderWhitelistGlobs =
 	{
 		"game/core/shaders/**/vr_*",
+		"game/core/shaders/**/*.hlsl",
 		"game/core/shaders/**/*.shader_c",
 		"game/core/shaders/common.fxc",
 		"game/core/shaders/common_samplers.fxc",
@@ -193,15 +194,16 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 				return false;
 			}
 
-			// Make sure we filter out lfs files that are in the history as well
-			var allLfsPaths = GetAllPublicLfsFiles( relativeFilteredPath );
-			if ( allLfsPaths is null )
+			// Run git-filter-repo to filter out unwanted paths.
+			// LFS pointer blobs are detected and stripped inline by the Python
+			// filter (blob content inspection) so we no longer need to pass a
+			// pre-computed LFS path list.
+			if ( !RunFilterRepo( relativeFilteredPath ) )
 			{
 				return false;
 			}
 
-			// Run git-filter-repo to filter out unwanted paths
-			if ( !RunFilterRepo( relativeFilteredPath, allLfsPaths ) )
+			if ( !ValidateFilteredRepository( relativeFilteredPath ) )
 			{
 				return false;
 			}
@@ -226,6 +228,19 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			if ( !UploadManifest( publicCommitHash, uploadedArtifacts, remoteBase ) )
 			{
 				return false;
+			}
+
+			// Also upload a copy of the manifest indexed by the private commit hash.
+			// This lets CI running in the private repo resolve artifacts directly from
+			// its own git history without needing to know the public commit hash.
+			var privateCommitHash = GetPrivateCommitHash();
+			if ( !string.IsNullOrEmpty( privateCommitHash ) &&
+				!string.Equals( privateCommitHash, publicCommitHash, StringComparison.OrdinalIgnoreCase ) )
+			{
+				if ( !UploadManifest( privateCommitHash, uploadedArtifacts, remoteBase ) )
+				{
+					return false;
+				}
 			}
 
 			var manifestTotalBytes = CalculateArtifactTotalSize( uploadedArtifacts );
@@ -285,11 +300,12 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			return true;
 		}
 
-		// Inline matcher: include everything, exclude managed root folder and pdbs
+		// Inline matcher: include everything, exclude managed root folder, pdbs, and debug symbols
 		var matcher = new Matcher( StringComparison.OrdinalIgnoreCase, preserveFilterOrder: true );
 		matcher.AddInclude( "**/*" );
 		matcher.AddExclude( "managed/**" );
 		matcher.AddExclude( "**/*.pdb" );
+		matcher.AddExclude( "**/*.dbg" );
 
 		var filesToUpload = matcher
 			.GetResultsInFullPath( buildArtifactsRoot )
@@ -377,7 +393,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		return TryUploadArtifacts( candidates, remoteBase, artifacts, uploadedHashes, "LFS", skipUpload );
 	}
 
-	private bool RunFilterRepo( string relativeRepoPath, IReadOnlyCollection<string> lfsPaths )
+	private bool RunFilterRepo( string relativeRepoPath )
 	{
 		Log.Info( "Running git-filter-repo to filter paths..." );
 
@@ -393,11 +409,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			IncludeGlobs = RepoFilterPathIncludeGlobs,
 			ExcludeGlobs = RepoFilterPathExcludeGlobs,
 			WhitelistedShaders = RepoFilterShaderWhitelistGlobs,
-			PathRenames = RepoFilterPathRenames.ToDictionary( pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase ),
-			LfsPaths = lfsPaths
-				.Select( ToForwardSlash )
-				.Distinct( StringComparer.OrdinalIgnoreCase )
-				.ToList()
+			PathRenames = RepoFilterPathRenames.ToDictionary( pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase )
 		};
 
 		string configPath = null;
@@ -425,6 +437,54 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 				File.Delete( configPath );
 			}
 		}
+	}
+
+	private static readonly HashSet<string> ForbiddenRepoExtensions = new( StringComparer.OrdinalIgnoreCase )
+	{
+		".lib", ".exe", ".pdb", ".a", ".dll", ".dylib", ".so",
+		".png", ".tga", ".jpg", ".psd", ".pdf", ".bmp", ".gif", ".exr", ".ico", ".svg", ".tif", ".tiff",
+		".ttf", ".otf",
+		".dmx", ".fbx", ".max",
+		".wav", ".ogg", ".mp3", ".mp4", ".webm", ".avi",
+		".pyd", ".ppf", ".vsix", ".vcs", ".bin", ".dat", ".jar", ".spv", ".ma", ".lxo"
+	};
+
+	private static bool ValidateFilteredRepository( string relativeRepoPath )
+	{
+		Log.Info( "Validating filtered repository before push..." );
+
+		var renamedTargets = new HashSet<string>( RepoFilterPathRenames.Values, StringComparer.OrdinalIgnoreCase );
+		var matcher = RepoFileFilter();
+		var violations = new List<string>();
+
+		Utility.RunProcess( "git", "ls-tree -r --name-only HEAD", relativeRepoPath, onDataReceived: ( _, e ) =>
+		{
+			if ( string.IsNullOrWhiteSpace( e.Data ) )
+				return;
+
+			var file = ToForwardSlash( e.Data.Trim() );
+
+			if ( file.StartsWith( "src/", StringComparison.OrdinalIgnoreCase ) )
+				violations.Add( $"Private source code: {file}" );
+
+			if ( !renamedTargets.Contains( file ) && !matcher.Match( file ).HasMatches )
+				violations.Add( $"Outside include rules: {file}" );
+
+			var ext = Path.GetExtension( file );
+			if ( !string.IsNullOrEmpty( ext ) && ForbiddenRepoExtensions.Contains( ext ) )
+				violations.Add( $"Forbidden extension ({ext}): {file}" );
+		} );
+
+		if ( violations.Count > 0 )
+		{
+			Log.Error( $"Filtered repository contains {violations.Count} violation(s):" );
+			foreach ( var v in violations )
+				Log.Error( $"  {v}" );
+			return false;
+		}
+
+		Log.Info( "Filtered repository validation passed" );
+		return true;
 	}
 
 	private string PushToPublicRepository( string relativeRepoPath )
@@ -479,6 +539,26 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		return publicCommitHash;
 	}
 
+	/// <summary>
+	/// Returns the HEAD commit hash of the private (current) repository.
+	/// </summary>
+	private static string GetPrivateCommitHash()
+	{
+		string hash = null;
+		Utility.RunProcess( "git", "rev-parse HEAD", onDataReceived: ( _, e ) =>
+		{
+			if ( !string.IsNullOrWhiteSpace( e.Data ) )
+				hash ??= e.Data.Trim();
+		} );
+
+		if ( string.IsNullOrEmpty( hash ) )
+		{
+			Log.Warning( "Failed to resolve private commit hash; private-keyed manifest will not be uploaded." );
+		}
+
+		return hash;
+	}
+
 	private static HashSet<string> GetCurrentLfsFiles( string relativeRepoPath )
 	{
 		var trackedFiles = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
@@ -497,26 +577,6 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		return trackedFiles;
 	}
 
-	private static HashSet<string> GetAllPublicLfsFiles( string relativeRepoPath )
-	{
-		var trackedFiles = GetCurrentLfsFiles( relativeRepoPath );
-
-		if ( !Utility.RunProcess( "git", "lfs ls-files --all --deleted --name-only", relativeRepoPath, onDataReceived: ( _, e ) =>
-		{
-			if ( string.IsNullOrWhiteSpace( e.Data ) )
-			{
-				return;
-			}
-
-			trackedFiles.Add( ToForwardSlash( e.Data.Trim() ) );
-		} ) )
-		{
-			Log.Error( "Failed to list historical LFS tracked files" );
-			return null;
-		}
-
-		return trackedFiles;
-	}
 
 	private void WriteDryRunOutputs( string commitHash, IEnumerable<ArtifactFileInfo> artifacts )
 	{
@@ -555,6 +615,36 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		var duplicateManifestCount = 0;
 		var duplicateUploadCount = 0;
 
+		// Pre-compute SHA256 hashes in parallel - hashing is CPU+IO bound and benefits from concurrency
+		var hashCache = new ConcurrentDictionary<string, (string Sha256, long Size)>( StringComparer.OrdinalIgnoreCase );
+		Parallel.ForEach( candidates, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, item =>
+		{
+			var (_, absolutePath) = item;
+			if ( !File.Exists( absolutePath ) )
+				return;
+			var ext = Path.GetExtension( absolutePath );
+			if ( !string.IsNullOrEmpty( ext ) && ForbiddenArtifactExtensions.Contains( ext ) )
+				return;
+
+			var fileInfo = new FileInfo( absolutePath );
+			var resolvedPath = absolutePath;
+			if ( fileInfo.LinkTarget is not null )
+			{
+				var resolved = fileInfo.ResolveLinkTarget( returnFinalTarget: true );
+				if ( resolved?.Exists == true )
+				{
+					resolvedPath = resolved.FullName;
+					fileInfo = new FileInfo( resolvedPath );
+				}
+				else
+				{
+					return; // broken symlink - handled with a warning in the sequential pass below
+				}
+			}
+
+			hashCache[absolutePath] = (Utility.CalculateSha256( resolvedPath ), fileInfo.Length);
+		} );
+
 		foreach ( var (repoPath, absolutePath) in candidates )
 		{
 			var repoPathNormalized = ToForwardSlash( repoPath );
@@ -572,13 +662,18 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 				return false;
 			}
 
-			var fileInfo = new FileInfo( absolutePath );
-			var sha256 = Utility.CalculateSha256( absolutePath );
+			if ( !hashCache.TryGetValue( absolutePath, out var cached ) )
+			{
+				// Not in cache - must be a broken symlink (resolved in the parallel pass above)
+				Log.Warning( $"Failed to resolve symlink target for {repoPathNormalized}, skipping artifact" );
+				continue;
+			}
+
 			var artifact = new ArtifactFileInfo
 			{
 				Path = repoPathNormalized,
-				Sha256 = sha256,
-				Size = fileInfo.Length
+				Sha256 = cached.Sha256,
+				Size = cached.Size
 			};
 
 			if ( !artifacts.Add( artifact ) )
@@ -587,7 +682,7 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 				continue;
 			}
 
-			if ( !uploadedHashes.Add( sha256 ) )
+			if ( !uploadedHashes.Add( cached.Sha256 ) )
 			{
 				duplicateUploadCount++;
 				continue;
@@ -614,24 +709,10 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 			return true;
 		}
 
-		var maxParallelUploads = Math.Max( 1, Math.Min( MAX_PARALLEL_UPLOADS, Environment.ProcessorCount ) );
-		Log.Info( $"Processing {uniqueUploads.Count} {artifactLabel} artifacts (up to {maxParallelUploads} concurrent)..." );
+		Log.Info( $"Uploading {uniqueUploads.Count} {artifactLabel} artifacts ({Utility.FormatSize( batchBytes )})..." );
 
-		var failedUploads = new ConcurrentBag<string>();
-
-		Parallel.ForEach( uniqueUploads, new ParallelOptions { MaxDegreeOfParallelism = maxParallelUploads }, item =>
+		if ( !BatchUploadArtifacts( uniqueUploads, remoteBase, artifactLabel ) )
 		{
-			var (absolutePath, artifact) = item;
-			if ( !UploadArtifactFile( absolutePath, artifact, remoteBase ) )
-			{
-				Log.Error( $"Failed to upload {artifactLabel} artifact: {artifact.Path}" );
-				failedUploads.Add( artifact.Path );
-			}
-		} );
-
-		if ( !failedUploads.IsEmpty )
-		{
-			Log.Error( $"Failed to upload {failedUploads.Count} {artifactLabel} artifact(s)" );
 			return false;
 		}
 
@@ -640,10 +721,42 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 		return true;
 	}
 
-	private static bool UploadArtifactFile( string localPath, ArtifactFileInfo artifact, string remoteBase )
+	private static bool BatchUploadArtifacts( IReadOnlyCollection<(string AbsolutePath, ArtifactFileInfo Artifact)> uploads, string remoteBase, string artifactLabel )
 	{
-		var remotePath = $"{remoteBase}/artifacts/{artifact.Sha256}";
-		return Utility.RunProcess( "rclone", $"copyto \"{localPath}\" \"{remotePath}\" --ignore-existing -q", timeoutMs: 600000 );
+		var stagingDir = Path.Combine( Path.GetTempPath(), $"sbox-upload-{Guid.NewGuid():N}" );
+		Directory.CreateDirectory( stagingDir );
+
+		Log.Info( $"Staging {uploads.Count} {artifactLabel} artifact(s) for batch upload..." );
+
+		try
+		{
+			foreach ( var (absolutePath, artifact) in uploads )
+			{
+				var destPath = Path.Combine( stagingDir, artifact.Sha256 );
+				File.Copy( absolutePath, destPath, overwrite: true );
+			}
+
+			var remoteArtifactsPath = $"{remoteBase}/artifacts";
+			var args = $"copy \"{stagingDir}\" \"{remoteArtifactsPath}\" --ignore-existing --transfers {MAX_PARALLEL_UPLOADS} --checkers {MAX_PARALLEL_UPLOADS} -q";
+			if ( !Utility.RunProcess( "rclone", args, timeoutMs: 3600000 ) )
+			{
+				Log.Error( $"Failed to batch upload {artifactLabel} artifacts" );
+				return false;
+			}
+
+			return true;
+		}
+		finally
+		{
+			try
+			{
+				Directory.Delete( stagingDir, true );
+			}
+			catch ( Exception ex )
+			{
+				Log.Warning( $"Failed to clean up upload staging directory: {ex.Message}" );
+			}
+		}
 	}
 
 	private static bool UploadManifest( string commitHash, IEnumerable<ArtifactFileInfo> artifacts, string remoteBase )
@@ -761,8 +874,5 @@ internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
 
 		[JsonPropertyName( "path_renames" )]
 		public Dictionary<string, string> PathRenames { get; init; }
-
-		[JsonPropertyName( "lfs_paths" )]
-		public List<string> LfsPaths { get; init; }
 	}
 }

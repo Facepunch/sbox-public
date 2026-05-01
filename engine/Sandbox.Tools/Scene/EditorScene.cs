@@ -298,6 +298,9 @@ public static class EditorScene
 
 	public static void Stop()
 	{
+		// Close any open overlay modals so they don't persist in the next play session
+		IModalSystem.Current?.CloseAll( true );
+
 		Game.IsClosing = true;
 
 		SceneEditorSession.Active.StopPlaying();
@@ -377,26 +380,40 @@ public static class EditorScene
 	}
 
 	/// <summary>
-	/// Update any/all instances of a prefab in any open sessions
+	/// Update any/all instances of a prefab in any open sessions.
+	/// Two passes are needed so that changes propagate through prefab dependency
+	/// chains regardless of iteration order (e.g. PrefabA → PrefabC → PrefabB).
 	/// </summary>
 	public static void UpdatePrefabInstances( PrefabFile prefab )
 	{
 		ArgumentNullException.ThrowIfNull( prefab );
 
-		var prefabSessions = SceneEditorSession.All
-			.OfType<PrefabEditorSession>();
+		var allSessions = SceneEditorSession.All;
 
-		// We need to update the prefab file itself, so that it has the latest changes
-		foreach ( var session in prefabSessions )
+		// If only the edited prefab session is open, there's nothing else to update
+		if ( allSessions.Count <= 1 )
+			return;
+
+		// First pass: update other open prefab sessions that may contain instances
+		// of this prefab, then write their changes so dependent prefabs stay current
+		foreach ( var session in allSessions )
 		{
-			UpdatePrefabInstancesInScene( session.Scene, prefab );
-			session.Scene.ToPrefabFile();
+			if ( session is not PrefabEditorSession prefabSession ) continue;
+
+			// The source prefab already has the latest changes via OnEdited
+			if ( prefabSession.Scene.Source == prefab ) continue;
+
+			UpdatePrefabInstancesInScene( prefabSession.Scene, prefab );
+			prefabSession.Scene.ToPrefabFile();
 		}
 
-		// And then update all prefab instances again
-		// This makes sure prefab dependencies are updated as well
-		foreach ( var session in SceneEditorSession.All )
+		// Second pass: re-process all sessions (except the source) so that
+		// multi-level prefab dependencies resolve even if pass 1 hit them
+		// in the wrong order
+		foreach ( var session in allSessions )
 		{
+			if ( session is PrefabEditorSession prefabSession && prefabSession.Scene.Source == prefab ) continue;
+
 			UpdatePrefabInstancesInScene( session.Scene, prefab );
 		}
 	}
@@ -453,7 +470,7 @@ public static class EditorScene
 		using ( SceneEditorSession.Active.UndoScope( "Select All" ).Push() )
 		{
 			Selection.Clear();
-			foreach ( var child in SceneEditorSession.Active.Scene.Children )
+			foreach ( var child in SceneEditorSession.Active.Scene.Children.Where( x => x.ShouldShowInHierarchy() ) )
 			{
 				Selection.Add( child );
 			}
@@ -484,28 +501,34 @@ public static class EditorScene
 	[Shortcut( "editor.paste", "CTRL+V" )]
 	public static void Paste()
 	{
-		var selected = EditorScene.Selection.FirstOrDefault() as GameObject;
+		PasteInternal();
+	}
+
+	public static void PasteAt( SceneTraceResult tr )
+	{
+		PasteInternal( tr );
+	}
+
+	static void PasteInternal( SceneTraceResult? tr = default )
+	{
+		var selected = Selection.FirstOrDefault() as GameObject;
 
 		var session = SceneEditorSession.Resolve( selected ) ?? SceneEditorSession.Active;
 		using var scene = session.Scene.Push();
 
 		// Paste to scene root if nobody is selected
-		if ( selected is null )
-		{
-			selected = SceneEditorSession.Active.Scene;
-		}
+		selected ??= SceneEditorSession.Active.Scene;
 
 		if ( selected is Scene )
 		{
-			PasteAsChild();
+			PasteAsChildAt( tr );
 			return;
 		}
 
-		ExecutableUndoablePaste( selected, false );
+		ExecutableUndoablePaste( selected, false, tr );
 	}
 
-	[Shortcut( "editor.paste-as-child", "CTRL+SHIFT+V" )]
-	public static void PasteAsChild()
+	static void PasteAsChildAt( SceneTraceResult? tr = default )
 	{
 		var selected = Selection.OfType<GameObject>().ToArray();
 		var first = selected.FirstOrDefault();
@@ -519,15 +542,28 @@ public static class EditorScene
 			selected = [SceneEditorSession.Active.Scene];
 		}
 
-		ExecutableUndoablePaste( selected, true );
+		ExecutableUndoablePaste( selected, true, tr );
 	}
 
-	private static void ExecutableUndoablePaste( GameObject target, bool asChild )
+	[Shortcut( "editor.paste-as-child", "CTRL+SHIFT+V" )]
+	public static void PasteAsChild()
 	{
-		ExecutableUndoablePaste( [target], asChild );
+		PasteAsChildAt();
 	}
 
-	private static void ExecutableUndoablePaste( IEnumerable<GameObject> targets, bool asChild )
+	[Shortcut( "editor.paste-special", "CTRL+ALT+V" )]
+	public static void PasteSpecial()
+	{
+		var dialog = new ScenePasteSpecialDialog( ScenePasteSpecialDialog.Execute );
+		dialog.Show();
+	}
+
+	private static void ExecutableUndoablePaste( GameObject target, bool asChild, SceneTraceResult? tr )
+	{
+		ExecutableUndoablePaste( [target], asChild, tr );
+	}
+
+	private static void ExecutableUndoablePaste( IEnumerable<GameObject> targets, bool asChild, SceneTraceResult? tr )
 	{
 		var text = EditorUtility.Clipboard.Paste();
 
@@ -543,7 +579,7 @@ public static class EditorScene
 				using var scene = session.Scene.Push();
 				using ( session.UndoScope( $"Paste {objCount} Objects" ).WithGameObjectCreations().Push() )
 				{
-					EditorScene.Selection.Clear();
+					Selection.Clear();
 
 					foreach ( var target in targets )
 					{
@@ -568,8 +604,13 @@ public static class EditorScene
 
 							go.MakeNameUnique();
 
-							EditorScene.Selection.Add( go );
+							Selection.Add( go );
 						}
+					}
+
+					if ( tr is { } trace )
+					{
+						PlaceBoundsOnSurface( Selection.OfType<GameObject>(), trace.HitPosition, trace.Normal );
 					}
 				}
 			}
@@ -577,6 +618,30 @@ public static class EditorScene
 		catch
 		{
 			Log.Warning( "Failed to paste, invalid JSON." );
+		}
+	}
+
+	/// <summary>
+	/// Helper function to offset gameobjects to surface bounds.
+	/// </summary>
+	public static void PlaceBoundsOnSurface( IEnumerable<GameObject> gos, Vector3 position, Vector3 normal )
+	{
+		var selectionBounds = BBox.FromBoxes( gos.Select( x => x.GetBounds() ) );
+		var selectionCenter = selectionBounds.Center;
+		var maxDot = float.NegativeInfinity;
+
+		foreach ( var corner in selectionBounds.Corners )
+		{
+			var d = Vector3.Dot( corner - selectionCenter, normal );
+			if ( d > maxDot ) maxDot = d;
+		}
+
+		var pastePos = position + normal * maxDot;
+		var offset = pastePos - selectionCenter;
+
+		foreach ( var o in gos )
+		{
+			o.WorldPosition += offset;
 		}
 	}
 

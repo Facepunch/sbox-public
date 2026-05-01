@@ -4,11 +4,11 @@ global using System;
 global using System.Collections.Generic;
 global using System.Linq;
 global using System.Threading.Tasks;
-global using static Sandbox.Internal.GlobalGameNamespace;
-using Menu;
+using MenuProject;
 using Sandbox;
 using Sandbox.Audio;
 using Sandbox.Internal;
+using Sandbox.UI.Construct;
 using Sandbox.UI.Dev;
 
 [Library]
@@ -19,9 +19,6 @@ public partial class MenuSystem : IMenuSystem
 	DevLayer Dev;
 
 	public Action<Package> OnPackageSelected { get; set; }
-
-	[MenuConVar( "show_version_overlay" )]
-	public static bool ShowOverlay { get; set; } = true;
 
 	public void Init()
 	{
@@ -44,6 +41,9 @@ public partial class MenuSystem : IMenuSystem
 
 	public void Shutdown()
 	{
+		gameClosingPanel?.Delete();
+		gameClosingPanel = null;
+
 		MenuOverlay.Shutdown();
 
 		Dev?.Delete();
@@ -54,6 +54,8 @@ public partial class MenuSystem : IMenuSystem
 	}
 
 	Package oldGamePackage;
+
+	GameClosing gameClosingPanel;
 
 	public void Tick()
 	{
@@ -66,17 +68,61 @@ public partial class MenuSystem : IMenuSystem
 			if ( MenuUtility.GamePackage is not null )
 			{
 				var panel = new GameStarting();
-				panel.Parent = MenuOverlay.Instance.PopupCanvasTopLeft;
+				panel.Parent = MenuOverlay.Instance.TopLeft;
 			}
 		}
 
+		TickEscapeToClose();
 		UpdateMusic();
 	}
 
+	void TickEscapeToClose()
+	{
+		if ( Game.InGame )
+		{
+			var startDelay = 0.2f;
+			var holdDelay = 1.5f;
+
+			if ( MenuUtility.EscapeTime > startDelay )
+			{
+				var et = MenuUtility.EscapeTime - startDelay;
+
+				if ( !gameClosingPanel.IsValid() )
+				{
+					gameClosingPanel = new GameClosing();
+					gameClosingPanel.Parent = MenuOverlay.Instance.TopCenter;
+				}
+
+				gameClosingPanel.Progress = Math.Clamp( et / holdDelay, 0f, 1f );
+				gameClosingPanel.StateHasChanged();
+
+				if ( gameClosingPanel.Progress >= 1 )
+				{
+					gameClosingPanel?.Delete();
+					gameClosingPanel = null;
+					Game.Close();
+				}
+			}
+			else
+			{
+				gameClosingPanel?.Delete();
+				gameClosingPanel = null;
+			}
+		}
+		else
+		{
+			gameClosingPanel?.Delete();
+			gameClosingPanel = null;
+		}
+	}
 
 	public void Popup( string type, string title, string subtitle )
 	{
-		MenuOverlay.Message( type, title, subtitle );
+		var content = new Panel( null, "popup has-message" );
+		content.AddClass( type );
+		content.Add.Label( title, "message" );
+		content.Add.Label( subtitle, "subtitle" );
+		MenuOverlay.Queue( content );
 	}
 
 	/// <summary>
@@ -89,8 +135,8 @@ public partial class MenuSystem : IMenuSystem
 
 	public string Url
 	{
-		get => MainMenuPanel.Instance.Navigator.CurrentUrl;
-		set => MainMenuPanel.Instance.Navigator.Navigate( value );
+		get => MainMenu.Instance.Navigator.CurrentUrl;
+		set => MainMenu.Instance.Navigator.Navigate( value );
 	}
 
 	public bool ForceCursorVisible => DeveloperMode.Open;
@@ -139,7 +185,7 @@ public partial class MenuSystem : IMenuSystem
 			}
 
 			player.Volume = Volume * TargetVolume;
-			player.Position = new Vector3( 0, 0, 0 );
+			player.Position = Vector3.Zero;
 			player.ListenLocal = true;
 			player.TargetMixer = Mixer.FindMixerByName( "music" );
 		}
@@ -151,10 +197,10 @@ public partial class MenuSystem : IMenuSystem
 
 	void UpdateMusic()
 	{
-		bool isAvatarMenu = Game.ActiveScene.Get<AvatarEditManager>() != null;
+		bool isAvatarMenu = Game.ActiveScene?.Get<AvatarEditManager>() != null;
 		bool isLoadingScreen = LoadingScreen.IsVisible;
 
-		menu.Enabled = Game.IsMainMenuVisible && !isLoadingScreen && !isAvatarMenu;
+		menu.Enabled = false;
 		menu.Update();
 
 		loading.Enabled = LoadingScreen.IsVisible && (IGameInstance.Current is null || IGameInstance.Current.IsLoading);
@@ -168,7 +214,7 @@ public partial class MenuSystem : IMenuSystem
 	void IMenuSystem.OnPackageClosed( Package package )
 	{
 		var panel = new GameClosedToast() { Package = package };
-		panel.Parent = MenuOverlay.Instance.PopupCanvasBottomRight;
+		MenuOverlay.Instance.BottomRight.Queue( panel, duration: 0, clickToDismiss: false );
 	}
 
 	[MenuConCmd( "menu_packageclosed" )]
@@ -176,5 +222,17 @@ public partial class MenuSystem : IMenuSystem
 	{
 		var package = await Package.FetchAsync( ident, false );
 		((IMenuSystem)MenuSystem.Instance).OnPackageClosed( package );
+	}
+
+	public Action<string, long> OnPackageUsageChanged { get; set; }
+
+	public void PackageUsageChanged( string packageIdent, long userCount )
+	{
+		OnPackageUsageChanged?.InvokeWithWarning( packageIdent, userCount );
+	}
+
+	public void PackageFavouritesChanged( string packageIdent, long value )
+	{
+		// ignore for now
 	}
 }

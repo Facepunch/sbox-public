@@ -534,8 +534,13 @@ public static partial class Gizmo
 		/// </summary>
 		public void Sprite( Vector3 center, float size, string texture )
 		{
-			using var tex = Texture.Load( texture );
-			Sprite( center, size, tex );
+			// Textures will get destroyed automatically if they get garbage collected,
+			// and we don't want to immediately dispose after use here otherwise the
+			// same texture will get loaded from scratch over and over again.
+
+#pragma warning disable CA2000 // Dispose objects before losing scope
+			Sprite( center, size, Texture.Load( texture ) );
+#pragma warning restore CA2000
 		}
 
 		/// <summary>

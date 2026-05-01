@@ -1,0 +1,135 @@
+@using MenuProject
+@using Sandbox.UI;
+@using Sandbox.UI.Navigation;
+@using Sandbox;
+@using Menu;
+@using System;
+@namespace Sandbox.UI
+@inherits Panel
+
+<root>
+    <div class="autocomplete" onmouseup=@BlurSearch>
+        <div class="wrapper">
+            <div class="inner-empty">
+                <VerticalGameList Icon="person" Title="Active Now" Query="type:game sort:playersnow" />
+            </div>
+
+            <div class="inner-query">
+                @foreach (var package in ComputeSuggestedPackages())
+                {
+                    <PackageCard Size=@PackageCard.SizeType.List Package=@package Clicked="@(() => package.OpenModal())" />
+                }
+            </div>
+        </div>
+
+        <TextEntry @ref="SearchText" onfocus=@SearchTextFocus onblur=@SearchTextBlur 
+            OnTextEdited=@SearchTextEdited Placeholder="Search for games..." onsubmit=@Submit Icon="search" />
+
+    </div>
+</root>
+
+@code {
+    private TextEntry SearchText { get; set; }
+
+    TimeSince timeSinceFocused;
+
+    void BlurSearch()
+    {
+        if (timeSinceFocused < 0.1f)
+            return;
+
+        SearchText?.Blur();
+    }
+
+    void SearchTextEdited(string query)
+    {
+        SetClass("has-query", !string.IsNullOrEmpty(query));
+
+        awaitingAutocomplete = true;
+        timeSinceEdited = 0;
+    }
+
+    void SearchTextFocus()
+    {
+        timeSinceFocused = 0;
+        SetClass("autocomplete-active", true);
+    }
+
+    void SearchTextBlur()
+    {
+        SetClass("autocomplete-active", false);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await UpdateList();
+    }
+
+    async Task UpdateList()
+    {
+        Result = await Package.FindAsync("type:game sort:playersnow", 5);
+
+        StateHasChanged();
+    }
+
+    protected override int BuildHash()
+    {
+        return System.HashCode.Combine(Result, AutocompleteResult, SearchText?.Value, awaitingAutocomplete);
+    }
+
+    private Sandbox.Package.FindResult Result { get; set; }
+
+    string[] ComputeSuggestedTags()
+    {
+        if (Result == null)
+            return new string[] { "..." };
+
+        // From the last 5 packages, grab 3 tags, deduplicate, sort by most common
+        return Result.Packages
+            .Take(5)
+            .SelectMany(p => p.Tags.Take(3))
+            .GroupBy(t => t)
+            .OrderByDescending(g => g.Count())
+            .Select(g => g.Key)
+            .ToArray();
+    }
+
+    private bool awaitingAutocomplete;
+    private TimeSince timeSinceEdited;
+
+    private Sandbox.Package.FindResult AutocompleteResult { get; set; }
+
+    async Task FetchAutocomplete()
+    {
+        AutocompleteResult = await Package.FindAsync($"type:game {SearchText?.Value}", 5);
+    }
+
+    Package[] ComputeSuggestedPackages()
+    {
+        if (string.IsNullOrEmpty(SearchText?.Value))
+            return Array.Empty<Package>();
+
+        if (AutocompleteResult == null)
+            return Array.Empty<Package>();
+
+        return AutocompleteResult.Packages.ToArray();
+    }
+
+    public override void Tick()
+    {
+        if (!awaitingAutocomplete)
+            return;
+
+        if (timeSinceEdited < 0.5f)
+            return;
+
+        awaitingAutocomplete = false;
+        _ = FetchAutocomplete();
+    }
+
+    private void Submit()
+    {
+        Log.Info("Submit");
+        this.GetNavigator().Navigate( $"/games/all?Query={SearchText?.Value}" );
+    }
+}

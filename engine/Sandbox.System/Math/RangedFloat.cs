@@ -3,6 +3,8 @@ using Sandbox;
 using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using System.Globalization;
+
 
 /// <summary>
 /// A float between two values, which can be randomized or fixed.
@@ -126,13 +128,13 @@ public partial struct RangedFloat
 		return Range == RangeType.Between ? SandboxSystem.Random.Float( Min, Max ) : Min;
 	}
 
-	[GeneratedRegex( """^[\[\]\s"]*(?<min>-?\d+(?:\.\d+)?)(?:[\s,;]+(?<max>-?\d+(?:\.\d+)?))?(?:[\s,;]+(?<format>\d+))?[\[\]\s"]*$""" )]
+	[GeneratedRegex( """^[\[\]\s"]*(?<min>-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?:[\s,;]+(?<max>-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?))?(?:[\s,;]+(?<format>\d+))?[\[\]\s"]*$""" )]
 	private static partial Regex Pattern();
 
 	private static float? ParseOptionalFloat( Group group )
 	{
 		if ( !group.Success ) return default;
-		return float.TryParse( group.Value, out var value ) ? value : 0f;
+		return float.TryParse( group.Value, CultureInfo.InvariantCulture, out var value ) ? value : 0f;
 	}
 
 	private static int? ParseOptionalInt( Group group )
@@ -179,8 +181,8 @@ public partial struct RangedFloat
 	{
 		return Range switch
 		{
-			RangeType.Fixed => Min.ToString( "R" ),
-			RangeType.Between => $"{Min:R} {Max:R}",
+			RangeType.Fixed => Min.ToString( "G9", CultureInfo.InvariantCulture ),
+			RangeType.Between => FormattableString.Invariant( $"{Min:G9} {Max:G9}" ),
 			_ => "0"
 		};
 	}

@@ -56,7 +56,7 @@ namespace Sandbox.Internal.JsonConvert
 
 		public override void Write( Utf8JsonWriter writer, Rotation val, JsonSerializerOptions options )
 		{
-			writer.WriteStringValue( $"{val.x:0.#################################},{val.y:0.#################################},{val.z:0.#################################},{val.w:0.#################################}" );
+			writer.WriteStringValue( string.Create( System.Globalization.CultureInfo.InvariantCulture, $"{val.x:G9},{val.y:G9},{val.z:G9},{val.w:G9}" ) );
 		}
 	}
 }

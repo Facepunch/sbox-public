@@ -1,4 +1,4 @@
-@import '/styles/mainmenu.scss';
+@import '/styles/_Theme.scss';
 
 SettingsModal
 {
@@ -7,7 +7,6 @@ SettingsModal
         width: 1000px;
         height: 800px;
         pointer-events: all;
-        border-radius: 10px;
         z-index: 50;
         backdrop-filter: blur(8px);
         gap: 8px;

@@ -120,6 +120,11 @@ namespace Topten.RichTextKit
 		FontVariant FontVariant { get; }
 
 		/// <summary>
+		/// Numeric variant selection (eg: tabular-width numerals).
+		/// </summary>
+		FontVariantNumeric FontVariantNumeric { get; }
+
+		/// <summary>
 		/// Text direction override for this span
 		/// </summary>
 		TextDirection TextDirection { get; }

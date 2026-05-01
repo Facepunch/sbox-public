@@ -1,0 +1,20 @@
+@namespace Menu
+@inherits Sandbox.UI.Panel
+@using Sandbox.UI
+
+<root class="@StyleClass">
+    @ChildContent
+
+    @if (Number.HasValue)
+    {
+        <label class="number">@Number.Value</label>
+    }
+</root>
+
+@code
+{
+    [Parameter] public int? Number { get; set; }
+    [Parameter] public string Type { get => StyleClass; set => StyleClass = value; }
+    
+    string StyleClass { get; set; }
+}

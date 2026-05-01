@@ -6,6 +6,8 @@ public class BrushPreviewSceneObject : SceneCustomObject
 	public float Radius { get; set; } = 16.0f;
 	public Color Color { get; set; } = Color.White;
 
+	static Material material = Material.FromShader( "shaders/terrain_brush.shader" );
+
 	public BrushPreviewSceneObject( SceneWorld world ) : base( world )
 	{
 		RenderLayer = SceneRenderLayer.Default;
@@ -13,8 +15,6 @@ public class BrushPreviewSceneObject : SceneCustomObject
 
 	public override void RenderSceneObject()
 	{
-		var material = Material.FromShader( "shaders/terrain_brush.shader" );
-
 		VertexBuffer buffer = new();
 		buffer.Init( true );
 

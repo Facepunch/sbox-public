@@ -1,0 +1,73 @@
+﻿@import '/styles/_theme.scss';
+@import '/styles/_button.scss';
+
+PartyMenu
+{
+	&.popup-panel
+	{
+		background-color: $default-900;
+		padding: 16px;
+		border-radius: $rounding-large $rounding-large 0 0;
+		border-bottom: 3px solid #477fe7;
+		overflow: visible;
+		width: 300px;
+		font-family: Poppins;
+		font-size: 14px;
+		gap: 4px;
+
+		&.visible
+		{
+			opacity: 1;
+			bottom: 90px;
+		}
+	}
+
+	> .arrow
+	{
+		color: #477fe7;
+		position: absolute;
+		bottom: -30px;
+		left: 0px;
+		font-size: 48px;
+	}
+
+	> .header
+	{
+		gap: 8px;
+	}
+
+	> row
+	{
+		flex-direction: row;
+		gap: 16px;
+		align-items: center;
+		padding: 0px 16px;
+		font-weight: 500;
+
+		.control-label
+		{
+			min-width: 110px;
+			text-align: right;
+		}
+
+		.control
+		{
+			flex-grow: 1;
+
+			TextEntry, .textentry
+			{
+				width: 100%;
+				font-size: 11px;
+				padding: 4px;
+				border-radius: $rounding-default;
+				background-color: $default-950;
+			}
+		}
+	}
+
+	> .footer
+	{
+		margin-top: 32px;
+		justify-content: flex-end;
+	}
+}

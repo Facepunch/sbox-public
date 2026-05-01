@@ -1,0 +1,195 @@
+$font-default: "Inter";
+$font-heading: "Poppins";
+
+$primary-blue: #3273eb;
+$primary-blue-dark: #214D9E;
+$primary-green: #63d96b;
+$primary-red: #ff5d6a;
+$primary-yellow: #ffbd32;
+
+$default-50: #C2C9DB;
+$default-100: #B5BED4;
+$default-200: #9BA7C4;
+$default-300: #8291B5;
+$default-400: #687AA6;
+$default-500: #556691;
+$default-600: #465477;
+$default-700: #37425D;
+$default-800: #283043;
+$default-900: #191D2A;
+$default-950: #11141D;
+
+$default-text: #fafaff;
+$default-text-light: $default-50;
+
+$text-eyebrow: 10px;
+$text-small: 12px;
+$text-regular: 14px;
+$text-medium: 16px;
+$text-large: 16px;
+$text-heading: 16px;
+
+$default-border: rgba( $default-50, 0.1 );
+
+$rounding-xsmall: 2px;
+$rounding-small: 4px;
+$rounding-default: 6px;
+$rounding-large: 8px;
+
+$easing: ease;
+
+$screen-w-xl: 1920px;
+$screen-w-md: 1280px;
+
+MainMenu {
+    font-size: $text-regular;
+    color: $default-text;
+    font-family: $font-default;
+}
+
+label {
+    &.medium {
+        font-size: $text-medium;
+        font-family: $font-heading;
+        font-weight: 600;
+    }
+
+    &.large {
+        font-size: $text-large;
+        font-family: $font-heading;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    &.small {
+        font-weight: 600;
+        font-size: $text-small;
+    }
+
+    &.heading {
+        color: $default-text-light;
+        font-size: $text-heading;
+        font-family: $font-heading;
+        font-weight: 700;
+    }
+
+    &.eyebrow {
+        font-family: $font-heading;
+        font-size: $text-eyebrow;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: $default-100;
+        font-weight: 700;
+    }
+}
+
+icon {
+    font-family: "Material Icons";
+    font-size: $text-regular;
+    color: $default-text;
+
+    &.medium {
+        font-size: $text-medium;
+        font-family: "Material Icons";
+    }
+
+    &.large {
+        font-size: $text-large;
+    }
+
+    &.small {
+        font-size: $text-small;
+    }
+
+    &.heading {
+        color: $default-text-light;
+        font-size: $text-medium;
+    }
+
+    &.eyebrow {
+        font-size: $text-eyebrow;
+        color: $default-100;
+    }
+}
+
+row {
+    align-items: center;
+    gap: 4px;
+}
+
+column {
+    flex-direction: column;
+    gap: 4px;
+}
+
+div.grow {
+    flex-grow: 1;
+}
+
+separator {
+    background-color: rgba( $default-50, 0.1 );
+
+    &.vertical {
+        height: 100%;
+        width: 1px;
+        margin: 0 4px;
+    }
+
+    &.horizontal {
+        height: 1px;
+        margin: 4px 0;
+    }
+}
+
+@mixin border {
+    border: 1px solid $default-border;
+
+    &:hover {
+        border-color: rgba( $primary-blue, 1 );
+    }
+
+    &:focus {
+        border-color: rgba( $primary-blue, 1 );
+    }
+}
+
+@mixin border-transparent {
+    border: 1px solid transparent;
+
+    &:hover {
+        border-color: rgba( $primary-blue, 1 );
+    }
+
+    &:focus {
+        border-color: rgba( $primary-blue, 1 );
+    }
+}
+
+@mixin glow {
+    box-shadow: 0 0 2px #7dabff, 0 0 3px rgba( $primary-blue, 1 ), 0 0 10px rgba( $primary-blue, 0.5 );
+}
+
+@mixin card-hover {
+    @include border-transparent;
+    pointer-events: all;
+    cursor: pointer;
+    transition: all 150ms $easing;
+
+    .image {
+        transition: all 150ms $easing;
+    }
+
+    &:hover {
+        box-shadow: 0 0 16px rgba( black, 0.33 );
+
+        .image {
+            background-image-tint: $default-50;
+            filter: brightness( 2.0 );
+        }
+    }
+}
+
+TextEntry {
+    caret-color: $default-300;
+}
+

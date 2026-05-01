@@ -91,7 +91,7 @@ public abstract class BasePostProcess : Component, Component.ExecuteInEditor, Co
 		/// <summary>
 		/// Shortcut to build a blit mode that copies the backbuffer first
 		/// </summary>
-		public static BlitMode WithBackbuffer( Material m, Stage stage, int order = 0, bool mip = false ) => new BlitMode { Material = m, RenderStage = stage, Order = order, WantsBackbuffer = true, WantsBackbufferMips = true };
+		public static BlitMode WithBackbuffer( Material m, Stage stage, int order = 0, bool mip = false ) => new BlitMode { Material = m, RenderStage = stage, Order = order, WantsBackbuffer = true, WantsBackbufferMips = mip };
 	}
 
 	/// <summary>

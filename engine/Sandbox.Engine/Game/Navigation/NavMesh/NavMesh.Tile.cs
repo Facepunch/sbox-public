@@ -17,6 +17,11 @@ internal class NavMeshTile : IDisposable
 
 	public bool IsHeightFieldValid => _compressedHeightField != null;
 
+	/// <summary>
+	/// True if the cached heightfield originates from baked data rather than live geometry.
+	/// </summary>
+	public bool IsBakedHeightField { get; private set; }
+
 	public byte[] CompressedHeightField => _compressedHeightField;
 
 	public void HeightfieldBuildComplete()
@@ -71,19 +76,23 @@ internal class NavMeshTile : IDisposable
 
 	public void SetCachedHeightField( CompactHeightfield chf )
 	{
-		_compressedHeightField = null;
-
 		if ( chf == null )
 		{
+			_compressedHeightField = null;
 			return;
 		}
 
-		_compressedHeightField = Compress( chf );
+		// Atomic swap: compress first, then assign in one step to avoid
+		// a window where concurrent readers see null
+		var compressed = Compress( chf );
+		_compressedHeightField = compressed;
+		IsBakedHeightField = false;
 	}
 
 	internal void SetCompressedHeightField( byte[] compressedData )
 	{
 		_compressedHeightField = compressedData;
+		IsBakedHeightField = true;
 	}
 
 	public void DispatchNavmeshBuild( NavMesh navMesh )

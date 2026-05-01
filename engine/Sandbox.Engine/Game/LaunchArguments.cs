@@ -43,7 +43,7 @@ public static class LaunchArguments
 		Map = default;
 		Privacy = default;
 		ServerName = default;
-		MaxPlayers = 1;
+		MaxPlayers = 0;
 	}
 
 	// TODO - save launch arguments and restore them, per game.

@@ -1,4 +1,5 @@
 ﻿using Sandbox.Mounting;
+using System;
 
 namespace Editor;
 
@@ -46,6 +47,7 @@ internal class MountAsset : Asset
 
 	public override List<Asset> GetReferences( bool deep ) => new List<Asset>();
 	public override List<Asset> GetDependants( bool deep ) => new List<Asset>();
+	public override List<Asset> GetParents( bool deep ) => new List<Asset>();
 	public override List<string> GetAdditionalContentFiles() => new List<string>();
 	public override List<string> GetAdditionalGameFiles() => new List<string>();
 	public override List<string> GetInputDependencies() => new List<string>();
@@ -92,6 +94,24 @@ internal class MountAsset : Asset
 	{
 		var r = await file.GetOrCreate();
 		return r is not null;
+	}
+
+	/// <summary>
+	/// Mount resources are loaded via the mount system's <see cref="Sandbox.Mounting.ResourceLoader.GetOrCreate"/>, not from compiled files on disk.
+	/// This triggers the lazy load and registers the result.
+	/// </summary>
+	internal override bool TryLoadGameResource( Type t, out GameResource obj, bool allowCreate = false )
+	{
+		obj = null;
+
+		var result = file.GetOrCreate().Result;
+		if ( result is GameResource gr && gr.GetType().IsAssignableTo( t ) )
+		{
+			obj = gr;
+			return true;
+		}
+
+		return false;
 	}
 
 }

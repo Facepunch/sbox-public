@@ -143,6 +143,7 @@ public class EditorMainWindow : DockWindow
 			EditMenu.AddOption( "Cut", "cut", EditorScene.Cut, "editor.cut" );
 			EditMenu.AddOption( "Copy", "copy", EditorScene.Copy, "editor.copy" );
 			EditMenu.AddOption( "Paste", "paste", EditorScene.Paste, "editor.paste" );
+			EditMenu.AddOption( "Paste Special", "content_paste_go", EditorScene.PasteSpecial, "editor.paste-special" );
 			EditMenu.AddOption( "Paste As Child", null, EditorScene.PasteAsChild, "editor.paste-as-child" );
 			EditMenu.AboutToShow += OnEditMenuAboutToShow;
 		}
@@ -349,7 +350,16 @@ public class EditorMainWindow : DockWindow
 		if ( layout.Name is null ) return;
 		if ( layout.Json is null ) return;
 
-		DockManager.State = layout.Json;
+		var json = layout.Json;
+
+		// On first launch, open the project's startup scene instead of a blank untitled scene
+		var startupScene = Project.Current?.Config.GetMetaOrDefault<string>( "StartupScene", null );
+		if ( !string.IsNullOrWhiteSpace( startupScene ) )
+		{
+			json = json.Replace( "SceneDock:untitled", $"SceneDock:{startupScene}" );
+		}
+
+		DockManager.State = json;
 	}
 
 	/// <summary>

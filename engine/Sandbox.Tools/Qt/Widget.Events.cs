@@ -26,11 +26,22 @@ namespace Editor
 		/// </summary>
 		public bool IsPressed => CurrentlyPressedWidget == this;
 
-		internal void InternalWheelEvent( QWheelEvent e ) => OnWheel( new WheelEvent( e ) );
+		internal void InternalWheelEvent( QWheelEvent e ) => OnMouseWheel( new WheelEvent( e ) );
 
 		/// <summary>
 		/// Mouse wheel was scrolled while the mouse cursor was over this widget.
 		/// </summary>
+		protected virtual void OnMouseWheel( WheelEvent e )
+		{
+#pragma warning disable CS0618 // Type or member is obsolete
+			OnWheel( e );
+#pragma warning restore CS0618 // Type or member is obsolete
+		}
+
+		/// <summary>
+		/// Mouse wheel was scrolled while the mouse cursor was over this widget.
+		/// </summary>
+		[Obsolete( $"Use {nameof( OnMouseWheel )}" )]
 		protected virtual void OnWheel( WheelEvent e )
 		{
 
@@ -70,6 +81,9 @@ namespace Editor
 
 				// did we move significantly during the click?
 				if ( startClickPos.Distance( hitPos ) > 6.0f )
+					return;
+
+				if ( _isDragStart )
 					return;
 
 				InternalMouseClickEvent( e );
@@ -135,6 +149,7 @@ namespace Editor
 			{
 				canClick = !me.Accepted;
 				startClickPos = me.LocalPosition;
+				_isDragStart = false;
 			}
 
 			if ( me.RightMouseButton )
@@ -203,12 +218,18 @@ namespace Editor
 		public Action<Vector2> MouseMove;
 
 		/// <summary>
+		/// Protect against calling OnDragStart multiple times
+		/// </summary>
+		bool _isDragStart;
+
+		/// <summary>
 		/// Called when the mouse cursor is moved while being over this widget.
 		/// </summary>
 		protected virtual void OnMouseMove( MouseEvent e )
 		{
-			if ( IsDraggable && startClickPos.Distance( e.LocalPosition ) > 20 && (e.ButtonState & MouseButtons.Left) != 0 )
+			if ( IsDraggable && startClickPos.Distance( e.LocalPosition ) > 20 && (e.ButtonState & MouseButtons.Left) != 0 && !_isDragStart )
 			{
+				_isDragStart = true;
 				OnDragStart();
 			}
 

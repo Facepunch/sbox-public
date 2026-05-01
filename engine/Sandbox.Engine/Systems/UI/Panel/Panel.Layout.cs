@@ -13,9 +13,9 @@ public partial class Panel
 	public Box Box { get; init; } = new Box();
 
 	/// <summary>
-	/// If true, calls <see cref="DrawContent( ref RenderState )"/>.
+	/// If true, calls <see cref="DrawContent(PanelRenderer, ref RenderState)"/>.
 	/// </summary>
-	[Hide]
+	[Hide, Obsolete( "Use Draw" )]
 	public virtual bool HasContent => false;
 
 	/// <summary>
@@ -158,6 +158,7 @@ public partial class Panel
 		PushLengthValues();
 
 		ScaleToScreen = cascade.Scale;
+		var previousOpacity = Opacity;
 		Opacity = ComputedStyle.Opacity.Value * (Parent?.Opacity ?? 1.0f);
 		UpdateVisibility();
 
@@ -166,9 +167,14 @@ public partial class Panel
 			UpdateYoga();
 		}
 
+		if ( Opacity != previousOpacity )
+		{
+			IsRenderDirty = true;
+		}
+
 		if ( changed )
 		{
-			backgroundRenderDirty = true;
+			IsRenderDirty = true;
 
 			if ( Parent is not null )
 			{
@@ -322,6 +328,8 @@ public partial class Panel
 
 		//if ( YogaNode.HasNewLayout || parentPos != offset )
 		{
+			var previousRect = Box.Rect;
+
 			Box.Rect = YogaNode.YogaRect;
 
 			Box.Rect.Position += offset;
@@ -347,7 +355,10 @@ public partial class Panel
 			// panel - which should be super duper fine.
 			TransformMatrix = ComputedStyle.BuildTransformMatrix( Box.Rect.Size );
 
-			backgroundRenderDirty = true;
+			if ( previousRect != Box.Rect )
+			{
+				IsRenderDirty = true;
+			}
 		}
 
 		//
@@ -407,7 +418,11 @@ public partial class Panel
 	[Hide]
 	public Vector2 ScrollSize { get; private set; }
 
-	bool IsDragScrolling;
+	/// <summary>
+	/// Is this panel currently being scrolled by dragging?
+	/// </summary>
+	[Hide]
+	public bool IsDragScrolling { get; private set; }
 
 	/// <summary>
 	/// Layout the children of this panel.

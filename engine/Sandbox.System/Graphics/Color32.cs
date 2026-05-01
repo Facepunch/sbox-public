@@ -120,12 +120,6 @@ public struct Color32 : IEquatable<Color32>
 		return new Color32( (byte)(rgba >> 24), (byte)(rgba >> 16), (byte)(rgba >> 8), (byte)rgba );
 	}
 
-	internal static float SrgbGammaToLinear( float v )
-	{
-		v = v.Clamp( 0.0f, 1.0f );
-		return (v <= 0.04045f) ? (v / 12.92f) : (MathF.Pow( (v + 0.055f) / 1.055f, 2.4f ));
-	}
-
 	/// <summary>
 	/// Convert this object to <see cref="Color"/>.
 	/// </summary>
@@ -146,9 +140,7 @@ public struct Color32 : IEquatable<Color32>
 
 		if ( srgb )
 		{
-			c.r = SrgbGammaToLinear( c.r );
-			c.g = SrgbGammaToLinear( c.g );
-			c.b = SrgbGammaToLinear( c.b );
+			return c.ToLinear();
 		}
 
 		return c;

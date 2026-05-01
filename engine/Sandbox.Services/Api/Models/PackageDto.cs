@@ -72,6 +72,16 @@ public class PackageDto
 		// like allowing them to add titles or something. Stop short at uploading a screenshot or video for now.
 	}
 
+	/// <summary>
+	/// The amount of times this has been spawned
+	/// </summary>
+	public long Spawns { get; set; }
+
+	/// <summary>
+	/// The amount of players that have spawned this
+	/// </summary>
+	public long PlayerSpawns { get; set; }
+
 	public string DevLink( string append = "/" )
 	{
 		return $"{Org.Ident}/{Ident}{append}";

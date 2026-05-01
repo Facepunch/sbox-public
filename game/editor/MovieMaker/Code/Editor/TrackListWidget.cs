@@ -116,7 +116,7 @@ public sealed class TrackListWidget : Widget
 		SceneEditorSession.Selection.OnItemAdded -= OnSelectionAdded;
 	}
 
-	protected override void OnWheel( WheelEvent e )
+	protected override void OnMouseWheel( WheelEvent e )
 	{
 		Session.Editor.TimelinePanel?.Timeline.ScrollImmediate( e.Delta );
 	}

@@ -23,8 +23,11 @@ public partial class Terrain
 	/// </summary>
 	void CreateBuffers()
 	{
-		TerrainBuffer ??= new( 1 );
-		MaterialsBuffer ??= new( 64 );
+		if ( TerrainBuffer != null )
+			return;
+
+		TerrainBuffer = new( 1 );
+		MaterialsBuffer = new( 64 );
 
 		var gpuTerrain = new GPUTerrain()
 		{
@@ -150,6 +153,10 @@ public partial class Terrain
 		if ( Storage is null )
 			return;
 
+		// Buffer not yet created (e.g. during deserialization before OnEnabled)
+		if ( TerrainBuffer is null )
+			return;
+
 		var transform = Matrix.FromTransform( WorldTransform );
 
 		var gpuTerrain = new GPUTerrain()
@@ -178,6 +185,10 @@ public partial class Terrain
 			return;
 
 		if ( Storage is null )
+			return;
+
+		// Buffer not yet created (e.g. during deserialization before OnEnabled)
+		if ( MaterialsBuffer is null )
 			return;
 
 		var gpuMaterials = new GPUTerrainMaterial[64];

@@ -1,14 +1,20 @@
 namespace Sandbox;
 
+using Sandbox.Hashing;
 using Sandbox.Rendering;
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
+using System.Runtime.InteropServices;
 
 public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 {
 	private readonly record struct SystemOffset( IBatchedParticleSpriteRenderer System, int Offset, int ParticleCount );
 
-	Dictionary<RenderGroupKey, SpriteBatchSceneObject> RenderGroups = [];
+	/// <summary>Carries the data needed to configure a new <see cref="SpriteBatchSceneObject"/> from the original component state.</summary>
+	private readonly record struct RenderGroupConfig( InstanceGroupFlags Flags, RenderOptions RenderOptions, IReadOnlySet<uint> Tags );
+
+	Dictionary<ulong, SpriteBatchSceneObject> RenderGroups = [];
 
 	public SceneSpriteSystem( Scene scene ) : base( scene )
 	{
@@ -26,9 +32,13 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 	}
 
 	private readonly ConcurrentBag<Guid> _activeParticleEmitters = new();
-	private readonly ConcurrentBag<(Guid id, RenderGroupKey group, int offset, int count, int splotCount)> _particleProcessingResults = new();
+	private readonly ConcurrentBag<(Guid id, ulong group, IBatchedParticleSpriteRenderer system, int offset, int count, int splotCount, BBox bounds)> _particleProcessingResults = new();
 	private HashSet<Guid> _registeredSpriteRenderers = new();
 	private SpriteBatchSceneObject.SpriteData[] _sharedSprites;
+	private readonly List<SpriteRenderer> _allSprites = new();
+	private readonly HashSet<Guid> _activeParticleIds = new();
+	private readonly HashSet<Guid> _currentEnabledSprites = new();
+	private readonly List<Guid> _spritesToRemove = new();
 
 	internal unsafe void UpdateParticleSprites()
 	{
@@ -54,7 +64,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 				var keysToRemove = rg.Value.SpriteGroups.Keys.ToList();
 				foreach ( var key in keysToRemove )
 				{
-					rg.Value.SpriteGroups.Remove( key );
+					rg.Value.UnregisterSpriteGroup( key );
 				}
 			}
 			return;
@@ -74,6 +84,8 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 		foreach ( var particleSystem in spriteRenderers )
 		{
+			particleSystem.RenderTexture?.MarkUsed( ushort.MaxValue );
+
 			var particleRenderer = (ParticleRenderer)particleSystem;
 			int particleCount = particleRenderer.ParticleEffect.Particles.Count;
 			systemOffsets[systemIndex] = new( particleSystem, currentOffset, particleCount );
@@ -92,12 +104,10 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 			if ( systemInfo.ParticleCount == 0 ) return;
 
 			var particleRenderer = (ParticleRenderer)systemInfo.System;
-			var tags = particleRenderer.Tags;
-
 			var particleSystemID = particleRenderer.Id;
 			_activeParticleEmitters.Add( particleSystemID );
 
-			RenderGroupKey rendergroup = GetRenderGroupKey( systemInfo.System, (GameTags)particleRenderer.Tags, particleRenderer.RenderOptions );
+			var rendergroup = GetRenderGroupKey( systemInfo.System, (GameTags)particleRenderer.Tags, particleRenderer.RenderOptions );
 
 			// This is a very hot codepath, beware!
 			// Create span from the managed array starting at the correct offset with the correct length
@@ -108,42 +118,44 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 			if ( result.SpriteCount == 0 ) return;
 
-			_particleProcessingResults.Add( (particleSystemID, rendergroup, systemInfo.Offset, result.SpriteCount, result.SplotCount) );
+			_particleProcessingResults.Add( (particleSystemID, rendergroup, systemInfo.System, systemInfo.Offset, result.SpriteCount, result.SplotCount, result.Bounds) );
 		} );
 
 		// Cleanup inactive particle emitters
-		var activeIds = new HashSet<Guid>( _activeParticleEmitters );
+		_activeParticleIds.Clear();
+		foreach ( var id in _activeParticleEmitters ) _activeParticleIds.Add( id );
 		foreach ( var rg in RenderGroups )
 		{
-			var keysToRemove = rg.Value.SpriteGroups.Keys.Where( id => !activeIds.Contains( id ) ).ToList();
+			var keysToRemove = rg.Value.SpriteGroups.Keys.Where( id => !_activeParticleIds.Contains( id ) ).ToList();
 			foreach ( var key in keysToRemove )
 			{
-				rg.Value.SpriteGroups.Remove( key );
+				rg.Value.UnregisterSpriteGroup( key );
 			}
 		}
 
 		// Register buffers to corresponding render groups
-		foreach ( var (id, rendergroup, offset, count, splotCount) in _particleProcessingResults )
+		foreach ( var (id, rendergroup, system, offset, count, splotCount, bounds) in _particleProcessingResults )
 		{
 			foreach ( var rg in RenderGroups )
 			{
-				rg.Value.SpriteGroups.Remove( id );
+				rg.Value.UnregisterSpriteGroup( id );
 			}
 
 			// Create render group if needed
 			if ( !RenderGroups.ContainsKey( rendergroup ) )
 			{
-				CreateRenderGroup( rendergroup );
+				var particleRenderer = (ParticleRenderer)system;
+				CreateRenderGroup( rendergroup, BuildConfig( system, (GameTags)particleRenderer.Tags, particleRenderer.RenderOptions ) );
 			}
 
 			// Register in correct render group using shared block with offset and precomputed splot count
-			RenderGroups[rendergroup].RegisterSprite( id, _sharedSprites, offset, count, splotCount );
+			RenderGroups[rendergroup].RegisterSprite( id, _sharedSprites, offset, count, splotCount, bounds );
 		}
 
 		// Final cleanup for systems that no longer exist
 		foreach ( var rg in RenderGroups )
 		{
-			var keysToRemove = rg.Value.SpriteGroups.Keys.Where( id => !activeIds.Contains( id ) ).ToList();
+			var keysToRemove = rg.Value.SpriteGroups.Keys.Where( id => !_activeParticleIds.Contains( id ) ).ToList();
 			foreach ( var key in keysToRemove )
 			{
 				rg.Value.UnregisterSpriteGroup( key );
@@ -156,15 +168,18 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		if ( Application.IsHeadless )
 			return;
 
-		var allSprites = Scene.GetAllComponents<SpriteRenderer>();
-		var currentEnabledSprites = new HashSet<Guid>( allSprites.Count() );
+		_allSprites.Clear();
+		Scene.GetAll<SpriteRenderer>( _allSprites );
+		_currentEnabledSprites.Clear();
 
-		foreach ( var sprite in allSprites )
+		foreach ( var sprite in _allSprites )
 		{
 			if ( sprite.Enabled && sprite.GameObject.Active )
 			{
+				sprite.Texture?.MarkUsed( ushort.MaxValue );
+
 				// This is used to clean up inactive sprites
-				currentEnabledSprites.Add( sprite.Id );
+				_currentEnabledSprites.Add( sprite.Id );
 
 				if ( _registeredSpriteRenderers.Contains( sprite.Id ) )
 				{
@@ -178,18 +193,17 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 			}
 		}
 
-		// Animate all sprites in parallel
-		Parallel.ForEach( allSprites, sprite =>
-		{
-			lock ( sprite )
-			{
-				sprite.AdvanceFrame();
-			}
-		} );
+		// Animate all sprites in parallel - AdvanceFrame is uniform cost so no load balancing needed
+		Parallel.For( 0, _allSprites.Count, i => _allSprites[i].AdvanceFrame() );
 
 		// Registered sprites who are not enabled
-		var spritesToRemove = _registeredSpriteRenderers.Except( currentEnabledSprites ).ToArray();
-		foreach ( var spriteId in spritesToRemove )
+		_spritesToRemove.Clear();
+		foreach ( var spriteId in _registeredSpriteRenderers )
+		{
+			if ( !_currentEnabledSprites.Contains( spriteId ) )
+				_spritesToRemove.Add( spriteId );
+		}
+		foreach ( var spriteId in _spritesToRemove )
 		{
 			UnregisterSprite( spriteId );
 			_registeredSpriteRenderers.Remove( spriteId );
@@ -198,6 +212,8 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 	private void UpdateSprites()
 	{
+		using var _ = PerformanceStats.Timings.Render.Scope();
+
 		if ( Application.IsHeadless )
 			return;
 
@@ -210,7 +226,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		}
 	}
 
-	private static RenderGroupKey GetRenderGroupKey( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions )
+	private static ulong GetRenderGroupKey( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions )
 	{
 		var flags = InstanceGroupFlags.None;
 
@@ -236,20 +252,42 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 			flags |= InstanceGroupFlags.Opaque;
 		}
 
-		RenderGroupKey renderGroupKey = new()
-		{
-			GroupFlags = flags,
-			RenderLayer = renderOptions.Clone(),
-			Tags = [.. tags.TryGetAll()]
-		};
-		return renderGroupKey;
+		byte renderLayerFlags = (byte)(
+			(renderOptions.Game ? 1 : 0) |
+			(renderOptions.Overlay ? 2 : 0) |
+			(renderOptions.Bloom ? 4 : 0) |
+			(renderOptions.AfterUI ? 8 : 0)
+		);
+
+		var tokens = tags.GetTokens();
+		// Single buffer: [4 bytes flags][1 byte renderLayer][4*N bytes tokens] - bounded to 261 bytes by the guard.
+		Span<byte> buf = tokens.Count <= 64 ? stackalloc byte[5 + tokens.Count * 4] : new byte[5 + tokens.Count * 4];
+		MemoryMarshal.Write( buf, in flags );
+		buf[4] = renderLayerFlags;
+		var tokenSlice = MemoryMarshal.Cast<byte, uint>( buf[5..] );
+		int i = 0;
+		foreach ( var token in tokens ) tokenSlice[i++] = token;
+		MemoryExtensions.Sort( tokenSlice );
+
+		return XxHash3.HashToUInt64( buf );
+	}
+
+	private static RenderGroupConfig BuildConfig( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions )
+	{
+		var flags = InstanceGroupFlags.None;
+		if ( !component.Opaque && component.IsSorted ) flags |= InstanceGroupFlags.Transparent;
+		if ( component.Shadows && !component.Additive ) flags |= InstanceGroupFlags.CastShadow;
+		if ( component.Additive ) flags |= InstanceGroupFlags.Additive;
+		if ( component.Opaque ) flags |= InstanceGroupFlags.Opaque;
+
+		return new RenderGroupConfig( flags, renderOptions.Clone(), tags.GetTokens().ToFrozenSet() );
 	}
 
 	/// <summary>
 	/// Find the component's current render group - might be outdated if component has changed.
 	/// Returns null if not present in any
 	/// </summary>
-	private RenderGroupKey? FindCurrentRenderGroup( Guid componentId )
+	private ulong? FindCurrentRenderGroup( Guid componentId )
 	{
 		foreach ( var rg in RenderGroups )
 		{
@@ -262,35 +300,35 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		return null;
 	}
 
-	private bool IsPresentInRenderGroup( Guid componentId, RenderGroupKey renderGroup )
+	private bool IsPresentInRenderGroup( Guid componentId, ulong renderGroup )
 	{
 		return RenderGroups[renderGroup].ContainsSprite( componentId );
 	}
 
-	private void InsertInRenderGroup( Guid componentId, SpriteRenderer component, RenderGroupKey renderGroup )
+	private void InsertInRenderGroup( Guid componentId, SpriteRenderer component, ulong renderGroup )
 	{
 		Assert.True( RenderGroups.ContainsKey( renderGroup ) );
 		RenderGroups[renderGroup].RegisterSprite( componentId, component );
 	}
 
-	private void RemoveFromRenderGroup( Guid componentId, RenderGroupKey renderGroup )
+	private void RemoveFromRenderGroup( Guid componentId, ulong renderGroup )
 	{
 		Assert.True( IsPresentInRenderGroup( componentId, renderGroup ) );
 		RenderGroups[renderGroup].UnregisterSprite( componentId );
 	}
 
-	private SpriteBatchSceneObject CreateRenderGroup( RenderGroupKey renderGroupKey )
+	private SpriteBatchSceneObject CreateRenderGroup( ulong key, RenderGroupConfig config )
 	{
 		var renderGroupObject = new SpriteBatchSceneObject( Scene );
-		renderGroupObject.Flags.CastShadows = (renderGroupKey.GroupFlags & InstanceGroupFlags.CastShadow) != 0;
-		renderGroupObject.Flags.ExcludeGameLayer = (renderGroupKey.GroupFlags & InstanceGroupFlags.CastOnlyShadow) != 0;
-		renderGroupObject.Sorted = (renderGroupKey.GroupFlags & InstanceGroupFlags.Transparent) != 0;
-		renderGroupObject.Additive = (renderGroupKey.GroupFlags & InstanceGroupFlags.Additive) != 0;
-		renderGroupObject.Opaque = (renderGroupKey.GroupFlags & InstanceGroupFlags.Opaque) != 0;
-		renderGroupObject.Tags.SetFrom( new TagSet( renderGroupKey.Tags ) );
-		renderGroupKey.RenderLayer.Apply( renderGroupObject );
+		renderGroupObject.Flags.CastShadows = (config.Flags & InstanceGroupFlags.CastShadow) != 0;
+		renderGroupObject.Flags.ExcludeGameLayer = (config.Flags & InstanceGroupFlags.CastOnlyShadow) != 0;
+		renderGroupObject.Sorted = (config.Flags & InstanceGroupFlags.Transparent) != 0;
+		renderGroupObject.Additive = (config.Flags & InstanceGroupFlags.Additive) != 0;
+		renderGroupObject.Opaque = (config.Flags & InstanceGroupFlags.Opaque) != 0;
+		renderGroupObject.Tags.SetFrom( new TagSet( config.Tags.Select( StringToken.GetValue ) ) );
+		config.RenderOptions.Apply( renderGroupObject );
 
-		RenderGroups.Add( renderGroupKey, renderGroupObject );
+		RenderGroups.Add( key, renderGroupObject );
 		return renderGroupObject;
 	}
 
@@ -298,7 +336,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 	{
 		var key = GetRenderGroupKey( component, component.Tags as GameTags, component.RenderOptions );
 		if ( !RenderGroups.ContainsKey( key ) )
-			CreateRenderGroup( key );
+			CreateRenderGroup( key, BuildConfig( component, component.Tags as GameTags, component.RenderOptions ) );
 
 		InsertInRenderGroup( componentId, component, key );
 	}
@@ -306,7 +344,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 	internal void UpdateSprite( Guid componentId, SpriteRenderer component )
 	{
 		// If found in old renderGroup, we unregister it and register it in the new one
-		if ( FindCurrentRenderGroup( componentId ) is RenderGroupKey oldRenderGroup )
+		if ( FindCurrentRenderGroup( componentId ) is ulong oldRenderGroup )
 		{
 			var newRenderGroup = GetRenderGroupKey( component, (GameTags)component.Tags, component.RenderOptions );
 			if ( !oldRenderGroup.Equals( newRenderGroup ) )
@@ -329,35 +367,9 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 	internal void UnregisterSprite( Guid componentId )
 	{
-		if ( FindCurrentRenderGroup( componentId ) is RenderGroupKey rg )
+		if ( FindCurrentRenderGroup( componentId ) is ulong rg )
 		{
 			RenderGroups[rg].UnregisterSprite( componentId );
-		}
-	}
-
-	/// <summary>
-	/// A key that defines a render group used in SceneSpriteSystem. Each permutation of this object represent a different sprite batch.
-	/// </summary>
-	readonly record struct RenderGroupKey( InstanceGroupFlags GroupFlags, HashSet<string> Tags, RenderOptions RenderLayer )
-	{
-		public bool Equals( RenderGroupKey other )
-		{
-			return GroupFlags == other.GroupFlags && Tags.SetEquals( other.Tags ) && RenderLayer.Equals( other.RenderLayer );
-		}
-
-		public override int GetHashCode()
-		{
-			HashCode hash = new();
-			hash.Add( GroupFlags );
-
-			// Deterministic hashing for tags based on value instead of reference
-			foreach ( var tag in Tags.Order() )
-			{
-				hash.Add( tag );
-			}
-
-			hash.Add( RenderLayer );
-			return hash.ToHashCode();
 		}
 	}
 

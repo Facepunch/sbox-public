@@ -80,7 +80,7 @@ public sealed partial class Compiler : IDisposable
 	/// </summary>
 	private readonly Dictionary<Version, PortableExecutableReference> _recentMetadataReferences = new();
 
-	private IncrementalCompileState incrementalState = new IncrementalCompileState();
+	internal IncrementalCompileState incrementalState = new IncrementalCompileState();
 
 	/// <summary>
 	/// The compiler's settings. 

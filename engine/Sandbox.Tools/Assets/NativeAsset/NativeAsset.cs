@@ -150,6 +150,16 @@ internal class NativeAsset : Asset
 		return GetAssetList( list, true );
 	}
 
+	/// <summary>
+	/// Returns assets that are parents of this asset.
+	/// </summary>
+	public override List<Asset> GetParents( bool deep )
+	{
+		var list = NativeEngine.CUtlVectorAsset.Create( 4, 4 );
+		native.GetAssetsParentingMe( list, deep );
+		return GetAssetList( list, true );
+	}
+
 	List<Asset> GetAssetList( NativeEngine.CUtlVectorAsset v, bool free )
 	{
 		var l = new List<Asset>();

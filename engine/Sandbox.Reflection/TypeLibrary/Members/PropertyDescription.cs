@@ -1,4 +1,6 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Internal;
+
+namespace Sandbox;
 
 /// <summary>
 /// Describes a property. We use this class to wrap and return <see cref="PropertyInfo">PropertyInfo</see>'s that are safe to interact with.
@@ -9,20 +11,20 @@ public sealed class PropertyDescription : MemberDescription
 {
 	public override bool IsProperty => true;
 
-	PropertyInfo PropertyInfo => MemberInfo as PropertyInfo;
+	internal PropertyInfo PropertyInfo => MemberInfo as PropertyInfo;
 
 	internal static PropertyDescription Create( PropertyInfo i, TypeDescription td, MemberDescription previous )
 	{
 		PropertyDescription o = previous as PropertyDescription;
 
-		o ??= new PropertyDescription();
+		o ??= new PropertyDescription( td.library );
 		o.TypeDescription = td;
 		o.InitProperty( i );
 
 		return o;
 	}
 
-	internal PropertyDescription()
+	internal PropertyDescription( TypeLibrary tl ) : base( tl )
 	{
 
 	}
@@ -70,7 +72,7 @@ public sealed class PropertyDescription : MemberDescription
 	/// <summary>
 	/// Whether the setter of this property is init only.
 	/// </summary>
-	bool IsSetMethodInitOnly { get; set; }
+	internal bool IsSetMethodInitOnly { get; set; }
 
 	/// <summary>
 	/// Property type.

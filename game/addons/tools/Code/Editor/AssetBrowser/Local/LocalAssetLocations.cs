@@ -120,6 +120,9 @@ public class LocalAssetLocations : AssetLocations
 				continue;
 
 			var d = new DirectoryInfo( project.GetRootPath() );
+			if ( !d.Exists )
+				continue;
+
 			var loc = new DiskLocation( d );
 			LibrariesNode.AddItem( new FolderNode( loc ) );
 		}

@@ -143,7 +143,7 @@ public abstract partial class GameNetworkSystem : IDisposable
 		}
 		else
 		{
-			targetConnection.SendRawMessage( bs, flags );
+			targetConnection.SendStream( bs, flags );
 		}
 	}
 
@@ -166,7 +166,7 @@ public abstract partial class GameNetworkSystem : IDisposable
 			Log.Warning( e, $"Error when trying to network serialize object: {e.Message}" );
 		}
 
-		connection.SendRawMessage( bs, flags );
+		connection.SendStream( bs, flags );
 		bs.Dispose();
 	}
 
@@ -188,7 +188,7 @@ public abstract partial class GameNetworkSystem : IDisposable
 				Log.Warning( e, $"Error when trying to network serialize object: {e.Message}" );
 			}
 
-			connection.SendRawMessage( bs, flags );
+			connection.SendStream( bs, flags );
 
 			bs.Dispose();
 		}
@@ -248,7 +248,7 @@ public abstract partial class GameNetworkSystem : IDisposable
 	/// <summary>
 	/// A heartbeat has been received from the host. We should make sure our times are in sync.
 	/// </summary>
-	internal virtual void OnHeartbeat( float serverGameTime )
+	internal virtual void OnHeartbeat( double serverGameTime )
 	{
 
 	}

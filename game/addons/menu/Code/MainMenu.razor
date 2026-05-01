@@ -1,59 +1,43 @@
-@using MenuProject.MenuUI.Layout.MenuHeader
 @using Sandbox.UI;
 @using Sandbox.UI.Navigation;
 @using Sandbox;
 @using System;
 @using Menu;
-@using MenuProject.Social;
-@using MenuProject.Footer;
 @inherits PanelComponent
 
 <div class="mainmenu">
 
-    <NavigationHost @ref="Navigator" DefaultUrl="/front" class="navigator"> 
+    <NavigationHost DefaultUrl="/home" @ref="Navigator">
         <ChildContent>
 
-            <div class="mainmenu-header">
-                <MenuHeader />
-            </div>
+            <Navbar />
 
-            <div class="mainmenu-content">
-                <div id="MenuContent" slot="navigator-canvas"></div>
-            </div>
+            <div class="navigator-canvas" slot="navigator-canvas"></div>
+			<div class="overlay">
+				<div class="overlay-container">
+					<OfflineMode />
+					<PartyChat />
+				</div>
+			</div>
 
-            <div class="mainmenu-footer">
-                <MenuFooter></MenuFooter>
-            </div>
-            
+            <Footer />
+
         </ChildContent>
     </NavigationHost>
-
-	<Toasts></Toasts>
-
-    <div class="image-viewer @( showImage ? "active" : "" )" style="background-image: url( @viewImage ); transform-origin: @cursorPos.x% @cursorPos.y%;" @onclick="@( () => showImage = false )"></div>
-
 </div>
 
 @code
 {
-    public static MainMenu Instance { get; private set; }
+    [Property] public GameObject Background { get; set; }
     public NavigationHost Navigator { get; protected set; }
 
-    bool showImage;
-    string viewImage;
-
-    Vector2 cursorPos;
-
-    public MainMenu()
-    {
-        Instance = this;
-    }
+    public static MainMenu Instance { get; private set; }
 
     override protected void OnEnabled()
     {
         base.OnEnabled();
 
-        MenuUtility.Tick += MenuTick;
+        Instance = this;
 
         var human = Scene.Directory.FindByName("Player Human").FirstOrDefault();
         var citizen = Scene.Directory.FindByName("Player Citizen").FirstOrDefault();
@@ -64,62 +48,19 @@
 
         if ( citizen.IsValid() )
             citizen.Enabled = !clothing.PrefersHuman;
+
+        // Fetch resolutions now so opening the settings modal doesn't stutter later.
+        MenuProject.Settings.VideoSettings.FetchResolutions();
     }
 
-    override protected void OnDisabled()
-    {
-        base.OnDisabled();
 
-        MenuUtility.Tick -= MenuTick;
+
+    override protected void OnUpdate()
+    {
+        SetClass( "is-vr", Application.IsVR );
+        SetClass( "has-streamer-account", Sandbox.MenuEngine.Account.HasLinkedStreamerServices );
+
+        var isInGame = Application.IsEditor ? false : Game.InGame;
+        Background.Enabled = Navigator?.CurrentUrl == "/home" && !isInGame;
     }
-
-    public void ShowPopup(string imageUrl)
-    {
-        cursorPos = (Mouse.Position / Screen.Size) * 100.0f;
-        viewImage = imageUrl;
-        showImage = true;
-    }
-
-    static GameClosing gameClosingPanel;
-
-    void MenuTick()
-    {
-		if (Game.InGame && !Application.IsEditor)
-		{
-			var startDelay = 0.2f;
-			var holdDelay = 1.5f;
-
-			if (MenuUtility.EscapeTime > startDelay)
-			{
-				var et = MenuUtility.EscapeTime - startDelay;
-				if (!gameClosingPanel.IsValid())
-				{
-					gameClosingPanel = new GameClosing();
-					gameClosingPanel.Parent = MenuOverlay.Instance.PopupCanvasTop;
-				}
-
-				gameClosingPanel.Progress = (et / holdDelay);
-				gameClosingPanel.StateHasChanged();
-
-				if (gameClosingPanel.Progress > 1)
-					Game.Close();
-			}
-			else
-			{
-				gameClosingPanel?.Delete();
-				gameClosingPanel = null;
-			}
-		}
-		else
-		{
-			gameClosingPanel?.Delete();
-			gameClosingPanel = null;
-        }
-	}
-
-	override protected void OnUpdate()
-    {
-        SetClass("is-vr", Application.IsVR);
-		SetClass("has-streamer-account", Sandbox.MenuEngine.Account.HasLinkedStreamerServices);
-	}
 }

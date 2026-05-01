@@ -1,6 +1,6 @@
-﻿using System.Collections.Immutable;
-using System.Linq;
+﻿using System.Linq;
 using System.Text.Json.Serialization;
+using Sandbox.Diagnostics;
 using Sandbox.MovieMaker;
 using Sandbox.MovieMaker.Compiled;
 
@@ -17,14 +17,6 @@ public interface IPaintHintBlock : ITrackBlock
 	/// Gets time regions, within <paramref name="timeRange"/>, that have constantly changing values.
 	/// </summary>
 	IEnumerable<MovieTimeRange> GetPaintHints( MovieTimeRange timeRange );
-}
-
-/// <summary>
-/// A <see cref="ITrackBlock"/> that can change dynamically, usually for previewing edits / live recordings.
-/// </summary>
-public interface IDynamicBlock : ITrackBlock
-{
-	event Action<MovieTimeRange>? Changed;
 }
 
 /// <summary>
@@ -78,5 +70,20 @@ public sealed partial record PropertyBlock<T>( [property: JsonPropertyOrder( 100
 	PropertySignal IProjectPropertyBlock.Signal => Signal;
 
 	public IEnumerable<ICompiledPropertyBlock<T>> Compile( ProjectPropertyTrack<T> track ) =>
-		Signal.Compile( TimeRange, track.Project.SampleRate );
+		Compile( track.Project.SampleRate );
+
+	public IEnumerable<ICompiledPropertyBlock<T>> Compile( int? sampleRate = null )
+	{
+		var compiled = Signal.Compile( TimeRange, sampleRate ).ToArray();
+
+		Assert.AreEqual( TimeRange.Start, compiled[0].TimeRange.Start, "Compiled signal doesn't start at the expected time." );
+		Assert.AreEqual( TimeRange.End, compiled[^1].TimeRange.End, "Compiled signal doesn't end at the expected time." );
+
+		for ( var i = 1; i < compiled.Length; i++ )
+		{
+			Assert.AreEqual( compiled[i - 1].TimeRange.End, compiled[i].TimeRange.Start, "Compiled signal has non-adjacent blocks." );
+		}
+
+		return compiled;
+	}
 }
