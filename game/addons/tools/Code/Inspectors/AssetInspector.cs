@@ -83,7 +83,7 @@ public class AssetInspector : InspectorWidget
 			Scroller.Canvas.Layout = Layout.Column();
 			mainWidget.Layout.Add( Scroller );
 
-			if ( !so.IsMultipleTargets && !Asset.IsProcedural )
+			if ( !so.IsMultipleTargets && !Asset.IsProcedural && !Asset.AssetType.Flags.HasFlag( AssetTypeFlags.EditorOnly ) )
 			{
 				CreatePublishUI( Asset, Scroller.Canvas );
 			}
