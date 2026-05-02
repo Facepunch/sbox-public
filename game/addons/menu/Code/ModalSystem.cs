@@ -220,6 +220,13 @@ public class ModalSystem : IModalSystem
 		} );
 	}
 
+	public void DiscardChanges( Action<DiscardChangesModal.DiscardResult> onResult )
+	{
+		var modal = new DiscardChangesModal();
+		modal.OnResult = onResult;
+		Push( modal );
+	}
+
 	public bool IsModalOpen => HasModalsOpen();
 	public bool IsPauseMenuOpen => _pauseModal.IsValid() && _pauseModal.IsPauseMenuOpen();
 }
