@@ -444,7 +444,7 @@ float3 HSV2RGB( float3 c )
 	public static string TexTriplanar_Color => @"
 float4 TexTriplanar_Color( in Texture2D tTex, in SamplerState sSampler, float3 vPosition, float3 vNormal )
 {
-	float2 uvX = vPosition.zy;
+	float2 uvX = vPosition.yz;
 	float2 uvY = vPosition.xz;
 	float2 uvZ = vPosition.xy;
 
@@ -469,7 +469,7 @@ float4 TexTriplanar_Color( in Texture2D tTex, in SamplerState sSampler, float3 v
 	public static string TexTriplanar_Normal => @"
 float3 TexTriplanar_Normal( in Texture2D tTex, in SamplerState sSampler, float3 vPosition, float3 vNormal )
 {
-	float2 uvX = vPosition.zy;
+	float2 uvX = vPosition.yz;
 	float2 uvY = vPosition.xz;
 	float2 uvZ = vPosition.xy;
 
