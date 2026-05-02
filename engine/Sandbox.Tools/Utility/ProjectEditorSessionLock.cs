@@ -108,16 +108,22 @@ internal static class ProjectEditorSessionLock
 		popup.MessageLabel.Text = message;
 
 		popup.ButtonLayout.AddStretchCell();
-		popup.ButtonLayout.Add( new Button( "Cancel" ) { Clicked = () =>
+		popup.ButtonLayout.Add( new Button( "Cancel" )
+		{
+			Clicked = () =>
 		{
 			popup.Destroy();
 			tcs.TrySetResult( false );
-		} } );
-		popup.ButtonLayout.Add( new Button.Primary( "Open anyway" ) { Clicked = () =>
+		}
+		} );
+		popup.ButtonLayout.Add( new Button.Primary( "Open anyway" )
+		{
+			Clicked = () =>
 		{
 			popup.Destroy();
 			tcs.TrySetResult( true );
-		} } );
+		}
+		} );
 
 		popup.SetModal( true, true );
 		popup.Hide();
