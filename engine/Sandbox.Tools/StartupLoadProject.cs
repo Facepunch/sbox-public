@@ -67,7 +67,7 @@ static class StartupLoadProject
 		//
 		{
 			var projectList = new ProjectList();
-			projectList.TryAddFromFile( path );
+			projectList.TryAddFromFile( Project.Current.ConfigFilePath );
 			projectList.SaveList();
 		}
 
@@ -95,12 +95,14 @@ static class StartupLoadProject
 		if ( string.IsNullOrEmpty( path ) ) throw new ArgumentException( nameof( path ) );
 		Assert.IsNull( Project.Current );
 
+		var pathForLoad = ProjectEditorSessionLock.NormalizeProjectConfigPath( path );
+
 		// This kinda sucks but better than overcomplicating everything.. make sure to update the steps..
 		CurrentStep = 0;
 		TotalSteps = 16;
 
 		// should never be one existing once we remove all this shit
-		Project project = Project.AddFromFile( path, false );
+		Project project = Project.AddFromFile( pathForLoad, false );
 		var parentPackage = project.Config.GetMetaOrDefault<string>( "ParentPackage", null );
 
 		Step( "Initializing filesystem" );

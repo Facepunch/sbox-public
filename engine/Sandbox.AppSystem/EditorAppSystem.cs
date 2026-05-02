@@ -1,4 +1,7 @@
-﻿namespace Sandbox;
+﻿using System;
+using Editor;
+
+namespace Sandbox;
 
 /// <summary>
 /// Used for sbox-dev editor
@@ -44,10 +47,28 @@ public class EditorAppSystem : AppSystem
 		var path = Utility.CommandLine.GetSwitch( "-project", "" ).TrimQuoted();
 
 		Project project = new() { ConfigFilePath = path };
-		if ( project.LoadMinimal() )
-			return true;
+		if ( !project.LoadMinimal() )
+		{
+			NativeEngine.EngineGlobal.Plat_MessageBox( "Couldn't open project", $"Couldn't open project file: {path}" );
+			return false;
+		}
 
-		NativeEngine.EngineGlobal.Plat_MessageBox( "Couldn't open project", $"Couldn't open project file: {path}" );
-		return false;
+		// Before InitGame / long bootstrap: take per-project mutex so duplicate launches fail fast (see #10739).
+		try
+		{
+			var fullPath = ProjectEditorSessionLock.NormalizeProjectConfigPath( project.ConfigFilePath );
+			if ( !ProjectEditorSessionLock.TryEnterSessionAtStartupBlocking( fullPath ) )
+			{
+				Application.Exit();
+				return false;
+			}
+		}
+		catch ( ArgumentException )
+		{
+			NativeEngine.EngineGlobal.Plat_MessageBox( "Couldn't open project", $"Couldn't open project file: {path}" );
+			return false;
+		}
+
+		return true;
 	}
 }

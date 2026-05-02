@@ -389,6 +389,9 @@ public class HomeWidget : Widget
 
 	public void OpenProject( Project project, string args = null )
 	{
+		if ( !ProjectEditorSessionLock.TryConfirmLaunchFromHubBeforeSpawn( project.ConfigFilePath ) )
+			return;
+
 		ProcessStartInfo info = new ProcessStartInfo( "sbox-dev.exe", $"{Environment.CommandLine} -project \"{project.ConfigFilePath}\" {args ?? ""}" );
 		info.UseShellExecute = true;
 		info.CreateNoWindow = true;

@@ -1,3 +1,4 @@
+using Editor;
 using NativeEngine;
 using Sandbox.Audio;
 using Sandbox.Engine;
@@ -43,6 +44,7 @@ internal class ToolsDll : IToolsDll
 
 	public void Exiting()
 	{
+		ProjectEditorSessionLock.ReleaseIfHeld();
 		EditorEvent.Run( "app.exit" );
 		EditorCookie?.Save();
 		ProjectCookie?.Save();
