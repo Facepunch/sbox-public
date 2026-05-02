@@ -220,6 +220,13 @@ public class ModalSystem : IModalSystem
 		} );
 	}
 
+	public void DiscardChanges( Action<DiscardChangesModal.DiscardResult> onResult )
+	{
+		var modal = new DiscardChangesModal();
+		modal.OnResult = onResult;
+		Push( modal );
+	}
+
 	public void Report( string packageIdent )
 	{
 		Push( new ReportModal() { PackageIdent = packageIdent } );
