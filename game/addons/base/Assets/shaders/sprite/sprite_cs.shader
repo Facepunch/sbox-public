@@ -63,13 +63,14 @@ CS
 		float3 Velocity;
 		float4 BlendSheetUV;
 		float2 Offset;
+		float SortDepthBias;
+		uint SortBiasInKey;
 	};
 	StructuredBuffer<SpriteData> SpriteBuffer < Attribute( "Sprites" ); >;
 	RWStructuredBuffer<SpriteData> SpriteBufferOut < Attribute( "SpriteBufferOut" ); >;
 
 	// Sorting related
 	RWStructuredBuffer<float> DistanceBuffer < Attribute( "DistanceBuffer" ); >;
-	float3 CameraPosition < Attribute ("CameraPosition"); >;
 
 	int SpriteCount < Attribute( "SpriteCount"); >;
 	RWStructuredBuffer<int> AtomicCounter < Attribute( "AtomicCounter" ); >;
@@ -130,17 +131,22 @@ CS
 	}
 
 	#define FLT_MAX 3.402823466e+38f
+	#define SORT_BIAS_DIST_SCALE ( 22.0f / 8388608.0f )
+
+	// applyBiasToKey: particle By Distance adds scaled SortDepthBias to the sort key.
+	float SortKeyFromWorldPos( float3 worldPosition, float sortBias, uint applyBiasToKey )
+	{
+		float3 delta = worldPosition - g_vCameraPositionWs.xyz;
+		float distSq = dot( delta, delta );
+		if ( applyBiasToKey == 0 )
+			return distSq;
+		float biasScale = max( distSq * SORT_BIAS_DIST_SCALE, 0.18f );
+		return distSq + sortBias * biasScale;
+	}
 
 	groupshared int groupWriteSize[64];
     groupshared int groupWriteOffset[64];
     groupshared int groupBaseOffset;
-
-	// Here we calculate sqrt distance, its faster
-	float CalculateDistance(float3 worldPosition)
-	{
-		float3 delta = (worldPosition - CameraPosition);
-		return dot(delta, delta);
-	}
 
 	[numthreads( 64, 1, 1 ) ]
 	void MainCs( uint2 dispatchId : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID )
@@ -150,12 +156,17 @@ CS
 		bool isValid = i < SpriteCount;
 
 		SpriteData sprite = SpriteBuffer[i];
-		float3 cameraAxis = g_vCameraDirWs;
-		float3 cameraUp = g_vCameraUpDirWs;
 
 		// Transfer sprite to out buffer
 		if(isValid)
 		{
+			float3 toCamera = g_vCameraPositionWs.xyz - sprite.Position;
+			float distToCam = length( toCamera );
+			if ( distToCam > 1e-5f )
+				sprite.Position += ( toCamera / distToCam ) * sprite.SortDepthBias;
+			else if ( length( g_vCameraDirWs.xyz ) > 1e-5f )
+				sprite.Position -= normalize( g_vCameraDirWs.xyz ) * sprite.SortDepthBias;
+
 			if ( sprite.RotationOffset > -1 )
 			{	
 				float4 ss = mul( g_matWorldToView, float4( sprite.Velocity, 0 ) );
@@ -165,7 +176,7 @@ CS
 			}
 
 
-			DistanceBuffer[i] = CalculateDistance(sprite.Position);
+			DistanceBuffer[i] = SortKeyFromWorldPos( sprite.Position, sprite.SortDepthBias, sprite.SortBiasInKey );
 			SpriteBufferOut[i] = sprite;
 		}
 		else
@@ -245,7 +256,7 @@ CS
 
 					b.Position = pos;
 					// We fill distance buffer for sorting
-					DistanceBuffer[writeLocation] = CalculateDistance(b.Position);
+					DistanceBuffer[writeLocation] = SortKeyFromWorldPos( b.Position, b.SortDepthBias, b.SortBiasInKey );
 					SpriteBufferOut[writeLocation] = b;
 
 					index++;
@@ -257,7 +268,7 @@ CS
 
 				// Fil distance buffer for sorting
 				writeLocation = writeOffset + index;
-				DistanceBuffer[writeLocation] = CalculateDistance(b.Position);
+				DistanceBuffer[writeLocation] = SortKeyFromWorldPos( b.Position, b.SortDepthBias, b.SortBiasInKey );
 
 				SpriteBufferOut[writeLocation] = b;
 

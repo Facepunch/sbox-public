@@ -404,6 +404,7 @@ file sealed class ParticleSpriteRendererCapturer : ComponentCapturer<ParticleSpr
 		recorder.Property( nameof( ParticleSpriteRenderer.TextureFilter ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.Alignment ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.SortMode ) ).Capture();
+		recorder.Property( nameof( ParticleSpriteRenderer.SortDepthBias ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.DepthFeather ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.FogStrength ) ).Capture();
 		recorder.Property( nameof( ParticleSpriteRenderer.FaceVelocity ) ).Capture();
@@ -452,6 +453,7 @@ file sealed class ParticleTextRendererCapturer : ComponentCapturer<ParticleTextR
 
 		recorder.Property( nameof( ParticleTextRenderer.Alignment ) ).Capture();
 		recorder.Property( nameof( ParticleTextRenderer.SortMode ) ).Capture();
+		recorder.Property( nameof( ParticleTextRenderer.SortDepthBias ) ).Capture();
 	}
 }
 

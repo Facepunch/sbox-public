@@ -59,9 +59,15 @@ CS
 			float distanceB = DistanceBuffer[indexB];
 
 			bool ascending = ( currentIndex & Dim ) == 0;
-			float comparison = ( distanceA - distanceB ) * ( ascending ? 1 : -1 );
+			float distCmp = distanceA - distanceB;
+			bool swap = ( distCmp * ( ascending ? 1 : -1 ) ) > 0;
+			if ( !swap && distCmp == 0.0 && indexA != indexB )
+			{
+				int idxCmp = (indexA < indexB) ? -1 : 1;
+				swap = ( idxCmp * ( ascending ? 1 : -1 ) ) > 0;
+			}
 
-			if ( comparison > 0 )
+			if ( swap )
 			{
 				SortBuffer[currentIndex] = indexB;
 				SortBuffer[compareIndex] = indexA;

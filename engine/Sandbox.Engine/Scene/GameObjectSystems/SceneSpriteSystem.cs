@@ -230,8 +230,8 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 	{
 		var flags = InstanceGroupFlags.None;
 
-		// Non-opaque and sorted needs transparency
-		if ( !component.Opaque && component.IsSorted )
+		// Non-opaque batched particles share the transparent/sorted path so all FX sort in one buffer.
+		if ( !component.Opaque && ( component is IBatchedParticleSpriteRenderer || component.IsSorted ) )
 		{
 			flags |= InstanceGroupFlags.Transparent;
 		}
@@ -259,7 +259,10 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 			(renderOptions.AfterUI ? 8 : 0)
 		);
 
-		var tokens = tags.GetTokens();
+		// Batched particle sprites ignore tags here so one GPU sort spans emitters (tags still apply elsewhere).
+		var tokens = component is IBatchedParticleSpriteRenderer
+			? FrozenSet<uint>.Empty
+			: tags.GetTokens();
 		// Single buffer: [4 bytes flags][1 byte renderLayer][4*N bytes tokens] - bounded to 261 bytes by the guard.
 		Span<byte> buf = tokens.Count <= 64 ? stackalloc byte[5 + tokens.Count * 4] : new byte[5 + tokens.Count * 4];
 		MemoryMarshal.Write( buf, in flags );
@@ -275,12 +278,12 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 	private static RenderGroupConfig BuildConfig( ISpriteRenderGroup component, GameTags tags, RenderOptions renderOptions )
 	{
 		var flags = InstanceGroupFlags.None;
-		if ( !component.Opaque && component.IsSorted ) flags |= InstanceGroupFlags.Transparent;
+		if ( !component.Opaque && ( component is IBatchedParticleSpriteRenderer || component.IsSorted ) ) flags |= InstanceGroupFlags.Transparent;
 		if ( component.Shadows && !component.Additive ) flags |= InstanceGroupFlags.CastShadow;
 		if ( component.Additive ) flags |= InstanceGroupFlags.Additive;
 		if ( component.Opaque ) flags |= InstanceGroupFlags.Opaque;
 
-		return new RenderGroupConfig( flags, renderOptions.Clone(), tags.GetTokens().ToFrozenSet() );
+		return new RenderGroupConfig( flags, renderOptions.Clone(), component is IBatchedParticleSpriteRenderer ? FrozenSet<uint>.Empty : tags.GetTokens().ToFrozenSet() );
 	}
 
 	/// <summary>

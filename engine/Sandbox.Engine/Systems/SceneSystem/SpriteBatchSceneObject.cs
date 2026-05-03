@@ -71,6 +71,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		public Vector3 Velocity = Vector3.Zero;
 		public Vector4 BlendSheetUV;
 		public Vector2 Offset;
+		public float SortDepthBias;
+		public uint SortBiasInKey;
 		public SpriteData()
 		{
 
@@ -436,7 +438,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 						Lighting = packedExponent,
 						DepthFeather = c.DepthFeather,
 						SamplerIndex = SamplerState.GetBindlessIndex( sampler with { Filter = c.TextureFilter } ),
-						Offset = c.Pivot
+						Offset = c.Pivot,
+						SortBiasInKey = Sorted ? 1u : 0u
 					};
 
 					var pivot = c.Pivot;
@@ -592,7 +595,6 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 
 		// Sorting
 		attributes.Set( "DistanceBuffer", GPUDistanceBuffer );
-		attributes.Set( "CameraPosition", Graphics.CameraPosition );
 
 		SpriteComputeShader.DispatchWithAttributes( attributes, spriteCount, 1, 1 );
 

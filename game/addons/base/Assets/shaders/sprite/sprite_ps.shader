@@ -74,6 +74,8 @@ VS
 		float3 Velocity;
 		float4 BlendSheetUV;
 		float2 Offset;
+		float SortDepthBias;
+		uint SortBiasInKey;
 	};
 
 	StructuredBuffer<SpriteData> Sprites < Attribute("Sprites"); >; 
@@ -293,6 +295,8 @@ PS
 		float3 Velocity;
 		float4 BlendSheetUV;
 		float2 Offset;
+		float SortDepthBias;
+		uint SortBiasInKey;
 	};
 
 	StructuredBuffer<SpriteData> Sprites < Attribute("Sprites"); >; 
