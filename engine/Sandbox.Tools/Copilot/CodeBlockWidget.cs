@@ -33,7 +33,7 @@ public class CodeBlockWidget : Widget
 		// ── header ────────────────────────────────────────────────────────────
 		var header   = new Widget( this );
 		header.Layout = Layout.Row();
-		header.Layout.Margin  = new Margin( 8, 4, 4, 4 );
+		header.Layout.Margin  = new Sandbox.UI.Margin( 8, 4, 4, 4 );
 		header.Layout.Spacing = 4;
 		header.FixedHeight    = 26;
 		header.SetStyles( "background: rgba(255,255,255,0.04); border-top-left-radius: 4px; border-top-right-radius: 4px;" );

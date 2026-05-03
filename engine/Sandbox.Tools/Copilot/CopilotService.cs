@@ -273,9 +273,10 @@ public static class CopilotService
 		var toolBuf    = new SortedDictionary<int, ToolCall>(); // accumulated by index
 		var argBuf     = new SortedDictionary<int, StringBuilder>();
 
-		while ( !reader.EndOfStream && !cancellation.IsCancellationRequested )
+		while ( !cancellation.IsCancellationRequested )
 		{
 			var line = await reader.ReadLineAsync( cancellation );
+			if ( line is null ) break;
 			if ( string.IsNullOrEmpty( line ) ) continue;
 			if ( !line.StartsWith( "data: " ) ) continue;
 

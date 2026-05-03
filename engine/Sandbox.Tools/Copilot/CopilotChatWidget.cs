@@ -82,7 +82,7 @@ internal class CopilotChatWidget : Widget
 	{
 		_headerBar        = new Widget( this );
 		_headerBar.Layout = Layout.Row();
-		_headerBar.Layout.Margin  = new Margin( 8, 6, 8, 6 );
+		_headerBar.Layout.Margin  = new Sandbox.UI.Margin( 8, 6, 8, 6 );
 		_headerBar.Layout.Spacing = 6;
 		_headerBar.FixedHeight    = 36;
 
@@ -118,7 +118,7 @@ internal class CopilotChatWidget : Widget
 	{
 		var panel    = new Widget( this );
 		panel.Layout = Layout.Column();
-		panel.Layout.Margin  = new Margin( 24, 16, 24, 16 );
+		panel.Layout.Margin  = new Sandbox.UI.Margin( 24, 16, 24, 16 );
 		panel.Layout.Spacing = 12;
 
 		var title = new Label( "Sign in to GitHub to enable AI Copilot", panel );
@@ -180,7 +180,7 @@ internal class CopilotChatWidget : Widget
 
 		_messagesCanvas         = new Widget( _scrollArea );
 		_messagesLayout         = Layout.Column();
-		_messagesLayout.Margin  = new Margin( 8, 8, 8, 8 );
+		_messagesLayout.Margin  = new Sandbox.UI.Margin( 8, 8, 8, 8 );
 		_messagesLayout.Spacing = 8;
 		_messagesCanvas.Layout  = _messagesLayout;
 		_messagesLayout.AddStretchCell();
@@ -195,7 +195,7 @@ internal class CopilotChatWidget : Widget
 		// input area
 		var inputContainer = new Widget( panel );
 		inputContainer.Layout         = Layout.Column();
-		inputContainer.Layout.Margin  = new Margin( 8, 6, 8, 8 );
+		inputContainer.Layout.Margin  = new Sandbox.UI.Margin( 8, 6, 8, 8 );
 		inputContainer.Layout.Spacing = 4;
 
 		_inputField = new ChatInputBox( inputContainer )
@@ -332,7 +332,7 @@ internal class CopilotChatWidget : Widget
 			return;
 		}
 
-		DeviceCodeResult result;
+		GitHubOAuth.DeviceCodeResult result;
 		try { result = await GitHubOAuth.RequestDeviceCodeAsync( clientId ); }
 		catch ( Exception ex )
 		{
@@ -387,7 +387,7 @@ internal class CopilotChatWidget : Widget
 		RefreshAuthState();
 	}
 
-	private void ShowDeviceCodeDialog( DeviceCodeResult result )
+	private void ShowDeviceCodeDialog( GitHubOAuth.DeviceCodeResult result )
 	{
 		var popup = new PopupDialogWidget( "🔑" );
 		popup.FixedWidth        = 480;

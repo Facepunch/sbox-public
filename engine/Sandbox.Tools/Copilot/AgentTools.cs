@@ -11,7 +11,7 @@ using Sandbox;
 namespace Editor.Copilot;
 
 /// <summary>
-/// The catalog of "tools" the AI agent is allowed to invoke against the s&box
+/// The catalog of "tools" the AI agent is allowed to invoke against the s&amp;box
 /// editor. Each tool has a JSON-Schema describing its parameters and a handler
 /// that runs synchronously on the main thread and returns a JSON-friendly
 /// result object.
@@ -436,14 +436,7 @@ public static class AgentTools
 				var type     = ResolveComponentType( typeName );
 				if ( type == null ) return Err( $"Component type '{typeName}' not found." );
 
-				var addMethod = typeof( GameObject.ComponentList )
-					.GetMethods()
-					.FirstOrDefault( m => m.Name == "Create" && m.IsGenericMethodDefinition && m.GetParameters().Length <= 1 );
-				if ( addMethod == null ) return Err( "Could not locate Components.Create<T>() via reflection." );
-
-				var generic = addMethod.MakeGenericMethod( type );
-				var args0   = addMethod.GetParameters().Length == 0 ? null : new object[] { true };
-				var comp    = generic.Invoke( go.Components, args0 ) as Component;
+				var comp = go.Components.Create( type );
 
 				return comp == null ? Err( "Failed to add component." ) : Ok( new { type = type.FullName, enabled = comp.Enabled } );
 			}
@@ -535,7 +528,7 @@ public static class AgentTools
 			{
 				var session = SceneEditorSession.Active;
 				if ( session == null ) return Err( "No active editor session." );
-				try { session.Save(); return Ok( new { saved = session.Scene?.Name } ); }
+				try { session.Save( false ); return Ok( new { saved = session.Scene?.Name } ); }
 				catch ( Exception ex ) { return Err( ex.Message ); }
 			}
 		},
@@ -575,10 +568,10 @@ public static class AgentTools
 				var path = GetString( args, "path", "" );
 				try
 				{
-					if ( Sandbox.FileSystem.Mounted?.FileExists( path ) == true )
-						return Ok( new { path, content = Sandbox.FileSystem.Mounted.ReadAllText( path ) } );
-					if ( Sandbox.FileSystem.Root?.FileExists( path ) == true )
-						return Ok( new { path, content = Sandbox.FileSystem.Root.ReadAllText( path ) } );
+					if ( Editor.FileSystem.Mounted?.FileExists( path ) == true )
+						return Ok( new { path, content = Editor.FileSystem.Mounted.ReadAllText( path ) } );
+					if ( Editor.FileSystem.Root?.FileExists( path ) == true )
+						return Ok( new { path, content = Editor.FileSystem.Root.ReadAllText( path ) } );
 					if ( File.Exists( path ) )
 						return Ok( new { path, content = File.ReadAllText( path ) } );
 					return Err( $"File not found: {path}" );
@@ -603,7 +596,7 @@ public static class AgentTools
 				var content = GetString( args, "content", "" );
 				try
 				{
-					var fs = Sandbox.FileSystem.Mounted ?? Sandbox.FileSystem.Root;
+					var fs = Editor.FileSystem.Mounted ?? Editor.FileSystem.Root;
 					if ( fs == null ) return Err( "No writable filesystem." );
 					var dir = Path.GetDirectoryName( path );
 					if ( !string.IsNullOrEmpty( dir ) ) fs.CreateDirectory( dir );
@@ -630,7 +623,7 @@ public static class AgentTools
 				var pat  = GetString( args, "pattern", "*" );
 				try
 				{
-					var fs = Sandbox.FileSystem.Mounted ?? Sandbox.FileSystem.Root;
+					var fs = Editor.FileSystem.Mounted ?? Editor.FileSystem.Root;
 					if ( fs == null ) return Err( "Filesystem unavailable." );
 					return Ok( new
 					{
@@ -710,7 +703,6 @@ public static class AgentTools
 				try
 				{
 					var session = SceneEditorSession.Active;
-					session?.FullUndoSnapshot( "frame_camera" );
 					session?.Selection.Set( go );
 					EditorEvent.Run( "scene.frame.selection" );
 					return Ok( new { framed = go.Name } );

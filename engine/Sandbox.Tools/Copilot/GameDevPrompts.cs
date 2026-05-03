@@ -19,7 +19,7 @@ public static class GameDevPrompts
 
 	/// <summary>
 	/// The master system prompt — shapes Copilot into a game-dev specialist
-	/// who knows the s&box engine.
+	/// who knows the s&amp;box engine.
 	/// </summary>
 	public const string SystemPrompt = """
 		You are an expert game-development AI assistant integrated into the s&box editor.
@@ -265,14 +265,14 @@ public static class GameDevPrompts
 		try
 		{
 			// Try project-relative first via the editor FileSystem
-			if ( Sandbox.FileSystem.Mounted != null )
+			if ( Editor.FileSystem.Mounted != null )
 			{
-				if ( Sandbox.FileSystem.Mounted.FileExists( path ) )
-					return Sandbox.FileSystem.Mounted.ReadAllText( path );
+				if ( Editor.FileSystem.Mounted.FileExists( path ) )
+					return Editor.FileSystem.Mounted.ReadAllText( path );
 			}
 
-			if ( Sandbox.FileSystem.Root.FileExists( path ) )
-				return Sandbox.FileSystem.Root.ReadAllText( path );
+			if ( Editor.FileSystem.Root.FileExists( path ) )
+				return Editor.FileSystem.Root.ReadAllText( path );
 
 			// Try absolute path
 			if ( File.Exists( path ) )

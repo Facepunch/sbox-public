@@ -1,7 +1,7 @@
 namespace Editor.Copilot;
 
 /// <summary>
-/// Persisted settings for the s&box AI Copilot.
+/// Persisted settings for the s&amp;box AI Copilot.
 /// Tokens are stored in the editor cookie so they survive restarts.
 ///
 /// To use it you need:

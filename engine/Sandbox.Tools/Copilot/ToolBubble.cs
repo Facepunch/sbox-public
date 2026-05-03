@@ -48,7 +48,7 @@ public class ToolBubble : Widget
 		_requiresApproval = requiresApproval;
 
 		Layout = Layout.Column();
-		Layout.Margin  = new Margin( 8, 4, 8, 4 );
+		Layout.Margin  = new Sandbox.UI.Margin( 8, 4, 8, 4 );
 		Layout.Spacing = 4;
 		SetStyles( "background: rgba(255,255,255,0.04); border-radius: 4px; border-left: 3px solid #888;" );
 
@@ -131,7 +131,7 @@ public class ToolBubble : Widget
 		// ── detail container (hidden until expanded) ─────────────────────────
 		_detailContainer = new Widget( this );
 		_detailContainer.Layout = Layout.Column();
-		_detailContainer.Layout.Margin = new Margin( 18, 4, 0, 0 );
+		_detailContainer.Layout.Margin = new Sandbox.UI.Margin( 18, 4, 0, 0 );
 		_detailContainer.Hidden = true;
 
 		_detailText = new Label( "", _detailContainer );

@@ -75,13 +75,13 @@ public static class GitHubOAuth
 		if ( string.IsNullOrWhiteSpace( clientId ) )
 			throw new InvalidOperationException( "GitHub OAuth App Client ID is not configured." );
 
-		var form = new FormUrlEncodedContent( new Dictionary<string, string>
+		using var form = new FormUrlEncodedContent( new Dictionary<string, string>
 		{
 			["client_id"] = clientId,
 			["scope"]      = CopilotScope
 		} );
 
-		var response = await _http.PostAsync( DeviceCodeUrl, form );
+		using var response = await _http.PostAsync( DeviceCodeUrl, form );
 		var json     = await response.Content.ReadAsStringAsync();
 
 		if ( !response.IsSuccessStatusCode )
@@ -118,7 +118,8 @@ public static class GitHubOAuth
 
 			try
 			{
-				var response = await _http.PostAsync( TokenUrl, new FormUrlEncodedContent( form ), cancellation );
+				using var content = new FormUrlEncodedContent( form );
+				using var response = await _http.PostAsync( TokenUrl, content, cancellation );
 				var json     = await response.Content.ReadAsStringAsync( cancellation );
 				var result   = JsonSerializer.Deserialize<TokenResponse>( json );
 

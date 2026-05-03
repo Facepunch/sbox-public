@@ -43,7 +43,7 @@ public class MessageBubble : Widget
 		_onRegenerate = onRegenerate;
 
 		Layout = Layout.Column();
-		Layout.Margin  = new Margin( 8, 6, 8, 6 );
+		Layout.Margin  = new Sandbox.UI.Margin( 8, 6, 8, 6 );
 		Layout.Spacing = 4;
 
 		// Background tint based on sender
