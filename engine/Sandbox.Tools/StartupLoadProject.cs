@@ -381,31 +381,8 @@ static class StartupLoadProject
 	static void CompileAllAssets()
 	{
 		var sw = Stopwatch.StartNew();
-
-		var allCompilable = AssetSystem.All.Where( x => !x.IsTrivialChild && x.CanRecompile ).ToArray();
-		var gr = allCompilable.Where( x => !x.IsCompiledAndUpToDate ).ToArray();
-
-		Log.Warning( $"[DEBUG-RECOMPILE] CompileAllAssets: {gr.Length} out of date / {allCompilable.Length} total compilable assets" );
-
+		var gr = AssetSystem.All.Where( x => !x.IsTrivialChild && x.CanRecompile && !x.IsCompiledAndUpToDate ).ToArray();
 		if ( gr.Length == 0 ) return;
-
-		var byType = gr.GroupBy( x => x.AssetType?.FriendlyName ?? "unknown" );
-		foreach ( var group in byType.OrderByDescending( x => x.Count() ) )
-		{
-			Log.Warning( $"[DEBUG-RECOMPILE]   {group.Count()}x {group.Key}" );
-			foreach ( var asset in group.Take( 20 ) )
-			{
-				bool isCompiled = asset.IsCompiled;
-				string reason = "?";
-				if ( asset is NativeAsset na )
-				{
-					try { reason = na.native.GetCompileStateReason_Transient(); } catch { }
-				}
-				Log.Warning( $"[DEBUG-RECOMPILE]     - {asset.Path} | compiled={isCompiled} | reason=\"{reason}\" | source={asset.AbsoluteSourcePath}" );
-			}
-			if ( group.Count() > 20 )
-				Log.Warning( $"[DEBUG-RECOMPILE]     ... and {group.Count() - 20} more" );
-		}
 
 		FastTimer timer = FastTimer.StartNew();
 
@@ -417,8 +394,6 @@ static class StartupLoadProject
 			IToolsDll.Current?.Spin();
 			gr[i].Compile( false );
 		}
-
-		Log.Warning( $"[DEBUG-RECOMPILE] CompileAllAssets done: {gr.Length} assets compiled in {sw.Elapsed.TotalSeconds:0.000}s" );
 
 		if ( sw.Elapsed.TotalSeconds > 2 )
 		{
