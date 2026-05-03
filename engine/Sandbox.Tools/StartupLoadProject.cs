@@ -335,14 +335,43 @@ static class StartupLoadProject
 		options.SingleThreaded = false;
 		options.ConsoleOutput = false;
 
-		FastTimer timer = FastTimer.StartNew();
-		for ( int i = 0; i < gr.Length; i++ )
-		{
-			EditorSplashScreen.SetMessage( $"Compiling shader {i + 1}/{gr.Length} {gr[i].RelativePath}" );
-			StepProgress( (float)i / gr.Length );
+		//
+		// Phase 1: check which shaders are out of date in parallel.
+		// The native LoadFromCompiledUnlessOutOfDate call takes ~500ms each,
+		// so doing this sequentially for 65+ shaders is brutal.
+		//
+		EditorSplashScreen.SetMessage( $"Checking {gr.Length} shaders..." );
 
-			await ShaderCompile.Compile( gr[i].AbsolutePath, gr[i].RelativePath, options, default );
+		var outOfDate = new System.Collections.Concurrent.ConcurrentBag<Asset>();
+
+		await Task.Run( () =>
+		{
+			Parallel.ForEach( gr, asset =>
+			{
+				var shader = new ShaderSource();
+				shader.AbsolutePath = asset.AbsolutePath;
+				shader.RelativePath = asset.RelativePath;
+				shader.Read();
+
+				if ( shader.IsOutOfDate )
+					outOfDate.Add( asset );
+			} );
+		} );
+
+		Log.Info( $"Shader check took {sw.Elapsed.TotalSeconds:0.000}s ({gr.Length} checked, {outOfDate.Count} out of date)" );
+
+		//
+		// Phase 2: compile only the out-of-date shaders sequentially
+		//
+		var toCompile = outOfDate.ToArray();
+		for ( int i = 0; i < toCompile.Length; i++ )
+		{
+			EditorSplashScreen.SetMessage( $"Compiling shader {i + 1}/{toCompile.Length} {toCompile[i].RelativePath}" );
+			StepProgress( (float)i / toCompile.Length );
+
+			await ShaderCompile.Compile( toCompile[i].AbsolutePath, toCompile[i].RelativePath, options, default );
 		}
+
 		if ( sw.Elapsed.TotalSeconds > 2 )
 		{
 			Log.Info( $"Compiling shaders took {sw.Elapsed.TotalSeconds:0.000}s" );
@@ -352,8 +381,31 @@ static class StartupLoadProject
 	static void CompileAllAssets()
 	{
 		var sw = Stopwatch.StartNew();
-		var gr = AssetSystem.All.Where( x => !x.IsTrivialChild && x.CanRecompile && !x.IsCompiledAndUpToDate ).ToArray();
+
+		var allCompilable = AssetSystem.All.Where( x => !x.IsTrivialChild && x.CanRecompile ).ToArray();
+		var gr = allCompilable.Where( x => !x.IsCompiledAndUpToDate ).ToArray();
+
+		Log.Warning( $"[DEBUG-RECOMPILE] CompileAllAssets: {gr.Length} out of date / {allCompilable.Length} total compilable assets" );
+
 		if ( gr.Length == 0 ) return;
+
+		var byType = gr.GroupBy( x => x.AssetType?.FriendlyName ?? "unknown" );
+		foreach ( var group in byType.OrderByDescending( x => x.Count() ) )
+		{
+			Log.Warning( $"[DEBUG-RECOMPILE]   {group.Count()}x {group.Key}" );
+			foreach ( var asset in group.Take( 20 ) )
+			{
+				bool isCompiled = asset.IsCompiled;
+				string reason = "?";
+				if ( asset is NativeAsset na )
+				{
+					try { reason = na.native.GetCompileStateReason_Transient(); } catch { }
+				}
+				Log.Warning( $"[DEBUG-RECOMPILE]     - {asset.Path} | compiled={isCompiled} | reason=\"{reason}\" | source={asset.AbsoluteSourcePath}" );
+			}
+			if ( group.Count() > 20 )
+				Log.Warning( $"[DEBUG-RECOMPILE]     ... and {group.Count() - 20} more" );
+		}
 
 		FastTimer timer = FastTimer.StartNew();
 
@@ -365,6 +417,8 @@ static class StartupLoadProject
 			IToolsDll.Current?.Spin();
 			gr[i].Compile( false );
 		}
+
+		Log.Warning( $"[DEBUG-RECOMPILE] CompileAllAssets done: {gr.Length} assets compiled in {sw.Elapsed.TotalSeconds:0.000}s" );
 
 		if ( sw.Elapsed.TotalSeconds > 2 )
 		{
