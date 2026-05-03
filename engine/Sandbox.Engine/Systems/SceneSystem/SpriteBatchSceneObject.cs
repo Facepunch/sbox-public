@@ -71,7 +71,8 @@ internal sealed class SpriteBatchSceneObject : SceneCustomObject
 		public Vector3 Velocity = Vector3.Zero;
 		public Vector4 BlendSheetUV;
 		public Vector2 Offset;
-		public float SortDepthBias;
+		/// <summary>Draw order for transparent particle sprites: higher draws on top (Source 2 inches along eye ray + stable sort).</summary>
+		public int ZIndex;
 		public uint SortBiasInKey;
 		public SpriteData()
 		{

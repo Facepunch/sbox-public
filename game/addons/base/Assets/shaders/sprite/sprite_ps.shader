@@ -74,7 +74,7 @@ VS
 		float3 Velocity;
 		float4 BlendSheetUV;
 		float2 Offset;
-		float SortDepthBias;
+		int ZIndex;
 		uint SortBiasInKey;
 	};
 
@@ -295,7 +295,7 @@ PS
 		float3 Velocity;
 		float4 BlendSheetUV;
 		float2 Offset;
-		float SortDepthBias;
+		int ZIndex;
 		uint SortBiasInKey;
 	};
 

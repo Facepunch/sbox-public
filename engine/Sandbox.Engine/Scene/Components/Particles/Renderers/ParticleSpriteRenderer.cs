@@ -97,7 +97,8 @@ public sealed partial class ParticleSpriteRenderer : ParticleRenderer, Component
 	[Property] public ParticleSortMode SortMode { get; set; }
 
 	[Group( "Rendering" )]
-	[Property] public float SortDepthBias { get; set; }
+	[Property, Range( -64, 64 ), Title( "Z Index" )]
+	public int ZIndex { get; set; }
 
 	/// <summary>
 	/// Amount of feathering applied to the depth, softening its intersection with geometry.

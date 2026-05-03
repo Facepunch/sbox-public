@@ -63,7 +63,7 @@ CS
 		float3 Velocity;
 		float4 BlendSheetUV;
 		float2 Offset;
-		float SortDepthBias;
+		int ZIndex;
 		uint SortBiasInKey;
 	};
 	StructuredBuffer<SpriteData> SpriteBuffer < Attribute( "Sprites" ); >;
@@ -131,17 +131,42 @@ CS
 	}
 
 	#define FLT_MAX 3.402823466e+38f
-	#define SORT_BIAS_DIST_SCALE ( 22.0f / 8388608.0f )
 
-	// applyBiasToKey: particle By Distance adds scaled SortDepthBias to the sort key.
-	float SortKeyFromWorldPos( float3 worldPosition, float sortBias, uint applyBiasToKey )
+	#define ZINDEX_SORT_WEIGHT 268435456.0f
+
+	// ZIndex: Source 2 inches along eye ray; geom = (d−b)²; subtract b*weight for stable float sort keys.
+	float SortParticleDistanceKey( float3 worldPositionBeforeNudge, int zIndex )
 	{
-		float3 delta = worldPosition - g_vCameraPositionWs.xyz;
+		float b = (float)zIndex;
+		float3 delta = worldPositionBeforeNudge - g_vCameraPositionWs.xyz;
 		float distSq = dot( delta, delta );
-		if ( applyBiasToKey == 0 )
-			return distSq;
-		float biasScale = max( distSq * SORT_BIAS_DIST_SCALE, 0.18f );
-		return distSq + sortBias * biasScale;
+		float d = sqrt( distSq );
+		float sortD = d - b;
+		const float minD = 1e-5f;
+		if ( sortD < minD )
+			sortD = minD;
+		float geom = sortD * sortD;
+		return geom - (float)zIndex * ZINDEX_SORT_WEIGHT;
+	}
+
+	float3 RecoverWorldPosBeforeEyeNudge( float3 worldPositionAfterNudge, float sortBiasInches )
+	{
+		if ( abs( sortBiasInches ) < 1e-8f )
+			return worldPositionAfterNudge;
+		float3 toCamera = g_vCameraPositionWs.xyz - worldPositionAfterNudge;
+		float len = length( toCamera );
+		if ( len > 1e-5f )
+			return worldPositionAfterNudge - ( toCamera / len ) * sortBiasInches;
+		if ( length( g_vCameraDirWs.xyz ) > 1e-5f )
+			return worldPositionAfterNudge + normalize( g_vCameraDirWs.xyz ) * sortBiasInches;
+		return worldPositionAfterNudge;
+	}
+
+	float SortParticleDistanceKeyFromDisplayPos( float3 worldPositionAfterEyeNudge, int zIndex )
+	{
+		float b = (float)zIndex;
+		float3 base = RecoverWorldPosBeforeEyeNudge( worldPositionAfterEyeNudge, b );
+		return SortParticleDistanceKey( base, zIndex );
 	}
 
 	groupshared int groupWriteSize[64];
@@ -160,12 +185,16 @@ CS
 		// Transfer sprite to out buffer
 		if(isValid)
 		{
-			float3 toCamera = g_vCameraPositionWs.xyz - sprite.Position;
+			float3 basePos = sprite.Position;
+			float biasF = (float)sprite.ZIndex;
+			DistanceBuffer[i] = SortParticleDistanceKey( basePos, sprite.ZIndex );
+
+			float3 toCamera = g_vCameraPositionWs.xyz - basePos;
 			float distToCam = length( toCamera );
 			if ( distToCam > 1e-5f )
-				sprite.Position += ( toCamera / distToCam ) * sprite.SortDepthBias;
+				sprite.Position = basePos + ( toCamera / distToCam ) * biasF;
 			else if ( length( g_vCameraDirWs.xyz ) > 1e-5f )
-				sprite.Position -= normalize( g_vCameraDirWs.xyz ) * sprite.SortDepthBias;
+				sprite.Position = basePos - normalize( g_vCameraDirWs.xyz ) * biasF;
 
 			if ( sprite.RotationOffset > -1 )
 			{	
@@ -175,8 +204,6 @@ CS
 				sprite.Rotation.z += ToDegrees * atan2( ss.x, ss.y ) + sprite.RotationOffset;
 			}
 
-
-			DistanceBuffer[i] = SortKeyFromWorldPos( sprite.Position, sprite.SortDepthBias, sprite.SortBiasInKey );
 			SpriteBufferOut[i] = sprite;
 		}
 		else
@@ -256,7 +283,7 @@ CS
 
 					b.Position = pos;
 					// We fill distance buffer for sorting
-					DistanceBuffer[writeLocation] = SortKeyFromWorldPos( b.Position, b.SortDepthBias, b.SortBiasInKey );
+					DistanceBuffer[writeLocation] = SortParticleDistanceKeyFromDisplayPos( b.Position, b.ZIndex );
 					SpriteBufferOut[writeLocation] = b;
 
 					index++;
@@ -268,7 +295,7 @@ CS
 
 				// Fil distance buffer for sorting
 				writeLocation = writeOffset + index;
-				DistanceBuffer[writeLocation] = SortKeyFromWorldPos( b.Position, b.SortDepthBias, b.SortBiasInKey );
+				DistanceBuffer[writeLocation] = SortParticleDistanceKeyFromDisplayPos( b.Position, b.ZIndex );
 
 				SpriteBufferOut[writeLocation] = b;
 

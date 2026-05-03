@@ -31,7 +31,7 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 	bool Lighting { get; }
 	Vector2 Pivot { get; }
 	float DepthFeather { get; }
-	float SortDepthBias { get; }
+	int ZIndex { get; }
 	float FogStrength { get; }
 	FilterMode TextureFilter { get; }
 
@@ -141,7 +141,7 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 				}
 
 				float halfSize = MathF.Max( pivotMaxX * 2f * scaleX, pivotMaxY * 2f * scaleY );
-				float biasExpand = MathF.Abs( SortDepthBias );
+				float biasExpand = MathF.Abs( (float)ZIndex );
 				var expand = new Vector3( halfSize + biasExpand, halfSize + biasExpand, halfSize + biasExpand );
 				var particlePos = new Vector3( pos.x, pos.y, pos.z );
 				boundsMin = Vector3.Min( boundsMin, particlePos - expand );
@@ -180,7 +180,7 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 				spritePtr->SequenceTime = sequenceTime;
 				spritePtr->BlendSheetUV = sequenceData;
 				spritePtr->Offset = origin;
-				spritePtr->SortDepthBias = SortDepthBias;
+				spritePtr->ZIndex = ZIndex;
 				spritePtr->SortBiasInKey = IsSorted ? 1u : 0u;
 
 				validCount++;

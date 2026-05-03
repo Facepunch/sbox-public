@@ -109,7 +109,8 @@ public sealed class ParticleTextRenderer : ParticleRenderer, Component.ExecuteIn
 	[Property] public ParticleSortMode SortMode { get; set; }
 
 	[Group( "Sprite" )]
-	[Property] public float SortDepthBias { get; set; }
+	[Property, Range( -64, 64 ), Title( "Z Index" )]
+	public int ZIndex { get; set; }
 
 	/// <summary>
 	/// Interface property to determine if particles should be sorted
