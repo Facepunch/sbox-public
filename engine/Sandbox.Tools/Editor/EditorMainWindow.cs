@@ -174,6 +174,11 @@ public class EditorMainWindow : DockWindow
 		}
 
 		{
+			var aiMenu = MenuBar.AddMenu( "AI" );
+			aiMenu.AddOption( "AI Copilot", "smart_toy", OpenAICopilot, "editor.ai-copilot" );
+		}
+
+		{
 			MenuBar.AddMenu( "Settings" );
 			var debug = MenuBar.AddMenu( "Debug" );
 
@@ -241,6 +246,13 @@ public class EditorMainWindow : DockWindow
 	void OpenSolution()
 	{
 		CodeEditor.OpenSolution();
+	}
+
+	[Shortcut( "editor.ai-copilot", "CTRL+SHIFT+A", ShortcutType.Window )]
+	void OpenAICopilot()
+	{
+		if ( !DockManager.RaiseDock( "AI Copilot" ) )
+			DockManager.SetDockState( "AI Copilot", true );
 	}
 
 	[Shortcut( "editor.undo", "CTRL+Z", ShortcutType.Window )]
