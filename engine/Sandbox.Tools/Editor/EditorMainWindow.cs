@@ -1,9 +1,12 @@
-﻿using NativeEngine;
+﻿using System;
+using NativeEngine;
 
 namespace Editor;
 
 public class EditorMainWindow : DockWindow
 {
+	const string MinimalScenePath = "scenes/minimal.scene";
+
 	internal static EditorMainWindow Current;
 
 	Menu FileMenu { get; init; }
@@ -342,24 +345,55 @@ public class EditorMainWindow : DockWindow
 		NativeEngine.InputSystem.SetEditorMainWindow( _widget.winId() );
 	}
 
-	record struct LayoutFile( string Name, string Json );
+	private readonly record struct LayoutFile( string Json );
 
 	protected override void RestoreDefaultDockLayout()
 	{
 		var layout = FileSystem.Config.ReadJsonOrDefault<LayoutFile>( $"/editor/layout/default.json", default );
-		if ( layout.Name is null ) return;
-		if ( layout.Json is null ) return;
+		if ( layout.Json is null )
+			return;
 
 		var json = layout.Json;
-
-		// On first launch, open the project's startup scene instead of a blank untitled scene
-		var startupScene = Project.Current?.Config.GetMetaOrDefault<string>( "StartupScene", null );
-		if ( !string.IsNullOrWhiteSpace( startupScene ) )
+		var startupScene = GetStartupScenePath();
+		if ( startupScene is not null )
 		{
 			json = json.Replace( "SceneDock:untitled", $"SceneDock:{startupScene}" );
 		}
 
 		DockManager.State = json;
+	}
+
+	private static string GetStartupScenePath()
+	{
+		var startupScene = Project.Current?.Config.GetMetaOrDefault<string>( "StartupScene", null );
+		if ( IsValidStartupScenePath( startupScene ) )
+		{
+			return NormalizeAssetPath( startupScene );
+		}
+
+		if ( IsValidStartupScenePath( MinimalScenePath ) )
+		{
+			return MinimalScenePath;
+		}
+
+		return null;
+	}
+
+	private static bool IsValidStartupScenePath( string path )
+	{
+		path = NormalizeAssetPath( path );
+		if ( string.IsNullOrWhiteSpace( path ) )
+			return false;
+
+		if ( !path.EndsWith( ".scene", StringComparison.OrdinalIgnoreCase ) )
+			return false;
+
+		return AssetSystem.FindByPath( path ) is not null;
+	}
+
+	private static string NormalizeAssetPath( string path )
+	{
+		return path?.Replace( '\\', '/' ).TrimStart( '/' );
 	}
 
 	/// <summary>
