@@ -176,6 +176,39 @@ internal class GameInstance : IGameInstance
 		//
 		if ( Package is null && IsDeveloperHost )
 		{
+			if ( !Networking.IsHost && Package.TryParseIdent( Ident, out var parsed ) && (parsed.local || parsed.org == "local") )
+			{
+				var project = Project.All?.FirstOrDefault( x =>
+					string.Equals( x.Config?.Ident, parsed.package, System.StringComparison.OrdinalIgnoreCase ) &&
+					string.Equals( x.Config?.Org, parsed.org, System.StringComparison.OrdinalIgnoreCase ) );
+
+				if ( project is null )
+				{
+					var gameRoot = EngineFileSystem.Root.GetFullPath( "/" )?.TrimEnd( '/', '\\' );
+					var projectsRoot = System.IO.Path.GetDirectoryName( System.IO.Path.GetDirectoryName( gameRoot ) );
+
+					if ( projectsRoot is not null && System.IO.Directory.Exists( projectsRoot ) )
+					{
+						foreach ( var dir in System.IO.Directory.EnumerateDirectories( projectsRoot ) )
+						{
+							var sbproj = System.IO.Path.Combine( dir, $"{parsed.package}.sbproj" );
+							if ( System.IO.File.Exists( sbproj ) )
+							{
+								project = Project.AddFromFile( sbproj );
+								break;
+							}
+						}
+					}
+				}
+
+				if ( project is not null && project.HasAssetsPath() )
+				{
+					NativeEngine.FullFileSystem.AddProjectPath( project.Config.FullIdent, project.GetAssetsPath() );
+					NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
+				}
+			}
+
+			EngineFileSystem.ProjectSettings = new AggregateFileSystem();
 			LoadProjectSettings();
 			SetupFileWatch();
 			return true;
