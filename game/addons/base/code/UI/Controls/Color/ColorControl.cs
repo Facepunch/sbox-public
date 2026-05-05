@@ -9,6 +9,18 @@ public partial class ColorControl : BaseControl
 	readonly TextEntry _textEntry;
 	readonly Panel _colorSwatch;
 
+    private Color _color
+    {
+        get;
+        set
+        {
+            if (value == field) return;
+            field = value;
+            OnColorChanged?.Invoke(field);
+        }
+    }
+    [Parameter] public Action<Color> OnColorChanged { get; set; }
+
 	public override bool SupportsMultiEdit => true;
 
 	public ColorControl()
@@ -18,6 +30,10 @@ public partial class ColorControl : BaseControl
 
 		_textEntry = AddChild<TextEntry>( "textentry" );
 		_textEntry.OnTextEdited = OnTextEntryChanged;
+
+        SerializedObject serobject = TypeLibrary.GetSerializedObject(this);
+        SerializedProperty prop = serobject.GetProperty("_color");
+		if (prop != null) Property = prop;
 	}
 
 	public override void Rebuild()
@@ -31,16 +47,19 @@ public partial class ColorControl : BaseControl
 	{
 		base.Tick();
 
+		if (Property == null) return;
 		_colorSwatch.Style.BackgroundColor = Property.GetValue<Color>();
 	}
 
 	void OnTextEntryChanged( string value )
 	{
+		if (Property == null) return;
 		Property.SetValue( value );
 	}
 
 	void OpenPopup()
 	{
+		if (Property == null) return;
 		var popup = new Popup( _colorSwatch, Popup.PositionMode.BelowLeft, 0 );
 
 		var picker = popup.AddChild<ColorPickerControl>();
