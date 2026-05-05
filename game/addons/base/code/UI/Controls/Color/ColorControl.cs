@@ -19,6 +19,10 @@ public partial class ColorControl : BaseControl
             OnColorChanged?.Invoke(field);
         }
     }
+
+	/// <summary>
+	/// Called when the user changes the color value.
+	/// </summary>
     [Parameter] public Action<Color> OnColorChanged { get; set; }
 
 	public override bool SupportsMultiEdit => true;
