@@ -507,7 +507,21 @@ public static class SceneEditorMenus
 		if ( selected.Length == 0 )
 			return;
 
-		var selectedSet = selected.ToHashSet();
+		HashSet<GameObject> selectedSet = [.. selected];
+		foreach ( var go in selected )
+		{
+			if ( go.IsRoot )
+				continue;
+
+			var next = go.Parent;
+			while ( true )
+			{
+				if ( !selectedSet.Add( next ) ) break;
+				if ( next.IsRoot ) break;
+				next = next.Parent;
+			}
+		}
+
 		var allObjects = SceneEditorSession.Active.Scene
 			.GetAllObjects( true )
 			.Where( go => go is not Scene )
