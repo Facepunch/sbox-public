@@ -43,6 +43,7 @@ internal unsafe interface IGameInstanceDll
 	//
 
 	GameNetworkSystem CreateGameNetworking( NetworkSystem system );
+	Task<GameNetworkSystem> CreateGameNetworkingAsync( NetworkSystem system );
 	public void InstallNetworkTables( NetworkSystem system );
 	public Task LoadNetworkTables( NetworkSystem system );
 

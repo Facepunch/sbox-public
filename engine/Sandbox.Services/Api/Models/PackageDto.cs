@@ -82,6 +82,11 @@ public class PackageDto
 	/// </summary>
 	public long PlayerSpawns { get; set; }
 
+	/// <summary>
+	/// The total size of this package in bytes
+	/// </summary>
+	public long FileSize { get; set; }
+
 	public string DevLink( string append = "/" )
 	{
 		return $"{Org.Ident}/{Ident}{append}";

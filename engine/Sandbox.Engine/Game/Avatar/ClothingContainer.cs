@@ -379,11 +379,13 @@ public partial class ClothingContainer
 	}
 
 	/// <summary>
-	/// Create the container from the local user's setup
+	/// Create the container from the local user's setup, stripped of any unowned items.
 	/// </summary>
 	public static ClothingContainer CreateFromLocalUser()
 	{
-		return CreateFromJson( Avatar.AvatarJson );
+		var container = CreateFromJson( Avatar.AvatarJson );
+		container.RemoveUnownedItems();
+		return container;
 	}
 
 	/// <summary>
@@ -404,6 +406,9 @@ public partial class ClothingContainer
 	/// </summary>
 	public void RemoveUnownedItems()
 	{
+		if ( !Services.Inventory.HasLoaded )
+			return;
+
 		Clothing.RemoveAll( entry =>
 		{
 			if ( entry.Clothing is not null )
@@ -418,6 +423,7 @@ public partial class ClothingContainer
 
 	/// <summary>
 	/// Removes clothing items that the given connection is not verified to own.
+	/// Must be called from the host or from the local player, as clients don't have access to other player inventory data.
 	/// </summary>
 	public void RemoveUnownedItems( Connection connection )
 	{
@@ -427,6 +433,10 @@ public partial class ClothingContainer
 			RemoveUnownedItems();
 			return;
 		}
+
+		// Clients don't have this data for remote players, so don't remove anything.
+		if ( !Networking.IsHost )
+			return;
 
 		// Use Connection.HasInventoryItem for remote players
 		Clothing.RemoveAll( entry =>

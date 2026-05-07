@@ -24,10 +24,10 @@ public partial class ServiceApi
 		[Post( "/storage/wipe" )]
 		Task Wipe( long steamid, string package );
 
-		[Post( "/storage/upload/start" )]
+		[Get( "/storage/upload/start" )]
 		Task<string> StartUpload( string guid );
 
-		[Post( "/storage/upload/complete" )]
+		[Get( "/storage/upload/complete" )]
 		Task<string> CompleteUpload( string guid );
 	}
 }

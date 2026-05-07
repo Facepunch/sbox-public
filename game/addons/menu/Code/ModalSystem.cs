@@ -220,6 +220,11 @@ public class ModalSystem : IModalSystem
 		} );
 	}
 
+	public void Report( string packageIdent )
+	{
+		Push( new ReportModal() { PackageIdent = packageIdent } );
+	}
+
 	public bool IsModalOpen => HasModalsOpen();
 	public bool IsPauseMenuOpen => _pauseModal.IsValid() && _pauseModal.IsPauseMenuOpen();
 }

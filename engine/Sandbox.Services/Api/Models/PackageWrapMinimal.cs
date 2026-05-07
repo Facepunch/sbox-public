@@ -30,11 +30,22 @@ public class PackageWrapMinimal
 	public int VotesUp { get; set; }
 	public int VotesDown { get; set; }
 	public bool Public { get; set; }
+	public bool Mature { get; set; }
 
 	// Added afterwards, describes how a user interacted with this package
 	public PackageInteraction Interaction { get; set; }
 	public long Spawns { get; set; }
 	public long PlayerSpawns { get; set; }
+
+	/// <summary>
+	/// The total size of the current version of this package in bytes
+	/// </summary>
+	public long FileSize { get; set; }
+
+	/// <summary>
+	/// A tag to show to moderators to highlight
+	/// </summary>
+	public string ModTag { get; set; }
 
 	public string DevLink( string append = "/" )
 	{

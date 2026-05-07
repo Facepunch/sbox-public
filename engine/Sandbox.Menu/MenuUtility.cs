@@ -285,6 +285,14 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
+	/// Post a report for a package
+	/// </summary>
+	public static Task PostReport( string packageIdent, Sandbox.Services.Reports.Reason reason, string content )
+	{
+		return Sandbox.Services.Reports.Post( packageIdent, reason, content );
+	}
+
+	/// <summary>
 	/// Allows async tasks to wait to be executed in the menu context
 	/// </summary>
 	public static void RunTask( Func<Task> func )

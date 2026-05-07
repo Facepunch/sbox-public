@@ -39,6 +39,8 @@
 
     <MetricButton Tooltip="Last Updated" Icon="update" Value="@((DateTime.UtcNow - Package.Updated ).Humanize( 1 ))" />
 
+    <MetricButton Interactive style="margin-top: 30px;" Tooltip="Report Abuse" Icon="flag" Value="report" @onclick="@( () => Game.Overlay.ShowReportModal( Package.FullIdent ) )" />
+
 </root>
 
 @code

@@ -108,7 +108,16 @@ internal partial class PanelRenderer
 		// frame grab across consecutive siblings at the same z-depth.
 		if ( desc.Backdrops.Count > 0 )
 		{
-			if ( !backdropGrabActive )
+			if ( deferredInstances.Count > 0 && panel.ComputedStyle?.Position == PositionMode.Absolute )
+			{
+				// Absolute-positioned panels overlap previous content;
+				// flush and re-grab so the backdrop sees the correct framebuffer
+				// and deferred instances don't sort across panel boundaries.
+				FlushDeferredBatches( cl );
+				FlushBatch( cl );
+				backdropGrabActive = false;
+			}
+			else if ( !backdropGrabActive )
 			{
 				FlushDeferredBatches( cl );
 				FlushBatch( cl );

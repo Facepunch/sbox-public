@@ -166,6 +166,7 @@ public static class MenuHelpers
 		menu.AddSpacer();
 		menu.AddOption( "corporate_fare", $"View Creator", () => Game.Overlay.ShowOrganizationModal( package.Org ) );
 		menu.AddOption( "star", "Review Game", () => Game.Overlay.ShowReviewModal( package ) );
+		menu.AddOption( "flag", "Report Game", () => Game.Overlay.ShowReportModal( package.FullIdent ) );
 	}
 
 	static void OpenMapMenu( Panel source, Package package )

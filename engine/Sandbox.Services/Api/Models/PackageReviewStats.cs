@@ -26,10 +26,9 @@ public class PackageReviewStats
 		var count = Count;
 		if ( count == 0 ) return 0;
 
+		// Positives count as 100%, Promises 50%, Negatives 0%, averaged across all reviews.
 		float score = (PositiveRatings * 100) + (PromiseRatings * 50);
-
-		score /= (PositiveRatings + PositiveRatings + NegativeRatings);
-
+		score /= count;
 		return score;
 	}
 }

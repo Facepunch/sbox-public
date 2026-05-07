@@ -240,13 +240,17 @@ internal static partial class PackageManager
 					// Create a compiler for it
 					var compiler = group.GetOrCreateCompiler( archive.CompilerName );
 					compiler.UpdateFromArchive( archive );
+					LoadingScreen.Subtitle = System.IO.Path.GetFileName( file );
+					await Task.Yield();
 				}
 			}
 
 			// Compile that bad boy
 			using ( analytic.ScopeTimer( "Compile" ) )
 			{
+				LoadingScreen.Subtitle = null;
 				await group.BuildAsync();
+				await Task.Yield();
 			}
 
 			if ( !group.BuildResult.Success )
@@ -284,9 +288,13 @@ internal static partial class PackageManager
 				{
 					Log.Trace( $"WRITE /.bin/{assembly.Compiler.AssemblyName}.dll" );
 					memoryFileSystem.WriteAllBytes( $"/.bin/{assembly.Compiler.AssemblyName}.dll", assembly.AssemblyData );
+					LoadingScreen.Subtitle = assembly.Compiler.AssemblyName;
+					await Task.Yield();
 				}
 				FileSystem.Mount( memoryFileSystem );
 			}
+
+			LoadingScreen.Subtitle = null;
 
 			analytic.Submit();
 

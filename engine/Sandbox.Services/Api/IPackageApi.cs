@@ -41,6 +41,12 @@ public partial class ServiceApi
 
 		[Post( "/package/reviews/{packageIdent}" )]
 		Task PostReview( string packageIdent, string text, int rating, int positives, int negatives );
+
+		[Post( "/package/reports/{packageIdent}" )]
+		Task<bool> PostReport( string packageIdent, [Query] int reasons, [Query] string comment );
+
+		[Post( "/organization/reports/{orgIdent}" )]
+		Task<bool> PostOrganizationReport( string orgIdent, [Query] int reasons, [Query] string comment );
 	}
 }
 

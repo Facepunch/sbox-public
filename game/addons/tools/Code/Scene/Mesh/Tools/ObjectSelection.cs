@@ -35,6 +35,7 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 		{
 			var ops = menu.AddMenu( "Object Operations", "build" );
 			AddMenuOption( ops, "Merge Meshes", "join_full", "mesh.merge-meshes", manyMeshes );
+			AddMenuOption( ops, "Boolean Tool", "difference", "mesh.boolean-tool", manyMeshes );
 			AddMenuOption( ops, "Convert To Mesh", "auto_mode", "mesh.convert-model-to-mesh", convertible );
 			AddMenuOption( ops, "Flip Faces", "flip", "mesh.flip-all-mesh-faces", hasMeshes );
 		}
@@ -406,6 +407,8 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 
 		foreach ( var go in Scene.GetAllObjects( true ) )
 		{
+			if ( go.Tags.Has( "hidden" ) ) continue;
+
 			var bounds = go.GetBounds();
 			if ( !frustum.IsInside( bounds, !fullyInside ) )
 			{
