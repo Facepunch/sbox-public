@@ -115,9 +115,10 @@ public static partial class Http
 	internal static HttpRequestMessage CreateRequest( HttpMethod method, string requestUri, Dictionary<string, string> headers )
 	{
 		var uri = new Uri( requestUri, UriKind.Absolute );
-		if ( !IsAllowed( uri ) )
+		var isAllowed = IsAllowed( uri );
+		if ( !isAllowed )
 		{
-			throw new InvalidOperationException( $"Access to '{uri}' is not allowed." );
+			throw new InvalidOperationException( $"Access to '{uri}' is not allowed. {isAllowed.Reason}" );
 		}
 
 		var request = new HttpRequestMessage( method, uri );

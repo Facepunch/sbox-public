@@ -197,9 +197,10 @@ public sealed class WebSocket : IDisposable
 
 		var uri = ParseWebSocketUri( websocketUri );
 
-		if ( !Http.IsAllowed( uri ) )
+		var isAllowed = Http.IsAllowed( uri );
+		if ( !isAllowed )
 		{
-			throw new InvalidOperationException( $"Access to '{websocketUri}' is not allowed." );
+			throw new InvalidOperationException( $"Access to '{websocketUri}' is not allowed. {isAllowed.Reason}" );
 		}
 
 		if ( headers != null )

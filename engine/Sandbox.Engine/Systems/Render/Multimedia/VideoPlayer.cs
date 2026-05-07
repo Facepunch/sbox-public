@@ -398,9 +398,10 @@ public sealed class VideoPlayer : IDisposable, IWeakInteropHandle
 			return;
 		}
 
-		if ( !Http.IsAllowed( uri ) )
+		var isAllowed = Http.IsAllowed( uri );
+		if ( !isAllowed )
 		{
-			throw new InvalidOperationException( $"Access to '{uri}' is not allowed." );
+			throw new InvalidOperationException( $"Access to '{uri}' is not allowed. {isAllowed.Reason}" );
 		}
 
 		var ext = System.IO.Path.GetExtension( uri.AbsolutePath ).TrimStart( '.' ).ToLower();

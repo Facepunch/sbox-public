@@ -40,6 +40,29 @@ public static partial class Http
 	internal static bool IsLocalAllowed => ((Application.IsEditor || Application.IsDedicatedServer) && CommandLine.HasSwitch( "-allowlocalhttp" )) || Application.IsStandalone;
 
 	/// <summary>
+	/// Can be used like a boolean to see if a Uri can be accessed.
+	/// If not, there should be a human-readable reason to display.
+	/// </summary>
+	public struct IsAllowedResult
+	{
+		public bool IsAllowed;
+		public string Reason;
+
+		public static IsAllowedResult Allow() => new()
+		{
+			IsAllowed = true,
+		};
+
+		public static IsAllowedResult Reject( string reason ) => new()
+		{
+			IsAllowed = false,
+			Reason = reason,
+		};
+
+		public static implicit operator bool( IsAllowedResult result ) => result.IsAllowed;
+	}
+
+	/// <summary>
 	/// Check if the given Uri matches the following requirements:
 	/// 1. Scheme is https/http or wss/ws
 	/// 2. If it's localhost, only allow ports 80/443/8080/8443
@@ -47,22 +70,27 @@ public static partial class Http
 	/// </summary>
 	/// <param name="uri">The Uri to check.</param>
 	/// <returns>True if the Uri can be accessed, false if the Uri will be blocked.</returns>
-	public static bool IsAllowed( Uri uri )
+	public static IsAllowedResult IsAllowed( Uri uri )
 	{
 		if ( uri.Scheme != "http" && uri.Scheme != "https" && uri.Scheme != "wss" && uri.Scheme != "ws" )
-			return false;
+			return IsAllowedResult.Reject( "Only http(s) and ws(s) schemes are allowed." );
 
 		if ( IsLocalAllowed )
-			return true;
+			return IsAllowedResult.Allow();
 
 		// Allow specific ports for loopback (localhost) URIs so that people can do local development/testing
 		// Only including the obvious development server only ports because nothing should conflict with these
 		if ( uri.IsLoopback )
-			return uri.IsDefaultPort || uri.Port is 80 or 443 or 8080 or 8443;
+		{
+			if ( uri.IsDefaultPort || uri.Port is 80 or 443 or 8080 or 8443 )
+				return IsAllowedResult.Allow();
+
+			return IsAllowedResult.Reject( "Only ports 80, 443, 8080 and 8443 are allowed for localhost requests." );
+		}
 
 		// don't allow ip urls (unless it's covered by loopback above)
 		if ( uri.HostNameType == UriHostNameType.IPv4 || uri.HostNameType == UriHostNameType.IPv6 )
-			return false;
+			return IsAllowedResult.Reject( "Requests to IP adresses are not allowed." );
 
 		try
 		{
@@ -71,16 +99,16 @@ public static partial class Http
 			// shit routers and internet of shit devices are typically vulnerable
 			// https://medium.com/@brannondorsey/attacking-private-networks-from-the-internet-with-dns-rebinding-ea7098a2d325
 			if ( uri.IsPrivate() )
-				return false;
+				return IsAllowedResult.Reject( "Domains which resolve to local addresses are not allowed." );
 
 		}
 		catch ( System.Net.Sockets.SocketException )
 		{
 			// No such host is known
-			return false;
+			return IsAllowedResult.Reject( "Domains which do not resolve are not allowed." );
 		}
 
-		return true;
+		return IsAllowedResult.Allow();
 	}
 
 	// https://developer.mozilla.org/en-US/docs/Glossary/Forbidden_header_name
@@ -133,8 +161,9 @@ internal sealed class SboxHttpHandler : DelegatingHandler
 
 	private static void HandleRequest( HttpRequestMessage request )
 	{
-		if ( !Http.IsAllowed( request.RequestUri ) )
-			throw new InvalidOperationException( $"Access to '{request.RequestUri}' is not allowed." );
+		var isAllowed = Http.IsAllowed( request.RequestUri );
+		if ( !isAllowed )
+			throw new InvalidOperationException( $"Access to '{request.RequestUri}' is not allowed. {isAllowed.Reason}" );
 
 		request.Headers.Remove( "User-Agent" );
 		request.Headers.TryAddWithoutValidation( "User-Agent", Http.UserAgent );

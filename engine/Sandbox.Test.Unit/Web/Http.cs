@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 
 namespace Web;
 
@@ -34,6 +35,20 @@ public class HttpTests
 	public void IsUriAllowed( string uri, bool expected )
 	{
 		Assert.AreEqual( expected, Http.IsAllowed( new Uri( uri, UriKind.Absolute ) ) );
+	}
+
+	[TestMethod]
+	[DataRow( "https://localhost:1337/", "ports.*localhost" )]
+	[DataRow( "https://8.8.8.8/", "IP adresses" )]
+	[DataRow( "https://127-0-0-1.mattstevens.co.uk/", "resolve" )]
+	[DataRow( "https://willneverexist.mattstevens.co.uk/", "resolve" )]
+	[DataRow( "file://blah", "scheme" )]
+	public void IsUriAllowedDenyReason( string uri, string match )
+	{
+		var deny = Http.IsAllowed( new Uri( uri, UriKind.Absolute ) );
+
+		Assert.IsFalse( deny );
+		Assert.IsTrue( Regex.IsMatch( deny.Reason, match ), $"Reason '{deny.Reason}' did not match '{match}'" );
 	}
 
 	[TestMethod]
