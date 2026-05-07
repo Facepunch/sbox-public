@@ -197,7 +197,7 @@ public class Voice : Component
 		set => _isListening = value;
 		get
 		{
-			if ( IsProxy ) return false;
+			if ( !IsOwner ) return false;
 			if ( Mode == ActivateMode.AlwaysOn ) return true;
 			if ( Mode == ActivateMode.PushToTalk )
 			{
@@ -221,7 +221,7 @@ public class Voice : Component
 		if ( !sound.IsValid() ) return;
 
 		sound.Volume = Volume;
-		sound.Loopback = !IsProxy && !Loopback;
+		sound.Loopback = IsOwner && !Loopback;
 
 		if ( WorldspacePlayback )
 		{
@@ -296,7 +296,7 @@ public class Voice : Component
 
 	private void OnVoice( Memory<byte> compressed )
 	{
-		if ( IsProxy ) return;
+		if ( !IsOwner ) return;
 		if ( singleRecorder != this ) return;
 
 		if ( Networking.System is not null )
