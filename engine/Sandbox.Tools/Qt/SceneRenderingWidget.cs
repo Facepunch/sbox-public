@@ -112,7 +112,7 @@ public class SceneRenderingWidget : Frame
 			MaximumSize = Size;
 			_sizeLockedForRecording = true;
 		}
-		else if ( !ScreenRecorder.IsRecording() && _sizeLockedForRecording )
+		else if ( _sizeLockedForRecording && (!ScreenRecorder.IsRecording() || sceneCamera?.IsRecordingCamera != true) )
 		{
 			MinimumSize = _savedMinSize;
 			MaximumSize = _savedMaxSize;
@@ -189,6 +189,7 @@ public class SceneRenderingWidget : Frame
 		input.RightMouse = Application.MouseButtons.HasFlag( MouseButtons.Right );
 
 		input.CursorPosition -= ScreenPosition;
+
 		input.CursorRay = camera.GetRay( input.CursorPosition, Size );
 
 		if ( !input.IsHovered )
