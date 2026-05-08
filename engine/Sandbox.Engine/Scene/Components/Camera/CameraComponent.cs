@@ -265,7 +265,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		camera.ZNear = ZNear;
 		camera.ZFar = ZFar;
 		camera.Rect = new Rect( Viewport.x, Viewport.y, Viewport.z, Viewport.w );
-		camera.Size = ScreenRect.Size;
+		camera.Size = PhysicalScreenRect.Size;
 		camera.Ortho = Orthographic;
 		camera.OrthoHeight = OrthographicHeight;
 
@@ -495,9 +495,25 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	}
 
 	/// <summary>
-	/// The size of the viewport, in screen coordinates
+	/// The size of the viewport in logical pixels (pre-DPI). Divides Screen.Size by
+	/// Screen.DpiScale (set each frame by the Tools layer from Qt's devicePixelRatioF)
+	/// so this is consistent with Qt widget coordinate space.
+	/// Use PhysicalScreenRect when you need physical pixel sizes for native rendering calls.
 	/// </summary>
 	public Rect ScreenRect
+	{
+		get
+		{
+			var ss = (CustomSize ?? Screen.Size) / Screen.DpiScale;
+			return new Rect( ss.x * Viewport.x, ss.y * Viewport.y, ss.x * Viewport.z, ss.y * Viewport.w );
+		}
+	}
+
+	/// <summary>
+	/// The size of the viewport in physical pixels (post-DPI). Used internally when feeding
+	/// size into native SceneCamera or other physical-pixel APIs.
+	/// </summary>
+	public Rect PhysicalScreenRect
 	{
 		get
 		{
@@ -622,7 +638,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	public Frustum GetFrustum()
 	{
 		UpdateSceneCameraTransform( sceneCamera );
-		return sceneCamera.GetFrustum( ScreenRect );
+		return sceneCamera.GetFrustum( PhysicalScreenRect );
 	}
 
 	/// <summary>

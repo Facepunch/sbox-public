@@ -89,6 +89,10 @@ public static class Application
 
 	internal static void StartFrame()
 	{
+		// Push the Qt device pixel ratio into the engine-accessible Screen.DpiScale
+		// so that CameraComponent.ScreenRect can produce logical pixel coordinates.
+		Screen.DpiScale = DpiScale;
+
 		// we scale the delta by dpi scale. This should give something close to 
 		// the values they will be expecting, but will also provide fractions
 		// which CursorPos does not.

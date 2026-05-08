@@ -32,6 +32,14 @@ public static class Screen
 	/// </summary>
 	public static float DesktopScale { get; private set; } = 1.0f;
 
+	/// <summary>
+	/// The DpiScale of the application window (Qt devicePixelRatioF).
+	/// Set each frame by the Tools layer. Reflects the actual physical-to-logical
+	/// pixel ratio used by the windowing system (e.g. 2.25 at 225% DPI).
+	/// Falls back to 1 in non-editor (game) contexts.
+	/// </summary>
+	public static float DpiScale { get; internal set; } = 1.0f;
+
 	internal static void UpdateFromEngine()
 	{
 		ThreadSafe.AssertIsMainThread();
