@@ -166,8 +166,12 @@ public partial struct Color : IEquatable<Color>
 		var max = MathF.Max( MathF.Abs( r ), MathF.Max( MathF.Abs( g ), MathF.Abs( b ) ) );
 		if ( max < 1e-16f ) return new Color32( 0, 0, 0, 0 );
 
-		var exp = MathF.ILogB( max ) + 1;
-		var scale = MathF.ScaleB( 127.0f, -exp );
+		// Extract exponent directly from float bits: equivalent to ILogB(max) + 1.
+		var expBits = (int)((BitConverter.SingleToUInt32Bits( max ) >> 23) & 0xFF);
+		var exp = expBits - 126;
+
+		// Build scale = 2^(7-exp) as a zero-mantissa float: equivalent to ScaleB(128.0f, -exp).
+		var scale = BitConverter.UInt32BitsToSingle( (uint)(134 - exp) << 23 );
 
 		return new Color32(
 			(byte)(Math.Clamp( (int)(r * scale + 0.5f), sbyte.MinValue, sbyte.MaxValue ) + 128),

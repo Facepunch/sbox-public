@@ -97,9 +97,11 @@ public sealed partial class CommandList
 			static void Execute( ref Entry entry, CommandList commandList )
 			{
 				var attrAccess = (AttributeAccess)entry.Object4;
-				attrAccess.attributes.Set( entry.Token, (Matrix)entry.Object2 );
+				attrAccess.attributes.Set( entry.Token, Unsafe.As<Vector4, Matrix>( ref entry.Data1 ) );
 			}
-			list.AddEntry( &Execute, new Entry { Token = token, Object2 = matrix, Object4 = this } );
+			var e = new Entry { Token = token, Object4 = this };
+			Unsafe.As<Vector4, Matrix>( ref e.Data1 ) = matrix;
+			list.AddEntry( &Execute, e );
 		}
 
 		public void Set( StringToken token, GpuBuffer buffer )

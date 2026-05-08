@@ -179,13 +179,13 @@ public static partial class Networking
 		// by key name
 		q = q.WithMaxResults( 1000 );
 
-		var lobbies = await q.RequestAsync( ct );
+		var lobbies = await q.RequestAsync( ct ).ConfigureAwait( false );
 
 		var found = new List<LobbyInformation>();
 
 		try
 		{
-			var servers = await serverListTask;
+			var servers = await serverListTask.ConfigureAwait( false );
 			if ( servers is not null && servers.Any() )
 			{
 				found.AddRange( servers );

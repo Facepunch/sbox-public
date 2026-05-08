@@ -1,0 +1,95 @@
+﻿@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+@using Sandbox.Services;
+
+@if (Package is null) return;
+
+@if (_posting)
+{
+    <root class="posting">
+        <i>outgoing_mail</i>
+    </root>
+    return;
+}
+
+<root>
+
+    <h1>Reporting @(Package.Title)?</h1>
+
+    <div class="inner">
+
+        <div class="container">
+
+            <p>Tell us why you think this violates the s&amp;box Terms of Service</p>
+            <p>We're fine with most things — please only report content that is genuinely against our rules. Reports made because you simply don't like it will be rejected.</p>
+
+            <div class="tag-entry">
+
+                <div class="tagcolumn positive-tags">
+                    <label>What is the problem? Select all that apply.</label>
+                    <TagSelector Value:bind=@Reasons />
+                </div>
+
+            </div>
+
+            <div>
+                <TextEntry @ref=_textEntry Value:bind=@Message Multiline="@true" Placeholder="Give details about your report.."></TextEntry>
+            </div>
+
+            <div class="footer">
+                <Button @onclick="@Post" Disabled="@(string.IsNullOrWhiteSpace(Message))" Icon="send" Text="Submit Report"></Button>
+            </div>
+
+        </div>
+    </div>
+
+</root>
+
+@code
+{
+    public Package Package { get; set; }
+    public string PackageIdent { get; set; }
+
+    Reports.Reason Reasons { get; set; }
+    string Message { get; set; }
+
+    TextEntry _textEntry = default;
+    bool _posting;
+
+    protected override int BuildHash() => System.HashCode.Combine(Package);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Package = await Package.FetchAsync(PackageIdent, true);
+    }
+
+    protected override void OnAfterTreeRender(bool firstTime)
+    {
+        if ( firstTime )
+        {
+            _textEntry?.Focus();
+        }
+    }
+
+    async Task Post()
+    {
+        if (string.IsNullOrWhiteSpace(Message)) return;
+
+        _posting = true;
+        StateHasChanged();
+
+        try
+        {
+            await MenuUtility.PostReport(Package.FullIdent, Reasons, Message);
+            CloseModal(true);
+        }
+        finally
+        {
+            _posting = false;
+        }
+    }
+}

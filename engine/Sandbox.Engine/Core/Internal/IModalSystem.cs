@@ -11,6 +11,7 @@ public interface IModalSystem
 	public void Package( string packageIdent, string page );
 	public void Organization( Package.Organization org );
 	public void Review( Package package );
+	public void Report( string packageIdent );
 	public void PackageSelect( string query, Action<Package> onPackageSelected, Action<string> onFilterChanged = null );
 	public void FriendsList( in FriendsListModalOptions options );
 	public void Server( Sandbox.Network.LobbyInformation lobby );

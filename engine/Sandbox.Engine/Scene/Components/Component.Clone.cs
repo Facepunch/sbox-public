@@ -1,6 +1,6 @@
-﻿using System.Linq.Expressions;
+﻿using Facepunch.ActionGraphs;
+using System.Linq.Expressions;
 using System.Text.Json.Nodes;
-using Facepunch.ActionGraphs;
 
 namespace Sandbox;
 
@@ -110,8 +110,12 @@ internal static class CloneHelpers
 
 		if ( originalValue is null || ReflectionQueryCache.IsTypeCloneableByCopy( valueType ) )
 		{
-			SetMemberValue( member, target, originalValue );
-			return;
+			// Embedded resources are deep-copied to carry any inline generator data over, only when in the editor.
+			if ( !Application.IsEditor || !ReflectionQueryCache.IsInlineEmbeddedResource( originalValue, valueType ) )
+			{
+				SetMemberValue( member, target, originalValue );
+				return;
+			}
 		}
 
 		// If the original object has already been cloned simply point to it.

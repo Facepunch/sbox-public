@@ -82,6 +82,7 @@ internal partial class PanelRenderer
 			if ( z != groupZ || isAbsolute != groupAbsolute )
 			{
 				FlushDeferredBatches( cl );
+				backdropGrabActive = false;
 				groupZ = z;
 				groupAbsolute = isAbsolute;
 			}
@@ -101,13 +102,49 @@ internal partial class PanelRenderer
 
 	void CollectBatchedRecursive( Panel panel, CommandList cl )
 	{
-		CollectInstancesDeferred( panel, panel.CachedDescriptors.Scissor, panel.CachedDescriptors.TransformMat );
+		var desc = panel.CachedDescriptors;
+
+		// Draw backdrop quads before collecting box instances, reusing the
+		// frame grab across consecutive siblings at the same z-depth.
+		if ( desc.Backdrops.Count > 0 )
+		{
+			if ( deferredInstances.Count > 0 && panel.ComputedStyle?.Position == PositionMode.Absolute )
+			{
+				// Absolute-positioned panels overlap previous content;
+				// flush and re-grab so the backdrop sees the correct framebuffer
+				// and deferred instances don't sort across panel boundaries.
+				FlushDeferredBatches( cl );
+				FlushBatch( cl );
+				backdropGrabActive = false;
+			}
+			else if ( !backdropGrabActive )
+			{
+				FlushDeferredBatches( cl );
+				FlushBatch( cl );
+			}
+
+			cl.Attributes.Set( "TransformMat", desc.TransformMat );
+			SetScissorAttributes( cl, desc.Scissor );
+
+			Stats.DrawCalls++;
+			UIRenderer.Draw( CollectionsMarshal.AsSpan( desc.Backdrops ), cl, reuseGrab: backdropGrabActive );
+			backdropGrabActive = true;
+		}
+
+		CollectInstancesDeferred( panel, desc.Scissor, desc.TransformMat );
 		Stats.BatchedPanels++;
 
 		var children = panel._renderChildren;
 		if ( children == null || children.Count == 0 ) return;
 
 		int savedDepth = zDepth;
+
+		// Children need a fresh grab if this panel drew a backdrop, since
+		// the DrawQuad modified the framebuffer. Save/restore so siblings
+		// at our level can still reuse the original grab.
+		bool savedGrabActive = backdropGrabActive;
+		if ( desc.Backdrops.Count > 0 )
+			backdropGrabActive = false;
 
 		for ( int i = 0; i < children.Count; i++ )
 		{
@@ -131,12 +168,14 @@ internal partial class PanelRenderer
 
 				case Panel.RenderMode.Inline:
 					FlushDeferredBatches( cl );
+					backdropGrabActive = false;
 					DrawPanel( child, cl );
 					break;
 			}
 		}
 
 		zDepth = savedDepth;
+		backdropGrabActive = savedGrabActive || backdropGrabActive;
 	}
 
 	void CollectInstancesDeferred( Panel panel, GPUScissor scissor, Matrix transform )
@@ -242,7 +281,7 @@ internal partial class PanelRenderer
 
 		if ( hasBackdrop )
 		{
-			Stats.DrawCalls += desc.Backdrops.Count;
+			Stats.DrawCalls++;
 			UIRenderer.Draw( CollectionsMarshal.AsSpan( desc.Backdrops ), cl, reuseGrab: backdropGrabActive );
 			backdropGrabActive = true;
 		}
@@ -303,8 +342,6 @@ internal partial class PanelRenderer
 		batcher.Draw( pendingInstances, cl, combo, pendingBlendMode );
 		pendingInstances.Clear();
 		pendingBlendMode = BlendMode.Normal;
-
-		backdropGrabActive = false;
 
 		// Restore CL state that inline draws depend on
 		cl.Attributes.Set( "TransformMat", Matrix.Identity );

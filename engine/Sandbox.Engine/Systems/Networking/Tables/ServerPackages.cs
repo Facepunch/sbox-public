@@ -29,9 +29,7 @@ internal class ServerPackages
 		{
 			// Already downloaded
 			if ( activePackage != null )
-			{
 				return activePackage.FileSystem;
-			}
 
 			// Downloading right now in another task
 			if ( IsDownloading )
@@ -63,7 +61,22 @@ internal class ServerPackages
 
 				activePackage = await PackageManager.InstallAsync( o );
 
-				// Success
+				if ( activePackage?.FileSystem is not null )
+				{
+					LoadingScreen.Title = $"Loading {package?.Title ?? ident}";
+
+					await ServerPackages._resourceLoadSem.WaitAsync( token );
+					try
+					{
+						await ResourceLoader.LoadAllGameResourceAsync( activePackage.FileSystem, token );
+						FontManager.Instance.LoadAll( activePackage.FileSystem );
+					}
+					finally
+					{
+						ServerPackages._resourceLoadSem.Release();
+					}
+				}
+
 				IsMounted = true;
 				o.Loading.Dispose();
 
@@ -82,6 +95,8 @@ internal class ServerPackages
 			}
 		}
 	}
+
+	static readonly SemaphoreSlim _resourceLoadSem = new( 1, 1 );
 
 	static CaseInsensitiveDictionary<PackageDownload> Downloads;
 
@@ -110,6 +125,9 @@ internal class ServerPackages
 		var entries = StringTable.Entries.ToDictionary();
 
 		Log.Info( $"Installing {entries.Count} server packages.." );
+
+		if ( entries.Count > 0 )
+			LoadingScreen.Title = "Installing Packages";
 
 		var sw = System.Diagnostics.Stopwatch.StartNew();
 
@@ -179,13 +197,14 @@ internal class UpdateLoadingScreen : ILoadingInterface
 {
 	public void Dispose()
 	{
-		LoadingScreen.Title = "";
 		LoadingScreen.Subtitle = "";
 	}
 
 	public void LoadingProgress( LoadingProgress progress )
 	{
 		LoadingScreen.Title = $"{progress.Title}";
-		LoadingScreen.Subtitle = $"{progress.Percent:n0}% • {progress.Mbps:n0}mbps • {progress.CalculateETA().ToRemainingTimeString()}";
+		LoadingScreen.Subtitle = progress.Mbps > 0
+			? $"{progress.Percent:n0}% • {progress.Mbps:n0}mbps • {progress.CalculateETA().ToRemainingTimeString()}"
+			: "";
 	}
 }

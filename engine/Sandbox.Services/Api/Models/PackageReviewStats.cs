@@ -12,11 +12,11 @@ public class PackageReviewStats
 	[JsonPropertyName( "o" )]
 	public int PromiseRatings { get; set; }
 
-	[JsonPropertyName( "pt" )]
-	public Dictionary<ReviewPositiveTags, int> PositiveTags { get; set; } = new();
+	[JsonPropertyName( "pti" )]
+	public Dictionary<int, int> PositiveTags { get; set; } = new();
 
-	[JsonPropertyName( "nt" )]
-	public Dictionary<ReviewNegativeTags, int> NegativeTags { get; set; } = new();
+	[JsonPropertyName( "nti" )]
+	public Dictionary<int, int> NegativeTags { get; set; } = new();
 
 	[JsonIgnore]
 	public long Count => PositiveRatings + NegativeRatings + PromiseRatings;
@@ -26,10 +26,9 @@ public class PackageReviewStats
 		var count = Count;
 		if ( count == 0 ) return 0;
 
+		// Positives count as 100%, Promises 50%, Negatives 0%, averaged across all reviews.
 		float score = (PositiveRatings * 100) + (PromiseRatings * 50);
-
-		score /= (PositiveRatings + PositiveRatings + NegativeRatings);
-
+		score /= count;
 		return score;
 	}
 }

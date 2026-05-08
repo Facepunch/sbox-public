@@ -24,7 +24,7 @@ public static class Backend
 
 	private static HttpClient httpClient = null;
 
-	public static void Initialize( DelegatingHandler httpHandler, string url = "https://public.facepunch.com/sbox" )
+	public static void Initialize( DelegatingHandler httpHandler, string url = "https://public.facepunch.com/sbox" ) // local api: "http://localhost:7071/"
 	{
 		var refitSettings = BuildSettings( url );
 

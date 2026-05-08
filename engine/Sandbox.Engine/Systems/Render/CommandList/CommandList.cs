@@ -40,8 +40,7 @@ public sealed unsafe partial class CommandList
 
 	/// <summary>
 	/// Holds the function and state data for a single command. 
-	/// We should FIGHT to keep this as small as possible. Every byte
-	/// you add to this makes it WORSE.
+	/// Target: fit within 2 cache lines (128 bytes).
 	/// </summary>
 	struct Entry
 	{
@@ -60,12 +59,15 @@ public sealed unsafe partial class CommandList
 		public Vector4 Data1;
 		public Vector4 Data2;
 		public Vector4 Data3;
+		public Vector4 Data4;
 	}
 
 	/// <summary>
 	/// An ordered list of entries that will execute on the render thread.
 	/// </summary>
 	readonly List<Entry> _entries = new List<Entry>( 8 );
+
+
 
 	[System.Runtime.CompilerServices.MethodImpl( System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining )]
 	void AddEntry( delegate*< ref Entry, CommandList, void > execute, Entry data )
@@ -119,6 +121,8 @@ public sealed unsafe partial class CommandList
 		GlobalAttributes.ClearRenderTargets();
 		Attributes.ClearRenderTargets();
 		_entries.Clear();
+
+
 	}
 
 	public void Blit( Material material, RenderAttributes attributes = null )
@@ -218,9 +222,11 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.Set( entry.Token, (Matrix)entry.Object2 );
+			Graphics.Attributes.Set( entry.Token, Unsafe.As<Vector4, Matrix>( ref entry.Data1 ) );
 		}
-		AddEntry( &Execute, new Entry { Token = token, Object2 = matrix } );
+		var e = new Entry { Token = token };
+		Unsafe.As<Vector4, Matrix>( ref e.Data1 ) = matrix;
+		AddEntry( &Execute, e );
 	}
 
 	[Obsolete]
@@ -367,9 +373,11 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.FrameAttributes.Set( entry.Token, (Matrix)entry.Object2 );
+			Graphics.FrameAttributes.Set( entry.Token, Unsafe.As<Vector4, Matrix>( ref entry.Data1 ) );
 		}
-		AddEntry( &Execute, new Entry { Token = token, Object2 = matrix } );
+		var e = new Entry { Token = token };
+		Unsafe.As<Vector4, Matrix>( ref e.Data1 ) = matrix;
+		AddEntry( &Execute, e );
 	}
 
 	[Obsolete]
@@ -1182,6 +1190,42 @@ public sealed unsafe partial class CommandList
 	}
 
 	/// <summary>
+	/// Sets up per-object lighting for the given scene object. Writes lighting state
+	/// into <see cref="Graphics.Attributes"/> at execution time.
+	/// </summary>
+	internal void SetupLighting( SceneObject obj, RenderAttributes attr = null )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.SetupLighting( (SceneObject)entry.Object1, (RenderAttributes)entry.Object2 );
+		}
+
+		AddEntry( &Execute, new Entry { Object1 = obj, Object2 = attr } );
+	}
+
+	/// <summary>
+	/// Uploads data from an array to a GPU buffer at execution time.
+	/// Zero-copy: the array reference is stored directly without copying.
+	/// The caller must ensure the array contents remain stable until the command list
+	/// has finished executing (i.e. until the next <see cref="Reset"/> call).
+	/// </summary>
+	internal void SetBufferData<T>( GpuBuffer<T> buffer, T[] data, int sourceOffset = 0, int count = -1, int elementOffset = 0 ) where T : unmanaged
+	{
+		if ( count < 0 ) count = data.Length - sourceOffset;
+
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			var buf = (GpuBuffer<T>)entry.Object1;
+			var arr = (T[])entry.Object2;
+			int srcOffset = (int)entry.Data1.z;
+			int length = (int)entry.Data1.y;
+			buf.SetData( arr.AsSpan( srcOffset, length ), (int)entry.Data1.x );
+		}
+
+		AddEntry( &Execute, new Entry { Object1 = buffer, Object2 = data, Data1 = new Vector4( elementOffset, count, sourceOffset, 0 ) } );
+	}
+
+	/// <summary>
 	/// Sneaky way for extensions to add an action. This creates an allocation, so it should be used sparingly.
 	/// </summary>
 	private void AddAction( Action a )
@@ -1259,17 +1303,19 @@ public sealed unsafe partial class CommandList
 	/// <param name="scope">The text rendering scope.</param>
 	/// <param name="rect">The rectangle to draw the text in.</param>
 	/// <param name="flags">Text alignment flags (optional).</param>
-	public void DrawText( TextRendering.Scope scope, Rect rect, TextFlag flags = TextFlag.LeftTop )
+	/// <param name="angleDegrees">Rotation angle in degrees (optional).</param>
+	public void DrawText( TextRendering.Scope scope, Rect rect, TextFlag flags = TextFlag.LeftTop, float angleDegrees = 0f )
 	{
 		// Resolve the TextBlock at entry-add time so we store a class reference instead of
 		// boxing the Scope struct and TextFlag enum into object fields.
 		var tb = TextRendering.GetOrCreateTextBlock( scope, flags, 8096 );
-		if ( tb is null ) return; // headless
+		if ( tb is null ) return;
 
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
 			var position = new Rect( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w );
 			var flags = (TextFlag)(int)entry.Data2.x;
+			var angle = entry.Data2.y;
 			var tb = (TextRendering.TextBlock)entry.Object1;
 
 			// MakeReady resets TimeSinceUsed, preventing Tick() from evicting this block
@@ -1279,14 +1325,18 @@ public sealed unsafe partial class CommandList
 			Graphics.Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = tb.FilterMode } ) );
 
 			var rect = position.Align( tb.Texture.Size, flags );
-			Graphics.DrawQuad( rect.Floor(), Material.UI.Text, Color.White );
+
+			if ( angle == 0f )
+				Graphics.DrawQuad( rect.Floor(), Material.UI.Text, Color.White );
+			else
+				Graphics.DrawQuad( rect.Floor(), angle, Material.UI.Text, Color.White );
 		}
 
 		AddEntry( &Execute, new Entry
 		{
 			Object1 = tb,
 			Data1 = new Vector4( rect.Left, rect.Top, rect.Width, rect.Height ),
-			Data2 = new Vector4( (float)(int)flags, 0, 0, 0 )
+			Data2 = new Vector4( (float)(int)flags, angleDegrees, 0, 0 )
 		} );
 	}
 }

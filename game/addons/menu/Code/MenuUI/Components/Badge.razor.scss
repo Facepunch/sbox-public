@@ -10,7 +10,7 @@ Badge
 	background-color: $default-800;
 	flex-shrink: 0;
 	gap: 4px;
-	flex-direction: row-reverse;
+	flex-direction: row;
 
 	label
 	{
@@ -22,7 +22,7 @@ Badge
 		font-weight: 700;
 	}
 
-	label.number
+	span.number
 	{
 		background-color: rgba(black, 0.5);
 		padding: 1px 4px;

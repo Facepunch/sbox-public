@@ -378,13 +378,26 @@ internal sealed partial class PackageLoader : IDisposable
 		//
 		foreach ( var child in ap.Package.EnumeratePackageReferences() )
 		{
+			if ( PackageManager.Find( child, true, false ) == null )
+			{
+				log.Warning( $"LoadPackage: skipping missing dependency '{child}'" );
+				continue;
+			}
+
 			LoadPackage( child );
 		}
 
 		var parent = ap.Package.GetMeta<string>( "ParentPackage", null );
 		if ( !string.IsNullOrWhiteSpace( parent ) && Package.TryParseIdent( parent, out var _ ) )
 		{
-			LoadPackage( parent );
+			if ( PackageManager.Find( parent, true, false ) != null )
+			{
+				LoadPackage( parent );
+			}
+			else
+			{
+				log.Warning( $"LoadPackage: skipping missing parent '{parent}'" );
+			}
 		}
 
 		try

@@ -79,7 +79,7 @@ public class LeaderboardResponseEx
 		public string CountryCode { get; set; }
 		public string DisplayName { get; set; }
 		public DateTimeOffset Timestamp { get; set; }
-		public Dictionary<string, object> Data { get; set; }
+		public string DataUrl { get; set; }
 	}
 
 	public string Stat { get; set; }

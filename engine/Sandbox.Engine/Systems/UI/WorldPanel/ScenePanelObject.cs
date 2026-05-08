@@ -1,3 +1,4 @@
+using Sandbox.Rendering;
 using Sandbox.UI;
 
 namespace Sandbox;
@@ -17,28 +18,39 @@ internal sealed class ScenePanelObject : SceneCustomObject
 	/// </summary>
 	public RootPanel Panel { get; private set; }
 
+	private readonly CommandList _commandList = new( "ScenePanel" );
+
 	public ScenePanelObject( SceneWorld world, RootPanel Panel ) : base( world )
 	{
 		this.Panel = Panel;
 	}
 
-	public override void RenderSceneObject()
+	/// <summary>
+	/// Called on the main thread to snapshot the world matrix before render.
+	/// </summary>
+	internal void BuildCommandList()
 	{
-		Graphics.Attributes.SetCombo( "D_WORLDPANEL", 1 );
-
 		//
 		// This converts it to front left up (instead of right, down, whatever)
 		// and we apply a sensible enough default scale.
 		// Then bake in the scene object's world transform so the shader
 		// doesn't need to read from the instancing transform buffer.
 		//
+		_commandList.Reset();
+
 		Matrix mat = Matrix.CreateRotation( Rotation.From( 0, 90, 90 ) );
 		mat *= Matrix.CreateScale( ScreenToWorldScale );
 		mat *= Matrix.CreateScale( Transform.Scale );
 		mat *= Matrix.CreateRotation( Transform.Rotation );
 		mat *= Matrix.CreateTranslation( Transform.Position );
-		Graphics.Attributes.Set( "WorldMat", mat );
 
-		Panel?.RenderManual();
+		_commandList.Attributes.SetCombo( "D_WORLDPANEL", 1 );
+		_commandList.Attributes.Set( "WorldMat", mat );
+	}
+
+	public override void RenderSceneObject()
+	{
+		_commandList.ExecuteOnRenderThread();
+		Panel?.Render();
 	}
 }

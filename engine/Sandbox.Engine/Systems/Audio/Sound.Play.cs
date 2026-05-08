@@ -102,6 +102,19 @@ public static unsafe partial class Sound
 		return h;
 	}
 
+	/// <summary>
+	/// Play a sound and set its mixer
+	/// </summary>
+	public static SoundHandle Play( SoundEvent soundEvent, Audio.Mixer mixer )
+	{
+		var h = Play( soundEvent );
+		if ( h.IsValid() )
+		{
+			h.TargetMixer = mixer;
+		}
+		return h;
+	}
+
 	[ActionGraphNode( "sound.playfile" ), Title( "Play Sound File" ), Group( "Audio" ), Icon( "volume_up" )]
 	[Obsolete( "Decibels are obsolete" )]
 	public static SoundHandle PlayFile( SoundFile soundFile, float volume, float pitch, float decibels, float delay, float fadeInTime = 0.0f )

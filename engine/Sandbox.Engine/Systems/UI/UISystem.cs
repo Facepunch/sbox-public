@@ -209,7 +209,12 @@ internal class UISystem
 		{
 			var root = RootPanels[i];
 			if ( !root.IsValid ) continue;
-			if ( root.RenderedManually ) continue;
+			if ( root.RenderedManually && !root.IsWorldPanel ) continue;
+
+			if ( root is Sandbox.UI.WorldPanel { SceneObject: not null } wp )
+			{
+				wp.SceneObject.BuildCommandList();
+			}
 
 			root.BuildCommandList();
 		}

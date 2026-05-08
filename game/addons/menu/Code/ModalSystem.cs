@@ -225,6 +225,11 @@ public class ModalSystem : IModalSystem
 		var modal = new DiscardChangesModal();
 		modal.OnResult = onResult;
 		Push( modal );
+  }
+  
+	public void Report( string packageIdent )
+	{
+		Push( new ReportModal() { PackageIdent = packageIdent } );
 	}
 
 	public bool IsModalOpen => HasModalsOpen();

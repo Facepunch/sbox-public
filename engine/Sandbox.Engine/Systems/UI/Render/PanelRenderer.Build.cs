@@ -48,7 +48,6 @@ internal partial class PanelRenderer
 		if ( panel.HasPanelLayer )
 			return Panel.RenderMode.Layer;
 
-		if ( panel.HasBackdropFilter ) return Panel.RenderMode.Inline;
 		if ( panel is ScenePanel ) return Panel.RenderMode.Inline;
 		if ( panel is BasePopup ) return Panel.RenderMode.Inline;
 

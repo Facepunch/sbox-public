@@ -179,9 +179,7 @@ internal sealed class MenuDll : IMenuDll
 		if ( !Application.IsEditor )
 		{
 			using ( Sandbox.Engine.Bootstrap.StartupTiming?.ScopeTimer( "Menu - Resources" ) )
-			{
-				LoadResources();
-			}
+				await LoadResourcesAsync();
 
 			SetupMenuScene();
 		}
@@ -253,10 +251,9 @@ internal sealed class MenuDll : IMenuDll
 		}
 	}
 
-	void LoadResources()
-	{
-		ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
-	}
+	void LoadResources() => ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
+
+	Task LoadResourcesAsync() => ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted );
 
 	public void OnGameEntered()
 	{

@@ -57,5 +57,6 @@
 
         ActiveFriends = MenuUtility.Friends.Where(x => x.IsPlayingThisGame && !x.IsMe).OrderBy(x => x.Name);
         StateHasChanged();
+        timeSinceUpdated = 0;
     }
 }

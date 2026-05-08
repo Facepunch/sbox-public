@@ -244,6 +244,8 @@ internal static class DedicatedServer
 			Dispatch.Install<SteamServersConnected_t>( OnConnected, true );
 			Dispatch.Install<SteamServerConnectFailure_t>( OnConnectionFailed, true );
 			Dispatch.Install<SteamServersDisconnected_t>( OnDisconnected, true );
+			Dispatch.Install<ValidateAuthTicketResponse_t>( SteamNetwork.SocketConnection.OnValidateAuthTicket, false );
+			Dispatch.Install<ValidateAuthTicketResponse_t>( SteamNetwork.SocketConnection.OnValidateAuthTicket, true );
 
 			Initialized = true;
 		}
