@@ -1,16 +1,23 @@
 ﻿using System.Diagnostics;
 using System.Text.Json;
+using System.Threading;
 using Sandbox.Internal;
 
 namespace Sandbox;
 
 partial class Json
 {
+	internal static CancellationTokenSource WarmUpCts;
+
 	/// <summary>
 	/// Try to do any reflection / code gen immediately, so we don't do anything too slow during gameplay.
 	/// </summary>
 	internal static void PopulateReflectionCache( TypeLibrary typeLibrary )
 	{
+		WarmUpCts?.Cancel();
+		WarmUpCts = new CancellationTokenSource();
+		var token = WarmUpCts.Token;
+
 		var jsonOptions = options;
 
 		var sw = Stopwatch.StartNew();
@@ -25,6 +32,8 @@ partial class Json
 		{
 			foreach ( var typeDesc in typeLibrary.GetTypes() )
 			{
+				if ( token.IsCancellationRequested ) return;
+
 				// ref structs & ptrs are invalid for serialization
 				if ( typeDesc.TargetType.IsByRef || typeDesc.TargetType.IsPointer || typeDesc.TargetType.IsByRefLike )
 					continue;
@@ -42,7 +51,7 @@ partial class Json
 					// Ignore not supported
 				}
 			}
-		} );
+		}, token );
 
 		Log.Trace( $"Took {sw.Elapsed.TotalMilliseconds:F2}ms populating reflection cache" );
 	}

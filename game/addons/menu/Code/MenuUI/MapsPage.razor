@@ -22,7 +22,6 @@
                 @if (Result?.Properties is not null && Result.Properties.Length > 0 )
                 {
                     <div class="flex-column flex-gap-16">
-                        <h2><WithIcon Icon="filter_alt" Text="Filters"></WithIcon></h2>
                         <PackagePropertyFilter Result=@Result Selected="@SelectedTags"></PackagePropertyFilter>
                     </div>
                 }
@@ -54,7 +53,7 @@
 </root>
 
 @code {
-    string filterOrder = "trending";
+    string filterOrder = "quality";
     TextEntry SearchEntry = default;
 
     List<string> SelectedTags = new();

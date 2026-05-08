@@ -20,6 +20,11 @@ public sealed partial class ClutterComponent
 	private ClutterLayer _volumeLayer;
 
 	/// <summary>
+	/// Static physics bodies for volume model instances with physics data.
+	/// </summary>
+	private readonly List<PhysicsBody> _volumePhysicsBodies = [];
+
+	/// <summary>
 	/// Tracks pending tile count for progressive volume generation.
 	/// </summary>
 	private int _pendingVolumeTiles;
@@ -94,6 +99,7 @@ public sealed partial class ClutterComponent
 					Ownership = ClutterOwnership.Component,
 					Layer = _volumeLayer,
 					Storage = Storage,
+					BodyList = _volumePhysicsBodies,
 					LocalBounds = Bounds,
 					VolumeTransform = WorldTransform,
 					OnComplete = () => _pendingVolumeTiles--
@@ -202,11 +208,19 @@ public sealed partial class ClutterComponent
 
 			foreach ( var instance in Storage.GetInstances( modelPath ) )
 			{
+				var t = new Transform( instance.Position, instance.Rotation, instance.Scale );
+
 				_volumeLayer.AddModelInstance( Vector2Int.Zero, new ClutterInstance
 				{
-					Transform = new Transform( instance.Position, instance.Rotation, instance.Scale ),
+					Transform = t,
 					Entry = new ClutterEntry { Model = model }
 				} );
+
+				if ( model.Physics?.Parts.Count > 0 )
+				{
+					var body = ClutterGenerationJob.CreateStaticBodyForVolume( model, t, Scene );
+					if ( body != null ) _volumePhysicsBodies.Add( body );
+				}
 			}
 		}
 
@@ -225,6 +239,10 @@ public sealed partial class ClutterComponent
 	{
 		Storage?.ClearAll();
 		_volumeLayer?.ClearAllTiles();
+
+		foreach ( var body in _volumePhysicsBodies )
+			if ( body.IsValid() ) body.Remove();
+		_volumePhysicsBodies.Clear();
 
 		// Ensure any in-progress volume generation UI/state is cleaned up
 		_progressSection?.Dispose();

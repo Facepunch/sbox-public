@@ -115,11 +115,9 @@ public static partial class Http
 	internal static HttpRequestMessage CreateRequest( HttpMethod method, string requestUri, Dictionary<string, string> headers )
 	{
 		var uri = new Uri( requestUri, UriKind.Absolute );
-		var isAllowed = IsAllowed( uri );
-		if ( !isAllowed )
-		{
-			throw new InvalidOperationException( $"Access to '{uri}' is not allowed. {isAllowed.Reason}" );
-		}
+
+		// Note: IsAllowed is enforced by SboxHttpHandler.HandleRequestAsync before every async send
+		// (including redirects). Synchronous sends are explicitly unsupported and throw NotSupportedException.
 
 		var request = new HttpRequestMessage( method, uri );
 		if ( headers != null )

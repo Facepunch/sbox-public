@@ -1,4 +1,6 @@
-﻿namespace Sandbox.Services;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace Sandbox.Services;
 
 public enum ReviewScore
 {
@@ -8,41 +10,47 @@ public enum ReviewScore
 	Promise = 3,
 }
 
+// Convention for review tags: [Display(Name = title, ShortName = material-symbols-icon)].
+// DisplayAttribute is the standard .NET attribute for human-facing UI metadata on enum members.
+
 [Flags]
 public enum ReviewPositiveTags : int
 {
 	None = 0,
 
-	Graphics = 1 << 0,
-	Audio = 1 << 1,
-	Gameplay = 1 << 2,
-	Story = 1 << 3,
-	Multiplayer = 1 << 4,
+	[Display( Name = "Graphics", ShortName = "palette" )] Graphics = 1 << 0,
+	[Display( Name = "Audio", ShortName = "volume_up" )] Audio = 1 << 1,
+	[Display( Name = "Gameplay", ShortName = "sports_esports" )] Gameplay = 1 << 2,
+	[Display( Name = "Story", ShortName = "menu_book" )] Story = 1 << 3,
+	[Display( Name = "Multiplayer", ShortName = "groups" )] Multiplayer = 1 << 4,
 
-	Originality = 1 << 5,
-	Performance = 1 << 6,
-	Polish = 1 << 7,
-	Addictive = 1 << 8,
-	Replayability = 1 << 9,
-	Controls = 1 << 10,
-	Updates = 1 << 11,
+	[Display( Name = "Originality", ShortName = "lightbulb" )] Originality = 1 << 5,
+	[Display( Name = "Performance", ShortName = "speed" )] Performance = 1 << 6,
+	[Display( Name = "Polish", ShortName = "auto_awesome" )] Polish = 1 << 7,
+	[Display( Name = "Addictive", ShortName = "favorite" )] Addictive = 1 << 8,
+	[Display( Name = "Replayability", ShortName = "replay" )] Replayability = 1 << 9,
+	[Display( Name = "Controls", ShortName = "gamepad" )] Controls = 1 << 10,
+	[Display( Name = "Updates", ShortName = "update" )] Updates = 1 << 11,
 }
 
 [Flags]
 public enum ReviewNegativeTags : int
 {
 	None = 0,
-	Unfinished = 1 << 1,
-	Unoptimized = 1 << 2,
-	BadControls = 1 << 3,
-	Confusing = 1 << 4,
-	Slop = 1 << 5,
-	GeneratedArt = 1 << 6,
-	PayToWin = 1 << 7,
-	Stolen = 1 << 8,
-	Errors = 1 << 9,
-	LoadTimes = 1 << 10,
-	Buggy = 1 << 11,
+
+	[Display( Name = "Unfinished", ShortName = "construction" )] Unfinished = 1 << 1,
+	[Display( Name = "Unoptimized", ShortName = "slow_motion_video" )] Unoptimized = 1 << 2,
+	[Display( Name = "Bad Controls", ShortName = "gamepad" )] BadControls = 1 << 3,
+	[Display( Name = "Confusing", ShortName = "help" )] Confusing = 1 << 4,
+	[Display( Name = "Slop", ShortName = "mop" )] Slop = 1 << 5,
+	[Display( Name = "Generated Art", ShortName = "smart_toy" )] GeneratedArt = 1 << 6,
+	[Display( Name = "Pay to Win", ShortName = "paid" )] PayToWin = 1 << 7,
+	[Display( Name = "Stolen", ShortName = "report" )] Stolen = 1 << 8,
+	[Display( Name = "Errors", ShortName = "error" )] Errors = 1 << 9,
+	[Display( Name = "Load Times", ShortName = "hourglass_top" )] LoadTimes = 1 << 10,
+	[Display( Name = "Buggy", ShortName = "bug_report" )] Buggy = 1 << 11,
+	[Display( Name = "Clicker", ShortName = "touch_app" )] Clicker = 1 << 12,
+	[Display( Name = "Idle", ShortName = "autorenew" )] Idle = 1 << 13,
 }
 
 public enum DisplayMode

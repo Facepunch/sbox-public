@@ -70,7 +70,7 @@
 
 	public override void Tick()
 	{
-		MenuUtility.SetVoiceListen(Input.Down("voice"));
+		MenuUtility.SetVoiceListen(Preferences.VoiceMode != VoiceMode.Disabled && (Preferences.VoiceMode == VoiceMode.OpenMicrophone || Input.Down("voice")));
 		UpdateJoinStatus();
 	}
 

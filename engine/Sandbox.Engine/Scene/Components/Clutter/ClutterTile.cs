@@ -31,10 +31,21 @@ class ClutterTile
 	/// </summary>
 	internal List<GameObject> SpawnedObjects { get; } = [];
 
+	/// <summary>
+	/// Static physics bodies spawned for model entries with physics data.
+	/// </summary>
+	internal List<PhysicsBody> SpawnedBodies { get; } = [];
+
 	internal void AddObject( GameObject obj )
 	{
 		if ( obj.IsValid() )
 			SpawnedObjects.Add( obj );
+	}
+
+	internal void AddBody( PhysicsBody body )
+	{
+		if ( body.IsValid() )
+			SpawnedBodies.Add( body );
 	}
 
 	internal void Destroy()
@@ -42,7 +53,11 @@ class ClutterTile
 		foreach ( var obj in SpawnedObjects )
 			if ( obj.IsValid() ) obj.Destroy();
 
+		foreach ( var body in SpawnedBodies )
+			if ( body.IsValid() ) body.Remove();
+
 		SpawnedObjects.Clear();
+		SpawnedBodies.Clear();
 		IsPopulated = false;
 	}
 }

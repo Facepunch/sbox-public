@@ -1,9 +1,10 @@
-﻿using Native;
+using Sandbox.Engine;
 
 namespace Editor;
 
 /// <summary>
-/// Registers a widget with the input system, so it uses SDL.
+/// Registers a widget with the input system to use SDL and manages
+/// inputs and focus as it relates to the editor's game widget.
 /// </summary>
 public static class GameMode
 {
@@ -19,6 +20,8 @@ public static class GameMode
 
 		widget.Focused += WidgetFocused;
 		widget.Blurred += WidgetBlurred;
+		widget.MouseTracking = true;
+		widget.MouseMove += OnPlayWidgetMouseMove;
 
 		NativeEngine.InputSystem.RegisterWindowWithSDL( widget._widget.winId() );
 		g_pEngineServiceMgr.SetEngineState( widget._widget.winId(), widget.SwapChain );
@@ -39,6 +42,8 @@ public static class GameMode
 
 		_inPlay.Focused -= WidgetFocused;
 		_inPlay.Blurred -= WidgetBlurred;
+		_inPlay.MouseMove -= OnPlayWidgetMouseMove;
+		_inPlay.MouseTracking = false;
 
 		NativeEngine.InputSystem.UnregisterWindowFromSDL( _inPlay._widget.winId() );
 
@@ -50,6 +55,9 @@ public static class GameMode
 	/// </summary>
 	private static void WidgetFocused( FocusChangeReason reason )
 	{
+		if ( _inPlay is null )
+			return;
+
 		NativeEngine.InputSystem.OnEditorGameFocusChange( _inPlay._widget.winId(), true );
 	}
 
@@ -58,6 +66,21 @@ public static class GameMode
 	/// </summary>
 	private static void WidgetBlurred( FocusChangeReason reason )
 	{
+		if ( _inPlay is null )
+			return;
+
 		NativeEngine.InputSystem.OnEditorGameFocusChange( _inPlay._widget.winId(), false );
+	}
+
+	private static void OnPlayWidgetMouseMove( Vector2 local )
+	{
+		// SDL handles position when the widget is focused; only fill in the gap when unfocused.
+		if ( _inPlay is null || _inPlay.IsFocused )
+			return;
+
+		var pos = new Vector2( (int)local.x, (int)local.y );
+		var delta = pos - InputRouter.MouseCursorPosition;
+
+		InputRouter.OnMousePositionChange( pos.x, pos.y, delta.x, delta.y );
 	}
 }

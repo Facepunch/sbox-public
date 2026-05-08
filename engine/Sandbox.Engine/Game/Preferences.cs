@@ -45,4 +45,20 @@ public static class Preferences
 	[ConVar( "mouse_yaw_inverted", ConVarFlags.Protected, Help = "Whether the mouse's yaw should be inverted or not", Saved = true, Min = 0, Max = 1 )]
 	public static bool InvertMouseYaw { get; internal set; } = false;
 
+	/// <summary>
+	/// Voice chat activation mode.
+	/// </summary>
+	[ConVar( "voip_mode", ConVarFlags.Protected, Help = "Voice chat mode: PushToTalk, OpenMicrophone, or Disabled", Saved = true )]
+	public static VoiceMode VoiceMode { get; internal set; } = VoiceMode.PushToTalk;
+
+}
+
+/// <summary>
+/// Voice chat activation mode preference.
+/// </summary>
+public enum VoiceMode
+{
+	PushToTalk,
+	OpenMicrophone,
+	Disabled
 }

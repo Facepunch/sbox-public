@@ -560,6 +560,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				c.Model = model;
 				c.Enabled = true;
 				c.Tint = mr?.Tint ?? c.Tint;
+				c.MaterialGroup = mr?.MaterialGroup ?? c.MaterialGroup;
 
 				gibs.Add( c );
 

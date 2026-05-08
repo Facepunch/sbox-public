@@ -40,6 +40,17 @@
             <SliderControl Value:bind=@VoiceVolume class="glass with-grow" Min="@(0)" Max="@(1)" Step="@(0.01f)" NumberFormat="0.##%"></SliderControl>
         </row>
 
+        <h2>Voice Input</h2>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Voice Mode
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@VoiceModeOptions Value:bind=@SelectedVoiceMode></ButtonGroup>
+        </row>
+
+        <h2>Misc</h2>
+
         <row class="with-gaps">
             <cell class="glass with-padding is-label">
                 Background Audio
@@ -59,6 +70,7 @@
     public float GlobalVolume { get; set; }
     public float MusicVolume { get; set; }
     public float VoiceVolume { get; set; }
+    public VoiceMode SelectedVoiceMode { get; set; }
     public bool BackgroundAudio { get; set; }
 
     public string AudioDevice { get; set; }
@@ -72,6 +84,13 @@
 
         OnCancel();
     }
+
+	List<Option> VoiceModeOptions = new List<Option>()
+    {
+        new Option("Push-to-Talk", VoiceMode.PushToTalk),
+        new Option("Open Microphone", VoiceMode.OpenMicrophone),
+        new Option("Disabled", VoiceMode.Disabled),
+    };
 
 	List<Option> BackgroundAudioOptions = new List<Option>()
     {
@@ -101,6 +120,7 @@
         ConsoleSystem.SetValue("volume", 1.0f);
         ConsoleSystem.SetValue("music_volume", 1.0f);
         ConsoleSystem.SetValue("voip_volume", 1.0f);
+        ConsoleSystem.SetValue("voip_mode", (int)VoiceMode.PushToTalk);
         ConsoleSystem.SetValue("snd_mute_losefocus", false);
     }
 
@@ -109,6 +129,7 @@
         GlobalVolume = ConsoleSystem.GetValue("volume").ToFloat();
         MusicVolume = ConsoleSystem.GetValue("music_volume").ToFloat();
         VoiceVolume = ConsoleSystem.GetValue("voip_volume").ToFloat();
+        SelectedVoiceMode = Enum.Parse<VoiceMode>(ConsoleSystem.GetValue("voip_mode"), true);
         BackgroundAudio = !ConsoleSystem.GetValue("snd_mute_losefocus").ToBool();
         AudioDevice = Sandbox.Internal.AudioSettings.GetActiveDevice().Id;
     }
@@ -119,6 +140,7 @@
         ConsoleSystem.SetValue("volume", GlobalVolume);
         ConsoleSystem.SetValue("music_volume", MusicVolume);
         ConsoleSystem.SetValue("voip_volume", VoiceVolume);
+        ConsoleSystem.SetValue("voip_mode", (int)SelectedVoiceMode);
         ConsoleSystem.SetValue("snd_mute_losefocus", !BackgroundAudio);
     }
 }

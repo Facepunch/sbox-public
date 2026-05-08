@@ -32,9 +32,11 @@ public class HttpTests
 	[DataRow( "https://10-0-0-1.mattstevens.co.uk/", false )]
 	[DataRow( "https://192-168-1-1.mattstevens.co.uk/", false )]
 	[DataRow( "file://blah", false )]
-	public void IsUriAllowed( string uri, bool expected )
+	public async Task IsUriAllowed( string uri, bool expected )
 	{
-		Assert.AreEqual( expected, Http.IsAllowed( new Uri( uri, UriKind.Absolute ) ) );
+		var u = new Uri( uri, UriKind.Absolute );
+		Assert.AreEqual( expected, Http.IsAllowed( u ) );
+		Assert.AreEqual( expected, await Http.IsAllowedAsync( u ) );
 	}
 
 	[TestMethod]
@@ -74,13 +76,6 @@ public class HttpTests
 		Assert.AreEqual( 1, request.Headers.Count() );
 		Assert.IsTrue( request.Headers.Contains( "X-Test" ) );
 		CollectionAssert.AreEqual( new[] { "1" }, request.Headers.GetValues( "X-Test" ).ToArray() );
-	}
-
-	[TestMethod]
-	public void CreateRequest_BadUri_Throws()
-	{
-		var headers = new Dictionary<string, string> { { "X-Test", "1" } };
-		Assert.ThrowsException<InvalidOperationException>( () => Http.CreateRequest( HttpMethod.Get, "ftp://google.com", headers ) );
 	}
 
 	[TestMethod]

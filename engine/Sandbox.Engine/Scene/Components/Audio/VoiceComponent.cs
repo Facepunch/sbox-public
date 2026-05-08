@@ -198,16 +198,12 @@ public class Voice : Component
 		get
 		{
 			if ( IsProxy ) return false;
-			if ( Mode == ActivateMode.AlwaysOn ) return true;
-			if ( Mode == ActivateMode.PushToTalk )
-			{
-				return Input.Down( PushToTalkInput );
-			}
+			if ( Preferences.VoiceMode == VoiceMode.Disabled ) return false;
+			if ( Preferences.VoiceMode == VoiceMode.OpenMicrophone )
+				return Mode == ActivateMode.AlwaysOn || Mode == ActivateMode.PushToTalk || (Mode == ActivateMode.Manual && _isListening);
 
-			if ( Mode == ActivateMode.Manual )
-				return _isListening;
-
-			return false;
+			// PushToTalk: always require key press regardless of component mode
+			return Input.Down( PushToTalkInput );
 		}
 	}
 
