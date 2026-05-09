@@ -1,4 +1,4 @@
-﻿using Sandbox;
+using Sandbox;
 using Sandbox.Utility;
 using System;
 
@@ -130,8 +130,49 @@ namespace Editor
 			SetWindowIcon( "logo_rounded.png" );
 		}
 
+		// Saved at WindowStateChange→normal (from minimized); corrects Qt's stale
+		// normalGeometry that can force a wrong size on the first resize after restore.
+		private Vector2 _pendingRestoreSize;
+		private bool _wasMinimized;
+
+		protected override void OnWindowStateChange()
+		{
+			base.OnWindowStateChange();
+
+			if ( IsMinimized )
+			{
+				_wasMinimized = true;
+				_pendingRestoreSize = default;
+			}
+			else if ( _wasMinimized )
+			{
+				// Capture the correct size right after restore, before Qt can fire a
+				// QResizeEvent from its stale internal normalGeometry.
+				_wasMinimized = false;
+				_pendingRestoreSize = Size;
+			}
+			else
+			{
+				_wasMinimized = false;
+			}
+		}
+
 		protected override void OnResize()
 		{
+			// If restoring from minimized, Qt may fire a bogus QResizeEvent from a stale
+			// normalGeometry (set by a previous restoreGeometry() call). Correct it once.
+			if ( _pendingRestoreSize != default )
+			{
+				var target = _pendingRestoreSize;
+				_pendingRestoreSize = default;
+
+				if ( Size != target && !IsMinimized && !IsMaximized )
+				{
+					Size = target;
+					return;
+				}
+			}
+
 			base.OnResize();
 
 			// Force redraw the titlebar so that we can change the maximize button

@@ -52,6 +52,9 @@ namespace Editor
 			if ( !this.IsValid() )
 				return;
 
+			if ( IsMinimized )
+				return;
+
 			var state = SaveState();
 			var geo = SaveGeometry();
 

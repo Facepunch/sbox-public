@@ -443,8 +443,6 @@ namespace Editor
 
 		internal void InternalOnEvent( Native.EventType e )
 		{
-			// Unused for now
-
 			if ( e == Native.EventType.LayoutRequest || e == Native.EventType.Resize )
 			{
 				if ( _recurseBreaker )
@@ -470,6 +468,21 @@ namespace Editor
 			{
 				OnVisibilityChanged( false );
 			}
+
+			if ( e == Native.EventType.WindowStateChange )
+			{
+				OnWindowStateChange();
+			}
+		}
+
+		/// <summary>
+		/// Called when the window state changes between minimized, maximized, and normal.
+		/// Fires for both managed calls (MakeMinimized etc.) and OS/taskbar-driven changes.
+		/// Note: Qt only delivers this event to the top-level window, not to child widgets.
+		/// </summary>
+		protected virtual void OnWindowStateChange()
+		{
+
 		}
 
 		internal bool InternalFocusNextPrevChild( bool next )
