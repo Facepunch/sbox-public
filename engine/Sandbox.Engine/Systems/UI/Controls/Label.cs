@@ -321,36 +321,36 @@ namespace Sandbox.UI
 				sizeFinalized = false;
 			}
 		}
-		
+
 		private Styles HtmlStyleLookup( INode node )
 		{
 			// Seed with the label's own computed styles so inherited properties are present
 			var s = new Styles();
 			s.Add( ComputedStyle );
-			
+
 			var blocks = AllStyleSheets
 				.SelectMany( x => x.Nodes )
 				.Select( x => x.Test( node ) )
 				.Where( x => x is not null )
 				.ToList();
-			
+
 			if ( blocks.Count > 0 )
 			{
 				blocks.Sort( StyleOrderer.Instance );
-				
+
 				foreach ( var entry in blocks )
 					s.Add( entry.Block.Styles );
-				
+
 				s.ApplyScale( FindRootPanel().ScaleToScreen );
 			}
-			
+
 			// Inline styles applied last, highest specificity wins
 			if ( node.GetAttribute( "style", null ) is string styles )
 			{
 				var p = new Parse( styles );
 				StyleParser.ParseStyles( ref p, s );
 			}
-			
+
 			return s;
 		}
 
