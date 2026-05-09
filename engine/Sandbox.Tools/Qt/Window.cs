@@ -1,4 +1,4 @@
-using Sandbox;
+﻿using Sandbox;
 using Sandbox.Utility;
 using System;
 
@@ -138,6 +138,10 @@ namespace Editor
 		protected override void OnWindowStateChange()
 		{
 			base.OnWindowStateChange();
+
+			// Qt only dispatches WindowStateChange to the top-level window, not children.
+			// Release recording size locks so they don't affect the layout on restore.
+			SceneRenderingWidget.ReleaseAllRecordingLocksForWindowStateChange();
 
 			if ( IsMinimized )
 			{

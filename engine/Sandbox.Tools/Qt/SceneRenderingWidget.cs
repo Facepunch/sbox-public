@@ -34,6 +34,25 @@ public class SceneRenderingWidget : Frame
 	private Vector2 _savedMinSize;
 	private Vector2 _savedMaxSize;
 
+	/// <summary>
+	/// Releases the recording size lock on all active SceneRenderingWidgets.
+	/// Called from <see cref="Window.OnWindowStateChange"/> because Qt only delivers
+	/// WindowStateChange to the top-level window, not to child widgets.
+	/// Without this, a lock left active while the window is minimized would keep
+	/// the min/max size constraint in place on restore/maximize, causing layout and
+	/// swap-chain issues.
+	/// </summary>
+	internal static void ReleaseAllRecordingLocksForWindowStateChange()
+	{
+		foreach ( var w in All )
+		{
+			if ( !w._sizeLockedForRecording ) continue;
+			w.MinimumSize = w._savedMinSize;
+			w.MaximumSize = w._savedMaxSize;
+			w._sizeLockedForRecording = false;
+		}
+	}
+
 	public SceneRenderingWidget( Widget parent = null ) : base( parent )
 	{
 		SetFlag( Flag.WA_NativeWindow, true );
