@@ -18,7 +18,7 @@ internal sealed partial class Controller
 	internal Input.Context InputContext { get; set; }
 
 	/// SDL reports values between this range
-	static readonly Vector2 AXIS_RANGE = new( -32768, 32767 );
+	internal static readonly Vector2 AXIS_RANGE = new( -32768, 32767 );
 
 	List<InputAxis> ControllerAxes { get; set; } = new();
 

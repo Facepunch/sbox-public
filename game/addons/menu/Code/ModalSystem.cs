@@ -40,6 +40,8 @@ public class ModalSystem : IModalSystem
 	{
 		MenuOverlay.Instance.AddChild( modal );
 		modal.OnClosed += ( s ) => OnModalClosing( modal, s );
+		modal.Style.ZIndex = (OpenModals.LastOrDefault()?.Style.ZIndex ?? 1000) + 10;
+
 		OpenModals.Add( modal );
 	}
 

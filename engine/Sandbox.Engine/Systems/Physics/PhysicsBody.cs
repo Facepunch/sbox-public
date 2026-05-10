@@ -329,6 +329,16 @@ public sealed partial class PhysicsBody : IHandle
 	}
 
 	/// <summary>
+	/// The speed threshold below which this body will be put to sleep. Units per second.
+	/// The default is about 2 units/sec. Increase this to make bodies sleep sooner, which is useful for stacking stability.
+	/// </summary>
+	public float SleepThreshold
+	{
+		get => native.GetSleepThreshold();
+		set => native.SetSleepThreshold( value );
+	}
+
+	/// <summary>
 	/// Transform of this physics body.
 	/// </summary>
 	[ActionGraphInclude]

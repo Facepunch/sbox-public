@@ -36,6 +36,18 @@ internal class PageSceneView : Widget
 		sheet.AddProperty( () => EditorPreferences.PasteAtCursor );
 
 		Layout.Add( sheet );
+
+		Layout.AddSpacingCell( 16 );
+		Layout.Add( new Label.Subtitle( "Gizmo Handles" ) );
+
+		var gizmoSheet = new ControlSheet();
+
+		gizmoSheet.AddProperty( () => EditorPreferences.GizmoScale );
+		gizmoSheet.AddProperty( () => EditorPreferences.GizmoRenderDistance );
+		gizmoSheet.AddProperty( () => EditorPreferences.GizmoDepthTest );
+		gizmoSheet.AddProperty( () => EditorPreferences.WorldSpaceGizmos );
+
+		Layout.Add( gizmoSheet );
 		Layout.AddStretchCell();
 	}
 }

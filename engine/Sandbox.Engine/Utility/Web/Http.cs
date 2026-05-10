@@ -47,40 +47,60 @@ public static partial class Http
 	/// </summary>
 	/// <param name="uri">The Uri to check.</param>
 	/// <returns>True if the Uri can be accessed, false if the Uri will be blocked.</returns>
+	private static bool HasAllowedScheme( Uri uri ) =>
+		uri.Scheme is "http" or "https" or "wss" or "ws";
+
+	// Only obvious dev-server ports; nothing should conflict with these
+	private static bool IsAllowedLoopbackPort( Uri uri ) =>
+		uri.IsDefaultPort || uri.Port is 80 or 443 or 8080 or 8443;
+
+	private static bool IsDirectIpAddress( Uri uri ) =>
+		uri.HostNameType is UriHostNameType.IPv4 or UriHostNameType.IPv6;
+
+	/// <summary>
+	/// Check if the given Uri matches the following requirements:
+	/// 1. Scheme is https/http or wss/ws
+	/// 2. If it's localhost, only allow ports 80/443/8080/8443
+	/// 3. Not an ip address
+	/// </summary>
+	/// <param name="uri">The Uri to check.</param>
+	/// <returns>True if the Uri can be accessed, false if the Uri will be blocked.</returns>
 	public static bool IsAllowed( Uri uri )
 	{
-		if ( uri.Scheme != "http" && uri.Scheme != "https" && uri.Scheme != "wss" && uri.Scheme != "ws" )
-			return false;
-
-		if ( IsLocalAllowed )
-			return true;
-
-		// Allow specific ports for loopback (localhost) URIs so that people can do local development/testing
-		// Only including the obvious development server only ports because nothing should conflict with these
-		if ( uri.IsLoopback )
-			return uri.IsDefaultPort || uri.Port is 80 or 443 or 8080 or 8443;
-
-		// don't allow ip urls (unless it's covered by loopback above)
-		if ( uri.HostNameType == UriHostNameType.IPv4 || uri.HostNameType == UriHostNameType.IPv6 )
-			return false;
+		if ( !HasAllowedScheme( uri ) ) return false;
+		if ( IsLocalAllowed ) return true;
+		if ( uri.IsLoopback ) return IsAllowedLoopbackPort( uri );
+		if ( IsDirectIpAddress( uri ) ) return false;
 
 		try
 		{
-
 			// don't allow any domains that resolve to private or loopback ip addresses
 			// shit routers and internet of shit devices are typically vulnerable
 			// https://medium.com/@brannondorsey/attacking-private-networks-from-the-internet-with-dns-rebinding-ea7098a2d325
-			if ( uri.IsPrivate() )
-				return false;
-
+			return !uri.IsPrivate();
 		}
 		catch ( System.Net.Sockets.SocketException )
 		{
-			// No such host is known
 			return false;
 		}
+	}
 
-		return true;
+	/// <inheritdoc cref="IsAllowed(Uri)"/>
+	internal static async Task<bool> IsAllowedAsync( Uri uri )
+	{
+		if ( !HasAllowedScheme( uri ) ) return false;
+		if ( IsLocalAllowed ) return true;
+		if ( uri.IsLoopback ) return IsAllowedLoopbackPort( uri );
+		if ( IsDirectIpAddress( uri ) ) return false;
+
+		try
+		{
+			return !await uri.IsPrivateAsync();
+		}
+		catch ( System.Net.Sockets.SocketException )
+		{
+			return false;
+		}
 	}
 
 	// https://developer.mozilla.org/en-US/docs/Glossary/Forbidden_header_name
@@ -131,9 +151,9 @@ internal sealed class SboxHttpHandler : DelegatingHandler
 
 	public SboxHttpHandler( HttpMessageHandler innerHandler ) : base( innerHandler ) { }
 
-	private static void HandleRequest( HttpRequestMessage request )
+	private static async Task HandleRequestAsync( HttpRequestMessage request )
 	{
-		if ( !Http.IsAllowed( request.RequestUri ) )
+		if ( !await Http.IsAllowedAsync( request.RequestUri ) )
 			throw new InvalidOperationException( $"Access to '{request.RequestUri}' is not allowed." );
 
 		request.Headers.Remove( "User-Agent" );
@@ -165,27 +185,12 @@ internal sealed class SboxHttpHandler : DelegatingHandler
 
 	protected override HttpResponseMessage Send( HttpRequestMessage request, CancellationToken cancellationToken )
 	{
-		HandleRequest( request );
-		var response = base.Send( request, cancellationToken );
-
-		for ( int i = 0; i < MaxRedirects && IsRedirectStatus( response.StatusCode ); i++ )
-		{
-			var location = ResolveRedirectLocation( response, request.RequestUri );
-			if ( location is null ) break;
-			var status = response.StatusCode;
-			response.Dispose();
-
-			ApplyRedirect( request, status, location );
-			HandleRequest( request );
-			response = base.Send( request, cancellationToken );
-		}
-
-		return response;
+		throw new NotSupportedException( "Synchronous HTTP requests are not supported. Use async methods instead." );
 	}
 
 	protected override async Task<HttpResponseMessage> SendAsync( HttpRequestMessage request, CancellationToken cancellationToken )
 	{
-		HandleRequest( request );
+		await HandleRequestAsync( request );
 		var response = await base.SendAsync( request, cancellationToken );
 
 		for ( int i = 0; i < MaxRedirects && IsRedirectStatus( response.StatusCode ); i++ )
@@ -196,7 +201,7 @@ internal sealed class SboxHttpHandler : DelegatingHandler
 			response.Dispose();
 
 			ApplyRedirect( request, status, location );
-			HandleRequest( request );
+			await HandleRequestAsync( request );
 			response = await base.SendAsync( request, cancellationToken );
 		}
 

@@ -87,30 +87,26 @@ internal static partial class InputRouter
 	/// </summary>
 	internal static void OnMousePositionChange( float x, float y, float dx, float dy )
 	{
-		var delta = new Vector2( 0, 0 );
-
-		// if we're not in relative mode - take the delta from this
-		if ( !NativeEngine.InputSystem.GetRelativeMouseMode() )
-		{
-			delta = new Vector2( dx, dy );
-			MouseCursorDelta += delta;
-		}
-
 		MouseCursorPosition = new Vector2( x, y );
 
-		// if this is set, we're in capture mode - so just update the position
-		// which will update the position of the cursor when we come out of it
+		if ( InputSystem.GetRelativeMouseMode() )
+		{
+			dx = dy = 0;
+		}
+
+		// If this is set, we're in capture mode - so just update the position
+		// cache we restore when capture ends. This intentionally records the
+		// latest absolute position without moving the OS cursor.
 		if ( mouseCapturePosition is not null )
 		{
 			mouseCapturePosition = MouseCursorPosition;
 			return;
 		}
 
+		MouseCursorDelta += new Vector2( dx, dy );
+
 		var mouse = Contexts.FirstOrDefault( x => x.MouseState != InputContext.InputState.Ignore );
-		if ( mouse is not null )
-		{
-			mouse.In_MousePosition( MouseCursorPosition, delta );
-		}
+		mouse?.In_MousePosition( MouseCursorPosition, new Vector2( dx, dy ) );
 	}
 
 	internal static void OnGameControllerButton( int deviceId, GameControllerCode button, bool down )
@@ -204,7 +200,8 @@ internal static partial class InputRouter
 			_ => GamepadCode.None,
 		};
 
-		OnGamepadCode( deviceId, code, value >= triggerDeadzone );
+		// Normalize raw SDL axis value to 0-1 range before comparing against the normalized deadzone.
+		OnGamepadCode( deviceId, code, ((float)value).Remap( 0, Controller.AXIS_RANGE.y, 0, 1 ) >= triggerDeadzone );
 	}
 
 	internal static void OnGameControllerConnected( int joystickId, int deviceId )

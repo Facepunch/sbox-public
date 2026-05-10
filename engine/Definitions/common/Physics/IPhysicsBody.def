@@ -45,6 +45,9 @@ native class IPhysicsBody as NativeEngine.IPhysicsBody
 	void EnableAutoSleeping();
 	void DisableAutoSleeping();
 
+	void SetSleepThreshold( float threshold );
+	float GetSleepThreshold();
+
 	void EnableTouchEvents();
 	void DisableTouchEvents();
 	bool IsTouchEventEnabled();

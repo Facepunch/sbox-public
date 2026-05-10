@@ -2090,7 +2090,7 @@ internal sealed partial class Mesh
 
 		// Disconnect the edge that is being collapsed from the faces and other edges.
 		Assert.True( hEdgeA.IsValid && hEdgeB.IsValid );
-		if ( hEdgeA.IsValid && hEdgeA.IsValid )
+		if ( hEdgeA.IsValid && hEdgeB.IsValid )
 		{
 			var pNewVertex = hNewVertex;
 			var hNextEdgeA = hEdgeA.NextEdge;

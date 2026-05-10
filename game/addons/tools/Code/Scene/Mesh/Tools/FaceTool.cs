@@ -152,6 +152,12 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		AddMenuOption( ops, "Merge Meshes", "join_full", "mesh.merge-meshes", true );
 		AddMenuOption( ops, "Apply Material", "format_color_fill", "mesh.apply-material", true );
 
+		var tex = menu.AddMenu( "Texture Operations", "gradient" );
+		AddMenuOption( tex, "Apply Material", "format_color_fill", "mesh.apply-material", true );
+		AddMenuOption( tex, "Apply by Hotspot", "my_location", "mesh.apply-hotspot", true );
+		AddMenuOption( tex, "Apply by Hotspot (Per Face)", "texture", "mesh.apply-hotspot-per-face", true );
+		AddMenuOption( tex, "Fast Texture Tool", "edit", "mesh.fast-texture-tool", true );
+
 		var sel = menu.AddMenu( "Face Selection", "select_all" );
 		AddMenuOption( sel, "Select Loop", "all_out", "mesh.select-loop", true );
 		AddMenuOption( sel, "Invert Selection", "swap_vert", InvertCurrentSelection, "mesh.invert-selection", true );

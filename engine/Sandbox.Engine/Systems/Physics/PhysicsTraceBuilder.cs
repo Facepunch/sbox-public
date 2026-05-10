@@ -151,6 +151,56 @@ public partial struct PhysicsTraceBuilder
 	}
 
 	/// <summary>
+	/// Casts a cone (base at bottom, apex at top).
+	/// </summary>
+	public readonly PhysicsTraceBuilder Cone( float height, float baseRadius )
+	{
+		var t = this;
+		var halfHeight = height * 0.5f;
+
+		t.request.StartShape.Type = PhysicsTrace.Request.ShapeType.Cylinder;
+		t.request.StartShape.Mins = Vector3.Down * halfHeight;
+		t.request.StartShape.Maxs = Vector3.Up * halfHeight;
+		t.request.StartShape.Radius = new Vector2( baseRadius, 0.0f );
+
+		return t;
+	}
+
+	/// <summary>
+	/// Casts a cone from point A to point B.
+	/// </summary>
+	public PhysicsTraceBuilder Cone( float height, float baseRadius, in Vector3 from, in Vector3 to )
+	{
+		var halfHeight = height * 0.5f;
+
+		request.StartPos = from;
+		request.EndPos = to;
+		request.StartShape.Type = PhysicsTrace.Request.ShapeType.Cylinder;
+		request.StartShape.Mins = Vector3.Down * halfHeight;
+		request.StartShape.Maxs = Vector3.Up * halfHeight;
+		request.StartShape.Radius = new Vector2( baseRadius, 0.0f );
+
+		return this;
+	}
+
+	/// <summary>
+	/// Casts a cone from a ray.
+	/// </summary>
+	public PhysicsTraceBuilder Cone( float height, float baseRadius, in Ray ray, in float distance )
+	{
+		var halfHeight = height * 0.5f;
+
+		request.StartPos = ray.Position;
+		request.EndPos = ray.ProjectSafe( distance );
+		request.StartShape.Type = PhysicsTrace.Request.ShapeType.Cylinder;
+		request.StartShape.Mins = Vector3.Down * halfHeight;
+		request.StartShape.Maxs = Vector3.Up * halfHeight;
+		request.StartShape.Radius = new Vector2( baseRadius, 0.0f );
+
+		return this;
+	}
+
+	/// <summary>
 	/// Casts a ray from point A to point B.
 	/// </summary>
 	public PhysicsTraceBuilder Ray( in Vector3 from, in Vector3 to )

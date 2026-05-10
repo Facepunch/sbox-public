@@ -379,6 +379,25 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		}
 	}
 
+	/// <summary>
+	/// The speed threshold below which this body will be put to sleep. Units per second.
+	/// Increase this to make the body sleep sooner, which is useful for stacking stability.
+	/// </summary>
+	[Advanced, Property, DefaultValue( 2.0f )]
+	public float SleepThreshold
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+
+			field = value;
+
+			if ( _body.IsValid() )
+				_body.SleepThreshold = value;
+		}
+	} = 2.0f;
+
 	void IGameObjectNetworkEvents.BeforeDropOwnership()
 	{
 		// Before we drop ownership, we want to make sure the networked vars
@@ -486,6 +505,7 @@ sealed public partial class Rigidbody : Component, Component.ExecuteInEditor, IG
 		_body.AngularVelocity = _lastAngularVelocity;
 
 		_body.EnhancedCcd = EnhancedCcd;
+		_body.SleepThreshold = SleepThreshold;
 
 		// Make sure we clear these so we don't reapply them again later
 		_lastVelocity = default;

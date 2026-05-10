@@ -1,12 +1,45 @@
-﻿using HalfEdgeMesh;
+using HalfEdgeMesh;
 
 namespace Editor.MeshEditor;
 
 partial class VertexTool
 {
+	public enum MergeRange
+	{
+		[Description( "Merge all vertices regardless of distance." )]
+		Infinite,
+		[Description( "Merge vertices within the current grid spacing." )]
+		Grid,
+		[Description( "Merge vertices within a fixed distance." )]
+		Fixed,
+	}
+
+	public MergeRange MergeRangeMode
+	{
+		get => _mergeRangeMode;
+		set
+		{
+			_mergeRangeMode = value;
+			EditorCookie.Set( "VertexTool.MergeRange", value );
+		}
+	}
+	MergeRange _mergeRangeMode = EditorCookie.Get( "VertexTool.MergeRange", MergeRange.Infinite );
+
+	[Step( 0.1f )]
+	public float MergeDistance
+	{
+		get => _mergeDistance;
+		set
+		{
+			_mergeDistance = value;
+			EditorCookie.Set( "VertexTool.MergeDistance", value );
+		}
+	}
+	float _mergeDistance = EditorCookie.Get( "VertexTool.MergeDistance", 0.1f );
+
 	public override Widget CreateToolSidebar()
 	{
-		return new VertexSelectionWidget( GetSerializedSelection(), Tool );
+		return new VertexSelectionWidget( GetSerializedSelection(), this );
 	}
 
 	public class VertexSelectionWidget : ToolSidebarWidget
@@ -14,36 +47,14 @@ partial class VertexTool
 		private readonly MeshVertex[] _vertices;
 		private readonly List<IGrouping<MeshComponent, MeshVertex>> _vertexGroups;
 		private readonly List<MeshComponent> _components;
-		readonly MeshTool _tool;
+		readonly VertexTool _tool;
+		readonly ControlWidget _distanceControl;
 
-		public enum MergeRange
-		{
-			[Icon( "all_inclusive" ), Description( "Merge all vertices regardless of distance." )]
-			Infinite,
-			[Icon( "grid_on" ), Description( "Merge vertices within the current grid spacing." )]
-			Grid,
-			[Icon( "straighten" ), Description( "Merge vertices within a fixed distance." )]
-			Fixed,
-		}
-
-		private static MergeRange MergeRangeMode { get; set; } = MergeRange.Infinite;
-		private static float MergeDistance { get; set; } = 0.1f;
-
-		private struct MergeProperties
-		{
-			[Group( "Merge" )]
-			public readonly MergeRange Range { get => MergeRangeMode; set => MergeRangeMode = value; }
-
-			[Group( "Merge" )]
-			public readonly float Distance { get => MergeDistance; set => MergeDistance = value; }
-		}
-
-		[InlineEditor( Label = false )]
-		private readonly MergeProperties mergeProperties = new();
-
-		public VertexSelectionWidget( SerializedObject so, MeshTool tool ) : base()
+		public VertexSelectionWidget( SerializedObject so, VertexTool tool ) : base()
 		{
 			_tool = tool;
+
+			var toolSo = tool.GetSerialized();
 
 			AddTitle( "Vertex Mode", "workspaces" );
 
@@ -51,18 +62,19 @@ partial class VertexTool
 				var group = AddGroup( "Move Mode" );
 				var row = group.AddRow();
 				row.Spacing = 8;
-				tool.CreateMoveModeButtons( row );
+				tool.Tool.CreateMoveModeButtons( row );
 			}
 
-			_vertices = so.Targets
-				.OfType<MeshVertex>()
-				.ToArray();
-
+			_vertices = [.. so.Targets.OfType<MeshVertex>()];
 			_vertexGroups = _vertices.GroupBy( x => x.Component ).ToList();
 			_components = _vertexGroups.Select( x => x.Key ).ToList();
 
 			{
-				var group = AddGroup( "Operations" );
+				var group = AddGroup( "Merge" );
+				{
+					var range = ControlWidget.Create( toolSo.GetProperty( nameof( MergeRangeMode ) ) );
+					group.Add( range );
+				}
 
 				{
 					var row = new Widget { Layout = Layout.Row() };
@@ -70,28 +82,31 @@ partial class VertexTool
 
 					CreateButton( "Merge", "merge", "mesh.merge", Merge, _vertices.Length > 1, row.Layout );
 
-					var mergeObject = mergeProperties.GetSerialized();
-					var range = ControlWidget.Create( mergeObject.GetProperty( nameof( MergeProperties.Range ) ) );
-					var distance = ControlWidget.Create( mergeObject.GetProperty( nameof( MergeProperties.Distance ) ) );
-					distance.HorizontalSizeMode = SizeMode.Expand;
-
-					range.FixedHeight = Theme.ControlHeight;
+					var distance = new FloatControlWidget( toolSo.GetProperty( nameof( MergeDistance ) ) );
 					distance.FixedHeight = Theme.ControlHeight;
-
-					row.Layout.Add( range );
+					distance.HorizontalSizeMode = SizeMode.Expand;
+					distance.Enabled = _tool.MergeRangeMode == MergeRange.Fixed;
+					distance.Label = null;
+					distance.Icon = "straighten";
+					distance.ToolTip = "Fixed merge distance";
+					_distanceControl = distance;
 					row.Layout.Add( distance );
 
 					group.Add( row );
 				}
+			}
+
+			{
+				var group = AddGroup( "Modify" );
 
 				{
 					var row = new Widget { Layout = Layout.Row() };
 					row.Layout.Spacing = 4;
 
-					CreateButton( "Snap To Vertex", "gps_fixed", "mesh.snap_to_vertex", SnapToVertex, _vertices.Length > 1, row.Layout );
-					CreateButton( "Weld UVs", "scatter_plot", "mesh.vertex-weld-uvs", WeldUVs, _vertices.Length > 0, row.Layout );
-					CreateButton( "Bevel", "straighten", "mesh.bevel", Bevel, _vertices.Length > 0, row.Layout );
 					CreateButton( "Connect", "link", "mesh.connect", Connect, _vertices.Length > 1, row.Layout );
+					CreateButton( "Bevel", "rounded_corner", "mesh.bevel", Bevel, _vertices.Length > 0, row.Layout );
+					CreateButton( "Snap To Vertex", "gps_fixed", "mesh.snap_to_vertex", SnapToVertex, _vertices.Length > 1, row.Layout );
+					CreateButton( "Weld UVs", "join_inner", "mesh.vertex-weld-uvs", WeldUVs, _vertices.Length > 0, row.Layout );
 					CreateButton( "Edge Cut Tool", "polyline", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
 
 					row.Layout.AddStretchCell();
@@ -101,6 +116,12 @@ partial class VertexTool
 			}
 
 			Layout.AddStretchCell();
+		}
+
+		[EditorEvent.Frame]
+		private void Frame()
+		{
+			_distanceControl?.Enabled = _tool.MergeRangeMode == MergeRange.Fixed;
 		}
 
 		[Shortcut( "mesh.select-all", "CTRL+A", typeof( SceneViewWidget ) )]
@@ -126,9 +147,9 @@ partial class VertexTool
 		[Shortcut( "mesh.edge-cut-tool", "C", typeof( SceneViewWidget ) )]
 		void OpenEdgeCutTool()
 		{
-			var tool = new EdgeCutTool( nameof( VertexTool ) );
-			tool.Manager = _tool.Manager;
-			_tool.CurrentTool = tool;
+			var edgeCut = new EdgeCutTool( nameof( VertexTool ) );
+			edgeCut.Manager = _tool.Tool.Manager;
+			_tool.Tool.CurrentTool = edgeCut;
 		}
 
 		[Shortcut( "mesh.connect", "V", typeof( SceneViewWidget ) )]
@@ -288,10 +309,10 @@ partial class VertexTool
 					meshB.DestroyGameObject();
 				}
 
-				var mergeDistance = MergeRangeMode switch
+				var mergeDistance = _tool.MergeRangeMode switch
 				{
 					MergeRange.Grid => EditorScene.GizmoSettings.GridSpacing,
-					MergeRange.Fixed => MergeDistance,
+					MergeRange.Fixed => _tool.MergeDistance,
 					_ => -1.0f
 				};
 

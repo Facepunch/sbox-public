@@ -16,6 +16,8 @@ native class CCameraRenderer
 	void RenderToCubeTexture( ITexture hTexture, int nSlice );
 	void RenderToBitmap( void* pixels, int width, int height, int bytesPerPixel );
 
+	static void RenderOverlay(  SwapChainHandle_t swapChain );
+
 	void RenderStereo( int eye, int eyeWidth, int eyeHeight, bool bSubmitThisEye );
 	void SubmitStereo( int eyeWidth, int eyeHeight );
 	void BlitStereo( int eyeWidth, int eyeHeight );

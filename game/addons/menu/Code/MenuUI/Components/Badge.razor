@@ -3,11 +3,17 @@
 @using Sandbox.UI
 
 <root class="@StyleClass">
-    @ChildContent
+
+    @if (Icon != null)
+    {
+        <icon class="icon">@Icon</icon>
+    }
+
+    <span class="left">@Text</span>
 
     @if (Number.HasValue)
     {
-        <label class="number">@Number.Value</label>
+        <span class="number">@Number.Value</span>
     }
 </root>
 
@@ -15,6 +21,8 @@
 {
     [Parameter] public int? Number { get; set; }
     [Parameter] public string Type { get => StyleClass; set => StyleClass = value; }
+    [Parameter] public string Icon { get; set; }
+    [Parameter] public string Text { get; set; }
     
     string StyleClass { get; set; }
 }

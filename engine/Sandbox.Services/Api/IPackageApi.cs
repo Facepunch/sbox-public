@@ -64,6 +64,12 @@ public struct PackageFacet
 {
 	public string Name { get; set; }
 	public string Title { get; set; }
+
+	/// <summary>
+	/// Pre-sorted on the server. Renderers should display in given order — no
+	/// client-side reordering. Lets each facet pick its own sort semantics
+	/// (count desc for review tags, alphabetical for categories, etc.).
+	/// </summary>
 	public List<Entry> Entries { get; set; }
 
 	public record struct Entry( string Name, string Title, string Icon, int Count, List<Entry> Children );

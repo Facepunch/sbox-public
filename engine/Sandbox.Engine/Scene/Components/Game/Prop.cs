@@ -337,6 +337,11 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 	/// </summary>
 	public bool IsFlammable => Model?.Data.Flammable ?? false;
 
+	/// <summary>
+	/// True if this prop will explode when destroyed.
+	/// </summary>
+	public bool IsExplosive => Model?.Data.Explosive ?? false;
+
 	[Sync]
 	public bool IsOnFire { get; protected set; }
 
@@ -352,6 +357,14 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		// The dead feel nothing
 		if ( Health <= 0.0f )
 			return;
+
+		// Explosive props detonate immediately on any physics impact
+		if ( IsExplosive && damage.Tags.Contains( "impact" ) )
+		{
+			Health = 0;
+			Kill();
+			return;
+		}
 
 		if ( IsFlammable && !IsOnFire && ShouldDamageIgnite( damage ) )
 		{
@@ -560,6 +573,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				c.Model = model;
 				c.Enabled = true;
 				c.Tint = mr?.Tint ?? c.Tint;
+				c.MaterialGroup = mr?.MaterialGroup ?? c.MaterialGroup;
 
 				gibs.Add( c );
 

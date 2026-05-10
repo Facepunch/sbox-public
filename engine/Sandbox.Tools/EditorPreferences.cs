@@ -227,6 +227,47 @@ public static class EditorPreferences
 	}
 
 	/// <summary>
+	/// When enabled, component gizmo handles are drawn at a fixed world size
+	/// instead of maintaining a constant screen size regardless of distance.
+	/// </summary>
+	[Title( "World Space Gizmos" )]
+	public static bool WorldSpaceGizmos
+	{
+		get => EditorScene.GizmoSettings.WorldSpaceGizmos;
+		set => EditorScene.GizmoSettings.WorldSpaceGizmos = value;
+	}
+
+	/// <summary>
+	/// When enabled, component gizmo handles are depth tested against scene geometry.
+	/// </summary>
+	[Title( "Gizmo Depth Test" )]
+	public static bool GizmoDepthTest
+	{
+		get => EditorScene.GizmoSettings.GizmoDepthTest;
+		set => EditorScene.GizmoSettings.GizmoDepthTest = value;
+	}
+
+	/// <summary>
+	/// How big to show component gizmo handles.
+	/// </summary>
+	[Title( "Gizmo Scale" ), Range( 0.1f, 2f )]
+	public static float GizmoScale
+	{
+		get => EditorScene.GizmoSettings.GizmoScale;
+		set => EditorScene.GizmoSettings.GizmoScale = value;
+	}
+
+	/// <summary>
+	/// Maximum distance at which component gizmo handles are visible. 0 for unlimited.
+	/// </summary>
+	[Title( "Gizmo Render Distance" ), Range( 0, 50000, slider: false ), Step( 100 )]
+	public static float GizmoRenderDistance
+	{
+		get => EditorScene.GizmoSettings.GizmoRenderDistance;
+		set => EditorScene.GizmoSettings.GizmoRenderDistance = value;
+	}
+
+	/// <summary>
 	/// Controls whether a sound is played for any undo/redo operation (success or failure)
 	/// </summary>
 	[Title( "Undo/Redo Sounds" )]

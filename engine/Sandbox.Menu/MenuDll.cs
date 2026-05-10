@@ -455,6 +455,7 @@ internal sealed class MenuDll : IMenuDll
 		using var _ = PushScope();
 
 		MenuScene.Render( swapChain );
+		CCameraRenderer.RenderOverlay( swapChain );
 	}
 
 	void SetupFileWatch()

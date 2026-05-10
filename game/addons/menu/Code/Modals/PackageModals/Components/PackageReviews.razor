@@ -13,21 +13,24 @@
         <label class="eyebrow">Reviews</label>
 
         <div class="tag-filter-group">
-            <Badge Type="positive" Number=@Package.Reviews.PositiveRatings>Recommended</Badge>
-            <Badge Type="positive" Number=@Package.Reviews.PromiseRatings>Shows Promise</Badge>
-            <Badge Type="positive" Number=@Package.Reviews.NegativeRatings>Needs Work</Badge>
+            <Badge Type="positive" Number=@Package.Reviews.PositiveRatings Text="Recommended"></Badge>
+            <Badge Type="positive" Number=@Package.Reviews.PromiseRatings Text="Shows Promise"></Badge>
+            <Badge Type="positive" Number=@Package.Reviews.NegativeRatings Text="Needs Work"></Badge>
         </div>
 
         @if (Package.Reviews.PositiveTags.Sum(x => x.Value) > 0)
         {
+            
+
             <label class="eyebrow">Positives</label>
 
             <div class="tag-filter-group">
+
                 @foreach (var tag in Package.Reviews.PositiveTags.Where(x => x.Value > 0).OrderByDescending(x => x.Value))
-                {
-                    <Badge Type="positive" Number=@tag.Value>
-                        @tag.Key
-                    </Badge>
+                {                    
+                    var di = Game.TypeLibrary.GetEnumDescription( tag.Key );
+
+                    <Badge Type="positive" Number=@tag.Value Icon="@di.Icon" Text="@di.Title"></Badge>
                 }
             </div>
         }
@@ -39,7 +42,9 @@
             <div class="tag-filter-group">
                 @foreach (var tag in Package.Reviews.NegativeTags.Where(x => x.Value > 0).OrderByDescending(x => x.Value))
                 {
-                    <Badge Type="negative" Number=@tag.Value>@tag.Key</Badge>
+                    var di = Game.TypeLibrary.GetEnumDescription(tag.Key);
+
+                    <Badge Type="negative" Number=@tag.Value Icon="@di.Icon" Text="@di.Title"></Badge>
                 }
             </div>
         }
@@ -70,24 +75,15 @@
                     <TopBar>
                         @if (review.Score == ReviewScore.Positive)
                         {
-                            <Badge Type="positive" class="clear">
-                                <icon>thumb_up</icon>
-                                Recommended
-                            </Badge>
+                            <Badge Type="positive" class="clear" Icon="thumb_up" Text="Recommended"></Badge>
                         }
                         else if (review.Score == ReviewScore.Negative)
                         {
-                            <Badge Type="negative" class="clear">
-                                <icon>thumb_down</icon>
-                                Needs Work
-                            </Badge>
+                            <Badge Type="negative" class="clear" Icon="thumb_down" Text="Needs Work"></Badge>
                         }
                         else if (review.Score == ReviewScore.Promise)
                         {
-                            <Badge Type="promise" class="clear">
-                                <icon>thumbs_up_down</icon>
-                                Shows Promise
-                            </Badge>
+                            <Badge Type="promise" class="clear" Icon="thumbs_up_down" Text="Promise"></Badge>
                         }
                     </TopBar>
                     <Content>
@@ -96,13 +92,14 @@
                         @if (review.Positives != Sandbox.Services.Review.PositiveTags.None || review.Negatives != Sandbox.Services.Review.NegativeTags.None)
                         {
                             <div class="review-tags">
+
                                 @foreach (var flag in GetPositiveFlags(review.Positives))
                                 {
-                                    <Badge Type="positive">@flag</Badge>
+                                    <Badge Type="positive" Text="@flag"></Badge>
                                 }
                                 @foreach (var flag in GetNegativeFlags(review.Negatives))
                                 {
-                                    <Badge Type="negative">@flag</Badge>
+                                    <Badge Type="negative" Text="@flag"></Badge>
                                 }
                             </div>
                         }

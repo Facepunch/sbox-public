@@ -96,8 +96,7 @@ public abstract class SelectionTool : EditorTool
 
 	/// <summary>
 	/// Key used to store/restore previous selections. Tools sharing the same
-	/// element type (e.g. FaceTool and TextureTool both use MeshFace) will
-	/// share the same entry, keeping them in sync.
+	/// element type will share the same entry, keeping them in sync.
 	/// </summary>
 	protected virtual Type PreviousSelectionKey => GetType();
 

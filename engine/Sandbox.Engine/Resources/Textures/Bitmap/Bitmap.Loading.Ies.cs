@@ -239,6 +239,6 @@ public partial class Bitmap
 			return false;
 
 		var header = Encoding.ASCII.GetString( data, 0, Math.Min( 20, data.Length ) ).Trim();
-		return header.StartsWith( "IESNA" ) || header.StartsWith( "IESNA:LM-63" );
+		return header.StartsWith( "IESNA" );
 	}
 }
