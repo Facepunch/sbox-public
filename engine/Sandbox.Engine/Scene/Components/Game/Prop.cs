@@ -610,6 +610,15 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			}
 		}
 
+		// If this prop was on fire, ignite the gibs so the fire carries over.
+		if ( IsOnFire )
+		{
+			foreach ( var gib in gibs )
+			{
+				gib.Ignite();
+			}
+		}
+
 		return gibs;
 	}
 
