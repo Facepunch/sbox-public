@@ -338,6 +338,11 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 	public bool IsFlammable => Model?.Data.Flammable ?? false;
 
 	/// <summary>
+	/// True if this prop can be set on fire.
+	/// </summary>
+	public bool IgniteOnAnyDamage  => Model?.Data.IgniteOnAnyDamage ?? false;
+
+	/// <summary>
 	/// True if this prop will explode when destroyed.
 	/// </summary>
 	public bool IsExplosive => Model?.Data.Explosive ?? false;
