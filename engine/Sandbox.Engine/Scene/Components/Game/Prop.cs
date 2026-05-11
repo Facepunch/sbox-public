@@ -393,13 +393,12 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 	bool ShouldDamageIgnite( in DamageInfo damage )
 	{
-		// Physics impacts only ignite if they do lots of damage
-		if ( damage.Tags.Contains( "impact" ) )
-		{
-			return damage.Damage > Health * 0.5f;
-		}
+		// Props with IgniteOnAnyDamage set in model data ignite from any hit.
+		if ( Model?.Data.IgniteOnAnyDamage == true )
+			return true;
 
-		return true;
+		// By default only fire and explosions ignite flammable props.
+		return damage.Tags.Has( "burn" ) || damage.Tags.Has( "explosion" );
 	}
 
 	public void Ignite()
