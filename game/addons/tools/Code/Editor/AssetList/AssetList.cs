@@ -734,11 +734,15 @@ public partial class AssetList : ListView, AssetSystem.IEventListener
 	}
 
 	private void OnDropGameObject( DragEvent ev )
-	{
-		if ( Browser?.CurrentLocation == null ) return;
-		if ( ev.Data.Object is not GameObject[] gos || gos.Length <= 0 ) return;
+{
+    if ( Browser?.CurrentLocation == null ) return;
+	if (ev.Data.Object is not GameObject[] gos || gos.Length <= 0) return;
 
-		foreach(GameObject go in gos)
+    Scene.ISceneEditorSession session = SceneEditorSession.Resolve(gos[0]);
+	using var scene = session.Scene.Push();
+	using (session.UndoScope("Convert GameObject To Prefab").WithGameObjectChanges(gos, GameObjectUndoFlags.All).Push())
+	{
+		foreach (GameObject go in gos)
 		{
 			GameObject target = go;
 			string location = Path.Combine(Browser.CurrentLocation.Path, $"{target.Name}.prefab");
@@ -747,19 +751,22 @@ public partial class AssetList : ListView, AssetSystem.IEventListener
 			{
 				Log.Warning("A prefab already exists at " + location);
 				continue;
-			}
+            }
 
-			var session = SceneEditorSession.Resolve(target);
-			using var scene = session.Scene.Push();
-			using (session.UndoScope("Convert GameObject To Prefab").WithGameObjectChanges(target, GameObjectUndoFlags.All).Push())
+			try // I tried debugging it but nothing is null. The exception must be happening somewhere internally. Just skip it and dont exit the loop if it happens.
+            {
+                EditorUtility.Prefabs.ConvertGameObjectToPrefab(target, location);
+                EditorUtility.InspectorObject = target;
+            }
+			catch(Exception ex)
 			{
-				EditorUtility.Prefabs.ConvertGameObjectToPrefab(target, location);
-				EditorUtility.InspectorObject = target;
+				Log.Error($"Prefab for '{target.Name}' could not be created. Skipping. Error message: {ex}");
 			}
-		}
-
-		Refresh();
+        }
 	}
+
+	Refresh();
+}
 
 	public override void OnDragDrop( DragEvent ev )
 	{
