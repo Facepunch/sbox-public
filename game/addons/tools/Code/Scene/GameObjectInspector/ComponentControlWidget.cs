@@ -92,7 +92,7 @@ public class ComponentControlWidget : ControlWidget
 			rect.Left += 22;
 			var title = component.ToString();
 			if ( title == component.GetType().ToString() )
-				title = $"{type.Title} on ({component.GameObject?.Name ?? "null"})";
+				title = $"{TypeLibrary.GetType( component.GetType() ).Title} on ({component.GameObject?.Name ?? "null"})";
 			Paint.DrawText( rect, title, TextFlag.LeftCenter );
 			Cursor = CursorShape.Finger;
 		}
