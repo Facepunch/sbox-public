@@ -9,7 +9,7 @@ namespace Sandbox;
 /// </summary>
 /// <seealso cref="GpuBuffer{T}"/>
 /// <seealso cref="ComputeShader"/>
-internal class RayTracingShader
+public class RayTracingShader
 {
 	/// <summary>
 	/// Attributes that are passed to the ray tracing shader on dispatch.
