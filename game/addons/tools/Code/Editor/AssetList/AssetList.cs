@@ -736,23 +736,26 @@ public partial class AssetList : ListView, AssetSystem.IEventListener
 	private void OnDropGameObject( DragEvent ev )
 	{
 		if ( Browser?.CurrentLocation == null ) return;
-		if ( ev.Data.Object is not GameObject[] gos || gos.Length != 1 ) return;
+		if ( ev.Data.Object is not GameObject[] gos || gos.Length <= 0 ) return;
 
-		var target = gos[0];
-		var location = Path.Combine( Browser.CurrentLocation.Path, $"{target.Name}.prefab" );
-
-		if ( AssetSystem.FindByPath( location ) != null )
+		foreach(GameObject go in gos)
 		{
-			Log.Warning( "A prefab already exists at " + location );
-			return;
-		}
+			GameObject target = go;
+			string location = Path.Combine(Browser.CurrentLocation.Path, $"{target.Name}.prefab");
 
-		var session = SceneEditorSession.Resolve( target );
-		using var scene = session.Scene.Push();
-		using ( session.UndoScope( "Convert GameObject To Prefab" ).WithGameObjectChanges( target, GameObjectUndoFlags.All ).Push() )
-		{
-			EditorUtility.Prefabs.ConvertGameObjectToPrefab( target, location );
-			EditorUtility.InspectorObject = target;
+			if (AssetSystem.FindByPath(location) != null)
+			{
+				Log.Warning("A prefab already exists at " + location);
+				continue;
+			}
+
+			var session = SceneEditorSession.Resolve(target);
+			using var scene = session.Scene.Push();
+			using (session.UndoScope("Convert GameObject To Prefab").WithGameObjectChanges(target, GameObjectUndoFlags.All).Push())
+			{
+				EditorUtility.Prefabs.ConvertGameObjectToPrefab(target, location);
+				EditorUtility.InspectorObject = target;
+			}
 		}
 
 		Refresh();
