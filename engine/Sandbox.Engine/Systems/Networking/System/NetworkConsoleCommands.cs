@@ -141,7 +141,10 @@ internal static class NetworkConsoleCommands
 
 		foreach ( var info in Networking.System.ConnectionInfo.All.Values )
 		{
-			Log.Info( $"{info.ConnectionId}	{info.SteamId}	{info.State}		{info.DisplayName}		{info.ConnectionTime}" );
+			var connection = Networking.System.FindConnection( info.ConnectionId );
+			var displayName = connection?.DisplayName ?? "Unknown Player";
+
+			Log.Info( $"{info.ConnectionId}	{info.SteamId}	{info.State}		{displayName}		{info.ConnectionTime}" );
 		}
 	}
 

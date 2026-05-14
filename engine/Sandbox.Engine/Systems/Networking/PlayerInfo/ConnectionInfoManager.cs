@@ -135,7 +135,6 @@ internal sealed class ConnectionInfo
 
 	public int Ping { get; private set; }
 	public Guid ConnectionId { get; internal set; }
-	public string DisplayName { get; internal set; }
 	public SteamId SteamId { get; internal set; }
 	public DateTimeOffset ConnectionTime { get; internal set; }
 	public bool CanRefreshObjects { get; internal set; } = true;
@@ -161,7 +160,6 @@ internal sealed class ConnectionInfo
 
 	internal void Update( UserInfo userInfo )
 	{
-		DisplayName = userInfo.DisplayName;
 		SteamId = userInfo.SteamId;
 		PartyId = userInfo.PartyId;
 
@@ -200,7 +198,6 @@ internal sealed class ConnectionInfo
 			return;
 
 		UpdateStringTable( "ping", Ping );
-		UpdateStringTable( "name", DisplayName );
 		UpdateStringTable( "state", State );
 		UpdateStringTable( "steamid", SteamId );
 		UpdateStringTable( "connect", ConnectionTime );
@@ -242,9 +239,6 @@ internal sealed class ConnectionInfo
 
 		switch ( key )
 		{
-			case "name":
-				DisplayName = (string)value;
-				break;
 			case "ping":
 				Ping = (int)value;
 				break;

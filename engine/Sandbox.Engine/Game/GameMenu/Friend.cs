@@ -44,6 +44,11 @@ public partial struct Friend : IEquatable<Friend>
 	public readonly string Name => Internal.Name;
 
 	/// <summary>
+	/// The nickname you've set for this friend, otherwise returns their Steam display name
+	/// </summary>
+	internal readonly string DisplayName => Internal.DisplayName;
+
+	/// <summary>
 	/// Returns true if your friend is online
 	/// </summary>
 	public readonly bool IsOnline => Internal.IsOnline;
