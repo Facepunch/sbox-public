@@ -960,4 +960,12 @@ public partial class GameObject
 			system?.DeltaSnapshots?.Send( go._net, NetFlags.Reliable, true );
 		}
 	}
+
+	public sealed class SceneDumpInfo
+	{
+		public Guid ConnectionId { get; internal set; }
+		public string ConnectionName { get; internal set; }
+	}
+
+	public SceneDumpInfo SceneDump { get; internal set; }
 }
