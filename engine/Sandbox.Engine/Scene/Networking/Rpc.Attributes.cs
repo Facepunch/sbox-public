@@ -9,12 +9,21 @@
 public abstract class RpcAttribute : Attribute
 {
 	internal RpcMode Mode { get; set; } = RpcMode.Broadcast;
-	public NetFlags Flags { get; set; } = NetFlags.Reliable;
+
+	public NetFlags Flags { get; set => field = NormalizeFlags( value ); } = NetFlags.Reliable;
 
 	internal RpcAttribute( RpcMode mode, NetFlags flags = NetFlags.Reliable )
 	{
 		Mode = mode;
 		Flags = flags;
+	}
+
+	static NetFlags NormalizeFlags( NetFlags flags )
+	{
+		if ( flags.Contains( NetFlags.Unreliable ) )
+			return flags & ~NetFlags.Reliable;
+
+		return flags | NetFlags.Reliable;
 	}
 }
 
