@@ -256,6 +256,7 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 
 		if ( HasMaterialGroups )
 		{
+			_sceneObject.SetMaterialOverride( null );
 			_sceneObject.SetMaterialGroup( MaterialGroup );
 		}
 		else
