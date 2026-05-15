@@ -18,6 +18,16 @@ public static partial class Game
 
 		foreach ( var child in scene.Children )
 		{
+			var isNetworked = child.NetworkMode == NetworkMode.Object;
+
+			if ( isNetworked )
+			{
+				var owner = child.Network.Owner;
+				var isHostOwned = owner == null;
+
+				child.Name = $"{child.Name} ({(isHostOwned ? "Host" : owner.DisplayName)})";
+			}
+
 			var jso = child.Serialize( options );
 			if ( jso is null ) continue;
 
