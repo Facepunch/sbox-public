@@ -115,7 +115,7 @@ public abstract class TextureSamplerBase : ShaderNode, ITextureParameterNode, IE
 	protected NodeResult Component( string component, GraphCompiler compiler )
 	{
 		var result = compiler.Result( new NodeInput { Identifier = Identifier, Output = nameof( Result ) } );
-		return result.IsValid ? new( 1, $"{result}.{component}", true ) : new( 1, "0.0f", true );
+		return result.IsValid ? new( NodeResultType.Float, $"{result}.{component}", true ) : new( NodeResultType.Float, "0.0f", true );
 	}
 
 	public List<string> GetErrors()
@@ -160,7 +160,7 @@ public sealed class TextureSampler : TextureSamplerBase
 	/// RGBA color result
 	/// </summary>
 	[Hide]
-	[Output( typeof( Color ) ), Title( "RGBA" )]
+	[Output( typeof( Vector4 ) ), Title( "RGBA" )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		var input = UI;
@@ -176,13 +176,13 @@ public sealed class TextureSampler : TextureSamplerBase
 
 		if ( compiler.Stage == GraphCompiler.ShaderStage.Vertex )
 		{
-			return new NodeResult( 4, $"{result.Item1}.SampleLevel(" +
+			return new NodeResult( NodeResultType.Vector4, $"{result.Item1}.SampleLevel(" +
 				$" g_sSampler{result.Item2}," +
 				$" {(coords.IsValid ? $"{coords.Cast( 2 )}" : "i.vTextureCoords.xy")}, 0 )" );
 		}
 		else
 		{
-			return new NodeResult( 4, $"Tex2DS( {result.Item1}," +
+			return new NodeResult( NodeResultType.Vector4, $"Tex2DS( {result.Item1}," +
 				$" g_sSampler{result.Item2}," +
 				$" {(coords.IsValid ? $"{coords.Cast( 2 )}" : "i.vTextureCoords.xy")} )" );
 		}
@@ -279,7 +279,7 @@ public sealed class TextureCube : ShaderNode
 	/// RGBA color result
 	/// </summary>
 	[Hide]
-	[Output( typeof( Color ) ), Title( "RGBA" )]
+	[Output( typeof( Vector4 ) ), Title( "RGBA" )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		var input = UI;
@@ -288,7 +288,7 @@ public sealed class TextureCube : ShaderNode
 		var result = compiler.ResultTexture( Sampler, input, Sandbox.Texture.Load( Texture ) );
 		var coords = compiler.Result( Coords );
 
-		return new NodeResult( 4, $"TexCubeS( {result.Item1}," +
+		return new NodeResult( NodeResultType.Vector4, $"TexCubeS( {result.Item1}," +
 			$" g_sSampler{result.Item2}," +
 			$" {(coords.IsValid ? $"{coords.Cast( 3 )}" : ViewDirection.Result.Invoke( compiler ))} )" );
 	};
@@ -296,7 +296,7 @@ public sealed class TextureCube : ShaderNode
 	private NodeResult Component( string component, GraphCompiler compiler )
 	{
 		var result = compiler.Result( new NodeInput { Identifier = Identifier, Output = nameof( Result ) } );
-		return result.IsValid ? new( 1, $"{result}.{component}", true ) : new( 1, "0.0f", true );
+		return result.IsValid ? new( NodeResultType.Float, $"{result}.{component}", true ) : new( NodeResultType.Float, "0.0f", true );
 	}
 
 	/// <summary>
@@ -350,7 +350,7 @@ public sealed class TextureTriplanar : TextureSamplerBase
 	/// RGBA color result
 	/// </summary>
 	[Hide]
-	[Output( typeof( Color ) ), Title( "RGBA" )]
+	[Output( typeof( Vector4 ) ), Title( "RGBA" )]
 	public NodeResult.Func Result => ( GraphCompiler compiler ) =>
 	{
 		var input = UI;
@@ -371,7 +371,7 @@ public sealed class TextureTriplanar : TextureSamplerBase
 			coords.IsValid ? coords.Cast( 3 ) : "(i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz) / 39.3701",
 			normal.IsValid ? normal.Cast( 3 ) : "normalize( i.vNormalWs.xyz )" );
 
-		return new NodeResult( 4, result );
+		return new NodeResult( NodeResultType.Vector4, result );
 	};
 
 	/// <summary>
@@ -461,7 +461,7 @@ public sealed class NormapMapTriplanar : TextureSamplerBase
 			coords.IsValid ? coords.Cast( 3 ) : "(i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz) / 39.3701",
 			normal.IsValid ? normal.Cast( 3 ) : "normalize( i.vNormalWs.xyz )" );
 
-		return new NodeResult( 3, result );
+		return new NodeResult( NodeResultType.Vector3, result );
 	};
 }
 
@@ -494,12 +494,12 @@ public sealed class TextureCoord : ShaderNode
 		if ( compiler.IsPreview )
 		{
 			var result = $"{compiler.ResultValue( UseSecondaryCoord )} ? i.vTextureCoords.zw : i.vTextureCoords.xy";
-			return new( 2, $"{compiler.ResultValue( Tiling.IsNearZeroLength )} ? {result} : ({result}) * {compiler.ResultValue( Tiling )}" );
+			return new( NodeResultType.Vector2, $"{compiler.ResultValue( Tiling.IsNearZeroLength )} ? {result} : ({result}) * {compiler.ResultValue( Tiling )}" );
 		}
 		else
 		{
 			var result = UseSecondaryCoord ? "i.vTextureCoords.zw" : "i.vTextureCoords.xy";
-			return Tiling.IsNearZeroLength ? new( 2, result ) : new( 2, $"{result} * {compiler.ResultValue( Tiling )}" );
+			return Tiling.IsNearZeroLength ? new( NodeResultType.Vector2, result ) : new( NodeResultType.Vector2, $"{result} * {compiler.ResultValue( Tiling )}" );
 		}
 	};
 }
