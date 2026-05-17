@@ -1,6 +1,4 @@
-﻿using Sandbox.UI;
-
-namespace Editor;
+﻿namespace Editor;
 
 /// <summary>
 /// Represents a single row in a control sheet UI, providing editing and validation functionality for a serialized
@@ -20,7 +18,9 @@ class ControlSheetRow : Widget
 	{
 		this.property = property;
 		FocusMode = FocusMode.Click;
+
 		ControlWidget = editor;
+		ControlWidget.ConditionalReadOnly = property.IsConditionalReadOnly();
 
 		property.OnFinishEdit += OnPropertyFinishEdit;
 
@@ -71,7 +71,10 @@ class ControlSheetRow : Widget
 
 	public bool UpdateVisibility()
 	{
+		ControlWidget.ConditionalReadOnly = property.IsConditionalReadOnly();
+
 		var ss = property.ShouldShow();
+
 		if ( ss == !Hidden )
 			return false;
 
@@ -149,7 +152,7 @@ class ControlSheetRow : Widget
 		if ( hasLabel )
 		{
 			label.ContentMargins = isExpanded ? new( 0, 0, 0, 4 ) : new( 0, 0, 4, 0 );
-			gridLayout.AddCell( 2, 5, label, xSpan: (isExpanded ? 2 : 1), alignment: TextFlag.LeftTop );
+			gridLayout.AddCell( 2, 5, label, xSpan: isExpanded ? 2 : 1, alignment: TextFlag.LeftTop );
 			gridLayout.AddCell( 3 - (isExpanded ? 1 : 0), 5 + (isExpanded ? 1 : 0), ControlWidget, alignment: TextFlag.LeftTop );
 		}
 		else

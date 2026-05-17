@@ -9,7 +9,10 @@ public abstract partial class Collider : Component, Component.ExecuteInEditor, C
 
 	private bool _static;
 
-	[Property, HideIf( nameof( IsConcave ), true )]
+	/// <summary>
+	/// Whether this collider should be static or dynamic, static colliders are more performant but can't move.
+	/// </summary>
+	[Property, ReadOnlyIf( nameof( IsConcave ), true )]
 	public bool Static
 	{
 		get => _static || IsConcave;

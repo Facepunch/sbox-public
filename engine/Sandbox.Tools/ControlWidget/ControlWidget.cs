@@ -16,6 +16,28 @@ public abstract class ControlWidget : Widget
 
 	public SerializedProperty SerializedProperty { get; private set; }
 
+	private bool _isConditionalReadOnly;
+
+	public override bool ReadOnly
+	{
+		get => base.ReadOnly || _isConditionalReadOnly;
+		set => base.ReadOnly = value;
+	}
+
+	public bool ConditionalReadOnly
+	{
+		get => _isConditionalReadOnly;
+		set
+		{
+			if ( _isConditionalReadOnly == value )
+				return;
+
+			_isConditionalReadOnly = value;
+			ReadOnly = base.ReadOnly;
+			Update();
+		}
+	}
+
 	/// <summary>
 	/// If none, when in a grid, the control will fill the entire cell
 	/// </summary>
@@ -38,7 +60,7 @@ public abstract class ControlWidget : Widget
 		//
 		// I think this should be more explicit, only readonly if there's a [readonly] property
 		//
-		if ( !property.IsEditable && property.PropertyType.IsValueType || property.HasAttribute<ReadOnlyAttribute>() )
+		if ( (!property.IsEditable && property.PropertyType.IsValueType) || property.HasAttribute<ReadOnlyAttribute>() )
 			base.ReadOnly = true;
 
 		if ( property.TryGetAttribute<TintAttribute>( out var tintAttribute ) )
