@@ -21,8 +21,8 @@ public class ModelCollider : Collider, IHasModel
 		set
 		{
 			_model = value;
-			
-			if( value == null )
+
+			if ( value == null )
 			{
 				_hasCollisionMesh = false;
 				Static = false;
@@ -59,9 +59,11 @@ public class ModelCollider : Collider, IHasModel
 		if ( !Gizmo.IsSelected && !Gizmo.IsHovered )
 			return;
 
-		if ( Model is null ) return;
+		if ( Model is null )
+			return;
 
-		if ( Model.Physics is null ) return;
+		if ( Model.Physics is null )
+			return;
 
 		Gizmo.Draw.Color = Gizmo.Colors.Green;
 
