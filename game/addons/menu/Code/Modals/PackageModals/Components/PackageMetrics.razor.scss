@@ -1,6 +1,8 @@
 
 PackageMetrics
 {
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
     gap: 5px;
+    align-items: center;
 }

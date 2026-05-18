@@ -1,26 +1,14 @@
+@import "/styles/_theme.scss";
 
-$header-height: 70px;
-$column-width: 380px;
+$header-height: 60px;
+$right-panel-width: 300px;
 
 .megacard
 {
     width: 1300px;
     max-width: 1300px;
-    height: 75%;
-    font-family: Poppins;
-}
-
-.megacard > .metrics
-{
-    width: 100px;
-    margin-right: 1rem;
-    flex-direction: column;
-    align-items: flex-end;
-    margin-top: $header-height;
-    z-index: 10;
-    gap: 6px;
-    pointer-events: none;
-    flex-shrink: 0;
+    height: 78%;
+    font-family: $font-default;
 }
 
 .megacard > .body-outer
@@ -33,84 +21,78 @@ $column-width: 380px;
 {
     flex-shrink: 0;
     height: $header-height;
-    margin-left: $column-width;
     align-items: flex-end;
-    padding-left: 32px;
+    padding-left: 20px;
     z-index: 10;
 }
 
-    .megacard > .body-outer > .body
-    {
-        flex-grow: 1;
-        flex-direction: column;
-        background: linear-gradient( to bottom, #1d212f, #1c202d );
-        border: 1px solid #ffffff02;
-        border-radius: 12px;
-        box-shadow: 0px 0px 188px 100px #101117;
-        pointer-events: all;
-    }
+.megacard > .body-outer > .tabs > .metrics
+{
+    flex-direction: row;
+    align-items: center;
+    margin-left: auto;
+    gap: 4px;
+    pointer-events: all;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.megacard > .body-outer > .body
+{
+    flex-grow: 1;
+    flex-direction: column;
+    background-color: $default-900;
+    border: 1px solid $default-border;
+    border-radius: $rounding-large * 2;
+    box-shadow: 0px 0px 120px 60px rgba( $default-950, 0.8 );
+    pointer-events: all;
+}
 
 .megacard > .body-outer > .body > .row
 {
     flex-grow: 1;
+    overflow: hidden;
 }
 
+// Main content area — LEFT
+.megacard > .body-outer > .body > .row > .content
+{
+    flex-grow: 1;
+    flex-shrink: 1;
+    background-color: $default-950;
+    margin: 2px 0px 0px 2px;
+    border-radius: $rounding-large 0px 0px 0px;
+    flex-direction: column;
+    overflow: hidden;
+    overflow-y: scroll;
+    font-size: $text-regular;
+    pointer-events: all;
+}
+
+// Info panel — RIGHT
 .megacard > .body-outer > .body > .row > .left
 {
     flex-direction: column;
     flex-grow: 0;
     flex-shrink: 0;
-    width: $column-width;
-    margin-top: -$header-height;
-}
-
-.megacard > .body-outer > .body > .row > .left > h2
-{
-    padding: 0px 2rem;
-    padding-top: 1rem;
-    color: #717a8d;
-    text-transform: uppercase;
-    letter-spacing: 3px;
-    font-weight: 550;
-    font-size: 13px;
-}
-
-.megacard > .body-outer > .body > .row > .left > .icon
-{
-    width: 90%;
-    margin: 0px auto;
-    aspect-ratio: 16/9;
-    border-radius: 16px;
-    border: 1px solid #ffffff06;
-    box-shadow: 2px 2px 16px 4px #0002;
-    background-size: contain;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-color: #000;
-    margin-bottom: 20px;
-
-}
-
-.megacard > .body-outer > .body > .row > .content
-{
-    flex-grow: 1;
-    flex-shrink: 1;
-    background-color: #16181e;
-    margin: 2px;
-    border-radius: 0px 11px 0px 0px;
-    flex-direction: column;
+    width: $right-panel-width;
+    margin: 2px 2px 0px 0px;
+    border-radius: 0px $rounding-large 0px 0px;
     overflow: hidden;
-    overflow-y: scroll;
-    max-width: 900px;
-    font-size: 14px;
-    pointer-events: all;
+    background-color: $default-900;
+}
+
+.megacard > .body-outer > .body > .row > .left > label.eyebrow
+{
+    padding: 12px 12px 4px 12px;
 }
 
 .megacard > .body-outer > .body > .footer
 {
     flex-shrink: 0;
-    background: linear-gradient( to bottom, #181c27, #151821 );
-    margin: 2px;
-    border-radius: 0px 0px 11px 11px;
-    padding: 24px;
+    background-color: $default-900;
+    margin: 0px 2px 2px 2px;
+    border-radius: 0px 0px $rounding-large $rounding-large;
+    padding: 16px 20px;
+    border-top: 1px solid $default-border;
 }

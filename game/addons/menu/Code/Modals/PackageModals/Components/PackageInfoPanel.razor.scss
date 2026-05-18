@@ -1,0 +1,137 @@
+@import "/styles/_theme.scss";
+
+PackageInfoPanel
+{
+    flex-direction: column;
+    overflow-y: scroll;
+    flex-grow: 1;
+}
+
+.media-wrapper
+{
+    padding: 10px 10px 0px 10px;
+    flex-shrink: 0;
+}
+
+.panel-media
+{
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background-size: cover;
+    background-position: center;
+    border-radius: $rounding-large;
+    border: 1px solid $default-border;
+    box-shadow: 0px 4px 20px rgba(0,0,0,0.4);
+}
+
+.panel-header
+{
+    flex-direction: column;
+    padding: 10px 12px 6px 12px;
+    gap: 3px;
+    flex-shrink: 0;
+}
+
+.game-title
+{
+    font-size: $text-medium;
+    font-weight: 700;
+    color: $default-text;
+    font-family: $font-heading;
+}
+
+.game-org
+{
+    flex-direction: row;
+    align-items: center;
+    gap: 5px;
+    font-size: $text-small;
+    color: $default-400;
+    cursor: pointer;
+    font-family: $font-default;
+
+    &:hover .org-name { color: $default-100; }
+}
+
+.org-thumb
+{
+    width: 16px;
+    height: 16px;
+    border-radius: $rounding-small;
+    flex-shrink: 0;
+}
+
+.org-name
+{
+    color: $default-300;
+    font-weight: 600;
+}
+
+.panel-sections
+{
+    flex-direction: column;
+    flex-grow: 1;
+    padding: 4px 10px 10px 10px;
+    gap: 5px;
+}
+
+// Card content layout — info panel cards and achievements card share these
+PackageInfoPanel Card,
+Card.achievements-card
+{
+    flex-direction: column;
+    padding: 10px 12px;
+    gap: 6px;
+    flex-grow: 0;
+}
+
+.section-label
+{
+    font-size: $text-eyebrow;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: $default-400;
+    font-family: $font-heading;
+    margin-bottom: 2px;
+}
+
+.info-row
+{
+    flex-direction: row;
+    align-items: center;
+    gap: 9px;
+    color: $default-100;
+    font-size: $text-small;
+    font-family: $font-default;
+    font-weight: 500;
+
+    i
+    {
+        font-size: 14px;
+        color: $default-500;
+        flex-shrink: 0;
+        width: 16px;
+    }
+
+    label { flex-grow: 1; }
+}
+
+.tag-list
+{
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.tag
+{
+    padding: 3px 8px;
+    background-color: $default-800;
+    border: 1px solid $default-border;
+    border-radius: $rounding-small;
+    font-size: $text-eyebrow;
+    font-weight: 600;
+    color: $default-300;
+    font-family: $font-default;
+}
