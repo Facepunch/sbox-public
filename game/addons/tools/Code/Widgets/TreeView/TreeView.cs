@@ -397,11 +397,18 @@ public partial class TreeView : BaseItemWidget
 		var lineEdit = popup.Layout.Add( new LineEdit() );
 		lineEdit.Text = first?.Name ?? "";
 
+		var isCompleted = false;
 		var onComplete = () =>
 		{
-			if ( !popup.Visible ) return;
+			if ( isCompleted ) 
+				return;
 
-			first?.OnRename( item, lineEdit.Text, items );
+			isCompleted = true;
+
+			if ( !string.IsNullOrEmpty( lineEdit.Text ) )
+			{
+				first?.OnRename( item, lineEdit.Text, items );
+			}
 
 			popup.Close();
 		};
