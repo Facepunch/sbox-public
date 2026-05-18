@@ -31,7 +31,26 @@ public class SystemsConfig : ConfigData
 		if ( TryGetPropertyValue( systemType, property, out var value ) )
 			return value;
 
-		return property.PropertyType.IsValueType ? Activator.CreateInstance( property.PropertyType ) : null;
+		return GetDefaultValue( property );
+	}
+
+	/// <summary>
+	/// Get the default value for a GameObjectSystem property.
+	/// </summary>
+	public static object GetDefaultValue( PropertyDescription property )
+	{
+		if ( property.GetCustomAttribute<DefaultValueAttribute>() is { } defaultValue )
+			return defaultValue.Value;
+
+		var type = property.PropertyType;
+
+		if ( Nullable.GetUnderlyingType( type ) is { } nullableType )
+			type = nullableType;
+
+		if ( type.IsValueType )
+			return Activator.CreateInstance( type );
+
+		return null;
 	}
 
 	/// <summary>
