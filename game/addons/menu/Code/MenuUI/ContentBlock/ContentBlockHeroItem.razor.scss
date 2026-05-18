@@ -1,151 +1,45 @@
 @import "/styles/_Theme.scss";
 
 ContentBlockHeroItem {
-
     Card {
         &:hover { sound-in: "ui.button.over"; }
         &:active { sound-in: "ui.button.press"; }
 
         width: $screen-w-md;
-        height: auto;
         flex-shrink: 0;
-        flex-direction: row;
         padding: 0;
         cursor: pointer;
-        background-color: $default-900;
         box-shadow: 0 0 32px $default-900;
+    }
 
-        .left, .right {
-            position: relative;
-            flex-grow: 1;
-            flex-direction: column;
-        }
+    PackageHero {
+        width: 100%;
+    }
 
-        .left {
-            flex-basis: 80%;
-            aspect-ratio: 16 / 9;
-        }
+    .play-button {
+        background-color: $primary-blue;
+        color: $default-text;
+        justify-content: center;
+        align-items: center;
+        border-radius: $rounding-small;
+        width: 100%;
+        padding: 8px;
 
-        .right {
-            gap: 12px;
-            padding: 12px;
-            padding-left: 14px; // Optical alignment
-            flex-direction: column;
-            justify-content: space-between;
-        }
-
-        .right {
-            flex-basis: 25%;
-            border-top-left-radius: 0;
-            border-bottom-left-radius: 0;
-            flex-shrink: 0;
-
-            label.large {
-                text-transform: none;
-                text-overflow: ellipsis;
-                max-height: 32px;
-                width: 200px;
-            }
-        }
-
-        .screenshots {
-            flex-direction: row;
-            flex-wrap: wrap;
-            gap: 4px;
-            justify-content: space-between;
-
-            .screenshot {
-                flex-grow: 1;
-                flex-basis: 45%;
-                border-radius: $rounding-small;
-            }
-        }
-
-        .title-column {
-            padding-top: 2px;
-            gap: 0px;
-            width: 100%;
-            overflow: hidden;
-        }
-
-        .icon img {
-            border-radius: $rounding-default;
-            aspect-ratio: 1;
-            height: 52px;
-            outline: 1px solid $default-border;
-        }
-
-        .icon {
-            margin-right: 6px;
-            flex-shrink: 0;
-        }
-
-        .tags {
-            overflow: clip-whole;
-        }
-
-        .title-row {
-            position: relative;
-
-            .package-users {
-                position: absolute;
-                top: 0px;
-                right: 0px;
-            }
-        }
-
-        .package-summary {
-            line-height: 16px;
-        }
-
-        .play-button {
-            background-color: $primary-blue;
+        label {
             color: $default-text;
-            justify-content: center;
-            align-items: center;
-            border-radius: $rounding-small;
-            width: 100%;
-            padding: 8px;
-
-            label {
-                color: $default-text;
-                font-size: $text-regular;
-            }
-
-            iconpanel {
-                font-size: $text-regular;
-            }
-
-            &:hover {
-                background-color: $primary-blue-dark;
-            }
+            font-size: $text-regular;
         }
 
-        .media {
-            right: 0;
-            left: 0;
+        iconpanel {
+            font-size: $text-regular;
         }
 
-        .media, .media-static {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            background-position: center;
-            background-size: cover;
-            opacity: 1;
-            box-shadow: 6px 0 6px rgba( black, 0.3 );
-            transition: all 75ms ease;
-        }
-
-        .media-static {
-            @include border;
-            opacity: 0;
-            z-index: 100;
-            width: 900px;
-            border-radius: $rounding-default;
+        &:hover {
+            background-color: $primary-blue-dark;
         }
     }
 
+    // Non-focused items: show only full-card static thumbnail
     &.exiting, &.entering, &.hidden {
         box-shadow: none;
 
@@ -154,20 +48,17 @@ ContentBlockHeroItem {
             border: none;
         }
 
-        .media-static {
-            opacity: 1;
-        }
-    }
+        PackageHero {
+            // Show full-card background
+            .hero-background {
+                opacity: 1;
+            }
 
-    &.exiting {
-        .media-static {
-            right: 0;
-        }
-    }
-
-    &.entering {
-        .media-static {
-            left: 0;
+            // Hide the media section and content
+            .hero-media,
+            .hero-content {
+                opacity: 0;
+            }
         }
     }
 }

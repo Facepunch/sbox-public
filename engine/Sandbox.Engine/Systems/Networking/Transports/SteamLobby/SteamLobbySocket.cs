@@ -110,8 +110,14 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 	public static async Task<SteamLobbySocket> Create( LobbyConfig config )
 	{
-		var steamlobby = await SteamMatchmaking.CreateLobbyAsync( config.MaxPlayers );
+		var lobbyType = config.Privacy switch
+		{
+			LobbyPrivacy.Public => LobbyType.Public,
+			LobbyPrivacy.FriendsOnly => LobbyType.FriendsOnly,
+			_ => LobbyType.Private
+		};
 
+		var steamlobby = await SteamMatchmaking.CreateLobbyAsync( lobbyType, config.MaxPlayers );
 		if ( !steamlobby.HasValue )
 		{
 			Log.Warning( "An error occured when creating the lobby!" );
@@ -152,19 +158,6 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 		steamlobby.Value.SetData( "protocol", Protocol.Network.ToString() );
 		steamlobby.Value.SetData( "buildid", $"{Application.Version}" );
 		steamlobby.Value.SetData( "access_level", $"{config.Privacy}" );
-
-		switch ( config.Privacy )
-		{
-			case LobbyPrivacy.Public:
-				steamlobby.Value.SetPublic();
-				break;
-			case LobbyPrivacy.Private:
-				steamlobby.Value.SetPrivate();
-				break;
-			case LobbyPrivacy.FriendsOnly:
-				steamlobby.Value.SetFriendsOnly();
-				break;
-		}
 
 		return lobby;
 	}

@@ -26,8 +26,8 @@
             <Item Context="item">
                 @if (item is Package package)
                 {
-                    <PackageCard OnMenu=@(() => OnMenu?.Invoke(package))
-                                 OnLaunch=@(() => OnSelected?.Invoke(package))
+                    <PackageCard RightClicked=@(() => OnMenu?.Invoke(package))
+                                 Clicked=@(() => OnSelected?.Invoke(package))
                                  Package=@package></PackageCard>
                 }
             </Item>

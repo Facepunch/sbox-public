@@ -5,7 +5,7 @@ public class Player
 	public long Id { get; set; }
 	public string Name { get; set; }
 	public string Url { get; set; }
-	public string Avatar => $"avatar:{Id}";
+	public string Avatar { get; set; }
 	public bool Online { get; set; }
 	public bool Private { get; set; }
 	public int Score { get; set; }

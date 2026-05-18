@@ -313,6 +313,13 @@ public partial class Texture : Resource, IDisposable
 		if ( texture is not null && texture != this )
 		{
 			this.CopyFrom( texture );
+
+			// update any animation instance (eg for gifs) to point to this as well
+			if ( Animations.FirstOrDefault( x => x.Texture.TryGetTarget( out var t ) && ReferenceEquals( t, texture ) ) is { } animation )
+			{
+				animation.Texture.SetTarget( this );
+			}
+
 			texture.Dispose();
 		}
 

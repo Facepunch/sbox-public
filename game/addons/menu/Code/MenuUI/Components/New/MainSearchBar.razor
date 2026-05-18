@@ -2,6 +2,7 @@
 @using Sandbox.UI;
 @using Sandbox.UI.Navigation;
 @using Sandbox;
+@using Menu;
 @using System;
 @namespace Sandbox.UI
 @inherits Panel
@@ -16,7 +17,7 @@
             <div class="inner-query">
                 @foreach (var package in ComputeSuggestedPackages())
                 {
-                    <GameCardList Package=@package />
+                    <PackageCard Size=@PackageCard.SizeType.List Package=@package Clicked="@(() => package.OpenModal())" />
                 }
             </div>
         </div>

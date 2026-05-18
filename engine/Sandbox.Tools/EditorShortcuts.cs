@@ -132,6 +132,31 @@ public static class EditorShortcuts
 	}
 
 	/// <summary>
+	/// Try to invoke any shortcuts bound to mouse wheel up/down.
+	/// Returns true if a shortcut consumed the wheel event.
+	/// </summary>
+	internal static bool InvokeWheel( int delta, KeyboardModifiers modifiers )
+	{
+		if ( !AllowShortcuts ) return false;
+		if ( delta == 0 ) return false;
+
+		var wheelKey = delta > 0 ? "MWHEELUP" : "MWHEELDOWN";
+
+		var modifiedKey = wheelKey;
+		if ( modifiers.HasFlag( KeyboardModifiers.Shift ) ) modifiedKey = "SHIFT+" + modifiedKey;
+		if ( modifiers.HasFlag( KeyboardModifiers.Alt ) ) modifiedKey = "ALT+" + modifiedKey;
+		if ( modifiers.HasFlag( KeyboardModifiers.Ctrl ) ) modifiedKey = "CTRL+" + modifiedKey;
+
+		if ( modifiers != KeyboardModifiers.None && Invoke( modifiedKey ) )
+			return true;
+
+		if ( Invoke( wheelKey ) )
+			return true;
+
+		return false;
+	}
+
+	/// <summary>
 	/// Returns the keybind for a given identifier
 	/// </summary>
 	/// <param name="identifier">The identifier of the shortcut</param>

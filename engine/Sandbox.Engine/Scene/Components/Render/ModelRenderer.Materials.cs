@@ -21,6 +21,9 @@ public partial class ModelRenderer : MaterialAccessor.ITarget
 			if ( field == value ) return;
 			field = value;
 
+			NativeErrorReporter.Breadcrumb( false, "material_override.change",
+				$"MaterialOverride set to '{value?.ResourcePath ?? "null"}' on '{GameObject?.Name ?? "null"}' (model='{Model?.ResourcePath ?? "null"}', scene='{Scene?.Name ?? "null"}', sceneObjectValid={_sceneObject.IsValid()}, deserializing={GameObject?.Flags.Contains( GameObjectFlags.Deserializing )}, taggedOverrides={taggedMaterialOverrides?.Count ?? 0})" );
+
 			UpdateObject();
 		}
 	}

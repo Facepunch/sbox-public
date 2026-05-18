@@ -5,8 +5,6 @@
 native class CManagedSceneObject as NativeEngine.CManagedSceneObject : CSceneObject
 {
 	static CManagedSceneObject Create( ISceneWorld world );
-
-	bool ExecuteOnMainThread;
 }
 
 

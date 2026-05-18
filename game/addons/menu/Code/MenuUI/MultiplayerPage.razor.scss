@@ -10,6 +10,11 @@ Page
 	width: 100%;
 	max-width: $screen-w-xl;
 	margin: auto;
+
+	.pagebody
+	{
+		margin-top: 16px;
+	}
 }
 
 
@@ -34,6 +39,10 @@ MultiplayerPage Button {
 
 	&:hover {
 		background-color: $default-800;
+	}
+
+	&.active {
+		background-color: $primary-blue;
 	}
 }
 

@@ -109,7 +109,6 @@ public abstract class BaseBrushTool : EditorTool
 			OnPaintEnded( terrain );
 		}
 
-		// Draw brush preview at hit position
 		var previewTransform = new Transform( tx.PointToWorld( hitPosition ), tx.Rotation );
 		_parent.DrawBrushPreview( previewTransform );
 	}

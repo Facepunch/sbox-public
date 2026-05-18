@@ -12,6 +12,7 @@ internal static class ReflectionQueryCache
 {
 	private static Dictionary<Type, bool> _isTypeCloneableByCopy = new();
 	private static Dictionary<Type, bool> _isICloneableSafe = new();
+	private static Dictionary<Type, bool> _isResourceType = new();
 	private static Dictionary<Type, MemberDescription[]> _orderedMemberCache = new();
 	private static Dictionary<Type, PropertyDescription[]> _requiredComponentMemberCache = new();
 
@@ -20,6 +21,7 @@ internal static class ReflectionQueryCache
 
 	internal static bool IsEmpty => _isTypeCloneableByCopy.Count == 0
 		&& _isICloneableSafe.Count == 0
+		&& _isResourceType.Count == 0
 		&& _orderedMemberCache.Count == 0
 		&& _requiredComponentMemberCache.Count == 0
 		&& _syncVarMemberCache.Count == 0
@@ -33,6 +35,7 @@ internal static class ReflectionQueryCache
 	{
 		_isTypeCloneableByCopy.Clear();
 		_isICloneableSafe.Clear();
+		_isResourceType.Clear();
 		_orderedMemberCache.Clear();
 		_requiredComponentMemberCache.Clear();
 		_syncVarMemberCache.Clear();
@@ -54,6 +57,31 @@ internal static class ReflectionQueryCache
 
 		_isICloneableSafe[t] = isSafe;
 		return isSafe;
+	}
+
+	/// <summary>
+	/// Returns true if the given type is a Resource subtype. Cached per type.
+	/// </summary>
+	public static bool IsResourceType( Type t )
+	{
+		if ( _isResourceType.TryGetValue( t, out var cached ) )
+			return cached;
+
+		var result = t.IsAssignableTo( typeof( Resource ) );
+		_isResourceType[t] = result;
+		return result;
+	}
+
+	/// <summary>
+	/// Returns true if the value is an inline embedded resource (no disk path and holds generator data).
+	/// Uses <see cref="IsResourceType"/> as a cached type-level gate to skip the instance check for non-Resource types.
+	/// </summary>
+	public static bool IsInlineEmbeddedResource( object value, Type valueType )
+	{
+		if ( !IsResourceType( valueType ) )
+			return false;
+
+		return value is Resource { ResourcePath: null or "", EmbeddedResource: not null };
 	}
 
 	/// <summary>
@@ -194,7 +222,7 @@ internal static class ReflectionQueryCache
 			return true;
 		}
 
-		// Resource references can just be copied,
+		// Resource references can just be copied, embedded resoures are handled further during cloning
 		if ( t.HasBaseType( "Sandbox.Resource" ) )
 		{
 			return true;

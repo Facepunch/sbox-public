@@ -448,11 +448,9 @@ public partial class ProjectPublisher
 		public static bool LooseFileAllowed( string file, bool allowSourceFiles )
 		{
 			if ( file.Contains( "/obj/", StringComparison.OrdinalIgnoreCase ) ) return false;
-			if ( file.Contains( "/.git", StringComparison.OrdinalIgnoreCase ) ) return false;
-			if ( file.Contains( "/.addon", StringComparison.OrdinalIgnoreCase ) ) return false;
 
-			if ( file.Contains( "/.editorconfig", StringComparison.OrdinalIgnoreCase ) ) return false;
-			if ( file.Contains( "/.vs/", StringComparison.OrdinalIgnoreCase ) ) return false;
+			// Ignore all dot folders and dot files (.git, .vs, .idea, .editorconfig, .addon, etc)
+			if ( file.Contains( "/.", StringComparison.OrdinalIgnoreCase ) ) return false;
 			if ( file.Contains( "_bakeresourcecache", StringComparison.OrdinalIgnoreCase ) ) return false;
 			if ( file.Contains( "launchsettings.json", StringComparison.OrdinalIgnoreCase ) ) return false;
 

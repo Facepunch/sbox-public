@@ -1,6 +1,7 @@
 ﻿@using Sandbox;
 @using Sandbox.UI;
 @using MenuProject.UI;
+@using Menu;
 @inherits Panel
 
 <root class="cblock">
@@ -9,7 +10,7 @@
 		<ChildContent>
 		@foreach ( var package in Group.Packages )
 		{
-            <GameCard Size=@GameCard.SizeTypes.Tall Package=@package></GameCard>
+            <PackageCard Size=@PackageCard.SizeType.Tall Package=@package Clicked="@(() => package.OpenModal())" RightClicked="@(() => MenuHelpers.OpenPackageMenu(this, package))" />
 		}
 		</ChildContent>
 	</ContentBlockBody>

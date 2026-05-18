@@ -33,6 +33,7 @@ public partial class Doo
 	/// <summary>
 	/// Specify a hint on a Doo explaining that we're going to be passing in an expected argument when calling it.
 	/// </summary>
+	[AttributeUsage( AttributeTargets.Property, AllowMultiple = true )]
 	public class ArgumentHintAttribute : System.Attribute
 	{
 		/// <summary>

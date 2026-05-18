@@ -17,7 +17,7 @@ native accessor g_pSoundSystemInternal as g_pSoundSystem
 	void PlaySoundAtOSLevel( string filename );
 
 	CSfxTable PrecacheSound( string pSoundName );
-	CSfxTable CreateSound( string pSoundName, int nChannels, int nRate, int nFormat, int nSampleCount, float flDuration, bool bLoop, void* pData, int nDataSize );
+	CSfxTable CreateSound( string pSoundName, int nChannels, int nRate, int nFormat, int nSampleCount, float flDuration, int nLoopStart, int nLoopEnd, void* pData, int nDataSize );
 	void PreloadSound( CSfxTable pSfx );
 }
 
@@ -26,7 +26,8 @@ native class CSimplePCMWaveData
 	static CSimplePCMWaveData Create();[new]
 	void Dispose(); [delete]
 
-	void ParseMP3File( CastTo[uint8*] void* pData, CastTo[size_t] int nDataSize );
+	void ParseMP3File( CastTo[uint8*] void* pData, CastTo[size_t] int nDataSize );	
+	bool ParseOGGFile( CastTo[uint8*] void* pData, CastTo[size_t] int nDataSize );	
 
 	inline void* GetPCMData()
 	{

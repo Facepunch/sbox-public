@@ -6,6 +6,13 @@ public class BrushPreviewSceneObject : SceneCustomObject
 	public float Radius { get; set; } = 16.0f;
 	public Color Color { get; set; } = Color.White;
 
+	public float CellSize { get; set; } = 0f;
+	public Vector3 TerrainOrigin { get; set; }
+	public Vector3 TerrainRight { get; set; }
+	public Vector3 TerrainForward { get; set; }
+
+	static Material material = Material.FromShader( "shaders/terrain_brush.shader" );
+
 	public BrushPreviewSceneObject( SceneWorld world ) : base( world )
 	{
 		RenderLayer = SceneRenderLayer.Default;
@@ -13,8 +20,6 @@ public class BrushPreviewSceneObject : SceneCustomObject
 
 	public override void RenderSceneObject()
 	{
-		var material = Material.FromShader( "shaders/terrain_brush.shader" );
-
 		VertexBuffer buffer = new();
 		buffer.Init( true );
 
@@ -24,6 +29,10 @@ public class BrushPreviewSceneObject : SceneCustomObject
 		attributes.Set( "Brush", Texture );
 		attributes.Set( "Radius", Radius );
 		attributes.Set( "Color", Color );
+		attributes.Set( "CellSize", CellSize );
+		attributes.Set( "TerrainOrigin", TerrainOrigin );
+		attributes.Set( "TerrainRight", TerrainRight );
+		attributes.Set( "TerrainForward", TerrainForward );
 
 		Graphics.GrabDepthTexture( "DepthBuffer", attributes );
 

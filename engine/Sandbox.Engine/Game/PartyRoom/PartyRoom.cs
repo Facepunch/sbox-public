@@ -321,7 +321,7 @@ public partial class PartyRoom : ILobby
 
 	public static async Task<PartyRoom> Create( int maxMembers, string name, bool ispublic )
 	{
-		var lobby = await Steamworks.SteamMatchmaking.CreateLobbyAsync( maxMembers );
+		var lobby = await Steamworks.SteamMatchmaking.CreateLobbyAsync( ispublic ? LobbyType.Public : LobbyType.Private, maxMembers );
 
 		if ( !lobby.HasValue )
 		{
@@ -330,11 +330,6 @@ public partial class PartyRoom : ILobby
 		}
 
 		lobby.Value.SetData( "name", name );
-
-		if ( !ispublic )
-		{
-			lobby.Value.SetPrivate();
-		}
 
 		var room = new PartyRoom( lobby.Value );
 

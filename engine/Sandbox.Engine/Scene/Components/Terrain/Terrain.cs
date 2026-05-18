@@ -9,7 +9,7 @@ namespace Sandbox;
 [Category( "World" )]
 public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 {
-	[ConVar( "r_terrain_displacement" )]
+	[ConVar( "r_terrain_displacement", ConVarFlags.Cheat )]
 	internal static bool UseVertexDisplacement { get; set; } = true;
 
 	public override bool IsConcave => true;

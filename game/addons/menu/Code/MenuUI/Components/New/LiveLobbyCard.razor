@@ -55,7 +55,7 @@
 		menu.AddSpacer();
 		menu.AddOption("info", $"View Game Details", () => Game.Overlay.ShowGameModal(package.FullIdent));
 		menu.AddOption("corporate_fare", $"View Creator Details", () => Game.Overlay.ShowOrganizationModal(package.Org));
-		menu.AddOption("star", "Rate Game", () => Game.Overlay.ShowReviewModal(package));
+		menu.AddOption("star", "Review Game", () => Game.Overlay.ShowReviewModal(package));
 	}
 
 	protected override int BuildHash() => System.HashCode.Combine( MenuHelpers.HasAuthority );

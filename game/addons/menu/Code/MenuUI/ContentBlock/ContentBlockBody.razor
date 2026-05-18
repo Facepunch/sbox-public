@@ -17,11 +17,11 @@
 
 @code
 {
-	private const float ScrollVelocityFactor = 0.2f;
+    private const float ScrollVelocityFactor = 0.2f;
 
-	Panel ContentParent;
-	Panel ScrollLeft;
-	Panel ScrollRight;
+    Panel ContentParent { get; set; }
+    Panel ScrollLeft { get; set; }
+    Panel ScrollRight { get; set; }
 
 	private void Scroll( bool left )
 	{

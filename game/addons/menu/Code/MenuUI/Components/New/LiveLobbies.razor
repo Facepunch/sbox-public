@@ -13,7 +13,7 @@
     </row>
 
 	<div class="lobby-list" @ref="LobbyList" CanDragScroll=@false>
-        @foreach (var l in all.GroupBy( x => x.Game ).Take( 10 ).Select( x => x.OrderByDescending( x => x.Members ).First() ).OrderByDescending( x => x.Members ) )
+        @foreach (var l in all.GroupBy( x => x.Game ).Take( 20 ).Select( x => x.OrderByDescending( x => x.Members ).First() ).OrderByDescending( x => x.Members ) )
         {
 		    <LiveLobbyCard Lobby=@l></LiveLobbyCard>
         }
@@ -25,7 +25,7 @@
     List<Sandbox.Network.LobbyInformation> all = new();
     RealTimeSince timeSinceUpdate = 0;
 
-    Panel LobbyList;
+    Panel LobbyList { get; set; }
 
     override protected void OnParametersSet()
     {

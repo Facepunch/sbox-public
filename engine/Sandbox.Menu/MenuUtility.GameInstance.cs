@@ -50,11 +50,15 @@ public static partial class MenuUtility
 		if ( _isJoiningLobby )
 			return false;
 
+		using var scope = Networking.MatchmakingScope();
+
 		try
 		{
 			_isJoiningLobby = true;
 
+			Log.Info( "Searching for games.." );
 			var lobbies = await Networking.QueryLobbies( ident );
+			Log.Info( $"..found {lobbies.Count} available matches" );
 
 			var orderedLobbies = lobbies.OrderBy( lobby => lobby.ContainsFriends )
 				.ThenByDescending( lobby => lobby.Members );
@@ -76,7 +80,6 @@ public static partial class MenuUtility
 				}
 			}
 
-			Log.Info( $"Couldn't join a lobby - making a game" );
 			return false;
 		}
 		finally

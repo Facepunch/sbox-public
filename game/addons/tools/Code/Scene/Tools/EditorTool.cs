@@ -113,7 +113,7 @@ public class EditorTool : IDisposable
 		{
 			if ( Manager.IsCurrentViewFocused )
 			{
-				if ( HasLassoSelectionMode() && (IsLassoSelecting || (Gizmo.IsAltPressed && Gizmo.IsLeftMouseDown && Gizmo.Pressed.CursorDelta.Length > 0.1f)) )
+				if ( HasLassoSelectionMode() && (IsLassoSelecting || (Gizmo.IsAltPressed && (Gizmo.IsShiftPressed || Gizmo.IsCtrlPressed) && Gizmo.IsLeftMouseDown && Gizmo.Pressed.CursorDelta.Length > 0.1f)) )
 				{
 					UpdateLassoSelection();
 				}
@@ -150,6 +150,36 @@ public class EditorTool : IDisposable
 	public virtual void OnSelectionChanged()
 	{
 
+	}
+
+	/// <summary>
+	/// Allows tools to contribute custom items to the scene viewport context menu.
+	/// </summary>
+	public virtual void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
+	{
+	}
+
+	protected static void AddMenuOption( Menu m, string name, string icon, string shortcut, bool condition )
+	{
+		if ( !condition ) return;
+		m.AddOption( name, icon, () => InvokeShortcut( shortcut ), shortcut );
+	}
+
+	protected static void AddMenuOption( Menu m, string name, string icon, Action action, string shortcut, bool condition )
+	{
+		if ( !condition ) return;
+		m.AddOption( name, icon, action, shortcut );
+	}
+
+	internal static bool InvokeShortcut( string identifier )
+	{
+		foreach ( var shortcut in EditorShortcuts.Entries )
+		{
+			if ( shortcut.Identifier != identifier ) continue;
+			if ( shortcut.Invoke( true ) ) return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>
@@ -287,7 +317,7 @@ public class EditorTool : IDisposable
 	public virtual bool HasBoxSelectionMode() => false;
 
 	/// <summary>
-	/// If true then this mode uses lasso selection (activated with Alt+Drag)
+	/// If true then this mode uses lasso selection (Alt+Shift+Drag to add, Alt+Ctrl+Drag to remove)
 	/// </summary>
 	public virtual bool HasLassoSelectionMode() => false;
 

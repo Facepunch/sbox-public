@@ -272,6 +272,12 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 
 		var model = Model ?? Model.Load( "models/dev/box.vmdl" );
 
+		if ( MaterialOverride is not null )
+		{
+			NativeErrorReporter.Breadcrumb( false, "material_override.spawn",
+				$"ModelRenderer spawned with MaterialOverride='{MaterialOverride.ResourcePath}' on '{GameObject?.Name ?? "null"}' (model='{model?.ResourcePath ?? "null"}', scene='{Scene?.Name ?? "null"}', taggedOverrides={taggedMaterialOverrides?.Count ?? 0})" );
+		}
+
 		_sceneObject = new SceneObject( Scene.SceneWorld, model, WorldTransform );
 		OnSceneObjectCreated( _sceneObject );
 

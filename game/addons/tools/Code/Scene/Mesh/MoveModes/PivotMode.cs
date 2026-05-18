@@ -31,6 +31,10 @@ public sealed class PivotMode : MoveMode
 
 		var origin = tool.Pivot;
 
+		// Make sure our unsnapped pivot is set to the snapped pivot when not dragging.
+		if ( !Gizmo.Pressed.Any )
+			_pivot = origin;
+
 		using ( Gizmo.Scope( "Tool", new Transform( origin ) ) )
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;

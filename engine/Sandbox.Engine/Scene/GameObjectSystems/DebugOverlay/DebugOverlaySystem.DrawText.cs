@@ -39,7 +39,6 @@ file class DebugTextSceneObject : SceneCustomObject
 
 	public DebugTextSceneObject( SceneWorld sceneWorld, TextRendering.Scope scope, TextFlag flags ) : base( sceneWorld )
 	{
-		managedNative.ExecuteOnMainThread = false;
 		_scope = scope;
 		_flags = flags;
 

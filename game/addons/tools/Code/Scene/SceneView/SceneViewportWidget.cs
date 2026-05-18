@@ -452,6 +452,10 @@ public partial class SceneViewportWidget : Widget
 				var ev = new EditorEvent.ShowContextMenuEvent( Session, menu, ray, trace );
 
 				EditorEvent.RunInterface<EditorEvent.ISceneView>( x => x.ShowContextMenu( ev ) );
+
+				var activeTool = SceneView?.Tools.CurrentTool;
+				activeTool?.BuildSceneContextMenu( menu, ray, trace );
+				activeTool?.CurrentTool?.BuildSceneContextMenu( menu, ray, trace );
 			}
 
 			menu.OpenAtCursor();

@@ -41,7 +41,7 @@ public class PaintTextureTool : EditorTool
 		// Draw brush preview at hit position
 		var tx = terrain.WorldTransform;
 		var previewTransform = new Transform( tx.PointToWorld( hitPosition ), tx.Rotation );
-		parent.DrawBrushPreview( previewTransform );
+		parent.DrawBrushPreview( previewTransform, terrain );
 
 		if ( Gizmo.IsLeftMouseDown )
 		{

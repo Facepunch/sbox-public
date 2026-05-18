@@ -349,6 +349,7 @@ public sealed partial class MovieRecorder
 /// <summary>
 /// Ticks all <see cref="MovieRecorder"/>s for the current scene.
 /// </summary>
+[Title( "Movie Recorder" )]
 internal sealed class MovieRecorderSystem : GameObjectSystem<MovieRecorderSystem>
 {
 	private readonly HashSet<MovieRecorder> _activeRecorders = new();

@@ -12,6 +12,9 @@ public sealed partial class ModelPhysics
 		if ( IsProxy ) return;
 		if ( PhysicsWereCreated ) return;
 
+		// Make sure any components we create are available immediately after.
+		using var batch = Scene.BatchGroup();
+
 		DestroyPhysics();
 
 		if ( !Model.IsValid() ) return;

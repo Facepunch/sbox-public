@@ -346,7 +346,12 @@ public partial class Scene : GameObject
 			}
 		}
 
-		if ( data.TryGetPropertyValue( "GameObjectSystems", out var systemOverridesNode ) )
+		//
+		// We don't want system scene loads to overwrite the main scene's system properties.
+		// System scenes can add GameObjects, but they should not reconfigure systems that
+		// already belong to the main scene (same reason NavMesh is guarded below).
+		//
+		if ( !isSystemScene && data.TryGetPropertyValue( "GameObjectSystems", out var systemOverridesNode ) )
 		{
 			ApplyGameObjectSystemOverrides( systemOverridesNode );
 		}

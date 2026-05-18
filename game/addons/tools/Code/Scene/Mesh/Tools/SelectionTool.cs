@@ -96,8 +96,7 @@ public abstract class SelectionTool : EditorTool
 
 	/// <summary>
 	/// Key used to store/restore previous selections. Tools sharing the same
-	/// element type (e.g. FaceTool and TextureTool both use MeshFace) will
-	/// share the same entry, keeping them in sync.
+	/// element type will share the same entry, keeping them in sync.
 	/// </summary>
 	protected virtual Type PreviousSelectionKey => GetType();
 
@@ -273,6 +272,23 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 
 	public bool IsAllowedToSelect => Tool?.MoveMode?.AllowSceneSelection ?? true;
 
+	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
+	{
+		bool hasSelection = Selection.OfType<IMeshElement>().Any( x => x.IsValid() );
+
+		if ( hasSelection )
+		{
+			menu.AddSeparator();
+
+			var sel = menu.AddMenu( "Selection", "select_all" );
+			AddMenuOption( sel, "Grow Selection (+)", "add", "mesh.grow-selection", true );
+			AddMenuOption( sel, "Shrink Selection (-)", "remove", "mesh.shrink-selection", true );
+		}
+
+		menu.AddSeparator();
+		menu.AddOption( "Lift Material", "colorize", () => LiftMaterialFromContextTrace( trace ), "mesh.lift-material" );
+	}
+
 	public override void OnUpdate()
 	{
 		GlobalSpace = Gizmo.Settings.GlobalSpace;
@@ -323,11 +339,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 	{
 		if ( Gizmo.WasRightMousePressed && Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
 		{
-			var face = TraceFace();
-			if ( face.IsValid() )
-			{
-				Tool.ActiveMaterial = face.Material;
-			}
+			LiftMaterialFromHoveredFace();
 		}
 
 		if ( Gizmo.IsRightMouseDown && Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
@@ -347,6 +359,36 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 					}
 				}
 			}
+		}
+	}
+
+	private void LiftMaterialFromHoveredFace()
+	{
+		var face = TraceFace();
+		if ( face.IsValid() )
+		{
+			Tool.ActiveMaterial = face.Material;
+		}
+	}
+
+	[Shortcut( "mesh.lift-material", "SHIFT+RMB", typeof( SceneViewWidget ) )]
+	private void LiftMaterial()
+	{
+		LiftMaterialFromHoveredFace();
+	}
+
+	private void LiftMaterialFromContextTrace( SceneTraceResult? trace )
+	{
+		if ( trace is not { Hit: true } hit )
+			return;
+
+		if ( hit.Component is not MeshComponent component || component.Mesh is null )
+			return;
+
+		var face = new MeshFace( component, component.Mesh.TriangleToFace( hit.Triangle ) );
+		if ( face.IsValid() )
+		{
+			Tool.ActiveMaterial = face.Material;
 		}
 	}
 
@@ -480,6 +522,9 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 		}
 	}
 
+	[Shortcut( "mesh.invert-selection", "CTRL+I", typeof( SceneViewWidget ) )]
+	protected void InvertCurrentSelection() => InvertSelection();
+
 	public virtual List<MeshFace> ExtrudeSelection( Vector3 delta = default )
 	{
 		return [];
@@ -507,7 +552,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 
 		if ( Gizmo.IsShiftPressed )
 		{
-			ExtrudeSelection( delta );
+			ExtrudeSelection( -delta );
 		}
 		else
 		{
@@ -826,6 +871,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 		{
 			var mesh = component.Mesh;
 			if ( mesh == null ) continue;
+
+			if ( component.GameObject.Tags.Has( "hidden" ) ) continue;
 
 			var worldBounds = component.GetWorldBounds();
 			var meshScreenBounds = GetScreenRectFromBounds( worldBounds );

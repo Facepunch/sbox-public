@@ -1,0 +1,33 @@
+{
+  "Title": "Game - Player Controller",
+  "Type": "game",
+  "Org": "local",
+  "Ident": "game.playercontroller",
+  "Schema": 1,
+  "IncludeSourceFiles": false,
+  "Resources": null,
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "Mounts": null,
+  "IsStandaloneOnly": false,
+  "Metadata": {
+    "MaxPlayers": 64,
+    "MinPlayers": 1,
+    "TickRate": 50,
+    "GameNetworkType": "Multiplayer",
+    "MapSelect": "Unrestricted",
+    "MapList": [
+      "facepunch.flatgrass"
+    ],
+    "RankType": "None",
+    "PerMapRanking": false,
+    "LeaderboardType": "None",
+    "CsProjName": "",
+    "StartupScene": "scenes/basic_example.scene",
+    "ProjectTemplate": {
+      "Icon": "directions_run",
+      "Order": 50,
+      "Description": "Contains a First Person, Third Person, and Top-Down Example"
+    }
+  }
+}

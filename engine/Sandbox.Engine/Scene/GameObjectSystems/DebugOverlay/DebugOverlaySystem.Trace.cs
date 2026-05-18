@@ -25,7 +25,7 @@ public partial class DebugOverlaySystem
 			switch ( shape.Type )
 			{
 				case PhysicsTrace.Request.ShapeType.Sphere:
-					Sphere( new Sphere( position, shape.Radius ), color, duration, Transform.Zero, overlay );
+					Sphere( new Sphere( position, shape.Radius.x ), color, duration, Transform.Zero, overlay );
 					break;
 
 				case PhysicsTrace.Request.ShapeType.Box:
@@ -33,11 +33,11 @@ public partial class DebugOverlaySystem
 					break;
 
 				case PhysicsTrace.Request.ShapeType.Capsule:
-					Capsule( new Capsule( shape.Mins, shape.Maxs, shape.Radius ), color, duration, new Transform( position, shape.StartRot ), overlay );
+					Capsule( new Capsule( shape.Mins, shape.Maxs, shape.Radius.x ), color, duration, new Transform( position, shape.StartRot ), overlay );
 					break;
 
 				case PhysicsTrace.Request.ShapeType.Cylinder:
-					Cylinder( new Capsule( shape.Mins, shape.Maxs, shape.Radius ), color, duration, new Transform( position, shape.StartRot ), overlay, 16 );
+					TaperedCylinder( shape.Mins, shape.Maxs, shape.Radius.x, shape.Radius.y, color, duration, new Transform( position, shape.StartRot ), overlay, 16 );
 					break;
 			}
 		}

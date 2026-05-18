@@ -99,6 +99,11 @@ public struct LobbyInformation
 	public string Map;
 	public string Game;
 
+	/// <summary>
+	/// Ping in milliseconds. Only available for dedicated servers, -1 if unknown.
+	/// </summary>
+	public int Ping;
+
 	public Dictionary<string, string> Data;
 
 	/// <summary>
@@ -239,6 +244,8 @@ internal static class DedicatedServer
 			Dispatch.Install<SteamServersConnected_t>( OnConnected, true );
 			Dispatch.Install<SteamServerConnectFailure_t>( OnConnectionFailed, true );
 			Dispatch.Install<SteamServersDisconnected_t>( OnDisconnected, true );
+			Dispatch.Install<ValidateAuthTicketResponse_t>( SteamNetwork.SocketConnection.OnValidateAuthTicket, false );
+			Dispatch.Install<ValidateAuthTicketResponse_t>( SteamNetwork.SocketConnection.OnValidateAuthTicket, true );
 
 			Initialized = true;
 		}

@@ -5,7 +5,12 @@
 @inherits Panel
 
 <root class=@BuildClass() @onrightclick=@OnCardRightClicked onclick=@OnCardClicked>
-    <div class="image" style="background-image: url(@(Image() ?? "/ui/sbox-logo-square.svg"))" />
+    <div class="image" style="background-image: url(@(Image() ?? "/ui/sbox-logo-square.svg"))">
+        @if (Package?.Usage.UsersNow > 0)
+        {
+            <div class="online package-users" title="Playing Now">@Package.Usage.UsersNow</div>
+        }
+    </div>
 
     <column>
         <label class="medium package-title">
@@ -23,89 +28,57 @@
         else
         {
             <row>
-                <icon class="eyebrow">
-                    thumb_up
-                </icon>
-
-                <label class="eyebrow">
-                    @VotePercentage()
-                </label>
-
+                <icon class="eyebrow">thumb_up</icon>
+                <label class="eyebrow">@VotePercentage()</label>
                 <div class="grow" />
-
-                @if (Package.Usage.UsersNow > 0)
-                {
-                    <badge class="online package-users">
-                        <icon>person</icon>
-                        <label>@(Package.Usage.UsersNow)</label>
-                    </badge>
-                }
             </row>
         }
     </column>
 </root>
 
 @code {
-    public enum SizeTypes
+    public enum SizeType
     {
         Default,
         Small,
         Wide,
-        Tall
+        Tall,
+        List
     }
 
-    [Property] public Sandbox.Package Package { get; set; }
-    [Property] public SizeTypes Size { get; set; }
+    [Parameter] public Package Package { get; set; }
+    [Parameter] public SizeType Size { get; set; }
 
     /// <summary>
-    /// Called when the icon part of the card is pressed
+    /// Called when the card is clicked
     /// </summary>
-    [Parameter] public System.Action OnLaunch { get; set; }
+    [Parameter] public Action Clicked { get; set; }
 
     /// <summary>
-    /// Called when the icon part of the card is right clicked
+    /// Called when the card is right clicked
     /// </summary>
-    [Parameter] public System.Action OnMenu { get; set; }
+    [Parameter] public Action RightClicked { get; set; }
     
-    void OnCardClicked()
-    {
-        OnLaunch?.Invoke();
-    }
+    void OnCardClicked() => Clicked?.Invoke();
+    void OnCardRightClicked() => RightClicked?.Invoke();
 
-    void OnCardRightClicked()
-    {
-        OnMenu?.Invoke();
-    }
+    string BuildClass() => $"package-card {Size.ToString().ToLower()}";
 
-    private string BuildClass()
-    {
-        return $"game {Size.ToString().ToLower()}";
-    }
-
-    private string VotePercentage()
+    string VotePercentage()
     {
         if (Package == null) return "Unrated";
-
-        if (Package.VotesUp == 0 && Package.VotesDown == 0)
-            return "Unrated";
-
-        return ((int)((float)Package.VotesUp / (Package.VotesUp + Package.VotesDown) * 100)).ToString() + "%";
+        if (Package.VotesUp == 0 && Package.VotesDown == 0) return "Unrated";
+        return $"{(int)(Package.VotesUp * 100f / (Package.VotesUp + Package.VotesDown))}%";
     }
 
-    public string Image()
+    string Image() => Size switch
     {
-        switch (Size)
-        {
-            case SizeTypes.Tall:
-                return Package?.ThumbTall;
-            case SizeTypes.Wide:
-                return Package?.ThumbWide;
-            case SizeTypes.Small:
-                return Package?.Thumb;
-            default:
-                return Package?.ThumbWide;
-        }
-    }
+        SizeType.Tall => Package?.ThumbTall,
+        SizeType.Wide => Package?.ThumbWide,
+        SizeType.Small => Package?.Thumb,
+        SizeType.List => Package?.Thumb,
+        _ => Package?.ThumbWide
+    };
 
-    protected override int BuildHash() => System.HashCode.Combine(Package);
+    protected override int BuildHash() => System.HashCode.Combine(Package?.FullIdent, Package?.Usage.UsersNow);
 }

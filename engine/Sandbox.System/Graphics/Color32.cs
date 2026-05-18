@@ -267,4 +267,29 @@ public struct Color32 : IEquatable<Color32>
 	public readonly bool Equals( Color32 o ) => (r, g, b, a) == (o.r, o.g, o.b, o.a);
 	public readonly override int GetHashCode() => HashCode.Combine( r, g, b, a );
 	#endregion
+
+	/// <summary>
+	/// Performs linear interpolation between two colors.
+	/// </summary>
+	/// <param name="a">The source color.</param>
+	/// <param name="b">The target color.</param>
+	/// <param name="frac">Fraction to the target color. 0 will return source color, 1 will return target color, 0.5 will "mix" the 2 colors equally.</param>
+	/// <returns>The interpolated color.</returns>
+	public static Color32 Lerp( in Color32 a, in Color32 b, float frac )
+	{
+		return new Color32(
+			(byte)(a.r + (b.r - a.r) * frac),
+			(byte)(a.g + (b.g - a.g) * frac),
+			(byte)(a.b + (b.b - a.b) * frac),
+			(byte)(a.a + (b.a - a.a) * frac)
+		);
+	}
+
+	/// <summary>
+	/// Performs linear interpolation between this and given colors.
+	/// </summary>
+	/// <param name="target">Color B</param>
+	/// <param name="frac">Fraction, where 0 would return this, 0.5 would return a point between this and given colors, and 1 would return the given color.</param>
+	/// <returns></returns>
+	public readonly Color32 LerpTo( in Color32 target, float frac ) => Lerp( this, target, frac );
 }

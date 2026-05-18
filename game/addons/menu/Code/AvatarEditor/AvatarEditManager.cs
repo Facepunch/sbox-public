@@ -45,6 +45,9 @@ public sealed partial class AvatarEditManager : Component
 			if ( allClothing.Any( x => x.SteamItemDefinitionId == item.Id ) )
 				continue;
 
+			if ( item.StoreHidden && !Sandbox.Services.Inventory.HasItem( item.Id ) )
+				continue;
+
 			var clothing = new Clothing();
 			clothing.Title = item.Name;
 			clothing.Category = Enum.TryParse<Clothing.ClothingCategory>( item.Category, out var category ) ? category : Clothing.ClothingCategory.HairLong;

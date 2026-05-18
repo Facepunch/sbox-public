@@ -291,6 +291,9 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 				loadedMapName = mapName;
 				SentrySdk.AddBreadcrumb( $"Map Name is {loadedMapName}, filename is {mapFileName}", "map.load" );
 
+				await Task.Yield();
+				token.ThrowIfCancellationRequested();
+
 				using ( Scene.Push() )
 				{
 					var loader = new MapComponentMapLoader( this, NoOrigin ? 0 : WorldPosition );

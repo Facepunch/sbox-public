@@ -1,46 +1,51 @@
 @import "/styles/_theme.scss";
 
-ListCard {
-    background-color: $default-950;
-    border-radius: $rounding-default;
-    position: relative;
-    width: 400px;
-    border: none;
-    align-items: center;
-    justify-content: flex-start;
-    flex-direction: row;
-    aspect-ratio: 0;
-    padding: 6px;
-    overflow: hidden;
-    padding-left: 62px;
+ListCard
+{
+	background-color: rgba( $default-950, 0.95 );
+	border-radius: $rounding-default;
+	position: relative;
+	width: 400px;
+	border: none;
+	align-items: center;
+	justify-content: flex-start;
+	flex-direction: row;
+	aspect-ratio: 0;
+	padding: 6px;
+	overflow: hidden;
+	padding-left: 69px;
 
-    .image {
-        background-size: cover;
-        background-position: center;
-        border-radius: $rounding-small;
-        aspect-ratio: 16/9;
-        margin-bottom: 6px;
-    }
+	.image
+	{
+		background-size: cover;
+		background-position: center;
+		border-radius: $rounding-small;
+		aspect-ratio: 16/9;
+		margin-bottom: 6px;
+	}
 
-    Label.title {
-        font-family: $font-heading;
-        font-size: $text-regular;
-        font-weight: 700;
-    }
+	Label.title
+	{
+		font-family: $font-heading;
+		font-size: $text-regular;
+		font-weight: 700;
+	}
 
-    .image {
-        border-radius: 0;
-        position: absolute;
-        top: 0;
-        left: 0;
-        bottom: 0;
-        aspect-ratio: 1;
-        flex-grow: 0;
-        margin-bottom: 0;
-    }
+	.image
+	{
+		border-radius: 0;
+		position: absolute;
+		top: 0;
+		left: 0;
+		bottom: 0;
+		aspect-ratio: 1;
+		flex-grow: 0;
+		margin-bottom: 0;
+	}
 
-    column {
-        flex-grow: 1;
-        gap: 2px;
-    }
+	column
+	{
+		flex-grow: 1;
+		gap: 2px;
+	}
 }

@@ -1,5 +1,4 @@
 ﻿using System.Runtime.CompilerServices;
-using Sandbox.ActionGraphs;
 using System.Threading;
 
 namespace Sandbox;
@@ -325,6 +324,15 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 		// Network owner could have changed
 		//
 		UpdateNetworkRoot();
+
+		//
+		// We might become (in)active now. oldParent is null during the constructor, we don't want
+		// to update enabled status there.
+		//
+		if ( oldParent is not null && Enabled && oldParent.Active != parent.Active )
+		{
+			UpdateEnabledStatus();
+		}
 
 		//
 		// Let components react to this
@@ -671,21 +679,20 @@ public partial class GameObject : IJsonConvert, IComponentLister, BytePack.ISeri
 	[ActionGraphInclude, Pure]
 	public BBox GetBounds()
 	{
-		var result = BBox.FromPositionAndSize( WorldPosition );
+		BBox? result = null;
 
 		Components.ExecuteEnabledInSelfAndDescendants<Component.IHasBounds>( x =>
 		{
-			if ( x is Component c )
-			{
-				result = result.AddBBox( x.LocalBounds.Transform( c.WorldTransform ) );
-			}
-			else
-			{
-				result = result.AddBBox( x.LocalBounds );
-			}
+			var bounds = x is Component c
+				? x.LocalBounds.Transform( c.WorldTransform )
+				: x.LocalBounds;
+
+			result = result.HasValue
+				? result.Value.AddBBox( bounds )
+				: bounds;
 		} );
 
-		return result;
+		return result ?? BBox.FromPositionAndSize( WorldPosition );
 	}
 
 	/// <summary>

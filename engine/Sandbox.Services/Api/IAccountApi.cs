@@ -6,19 +6,19 @@ public partial class ServiceApi
 {
 	public interface IAccountApi
 	{
-		[Post( "/account/login/" )]
+		[Post( "/account/login/2" )]
 		Task<LoginResult> Login( object logindata );
 
 		[Post( "/account/activity/" )]
 		Task Activity( [Body] object activity );
 
-		[Post( "/event/batch/" )]
+		[Post( "/event/batch/1" )]
 		Task SubmitEvents( [Body] object activity );
 
 		[Post( "/account/services/" )]
 		Task<ServiceToken> GetService( [Query] string service );
 
-		[Post( "/account/token/" )]
+		[Post( "/account/getauthtoken/" )]
 		Task<string> GetAuthToken( [Query] string session, [Query] string package, [Query] string service );
 	}
 }

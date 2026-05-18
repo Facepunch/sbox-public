@@ -105,13 +105,13 @@ internal partial class NetworkSystem
 		Networking.ServerName = msg.ServerName;
 		Networking.MapName = msg.MapName;
 
-		InstallStringTables();
-		log.Trace( $"Fetching Server Data.." );
-
 		//
 		// Tell me what I need
 		//
 		LoadingScreen.Title = "Fetching Server Data";
+
+		InstallStringTables();
+		log.Trace( $"Fetching Server Data.." );
 
 		source.SendMessage( output with
 		{
@@ -255,7 +255,7 @@ internal partial class NetworkSystem
 		await IGameInstanceDll.Current?.LoadNetworkTables( this );
 
 		LoadingScreen.Title = "Init Game System";
-		InitializeGameSystem();
+		await InitializeGameSystemAsync();
 
 		log.Trace( $"Game Network System: {GameSystem}" );
 

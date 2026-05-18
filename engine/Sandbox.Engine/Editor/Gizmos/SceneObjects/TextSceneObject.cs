@@ -1,4 +1,6 @@
-﻿namespace Sandbox;
+﻿using Sandbox.Rendering;
+
+namespace Sandbox;
 
 /// <summary>
 /// Draws text in screenspace
@@ -17,15 +19,18 @@ internal class TextSceneObject : SceneCustomObject
 
 	public TextRendering.Scope TextBlock;
 
+	CommandList _commandList = new( "EditorText" );
+
 	public TextSceneObject( SceneWorld sceneWorld ) : base( sceneWorld )
 	{
 		RenderLayer = SceneRenderLayer.OverlayWithoutDepth;
-		managedNative.ExecuteOnMainThread = false;
 		TextBlock = TextRendering.Scope.Default;
 	}
 
-	public override void RenderSceneObject()
+	public void BuildCommandList()
 	{
+		_commandList.Reset();
+
 		var pos = ScreenPos;
 
 		if ( TextFlags.Contains( TextFlag.CenterHorizontally ) )
@@ -47,12 +52,17 @@ internal class TextSceneObject : SceneCustomObject
 
 		if ( AngleDegrees == 0f )
 		{
-			Graphics.DrawText( rect, TextBlock, TextFlags );
+			_commandList.DrawText( TextBlock, rect, TextFlags );
 		}
 		else
 		{
-			Graphics.DrawText( rect, AngleDegrees, TextBlock, TextFlags );
+			_commandList.DrawText( TextBlock, rect, TextFlags, AngleDegrees );
 		}
+	}
+
+	public override void RenderSceneObject()
+	{
+		_commandList.ExecuteOnRenderThread();
 	}
 }
 
@@ -66,21 +76,29 @@ internal class WorldTextSceneObject : SceneCustomObject
 	public Color Color { get; set; } = Color.White;
 	public bool IgnoreDepth { get; set; } = false;
 
+	CommandList _commandList = new( "WorldText" );
+
 	public WorldTextSceneObject( SceneWorld sceneWorld ) : base( sceneWorld )
 	{
 		RenderLayer = SceneRenderLayer.OverlayWithDepth;
-		managedNative.ExecuteOnMainThread = false;
+	}
+
+	public void BuildCommandList()
+	{
+		_commandList.Reset();
+
+		_commandList.Attributes.SetCombo( "D_WORLDPANEL", 1 );
+		_commandList.Attributes.SetCombo( "D_NO_ZTEST", IgnoreDepth ? 1 : 0 );
+
+		Matrix mat = Matrix.CreateRotation( Rotation.From( 0, 0, 0 ) );
+		_commandList.Attributes.Set( "WorldMat", mat );
+
+		var scope = new TextRendering.Scope( Text, Color, FontSize, FontName, (int)FontWeight );
+		_commandList.DrawText( scope, new Rect( 0 ), TextFlags | TextFlag.DontClip );
 	}
 
 	public override void RenderSceneObject()
 	{
-		Graphics.Attributes.SetCombo( "D_WORLDPANEL", 1 );
-		Graphics.Attributes.SetCombo( "D_NO_ZTEST", IgnoreDepth ? 1 : 0 );
-
-		// Set a dummy WorldMat matrix so that ScenePanelObject doesn't break the transforms.
-		Matrix mat = Matrix.CreateRotation( Rotation.From( 0, 0, 0 ) );
-		Graphics.Attributes.Set( "WorldMat", mat );
-
-		Graphics.DrawText( new Rect( 0 ), Text, Color, FontName, FontSize, FontWeight, TextFlags | TextFlag.DontClip );
+		_commandList.ExecuteOnRenderThread();
 	}
 }

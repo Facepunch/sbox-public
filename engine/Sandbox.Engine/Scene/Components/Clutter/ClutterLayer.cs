@@ -192,6 +192,8 @@ class ClutterLayer
 
 			foreach ( var instance in instances )
 				batch.AddInstance( instance );
+
+			batch.BuildCommandList();
 		}
 
 		var toRemove = _batches.Keys.Where( m => !instancesByModel.ContainsKey( m ) ).ToList();

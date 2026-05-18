@@ -598,6 +598,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		MountedVPKs?.Dispose();
 		MountedVPKs = null;
 
+		LoadingScreen.Title = null;
+
 		// Wait for loading to finish
 		if ( Game.ActiveScene is not null )
 		{

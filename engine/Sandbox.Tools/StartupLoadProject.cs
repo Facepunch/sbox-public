@@ -212,7 +212,7 @@ static class StartupLoadProject
 
 			// Mount our current project into the filesystem and make sure to load all assets
 			FileSystem.Mounted.CreateAndMount( project.GetAssetsPath() );
-			ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
+			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, ct );
 		}
 		else
 		{

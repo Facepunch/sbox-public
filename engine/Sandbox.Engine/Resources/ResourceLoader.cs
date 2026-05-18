@@ -1,5 +1,6 @@
 ﻿using Sandbox.Engine;
 using System.Diagnostics;
+using System.Threading;
 
 namespace Sandbox;
 
@@ -81,6 +82,60 @@ internal static class ResourceLoader
 
 		// TODO: Check for edited but not saved OR recompiled assets and load in their values on server/client
 		// like editing an asset while the gamemode is running would?
+	}
+
+	internal static async Task LoadAllGameResourceAsync( BaseFileSystem fileSystem, CancellationToken ct = default )
+	{
+		var sw = Stopwatch.StartNew();
+		var types = Game.TypeLibrary.GetAttributes<AssetTypeAttribute>().DistinctBy( x => x.Extension )
+			.ToDictionary( x => $".{x.Extension}_c", x => x, StringComparer.OrdinalIgnoreCase );
+
+		var allExtensions = new HashSet<string>( types.Keys, StringComparer.OrdinalIgnoreCase );
+		allExtensions.UnionWith( NativeExtensions );
+
+		var allFiles = new List<string>();
+		foreach ( var file in fileSystem.FindFile( "/", "*", true ) )
+		{
+			ct.ThrowIfCancellationRequested();
+			allFiles.Add( file );
+			if ( allExtensions.Contains( System.IO.Path.GetExtension( file ) ) )
+				Game.Resources.RegisterPath( file );
+			if ( sw.ElapsedMilliseconds > 8 ) { LoadingScreen.Subtitle = System.IO.Path.GetFileName( file ); await Task.Yield(); sw.Restart(); }
+		}
+
+		var allResources = new List<GameResource>();
+
+		foreach ( var file in allFiles )
+		{
+			ct.ThrowIfCancellationRequested();
+			var extension = System.IO.Path.GetExtension( file );
+			if ( !types.TryGetValue( extension, out var type ) ) continue;
+			if ( ResourceLibrary.TryGet<GameResource>( file.Trim( '/' ), out var existing ) && !existing.IsPromise ) continue;
+
+			try
+			{
+				var se = Game.Resources.LoadGameResource( type, file, fileSystem, true );
+				if ( se != null ) allResources.Add( se );
+			}
+			catch ( Exception ex )
+			{
+				Log.Warning( ex, $"Exception when trying to load {file}" );
+			}
+
+			if ( sw.ElapsedMilliseconds > 8 ) { LoadingScreen.Subtitle = System.IO.Path.GetFileName( file ); await Task.Yield(); sw.Restart(); }
+		}
+
+		foreach ( var resource in allResources )
+		{
+			ct.ThrowIfCancellationRequested();
+			resource.PostLoadInternal();
+			if ( sw.ElapsedMilliseconds > 8 ) { LoadingScreen.Subtitle = System.IO.Path.GetFileName( resource.ResourcePath ); await Task.Yield(); sw.Restart(); }
+		}
+
+		LoadingScreen.Subtitle = null;
+
+		foreach ( var type in types )
+			AddWatcherForType( type.Value );
 	}
 
 

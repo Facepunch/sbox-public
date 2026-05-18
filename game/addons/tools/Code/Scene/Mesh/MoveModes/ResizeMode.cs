@@ -1,4 +1,4 @@
-﻿
+
 namespace Editor.MeshEditor;
 
 /// <summary>
@@ -18,109 +18,85 @@ public sealed class ResizeMode : MoveMode
 	public override void OnBegin( SelectionTool tool )
 	{
 		_basis = tool.CalculateSelectionBasis();
-		_startBox = tool.GlobalSpace
-			? tool.CalculateSelectionBounds()
-			: tool.CalculateLocalBounds();
-
+		_startBox = tool.GlobalSpace ? tool.CalculateSelectionBounds() : tool.CalculateLocalBounds();
 		_deltaBox = default;
 		_box = _startBox;
 	}
 
 	protected override void OnUpdate( SelectionTool tool )
 	{
-
-		var meshTool = tool.Manager?.CurrentTool as MeshTool;
-		Vector3? snapTarget = null;
-
-		if ( meshTool?.VertexSnappingEnabled == true && Gizmo.IsLeftMouseDown )
-		{
-			var gizmoSize = 0.5f * Gizmo.Settings.GizmoScale * Application.DpiScale;
-
-			var closestVertex = tool.MeshTrace.GetClosestVertex( 8 );
-			if ( closestVertex.IsValid() )
-			{
-				var cameraDistance = Gizmo.Camera.Position.Distance( closestVertex.PositionWorld );
-				var scaledGizmo = gizmoSize * (cameraDistance / 50.0f).Clamp( 0.1f, 4.0f );
-
-				snapTarget = closestVertex.PositionWorld;
-
-				using ( Gizmo.Scope( "VertexSnapTarget" ) )
-				{
-					Gizmo.Draw.IgnoreDepth = true;
-					Gizmo.Draw.Color = Color.Green;
-					Gizmo.Draw.Sprite( snapTarget.Value, 8, null, false );
-
-					Gizmo.Transform = new Transform( snapTarget.Value, Rotation.LookAt( Gizmo.LocalCameraTransform.Rotation.Backward ) );
-					Gizmo.Draw.LineThickness = 2;
-					Gizmo.Draw.LineCircle( 0, Vector3.Forward, scaledGizmo );
-				}
-			}
-			else
-			{
-				var nearbyVertex = tool.MeshTrace.GetClosestVertex( 50 );
-				if ( nearbyVertex.IsValid() )
-				{
-					var cameraDistance = Gizmo.Camera.Position.Distance( nearbyVertex.PositionWorld );
-					var scaledGizmo = gizmoSize * (cameraDistance / 50.0f).Clamp( 0.1f, 4.0f );
-					var distance = Vector3.DistanceBetween( nearbyVertex.PositionWorld, tool.Pivot );
-
-					if ( distance > 5f )
-					{
-						using ( Gizmo.Scope( "VertexNearby" ) )
-						{
-							Gizmo.Draw.IgnoreDepth = true;
-
-							Gizmo.Draw.Color = Color.Red;
-							Gizmo.Transform = new Transform( nearbyVertex.PositionWorld, Rotation.LookAt( Gizmo.LocalCameraTransform.Rotation.Backward ) );
-							Gizmo.Draw.LineThickness = 2;
-							Gizmo.Draw.LineCircle( 0, Vector3.Forward, scaledGizmo );
-						}
-					}
-				}
-			}
-		}
+		var snapTarget = FindVertexSnapTarget( tool );
 
 		using ( Gizmo.Scope( "box", new Transform( Vector3.Zero, _basis ) ) )
 		{
 			Gizmo.Hitbox.DepthBias = 0.01f;
 			Gizmo.Hitbox.CanInteract = CanUseGizmo;
 
-			if ( Gizmo.Control.BoundingBox( "resize", _box, out var outBox, out _, allowPlanarResize: true ) )
-			{
-				var moveMins = outBox.Mins - _box.Mins;
-				var moveMaxs = outBox.Maxs - _box.Maxs;
+			if ( !Gizmo.Control.BoundingBox( "resize", _box, out var outBox, out _, out var resizeAxis ) )
+				return;
 
-				_deltaBox.Maxs += moveMaxs;
-				_deltaBox.Mins += moveMins;
+			_deltaBox.Mins += outBox.Mins - _box.Mins;
+			_deltaBox.Maxs += outBox.Maxs - _box.Maxs;
 
-				_box = Snap( _startBox, _deltaBox );
+			_box = Snap( _startBox, _deltaBox );
 
-				if ( snapTarget.HasValue )
-				{
-					var target = _basis.Inverse * snapTarget.Value;
-					var threshold = 0.001f;
+			if ( snapTarget.HasValue )
+				ApplyVertexSnap( ref _box, resizeAxis, _basis.Inverse * snapTarget.Value );
 
-					if ( MathF.Abs( moveMins.x ) > threshold ) _box.Mins.x = target.x;
-					if ( MathF.Abs( moveMins.y ) > threshold ) _box.Mins.y = target.y;
-					if ( MathF.Abs( moveMins.z ) > threshold ) _box.Mins.z = target.z;
-
-					if ( MathF.Abs( moveMaxs.x ) > threshold ) _box.Maxs.x = target.x;
-					if ( MathF.Abs( moveMaxs.y ) > threshold ) _box.Maxs.y = target.y;
-					if ( MathF.Abs( moveMaxs.z ) > threshold ) _box.Maxs.z = target.z;
-
-					_deltaBox.Mins = _box.Mins - _startBox.Mins;
-					_deltaBox.Maxs = _box.Maxs - _startBox.Maxs;
-				}
-
-				tool.StartDrag();
-
-				ResizeBBox( tool, _startBox, _box, _basis );
-
-				tool.UpdateDrag();
-
-				tool.Pivot = tool.CalculateSelectionOrigin();
-			}
+			tool.StartDrag();
+			ResizeBBox( tool, _startBox, _box, _basis );
+			tool.UpdateDrag();
+			tool.Pivot = tool.CalculateSelectionOrigin();
 		}
+	}
+
+	static Vector3? FindVertexSnapTarget( SelectionTool tool )
+	{
+		var meshTool = tool.Manager?.CurrentTool as MeshTool;
+		if ( meshTool?.VertexSnappingEnabled != true || !Gizmo.IsLeftMouseDown )
+			return null;
+
+		var gizmoSize = 0.5f * Gizmo.Settings.GizmoScale * Application.DpiScale;
+		var closestVertex = tool.MeshTrace.GetClosestVertex( 8 );
+
+		if ( closestVertex.IsValid() )
+		{
+			DrawVertexIndicator( "VertexSnapTarget", closestVertex.PositionWorld, gizmoSize, Color.Green, drawSprite: true );
+			return closestVertex.PositionWorld;
+		}
+
+		var nearbyVertex = tool.MeshTrace.GetClosestVertex( 50 );
+		if ( nearbyVertex.IsValid() && Vector3.DistanceBetween( nearbyVertex.PositionWorld, tool.Pivot ) > 5f )
+			DrawVertexIndicator( "VertexNearby", nearbyVertex.PositionWorld, gizmoSize, Color.Red );
+
+		return null;
+	}
+
+	static void DrawVertexIndicator( string name, Vector3 position, float gizmoSize, Color color, bool drawSprite = false )
+	{
+		var cameraDistance = Gizmo.Camera.Position.Distance( position );
+		var scaledGizmo = gizmoSize * (cameraDistance / 50.0f).Clamp( 0.1f, 4.0f );
+
+		using ( Gizmo.Scope( name ) )
+		{
+			Gizmo.Draw.IgnoreDepth = true;
+			Gizmo.Draw.Color = color;
+
+			if ( drawSprite )
+				Gizmo.Draw.Sprite( position, 8, null, false );
+
+			Gizmo.Transform = new Transform( position, Rotation.LookAt( Gizmo.LocalCameraTransform.Rotation.Backward ) );
+			Gizmo.Draw.LineThickness = 2;
+			Gizmo.Draw.LineCircle( 0, Vector3.Forward, scaledGizmo );
+		}
+	}
+
+	static void ApplyVertexSnap( ref BBox box, Vector3 axis, Vector3 target )
+	{
+		var i = FaceAxis( axis );
+
+		if ( IsMaxsFace( axis ) ) box.Maxs[i] = target[i];
+		else box.Mins[i] = target[i];
 	}
 
 	static BBox Snap( BBox startBox, BBox movement )
@@ -128,52 +104,38 @@ public sealed class ResizeMode : MoveMode
 		var mins = startBox.Mins + movement.Mins;
 		var maxs = startBox.Maxs + movement.Maxs;
 
-		var snap = Gizmo.Settings.SnapToGrid != Gizmo.IsCtrlPressed;
-
-		if ( snap )
+		if ( Gizmo.Settings.SnapToGrid != Gizmo.IsCtrlPressed )
 		{
 			mins = Gizmo.Snap( mins, movement.Mins );
 			maxs = Gizmo.Snap( maxs, movement.Maxs );
 		}
 
-		const float minSpacing = 0.001f;
-
-		mins.x = MathF.Min( mins.x, startBox.Maxs.x - minSpacing );
-		mins.y = MathF.Min( mins.y, startBox.Maxs.y - minSpacing );
-		mins.z = MathF.Min( mins.z, startBox.Maxs.z - minSpacing );
-
-		maxs.x = MathF.Max( maxs.x, startBox.Mins.x + minSpacing );
-		maxs.y = MathF.Max( maxs.y, startBox.Mins.y + minSpacing );
-		maxs.z = MathF.Max( maxs.z, startBox.Mins.z + minSpacing );
-
-		return new BBox( mins, maxs );
+		var result = default( BBox );
+		result.Mins = mins;
+		result.Maxs = maxs;
+		return result;
 	}
 
 	static void ResizeBBox( SelectionTool tool, BBox prevBox, BBox newBox, Rotation basis )
 	{
 		var prevSize = prevBox.Size;
 		var newSize = newBox.Size;
-
-		var scale = new Vector3(
-			prevSize.x.AlmostEqual( 0.0f ) ? 1.0f : newSize.x / prevSize.x,
-			prevSize.y.AlmostEqual( 0.0f ) ? 1.0f : newSize.y / prevSize.y,
-			prevSize.z.AlmostEqual( 0.0f ) ? 1.0f : newSize.z / prevSize.z
-		);
-
 		var dMin = newBox.Mins - prevBox.Mins;
 		var dMax = newBox.Maxs - prevBox.Maxs;
 
+		var scale = Vector3.One;
 		var origin = prevBox.Center;
 
-		if ( MathF.Abs( dMax.x ) > MathF.Abs( dMin.x ) ) origin.x = prevBox.Mins.x;
-		else if ( MathF.Abs( dMin.x ) > MathF.Abs( dMax.x ) ) origin.x = prevBox.Maxs.x;
-
-		if ( MathF.Abs( dMax.y ) > MathF.Abs( dMin.y ) ) origin.y = prevBox.Mins.y;
-		else if ( MathF.Abs( dMin.y ) > MathF.Abs( dMax.y ) ) origin.y = prevBox.Maxs.y;
-
-		if ( MathF.Abs( dMax.z ) > MathF.Abs( dMin.z ) ) origin.z = prevBox.Mins.z;
-		else if ( MathF.Abs( dMin.z ) > MathF.Abs( dMax.z ) ) origin.z = prevBox.Maxs.z;
+		for ( var i = 0; i < 3; i++ )
+		{
+			if ( !prevSize[i].AlmostEqual( 0.0f ) ) scale[i] = newSize[i] / prevSize[i];
+			if ( MathF.Abs( dMax[i] ) > MathF.Abs( dMin[i] ) ) origin[i] = prevBox.Mins[i];
+			else if ( MathF.Abs( dMin[i] ) > MathF.Abs( dMax[i] ) ) origin[i] = prevBox.Maxs[i];
+		}
 
 		tool.Resize( basis * origin, basis, scale );
 	}
+
+	static int FaceAxis( Vector3 axis ) => axis.x != 0 ? 0 : axis.y != 0 ? 1 : 2;
+	static bool IsMaxsFace( Vector3 axis ) => axis[FaceAxis( axis )] > 0;
 }

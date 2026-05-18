@@ -6,7 +6,7 @@ namespace Sandbox;
 [Expose]
 public sealed class SelectionSetsSystem : GameObjectSystem
 {
-	[Property]
+	[Property, Hide]
 	public SelectionSetsData Data { get; set; } = new();
 
 	public SelectionSetsSystem( Scene scene ) : base( scene )

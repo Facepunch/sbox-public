@@ -56,7 +56,7 @@ partial class VertexPaintTool
 				_channelsWidget.Layout.Spacing = 4;
 
 				var material = tool.Tool.ActiveMaterial;
-				var blendCount = material.IsValid() ? material.GetFeature( "F_MULTIBLEND" ) : 0;
+				var blendCount = GetVertexPaintLayerCount( material );
 
 				var masks = new[]
 				{
@@ -144,6 +144,19 @@ partial class VertexPaintTool
 			UpdateModeVisibility( tool.Mode );
 		}
 
+		static int GetVertexPaintLayerCount( Material material )
+		{
+			if ( !material.IsValid() )
+				return 0;
+
+			if ( material.Flags.GetInt( "VertexPaintUI5Layer" ) == 1 ) return 4;
+			if ( material.Flags.GetInt( "VertexPaintUI4Layer" ) == 1 ) return 3;
+			if ( material.Flags.GetInt( "VertexPaintUI3Layer" ) == 1 ) return 2;
+			if ( material.Flags.GetInt( "VertexPaintUI2Layer" ) == 1 ) return 1;
+
+			return 0;
+		}
+
 		void UpdateModeVisibility( PaintMode mode )
 		{
 			_blendRow.Visible = mode == PaintMode.Blend;
@@ -160,17 +173,22 @@ partial class VertexPaintTool
 				return;
 			}
 
-			var (count, name) = _tool.LimitMode switch
+			var count = _tool.LimitMode switch
 			{
-				PaintLimitMode.Objects => (_tool._selectedMeshes.Count,
-					_tool._selectedMeshes.Count == 1 ? "object" : "objects"),
-				PaintLimitMode.Faces => (SelectionTool.GetAllSelected<MeshFace>().Count(),
-					SelectionTool.GetAllSelected<MeshFace>().Count() == 1 ? "face" : "faces"),
-				PaintLimitMode.Edges => (SelectionTool.GetAllSelected<MeshEdge>().Count(),
-					SelectionTool.GetAllSelected<MeshEdge>().Count() == 1 ? "edge" : "edges"),
-				PaintLimitMode.Vertices => (SelectionTool.GetAllSelected<MeshVertex>().Count(),
-					SelectionTool.GetAllSelected<MeshVertex>().Count() == 1 ? "vertex" : "vertices"),
-				_ => (0, "selected")
+				PaintLimitMode.Objects => _tool._selectedMeshes.Count,
+				PaintLimitMode.Faces => _tool.GetSelectedElements<MeshFace>().Count(),
+				PaintLimitMode.Edges => _tool.GetSelectedElements<MeshEdge>().Count(),
+				PaintLimitMode.Vertices => _tool.GetSelectedElements<Editor.MeshEditor.MeshVertex>().Count(),
+				_ => 0
+			};
+
+			var name = _tool.LimitMode switch
+			{
+				PaintLimitMode.Objects => count == 1 ? "object" : "objects",
+				PaintLimitMode.Faces => count == 1 ? "face" : "faces",
+				PaintLimitMode.Edges => count == 1 ? "edge" : "edges",
+				PaintLimitMode.Vertices => count == 1 ? "vertex" : "vertices",
+				_ => "selected"
 			};
 
 			_selectionCountLabel.Visible = true;

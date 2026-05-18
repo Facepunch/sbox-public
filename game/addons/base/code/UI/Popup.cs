@@ -64,7 +64,7 @@ public partial class Popup : BasePopup
 		AboveRight,
 
 		/// <summary>
-		/// Below the source panel, aliging on the left. Do not stretch to size of <see cref="Popup.PopupSource"/>.
+		/// Below the source panel, aligned to the left.
 		/// </summary>
 		BelowLeft,
 
@@ -72,6 +72,11 @@ public partial class Popup : BasePopup
 		/// Below the source panel, centered horizontally.
 		/// </summary>
 		BelowCenter,
+
+		/// <summary>
+		/// Below the source panel, aligned to the right.
+		/// </summary>
+		BelowRight,
 
 		/// <summary>
 		/// Below the source panel, stretch to the width of the <see cref="Popup.PopupSource"/>.
@@ -153,6 +158,10 @@ public partial class Popup : BasePopup
 
 			case PositionMode.BelowCenter:
 				AddClass( "below-center" );
+				break;
+
+			case PositionMode.BelowRight:
+				AddClass( "below-right" );
 				break;
 
 			case PositionMode.BelowStretch:
@@ -373,6 +382,14 @@ public partial class Popup : BasePopup
 			case PositionMode.BelowCenter:
 				{
 					Style.Left = rect.Center.x; // centering is done via styles
+					Style.Top = rect.Bottom + PopupSourceOffset;
+					break;
+				}
+
+			case PositionMode.BelowRight:
+				{
+					Style.Left = null;
+					Style.Right = (Parent.Box.Rect * Parent.ScaleFromScreen).Width - rect.Right;
 					Style.Top = rect.Bottom + PopupSourceOffset;
 					break;
 				}

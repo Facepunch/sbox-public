@@ -48,7 +48,7 @@
             {
 	            @if ( IsDedicatedServerOnly )
 	            {
-					<Button icon="auto_awesome" class="play" Disabled=@(!MenuHelpers.HasAuthority) onclick=@ShowServerList>Find Game</Button>
+					<Button icon="auto_awesome" class="play" Disabled=@(!MenuHelpers.HasAuthority) onclick=@ShowServerList>View Servers</Button>
 	            }
 	            else
 	            {
@@ -105,7 +105,7 @@
 
     void OnPlay()
     {
-        MenuHelpers.PlayGame( Package );
+		MenuHelpers.PlayGame( Package, MapPackage );
     }
 
     async Task<bool> OnJoinGame()
@@ -114,7 +114,13 @@
         LoadingScreen.Title = "Finding Game..";
         LoadingScreen.Subtitle = "Please wait while we find a game for you to join.";
 
-        return await MenuUtility.TryJoinLobby(Package.FullIdent);
+        bool success = await MenuUtility.TryJoinLobby(Package.FullIdent);
+        if (success)
+            return true;
+            
+        LoadingScreen.IsVisible = false;
+        ModalSystem.Instance.Notice( "Join Game Failed", "Couldn't join any available games", "search_off" );
+        return false;
     }
 
     void OpenLobbyList()

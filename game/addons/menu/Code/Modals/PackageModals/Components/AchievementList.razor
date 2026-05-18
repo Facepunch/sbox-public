@@ -12,7 +12,7 @@
 <root>
 
     <div class="achievement-list">
-        @foreach (Achievement a in collection.All.OrderBy(x => x.IsUnlocked).Take(10))
+        @foreach (Achievement a in collection.All.OrderBy(x => x.IsUnlocked))
         {
             string tooltip = $"{a.Title} - {a.Description}";
             string icon = a.Icon;

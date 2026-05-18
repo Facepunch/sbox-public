@@ -7,7 +7,7 @@ CS
 {
     #include "postprocess/shared.hlsl"
 
-    Texture2D Subframe                 < Attribute("Subframe"); >;
+    Texture2DMS<float4> Subframe       < Attribute("Subframe"); >;
     RWTexture2D<float4> Accumulated    < Attribute("Accumulated"); >;
 
     float InvFrames                    < Attribute("InvFrames"); >;
@@ -15,7 +15,7 @@ CS
     [numthreads(16, 16, 1)]
     void MainCs(uint3 DTid : SV_DispatchThreadID)
     {
-        float4 sample = Subframe.Load(uint3(DTid.xy, 0)).rgba;
+        float4 sample = Subframe.Load(DTid.xy, DTid.z).rgba;
         Accumulated[DTid.xy].rgba += sample * InvFrames;
     }
 }

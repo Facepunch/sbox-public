@@ -1,0 +1,109 @@
+@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+
+<root>
+
+    <div class="media-wrapper">
+        <div class="panel-media" style="background-image: url(@(Package.ThumbWide ?? Package.Thumb))"></div>
+    </div>
+
+    <div class="panel-header">
+        <label class="game-title">@Package.Title</label>
+        @if (Package.Org != null)
+        {
+            <div class="game-org" onclick=@OrgClicked>
+                <img class="org-thumb" src="@Package.Org.Thumb" />
+                <label class="org-name">@Package.Org.Title</label>
+            </div>
+        }
+    </div>
+
+    <div class="panel-sections">
+
+        <Card>
+            <ChildContent>
+                <label class="section-label">Package</label>
+                <div class="info-row"><i>videogame_asset</i><label>Game</label></div>
+                @if (Package.Created != default)
+                {
+                    <div class="info-row"><i>calendar_today</i><label>Created @((DateTime.UtcNow - Package.Created).Humanize(1)) ago</label></div>
+                }
+                <div class="info-row"><i>update</i><label>Updated @((DateTime.UtcNow - Package.Updated).Humanize(1)) ago</label></div>
+                @if (Package.Reviews.Total > 0)
+                {
+                    <div class="info-row"><i>reviews</i><label>@Package.Reviews.Score.ToString("0\\%") from @Package.Reviews.Total reviews</label></div>
+                }
+            </ChildContent>
+        </Card>
+
+        <Card>
+            <ChildContent>
+                <label class="section-label">Usage Stats</label>
+                <div class="info-row"><i>group</i><label>@Package.Usage.Total.Users.ToMetric() players</label></div>
+                <div class="info-row"><i>calendar_month</i><label>@Package.Usage.Total.Sessions.ToMetric() sessions</label></div>
+            </ChildContent>
+        </Card>
+
+        @if (Package.Tags?.Length > 0)
+        {
+            <Card>
+                <ChildContent>
+                    <label class="section-label">Tags</label>
+                    <div class="tag-list">
+                        @foreach (var tag in Package.Tags)
+                        {
+                            <div class="tag">@tag</div>
+                        }
+                    </div>
+                </ChildContent>
+            </Card>
+        }
+		
+
+        @if (achList is not null)
+        {
+            <PortalButton Portal=@Portal>
+                <Button>
+                    <Card class="achievements-card">
+                        <ChildContent>
+                            <label class="section-label">Achievements</label>
+                            <AchievementSummary Package="@Package" />
+                        </ChildContent>
+                    </Card>
+                </Button>
+                <Content>
+                    <AchievementList Package="@Package"></AchievementList>
+                </Content>
+            </PortalButton>
+        }
+
+    </div>
+
+</root>
+
+@code
+{
+	[Parameter] public Package Package { get; set; }
+	[Parameter] public PortalTarget Portal { get; set;  }
+
+	AchievementCollection achList;
+
+	protected override int BuildHash() => System.HashCode.Combine(Package);
+
+	protected override async Task OnParametersSetAsync()
+	{
+		achList = await Package.GetAchievements();
+		if (!achList.All.Any()) achList = default;
+		if (achList is not null) StateHasChanged();
+	}
+
+    void OrgClicked()
+    {
+        if (Package?.Org != null)
+            Game.Overlay.ShowOrganizationModal(Package.Org);
+    }
+}

@@ -10,7 +10,7 @@ sealed class InterpolationSystem : GameObjectSystem<InterpolationSystem>
 {
 	HashSetEx<GameObject> _list { get; set; } = new();
 
-	[ConVar( "debug_interp", ConVarFlags.Protected )]
+	[ConVar( "debug_interp", ConVarFlags.Protected | ConVarFlags.Cheat )]
 	static bool Debug { get; set; }
 
 	public InterpolationSystem( Scene scene ) : base( scene )

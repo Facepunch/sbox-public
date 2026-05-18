@@ -22,13 +22,13 @@ internal class SteamMatchmaking : SteamClientClass<SteamMatchmaking>
 	internal static LobbyQuery LobbyList => new LobbyQuery();
 
 	/// <summary>
-	/// Creates a new invisible lobby. Call lobby.SetPublic to take it online.
+	/// Creates a new lobby
 	/// </summary>
-	internal static async Task<Lobby?> CreateLobbyAsync( int maxMembers = 100 )
+	internal static async Task<Lobby?> CreateLobbyAsync( LobbyType type, int maxMembers = 100 )
 	{
 		Assert.NotNull( Internal );
 
-		var lobby = await Internal.CreateLobby( LobbyType.Invisible, maxMembers );
+		var lobby = await Internal.CreateLobby( type, maxMembers );
 		if ( !lobby.HasValue || lobby.Value.Result != Result.OK ) return null;
 
 		return new Lobby { Id = lobby.Value.SteamIDLobby };

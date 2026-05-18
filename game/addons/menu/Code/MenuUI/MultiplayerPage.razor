@@ -90,8 +90,8 @@
 	ServerList ServerList = default;
     TextEntry SearchEntry = default;
 
-    bool showEmpty = false;
-    bool showFull = false;
+    bool showEmpty = true;
+    bool showFull = true;
 
     string SearchText => SearchEntry?.Text?.Trim() ?? "";
 

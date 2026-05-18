@@ -133,6 +133,41 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		RenderSubdivisionPreview();
 	}
 
+	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
+	{
+		base.BuildSceneContextMenu( menu, ray, trace );
+
+		bool any = Selection.OfType<MeshFace>().Any( x => x.IsValid() );
+		if ( !any ) return;
+
+		menu.AddSeparator();
+
+		var ops = menu.AddMenu( "Face Operations", "build" );
+		AddMenuOption( ops, "Bridge Faces", "device_hub", "mesh.bridge-tool", true );
+		AddMenuOption( ops, "Thicken Faces", "layers", "mesh.thicken-faces", true );
+		AddMenuOption( ops, "Combine Faces", "join_full", "mesh.combine-faces", true );
+		AddMenuOption( ops, "Collapse Faces", "unfold_less", "mesh.collapse", true );
+		AddMenuOption( ops, "Detach Faces", "call_split", "mesh.detach-faces", true );
+		AddMenuOption( ops, "Extract Faces", "content_cut", "mesh.extract-faces", true );
+		AddMenuOption( ops, "Merge Meshes", "join_full", "mesh.merge-meshes", true );
+		AddMenuOption( ops, "Apply Material", "format_color_fill", "mesh.apply-material", true );
+
+		var tex = menu.AddMenu( "Texture Operations", "gradient" );
+		AddMenuOption( tex, "Apply Material", "format_color_fill", "mesh.apply-material", true );
+		AddMenuOption( tex, "Apply by Hotspot", "my_location", "mesh.apply-hotspot", true );
+		AddMenuOption( tex, "Apply by Hotspot (Per Face)", "texture", "mesh.apply-hotspot-per-face", true );
+		AddMenuOption( tex, "Fast Texture Tool", "edit", "mesh.fast-texture-tool", true );
+
+		var sel = menu.AddMenu( "Face Selection", "select_all" );
+		AddMenuOption( sel, "Select Loop", "all_out", "mesh.select-loop", true );
+		AddMenuOption( sel, "Invert Selection", "swap_vert", InvertCurrentSelection, "mesh.invert-selection", true );
+		sel.AddOption( "Select All", "select_all", () => InvokeShortcut( "mesh.select-all" ), "mesh.select-all" );
+
+		var util = menu.AddMenu( "Face Tools", "tune" );
+		AddMenuOption( util, "Invert Mesh", "flip", "mesh.flip-all-faces", true );
+		AddMenuOption( util, "Remove Bad Faces", "delete_sweep", "mesh.remove-bad-faces", true );
+	}
+
 	protected override IEnumerable<MeshFace> ConvertSelectionToCurrentType()
 	{
 		var selectedEdges = Selection.OfType<MeshEdge>().ToHashSet();

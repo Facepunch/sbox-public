@@ -107,7 +107,7 @@ partial class ManagedCommand : Command
 	CookieContainer cookies;
 	bool _isMenu;
 
-	internal ParameterInfo[] parameters;
+	internal ParameterInfo[] parameters = [];
 
 	private string _defaultValue;
 	public override string DefaultValue => _defaultValue;

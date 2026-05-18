@@ -5,7 +5,9 @@
   "Decibels": 70,
   "SelectionMode": "Random",
   "Sounds": [
-    "sounds/impacts/bullets/plaster_bullet_impact-1.vsnd"
+    "sounds/impacts/bullets/plaster_bullet_impact-1.vsnd",
+    "sounds/impacts/bullets/plaster_bullet_impact-2.vsnd",
+    "sounds/impacts/bullets/plaster_bullet_impact-3.vsnd"
   ],
   "Occlusion": true,
   "Reflections": true,

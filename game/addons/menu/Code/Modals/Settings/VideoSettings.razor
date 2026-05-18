@@ -84,6 +84,59 @@
             </cell>
             <SliderControl class="glass with-grow" Value:bind=@MotionBlurScale Min="@(0.0f)" Max="@(1.0f)" Step="@(0.01f)" ShowTextEntry="@true"></SliderControl>
         </row>
+
+        <h2><i>auto_awesome</i>Upscaling</h2>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Upscaler
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@UpscalerModeOptions Value:bind=@UpscalerMode></ButtonGroup>
+        </row>
+
+        @if ( UpscalerMode == Sandbox.Engine.Settings.UpscalerMode.Stretch )
+        {
+            <row class="with-gaps">
+                <cell class="glass with-padding is-label">
+                    Render Quality
+                </cell>
+                <SliderControl class="glass with-grow" Value:bind=@UpscalerRenderScalePercent Min="@(40)" Max="@(100)" Step="@(1)" ShowTextEntry="@true"></SliderControl>
+            </row>
+        }
+        else if ( UpscalerMode == Sandbox.Engine.Settings.UpscalerMode.FSR1 )
+        {
+            <row class="with-gaps">
+                <cell class="glass with-padding is-label">
+                    Render Quality
+                </cell>
+                <SliderControl class="glass with-grow" Value:bind=@UpscalerRenderScalePercent Min="@(50)" Max="@(100)" Step="@(1)" ShowTextEntry="@true"></SliderControl>
+            </row>
+            <row class="with-gaps">
+                <cell class="glass with-padding is-label">
+                    Sharpness
+                </cell>
+                <SliderControl class="glass with-grow" Value:bind=@Fsr1SharpnessPercent Min="@(0)" Max="@(100)" Step="@(1)" ShowTextEntry="@true"></SliderControl>
+            </row>
+        }
+        else if ( UpscalerMode == Sandbox.Engine.Settings.UpscalerMode.FSR3 )
+        {
+            <row class="upscaler-warning">
+                <i>warning</i>
+                <span>FSR3 is a temporal upscaler. It can cause ghosting on moving objects and in-world UI elements. MSAA is disabled while active.</span>
+            </row>
+            <row class="with-gaps">
+                <cell class="glass with-padding is-label">
+                    Quality Preset
+                </cell>
+                <DropDown class="glass with-grow" Value:bind=@Fsr3UpscalerQuality Options=@UpscalerQualityOptions></DropDown>
+            </row>
+            <row class="with-gaps">
+                <cell class="glass with-padding is-label">
+                    Sharpness
+                </cell>
+                <SliderControl class="glass with-grow" Value:bind=@Fsr3SharpnessPercent Min="@(0)" Max="@(100)" Step="@(1)" ShowTextEntry="@true"></SliderControl>
+            </row>
+        }
     </div>
 
      <SettingsFooter OnCancel=@OnCancel OnRestore=@OnRestore OnApply=@OnApply></SettingsFooter>
@@ -103,6 +156,29 @@
     public ShadowQuality ShadowQuality { get; set; }
     public float MotionBlurScale { get; set; }
     public int FrameRateLimit { get; set; }
+
+    public Sandbox.Engine.Settings.UpscalerMode UpscalerMode { get; set; }
+    public Sandbox.Engine.Settings.Fsr3UpscalerQuality Fsr3UpscalerQuality { get; set; }
+    public int UpscalerRenderScalePercent { get; set; }
+    public int Fsr1SharpnessPercent { get; set; }
+    public int Fsr3SharpnessPercent { get; set; }
+
+    List<Option> UpscalerModeOptions = new List<Option>()
+    {
+        new Option("Off",          Sandbox.Engine.Settings.UpscalerMode.Off),
+        new Option("Stretch",      Sandbox.Engine.Settings.UpscalerMode.Stretch),
+        new Option("FSR",          Sandbox.Engine.Settings.UpscalerMode.FSR1),
+        new Option("FSR3 (TAA)",   Sandbox.Engine.Settings.UpscalerMode.FSR3),
+    };
+
+    List<Option> UpscalerQualityOptions = new List<Option>()
+    {
+        new Option("Native",              Sandbox.Engine.Settings.Fsr3UpscalerQuality.Native),
+        new Option("Quality",             Sandbox.Engine.Settings.Fsr3UpscalerQuality.Quality),
+        new Option("Balanced",            Sandbox.Engine.Settings.Fsr3UpscalerQuality.Balanced),
+        new Option("Performance",         Sandbox.Engine.Settings.Fsr3UpscalerQuality.Performance),
+        new Option("Ultra Performance",   Sandbox.Engine.Settings.Fsr3UpscalerQuality.UltraPerformance),
+    };
 
     List<Option> VideoModeOptions = new List<Option>()
     {
@@ -187,6 +263,12 @@
         MotionBlurScale = MenuUtility.RenderSettings.MotionBlurScale;
 
         FrameRateLimit = MenuUtility.RenderSettings.MaxFrameRate;
+
+        UpscalerMode = MenuUtility.RenderSettings.UpscalerMode;
+        Fsr3UpscalerQuality = MenuUtility.RenderSettings.Fsr3UpscalerQuality;
+        UpscalerRenderScalePercent = (int)MathF.Round( MenuUtility.RenderSettings.UpscalerRenderScale * 100f );
+        Fsr1SharpnessPercent = (int)MathF.Round( MenuUtility.RenderSettings.Fsr1Sharpness * 100f );
+        Fsr3SharpnessPercent = (int)MathF.Round( MenuUtility.RenderSettings.Fsr3Sharpness * 100f );
     }
 
     public void OnRestore()
@@ -245,6 +327,12 @@
         MenuUtility.RenderSettings.MotionBlurScale = MotionBlurScale;
 
         MenuUtility.RenderSettings.MaxFrameRate = FrameRateLimit;
+
+        MenuUtility.RenderSettings.UpscalerMode = UpscalerMode;
+        MenuUtility.RenderSettings.Fsr3UpscalerQuality = Fsr3UpscalerQuality;
+        MenuUtility.RenderSettings.UpscalerRenderScale = UpscalerRenderScalePercent / 100f;
+        MenuUtility.RenderSettings.Fsr1Sharpness = Fsr1SharpnessPercent / 100f;
+        MenuUtility.RenderSettings.Fsr3Sharpness = Fsr3SharpnessPercent / 100f;
 
         MenuUtility.RenderSettings.Apply();
     }

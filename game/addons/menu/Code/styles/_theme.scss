@@ -3,7 +3,9 @@ $font-heading: "Poppins";
 
 $primary-blue: #3273eb;
 $primary-blue-dark: #214D9E;
-$primary-green: #B5FFBA;
+$primary-green: #63d96b;
+$primary-red: #ff5d6a;
+$primary-yellow: #ffbd32;
 
 $default-50: #C2C9DB;
 $default-100: #B5BED4;
@@ -75,7 +77,7 @@ label {
         font-family: $font-heading;
         font-size: $text-eyebrow;
         text-transform: uppercase;
-        letter-spacing: 0.1em;
+        letter-spacing: 1px;
         color: $default-100;
         font-weight: 700;
     }
@@ -107,59 +109,6 @@ icon {
     &.eyebrow {
         font-size: $text-eyebrow;
         color: $default-100;
-    }
-}
-
-badge {
-    padding: 2px 6px;
-    pointer-events: all;
-    align-items: center;
-    border-radius: $rounding-small;
-    background-color: $default-800;
-    flex-shrink: 0;
-    gap: 4px;
-    // Optical alignment
-    padding-top: 3px;
-    padding-right: 5px;
-
-    Label {
-        font-family: $font-heading;
-        font-size: $text-eyebrow;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        color: $default-50;
-        font-weight: 700;
-    }
-
-    icon {
-        font-size: $text-eyebrow;
-    }
-
-    &.online {
-        background-color: rgba( #4E6F51, 0.75 );
-        border: 0.5px solid rgba( $primary-green, 0.5 );
-
-        Label {
-            color: $primary-green;
-        }
-
-        icon {
-            color: $primary-green;
-        }
-    }
-
-    &.clear {
-        backdrop-filter: blur( 10px );
-        background-color: rgba( $default-900, 0.75 );
-        border: 0.5px solid $default-border;
-
-        Label {
-            color: $default-50;
-        }
-
-        icon {
-            color: $default-50;
-        }
     }
 }
 

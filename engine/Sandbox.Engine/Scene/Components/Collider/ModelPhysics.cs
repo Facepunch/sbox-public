@@ -412,6 +412,9 @@ public sealed partial class ModelPhysics : Component, IScenePhysicsEvents, IHasM
 		{
 			CreatePhysics();
 		}
+
+		// Apply any cached renderer transforms and velocities.
+		ApplyCachedRendererTransforms();
 	}
 
 	protected override void OnDisabled()
@@ -490,6 +493,18 @@ public sealed partial class ModelPhysics : Component, IScenePhysicsEvents, IHasM
 
 		_rendererBonePosition = source.GetBoneTransforms( true );
 		_rendererBoneVelocity = source.GetBoneVelocities();
+
+		// Only apply them if we're enabled, they will be applied in enabled if we're not enabled yet.
+		if ( _onEnabled )
+		{
+			ApplyCachedRendererTransforms();
+		}
+	}
+
+	void ApplyCachedRendererTransforms()
+	{
+		if ( _rendererBonePosition is null || _rendererBoneVelocity is null )
+			return;
 
 		PositionPhysicsFromRendererBones();
 		PositionRendererBonesFromPhysics();

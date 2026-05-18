@@ -19,6 +19,47 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 	MeshComponent[] _meshes = [];
 	GameObject[] _objects = [];
 
+	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
+	{
+		menu.AddSeparator();
+
+		bool hasMeshes = _meshes.Length > 0;
+		bool manyMeshes = _meshes.Length > 1;
+		bool hasObjects = _objects.Length > 0;
+
+		bool convertible = _objects
+			.Select( x => x.GetComponent<ModelRenderer>() )
+			.Any( x => x.IsValid() && x.Model.IsValid() && x.Model.HasRenderMeshes() );
+
+		if ( manyMeshes || convertible || hasMeshes )
+		{
+			var ops = menu.AddMenu( "Object Operations", "build" );
+			AddMenuOption( ops, "Merge Meshes", "join_full", "mesh.merge-meshes", manyMeshes );
+			AddMenuOption( ops, "Boolean Tool", "difference", "mesh.boolean-tool", manyMeshes );
+			AddMenuOption( ops, "Convert To Mesh", "auto_mode", "mesh.convert-model-to-mesh", convertible );
+			AddMenuOption( ops, "Flip Faces", "flip", "mesh.flip-all-mesh-faces", hasMeshes );
+		}
+
+		if ( hasMeshes )
+		{
+			var transform = menu.AddMenu( "Transform", "straighten" );
+			AddMenuOption( transform, "Bake Scale", "straighten", "mesh.bake-scale", true );
+			AddMenuOption( transform, "Set Origin To Pivot", "gps_fixed", "mesh.set-origin-to-pivot", true );
+			AddMenuOption( transform, "Center Origin", "center_focus_strong", "mesh.center-origin", true );
+			AddMenuOption( transform, "Align To View", "visibility", "gameObject.align-to-view", true );
+		}
+
+		if ( hasObjects )
+		{
+			var pivot = menu.AddMenu( "Pivot", "my_location" );
+			AddMenuOption( pivot, "Previous", "chevron_left", "mesh.previous-pivot", true );
+			AddMenuOption( pivot, "Next", "chevron_right", "mesh.next-pivot", true );
+			AddMenuOption( pivot, "Clear", "restart_alt", "mesh.clear-pivot", true );
+			AddMenuOption( pivot, "Center", "center_focus_strong", "mesh.center-pivot", true );
+			AddMenuOption( pivot, "World Origin", "language", "mesh.zero-pivot", true );
+		}
+	}
+
 	protected override void OnStartDrag()
 	{
 		if ( _startPoints.Count > 0 ) return;
@@ -366,6 +407,8 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 
 		foreach ( var go in Scene.GetAllObjects( true ) )
 		{
+			if ( go.Tags.Has( "hidden" ) ) continue;
+
 			var bounds = go.GetBounds();
 			if ( !frustum.IsInside( bounds, !fullyInside ) )
 			{

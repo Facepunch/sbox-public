@@ -158,6 +158,7 @@ public static partial class Gizmo
 			so.ScreenPos = Camera.ToScreen( tx.Position );
 			so.Bounds = BBox.FromPositionAndSize( tx.Position, 50.0f );
 			so.TextFlags = flags;
+			so.BuildCommandList();
 		}
 
 		public void WorldText( string text, Transform tx, string font = "Roboto", float size = 12.0f, TextFlag flags = TextFlag.Center )
@@ -173,6 +174,7 @@ public static partial class Gizmo
 			so.FontSize = size;
 			so.TextFlags = flags;
 			so.IgnoreDepth = IgnoreDepth;
+			so.BuildCommandList();
 		}
 
 		/// <summary>
@@ -187,6 +189,7 @@ public static partial class Gizmo
 			so.ScreenPos = pos;
 			so.Bounds = BBox.FromPositionAndSize( 0, float.MaxValue );
 			so.TextFlags = flags;
+			so.BuildCommandList();
 		}
 
 		/// <summary>
@@ -201,6 +204,7 @@ public static partial class Gizmo
 			so.ScreenPos = pos;
 			so.Bounds = BBox.FromPositionAndSize( 0, float.MaxValue );
 			so.TextFlags = flags;
+			so.BuildCommandList();
 		}
 
 		/// <summary>
@@ -240,6 +244,7 @@ public static partial class Gizmo
 			so.ScreenSize = rect.Size;
 			so.Bounds = BBox.FromPositionAndSize( 0, float.MaxValue );
 			so.TextFlags = flags;
+			so.BuildCommandList();
 		}
 
 		/// <summary>
@@ -250,33 +255,31 @@ public static partial class Gizmo
 			var so = Active.FindOrCreate<GizmoInlineSceneObject>( $"screen-rect", () => new GizmoInlineSceneObject( World ) );
 
 			so.RenderLayer = SceneRenderLayer.OverlayWithoutDepth;
-			so.Action = () =>
+			so.CommandList.Reset();
+			so.CommandList.Attributes.Set( "BoxPosition", new Vector2( rect.Left, rect.Top ) );
+			so.CommandList.Attributes.Set( "BoxSize", new Vector2( rect.Width, rect.Height ) );
+			so.CommandList.Attributes.Set( "BorderRadius", borderRadius );
+			so.CommandList.Attributes.Set( "Texture", Texture.White );
+			so.CommandList.Attributes.SetCombo( "D_BACKGROUND_IMAGE", 0 );
+			so.CommandList.Attributes.SetCombo( "D_BORDER_IMAGE", 0 );
+			so.CommandList.Attributes.SetCombo( "D_BLENDMODE", blendMode );
+
+			if ( borderSize.Length != 0 )
 			{
-				so.Attributes.Set( "BoxPosition", new Vector2( rect.Left, rect.Top ) );
-				so.Attributes.Set( "BoxSize", new Vector2( rect.Width, rect.Height ) );
-				so.Attributes.Set( "BorderRadius", borderRadius );
-				so.Attributes.Set( "Texture", Texture.White );
-				so.Attributes.SetCombo( "D_BACKGROUND_IMAGE", 0 );
-				so.Attributes.SetCombo( "D_BORDER_IMAGE", 0 );
-				so.Attributes.SetComboEnum( "D_BLENDMODE", blendMode );
+				so.CommandList.Attributes.Set( "HasBorder", 1 );
+				so.CommandList.Attributes.Set( "BorderSize", borderSize );
 
-				if ( borderSize.Length != 0 )
-				{
-					so.Attributes.Set( "HasBorder", 1 );
-					so.Attributes.Set( "BorderSize", borderSize );
+				so.CommandList.Attributes.Set( "BorderColorL", borderColor );
+				so.CommandList.Attributes.Set( "BorderColorT", borderColor );
+				so.CommandList.Attributes.Set( "BorderColorR", borderColor );
+				so.CommandList.Attributes.Set( "BorderColorB", borderColor );
+			}
+			else
+			{
+				so.CommandList.Attributes.Set( "HasBorder", 0 );
+			}
 
-					so.Attributes.Set( "BorderColorL", borderColor );
-					so.Attributes.Set( "BorderColorT", borderColor );
-					so.Attributes.Set( "BorderColorR", borderColor );
-					so.Attributes.Set( "BorderColorB", borderColor );
-				}
-				else
-				{
-					so.Attributes.Set( "HasBorder", 0 );
-				}
-
-				Graphics.DrawQuad( rect, Material.UI.Box, color, so.Attributes );
-			};
+			so.CommandList.DrawQuad( rect, Material.UI.Box, color );
 		}
 
 		/// <summary>

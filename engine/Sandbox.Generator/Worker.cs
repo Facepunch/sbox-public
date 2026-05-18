@@ -211,6 +211,26 @@ namespace Sandbox.Generator
 			return node;
 		}
 
+		public override SyntaxNode VisitIdentifierName( IdentifierNameSyntax node )
+		{
+			var rewritten = StringBuilderRedirect.VisitIdentifierName( node, this );
+			if ( rewritten is not null )
+				return rewritten;
+
+			return base.VisitIdentifierName( node );
+		}
+
+		public override SyntaxNode VisitQualifiedName( QualifiedNameSyntax node )
+		{
+			// Check before visiting children so the original node is used for semantic-model queries
+			// and we avoid descending into a qualified name we're about to replace entirely.
+			var rewritten = StringBuilderRedirect.VisitQualifiedName( node, this );
+			if ( rewritten is not null )
+				return rewritten;
+
+			return base.VisitQualifiedName( node );
+		}
+
 		public override SyntaxNode VisitMemberAccessExpression( MemberAccessExpressionSyntax node )
 		{
 			var visited = base.VisitMemberAccessExpression( node ) as ExpressionSyntax;

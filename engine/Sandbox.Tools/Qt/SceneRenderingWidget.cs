@@ -168,6 +168,11 @@ public class SceneRenderingWidget : Frame
 			}
 		}
 
+		if ( GameMode.IsPlayWidget( this ) )
+		{
+			CCameraRenderer.RenderOverlay( SwapChain );
+		}
+
 		g_pRenderDevice.Present( SwapChain );
 	}
 

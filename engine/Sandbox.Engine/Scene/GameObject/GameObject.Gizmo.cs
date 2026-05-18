@@ -65,19 +65,28 @@ public partial class GameObject
 		if ( _handle is null )
 			return;
 
+		var renderDistance = Gizmo.Settings.GizmoRenderDistance;
+		if ( renderDistance > 0 )
+		{
+			var dist = Gizmo.Camera.Position.Distance( Gizmo.Transform.Position );
+			if ( dist > renderDistance )
+				return;
+		}
+
 		bool isSelected = Gizmo.IsSelected;
 		bool selected = Gizmo.IsSelected;
+		bool worldSpace = Gizmo.Settings.WorldSpaceGizmos;
 
 		using ( Gizmo.Scope( "Handle" ) )
 		{
 			Gizmo.Transform = Gizmo.Transform.WithScale( 1.0f );
 
-			float size = 32;
+			float size = worldSpace ? 8 : 32;
 
 			if ( !selected )
 			{
 				Gizmo.Hitbox.DepthBias = 0.1f;
-				Gizmo.Hitbox.Sprite( 0, size * Gizmo.Settings.GizmoScale, false );
+				Gizmo.Hitbox.Sprite( 0, size * Gizmo.Settings.GizmoScale, worldSpace );
 
 				clicked = clicked || Gizmo.WasClicked;
 			}
@@ -87,9 +96,9 @@ public partial class GameObject
 			if ( Gizmo.IsHovered ) opacity = 1;
 			if ( isSelected ) opacity = 1;
 
-			if ( Gizmo.IsHovered && Gizmo.Settings.Selection ) size = 40;
+			if ( Gizmo.IsHovered && Gizmo.Settings.Selection ) size = worldSpace ? 10 : 40;
 
-			Gizmo.Draw.IgnoreDepth = true;
+			Gizmo.Draw.IgnoreDepth = !Gizmo.Settings.GizmoDepthTest;
 
 			if ( _handle.Texture is not null )
 			{
@@ -98,7 +107,7 @@ public partial class GameObject
 				//
 
 				Gizmo.Draw.Color = isSelected ? Color.Yellow : _handle.Color;
-				Gizmo.Draw.Sprite( Vector3.Zero, size * Gizmo.Settings.GizmoScale, _handle.Texture, false );
+				Gizmo.Draw.Sprite( Vector3.Zero, size * Gizmo.Settings.GizmoScale, _handle.Texture, worldSpace );
 			}
 			else if ( _handle.Icon is not null )
 			{
@@ -112,7 +121,7 @@ public partial class GameObject
 				if ( tex is not null )
 				{
 					Gizmo.Draw.Color = Color.White.WithAlphaMultiplied( opacity );
-					Gizmo.Draw.Sprite( Vector3.Zero, size * Gizmo.Settings.GizmoScale, tex, false );
+					Gizmo.Draw.Sprite( Vector3.Zero, size * Gizmo.Settings.GizmoScale, tex, worldSpace );
 				}
 			}
 		}

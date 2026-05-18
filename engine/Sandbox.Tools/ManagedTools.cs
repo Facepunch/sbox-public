@@ -158,8 +158,11 @@ internal static class ManagedTools
 		}
 	}
 
-	internal static void GlobalMouseWheel( int x, int y )
+	internal static void GlobalMouseWheel( int x, int y, int modifiers )
 	{
+		if ( EditorShortcuts.InvokeWheel( y, QtHelpers.Translate( (QtKeyboardModifiers)modifiers ) ) )
+			return;
+
 		Application.accumulatedCursorDelta += new Vector2( x / 120, y / 120 );
 	}
 

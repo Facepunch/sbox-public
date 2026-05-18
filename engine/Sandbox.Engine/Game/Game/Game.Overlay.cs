@@ -105,6 +105,16 @@ public static partial class Game
 		}
 
 		/// <summary>
+		/// Opens a modal to report the specified package
+		/// </summary>
+		public static void ShowReportModal( string packageIdent )
+		{
+			using var scope = GlobalContext.MenuScope();
+
+			IModalSystem.Current?.Report( packageIdent );
+		}
+
+		/// <summary>
 		/// Opens a modal for selecting a package
 		/// </summary>
 		public static void ShowPackageSelector( string query, Action<Package> onSelect, Action<string> onFilterChanged = null )

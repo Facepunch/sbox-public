@@ -96,6 +96,14 @@ internal static partial class SteamNetwork
 
 		private ulong AuthenticatedSteamId { get; set; }
 
+		static readonly Dictionary<ulong, TaskCompletionSource<ValidateAuthTicketResponse_t>> PendingAuth = new();
+
+		internal static void OnValidateAuthTicket( ValidateAuthTicketResponse_t response )
+		{
+			if ( PendingAuth.Remove( response.SteamID, out var tcs ) )
+				tcs.TrySetResult( response );
+		}
+
 		public override bool HasPermission( string permission )
 		{
 			// On a dedicated server, we'll allow the host to dictate user permissions.
@@ -123,6 +131,10 @@ internal static partial class SteamNetwork
 			// the session was active. It doesn't hurt.
 			Services.Auth.EndAuthSession( info.SteamId );
 
+			// Start waiting for the auth validation callback before calling BeginAuthSession
+			var tcs = new TaskCompletionSource<ValidateAuthTicketResponse_t>();
+			PendingAuth[info.SteamId] = tcs;
+
 			// We need to check if the client has a valid authentication ticket.
 			var result = Services.Auth.BeginAuthSession( info.SteamId, info.AuthTicket );
 			if ( result != BeginAuthResult.OK )
@@ -130,6 +142,17 @@ internal static partial class SteamNetwork
 				Close( 0, result.ToString() );
 				return false;
 			}
+
+			// Wait for Steam to validate and tell us the app owner
+			var authResponse = await tcs.Task.WaitAsync( TimeSpan.FromSeconds( 30 ) );
+
+			if ( authResponse.AuthSessionResponse != AuthResponse.OK )
+			{
+				Close( 0, $"Auth Failed: {authResponse.AuthSessionResponse}" );
+				return false;
+			}
+
+			OwnerSteamId = authResponse.OwnerSteamID;
 
 			// Let's see if we have another connection with this Steam Id. They might have
 			// crashed, so let's kick the old one.

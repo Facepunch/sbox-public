@@ -100,6 +100,31 @@ row
         flex-grow: 0;
         width: 300px;
     }
+
+    &.upscaler-warning
+    {
+        background-color: #f5a62333;
+        border: 1px solid #f5a62344;
+        padding: 12px 16px;
+        gap: 12px;
+        align-items: flex-start;
+
+        i
+        {
+            color: #f5a623;
+            font-size: 20px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        span
+        {
+            color: #c8cdd8;
+            font-size: 12px;
+            line-height: 18px;
+            flex-grow: 1;
+        }
+    }
 }
 
 SliderControl, ButtonGroup, DropDown

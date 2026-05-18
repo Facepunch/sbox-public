@@ -1,5 +1,5 @@
-﻿using System.Text.RegularExpressions;
-using Sandbox.Internal;
+﻿using Sandbox.Internal;
+using System.Text.RegularExpressions;
 
 namespace Sandbox
 {
@@ -201,6 +201,7 @@ namespace Sandbox
 					if ( !string.IsNullOrWhiteSpace( display.Name ) ) info.Name = display.Name;
 					if ( !string.IsNullOrWhiteSpace( display.GroupName ) ) info.Group = display.GroupName;
 					if ( !string.IsNullOrWhiteSpace( display.Description ) ) info.Description = display.Description;
+					if ( !string.IsNullOrWhiteSpace( display.ShortName ) ) info.Icon ??= display.ShortName;
 
 					info.Order = display.GetOrder() ?? info.Order;
 				}

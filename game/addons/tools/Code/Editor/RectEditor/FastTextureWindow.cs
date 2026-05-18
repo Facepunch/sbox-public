@@ -93,6 +93,10 @@ public class FastTextureWindow : Window
 		}
 
 		Settings.FastTextureSettings.Load();
+		Settings.GridSize = Settings.FastTextureSettings.GridSize;
+
+		var savedMin = Settings.FastTextureSettings.SavedRectMin;
+		var savedMax = Settings.FastTextureSettings.SavedRectMax;
 
 		// Get the initial rect from the existing UVs
 		var originalMapping = Settings.FastTextureSettings.Mapping;
@@ -102,23 +106,27 @@ public class FastTextureWindow : Window
 		var meshRect = Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
 		if ( meshRect != null )
 		{
-			// Constrain the rectangle to UV space [0,1]
-			var min = new Vector2(
-				Math.Clamp( meshRect.Min.x, 0f, 1f ),
-				Math.Clamp( meshRect.Min.y, 0f, 1f )
-			);
-			var max = new Vector2(
-				Math.Clamp( meshRect.Max.x, 0f, 1f ),
-				Math.Clamp( meshRect.Max.y, 0f, 1f )
-			);
-
-			if ( min.x < max.x && min.y < max.y )
+			if ( originalMapping != MappingMode.UseExisting )
 			{
-				meshRect.Min = min;
-				meshRect.Max = max;
+				var min = new Vector2(
+					Math.Clamp( meshRect.Min.x, 0f, 1f ),
+					Math.Clamp( meshRect.Min.y, 0f, 1f )
+				);
+				var max = new Vector2(
+					Math.Clamp( meshRect.Max.x, 0f, 1f ),
+					Math.Clamp( meshRect.Max.y, 0f, 1f )
+				);
+
+				if ( min.x < max.x && min.y < max.y )
+				{
+					meshRect.Min = min;
+					meshRect.Max = max;
+				}
 			}
 
-			_savedRectBounds = (meshRect.Min, meshRect.Max);
+			_savedRectBounds = originalMapping != MappingMode.UseExisting && savedMin != savedMax
+				? (savedMin, savedMax)
+				: (meshRect.Min, meshRect.Max);
 		}
 
 		// Restore original mapping mode (this will trigger OnMappingModeChanged which handles the rest)
@@ -306,6 +314,7 @@ public class FastTextureWindow : Window
 			Settings.FastTextureSettings.SavedRectMax = meshRect.Max;
 		}
 
+		Settings.FastTextureSettings.GridSize = Settings.GridSize;
 		Settings.FastTextureSettings.Save();
 
 		_undoScope?.Dispose();
@@ -443,6 +452,7 @@ public class RectViewToolbar : Widget
 				CreateModeButton( toggleRow, "swap_horiz", "Flip H", () => false, () => Settings.IsFlippedHorizontal = !Settings.IsFlippedHorizontal );
 				CreateModeButton( toggleRow, "swap_vert", "Flip V", () => false, () => Settings.IsFlippedVertical = !Settings.IsFlippedVertical );
 				CreateModeButton( toggleRow, "border_vertical", "Pick", () => Settings.IsPickingEdge, () => Settings.PickEdge() );
+				CreateModeButton( toggleRow, "control_point", "Edit Verts", () => Settings.EditVertices, () => Settings.EditVertices = !Settings.EditVertices );
 			} );
 		}
 

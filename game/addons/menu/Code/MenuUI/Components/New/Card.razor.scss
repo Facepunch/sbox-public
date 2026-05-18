@@ -1,12 +1,14 @@
 @import "/styles/_theme.scss";
 
 Card {
-    @include border;
+    border: 1px solid $default-border;
     position: relative;
     background-color: $default-950;
     overflow: hidden;
     border-radius: $rounding-default;
     transition: all 150ms ease;
+
+    background: linear-gradient( to bottom, $default-900, $default-950 );
 
     .inner {
         position: absolute;
@@ -18,6 +20,10 @@ Card {
         padding: 8px;
         border-radius: $rounding-small;
         overflow: hidden;
+    }
+
+    &.hover {
+        @include border;
     }
 }
 

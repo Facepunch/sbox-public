@@ -458,6 +458,15 @@ public abstract partial class Connection
 	public SteamId SteamId => Info?.SteamId ?? default;
 
 	/// <summary>
+	/// The SteamID of the account that actually owns the game in a Steam Family.
+	/// If not in a Steam Family this is the same as <see cref="SteamId"/>
+	/// </summary>
+	/// <remarks>
+	/// This is only valid on the host.
+	/// </remarks>
+	public SteamId OwnerSteamId { get; internal set; }
+
+	/// <summary>
 	/// The Id of the party that this user is a part of. This can be used to compare to other users to 
 	/// group them into parties.
 	/// </summary>

@@ -1,4 +1,5 @@
 using HalfEdgeMesh;
+using Sandbox.Helpers;
 
 namespace Editor.MeshEditor;
 
@@ -124,11 +125,41 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 	readonly HashSet<HalfEdgeHandle> _selectedFaceVertices = [];
 
 	IDisposable _undoScope;
+	UndoSystem _subscribedUndoSystem;
 
 	public override void OnEnabled()
 	{
 		SetChannelEnableOther( 1 );
 		RebuildSelection();
+
+		_subscribedUndoSystem = Manager.CurrentSession.UndoSystem;
+		_subscribedUndoSystem.OnUndo += OnUndoRedo;
+		_subscribedUndoSystem.OnRedo += OnUndoRedo;
+	}
+
+	public override void OnDisabled()
+	{
+		if ( _subscribedUndoSystem is not null )
+		{
+			_subscribedUndoSystem.OnUndo -= OnUndoRedo;
+			_subscribedUndoSystem.OnRedo -= OnUndoRedo;
+			_subscribedUndoSystem = null;
+		}
+	}
+
+	public override void OnSelectionChanged()
+	{
+		RebuildSelection();
+	}
+
+	void OnUndoRedo( object _ ) => RebuildSelection();
+
+	internal IEnumerable<T> GetSelectedElements<T>() where T : struct, IValid
+	{
+		return SelectionTool.GetAllSelected<T>()
+			.Concat( Selection.OfType<T>() )
+			.Where( x => x.IsValid() )
+			.Distinct();
 	}
 
 	void RebuildSelection()
@@ -153,18 +184,16 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 				break;
 
 			case PaintLimitMode.Faces:
-				foreach ( var face in SelectionTool.GetAllSelected<MeshFace>() )
+				foreach ( var face in GetSelectedElements<MeshFace>() )
 				{
-					if ( !face.IsValid() ) continue;
 					if ( face.Component.Mesh.FindHalfEdgesConnectedToFace( face.Handle, out var edges ) )
 						AddEdges( edges );
 				}
 				break;
 
 			case PaintLimitMode.Edges:
-				foreach ( var edge in SelectionTool.GetAllSelected<MeshEdge>() )
+				foreach ( var edge in GetSelectedElements<MeshEdge>() )
 				{
-					if ( !edge.IsValid() ) continue;
 					var mesh = edge.Component.Mesh;
 					mesh.GetEdgeVertices( edge.Handle, out var a, out var b );
 					mesh.GetFaceVerticesConnectedToVertex( a, out var edgesA );
@@ -175,9 +204,8 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 				break;
 
 			case PaintLimitMode.Vertices:
-				foreach ( var vert in SelectionTool.GetAllSelected<MeshVertex>() )
+				foreach ( var vert in GetSelectedElements<MeshVertex>() )
 				{
-					if ( !vert.IsValid() ) continue;
 					vert.Component.Mesh.GetFaceVerticesConnectedToVertex( vert.Handle, out var edges );
 					AddEdges( edges );
 				}
@@ -185,11 +213,10 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 		}
 	}
 
-	void GatherMeshComponents<T>( Func<T, MeshComponent> getComponent ) where T : IValid
+	void GatherMeshComponents<T>( Func<T, MeshComponent> getComponent ) where T : struct, IValid
 	{
-		foreach ( var element in SelectionTool.GetAllSelected<T>() )
+		foreach ( var element in GetSelectedElements<T>() )
 		{
-			if ( !element.IsValid() ) continue;
 			var comp = getComponent( element );
 			if ( comp.IsValid() )
 				_selectedMeshes.Add( comp );
@@ -315,6 +342,9 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 
 		foreach ( var edge in mesh.HalfEdgeHandles )
 		{
+			if ( !edge.Face.IsValid )
+				continue;
+
 			if ( LimitMode != PaintLimitMode.Everything && _selectedMeshes.Count == 0 && !_selectedFaceVertices.Contains( edge ) )
 				continue;
 
@@ -413,6 +443,9 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 
 		foreach ( var edge in mesh.HalfEdgeHandles )
 		{
+			if ( !edge.Face.IsValid )
+				continue;
+
 			_prevColors[edge] = Mode == PaintMode.Color ?
 				mesh.GetVertexColor( edge ).ToColor() :
 				mesh.GetVertexBlend( edge ).ToColor();
@@ -452,25 +485,22 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 					break;
 
 				case PaintLimitMode.Faces:
-					foreach ( var face in SelectionTool.GetAllSelected<MeshFace>() )
+					foreach ( var face in GetSelectedElements<MeshFace>() )
 					{
-						if ( !face.IsValid() ) continue;
 						DrawFaceOutline( face.Component, face.Handle, Color.Yellow );
 					}
 					break;
 
 				case PaintLimitMode.Edges:
-					foreach ( var edge in SelectionTool.GetAllSelected<MeshEdge>() )
+					foreach ( var edge in GetSelectedElements<MeshEdge>() )
 					{
-						if ( !edge.IsValid() ) continue;
 						DrawEdgeHighlight( edge.Component, edge.Handle, Color.Yellow );
 					}
 					break;
 
 				case PaintLimitMode.Vertices:
-					foreach ( var vert in SelectionTool.GetAllSelected<MeshVertex>() )
+					foreach ( var vert in GetSelectedElements<MeshVertex>() )
 					{
-						if ( !vert.IsValid() ) continue;
 						DrawVertexHighlight( vert.Component, vert.Handle, Color.Yellow );
 					}
 					break;
@@ -595,6 +625,9 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 
 			foreach ( var edge in mesh.HalfEdgeHandles )
 			{
+				if ( !edge.Face.IsValid )
+					continue;
+
 				if ( LimitMode != PaintLimitMode.Everything && _selectedMeshes.Count == 0 && !_selectedFaceVertices.Contains( edge ) )
 					continue;
 
