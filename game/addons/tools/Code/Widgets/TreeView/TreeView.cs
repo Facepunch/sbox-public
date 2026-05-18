@@ -419,6 +419,9 @@ public partial class TreeView : BaseItemWidget
 	{
 		var node = pressedItem.Object as TreeNode;
 
+		if ( node != null && !node.OnItemPressed( pressedItem, e ) )
+			return false;
+
 		bool recursive = Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift );
 		if ( node?.ExpanderFills ?? false )
 		{
