@@ -8,7 +8,7 @@ public partial class Scene : GameObject
 {
 	/// <summary>
 	/// Load from the provided <see cref="SceneFile"/>. This will not load the scene for other clients in a
-	/// multiplayer session, you should instead use <see cref="Game.ChangeScene"/>
+	/// multiplayer session, you should instead use <see cref="Game.ChangeScene(SceneFile)"/>
 	/// if you want to bring other clients.
 	/// </summary>
 	public virtual bool Load( GameResource resource )
@@ -28,7 +28,7 @@ public partial class Scene : GameObject
 
 	/// <summary>
 	/// Load from the provided <see cref="SceneLoadOptions"/>. This will not load the scene for other clients in a
-	/// multiplayer session, you should instead use <see cref="Game.ChangeScene"/>
+	/// multiplayer session, you should instead use <see cref="Game.ChangeScene(SceneFile)"/>
 	/// if you want to bring other clients.
 	/// </summary>
 	public bool Load( SceneLoadOptions options )
@@ -158,7 +158,7 @@ public partial class Scene : GameObject
 
 	/// <summary>
 	/// Load from the provided file name. This will not load the scene for other clients in a
-	/// multiplayer session, you should instead use <see cref="Game.ChangeScene"/>
+	/// multiplayer session, you should instead use <see cref="Game.ChangeScene(SceneFile)"/>
 	/// if you want to bring other clients.
 	/// </summary>
 	public bool LoadFromFile( string filename )
