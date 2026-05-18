@@ -3,6 +3,7 @@
 @using Sandbox;
 @using System;
 @using Menu;
+@using MenuProject.Modals;
 @inherits PanelComponent
 
 <div class="mainmenu">
@@ -33,6 +34,8 @@
 
     public static MainMenu Instance { get; private set; }
 
+    static bool _welcomeShown;
+
     override protected void OnEnabled()
     {
         base.OnEnabled();
@@ -51,9 +54,22 @@
 
         // Fetch resolutions now so opening the settings modal doesn't stutter later.
         MenuProject.Settings.VideoSettings.FetchResolutions();
+
+        _ = ShowWelcomeScreenIfNeeded();
     }
 
+    async Task ShowWelcomeScreenIfNeeded()
+    {
+        await Task.DelayRealtime(1500);
 
+        if ( _welcomeShown ) return;
+        if ( Game.Cookies.Get<bool>( WelcomeScreenModal.CookieKey, false ) ) return;
+
+        _welcomeShown = true;
+
+        var modal = new WelcomeScreenModal();
+        modal.Parent = Panel;
+    }
 
     override protected void OnUpdate()
     {

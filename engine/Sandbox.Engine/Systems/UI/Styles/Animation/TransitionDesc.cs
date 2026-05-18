@@ -1,4 +1,4 @@
-﻿
+
 namespace Sandbox.UI;
 
 /// <summary>
@@ -41,9 +41,12 @@ public struct TransitionDesc
 			while ( !p.IsEnd )
 			{
 				p = p.SkipWhitespaceAndNewlines();
+				if ( p.IsEnd ) break;
 
-				var sub = p.ReadUntilOrEnd( "," );
-				p.Pointer++;
+				var sub = p.ReadUntilOrEnd( ",", true, true );
+				if ( !p.IsEnd ) p.Pointer++;
+
+				if ( string.IsNullOrWhiteSpace( sub ) ) continue;
 
 				var transition = Parse( sub );
 				list.Add( transition );
@@ -95,7 +98,7 @@ public struct TransitionDesc
 		p = p.SkipWhitespaceAndNewlines();
 		if ( p.IsEnd ) return t;
 
-		t.TimingFunction = p.ReadWord( null, true );
+		t.TimingFunction = p.ReadWord( null, true, true );
 
 		if ( p.IsEnd ) return t;
 		p = p.SkipWhitespaceAndNewlines();
