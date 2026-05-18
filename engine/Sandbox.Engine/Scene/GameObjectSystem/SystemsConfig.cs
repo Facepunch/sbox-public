@@ -109,7 +109,14 @@ public class SystemsConfig : ConfigData
 		}
 		catch ( Exception ex )
 		{
-			Log.Warning( $"Failed to deserialize {typeName}.{property.Name}: {ex.Message}" );
+			Log.Warning( $"Removing stale GameObjectSystem config value {typeName}.{property.Name}: {ex.Message}" );
+			properties.Remove( property.Name );
+
+			if ( properties.Count == 0 )
+			{
+				Systems.Remove( typeName );
+			}
+
 			return false;
 		}
 	}
