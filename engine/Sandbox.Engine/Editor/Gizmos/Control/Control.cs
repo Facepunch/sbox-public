@@ -161,7 +161,10 @@ public static partial class Gizmo
 			switch ( centerHandleStyle )
 			{
 				case PositionCenterHandleStyle.Bicone:
-					Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.IsHovered ? Sandbox.Gizmo.Colors.Selected : Sandbox.Gizmo.Colors.Pivot;
+					Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Pivot;
+
+					if ( !Sandbox.Gizmo.IsHovered ) Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Draw.Color.Darken( 0.33f );
+
 					using ( Scope() )
 					{
 						Sandbox.Gizmo.Transform = Sandbox.Gizmo.Transform.WithRotation( Rotation.Identity );

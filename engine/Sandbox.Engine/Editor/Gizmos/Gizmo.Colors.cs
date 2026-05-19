@@ -25,6 +25,6 @@ public static partial class Gizmo
 		public static Color Selected { get; } = "#fbfbfb";
 		public static Color Hovered { get; } = "#90f1ef";
 		public static Color Active { get; } = "#ffc600";
-		public static Color Pivot { get; } = "#8b008b";
+		public static Color Pivot { get; } = "#c83cc8";
 	}
 }
