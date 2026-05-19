@@ -165,7 +165,7 @@ public static partial class Gizmo
 
 					if ( !Sandbox.Gizmo.IsHovered ) Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Draw.Color.Darken( 0.33f );
 
-					using ( Scope() )
+					using ( Sandbox.Gizmo.Scope() )
 					{
 						Sandbox.Gizmo.Hitbox.DepthBias = 0.01f;
 						Sandbox.Gizmo.Transform = Sandbox.Gizmo.Transform.WithRotation( Rotation.Identity );
