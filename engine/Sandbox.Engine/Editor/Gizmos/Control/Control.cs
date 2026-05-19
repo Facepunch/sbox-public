@@ -168,7 +168,7 @@ public static partial class Gizmo
 					using ( Scope() )
 					{
 						Sandbox.Gizmo.Transform = Sandbox.Gizmo.Transform.WithRotation( Rotation.Identity );
-						Sandbox.Gizmo.Draw.SolidBicone( 4.0f, 4.0f * 0.33f );
+						Sandbox.Gizmo.Draw.SolidBicone( 4.0f, 1.5f );
 					}
 					break;
 				default:
