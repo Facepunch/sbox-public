@@ -28,6 +28,36 @@ public static partial class Graphics
 	/// </summary>
 	/// <param name="model">The model to draw</param>
 	/// <param name="transforms">Instance transform data to draw</param>
+	/// <param name="lodLevel">LOD level to render (0 = highest detail)</param>
+	/// <param name="attributes">Optional attributes to apply only for this draw call</param>
+	public static unsafe void DrawModelInstanced( Model model, Span<Transform> transforms, int lodLevel, RenderAttributes attributes = null )
+	{
+		AssertRenderBlock();
+
+		if ( transforms.Length <= 0 )
+			return;
+
+		if ( !model.IsValid() )
+			return;
+
+		attributes ??= Attributes;
+
+		var clampedLod = Math.Max( lodLevel, 0 );
+		fixed ( Transform* pTransforms = transforms )
+		{
+			RenderTools.DrawModel( Context, SceneLayer, model.native, (IntPtr)pTransforms, transforms.Length, attributes.Get(), clampedLod );
+		}
+	}
+
+	/// <summary>
+	/// Draws multiple instances of a model using GPU instancing, assuming standard implemented shaders.
+	/// 
+	/// Use `GetTransformMatrix( int instance )` in shaders to access the instance transform.
+	/// 
+	/// There is a limit of 1,048,576 transform slots per frame when using this method.
+	/// </summary>
+	/// <param name="model">The model to draw</param>
+	/// <param name="transforms">Instance transform data to draw</param>
 	/// <param name="attributes">Optional attributes to apply only for this draw call</param>
 	public static unsafe void DrawModelInstanced( Model model, Span<Transform> transforms, RenderAttributes attributes = null )
 	{

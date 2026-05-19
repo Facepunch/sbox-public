@@ -26,7 +26,7 @@ internal static class ResourceLoader
 		}
 	}
 
-	internal static void LoadAllGameResource( BaseFileSystem fileSystem )
+	internal static void LoadAllGameResource( BaseFileSystem fileSystem, bool reloadExisting = false )
 	{
 		var sw = Stopwatch.StartNew();
 		var types = Game.TypeLibrary.GetAttributes<AssetTypeAttribute>().DistinctBy( x => x.Extension )
@@ -51,7 +51,7 @@ internal static class ResourceLoader
 
 			// Skip resources that are already fully loaded - this allows calling this method
 			// multiple times (e.g. once per package) without redundant work.
-			if ( ResourceLibrary.TryGet<GameResource>( file.Trim( '/' ), out var existing ) && !existing.IsPromise )
+			if ( !reloadExisting && ResourceLibrary.TryGet<GameResource>( file.Trim( '/' ), out var existing ) && !existing.IsPromise )
 				continue;
 
 			try
@@ -84,7 +84,7 @@ internal static class ResourceLoader
 		// like editing an asset while the gamemode is running would?
 	}
 
-	internal static async Task LoadAllGameResourceAsync( BaseFileSystem fileSystem, CancellationToken ct = default )
+	internal static async Task LoadAllGameResourceAsync( BaseFileSystem fileSystem, CancellationToken ct = default, bool reloadExisting = false )
 	{
 		var sw = Stopwatch.StartNew();
 		var types = Game.TypeLibrary.GetAttributes<AssetTypeAttribute>().DistinctBy( x => x.Extension )
@@ -110,7 +110,11 @@ internal static class ResourceLoader
 			ct.ThrowIfCancellationRequested();
 			var extension = System.IO.Path.GetExtension( file );
 			if ( !types.TryGetValue( extension, out var type ) ) continue;
-			if ( ResourceLibrary.TryGet<GameResource>( file.Trim( '/' ), out var existing ) && !existing.IsPromise ) continue;
+
+			// Skip resources that are already fully loaded - this allows calling this method
+			// multiple times (e.g. once per package) without redundant work.
+			if ( !reloadExisting && ResourceLibrary.TryGet<GameResource>( file.Trim( '/' ), out var existing ) && !existing.IsPromise )
+				continue;
 
 			try
 			{

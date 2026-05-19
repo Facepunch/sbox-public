@@ -1,5 +1,6 @@
 ﻿
 using Sandbox.Rendering;
+using Sandbox.UI;
 using System.Drawing;
 using System.Text.Json.Serialization;
 
@@ -431,7 +432,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 
 	internal bool IsSceneEditorCamera;
 
-	internal void InitializeRendering()
+	internal void InitializeRendering( bool renderUI = true )
 	{
 		using ( Scene.Push() )
 		{
@@ -448,6 +449,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 			}
 
 			UpdateSceneCameraUI( sceneCamera );
+			sceneCamera.RenderUI = renderUI;
 			UpdateSceneCameraStereo( sceneCamera );
 		}
 	}
@@ -746,7 +748,12 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// <summary>
 	/// Render this camera to the target bitmap.
 	/// </summary>
-	public void RenderToBitmap( Bitmap targetBitmap )
+	public void RenderToBitmap( Bitmap targetBitmap ) => RenderToBitmap( targetBitmap, true );
+
+	/// <summary>
+	/// Render this camera to the target bitmap, with the option to include or exclude the drawn UI.
+	/// </summary>
+	public void RenderToBitmap( Bitmap targetBitmap, bool renderUI )
 	{
 		if ( targetBitmap == null || targetBitmap.Width <= 1 || targetBitmap.Height <= 1 )
 			return;
@@ -757,10 +764,48 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		using ( Scene.Push() )
 		{
 			Scene.PreCameraRender();
-			InitializeRendering();
-			SceneCamera.OnPreRender( targetBitmap.Size );
+			InitializeRendering( renderUI );
 
+			// Resize the UI to the target bitmap size
+			if ( renderUI )
+				ResizeUI( targetBitmap.Size );
+
+			SceneCamera.OnPreRender( targetBitmap.Size );
 			SceneCamera.RenderToBitmap( targetBitmap );
+
+			// Resize the UI back to the screen size
+			if ( renderUI )
+				ResizeUI( new Vector2( Screen.Width, Screen.Height ) );
+		}
+	}
+
+	private void ResizeUI( Vector2 size )
+	{
+		if ( Scene is null )
+			return;
+
+		foreach ( var panel in Scene.GetAll<ScreenPanel>() )
+		{
+			if ( !panel.IsValid() || !panel.Active )
+				continue;
+
+			var target = panel.TargetCamera ?? (IsMainCamera ? this : null);
+			if ( target != this )
+				continue;
+
+			if ( RenderExcludeTags.HasAny( panel.GameObject.Tags ) )
+				continue;
+
+			if ( panel.GetPanel() is not RootPanel rootPanel || !rootPanel.IsValid() )
+				continue;
+
+			var screenRect = new Rect( 0, 0, size.x, size.y );
+
+			rootPanel.PreLayout( screenRect );
+			rootPanel.CalculateLayout();
+			rootPanel.PostLayout();
+
+			rootPanel.BuildCommandList();
 		}
 	}
 }

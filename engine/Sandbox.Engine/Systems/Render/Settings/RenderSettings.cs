@@ -21,6 +21,11 @@ public partial class RenderSettings
 		Config.SetDefaults( this );
 	}
 
+	internal void Init()
+	{
+		ApplyVideoMode();
+	}
+
 	public int MaxFrameRate
 	{
 		get => ConVarSystem.GetInt( "fps_max", 100, true );

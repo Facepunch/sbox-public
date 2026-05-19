@@ -34,6 +34,24 @@ public partial class Mixer
 		}
 	}
 
+	/// <summary>
+	/// Returns true if this mixer is a descendant of the given mixer.
+	/// </summary>
+	public bool IsDescendantOf( Mixer mixer )
+	{
+		if ( mixer is null )
+			return false;
+
+		var current = Parent;
+		while ( current is not null )
+		{
+			if ( current == mixer )
+				return true;
+			current = current.Parent;
+		}
+		return false;
+	}
+
 	[Hide]
 	public int ChildCount => Children.Count;
 }

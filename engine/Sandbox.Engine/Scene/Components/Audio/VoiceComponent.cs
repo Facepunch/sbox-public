@@ -86,8 +86,10 @@ public class Voice : Component
 
 	private MixerHandle targetMixer;
 
-	/// <inheritdoc cref="SoundHandle.TargetMixer"/>
-	[Property]
+	/// <summary>
+	/// Which mixer to target. Must be a descendant of the Voice mixer. Defaults to the Voice mixer if not set or invalid.
+	/// </summary>
+	[Property, ParentMixer( "Voice" )]
 	public MixerHandle VoiceMixer
 	{
 		get => targetMixer;
@@ -104,7 +106,7 @@ public class Voice : Component
 
 	public Mixer TargetMixer
 	{
-		get => targetMixer.GetOrDefault();
+		get => targetMixer.Get( Mixer.Voice );
 		set => VoiceMixer = value;
 	}
 
@@ -155,6 +157,13 @@ public class Voice : Component
 		if ( Renderer.IsValid() && Renderer.Model.MorphCount > 0 )
 		{
 			morphs = new float[Renderer.Model.MorphCount];
+		}
+
+		// Ensure that the Mixer selected is a Voice mixer
+		var currentMixer = targetMixer.GetOrDefault();
+		if ( !currentMixer.IsDescendantOf( Mixer.Voice ) )
+		{
+			targetMixer = Mixer.Voice;
 		}
 
 		base.OnEnabledInternal();
@@ -424,5 +433,15 @@ public class Voice : Component
 			LastPlayed = 0;
 			UpdateSound();
 		} );
+	}
+
+	[AttributeUsage( AttributeTargets.Property )]
+	public class ParentMixerAttribute : Attribute
+	{
+		public string MixerName { get; }
+		public ParentMixerAttribute( string mixerName )
+		{
+			MixerName = mixerName;
+		}
 	}
 }

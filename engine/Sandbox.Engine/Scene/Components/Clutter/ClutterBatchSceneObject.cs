@@ -9,15 +9,14 @@ namespace Sandbox.Clutter;
 /// </summary>
 internal class ClutterBatchSceneObject : SceneCustomObject
 {
-	/// <summary>
-	/// Batches by model
-	/// </summary>
 	private readonly Dictionary<Model, ClutterModelBatch> _batches = [];
-
 	private readonly CommandList _commandList = new( "ClutterBatch" );
+	private readonly int _lodLevel;
 
-	public ClutterBatchSceneObject( SceneWorld world ) : base( world )
+	public ClutterBatchSceneObject( SceneWorld world, int lodLevel ) : base( world )
 	{
+		_lodLevel = lodLevel;
+
 		Flags.IsOpaque = true;
 		Flags.IsTranslucent = false;
 		Flags.CastShadows = true;
@@ -56,7 +55,7 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 			if ( batch.Transforms.Count == 0 || model == null )
 				continue;
 
-			_commandList.DrawModelInstanced( model, CollectionsMarshal.AsSpan( batch.Transforms ) );
+			_commandList.DrawModelInstanced( model, CollectionsMarshal.AsSpan( batch.Transforms ), _lodLevel );
 		}
 	}
 
@@ -72,20 +71,15 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 		_commandList.Reset();
 	}
 
-	/// <summary>
-	/// Called when the batch is deleted. Cleans up resources.
-	/// </summary>
 	public new void Delete()
 	{
 		Clear();
 		base.Delete();
 	}
 
-	/// <summary>
-	/// Renders all batched instances using GPU instancing.
-	/// </summary>
 	public override void RenderSceneObject()
 	{
 		_commandList.ExecuteOnRenderThread();
 	}
 }
+
