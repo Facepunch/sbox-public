@@ -167,6 +167,7 @@ public static partial class Gizmo
 
 					using ( Scope() )
 					{
+						Sandbox.Gizmo.Hitbox.DepthBias = 0.01f;
 						Sandbox.Gizmo.Transform = Sandbox.Gizmo.Transform.WithRotation( Rotation.Identity );
 						Sandbox.Gizmo.Draw.SolidBicone( 4.0f, 1.5f );
 					}
