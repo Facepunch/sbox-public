@@ -1,3 +1,4 @@
+@import "/styles/_theme.scss";
 
 AchievementList
 {
@@ -8,128 +9,126 @@ AchievementList
 
 .achievement-list
 {
-    gap: 8px;
-    padding: 2rem;
+    gap: 6px;
+    padding: 16px;
     flex-direction: column;
-    color: #bcc9e2;
     flex-grow: 1;
-    width: 100%;
     flex-shrink: 0;
 }
-
 
 .achievement
 {
     flex-shrink: 0;
-    gap: 1rem;
+    gap: 12px;
     overflow: hidden;
+    padding: 10px 12px;
+    background-color: $default-900;
+    border: 1px solid $default-border;
+    border-radius: $rounding-default;
+    align-items: center;
+
+    img
+    {
+        width: 48px;
+        height: 48px;
+        flex-shrink: 0;
+        border-radius: $rounding-default;
+        border: 1px solid $default-border;
+    }
+
+    .right
+    {
+        flex-direction: column;
+        flex-grow: 1;
+        gap: 4px;
+        padding: 1px 0;
+    }
+
+    .toprow
+    {
+        gap: 6px;
+        align-items: center;
+    }
+
+    .title
+    {
+        color: $default-text;
+        font-weight: 700;
+        font-size: $text-regular;
+        font-family: $font-heading;
+        flex-grow: 1;
+    }
+
+    .description
+    {
+        color: $default-400;
+        font-size: $text-small;
+    }
+
+    &.locked
+    {
+        opacity: 0.45;
+    }
 }
 
-.achievement img
+// Score badge and meta chips share base pill style
+.score,
+.meta > *
 {
-    width: 64px;
-    height: 64px;
-    flex-shrink: 0;
-    border-radius: 8px;
+    padding: 2px 6px;
+    border-radius: $rounding-small;
+    background-color: $default-800;
+    border: 1px solid $default-border;
+    font-size: $text-eyebrow;
+    color: $default-300;
+    align-items: center;
+    gap: 3px;
 }
 
-.achievement .right
+.score
 {
-    flex-direction: column;
-    flex-grow: 1;
-    padding: 3px 0;
-}
-
-.achievement .right .title
-{
-    color: white;
+    background-color: rgba( $primary-blue, 0.15 );
+    border-color: rgba( $primary-blue, 0.3 );
+    color: lighten( $primary-blue, 20% );
     font-weight: 700;
-    font-size: 16px;
-}
-
-.achievement .right .description
-{
-    opacity: 0.3;
-    font-size: 12px;
-    
 }
 
 .meta
 {
     gap: 5px;
-    flex-grow: 1;
     justify-content: flex-end;
-}
 
-.meta i
-{
-    opacity: 0.3;
-    font-size: 18px;
-}
-
-.meta > *
-{
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-}
-
-.achievement-icon.locked
-{
-    filter: saturate( 0.2 ) brightness( 0.2 );
+    i { color: $default-500; font-size: 13px; }
 }
 
 .progress
 {
-    gap: 10px;
-    flex-grow: 1;
-    align-items: flex-end;
-}
-
-.progress .bar
-{
-    background-color: hsl(220, 22%, 25%);
-    border-radius: 6px;
-    overflow: hidden;
-    flex-grow: 1;
-    height: 10px;
-}
-
-.progress  .bar .inner
-{
-    width: 200px;
-    background-color: #4479de;
-}
-
-.progress .text
-{
-    color: #4479de;
-    flex-shrink: 0;
-    font-size: 11px;
-}
-
-.toprow
-{
-    gap: 0.5rem;
+    gap: 8px;
     align-items: center;
-}
+    margin-top: 2px;
 
-.score, .meta > *
-{
-    padding: 1px 4px;
-    border-radius: 4px;
-    background-color: #ffffff03;
-    font-size: 12px;
-}
+    .bar
+    {
+        background-color: $default-800;
+        border-radius: 3px;
+        overflow: hidden;
+        flex-grow: 1;
+        height: 4px;
 
-.score
-{
-    background-color: #4479de;
-    color: white;
-    font-weight: bold;
-}
+        .inner
+        {
+            background-color: $primary-blue;
+            height: 100%;
+            border-radius: 3px;
+        }
+    }
 
-.locked 
-{
-    opacity: 0.5;
+    .text
+    {
+        color: $primary-blue;
+        flex-shrink: 0;
+        font-size: $text-eyebrow;
+        font-weight: 600;
+        font-family: $font-heading;
+    }
 }

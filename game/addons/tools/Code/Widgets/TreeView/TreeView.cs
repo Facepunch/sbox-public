@@ -1,6 +1,4 @@
-﻿using Sandbox.UI;
-
-namespace Editor;
+﻿namespace Editor;
 
 public partial class TreeView : BaseItemWidget
 {
@@ -387,7 +385,7 @@ public partial class TreeView : BaseItemWidget
 		// Create popup for renaming this item
 		//
 
-		var indent = item.Column * IndentWidth + ExpandWidth + 20;
+		var indent = (item.Column * IndentWidth) + ExpandWidth + 20;
 		var popup = new PopupWidget( this );
 		popup.Layout = Layout.Column();
 		popup.Position = ToScreen( item.Rect.TopLeft + new Vector2( indent, 0 ) );
@@ -397,11 +395,18 @@ public partial class TreeView : BaseItemWidget
 		var lineEdit = popup.Layout.Add( new LineEdit() );
 		lineEdit.Text = first?.Name ?? "";
 
+		var isCompleted = false;
 		var onComplete = () =>
 		{
-			if ( !popup.Visible ) return;
+			if ( isCompleted )
+				return;
 
-			first?.OnRename( item, lineEdit.Text, items );
+			isCompleted = true;
+
+			if ( !string.IsNullOrEmpty( lineEdit.Text ) )
+			{
+				first?.OnRename( item, lineEdit.Text, items );
+			}
 
 			popup.Close();
 		};

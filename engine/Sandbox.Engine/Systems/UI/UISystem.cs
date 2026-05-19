@@ -3,7 +3,6 @@ using Sandbox.Internal;
 using Sandbox.Modals;
 using Sandbox.Rendering;
 using Sandbox.UI;
-using System.Threading;
 
 namespace Sandbox;
 
@@ -396,9 +395,26 @@ internal class UISystem
 		for ( int i = 0; i < DeletionList.Count; i++ )
 		{
 			var p = DeletionList[i];
+
+			// panel might have been turned null by hotloading
+			if ( p is null )
+			{
+				DeletionList.RemoveAt( i );
+				i--;
+				continue;
+			}
+
 			if ( !force && p.HasActiveTransitions ) continue;
 
-			p.Delete( true );
+			try
+			{
+				p.Delete( true );
+			}
+			catch ( System.Exception ex )
+			{
+				Log.Warning( ex, $"Exception while deferred-deleting {p}" );
+			}
+
 			DeletionList.RemoveAt( i );
 			i--;
 		}

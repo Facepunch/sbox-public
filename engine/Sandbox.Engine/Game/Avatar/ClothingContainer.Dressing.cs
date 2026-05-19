@@ -254,7 +254,7 @@ public partial class ClothingContainer
 		//
 		// Set body groups
 		//
-		foreach ( var (name, value) in GetBodyGroups( set.Select( x => x.Clothing ) ) )
+		foreach ( var (name, value) in GetBodyGroups( set.Select( x => x.Clothing ), body.Model ) )
 		{
 			if ( value == 0 ) continue;
 

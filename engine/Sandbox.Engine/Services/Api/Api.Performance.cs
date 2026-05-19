@@ -54,6 +54,7 @@ internal static partial class Api
 				CollectStat( "ShadowedLights", s.ShadowedLightsInView );
 				CollectStat( "UnshadowedLights", s.UnshadowedLightsInView );
 				CollectStat( "ShadowMaps", s.ShadowMaps );
+				CollectStat( "GpuFrametime", PerformanceStats.GpuFrametime );
 				CollectStat( "GC0", PerformanceStats.Gen0Collections );
 				CollectStat( "GC1", PerformanceStats.Gen1Collections );
 				CollectStat( "GC2", PerformanceStats.Gen2Collections );

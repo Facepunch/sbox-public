@@ -1,84 +1,63 @@
+@import "/styles/_theme.scss";
+
+// The card that wraps the achievements section in the sidebar
+Card.achievements-card
+{
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+
+    &:hover
+    {
+        border-color: rgba( $primary-blue, 0.3 );
+        background-color: rgba( $primary-blue, 0.05 );
+        sound-in: "ui.button.over";
+    }
+
+    &:active { sound-in: "ui.button.press"; }
+}
+
+.active Card.achievements-card
+{
+    border-color: rgba( $primary-blue, 0.35 );
+    background-color: rgba( $primary-blue, 0.1 );
+    cursor: default;
+
+    &:hover
+    {
+        border-color: rgba( $primary-blue, 0.35 );
+        background-color: rgba( $primary-blue, 0.1 );
+    }
+}
 
 AchievementSummary
 {
-    margin: 1px 2rem;
-    padding: 3px;
-    cursor: pointer;
-    background-color: #0003;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
     flex-shrink: 0;
-    flex-grow: 0;
 }
 
-.active AchievementSummary
-{
-    background-color:#447adf;
-    border-radius: 8px;
-}
-
-AchievementSummary .achievement-buttons
+.achievement-buttons
 {
     flex-direction: row;
-    flex-shrink: 1;
-    overflow: hidden;
     gap: 4px;
-}
-
-AchievementSummary .achievement-buttons .achievement-icon
-{
-    flex-shrink: 0;
-    border-radius: 6px;
-    height: 48px;
-    width: 48px;
-    aspect-ratio: 1;
     flex-grow: 1;
-}
-
-.button
-{
-    flex-shrink: 0;
-    justify-content: flex-end;
-    align-items: center;
-    flex-grow: 1;
-    padding-right: 1rem;
-}
-
-.button > div
-{
-    align-items: flex-end;
-    gap: 5px;
-}
-
-.button .unlocked
-{
-    color: #fffc;
-    font-weight: bold;
-}
-
-.button .splitter
-{
-    color: #fff9;
-}
-
-.button .total
-{
-    font-weight: bold;
-    color: #fffc;
+    overflow: hidden;
 }
 
 .achievement-icon
 {
-    flex-shrink: 0;
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
+    border-radius: $rounding-default;
     background-position: center;
     background-size: cover;
-    border-radius: 2px;
-    opacity: 1;
-    justify-content: center;
-}
+    border: 1px solid $default-border;
+    flex-shrink: 0;
 
-.achievement-icon.locked
-{
-    filter: saturate( 0.8 ) brightness( 0.8 );
-    opacity: 0.5;
+    &.locked
+    {
+        filter: saturate( 0.2 ) brightness( 0.5 );
+        opacity: 0.35;
+    }
 }

@@ -1,0 +1,4 @@
+"Layer0"
+{
+	"shader"		"shaders/fsr1_rcas.shader_c"
+}

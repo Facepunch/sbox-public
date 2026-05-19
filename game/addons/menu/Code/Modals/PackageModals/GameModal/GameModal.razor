@@ -47,22 +47,18 @@
                 </PortalButton>
             }
 
+            <PortalButton Portal=@Portal>
+                <Button>
+                    <SearchlightTab Title="Achievements" Icon="emoji_events" />
+                </Button>
+                <Content>
+					<AchievementList Package=@Package />
+                </Content>
+            </PortalButton>
+
         </Tabs>
         <Left>
-            <PackageHero Package="@Package" class="sidebar" MaxTags=@(8) />
-
-            @if (achList is not null)
-            {
-                <Label class="eyebrow">Achievements</Label>
-                <PortalButton Portal=@Portal>
-                    <Button>
-                        <AchievementSummary Package="@Package"></AchievementSummary>
-                    </Button>
-                    <Content>
-                        <AchievementList Package="@Package"></AchievementList>
-                    </Content>
-                </PortalButton>
-            }
+            <PackageInfoPanel Portal=@Portal Package="@Package" />
 
         </Left>
 
@@ -82,8 +78,6 @@
     public bool HasFullPackage { get; set; }
 
     public List<LobbyInformation> Lobbies = new();
-
-    AchievementCollection achList;
 
     PortalTarget Portal = default;
 
@@ -114,10 +108,6 @@
         HasFullPackage = true;
 
         await RefreshLobbies();
-
-        achList = await Package.GetAchievements();
-        if (!achList.All.Any()) achList = default;
-        if (achList is not null) StateHasChanged();
     }
 
     protected override int BuildHash() => System.HashCode.Combine(Package);

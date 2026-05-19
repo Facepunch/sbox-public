@@ -50,14 +50,18 @@
 
         </Tabs>
         <Left>
-            <PackageHero Package="@Package" class="sidebar" MaxTags=@(8) />
+            <PackageInfoPanel Package="@Package" />
 
             @if (achList is not null)
             {
-                <h2>Achievements</h2>
                 <PortalButton Portal=@Portal>
                     <Button>
-                        <AchievementSummary Package="@Package"></AchievementSummary>
+                        <Card class="achievements-card">
+                            <ChildContent>
+                                <label class="section-label">Achievements</label>
+                                <AchievementSummary Package="@Package" />
+                            </ChildContent>
+                        </Card>
                     </Button>
                     <Content>
                         <AchievementList Package="@Package"></AchievementList>

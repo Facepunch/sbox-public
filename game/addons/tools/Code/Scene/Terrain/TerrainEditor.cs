@@ -177,7 +177,7 @@ public class TerrainEditorTool : EditorTool
 		row.ControlWidget.ToolTip = tip;
 	}
 
-	public void DrawBrushPreview( Transform transform )
+	public void DrawBrushPreview( Transform transform, Terrain terrain = null )
 	{
 		_previewObject ??= new BrushPreviewSceneObject( Gizmo.World ); // Not cached, FindOrCreate is internal :x
 
@@ -194,6 +194,19 @@ public class TerrainEditorTool : EditorTool
 		_previewObject.Radius = BrushSettings.Size;
 		_previewObject.Texture = Brush.Texture;
 		_previewObject.Color = color;
+
+		if ( terrain?.Storage is not null )
+		{
+			var tx = terrain.WorldTransform;
+			_previewObject.CellSize = terrain.Storage.TerrainSize / terrain.Storage.Resolution;
+			_previewObject.TerrainOrigin = tx.Position;
+			_previewObject.TerrainRight = tx.Rotation.Right;
+			_previewObject.TerrainForward = tx.Rotation.Forward;
+		}
+		else
+		{
+			_previewObject.CellSize = 0f;
+		}
 	}
 
 	[Event( "scene.saved" )]

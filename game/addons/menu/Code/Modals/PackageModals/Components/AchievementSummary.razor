@@ -24,15 +24,11 @@
         }
     </div>
 
-    <div class="button">
-
-        <div>
-            <label class="unlocked">@collection.All.Where(x => x.IsUnlocked).Count()</label>
-            <label class="splitter">of</label>
-            <label class="total">@collection.All.Count()</label>
-        </div>
-        
-    </div>
+	<badge>
+        <label class="unlocked">@collection.All.Where(x => x.IsUnlocked).Count()</label>
+        <label class="splitter">of</label>
+        <label class="total">@collection.All.Count()</label>
+	</badge>
 
 </root>
 

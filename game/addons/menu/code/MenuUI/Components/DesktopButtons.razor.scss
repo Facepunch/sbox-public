@@ -1,0 +1,44 @@
+@import "/styles/_theme.scss";
+
+DesktopButtons
+{
+	width: 50%;
+	align-items: flex-end;
+	justify-content: flex-end;
+	height: 100%;
+	z-index: -10;
+
+	.stack
+	{
+		flex-direction: row;
+		align-items: flex-end;
+		gap: 10px;
+		padding: 6px;
+	}
+
+	Button
+	{
+		width: 72px;
+		height: 72px;
+		pointer-events: all;
+		cursor: pointer;
+		opacity: 0.4;
+
+		.icon
+		{
+			font-size: 3rem;
+			text-shadow: 1px 1px 10px rgba( black, 1 );
+		}
+
+		&:hover
+		{
+			opacity: 1;
+		}
+
+		&:active
+		{
+			position: relative;
+			top: 1px;
+		}
+	}
+}

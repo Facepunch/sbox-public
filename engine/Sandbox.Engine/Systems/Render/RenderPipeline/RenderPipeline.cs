@@ -8,10 +8,17 @@ namespace Sandbox.Rendering;
 /// </summary>
 internal partial class RenderPipeline
 {
+
 	DepthNormalPrepassLayer DepthNormalLargePrepass { get; } = new( true );
 	DepthNormalPrepassLayer DepthNormalSmallPrepass { get; } = new( false );
 	LightbinnerLayer LightbinnerLayer { get; } = new();
 	DepthDownsampleLayer DepthDownsampleLayer { get; } = new();
+	MotionVectorLayer MotionVectorLayer { get; } = new();
+	MotionVectorDebugLayer MotionVectorDebugLayer { get; } = new();
+	ReactiveDepthLayer ReactiveDepthViewmodel { get; } = new( "Reactive Depth (Viewmodel)", SceneObjectFlags.ViewModelLayer );
+	ReactiveDepthLayer ReactiveDepthOverlay { get; } = new( "Reactive Depth (Overlay)", SceneObjectFlags.GameOverlayLayer, clearDepth: false );
+	ReactiveMaskLayer ReactiveMaskLayer { get; } = new();
+	ReactiveMaskDebugLayer ReactiveMaskDebugLayer { get; } = new();
 	ClusteredCullingLayer ClusteredCullingLayer { get; } = new();
 	BloomLayer BloomLayer { get; } = new();
 	BloomDownsampleLayer BloomDownsampleLayer { get; } = new();
@@ -75,6 +82,26 @@ internal partial class RenderPipeline
 			DepthDownsampleLayer.AddToView( view, viewport );
 		}
 
+		// Render motion vectors if something asks for it, e.g FSR3 or DLSS
+		if ( view.GetRenderAttributesPtr().GetBoolValue( "WantsMotionVectors", false ) )
+		{
+			MotionVectorLayer.Setup( viewport, view );
+			MotionVectorLayer.AddToView( view, viewport );
+
+			// Reactive mask: re-render viewmodel and overlay objects in depth-only mode,
+			// then convert to an R16F mask that tells FSR3 to prefer current-frame
+			// data for these pixels (they have no valid motion vectors).
+			var reactiveDepthHandle = ReactiveMaskLayer.Setup( viewport, view );
+
+			ReactiveDepthViewmodel.Setup( reactiveDepthHandle );
+			ReactiveDepthViewmodel.AddToView( view, viewport );
+
+			ReactiveDepthOverlay.Setup( reactiveDepthHandle );
+			ReactiveDepthOverlay.AddToView( view, viewport );
+
+			ReactiveMaskLayer.AddToView( view, viewport );
+		}
+
 		// Bloom layer, Effects that only show up on bloom like a ghost effect
 		{
 			RenderViewport quarterViewport = viewport / 4;
@@ -112,6 +139,22 @@ internal partial class RenderPipeline
 
 	internal void PipelineEnd( ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle rtColor, SceneViewRenderTargetHandle rtDepth, RenderMultisampleType nMSAA, CRenderAttributes pipelineAttrs, RenderViewport screenSize )
 	{
+		var pipelineAttributes = new RenderAttributes( pipelineAttrs );
+
+		// Motion vector debug visualization - blit to color buffer after scene is rendered
+		if ( pipelineAttributes.GetInt( "ToolsVisMode" ) == (int)SceneCameraDebugMode.MotionVectors )
+		{
+			MotionVectorDebugLayer.ColorAttachment = rtColor;
+			MotionVectorDebugLayer.AddToView( view, viewport );
+		}
+
+		// Reactive mask debug visualization
+		if ( pipelineAttributes.GetInt( "ToolsVisMode" ) == (int)SceneCameraDebugMode.ReactiveMask )
+		{
+			ReactiveMaskDebugLayer.ColorAttachment = rtColor;
+			ReactiveMaskDebugLayer.AddToView( view, viewport );
+		}
+
 		var cameraId = view.m_ManagedCameraId;
 		if ( cameraId == 0 )
 			return;

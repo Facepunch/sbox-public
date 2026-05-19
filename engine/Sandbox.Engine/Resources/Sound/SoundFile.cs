@@ -349,6 +349,45 @@ public partial class SoundFile : Resource, IValid
 		return Create( filename, pcmData, soundData.Channels, soundData.SampleRate, format, soundData.SampleCount, soundData.Duration, loopStart, loopEnd );
 	}
 
+	/// <summary>
+	/// Load sound from OGG vorbis.
+	/// </summary>
+	/// <param name="filename">Sound name</param>
+	/// <param name="data">OGG file data</param>
+	/// <param name="options">Loop options</param>
+	public static unsafe SoundFile FromOgg( string filename, Span<byte> data, LoadOptions options = default )
+	{
+		ThreadSafe.AssertIsMainThread( "SoundFile.FromOgg" );
+
+		if ( !filename.EndsWith( ".vsnd", StringComparison.OrdinalIgnoreCase ) )
+			filename = System.IO.Path.ChangeExtension( filename, "vsnd" );
+
+		if ( Loaded.TryGetValue( filename, out var soundFile ) )
+			return soundFile;
+
+		if ( data.Length <= 0 )
+			throw new ArgumentException( "Invalid data" );
+
+		var soundData = SoundData.FromOGG( data );
+		var pcmData = soundData.PCMData ?? throw new ArgumentException( "Invalid OGG file" );
+
+		var format = 0;
+		if ( soundData.Format == 1 )
+		{
+			if ( soundData.BitsPerSample == 8 ) format = 1;
+			else if ( soundData.BitsPerSample == 16 ) format = 0;
+		}
+		else if ( soundData.Format == 3 )
+		{
+			format = 3;
+		}
+
+		var loopStart = options.LoopStart >= 0 ? options.LoopStart : (options.Loop ? 0 : -1);
+		var loopEnd = options.LoopEnd;
+
+		return Create( filename, pcmData, soundData.Channels, soundData.SampleRate, format, soundData.SampleCount, soundData.Duration, loopStart, loopEnd );
+	}
+
 	[Obsolete( $"Use {nameof( FromPcm )}( filename, data, {nameof( PcmOptions )} )" )]
 	public static SoundFile FromPcm( string filename, Span<byte> data, int channels, uint rate, int bits, bool loop )
 		=> FromPcm( filename, data, new PcmOptions { Channels = channels, Rate = rate, Bits = bits, Loop = loop } );

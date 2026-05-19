@@ -2,6 +2,11 @@
 
 namespace Facepunch.Steps;
 
+/// <summary>
+/// Signs all eligible binaries in the build output using the <c>sign</c> dotnet tool
+/// with Azure Trusted Signing (artifact-signing). Auth is handled via DefaultAzureCredential
+/// (expects AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_CLIENT_SECRET in the environment).
+/// </summary>
 internal class SignBinaries() : Step( "SignBinaries" )
 {
 
@@ -9,15 +14,13 @@ internal class SignBinaries() : Step( "SignBinaries" )
 	{
 		string rootDir = Directory.GetCurrentDirectory();
 
-		var vaultUrl = Environment.GetEnvironmentVariable( "CODESIGN_AZURE_KEYVAULT_URL" );
-		var clientId = Environment.GetEnvironmentVariable( "CODESIGN_AZURE_CLIENT_ID" );
-		var clientSecret = Environment.GetEnvironmentVariable( "CODESIGN_AZURE_CLIENT_SECRET" );
-		var tenantId = Environment.GetEnvironmentVariable( "CODESIGN_AZURE_TENANT_ID" );
+		var endpointUrl = Environment.GetEnvironmentVariable( "CODESIGN_ENDPOINT_URL" );
+		var accountName = Environment.GetEnvironmentVariable( "CODESIGN_ACCOUNT_NAME" );
+		var certificateProfile = Environment.GetEnvironmentVariable( "CODESIGN_CERTIFICATE_PROFILE" );
 
-		if ( string.IsNullOrEmpty( vaultUrl ) || string.IsNullOrEmpty( clientId ) ||
-			 string.IsNullOrEmpty( clientSecret ) || string.IsNullOrEmpty( tenantId ) )
+		if ( string.IsNullOrEmpty( endpointUrl ) || string.IsNullOrEmpty( accountName ) || string.IsNullOrEmpty( certificateProfile ) )
 		{
-			Log.Error( "One or more Azure signing environment variables are missing (CODESIGN_AZURE_KEYVAULT_URL, CODESIGN_AZURE_CLIENT_ID, CODESIGN_AZURE_CLIENT_SECRET, CODESIGN_AZURE_TENANT_ID)" );
+			Log.Error( "Missing signing env vars — need CODESIGN_ENDPOINT_URL, CODESIGN_ACCOUNT_NAME, CODESIGN_CERTIFICATE_PROFILE" );
 			return ExitCode.Failure;
 		}
 
@@ -29,14 +32,15 @@ internal class SignBinaries() : Step( "SignBinaries" )
 			return ExitCode.Success;
 		}
 
-		Log.Info( $"Signing {filesToSign.Count} files in a single batch..." );
+		Log.Info( $"Signing {filesToSign.Count} files..." );
 
 		var fileArgs = string.Join( " ", filesToSign.Select( f => $"\"{f}\"" ) );
 
 		bool success = Utility.RunProcess(
-			"AzureSignTool",
-			$"sign -kvu \"{vaultUrl}\" -kvi \"{clientId}\" -kvs \"{clientSecret}\" -kvt \"{tenantId}\" -kvc FPCodeSign -tr http://timestamp.digicert.com {fileArgs}",
-			rootDir
+			"sign",
+			$"code artifact-signing -ase \"{endpointUrl}\" -asa \"{accountName}\" -ascp \"{certificateProfile}\" -v warning -m 16 {fileArgs}",
+			rootDir,
+			timeoutMs: 600000
 		);
 
 		if ( !success )

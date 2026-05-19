@@ -56,7 +56,7 @@ partial class VertexPaintTool
 				_channelsWidget.Layout.Spacing = 4;
 
 				var material = tool.Tool.ActiveMaterial;
-				var blendCount = material.IsValid() ? material.GetFeature( "F_MULTIBLEND" ) : 0;
+				var blendCount = GetVertexPaintLayerCount( material );
 
 				var masks = new[]
 				{
@@ -142,6 +142,19 @@ partial class VertexPaintTool
 			Layout.AddStretchCell();
 
 			UpdateModeVisibility( tool.Mode );
+		}
+
+		static int GetVertexPaintLayerCount( Material material )
+		{
+			if ( !material.IsValid() )
+				return 0;
+
+			if ( material.Flags.GetInt( "VertexPaintUI5Layer" ) == 1 ) return 4;
+			if ( material.Flags.GetInt( "VertexPaintUI4Layer" ) == 1 ) return 3;
+			if ( material.Flags.GetInt( "VertexPaintUI3Layer" ) == 1 ) return 2;
+			if ( material.Flags.GetInt( "VertexPaintUI2Layer" ) == 1 ) return 1;
+
+			return 0;
 		}
 
 		void UpdateModeVisibility( PaintMode mode )

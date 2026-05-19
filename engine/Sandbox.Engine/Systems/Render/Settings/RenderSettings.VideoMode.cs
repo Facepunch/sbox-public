@@ -52,8 +52,8 @@ public partial class RenderSettings
 
 	private void ApplyVideoMode()
 	{
-		// No changing this in the editor
-		if ( Application.IsEditor )
+		// No changing this in the editor or on headless servers
+		if ( Application.IsEditor || Application.IsHeadless )
 			return;
 
 		NativeEngine.RenderDeviceManager.ChangeVideoMode( Fullscreen, Borderless, VSync, ResolutionWidth, ResolutionHeight, AntiAliasQuality.ToEngine() );

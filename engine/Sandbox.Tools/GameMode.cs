@@ -11,6 +11,11 @@ public static class GameMode
 	static Widget _inPlay;
 
 	/// <summary>
+	/// Is a render widget the active play widget
+	/// </summary>
+	internal static bool IsPlayWidget( SceneRenderingWidget widget ) => widget == _inPlay;
+
+	/// <summary>
 	/// Given a widget, register it for SDL input, and tell the engine this is the swapchain we have
 	/// </summary>
 	/// <param name="widget"></param>

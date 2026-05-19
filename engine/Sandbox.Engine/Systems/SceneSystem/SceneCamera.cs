@@ -948,4 +948,8 @@ public enum SceneCameraDebugMode
 	Overdraw = 101,
 	[Title( "Ambient Occlusion" ), Icon( "radio_button_checked" )]
 	AmbientOcclusion = 14,
+	[Title( "Motion Vectors" ), Icon( "animation" )]
+	MotionVectors = 102,
+	[Title( "Reactive Mask" ), Icon( "shield" )]
+	ReactiveMask = 103,
 }

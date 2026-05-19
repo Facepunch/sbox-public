@@ -119,7 +119,7 @@ public partial class Scene : GameObject
 			HitPosition = trace.PhysicsTrace.request.EndPos,
 			Fraction = 1,
 			Direction = (trace.PhysicsTrace.request.EndPos - trace.PhysicsTrace.request.StartPos).Normal,
-			Tags = default
+			_rawTags = default
 		};
 	}
 
@@ -882,10 +882,18 @@ public struct SceneTraceResult
 	public int Triangle;
 
 	/// <summary>
-	/// The tags that the hit shape had
+	/// Returns true if the hit shape has this tag.
 	/// </summary>
-	[ActionGraphInclude, ReadOnly, Group( "Hit Object" )]
-	public string[] Tags;
+	public readonly bool HasTag( StringToken tag ) => _rawTags.Contains( tag.Value );
+
+	/// <summary>
+	/// The tags that the hit shape had.
+	/// </summary>
+	[Obsolete( "Use HasTag instead." ), ActionGraphInclude, ReadOnly, Group( "Hit Object" )]
+	public readonly string[] Tags => _rawTags.Count == 0 ? Array.Empty<string>() : _rawTags.ToStringArray();
+
+	// Raw token IDs stored inline, allocation free
+	internal TagBuffer16 _rawTags;
 
 	/// <summary>
 	/// The hitbox that we hit
@@ -919,7 +927,7 @@ public struct SceneTraceResult
 			Bone = r.Bone,
 			Direction = r.Direction,
 			Triangle = r.Triangle,
-			Tags = r.Tags,
+			_rawTags = r._rawTags,
 			GameObject = r.Body?.GameObject,
 			Component = r.Body?.Component,
 			Collider = r.Shape?.Collider,
@@ -931,6 +939,14 @@ public struct SceneTraceResult
 
 	public static SceneTraceResult From( in Scene scene, in Engine.Utility.RayTrace.MeshTraceRequest.Result r )
 	{
+		var rawTags = new TagBuffer16();
+		var sceneTags = r.SceneObject.Tags.TryGetAll();
+		if ( sceneTags is not null )
+		{
+			foreach ( var tag in sceneTags )
+				rawTags.AddUnique( ((StringToken)tag).Value );
+		}
+
 		var result = new SceneTraceResult
 		{
 			Scene = scene,
@@ -947,7 +963,7 @@ public struct SceneTraceResult
 			Bone = default,
 			Direction = (r.EndPosition - r.StartPosition).Normal,
 			Triangle = r.HitTriangle,
-			Tags = r.SceneObject.Tags.TryGetAll().ToArray(),
+			_rawTags = rawTags,
 			GameObject = r.SceneObject.GameObject,
 			Component = r.SceneObject.Component
 		};

@@ -26,7 +26,8 @@ native class CSimplePCMWaveData
 	static CSimplePCMWaveData Create();[new]
 	void Dispose(); [delete]
 
-	void ParseMP3File( CastTo[uint8*] void* pData, CastTo[size_t] int nDataSize );
+	void ParseMP3File( CastTo[uint8*] void* pData, CastTo[size_t] int nDataSize );	
+	bool ParseOGGFile( CastTo[uint8*] void* pData, CastTo[size_t] int nDataSize );	
 
 	inline void* GetPCMData()
 	{

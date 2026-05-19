@@ -284,7 +284,7 @@ public partial class Scene : GameObject
 
 				var currentValue = property.GetValue( system );
 				var hasGlobalValue = ProjectSettings.Systems.TryGetPropertyValue( systemType, property, out var globalValue );
-				var compareValue = hasGlobalValue ? globalValue : property.GetCustomAttribute<DefaultValueAttribute>()?.Value;
+				var compareValue = hasGlobalValue ? globalValue : SystemsConfig.GetDefaultValue( property );
 
 				var currentJson = JsonSerializer.SerializeToNode( currentValue, Json.options );
 				var compareJson = JsonSerializer.SerializeToNode( compareValue, Json.options );
@@ -346,7 +346,12 @@ public partial class Scene : GameObject
 			}
 		}
 
-		if ( data.TryGetPropertyValue( "GameObjectSystems", out var systemOverridesNode ) )
+		//
+		// We don't want system scene loads to overwrite the main scene's system properties.
+		// System scenes can add GameObjects, but they should not reconfigure systems that
+		// already belong to the main scene (same reason NavMesh is guarded below).
+		//
+		if ( !isSystemScene && data.TryGetPropertyValue( "GameObjectSystems", out var systemOverridesNode ) )
 		{
 			ApplyGameObjectSystemOverrides( systemOverridesNode );
 		}

@@ -334,7 +334,7 @@ public partial class Mixer
 			{
 				volume *= Preferences.MusicVolume;
 			}
-			else if ( string.Equals( Name, "voip", StringComparison.OrdinalIgnoreCase ) )
+			else if ( string.Equals( Name, "voice", StringComparison.OrdinalIgnoreCase ) )
 			{
 				volume *= Preferences.VoipVolume;
 			}
