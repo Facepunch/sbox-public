@@ -2,20 +2,30 @@
 @using Sandbox.UI.Navigation;
 @using Sandbox;
 @using System;
+@using MenuProject;
+@using MenuProject.Modals;
 @namespace Sandbox.UI
 @inherits Panel
 
-<div>
+<div class="stack">
     <Button icon="@CurrentModelMode" onclick="@ToggleHuman"></Button>
+    <Button Icon="🛟" Tooltip="Show welcome screen" onclick="@ShowWelcome"></Button>
 </div>
 
 @code
 {
     bool IsHuman => Scene.Directory.FindByName("Player Human").FirstOrDefault()?.Active ?? false;
 
-    string CurrentModelMode => IsHuman ? "🌭" : "🙎🏼";
+    string CurrentModelMode => !IsHuman ? "🌭" : "🙎🏼";
 
     protected override int BuildHash() => System.HashCode.Combine(IsHuman);
+
+    void ShowWelcome()
+    {
+        if ( MainMenu.Instance is null ) return;
+        var modal = new WelcomeScreenModal();
+        modal.Parent = MainMenu.Instance.Panel;
+    }
 
     async Task ToggleHuman()
     {

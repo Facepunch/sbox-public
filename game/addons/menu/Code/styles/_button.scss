@@ -45,7 +45,8 @@ $button-size: 50px;
 
 		&:active
 		{
-			transform: scale( 0.9 );
+			position: relative;
+			top: 1px;
 		}
 
 		&.is-cancel

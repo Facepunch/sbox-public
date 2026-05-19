@@ -1,0 +1,192 @@
+@using Sandbox
+@using Sandbox.UI
+
+@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+
+<root>
+	<div class="window">
+
+		<div class="screens">
+
+			@if ( CurrentScreen == 0 )
+			{
+				<div class="screen">
+                    <div class="screen-header" style="background-image: url( /ui/welcome/models.mp4 )">
+						<Label class="eyebrow" Text="Welcome to s&box"></Label>
+						<Label class="title" Text="it's made of mods"></Label>
+					</div>
+					<div class="body">
+						<Label IsRich="@true" Text="In s&box <strong>everything is user created content</strong>. Games, maps, models, guns, npcs - all little addons."></Label>
+						<Label IsRich="@true" Text="Nothing to install or subscribe to. Click a game.. and <strong>it opens</strong>. Click a model.. and <strong>it spawns</strong>. Click an entity.. and <strong>it's there</strong>."></Label>
+                        <Label IsRich="@true" Text="It's <strong>Workshop</strong> - but not as you know it."></Label>
+					</div>
+				</div>
+			}
+			else if ( CurrentScreen == 1 )
+			{
+				<div class="screen">
+                    <div class="screen-header" style="background-image: url( /ui/welcome/editor.mp4 )">
+						<Label class="eyebrow" Text="Make Something"></Label>
+						<Label class="title" Text="omg an editor"></Label>
+					</div>
+					<div class="body">
+						<Label Text="This isn't just a Source 2 mod - it's a modern game engine."></Label>
+                        <Label IsRich="@true" Text="It's on your Steam under Tools, just search for <strong>s&box editor</strong>"></Label>
+						<Label Text="If you've ever wanted to make a game, this is the easiest place to start.. or just have fun playing with the physics and particles!"></Label>
+						<Button class="clicky primary learn-button" Icon="open_in_new" @onclick=@OpenLearn>Learn More at sbox.game/learn</Button>
+					</div>
+				</div>
+			}
+			else if ( CurrentScreen == 2 )
+			{
+				<div class="screen">
+                    <div class="screen-header" style="background-image: url( /ui/welcome/playermodel.png )">
+						<Label class="eyebrow" Text="every game is different"></Label>
+						<Label class="title" Text="freedom"></Label>
+					</div>
+					<div class="body">
+						<Label Text="You won't always be a sausage, each game can decide what you play as."></Label>
+                        <Label Text="Some use our shared characters, others use their own. We don't and won't restrict this in any way."></Label>
+                        <Label IsRich="@true" Text="Buying skins is optional, when you do it supports the creators and the <strong>Play Fund</strong>. This isn't NFT or blockchain stuff. This is the same Steam Inventory from Rust, CS2 and Dota."></Label>
+					</div>
+				</div>
+			}
+			else
+			{
+				<div class="screen no-header">
+					<div class="body">
+						<Label class="intro-eyebrow" Text="Get Started"></Label>
+						<Label class="intro-title" Text="Try one of these"></Label>
+						<Label Text="Overwhelmed? These games will give you a taste of what s&box can do."></Label>
+						<div class="game-buttons">
+							<div class="game-button" style="background-image: url( /ui/welcome/sandbox_mode.webm )" @onclick=@OpenSandbox>
+								<div class="game-button-label">
+									<Label class="game-name" Text="Sandbox"></Label>
+									<Label class="game-desc" Text="The classic mess-about-with-physics experience."></Label>
+								</div>
+							</div>
+							<div class="game-button" style="background-image: url( /ui/welcome/sausage_survivors.webm )" @onclick=@OpenSausageSurvivors>
+								<div class="game-button-label">
+									<Label class="game-name" Text="Sausage Survivors 2"></Label>
+									<Label class="game-desc" Text="A polished, fast-paced game that shows off what's possible."></Label>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			}
+
+		</div>
+
+		<div class="footer">
+
+			<div class="dots">
+				@for ( var i = 0; i < ScreenCount; i++ )
+				{
+					var index = i;
+					<div class="dot @(index == CurrentScreen ? "active" : "")" @onclick=@( () => GoTo( index ) )></div>
+				}
+			</div>
+
+			<div class="actions">
+
+				@if ( IsLastScreen )
+				{
+					<div class="dont-show @(DontShowAgain ? "checked" : "")" @onclick=@ToggleDontShow>
+						<icon>@(DontShowAgain ? "check_box" : "check_box_outline_blank")</icon>
+						<Label Text="Don't show this again"></Label>
+					</div>
+				}
+
+				<div class="grow"></div>
+
+				@if ( CurrentScreen > 0 )
+				{
+					<Button class="clicky secondary" @onclick=@Previous>Back</Button>
+				}
+
+				@if ( !IsLastScreen )
+				{
+					<Button class="clicky primary" @onclick=@Next>Next</Button>
+				}
+				else
+				{
+					<Button class="clicky primary" @onclick=@Finish>Close</Button>
+				}
+
+			</div>
+		</div>
+
+	</div>
+</root>
+
+@code
+{
+	public const string CookieKey = "menu.welcomescreen.hidden";
+
+	const int ScreenCount = 4;
+
+	int CurrentScreen { get; set; } = 0;
+	bool DontShowAgain { get; set; } = false;
+
+	bool IsLastScreen => CurrentScreen == ScreenCount - 1;
+
+	void Next()
+	{
+		if ( CurrentScreen < ScreenCount - 1 )
+		{
+			CurrentScreen++;
+			StateHasChanged();
+		}
+	}
+
+	void Previous()
+	{
+		if ( CurrentScreen > 0 )
+		{
+			CurrentScreen--;
+			StateHasChanged();
+		}
+	}
+
+	void GoTo( int index )
+	{
+		if ( index < 0 || index >= ScreenCount ) return;
+		CurrentScreen = index;
+		StateHasChanged();
+	}
+
+	void ToggleDontShow()
+	{
+		DontShowAgain = !DontShowAgain;
+		StateHasChanged();
+	}
+
+	void Finish()
+	{
+		if ( DontShowAgain )
+		{
+			Game.Cookies.Set( CookieKey, true );
+		}
+
+		Delete();
+	}
+
+	void OpenLearn()
+	{
+		MenuUtility.OpenUrl( "https://sbox.game/learn" );
+	}
+
+	void OpenSandbox()
+	{
+		Game.Overlay.ShowGameModal( "facepunch.sandbox" );
+	}
+
+	void OpenSausageSurvivors()
+	{
+		Game.Overlay.ShowGameModal( "facepunch.ss2" );
+	}
+
+	protected override int BuildHash() => HashCode.Combine( CurrentScreen, DontShowAgain );
+}

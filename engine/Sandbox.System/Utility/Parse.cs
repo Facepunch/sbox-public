@@ -164,16 +164,28 @@ namespace Sandbox
 			return Text.Substring( iStart, iEnd - iStart );
 		}
 
-		public string ReadWord( string endOnCharacter = null, bool readUntilEnd = false )
+		public string ReadWord( string endOnCharacter = null, bool readUntilEnd = false, bool respectParens = false )
 		{
 			var p = this;
+			int depth = 0;
 
 			while ( true )
 			{
 				if ( p.IsEnd && !readUntilEnd )
 					return null;
 
-				if ( p.IsEnd || p.IsWhitespace || p.IsNewline || p.IsOneOf( endOnCharacter ) )
+				if ( p.IsEnd )
+					return this.Read( p.Pointer - Pointer );
+
+				var c = p.Current;
+
+				if ( respectParens )
+				{
+					if ( c == '(' || c == '[' || c == '{' ) { depth++; p.Pointer++; continue; }
+					if ( c == ')' || c == ']' || c == '}' ) { if ( depth > 0 ) depth--; p.Pointer++; continue; }
+				}
+
+				if ( depth == 0 && (p.IsWhitespace || p.IsNewline || p.IsOneOf( endOnCharacter )) )
 					return this.Read( p.Pointer - Pointer );
 
 				p.Pointer++;
@@ -245,6 +257,31 @@ namespace Sandbox
 			while ( !p.IsEnd )
 			{
 				if ( p.IsOneOf( c1 ) )
+				{
+					if ( p.Pointer == Pointer )
+						return string.Empty;
+
+					return this.Read( p.Pointer - Pointer );
+				}
+
+				p.Pointer++;
+			}
+
+			return this.ReadRemaining( acceptNone );
+		}
+
+		public string ReadUntilOrEnd( string c1, bool respectParens, bool acceptNone = false )
+		{
+			var p = this;
+			int depth = 0;
+
+			while ( !p.IsEnd )
+			{
+				var c = p.Current;
+
+				if ( c == '(' || c == '[' || c == '{' ) depth++;
+				else if ( c == ')' || c == ']' || c == '}' ) { if ( depth > 0 ) depth--; }
+				else if ( depth == 0 && p.IsOneOf( c1 ) )
 				{
 					if ( p.Pointer == Pointer )
 						return string.Empty;

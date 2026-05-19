@@ -845,6 +845,34 @@ namespace Sandbox.UI
 			{
 				var shadow = new Shadow();
 
+				p.SkipWhitespaceAndNewlines();
+
+				// Per spec, inset may appear before or after the lengths/color.
+				if ( p.TryReadShadowInset( out var insetBefore ) )
+				{
+					shadow.Inset = insetBefore;
+					p.SkipWhitespaceAndNewlines();
+				}
+
+				// Color is also allowed to appear before the lengths.
+				var gotColorBefore = false;
+				if ( !p.IsDigit && p.Current != '-' && p.Current != '.' )
+				{
+					if ( p.TryReadColor( out var earlyColor ) )
+					{
+						shadow.Color = earlyColor;
+						gotColorBefore = true;
+						p.SkipWhitespaceAndNewlines();
+					}
+				}
+
+				// If we haven't read inset yet, allow it between an early color and the lengths too.
+				if ( !shadow.Inset && p.TryReadShadowInset( out var insetMid ) )
+				{
+					shadow.Inset = insetMid;
+					p.SkipWhitespaceAndNewlines();
+				}
+
 				if ( !p.TryReadLength( out var x ) )
 					return false;
 
@@ -864,14 +892,14 @@ namespace Sandbox.UI
 					}
 				}
 
-				if ( p.TryReadColor( out var color ) )
+				if ( !gotColorBefore && p.TryReadColor( out var color ) )
 				{
 					shadow.Color = color;
 				}
 
 				p.SkipWhitespaceAndNewlines();
 
-				if ( p.TryReadShadowInset( out var inset ) )
+				if ( !shadow.Inset && p.TryReadShadowInset( out var inset ) )
 				{
 					shadow.Inset = inset;
 				}

@@ -37,6 +37,11 @@ internal class AccountInformation
 	public static long Score { get; set; }
 
 	/// <summary>
+	/// The first time we've seen this user
+	/// </summary>
+	public static DateTimeOffset FirstSeen { get; set; }
+
+	/// <summary>
 	/// The current logged in user's avatar, from the backend
 	/// </summary>
 	public static string AvatarJson { get; set; }
@@ -87,6 +92,7 @@ internal class AccountInformation
 			Favourites = login.Favourites?.Select( x => RemotePackage.FromDto( x ) ).ToList() ?? new();
 			Memberships = login.Memberships?.Select( x => Package.Organization.FromDto( x ) ).ToList() ?? new();
 			Score = login.Player?.Score ?? 0;
+			FirstSeen = login.FirstSeen;
 
 			if ( !string.IsNullOrWhiteSpace( login.AvatarJson ) )
 			{

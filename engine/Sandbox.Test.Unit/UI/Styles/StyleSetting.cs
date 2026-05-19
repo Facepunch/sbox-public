@@ -663,6 +663,52 @@ public class StyleSetting
 	}
 
 	[TestMethod]
+	public void SetTransitionFunctions()
+	{
+		Styles styles = new Styles();
+		Assert.IsTrue( styles.Set( "transition", "transform 350ms cubic-bezier(0.16, 1, 0.3, 1)" ) );
+
+		Assert.IsNotNull( styles.Transitions );
+		Assert.AreEqual( 1, styles.Transitions.List.Count );
+		Assert.AreEqual( "transform", styles.Transitions.List[0].Property );
+		Assert.AreEqual( 350, styles.Transitions.List[0].Duration );
+		Assert.AreEqual( "cubic-bezier(0.16,1,0.3,1)", styles.Transitions.List[0].TimingFunction.Replace( " ", "" ) );
+
+		styles = new Styles();
+		Assert.IsTrue( styles.Set( "transition", "transform 350ms cubic-bezier( 0.16, 1, 0.3, 1 )" ) );
+
+		Assert.AreEqual( 1, styles.Transitions.List.Count );
+		Assert.IsTrue( styles.Transitions.List[0].TimingFunction.StartsWith( "cubic-bezier" ) );
+		Assert.IsTrue( styles.Transitions.List[0].TimingFunction.EndsWith( ")" ) );
+
+		styles = new Styles();
+		Assert.IsTrue( styles.Set( "transition", "transform 350ms cubic-bezier(0.16, 1, 0.3, 1), opacity 250ms ease-out" ) );
+
+		Assert.AreEqual( 2, styles.Transitions.List.Count );
+		Assert.AreEqual( "transform", styles.Transitions.List[0].Property );
+		Assert.AreEqual( 350, styles.Transitions.List[0].Duration );
+		Assert.IsTrue( styles.Transitions.List[0].TimingFunction.StartsWith( "cubic-bezier" ) );
+		Assert.AreEqual( "opacity", styles.Transitions.List[1].Property );
+		Assert.AreEqual( 250, styles.Transitions.List[1].Duration );
+		Assert.AreEqual( "ease-out", styles.Transitions.List[1].TimingFunction );
+
+		styles = new Styles();
+		Assert.IsTrue( styles.Set( "transition", "width 1s steps(4, end), height 500ms ease" ) );
+
+		Assert.AreEqual( 2, styles.Transitions.List.Count );
+		Assert.AreEqual( "width", styles.Transitions.List[0].Property );
+		Assert.AreEqual( 1000, styles.Transitions.List[0].Duration );
+		Assert.IsTrue( styles.Transitions.List[0].TimingFunction.StartsWith( "steps" ) );
+		Assert.AreEqual( "height", styles.Transitions.List[1].Property );
+
+		styles = new Styles();
+		Assert.IsTrue( styles.Set( "transition", "width 1s ease," ) );
+
+		Assert.AreEqual( 1, styles.Transitions.List.Count );
+		Assert.AreEqual( "width", styles.Transitions.List[0].Property );
+	}
+
+	[TestMethod]
 	public void SetBorderRadius()
 	{
 		Styles styles = new Styles();
@@ -1046,6 +1092,101 @@ public class StyleSetting
 		styles.Set( "box-shadow", "1px 1px black, 1px 1px black, 1px 1px black, 1px 1px black, 1px 1px black, 1px 1px black, 1px 1px black, 1px 1px black, 1px 1px black, 1px 1px black" );
 
 		Assert.AreEqual( 10, styles.BoxShadow.Count );
+	}
+
+	[TestMethod]
+	public void SetBoxShadowLeadingInset()
+	{
+		Styles styles = new Styles();
+		Assert.IsTrue( styles.Set( "box-shadow", "inset 10px 20px 30px 40px red" ) );
+
+		Assert.AreEqual( 1, styles.BoxShadow.Count );
+		Assert.AreEqual( true, styles.BoxShadow[0].Inset );
+		Assert.AreEqual( 10, styles.BoxShadow[0].OffsetX );
+		Assert.AreEqual( 20, styles.BoxShadow[0].OffsetY );
+		Assert.AreEqual( 30, styles.BoxShadow[0].Blur );
+		Assert.AreEqual( 40, styles.BoxShadow[0].Spread );
+		Assert.AreEqual( new Color( 1, 0, 0, 1 ), styles.BoxShadow[0].Color );
+
+		// Leading inset, three lengths, no spread
+		styles = new Styles();
+		Assert.IsTrue( styles.Set( "box-shadow", "inset 0 2px 6px rgba( 0, 0, 0, 0.7 )" ) );
+
+		Assert.AreEqual( 1, styles.BoxShadow.Count );
+		Assert.AreEqual( true, styles.BoxShadow[0].Inset );
+		Assert.AreEqual( 0, styles.BoxShadow[0].OffsetX );
+		Assert.AreEqual( 2, styles.BoxShadow[0].OffsetY );
+		Assert.AreEqual( 6, styles.BoxShadow[0].Blur );
+		Assert.AreEqual( new Color( 0, 0, 0, 0.7f ), styles.BoxShadow[0].Color );
+
+		// Leading inset, two lengths
+		styles = new Styles();
+		Assert.IsTrue( styles.Set( "box-shadow", "inset 0 1px 0 rgba( 0, 0, 0, 0.5 )" ) );
+		Assert.AreEqual( 1, styles.BoxShadow.Count );
+		Assert.AreEqual( true, styles.BoxShadow[0].Inset );
+		Assert.AreEqual( 0, styles.BoxShadow[0].OffsetX );
+		Assert.AreEqual( 1, styles.BoxShadow[0].OffsetY );
+		Assert.AreEqual( 0, styles.BoxShadow[0].Blur );
+		Assert.AreEqual( new Color( 0, 0, 0, 0.5f ), styles.BoxShadow[0].Color );
+	}
+
+	[TestMethod]
+	public void SetBoxShadowLeadingColor()
+	{
+		Styles styles = new Styles();
+		Assert.IsTrue( styles.Set( "box-shadow", "red 10px 20px" ) );
+
+		Assert.AreEqual( 1, styles.BoxShadow.Count );
+		Assert.AreEqual( 10, styles.BoxShadow[0].OffsetX );
+		Assert.AreEqual( 20, styles.BoxShadow[0].OffsetY );
+		Assert.AreEqual( new Color( 1, 0, 0, 1 ), styles.BoxShadow[0].Color );
+
+		// Inset + leading color
+		styles = new Styles();
+		Assert.IsTrue( styles.Set( "box-shadow", "red inset 10px 20px 5px" ) );
+
+		Assert.AreEqual( 1, styles.BoxShadow.Count );
+		Assert.AreEqual( true, styles.BoxShadow[0].Inset );
+		Assert.AreEqual( 10, styles.BoxShadow[0].OffsetX );
+		Assert.AreEqual( 20, styles.BoxShadow[0].OffsetY );
+		Assert.AreEqual( 5, styles.BoxShadow[0].Blur );
+		Assert.AreEqual( new Color( 1, 0, 0, 1 ), styles.BoxShadow[0].Color );
+	}
+
+	[TestMethod]
+	public void SetBoxShadowMixedInsetAndOuter()
+	{
+		// The exact pattern that previously failed to parse — multiple shadows,
+		// some inset and some not, sharing a single declaration.
+		Styles styles = new Styles();
+		Assert.IsTrue( styles.Set( "box-shadow",
+			"inset 0 2px 6px rgba( 0, 0, 0, 0.7 ), 0 1px 2px rgba( 0, 0, 0, 0.4 )" ) );
+
+		Assert.AreEqual( 2, styles.BoxShadow.Count );
+
+		Assert.AreEqual( true, styles.BoxShadow[0].Inset );
+		Assert.AreEqual( 0, styles.BoxShadow[0].OffsetX );
+		Assert.AreEqual( 2, styles.BoxShadow[0].OffsetY );
+		Assert.AreEqual( 6, styles.BoxShadow[0].Blur );
+		Assert.AreEqual( new Color( 0, 0, 0, 0.7f ), styles.BoxShadow[0].Color );
+
+		Assert.AreEqual( false, styles.BoxShadow[1].Inset );
+		Assert.AreEqual( 0, styles.BoxShadow[1].OffsetX );
+		Assert.AreEqual( 1, styles.BoxShadow[1].OffsetY );
+		Assert.AreEqual( 2, styles.BoxShadow[1].Blur );
+		Assert.AreEqual( new Color( 0, 0, 0, 0.4f ), styles.BoxShadow[1].Color );
+
+		// Three-shadow stack: inset highlight, inset shadow, outer drop shadow
+		styles = new Styles();
+		Assert.IsTrue( styles.Set( "box-shadow",
+			"inset 0 1px 0 rgba( 255, 255, 255, 0.15 ), inset 0 -1px 0 rgba( 0, 0, 0, 0.5 ), 0 4px 14px rgba( 0, 0, 0, 0.5 )" ) );
+
+		Assert.AreEqual( 3, styles.BoxShadow.Count );
+		Assert.AreEqual( true, styles.BoxShadow[0].Inset );
+		Assert.AreEqual( true, styles.BoxShadow[1].Inset );
+		Assert.AreEqual( -1, styles.BoxShadow[1].OffsetY );
+		Assert.AreEqual( false, styles.BoxShadow[2].Inset );
+		Assert.AreEqual( 14, styles.BoxShadow[2].Blur );
 	}
 
 	[TestMethod]
