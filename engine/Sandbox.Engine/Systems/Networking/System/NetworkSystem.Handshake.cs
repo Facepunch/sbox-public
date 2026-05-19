@@ -166,9 +166,6 @@ internal partial class NetworkSystem
 			}
 		}
 
-
-		var denialReason = "";
-
 		source.PreInfo = new ConnectionInfo( null )
 		{
 			ConnectionId = source.Id,
@@ -177,11 +174,27 @@ internal partial class NetworkSystem
 
 		source.PreInfo.Update( msg );
 
-		if ( GameSystem is not null && !GameSystem.AcceptConnection( source, ref denialReason ) )
+		if ( GameSystem is not null )
 		{
-			Log.Info( $"Kicking {msg.DisplayName} [{msg.SteamId}] - {denialReason}" );
-			source.Kick( denialReason );
-			return;
+			var denialReason = "";
+			var shouldReject = !GameSystem.AcceptConnection( source, ref denialReason );
+
+			if ( !shouldReject )
+			{
+				var result = await GameSystem.AcceptConnection( source );
+				if ( !result )
+				{
+					shouldReject = true;
+					denialReason = result.Reason;
+				}
+			}
+
+			if ( shouldReject )
+			{
+				Log.Info( $"Kicking {msg.DisplayName} [{msg.SteamId}] - {denialReason}" );
+				source.Kick( denialReason );
+				return;
+			}
 		}
 
 		source.PreInfo = null;
