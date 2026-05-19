@@ -206,6 +206,12 @@ public sealed class TypeDescription : ISourceLineProvider
 			if ( methodInfo.Name == "GetHashCode" ) return false;
 		}
 
+		// Special case:
+		// `EqualityContract` is an artifact from record types and it's used for hashing / equality.
+		// It's protected read-only and marked as compiler generated and shouldn't be included;
+		// however, because of the `source.IsDynamicAssembly` check below, it falls through the cracks.
+		if ( member.MemberType == MemberTypes.Property && member.Name == "EqualityContract" && member.HasAttribute( typeof( CompilerGeneratedAttribute ) ) ) return false;
+
 		// Assume we're a System or something else if we're not package or Sandbox
 		var assembly = member.DeclaringType.Assembly;
 

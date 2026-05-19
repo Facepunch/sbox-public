@@ -32,6 +32,13 @@ public partial class From_TypeLibrary
 		}
 	}
 
+	public record MyRecord
+	{
+		public string String { get; set; }
+		public Transform Transform { get; set; }
+		public Color Color { get; set; }
+	}
+
 	public struct MyDeepStruct
 	{
 		public string String { get; set; }
