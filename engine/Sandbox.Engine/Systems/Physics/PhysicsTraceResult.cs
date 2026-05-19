@@ -68,39 +68,34 @@ public struct PhysicsTraceResult
 	public int Triangle;
 
 	/// <summary>
-	/// The tags that the hit shape had
+	/// Returns true if the hit shape has this tag.
 	/// </summary>
-	public string[] Tags;
+	public readonly bool HasTag( StringToken tag ) => _rawTags.Contains( tag.Value );
+
+	/// <summary>
+	/// The tags that the hit shape had.
+	/// </summary>
+	[Obsolete( "Use HasTag instead." )]
+	public readonly string[] Tags => _rawTags.Count == 0 ? Array.Empty<string>() : _rawTags.ToStringArray();
+
+	// Raw token IDs stored inline, allocation free
+	internal TagBuffer16 _rawTags;
 
 	/// <summary>
 	/// The distance between start and end positions.
 	/// </summary>
 	public readonly float Distance => Vector3.DistanceBetween( StartPosition, EndPosition );
 
-	[ThreadStatic] internal static HashSet<string> tagBuilder;
-
 	internal PhysicsTrace.Request.Shape StartShape;
 
 	internal unsafe static PhysicsTraceResult From( in PhysicsTrace.Result result, in PhysicsTrace.Request.Shape shape )
 	{
-		tagBuilder ??= new();
-		tagBuilder.Clear();
+		var rawTags = new TagBuffer16();
 
-		//
-		// I don't love this shit, for the amount of churn it's going to create.
-		// In the future I suspect that we either copy all the tags id's raw and offer
-		// things like HasTag for efficient access.. or we keep it like this and just
-		// have something on the request like Trace.IncludeTagsInResult() to get them all.
-		//
-		for ( int i = 0; i < 16; i++ )
+		for ( var i = 0; i < 16; i++ )
 		{
 			if ( result.Tags[i] == 0 ) break;
-
-			var t = StringToken.GetValue( result.Tags[i] ); // sadface
-			if ( t != null )
-			{
-				tagBuilder.Add( t.ToLowerInvariant() );
-			}
+			rawTags.AddUnique( result.Tags[i] );
 		}
 
 		var direction = Vector3.Direction( result.StartPos, result.EndPos );
@@ -116,7 +111,7 @@ public struct PhysicsTraceResult
 			Fraction = result.Fraction,
 			Direction = direction,
 			Triangle = result.TriangleIndex,
-			Tags = tagBuilder.Count > 0 ? tagBuilder.ToArray() : Array.Empty<string>(), // sadface
+			_rawTags = rawTags,
 
 			// TODO - maybe we populate these on access?
 			Surface = Surface.FindByIndex( result.SurfaceProperty ),
@@ -127,3 +122,29 @@ public struct PhysicsTraceResult
 		};
 	}
 }
+
+internal unsafe struct TagBuffer16
+{
+	public int Count;
+	private fixed uint _tokens[16];
+
+	public unsafe void AddUnique( uint token )
+	{
+		for ( var i = 0; i < Count; i++ ) if ( _tokens[i] == token ) return;
+		if ( Count < 16 ) _tokens[Count++] = token;
+	}
+
+	public readonly unsafe bool Contains( uint token )
+	{
+		for ( var i = 0; i < Count; i++ ) if ( _tokens[i] == token ) return true;
+		return false;
+	}
+
+	public readonly unsafe string[] ToStringArray()
+	{
+		var arr = new string[Count];
+		for ( var i = 0; i < Count; i++ ) arr[i] = StringToken.GetValue( _tokens[i] ) ?? string.Empty;
+		return arr;
+	}
+}
+

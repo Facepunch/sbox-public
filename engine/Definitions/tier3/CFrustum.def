@@ -42,4 +42,6 @@ native class CFrustum
 	float GetCameraAspect();
 
 	void GetPlane( int index, cref out Vector3 normal, cref out float distance );
+
+	float ComputeScreenSize( Vector3 vecOrigin, float flRadius );
 }

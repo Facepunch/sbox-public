@@ -103,6 +103,7 @@ internal ref struct CameraRenderer
 		Native.ClipSpaceBounds = config.ClipSpaceBounds ?? new Vector4( -1, -1, 1, 1 );
 		Native.EnablePostprocessing = config.EnablePostprocessing ?? camera.EnablePostProcessing;
 		Native.EnableEngineOverlays = camera.EnableEngineOverlays;
+		Native.EnableUI = camera.RenderUI;
 		Native.FlipX = config.FlipX ?? false;
 		Native.FlipY = config.FlipY ?? false;
 

@@ -1,5 +1,4 @@
-﻿using NativeEngine;
-using Sandbox.Internal;
+﻿using Sandbox.Internal;
 using System;
 
 namespace Editor;
@@ -93,9 +92,19 @@ internal static class ManagedTools
 		}
 	}
 
+	static bool _wasActiveWindow;
+
 	public static void RunFrame()
 	{
 		Application.StartFrame();
+
+		// Release all shortcut key states when the editor loses focus (alt-tab)
+		var isActive = EditorMainWindow.Current?.IsActiveWindow ?? false;
+		if ( _wasActiveWindow && !isActive )
+		{
+			EditorShortcuts.ReleaseAll();
+		}
+		_wasActiveWindow = isActive;
 
 		if ( AssembliesDirty )
 		{

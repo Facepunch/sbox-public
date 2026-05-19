@@ -24,6 +24,16 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 	internal Matrix ProjectionMatrix => Frustum.GetProj();
 
+	/// <summary>
+	/// Returns the normalized screen coverage (0-1) of a sphere at the given origin and radius.
+	/// </summary>
+	internal float ComputeScreenSize( Vector3 origin, float radius ) => Frustum.ComputeScreenSize( origin, radius );
+
+	/// <summary>
+	/// Returns the screen width in pixels of a sphere at the given origin and radius.
+	/// </summary>
+	internal float ComputeScreenSizeInPixels( Vector3 origin, float radius ) => Frustum.ComputeScreenSize( origin, radius ) * Size.x;
+
 	public RenderAttributes Attributes { get; }
 
 	/// <summary>
@@ -440,6 +450,12 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// Should this camera render engine overlays, you'd only want this on the main camera.
 	/// </summary>
 	internal bool EnableEngineOverlays { get; set; } = false;
+
+	/// <summary>
+	/// Whether the UI stage layer should be created for this camera render.
+	/// When false, the native pipeline will skip the UI layer entirely.
+	/// </summary>
+	internal bool RenderUI { get; set; } = true;
 
 	/// <summary>
 	/// When true, rendering from this camera won't request higher mip levels from

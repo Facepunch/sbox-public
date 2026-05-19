@@ -118,6 +118,32 @@ public sealed partial class Model : Resource
 	public int MeshCount => native.GetNumMeshes();
 
 	/// <summary>
+	/// The highest LOD index used by this model, or -1 if the model has no effective LODs (all meshes enabled at all levels).
+	/// </summary>
+	internal int MaxLodLevel => native.ComputeMaxLODLevelUsedByModel();
+
+	/// <summary>
+	/// Returns the LOD level for a given screen size in pixels and object scale.
+	/// Uses the same calculation as the standard rendering pipeline.
+	/// </summary>
+	internal int GetLodLevelForScreenSize( float screenWidthInPixels, float scale = 1f )
+	{
+		return native.LODLevelForScreenSize( screenWidthInPixels, scale );
+	}
+
+	/// <summary>
+	/// Returns the switch distances for each LOD level, as defined by the model.
+	/// </summary>
+	internal float[] GetLodSwitchDistances()
+	{
+		var count = native.GetLODSwitchDistanceCount();
+		var distances = new float[count];
+		for ( int i = 0; i < count; i++ )
+			distances[i] = native.GetLODSwitchDistance( i );
+		return distances;
+	}
+
+	/// <summary>
 	/// Trace against the triangles in this mesh
 	/// </summary>
 	public MeshTraceRequest Trace => new() { targetModel = this };

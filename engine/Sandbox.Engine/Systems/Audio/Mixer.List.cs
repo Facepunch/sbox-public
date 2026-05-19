@@ -8,6 +8,7 @@ public partial class Mixer
 {
 	public static Mixer Master { get; private set; }
 	public static Mixer Default { get; set; }
+	public static Mixer Voice { get; internal set; }
 
 	internal Lock Lock { get; } = new Lock();
 
@@ -38,8 +39,12 @@ public partial class Mixer
 		ui.Occlusion = 0;
 		ui.AirAbsorption = 0;
 
+		var voice = newMaster.AddChild();
+		voice.Name = "Voice";
+
 		Master = newMaster;
 		Default = game;
+		Voice = voice;
 	}
 
 	internal static void LoadFromSettings( MixerSettings settings, TypeLibrary typelibrary )
@@ -58,6 +63,14 @@ public partial class Mixer
 
 		Master = newMaster;
 		Default ??= Master;
+
+		// Create Voice mixer if absent
+		Voice = FindMixerByName( newMaster, "Voice" );
+		if ( Voice is null )
+		{
+			Voice = newMaster.AddChild();
+			Voice.Name = "Voice";
+		}
 	}
 
 	public static Mixer FindMixerByName( string name )

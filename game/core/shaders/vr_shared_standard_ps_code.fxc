@@ -242,6 +242,9 @@ Texture2D g_tStretchAmbientOcclusion < Channel( R, Box3( TextureStretchAmbientOc
 	BoolAttribute( alphatest, true );
 	float g_flAlphaTestReference < Default( 0.5 ); Range( 0.01, 0.99 ); UiGroup( "Translucent" ); >;
 	float g_flAntiAliasedEdgeStrength < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Translucent" ); >;
+#else
+	#define g_flAlphaTestReference 0.5
+	#define g_flAntiAliasedEdgeStrength 0.0
 #endif
 
 BoolAttribute( DoNotCastShadows, F_DO_NOT_CAST_SHADOWS ? true : false );
@@ -291,7 +294,7 @@ FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
 	//
 	// Alpha test
 	//
-	#if ( S_ALPHA_TEST )
+	#if ( S_ALPHA_TEST || D_OPAQUE_FADE )
 	{
 		float eps = 1/255.0f;
         

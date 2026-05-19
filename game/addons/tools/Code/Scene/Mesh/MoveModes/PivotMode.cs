@@ -13,6 +13,7 @@ namespace Editor.MeshEditor;
 public sealed class PivotMode : MoveMode
 {
 	private Vector3 _pivot;
+	private Vector3 _moveDelta;
 	private Rotation _basis;
 
 	public override bool AllowSceneSelection => !Application.IsKeyDown( KeyCode.Space );
@@ -20,6 +21,7 @@ public sealed class PivotMode : MoveMode
 	public override void OnBegin( SelectionTool tool )
 	{
 		_pivot = tool.Pivot;
+		_moveDelta = default;
 		_basis = tool.CalculateSelectionBasis();
 	}
 
@@ -35,7 +37,10 @@ public sealed class PivotMode : MoveMode
 
 		// Make sure our unsnapped pivot is set to the snapped pivot when not dragging.
 		if ( !Gizmo.Pressed.Any )
+		{
 			_pivot = origin;
+			_moveDelta = default;
+		}
 
 		using ( Gizmo.Scope( "Tool", new Transform( origin ) ) )
 		{
@@ -43,8 +48,8 @@ public sealed class PivotMode : MoveMode
 
 			if ( Gizmo.Control.Position( "position", Vector3.Zero, out var delta, _basis, centerHandleStyle: PositionCenterHandleStyle.Bicone ) )
 			{
-				_pivot += delta;
-				tool.Pivot = Gizmo.Snap( _pivot * _basis.Inverse, delta * _basis.Inverse ) * _basis;
+				_moveDelta += delta;
+				tool.Pivot = Gizmo.Snap( (_pivot + _moveDelta) * _basis.Inverse, _moveDelta * _basis.Inverse ) * _basis;
 			}
 		}
 	}

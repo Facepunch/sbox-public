@@ -78,6 +78,16 @@ native class CModel as NativeEngine.IModel
 	}
 
 	int GetNumMeshes();
+	int ComputeMaxLODLevelUsedByModel();
+	int LODLevelForScreenSize( float flScreenWidthInPixels, float scale );
+	inline int GetLODSwitchDistanceCount()
+	{
+		return self->GetLODGroupSwitchDistances().Count();
+	}
+	inline float GetLODSwitchDistance( int index )
+	{
+		return self->GetLODGroupSwitchDistances()[index];
+	}
 
 	BBox GetMeshBounds();
 	BBox GetPhysicsBounds();

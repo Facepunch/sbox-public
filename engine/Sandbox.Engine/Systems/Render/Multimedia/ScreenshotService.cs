@@ -224,6 +224,7 @@ internal static class ScreenshotService
 			rootPanel.PreLayout( screenRect );
 			rootPanel.CalculateLayout();
 			rootPanel.PostLayout();
+			rootPanel.BuildDescriptors();
 		}
 	}
 }

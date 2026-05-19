@@ -126,7 +126,8 @@ public partial class TerrainStorage : GameResource
 	[JsonIgnore] public ushort[] HeightMap { get => Maps.HeightMap; set => Maps.HeightMap = value; }
 	[JsonIgnore] public UInt32[] ControlMap { get => Maps.SplatMap; set => Maps.SplatMap = value; }
 
-	public int Resolution { get; set; }
+	[JsonInclude]
+	public int Resolution { get; private set; }
 
 	/// <summary>
 	/// Uniform world size of the width and length of the terrain.
