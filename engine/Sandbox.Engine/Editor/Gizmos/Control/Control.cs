@@ -168,10 +168,6 @@ public static partial class Gizmo
 						Sandbox.Gizmo.Draw.SolidBicone( 4.0f, 4.0f * 0.33f );
 					}
 					break;
-				case PositionCenterHandleStyle.Default:
-					Sandbox.Gizmo.Draw.LineThickness = 2.0f;
-					Sandbox.Gizmo.Draw.LineCircle( 0, Sandbox.Gizmo.IsHovered ? 0.6f : 0.5f, 8 );
-					break;
 				default:
 					Sandbox.Gizmo.Draw.LineThickness = 2.0f;
 					Sandbox.Gizmo.Draw.LineCircle( 0, Sandbox.Gizmo.IsHovered ? 0.6f : 0.5f, 8 );
