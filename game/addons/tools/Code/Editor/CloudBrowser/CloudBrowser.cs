@@ -149,8 +149,10 @@ public partial class CloudAssetBrowser : Widget, IBrowser
 		AssetList.OnViewModeChanged += () => SaveSettings();
 		AssetList.OnHighlight = ( entries ) =>
 		{
-			var packages = entries.OfType<PackageEntry>().ToList();
-			if ( packages.Count == entries.Count() )
+			var highlightedEntries = entries.ToList();
+			var packages = highlightedEntries.OfType<PackageEntry>().ToList();
+
+			if ( packages.Count == 1 && packages.Count == highlightedEntries.Count )
 			{
 				OnPackageHighlight?.Invoke( packages.First().Package );
 			}
