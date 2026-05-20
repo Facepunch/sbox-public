@@ -1,6 +1,7 @@
 ﻿using Facepunch.ActionGraphs;
 using Sandbox.ActionGraphs;
 using Sandbox.Engine;
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -27,6 +28,8 @@ public static partial class Json
 	internal static void Initialize()
 	{
 		var typeLibrary = Game.TypeLibrary;
+
+		DeserializePropertyCache.Clear();
 
 		GlobalContext.Current.JsonSerializerOptions = new JsonSerializerOptions( JsonSerializerOptions.Default );
 		options.WriteIndented = true;
@@ -202,6 +205,8 @@ public static partial class Json
 		}
 	}
 
+	static readonly ConcurrentDictionary<Type, Dictionary<string, PropertyInfo>> DeserializePropertyCache = new();
+
 	internal static void DeserializeToObject( object target, JsonObject root )
 	{
 		if ( target is null )
@@ -209,16 +214,17 @@ public static partial class Json
 
 		var type = target.GetType();
 
-		// TODO: we can probably cache this
-		var propertyDict = type.GetProperties( BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic )
-			.Where( x => x.CanWrite )
-			.Where( x =>
-				x.SetMethod!.IsPublic && !x.HasAttribute( typeof( JsonIgnoreAttribute ) ) ||
-				x.HasAttribute( typeof( JsonIncludeAttribute ) ) ||
-				x.HasAttribute( typeof( PropertyAttribute ) ) )
-			.Select( x => (Name: x.GetCustomAttribute<JsonPropertyNameAttribute>() is { } jpna ? jpna.Name : x.Name, Property: x) )
-			.DistinctBy( x => x.Name, StringComparer.OrdinalIgnoreCase )
-			.ToDictionary( x => x.Name, x => x.Property, StringComparer.OrdinalIgnoreCase );
+		var propertyDict = DeserializePropertyCache.GetOrAdd( type, static t =>
+			t.GetProperties( BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic )
+				.Where( x => x.CanWrite )
+				.Where( x =>
+					x.SetMethod!.IsPublic && !x.HasAttribute( typeof( JsonIgnoreAttribute ) ) ||
+					x.HasAttribute( typeof( JsonIncludeAttribute ) ) ||
+					x.HasAttribute( typeof( PropertyAttribute ) ) )
+				.Select( x => (Name: x.GetCustomAttribute<JsonPropertyNameAttribute>() is { } jpna ? jpna.Name : x.Name, Property: x) )
+				.DistinctBy( x => x.Name, StringComparer.OrdinalIgnoreCase )
+				.ToDictionary( x => x.Name, x => x.Property, StringComparer.OrdinalIgnoreCase )
+		);
 
 		foreach ( var property in root )
 		{
