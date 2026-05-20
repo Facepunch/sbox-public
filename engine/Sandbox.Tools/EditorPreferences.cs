@@ -308,6 +308,16 @@ public static class EditorPreferences
 	static Dictionary<string, string> _shortcutOverrides;
 
 	/// <summary>
+	/// When enabled, clicking into an inspector text field selects the entire value instead of placing the caret at the clicked position.
+	/// </summary>
+	[Title( "Select Contents On Click" )]
+	public static bool SelectFullValuesOnFocus
+	{
+		get => EditorCookie.Get( "Inspector.SelectFullValuesOnFocus", false );
+		set => EditorCookie.Set( "Inspector.SelectFullValuesOnFocus", value );
+	}
+
+	/// <summary>
 	/// Whether new game instances spawned by the editor are in windowed mode.
 	/// </summary>
 	[Title( "Windowed Local Instances" )]
