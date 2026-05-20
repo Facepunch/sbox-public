@@ -35,7 +35,6 @@ internal class EditorPreferencesWindow : BaseWindow
 		container.AddSectionHeader( "Editor" );
 
 		container.AddPage( "General", "tune", new PageGeneral( this ) );
-		container.AddPage( "Inspector", "fact_check", new PageInspector( this ) );
 		container.AddPage( "Notifications", "notifications", new PageNotifications( this ) );
 		container.AddPage( "Scene View", "videocam", new PageSceneView( this ) );
 		container.AddPage( "Editor Keybinds", "keyboard", new PageKeybinds( this ) );

@@ -101,9 +101,7 @@ public class StringControlWidget : ControlWidget
 
 	void OnLineEditFocused( FocusChangeReason reason )
 	{
-		_selectAllOnLineEditClick = reason == FocusChangeReason.Mouse
-			&& EditorPreferences.SelectFullValuesOnFocus
-			&& !LineEdit.ReadOnly;
+		_selectAllOnLineEditClick = reason == FocusChangeReason.Mouse && !LineEdit.ReadOnly;
 	}
 
 	void OnLineEditClicked()
@@ -113,7 +111,7 @@ public class StringControlWidget : ControlWidget
 
 		_selectAllOnLineEditClick = false;
 
-		if ( EditorPreferences.SelectFullValuesOnFocus && !LineEdit.ReadOnly )
+		if ( !LineEdit.ReadOnly )
 		{
 			LineEdit.SelectAll();
 		}
