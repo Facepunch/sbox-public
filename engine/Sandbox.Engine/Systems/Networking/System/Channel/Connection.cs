@@ -452,10 +452,42 @@ public abstract partial class Connection
 	internal ConnectionInfo PreInfo { get; set; }
 
 	[ActionGraphInclude]
-	public string DisplayName => Info?.DisplayName ?? "Unknown Player";
+	public string DisplayName
+	{
+		get
+		{
+			if ( SteamId.ValueUnsigned == 0 )
+				return "Unknown Player";
+
+			var isLocalInstance = SteamId.ValueUnsigned >= Utility.Steam.BaseFakeSteamId;
+
+			if ( isLocalInstance )
+				return "Local Player";
+
+			var displayName = FriendInfo.DisplayName;
+			return string.IsNullOrWhiteSpace( displayName ) ? "Unknown Player" : displayName;
+		}
+	}
 
 	[ActionGraphInclude]
 	public SteamId SteamId => Info?.SteamId ?? default;
+
+	/// <summary>
+	/// Steam friend information for this connection
+	/// </summary>
+	public Friend FriendInfo
+	{
+		get
+		{
+			if ( SteamId.ValueUnsigned == 0 )
+				return default;
+
+			if ( field.Id != SteamId.ValueUnsigned )
+				field = new( SteamId.ValueUnsigned );
+
+			return field;
+		}
+	}
 
 	/// <summary>
 	/// The SteamID of the account that actually owns the game in a Steam Family.
