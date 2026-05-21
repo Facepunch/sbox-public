@@ -1,4 +1,4 @@
-<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
 {
 	rootNode = 
 	{
@@ -79,6 +79,14 @@
 						_class = "LODGroup"
 						name = "BalloonTall01_LOD0"
 						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
 						meshes = 
 						[
 							"BalloonTall01_LOD0",
@@ -88,6 +96,14 @@
 						_class = "LODGroup"
 						name = "BalloonTall01_LOD1"
 						switch_threshold = 50.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
 						meshes = 
 						[
 							"BalloonTall01_LOD1",
@@ -97,6 +113,14 @@
 						_class = "LODGroup"
 						name = "BalloonTall01_LOD2"
 						switch_threshold = 100.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
 						meshes = 
 						[
 							"BalloonTall01_LOD2",
@@ -142,6 +166,7 @@
 						collision_tags = "solid"
 						faceMergeAngle = 20.0
 						maxHullVertices = 32
+						hull_mode = "SingleHull"
 					},
 				]
 			},
@@ -172,6 +197,11 @@
 							impact_damage = -1.0
 							parent_bodygroup_name = ""
 							parent_bodygroup_value = 0
+							flammable = false
+							explosive = false
+							explosive_damage = -1.0
+							explosive_radius = -1.0
+							explosive_force = -1.0
 						}
 					},
 					{
@@ -180,22 +210,6 @@
 						game_keys = 
 						{
 							gradient = "<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->\n{\n\tm_Stops = \n\t[\n\t\t{\n\t\t\tm_flPosition = 0.408269\n\t\t\tm_Color = [ 176, 255, 0, 255 ]\n\t\t},\n\t]\n}"
-						}
-					},
-					{
-						_class = "BreakCommand"
-						game_class = "break_create_particle"
-						game_keys = 
-						{
-							name = resource:"particles/break/break.cardboard.vpcf"
-							cp0_model = resource:""
-							cp0_snapshot = resource:""
-							damage_position_cp = -1
-							damage_direction_cp = -1
-							velocity_cp = -1
-							angular_velocity_cp = -1
-							local_gravity_cp = -1
-							tint_cp = -1
 						}
 					},
 				]
