@@ -506,10 +506,8 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	}
 
 	/// <summary>
-	/// The size of the viewport in logical pixels (pre-DPI). Divides Screen.Size by
-	/// Screen.DpiScale (set each frame by the Tools layer from Qt's devicePixelRatioF)
-	/// so this is consistent with Qt widget coordinate space.
-	/// Use RawScreenRect when you need unscaled pixel sizes for native rendering calls.
+	/// The size of the viewport, in logical pixels (eg. scaled by DPI).
+	/// This is the size you should use for most UI work and anything else that needs to be resolution independent, try <see cref="RawScreenRect"/> for anything else.
 	/// </summary>
 	public Rect ScreenRect
 	{
@@ -522,8 +520,8 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	}
 
 	/// <summary>
-	/// The size of the viewport in raw unscaled pixels (i.e. the actual swapchain/render target size).
-	/// Used internally when feeding size into native SceneCamera or other raw-pixel APIs.
+	/// The size of the viewport in raw unscaled pixels (eg. the actual swapchain/render target size, BEFORE any DPI scaling).
+	/// Used for raw-pixel APIs.
 	/// </summary>
 	public Rect RawScreenRect
 	{

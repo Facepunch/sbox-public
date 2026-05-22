@@ -29,14 +29,13 @@ public static class Screen
 
 	/// <summary>
 	/// The desktop's dpi scale on the current monitor.
+	/// This is different from the application's <see cref="DpiScale"/>.
 	/// </summary>
 	public static float DesktopScale { get; private set; } = 1.0f;
 
 	/// <summary>
-	/// The DpiScale of the application window (Qt devicePixelRatioF).
-	/// Set each frame by the Tools layer. Reflects the actual physical-to-logical
-	/// pixel ratio used by the windowing system (e.g. 2.25 at 225% DPI).
-	/// Falls back to 1 in non-editor (game) contexts.
+	/// The current dpi scale of the application window.
+	/// Reflects physical-to-logical pixel ratio used by the windowing system (eg. 2.25 at 225% DPI).
 	/// </summary>
 	public static float DpiScale { get; internal set; } = 1.0f;
 
