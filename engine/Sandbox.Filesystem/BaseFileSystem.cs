@@ -320,8 +320,19 @@ public class BaseFileSystem
 	public BaseFileSystem CreateSubSystem( string path )
 	{
 		// Log.Trace( $"CreateFileSystem( {path} ) [{GetFullPath(path)}]" );
+		var subPath = FixPath( path );
 
-		var sub = new Zio.FileSystems.SubFileSystem( system, FixPath( path ), false );
+		// SubFileSystem inherits from ComposeFileSystem, not PhysicalFileSystem, so
+		// CaseInsensitivePhysicalFileSystem's casing logic doesn't carry through, use
+		// CaseInsensitiveSubFileSystem on Linux instead.
+
+		// IFileSystem -> FileSystem -> PhysicalFileSystem
+		// IFileSystem -> FileSystem -> ComposeFileSystem -> SubFileSystem
+
+		if ( OperatingSystem.IsLinux() ) 
+			return new BaseFileSystem( new CaseInsensitiveSubFileSystem( system, subPath, false ) );
+
+		var sub = new Zio.FileSystems.SubFileSystem( system, subPath, false );
 		return new BaseFileSystem( sub );
 	}
 
