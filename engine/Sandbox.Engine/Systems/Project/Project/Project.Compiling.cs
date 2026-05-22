@@ -1,4 +1,3 @@
-using System.IO;
 using System.Text.Json.Serialization;
 
 namespace Sandbox;
@@ -307,22 +306,18 @@ public partial class Project
 		if ( Application.IsEditor || Application.IsUnitTest || Application.IsHeadless )
 			return false;
 
-		var assemblyPath = Path.Combine( GetRootPath(), ".bin" );
-		if ( !Directory.Exists( assemblyPath ) )
-		{
+		var fs = RootFileSystem;
+		if ( fs is null || !fs.DirectoryExists( ".bin" ) )
 			return false;
-		}
 
-		var assemblies = Directory.EnumerateFiles( assemblyPath, "*.dll" );
-		if ( assemblies.Count() == 0 )
-		{
+		var assemblies = fs.FindFile( ".bin", "*.dll" ).ToArray();
+		if ( assemblies.Length == 0 )
 			return false;
-		}
 
 		AssemblyFileSystem.CreateDirectory( "/.bin" );
 		foreach ( var assembly in assemblies )
 		{
-			AssemblyFileSystem.WriteAllBytes( $"/.bin/{Path.GetFileName( assembly )}", File.ReadAllBytes( assembly ) );
+			AssemblyFileSystem.WriteAllBytes( $"/.bin/{assembly}", fs.ReadAllBytes( $".bin/{assembly}" ).ToArray() );
 		}
 
 		return true;

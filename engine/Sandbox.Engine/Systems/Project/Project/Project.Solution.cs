@@ -1,5 +1,4 @@
 using Sandbox.SolutionGenerator;
-using System.IO;
 using System.Text.RegularExpressions;
 
 namespace Sandbox;
@@ -156,21 +155,19 @@ public sealed partial class Project
 
 	private bool HasServersideCode()
 	{
-		if ( !HasCodePath() )
+		var fs = RootFileSystem;
+
+		// capture once to prevent race with Dispose()
+		if ( fs is null || !fs.DirectoryExists( "Code" ) )
 			return false;
 
-		var codePath = GetCodePath().Replace( '\\', '/' );
-
-		//
-		// Check for any .Server.cs files recursively
-		//
 		try
 		{
-			return Directory.EnumerateFiles( codePath, "*.Server.cs", SearchOption.AllDirectories ).Any();
+			return fs.FindFile( "Code", "*.Server.cs", recursive: true ).Any();
 		}
 		catch ( Exception e )
 		{
-			Log.Warning( $"Failed to check for server files in {codePath}: {e.Message}" );
+			Log.Warning( $"Failed to check for server files: {e.Message}" );
 			return false;
 		}
 	}
@@ -253,12 +250,12 @@ public sealed partial class Project
 
 	ProjectInfo AddUnitTestProjectFrom( string projectName, Sandbox.SolutionGenerator.Generator generator )
 	{
-		var dirinfo = new DirectoryInfo( System.IO.Path.Combine( GetRootPath(), "UnitTests" ) );
-		if ( !dirinfo.Exists )
+		var fs = RootFileSystem;
+		if ( fs is null || !fs.DirectoryExists( "UnitTests" ) )
 			return default;
 
 		var compilerSettings = Config.GetCompileSettings();
-		var project = generator.AddProject( "unittest", $"{Config.FullIdent}.unittest", $"{projectName}.unittest", dirinfo.FullName, compilerSettings );
+		var project = generator.AddProject( "unittest", $"{Config.FullIdent}.unittest", $"{projectName}.unittest", fs.GetFullPath( "UnitTests" ), compilerSettings );
 		project.IsUnitTestProject = true;
 
 		//
