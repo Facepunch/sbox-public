@@ -20,7 +20,7 @@
                     <GamePackageSortOrder Value:bind="@filterOrder"></GamePackageSortOrder>
                 </div>
 
-                <TextEntry @ref="SearchEntry" placeholder="Search games..."></TextEntry>
+                <TextEntry @ref="SearchEntry" placeholder="Search games..." oncancel=@ClearSearch></TextEntry>
 
                 @if (Result?.Properties is not null && Result.Properties.Length > 0)
                 {
@@ -106,6 +106,21 @@
     void OnOrderChanged(string value)
     {
         filterOrder = value;
+    }
+
+    void ClearSearch()
+    {
+        if ( !SearchEntry.IsValid() )
+            return;
+
+        Input.EscapePressed = false;
+
+        SearchEntry.Text = "";
+        SearchEntry.CaretPosition = 0;
+        SearchEntry.OnValueChanged();
+
+        NeedsSetQuery = false;
+        StateHasChanged();
     }
 
     string GetQuery()

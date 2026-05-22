@@ -91,7 +91,13 @@
 
         SetClass( "hide", Input.Keyboard.Down( "SPACE" ) );
 
-		if (returnToMainMenu)
+		if ( Input.EscapePressed && InputFocus.Current is null )
+		{
+			Input.EscapePressed = false;
+			BackToMainMenu();
+		}
+
+		if ( returnToMainMenu )
 		{
 			var options = new SceneLoadOptions();
 			options.ShowLoadingScreen = true;
@@ -110,5 +116,4 @@
 	{
 
 	}
-
 }

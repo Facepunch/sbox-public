@@ -25,6 +25,7 @@ public class BaseModal : Panel
 	protected override void OnEscape( PanelEvent e )
 	{
 		CloseModal( false );
+		Sandbox.Input.EscapePressed = false;
 		e.StopPropagation();
 	}
 

@@ -22,7 +22,7 @@
             </div>
         </div>
 
-        <TextEntry @ref="SearchText" onfocus=@SearchTextFocus onblur=@SearchTextBlur 
+        <TextEntry @ref="SearchText" onfocus=@SearchTextFocus onblur=@SearchTextBlur oncancel=@ClearSearch
             OnTextEdited=@SearchTextEdited Placeholder="Search for games..." onsubmit=@Submit Icon="search" />
 
     </div>
@@ -58,6 +58,21 @@
     void SearchTextBlur()
     {
         SetClass("autocomplete-active", false);
+    }
+
+    void ClearSearch()
+    {
+        if ( SearchText is null )
+            return;
+
+        Input.EscapePressed = false;
+
+        SearchText.Text = "";
+        SearchText.CaretPosition = 0;
+        SearchText.OnValueChanged();
+
+        AutocompleteResult = null;
+        awaitingAutocomplete = false;
     }
 
     protected override async Task OnParametersSetAsync()

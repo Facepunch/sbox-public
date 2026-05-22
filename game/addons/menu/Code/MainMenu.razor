@@ -4,6 +4,7 @@
 @using System;
 @using Menu;
 @using MenuProject.Modals;
+@using MenuProject.MenuUI.Components.Notifications;
 @inherits PanelComponent
 
 <div class="mainmenu">
@@ -58,6 +59,27 @@
         _ = ShowWelcomeScreenIfNeeded();
     }
 
+    void MonitorEscape()
+    {
+        if ( !Input.EscapePressed || InputFocus.Current is not null ) 
+            return;
+
+        if ( ModalSystem.Instance?.IsModalOpen == true )
+            return;
+
+        if ( NotificationList.CloseCurrent() )
+        {
+            Input.EscapePressed = false;
+            return;
+        }
+
+        if ( Navigator is null || Navigator.CurrentUrl == "/home" ) 
+            return;
+
+        Input.EscapePressed = false;
+        Navigator.Navigate( "/home" );
+    }
+
     async Task ShowWelcomeScreenIfNeeded()
     {
         await Task.DelayRealtime(1500);
@@ -78,5 +100,7 @@
 
         var isInGame = Application.IsEditor ? false : Game.InGame;
         Background.Enabled = Navigator?.CurrentUrl == "/home" && !isInGame;
+
+        MonitorEscape();
     }
 }

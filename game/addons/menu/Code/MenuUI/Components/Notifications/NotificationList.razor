@@ -35,7 +35,37 @@
 
 @code 
 {
+    static NotificationList Current;
+
     Sandbox.Services.Notification[] Notices;
+
+    public NotificationList()
+    {
+        Current = this;
+    }
+
+    public static bool CloseCurrent()
+    {
+        if ( !Current.IsValid() )
+            return false;
+
+        Current.Close();
+        return true;
+    }
+
+    public override void OnDeleted()
+    {
+        base.OnDeleted();
+
+        if ( Current == this )
+            Current = null;
+    }
+
+    void Close()
+    {
+        Delete();
+        Current = null;
+    }
 
     protected override async Task OnParametersSetAsync()
     {
