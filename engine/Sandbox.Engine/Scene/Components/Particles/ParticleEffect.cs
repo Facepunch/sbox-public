@@ -396,6 +396,10 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	public bool Paused { get; set; }
 
 	Transform lastTransform;
+	SkinnedModelRenderer _skinnedTarget;
+	Transform[] _boneTransforms;
+	Transform[] _lastBoneTransforms;
+	bool _boneSpaceActive;
 
 	ConcurrentQueue<Particle> deleteList = new ConcurrentQueue<Particle>();
 
@@ -516,16 +520,17 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		var forceScale = ForceScale.Evaluate( p, 7723 );
 		var localSpace = LocalSpace.Evaluate( p, 254 ).Clamp( 0, 1 );
 
-		if ( _parentMoved && frame > 0 && localSpace > 0.001f )
+		if ( p.AttachBoneIndex >= 0 && _boneSpaceActive && frame > 0 && localSpace > 0.001f )
 		{
-			var localPos = lastTransform.PointToLocal( p.Position );
-			var worldPos = _worldTx.PointToWorld( localPos );
-
-			var localVelocity = lastTransform.NormalToLocal( p.Velocity.Normal );
-			var worldVelocity = _worldTx.NormalToWorld( localVelocity ) * p.Velocity.Length;
-
-			p.Position = p.Position.LerpTo( worldPos, localSpace );
-			p.Velocity = p.Velocity.LerpTo( worldVelocity, localSpace );
+			var boneIndex = p.AttachBoneIndex;
+			if ( boneIndex < _boneTransforms.Length && _boneTransforms is not null )
+			{
+				ApplyLocalSpaceMovement( ref p, localSpace, _lastBoneTransforms[boneIndex], _boneTransforms[boneIndex] );
+			}
+		}
+		else if ( _parentMoved && frame > 0 && localSpace > 0.001f )
+		{
+			ApplyLocalSpaceMovement( ref p, localSpace, lastTransform, _worldTx );
 		}
 
 		p.ApplyDamping( damping * timeScale );
@@ -740,6 +745,8 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 		_parentMoved = deltaTransform != global::Transform.Zero;
 
+		CacheBoneTransforms();
+
 		OnPreStep?.Invoke( _timeDelta );
 
 		_trace = Scene.Trace.WithoutTags( CollisionIgnore );
@@ -759,6 +766,11 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 		OnPostStep?.Invoke( _timeDelta );
 
+		if ( _boneSpaceActive && _boneTransforms is not null && _lastBoneTransforms is not null )
+		{
+			Array.Copy( _boneTransforms, _lastBoneTransforms, _boneTransforms.Length );
+		}
+
 		lastTransform = WorldTransform;
 	}
 
@@ -766,6 +778,134 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	public Particle Emit( Vector3 position )
 	{
 		return Emit( position, Random.Shared.Float( 0, 1 ) );
+	}
+
+	void CacheBoneTransforms()
+	{
+		_skinnedTarget = ResolveSkinnedTarget();
+		_boneSpaceActive = _skinnedTarget.IsValid() && _skinnedTarget.Model.IsValid();
+
+		if ( !_boneSpaceActive )
+			return;
+
+		var boneCount = _skinnedTarget.Model.BoneCount;
+
+		var resizeBoneArrays = _boneTransforms is null || _boneTransforms.Length != boneCount;
+
+		if ( resizeBoneArrays )
+		{
+			_boneTransforms = new Transform[boneCount];
+			_lastBoneTransforms = new Transform[boneCount];
+		}
+
+		var bones = _skinnedTarget.Model.Bones.AllBones;
+
+		for ( int i = 0; i < boneCount; i++ )
+		{
+			if ( !_skinnedTarget.TryGetBoneTransform( bones[i], out _boneTransforms[i] ) )
+				_boneTransforms[i] = global::Transform.Zero;
+		}
+
+		if ( resizeBoneArrays )
+		{
+			Array.Copy( _boneTransforms, _lastBoneTransforms, boneCount );
+		}
+	}
+
+	SkinnedModelRenderer ResolveSkinnedTarget()
+	{
+		foreach ( var renderer in Components.GetAll<ParticleModelRenderer>( FindMode.EverythingInSelfAndDescendants ) )
+		{
+			if ( renderer.Target.IsValid() )
+				return renderer.Target;
+		}
+
+		return Components.GetInParentOrSelf<SkinnedModelRenderer>();
+	}
+
+	static void ApplyLocalSpaceMovement( ref Particle p, float localSpace, in Transform lastTx, in Transform worldTx )
+	{
+		var localPos = lastTx.PointToLocal( p.Position );
+		var worldPos = worldTx.PointToWorld( localPos );
+
+		var localVelocity = lastTx.NormalToLocal( p.Velocity.Normal );
+		var worldVelocity = worldTx.NormalToWorld( localVelocity ) * p.Velocity.Length;
+
+		p.Position = p.Position.LerpTo( worldPos, localSpace );
+		p.Velocity = p.Velocity.LerpTo( worldVelocity, localSpace );
+	}
+
+	/// <summary>
+	/// Emit a particle at the given position.
+	/// </summary>
+	/// <param name="position">The position in which to spawn the particle</param>
+	/// <param name="delta">The time delta of the spawn. The first spawned particle is 0, the last spawned particle is 1. This is used to evaluate the spawn particles like lifetime and delay.</param>
+	/// <param name="attachBoneIndex">When >= 0, local space simulation will follow this bone on a linked <see cref="SkinnedModelRenderer"/>.</param>
+	/// <returns>A particle, will never be null. It's up to you to obey max particles.</returns>
+	public Particle Emit( Vector3 position, float delta, int attachBoneIndex = -1 )
+	{
+		var localSpace = LocalSpace.Evaluate( 0, 254 ).Clamp( 0, 1 );
+		var delay = StartDelay.Evaluate( delta, Random.Shared.Float() );
+
+		var p = Particle.Create();
+
+		p.Position = position;
+		p.StartPosition = position;
+		p.Radius = 1.0f;
+		p.AttachBoneIndex = attachBoneIndex;
+		p.Velocity = Vector3.Random.Normal * StartVelocity.Evaluate( delta, Random.Shared.Float() );
+
+		var spaceTx = WorldTransform;
+		if ( attachBoneIndex >= 0 )
+		{
+			var skinnedTarget = ResolveSkinnedTarget();
+			if ( skinnedTarget.IsValid() && skinnedTarget.Model.IsValid() && attachBoneIndex < skinnedTarget.Model.BoneCount )
+			{
+				skinnedTarget.TryGetBoneTransform( skinnedTarget.Model.Bones.AllBones[attachBoneIndex], out spaceTx );
+			}
+		}
+
+		var initialVelocity = InitialVelocity.Evaluate( delta, Random.Shared.Float(), Random.Shared.Float(), Random.Shared.Float() );
+		p.Velocity += initialVelocity.LerpTo( spaceTx.NormalToWorld( initialVelocity ) * initialVelocity.Length, localSpace );
+
+		p.BornTime += delay;
+		p.DeathTime = p.BornTime + Lifetime.Evaluate( delta, p.Rand( 145, 100 ) );
+
+		if ( UsePrefabFeature && FollowerPrefabChance.Evaluate( delta, Random.Shared.Float( 0, 1 ) ) > Random.Shared.Float() )
+		{
+			var prefabSource = Random.Shared.FromList( FollowerPrefab );
+			if ( prefabSource.IsValid() )
+			{
+				p.Follower = prefabSource.Clone( position, p.Angles );
+				p.Follower.Flags |= GameObjectFlags.Absolute | GameObjectFlags.Hidden | GameObjectFlags.NotSaved;
+
+				if ( Scene.IsEditor )
+				{
+					_spawnedGameObjects.Add( p.Follower );
+				}
+			}
+		}
+
+		if ( delay > 0 )
+		{
+			DelayedParticles.Add( p );
+		}
+		else
+		{
+			Particles.Add( p );
+			SceneMetrics.ParticlesCreated++;
+
+			try
+			{
+				OnParticleCreated?.Invoke( p );
+			}
+			catch ( System.Exception e )
+			{
+				Log.Warning( e );
+			}
+		}
+
+		return p;
 	}
 
 	void RunDelayedParticles()
@@ -828,67 +968,6 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		}
 
 		DeferredParticleForces.Clear();
-	}
-
-	/// <summary>
-	/// Emit a particle at the given position.
-	/// </summary>
-	/// <param name="position">The position in which to spawn the particle</param>
-	/// <param name="delta">The time delta of the spawn. The first spawned particle is 0, the last spawned particle is 1. This is used to evaluate the spawn particles like lifetime and delay.</param>
-	/// <returns>A particle, will never be null. It's up to you to obey max particles.</returns>
-	public Particle Emit( Vector3 position, float delta )
-	{
-		var localSpace = LocalSpace.Evaluate( 0, 254 ).Clamp( 0, 1 );
-		var delay = StartDelay.Evaluate( delta, Random.Shared.Float() );
-
-		var p = Particle.Create();
-
-		p.Position = position;
-		p.StartPosition = position;
-		p.Radius = 1.0f;
-		p.Velocity = Vector3.Random.Normal * StartVelocity.Evaluate( delta, Random.Shared.Float() );
-
-		var initialVelocity = InitialVelocity.Evaluate( delta, Random.Shared.Float(), Random.Shared.Float(), Random.Shared.Float() );
-		p.Velocity += initialVelocity.LerpTo( WorldTransform.NormalToWorld( initialVelocity ) * initialVelocity.Length, localSpace );
-
-		p.BornTime += delay;
-		p.DeathTime = p.BornTime + Lifetime.Evaluate( delta, p.Rand( 145, 100 ) );
-
-		if ( UsePrefabFeature && FollowerPrefabChance.Evaluate( delta, Random.Shared.Float( 0, 1 ) ) > Random.Shared.Float() )
-		{
-			var prefabSource = Random.Shared.FromList( FollowerPrefab );
-			if ( prefabSource.IsValid() )
-			{
-				p.Follower = prefabSource.Clone( position, p.Angles );
-				p.Follower.Flags |= GameObjectFlags.Absolute | GameObjectFlags.Hidden | GameObjectFlags.NotSaved;
-
-				if ( Scene.IsEditor )
-				{
-					_spawnedGameObjects.Add( p.Follower );
-				}
-			}
-		}
-
-		if ( delay > 0 )
-		{
-			DelayedParticles.Add( p );
-		}
-		else
-		{
-			Particles.Add( p );
-			SceneMetrics.ParticlesCreated++;
-
-			try
-			{
-				OnParticleCreated?.Invoke( p );
-			}
-			catch ( System.Exception e )
-			{
-				Log.Warning( e );
-			}
-		}
-
-		return p;
 	}
 
 	public void Terminate( Particle p )
