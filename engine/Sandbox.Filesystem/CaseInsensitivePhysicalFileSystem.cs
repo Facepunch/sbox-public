@@ -36,11 +36,7 @@ internal sealed class CaseInsensitivePhysicalFileSystem : PhysicalFileSystem
 			return path;
 
 		if ( _resolvedPathCache.TryGetValue( path, out var cached ) )
-		{
-			if ( !string.Equals( cached, path, StringComparison.Ordinal ) )
-				Log.Info( $"[CaseInsensitiveFS] Cache hit (casing corrected): '{path}' -> '{cached}'" );
 			return cached;
-		}
 
 		var components = path.Split( '/', StringSplitOptions.RemoveEmptyEntries );
 		var resolvedDir = "/";
@@ -48,18 +44,8 @@ internal sealed class CaseInsensitivePhysicalFileSystem : PhysicalFileSystem
 		for ( var i = 0; i < components.Length; i++ )
 		{
 			var entries = GetDirectoryEntries( resolvedDir );
-
-			if ( entries is null )
-			{
-				Log.Info( $"[CaseInsensitiveFS] Unresolved: '{path}' — parent directory '{resolvedDir}' does not exist on disk" );
+			if ( entries is null || !entries.TryGetValue( components[i], out var realName ) )
 				return path;
-			}
-
-			if ( !entries.TryGetValue( components[i], out var realName ) )
-			{
-				Log.Info( $"[CaseInsensitiveFS] Unresolved: '{path}' — '{components[i]}' not found in '{resolvedDir}' (directory exists, name genuinely absent)" );
-				return path;
-			}
 
 			resolvedDir = resolvedDir == "/"
 				? $"/{realName}"
@@ -67,10 +53,6 @@ internal sealed class CaseInsensitivePhysicalFileSystem : PhysicalFileSystem
 		}
 
 		_resolvedPathCache.TryAdd( path, resolvedDir );
-
-		if ( !string.Equals( resolvedDir, path, StringComparison.Ordinal ) )
-			Log.Info( $"[CaseInsensitiveFS] Resolved via segment walk: '{path}' -> '{resolvedDir}'" );
-
 		return resolvedDir;
 	}
 
