@@ -495,17 +495,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	}
 
 	/// <summary>
-	/// Projects a world position to raw (unscaled) pixel coordinates.
-	/// Use this when you need coordinates in the native render target's pixel space.
-	/// </summary>
-	public Vector2 PointToScreenRawPixels( in Vector3 worldPosition )
-	{
-		var sr = RawScreenRect;
-		var v = PointToScreenNormal( worldPosition );
-		return new Vector2( v.x, v.y ) * sr.Size;
-	}
-
-	/// <summary>
 	/// The size of the viewport, in logical pixels (eg. scaled by DPI).
 	/// This is the size you should use for most UI work and anything else that needs to be resolution independent, try <see cref="RawScreenRect"/> for anything else.
 	/// </summary>
@@ -578,20 +567,6 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		UpdateSceneCameraTransform( sceneCamera );
 
 		var sr = ScreenRect;
-		var v = sceneCamera.ToScreenWithDirection( worldPosition );
-		isBehind = v.z <= 0.0f;
-		return new Vector2( v.x, v.y ) * sr.Size;
-	}
-
-	/// <summary>
-	/// Projects a world position to raw (unscaled) pixel coordinates, with behind-camera detection.
-	/// </summary>
-	public Vector2 PointToScreenRawPixels( Vector3 worldPosition, out bool isBehind )
-	{
-		EnsureSceneCameraCreated();
-		UpdateSceneCameraTransform( sceneCamera );
-
-		var sr = RawScreenRect;
 		var v = sceneCamera.ToScreenWithDirection( worldPosition );
 		isBehind = v.z <= 0.0f;
 		return new Vector2( v.x, v.y ) * sr.Size;
