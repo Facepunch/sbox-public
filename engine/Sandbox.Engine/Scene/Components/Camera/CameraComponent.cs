@@ -265,7 +265,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		camera.ZNear = ZNear;
 		camera.ZFar = ZFar;
 		camera.Rect = new Rect( Viewport.x, Viewport.y, Viewport.z, Viewport.w );
-		camera.Size = PhysicalScreenRect.Size;
+		camera.Size = RawScreenRect.Size;
 		camera.Ortho = Orthographic;
 		camera.OrthoHeight = OrthographicHeight;
 
@@ -495,25 +495,37 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	}
 
 	/// <summary>
+	/// Projects a world position to raw (unscaled) pixel coordinates.
+	/// Use this when you need coordinates in the native render target's pixel space.
+	/// </summary>
+	public Vector2 PointToScreenRawPixels( in Vector3 worldPosition )
+	{
+		var sr = RawScreenRect;
+		var v = PointToScreenNormal( worldPosition );
+		return new Vector2( v.x, v.y ) * sr.Size;
+	}
+
+	/// <summary>
 	/// The size of the viewport in logical pixels (pre-DPI). Divides Screen.Size by
 	/// Screen.DpiScale (set each frame by the Tools layer from Qt's devicePixelRatioF)
 	/// so this is consistent with Qt widget coordinate space.
-	/// Use PhysicalScreenRect when you need physical pixel sizes for native rendering calls.
+	/// Use RawScreenRect when you need unscaled pixel sizes for native rendering calls.
 	/// </summary>
 	public Rect ScreenRect
 	{
 		get
 		{
-			var ss = (CustomSize ?? Screen.Size) / Screen.DpiScale;
+			var dpi = MathF.Max( Screen.DpiScale, 0.001f );
+			var ss = (CustomSize ?? Screen.Size) / dpi;
 			return new Rect( ss.x * Viewport.x, ss.y * Viewport.y, ss.x * Viewport.z, ss.y * Viewport.w );
 		}
 	}
 
 	/// <summary>
-	/// The size of the viewport in physical pixels (post-DPI). Used internally when feeding
-	/// size into native SceneCamera or other physical-pixel APIs.
+	/// The size of the viewport in raw unscaled pixels (i.e. the actual swapchain/render target size).
+	/// Used internally when feeding size into native SceneCamera or other raw-pixel APIs.
 	/// </summary>
-	public Rect PhysicalScreenRect
+	public Rect RawScreenRect
 	{
 		get
 		{
@@ -568,6 +580,20 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		UpdateSceneCameraTransform( sceneCamera );
 
 		var sr = ScreenRect;
+		var v = sceneCamera.ToScreenWithDirection( worldPosition );
+		isBehind = v.z <= 0.0f;
+		return new Vector2( v.x, v.y ) * sr.Size;
+	}
+
+	/// <summary>
+	/// Projects a world position to raw (unscaled) pixel coordinates, with behind-camera detection.
+	/// </summary>
+	public Vector2 PointToScreenRawPixels( Vector3 worldPosition, out bool isBehind )
+	{
+		EnsureSceneCameraCreated();
+		UpdateSceneCameraTransform( sceneCamera );
+
+		var sr = RawScreenRect;
 		var v = sceneCamera.ToScreenWithDirection( worldPosition );
 		isBehind = v.z <= 0.0f;
 		return new Vector2( v.x, v.y ) * sr.Size;
@@ -638,7 +664,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	public Frustum GetFrustum()
 	{
 		UpdateSceneCameraTransform( sceneCamera );
-		return sceneCamera.GetFrustum( PhysicalScreenRect );
+		return sceneCamera.GetFrustum( RawScreenRect );
 	}
 
 	/// <summary>
