@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 
 namespace Editor.AssetPickers;
 
@@ -134,7 +134,8 @@ public class GenericPicker : AssetPicker
 		}
 		else if ( CloudBrowser.Visible )
 		{
-			Package package = CloudBrowser.GetSelected<PackageEntry>().FirstOrDefault().Package;
+			var entry = CloudBrowser.GetSelected<PackageEntry>().FirstOrDefault();
+			Package package = entry?.Package;
 			if ( package is not null )
 			{
 				Submit( package );

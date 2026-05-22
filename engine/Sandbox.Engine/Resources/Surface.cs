@@ -1,4 +1,4 @@
-﻿using NativeEngine;
+using NativeEngine;
 using Sandbox.Engine;
 using System.Text.Json.Serialization;
 
@@ -99,7 +99,11 @@ public partial class Surface : GameResource
 	/// </summary>
 	public void SetBaseSurface( string name )
 	{
-		BaseSurface = All.Where( x => x.Value.ResourceName == name ).FirstOrDefault().Value.ResourcePath;
+		var match = All.Where( x => x.Value.ResourceName == name ).FirstOrDefault();
+		if ( match.Value is not null )
+			BaseSurface = match.Value.ResourcePath;
+		else
+			Log.Warning( $"Surface.SetBaseSurface: no surface named '{name}' found" );
 	}
 
 	protected override void PostLoad()

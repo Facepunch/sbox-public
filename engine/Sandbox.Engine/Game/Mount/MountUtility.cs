@@ -1,4 +1,4 @@
-﻿namespace Sandbox.Mounting;
+namespace Sandbox.Mounting;
 
 public static class MountUtility
 {
@@ -70,7 +70,8 @@ public static class MountUtility
 
 		while ( _jobs.Count > 0 && _activeJobs.Count < 2 )
 		{
-			var job = _jobs.OrderBy( x => x.Texture.LastUsed ).First();
+			var job = _jobs.OrderBy( x => x.Texture.LastUsed ).FirstOrDefault();
+			if ( job is null ) break;
 			_jobs.Remove( job );
 
 			_activeJobs.Add( job );

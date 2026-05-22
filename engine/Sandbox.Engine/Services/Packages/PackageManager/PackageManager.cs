@@ -1,4 +1,4 @@
-﻿using Sandbox.Menu;
+using Sandbox.Menu;
 using System.IO;
 using System.Threading;
 
@@ -225,7 +225,7 @@ internal static partial class PackageManager
 	/// </summary>
 	internal static ActivePackage Find( string packageIdent )
 	{
-		return ActivePackages.Where( x => x.Package.IsNamed( packageIdent ) ).First();
+		return ActivePackages.Where( x => x.Package.IsNamed( packageIdent ) ).FirstOrDefault();
 	}
 
 	/// <summary>

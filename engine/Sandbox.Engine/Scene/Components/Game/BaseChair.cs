@@ -174,7 +174,9 @@ public partial class BaseChair : Component, Component.IPressable, ISitTarget
 	{
 		if ( ExitPoints == null || ExitPoints.Length == 0 ) return (SeatPosition ?? GameObject).WorldPosition;
 
-		return ExitPoints.OrderByDescending( ScoreExitPoint ).First().WorldPosition;
+		var bestExit = ExitPoints.Where( x => x.IsValid() ).OrderByDescending( ScoreExitPoint ).FirstOrDefault();
+		if ( bestExit is null ) return (SeatPosition ?? GameObject).WorldPosition;
+		return bestExit.WorldPosition;
 	}
 
 	private float ScoreExitPoint( GameObject exitPoint )

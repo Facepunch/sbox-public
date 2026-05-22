@@ -1,4 +1,4 @@
-﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using System;
 using System.Collections.Generic;
@@ -201,7 +201,7 @@ public partial class BlacklistTest
 
 		// Prohibited type 'System.Runtime.CompilerServices.Unsafe.As<T>(object)' used
 		Assert.AreEqual( 1, diagnostics.Count );
-		Assert.AreEqual( "SB500", diagnostics.FirstOrDefault().Id );
+		Assert.AreEqual( "SB500", diagnostics[0].Id );
 	}
 
 	[TestMethod]
@@ -218,7 +218,7 @@ public partial class BlacklistTest
 
 		// (1,15): error SB500: Prohibited type 'System.Runtime.CompilerServices.Unsafe.As' used
 		Assert.AreEqual( 1, diagnostics.Count );
-		Assert.AreEqual( "SB500", diagnostics.FirstOrDefault().Id );
+		Assert.AreEqual( "SB500", diagnostics[0].Id );
 	}
 
 	[TestMethod]
@@ -234,7 +234,7 @@ public partial class BlacklistTest
 		CompileAndWalk( sourceCode, out var diagnostics );
 
 		Assert.AreEqual( 1, diagnostics.Count );
-		Assert.AreEqual( "SB500", diagnostics.FirstOrDefault().Id );
+		Assert.AreEqual( "SB500", diagnostics[0].Id );
 	}
 
 	[TestMethod]
@@ -252,7 +252,7 @@ public partial class BlacklistTest
 		CompileAndWalk( sourceCode, out var diagnostics );
 
 		Assert.AreEqual( 1, diagnostics.Count );
-		Assert.AreEqual( "SB500", diagnostics.FirstOrDefault().Id );
+		Assert.AreEqual( "SB500", diagnostics[0].Id );
 	}
 
 	[TestMethod]
@@ -269,7 +269,7 @@ public partial class BlacklistTest
 		CompileAndWalk( sourceCode, out var diagnostics );
 
 		Assert.AreEqual( 1, diagnostics.Count );
-		Assert.AreEqual( "SB500", diagnostics.FirstOrDefault().Id );
+		Assert.AreEqual( "SB500", diagnostics[0].Id );
 	}
 
 	[TestMethod]
@@ -288,7 +288,7 @@ public partial class BlacklistTest
 		CompileAndWalk( sourceCode, out var diagnostics );
 
 		Assert.AreEqual( 1, diagnostics.Count );
-		Assert.AreEqual( "SB500", diagnostics.FirstOrDefault().Id );
+		Assert.AreEqual( "SB500", diagnostics[0].Id );
 	}
 
 	[TestMethod]
@@ -305,7 +305,7 @@ public partial class BlacklistTest
 		CompileAndWalk( sourceCode, out var diagnostics );
 
 		Assert.AreEqual( 1, diagnostics.Count );
-		Assert.AreEqual( "SB500", diagnostics.FirstOrDefault().Id );
+		Assert.AreEqual( "SB500", diagnostics[0].Id );
 	}
 
 	[TestMethod]
@@ -322,7 +322,7 @@ public partial class BlacklistTest
 		CompileAndWalk( sourceCode, out var diagnostics );
 
 		Assert.AreEqual( 1, diagnostics.Count );
-		Assert.AreEqual( "SB500", diagnostics.FirstOrDefault().Id );
+		Assert.AreEqual( "SB500", diagnostics[0].Id );
 	}
 
 	[TestMethod]
@@ -343,7 +343,7 @@ public partial class BlacklistTest
 		CompileAndWalk( sourceCode, out var diagnostics );
 
 		Assert.AreEqual( 1, diagnostics.Count );
-		Assert.AreEqual( "SB500", diagnostics.FirstOrDefault().Id );
+		Assert.AreEqual( "SB500", diagnostics[0].Id );
 	}
 
 	[TestMethod]
@@ -366,7 +366,7 @@ public partial class BlacklistTest
 		CompileAndWalk( sourceCode, out var diagnostics );
 
 		Assert.AreEqual( 1, diagnostics.Count );
-		Assert.AreEqual( "SB500", diagnostics.FirstOrDefault().Id );
+		Assert.AreEqual( "SB500", diagnostics[0].Id );
 	}
 
 	[TestMethod]
@@ -388,7 +388,7 @@ public partial class BlacklistTest
 		CompileAndWalk( sourceCode, out var diagnostics );
 
 		Assert.AreEqual( 1, diagnostics.Count );
-		Assert.AreEqual( "SB500", diagnostics.FirstOrDefault().Id );
+		Assert.AreEqual( "SB500", diagnostics[0].Id );
 	}
 
 	/// <summary>
@@ -547,7 +547,7 @@ public partial class BlacklistTest
 		CompileAndWalk( sourceCode, out var diagnostics );
 
 		Assert.AreEqual( 1, diagnostics.Count );
-		Assert.AreEqual( "SB500", diagnostics.FirstOrDefault().Id );
+		Assert.AreEqual( "SB500", diagnostics[0].Id );
 	}
 
 	/// <summary>
@@ -567,7 +567,7 @@ public partial class BlacklistTest
 		CompileAndWalk( sourceCode, out var diagnostics );
 
 		Assert.AreEqual( 1, diagnostics.Count );
-		Assert.AreEqual( "SB500", diagnostics.FirstOrDefault().Id );
+		Assert.AreEqual( "SB500", diagnostics[0].Id );
 	}
 
 	/// <summary>

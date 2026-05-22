@@ -188,7 +188,10 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 
 	private void OnTerrainModified( Terrain.SyncFlags flags, RectInt region )
 	{
-		var bounds = TerrainRegionToWorldBounds( _subscribedTerrains.First(), region );
+		var terrain = _subscribedTerrains.FirstOrDefault();
+		if ( terrain is null || !terrain.IsValid() ) return;
+
+		var bounds = TerrainRegionToWorldBounds( terrain, region );
 		InvalidateTilesInBounds( bounds );
 	}
 
