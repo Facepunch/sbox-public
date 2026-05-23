@@ -27,6 +27,9 @@ internal sealed class CaseInsensitiveSubFileSystem : SubFileSystem
 		return path;
 	}
 
+	// This overrride is the same as base, but just sets string comparison to ordinal ignore case
+	// so that uppercase variants that are compared with StartsWith don't try to resolve
+	// tolowerinvariant suffixes
 	protected override UPath ConvertPathFromDelegate( UPath path )
 	{
 		var fullPath = path.FullName;
