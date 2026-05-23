@@ -329,7 +329,7 @@ public class BaseFileSystem
 		// IFileSystem -> FileSystem -> PhysicalFileSystem
 		// IFileSystem -> FileSystem -> ComposeFileSystem -> SubFileSystem
 
-		if ( OperatingSystem.IsLinux() ) 
+		if ( OperatingSystem.IsLinux() )
 			return new BaseFileSystem( new CaseInsensitiveSubFileSystem( system, subPath, false ) );
 
 		var sub = new Zio.FileSystems.SubFileSystem( system, subPath, false );
