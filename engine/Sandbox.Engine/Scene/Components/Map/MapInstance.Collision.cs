@@ -134,7 +134,7 @@ partial class MapInstance
 
 		var shapeCount = body.ShapeCount;
 		var indicesCount = part.native.GetCollisionAttributeCount();
-		var attributeCount = Physics.native.GetCollisionAttributeCount();
+		var attributeCount = Physics.CollisionAttributeCount;
 
 		if ( indicesCount > 0 )
 		{

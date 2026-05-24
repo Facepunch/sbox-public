@@ -552,6 +552,13 @@ namespace Sandbox
 		/// </summary>
 		public unsafe Model Create()
 		{
+			// Set morph targets on native render meshes before model creation
+			foreach ( var mesh in meshes )
+			{
+				if ( mesh?.MorphTargets is { Count: > 0 } )
+					SetMorphTargets( mesh );
+			}
+
 			var renderMeshes = meshes
 				.Where( x => x != null && x.IsValid )
 				.Select( x => x.native )
@@ -622,6 +629,47 @@ namespace Sandbox
 				if ( materialGroups.IsValid ) materialGroups.DeleteThis();
 
 				return Model.FromNative( model, true, modelName );
+			}
+		}
+
+		private static unsafe void SetMorphTargets( Mesh mesh )
+		{
+			var targets = mesh.MorphTargets;
+
+			var morphNameBuilder = new StringBuilder();
+			var morphDescs = new Mesh.MorphNativeDesc[targets.Count];
+			var allDeltas = new List<MorphDelta>();
+
+			int byteOffset = 0;
+			int i = 0;
+			foreach ( var (name, deltas) in targets )
+			{
+				var byteLength = Encoding.UTF8.GetByteCount( name );
+
+				morphDescs[i] = new Mesh.MorphNativeDesc
+				{
+					NameOffset = byteOffset,
+					NameLength = byteLength,
+					StartDelta = allDeltas.Count,
+					NumDeltas = deltas.Length
+				};
+
+				morphNameBuilder.Append( name );
+				byteOffset += byteLength;
+				allDeltas.AddRange( deltas );
+				i++;
+			}
+
+			var deltas_span = CollectionsMarshal.AsSpan( allDeltas );
+
+			fixed ( Mesh.MorphNativeDesc* morphDescs_ptr = morphDescs )
+			fixed ( MorphDelta* deltas_ptr = deltas_span )
+			{
+				MeshGlue.SetMeshMorphData(
+					mesh.native,
+					(IntPtr)morphDescs_ptr, targets.Count,
+					(IntPtr)deltas_ptr, allDeltas.Count,
+					morphNameBuilder.ToString() );
 			}
 		}
 	}

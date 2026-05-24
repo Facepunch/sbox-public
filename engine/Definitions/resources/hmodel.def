@@ -144,7 +144,7 @@ native class CModel as NativeEngine.IModel
 
 	HAnimationGraph GetAnimationGraph();
 
-	CPhysAggregateData GetPhysicsContainer();
+	CPhysicsData GetPhysicsContainer();
 
 	// Hitboxes
 	//int GetBoneIndexForHitboxForMesh( const CHitBox *pHitBox, int nMesh ) const;

@@ -63,7 +63,7 @@ native class IPhysicsWorld
 
 	inline IPhysAggregateInstance CreateAggregateInstance( string resourceName, Transform tmStart, ulong nGSNHandle, PhysicsMotionType nMotionType )
 	{
-		HPhysAggregateData_Internal hPhysicsData = g_pResourceSystem->FindExistingResourceByName< RESOURCE_TYPE_PHYSICSDATA_INTERNAL >( CResourceName( resourceName ) );
+		HPhysicsData hPhysicsData = g_pResourceSystem->FindExistingResourceByName< RESOURCE_TYPE_PHYSICSDATA_INTERNAL >( CResourceName( resourceName ) );
 		IPhysAggregateInstance *pInstance = nullptr;
 		if ( !hPhysicsData.HasData() )
 			return pInstance;

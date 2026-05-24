@@ -76,6 +76,7 @@ partial class SkinnedModelRenderer
 			_renderer.ClearPhysicsBones();
 
 			var world = so.Transform;
+			var worldUnscaled = world.WithScale( 1.0f );
 
 			for ( var i = 0; i < _bodies.Count; i++ )
 			{
@@ -98,8 +99,9 @@ partial class SkinnedModelRenderer
 					// Transform physics back into rendering worldspace.
 					var parentBoneWorld = so.GetWorldSpaceAnimationTransform( body.ParentBone );
 					var boneWorld = parentBoneWorld.ToWorld( bodyLocal );
+					var boneWorldUnscaled = worldUnscaled.ToWorld( world.ToLocal( parentBoneWorld ) );
 
-					_bodies[i] = body with { WorldTransform = boneWorld };
+					_bodies[i] = body with { WorldTransform = boneWorldUnscaled.ToWorld( bodyLocal ) };
 
 					// Transform bone world to modelspace.
 					var boneLocal = world.ToLocal( boneWorld );
@@ -113,7 +115,7 @@ partial class SkinnedModelRenderer
 					so.SetBoneOverride( body.Bone, local );
 
 					// Store the target transform of this keyframe body so it can be moved to it in the physics step.
-					_bodies[i] = body with { WorldTransform = boneWorld };
+					_bodies[i] = body with { WorldTransform = worldUnscaled.ToWorld( local ) };
 				}
 			}
 		}
@@ -177,14 +179,17 @@ partial class SkinnedModelRenderer
 			var bones = _renderer.Model.Bones;
 			var targetBones = parent.Model.Bones;
 			var world = _renderer.WorldTransform;
+			var worldUnscaled = world.WithScale( 1.0f );
 			var boneToBody = new Dictionary<int, PhysicsBody>();
 
 			foreach ( var part in physics.Parts )
 			{
 				var bone = bones.GetBone( part.BoneName );
 
-				if ( !_renderer.TryGetBoneTransform( bone, out var boneWorld ) )
-					boneWorld = world.ToWorld( part.Transform );
+				if ( _renderer.TryGetBoneTransform( bone, out var boneWorld ) )
+					boneWorld = worldUnscaled.ToWorld( world.ToLocal( boneWorld ) );
+				else
+					boneWorld = worldUnscaled.ToWorld( part.Transform );
 
 				var body = new PhysicsBody( _physicsWorld )
 				{
