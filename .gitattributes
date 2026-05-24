@@ -5,6 +5,8 @@
 game/** text=auto eol=crlf
 # Except c# files, auto that
 game/**/*.cs text=auto
+# Except shell scripts, force LF for Linux compatibility
+game/**/*.sh text=auto eol=lf
 
 #
 # GitHub linguist overrides (https://github.com/github-linguist/linguist/blob/main/docs/overrides.md)
