@@ -99,13 +99,13 @@ partial class BridgeTool
 			UpdateMesh();
 		}
 
-		[Shortcut( "mesh.bridge-apply", "enter", ShortcutType.Application )]
+		[Shortcut( "mesh.bridge-apply", "enter", typeof( SceneViewWidget ) )]
 		private void ApplyShortcut()
 		{
 			Apply();
 		}
 
-		[Shortcut( "mesh.bridge-cancel", "ESC", ShortcutType.Application )]
+		[Shortcut( "mesh.bridge-cancel", "ESC", typeof( SceneViewWidget ) )]
 		private void CancelShortcut()
 		{
 			Cancel();
