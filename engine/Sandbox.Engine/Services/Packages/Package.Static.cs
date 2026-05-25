@@ -4,6 +4,7 @@ using Sandbox.Protobuf;
 using System.Collections.Concurrent;
 using System.Net.Http;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Sandbox;
 
@@ -344,11 +345,18 @@ public partial class Package
 	/// </summary>
 	public static async Task<ListResult> ListAsync( string id, CancellationToken token = default )
 	{
-		var result = await Backend.Package.GetList( id );
-		if ( result.Groupings is null )
-			return null;
+		try
+		{
+			var result = await Backend.Package.GetList( id );
+			if ( result.Groupings is null )
+				return null;
 
-		return ListResult.From( result );
+			return ListResult.From( result );
+		}
+		catch ( ApiException )
+		{
+			return null;
+		}
 	}
 
 	/// <summary>

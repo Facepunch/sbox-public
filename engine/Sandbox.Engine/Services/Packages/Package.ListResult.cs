@@ -51,7 +51,7 @@ public partial class Package
 		internal static ListResult From( PackageGroups groups )
 		{
 			var result = new ListResult();
-			result.Title = result.Title;
+			result.Title = groups.Title;
 			result.Groupings = groups.Groupings?.Select( x => new Grouping
 			{
 				Title = x.Title,
