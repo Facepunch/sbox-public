@@ -11,7 +11,16 @@ namespace Sandbox.UI
 		/// <summary>
 		/// The texture being displayed by this panel.
 		/// </summary>
-		public Texture Texture { get; set; }
+		public Texture Texture {
+			get;
+			set
+			{
+				if ( !value.IsValid() ) return;
+
+				field = value;
+				IsRenderDirty = true;
+			}
+		}
 
 		public Image()
 		{
