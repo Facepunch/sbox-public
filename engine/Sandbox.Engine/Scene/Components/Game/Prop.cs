@@ -362,7 +362,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		if ( IsExplosive && damage.Tags.Contains( "impact" ) )
 		{
 			Health = 0;
-			Kill();
+			Kill( damage );
 			return;
 		}
 
@@ -386,7 +386,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 		if ( Health <= 0 )
 		{
-			Kill();
+			Kill( damage );
 			Health = 0;
 		}
 	}
@@ -428,19 +428,19 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		}
 	}
 
-	public void Kill()
+	public void Kill( in DamageInfo damage = default )
 	{
-		OnBreak();
+		OnBreak( damage );
 		GameObject.Destroy();
 	}
 
-	void OnBreak()
+	void OnBreak( in DamageInfo damage = default )
 	{
 		OnPropBreak?.Invoke();
 
 		PlayBreakSound();
 
-		NetworkCreateGibs();
+		NetworkCreateGibs( damage.Origin );
 
 		CreateExplosion();
 	}
@@ -512,15 +512,15 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 	/// Create the gibs for this prop breaking, over the network. This causes clients to spawn the gibs too.
 	/// </summary>
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
-	public void NetworkCreateGibs()
+	public void NetworkCreateGibs( Vector3 damageOrigin = default )
 	{
-		CreateGibs();
+		CreateGibs( damageOrigin );
 	}
 
 	/// <summary>
 	/// Create the gibs and return them.
 	/// </summary>
-	public List<Gib> CreateGibs()
+	public List<Gib> CreateGibs( Vector3 damageOrigin = default )
 	{
 		var gibs = new List<Gib>();
 
@@ -607,6 +607,31 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 				phys.Velocity = velocity;
 				phys.AngularVelocity = rb.PreAngularVelocity;
+			}
+		}
+
+		// If the killing blow carried a damage origin, scatter gibs outward from it.
+		// PreVelocity is frame-start so any impulse applied this frame is not yet integrated;
+		// this gives gibs the push they would otherwise be missing.
+		if ( damageOrigin != default && !IsProxy )
+		{
+			const float BaseForce = 500f;
+
+			foreach ( var gib in gibs )
+			{
+				var phys = gib.Components.Get<Rigidbody>( true );
+				if ( !phys.IsValid() ) continue;
+				if ( !phys.PhysicsBody.IsValid() ) continue;
+
+				var toGib = gib.WorldPosition - damageOrigin;
+				var dist  = toGib.Length;
+				if ( dist < 1f ) { toGib = Vector3.Random.Normal; dist = 1f; }
+
+				var falloff = MathX.Clamp( 1f - dist / 512f, 0f, 1f );
+				var impulse = toGib.Normal * BaseForce * falloff * phys.PhysicsBody.Mass;
+
+				phys.ApplyImpulse( impulse );
+				phys.ApplyTorque( Vector3.Random * impulse.Length * 0.1f );
 			}
 		}
 
