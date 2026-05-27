@@ -613,7 +613,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 		// If the killing blow specified a damage force (velocity vector), add it to each gib.
 		// Applied as a centre-of-mass impulse so all gibs get consistent linear velocity
-		// regardless of where they are relative to the hit point — matching HL2 behaviour.
+		// regardless of where they are relative to the hit point - matching HL2 behaviour.
 		// Angular velocity is derived from r×F at the hit point on the prop's own body,
 		// so gibs spin in the physically correct direction for the hit.
 		if ( hasForce && !IsProxy )
