@@ -1,3 +1,4 @@
+// Steam global API bindings
 native static class globalSteam as NativeEngine.Steam
 {
 	static ISteamHTMLSurface SteamHTMLSurface();

@@ -41,14 +41,29 @@
         }
     }
 
-    protected override void OnMouseDown(MousePanelEvent e)
+    protected override void OnClick(MousePanelEvent e)
     {
+        e.StopPropagation();
         Ancestors.OfType<WorkshopPage>().FirstOrDefault()?.OnPackageSelected(Package);
     }
 
+    protected override void OnRightClick(MousePanelEvent e)
+    {
+        OnCardRightClicked();
+        e.StopPropagation();
+    }
 
     void OnCardRightClicked()
     {
-        OnMenu?.Invoke();
+        var menu = MenuPanel.Open(this);
+
+        menu.AddOption("open_in_browser", "View Webpage", () => MenuUtility.OpenUrl(Package.Url));
+        menu.AddOption("content_copy", "Copy Url", () => Clipboard.SetText(Package.Url));
+        menu.AddOption("content_copy", "Copy Ident", () => Clipboard.SetText(Package.FullIdent));
+
+        menu.AddSpacer();
+        menu.AddOption("corporate_fare", $"View Creator", () => Game.Overlay.ShowOrganizationModal(Package.Org));
+        menu.AddOption("star", "Review", () => Game.Overlay.ShowReviewModal(Package));
+        menu.AddOption("flag", "Report", () => Game.Overlay.ShowReportModal(Package.FullIdent));
     }
 }

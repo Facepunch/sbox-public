@@ -89,7 +89,7 @@ internal class VTexWriter
 		//
 		foreach ( var layer in Layers.OrderByDescending( x => x.Mip ).ThenBy( x => x.Face ) )
 		{
-			var encoded = layer.Bitmap.ToFormat( outputFormat );
+			var encoded = layer.Bitmap.ToFormat( outputFormat, srgb: layer.Srgb );
 
 			if ( encoded is null )
 			{
@@ -270,12 +270,13 @@ internal class VTexWriter
 		public int Mip { get; set; }
 		public int Face { get; set; }
 		public bool Hdr { get; set; }
+		public bool Srgb { get; set; }
 		public bool IsPowerOfTwo => Bitmap.Width.IsPowerOfTwo() && Bitmap.Height.IsPowerOfTwo();
 	}
 
 	public List<TextureLayer> Layers = new();
 
-	internal void SetTexture( Bitmap bitmap, int mip, int face = 0 )
+	internal void SetTexture( Bitmap bitmap, int mip, int face = 0, bool srgb = true )
 	{
 		var layer = new TextureLayer
 		{
@@ -283,7 +284,8 @@ internal class VTexWriter
 			Mip = mip,
 			Face = face,
 			Opaque = bitmap.IsOpaque(),
-			Hdr = bitmap.IsFloatingPoint
+			Hdr = bitmap.IsFloatingPoint,
+			Srgb = srgb
 		};
 
 		Layers.Add( layer );

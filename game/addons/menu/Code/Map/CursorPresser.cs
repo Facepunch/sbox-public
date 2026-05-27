@@ -12,10 +12,9 @@ public sealed class CursorPresser : Component
 
 	protected override void OnUpdate()
 	{
-		if ( !_camera.IsValid() )
-			return;
+		Mouse.CursorType = default;
 
-		if ( !Input.Keyboard.Pressed( "MOUSE1" ) )
+		if ( !_camera.IsValid() )
 			return;
 
 		var ray = _camera.ScreenPixelToRay( Mouse.Position );
@@ -34,6 +33,11 @@ public sealed class CursorPresser : Component
 			return;
 
 		if ( hitObject.GetComponent<IPressable>() is not { } pressable )
+			return;
+
+		Mouse.CursorType = "hand";
+
+		if ( !Input.Keyboard.Pressed( "MOUSE1" ) )
 			return;
 
 		var ev = new IPressable.Event { Ray = ray, Source = this };

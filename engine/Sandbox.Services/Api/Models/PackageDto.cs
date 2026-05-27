@@ -2,7 +2,7 @@
 
 public class PackageDto
 {
-	public OrganizationDto Org { get; set; }
+	public OrganizationMinimal Org { get; set; }
 	public string Ident { get; set; }
 	public string Title { get; set; }
 	public string Summary { get; set; }

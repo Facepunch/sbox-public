@@ -16,7 +16,7 @@
 
         <div class="thumb" style="background-image: url( @Package.Thumb )" onclick=@( () => Game.Overlay.ShowPackageModal(Package.FullIdent))></div>
         <div class="meta">
-            <div class="title" onclick=@( () => Game.Overlay.ShowPackageModal(Package.FullIdent))>@Package.Title</div>
+            <div class="title" onclick=@( () => MenuUtility.OpenUrl(Package.Url) )>@Package.Title</div>
             <div class="org" onclick=@( () => Game.Overlay.ShowOrganizationModal(Package.Org))><i>people</i> @Package.Org.Title</div>
             <div class="created"><i>alarm</i> @Package.Created.Date.ToString( "dd MMMM yyyy" )</div>
         </div>

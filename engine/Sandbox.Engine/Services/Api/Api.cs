@@ -18,6 +18,10 @@ internal static partial class Api
 		// Backend/HttpClient will take over ownership/disposal of this handler
 		Sandbox.Backend.Initialize( new CachingHandler() );
 #pragma warning restore CA2000 // Dispose objects before losing scope
+
+		// Warm up session-wide service caches in the background. Disk copies (if any) get
+		// applied first so the menu has data immediately even if the backend is slow/down.
+		_ = Sandbox.Services.PackageType.LoadAsync();
 	}
 
 	internal static void Shutdown()
