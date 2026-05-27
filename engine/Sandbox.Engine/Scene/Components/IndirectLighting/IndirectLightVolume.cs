@@ -123,6 +123,13 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	} = 1.0f;
 
 	/// <summary>
+	/// Objects with any of these tags will be excluded when baking probes for this volume.
+	/// </summary>
+	[Property]
+	[Group( "Advanced Settings" )]
+	public TagSet RenderExcludeTags { get; set; } = new();
+
+	/// <summary>
 	/// Calculated probe count along each axis based on bounds and density.
 	/// </summary>
 	public Vector3Int ProbeCounts => ComputeProbeCounts();

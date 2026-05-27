@@ -59,12 +59,15 @@ public partial class Bitmap
 	/// <summary>
 	/// Exports the bitmap to the specified engine format
 	/// </summary>
-	public byte[] ToFormat( ImageFormat format )
+	/// <param name="format">The target image format to encode to.</param>
+	/// <param name="srgb">If true, tells the encoder the pixel data is in sRGB color space.
+	/// This is important for ensuring linear color space is preserved during encoding.</param>
+	public byte[] ToFormat( ImageFormat format, bool srgb = true )
 	{
 		var data = _bitmap.GetPixels();
 
-		using var fbm = new FloatBitmap( Width, Height, ImageFormat, data, ByteCount );
-		return fbm.EncodeTo( format );
+		using var fbm = new FloatBitmap( Width, Height, ImageFormat, data, ByteCount, srgb );
+		return fbm.EncodeTo( format, srgb );
 	}
 
 }

@@ -4,7 +4,7 @@ namespace Sandbox.Services;
 
 public class PackageWrapMinimal
 {
-	public OrganizationDto Org { get; set; }
+	public OrganizationMinimal Org { get; set; }
 
 	[JsonIgnore]
 	public long AssetId { get; set; }

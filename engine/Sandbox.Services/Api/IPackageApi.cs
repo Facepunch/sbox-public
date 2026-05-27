@@ -27,6 +27,9 @@ public partial class ServiceApi
 		[Get( "/package/find/2" )]
 		Task<PackageFindResult> Find( [Query] string q, int take = 100, int skip = 0 );
 
+		[Get( "/package/types" )]
+		Task<PackageTypeOverview[]> GetTypes( [Query] int take = 10 );
+
 		[Post( "/package/manifest" )]
 		Task<PublishManifestResult> PublishManifest( [Body] PublishManifest manifest );
 
@@ -44,6 +47,9 @@ public partial class ServiceApi
 
 		[Post( "/package/reports/{packageIdent}" )]
 		Task<bool> PostReport( string packageIdent, [Query] int reasons, [Query] string comment );
+
+		[Get( "/organization/{orgIdent}" )]
+		Task<OrganizationDto> GetOrganization( string orgIdent );
 
 		[Post( "/organization/reports/{orgIdent}" )]
 		Task<bool> PostOrganizationReport( string orgIdent, [Query] int reasons, [Query] string comment );
