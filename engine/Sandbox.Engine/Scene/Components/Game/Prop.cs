@@ -362,7 +362,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		if ( IsExplosive && damage.Tags.Contains( "impact" ) )
 		{
 			Health = 0;
-			Kill();
+			Kill( damage );
 			return;
 		}
 
@@ -386,7 +386,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 		if ( Health <= 0 )
 		{
-			Kill();
+			Kill( damage );
 			Health = 0;
 		}
 	}
@@ -428,19 +428,20 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		}
 	}
 
-	public void Kill()
+	public void Kill( DamageInfo damage = null )
 	{
-		OnBreak();
+		OnBreak( damage );
 		GameObject.Destroy();
 	}
 
-	void OnBreak()
+	void OnBreak( DamageInfo damage = null )
 	{
 		OnPropBreak?.Invoke();
 
 		PlayBreakSound();
 
-		NetworkCreateGibs();
+		var force = damage?.Force;
+		NetworkCreateGibs( force.HasValue, force ?? Vector3.Zero, damage?.Position ?? WorldPosition );
 
 		CreateExplosion();
 	}
@@ -512,15 +513,15 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 	/// Create the gibs for this prop breaking, over the network. This causes clients to spawn the gibs too.
 	/// </summary>
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
-	public void NetworkCreateGibs()
+	public void NetworkCreateGibs( bool hasForce = false, Vector3 damageForce = default, Vector3 damagePosition = default )
 	{
-		CreateGibs();
+		CreateGibs( hasForce, damageForce, damagePosition );
 	}
 
 	/// <summary>
 	/// Create the gibs and return them.
 	/// </summary>
-	public List<Gib> CreateGibs()
+	public List<Gib> CreateGibs( bool hasForce = false, Vector3 damageForce = default, Vector3 damagePosition = default )
 	{
 		var gibs = new List<Gib>();
 
@@ -607,6 +608,36 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 				phys.Velocity = velocity;
 				phys.AngularVelocity = rb.PreAngularVelocity;
+			}
+		}
+
+		// If the killing blow specified a damage force (velocity vector), add it to each gib.
+		// Applied as a centre-of-mass impulse so all gibs get consistent linear velocity
+		// regardless of where they are relative to the hit point — matching HL2 behaviour.
+		// Angular velocity is derived from r×F at the hit point on the prop's own body,
+		// so gibs spin in the physically correct direction for the hit.
+		if ( hasForce && !IsProxy )
+		{
+			// r = vector from prop mass centre to hit point (world space).
+			// Angular impulse = r × J where J = linear impulse (damageForce * gibMass).
+			// This is the exact formula ApplyImpulseAt uses internally; we apply it
+			// at the prop centre so all gibs get consistent direction without per-gib
+			// moment-arm scaling (which caused distant gibs to eject violently).
+			var r = Vector3.Zero;
+			if ( damagePosition != default && rb.IsValid() && rb.PhysicsBody.IsValid() )
+				r = damagePosition - rb.PhysicsBody.MassCenter;
+
+			foreach ( var gib in gibs )
+			{
+				var phys = gib.Components.Get<Rigidbody>( true );
+				if ( !phys.IsValid() ) continue;
+
+				var mass = phys.PhysicsBody.IsValid() ? phys.PhysicsBody.Mass : 1f;
+				var linearImpulse = damageForce * mass;
+				phys.ApplyImpulse( linearImpulse );
+
+				if ( r != Vector3.Zero && phys.PhysicsBody.IsValid() )
+					phys.PhysicsBody.ApplyAngularImpulse( Vector3.Cross( r, linearImpulse ) );
 			}
 		}
 

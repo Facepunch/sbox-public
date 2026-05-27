@@ -185,9 +185,11 @@ public sealed class RadiusDamage : Component
 			var distance = target.WorldPosition.Distance( point );
 			var distanceFalloff = 1 - (distance / sphere.Radius).Clamp( 0, 1 );
 
+			var dir = (target.WorldPosition - point).Normal;
 			damage.Damage = damageAmount * distanceFalloff;
 			damage.Origin = sphere.Center;
 			damage.Position = occlusion ? traceHitPositions[rootIdx] : target.WorldPosition;
+			damage.Force = dir * damageAmount * physicsForce * distanceFalloff;
 			damageable.OnDamage( damage );
 		}
 
