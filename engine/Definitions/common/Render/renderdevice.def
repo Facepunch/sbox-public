@@ -111,6 +111,15 @@ native accessor g_pRenderDevice
 	
 	int GetTextureViewIndex( ITexture hTexture, CastTo[RenderColorSpace_t] byte colorSpace, RenderTextureDimension_t dim );
 
+	inline void GetVideoMemoryInfo( out ulong budgetBytes, out ulong usageBytes, out ulong renderSystemUsageBytes )
+	{
+		uint64 budget = 0, usage = 0, rsUsage = 0;
+		::g_pRenderDeviceMgr->GetVideoMemoryInfo( g_pRenderDevice->GetCurrentAdapter(), &budget, &usage, &rsUsage );
+		*budgetBytes = budget;
+		*usageBytes = usage;
+		*renderSystemUsageBytes = rsUsage;
+	}
+
 	inline void GetTextureResidencyInfo( CUtlVectorTexture pTextures, CUtlVectorString pNames )
 	{
 		TextureResidencyStats_t textureResidencyStats;

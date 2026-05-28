@@ -47,6 +47,7 @@ static class MixingThread
 	static readonly List<BinauralEffect> _pendingBinauralDisposals = new();
 
 	static readonly List<SoundHandle> _buildVoiceList = new();
+	static readonly Dictionary<Mixer, int> _voicesPerMixer = new( ReferenceEqualityComparer.Instance );
 
 	static void FlushPendingDisposals()
 	{
@@ -114,11 +115,10 @@ static class MixingThread
 		}
 	}
 
-	/// <summary>
-	/// Build and publish a new VoiceFrameSnapshot. Must be called after SoundHandle.TickAll().
-	/// </summary>
+	/// <summary>Apply writebacks, build a fresh snapshot, publish, flush disposals.</summary>
 	internal static void UpdateGlobals()
 	{
+		ApplyWritebacks();
 		BuildSnapshot( _writableSnap );
 		_writableSnap = Interlocked.Exchange( ref _readySnap, _writableSnap );
 		Interlocked.Exchange( ref _freshSnapFlag, 1 );
@@ -144,10 +144,44 @@ static class MixingThread
 		snapshot.RemovedListeners.AddRange( Listener.RemovedList );
 		Listener.RemovedList.Clear();
 
+		// Snapshot the active set (PreTick may Dispose, which mutates it), then compact in place.
 		_buildVoiceList.Clear();
-		SoundHandle.GetActive( _buildVoiceList );
-		foreach ( var handle in _buildVoiceList )
-			snapshot.Voices.Add( handle.BuildVoiceState( snapshot ) );
+		SoundHandle.CopyActiveUnfiltered( _buildVoiceList );
+
+		var write = 0;
+		var span = CollectionsMarshal.AsSpan( _buildVoiceList );
+		for ( var i = 0; i < span.Length; i++ )
+		{
+			var handle = span[i];
+			if ( !handle.PreTick() ) continue;
+			span[write++] = handle;
+		}
+		CollectionsMarshal.SetCount( _buildVoiceList, write );
+
+		// Sort newest-first to match Mixer.MixVoices' priority order.
+		_buildVoiceList.Sort( static ( a, b ) => b._CreatedTime.CompareTo( a._CreatedTime ) );
+
+		CollectionsMarshal.SetCount( snapshot.Voices, write );
+		var voices = CollectionsMarshal.AsSpan( snapshot.Voices );
+
+		_voicesPerMixer.Clear();
+		for ( var i = 0; i < write; i++ )
+		{
+			var handle = _buildVoiceList[i];
+			var mixer = handle.GetEffectiveMixer();
+			var rank = mixer is null ? int.MaxValue : _voicesPerMixer.GetValueOrDefault( mixer );
+			if ( mixer is not null ) _voicesPerMixer[mixer] = rank + 1;
+
+			if ( mixer is not null && rank < mixer.MaxVoices )
+			{
+				handle.TickForSnapshot( snapshot.RemovedListeners );
+				voices[i] = handle.BuildVoiceState( snapshot );
+			}
+			else
+			{
+				voices[i] = handle.BuildSampleOnlyVoiceState();
+			}
+		}
 
 		snapshot.MasterVolume = Sound.MasterVolume;
 	}

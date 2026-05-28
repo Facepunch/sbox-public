@@ -387,21 +387,22 @@ public partial class SoundHandle : IValid, IDisposable
 		MainThread.QueueDispose( this );
 	}
 
-	void TickInternal()
+	/// <summary>Cheap per-frame update: dispose if finished, otherwise follow parent.</summary>
+	internal bool PreTick()
 	{
-		if ( _destroyed )
-			return;
-
-		if ( Finished )
-		{
-			Dispose();
-			return;
-		}
-
+		if ( _destroyed ) return false;
+		if ( Finished ) { Dispose(); return false; }
+		if ( Paused ) return false;
 		UpdateFollower();
-		TryCreateMixer();
-		UpdateSources();
+		return true;
+	}
 
+	/// <summary>Full per-frame update; runs only for handles that survived voice culling.</summary>
+	internal void TickForSnapshot( IReadOnlyList<Listener> removedListeners )
+	{
+		if ( _destroyed ) return;
+		TryCreateMixer();
+		UpdateSources( removedListeners );
 		_ticks++;
 	}
 
@@ -415,22 +416,8 @@ public partial class SoundHandle : IValid, IDisposable
 
 	}
 
-	// Reused scratch list to avoid allocations in TickAll/Shutdown.
+	// Reused scratch list to avoid allocations in Shutdown/StopAll.
 	static readonly List<SoundHandle> _tickList = new();
-
-	internal static void TickAll()
-	{
-		Audio.MixingThread.ApplyWritebacks();
-
-		_tickList.Clear();
-		foreach ( var h in active ) _tickList.Add( h );
-
-		foreach ( var handle in _tickList )
-		{
-			if ( !handle.IsValid ) continue;
-			handle.TickInternal();
-		}
-	}
 
 	internal static void StopAll( float fade, Mixer mixer = null )
 	{
@@ -491,6 +478,12 @@ public partial class SoundHandle : IValid, IDisposable
 		}
 	}
 
+	/// <summary>Copy every entry from the active set without filtering.</summary>
+	internal static void CopyActiveUnfiltered( List<SoundHandle> handles )
+	{
+		foreach ( var handle in active ) handles.Add( handle );
+	}
+
 	internal Audio.VoiceState BuildVoiceState( Audio.VoiceFrameSnapshot snap )
 	{
 		var fadeVolume = 1.0f;
@@ -541,6 +534,31 @@ public partial class SoundHandle : IValid, IDisposable
 			HasLipSync = LipSync.Enabled,
 			LipSync = LipSync,
 			Handle = this,
+		};
+	}
+
+	/// <summary>
+	/// Sample-only voice for a handle that lost the per-mixer priority race. SampleVoices still
+	/// advances the sampler; Mixer.ShouldPlay rejects SourceCount == 0 so it never gets mixed.
+	/// </summary>
+	internal Audio.VoiceState BuildSampleOnlyVoiceState()
+	{
+		return new Audio.VoiceState
+		{
+			Sampler = sampler,
+			Pitch = Pitch,
+			Loopback = Loopback,
+			IsVoice = IsVoice,
+			Scene = Scene,
+			TargetMixer = TargetMixer,
+			CreatedTime = _CreatedTime,
+			SourceOffset = 0,
+			SourceCount = 0,
+			Handle = this,
+			IsFadingOut = IsFadingOut,
+			FadeOutTimer = TimeUntilFaded,
+			IsFadingIn = IsFadingIn,
+			FadeInTimer = TimeUntilFadedIn,
 		};
 	}
 

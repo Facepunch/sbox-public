@@ -234,7 +234,6 @@ internal static class EngineLoop
 		// Give each sound handle an opportunity to for a frame think
 		using ( PerformanceStats.Timings.Audio.Scope() )
 		{
-			SoundHandle.TickAll();
 			MixingThread.UpdateGlobals();
 		}
 

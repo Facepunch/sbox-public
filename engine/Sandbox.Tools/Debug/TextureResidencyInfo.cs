@@ -19,6 +19,17 @@ public struct TextureResidencyInfo
 		Buffer
 	}
 
+	public enum TextureCategory
+	{
+		None = 0,
+		RenderTarget = 1 << 0,
+		DepthBuffer = 1 << 1,
+		Streaming = 1 << 2,
+		UAV = 1 << 3,
+		Stale = 1 << 4,
+		MSAA = 1 << 5,
+	}
+
 	public struct Desc
 	{
 		public int Width;
@@ -32,8 +43,17 @@ public struct TextureResidencyInfo
 	public ImageFormat Format;
 	public Desc Loaded;
 	public Desc Disk;
+	public int MipCount;
+	public int LastUsedFrames;
+	public TextureCategory Categories;
 
-	static TextureResidencyInfo FromNative( string name, ITexture texture )
+	/// <summary>
+	/// Managed Texture wrapper for this GPU-resident texture. May be null if
+	/// the native handle could not be wrapped.
+	/// </summary>
+	public Texture Texture;
+
+	static TextureResidencyInfo From( ITexture texture, Texture managedTexture, string name )
 	{
 		var loadedDesc = g_pRenderDevice.GetTextureDesc( texture );
 		var diskDesc = g_pRenderDevice.GetOnDiskTextureDesc( texture );
@@ -48,11 +68,39 @@ public struct TextureResidencyInfo
 		: (flags & RuntimeTextureSpecificationFlags.TSPEC_TEXTURE_ARRAY) != 0 ? TextureDimension._2DArray
 		: TextureDimension._2D;
 
+		// Build category flags
+		var categories = TextureCategory.None;
+		if ( managedTexture is not null && managedTexture.IsValid )
+		{
+			if ( managedTexture.IsRenderTarget )
+				categories |= TextureCategory.RenderTarget;
+
+			if ( managedTexture.UAVAccess )
+				categories |= TextureCategory.UAV;
+
+			if ( managedTexture.MultisampleType != NativeEngine.RenderMultisampleType.RENDER_MULTISAMPLE_NONE )
+				categories |= TextureCategory.MSAA;
+		}
+
+		if ( loadedDesc.m_nImageFormat.IsDepthFormat() )
+			categories |= TextureCategory.DepthBuffer;
+
+		if ( diskMemorySize > 0 && loadedMemorySize < diskMemorySize )
+			categories |= TextureCategory.Streaming;
+
+		var lastUsed = managedTexture is { IsValid: true } ? managedTexture.LastUsed : -1;
+		if ( lastUsed >= 100 )
+			categories |= TextureCategory.Stale;
+
 		return new()
 		{
 			Name = name,
 			Format = loadedDesc.m_nImageFormat,
 			Dimension = dimension,
+			Texture = managedTexture,
+			MipCount = loadedDesc.m_nNumMipLevels,
+			LastUsedFrames = lastUsed,
+			Categories = categories,
 			Loaded =
 			{
 				Width = loadedDesc.m_nWidth,
@@ -85,13 +133,33 @@ public struct TextureResidencyInfo
 
 		for ( int i = 0; i < count; i++ )
 		{
+			// CUtlVectorTexture.Element allocates a fresh strong handle on the C++ side
+			// (HRenderTextureStrongCopyable). We must release it ourselves — otherwise
+			// every diagnostic call would leak a ref and keep textures alive artificially.
 			var texture = list.Element( i );
 			var name = names.Element( i );
 
-			ret.Add( FromNative( name, texture ) );
+			// Look up an existing managed wrapper without taking a strong handle. Engine-owned
+			// textures (render targets, depth buffers, etc.) won't be in the cache; that's fine —
+			// the residency entry is still built from the native descriptor.
+			NativeResourceCache.TryGetValue<Texture>( texture.GetBindingPtr().ToInt64(), out var managedTexture );
 
-			// We just want to observe...
-			texture.DestroyStrongHandle();
+			// Generate a managed handle if we have a native-only texture, this will be found later in the texture cache
+			if ( managedTexture is null || !managedTexture.IsValid )
+			{
+				managedTexture = Texture.FromNative( texture );
+				ret.Add( From( texture, managedTexture, name ) );
+			}
+			else
+			{
+				ret.Add( From( texture, managedTexture, name ) );
+
+			}
+
+
+			if ( !texture.IsNull )
+				texture.DestroyStrongHandle();
+
 		}
 
 		list.DeleteThis();

@@ -231,6 +231,7 @@ public partial class Mixer
 	bool ShouldPlay( in VoiceState vs )
 	{
 		if ( vs.Sampler is null ) return false;
+		if ( vs.SourceCount == 0 ) return false;
 
 		// vs.TargetMixer == null means "use the default mixer"
 		if ( vs.TargetMixer is null ) return Mixer.Default == this;

@@ -66,7 +66,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	static Superluminal _executeCommandList = new Superluminal( "ExecuteCommandList", Color.Cyan );
 
 	/// <summary>
-	/// Called during the render pipeline. Currently this is rendered on the main thread, but ideally, one day, this will all be threaded.
+	/// Called during the render pipeline on a worker thread.
 	/// </summary>
 	private void ExecuteCommandLists( Stage stage, SceneCamera currentCamera )
 	{
