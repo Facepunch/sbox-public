@@ -9,6 +9,10 @@ namespace Sandbox.Audio;
 /// </summary>
 sealed class VoiceFrameSnapshot
 {
+	/// <summary>
+	/// Voice entries. SourceCount &gt; 0 is a full state (sampled and mixed).
+	/// SourceCount == 0 is sample-only (sampled so one-shots can retire, but not mixed).
+	/// </summary>
 	public List<VoiceState> Voices = new();
 	public List<ListenerState> Listeners = new();
 	public List<Listener> RemovedListeners = new();

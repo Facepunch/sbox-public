@@ -197,7 +197,6 @@ PS
 	float g_flRimStrength < Default( 0.0 ); Range( 0.0, 2.0 ); UiGroup( "Foliage" ); >;
 	float g_flRimPower < Default( 4.0 ); Range( 1.0, 8.0 ); UiGroup( "Foliage" ); >;
 
-	float g_flBackfaceDarkening < Default( 0.7 ); Range( 0.0, 1.0 ); UiGroup( "Foliage" ); >;
 	float g_flAmbientBoost < Default( 0.0 ); Range( 0.0, 0.5 ); UiGroup( "Foliage" ); >;
 	float g_flDetailFadeDistance < Default( 500.0 ); Range( 100.0, 2000.0 ); UiGroup( "Foliage" ); >;
 	float g_flMinRoughness < Default( 0.5 ); Range( 0.0, 1.0 ); UiGroup( "Foliage" ); >;
@@ -374,14 +373,6 @@ PS
 		float dist = length( i.vPositionWithOffsetWs.xyz );
 		bool closeUp = dist < g_flDetailFadeDistance * 10.0f;
 
-		bool isBackface = dot( m.Normal, viewDir ) < 0.0;
-		if ( closeUp && isBackface )
-		{
-			m.Normal = -m.Normal;
-			
-			m.Albedo *= g_flBackfaceDarkening;
-		}
-
 		#if S_GRAZING_FADE
 			ApplyGrazingAngleFade( m.WorldPosition, viewDir, m.ScreenPosition.xy );
 		#endif
@@ -404,15 +395,15 @@ PS
 			float opacity = m.Opacity;
 		#endif
 
-		// Sunlight — lives in its own cbuffer (DirectionalLightCB), not the cluster.
-		// Treated with a boost + shadow-leak so sun-scattering still reads in foliage-cast shadow.
-		if ( g_DirectionalLightEnabled )
-		{
-			float3 sunDir = -normalize( g_DirectionalLightDirection.xyz );
-			float3 sunColor = g_DirectionalLightColor.rgb;
-			float sunVis = DirectionalLightShadow::GetVisibility( m.WorldPosition, m.ScreenPosition.xy );
-			ApplyFoliageLighting( m, sunDir, sunColor, 1.0, sunVis, viewDir, transmissiveColor, true );
-		}
+		#if S_TRANSMISSIVE
+			if ( g_DirectionalLightEnabled )
+			{
+				float3 sunDir = -normalize( g_DirectionalLightDirection.xyz );
+				float3 sunColor = g_DirectionalLightColor.rgb;
+				float sunVis = DirectionalLightShadow::GetVisibility( m.WorldPosition, m.ScreenPosition.xy );
+				ApplyFoliageLighting( m, sunDir, sunColor, 1.0, sunVis, viewDir, transmissiveColor, true );
+			}
+		#endif
 
 		// Cluster lights (dynamic + indexed static) — wrap + SSS per light.
 		/*uint lightCount = Light::Count( m.ScreenPosition );

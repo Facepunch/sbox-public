@@ -38,7 +38,7 @@ partial class SoundHandle
 		source.Update( Transform );
 	}
 
-	private void UpdateSources()
+	private void UpdateSources( IReadOnlyList<Listener> removedListeners )
 	{
 		if ( ListenLocal )
 		{
@@ -79,10 +79,11 @@ partial class SoundHandle
 			_binauralEffect = null;
 		}
 
-		if ( _acousticModels is { Count: > 0 } )
+		if ( _acousticModels is { Count: > 0 } && removedListeners.Count > 0 )
 		{
-			foreach ( var removed in Listener.RemovedList )
+			for ( var i = 0; i < removedListeners.Count; i++ )
 			{
+				var removed = removedListeners[i];
 #pragma warning disable CA2000 // ownership transferred to disposal queue immediately
 				if ( _acousticModels.Remove( removed, out var source ) )
 					Audio.MixingThread.QueueAcousticModelDisposal( source );

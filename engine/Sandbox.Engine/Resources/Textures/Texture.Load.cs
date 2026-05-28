@@ -64,15 +64,16 @@ public partial class Texture
 		if ( Sandbox.Mounting.Directory.TryLoad( filepath, ResourceType.Texture, out object model ) && model is Texture m )
 			return m;
 
-		var normalizedFilename = filepath.NormalizeFilename( false );
+		if ( !TextureLoader.ImageUrl.IsAppropriate( filepath ) && !TextureLoader.ImageDataUri.IsAppropriate( filepath ) )
+			filepath = filepath.NormalizeFilename( false );
 
-		if ( normalizedFilename.StartsWith( '/' ) )
-			normalizedFilename = normalizedFilename[1..];
+		if ( filepath.StartsWith( '/' ) )
+			filepath = filepath[1..];
 
-		if ( Find( normalizedFilename ) is Texture existing )
+		if ( Find( filepath ) is Texture existing )
 			return existing;
 
-		var tex = TryToLoad( filesystem, normalizedFilename, warnOnMissing );
+		var tex = TryToLoad( filesystem, filepath, warnOnMissing );
 		if ( tex == null )
 			return null;
 
@@ -262,7 +263,8 @@ public partial class Texture
 	{
 		if ( string.IsNullOrWhiteSpace( filepath ) ) return null;
 
-		filepath = filepath.NormalizeFilename( false );
+		if ( !TextureLoader.ImageUrl.IsAppropriate( filepath ) && !TextureLoader.ImageDataUri.IsAppropriate( filepath ) )
+			filepath = filepath.NormalizeFilename( false );
 
 		return Game.Resources.Get<Texture>( filepath );
 	}

@@ -107,6 +107,33 @@ public static partial class Graphics
 	/// </summary>
 	public static Rotation CameraRotation => CameraTransform.Rotation;
 
+	/// <summary>
+	/// GPU video memory budget in bytes, as reported by the OS (WDDM).
+	/// </summary>
+	public static ulong VideoMemoryBudget
+	{
+		get
+		{
+			if ( Application.IsHeadless ) return 0;
+			g_pRenderDevice.GetVideoMemoryInfo( out var budget, out _, out _ );
+			return budget;
+		}
+	}
+
+	/// <summary>
+	/// GPU video memory currently used by the engine's render system in bytes.
+	/// This includes textures, buffers, and all other GPU allocations tracked by the engine.
+	/// </summary>
+	public static ulong VideoMemoryUsed
+	{
+		get
+		{
+			if ( Application.IsHeadless ) return 0;
+			g_pRenderDevice.GetVideoMemoryInfo( out _, out _, out var rsUsage );
+			return rsUsage;
+		}
+	}
+
 
 	/// <summary>
 	/// The field of view of the currently rendering camera view, in degrees.
