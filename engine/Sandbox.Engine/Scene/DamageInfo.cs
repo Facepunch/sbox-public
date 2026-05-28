@@ -44,11 +44,10 @@ public class DamageInfo
 	public PhysicsShape Shape { get; set; }
 
 	/// <summary>
-	/// The physics force vector to apply to whatever this damage hits.
-	/// Equivalent to HL2's m_vecDamageForce. Leave null if the damage should not push anything.
-	/// Applied as an impulse to each spawned gib (matching Source engine behaviour).
+	/// The physics force vector to apply to whatever this damage hits. Direction and magnitude
+	/// encode the intended push; consumers multiply by their own mass to derive an impulse.
 	/// </summary>
-	public Vector3? Force { get; set; }
+	public Vector3 Force { get; set; }
 
 	/// <summary>
 	/// Tags for this damage, allows you to enter and read different damage types etc

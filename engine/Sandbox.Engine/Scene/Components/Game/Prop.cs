@@ -354,6 +354,19 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 		if ( IsProxy ) return;
 
+		// Apply the damage's physics push to our own body. This runs before the health
+		// check so dead/unbreakable props (gibs, Health<=0) still react. If this hit
+		// breaks the prop, the impulse lands on the body before CreateGibs reads
+		// rb.Velocity, so gibs inherit it through the velocity transfer below.
+		if ( damage.Force.LengthSquared > 0.0f )
+		{
+			var rb = Components.Get<Rigidbody>();
+			if ( rb.IsValid() && rb.PhysicsBody.IsValid() )
+			{
+				rb.PhysicsBody.ApplyImpulseAt( damage.Position, damage.Force * rb.PhysicsBody.Mass );
+			}
+		}
+
 		// The dead feel nothing
 		if ( Health <= 0.0f )
 			return;
@@ -440,9 +453,8 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 		PlayBreakSound();
 
-		var force = damage?.Force;
 		var wasImpact = damage?.Tags.Contains( "impact" ) ?? false;
-		NetworkCreateGibs( force.HasValue, force ?? Vector3.Zero, damage?.Position ?? WorldPosition, wasImpact );
+		NetworkCreateGibs( wasImpact );
 
 		CreateExplosion();
 	}
@@ -514,15 +526,15 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 	/// Create the gibs for this prop breaking, over the network. This causes clients to spawn the gibs too.
 	/// </summary>
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
-	public void NetworkCreateGibs( bool hasForce = false, Vector3 damageForce = default, Vector3 damagePosition = default, bool wasImpact = false )
+	public void NetworkCreateGibs( bool wasImpact = false )
 	{
-		CreateGibs( hasForce, damageForce, damagePosition, wasImpact );
+		CreateGibs( wasImpact );
 	}
 
 	/// <summary>
 	/// Create the gibs and return them.
 	/// </summary>
-	public List<Gib> CreateGibs( bool hasForce = false, Vector3 damageForce = default, Vector3 damagePosition = default, bool wasImpact = false )
+	public List<Gib> CreateGibs( bool wasImpact = false )
 	{
 		var gibs = new List<Gib>();
 
@@ -594,22 +606,21 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		}
 
 		// Transfer velocity from us to the gibs.
+		// Impact damage fires after the collision has drained rb.Velocity to near zero;
+		// use PreVelocity (captured before the collision) so gibs inherit the pre-impact
+		// motion. For all other damage, rb.Velocity reflects any impulses applied this
+		// tick (bullet, explosion force from Prop.OnDamage or RadiusDamage).
 		if ( rb.IsValid() )
 		{
+			var linVel = wasImpact ? rb.PreVelocity : rb.Velocity;
+			var angVel = wasImpact ? rb.PreAngularVelocity : rb.AngularVelocity;
+
 			foreach ( var gib in gibs )
 			{
 				var phys = gib.Components.Get<Rigidbody>( true );
 				if ( !phys.IsValid() ) continue;
 
-				// Impact damage fires after the collision has drained rb.Velocity to near zero.
-				// Use PreVelocity (captured before the collision) so gibs inherit the pre-impact
-				// motion. For all other damage types use the live velocity which reflects any
-				// impulses applied this tick (bullet, explosion).
-				var linVel = wasImpact ? rb.PreVelocity : rb.Velocity;
-				var angVel = wasImpact ? rb.PreAngularVelocity : rb.AngularVelocity;
 				var velocity = linVel + Vector3.Cross( angVel, phys.MassCenter - rb.MassCenter );
-
-				// Apply 50% energy loss.
 				velocity *= 0.5f;
 
 				phys.Velocity = velocity;
@@ -617,37 +628,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			}
 		}
 
-		// If the killing blow specified a damage force (velocity vector), add it to each gib.
-		// The linear impulse is applied to each gib's own rigidbody as a centre-of-mass
 		// impulse, so all gibs get consistent linear velocity regardless of where they
-		// are relative to the hit point - matching HL2 behaviour.
-		// Additional angular impulse is derived from r×J using the hit point on the
-		// original prop's body, so gibs spin in the physically correct direction.
-		if ( hasForce && !IsProxy )
-		{
-			// r = vector from the original prop mass centre to the hit point (world space).
-			// Angular impulse = r × J where J = the per-gib linear impulse
-			// (damageForce * gibMass). We apply the linear impulse directly to each gib's
-			// centre of mass, then apply this angular impulse separately so we avoid
-			// per-gib moment-arm scaling for the linear push.
-			var r = Vector3.Zero;
-			if ( damagePosition != default && rb.IsValid() && rb.PhysicsBody.IsValid() )
-				r = damagePosition - rb.PhysicsBody.MassCenter;
-
-			foreach ( var gib in gibs )
-			{
-				var phys = gib.Components.Get<Rigidbody>( true );
-				if ( !phys.IsValid() ) continue;
-
-				var mass = phys.PhysicsBody.IsValid() ? phys.PhysicsBody.Mass : 1f;
-				var linearImpulse = damageForce * mass;
-				phys.ApplyImpulse( linearImpulse );
-
-				if ( phys.PhysicsBody.IsValid() )
-					phys.PhysicsBody.ApplyAngularImpulse( Vector3.Cross( r, linearImpulse ) );
-			}
-		}
-
 		// If this prop was on fire, ignite the gibs so the fire carries over.
 		if ( IsOnFire )
 		{
