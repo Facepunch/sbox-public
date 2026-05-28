@@ -441,7 +441,8 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		PlayBreakSound();
 
 		var force = damage?.Force;
-		NetworkCreateGibs( force.HasValue, force ?? Vector3.Zero, damage?.Position ?? WorldPosition );
+		var wasImpact = damage?.Tags.Contains( "impact" ) ?? false;
+		NetworkCreateGibs( force.HasValue, force ?? Vector3.Zero, damage?.Position ?? WorldPosition, wasImpact );
 
 		CreateExplosion();
 	}
@@ -513,15 +514,15 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 	/// Create the gibs for this prop breaking, over the network. This causes clients to spawn the gibs too.
 	/// </summary>
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
-	public void NetworkCreateGibs( bool hasForce = false, Vector3 damageForce = default, Vector3 damagePosition = default )
+	public void NetworkCreateGibs( bool hasForce = false, Vector3 damageForce = default, Vector3 damagePosition = default, bool wasImpact = false )
 	{
-		CreateGibs( hasForce, damageForce, damagePosition );
+		CreateGibs( hasForce, damageForce, damagePosition, wasImpact );
 	}
 
 	/// <summary>
 	/// Create the gibs and return them.
 	/// </summary>
-	public List<Gib> CreateGibs( bool hasForce = false, Vector3 damageForce = default, Vector3 damagePosition = default )
+	public List<Gib> CreateGibs( bool hasForce = false, Vector3 damageForce = default, Vector3 damagePosition = default, bool wasImpact = false )
 	{
 		var gibs = new List<Gib>();
 
@@ -600,14 +601,19 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				var phys = gib.Components.Get<Rigidbody>( true );
 				if ( !phys.IsValid() ) continue;
 
-				// Compute linear velocity at the gibs spawn point.
-				var velocity = rb.PreVelocity + Vector3.Cross( rb.PreAngularVelocity, phys.MassCenter - rb.MassCenter );
+				// Impact damage fires after the collision has drained rb.Velocity to near zero.
+				// Use PreVelocity (captured before the collision) so gibs inherit the pre-impact
+				// motion. For all other damage types use the live velocity which reflects any
+				// impulses applied this tick (bullet, explosion).
+				var linVel = wasImpact ? rb.PreVelocity : rb.Velocity;
+				var angVel = wasImpact ? rb.PreAngularVelocity : rb.AngularVelocity;
+				var velocity = linVel + Vector3.Cross( angVel, phys.MassCenter - rb.MassCenter );
 
 				// Apply 50% energy loss.
 				velocity *= 0.5f;
 
 				phys.Velocity = velocity;
-				phys.AngularVelocity = rb.PreAngularVelocity;
+				phys.AngularVelocity = angVel;
 			}
 		}
 
