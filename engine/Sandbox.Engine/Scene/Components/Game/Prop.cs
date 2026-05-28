@@ -637,7 +637,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				var linearImpulse = damageForce * mass;
 				phys.ApplyImpulse( linearImpulse );
 
-				if ( r != Vector3.Zero && phys.PhysicsBody.IsValid() )
+				if ( phys.PhysicsBody.IsValid() )
 					phys.PhysicsBody.ApplyAngularImpulse( Vector3.Cross( r, linearImpulse ) );
 			}
 		}

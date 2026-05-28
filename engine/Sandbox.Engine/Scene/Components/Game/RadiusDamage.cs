@@ -189,7 +189,9 @@ public sealed class RadiusDamage : Component
 			damage.Damage = damageAmount * distanceFalloff;
 			damage.Origin = sphere.Center;
 			damage.Position = occlusion ? traceHitPositions[rootIdx] : target.WorldPosition;
-			damage.Force = dir * damageAmount * physicsForce * distanceFalloff;
+			// Skip Force when the target is exactly at the explosion centre (zero-length offset produces NaN).
+			if ( dir.LengthSquared > 0.0001f )
+				damage.Force = dir * damageAmount * physicsForce * distanceFalloff;
 			damageable.OnDamage( damage );
 		}
 
