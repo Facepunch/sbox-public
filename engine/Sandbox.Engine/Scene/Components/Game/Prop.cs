@@ -628,7 +628,6 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 			}
 		}
 
-		// impulse, so all gibs get consistent linear velocity regardless of where they
 		// If this prop was on fire, ignite the gibs so the fire carries over.
 		if ( IsOnFire )
 		{
