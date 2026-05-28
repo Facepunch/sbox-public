@@ -612,17 +612,18 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		}
 
 		// If the killing blow specified a damage force (velocity vector), add it to each gib.
-		// Applied as a centre-of-mass impulse so all gibs get consistent linear velocity
-		// regardless of where they are relative to the hit point - matching HL2 behaviour.
-		// Angular velocity is derived from r×F at the hit point on the prop's own body,
-		// so gibs spin in the physically correct direction for the hit.
+		// The linear impulse is applied to each gib's own rigidbody as a centre-of-mass
+		// impulse, so all gibs get consistent linear velocity regardless of where they
+		// are relative to the hit point - matching HL2 behaviour.
+		// Additional angular impulse is derived from r×J using the hit point on the
+		// original prop's body, so gibs spin in the physically correct direction.
 		if ( hasForce && !IsProxy )
 		{
-			// r = vector from prop mass centre to hit point (world space).
-			// Angular impulse = r × J where J = linear impulse (damageForce * gibMass).
-			// This is the exact formula ApplyImpulseAt uses internally; we apply it
-			// at the prop centre so all gibs get consistent direction without per-gib
-			// moment-arm scaling (which caused distant gibs to eject violently).
+			// r = vector from the original prop mass centre to the hit point (world space).
+			// Angular impulse = r × J where J = the per-gib linear impulse
+			// (damageForce * gibMass). We apply the linear impulse directly to each gib's
+			// centre of mass, then apply this angular impulse separately so we avoid
+			// per-gib moment-arm scaling for the linear push.
 			var r = Vector3.Zero;
 			if ( damagePosition != default && rb.IsValid() && rb.PhysicsBody.IsValid() )
 				r = damagePosition - rb.PhysicsBody.MassCenter;
