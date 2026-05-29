@@ -609,8 +609,11 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 				// Compute linear velocity at the gibs spawn point.
 				var velocity = linVel + Vector3.Cross( angVel, phys.MassCenter - rb.MassCenter );
 
-				// Apply 50% energy loss.
-				velocity *= 0.5f;
+				if ( wasImpact )
+				{
+					// Apply 50% energy loss from surface impact.
+					velocity *= 0.5f;
+				}
 
 				phys.Velocity = velocity;
 				phys.AngularVelocity = angVel;
