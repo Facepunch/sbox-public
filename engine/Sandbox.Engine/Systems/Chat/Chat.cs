@@ -110,6 +110,26 @@ public static class Chat
 	}
 
 	/// <summary>
+	/// Broadcast a system notification to all connected clients. Host-only.
+	/// </summary>
+	internal static void BroadcastText( string message )
+	{
+		if ( !Networking.IsHost ) return;
+		if ( string.IsNullOrWhiteSpace( message ) ) return;
+
+		var broadcast = new ChatBroadcastMsg
+		{
+			Message = message,
+			SenderId = Guid.Empty
+		};
+
+		Networking.System?.Broadcast( broadcast );
+
+		// Show locally on the host too
+		AddText( message );
+	}
+
+	/// <summary>
 	/// Register network message handlers on the given network system.
 	/// Called once during NetworkSystem construction.
 	/// </summary>
@@ -194,6 +214,12 @@ public static class Chat
 			: null;
 
 		Networking.System?.Broadcast( broadcast, filter: filter );
+
+		// Dedicated servers don't receive the broadcast, so log it to console here
+		if ( Application.IsDedicatedServer )
+		{
+			Log.Info( $"{source?.Name ?? "Server"}: {e.Message}" );
+		}
 
 		OnMessage?.Invoke( e );
 	}

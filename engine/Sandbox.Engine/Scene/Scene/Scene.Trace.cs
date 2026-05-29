@@ -174,6 +174,26 @@ public partial class Scene : GameObject
 		return FilterQueryResults( results );
 	}
 
+	/// <summary>
+	/// Find physics bodies overlapping a sphere, writing into a caller-provided span.
+	/// </summary>
+	internal int FindBodiesInPhysics( Vector3 center, float radius, Span<PhysicsBody> result )
+	{
+		var queryResult = ThreadQueryResult;
+		PhysicsWorld.native.Query( queryResult, center, radius, 0x07 );
+
+		int total = queryResult.Count();
+		int written = 0;
+		for ( int i = 0; i < total && written < result.Length; i++ )
+		{
+			var shape = queryResult.Element( i );
+			if ( !shape.IsValid() ) continue;
+			var body = shape.Body;
+			if ( body.IsValid() ) result[written++] = body;
+		}
+		return written;
+	}
+
 	private HashSet<GameObject> FilterQueryResults( CQueryResult results )
 	{
 		var gameObjects = new HashSet<GameObject>();

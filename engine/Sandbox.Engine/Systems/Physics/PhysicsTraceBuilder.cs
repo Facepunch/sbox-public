@@ -535,6 +535,42 @@ public partial struct PhysicsTraceBuilder
 	}
 
 	/// <summary>
+	/// Run the trace and fill <paramref name="buffer"/> with up to <c>buffer.Length</c> hits.
+	/// Returns the number of hits written. Use this overload to avoid allocations.
+	/// </summary>
+	internal readonly unsafe int RunAll( Span<PhysicsTraceResult> buffer )
+	{
+		if ( targetWorld is null )
+			throw new InvalidOperationException( "No physics world to trace" );
+
+		if ( targetBody is not null && !targetBody.IsValid() )
+			throw new InvalidOperationException( "The physics body has been released" );
+
+		var r = request;
+		r.World = targetWorld.native;
+
+		if ( targetBody.IsValid() )
+			r.Body = targetBody.native;
+
+		if ( filterCallback is not null )
+		{
+			r.FilterDelegate = (IntPtr)((delegate* unmanaged< int, byte >)&FilterFunctionInternal);
+			_currentfilterCallback = filterCallback;
+		}
+
+		var nativeResults = ThreadTraceVec;
+		PhysicsTrace.TraceAll( r, nativeResults );
+		var count = Math.Min( nativeResults.Count(), buffer.Length );
+
+		_currentfilterCallback = default;
+
+		for ( var i = 0; i < count; i++ )
+			buffer[i] = PhysicsTraceResult.From( nativeResults.Element( i ), request.StartShape );
+
+		return count;
+	}
+
+	/// <summary>
 	/// Traces only against the given capsule at the specified transform.
 	/// </summary>
 	/// <param name="capsule">The capsule to test against.</param>

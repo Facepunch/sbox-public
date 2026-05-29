@@ -23,8 +23,14 @@ public partial class Mixer
 			js["Occlusion"] = Occlusion;
 			js["AirAbsorption"] = AirAbsorption;
 
+#pragma warning disable CS0618
 			js["OverrideOcclusion"] = OverrideOcclusion;
 			js["OcclusionTags"] = (OcclusionTags?.IsEmpty ?? true) ? null : Json.ToNode( OcclusionTags );
+#pragma warning restore CS0618
+
+			js["OverrideSimulationTags"] = OverrideSimulationTags;
+			js["BlockingSimulationTags"] = (BlockingSimulationTags?.IsEmpty ?? true) ? null : Json.ToNode( BlockingSimulationTags );
+			js["IgnoredSimulationTags"] = (IgnoredSimulationTags?.IsEmpty ?? true) ? null : Json.ToNode( IgnoredSimulationTags );
 
 
 			if ( Mixer.Default == this )
@@ -58,9 +64,24 @@ public partial class Mixer
 
 	protected void SetMasterOcclusionDefaults()
 	{
+#pragma warning disable CS0618
 		OverrideOcclusion = true;
 		OcclusionTags.RemoveAll();
 		OcclusionTags.Add( "world" );
+#pragma warning restore CS0618
+	}
+
+	protected void SetMasterSimulationTagDefaults()
+	{
+		OverrideSimulationTags = true;
+		BlockingSimulationTags.RemoveAll();
+		IgnoredSimulationTags.RemoveAll();
+		IgnoredSimulationTags.Add( "passaudio" );
+		IgnoredSimulationTags.Add( "passbullets" );
+		IgnoredSimulationTags.Add( "sky" );
+		IgnoredSimulationTags.Add( "playerclip" );
+		IgnoredSimulationTags.Add( "trigger" );
+		IgnoredSimulationTags.Add( "player" );
 	}
 
 	public void Deserialize( JsonObject js, TypeLibrary typeLibrary )
@@ -82,6 +103,7 @@ public partial class Mixer
 			AirAbsorption = (float)(js["AirAbsorption"] ?? (is2d ? 0.0f : 1.0f));
 			MaxVoices = js.GetPropertyValue( "MaxVoices", 64 );
 
+#pragma warning disable CS0618
 			OcclusionTags = js.GetPropertyValue<TagSet>( "OcclusionTags", null ) ?? new();
 			OverrideOcclusion = js.GetPropertyValue( "OverrideOcclusion", false );
 
@@ -90,6 +112,18 @@ public partial class Mixer
 			if ( Parent == null && !js.ContainsKey( "OcclusionTags" ) && !js.ContainsKey( "OverrideOcclusion" ) )
 			{
 				SetMasterOcclusionDefaults();
+			}
+#pragma warning restore CS0618
+
+			BlockingSimulationTags = js.GetPropertyValue<TagSet>( "BlockingSimulationTags", null ) ?? new();
+			IgnoredSimulationTags = js.GetPropertyValue<TagSet>( "IgnoredSimulationTags", null ) ?? new();
+			OverrideSimulationTags = js.GetPropertyValue( "OverrideSimulationTags", false );
+
+			// Seed the master mixer's default simulation tag set when loading older resources.
+			if ( Parent == null && !js.ContainsKey( "OverrideSimulationTags" )
+				&& !js.ContainsKey( "BlockingSimulationTags" ) && !js.ContainsKey( "IgnoredSimulationTags" ) )
+			{
+				SetMasterSimulationTagDefaults();
 			}
 
 			Clear();

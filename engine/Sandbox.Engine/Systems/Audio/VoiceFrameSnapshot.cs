@@ -16,9 +16,9 @@ sealed class VoiceFrameSnapshot
 	public List<VoiceState> Voices = new();
 	public List<ListenerState> Listeners = new();
 	public List<Listener> RemovedListeners = new();
-	public List<AcousticModel> AllModels = new();
+	public List<DirectSoundModel> AllModels = new();
 	public List<BinauralEffect> AllBinaurals = new();
-	public List<AcousticModelParams> AllParams = new();
+	public List<DirectSoundParams> AllParams = new();
 	public float MasterVolume;
 
 	/// <summary>
@@ -50,7 +50,9 @@ sealed class VoiceFrameSnapshot
 		{
 			voices[i].Sampler = null;
 			voices[i].SourceCount = 0;
+			voices[i].Reverb = null;
 		}
+
 		AllModels.Clear();
 		AllBinaurals.Clear();
 		AllParams.Clear();
@@ -70,7 +72,6 @@ internal struct VoiceState
 	public float Volume;
 	public float FadeVolume;
 
-	// Full timer structs copied so mix thread can evaluate Fraction/elapsed at mix time.
 	public bool IsFadingOut;
 	public RealTimeUntil FadeOutTimer;
 	public bool IsFadingIn;
@@ -85,25 +86,20 @@ internal struct VoiceState
 
 	public Mixer TargetMixer;
 	public float CreatedTime;
-
-	/// <summary>Offset into VoiceFrameSnapshot.AllModels/AllBinaurals/AllParams for this voice.</summary>
 	public int SourceOffset;
-	/// <summary>Number of sources; 1 for local/listen-local, Listeners.Count for 3D.</summary>
 	public int SourceCount;
 
 	public bool HasLipSync;
-	/// <summary>Safe to call from mix thread; volatile _enabled guard prevents use after destruction.</summary>
 	public SoundHandle.LipSyncAccessor LipSync;
-
-	/// <summary>Owning SoundHandle; only used for main-thread write-backs.</summary>
 	public SoundHandle Handle;
+	public NativeReverbEffect Reverb;
+	public ReverbSnapshot ReverbRoom;
 
 	public float OutputAmplitude;
 	public bool OutputFadeInComplete;
 	public bool OutputFinished;
 }
 
-/// <summary>Snapshotted state for one listener per mix frame.</summary>
 internal struct ListenerState
 {
 	public Listener Listener;
@@ -111,16 +107,14 @@ internal struct ListenerState
 	public Scene Scene;
 }
 
-/// <summary>Snapshotted AcousticModel parameters, captured on the main thread and read by the mix thread.</summary>
-internal struct AcousticModelParams
+internal struct DirectSoundParams
 {
 	public Vector3 Position;
 	public float Distance;
 	public Curve Falloff;
-	/// <summary>Pre-smoothed occlusion value [0..1]. Already resolved from the nullable internal field.</summary>
-	public float Occlusion;
+	public FrequencyBands TransmissionBands;
 	public bool DistanceAttenuation;
 	public bool OcclusionEnabled;
-	public bool Transmission;
 	public bool AirAbsorption;
+	public float ReverbAmount;
 }

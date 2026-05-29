@@ -20,6 +20,18 @@ public partial class SoundHandle : IValid, IDisposable
 	Transform _transform = Transform.Zero;
 
 	static SoundHandle _empty;
+	internal NativeReverbEffect _reverb;
+
+	/// <summary>Source room reverb estimate. Written by SoundSimulationSystem on the main thread.</summary>
+	internal ReverbSnapshot SourceRoom { get; set; }
+	internal int OcclusionPhase { get; set; } = -1;
+	internal int DiffractionTick;
+
+	internal NativeReverbEffect GetOrCreateReverb()
+	{
+		_reverb ??= new NativeReverbEffect();
+		return _reverb;
+	}
 
 	/// <summary>
 	/// RealTime that this sound was created
@@ -131,10 +143,9 @@ public partial class SoundHandle : IValid, IDisposable
 	public bool Finished { get; set; }
 
 	/// <summary>
-	/// Enable the sound reflecting off surfaces
+	/// Enable the sound reflecting off surfaces.
 	/// </summary>
-	[System.Obsolete]
-	public bool Reflections { get; set; }
+	public bool Reflections { get; set; } = true;
 
 	/// <summary>
 	/// Allow this sound to be occluded by geometry etc
@@ -142,7 +153,7 @@ public partial class SoundHandle : IValid, IDisposable
 	public bool Occlusion { get; set; } = true;
 
 	/// <summary>
-	/// The radius of this sound's occlusion, allow for partial occlusion
+	/// Legacy occlusion radius setting. Retained for compatibility but not used by the simulation.
 	/// </summary>
 	public float OcclusionRadius { get; set; } = 32.0f;
 
@@ -152,12 +163,17 @@ public partial class SoundHandle : IValid, IDisposable
 	public bool DistanceAttenuation { get; set; } = true;
 
 	/// <summary>
+	/// How much this sound contributes to room reverb. 1 = full reverb, 0 = completely dry.
+	/// </summary>
+	public float ReverbAmount { get; set; } = 1.0f;
+
+	/// <summary>
 	/// Should the sound get absorbed by air, so it sounds different at distance
 	/// </summary>
 	public bool AirAbsorption { get; set; } = true;
 
 	/// <summary>
-	/// Should the sound transmit through walls, doors etc
+	/// Legacy transmission toggle. Transmission is now derived from occlusion and material response.
 	/// </summary>
 	public bool Transmission { get; set; } = true;
 
@@ -504,12 +520,14 @@ public partial class SoundHandle : IValid, IDisposable
 			for ( var i = 0; i < snap.Listeners.Count; i++ )
 			{
 				var listener = snap.Listeners[i].Listener;
-				var src = GetAcousticModel( listener );
+				var src = GetDirectSoundModel( listener );
 				snap.AllModels.Add( src );
 				snap.AllParams.Add( src?.GetParams() ?? default );
 				snap.AllBinaurals.Add( GetBinaural( listener ) );
 			}
 		}
+
+		var reverb = isLocal ? null : GetOrCreateReverb();
 
 		return new Audio.VoiceState
 		{
@@ -534,6 +552,8 @@ public partial class SoundHandle : IValid, IDisposable
 			HasLipSync = LipSync.Enabled,
 			LipSync = LipSync,
 			Handle = this,
+			Reverb = reverb,
+			ReverbRoom = Reflections && reverb is not null ? SourceRoom : default,
 		};
 	}
 

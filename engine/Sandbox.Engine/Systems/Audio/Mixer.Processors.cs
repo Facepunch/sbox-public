@@ -105,7 +105,7 @@ public partial class Mixer
 				processor.SetListener( listener );
 				processor.ProcessInPlace( _processorBuffer );
 
-				targetBuffer.Scale( 1.0f - processor.Mix );
+				targetBuffer.Scale( (1.0f - processor.Mix).Clamp( 0f, 1f ) );
 				targetBuffer.MixFrom( _processorBuffer, processor.Mix.Clamp( 0, 1 ) );
 			}
 			catch ( Exception e )

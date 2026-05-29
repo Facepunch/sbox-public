@@ -47,6 +47,10 @@ public static unsafe partial class Sound
 			handle.AirAbsorption = false;
 			handle.Transmission = false;
 			handle.Occlusion = false;
+			if ( handle.TargetMixer is null )
+			{
+				handle.TargetMixer = Audio.Mixer.FindMixerByName( "UI" );
+			}
 		}
 		else
 		{

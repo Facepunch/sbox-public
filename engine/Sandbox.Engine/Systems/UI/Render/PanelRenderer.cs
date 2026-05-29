@@ -18,6 +18,7 @@ internal sealed partial class PanelRenderer
 
 	bool isWorldPanelContext;
 	int WorldPanelCombo => isWorldPanelContext ? 1 : 0;
+	Matrix? worldPanelMat;
 	internal RenderTarget DefaultRenderTarget;
 
 	internal void AdvanceFrame()
@@ -56,6 +57,12 @@ internal sealed partial class PanelRenderer
 			Screen = root.PanelBounds;
 			DefaultRenderTarget = Graphics.RenderTarget;
 			isWorldPanelContext = root.IsWorldPanel;
+			worldPanelMat = null;
+
+			if ( root is WorldPanel )
+			{
+				worldPanelMat = Sandbox.ScenePanelObject.BuildPanelToObjectMatrix();
+			}
 
 			LayerStack?.Clear();
 			pendingInstances.Clear();
@@ -68,6 +75,8 @@ internal sealed partial class PanelRenderer
 
 			cl.Attributes.Set( "LayerMat", Matrix.Identity );
 			cl.Attributes.SetCombo( "D_WORLDPANEL", WorldPanelCombo );
+			if ( worldPanelMat.HasValue )
+				cl.Attributes.Set( "WorldMat", worldPanelMat.Value );
 			InitScissor( Screen, cl );
 
 			DrawPanel( root, cl );
