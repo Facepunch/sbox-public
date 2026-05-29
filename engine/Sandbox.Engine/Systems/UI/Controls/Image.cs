@@ -11,7 +11,8 @@ namespace Sandbox.UI
 		/// <summary>
 		/// The texture being displayed by this panel.
 		/// </summary>
-		public Texture Texture {
+		public Texture Texture
+		{
 			get;
 			set
 			{
