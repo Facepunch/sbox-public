@@ -595,6 +595,10 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		// Transfer velocity from us to the gibs.
 		if ( rb.IsValid() )
 		{
+			// If the prop was thrown on the floor or a wall when broken, we want the gibs to inherit the velocity from before that impact
+			// that way they crash into the floor/wall nicely and stuff.
+			// HOWEVER, we don't want this for anything else
+			// else we'd be stomping whatever changes people might be wanting to make to the velocity themselves.
 			var linVel = wasImpact ? rb.PreVelocity : rb.Velocity;
 			var angVel = wasImpact ? rb.PreAngularVelocity : rb.AngularVelocity;
 			foreach ( var gib in gibs )
