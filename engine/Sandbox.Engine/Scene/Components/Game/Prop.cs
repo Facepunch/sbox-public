@@ -441,7 +441,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		PlayBreakSound();
 
 		var wasImpact = damage?.Tags.Contains( "impact" ) ?? false;
-		NetworkCreateGibs(wasImpact);
+		NetworkCreateGibs( wasImpact );
 
 		CreateExplosion();
 	}
