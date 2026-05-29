@@ -50,7 +50,7 @@ public sealed class TriggerHurt : Component
 			if ( !Include.IsEmpty && !target.GameObject.Tags.HasAny( Include ) ) continue;
 
 			hasHurt = true;
-			
+
 			var damage = new DamageInfo();
 			damage.Tags.Add( DamageTags );
 			damage.Attacker = GameObject;
