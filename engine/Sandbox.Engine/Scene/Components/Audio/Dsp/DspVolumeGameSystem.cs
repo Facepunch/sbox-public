@@ -31,6 +31,8 @@ sealed class DspVolumeGameSystem : GameObjectSystem<DspVolumeGameSystem>
 	record class Entry( DspProcessor processor, bool active );
 	Dictionary<string, Entry> _entries = new();
 
+	internal static bool IsActive { get; private set; }
+
 	void Update()
 	{
 		using var _ = PerformanceStats.Timings.Audio.Scope();
@@ -54,6 +56,8 @@ sealed class DspVolumeGameSystem : GameObjectSystem<DspVolumeGameSystem>
 			lastPriority = priority;
 			found = volume.Dsp.Name;
 		}
+
+		IsActive = !string.IsNullOrWhiteSpace( found );
 
 		if ( !string.IsNullOrWhiteSpace( found ) && !_entries.ContainsKey( found ) )
 		{

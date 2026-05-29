@@ -4,12 +4,12 @@ namespace Sandbox;
 
 partial class SoundHandle
 {
-	private AcousticModel _acousticModel;
-	private Dictionary<Listener, AcousticModel> _acousticModels;
+	private DirectSoundModel _acousticModel;
+	private Dictionary<Listener, DirectSoundModel> _acousticModels;
 	private BinauralEffect _binauralEffect;
 	private Dictionary<Listener, BinauralEffect> _binauralEffects;
 
-	internal AcousticModel GetAcousticModel( Listener listener )
+	internal DirectSoundModel GetDirectSoundModel( Listener listener )
 	{
 		if ( _acousticModels?.TryGetValue( listener, out var source ) == true )
 			return source;
@@ -25,14 +25,13 @@ partial class SoundHandle
 		return _binauralEffect;
 	}
 
-	private void UpdateAcousticModel( AcousticModel source )
+	private void UpdateAcousticModel( DirectSoundModel source )
 	{
 		source.ListenLocal = ListenLocal;
 		source.AirAbsorption = AirAbsorption;
-		source.Transmission = Transmission;
 		source.Occlusion = Occlusion;
 		source.DistanceAttenuation = DistanceAttenuation;
-		source.OcclusionSize = OcclusionRadius;
+		source.ReverbAmount = ReverbAmount;
 		source.Distance = Distance;
 		source.Falloff = Falloff;
 		source.Update( Transform );
@@ -42,7 +41,7 @@ partial class SoundHandle
 	{
 		if ( ListenLocal )
 		{
-			_acousticModel ??= new AcousticModel();
+			_acousticModel ??= new DirectSoundModel();
 			UpdateAcousticModel( _acousticModel );
 			_binauralEffect ??= new BinauralEffect();
 
@@ -95,17 +94,17 @@ partial class SoundHandle
 		}
 
 		var scene = Scene;
-
 		foreach ( var listener in Listener.ActiveList )
 		{
-			if ( listener.Scene != scene ) continue;
+			if ( listener.Scene != scene )
+				continue;
 
 			_acousticModels ??= new( ReferenceEqualityComparer.Instance );
 			_binauralEffects ??= new( ReferenceEqualityComparer.Instance );
 
 			if ( !_acousticModels.TryGetValue( listener, out var src ) )
 			{
-				src = new AcousticModel();
+				src = new DirectSoundModel();
 				_acousticModels[listener] = src;
 			}
 
@@ -141,5 +140,9 @@ partial class SoundHandle
 			_binauralEffects.Clear();
 			_binauralEffects = default;
 		}
+
+		Audio.MixingThread.QueueReverbDisposal( _reverb );
+		_reverb = null;
+		SourceRoom = default;
 	}
 }

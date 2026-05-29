@@ -40,11 +40,13 @@ static class MixingThread
 	// Disposals are staged on the main thread then flushed after the new snapshot is published,
 	// ensuring the mix thread never encounters a disposed object mid-mix.
 	static readonly ConcurrentQueue<AudioSampler> _samplerDisposalQueue = new();
-	static readonly ConcurrentQueue<AcousticModel> _acousticModelDisposalQueue = new();
+	static readonly ConcurrentQueue<DirectSoundModel> _acousticModelDisposalQueue = new();
 	static readonly ConcurrentQueue<BinauralEffect> _binauralDisposalQueue = new();
+	static readonly ConcurrentQueue<NativeReverbEffect> _reverbDisposalQueue = new();
 	static readonly List<AudioSampler> _pendingSamplerDisposals = new();
-	static readonly List<AcousticModel> _pendingAcousticModelDisposals = new();
+	static readonly List<DirectSoundModel> _pendingAcousticModelDisposals = new();
 	static readonly List<BinauralEffect> _pendingBinauralDisposals = new();
+	static readonly List<NativeReverbEffect> _pendingReverbDisposals = new();
 
 	static readonly List<SoundHandle> _buildVoiceList = new();
 	static readonly Dictionary<Mixer, int> _voicesPerMixer = new( ReferenceEqualityComparer.Instance );
@@ -54,9 +56,11 @@ static class MixingThread
 		foreach ( var s in _pendingSamplerDisposals ) _samplerDisposalQueue.Enqueue( s );
 		foreach ( var s in _pendingAcousticModelDisposals ) _acousticModelDisposalQueue.Enqueue( s );
 		foreach ( var b in _pendingBinauralDisposals ) _binauralDisposalQueue.Enqueue( b );
+		foreach ( var r in _pendingReverbDisposals ) _reverbDisposalQueue.Enqueue( r );
 		_pendingSamplerDisposals.Clear();
 		_pendingAcousticModelDisposals.Clear();
 		_pendingBinauralDisposals.Clear();
+		_pendingReverbDisposals.Clear();
 	}
 
 	internal static void DrainDisposals()
@@ -76,6 +80,7 @@ static class MixingThread
 			while ( _samplerDisposalQueue.TryDequeue( out var s ) ) s.Dispose();
 			while ( _acousticModelDisposalQueue.TryDequeue( out var s ) ) s.Dispose();
 			while ( _binauralDisposalQueue.TryDequeue( out var b ) ) b.Dispose();
+			while ( _reverbDisposalQueue.TryDequeue( out var r ) ) r.Dispose();
 		}
 
 		SoundHandle.LipSyncAccessor.DrainDestructionQueue();
@@ -86,7 +91,7 @@ static class MixingThread
 		if ( sampler is not null ) _pendingSamplerDisposals.Add( sampler );
 	}
 
-	internal static void QueueAcousticModelDisposal( AcousticModel source )
+	internal static void QueueAcousticModelDisposal( DirectSoundModel source )
 	{
 		if ( source is not null ) _pendingAcousticModelDisposals.Add( source );
 	}
@@ -94,6 +99,11 @@ static class MixingThread
 	internal static void QueueBinauralDisposal( BinauralEffect binaural )
 	{
 		if ( binaural is not null ) _pendingBinauralDisposals.Add( binaural );
+	}
+
+	internal static void QueueReverbDisposal( NativeReverbEffect reverb )
+	{
+		if ( reverb is not null ) _pendingReverbDisposals.Add( reverb );
 	}
 
 	internal static void ApplyWritebacks()
@@ -186,8 +196,13 @@ static class MixingThread
 		snapshot.MasterVolume = Sound.MasterVolume;
 	}
 
+	static volatile float _avgMixTimeMs;
+	/// <summary>Exponentially weighted average mix buffer time in milliseconds. Safe to read from any thread.</summary>
+	internal static float AverageMixTimeMs => _avgMixTimeMs;
+
 	internal static void MixOneBuffer()
 	{
+		var startTs = System.Diagnostics.Stopwatch.GetTimestamp();
 		try
 		{
 			lock ( _lockObject )
@@ -207,10 +222,15 @@ static class MixingThread
 			Log.Error( e, $"Sound Mixer Exception: {e.Message}" );
 		}
 
+		// Update EWMA mix timing.
+		var elapsedMs = (float)(System.Diagnostics.Stopwatch.GetElapsedTime( startTs ).TotalMilliseconds);
+		_avgMixTimeMs = _avgMixTimeMs * 0.95f + elapsedMs * 0.05f;
+
 		// Drain disposal queues after mixing so objects are valid for the duration of the mix.
 		while ( _samplerDisposalQueue.TryDequeue( out var sampler ) ) sampler.Dispose();
 		while ( _acousticModelDisposalQueue.TryDequeue( out var source ) ) source.Dispose();
 		while ( _binauralDisposalQueue.TryDequeue( out var binaural ) ) binaural.Dispose();
+		while ( _reverbDisposalQueue.TryDequeue( out var reverb ) ) reverb.Dispose();
 		SoundHandle.LipSyncAccessor.DrainDestructionQueue();
 	}
 
@@ -232,6 +252,7 @@ static class MixingThread
 
 		_mixOutput.Silence();
 		_mixOutput.MixFrom( Mixer.Master.Output, snapshot.MasterVolume );
+		_mixOutput.HardLimit();
 		_mixOutput.SendToOutput();
 	}
 

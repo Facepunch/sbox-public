@@ -72,7 +72,7 @@ class BinauralEffect : IDisposable
 				gain = MathX.Lerp( 0.0f, gain, spatialBlend );
 				gain = gain.Clamp( 0.0001f, 1.0f );
 
-				var smoothed = _gains.Get( AudioChannel.Left ).Approach( gain, 0.1f );
+				var smoothed = _gains.Get( AudioChannel.Left ).LerpTo( gain, 0.1f );
 				_gains.Set( AudioChannel.Left, smoothed );
 				output.Get( AudioChannel.Left ).MixFrom( input, smoothed );
 			}

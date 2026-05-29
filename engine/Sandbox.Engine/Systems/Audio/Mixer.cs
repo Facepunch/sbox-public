@@ -87,26 +87,69 @@ public partial class Mixer
 	/// <summary>
 	/// If true then this mixer will use custom occlusion tags. If false we'll use what our parent uses.
 	/// </summary>
-	[ToggleGroup( "OverrideOcclusion" )]
+	[Obsolete( "Use OverrideSimulationTags + BlockingSimulationTags / IgnoredSimulationTags instead." )]
+	[ToggleGroup( "OverrideOcclusion" ), Hide]
 	public bool OverrideOcclusion { get; set; }
 
 	/// <summary>
-	/// The tags which occlude our physics
+	/// The tags which occlude our physics.
 	/// </summary>
-	[ToggleGroup( "OverrideOcclusion" )]
+	[Obsolete( "Use BlockingSimulationTags instead." )]
+	[ToggleGroup( "OverrideOcclusion" ), Hide]
 	public TagSet OcclusionTags { get; private set; } = new TagSet();
 
 	/// <summary>
 	/// Get an array of occlusion tags our sounds want to hit. May return null if there are none defined!
 	/// </summary>
+	[Obsolete( "Use GetBlockingSimulationTags() instead." )]
 	public IReadOnlySet<uint> GetOcclusionTags()
 	{
+#pragma warning disable CS0618
 		if ( !OverrideOcclusion )
 		{
 			return Parent?.GetOcclusionTags();
 		}
 
 		return OcclusionTags?.GetTokens();
+#pragma warning restore CS0618
+	}
+
+	/// <summary>
+	/// If true this mixer uses its own audio simulation tag sets; otherwise inherits from parent.
+	/// </summary>
+	[ToggleGroup( "OverrideSimulationTags", Label = "Override Simulation Tags" )]
+	public bool OverrideSimulationTags { get; set; }
+
+	/// <summary>
+	/// If non-empty, audio simulation traces (occlusion, transmission, reverb rays) only register hits on
+	/// bodies with one of these tags. Empty = hit everything that isn't in <see cref="IgnoredSimulationTags"/>.
+	/// </summary>
+	[ToggleGroup( "OverrideSimulationTags" )]
+	public TagSet BlockingSimulationTags { get; private set; } = new TagSet();
+
+	/// <summary>
+	/// Audio simulation traces always skip bodies with these tags (e.g. triggers, sky, passaudio).
+	/// Applied on top of <see cref="BlockingSimulationTags"/>.
+	/// </summary>
+	[ToggleGroup( "OverrideSimulationTags" )]
+	public TagSet IgnoredSimulationTags { get; private set; } = new TagSet();
+
+	/// <summary>
+	/// Walks the parent chain. Returns null if no override is set anywhere on the chain.
+	/// </summary>
+	public TagSet GetBlockingSimulationTags()
+	{
+		if ( !OverrideSimulationTags ) return Parent?.GetBlockingSimulationTags();
+		return BlockingSimulationTags;
+	}
+
+	/// <summary>
+	/// Walks the parent chain. Returns null if no override is set anywhere on the chain.
+	/// </summary>
+	public TagSet GetIgnoredSimulationTags()
+	{
+		if ( !OverrideSimulationTags ) return Parent?.GetIgnoredSimulationTags();
+		return IgnoredSimulationTags;
 	}
 
 
@@ -293,7 +336,11 @@ public partial class Mixer
 		lock ( mixer.Lock )
 		{
 			if ( mixer.Children is null ) return false;
-			return mixer.Children.Any( AnySolo );
+			foreach ( var child in mixer.Children )
+			{
+				if ( AnySolo( child ) ) return true;
+			}
+			return false;
 		}
 	}
 
@@ -320,6 +367,9 @@ public partial class Mixer
 
 	static Superluminal _mixVoice = new( "Mix Voice", "#4d5e73" );
 	MultiChannelBuffer mixBuffer = new( AudioEngine.ChannelCount );
+	readonly MultiChannelBuffer _reverbSendBuffer = new( AudioEngine.ChannelCount );
+	readonly MultiChannelBuffer _reverbOutputBuffer = new( AudioEngine.ChannelCount );
+	readonly MultiChannelBuffer _reverbDryBuffer = new( AudioEngine.ChannelCount );
 
 	/// <summary>
 	/// Mix one voice described by the snapshot. No locks, all inputs come from the snapshot,
@@ -342,22 +392,22 @@ public partial class Mixer
 		voices[voiceIndex].OutputAmplitude = buffer.LevelMax;
 
 		if ( vs.HasLipSync ) vs.LipSync.ProcessLipSync( buffer );
-
 		if ( vs.Loopback && !AudioEngine.VoiceLoopback ) return;
 
-		var AllModels = CollectionsMarshal.AsSpan( snapshot.AllModels );
+		var allModels = CollectionsMarshal.AsSpan( snapshot.AllModels );
 		var allBinaurals = CollectionsMarshal.AsSpan( snapshot.AllBinaurals );
 		var allParams = CollectionsMarshal.AsSpan( snapshot.AllParams );
+		var reverbApplied = false;
 
 		for ( var i = 0; i < vs.SourceCount; i++ )
 		{
-			AcousticModel source;
+			DirectSoundModel source;
 			Listener listener;
 			Transform mixTransform;
 
 			if ( vs.ListenLocal )
 			{
-				source = AllModels[vs.SourceOffset];
+				source = allModels[vs.SourceOffset];
 				listener = Listener.Local;
 				mixTransform = default;
 			}
@@ -366,27 +416,76 @@ public partial class Mixer
 				var listeners = CollectionsMarshal.AsSpan( snapshot.Listeners );
 				ref readonly var ls = ref listeners[i];
 				if ( ls.Scene != vs.Scene ) continue;
-				source = AllModels[vs.SourceOffset + i];
+				source = allModels[vs.SourceOffset + i];
 				listener = ls.Listener;
 				mixTransform = ls.MixTransform;
 			}
 
 			if ( source is null ) continue;
-
-			if ( !_outputBuffers.TryGetValue( listener, out var targetBuffer ) )
-				targetBuffer = _outputBuffers[listener] = new MultiChannelBuffer( AudioEngine.ChannelCount );
-
+			if ( !_outputBuffers.TryGetValue( listener, out var targetBuffer ) ) targetBuffer = _outputBuffers[listener] = new MultiChannelBuffer( AudioEngine.ChannelCount );
 			if ( _usedListeners.Add( listener ) ) targetBuffer.Silence();
 
 			mixBuffer.CopyFromUpmix( samples );
+
+			// Evaluate reverb gate up front so we can skip the dry-buffer copy when the send won't fire.
+			bool willRunReverb = !reverbApplied && vs.Reverb is not null && vs.Reverb.IsValid
+					&& vs.ReverbRoom.Mix > 0.08f;
+			float reverbSendLevel = 0f;
+			if ( willRunReverb )
+			{
+				var srcParams = allParams[vs.SourceOffset + (vs.ListenLocal ? 0 : i)];
+				var distAtten = ComputeDistanceAtten( listener, in srcParams );
+				reverbSendLevel = srcParams.ReverbAmount * distAtten * volume * (srcParams.OcclusionEnabled ? srcParams.TransmissionBands.Mid : 1f);
+				// Capture dry signal before DirectEffect so reverb send bypasses distance attenuation.
+				if ( reverbSendLevel >= 0.15f ) _reverbDryBuffer.CopyFrom( mixBuffer );
+			}
+
 			var sourceParams = allParams[vs.SourceOffset + i];
+			// Always run SA DirectEffect to keep its internal gain interpolator warm; skipping causes a pop on re-audibility.
 			ApplyDirectMix( source, listener, mixBuffer, volume, in sourceParams );
 			ConvertToBinaural( allBinaurals[vs.SourceOffset + i], mixTransform, in vs, mixBuffer );
+
+			if ( willRunReverb )
+			{
+				reverbApplied = true;
+				if ( reverbSendLevel >= 0.15f )
+				{
+					var room = vs.ReverbRoom;
+					FillReverbSend( _reverbDryBuffer, reverbSendLevel );
+					_reverbOutputBuffer.Silence();
+					vs.Reverb.Apply( room.DecayTimeLow, room.DecayTimeMid, room.DecayTimeHigh, _reverbSendBuffer, _reverbOutputBuffer );
+					targetBuffer.MixFrom( _reverbOutputBuffer, room.Mix );
+				}
+			}
+
 			targetBuffer.MixFrom( mixBuffer, 1.0f );
 		}
 	}
 
+	static float ComputeDistanceAtten( Listener listener, in DirectSoundParams p )
+	{
+		if ( !p.DistanceAttenuation ) return 1f;
+
+		var dist = p.Position.Distance( listener.MixTransform.Position );
+		var t = MathX.Clamp( dist / MathF.Max( p.Distance, 1f ), 0f, 1f );
+		return p.Falloff.Evaluate( t );
+	}
+
+	void FillReverbSend( MultiChannelBuffer source, float scale )
+	{
+		var weight = scale / source.ChannelCount;
+		for ( var outCh = 0; outCh < _reverbSendBuffer.ChannelCount; outCh++ )
+		{
+			_reverbSendBuffer.Get( outCh ).Silence();
+			for ( var inCh = 0; inCh < source.ChannelCount; inCh++ )
+			{
+				_reverbSendBuffer.Get( outCh ).MixFrom( source.Get( inCh ), weight );
+			}
+		}
+	}
+
 	MultiChannelBuffer _input;
+	MultiChannelBuffer _binauralInput;
 
 	void EnsureInputBuffer( int channelCount )
 	{
@@ -397,15 +496,23 @@ public partial class Mixer
 		}
 	}
 
-	void ApplyDirectMix( AcousticModel source, Listener listener, MultiChannelBuffer inputoutput, float volume,
-		in AcousticModelParams sourceParams )
+	void EnsureBinauralInputBuffer( int channelCount )
+	{
+		if ( _binauralInput?.ChannelCount != channelCount )
+		{
+			_binauralInput?.Dispose();
+			_binauralInput = new MultiChannelBuffer( channelCount );
+		}
+	}
+
+	void ApplyDirectMix( DirectSoundModel source, Listener listener, MultiChannelBuffer inputoutput, float volume,
+		in DirectSoundParams sourceParams )
 	{
 		if ( source is null )
 			return;
 
 		EnsureInputBuffer( inputoutput.ChannelCount );
 		_input.CopyFrom( inputoutput );
-
 		source.Apply( listener, _input, inputoutput, Occlusion, volume, in sourceParams );
 	}
 
@@ -414,18 +521,22 @@ public partial class Mixer
 	/// </summary>
 	void ConvertToBinaural( BinauralEffect binaural, Transform mixTransform, in VoiceState vs, MultiChannelBuffer inputoutput )
 	{
-		if ( binaural is null )
-			return;
-
-		EnsureInputBuffer( inputoutput.ChannelCount );
-		_input.CopyFrom( inputoutput );
+		if ( binaural is null ) return;
 
 		if ( vs.ListenLocal )
 		{
+			var localSpatial = 0.1f * Spacializing;
+			// ListenLocal voices on mixers with Spacializing==0 (music/UI default) would just
+			// run a near-identity HRIR convolution; inputoutput already holds the desired output.
+			if ( localSpatial <= 0f ) return;
+
 			var pos = vs.Position;
 			while ( pos.Length < 0.5f ) pos += new Vector3( 1, 0, 0 );
 
-			binaural.Apply( pos, 0.1f * Spacializing, useNearestInterpolation: true, _input, inputoutput );
+			EnsureBinauralInputBuffer( 2 );
+			_binauralInput.CopyFrom( inputoutput );
+
+			binaural.Apply( pos, localSpatial, useNearestInterpolation: true, _binauralInput, inputoutput );
 			return;
 		}
 
@@ -441,8 +552,11 @@ public partial class Mixer
 				: soundDirectionLocal.Normal * soundDistance;
 		}
 
-		bool useNearest = vs.IsVoice || vs.Loopback || spacial < 0.5f;
-		binaural.Apply( soundDirectionLocal, spacial, useNearest, _input, inputoutput );
+		EnsureBinauralInputBuffer( 2 );
+		_binauralInput.CopyFrom( inputoutput );
+
+		bool useNearest = vs.IsVoice || vs.Loopback || spacial < 0.5f || soundDistance > 2000f;
+		binaural.Apply( soundDirectionLocal, spacial, useNearest, _binauralInput, inputoutput );
 	}
 
 	/// <summary>

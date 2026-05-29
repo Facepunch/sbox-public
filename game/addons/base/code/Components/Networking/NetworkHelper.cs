@@ -43,7 +43,7 @@ public sealed class NetworkHelper : Component, Component.INetworkListener
 	/// </summary>
 	public void OnActive( Connection channel )
 	{
-		Log.Info( $"Player '{channel.DisplayName}' has joined the game" );
+		Log.Info( $"Player '{channel.Name}' has joined the game" );
 
 		if ( !PlayerPrefab.IsValid() )
 			return;
@@ -54,7 +54,7 @@ public sealed class NetworkHelper : Component, Component.INetworkListener
 		var startLocation = FindSpawnLocation().WithScale( 1 );
 
 		// Spawn this object and make the client the owner
-		var player = PlayerPrefab.Clone( startLocation, name: $"Player - {channel.DisplayName}" );
+		var player = PlayerPrefab.Clone( startLocation, name: $"Player - {channel.Name}" );
 		player.NetworkSpawn( channel );
 	}
 

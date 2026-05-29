@@ -86,7 +86,8 @@ VS
         geoNormal = normalize( mul( Terrain::Get().Transform, float4( geoNormal, 0.0 ) ).xyz );
 
         // Vertex displacement
-        if ( g_bVertexDisplacement )
+    #if ( D_GRID == 0 )
+        if ( g_bVertexDisplacement && Terrain::Get().ControlMapTexture != 0 )
         {
             // Blend displacement between all materials
             float totalDisplacement = 0.0f;
@@ -130,6 +131,7 @@ VS
             // Displace vertex along geometric normal
             o.LocalPosition.xyz += geoNormal * totalDisplacement * displacementFade;
         }
+    #endif
 
         o.WorldPosition = mul( Terrain::Get().Transform, float4( o.LocalPosition, 1.0 ) ).xyz;
         o.PixelPosition = Position3WsToPs( o.WorldPosition.xyz );
