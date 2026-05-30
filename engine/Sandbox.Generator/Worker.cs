@@ -90,6 +90,8 @@ namespace Sandbox.Generator
 		/// </summary>
 		internal static List<string> VisitedClasses = new List<string>();
 
+		Dictionary<SyntaxNode, SyntaxList<AttributeListSyntax>> _propertyBlockMap = new();
+
 		/// <summary>
 		/// Runs in the thread pool, processes the syntax tree and returns
 		/// </summary>
@@ -280,6 +282,7 @@ namespace Sandbox.Generator
 			var symbol = Model.GetDeclaredSymbol( _node );
 			var node = base.VisitFieldDeclaration( _node ) as FieldDeclarationSyntax;
 
+			PropertyBlock.VisitField( ref node, _node, _propertyBlockMap );
 			node = ClassFileLocation.VisitNode( node, _node, symbol, this, TreeInput ) as FieldDeclarationSyntax;
 
 			return node;
@@ -300,6 +303,7 @@ namespace Sandbox.Generator
 			var symbol = Model.GetDeclaredSymbol( _node );
 			var node = base.VisitPropertyDeclaration( _node ) as PropertyDeclarationSyntax;
 
+			PropertyBlock.VisitProperty( ref node, _node, _propertyBlockMap );
 			DefaultValue.VisitProperty( ref node, symbol, this );
 			Description.VisitProperty( ref node, symbol, this );
 			CodeGen.VisitProperty( ref node, symbol, this );
@@ -317,10 +321,12 @@ namespace Sandbox.Generator
 			var oldClassAdditions = ClassAdditions;
 			var oldClassModifiers = ClassModifiers;
 			var oldClassAttributes = ClassBaseTypes;
+			var oldPropertyBlockMap = _propertyBlockMap;
 
 			ClassAdditions = new List<string>();
 			ClassModifiers = new List<string>();
 			ClassBaseTypes = new List<string>();
+			_propertyBlockMap = PropertyBlock.ScanClass( _node );
 
 			var node = _node;
 
@@ -400,6 +406,7 @@ namespace Sandbox.Generator
 				ClassAdditions = oldClassAdditions;
 				ClassModifiers = oldClassModifiers;
 				ClassBaseTypes = oldClassAttributes;
+				_propertyBlockMap = oldPropertyBlockMap;
 			}
 
 			node = LinePreserve.AddLineNumber( node, _node, TreeInput, this );

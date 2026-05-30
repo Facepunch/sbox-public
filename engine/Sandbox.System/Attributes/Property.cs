@@ -56,3 +56,23 @@ public class InlineEditorAttribute : Attribute
 public class AdvancedAttribute : Attribute
 {
 }
+
+/// <summary>
+/// Marks the start of a property group. All subsequent members marked with [PropertyItem] in the same
+/// file will inherit this attribute's parameters as if they had [Property] applied with the same arguments.
+/// </summary>
+[AttributeUsage( AttributeTargets.Property | AttributeTargets.Field )]
+public class PropertyBlockAttribute : Attribute, IClassNameProvider, ITitleProvider
+{
+	public string Name { get; set; }
+	public string Title { get; set; }
+
+	string IClassNameProvider.Value => Name;
+	string ITitleProvider.Value => Title;
+}
+
+/// <summary>
+/// Marks a member as belonging to the nearest preceding [PropertyBlock] in the same file.
+/// </summary>
+[AttributeUsage( AttributeTargets.Property | AttributeTargets.Field )]
+public class PropertyItemAttribute : Attribute { }
