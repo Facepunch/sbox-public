@@ -686,8 +686,8 @@ public partial class NodeUI : GraphicsItem
 		{
 			Graph?.MoveableMoved();
 			Node.Position = Position;
-		}
 
-		Graph?.NodePositionChanged( this );
+			Graph?.NodePositionChanged( this );
+		}
 	}
 }
