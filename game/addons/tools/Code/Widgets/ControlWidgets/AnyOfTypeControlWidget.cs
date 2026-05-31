@@ -51,6 +51,14 @@ sealed class AnyOfTypeControlWidget : DropdownControlWidget<TypeDescription>
 		}
 	}
 
+	protected override void OnMouseClick( MouseEvent e )
+	{
+		if ( e.LocalPosition.y > Theme.RowHeight )
+			return;
+
+		base.OnMouseClick( e );
+	}
+
 	protected override void OnItemSelected( object item )
 	{
 		var typeDesc = item is Entry e ? e.Value : item as TypeDescription;
