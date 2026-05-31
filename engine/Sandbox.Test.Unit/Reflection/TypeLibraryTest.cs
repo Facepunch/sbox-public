@@ -340,6 +340,12 @@ public class TypeCollection
 		void DoSomething( T value );
 	}
 
+	public interface IConstraintBreaker2<T, T2, T3>
+	{
+		void DoSomething( T value );
+		void DoSomething2( T2 value );
+		void DoSomething3( T3 value );
+	}
 
 
 	/// <summary>
@@ -360,6 +366,38 @@ public class TypeCollection
 									.CreateGeneric<IConstraintBreaker<TypeWrapper>>( [typeof( TypeWrapper )] );
 		Assert.IsNull( badboy );
 	}
+
+	/// <summary>
+	/// 
+	/// </summary>
+	[TestMethod]
+	public void ObeyGenericConstraints2()
+	{
+		var tl = new Sandbox.Internal.TypeLibrary();
+		tl.AddAssembly( ThisAssembly, true );
+
+		var goodboy = tl.GetType( typeof( IConstraintBreaker3<> ) )
+									.MakeGenericType( [typeof( ConstraintBreaker3 )] );
+		Assert.IsNotNull( goodboy );
+	}
+
+	/// <summary>
+	/// 
+	/// </summary>
+	[TestMethod]
+	public void ObeyRecursiveGenericConstraints()
+	{
+		var tl = new Sandbox.Internal.TypeLibrary();
+		tl.AddAssembly( ThisAssembly, true );
+
+		var goodboy = tl.GetType( typeof( ConstraintBreaker2<> ) )
+									.CreateGeneric<ConstraintBreaker2TypeErased>( [typeof( ConstraintBreaker2Inner )] );
+		Assert.IsNotNull( goodboy );
+
+		var badboy = tl.GetType( typeof( ConstraintBreaker2<> ) )
+									.CreateGeneric<ConstraintBreaker2TypeErased>( [typeof( TypeWrapper )] );
+		Assert.IsNull( badboy );
+	}
 }
 
 [Expose, MyType]
@@ -375,6 +413,58 @@ public readonly record struct TypeWrapper( Type Value );
 public class ConstraintBreaker<T> : IConstraintBreaker<T> where T : unmanaged
 {
 	public void DoSomething( T value )
+	{
+
+	}
+}
+
+
+public class ConstraintBreaker2Inner :
+	IConstraintBreaker2<
+		ConstraintBreaker2Inner,
+		ConstraintBreaker2Inner,
+		ConstraintBreaker2Inner
+	>
+{
+	public void DoSomething( ConstraintBreaker2Inner value )
+	{
+
+	}
+
+	public void DoSomething2( ConstraintBreaker2Inner value )
+	{
+
+	}
+
+	public void DoSomething3( ConstraintBreaker2Inner value )
+	{
+
+	}
+}
+
+public class ConstraintBreaker2TypeErased { }
+
+[Expose]
+public class ConstraintBreaker2<T> : ConstraintBreaker2TypeErased where T : IConstraintBreaker2<T, T, T>
+{
+	public void DoSomething( T value )
+	{
+		value.DoSomething( value );
+		value.DoSomething2( value );
+		value.DoSomething3( value );
+	}
+}
+
+
+public interface IConstraintBreaker3<T> where T : IConstraintBreaker3<T>
+{
+	void DoSomething( T value );
+}
+
+[Expose]
+public class ConstraintBreaker3 : IConstraintBreaker3<ConstraintBreaker3>
+{
+	public void DoSomething( ConstraintBreaker3 value )
 	{
 
 	}
