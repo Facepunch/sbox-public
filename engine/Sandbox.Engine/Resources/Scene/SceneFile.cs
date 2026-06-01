@@ -5,7 +5,7 @@ namespace Sandbox;
 /// <summary>
 /// A scene file contains a collection of GameObject with Components and their properties.
 /// </summary>
-[AssetType( Name = "Scene", Extension = "scene", Category = "World", Flags = AssetTypeFlags.NoEmbedding )]
+[AssetType( Name = "Scene", Extension = "scene", Category = "World", Flags = AssetTypeFlags.NoEmbedding, IconColor = "#4596ec" )]
 public partial class SceneFile : GameResource
 {
 	[JsonPropertyName( "__guid" )]
