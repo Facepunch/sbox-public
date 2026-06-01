@@ -1,6 +1,4 @@
-﻿using System.Collections.Concurrent;
-
-namespace Sandbox.Audio;
+﻿namespace Sandbox.Audio;
 
 /// <summary>
 /// Listens for sounds in a scene.
@@ -11,7 +9,6 @@ internal class Listener : IValid, IDisposable
 
 	private static readonly List<Listener> _active = [];
 	private static readonly List<Listener> _removed = [];
-	private static readonly ConcurrentQueue<Listener> _removeQueue = [];
 
 	/// <summary>
 	/// Currently active listeners.
@@ -32,11 +29,6 @@ internal class Listener : IValid, IDisposable
 	/// Direct access to removed listeners list. Use for iteration without allocation.
 	/// </summary>
 	internal static List<Listener> RemovedList => _removed;
-
-	/// <summary>
-	/// For the mixing thread to know which listeners have been removed.
-	/// </summary>
-	public static ConcurrentQueue<Listener> RemoveQueue => _removeQueue;
 
 	private Transform _transform;
 
@@ -98,8 +90,6 @@ internal class Listener : IValid, IDisposable
 		if ( _destroyed )
 			return;
 
-		RemoveQueue.Enqueue( this );
-
 		_removed.Add( this );
 		_active.Remove( this );
 
@@ -113,24 +103,9 @@ internal class Listener : IValid, IDisposable
 		Dispose();
 	}
 
-	/// <summary>
-	/// Get active sound listener states.
-	/// </summary>
-	public static void GetActive( List<Listener> listeners )
-	{
-		foreach ( var listener in _active )
-		{
-			listener.MixTransform = listener.Transform;
-			listeners.Add( listener );
-		}
-
-		_removed.Clear();
-	}
-
 	public static void Clear()
 	{
 		_active.Clear();
 		_removed.Clear();
-		_removeQueue.Clear();
 	}
 }

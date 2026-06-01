@@ -36,15 +36,23 @@ public class ToolSidebarWidget : Widget
 
 	public Layout AddGroup( string title, SizeMode sizeMode = SizeMode.CanShrink, bool collapsible = false )
 	{
+		var group = CreateGroupWidget( title, sizeMode, collapsible );
+		Layout.Add( group );
+		return group.ContentLayout;
+	}
+
+	/// <summary>
+	/// Creates a group widget parented to the given widget without adding it to this sidebar's layout.
+	/// Use this to build groups that belong to a separately-controlled container.
+	/// </summary>
+	internal static SidebarGroupWidget CreateGroupWidget( string title, SizeMode sizeMode = SizeMode.CanShrink, bool collapsible = false )
+	{
 		var group = new SidebarGroupWidget();
 		group.Title = title;
 		group.VerticalSizeMode = sizeMode;
 		group.Collapsible = collapsible;
 		group.RestoreState();
-
-		Layout.Add( group );
-
-		return group.ContentLayout;
+		return group;
 	}
 
 	public IconButton CreateButton( string text, string icon, string keybind, Action clicked, bool enabled, Layout addToLayout = null, bool active = false )
@@ -93,7 +101,7 @@ public class ToolSidebarWidget : Widget
 	}
 }
 
-file class SidebarGroupWidget : Widget
+internal class SidebarGroupWidget : Widget
 {
 	public readonly Layout ContentLayout;
 

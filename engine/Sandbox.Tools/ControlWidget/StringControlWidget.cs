@@ -36,6 +36,8 @@ public class StringControlWidget : ControlWidget
 		LineEdit.MaximumSize = new Vector2( 4096, Theme.RowHeight );
 		LineEdit.EditingFinished += OnEditingFinished;
 		LineEdit.EditingStarted += OnEditingStarted;
+		LineEdit.Focused += OnLineEditFocused;
+		LineEdit.MouseClick += OnLineEditClicked;
 		LineEdit.SetStyles( "background-color: transparent;" );
 
 		if ( property.TryGetAttribute<PlaceholderAttribute>( out var placeholder ) )
@@ -95,6 +97,26 @@ public class StringControlWidget : ControlWidget
 		PropertyFinishEdit();
 	}
 
+	private bool _selectAllOnLineEditClick;
+
+	void OnLineEditFocused( FocusChangeReason reason )
+	{
+		_selectAllOnLineEditClick = reason == FocusChangeReason.Mouse && !LineEdit.ReadOnly;
+	}
+
+	void OnLineEditClicked()
+	{
+		if ( !_selectAllOnLineEditClick )
+			return;
+
+		_selectAllOnLineEditClick = false;
+
+		if ( !LineEdit.ReadOnly )
+		{
+			LineEdit.SelectAll();
+		}
+	}
+
 	/// <summary>
 	/// Change text to pink if we're editing multiple values, and they differ
 	/// </summary>
@@ -139,6 +161,8 @@ public class StringControlWidget : ControlWidget
 			LineEdit.EditingFinished -= OnEditingFinished;
 			LineEdit.EditingStarted -= OnEditingStarted;
 			LineEdit.TextEdited -= OnEdited;
+			LineEdit.Focused -= OnLineEditFocused;
+			LineEdit.MouseClick -= OnLineEditClicked;
 		}
 
 		base.OnDestroyed();

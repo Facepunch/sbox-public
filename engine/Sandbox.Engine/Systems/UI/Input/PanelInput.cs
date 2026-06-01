@@ -229,12 +229,21 @@ internal class PanelInput
 			}
 		}
 
-		if ( Hovered != null )
+		var cursor = Hovered?.ComputedStyle?.Cursor;
+
+		if ( cursor != null )
 		{
-			var cursor = Hovered.ComputedStyle?.Cursor;
 			SetCursor( cursor );
+			_uiClaimedCursor = true;
+		}
+		else if ( _uiClaimedCursor )
+		{
+			SetCursor( null );
+			_uiClaimedCursor = false;
 		}
 	}
+
+	bool _uiClaimedCursor;
 
 	void UpdateDropTarget( Panel current )
 	{

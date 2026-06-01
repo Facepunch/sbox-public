@@ -106,6 +106,16 @@ public static class MenuHelpers
 
 	public static string SANDBOX_IDENT => "facepunch.sandbox";
 
+	/// <summary>
+	/// Whole days since <paramref name="time"/>, formatted compactly - e.g. "1d", "7d", "764d".
+	/// </summary>
+	public static string DaysAgo( System.DateTimeOffset time )
+	{
+		var days = (int)System.Math.Floor( (System.DateTimeOffset.UtcNow - time).TotalDays );
+		if ( days < 0 ) days = 0;
+		return $"{days}d";
+	}
+
 	public static MenuPanel OpenFriendMenu( Panel source, Friend friend )
 	{
 		var menu = MenuPanel.Open( source );

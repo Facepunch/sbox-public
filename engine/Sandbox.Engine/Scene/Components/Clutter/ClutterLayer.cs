@@ -163,8 +163,6 @@ class ClutterLayer
 
 		foreach ( var (tileCoord, instances) in ModelInstancesByTile )
 		{
-			var tileCenter = GetTileBounds( tileCoord ).Center.WithZ( camera?.WorldPosition.z ?? 0 );
-
 			foreach ( var instance in instances )
 			{
 				if ( instance.Entry?.Model == null ) continue;
@@ -173,9 +171,10 @@ class ClutterLayer
 				var lod = 0;
 				if ( camera?.SceneCamera is not null )
 				{
-					var screenPixels = camera.SceneCamera.ComputeScreenSizeInPixels( tileCenter, 0.5f );
 					var scale = instance.Transform.Scale;
 					var instanceScale = MathF.Max( scale.x, MathF.Max( scale.y, scale.z ) );
+					var radius = model.Bounds.Size.Length * 0.5f * instanceScale;
+					var screenPixels = camera.SceneCamera.ComputeScreenSizeInPixels( instance.Transform.Position, radius );
 					lod = model.GetLodLevelForScreenSize( screenPixels, instanceScale );
 				}
 

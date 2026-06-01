@@ -50,10 +50,13 @@ public class TextureResourceCompiler : ResourceCompiler
 
 		var writer = new VTexWriter();
 
+		// Linear data textures (normal maps, roughness, metalness etc.) have this flag set
+		bool srgb = !desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_LINEAR_COLOR_SPACE );
+
 		for ( var mip = 0; mip < mipCount; mip++ )
 		{
 			var bitmap = texture.GetBitmap( mip );
-			writer.SetTexture( bitmap, mip );
+			writer.SetTexture( bitmap, mip, srgb: srgb );
 		}
 
 		writer.Header.Width = (ushort)width;

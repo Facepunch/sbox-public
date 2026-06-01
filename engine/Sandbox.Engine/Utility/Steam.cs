@@ -22,6 +22,13 @@ public static class Steam
 	/// </summary>
 	public static string PersonaName { get; private set; } = "Unnammed Player";
 
+	private static readonly string[] LocalInstanceNames =
+	[
+		"Homer", "Marge", "Bart", "Lisa", "Maggie",
+		"Ned", "Burns", "Smithers", "Moe", "Barney",
+		"Krusty", "Milhouse", "Nelson", "Ralph", "Wiggum"
+	];
+
 	internal static void InitializeClient()
 	{
 		if ( Application.IsUnitTest )
@@ -34,13 +41,14 @@ public static class Steam
 		if ( Application.IsJoinLocal && Application.LocalInstanceId > 0 )
 		{
 			SteamId = BaseFakeSteamId + (ulong)Application.LocalInstanceId;
+			PersonaName = LocalInstanceNames[Random.Shared.Next( LocalInstanceNames.Length )];
 		}
 		else if ( su.IsValid )
 		{
 			SteamId = su.GetSteamID();
 		}
 
-		if ( sf.IsValid )
+		if ( sf.IsValid && !Application.IsJoinLocal )
 		{
 			PersonaName = sf.GetPersonaName();
 		}

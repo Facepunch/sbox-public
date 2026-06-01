@@ -30,13 +30,18 @@ static partial class Calc
 		TreeNode result = new()
 		{
 			Type = TreeNodeType.Expression,
-			Value = operation switch
+			Value = new()
 			{
-				TokenType.Add => left.Value.GetScaledPixels( dimension ) + right.Value.GetScaledPixels( dimension ),
-				TokenType.Subtract => left.Value.GetScaledPixels( dimension ) - right.Value.GetScaledPixels( dimension ),
-				TokenType.Multiply => left.Value.GetScaledPixels( dimension ) * right.Value.GetScaledPixels( dimension ),
-				TokenType.Divide => left.Value.GetScaledPixels( dimension ) / right.Value.GetScaledPixels( dimension ),
-				_ => throw new Exception( "Invalid operation" )
+				// don't use LengthUnit.Pixels to avoid multiple scaling
+				Unit = LengthUnit.Auto,
+				Value = operation switch
+				{
+					TokenType.Add => left.Value.GetScaledPixels( dimension ) + right.Value.GetScaledPixels( dimension ),
+					TokenType.Subtract => left.Value.GetScaledPixels( dimension ) - right.Value.GetScaledPixels( dimension ),
+					TokenType.Multiply => left.Value.GetScaledPixels( dimension ) * right.Value.GetPixels( dimension ),
+					TokenType.Divide => left.Value.GetScaledPixels( dimension ) / right.Value.GetPixels( dimension ),
+					_ => throw new Exception( "Invalid operation" )
+				}
 			}
 		};
 

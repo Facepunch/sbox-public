@@ -63,6 +63,11 @@ public struct FindPackageQuery
 	public List<string> WithTag;
 
 	/// <summary>
+	/// Must NOT contain any of these tags
+	/// </summary>
+	public List<string> WithoutTag;
+
+	/// <summary>
 	/// In contest
 	/// </summary>
 	public string InContest;
@@ -86,6 +91,12 @@ public struct FindPackageQuery
 	/// Only show packages that we haven't played
 	/// </summary>
 	public bool Unplayed;
+
+	/// <summary>
+	/// Hide games/maps tagged "incomplete" in the index (low-effort, near-empty storefront).
+	/// Set by the "is:complete" query token — used by curated shelves like Up and Coming.
+	/// </summary>
+	public bool RequireComplete;
 
 	/// <summary>
 	/// Show hidden/banned packages
@@ -255,6 +266,9 @@ public struct FindPackageQuery
 
 				if ( value == "unplayed" )
 					find.Unplayed = true;
+
+				if ( value == "complete" )
+					find.RequireComplete = true;
 
 				if ( value == "fave" )
 					find.FavouritesSteamId = find.SteamId;

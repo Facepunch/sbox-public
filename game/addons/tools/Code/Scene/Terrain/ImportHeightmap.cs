@@ -1,6 +1,4 @@
-﻿using SkiaSharp;
-using System.IO;
-using System.Runtime.InteropServices;
+﻿using System.IO;
 
 namespace Editor.TerrainEditor;
 
@@ -134,7 +132,7 @@ class ImportHeightmapPopup : Widget
 
 		if ( realResolution != Settings.Resolution )
 		{
-			heightmap = ResampleHeightmap( heightmap, Settings.Resolution, realResolution ).ToArray();
+			heightmap = ResampleHeightmap( heightmap, Settings.Resolution, realResolution );
 		}
 
 		terrain.Storage.SetResolution( realResolution );
@@ -146,35 +144,11 @@ class ImportHeightmapPopup : Widget
 		Close();
 	}
 
-	static Span<ushort> ResampleHeightmap( Span<ushort> original, int originalSize, int newSize )
-	{
-		// Create SKBitmap with the original data copied in
-		using var bitmap = new SKBitmap( originalSize, originalSize, SKColorType.Alpha16, SKAlphaType.Opaque );
-		using ( var pixmap = bitmap.PeekPixels() )
-		{
-			var dataBytes = MemoryMarshal.AsBytes( original );
-			Marshal.Copy( dataBytes.ToArray(), 0, pixmap.GetPixels(), dataBytes.Length );
-		}
-
-		// Create new resized bitmap
-		using var newBitmap = bitmap.Resize( new SKSizeI( newSize, newSize ), SKSamplingOptions.Default );
-
-		// Output pixels
-		using ( var pixmap = newBitmap.PeekPixels() )
-		{
-			return pixmap.GetPixelSpan<ushort>();
-		}
-	}
+	static ushort[] ResampleHeightmap( Span<ushort> original, int originalSize, int newSize )
+		=> TerrainImportHelper.ResampleHeightmap( original, originalSize, newSize );
 
 	static int RoundDownToPowerOfTwo( int value )
-	{
-		value = value | (value >> 1);
-		value = value | (value >> 2);
-		value = value | (value >> 4);
-		value = value | (value >> 8);
-		value = value | (value >> 16);
-		return value - (value >> 1);
-	}
+		=> TerrainImportHelper.RoundDownToPowerOfTwo( value );
 }
 
 

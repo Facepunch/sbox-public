@@ -245,7 +245,7 @@ namespace Sandbox.UI
 			{
 				if ( Initialized && _top == value && !value.Value.Unit.IsDynamic() ) return;
 				_top = value;
-				value.SetYoga( Node, () => Parent?.LayoutWidth ?? 0, default, Yoga.YGNodeStyleSetPosition, Yoga.YGNodeStyleSetPositionPercent, YGEdge.YGEdgeTop );
+				value.SetYoga( Node, () => Parent?.LayoutHeight ?? 0, default, Yoga.YGNodeStyleSetPosition, Yoga.YGNodeStyleSetPositionPercent, YGEdge.YGEdgeTop );
 			}
 		}
 
@@ -256,7 +256,7 @@ namespace Sandbox.UI
 			{
 				if ( Initialized && _bottom == value && !value.Value.Unit.IsDynamic() ) return;
 				_bottom = value;
-				value.SetYoga( Node, () => Parent?.LayoutWidth ?? 0, default, Yoga.YGNodeStyleSetPosition, Yoga.YGNodeStyleSetPositionPercent, YGEdge.YGEdgeBottom );
+				value.SetYoga( Node, () => Parent?.LayoutHeight ?? 0, default, Yoga.YGNodeStyleSetPosition, Yoga.YGNodeStyleSetPositionPercent, YGEdge.YGEdgeBottom );
 			}
 		}
 
@@ -289,7 +289,7 @@ namespace Sandbox.UI
 			{
 				if ( Initialized && _margintop == value && !value.Value.Unit.IsDynamic() ) return;
 				_margintop = value;
-				value.SetYoga( Node, () => Parent?.LayoutWidth ?? 0, Yoga.YGNodeStyleSetMarginAuto, Yoga.YGNodeStyleSetMargin, Yoga.YGNodeStyleSetPositionPercent, YGEdge.YGEdgeTop );
+				value.SetYoga( Node, () => Parent?.LayoutHeight ?? 0, Yoga.YGNodeStyleSetMarginAuto, Yoga.YGNodeStyleSetMargin, Yoga.YGNodeStyleSetPositionPercent, YGEdge.YGEdgeTop );
 			}
 		}
 
@@ -300,7 +300,7 @@ namespace Sandbox.UI
 			{
 				if ( Initialized && _marginbottom == value && !value.Value.Unit.IsDynamic() ) return;
 				_marginbottom = value;
-				value.SetYoga( Node, () => Parent?.LayoutWidth ?? 0, Yoga.YGNodeStyleSetMarginAuto, Yoga.YGNodeStyleSetMargin, Yoga.YGNodeStyleSetPositionPercent, YGEdge.YGEdgeBottom );
+				value.SetYoga( Node, () => Parent?.LayoutHeight ?? 0, Yoga.YGNodeStyleSetMarginAuto, Yoga.YGNodeStyleSetMargin, Yoga.YGNodeStyleSetPositionPercent, YGEdge.YGEdgeBottom );
 			}
 		}
 
@@ -333,7 +333,7 @@ namespace Sandbox.UI
 			{
 				if ( Initialized && _paddingtop == value && !value.Value.Unit.IsDynamic() ) return;
 				_paddingtop = value;
-				value.SetYoga( Node, () => Parent?.LayoutWidth ?? 0, default, Yoga.YGNodeStyleSetPadding, Yoga.YGNodeStyleSetPaddingPercent, YGEdge.YGEdgeTop );
+				value.SetYoga( Node, () => Parent?.LayoutHeight ?? 0, default, Yoga.YGNodeStyleSetPadding, Yoga.YGNodeStyleSetPaddingPercent, YGEdge.YGEdgeTop );
 			}
 		}
 
@@ -344,7 +344,7 @@ namespace Sandbox.UI
 			{
 				if ( Initialized && _paddingbottom == value && !value.Value.Unit.IsDynamic() ) return;
 				_paddingbottom = value;
-				value.SetYoga( Node, () => Parent?.LayoutWidth ?? 0, default, Yoga.YGNodeStyleSetPadding, Yoga.YGNodeStyleSetPaddingPercent, YGEdge.YGEdgeBottom );
+				value.SetYoga( Node, () => Parent?.LayoutHeight ?? 0, default, Yoga.YGNodeStyleSetPadding, Yoga.YGNodeStyleSetPaddingPercent, YGEdge.YGEdgeBottom );
 			}
 		}
 
@@ -377,7 +377,7 @@ namespace Sandbox.UI
 			{
 				if ( Initialized && _bordertop == value && !value.Value.Unit.IsDynamic() ) return;
 				_bordertop = value;
-				value.SetYoga( Node, () => Parent?.LayoutWidth ?? 0, default, Yoga.YGNodeStyleSetBorder, default, YGEdge.YGEdgeTop );
+				value.SetYoga( Node, () => Parent?.LayoutHeight ?? 0, default, Yoga.YGNodeStyleSetBorder, default, YGEdge.YGEdgeTop );
 			}
 		}
 
@@ -388,7 +388,7 @@ namespace Sandbox.UI
 			{
 				if ( Initialized && _borderbottom == value && !value.Value.Unit.IsDynamic() ) return;
 				_borderbottom = value;
-				value.SetYoga( Node, () => Parent?.LayoutWidth ?? 0, default, Yoga.YGNodeStyleSetBorder, default, YGEdge.YGEdgeBottom );
+				value.SetYoga( Node, () => Parent?.LayoutHeight ?? 0, default, Yoga.YGNodeStyleSetBorder, default, YGEdge.YGEdgeBottom );
 			}
 		}
 

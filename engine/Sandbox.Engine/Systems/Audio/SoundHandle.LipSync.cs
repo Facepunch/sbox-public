@@ -1,4 +1,5 @@
 ﻿using NativeEngine;
+using System.Collections.Concurrent;
 
 namespace Sandbox;
 
@@ -54,9 +55,23 @@ public partial class SoundHandle
 			}
 		}
 
-		private bool _enabled;
+		// Volatile so the mix thread's ProcessLipSync guard fires without a lock.
+		volatile bool _enabled;
 		private uint _context;
 		private float[] _visemes;
+
+		// Contexts waiting to be destroyed at the start of the next MixOneBuffer().
+		static readonly ConcurrentQueue<uint> _destructionQueue = new();
+
+		/// <summary>
+		/// Drain OVR contexts queued by DisableLipSync(). Called by MixingThread at the start
+		/// of each MixOneBuffer(), guaranteeing no context is destroyed while ProcessLipSync uses it.
+		/// </summary>
+		internal static void DrainDestructionQueue()
+		{
+			while ( _destructionQueue.TryDequeue( out var ctx ) )
+				OVRLipSyncGlobal.ovrLipSync_DestroyContext( ctx );
+		}
 
 		internal LipSyncAccessor()
 		{
@@ -64,9 +79,10 @@ public partial class SoundHandle
 
 		private void EnableLipSync()
 		{
-			if ( _enabled )
-				return;
+			if ( _enabled ) return;
 
+			// Create resources first, then set _enabled = true (volatile release).
+			// The mix thread sees _enabled = true only after _context and _visemes are ready.
 			OVRLipSyncGlobal.ovrLipSync_CreateContextEx(
 				out _context,
 				OVRLipSync.ContextProvider.Enhanced_with_Laughter,
@@ -74,27 +90,35 @@ public partial class SoundHandle
 				true );
 
 			_visemes = new float[(int)OVRLipSync.Viseme.Count];
-			_enabled = true;
+			_enabled = true; // volatile write
 		}
 
 		internal void DisableLipSync()
 		{
-			if ( !_enabled )
-				return;
+			if ( !_enabled ) return;
 
-			OVRLipSyncGlobal.ovrLipSync_DestroyContext( _context );
+			// Set _enabled = false (volatile write) FIRST so the mix thread's ProcessLipSync
+			// guard fires before any context is destroyed.
+			_enabled = false;
 
+			// Queue the context for destruction at the start of the next MixOneBuffer().
+			// We never destroy it here because the mix thread might still be in ProcessLipSync
+			// having read _enabled = true just before we set it to false.
+			_destructionQueue.Enqueue( _context );
+			_context = 0;
+
+			// Leave _visemes; ProcessLipSync's !_enabled guard prevents it from touching
+			// the array, and it will be replaced on re-enable or collected by GC.
 			FrameNumber = 0;
 			FrameDelay = 0;
 			LaughterScore = 0;
-
-			_visemes = null;
-			_enabled = false;
 		}
 
 		internal unsafe void ProcessLipSync( Audio.MixBuffer buffer )
 		{
-			if ( !Enabled )
+			// Volatile read: if DisableLipSync() has set _enabled = false, we bail here
+			// before touching _context or _visemes, both of which may have been cleared.
+			if ( !_enabled )
 				return;
 
 			if ( buffer is null )
@@ -139,3 +163,4 @@ public partial class SoundHandle
 		}
 	}
 }
+

@@ -90,6 +90,8 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
         return &(g_pSceneSystem->GetPerFrameStats());
     }
 
+    uint GetNumUnbatchableMaterials();
+
     ISceneWorld CreateWorld( string debugName );
     void DestroyWorld( ISceneWorld world );
 

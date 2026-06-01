@@ -12,9 +12,9 @@ namespace Steamworks
 			SetupInterface( IsGameServer );
 		}
 
-		[DllImport( Platform.LibraryName, EntryPoint = "SteamAPI_SteamFriends_v017", CallingConvention = Platform.CC )]
-		internal static extern IntPtr SteamAPI_SteamFriends_v017();
-		internal override IntPtr GetUserInterfacePointer() => SteamAPI_SteamFriends_v017();
+		[DllImport( Platform.LibraryName, EntryPoint = "SteamAPI_SteamFriends_v018", CallingConvention = Platform.CC )]
+		internal static extern IntPtr SteamAPI_SteamFriends_v018();
+		internal override IntPtr GetUserInterfacePointer() => SteamAPI_SteamFriends_v018();
 
 
 		#region FunctionMeta
@@ -26,17 +26,6 @@ namespace Steamworks
 		{
 			var returnValue = _GetPersonaName( Self );
 			return returnValue;
-		}
-
-		#region FunctionMeta
-		[DllImport( Platform.LibraryName, EntryPoint = "SteamAPI_ISteamFriends_SetPersonaName", CallingConvention = Platform.CC )]
-		private static extern SteamAPICall_t _SetPersonaName( IntPtr self, [MarshalAs( UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof( Utf8StringToNative ) )] string pchPersonaName );
-
-		#endregion
-		internal CallResult<SetPersonaNameResponse_t> SetPersonaName( [MarshalAs( UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof( Utf8StringToNative ) )] string pchPersonaName )
-		{
-			var returnValue = _SetPersonaName( Self, pchPersonaName );
-			return new CallResult<SetPersonaNameResponse_t>( returnValue, IsServer );
 		}
 
 		#region FunctionMeta
@@ -473,17 +462,6 @@ namespace Steamworks
 		internal SteamId GetClanOfficerByIndex( SteamId steamIDClan, int iOfficer )
 		{
 			var returnValue = _GetClanOfficerByIndex( Self, steamIDClan, iOfficer );
-			return returnValue;
-		}
-
-		#region FunctionMeta
-		[DllImport( Platform.LibraryName, EntryPoint = "SteamAPI_ISteamFriends_GetUserRestrictions", CallingConvention = Platform.CC )]
-		private static extern uint _GetUserRestrictions( IntPtr self );
-
-		#endregion
-		internal uint GetUserRestrictions()
-		{
-			var returnValue = _GetUserRestrictions( Self );
 			return returnValue;
 		}
 

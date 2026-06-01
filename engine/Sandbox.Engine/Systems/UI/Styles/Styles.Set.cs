@@ -1510,7 +1510,13 @@ namespace Sandbox.UI
 			string bgSource = bgBuilder.ToString().Trim();
 
 			if ( bgSource.StartsWith( "#" ) || bgSource.StartsWith( "rgb(" ) || bgSource.StartsWith( "hsv(" ) )
+			{
 				BackgroundColor = Color.Parse( bgSource ) ?? default;
+
+				// Color-only background clears the image; use the 'none' sentinel (non-null) so it survives the cascade merge.
+				_backgroundImage = new Lazy<Texture>( () => Texture.Invalid );
+				Dirty();
+			}
 			else
 				SetImage( bgSource, SetBackgroundImageFromTexture, SetBackgroundSize, SetBackgroundRepeat, SetBackgroundAngle );
 

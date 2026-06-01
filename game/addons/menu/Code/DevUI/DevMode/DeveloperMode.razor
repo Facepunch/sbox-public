@@ -5,8 +5,9 @@
 
     <div class="left">
         <ConvarToggle Title="Profiler" ConVar="overlay_profile"></ConvarToggle>
-        <ConvarToggle Title="Frame Stats" ConVar="overlay_frame"></ConvarToggle>
+        <ConvarCycle Title="Frame Stats" ConVar="overlay_frame" Values="0,1,2,3" Labels="Off,Basic,Detailed,All"></ConvarCycle>
         <ConvarToggle Title="Allocations" ConVar="overlay_alloc"></ConvarToggle>
+        <ConvarToggle Title="Audio" ConVar="overlay_audio"></ConvarToggle>
         <ConvarToggle Title="Network Graph" ConVar="overlay_network_graph"></ConvarToggle>
         <ConvarToggle Title="Network Messages" ConVar="overlay_network_calls"></ConvarToggle>
 		<ConvarToggle Title="PostProcess Stack" ConVar="overlay_pp"></ConvarToggle>

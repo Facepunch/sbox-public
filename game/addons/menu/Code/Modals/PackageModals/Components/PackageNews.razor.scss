@@ -2,7 +2,10 @@ PackageNews
 {
     padding: 2rem;
     flex-direction: column;
-    overflow: scroll;
+    overflow: hidden;
+    max-width: 100%;
+    overflow-y: scroll;
+    flex-shrink: 0;
 }
 
 PackageNews .entry

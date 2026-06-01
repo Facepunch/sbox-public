@@ -123,12 +123,29 @@ public partial class Scene : GameObject
 		};
 	}
 
+	sealed class TraceQueryResult
+	{
+		public CQueryResult Vec = CQueryResult.Create();
+		~TraceQueryResult() => Vec.DeleteThis();
+	}
+
+	[ThreadStatic] static TraceQueryResult _threadQueryResult;
+	static CQueryResult ThreadQueryResult
+	{
+		get
+		{
+			_threadQueryResult ??= new TraceQueryResult();
+			_threadQueryResult.Vec.RemoveAll();
+			return _threadQueryResult.Vec;
+		}
+	}
+
 	/// <summary>
 	/// Find game objects in a sphere using physics.
 	/// </summary>
 	public IEnumerable<GameObject> FindInPhysics( Sphere sphere )
 	{
-		var results = CQueryResult.Create();
+		var results = ThreadQueryResult;
 		PhysicsWorld.native.Query( results, sphere.Center, sphere.Radius, 0x07 );
 		return FilterQueryResults( results );
 	}
@@ -138,7 +155,7 @@ public partial class Scene : GameObject
 	/// </summary>
 	public IEnumerable<GameObject> FindInPhysics( BBox box )
 	{
-		var results = CQueryResult.Create();
+		var results = ThreadQueryResult;
 		PhysicsWorld.native.Query( results, box, 0x07 );
 		return FilterQueryResults( results );
 	}
@@ -152,9 +169,29 @@ public partial class Scene : GameObject
 		if ( !frustum.TryGetCorners( corners ) )
 			return Enumerable.Empty<GameObject>();
 
-		var results = CQueryResult.Create();
+		var results = ThreadQueryResult;
 		PhysicsWorld.native.Query( results, (IntPtr)corners, 8, 0x07 );
 		return FilterQueryResults( results );
+	}
+
+	/// <summary>
+	/// Find physics bodies overlapping a sphere, writing into a caller-provided span.
+	/// </summary>
+	internal int FindBodiesInPhysics( Vector3 center, float radius, Span<PhysicsBody> result )
+	{
+		var queryResult = ThreadQueryResult;
+		PhysicsWorld.native.Query( queryResult, center, radius, 0x07 );
+
+		int total = queryResult.Count();
+		int written = 0;
+		for ( int i = 0; i < total && written < result.Length; i++ )
+		{
+			var shape = queryResult.Element( i );
+			if ( !shape.IsValid() ) continue;
+			var body = shape.Body;
+			if ( body.IsValid() ) result[written++] = body;
+		}
+		return written;
 	}
 
 	private HashSet<GameObject> FilterQueryResults( CQueryResult results )
@@ -177,8 +214,6 @@ public partial class Scene : GameObject
 
 			gameObjects.Add( gameObject );
 		}
-
-		results.DeleteThis();
 
 		return gameObjects;
 	}

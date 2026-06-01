@@ -12,6 +12,9 @@
     var daysActive = (DateTimeOffset.UtcNow - Sandbox.MenuEngine.Account.FirstSeen).TotalDays;
     if ( daysActive < 14 ) return;
 
+    // Only nag about it once it's actually leaving soon
+    if ( DaysLeft >= 3 ) return;
+
     var daysLeftString = DaysLeft == 0 ? "today!" : DaysLeft == 1 ? $"in 1 day" : $"in {DaysLeft} days";
 }
 
