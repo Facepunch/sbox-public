@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Sandbox.Rendering;
 
 namespace Sandbox.Clutter;
 
@@ -8,14 +9,14 @@ namespace Sandbox.Clutter;
 /// </summary>
 internal class ClutterBatchSceneObject : SceneCustomObject
 {
-	/// <summary>
-	/// Batches by model
-	/// </summary>
 	private readonly Dictionary<Model, ClutterModelBatch> _batches = [];
+	private readonly CommandList _commandList = new( "ClutterBatch" );
+	private readonly int _lodLevel;
 
-	public ClutterBatchSceneObject( SceneWorld world ) : base( world )
+	public ClutterBatchSceneObject( SceneWorld world, int lodLevel ) : base( world )
 	{
-		managedNative.ExecuteOnMainThread = false;
+		_lodLevel = lodLevel;
+
 		Flags.IsOpaque = true;
 		Flags.IsTranslucent = false;
 		Flags.CastShadows = true;
@@ -42,6 +43,23 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 	}
 
 	/// <summary>
+	/// Builds the command list from current batches. Must be called on the main thread
+	/// after all instances have been added.
+	/// </summary>
+	public void BuildCommandList()
+	{
+		_commandList.Reset();
+
+		foreach ( var (model, batch) in _batches )
+		{
+			if ( batch.Transforms.Count == 0 || model == null )
+				continue;
+
+			_commandList.DrawModelInstanced( model, CollectionsMarshal.AsSpan( batch.Transforms ), _lodLevel );
+		}
+	}
+
+	/// <summary>
 	/// Clears all batches.
 	/// </summary>
 	public void Clear()
@@ -50,31 +68,18 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 			batch.Clear();
 
 		_batches.Clear();
+		_commandList.Reset();
 	}
 
-	/// <summary>
-	/// Called when the batch is deleted. Cleans up resources.
-	/// </summary>
 	public new void Delete()
 	{
 		Clear();
 		base.Delete();
 	}
 
-	/// <summary>
-	/// Renders all batched instances using GPU instancing.
-	/// </summary>
 	public override void RenderSceneObject()
 	{
-		if ( _batches.Count == 0 )
-			return;
-
-		foreach ( var (model, batch) in _batches )
-		{
-			if ( batch.Transforms.Count == 0 || model == null )
-				continue;
-
-			Graphics.DrawModelInstanced( model, CollectionsMarshal.AsSpan( batch.Transforms ) );
-		}
+		_commandList.ExecuteOnRenderThread();
 	}
 }
+

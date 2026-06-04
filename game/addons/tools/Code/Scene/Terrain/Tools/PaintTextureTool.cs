@@ -3,12 +3,6 @@ using static Sandbox.PhysicsGroupDescription.BodyPart;
 
 namespace Editor.TerrainEditor;
 
-public enum TerrainLayer
-{
-	Base = 0,
-	Overlay = 1
-}
-
 [Title( "Paint Texture" )]
 [Icon( "brush" )]
 [Alias( "paint" )]
@@ -27,7 +21,6 @@ public class PaintTextureTool : EditorTool
 	}
 
 	public static int SplatChannel { get; set; } = 0;
-	public static TerrainLayer ActiveLayer { get; set; } = TerrainLayer.Base;
 
 	public override void OnUpdate()
 	{
@@ -41,7 +34,7 @@ public class PaintTextureTool : EditorTool
 		// Draw brush preview at hit position
 		var tx = terrain.WorldTransform;
 		var previewTransform = new Transform( tx.PointToWorld( hitPosition ), tx.Rotation );
-		parent.DrawBrushPreview( previewTransform );
+		parent.DrawBrushPreview( previewTransform, terrain );
 
 		if ( Gizmo.IsLeftMouseDown )
 		{
@@ -97,7 +90,6 @@ public class PaintTextureTool : EditorTool
 		cs.Attributes.Set( "BrushSize", size );
 		cs.Attributes.Set( "Brush", paint.Brush.Texture );
 		cs.Attributes.Set( "SplatChannel", SplatChannel );
-		cs.Attributes.Set( "PaintLayer", (int)ActiveLayer );
 
 		var x = (int)Math.Floor( terrain.Storage.Resolution * paint.HitUV.x ) - size / 2;
 		var y = (int)Math.Floor( terrain.Storage.Resolution * paint.HitUV.y ) - size / 2;
@@ -164,4 +156,3 @@ public class PaintTextureTool : EditorTool
 		_snapshot = null;
 	}
 }
-

@@ -354,6 +354,10 @@ public static partial class Networking
 		// Connection.All, which allocates and includes mock ConnectionInfo entries with zero stats.
 		foreach ( var c in System.Connections )
 		{
+			// Don't try to count connections that aren't authenticated yet, Steam stats calls are blocking until fully authed
+			if ( c.State < Connection.ChannelState.Welcome )
+				continue;
+
 			var s = c.Stats;
 			totalIn += s.InBytesPerSecond;
 			totalOut += s.OutBytesPerSecond;
@@ -613,8 +617,7 @@ public static partial class Networking
 
 		return new DisposeAction( () =>
 		{
-			System.IsDisconnecting = false;
-
+			System?.IsDisconnecting = false;
 			Disconnect();
 		} );
 	}

@@ -200,24 +200,30 @@ PackageHero.sidebar {
     background-color: transparent;
     border-radius: 0;
 
+    .hero-background {
+        display: none;
+    }
+
     .hero-media {
         flex-basis: auto;
         aspect-ratio: 16 / 9;
-        width: 90%;
-        margin: 0 auto;
-        border-radius: $rounding-large;
+        width: 88%;
+        margin: 16px auto 0 auto;
+        border-radius: 10px;
         overflow: hidden;
-        box-shadow: 2px 2px 16px 4px rgba(0, 0, 0, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.02);
+        box-shadow: 0px 4px 24px 0px rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.05);
     }
 
     .hero-content {
-        padding: 16px 24px;
+        padding: 14px 22px 10px 22px;
+        gap: 6px;
     }
 
     .hero-header {
         flex-direction: column;
         align-items: flex-start;
+        gap: 4px;
     }
 
     .hero-icon {
@@ -225,8 +231,33 @@ PackageHero.sidebar {
     }
 
     .hero-title {
+        gap: 3px;
+
         label.large {
-            font-size: $text-large;
+            font-size: 20px;
+            font-weight: 700;
+            text-transform: none;
+        }
+    }
+
+    .hero-org {
+        gap: 5px;
+        opacity: 0.75;
+
+        img {
+            width: 14px;
+            height: 14px;
+        }
+
+        label.eyebrow {
+            font-size: 10px;
+            letter-spacing: 0;
+            text-transform: none;
+            font-weight: 500;
+        }
+
+        &:hover {
+            opacity: 1;
         }
     }
 
@@ -234,7 +265,7 @@ PackageHero.sidebar {
         position: relative;
         top: 0;
         right: 0;
-        margin-top: 8px;
+        margin-top: 4px;
     }
 
     .hero-screenshots {
@@ -242,7 +273,20 @@ PackageHero.sidebar {
     }
 
     .hero-summary {
-        font-size: $text-regular;
+        font-size: 12px;
+        color: $default-100;
+        line-height: 1.5;
+    }
+
+    .hero-tags {
+        margin-top: 4px;
+
+        badge {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 3px 8px;
+            letter-spacing: 0.3px;
+        }
     }
 }
 

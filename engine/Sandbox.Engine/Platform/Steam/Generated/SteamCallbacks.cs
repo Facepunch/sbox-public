@@ -497,6 +497,7 @@ namespace Steamworks.Data
 		internal bool HasProfileModifier;
 		internal bool HasProfileBackground;
 		internal bool HasMiniProfileBackground;
+		internal bool FromCache; // m_bFromCache bool
 
 		#region SteamCallback
 		internal static int _datasize = System.Runtime.InteropServices.Marshal.SizeOf( typeof( EquippedProfileItems_t ) );
@@ -2554,6 +2555,35 @@ namespace Steamworks.Data
 	}
 
 	[StructLayout( LayoutKind.Sequential, Pack = Platform.StructPlatformPackSize )]
+	internal struct SteamRemotePlayTogetherGuestInvite_t : ICallbackData
+	{
+		internal string ConnectURLUTF8() => System.Text.Encoding.UTF8.GetString( ConnectURL, 0, System.Array.IndexOf<byte>( ConnectURL, 0 ) );
+		[MarshalAs( UnmanagedType.ByValArray, SizeConst = 1024 )] // byte[] m_szConnectURL
+		internal byte[] ConnectURL; // m_szConnectURL char [1024]
+
+		#region SteamCallback
+		internal static int _datasize = System.Runtime.InteropServices.Marshal.SizeOf( typeof( SteamRemotePlayTogetherGuestInvite_t ) );
+		public int DataSize => _datasize;
+		public CallbackType CallbackType => CallbackType.SteamRemotePlayTogetherGuestInvite;
+		#endregion
+	}
+
+	[StructLayout( LayoutKind.Sequential, Pack = Platform.StructPlatformPackSize )]
+	internal struct SteamRemotePlaySessionAvatarLoaded_t : ICallbackData
+	{
+		internal uint SessionID; // m_unSessionID RemotePlaySessionID_t
+		internal int Image; // m_iImage int
+		internal int Wide; // m_iWide int
+		internal int Tall; // m_iTall int
+
+		#region SteamCallback
+		internal static int _datasize = System.Runtime.InteropServices.Marshal.SizeOf( typeof( SteamRemotePlaySessionAvatarLoaded_t ) );
+		public int DataSize => _datasize;
+		public CallbackType CallbackType => CallbackType.SteamRemotePlaySessionAvatarLoaded;
+		#endregion
+	}
+
+	[StructLayout( LayoutKind.Sequential, Pack = Platform.StructPlatformPackSize )]
 	internal struct SteamNetworkingMessagesSessionRequest_t : ICallbackData
 	{
 		internal NetIdentity DentityRemote; // m_identityRemote SteamNetworkingIdentity
@@ -2812,6 +2842,38 @@ namespace Steamworks.Data
 		internal static int _datasize = System.Runtime.InteropServices.Marshal.SizeOf( typeof( GameLobbyJoinRequested_t ) );
 		public int DataSize => _datasize;
 		public CallbackType CallbackType => CallbackType.GameLobbyJoinRequested;
+		#endregion
+	}
+
+	[StructLayout( LayoutKind.Sequential, Pack = Platform.StructPlatformPackSize )]
+	internal struct SteamTimelineGamePhaseRecordingExists_t : ICallbackData
+	{
+		internal string PhaseIDUTF8() => System.Text.Encoding.UTF8.GetString( PhaseID, 0, System.Array.IndexOf<byte>( PhaseID, 0 ) );
+		[MarshalAs( UnmanagedType.ByValArray, SizeConst = 64 )] // byte[] m_rgchPhaseID
+		internal byte[] PhaseID; // m_rgchPhaseID char [64]
+		internal ulong RecordingMS; // m_ulRecordingMS uint64
+		internal ulong LongestClipMS; // m_ulLongestClipMS uint64
+		internal uint ClipCount; // m_unClipCount uint32
+		internal uint ScreenshotCount; // m_unScreenshotCount uint32
+
+		#region SteamCallback
+		internal static int _datasize = System.Runtime.InteropServices.Marshal.SizeOf( typeof( SteamTimelineGamePhaseRecordingExists_t ) );
+		public int DataSize => _datasize;
+		public CallbackType CallbackType => CallbackType.SteamTimelineGamePhaseRecordingExists;
+		#endregion
+	}
+
+	[StructLayout( LayoutKind.Sequential, Pack = Platform.StructPlatformPackSize )]
+	internal struct SteamTimelineEventRecordingExists_t : ICallbackData
+	{
+		internal ulong EventID; // m_ulEventID uint64
+		[MarshalAs( UnmanagedType.I1 )]
+		internal bool RecordingExists; // m_bRecordingExists bool
+
+		#region SteamCallback
+		internal static int _datasize = System.Runtime.InteropServices.Marshal.SizeOf( typeof( SteamTimelineEventRecordingExists_t ) );
+		public int DataSize => _datasize;
+		public CallbackType CallbackType => CallbackType.SteamTimelineEventRecordingExists;
 		#endregion
 	}
 

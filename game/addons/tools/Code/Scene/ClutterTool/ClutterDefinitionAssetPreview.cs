@@ -190,7 +190,7 @@ public class ClutterDefinitionAssetPreview( Asset asset ) : AssetPreview( asset 
 internal class TileBoundsGrid : SceneCustomObject
 {
 	private readonly Vertex[] _vertices;
-	private static readonly Lazy<Material> _lineMaterial = new( () => Material.Load( "materials/gizmo/line.vmat" ) );
+	private static readonly Material _lineMaterial = Material.Load( "materials/gizmo/line.vmat" );
 
 	public TileBoundsGrid( SceneWorld world, float tileSize ) : base( world )
 	{
@@ -216,6 +216,6 @@ internal class TileBoundsGrid : SceneCustomObject
 
 	public override void RenderSceneObject()
 	{
-		Graphics.Draw( _vertices.AsSpan(), _vertices.Length, _lineMaterial.Value, Attributes, Graphics.PrimitiveType.Lines );
+		Graphics.Draw( _vertices.AsSpan(), _vertices.Length, _lineMaterial, Attributes, Graphics.PrimitiveType.Lines );
 	}
 }

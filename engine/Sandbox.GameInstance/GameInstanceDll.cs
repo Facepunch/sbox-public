@@ -212,7 +212,6 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			Game.NodeLibrary.AddAssembly( a.Assembly );
 			ConVarSystem.AddAssembly( a.Assembly, "game" );
 			Cloud.UpdateTypes( a.Assembly );
-			Json.Initialize();
 			JsonUpgrader.UpdateUpgraders( TypeLibrary );
 
 			if ( !a.IsEditorAssembly && a.CodeArchiveBytes is not null )
@@ -683,6 +682,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 				throw new Exception( "GameInstance load failed" );
 			}
 
+			Json.PopulateReflectionCache( Game.TypeLibrary );
+
 			if ( ct.IsCancellationRequested )
 				return;
 
@@ -741,6 +742,9 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			{
 				Game.IsPlaying = true;
 
+				LoadingScreen.Title = flags.Contains( GameLoadingFlags.Host ) ? "Starting Game" : "Joining Game..";
+				await Task.Yield();
+
 				IMenuDll.Current?.OnGameEntered();
 			}
 		}
@@ -760,17 +764,11 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 	private void OnPackageInstalled( PackageManager.ActivePackage package, string context )
 	{
+		if ( context != "game" ) return;
 		Log.Trace( $"OnPackageInstalled: {package.Package.FullIdent} {context}" );
 
-		// only load if a game context (tools can install packages)
-		if ( context != "game" ) return;
-
-		// Load all the GameResources and fonts in the package
-		if ( package.FileSystem is not null )
-		{
-			ResourceLoader.LoadAllGameResource( package.FileSystem );
-			FontManager.Instance.LoadAll( package.FileSystem );
-		}
+		// Register assemblies from this package so types are available immediately.
+		AssemblyEnroller?.LoadPackage( package.Package.FullIdent, true );
 	}
 
 	/// <summary>
@@ -832,10 +830,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		Api.Performance.CollectStat( "ComponentCount", sceneValid ? scene.Directory.ComponentCount : 0 );
 		Api.Performance.CollectStat( "RootGameObjects", sceneValid ? scene.Children.Count : 0 );
 		Api.Performance.CollectStat( "CameraCount", sceneValid ? scene.GetAllComponents<CameraComponent>().Count() : 0 );
-		Api.Performance.CollectStat( "ColliderCount", sceneValid ? scene.PhysicsWorld.Bodies.Count() : 0 );
-		Api.Performance.CollectStat( "DynamicBodyCount", sceneValid ? scene.PhysicsWorld.Bodies.Where( x => x.BodyType == PhysicsBodyType.Dynamic ).Count() : 0 );
-		Api.Performance.CollectStat( "KeyframeBodyCount", sceneValid ? scene.PhysicsWorld.Bodies.Where( x => x.BodyType == PhysicsBodyType.Keyframed ).Count() : 0 );
-		Api.Performance.CollectStat( "StaticBodyCount", sceneValid ? scene.PhysicsWorld.Bodies.Where( x => x.BodyType == PhysicsBodyType.Static ).Count() : 0 );
+		Api.Performance.CollectStat( "ColliderCount", sceneValid ? scene.PhysicsWorld.BodyCount : 0 );
 		Api.Performance.CollectStat( "Particles", sceneValid ? scene.GetAllComponents<ParticleEffect>().Sum( x => x.Particles.Count ) : 0 );
 
 		Api.Performance.CollectStat( "GameObjectsDestroyed", SceneMetrics.GameObjectsDestroyed );

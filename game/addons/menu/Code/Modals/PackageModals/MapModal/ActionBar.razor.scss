@@ -1,66 +1,64 @@
+@import "/styles/_theme.scss";
 
 ActionBar
 {
     width: 100%;
-    border-top: 1px solid #3334;
     flex-shrink: 0;
 }
 
-    ActionBar > .left
-    {
-        flex-grow: 1;
-        width: 100px;
-        padding: 32px;
-    }
-
-    ActionBar > .right
-    {
-        justify-content: flex-end;
-        gap: 10px;
-        padding: 32px;
-    }
-
-Button
+ActionBar > .left
 {
-    border-radius: 8px;
-    flex-shrink: 0;
-    gap: 0px;
+    flex-grow: 1;
+    padding: 32px;
+}
+
+ActionBar > .right
+{
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 32px;
 }
 
 Button
 {
-    font-size: 16px;
-    font-weight: bold;
-    font-family: Poppins;
+    border-radius: $rounding-default;
+    flex-shrink: 0;
+    font-size: $text-regular;
+    font-weight: 700;
+    font-family: $font-heading;
+    padding: 6px 14px;
+    border: 1px solid transparent;
+    color: $default-text-light;
+    transition: all 0.15s ease;
+
+    &:hover
+    {
+        border-color: $default-border;
+        background-color: rgba( $default-500, 0.1 );
+        color: $default-text;
+        sound-in: "ui.button.over";
+    }
+
+    &:active { sound-in: "ui.button.press"; }
 }
 
-    Button .count
+Button.play
+{
+    background-color: $primary-blue;
+    border-color: transparent;
+    color: white;
+    padding: 6px 20px;
+
+    &:hover
     {
-        background-color: #666;
-        padding: 0px 5px;
-        border-radius: 5px;
-        opacity: 0.2;
-        margin-left: 8px;
-        font-size: 12px;
+        filter: brightness( 1.2 );
+        border-color: transparent;
+        background-color: $primary-blue;
     }
 
-    Button.play
+    &.disabled
     {
-        background-color: #6a4;
-        color: #cfb;
-        transition: all 0.2s ease;
-
-        &:hover
-        {
-            background-color: #8c7;
-            color: #fff;
-        }
-
-        &.disabled
-        {
-            opacity: 0.2;
-            pointer-events: none;
-            background-color: #444;
-            color: #777;
-        }
+        opacity: 0.25;
+        pointer-events: none;
     }
+}

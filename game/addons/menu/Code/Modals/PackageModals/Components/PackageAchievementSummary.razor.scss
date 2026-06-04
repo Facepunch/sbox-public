@@ -1,0 +1,63 @@
+@import "/styles/_theme.scss";
+
+// The card that wraps the achievements section in the sidebar
+Card.achievements-card
+{
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+
+    &:hover
+    {
+        border-color: rgba( $primary-blue, 0.3 );
+        background-color: rgba( $primary-blue, 0.05 );
+        sound-in: "ui.button.over";
+    }
+
+    &:active { sound-in: "ui.button.press"; }
+}
+
+.active Card.achievements-card
+{
+    border-color: rgba( $primary-blue, 0.35 );
+    background-color: rgba( $primary-blue, 0.1 );
+    cursor: default;
+
+    &:hover
+    {
+        border-color: rgba( $primary-blue, 0.35 );
+        background-color: rgba( $primary-blue, 0.1 );
+    }
+}
+
+AchievementSummary
+{
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.achievement-buttons
+{
+    flex-direction: row;
+    gap: 4px;
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.achievement-icon
+{
+    width: 36px;
+    height: 36px;
+    border-radius: $rounding-default;
+    background-position: center;
+    background-size: cover;
+    border: 1px solid $default-border;
+    flex-shrink: 0;
+
+    &.locked
+    {
+        filter: saturate( 0.2 ) brightness( 0.5 );
+        opacity: 0.35;
+    }
+}

@@ -2,6 +2,7 @@
 using Sandbox.MovieMaker.Properties;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Text;
 
 namespace Editor.MovieMaker;
 
@@ -92,7 +93,28 @@ public sealed partial class TrackView : IComparable<TrackView>
 	public bool IsLocked => IsLockedSelf || Parent?.IsLocked is true;
 
 	public string Title => Track.Name;
-	public string Description => Track.GetPathString();
+	public string Description
+	{
+		get
+		{
+			var builder = new StringBuilder();
+
+			builder.Append( $"<b>{Track.Name}</b> - {Track.TargetType.ToRichText()}" );
+
+			if ( Track.Parent is not null )
+			{
+				builder.Append( $"<br/><i>{Track.GetPathString()}</i>" );
+			}
+
+			if ( Target is ITrackReference reference )
+			{
+				builder.Append( "<hr/>" );
+				builder.Append( $"{reference.StatusString}" );
+			}
+
+			return builder.ToString();
+		}
+	}
 
 	private readonly SynchronizedSet<IProjectTrack, TrackView> _children;
 
@@ -107,7 +129,7 @@ public sealed partial class TrackView : IComparable<TrackView>
 	/// Is this track representing the transform of a bone accessed through a <see cref="SkinnedModelRenderer"/>?
 	/// </summary>
 	public bool IsBoneTransform => Track is IPropertyTrack<Transform> && Parent is
-		{ Track.Name: "Bones", Parent.Track: IReferenceTrack<SkinnedModelRenderer> };
+	{ Track.Name: "Bones", Parent.Track: IReferenceTrack<SkinnedModelRenderer> };
 
 	/// <summary>
 	/// Is this track representing a (procedural) bone object?
@@ -256,10 +278,10 @@ public sealed partial class TrackView : IComparable<TrackView>
 	{
 		// Keep Component tracks ordered the same as in the inspector
 
-		if ( Track.TargetType != typeof(GameObject) ) return 0;
+		if ( Track.TargetType != typeof( GameObject ) ) return 0;
 		if ( Target is not { IsBound: true, Value: GameObject go } ) return 0;
 		if ( track is not IProjectReferenceTrack refTrack ) return 0;
-		if ( !refTrack.TargetType.IsAssignableTo( typeof(Component) ) ) return 0;
+		if ( !refTrack.TargetType.IsAssignableTo( typeof( Component ) ) ) return 0;
 
 		var index = 0;
 
@@ -424,7 +446,7 @@ public sealed partial class TrackView : IComparable<TrackView>
 			return;
 		}
 
-		EditorToolManager.SetTool( nameof(ObjectEditorTool) );
+		EditorToolManager.SetTool( nameof( ObjectEditorTool ) );
 
 		switch ( property.Name )
 		{
@@ -542,10 +564,10 @@ public sealed partial class TrackView : IComparable<TrackView>
 		}
 
 		return new TransformTrack( this,
-			Find( nameof(GameObject.Enabled) ),
-			Find( nameof(GameObject.LocalPosition) ),
-			Find( nameof(GameObject.LocalRotation) ),
-			Find( nameof(GameObject.LocalScale) ) );
+			Find( nameof( GameObject.Enabled ) ),
+			Find( nameof( GameObject.LocalPosition ) ),
+			Find( nameof( GameObject.LocalRotation ) ),
+			Find( nameof( GameObject.LocalScale ) ) );
 	}
 }
 
@@ -696,5 +718,43 @@ file sealed class BoneTransformTrack : IPropertyTrack<Transform>
 		}
 
 		return parentTransform.ToWorld( localTransform );
+	}
+}
+
+internal static class TrackReferenceExtensions
+{
+	extension( ITrackReference target )
+	{
+		public string StatusString => target switch
+		{
+			{ IsBound: false } => "Not Bound",
+			{ IsAutoCreatedTarget: true } => "Bound to <b>auto-created target</b>",
+			{ IsBound: true } => "Bound to <b>scene object</b>",
+			_ => "Unknown binding"
+		};
+
+		private GameObject? GameObject
+		{
+			get
+			{
+				return target switch
+				{
+					ITrackReference<GameObject> { Value: { } go } => go,
+					{ Value: Component cmp } => cmp.GameObject,
+					_ => null
+				};
+			}
+		}
+
+		public bool IsAutoCreatedTarget
+		{
+			get
+			{
+				if ( target.GameObject is not { } go ) return false;
+				if ( go.GetComponentInParent<MoviePlayer>( includeDisabled: true ) is not { } player ) return false;
+
+				return player.IsCreatedTarget( go );
+			}
+		}
 	}
 }

@@ -68,7 +68,7 @@ partial class MotionEditMode
 	}
 
 	public T SetModification<T>( TimeSelection selection ) where T : IMovieModification =>
-		(T)SetModification( typeof(T), selection );
+		(T)SetModification( typeof( T ), selection );
 
 	private void ClearChanges()
 	{

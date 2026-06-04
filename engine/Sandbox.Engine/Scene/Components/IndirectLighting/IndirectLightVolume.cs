@@ -123,6 +123,13 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	} = 1.0f;
 
 	/// <summary>
+	/// Objects with any of these tags will be excluded when baking probes for this volume.
+	/// </summary>
+	[Property]
+	[Group( "Advanced Settings" )]
+	public TagSet RenderExcludeTags { get; set; } = new();
+
+	/// <summary>
 	/// Calculated probe count along each axis based on bounds and density.
 	/// </summary>
 	public Vector3Int ProbeCounts => ComputeProbeCounts();
@@ -282,6 +289,10 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 		var bounds = Bounds;
 		Gizmo.Control.BoundingBox( "Bounds", bounds, out bounds );
 		Gizmo.Draw.LineBBox( bounds );
+
+		Gizmo.Draw.Color = new Color( 0.25f, 0.9f, 1, 0.05f );
+		Gizmo.Draw.SolidBox( bounds );
+
 		Bounds = bounds;
 
 		// Use gizmo pooling so it follows gizmo visibility rules (hidden when gizmos disabled, not in cubemaps)

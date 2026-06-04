@@ -329,22 +329,17 @@ partial class EdgeTool
 
 		private bool CanMerge()
 		{
-			if ( _edges.Length != 2 )
+			if ( _edges.Length < 2 )
 				return false;
 
-			var edgeA = _edges[0];
-			if ( !edgeA.IsValid() )
-				return false;
+			foreach ( var edge in _edges )
+			{
+				if ( !edge.IsValid() )
+					return false;
 
-			var edgeB = _edges[1];
-			if ( !edgeB.IsValid() )
-				return false;
-
-			if ( !edgeA.IsOpen )
-				return false;
-
-			if ( !edgeB.IsOpen )
-				return false;
+				if ( !edge.IsOpen )
+					return false;
+			}
 
 			return true;
 		}
@@ -375,32 +370,94 @@ partial class EdgeTool
 
 			using var scope = SceneEditorSession.Scope();
 
-			var edgeA = _edges[0];
-			var edgeB = _edges[1];
-
-			var undoScope = SceneEditorSession.Active.UndoScope( "Merge Edges" );
-
-			if ( edgeA.Component != edgeB.Component )
+			if ( _edges.Length == 2 )
 			{
-				undoScope = undoScope.WithComponentChanges( edgeA.Component )
-					.WithGameObjectDestructions( edgeB.Component.GameObject );
-			}
-			else
-			{
-				undoScope = undoScope.WithComponentChanges( [edgeA.Component, edgeB.Component] );
-			}
+				var edgeA = _edges[0];
+				var edgeB = _edges[1];
 
-			using ( undoScope.Push() )
-			{
-				edgeB = MergeMeshesOfEdges( edgeA, edgeB );
-				var mesh = edgeA.Component.Mesh;
+				var undoScope = SceneEditorSession.Active.UndoScope( "Merge Edges" );
 
-				if ( mesh.MergeEdges( edgeA.Handle, edgeB.Handle, out var hEdge ) )
+				if ( edgeA.Component != edgeB.Component )
 				{
-					mesh.ComputeFaceTextureCoordinatesFromParameters();
+					undoScope = undoScope.WithComponentChanges( edgeA.Component )
+						.WithGameObjectDestructions( edgeB.Component.GameObject );
+				}
+				else
+				{
+					undoScope = undoScope.WithComponentChanges( [edgeA.Component, edgeB.Component] );
+				}
 
-					var selection = SceneEditorSession.Active.Selection;
-					selection.Set( new MeshEdge( edgeA.Component, hEdge ) );
+				using ( undoScope.Push() )
+				{
+					edgeB = MergeMeshesOfEdges( edgeA, edgeB );
+					var mesh = edgeA.Component.Mesh;
+
+					if ( mesh.MergeEdges( edgeA.Handle, edgeB.Handle, out var hEdge ) )
+					{
+						var selection = SceneEditorSession.Active.Selection;
+						selection.Set( new MeshEdge( edgeA.Component, hEdge ) );
+					}
+				}
+
+				return;
+			}
+
+			var target = _components[0];
+			var vertexSet = new HashSet<VertexHandle>();
+			var vertices = new List<VertexHandle>();
+
+			using ( SceneEditorSession.Active.UndoScope( "Merge Edges" )
+				.WithComponentChanges( _components )
+				.WithGameObjectDestructions( _components.Skip( 1 ).Select( x => x.GameObject ).ToList() )
+				.Push() )
+			{
+				foreach ( var group in _edgeGroups )
+				{
+					Dictionary<VertexHandle, VertexHandle> remapVertices = null;
+					var sourceMesh = group.Key.Mesh;
+
+					if ( group.Key != target )
+					{
+						var transform = target.WorldTransform.ToLocal( group.Key.WorldTransform );
+						target.Mesh.MergeMesh( sourceMesh, transform, out remapVertices, out _, out _ );
+					}
+
+					foreach ( var edge in group )
+					{
+						sourceMesh.GetEdgeVertices( edge.Handle, out var a, out var b );
+
+						if ( remapVertices != null ) { a = remapVertices[a]; b = remapVertices[b]; }
+
+						if ( vertexSet.Add( a ) ) vertices.Add( a );
+						if ( vertexSet.Add( b ) ) vertices.Add( b );
+					}
+
+					if ( group.Key != target )
+					{
+						group.Key.DestroyGameObject();
+					}
+				}
+
+				var selection = SceneEditorSession.Active.Selection;
+				selection.Clear();
+
+				var resultVertices = target.Mesh.MergeVerticesWithinDistance( vertices, 0.1f, false, false, out var finalVertices ) > 0 ? finalVertices : vertices;
+
+				var resultVertexSet = new HashSet<VertexHandle>( resultVertices );
+				var addedEdges = new HashSet<int>();
+				foreach ( var hVertex in resultVertices )
+				{
+					target.Mesh.GetEdgesConnectedToVertex( hVertex, out var edges );
+					foreach ( var hEdge in edges )
+					{
+						target.Mesh.GetEdgeVertices( hEdge, out var a, out var b );
+						if ( !resultVertexSet.Contains( a ) || !resultVertexSet.Contains( b ) )
+							continue;
+
+						var canonical = Math.Min( hEdge.Index, target.Mesh.GetOppositeHalfEdge( hEdge ).Index );
+						if ( addedEdges.Add( canonical ) )
+							selection.Add( new MeshEdge( target, hEdge ) );
+					}
 				}
 			}
 		}

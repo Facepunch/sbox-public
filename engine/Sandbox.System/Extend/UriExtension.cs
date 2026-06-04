@@ -1,5 +1,6 @@
 ﻿using System.Net.Sockets;
 using System.Net;
+using System.Threading.Tasks;
 
 namespace Sandbox;
 
@@ -10,11 +11,16 @@ public static partial class SandboxSystemExtensions
 	/// </summary>
 	internal static bool IsPrivate( this Uri uri )
 	{
-		// don't allow any domains that resolve to private or loopback ip addresses
-		if ( Dns.GetHostEntry( uri.DnsSafeHost ).AddressList.Any( x => x.IsPrivate() ) )
-			return true;
+		return Dns.GetHostEntry( uri.DnsSafeHost ).AddressList.Any( x => x.IsPrivate() );
+	}
 
-		return false;
+	/// <summary>
+	/// Does this Uri resolve to a private range IP address?
+	/// </summary>
+	internal static async Task<bool> IsPrivateAsync( this Uri uri )
+	{
+		var entry = await Dns.GetHostEntryAsync( uri.DnsSafeHost );
+		return entry.AddressList.Any( x => x.IsPrivate() );
 	}
 
 	/// <summary>

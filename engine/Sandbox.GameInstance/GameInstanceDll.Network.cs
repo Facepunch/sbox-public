@@ -52,14 +52,10 @@ internal partial class GameInstanceDll
 		var instance = new SceneNetworkSystem( TypeLibrary, system );
 
 		NetworkedLargeFiles.NetworkInitialize( instance );
+		Platform.Chat.NetworkInitialize( instance );
 
 		if ( Networking.IsHost )
 		{
-			if ( Application.GamePackage is { } gamePackage )
-			{
-				ServerPackages.AddRequirement( gamePackage );
-			}
-
 			AddFilesToNetwork( NetworkedConfigFiles, EngineFileSystem.ProjectSettings, [".config"] );
 			AddFilesToNetwork( NetworkedLangFiles, Game.Language.FileSystem, [".json"] );
 			BuildNetworkedFiles();
@@ -77,7 +73,43 @@ internal partial class GameInstanceDll
 			NetworkedConfigFiles.Refresh();
 			NetworkedLangFiles.Refresh();
 
-			ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
+			ResourceLoader.LoadAllGameResource( FileSystem.Mounted, reloadExisting: true );
+			FontManager.Instance.LoadAll( FileSystem.Mounted );
+
+			DidMountNetworkedFiles = true;
+		}
+
+		return instance;
+	}
+
+	public async Task<GameNetworkSystem> CreateGameNetworkingAsync( NetworkSystem system )
+	{
+		var instance = new SceneNetworkSystem( TypeLibrary, system );
+
+		NetworkedLargeFiles.NetworkInitialize( instance );
+		Platform.Chat.NetworkInitialize( instance );
+
+		if ( Networking.IsHost )
+		{
+			AddFilesToNetwork( NetworkedConfigFiles, EngineFileSystem.ProjectSettings, [".config"] );
+			AddFilesToNetwork( NetworkedLangFiles, Game.Language.FileSystem, [".json"] );
+			BuildNetworkedFiles();
+		}
+		else if ( !DidMountNetworkedFiles )
+		{
+			EngineFileSystem.ProjectSettings.Mount( NetworkedConfigFiles.Files );
+			Game.Language.FileSystem.Mount( NetworkedLangFiles.Files );
+			Game.Language.Refresh();
+
+			FileSystem.Mounted.Mount( NetworkedLargeFiles.Files );
+			FileSystem.Mounted.Mount( NetworkedSmallFiles.Files );
+
+			NetworkedSmallFiles.Refresh();
+			NetworkedConfigFiles.Refresh();
+			NetworkedLangFiles.Refresh();
+
+			LoadingScreen.Title = "Loading Resources";
+			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, reloadExisting: true );
 			FontManager.Instance.LoadAll( FileSystem.Mounted );
 
 			DidMountNetworkedFiles = true;
@@ -210,6 +242,10 @@ internal partial class GameInstanceDll
 		UpdateConfigFromNetworkTable();
 
 		await ServerPackages.InstallAll();
+
+		// Prevent a blank title between the last package install and the download queue start.
+		if ( string.IsNullOrWhiteSpace( LoadingScreen.Title ) )
+			LoadingScreen.Title = "Loading..";
 
 		await NetworkedLargeFiles.RunDownloadQueue( system, default );
 	}

@@ -62,7 +62,7 @@ public sealed class TrackListWidget : Widget
 
 		navWidgets.Reverse();
 
-		_projectNavWidgets = [..navWidgets];
+		_projectNavWidgets = [.. navWidgets];
 
 		_dragTarget = new DragTargetWidget( this ) { FixedWidth = Width, Visible = false };
 

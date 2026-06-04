@@ -1,0 +1,44 @@
+@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+
+@* Compact "Changelog" card for the package info panel - one row per recent
+   changelist, showing its name/version/date and how long ago it landed. *@
+
+<root>
+    <Card class="changelist-card">
+        <ChildContent>
+            <label class="section-label">Changelog</label>
+            @foreach (var changelist in ChangeLists)
+            {
+                <div class="changelist-row" @onclick="@(() => OnChangelogClicked?.Invoke())">
+                    <label class="changelist-title">@ChangeListLabel(changelist)</label>
+                    <label class="changelist-time">@MenuHelpers.DaysAgo(changelist.Created)</label>
+                </div>
+            }
+        </ChildContent>
+    </Card>
+</root>
+
+@code
+{
+    [Parameter] public Package Package { get; set; }
+
+    /// <summary>Called when a changelog row is clicked - used to open the Changes tab.</summary>
+    [Parameter] public Action OnChangelogClicked { get; set; }
+
+    System.Collections.Immutable.ImmutableArray<Package.ChangeListSummary> ChangeLists => Package?.LatestChangeLists ?? System.Collections.Immutable.ImmutableArray<Package.ChangeListSummary>.Empty;
+
+    protected override int BuildHash() => System.HashCode.Combine(Package, ChangeLists.Length);
+
+    // Title, falling back to version, then the date it was published
+    static string ChangeListLabel(Package.ChangeListSummary changelist)
+    {
+        if (!string.IsNullOrWhiteSpace(changelist.Title)) return changelist.Title;
+        if (!string.IsNullOrWhiteSpace(changelist.Version)) return changelist.Version;
+        return changelist.Created.LocalDateTime.ToString("d MMMM yyyy");
+    }
+}

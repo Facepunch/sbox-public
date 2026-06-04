@@ -19,6 +19,13 @@ internal struct RenderInstance
 	public PanelRenderer.GPUScissor InverseScissor;
 }
 
+/// <summary>Pairs a user draw descriptor with its position in the instance stream.</summary>
+internal struct UserRenderEntry
+{
+	public IPanelDraw Descriptor;
+	public int InsertionIndex;
+}
+
 /// <summary>
 /// Collects all draw instances for a panel's cached render data.
 /// Rebuilt when dirty, drawn during the gather phase.
@@ -35,13 +42,16 @@ internal class RenderLayer
 	// These should be in the above list, but I'm bored of coding this
 	public List<BackdropDrawDescriptor> Backdrops = [];
 
+	// User draw descriptors, ordered by InsertionIndex into Instances
+	public List<UserRenderEntry> CustomEntries = [];
+
 	// Trackers whilst building
 	int _buildPass;
 	BlendMode _buildBlendMode = BlendMode.Normal;
 	bool _buildAnyBox;
 
-	public int Total => Instances.Count + Backdrops.Count;
-	public bool IsEmpty => Total == 0;
+	public int Total => Instances.Count + Backdrops.Count + CustomEntries.Count;
+	public bool IsEmpty => Instances.Count == 0 && Backdrops.Count == 0 && CustomEntries.Count == 0;
 
 	public void AddShadow( in ShadowDrawDescriptor desc )
 	{
@@ -91,6 +101,17 @@ internal class RenderLayer
 		} );
 	}
 
+	public void AddCustom( IPanelDraw desc )
+	{
+		if ( desc is null ) return;
+
+		CustomEntries.Add( new UserRenderEntry
+		{
+			Descriptor = desc,
+			InsertionIndex = Instances.Count,
+		} );
+	}
+
 	/// <summary>
 	/// Clear all instances from this layer.
 	/// </summary>
@@ -98,6 +119,7 @@ internal class RenderLayer
 	{
 		Instances.Clear();
 		Backdrops.Clear();
+		CustomEntries.Clear();
 		_buildPass = 0;
 		_buildBlendMode = BlendMode.Normal;
 		_buildAnyBox = false;

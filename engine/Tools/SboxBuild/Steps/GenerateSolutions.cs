@@ -62,17 +62,17 @@ internal class GenerateSolutions( string name, BuildConfiguration configuration 
 
 		// Generate schemacompiler_all solution
 		Log.Info( "Generating Schema Compiler solution" );
-		if ( !Utility.RunProcess( vpcPath, $"/mksln schemacompiler_all {extraDefines} /checkfiles /checkfiles_error /quiet /forceunity /2026 /sbox /{platform.PlatformID} \"@schemacompiler_all\" /defdmacro:SBOX=1", "src" ) )
+		if ( !Utility.RunProcess( vpcPath, $"/mksln schemacompiler_all {extraDefines} /checkfiles /checkfiles_error /forceunity /2026 /sbox /{platform.PlatformID} \"@schemacompiler_all\" /defdmacro:SBOX=1", "src" ) )
 			return ExitCode.Failure;
 
 		// Generate sbox_game solution
 		Log.Info( "Generating sbox_game solution" );
-		if ( !Utility.RunProcess( vpcPath, $"/mksln sbox_game {extraDefines} /checkfiles /checkfiles_error /quiet /forceunity /2026 /sbox /{platform.PlatformID} +sbox_game /defdmacro:SBOX=1", "src" ) )
+		if ( !Utility.RunProcess( vpcPath, $"/mksln sbox_game {extraDefines} /checkfiles /checkfiles_error /forceunity /2026 /sbox /{platform.PlatformID} +sbox_game /defdmacro:SBOX=1", "src" ) )
 			return ExitCode.Failure;
 
 		// Generate developer_all_win64 solution
 		Log.Info( "Generating full engine solution" );
-		if ( !Utility.RunProcess( vpcPath, $"/mksln developer_all_{platform.PlatformID} {extraDefines} /checkfiles /checkfiles_error /quiet /forceunity /2026 /sbox /{platform.PlatformID} +everything +native_everything +sbox_game /defdmacro:SBOX=1", "src" ) )
+		if ( !Utility.RunProcess( vpcPath, $"/mksln developer_all_{platform.PlatformID} {extraDefines} /checkfiles /checkfiles_error /forceunity /2026 /sbox /{platform.PlatformID} +everything +native_everything +sbox_game /defdmacro:SBOX=1", "src" ) )
 			return ExitCode.Failure;
 
 		return ExitCode.Success;

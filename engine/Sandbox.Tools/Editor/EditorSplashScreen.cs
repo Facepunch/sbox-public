@@ -28,13 +28,10 @@ namespace Editor
 			var aspect = (float)BackgroundImage.Height / BackgroundImage.Width;
 			Size = new( 700, (700 * aspect).FloorToInt() + InfoAreaHeight );
 
-			if ( geometryCookie is null )
-			{
-				// fallback to screen centre if there's no saved geo
-				Position = ScreenGeometry.Contain( Size ).Position;
-			}
-
 			Show();
+
+			UpdateGeometry();
+			Position = ScreenGeometry.Contain( Size ).Position;
 
 			//
 			// Resample background image if dpi scale is gonna make us draw it bigger

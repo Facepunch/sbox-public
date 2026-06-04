@@ -193,12 +193,12 @@ class SoundBankLoader( string bankPath, SampleInformation info ) : ResourceLoade
 
 		if ( Info.Format == SoundFormat.MPEG )
 		{
-			return SoundFile.FromMp3( Path, fileBytes, false );
+			return SoundFile.FromMp3( Path, fileBytes );
 		}
 
 		if ( Info.Format == SoundFormat.PCM16 )
 		{
-			return SoundFile.FromPcm( Path, fileBytes, channels, (uint)frequency, 16, false );
+			return SoundFile.FromPcm( Path, fileBytes, new SoundFile.PcmOptions { Channels = channels, Rate = (uint)frequency, Bits = 16 } );
 		}
 
 		throw new NotImplementedException(); // NS2 only uses PCM16 (wav) and MPEG (mp3) samples.

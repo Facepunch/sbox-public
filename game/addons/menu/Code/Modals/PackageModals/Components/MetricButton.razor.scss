@@ -1,47 +1,60 @@
+@import "/styles/_theme.scss";
 
 .metricbutton
 {
-    flex-direction: column;
-    justify-content: center;
+    flex-direction: row;
     align-items: center;
-    width: 64px;
-    padding: 6px 2px;
-    background: linear-gradient( to 64px, #20273588, #252e3e88 );
-    border-radius: 22px;
-    color: #c6d4ee;
-    gap: 3px;
-    pointer-events: all;
-    text-shadow: 1px 1px 2px #0005;
-}
+    padding: 4px 10px;
+    border: 1px solid transparent;
+    border-radius: $rounding-default;
+    color: $default-300;
+    gap: 6px;
+    pointer-events: none;
 
-.metricbutton i
-{
-    font-size: 16px;
-    opacity: 0.7;
-}
+    i
+    {
+        font-size: 14px;
+        color: $default-400;
+        flex-shrink: 0;
+    }
 
-.metricbutton .value
-{
-    font-size: 10px;
-    font-weight: 550;
-    font-family: poppins;
+    .value
+    {
+        font-size: $text-small;
+        font-weight: 600;
+        font-family: $font-heading;
+    }
 }
 
 .metricbutton.interactive
 {
     cursor: pointer;
-    background: linear-gradient( to 64px, #202735, #252e3e );
+    pointer-events: all;
+
+    &:hover
+    {
+        border-color: $default-border;
+        background-color: rgba( $default-500, 0.1 );
+        color: $default-text;
+        sound-in: "ui.button.over";
+
+        i { color: $default-200; }
+    }
+
+    &:active { sound-in: "ui.button.press"; }
 }
 
 .metricbutton.active
 {
-    background: linear-gradient( to 64px, #3273eb, #3273eb );
-    color: white;
-}
+    color: $primary-blue;
+    border-color: rgba( $primary-blue, 0.3 );
+    background-color: rgba( $primary-blue, 0.1 );
 
+    i { color: $primary-blue; }
 
-
-.metricbutton.interactive:hover
-{
-    filter: brightness( 2 );
+    &:hover
+    {
+        background-color: rgba( $primary-blue, 0.2 );
+        border-color: rgba( $primary-blue, 0.5 );
+    }
 }

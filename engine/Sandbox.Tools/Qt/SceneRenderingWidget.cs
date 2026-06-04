@@ -41,6 +41,12 @@ public class SceneRenderingWidget : Frame
 		SetFlag( Flag.WA_NoSystemBackground, true );
 		SetFlag( Flag.WA_OpaquePaintEvent, true );
 
+		// On Linux/XWayland, Qt's software paint cycle fires on mouse-enter and click
+		// expose events, briefly clearing the native window before the next SwapChain
+		// present and causing a visible flash. Since all rendering goes through the
+		// SwapChain, the Qt paint path serves no purpose and can be suppressed entirely.
+		OnPaintOverride = () => true;
+
 		SwapChain = WidgetUtil.CreateSwapChain( _widget, RenderSettings.Instance.AntiAliasQuality.ToEngine() );
 		RenderSettings.Instance.OnVideoSettingsChanged += HandleVideoChanged;
 
@@ -166,6 +172,11 @@ public class SceneRenderingWidget : Frame
 				PreFrame();
 				RenderScene();
 			}
+		}
+
+		if ( GameMode.IsPlayWidget( this ) )
+		{
+			CCameraRenderer.RenderOverlay( SwapChain );
 		}
 
 		g_pRenderDevice.Present( SwapChain );

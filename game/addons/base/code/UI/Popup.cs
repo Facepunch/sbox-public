@@ -327,20 +327,20 @@ public partial class Popup : BasePopup
 					break;
 				}
 			case PositionMode.Right:
-			{
-				Style.Right = null;
-				Style.Left = rect.Right + PopupSourceOffset;
-				Style.Top = rect.Top + rect.Height * 0.5f;
-				break;
-			}
+				{
+					Style.Right = null;
+					Style.Left = rect.Right + PopupSourceOffset;
+					Style.Top = rect.Top + rect.Height * 0.5f;
+					break;
+				}
 			case PositionMode.RightBottom:
-			{
-				Style.Right = null;
-				Style.Left = rect.Right + PopupSourceOffset;
-				Style.Top = null;
-				Style.Bottom = (h - rect.Bottom);
-				break;
-			}
+				{
+					Style.Right = null;
+					Style.Left = rect.Right + PopupSourceOffset;
+					Style.Top = null;
+					Style.Bottom = (h - rect.Bottom);
+					break;
+				}
 			case PositionMode.LeftBottom:
 				{
 					Style.Left = null;

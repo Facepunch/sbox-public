@@ -66,6 +66,11 @@ class ClutterGenerationJob
 	public ClutterStorage Storage { get; init; }
 
 	/// <summary>
+	/// Optional list to collect physics bodies created for component-owned (volume) instances.
+	/// </summary>
+	public List<PhysicsBody> BodyList { get; init; }
+
+	/// <summary>
 	/// Optional callback when job completes (for volume mode progress tracking).
 	/// </summary>
 	public Action OnComplete { get; init; }
@@ -118,6 +123,38 @@ class ClutterGenerationJob
 		}
 	}
 
+	internal static PhysicsBody CreateStaticBodyForVolume( Model model, Transform transform, Scene scene )
+	{
+		return CreateStaticBody( model, transform, scene );
+	}
+
+	private static PhysicsBody CreateStaticBody( Model model, Transform transform, Scene scene )
+	{
+		var world = scene?.PhysicsWorld;
+		if ( world == null ) return null;
+
+		var body = new PhysicsBody( world );
+		body.BodyType = PhysicsBodyType.Static;
+		body.Position = transform.Position;
+		body.Rotation = transform.Rotation;
+
+		var local = new Transform( Vector3.Zero, Rotation.Identity, transform.Scale.x );
+		foreach ( var part in model.Physics.Parts )
+		{
+			var partTransform = local.ToWorld( part.Transform );
+			foreach ( var sphere in part.Spheres )
+				body.AddSphereShape( partTransform.PointToWorld( sphere.Sphere.Center ), sphere.Sphere.Radius * partTransform.UniformScale );
+			foreach ( var capsule in part.Capsules )
+				body.AddCapsuleShape( partTransform.PointToWorld( capsule.Capsule.CenterA ), partTransform.PointToWorld( capsule.Capsule.CenterB ), capsule.Capsule.Radius * partTransform.UniformScale );
+			foreach ( var hull in part.Hulls )
+				body.AddShape( hull, partTransform );
+			foreach ( var mesh in part.Meshes )
+				body.AddShape( mesh, partTransform, false );
+		}
+
+		return body;
+	}
+
 	private void SpawnInstances( List<ClutterInstance> instances )
 	{
 		var isComponentOwned = Ownership == ClutterOwnership.Component;
@@ -141,6 +178,20 @@ class ClutterGenerationJob
 							instance.Transform.Scale.x
 						);
 					}
+
+					// Spawn a static physics body if the model has physics data
+					if ( instance.Entry.Model.Physics?.Parts.Count > 0 )
+					{
+						var body = CreateStaticBody( instance.Entry.Model, instance.Transform, Parent.Scene );
+						if ( body != null )
+						{
+							if ( isComponentOwned )
+								BodyList?.Add( body );
+							else
+								Tile?.AddBody( body );
+						}
+					}
+
 					continue;
 				}
 

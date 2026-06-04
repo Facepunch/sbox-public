@@ -35,6 +35,7 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 		{
 			var ops = menu.AddMenu( "Object Operations", "build" );
 			AddMenuOption( ops, "Merge Meshes", "join_full", "mesh.merge-meshes", manyMeshes );
+			AddMenuOption( ops, "Boolean Tool", "difference", "mesh.boolean-tool", manyMeshes );
 			AddMenuOption( ops, "Convert To Mesh", "auto_mode", "mesh.convert-model-to-mesh", convertible );
 			AddMenuOption( ops, "Flip Faces", "flip", "mesh.flip-all-mesh-faces", hasMeshes );
 		}
@@ -219,10 +220,17 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 	{
 		var invBasis = CalculateSelectionBasis().Inverse;
 
-		return BBox.FromPoints( _meshes
+		var points = _objects
 			.Where( x => x.IsValid() )
-			.SelectMany( mc => mc.Mesh.VertexHandles
-				.Select( v => invBasis * mc.WorldTransform.PointToWorld( mc.Mesh.GetVertexPosition( v ) ) ) ) );
+			.SelectMany( go =>
+			{
+				if ( go.GetComponent<MeshComponent>() is { } mc && mc.IsValid() )
+					return mc.Mesh.VertexHandles.Select( v => invBasis * mc.WorldTransform.PointToWorld( mc.Mesh.GetVertexPosition( v ) ) );
+
+				return go.GetBounds().Corners.Select( c => invBasis * c );
+			} );
+
+		return BBox.FromPoints( points );
 	}
 
 	public override Rotation CalculateSelectionBasis()
@@ -406,6 +414,8 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 
 		foreach ( var go in Scene.GetAllObjects( true ) )
 		{
+			if ( go.Tags.Has( "hidden" ) ) continue;
+
 			var bounds = go.GetBounds();
 			if ( !frustum.IsInside( bounds, !fullyInside ) )
 			{

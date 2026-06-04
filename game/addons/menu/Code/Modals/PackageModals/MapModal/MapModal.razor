@@ -27,7 +27,7 @@
                 </Content>
             </PortalButton>
 
-            <PortalButton Portal=@Portal>
+            <PortalButton @ref=ReviewsTab Portal=@Portal>
                 <Button>
                     <SearchlightTab Title="Reviews" Icon="reviews" />
                 </Button>
@@ -35,6 +35,18 @@
                     <PackageReviews Package=@Package />
                 </Content>
             </PortalButton>
+
+            @if (Package.LatestChangeLists.Length > 0)
+            {
+                <PortalButton @ref=ChangesTab Portal=@Portal>
+                    <Button>
+                        <SearchlightTab Title="Changes" Icon="history" />
+                    </Button>
+                    <Content>
+                        <PackageChanges Package=@Package />
+                    </Content>
+                </PortalButton>
+            }
 
             @if (Package.LatestNewsPost is not null)
             {
@@ -50,14 +62,18 @@
 
         </Tabs>
         <Left>
-            <PackageHero Package="@Package" class="sidebar" MaxTags=@(8) />
+            <PackageInfoPanel Package="@Package" OnChangelogClicked="@(() => ChangesTab?.ActivatePage())" OnReviewsClicked="@(() => ReviewsTab?.ActivatePage())" />
 
             @if (achList is not null)
             {
-                <h2>Achievements</h2>
                 <PortalButton Portal=@Portal>
                     <Button>
-                        <AchievementSummary Package="@Package"></AchievementSummary>
+                        <Card class="achievements-card">
+                            <ChildContent>
+                                <Label class="section-label">Achievements</Label>
+                                <PackageAchievementSummary Package="@Package" />
+                            </ChildContent>
+                        </Card>
                     </Button>
                     <Content>
                         <AchievementList Package="@Package"></AchievementList>
@@ -84,6 +100,8 @@
 
     AchievementCollection achList;
     PortalTarget Portal = default;
+    PortalButton ChangesTab = default;
+    PortalButton ReviewsTab = default;
 
 	public List<LobbyInformation> Lobbies = new();
 

@@ -113,7 +113,7 @@ public sealed class SessionHistory : IReadOnlyList<IHistoryItem>
 	public IEnumerator<IHistoryItem> GetEnumerator() => _items.GetEnumerator();
 	IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-	public IHistoryItem this[ int index ] => _items[index];
+	public IHistoryItem this[int index] => _items[index];
 }
 
 internal sealed record SessionProperties(

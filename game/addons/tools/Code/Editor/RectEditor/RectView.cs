@@ -37,6 +37,15 @@ public class RectView : Widget
 
 	private List<Rect> UvAssetRects = new();
 
+	internal int HoveredVertexIndex = -1;
+	internal int DraggingVertexIndex = -1;
+	internal HashSet<int> SelectedVertices = new();
+	private bool IsBoxSelecting;
+	private Vector2 BoxSelectStart;
+	private Vector2 BoxSelectEnd;
+	private Vector2 VertexDragStartUV;
+	private Dictionary<int, Vector2> VertexDragOriginals = new();
+
 	public RectView( Window session ) : base( session )
 	{
 		Session = session;
@@ -265,6 +274,7 @@ public class RectView : Widget
 		FindRectanglesUnderCursor( mousePos );
 		FindHoveredCorner( mousePos );
 		FindHoveredEdgeInPickMode( mousePos );
+		FindHoveredVertex( mousePos );
 		SetCursorFromState();
 	}
 
@@ -287,9 +297,83 @@ public class RectView : Widget
 		}
 	}
 
+	void FindHoveredVertex( Vector2 mousePos )
+	{
+		if ( DraggingVertexIndex >= 0 || DragState != DragState.None )
+			return;
+
+		HoveredVertexIndex = -1;
+
+		if ( !Session.Settings.IsFastTextureTool )
+			return;
+
+		if ( !Session.Settings.FastTextureSettings.EditVertices )
+		{
+			if ( SelectedVertices.Count > 0 )
+				SelectedVertices.Clear();
+			return;
+		}
+
+		if ( Session.Settings.FastTextureSettings.ScaleMode == ScaleMode.WorldScale )
+			return;
+
+		var meshRect = Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
+		if ( meshRect == null )
+			return;
+
+		var mouseUV = PixelToUV( mousePos );
+		var pixelThreshold = 10f;
+		var uvThreshold = pixelThreshold * ViewRect.Size.x / DrawRect.Width;
+		HoveredVertexIndex = meshRect.FindClosestVertex( mouseUV, uvThreshold );
+	}
+
+	void FinishBoxSelect( bool addToSelection, bool removeFromSelection )
+	{
+		var meshRect = Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
+		if ( meshRect == null )
+			return;
+
+		var transformedPositions = meshRect.GetRectangleRelativePositions();
+
+		var uvStart = PixelToUV( BoxSelectStart );
+		var uvEnd = PixelToUV( BoxSelectEnd );
+		var minUV = Vector2.Min( uvStart, uvEnd );
+		var maxUV = Vector2.Max( uvStart, uvEnd );
+
+		var boxedVertices = new HashSet<int>();
+		for ( int i = 0; i < transformedPositions.Count; i++ )
+		{
+			var pos = transformedPositions[i];
+			if ( pos.x >= minUV.x && pos.x <= maxUV.x && pos.y >= minUV.y && pos.y <= maxUV.y )
+			{
+				boxedVertices.Add( i );
+			}
+		}
+
+		if ( removeFromSelection )
+		{
+			SelectedVertices.ExceptWith( boxedVertices );
+		}
+		else if ( addToSelection )
+		{
+			SelectedVertices.UnionWith( boxedVertices );
+		}
+		else
+		{
+			SelectedVertices = boxedVertices;
+		}
+	}
+
 	protected override void OnMouseMove( MouseEvent e )
 	{
 		base.OnMouseMove( e );
+
+		if ( IsBoxSelecting )
+		{
+			BoxSelectEnd = e.LocalPosition;
+			Update();
+			return;
+		}
 
 		if ( DragState == DragState.Panning )
 		{
@@ -298,6 +382,33 @@ public class RectView : Widget
 			PanOffset = PanStartOffset - uvDelta;
 			UpdateViewRect();
 			Update();
+			return;
+		}
+
+		// Handle vertex dragging
+		if ( DraggingVertexIndex >= 0 && DragState == DragState.Dragging )
+		{
+			var meshRect = Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
+			if ( meshRect != null )
+			{
+				var targetUV = PixelToUV_OnGrid( e.LocalPosition );
+
+				// Move the primary vertex to the exact grid-snapped position
+				meshRect.MoveVertexTo( DraggingVertexIndex, targetUV );
+
+				// Move other selected vertices by the same delta
+				var deltaUV = targetUV - VertexDragStartUV;
+				foreach ( var (idx, original) in VertexDragOriginals )
+				{
+					if ( idx == DraggingVertexIndex )
+						continue;
+					meshRect.MoveVertexByDelta( idx, original, deltaUV );
+				}
+
+				Document.Modified = true;
+				Document.OnModified?.Invoke();
+				Update();
+			}
 			return;
 		}
 
@@ -345,6 +456,44 @@ public class RectView : Widget
 
 		if ( e.Button == MouseButtons.Left )
 		{
+			if ( Session.Settings.IsFastTextureTool && Session.Settings.FastTextureSettings.EditVertices && HoveredVertexIndex >= 0 )
+			{
+				if ( e.HasShift )
+				{
+					SelectedVertices.Add( HoveredVertexIndex );
+					Update();
+					return;
+				}
+				else if ( e.HasCtrl )
+				{
+					SelectedVertices.Remove( HoveredVertexIndex );
+					Update();
+					return;
+				}
+
+				DraggingVertexIndex = HoveredVertexIndex;
+				DragState = DragState.Dragging;
+				DragStartPos = e.LocalPosition;
+				VertexDragStartUV = PixelToUV_OnGrid( e.LocalPosition );
+
+				if ( !SelectedVertices.Contains( HoveredVertexIndex ) )
+				{
+					SelectedVertices = new HashSet<int> { HoveredVertexIndex };
+				}
+
+				var meshRect = Document.Rectangles.OfType<Document.MeshRectangle>().FirstOrDefault();
+				VertexDragOriginals.Clear();
+				if ( meshRect != null )
+				{
+					foreach ( var idx in SelectedVertices )
+					{
+						if ( idx < meshRect.UnwrappedVertexPositions.Count )
+							VertexDragOriginals[idx] = meshRect.UnwrappedVertexPositions[idx];
+					}
+				}
+				return;
+			}
+
 			// Handle edge picking mode for Fast Texture Tool
 			if ( Session.Settings.IsFastTextureTool && Session.Settings.FastTextureSettings.IsPickingEdge )
 			{
@@ -392,9 +541,20 @@ public class RectView : Widget
 				}
 			}
 		}
-		else if ( e.Button == MouseButtons.Right && RectanglesUnderCursor.Count > 0 )
+		else if ( e.Button == MouseButtons.Right )
 		{
-			CreateContextMenu( GetFirstRectangleUnderCursor() );
+			if ( Session.Settings.IsFastTextureTool && Session.Settings.FastTextureSettings.EditVertices )
+			{
+				IsBoxSelecting = true;
+				BoxSelectStart = e.LocalPosition;
+				BoxSelectEnd = e.LocalPosition;
+				return;
+			}
+
+			if ( RectanglesUnderCursor.Count > 0 )
+			{
+				CreateContextMenu( GetFirstRectangleUnderCursor() );
+			}
 		}
 	}
 
@@ -408,8 +568,25 @@ public class RectView : Widget
 			return;
 		}
 
+		// Finish box select
+		if ( e.Button == MouseButtons.Right && IsBoxSelecting )
+		{
+			IsBoxSelecting = false;
+			FinishBoxSelect( e.HasShift, e.HasCtrl );
+			Update();
+			return;
+		}
+
 		if ( e.Button == MouseButtons.Left )
 		{
+			// End vertex drag
+			if ( DraggingVertexIndex >= 0 )
+			{
+				DraggingVertexIndex = -1;
+				DragState = DragState.None;
+				return;
+			}
+
 			var operation = (e.HasShift || e.HasCtrl) ? SelectionOperation.Add : SelectionOperation.Set;
 			if ( DragState == DragState.Dragging )
 			{
@@ -656,6 +833,15 @@ public class RectView : Widget
 			Paint.SetPen( Color.Yellow, 3 );
 			Paint.DrawRect( newRect );
 		}
+
+		// Draw box selection rectangle
+		if ( IsBoxSelecting )
+		{
+			var selRect = Rect.FromPoints( BoxSelectStart, BoxSelectEnd );
+			Paint.SetBrush( Color.Cyan.WithAlpha( 0.1f ) );
+			Paint.SetPen( Color.Cyan.WithAlpha( 0.6f ), 1, PenStyle.Dash );
+			Paint.DrawRect( selRect );
+		}
 	}
 
 	public Vector2 UVToPixel( Vector2 uv )
@@ -714,6 +900,18 @@ public class RectView : Widget
 		if ( Session.Settings.IsFastTextureTool && Session.Settings.FastTextureSettings.IsPickingEdge )
 		{
 			Cursor = CursorShape.Cross;
+			return;
+		}
+
+		if ( DraggingVertexIndex >= 0 )
+		{
+			Cursor = CursorShape.ClosedHand;
+			return;
+		}
+
+		if ( HoveredVertexIndex >= 0 )
+		{
+			Cursor = CursorShape.Finger;
 			return;
 		}
 

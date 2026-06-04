@@ -47,16 +47,32 @@ public partial class SoundEvent : GameResource
 	public List<SoundFile> Sounds { get; set; }
 
 	/// <summary>
-	/// Allow this sound to be occluded by geometry 
+	/// Allow this sound to be occluded by geometry
 	/// </summary>
-	[ToggleGroup( "Occlusion" ), HideIf( nameof( UI ), true )]
-	public bool Occlusion { get; set; } = true;
+	[HideIf( nameof( UI ), true )]
+	public bool OcclusionEnabled { get; set; } = true;
+
+	/// <summary>Legacy alias for <see cref="OcclusionEnabled"/>.</summary>
+	[Hide, Obsolete( "Use OcclusionEnabled instead." )]
+	public bool Occlusion
+	{
+		get => OcclusionEnabled;
+		set => OcclusionEnabled = value;
+	}
 
 	/// <summary>
 	/// Allow this sound to trace reflections, allowing it to be heard indirectly
 	/// </summary>
-	[JsonIgnore, Hide, Obsolete]
-	public bool Reflections { get; set; } = true;
+	[HideIf( nameof( UI ), true )]
+	public bool ReverbEnabled { get; set; } = true;
+
+	/// <summary>Legacy alias for <see cref="ReverbEnabled"/>.</summary>
+	[Hide, Obsolete( "Use ReverbEnabled instead." )]
+	public bool Reflections
+	{
+		get => ReverbEnabled;
+		set => ReverbEnabled = value;
+	}
 
 	/// <summary>
 	/// Allow this sound to be absorbed by air
@@ -71,9 +87,9 @@ public partial class SoundEvent : GameResource
 	public bool Transmission { get; set; } = true;
 
 	/// <summary>
-	/// The radius of this sound's occlusion in inches.
+	/// Legacy occlusion radius. No longer used by the simulation.
 	/// </summary>
-	[ToggleGroup( "Occlusion" ), Range( 0, 256 ), HideIf( nameof( UI ), true )]
+	[JsonInclude, Hide, Obsolete( "OcclusionRadius is no longer used by the simulation." )]
 	public float OcclusionRadius { get; set; } = 64.0f;
 
 	/// <summary>

@@ -6,12 +6,14 @@
 @if (Package == null) return;
 
 <div class="wrapper">
-    <Card onclick="@Clicked">
+    <Card class="hover" onclick="@Clicked">
         <ChildContent>
             <PackageHero Package="@Package" class="large">
                 <Actions>
                     <Button class="play-button" Disabled=@(!MenuHelpers.HasAuthority) Icon="play_arrow" @onclick=@PlayNow>
-                        <label class="eyebrow">Play Now</label>
+                        <ChildContent>
+                            <Label class="eyebrow" Text="Play Now"></Label>
+                        </ChildContent>
                     </Button>
                 </Actions>
             </PackageHero>

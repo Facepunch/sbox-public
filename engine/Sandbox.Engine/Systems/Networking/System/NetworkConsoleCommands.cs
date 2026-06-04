@@ -141,7 +141,7 @@ internal static class NetworkConsoleCommands
 
 		foreach ( var info in Networking.System.ConnectionInfo.All.Values )
 		{
-			Log.Info( $"{info.ConnectionId}	{info.SteamId}	{info.State}		{info.DisplayName}		{info.ConnectionTime}" );
+			Log.Info( $"{info.ConnectionId}	{info.SteamId}	{info.State}		{info.Name}		{info.ConnectionTime}" );
 		}
 	}
 

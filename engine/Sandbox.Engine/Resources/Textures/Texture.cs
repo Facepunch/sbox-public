@@ -66,6 +66,9 @@ public partial class Texture : Resource, IDisposable
 	/// </summary>
 	internal void CopyFrom( Texture texture )
 	{
+		if ( !texture.IsValid() )
+			return;
+
 		if ( !native.IsNull )
 		{
 			var n = native;

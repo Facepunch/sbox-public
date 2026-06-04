@@ -61,12 +61,11 @@ public partial class Package
 		var downloadQueue = new ConcurrentBag<FileDownloadEntry>();
 		var fs = new PackageFileSystem();
 
-		//
-		// First check if we have these files in our core content - we can ignore these because they're already mounted etc
-		//
+		var loopSw = Stopwatch.StartNew();
 		foreach ( var e in entries )
 		{
 			TryAddToDownloadQueue( e, fs, downloadQueue, token );
+			if ( loopSw.ElapsedMilliseconds > 8 ) { global::Sandbox.LoadingScreen.Subtitle = System.IO.Path.GetFileName( e.Path ); await Task.Yield(); loopSw.Restart(); }
 		}
 
 		// nothing to download
@@ -149,6 +148,8 @@ public partial class Package
 		}
 
 		progress.Title = $"Download '{Title}' Complete";
+		// Clear subtitle so download stats don't bleed into the next phase (e.g. Compiling).
+		global::Sandbox.LoadingScreen.Subtitle = "";
 
 		Log.Trace( $"..done in {sw.Elapsed.TotalSeconds:0.00}s" );
 
@@ -274,7 +275,7 @@ public partial class Package
 		SentrySdk.AddBreadcrumb( $"Mounting {this.FullIdent}", "package.mount" );
 
 		int? version = Revision?.VersionId > 0 ? (int)Revision.VersionId : null;
-		var fs = await ServerPackages.Current.DownloadAndMount( FormatIdent( Org.Ident, Ident, version, !IsRemote ) );
+		var fs = await ServerPackages.DownloadAndMount( FormatIdent( Org.Ident, Ident, version, !IsRemote ) );
 		if ( fs is null ) return default;
 
 		if ( withCode )

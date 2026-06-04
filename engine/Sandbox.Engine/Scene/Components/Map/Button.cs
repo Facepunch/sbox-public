@@ -110,11 +110,11 @@ public sealed class Button : Component, Component.IPressable
 	{
 		if ( isOn )
 		{
-			Run( OnTurnedOn, c => c.SetArgument( "user", _lastPresser ) );
+			RunDoo( OnTurnedOn, c => c.SetArgument( "user", _lastPresser ) );
 		}
 		else
 		{
-			Run( OnTurnedOff );
+			RunDoo( OnTurnedOff );
 		}
 	}
 
@@ -236,7 +236,7 @@ public sealed class Button : Component, Component.IPressable
 			return;
 
 		_lastPresser = presser;
-		Run( OnPressed, c => c.SetArgument( "user", _lastPresser ) );
+		RunDoo( OnPressed, c => c.SetArgument( "user", _lastPresser ) );
 
 		switch ( Mode )
 		{
@@ -264,7 +264,7 @@ public sealed class Button : Component, Component.IPressable
 	[Rpc.Host]
 	private void Release( GameObject presser )
 	{
-		Run( OnReleased, c => c.SetArgument( "user", _lastPresser ) );
+		RunDoo( OnReleased, c => c.SetArgument( "user", _lastPresser ) );
 
 		// For continuous mode, turn off when released
 		if ( Mode == ButtonMode.Continuous && IsOn )

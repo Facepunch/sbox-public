@@ -34,6 +34,8 @@ internal class PageSceneView : Widget
 		cameraStyleSettings.AddProperty( () => EditorPreferences.NavigationStyle );
 		cameraStyleSettings.AddProperty( () => EditorPreferences.CameraCursor );
 		Layout.AddSpacingCell( 8 );
+		sheet.AddProperty( () => EditorPreferences.CameraFieldOfView );
+		sheet.AddProperty( () => EditorPreferences.CameraBackgroundColor );
 
 		var cameraOrbitSettings = new ControlSheet();
 		Layout.Add( cameraOrbitSettings );
@@ -62,6 +64,30 @@ internal class PageSceneView : Widget
 		cameraMovementSheet.AddProperty( () => EditorPreferences.CameraMovementSmoothing );
 		cameraMovementSheet.AddProperty( () => EditorPreferences.ScrollZoomSpeed );
 
+		sheet.AddProperty( () => EditorPreferences.HideRotateCursor );
+		sheet.AddProperty( () => EditorPreferences.HidePanCursor );
+		sheet.AddProperty( () => EditorPreferences.HideOrbitCursor );
+
+		sheet.AddProperty( () => EditorPreferences.InvertOrbitZoom );
+		sheet.AddProperty( () => EditorPreferences.OrbitZoomSpeed );
+
+		sheet.AddProperty( () => EditorPreferences.BackfaceSelection );
+		sheet.AddProperty( () => EditorPreferences.BoundsPlacement );
+		sheet.AddProperty( () => EditorPreferences.PasteAtCursor );
+
+		Layout.Add( sheet );
+
+		Layout.AddSpacingCell( 16 );
+		Layout.Add( new Label.Subtitle( "Gizmo Handles" ) );
+
+		var gizmoSheet = new ControlSheet();
+
+		gizmoSheet.AddProperty( () => EditorPreferences.GizmoScale );
+		gizmoSheet.AddProperty( () => EditorPreferences.GizmoRenderDistance );
+		gizmoSheet.AddProperty( () => EditorPreferences.GizmoDepthTest );
+		gizmoSheet.AddProperty( () => EditorPreferences.WorldSpaceGizmos );
+
+		Layout.Add( gizmoSheet );
 		Layout.AddStretchCell();
 	}
 }

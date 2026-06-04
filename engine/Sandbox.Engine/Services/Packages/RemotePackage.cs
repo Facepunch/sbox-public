@@ -51,6 +51,7 @@ internal sealed class RemotePackage : Package
 		VotesDown = p.VotesDown;
 		Public = p.Public;
 		TypeName = p.TypeName;
+		Flair = PackageFlair.FromDto( p.Flair );
 
 		Interaction = new PackageInteraction
 		{
@@ -69,7 +70,7 @@ internal sealed class RemotePackage : Package
 		{
 			Usage = new PackageUsageStats
 			{
-				UsersNow = p.UsageStats.UsersNow,
+				UsersNow = p.UsersNow,
 
 				Total = new PackageUsageStats.Group
 				{
@@ -99,7 +100,6 @@ internal sealed class RemotePackage : Package
 		Favourited = p.Favourited;
 		VotesUp = p.VotesUp;
 		VotesDown = p.VotesDown;
-		Source = p.Source;
 		Public = p.Public;
 		ApiVersion = p.ApiVersion;
 		Screenshots = p.Screenshots?.Select( x => new Screenshot { Created = x.Created, Height = x.Height, IsVideo = x.IsVideo, Thumb = x.Thumb, Url = x.Url, Width = x.Width } ).ToArray() ?? Array.Empty<Screenshot>();
@@ -107,6 +107,10 @@ internal sealed class RemotePackage : Package
 		PackageReferences = p.PackageReferences;
 		EditorReferences = p.EditorReferences;
 		ErrorRate = p.ErrorRate;
+		Flair = PackageFlair.FromDto( p.Flair );
+		LatestChangeLists = ChangeListSummary.FromDto( p.Changelists );
+		AssetLicense = LicenseName( p.AssetLicense );
+		Metadata = AssetMetaData.FromDto( p.Version?.Extra );
 
 		if ( p.LatestNews is { } newsPost )
 		{
@@ -148,7 +152,7 @@ internal sealed class RemotePackage : Package
 		{
 			Usage = new PackageUsageStats
 			{
-				UsersNow = p.UsageStats.UsersNow,
+				UsersNow = p.UsersNow,
 
 				Total = new PackageUsageStats.Group
 				{

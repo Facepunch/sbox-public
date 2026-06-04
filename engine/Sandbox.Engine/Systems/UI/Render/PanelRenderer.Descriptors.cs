@@ -115,6 +115,9 @@ internal partial class PanelRenderer
 
 		var drawBuffer = UIDrawBuffer.Current;
 		drawBuffer.ActiveLayer = target;
+		drawBuffer.ScaleToScreen = panel.ScaleToScreen;
+		drawBuffer.Opacity = state.RenderOpacity;
+		drawBuffer.OverrideBlendMode = OverrideBlendMode;
 
 		try
 		{
@@ -126,6 +129,9 @@ internal partial class PanelRenderer
 		}
 
 		drawBuffer.ActiveLayer = null;
+
+		if ( panel is IPanelDraw custom )
+			target.AddCustom( custom );
 
 		AddShadowDescriptors( panel, ref state, inset: true, target );
 		AddOutlineDescriptor( panel, ref state, target );

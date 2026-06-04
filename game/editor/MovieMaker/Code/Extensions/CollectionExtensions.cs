@@ -244,7 +244,7 @@ public sealed class SynchronizedSet<TSrc, TItem> : ISynchronizedList<TSrc, TItem
 		}
 	}
 
-	public TItem this[ int index ]
+	public TItem this[int index]
 	{
 		get
 		{

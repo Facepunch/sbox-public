@@ -194,6 +194,7 @@ public partial class Package
 	/// <summary>
 	/// Link to this package's sources, if set.
 	/// </summary>
+	[Obsolete]
 	public string Source { get; set; }
 
 	/// <summary>
@@ -374,14 +375,11 @@ public partial class Package
 		/// </summary>
 		public DateTimeOffset Created { get; set; }
 
-		internal static Organization FromDto( Services.OrganizationDto x )
+		internal static Organization FromDto( Services.OrganizationMinimal x )
 		{
 			var o = new Organization();
 			o.Ident = x.Ident;
 			o.Title = x.Title;
-			o.SocialTwitter = x.Twitter;
-			o.SocialWeb = x.WebUrl;
-			o.Description = x.Description;
 			o.Thumb = x.Thumb;
 			return o;
 		}

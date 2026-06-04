@@ -75,6 +75,8 @@ public static class SceneEditorExtensions
 				delta = Vector2.Zero;
 			if ( self.ControlMode != "firstperson" )
 			{
+				EditorShortcuts.ReleaseAll();
+
 				delta = 0;
 				self.ControlMode = "firstperson";
 				self.StompCursorPosition( Application.CursorPosition );
@@ -152,6 +154,7 @@ public static class SceneEditorExtensions
 				camera.WorldPosition += camera.WorldRotation.Forward * Application.MouseWheelDelta.y * zoomSpeed;
 			}
 			cameraTarget = default;
+			moved = true;
 		}
 		if ( cameraTarget.HasValue )
 		{

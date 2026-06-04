@@ -18,7 +18,7 @@ public partial class RenderSettings
 
 	public bool Fullscreen
 	{
-		get => VideoSettings.Get<bool>( "fullscreen", true );
+		get => VideoSettings.Get<bool>( "fullscreen", false );
 		set => VideoSettings.Set<bool>( "fullscreen", value );
 	}
 

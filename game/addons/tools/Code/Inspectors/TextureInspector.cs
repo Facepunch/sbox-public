@@ -111,14 +111,33 @@ public class TextureInspector : Widget, IAssetInspector
 	{
 		if ( asset is null )
 			return;
+
 		Asset = asset;
-		var json = System.IO.File.ReadAllText( Asset.AbsolutePath );
-		if ( string.IsNullOrWhiteSpace( json ) )
+
+		if ( asset.IsProcedural )
+		{
+			var texture = asset.LoadResource<Texture>();
+
+			var cs = new ControlSheet();
+			cs.AddProperty( texture, x => x.Width );
+			cs.AddProperty( texture, x => x.Height );
+			cs.AddProperty( texture, x => x.Depth );
+			cs.AddProperty( texture, x => x.ImageFormat );
+
+			Layout.Add( cs );
+			Asset.HasUnsavedChanges = false;
 			return;
+		}
 
 		try
 		{
+			var json = System.IO.File.ReadAllText( Asset.AbsolutePath );
+			if ( string.IsNullOrWhiteSpace( json ) )
+				return;
+
 			File = Json.Deserialize<TextureFile>( json );
+			FileData = json;
+
 			Asset.HasUnsavedChanges = false;
 
 			if ( File.Images is not null )
@@ -139,8 +158,6 @@ public class TextureInspector : Widget, IAssetInspector
 			File = new();
 			Asset.HasUnsavedChanges = true;
 		}
-
-		FileData = json;
 
 		var so = File.GetSerialized();
 		Layout.Add( ControlSheet.Create( so ) );

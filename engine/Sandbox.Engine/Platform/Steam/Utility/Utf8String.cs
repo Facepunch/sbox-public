@@ -47,18 +47,9 @@ namespace Steamworks
 			if ( p.ptr == IntPtr.Zero )
 				return null;
 
-			var bytes = (byte*)p.ptr;
-
-			var dataLen = 0;
-			while ( dataLen < 1024 * 1024 * 64 )
-			{
-				if ( bytes[dataLen] == 0 )
-					break;
-
-				dataLen++;
-			}
-
-			return Encoding.UTF8.GetString( bytes, dataLen );
+			// Uses the runtime's vectorized strlen to find the null terminator
+			var span = MemoryMarshal.CreateReadOnlySpanFromNullTerminated( (byte*)p.ptr );
+			return Encoding.UTF8.GetString( span );
 		}
 	}
 }

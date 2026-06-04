@@ -14,14 +14,16 @@ MainSearchBar {
 
         .wrapper {
             position: relative;
-            padding: 12px;
+            padding: 8px;
+            padding-top: 108px;
             background-color: $default-950;
-            width: 800px;
+            width: 900px;
             border-radius: $rounding-large;
-            padding-top: 118px;
             opacity: 0;
-            transform: translateY( -12px );
+            transform: translateY(-12px);
             transition: all 150ms $easing;
+            border: 1px solid rgba($default-50, 0.07);
+            overflow: hidden;
         }
 
         .inner-empty, .inner-query {
@@ -31,11 +33,6 @@ MainSearchBar {
 
         .inner-query {
             display: none;
-            gap: 12px;
-
-            icon {
-                color: $default-text-light;
-            }
         }
     }
 
@@ -52,53 +49,238 @@ MainSearchBar {
     &.autocomplete-active {
         .autocomplete {
             pointer-events: all;
-            background-color: rgba( black, 0.9 );
-            backdrop-filter: blur( 10px );
+            background-color: rgba(black, 0.87);
+            backdrop-filter: blur(10px);
 
             .wrapper {
                 pointer-events: all;
                 opacity: 1;
-                transform: translateY( 0 );
-                box-shadow: 0 0 16px rgba( black, 0.33 );
+                transform: translateY(0);
+                box-shadow: 0 8px 40px rgba(black, 0.6);
             }
 
             TextEntry.textentry {
-                width: 640px;
-                background-color: $default-950;
-                backdrop-filter: blur( 0px );
+                width: 760px;
+                background-color: $default-900;
+                backdrop-filter: blur(0px);
+                border-color: rgba($default-50, 0.18);
             }
         }
     }
 
+    .recent-grid {
+        gap: 24px;
+        padding: 12px 28px 24px 10px;
+        overflow: hidden;
+        min-height: 226px;
+    }
+
+    .empty-recent {
+        align-items: center;
+        justify-content: center;
+        min-height: 144px;
+        width: 100%;
+        border-radius: $rounding-default;
+        background-color: rgba($default-50, 0.04);
+
+        label {
+            color: $default-400;
+            font-size: $text-regular;
+        }
+    }
+
+    .suggestion-list {
+        gap: 10px;
+        padding: 4px 28px 22px 10px;
+        flex-wrap: wrap;
+    }
+
+    .suggestion-action {
+        cursor: pointer;
+        pointer-events: all;
+        transition: all 100ms $easing;
+
+        &:hover {
+            sound-in: "ui.button.over";
+            opacity: 0.85;
+        }
+
+        &:active {
+            sound-in: "ui.button.press";
+        }
+    }
+
+    .top-result {
+        flex-direction: column;
+        gap: 10px;
+        margin: 8px 10px 18px 10px;
+        padding: 10px;
+        border-radius: $rounding-default;
+        background-color: $default-900;
+    }
+
+    .search-result-row {
+        align-items: center;
+        gap: 12px;
+        border-radius: $rounding-default;
+
+        PackageCard.list {
+            flex-grow: 1;
+
+            column > row {
+                display: none;
+            }
+        }
+
+        &.featured {
+            PackageCard.list {
+                height: 82px;
+                padding: 6px;
+
+                .package-title {
+                    font-size: $text-large;
+                    max-width: 560px;
+                    max-height: 28px;
+                }
+            }
+        }
+    }
+
+    .result-stats {
+        gap: 8px;
+        align-items: center;
+        justify-content: flex-end;
+        flex-shrink: 0;
+        min-width: 190px;
+        margin-right: 6px;
+    }
+
+    PackageCard {
+        .package-users {
+            display: none;
+        }
+    }
+
+    .badge-row {
+        gap: 8px;
+        align-items: center;
+
+        &.wrap {
+            flex-wrap: wrap;
+            align-content: flex-start;
+        }
+
+        &.tags {
+            padding-top: 2px;
+        }
+    }
+
+    .more-results {
+        flex-direction: column;
+        gap: 4px;
+        padding: 6px 10px 10px 10px;
+
+        PackageCard.list {
+            height: 58px;
+        }
+    }
+    // Section header: eyebrow label with icon
+    .section-header {
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px 2px 10px;
+        margin-bottom: 2px;
+
+        &.compact {
+            padding: 4px 0 0 0;
+            margin-bottom: 0;
+        }
+    }
+    // Loading / no-results state
+    .search-status {
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 24px 10px;
+
+        label {
+            color: $default-400;
+            font-size: $text-regular;
+        }
+
+        icon {
+            font-size: $text-large;
+            color: $default-500;
+        }
+    }
+    // Footer row ("Browse all" / "View all results")
+    separator.horizontal {
+        margin: 4px 0;
+    }
+
+    .section-footer {
+        align-items: center;
+        padding: 8px 10px;
+        border-radius: $rounding-default;
+        cursor: pointer;
+        pointer-events: all;
+        transition: background-color 100ms $easing;
+
+        &:hover {
+            sound-in: "ui.button.over";
+            background-color: rgba($default-50, 0.05);
+
+            label, icon {
+                color: $default-200;
+            }
+        }
+
+        &:active {
+            sound-in: "ui.button.press";
+        }
+
+        label {
+            font-size: $text-small;
+            color: $default-400;
+            transition: color 100ms $easing;
+        }
+
+        icon {
+            font-size: $text-small;
+            color: $default-400;
+            transition: color 100ms $easing;
+        }
+    }
+    // Floating search input
     TextEntry.textentry {
         position: absolute;
         top: 50px;
         left: 50%;
         transform: translateX(-50%);
-        background-color: rgba( $default-950, 0.3 );
-        box-shadow: 0 0 32px rgba( $default-900, 0.5 );
-        backdrop-filter: blur( 10px );
+        background-color: rgba($default-950, 0.3);
+        box-shadow: 0 2px 16px rgba($default-900, 0.6);
+        backdrop-filter: blur(10px);
         color: $default-text;
         padding: 8px 12px;
         width: 500px;
         border-radius: $rounding-default;
         pointer-events: all;
         transition: all 150ms $easing;
-        border: 1px solid rgba( $default-50, 0.1 );
+        border: 1px solid rgba($default-50, 0.12);
 
         .placeholder {
             font-size: $text-regular;
         }
 
         Label {
-            font-weight: 700;
+            font-weight: 600;
             margin-left: 26px;
         }
 
         iconpanel {
             position: absolute;
             left: 12px;
-            opacity: 0.25;
+            opacity: 0.3;
             font-size: $text-large;
         }
     }

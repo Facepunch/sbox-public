@@ -11,7 +11,7 @@ namespace Editor.MovieMaker;
 
 #nullable enable
 
-[JsonConverter( typeof(MovieProjectConverter) )]
+[JsonConverter( typeof( MovieProjectConverter ) )]
 partial class MovieProject : IJsonPopulator
 {
 	internal sealed record Model(
@@ -392,24 +392,24 @@ partial class ProjectPropertyTrack<T>
 		switch ( propertyModel.Format )
 		{
 			case BlockFormat.Editor:
-			{
-				if ( propertyModel.Blocks?.Deserialize<ImmutableArray<PropertyBlock<T>>>( options ) is { } blocks )
 				{
-					_blocks.AddRange( blocks );
-				}
+					if ( propertyModel.Blocks?.Deserialize<ImmutableArray<PropertyBlock<T>>>( options ) is { } blocks )
+					{
+						_blocks.AddRange( blocks );
+					}
 
-				break;
-			}
+					break;
+				}
 
 			case BlockFormat.Compiled:
-			{
-				if ( propertyModel.Blocks?.Deserialize<ImmutableArray<ICompiledPropertyBlock<T>>>( options ) is { } blocks )
 				{
-					_blocks.AddRange( blocks.Select( x => x.ToProjectBlock() ) );
-				}
+					if ( propertyModel.Blocks?.Deserialize<ImmutableArray<ICompiledPropertyBlock<T>>>( options ) is { } blocks )
+					{
+						_blocks.AddRange( blocks.Select( x => x.ToProjectBlock() ) );
+					}
 
-				break;
-			}
+					break;
+				}
 		}
 	}
 }
@@ -418,7 +418,7 @@ partial class ProjectSequenceTrack
 {
 	public override ProjectTrackModel Serialize( JsonSerializerOptions options )
 	{
-		return new ProjectSequenceTrackModel( Name, Parent?.Id, [..Blocks.Select( x => new ProjectSequenceBlockModel( x.TimeRange, x.Transform, x.Resource ) )] );
+		return new ProjectSequenceTrackModel( Name, Parent?.Id, [.. Blocks.Select( x => new ProjectSequenceBlockModel( x.TimeRange, x.Transform, x.Resource ) )] );
 	}
 
 	public override void Deserialize( ProjectTrackModel model, JsonSerializerOptions options )
@@ -441,18 +441,18 @@ public sealed class JsonDiscriminatorAttribute( string value ) : Attribute
 	public string Value { get; } = value;
 }
 
-[JsonConverter( typeof(PropertySignalConverterFactory) )]
+[JsonConverter( typeof( PropertySignalConverterFactory ) )]
 partial record PropertySignal<T>;
 
 file class PropertySignalConverterFactory : JsonConverterFactory
 {
 	public override bool CanConvert( Type typeToConvert ) =>
-		typeToConvert.IsConstructedGenericType && typeToConvert.GetGenericTypeDefinition() == typeof(PropertySignal<>);
+		typeToConvert.IsConstructedGenericType && typeToConvert.GetGenericTypeDefinition() == typeof( PropertySignal<> );
 
 	public override JsonConverter CreateConverter( Type typeToConvert, JsonSerializerOptions options )
 	{
 		var valueType = typeToConvert.GetGenericArguments()[0];
-		var converterType = typeof(PropertySignalConverter<>).MakeGenericType( valueType );
+		var converterType = typeof( PropertySignalConverter<> ).MakeGenericType( valueType );
 
 		return (JsonConverter)Activator.CreateInstance( converterType )!;
 	}
@@ -472,7 +472,7 @@ file class PropertySignalConverter<T> : JsonConverter<PropertySignal<T>>
 	{
 		_discriminatorLookup ??= EditorTypeLibrary.GetTypesWithAttribute<JsonDiscriminatorAttribute>()
 			.Where( x => !x.Type.IsAbstract && x.Type.IsGenericType )
-			.Select( x => (Name: x.Attribute.Value, Type: x.Type.TargetType.MakeGenericType( typeof(T) )) )
+			.Select( x => (Name: x.Attribute.Value, Type: x.Type.TargetType.MakeGenericType( typeof( T ) )) )
 			.ToImmutableDictionary( x => x.Name, x => x.Type );
 
 		return _discriminatorLookup[discriminator];

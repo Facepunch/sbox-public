@@ -83,7 +83,7 @@ internal partial class StandaloneGameInstance : GameInstance
 		LoadProjectSettings();
 
 		Log.Trace( $"Loading GameResources" );
-		ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
+		await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, token );
 
 		Log.Trace( $"Loading Fonts" );
 		FontManager.Instance.LoadAll( FileSystem.Mounted );

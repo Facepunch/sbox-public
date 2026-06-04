@@ -6,6 +6,23 @@ namespace Sandbox;
 
 public partial struct PhysicsTraceBuilder
 {
+	sealed class TraceResultVector
+	{
+		public CUtlVectorTraceResult Vec = CUtlVectorTraceResult.Create( 32, 32 );
+		~TraceResultVector() => Vec.DeleteThis();
+	}
+
+	[ThreadStatic] static TraceResultVector _threadTraceVec;
+	static CUtlVectorTraceResult ThreadTraceVec
+	{
+		get
+		{
+			_threadTraceVec ??= new TraceResultVector();
+			_threadTraceVec.Vec.RemoveAll();
+			return _threadTraceVec.Vec;
+		}
+	}
+
 	internal PhysicsWorld targetWorld;
 	internal PhysicsBody targetBody;
 	internal PhysicsTrace.Request request;
@@ -147,6 +164,56 @@ public partial struct PhysicsTraceBuilder
 		request.StartShape.Mins = Vector3.Down * halfHeight;
 		request.StartShape.Maxs = Vector3.Up * halfHeight;
 		request.StartShape.Radius = radius;
+		return this;
+	}
+
+	/// <summary>
+	/// Casts a cone (base at bottom, apex at top).
+	/// </summary>
+	public readonly PhysicsTraceBuilder Cone( float height, float baseRadius )
+	{
+		var t = this;
+		var halfHeight = height * 0.5f;
+
+		t.request.StartShape.Type = PhysicsTrace.Request.ShapeType.Cylinder;
+		t.request.StartShape.Mins = Vector3.Down * halfHeight;
+		t.request.StartShape.Maxs = Vector3.Up * halfHeight;
+		t.request.StartShape.Radius = new Vector2( baseRadius, 0.0f );
+
+		return t;
+	}
+
+	/// <summary>
+	/// Casts a cone from point A to point B.
+	/// </summary>
+	public PhysicsTraceBuilder Cone( float height, float baseRadius, in Vector3 from, in Vector3 to )
+	{
+		var halfHeight = height * 0.5f;
+
+		request.StartPos = from;
+		request.EndPos = to;
+		request.StartShape.Type = PhysicsTrace.Request.ShapeType.Cylinder;
+		request.StartShape.Mins = Vector3.Down * halfHeight;
+		request.StartShape.Maxs = Vector3.Up * halfHeight;
+		request.StartShape.Radius = new Vector2( baseRadius, 0.0f );
+
+		return this;
+	}
+
+	/// <summary>
+	/// Casts a cone from a ray.
+	/// </summary>
+	public PhysicsTraceBuilder Cone( float height, float baseRadius, in Ray ray, in float distance )
+	{
+		var halfHeight = height * 0.5f;
+
+		request.StartPos = ray.Position;
+		request.EndPos = ray.ProjectSafe( distance );
+		request.StartShape.Type = PhysicsTrace.Request.ShapeType.Cylinder;
+		request.StartShape.Mins = Vector3.Down * halfHeight;
+		request.StartShape.Maxs = Vector3.Up * halfHeight;
+		request.StartShape.Radius = new Vector2( baseRadius, 0.0f );
+
 		return this;
 	}
 
@@ -401,7 +468,7 @@ public partial struct PhysicsTraceBuilder
 			_currentfilterCallback = filterCallback;
 		}
 
-		var nativeResults = CUtlVectorTraceResult.Create( 32, 32 );
+		var nativeResults = ThreadTraceVec;
 		PhysicsTrace.TraceAll( r, nativeResults );
 		var count = nativeResults.Count();
 
@@ -413,8 +480,6 @@ public partial struct PhysicsTraceBuilder
 		{
 			results[i] = PhysicsTraceResult.From( nativeResults.Element( i ), request.StartShape );
 		}
-
-		nativeResults.DeleteThis();
 
 		return results;
 	}
@@ -467,6 +532,42 @@ public partial struct PhysicsTraceBuilder
 	public readonly PhysicsTraceResult[] RunAll()
 	{
 		return GetResults();
+	}
+
+	/// <summary>
+	/// Run the trace and fill <paramref name="buffer"/> with up to <c>buffer.Length</c> hits.
+	/// Returns the number of hits written. Use this overload to avoid allocations.
+	/// </summary>
+	internal readonly unsafe int RunAll( Span<PhysicsTraceResult> buffer )
+	{
+		if ( targetWorld is null )
+			throw new InvalidOperationException( "No physics world to trace" );
+
+		if ( targetBody is not null && !targetBody.IsValid() )
+			throw new InvalidOperationException( "The physics body has been released" );
+
+		var r = request;
+		r.World = targetWorld.native;
+
+		if ( targetBody.IsValid() )
+			r.Body = targetBody.native;
+
+		if ( filterCallback is not null )
+		{
+			r.FilterDelegate = (IntPtr)((delegate* unmanaged< int, byte >)&FilterFunctionInternal);
+			_currentfilterCallback = filterCallback;
+		}
+
+		var nativeResults = ThreadTraceVec;
+		PhysicsTrace.TraceAll( r, nativeResults );
+		var count = Math.Min( nativeResults.Count(), buffer.Length );
+
+		_currentfilterCallback = default;
+
+		for ( var i = 0; i < count; i++ )
+			buffer[i] = PhysicsTraceResult.From( nativeResults.Element( i ), request.StartShape );
+
+		return count;
 	}
 
 	/// <summary>

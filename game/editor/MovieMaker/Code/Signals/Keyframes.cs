@@ -31,10 +31,10 @@ public readonly record struct Keyframe( MovieTime Time, object? Value, KeyframeI
 
 	public static InterpolationMode GetInterpolationMode( KeyframeInterpolation prev, KeyframeInterpolation next ) => (prev, next) switch
 	{
-		(KeyframeInterpolation.Step, _) => InterpolationMode.None,
-		(<= KeyframeInterpolation.Linear, <= KeyframeInterpolation.Linear) => InterpolationMode.Linear,
-		(_, KeyframeInterpolation.Linear) => InterpolationMode.QuadraticIn,
-		(KeyframeInterpolation.Linear, _) => InterpolationMode.QuadraticOut,
+		(KeyframeInterpolation.Step, _ ) => InterpolationMode.None,
+		( <= KeyframeInterpolation.Linear, <= KeyframeInterpolation.Linear ) => InterpolationMode.Linear,
+		(_, KeyframeInterpolation.Linear ) => InterpolationMode.QuadraticIn,
+		(KeyframeInterpolation.Linear, _ ) => InterpolationMode.QuadraticOut,
 		_ => InterpolationMode.QuadraticInOut
 	};
 }
@@ -44,7 +44,7 @@ partial record PropertySignal
 	private ImmutableArray<Keyframe>? _keyframes;
 
 	[JsonIgnore]
-	public IReadOnlyList<Keyframe> Keyframes => _keyframes ??= [..OnGetKeyframes().Order()];
+	public IReadOnlyList<Keyframe> Keyframes => _keyframes ??= [.. OnGetKeyframes().Order()];
 
 	[JsonIgnore]
 	public bool HasKeyframes => Keyframes.Count > 0;
@@ -55,8 +55,8 @@ partial record PropertySignal
 
 	protected virtual IEnumerable<Keyframe> OnGetKeyframes() => [];
 
-	private static MethodInfo FromKeyframesCoreMethod { get; } = typeof(PropertySignal)
-		.GetMethod( nameof(FromKeyframesCore), BindingFlags.Static | BindingFlags.NonPublic )!;
+	private static MethodInfo FromKeyframesCoreMethod { get; } = typeof( PropertySignal )
+		.GetMethod( nameof( FromKeyframesCore ), BindingFlags.Static | BindingFlags.NonPublic )!;
 
 	public static PropertySignal FromKeyframes( Type propertyType, IEnumerable<Keyframe> keyframes, PropertySignal? baseSignal = null )
 	{
@@ -67,7 +67,7 @@ partial record PropertySignal
 
 	public static PropertySignal<T> FromKeyframes<T>( IEnumerable<Keyframe<T>> keyframes, PropertySignal<T>? baseSignal = null )
 	{
-		var keyframeSignal = new KeyframeSignal<T>( [..keyframes] );
+		var keyframeSignal = new KeyframeSignal<T>( [.. keyframes] );
 
 		return baseSignal is not null
 			? baseSignal + keyframeSignal
@@ -76,7 +76,7 @@ partial record PropertySignal
 
 	private static PropertySignal FromKeyframesCore<T>( IEnumerable<Keyframe> keyframes, PropertySignal<T>? baseSignal = null )
 	{
-		var keyframeSignal = new KeyframeSignal<T>( [..keyframes.Select( x => (Keyframe<T>)x )] );
+		var keyframeSignal = new KeyframeSignal<T>( [.. keyframes.Select( x => (Keyframe<T>)x )] );
 
 		return baseSignal is not null
 			? baseSignal + keyframeSignal
@@ -107,7 +107,7 @@ partial record PropertySignal<T>
 		{
 			// If we can't do additive blending, replace this signal with the new keyframe signal.
 
-			return new KeyframeSignal<T>( [..keyframes] );
+			return new KeyframeSignal<T>( [.. keyframes] );
 		}
 
 		return this + new KeyframeSignal<T>( [..keyframes.Select( x =>
@@ -137,7 +137,7 @@ public readonly record struct Keyframe<T>(
 	KeyframeInterpolation Interpolation ) : IKeyframe, IComparable<Keyframe<T>>
 {
 	public static implicit operator Keyframe( Keyframe<T> keyframe ) =>
-		new ( keyframe.Time, keyframe.Value, keyframe.Interpolation );
+		new( keyframe.Time, keyframe.Value, keyframe.Interpolation );
 	public static explicit operator Keyframe<T>( Keyframe keyframe ) =>
 		new( keyframe.Time, (T)keyframe.Value!, keyframe.Interpolation );
 
@@ -276,7 +276,7 @@ file sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes ) : 
 			return Keyframes[0].Value.AsSignal();
 		}
 
-		return this with { Keyframes = [..keyframes] };
+		return this with { Keyframes = [.. keyframes] };
 	}
 
 	protected override PropertySignal<T> OnReduce( MovieTime? start, MovieTime? end )
@@ -291,7 +291,7 @@ file sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes ) : 
 
 		if ( end is { } e )
 		{
-			j = Math.Min( FindIndex( e ) + 1, Keyframes.Length - 1);
+			j = Math.Min( FindIndex( e ) + 1, Keyframes.Length - 1 );
 		}
 
 		// Cubic needs to know about previous / next keyframe
@@ -312,7 +312,7 @@ file sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes ) : 
 	}
 
 	protected override PropertySignal<T> OnTransform( MovieTransform value ) =>
-		new KeyframeSignal<T>( [..Keyframes.Select( x => x with { Time = value * x.Time } )] );
+		new KeyframeSignal<T>( [.. Keyframes.Select( x => x with { Time = value * x.Time } )] );
 
 	public override IEnumerable<MovieTimeRange> GetPaintHints( MovieTimeRange timeRange )
 	{
@@ -335,7 +335,7 @@ file sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes ) : 
 	{
 		if ( keyframes.IsDefaultOrEmpty )
 		{
-			throw new ArgumentException( "Expected at least one keyframe.", nameof(keyframes) );
+			throw new ArgumentException( "Expected at least one keyframe.", nameof( keyframes ) );
 		}
 
 		var prevTime = keyframes[0].Time;
@@ -344,7 +344,7 @@ file sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes ) : 
 		{
 			if ( keyframe.Time < prevTime )
 			{
-				throw new ArgumentException( "Keyframes must be sorted by ascending time.", nameof(keyframes) );
+				throw new ArgumentException( "Keyframes must be sorted by ascending time.", nameof( keyframes ) );
 			}
 
 			prevTime = keyframe.Time;

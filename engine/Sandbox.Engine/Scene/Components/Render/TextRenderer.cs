@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Nodes;
+using Sandbox.Rendering;
 
 namespace Sandbox;
 
@@ -133,7 +134,10 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 			field = value;
 
 			if ( _so.IsValid() )
+			{
 				_so.BlendMode = value;
+				_so.BuildCommandList();
+			}
 		}
 	} = BlendMode.Normal;
 
@@ -150,7 +154,10 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 			field = value;
 
 			if ( _so.IsValid() )
+			{
 				_so.FogStrength = value;
+				_so.BuildCommandList();
+			}
 		}
 	} = 1.0f;
 
@@ -241,7 +248,10 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 			_textScope.TextColor = value;
 
 			if ( _so.IsValid() )
+			{
 				_so.TextScope = _textScope;
+				_so.BuildCommandList();
+			}
 		}
 	}
 
@@ -345,6 +355,8 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		public BlendMode BlendMode { get; set; } = BlendMode.Normal;
 		public float FogStrength { get; set; } = 1.0f;
 
+		private readonly CommandList _commandList = new( "TextRenderer" );
+
 		private TextRendering.Scope _textScope;
 		public TextRendering.Scope TextScope
 		{
@@ -371,23 +383,25 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		public TextSceneObject( SceneWorld world ) : base( world )
 		{
 			RenderLayer = SceneRenderLayer.Default;
-			managedNative.ExecuteOnMainThread = false;
+		}
+
+		public void BuildCommandList()
+		{
+			_commandList.Reset();
+
+			if ( string.IsNullOrWhiteSpace( TextScope.Text ) )
+				return;
+
+			_commandList.Attributes.SetCombo( "D_WORLDPANEL", 1 );
+			_commandList.Attributes.SetCombo( "D_BLENDMODE", BlendMode );
+			_commandList.Attributes.Set( "g_FogStrength", FogStrength );
+			_commandList.Attributes.Set( "WorldMat", Matrix.CreateRotation( Rotation.From( 0, -90, 90 ) ) );
+			_commandList.DrawText( TextScope, new Rect( 0 ), TextFlags );
 		}
 
 		public override void RenderSceneObject()
 		{
-			if ( string.IsNullOrWhiteSpace( TextScope.Text ) )
-				return;
-
-			Graphics.Attributes.SetCombo( "D_WORLDPANEL", 1 );
-			Graphics.Attributes.SetComboEnum( "D_BLENDMODE", BlendMode );
-			Graphics.Attributes.Set( "g_FogStrength", FogStrength );
-
-			// Set a dummy WorldMat matrix so that ScenePanelObject doesn't break the transforms.
-			Matrix mat = Matrix.CreateRotation( Rotation.From( 0, -90, 90 ) );
-			Graphics.Attributes.Set( "WorldMat", mat );
-
-			Graphics.DrawText( new Rect( 0 ), TextScope, TextFlags );
+			_commandList.ExecuteOnRenderThread();
 		}
 
 		public void CalculateBounds()
@@ -409,6 +423,8 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 
 			var bounds = BBox.FromPositionAndSize( center * scale, new Vector3( 2, x.Width * scale.y, x.Height * scale.z ) );
 			Bounds = bounds.Transform( tx.WithScale( 1 ) );
+
+			BuildCommandList();
 		}
 	}
 }

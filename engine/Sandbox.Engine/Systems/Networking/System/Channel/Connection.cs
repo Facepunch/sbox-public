@@ -171,8 +171,12 @@ public abstract partial class Connection
 
 	public virtual float Latency => 0;
 
+	/// <summary>
+	/// The player's name.
+	/// </summary>
+	/// <seealso cref="DisplayName"/>
 	[ActionGraphInclude]
-	public virtual string Name => "Unnammed";
+	public string Name => Info?.Name ?? "Unknown Player";
 
 	[ActionGraphInclude]
 	public virtual float Time => 0.0f;
@@ -451,11 +455,47 @@ public abstract partial class Connection
 	/// </summary>
 	internal ConnectionInfo PreInfo { get; set; }
 
+	/// <summary>
+	/// The player's name but with any potential nicknames or naughty words filtered out.
+	/// You don't want to be using this in serverside logic really.
+	/// </summary>
+	/// <seealso cref="Name"/>
 	[ActionGraphInclude]
-	public string DisplayName => Info?.DisplayName ?? "Unknown Player";
+	public string DisplayName
+	{
+		get
+		{
+			if ( Steamworks.SteamFriends.IsInstalled )
+			{
+				var personaName = FriendInfo.DisplayName;
+				if ( !string.IsNullOrWhiteSpace( personaName ) )
+					return Utility.Steam.FilterName( personaName, SteamId );
+			}
+
+			return Utility.Steam.FilterName( Name, SteamId );
+		}
+	}
 
 	[ActionGraphInclude]
 	public SteamId SteamId => Info?.SteamId ?? default;
+
+	/// <summary>
+	/// Steam friend information for this connection.
+	/// This is not available on the dedicated server.
+	/// </summary>
+	public Friend FriendInfo
+	{
+		get
+		{
+			if ( SteamId.ValueUnsigned == 0 )
+				return default;
+
+			if ( field.Id != SteamId.ValueUnsigned )
+				field = new( SteamId.ValueUnsigned );
+
+			return field;
+		}
+	}
 
 	/// <summary>
 	/// The SteamID of the account that actually owns the game in a Steam Family.

@@ -157,20 +157,22 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 		AssetList.OnViewModeChanged += () => { UpdateViewModeIcon(); SaveSettings(); };
 		AssetList.OnHighlight = ( entries ) =>
 		{
-			var assets = entries.OfType<AssetEntry>().ToList();
-			if ( assets.Count == entries.Count() )
+			var highlightedEntries = entries.ToList();
+			var assets = highlightedEntries.OfType<AssetEntry>().ToList();
+
+			if ( assets.Count == highlightedEntries.Count )
 			{
 				if ( assets.Count > 1 )
 				{
 					OnAssetsHighlight?.Invoke( assets.Select( x => x.Asset ).ToArray() );
 				}
-				else
+				else if ( assets.Count == 1 )
 				{
 					OnAssetHighlight?.Invoke( assets.First().Asset );
 				}
 			}
 
-			OnHighlight?.Invoke( entries );
+			OnHighlight?.Invoke( highlightedEntries );
 		};
 
 		Chips = new ChipsWidget();
@@ -750,7 +752,7 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 		{
 			PixmapIcon = x.Icon16,
 			Title = x.FriendlyName,
-			Group = (string.IsNullOrEmpty( x.Category ) ? "Other" : x.Category),
+			Group = string.IsNullOrEmpty( x.Category ) ? "Other" : x.Category,
 			Column = 0,
 			Count = () => AssetSystem.All.Where( y => y.AssetType == x ).Count(),
 			Color = x.Color

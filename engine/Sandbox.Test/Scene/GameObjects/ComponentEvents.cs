@@ -238,6 +238,32 @@ public class ComponentEvents
 		Assert.AreEqual( 1, o.EnabledCalls );
 		Assert.AreEqual( 0, o.DisabledCalls );
 	}
+
+	/// <summary>
+	/// Callback batch always runs Enable before Disable, so if an object is disabled then enabled in one batch
+	/// it'll run those callbacks in the wrong order.
+	/// </summary>
+	[TestMethod]
+	public void MultipleEnableStateChangesInBatch()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = new GameObject();
+		var o = go.Components.Create<OrderTestComponent>();
+
+		scene.GameTick();
+
+		Assert.IsTrue( o.EnabledState );
+
+		using ( CallbackBatch.Batch() )
+		{
+			o.Enabled = false;
+			o.Enabled = true;
+		}
+
+		Assert.IsTrue( o.EnabledState );
+	}
 }
 
 public class OrderTestComponent : Component
@@ -247,6 +273,8 @@ public class OrderTestComponent : Component
 	public int StartCalls;
 	public int DisabledCalls;
 	public int DestroyCalls;
+
+	public bool EnabledState;
 
 	protected override void OnAwake()
 	{
@@ -263,12 +291,26 @@ public class OrderTestComponent : Component
 		Assert.AreEqual( EnabledCalls, 1 );
 		StartCalls++;
 	}
+
+	internal override void OnEnabledInternal()
+	{
+		Assert.IsFalse( EnabledState );
+		EnabledState = true;
+		base.OnEnabledInternal();
+	}
+
 	protected override void OnEnabled()
 	{
 		Assert.AreEqual( AwakeCalls, 1 );
 		Assert.AreEqual( StartCalls, 0 );
-
 		EnabledCalls++;
+	}
+
+	internal override void OnDisabledInternal()
+	{
+		Assert.IsTrue( EnabledState );
+		EnabledState = false;
+		base.OnDisabledInternal();
 	}
 
 	protected override void OnDisabled()

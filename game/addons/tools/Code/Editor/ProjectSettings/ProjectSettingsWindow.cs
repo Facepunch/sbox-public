@@ -179,6 +179,8 @@ internal sealed class ProjectSettingsWindow : Window
 
 			AddCategoryToList( typeof( MultiplayerCategory ), "Networking" );
 
+			AddCategoryToList( typeof( PlatformCategory ), "Platform" );
+
 			AddCategoryToList( typeof( CompilerCategory ), "Compiler" );
 
 			AddCategoryToList( typeof( ResourcesCategory ), "Other" );

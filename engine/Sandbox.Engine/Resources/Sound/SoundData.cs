@@ -135,4 +135,35 @@ internal class SoundData
 			PCMData = buffer
 		};
 	}
+
+	public static unsafe SoundData FromOGG( Span<byte> data )
+	{
+		if ( data.Length <= 0 )
+			throw new ArgumentException( null, nameof( data ) );
+
+		using var pcm = CSimplePCMWaveData.Create();
+		fixed ( byte* p = data )
+		{
+			if ( !pcm.ParseOGGFile( (IntPtr)p, data.Length ) )
+				throw new ArgumentException( "Invalid OGG" );
+		}
+
+		int size = pcm.GetPCMSize();
+		var buffer = new byte[size];
+		fixed ( byte* dst = buffer )
+		{
+			Buffer.MemoryCopy( (void*)pcm.GetPCMData(), dst, size, size );
+		}
+
+		return new SoundData
+		{
+			Format = pcm.m_nBits == 32 ? (ushort)3 : (ushort)1,
+			Channels = (ushort)pcm.m_nChannels,
+			SampleRate = pcm.m_nSampleRate,
+			BitsPerSample = (ushort)pcm.m_nBits,
+			SampleCount = pcm.m_nSampleCount,
+			Duration = pcm.m_flDuration,
+			PCMData = buffer
+		};
+	}
 }

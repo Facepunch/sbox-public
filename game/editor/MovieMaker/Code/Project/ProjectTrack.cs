@@ -64,7 +64,7 @@ public abstract partial class ProjectTrack<T>( MovieProject project, Guid id, st
 
 	public Guid Id { get; } = id;
 	public string Name { get; set; } = name;
-	public Type TargetType { get; } = typeof(T);
+	public Type TargetType { get; } = typeof( T );
 
 	public IProjectTrack? Parent { get; private set; }
 	public virtual IEnumerable<MovieResource> References => [];
@@ -98,7 +98,7 @@ public abstract partial class ProjectTrack<T>( MovieProject project, Guid id, st
 	{
 		if ( child.Parent != null )
 		{
-			throw new ArgumentException( "Track already has a parent!", nameof(child) );
+			throw new ArgumentException( "Track already has a parent!", nameof( child ) );
 		}
 
 		child.Parent = this;
@@ -141,7 +141,7 @@ public partial interface IProjectReferenceTrack : IProjectTrack, IReferenceTrack
 {
 	public static IProjectReferenceTrack Create( MovieProject project, Guid id, string name, Type targetType )
 	{
-		var trackType = typeof(ProjectReferenceTrack<>).MakeGenericType( targetType );
+		var trackType = typeof( ProjectReferenceTrack<> ).MakeGenericType( targetType );
 
 		return (IProjectReferenceTrack)Activator.CreateInstance( trackType, project, id, name )!;
 	}
@@ -184,7 +184,7 @@ public partial interface IProjectPropertyTrack : IPropertyTrack, IProjectBlockTr
 {
 	public static IProjectPropertyTrack Create( MovieProject project, Guid id, string name, Type targetType )
 	{
-		var trackType = typeof(ProjectPropertyTrack<>).MakeGenericType( targetType );
+		var trackType = typeof( ProjectPropertyTrack<> ).MakeGenericType( targetType );
 
 		return (IProjectPropertyTrack)Activator.CreateInstance( trackType, project, id, name )!;
 	}
@@ -277,7 +277,7 @@ public sealed partial class ProjectPropertyTrack<T>( MovieProject project, Guid 
 
 		if ( headerOnly ) return compiled;
 
-		return compiled with { Blocks = [..Blocks.SelectMany( x => x.Compile( this ) )] };
+		return compiled with { Blocks = [.. Blocks.SelectMany( x => x.Compile( this ) )] };
 	}
 
 	public T GetLastValue( MovieTime time ) => Blocks.GetLastBlock( time ).GetValue( time );

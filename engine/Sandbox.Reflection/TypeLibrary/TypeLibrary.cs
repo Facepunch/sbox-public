@@ -658,6 +658,16 @@ public partial class TypeLibrary
 	}
 
 	/// <summary>
+	/// Get a describtion of an enum value. This is useful if your enum values are decorated with attributes that you want to read, for example.
+	/// </summary>
+	public EnumDescription.Entry GetEnumDescription<T>( T enumValue ) where T : Enum
+	{
+		var ed = GetEnumDescription( typeof( T ) );
+		if ( ed is null ) return default;
+		return ed.GetEntry( enumValue );
+	}
+
+	/// <summary>
 	/// Create a serialized property that uses a getter and setter
 	/// </summary>
 	public SerializedProperty CreateProperty<T>( string title, Func<T> get, Action<T> set, Attribute[] attributes = null, SerializedObject parent = null )

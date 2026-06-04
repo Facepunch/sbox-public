@@ -14,6 +14,22 @@ internal static partial class StyleParser
 				return "background-tint";
 			case "color":
 				return "font-color";
+
+			// Logical single-side properties. We don't track writing-mode, so block = vertical
+			// (top/bottom) and inline = horizontal (left/right) - correct for the default direction.
+			case "inset-block-start": return "top";
+			case "inset-block-end": return "bottom";
+			case "inset-inline-start": return "left";
+			case "inset-inline-end": return "right";
+			case "margin-block-start": return "margin-top";
+			case "margin-block-end": return "margin-bottom";
+			case "margin-inline-start": return "margin-left";
+			case "margin-inline-end": return "margin-right";
+			case "padding-block-start": return "padding-top";
+			case "padding-block-end": return "padding-bottom";
+			case "padding-inline-start": return "padding-left";
+			case "padding-inline-end": return "padding-right";
+
 			default:
 				return name;
 		}

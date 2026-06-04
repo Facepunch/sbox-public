@@ -15,6 +15,7 @@ native enum YGGutter;
 native struct YGValue;
 native enum YGUnit;
 
+[nogc]
 native static class globalYoga as Yoga
 {
 	YGNodeRef YGNodeNew();

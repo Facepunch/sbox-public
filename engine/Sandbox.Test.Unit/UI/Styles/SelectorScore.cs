@@ -67,4 +67,31 @@ public class SelectorScore
 		TwoIsRed( ".two:not( .green.orange ) { background-color: red; } .two:not( .green ) { background-color: green; }" );
 	}
 
+	/// <summary>
+	/// Specificity should beat load order.
+	/// </summary>
+	[TestMethod]
+	public void LoadOrderDoesNotBleedIntoSpecificity()
+	{
+		var specific = new StyleBlock();
+		specific.SetSelector( "panel.a" );
+
+		var general = new StyleBlock { LoadOrder = 1001 };
+		general.SetSelector( ".b" );
+
+		Assert.IsTrue( specific.Selectors[0].Score > general.Selectors[0].Score );
+	}
+
+	/// <summary>
+	/// Score comparison shouldn't overflow.
+	/// </summary>
+	[TestMethod]
+	public void StyleOrdererHandlesLargeScores()
+	{
+		var high = new StyleSelector { SelfScore = 2_000_000_000 };
+		var low = new StyleSelector { SelfScore = -2_000_000_000 };
+
+		Assert.IsTrue( StyleOrderer.Instance.Compare( high, low ) > 0 );
+	}
+
 }

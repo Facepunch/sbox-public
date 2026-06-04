@@ -4,7 +4,7 @@ PackageSummary
 {
     flex-direction: column;
     padding: 0px 24px;
-    gap: 4px;
+    gap: 6px;
     font-family: Poppins;
     color: $default-text-light;
     font-size: 14px;
@@ -16,6 +16,7 @@ PackageSummary
     font-size: 26px;
     font-weight: 700;
     color: white;
+    line-height: 1.1;
 }
 
 .org
@@ -24,46 +25,55 @@ PackageSummary
     align-items: center;
     gap: 6px;
     cursor: pointer;
+    color: $default-300;
+    font-size: 12px;
+    font-weight: 500;
 
-    &:hover
+    &:hover .orgname
     {
-        .orgname
-        {
-            color: white;
-        }
+        color: white;
     }
 }
 
 .org-thumb
 {
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
     background-size: cover;
 }
 
 .orgname
 {
     font-weight: 550;
-    color: #bcc9e2;
+    color: $default-200;
+    transition: color 0.15s ease;
 }
 
+.summary
+{
+    font-size: 12px;
+    color: $default-100;
+    margin-top: 4px;
+    line-height: 1.5;
+}
 
 .tags
 {
-    padding: 8px 0;
-    gap: 5px;
+    padding: 4px 0;
+    gap: 4px;
     flex-wrap: wrap;
 }
 
 .tag
 {
-    padding: 5px 8px;
-    background-color: #252e3f;
-    border-radius: 7px;
+    padding: 3px 8px;
+    background-color: #1e2535;
+    border: 1px solid #ffffff0a;
+    border-radius: 5px;
     font-size: 10px;
-    font-weight: 550;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: #bcc9e2;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: lowercase;
+    color: $default-200;
 }

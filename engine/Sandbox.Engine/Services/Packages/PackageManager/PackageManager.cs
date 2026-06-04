@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using Sandbox.Menu;
+using System.IO;
 using System.Threading;
 
 namespace Sandbox;
@@ -50,10 +51,12 @@ internal static partial class PackageManager
 		{
 			existingPackage.AddContextTag( options.ContextTag );
 			log.Info( $"Install Package (Already Mounted) {options.PackageIdent} [{options.ContextTag}]" );
+			options.Loading?.LoadingProgress( LoadingProgress.Create( $"Loading {existingPackage.Package.Title}" ) );
 			return existingPackage;
 		}
 
 		log.Trace( $"Install Package {options.PackageIdent} [{options.ContextTag}]" );
+		options.Loading?.LoadingProgress( LoadingProgress.Create( $"Fetching {options.PackageIdent}" ) );
 		var package = await FetchPackageAsync( options.PackageIdent, options.AllowLocalPackages );
 
 		options.CancellationToken.ThrowIfCancellationRequested();
@@ -83,6 +86,7 @@ internal static partial class PackageManager
 
 			if ( ap.HasCodeArchives() )
 			{
+				options.Loading?.LoadingProgress( LoadingProgress.Create( $"Compiling {package.Title}" ) );
 				if ( !await ap.CompileCodeArchive() )
 				{
 					//

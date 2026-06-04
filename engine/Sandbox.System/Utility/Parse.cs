@@ -67,7 +67,8 @@ namespace Sandbox
 
 		public string Read( int chars )
 		{
-			if ( chars <= 0 ) throw new System.Exception( $"Tried to read {chars} chars" );
+			if ( chars < 0 ) throw new System.Exception( $"Tried to read {chars} chars" );
+			if ( chars == 0 ) return string.Empty;
 
 			var result = Text.Substring( Pointer, chars );
 			Pointer += chars;
@@ -164,16 +165,28 @@ namespace Sandbox
 			return Text.Substring( iStart, iEnd - iStart );
 		}
 
-		public string ReadWord( string endOnCharacter = null, bool readUntilEnd = false )
+		public string ReadWord( string endOnCharacter = null, bool readUntilEnd = false, bool respectParens = false )
 		{
 			var p = this;
+			int depth = 0;
 
 			while ( true )
 			{
 				if ( p.IsEnd && !readUntilEnd )
 					return null;
 
-				if ( p.IsEnd || p.IsWhitespace || p.IsNewline || p.IsOneOf( endOnCharacter ) )
+				if ( p.IsEnd )
+					return this.Read( p.Pointer - Pointer );
+
+				var c = p.Current;
+
+				if ( respectParens )
+				{
+					if ( c == '(' || c == '[' || c == '{' ) { depth++; p.Pointer++; continue; }
+					if ( c == ')' || c == ']' || c == '}' ) { if ( depth > 0 ) depth--; p.Pointer++; continue; }
+				}
+
+				if ( depth == 0 && (p.IsWhitespace || p.IsNewline || p.IsOneOf( endOnCharacter )) )
 					return this.Read( p.Pointer - Pointer );
 
 				p.Pointer++;
@@ -245,6 +258,31 @@ namespace Sandbox
 			while ( !p.IsEnd )
 			{
 				if ( p.IsOneOf( c1 ) )
+				{
+					if ( p.Pointer == Pointer )
+						return string.Empty;
+
+					return this.Read( p.Pointer - Pointer );
+				}
+
+				p.Pointer++;
+			}
+
+			return this.ReadRemaining( acceptNone );
+		}
+
+		public string ReadUntilOrEnd( string c1, bool respectParens, bool acceptNone = false )
+		{
+			var p = this;
+			int depth = 0;
+
+			while ( !p.IsEnd )
+			{
+				var c = p.Current;
+
+				if ( c == '(' || c == '[' || c == '{' ) depth++;
+				else if ( c == ')' || c == ']' || c == '}' ) { if ( depth > 0 ) depth--; }
+				else if ( depth == 0 && p.IsOneOf( c1 ) )
 				{
 					if ( p.Pointer == Pointer )
 						return string.Empty;
@@ -338,8 +376,15 @@ namespace Sandbox
 
 			var numStart = p.Pointer;
 
-			var w = p.ReadWord( ")", true );
-			if ( w == null ) return false;
+			// A math function (calc/min/max/clamp/var) can contain spaces and slashes, so read its whole
+			// balanced (...) as one token. Anything else stops at whitespace, a top-level ')' or '/' - so a
+			// space-less "<position>/<size>" slash isn't swallowed, while an enclosing parser's ')' is left
+			// for it to consume.
+			bool isFunction = p.Is( "calc(", 0, true ) || p.Is( "min(", 0, true ) || p.Is( "max(", 0, true )
+				|| p.Is( "clamp(", 0, true ) || p.Is( "var(", 0, true );
+
+			var w = isFunction ? p.ReadWord( null, true, true ) : p.ReadWord( ")/", true );
+			if ( string.IsNullOrEmpty( w ) ) return false;
 
 			var v = Sandbox.UI.Length.Parse( w );
 			if ( !v.HasValue ) return false;
@@ -418,14 +463,14 @@ namespace Sandbox
 			{
 				case "none":
 				case "solid":
-					// case "double":
-					// case "dotted":
-					// case "dashed":
-					// case "inset":
-					// case "outset":
-					// case "ridge":
-					// case "groove":
-					// case "hidden":
+				case "double":
+				case "dotted":
+				case "dashed":
+				case "inset":
+				case "outset":
+				case "ridge":
+				case "groove":
+				case "hidden":
 					outval = w;
 					break;
 				default:

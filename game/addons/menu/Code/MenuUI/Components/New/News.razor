@@ -5,7 +5,7 @@
 @inherits Panel
 
 <root>
-    <Card class="news" style="background-image: url(@NewsImage)" onclick=@(OpenNewsUrl)>
+    <Card class="news" style="@( $"background-image: url({NewsImage})" )" onclick=@(OpenNewsUrl)>
         <ChildContent>
             <label class="eyebrow">Latest Update</label>
 

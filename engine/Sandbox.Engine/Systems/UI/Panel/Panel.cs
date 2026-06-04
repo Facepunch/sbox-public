@@ -311,6 +311,9 @@ public partial class Panel : IPanel, IValid, IComponent
 			{
 				ParentHasChanged = false;
 				OnParentChanged();
+
+				// Our ancestor stylesheets have changed, so our candidate rules need rebuilding
+				Style?.InvalidateBroadphase();
 				StyleSelectorsChanged( true, true );
 			}
 
@@ -341,7 +344,7 @@ public partial class Panel : IPanel, IValid, IComponent
 			//
 			// If our style is dirty, or we're animating/transitioning/scrolling then make sure we get layed out
 			//
-			if ( Style is not null && (Style.IsDirty || HasActiveTransitions || (ComputedStyle?.HasAnimation ?? false) || ScrollVelocity != 0 || isScrolling || IsDragScrolling) )
+			if ( Style is not null && (Style.IsDirty || HasActiveTransitions || (ComputedStyle?.IsAnimationActive ?? false) || ScrollVelocity != 0 || isScrolling || IsDragScrolling) )
 			{
 				SetNeedsPreLayout();
 			}

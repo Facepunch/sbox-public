@@ -77,7 +77,8 @@ class Program
 		}
 
 		// Open browser to crash report page (only if Sentry has the data)
-		if ( sentrySubmitted && !shutdownCrash )
+		var isBenchmark = Environment.GetEnvironmentVariable( "SBOX_MODE" ) == "BENCHMARK";
+		if ( sentrySubmitted && !shutdownCrash && !isBenchmark )
 		{
 			Process.Start( new ProcessStartInfo( $"https://sbox.game/crashes/{eventId}" ) { UseShellExecute = true } );
 		}

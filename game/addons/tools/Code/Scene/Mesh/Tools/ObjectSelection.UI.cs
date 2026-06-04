@@ -102,6 +102,7 @@ partial class ObjectSelection
 
 				CreateButton( "Clipping Tool", "content_cut", "mesh.open-clipping-tool", OpenClippingTool, _meshes.Length > 0, grid );
 				CreateButton( "Mirror Tool", "flip", "mesh.mirror-tool", OpenMirrorTool, _gos.Length > 0, grid );
+				CreateButton( "Boolean Tool", "difference", "mesh.boolean-tool", OpenBooleanTool, _meshes.Length == 2, grid );
 
 				grid.AddStretchCell();
 
@@ -199,6 +200,14 @@ partial class ObjectSelection
 			_tool.Tool.CurrentTool = tool;
 		}
 
+		[Shortcut( "mesh.boolean-tool", "", typeof( SceneViewWidget ) )]
+		void OpenBooleanTool()
+		{
+			var tool = new BooleanTool( nameof( ObjectSelection ) );
+			tool.Manager = _tool.Tool.Manager;
+			_tool.Tool.CurrentTool = tool;
+		}
+
 		[Shortcut( "mesh.open-clipping-tool", "SHIFT+X", typeof( SceneViewWidget ) )]
 		void OpenClippingTool()
 		{
@@ -207,10 +216,10 @@ partial class ObjectSelection
 			_tool.Tool.CurrentTool = tool;
 		}
 
-		[Shortcut( "mesh.previous-pivot", "N+MWheelDn", typeof( SceneViewWidget ) )]
+		[Shortcut( "mesh.previous-pivot", "Shift+MWheelDown", typeof( SceneViewWidget ) )]
 		public void PreviousPivot() => _tool.PreviousPivot();
 
-		[Shortcut( "mesh.next-pivot", "N+MWheelUp", typeof( SceneViewWidget ) )]
+		[Shortcut( "mesh.next-pivot", "Shift+MWheelUp", typeof( SceneViewWidget ) )]
 		public void NextPivot() => _tool.NextPivot();
 
 		[Shortcut( "mesh.center-pivot", "Ctrl+Home", typeof( SceneViewWidget ) )]

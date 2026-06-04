@@ -58,8 +58,8 @@
         {
             FoundPackages = new();
             FoundPackages.AddRange(Packages);
-            Query = "";
             StateHasChanged();
+            return;
         }
 
         FoundPackages = null;

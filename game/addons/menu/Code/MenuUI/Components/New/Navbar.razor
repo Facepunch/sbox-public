@@ -15,15 +15,12 @@
 
             <separator class="vertical" />
 
+            @*
             <Button Href="/hub" Icon="hub">#menu.hub</Button>
+            *@
 
-            <Button href="/games/dash" icon="sports_esports" Text="#menu.games">
-                <HoverMenu>
-                    <Button Href="/games/dash" icon="diamond">Discover</Button>
-                    <Button Href="/games/group?Query=type:game sort:favourite&title=Favourite Games&Icon=💖" icon="favorite">Favourites</Button>
-                    <Button Href="/games/all" icon="manage_search">Search</Button>
-                </HoverMenu>
-            </Button>
+            <Button Tooltip="Find Games" Href="/games/dash" Icon="diamond">Discover</Button>
+            <Button Href="/games/all" Icon="sports_esports">Games</Button>
             <Button Href="/maps/all" Icon="map">#menu.maps</Button>
             <Button Href="/multiplayer" Icon="view_list">#menu.multiplayer</Button>
         </div>
@@ -39,6 +36,7 @@
             <separator class="vertical" />
 
             <NotificationButton />
+            <Button Tooltip="Favourited Games" Href="/games/group?Query=type:game sort:favourite&title=Favourite Games&Icon=💖" icon="favorite"></Button>
             <Button @onmouseup=@Settings Icon="settings"></Button>
 
             <Button onmouseup="@Quit" class="close" Icon="power_settings_new"></Button>

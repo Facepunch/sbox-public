@@ -9,6 +9,9 @@ public partial class ServiceApi
 		[Get( "/package/get/2/{packageIdent}" )]
 		Task<PackageDto> Get( string packageIdent );
 
+		[Get( "/package/changelists/2/{packageIdent}" )]
+		Task<BasePagedResponse<PackageChangeList>> GetChangeLists( string packageIdent, [Query] int page = 1 );
+
 		[Post( "/package/favourite/2/{packageIdent}" )]
 		Task<PackageFavouriteResult> SetFavourite( string packageIdent, [Query] bool state );
 
@@ -27,6 +30,9 @@ public partial class ServiceApi
 		[Get( "/package/find/2" )]
 		Task<PackageFindResult> Find( [Query] string q, int take = 100, int skip = 0 );
 
+		[Get( "/package/types" )]
+		Task<PackageTypeOverview[]> GetTypes( [Query] int take = 10 );
+
 		[Post( "/package/manifest" )]
 		Task<PublishManifestResult> PublishManifest( [Body] PublishManifest manifest );
 
@@ -41,6 +47,15 @@ public partial class ServiceApi
 
 		[Post( "/package/reviews/{packageIdent}" )]
 		Task PostReview( string packageIdent, string text, int rating, int positives, int negatives );
+
+		[Post( "/package/reports/{packageIdent}" )]
+		Task<bool> PostReport( string packageIdent, [Query] int reasons, [Query] string comment );
+
+		[Get( "/organization/{orgIdent}" )]
+		Task<OrganizationDto> GetOrganization( string orgIdent );
+
+		[Post( "/organization/reports/{orgIdent}" )]
+		Task<bool> PostOrganizationReport( string orgIdent, [Query] int reasons, [Query] string comment );
 	}
 }
 
@@ -58,6 +73,12 @@ public struct PackageFacet
 {
 	public string Name { get; set; }
 	public string Title { get; set; }
+
+	/// <summary>
+	/// Pre-sorted on the server. Renderers should display in given order — no
+	/// client-side reordering. Lets each facet pick its own sort semantics
+	/// (count desc for review tags, alphabetical for categories, etc.).
+	/// </summary>
 	public List<Entry> Entries { get; set; }
 
 	public record struct Entry( string Name, string Title, string Icon, int Count, List<Entry> Children );

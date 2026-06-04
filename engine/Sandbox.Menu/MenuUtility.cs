@@ -1,6 +1,7 @@
 ﻿using Sandbox.Engine;
 using Sandbox.Engine.Settings;
 using Sandbox.Modals;
+using Sandbox.Platform;
 using Sandbox.Services;
 using System;
 using System.Net;
@@ -26,6 +27,16 @@ public static partial class MenuUtility
 	public static void RemoveLogger( Action<LogEvent> logger )
 	{
 		Sandbox.Diagnostics.Logging.OnMessage -= logger;
+	}
+
+	public static void AddChatListener( Action<ChatMessageEvent> listener )
+	{
+		Platform.Chat.OnMessage += listener;
+	}
+
+	public static void RemoveChatListener( Action<ChatMessageEvent> listener )
+	{
+		Platform.Chat.OnMessage -= listener;
 	}
 
 	public static ConCmdAttribute.AutoCompleteResult[] AutoComplete( string text, int maxCount )
@@ -282,6 +293,14 @@ public static partial class MenuUtility
 	public static Task PostReview( string packageIdent, Sandbox.Services.Review.ReviewScore score, string content, Sandbox.Services.Review.PositiveTags positives, Sandbox.Services.Review.NegativeTags negatives )
 	{
 		return Sandbox.Services.Review.Post( packageIdent, score, content, positives, negatives );
+	}
+
+	/// <summary>
+	/// Post a report for a package
+	/// </summary>
+	public static Task PostReport( string packageIdent, Sandbox.Services.Reports.Reason reason, string content )
+	{
+		return Sandbox.Services.Reports.Post( packageIdent, reason, content );
 	}
 
 	/// <summary>

@@ -105,6 +105,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 		Session.PlayheadChanged += UpdatePlayheadTime;
 		Session.PreviewChanged += UpdatePreviewTime;
+		Session.TrackList.Changed += UpdateTracks;
 
 		FocusMode = FocusMode.TabOrClickOrWheel;
 
@@ -124,9 +125,15 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 		Session.PlayheadChanged -= UpdatePlayheadTime;
 		Session.PreviewChanged -= UpdatePreviewTime;
+		Session.TrackList.Changed -= UpdateTracks;
 	}
 
 	private int _lastState;
+
+	private int CalculateStateHash()
+	{
+		return HashCode.Combine( PixelsPerSecond, VisibleTimeRange, Session.FrameRate, Session.TrackList.StateHash );
+	}
 
 	[EditorEvent.Frame]
 	public void Frame()
@@ -138,26 +145,20 @@ public partial class Timeline : GraphicsView, ISnapSource
 		ScrubBarTop.Frame();
 		ScrubBarBottom.Frame();
 
-		UpdateTracksIfNeeded();
-
 		if ( Session.PreviewTime is not null
 			&& (Application.KeyboardModifiers & KeyboardModifiers.Shift) == 0
 			&& (Application.MouseButtons & MouseButtons.Left) == 0 )
 		{
 			Session.PreviewTime = null;
 		}
-	}
 
-	private void UpdateTracksIfNeeded()
-	{
-		var state = HashCode.Combine( PixelsPerSecond, VisibleTimeRange, Session.FrameRate, Session.TrackList.StateHash );
+		var state = CalculateStateHash();
 
-		if ( state == _lastState ) return;
-
-		_lastState = state;
-
-		UpdateTracks();
-		Update();
+		if ( state != _lastState )
+		{
+			_lastState = state;
+			UpdateTracks( Session.TrackList );
+		}
 	}
 
 	private void UpdatePlayheadTime( MovieTime time )
@@ -180,11 +181,12 @@ public partial class Timeline : GraphicsView, ISnapSource
 		}
 	}
 
-	public void UpdateTracks()
+	public void UpdateTracks( TrackListView trackList )
 	{
-		_tracks.Update( Session.TrackList.VisibleTracks );
-
-		Update();
+		if ( _tracks.Update( trackList.VisibleTracks ) )
+		{
+			Update();
+		}
 	}
 
 	private TimelineTrack AddTrack( TrackView source )
@@ -609,7 +611,6 @@ public partial class Timeline : GraphicsView, ISnapSource
 			_draggedBlock = _draggedTrack.AddBlock( (0d, clip.Duration), default, resource );
 
 			Session.TrackList.Update();
-			UpdateTracksIfNeeded();
 		}
 
 		_draggedBlocks.Clear();

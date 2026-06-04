@@ -1,5 +1,4 @@
-﻿using Sandbox.ActionGraphs;
-using Sandbox.Engine;
+﻿using Sandbox.Engine;
 using Sandbox.Services;
 using Sandbox.Tasks;
 using Sandbox.UI;
@@ -179,9 +178,7 @@ internal sealed class MenuDll : IMenuDll
 		if ( !Application.IsEditor )
 		{
 			using ( Sandbox.Engine.Bootstrap.StartupTiming?.ScopeTimer( "Menu - Resources" ) )
-			{
-				LoadResources();
-			}
+				await LoadResourcesAsync();
 
 			SetupMenuScene();
 		}
@@ -253,10 +250,9 @@ internal sealed class MenuDll : IMenuDll
 		}
 	}
 
-	void LoadResources()
-	{
-		ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
-	}
+	void LoadResources() => ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
+
+	Task LoadResourcesAsync() => ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted );
 
 	public void OnGameEntered()
 	{
@@ -311,17 +307,33 @@ internal sealed class MenuDll : IMenuDll
 	{
 		using var scope = PushScope();
 
-		if ( message.Data is Protobuf.AchievementMsg.AchievementUnlocked msg )
+		if ( message.Data is Protobuf.ClientMsg.AchievementUnlocked msg )
 		{
-			var data = new IAchievementListener.UnlockDescription();
-			data.Title = msg.Title;
-			data.Description = msg.Description;
-			data.Icon = msg.Icon;
-			data.ScoreAdded = msg.ScoreAdded;
-			data.TotalPlayerScore = msg.PlayerScore;
-			data.TotalPackageScore = msg.PackageScore;
+			var data = new IBackendListener.AchievementUnlock
+			{
+				Title = msg.Title,
+				Description = msg.Description,
+				Icon = msg.Icon,
+				ScoreAdded = msg.ScoreAdded,
+				TotalPlayerScore = msg.PlayerScore,
+				TotalPackageScore = msg.PackageScore
+			};
 
-			Event.EventSystem.RunInterface<IAchievementListener>( x => x.OnAchievementUnlocked( data ) );
+			Event.EventSystem.RunInterface<IBackendListener>( x => x.OnAchievementUnlocked( data ) );
+		}
+
+		if ( message.Data is Protobuf.ClientMsg.Notice notice )
+		{
+			var data = new IBackendListener.Notice
+			{
+				Title = notice.Title,
+				Icon = notice.Icon,
+				Type = notice.Type,
+				Text = notice.Text,
+				Link = notice.Link
+			};
+
+			Event.EventSystem.RunInterface<IBackendListener>( x => x.OnNotice( data ) );
 		}
 	}
 
@@ -458,6 +470,7 @@ internal sealed class MenuDll : IMenuDll
 		using var _ = PushScope();
 
 		MenuScene.Render( swapChain );
+		CCameraRenderer.RenderOverlay( swapChain );
 	}
 
 	void SetupFileWatch()
@@ -515,9 +528,9 @@ internal sealed class MenuDll : IMenuDll
 }
 
 
-public interface IAchievementListener
+public interface IBackendListener
 {
-	public struct UnlockDescription
+	public struct AchievementUnlock
 	{
 		public string Title { get; internal set; }
 		public string Description { get; internal set; }
@@ -527,5 +540,16 @@ public interface IAchievementListener
 		public int TotalPlayerScore { get; internal set; }
 	}
 
-	void OnAchievementUnlocked( UnlockDescription data );
+	void OnAchievementUnlocked( AchievementUnlock data );
+
+	public struct Notice
+	{
+		public string Type { get; set; }
+		public string Title { get; set; }
+		public string Text { get; set; }
+		public string Icon { get; set; }
+		public string Link { get; set; }
+	}
+
+	void OnNotice( Notice data );
 }

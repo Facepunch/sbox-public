@@ -4,132 +4,333 @@
 @using Sandbox;
 @using Menu;
 @using System;
+@using System.Linq;
 @namespace Sandbox.UI
 @inherits Panel
 
 <root>
     <div class="autocomplete" onmouseup=@BlurSearch>
         <div class="wrapper">
+
             <div class="inner-empty">
-                <VerticalGameList Icon="person" Title="Active Now" Query="type:game sort:playersnow" />
+                <div class="section-header">
+                    <icon class="eyebrow">history</icon>
+                    <label class="eyebrow">Recently Played</label>
+                </div>
+
+                <div class="recent-grid">
+                    @if (Result?.Packages?.Any() == true)
+                    {
+                        @foreach (var pkg in Result.Packages.Take(5))
+                        {
+                            <PackageCard Size=@PackageCard.SizeType.Small Package=@pkg Clicked="@(() => pkg.OpenModal())" RightClicked="@(() => MenuHelpers.OpenPackageMenu(this, pkg))" />
+                        }
+                    }
+                    else
+                    {
+                        <div class="empty-recent">
+                            <label>No recently visited games yet.</label>
+                        </div>
+                    }
+                </div>
+
+                <div class="section-header">
+                    <icon class="eyebrow">search</icon>
+                    <label class="eyebrow">Recommended Tags</label>
+                </div>
+
+                <div class="suggestion-list">
+                    @foreach (var suggestion in SearchSuggestions)
+                    {
+                        <div class="suggestion-action" onmousedown=@KeepSearchOpen onclick=@(() => UseSuggestion(suggestion))>
+                            <badge Type="clear" Text="@suggestion" />
+                        </div>
+                    }
+                </div>
             </div>
 
             <div class="inner-query">
-                @foreach (var package in ComputeSuggestedPackages())
+                @if (awaitingAutocomplete)
                 {
-                    <PackageCard Size=@PackageCard.SizeType.List Package=@package Clicked="@(() => package.OpenModal())" />
+                    <div class="search-status">
+                        <label>Searching...</label>
+                    </div>
+                }
+                else if (AutocompleteResult != null && !AutocompleteResult.Packages.Any())
+                {
+                    <div class="search-status">
+                        <icon>search_off</icon>
+                        <label>No results for "@SearchText?.Value"</label>
+                    </div>
+                }
+                else if (AutocompleteResult != null)
+                {
+                    var suggestedPackages = ComputeSuggestedPackages();
+                    var topPackage = suggestedPackages.FirstOrDefault();
+                    var resultTags = ComputeResultTags(suggestedPackages);
+
+                    @if (topPackage != null)
+                    {
+                        <div class="section-header">
+                            <icon class="eyebrow">auto_awesome</icon>
+                            <label class="eyebrow">Top Match</label>
+                        </div>
+
+                        <div class="top-result">
+                            <div class="search-result-row featured">
+                                <PackageCard Size=@PackageCard.SizeType.List Package=@topPackage Clicked="@(() => topPackage.OpenModal())" RightClicked="@(() => MenuHelpers.OpenPackageMenu(this, topPackage))" />
+                                <div class="result-stats">
+                                    <badge Type="clear" Icon="thumb_up" Text="@VotePercentage(topPackage)" />
+                                    @if (topPackage.Usage.UsersNow > 0)
+                                    {
+                                        <badge Type="positive" Icon="person" Text="@PlayersNowText(topPackage)" />
+                                    }
+                                </div>
+                            </div>
+
+                            @if (resultTags.Any())
+                            {
+                                <div class="badge-row wrap tags">
+                                    @foreach (var tag in resultTags)
+                                    {
+                                        <div class="suggestion-action" onmousedown=@KeepSearchOpen onclick=@(() => UseSuggestion(tag))>
+                                            <badge Type="clear" Text="@tag" />
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    @if (suggestedPackages.Length > 1)
+                    {
+                        <div class="section-header">
+                            <icon class="eyebrow">sports_esports</icon>
+                            <label class="eyebrow">More Matches</label>
+                        </div>
+
+                        <div class="more-results">
+                            @foreach (var package in suggestedPackages.Skip(1))
+                            {
+                                <div class="search-result-row">
+                                    <PackageCard Size=@PackageCard.SizeType.List Package=@package Clicked="@(() => package.OpenModal())" RightClicked="@(() => MenuHelpers.OpenPackageMenu(this, package))" />
+                                    <div class="result-stats">
+                                        <badge Type="clear" Icon="thumb_up" Text="@VotePercentage(package)" />
+                                        @if (package.Usage.UsersNow > 0)
+                                        {
+                                            <badge Type="positive" Icon="person" Text="@PlayersNowText(package)" />
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <separator class="horizontal"></separator>
+                    <div class="section-footer" onclick=@Submit>
+                        <label class="small">View all results for "@SearchText?.Value"</label>
+                        <div class="grow"></div>
+                        <icon>arrow_forward</icon>
+                    </div>
                 }
             </div>
+
         </div>
 
-        <TextEntry @ref="SearchText" onfocus=@SearchTextFocus onblur=@SearchTextBlur 
+        <TextEntry @ref="SearchText" onfocus=@SearchTextFocus onblur=@SearchTextBlur
             OnTextEdited=@SearchTextEdited Placeholder="Search for games..." onsubmit=@Submit Icon="search" />
 
     </div>
 </root>
 
 @code {
-    private TextEntry SearchText { get; set; }
+	private TextEntry SearchText { get; set; }
 
-    TimeSince timeSinceFocused;
+	TimeSince timeSinceFocused;
 
-    void BlurSearch()
-    {
-        if (timeSinceFocused < 0.1f)
-            return;
+	void BlurSearch()
+	{
+		if (timeSinceFocused < 0.1f)
+			return;
 
-        SearchText?.Blur();
-    }
+		SearchText?.Blur();
+	}
 
-    void SearchTextEdited(string query)
-    {
-        SetClass("has-query", !string.IsNullOrEmpty(query));
+	void SearchTextEdited(string query)
+	{
+		SetClass("has-query", !string.IsNullOrEmpty(query));
 
-        awaitingAutocomplete = true;
-        timeSinceEdited = 0;
-    }
+		awaitingAutocomplete = true;
+		timeSinceEdited = 0;
+	}
 
-    void SearchTextFocus()
-    {
-        timeSinceFocused = 0;
-        SetClass("autocomplete-active", true);
-    }
+	void SearchTextFocus()
+	{
+		timeSinceFocused = 0;
+		SetClass("autocomplete-active", true);
+	}
 
-    void SearchTextBlur()
-    {
-        SetClass("autocomplete-active", false);
-    }
+	void SearchTextBlur()
+	{
+		SetClass("autocomplete-active", false);
+	}
 
-    protected override async Task OnParametersSetAsync()
-    {
-        await UpdateList();
-    }
+	void KeepSearchOpen()
+	{
+		timeSinceFocused = 0;
+	}
 
-    async Task UpdateList()
-    {
-        Result = await Package.FindAsync("type:game sort:playersnow", 5);
+	protected override async Task OnParametersSetAsync()
+	{
+		await UpdateList();
+	}
 
-        StateHasChanged();
-    }
+	async Task UpdateList()
+	{
+		Result = await Package.FindAsync("type:game sort:used", 5);
+		StateHasChanged();
+	}
 
-    protected override int BuildHash()
-    {
-        return System.HashCode.Combine(Result, AutocompleteResult, SearchText?.Value, awaitingAutocomplete);
-    }
+	protected override int BuildHash()
+	{
+		return System.HashCode.Combine(Result, AutocompleteResult, SearchText?.Value, awaitingAutocomplete);
+	}
 
-    private Sandbox.Package.FindResult Result { get; set; }
+	private Sandbox.Package.FindResult Result { get; set; }
 
-    string[] ComputeSuggestedTags()
-    {
-        if (Result == null)
-            return new string[] { "..." };
+	private bool awaitingAutocomplete;
+	private TimeSince timeSinceEdited;
 
-        // From the last 5 packages, grab 3 tags, deduplicate, sort by most common
-        return Result.Packages
-            .Take(5)
-            .SelectMany(p => p.Tags.Take(3))
-            .GroupBy(t => t)
-            .OrderByDescending(g => g.Count())
-            .Select(g => g.Key)
-            .ToArray();
-    }
+	private Sandbox.Package.FindResult AutocompleteResult { get; set; }
+	private static readonly string[] SearchSuggestions = new[]
+	{
+		"Tycoon",
+		"Escape",
+		"Survival",
+		"Story",
+		"Escape Room",
+		"Tower Defense",
+		"Sandbox",
+		"Roleplay"
+	};
 
-    private bool awaitingAutocomplete;
-    private TimeSince timeSinceEdited;
+	async Task FetchAutocomplete()
+	{
+		var query = SearchText?.Value ?? "";
+		var result = await Package.FindAsync($"type:game sort:quality {query}", 5);
 
-    private Sandbox.Package.FindResult AutocompleteResult { get; set; }
+		if (query == (SearchText?.Value ?? ""))
+		{
+			AutocompleteResult = result;
+			StateHasChanged();
+		}
+	}
 
-    async Task FetchAutocomplete()
-    {
-        AutocompleteResult = await Package.FindAsync($"type:game {SearchText?.Value}", 5);
-    }
+	Package[] ComputeSuggestedPackages()
+	{
+		if (string.IsNullOrEmpty(SearchText?.Value))
+			return Array.Empty<Package>();
 
-    Package[] ComputeSuggestedPackages()
-    {
-        if (string.IsNullOrEmpty(SearchText?.Value))
-            return Array.Empty<Package>();
+		if (AutocompleteResult == null)
+			return Array.Empty<Package>();
 
-        if (AutocompleteResult == null)
-            return Array.Empty<Package>();
+		return AutocompleteResult.Packages
+			.OrderBy(x => ComputeSimilarity(x.Title, SearchText?.Value ?? ""))
+			.ThenByDescending(x => x.Usage.UsersNow)
+			.ToArray();
+	}
 
-        return AutocompleteResult.Packages.ToArray();
-    }
+	string[] ComputeResultTags(Package[] packages)
+	{
+		return packages
+			.Where(x => x.Tags?.Any() == true)
+			.SelectMany(x => x.Tags.Take(4))
+			.Where(x => !string.IsNullOrWhiteSpace(x))
+			.GroupBy(x => x)
+			.OrderByDescending(x => x.Count())
+			.ThenBy(x => x.Key)
+			.Select(x => x.Key)
+			.Take(8)
+			.ToArray();
+	}
 
-    public override void Tick()
-    {
-        if (!awaitingAutocomplete)
-            return;
+	string VotePercentage(Package p)
+	{
+		if (p.VotesUp == 0 && p.VotesDown == 0) return "Unrated";
+		return $"{(int)(p.VotesUp * 100f / (p.VotesUp + p.VotesDown))}%";
+	}
 
-        if (timeSinceEdited < 0.5f)
-            return;
+	string PlayersNowText(Package p)
+	{
+		return $"{p.Usage.UsersNow.KiloFormat()} Playing";
+	}
 
-        awaitingAutocomplete = false;
-        _ = FetchAutocomplete();
-    }
+	void UseSuggestion(string suggestion)
+	{
+		if (SearchText == null)
+			return;
 
-    private void Submit()
-    {
-        Log.Info("Submit");
-        this.GetNavigator().Navigate( $"/games/all?Query={SearchText?.Value}" );
-    }
+		SearchText.Text = suggestion;
+		SearchTextEdited(suggestion);
+		SearchText.Focus();
+		SetClass("autocomplete-active", true);
+	}
+
+	public override void Tick()
+	{
+		if (!awaitingAutocomplete)
+			return;
+
+		if (timeSinceEdited < 0.5f)
+			return;
+
+		awaitingAutocomplete = false;
+		_ = FetchAutocomplete();
+	}
+
+	private void Submit()
+	{
+		this.GetNavigator().Navigate($"/games/all?Query={SearchText?.Value}");
+	}
+
+	private static int ComputeSimilarity(string a, string b)
+	{
+		if (string.IsNullOrEmpty(a))
+		{
+			if (string.IsNullOrEmpty(b))
+				return 0;
+			return b.Length;
+		}
+
+		if (string.IsNullOrEmpty(b))
+		{
+			return a.Length;
+		}
+
+		int n = a.Length;
+		int m = b.Length;
+		int[,] d = new int[n + 1, m + 1];
+
+		for (int i = 0; i <= n; d[i, 0] = i++)
+		{
+		}
+
+		for (int j = 1; j <= m; d[0, j] = j++)
+		{
+		}
+
+		for (int i = 1; i <= n; i++)
+		{
+			for (int j = 1; j <= m; j++)
+			{
+				int cost = (b[j - 1] == a[i - 1]) ? 0 : 1;
+				int min1 = d[i - 1, j] + 1;
+				int min2 = d[i, j - 1] + 1;
+				int min3 = d[i - 1, j - 1] + cost;
+				d[i, j] = Math.Min(Math.Min(min1, min2), min3);
+			}
+		}
+
+		return d[n, m];
+	}
 }

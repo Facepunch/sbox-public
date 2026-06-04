@@ -38,7 +38,7 @@ internal unsafe static partial class PhysicsTrace
 			internal Rotation StartRot;
 			internal Vector3 Mins;
 			internal Vector3 Maxs;
-			internal float Radius;
+			internal Vector2 Radius;
 		}
 	}
 

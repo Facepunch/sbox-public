@@ -26,7 +26,7 @@
                 </Content>
             </PortalButton>
 
-            <PortalButton Portal=@Portal>
+            <PortalButton @ref=ReviewsTab Portal=@Portal>
                 <Button>
                     <SearchlightTab Title="Reviews" Icon="reviews" />
                 </Button>
@@ -34,6 +34,18 @@
                     <PackageReviews Package=@Package/>
                 </Content>
             </PortalButton>
+
+            @if (Package.LatestChangeLists.Length > 0)
+            {
+                <PortalButton @ref=ChangesTab Portal=@Portal>
+                    <Button>
+                        <SearchlightTab Title="Changes" Icon="history" />
+                    </Button>
+                    <Content>
+                        <PackageChanges Package=@Package/>
+                    </Content>
+                </PortalButton>
+            }
 
             @if (Package.LatestNewsPost is not null)
             {
@@ -47,22 +59,18 @@
                 </PortalButton>
             }
 
+            <PortalButton Portal=@Portal>
+                <Button>
+                    <SearchlightTab Title="Achievements" Icon="emoji_events" />
+                </Button>
+                <Content>
+					<AchievementList Package=@Package />
+                </Content>
+            </PortalButton>
+
         </Tabs>
         <Left>
-            <PackageHero Package="@Package" class="sidebar" MaxTags=@(8) />
-
-            @if (achList is not null)
-            {
-                <Label class="eyebrow">Achievements</Label>
-                <PortalButton Portal=@Portal>
-                    <Button>
-                        <AchievementSummary Package="@Package"></AchievementSummary>
-                    </Button>
-                    <Content>
-                        <AchievementList Package="@Package"></AchievementList>
-                    </Content>
-                </PortalButton>
-            }
+            <PackageInfoPanel Portal=@Portal Package="@Package" OnChangelogClicked="@(() => ChangesTab?.ActivatePage())" OnReviewsClicked="@(() => ReviewsTab?.ActivatePage())" />
 
         </Left>
 
@@ -83,9 +91,9 @@
 
     public List<LobbyInformation> Lobbies = new();
 
-    AchievementCollection achList;
-
     PortalTarget Portal = default;
+    PortalButton ChangesTab = default;
+    PortalButton ReviewsTab = default;
 
     async Task RefreshLobbies()
     {
@@ -114,10 +122,6 @@
         HasFullPackage = true;
 
         await RefreshLobbies();
-
-        achList = await Package.GetAchievements();
-        if (!achList.All.Any()) achList = default;
-        if (achList is not null) StateHasChanged();
     }
 
     protected override int BuildHash() => System.HashCode.Combine(Package);

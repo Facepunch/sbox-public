@@ -12,6 +12,7 @@ internal class Upload
 		builder.AddStep( new GameCache() );
 		builder.AddStep( new UploadSymbolsStep( "Upload Symbols" ) );
 		builder.AddStep( new UploadDocumentation( "Upload Documentation" ) );
+		builder.AddStep( new UploadReferenceAssemblies( "Upload Reference Assemblies", target ) );
 		builder.AddStep( new SentryRelease( "Sentry Release", "fcpnch", "sbox-native" ) );
 
 		string branch = BuildTargetToSteamBranch( target );

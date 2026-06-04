@@ -50,6 +50,11 @@ class DDGIProbeUpdaterCubemapper : IDisposable
 			AmbientLightColor = Color.Black,
 		};
 
+		if ( volume.RenderExcludeTags is not null )
+		{
+			_camera.ExcludeTags.SetFrom( volume.RenderExcludeTags );
+		}
+
 		_camera.OnRenderStageHook += ( stage, camera ) =>
 		{
 			if ( stage != Stage.AfterTransparent )

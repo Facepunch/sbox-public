@@ -99,6 +99,11 @@ internal static partial class DebugOverlay
 				DrawRow( ref y, _rows[i], totalMs, scaleMs, colName, colGauge, colAvg, colMax, colShare );
 			}
 
+			y += 16f;
+
+			DrawMemoryBar( ref y, x );
+			DrawMemorySummary( ref y, x );
+
 			pos.y = y;
 		}
 
@@ -126,6 +131,63 @@ internal static partial class DebugOverlay
 			DrawCell( "max", dim, colMax, y, ValueWidth, TextFlag.LeftCenter );
 			DrawCell( "%", dim, colShare, y, ValueWidth, TextFlag.LeftCenter );
 			y += RowHeight;
+		}
+
+		private static void DrawMemorySummary( ref float y, float x )
+		{
+			var usedBytes = (long)GpuProfilerStats.VideoMemoryUsed;
+			var budgetBytes = (long)GpuProfilerStats.VideoMemoryBudget;
+			var freeBytes = (long)GpuProfilerStats.VideoMemoryFree;
+			var usageFraction = GpuProfilerStats.VideoMemoryUsageFraction;
+
+			var color = usageFraction switch
+			{
+				> 0.90f => new Color( 1f, 0.45f, 0.35f ),
+				> 0.75f => new Color( 1f, 0.75f, 0.35f ),
+				_ => Color.White.WithAlpha( 0.85f )
+			};
+
+			var text = budgetBytes > 0
+				? $"GPU memory {usedBytes.FormatBytes()} / {budgetBytes.FormatBytes()} ({usageFraction * 100f:F0}% used, {freeBytes.FormatBytes()} free)"
+				: $"GPU memory {usedBytes.FormatBytes()} used";
+
+			var scope = new TextRendering.Scope( text, color, 11, "Roboto Mono", 600 ) { Outline = _outline };
+			Hud.DrawText( scope, new Rect( x, y, 560, RowHeight ), TextFlag.LeftCenter );
+			y += RowHeight;
+		}
+
+		private static void DrawMemoryBar( ref float y, float x )
+		{
+			var usedBytes = (long)GpuProfilerStats.VideoMemoryUsed;
+			var budgetBytes = (long)GpuProfilerStats.VideoMemoryBudget;
+			var totalBytes = Math.Max( 1L, budgetBytes > 0 ? budgetBytes : usedBytes );
+			var usedFraction = Math.Clamp( usedBytes / (float)totalBytes, 0f, 1f );
+			var freeFraction = 1f - usedFraction;
+
+			var usedColor = usedFraction switch
+			{
+				> 0.90f => new Color( 1f, 0.45f, 0.35f ),
+				> 0.75f => new Color( 1f, 0.75f, 0.35f ),
+				_ => new Color( 0.45f, 0.80f, 0.55f )
+			};
+
+			var barRect = new Rect( x, y + 2, 560, 8 );
+			Hud.DrawRect( barRect, Color.Black.WithAlpha( 0.22f ) );
+
+			var usedWidth = barRect.Width * usedFraction;
+			if ( usedWidth > 0f )
+			{
+				Hud.DrawRect( new Rect( barRect.Left, barRect.Top, usedWidth, barRect.Height ), usedColor.WithAlpha( 0.85f ) );
+			}
+
+			if ( freeFraction > 0f )
+			{
+				var freeLeft = barRect.Left + usedWidth;
+				var freeWidth = barRect.Width * freeFraction;
+				Hud.DrawRect( new Rect( freeLeft, barRect.Top, freeWidth, barRect.Height ), Color.White.WithAlpha( 0.15f ) );
+			}
+
+			y += RowHeight - 4;
 		}
 
 		private static void DrawRow( ref float y, RowData row, float totalMs, float scaleMs, float colName, float colGauge, float colAvg, float colMax, float colShare )

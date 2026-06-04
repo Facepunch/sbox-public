@@ -16,8 +16,12 @@ sealed class MixerHandleControlWidget : DropdownControlWidget<MixerHandle>
 
 	protected override IEnumerable<object> GetDropdownValues()
 	{
-		foreach ( var mixer in IterateMixerTree( Mixer.Master ) )
+		var parentMixer = GetParentMixer();
+		var root = parentMixer ?? Mixer.Master;
+
+		foreach ( var mixer in IterateMixerTree( root ) )
 		{
+
 			var e = new Entry
 			{
 				Value = (MixerHandle)mixer,
@@ -39,5 +43,15 @@ sealed class MixerHandleControlWidget : DropdownControlWidget<MixerHandle>
 				yield return childEntry;
 			}
 		}
+	}
+
+	Mixer GetParentMixer()
+	{
+		if ( !SerializedProperty.TryGetAttribute<Voice.ParentMixerAttribute>( out var voice ) )
+		{
+			return null;
+		}
+
+		return Mixer.FindMixerByName( voice.MixerName );
 	}
 }

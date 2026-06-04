@@ -199,7 +199,7 @@ public sealed partial class KeyframeEditMode : EditMode
 
 	protected override void OnKeyPress( KeyEvent e )
 	{
-		base.OnKeyPress(e);
+		base.OnKeyPress( e );
 
 		var nudgeDelta = MovieTime.FromFrames( e.HasShift ? 10 : 1, Session.FrameRate );
 
@@ -235,7 +235,7 @@ public sealed partial class KeyframeEditMode : EditMode
 
 	protected override void OnMousePress( MouseEvent e )
 	{
-		base.OnMousePress(e);
+		base.OnMousePress( e );
 
 		_mouseDownLocalPos = e.LocalPosition;
 	}

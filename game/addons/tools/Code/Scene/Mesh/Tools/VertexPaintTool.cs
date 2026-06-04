@@ -342,6 +342,9 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 
 		foreach ( var edge in mesh.HalfEdgeHandles )
 		{
+			if ( !edge.Face.IsValid )
+				continue;
+
 			if ( LimitMode != PaintLimitMode.Everything && _selectedMeshes.Count == 0 && !_selectedFaceVertices.Contains( edge ) )
 				continue;
 
@@ -440,6 +443,9 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 
 		foreach ( var edge in mesh.HalfEdgeHandles )
 		{
+			if ( !edge.Face.IsValid )
+				continue;
+
 			_prevColors[edge] = Mode == PaintMode.Color ?
 				mesh.GetVertexColor( edge ).ToColor() :
 				mesh.GetVertexBlend( edge ).ToColor();
@@ -619,6 +625,9 @@ public partial class VertexPaintTool( MeshTool tool ) : EditorTool
 
 			foreach ( var edge in mesh.HalfEdgeHandles )
 			{
+				if ( !edge.Face.IsValid )
+					continue;
+
 				if ( LimitMode != PaintLimitMode.Everything && _selectedMeshes.Count == 0 && !_selectedFaceVertices.Contains( edge ) )
 					continue;
 

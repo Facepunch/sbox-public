@@ -184,11 +184,6 @@ public partial class Scene : GameObject
 			{
 				Signal( GameObjectSystem.Stage.FinishUpdate );
 			}
-
-			using ( PerformanceStats.Timings.Audio.Scope() )
-			{
-				SoundHandle.FlushCreatedSounds();
-			}
 		}
 
 		Scene.RunEvent<ISceneStage>( x => x.End() );
