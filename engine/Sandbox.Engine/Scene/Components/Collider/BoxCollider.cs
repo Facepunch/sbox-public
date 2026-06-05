@@ -13,6 +13,12 @@ public sealed class BoxCollider : Collider
 	private Vector3 _center = 0;
 	private Vector3 _scale = 50.0f;
 
+	protected override void OnAwake()
+	{
+		base.OnAwake();
+		EnsureBoundsMatchIfNew();
+	}
+
 	/// <summary>
 	/// The size of the box, from corner to corner.
 	/// </summary>
@@ -64,6 +70,26 @@ public sealed class BoxCollider : Collider
 		Shape.UpdateBoxShape( box.Center, local.Rotation, box.Size * 0.5f );
 
 		CalculateLocalBounds();
+	}
+
+	/// <summary>
+	/// Ensures that box collider bounds match the ones of model collider
+	/// </summary>
+	private void EnsureBoundsMatchIfNew()
+	{
+		if ( _center != default || _scale != 50.0f )
+			// if the box collider changed then do nothing
+			return;
+
+		var componentWithBounds = GetComponent<IHasBounds>();
+		if ( componentWithBounds is null )
+			// skip if there are no bounds to copy
+			return;
+
+		// ensure the bounds match
+		var bounds = componentWithBounds.LocalBounds;
+		_center = bounds.Center;
+		_scale = bounds.Size;
 	}
 
 	protected override void DrawGizmos()
