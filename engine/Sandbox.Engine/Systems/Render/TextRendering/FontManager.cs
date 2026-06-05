@@ -150,7 +150,7 @@ internal class FontManager : FontMapper
 		// Fallback on system font
 		if ( f is null )
 		{
-			Log.Error( $"FontManager: Font '{style.FontFamily}' not found, falling back to system font" );
+			Log.Warning( $"FontManager: Font '{style.FontFamily}' not found, falling back to system font" );
 			f = Default.TypefaceFromStyle( style, ignoreFontVariants );
 		}
 
