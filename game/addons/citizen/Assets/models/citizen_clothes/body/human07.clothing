@@ -3,7 +3,7 @@
   "HumanSkinModel": "models/citizen_human/citizen_human_male.vmdl",
   "HumanSkinMaterial": "models/citizen_human/bodies/male/body_male_light.vmat",
   "HumanEyesMaterial": null,
-  "HumanSkinBodyGroups": 8162,
+  "HumanSkinBodyGroups": 8176,
   "HumanSkinMaterialGroup": "skin_light",
   "HumanSkinTags": "male",
   "Title": "Human Skin 3",
@@ -35,8 +35,8 @@
   "TintDefault": 0.5,
   "SteamItemDefinitionId": null,
   "Icon": {
-    "Path": "models/citizen_clothes/body/human03.clothing.png",
-    "Mode": "HumanSkin",
+    "Path": "models/citizen_clothes/body/human07.clothing.png",
+    "Mode": "Foot",
     "PositionOffset": "0,0,0"
   },
   "__references": [],

@@ -117,7 +117,7 @@ public partial class Texture
 		var existing = Game.Resources.Get<Texture>( filepath );
 		if ( existing is not null )
 		{
-			existing.TryReload( filesystem, filepath );
+			existing.TryReload( filesystem, existing.ResourcePath );
 		}
 		else if ( filepath.StartsWith( "/" ) && TextureLoader.Image.IsAppropriate( filepath ) )
 		{
