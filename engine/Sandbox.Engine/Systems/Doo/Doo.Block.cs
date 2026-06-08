@@ -9,6 +9,8 @@ public partial class Doo
 	/// </summary>
 	[JsonDerivedType( typeof( DelayBlock ), "del" )]
 	[JsonDerivedType( typeof( SetBlock ), "set" )]
+	[JsonDerivedType( typeof( GetPropertyBlock ), "gpr" )]
+	[JsonDerivedType( typeof( SetPropertyBlock ), "spr" )]
 	[JsonDerivedType( typeof( InvokeBlock ), "ivk" )]
 	[JsonDerivedType( typeof( ReturnBlock ), "ret" )]
 	[JsonDerivedType( typeof( ForBlock ), "for" )]

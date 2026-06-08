@@ -161,6 +161,9 @@ public partial class BaseChair : Component, Component.IPressable, ISitTarget
 		var seatPos = SeatPosition ?? GameObject;
 		player.GameObject.SetParent( null, true );
 
+		player.Body.Enabled = true;
+		player.ColliderObject.Enabled = true;
+
 		player.WorldPosition = exitPoint;
 		player.EyeAngles = WorldRotation.Inverse * player.EyeAngles;
 	}
