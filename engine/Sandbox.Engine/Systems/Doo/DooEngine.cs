@@ -102,6 +102,14 @@ public class DooEngine : GameObjectSystem<DooEngine>
 				await RunBlock_For( ctx, forblock );
 				break;
 
+			case Doo.GetPropertyBlock g:
+				RunBlock_GetProperty( ctx, g );
+				break;
+
+			case Doo.SetPropertyBlock s:
+				RunBlock_SetProperty( ctx, s );
+				break;
+
 			case Doo.InvokeBlock i:
 				RunBlock_Invoke( ctx, i );
 				break;
@@ -236,6 +244,52 @@ public class DooEngine : GameObjectSystem<DooEngine>
 		{
 			ArrayPool<object>.Shared.Return( args, clearArray: true );
 		}
+	}
+
+	private void RunBlock_GetProperty( RunContext ctx, Doo.GetPropertyBlock b )
+	{
+		var prop = Doo.Helpers.FindProperty( b.Property );
+
+		if ( prop == null || !prop.CanRead )
+			return;
+
+		Component targetInstance = null;
+
+		if ( !prop.IsStatic )
+		{
+			targetInstance = b.TargetComponent?.Evaluate( ctx );
+			if ( !targetInstance.IsValid() )
+				return;
+		}
+
+		var returnedValue = prop.GetValue( targetInstance );
+
+		if ( !string.IsNullOrWhiteSpace( b.ReturnVariable ) )
+		{
+			SetVariable( ctx, b.ReturnVariable, returnedValue );
+		}
+	}
+
+	private void RunBlock_SetProperty( RunContext ctx, Doo.SetPropertyBlock b )
+	{
+		var prop = Doo.Helpers.FindProperty( b.Property );
+
+		if ( prop == null || !prop.CanWrite )
+			return;
+
+		Component targetInstance = null;
+
+		if ( !prop.IsStatic )
+		{
+			targetInstance = b.TargetComponent?.Evaluate( ctx );
+			if ( !targetInstance.IsValid() )
+				return;
+		}
+
+		var value = Eval( ctx, b.Value );
+		value = ToType( value, prop.PropertyType );
+
+		prop.SetValue( targetInstance, value );
 	}
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
