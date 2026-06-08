@@ -5,6 +5,10 @@ public static partial class Achievements
 {
 	public static void Unlock( string name )
 	{
+		// Achievements belong to the local player — a dedicated server has no
+		// authenticated player context, so the backend would 401 the request.
+		if ( Application.IsDedicatedServer ) return;
+
 		var package = Application.GamePackage;
 		if ( package is null ) return;
 

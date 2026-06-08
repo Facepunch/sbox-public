@@ -22,6 +22,8 @@ internal class ToolsDll : IToolsDll
 		EditorEvent.Init();
 		EditorEvent.RegisterAssembly( Global.Assembly );
 
+		Game.IsPlaying = false;
+
 		EditorTypeLibrary = new Sandbox.Internal.TypeLibrary();
 		EditorTypeLibrary.AddIntrinsicTypes();
 		EditorTypeLibrary.AddAssembly( typeof( Vector3 ).Assembly, false );

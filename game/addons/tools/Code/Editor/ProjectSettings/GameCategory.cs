@@ -24,6 +24,12 @@ internal sealed class GameCategory : ProjectSettingsWindow.Category
 	/// </summary>
 	public SceneFile SystemScene { get; set; }
 
+
+	/// <summary>
+	/// This game uses the Streamer Api. This will enable the Streamer Mode features in the menu, and allow you to use the Streamer API in your game.
+	/// </summary>
+	public bool UsesStreamerFeatures { get; set; }
+
 	LaunchModes LaunchMode { get; set; }
 
 	public override void OnInit( Project project )
@@ -33,6 +39,7 @@ internal sealed class GameCategory : ProjectSettingsWindow.Category
 		LaunchMode = Project.Config.GetMetaOrDefault( "LaunchMode", LaunchModes.Normal );
 		ServerStartupScene = ResourceLibrary.Get<SceneFile>( Project.Config.GetMetaOrDefault( "DedicatedServerStartupScene", "" ) );
 		SystemScene = ResourceLibrary.Get<SceneFile>( Project.Config.GetMetaOrDefault( "SystemScene", "" ) );
+		UsesStreamerFeatures = Project.Config.GetMetaOrDefault( "UsesStreamerFeatures", false );
 
 		{
 			var so = this.GetSerialized();
@@ -43,6 +50,8 @@ internal sealed class GameCategory : ProjectSettingsWindow.Category
 			sheet.AddRow( so.GetProperty( nameof( ServerStartupScene ) ) );
 			sheet.AddRow( so.GetProperty( nameof( SystemScene ) ) );
 			sheet.AddRow( so.GetProperty( nameof( LaunchMode ) ) );
+
+			sheet.AddGroup( "Features", [so.GetProperty( nameof( UsesStreamerFeatures ) )] );
 
 			BodyLayout.Add( sheet );
 			ListenForChanges( so );
@@ -57,6 +66,7 @@ internal sealed class GameCategory : ProjectSettingsWindow.Category
 		Project.Config.SetMeta( "LaunchMode", LaunchMode );
 		Project.Config.SetMeta( "DedicatedServerStartupScene", ServerStartupScene?.ResourcePath ?? null );
 		Project.Config.SetMeta( "SystemScene", SystemScene?.ResourcePath ?? null );
+		Project.Config.SetMeta( "UsesStreamerFeatures", UsesStreamerFeatures ? UsesStreamerFeatures : null );
 
 		base.OnSave();
 	}

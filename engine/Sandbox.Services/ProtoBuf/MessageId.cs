@@ -31,4 +31,5 @@ public enum MessageId : ushort
 	OrgEdited = 8001,
 
 	ClientAccountEdited = 9000,
+	ClientServiceLinked = 9001,
 }

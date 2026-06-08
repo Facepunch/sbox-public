@@ -96,6 +96,48 @@ public class SceneLight : SceneObject
 		}
 	}
 
+	/// <summary>
+	/// Should this light contribute diffuse lighting?
+	/// </summary>
+	public bool RenderDiffuse
+	{
+		get => _renderDiffuse;
+		set
+		{
+			_renderDiffuse = value;
+			lightNative.SetRenderDiffuse( value );
+		}
+	}
+	private bool _renderDiffuse = true;
+
+	/// <summary>
+	/// Should this light contribute specular highlights?
+	/// </summary>
+	public bool RenderSpecular
+	{
+		get => _renderSpecular;
+		set
+		{
+			_renderSpecular = value;
+			lightNative.SetRenderSpecular( value );
+		}
+	}
+	private bool _renderSpecular = true;
+
+	/// <summary>
+	/// Should this light contribute transmissive lighting (light passing through surfaces)?
+	/// </summary>
+	public bool RenderTransmissive
+	{
+		get => _renderTransmissive;
+		set
+		{
+			_renderTransmissive = value;
+			lightNative.SetRenderTransmissive( value );
+		}
+	}
+	private bool _renderTransmissive = true;
+
 	public enum FogLightingMode
 	{
 		None,

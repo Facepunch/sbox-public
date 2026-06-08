@@ -28,7 +28,12 @@ public sealed partial class PhysicsBody : IHandle
 		World.RegisterBody( this );
 	}
 
-	void IHandle.HandleDestroy() => native = IntPtr.Zero;
+	void IHandle.HandleDestroy()
+	{
+		World?.ForgetBody( this );
+		native = IntPtr.Zero;
+	}
+
 	bool IHandle.HandleValid() => !native.IsNull;
 	#endregion
 

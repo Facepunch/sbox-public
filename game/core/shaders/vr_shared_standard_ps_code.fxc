@@ -242,9 +242,6 @@ Texture2D g_tStretchAmbientOcclusion < Channel( R, Box3( TextureStretchAmbientOc
 	BoolAttribute( alphatest, true );
 	float g_flAlphaTestReference < Default( 0.5 ); Range( 0.01, 0.99 ); UiGroup( "Translucent" ); >;
 	float g_flAntiAliasedEdgeStrength < Default( 1.0 ); Range( 0.0, 1.0 ); UiGroup( "Translucent" ); >;
-#else
-	#define g_flAlphaTestReference 0.5
-	#define g_flAntiAliasedEdgeStrength 0.0
 #endif
 
 BoolAttribute( DoNotCastShadows, F_DO_NOT_CAST_SHADOWS ? true : false );
@@ -294,7 +291,7 @@ FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
 	//
 	// Alpha test
 	//
-	#if ( S_ALPHA_TEST || D_OPAQUE_FADE )
+	#if ( S_ALPHA_TEST )
 	{
 		float eps = 1/255.0f;
         
@@ -309,6 +306,15 @@ FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
             OpaqueFadeDepth((o.flOpacity + 0.5f + eps) * 0.5f, i.vPositionSs.xy);
         else
             clip(o.flOpacity - 0.000001);
+	}
+	#endif
+
+	#if ( D_OPAQUE_FADE )
+	{
+		// Special case to emulate alpha-to-coverage behaviour in the non-MSAA case
+		float eps = 1/255.0f;
+        if (g_nMSAASampleCount == 1)
+            OpaqueFadeDepth((o.flOpacity + 0.5f + eps) * 0.5f, i.vPositionSs.xy);
 	}
 	#endif
 

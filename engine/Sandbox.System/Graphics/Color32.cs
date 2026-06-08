@@ -225,7 +225,7 @@ public struct Color32 : IEquatable<Color32>
 		writer.Write( r );
 		writer.Write( g );
 		writer.Write( b );
-		writer.Write( b );
+		writer.Write( a );
 	}
 
 	/// <summary>

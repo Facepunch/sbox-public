@@ -86,7 +86,7 @@ public partial class Terrain
 	private int _clipMapLodExtentTexelsProperty = 256;
 	private int _subdivisionFactorProperty = 1;
 
-	[Property, Category( "Clipmap" )]
+	[Property, Category( "Clipmap" ), Range( 1, 8 )]
 	public int ClipMapLodLevels
 	{
 		get => _clipMapLodLevelsProperty;
@@ -95,14 +95,14 @@ public partial class Terrain
 			if ( _clipMapLodLevelsProperty == value )
 				return;
 
-			_clipMapLodLevelsProperty = value;
+			_clipMapLodLevelsProperty = value.Clamp( 1, 8 );
 
 			// Rebuild clipmap mesh when LOD levels change
 			CreateClipmapSceneObject();
 		}
 	}
 
-	[Property, Category( "Clipmap" )]
+	[Property, Category( "Clipmap" ), Range( 16, 2048 )]
 	public int ClipMapLodExtentTexels
 	{
 		get => _clipMapLodExtentTexelsProperty;
@@ -111,7 +111,7 @@ public partial class Terrain
 			if ( _clipMapLodExtentTexelsProperty == value )
 				return;
 
-			_clipMapLodExtentTexelsProperty = value;
+			_clipMapLodExtentTexelsProperty = value.Clamp( 16, 2048 );
 
 			// Rebuild clipmap mesh when extent changes
 			CreateClipmapSceneObject();

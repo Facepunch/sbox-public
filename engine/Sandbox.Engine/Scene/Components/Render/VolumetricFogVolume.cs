@@ -14,6 +14,7 @@ public class VolumetricFogVolume : Component, Component.ExecuteInEditor
 	[Property] public BBox Bounds { get; set; } = BBox.FromPositionAndSize( 0, 300 );
 	[Property, Range( 0, 1 )] public float Strength { get; set; } = 1.0f;
 	[Property, Range( 0, 1 )] public float FalloffExponent { get; set; } = 1.0f;
+	[Property] public Color Color { get; set; } = Color.White;
 
 	bool isFromMap;
 
@@ -60,6 +61,7 @@ public class VolumetricFogVolume : Component, Component.ExecuteInEditor
 		sceneObject.BoundingBox = Bounds;
 		sceneObject.FogStrength = strength;
 		sceneObject.FalloffExponent = FalloffExponent;
+		sceneObject.Color = Color;
 	}
 
 	internal static void InitializeFromLegacy( GameObject go, Sandbox.MapLoader.ObjectEntry kv )

@@ -55,8 +55,53 @@ public struct TransitionDesc
 			return list;
 		}
 
-		Log.Warning( $"Didn't handle transition style: {property}" );
-		return null;
+		// Longhand properties (transition-duration/-delay/-property/-timing-function). Each is a
+		// comma-separated list whose i-th value updates the i-th transition entry, creating entries
+		// with sensible defaults as needed.
+		var items = value.Split( ',' );
+		for ( int i = 0; i < items.Length; i++ )
+		{
+			var item = items[i].Trim();
+			if ( string.IsNullOrEmpty( item ) ) continue;
+
+			while ( list.List.Count <= i )
+				list.List.Add( new TransitionDesc { Property = "all", TimingFunction = "ease", Delay = 0, Duration = 0 } );
+
+			var t = list.List[i];
+
+			switch ( property )
+			{
+				case "transition-property":
+					t.Property = StyleParser.GetPropertyFromAlias( item.ToLower() );
+					break;
+
+				case "transition-duration":
+					{
+						var pp = new Parse( item );
+						if ( pp.TryReadTime( out var d ) ) t.Duration = d;
+					}
+					break;
+
+				case "transition-delay":
+					{
+						var pp = new Parse( item );
+						if ( pp.TryReadTime( out var d ) ) t.Delay = d;
+					}
+					break;
+
+				case "transition-timing-function":
+					t.TimingFunction = item;
+					break;
+
+				default:
+					Log.Warning( $"Didn't handle transition style: {property}" );
+					return null;
+			}
+
+			list.List[i] = t;
+		}
+
+		return list;
 	}
 
 	static TransitionDesc Parse( string value )
@@ -68,11 +113,22 @@ public struct TransitionDesc
 		t.TimingFunction = "ease"; // default is ease
 
 		p = p.SkipWhitespaceAndNewlines();
-		t.Property = p.ReadWord( null, true ).ToLower();
-		t.Property = StyleParser.GetPropertyFromAlias( t.Property );
-		if ( p.IsEnd ) return t;
-		p = p.SkipWhitespaceAndNewlines();
-		if ( p.IsEnd ) return t;
+
+		// The property is optional and defaults to 'all' (eg "transition: 0.3s ease"). If the first
+		// token reads as a time then there's no property - don't consume it as one.
+		var probe = p;
+		if ( probe.TryReadTime( out _ ) )
+		{
+			t.Property = "all";
+		}
+		else
+		{
+			t.Property = p.ReadWord( null, true ).ToLower();
+			t.Property = StyleParser.GetPropertyFromAlias( t.Property );
+			if ( p.IsEnd ) return t;
+			p = p.SkipWhitespaceAndNewlines();
+			if ( p.IsEnd ) return t;
+		}
 
 		//
 		// Duration is mandatory

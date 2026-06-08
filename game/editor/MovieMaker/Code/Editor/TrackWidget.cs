@@ -1,13 +1,10 @@
 ﻿using Editor.NodeEditor;
 using Sandbox.MovieMaker;
-using Sandbox.MovieMaker.Compiled;
 using Sandbox.MovieMaker.Properties;
 using Sandbox.UI;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
-using static Sandbox.Resources.ResourceCompileContext;
 
 namespace Editor.MovieMaker;
 
@@ -113,8 +110,14 @@ public partial class TrackWidget : Widget
 		}
 		else if ( reference is ITrackReference<GameObject> goReference )
 		{
-			_controlWidget = ControlWidget.Create( EditorTypeLibrary.CreateProperty( reference.Name,
-				() => goReference.Value, goReference.Bind ) );
+			var property = EditorTypeLibrary.CreateProperty( reference.Name,
+				() => goReference.Value, value =>
+				{
+					goReference.Bind( value );
+					View.TrackList.Session.Player.UpdateTargets();
+				} );
+
+			_controlWidget = new GameObjectControlWidget( property ) { ShowFullName = false };
 		}
 		else
 		{
@@ -204,6 +207,8 @@ public partial class TrackWidget : Widget
 	{
 		View.IsHovered = true;
 
+		ToolTip = View.Description;
+
 		base.OnMouseEnter();
 	}
 
@@ -245,9 +250,18 @@ public partial class TrackWidget : Widget
 		Paint.SetBrushAndPen( BackgroundColor );
 		Paint.DrawRect( new Rect( LocalRect.Left + 1f, LocalRect.Top + 1f, LocalRect.Width - 2f, Timeline.TrackHeight - 2f ), 4 );
 
+		if ( View.Target is ITrackReference { IsAutoCreatedTarget: true } )
+		{
+			var saveRect = new Rect( LocalRect.Right - 58f, 1f, Timeline.TrackHeight, Timeline.TrackHeight );
+
+			Paint.SetPen( Theme.Text );
+			Paint.DrawIcon( saveRect, "person_add", 16f );
+		}
+
 		if ( _timeSinceInteraction < 2.0f )
 		{
 			var delta = _timeSinceInteraction.Relative.Remap( 2.0f, 0, 0, 1 );
+			Paint.ClearPen();
 			Paint.SetBrush( Theme.Yellow.WithAlpha( delta ) );
 			Paint.DrawRect( new Rect( LocalRect.Right - 4, LocalRect.Top, 32, Timeline.TrackHeight ) );
 			Update();

@@ -2,10 +2,6 @@
 #define DYNAMIC_REFLECTIONS_HLSL
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-int ReflectionColorIndex < Attribute("ReflectionColorIndex" ); Default(-1); >;
-
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Accessor for the result of dynamic reflections, whether they are SSR or eventually Raytraced Reflections
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 class DynamicReflections
@@ -14,8 +10,9 @@ class DynamicReflections
     {
         if (!IsEnabled())
             return 0;
-    
-        Texture2D ReflectionColor = Bindless::GetTexture2D( ReflectionColorIndex );
+
+        uint index = Bindless::GetPipelineTextureIndex(PipelineTextureSlotSSR);
+        Texture2D ReflectionColor = Bindless::GetTexture2D( index );
 
         // If the texture has mips, we can sample it at a specific level based on roughness.
         // Eg Planar Reflections with mip chain.
@@ -31,7 +28,8 @@ class DynamicReflections
 
     static bool IsEnabled()
     {
-        return ReflectionColorIndex != -1;
+        uint index = Bindless::GetPipelineTextureIndex(PipelineTextureSlotSSR);
+        return index != 0;
     }
 };
 

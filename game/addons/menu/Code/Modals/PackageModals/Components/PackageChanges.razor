@@ -1,0 +1,80 @@
+@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System;
+@using System.Collections.Immutable;
+
+@* Full "Changes" tab - mirrors the web layout: each changelist is a two-column group with a
+   sticky meta column (title / version / date) on the left and the categorised entries on the right. *@
+
+<root>
+    <PackageTabHeader Title="Changes" Subtitle="@($"What's changed in {Package?.Title} with each update.")" />
+
+    @if (!_loaded)
+    {
+        <div class="state"><Spinner /></div>
+    }
+    else if (_changeLists.Length == 0)
+    {
+        <div class="state">This package hasn't published any changelists.</div>
+    }
+    else
+    {
+        @foreach (var change in _changeLists)
+        {
+            var hasTitle = !string.IsNullOrWhiteSpace(change.Title);
+            var dateText = change.Created.LocalDateTime.ToString("d MMMM yyyy");
+
+            <div class="changelistgroup">
+
+                <div class="meta-column">
+                    <label class="title">@(hasTitle ? change.Title : dateText)</label>
+                    @if (!string.IsNullOrWhiteSpace(change.Version))
+                    {
+                        <div class="version">@change.Version</div>
+                    }
+                    @* Skip the date line when the title already is the date. *@
+                    @if (hasTitle)
+                    {
+                        <label class="created">@dateText</label>
+                    }
+                </div>
+
+                <div class="changes">
+                    <PackageChangeSection ClassName="add" Entries="@change.Added" Icon="🎁" Title="Added" />
+                    <PackageChangeSection ClassName="improve" Entries="@change.Improved" Icon="🧼" Title="Improved" />
+                    <PackageChangeSection ClassName="fix" Entries="@change.Fixed" Icon="🪛" Title="Fixed" />
+                    <PackageChangeSection ClassName="remove" Entries="@change.Removed" Icon="🚯" Title="Removed" />
+                    <PackageChangeSection ClassName="knownissue" Entries="@change.KnownIssues" Icon="⚠️" Title="Known Issues" />
+                </div>
+
+            </div>
+        }
+    }
+</root>
+
+@code
+{
+    [Parameter] public Package Package { get; set; }
+
+    ImmutableArray<Package.ChangeList> _changeLists = ImmutableArray<Package.ChangeList>.Empty;
+    bool _loaded;
+
+    protected override int BuildHash() => System.HashCode.Combine(Package, _loaded, _changeLists.Length);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loaded = false;
+        _changeLists = ImmutableArray<Package.ChangeList>.Empty;
+        StateHasChanged();
+
+        if (Package is null)
+            return;
+
+        _changeLists = await Package.GetChangeListsAsync();
+        _loaded = true;
+        StateHasChanged();
+    }
+}

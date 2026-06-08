@@ -270,7 +270,7 @@ public class AssetType
 		GenerateGlyphs( attribute );
 
 		// For game resources, use the background color specified in the attribute
-		Color = "#67ac5c";
+		Color = attribute.IconColor;
 	}
 
 	/// <summary>

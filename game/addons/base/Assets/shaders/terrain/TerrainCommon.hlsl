@@ -205,10 +205,10 @@ float3 Terrain_Normal( Texture2D HeightMap, float2 uv, float maxheight, out floa
 {
     float2 texelSize = 1.0f / ( float2 )TextureDimensions2D( HeightMap, 0 );
 
-    float l = abs( HeightMap.SampleLevel( g_sBilinearBorder, uv + texelSize * float2( -1, 0 ), 0 ).r );
-    float r = abs( HeightMap.SampleLevel( g_sBilinearBorder, uv + texelSize * float2( 1, 0 ), 0 ).r );
-    float t = abs( HeightMap.SampleLevel( g_sBilinearBorder, uv + texelSize * float2( 0, -1 ), 0 ).r );
-    float b = abs( HeightMap.SampleLevel( g_sBilinearBorder, uv + texelSize * float2( 0, 1 ), 0 ).r );
+    float l = abs( HeightMap.SampleLevel( g_sBilinearClamp, uv + texelSize * float2( -1, 0 ), 0 ).r );
+    float r = abs( HeightMap.SampleLevel( g_sBilinearClamp, uv + texelSize * float2( 1, 0 ), 0 ).r );
+    float t = abs( HeightMap.SampleLevel( g_sBilinearClamp, uv + texelSize * float2( 0, -1 ), 0 ).r );
+    float b = abs( HeightMap.SampleLevel( g_sBilinearClamp, uv + texelSize * float2( 0, 1 ), 0 ).r );
 
     // Compute dx using central differences
     float dX = l - r;

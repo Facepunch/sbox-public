@@ -6,6 +6,8 @@ public class MorphCollectionControlWidget : ControlWidget
 {
 	public override bool IncludeLabel => false;
 
+	bool sortAlphabetically = EditorCookie.Get( "morph_sort_alphabetically", false );
+
 	public MorphCollectionControlWidget( SerializedProperty property ) : base( property )
 	{
 		Layout = Layout.Column();
@@ -57,42 +59,46 @@ public class MorphCollectionControlWidget : ControlWidget
 			rows.Add( ctrl );
 		}
 
-		foreach ( var rowGroup in rows.GroupBy( x => GetGroup( x.Title ) ).OrderBy( x => x.Key ) )
+		var groups = rows.GroupBy( x => GetGroup( x.Title ) );
+
+		if ( sortAlphabetically )
+			groups = groups.OrderBy( x => x.Key );
+
+		foreach ( var rowGroup in groups )
 		{
 			grid.AddSpacingCell( 8 );
 			grid.Add( new Label( rowGroup.Key ) );
 
-			foreach ( var row in rowGroup.OrderBy( x => x.Title ) )
+			IEnumerable<MorphRowWidget> groupRows = sortAlphabetically
+				? rowGroup.OrderBy( x => x.Title )
+				: rowGroup;
+
+			foreach ( var row in groupRows )
 			{
 				grid.Add( row );
 			}
 		}
 
-		//	FixedHeight = (Theme.RowHeight + grid.Spacing);
 		grid.Margin = new( 0, 0, 0, 2 );
 
+		var clearBtn = headerButtons.Add( new IconButton( "replay", () => rows.ForEach( x => x.Clear() ) ) );
+		clearBtn.ToolTip = "Clear All";
 
-		{
-			var btn = headerButtons.Add( new Button( "Clear" ) );
-			btn.Clicked = () =>
-			{
-				foreach ( var row in rows.OrderBy( x => x.Name ) )
-				{
-					row.Clear();
-				}
-			};
-		}
+		var randomBtn = headerButtons.Add( new IconButton( "casino", () => rows.ForEach( x => x.SetValues( Random.Shared.Float( 0, 1 ), Random.Shared.Float( 0, 1 ) ) ) ) );
+		randomBtn.ToolTip = "Randomize";
 
+		headerButtons.AddStretchCell();
+
+		var sortBtn = headerButtons.Add( new IconButton( "sort_by_alpha" ) );
+		sortBtn.ToolTip = "Sort Alphabetically";
+		sortBtn.IsToggle = true;
+		sortBtn.IsActive = sortAlphabetically;
+		sortBtn.OnToggled = ( active ) =>
 		{
-			var btn = headerButtons.Add( new Button( "Randomize" ) );
-			btn.Clicked = () =>
-			{
-				foreach ( var row in rows.OrderBy( x => x.Name ) )
-				{
-					row.SetValues( Random.Shared.Float( 0, 1 ), Random.Shared.Float( 0, 1 ) );
-				}
-			};
-		}
+			sortAlphabetically = active;
+			EditorCookie.Set( "morph_sort_alphabetically", sortAlphabetically );
+			Rebuild();
+		};
 	}
 
 	protected override void OnValueChanged()
@@ -224,32 +230,30 @@ class MorphRowWidget : Widget
 		Update();
 	}
 
+	private float GetOverrideValue( string name )
+	{
+		if ( !accessor.ContainsOverride( name ) )
+			return 0;
+
+		return accessor.Get( name );
+	}
+
 	private void UpdateValueFromSlider()
 	{
 		if ( keyNames.Length > 1 )
 		{
-			var l = accessor.Get( keyNames[0] );
-			var r = accessor.Get( keyNames[1] );
+			var l = GetOverrideValue( keyNames[0] );
+			var r = GetOverrideValue( keyNames[1] );
 
 			slider.Value = MathF.Max( l, r );
 
-			if ( r > l )
-			{
-				sliderSide.Value = l.Remap( 0, r, -1, 0 );
-			}
-			else if ( l > r )
-			{
-				sliderSide.Value = r.Remap( 0, l, 1, 0 );
-			}
-
-
-
-			//	accessor.Set( keyNames[0], slider.Value * sliderSide.Value.Remap( 0, -1, 1, 0 ) );
-			//	accessor.Set( keyNames[1], slider.Value * sliderSide.Value.Remap( 0, 1, 1, 0 ) );
+			if ( r > l ) sliderSide.Value = l.Remap( 0, r, -1, 0 );
+			else if ( l > r ) sliderSide.Value = r.Remap( 0, l, 1, 0 );
+			else sliderSide.Value = 0;
 		}
 		else
 		{
-			slider.Value = accessor.Get( keyNames[0] );
+			slider.Value = GetOverrideValue( keyNames[0] );
 		}
 	}
 

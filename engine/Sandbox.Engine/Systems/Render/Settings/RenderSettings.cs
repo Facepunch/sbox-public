@@ -21,11 +21,6 @@ public partial class RenderSettings
 		Config.SetDefaults( this );
 	}
 
-	internal void Init()
-	{
-		ApplyVideoMode();
-	}
-
 	public int MaxFrameRate
 	{
 		get => ConVarSystem.GetInt( "fps_max", 100, true );
@@ -167,7 +162,7 @@ public partial class RenderSettings
 		ResolutionWidth = desktopWidth;
 		ResolutionHeight = desktopHeight;
 
-		Fullscreen = true;
+		Fullscreen = false;
 		Borderless = true;
 		VSync = true;
 		AntiAliasQuality = MultisampleAmount.Multisample8x;

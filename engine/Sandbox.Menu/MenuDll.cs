@@ -335,6 +335,13 @@ internal sealed class MenuDll : IMenuDll
 
 			Event.EventSystem.RunInterface<IBackendListener>( x => x.OnNotice( data ) );
 		}
+
+		if ( message.Data is Protobuf.ClientMsg.ServiceLinked serviceLinked )
+		{
+			var data = new LinkedService( serviceLinked.Service, serviceLinked.Id, serviceLinked.Name, serviceLinked.Avatar );
+
+			Event.EventSystem.RunInterface<IBackendListener>( x => x.OnServiceLinked( data, serviceLinked.Linked ) );
+		}
 	}
 
 	public IDisposable PushScope()
@@ -552,4 +559,12 @@ public interface IBackendListener
 	}
 
 	void OnNotice( Notice data );
+
+	/// <summary>
+	/// A third-party service (eg Twitch) was linked to - or unlinked from - the player's account.
+	/// Pushed from the backend when the player completes the flow started by
+	/// <see cref="MenuUtility.BeginServiceLink"/>, so the UI can update without polling.
+	/// <paramref name="linked"/> is false when the service was unlinked.
+	/// </summary>
+	void OnServiceLinked( LinkedService service, bool linked ) { }
 }

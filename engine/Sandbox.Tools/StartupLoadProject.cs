@@ -441,6 +441,11 @@ static class StartupLoadProject
 		{
 			project.Save();
 		}
+
+		if ( !FileSystem.ProjectSettings.FileExists( "/Platform.config" ) )
+		{
+			EditorUtility.SaveProjectSettings( new PlatformSettings(), "Platform.config" );
+		}
 	}
 
 	static List<string> packagesToDownload = new();

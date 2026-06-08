@@ -136,14 +136,17 @@ public sealed partial class ModelPhysics
 
 			if ( joint.IsValid() )
 			{
-				// Adjust joint rest length to match current body separation.
-				var bindSeparation = (localFrame1.Position * body1.Component.WorldScale).Distance( localFrame2.Position * body2.Component.WorldScale );
+				// Adjust joint frames to match current body separation vs bind pose.
+				var bindPos1 = physics.Parts[jointDesc.Body1].Transform.Position * body1.Component.WorldScale;
+				var bindPos2 = physics.Parts[jointDesc.Body2].Transform.Position * body2.Component.WorldScale;
+				var bindSeparation = bindPos1.Distance( bindPos2 );
 				var currentSeparation = body1.Component.WorldPosition.Distance( body2.Component.WorldPosition );
 
 				if ( bindSeparation > 0.0f )
 				{
 					var scale = currentSeparation / bindSeparation;
 					localFrame1 = localFrame1.WithPosition( localFrame1.Position * scale );
+					localFrame2 = localFrame2.WithPosition( localFrame2.Position * scale );
 				}
 
 				joint.Flags |= jointFlags;

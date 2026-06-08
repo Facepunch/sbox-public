@@ -18,7 +18,7 @@ public partial class RenderSettings
 
 	public bool Fullscreen
 	{
-		get => VideoSettings.Get<bool>( "fullscreen", true );
+		get => VideoSettings.Get<bool>( "fullscreen", false );
 		set => VideoSettings.Set<bool>( "fullscreen", value );
 	}
 
@@ -52,8 +52,8 @@ public partial class RenderSettings
 
 	private void ApplyVideoMode()
 	{
-		// No changing this in the editor or on headless servers
-		if ( Application.IsEditor || Application.IsHeadless )
+		// No changing this in the editor
+		if ( Application.IsEditor )
 			return;
 
 		NativeEngine.RenderDeviceManager.ChangeVideoMode( Fullscreen, Borderless, VSync, ResolutionWidth, ResolutionHeight, AntiAliasQuality.ToEngine() );

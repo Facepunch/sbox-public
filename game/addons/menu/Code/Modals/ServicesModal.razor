@@ -1,0 +1,171 @@
+@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+@implements Sandbox.IBackendListener
+@using Sandbox
+@using Sandbox.UI
+@using System
+@using System.Linq
+@using System.Collections.Generic
+
+<root>
+	<div class="window">
+		<div class="header">
+			<icon class="heading">cast</icon>
+			<label class="heading">Services</label>
+		</div>
+
+        <div class="description">
+            If you have a twitch account you can link it here. Games will be able to access your viewer's names and read the chat, 
+            so you can have interactive streams!
+        </div>
+
+		<div class="body">
+			@if ( Loading )
+			{
+				<div class="loading">Loading…</div>
+			}
+			else
+			{
+				@foreach ( var def in Definitions )
+				{
+					var linked = GetLinked( def.Type );
+
+					<div class="service">
+
+						<div class="badge" style="background-color: @def.Color">
+							<icon>@def.Icon</icon>
+						</div>
+
+						<div class="info">
+							<label class="name">@def.Name</label>
+							@if ( linked is { } l )
+							{
+								<label class="status connected">Linked to @l.Name</label>
+							}
+							else
+							{
+								<label class="status">Not linked</label>
+							}
+
+                            @if ( Streamer.IsActive )
+                            {
+                                <label class="status">Active - @Streamer.ViewerCount Viewers</label>
+                            }
+
+						</div>
+
+						@if ( linked is { } service )
+						{
+							<div class="connected">
+								@if ( !string.IsNullOrEmpty( service.Avatar ) )
+								{
+									<img class="avatar" src="@service.Avatar" />
+								}
+								<icon class="tick">check_circle</icon>
+							</div>
+
+                            <div class="controls">
+
+                                @if (MenuUtility.Streaming.IsActive)
+                                {
+                                    <Button class="clicky primary" @onclick=@( () => MenuUtility.Streaming.Disconnect( def.Type ) )>End Stream</Button>
+                                }
+                                else
+                                {
+                                    <Button class="clicky primary" @onclick=@( () => MenuUtility.Streaming.Connect( def.Type ) )>Start Stream</Button>
+                                }
+
+                            </div>
+						}
+						else
+						{
+							<Button class="clicky primary" @onclick=@( () => Connect( def.Type ) )>Link</Button>
+						}
+					</div>
+				}
+			}
+		</div>
+	</div>
+</root>
+
+@code
+{
+
+    record ServiceDefinition( string Type, string Name, string Icon, string Color );
+
+    /// <summary>
+    /// The services we can link. Right now there's only Twitch, but this is where new ones go.
+    /// </summary>
+    static readonly ServiceDefinition[] Definitions =
+	[
+        new ServiceDefinition( "Twitch", "Twitch", "live_tv", "#9146FF" ),
+	];
+
+    List<LinkedService> Services = new();
+    bool Loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Refresh();
+    }
+
+	/// <summary>
+	/// Pull the player's linked services from the backend.
+	/// </summary>
+	async Task Refresh()
+	{
+		Loading = true;
+		StateHasChanged();
+
+		Services = await MenuUtility.ListServices() ?? new();
+
+		Loading = false;
+		StateHasChanged();
+	}
+
+	/// <summary>
+	/// Find the linked service matching this type, or null if it isn't connected.
+	/// </summary>
+	LinkedService? GetLinked( string type )
+	{
+		foreach ( var service in Services )
+		{
+			if ( string.Equals( service.Service, type, StringComparison.OrdinalIgnoreCase ) )
+				return service;
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Begin linking a service. Opens the authorization page in the browser - completion comes
+	/// back asynchronously via <see cref="OnServiceLinked"/>, so there's nothing to poll.
+	/// </summary>
+	async void Connect( string type )
+	{
+		try
+		{
+			var url = await MenuUtility.BeginServiceLink( type );
+			if ( !string.IsNullOrEmpty( url ) )
+			{
+				MenuUtility.OpenUrl( url );
+			}
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Couldn't begin service link for {type}" );
+		}
+	}
+
+	/// <summary>
+	/// The backend tells us a service was linked or unlinked - refresh so the UI reflects it.
+	/// </summary>
+	public void OnServiceLinked( LinkedService service, bool linked )
+	{
+		_ = Refresh();
+	}
+
+	public void OnAchievementUnlocked( IBackendListener.AchievementUnlock data ){}
+	public void OnNotice( IBackendListener.Notice data ){}
+	protected override int BuildHash() => HashCode.Combine( Loading, Services.Count, MenuUtility.Streaming.IsActive );
+}

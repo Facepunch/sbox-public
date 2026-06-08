@@ -387,7 +387,7 @@ internal sealed partial class PackageLoader : IDisposable
 			LoadPackage( child );
 		}
 
-		var parent = ap.Package.GetMeta<string>( "ParentPackage", null );
+		var parent = ap.Package.Info.ParentPackage;
 		if ( !string.IsNullOrWhiteSpace( parent ) && Package.TryParseIdent( parent, out var _ ) )
 		{
 			if ( PackageManager.Find( parent, true, false ) != null )

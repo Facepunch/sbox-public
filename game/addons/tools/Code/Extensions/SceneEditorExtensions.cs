@@ -220,6 +220,7 @@ public static class SceneEditorExtensions
 			}
 
 			cameraTarget = default;
+			moved = true;
 		}
 
 		if ( cameraTarget.HasValue )

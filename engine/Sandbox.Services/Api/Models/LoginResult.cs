@@ -30,7 +30,7 @@ public struct LoginResult
 	/// <summary>
 	/// A list of organizations of which we're a member
 	/// </summary>
-	public OrganizationDto[] Memberships { get; set; }
+	public OrganizationMinimal[] Memberships { get; set; }
 
 	/// <summary>
 	/// A list of our favourited games

@@ -25,6 +25,8 @@ internal static class EngineLoop
 	{
 		if ( Application.WantsExit )
 		{
+			SoundHandle.Shutdown();
+			MixingThread.DrainDisposals();
 			g_pEngineServiceMgr.ExitMainLoop();
 		}
 
@@ -53,6 +55,12 @@ internal static class EngineLoop
 			using ( PerformanceStats.Timings.Render.Scope() )
 			{
 				wantsQuit = !EngineGlobal.SourceEngineFrame( appDict, time, previousTime );
+			}
+
+			if ( wantsQuit )
+			{
+				SoundHandle.Shutdown();
+				MixingThread.DrainDisposals();
 			}
 
 			try
@@ -226,7 +234,6 @@ internal static class EngineLoop
 		// Give each sound handle an opportunity to for a frame think
 		using ( PerformanceStats.Timings.Audio.Scope() )
 		{
-			SoundHandle.TickAll();
 			MixingThread.UpdateGlobals();
 		}
 
@@ -397,19 +404,29 @@ internal static class EngineLoop
 		convar.Run( args );
 	}
 
+	static Superluminal _clientOutput = new Superluminal( "OnClientOutput", "#3a6ea5" );
+	static Superluminal _toolsRender = new Superluminal( "Tools Render", "#6e6e3a" );
+	static Superluminal _gameRender = new Superluminal( "Game Render", "#3a6e4d" );
+	static Superluminal _menuRender = new Superluminal( "Menu Render", "#6e3a6e" );
+
 	internal static void OnClientOutput()
 	{
+		using var _outputScope = _clientOutput.Start();
+
 		// The editor renders it's own game scene
 		if ( Application.IsEditor )
 		{
-			IToolsDll.Current?.OnRender();
+			using ( _toolsRender.Start() )
+				IToolsDll.Current?.OnRender();
 			return;
 		}
 
 		var engineChain = g_pEngineServiceMgr.GetEngineSwapChain();
 
-		IGameInstanceDll.Current?.OnRender( engineChain );
-		IMenuDll.Current?.OnRender( engineChain );
+		using ( _gameRender.Start() )
+			IGameInstanceDll.Current?.OnRender( engineChain );
+		using ( _menuRender.Start() )
+			IMenuDll.Current?.OnRender( engineChain );
 	}
 
 	/// <summary>

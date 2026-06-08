@@ -25,7 +25,6 @@ internal unsafe class SteamLobbyConnection : Connection, IValid
 	}
 
 	public string Description => "Steam Lobby Connection";
-	public override string Name => Friend.Name;
 
 	private RealTimeUntil timeUntilFetchStats;
 	private ConnectionStats cachedStats;

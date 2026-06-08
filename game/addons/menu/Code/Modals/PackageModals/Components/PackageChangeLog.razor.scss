@@ -1,0 +1,46 @@
+@import "/styles/_theme.scss";
+
+PackageChangeLog
+{
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.changelist-row
+{
+    flex-direction: row;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 9px;
+    font-size: $text-small;
+    font-family: $font-default;
+    cursor: pointer;
+    padding: 2px 4px;
+    margin: 0 -4px;
+    border-radius: $rounding-small;
+    transition: background-color 120ms $easing;
+
+    .changelist-title
+    {
+        flex-grow: 1;
+        color: $default-100;
+        font-weight: 500;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        overflow: hidden;
+    }
+
+    .changelist-time
+    {
+        flex-shrink: 0;
+        color: $default-400;
+        font-weight: 600;
+    }
+
+    &:hover
+    {
+        background-color: rgba( $default-50, 0.06 );
+
+        .changelist-title { color: $default-text; }
+    }
+}

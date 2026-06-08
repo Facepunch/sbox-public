@@ -617,8 +617,7 @@ public static partial class Networking
 
 		return new DisposeAction( () =>
 		{
-			System.IsDisconnecting = false;
-
+			System?.IsDisconnecting = false;
 			Disconnect();
 		} );
 	}

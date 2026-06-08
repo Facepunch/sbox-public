@@ -374,7 +374,7 @@ public class CompileGroup : IDisposable
 			// give it a few seconds to build..
 			//
 
-			const double timeoutSeconds = 60d;
+			const double timeoutSeconds = 120d;
 
 			var output = await compiler.GetCompileOutputAsync().WaitAsync( TimeSpan.FromSeconds( timeoutSeconds ) );
 

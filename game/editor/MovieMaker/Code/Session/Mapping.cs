@@ -344,7 +344,7 @@ partial class Session
 	{
 		// Negative deltas aren't supported :(
 
-		var dt = Math.Min( (float)deltaTime.Absolute.TotalSeconds, 1f );
+		var dt = (float)deltaTime.Clamp( (MovieTime.Zero, MovieTime.FromSeconds( 0.25 )) ).TotalSeconds;
 
 		Time.Delta = dt;
 

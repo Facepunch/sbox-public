@@ -142,7 +142,7 @@ internal partial class NetworkSystem
 		if ( !IsHost )
 			return;
 
-		Log.Info( $"{source.DisplayName} [{source.SteamId}] disconnected" );
+		Log.Info( $"{source.Name} [{source.SteamId}] disconnected" );
 
 		ConnectionInfo.Remove( source.Id );
 		OnConnectionInfoUpdated();

@@ -273,13 +273,13 @@ public sealed partial class AmbientOcclusion : BasePostProcess<AmbientOcclusion>
 
 			commands.ResourceBarrierTransition( UpsampledAO, ResourceState.PixelShaderResource );
 
-			commands.GlobalAttributes.Set( "ScreenSpaceAmbientOcclusionTexture", UpsampledAO.ColorIndex );
+			commands.SetPipelineTexture( PipelineTextureSlot.AmbientOcclusion, UpsampledAO.ColorTexture );
 		}
 		else
 		{
 			commands.ResourceBarrierTransition( AOTextureCurrent, ResourceState.PixelShaderResource );
 
-			commands.GlobalAttributes.Set( "ScreenSpaceAmbientOcclusionTexture", AOTextureCurrent.ColorIndex );
+			commands.SetPipelineTexture( PipelineTextureSlot.AmbientOcclusion, AOTextureCurrent.ColorTexture );
 		}
 
 		InsertCommandList( commands, Stage.AfterDepthPrepass, 0, "Ambient Occlusion" );

@@ -7,7 +7,7 @@ namespace Sandbox;
 /// <summary>
 /// A physics surface. This is applied to each <see cref="PhysicsShape">PhysicsShape</see> and controls its physical properties and physics related sounds.
 /// </summary>
-[AssetType( Name = "Surface Description", Extension = "surface", Category = "Physics", Flags = AssetTypeFlags.NoEmbedding )]
+[AssetType( Name = "Surface Description", Extension = "surface", Category = "Physics", Flags = AssetTypeFlags.NoEmbedding, IconColor = "#4596ec" )]
 public partial class Surface : GameResource
 {
 	/// <summary>

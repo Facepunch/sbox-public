@@ -205,10 +205,12 @@ namespace Sandbox.UI
 				val.y = x;
 			}
 
-			p = p.SkipWhitespaceAndNewlines();
+			p = p.SkipWhitespaceAndNewlines( "," );
 
 			if ( p.TryReadFloat( out var y ) )
 				val.y = y;
+
+			p = p.SkipWhitespaceAndNewlines( "," );
 
 			if ( is3d && p.TryReadFloat( out var z ) )
 				val.z = z;

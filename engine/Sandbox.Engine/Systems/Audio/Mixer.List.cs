@@ -24,9 +24,10 @@ public partial class Mixer
 
 		var music = newMaster.AddChild();
 		music.Name = "Music";
-		music.Spacializing = 0;
+		music.Spatializing = 0;
 		music.DistanceAttenuation = 0;
 		music.Occlusion = 0;
+		music.Reverb = 0;
 		music.AirAbsorption = 0;
 
 		var game = newMaster.AddChild();
@@ -34,9 +35,10 @@ public partial class Mixer
 
 		var ui = newMaster.AddChild();
 		ui.Name = "UI";
-		ui.Spacializing = 0;
+		ui.Spatializing = 0;
 		ui.DistanceAttenuation = 0;
 		ui.Occlusion = 0;
+		ui.Reverb = 0;
 		ui.AirAbsorption = 0;
 
 		var voice = newMaster.AddChild();

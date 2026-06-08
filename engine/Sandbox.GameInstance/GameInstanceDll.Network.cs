@@ -56,11 +56,6 @@ internal partial class GameInstanceDll
 
 		if ( Networking.IsHost )
 		{
-			if ( Application.GamePackage is { } gamePackage )
-			{
-				ServerPackages.AddRequirement( gamePackage );
-			}
-
 			AddFilesToNetwork( NetworkedConfigFiles, EngineFileSystem.ProjectSettings, [".config"] );
 			AddFilesToNetwork( NetworkedLangFiles, Game.Language.FileSystem, [".json"] );
 			BuildNetworkedFiles();
@@ -92,12 +87,10 @@ internal partial class GameInstanceDll
 		var instance = new SceneNetworkSystem( TypeLibrary, system );
 
 		NetworkedLargeFiles.NetworkInitialize( instance );
+		Platform.Chat.NetworkInitialize( instance );
 
 		if ( Networking.IsHost )
 		{
-			if ( Application.GamePackage is { } gamePackage )
-				ServerPackages.AddRequirement( gamePackage );
-
 			AddFilesToNetwork( NetworkedConfigFiles, EngineFileSystem.ProjectSettings, [".config"] );
 			AddFilesToNetwork( NetworkedLangFiles, Game.Language.FileSystem, [".json"] );
 			BuildNetworkedFiles();

@@ -77,6 +77,103 @@ native class CModel as NativeEngine.IModel
 		return pMesh->m_sceneObjects[nSceneObject].m_drawCalls[nDrawCall].GetMaterial();
 	}
 
+	inline void GetTotalMeshCounts( out int totalVertices, out int totalTriangles, out int totalDrawCalls )
+	{
+		*totalVertices = 0;
+		*totalTriangles = 0;
+		*totalDrawCalls = 0;
+
+		for ( int i = 0; i < self->GetNumMeshes(); i++ )
+		{
+			const CRenderMesh *pMesh = self->GetMeshData( i );
+			if ( !pMesh ) continue;
+			int v, t, d;
+			pMesh->CalculateNumTriangles( &v, &t, &d );
+			*totalVertices += v;
+			*totalTriangles += t;
+			*totalDrawCalls += d;
+		}
+	}
+
+	inline void GetMeshInfo( int iMesh, out int vertexCount, out int triangleCount, out int drawCallCount, out int lodMask, out int translucencyType, out Vector3 boundsMin, out Vector3 boundsMax )
+	{
+		*vertexCount = 0;
+		*triangleCount = 0;
+		*drawCallCount = 0;
+		*lodMask = 0;
+		*translucencyType = 0;
+		*boundsMin = Vector( 0, 0, 0 );
+		*boundsMax = Vector( 0, 0, 0 );
+
+		const CRenderMesh *pMesh = self->GetMeshData( iMesh );
+		if ( !pMesh ) return;
+
+		pMesh->CalculateNumTriangles( vertexCount, triangleCount, drawCallCount );
+		*lodMask = self->GetLODMaskForMesh( iMesh );
+		*translucencyType = (int)pMesh->m_translucencyType;
+		*boundsMin = pMesh->m_vMinBounds;
+		*boundsMax = pMesh->m_vMaxBounds;
+	}
+
+	inline string GetMeshName( int iMesh )
+	{
+		const CRenderMesh *pMesh = self->GetMeshData( iMesh );
+		if ( !pMesh ) return "";
+		return pMesh->GetName();
+	}
+
+	inline void GetDrawCallInfo( int iMesh, int iDrawCall, out int vertexCount, out int indexCount, out int primitiveType, out float uvDensity, out int instanceCount, out int alphaBlended )
+	{
+		*vertexCount = 0;
+		*indexCount = 0;
+		*primitiveType = 0;
+		*uvDensity = 0.0f;
+		*instanceCount = 0;
+		*alphaBlended = 0;
+
+		const CRenderMesh *pMesh = self->GetMeshData( iMesh );
+		if ( !pMesh ) return;
+
+		// Flatten draw calls across scene objects to match the flat index from CalculateNumTriangles
+		int flatIndex = 0;
+		for ( int iSO = 0; iSO < pMesh->m_sceneObjects.Count(); iSO++ )
+		{
+			int nDraws = pMesh->m_sceneObjects[iSO].GetNumDrawCalls();
+			if ( iDrawCall < flatIndex + nDraws )
+			{
+				const CMaterialDrawDescriptor *pDraw = pMesh->m_sceneObjects[iSO].GetDrawCall( iDrawCall - flatIndex );
+				*vertexCount = pDraw->m_nVertexCount;
+				*indexCount = pDraw->m_nIndexCount;
+				*primitiveType = (int)pDraw->m_nPrimitiveType;
+				*uvDensity = pDraw->m_flUvDensity;
+				*instanceCount = pDraw->m_nInstanceCount;
+				*alphaBlended = pDraw->m_bAlphaBlendedMaterial != 0 ? 1 : 0;
+				return;
+			}
+			flatIndex += nDraws;
+		}
+	}
+
+	inline IMaterial GetDrawCallMaterial( int iMesh, int iDrawCall )
+	{
+		const CRenderMesh *pMesh = self->GetMeshData( iMesh );
+		if ( !pMesh ) return nullptr;
+
+		HMaterial result;
+		int flatIndex = 0;
+		for ( int iSO = 0; iSO < pMesh->m_sceneObjects.Count(); iSO++ )
+		{
+			int nDraws = pMesh->m_sceneObjects[iSO].GetNumDrawCalls();
+			if ( iDrawCall < flatIndex + nDraws )
+			{
+				result = pMesh->m_sceneObjects[iSO].GetDrawCall( iDrawCall - flatIndex )->GetMaterial();
+				break;
+			}
+			flatIndex += nDraws;
+		}
+		return result;
+	}
+
 	int GetNumMeshes();
 	int ComputeMaxLODLevelUsedByModel();
 	int LODLevelForScreenSize( float flScreenWidthInPixels, float scale );
@@ -144,7 +241,7 @@ native class CModel as NativeEngine.IModel
 
 	HAnimationGraph GetAnimationGraph();
 
-	CPhysAggregateData GetPhysicsContainer();
+	CPhysicsData GetPhysicsContainer();
 
 	// Hitboxes
 	//int GetBoneIndexForHitboxForMesh( const CHitBox *pHitBox, int nMesh ) const;

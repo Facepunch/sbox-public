@@ -97,6 +97,33 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 		}
 	} = 0.0f;
 
+	/// <summary>
+	/// Which lighting terms this light is allowed to contribute to. For example,
+	/// turn off <see cref="LightContribution.Specular"/> to stop a light producing highlights.
+	/// </summary>
+	[Property, EnumButtonGroup, Title( "Contributes" )]
+	public LightContribution Contribution
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			ApplyContribution();
+		}
+	} = LightContribution.Diffuse | LightContribution.Specular | LightContribution.Transmissive;
+
+	void ApplyContribution()
+	{
+		if ( !_sceneObject.IsValid() )
+			return;
+
+		_sceneObject.RenderDiffuse = Contribution.HasFlag( LightContribution.Diffuse );
+		_sceneObject.RenderSpecular = Contribution.HasFlag( LightContribution.Specular );
+		_sceneObject.RenderTransmissive = Contribution.HasFlag( LightContribution.Transmissive );
+	}
+
 	Color IColorProvider.ComponentColor => LightColor;
 
 	Color ITintable.Color { get => LightColor; set => LightColor = value; }
@@ -109,6 +136,31 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 		Enabled = SceneLight.FogLightingMode.Dynamic,
 		[Icon( "blur_on" )]
 		WithoutShadows = SceneLight.FogLightingMode.DynamicNoShadows
+	}
+
+	/// <summary>
+	/// Which lighting terms a light is allowed to contribute to.
+	/// </summary>
+	[Flags]
+	public enum LightContribution
+	{
+		/// <summary>
+		/// Soft, even shading across a surface.
+		/// </summary>
+		[Icon( "wb_sunny" )]
+		Diffuse = 1,
+
+		/// <summary>
+		/// Glossy highlights and reflections.
+		/// </summary>
+		[Icon( "auto_awesome" )]
+		Specular = 2,
+
+		/// <summary>
+		/// Light passing through surfaces (translucency / subsurface).
+		/// </summary>
+		[Icon( "opacity" )]
+		Transmissive = 4
 	}
 
 	protected override void OnAwake()
@@ -134,6 +186,7 @@ public abstract class Light : Component, IColorProvider, ExecuteInEditor, ITinta
 			_sceneObject.FogStrength = FogStrength;
 			_sceneObject.ShadowBias = ShadowBias;
 			_sceneObject.ShadowHardness = ShadowHardness;
+			ApplyContribution();
 
 			OnTransformChanged();
 			OnTagsChanged();
