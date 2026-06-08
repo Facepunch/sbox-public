@@ -321,7 +321,7 @@ public class BaseFileSystem
 	{
 		// Log.Trace( $"CreateFileSystem( {path} ) [{GetFullPath(path)}]" );
 
-		var sub = new Zio.FileSystems.SubFileSystem( system, FixPath( path ), false );
+		var sub = new Zio.FileSystems.SubFileSystem( system, FixPath( path ), false, false );
 		return new BaseFileSystem( sub );
 	}
 
