@@ -36,6 +36,66 @@ public class ProjectTests
 	}
 
 	/// <summary>
+	/// GetRootPath returns a non-null absolute path
+	/// </summary>
+	[TestMethod]
+	public void GetRootPathIsAbsolute()
+	{
+		var project = Project.AddFromFile( "unittest/addons/testmap/.sbproj" );
+		var rootPath = project.GetRootPath();
+
+		Assert.IsNotNull( rootPath );
+		Assert.IsTrue( System.IO.Path.IsPathRooted( rootPath ) );
+	}
+
+	/// <summary>
+	/// Get*Path returns paths rooted under the project root
+	/// </summary>
+	[TestMethod]
+	public void GetPathsAreRootedUnderProject()
+	{
+		var project = Project.AddFromFile( "unittest/addons/testmap/.sbproj" );
+		var rootPath = project.GetRootPath();
+
+		Assert.IsTrue( project.GetCodePath().StartsWith( rootPath ) );
+		Assert.IsTrue( project.GetAssetsPath().StartsWith( rootPath ) );
+		Assert.IsTrue( project.GetEditorPath().StartsWith( rootPath ) );
+		Assert.IsTrue( project.GetLocalizationPath().StartsWith( rootPath ) );
+	}
+
+	/// <summary>
+	/// GetProjectPath finds the .sbproj file via the ProjectFileSystem
+	/// </summary>
+	[TestMethod]
+	public void GetProjectPathFindsSbproj()
+	{
+		var project = Project.AddFromFile( "unittest/addons/testmap/.sbproj" );
+		var projectPath = project.GetProjectPath();
+
+		// Check .sbproj as ending and as full filename
+		Assert.IsNotNull( projectPath );
+		Assert.IsTrue( projectPath.EndsWith( ".sbproj" ) );
+		Assert.AreEqual( ".sbproj", System.IO.Path.GetFileName( projectPath ) ); 
+	}
+
+	/// <summary>
+	/// Has*Path returns correct existence based on which folders are present
+	/// </summary>
+	[TestMethod]
+	public void HasPathReflectsActualFolders()
+	{
+		var project = Project.AddFromFile( "addons/base/.sbproj" );
+
+		// at the time of writing this, /base/code is lowercase, so a CIPFS
+		// test on Linux can do an existence check and should pass even when
+		// asking for /base/Code instead.
+
+		Assert.IsTrue( project.HasAssetsPath() );
+		Assert.IsTrue( project.HasCodePath() );
+		Assert.IsFalse( project.HasEditorPath() );
+	}
+
+	/// <summary>
 	/// Find and load a local package
 	/// </summary>
 	[TestMethod]
