@@ -175,6 +175,7 @@ public partial class TypeLibrary
 		typeof(CurveRange),
 		typeof(RangedFloat),
 		typeof(TextFlag),
+		typeof(FindMode),
 
 		// UI
 		typeof(Sandbox.UI.OverflowMode),

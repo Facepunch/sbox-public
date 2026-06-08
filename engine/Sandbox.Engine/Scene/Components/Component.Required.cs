@@ -25,14 +25,15 @@ public partial class Component
 		var val = prop.GetValue( this );
 		if ( val is not null ) return;
 
-		var c = Components.Get( prop.PropertyType, FindMode.EverythingInSelf );
+		var findMode = prop.GetCustomAttribute<RequireComponentAttribute>()?.FindMode ?? FindMode.EverythingInSelf;
+		var c = Components.Get( prop.PropertyType, findMode );
 		if ( c is not null )
 		{
 			prop.SetValue( this, c );
 			return;
 		}
 
-		// Missing, so create it
+		// Missing in self, so create it. We try to match GetOrCreate's behaviour
 		{
 			var typeDesc = Game.TypeLibrary.GetType( prop.PropertyType );
 			prop.SetValue( this, Components.Create( typeDesc ) );
