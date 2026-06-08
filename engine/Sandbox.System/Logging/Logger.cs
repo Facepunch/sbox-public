@@ -71,7 +71,7 @@ public class Logger
 	{
 		if ( message is Exception ex )
 		{
-			Warning( ex, ex.Message );
+			WriteToTargets( NLog.LogLevel.Info, ex, $"{ex.Message}" );
 			return;
 		}
 
@@ -86,7 +86,7 @@ public class Logger
 	{
 		if ( message is Exception ex )
 		{
-			Warning( ex, ex.Message );
+			WriteToTargets( NLog.LogLevel.Trace, ex, $"{ex.Message}" );
 			return;
 		}
 

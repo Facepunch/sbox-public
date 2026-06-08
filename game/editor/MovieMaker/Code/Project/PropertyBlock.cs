@@ -36,7 +36,7 @@ public static class PropertyBlock
 	public static IProjectPropertyBlock FromSignal( PropertySignal signal, MovieTimeRange timeRange )
 	{
 		var propertyType = signal.PropertyType;
-		var blockType = typeof(PropertyBlock<>).MakeGenericType( propertyType );
+		var blockType = typeof( PropertyBlock<> ).MakeGenericType( propertyType );
 
 		return (IProjectPropertyBlock)Activator.CreateInstance( blockType, signal, timeRange )!;
 	}

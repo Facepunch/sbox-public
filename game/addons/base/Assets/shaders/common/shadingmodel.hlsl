@@ -166,11 +166,11 @@ class ShadingModelStandard
         if( DepthNormals::WantsDepthNormals() )
             return DepthNormals::Output( m.Normal, m.Roughness, color.a );
 
-        if( ToolsVis::WantsToolsVis() )
-            return DoToolsVis( color, m, lightingTerms );
-
         if ( g_bWireframeMode )
             return g_vWireframeColor;
+
+        if( ToolsVis::WantsToolsVis() )
+            return DoToolsVis( color, m, lightingTerms );
 
         // Composite atmospherics after lighting
         color = DoAtmospherics( m.WorldPosition, m.ScreenPosition.xy, color );

@@ -48,8 +48,10 @@ internal partial class PanelRenderer
 		if ( panel.HasPanelLayer )
 			return Panel.RenderMode.Layer;
 
+		if ( panel is IPanelDraw ) return Panel.RenderMode.Inline;
 		if ( panel is ScenePanel ) return Panel.RenderMode.Inline;
 		if ( panel is BasePopup ) return Panel.RenderMode.Inline;
+		if ( panel.HasCustomDraw ) return Panel.RenderMode.Inline;
 
 		return Panel.RenderMode.Batched;
 	}

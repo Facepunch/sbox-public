@@ -162,7 +162,7 @@ public partial class RenderSettings
 		ResolutionWidth = desktopWidth;
 		ResolutionHeight = desktopHeight;
 
-		Fullscreen = true;
+		Fullscreen = false;
 		Borderless = true;
 		VSync = true;
 		AntiAliasQuality = MultisampleAmount.Multisample8x;

@@ -76,6 +76,12 @@ PauseModal.modal > .inner > .bottom-bar
 			background-color: #575e6b;
 			color: #b5bdd6;
 
+			&.active
+			{
+				background-color: #9dcc00;
+				color: #fff;
+			}
+
 			&:hover
 			{
 				background-color: #9dcc00;

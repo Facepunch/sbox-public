@@ -9,11 +9,6 @@ internal static partial class Api
 		private static List<EventRecord> Pending = new();
 
 		/// <summary>
-		/// Only ~1% of users will submit analytic events, determined by SteamId.
-		/// </summary>
-		internal static bool SamplingEnabled { get; set; }
-
-		/// <summary>
 		/// Add an event to the queue. You should not use this event again.
 		/// </summary>
 		private static void Add( EventRecord e )
@@ -21,7 +16,7 @@ internal static partial class Api
 			if ( !Application.IsRetail || Application.IsStandalone )
 				return;
 
-			if ( !SamplingEnabled )
+			if ( !AccountInformation.UseAnalytics )
 				return;
 
 			Pending.Add( e );

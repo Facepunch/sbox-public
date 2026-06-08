@@ -3,8 +3,10 @@
 PackageInfoPanel
 {
     flex-direction: column;
+    overflow: hidden;
     overflow-y: scroll;
     flex-grow: 1;
+    flex-shrink: 0;
 }
 
 .media-wrapper
@@ -71,29 +73,47 @@ PackageInfoPanel
 {
     flex-direction: column;
     flex-grow: 1;
+    flex-shrink: 0;
     padding: 4px 10px 10px 10px;
     gap: 5px;
 }
 
-// Card content layout — info panel cards and achievements card share these
+// Card content layout — info panel cards and achievements card share these.
+// Flat fill (no gradient) with a hairline border reads cleaner than the default Card.
 PackageInfoPanel Card,
 Card.achievements-card
 {
     flex-direction: column;
-    padding: 10px 12px;
-    gap: 6px;
+    padding: 11px 13px;
+    gap: 7px;
     flex-grow: 0;
+    flex-shrink: 0;
+    background: $default-900;
+    border: 1px solid $default-border;
+    border-radius: $rounding-large;
+}
+
+// The achievements card is a button, so give it a clear interactive state
+Card.achievements-card
+{
+    transition: background-color 120ms $easing, border-color 120ms $easing;
+
+    &:hover
+    {
+        background: $default-800;
+        border-color: rgba( $default-50, 0.18 );
+    }
 }
 
 .section-label
 {
     font-size: $text-eyebrow;
     font-weight: 700;
-    letter-spacing: 1px;
+    letter-spacing: 1.2px;
     text-transform: uppercase;
-    color: $default-400;
+    color: $default-300;
     font-family: $font-heading;
-    margin-bottom: 2px;
+    margin-bottom: 3px;
 }
 
 .info-row
@@ -108,13 +128,25 @@ Card.achievements-card
 
     i
     {
-        font-size: 14px;
-        color: $default-500;
+        font-size: 15px;
+        color: $default-400;
         flex-shrink: 0;
         width: 16px;
     }
 
     label { flex-grow: 1; }
+
+    &.clickable
+    {
+        cursor: pointer;
+
+        &:hover
+        {
+            color: $default-text;
+
+            i { color: $primary-blue; }
+        }
+    }
 }
 
 .tag-list
@@ -127,11 +159,18 @@ Card.achievements-card
 .tag
 {
     padding: 3px 8px;
-    background-color: $default-800;
+    background-color: rgba( $default-50, 0.04 );
     border: 1px solid $default-border;
     border-radius: $rounding-small;
     font-size: $text-eyebrow;
     font-weight: 600;
-    color: $default-300;
+    color: $default-200;
     font-family: $font-default;
+    transition: background-color 120ms $easing, color 120ms $easing;
+
+    &:hover
+    {
+        background-color: rgba( $default-50, 0.09 );
+        color: $default-100;
+    }
 }

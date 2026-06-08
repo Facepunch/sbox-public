@@ -589,6 +589,7 @@ namespace Topten.RichTextKit
 				switch ( ResolveTextAlignment() )
 				{
 					case TextAlignment.Left:
+					case TextAlignment.Justify: // justified text is anchored left and fills the width
 						r.Left = 0;
 						r.Right = _maxWidthResolved - _measuredWidth;
 						return r;
@@ -1952,6 +1953,12 @@ namespace Topten.RichTextKit
 					case TextAlignment.Center:
 						xAdjust = ((_maxWidth ?? _measuredWidth) - line.Width) / 2;
 						break;
+
+					case TextAlignment.Justify:
+						// Justify works by widening the spaces in-place rather than shifting the whole
+						// line, so it leaves xAdjust at 0 and adjusts glyph positions itself.
+						JustifyLine( line );
+						break;
 				}
 
 				// Position each run
@@ -1969,6 +1976,105 @@ namespace Topten.RichTextKit
 			while ( _fontRuns.Count > 0 && _fontRuns[_fontRuns.Count - 1].Line == null )
 			{
 				_fontRuns.RemoveAt( _fontRuns.Count - 1 );
+			}
+		}
+
+		/// <summary>
+		/// Distributes the slack on a line across its inter-word spaces so the line fills the available
+		/// width (CSS <c>text-align: justify</c>). The last line of a paragraph is left unjustified and
+		/// only left-to-right content is handled. Mutates glyph positions and code-point x-coords together
+		/// so rendering and hit-testing stay consistent. Called from <see cref="FinalizeLines"/> while the
+		/// glyph positions are still relative to their run, before they're moved into final position.
+		/// </summary>
+		void JustifyLine( TextLine line )
+		{
+			var runs = line.Runs;
+			if ( runs.Count == 0 )
+				return;
+
+			// The last line of the block isn't justified.
+			if ( line == _lines[_lines.Count - 1] )
+				return;
+
+			// Don't justify a line that ends at a hard line break (the last line of a paragraph).
+			var lastCps = runs[runs.Count - 1].CodePoints;
+			if ( lastCps.Length > 0 )
+			{
+				int last = lastCps[lastCps.Length - 1];
+				if ( last == '\n' || last == '\r' || last == 0x2028 || last == 0x2029 )
+					return;
+			}
+
+			// Right-to-left justification isn't implemented; leave those lines as laid out.
+			for ( int i = 0; i < runs.Count; i++ )
+			{
+				if ( runs[i].Direction == TextDirection.RTL )
+					return;
+			}
+
+			// How much width to make up, and how many spaces to spread it across.
+			float target = _maxWidth ?? _measuredWidth;
+			float slack = target - line.Width;
+			if ( slack <= 0.01f )
+				return;
+
+			int gaps = 0;
+			for ( int i = 0; i < runs.Count; i++ )
+			{
+				var run = runs[i];
+				if ( run.RunKind == FontRunKind.TrailingWhitespace )
+					break;
+
+				var cps = run.CodePoints;
+				for ( int c = 0; c < cps.Length; c++ )
+				{
+					if ( cps[c] == ' ' )
+						gaps++;
+				}
+			}
+
+			if ( gaps == 0 )
+				return;
+
+			float extra = slack / gaps;
+
+			// Walk the runs left-to-right. Within a run, each code point is shifted right by the space
+			// opened up before it; 'lineShift' carries that running total forward between runs.
+			float lineShift = 0;
+			for ( int i = 0; i < runs.Count; i++ )
+			{
+				var run = runs[i];
+				run.XCoord += lineShift;
+
+				if ( run.RunKind == FontRunKind.TrailingWhitespace )
+					continue;
+
+				var cps = run.CodePoints;
+
+				// Per code-point shift: a space adds 'extra' to everything after it.
+				var shift = new float[cps.Length];
+				float acc = 0;
+				for ( int c = 0; c < cps.Length; c++ )
+				{
+					shift[c] = acc;
+					if ( cps[c] == ' ' )
+						acc += extra;
+				}
+
+				// Glyph positions (rendering): map each glyph to its code point via the cluster.
+				for ( int g = 0; g < run.GlyphPositions.Length; g++ )
+				{
+					int cp = run.Clusters[g] - run.Start;
+					if ( cp >= 0 && cp < shift.Length )
+						run.GlyphPositions[g].X += shift[cp];
+				}
+
+				// Code-point x-coords (hit-testing / caret) shifted the same way.
+				for ( int c = 0; c < run.RelativeCodePointXCoords.Length && c < shift.Length; c++ )
+					run.RelativeCodePointXCoords[c] += shift[c];
+
+				run.Width += acc;
+				lineShift += acc;
 			}
 		}
 

@@ -123,7 +123,7 @@ public static class EditorShortcuts
 		}
 	}
 
-	internal static void ReleaseAll()
+	public static void ReleaseAll()
 	{
 		foreach ( var entry in Entries )
 		{

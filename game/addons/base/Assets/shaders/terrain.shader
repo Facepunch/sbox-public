@@ -86,7 +86,8 @@ VS
         geoNormal = normalize( mul( Terrain::Get().Transform, float4( geoNormal, 0.0 ) ).xyz );
 
         // Vertex displacement
-        if ( g_bVertexDisplacement )
+    #if ( D_GRID == 0 )
+        if ( g_bVertexDisplacement && Terrain::Get().ControlMapTexture != 0 )
         {
             // Blend displacement between all materials
             float totalDisplacement = 0.0f;
@@ -104,7 +105,7 @@ VS
                 baseLayerUV = Terrain_SampleSeamlessUV( baseLayerUV );
 
             float4 baseNho = Bindless::GetTexture2D( mat.nho_texid ).SampleLevel( g_sAnisotropic, baseLayerUV, 0 );
-            float baseDisplacement = baseNho.b * mat.displacementscale;
+            float baseDisplacement = ( baseNho.b - 0.5f ) * 2.0f * mat.displacementscale;
             
             // Sample overlay material displacement
             mat = g_TerrainMaterials[material.OverlayTextureId];
@@ -114,7 +115,7 @@ VS
                 overlayLayerUV = Terrain_SampleSeamlessUV( overlayLayerUV );
 
             float4 overlayNho = Bindless::GetTexture2D( mat.nho_texid ).SampleLevel( g_sAnisotropic, overlayLayerUV, 0 );
-            float overlayDisplacement = overlayNho.b * mat.displacementscale;
+            float overlayDisplacement = ( overlayNho.b - 0.5f ) * 2.0f * mat.displacementscale;
             
             // Blend between base and overlay displacement
             float blend = material.GetNormalizedBlend();
@@ -130,6 +131,7 @@ VS
             // Displace vertex along geometric normal
             o.LocalPosition.xyz += geoNormal * totalDisplacement * displacementFade;
         }
+    #endif
 
         o.WorldPosition = mul( Terrain::Get().Transform, float4( o.LocalPosition, 1.0 ) ).xyz;
         o.PixelPosition = Position3WsToPs( o.WorldPosition.xyz );

@@ -19,17 +19,15 @@ class ClutterLayer
 	private Dictionary<Vector2Int, List<ClutterInstance>> ModelInstancesByTile { get; } = [];
 
 	/// <summary>
-	/// Batches organized by model, containing all instances across all tiles in this layer.
+	/// Batches organized by (model, lod level), containing all instances across all tiles in this layer.
 	/// </summary>
-	private readonly Dictionary<Model, ClutterBatchSceneObject> _batches = [];
+	private readonly Dictionary<(Model, int), ClutterBatchSceneObject> _batches = [];
 
 	private int _lastSettingsHash;
 	private const float TileHeight = 50000f;
-
-	/// <summary>
-	/// batches need to be rebuilt
-	/// </summary>
+	private const float LodRebuildThreshold = 50f;
 	private bool _dirty = false;
+	private Vector3 _lastLodCameraPos;
 
 	public ClutterLayer( ClutterSettings settings, GameObject parentObject, ClutterGridSystem gridSystem )
 	{
@@ -100,36 +98,27 @@ class ClutterLayer
 
 		// Remove out-of-range tiles
 		var toRemove = Tiles.Keys.Where( coord => !activeCoords.Contains( coord ) ).ToList();
-		if ( toRemove.Count > 0 )
+		foreach ( var coord in toRemove )
 		{
-			foreach ( var coord in toRemove )
+			if ( Tiles.Remove( coord, out var tile ) )
 			{
-				if ( Tiles.Remove( coord, out var tile ) )
-				{
-					// Remove from pending set first to prevent queue buildup
-					GridSystem?.RemovePendingTile( tile );
-					tile.Destroy();
-
-					// Remove model instances for this tile
-					ModelInstancesByTile.Remove( coord );
-				}
+				GridSystem?.RemovePendingTile( tile );
+				tile.Destroy();
+				ModelInstancesByTile.Remove( coord );
 			}
-			_dirty = true;
 		}
+		if ( toRemove.Count > 0 ) _dirty = true;
 
-		// Rebuild batches if needed
-		if ( _dirty && jobs.Count == 0 )
+		var shouldRebuild = _dirty || Vector3.DistanceBetween( center, _lastLodCameraPos ) >= LodRebuildThreshold;
+		if ( shouldRebuild && jobs.Count == 0 )
 		{
+			_lastLodCameraPos = center;
 			RebuildBatches();
 		}
 
 		return jobs;
 	}
 
-	/// <summary>
-	/// Called when a tile has been populated with instances.
-	/// Marks batches as dirty so they'll be rebuilt.
-	/// </summary>
 	public void OnTilePopulated( ClutterTile tile )
 	{
 		_dirty = true;
@@ -160,49 +149,76 @@ class ClutterLayer
 		instances.Add( instance );
 	}
 
-	/// <summary>
-	/// Rebuilds all batches from scratch using all populated tiles.
-	/// </summary>
 	public void RebuildBatches()
 	{
-		var sceneWorld = ParentObject?.Scene?.SceneWorld ?? GridSystem?.Scene?.SceneWorld;
-		if ( sceneWorld == null )
-		{
-			_dirty = false;
-			return;
-		}
+		var scene = ParentObject?.Scene ?? GridSystem?.Scene;
+		if ( scene?.SceneWorld == null ) { _dirty = false; return; }
 
-		// Group instances by model
-		var instancesByModel = ModelInstancesByTile.Values
-			.SelectMany( instances => instances )
-			.Where( i => i.Entry?.Model != null )
-			.GroupBy( i => i.Entry.Model )
-			.ToDictionary( g => g.Key, g => g.ToList() );
+		var camera = scene.Camera;
 
 		foreach ( var batch in _batches.Values )
 			batch.Clear();
 
-		foreach ( var (model, instances) in instancesByModel )
-		{
-			if ( !_batches.TryGetValue( model, out var batch ) )
-			{
-				batch = new ClutterBatchSceneObject( sceneWorld );
-				_batches[model] = batch;
-			}
+		var activeKeys = new HashSet<(Model, int)>();
 
+		foreach ( var (tileCoord, instances) in ModelInstancesByTile )
+		{
 			foreach ( var instance in instances )
+			{
+				if ( instance.Entry?.Model == null ) continue;
+
+				var model = instance.Entry.Model;
+				var lod = 0;
+				if ( camera?.SceneCamera is not null )
+				{
+					var scale = instance.Transform.Scale;
+					var instanceScale = MathF.Max( scale.x, MathF.Max( scale.y, scale.z ) );
+					var radius = model.Bounds.Size.Length * 0.5f * instanceScale;
+					var screenPixels = camera.SceneCamera.ComputeScreenSizeInPixels( instance.Transform.Position, radius );
+					lod = model.GetLodLevelForScreenSize( screenPixels, instanceScale );
+				}
+
+				var key = (model, lod);
+				activeKeys.Add( key );
+
+				if ( !_batches.TryGetValue( key, out var batch ) )
+				{
+					batch = new ClutterBatchSceneObject( scene.SceneWorld, lod );
+					_batches[key] = batch;
+				}
+
 				batch.AddInstance( instance );
-
-			batch.BuildCommandList();
+			}
 		}
 
-		var toRemove = _batches.Keys.Where( m => !instancesByModel.ContainsKey( m ) ).ToList();
-		foreach ( var model in toRemove )
+		foreach ( var key in activeKeys )
+			_batches[key].BuildCommandList();
+
+		// Remove batches that are no longer needed
+		foreach ( var key in _batches.Keys.Where( k => !activeKeys.Contains( k ) ).ToList() )
 		{
-			_batches[model].Delete();
-			_batches.Remove( model );
+			_batches[key].Delete();
+			_batches.Remove( key );
 		}
 
+		_dirty = false;
+	}
+
+	public void ClearAllTiles()
+	{
+		foreach ( var tile in Tiles.Values )
+		{
+			GridSystem?.RemovePendingTile( tile );
+			tile.Destroy();
+		}
+
+		Tiles.Clear();
+		ModelInstancesByTile.Clear();
+
+		foreach ( var batch in _batches.Values )
+			batch.Delete();
+
+		_batches.Clear();
 		_dirty = false;
 	}
 
@@ -241,27 +257,6 @@ class ClutterLayer
 					_dirty = true;
 				}
 			}
-	}
-
-	public void ClearAllTiles()
-	{
-		// Remove any pending tiles from the grid system
-		foreach ( var tile in Tiles.Values )
-		{
-			GridSystem?.RemovePendingTile( tile );
-			tile.Destroy();
-		}
-
-		Tiles.Clear();
-		ModelInstancesByTile.Clear();
-
-		// Clear all batches
-		foreach ( var batch in _batches.Values )
-		{
-			batch.Delete();
-		}
-		_batches.Clear();
-		_dirty = false;
 	}
 
 	private Vector2Int WorldToTile( Vector3 worldPos ) => new(

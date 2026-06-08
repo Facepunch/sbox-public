@@ -301,7 +301,7 @@ public sealed class Door : Component, Component.IPressable
 		if ( OpenSound is not null )
 			PlaySound( OpenSound );
 
-		Run( OnOpen, c => c.SetArgument( "user", _lastPresser ) );
+		RunDoo( OnOpen, c => c.SetArgument( "user", _lastPresser ) );
 
 		if ( Mode == DoorMode.Rotating && OpenAwayFromPlayer && presser.IsValid() )
 		{
@@ -336,7 +336,7 @@ public sealed class Door : Component, Component.IPressable
 		if ( CloseSound is not null )
 			PlaySound( CloseSound );
 
-		Run( OnClose );
+		RunDoo( OnClose );
 
 		if ( LinkedDoor.IsValid() && LinkedDoor != this )
 		{

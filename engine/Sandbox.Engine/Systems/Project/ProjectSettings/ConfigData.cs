@@ -11,6 +11,12 @@ public abstract class ConfigData
 	[JsonPropertyName( "__guid" ), Hide]
 	public Guid Guid { get; set; } = Guid.NewGuid();
 
+	/// <summary>
+	/// Whether this config was loaded from a file on disk, or created with code defaults.
+	/// </summary>
+	[JsonIgnore, Hide]
+	public bool LoadedFromDisk { get; internal set; }
+
 	[JsonIgnore, Hide]
 	public virtual int Version => 1;
 

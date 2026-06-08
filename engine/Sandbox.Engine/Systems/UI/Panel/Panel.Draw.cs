@@ -84,21 +84,30 @@ public partial class Panel
 		/// <param name="size">Font size in pixels.</param>
 		/// <param name="color">Text color.</param>
 		/// <param name="flags">Text alignment and layout flags. Defaults to <see cref="TextFlag.LeftTop"/>.</param>
-		public static void Text( string text, Rect rect, float size, Color color, TextFlag flags = TextFlag.LeftTop )
+		/// <param name="font">Font family name. Defaults to "Roboto".</param>
+		public static void Text( string text, Rect rect, float size, Color color, TextFlag flags = TextFlag.LeftTop, string font = "Roboto" )
 		{
-			var scope = new TextRendering.Scope( text, color, size );
-			var texture = TextRendering.GetOrCreateTexture( scope, rect.Size, flags );
+			var buf = UIDrawBuffer.Current;
+			var scale = buf.ScaleToScreen;
+
+			var scope = new TextRendering.Scope( text, color, size * scale, font );
+			var tb = TextRendering.GetOrCreateTextBlock( scope, flags, rect.Size == default ? new Vector2( 8096 ) : rect.Size );
+			tb.MakeReady();
+			var texture = tb.Texture;
 			if ( texture is null ) return;
 
-			var textRect = rect.Align( texture.Size, flags );
+			var textRect = rect.Align( texture.Size, flags ).Floor();
+			var tint = Color.White;
+			tint.a *= buf.Opacity;
 
-			UIDrawBuffer.Current.AddBox( new BoxDrawDescriptor( textRect, Color.White )
+			buf.AddBox( new BoxDrawDescriptor( textRect, Color.Transparent )
 			{
 				BackgroundImage = texture,
 				BackgroundRect = new Vector4( 0, 0, textRect.Width, textRect.Height ),
-				BackgroundTint = color,
+				BackgroundTint = tint,
 				OverrideBlendMode = BlendMode.PremultipliedAlpha,
 				PremultiplyAlpha = true,
+				FilterMode = FilterMode.Bilinear,
 			} );
 		}
 

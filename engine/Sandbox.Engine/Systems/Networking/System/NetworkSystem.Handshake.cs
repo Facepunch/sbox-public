@@ -1,5 +1,4 @@
-﻿using Sandbox.Engine;
-using Sandbox.Internal;
+using Sandbox.Engine;
 
 namespace Sandbox.Network;
 
@@ -130,7 +129,7 @@ internal partial class NetworkSystem
 		if ( source.State != Connection.ChannelState.LoadingServerInformation )
 		{
 			source.Kick( $"Invalid Handshake State {source.State}" );
-			Log.Info( $"Kicking {source.DisplayName} [{source.SteamId}] Invalid Handshake State {source.State}" );
+			Log.Info( $"Kicking {source.Name} [{source.SteamId}] Invalid Handshake State {source.State}" );
 			return;
 		}
 
@@ -138,17 +137,23 @@ internal partial class NetworkSystem
 			return;
 
 		//
-		// Lobbies and steam network connections are trusted, so we can take the display name and Steam Id from them,
+		// Lobbies and steam network connections are trusted, so we can take the Steam Id from them,
 		// we shouldn't trust any other type of connection... but local TCP we can let slide.
 		//
 		if ( source is SteamLobbyConnection slob )
 		{
-			var friend = new Friend( slob.Friend.Id );
 			msg.SteamId = slob.Friend.Id;
-			msg.DisplayName = friend.Name;
 		}
 
-		Log.Info( $"{msg.DisplayName} [{msg.SteamId}] is connecting" );
+		source.PreInfo = new ConnectionInfo( null )
+		{
+			ConnectionId = source.Id,
+			State = source.State
+		};
+
+		source.PreInfo.Update( msg );
+
+		Log.Info( $"{msg.Name} [{msg.SteamId}] is connecting" );
 
 		//
 		// If the lobby is set to FriendsOnly, only allow players who are Steam friends with the host.
@@ -160,7 +165,7 @@ internal partial class NetworkSystem
 			// Host is always allowed
 			if ( msg.SteamId != hostSteamId.Value && !new Friend( msg.SteamId ).IsFriend )
 			{
-				Log.Info( $"Kicked {msg.DisplayName} [{msg.SteamId}] - not friends with host [{hostSteamId}]" );
+				Log.Info( $"Kicked {msg.Name} [{msg.SteamId}] - not friends with host [{hostSteamId}]" );
 				source.Kick( "This lobby is Friends Only." );
 				return;
 			}
@@ -169,17 +174,9 @@ internal partial class NetworkSystem
 
 		var denialReason = "";
 
-		source.PreInfo = new ConnectionInfo( null )
-		{
-			ConnectionId = source.Id,
-			State = source.State
-		};
-
-		source.PreInfo.Update( msg );
-
 		if ( GameSystem is not null && !GameSystem.AcceptConnection( source, ref denialReason ) )
 		{
-			Log.Info( $"Kicking {msg.DisplayName} [{msg.SteamId}] - {denialReason}" );
+			Log.Info( $"Kicking {msg.Name} [{msg.SteamId}] - {denialReason}" );
 			source.Kick( denialReason );
 			return;
 		}
@@ -187,7 +184,6 @@ internal partial class NetworkSystem
 		source.PreInfo = null;
 		source.State = Connection.ChannelState.Welcome;
 
-		//log.Info( $"Client Name is {data.DisplayName}" );
 		//log.Info( $"Client SteamId is {data.SteamId}" );
 		//log.Info( $"Client EngineVersion is {data.EngineVersion}" );
 
@@ -203,18 +199,6 @@ internal partial class NetworkSystem
 		// They're connected now dummy
 		//
 		msg.ConnectionTime = DateTime.UtcNow;
-
-		//
-		// Make their name unique
-		//
-		var displayName = msg.DisplayName;
-		var index = 2;
-		while ( ConnectionInfo.All.Values.Any( x => string.Equals( x.DisplayName, displayName, StringComparison.OrdinalIgnoreCase ) ) )
-		{
-			displayName = $"{msg.DisplayName} ({index})";
-			index++;
-		}
-		msg.DisplayName = displayName;
 
 		//
 		// Add player info to the manager. This will get sent to all the other players, so this
@@ -280,7 +264,7 @@ internal partial class NetworkSystem
 		if ( source.State != Connection.ChannelState.Welcome )
 		{
 			source.Kick( $"Invalid Handshake State {source.State}" );
-			Log.Info( $"Kicking {source.DisplayName} [{source.SteamId}] Invalid Handshake State {source.State}" );
+			Log.Info( $"Kicking {source.Name} [{source.SteamId}] Invalid Handshake State {source.State}" );
 			return Task.CompletedTask;
 		}
 
@@ -332,7 +316,7 @@ internal partial class NetworkSystem
 		if ( source.State != Connection.ChannelState.MountVPKs )
 		{
 			source.Kick( $"Invalid Handshake State {source.State}" );
-			Log.Info( $"Kicking {source.DisplayName} [{source.SteamId}] Invalid Handshake State {source.State}" );
+			Log.Info( $"Kicking {source.Name} [{source.SteamId}] Invalid Handshake State {source.State}" );
 			return Task.CompletedTask;
 		}
 
@@ -426,7 +410,7 @@ internal partial class NetworkSystem
 		if ( source.State != Connection.ChannelState.Snapshot )
 		{
 			source.Kick( $"Invalid Handshake State {source.State}" );
-			Log.Info( $"Kicking {source.DisplayName} [{source.SteamId}] Invalid Handshake State {source.State}" );
+			Log.Info( $"Kicking {source.Name} [{source.SteamId}] Invalid Handshake State {source.State}" );
 			return Task.CompletedTask;
 		}
 
@@ -442,7 +426,7 @@ internal partial class NetworkSystem
 
 		source.SendMessage( output );
 
-		Log.Info( $"{source.DisplayName} [{source.SteamId}] is connected" );
+		Log.Info( $"{source.Name} [{source.SteamId}] is connected" );
 
 		return Task.CompletedTask;
 	}

@@ -1,5 +1,6 @@
 ﻿@using Sandbox.UI;
 @using Sandbox;
+@using Sandbox.Platform;
 @namespace MenuProject.Settings
 @inherits Panel
 @page "/settings/game"
@@ -27,6 +28,13 @@
 
             <TextEntry Numeric=@true class="glass" Value:bind=@FieldOfView style="min-width: 50px;"></TextEntry>
         </row>
+
+        <h2>Platform</h2>
+
+        <row class="with-gaps">
+            <div class="is-label">Chat Enabled</div>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@ChatEnabledOptions Value:bind=@ChatEnabled></ButtonGroup>
+        </row>
         
 	</div>
 
@@ -39,6 +47,9 @@
 {
     public string Language { get; set; }
     public float FieldOfView { get; set; }
+    public bool ChatEnabled { get; set; }
+
+    List<Option> ChatEnabledOptions = [new("Off", false), new("On", true)];
 
     List<Option> _languageOptions;
     List<Option> LanguageOptions
@@ -71,6 +82,7 @@
     public void OnRestore()
     {
         MenuUtility.RenderSettings.DefaultFOV = 60;
+        Preferences.ChatEnabled = true;
         ConsoleSystem.Run("language", "en");
     }
 
@@ -78,12 +90,13 @@
     {
         FieldOfView = MenuUtility.RenderSettings.DefaultFOV;
         Language = Sandbox.Language.Current.Abbreviation;
+        ChatEnabled = Preferences.ChatEnabled;
     }
 
     public void OnApply()
     {
         ConsoleSystem.Run("language", Language);
-
         MenuUtility.RenderSettings.DefaultFOV = (int)(FieldOfView.Clamp( 45, 120 ));
+        Preferences.ChatEnabled = ChatEnabled;
     }
 }

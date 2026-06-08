@@ -179,6 +179,8 @@ internal sealed class ProjectSettingsWindow : Window
 
 			AddCategoryToList( typeof( MultiplayerCategory ), "Networking" );
 
+			AddCategoryToList( typeof( PlatformCategory ), "Platform" );
+
 			AddCategoryToList( typeof( CompilerCategory ), "Compiler" );
 
 			AddCategoryToList( typeof( ResourcesCategory ), "Other" );
@@ -571,6 +573,9 @@ internal sealed class ProjectSettingsWindow : Window
 		{
 			EditorUtility.Projects.Updated( Project );
 			SaveCallback?.Invoke( Project );
+
+			EditorEvent.Run( "project.settings.saved" );
+
 		}
 
 		/// <summary>

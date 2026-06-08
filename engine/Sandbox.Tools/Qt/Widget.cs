@@ -516,7 +516,7 @@ namespace Editor
 
 		public bool IsActiveWindow
 		{
-			get => _widget.isActiveWindow();
+			get => IsValid && _widget.isActiveWindow();
 		}
 
 		/// <summary>

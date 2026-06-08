@@ -530,6 +530,28 @@ public sealed unsafe partial class CommandList
 	}
 
 	/// <summary>
+	/// Draws multiple instances of a model using GPU instancing at a specific LOD level.
+	///
+	/// Use `GetTransformMatrix( int instance )` in shaders to access the instance transform.
+	///
+	/// There is a limit of 1,048,576 transform slots per frame when using this method.
+	/// </summary>
+	/// <param name="model">The model to draw</param>
+	/// <param name="transforms">Instance transform data to draw</param>
+	/// <param name="lodLevel">LOD level to render (0 = highest detail)</param>
+	/// <param name="attributes">Optional attributes to apply only for this draw call</param>
+	public void DrawModelInstanced( Model model, Span<Transform> transforms, int lodLevel, RenderAttributes attributes = null )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.DrawModelInstanced( (Model)entry.Object1, ((Transform[])entry.Object5).AsSpan(), (int)entry.Data1.x, (RenderAttributes)entry.Object2 );
+		}
+
+		var transformsCopy = transforms.ToArray();
+		AddEntry( &Execute, new Entry { Object1 = model, Object5 = transformsCopy, Data1 = new Vector4( lodLevel, 0, 0, 0 ), Object2 = attributes } );
+	}
+
+	/// <summary>
 	/// Draws multiple instances of a model using GPU instancing, assuming standard implemented shaders.
 	///
 	/// Use `GetTransformMatrix( int instance )` in shaders to access the instance transform.

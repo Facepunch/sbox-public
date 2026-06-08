@@ -1,0 +1,178 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using Sandbox.Network;
+@using Sandbox.Platform;
+@using MenuProject.UI;
+
+@inherits Panel
+@implements PartyRoom.IEventListener
+@namespace MenuProject.Overlay.Overlays
+
+@if ( !ChatAvailable )
+    return;
+
+<root>
+	<ChatPanel @ref="Panel" ShowInput="@IsOpen" MessageFadeTime="@(8f)" ShowChannelLabel="@(InGame && InParty)" InputPrefix="@(IsOpen ? Channel : "")" OnSubmit="@OnChatSubmit" OnDismiss="@Close" />
+</root>
+
+@code
+{
+    public static bool IsOpen { get; private set; }
+
+    ChatPanel Panel;
+    string Channel = "say";
+    bool WasInGame;
+    RealTimeSince TimeSinceOpened;
+
+    /// <summary>
+    /// Does our game / menu context want to show the chat UI?
+    /// - Local preferences
+    /// - Game preferences
+    /// </summary>
+    bool WantsChat => Preferences.ChatEnabled && Chat.Enabled && Chat.ShowUI;
+
+    /// <summary>
+    /// Are we in a game that supports chat, and are we connected to a server?
+    /// </summary>
+    bool InGame => Game.InGame && Networking.IsActive && WantsChat;
+
+    /// <summary>
+    /// Are we in a party that supports chat?
+    /// </summary>
+    bool InParty => Preferences.ChatEnabled && PartyRoom.Current is not null;
+
+    /// <summary>
+    /// Is the chat available for us?
+    /// </summary>
+    bool ChatAvailable => InGame || InParty;
+
+    protected override void OnAfterTreeRender( bool firstTime )
+    {
+        if ( firstTime )
+        {
+            MenuUtility.AddChatListener( OnChatMessage );
+        }
+    }
+
+    public override void OnButtonTyped( ButtonEvent e )
+    {
+        if ( IsOpen && e.Button == "tab" && InGame && InParty )
+        {
+            Channel = Channel == "say" ? "party" : "say";
+            StateHasChanged();
+        }
+    }
+
+    public override void OnDeleted()
+    {
+        MenuUtility.RemoveChatListener( OnChatMessage );
+    }
+
+    void OnChatMessage( ChatMessageEvent e )
+    {
+        if ( !InGame ) return;
+
+        if ( e.Sender is null )
+        {
+            Panel?.AddSystemMessage( "ℹ", e.Message );
+            return;
+        }
+
+        var steamId = (long)e.Sender.SteamId;
+        Panel?.AddMessage( e.Sender.DisplayName, e.Message, steamId, "game" );
+    }
+
+    void PartyRoom.IEventListener.OnChatMessage( Friend friend, string message )
+    {
+        if ( friend.IsBlocked )
+            return;
+
+        Panel?.AddMessage( friend.Name, message, (long)friend.Id, "party" );
+    }
+
+    void PartyRoom.IEventListener.OnMemberJoin( Friend friend )
+    {
+        Panel?.AddSystemMessage( "👋", $"{friend.Name} joined the party" );
+    }
+
+    void PartyRoom.IEventListener.OnMemberLeave( Friend friend )
+    {
+        Panel?.AddSystemMessage( "🥀", $"{friend.Name} left the party" );
+    }
+
+    public override void Tick()
+    {
+        if ( !ChatAvailable )
+        {
+            if ( IsOpen ) Close();
+            return;
+        }
+
+        SetClass( "in-game", InGame );
+
+        // Reset to game chat when joining a game
+        if ( InGame && !WasInGame )
+            Channel = "say";
+
+        WasInGame = InGame;
+
+        if ( !IsOpen && Input.Pressed( "chat" ) )
+        {
+            Open();
+        }
+
+        if ( IsOpen && TimeSinceOpened > 0.1f && Panel.IsValid() && !Panel.HasInputFocus )
+        {
+            Close();
+        }
+
+        SetClass( "open", IsOpen );
+    }
+
+    void Open()
+    {
+        IsOpen = true;
+        TimeSinceOpened = 0;
+
+        //
+        // Reset target if current selection is unavailable
+        //
+
+        if ( Channel == "party" && !InParty )
+        {
+            Channel = "say";
+        }
+        else if ( Channel == "say" && !InGame && InParty )
+        {
+            Channel = "party";
+        }
+
+        StateHasChanged();
+        SetClass( "open", true );
+        Panel?.FocusInput();
+    }
+
+    void Close()
+    {
+        IsOpen = false;
+        SetClass( "open", false );
+        Panel?.BlurInput();
+        StateHasChanged();
+    }
+
+    void OnChatSubmit( string text )
+    {
+        if ( Channel == "party" && InParty )
+        {
+            PartyRoom.Current.SendChatMessage( text );
+        }
+        else
+        {
+            Chat.Say( text );
+        }
+
+		Close();
+	}
+
+	protected override int BuildHash() => System.HashCode.Combine( IsOpen, InGame, InParty, Channel );
+}

@@ -56,7 +56,7 @@ public readonly record struct MovieTransform(
 
 		if ( !Translation.IsZero )
 		{
-			builder.Append( $"{nameof(Translation)} = {Translation}" );
+			builder.Append( $"{nameof( Translation )} = {Translation}" );
 		}
 
 		if ( Scale != MovieTimeScale.Identity )
@@ -66,7 +66,7 @@ public readonly record struct MovieTransform(
 				builder.Append( ", " );
 			}
 
-			builder.Append( $"{nameof(Scale)} = {Scale}" );
+			builder.Append( $"{nameof( Scale )} = {Scale}" );
 		}
 
 		return true;

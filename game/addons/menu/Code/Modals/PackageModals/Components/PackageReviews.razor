@@ -71,7 +71,7 @@
 
             @foreach (var review in Reviews)
             {
-                <UserComment Player="@review.Player" Date="@review.Updated" TimePlayed="Played for @review.PlayTime.Humanize(1)" class="@GetReviewClass(review.Score)">
+                <UserComment Player="@review.Player" Date="@review.Updated" TimePlayed="@( $"Played for {review.PlayTime.Humanize(1)}" )" class="@GetReviewClass(review.Score)">
                     <TopBar>
                         @if (review.Score == ReviewScore.Positive)
                         {

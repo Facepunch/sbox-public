@@ -216,7 +216,12 @@ public enum TextAlign
 	/// <summary>
 	/// Align the text to the right.
 	/// </summary>
-	Right = 3
+	Right = 3,
+
+	/// <summary>
+	/// Stretch each line (except the last) to fill the width by spacing out words.
+	/// </summary>
+	Justify = 4
 }
 
 /// <summary>
@@ -380,7 +385,17 @@ public enum WhiteSpace
 	/// <summary>
 	/// Sequences of white space are preserved, lines are only broken at newline characters in the source.
 	/// </summary>
-	Pre = 3
+	Pre = 3,
+
+	/// <summary>
+	/// Sequences of white space are preserved, text wraps when necessary, and line breaks are preserved.
+	/// </summary>
+	PreWrap = 4,
+
+	/// <summary>
+	/// Like pre-wrap, but any sequence of preserved white space can also be a break point.
+	/// </summary>
+	BreakSpaces = 5
 }
 
 /// <summary>

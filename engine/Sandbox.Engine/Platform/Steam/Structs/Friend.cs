@@ -1,5 +1,4 @@
-﻿using Sandbox;
-using Steamworks.Data;
+﻿using Steamworks.Data;
 
 namespace Steamworks;
 
@@ -14,7 +13,7 @@ internal struct Friend
 
 	public override string ToString()
 	{
-		return $"{Name} ({Id})";
+		return $"{DisplayName} ({Id})";
 	}
 
 	/// <summary>
@@ -79,13 +78,39 @@ internal struct Friend
 	//
 
 	internal static Dictionary<ulong, string> _nameCache = new();
+	internal static Dictionary<ulong, string> _nicknameCache = new();
 	internal static Dictionary<ulong, Relationship> _relationshipCache = new();
 	internal static Dictionary<ulong, FriendState> _stateCache = new();
 	internal static Dictionary<ulong, int> _steamLevelCache = new();
 	internal static Dictionary<ulong, FriendGameInfo?> _gameInfoCache = new();
 
 	public string Name => !SteamFriends.IsInstalled ? null : _nameCache.GetOrCreate( Id.Value, SteamFriends.Internal.GetFriendPersonaName );
+
+	public string Nickname
+	{
+		get
+		{
+			if ( !SteamFriends.IsInstalled || !IsFriend )
+				return null;
+
+			var nickname = _nicknameCache.GetOrCreate( Id.Value, SteamFriends.Internal.GetPlayerNickname );
+			return string.IsNullOrWhiteSpace( nickname ) ? null : nickname;
+		}
+	}
+
+	public string DisplayName
+	{
+		get
+		{
+			if ( !string.IsNullOrWhiteSpace( Nickname ) )
+				return Nickname;
+
+			return string.IsNullOrWhiteSpace( Name ) ? null : Name;
+		}
+	}
+
 	public Relationship Relationship => !SteamFriends.IsInstalled ? Steamworks.Relationship.None : _relationshipCache.GetOrCreate( Id.Value, SteamFriends.Internal.GetFriendRelationship );
+
 	public FriendState State
 	{
 		get
@@ -102,6 +127,7 @@ internal struct Friend
 			return val;
 		}
 	}
+
 	public int SteamLevel => !SteamFriends.IsInstalled ? 0 : _steamLevelCache.GetOrCreate( Id.Value, SteamFriends.Internal.GetFriendSteamLevel );
 
 	public FriendGameInfo? GameInfo => !SteamFriends.IsInstalled ? null : _gameInfoCache.GetOrCreate( Id, x =>
@@ -228,8 +254,14 @@ internal struct Friend
 		if ( changeFlags.Contains( PersonaChange.Name ) )
 			_nameCache.Remove( id );
 
+		if ( changeFlags.Contains( PersonaChange.Nickname ) )
+			_nicknameCache.Remove( id );
+
 		if ( changeFlags.Contains( PersonaChange.RelationshipChanged ) )
+		{
 			_relationshipCache.Remove( id );
+			_nicknameCache.Remove( id );
+		}
 
 		if ( changeFlags.Contains( PersonaChange.Status ) || changeFlags.Contains( PersonaChange.GoneOffline ) || changeFlags.Contains( PersonaChange.ComeOnline ) )
 			_stateCache.Remove( id );

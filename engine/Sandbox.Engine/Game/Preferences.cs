@@ -51,6 +51,8 @@ public static class Preferences
 	[ConVar( "voip_mode", ConVarFlags.Protected, Help = "Voice chat mode: PushToTalk, OpenMicrophone, or Disabled", Saved = true )]
 	public static VoiceMode VoiceMode { get; internal set; } = VoiceMode.PushToTalk;
 
+	[ConVar( "platform.chat.enabled", ConVarFlags.Saved, Help = "Do we want to enable the platform level chat system? The game also has to have it enabled." )]
+	public static bool ChatEnabled { get; set; } = true;
 }
 
 /// <summary>

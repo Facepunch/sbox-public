@@ -26,9 +26,7 @@ public class PackageUsageStats
 	}
 
 	public Group Total { get; set; }
-	public Group Month { get; set; }
-	public Group Week { get; set; }
-	public Group Day { get; set; }
 
+	[Obsolete( "Moved to the root Package DTO (PackageWrapMinimal.UsersNow / PackageDto.UsersNow). Kept for wire compatibility; will be removed in a future cycle." )]
 	public long UsersNow { get; set; }
 }

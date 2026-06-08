@@ -3,9 +3,6 @@ namespace Sandbox;
 
 public static unsafe partial class Sound
 {
-	internal static void OnVoiceDeleted( int voiceIndex )
-	{
-	}
 
 	public static SoundHandle Play( string eventName, float fadeInTime = 0.0f )
 	{
@@ -40,7 +37,6 @@ public static unsafe partial class Sound
 
 		handle.Distance = soundEvent.Distance;
 		handle.Falloff = soundEvent.Falloff;
-		handle.OcclusionRadius = soundEvent.OcclusionRadius;
 		handle.TargetMixer = soundEvent.DefaultMixer.Get();
 
 		if ( soundEvent.UI )
@@ -49,14 +45,20 @@ public static unsafe partial class Sound
 			handle.DistanceAttenuation = false;
 			handle.AirAbsorption = false;
 			handle.Transmission = false;
-			handle.Occlusion = false;
+			handle.OcclusionEnabled = false;
+			handle.ReverbEnabled = false;
+			if ( handle.TargetMixer is null )
+			{
+				handle.TargetMixer = Audio.Mixer.FindMixerByName( "UI" );
+			}
 		}
 		else
 		{
 			handle.DistanceAttenuation = soundEvent.DistanceAttenuation;
 			handle.AirAbsorption = soundEvent.AirAbsorption;
 			handle.Transmission = soundEvent.Transmission;
-			handle.Occlusion = soundEvent.Occlusion;
+			handle.OcclusionEnabled = soundEvent.OcclusionEnabled;
+			handle.ReverbEnabled = soundEvent.ReverbEnabled;
 		}
 
 		return handle;
@@ -130,6 +132,8 @@ public static unsafe partial class Sound
 
 	internal static SoundHandle PlayFile( CSfxTable soundFile, float volume = 1.0f, float pitch = 1.0f, float delay = 0.0f, float fadeInTime = 0.0f, string debugName = "" )
 	{
+		ThreadSafe.AssertIsMainThread();
+
 		if ( soundFile.IsNull )
 			return default;
 

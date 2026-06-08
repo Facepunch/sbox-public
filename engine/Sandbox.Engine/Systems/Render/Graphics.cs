@@ -107,6 +107,33 @@ public static partial class Graphics
 	/// </summary>
 	public static Rotation CameraRotation => CameraTransform.Rotation;
 
+	/// <summary>
+	/// GPU video memory budget in bytes, as reported by the OS (WDDM).
+	/// </summary>
+	public static ulong VideoMemoryBudget
+	{
+		get
+		{
+			if ( Application.IsHeadless ) return 0;
+			g_pRenderDevice.GetVideoMemoryInfo( out var budget, out _, out _ );
+			return budget;
+		}
+	}
+
+	/// <summary>
+	/// GPU video memory currently used by the engine's render system in bytes.
+	/// This includes textures, buffers, and all other GPU allocations tracked by the engine.
+	/// </summary>
+	public static ulong VideoMemoryUsed
+	{
+		get
+		{
+			if ( Application.IsHeadless ) return 0;
+			g_pRenderDevice.GetVideoMemoryInfo( out _, out _, out var rsUsage );
+			return rsUsage;
+		}
+	}
+
 
 	/// <summary>
 	/// The field of view of the currently rendering camera view, in degrees.
@@ -256,8 +283,12 @@ public static partial class Graphics
 		AssertRenderBlock();
 
 		bool withMips = downsampleMethod != DownsampleMethod.None;
-		var fullMips = (int)Math.Log2( Math.Max( Viewport.Width, Viewport.Height ) );
-		var numMips = withMips ? (maxMips > 0 ? Math.Min( maxMips, fullMips ) : fullMips) : 1;
+		var numMips = 1;
+		if ( withMips )
+		{
+			var fullMips = (int)Math.Log2( Math.Max( Viewport.Width, Viewport.Height ) );
+			numMips = maxMips > 0 ? Math.Min( maxMips, fullMips ) : fullMips;
+		}
 
 		// Grab a new one - which may very well be the one we just returned
 		var frameTexture = RenderTarget.GetTemporary( 1, ImageFormat.Default, ImageFormat.None, msaa: MultisampleAmount.MultisampleNone, numMips: numMips, targetName );

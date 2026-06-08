@@ -71,7 +71,7 @@ internal partial class ShadowMapper
 		cacheEntry.ScreenSize = flScreenSize;
 
 		// Do we want a bigger resolution for this shadow map now?
-		if ( cacheEntry.CurrentResolution < desiredResolution )
+		if ( cacheEntry.CurrentResolution != desiredResolution )
 		{
 			ReleaseTexture( cacheEntry.ShadowMap, cacheEntry.CurrentResolution, cacheEntry.IsCube );
 			cacheEntry.ShadowMap = AcquireTexture( desiredResolution, isCube: true );

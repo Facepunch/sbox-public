@@ -24,8 +24,6 @@ internal partial class RenderPipeline
 	BloomDownsampleLayer BloomDownsampleLayer { get; } = new();
 	RefractionStencilLayer RefractionStencilLayer { get; } = new();
 	QuarterDepthDownsampleLayer QuarterDepthDownsampleLayer { get; } = new();
-	MediaRecorderLayer RecordMovieFrameLayer { get; } = new();
-	MediaRecorderOverlayLayer PostRecordMovieFrameLayer { get; } = new();
 
 	internal void AddLayersToView( ISceneView view, RenderViewport viewport, SceneViewRenderTargetHandle rtColor, SceneViewRenderTargetHandle rtDepth, RenderMultisampleType nMSAA, CRenderAttributes pipelineAttrs, RenderViewport screenSize )
 	{
@@ -158,18 +156,5 @@ internal partial class RenderPipeline
 		var cameraId = view.m_ManagedCameraId;
 		if ( cameraId == 0 )
 			return;
-
-		var viewCamera = IManagedCamera.FindById( cameraId );
-		if ( viewCamera is not SceneCamera sceneCamera )
-			return;
-
-		// Only record from the camera explicitly marked for recording
-		if ( sceneCamera.IsRecordingCamera )
-		{
-			RecordMovieFrameLayer.ColorAttachment = rtColor;
-			RecordMovieFrameLayer.AddToView( view, viewport );
-			PostRecordMovieFrameLayer.ColorAttachment = rtColor;
-			PostRecordMovieFrameLayer.AddToView( view, viewport );
-		}
 	}
 }

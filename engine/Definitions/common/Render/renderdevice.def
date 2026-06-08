@@ -48,6 +48,23 @@ native accessor g_pRenderDevice
 
 	void DestroySwapChain( SwapChainHandle_t hSwapChain );
 
+	inline string GetGpuStatsSummary()
+	{
+		static thread_local CBufferString str;
+		str.RemoveAll();
+		g_pRenderDevice->AppendStatsSummaryString( &str );
+		return str.String();
+	}
+
+	inline void GetTexturePoolStats( out ulong pPoolUsedBytesOut, out ulong pPoolLimitBytesOut, out ulong pNonEvictableBytesOut )
+	{
+		uint64 used = 0, limit = 0, pinned = 0;
+		g_pRenderDevice->GetTexturePoolStats( &used, &limit, &pinned );
+		*pPoolUsedBytesOut = used;
+		*pPoolLimitBytesOut = limit;
+		*pNonEvictableBytesOut = pinned;
+	}
+
 	bool Present( SwapChainHandle_t chain );
 	void Flush();
 	void ForceFlushGPU( SwapChainHandle_t hSwapChain );
@@ -94,7 +111,16 @@ native accessor g_pRenderDevice
 	
 	int GetTextureViewIndex( ITexture hTexture, CastTo[RenderColorSpace_t] byte colorSpace, RenderTextureDimension_t dim );
 
-	inline void GetTextureResidencyInfo( CUtlVectorTexture pTextures, CUtlVectorString pNames )
+	inline void GetVideoMemoryInfo( out ulong budgetBytes, out ulong usageBytes, out ulong renderSystemUsageBytes )
+	{
+		uint64 budget = 0, usage = 0, rsUsage = 0;
+		::g_pRenderDeviceMgr->GetVideoMemoryInfo( g_pRenderDevice->GetCurrentAdapter(), &budget, &usage, &rsUsage );
+		*budgetBytes = budget;
+		*usageBytes = usage;
+		*renderSystemUsageBytes = rsUsage;
+	}
+
+	inline void GetTextureResidencyInfo( CUtlVectorTexture pTextures, CUtlVectorString pNames, CUtlVectorUInt32 pRefCounts )
 	{
 		TextureResidencyStats_t textureResidencyStats;
 		CUtlVector<TextureResidencyInfo_t> rawTextures;
@@ -103,6 +129,7 @@ native accessor g_pRenderDevice
 
 		pTextures->EnsureCapacity( rawTextures.Count() );
 		pNames->EnsureCapacity( rawTextures.Count() );
+		pRefCounts->EnsureCapacity( rawTextures.Count() );
 
 		for ( const TextureResidencyInfo_t &info : rawTextures )
 		{
@@ -111,8 +138,14 @@ native accessor g_pRenderDevice
 			CPathBufferString texName;
 			info.m_hTexture.GetResourceName( &texName );
 
+			// Capture the refcount BEFORE AddToTail bumps it so callers see the
+			// "external" reference count (what's holding the texture alive
+			// outside this diagnostic call).
+			int nRefCount = info.m_hTexture.GetRefCount();
+
 			pTextures->AddToTail( info.m_hTexture );
 			pNames->AddToTail( texName );
+			pRefCounts->AddToTail( (uint32)nRefCount );
 		}
 	}
 

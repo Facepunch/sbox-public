@@ -71,6 +71,16 @@ public static class EditorPreferences
 	}
 
 	/// <summary>
+	/// Camera viewport background color
+	/// </summary>
+	[Title( "Background Color" )]
+	public static Color CameraBackgroundColor
+	{
+		get => EditorCookie.Get( "SceneView.CameraBgColor", (Color)"#32415e" );
+		set => EditorCookie.Set( "SceneView.CameraBgColor", value );
+	}
+
+	/// <summary>
 	/// The closest thing to render
 	/// </summary>
 	[Title( "ZNear" )]

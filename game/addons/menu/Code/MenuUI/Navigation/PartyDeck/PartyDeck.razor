@@ -51,7 +51,7 @@
 		if ( PartyRoom.Current is not null )
 			return;
 
-		var party = await PartyRoom.Create( MAX_MEMBERS, $"{Connection.Local.DisplayName}'s Party", false );
+		var party = await PartyRoom.Create( MAX_MEMBERS, $"{Connection.Local.Name}'s Party", false );
 		if ( party is null )
 		{
 			MenuOverlay.Instance?.BottomRight?.Queue( new Toast()

@@ -52,8 +52,8 @@ public static class Mouse
 
 
 	/// <summary>
-	/// Sets the cursor type until another panel stomps this value.
-	/// Doesn't affect main menu.
+	/// Sets the cursor type used when the UI hasn't claimed the cursor (e.g. when the mouse
+	/// falls through the UI onto the world). UI panel hover cursors take precedence over this.
 	/// </summary>
 	public static string CursorType
 	{

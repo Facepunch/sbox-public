@@ -36,16 +36,16 @@ public static class TrackExtensions
 	{
 		return listView.UnlockedTracks
 			.Where( x => x is { Track: ProjectReferenceTrack<GameObject> }
-				&& x.Find( nameof(GameObject.LocalPosition) ) is { Track: ProjectPropertyTrack<Vector3> posTrack }
+				&& x.Find( nameof( GameObject.LocalPosition ) ) is { Track: ProjectPropertyTrack<Vector3> posTrack }
 				&& posTrack.GetBlocks( timeRange ).Any() )
-			.Select( x => x.Find( nameof(GameObject.LocalPosition) )! );
+			.Select( x => x.Find( nameof( GameObject.LocalPosition ) )! );
 	}
 
 	public static IEnumerable<TrackView> GetSkinnedModelRendererTracksWithParameters( this TrackListView listView, MovieTimeRange timeRange )
 	{
 		return listView.UnlockedTracks
 			.Where( x => x is { Track: ProjectReferenceTrack<SkinnedModelRenderer> } )
-			.Where( x => x.Find( nameof(SkinnedModelRenderer.Parameters) )?.Children.Any(
+			.Where( x => x.Find( nameof( SkinnedModelRenderer.Parameters ) )?.Children.Any(
 				y => y.Track is IProjectPropertyTrack propertyTrack && propertyTrack.GetBlocks( timeRange ).Any() ) ?? false );
 	}
 

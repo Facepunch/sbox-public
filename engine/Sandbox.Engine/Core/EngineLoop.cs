@@ -25,6 +25,8 @@ internal static class EngineLoop
 	{
 		if ( Application.WantsExit )
 		{
+			SoundHandle.Shutdown();
+			MixingThread.DrainDisposals();
 			g_pEngineServiceMgr.ExitMainLoop();
 		}
 
@@ -53,6 +55,12 @@ internal static class EngineLoop
 			using ( PerformanceStats.Timings.Render.Scope() )
 			{
 				wantsQuit = !EngineGlobal.SourceEngineFrame( appDict, time, previousTime );
+			}
+
+			if ( wantsQuit )
+			{
+				SoundHandle.Shutdown();
+				MixingThread.DrainDisposals();
 			}
 
 			try
@@ -226,7 +234,6 @@ internal static class EngineLoop
 		// Give each sound handle an opportunity to for a frame think
 		using ( PerformanceStats.Timings.Audio.Scope() )
 		{
-			SoundHandle.TickAll();
 			MixingThread.UpdateGlobals();
 		}
 

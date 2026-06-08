@@ -68,7 +68,7 @@ public class AssetPreview : IDisposable
 				cc.BackgroundColor = Color.Transparent;
 				cc.WorldRotation = new Angles( 20, 180 + 45, 0 );
 				cc.FieldOfView = 30.0f;
-				cc.ZFar = 15000.0f;
+				cc.ZFar = 100000.0f;
 				cc.ZNear = 0.1f;
 			}
 

@@ -296,7 +296,7 @@ internal class UISystem
 			}
 
 			//
-			// The developer console is open
+			// The developer console / chat is open
 			//
 			if ( IMenuSystem.Current?.ForceCursorVisible ?? false )
 			{

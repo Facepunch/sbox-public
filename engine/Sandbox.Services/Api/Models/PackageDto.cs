@@ -2,7 +2,7 @@
 
 public class PackageDto
 {
-	public OrganizationDto Org { get; set; }
+	public OrganizationMinimal Org { get; set; }
 	public string Ident { get; set; }
 	public string Title { get; set; }
 	public string Summary { get; set; }
@@ -13,13 +13,13 @@ public class PackageDto
 	public DateTimeOffset Updated { get; set; }
 	public DateTimeOffset Created { get; set; }
 	public PackageUsageStats UsageStats { get; set; }
+	public long UsersNow { get; set; }
 	public PackageReviewStats ReviewStats { get; set; }
 	public string[] Tags { get; set; }
 	public int Favourited { get; set; }
 	public int VotesUp { get; set; }
 	public int VotesDown { get; set; }
 	public PackageVersion Version { get; set; }
-	public string Source { get; set; }
 	public bool Public { get; set; }
 	public bool Archive { get; set; }
 	public int ApiVersion { get; set; }
@@ -43,6 +43,13 @@ public class PackageDto
 	public PackageInteraction Interaction { get; set; }
 
 	/// <summary>
+	/// Small icon badges shown over the thumbnail — workshop-approved,
+	/// updated-since-you-played, etc. Intrinsic flair is cached; player-specific
+	/// flair is layered on per request. Never null.
+	/// </summary>
+	public List<PackageFlair> Flair { get; set; } = new();
+
+	/// <summary>
 	/// For games only, information about the loadingscreen
 	/// </summary>
 	public LoadingScreenSetup LoadingScreen { get; set; }
@@ -56,6 +63,12 @@ public class PackageDto
 	/// The latest news post
 	/// </summary>
 	public NewsPostDto LatestNews { get; set; }
+
+	/// <summary>
+	/// The 5 most recent visible changelists (summary only: id/title/version/date). Full detail is
+	/// available via the package/changelists API.
+	/// </summary>
+	public ChangeListSummary[] Changelists { get; set; } = [];
 
 	/// <summary>
 	/// What fraction of users got errors in the last day

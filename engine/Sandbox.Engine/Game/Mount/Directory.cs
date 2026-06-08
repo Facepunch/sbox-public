@@ -140,7 +140,7 @@ public static class Directory
 			return false;
 		}
 
-		var entry = source.Resources.FirstOrDefault( x => string.Equals( x.Path, filename, StringComparison.OrdinalIgnoreCase ) );
+		var entry = source.GetByPath( filename );
 		if ( entry is null )
 		{
 			Log.Warning( $"Couldn't find file \"{filename}\" in {source.Ident}" );
@@ -174,7 +174,7 @@ public static class Directory
 			return null;
 		}
 
-		var entry = source.Resources.FirstOrDefault( x => string.Equals( x.Path, filename, StringComparison.OrdinalIgnoreCase ) );
+		var entry = source.GetByPath( filename );
 		if ( entry is null )
 		{
 			Log.Warning( $"Couldn't find file \"{filename}\" in {source.Ident}" );

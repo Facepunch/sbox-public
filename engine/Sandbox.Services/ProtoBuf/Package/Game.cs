@@ -8,7 +8,7 @@ public static class GameMsg
 	[ProtoContract( ImplicitFields = ImplicitFields.AllFields )]
 	public class UpdatePublished : IMessage
 	{
-		public static ushort MessageIdent => 1000;
+		public static MessageId MessageIdent => MessageId.GameUpdatePublished;
 	}
 
 }

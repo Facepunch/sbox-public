@@ -151,7 +151,7 @@ VS
 			o.vPositionPs = float4( vPositionLocal, 1 );
 			o.vPositionPs.y *= -1.0;
 
-			float4 vPositionWs = mul( g_matWorldPanel, float4( o.vPositionPs.xyz, 1.0 ) );
+			float3 vPositionWs = mul( g_matWorldPanel, float4( o.vPositionPs.xyz, 1.0 ) );
 			o.vPositionPs = Position3WsToPs( vPositionWs.xyz );
 		}
 		#endif

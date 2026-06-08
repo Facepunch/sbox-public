@@ -5,6 +5,7 @@ global using System.Collections.Generic;
 global using System.Linq;
 global using System.Threading.Tasks;
 using MenuProject;
+using MenuProject.Overlay.Overlays;
 using Sandbox;
 using Sandbox.Audio;
 using Sandbox.Internal;
@@ -139,7 +140,7 @@ public partial class MenuSystem : IMenuSystem
 		set => MainMenu.Instance.Navigator.Navigate( value );
 	}
 
-	public bool ForceCursorVisible => DeveloperMode.Open;
+	public bool ForceCursorVisible => DeveloperMode.Open || ChatOverlay.IsOpen;
 
 
 	class MenuMusic

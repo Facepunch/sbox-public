@@ -11,6 +11,8 @@ native static class RenderTools as NativeEngine.RenderTools
 	void DrawSceneObject( IRenderContext renderContext, ISceneLayer sceneLayer, CSceneObject sceneObject, Transform transform, Vector4 color, IMaterial material, CRenderAttributes attributes );
 	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, IModel hModel, CastTo[CTransformUnaligned*] void* transforms, int numTransforms, CRenderAttributes attributes );
 	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, IModel hModel, RenderBufferHandle_t hDrawArgBuffer, int nBufferOffset, CRenderAttributes attributes );
+	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, IModel hModel, CastTo[CTransformUnaligned*] void* transforms, int numTransforms, CRenderAttributes attributes, int nLodLevel );
+	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, IModel hModel, RenderBufferHandle_t hDrawArgBuffer, int nBufferOffset, CRenderAttributes attributes, int nLodLevel );
 	
 	//
 	// Render context can be null and we'll create one
@@ -49,6 +51,19 @@ native static class RenderTools as NativeEngine.RenderTools
 		else
 		{
 			renderContext->FillGPUBuffer( hBuffer, nFillValue );
+		}
+	}
+
+	inline void CopyGPUBuffer( IRenderContext renderContext, RenderBufferHandle_t hSrcBuffer, RenderBufferHandle_t hDstBuffer, uint nSrcOffset, uint nDstOffset, uint nSize )
+	{
+		if ( renderContext == nullptr )
+		{
+			CRenderContextPtr pRenderContext( g_pRenderDevice );
+			pRenderContext->CopyGPUBuffer( hSrcBuffer, hDstBuffer, nSrcOffset, nDstOffset, nSize );
+		}
+		else
+		{
+			renderContext->CopyGPUBuffer( hSrcBuffer, hDstBuffer, nSrcOffset, nDstOffset, nSize );
 		}
 	}
 

@@ -11,7 +11,6 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 	BBox? _box;
 	BBox _startBox;
-	BBox _deltaBox;
 	Vector3 _dragStartPos;
 	bool _dragStarted;
 	Model _previewModel;
@@ -233,7 +232,6 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 			if ( !Gizmo.Pressed.Any )
 			{
 				_startBox = box;
-				_deltaBox = default;
 			}
 
 			if ( Gizmo.Control.BoundingBox( "Resize", box, out var outBox ) )
@@ -244,10 +242,7 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 					_resizeBefore = _box.Value;
 				}
 
-				_deltaBox.Maxs += outBox.Maxs - box.Maxs;
-				_deltaBox.Mins += outBox.Mins - box.Mins;
-
-				box = Gizmo.Snap( _startBox, _deltaBox );
+				box = outBox;
 
 				if ( _primitive.Is2D )
 				{

@@ -120,7 +120,7 @@ public sealed record TrackPresetNode(
 			if ( PropertyType.IsAssignableTo( typeof( Component ) ) )
 			{
 				var component = go.Components.FirstOrDefault( PropertyType.IsInstanceOfType );
-				var refType = typeof(ComponentReference<>).MakeGenericType( PropertyType );
+				var refType = typeof( ComponentReference<> ).MakeGenericType( PropertyType );
 
 				return component is not null
 					? (ITrackReference)Activator.CreateInstance( refType, [component, parent] )!

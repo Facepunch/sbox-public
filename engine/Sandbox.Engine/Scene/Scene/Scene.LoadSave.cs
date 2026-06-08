@@ -284,7 +284,7 @@ public partial class Scene : GameObject
 
 				var currentValue = property.GetValue( system );
 				var hasGlobalValue = ProjectSettings.Systems.TryGetPropertyValue( systemType, property, out var globalValue );
-				var compareValue = hasGlobalValue ? globalValue : property.GetCustomAttribute<DefaultValueAttribute>()?.Value;
+				var compareValue = hasGlobalValue ? globalValue : SystemsConfig.GetDefaultValue( property );
 
 				var currentJson = JsonSerializer.SerializeToNode( currentValue, Json.options );
 				var compareJson = JsonSerializer.SerializeToNode( compareValue, Json.options );

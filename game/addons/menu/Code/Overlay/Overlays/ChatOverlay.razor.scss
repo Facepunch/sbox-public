@@ -1,0 +1,37 @@
+@import "/styles/_theme.scss";
+
+ChatOverlay
+{
+	position: absolute;
+	left: 50px;
+	bottom: 96px;
+	width: 570px;
+	flex-direction: column;
+	pointer-events: none;
+	z-index: -1000;
+
+	&.in-game
+	{
+		left: 64px;
+		bottom: 20%;
+		width: 600px;
+	}
+
+	&.open
+	{
+		pointer-events: all;
+
+		ChatPanel
+		{
+			background-color: rgba( $default-900, 0.9 );
+			border-radius: $rounding-large;
+			outline: 1px solid rgba( black, 0.3 );
+		}
+	}
+
+	ChatPanel
+	{
+		flex-grow: 1;
+		padding: 10px;
+	}
+}

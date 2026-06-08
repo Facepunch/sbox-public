@@ -146,4 +146,48 @@ public partial class FileSystem
 			Assert.IsTrue( detectedChanges, "Callbacks should have been triggered now" );
 		}
 	}
+
+	[TestMethod]
+	public async Task WatchMountedCaseInsensitivePath()
+	{
+		var fs = new Sandbox.AggregateFileSystem();
+		fs.UnMountAll();
+
+		// Wrong-case mount paths: SubFileSystem(isCaseSensitive:false) must strip the base
+		// prefix case-insensitively when routing physical change events back to virtual paths,
+		// otherwise the watcher silently drops events on Linux.
+		fs.CreateAndMount( Sandbox.EngineFileSystem.Root, "addons/blue" );
+
+		Sandbox.EngineFileSystem.Root.CreateDirectory( "Addons/Blue/UI" );
+		System.IO.File.WriteAllText( Sandbox.EngineFileSystem.Root.GetFullPath( "Addons/Blue/UI/hello.txt" ), "initial" );
+
+		using ( var watcher = fs.Watch( "/UI/hello.txt" ) )
+		{
+			bool detectedChanges = false;
+
+			watcher.OnChanges += w =>
+			{
+				Console.WriteLine( $"{string.Join( ",", w.Changes )} has changes" );
+				detectedChanges = true;
+			};
+
+			await Task.Delay( 200 );
+
+			Assert.IsFalse( detectedChanges, "No changes made yet - should be false" );
+
+			Sandbox.FileWatch.Tick();
+
+			Assert.IsFalse( detectedChanges, "No changes made yet - should be false" );
+
+			System.IO.File.WriteAllText( Sandbox.EngineFileSystem.Root.GetFullPath( "Addons/Blue/UI/hello.txt" ), "changed" );
+
+			await Task.Delay( 2000 );
+
+			Assert.IsFalse( detectedChanges, "Not triggered yet - should be false" );
+
+			Sandbox.FileWatch.Tick();
+
+			Assert.IsTrue( detectedChanges, "Callbacks should have been triggered now" );
+		}
+	}
 }

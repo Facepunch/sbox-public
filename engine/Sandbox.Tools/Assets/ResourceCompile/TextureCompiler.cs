@@ -48,6 +48,8 @@ public class TextureResourceCompiler : ResourceCompiler
 		int depth = desc.m_nDepth;
 		int mipCount = desc.m_nNumMipLevels;
 
+		var formatOverride = generator is TextureGenerator texGen ? texGen.FormatOverride : null;
+
 		var writer = new VTexWriter();
 
 		for ( var mip = 0; mip < mipCount; mip++ )
@@ -85,7 +87,10 @@ public class TextureResourceCompiler : ResourceCompiler
 
 		writer.Header.Flags = flags;
 
-		writer.CalculateFormat();
+		if ( formatOverride.HasValue )
+			writer.Header.Format = VTexWriter.RuntimeToVTEX_Format( formatOverride.Value ).Value;
+		else
+			writer.CalculateFormat();
 
 		Context.Data.Write( writer.GetData() );
 		Context.StreamingData.Write( writer.GetStreamingData() );

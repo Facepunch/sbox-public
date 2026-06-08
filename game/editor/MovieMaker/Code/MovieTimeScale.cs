@@ -6,7 +6,7 @@ namespace Editor.MovieMaker;
 
 #nullable enable
 
-[JsonConverter( typeof(MovieTimeScaleConverter) )]
+[JsonConverter( typeof( MovieTimeScaleConverter ) )]
 public readonly struct MovieTimeScale : IEquatable<MovieTimeScale>
 {
 	public int Cents { get; }

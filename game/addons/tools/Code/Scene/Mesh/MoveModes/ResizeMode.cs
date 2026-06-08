@@ -11,7 +11,6 @@ namespace Editor.MeshEditor;
 public sealed class ResizeMode : MoveMode
 {
 	private BBox _startBox;
-	private BBox _deltaBox;
 	private BBox _box;
 	private Rotation _basis;
 
@@ -19,7 +18,6 @@ public sealed class ResizeMode : MoveMode
 	{
 		_basis = tool.CalculateSelectionBasis();
 		_startBox = tool.GlobalSpace ? tool.CalculateSelectionBounds() : tool.CalculateLocalBounds();
-		_deltaBox = default;
 		_box = _startBox;
 	}
 
@@ -35,10 +33,7 @@ public sealed class ResizeMode : MoveMode
 			if ( !Gizmo.Control.BoundingBox( "resize", _box, out var outBox, out _, out var resizeAxis ) )
 				return;
 
-			_deltaBox.Mins += outBox.Mins - _box.Mins;
-			_deltaBox.Maxs += outBox.Maxs - _box.Maxs;
-
-			_box = Snap( _startBox, _deltaBox );
+			_box = outBox;
 
 			if ( snapTarget.HasValue )
 				ApplyVertexSnap( ref _box, resizeAxis, _basis.Inverse * snapTarget.Value );
@@ -97,23 +92,6 @@ public sealed class ResizeMode : MoveMode
 
 		if ( IsMaxsFace( axis ) ) box.Maxs[i] = target[i];
 		else box.Mins[i] = target[i];
-	}
-
-	static BBox Snap( BBox startBox, BBox movement )
-	{
-		var mins = startBox.Mins + movement.Mins;
-		var maxs = startBox.Maxs + movement.Maxs;
-
-		if ( Gizmo.Settings.SnapToGrid != Gizmo.IsCtrlPressed )
-		{
-			mins = Gizmo.Snap( mins, movement.Mins );
-			maxs = Gizmo.Snap( maxs, movement.Maxs );
-		}
-
-		var result = default( BBox );
-		result.Mins = mins;
-		result.Maxs = maxs;
-		return result;
 	}
 
 	static void ResizeBBox( SelectionTool tool, BBox prevBox, BBox newBox, Rotation basis )

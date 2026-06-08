@@ -212,7 +212,7 @@ static class StartupLoadProject
 
 			// Mount our current project into the filesystem and make sure to load all assets
 			FileSystem.Mounted.CreateAndMount( project.GetAssetsPath() );
-			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, ct );
+			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, ct, true );
 		}
 		else
 		{
@@ -440,6 +440,11 @@ static class StartupLoadProject
 		if ( project.Config.SetMeta( "Collision", null ) )
 		{
 			project.Save();
+		}
+
+		if ( !FileSystem.ProjectSettings.FileExists( "/Platform.config" ) )
+		{
+			EditorUtility.SaveProjectSettings( new PlatformSettings(), "Platform.config" );
 		}
 	}
 

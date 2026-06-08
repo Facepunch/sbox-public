@@ -146,6 +146,14 @@ partial class EdgeTool
 			}
 
 			Layout.AddStretchCell();
+
+			AddShortcuts(
+				("Loop Select", "Double Click"),
+				("Lasso Select", "Alt+Shift+Drag"),
+				("Lasso Deselect", "Alt+Ctrl+Drag"),
+				("Grow Selection", "Numpad +"),
+				("Shrink Selection", "Numpad -")
+			);
 		}
 
 		[Shortcut( "mesh.bridge-tool", "ALT+B", typeof( SceneViewWidget ) )]

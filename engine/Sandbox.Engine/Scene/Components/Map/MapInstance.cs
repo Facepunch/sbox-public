@@ -55,6 +55,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	SceneMap loadedMap;
 	GameObject _mapPhysics;
 	string loadedMapName;
+	Package loadedMapPkg;
 	string sceneMapScenePath;
 
 	public MapInstance() : base()
@@ -128,7 +129,13 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	/// </summary>
 	public void UnloadMap()
 	{
+		if ( loadedMapPkg is not null )
+		{
+			ServerPackages.Current?.RemoveRequirement( loadedMapPkg );
+		}
+
 		loadedMapName = null;
+		loadedMapPkg = null;
 		sceneMapScenePath = null;
 
 		bool hadMap = loadedMap is not null;
@@ -263,6 +270,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 				if ( !IsValid || fs is null )
 					return false;
 
+				loadedMapPkg = package;
 				mapFileName = package.PrimaryAsset;
 
 				if ( string.IsNullOrWhiteSpace( mapFileName ) )
@@ -301,12 +309,11 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 					if ( loadedMap.IsValid() )
 					{
-						var aggregateData = g_pPhysicsSystem.GetAggregateData( $"{loadedMap.MapFolder}/world_physics.vphys" );
-						if ( aggregateData.IsValid )
+						var vphysPath = $"{loadedMap.MapFolder}/world_physics.vphys";
+						Physics = PhysicsGroupDescription.Load( vphysPath );
+						if ( Physics is not null )
 						{
 							var objectKey = $"{mapFileName}.World Physics";
-
-							Physics = new PhysicsGroupDescription( aggregateData );
 							var go = new GameObject();
 
 							//
@@ -326,8 +333,8 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 						}
 						else
 						{
-							Log.Warning( $"Couldn't find map physics: '{loadedMap.MapFolder}/world_physics.vphys'" );
-							SentrySdk.AddBreadcrumb( $"Couldn't find map physics: '{loadedMap.MapFolder}/world_physics.vphys'", "map.load" );
+							Log.Warning( $"Couldn't find map physics: '{vphysPath}'" );
+							SentrySdk.AddBreadcrumb( $"Couldn't find map physics: '{vphysPath}'", "map.load" );
 						}
 					}
 

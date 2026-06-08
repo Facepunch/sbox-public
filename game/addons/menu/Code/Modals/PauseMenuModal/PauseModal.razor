@@ -48,13 +48,18 @@
                     <Button class="circle" Tooltip="Change Map" Icon="map" onclick=@ChangeMap></Button>
                 }
 
-                @if (Networking.IsActive && (game?.GetValue<bool>("ShowPlayerList", true) ?? true))
+                @if (Networking.IsActive && (game?.Info.ShowsPlayerList ?? true))
                 {
                     <Button class="circle" Icon="groups" Tooltip="Player List" @onclick="@(() => Game.Overlay.ShowPlayerList())"></Button>
                 }
 
                 <Button class="circle" Tooltip="Reconfigure Controls" Icon="gamepad" @onclick="@(() => Game.Overlay.ShowBinds())"></Button>
                 <Button class="circle" Tooltip="Open Settings" Icon="settings" @onclick="@(() => Game.Overlay.ShowSettingsModal())"></Button>
+
+                @if ( (game?.Info.IsStreamerGame ?? false) )
+                {
+                    <Button class="circle" Active=@Streamer.IsActive Tooltip="Stream Connection" Icon="settings_input_antenna" @onclick="@(() => Game.Overlay.ShowServiceConnector())"></Button>
+                }
 
             </div>
 
@@ -77,7 +82,7 @@
         {
             if ( Networking.IsActive && !Networking.IsHost ) return false;
 
-            return game?.GetValue( "ShowChangeMap", false ) ?? false;
+            return game?.Info.ShowsChangeMap ?? false;
         }
     }
 

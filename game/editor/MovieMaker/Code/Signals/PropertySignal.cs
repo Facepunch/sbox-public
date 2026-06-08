@@ -40,7 +40,7 @@ public abstract partial record PropertySignal : IPropertySignal
 public abstract partial record PropertySignal<T>() : PropertySignal, IPropertySignal<T>
 {
 	[JsonIgnore]
-	public sealed override Type PropertyType => typeof(T);
+	public sealed override Type PropertyType => typeof( T );
 
 	protected PropertySignal( PropertySignal<T> copy )
 		: base( copy )

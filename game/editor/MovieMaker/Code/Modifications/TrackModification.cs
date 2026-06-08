@@ -197,7 +197,7 @@ public abstract class PerTrackModification<T>( T defaultOptions, bool autoCreate
 	{
 		if ( GetTrackModificationPreview( track ) is { } state ) return state;
 
-		var type = typeof(TrackModificationPreview<>).MakeGenericType( track.TargetType );
+		var type = typeof( TrackModificationPreview<> ).MakeGenericType( track.TargetType );
 		TrackPreviews.Add( track, state = (ITrackModificationPreview)Activator.CreateInstance( type, EditMode, track )! );
 
 		return state;
@@ -253,7 +253,7 @@ public abstract class PerTrackModification<T>( T defaultOptions, bool autoCreate
 	protected ITrackModification? CreateModification( IProjectPropertyTrack track )
 	{
 		var method = GetType()
-			.GetMethod( nameof(OnCreateModification), BindingFlags.NonPublic | BindingFlags.Instance )!
+			.GetMethod( nameof( OnCreateModification ), BindingFlags.NonPublic | BindingFlags.Instance )!
 			.MakeGenericMethod( track.TargetType );
 
 		return (ITrackModification?)method.Invoke( this, [track] );
@@ -273,7 +273,7 @@ public abstract class PerTrackModification<T>( T defaultOptions, bool autoCreate
 		return true;
 	}
 
-	public ModificationSnapshot Snapshot() => new ( GetType(), Options,
+	public ModificationSnapshot Snapshot() => new( GetType(), Options,
 		TrackPreviews
 			.Where( x => x.Value.Modification is not null )
 			.ToImmutableDictionary(

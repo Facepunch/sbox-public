@@ -80,6 +80,7 @@ internal class VTexWriter
 		using var buffer = ByteStream.Create( 256 );
 
 		var outputFormat = VTexWriter.VTEX_FormatToRuntime( Header.Format );
+		bool isPngLossless = Header.Format == VTEX_Format_t.VTEX_FORMAT_PNG_RGBA8888;
 
 		log.Trace( $"Writing Textures: {Header.Format} / {outputFormat}" );
 
@@ -89,7 +90,17 @@ internal class VTexWriter
 		//
 		foreach ( var layer in Layers.OrderByDescending( x => x.Mip ).ThenBy( x => x.Face ) )
 		{
-			var encoded = layer.Bitmap.ToFormat( outputFormat );
+			byte[] encoded;
+
+			if ( isPngLossless )
+			{
+				// PNG_RGBA8888: store raw pixels as a PNG blob for lossless on-disk compression
+				encoded = layer.Bitmap.ToPng();
+			}
+			else
+			{
+				encoded = layer.Bitmap.ToFormat( outputFormat );
+			}
 
 			if ( encoded is null )
 			{
@@ -219,7 +230,7 @@ internal class VTexWriter
 			ImageFormat.DXT5 => VTEX_Format_t.VTEX_FORMAT_BC3,
 			ImageFormat.I8 => VTEX_Format_t.VTEX_FORMAT_I8,
 			ImageFormat.IA88 => VTEX_Format_t.VTEX_FORMAT_IA88,
-			ImageFormat.RGBA8888 => VTEX_Format_t.VTEX_FORMAT_RGBA8888,
+			ImageFormat.RGBA8888 => VTEX_Format_t.VTEX_FORMAT_PNG_RGBA8888, // Store as PNG for lossless compression (since RGBA8888 is uncompressed in VTEX)
 			ImageFormat.R16 => VTEX_Format_t.VTEX_FORMAT_R16,
 			ImageFormat.RG1616 => VTEX_Format_t.VTEX_FORMAT_RG1616,
 			ImageFormat.RGBA16161616 => VTEX_Format_t.VTEX_FORMAT_RGBA16161616,
@@ -283,7 +294,7 @@ internal class VTexWriter
 			Mip = mip,
 			Face = face,
 			Opaque = bitmap.IsOpaque(),
-			Hdr = bitmap.IsFloatingPoint
+			Hdr = bitmap.IsFloatingPoint,
 		};
 
 		Layers.Add( layer );

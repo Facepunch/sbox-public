@@ -56,7 +56,7 @@ public static class Transformer
 
 		try
 		{
-			var transformerType = typeof(LocalTransformerWrapper<>)
+			var transformerType = typeof( LocalTransformerWrapper<> )
 				.MakeGenericType( type );
 
 			return Cache[type] = (ITransformer<object?>?)Activator.CreateInstance( transformerType );
@@ -75,7 +75,7 @@ public static class Transformer
 	}
 
 	public static ITransformer<T> GetDefaultOrThrow<T>() =>
-		GetDefault<T>() ?? throw new Exception( $"Type {typeof(T)} can't be transformed to local." );
+		GetDefault<T>() ?? throw new Exception( $"Type {typeof( T )} can't be transformed to local." );
 }
 
 file interface INumericTransformer<T> : ITransformer<T>
