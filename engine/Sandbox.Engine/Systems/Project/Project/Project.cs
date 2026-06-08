@@ -17,7 +17,7 @@ public sealed partial class Project
 	internal object ProjectSourceObject { get; set; }
 
 	/// <summary>
-	/// Absolute path to the .addon file
+	/// Absolute path to the .sbproj file
 	/// </summary>
 	[JsonPropertyName( "Path" )]
 	public string ConfigFilePath { get; set; }
@@ -94,6 +94,11 @@ public sealed partial class Project
 	internal Action OnSaveProject { get; set; }
 
 	/// <summary>
+	/// A filesystem for sandbox projects
+	/// </summary>
+	internal LocalFileSystem ProjectFileSystem { get; set; }
+
+	/// <summary>
 	/// A filesystem into which compiled assemblies are written
 	/// </summary>
 	[JsonIgnore]
@@ -113,6 +118,8 @@ public sealed partial class Project
 		EditorCompiler = null;
 
 		AssemblyFileSystem?.Dispose();
+
+		ProjectFileSystem?.Dispose();
 	}
 
 	internal bool LoadMinimal()
@@ -130,6 +137,8 @@ public sealed partial class Project
 				// Turn Path from myproject/ into myproject/.sbproj
 				ConfigFilePath = System.IO.Path.Combine( RootDirectory.FullName, ".sbproj" );
 			}
+
+			ProjectFileSystem = new LocalFileSystem( RootDirectory.FullName );
 
 			var text = File.ReadAllText( ConfigFilePath );
 			Config = JsonSerializer.Deserialize<DataModel.ProjectConfig>( text );
@@ -167,49 +176,49 @@ public sealed partial class Project
 	/// <summary>
 	/// Absolute path to the location of the <c>.sbproj</c> file of the project.
 	/// </summary>
-	public string GetRootPath() => RootDirectory.FullName;
+	public string GetRootPath() => ProjectFileSystem?.GetFullPath( "/" );
 
 	/// <summary>
 	/// Gets the .sbproj file for this project
 	/// </summary>
 	/// <returns></returns>
-	public string GetProjectPath() => System.IO.Directory.EnumerateFiles( GetRootPath(), "*.sbproj" ).FirstOrDefault();
+	public string GetProjectPath() => ProjectFileSystem?.FindFile( "/", "*.sbproj" ).FirstOrDefault();
 
 	/// <summary>
 	/// Absolute path to the Code folder of the project.
 	/// </summary>
-	public string GetCodePath() => System.IO.Path.Combine( RootDirectory.FullName, "Code" );
+	public string GetCodePath() => ProjectFileSystem?.GetFullPath( "Code" );
 
 	/// <summary>
 	/// Returns true if the Code path exists
 	/// </summary>
-	public bool HasCodePath() => RootDirectory is not null && System.IO.Directory.Exists( GetCodePath() );
+	public bool HasCodePath() => System.IO.Directory.Exists( GetCodePath() );
 
 	/// <summary>
 	/// Absolute path to the Editor folder of the project.
 	/// </summary>
-	public string GetEditorPath() => System.IO.Path.Combine( RootDirectory.FullName, "Editor" );
+	public string GetEditorPath() => ProjectFileSystem?.GetFullPath( "Editor" );
 
 	/// <summary>
 	/// Returns true if the Editor path exists
 	/// </summary>
-	public bool HasEditorPath() => RootDirectory is not null && System.IO.Directory.Exists( GetEditorPath() );
+	public bool HasEditorPath() => System.IO.Directory.Exists( GetEditorPath() );
 
 	/// <summary>
 	/// Absolute path to the Assets folder of the project, or <see langword="null"/> if not set.
 	/// </summary>
-	public string GetAssetsPath() => System.IO.Path.Combine( RootDirectory.FullName, "Assets" );
+	public string GetAssetsPath() => ProjectFileSystem?.GetFullPath( "Assets" );
 
 	/// <summary>
 	/// Absolute path to the Localization folder of the project, or <see langword="null"/> if not set.
 	/// </summary>
 	/// <returns></returns>
-	public string GetLocalizationPath() => System.IO.Path.Combine( RootDirectory.FullName, "Localization" );
+	public string GetLocalizationPath() => ProjectFileSystem?.GetFullPath( "Localization" );
 
 	/// <summary>
 	/// Returns true if the Assets path exists
 	/// </summary>
-	public bool HasAssetsPath() => RootDirectory is not null && System.IO.Directory.Exists( GetAssetsPath() );
+	public bool HasAssetsPath() => System.IO.Directory.Exists( GetAssetsPath() );
 
 	internal void Save()
 	{
