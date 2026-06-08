@@ -222,7 +222,7 @@ public class BaseFileSystem
 	internal string GetRelativePath( string path )
 	{
 		if ( string.IsNullOrWhiteSpace( path ) ) return null;
-		return GetRelativePath( system, path.ToLowerInvariant() );
+		return GetRelativePath( system, path )?.ToLowerInvariant();
 	}
 
 	/// <summary>
