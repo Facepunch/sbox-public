@@ -582,6 +582,44 @@ public class StyleSetting
 	}
 
 	[TestMethod]
+	public void SetBackgroundShorthandColorClearsImage()
+	{
+		// A color-only background must clear a previously-set image. (url() stays lazy so we never need a graphics device.)
+		Styles styles = new Styles();
+
+		Assert.IsTrue( styles.Set( "background", "url( /ui/test.png )" ) );
+		var imageLazy = styles._backgroundImage;
+		Assert.IsNotNull( imageLazy );
+
+		Assert.IsTrue( styles.Set( "background", "#ff0000" ) );
+
+		Assert.IsNotNull( styles._backgroundImage );
+		Assert.AreNotSame( imageLazy, styles._backgroundImage );
+		Assert.IsTrue( styles.BackgroundColor.HasValue );
+		Assert.AreEqual( new Color( 1, 0, 0, 1 ), styles.BackgroundColor.Value );
+	}
+
+	[TestMethod]
+	public void BackgroundColorRuleStompsImageFromLowerPriorityRule()
+	{
+		// A higher-priority color rule must stomp a lower-priority image rule through the cascade merge.
+		var imageRule = new Styles();
+		Assert.IsTrue( imageRule.Set( "background", "url( /ui/test.png )" ) );
+
+		var colorRule = new Styles();
+		Assert.IsTrue( colorRule.Set( "background", "#ff0000" ) );
+
+		var final = new Styles();
+		final.Add( imageRule );
+		final.Add( colorRule );
+
+		Assert.AreSame( colorRule._backgroundImage, final._backgroundImage );
+		Assert.AreNotSame( imageRule._backgroundImage, final._backgroundImage );
+		Assert.IsTrue( final.BackgroundColor.HasValue );
+		Assert.AreEqual( new Color( 1, 0, 0, 1 ), final.BackgroundColor.Value );
+	}
+
+	[TestMethod]
 	public void SetColor()
 	{
 		Styles styles = new Styles();

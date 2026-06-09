@@ -88,15 +88,23 @@ public sealed class TrackListWidget : Widget
 	private void RemoveRootTrack( TrackWidget item ) => item.Destroy();
 	private bool UpdateChildTrack( TrackView source, TrackWidget item ) => item.UpdateLayout();
 
+	/// <summary>
+	/// Try to find a relevant track to select if we've just selected a GameObject in the hierarchy.
+	/// </summary>
 	private void OnSelectionAdded( object item )
 	{
-		if ( Tracks.Any( x => x.IsFocused ) || Session.Editor.TimelinePanel?.Timeline.IsFocused is true ) return;
 		if ( item is not GameObject go ) return;
-		if ( Tracks.FirstOrDefault( x => x.View.Target is ITrackReference<GameObject> { IsBound: true } target && target.Value == go ) is not { } track ) return;
 
-		track.View.Select();
+		if ( Session.TrackList.Find( go ) is not { } trackView ) return;
 
-		Session.Editor.TimelinePanel?.Timeline.ScrollToTrack( track.View );
+		if ( trackView.IsSelected ) return;
+
+		// Don't select this GameObject track if we've already selected a property track inside it
+
+		if ( trackView.SameGameObjectDescendants.Any( x => x.IsSelected ) ) return;
+
+		trackView.Select();
+		TimeLine.ScrollToTrack( trackView );
 	}
 
 	protected override void OnPaint()

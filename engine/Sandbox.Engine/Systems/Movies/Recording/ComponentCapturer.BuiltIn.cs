@@ -529,3 +529,46 @@ file sealed class AmbientLightCapturer : ComponentCapturer<AmbientLight>
 		recorder.Property( nameof( AmbientLight.Color ) ).Capture();
 	}
 }
+
+[Expose]
+file sealed class BeamEffectCapturer : ComponentCapturer<BeamEffect>
+{
+	protected override void OnCapture( IMovieTrackRecorder recorder, BeamEffect component )
+	{
+		recorder.Property( nameof( BeamEffect.Scale ) ).Capture();
+		recorder.Property( nameof( BeamEffect.TargetGameObject ) ).Capture();
+
+		if ( !component.TargetGameObject.IsValid() )
+		{
+			recorder.Property( nameof( BeamEffect.TargetPosition ) ).Capture();
+		}
+
+		recorder.Property( nameof( BeamEffect.TargetRandom ) ).Capture();
+		recorder.Property( nameof( BeamEffect.FollowPoints ) ).Capture();
+		recorder.Property( nameof( BeamEffect.BeamsPerSecond ) ).Capture();
+		recorder.Property( nameof( BeamEffect.MaxBeams ) ).Capture();
+		recorder.Property( nameof( BeamEffect.InitialBurst ) ).Capture();
+		recorder.Property( nameof( BeamEffect.BeamLifetime ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Looped ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Material ) ).Capture();
+		recorder.Property( nameof( BeamEffect.TextureOffset ) ).Capture();
+		recorder.Property( nameof( BeamEffect.TextureScale ) ).Capture();
+		recorder.Property( nameof( BeamEffect.TextureScrollSpeed ) ).Capture();
+		recorder.Property( nameof( BeamEffect.TextureScroll ) ).Capture();
+		recorder.Property( nameof( BeamEffect.FilterMode ) ).Capture();
+		recorder.Property( nameof( BeamEffect.BeamColor ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Alpha ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Brightness ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Additive ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Shadows ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Lighting ) ).Capture();
+		recorder.Property( nameof( BeamEffect.Opaque ) ).Capture();
+		recorder.Property( nameof( BeamEffect.DepthFeather ) ).Capture();
+		recorder.Property( nameof( BeamEffect.TravelBetweenPoints ) ).Capture();
+
+		if ( component.TravelBetweenPoints )
+		{
+			recorder.Property( nameof( BeamEffect.TravelLerp ) ).Capture();
+		}
+	}
+}

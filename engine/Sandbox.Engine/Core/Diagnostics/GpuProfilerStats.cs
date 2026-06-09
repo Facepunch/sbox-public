@@ -18,6 +18,8 @@ public static class GpuProfilerStats
 	private static readonly Dictionary<string, float> _smoothedDurations = new();
 	private static readonly Dictionary<string, float> _maxDurations = new();
 	private static bool _enabled;
+	private static RealTimeSince _lastMemoryStatsUpdate;
+	private static bool _hasMemoryStats;
 
 	/// <summary>
 	/// Whether GPU profiling is enabled
@@ -47,6 +49,26 @@ public static class GpuProfilerStats
 	public static float TotalGpuTimeMs { get; private set; }
 
 	/// <summary>
+	/// GPU video memory budget in bytes.
+	/// </summary>
+	public static ulong VideoMemoryBudget { get; private set; }
+
+	/// <summary>
+	/// GPU video memory used by the engine in bytes.
+	/// </summary>
+	public static ulong VideoMemoryUsed { get; private set; }
+
+	/// <summary>
+	/// GPU video memory free within the current budget in bytes.
+	/// </summary>
+	public static ulong VideoMemoryFree { get; private set; }
+
+	/// <summary>
+	/// GPU video memory usage as a 0-1 fraction of budget.
+	/// </summary>
+	public static float VideoMemoryUsageFraction { get; private set; }
+
+	/// <summary>
 	/// Get the current GPU timing entries
 	/// </summary>
 	public static IReadOnlyList<GpuTimingEntry> Entries => _entries;
@@ -74,6 +96,11 @@ public static class GpuProfilerStats
 			_entries.Clear();
 			TotalGpuTimeMs = 0;
 			return;
+		}
+
+		if ( !_hasMemoryStats || _lastMemoryStatsUpdate >= 1f )
+		{
+			UpdateMemoryStats();
 		}
 
 		_entries.Clear();
@@ -119,5 +146,18 @@ public static class GpuProfilerStats
 		}
 
 		TotalGpuTimeMs = total;
+	}
+
+	private static void UpdateMemoryStats()
+	{
+		VideoMemoryBudget = Graphics.VideoMemoryBudget;
+		VideoMemoryUsed = Graphics.VideoMemoryUsed;
+		VideoMemoryFree = VideoMemoryUsed >= VideoMemoryBudget ? 0 : VideoMemoryBudget - VideoMemoryUsed;
+		VideoMemoryUsageFraction = VideoMemoryBudget > 0
+			? Math.Clamp( VideoMemoryUsed / (float)VideoMemoryBudget, 0f, 1f )
+			: 0f;
+
+		_lastMemoryStatsUpdate = 0;
+		_hasMemoryStats = true;
 	}
 }

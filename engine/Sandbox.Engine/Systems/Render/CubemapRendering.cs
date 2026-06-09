@@ -35,7 +35,8 @@ internal static class CubemapRendering
 	/// <param name="znear">The near plane distance for the camera.</param>
 	/// <param name="zfar">The far plane distance for the camera.</param>
 	/// <param name="filterType">The quality level for GGX filtering.</param>
-	public static void Render( SceneWorld world, Texture cubemapTexture, Transform cubemapTransform, float znear, float zfar, GGXFilterType filterType )
+	/// <param name="excludeTags">Objects with any of these tags will be excluded from the render.</param>
+	public static void Render( SceneWorld world, Texture cubemapTexture, Transform cubemapTransform, float znear, float zfar, GGXFilterType filterType, ITagSet excludeTags = null )
 	{
 		if ( Application.IsHeadless )
 			throw new Exception( "Tried to call CubemapRendering.Render from a dedicated server" );
@@ -48,6 +49,11 @@ internal static class CubemapRendering
 		camera.Rotation = cubemapTransform.Rotation;
 		camera.World = world;
 		camera.ExcludeFromTextureStreaming = true;
+
+		if ( excludeTags is not null )
+		{
+			camera.ExcludeTags.SetFrom( excludeTags );
+		}
 
 		// We need to filter with GGX after rendering is done so that roughness levels sample correctly.
 		// SceneCameras don't abstract Command Lists directly, so we hook into the render stage for same behavior.

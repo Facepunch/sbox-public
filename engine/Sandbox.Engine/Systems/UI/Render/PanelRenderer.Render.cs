@@ -127,7 +127,7 @@ internal partial class PanelRenderer
 			SetScissorAttributes( cl, desc.Scissor );
 
 			Stats.DrawCalls++;
-			UIRenderer.Draw( CollectionsMarshal.AsSpan( desc.Backdrops ), cl, reuseGrab: backdropGrabActive );
+			DrawImmediate( CollectionsMarshal.AsSpan( desc.Backdrops ), cl, reuseGrab: backdropGrabActive );
 			backdropGrabActive = true;
 		}
 
@@ -282,7 +282,7 @@ internal partial class PanelRenderer
 		if ( hasBackdrop )
 		{
 			Stats.DrawCalls++;
-			UIRenderer.Draw( CollectionsMarshal.AsSpan( desc.Backdrops ), cl, reuseGrab: backdropGrabActive );
+			DrawImmediate( CollectionsMarshal.AsSpan( desc.Backdrops ), cl, reuseGrab: backdropGrabActive );
 			backdropGrabActive = true;
 		}
 
@@ -303,9 +303,11 @@ internal partial class PanelRenderer
 			while ( customIdx < desc.CustomEntries.Count && desc.CustomEntries[customIdx].InsertionIndex <= j )
 			{
 				FlushBatch( cl );
-				desc.CustomEntries[customIdx++].Descriptor.Draw( cl );
+				DrawCustom( desc.CustomEntries[customIdx++].Descriptor, cl );
 				// Restore CL state that the batch path expects
 				cl.Attributes.Set( "TransformMat", transform );
+				if ( worldPanelMat.HasValue )
+					cl.Attributes.Set( "WorldMat", worldPanelMat.Value );
 				SetScissorAttributes( cl, scissor );
 			}
 
@@ -337,10 +339,31 @@ internal partial class PanelRenderer
 		while ( customIdx < desc.CustomEntries.Count )
 		{
 			FlushBatch( cl );
-			desc.CustomEntries[customIdx++].Descriptor.Draw( cl );
+			DrawCustom( desc.CustomEntries[customIdx++].Descriptor, cl );
 			cl.Attributes.Set( "TransformMat", transform );
+			if ( worldPanelMat.HasValue )
+				cl.Attributes.Set( "WorldMat", worldPanelMat.Value );
 			SetScissorAttributes( cl, scissor );
 		}
+	}
+
+	void DrawCustom( IPanelDraw descriptor, CommandList cl )
+	{
+		if ( isWorldPanelContext )
+			cl.Attributes.Set( "WorldMat", Sandbox.ScenePanelObject.BuildPanelToObjectMatrix() );
+
+		descriptor.Draw( cl );
+	}
+
+	void DrawImmediate( Span<BackdropDrawDescriptor> descriptors, CommandList cl, bool reuseGrab )
+	{
+		if ( isWorldPanelContext )
+			cl.Attributes.Set( "WorldMat", Sandbox.ScenePanelObject.BuildPanelToObjectMatrix() );
+
+		UIRenderer.Draw( descriptors, cl, reuseGrab );
+
+		if ( worldPanelMat.HasValue )
+			cl.Attributes.Set( "WorldMat", worldPanelMat.Value );
 	}
 
 	void AddInstance( GPUBoxInstance inst, GPUScissor scissor, Matrix transform )

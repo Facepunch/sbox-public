@@ -55,6 +55,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	SceneMap loadedMap;
 	GameObject _mapPhysics;
 	string loadedMapName;
+	Package loadedMapPkg;
 	string sceneMapScenePath;
 
 	public MapInstance() : base()
@@ -128,7 +129,13 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	/// </summary>
 	public void UnloadMap()
 	{
+		if ( loadedMapPkg is not null )
+		{
+			ServerPackages.Current?.RemoveRequirement( loadedMapPkg );
+		}
+
 		loadedMapName = null;
+		loadedMapPkg = null;
 		sceneMapScenePath = null;
 
 		bool hadMap = loadedMap is not null;
@@ -263,6 +270,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 				if ( !IsValid || fs is null )
 					return false;
 
+				loadedMapPkg = package;
 				mapFileName = package.PrimaryAsset;
 
 				if ( string.IsNullOrWhiteSpace( mapFileName ) )

@@ -7,6 +7,7 @@ namespace Sandbox.UI;
 /// </summary>
 public abstract partial class BaseStyles
 {	
+
 	internal string _content;
 	
 	/// <summary>
@@ -22,7 +23,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _width;
 	
 	/// <summary>
@@ -38,7 +39,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _minwidth;
 	
 	/// <summary>
@@ -54,7 +55,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _maxwidth;
 	
 	/// <summary>
@@ -70,7 +71,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _height;
 	
 	/// <summary>
@@ -86,7 +87,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _minheight;
 	
 	/// <summary>
@@ -102,7 +103,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _maxheight;
 	
 	/// <summary>
@@ -118,7 +119,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _left;
 	
 	/// <summary>
@@ -134,7 +135,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _top;
 	
 	/// <summary>
@@ -150,7 +151,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _right;
 	
 	/// <summary>
@@ -166,7 +167,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _bottom;
 	
 	/// <summary>
@@ -182,7 +183,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal float? _opacity;
 	
 	/// <summary>
@@ -198,7 +199,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _backgroundcolor;
 	
 	/// <summary>
@@ -214,7 +215,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _paddingleft;
 	
 	/// <summary>
@@ -230,7 +231,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _paddingtop;
 	
 	/// <summary>
@@ -246,7 +247,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _paddingright;
 	
 	/// <summary>
@@ -262,7 +263,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _paddingbottom;
 	
 	/// <summary>
@@ -278,7 +279,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _marginleft;
 	
 	/// <summary>
@@ -294,7 +295,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _margintop;
 	
 	/// <summary>
@@ -310,7 +311,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _marginright;
 	
 	/// <summary>
@@ -326,7 +327,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _marginbottom;
 	
 	/// <summary>
@@ -342,7 +343,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _bordertopleftradius;
 	
 	/// <summary>
@@ -358,7 +359,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _bordertoprightradius;
 	
 	/// <summary>
@@ -374,7 +375,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _borderbottomrightradius;
 	
 	/// <summary>
@@ -390,7 +391,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _borderbottomleftradius;
 	
 	/// <summary>
@@ -406,7 +407,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _borderleftwidth;
 	
 	/// <summary>
@@ -422,7 +423,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _bordertopwidth;
 	
 	/// <summary>
@@ -438,7 +439,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _borderrightwidth;
 	
 	/// <summary>
@@ -454,7 +455,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _borderbottomwidth;
 	
 	/// <summary>
@@ -470,7 +471,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _borderleftcolor;
 	
 	/// <summary>
@@ -486,7 +487,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _bordertopcolor;
 	
 	/// <summary>
@@ -502,7 +503,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _borderrightcolor;
 	
 	/// <summary>
@@ -518,7 +519,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _borderbottomcolor;
 	
 	/// <summary>
@@ -534,7 +535,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _fontsize;
 	
 	/// <summary>
@@ -550,7 +551,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _fontcolor;
 	
 	/// <summary>
@@ -566,7 +567,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal int? _fontweight;
 	
 	/// <summary>
@@ -582,7 +583,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _fontfamily;
 	
 	/// <summary>
@@ -598,7 +599,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _caretcolor;
 	
 	/// <summary>
@@ -614,7 +615,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _cursor;
 	
 	/// <summary>
@@ -630,7 +631,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal PointerEvents? _pointerevents;
 	
 	/// <summary>
@@ -646,7 +647,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _mixblendmode;
 	
 	/// <summary>
@@ -662,7 +663,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal PositionMode? _position;
 	
 	/// <summary>
@@ -678,7 +679,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal OverflowMode? _overflowx;
 	
 	/// <summary>
@@ -694,7 +695,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal OverflowMode? _overflowy;
 	
 	/// <summary>
@@ -710,7 +711,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal FlexDirection? _flexdirection;
 	
 	/// <summary>
@@ -726,7 +727,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Justify? _justifycontent;
 	
 	/// <summary>
@@ -742,7 +743,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal DisplayMode? _display;
 	
 	/// <summary>
@@ -758,7 +759,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Wrap? _flexwrap;
 	
 	/// <summary>
@@ -774,7 +775,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Align? _aligncontent;
 	
 	/// <summary>
@@ -790,7 +791,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Align? _alignself;
 	
 	/// <summary>
@@ -806,7 +807,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Align? _alignitems;
 	
 	/// <summary>
@@ -822,7 +823,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _flexbasis;
 	
 	/// <summary>
@@ -838,7 +839,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal float? _flexgrow;
 	
 	/// <summary>
@@ -854,7 +855,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal float? _flexshrink;
 	
 	/// <summary>
@@ -870,7 +871,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _rowgap;
 	
 	/// <summary>
@@ -886,7 +887,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _columngap;
 	
 	/// <summary>
@@ -902,7 +903,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal float? _aspectratio;
 	
 	/// <summary>
@@ -918,7 +919,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal TextAlign? _textalign;
 	
 	/// <summary>
@@ -934,7 +935,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal TextOverflow? _textoverflow;
 	
 	/// <summary>
@@ -950,7 +951,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Rendering.FilterMode? _textfilter;
 	
 	/// <summary>
@@ -966,7 +967,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal WordBreak? _wordbreak;
 	
 	/// <summary>
@@ -982,7 +983,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal TextDecoration? _textdecorationline;
 	
 	/// <summary>
@@ -998,7 +999,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _textdecorationcolor;
 	
 	/// <summary>
@@ -1014,7 +1015,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _textdecorationthickness;
 	
 	/// <summary>
@@ -1030,7 +1031,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal TextSkipInk? _textdecorationskipink;
 	
 	/// <summary>
@@ -1046,7 +1047,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal TextDecorationStyle? _textdecorationstyle;
 	
 	/// <summary>
@@ -1062,7 +1063,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _textunderlineoffset;
 	
 	/// <summary>
@@ -1078,7 +1079,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _textoverlineoffset;
 	
 	/// <summary>
@@ -1094,7 +1095,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _textlinethroughoffset;
 	
 	/// <summary>
@@ -1110,7 +1111,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal FontStyle? _fontstyle;
 	
 	/// <summary>
@@ -1128,7 +1129,7 @@ public abstract partial class BaseStyles
 	}
 
 	internal FontVariantNumeric? _fontvariantnumeric;
-
+	
 	/// <summary>
 	/// Represents the <c>font-variant-numeric</c> CSS property.
 	/// </summary>
@@ -1142,7 +1143,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal PanelTransform? _transform;
 	
 	/// <summary>
@@ -1158,7 +1159,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal TextTransform? _texttransform;
 	
 	/// <summary>
@@ -1174,7 +1175,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _transformoriginx;
 	
 	/// <summary>
@@ -1190,7 +1191,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _transformoriginy;
 	
 	/// <summary>
@@ -1206,7 +1207,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _letterspacing;
 	
 	/// <summary>
@@ -1222,7 +1223,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _lineheight;
 	
 	/// <summary>
@@ -1238,7 +1239,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _wordspacing;
 	
 	/// <summary>
@@ -1254,7 +1255,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal WhiteSpace? _whitespace;
 	
 	/// <summary>
@@ -1270,7 +1271,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal int? _zindex;
 	
 	/// <summary>
@@ -1286,7 +1287,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal int? _order;
 	
 	/// <summary>
@@ -1302,7 +1303,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _soundin;
 	
 	/// <summary>
@@ -1318,7 +1319,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _soundout;
 	
 	/// <summary>
@@ -1334,7 +1335,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backdropfilterblur;
 	
 	/// <summary>
@@ -1350,7 +1351,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backdropfilterbrightness;
 	
 	/// <summary>
@@ -1366,7 +1367,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backdropfiltercontrast;
 	
 	/// <summary>
@@ -1382,7 +1383,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backdropfiltersaturate;
 	
 	/// <summary>
@@ -1398,7 +1399,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backdropfiltersepia;
 	
 	/// <summary>
@@ -1414,7 +1415,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backdropfilterinvert;
 	
 	/// <summary>
@@ -1430,7 +1431,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backdropfilterhuerotate;
 	
 	/// <summary>
@@ -1446,7 +1447,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _filterblur;
 	
 	/// <summary>
@@ -1462,7 +1463,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _filtersaturate;
 	
 	/// <summary>
@@ -1478,7 +1479,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _filtersepia;
 	
 	/// <summary>
@@ -1494,7 +1495,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _filterbrightness;
 	
 	/// <summary>
@@ -1510,7 +1511,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _filterhuerotate;
 	
 	/// <summary>
@@ -1526,7 +1527,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _filterinvert;
 	
 	/// <summary>
@@ -1542,7 +1543,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _filtercontrast;
 	
 	/// <summary>
@@ -1558,7 +1559,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _filtertint;
 	
 	/// <summary>
@@ -1574,7 +1575,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _filterborderwidth;
 	
 	/// <summary>
@@ -1590,7 +1591,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _filterbordercolor;
 	
 	/// <summary>
@@ -1606,7 +1607,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal MaskMode? _maskmode;
 	
 	/// <summary>
@@ -1622,7 +1623,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal BackgroundRepeat? _maskrepeat;
 	
 	/// <summary>
@@ -1638,7 +1639,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _masksizex;
 	
 	/// <summary>
@@ -1654,7 +1655,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _masksizey;
 	
 	/// <summary>
@@ -1670,7 +1671,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _maskpositionx;
 	
 	/// <summary>
@@ -1686,7 +1687,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _maskpositiony;
 	
 	/// <summary>
@@ -1702,7 +1703,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _maskangle;
 	
 	/// <summary>
@@ -1718,7 +1719,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal MaskScope? _maskscope;
 	
 	/// <summary>
@@ -1734,7 +1735,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backgroundsizex;
 	
 	/// <summary>
@@ -1750,7 +1751,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backgroundsizey;
 	
 	/// <summary>
@@ -1766,7 +1767,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backgroundpositionx;
 	
 	/// <summary>
@@ -1782,7 +1783,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backgroundpositiony;
 	
 	/// <summary>
@@ -1798,7 +1799,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal BackgroundRepeat? _backgroundrepeat;
 	
 	/// <summary>
@@ -1814,7 +1815,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _borderimagewidthleft;
 	
 	/// <summary>
@@ -1830,7 +1831,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _borderimagewidthright;
 	
 	/// <summary>
@@ -1846,7 +1847,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _borderimagewidthtop;
 	
 	/// <summary>
@@ -1862,7 +1863,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _borderimagewidthbottom;
 	
 	/// <summary>
@@ -1878,7 +1879,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal BorderImageFill? _borderimagefill;
 	
 	/// <summary>
@@ -1894,7 +1895,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal BorderImageRepeat? _borderimagerepeat;
 	
 	/// <summary>
@@ -1910,7 +1911,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _borderimagetint;
 	
 	/// <summary>
@@ -1926,7 +1927,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _backgroundblendmode;
 	
 	/// <summary>
@@ -1942,7 +1943,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _backgroundtint;
 	
 	/// <summary>
@@ -1958,7 +1959,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _backgroundangle;
 	
 	/// <summary>
@@ -1974,7 +1975,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _textbackgroundangle;
 	
 	/// <summary>
@@ -1990,7 +1991,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _perspectiveoriginx;
 	
 	/// <summary>
@@ -2006,7 +2007,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _perspectiveoriginy;
 	
 	/// <summary>
@@ -2022,7 +2023,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Color? _textstrokecolor;
 	
 	/// <summary>
@@ -2038,7 +2039,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal Length? _textstrokewidth;
 	
 	/// <summary>
@@ -2054,7 +2055,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal ImageRendering? _imagerendering;
 	
 	/// <summary>
@@ -2070,7 +2071,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal float? _animationdelay;
 	
 	/// <summary>
@@ -2086,7 +2087,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _animationdirection;
 	
 	/// <summary>
@@ -2102,7 +2103,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal float? _animationduration;
 	
 	/// <summary>
@@ -2118,7 +2119,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _animationfillmode;
 	
 	/// <summary>
@@ -2134,7 +2135,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal float? _animationiterationcount;
 	
 	/// <summary>
@@ -2150,7 +2151,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _animationname;
 	
 	/// <summary>
@@ -2166,7 +2167,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _animationplaystate;
 	
 	/// <summary>
@@ -2182,7 +2183,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal string _animationtimingfunction;
 	
 	/// <summary>
@@ -2198,7 +2199,7 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
+
 	internal FontSmooth? _fontsmooth;
 	
 	/// <summary>
@@ -2214,9 +2215,9 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-	
-	internal ObjectFit? _objectfit;
 
+	internal ObjectFit? _objectfit;
+	
 	/// <summary>
 	/// Represents the <c>object-fit</c> CSS property.
 	/// </summary>
@@ -2232,7 +2233,7 @@ public abstract partial class BaseStyles
 	}
 
 	internal Length? _outlinewidth;
-
+	
 	/// <summary>
 	/// Represents the <c>outline-width</c> CSS property.
 	/// </summary>
@@ -2248,7 +2249,7 @@ public abstract partial class BaseStyles
 	}
 
 	internal Color? _outlinecolor;
-
+	
 	/// <summary>
 	/// Represents the <c>outline-color</c> CSS property.
 	/// </summary>
@@ -2264,7 +2265,7 @@ public abstract partial class BaseStyles
 	}
 
 	internal Length? _outlineoffset;
-
+	
 	/// <summary>
 	/// Represents the <c>outline-offset</c> CSS property.
 	/// </summary>
@@ -2278,7 +2279,6 @@ public abstract partial class BaseStyles
 			Dirty();
 		}
 	}
-
 
 	/// <summary>
 	/// Copy over only the styles that are set.
@@ -2582,9 +2582,9 @@ public abstract partial class BaseStyles
 	/// Set a CSS property via its string name.
 	/// </summary>
 	private bool SetGenerated( string property, string value )
-    {
-        switch ( property )
-        {
+	{
+		switch ( property )
+		{
 		case "content":
 			Content = value.TrimQuoted( true );
 			return true;
@@ -2921,153 +2921,152 @@ public abstract partial class BaseStyles
 	}
 
 	private int GetHashCodeGenerated()
-    {
-		int hash = 0;
+	{
+		var hash = new HashCode();
 
-			hash = HashCode.Combine( hash, _content );
-			hash = HashCode.Combine( hash, _width );
-			hash = HashCode.Combine( hash, _minwidth );
-			hash = HashCode.Combine( hash, _maxwidth );
-			hash = HashCode.Combine( hash, _height );
-			hash = HashCode.Combine( hash, _minheight );
-			hash = HashCode.Combine( hash, _maxheight );
-			hash = HashCode.Combine( hash, _left );
-			hash = HashCode.Combine( hash, _top );
-			hash = HashCode.Combine( hash, _right );
-			hash = HashCode.Combine( hash, _bottom );
-			hash = HashCode.Combine( hash, _opacity );
-			hash = HashCode.Combine( hash, _backgroundcolor );
-			hash = HashCode.Combine( hash, _paddingleft );
-			hash = HashCode.Combine( hash, _paddingtop );
-			hash = HashCode.Combine( hash, _paddingright );
-			hash = HashCode.Combine( hash, _paddingbottom );
-			hash = HashCode.Combine( hash, _marginleft );
-			hash = HashCode.Combine( hash, _margintop );
-			hash = HashCode.Combine( hash, _marginright );
-			hash = HashCode.Combine( hash, _marginbottom );
-			hash = HashCode.Combine( hash, _bordertopleftradius );
-			hash = HashCode.Combine( hash, _bordertoprightradius );
-			hash = HashCode.Combine( hash, _borderbottomrightradius );
-			hash = HashCode.Combine( hash, _borderbottomleftradius );
-			hash = HashCode.Combine( hash, _borderleftwidth );
-			hash = HashCode.Combine( hash, _bordertopwidth );
-			hash = HashCode.Combine( hash, _borderrightwidth );
-			hash = HashCode.Combine( hash, _borderbottomwidth );
-			hash = HashCode.Combine( hash, _borderleftcolor );
-			hash = HashCode.Combine( hash, _bordertopcolor );
-			hash = HashCode.Combine( hash, _borderrightcolor );
-			hash = HashCode.Combine( hash, _borderbottomcolor );
-			hash = HashCode.Combine( hash, _fontsize );
-			hash = HashCode.Combine( hash, _fontcolor );
-			hash = HashCode.Combine( hash, _fontweight );
-			hash = HashCode.Combine( hash, _fontfamily );
-			hash = HashCode.Combine( hash, _caretcolor );
-			hash = HashCode.Combine( hash, _cursor );
-			hash = HashCode.Combine( hash, _pointerevents );
-			hash = HashCode.Combine( hash, _mixblendmode );
-			hash = HashCode.Combine( hash, _position );
-			hash = HashCode.Combine( hash, _overflowx );
-			hash = HashCode.Combine( hash, _overflowy );
-			hash = HashCode.Combine( hash, _flexdirection );
-			hash = HashCode.Combine( hash, _justifycontent );
-			hash = HashCode.Combine( hash, _display );
-			hash = HashCode.Combine( hash, _flexwrap );
-			hash = HashCode.Combine( hash, _aligncontent );
-			hash = HashCode.Combine( hash, _alignself );
-			hash = HashCode.Combine( hash, _alignitems );
-			hash = HashCode.Combine( hash, _flexbasis );
-			hash = HashCode.Combine( hash, _flexgrow );
-			hash = HashCode.Combine( hash, _flexshrink );
-			hash = HashCode.Combine( hash, _rowgap );
-			hash = HashCode.Combine( hash, _columngap );
-			hash = HashCode.Combine( hash, _aspectratio );
-			hash = HashCode.Combine( hash, _textalign );
-			hash = HashCode.Combine( hash, _textoverflow );
-			hash = HashCode.Combine( hash, _textfilter );
-			hash = HashCode.Combine( hash, _wordbreak );
-			hash = HashCode.Combine( hash, _textdecorationline );
-			hash = HashCode.Combine( hash, _textdecorationcolor );
-			hash = HashCode.Combine( hash, _textdecorationthickness );
-			hash = HashCode.Combine( hash, _textdecorationskipink );
-			hash = HashCode.Combine( hash, _textdecorationstyle );
-			hash = HashCode.Combine( hash, _textunderlineoffset );
-			hash = HashCode.Combine( hash, _textoverlineoffset );
-			hash = HashCode.Combine( hash, _textlinethroughoffset );
-			hash = HashCode.Combine( hash, _fontstyle );
-			hash = HashCode.Combine( hash, _fontvariantnumeric );
-			hash = HashCode.Combine( hash, _transform );
-			hash = HashCode.Combine( hash, _texttransform );
-			hash = HashCode.Combine( hash, _transformoriginx );
-			hash = HashCode.Combine( hash, _transformoriginy );
-			hash = HashCode.Combine( hash, _letterspacing );
-			hash = HashCode.Combine( hash, _lineheight );
-			hash = HashCode.Combine( hash, _wordspacing );
-			hash = HashCode.Combine( hash, _whitespace );
-			hash = HashCode.Combine( hash, _zindex );
-			hash = HashCode.Combine( hash, _order );
-			hash = HashCode.Combine( hash, _soundin );
-			hash = HashCode.Combine( hash, _soundout );
-			hash = HashCode.Combine( hash, _backdropfilterblur );
-			hash = HashCode.Combine( hash, _backdropfilterbrightness );
-			hash = HashCode.Combine( hash, _backdropfiltercontrast );
-			hash = HashCode.Combine( hash, _backdropfiltersaturate );
-			hash = HashCode.Combine( hash, _backdropfiltersepia );
-			hash = HashCode.Combine( hash, _backdropfilterinvert );
-			hash = HashCode.Combine( hash, _backdropfilterhuerotate );
-			hash = HashCode.Combine( hash, _filterblur );
-			hash = HashCode.Combine( hash, _filtersaturate );
-			hash = HashCode.Combine( hash, _filtersepia );
-			hash = HashCode.Combine( hash, _filterbrightness );
-			hash = HashCode.Combine( hash, _filterhuerotate );
-			hash = HashCode.Combine( hash, _filterinvert );
-			hash = HashCode.Combine( hash, _filtercontrast );
-			hash = HashCode.Combine( hash, _filtertint );
-			hash = HashCode.Combine( hash, _filterborderwidth );
-			hash = HashCode.Combine( hash, _filterbordercolor );
-			hash = HashCode.Combine( hash, _maskmode );
-			hash = HashCode.Combine( hash, _maskrepeat );
-			hash = HashCode.Combine( hash, _masksizex );
-			hash = HashCode.Combine( hash, _masksizey );
-			hash = HashCode.Combine( hash, _maskpositionx );
-			hash = HashCode.Combine( hash, _maskpositiony );
-			hash = HashCode.Combine( hash, _maskangle );
-			hash = HashCode.Combine( hash, _maskscope );
-			hash = HashCode.Combine( hash, _backgroundsizex );
-			hash = HashCode.Combine( hash, _backgroundsizey );
-			hash = HashCode.Combine( hash, _backgroundpositionx );
-			hash = HashCode.Combine( hash, _backgroundpositiony );
-			hash = HashCode.Combine( hash, _backgroundrepeat );
-			hash = HashCode.Combine( hash, _borderimagewidthleft );
-			hash = HashCode.Combine( hash, _borderimagewidthright );
-			hash = HashCode.Combine( hash, _borderimagewidthtop );
-			hash = HashCode.Combine( hash, _borderimagewidthbottom );
-			hash = HashCode.Combine( hash, _borderimagefill );
-			hash = HashCode.Combine( hash, _borderimagerepeat );
-			hash = HashCode.Combine( hash, _borderimagetint );
-			hash = HashCode.Combine( hash, _backgroundblendmode );
-			hash = HashCode.Combine( hash, _backgroundtint );
-			hash = HashCode.Combine( hash, _backgroundangle );
-			hash = HashCode.Combine( hash, _textbackgroundangle );
-			hash = HashCode.Combine( hash, _perspectiveoriginx );
-			hash = HashCode.Combine( hash, _perspectiveoriginy );
-			hash = HashCode.Combine( hash, _textstrokecolor );
-			hash = HashCode.Combine( hash, _textstrokewidth );
-			hash = HashCode.Combine( hash, _imagerendering );
-			hash = HashCode.Combine( hash, _animationdelay );
-			hash = HashCode.Combine( hash, _animationdirection );
-			hash = HashCode.Combine( hash, _animationduration );
-			hash = HashCode.Combine( hash, _animationfillmode );
-			hash = HashCode.Combine( hash, _animationiterationcount );
-			hash = HashCode.Combine( hash, _animationname );
-			hash = HashCode.Combine( hash, _animationplaystate );
-			hash = HashCode.Combine( hash, _animationtimingfunction );
-			hash = HashCode.Combine( hash, _fontsmooth );
-			hash = HashCode.Combine( hash, _objectfit );
-			hash = HashCode.Combine( hash, _outlinewidth );
-			hash = HashCode.Combine( hash, _outlinecolor );
-			hash = HashCode.Combine( hash, _outlineoffset );
-
-		return hash;
+		hash.Add( _content );
+		hash.Add( _width );
+		hash.Add( _minwidth );
+		hash.Add( _maxwidth );
+		hash.Add( _height );
+		hash.Add( _minheight );
+		hash.Add( _maxheight );
+		hash.Add( _left );
+		hash.Add( _top );
+		hash.Add( _right );
+		hash.Add( _bottom );
+		hash.Add( _opacity );
+		hash.Add( _backgroundcolor );
+		hash.Add( _paddingleft );
+		hash.Add( _paddingtop );
+		hash.Add( _paddingright );
+		hash.Add( _paddingbottom );
+		hash.Add( _marginleft );
+		hash.Add( _margintop );
+		hash.Add( _marginright );
+		hash.Add( _marginbottom );
+		hash.Add( _bordertopleftradius );
+		hash.Add( _bordertoprightradius );
+		hash.Add( _borderbottomrightradius );
+		hash.Add( _borderbottomleftradius );
+		hash.Add( _borderleftwidth );
+		hash.Add( _bordertopwidth );
+		hash.Add( _borderrightwidth );
+		hash.Add( _borderbottomwidth );
+		hash.Add( _borderleftcolor );
+		hash.Add( _bordertopcolor );
+		hash.Add( _borderrightcolor );
+		hash.Add( _borderbottomcolor );
+		hash.Add( _fontsize );
+		hash.Add( _fontcolor );
+		hash.Add( _fontweight );
+		hash.Add( _fontfamily );
+		hash.Add( _caretcolor );
+		hash.Add( _cursor );
+		hash.Add( _pointerevents );
+		hash.Add( _mixblendmode );
+		hash.Add( _position );
+		hash.Add( _overflowx );
+		hash.Add( _overflowy );
+		hash.Add( _flexdirection );
+		hash.Add( _justifycontent );
+		hash.Add( _display );
+		hash.Add( _flexwrap );
+		hash.Add( _aligncontent );
+		hash.Add( _alignself );
+		hash.Add( _alignitems );
+		hash.Add( _flexbasis );
+		hash.Add( _flexgrow );
+		hash.Add( _flexshrink );
+		hash.Add( _rowgap );
+		hash.Add( _columngap );
+		hash.Add( _aspectratio );
+		hash.Add( _textalign );
+		hash.Add( _textoverflow );
+		hash.Add( _textfilter );
+		hash.Add( _wordbreak );
+		hash.Add( _textdecorationline );
+		hash.Add( _textdecorationcolor );
+		hash.Add( _textdecorationthickness );
+		hash.Add( _textdecorationskipink );
+		hash.Add( _textdecorationstyle );
+		hash.Add( _textunderlineoffset );
+		hash.Add( _textoverlineoffset );
+		hash.Add( _textlinethroughoffset );
+		hash.Add( _fontstyle );
+		hash.Add( _fontvariantnumeric );
+		hash.Add( _transform );
+		hash.Add( _texttransform );
+		hash.Add( _transformoriginx );
+		hash.Add( _transformoriginy );
+		hash.Add( _letterspacing );
+		hash.Add( _lineheight );
+		hash.Add( _wordspacing );
+		hash.Add( _whitespace );
+		hash.Add( _zindex );
+		hash.Add( _order );
+		hash.Add( _soundin );
+		hash.Add( _soundout );
+		hash.Add( _backdropfilterblur );
+		hash.Add( _backdropfilterbrightness );
+		hash.Add( _backdropfiltercontrast );
+		hash.Add( _backdropfiltersaturate );
+		hash.Add( _backdropfiltersepia );
+		hash.Add( _backdropfilterinvert );
+		hash.Add( _backdropfilterhuerotate );
+		hash.Add( _filterblur );
+		hash.Add( _filtersaturate );
+		hash.Add( _filtersepia );
+		hash.Add( _filterbrightness );
+		hash.Add( _filterhuerotate );
+		hash.Add( _filterinvert );
+		hash.Add( _filtercontrast );
+		hash.Add( _filtertint );
+		hash.Add( _filterborderwidth );
+		hash.Add( _filterbordercolor );
+		hash.Add( _maskmode );
+		hash.Add( _maskrepeat );
+		hash.Add( _masksizex );
+		hash.Add( _masksizey );
+		hash.Add( _maskpositionx );
+		hash.Add( _maskpositiony );
+		hash.Add( _maskangle );
+		hash.Add( _maskscope );
+		hash.Add( _backgroundsizex );
+		hash.Add( _backgroundsizey );
+		hash.Add( _backgroundpositionx );
+		hash.Add( _backgroundpositiony );
+		hash.Add( _backgroundrepeat );
+		hash.Add( _borderimagewidthleft );
+		hash.Add( _borderimagewidthright );
+		hash.Add( _borderimagewidthtop );
+		hash.Add( _borderimagewidthbottom );
+		hash.Add( _borderimagefill );
+		hash.Add( _borderimagerepeat );
+		hash.Add( _borderimagetint );
+		hash.Add( _backgroundblendmode );
+		hash.Add( _backgroundtint );
+		hash.Add( _backgroundangle );
+		hash.Add( _textbackgroundangle );
+		hash.Add( _perspectiveoriginx );
+		hash.Add( _perspectiveoriginy );
+		hash.Add( _textstrokecolor );
+		hash.Add( _textstrokewidth );
+		hash.Add( _imagerendering );
+		hash.Add( _animationdelay );
+		hash.Add( _animationdirection );
+		hash.Add( _animationduration );
+		hash.Add( _animationfillmode );
+		hash.Add( _animationiterationcount );
+		hash.Add( _animationname );
+		hash.Add( _animationplaystate );
+		hash.Add( _animationtimingfunction );
+		hash.Add( _fontsmooth );
+		hash.Add( _objectfit );
+		hash.Add( _outlinewidth );
+		hash.Add( _outlinecolor );
+		hash.Add( _outlineoffset );
+		return hash.ToHashCode();
 	}
 
 	/// <summary>
@@ -3470,7 +3469,7 @@ public abstract partial class BaseStyles
 				break;
 		}
 	}
-
+	
 	/// <summary>
 	/// Perform a deep copy of this stylesheet
 	/// </summary>
@@ -3619,6 +3618,7 @@ public abstract partial class BaseStyles
 		copy._outlinewidth = _outlinewidth;
 		copy._outlinecolor = _outlinecolor;
 		copy._outlineoffset = _outlineoffset;
+		copy.CssWide = CssWide == null ? null : new System.Collections.Generic.Dictionary<string, CssWideKeyword>( CssWide );
 		return copy;
 	}
 
@@ -3934,7 +3934,7 @@ public abstract partial class BaseStyles
 			case "outline-color": return (_outlinecolor == Color.Transparent);
 			case "outline-offset": return (_outlineoffset == 0);
 		}
-
+		
 		throw new Exception( $"Invalid property name '{name}'" );
 	}
 }

@@ -199,8 +199,6 @@ internal static partial class SteamNetwork
 
 		ConnectionStatus Status => (ConnectionStatus)Glue.Networking.GetConnectionState( handle );
 
-		public override string Name => Identity;
-
 		public enum ConnectionStatus
 		{
 			None = 0,

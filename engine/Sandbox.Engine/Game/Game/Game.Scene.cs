@@ -7,7 +7,7 @@ public static partial class Game
 	/// <summary>
 	/// Indicates whether the game is currently running and actively playing a scene.
 	/// </summary>
-	public static bool IsPlaying { get; internal set; }
+	public static bool IsPlaying { get; internal set; } = true;
 
 	/// <summary>
 	/// Indicates whether the game is currently paused.

@@ -40,8 +40,7 @@ partial class TerrainComponentWidget : ComponentEditorWidget
 			layout.Spacing = 8;
 			layout.AddStretchCell();
 			layout.Add( new Button( "Import Splatmap..." ) { Clicked = ImportSplatmap } );
-			layout.Add( new Button( "Import..." ) { Clicked = ImportHeightmap } );
-			layout.Add( new Button( "Export..." ) { Enabled = false } );
+			layout.Add( new Button( "Import Heightmap..." ) { Clicked = ImportHeightmap } );
 		}
 
 		{
@@ -111,14 +110,81 @@ partial class TerrainComponentWidget : ComponentEditorWidget
 		asset.OpenInEditor();
 	}
 
+	/// <summary>
+	/// Proxy used to render Resolution as a ControlSheet row matching the other properties.
+	/// </summary>
+	private class ResolutionProxy
+	{
+		private readonly Terrain _terrain;
+		public ResolutionProxy( Terrain terrain ) => _terrain = terrain;
+
+		[Property, Title( "Resolution" ), Description( "Terrain heightmap resolution. Changing this resamples existing data." )]
+		public CreateOptions.HeightMapSizes Resolution
+		{
+			get
+			{
+				var res = _terrain.Storage?.Resolution ?? 512;
+				// Round to the nearest defined HeightMapSizes value so non-standard resolutions
+				var defined = Enum.GetValues<CreateOptions.HeightMapSizes>().Cast<int>();
+				var nearest = defined.MinBy( v => Math.Abs( v - res ) );
+				return (CreateOptions.HeightMapSizes)nearest;
+			}
+			set
+			{
+				if ( _terrain?.Storage is null ) return;
+				int newRes = (int)value;
+				if ( newRes == _terrain.Storage.Resolution ) return;
+
+				Dialog.AskConfirm( () =>
+				{
+					var storage = _terrain.Storage;
+
+					// Snapshot before
+					int resBefore = storage.Resolution;
+					ushort[] heightBefore = storage.HeightMap.ToArray();
+					uint[] controlBefore = storage.ControlMap.ToArray();
+
+					TerrainImportHelper.ResampleStorage( storage, newRes );
+					_terrain.Create();
+
+					// Snapshot after
+					int resAfter = storage.Resolution;
+					ushort[] heightAfter = storage.HeightMap.ToArray();
+					uint[] controlAfter = storage.ControlMap.ToArray();
+
+					SceneEditorSession.Active.UndoSystem.Insert( "Change Terrain Resolution",
+						() => ApplyResolutionSnapshot( _terrain, resBefore, heightBefore, controlBefore ),
+						() => ApplyResolutionSnapshot( _terrain, resAfter, heightAfter, controlAfter ) );
+				},
+				$"Resample terrain from {_terrain.Storage.Resolution}×{_terrain.Storage.Resolution} to {newRes}×{newRes}?",
+				"Change Resolution" );
+			}
+		}
+
+		static void ApplyResolutionSnapshot( Terrain terrain, int resolution, ushort[] heightMap, uint[] controlMap )
+		{
+			if ( !terrain.IsValid() || terrain.Storage is null ) return;
+			terrain.Storage.SetResolution( resolution );
+			terrain.Storage.HeightMap = heightMap;
+			terrain.Storage.ControlMap = controlMap;
+			terrain.Create();
+		}
+	}
+
 	Widget ActualSettingsPage()
 	{
+		var terrain = SerializedObject.Targets.FirstOrDefault() as Terrain;
 		var container = new Widget( null );
+		container.Layout = Layout.Column();
+		container.Layout.Spacing = 0;
+
+		// Resolution row — use CreateRow to match ControlSheet styling exactly
+		var resProxy = new ResolutionProxy( terrain );
+		var resProp = resProxy.GetSerialized().GetProperty( nameof( ResolutionProxy.Resolution ) );
+		container.Layout.Add( ControlSheet.CreateRow( resProp ) );
 
 		var sheet = new ControlSheet();
 		sheet.AddObject( SerializedObject, FilterProperties );
-
-		container.Layout = Layout.Column();
 		container.Layout.Add( sheet );
 
 		return container;

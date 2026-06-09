@@ -1,0 +1,105 @@
+@import "/styles/_theme.scss";
+
+RewardProgress
+{
+	width: 100%;
+	flex-grow: 0;
+	flex-shrink: 0;
+	pointer-events: all;
+
+	Card
+	{
+		gap: 1rem;
+	}
+
+	.header
+	{
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		padding-bottom: 1rem;
+		margin-bottom: 1rem;
+		border-bottom: 1px solid rgba( $default-50, 0.04 );
+
+		.refresh
+		{
+			align-items: center;
+			justify-content: center;
+			width: 32px;
+			height: 32px;
+			border-radius: $rounding-default;
+			background-color: rgba( $default-50, 0.06 );
+			border: 1px solid $default-border;
+			cursor: pointer;
+			transition: all 150ms $easing;
+
+			icon
+			{
+				font-size: 18px;
+				color: $default-200;
+			}
+
+			&:hover
+			{
+				background-color: rgba( $default-50, 0.12 );
+
+				icon
+				{
+					color: $default-text;
+				}
+			}
+
+			&.busy icon
+			{
+				animation: reward-refresh-spin 0.8s linear infinite;
+			}
+		}
+	}
+
+	.loading
+	{
+		color: $default-100;
+		min-height: 200px;
+	}
+
+	.facets
+	{
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	Button.open-reward.primary
+	{
+		justify-content: center;
+		border-radius: $rounding-large;
+		padding: 1rem;
+		font-size: 1.2rem;
+		height: auto;
+		margin-top: 1rem;
+
+		icon
+		{
+			font-size: $text-medium;
+			opacity: 0.85;
+		}
+		// Clear locked treatment: muted button + lock icon (set in the markup).
+		&.disabled
+		{
+			background-color: $default-700;
+			color: $default-200;
+			pointer-events: none;
+
+			icon
+			{
+				color: $default-300;
+				opacity: 1;
+			}
+		}
+	}
+}
+
+@keyframes reward-refresh-spin
+{
+	0% { transform: rotate( 0deg ); }
+	100% { transform: rotate( 360deg ); }
+}

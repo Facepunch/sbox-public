@@ -172,6 +172,10 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 
 	void BindTransformSlot( IRenderContext pCtx, int nVBSlot, int nTransformSlotIndex );
 
+	// Bind a full-screen texture to a stable, pipeline-level bindless slot for this frame
+	// (used by AO/SSR so shaders read a fixed descriptor binding instead of a racy attribute).
+	void SetPipelineTextureIndex( int nSlot, int nBindlessIndex );
+
 	// Ray Tracing
 	IRayTraceSceneWorld CreateRayTraceWorld( string pWorldDebugName, int nMaxRayTypes );
 	void DestroyRayTraceWorld( IRayTraceSceneWorld pRayTraceSceneWorld );

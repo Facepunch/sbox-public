@@ -280,4 +280,52 @@ public partial class FileSystem
 		var data = Sandbox.EngineFileSystem.Root.ReadAllBytes( "Addons/Green/green.txt" );
 		Assert.AreNotEqual( 0, data.Length );
 	}
+
+	[TestMethod]
+	public void GetRelativePathCaseInsensitive()
+	{
+		// GetRelativePath lowercases the physical path before calling ConvertPathFromInternal.
+		// SubFileSystem(isCaseSensitive:false) is required so the base prefix "/Addons/Red"
+		// is stripped from the lowercased input "/addons/red/red.txt" without throwing.
+		var sub = Sandbox.EngineFileSystem.Root.CreateSubSystem( "Addons/Red" );
+		var fullPath = Sandbox.EngineFileSystem.Root.GetFullPath( "Addons/Red/red.txt" );
+
+		var relative = sub.GetRelativePath( fullPath );
+
+		Assert.AreEqual( "/red.txt", relative );
+	}
+
+	[TestMethod]
+	public void SubFileSystemCaseInsensitivePath()
+	{
+		// SubFileSystem is created with isCaseSensitive=false so the subpath prefix is stripped
+		// case-insensitively. Without this, on Linux the physical FS resolves to actual disk
+		// casing (e.g. /Addons/Red/…) but the SubFileSystem base was /addons/red, causing
+		// ConvertPathFromDelegate to fail with an ordinal compare.
+		var sub = Sandbox.EngineFileSystem.Root.CreateSubSystem( "addons/red" );
+
+		Assert.IsTrue( sub.FileExists( "red.txt" ) );
+		Assert.IsTrue( sub.FileExists( "common.txt" ) );
+		Assert.AreEqual( "Red", sub.ReadAllText( "red.txt" ) );
+		Assert.AreEqual( 2, sub.FindFile( "/", "*", false ).Count() );
+	}
+
+	[TestMethod]
+	public void MountedFoldersCaseInsensitivePaths()
+	{
+		var fs = new Sandbox.AggregateFileSystem();
+
+		fs.CreateAndMount( Sandbox.EngineFileSystem.Root, "addons/blue" );
+		fs.CreateAndMount( Sandbox.EngineFileSystem.Root, "addons/red" );
+		fs.CreateAndMount( Sandbox.EngineFileSystem.Root, "addons/green" );
+
+		Assert.IsTrue( fs.FileExists( "red.txt" ) );
+		Assert.IsTrue( fs.FileExists( "green.txt" ) );
+		Assert.IsTrue( fs.FileExists( "blue.txt" ) );
+
+		Assert.AreEqual( "Red", fs.ReadAllText( "red.txt" ) );
+		Assert.AreEqual( "Green", fs.ReadAllText( "green.txt" ) );
+		Assert.AreEqual( "Blue", fs.ReadAllText( "blue.txt" ) );
+		Assert.AreEqual( "Green", fs.ReadAllText( "common.txt" ) );
+	}
 }

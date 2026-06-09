@@ -91,10 +91,21 @@ public sealed class PanelStyle : Styles
 
 	void BuildApplicableBlocks()
 	{
-		StyleBlocks = panel.AllStyleSheets
-									.SelectMany( x => x.Nodes )
-									.Where( x => x.TestBroadphase( panel ) )
-									.ToArray();
+		var list = new List<StyleBlock>();
+
+		// Gather only the rules indexed for our classes (plus the unindexed element/id/* rules) rather
+		// than scanning every rule. ::before/::after broadphase against their parent's classes.
+		var bp = ((IStyleTarget)panel).IsBeforeOrAfter ? panel.Parent : panel;
+
+		if ( bp != null )
+		{
+			var seen = new HashSet<StyleBlock>();
+
+			foreach ( var sheet in panel.AllStyleSheets )
+				sheet.GatherCandidates( bp._class, panel, seen, list );
+		}
+
+		StyleBlocks = list.ToArray();
 	}
 
 
@@ -126,8 +137,13 @@ public sealed class PanelStyle : Styles
 			//
 			if ( !isBeforeOrAfter )
 			{
-				_hasBeforeElement = _hasBeforeElement || c.Test( panel, PseudoClass.Before ) != null;
-				_hasAfterElement = _hasAfterElement || c.Test( panel, PseudoClass.After ) != null;
+				// Only probe blocks that actually have a ::before / ::after selector - the rest can never
+				// produce a pseudo-element, so testing them is wasted work.
+				if ( !_hasBeforeElement && c.HasBefore )
+					_hasBeforeElement = c.Test( panel, PseudoClass.Before ) != null;
+
+				if ( !_hasAfterElement && c.HasAfter )
+					_hasAfterElement = c.Test( panel, PseudoClass.After ) != null;
 			}
 
 			var winningSelector = c.Test( panel );
@@ -182,14 +198,16 @@ public sealed class PanelStyle : Styles
 			LastActiveRules ??= new();
 			activeRules ??= new();
 
-			foreach ( var rule in activeRules.Except( LastActiveRules ) )
+			foreach ( var rule in activeRules )
 			{
-				OnRuleAdded( rule );
+				if ( !LastActiveRules.Contains( rule ) )
+					OnRuleAdded( rule );
 			}
 
-			foreach ( var rule in LastActiveRules.Except( activeRules ) )
+			foreach ( var rule in LastActiveRules )
 			{
-				OnRuleRemoved( rule );
+				if ( !activeRules.Contains( rule ) )
+					OnRuleRemoved( rule );
 			}
 
 			LastActiveRules.Clear();
@@ -228,8 +246,12 @@ public sealed class PanelStyle : Styles
 		}
 
 		Final.From( Cached );
+		Final.ResolveCssWide( cascade.ParentStyles );
 		cascade.ApplyCascading( Final );
 		Final.FillDefaults();
+
+		if ( Final.HasCurrentColor )
+			Final.ResolveCurrentColor( cascade.ParentStyles );
 
 		if ( panel.Transitions.Run( Final, time ) )
 		{
@@ -304,7 +326,13 @@ public sealed class PanelStyle : Styles
 	{
 		if ( LastActiveRules == null ) return false;
 
-		return LastActiveRules.Any( x => x.Block.Styles == style );
+		foreach ( var rule in LastActiveRules )
+		{
+			if ( rule.Block.Styles == style )
+				return true;
+		}
+
+		return false;
 	}
 }
 
@@ -314,6 +342,6 @@ internal class StyleOrderer : IComparer<StyleSelector>
 
 	public int Compare( StyleSelector x, StyleSelector y )
 	{
-		return x.Score - y.Score;
+		return x.Score.CompareTo( y.Score );
 	}
 }

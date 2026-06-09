@@ -9,6 +9,30 @@ namespace Sandbox.UI
 		{
 			property = StyleParser.GetPropertyFromAlias( property );
 
+			// We don't implement !important cascade priority, but the declaration should still apply
+			// rather than be dropped - so strip a trailing !important before parsing the value.
+			if ( value != null )
+			{
+				var trimmed = value.TrimEnd();
+				if ( trimmed.EndsWith( "!important", System.StringComparison.OrdinalIgnoreCase ) )
+					value = trimmed.Substring( 0, trimmed.Length - "!important".Length ).TrimEnd();
+			}
+
+			// CSS-wide keywords (inherit/initial/unset/revert) apply to any property and depend on the
+			// parent / initial values, so we record them and resolve them later during the cascade.
+			// Only intercept properties that map to a single field - shorthands like 'flex' use
+			// 'initial'/'none'/'auto' as their own keyword values and handle them below.
+			if ( IsCssWideKeyword( value, out var cssWide ) && MarkCssWide( property, cssWide ) )
+				return true;
+
+			// A normal value supersedes any keyword recorded earlier for this property (or its longhands).
+			ClearCssWide( property );
+
+			// 'currentColor' (even nested inside a shorthand) parses to a sentinel that resolves to the
+			// element's computed colour after the cascade; flag it so that resolution pass runs.
+			if ( value != null && value.Length >= 12 && value.Contains( "currentcolor", System.StringComparison.OrdinalIgnoreCase ) )
+				HasCurrentColor = true;
+
 			switch ( property )
 			{
 				case "transition":
@@ -21,6 +45,9 @@ namespace Sandbox.UI
 
 				case "display":
 					return SetDisplay( value );
+
+				case "opacity":
+					return SetOpacity( value );
 
 				case "pointer-events":
 					return SetPointerEvents( value );
@@ -40,6 +67,9 @@ namespace Sandbox.UI
 				case "flex":
 					return SetFlex( value );
 
+				case "flex-flow":
+					return SetFlexFlow( value );
+
 				case "gap":
 					return SetGap( value );
 
@@ -48,6 +78,23 @@ namespace Sandbox.UI
 
 				case "margin":
 					return SetMargin( value );
+
+				case "inset":
+					return SetInset( value );
+
+				// Logical box shorthands (block = vertical, inline = horizontal in the default direction).
+				case "margin-block":
+					return SetAxis( value, v => MarginTop = v, v => MarginBottom = v );
+				case "margin-inline":
+					return SetAxis( value, v => MarginLeft = v, v => MarginRight = v );
+				case "padding-block":
+					return SetAxis( value, v => PaddingTop = v, v => PaddingBottom = v );
+				case "padding-inline":
+					return SetAxis( value, v => PaddingLeft = v, v => PaddingRight = v );
+				case "inset-block":
+					return SetAxis( value, v => Top = v, v => Bottom = v );
+				case "inset-inline":
+					return SetAxis( value, v => Left = v, v => Right = v );
 
 				case "border-radius":
 					return SetBorderRadius( value );
@@ -76,9 +123,7 @@ namespace Sandbox.UI
 					return borderColor.HasValue;
 
 				case "border-width":
-					Length? borderWidth = Length.Parse( value );
-					BorderWidth = borderWidth;
-					return borderWidth.HasValue;
+					return SetBorderWidth( value );
 
 				case "backdrop-filter":
 					return SetBackdropFilter( value );
@@ -88,6 +133,24 @@ namespace Sandbox.UI
 
 				case "font-weight":
 					return SetFontWeight( value );
+
+				case "font-family":
+					return SetFontFamily( value );
+
+				case "font":
+					return SetFont( value );
+
+				case "font-size":
+					return SetFontSize( value );
+
+				case "letter-spacing":
+					return SetLetterSpacing( value );
+
+				case "word-spacing":
+					return SetWordSpacing( value );
+
+				case "line-height":
+					return SetLineHeight( value );
 
 				case "box-shadow":
 					return SetShadow( value, ref BoxShadow );
@@ -473,6 +536,40 @@ namespace Sandbox.UI
 			return true;
 		}
 
+		bool SetBorderWidth( string value )
+		{
+			var p = new Parse( value );
+
+			p = p.SkipWhitespaceAndNewlines();
+			if ( p.IsEnd ) return false;
+
+			if ( !p.TryReadLength( out var a ) )
+				return false;
+
+			BorderTopWidth = a;
+			BorderRightWidth = a;
+			BorderBottomWidth = a;
+			BorderLeftWidth = a;
+
+			p = p.SkipWhitespaceAndNewlines();
+			if ( p.IsEnd || !p.TryReadLength( out var b ) ) return true;
+
+			BorderRightWidth = b;
+			BorderLeftWidth = b;
+
+			p = p.SkipWhitespaceAndNewlines();
+			if ( p.IsEnd || !p.TryReadLength( out var c ) ) return true;
+
+			BorderBottomWidth = c;
+
+			p = p.SkipWhitespaceAndNewlines();
+			if ( p.IsEnd || !p.TryReadLength( out var d ) ) return true;
+
+			BorderLeftWidth = d;
+
+			return true;
+		}
+
 		bool SetMask( string value )
 		{
 			/*
@@ -580,16 +677,18 @@ namespace Sandbox.UI
 						{
 							FlexGrow = val;
 
-							// "flex: 1" expands to <number [1]> 1 0
-							if ( val == 1 )
-							{
-								FlexShrink = 1;
-								FlexBasis = 0;
-							}
+							// A single <number> expands to <number> 1 0; a later shrink/basis overrides these.
+							FlexShrink = 1;
+							FlexBasis = 0;
+						}
+						else if ( floatCount == 1 )
+						{
+							FlexShrink = val;
 						}
 						else
 						{
-							FlexShrink = val;
+							// The third value is the flex-basis (eg the 0 in "1 1 0").
+							FlexBasis = Length.Pixels( val );
 						}
 
 						floatCount++;
@@ -758,6 +857,113 @@ namespace Sandbox.UI
 			}
 
 			return true;
+		}
+
+		bool SetInset( string value )
+		{
+			// inset: <top> <right> <bottom> <left> (1-4 values), shorthand for top/right/bottom/left.
+			var p = new Parse( value );
+
+			p = p.SkipWhitespaceAndNewlines();
+			if ( p.IsEnd ) return false;
+
+			if ( !p.TryReadLength( out var a ) )
+				return false;
+
+			Top = a;
+			Right = a;
+			Bottom = a;
+			Left = a;
+
+			p = p.SkipWhitespaceAndNewlines();
+			if ( p.IsEnd || !p.TryReadLength( out var b ) ) return true;
+
+			Right = b;
+			Left = b;
+
+			p = p.SkipWhitespaceAndNewlines();
+			if ( p.IsEnd || !p.TryReadLength( out var c ) ) return true;
+
+			Bottom = c;
+
+			p = p.SkipWhitespaceAndNewlines();
+			if ( p.IsEnd || !p.TryReadLength( out var d ) ) return true;
+
+			Left = d;
+
+			return true;
+		}
+
+		bool SetOpacity( string value )
+		{
+			value = value.Trim();
+
+			// CSS allows a percentage for opacity (50% == 0.5).
+			bool isPercent = value.EndsWith( "%" );
+			var num = isPercent ? value.Substring( 0, value.Length - 1 ) : value;
+
+			if ( !float.TryParse( num, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var f ) )
+				return false;
+
+			Opacity = isPercent ? f / 100.0f : f;
+			return true;
+		}
+
+		bool SetLineHeight( string value )
+		{
+			value = value.Trim();
+
+			// 'normal' uses the default line height (the text layout treats 100% as 1x the font size).
+			if ( value == "normal" )
+			{
+				LineHeight = Length.Percent( 100 );
+				return true;
+			}
+
+			// A unitless number is a multiple of the font size (eg 1.5 == 150%). The text layout already
+			// applies a percentage line-height as a fraction of the font size, so store it as a percentage.
+			if ( float.TryParse( value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var mult ) )
+			{
+				LineHeight = Length.Percent( mult * 100.0f );
+				return true;
+			}
+
+			// Otherwise a length or percentage (px, %, em, ...).
+			LineHeight = Length.Parse( value );
+			return LineHeight.HasValue;
+		}
+
+		bool SetFontFamily( string value )
+		{
+			// font-family is a comma-separated stack of fallbacks. We don't resolve fallbacks, so take
+			// the first family listed.
+			var first = value;
+			var comma = value.IndexOf( ',' );
+			if ( comma >= 0 )
+				first = value.Substring( 0, comma );
+
+			FontFamily = MapGenericFamily( first.Trim().TrimQuoted( true ) );
+			return true;
+		}
+
+		/// <summary>
+		/// Maps a CSS generic font family (serif, sans-serif, monospace, etc.) to a concrete font name.
+		/// The font system resolves the name and falls back gracefully if it isn't present, so these are
+		/// best-effort - chosen to match on the primary platform and degrade elsewhere. Real family names
+		/// pass through unchanged.
+		/// </summary>
+		static string MapGenericFamily( string family )
+		{
+			return family.ToLowerInvariant() switch
+			{
+				"sans-serif" or "system-ui" or "ui-sans-serif" => "Arial",
+				"serif" or "ui-serif" => "Times New Roman",
+				"monospace" or "ui-monospace" => "Consolas",
+				"ui-rounded" => "Poppins",
+				"cursive" => "Comic Sans MS",
+				"fantasy" => "Impact",
+				_ => family
+			};
 		}
 
 		bool SetFontWeight( string value )
@@ -1038,6 +1244,14 @@ namespace Sandbox.UI
 			// gap =
 			//  < 'row-gap' > < 'column-gap' >?
 
+			// 'normal' is the initial value - for our flex layout that means no gap.
+			if ( value.Trim() == "normal" )
+			{
+				RowGap = 0;
+				ColumnGap = 0;
+				return true;
+			}
+
 			var p = new Parse( value );
 
 			if ( !p.TryReadLength( out var gap ) )
@@ -1062,12 +1276,18 @@ namespace Sandbox.UI
 			switch ( value )
 			{
 				case "flex-start":
+				case "start":
+				case "left":
+				case "normal":
+				case "stretch":
 					JustifyContent = UI.Justify.FlexStart;
 					return true;
 				case "center":
 					JustifyContent = UI.Justify.Center;
 					return true;
 				case "flex-end":
+				case "end":
+				case "right":
 					JustifyContent = UI.Justify.FlexEnd;
 					return true;
 				case "space-between":
@@ -1090,10 +1310,15 @@ namespace Sandbox.UI
 			switch ( value )
 			{
 				case "auto": return Align.Auto;
-				case "flex-end": return Align.FlexEnd;
-				case "flex-start": return Align.FlexStart;
+				case "flex-end":
+				case "end":
+				case "self-end": return Align.FlexEnd;
+				case "flex-start":
+				case "start":
+				case "self-start": return Align.FlexStart;
 				case "center": return Align.Center;
-				case "stretch": return Align.Stretch;
+				case "stretch":
+				case "normal": return Align.Stretch;
 				case "space-between": return Align.SpaceBetween;
 				case "space-around": return Align.SpaceAround;
 				case "space-evenly": return Align.SpaceEvenly;
@@ -1112,10 +1337,15 @@ namespace Sandbox.UI
 					TextAlign = UI.TextAlign.Center;
 					return true;
 				case "left":
+				case "start":
 					TextAlign = UI.TextAlign.Left;
 					return true;
 				case "right":
+				case "end":
 					TextAlign = UI.TextAlign.Right;
+					return true;
+				case "justify":
+					TextAlign = UI.TextAlign.Justify;
 					return true;
 				default:
 					Log.Warning( $"Unhandled text-align property: {value}" );
@@ -1167,6 +1397,16 @@ namespace Sandbox.UI
 			switch ( value )
 			{
 				case "normal":
+				// break-word breaks an over-long word only when it would overflow, which is exactly what
+				// our normal (word) breaking already does - the layout character-breaks a word that
+				// can't fit on a line.
+				case "break-word":
+					WordBreak = UI.WordBreak.Normal;
+					return true;
+				// keep-all should suppress breaking (mainly between CJK characters) and let text overflow
+				// instead. The text layout has no such mode - it always breaks on overflow - so this is
+				// accepted but currently does nothing different from normal.
+				case "keep-all":
 					WordBreak = UI.WordBreak.Normal;
 					return true;
 				case "break-all":
@@ -1326,6 +1566,12 @@ namespace Sandbox.UI
 				case "pre":
 					WhiteSpace = UI.WhiteSpace.Pre;
 					break;
+				case "pre-wrap":
+					WhiteSpace = UI.WhiteSpace.PreWrap;
+					break;
+				case "break-spaces":
+					WhiteSpace = UI.WhiteSpace.BreakSpaces;
+					break;
 				default:
 					Log.Warning( $"Unhandled white-space property: {value}" );
 					return false;
@@ -1378,7 +1624,9 @@ namespace Sandbox.UI
 		{
 			if ( string.IsNullOrEmpty( value ) || value == "none" )
 			{
-				Transform = null;
+				// Reset to the identity transform (non-null) so it overrides a transform from a less
+				// specific rule, rather than leaving that one to show through.
+				Transform = new PanelTransform();
 				return true;
 			}
 
@@ -1455,11 +1703,16 @@ namespace Sandbox.UI
 			 * https://drafts.csswg.org/css-backgrounds/#the-background
 			 */
 
+			// The shorthand resets the background layer to its initial value first, then applies whatever
+			// is specified - so "background: #fff" or "background: none" clears an image (and colour) set
+			// by a less specific rule, instead of leaving them showing through.
+			_backgroundImage = NoImage;
+			BackgroundColor = Color.Transparent;
+
 			var p = new Parse( value );
 
 			var bgBuilder = new StringBuilder();
 			var lengthList = new List<Length>();
-			var keywords = new List<string>();
 
 			// Values (like linear-gradient(...), #ff00ff, etc.) need special handling - we read those
 			// until we reach an end bracket, rather than a space
@@ -1470,9 +1723,6 @@ namespace Sandbox.UI
 				p.SkipWhitespaceAndNewlines();
 
 				var part = p.ReadWord( " ", true );
-
-				if ( part.Contains( "#" ) )
-					depth++;
 
 				depth += part.Count( x => x == '(' );
 
@@ -1486,6 +1736,9 @@ namespace Sandbox.UI
 					// Ignore separators
 					if ( part == "/" ) continue;
 
+					// 'none' just means the (already-reset) empty background.
+					if ( part.Equals( "none", System.StringComparison.OrdinalIgnoreCase ) ) continue;
+
 					var length = Length.Parse( part );
 					if ( length != null ) lengthList.Add( length!.Value );
 					else if ( part == "repeat-x" || part == "repeat-y" || part == "repeat" || part == "space" || part == "round" || part == "no-repeat" )
@@ -1497,7 +1750,12 @@ namespace Sandbox.UI
 					}
 					else
 					{
-						Log.Warning( $"Unrecognised part {part} in background" );
+						// A bare colour token (named colour, #hex, etc.)
+						var color = Color.Parse( part );
+						if ( color.HasValue )
+							BackgroundColor = color.Value;
+						else
+							Log.Warning( $"Unrecognised part {part} in background" );
 					}
 				}
 
@@ -1509,10 +1767,18 @@ namespace Sandbox.UI
 			//
 			string bgSource = bgBuilder.ToString().Trim();
 
-			if ( bgSource.StartsWith( "#" ) || bgSource.StartsWith( "rgb(" ) || bgSource.StartsWith( "hsv(" ) )
-				BackgroundColor = Color.Parse( bgSource ) ?? default;
-			else
-				SetImage( bgSource, SetBackgroundImageFromTexture, SetBackgroundSize, SetBackgroundRepeat, SetBackgroundAngle );
+			if ( !string.IsNullOrEmpty( bgSource ) )
+			{
+				// url()/gradient()/material() are images; anything else parenthesised (rgb()/rgba()/hsl()/hsv())
+				// is a colour function.
+				bool looksLikeImage = bgSource.StartsWith( "url(" ) || bgSource.Contains( "gradient(" ) || bgSource.Contains( "material(" );
+				Color? bgColor = looksLikeImage ? null : Color.Parse( bgSource );
+
+				if ( bgColor.HasValue )
+					BackgroundColor = bgColor.Value;
+				else
+					SetImage( bgSource, SetBackgroundImageFromTexture, SetBackgroundSize, SetBackgroundRepeat, SetBackgroundAngle );
+			}
 
 			//
 			// <bg-position> [ / <bg-size> ]?
@@ -1591,7 +1857,9 @@ namespace Sandbox.UI
 
 				// When parsing, keywords that are valid for properties other than animation-name whose values were not found earlier
 				// in the shorthand must be accepted for those properties rather than for animation-name.
-				var word = p.ReadWord( null, true ).ToLower();
+				// respectParens so a functional easing like cubic-bezier(0.16, 1, 0.3, 1) or steps(4, end) - which
+				// contain spaces - is read as a single token instead of being split.
+				var word = p.ReadWord( null, true, true ).ToLower();
 
 				if ( Utility.Easing.TryGetFunction( word, out _ ) )
 				{
@@ -1625,6 +1893,13 @@ namespace Sandbox.UI
 			return true;
 		}
 
+		/// <summary>
+		/// Shared "no image" sentinel. It's lazy (so it doesn't build the invalid texture until something
+		/// actually reads it - important for headless contexts) and a stable reference. Because it's
+		/// non-null it overrides an image set by a less specific rule, unlike leaving the field null.
+		/// </summary>
+		internal static readonly Lazy<Texture> NoImage = new( () => Texture.Invalid );
+
 		/// <param name="value"></param>
 		/// <param name="setImage">Optional</param>
 		/// <param name="setSize">Optional</param>
@@ -1639,7 +1914,7 @@ namespace Sandbox.UI
 
 			if ( p.Is( "none", 0, true ) )
 			{
-				setImage( new Lazy<Texture>( Texture.Invalid ) );
+				setImage( NoImage );
 				return true;
 			}
 
@@ -1716,6 +1991,7 @@ namespace Sandbox.UI
 					return true;
 				case "point":
 				case "pixelated":
+				case "crisp-edges":
 				case "nearest-neighbor":
 					ImageRendering = UI.ImageRendering.Point;
 					return true;
@@ -1730,6 +2006,20 @@ namespace Sandbox.UI
 		{
 			var p = new Parse( value );
 			p = p.SkipWhitespaceAndNewlines();
+
+			// 'none' clears any backdrop filters. Reset to the initial (no-op) values rather than null so
+			// it also overrides backdrop filters set by a less specific rule.
+			if ( p.Is( "none", 0, true ) )
+			{
+				BackdropFilterBlur = 0;
+				BackdropFilterBrightness = 1;
+				BackdropFilterContrast = 1;
+				BackdropFilterSaturate = 1;
+				BackdropFilterSepia = 0;
+				BackdropFilterInvert = 0;
+				BackdropFilterHueRotate = 0;
+				return true;
+			}
 
 			while ( !p.IsEnd )
 			{
@@ -1804,6 +2094,23 @@ namespace Sandbox.UI
 		{
 			var p = new Parse( value );
 			p = p.SkipWhitespaceAndNewlines();
+
+			// 'none' clears any filters. Reset to the initial (no-op) values rather than null so it also
+			// overrides filters set by a less specific rule.
+			if ( p.Is( "none", 0, true ) )
+			{
+				FilterBlur = 0;
+				FilterSaturate = 1;
+				FilterSepia = 0;
+				FilterBrightness = 1;
+				FilterContrast = 1;
+				FilterHueRotate = 0;
+				FilterInvert = 0;
+				FilterTint = Color.White;
+				FilterBorderWidth = 0;
+				FilterBorderColor = Color.White;
+				return true;
+			}
 
 			while ( !p.IsEnd )
 			{
@@ -2236,6 +2543,13 @@ namespace Sandbox.UI
 		{
 			value = value.Trim();
 
+			// CSS 'none' means no smoothing.
+			if ( value.Equals( "none", System.StringComparison.OrdinalIgnoreCase ) )
+			{
+				FontSmooth = UI.FontSmooth.Never;
+				return true;
+			}
+
 			if ( Enum.TryParse<FontSmooth>( value, true, out var fontSmooth ) )
 			{
 				FontSmooth = fontSmooth;
@@ -2245,9 +2559,207 @@ namespace Sandbox.UI
 			return false;
 		}
 
+		/// <summary>
+		/// Sets one axis of a logical box property (e.g. margin-block) from one or two lengths.
+		/// </summary>
+		bool SetAxis( string value, Action<Length> setStart, Action<Length> setEnd )
+		{
+			var p = new Parse( value );
+			p = p.SkipWhitespaceAndNewlines();
+			if ( p.IsEnd ) return false;
+
+			if ( !p.TryReadLength( out var start ) ) return false;
+
+			p = p.SkipWhitespaceAndNewlines();
+			if ( p.TryReadLength( out var end ) )
+			{
+				setStart( start );
+				setEnd( end );
+			}
+			else
+			{
+				setStart( start );
+				setEnd( start );
+			}
+
+			return true;
+		}
+
+		/// <summary>
+		/// Sets font-size, also accepting the CSS absolute-size keywords (xx-small .. xxx-large).
+		/// </summary>
+		bool SetFontSize( string value )
+		{
+			int? px = value.Trim().ToLowerInvariant() switch
+			{
+				"xx-small" => 10,
+				"x-small" => 12,
+				"small" => 14,
+				"medium" => 16,
+				"large" => 18,
+				"x-large" => 24,
+				"xx-large" => 32,
+				"xxx-large" => 48,
+				_ => null
+			};
+
+			if ( px.HasValue )
+			{
+				FontSize = Length.Pixels( px.Value );
+				return true;
+			}
+
+			FontSize = Length.Parse( value );
+			return FontSize.HasValue;
+		}
+
+		/// <summary>
+		/// Sets letter-spacing, accepting 'normal' (no extra spacing) as well as lengths.
+		/// </summary>
+		bool SetLetterSpacing( string value )
+		{
+			if ( value.Trim().Equals( "normal", System.StringComparison.OrdinalIgnoreCase ) )
+			{
+				LetterSpacing = Length.Pixels( 0 );
+				return true;
+			}
+
+			LetterSpacing = Length.Parse( value );
+			return LetterSpacing.HasValue;
+		}
+
+		/// <summary>
+		/// Sets word-spacing, accepting 'normal' (no extra spacing) as well as lengths.
+		/// </summary>
+		bool SetWordSpacing( string value )
+		{
+			if ( value.Trim().Equals( "normal", System.StringComparison.OrdinalIgnoreCase ) )
+			{
+				WordSpacing = Length.Pixels( 0 );
+				return true;
+			}
+
+			WordSpacing = Length.Parse( value );
+			return WordSpacing.HasValue;
+		}
+
+		/// <summary>
+		/// Sets flex-flow, the shorthand for flex-direction and flex-wrap (either or both, any order).
+		/// </summary>
+		bool SetFlexFlow( string value )
+		{
+			bool any = false;
+
+			foreach ( var token in value.Split( new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries ) )
+			{
+				var word = token.ToLowerInvariant();
+
+				if ( word is "row" or "row-reverse" or "column" or "column-reverse" )
+					any |= SetFlexDirction( word );
+				else if ( word is "nowrap" or "wrap" or "wrap-reverse" )
+					any |= SetFlexWrap( word );
+			}
+
+			return any;
+		}
+
+		/// <summary>
+		/// Whether a token in the 'font' shorthand is the font-size (a size keyword, a length, or a
+		/// size/line-height pair) rather than a weight/style keyword or bare weight number.
+		/// </summary>
+		static bool IsFontSizeToken( string token )
+		{
+			switch ( token.ToLowerInvariant() )
+			{
+				case "xx-small":
+				case "x-small":
+				case "small":
+				case "medium":
+				case "large":
+				case "x-large":
+				case "xx-large":
+				case "xxx-large":
+					return true;
+			}
+
+			if ( token.Contains( '/' ) ) return true;
+
+			// A length such as 16px / 1.5em / 100% has both a digit and a unit; a bare weight number doesn't.
+			bool hasDigit = false, hasUnit = false;
+			foreach ( var c in token )
+			{
+				if ( char.IsDigit( c ) ) hasDigit = true;
+				else if ( c != '.' && c != '-' && c != '+' ) hasUnit = true;
+			}
+
+			return hasDigit && hasUnit;
+		}
+
+		/// <summary>
+		/// Sets the 'font' shorthand: [ style | variant | weight ]* size[/line-height] family. Dispatches
+		/// to the individual longhands; the font-size is required.
+		/// </summary>
+		bool SetFont( string value )
+		{
+			var tokens = value.Split( new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries );
+			if ( tokens.Length == 0 ) return false;
+
+			int sizeIndex = -1;
+			for ( int i = 0; i < tokens.Length; i++ )
+			{
+				if ( IsFontSizeToken( tokens[i] ) )
+				{
+					sizeIndex = i;
+					break;
+				}
+			}
+
+			// font-size (and therefore a family after it) is required for the shorthand to be valid.
+			if ( sizeIndex < 0 || sizeIndex + 1 >= tokens.Length )
+				return false;
+
+			// Style / variant / weight before the size.
+			for ( int i = 0; i < sizeIndex; i++ )
+			{
+				var token = tokens[i].ToLowerInvariant();
+
+				if ( token is "italic" or "oblique" )
+					Set( "font-style", token );
+				else if ( token is "normal" or "small-caps" )
+					continue; // variant/style we don't track separately
+				else
+					Set( "font-weight", token );
+			}
+
+			// Size, optionally with a line-height after a slash.
+			var sizePart = tokens[sizeIndex];
+			var slash = sizePart.IndexOf( '/' );
+			if ( slash >= 0 )
+			{
+				Set( "font-size", sizePart.Substring( 0, slash ) );
+				Set( "line-height", sizePart.Substring( slash + 1 ) );
+			}
+			else
+			{
+				Set( "font-size", sizePart );
+			}
+
+			// Everything after the size is the font-family.
+			Set( "font-family", string.Join( " ", tokens, sizeIndex + 1, tokens.Length - sizeIndex - 1 ) );
+
+			return true;
+		}
+
 		bool SetObjectFit( string value )
 		{
 			value = value.Trim();
+
+			// We have no never-upscale mode, so scale-down maps to the closest equivalent, contain.
+			if ( value == "scale-down" )
+			{
+				ObjectFit = UI.ObjectFit.Contain;
+				return true;
+			}
 
 			if ( Enum.TryParse<ObjectFit>( value, true, out var objectFit ) )
 			{

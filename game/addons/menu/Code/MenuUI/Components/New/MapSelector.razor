@@ -30,7 +30,7 @@
 
     public void OpenSelector()
     {
-        var mapTarget = GamePackage?.GetValue("MapTarget", GamePackage?.FullIdent);
+        var mapTarget = GamePackage?.Info.MapTarget;
 
         Game.Overlay.ShowPackageSelector($"type:map sort:popular target:{mapTarget}", (pkg) =>
         {

@@ -24,6 +24,11 @@
 
     <div class="panel-sections">
 
+        @if (Package.LatestChangeLists.Length > 0)
+        {
+            <PackageChangeLog Package="@Package" OnChangelogClicked="@OnChangelogClicked" />
+        }
+
         <Card>
             <ChildContent>
                 <label class="section-label">Package</label>
@@ -35,7 +40,7 @@
                 <div class="info-row"><i>update</i><label>Updated @((DateTime.UtcNow - Package.Updated).Humanize(1)) ago</label></div>
                 @if (Package.Reviews.Total > 0)
                 {
-                    <div class="info-row"><i>reviews</i><label>@Package.Reviews.Score.ToString("0\\%") from @Package.Reviews.Total reviews</label></div>
+                    <div class="info-row clickable" @onclick="@(() => OnReviewsClicked?.Invoke())"><i>reviews</i><label>@Package.Reviews.Score.ToString("0\\%") from @Package.Reviews.Total reviews</label></div>
                 }
             </ChildContent>
         </Card>
@@ -89,6 +94,12 @@
 {
 	[Parameter] public Package Package { get; set; }
 	[Parameter] public PortalTarget Portal { get; set;  }
+
+	/// <summary>Called when a changelog row in the side box is clicked - opens the Changes tab.</summary>
+	[Parameter] public Action OnChangelogClicked { get; set; }
+
+	/// <summary>Called when the reviews row is clicked - opens the Reviews tab.</summary>
+	[Parameter] public Action OnReviewsClicked { get; set; }
 
 	AchievementCollection achList;
 

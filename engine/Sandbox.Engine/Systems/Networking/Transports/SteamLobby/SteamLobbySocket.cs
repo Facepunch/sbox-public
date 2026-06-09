@@ -611,7 +611,7 @@ internal class SteamLobbySocket : NetworkSocket, ILobby
 
 		if ( Connections.TryGetValue( steamId, out var connection ) )
 		{
-			Log.Warning( $"SteamLobbySocket - Invalid Network Session (Recipient: {connection.DisplayName})" );
+			Log.Warning( $"SteamLobbySocket - Invalid Network Session (Recipient: {connection.Name})" );
 			return;
 		}
 

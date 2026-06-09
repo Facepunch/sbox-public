@@ -119,6 +119,12 @@ internal static partial class DebugOverlay
 			pos.y += OverlaySpacing;
 		}
 
+		if ( overlay_audio != 0 )
+		{
+			DebugOverlay.Audio.Draw( ref pos );
+			pos.y += OverlaySpacing;
+		}
+
 		if ( ShadowMapper.DebugEnabled )
 			ShadowMapper.Draw( ref pos, Hud );
 	}

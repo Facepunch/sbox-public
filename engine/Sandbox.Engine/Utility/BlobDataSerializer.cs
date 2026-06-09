@@ -51,6 +51,10 @@ internal static class BlobDataSerializer
 		if ( _current == null )
 			return null;
 
+		if ( _current.Blobs.TryGetValue( guid, out var registeredBlob ) )
+			return registeredBlob;
+
+		// Fall back to pre-existing binary data loaded from file
 		var binaryData = _current.BinaryData;
 		if ( binaryData == null || !binaryData.TryGetValue( guid, out var blobData ) )
 			return null;

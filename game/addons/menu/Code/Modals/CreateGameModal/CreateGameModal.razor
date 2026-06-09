@@ -143,9 +143,9 @@
     // Multiplayer Settings
     // 
 
-    int MaxPlayers => Package.GetMeta<int>( "MaxPlayers", 1 );
-    int MinPlayers => Package.GetMeta<int>( "MinPlayers", 1 );
-    bool IsMultiplayerGame => Package.Tags.Contains( "multiplayer" ) || Package.GetMeta<int>( "MaxPlayers", 1 ) > 1;
+    int MaxPlayers => Package.Info.MaxPlayers;
+    int MinPlayers => Package.Info.MinPlayers;
+    bool IsMultiplayerGame => Package.Tags.Contains( "multiplayer" ) || Package.Info.MaxPlayers > 1;
     string ServerName { get; set; }
     int Players { get; set; }
 
@@ -168,7 +168,7 @@
         //
         Players = Output.MaxPlayers;
         ServerName = Output.ServerName;
-        Settings = Package.GetMeta( "GameSettings", new List<GameSetting>() );
+        Settings = Package.Info.GameSettings ?? new List<GameSetting>();
 
         //
         // Verify cookie data
@@ -194,7 +194,7 @@
             }
         }
 
-        SetMap( Output.MapIdent ?? Package.GetValue( "DefaultMap", "" ) );
+        SetMap( Output.MapIdent ?? Package.Info.DefaultMap );
     }
 
     private async void SetMap( string ident )
@@ -250,10 +250,10 @@
     bool NeedsMap()
     {   
         if ( Package is null ) return false;
-        if ( Package.GetValue( "NeedsMap", false ) ) return true;
+        if ( Package.Info.NeedsMap ) return true;
 
         // legacy
-        var launchMode = Package.GetMeta( "LaunchMode", "default" );
+        var launchMode = Package.Info.LaunchMode;
         return string.Equals( launchMode, "launcher", StringComparison.OrdinalIgnoreCase );
     }
 

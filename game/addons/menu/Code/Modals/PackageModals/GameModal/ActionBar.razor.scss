@@ -2,66 +2,87 @@
 
 ActionBar
 {
-    flex-shrink: 0;
-    flex-grow: 1;
+	flex-shrink: 0;
+	flex-grow: 1;
 }
 
 ActionBar > .left
 {
-    flex-grow: 1;
+	flex-grow: 1;
 }
 
 ActionBar > .right
 {
-    justify-content: flex-end;
-    gap: 6px;
+	justify-content: flex-end;
+	gap: 6px;
 }
 
-Button {
-    border-radius: $rounding-default;
-    flex-shrink: 0;
-    font-size: $text-regular;
-    font-weight: 700;
-    font-family: $font-heading;
-    padding: 6px 14px;
-    border: 1px solid transparent;
-    color: $default-text-light;
-    transition: all 0.15s ease;
-    letter-spacing: 1px;
+Button
+{
+	border-radius: $rounding-default;
+	flex-shrink: 0;
+	font-size: $text-regular;
+	font-weight: 700;
+	font-family: $font-heading;
+	padding: 6px 14px;
+	border: 1px solid transparent;
+	color: $default-text-light;
+	transition: all 0.15s ease;
+	letter-spacing: 1px;
 
-    label {
-        text-transform: uppercase;
-    }
+	label
+	{
+		text-transform: uppercase;
+	}
 
-    &:hover {
-        border-color: $default-border;
-        background-color: rgba( $default-500, 0.1 );
-        color: $default-text;
-        sound-in: "ui.button.over";
-    }
+	&:hover
+	{
+		border-color: $default-border;
+		background-color: rgba( $default-500, 0.1 );
+		color: $default-text;
+		sound-in: "ui.button.over";
+	}
 
-    &:active {
-        sound-in: "ui.button.press";
-    }
+	&:active
+	{
+		sound-in: "ui.button.press";
+	}
 }
 
 Button.play
 {
-    background-color: $primary-blue;
-    border-color: transparent;
-    color: white;
-    padding: 6px 20px;
+	background-color: $primary-blue;
+	border-color: transparent;
+	color: white;
+	padding: 6px 20px;
 
-    &:hover
-    {
-        filter: brightness( 1.2 );
-        border-color: transparent;
-        background-color: $primary-blue;
-    }
+	&:hover
+	{
+		filter: brightness( 1.2 );
+		border-color: transparent;
+		background-color: $primary-blue;
+	}
 
-    &.disabled
-    {
-        opacity: 0.25;
-        pointer-events: none;
-    }
+	&.disabled
+	{
+		opacity: 0.25;
+		pointer-events: none;
+	}
+}
+
+Button.streaming
+{
+	opacity: 0.3;
+	background-color: #9147ff;
+
+	&:hover
+	{
+		opacity: 0.7;
+	}
+
+	&.active
+	{
+		opacity: 1;
+		color: white;
+	}
 }

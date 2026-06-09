@@ -123,6 +123,13 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	} = 1.0f;
 
 	/// <summary>
+	/// Objects with any of these tags will be excluded when baking probes for this volume.
+	/// </summary>
+	[Property]
+	[Group( "Advanced Settings" )]
+	public TagSet RenderExcludeTags { get; set; } = new();
+
+	/// <summary>
 	/// Calculated probe count along each axis based on bounds and density.
 	/// </summary>
 	public Vector3Int ProbeCounts => ComputeProbeCounts();
@@ -223,7 +230,7 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 			Graphics.FlushGPU();
 
 			IrradianceTexture = SaveTexture( updater.GeneratedIrradianceTexture, "Irradiance" );
-			DistanceTexture = SaveTexture( updater.GeneratedDistanceTexture, "Distance", ImageFormat.RG1616F ); // BC6H ideally, but block compression fucks precision too much
+			DistanceTexture = SaveTexture( updater.GeneratedDistanceTexture, "Distance", ImageFormat.BC6H ); // Previously RGBA16F, we're using softer depth so we can take advantage of BC6H compression now like Overwatch does.
 			RelocationTexture = SaveTexture( GeneratedRelocationTexture, "Relocation", ImageFormat.RGBA16161616F );
 		}
 

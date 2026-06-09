@@ -116,6 +116,14 @@ partial class VertexTool
 			}
 
 			Layout.AddStretchCell();
+
+			AddShortcuts(
+				("Lasso Select", "Alt+Shift+Drag"),
+				("Lasso Deselect", "Alt+Ctrl+Drag"),
+				("Grow Selection", "Numpad +"),
+				("Shrink Selection", "Numpad -"),
+				("Snap to Grid", "Ctrl+B")
+			);
 		}
 
 		[EditorEvent.Frame]

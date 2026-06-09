@@ -88,6 +88,8 @@ public partial class Panel
 
 			ParentHasChanged = true;
 			// Dirty
+
+			UpdateSceneIndex();
 		}
 	}
 

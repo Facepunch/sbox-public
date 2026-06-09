@@ -1,0 +1,134 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using System;
+@namespace Sandbox.UI
+@inherits Panel
+
+<root>
+	<Card class="reward-progress">
+		<ChildContent>
+
+			<div class="header">
+				<label class="eyebrow">@HeaderTitle</label>
+				@if ( ShowRefresh )
+				{
+					<div class="refresh clicky @( IsRefreshing ? "busy" : "" )" tooltip="Refresh" @onclick="@Refresh">
+						<icon>refresh</icon>
+					</div>
+				}
+			</div>
+
+			@if ( Window is null )
+			{
+				<label class="small loading">Loading…</label>
+			}
+			else
+			{
+				<div class="facets">
+					@foreach ( var facet in Window.Facets )
+					{
+						<RewardFacetItem Facet="@facet" />
+					}
+				</div>
+
+				<Button class="clicky primary open-reward" Icon="@( CanOpen ? "redeem" : "lock" )" Text="Open Reward" Disabled="@( !CanOpen )" @onclick="@OpenReward" />
+			}
+
+		</ChildContent>
+	</Card>
+</root>
+
+@code
+{
+	RewardState State { get; set; }
+
+	/// <summary>
+	/// The track we're showing. Today there's only one window, so we show the first.
+	/// </summary>
+	RewardWindow Window
+	{
+		get
+		{
+			if ( State is null )
+				return null;
+
+			if ( State.Windows.Length == 0 )
+				return null;
+
+			return State.Windows[0];
+		}
+	}
+
+	/// <summary>
+	/// You can open a reward when the track is complete, or when there's an unclaimed offer waiting.
+	/// </summary>
+	bool CanOpen
+	{
+		get
+		{
+			if ( Window is null )
+				return false;
+
+			if ( Window.IsEligible )
+				return true;
+
+			if ( State.Pending is not null )
+				return true;
+
+			return false;
+		}
+	}
+
+	string HeaderTitle => Window?.Title ?? "Rewards";
+
+	/// <summary>True while a GetRewards call is in flight, so the refresh icon can spin.</summary>
+	bool IsRefreshing { get; set; }
+
+	/// <summary>Time since the last manual refresh - the button hides for a cooldown after each press.</summary>
+	RealTimeSince _sinceRefresh = 100;
+
+	/// <summary>The refresh button is hidden for 10 seconds after each press.</summary>
+	bool ShowRefresh => _sinceRefresh > 10f;
+
+	protected override void OnAfterTreeRender( bool firstTime )
+	{
+		if ( !firstTime )
+			return;
+
+		_ = LoadRewards();
+	}
+
+	async Task LoadRewards()
+	{
+		IsRefreshing = true;
+		StateHasChanged();
+
+		State = await MenuUtility.Rewards.GetRewards();
+
+		IsRefreshing = false;
+		StateHasChanged();
+	}
+
+	void Refresh()
+	{
+		if ( !ShowRefresh )
+			return;
+
+		_sinceRefresh = 0;
+		_ = LoadRewards();
+	}
+
+	void OpenReward()
+	{
+		if ( !CanOpen )
+			return;
+
+		var options = new SceneLoadOptions();
+		options.ShowLoadingScreen = false;
+		options.SetScene( "/scenes/reward-unbox.scene" );
+
+		Game.ActiveScene.Load( options );
+	}
+
+	protected override int BuildHash() => HashCode.Combine( State, CanOpen, IsRefreshing, ShowRefresh );
+}

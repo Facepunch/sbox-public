@@ -17,7 +17,7 @@
                     <GamePackageSortOrder Value:bind="@filterOrder" ></GamePackageSortOrder>
                 </div>
 
-                <TextEntry @ref="SearchEntry" placeholder="Search maps..."></TextEntry>
+                <TextEntry @ref="SearchEntry" placeholder="Search maps..." OnTextEdited=@OnSearchEdited></TextEntry>
 
                 @if (Result?.Properties is not null && Result.Properties.Length > 0 )
                 {
@@ -55,6 +55,9 @@
 @code {
     string filterOrder = "quality";
     TextEntry SearchEntry = default;
+    string debouncedSearch = "";
+    bool searchPending = false;
+    TimeSince timeSinceSearchEdited;
 
     List<string> SelectedTags = new();
     Dictionary<string, string> SelectedCategory = new();
@@ -68,6 +71,22 @@
         package.OpenModal();
 	}
 
+    void OnSearchEdited( string text )
+    {
+        searchPending = true;
+        timeSinceSearchEdited = 0;
+    }
+
+    public override void Tick()
+    {
+        if (searchPending && timeSinceSearchEdited >= 0.3f)
+        {
+            searchPending = false;
+            debouncedSearch = SearchEntry?.Text ?? "";
+            StateHasChanged();
+        }
+    }
+
 	void OnOrderChanged(string value)
 	{
 		filterOrder = value;
@@ -80,7 +99,7 @@
 
     string GetQuery()
     {
-        string tagString = SearchEntry?.Text ?? "";
+        string tagString = debouncedSearch;
         foreach (var tag in SelectedTags)
         {
             tagString += $" +{tag}";

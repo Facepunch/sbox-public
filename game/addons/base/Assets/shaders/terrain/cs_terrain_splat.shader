@@ -31,7 +31,6 @@ CS
     float BrushStrength < Attribute( "BrushStrength" ); >;
 	Texture2D<float> Brush < Attribute( "Brush" ); >;
     int PaintMaterialIndex < Attribute( "SplatChannel" ); >;
-	int PaintLayer < Attribute( "PaintLayer" ); >;
 
     SamplerState g_sBilinearBorder < Filter( BILINEAR ); AddressU( BORDER ); AddressV( BORDER ); >;
 
@@ -49,28 +48,63 @@ CS
 
 		float2 brushUV = float2( vThreadId.xy ) / BrushSize;
 		float brushValue = Brush.SampleLevel( g_sBilinearBorder, brushUV, 0 ) * BrushStrength;
+		float brushAmount = saturate( abs( brushValue ) );
 
 		// Skip if brush has no effect at this pixel
-		if ( abs( brushValue ) < 0.05 ) return;
+		if ( brushAmount < 0.001 ) return;
 
 		// Decode existing material
 		CompactTerrainMaterial material = CompactTerrainMaterial::DecodeFromFloat( ControlMap.Load( texel ) );
 
-		if ( PaintLayer == 0 ) // Painting the Base layer
+		uint paintMaterialId = (uint)PaintMaterialIndex;
+		float baseWeight = 1.0 - material.GetNormalizedBlend();
+		float overlayWeight = material.GetNormalizedBlend();
+		float targetWeight = brushValue > 0.0 ? 1.0 : 0.0;
+
+		if ( material.BaseTextureId == paintMaterialId )
 		{
-			material.BaseTextureId = PaintMaterialIndex;
+			baseWeight = lerp( baseWeight, targetWeight, brushAmount );
+			overlayWeight = 1.0 - baseWeight;
 		}
-		else // Painting the Overlay layer
+		else if ( material.OverlayTextureId == paintMaterialId )
 		{
-			material.OverlayTextureId = PaintMaterialIndex;
-			
-			// Increase blend to make overlay material more visible
-			float newBlend = saturate( material.GetNormalizedBlend() + brushValue );
-			material.BlendFactor = uint( newBlend * 255.0 );
+			overlayWeight = lerp( overlayWeight, targetWeight, brushAmount );
+			baseWeight = 1.0 - overlayWeight;
 		}
+		else if ( brushValue > 0.0 )
+		{
+			if ( baseWeight <= overlayWeight )
+			{
+				material.BaseTextureId = paintMaterialId;
+				baseWeight = lerp( 0.0, 1.0, brushAmount );
+				overlayWeight = 1.0 - baseWeight;
+			}
+			else
+			{
+				material.OverlayTextureId = paintMaterialId;
+				overlayWeight = lerp( 0.0, 1.0, brushAmount );
+				baseWeight = 1.0 - overlayWeight;
+			}
+		}
+		else
+		{
+			return;
+		}
+
+		if ( overlayWeight > baseWeight )
+		{
+			uint oldBaseTextureId = material.BaseTextureId;
+			material.BaseTextureId = material.OverlayTextureId;
+			material.OverlayTextureId = oldBaseTextureId;
+
+			float oldBaseWeight = baseWeight;
+			baseWeight = overlayWeight;
+			overlayWeight = oldBaseWeight;
+		}
+
+		material.BlendFactor = uint( saturate( overlayWeight ) * 255.0 + 0.5 );
 
 		// Write back
 		ControlMap[texel] = material.EncodeToFloat();
     }
 }
-

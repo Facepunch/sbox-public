@@ -656,13 +656,18 @@ public class RectView : Widget
 			World = world
 		};
 
-		var light = new ScenePointLight( world )
+		var light = new SceneSpotLight( world )
 		{
 			Radius = 4000,
-			LightColor = Color.White * 0.8f,
+			LightColor = Color.White * 0.7f,
 			Position = new Vector3( 0, 0, 100 ),
+			ConeOuter = 89,
+			ConeInner = 75,
+			QuadraticAttenuation = 5f,
 			ShadowsEnabled = true
 		};
+
+		light.Rotation = Rotation.From( 90, 0, 0 );
 
 		var debugMode = Session.Settings.FastTextureSettings.DebugMode;
 

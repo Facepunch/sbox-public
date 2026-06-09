@@ -36,15 +36,23 @@ public class ToolSidebarWidget : Widget
 
 	public Layout AddGroup( string title, SizeMode sizeMode = SizeMode.CanShrink, bool collapsible = false )
 	{
+		var group = CreateGroupWidget( title, sizeMode, collapsible );
+		Layout.Add( group );
+		return group.ContentLayout;
+	}
+
+	/// <summary>
+	/// Creates a group widget parented to the given widget without adding it to this sidebar's layout.
+	/// Use this to build groups that belong to a separately-controlled container.
+	/// </summary>
+	internal static SidebarGroupWidget CreateGroupWidget( string title, SizeMode sizeMode = SizeMode.CanShrink, bool collapsible = false )
+	{
 		var group = new SidebarGroupWidget();
 		group.Title = title;
 		group.VerticalSizeMode = sizeMode;
 		group.Collapsible = collapsible;
 		group.RestoreState();
-
-		Layout.Add( group );
-
-		return group.ContentLayout;
+		return group;
 	}
 
 	public IconButton CreateButton( string text, string icon, string keybind, Action clicked, bool enabled, Layout addToLayout = null, bool active = false )
@@ -91,9 +99,69 @@ public class ToolSidebarWidget : Widget
 
 		return btn;
 	}
+
+	/// <summary>
+	/// Add a collapsible "Shortcuts" section listing the given shortcut identifiers.
+	/// </summary>
+	public void AddShortcuts( params string[] identifiers )
+	{
+		AddShortcuts( identifiers
+			.Select( id => EditorShortcuts.Entries.FirstOrDefault( e => e.Identifier == id ) )
+			.Where( e => e is not null )
+			.Select( e => (e.Name, e.DisplayKeys) )
+			.ToArray() );
+	}
+
+	/// <summary>
+	/// Add a collapsible "Shortcuts" section with manual name/key pairs for shortcuts
+	/// that don't have a [Shortcut] attribute (e.g. "Lasso", "Alt + Click").
+	/// </summary>
+	public void AddShortcuts( params (string Name, string Keys)[] shortcuts )
+	{
+		if ( shortcuts.Length == 0 ) return;
+
+		var group = AddGroup( "Shortcuts", collapsible: true );
+		for ( var i = 0; i < shortcuts.Length; i++ )
+			group.Add( new ShortcutRow( shortcuts[i].Name, shortcuts[i].Keys, i ) );
+	}
 }
 
-file class SidebarGroupWidget : Widget
+/// <summary>
+/// A single shortcut row: name on the left, keys on the right, with alternating background.
+/// </summary>
+file class ShortcutRow : Widget
+{
+	readonly string _name;
+	readonly string _keys;
+	readonly int _index;
+
+	public ShortcutRow( string name, string keys, int index )
+	{
+		_name = name;
+		_keys = keys;
+		_index = index;
+		FixedHeight = 20;
+	}
+
+	protected override void OnPaint()
+	{
+		Paint.ClearPen();
+		Paint.SetBrush( _index % 2 == 1 ? Theme.WidgetBackground.Darken( 0.1f ) : Theme.WidgetBackground );
+		Paint.DrawRect( LocalRect, 2 );
+
+		Paint.Antialiasing = true;
+		Paint.TextAntialiasing = true;
+		Paint.SetDefaultFont( 7 );
+
+		var rect = LocalRect.Shrink( 8, 0 );
+		Paint.SetPen( Theme.Text.WithAlpha( 0.7f ) );
+		Paint.DrawText( rect, _name, TextFlag.LeftCenter );
+		Paint.SetPen( Theme.Text.WithAlpha( 0.4f ) );
+		Paint.DrawText( rect, _keys, TextFlag.RightCenter );
+	}
+}
+
+internal class SidebarGroupWidget : Widget
 {
 	public readonly Layout ContentLayout;
 

@@ -81,6 +81,8 @@ public sealed partial class Model : Resource
 
 		BaseModel = default;
 
+		MeshInfo = null;
+
 		IToolsDll.Current?.RunEvent( "model.reload", this );
 
 		foreach ( var scene in Scene.All )
