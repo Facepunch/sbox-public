@@ -36,7 +36,7 @@ public class ProjectTests
 	}
 
 	/// <summary>
-	/// All Get*Path methods return absolute paths
+	/// Verifies every Get*Path method returns an absolute path.
 	/// </summary>
 	[TestMethod]
 	public void GetProjectPathsAreAbsolute()
@@ -52,7 +52,7 @@ public class ProjectTests
 	}
 
 	/// <summary>
-	/// Get*Path returns paths rooted under the project root
+	/// Verifies the folder paths resolve underneath the project root.
 	/// </summary>
 	[TestMethod]
 	public void GetProjectPathsAreRootedUnderProject()
@@ -67,7 +67,7 @@ public class ProjectTests
 	}
 
 	/// <summary>
-	/// GetProjectPath finds the .sbproj file via the ProjectFileSystem
+	/// Verifies GetProjectPath finds the project's .sbproj file on disk.
 	/// </summary>
 	[TestMethod]
 	public void GetProjectPathFindsSbproj()
@@ -81,8 +81,7 @@ public class ProjectTests
 	}
 
 	/// <summary>
-	/// Has*Path returns true for all folders present in case-insensitive addon, where all
-	/// folders are lowercase. On Linux, CIPFS must resolve the casing correctly.
+	/// Verifies Has*Path resolves lowercase folders case-insensitively (CIPFS on Linux).
 	/// </summary>
 	[TestMethod]
 	public void HasProjectPathsAreCaseInsensitive()
@@ -95,24 +94,21 @@ public class ProjectTests
 	}
 
 	/// <summary>
-	/// testmap has a valid project filesystem but no Code folder: GetCodePath still
-	/// resolves a (would-be) path while HasCodePath reports false. Get and Has are
-	/// decoupled.
+	/// Verifies HasCodePath returns false when the Code folder is missing, even though
+	/// GetCodePath still resolves a path.
 	/// </summary>
 	[TestMethod]
 	public void HasCodePathReturnsFalseWhenMissing()
 	{
 		var project = Project.AddFromFile( "unittest/addons/testmap/.sbproj" );
 
-		Assert.IsNotNull( project.GetCodePath() );  // valid FS resolves the path...
-		Assert.IsFalse( project.HasCodePath() );    // ...but the folder isn't there
+		Assert.IsNotNull( project.GetCodePath() );
+		Assert.IsFalse( project.HasCodePath() );
 	}
 
 	/// <summary>
-	/// HasCodePath returns false and does not throw when ProjectFileSystem is null
-	/// (a project that was never loaded, or failed to load). RootDirectory is set to
-	/// a real folder so the test still exercises the null-filesystem path even if a
-	/// RootDirectory guard is later added to HasCodePath.
+	/// Verifies HasCodePath returns false without throwing when the project has no
+	/// filesystem (RootDirectory set, ProjectFileSystem null).
 	/// </summary>
 	[TestMethod]
 	public void HasCodePathReturnsFalseWhenFileSystemIsNull()
@@ -122,7 +118,6 @@ public class ProjectTests
 			RootDirectory = new System.IO.DirectoryInfo( "unittest/addons/testmap" )
 		};
 
-		// ProjectFileSystem is null here; the null check must stay quiet, not throw.
 		Assert.IsFalse( project.HasCodePath() );
 		Assert.IsNull( project.GetCodePath() );
 	}
