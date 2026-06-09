@@ -121,6 +121,15 @@ public sealed partial class TrackView : IComparable<TrackView>
 	private bool _dispatchValueChanged = false;
 
 	public IReadOnlyList<TrackView> Children => _children;
+	public IEnumerable<TrackView> Descendants => Children.SelectMany<TrackView, TrackView>( x => [x, ..x.Descendants] );
+
+	/// <summary>
+	/// Descendant tracks that target the same GameObject as this track.
+	/// Will return any properties of this GameObject, any Component tracks, and any properties in those Components.
+	/// </summary>
+	public IEnumerable<TrackView> SameGameObjectDescendants => Children
+		.Where( x => x.Target is not ITrackReference<GameObject> )
+		.SelectMany<TrackView, TrackView>( x => [x, ..x.Descendants] );
 
 	public int StateHash { get; private set; }
 	public bool IsEmpty => _children.Count == 0 && Track.IsEmpty;
@@ -197,10 +206,34 @@ public sealed partial class TrackView : IComparable<TrackView>
 	/// </summary>
 	public void Select()
 	{
+		ExpandAncestors();
+
 		TrackList.DeselectAll();
 		TrackList.LastSelected = this;
 
 		IsSelected = true;
+	}
+
+	/// <summary>
+	/// Makes sure all ancestors of this track are expanded.
+	/// </summary>
+	public void ExpandAncestors()
+	{
+		if ( Parent?.ExpandCore() ?? false )
+		{
+			TrackList.Update();
+		}
+	}
+
+	private bool ExpandCore()
+	{
+		var changed = !IsExpanded;
+
+		IsExpanded = true;
+
+		changed |= Parent?.ExpandCore() ?? false;
+
+		return changed;
 	}
 
 	/// <summary>

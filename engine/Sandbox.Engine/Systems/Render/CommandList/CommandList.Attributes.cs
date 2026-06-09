@@ -379,7 +379,8 @@ public sealed partial class CommandList
 	/// These are the attributes for the current view. Setting a variable here will let you pass it down to
 	/// other places in the render pipeline.
 	/// </summary>
-	public AttributeAccess GlobalAttributes { get; private set; }
+	[Obsolete( "Global/frame attributes are deprecated. Use a local Attributes set or pipeline texture slots instead." )]
+	public AttributeAccess GlobalAttributes => Attributes;
 
 	/// <summary>
 	/// Access to the local attributes. What these are depends on where the command list is being called.
@@ -387,7 +388,8 @@ public sealed partial class CommandList
 	/// </summary>
 	public AttributeAccess Attributes { get; private set; }
 
-	RenderAttributes GetFrameAttributes() => Graphics.FrameAttributes;
+	[Obsolete( "Frame attributes are deprecated. Use a local Attributes set or pipeline texture slots instead." )]
+	RenderAttributes GetFrameAttributes() => GetLocalAttributes();
 	RenderAttributes GetLocalAttributes() => Graphics.Attributes;
 
 }
