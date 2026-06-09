@@ -75,7 +75,7 @@ public class ProjectTests
 		// Check .sbproj as ending and as full filename
 		Assert.IsNotNull( projectPath );
 		Assert.IsTrue( projectPath.EndsWith( ".sbproj" ) );
-		Assert.AreEqual( ".sbproj", System.IO.Path.GetFileName( projectPath ) ); 
+		Assert.AreEqual( ".sbproj", System.IO.Path.GetFileName( projectPath ) );
 	}
 
 	/// <summary>
