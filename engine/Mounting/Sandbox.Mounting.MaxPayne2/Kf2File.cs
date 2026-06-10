@@ -86,11 +86,11 @@ public class Kf2File
 		_r = new MaxReader( data );
 	}
 
-	public static Kf2File Parse( byte[] data )
+	public static Kf2File Parse( byte[] data, bool bakeNodeTransforms = true )
 	{
 		var kf2 = new Kf2File( data );
 		kf2.ReadTopLevel();
-		kf2.BakeNodeTransforms();
+		if ( bakeNodeTransforms ) kf2.BakeNodeTransforms();
 		return kf2;
 	}
 

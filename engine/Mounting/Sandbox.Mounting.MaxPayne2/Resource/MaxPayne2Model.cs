@@ -63,7 +63,11 @@ class MaxPayne2Model( string fileName ) : ResourceLoader<MaxPayne2Mount>
 		builder.AddCollisionMesh( collisionVerts, collisionIndices );
 		builder.AddTraceMesh( collisionVerts, collisionIndices );
 
-		if ( rig is not null ) AddRigAnimations( builder, rig );
+		if ( rig is not null )
+		{
+			AddRigAnimations( builder, rig );
+			AddRagdoll( builder, rig );
+		}
 		else if ( animatedNodes ) AddAnimations( kf2, builder );
 
 		return builder.Create();
@@ -163,6 +167,18 @@ class MaxPayne2Model( string fileName ) : ResourceLoader<MaxPayne2Mount>
 	// GoldSrc mount standard: Bone takes MODEL-SPACE transforms, AddFrame takes parent-local
 	static void AddRigBones( ModelBuilder builder, Rig rig )
 	{
+		var worlds = ComputeBindWorlds( rig );
+		var bones = new ModelBuilder.Bone[worlds.Length];
+		for ( var i = 0; i < worlds.Length; i++ )
+		{
+			bones[i] = new ModelBuilder.Bone( rig.BoneNames[i], rig.ParentNames[i], worlds[i].Position, worlds[i].Rotation );
+		}
+
+		builder.AddBones( bones );
+	}
+
+	static Transform[] ComputeBindWorlds( Rig rig )
+	{
 		var count = rig.BoneNames.Length;
 		var indexByName = new Dictionary<string, int>( count, StringComparer.OrdinalIgnoreCase );
 		for ( var i = 0; i < count; i++ ) indexByName[rig.BoneNames[i]] = i;
@@ -179,14 +195,114 @@ class MaxPayne2Model( string fileName ) : ResourceLoader<MaxPayne2Mount>
 			return world;
 		}
 
-		var bones = new ModelBuilder.Bone[count];
+		var result = new Transform[count];
 		for ( var i = 0; i < count; i++ )
 		{
-			var world = WorldOf( i );
-			bones[i] = new ModelBuilder.Bone( rig.BoneNames[i], rig.ParentNames[i], world.Position, world.Rotation );
+			result[i] = WorldOf( i );
 		}
 
-		builder.AddBones( bones );
+		return result;
+	}
+
+	const float RagdollMass = 90f;
+
+	// data/database/ragdolls: a convex hull per bone (geometry kf2 node names match bone names)
+	// plus swing/twist joint limits, shared by every humanoid character
+	void AddRagdoll( ModelBuilder builder, Rig rig )
+	{
+		var text = Host.GetFileBytes( "data/database/ragdolls/highdetail.txt" );
+		if ( text is null )
+			return;
+
+		RasLib.RagdollFile ragdoll;
+		Kf2File geometry;
+		try
+		{
+			ragdoll = RasLib.RagdollFile.Parse( System.Text.Encoding.Latin1.GetString( text ) );
+
+			var geoData = Host.GetFileBytes( $"data/database/ragdolls/highdetail/{ragdoll.GeometryFile}" );
+			if ( geoData is null )
+				return;
+
+			geometry = Kf2File.Parse( geoData, bakeNodeTransforms: false );
+		}
+		catch
+		{
+			return;
+		}
+
+		var hulls = new Dictionary<string, Vector3[]>( StringComparer.OrdinalIgnoreCase );
+		foreach ( var prim in geometry.Primitives )
+		{
+			if ( prim.NodeName is null || prim.Positions.Length < 3 )
+				continue;
+
+			var points = new Vector3[prim.Positions.Length];
+			for ( var i = 0; i < points.Length; i++ )
+			{
+				var p = prim.Positions[i];
+				points[i] = new Vector3( -p.x, -p.z, p.y ) * Scale;
+			}
+
+			hulls[prim.NodeName] = points;
+		}
+
+		var boneIndexByName = new Dictionary<string, int>( StringComparer.OrdinalIgnoreCase );
+		for ( var i = 0; i < rig.BoneNames.Length; i++ ) boneIndexByName[rig.BoneNames[i]] = i;
+
+		var bindWorlds = ComputeBindWorlds( rig );
+
+		var totalWeight = 0f;
+		foreach ( var bone in ragdoll.Bones ) totalWeight += bone.Weight;
+		if ( totalWeight <= 0f )
+			return;
+
+		var bodyCount = 0;
+		var bodyByBone = new Dictionary<string, int>( StringComparer.OrdinalIgnoreCase );
+		foreach ( var bone in ragdoll.Bones )
+		{
+			if ( !boneIndexByName.TryGetValue( bone.Name, out var boneIndex ) )
+				continue;
+			if ( !hulls.TryGetValue( bone.Name, out var points ) )
+				continue;
+
+			builder.AddBody( RagdollMass * bone.Weight / totalWeight, boneName: rig.BoneNames[boneIndex] )
+				.SetBindPose( bindWorlds[boneIndex] )
+				.AddHull( points );
+			bodyByBone[bone.Name] = bodyCount++;
+		}
+
+		foreach ( var joint in ragdoll.Joints )
+		{
+			if ( !bodyByBone.TryGetValue( joint.Bone1, out var body1 ) )
+				continue;
+			if ( !bodyByBone.TryGetValue( joint.Bone2, out var body2 ) )
+				continue;
+
+			var parentWorld = bindWorlds[boneIndexByName[joint.Bone1]];
+			var childWorld = bindWorlds[boneIndexByName[joint.Bone2]];
+
+			// pivot at the child bone, joint frames built from the same world transform so the
+			// rig is strain-free at bind; twist axis is authored in the child bone's local space
+			var axis = childWorld.Rotation * new Vector3( -joint.TwistAxis.x, -joint.TwistAxis.z, joint.TwistAxis.y );
+			var jointWorld = new Transform( childWorld.Position, Rotation.LookAt( axis ) );
+			var frame1 = parentWorld.ToLocal( jointWorld );
+			var frame2 = childWorld.ToLocal( jointWorld );
+
+			var swing = MathF.Max(
+				MathF.Max( MathF.Abs( joint.ConeMin ), MathF.Abs( joint.ConeMax ) ),
+				MathF.Max( MathF.Abs( joint.PlaneMin ), MathF.Abs( joint.PlaneMax ) ) );
+
+			if ( swing <= 0.01f && joint.TwistMax - joint.TwistMin <= 0.01f )
+			{
+				builder.AddFixedJoint( body1, body2, frame1, frame2 );
+				continue;
+			}
+
+			builder.AddBallJoint( body1, body2, frame1, frame2 )
+				.WithSwingLimit( swing )
+				.WithTwistLimit( joint.TwistMin, joint.TwistMax );
+		}
 	}
 
 	Mesh BuildRigMesh( Kf2File kf2, Kf2File.Primitive prim, Vector3[] positions, int[] indices, List<string> searchDirs, Rig rig )
