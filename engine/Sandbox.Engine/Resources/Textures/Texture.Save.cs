@@ -32,6 +32,19 @@ public partial class Texture
 		int depth = Desc.m_nDepth; // For vtex format, depth is slice count for volumes or 1 for cubemaps
 		int mipCount = Desc.m_nNumMipLevels;
 
+		VTexWriter.VTEX_Format_t diskFormat;
+		if ( formatOverride.HasValue )
+			diskFormat = VTexWriter.RuntimeToVTEX_Format( formatOverride.Value ) ?? VTexWriter.VTEX_Format_t.VTEX_FORMAT_RGBA8888;
+		else
+			diskFormat = default; // will be calculated after SetTexture
+
+		// PNG format only supports a single mip level
+		bool isPngFormat = diskFormat == VTexWriter.VTEX_Format_t.VTEX_FORMAT_PNG_RGBA8888
+						|| diskFormat == VTexWriter.VTEX_Format_t.VTEX_FORMAT_PNG_DXT5;
+
+		if ( isPngFormat )
+			mipCount = 1;
+
 		var writer = new VTexWriter();
 
 		// For cubemaps rendered with inverted scale sampling, we need to:
@@ -69,13 +82,13 @@ public partial class Texture
 		if ( isVolume )
 			flags |= VTexWriter.VTEX_Flags_t.VTEX_FLAG_VOLUME_TEXTURE;
 
-		if ( desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_NO_LOD ) )
+		if ( desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_NO_LOD ) || isPngFormat )
 			flags |= VTexWriter.VTEX_Flags_t.VTEX_FLAG_NO_LOD;
 
 		writer.Header.Flags = flags;
 
 		if ( formatOverride.HasValue )
-			writer.Header.Format = VTexWriter.RuntimeToVTEX_Format( formatOverride.Value ).Value;
+			writer.Header.Format = diskFormat;
 		else
 			writer.CalculateFormat();
 
@@ -84,11 +97,19 @@ public partial class Texture
 
 		// Calculate expected size for validation (cubemaps need size * 6)
 		var outputFormat = VTexWriter.VTEX_FormatToRuntime( writer.Header.Format );
-		var expectedSize = NativeEngine.ImageLoader.GetMemRequired( width, height, depth, mipCount, outputFormat ) * numFaces;
+		bool isCompressedOnDisk = writer.Header.Format is VTexWriter.VTEX_Format_t.VTEX_FORMAT_PNG_RGBA8888
+			or VTexWriter.VTEX_Format_t.VTEX_FORMAT_PNG_DXT5
+			or VTexWriter.VTEX_Format_t.VTEX_FORMAT_JPEG_RGBA8888
+			or VTexWriter.VTEX_Format_t.VTEX_FORMAT_JPEG_DXT5;
 
-		if ( streamingData.Length != expectedSize )
+		if ( !isCompressedOnDisk )
 		{
-			Log.Warning( $"SaveToVtex: Size mismatch for {width}x{height}x{depth} {writer.Header.Format}! Got {streamingData.Length} bytes but expected {expectedSize}" );
+			var expectedSize = NativeEngine.ImageLoader.GetMemRequired( width, height, depth, mipCount, outputFormat ) * numFaces;
+
+			if ( streamingData.Length != expectedSize )
+			{
+				Log.Warning( $"SaveToVtex: Size mismatch for {width}x{height}x{depth} {writer.Header.Format}! Got {streamingData.Length} bytes but expected {expectedSize}" );
+			}
 		}
 
 		// Write Source 2 resource container format
