@@ -41,7 +41,7 @@ float3 Terrain_ClipmapSingleMesh(
 
     float2 heightUv = ( worldPosition.xy ) / ( texSize * terrainResolution );
 
-    float flHeight = tHeightMap.SampleLevel( g_sBilinearBorder, heightUv, 0 ).r;
+    float flHeight = tHeightMap.SampleLevel( g_sBilinearClamp, heightUv, 0 ).r;
     worldPosition.z = flHeight;
 
     return worldPosition;

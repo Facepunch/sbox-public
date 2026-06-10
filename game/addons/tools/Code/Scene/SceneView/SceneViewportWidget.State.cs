@@ -20,7 +20,9 @@ public partial class SceneViewportWidget
 		[Title( "Front 2D" ), Icon( "cottage" )]
 		Front2d,
 		[Title( "Side 2D" ), Icon( "gite" )]
-		Side2d
+		Side2d,
+		[Title( "Flat 2D (Screen)" ), Icon( "grid_on" )]
+		Flat2d
 	}
 
 	public class ViewportState
@@ -113,6 +115,12 @@ public partial class SceneViewportWidget
 					GridAxis = Gizmo.GridAxis.ZX;
 					break;
 
+				// X+ Right, Y+ Down (matches Vector2 coordinate convention)
+				case ViewMode.Flat2d:
+					CameraRotation = Rotation.LookAt( Vector3.Up, Vector3.Right );
+					GridAxis = Gizmo.GridAxis.XY;
+					break;
+
 				default:
 					GridAxis = Gizmo.GridAxis.XY;
 					break;
@@ -193,7 +201,7 @@ public partial class SceneViewportWidget
 	[Shortcut( "scene.cycle-viewmode", "CTRL+SPACE" )]
 	public void CycleViewmode()
 	{
-		ViewMode newMode = (ViewMode)(((int)State.View + 1) % ((int)ViewMode.Side2d + 1));
+		ViewMode newMode = (ViewMode)(((int)State.View + 1) % ((int)ViewMode.Flat2d + 1));
 		State.View = newMode == ViewMode.Perspective ? ViewMode.Top2d : newMode; // skip 3d
 
 		Vector3 center = Vector3.Zero;

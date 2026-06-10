@@ -47,7 +47,6 @@ public static partial class Graphics
 		public ImageFormat colorFormat;
 		public MultisampleAmount msaaLevel;
 		public Transform cameraTransform;
-		internal RenderAttributes frameAttributes;
 		internal RenderTarget renderTarget;
 		internal float defaultMinZ;
 		internal float defaultMaxZ;
@@ -88,9 +87,9 @@ public static partial class Graphics
 
 	/// <summary>
 	/// Access to the current frame's attributes.
-	/// These will live until the end of the frame.
 	/// </summary>
-	internal static RenderAttributes FrameAttributes => _state.frameAttributes;
+	[Obsolete( "Frame attributes are deprecated, try to use Pipeline Texture Sets." )]
+	internal static RenderAttributes FrameAttributes => Attributes;
 
 	/// <summary>
 	/// The camera transform of the currently rendering view
@@ -220,9 +219,6 @@ public static partial class Graphics
 
 			_state.attributes = ObjectPool<RenderAttributes>.Get();
 			_state.attributes.Set( setup.renderContext.GetAttributesPtrForModify() );
-
-			_state.frameAttributes = ObjectPool<RenderAttributes>.Get();
-			_state.frameAttributes.Set( setup.sceneView.GetRenderAttributesPtr() );
 		}
 
 		public void Dispose()
@@ -231,12 +227,6 @@ public static partial class Graphics
 			{
 				_state.attributes.Set( default( CRenderAttributes ) );
 				ObjectPool<RenderAttributes>.Return( _state.attributes );
-			}
-
-			if ( _state.frameAttributes is not null )
-			{
-				_state.frameAttributes.Set( default( CRenderAttributes ) );
-				ObjectPool<RenderAttributes>.Return( _state.frameAttributes );
 			}
 
 			_state = _previous;

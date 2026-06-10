@@ -160,6 +160,16 @@ public static partial class Game
 		}
 
 		/// <summary>
+		/// Shows modal to edit the streaming settings
+		/// </summary>
+		public static void ShowServiceConnector()
+		{
+			using var scope = GlobalContext.MenuScope();
+
+			IModalSystem.Current?.ServiceConnector();
+		}
+
+		/// <summary>
 		/// Opens a modal that lets you view and rebind game input actions.
 		/// </summary>
 		public static void ShowBinds()

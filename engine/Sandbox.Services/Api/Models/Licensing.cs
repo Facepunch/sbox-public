@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Sandbox.Services;
 
 namespace Sandbox;
@@ -5,9 +6,17 @@ namespace Sandbox;
 public enum LicenseType
 {
 	None,
+
+	[Display( Name = "CC0 (Public Domain)", ShortName = "public" )]
 	CC0,
+
+	[Display( Name = "CC BY-NC-ND (Restricted)", ShortName = "lock" )]
 	CCBYNCND,
+
+	[Display( Name = "CC BY (Attribution)", ShortName = "person" )]
 	CCBY,
+
+	[Display( Name = "CC BY-SA (Share Alike)", ShortName = "loop" )]
 	CCBYSA
 }
 

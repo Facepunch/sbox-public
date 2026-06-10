@@ -246,6 +246,7 @@ public sealed class SessionRenderer
 
 		accumulate.Attributes.Set( "Subframe", subFrameTex );
 		accumulate.Attributes.Set( "Accumulated", accumulatedTex );
+		accumulate.Attributes.Set( "SampleCount", multisampleCount );
 		accumulate.Attributes.Set( "InvFrames", 1f / (subFrameCount * multisampleCount) );
 
 		var alphaDivide = new ComputeShader( "moviemaker_alphadivide_cs" );
@@ -290,7 +291,7 @@ public sealed class SessionRenderer
 
 				if ( !isWarmup && subFrameCount > 1 )
 				{
-					accumulate.Dispatch( subFrameTex.Width, subFrameTex.Height, multisampleCount );
+					accumulate.Dispatch( subFrameTex.Width, subFrameTex.Height, 1 );
 				}
 
 				// Yield to let the scene viewport render when it wants to so we get a preview,

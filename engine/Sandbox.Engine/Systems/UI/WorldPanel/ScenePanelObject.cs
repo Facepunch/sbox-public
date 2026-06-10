@@ -32,6 +32,11 @@ internal sealed class ScenePanelObject : SceneCustomObject
 		return mat;
 	}
 
+	internal static Matrix BuildPanelToWorldMatrix( Transform transform )
+	{
+		return BuildPanelToObjectMatrix() * Matrix.FromTransform( transform );
+	}
+
 	/// <summary>
 	/// Called on the main thread to snapshot the world matrix before render.
 	/// </summary>
@@ -44,7 +49,7 @@ internal sealed class ScenePanelObject : SceneCustomObject
 		_commandList.Reset();
 
 		_commandList.Attributes.SetCombo( "D_WORLDPANEL", 1 );
-		_commandList.Attributes.Set( "WorldMat", BuildPanelToObjectMatrix() );
+		_commandList.Attributes.Set( "WorldMat", BuildPanelToWorldMatrix( Transform ) );
 	}
 
 	public override void RenderSceneObject()

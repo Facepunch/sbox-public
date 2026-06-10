@@ -51,4 +51,22 @@ public static class ClientMsg
 
 		public long UserId { get; set; }
 	}
+
+	/// <summary>
+	/// A third-party service link (e.g. Twitch) was created or removed for this
+	/// user — pushed to their in-game session so it can update without polling.
+	/// Carries the linked account's display name + avatar so the client doesn't
+	/// need a follow-up request. <see cref="Linked"/> is false when unlinked.
+	/// </summary>
+	[ProtoContract( ImplicitFields = ImplicitFields.AllFields )]
+	public class ServiceLinked : IMessage
+	{
+		public static MessageId MessageIdent => MessageId.ClientServiceLinked;
+
+		public string Service { get; set; }
+		public string Id { get; set; }
+		public string Name { get; set; }
+		public string Avatar { get; set; }
+		public bool Linked { get; set; }
+	}
 }

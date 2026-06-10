@@ -39,24 +39,32 @@ public class TextureResourceCompiler : ResourceCompiler
 
 		var desc = texture.Desc;
 
-		//
-		// Note: mipmaps don't work with PNG format ya doink
-		//
-
 		int width = desc.m_nWidth;
 		int height = desc.m_nHeight;
 		int depth = desc.m_nDepth;
 		int mipCount = desc.m_nNumMipLevels;
 
+		var formatOverride = generator is TextureGenerator texGen ? texGen.FormatOverride : null;
+
 		var writer = new VTexWriter();
 
-		// Linear data textures (normal maps, roughness, metalness etc.) have this flag set
-		bool srgb = !desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_LINEAR_COLOR_SPACE );
+		VTexWriter.VTEX_Format_t diskFormat;
+		if ( formatOverride.HasValue )
+			diskFormat = VTexWriter.RuntimeToVTEX_Format( formatOverride.Value ) ?? VTexWriter.VTEX_Format_t.VTEX_FORMAT_RGBA8888;
+		else
+			diskFormat = default; // will be calculated after SetTexture
+
+		// PNG format only supports a single mip level
+		bool isPngFormat = diskFormat == VTexWriter.VTEX_Format_t.VTEX_FORMAT_PNG_RGBA8888
+						|| diskFormat == VTexWriter.VTEX_Format_t.VTEX_FORMAT_PNG_DXT5;
+
+		if ( isPngFormat )
+			mipCount = 1;
 
 		for ( var mip = 0; mip < mipCount; mip++ )
 		{
 			var bitmap = texture.GetBitmap( mip );
-			writer.SetTexture( bitmap, mip, srgb: srgb );
+			writer.SetTexture( bitmap, mip );
 		}
 
 		writer.Header.Width = (ushort)width;
@@ -81,14 +89,17 @@ public class TextureResourceCompiler : ResourceCompiler
 			flags |= VTexWriter.VTEX_Flags_t.VTEX_FLAG_TEXTURE_ARRAY;
 		}
 
-		if ( desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_NO_LOD ) )
+		if ( desc.m_nFlags.HasFlag( NativeEngine.RuntimeTextureSpecificationFlags.TSPEC_NO_LOD ) || isPngFormat )
 		{
 			flags |= VTexWriter.VTEX_Flags_t.VTEX_FLAG_NO_LOD;
 		}
 
 		writer.Header.Flags = flags;
 
-		writer.CalculateFormat();
+		if ( formatOverride.HasValue )
+			writer.Header.Format = diskFormat;
+		else
+			writer.CalculateFormat();
 
 		Context.Data.Write( writer.GetData() );
 		Context.StreamingData.Write( writer.GetStreamingData() );

@@ -175,6 +175,16 @@ partial class FaceTool
 
 				group.Add( normalRow );
 			}
+
+			AddShortcuts(
+				("Lasso Select", "Alt+Shift+Drag"),
+				("Lasso Deselect", "Alt+Ctrl+Drag"),
+				("Grow Selection", "Numpad +"),
+				("Shrink Selection", "Numpad -"),
+				("Apply Material", "Shift+T"),
+				("Wrap Material", "Alt+RMB"),
+				("Lift Material", "Shift+RMB")
+			);
 		}
 
 		bool CanBridgeFaces()

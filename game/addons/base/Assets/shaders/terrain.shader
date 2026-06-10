@@ -105,7 +105,7 @@ VS
                 baseLayerUV = Terrain_SampleSeamlessUV( baseLayerUV );
 
             float4 baseNho = Bindless::GetTexture2D( mat.nho_texid ).SampleLevel( g_sAnisotropic, baseLayerUV, 0 );
-            float baseDisplacement = baseNho.b * mat.displacementscale;
+            float baseDisplacement = ( baseNho.b - 0.5f ) * 2.0f * mat.displacementscale;
             
             // Sample overlay material displacement
             mat = g_TerrainMaterials[material.OverlayTextureId];
@@ -115,7 +115,7 @@ VS
                 overlayLayerUV = Terrain_SampleSeamlessUV( overlayLayerUV );
 
             float4 overlayNho = Bindless::GetTexture2D( mat.nho_texid ).SampleLevel( g_sAnisotropic, overlayLayerUV, 0 );
-            float overlayDisplacement = overlayNho.b * mat.displacementscale;
+            float overlayDisplacement = ( overlayNho.b - 0.5f ) * 2.0f * mat.displacementscale;
             
             // Blend between base and overlay displacement
             float blend = material.GetNormalizedBlend();

@@ -5,9 +5,27 @@ namespace Sandbox;
 /// <summary>
 /// A scene file contains a collection of GameObject with Components and their properties.
 /// </summary>
-[AssetType( Name = "Scene", Extension = "scene", Category = "World", Flags = AssetTypeFlags.NoEmbedding )]
+[AssetType( Name = "Scene", Extension = "scene", Category = "World", Flags = AssetTypeFlags.NoEmbedding, IconColor = "#4596ec" )]
 public partial class SceneFile : GameResource
 {
+	/// <summary>
+	/// Load a scene by file path. Also handles mount:// paths.
+	/// </summary>
+	public static SceneFile Load( string path )
+	{
+		if ( string.IsNullOrWhiteSpace( path ) )
+			return null;
+
+		var existing = ResourceLibrary.Get<SceneFile>( path );
+		if ( existing is not null )
+			return existing;
+
+		if ( Mounting.Directory.TryLoad( path, Mounting.ResourceType.Scene, out var mounted ) && mounted is SceneFile sf )
+			return sf;
+
+		return null;
+	}
+
 	[JsonPropertyName( "__guid" )]
 	public Guid Id { get; set; }
 

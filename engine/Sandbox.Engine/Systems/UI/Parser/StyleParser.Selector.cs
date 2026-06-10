@@ -60,12 +60,26 @@ internal static partial class StyleParser
 				break;
 
 			bool immediateParent = false;
+			bool adjacentSibling = false;
+			bool generalSibling = false;
 
 			if ( p.Is( '>' ) )
 			{
 				p.Pointer++;
 				p = p.SkipWhitespaceAndNewlines();
 				immediateParent = true;
+			}
+			else if ( p.Is( '+' ) )
+			{
+				p.Pointer++;
+				p = p.SkipWhitespaceAndNewlines();
+				adjacentSibling = true;
+			}
+			else if ( p.Is( '~' ) )
+			{
+				p.Pointer++;
+				p = p.SkipWhitespaceAndNewlines();
+				generalSibling = true;
 			}
 
 			var selector = p.ReadUntilWhitespaceOrNewlineOrEndAndObeyBrackets();
@@ -77,6 +91,8 @@ internal static partial class StyleParser
 
 			rule.Parent = lastRule;
 			rule.ImmediateParent = immediateParent;
+			rule.AdjacentSibling = adjacentSibling;
+			rule.GeneralSibling = generalSibling;
 			lastRule = rule;
 		}
 
@@ -238,7 +254,7 @@ internal static partial class StyleParser
 			return;
 		}
 
-		var flagname = p.ReadUntilOrEnd( ".:" ).ToLower();
+		var flagname = p.ReadUntilOrEnd( ".:" ).ToLowerInvariant();
 
 		switch ( flagname )
 		{
@@ -376,7 +392,7 @@ internal static partial class StyleParser
 		if ( string.IsNullOrWhiteSpace( remaining ) )
 			return null;
 
-		var selector = ParseSingleSelector( remaining, null );
+		var selector = ParseSelector( remaining );
 
 		if ( selector != null )
 		{

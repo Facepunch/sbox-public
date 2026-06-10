@@ -5,6 +5,13 @@ namespace Sandbox.Resources;
 public abstract class TextureGenerator : ResourceGenerator<Texture>
 {
 	/// <summary>
+	/// When set, the compiled texture will use this format instead of automatically determining one.
+	/// Useful to avoid block compression (BC1/BC7) for textures that require pixel-perfect quality (sprites, UI, icons).
+	/// </summary>
+	[Hide]
+	public virtual ImageFormat? FormatOverride => null;
+
+	/// <summary>
 	/// Find an existing texture for this
 	/// </summary>
 	protected virtual ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )

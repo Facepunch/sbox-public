@@ -830,10 +830,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		Api.Performance.CollectStat( "ComponentCount", sceneValid ? scene.Directory.ComponentCount : 0 );
 		Api.Performance.CollectStat( "RootGameObjects", sceneValid ? scene.Children.Count : 0 );
 		Api.Performance.CollectStat( "CameraCount", sceneValid ? scene.GetAllComponents<CameraComponent>().Count() : 0 );
-		Api.Performance.CollectStat( "ColliderCount", sceneValid ? scene.PhysicsWorld.Bodies.Count() : 0 );
-		Api.Performance.CollectStat( "DynamicBodyCount", sceneValid ? scene.PhysicsWorld.Bodies.Where( x => x.BodyType == PhysicsBodyType.Dynamic ).Count() : 0 );
-		Api.Performance.CollectStat( "KeyframeBodyCount", sceneValid ? scene.PhysicsWorld.Bodies.Where( x => x.BodyType == PhysicsBodyType.Keyframed ).Count() : 0 );
-		Api.Performance.CollectStat( "StaticBodyCount", sceneValid ? scene.PhysicsWorld.Bodies.Where( x => x.BodyType == PhysicsBodyType.Static ).Count() : 0 );
+		Api.Performance.CollectStat( "ColliderCount", sceneValid ? scene.PhysicsWorld.BodyCount : 0 );
 		Api.Performance.CollectStat( "Particles", sceneValid ? scene.GetAllComponents<ParticleEffect>().Sum( x => x.Particles.Count ) : 0 );
 
 		Api.Performance.CollectStat( "GameObjectsDestroyed", SceneMetrics.GameObjectsDestroyed );

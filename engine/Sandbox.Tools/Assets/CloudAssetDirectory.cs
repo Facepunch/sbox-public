@@ -14,8 +14,8 @@ internal class CloudAssetDirectory : IDisposable
 	// stores a list of files for looking up which package they use
 	ILiteCollection<File> files;
 
-	// stores a list of packages for returning in Asset.Package 
-	ILiteCollection<Package> packages;
+	// stores a flat record of each package for returning in Asset.Package
+	ILiteCollection<CachedPackage> packages;
 
 	// to avoid hitting the database over and over
 	Dictionary<string, Package> packageCache = new( StringComparer.OrdinalIgnoreCase );
@@ -32,6 +32,113 @@ internal class CloudAssetDirectory : IDisposable
 		public DateTimeOffset InstallDate { get; set; }
 	}
 
+	/// <summary>
+	/// A flat snapshot of the bits of a <see cref="Package"/> the editor reads back off installed cloud
+	/// packages. We deliberately don't persist the whole Package graph: it pulls in the latest news
+	/// post, which references its own package, and that circular reference overflows LiteDB's
+	/// nested-document limit. Storing this flat record sidesteps the problem and keeps rows tiny.
+	/// </summary>
+	private class CachedPackage
+	{
+		public int Id { get; set; }
+
+		public string FullIdent { get; set; }
+		public string OrgIdent { get; set; }
+		public string OrgTitle { get; set; }
+		public string OrgThumb { get; set; }
+		public string Ident { get; set; }
+		public string Title { get; set; }
+		public string Summary { get; set; }
+		public string Thumb { get; set; }
+		public string TypeName { get; set; }
+		public string[] Tags { get; set; }
+		public DateTimeOffset Created { get; set; }
+
+		// the current revision - VersionId joins to the files table, Meta backs Package.PrimaryAsset
+		public long VersionId { get; set; }
+		public long FileCount { get; set; }
+		public long TotalSize { get; set; }
+		public DateTimeOffset RevisionCreated { get; set; }
+		public int EngineVersion { get; set; }
+		public string ManifestUrl { get; set; }
+		public string Changes { get; set; }
+		public string Meta { get; set; }
+	}
+
+	/// <summary>
+	/// Flatten a package into the record we persist. Reads the concrete <see cref="PackageRevision"/>
+	/// so we keep the raw metadata JSON and manifest URL, which the public revision interface doesn't
+	/// expose.
+	/// </summary>
+	static CachedPackage ToCached( Package package )
+	{
+		var cached = new CachedPackage
+		{
+			FullIdent = package.FullIdent,
+			OrgIdent = package.Org?.Ident,
+			OrgTitle = package.Org?.Title,
+			OrgThumb = package.Org?.Thumb,
+			Ident = package.Ident,
+			Title = package.Title,
+			Summary = package.Summary,
+			Thumb = package.Thumb,
+			TypeName = package.TypeName,
+			Tags = package.Tags,
+			Created = package.Created,
+		};
+
+		if ( package.Revision is PackageRevision revision )
+		{
+			cached.VersionId = revision.AssetVersionId;
+			cached.FileCount = revision.FileCount;
+			cached.TotalSize = revision.TotalSize;
+			cached.RevisionCreated = revision.Created;
+			cached.EngineVersion = revision.EngineVersion;
+			cached.ManifestUrl = revision.ManifestUrl;
+			cached.Changes = revision.Changes;
+			cached.Meta = revision.Meta;
+		}
+
+		return cached;
+	}
+
+	/// <summary>
+	/// Rebuild a usable package from its stored record. This is what consumers get from
+	/// <see cref="FindPackage(string)"/> and <see cref="GetPackages"/> once the directory has been
+	/// re-opened, so it carries everything they read: identity, display fields, and a revision whose
+	/// metadata still resolves <see cref="Package.PrimaryAsset"/>.
+	/// </summary>
+	static Package FromCached( CachedPackage cached )
+	{
+		return new RemotePackage
+		{
+			Org = new Package.Organization
+			{
+				Ident = cached.OrgIdent,
+				Title = cached.OrgTitle,
+				Thumb = cached.OrgThumb,
+			},
+			Ident = cached.Ident,
+			Title = cached.Title,
+			Summary = cached.Summary,
+			Thumb = cached.Thumb,
+			TypeName = cached.TypeName,
+			Tags = cached.Tags,
+			Created = cached.Created,
+			Version = new PackageRevision
+			{
+				AssetVersionId = cached.VersionId,
+				FileCount = cached.FileCount,
+				TotalSize = cached.TotalSize,
+				Created = cached.RevisionCreated,
+				EngineVersion = cached.EngineVersion,
+				ManifestUrl = cached.ManifestUrl,
+				Changes = cached.Changes,
+				Meta = cached.Meta,
+			},
+		};
+	}
+
 	public CloudAssetDirectory( string filename )
 	{
 		ConnectionString cs = new();
@@ -45,9 +152,15 @@ internal class CloudAssetDirectory : IDisposable
 		files.EnsureIndex( x => x.Path );
 		files.Count(); // to stimulate an open
 
-		packages = db.GetCollection<Package>( "packages" );
+		packages = db.GetCollection<CachedPackage>( "packages_v2" );
 		packages.EnsureIndex( x => x.FullIdent );
 		packages.Count(); // to stimulate an open
+
+		// the package store used to hold the entire Package object graph, which couldn't serialize
+		// packages whose latest news post referenced themselves. we store a flat CachedPackage now,
+		// so drop the old collection - its documents can't be read back into the new shape.
+		if ( db.CollectionExists( "packages" ) )
+			db.DropCollection( "packages" );
 
 		foreach ( var file in files.FindAll().ToArray() )
 		{
@@ -55,13 +168,14 @@ internal class CloudAssetDirectory : IDisposable
 		}
 
 		Log.Info( "Validating cloud packages" );
-		foreach ( var package in packages.FindAll().ToArray() )
+		foreach ( var cached in packages.FindAll().ToArray() )
 		{
+			var package = FromCached( cached );
 			var ident = package.FullIdent;
 
 			if ( !ValidatePackage( package ) )
 			{
-				Log.Info( $"'{package.FullIdent}' failed to validate, removing" );
+				Log.Info( $"'{ident}' failed to validate, removing" );
 				RemovePackage( package );
 				continue;
 			}
@@ -102,7 +216,7 @@ internal class CloudAssetDirectory : IDisposable
 			fileCache.Remove( key );
 		}
 
-		packages.Insert( package );
+		packages.Insert( ToCached( package ) );
 
 		packageCache[package.FullIdent] = package;
 	}

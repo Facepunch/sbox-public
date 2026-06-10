@@ -139,6 +139,7 @@ public partial class QuakeMount : BaseGameMount
 						case ".md5mesh": context.Add( ResourceType.Model, fullpath, new QuakeModelMD5( pakDir, path ) ); break;
 						case ".lmp": context.Add( ResourceType.Texture, fullpath, new QuakeTexture( pakDir, path ) ); break;
 						case ".wav": context.Add( ResourceType.Sound, fullpath, new QuakeSound( pakDir, path ) ); break;
+						case ".bsp": context.Add( ResourceType.Scene, fullpath, new QuakeMap( pakDir, path ) ); break;
 					}
 				}
 			}

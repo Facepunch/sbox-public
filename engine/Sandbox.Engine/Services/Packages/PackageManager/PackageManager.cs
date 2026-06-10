@@ -11,7 +11,23 @@ internal static partial class PackageManager
 	/// <summary>
 	/// The library used to load assemblies
 	/// </summary>
-	internal static AccessControl AccessControl { get; } = new AccessControl();
+	internal static AccessControl AccessControl { get; } = new AccessControl { PackageAssemblyResolver = GetPackageAssemblyBytes };
+
+	/// <summary>
+	/// Provides the raw DLL bytes for a <c>package.*</c> assembly by searching the active packages'
+	/// assembly filesystems. Used by <see cref="AccessControl"/> to build Cecil definitions on demand
+	/// during verification. Context-free and static - it reads only global package state.
+	/// </summary>
+	private static byte[] GetPackageAssemblyBytes( string assemblyName )
+	{
+		var filename = $"{assemblyName}.dll";
+		foreach ( var ap in ActivePackages )
+		{
+			if ( ap.AssemblyFileSystem?.FileExists( filename ) != true ) continue;
+			return ap.AssemblyFileSystem.ReadAllBytes( filename ).ToArray();
+		}
+		return null;
+	}
 
 	public static BaseFileSystem MountedFileSystem { get; private set; } = new AggregateFileSystem();
 	public static HashSet<ActivePackage> ActivePackages { get; private set; } = new HashSet<ActivePackage>();
@@ -74,32 +90,9 @@ internal static partial class PackageManager
 		var ap = await ActivePackage.Create( package, options.CancellationToken, options );
 		options.CancellationToken.ThrowIfCancellationRequested();
 
-		if ( package.IsRemote )
+		if ( package.IsRemote && package.TypeName == "game" && !ap.HasPrecompiledDlls() )
 		{
-			//
-			// Games should always have code archives. If they don't then they probably pre-date code archives, and need to be updated.
-			//
-			if ( package.TypeName == "game" && !ap.HasCodeArchives() )
-			{
-				throw new System.Exception( "This game has no code archive!" );
-			}
-
-			if ( ap.HasCodeArchives() )
-			{
-				options.Loading?.LoadingProgress( LoadingProgress.Create( $"Compiling {package.Title}" ) );
-				if ( !await ap.CompileCodeArchive() )
-				{
-					//
-					// If there was a compile error in a game, report it to our backend so we can keep tabs.
-					//
-					if ( package.TypeName == "game" )
-					{
-						throw new System.Exception( "There were errors when compiling this game!" );
-					}
-
-					Log.Warning( "There were errors when compiling this game!" );
-				}
-			}
+			throw new System.Exception( "This game has no precompiled assemblies!" );
 		}
 
 		ap.AddContextTag( options.ContextTag );

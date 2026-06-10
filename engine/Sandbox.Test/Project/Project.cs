@@ -94,7 +94,9 @@ public class ProjectTests
 		await Project.SyncWithPackageManager();
 		await Project.CompileAsync();
 
-		var assemblies = PackageManager.MountedFileSystem.FindFile( "/.bin/", "*.dll", false ).ToArray();
+		var assemblies = PackageManager.ActivePackages
+			.SelectMany( ap => ap.AssemblyFileSystem.FindFile( "/", "*.dll", true ) )
+			.ToArray();
 
 		Assert.AreEqual( 2, assemblies.Length );
 

@@ -1,7 +1,6 @@
 ﻿using Sandbox.Engine;
 using Sandbox.Engine.Settings;
 using Sandbox.Modals;
-using Sandbox.Platform;
 using Sandbox.Services;
 using System;
 using System.Net;
@@ -60,21 +59,6 @@ public static partial class MenuUtility
 	/// </summary>
 	public static Package GamePackage => Application.GamePackage;
 
-	/// <summary>
-	/// Init a stream service
-	/// </summary>
-	public static async Task<bool> ConnectStream( StreamService service )
-	{
-		return await Sandbox.Engine.Streamer.Init( service );
-	}
-
-	/// <summary>
-	/// Init a stream service
-	/// </summary>
-	public static void DisconnectStream()
-	{
-		Sandbox.Engine.Streamer.Shutdown();
-	}
 
 	public static SceneWorld CreateSceneWorld()
 	{
@@ -304,6 +288,27 @@ public static partial class MenuUtility
 	}
 
 	/// <summary>
+	/// Begin linking a third-party service to the player's account (eg "Twitch"). Returns a URL
+	/// to open in a browser, where the player authorizes the service. Completion is delivered
+	/// asynchronously to <see cref="IBackendListener.OnServiceLinked"/>, so there's no need to
+	/// poll - just refresh <see cref="ListServices"/> when notified.
+	/// </summary>
+	public static async Task<string> BeginServiceLink( string service )
+	{
+		var result = await Backend.Account.BeginServiceLink( service );
+		return result.Url;
+	}
+
+	/// <summary>
+	/// List the player's linked services with their public info (name, avatar). Contains no tokens.
+	/// </summary>
+	public static async Task<List<LinkedService>> ListServices()
+	{
+		var services = await Backend.Account.ListServices();
+		return services.Select( x => new LinkedService( x.Type, x.Id, x.Name, x.Avatar ) ).ToList();
+	}
+
+	/// <summary>
 	/// Allows async tasks to wait to be executed in the menu context
 	/// </summary>
 	public static void RunTask( Func<Task> func )
@@ -317,6 +322,12 @@ public static partial class MenuUtility
 	}
 
 }
+
+/// <summary>
+/// Public, token-free info about a third-party service account (eg Twitch) linked to the player.
+/// This is the menu-facing proxy for the backend's service link data.
+/// </summary>
+public record struct LinkedService( string Service, string Id, string Name, string Avatar );
 
 public class StoragePublish
 {

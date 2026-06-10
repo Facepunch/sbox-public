@@ -573,6 +573,9 @@ internal sealed class ProjectSettingsWindow : Window
 		{
 			EditorUtility.Projects.Updated( Project );
 			SaveCallback?.Invoke( Project );
+
+			EditorEvent.Run( "project.settings.saved" );
+
 		}
 
 		/// <summary>

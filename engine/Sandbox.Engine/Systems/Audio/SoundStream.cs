@@ -61,7 +61,7 @@ public sealed partial class SoundStream : IHandle, IDisposable
 
 	~SoundStream()
 	{
-		Dispose();
+		MainThread.QueueDispose( this );
 	}
 
 	public unsafe void WriteData( Span<short> data )
@@ -89,11 +89,14 @@ public sealed partial class SoundStream : IHandle, IDisposable
 
 	public void Dispose()
 	{
-		if ( native.IsValid )
-		{
-			native.Destroy();
-			native = IntPtr.Zero;
-		}
+		if ( !native.IsValid ) return;
+
+		GC.SuppressFinalize( this );
+
+		// ~CAudioStreamManaged nulls CSfxTable::pSource — defer to the mix-thread drain
+		// so destruction lands after the snapshot rotates and no mixer is mid-deref.
+		Audio.MixingThread.QueueStreamDestroy( native );
+		native = IntPtr.Zero;
 	}
 
 	/// <summary>

@@ -14,7 +14,7 @@ partial class SoundSimulationSystem
 	const float UnitsPerMeter = 39.37f;
 	const float AccumHalfLife = 0.6f;
 	const float ResetDist = 256f;
-	const int MaxRoomSourcesPerFrame = 12;
+	const int MaxRoomSourcesPerFrame = 10;
 
 	struct RoomWork
 	{
@@ -23,8 +23,6 @@ partial class SoundSimulationSystem
 		public int RayCount;
 		public float Priority;
 		public Vector3 Origin;
-		public EscapeBodyBuffer EscapeBodies;
-		public int EscapeBodyCount;
 		public float EscapedWeight;
 		public float TotalDist;
 		public FrequencyBands TotalRefl;
@@ -88,6 +86,12 @@ partial class SoundSimulationSystem
 
 		foreach ( var handle in _culledHandles )
 		{
+			if ( !handle.ReverbEnabled || (handle.TargetMixer is { } mixer && mixer.Reverb <= 0f) )
+			{
+				handle.SourceRoom = default;
+				continue;
+			}
+
 			ref var est = ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrAddDefault( _estimators, handle, out _ );
 			est ??= new SourceEstimator();
 
@@ -133,42 +137,47 @@ partial class SoundSimulationSystem
 		ref var u = ref CollectionsMarshal.AsSpan( _roomWork )[i];
 
 		u.Origin = u.Estimator.LastPos + Vector3.Up * 4f;
-		u.EscapeBodyCount = GatherListenerEscapeBodies( u.Estimator.LastPos, u.EscapeBodies );
+		EscapeBodyBuffer escape = default;
+		int escapeCount = GatherListenerEscapeBodies( u.Estimator.LastPos, escape );
 
-		var escapeIgnore = ((Span<PhysicsBody>)u.EscapeBodies)[..u.EscapeBodyCount];
+		var escapeIgnore = ((Span<PhysicsBody>)escape)[..escapeCount];
 
-		for ( int r = 0; r < u.RayCount; r++ )
+		// Sim tags + escape filter resolved once for this source; the escape set is constant too.
+		var trace = ApplySimulationTags( world.Trace, u.Handle );
+		trace.filterCallback = EscapeFilter;
+		SetTraceIgnore( escapeIgnore );
+
+		try
 		{
-			var pos = u.Origin;
-			var dir = Vector3.Random.Normal;
-			int rayBounces = 0;
-
-			for ( int b = 0; b < SourceRayBounces; b++ )
+			for ( int r = 0; r < u.RayCount; r++ )
 			{
-				var start = pos;
-				PhysicsTraceResult tr;
-				while ( true )
+				var pos = u.Origin;
+				var dir = Vector3.Random.Normal;
+				int rayBounces = 0;
+
+				for ( int b = 0; b < SourceRayBounces; b++ )
 				{
-					tr = ApplySimulationTags( world.Trace.FromTo( start, pos + dir * RoomMaxBounceLen ), u.Handle ).Run();
-					if ( !tr.Hit || tr.HasTag( "world" ) || !IgnoredBody( tr.Body, escapeIgnore ) ) break;
-					start = tr.HitPosition + dir * 0.1f;
+					var tr = trace.FromTo( pos, pos + dir * RoomMaxBounceLen ).Run();
+					if ( !tr.Hit )
+					{
+						u.EscapedWeight += EscapeWeight( rayBounces );
+						break;
+					}
+
+					u.TotalDist += pos.Distance( tr.HitPosition );
+					u.SegmentCount++;
+					u.TotalRefl += AcousticMaterial.GetReflectivity( tr.Surface?.AudioSurface ?? AudioSurface.Generic ).Log();
+					u.BounceCount++;
+					rayBounces++;
+
+					dir = (tr.Normal + Vector3.Random.Normal).Normal;
+					pos = tr.HitPosition + tr.Normal * 4f;
 				}
-
-				if ( !tr.Hit )
-				{
-					u.EscapedWeight += EscapeWeight( rayBounces );
-					break;
-				}
-
-				u.TotalDist += pos.Distance( tr.HitPosition );
-				u.SegmentCount++;
-				u.TotalRefl += AcousticMaterial.GetReflectivity( tr.Surface?.AudioSurface ?? AudioSurface.Generic ).Log();
-				u.BounceCount++;
-				rayBounces++;
-
-				dir = (tr.Normal + Vector3.Random.Normal).Normal;
-				pos = tr.HitPosition + tr.Normal * 4f;
 			}
+		}
+		finally
+		{
+			ClearTraceIgnore();
 		}
 	}
 

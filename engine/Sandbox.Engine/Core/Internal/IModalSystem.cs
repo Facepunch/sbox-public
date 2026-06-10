@@ -23,6 +23,7 @@ public interface IModalSystem
 	public void PlayerList();
 	public void WorkshopPublish( in WorkshopPublishOptions options );
 	public void Notice( string title, string message, string icon );
+	public void ServiceConnector();
 
 	/// <summary>
 	/// The menu that is shown when escape is pressed while playing.

@@ -7,11 +7,20 @@ public static class MountUtility
 	static readonly HashSet<RenderJob> _activeJobs = new();
 
 	/// <summary>
+	/// Is this a mount:// resource path? Resources behind such a path are provided by a
+	/// mounted game and are cached/reused rather than loaded from disk.
+	/// </summary>
+	public static bool IsMountPath( string path )
+	{
+		return !string.IsNullOrWhiteSpace( path ) && path.StartsWith( "mount://", StringComparison.Ordinal );
+	}
+
+	/// <summary>
 	/// Find a ResourceLoader by its mount path.
 	/// </summary>
 	public static ResourceLoader FindLoader( string loaderPath )
 	{
-		if ( !loaderPath.StartsWith( "mount://" ) ) return null;
+		if ( !IsMountPath( loaderPath ) ) return null;
 
 		var partIndex = loaderPath.IndexOf( '/', 8 );
 		if ( partIndex <= 8 ) return null;

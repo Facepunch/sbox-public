@@ -1,0 +1,91 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using System;
+@using System.Globalization;
+@namespace MenuProject.Rewards
+@inherits Panel
+
+@if ( Item is null )
+	return;
+
+@if ( IsRevealed )
+{
+	<root class="revealed @( Selected ? "selected" : "" )" onclick="@( () => OnSelect?.Invoke() )" style="background-image: url( @Item.Icon )">
+
+		<div class="art">
+
+			<div class="select-dot">
+				<icon>check</icon>
+			</div>
+
+			@if ( IsNew )
+			{
+				<div class="badge">NEW!</div>
+			}
+		</div>
+
+		<label class="name">@Item.Name</label>
+
+	</root>
+}
+else
+{
+	<root class="hidden @ShakeClass" onclick="@OnHit">
+
+		<div class="heat" style="opacity: @Heat"></div>
+
+		<div class="question">?</div>
+
+	</root>
+}
+
+@code
+{
+	/// <summary>The item on offer to draw.</summary>
+	[Parameter] public RewardItem Item { get; set; }
+
+	/// <summary>Whether the player has this one selected.</summary>
+	[Parameter] public bool Selected { get; set; }
+
+	/// <summary>Fired when the revealed card is clicked.</summary>
+	[Parameter] public Action OnSelect { get; set; }
+
+	/// <summary>Fired the moment the box breaks open, so the parent can track progress.</summary>
+	[Parameter] public Action OnRevealed { get; set; }
+
+	/// <summary>Force the card open immediately (e.g. the "you unwrapped" screen).</summary>
+	[Parameter] public bool Revealed { get; set; }
+
+	/// <summary>How many times you have to hit the box before it cracks open.</summary>
+	const int BreakAt = 8;
+
+	int _clicks;
+	bool _broken;
+
+	bool IsRevealed => Revealed || _broken;
+
+	/// <summary>0 → 1 across the box's lifespan, for ramping the damage visuals.</summary>
+	float Damage => Math.Clamp( _clicks / (float)BreakAt, 0f, 1f );
+
+	/// <summary>Opacity of the "heat" overlay - the box glows hotter the more it's hit.</summary>
+	string Heat => ( 0.1f + Damage * 0.9f ).ToString( "0.##", CultureInfo.InvariantCulture );
+
+	/// <summary>Alternates each hit so the shake keyframe restarts; empty until the first hit.</summary>
+	string ShakeClass => _clicks == 0 ? "" : ( _clicks % 2 == 0 ? "hit-a" : "hit-b" );
+
+	bool IsNew => Item is not null && !Sandbox.Services.Inventory.HasItem( (int)Item.ItemDefId );
+
+	/// <summary>Each hit damages the box until the final hit breaks it open and reveals the item.</summary>
+	void OnHit()
+	{
+		_clicks++;
+
+		if ( _clicks >= BreakAt )
+		{
+			_broken = true;
+			OnRevealed?.Invoke();
+		}
+	}
+
+	protected override int BuildHash() => HashCode.Combine( Item?.ItemDefId, Selected, IsNew, Revealed, _clicks, _broken );
+}

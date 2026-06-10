@@ -78,7 +78,7 @@ partial class TrackBinder : IJsonPopulator
 		return !_targetToTrackId.TryGetValue( target, out var set ) || set.Count == 1 && set.Contains( trackId );
 	}
 
-	private void Bind( Guid trackId, IValid? target )
+	internal void Bind( Guid trackId, IValid? target )
 	{
 		if ( ReferenceEquals( _trackIdToTarget.GetValueOrDefault( trackId ), target ) ) return;
 
@@ -98,7 +98,7 @@ partial class TrackBinder : IJsonPopulator
 		_targetToTrackId.GetOrCreate( target ).Add( trackId );
 	}
 
-	private void Unbind( Guid trackId )
+	internal void Unbind( Guid trackId )
 	{
 		if ( !_trackIdToTarget.Remove( trackId, out var target ) ) return;
 		if ( target is null ) return;

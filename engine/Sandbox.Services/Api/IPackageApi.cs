@@ -9,6 +9,9 @@ public partial class ServiceApi
 		[Get( "/package/get/2/{packageIdent}" )]
 		Task<PackageDto> Get( string packageIdent );
 
+		[Get( "/package/changelists/2/{packageIdent}" )]
+		Task<BasePagedResponse<PackageChangeList>> GetChangeLists( string packageIdent, [Query] int page = 1 );
+
 		[Post( "/package/favourite/2/{packageIdent}" )]
 		Task<PackageFavouriteResult> SetFavourite( string packageIdent, [Query] bool state );
 

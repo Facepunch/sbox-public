@@ -99,7 +99,7 @@ internal static partial class DebugOverlay
 			}
 
 			Prop( 368, "Vol", mixer.Volume );
-			Prop( 472, "Spa", mixer.Spacializing );
+			Prop( 472, "Spa", mixer.Spatializing );
 			Prop( 576, "Dst", mixer.DistanceAttenuation );
 			Prop( 680, "Occ", mixer.Occlusion, colorCode: true );
 			Prop( 784, "Air", mixer.AirAbsorption );
@@ -118,7 +118,7 @@ internal static partial class DebugOverlay
 			{
 				total++;
 				if ( h.ListenLocal ) local++;
-				if ( h.Occlusion ) occluded++;
+				if ( h.OcclusionEnabled ) occluded++;
 				if ( h.AirAbsorption ) airAbs++;
 			}
 
@@ -199,8 +199,8 @@ internal static partial class DebugOverlay
 			if ( name.Length > 20 ) name = name[..20];
 
 			var model = listener is not null ? handle.GetDirectSoundModel( listener ) : null;
-			var tx = handle.Occlusion && model is not null ? model.SmoothedTransmission : null;
-			var diff = handle.Occlusion && model is not null ? model.SmoothedDiffraction : null;
+			var tx = handle.OcclusionEnabled && model is not null ? model.SmoothedTransmission : null;
+			var diff = handle.OcclusionEnabled && model is not null ? model.SmoothedDiffraction : null;
 
 			TableRow( ref pos, index.ToString(), name, $"[{mixerName}]", Flags( handle, model ), 12, 400 );
 
@@ -262,7 +262,7 @@ internal static partial class DebugOverlay
 		{
 			var sb = new System.Text.StringBuilder();
 			void Add( string s ) { if ( sb.Length > 0 ) sb.Append( ' ' ); sb.Append( s ); }
-			if ( h.Occlusion ) Add( "Occluded" );
+			if ( h.OcclusionEnabled ) Add( "Occluded" );
 			if ( h.AirAbsorption ) Add( "Air Absorption" );
 			if ( h.ListenLocal ) Add( "Listen Local" );
 			if ( h.Paused ) Add( "Paused" );
@@ -383,7 +383,7 @@ internal sealed class AudioDebugWorldSystem : GameObjectSystem<AudioDebugWorldSy
 			if ( handle.Scene is null || handle.Scene != Scene ) continue;
 			if ( handle.ListenLocal ) continue;
 
-			var model = handle.Occlusion && listener is not null ? handle.GetDirectSoundModel( listener ) : null;
+			var model = handle.OcclusionEnabled && listener is not null ? handle.GetDirectSoundModel( listener ) : null;
 			var tx = model?.SmoothedTransmission;
 			var diff = model?.SmoothedDiffraction;
 

@@ -3,7 +3,7 @@ using Info = Editor.TextureResidencyInfo;
 namespace Editor;
 
 [Dock( "Editor", "GPU Resources", "memory" )]
-public class GpuResourceViewer : Widget
+public partial class GpuResourceViewer : Widget
 {
 	static readonly (Info.TextureCategory Flag, string Label, Color Color)[] Tags =
 	[
@@ -21,6 +21,9 @@ public class GpuResourceViewer : Widget
 	TexturePreviewPanel Preview;
 	Widget StatsBar;
 
+	enum ViewMode { List, Treemap }
+	ViewMode _viewMode = ViewMode.List;
+
 	List<Info> _all = new();
 	List<Info> _filtered = new();
 	string _search = "";
@@ -37,6 +40,8 @@ public class GpuResourceViewer : Widget
 
 	Dictionary<Texture, Pixmap> _thumbs = new();
 	HashSet<Texture> _thumbsLoading = new();
+
+	const int ThumbMaxSize = 16;
 
 	public GpuResourceViewer( Widget parent ) : base( parent )
 	{
@@ -56,6 +61,9 @@ public class GpuResourceViewer : Widget
 	{
 		base.OnDestroyed();
 		Preview?.Dispose();
+
+		//_all.Clear();
+		//_filtered.Clear();
 	}
 
 	void BuildToolbar()
@@ -90,6 +98,19 @@ public class GpuResourceViewer : Widget
 		spacer.Layout.AddStretchCell( 1 );
 		toolbar.AddWidget( spacer );
 
+		var listBtn = new Button( "List" ) { ToolTip = "List view", FixedHeight = 24 };
+		var treeBtn = new Button( "Treemap" ) { ToolTip = "Treemap view (by size)", FixedHeight = 24 };
+		listBtn.Clicked = () => { SetViewMode( ViewMode.List ); listBtn.Update(); treeBtn.Update(); };
+		treeBtn.Clicked = () => { SetViewMode( ViewMode.Treemap ); listBtn.Update(); treeBtn.Update(); };
+		listBtn.OnPaintOverride = () => PaintViewButton( listBtn, "view_list", "List", _viewMode == ViewMode.List );
+		treeBtn.OnPaintOverride = () => PaintViewButton( treeBtn, "grid_view", "Treemap", _viewMode == ViewMode.Treemap );
+		Paint.SetDefaultFont( 8, 600 );
+		listBtn.FixedWidth = (int)(Paint.MeasureText( "List" ).x + 38);
+		treeBtn.FixedWidth = (int)(Paint.MeasureText( "Treemap" ).x + 38);
+		toolbar.AddWidget( listBtn );
+		toolbar.AddWidget( treeBtn );
+		toolbar.AddSeparator();
+
 		SummaryLabel = new Label( toolbar ) { Color = Theme.Text.WithAlpha( 0.6f ) };
 		toolbar.AddWidget( SummaryLabel );
 		toolbar.AddSeparator();
@@ -120,20 +141,59 @@ public class GpuResourceViewer : Widget
 		return true;
 	}
 
+	static bool PaintViewButton( Button btn, string icon, string label, bool active )
+	{
+		var r = btn.LocalRect.Shrink( 2 );
+		var hover = Paint.HasMouseOver;
+
+		Paint.Antialiasing = true;
+		Paint.ClearPen();
+		Paint.SetBrush( active ? Theme.Primary.WithAlpha( hover ? 0.9f : 0.8f ) : Theme.ControlBackground.Lighten( hover ? 0.15f : 0 ) );
+		Paint.DrawRect( r, 3 );
+
+		var fg = active ? Color.White : Theme.Text.WithAlpha( hover ? 0.9f : 0.55f );
+		Paint.SetPen( fg );
+		Paint.DrawIcon( new Rect( r.Left + 7, r.Top, 16, r.Height ), icon, 15, TextFlag.LeftCenter );
+
+		Paint.SetPen( fg );
+		Paint.SetDefaultFont( 8, 600 );
+		Paint.DrawText( new Rect( r.Left + 26, r.Top, r.Width - 30, r.Height ), label, TextFlag.LeftCenter );
+
+		return true;
+	}
+
 	void BuildBody()
 	{
 		var splitter = Layout.Add( new Splitter( this ), 1 );
 		splitter.IsHorizontal = true;
 
-		List = new ListView( this ) { ItemSize = new Vector2( 0, 36 ), ItemSpacing = 0, Margin = 0 };
+		var leftPane = new Widget( this ) { Layout = Layout.Column() };
+		leftPane.Layout.Spacing = 0;
+
+		List = new ListView( leftPane ) { ItemSize = new Vector2( 0, 36 ), ItemSpacing = 0, Margin = 0 };
 		List.ItemPaint = PaintRow;
 		List.ItemSelected = o => { if ( o is Info info ) Preview.SetTexture( info ); };
-		splitter.AddWidget( List );
+		leftPane.Layout.Add( List, 1 );
+
+		Treemap = new TreemapView( leftPane, this );
+		leftPane.Layout.Add( Treemap, 1 );
+		Treemap.Visible = false;
+
+		splitter.AddWidget( leftPane );
 		splitter.SetStretch( 0, 3 );
 
 		Preview = new TexturePreviewPanel( this );
 		splitter.AddWidget( Preview );
 		splitter.SetStretch( 1, 1 );
+	}
+
+	void SetViewMode( ViewMode mode )
+	{
+		if ( _viewMode == mode ) return;
+		_viewMode = mode;
+		List.Visible = mode == ViewMode.List;
+		Treemap.Visible = mode == ViewMode.Treemap;
+		Treemap.SetItems( _filtered );
 	}
 
 	bool PaintStatsBar()
@@ -297,6 +357,8 @@ public class GpuResourceViewer : Widget
 		bx = DrawBadge( bx, botHalf, FormatDim( info.Dimension ), DimColor( info.Dimension, fg.WithAlpha( 0.5f ) ), DimIcon( info.Dimension ) );
 		bx = DrawBadge( bx, botHalf, info.Format.ToString(), fg.WithAlpha( 0.5f ), "palette" );
 		bx = DrawBadge( bx, botHalf, FormatRes( info ), fg.WithAlpha( 0.5f ), "aspect_ratio" );
+		if ( info.RefCount > 0 )
+			bx = DrawBadge( bx, botHalf, $"{info.RefCount}", RefCountColor( info.RefCount ), "link" );
 
 		if ( info.Categories.HasFlag( Info.TextureCategory.Streaming ) && info.Disk.MemorySize > 0 )
 			DrawStreamBar( botHalf, content.Right - memW - 8, info );
@@ -338,6 +400,7 @@ public class GpuResourceViewer : Widget
 
 		_filtered.Sort( ( a, b ) => b.Loaded.MemorySize.CompareTo( a.Loaded.MemorySize ) );
 		List?.SetItems( _filtered.Cast<object>() );
+		Treemap?.SetItems( _filtered );
 		UpdateStats();
 
 		var count = _filtered.Count == _all.Count ? $"{_all.Count}" : $"{_filtered.Count}/{_all.Count}";
@@ -388,6 +451,8 @@ public class GpuResourceViewer : Widget
 	public void Frame()
 	{
 		if ( !Visible || _refreshTimer < 2f || !_autoUpdate || Preview.HasStreamingSelection ) return;
+		// maybe dont autoupdate if treemap?
+		//if ( _viewMode == ViewMode.Treemap ) return;
 		_refreshTimer = 0;
 		FetchData();
 	}
@@ -492,6 +557,15 @@ public class GpuResourceViewer : Widget
 		_ => Theme.Text.WithAlpha( 0.5f )
 	};
 
+	static Color RefCountColor( int refs ) => refs switch
+	{
+		0 => new( 1f, 0.4f, 0.3f ),
+		1 => Theme.Text.WithAlpha( 0.45f ),
+		< 8 => new( 0.6f, 0.85f, 1f ),
+		< 32 => new( 1f, 0.8f, 0.3f ),
+		_ => new( 1f, 0.55f, 0.85f )
+	};
+
 	static bool IsPartiallyStreamed( Info info ) =>
 		info.Categories.HasFlag( Info.TextureCategory.Streaming )
 		&& info.Disk.MemorySize > 0
@@ -513,9 +587,24 @@ public class GpuResourceViewer : Widget
 		try
 		{
 			Pixmap pm = null;
-			await Task.Run( () => pm = Pixmap.FromTexture( tex ) );
+			await Task.Run( () =>
+			{
+				pm = Pixmap.FromTexture( tex );
+				if ( pm is null ) return;
+
+				// Downsample to a small thumb - we never display them big
+				int w = pm.Width, h = pm.Height;
+				int maxSide = Math.Max( w, h );
+				if ( maxSide > ThumbMaxSize )
+				{
+					float scale = (float)ThumbMaxSize / maxSide;
+					var resized = pm.Resize( Math.Max( 1, (int)(w * scale) ), Math.Max( 1, (int)(h * scale) ) );
+					if ( resized is not null ) pm = resized;
+				}
+			} );
 			_thumbs[tex] = pm;
 			List?.Update();
+			Treemap?.Update();
 		}
 		catch { _thumbs[tex] = null; }
 		finally { _thumbsLoading.Remove( tex ); }
@@ -526,11 +615,12 @@ public class GpuResourceViewer : Widget
 		public bool HasSelection => _current is not null;
 		public bool HasStreamingSelection => _current?.Categories.HasFlag( Info.TextureCategory.Streaming ) ?? false;
 
-		Info? _current;
+		Info _current;
 		Texture _previewTex, _resolvedCopy;
 		Scene _scene;
 		CameraComponent _cam;
 		SceneRenderingWidget _render;
+		Widget _header;
 		Widget _info;
 		float _time;
 		SpriteRenderer _sprite;
@@ -545,6 +635,9 @@ public class GpuResourceViewer : Widget
 			Layout = Layout.Column();
 			Layout.Spacing = 0;
 
+			_header = Layout.Add( new Widget( this ) { FixedHeight = 34, Visible = false } );
+			_header.OnPaintOverride = PaintHeader;
+
 			_render = Layout.Add( new SceneRenderingWidget( this ), 1 );
 			_render.OnPreFrame += Tick;
 
@@ -555,6 +648,8 @@ public class GpuResourceViewer : Widget
 		public void SetTexture( Info info )
 		{
 			_current = info;
+			_header.Visible = true;
+			_header.Update();
 			_resolvedCopy?.Dispose();
 			_resolvedCopy = null;
 
@@ -698,6 +793,44 @@ public class GpuResourceViewer : Widget
 			Teardown();
 		}
 
+		bool PaintHeader()
+		{
+			if ( _current is not { } info )
+				return false;
+
+			var rect = _header.LocalRect;
+			var accent = DimColor( info.Dimension, Theme.Primary );
+
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.SidebarBackground );
+			Paint.DrawRect( rect );
+
+			// Accent line along the bottom edge, tinted by texture dimension
+			Paint.SetBrush( accent.WithAlpha( 0.6f ) );
+			Paint.DrawRect( rect with { Top = rect.Bottom - 2 } );
+
+			var content = rect.Shrink( 10, 0 );
+
+			// Dimension icon
+			Paint.SetPen( accent );
+			Paint.DrawIcon( content with { Width = 18 }, DimIcon( info.Dimension ), 16, TextFlag.LeftCenter );
+
+			var left = content.Left + 24;
+
+			// Category pills, right-aligned
+			var pillRight = content.Right;
+			for ( int i = Tags.Length - 1; i >= 0; i-- )
+				if ( info.Categories.HasFlag( Tags[i].Flag ) )
+					pillRight = DrawPill( pillRight, content, Tags[i].Label, Tags[i].Color );
+
+			// Name
+			Paint.SetDefaultFont( 10, 600 );
+			Paint.SetPen( Theme.Text );
+			Paint.DrawText( content with { Left = left, Width = MathF.Max( 10, pillRight - left - 6 ) }, info.Name ?? "(unnamed)", TextFlag.LeftCenter | TextFlag.SingleLine );
+
+			return true;
+		}
+
 		bool PaintInfo()
 		{
 			Paint.SetBrushAndPen( Theme.SidebarBackground, Color.Transparent, 0 );
@@ -714,18 +847,17 @@ public class GpuResourceViewer : Widget
 			Paint.DrawRect( _info.LocalRect );
 			_render.Visible = true;
 
-			var r = _info.LocalRect.Shrink( 12, 8 );
-			Paint.SetDefaultFont( 11, 600 );
-			r.Top = Paint.DrawText( r, info.Name ?? "(unnamed)", TextFlag.LeftTop | TextFlag.SingleLine ).Bottom + 8;
+			var r = _info.LocalRect.Shrink( 12, 10 );
 
 			Paint.SetDefaultFont( 8 );
 			Prop( ref r, "Type", FormatDim( info.Dimension ) );
 			Prop( ref r, "Format", info.Format.ToString() );
 			Prop( ref r, "Size", FormatRes( info ) );
 			Prop( ref r, "Mips", info.MipCount.ToString() );
-			Prop( ref r, "GPU", info.Loaded.MemorySize.FormatBytes() );
+			Prop( ref r, "GPU", info.Loaded.MemorySize.FormatBytes(), MemoryColor( info.Loaded.MemorySize ) );
 			Prop( ref r, "Disk", info.Disk.MemorySize.FormatBytes() );
 			Prop( ref r, "Loaded", info.Disk.MemorySize > 0 ? $"{(float)info.Loaded.MemorySize / info.Disk.MemorySize * 100f:F0}%" : "100%" );
+			Prop( ref r, "Refs", info.RefCount.ToString(), RefCountColor( info.RefCount ) );
 
 			if ( info.LastUsedFrames >= 0 )
 				Prop( ref r, "Last Used", info.LastUsedFrames switch { 0 => "This frame", 1 => "1 frame ago", >= 1000 => "Stale", _ => $"{info.LastUsedFrames}f ago" } );
@@ -733,13 +865,14 @@ public class GpuResourceViewer : Widget
 			return true;
 		}
 
-		static void Prop( ref Rect r, string label, string value )
+		static void Prop( ref Rect r, string label, string value, Color? valueColor = null )
 		{
 			Paint.SetPen( Theme.Text.WithAlpha( 0.5f ) );
 			Paint.DrawText( r with { Width = 80, Height = 16 }, label, TextFlag.LeftCenter );
-			Paint.SetPen( Theme.Text.WithAlpha( 0.9f ) );
+			Paint.SetPen( valueColor ?? Theme.Text.WithAlpha( 0.9f ) );
 			Paint.DrawText( r with { Left = r.Left + 80, Height = 16 }, value, TextFlag.LeftCenter );
 			r.Top += 16;
 		}
 	}
+
 }

@@ -30,7 +30,6 @@ public sealed unsafe partial class CommandList
 		Enabled = true;
 
 		Attributes = new AttributeAccess( this, GetLocalAttributes );
-		GlobalAttributes = new AttributeAccess( this, GetFrameAttributes );
 	}
 
 	public CommandList( string debugName ) : this()
@@ -118,7 +117,6 @@ public sealed unsafe partial class CommandList
 
 	public void Reset()
 	{
-		GlobalAttributes.ClearRenderTargets();
 		Attributes.ClearRenderTargets();
 		_entries.Clear();
 
@@ -762,6 +760,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
+			// Pass the name as the pool's targetName so this handle maps to a stable physical texture
+			// across frames. Without it, any RT of matching dimensions/format shares one pool bucket and
+			// the name->texture mapping can shuffle frame-to-frame (breaking temporal/history buffers).
 			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.y, (ImageFormat)(int)entry.Data1.x, depthFormat: ImageFormat.None, numMips: (int)entry.Data1.z );
 			commandList.state.renderTargets[(string)entry.Object5] = temp;
 		}
@@ -784,7 +785,7 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.x, (ImageFormat)(int)entry.Data1.y, (ImageFormat)(int)entry.Data1.z, (MultisampleAmount)(int)entry.Data1.w, (int)entry.Data2.x );
+			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.x, (ImageFormat)(int)entry.Data1.y, (ImageFormat)(int)entry.Data1.z, (MultisampleAmount)(int)entry.Data1.w, (int)entry.Data2.x, targetName: (string)entry.Object5 );
 			commandList.state.renderTargets[(string)entry.Object5] = temp;
 		}
 
@@ -807,7 +808,7 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.x, (int)entry.Data1.y, (ImageFormat)(int)entry.Data1.z, (ImageFormat)(int)entry.Data1.w, (MultisampleAmount)(int)entry.Data2.x, (int)entry.Data2.y );
+			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.x, (int)entry.Data1.y, (ImageFormat)(int)entry.Data1.z, (ImageFormat)(int)entry.Data1.w, (MultisampleAmount)(int)entry.Data2.x, (int)entry.Data2.y, targetName: (string)entry.Object5 );
 			commandList.state.renderTargets[(string)entry.Object5] = temp;
 		}
 
@@ -887,6 +888,37 @@ public sealed unsafe partial class CommandList
 	/// </summary>
 	[Obsolete]
 	public void SetGlobal( StringToken token, RenderTargetHandle.ColorIndexRef buffer ) => GlobalAttributes.Set( token, buffer );
+
+	/// <summary>
+	/// Binds the given render target's color texture to a stable, pipeline-level bindless slot
+	/// for this frame. This is how full-screen pipeline resources (ambient occlusion, screen-space
+	/// reflections) are published to the rest of the pipeline: consumers read a fixed descriptor
+	/// binding rather than a per-view render attribute. Because procedural layers build their
+	/// command lists on threaded jobs, writing the result index into the shared frame attributes
+	/// would race - this fixed slot is resolved single-threaded at submit, so it doesn't.
+	/// </summary>
+	internal void SetPipelineTexture( PipelineTextureSlot slot, RenderTargetHandle.ColorTextureRef buffer )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			if ( commandList.state.GetRenderTarget( (string)entry.Object5 ) is not { } target )
+			{
+				Log.Warning( $"[{commandList.DebugName ?? "CommandList"}] Unknown rt: {(string)entry.Object5}" );
+				return;
+			}
+
+			NativeEngine.CSceneSystem.SetPipelineTextureIndex( (int)entry.Data1.x, target.ColorTarget.Index );
+		}
+
+		// Dont write out of bounds of the pipeline slots
+		if ( slot < 0 || slot >= PipelineTextureSlot.Count )
+		{
+			Log.Warning( $"[{DebugName ?? "CommandList"}] Invalid pipeline texture slot: {(int)slot}" );
+			return;
+		}
+
+		AddEntry( &Execute, new Entry { Object5 = buffer.Name, Data1 = new Vector4( (int)slot, 0, 0, 0 ) } );
+	}
 
 
 	/// <inheritdoc cref="ComputeShader.Dispatch(int, int, int)"/>
@@ -1195,6 +1227,35 @@ public sealed unsafe partial class CommandList
 
 		AddEntry( &Execute, new Entry { Object1 = texture } );
 	}
+
+	/// <summary>
+	/// Issues a UAV barrier for the color texture of the given render target handle, ensuring writes
+	/// from prior shader invocations are visible to subsequent ones without changing the resource layout.
+	/// Use this for a UAV (RWTexture) that is written in one pass and read back as a UAV in a later pass,
+	/// where the layout doesn't change and a plain transition wouldn't emit a barrier.
+	/// </summary>
+	/// <param name="texture">The render target color handle.</param>
+	public void UavBarrier( RenderTargetHandle.ColorTextureRef texture )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			if ( commandList.state.GetRenderTarget( (string)entry.Object5 ) is not { } target )
+			{
+				Log.Warning( $"[{commandList.DebugName ?? "CommandList"}] Unknown rt: {(string)entry.Object5}" );
+				return;
+			}
+
+			Graphics.UavBarrier( target.ColorTarget );
+		}
+
+		AddEntry( &Execute, new Entry { Object5 = texture.Name } );
+	}
+
+	/// <summary>
+	/// Issues a UAV barrier for the color texture of the given render target handle.
+	/// </summary>
+	/// <param name="handle">The render target handle.</param>
+	public void UavBarrier( RenderTargetHandle handle ) => UavBarrier( handle.ColorTexture );
 
 	/// <summary>
 	/// Issues a UAV barrier for the given GPU buffer, ensuring writes from prior shader invocations

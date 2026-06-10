@@ -1,0 +1,250 @@
+@import "/styles/_theme.scss";
+@import "/styles/_button.scss";
+
+RewardUnboxUI
+{
+	width: 100%;
+	height: 100%;
+	flex-direction: column;
+	color: $default-text;
+	font-family: $font-default;
+	pointer-events: none;
+
+	.topbar
+	{
+		flex-shrink: 0;
+		flex-direction: row;
+		padding: 24px;
+		pointer-events: all;
+
+		.back
+		{
+			align-self: flex-start;
+			align-items: center;
+			gap: 6px;
+			padding: 8px 18px;
+			border-radius: $rounding-large;
+			background-color: rgba( $default-50, 0.06 );
+			border: 1px solid $default-border;
+			color: $default-text;
+			transition: all 150ms $easing;
+
+			icon
+			{
+				font-size: 18px;
+				color: $default-200;
+			}
+
+			label
+			{
+				font-family: $font-heading;
+				font-weight: 600;
+			}
+
+			&:hover
+			{
+				background-color: rgba( $default-50, 0.12 );
+				border-color: rgba( $default-50, 0.2 );
+
+				icon
+				{
+					color: $default-text;
+				}
+			}
+		}
+	}
+
+	.center
+	{
+		flex-grow: 1;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 18px;
+		pointer-events: all;
+
+		.eyebrow
+		{
+			font-family: $font-heading;
+			font-size: 2rem;
+			text-transform: uppercase;
+			letter-spacing: 2px;
+			color: $default-100;
+			font-weight: 700;
+		}
+
+		.sub
+		{
+			font-family: $font-heading;
+			color: $default-300;
+		}
+
+		.spinner
+		{
+			align-items: center;
+			justify-content: center;
+			margin-bottom: 4px;
+
+			icon
+			{
+				font-size: 56px;
+				color: $default-300;
+				animation: reward-spin 1.1s linear infinite;
+			}
+		}
+
+		.title
+		{
+			font-family: $font-heading;
+			font-size: 24px;
+			font-weight: 700;
+		}
+
+		.items
+		{
+			flex-direction: row;
+			gap: 16px;
+			margin-top: 8px;
+		}
+
+		.choose
+		{
+			flex-shrink: 0;
+			padding: 50px 100px;
+			flex-direction: row;
+			align-items: stretch;
+			gap: 36px;
+
+			.items
+			{
+				flex-shrink: 0;
+				margin-top: 0;
+				gap: 14px;
+				align-items: stretch;
+			}
+		}
+	}
+}
+
+.window
+{
+	flex-direction: column;
+	padding: 28px;
+	border-radius: 16px;
+	background-color: rgba( $default-800, 0.9 );
+	border: 1px solid $default-600;
+	backdrop-filter: blur( 24px );
+	position: absolute;
+	top: 20%;
+	max-width: 70%;
+
+	.header
+	{
+		flex-shrink: 0;
+		flex-direction: column;
+		align-items: center;
+
+		.screen-title
+		{
+			font-family: $font-heading;
+			font-weight: 800;
+			font-size: 48px;
+			letter-spacing: 1px;
+			text-transform: uppercase;
+			color: $default-text;
+		}
+
+		.screen-subtitle
+		{
+			font-size: 1.5rem;
+			letter-spacing: 1px;
+			color: $default-50;
+			max-width: 900px;
+		}
+	}
+}
+
+.window .footer
+{
+	flex-shrink: 0;
+	flex-direction: row;
+	justify-content: space-between;
+	align-items: flex-end;
+	height: 10px;
+	opacity: 0;
+	overflow: hidden;
+	transition: all 0.5s bounce-out;
+
+	.column
+	{
+		flex-direction: column;
+		gap: 10px;
+	}
+
+	&.show
+	{
+		height: 100px;
+		opacity: 1;
+	}
+
+	.select-banner
+	{
+		align-self: flex-start;
+		background-color: $primary-yellow;
+		padding: 6px 16px;
+		border-radius: $rounding-default;
+
+		label
+		{
+			font-family: $font-heading;
+			font-weight: 700;
+			font-size: $text-small;
+			letter-spacing: 0.5px;
+			text-transform: uppercase;
+			color: $default-950;
+		}
+	}
+
+	.claim
+	{
+		width: 250px;
+		align-self: stretch;
+		margin-top: 6px;
+		justify-content: center;
+		gap: 8px;
+		padding: 14px 24px;
+		border-radius: $rounding-large;
+		background-color: $primary-green;
+		color: $default-950;
+		font-family: $font-heading;
+		font-weight: 700;
+		transition: all 150ms $easing;
+		font-size: 2rem;
+
+		label
+		{
+			flex-grow: 0;
+			text-transform: uppercase;
+			letter-spacing: 1px;
+		}
+
+		i
+		{
+			font-size: 18px;
+		}
+
+		&:hover
+		{
+			filter: brightness( 1.5 );
+		}
+
+		&.disabled
+		{
+			background-color: $default-700;
+			color: $default-300;
+			opacity: 1;
+			pointer-events: none;
+			filter: none;
+		}
+	}
+}

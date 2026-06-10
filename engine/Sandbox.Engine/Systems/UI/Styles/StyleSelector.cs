@@ -62,7 +62,8 @@ public sealed class StyleSelector
 		{
 			if ( Block != null )
 			{
-				return Block.LoadOrder + SelfScore * 1000;
+				// Scale specificity well above any LoadOrder so source order can never outrank it
+				return Block.LoadOrder + SelfScore * 100000;
 			}
 
 			return SelfScore;
@@ -113,8 +114,8 @@ public sealed class StyleSelector
 		// This isn't actually perfectly accurate and you might be able to engineer weird situations
 		// but it should be fine 99% of the time. If it isn't then the move is to get rid of AnyOf and 
 		// whatever and collapse the & stuff into individual rules
-		if ( AnyOf != null ) SelfScore += AnyOf.Max( x => x.UpdateScore() );
-		if ( DecendantOf != null ) SelfScore += DecendantOf.Max( x => x.UpdateScore() );
+		if ( AnyOf != null && AnyOf.Length > 0 ) SelfScore += AnyOf.Max( x => x.UpdateScore() );
+		if ( DecendantOf != null && DecendantOf.Length > 0 ) SelfScore += DecendantOf.Max( x => x.UpdateScore() );
 
 		// Add our parents score
 		if ( Parent != null ) SelfScore += Parent.UpdateScore();
@@ -192,8 +193,37 @@ public sealed class StyleSelector
 
 		if ( Parent != null )
 		{
-			if ( !Parent.TestParent( target.Parent, !ImmediateParent ) )
+			if ( AdjacentSibling )
+			{
+				// A + B: B's immediately-preceding sibling must match A
+				var prev = GetPreviousSibling( target );
+				if ( prev == null || !Parent.Test( prev ) )
+					return false;
+			}
+			else if ( GeneralSibling )
+			{
+				// A ~ B: some preceding sibling of B must match A
+				var prev = GetPreviousSibling( target );
+				bool matched = false;
+
+				while ( prev != null )
+				{
+					if ( Parent.Test( prev ) )
+					{
+						matched = true;
+						break;
+					}
+
+					prev = GetPreviousSibling( prev );
+				}
+
+				if ( !matched )
+					return false;
+			}
+			else if ( !Parent.TestParent( target.Parent, !ImmediateParent ) )
+			{
 				return false;
+			}
 		}
 
 		if ( Has != null && Has.Length > 0 )
@@ -318,16 +348,30 @@ public sealed class StyleSelector
 
 	private IStyleTarget GetNextSibling( IStyleTarget target )
 	{
-		if ( target.Parent == null )
-			return null;
-
-		var siblings = target.Parent.Children?.ToList();
+		var siblings = target.Parent?.Children;
 		if ( siblings == null )
 			return null;
 
-		var index = siblings.IndexOf( target );
-		if ( index >= 0 && index < siblings.Count - 1 )
-			return siblings[index + 1];
+		for ( int i = 0; i < siblings.Count; i++ )
+		{
+			if ( siblings[i] == target )
+				return i + 1 < siblings.Count ? siblings[i + 1] : null;
+		}
+
+		return null;
+	}
+
+	private IStyleTarget GetPreviousSibling( IStyleTarget target )
+	{
+		var siblings = target.Parent?.Children;
+		if ( siblings == null )
+			return null;
+
+		for ( int i = 0; i < siblings.Count; i++ )
+		{
+			if ( siblings[i] == target )
+				return i > 0 ? siblings[i - 1] : null;
+		}
 
 		return null;
 	}

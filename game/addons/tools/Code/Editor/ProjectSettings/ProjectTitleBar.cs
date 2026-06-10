@@ -1,5 +1,5 @@
-﻿using Editor.Wizards;
-using Editor.Utility;
+﻿using Editor.Utility;
+using Editor.Wizards;
 
 namespace Editor;
 

@@ -120,7 +120,7 @@ native accessor g_pRenderDevice
 		*renderSystemUsageBytes = rsUsage;
 	}
 
-	inline void GetTextureResidencyInfo( CUtlVectorTexture pTextures, CUtlVectorString pNames )
+	inline void GetTextureResidencyInfo( CUtlVectorTexture pTextures, CUtlVectorString pNames, CUtlVectorUInt32 pRefCounts )
 	{
 		TextureResidencyStats_t textureResidencyStats;
 		CUtlVector<TextureResidencyInfo_t> rawTextures;
@@ -129,6 +129,7 @@ native accessor g_pRenderDevice
 
 		pTextures->EnsureCapacity( rawTextures.Count() );
 		pNames->EnsureCapacity( rawTextures.Count() );
+		pRefCounts->EnsureCapacity( rawTextures.Count() );
 
 		for ( const TextureResidencyInfo_t &info : rawTextures )
 		{
@@ -137,8 +138,14 @@ native accessor g_pRenderDevice
 			CPathBufferString texName;
 			info.m_hTexture.GetResourceName( &texName );
 
+			// Capture the refcount BEFORE AddToTail bumps it so callers see the
+			// "external" reference count (what's holding the texture alive
+			// outside this diagnostic call).
+			int nRefCount = info.m_hTexture.GetRefCount();
+
 			pTextures->AddToTail( info.m_hTexture );
 			pNames->AddToTail( texName );
+			pRefCounts->AddToTail( (uint32)nRefCount );
 		}
 	}
 

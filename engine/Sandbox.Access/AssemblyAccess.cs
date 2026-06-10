@@ -138,7 +138,6 @@ internal partial class AssemblyAccess
 			TestModule( module );
 		}
 
-		RemoveLocalTouches();
 	}
 
 	private void TestModule( ModuleDefinition module )
@@ -534,26 +533,4 @@ internal partial class AssemblyAccess
 		return true;
 	}
 
-	/// <summary>
-	/// Remove touches that are inside addon depends or this dll.
-	/// </summary>
-	void RemoveLocalTouches()
-	{
-		var whitelist = new List<string>();
-		whitelist.AddRange( Global.SafeAssemblies.Select( x => $"{x.Key}/" ) );
-		whitelist.Add( $"{Assembly.Name.Name}/" );
-
-		Parallel.ForEach( Touched.Keys, ( key ) =>
-		{
-			//
-			// Don't bother looking at them if they're in our list of approved
-			//
-			if ( whitelist.Any( x => key.StartsWith( x ) ) )
-			{
-				Touched.Remove( key, out var _ );
-				return;
-			}
-		} );
-
-	}
 }

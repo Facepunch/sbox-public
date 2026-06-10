@@ -51,6 +51,7 @@ internal sealed class RemotePackage : Package
 		VotesDown = p.VotesDown;
 		Public = p.Public;
 		TypeName = p.TypeName;
+		Flair = PackageFlair.FromDto( p.Flair );
 
 		Interaction = new PackageInteraction
 		{
@@ -106,6 +107,10 @@ internal sealed class RemotePackage : Package
 		PackageReferences = p.PackageReferences;
 		EditorReferences = p.EditorReferences;
 		ErrorRate = p.ErrorRate;
+		Flair = PackageFlair.FromDto( p.Flair );
+		LatestChangeLists = ChangeListSummary.FromDto( p.Changelists );
+		AssetLicense = LicenseName( p.AssetLicense );
+		Metadata = AssetMetaData.FromDto( p.Version?.Extra );
 
 		if ( p.LatestNews is { } newsPost )
 		{

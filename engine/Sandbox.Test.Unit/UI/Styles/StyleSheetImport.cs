@@ -93,4 +93,22 @@ public class StyleSheetImport
 
 		Assert.AreEqual( sheet.Nodes.First().Styles.BackgroundColor, null );
 	}
+
+	/// <summary>
+	/// Reset should only clear the current context's sheets.
+	/// </summary>
+	[TestMethod]
+	public void ResetStyleSheetsIsContextScoped()
+	{
+		StyleSheet menuSheet;
+		using ( GlobalContext.MenuScope() )
+		{
+			menuSheet = StyleSheet.FromFile( "unittest/a10-menu-only.scss", null, true );
+		}
+
+		StyleSheet.FromFile( "unittest/a10-game-only.scss", null, true );
+		StyleSheet.ResetStyleSheets();
+
+		Assert.IsTrue( StyleSheet.Loaded.Contains( menuSheet ) );
+	}
 }

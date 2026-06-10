@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -8,19 +9,20 @@ internal unsafe static partial class Interop
 {
 	private static Logger log = Logging.GetLogger();
 
-	[SkipHotload] static List<PassBackString> FrameAllocatedStrings = new();
+	// Native can call back into managed (and thus allocate temporary return strings)
+	// from non-main threads, while Free() drains this at frame end on the main thread,
+	// so this has to be a concurrent collection.
+	[SkipHotload] static ConcurrentQueue<PassBackString> FrameAllocatedStrings = new();
 
 	public static int Free()
 	{
 		int i = 0;
 
-		foreach ( var entry in FrameAllocatedStrings )
+		while ( FrameAllocatedStrings.TryDequeue( out var entry ) )
 		{
 			entry.Free();
 			i++;
 		}
-
-		FrameAllocatedStrings.Clear();
 
 		return i;
 	}
@@ -35,15 +37,19 @@ internal unsafe static partial class Interop
 		if ( pointer == IntPtr.Zero )
 			return null;
 
-		int length = GetUtf8Length( (byte*)pointer, maxNativeString );
+		// Uses the runtime's vectorized strlen to find the null terminator
+		var span = MemoryMarshal.CreateReadOnlySpanFromNullTerminated( (byte*)pointer );
 
-		if ( length < 0 )
+		if ( span.Length >= maxNativeString )
 		{
 			Log.Warning( "Really long, or really invalid string detected" );
 			return null;
 		}
 
-		return GetString( pointer, length );
+		if ( span.IsEmpty )
+			return string.Empty;
+
+		return Encoding.UTF8.GetString( span );
 	}
 
 	/// <summary>
@@ -58,21 +64,6 @@ internal unsafe static partial class Interop
 			return string.Empty;
 
 		return Encoding.UTF8.GetString( (byte*)pointer, byteLen );
-	}
-
-	/// <summary>
-	/// Get the length of a null-terminated UTF-8 string using AVX2 (fallback to scalar if unavailable)
-	/// </summary>
-	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	private static int GetUtf8Length( byte* ptr, int maxLen )
-	{
-		byte* start = ptr;
-		int length = 0;
-
-		while ( length < maxLen && ptr[length] != 0 )
-			length++;
-
-		return length >= maxLen ? -1 : length;
 	}
 
 	/// <summary>
@@ -210,7 +201,7 @@ internal unsafe static partial class Interop
 	internal static IntPtr GetTemporaryStringPointerForNative( string str )
 	{
 		var f = new PassBackString( str );
-		FrameAllocatedStrings.Add( f );
+		FrameAllocatedStrings.Enqueue( f );
 		return f.Pointer;
 	}
 }

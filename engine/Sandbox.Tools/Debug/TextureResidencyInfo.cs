@@ -1,12 +1,13 @@
 ﻿using NativeEngine;
 using Sandbox;
+using System;
 
 namespace Editor;
 
 /// <summary>
 /// Provides information about currently resident textures on the GPU
 /// </summary>
-public struct TextureResidencyInfo
+public class TextureResidencyInfo
 {
 	public enum TextureDimension
 	{
@@ -45,6 +46,7 @@ public struct TextureResidencyInfo
 	public Desc Disk;
 	public int MipCount;
 	public int LastUsedFrames;
+	public int RefCount;
 	public TextureCategory Categories;
 
 	/// <summary>
@@ -53,7 +55,7 @@ public struct TextureResidencyInfo
 	/// </summary>
 	public Texture Texture;
 
-	static TextureResidencyInfo From( ITexture texture, Texture managedTexture, string name )
+	static TextureResidencyInfo From( ITexture texture, Texture managedTexture, string name, int refCount )
 	{
 		var loadedDesc = g_pRenderDevice.GetTextureDesc( texture );
 		var diskDesc = g_pRenderDevice.GetOnDiskTextureDesc( texture );
@@ -100,6 +102,7 @@ public struct TextureResidencyInfo
 			Texture = managedTexture,
 			MipCount = loadedDesc.m_nNumMipLevels,
 			LastUsedFrames = lastUsed,
+			RefCount = refCount,
 			Categories = categories,
 			Loaded =
 			{
@@ -127,43 +130,65 @@ public struct TextureResidencyInfo
 
 		var names = CUtlVectorString.Create( 8, 8 );
 		var list = CUtlVectorTexture.Create( 8, 8 );
-		g_pRenderDevice.GetTextureResidencyInfo( list, names );
+		var refCounts = CUtlVectorUInt32.Create( 8, 8 );
+		g_pRenderDevice.GetTextureResidencyInfo( list, names, refCounts );
 
 		var count = list.Count();
 
-		for ( int i = 0; i < count; i++ )
+		try
 		{
-			// CUtlVectorTexture.Element allocates a fresh strong handle on the C++ side
-			// (HRenderTextureStrongCopyable). We must release it ourselves — otherwise
-			// every diagnostic call would leak a ref and keep textures alive artificially.
-			var texture = list.Element( i );
-			var name = names.Element( i );
-
-			// Look up an existing managed wrapper without taking a strong handle. Engine-owned
-			// textures (render targets, depth buffers, etc.) won't be in the cache; that's fine —
-			// the residency entry is still built from the native descriptor.
-			NativeResourceCache.TryGetValue<Texture>( texture.GetBindingPtr().ToInt64(), out var managedTexture );
-
-			// Generate a managed handle if we have a native-only texture, this will be found later in the texture cache
-			if ( managedTexture is null || !managedTexture.IsValid )
+			for ( int i = 0; i < count; i++ )
 			{
+				// CUtlVectorTexture.Element allocates a fresh strong handle on the C++ side
+				// (HRenderTextureStrongCopyable, +1 refcount). We own that handle and must
+				// release it ourselves unless we hand ownership to a managed Texture wrapper —
+				// otherwise every diagnostic call would leak a ref and keep textures alive artificially.
+				var texture = list.Element( i );
+				var name = names.Element( i );
+				var refCount = (int)refCounts.Element( i );
+
+				// Refcount is -1 so we dont self-reference the ref we have from this list
+				refCount = Math.Max( 0, refCount - 1 );
+
+				// Look up an existing managed wrapper without taking another strong handle. Engine-owned
+				// textures (render targets, depth buffers, etc.) won't be in the cache.
+				NativeResourceCache.TryGetValue<Texture>( texture.GetBindingPtr().ToInt64(), out var managedTexture );
+
+				if ( managedTexture is { IsValid: true } )
+				{
+					// A managed wrapper already exists and owns its own strong handle independently
+					// of ours. Build the entry from our handle, then release the extra reference
+					// that Element() allocated for us so we don't inflate the refcount.
+					ret.Add( From( texture, managedTexture, name, refCount ) );
+
+					if ( !texture.IsNull )
+						texture.DestroyStrongHandle();
+
+					continue;
+				}
+
+				// Native-only texture with no managed wrapper. FromNative adopts our strong handle:
+				// it either wraps it in a new managed Texture (ownership transferred) or releases it
+				// if it finds an existing cached wrapper. In both cases we must NOT release it again.
 				managedTexture = Texture.FromNative( texture );
-				ret.Add( From( texture, managedTexture, name ) );
+
+				// FromNative may have released `texture` while adopting a cached wrapper, so query
+				// through the wrapper's live handle when we have one; otherwise `texture` is still ours.
+				var query = managedTexture is { IsValid: true } ? managedTexture.native : texture;
+				ret.Add( From( query, managedTexture, name, refCount ) );
+
+				// If FromNative refused the handle (null/invalid texture) it never took ownership,
+				// so the reference is still ours to release.
+				if ( managedTexture is null && !texture.IsNull )
+					texture.DestroyStrongHandle();
 			}
-			else
-			{
-				ret.Add( From( texture, managedTexture, name ) );
-
-			}
-
-
-			if ( !texture.IsNull )
-				texture.DestroyStrongHandle();
-
 		}
-
-		list.DeleteThis();
-		names.DeleteThis();
+		finally
+		{
+			list.DeleteThis();
+			names.DeleteThis();
+			refCounts.DeleteThis();
+		}
 
 		return ret;
 	}

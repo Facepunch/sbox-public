@@ -1,4 +1,4 @@
-﻿using NativeEngine;
+using NativeEngine;
 
 namespace Sandbox.Engine;
 
@@ -159,16 +159,17 @@ internal static partial class InputRouter
 		foreach ( var action in Sandbox.Input.InputActions.Where( x => x.GamepadCode != GamepadCode.None && x.GamepadCode == code ) )
 		{
 			var i = Sandbox.Input.GetActionIndex( action );
-			foreach ( var e in Sandbox.Input.Contexts )
+
+			if ( controller?.InputContext is not { } controllerContext )
+				continue;
+
+			if ( down )
 			{
-				if ( down )
-				{
-					e.AccumActionsPressed |= 1UL << i;
-				}
-				else
-				{
-					e.AccumActionsReleased |= 1UL << i;
-				}
+				controllerContext.AccumActionsPressed |= 1UL << i;
+			}
+			else
+			{
+				controllerContext.AccumActionsReleased |= 1UL << i;
 			}
 		}
 	}

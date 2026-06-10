@@ -1,11 +1,4 @@
-﻿<#@ template debug="false" hostspecific="false" language="C#" #>
-<#@ assembly name="System.Core" #>
-<#@ import namespace="System.Linq" #>
-<#@ import namespace="System.Text" #>
-<#@ import namespace="System.Text.RegularExpressions" #>
-<#@ import namespace="System.Collections.Generic" #>
-<#@ output extension=".cs" #>
-<#
+﻿<#@ template debug="false" hostspecific="false" language="C#" #><#@ assembly name="System.Core" #><#@ import namespace="System.Linq" #><#@ import namespace="System.Text" #><#@ import namespace="System.Text.RegularExpressions" #><#@ import namespace="System.Collections.Generic" #><#@ output extension=".cs" #><#
 
 var Members = new Dictionary<string, (string TypeName, string DefaultValue, bool IsInherited)>
 {
@@ -169,8 +162,7 @@ static bool IsTransitionable( string propertyName )
 	return validTransitionTypes.Any( x => x == propertyName || x + "?" == propertyName );
 }
 
-#>
-using System;
+#>using System;
 
 namespace Sandbox.UI;
 
@@ -186,25 +178,24 @@ foreach ( var member in Members)
 	if ( typeName == "seconds" ) typeName = "float?";
 	if ( typeName == "aspect-ratio" ) typeName = "float?";
 #>
-	internal <#=typeName#> _<#=member.Key.ToLower()#>;
+
+	internal <#=typeName#> _<#=member.Key.ToLowerInvariant()#>;
 	
 	/// <summary>
 <#
-	var CSSName = string.Join( "-", Regex.Split( member.Key, @"(?<!^)(?=[A-Z])" ).Select( x => x.ToLower() ) );
+	var CSSName = string.Join( "-", Regex.Split( member.Key, @"(?<!^)(?=[A-Z])" ).Select( x => x.ToLowerInvariant() ) );
 	WriteLine( $"	/// Represents the <c>{CSSName}</c> CSS property." );
-#>
-	/// </summary>
+#>	/// </summary>
 	public <#=typeName#> <#=member.Key#>
 	{
-		get => _<#=member.Key.ToLower()#>;
+		get => _<#=member.Key.ToLowerInvariant()#>;
 		set
 		{
-			if ( _<#=member.Key.ToLower()#> == value ) return;
-			_<#=member.Key.ToLower()#> = value;
+			if ( _<#=member.Key.ToLowerInvariant()#> == value ) return;
+			_<#=member.Key.ToLowerInvariant()#> = value;
 			Dirty();
 		}
 	}
-	
 <#
 }
 #>
@@ -218,7 +209,7 @@ foreach ( var member in Members)
 	foreach ( var member in Members)
 	{
 #>
-		if ( a._<#=member.Key.ToLower()#> != null ) _<#=member.Key.ToLower()#> = a._<#=member.Key.ToLower()#>;
+		if ( a._<#=member.Key.ToLowerInvariant()#> != null ) _<#=member.Key.ToLowerInvariant()#> = a._<#=member.Key.ToLowerInvariant()#>;
 <#
 	}
 #>
@@ -232,7 +223,7 @@ foreach ( var member in Members)
 <#
 	foreach ( var member in Members)
 	{
-#>		_<#=member.Key.ToLower()#> = a._<#=member.Key.ToLower()#>;
+#>		_<#=member.Key.ToLowerInvariant()#> = a._<#=member.Key.ToLowerInvariant()#>;
 <#
 	}
 #>
@@ -242,9 +233,9 @@ foreach ( var member in Members)
 	/// Set a CSS property via its string name.
 	/// </summary>
 	private bool SetGenerated( string property, string value )
-    {
-        switch ( property )
-        {
+	{
+		switch ( property )
+		{
 		<#
 			string? GetParsingFunction( string type ) 
 			{
@@ -274,7 +265,7 @@ foreach ( var member in Members)
 
 			foreach ( var member in Members )
 			{
-				var cssName = string.Concat( member.Key.Select( x => Char.IsUpper( x ) ? "-" + x : x.ToString() ) ).Trim( '-' ).ToLower();
+				var cssName = string.Concat( member.Key.Select( x => Char.IsUpper( x ) ? "-" + x : x.ToString() ) ).Trim( '-' ).ToLowerInvariant();
 				var parsingFunction = GetParsingFunction(member.Value.TypeName);
 
 				if ( parsingFunction != null ) 
@@ -291,14 +282,17 @@ foreach ( var member in Members)
 	}
 
 	private int GetHashCodeGenerated()
-    {
-		int hash = 0;
+	{
+		var hash = new HashCode();
 
-<#foreach ( var member in Members ){
-#>			hash = HashCode.Combine( hash, _<#=member.Key.ToLower()#> );
-<#}#>
-
-		return hash;
+<#
+	foreach ( var member in Members )
+	{
+#>		hash.Add( _<#= member.Key.ToLowerInvariant() #> );
+<#
+	}
+#>
+		return hash.ToHashCode();
 	}
 
 	/// <summary>
@@ -309,8 +303,8 @@ foreach ( var member in Members)
 <#
 foreach ( var member in Members )
 {
-	var CSSName = string.Join( "-", Regex.Split( member.Key, @"(?<!^)(?=[A-Z])" ).Select( x => x.ToLower() ) );
-	var (key, value) = (member.Key.ToLower(), member.Value);
+	var CSSName = string.Join( "-", Regex.Split( member.Key, @"(?<!^)(?=[A-Z])" ).Select( x => x.ToLowerInvariant() ) );
+	var (key, value) = (member.Key.ToLowerInvariant(), member.Value);
 	
 	if ( IsTransitionable( value.TypeName ) ) 
 	{
@@ -329,8 +323,8 @@ foreach ( var member in Members )
 		switch ( name )
 		{
 		<#foreach ( var member in Members ){
-		var CSSName = string.Join( "-", Regex.Split( member.Key, @"(?<!^)(?=[A-Z])" ).Select( x => x.ToLower() ) );
-		var (key, value) = (member.Key.ToLower(), member.Value);
+		var CSSName = string.Join( "-", Regex.Split( member.Key, @"(?<!^)(?=[A-Z])" ).Select( x => x.ToLowerInvariant() ) );
+		var (key, value) = (member.Key.ToLowerInvariant(), member.Value);
 		
 		var defaultValue = $"{member.Value.DefaultValue}";
 		if ( value.IsInherited )
@@ -350,9 +344,10 @@ foreach ( var member in Members )
 	{
 		var copy = this.MemberwiseClone() as BaseStyles;
 		<#foreach ( var member in Members ){
-		var (key, value) = (member.Key.ToLower(), member.Value);
+		var (key, value) = (member.Key.ToLowerInvariant(), member.Value);
 			#>copy._<#=key#> = _<#=key#>;
-		<#}#>return copy;
+		<#}#>copy.CssWide = CssWide == null ? null : new System.Collections.Generic.Dictionary<string, CssWideKeyword>( CssWide );
+		return copy;
 	}
 
 	public void ApplyCascading( BaseStyles parent )
@@ -361,7 +356,7 @@ foreach ( var member in Members )
 foreach ( var member in Members )
 {
 		if ( !member.Value.IsInherited ) continue;
-		var (key, value) = (member.Key.ToLower(), member.Value);
+		var (key, value) = (member.Key.ToLowerInvariant(), member.Value);
 #>
 		if ( _<#=key#> == null ) _<#=key#> = parent._<#=key#>;
 <#
@@ -376,7 +371,7 @@ foreach ( var member in Members )
 {
 	if ( member.Value.TypeName.EndsWith( "?" ) )
 	{
-		var (key, value) = (member.Key.ToLower(), member.Value);
+		var (key, value) = (member.Key.ToLowerInvariant(), member.Value);
 #>
 		if ( !_<#=key#>.HasValue ) _<#=key#> = <#=member.Value.DefaultValue#>;
 <#
@@ -390,8 +385,8 @@ foreach ( var member in Members )
 		switch ( name )
 		{
 		<#foreach ( var member in Members ){
-		var CSSName = string.Join( "-", Regex.Split( member.Key, @"(?<!^)(?=[A-Z])" ).Select( x => x.ToLower() ) );
-		var (key, value) = (member.Key.ToLower(), member.Value);
+		var CSSName = string.Join( "-", Regex.Split( member.Key, @"(?<!^)(?=[A-Z])" ).Select( x => x.ToLowerInvariant() ) );
+		var (key, value) = (member.Key.ToLowerInvariant(), member.Value);
 		#>	case "<#=CSSName#>": return (_<#=key#> == <#=member.Value.DefaultValue#>);
 		<#}#>}
 		

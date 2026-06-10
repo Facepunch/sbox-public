@@ -1,4 +1,4 @@
-﻿@using Sandbox;
+@using Sandbox;
 @using Sandbox.UI;
 @inherits Panel
 
@@ -8,16 +8,12 @@
 {
     record struct Entry(Panel Content, float Duration, bool ClickToDismiss, RealTimeSince Since);
 
+    readonly Queue<Entry> PendingQueue = new();
     readonly List<Entry> ShownPanels = new();
 
     /// <summary>
     /// Queues a simple toast with a title, message, and icon.
     /// </summary>
-    /// <param name="title"></param>
-    /// <param name="message"></param>
-    /// <param name="icon"></param>
-    /// <param name="duration"></param>
-    /// <returns></returns>
     public Panel QueueToast(string title, string message, string icon = null, float duration = 4f)
     {
         var toast = new Toast()
@@ -44,17 +40,14 @@
         if (content is Toast toast)
             toast.Area = this;
 
-        ShownPanels.Add(new Entry(content, duration, clickToDismiss, 0));
-        content.Parent = this;
-
-        if (clickToDismiss)
-            content.AddEventListener("onmousedown", () => Dismiss(content));
+        Display(new Entry(content, duration, clickToDismiss, 0));
 
         return content;
     }
 
     /// <summary>
-    /// Queue a panel to be shown. By default, they'll stack in order.
+    /// Queue a panel to be shown. Queued panels are shown one at a time, in sequence - the
+    /// next one only appears once the current one has been dismissed.
     /// Setting duration to 0 means it's up to you to remove it manually.
     /// </summary>
     public Panel Queue(Panel content, float duration = 4f, bool clickToDismiss = true)
@@ -62,11 +55,8 @@
         if (content is Toast toast)
             toast.Area = this;
 
-        ShownPanels.Add(new Entry(content, duration, clickToDismiss, 0));
-        content.Parent = this;
-
-        if (clickToDismiss)
-            content.AddEventListener("onmousedown", () => Dismiss(content));
+        PendingQueue.Enqueue(new Entry(content, duration, clickToDismiss, 0));
+        ShowNext();
 
         return content;
     }
@@ -81,6 +71,44 @@
             if (entry.Duration > 0 && entry.Since >= entry.Duration)
                 Dismiss(entry.Content);
         }
+
+        ShowNext();
+    }
+
+    /// <summary>
+    /// Show the next queued panel, but only once nothing is currently on screen.
+    /// </summary>
+    void ShowNext()
+    {
+        if (ShownPanels.Count > 0)
+            return;
+
+        while (PendingQueue.Count > 0)
+        {
+            var entry = PendingQueue.Dequeue();
+
+            // Skip anything that was deleted while it was waiting in the queue.
+            if (!entry.Content.IsValid())
+                continue;
+
+            Display(entry);
+            return;
+        }
+    }
+
+    /// <summary>
+    /// Parent a panel into the area and start its dismissal timer.
+    /// </summary>
+    void Display(Entry entry)
+    {
+        // Reset the timer - duration shouldn't count time spent waiting in the queue.
+        entry = entry with { Since = 0 };
+
+        ShownPanels.Add(entry);
+        entry.Content.Parent = this;
+
+        if (entry.ClickToDismiss)
+            entry.Content.AddEventListener("onmousedown", () => Dismiss(entry.Content));
     }
 
     /// <summary>

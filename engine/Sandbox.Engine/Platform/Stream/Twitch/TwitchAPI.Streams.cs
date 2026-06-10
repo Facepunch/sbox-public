@@ -1,74 +1,58 @@
-﻿using System.Linq;
-using System.Text.Json.Serialization;
-using System.Threading.Tasks;
+﻿using System.Text.Json.Serialization;
 
-namespace Sandbox.Twitch
+namespace Sandbox.Twitch;
+
+internal partial class TwitchAPI
 {
-	internal partial class TwitchAPI
+	public class StreamResponse
 	{
-		public class StreamResponse
-		{
-			[JsonPropertyName( "id" )]
-			public string Id { get; set; }
+		[JsonPropertyName( "id" )]
+		public string Id { get; set; }
 
-			[JsonPropertyName( "user_id" )]
-			public string UserId { get; set; }
+		[JsonPropertyName( "user_id" )]
+		public string UserId { get; set; }
 
-			[JsonPropertyName( "user_login" )]
-			public string UserLogin { get; set; }
+		[JsonPropertyName( "user_login" )]
+		public string UserLogin { get; set; }
 
-			[JsonPropertyName( "user_name" )]
-			public string UserName { get; set; }
+		[JsonPropertyName( "user_name" )]
+		public string UserName { get; set; }
 
-			[JsonPropertyName( "game_id" )]
-			public string GameId { get; set; }
+		[JsonPropertyName( "game_id" )]
+		public string GameId { get; set; }
 
-			[JsonPropertyName( "game_name" )]
-			public string GameName { get; set; }
+		[JsonPropertyName( "game_name" )]
+		public string GameName { get; set; }
 
-			[JsonPropertyName( "type" )]
-			public string Type { get; set; }
+		[JsonPropertyName( "type" )]
+		public string Type { get; set; }
 
-			[JsonPropertyName( "title" )]
-			public string Title { get; set; }
+		[JsonPropertyName( "title" )]
+		public string Title { get; set; }
 
-			[JsonPropertyName( "viewer_count" )]
-			public int ViewerCount { get; set; }
+		[JsonPropertyName( "viewer_count" )]
+		public int ViewerCount { get; set; }
 
-			[JsonPropertyName( "started_at" )]
-			public string StartedAt { get; set; }
+		[JsonPropertyName( "started_at" )]
+		public DateTimeOffset StartedAt { get; set; }
 
-			[JsonPropertyName( "language" )]
-			public string Language { get; set; }
+		[JsonPropertyName( "language" )]
+		public string Language { get; set; }
 
-			[JsonPropertyName( "thumbnail_url" )]
-			public string ThumbnailUrl { get; set; }
+		[JsonPropertyName( "thumbnail_url" )]
+		public string ThumbnailUrl { get; set; }
 
-			[JsonPropertyName( "tag_ids" )]
-			public string[] TagIds { get; set; }
+		[JsonPropertyName( "tag_ids" )]
+		public string[] TagIds { get; set; }
 
-			[JsonPropertyName( "is_mature" )]
-			public bool IsMature { get; set; }
-		}
+		[JsonPropertyName( "is_mature" )]
+		public bool IsMature { get; set; }
+	}
 
-		public class StreamsResponse
-		{
-			[JsonPropertyName( "data" )]
-			public StreamResponse[] Streams { get; set; }
-
-			public StreamResponse FirstOrDefault() => Streams != null && Streams.Length > 0 ? Streams.FirstOrDefault() : null;
-		}
-
-		public async Task<StreamResponse> GetStream( string userId )
-		{
-			var response = await Get<StreamsResponse>( $"/streams?user_id={userId}" );
-			return response.FirstOrDefault();
-		}
-
-		public Task<StreamsResponse> GetStreams( string gameId )
-		{
-			return Get<StreamsResponse>( $"/streams?game_id={gameId}" );
-		}
+	public async Task<StreamResponse> GetStream( string userId )
+	{
+		var response = await Get<DataResponse<StreamResponse>>( $"/streams?user_id={userId}" );
+		return response?.FirstOrDefault();
 	}
 }
 

@@ -189,6 +189,69 @@ public class StyleSheetParse
 	}
 
 	[TestMethod]
+	public void RecoversFromMalformedRule()
+	{
+		// The runtime loader (FromString) should skip a single broken rule rather than discarding the
+		// whole sheet. The middle rule uses an unsupported nth-child form and throws while parsing.
+		var sheet = StyleSheet.FromString( ".a { width: 100%; } .b:nth-child(2n+1) { width: 50%; } .c { height: 10%; }" );
+
+		Assert.IsNotNull( sheet );
+		Assert.AreEqual( 2, sheet.Nodes.Count );
+		Assert.IsNotNull( sheet.Nodes.SingleOrDefault( x => x.Selectors.Any( y => y.AsString == ".a" ) ) );
+		Assert.IsNotNull( sheet.Nodes.SingleOrDefault( x => x.Selectors.Any( y => y.AsString == ".c" ) ) );
+	}
+
+	[TestMethod]
+	public void RecoversFromMalformedProperty()
+	{
+		// A bad variable reference in one rule shouldn't take down the rest of the sheet.
+		var sheet = StyleSheet.FromString( "$ok: red; .a { color: $ok; } .b { color: $typo; } .c { width: 5px; }" );
+
+		Assert.IsNotNull( sheet );
+		Assert.AreEqual( 2, sheet.Nodes.Count );
+		Assert.IsNotNull( sheet.Nodes.SingleOrDefault( x => x.Selectors.Any( y => y.AsString == ".a" ) ) );
+		Assert.IsNotNull( sheet.Nodes.SingleOrDefault( x => x.Selectors.Any( y => y.AsString == ".c" ) ) );
+	}
+
+	[TestMethod]
+	public void MalformedRuleRecoveryIsAllOrNothing()
+	{
+		// The parent rule fails only after its nested child was already added; the child must be rolled back.
+		var sheet = StyleSheet.FromString( ".a { .child { width: 10px; } color: $typo; } .b { width: 5px; }" );
+
+		Assert.IsNotNull( sheet );
+		Assert.AreEqual( 1, sheet.Nodes.Count );
+		Assert.AreEqual( ".b", sheet.Nodes[0].Selectors[0].AsString );
+	}
+
+	/// <summary>
+	/// An unknown at-rule like @media should be skipped, not discard the whole sheet.
+	/// </summary>
+	[TestMethod]
+	public void RecoversFromUnknownAtRule()
+	{
+		var sheet = StyleSheet.FromString( ".a { width: 100%; } @media (min-width: 100px) { .x { width: 1px; } } .b { height: 10%; }" );
+
+		Assert.IsNotNull( sheet );
+		Assert.IsNotNull( sheet.Nodes.SingleOrDefault( x => x.Selectors.Any( y => y.AsString == ".a" ) ) );
+		Assert.IsNotNull( sheet.Nodes.SingleOrDefault( x => x.Selectors.Any( y => y.AsString == ".b" ) ) );
+	}
+
+	/// <summary>
+	/// Nested rules need a unique load order.
+	/// </summary>
+	[TestMethod]
+	public void NestedBlocksHaveDistinctLoadOrder()
+	{
+		var sheet = StyleParser.ParseSheet( ".a { color: red; .b { color: blue; } }" );
+
+		var a = sheet.Nodes.Single( x => x.SelectorStrings.Contains( ".a" ) );
+		var b = sheet.Nodes.Single( x => x.SelectorStrings.Contains( ".a .b" ) );
+
+		Assert.AreNotEqual( a.LoadOrder, b.LoadOrder );
+	}
+
+	[TestMethod]
 	public void FlagSelectors()
 	{
 		{

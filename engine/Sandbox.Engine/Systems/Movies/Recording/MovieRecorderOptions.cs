@@ -142,6 +142,7 @@ public sealed record MovieRecorderOptions(
 			.WithCaptureAll<AmbientLight>()
 			.WithCaptureAll<ParticleEffect>()
 			.WithCaptureAll<ParticleEmitter>()
+			.WithCaptureAll<BeamEffect>()
 			.WithCaptureAll<SoundPointComponent>();
 	}
 
