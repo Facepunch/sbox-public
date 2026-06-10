@@ -62,6 +62,9 @@ int g_nTerrainCount < Attribute( "TerrainCount" ); Default( 0 ); >;
 StructuredBuffer<TerrainStruct> g_Terrains < Attribute( "Terrain" ); >;
 StructuredBuffer<TerrainMaterial> g_TerrainMaterials < Attribute( "TerrainMaterials" ); >;
 
+float2 Terrain_SampleSeamlessUV( float2 uv );
+float2 Terrain_SampleSeamlessUV( float2 uv, out float2x2 uvAngle );
+
 // This will get more complex with regions as we grow.. Regions means multiple heightmaps
 // So lets have a nice helper class for most things
 // This should just be for accessing data, rendering related methods shouldn't be crammed in here
@@ -124,40 +127,153 @@ class Terrain
         return 1.0 - saturate( dist / max( blendLength, 0.001 ) );
     }
 
-    // Sample the terrain surface color at a world position
-    // Blends base and overlay material colors from the control map
-    static float3 SampleColor( float3 worldPos, float mipLevel = 6.0 )
+    static float3 SampleMaterialColor( float2 texUV, CompactTerrainMaterial material )
     {
-        if ( Get().ControlMapTexture <= 0 )
+        texUV /= 32.0;
+
+        TerrainMaterial baseMat = g_TerrainMaterials[material.BaseTextureId];
+        if ( baseMat.bcr_texid <= 0 )
             return float3( 1, 1, 1 );
+
+        float2 baseUV = texUV * baseMat.uvscale;
+        if ( baseMat.HasFlag( TerrainFlags::NoTile ) )
+            baseUV = Terrain_SampleSeamlessUV( baseUV );
+
+        float4 baseBcr = Bindless::GetTexture2D( baseMat.bcr_texid ).Sample( g_sAnisotropic, baseUV );
+        float3 baseColor = SrgbGammaToLinear( baseBcr.rgb );
+
+        float blend = material.GetNormalizedBlend();
+        TerrainMaterial overlayMat = g_TerrainMaterials[material.OverlayTextureId];
+        if ( blend <= 0.01 || overlayMat.bcr_texid <= 0 )
+            return baseColor;
+
+        float2 overlayUV = texUV * overlayMat.uvscale;
+        if ( overlayMat.HasFlag( TerrainFlags::NoTile ) )
+            overlayUV = Terrain_SampleSeamlessUV( overlayUV );
+
+        float4 overlayBcr = Bindless::GetTexture2D( overlayMat.bcr_texid ).Sample( g_sAnisotropic, overlayUV );
+
+        if ( Get().HeightBlending && baseMat.nho_texid > 0 && overlayMat.nho_texid > 0 )
+        {
+            float baseHeight = Bindless::GetTexture2D( baseMat.nho_texid ).Sample( g_sAnisotropic, baseUV ).b * baseMat.heightstrength;
+            float overlayHeight = Bindless::GetTexture2D( overlayMat.nho_texid ).Sample( g_sAnisotropic, overlayUV ).b * overlayMat.heightstrength;
+            blend = saturate( blend + (overlayHeight - baseHeight) * Get().HeightBlendSharpness * 10.0 );
+        }
+
+        return lerp( baseColor, SrgbGammaToLinear( overlayBcr.rgb ), blend );
+    }
+
+    static float3 SampleMaterialColor( float2 texUV, CompactTerrainMaterial material, float mipLevel )
+    {
+        texUV /= 32.0;
+
+        TerrainMaterial baseMat = g_TerrainMaterials[material.BaseTextureId];
+        if ( baseMat.bcr_texid <= 0 )
+            return float3( 1, 1, 1 );
+
+        float2 baseUV = texUV * baseMat.uvscale;
+        if ( baseMat.HasFlag( TerrainFlags::NoTile ) )
+            baseUV = Terrain_SampleSeamlessUV( baseUV );
+
+        float4 baseBcr = Bindless::GetTexture2D( baseMat.bcr_texid ).SampleLevel( g_sBilinearClamp, baseUV, mipLevel );
+        float3 baseColor = SrgbGammaToLinear( baseBcr.rgb );
+
+        float blend = material.GetNormalizedBlend();
+        TerrainMaterial overlayMat = g_TerrainMaterials[material.OverlayTextureId];
+        if ( blend <= 0.01 || overlayMat.bcr_texid <= 0 )
+            return baseColor;
+
+        float2 overlayUV = texUV * overlayMat.uvscale;
+        if ( overlayMat.HasFlag( TerrainFlags::NoTile ) )
+            overlayUV = Terrain_SampleSeamlessUV( overlayUV );
+
+        float4 overlayBcr = Bindless::GetTexture2D( overlayMat.bcr_texid ).SampleLevel( g_sBilinearClamp, overlayUV, mipLevel );
+
+        if ( Get().HeightBlending && baseMat.nho_texid > 0 && overlayMat.nho_texid > 0 )
+        {
+            float baseHeight = Bindless::GetTexture2D( baseMat.nho_texid ).SampleLevel( g_sBilinearClamp, baseUV, mipLevel ).b * baseMat.heightstrength;
+            float overlayHeight = Bindless::GetTexture2D( overlayMat.nho_texid ).SampleLevel( g_sBilinearClamp, overlayUV, mipLevel ).b * overlayMat.heightstrength;
+            blend = saturate( blend + (overlayHeight - baseHeight) * Get().HeightBlendSharpness * 10.0 );
+        }
+
+        return lerp( baseColor, SrgbGammaToLinear( overlayBcr.rgb ), blend );
+    }
+
+    static bool FetchTerrainMaterials( float3 worldPos, out float2 texUV,
+        out CompactTerrainMaterial mat00, out CompactTerrainMaterial mat10, out CompactTerrainMaterial mat01, out CompactTerrainMaterial mat11,
+        out float4 weights )
+    {
+        texUV = 0.0;
+        mat00 = CompactTerrainMaterial::Decode( 0 );
+        mat10 = CompactTerrainMaterial::Decode( 0 );
+        mat01 = CompactTerrainMaterial::Decode( 0 );
+        mat11 = CompactTerrainMaterial::Decode( 0 );
+        weights = 0.0;
+
+        if ( Get().ControlMapTexture <= 0 )
+            return false;
 
         float3 localPos = WorldToLocal( worldPos );
         Texture2D tControlMap = GetControlMap();
         float2 texSize = TextureDimensions2D( tControlMap, 0 );
         float2 uv = localPos.xy / ( texSize * Get().Resolution );
 
-        CompactTerrainMaterial material = CompactTerrainMaterial::DecodeFromFloat( tControlMap.SampleLevel( g_sPointClamp, uv, 0 ).r  );
+        if ( any( uv < 0.0 ) || any( uv > 1.0 ) )
+            return false;
 
-        if ( g_TerrainMaterials[material.BaseTextureId].bcr_texid <= 0 )
+        float2 pixelUV = uv * texSize - 0.5;
+        float2 fracUV = frac( pixelUV );
+        float2 texelSize = 1.0 / texSize;
+        float2 baseUV = (floor( pixelUV ) + 0.5) / texSize;
+
+        mat00 = CompactTerrainMaterial::DecodeFromFloat( tControlMap.SampleLevel( g_sPointClamp, baseUV, 0 ).r );
+        mat10 = CompactTerrainMaterial::DecodeFromFloat( tControlMap.SampleLevel( g_sPointClamp, baseUV + float2( texelSize.x, 0 ), 0 ).r );
+        mat01 = CompactTerrainMaterial::DecodeFromFloat( tControlMap.SampleLevel( g_sPointClamp, baseUV + float2( 0, texelSize.y ), 0 ).r );
+        mat11 = CompactTerrainMaterial::DecodeFromFloat( tControlMap.SampleLevel( g_sPointClamp, baseUV + texelSize, 0 ).r );
+
+        weights = float4(
+            (1.0 - fracUV.x) * (1.0 - fracUV.y),
+            fracUV.x * (1.0 - fracUV.y),
+            (1.0 - fracUV.x) * fracUV.y,
+            fracUV.x * fracUV.y
+        );
+
+        texUV = localPos.xy;
+        return true;
+    }
+
+    // Sample the terrain surface color at a world position.
+    // Matches terrain rendering by bilinearly blending neighboring compact control-map materials.
+    static float3 SampleColor( float3 worldPos )
+    {
+        float2 texUV;
+        float4 weights;
+        CompactTerrainMaterial mat00, mat10, mat01, mat11;
+
+        if ( !FetchTerrainMaterials( worldPos, texUV, mat00, mat10, mat01, mat11, weights ) )
             return float3( 1, 1, 1 );
 
-        float2 texUV = localPos.xy / 32.0;
+        return
+            SampleMaterialColor( texUV, mat00 ) * weights.x +
+            SampleMaterialColor( texUV, mat10 ) * weights.y +
+            SampleMaterialColor( texUV, mat01 ) * weights.z +
+            SampleMaterialColor( texUV, mat11 ) * weights.w;
+    }
 
-        TerrainMaterial baseMat = g_TerrainMaterials[material.BaseTextureId];
-        float3 color = Bindless::GetTexture2D( baseMat.bcr_texid )
-            .SampleLevel( g_sBilinearClamp, texUV * baseMat.uvscale, mipLevel ).rgb;
+    static float3 SampleColor( float3 worldPos, float mipLevel )
+    {
+        float2 texUV;
+        float4 weights;
+        CompactTerrainMaterial mat00, mat10, mat01, mat11;
 
-        float materialBlend = material.GetNormalizedBlend();
-        
-        TerrainMaterial overlayMat = g_TerrainMaterials[material.OverlayTextureId];
-        if ( materialBlend > 0.01 && overlayMat.bcr_texid > 0 )
-        {
-            float3 overlayColor = Bindless::GetTexture2D( overlayMat.bcr_texid )
-                .SampleLevel( g_sBilinearClamp, texUV * overlayMat.uvscale, mipLevel ).rgb;
-            color = lerp( color, overlayColor, materialBlend );
-        }
+        if ( !FetchTerrainMaterials( worldPos, texUV, mat00, mat10, mat01, mat11, weights ) )
+            return float3( 1, 1, 1 );
 
-        return color;
+        return
+            SampleMaterialColor( texUV, mat00, mipLevel ) * weights.x +
+            SampleMaterialColor( texUV, mat10, mipLevel ) * weights.y +
+            SampleMaterialColor( texUV, mat01, mipLevel ) * weights.z +
+            SampleMaterialColor( texUV, mat11, mipLevel ) * weights.w;
     }
 };
 

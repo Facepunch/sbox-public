@@ -32,6 +32,7 @@ public class MainAssetBrowser : WrappedAssetBrowser
 
 		Mounts.OnAssetHighlight = a => EditorUtility.InspectorObject = a;
 		Mounts.OnAssetsHighlight = a => EditorUtility.InspectorObject = a;
+		Mounts.OnAssetSelected = a => { if ( a.CanOpenInEditor ) a.OpenInEditor(); };
 	}
 
 	CancellationTokenSource packageCTS;

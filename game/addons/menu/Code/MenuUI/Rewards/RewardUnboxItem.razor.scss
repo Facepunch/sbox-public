@@ -1,0 +1,168 @@
+@import "/styles/_theme.scss";
+
+RewardUnboxItem
+{
+	width: 250px;
+	height: 250px;
+	flex-direction: column;
+	border-radius: $rounding-large;
+	background-color: $default-700;
+	border: 5px solid $default-border;
+	cursor: pointer;
+	pointer-events: all;
+	transition: all 150ms $easing;
+	position: relative;
+	background-size: cover;
+	background-position: center;
+	background-repeat: no-repeat;
+	padding: 10px;
+	overflow: hidden;
+
+	&:hover
+	{
+		border-color: rgba( $primary-green, 0.5 );
+	}
+
+	.art
+	{
+		position: relative;
+		width: 100%;
+		flex-grow: 1;
+		border-radius: $rounding-default;
+		align-items: center;
+		justify-content: center;
+
+		.select-dot
+		{
+			position: absolute;
+			top: 8px;
+			left: 8px;
+			width: 24px;
+			height: 24px;
+			border-radius: 50%;
+			border: 2px solid rgba( $default-50, 0.5 );
+			background-color: rgba( black, 0.35 );
+			align-items: center;
+			justify-content: center;
+			transition: all 150ms $easing;
+
+			icon
+			{
+				font-size: 15px;
+				color: $default-text;
+				opacity: 0;
+			}
+		}
+
+		.badge
+		{
+			position: absolute;
+			top: 8px;
+			right: 8px;
+			background-color: $primary-yellow;
+			color: $default-950;
+			font-family: $font-heading;
+			font-weight: 800;
+			font-size: 10px;
+			letter-spacing: 0.5px;
+			padding: 2px 7px;
+			border-radius: $rounding-small;
+		}
+	}
+
+	.name
+	{
+		width: 100%;
+		font-family: $font-heading;
+		font-weight: 600;
+		font-size: $text-small;
+		color: $default-text;
+		white-space: normal;
+	}
+
+	&.selected
+	{
+		background: rgba( $primary-green, 0.5 );
+		border-color: rgba( $primary-green, 0.8 );
+		box-shadow: 0 0 16px rgba( $primary-green, 0.2 );
+
+		.art .select-dot
+		{
+			background-color: $primary-green;
+			border-color: $primary-green;
+
+			icon
+			{
+				opacity: 1;
+			}
+		}
+	}
+
+	&.hidden
+	{
+		justify-content: center;
+		align-items: center;
+		font-size: 200px;
+		font-weight: bold;
+		border: none;
+		background: rgba( 0, 0, 0, 0.5 );
+
+		// Damage overlay - opacity is ramped per hit from C# so the box glows hotter as it's smashed.
+		.heat
+		{
+			position: absolute;
+			inset: 0;
+			background-color: #E8531A;
+			transition: opacity 150ms $easing;
+		}
+
+		.question
+		{
+			position: relative;
+			z-index: 1;
+			color: rgba( black, 0.4 );
+		}
+
+		// Mirrored keyframes alternate per hit so the shake restarts and swings back and forth.
+		&.hit-a { animation: hit-a 0.2s $easing; }
+		&.hit-b { animation: hit-b 0.2s $easing; }
+	}
+
+	&.revealed
+	{
+		animation: revealed ease-in-out 0.6s;
+	}
+}
+
+@keyframes hit-a
+{
+	0%   { transform: scale( 1 ) rotate( 0deg ); }
+	25%  { transform: scale( 1.07 ) rotate( -5deg ); }
+	60%  { transform: scale( 0.96 ) rotate( 5deg ); }
+	100% { transform: scale( 1 ) rotate( 0deg ); }
+}
+
+@keyframes hit-b
+{
+	0%   { transform: scale( 1 ) rotate( 0deg ); }
+	25%  { transform: scale( 1.07 ) rotate( 5deg ); }
+	60%  { transform: scale( 0.96 ) rotate( -5deg ); }
+	100% { transform: scale( 1 ) rotate( 0deg ); }
+}
+
+@keyframes revealed
+{
+	0%
+	{
+		transform: scale(0.8);
+		opacity: 0;
+	}
+
+	1% { transform: scale(1.2); opacity: 1; z-index: 100; }
+	100%
+	{
+		transform: scale(1.0);
+		z-index: 100;
+		opacity: 1;
+	}
+}
