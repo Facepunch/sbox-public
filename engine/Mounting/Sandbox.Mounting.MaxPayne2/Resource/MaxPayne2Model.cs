@@ -23,7 +23,6 @@ class MaxPayne2Model( string fileName ) : ResourceLoader<MaxPayne2Mount>
 		var dir = System.IO.Path.GetDirectoryName( FileName )?.Replace( '\\', '/' );
 		var searchDirs = BuildSearchDirs( dir, kf2.TextureDirs );
 		var builder = Model.Builder.WithName( Path );
-		var textureCache = new Dictionary<string, Texture>( StringComparer.OrdinalIgnoreCase );
 
 		var rig = LoadRig( dir );
 		var animatedNodes = rig is null && kf2.Animations.Count > 0 && kf2.Nodes.Count > 0;
@@ -44,10 +43,10 @@ class MaxPayne2Model( string fileName ) : ResourceLoader<MaxPayne2Mount>
 			var indices = BuildIndices( kf2, prim );
 
 			var mesh = rig is not null
-				? BuildRigMesh( kf2, prim, positions, indices, searchDirs, textureCache, rig )
+				? BuildRigMesh( kf2, prim, positions, indices, searchDirs, rig )
 				: animatedNodes
-					? BuildSkinnedMesh( kf2, prim, positions, indices, searchDirs, textureCache, boneIndexByNode )
-					: BuildMesh( kf2, prim, positions, indices, searchDirs, textureCache );
+					? BuildSkinnedMesh( kf2, prim, positions, indices, searchDirs, boneIndexByNode )
+					: BuildMesh( kf2, prim, positions, indices, searchDirs );
 
 			var baseIndex = collisionVerts.Count;
 			collisionVerts.AddRange( positions );
@@ -190,9 +189,9 @@ class MaxPayne2Model( string fileName ) : ResourceLoader<MaxPayne2Mount>
 		builder.AddBones( bones );
 	}
 
-	Mesh BuildRigMesh( Kf2File kf2, Kf2File.Primitive prim, Vector3[] positions, int[] indices, List<string> searchDirs, Dictionary<string, Texture> cache, Rig rig )
+	Mesh BuildRigMesh( Kf2File kf2, Kf2File.Primitive prim, Vector3[] positions, int[] indices, List<string> searchDirs, Rig rig )
 	{
-		var material = CreateMaterial( kf2, prim, searchDirs, cache );
+		var material = CreateMaterial( kf2, prim, searchDirs );
 		var mesh = new Mesh( material );
 
 		var skin = rig.Skin;
@@ -542,9 +541,9 @@ class MaxPayne2Model( string fileName ) : ResourceLoader<MaxPayne2Mount>
 		return string.Join( '/', parts );
 	}
 
-	Mesh BuildMesh( Kf2File kf2, Kf2File.Primitive prim, Vector3[] positions, int[] indices, List<string> searchDirs, Dictionary<string, Texture> cache )
+	Mesh BuildMesh( Kf2File kf2, Kf2File.Primitive prim, Vector3[] positions, int[] indices, List<string> searchDirs )
 	{
-		var material = CreateMaterial( kf2, prim, searchDirs, cache );
+		var material = CreateMaterial( kf2, prim, searchDirs );
 
 		var mesh = new Mesh( material );
 
@@ -566,9 +565,9 @@ class MaxPayne2Model( string fileName ) : ResourceLoader<MaxPayne2Mount>
 		return mesh;
 	}
 
-	Mesh BuildSkinnedMesh( Kf2File kf2, Kf2File.Primitive prim, Vector3[] positions, int[] indices, List<string> searchDirs, Dictionary<string, Texture> cache, Dictionary<string, int> boneIndexByNode )
+	Mesh BuildSkinnedMesh( Kf2File kf2, Kf2File.Primitive prim, Vector3[] positions, int[] indices, List<string> searchDirs, Dictionary<string, int> boneIndexByNode )
 	{
-		var material = CreateMaterial( kf2, prim, searchDirs, cache );
+		var material = CreateMaterial( kf2, prim, searchDirs );
 
 		var mesh = new Mesh( material );
 
@@ -616,16 +615,16 @@ class MaxPayne2Model( string fileName ) : ResourceLoader<MaxPayne2Mount>
 		return indices;
 	}
 
-	Material CreateMaterial( Kf2File kf2, Kf2File.Primitive prim, List<string> searchDirs, Dictionary<string, Texture> cache )
+	Material CreateMaterial( Kf2File kf2, Kf2File.Primitive prim, List<string> searchDirs )
 	{
 		var material = Material.Create( "mp2_model", "shaders/mp2_model.shader" );
-		material?.Set( "g_tColor", ResolveTexture( kf2, prim.MaterialName, searchDirs, cache ) ?? Texture.White );
+		material?.Set( "g_tColor", ResolveTexture( kf2, prim.MaterialName, searchDirs ) ?? Texture.White );
 		// opaque DXT1 decodes a=1 everywhere, so the cutout never fires on solid models
 		material?.SetFeature( "F_ALPHA_TEST", 1 );
 		return material;
 	}
 
-	Texture ResolveTexture( Kf2File kf2, string materialName, List<string> searchDirs, Dictionary<string, Texture> cache )
+	Texture ResolveTexture( Kf2File kf2, string materialName, List<string> searchDirs )
 	{
 		if ( string.IsNullOrEmpty( materialName ) || !kf2.Materials.TryGetValue( materialName, out var mat ) )
 			return null;
@@ -633,12 +632,7 @@ class MaxPayne2Model( string fileName ) : ResourceLoader<MaxPayne2Mount>
 		if ( string.IsNullOrEmpty( mat.DiffuseTexture ) )
 			return null;
 
-		if ( cache.TryGetValue( mat.DiffuseTexture, out var cached ) )
-			return cached;
-
-		var tex = LoadTexture( searchDirs, mat.DiffuseTexture );
-		cache[mat.DiffuseTexture] = tex;
-		return tex;
+		return LoadTexture( searchDirs, mat.DiffuseTexture );
 	}
 
 	Texture LoadTexture( List<string> searchDirs, string fileName )
@@ -650,9 +644,10 @@ class MaxPayne2Model( string fileName ) : ResourceLoader<MaxPayne2Mount>
 			foreach ( var ext in new[] { ".dds", ".tga", ".jpg", ".pcx" } )
 			{
 				var candidate = string.IsNullOrEmpty( dir ) ? name + ext : $"{dir}/{name}{ext}";
-				var data = Host.GetFileBytes( candidate );
-				if ( data is not null )
-					return MaxPayneImage.Load( data );
+				if ( !Host.FileExists( candidate ) )
+					continue;
+
+				return Texture.Load( $"mount://{Host.Ident}/{candidate}.vtex" );
 			}
 		}
 
