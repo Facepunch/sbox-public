@@ -19,8 +19,8 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 		switch ( callback )
 		{
 			case CommonCallback.Awake: InternalOnAwake(); break;
-			case CommonCallback.Enable: OnEnabledInternal(); break;
-			case CommonCallback.Disable: OnDisabledInternal(); break;
+			case CommonCallback.Enable: DispatchOnEnabled(); break;
+			case CommonCallback.Disable: DispatchOnDisabled(); break;
 			case CommonCallback.Destroy: OnDestroyInternal(); break;
 			case CommonCallback.Validate: OnValidateInternal(); break;
 			case CommonCallback.Dirty: OnDirtyInternal(); break;
@@ -178,16 +178,24 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 		}
 	}
 
-	internal virtual void OnEnabledInternal()
+	/// <summary>
+	/// Dispatches <see cref="OnEnabledInternal"/> if we haven't called it since becoming enabled.
+	/// </summary>
+	private void DispatchOnEnabled()
 	{
 		// make sure we only fire this once, and ensure the component is still enabled
-		if ( _onEnabled || !_enabledState || GameObject == null || GameObject.IsDestroyed )
-			return;
+		if ( _onEnabled || !_enabledState || GameObject == null || GameObject.IsDestroyed ) return;
 
+		_onEnabled = true;
+
+		OnEnabledInternal();
+	}
+
+	internal virtual void OnEnabledInternal()
+	{
 		// Disable any interpolation during OnEnabled. We might be created in a Fixed Update context.
 		using ( GameTransform.DisableInterpolation() )
 		{
-			_onEnabled = true;
 			OnEnabled();
 			OnComponentEnabled?.Invoke();
 		}
@@ -198,16 +206,24 @@ public abstract partial class Component : IJsonConvert, IComponentLister, IValid
 	/// </summary>
 	protected virtual void OnEnabled() { }
 
-	internal virtual void OnDisabledInternal()
+	/// <summary>
+	/// Dispatches <see cref="OnDisabledInternal"/> if we haven't called it since becoming disabled.
+	/// </summary>
+	private void DispatchOnDisabled()
 	{
 		// make sure we only fire this once, and ensure the component is still disabled
-		if ( !_onEnabled || _enabledState )
-			return;
+		if ( !_onEnabled || _enabledState ) return;
 
+		_onEnabled = false;
+
+		OnDisabledInternal();
+	}
+
+	internal virtual void OnDisabledInternal()
+	{
 		// Disable any interpolation during OnDisabled.
 		using ( GameTransform.DisableInterpolation() )
 		{
-			_onEnabled = false;
 			OnDisabled();
 			OnComponentDisabled?.Invoke();
 		}

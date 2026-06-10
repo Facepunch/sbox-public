@@ -84,12 +84,13 @@ public partial class Panel
 		/// <param name="size">Font size in pixels.</param>
 		/// <param name="color">Text color.</param>
 		/// <param name="flags">Text alignment and layout flags. Defaults to <see cref="TextFlag.LeftTop"/>.</param>
-		public static void Text( string text, Rect rect, float size, Color color, TextFlag flags = TextFlag.LeftTop )
+		/// <param name="font">Font family name. Defaults to "Roboto".</param>
+		public static void Text( string text, Rect rect, float size, Color color, TextFlag flags = TextFlag.LeftTop, string font = "Roboto" )
 		{
 			var buf = UIDrawBuffer.Current;
 			var scale = buf.ScaleToScreen;
 
-			var scope = new TextRendering.Scope( text, color, size * scale );
+			var scope = new TextRendering.Scope( text, color, size * scale, font );
 			var tb = TextRendering.GetOrCreateTextBlock( scope, flags, rect.Size == default ? new Vector2( 8096 ) : rect.Size );
 			tb.MakeReady();
 			var texture = tb.Texture;

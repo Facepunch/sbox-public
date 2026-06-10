@@ -1,20 +1,37 @@
 @import "/styles/_theme.scss";
 
-Home {
-    align-items: center;
-    justify-content: center;
+Home
+{
+	align-items: center;
+	justify-content: center;
 
-    .page {
-        flex-direction: row;
-        align-items: flex-end;
-        justify-content: space-between;
-        width: 100%;
-        max-width: $screen-w-xl;
-        padding: 50px;
-    }
+	.page
+	{
+		flex-direction: row;
+		align-items: flex-end;
+		justify-content: space-between;
+		width: 100%;
+		max-width: $screen-w-xl;
+		padding: 50px;
+	}
 
-    column {
-        height: 100%;
-        justify-content: space-between;
-    }
+	column
+	{
+		height: 100%;
+		justify-content: space-between;
+		width: 400px;
+		gap: 1rem;
+	}
 }
+
+Home column Card
+{
+	background: rgba( $default-950, 0.8 );
+	backdrop-filter: blur( 10px );
+	outline: 1px solid #000a;
+	width: 100%;
+	flex-direction: column;
+	padding: 2rem;
+	border-radius: $rounding-large;
+}
+

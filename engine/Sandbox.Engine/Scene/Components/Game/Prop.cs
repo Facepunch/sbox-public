@@ -362,7 +362,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		if ( IsExplosive && damage.Tags.Contains( "impact" ) )
 		{
 			Health = 0;
-			Kill();
+			Kill( damage );
 			return;
 		}
 
@@ -386,7 +386,7 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 
 		if ( Health <= 0 )
 		{
-			Kill();
+			Kill( damage );
 			Health = 0;
 		}
 	}
@@ -428,19 +428,20 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		}
 	}
 
-	public void Kill()
+	public void Kill( DamageInfo damage = null )
 	{
-		OnBreak();
+		OnBreak( damage );
 		GameObject.Destroy();
 	}
 
-	void OnBreak()
+	void OnBreak( DamageInfo damage = null )
 	{
 		OnPropBreak?.Invoke();
 
 		PlayBreakSound();
 
-		NetworkCreateGibs();
+		var wasImpact = damage?.Tags.Contains( "impact" ) ?? false;
+		NetworkCreateGibs( wasImpact );
 
 		CreateExplosion();
 	}
@@ -512,15 +513,15 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 	/// Create the gibs for this prop breaking, over the network. This causes clients to spawn the gibs too.
 	/// </summary>
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
-	public void NetworkCreateGibs()
+	public void NetworkCreateGibs( bool wasImpact = false )
 	{
-		CreateGibs();
+		CreateGibs( wasImpact );
 	}
 
 	/// <summary>
 	/// Create the gibs and return them.
 	/// </summary>
-	public List<Gib> CreateGibs()
+	public List<Gib> CreateGibs( bool wasImpact = false )
 	{
 		var gibs = new List<Gib>();
 
@@ -594,19 +595,28 @@ public class Prop : Component, Component.ExecuteInEditor, Component.IDamageable
 		// Transfer velocity from us to the gibs.
 		if ( rb.IsValid() )
 		{
+			// If the prop was thrown on the floor or a wall when broken, we want the gibs to inherit the velocity from before that impact
+			// that way they crash into the floor/wall nicely and stuff.
+			// HOWEVER, we don't want this for anything else
+			// else we'd be stomping whatever changes people might be wanting to make to the velocity themselves.
+			var linVel = wasImpact ? rb.PreVelocity : rb.Velocity;
+			var angVel = wasImpact ? rb.PreAngularVelocity : rb.AngularVelocity;
 			foreach ( var gib in gibs )
 			{
 				var phys = gib.Components.Get<Rigidbody>( true );
 				if ( !phys.IsValid() ) continue;
 
 				// Compute linear velocity at the gibs spawn point.
-				var velocity = rb.PreVelocity + Vector3.Cross( rb.PreAngularVelocity, phys.MassCenter - rb.MassCenter );
+				var velocity = linVel + Vector3.Cross( angVel, phys.MassCenter - rb.MassCenter );
 
-				// Apply 50% energy loss.
-				velocity *= 0.5f;
+				if ( wasImpact )
+				{
+					// Apply 50% energy loss from surface impact.
+					velocity *= 0.5f;
+				}
 
 				phys.Velocity = velocity;
-				phys.AngularVelocity = rb.PreAngularVelocity;
+				phys.AngularVelocity = angVel;
 			}
 		}
 

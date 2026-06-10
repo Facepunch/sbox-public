@@ -87,21 +87,21 @@ public partial class Mixer
 	/// <summary>
 	/// If true then this mixer will use custom occlusion tags. If false we'll use what our parent uses.
 	/// </summary>
-	[Obsolete( "Use OverrideSimulationTags + BlockingSimulationTags / IgnoredSimulationTags instead." )]
+	[Obsolete( "Use OverrideOcclusion + BlockingTags / IgnoredTags instead." )]
 	[ToggleGroup( "OverrideOcclusion" ), Hide]
 	public bool OverrideOcclusion { get; set; }
 
 	/// <summary>
 	/// The tags which occlude our physics.
 	/// </summary>
-	[Obsolete( "Use BlockingSimulationTags instead." )]
+	[Obsolete( "Use BlockingTags instead." )]
 	[ToggleGroup( "OverrideOcclusion" ), Hide]
 	public TagSet OcclusionTags { get; private set; } = new TagSet();
 
 	/// <summary>
 	/// Get an array of occlusion tags our sounds want to hit. May return null if there are none defined!
 	/// </summary>
-	[Obsolete( "Use GetBlockingSimulationTags() instead." )]
+	[Obsolete( "Use GetBlockingTags() instead." )]
 	public IReadOnlySet<uint> GetOcclusionTags()
 	{
 #pragma warning disable CS0618
@@ -115,54 +115,59 @@ public partial class Mixer
 	}
 
 	/// <summary>
-	/// If true this mixer uses its own audio simulation tag sets; otherwise inherits from parent.
-	/// </summary>
-	[ToggleGroup( "OverrideSimulationTags", Label = "Override Simulation Tags" )]
-	public bool OverrideSimulationTags { get; set; }
-
-	/// <summary>
 	/// If non-empty, audio simulation traces (occlusion, transmission, reverb rays) only register hits on
-	/// bodies with one of these tags. Empty = hit everything that isn't in <see cref="IgnoredSimulationTags"/>.
+	/// bodies with one of these tags. Empty = hit everything that isn't in <see cref="IgnoredTags"/>.
 	/// </summary>
-	[ToggleGroup( "OverrideSimulationTags" )]
-	public TagSet BlockingSimulationTags { get; private set; } = new TagSet();
+	[Group( "Simulation" )]
+	public TagSet BlockingTags { get; private set; } = new TagSet();
 
 	/// <summary>
 	/// Audio simulation traces always skip bodies with these tags (e.g. triggers, sky, passaudio).
-	/// Applied on top of <see cref="BlockingSimulationTags"/>.
+	/// Applied on top of <see cref="BlockingTags"/>.
 	/// </summary>
-	[ToggleGroup( "OverrideSimulationTags" )]
-	public TagSet IgnoredSimulationTags { get; private set; } = new TagSet();
+	[Group( "Simulation" )]
+	public TagSet IgnoredTags { get; private set; } = new TagSet();
 
 	/// <summary>
-	/// Walks the parent chain. Returns null if no override is set anywhere on the chain.
+	/// Walks the parent chain. If either local tag set is non-empty, returns this mixer's <see cref="BlockingTags"/>;
+	/// otherwise inherits from parent. Resolved together with <see cref="GetIgnoredTags"/> to avoid split-brain.
 	/// </summary>
-	public TagSet GetBlockingSimulationTags()
+	public TagSet GetBlockingTags()
 	{
-		if ( !OverrideSimulationTags ) return Parent?.GetBlockingSimulationTags();
-		return BlockingSimulationTags;
+		if ( !BlockingTags.IsEmpty || !IgnoredTags.IsEmpty ) return BlockingTags;
+		return Parent?.GetBlockingTags();
 	}
 
 	/// <summary>
-	/// Walks the parent chain. Returns null if no override is set anywhere on the chain.
+	/// Walks the parent chain. See <see cref="GetBlockingTags"/> for inheritance rules.
 	/// </summary>
-	public TagSet GetIgnoredSimulationTags()
+	public TagSet GetIgnoredTags()
 	{
-		if ( !OverrideSimulationTags ) return Parent?.GetIgnoredSimulationTags();
-		return IgnoredSimulationTags;
+		if ( !BlockingTags.IsEmpty || !IgnoredTags.IsEmpty ) return IgnoredTags;
+		return Parent?.GetIgnoredTags();
 	}
 
 
-	float _spacializing = 1.0f;
+	float _spatializing = 1.0f;
 
 	/// <summary>
-	/// When 0 the sound will come out of all speakers, when 1 it will be fully spacialized
+	/// When 0 the sound will come out of all speakers, when 1 it will be fully spatialized
 	/// </summary>
-	[Range( 0, 1 ), Group( "Voice Handling" )]
+	[Range( 0, 1 ), Group( "Simulation" )]
+	public float Spatializing
+	{
+		get => Volatile.Read( ref _spatializing );
+		set => Interlocked.Exchange( ref _spatializing, value );
+	}
+
+	/// <summary>
+	/// Legacy misspelled alias for <see cref="Spatializing"/>.
+	/// </summary>
+	[Obsolete( "Use Spatializing instead." ), Hide]
 	public float Spacializing
 	{
-		get => Volatile.Read( ref _spacializing );
-		set => Interlocked.Exchange( ref _spacializing, value );
+		get => Spatializing;
+		set => Spatializing = value;
 	}
 
 	float _distanceAttenuation = 1.0f;
@@ -170,7 +175,7 @@ public partial class Mixer
 	/// <summary>
 	/// Sounds get quieter as they go further away
 	/// </summary>
-	[Range( 0, 1 ), Group( "Voice Handling" )]
+	[Range( 0, 1 ), Group( "Simulation" )]
 	public float DistanceAttenuation
 	{
 		get => Volatile.Read( ref _distanceAttenuation );
@@ -181,13 +186,25 @@ public partial class Mixer
 	float _occlusion = 1.0f;
 
 	/// <summary>
-	/// How much these sounds can get occluded
+	/// How much these sounds can get occluded (0 = no occlusion simulation, 1 = full).
 	/// </summary>
-	[Range( 0, 1 ), Group( "Voice Handling" )]
+	[Range( 0, 1 ), Group( "Simulation" )]
 	public float Occlusion
 	{
 		get => Volatile.Read( ref _occlusion );
 		set => Interlocked.Exchange( ref _occlusion, value );
+	}
+
+	float _reverb = 1.0f;
+
+	/// <summary>
+	/// How much reverb is applied to sounds routed through this mixer (0 = dry / disabled, 1 = full).
+	/// </summary>
+	[Range( 0, 1 ), Group( "Simulation" )]
+	public float Reverb
+	{
+		get => Volatile.Read( ref _reverb );
+		set => Interlocked.Exchange( ref _reverb, value );
 	}
 
 	float _airAborb = 1.0f;
@@ -195,7 +212,7 @@ public partial class Mixer
 	/// <summary>
 	/// How much the air absorbs energy from the sound
 	/// </summary>
-	[Range( 0, 1 ), Group( "Voice Handling" )]
+	[Range( 0, 1 ), Group( "Simulation" )]
 	public float AirAbsorption
 	{
 		get => Volatile.Read( ref _airAborb );
@@ -428,16 +445,18 @@ public partial class Mixer
 			mixBuffer.CopyFromUpmix( samples );
 
 			// Evaluate reverb gate up front so we can skip the dry-buffer copy when the send won't fire.
+			float mixerReverbScale = Reverb;
 			bool willRunReverb = !reverbApplied && vs.Reverb is not null && vs.Reverb.IsValid
-					&& vs.ReverbRoom.Mix > 0.08f;
+					&& vs.ReverbRoom.Mix > 0.09f
+					&& mixerReverbScale > 0f;
 			float reverbSendLevel = 0f;
 			if ( willRunReverb )
 			{
 				var srcParams = allParams[vs.SourceOffset + (vs.ListenLocal ? 0 : i)];
 				var distAtten = ComputeDistanceAtten( listener, in srcParams );
-				reverbSendLevel = srcParams.ReverbAmount * distAtten * volume * (srcParams.OcclusionEnabled ? srcParams.TransmissionBands.Mid : 1f);
+				reverbSendLevel = srcParams.ReverbAmount * mixerReverbScale * distAtten * volume * (srcParams.OcclusionEnabled ? srcParams.TransmissionBands.Mid : 1f);
 				// Capture dry signal before DirectEffect so reverb send bypasses distance attenuation.
-				if ( reverbSendLevel >= 0.15f ) _reverbDryBuffer.CopyFrom( mixBuffer );
+				if ( reverbSendLevel >= 0.175f ) _reverbDryBuffer.CopyFrom( mixBuffer );
 			}
 
 			var sourceParams = allParams[vs.SourceOffset + i];
@@ -448,7 +467,7 @@ public partial class Mixer
 			if ( willRunReverb )
 			{
 				reverbApplied = true;
-				if ( reverbSendLevel >= 0.15f )
+				if ( reverbSendLevel >= 0.175f )
 				{
 					var room = vs.ReverbRoom;
 					FillReverbSend( _reverbDryBuffer, reverbSendLevel );
@@ -525,8 +544,8 @@ public partial class Mixer
 
 		if ( vs.ListenLocal )
 		{
-			var localSpatial = 0.1f * Spacializing;
-			// ListenLocal voices on mixers with Spacializing==0 (music/UI default) would just
+			var localSpatial = 0.1f * Spatializing;
+			// ListenLocal voices on mixers with Spatializing==0 (music/UI default) would just
 			// run a near-identity HRIR convolution; inputoutput already holds the desired output.
 			if ( localSpatial <= 0f ) return;
 
@@ -541,7 +560,7 @@ public partial class Mixer
 		}
 
 		var soundDirectionLocal = mixTransform.PointToLocal( vs.Position );
-		var spacial = vs.SpacialBlend * Spacializing;
+		var spacial = vs.SpacialBlend * Spatializing;
 
 		var soundDistance = soundDirectionLocal.Length;
 		if ( soundDistance < 32.0f )
@@ -555,7 +574,7 @@ public partial class Mixer
 		EnsureBinauralInputBuffer( 2 );
 		_binauralInput.CopyFrom( inputoutput );
 
-		bool useNearest = vs.IsVoice || vs.Loopback || spacial < 0.5f || soundDistance > 2000f;
+		bool useNearest = vs.IsVoice || vs.Loopback || spacial < 0.5f || soundDistance > 1500f;
 		binaural.Apply( soundDirectionLocal, spacial, useNearest, _binauralInput, inputoutput );
 	}
 

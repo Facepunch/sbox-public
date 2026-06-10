@@ -1,0 +1,81 @@
+@import "/styles/_theme.scss";
+
+PackageChanges
+{
+    flex-direction: column;
+    padding: 1.5rem 2rem;
+    gap: 1.5rem;
+    overflow: hidden;
+    max-width: 100%;
+    overflow-y: scroll;
+    flex-shrink: 0;
+
+    .state
+    {
+        flex-grow: 1;
+        align-items: center;
+        justify-content: center;
+        padding: 4rem;
+        color: $default-400;
+        font-size: $text-regular;
+    }
+    // A single changelist: sticky meta column on the left, categorised entries on the right.
+    .changelistgroup
+    {
+        flex-direction: row;
+        flex-shrink: 0;
+        gap: 1.5rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid $default-border;
+
+        &:last-child
+        {
+            border-bottom-width: 0;
+        }
+    }
+
+    .meta-column
+    {
+        flex-direction: column;
+        flex-grow: 0;
+        flex-shrink: 0;
+        width: 180px;
+        align-items: flex-start;
+        gap: 8px;
+
+        .title
+        {
+            flex-shrink: 0;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: $default-text;
+            font-family: $font-heading;
+        }
+
+        .created
+        {
+            flex-shrink: 0;
+            color: $default-400;
+            font-size: $text-small;
+        }
+
+        .version
+        {
+            flex-shrink: 0;
+            padding: 2px 14px;
+            border-radius: $rounding-large;
+            color: $default-text;
+            font-weight: 600;
+            font-size: $text-small;
+            background-image: linear-gradient( 45deg, rgba( $primary-blue, 0.4 ), rgba( $primary-blue, 0.7 ), rgba( $primary-blue, 0.4 ) );
+            border: 1px solid rgba( $primary-blue, 0.5 );
+        }
+    }
+
+    .changes
+    {
+        flex-direction: column;
+        flex-grow: 1;
+        flex-shrink: 0;
+    }
+}

@@ -113,6 +113,9 @@ public partial class Styles : BaseStyles
 
 	internal bool SetInternal( string styles, string filename, int lineoffset )
 	{
+		if ( string.IsNullOrWhiteSpace( styles ) )
+			return false;
+
 		bool success = false;
 
 		Parse p = new( styles, filename, lineoffset );
@@ -167,6 +170,9 @@ public partial class Styles : BaseStyles
 
 	public bool Set( string styles )
 	{
+		if ( string.IsNullOrWhiteSpace( styles ) )
+			return false;
+
 		return SetInternal( styles, null, 0 );
 	}
 

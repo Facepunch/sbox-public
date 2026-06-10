@@ -119,6 +119,8 @@ native static class MeshGlue as NativeEngine.MeshGlue
 	void SetMeshVertexRange( IMesh renderMesh, int startVertex, int vertexCount );
 	void SetMeshIndexRange( IMesh renderMesh, int startIndex, int indexCount );
 
+	int AddMeshDrawCall( IMesh renderMesh, IMaterial material, int nPrimType, int startIndex, int indexCount, int startVertex, int vertexCount );
+
 	void SetMeshVertexBuffer( IMesh renderMesh, VertexBufferHandle_t hVB, void* pData, int nDataSize );
 	void SetMeshIndexBuffer( IMesh renderMesh, IndexBufferHandle_t hIB, void* pData, int nDataSize );
 

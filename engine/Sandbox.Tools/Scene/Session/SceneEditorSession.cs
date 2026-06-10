@@ -279,9 +279,16 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	}
 
 	bool unsavedChanges;
+
+	/// <summary>
+	/// True if this session is editing a scene opened from a mount. Mounted scenes live at a
+	/// read-only mount:// path, so they can't be saved and never report unsaved changes.
+	/// </summary>
+	public bool IsMounted => Sandbox.Mounting.MountUtility.IsMountPath( Scene?.Source?.ResourcePath );
+
 	public bool HasUnsavedChanges
 	{
-		get => unsavedChanges;
+		get => unsavedChanges && !IsMounted;
 		set
 		{
 			editedScenes.Add( this );
@@ -309,6 +316,10 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 
 	public void Save( bool saveAs )
 	{
+		// Mounted scenes live at a read-only mount:// path - they can't be saved or saved as.
+		if ( IsMounted )
+			return;
+
 		bool isPrefab = Scene is PrefabScene;
 		string extension = isPrefab ? "prefab" : "scene";
 		string fileType = isPrefab ? "Prefab" : "Scene";
@@ -467,6 +478,10 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	public static SceneEditorSession CreateFromPath( string path )
 	{
 		var resource = ResourceLibrary.Get<Resource>( path );
+
+		// Not loaded yet? It might be a mounted scene/prefab.
+		resource ??= SceneFile.Load( path );
+		resource ??= PrefabFile.Load( path );
 
 		if ( resource is SceneFile sceneFile )
 		{

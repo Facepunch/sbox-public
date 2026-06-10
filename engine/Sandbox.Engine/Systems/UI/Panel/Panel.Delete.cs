@@ -61,6 +61,7 @@ public partial class Panel
 		try
 		{
 			RemoveFromLists();
+			RemoveFromSceneIndex();
 
 			Task.Expire();
 

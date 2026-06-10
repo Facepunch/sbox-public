@@ -1,0 +1,27 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using System.Collections.Immutable;
+@namespace Sandbox.UI
+@inherits Panel
+
+@* Renders a package's flair (icon + tooltip badges) over its thumbnail.
+   Generic - it just walks the Flair list, so new flair kinds show up
+   without touching this component. Matches the web version. *@
+
+@if (Flair.Length > 0)
+{
+    <root>
+        @foreach (var flair in Flair)
+        {
+            <div class="flair flair-@flair.Kind" style="@flair.Style" tooltip="@flair.Tooltip">
+                <icon>@flair.Icon</icon>
+            </div>
+        }
+    </root>
+}
+
+@code {
+    [Parameter] public ImmutableArray<Package.PackageFlair> Flair { get; set; } = ImmutableArray<Package.PackageFlair>.Empty;
+
+    protected override int BuildHash() => Flair.Length;
+}

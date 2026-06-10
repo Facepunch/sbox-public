@@ -43,6 +43,13 @@ public class PackageDto
 	public PackageInteraction Interaction { get; set; }
 
 	/// <summary>
+	/// Small icon badges shown over the thumbnail — workshop-approved,
+	/// updated-since-you-played, etc. Intrinsic flair is cached; player-specific
+	/// flair is layered on per request. Never null.
+	/// </summary>
+	public List<PackageFlair> Flair { get; set; } = new();
+
+	/// <summary>
 	/// For games only, information about the loadingscreen
 	/// </summary>
 	public LoadingScreenSetup LoadingScreen { get; set; }
@@ -56,6 +63,12 @@ public class PackageDto
 	/// The latest news post
 	/// </summary>
 	public NewsPostDto LatestNews { get; set; }
+
+	/// <summary>
+	/// The 5 most recent visible changelists (summary only: id/title/version/date). Full detail is
+	/// available via the package/changelists API.
+	/// </summary>
+	public ChangeListSummary[] Changelists { get; set; } = [];
 
 	/// <summary>
 	/// What fraction of users got errors in the last day

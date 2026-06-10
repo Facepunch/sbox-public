@@ -27,7 +27,7 @@
                 </Content>
             </PortalButton>
 
-            <PortalButton Portal=@Portal>
+            <PortalButton @ref=ReviewsTab Portal=@Portal>
                 <Button>
                     <SearchlightTab Title="Reviews" Icon="reviews" />
                 </Button>
@@ -35,6 +35,18 @@
                     <PackageReviews Package=@Package />
                 </Content>
             </PortalButton>
+
+            @if (Package.LatestChangeLists.Length > 0)
+            {
+                <PortalButton @ref=ChangesTab Portal=@Portal>
+                    <Button>
+                        <SearchlightTab Title="Changes" Icon="history" />
+                    </Button>
+                    <Content>
+                        <PackageChanges Package=@Package />
+                    </Content>
+                </PortalButton>
+            }
 
             @if (Package.LatestNewsPost is not null)
             {
@@ -50,7 +62,7 @@
 
         </Tabs>
         <Left>
-            <PackageInfoPanel Package="@Package" />
+            <PackageInfoPanel Package="@Package" OnChangelogClicked="@(() => ChangesTab?.ActivatePage())" OnReviewsClicked="@(() => ReviewsTab?.ActivatePage())" />
 
             @if (achList is not null)
             {
@@ -88,6 +100,8 @@
 
     AchievementCollection achList;
     PortalTarget Portal = default;
+    PortalButton ChangesTab = default;
+    PortalButton ReviewsTab = default;
 
 	public List<LobbyInformation> Lobbies = new();
 

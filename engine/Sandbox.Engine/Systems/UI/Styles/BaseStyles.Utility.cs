@@ -22,7 +22,16 @@ namespace Sandbox.UI
 
 		static float? ParseSeconds( string value )
 		{
-			if ( value.EndsWith( 's' ) )
+			value = value.Trim();
+
+			// Milliseconds - must be checked before the bare 's' suffix since "200ms" also ends in 's'.
+			if ( value.EndsWith( "ms" ) )
+			{
+				var ms = ParseFloat( value.Substring( 0, value.Length - 2 ) );
+				return ms.HasValue ? ms.Value / 1000.0f : default;
+			}
+
+			if ( value.EndsWith( "s" ) )
 			{
 				return ParseFloat( value.Substring( 0, value.Length - 1 ) );
 			}
@@ -32,10 +41,20 @@ namespace Sandbox.UI
 
 		static float? ParseAspectRatio( string value )
 		{
+			value = value.Trim();
+
+			// 'auto' on its own means no forced ratio; 'auto 16/9' means fall back to the given ratio.
+			if ( value.StartsWith( "auto", System.StringComparison.OrdinalIgnoreCase ) )
+			{
+				value = value.Substring( 4 ).Trim();
+				if ( value.Length == 0 ) return null;
+			}
+
 			var vals = value.Split( new[] { ' ', ':', '/' }, StringSplitOptions.RemoveEmptyEntries );
+			if ( vals.Length == 0 ) return null;
 			if ( vals.Length == 1 )
 			{
-				return ParseFloat( value );
+				return ParseFloat( vals[0] );
 			}
 			return ParseFloat( vals[0] ) / ParseFloat( vals[1] );
 		}

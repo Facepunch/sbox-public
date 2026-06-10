@@ -27,7 +27,14 @@ public partial class Panel
 		}
 		set
 		{
+			bool had = _class != null && _class.Count > 0;
+
 			_class?.Clear();
+			_classes = null;
+
+			if ( had )
+				StyleSelectorsChanged( true, true );
+
 			AddClass( value );
 		}
 	}

@@ -26,6 +26,8 @@ public partial class SoundHandle : IValid, IDisposable
 	internal ReverbSnapshot SourceRoom { get; set; }
 	internal int OcclusionPhase { get; set; } = -1;
 	internal int DiffractionTick;
+	internal RealTimeUntil ReverbTailUntil;
+	internal bool SamplerEnded;
 
 	internal NativeReverbEffect GetOrCreateReverb()
 	{
@@ -143,18 +145,35 @@ public partial class SoundHandle : IValid, IDisposable
 	public bool Finished { get; set; }
 
 	/// <summary>
-	/// Enable the sound reflecting off surfaces.
+	/// Enable reverb simulation for this sound (reflections/late reverb).
 	/// </summary>
-	public bool Reflections { get; set; } = true;
+	public bool ReverbEnabled { get; set; } = true;
+
+	/// <summary>Legacy alias for <see cref="ReverbEnabled"/>.</summary>
+	[Obsolete( "Use ReverbEnabled instead." )]
+	public bool Reflections
+	{
+		get => ReverbEnabled;
+		set => ReverbEnabled = value;
+	}
 
 	/// <summary>
 	/// Allow this sound to be occluded by geometry etc
 	/// </summary>
-	public bool Occlusion { get; set; } = true;
+	public bool OcclusionEnabled { get; set; } = true;
+
+	/// <summary>Legacy alias for <see cref="OcclusionEnabled"/>.</summary>
+	[Obsolete( "Use OcclusionEnabled instead." )]
+	public bool Occlusion
+	{
+		get => OcclusionEnabled;
+		set => OcclusionEnabled = value;
+	}
 
 	/// <summary>
-	/// Legacy occlusion radius setting. Retained for compatibility but not used by the simulation.
+	/// Legacy occlusion radius setting. No longer used by the simulation.
 	/// </summary>
+	[Obsolete( "OcclusionRadius is no longer used by the simulation." ), Hide]
 	public float OcclusionRadius { get; set; } = 32.0f;
 
 	/// <summary>
@@ -165,7 +184,7 @@ public partial class SoundHandle : IValid, IDisposable
 	/// <summary>
 	/// How much this sound contributes to room reverb. 1 = full reverb, 0 = completely dry.
 	/// </summary>
-	public float ReverbAmount { get; set; } = 1.0f;
+	public float Reverb { get; set; } = 1.0f;
 
 	/// <summary>
 	/// Should the sound get absorbed by air, so it sounds different at distance
@@ -226,6 +245,9 @@ public partial class SoundHandle : IValid, IDisposable
 	[Obsolete( "Use Time instead" )]
 	public float ElapsedTime => Time;
 
+	int _pendingSeekSample = -1;
+	int _lastSamplePosition;
+
 	/// <summary>
 	/// The current time of the playing sound in seconds.
 	/// Note: for some formats seeking may be expensive, and some may not support it at all.
@@ -237,13 +259,30 @@ public partial class SoundHandle : IValid, IDisposable
 			if ( IsStopped ) return 0.0f;
 			if ( sampler is null ) return 0.0f;
 
-			return SampleRate > 0 ? sampler.SamplePosition / (float)SampleRate : 0.0f;
+			return SampleRate > 0 ? System.Threading.Volatile.Read( ref _lastSamplePosition ) / (float)SampleRate : 0.0f;
 		}
 		set
 		{
 			if ( sampler is null ) return;
 
-			sampler.SamplePosition = (int)(value * SampleRate);
+			int sample = (int)(value * SampleRate);
+			// Publish the seek intent first so a mix in-flight picks it up; reflect it immediately on the getter.
+			System.Threading.Interlocked.Exchange( ref _pendingSeekSample, sample );
+			System.Threading.Volatile.Write( ref _lastSamplePosition, sample );
+		}
+	}
+
+	/// <summary>Mix-thread: apply any pending seek, sample, then publish the position back to the main thread.</summary>
+	internal void SampleWithSeek( AudioSampler s, float pitch )
+	{
+		int pending = System.Threading.Interlocked.Exchange( ref _pendingSeekSample, -1 );
+		if ( pending >= 0 ) s.SamplePosition = pending;
+
+		s.Sample( pitch );
+
+		if ( System.Threading.Volatile.Read( ref _pendingSeekSample ) < 0 )
+		{
+			System.Threading.Volatile.Write( ref _lastSamplePosition, s.SamplePosition );
 		}
 	}
 
@@ -553,7 +592,7 @@ public partial class SoundHandle : IValid, IDisposable
 			LipSync = LipSync,
 			Handle = this,
 			Reverb = reverb,
-			ReverbRoom = Reflections && reverb is not null ? SourceRoom : default,
+			ReverbRoom = ReverbEnabled && reverb is not null ? SourceRoom : default,
 		};
 	}
 

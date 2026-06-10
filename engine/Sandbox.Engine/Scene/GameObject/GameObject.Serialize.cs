@@ -323,7 +323,7 @@ public partial class GameObject
 			{
 				InitPrefabInstance( prefabSource, true );
 
-				var prefabFile = ResourceLibrary.Get<PrefabFile>( PrefabInstance.PrefabSource );
+				var prefabFile = PrefabFile.Load( PrefabInstance.PrefabSource );
 				if ( !IsPrefabLoaded( prefabFile ) )
 				{
 					PostDeserialize( options );
@@ -343,7 +343,7 @@ public partial class GameObject
 		{
 			InitPrefabInstance( prefabSource, false );
 
-			var prefabFile = ResourceLibrary.Get<PrefabFile>( PrefabInstance.PrefabSource );
+			var prefabFile = PrefabFile.Load( PrefabInstance.PrefabSource );
 			if ( !IsPrefabLoaded( prefabFile ) )
 			{
 				// Preserve patch and GUID mappings so the instance data survives save/load round-trips
@@ -771,7 +771,7 @@ public partial class GameObject
 	{
 		if ( variables is null || variables.Count == 0 ) return;
 
-		var prefabFile = ResourceLibrary.Get<PrefabFile>( PrefabInstance.PrefabSource );
+		var prefabFile = PrefabFile.Load( PrefabInstance.PrefabSource );
 		if ( prefabFile is null ) return;
 
 		var prefabScene = SceneUtility.GetPrefabScene( prefabFile );
@@ -818,8 +818,7 @@ public partial class GameObject
 	{
 		if ( IsPrefabInstanceRoot )
 		{
-			var prefabFile = ResourceLibrary.Get<PrefabFile>( PrefabInstanceSource );
-
+			var prefabFile = PrefabFile.Load( PrefabInstanceSource );
 			if ( prefabFile is null )
 			{
 				Log.Warning( $"Unable to find prefab source file: \"{PrefabInstanceSource}\"." );

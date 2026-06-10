@@ -14,8 +14,10 @@ public static partial class SceneExtensions
 	{
 		var menu = new Editor.Menu( parent );
 
+		var isMounted = Sandbox.Mounting.MountUtility.IsMountPath( scene.Source?.ResourcePath );
+
 		menu.AddOption( "Save", "save", action: () => scene.Editor?.Save( false ) ).Enabled = (scene.Editor?.HasUnsavedChanges ?? false) && scene.Source is not null;
-		menu.AddOption( "Save Scene As..", action: () => scene.Editor?.Save( true ) );
+		menu.AddOption( "Save Scene As..", action: () => scene.Editor?.Save( true ) ).Enabled = !isMounted;
 
 		return menu;
 

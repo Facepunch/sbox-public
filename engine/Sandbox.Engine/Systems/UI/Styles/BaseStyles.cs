@@ -41,6 +41,11 @@ public abstract partial class BaseStyles : ICloneable
 		if ( bs._maskImage != null ) _maskImage = bs._maskImage;
 		if ( bs._borderImageSource != null ) _borderImageSource = bs._borderImageSource;
 		if ( bs._backgroundPlaybackPaused.HasValue ) _backgroundPlaybackPaused = bs._backgroundPlaybackPaused;
+
+		if ( CssWide != null || bs.CssWide != null )
+			MergeCssWide( bs );
+
+		if ( bs.HasCurrentColor ) HasCurrentColor = true;
 	}
 
 	/// <summary>
@@ -54,6 +59,9 @@ public abstract partial class BaseStyles : ICloneable
 		_maskImage = bs._maskImage;
 		_borderImageSource = bs._borderImageSource;
 		_backgroundPlaybackPaused = bs._backgroundPlaybackPaused;
+
+		CssWide = bs.CssWide == null ? null : new System.Collections.Generic.Dictionary<string, CssWideKeyword>( bs.CssWide );
+		HasCurrentColor = bs.HasCurrentColor;
 	}
 
 	/// <summary>
@@ -93,7 +101,9 @@ public abstract partial class BaseStyles : ICloneable
 			case "hidden":
 				set( OverflowMode.Hidden );
 				return true;
+			case "auto":
 			case "scroll":
+				// We have no "scroll only when needed" mode, so auto maps to scroll.
 				set( OverflowMode.Scroll );
 				return true;
 			case "clip":

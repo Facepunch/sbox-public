@@ -223,7 +223,7 @@ public class GenericPicker : AssetPicker
 
 	void Highlight( IEnumerable<IAssetListEntry> entries )
 	{
-		if ( entries.Any( x => x is not AssetEntry or PackageEntry ) )
+		if ( entries.Any( x => x is not AssetEntry ) )
 		{
 			// not something we can pick
 			ConfirmButton.Enabled = false;

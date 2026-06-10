@@ -40,6 +40,13 @@
                 }
             }
 
+            @if ( Package.Info.IsStreamerGame )
+            {
+                var text = Streamer.IsActive ? $"{Streamer.ViewerCount} Viewers" : "Stream Setup";
+
+                <Button Active=@Streamer.IsActive Text="@text" Icon="settings_input_antenna" class="streaming" @onclick="@(() => Game.Overlay.ShowServiceConnector())"></Button>
+            }
+
             @if (IsVrOnly && !Application.IsVR)
             {
                 <Button icon="panorama_photosphere" class="play disabled">VR Only</Button>
@@ -54,13 +61,11 @@
 	            {
 		            var text = ((!IsMultiplayerGame || IsQuickPlayGame) ? "Play Game" : "New Game");
 
-					<Button Icon="play_arrow" class="play" Disabled=@(!MenuHelpers.HasAuthority || !IsReady()) onclick=@OnPlay>
-			            @text
-		            </Button>
+                    <Button Icon="play_arrow" class="play" Text=@text Disabled=@(!MenuHelpers.HasAuthority || !IsReady()) onclick=@OnPlay />
 
 		            @if (IsMultiplayerGame && !IsQuickPlayGame)
 		            {
-						<Button icon="auto_awesome" class="play" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OnJoinGame>Join Game</Button>
+                        <Button icon="auto_awesome" class="play" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OnJoinGame Text="Join Game"></Button>
 		            }
 	            }
             }
@@ -79,17 +84,17 @@
     [Parameter] public Package Package {get;set;}
     [Parameter] public Package MapPackage { get; set; }
 
-    protected override int BuildHash() => System.HashCode.Combine(Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority);
+    protected override int BuildHash() => System.HashCode.Combine(Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority, Streamer.IsActive, Streamer.ViewerCount);
 
-    bool IsVrOnly => Package.GetMeta<ControlModeSettings>("ControlModes")?.IsVROnly ?? false;
-    bool IsMultiplayerGame => Package.Tags.Contains("multiplayer") || LobbyCount > 0 || Package.GetMeta<int>("MaxPlayers", 1) > 1;
-    bool IsQuickPlayGame => Package.GetMeta( "LaunchMode", "default" ).ToLower() == "quickplay";
-    bool IsDedicatedServerOnly => Package.GetMeta( "LaunchMode", "default" ).ToLower() == "dedicatedserveronly";
+    bool IsVrOnly => Package.Info.IsVrOnly;
+    bool IsMultiplayerGame => Package.Tags.Contains("multiplayer") || LobbyCount > 0 || Package.Info.MaxPlayers > 1;
+    bool IsQuickPlayGame => Package.Info.IsQuickPlay;
+    bool IsDedicatedServerOnly => Package.Info.IsDedicatedServerOnly;
     int LobbyCount => Modal?.Lobbies?.Count() ?? 0;
 
     protected override async Task OnParametersSetAsync()
     {
-        var map = Package.GetValue("DefaultMap", "");
+        var map = Package.Info.DefaultMap;
         if ( !string.IsNullOrWhiteSpace(map ) )
         {
             MapPackage = await Package.FetchAsync(map, false);
@@ -132,17 +137,16 @@
     {
         if (Package is null) return false;
 
-        if ( Package.GetValue( "UseCreateGameModal", false ) )
+        if ( Package.Info.UsesCreateGameModal )
             return false;
 
-        var settings = Package.GetMeta<List<GameSetting>>( "GameSettings", null );
-        if ( settings is not null && settings.Count > 0 )
+        if ( Package.Info.HasGameSettings )
             return false;
 
-        if (Package.GetValue("NeedsMap", false)) return true;
+        if ( Package.Info.NeedsMap ) return true;
 
         // legacy
-        var launchMode = Package.GetMeta("LaunchMode", "default");
+        var launchMode = Package.Info.LaunchMode;
         return string.Equals(launchMode, "launcher", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -154,7 +158,7 @@
 
     void SelectMap()
     {
-        var mapTarget = Package.GetValue("MapTarget", Package.FullIdent);
+        var mapTarget = Package.Info.MapTarget;
 
         Game.Overlay.ShowPackageSelector($"type:map sort:popular target:{mapTarget}", (pkg) =>
         {

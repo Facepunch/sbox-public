@@ -592,6 +592,9 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// </summary>
 	public Ray GetRay( Vector2 cursorPosition, Vector3 screenSize )
 	{
+		if ( screenSize.x <= 0.0f || screenSize.y <= 0.0f )
+			return new Ray( Position, Rotation.Forward );
+
 		if ( !Ortho )
 		{
 			var aspect = screenSize.x / screenSize.y;

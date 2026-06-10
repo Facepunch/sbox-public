@@ -7,30 +7,28 @@ partial class SoundSimulationSystem
 	[ConVar] internal static bool snd_occlusion_enable { get; set; } = true;
 	[ConVar] internal static bool snd_diffraction_enable { get; set; } = true;
 
-	const int OcclusionRays = 3;
 	const int DiffractionRays = 10;
 
 	const float GoldenAngle = 2.399963f;
 	const float OriginOffset = 1f;
-	const int MaxOcclusionHits = 5;
+	const float OcclusionJitter = 64f;
+	const float OcclusionJitterMaxDist = 1378f; // ~35m; beyond this the jitter is noise vs. cost.
+	const float OcclusionStepPast = 6f;
+	const int MaxOcclusionHits = 3;
 	const int MaxOcclusionsPerFrame = 16;
-
-	[System.Runtime.CompilerServices.InlineArray( MaxOcclusionHits + 1 )]
-	private struct TraceResultBuffer { private PhysicsTraceResult _e; }
 
 	readonly ref struct TraceCtx
 	{
-		public readonly PhysicsWorld World;
+		// Prebuilt once per update with sim tags + escape filter applied; per trace we only set endpoints.
+		public readonly PhysicsTraceBuilder Trace;
 		public readonly ReadOnlySpan<PhysicsBody> SourceIgnore;
 		public readonly ReadOnlySpan<PhysicsBody> ListenerIgnore;
-		public readonly SoundHandle Handle;
 
-		public TraceCtx( PhysicsWorld world, ReadOnlySpan<PhysicsBody> sourceIgnore, ReadOnlySpan<PhysicsBody> listenerIgnore, SoundHandle handle )
+		public TraceCtx( in PhysicsTraceBuilder trace, ReadOnlySpan<PhysicsBody> sourceIgnore, ReadOnlySpan<PhysicsBody> listenerIgnore )
 		{
-			World = world;
+			Trace = trace;
 			SourceIgnore = sourceIgnore;
 			ListenerIgnore = listenerIgnore;
-			Handle = handle;
 		}
 	}
 
@@ -56,10 +54,7 @@ partial class SoundSimulationSystem
 		public float SourceRoomMfpUnits;
 		public float ListenerRoomMfpUnits;
 		public float Priority;
-		public EscapeBodyBuffer SourceEscapeBodies;
-		public int SourceEscapeCount;
-		public EscapeBodyBuffer ListenerEscapeBodies;
-		public int ListenerEscapeCount;
+		public int ListenerIndex;
 		public FrequencyBands Transmission;
 		public FrequencyBands Diffraction;
 		public bool DiffractionUpdated;
@@ -91,7 +86,8 @@ partial class SoundSimulationSystem
 
 		foreach ( var handle in _culledHandles )
 		{
-			if ( !handle.Occlusion ) continue;
+			if ( !handle.OcclusionEnabled ) continue;
+			if ( handle.TargetMixer is { } mixer && mixer.Occlusion <= 0f ) continue;
 
 			var soundPos = handle.Transform.Position;
 
@@ -116,8 +112,7 @@ partial class SoundSimulationSystem
 					SourceRoomMfpUnits = MathF.Max( handle.SourceRoom.MfpMeters * 39.37f, 128f ),
 					ListenerRoomMfpUnits = MathF.Max( ListenerRoom.MfpMeters * 39.37f, 128f ),
 					Priority = priority,
-					ListenerEscapeBodies = _listenerEscape[li].Buf,
-					ListenerEscapeCount = _listenerEscape[li].Count,
+					ListenerIndex = li,
 				} );
 			}
 		}
@@ -137,27 +132,29 @@ partial class SoundSimulationSystem
 	{
 		ref var u = ref System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _occPendingUpdates )[i];
 
-		u.SourceEscapeCount = GatherSourceEscapeBodies( u.SoundPosition, u.SourceEscapeBodies );
+		EscapeBodyBuffer sourceEscape = default;
+		int sourceEscapeCount = GatherSourceEscapeBodies( u.SoundPosition, sourceEscape );
+		ref var listenerEntry = ref System.Runtime.InteropServices.CollectionsMarshal.AsSpan( _listenerEscape )[u.ListenerIndex];
 
 		float dist = Vector3.DistanceBetween( u.SoundPosition, u.ListenerPosition );
 
-		var ctx = new TraceCtx( world,
-			((Span<PhysicsBody>)u.SourceEscapeBodies)[..u.SourceEscapeCount],
-			((Span<PhysicsBody>)u.ListenerEscapeBodies)[..u.ListenerEscapeCount],
-			u.Handle );
+		// Sim tags + escape filter resolved once for this update.
+		var trace = ApplySimulationTags( world.Trace, u.Handle );
+		trace.filterCallback = EscapeFilter;
 
-		int occRays = OcclusionRays;
-		occRays = (int)(occRays * (1f - (dist / 3937f).Clamp( 0f, 1f )));
+		var ctx = new TraceCtx( trace,
+			((Span<PhysicsBody>)sourceEscape)[..sourceEscapeCount],
+			((Span<PhysicsBody>)listenerEntry.Buf)[..listenerEntry.Count] );
 
-		u.Transmission = ComputeOcclusion( u.SoundPosition, u.ListenerPosition, occRays, u.SourceRoomMfpUnits,
+		u.Transmission = ComputeOcclusion( u.SoundPosition, u.ListenerPosition,
 			Random.Shared.NextSingle() * MathF.Tau, ctx, out u.Walls, out int directHops );
 
 		if ( snd_simulation_enable && snd_diffraction_enable && directHops > 0 && dist > 8f )
 		{
-			// Run diffraction on every other occlusion update for this source.
-			// Counted in selections (not frames) so throttling actually halves the work
+			// Run diffraction every 3rd occlusion update for this source.
+			// Counted in selections (not frames) so throttling actually applies
 			// regardless of how often the source is picked.
-			if ( (u.Handle.DiffractionTick++ & 1) != 0 ) return;
+			if ( u.Handle.DiffractionTick++ % 3 != 0 ) return;
 
 			int diffRays = DiffractionRays;
 			diffRays = (int)(diffRays * (1f - MathX.Remap( dist, 197f, 3000f, 0f, 1f ).Clamp( 0f, 1f )));
@@ -195,63 +192,44 @@ partial class SoundSimulationSystem
 
 	static bool LosBlocked( Vector3 from, Vector3 to, in TraceCtx ctx, ReadOnlySpan<PhysicsBody> ignoreNear, out Vector3 firstHit )
 	{
-		firstHit = to;
-		TraceResultBuffer hitBuf = default;
-		int hitCount = ApplySimulationTags( ctx.World.Trace.FromTo( from, to ), ctx.Handle ).RunAll( hitBuf );
-		float closestFrac = float.MaxValue;
-		bool blocked = false;
-		for ( int i = 0; i < hitCount; i++ )
+		// Filter skips escape bodies, so a single Run() returns the closest real blocker.
+		SetTraceIgnore( ignoreNear );
+		try
 		{
-			ref var hit = ref ((Span<PhysicsTraceResult>)hitBuf)[i];
-			if ( hit.HasTag( "world" ) || !IgnoredBody( hit.Body, ignoreNear ) )
-			{
-				if ( hit.Fraction < closestFrac )
-				{
-					closestFrac = hit.Fraction;
-					firstHit = hit.HitPosition;
-				}
-				blocked = true;
-			}
+			var hit = ctx.Trace.FromTo( from, to ).Run();
+			firstHit = hit.Hit ? hit.HitPosition : to;
+			return hit.Hit;
 		}
-		return blocked;
+		finally
+		{
+			ClearTraceIgnore();
+		}
 	}
 
 	static FrequencyBands ComputeOcclusion(
 		Vector3 source, Vector3 listener,
-		int probeCount, float sourceMfpUnits, float phiOffset,
+		float phiOffset,
 		in TraceCtx ctx, out float avgWalls, out int directHops )
 	{
 		source += Vector3.Up * OriginOffset;
 		listener += Vector3.Up * OriginOffset;
 
-		var directDir = (listener - source).Normal;
-		var directTx = OcclusionTrace( source - directDir * 0.05f, listener, ctx, out directHops );
+		// Jitter the source endpoint so grazing/edge cases average out over successive updates.
+		// Fall back to the un-jittered point if the jitter lands in solid. Skip both at long
+		// distance where the offset has negligible effect on the trace path.
+		var sourceJitter = source;
+		if ( Vector3.DistanceBetweenSquared( source, listener ) < OcclusionJitterMaxDist * OcclusionJitterMaxDist )
+		{
+			var jitterDir = new Vector3( MathF.Cos( phiOffset ), MathF.Sin( phiOffset ), 0f );
+			sourceJitter = source + jitterDir * OcclusionJitter;
+			if ( LosBlocked( source, sourceJitter, ctx, ctx.SourceIgnore ) ) sourceJitter = source;
+		}
+
+		var energy = OcclusionTrace( sourceJitter, listener, ctx, out directHops );
 		avgWalls = directHops;
 
 		if ( directHops == 0 ) return FrequencyBands.One;
-
-		var accum = directTx;
-		float totalWeight = 1f;
-		float wallAccum = directHops;
-		float dist = Vector3.DistanceBetween( source, listener );
-
-		for ( int i = 0; i < probeCount; i++ )
-		{
-			var (probePos, dir) = GetProbe( source, i, probeCount, phiOffset, sourceMfpUnits, dist, hemisphere: true, distFraction: 0.25f );
-
-			if ( LosBlocked( source, probePos, ctx, ctx.SourceIgnore ) ) continue;
-
-			var probeTx = OcclusionTrace( listener, probePos, ctx, out int probeWalls );
-			float cosAngle = Vector3.Dot( dir, directDir ).Clamp( -1f, 1f );
-			float w = MathX.Remap( cosAngle, 0f, 1f, 0.3f, 1.0f ) * (probeWalls == 0 ? 1.5f : 1f);
-
-			accum += probeTx * w;
-			wallAccum += probeWalls * w;
-			totalWeight += w;
-		}
-
-		avgWalls = wallAccum / totalWeight;
-		return FrequencyBands.Min( accum / totalWeight, FrequencyBands.One );
+		return FrequencyBands.Min( energy, FrequencyBands.One );
 	}
 
 	static FrequencyBands ComputeDiffraction(
@@ -327,25 +305,27 @@ partial class SoundSimulationSystem
 		var pos = start;
 		var dir = (end - start).Normal;
 
-		while ( true )
+		// Filter skips escape bodies, so every hit here is a real surface.
+		SetTraceIgnore( ctx.SourceIgnore, ctx.ListenerIgnore );
+		try
 		{
-			var tr = ApplySimulationTags( ctx.World.Trace.FromTo( pos, end ), ctx.Handle ).Run();
-			if ( !tr.Hit ) break;
-
-			if ( !tr.HasTag( "world" ) && (IgnoredBody( tr.Body, ctx.SourceIgnore ) || IgnoredBody( tr.Body, ctx.ListenerIgnore )) )
+			while ( true )
 			{
-				var next = tr.HitPosition + dir * 4f;
-				if ( Vector3.Dot( dir, end - next ) <= 0f ) break;
-				pos = next;
-				continue;
+				var tr = ctx.Trace.FromTo( pos, end ).Run();
+				if ( !tr.Hit ) break;
+
+				if ( ++hops > MaxOcclusionHits ) return FrequencyBands.Zero;
+				energy *= AcousticMaterial.GetTransmission( tr.Surface?.AudioSurface ?? AudioSurface.Generic );
+
+				// Step past this surface; the 6u gap keeps a thin double-wall or coincident shapes from counting twice.
+				var nextPos = tr.HitPosition + dir * OcclusionStepPast;
+				if ( Vector3.Dot( dir, end - nextPos ) <= 0f ) break;
+				pos = nextPos;
 			}
-
-			if ( ++hops > MaxOcclusionHits ) return FrequencyBands.Zero;
-			energy *= AcousticMaterial.GetTransmission( tr.Surface?.AudioSurface ?? AudioSurface.Generic );
-
-			var nextPos = tr.HitPosition + dir * 4f;
-			if ( Vector3.Dot( dir, end - nextPos ) <= 0f ) break;
-			pos = nextPos;
+		}
+		finally
+		{
+			ClearTraceIgnore();
 		}
 
 		return energy;

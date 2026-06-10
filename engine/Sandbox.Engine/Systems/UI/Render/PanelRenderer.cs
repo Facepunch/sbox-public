@@ -59,9 +59,9 @@ internal sealed partial class PanelRenderer
 			isWorldPanelContext = root.IsWorldPanel;
 			worldPanelMat = null;
 
-			if ( root is WorldPanel )
+			if ( root is WorldPanel worldPanel )
 			{
-				worldPanelMat = Sandbox.ScenePanelObject.BuildPanelToObjectMatrix();
+				worldPanelMat = Sandbox.ScenePanelObject.BuildPanelToWorldMatrix( worldPanel.Transform );
 			}
 
 			LayerStack?.Clear();

@@ -17,19 +17,14 @@ sealed class DspVolumeGameSystem : GameObjectSystem<DspVolumeGameSystem>
 	{
 		base.Dispose();
 
-		var gameMixer = Mixer.FindMixerByName( "Game" );
-		if ( gameMixer is null ) return;
-
-		foreach ( var processor in _entries.Values )
+		foreach ( var entry in _entries.Values )
 		{
-			gameMixer.RemoveProcessor( processor.processor );
+			entry.mixerHandle.Get()?.RemoveProcessor( entry.processor );
 		}
 	}
 
-	HashSet<string> _active { get; set; }
-
-	record class Entry( DspProcessor processor, bool active );
-	Dictionary<string, Entry> _entries = new();
+	record class Entry( DspProcessor processor, MixerHandle mixerHandle );
+	Dictionary<(string effect, MixerHandle mixer), Entry> _entries = new();
 
 	internal static bool IsActive { get; private set; }
 
@@ -40,11 +35,9 @@ sealed class DspVolumeGameSystem : GameObjectSystem<DspVolumeGameSystem>
 		if ( Scene.IsEditor )
 			return;
 
-		var gameMixer = Mixer.FindMixerByName( "Game" );
-		if ( gameMixer is null ) return;
-
 		int lastPriority = int.MinValue;
 		string found = default;
+		MixerHandle foundMixer = default;
 
 		foreach ( var volume in Scene.Volumes.FindAll<DspVolume>( Sound.Listener.Position ) )
 		{
@@ -55,45 +48,39 @@ sealed class DspVolumeGameSystem : GameObjectSystem<DspVolumeGameSystem>
 
 			lastPriority = priority;
 			found = volume.Dsp.Name;
+			foundMixer = volume.TargetMixer;
 		}
 
 		IsActive = !string.IsNullOrWhiteSpace( found );
 
-		if ( !string.IsNullOrWhiteSpace( found ) && !_entries.ContainsKey( found ) )
+		var activeKey = (found, foundMixer);
+
+		if ( !string.IsNullOrWhiteSpace( found ) && !_entries.ContainsKey( activeKey ) )
 		{
-			var processor = new DspProcessor();
+			var mixer = foundMixer.Get() ?? Mixer.FindMixerByName( "Game" );
+			if ( mixer is not null )
+			{
+				var processor = new DspProcessor();
 
-			processor.Effect = found;
-			processor.Mix = 0;
+				processor.Effect = found;
+				processor.Mix = 0;
 
-			gameMixer.AddProcessor( processor );
-			_entries[found] = new Entry( processor, true );
+				mixer.AddProcessor( processor );
+				_entries[activeKey] = new Entry( processor, foundMixer );
+			}
 		}
 
 		foreach ( var entry in _entries )
 		{
-			var mixTarget = found == entry.Key ? 1 : 0;
+			var mixTarget = entry.Key == activeKey ? 1 : 0;
 
 			entry.Value.processor.Mix = entry.Value.processor.Mix.Approach( mixTarget, Time.Delta );
 		}
 
 		foreach ( var entry in _entries.Where( x => x.Value.processor.Mix <= 0 ).ToArray() )
 		{
-			gameMixer.RemoveProcessor( entry.Value.processor );
+			entry.Value.mixerHandle.Get()?.RemoveProcessor( entry.Value.processor );
 			_entries.Remove( entry.Key );
 		}
-
-	}
-
-	private void TryAdd( string name )
-	{
-		if ( _active.Contains( name ) ) return;
-		_active.Add( name );
-	}
-
-	private void TryRemove( string name )
-	{
-		if ( !_active.Contains( name ) ) return;
-		_active.Remove( name );
 	}
 }

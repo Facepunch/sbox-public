@@ -94,9 +94,16 @@ file sealed record MemberProperty<T>( ITrackTarget Parent, MemberDescription Mem
 
 	private void SetInternal( object target, object? value )
 	{
+		// TODO: these special cases should be somewhere else!
+
 		if ( IsBoneTransformProperty( out var boneObject ) )
 		{
 			boneObject.Flags |= GameObjectFlags.ProceduralBone;
+		}
+
+		if ( value is null && TryGetNullReplacement( out var newValue ) )
+		{
+			value = newValue;
 		}
 
 		switch ( Member )
@@ -127,6 +134,23 @@ file sealed record MemberProperty<T>( ITrackTarget Parent, MemberDescription Mem
 		if ( (go.Flags & GameObjectFlags.Bone) == 0 ) return false;
 
 		boneObject = go;
+		return true;
+	}
+
+	private bool TryGetNullReplacement( [NotNullWhen( true )] out object? newValue )
+	{
+		// If this property represents GameObject.Parent, and the target object was created
+		// by TrackBinder.CreateTargets with a specific rootParent, get that rootParent to use
+		// instead of a null parent.
+
+		newValue = null;
+
+		if ( Name is not nameof( GameObject.Parent ) ) return false;
+		if ( Parent is not ITrackReference<GameObject> { Value: { } go } ) return false;
+		if ( go.GetComponentInParent<MoviePlayer>( includeDisabled: true ) is not { } player ) return false;
+		if ( !player.IsCreatedTarget( go ) ) return false;
+
+		newValue = player.CreatedTargetsRoot!;
 		return true;
 	}
 

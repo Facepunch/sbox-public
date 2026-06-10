@@ -275,7 +275,7 @@ public partial class Package
 		SentrySdk.AddBreadcrumb( $"Mounting {this.FullIdent}", "package.mount" );
 
 		int? version = Revision?.VersionId > 0 ? (int)Revision.VersionId : null;
-		var fs = await ServerPackages.Current.DownloadAndMount( FormatIdent( Org.Ident, Ident, version, !IsRemote ) );
+		var fs = await ServerPackages.DownloadAndMount( FormatIdent( Org.Ident, Ident, version, !IsRemote ) );
 		if ( fs is null ) return default;
 
 		if ( withCode )

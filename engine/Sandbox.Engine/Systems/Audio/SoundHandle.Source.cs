@@ -29,9 +29,9 @@ partial class SoundHandle
 	{
 		source.ListenLocal = ListenLocal;
 		source.AirAbsorption = AirAbsorption;
-		source.Occlusion = Occlusion;
+		source.Occlusion = OcclusionEnabled;
 		source.DistanceAttenuation = DistanceAttenuation;
-		source.ReverbAmount = ReverbAmount;
+		source.ReverbAmount = Reverb;
 		source.Distance = Distance;
 		source.Falloff = Falloff;
 		source.Update( Transform );

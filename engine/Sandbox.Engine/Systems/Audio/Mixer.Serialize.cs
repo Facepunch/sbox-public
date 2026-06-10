@@ -17,10 +17,11 @@ public partial class Mixer
 			js["Mute"] = Mute;
 			js["Solo"] = Solo;
 
-			js["Spacializing"] = Spacializing;
+			js["Spatializing"] = Spatializing;
 			js["MaxVoices"] = MaxVoices;
 			js["DistanceAttenuation"] = DistanceAttenuation;
 			js["Occlusion"] = Occlusion;
+			js["Reverb"] = Reverb;
 			js["AirAbsorption"] = AirAbsorption;
 
 #pragma warning disable CS0618
@@ -28,9 +29,8 @@ public partial class Mixer
 			js["OcclusionTags"] = (OcclusionTags?.IsEmpty ?? true) ? null : Json.ToNode( OcclusionTags );
 #pragma warning restore CS0618
 
-			js["OverrideSimulationTags"] = OverrideSimulationTags;
-			js["BlockingSimulationTags"] = (BlockingSimulationTags?.IsEmpty ?? true) ? null : Json.ToNode( BlockingSimulationTags );
-			js["IgnoredSimulationTags"] = (IgnoredSimulationTags?.IsEmpty ?? true) ? null : Json.ToNode( IgnoredSimulationTags );
+			js["BlockingTags"] = (BlockingTags?.IsEmpty ?? true) ? null : Json.ToNode( BlockingTags );
+			js["IgnoredTags"] = (IgnoredTags?.IsEmpty ?? true) ? null : Json.ToNode( IgnoredTags );
 
 
 			if ( Mixer.Default == this )
@@ -73,15 +73,14 @@ public partial class Mixer
 
 	protected void SetMasterSimulationTagDefaults()
 	{
-		OverrideSimulationTags = true;
-		BlockingSimulationTags.RemoveAll();
-		IgnoredSimulationTags.RemoveAll();
-		IgnoredSimulationTags.Add( "passaudio" );
-		IgnoredSimulationTags.Add( "passbullets" );
-		IgnoredSimulationTags.Add( "sky" );
-		IgnoredSimulationTags.Add( "playerclip" );
-		IgnoredSimulationTags.Add( "trigger" );
-		IgnoredSimulationTags.Add( "player" );
+		BlockingTags.RemoveAll();
+		IgnoredTags.RemoveAll();
+		IgnoredTags.Add( "passaudio" );
+		IgnoredTags.Add( "passbullets" );
+		IgnoredTags.Add( "sky" );
+		IgnoredTags.Add( "playerclip" );
+		IgnoredTags.Add( "trigger" );
+		IgnoredTags.Add( "player" );
 	}
 
 	public void Deserialize( JsonObject js, TypeLibrary typeLibrary )
@@ -97,10 +96,15 @@ public partial class Mixer
 			// for these tracks, turn all this fun spatial stuff off by default
 			bool is2d = Name == "Music" || Name == "UI";
 
-			Spacializing = (float)(js["Spacializing"] ?? (is2d ? 0.0f : 1.0f));
+			Spatializing = (float)(js["Spatializing"] ?? js["Spacializing"] ?? (is2d ? 0.0f : 1.0f));
 			DistanceAttenuation = (float)(js["DistanceAttenuation"] ?? (is2d ? 0.0f : 1.0f));
 			Occlusion = (float)(js["Occlusion"] ?? (is2d ? 0.0f : 1.0f));
+			Reverb = (float)(js["Reverb"] ?? 1.0f);
 			AirAbsorption = (float)(js["AirAbsorption"] ?? (is2d ? 0.0f : 1.0f));
+			// Legacy migration: drop deprecated Mixer.OcclusionEnabled/ReverbEnabled bools; if either was
+			// explicitly false in older resources, honour that by forcing the corresponding float to 0.
+			if ( !js.GetPropertyValue( "OcclusionEnabled", true ) ) Occlusion = 0f;
+			if ( !js.GetPropertyValue( "ReverbEnabled", true ) ) Reverb = 0f;
 			MaxVoices = js.GetPropertyValue( "MaxVoices", 64 );
 
 #pragma warning disable CS0618
@@ -115,12 +119,15 @@ public partial class Mixer
 			}
 #pragma warning restore CS0618
 
-			BlockingSimulationTags = js.GetPropertyValue<TagSet>( "BlockingSimulationTags", null ) ?? new();
-			IgnoredSimulationTags = js.GetPropertyValue<TagSet>( "IgnoredSimulationTags", null ) ?? new();
-			OverrideSimulationTags = js.GetPropertyValue( "OverrideSimulationTags", false );
+			BlockingTags = js.GetPropertyValue<TagSet>( "BlockingTags", null )
+				?? js.GetPropertyValue<TagSet>( "BlockingSimulationTags", null )
+				?? new();
+			IgnoredTags = js.GetPropertyValue<TagSet>( "IgnoredTags", null )
+				?? js.GetPropertyValue<TagSet>( "IgnoredSimulationTags", null )
+				?? new();
 
 			// Seed the master mixer's default simulation tag set when loading older resources.
-			if ( Parent == null && !js.ContainsKey( "OverrideSimulationTags" )
+			if ( Parent == null && !js.ContainsKey( "BlockingTags" ) && !js.ContainsKey( "IgnoredTags" )
 				&& !js.ContainsKey( "BlockingSimulationTags" ) && !js.ContainsKey( "IgnoredSimulationTags" ) )
 			{
 				SetMasterSimulationTagDefaults();

@@ -350,6 +350,18 @@ public partial struct Color : IEquatable<Color>
 	public static readonly Color Transparent = new Color( 0, 0, 0, 0 );
 
 	/// <summary>
+	/// Sentinel returned by <see cref="Parse(ref Parse, bool)"/> for the CSS <c>currentColor</c>
+	/// keyword. It can't be resolved at parse time (it means "this element's computed color"), so it's
+	/// carried as a NaN marker and replaced with the real color during the style cascade.
+	/// </summary>
+	internal static readonly Color CurrentColor = new Color( float.NaN, float.NaN, float.NaN, float.NaN );
+
+	/// <summary>
+	/// Whether a color is the <see cref="CurrentColor"/> sentinel (i.e. an unresolved currentColor).
+	/// </summary>
+	internal static bool IsCurrentColor( in Color c ) => float.IsNaN( c.r );
+
+	/// <summary>
 	/// String representation of the form "#RRGGBB[AA]".
 	/// </summary>
 	[JsonIgnore] public readonly string Hex => ToColor32().Hex;
@@ -751,6 +763,126 @@ public partial struct Color : IEquatable<Color>
 		{ "yellowgreen", "#9ACD32" },
 	};
 
+	// --- Modern CSS colour-space conversions (oklch / lab / hwb) -> sRGB ---
+
+	/// <summary>
+	/// Standard sRGB transfer function (linear -> gamma), with per-channel gamut clamp to [0,1].
+	/// </summary>
+	static float LinearToSrgb( double c )
+	{
+		if ( c <= 0.0 ) return 0.0f;
+		if ( c >= 1.0 ) return 1.0f;
+		return (float)(c <= 0.0031308 ? 12.92 * c : 1.055 * System.Math.Pow( c, 1.0 / 2.4 ) - 0.055);
+	}
+
+	/// <summary>
+	/// Reads an optional "/ alpha" component (number 0..1 or percentage). Defaults to 1.
+	/// </summary>
+	static float ReadOptionalAlpha( ref Parse p )
+	{
+		float alpha = 1.0f;
+		p = p.SkipWhitespaceAndNewlines( "/" );
+		if ( p.TryReadFloat( out float a ) )
+		{
+			alpha = a;
+			if ( p.Current == '%' ) { alpha /= 100.0f; p.Pointer++; }
+		}
+		return alpha;
+	}
+
+	/// <summary>
+	/// Converts oklch( L C H ) to sRGB. L in 0..1, C a chroma number, H in degrees.
+	/// Uses Bjorn Ottosson's OKLab matrices.
+	/// </summary>
+	static Color OklchToColor( double L, double C, double hDeg, float alpha )
+	{
+		double h = hDeg * (System.Math.PI / 180.0);
+		double a = C * System.Math.Cos( h );
+		double b = C * System.Math.Sin( h );
+
+		double l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+		double m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+		double s_ = L - 0.0894841775 * a - 1.2914855480 * b;
+
+		double l = l_ * l_ * l_;
+		double m = m_ * m_ * m_;
+		double s = s_ * s_ * s_;
+
+		double rl = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
+		double gl = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+		double bl = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
+
+		return new Color( LinearToSrgb( rl ), LinearToSrgb( gl ), LinearToSrgb( bl ), alpha );
+	}
+
+	/// <summary>
+	/// Converts lab( L a b ) to sRGB (CIELAB with a D65 white point). L in 0..100, a/b are numbers.
+	/// CSS Color 4 specifies D50 for lab(); we use D65 directly - identical for greys, slightly
+	/// different for very saturated colours.
+	/// </summary>
+	static Color LabToColor( double L, double aa, double bb, float alpha )
+	{
+		const double epsilon = 216.0 / 24389.0;
+		const double kappa = 24389.0 / 27.0;
+
+		double Xn = 0.3127 / 0.3290;
+		double Zn = (1.0 - 0.3127 - 0.3290) / 0.3290;
+
+		double fy = (L + 16.0) / 116.0;
+		double fx = aa / 500.0 + fy;
+		double fz = fy - bb / 200.0;
+
+		double fx3 = fx * fx * fx;
+		double fz3 = fz * fz * fz;
+
+		double xr = fx3 > epsilon ? fx3 : (116.0 * fx - 16.0) / kappa;
+		double yr = L > kappa * epsilon ? fy * fy * fy : L / kappa;
+		double zr = fz3 > epsilon ? fz3 : (116.0 * fz - 16.0) / kappa;
+
+		double X = xr * Xn;
+		double Y = yr;
+		double Z = zr * Zn;
+
+		double rl = 3.2409699419045226 * X - 1.5373831775700940 * Y - 0.4986107602930034 * Z;
+		double gl = -0.9692436362808796 * X + 1.8759675015077202 * Y + 0.0415550574071756 * Z;
+		double bl = 0.0556300796969936 * X - 0.2039769588889765 * Y + 1.0569715142428786 * Z;
+
+		return new Color( LinearToSrgb( rl ), LinearToSrgb( gl ), LinearToSrgb( bl ), alpha );
+	}
+
+	/// <summary>
+	/// Converts hwb( H W B ) to sRGB. H in degrees, W/B in 0..100. Defined directly in sRGB space
+	/// (no linear/gamma step).
+	/// </summary>
+	static Color HwbToColor( double hDeg, double whiteness, double blackness, float alpha )
+	{
+		double w = whiteness / 100.0;
+		double bk = blackness / 100.0;
+
+		if ( w + bk >= 1.0 )
+		{
+			float grey = (float)(w / (w + bk));
+			return new Color( grey, grey, grey, alpha );
+		}
+
+		double hue = hDeg % 360.0;
+		if ( hue < 0 ) hue += 360.0;
+
+		// Pure-hue channel (HSL with S=100%, L=50%).
+		double Channel( double n )
+		{
+			double k = (n + hue / 30.0) % 12.0;
+			return 0.5 - 0.5 * System.Math.Max( -1.0, System.Math.Min( System.Math.Min( k - 3.0, 9.0 - k ), 1.0 ) );
+		}
+
+		double scale = 1.0 - w - bk;
+		float r = (float)(Channel( 0.0 ) * scale + w);
+		float g = (float)(Channel( 8.0 ) * scale + w);
+		float b = (float)(Channel( 4.0 ) * scale + w);
+
+		return new Color( r, g, b, alpha );
+	}
+
 	/// <summary>
 	/// Parse the color from a string. Many common formats are supported.
 	/// </summary>
@@ -758,6 +890,9 @@ public partial struct Color : IEquatable<Color>
 	/// <returns>The parsed color if operation completed successfully.</returns>
 	public static Color? Parse( string value )
 	{
+		if ( string.IsNullOrWhiteSpace( value ) )
+			return default;
+
 		var p = new Parse( value );
 		return Parse( ref p );
 	}
@@ -783,6 +918,11 @@ public partial struct Color : IEquatable<Color>
 	internal static Color? Parse( ref Parse p, bool isColorFunction = false )
 	{
 		p = p.SkipWhitespaceAndNewlines();
+
+		// 'currentColor' resolves to the element's own computed color, which isn't known here - return
+		// a sentinel that the style cascade replaces later (see BaseStyles.ResolveCurrentColor).
+		if ( p.Is( "currentcolor", 0, true ) )
+			return CurrentColor;
 
 		if ( p.Current == '#' )
 		{
@@ -1029,6 +1169,126 @@ public partial struct Color : IEquatable<Color>
 
 			p = restoreP;
 
+		}
+
+		//
+		// oklch( L C H [ / A ] )
+		//
+		if ( p.Is( "oklch" ) )
+		{
+			var restoreP = p;
+			p.Pointer += 5;
+			p = p.SkipWhitespaceAndNewlines();
+
+			if ( p.Current == '(' )
+			{
+				p.Pointer++;
+				p = p.SkipWhitespaceAndNewlines();
+
+				if ( p.TryReadFloat( out float L ) )
+				{
+					if ( p.Current == '%' ) { L /= 100.0f; p.Pointer++; }
+
+					p = p.SkipWhitespaceAndNewlines( "," );
+					if ( !p.TryReadFloat( out float C ) ) return null;
+					if ( p.Current == '%' ) { C = C / 100.0f * 0.4f; p.Pointer++; }
+
+					p = p.SkipWhitespaceAndNewlines( "," );
+					if ( !p.TryReadFloat( out float H ) ) return null;
+					if ( p.IsLetter ) H = StyleHelpers.RotationDegrees( H, p.ReadUntilWhitespaceOrNewlineOrEnd( ")/" ) );
+
+					float alpha = ReadOptionalAlpha( ref p );
+
+					p = p.SkipWhitespaceAndNewlines();
+					if ( p.Is( ')' ) )
+					{
+						p.Pointer++;
+						return OklchToColor( L, C, H, alpha );
+					}
+				}
+			}
+
+			p = restoreP;
+		}
+
+		//
+		// lab( L a b [ / A ] )
+		//
+		if ( p.Is( "lab" ) )
+		{
+			var restoreP = p;
+			p.Pointer += 3;
+			p = p.SkipWhitespaceAndNewlines();
+
+			if ( p.Current == '(' )
+			{
+				p.Pointer++;
+				p = p.SkipWhitespaceAndNewlines();
+
+				if ( p.TryReadFloat( out float L ) )
+				{
+					if ( p.Current == '%' ) p.Pointer++;
+
+					p = p.SkipWhitespaceAndNewlines( "," );
+					if ( !p.TryReadFloat( out float A ) ) return null;
+					if ( p.Current == '%' ) { A = A / 100.0f * 125.0f; p.Pointer++; }
+
+					p = p.SkipWhitespaceAndNewlines( "," );
+					if ( !p.TryReadFloat( out float B ) ) return null;
+					if ( p.Current == '%' ) { B = B / 100.0f * 125.0f; p.Pointer++; }
+
+					float alpha = ReadOptionalAlpha( ref p );
+
+					p = p.SkipWhitespaceAndNewlines();
+					if ( p.Is( ')' ) )
+					{
+						p.Pointer++;
+						return LabToColor( L, A, B, alpha );
+					}
+				}
+			}
+
+			p = restoreP;
+		}
+
+		//
+		// hwb( H W B [ / A ] )
+		//
+		if ( p.Is( "hwb" ) )
+		{
+			var restoreP = p;
+			p.Pointer += 3;
+			p = p.SkipWhitespaceAndNewlines();
+
+			if ( p.Current == '(' )
+			{
+				p.Pointer++;
+				p = p.SkipWhitespaceAndNewlines();
+
+				if ( p.TryReadFloat( out float H ) )
+				{
+					if ( p.IsLetter ) H = StyleHelpers.RotationDegrees( H, p.ReadUntilWhitespaceOrNewlineOrEnd( ",)" ) );
+
+					p = p.SkipWhitespaceAndNewlines( "," );
+					if ( !p.TryReadFloat( out float W ) ) return null;
+					if ( p.Current == '%' ) p.Pointer++;
+
+					p = p.SkipWhitespaceAndNewlines( "," );
+					if ( !p.TryReadFloat( out float Bk ) ) return null;
+					if ( p.Current == '%' ) p.Pointer++;
+
+					float alpha = ReadOptionalAlpha( ref p );
+
+					p = p.SkipWhitespaceAndNewlines();
+					if ( p.Is( ')' ) )
+					{
+						p.Pointer++;
+						return HwbToColor( H, W, Bk, alpha );
+					}
+				}
+			}
+
+			p = restoreP;
 		}
 
 		//

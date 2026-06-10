@@ -21,6 +21,12 @@ public class SearchWidget : Widget
 	public string BaseQuery { get; set; } = string.Empty;
 	public string Query => $"{BaseQuery} {Value}".TrimStart();
 
+	public string PlaceholderText
+	{
+		get => LineEdit.PlaceholderText;
+		set { LineEdit.PlaceholderText = value; LineEdit.Update(); }
+	}
+
 	public Action ValueChanged;
 
 	public TagPicker AssetTypes;

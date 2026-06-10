@@ -47,15 +47,11 @@ public partial class PackageLoader
 	[DataRow( "playback.kitty_cinema" )]
 	[DataRow( "apetavern.grubs" )]
 	[DataRow( "swb.demo" )]
-	[DataRow( "fish.shoot_and_build" )]
 	[DataRow( "starpalms.europe_strike" )]
-	//[DataRow( "lfproject.slender_ep" )] // The type or namespace name 'INetworkSerializable' could not
-	[DataRow( "fish.deathcard" )]
 	[DataRow( "fdd.dark_descent" )]
 	[DataRow( "fish.cat_harvest" )]
 	[DataRow( "facepunch.sbdm" )]
 	[DataRow( "facepunch.sandbox" )]
-	//[DataRow( "nolankicks.dead4left2" )] // 'PlayerController' is an ambiguous reference between
 	public async Task LoadSingleGamePackage( string packageName )
 	{
 		var (library, packageLoader, enroller) = Preamble();

@@ -59,7 +59,7 @@
         if ( Package?.FullIdent == _gamePackageInitializedFor ) return;
         _gamePackageInitializedFor = Package?.FullIdent;
 
-        var target = this.Package.GetMeta<string>("ParentPackage", null);
+        var target = this.Package.Info.ParentPackage;
         if ( !string.IsNullOrWhiteSpace( target ) )
         {
             var package = await Package.FetchAsync( target, false );

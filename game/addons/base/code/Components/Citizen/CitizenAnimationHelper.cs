@@ -1,4 +1,4 @@
-using System;
+using System.Text.Json.Serialization;
 
 namespace Sandbox.Citizen;
 
@@ -12,10 +12,17 @@ namespace Sandbox.Citizen;
 [Alias( "CitizenAnimation" )]
 public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEditor
 {
+	SkinnedModelRenderer _target;
+
 	/// <summary>
 	/// The skinned model renderer that we'll apply all parameters to.
 	/// </summary>
-	[Property] public SkinnedModelRenderer Target { get; set; }
+	[Property]
+	public SkinnedModelRenderer Target
+	{
+		get => _target.IsValid() ? _target : null;
+		set => _target = value;
+	}
 
 	/// <summary>
 	/// Where are the eyes of our character?
@@ -30,17 +37,22 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// <summary>
 	/// Are we looking at something? Useful for stuff like cutscenes, where you want an NPC to stare at you.
 	/// </summary>
-	[Property, ToggleGroup( "LookAtEnabled", Label = "Look At" )]
+	[Property, FeatureEnabled( "Look At", Icon = "visibility" )]
 	public bool LookAtEnabled { get; set; } = false;
 
 	/// <summary>
-	/// Which GameObject should we be looking at?
+	/// Which GameObject should the head/body rotate towards? Eyes will also use this unless a separate eye target is set.
 	/// </summary>
-	[Property, ToggleGroup( "LookAtEnabled" )] public GameObject LookAt { get; set; }
+	[Property, Feature( "Look At", Icon = "visibility" ), Title( "Look At Target (Head)" )] public GameObject LookAt { get; set; }
 
-	[Property, ToggleGroup( "LookAtEnabled" ), Range( 0, 1 )] public float EyesWeight { get; set; } = 1.0f;
-	[Property, ToggleGroup( "LookAtEnabled" ), Range( 0, 1 )] public float HeadWeight { get; set; } = 1.0f;
-	[Property, ToggleGroup( "LookAtEnabled" ), Range( 0, 1 )] public float BodyWeight { get; set; } = 1.0f;
+	/// <summary>
+	/// Optional separate target for eye direction. If not set, the eyes will follow the main Look At target.
+	/// </summary>
+	[Property, Feature( "Look At", Icon = "visibility" ), Title( "Look At Target (Eyes)" )] public GameObject LookAtEyes { get; set; }
+
+	[Property, Feature( "Look At", Icon = "visibility" ), Range( 0, 1 )] public float EyesWeight { get; set; } = 1.0f;
+	[Property, Feature( "Look At", Icon = "visibility" ), Range( 0, 1 )] public float HeadWeight { get; set; } = 1.0f;
+	[Property, Feature( "Look At", Icon = "visibility" ), Range( 0, 1 )] public float BodyWeight { get; set; } = 1.0f;
 
 	/// <summary>
 	/// IK will try to place the limb where this GameObject is in the world.
@@ -61,12 +73,27 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 		if ( !Target.IsValid() )
 			return;
 
-		if ( LookAt.IsValid() && LookAtEnabled )
+		if ( LookAtEnabled )
 		{
 			var eyePos = EyeWorldTransform.Position;
 
-			var dir = (LookAt.WorldPosition - eyePos).Normal;
-			WithLook( dir, EyesWeight, HeadWeight, BodyWeight );
+			if ( LookAt.IsValid() )
+			{
+				var headDir = (LookAt.WorldPosition - eyePos).Normal;
+				Target.SetLookDirection( "aim_head", headDir, HeadWeight );
+				Target.SetLookDirection( "aim_body", headDir, BodyWeight );
+
+				// Use separate eye target if set, otherwise fall back to main LookAt
+				var eyeTarget = LookAtEyes.IsValid() ? LookAtEyes : LookAt;
+				var eyeDir = (eyeTarget.WorldPosition - eyePos).Normal;
+				Target.SetLookDirection( "aim_eyes", eyeDir, EyesWeight );
+			}
+			else if ( LookAtEyes.IsValid() )
+			{
+				// Only eye target is set, use it for everything
+				var eyeDir = (LookAtEyes.WorldPosition - eyePos).Normal;
+				WithLook( eyeDir, EyesWeight, HeadWeight, BodyWeight );
+			}
 		}
 
 		if ( Height.HasValue )
@@ -89,6 +116,8 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 
 	public void ProceduralHitReaction( DamageInfo info, float damageScale = 1.0f, Vector3 force = default )
 	{
+		if ( Target is null ) return;
+
 		var boneId = info.Hitbox?.Bone?.Index ?? 0;
 		var bone = Target.GetBoneObject( boneId );
 
@@ -121,9 +150,9 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// </summary>
 	public void WithLook( Vector3 lookDirection, float eyesWeight = 1.0f, float headWeight = 1.0f, float bodyWeight = 1.0f )
 	{
-		Target.SetLookDirection( "aim_eyes", lookDirection, eyesWeight );
-		Target.SetLookDirection( "aim_head", lookDirection, headWeight );
-		Target.SetLookDirection( "aim_body", lookDirection, bodyWeight );
+		Target?.SetLookDirection( "aim_eyes", lookDirection, eyesWeight );
+		Target?.SetLookDirection( "aim_head", lookDirection, headWeight );
+		Target?.SetLookDirection( "aim_body", lookDirection, bodyWeight );
 	}
 
 	/// <summary>
@@ -132,6 +161,8 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// <param name="Velocity"></param>
 	public void WithVelocity( Vector3 Velocity )
 	{
+		if ( Target is null ) return;
+
 		var dir = Velocity;
 		var forward = Target.WorldRotation.Forward.Dot( dir );
 		var sideward = Target.WorldRotation.Right.Dot( dir );
@@ -152,6 +183,8 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// <param name="Velocity"></param>
 	public void WithWishVelocity( Vector3 Velocity )
 	{
+		if ( Target is null ) return;
+
 		var dir = Velocity;
 		var forward = Target.WorldRotation.Forward.Dot( dir );
 		var sideward = Target.WorldRotation.Right.Dot( dir );
@@ -173,6 +206,8 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	{
 		set
 		{
+			if ( Target is null ) return;
+
 			value = Target.WorldRotation.Inverse * value;
 			var ang = value.Angles();
 
@@ -186,8 +221,8 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// </summary>
 	public float AimEyesWeight
 	{
-		get => Target.GetFloat( "aim_eyes_weight" );
-		set => Target.Set( "aim_eyes_weight", value );
+		get => Target?.GetFloat( "aim_eyes_weight" ) ?? 0f;
+		set => Target?.Set( "aim_eyes_weight", value );
 	}
 
 	/// <summary>
@@ -195,8 +230,8 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// </summary>
 	public float AimHeadWeight
 	{
-		get => Target.GetFloat( "aim_head_weight" );
-		set => Target.Set( "aim_head_weight", value );
+		get => Target?.GetFloat( "aim_head_weight" ) ?? 0f;
+		set => Target?.Set( "aim_head_weight", value );
 	}
 
 
@@ -205,8 +240,8 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// </summary>
 	public float AimBodyWeight
 	{
-		get => Target.GetFloat( "aim_body_weight" );
-		set => Target.Set( "aim_body_weight", value );
+		get => Target?.GetFloat( "aim_body_weight" ) ?? 0f;
+		set => Target?.Set( "aim_body_weight", value );
 	}
 
 	/// <summary>
@@ -215,24 +250,25 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// </summary>
 	public float MoveRotationSpeed
 	{
-		get => Target.GetFloat( "move_rotationspeed" );
-		set => Target.Set( "move_rotationspeed", value );
+		get => Target?.GetFloat( "move_rotationspeed" ) ?? 0f;
+		set => Target?.Set( "move_rotationspeed", value );
 	}
 
 	[Obsolete( "Use MoveRotationSpeed" )]
 	public float FootShuffle
 	{
-		get => Target.GetFloat( "move_shuffle" );
-		set => Target.Set( "move_shuffle", value );
+		get => Target?.GetFloat( "move_shuffle" ) ?? 0f;
+		set => Target?.Set( "move_shuffle", value );
 	}
 
 	/// <summary>
 	/// The scale of being ducked (crouched) (0 - 1)
 	/// </summary>
+	[Property, JsonIgnore, Group( "Movement" ), Range( 0, 1 )]
 	public float DuckLevel
 	{
-		get => Target.GetFloat( "duck" );
-		set => Target.Set( "duck", value );
+		get => Target?.GetFloat( "duck" ) ?? 0f;
+		set => Target?.Set( "duck", value );
 	}
 
 	/// <summary>
@@ -240,8 +276,8 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// </summary>
 	public float VoiceLevel
 	{
-		get => Target.GetFloat( "voice" );
-		set => Target.Set( "voice", value );
+		get => Target?.GetFloat( "voice" ) ?? 0f;
+		set => Target?.Set( "voice", value );
 	}
 
 	/// <summary>
@@ -249,26 +285,28 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// </summary>
 	public bool IsSitting
 	{
-		get => Target.GetBool( "b_sit" );
-		set => Target.Set( "b_sit", value );
+		get => Target?.GetBool( "b_sit" ) ?? false;
+		set => Target?.Set( "b_sit", value );
 	}
 
 	/// <summary>
 	/// Are we on the ground?
 	/// </summary>
+	[Property, JsonIgnore, Group( "Movement" )]
 	public bool IsGrounded
 	{
-		get => Target.GetBool( "b_grounded" );
-		set => Target.Set( "b_grounded", value );
+		get => Target?.GetBool( "b_grounded" ) ?? false;
+		set => Target?.Set( "b_grounded", value );
 	}
 
 	/// <summary>
 	/// Are we swimming?
 	/// </summary>
+	[Property, JsonIgnore, Group( "Movement" )]
 	public bool IsSwimming
 	{
-		get => Target.GetBool( "b_swim" );
-		set => Target.Set( "b_swim", value );
+		get => Target?.GetBool( "b_swim" ) ?? false;
+		set => Target?.Set( "b_swim", value );
 	}
 
 	/// <summary>
@@ -276,26 +314,28 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// </summary>
 	public bool IsClimbing
 	{
-		get => Target.GetBool( "b_climbing" );
-		set => Target.Set( "b_climbing", value );
+		get => Target?.GetBool( "b_climbing" ) ?? false;
+		set => Target?.Set( "b_climbing", value );
 	}
 
 	/// <summary>
 	/// Are we noclipping?
 	/// </summary>
+	[Property, JsonIgnore, Group( "Movement" )]
 	public bool IsNoclipping
 	{
-		get => Target.GetBool( "b_noclip" );
-		set => Target.Set( "b_noclip", value );
+		get => Target?.GetBool( "b_noclip" ) ?? false;
+		set => Target?.Set( "b_noclip", value );
 	}
 
 	/// <summary>
 	/// Is the weapon lowered? By default, this'll happen when the character hasn't been shooting for a while.
 	/// </summary>
+	[Property, JsonIgnore, Feature( "Weapon", Icon = "sports_martial_arts" )]
 	public bool IsWeaponLowered
 	{
-		get => Target.GetBool( "b_weapon_lower" );
-		set => Target.Set( "b_weapon_lower", value );
+		get => Target?.GetBool( "b_weapon_lower" ) ?? false;
+		set => Target?.Set( "b_weapon_lower", value );
 	}
 
 	public enum HoldTypes
@@ -314,10 +354,11 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// <summary>
 	/// What kind of weapon are we holding?
 	/// </summary>
+	[Property, JsonIgnore, Feature( "Weapon", Icon = "sports_martial_arts" )]
 	public HoldTypes HoldType
 	{
-		get => (HoldTypes)Target.GetInt( "holdtype" );
-		set => Target.Set( "holdtype", (int)value );
+		get => (HoldTypes)(Target?.GetInt( "holdtype" ) ?? 0);
+		set => Target?.Set( "holdtype", (int)value );
 	}
 
 	public enum Hand
@@ -330,10 +371,11 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// <summary>
 	/// What's the handedness of our weapon? Left handed, right handed, or both hands? This is only supported by some holdtypes, like Pistol, HoldItem.
 	/// </summary>
+	[Property, JsonIgnore, Feature( "Weapon", Icon = "sports_martial_arts" )]
 	public Hand Handedness
 	{
-		get => (Hand)Target.GetInt( "holdtype_handedness" );
-		set => Target.Set( "holdtype_handedness", (int)value );
+		get => (Hand)(Target?.GetInt( "holdtype_handedness" ) ?? 0);
+		set => Target?.Set( "holdtype_handedness", (int)value );
 	}
 
 	/// <summary>
@@ -341,7 +383,7 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// </summary>
 	public void TriggerJump()
 	{
-		Target.Set( "b_jump", true );
+		Target?.Set( "b_jump", true );
 	}
 
 	/// <summary>
@@ -349,7 +391,7 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// </summary>
 	public void TriggerDeploy()
 	{
-		Target.Set( "b_deploy", true );
+		Target?.Set( "b_deploy", true );
 	}
 
 	public enum MoveStyles
@@ -364,8 +406,8 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// </summary>
 	public MoveStyles MoveStyle
 	{
-		get => (MoveStyles)Target.GetInt( "move_style" );
-		set => Target.Set( "move_style", (int)value );
+		get => (MoveStyles)(Target?.GetInt( "move_style" ) ?? 0);
+		set => Target?.Set( "move_style", (int)value );
 	}
 
 	public enum SpecialMoveStyle
@@ -382,44 +424,43 @@ public sealed class CitizenAnimationHelper : Component, Component.ExecuteInEdito
 	/// <see cref="SpecialMoveStyle.Roll"/> is good for a platformer game where the character is rolling around continuously.
 	/// <see cref="SpecialMoveStyle.Slide"/> is good for a shooter game or a platformer where the character is sliding.
 	/// </summary>
+	[Property, Group( "Movement" )]
 	public SpecialMoveStyle SpecialMove
 	{
-		get => (SpecialMoveStyle)Target.GetInt( "special_movement_states" );
-		set => Target.Set( "special_movement_states", (int)value );
+		get => (SpecialMoveStyle)(Target?.GetInt( "special_movement_states" ) ?? 0);
+		set => Target?.Set( "special_movement_states", (int)value );
 	}
 
 	//Sitting
 	public enum SittingStyle
 	{
 		None,
-		Chair,
-		Floor
+		Chair1,
+		Chair2,
+		Chair3,
+		Floor1,
+		Floor2,
+		Floor3,
+		Floor4
 	}
 
 	/// <summary>
 	/// How are we sitting down?
 	/// </summary>
+	[Property, Feature( "Sitting", Icon = "chair" )]
 	public SittingStyle Sitting
 	{
-		get => (SittingStyle)Target.GetInt( "sit" );
-		set => Target.Set( "sit", (int)value );
+		get => (SittingStyle)(Target?.GetInt( "sit" ) ?? 0);
+		set => Target?.Set( "sit", (int)value );
 	}
 
 	/// <summary>
 	/// How far up are we sitting down from the floor?
 	/// </summary>
+	[Property, Feature( "Sitting", Icon = "chair" )]
 	public float SittingOffsetHeight
 	{
-		get => Target.GetFloat( "sit_offset_height" );
-		set => Target.Set( "sit_offset_height", value );
-	}
-
-	/// <summary>
-	/// From 0-1, how much are we actually sitting down.
-	/// </summary>
-	public float SittingPose
-	{
-		get => Target.GetFloat( "sit_pose" );
-		set => Target.Set( "sit_pose", value );
+		get => Target?.GetFloat( "sit_offset_height" ) ?? 0f;
+		set => Target?.Set( "sit_offset_height", value );
 	}
 }

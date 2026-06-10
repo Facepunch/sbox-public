@@ -119,4 +119,55 @@ public class Variables
 			Assert.AreEqual( Color.Red, sheet.Nodes[0].Styles.BackgroundColor.Value );
 		}
 	}
+
+	/// <summary>
+	/// Reparsing should keep injected variables.
+	/// </summary>
+	[TestMethod]
+	public void HotloadPreservesInjectedVariables()
+	{
+		var sheet = new StyleSheet();
+		sheet.AddVariables( new[] { ("$primary", "red") } );
+
+		sheet.UpdateFromString( ".btn { background-color: $primary; }" );
+
+		Assert.AreEqual( "red", sheet.GetVariable( "$primary" ) );
+		Assert.AreEqual( 1, sheet.Nodes.Count );
+	}
+
+	/// <summary>
+	/// "$col" shouldn't match the longer token "$color".
+	/// </summary>
+	[TestMethod]
+	public void ReplaceVariablesDoesNotMatchSubstringTokens()
+	{
+		var sheet = new StyleSheet();
+		sheet.SetVariable( "$col", "red" );
+
+		Assert.ThrowsException<System.Exception>( () => sheet.ReplaceVariables( "$color" ) );
+	}
+
+	/// <summary>
+	/// A literal "$" shouldn't throw.
+	/// </summary>
+	[TestMethod]
+	public void ReplaceVariablesIgnoresLiteralDollar()
+	{
+		var sheet = new StyleSheet();
+		sheet.SetVariable( "$primary", "red" );
+
+		Assert.AreEqual( "\"$5.00\"", sheet.ReplaceVariables( "\"$5.00\"" ) );
+	}
+
+	/// <summary>
+	/// GetVariable should return the default when the variable is missing.
+	/// </summary>
+	[TestMethod]
+	public void GetVariableReturnsDefaultWhenMissing()
+	{
+		var sheet = new StyleSheet();
+		sheet.SetVariable( "$known", "red" );
+
+		Assert.AreEqual( "fallback", sheet.GetVariable( "$missing", "fallback" ) );
+	}
 }

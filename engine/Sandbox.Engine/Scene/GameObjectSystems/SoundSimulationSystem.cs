@@ -24,10 +24,10 @@ internal sealed partial class SoundSimulationSystem : GameObjectSystem<SoundSimu
 		var mixer = handle?.GetEffectiveMixer() ?? Audio.Mixer.Master;
 		if ( mixer is null ) return t;
 
-		var blocking = mixer.GetBlockingSimulationTags();
+		var blocking = mixer.GetBlockingTags();
 		if ( blocking is { IsEmpty: false } ) t = t.WithAnyTags( blocking );
 
-		var ignored = mixer.GetIgnoredSimulationTags();
+		var ignored = mixer.GetIgnoredTags();
 		if ( ignored is { IsEmpty: false } ) t = t.WithoutTags( ignored );
 
 		return t;
@@ -43,10 +43,40 @@ internal sealed partial class SoundSimulationSystem : GameObjectSystem<SoundSimu
 	int GatherListenerEscapeBodies( Vector3 pos, Span<PhysicsBody> result ) => Scene.FindBodiesInPhysics( pos, 4f, result );
 	int GatherSourceEscapeBodies( Vector3 pos, Span<PhysicsBody> result ) => Scene.FindBodiesInPhysics( pos, 12f, result );
 
-	static bool IgnoredBody( PhysicsBody body, ReadOnlySpan<PhysicsBody> ignoreNear )
+	// Native trace filter that skips escape bodies, so a single Run() returns the closest real surface.
+	// Thread-static ignore set + cached static delegate => allocation-free and safe under parallel traces.
+	[ThreadStatic] static PhysicsBody[] _tlIgnore;
+	[ThreadStatic] static int _tlIgnoreCount;
+
+	internal static readonly Func<PhysicsShape, bool> EscapeFilter = ShouldHitEscape;
+
+	static bool ShouldHitEscape( PhysicsShape shape )
 	{
-		foreach ( var b in ignoreNear ) if ( b == body ) return true;
-		return false;
+		if ( shape.Tags.Has( "world" ) ) return true; // never escape through world
+
+		// SelfOrParent to match PhysicsTraceResult.Body / what the ignore set holds.
+		var body = shape.Body?.SelfOrParent;
+		for ( int i = 0; i < _tlIgnoreCount; i++ )
+			if ( _tlIgnore[i] == body ) return false;
+
+		return true;
+	}
+
+	// Stage the bodies to skip for this thread's next trace (one or two sets). Pair with ClearTraceIgnore.
+	static void SetTraceIgnore( ReadOnlySpan<PhysicsBody> a, ReadOnlySpan<PhysicsBody> b = default )
+	{
+		_tlIgnore ??= new PhysicsBody[MaxEscapeBodies * 2];
+		int n = 0;
+		for ( int i = 0; i < a.Length && n < _tlIgnore.Length; i++ ) _tlIgnore[n++] = a[i];
+		for ( int i = 0; i < b.Length && n < _tlIgnore.Length; i++ ) _tlIgnore[n++] = b[i];
+		_tlIgnoreCount = n;
+	}
+
+	static void ClearTraceIgnore()
+	{
+		if ( _tlIgnore is null ) return;
+		Array.Clear( _tlIgnore, 0, _tlIgnoreCount );
+		_tlIgnoreCount = 0;
 	}
 
 	internal static float LastSimUpdateMs { get; private set; }
@@ -93,29 +123,41 @@ internal sealed partial class SoundSimulationSystem : GameObjectSystem<SoundSimu
 
 		if ( total > 0 )
 		{
-			int interleave = Math.Min( occCount, roomCount ) * 2;
-			Sandbox.Utility.Parallel.For( 0, total, i =>
-			{
-				bool isRoom;
-				int sub;
-				if ( i < interleave )
-				{
-					isRoom = (i & 1) == 1;
-					sub = i >> 1;
-				}
-				else
-				{
-					sub = (interleave >> 1) + (i - interleave);
-					isRoom = occCount <= roomCount;
-				}
-				if ( isRoom ) RoomSourceUpdate( sub, world );
-				else OcclusionUpdate( sub, world );
-			} );
+			_parallelWorld = world;
+			_parallelOccCount = occCount;
+			_parallelRoomCount = roomCount;
+			_parallelInterleave = Math.Min( occCount, roomCount ) * 2;
+			_parallelDispatchAction ??= ParallelDispatch;
+			System.Threading.Tasks.Parallel.For( 0, total, _parallelDispatchAction );
 		}
 
 		ApplyOcclusionResults();
 		ApplyRoomResults();
 		_tick++;
 		if ( sw is not null ) LastSimUpdateMs = (float)sw.Elapsed.TotalMilliseconds;
+	}
+
+	PhysicsWorld _parallelWorld;
+	int _parallelOccCount;
+	int _parallelRoomCount;
+	int _parallelInterleave;
+	Action<int> _parallelDispatchAction;
+
+	void ParallelDispatch( int i )
+	{
+		bool isRoom;
+		int sub;
+		if ( i < _parallelInterleave )
+		{
+			isRoom = (i & 1) == 1;
+			sub = i >> 1;
+		}
+		else
+		{
+			sub = (_parallelInterleave >> 1) + (i - _parallelInterleave);
+			isRoom = _parallelOccCount <= _parallelRoomCount;
+		}
+		if ( isRoom ) RoomSourceUpdate( sub, _parallelWorld );
+		else OcclusionUpdate( sub, _parallelWorld );
 	}
 }

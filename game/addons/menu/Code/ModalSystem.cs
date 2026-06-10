@@ -1,4 +1,4 @@
-﻿using MenuProject.Modals;
+using MenuProject.Modals;
 using MenuProject.Modals.PauseMenuModal;
 using Sandbox;
 using Sandbox.Modals;
@@ -7,7 +7,7 @@ public class ModalSystem : IModalSystem
 {
 	public static ModalSystem Instance;
 
-	List<BaseModal> OpenModals = new List<BaseModal>();
+	List<BaseModal> OpenModals = new();
 
 	PauseModal _pauseModal;
 
@@ -36,13 +36,20 @@ public class ModalSystem : IModalSystem
 		_pauseModal?.SetClass( "hidden", true );
 	}
 
-	protected void Push( BaseModal modal )
+	/// <summary>
+	/// Add a modal to the overlay, stack it above any others, and start tracking it if it's a <see cref="BaseModal"/>.
+	/// </summary>
+	protected void Push( Panel modal )
 	{
 		MenuOverlay.Instance.AddChild( modal );
-		modal.OnClosed += ( s ) => OnModalClosing( modal, s );
+
 		modal.Style.ZIndex = (OpenModals.LastOrDefault()?.Style.ZIndex ?? 1000) + 10;
 
-		OpenModals.Add( modal );
+		if ( modal is BaseModal basemodal )
+		{
+			basemodal.OnClosed += ( s ) => OnModalClosing( basemodal, s );
+			OpenModals.Add( basemodal );
+		}
 	}
 
 	void OnModalClosing( BaseModal modal, bool success )
@@ -51,89 +58,65 @@ public class ModalSystem : IModalSystem
 		OpenModals.Remove( modal );
 	}
 
+	/// <summary>
+	/// Close any open modal of the given type. Returns true if one was open - useful for toggling.
+	/// </summary>
+	bool CloseExisting<T>() where T : BaseModal
+	{
+		OpenModals.RemoveAll( x => !x.IsValid() );
+
+		if ( OpenModals.OfType<T>().FirstOrDefault() is { } existing )
+		{
+			existing.CloseModal( true );
+			return true;
+		}
+
+		return false;
+	}
+
 	public void Game( string packageIdent )
 	{
 		if ( string.IsNullOrEmpty( packageIdent ) ) return;
 
-		OpenModals.RemoveAll( x => !x.IsValid() );
-
-		if ( OpenModals.OfType<GameModal>().FirstOrDefault() is { } gameModal )
-		{
-			// Close existing modal when hitting it again
-			gameModal.CloseModal( true );
-		}
-
-		var modal = new GameModal();
-		modal.PackageIdent = packageIdent;
-
-		Push( modal );
+		CloseExisting<GameModal>();
+		Push( new GameModal { PackageIdent = packageIdent } );
 	}
 
 	public void Map( string packageIdent )
 	{
 		if ( string.IsNullOrEmpty( packageIdent ) ) return;
 
-		OpenModals.RemoveAll( x => !x.IsValid() );
-
-		if ( OpenModals.OfType<MapModal>().FirstOrDefault() is { } mapModal )
-		{
-			// Close existing modal when hitting it again
-			mapModal.CloseModal( true );
-		}
-
-		var modal = new MapModal();
-		modal.PackageIdent = packageIdent;
-
-		Push( modal );
+		CloseExisting<MapModal>();
+		Push( new MapModal { PackageIdent = packageIdent } );
 	}
 
 	public void Package( string packageIdent, string page = "" )
 	{
-		OpenModals.RemoveAll( x => !x.IsValid() );
+		// Toggle closed if it's already open
+		if ( CloseExisting<PackageModal>() ) return;
 
-		// should probably bring it to top?
-		if ( OpenModals.OfType<PackageModal>().FirstOrDefault() is { } packageModal )
-		{
-			// Close the modal when hitting it again
-			packageModal.CloseModal( true );
-			return;
-		}
-
-		var modal = new PackageModal();
-		modal.Page = page;
-		modal.PackageIdent = packageIdent;
-
-		Push( modal );
+		Push( new PackageModal { Page = page, PackageIdent = packageIdent } );
 	}
 
 	public void PackageSelect( string query, Action<Package> onPackageSelected, Action<string> onFilterChanged )
 	{
-		var modal = new PackageSelectionModal();
-		modal.PackageQuery = query;
-		modal.OnPackageSelected = onPackageSelected;
-		modal.OnFilterChanged = onFilterChanged;
-
-		Push( modal );
+		Push( new PackageSelectionModal
+		{
+			PackageQuery = query,
+			OnPackageSelected = onPackageSelected,
+			OnFilterChanged = onFilterChanged
+		} );
 	}
 
 	public void Organization( Package.Organization org )
 	{
-		if ( OpenModals.OfType<OrganizationModal>().FirstOrDefault() is { } packageModal )
-		{
-			// Close the modal when hitting it again
-			packageModal.CloseModal( true );
-		}
-
-		var modal = new OrganizationModal();
-		modal.Org = org;
-		Push( modal );
+		CloseExisting<OrganizationModal>();
+		Push( new OrganizationModal { Org = org } );
 	}
 
 	public void Review( Package package )
 	{
-		var modal = new ReviewModal();
-		modal.Package = package;
-		Push( modal );
+		Push( new ReviewModal { Package = package } );
 	}
 
 	public void FriendsList( in FriendsListModalOptions config )
@@ -143,8 +126,7 @@ public class ModalSystem : IModalSystem
 
 	public void ServerList( in ServerListConfig config )
 	{
-		var modal = new ServerListModal( config );
-		Push( modal );
+		Push( new ServerListModal( config ) );
 	}
 
 	public void Server( Sandbox.Network.LobbyInformation lobby )
@@ -154,14 +136,17 @@ public class ModalSystem : IModalSystem
 
 	public void PlayerList()
 	{
-		var modal = new PlayerListModal();
-		Push( modal );
+		Push( new PlayerListModal() );
 	}
 
 	public void Settings( string page = "" )
 	{
-		var modal = new SettingsModal( page );
-		Push( modal );
+		Push( new SettingsModal( page ) );
+	}
+
+	public void ServiceConnector()
+	{
+		Push( new ServicesModal() );
 	}
 
 	public void CreateGame( in CreateGameOptions options )
@@ -195,11 +180,7 @@ public class ModalSystem : IModalSystem
 
 	public void Player( SteamId steamid, string page = "" )
 	{
-		var modal = new PlayerModal();
-		modal.Page = page;
-		modal.SteamId = steamid;
-
-		Push( modal );
+		Push( new PlayerModal { Page = page, SteamId = steamid } );
 	}
 
 	public void News( Sandbox.Services.News news )
@@ -214,7 +195,7 @@ public class ModalSystem : IModalSystem
 
 	public void Notice( string title, string message, string icon )
 	{
-		Push( new NoticeModal()
+		Push( new NoticeModal
 		{
 			Title = title,
 			Message = message,
@@ -224,7 +205,12 @@ public class ModalSystem : IModalSystem
 
 	public void Report( string packageIdent )
 	{
-		Push( new ReportModal() { PackageIdent = packageIdent } );
+		Push( new ReportModal { PackageIdent = packageIdent } );
+	}
+
+	public void Open( Panel modal )
+	{
+		Push( modal );
 	}
 
 	public bool IsModalOpen => HasModalsOpen();

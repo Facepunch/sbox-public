@@ -206,8 +206,13 @@ public partial class Scene : GameObject
 		HotloadObjectIndex();
 	}
 
+	static Superluminal _renderTimer = new Superluminal( "Scene.Render", Color.Cyan );
+	static Superluminal _cameraRenderTimer = new Superluminal( "Camera", Color.Cyan );
+
 	internal void Render( SwapChainHandle_t swapChain, Vector2? size )
 	{
+		using var _renderScope = _renderTimer.Start();
+
 		PreCameraRender();
 
 		// Get all cameras sorted by render priority
@@ -217,6 +222,7 @@ public partial class Scene : GameObject
 			if ( cc.Active == false ) continue;
 			if ( cc.IsSceneEditorCamera ) continue;
 
+			using var _cam = _cameraRenderTimer.Start( cc.GameObject?.Name );
 			cc.AddToRenderList( swapChain, size );
 		}
 	}

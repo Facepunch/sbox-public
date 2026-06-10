@@ -413,4 +413,26 @@ public class Selectors
 		Assert.IsNotNull( entry.Selectors[0].Has );
 		Assert.AreEqual( "child", entry.Selectors[0].Has[0].Classes.First() ); // Should preserve case
 	}
+
+	/// <summary>
+	/// Pseudo-class names should parse regardless of the current culture.
+	/// </summary>
+	[TestMethod]
+	[DoNotParallelize]
+	public void PseudoClassParsesUnderTurkishCulture()
+	{
+		var original = System.Globalization.CultureInfo.CurrentCulture;
+		try
+		{
+			System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo( "tr-TR" );
+
+			StyleBlock entry = new();
+			Assert.IsTrue( entry.SetSelector( ".a:FIRST-CHILD" ) );
+			Assert.AreEqual( PseudoClass.FirstChild, entry.Selectors[0].Flags );
+		}
+		finally
+		{
+			System.Globalization.CultureInfo.CurrentCulture = original;
+		}
+	}
 }

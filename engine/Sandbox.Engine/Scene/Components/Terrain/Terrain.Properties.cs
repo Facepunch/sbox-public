@@ -42,6 +42,51 @@ public partial class Terrain
 		}
 	}
 
+	RenderAttributes _attributes;
+
+	/// <summary>
+	/// Attributes that are applied to the terrain based on the current material and shader.
+	/// If the terrain is disabled, the changes are deferred until it is enabled again.
+	/// Attributes are not saved to disk, and are not cloned when copying the terrain.
+	/// </summary>
+	public RenderAttributes Attributes
+	{
+		get
+		{
+			if ( _so.IsValid() )
+			{
+				return _so.Attributes;
+			}
+			_attributes ??= new RenderAttributes();
+			return _attributes;
+		}
+	}
+
+	/// <summary>
+	/// Backup the specified RenderAttributes so we can restore them later with <see cref="RestoreRenderAttributes(RenderAttributes)"/>
+	/// </summary>
+	void BackupRenderAttributes( RenderAttributes attributes )
+	{
+		if ( attributes is null || !_so.IsValid() )
+			return;
+
+		_attributes ??= new RenderAttributes();
+		attributes.MergeTo( _attributes );
+	}
+
+	/// <summary>
+	/// Restore any attributes that were previously backed up with <see cref="BackupRenderAttributes(RenderAttributes)"/>
+	/// </summary>
+	void RestoreRenderAttributes( RenderAttributes attributes )
+	{
+		if ( _attributes is not null )
+		{
+			_attributes.MergeTo( attributes );
+		}
+
+		_attributes = null;
+	}
+
 	/// <summary>
 	/// Uniform world size of the width and length of the terrain.
 	/// </summary>

@@ -36,6 +36,11 @@ public class AssetTypeAttribute : System.Attribute, ITypeAttribute, IUninheritab
 	public AssetTypeFlags Flags { get; set; }
 
 	/// <summary>
+	/// Color of the bottom line and background gradient for this resource's thumbnail.
+	/// </summary>
+	public string IconColor { get; set; } = "#67ac5c";
+
+	/// <summary>
 	/// Find a resource type by its extension. The extension should have no period.
 	/// </summary>
 	public static TypeDescription FindTypeByExtension( string extension )

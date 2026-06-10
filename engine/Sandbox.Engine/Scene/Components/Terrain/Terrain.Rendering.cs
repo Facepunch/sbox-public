@@ -71,6 +71,7 @@ public partial class Terrain
 
 		Assert.NotNull( Scene );
 
+		BackupRenderAttributes( _so?.Attributes );
 		_so?.Delete();
 		_so = null;
 
@@ -97,6 +98,8 @@ public partial class Terrain
 
 		_so.Attributes.Set( "Terrain", TerrainBuffer );
 		_so.Attributes.Set( "TerrainMaterials", MaterialsBuffer );
+
+		RestoreRenderAttributes( _so.Attributes );
 
 		// We want these accessible globally too, probably
 		Scene.RenderAttributes.Set( "Terrain", TerrainBuffer );

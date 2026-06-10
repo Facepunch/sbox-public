@@ -299,13 +299,16 @@ public class Timeline : Widget
 			{
 				foreach ( var asset in x )
 				{
-					var texture = asset.LoadResource<Texture>();
-					if ( texture is null ) continue;
-					var frame = new Sprite.Frame()
+					// Use ImageFileGenerator so the texture is stored as an EmbeddedResource so it's compiled correctly for cloud references
+					var generator = new ImageFileGenerator
 					{
-						Texture = texture
+						FilePath = asset.RelativePath
 					};
-					SpriteEditor.SelectedAnimation.Frames.Add( frame );
+
+					var texture = generator.Create( ResourceGenerator.Options.Default );
+					if ( texture is null ) continue;
+
+					SpriteEditor.SelectedAnimation.Frames.Add( new Sprite.Frame { Texture = texture } );
 				}
 			} );
 

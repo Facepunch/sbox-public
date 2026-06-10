@@ -12,13 +12,23 @@ public static partial class Input
 
 	internal static ulong Actions
 	{
-		get => CurrentContext.ActionsCurrent;
+		get => CurrentPlayerScope switch
+		{
+			0 => CurrentContext.ActionsCurrent,
+			> 0 => CurrentController?.InputContext?.ActionsCurrent ?? 0,
+			_ => CurrentContext.ActionsCurrent | (Controller.First?.InputContext?.ActionsCurrent ?? 0)
+		};
 		set => CurrentContext.ActionsCurrent = value;
 	}
 
 	static ulong LastActions
 	{
-		get => CurrentContext.ActionsPrevious;
+		get => CurrentPlayerScope switch
+		{
+			0 => CurrentContext.ActionsPrevious,
+			> 0 => CurrentController?.InputContext?.ActionsPrevious ?? 0,
+			_ => CurrentContext.ActionsPrevious | (Controller.First?.InputContext?.ActionsPrevious ?? 0)
+		};
 		set => CurrentContext.ActionsPrevious = value;
 	}
 
@@ -246,6 +256,9 @@ public static partial class Input
 			{
 				foreach ( var e in Contexts )
 				{
+					if ( IsControllerContext( e ) )
+						continue;
+
 					e.AccumActionsPressed |= 1UL << i;
 				}
 			}
@@ -253,6 +266,9 @@ public static partial class Input
 			{
 				foreach ( var e in Contexts )
 				{
+					if ( IsControllerContext( e ) )
+						continue;
+
 					e.AccumActionsReleased |= 1UL << i;
 				}
 			}
@@ -274,6 +290,14 @@ public static partial class Input
 		if ( string.IsNullOrEmpty( binding ) ) return;
 
 		ConVarSystem.Run( $"{binding}\n" );
+	}
+
+	/// <summary>
+	/// Returns true if the given context belongs to a controller
+	/// </summary>
+	private static bool IsControllerContext( Context context )
+	{
+		return Controller.All.Any( c => c.InputContext == context );
 	}
 
 	internal static InputSettings InputSettings { get; set; }

@@ -70,6 +70,17 @@ public sealed class SceneFogVolume : IValid
 		set { falloffExponent = value; Update(); }
 	}
 
+	Color color = Color.White;
+
+	/// <summary>
+	/// Tint applied to the in-scattered light inside this fog volume.
+	/// </summary>
+	public Color Color
+	{
+		get => color;
+		set { color = value; Update(); }
+	}
+
 	public SceneFogVolume( SceneWorld world, Transform transform, BBox boundingBox, float fogStrength = 1.0f, float falloffExponent = 1.0f )
 	{
 		ID = default;
@@ -119,7 +130,7 @@ public sealed class SceneFogVolume : IValid
 			m_vMin = boundingBox.Mins,
 			m_vMax = boundingBox.Maxs,
 			m_fStrength = fogStrength,
-			m_vColor = Color.White,
+			m_vColor = color,
 			m_bSpherical = false,
 			m_fExponent = falloffExponent,
 			m_matWorldToVolume = mat.Inverted.Transpose(),

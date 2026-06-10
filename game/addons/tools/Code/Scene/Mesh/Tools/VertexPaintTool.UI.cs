@@ -141,6 +141,15 @@ partial class VertexPaintTool
 
 			Layout.AddStretchCell();
 
+			AddShortcuts(
+				("Paint", "LMB"),
+				("Erase", "Ctrl+LMB"),
+				("Sample Color", "Ctrl+RMB"),
+				("Adjust Radius", "Shift+MMB Drag"),
+				("Adjust Strength", "Ctrl+MMB ↕"),
+				("Adjust Hardness", "Ctrl+MMB ↔")
+			);
+
 			UpdateModeVisibility( tool.Mode );
 		}
 

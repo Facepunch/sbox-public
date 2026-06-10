@@ -28,6 +28,7 @@ internal class Program
 		AddPullRequestPipeline( rootCommand );
 		AddDeployPipeline( rootCommand );
 		AddUploadCommand( rootCommand );
+		AddUploadReferenceAssembliesCommand( rootCommand );
 
 		rootCommand.Invoke( args );
 		return Environment.ExitCode;
@@ -238,6 +239,27 @@ internal class Program
 		{
 			var pipeline = Upload.Create( target );
 			ExitCode result = pipeline.Run();
+			Environment.ExitCode = (int)result;
+		}, targetOption );
+
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddUploadReferenceAssembliesCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "upload-reference-assemblies", "Package the managed reference assemblies and upload them to the backend" );
+
+		var targetOption = new Option<BuildTarget>(
+			"--target",
+			description: "Target environment / channel (Staging or Release)",
+			getDefaultValue: () => BuildTarget.Staging );
+
+		cmd.AddOption( targetOption );
+
+		cmd.SetHandler( ( BuildTarget target ) =>
+		{
+			var step = new UploadReferenceAssemblies( "Upload Reference Assemblies", target );
+			ExitCode result = step.Run();
 			Environment.ExitCode = (int)result;
 		}, targetOption );
 
