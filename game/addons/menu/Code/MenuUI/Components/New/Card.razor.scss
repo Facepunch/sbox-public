@@ -1,29 +1,29 @@
 @import "/styles/_theme.scss";
 
-Card {
-    border: 1px solid $default-border;
-    position: relative;
-    background-color: $default-950;
-    overflow: hidden;
-    border-radius: $rounding-default;
-    transition: all 150ms ease;
+Card
+{
+	border: 1px solid $default-border;
+	position: relative;
+	background-color: $default-950;
+	overflow: hidden;
+	border-radius: $rounding-default;
+	transition: all 150ms ease;
 
-    background: linear-gradient( to bottom, $default-900, $default-950 );
+	.inner
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		bottom: 0;
+		right: 0;
+		background-color: $default-950;
+		padding: 8px;
+		border-radius: $rounding-small;
+		overflow: hidden;
+	}
 
-    .inner {
-        position: absolute;
-        top: 0;
-        left: 0;
-        bottom: 0;
-        right: 0;
-        background-color: $default-950; 
-        padding: 8px;
-        border-radius: $rounding-small;
-        overflow: hidden;
-    }
-
-    &.hover {
-        @include border;
-    }
+	&.hover
+	{
+		@include border;
+	}
 }
-

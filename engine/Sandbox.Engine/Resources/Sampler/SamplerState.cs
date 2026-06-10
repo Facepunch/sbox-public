@@ -30,39 +30,40 @@ public record struct SamplerState
 	/// <summary>
 	/// The texture filtering mode used for sampling (e.g., point, bilinear, trilinear).
 	/// </summary>
-	public FilterMode Filter { get; init; } = FilterMode.Bilinear;
+	[KeyProperty]
+	public FilterMode Filter { get; set; } = FilterMode.Bilinear;
 
 	/// <summary>
 	/// The addressing mode used for the U (X) texture coordinate.
 	/// </summary>
-	public TextureAddressMode AddressModeU { get; init; } = TextureAddressMode.Wrap;
+	public TextureAddressMode AddressModeU { get; set; } = TextureAddressMode.Wrap;
 
 	/// <summary>
 	/// The addressing mode used for the V texture coordinate.
 	/// </summary>
-	public TextureAddressMode AddressModeV { get; init; } = TextureAddressMode.Wrap;
+	public TextureAddressMode AddressModeV { get; set; } = TextureAddressMode.Wrap;
 
 	/// <summary>
 	/// The addressing mode used for the W texture coordinate.
 	/// </summary>
-	public TextureAddressMode AddressModeW { get; init; } = TextureAddressMode.Wrap;
+	public TextureAddressMode AddressModeW { get; set; } = TextureAddressMode.Wrap;
 
 	/// <summary>
 	/// The bias applied to the calculated mip level during texture sampling.
 	/// Positive values make textures appear blurrier; negative values sharpen.
 	/// </summary>
-	public float MipLodBias { get; init; } = 0;
+	public float MipLodBias { get; set; } = 0;
 
 	/// <summary>
 	/// The maximum anisotropy level used for anisotropic filtering.
 	/// Higher values improve texture quality at oblique viewing angles.
 	/// </summary>
-	public int MaxAnisotropy { get; init; } = 8;
+	public int MaxAnisotropy { get; set; } = 8;
 
 	/// <summary>
 	/// Border color to use if <see cref="TextureAddressMode.Border"/> is specified for AddressU, AddressV, or AddressW.
 	/// </summary>
-	public Color BorderColor { get; init; } = Color.Transparent;
+	public Color BorderColor { get; set; } = Color.Transparent;
 
 	public SamplerState() { }
 

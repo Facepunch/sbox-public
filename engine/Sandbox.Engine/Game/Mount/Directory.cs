@@ -126,7 +126,7 @@ public static class Directory
 	{
 		resource = default;
 
-		if ( !filename.StartsWith( "mount://" ) ) return false;
+		if ( !MountUtility.IsMountPath( filename ) ) return false;
 
 		var sourceName = filename.Substring( 8 );
 
@@ -160,7 +160,7 @@ public static class Directory
 
 	internal static async Task<object> TryLoadAsync( string filename, ResourceType type )
 	{
-		if ( !filename.StartsWith( "mount://" ) ) return null;
+		if ( !MountUtility.IsMountPath( filename ) ) return null;
 
 		var sourceName = filename.Substring( 8 );
 
