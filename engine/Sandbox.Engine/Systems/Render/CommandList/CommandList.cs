@@ -294,6 +294,100 @@ public sealed unsafe partial class CommandList
 		AddEntry( &Execute, new Entry { Token = token, Object2 = data } );
 	}
 
+	[Obsolete]
+	public void SetGlobal( StringToken token, GpuBuffer buffer )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, (GpuBuffer)entry.Object2 );
+		}
+		AddEntry( &Execute, new Entry { Token = token, Object2 = buffer } );
+	}
+
+	[Obsolete]
+	public void SetGlobal( StringToken token, int i )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, (int)entry.Data1.x );
+		}
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( i, 0, 0, 0 ) } );
+	}
+
+	[Obsolete]
+	public void SetGlobal( StringToken token, bool b )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, (int)entry.Data1.x != 0 );
+		}
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( b ? 1 : 0, 0, 0, 0 ) } );
+	}
+
+	[Obsolete]
+	public void SetGlobal( StringToken token, float f )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, entry.Data1.x );
+		}
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( f, 0, 0, 0 ) } );
+	}
+
+	[Obsolete] public void SetGlobal( StringToken token, double f ) => SetGlobal( token, (float)f );
+
+	[Obsolete]
+	public void SetGlobal( StringToken token, Vector2 vector2 )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, new Vector2( entry.Data1.x, entry.Data1.y ) );
+		}
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( vector2.x, vector2.y, 0, 0 ) } );
+	}
+
+	[Obsolete]
+	public void SetGlobal( StringToken token, Vector3 vector3 )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, new Vector3( entry.Data1.x, entry.Data1.y, entry.Data1.z ) );
+		}
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( vector3.x, vector3.y, vector3.z, 0 ) } );
+	}
+
+	[Obsolete]
+	public void SetGlobal( StringToken token, Vector4 vector4 )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, entry.Data1 );
+		}
+		AddEntry( &Execute, new Entry { Token = token, Data1 = vector4 } );
+	}
+
+	[Obsolete]
+	public void SetGlobal( StringToken token, Matrix matrix )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, Unsafe.As<Vector4, Matrix>( ref entry.Data1 ) );
+		}
+		var e = new Entry { Token = token };
+		Unsafe.As<Vector4, Matrix>( ref e.Data1 ) = matrix;
+		AddEntry( &Execute, e );
+	}
+
+	[Obsolete]
+	public void SetGlobal( StringToken token, Texture texture )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, (Texture)entry.Object2 );
+		}
+		AddEntry( &Execute, new Entry { Token = token, Object2 = texture } );
+	}
+
 	/// <summary>
 	/// Takes a copy of the framebuffer and returns a handle to it
 	/// </summary>
@@ -788,6 +882,12 @@ public sealed unsafe partial class CommandList
 	/// </summary>
 	[Obsolete]
 	public void Set( StringToken token, RenderTargetHandle.ColorTextureRef buffer, int mip = -1 ) => Attributes.Set( token, buffer, mip );
+
+	/// <summary>
+	/// Set the color texture from this named render target to this attribute
+	/// </summary>
+	[Obsolete]
+	public void SetGlobal( StringToken token, RenderTargetHandle.ColorIndexRef buffer ) => GlobalAttributes.Set( token, buffer );
 
 	/// <summary>
 	/// Binds the given render target's color texture to a stable, pipeline-level bindless slot

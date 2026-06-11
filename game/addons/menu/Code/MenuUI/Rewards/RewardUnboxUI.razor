@@ -29,51 +29,23 @@
 	}
 	else if ( Result is not null && Result.Success )
 	{
-		<div class="center">
-			<label class="eyebrow">You unwrapped</label>
-
-			<div class="items">
-				@foreach ( var item in Result.Items )
-				{
-					<RewardUnboxItem Revealed="@true" Item="@item" Selected="@true" />
-				}
-			</div>
-
+		<div class="result-bar">
+			<icon class="result-icon">celebration</icon>
+			<label class="result-text">You claimed your reward!</label>
 			<Button class="clicky primary" Text="Done" Icon="check" @onclick="@Back" />
 		</div>
 	}
-	else
+	else if ( ShowClaimBar )
 	{
-		<div class="center">
-			<div class="window">
-
-				<div class="header">
-					<label class="screen-title">Reward Drop</label>
-					<label class="screen-subtitle">Congratulations - you are receiving a reward! This item will be added to your inventory on Steam and you'll be able to wear it in the avatar editor. If you don't want the item you'll be able to use Steam's Marketplace system to trade or sell it.</label>
+		<div class="claim-bar">
+			<div class="claim-info">
+				<div class="select-banner">
+					<label>Select @Offer.PickCount @( Offer.PickCount == 1 ? "Reward" : "Rewards" )</label>
 				</div>
-
-				<div class="choose">
-					<div class="items">
-						@for ( int i = 0; i < Offer.Items.Length; i++ )
-						{
-							var item = Offer.Items[i];
-							<RewardUnboxItem Item="@item" Selected="@IsPicked( item.ItemDefId )" OnSelect="@( () => TogglePick( item.ItemDefId ) )" OnRevealed="@OnCardBroken" />
-						}
-					</div>
-				</div>
-
-				<div class="footer @( ShowSidebar ? "show" : "" )">
-					<div class="column">
-						<div class="select-banner">
-							<label>Select up to @Offer.PickCount @( Offer.PickCount == 1 ? "Reward" : "Rewards" )</label>
-						</div>
-						<label class="blurb">Pick your item — they're yours to keep, free.</label>
-					</div>
-
-					<Button class="clicky claim" Text="@ClaimText" Icon="redeem" Disabled="@( !CanConfirm )" @onclick="@Confirm" />
-				</div>
-
+				<label class="blurb">Pick your item — it's yours to keep, free.</label>
 			</div>
+
+			<Button class="clicky claim" Text="@ClaimText" Icon="redeem" Disabled="@( !CanConfirm )" @onclick="@Confirm" />
 		</div>
 	}
 
@@ -87,20 +59,17 @@
 	/// <summary>The result once the player has committed their pick, otherwise null.</summary>
 	RewardResult Result { get; set; }
 
-	/// <summary>The items the player has selected so far.</summary>
-	List<long> Picked { get; } = new();
-
 	/// <summary>True while we're claiming the offer from the backend.</summary>
 	bool IsLoading { get; set; }
 
 	/// <summary>True while the ChooseReward call is in flight.</summary>
 	bool IsChoosing { get; set; }
 
-	/// <summary>How many of the offer's boxes the player has smashed open so far.</summary>
-	int RevealedCount { get; set; }
+	/// <summary>True once the crate is open and cards are displayed.</summary>
+	bool ShowClaimBar { get; set; }
 
-	/// <summary>True once every box is open and the options panel should slide in.</summary>
-	bool ShowSidebar { get; set; }
+	/// <summary>Reference to the card spawner driving the 3D cards.</summary>
+	RewardCardSpawner CardSpawner { get; set; }
 
 	bool _hasLoaded;
 
@@ -120,66 +89,51 @@
 		IsLoading = true;
 		Offer = await MenuUtility.Rewards.ClaimReward();
 		IsLoading = false;
+
+		if ( Offer == null ) return;
+
+		// Find or create the card spawner and give it the offer
+		CardSpawner = Scene.GetAll<RewardCardSpawner>().FirstOrDefault();
+		if ( CardSpawner != null )
+		{
+			CardSpawner.Offer = Offer;
+			CardSpawner.OnSelectionChanged = OnCardSelectionChanged;
+			CardSpawner.OnCardsRevealed = OnCardsRevealed;
+		}
 	}
 
-	/// <summary>A box has been smashed open. Once every box is open, bring in the options panel.</summary>
-	void OnCardBroken()
+	/// <summary>
+	/// Called by the RewardCardSpawner when cards are revealed (crate fully open).
+	/// </summary>
+	public void OnCardsRevealed()
 	{
-		RevealedCount++;
+		ShowClaimBar = true;
+	}
 
-		if ( Offer is not null && RevealedCount >= Offer.Items.Length )
-			ShowSidebar = true;
+	/// <summary>
+	/// Called when a 3D card is selected or deselected.
+	/// </summary>
+	void OnCardSelectionChanged( long itemDefId, bool selected )
+	{
+		// The spawner manages selection state, we just need to refresh our UI
+		ShowClaimBar = true;
+		StateHasChanged();
 	}
 
 	string ClaimText => IsChoosing ? "Claiming…" : "Claim";
-
-	bool IsPicked( long itemDefId ) => Picked.Contains( itemDefId );
 
 	/// <summary>You can confirm once you've picked exactly the number of items the offer allows.</summary>
 	bool CanConfirm
 	{
 		get
 		{
-			if ( Offer is null )
-				return false;
+			if ( Offer is null ) return false;
+			if ( Result is not null ) return false;
+			if ( IsChoosing ) return false;
+			if ( CardSpawner is null ) return false;
 
-			if ( Result is not null )
-				return false;
-
-			if ( IsChoosing )
-				return false;
-
-			return Picked.Count == Offer.PickCount;
+			return CardSpawner.SelectedItems.Count == Offer.PickCount;
 		}
-	}
-
-	/// <summary>
-	/// Toggle an item in the player's selection. When the offer only lets you keep one item,
-	/// picking a new one replaces the old.
-	/// </summary>
-	void TogglePick( long itemDefId )
-	{
-		if ( Offer is null )
-			return;
-
-		if ( Result is not null )
-			return;
-
-		if ( Picked.Contains( itemDefId ) )
-		{
-			Picked.Remove( itemDefId );
-			return;
-		}
-
-		if ( Picked.Count >= Offer.PickCount )
-		{
-			if ( Offer.PickCount == 1 )
-				Picked.Clear();
-			else
-				return;
-		}
-
-		Picked.Add( itemDefId );
 	}
 
 	void Confirm()
@@ -188,6 +142,10 @@
 			return;
 
 		IsChoosing = true;
+
+		if ( CardSpawner is not null )
+			CardSpawner.SelectionLocked = true;
+
 		_ = ConfirmAsync();
 	}
 
@@ -195,7 +153,7 @@
 	{
 		var choice = new RewardChoice();
 		choice.DropId = Offer.DropId;
-		choice.ItemDefIds = Picked.ToArray();
+		choice.ItemDefIds = CardSpawner.SelectedItems.ToArray();
 
 		Result = await MenuUtility.Rewards.ChooseReward( choice );
 		IsChoosing = false;
@@ -216,6 +174,8 @@
 	/// <summary>Return to the main menu, which rebuilds the front page and refreshes the reward progress.</summary>
 	void Back()
 	{
+		CardSpawner?.DestroyCards();
+
 		var options = new SceneLoadOptions();
 		options.ShowLoadingScreen = true;
 		options.SetScene( "/scenes/menu-main.scene" );
@@ -223,5 +183,5 @@
 		Game.ActiveScene.Load( options );
 	}
 
-	protected override int BuildHash() => HashCode.Combine( IsLoading, Offer, Result, IsChoosing, Picked.Count, RevealedCount, ShowSidebar );
+	protected override int BuildHash() => HashCode.Combine( IsLoading, Offer, Result, IsChoosing, ShowClaimBar, CardSpawner?.SelectedItems?.Count );
 }

@@ -8,6 +8,7 @@ public abstract class TextureGenerator : ResourceGenerator<Texture>
 	/// When set, the compiled texture will use this format instead of automatically determining one.
 	/// Useful to avoid block compression (BC1/BC7) for textures that require pixel-perfect quality (sprites, UI, icons).
 	/// </summary>
+	[Hide]
 	public virtual ImageFormat? FormatOverride => null;
 
 	/// <summary>

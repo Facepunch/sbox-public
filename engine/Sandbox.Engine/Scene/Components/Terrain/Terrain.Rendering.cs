@@ -1,4 +1,5 @@
 ﻿using ExCSS;
+using Sandbox.Rendering;
 using System.Runtime.InteropServices;
 using static Sandbox.ModelRenderer;
 
@@ -71,6 +72,7 @@ public partial class Terrain
 
 		Assert.NotNull( Scene );
 
+		BackupRenderAttributes( _so?.Attributes );
 		_so?.Delete();
 		_so = null;
 
@@ -98,6 +100,8 @@ public partial class Terrain
 		_so.Attributes.Set( "Terrain", TerrainBuffer );
 		_so.Attributes.Set( "TerrainMaterials", MaterialsBuffer );
 
+		RestoreRenderAttributes( _so.Attributes );
+
 		// We want these accessible globally too, probably
 		Scene.RenderAttributes.Set( "Terrain", TerrainBuffer );
 		Scene.RenderAttributes.Set( "TerrainMaterials", MaterialsBuffer );
@@ -123,6 +127,7 @@ public partial class Terrain
 
 		public bool HeightBlending;
 		public float HeightBlendSharpness;
+		public int SamplerIndex;
 	}
 
 	[StructLayout( LayoutKind.Sequential )]
@@ -168,7 +173,8 @@ public partial class Terrain
 			Resolution = Storage.TerrainSize / Storage.Resolution,
 			HeightScale = Storage.TerrainHeight,
 			HeightBlending = Storage.MaterialSettings.HeightBlendEnabled,
-			HeightBlendSharpness = Storage.MaterialSettings.HeightBlendSharpness
+			HeightBlendSharpness = Storage.MaterialSettings.HeightBlendSharpness,
+			SamplerIndex = SamplerState.GetBindlessIndex( Storage.MaterialSettings.Sampler )
 		};
 
 		// Upload to the GPU buffer
@@ -192,6 +198,7 @@ public partial class Terrain
 			return;
 
 		var gpuMaterials = new GPUTerrainMaterial[64];
+
 		for ( int i = 0; i < 64; i++ )
 		{
 			var layer = Storage.Materials.ElementAtOrDefault( i );
