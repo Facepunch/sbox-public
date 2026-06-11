@@ -36,43 +36,44 @@ internal class SpherePrimitive : PrimitiveBuilder
 		//			\/  \/  \/  \/  \/
 		//
 
+		var sides = Math.Max( NumberOfSides, 2 );
 		var halfSize = Size / 2;
-
+		
 		float angle = 0.0f;
-		float angleStep = MathF.PI / NumberOfSides;
+		float angleStep = MathF.PI / sides;
 
-		for ( int slice = 0; slice < NumberOfSides; slice++ )
+		for ( int slice = 0; slice < sides; slice++ )
 		{
 			float angle1 = angle + angleStep;
 
 			// Make the upper polygon.
-			var upperPoints = new Vector3[NumberOfSides + 1];
+			var upperPoints = new Vector3[sides + 1];
 			{
-				for ( int i = 0; i < NumberOfSides; i++ )
+				for ( int i = 0; i < sides; i++ )
 				{
-					var angle2 = i * (MathF.PI * 2.0f / NumberOfSides);
+					var angle2 = i * (MathF.PI * 2.0f / sides);
 					upperPoints[i] = Center + new Vector3( MathF.Sin( angle2 ), MathF.Cos( angle2 ), -1.0f ) * halfSize * MathF.Sin( angle );
 				}
 
-				upperPoints[NumberOfSides] = upperPoints[0];
+				upperPoints[sides] = upperPoints[0];
 			}
 
 			// Make the lower polygon.
-			var lowerPoints = new Vector3[NumberOfSides + 1];
+			var lowerPoints = new Vector3[sides + 1];
 			{
-				for ( int i = 0; i < NumberOfSides; i++ )
+				for ( int i = 0; i < sides; i++ )
 				{
-					var angle2 = i * (MathF.PI * 2.0f / NumberOfSides);
+					var angle2 = i * (MathF.PI * 2.0f / sides);
 					lowerPoints[i] = Center + new Vector3( MathF.Sin( angle2 ), MathF.Cos( angle2 ), -1.0f ) * halfSize * MathF.Sin( angle1 );
 				}
 
-				lowerPoints[NumberOfSides] = lowerPoints[0];
+				lowerPoints[sides] = lowerPoints[0];
 			}
 
 			float upperHeight = Center.z + halfSize.z * MathF.Cos( angle );
 			float lowerHeight = Center.z + halfSize.z * MathF.Cos( angle1 );
 
-			for ( int i = 0; i < NumberOfSides; i++ )
+			for ( int i = 0; i < sides; i++ )
 			{
 				// Top and bottom are cones, not rings
 				if ( slice == 0 )
@@ -83,7 +84,7 @@ internal class SpherePrimitive : PrimitiveBuilder
 						lowerPoints[i].WithZ( lowerHeight )
 					);
 				}
-				else if ( slice == NumberOfSides - 1 )
+				else if ( slice == sides - 1 )
 				{
 					mesh.AddFace(
 						upperPoints[i].WithZ( upperHeight ),
