@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Editor.MeshEditor;
 
@@ -19,7 +19,7 @@ internal class SpikePrimitive : PrimitiveBuilder
 
 	public override void Build( PolygonMesh mesh )
 	{
-		var sides = Math.Max(NumberOfSides, 2); 
+		var sides = Math.Max( NumberOfSides, 2 );
 		var points = new Vector3[sides];
 		var halfSize = Size / 2;
 
