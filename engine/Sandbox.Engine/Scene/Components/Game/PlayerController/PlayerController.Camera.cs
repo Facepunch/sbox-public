@@ -11,6 +11,10 @@ public sealed partial class PlayerController : Component
 	[Property, Feature( "Camera" )] public bool UseFovFromPreferences { get; set; } = true;
 	[Property, Feature( "Camera" )] public Vector3 CameraOffset { get; set; } = new Vector3( 256, 0, 12 );
 	[Property, Feature( "Camera" ), InputAction] public string ToggleCameraModeButton { get; set; } = "view";
+	/// <summary>
+	/// The set of tags to ignore during camera collision detection.
+	/// </summary>
+	[Property, Feature( "Camera" ), Title( "Collision Ignore" )] public TagSet CameraCollisionIgnore { get; set; } = [];
 
 	float _cameraDistance = 100;
 	float _eyez;
@@ -54,6 +58,7 @@ public sealed partial class PlayerController : Component
 			var tr = Scene.Trace.FromTo( eyePosition, eyePosition + cameraDelta )
 							.IgnoreGameObjectHierarchy( GameObject.Root )
 							.Radius( 8 )
+							.WithoutTags( CameraCollisionIgnore )
 							.Run();
 
 			// smooth the zoom in and out
