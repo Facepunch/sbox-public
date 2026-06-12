@@ -120,6 +120,8 @@ PS
 		m.Transmission = 0;
 		
 		float4 albedo = Tex2DS( g_tColor, g_sSampler0, i.vTextureCoords.xy );
+		clip( albedo.a - 0.5 );
+
 		float2 l_1 = i.vTextureCoords.zw;
 
 		float4 lmRed = Tex2DS( g_tLightmapR, g_sSampler1, l_1 );
@@ -142,7 +144,7 @@ PS
 
 		m.Albedo = albedo.xyz;
 		m.Emission = finalColor;
-		m.Opacity = albedo.a;
+		m.Opacity = 1;
 		m.Roughness = 1;
 		m.Metalness = 0;
 		m.AmbientOcclusion = 1;

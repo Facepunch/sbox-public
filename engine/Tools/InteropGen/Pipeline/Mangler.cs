@@ -3,10 +3,17 @@ using System.Text.RegularExpressions;
 
 namespace Facepunch.InteropGen;
 
+/// <summary>
+/// Assigns each function and variable a unique, C-safe mangled name (namespace_class_member, with long
+/// parts vowel-stripped and truncated), de-duplicating any collisions with a numeric suffix.
+/// </summary>
 public class Mangler
 {
 	private readonly HashSet<string> taken = [];
 
+	/// <summary>
+	/// Walk every class and stamp a unique MangledName onto each of its functions and variables.
+	/// </summary>
 	internal void Mangle( List<Class> classes )
 	{
 		foreach ( Class c in classes )
@@ -16,15 +23,15 @@ public class Mangler
 				f.MangledName = GetMangledName( c.NativeNamespace, c.NativeName, f.Name );
 			}
 
-			foreach ( Variable f in c.Variables )
+			foreach ( Variable v in c.Variables )
 			{
-				f.MangledName = GetMangledName( c.NativeNamespace, c.NativeName, f.Name );
+				v.MangledName = GetMangledName( c.NativeNamespace, c.NativeName, v.Name );
 			}
 		}
 	}
 
 	/// <summary>
-	/// Find a unique name for this function
+	/// Find a unique mangled name for this member
 	/// </summary>
 	private string GetMangledName( string ns, string c, string f )
 	{

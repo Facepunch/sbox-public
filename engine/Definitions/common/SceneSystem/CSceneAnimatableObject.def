@@ -46,7 +46,7 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 	void DirectPlayback_PlaySequence( string pSequenceName, Vector3 vTargetPos, float flFacingHeading, float flInterpTime );
 	void DirectPlayback_CancelSequence();
 	float DirectPlayback_GetSequenceCycle();
-	string DirectPlayback_GetSequence();
+	stable string DirectPlayback_GetSequence();
 	void DirectPlayback_SetSequenceStartTime( float flStartTime );
 	float DirectPlayback_GetSequenceDuration();
 
@@ -55,7 +55,7 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 	void SetShouldUseAnimGraph( bool bEnabled );
 	bool GetShouldUseAnimGraph();
 
-	string GetSequence();
+	stable string GetSequence();
 	void SetSequence( string pSequenceName );
 
 	float GetSequenceDuration();

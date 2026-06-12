@@ -31,11 +31,6 @@ internal static partial class PackageManager
 
 		public HashSet<string> Tags { get; } = new( StringComparer.OrdinalIgnoreCase );
 
-		/// <summary>
-		/// Mounted on FileSystem, this is where the codearchive is mounted to
-		/// </summary>
-		MemoryFileSystem memoryFileSystem;
-
 		internal static async Task<ActivePackage> Create( Package package, CancellationToken token, PackageLoadOptions options )
 		{
 			var o = new ActivePackage();
@@ -163,12 +158,59 @@ internal static partial class PackageManager
 				// Mount as a subsystem of the package's FileSystem
 				AssemblyFileSystem.Mount( FileSystem.CreateSubSystem( ".bin" ) );
 			}
+
+			var dllFs = await DownloadBinDllsAsync( Package.Revision, token );
+			if ( dllFs != null )
+			{
+				AssemblyFileSystem ??= new AggregateFileSystem();
+				AssemblyFileSystem.Mount( dllFs );
+			}
+		}
+
+		private static async Task<MemoryFileSystem> DownloadBinDllsAsync( Package.IRevision revision, CancellationToken token )
+		{
+			var files = revision?.Manifest?.Files;
+			if ( files is null ) return null;
+
+			var dllFiles = files
+				.Where( f => f.Path.StartsWith( ".bin/", StringComparison.OrdinalIgnoreCase ) &&
+							 f.Path.EndsWith( ".dll", StringComparison.OrdinalIgnoreCase ) )
+				.ToArray();
+
+			if ( dllFiles.Length == 0 ) return null;
+
+			var memFs = new MemoryFileSystem();
+
+			foreach ( var file in dllFiles )
+			{
+				token.ThrowIfCancellationRequested();
+				LoadingScreen.Subtitle = System.IO.Path.GetFileName( file.Path );
+
+				var bytes = await Sandbox.Utility.Web.GrabFile( file.Url, token );
+				if ( bytes is not null )
+				{
+					memFs.WriteAllBytes( System.IO.Path.GetFileName( file.Path ), bytes );
+				}
+			}
+
+			LoadingScreen.Subtitle = null;
+			return memFs;
+		}
+
+		internal bool HasPrecompiledDlls()
+		{
+			return AssemblyFileSystem?.FindFile( "/", "*.dll", true ).Any() ?? false;
+		}
+
+		internal bool HasManifestDlls()
+		{
+			var files = Package.Revision?.Manifest?.Files;
+			return files?.Any( f => f.Path.StartsWith( ".bin/", StringComparison.OrdinalIgnoreCase ) && f.Path.EndsWith( ".dll", StringComparison.OrdinalIgnoreCase ) ) ?? false;
 		}
 
 		private void Mount( bool reloadResources = true )
 		{
 			MountedFileSystem.Mount( FileSystem );
-			MountedFileSystem.Mount( AssemblyFileSystem );
 
 			if ( reloadResources )
 			{
@@ -188,7 +230,6 @@ internal static partial class PackageManager
 		public void Delete()
 		{
 			MountedFileSystem.UnMount( FileSystem );
-			MountedFileSystem.UnMount( AssemblyFileSystem );
 
 			FileSystem.Dispose();
 			FileSystem = default;
@@ -201,104 +242,6 @@ internal static partial class PackageManager
 
 			// Reload any resident resources that were just unmounted (they shouldn't be used & will appear as an error, or a local variant)
 			NativeEngine.g_pResourceSystem.ReloadSymlinkedResidentResources();
-		}
-
-		internal bool HasCodeArchives()
-		{
-			return FileSystem.FindFile( "/", "*.cll", true ).Any();
-		}
-
-		internal async Task<bool> CompileCodeArchive()
-		{
-			// get all the code archives
-			var codeArchives = FileSystem.FindFile( "/", "*.cll", true ).ToArray();
-
-			// It's okay for packages not to have code archives, but return as a fail
-			if ( codeArchives.Count() == 0 )
-				return false;
-
-			var analytic = new Api.Events.EventRecord( "package.compile" );
-			analytic.SetValue( "package", Package.FullIdent );
-			analytic.SetValue( "version", Package.Revision?.VersionId );
-			analytic.SetValue( "archives", codeArchives );
-
-			Assert.AreNotEqual( 0, codeArchives.Length, "We have package files mounted" );
-
-			using var group = new CompileGroup( Package.Ident );
-			group.AccessControl = AccessControl;
-			group.ReferenceProvider = this;
-
-			using ( analytic.ScopeTimer( "LoadArchives" ) )
-			{
-				foreach ( var file in codeArchives )
-				{
-					var bytes = await FileSystem.ReadAllBytesAsync( file );
-					if ( bytes is null || bytes.Length <= 1 )
-						throw new System.Exception( "Couldn't load code archive - error opening" );
-					// Deserialize to a code archive
-					var archive = new CodeArchive( bytes );
-					// Create a compiler for it
-					var compiler = group.GetOrCreateCompiler( archive.CompilerName );
-					compiler.UpdateFromArchive( archive );
-					LoadingScreen.Subtitle = System.IO.Path.GetFileName( file );
-					await Task.Yield();
-				}
-			}
-
-			// Compile that bad boy
-			using ( analytic.ScopeTimer( "Compile" ) )
-			{
-				LoadingScreen.Subtitle = null;
-				await group.BuildAsync();
-				await Task.Yield();
-			}
-
-			if ( !group.BuildResult.Success )
-			{
-				// Add an analytic so we can track these failures on the backend
-				var er = new Api.Events.EventRecord( "package.compile.error" );
-				er.SetValue( "package", Package.FullIdent );
-				er.SetValue( "version", Package.Revision?.VersionId );
-				er.SetValue( "errors", group.BuildResult.BuildDiagnosticsString( Microsoft.CodeAnalysis.DiagnosticSeverity.Error ) );
-				er.Submit();
-
-				return false;
-			}
-
-			analytic.SetValue( "Diagnostics", group.BuildResult.Diagnostics
-												.Where( x => x.Severity > Microsoft.CodeAnalysis.DiagnosticSeverity.Warning )
-												.Select( x => new
-												{
-													x.Severity,
-													x.Location?.SourceTree?.FilePath,
-													x.Location?.GetLineSpan().StartLinePosition,
-													Message = x.GetMessage()
-												} )
-												.ToArray() );
-
-			// Should be successful
-			Assert.True( group.BuildResult.Success );
-
-			using ( analytic.ScopeTimer( "Write" ) )
-			{
-				memoryFileSystem = new MemoryFileSystem();
-				memoryFileSystem.CreateDirectory( "/.bin" );
-				// Copy the compiled assemblies to the filesystem
-				foreach ( var assembly in group.BuildResult.Output )
-				{
-					Log.Trace( $"WRITE /.bin/{assembly.Compiler.AssemblyName}.dll" );
-					memoryFileSystem.WriteAllBytes( $"/.bin/{assembly.Compiler.AssemblyName}.dll", assembly.AssemblyData );
-					LoadingScreen.Subtitle = assembly.Compiler.AssemblyName;
-					await Task.Yield();
-				}
-				FileSystem.Mount( memoryFileSystem );
-			}
-
-			LoadingScreen.Subtitle = null;
-
-			analytic.Submit();
-
-			return true;
 		}
 
 		public Microsoft.CodeAnalysis.PortableExecutableReference Lookup( string reference )

@@ -82,7 +82,7 @@ partial class TerrainComponentWidget : ComponentEditorWidget
 			hlayout.Add( newTerrainMat );
 
 			var cs = new ControlSheet();
-			cs.AddObject( terrain.Storage.MaterialSettings.GetSerialized() );
+			cs.AddObject( terrain.Storage.MaterialSettings.GetSerialized(), x => !x.HasAttribute<AdvancedAttribute>() );
 			tlayout.Add( cs );
 		}
 
@@ -185,6 +185,10 @@ partial class TerrainComponentWidget : ComponentEditorWidget
 
 		var sheet = new ControlSheet();
 		sheet.AddObject( SerializedObject, FilterProperties );
+
+		var materialSettings = terrain.Storage.MaterialSettings.GetSerialized();
+		sheet.AddGroup( "Advanced", new[] { materialSettings.GetProperty( nameof( TerrainStorage.TerrainMaterialSettings.Sampler ) ) } );
+
 		container.Layout.Add( sheet );
 
 		return container;

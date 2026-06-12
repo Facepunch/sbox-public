@@ -36,6 +36,7 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 		Transform.OnTransformChanged -= OnTerrainChanged;
 		Storage?.MaterialSettings?.OnChanged -= OnTerrainChanged;
 
+		BackupRenderAttributes( _so?.Attributes );
 		_so?.Delete();
 		_so = null;
 
@@ -99,6 +100,7 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 		if ( !Active )
 			return;
 
+		BackupRenderAttributes( _so?.Attributes );
 		_so?.Delete();
 		_so = null;
 

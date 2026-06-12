@@ -19,8 +19,8 @@ native enum CModelSkeleton::BoneFlags_t as NativeEngine.BoneFlags;
 [ResourceHandle:HModel]
 native class CModel as NativeEngine.IModel
 {
-	string GetModelName();
-	string GetBaseModelName();
+	stable string GetModelName();
+	stable string GetBaseModelName();
 	IModel GetBaseModel();
 
 	bool IsTranslucent();
@@ -32,10 +32,10 @@ native class CModel as NativeEngine.IModel
 
 	// old
 	bool GetAttachmentTransform( StringToken name, cref out Transform tx );
-	string GetAttachmentNameFromIndex( int index );
+	stable string GetAttachmentNameFromIndex( int index );
 
 	int GetBodyPartForName( string pName );
-	string GetBodyPartName( int nPart );
+	stable string GetBodyPartName( int nPart );
 	int GetNumBodyParts();
 	int GetNumBodyPartMeshes( int nPart );
 	ulong GetBodyPartMask( int nPart );
@@ -54,7 +54,7 @@ native class CModel as NativeEngine.IModel
 	}
 
 	int GetNumMaterialGroups();
-	string GetMaterialGroupName( int iGroup );
+	stable string GetMaterialGroupName( int iGroup );
 	int GetMaterialGroupIndex( StringToken nGroup );
 	int GetNumMaterialsInGroup( int iGroup );
 	IMaterial GetMaterialInGroup( int iGroup, int iIndex );
@@ -192,14 +192,14 @@ native class CModel as NativeEngine.IModel
 
 	int NumBones();
 	int FindBoneIndex( string name );
-	string boneName( int iBone );
+	stable string boneName( int iBone );
 	int boneParent( int iBone );
 	Transform GetBoneTransform( int iBone );
 	Vector3 bonePosParentSpace( int iBone );
 	Rotation boneRotParentSpace( int iBone );
 
 	int NumFlexControllers();
-	inline string GetFlexControllerName( int nFlexController )
+	inline stable string GetFlexControllerName( int nFlexController )
 	{
 		return self->GetFlexControllerName( LocalFlexController_t( nFlexController ) );
 	}
@@ -207,7 +207,7 @@ native class CModel as NativeEngine.IModel
 	float GetVisemeMorph( string viseme, int morph );
 
 	int GetNumAnim();
-	string GetAnimationName( int nAnimation );
+	stable string GetAnimationName( int nAnimation );
 
 	inline void GetSequenceNames( CUtlVectorString names )
 	{

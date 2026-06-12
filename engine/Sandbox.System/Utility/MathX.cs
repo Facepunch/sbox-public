@@ -80,8 +80,8 @@ public static partial class MathX
 	public static float SnapToGrid( this float f, float gridSize )
 	{
 		if ( gridSize.AlmostEqual( 0.0f ) ) return f;
-		var inv = 1 / gridSize;
-		return MathF.Round( f * inv ) / inv;
+		var snapped = MathF.Round( f / gridSize ) * gridSize;
+		return snapped == 0.0f ? 0.0f : snapped;
 	}
 
 	/// <summary>

@@ -1,7 +1,9 @@
-﻿using System;
+﻿namespace Facepunch.InteropGen;
 
-namespace Facepunch.InteropGen;
-
+/// <summary>
+/// A defined <see cref="Struct"/> (struct/enum/pointer) passed across the boundary. Plain structs are
+/// passed by pointer; enums as their underlying integer; pointer-handles as an IntPtr.
+/// </summary>
 public class ArgDefinedStruct : Arg
 {
 	public Struct Type { get; set; }
@@ -20,56 +22,43 @@ public class ArgDefinedStruct : Arg
 
 	public override string NativeDelegateType => NativeType;
 
-	public override string GetManagedDelegateType( bool incoming )
+	public override string DelegateType( Side side, Dir dir )
 	{
-		return Type.IsPointer
-			? $"IntPtr /* PtrHandle:{Type.NativeName}  */"
-			: !incoming && Flags == null && !Type.IsEnum && !Type.HasAttribute( "small" )
-			? $"{ManagedType}*"
-			: base.GetManagedDelegateType( incoming );
-	}
-
-	public override string ReturnWrapCall( string functionCall, bool native )
-	{
-		if ( native )
+		if ( side == Side.Managed )
 		{
-			if ( Type.CreateUsing != null )
-			{
-				functionCall = $"{Type.CreateUsing}( {functionCall} )";
-			}
+			return Type.IsPointer
+				? $"IntPtr /* PtrHandle:{Type.NativeName}  */"
+				: dir == Dir.Outgoing && Flags == null && !Type.IsEnum && !Type.HasAttribute( "small" )
+				? $"{ManagedType}*"
+				: base.DelegateType( side, dir );
 		}
 
-		return base.ReturnWrapCall( functionCall, native );
-	}
-
-	public override string GetNativeDelegateType( bool incoming )
-	{
-		if ( incoming && Name != null && Flags == null && !Type.IsPointer && !Type.IsEnum && !Type.HasAttribute( "small" ) )
+		if ( dir == Dir.Incoming && Name != null && Flags == null && !Type.IsPointer && !Type.IsEnum && !Type.HasAttribute( "small" ) )
 		{
 			return $"{NativeDelegateType}*";
 		}
 
-		return base.GetNativeDelegateType( incoming );
+		return base.DelegateType( side, dir );
 	}
 
-	public override string ToInterop( bool native, string code = null )
+	public override string ToInterop( Side side, string code = null )
 	{
 		return Type.IsPointer
 			? code ?? Name
-			: !native && code == null && Name != null && Flags == null && !Type.IsEnum && !Type.HasAttribute( "small" )
+			: side == Side.Managed && code == null && Name != null && Flags == null && !Type.IsEnum && !Type.HasAttribute( "small" )
 			? $"&{Name}"
-			: base.ToInterop( native, code );
+			: base.ToInterop( side, code );
 	}
 
-	public override string FromInterop( bool native, string code = null )
+	public override string FromInterop( Side side, string code = null )
 	{
 		// non-small arg structs are passed as ptr, so read it as ptr
-		if ( native && Flags == null && !Type.IsPointer && !Type.IsEnum && !Type.HasAttribute( "small" ) )
+		if ( side == Side.Native && Flags == null && !Type.IsPointer && !Type.IsEnum && !Type.HasAttribute( "small" ) )
 		{
 			return $"*{code ?? Name}";
 		}
 
-		return base.FromInterop( native, code );
+		return base.FromInterop( side, code );
 	}
 
 	public override string DefaultValue => $"{NativeType}()";

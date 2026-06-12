@@ -370,6 +370,41 @@ internal partial class GameInstanceDll
 		};
 
 		FileWatchers.Add( watcher );
+
+		NetworkTransientGeneratedFiles( project );
+
 		Log.Info( $"..done in {sw.Elapsed.TotalSeconds:0.00}s" );
+	}
+
+	/// <summary>
+	/// Make runtime-generated assets in the project's .sbox/transient/ folder available to joining clients
+	/// This is necessary for connected clients to see things like TextureGenerators.
+	/// </summary>
+	void NetworkTransientGeneratedFiles( Project project )
+	{
+		if ( project is null )
+			return;
+
+		var transientFolder = Path.Combine( project.GetRootPath(), ".sbox", "transient" );
+		if ( !Directory.Exists( transientFolder ) )
+			return;
+
+		var transientFs = new LocalFileSystem( transientFolder );
+
+		foreach ( var file in transientFs.FindFile( "/", "*", true ) )
+		{
+			UpdateNetworkFile( transientFs, file );
+		}
+
+		var watcher = transientFs.Watch();
+		watcher.OnChanges += w =>
+		{
+			foreach ( var fileName in w.Changes )
+			{
+				UpdateNetworkFile( transientFs, fileName );
+			}
+		};
+
+		FileWatchers.Add( watcher );
 	}
 }

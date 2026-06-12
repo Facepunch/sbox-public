@@ -6,6 +6,7 @@ RewardUnboxUI
 	width: 100%;
 	height: 100%;
 	flex-direction: column;
+	justify-content: space-between;
 	color: $default-text;
 	font-family: $font-default;
 	pointer-events: none;
@@ -63,16 +64,6 @@ RewardUnboxUI
 		gap: 18px;
 		pointer-events: all;
 
-		.eyebrow
-		{
-			font-family: $font-heading;
-			font-size: 2rem;
-			text-transform: uppercase;
-			letter-spacing: 2px;
-			color: $default-100;
-			font-weight: 700;
-		}
-
 		.sub
 		{
 			font-family: $font-heading;
@@ -99,152 +90,124 @@ RewardUnboxUI
 			font-size: 24px;
 			font-weight: 700;
 		}
+	}
 
-		.items
+	.claim-bar
+	{
+		flex-shrink: 0;
+		flex-direction: row;
+		justify-content: space-between;
+		align-items: center;
+		padding: 20px 32px;
+		pointer-events: all;
+		background-color: rgba( $default-800, 0.85 );
+		border-top: 1px solid $default-600;
+		backdrop-filter: blur( 24px );
+
+		.claim-info
 		{
-			flex-direction: row;
-			gap: 16px;
-			margin-top: 8px;
+			flex-direction: column;
+			gap: 6px;
+
+			.select-banner
+			{
+				align-self: flex-start;
+				background-color: $primary-yellow;
+				padding: 6px 16px;
+				border-radius: $rounding-default;
+
+				label
+				{
+					font-family: $font-heading;
+					font-weight: 700;
+					font-size: $text-small;
+					letter-spacing: 0.5px;
+					text-transform: uppercase;
+					color: $default-950;
+				}
+			}
+
+			.blurb
+			{
+				font-family: $font-heading;
+				color: $default-300;
+				font-size: $text-small;
+			}
 		}
 
-		.choose
+		.claim
 		{
-			flex-shrink: 0;
-			padding: 50px 100px;
-			flex-direction: row;
-			align-items: stretch;
-			gap: 36px;
+			width: 250px;
+			justify-content: center;
+			gap: 8px;
+			padding: 14px 24px;
+			border-radius: $rounding-large;
+			background-color: $primary-green;
+			color: $default-950;
+			font-family: $font-heading;
+			font-weight: 700;
+			transition: all 150ms $easing;
+			font-size: 2rem;
+			cursor: pointer;
 
-			.items
+			label
 			{
-				flex-shrink: 0;
-				margin-top: 0;
-				gap: 14px;
-				align-items: stretch;
+				flex-grow: 0;
+				text-transform: uppercase;
+				letter-spacing: 1px;
+			}
+
+			icon
+			{
+				font-size: 18px;
+			}
+
+			&:hover
+			{
+				filter: brightness( 1.5 );
+				sound-in: "ui.button.over";
+			}
+
+			&:active
+			{
+				sound-in: "ui.button.press";
+			}
+
+			&.disabled
+			{
+				background-color: $default-700;
+				color: $default-300;
+				opacity: 1;
+				pointer-events: none;
+				filter: none;
 			}
 		}
 	}
-}
 
-.window
-{
-	flex-direction: column;
-	padding: 28px;
-	border-radius: 16px;
-	background-color: rgba( $default-800, 0.9 );
-	border: 1px solid $default-600;
-	backdrop-filter: blur( 24px );
-	position: absolute;
-	top: 20%;
-	max-width: 70%;
-
-	.header
+	.result-bar
 	{
 		flex-shrink: 0;
-		flex-direction: column;
+		flex-direction: row;
 		align-items: center;
-
-		.screen-title
-		{
-			font-family: $font-heading;
-			font-weight: 800;
-			font-size: 48px;
-			letter-spacing: 1px;
-			text-transform: uppercase;
-			color: $default-text;
-		}
-
-		.screen-subtitle
-		{
-			font-size: 1.5rem;
-			letter-spacing: 1px;
-			color: $default-50;
-			max-width: 900px;
-		}
-	}
-}
-
-.window .footer
-{
-	flex-shrink: 0;
-	flex-direction: row;
-	justify-content: space-between;
-	align-items: flex-end;
-	height: 10px;
-	opacity: 0;
-	overflow: hidden;
-	transition: all 0.5s bounce-out;
-
-	.column
-	{
-		flex-direction: column;
-		gap: 10px;
-	}
-
-	&.show
-	{
-		height: 100px;
-		opacity: 1;
-	}
-
-	.select-banner
-	{
-		align-self: flex-start;
-		background-color: $primary-yellow;
-		padding: 6px 16px;
-		border-radius: $rounding-default;
-
-		label
-		{
-			font-family: $font-heading;
-			font-weight: 700;
-			font-size: $text-small;
-			letter-spacing: 0.5px;
-			text-transform: uppercase;
-			color: $default-950;
-		}
-	}
-
-	.claim
-	{
-		width: 250px;
-		align-self: stretch;
-		margin-top: 6px;
 		justify-content: center;
-		gap: 8px;
-		padding: 14px 24px;
-		border-radius: $rounding-large;
-		background-color: $primary-green;
-		color: $default-950;
-		font-family: $font-heading;
-		font-weight: 700;
-		transition: all 150ms $easing;
-		font-size: 2rem;
+		gap: 16px;
+		padding: 24px 32px;
+		pointer-events: all;
+		background-color: rgba( $default-800, 0.85 );
+		border-top: 1px solid $default-600;
+		backdrop-filter: blur( 24px );
 
-		label
+		.result-icon
 		{
-			flex-grow: 0;
-			text-transform: uppercase;
-			letter-spacing: 1px;
+			font-size: 32px;
+			color: $primary-yellow;
 		}
 
-		i
+		.result-text
 		{
-			font-size: 18px;
-		}
-
-		&:hover
-		{
-			filter: brightness( 1.5 );
-		}
-
-		&.disabled
-		{
-			background-color: $default-700;
-			color: $default-300;
-			opacity: 1;
-			pointer-events: none;
-			filter: none;
+			font-family: $font-heading;
+			font-size: 24px;
+			font-weight: 700;
 		}
 	}
 }

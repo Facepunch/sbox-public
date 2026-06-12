@@ -1,5 +1,7 @@
 ﻿namespace Editor.Wizards;
 
+using Sandbox.Services;
+
 partial class PublishWizard
 {
 	/// <summary>
@@ -18,6 +20,22 @@ partial class PublishWizard
 		PropertyRowError ArchivedWarning { get; set; }
 		PropertyRowError WrongTypeWarning { get; set; }
 		WarningBox UploadWarning { get; set; }
+
+		/// <summary>
+		/// Available licenses for this package type.
+		/// </summary>
+		IReadOnlyList<(string Name, string Title, string Description)> AvailableLicenses { get; set; }
+
+		/// <summary>
+		/// Currently selected license name.
+		/// </summary>
+		[Title( "Asset License" )]
+		public string SelectedLicense { get; set; }
+
+		/// <summary>
+		/// Dropdown control widget for license selection.
+		/// </summary>
+		LicenseControlWidget LicenseDropdown { get; set; }
 
 		public override async Task OpenAsync()
 		{
@@ -58,6 +76,24 @@ partial class PublishWizard
 					Project.Config.IncludeSourceFiles = false;
 				}
 
+				// Show license dropdown if this package type supports it
+				var packageType = PackageType.Get( Project.Config.Type );
+				if ( packageType is { HasAssetLicenses: true } )
+				{
+					var licenseOptions = packageType.GetAssetLicenseOptions();
+					AvailableLicenses = licenseOptions;
+
+					// Load from local metadata as initial value
+					if ( Project.Config.TryGetMeta<string>( "AssetLicense", out var localLicense ) )
+					{
+						SelectedLicense = localLicense;
+					}
+
+					var pageSo = this.GetSerialized();
+					LicenseDropdown = cs.AddControl<LicenseControlWidget>( pageSo.GetProperty( nameof( SelectedLicense ) ) );
+					LicenseDropdown.SetLicenseOptions( licenseOptions );
+				}
+
 				BodyLayout.Add( cs );
 			}
 
@@ -83,6 +119,7 @@ partial class PublishWizard
 
 		Package Package;
 		Task PackageTask;
+		bool LicenseLoaded;
 
 		void GetPackage()
 		{
@@ -99,6 +136,17 @@ partial class PublishWizard
 
 			if ( !IsValid )
 				return;
+
+			// Load license from remote only on first fetch, and only if local metadata was unset
+			if ( Package is not null && !LicenseLoaded )
+			{
+				if ( string.IsNullOrEmpty( SelectedLicense ) && !string.IsNullOrEmpty( Package.AssetLicense ) )
+				{
+					SelectedLicense = Package.AssetLicense;
+					LicenseDropdown?.Update();
+				}
+				LicenseLoaded = true;
+			}
 
 			ArchivedWarning.Visible = Package?.Archived ?? false;
 			WrongTypeWarning.Visible = Package != null && Package.TypeName != Project.Config.Type;
@@ -146,6 +194,21 @@ partial class PublishWizard
 		public override void OnSave()
 		{
 			_ = UpdatePackage();
+		}
+
+		public override Task<bool> FinishAsync()
+		{
+			// Persist locally even if the package doesn't exist yet.
+			if ( AvailableLicenses is null )
+				return Task.FromResult( true );
+
+			Project.Config.SetMeta( "AssetLicense", SelectedLicense ?? "" );
+
+			// Update the backend if this is an existing remote package, but don't block navigation.
+			if ( Package is not null )
+				_ = Package.UpdateValue( "assetLicense", SelectedLicense ?? "" );
+
+			return Task.FromResult( true );
 		}
 	}
 }

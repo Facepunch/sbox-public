@@ -373,8 +373,10 @@ public static partial class Gizmo
 		// Extract axis and angle from quaternion
 		var quat = rotationDelta._quat;
 
+		var w = quat.W.Clamp( -1.0f, 1.0f );
+
 		// Calculate angle from w component (in degrees)
-		var angle = 2.0f * MathF.Acos( quat.W ) * 180.0f / MathF.PI;
+		var angle = 2.0f * MathF.Acos( w ) * 180.0f / MathF.PI;
 
 		var snappedAngle = angle.SnapToGrid( Settings.AngleSpacing );
 
@@ -382,7 +384,7 @@ public static partial class Gizmo
 			return Rotation.Identity;
 
 		// Calculate axis
-		var sinHalfAngle = MathF.Sqrt( 1.0f - quat.W * quat.W );
+		var sinHalfAngle = MathF.Sqrt( 1.0f - w * w );
 		Vector3 axis;
 		if ( sinHalfAngle > 0.0001f )
 		{

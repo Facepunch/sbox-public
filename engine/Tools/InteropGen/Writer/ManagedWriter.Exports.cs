@@ -3,16 +3,16 @@ using System.Linq;
 
 namespace Facepunch.InteropGen;
 
-internal partial class ManagerWriter
+internal partial class ManagedWriter
 {
 
 	private void Exports()
 	{
 		StartBlock( $"internal static unsafe class Exports" );
 		{
-			foreach ( Class c in definitions.Classes.Where( x => x.Native == false ) )
+			foreach ( Class c in definitions.ManagedClasses )
 			{
-				if ( ShouldSkip( c ) )
+				if ( Skip.ShouldSkip( c ) )
 				{
 					continue;
 				}
@@ -22,7 +22,7 @@ internal partial class ManagerWriter
 					ExportFunction( c, f );
 				}
 
-				foreach ( Variable f in c.Variables )
+				if ( c.Variables.Count > 0 )
 				{
 					throw new System.NotImplementedException();
 				}
@@ -34,10 +34,10 @@ internal partial class ManagerWriter
 
 	private void ExportFunction( Class c, Function f )
 	{
-		IEnumerable<string> nativeArgs = c.SelfArg( false, f.Static ).Concat( f.Parameters ).Select( x => $"{x.GetManagedDelegateType( true )} {x.Name}" );
+		IEnumerable<string> nativeArgs = c.SelfArg( false, f.Static ).Concat( f.Parameters ).Select( x => $"{x.DelegateType( Side.Managed, Dir.Incoming )} {x.Name}" );
 		string nativeArgS = string.Join( ", ", nativeArgs );
 
-		IEnumerable<string> managedArgs = f.Parameters.Select( x => x.FromInterop( false ) );
+		IEnumerable<string> managedArgs = f.Parameters.Select( x => x.FromInterop( Side.Managed ) );
 		string managedArgsS = string.Join( ", ", managedArgs );
 
 		string namespc = $"{c.ManagedNamespace}.{c.ManagedName}";
@@ -46,7 +46,7 @@ internal partial class ManagerWriter
 		WriteLine( $"/// {namespc}.{f.Name}( ... )" );
 		WriteLine( "/// </summary>" );
 		WriteLine( "[UnmanagedCallersOnly]" );
-		StartBlock( $"internal static {f.Return.GetManagedDelegateType( true )} {f.MangledName}( {nativeArgS.Trim( ',', ' ' )} )" );
+		StartBlock( $"internal static {f.Return.DelegateType( Side.Managed, Dir.Incoming )} {f.MangledName}( {nativeArgS.Trim( ',', ' ' )} )" );
 		{
 			StartBlock( "try" );
 			{
@@ -63,19 +63,12 @@ internal partial class ManagerWriter
 
 				if ( f.HasReturn )
 				{
-					func = f.Return.ToInterop( false, func );
-					func = f.Return.ReturnWrapCall( func, false );
+					func = f.Return.ToInterop( Side.Managed, func );
+					func = f.Return.ReturnWrapCall( func, Side.Managed );
 				}
 				else
 				{
 					func += ";";
-				}
-
-				func = AttributeWrapFunction( f, func );
-
-				if ( f.ManagedCallReplacement != null )
-				{
-					func = f.ManagedCallReplacement.Invoke();
 				}
 
 				WriteLines( func );
@@ -96,30 +89,5 @@ internal partial class ManagerWriter
 		}
 		EndBlock();
 		WriteLine();
-
-		if ( definitions.InitFrom == "Managed" )
-		{
-			WriteLine( $"internal delegate {f.Return.GetManagedDelegateType( true )} {f.MangledName}_d( {nativeArgS.Trim( ',', ' ' )} );" );
-			WriteLine();
-		}
-	}
-
-	private string AttributeWrapFunction( Function function, string code )
-	{
-		if ( function.HasAttribute( "clientside" ) )
-		{
-			//code = $"using ( Sandbox.Realm.Client() )\n{{\n\t{code}\n}}";
-		}
-
-		if ( function.HasAttribute( "serverside" ) )
-		{
-			// code = $"using ( Sandbox.Realm.Server() )\n{{\n\t{code}\n}}";
-		}
-
-		return code;
 	}
 }
-
-
-
-

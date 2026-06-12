@@ -24,6 +24,11 @@ public partial class Project
 	int CompilerHash => HashCode.Combine( Active, Current == this, Json.SerializeAsObject( Config.GetCompileSettings() ).ToJsonString(), Config.IsStandaloneOnly, Config.Org, Config.Ident, Config.Type, string.Join( ";", PackageReferences() ) );
 
 	/// <summary>
+	/// Whether to save/load compiled assemblies to disk.
+	/// </summary>
+	bool CacheAssemblies => IsBuiltIn && Application.IsRetail;
+
+	/// <summary>
 	/// These package types should reference package.base
 	/// </summary>
 	private static HashSet<string> BaseReferencingTypes { get; } = new HashSet<string> { "game", "addon", "library" };
@@ -126,6 +131,8 @@ public partial class Project
 				}
 			}
 
+			Compiler.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"Ident\", {Config.FullIdent.QuoteSafe()} )]" );
+			Compiler.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"EngineVersion\", {Engine.Protocol.Api.ToString().QuoteSafe()} )]" );
 			Compiler.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"EngineMinorVersion\", {1.ToString().QuoteSafe()} )]" );
 
 			foreach ( var reference in PackageReferences() )
@@ -141,13 +148,106 @@ public partial class Project
 			Compiler.WatchForChanges();
 		}
 
-		// We don't need to update editor compiler if we're not running in the editor
-		if ( !Application.IsEditor )
-			return;
-
-		if ( Config.Type == "game" || Config.Type == "library" || Config.Type == "addon" )
+		if ( Application.IsEditor )
 		{
-			UpdateEditorCompiler();
+			// update editor compiler if we're running in the editor
+
+			if ( Config.Type == "game" || Config.Type == "library" || Config.Type == "addon" )
+			{
+				UpdateEditorCompiler();
+			}
+		}
+
+		if ( CacheAssemblies )
+		{
+			// see if we've got cached assemblies from a previous compile
+			foreach ( var compiler in new[] { Compiler, EditorCompiler } )
+			{
+				if ( compiler is null ) continue;
+
+				LoadCachedAssembly( compiler );
+
+				if ( compiler.BuildSuccess )
+					compiler.Group.ClearForRecompile( compiler );
+			}
+		}
+	}
+
+	private bool LoadCachedAssembly( Compiler compiler )
+	{
+		try
+		{
+			string directory = Path.Combine( GetRootPath(), ".sbox", "bin" );
+			string binPath = Path.Combine( directory, $"{compiler.AssemblyName}.dll" );
+			if ( !File.Exists( binPath ) )
+				return false;
+
+			byte[] bytes = File.ReadAllBytes( binPath );
+			if ( bytes is null )
+				return false;
+
+			var attrs = AssemblyMetadata.GetCustomAttributes( bytes );
+			var metadata = attrs
+				.Where( a => a.AttributeFullName == "System.Reflection.AssemblyMetadataAttribute" )
+				.Where( a => a.Arguments.Length == 2 )
+				.ToDictionary(
+					a => (string)a.Arguments[0],
+					a => (string)a.Arguments[1]
+				);
+
+			//
+			// Check Fingerprint
+			// Can only be reused if it's from the same project and engine version, otherwise we'll need a full recompile.
+			//
+			if ( metadata.TryGetValue( "Ident", out var ident ) == false || ident != Config.FullIdent )
+				return false;
+
+			if ( metadata.TryGetValue( "EngineVersion", out var ver ) == false || ver != Sandbox.Engine.Protocol.Api.ToString() )
+				return false;
+
+			if ( metadata.TryGetValue( "CompileTime", out var timeStr ) == false ||
+				!DateTime.TryParse( timeStr, null, System.Globalization.DateTimeStyles.RoundtripKind, out var compileTime ) )
+				return false;
+
+			//
+			// Finally, check if it's out of date.
+			// If any source files have been modified since the assembly was compiled, we can't use it.
+			//
+			foreach ( var fs in compiler.SourceLocations )
+			{
+				var files = fs.FindFile( "/", "*.*", true );
+				foreach ( var file in files )
+				{
+					string ext = Path.GetExtension( file );
+					if ( ext != ".cs" && ext != ".razor" )
+						continue; // only care about source files
+
+					string path = fs.GetFullPath( file );
+					if ( File.GetLastWriteTimeUtc( path ) > compileTime )
+					{
+						Log.Info( $"{compiler.Name}: Source file {file} was modified after the cached assembly was compiled. Forcing recompile." );
+						return false;
+					}
+
+					if ( File.GetCreationTimeUtc( path ) > compileTime )
+					{
+						Log.Info( $"{compiler.Name}: Source file {file} was added after the cached assembly was compiled. Forcing recompile." );
+						return false;
+					}
+				}
+			}
+
+			// All good, swap in the assembly
+			compiler.UpdateFromAssembly( bytes );
+
+			AssemblyFileSystem.CreateDirectory( "/.bin" );
+			AssemblyFileSystem.WriteAllBytes( $"/.bin/{compiler.AssemblyName}.dll", bytes );
+
+			return true;
+		}
+		catch
+		{
+			return false;
 		}
 	}
 
@@ -286,6 +386,21 @@ public partial class Project
 				project.AssemblyFileSystem.CreateDirectory( "/.bin" );
 				project.AssemblyFileSystem.WriteAllBytes( $"/.bin/{assembly.Compiler.AssemblyName}.dll", assembly.AssemblyData );
 				project.AssemblyFileSystem.WriteAllBytes( $"/.bin/{assembly.Compiler.AssemblyName}.cll", assembly.Archive.Serialize() );
+
+				if ( project.CacheAssemblies )
+				{
+					try
+					{
+						string binPath = Path.Combine( project.GetRootPath(), ".sbox", "bin" );
+						Directory.CreateDirectory( binPath );
+
+						File.WriteAllBytes( Path.Combine( binPath, $"{assembly.Compiler.AssemblyName}.dll" ), assembly.AssemblyData );
+					}
+					catch ( Exception ex )
+					{
+						Log.Warning( $"Failed to write cached assembly for project {project.Config.FullIdent}: {ex.Message}" );
+					}
+				}
 			}
 		}
 	}
