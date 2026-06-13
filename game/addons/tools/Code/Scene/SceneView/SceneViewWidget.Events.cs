@@ -14,15 +14,14 @@ public partial class SceneViewWidget : ResourceLibrary.IEventListener
 		switch ( EditorPreferences.ExternalSceneChange )
 		{
 			case EditorPreferences.ExternalSceneChangeAction.AlwaysReload:
-				Session.Reload();
+				// The source resource isn't reloaded from disk until OnExternalChangesPostLoad,
+				// so we have to defer the reload until then or we'd just load the stale data back.
 				return;
 
 			case EditorPreferences.ExternalSceneChangeAction.ReloadIfSaved:
 				if ( !Session.HasUnsavedChanges )
-				{
-					Session.Reload();
-					return;
-				}
+					return; // auto-reload handled in OnExternalChangesPostLoad
+
 				break; // unsaved work -> fall through and prompt
 
 			case EditorPreferences.ExternalSceneChangeAction.Ask:
@@ -66,5 +65,27 @@ public partial class SceneViewWidget : ResourceLibrary.IEventListener
 		popup.SetModal( true, true );
 		popup.Hide();
 		popup.Show();
+	}
+
+	void ResourceLibrary.IEventListener.OnExternalChangesPostLoad( GameResource resource )
+	{
+		if ( resource != Session.Scene.Source ) return;
+
+		// A prompt is up - let the user decide what to do.
+		if ( _externalChangesDialog.IsValid() )
+			return;
+
+		// By now the source resource has been fully reloaded from disk, so it's safe to reload.
+		switch ( EditorPreferences.ExternalSceneChange )
+		{
+			case EditorPreferences.ExternalSceneChangeAction.AlwaysReload:
+				Session.Reload();
+				break;
+
+			case EditorPreferences.ExternalSceneChangeAction.ReloadIfSaved:
+				if ( !Session.HasUnsavedChanges )
+					Session.Reload();
+				break;
+		}
 	}
 }
