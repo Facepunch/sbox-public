@@ -48,6 +48,27 @@ public static class EditorPreferences
 		set => EditorCookie.Set( "CompileNotifications", value );
 	}
 
+	public enum ExternalSceneChangeAction
+	{
+		[Title( "Always Ask" )]
+		Ask,
+		[Title( "Reload If Saved" )]
+		ReloadIfSaved,
+		[Title( "Always Reload" )]
+		AlwaysReload
+	}
+
+	/// <summary>
+	/// What to do when an open scene's file is modified outside the editor.
+	/// "Reload If Saved" reloads automatically only when you have no unsaved changes, otherwise it asks.
+	/// </summary>
+	[Title( "Scene Changed On Disk" )]
+	public static ExternalSceneChangeAction ExternalSceneChange
+	{
+		get => EditorCookie.Get( "ExternalSceneChange", ExternalSceneChangeAction.Ask );
+		set => EditorCookie.Set( "ExternalSceneChange", value );
+	}
+
 	/// <summary>
 	/// The amount of seconds to keep a notification open if it's an error
 	/// </summary>

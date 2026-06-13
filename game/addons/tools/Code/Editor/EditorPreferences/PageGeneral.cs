@@ -18,6 +18,17 @@ internal class PageGeneral : Widget
 			sheet.AddProperty( () => EditorPreferences.FastHotload );
 
 			Layout.Add( sheet );
+		}
+
+		{
+			Layout.AddSpacingCell( 16 );
+			Layout.Add( new Label.Subtitle( "Scene" ) );
+
+			var sceneSheet = new ControlSheet();
+
+			sceneSheet.AddProperty( () => EditorPreferences.ExternalSceneChange );
+
+			Layout.Add( sceneSheet );
 			Layout.AddStretchCell();
 		}
 	}
