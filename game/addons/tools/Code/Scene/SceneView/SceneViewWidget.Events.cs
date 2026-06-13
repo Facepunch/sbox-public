@@ -11,6 +11,25 @@ public partial class SceneViewWidget : ResourceLibrary.IEventListener
 		if ( _externalChangesDialog.IsValid() ) // already showing one
 			return;
 
+		switch ( EditorPreferences.ExternalSceneChange )
+		{
+			case EditorPreferences.ExternalSceneChangeAction.AlwaysReload:
+				Session.Reload();
+				return;
+
+			case EditorPreferences.ExternalSceneChangeAction.ReloadIfSaved:
+				if ( !Session.HasUnsavedChanges )
+				{
+					Session.Reload();
+					return;
+				}
+				break; // unsaved work -> fall through and prompt
+
+			case EditorPreferences.ExternalSceneChangeAction.Ask:
+			default:
+				break; // show prompt as before
+		}
+
 		Session.MakeActive();
 
 		var popup = new PopupDialogWidget( "published_with_changes" );
