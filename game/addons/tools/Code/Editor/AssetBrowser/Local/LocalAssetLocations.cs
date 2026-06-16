@@ -157,10 +157,11 @@ public class LocalAssetLocations : AssetLocations
 	[EditorEvent.Frame]
 	public void OnFrame()
 	{
-		if ( PinsNode?.Children.Count() == Pins.Count() && !_pinsDirty )
+		if ( !_pinsDirty && _lastBuiltPins is not null && Pins.SequenceEqual( _lastBuiltPins ) )
 			return;
 
 		_pinsDirty = false;
+		_lastBuiltPins = Pins.ToList();
 
 		PinsNode?.Clear();
 
@@ -198,6 +199,7 @@ public class LocalAssetLocations : AssetLocations
 	}
 
 	private bool _pinsDirty = false;
+	private List<string> _lastBuiltPins;
 
 	void RefreshPins()
 	{
