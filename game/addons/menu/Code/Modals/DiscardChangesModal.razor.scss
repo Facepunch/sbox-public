@@ -1,0 +1,41 @@
+DiscardChangesModal
+{
+	font-family: Poppins;
+
+	.window
+	{
+		width: 450px;
+		pointer-events: all;
+		background: linear-gradient( to bottom, #1d212f, #1c202d );
+		flex-direction: column;
+		border-radius: 16px;
+		box-shadow: 2px 2px 20px #0005;
+	}
+
+	.header
+	{
+		margin: 2px;
+		border-radius: 16px 16px 0px 0px;
+		padding: 8px 16px;
+		color: white;
+		background-color: #323b5233;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+	}
+
+	.body
+	{
+		padding: 12px 16px;
+		color: white;
+		font-size: 16px;
+		flex-direction: column;
+	}
+
+	.footer
+	{
+		padding: 8px 16px 16px 16px;
+		justify-content: center;
+		gap: 8px;
+	}
+}
