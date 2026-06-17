@@ -5,7 +5,7 @@ public class Player
 	public long Id { get; set; }
 	public string Name { get; set; }
 	public string Url { get; set; }
-	public string Avatar => $"avatar:{Id}";
+	public string Avatar { get; set; }
 	public bool Online { get; set; }
 	public bool Private { get; set; }
 	public int Score { get; set; }
@@ -28,6 +28,19 @@ public class PlayerOverview
 
 	public PackageWrapMinimal MostPlayed { get; set; }
 	public PackageWrapMinimal LatestPlayed { get; set; }
+
+	public PlayerPackageEntry[] TopPlayed { get; set; }
+	public PlayerPackageEntry[] RecentlyPlayed { get; set; }
+
+	public PackageWrapMinimal CurrentlyPlaying { get; set; }
+}
+
+public class PlayerPackageEntry
+{
+	public PackageWrapMinimal Package { get; set; }
+	public long SecondsPlayed { get; set; }
+	public int AchUnlocked { get; set; }
+	public DateTimeOffset LastSeen { get; set; }
 }
 
 public class PlayerFeedEntry

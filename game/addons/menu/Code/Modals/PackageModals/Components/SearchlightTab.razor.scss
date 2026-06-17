@@ -1,55 +1,30 @@
+@import "/styles/_theme.scss";
 
 SearchlightTab
 {
-    color: #c6d4ee;
-    font-size: 14px;
+    color: $default-300;
+    font-size: $text-regular;
+    font-weight: 700;
+    font-family: $font-heading;
     align-items: center;
-    gap: 1rem;
-    padding: 10px 15px;
+    padding: 0px 14px 12px 14px;
     border-bottom: 2px solid transparent;
     pointer-events: all;
     cursor: pointer;
+    transition: color 0.15s ease;
 
-    i
-    {
-        color: #6a7181;
-        font-size: 22px;
-    }
-
-    .title
-    {
-        font-weight: 600;
-    }
+    i { display: none; }
 }
 
 SearchlightTab:hover
 {
-
-    i
-    {
-        color: white;
-    }
-
-    .title
-    {
-        color: white;
-    }
+    color: $default-text;
+    sound-in: "ui.button.over";
 }
-
 
 .active SearchlightTab
 {
-    border-bottom: 2px solid #3472e6;
-    background: linear-gradient( to bottom, #3472e600, #3472e666 );
+    color: $default-text;
+    border-bottom: 2px solid $primary-blue;
     cursor: auto;
-
-    i
-    {
-        color: #3472e6;
-    }
-
-    .title
-    {
-        color: white;
-    }
 }

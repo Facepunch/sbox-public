@@ -217,47 +217,94 @@ internal static class ReflectionUtility
 	}
 
 	/// <summary>
-	/// Pre-compile all of the methods that we can, to reduce the risk of them compiling during gameplay
+	/// Pre-compile all methods in the assembly on a background thread to reduce the risk of
+	/// on-demand JIT stalls during gameplay. Returns immediately. Cancels automatically
+	/// if the assembly's load context begins unloading, so type references are released
+	/// promptly and don't delay hotloads.
 	/// </summary>
-	public static void PreJIT( Assembly asm )
+	public static System.Threading.Tasks.Task PreJITAsync( Assembly asm )
 	{
-		foreach ( var t in asm.GetTypes() )
+		var logger = Logging.GetLogger( "PreJit" );
+		var alc = System.Runtime.Loader.AssemblyLoadContext.GetLoadContext( asm );
+
+		// cts is always disposed in the Task's finally block below.
+#pragma warning disable CA2000
+		var cts = new System.Threading.CancellationTokenSource();
+#pragma warning restore CA2000
+		Action<System.Runtime.Loader.AssemblyLoadContext> unloadHandler = null;
+
+		if ( alc is not null && alc != System.Runtime.Loader.AssemblyLoadContext.Default )
 		{
-			if ( t.IsGenericTypeDefinition ) continue;
-
-			foreach ( var method in t.GetMethods( BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance ) )
-			{
-				if ( method.IsAbstract ) continue;
-				if ( method.ContainsGenericParameters ) continue;
-				if ( method.DeclaringType?.BaseType == typeof( MulticastDelegate ) ) continue;
-				if ( method.Name is "BeginInvoke" or "EndInvoke" ) continue; // Skip async delegate methods
-
-				try
-				{
-					System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod( method.MethodHandle );
-				}
-				catch ( System.Exception e )
-				{
-					Logging.GetLogger( "PreJit" ).Warning( e, $"{e.Message} - {t}.{method}" );
-				}
-			}
-
-			foreach ( var method in t.GetConstructors( BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance ) )
-			{
-				if ( method.IsAbstract ) continue;
-				if ( method.ContainsGenericParameters ) continue;
-				if ( method.DeclaringType?.BaseType == typeof( MulticastDelegate ) ) continue;
-				if ( method.Name is "BeginInvoke" or "EndInvoke" ) continue; // Skip async delegate methods
-
-				try
-				{
-					System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod( method.MethodHandle );
-				}
-				catch ( System.Exception e )
-				{
-					Logging.GetLogger( "PreJit" ).Warning( e, $"{e.Message} - {t}.{method}" );
-				}
-			}
+			unloadHandler = _ => cts.Cancel();
+			alc.Unloading += unloadHandler;
 		}
+
+		return System.Threading.Tasks.Task.Run( () =>
+		{
+			try
+			{
+				Type[] types;
+				try
+				{
+					types = asm.GetTypes();
+				}
+				catch ( ReflectionTypeLoadException e )
+				{
+					types = e.Types.Where( t => t is not null ).ToArray();
+				}
+
+				const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance;
+
+				foreach ( var t in types )
+				{
+					if ( cts.IsCancellationRequested ) break;
+					if ( t.IsGenericTypeDefinition ) continue;
+					if ( t.BaseType == typeof( MulticastDelegate ) ) continue;
+
+					try
+					{
+						foreach ( var method in t.GetMethods( flags ) )
+						{
+							if ( method.IsAbstract ) continue;
+							if ( method.ContainsGenericParameters ) continue;
+
+							try
+							{
+								System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod( method.MethodHandle );
+							}
+							catch ( Exception e )
+							{
+								logger.Warning( e, $"{e.Message} - {t}.{method}" );
+							}
+						}
+
+						foreach ( var ctor in t.GetConstructors( flags ) )
+						{
+							if ( ctor.ContainsGenericParameters ) continue;
+
+							try
+							{
+								System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod( ctor.MethodHandle );
+							}
+							catch ( Exception e )
+							{
+								logger.Warning( e, $"{e.Message} - {t}.{ctor}" );
+							}
+						}
+					}
+					catch ( Exception e )
+					{
+						logger.Warning( e, $"PreJIT failed for type {t}" );
+					}
+				}
+			}
+			finally
+			{
+				if ( unloadHandler is not null )
+					alc.Unloading -= unloadHandler;
+
+				cts.Dispose();
+			}
+		} );
 	}
 }

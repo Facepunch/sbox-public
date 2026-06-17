@@ -21,6 +21,9 @@ public partial class Model
 		if ( Sandbox.Mounting.Directory.TryLoad( filename, ResourceType.Model, out object model ) && model is Model m )
 			return m;
 
+		if ( Game.Resources.TryGet<Model>( filename, out var resource ) )
+			return resource;
+
 		return FromNative( NativeGlue.Resources.GetModel( filename ), name: filename );
 	}
 
@@ -40,6 +43,9 @@ public partial class Model
 
 		if ( await Sandbox.Mounting.Directory.TryLoadAsync( filename, ResourceType.Model ) is Model m )
 			return m;
+
+		if ( Game.Resources.TryGet<Model>( filename, out var resource ) )
+			return resource;
 
 		using var manifest = AsyncResourceLoader.Load( filename );
 		if ( manifest is not null )

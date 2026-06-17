@@ -4,7 +4,7 @@
 {
     background-color: rgba( $primary, 0.9 );
     border-radius: 12px;
-    padding: 0px 32px;
+    padding: 8px;
     color: #fff;
     font-family: "poppins";
     font-size: 18px;
@@ -13,9 +13,8 @@
     box-shadow: 5px 5px 20px rgba( black, 0.8 );
     opacity: 1;
     transition: all 0.2s ease-out;
-    sound-in: ui.popup.message.open;
+    sound-in: "ui.popup.message.open";
     overflow: hidden;
-    padding: 8px;
     bottom: 0px;
     left: 0px;
     top: 0px;
@@ -94,7 +93,6 @@
 
     .button
     {
-        padding: 0;
         background-color: white;
         padding: 1px 4px;
         border-radius: 4px;

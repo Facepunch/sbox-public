@@ -394,7 +394,7 @@ public partial class MovieEditor : Widget, IHotloadManaged
 	{
 		if ( Session is not { } session ) return;
 
-        // We're deleting the old embedded session, so remove it from the active session list
+		// We're deleting the old embedded session, so remove it from the active session list
 		_sessions.Remove( new SessionKey( session.Player.Id, null ) );
 
 		var player = session.Player;

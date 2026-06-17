@@ -6,16 +6,16 @@ namespace Sandbox.UI;
 internal partial class PanelRenderer
 {
 	bool backdropGrabActive;
+	BlendMode pendingBlendMode = BlendMode.Normal;
 
-	void DrawPanel( Panel panel, CommandList cl, bool ownContentAlreadyDrawn = false )
+	void DrawPanel( Panel panel, CommandList cl )
 	{
 		if ( panel?.ComputedStyle == null || !panel.IsVisible )
 			return;
 
 		Stats.Panels++;
 
-		if ( !ownContentAlreadyDrawn )
-			DrawOwnContent( panel, cl );
+		DrawOwnContent( panel, cl );
 
 		var children = panel._renderChildren;
 		if ( children == null || children.Count == 0 )
@@ -48,17 +48,27 @@ internal partial class PanelRenderer
 		}
 	}
 
-	// Batch siblings horizontally but respect z-index stacking: each z-index group
-	// collects its own backgrounds, then recurses its children, before the next group.
-	// Higher z-index siblings and their descendants draw after lower ones.
-	// Absolute-positioned panels also start a new group so they draw on top of
-	// preceding non-absolute siblings and their descendants.
+	struct DeferredInstance
+	{
+		public GPUBoxInstance Instance;
+		public BlendMode BlendMode;
+		public int Pass;
+		public int Order;
+	}
+
+	int deferredOrder;
+
+	// Tracks accumulated z-index while walking panels. Used as the high bits of the
+	// sort key so z-indexed children don't get reshuffled by the blend-mode sort.
+	int zDepth;
+
 	int CollectBatchedRun( List<Panel> children, int start, CommandList cl )
 	{
-		int groupStart = start;
 		int groupZ = children[start].ComputedStyle.ZIndex ?? 0;
 		bool groupAbsolute = children[start].ComputedStyle?.Position == PositionMode.Absolute;
 		int end = start;
+
+		int savedDepth = zDepth;
 
 		while ( end < children.Count )
 		{
@@ -71,29 +81,173 @@ internal partial class PanelRenderer
 
 			if ( z != groupZ || isAbsolute != groupAbsolute )
 			{
-				RecurseGroupChildren( children, groupStart, end, cl );
-				groupStart = end;
+				FlushDeferredBatches( cl );
+				backdropGrabActive = false;
 				groupZ = z;
 				groupAbsolute = isAbsolute;
 			}
 
-			CollectInstances( c, c.CachedDescriptors.Scissor, c.CachedDescriptors.TransformMat );
-			Stats.BatchedPanels++;
+			// Positive z lifts the child above its parent; negative z stays with parent
+			// so it can't sort under the parent's own background.
+			zDepth = savedDepth + Math.Max( 0, z );
+
+			CollectBatchedRecursive( c, cl );
 			end++;
 		}
 
-		RecurseGroupChildren( children, groupStart, end, cl );
+		zDepth = savedDepth;
+		FlushDeferredBatches( cl );
 		return end;
 	}
 
-	void RecurseGroupChildren( List<Panel> children, int start, int end, CommandList cl )
+	void CollectBatchedRecursive( Panel panel, CommandList cl )
 	{
-		for ( int i = start; i < end; i++ )
+		var desc = panel.CachedDescriptors;
+
+		// Draw backdrop quads before collecting box instances, reusing the
+		// frame grab across consecutive siblings at the same z-depth.
+		if ( desc.Backdrops.Count > 0 )
 		{
-			var c = children[i];
-			if ( c?.ComputedStyle == null || !c.IsVisible ) continue;
-			DrawPanel( c, cl, ownContentAlreadyDrawn: true );
+			if ( deferredInstances.Count > 0 && panel.ComputedStyle?.Position == PositionMode.Absolute )
+			{
+				// Absolute-positioned panels overlap previous content;
+				// flush and re-grab so the backdrop sees the correct framebuffer
+				// and deferred instances don't sort across panel boundaries.
+				FlushDeferredBatches( cl );
+				FlushBatch( cl );
+				backdropGrabActive = false;
+			}
+			else if ( !backdropGrabActive )
+			{
+				FlushDeferredBatches( cl );
+				FlushBatch( cl );
+			}
+
+			cl.Attributes.Set( "TransformMat", desc.TransformMat );
+			SetScissorAttributes( cl, desc.Scissor );
+
+			Stats.DrawCalls++;
+			DrawImmediate( CollectionsMarshal.AsSpan( desc.Backdrops ), cl, reuseGrab: backdropGrabActive );
+			backdropGrabActive = true;
 		}
+
+		CollectInstancesDeferred( panel, desc.Scissor, desc.TransformMat );
+		Stats.BatchedPanels++;
+
+		var children = panel._renderChildren;
+		if ( children == null || children.Count == 0 ) return;
+
+		int savedDepth = zDepth;
+
+		// Children need a fresh grab if this panel drew a backdrop, since
+		// the DrawQuad modified the framebuffer. Save/restore so siblings
+		// at our level can still reuse the original grab.
+		bool savedGrabActive = backdropGrabActive;
+		if ( desc.Backdrops.Count > 0 )
+			backdropGrabActive = false;
+
+		for ( int i = 0; i < children.Count; i++ )
+		{
+			var child = children[i];
+			if ( child?.ComputedStyle == null || !child.IsVisible ) continue;
+
+			int childZ = child.ComputedStyle.ZIndex ?? 0;
+			zDepth = savedDepth + Math.Max( 0, childZ );
+
+			switch ( child.CachedRenderMode )
+			{
+				case Panel.RenderMode.Batched:
+					CollectBatchedRecursive( child, cl );
+					break;
+
+				case Panel.RenderMode.Layer:
+					FlushDeferredBatches( cl );
+					backdropGrabActive = false;
+					DrawLayerPanel( child, cl );
+					break;
+
+				case Panel.RenderMode.Inline:
+					FlushDeferredBatches( cl );
+					backdropGrabActive = false;
+					DrawPanel( child, cl );
+					break;
+			}
+		}
+
+		zDepth = savedDepth;
+		backdropGrabActive = savedGrabActive || backdropGrabActive;
+	}
+
+	void CollectInstancesDeferred( Panel panel, GPUScissor scissor, Matrix transform )
+	{
+		var desc = panel.CachedDescriptors;
+		if ( desc == null ) return;
+
+		int scissorIndex = batcher.GetOrAddScissor( scissor );
+		int transformIndex = batcher.GetOrAddTransform( transform );
+
+		var instances = CollectionsMarshal.AsSpan( desc.Instances );
+		for ( int j = 0; j < instances.Length; j++ )
+		{
+			ref var ri = ref instances[j];
+
+			// Skip boxes whose background texture hasn't streamed in yet
+			if ( ri.BackgroundImage is not null && ri.BackgroundImage.Index <= 0 )
+				continue;
+
+			var gpu = ri.GPU;
+
+			// Refresh bindless indices that may have changed since build
+			if ( ri.BackgroundImage is not null )
+				gpu.TextureIndex = ri.BackgroundImage.Index;
+			if ( ri.BorderImage is not null )
+				gpu.BorderImageIndex = ri.BorderImage.Index;
+
+			gpu.ScissorIndex = scissorIndex;
+			gpu.TransformIndex = transformIndex;
+			gpu.InverseScissorIndex = ri.HasInverseScissor ? batcher.GetOrAddScissor( ri.InverseScissor ) : -1;
+
+			// Pack z-depth in the high bits, per-panel intra-pass in the low bits.
+			int sortPass = zDepth * 256 + (ri.Pass & 0xFF);
+
+			deferredInstances.Add( new DeferredInstance { Instance = gpu, BlendMode = ri.BlendMode, Pass = sortPass, Order = deferredOrder++ } );
+			Stats.InstanceCount++;
+		}
+	}
+
+	/// <summary>
+	/// Sorts deferred instances, flushes draw calls at transitions.
+	/// </summary>
+	void FlushDeferredBatches( CommandList cl )
+	{
+		if ( deferredInstances.Count == 0 ) return;
+
+		var span = CollectionsMarshal.AsSpan( deferredInstances );
+		span.Sort( ( a, b ) =>
+		{
+			int cmp = a.Pass - b.Pass;
+			if ( cmp != 0 ) return cmp;
+			cmp = (int)a.BlendMode - (int)b.BlendMode;
+			if ( cmp != 0 ) return cmp;
+			return a.Order - b.Order;
+		} );
+
+		for ( int i = 0; i < span.Length; i++ )
+		{
+			ref var d = ref span[i];
+
+			if ( d.BlendMode != pendingBlendMode && pendingInstances.Count > 0 )
+				FlushBatch( cl );
+
+			pendingBlendMode = d.BlendMode;
+			pendingInstances.Add( d.Instance );
+		}
+
+		FlushBatch( cl );
+
+		deferredInstances.Clear();
+		deferredOrder = 0;
+		zDepth = 0;
 	}
 
 	void DrawOwnContent( Panel panel, CommandList cl )
@@ -127,36 +281,89 @@ internal partial class PanelRenderer
 
 		if ( hasBackdrop )
 		{
-			Stats.DrawCalls += desc.Backdrops.Count;
-			UIRenderer.Draw( CollectionsMarshal.AsSpan( desc.Backdrops ), cl, reuseGrab: backdropGrabActive );
+			Stats.DrawCalls++;
+			DrawImmediate( CollectionsMarshal.AsSpan( desc.Backdrops ), cl, reuseGrab: backdropGrabActive );
 			backdropGrabActive = true;
 		}
 
-		CollectInstances( panel, scissor, transform );
+		CollectInstances( panel, scissor, transform, cl );
 	}
 
-	void CollectInstances( Panel panel, GPUScissor scissor, Matrix transform )
+	void CollectInstances( Panel panel, GPUScissor scissor, Matrix transform, CommandList cl )
 	{
 		var desc = panel.CachedDescriptors;
 		if ( desc == null ) return;
 
-		for ( int j = 0; j < desc.OuterShadows.Count; j++ )
-			AddInstance( GPUBoxInstance.FromShadow( desc.OuterShadows[j] ), scissor, transform );
+		var customIdx = 0;
 
-		for ( int j = 0; j < desc.Boxes.Count; j++ )
+		var instances = CollectionsMarshal.AsSpan( desc.Instances );
+		for ( int j = 0; j < instances.Length; j++ )
 		{
-			var box = desc.Boxes[j];
-			if ( box.IsTwoPass ) continue;
-			if ( box.BackgroundImage != null && box.BackgroundImage != Texture.Invalid && box.BackgroundImage.Index <= 0 ) continue; // texture not yet streamed
+			// Fire any custom draws whose insertion point falls before this instance
+			while ( customIdx < desc.CustomEntries.Count && desc.CustomEntries[customIdx].InsertionIndex <= j )
+			{
+				FlushBatch( cl );
+				DrawCustom( desc.CustomEntries[customIdx++].Descriptor, cl );
+				// Restore CL state that the batch path expects
+				cl.Attributes.Set( "TransformMat", transform );
+				if ( worldPanelMat.HasValue )
+					cl.Attributes.Set( "WorldMat", worldPanelMat.Value );
+				SetScissorAttributes( cl, scissor );
+			}
 
-			AddInstance( GPUBoxInstance.From( box ), scissor, transform );
+			ref var ri = ref instances[j];
+
+			// Skip instances whose texture hasn't streamed in yet
+			if ( ri.BackgroundImage is not null && ri.BackgroundImage.Index <= 0 )
+				continue;
+
+			// Blend mode change forces a flush so the shader combo is correct
+			if ( ri.BlendMode != pendingBlendMode && pendingInstances.Count > 0 )
+				FlushBatch( cl );
+
+			pendingBlendMode = ri.BlendMode;
+
+			// Refresh bindless indices that may have changed since build
+			var gpu = ri.GPU;
+			if ( ri.BackgroundImage is not null )
+				gpu.TextureIndex = ri.BackgroundImage.Index;
+			if ( ri.BorderImage is not null )
+				gpu.BorderImageIndex = ri.BorderImage.Index;
+
+			gpu.InverseScissorIndex = ri.HasInverseScissor ? batcher.GetOrAddScissor( ri.InverseScissor ) : -1;
+
+			AddInstance( gpu, scissor, transform );
 		}
 
-		for ( int j = 0; j < desc.InsetShadows.Count; j++ )
-			AddInstance( GPUBoxInstance.FromShadow( desc.InsetShadows[j] ), scissor, transform );
+		// Fire any custom draws that come after all instances
+		while ( customIdx < desc.CustomEntries.Count )
+		{
+			FlushBatch( cl );
+			DrawCustom( desc.CustomEntries[customIdx++].Descriptor, cl );
+			cl.Attributes.Set( "TransformMat", transform );
+			if ( worldPanelMat.HasValue )
+				cl.Attributes.Set( "WorldMat", worldPanelMat.Value );
+			SetScissorAttributes( cl, scissor );
+		}
+	}
 
-		for ( int j = 0; j < desc.Outlines.Count; j++ )
-			AddInstance( GPUBoxInstance.FromOutline( desc.Outlines[j] ), scissor, transform );
+	void DrawCustom( IPanelDraw descriptor, CommandList cl )
+	{
+		if ( isWorldPanelContext )
+			cl.Attributes.Set( "WorldMat", Sandbox.ScenePanelObject.BuildPanelToObjectMatrix() );
+
+		descriptor.Draw( cl );
+	}
+
+	void DrawImmediate( Span<BackdropDrawDescriptor> descriptors, CommandList cl, bool reuseGrab )
+	{
+		if ( isWorldPanelContext )
+			cl.Attributes.Set( "WorldMat", Sandbox.ScenePanelObject.BuildPanelToObjectMatrix() );
+
+		UIRenderer.Draw( descriptors, cl, reuseGrab );
+
+		if ( worldPanelMat.HasValue )
+			cl.Attributes.Set( "WorldMat", worldPanelMat.Value );
 	}
 
 	void AddInstance( GPUBoxInstance inst, GPUScissor scissor, Matrix transform )
@@ -177,12 +384,15 @@ internal partial class PanelRenderer
 		Stats.FlushCount++;
 		Stats.DrawCalls++;
 
-		batcher.Draw( pendingInstances, cl, WorldPanelCombo );
+		int combo = LayerStack.Count > 0 ? 0 : WorldPanelCombo;
+
+		batcher.Draw( pendingInstances, cl, combo, pendingBlendMode );
 		pendingInstances.Clear();
+		pendingBlendMode = BlendMode.Normal;
 
 		// Restore CL state that inline draws depend on
 		cl.Attributes.Set( "TransformMat", Matrix.Identity );
-		cl.Attributes.SetCombo( "D_WORLDPANEL", WorldPanelCombo );
+		cl.Attributes.SetCombo( "D_WORLDPANEL", combo );
 		if ( LayerStack.TryPeek( out var top ) )
 			cl.Attributes.Set( "LayerMat", top.Matrix );
 	}

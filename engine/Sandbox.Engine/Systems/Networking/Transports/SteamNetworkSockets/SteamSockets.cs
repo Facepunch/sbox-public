@@ -82,8 +82,6 @@ internal static partial class SteamNetwork
 			OnClientConnect?.Invoke( c );
 
 			Glue.Networking.SetPollGroup( connection, pollGroup );
-
-			Log.Info( $"{this}: Connection ({c})" );
 		}
 
 		internal void OnDisconnected( HSteamNetConnection connection )
@@ -92,7 +90,6 @@ internal static partial class SteamNetwork
 				return;
 
 			OnClientDisconnect?.Invoke( c );
-			Log.Info( $"{this}: Disconnection ({c})" );
 			c.Close( 0, "Disconnect" );
 		}
 

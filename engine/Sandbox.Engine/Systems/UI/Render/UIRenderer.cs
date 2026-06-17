@@ -35,7 +35,10 @@ internal static class UIRenderer
 			attributes.SetCombo( "D_BLENDMODE", desc.OverrideBlendMode );
 
 			if ( !reuseGrab )
+			{
 				attributes.GrabFrameTexture( "FrameBufferCopyTexture", Graphics.DownsampleMethod.GaussianBlur );
+				PanelRenderer.Stats.FrameGrabs++;
+			}
 
 			commandList.DrawQuad( desc.PanelRect, Material.UI.BackdropFilter, Color.White.WithAlpha( desc.Opacity ) );
 		}

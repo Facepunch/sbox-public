@@ -2,71 +2,25 @@
 
 namespace Facepunch.Steps;
 
+/// <summary>
+/// Signs all eligible binaries in the build output using the <c>sign</c> dotnet tool
+/// with Azure Trusted Signing (artifact-signing). Auth is handled via DefaultAzureCredential
+/// (expects AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_CLIENT_SECRET in the environment).
+/// </summary>
 internal class SignBinaries() : Step( "SignBinaries" )
 {
-	// All the stuff we compile directly, no third party
-	// (We compile Qt ourselves, so we sign that too)
-	private static readonly string[] Win64Binaries =
-	[
-		"animationsystem.dll",
-		"assetsystem.dll",
-		"bakedlodbuilder.dll",
-		"contentbuilder.exe",
-		"dmxconvert.exe",
-		"engine2.dll",
-		"fbx2dmx.exe",
-		"filesystem_stdio.dll",
-		"helpsystem.dll",
-		"localize.dll",
-		"materialsystem2.dll",
-		"meshsystem.dll",
-		"modeldoc_utils.dll",
-		"obj2dmx.exe",
-		"physicsbuilder.dll",
-		"propertyeditor.dll",
-		"Qt5Concurrent.dll",
-		"Qt5Core.dll",
-		"Qt5Gui.dll",
-		"Qt5Widgets.dll",
-		"rendersystemempty.dll",
-		"rendersystemvulkan.dll",
-		"resourcecompiler.dll",
-		"resourcecompiler.exe",
-		"schemasystem.dll",
-		"tier0.dll",
-		"tier0_s64.dll",
-		"toolframework2.dll",
-		"toolscenenodes.dll",
-		"vfx_vulkan.dll",
-		"visbuilder.dll",
-		"vpk.exe",
-		"vrad2.exe",
-		"vrad3.exe",
-		"qt5_plugins/imageformats/qgif.dll",
-		"qt5_plugins/imageformats/qico.dll",
-		"qt5_plugins/imageformats/qjpeg.dll",
-		"qt5_plugins/imageformats/qtga.dll",
-		"qt5_plugins/imageformats/qwbmp.dll",
-		"qt5_plugins/platforms/qwindows.dll",
-		"tools/animgraph_editor.dll",
-		"tools/hammer.dll",
-		"tools/met.dll",
-		"tools/modeldoc_editor.dll"
-	];
 
 	protected override ExitCode RunInternal()
 	{
 		string rootDir = Directory.GetCurrentDirectory();
 
-		var vaultUrl = Environment.GetEnvironmentVariable( "CODESIGN_AZURE_KEYVAULT_URL" );
-		var clientId = Environment.GetEnvironmentVariable( "CODESIGN_AZURE_CLIENT_ID" );
-		var clientSecret = Environment.GetEnvironmentVariable( "CODESIGN_AZURE_CLIENT_SECRET" );
-		var tenantId = Environment.GetEnvironmentVariable( "CODESIGN_AZURE_TENANT_ID" );
+		var endpointUrl = Environment.GetEnvironmentVariable( "CODESIGN_ENDPOINT_URL" );
+		var accountName = Environment.GetEnvironmentVariable( "CODESIGN_ACCOUNT_NAME" );
+		var certificateProfile = Environment.GetEnvironmentVariable( "CODESIGN_CERTIFICATE_PROFILE" );
 
-		if ( string.IsNullOrEmpty( vaultUrl ) || string.IsNullOrEmpty( clientId ) ||
-			 string.IsNullOrEmpty( clientSecret ) || string.IsNullOrEmpty( tenantId ) )
+		if ( string.IsNullOrEmpty( endpointUrl ) || string.IsNullOrEmpty( accountName ) || string.IsNullOrEmpty( certificateProfile ) )
 		{
-			Log.Error( "One or more Azure signing environment variables are missing (CODESIGN_AZURE_KEYVAULT_URL, CODESIGN_AZURE_CLIENT_ID, CODESIGN_AZURE_CLIENT_SECRET, CODESIGN_AZURE_TENANT_ID)" );
+			Log.Error( "Missing signing env vars — need CODESIGN_ENDPOINT_URL, CODESIGN_ACCOUNT_NAME, CODESIGN_CERTIFICATE_PROFILE" );
 			return ExitCode.Failure;
 		}
 
@@ -78,20 +32,21 @@ internal class SignBinaries() : Step( "SignBinaries" )
 			return ExitCode.Success;
 		}
 
-		foreach ( var file in filesToSign )
+		Log.Info( $"Signing {filesToSign.Count} files..." );
+
+		var fileArgs = string.Join( " ", filesToSign.Select( f => $"\"{f}\"" ) );
+
+		bool success = Utility.RunProcess(
+			"sign",
+			$"code artifact-signing -ase \"{endpointUrl}\" -asa \"{accountName}\" -ascp \"{certificateProfile}\" -v warning -m 16 {fileArgs}",
+			rootDir,
+			timeoutMs: 600000
+		);
+
+		if ( !success )
 		{
-			Log.Info( $"Signing {Path.GetFileName( file )}" );
-
-			bool success = Utility.RunProcess(
-				"AzureSignTool",
-				$"sign -kvu \"{vaultUrl}\" -kvi \"{clientId}\" -kvs \"{clientSecret}\" -kvt \"{tenantId}\" -kvc FPCodeSign -tr http://timestamp.digicert.com \"{file}\"",
-				rootDir
-			);
-
-			if ( !success )
-			{
-				Log.Error( $"Failed to sign {file}" );
-			}
+			Log.Error( "Failed to sign files." );
+			return ExitCode.Failure;
 		}
 
 		Log.Info( $"Successfully signed {filesToSign.Count} files." );
@@ -100,22 +55,11 @@ internal class SignBinaries() : Step( "SignBinaries" )
 
 	private static List<string> CollectFilesToSign( string rootDir )
 	{
+		var gamePath = Path.Combine( rootDir, "game" );
 		var files = new List<string>();
 
-		// game/bin/win64 - only our compiled binaries
-		string win64Path = Path.Combine( rootDir, "game", "bin", "win64" );
-		foreach ( var binary in Win64Binaries )
-		{
-			files.Add( Path.Combine( win64Path, binary ) );
-		}
-
-		// game folder - sbox.exe, sbox.dll, etc.
-		files.AddRange( Directory.EnumerateFiles( Path.Combine( rootDir, "game" ), "*.exe" ) );
-		files.AddRange( Directory.EnumerateFiles( Path.Combine( rootDir, "game" ), "*.dll" ) );
-
-		// managed assemblies that are ours
-		files.AddRange( Directory.EnumerateFiles( Path.Combine( rootDir, "game", "bin", "managed" ), "Sandbox.*.dll" ) );
-
+		files.AddRange( Directory.EnumerateFiles( gamePath, "*.exe", SearchOption.AllDirectories ) );
+		files.AddRange( Directory.EnumerateFiles( gamePath, "*.dll", SearchOption.AllDirectories ) );
 		return files;
 	}
 }

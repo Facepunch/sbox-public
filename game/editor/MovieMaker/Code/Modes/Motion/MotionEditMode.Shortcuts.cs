@@ -24,7 +24,7 @@ partial class MotionEditMode
 	[Shortcut( "motion-edit.interp-in-out", "4", typeof( MovieEditor ) )]
 	public static void Shortcut_SetInterpolationInOut() => Current?.SetInterpolation( InterpolationMode.QuadraticInOut );
 
-	[Shortcut( "motion-edit.clear", "ESC", typeof(MovieEditor) )]
+	[Shortcut( "motion-edit.clear", "ESC", typeof( MovieEditor ) )]
 	private static void Shortcut_Clear()
 	{
 		if ( Current is not { } inst ) return;
@@ -39,7 +39,7 @@ partial class MotionEditMode
 		}
 	}
 
-	[Shortcut( "motion-edit.commit", "ENTER", typeof(MovieEditor) )]
+	[Shortcut( "motion-edit.commit", "ENTER", typeof( MovieEditor ) )]
 	private static void Shortcut_Commit()
 	{
 		Current?.CommitChanges();

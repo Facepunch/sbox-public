@@ -237,18 +237,18 @@ public sealed class VideoExportWindow : BaseWindow
 
 		_oldTimeRange = TimeRange;
 
-		_ = UpdatePreviewAsync( true );
+		_ = UpdatePreviewAsync( true, TimeSpan.FromSeconds( 0.5 ) );
 	}
 
 	private void OnConfigChanged( SerializedProperty property )
 	{
-		_ = UpdatePreviewAsync( false );
+		_ = UpdatePreviewAsync( false, TimeSpan.FromSeconds( 0.5 ) );
 
 		_preview.Update();
 		_timeline.Update();
 	}
 
-	public async Task UpdatePreviewAsync( bool fast )
+	public async Task UpdatePreviewAsync( bool fast, TimeSpan delay = default )
 	{
 		if ( _previewCts is { } cts )
 		{
@@ -266,10 +266,21 @@ public sealed class VideoExportWindow : BaseWindow
 			MotionQuality = Config.MotionQuality,
 		};
 
+		if ( config.Resolution.x < 4 || config.Resolution.y < 4 || config.FrameRate <= 0 )
+		{
+			return;
+		}
+
 		try
 		{
 			_preview.IsUpdating = true;
 			_timeline.Update();
+
+			if ( delay > TimeSpan.Zero )
+			{
+				await Task.Delay( delay, cts.Token );
+				await MainThread.Wait();
+			}
 
 			var resolution = config.Resolution;
 

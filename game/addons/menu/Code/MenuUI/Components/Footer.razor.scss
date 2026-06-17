@@ -11,7 +11,7 @@ Footer {
     background: $footer-background;
     border-top: 1px solid $default-border;
     flex-shrink: 0;
-    z-index: 100;
+    z-index: 1000;
     align-items: center;
     justify-content: center;
 
@@ -25,8 +25,7 @@ Footer {
 
     .friends {
         align-items: center;
-        gap: 16px;
-        padding-right: 16px;
+        gap: 8px;
     }
 
     .friends-button {
@@ -40,11 +39,11 @@ Footer {
         border-radius: $rounding-large;
 
         &:active {
-            sound-in: ui.button.press;
+            sound-in: "ui.button.press";
         }
 
         &:hover {
-            sound-in: ui.button.over;
+            sound-in: "ui.button.over";
             cursor: pointer;
             background-color: $default-800;
         }
@@ -77,11 +76,11 @@ Footer {
         border: 1px solid transparent; // Avoid layout shifts
 
         &:active {
-            sound-in: ui.button.press;
+            sound-in: "ui.button.press";
         }
 
         &:hover {
-            sound-in: ui.button.over;
+            sound-in: "ui.button.over";
             border: 1px solid $default-border;
             cursor: pointer;
             border-radius: $rounding-default;

@@ -14,5 +14,6 @@ public class PackageGroups
 		public string Icon { get; set; }
 		public string QueryString { get; set; }
 		public List<PackageWrapMinimal> Packages { get; set; }
+		public int Order { get; set; }
 	}
 }

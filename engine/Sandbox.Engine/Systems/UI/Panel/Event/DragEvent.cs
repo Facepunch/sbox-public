@@ -27,7 +27,7 @@ public class DragEvent : PanelEvent
 	/// </summary>
 	public Vector2 ScreenPosition;
 
-	internal DragEvent( string event_name, Panel active, Vector2 localDragStart, Vector2 globalDragStart ) : base( event_name, active )
+	public DragEvent( string event_name, Panel active, Vector2 localDragStart, Vector2 globalDragStart ) : base( event_name, active )
 	{
 		Name = event_name;
 		Target = active;

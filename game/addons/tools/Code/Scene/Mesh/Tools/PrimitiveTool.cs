@@ -21,7 +21,10 @@ public partial class PrimitiveTool( MeshTool tool ) : EditorTool
 
 	public override void OnDisabled()
 	{
-		Create();
+		if ( Game.IsPlaying )
+			Cancel();
+		else
+			Create();
 
 		Editor = null;
 	}

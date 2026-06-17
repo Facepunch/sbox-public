@@ -1,0 +1,30 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox
+@inherits PanelComponent
+
+<root class="reward-card-panel @( IsSelected ? "selected" : "" )">
+
+	<div class="card-art" style="background-image: url( @Item?.Icon )">
+		@if ( IsSelected )
+		{
+			<div class="check-circle">
+				<icon>check</icon>
+			</div>
+		}
+	</div>
+
+	<label class="card-name">@Item?.Name</label>
+
+</root>
+
+@code
+{
+	/// <summary>The reward item to display.</summary>
+	public RewardItem Item { get; set; }
+
+	/// <summary>Whether this card is currently selected.</summary>
+	public bool IsSelected { get; set; }
+
+	protected override int BuildHash() => HashCode.Combine( Item?.ItemDefId, IsSelected );
+}

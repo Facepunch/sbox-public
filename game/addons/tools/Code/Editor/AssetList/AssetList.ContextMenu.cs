@@ -257,14 +257,14 @@ public partial class AssetList
 
 		if ( count > 0 )
 		{
-			if ( !asset?.IsProcedural ?? true )
+			if ( e.SelectedList.All( x => x.Asset is { CanOpenInEditor: true } ) )
 			{
-				if ( e.SelectedList.All( x => x.Asset is not null ) )
-				{
-					e.Menu.AddOption( count == 1 ? "Open in Editor" : $"Open {count} in Editor(s)", "edit",
-						() => e.SelectedList.ForEach( x => x.Asset.OpenInEditor() ) );
-				}
-				else if ( e.SelectedList.All( x => EditorUtility.IsCodeFile( x.FileInfo.FullName ) ) )
+				e.Menu.AddOption( count == 1 ? "Open in Editor" : $"Open {count} in Editor(s)", "edit",
+					() => e.SelectedList.ForEach( x => x.Asset.OpenInEditor() ) );
+			}
+			else if ( !asset?.IsProcedural ?? true )
+			{
+				if ( e.SelectedList.All( x => EditorUtility.IsCodeFile( x.FileInfo.FullName ) ) )
 				{
 					string editorName = CodeEditor.Title;
 					e.Menu.AddOption( count == 1 ? $"Open in {editorName}" : $"Open {count} in {editorName}", "edit",
@@ -341,26 +341,11 @@ public partial class AssetList
 			.Select( x => x.Asset )
 			.ToList();
 
-		if ( meshes.Count != 0 )
-		{
-			if ( meshes.Count == 1 )
-			{
-				var mdl = meshes.First();
-				e.Menu.AddOption( "Create model..", "open_in_new", () =>
-				{
-					var targetPath = EditorUtility.SaveFileDialog( "Create Model..", "vmdl", System.IO.Path.ChangeExtension( mdl.AbsolutePath, "vmdl" ) );
-					if ( targetPath is null )
-						return;
+		if ( meshes.Count == 0 )
+			return;
 
-					EditorUtility.CreateModelFromMeshFile( mdl, targetPath );
-				} );
-			}
-			else
-			{
-				// ModelDoc has native code to do this for us
-				e.Menu.AddOption( $"Create {meshes.Count()} models", "open_in_new", () => meshes.ForEach( asset => EditorUtility.CreateModelFromMeshFile( asset ) ) );
-			}
-		}
+		var label = meshes.Count == 1 ? "Create Model.." : $"Create {meshes.Count} Models..";
+		e.Menu.AddOption( label, "open_in_new", () => _ = new CreateModelFromMeshDialog( meshes ) );
 	}
 
 	static void RebuildTagMenu( Menu tag_menu, List<AssetEntry> entries )

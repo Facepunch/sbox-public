@@ -1,5 +1,6 @@
 @using Sandbox;
 @using Sandbox.UI;
+@using Menu;
 @using System.Globalization
 @namespace Sandbox.UI
 @inherits Panel
@@ -22,7 +23,7 @@
         {
             @foreach (var item in Result.Packages.OrderByDescending( x => x.Usage.UsersNow ))
             {
-                <GameCardList Package=@(item) />
+                <PackageCard Size=@PackageCard.SizeType.List Package=@item Clicked="@(() => item.OpenModal())" RightClicked="@(() => MenuHelpers.OpenPackageMenu(this, item))" />
             }
         }
     </div>

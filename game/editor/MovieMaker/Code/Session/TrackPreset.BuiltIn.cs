@@ -9,15 +9,15 @@ public partial record TrackPreset
 	private static TrackPreset TransformPreset { get; } = new(
 		new TrackPresetMetadata( "Transform", "Common",
 			Description: "Includes the LocalPosition, LocalRotation, and LocalScale properties for this GameObject." ),
-		new TrackPresetNode( "Object", typeof(GameObject),
-			new TrackPresetNode( nameof(GameObject.LocalPosition), typeof(Vector3) ),
-			new TrackPresetNode( nameof(GameObject.LocalRotation), typeof(Rotation) ),
-			new TrackPresetNode( nameof(GameObject.LocalScale), typeof(Vector3) ) ) );
+		new TrackPresetNode( "Object", typeof( GameObject ),
+			new TrackPresetNode( nameof( GameObject.LocalPosition ), typeof( Vector3 ) ),
+			new TrackPresetNode( nameof( GameObject.LocalRotation ), typeof( Rotation ) ),
+			new TrackPresetNode( nameof( GameObject.LocalScale ), typeof( Vector3 ) ) ) );
 
 	private static TrackPreset PlayerControllerPreset { get; } = new(
 		new TrackPresetMetadata( "Player Controller - Procedural", "Common",
 			Description: "Includes all properties needed to procedurally animate a player controller, like its velocity and eye angles." ),
-		new TrackPresetNode( "Player Controller", typeof(GameObject),
+		new TrackPresetNode( "Player Controller", typeof( GameObject ),
 		[
 			..TransformPreset.Root.Children,
 
@@ -52,7 +52,7 @@ public partial record TrackPreset
 	private static TrackPreset BonesPreset { get; } = new(
 		new TrackPresetMetadata( "Bones", "Common",
 	Description: "Includes all the bone tracks of a SkinnedModelRenderer." ),
-		new TrackPresetNode( "Body", typeof(GameObject),
+		new TrackPresetNode( "Body", typeof( GameObject ),
 		[
 			new TrackPresetNode( nameof(SkinnedModelRenderer), typeof(SkinnedModelRenderer),
 			[

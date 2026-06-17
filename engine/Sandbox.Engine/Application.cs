@@ -147,11 +147,15 @@ public static class Application
 	/// </summary>
 	internal static Package MapPackage { get; set; }
 
-
 	/// <summary>
 	/// The currently loaded game package's ident - if applicable.
 	/// </summary>
 	internal static string GameIdent { get; set; }
+
+	/// <summary>
+	/// The currently loaded map, can be an ident or a path.
+	/// </summary>
+	internal static string Map { get; set; }
 
 #if DEBUG
 	public static bool IsDebug => true;
@@ -236,4 +240,20 @@ public static class Application
 	/// </summary>
 	public static EditorSystem Editor => IToolsDll.Current?.ActiveEditor;
 
+
+	[ConCmd( "version", Help = "Print info about the game version" )]
+	internal static void PrintVersion()
+	{
+		Log.Info( $"s&box version {Version} ({VersionDate})" );
+
+		if ( GamePackage is { } game )
+		{
+			Log.Info( $"Game: {game.GetIdent( false, true )} ({game.Revision?.Created})" );
+		}
+
+		if ( MapPackage is { } map )
+		{
+			Log.Info( $"Map: {map.GetIdent( false, true )} ({map.Revision?.Created})" );
+		}
+	}
 }

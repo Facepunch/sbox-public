@@ -229,7 +229,7 @@ public static class SceneEditorMenus
 	}
 
 	[Menu( "Editor", "Scene/Transforms/Align Down Local" )]
-	[Shortcut( "gameObject.align-down-local", "CTRL+1" )]
+	[Shortcut( "gameObject.align-down-local", "CTRL+KP_1" )]
 	public static void AlignToGroundLocal()
 	{
 		using var scope = SceneEditorSession.Scope();
@@ -260,7 +260,7 @@ public static class SceneEditorMenus
 	}
 
 	[Menu( "Editor", "Scene/Transforms/Align Down World" )]
-	[Shortcut( "gameObject.align-down-world", "CTRL+2" )]
+	[Shortcut( "gameObject.align-down-world", "CTRL+KP_2" )]
 	public static void AlignToGround()
 	{
 		using var scope = SceneEditorSession.Scope();
@@ -290,7 +290,7 @@ public static class SceneEditorMenus
 	}
 
 	[Menu( "Editor", "Scene/Transforms/Align To Closest Normal" )]
-	[Shortcut( "gameObject.align-to-closest-normal", "CTRL+3" )]
+	[Shortcut( "gameObject.align-to-closest-normal", "CTRL+KP_3" )]
 	public static void AlignToClosestNormal()
 	{
 		using var scope = SceneEditorSession.Scope();
@@ -424,5 +424,111 @@ public static class SceneEditorMenus
 			}
 		};
 		picker.Show();
+	}
+
+	[Menu( "Editor", "Scene/View/Hide Selected" )]
+	[Shortcut( "editor.hide-selected-objects", "H" )]
+	public static void HideSelectedObjects()
+	{
+		using var scope = SceneEditorSession.Scope();
+
+		var gos = EditorScene.Selection
+			.OfType<GameObject>()
+			.Where( go => !go.Tags.Has( "hidden" ) )
+			.ToArray();
+		if ( gos.Length == 0 )
+			return;
+
+		using ( SceneEditorSession.Active.UndoScope( "Hide Selected Object(s)" )
+			.WithGameObjectChanges( gos, GameObjectUndoFlags.All )
+			.Push() )
+		{
+			foreach ( var go in gos )
+			{
+				go.Tags.Add( "hidden" );
+			}
+		}
+	}
+
+	[Menu( "Editor", "Scene/View/Unhide All" )]
+	[Shortcut( "editor.unhide-all-objects", "U" )]
+	public static void UnhideAllObjects()
+	{
+		using var scope = SceneEditorSession.Scope();
+
+		var hiddenObjects = SceneEditorSession.Active.Scene
+			.GetAllObjects( true )
+			.Where( go => go.Tags.Has( "hidden" ) )
+			.ToArray();
+		if ( hiddenObjects.Length == 0 )
+			return;
+
+		using ( SceneEditorSession.Active.UndoScope( "Unhide All Object(s)" )
+			.WithGameObjectChanges( hiddenObjects, GameObjectUndoFlags.All )
+			.Push() )
+		{
+			foreach ( var go in hiddenObjects ) go.Tags.Remove( "hidden" );
+		}
+	}
+
+	[Menu( "Editor", "Scene/View/Toggle Visibility" )]
+	[Shortcut( "editor.toggle-visibility", "Alt+H" )]
+	public static void ToggleVisibility()
+	{
+		using var scope = SceneEditorSession.Scope();
+
+		var gos = EditorScene.Selection.OfType<GameObject>().ToArray();
+		if ( gos.Length == 0 )
+			return;
+
+		using ( SceneEditorSession.Active.UndoScope( "Toggle Visibility" )
+			.WithGameObjectChanges( gos, GameObjectUndoFlags.All )
+			.Push() )
+		{
+			var anyVisible = gos.Any( x => !x.Tags.Has( "hidden" ) );
+			foreach ( var go in gos )
+			{
+				if ( anyVisible ) go.Tags.Add( "hidden" );
+				else go.Tags.Remove( "hidden" );
+			}
+		}
+	}
+
+	[Menu( "Editor", "Scene/View/Isolate Selection" )]
+	[Shortcut( "editor.isolate-selection", "Ctrl+H" )]
+	public static void IsolateSelection()
+	{
+		using var scope = SceneEditorSession.Scope();
+
+		var selected = EditorScene.Selection
+			.OfType<GameObject>()
+			.Where( go => go is not Scene )
+			.ToArray();
+		if ( selected.Length == 0 )
+			return;
+
+		var visible = new HashSet<GameObject>();
+		foreach ( var s in selected )
+			for ( var go = s; go is not null and not Scene; go = go.Parent )
+				visible.Add( go );
+
+		var changedObjects = SceneEditorSession.Active.Scene
+			.GetAllObjects( true )
+			.Where( go => go is not Scene )
+			.Where( go => go.Tags.Has( "hidden" ) == visible.Contains( go ) )
+			.ToArray();
+		if ( changedObjects.Length == 0 )
+			return;
+
+		using ( SceneEditorSession.Active.UndoScope( "Isolate Selection" )
+			.WithGameObjectChanges( changedObjects, GameObjectUndoFlags.All )
+			.Push() )
+		{
+			foreach ( var go in changedObjects )
+			{
+				if ( visible.Contains( go ) ) go.Tags.Remove( "hidden" );
+				else go.Tags.Add( "hidden" );
+			}
+		}
 	}
 }

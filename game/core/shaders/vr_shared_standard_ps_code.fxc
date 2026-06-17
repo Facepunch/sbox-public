@@ -309,6 +309,15 @@ FinalCombinerInput_t PS_SharedStandardProcessing( const PS_INPUT i )
 	}
 	#endif
 
+	#if ( D_OPAQUE_FADE )
+	{
+		// Special case to emulate alpha-to-coverage behaviour in the non-MSAA case
+		float eps = 1/255.0f;
+        if (g_nMSAASampleCount == 1)
+            OpaqueFadeDepth((o.flOpacity + 0.5f + eps) * 0.5f, i.vPositionSs.xy);
+	}
+	#endif
+
 	//
 	// Wrinkle color
 	//

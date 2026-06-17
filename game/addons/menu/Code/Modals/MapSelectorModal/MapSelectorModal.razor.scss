@@ -1,0 +1,181 @@
+@import "/styles/_theme.scss";
+
+MapSelectorModal > .window
+{
+	position: relative;
+	overflow: hidden;
+	z-index: 1000;
+	pointer-events: all;
+	width: 1700px;
+	height: 1000px;
+	flex-direction: row;
+	font-family: Poppins;
+	overflow: hidden;
+	gap: 2px;
+	background-color: $default-900;
+	border: 1px solid $default-border;
+	border-radius: $rounding-large * 2;
+	box-shadow: 0px 0px 120px 60px rgba( $default-950, 0.8 );
+	padding: 16px 8px 0 8px;
+
+	.tabs
+	{
+		flex-shrink: 0;
+		font-family: Poppins;
+		font-size: 14px;
+		padding-bottom: 0px;
+		flex-direction: column;
+		padding: 8px;
+		width: 300px;
+		color: rgba(178, 190, 212, 0.8);
+		overflow-y: scroll;
+		overflow-x: hidden;
+
+		.seperator
+		{
+			height: 40px;
+			cursor: default;
+		}
+
+		> *
+		{
+			padding: 4px 8px;
+			border-radius: $rounding-small;
+			width: 100%;
+			align-items: center;
+			gap: 8px;
+			flex-shrink: 0;
+
+			> label
+			{
+				text-overflow: ellipsis;
+				white-space: nowrap;
+				flex-grow: 1;
+				font-weight: bold;
+			}
+
+			.count
+			{
+				flex-shrink: 0;
+
+				label
+				{
+					flex-shrink: 0;
+				}
+			}
+
+			&:hover
+			{
+				opacity: 0.8;
+				color: white;
+			}
+
+			&.active
+			{
+				opacity: 1;
+				pointer-events: none;
+				background-color: #3d88ff;
+				color: white;
+			}
+
+			&:not(.disabled)
+			{
+				cursor: pointer;
+			}
+
+			&.disabled
+			{
+				opacity: 0.05;
+				color: white;
+			}
+		}
+	}
+
+	.body
+	{
+		flex-direction: column;
+		flex-grow: 1;
+		padding: 16px 16px 0 16px;
+		gap: 40px;
+	}
+
+	packagelist
+	{
+		margin: 0px;
+		width: 100%;
+		height: 100%;
+		overflow-x: visible;
+	}
+
+	.card-package
+	{
+		.orgrow
+		{
+			color: white;
+		}
+
+		.body-meta
+		{
+			color: white;
+		}
+	}
+
+	h2
+	{
+		font-weight: bold;
+		color: white;
+		font-size: 22px;
+		flex-shrink: 0;
+	}
+
+	VirtualGrid
+	{
+		width: 100%;
+		height: 100%;
+		gap: 16px;
+		overflow-x: visible;
+	}
+}
+
+.toolbar
+{
+	spacer
+	{
+		flex: 4;
+	}
+
+	> .search
+	{
+		flex: 1;
+		background-color: rgba($default-950, 0.3);
+		color: $default-text;
+		padding: 4px 12px;
+		width: 500px;
+		border-radius: $rounding-default;
+		pointer-events: all;
+		transition: all 150ms $easing;
+		border: 1px solid $default-border;
+		font-size: 14px;
+
+		Label
+		{
+			margin-left: 26px;
+			font-size: 14px;
+		}
+
+		iconpanel
+		{
+			position: absolute;
+			left: 12px;
+			opacity: 0.3;
+			font-size: $text-large;
+		}
+	}
+}
+
+.none
+{
+	text-align: center;
+	width: 100%;
+	font-size: $text-large;
+}

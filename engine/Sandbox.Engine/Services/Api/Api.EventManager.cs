@@ -13,7 +13,10 @@ internal static partial class Api
 		/// </summary>
 		private static void Add( EventRecord e )
 		{
-			if ( !Application.IsRetail )
+			if ( !Application.IsRetail || Application.IsStandalone )
+				return;
+
+			if ( !AccountInformation.UseAnalytics )
 				return;
 
 			Pending.Add( e );
@@ -91,12 +94,15 @@ internal static partial class Api
 		/// </summary>
 		internal static async Task PostEventsAsync( EventRecord[] records )
 		{
+			if ( Sandbox.Backend.Account is null )
+				return;
+
 			var values = new
 			{
 				Events = records
 			};
 
-			await Sandbox.Backend.Account?.SubmitEvents( values );
+			await Sandbox.Backend.Account.SubmitEvents( values );
 		}
 	}
 }

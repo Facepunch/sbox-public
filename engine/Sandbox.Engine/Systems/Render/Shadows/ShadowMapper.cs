@@ -28,7 +28,7 @@ internal partial class ShadowMapper
 	[ConVar( "r.shadows.csm.distance", Min = 500, Max = 50000, Help = "Maximum distance from the camera that directional light shadows are rendered." )]
 	public static float CascadeDistance { get; set; } = 15000;
 
-	[ConVar( "r.shadows.debug", Help = "Show shadow debug overlay with memory allocation and budget info." )]
+	[ConVar( "r.shadows.debug", ConVarFlags.Cheat, Help = "Show shadow debug overlay with memory allocation and budget info." )]
 	public static bool DebugEnabled { get; set; } = false;
 
 	[ConVar( "r.shadows.csm.enabled", Help = "Enable directional light (CSM) shadows." )]

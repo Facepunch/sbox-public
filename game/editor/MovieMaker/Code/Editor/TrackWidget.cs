@@ -1,13 +1,12 @@
 ﻿using Editor.NodeEditor;
 using Sandbox.MovieMaker;
-using Sandbox.MovieMaker.Compiled;
 using Sandbox.MovieMaker.Properties;
 using Sandbox.UI;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
-using static Sandbox.Resources.ResourceCompileContext;
+
+using DisplayInfo = Sandbox.MovieMaker.Properties.DisplayInfo;
 
 namespace Editor.MovieMaker;
 
@@ -113,8 +112,14 @@ public partial class TrackWidget : Widget
 		}
 		else if ( reference is ITrackReference<GameObject> goReference )
 		{
-			_controlWidget = ControlWidget.Create( EditorTypeLibrary.CreateProperty( reference.Name,
-				() => goReference.Value, goReference.Bind ) );
+			var property = EditorTypeLibrary.CreateProperty( reference.Name,
+				() => goReference.Value, value =>
+				{
+					goReference.Bind( value );
+					View.TrackList.Session.Player.UpdateTargets();
+				} );
+
+			_controlWidget = new GameObjectControlWidget( property ) { ShowFullName = false };
 		}
 		else
 		{
@@ -204,6 +209,8 @@ public partial class TrackWidget : Widget
 	{
 		View.IsHovered = true;
 
+		ToolTip = View.Description;
+
 		base.OnMouseEnter();
 	}
 
@@ -245,9 +252,18 @@ public partial class TrackWidget : Widget
 		Paint.SetBrushAndPen( BackgroundColor );
 		Paint.DrawRect( new Rect( LocalRect.Left + 1f, LocalRect.Top + 1f, LocalRect.Width - 2f, Timeline.TrackHeight - 2f ), 4 );
 
+		if ( View.Target is ITrackReference { IsAutoCreatedTarget: true } )
+		{
+			var saveRect = new Rect( LocalRect.Right - 58f, 1f, Timeline.TrackHeight, Timeline.TrackHeight );
+
+			Paint.SetPen( Theme.Text );
+			Paint.DrawIcon( saveRect, "person_add", 16f );
+		}
+
 		if ( _timeSinceInteraction < 2.0f )
 		{
 			var delta = _timeSinceInteraction.Relative.Remap( 2.0f, 0, 0, 1 );
+			Paint.ClearPen();
 			Paint.SetBrush( Theme.Yellow.WithAlpha( delta ) );
 			Paint.DrawRect( new Rect( LocalRect.Right - 4, LocalRect.Top, 32, Timeline.TrackHeight ) );
 			Update();
@@ -510,7 +526,7 @@ public partial class TrackWidget : Widget
 		return View.Parent?.Track != parentTrack;
 	}
 
-	private record AvailableTrackProperty( string Name, string Category, Type Type, Action Create );
+	private record AvailableTrackProperty( string Name, DisplayInfo Display, Type Type, Func<IProjectTrack> Create );
 
 	private void CreateSubTrackMenu( Menu parent )
 	{
@@ -526,60 +542,84 @@ public partial class TrackWidget : Widget
 			foreach ( var component in go.Components.GetAll() )
 			{
 				var type = component.GetType();
+				var typeDef = TypeLibrary.GetType( type );
 
-				availableTracks.Add( new AvailableTrackProperty( type.Name, "Components", type,
+				availableTracks.Add( new AvailableTrackProperty( type.Name, new DisplayInfo( typeDef.Title, "Components", typeDef.Description, typeDef.Icon ), type,
 					() => session.GetOrCreateTrack( component ) ) );
 			}
 		}
 
 		foreach ( var property in TrackProperty.GetAll( View.Target ) )
 		{
-			availableTracks.Add( new AvailableTrackProperty( property.Name, property.Category, property.Type,
+			availableTracks.Add( new AvailableTrackProperty( property.Name, property.Display, property.Type,
 				() => session.GetOrCreateTrack( View.Track, property.Name ) ) );
 		}
 
-		var categories = availableTracks.GroupBy( x => x.Category ).ToArray();
-
 		Action? updateActive = null;
+		LineEdit? filterLineEdit = null;
 
-		foreach ( var category in categories.OrderBy( x => x.Key ) )
+		void UpdateOptions( string? filter )
 		{
-			var subMenu = categories.Length == 1 ? menu : menu.AddMenu( category.Key );
+			updateActive = null;
 
-			foreach ( var type in category.GroupBy( x => x.Type.ToSimpleString( false ) ).OrderBy( x => x.Key ) )
+			menu.RemoveMenus();
+			menu.RemoveOptions();
+
+			foreach ( var widget in menu.Widgets )
 			{
-				if ( category.Key != "Components" )
-				{
-					subMenu.AddHeading( type.Key ).Color = Theme.TextDisabled;
-				}
+				if ( widget.IsAncestorOf( filterLineEdit! ) ) continue;
 
-				foreach ( var item in type.OrderBy( x => x.Name ) )
+				menu.RemoveWidget( widget );
+			}
+
+			var filtered = string.IsNullOrEmpty( filter )
+				? availableTracks
+				: availableTracks.Where( x => x.Name.Contains( filter, StringComparison.OrdinalIgnoreCase ) );
+
+			menu.AddOptions( filtered,
+				getPath: x => Menu.GetSplitPath( $"{x.Display.Category}/{x.Display.Title}" ),
+				flat: !string.IsNullOrEmpty( filter ),
+				createOption: ( m, display, value ) =>
 				{
-					var option = new ToggleOption( item.Name, false, create =>
+					var option = new ToggleOption( display.Name, false, create =>
 					{
-						using var scope = session.History.Push( $"{(create ? "Create" : "Remove")} Track ({item.Name})" );
+						using var scope = session.History.Push( $"{(create ? "Create" : "Remove")} Track ({value.Name})" );
+
+						IProjectTrack? track = null;
 
 						if ( create )
 						{
-							item.Create();
+							track = value.Create();
 						}
 						else
 						{
 							View.Children
-								.FirstOrDefault( x => x.Track.Name == item.Name )?
+								.FirstOrDefault( x => x.Track.Name == value.Name )?
 								.Remove();
 						}
 
 						session.TrackList.Update();
 						session.ClipModified();
+
+						if ( track is null || session.TrackList.Find( track ) is not { } trackView ) return;
+
+						trackView.ExpandAncestors();
+						trackView.IsSelected = true;
+
+						TrackList.Timeline.ScrollToTrack( trackView );
 					} );
 
-					updateActive += () => option.IsActive = View.Children.Any( x => x.Track.Name == item.Name );
+					updateActive += () => option.IsActive = View.Children.Any( x => x.Track.Name == value.Name );
 
-					subMenu.AddWidget( option );
-				}
-			}
+					m.AddWidget( option );
+				} );
+
+			updateActive?.Invoke();
 		}
+
+		filterLineEdit = menu.AddLineEdit( "Filter", autoFocus: true, onChange: UpdateOptions );
+
+		UpdateOptions( null );
 
 		menu.AboutToShow += () => updateActive?.Invoke();
 
@@ -683,11 +723,13 @@ public partial class TrackWidget : Widget
 			{
 				using var scope = session.History.Push( $"{(create ? "Create" : "Remove")} Preset Tracks ({preset.Meta.Title})" );
 
+				IProjectTrack[] createdTracks = [];
+
 				foreach ( var rootView in rootViews )
 				{
 					if ( create )
 					{
-						session.LoadPreset( rootView.Track, rootView.Target, preset.Root );
+						createdTracks = [..session.LoadPreset( rootView.Track, rootView.Target, preset.Root )];
 					}
 					else
 					{
@@ -697,6 +739,9 @@ public partial class TrackWidget : Widget
 
 				session.TrackList.Update();
 				session.ClipModified();
+
+				session.TrackList.ExpandAncestors( createdTracks );
+				session.TrackList.SelectAll( createdTracks );
 
 				updateActive?.Invoke();
 			}, TrackPreset.BuiltInPresets.Contains( preset ) ? null : () =>
@@ -862,7 +907,7 @@ file sealed class ToggleOption : Widget
 	public ToggleOption( string title, bool active, Action<bool> toggled, Action? deleted = null )
 	{
 		Layout = Layout.Row();
-		Layout.Margin = new Margin( 40f, 5f, 16f, 5f );
+		Layout.Margin = new Margin( 45f, 5f, 16f, 5f );
 
 		_label = new Label( title, this );
 		_toggled = toggled;

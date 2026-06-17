@@ -12,11 +12,9 @@ internal class TcpChannel : Connection
 {
 	internal readonly Channel<byte[]> incoming = Channel.CreateUnbounded<byte[]>();
 
-	string _name = "Tcp Channel";
 	string _address = "Tcp";
 
 	public override string Address => _address;
-	public override string Name => _name;
 
 	public bool IsConnected => client?.Connected ?? false;
 
@@ -30,8 +28,7 @@ internal class TcpChannel : Connection
 				token.ThrowIfCancellationRequested();
 			}
 
-			_name = client.Client.RemoteEndPoint?.ToString() ?? client.Client.LocalEndPoint.ToString();
-			_address = _name;
+			_address = client.Client.RemoteEndPoint?.ToString() ?? client.Client.LocalEndPoint.ToString();
 
 			var stream = client.GetStream();
 

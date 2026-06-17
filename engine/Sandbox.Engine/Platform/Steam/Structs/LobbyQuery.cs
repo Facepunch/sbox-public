@@ -224,6 +224,9 @@ namespace Steamworks.Data
 		/// </summary>
 		internal async Task<Lobby[]> RequestAsync( CancellationToken ct )
 		{
+			if ( SteamMatchmaking.Internal == null )
+				return [];
+
 			using var cts = CancellationTokenSource.CreateLinkedTokenSource( ct );
 			cts.CancelAfter( TimeSpan.FromSeconds( 30 ) );
 			ct = cts.Token;
@@ -241,7 +244,7 @@ namespace Steamworks.Data
 
 				LobbyMatchList_t? list = task.GetResult();
 				if ( !list.HasValue || list.Value.LobbiesMatching == 0 )
-					return null;
+					return [];
 
 				Lobby[] lobbies = new Lobby[list.Value.LobbiesMatching];
 

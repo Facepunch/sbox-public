@@ -90,7 +90,7 @@ internal partial class NetworkSystem
 			MapName = Networking.MapName,
 			EngineVersion = 234,
 			GamePackage = Application.GamePackage?.GetIdent( false, true ) ?? "",
-			MapPackage = Application.MapPackage?.GetIdent( false, true ) ?? "",
+			Map = Application.Map,
 			Host = new ChannelInfo { Id = Connection.Local.Id },
 			Assigned = new ChannelInfo { Id = channel.Id },
 			IsDeveloperHost = IsDeveloperHost,
@@ -142,7 +142,7 @@ internal partial class NetworkSystem
 		if ( !IsHost )
 			return;
 
-		Log.Info( $"{source.DisplayName} [{source.SteamId}] disconnected" );
+		Log.Info( $"{source.Name} [{source.SteamId}] disconnected" );
 
 		ConnectionInfo.Remove( source.Id );
 		OnConnectionInfoUpdated();

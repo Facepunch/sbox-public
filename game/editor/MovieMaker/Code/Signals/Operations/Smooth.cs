@@ -61,7 +61,7 @@ file sealed record SmoothOperation<T>( PropertySignal<T> Signal, MovieTime Size 
 			SmoothPass( samples, interpolator );
 		}
 
-		_cache[index] = cached = new CompiledSampleBlock<T>( cachedTimeRange, cachedTimeRange.Start - sourceTimeRange.Start, CacheSampleRate, [..samples] );
+		_cache[index] = cached = new CompiledSampleBlock<T>( cachedTimeRange, cachedTimeRange.Start - sourceTimeRange.Start, CacheSampleRate, [.. samples] );
 
 		return cached;
 	}

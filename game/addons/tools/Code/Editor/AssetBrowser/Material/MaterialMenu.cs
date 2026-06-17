@@ -134,7 +134,7 @@ internal static class MaterialMenu
 		string tintMask = assetPeers.Where( x => x.Name.Contains( "_mask" ) ).Select( x => x.RelativePath ).FirstOrDefault();
 		if ( tintMask != null )
 		{
-			tintMask = $"\n	F_TINT_MASK 1\n	TextureTintMask \"{texSelfIllum}\"";
+			tintMask = $"\n	F_TINT_MASK 1\n	TextureTintMask \"{tintMask}\"";
 		}
 
 		var file = $@"

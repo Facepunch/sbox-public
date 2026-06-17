@@ -29,7 +29,8 @@ namespace Steamworks.Data
 		public int m_cbPendingReliable;
 		public int m_cbSentUnackedReliable;
 		public long m_usecQueueTime;
-		unsafe fixed uint reserved[16];
+		public int m_usecMaxJitter; // m_usecMaxJitter int32
+		unsafe fixed uint reserved[15];
 	}
 
 	[StructLayout( LayoutKind.Sequential, Pack = Platform.StructPlatformPackSize )]

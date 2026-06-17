@@ -24,6 +24,16 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 
 	internal Matrix ProjectionMatrix => Frustum.GetProj();
 
+	/// <summary>
+	/// Returns the normalized screen coverage (0-1) of a sphere at the given origin and radius.
+	/// </summary>
+	internal float ComputeScreenSize( Vector3 origin, float radius ) => Frustum.ComputeScreenSize( origin, radius );
+
+	/// <summary>
+	/// Returns the screen width in pixels of a sphere at the given origin and radius.
+	/// </summary>
+	internal float ComputeScreenSizeInPixels( Vector3 origin, float radius ) => Frustum.ComputeScreenSize( origin, radius ) * Size.x;
+
 	public RenderAttributes Attributes { get; }
 
 	/// <summary>
@@ -442,6 +452,12 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	internal bool EnableEngineOverlays { get; set; } = false;
 
 	/// <summary>
+	/// Whether the UI stage layer should be created for this camera render.
+	/// When false, the native pipeline will skip the UI layer entirely.
+	/// </summary>
+	internal bool RenderUI { get; set; } = true;
+
+	/// <summary>
 	/// When true, rendering from this camera won't request higher mip levels from
 	/// the texture streaming system. Used by cubemap rendering to prevent envmap probes
 	/// from pulling in full-resolution textures across the entire map.
@@ -576,6 +592,9 @@ public sealed partial class SceneCamera : IDisposable, IManagedCamera
 	/// </summary>
 	public Ray GetRay( Vector2 cursorPosition, Vector3 screenSize )
 	{
+		if ( screenSize.x <= 0.0f || screenSize.y <= 0.0f )
+			return new Ray( Position, Rotation.Forward );
+
 		if ( !Ortho )
 		{
 			var aspect = screenSize.x / screenSize.y;
@@ -948,4 +967,8 @@ public enum SceneCameraDebugMode
 	Overdraw = 101,
 	[Title( "Ambient Occlusion" ), Icon( "radio_button_checked" )]
 	AmbientOcclusion = 14,
+	[Title( "Motion Vectors" ), Icon( "animation" )]
+	MotionVectors = 102,
+	[Title( "Reactive Mask" ), Icon( "shield" )]
+	ReactiveMask = 103,
 }

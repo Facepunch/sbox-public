@@ -309,6 +309,16 @@ partial class GameObjectNode : TreeNode<GameObject>
 
 
 		}
+
+		if ( Value.Tags.Has( "hidden" ) )
+		{
+			var eyeRect = item.Rect;
+			eyeRect.Right -= 4;
+			eyeRect.Left = eyeRect.Right - 18;
+
+			Paint.Pen = Theme.TextControl;
+			Paint.DrawIcon( eyeRect, "visibility_off", 14, TextFlag.Center );
+		}
 	}
 
 	public override void OnRename( VirtualWidget item, string text, List<TreeNode> selection = null )
@@ -353,8 +363,13 @@ partial class GameObjectNode : TreeNode<GameObject>
 		return true;
 	}
 
-	private async void Drop( string text )
+	private async void Drop( string text, ItemEdge dropEdge = default )
 	{
+		// Capture the target scene and session before any awaits
+		var targetScene = Value.Scene;
+		var session = targetScene.Editor;
+		var targetGo = Value;
+
 		var drop = await BaseDropObject.CreateDropFor( text );
 
 		if ( drop is null )
@@ -362,15 +377,25 @@ partial class GameObjectNode : TreeNode<GameObject>
 
 		await drop.StartInitialize( text );
 
-		using ( var sc = Value.Scene.Push() )
+		using ( var sc = targetScene.Push() )
 		{
 			await drop.OnDrop();
 			var go = drop.GameObject;
 			if ( go.IsValid() )
 			{
-				go.Parent = Value;
+				// Insert above/below the target if dropping on an edge, otherwise parent to target.
+				if ( targetGo is not Scene && dropEdge.HasFlag( ItemEdge.Top | ItemEdge.Bottom ) )
+				{
+					targetGo.AddSibling( go, before: dropEdge.HasFlag( ItemEdge.Top ) );
+				}
+				else
+				{
+					go.Parent = targetGo;
+				}
+
 				go.LocalTransform = new Transform();
-				EditorScene.Selection.Add( go );
+
+				session?.Selection.Set( go );
 			}
 		}
 		drop.Delete();
@@ -499,15 +524,20 @@ partial class GameObjectNode : TreeNode<GameObject>
 			return DropAction.Move;
 		}
 
-		if ( e.Data.Url is not null && e.IsDrop )
+		// For local file paths, only accept the drop if the extension is supported by a registered DropObject
+		if ( !string.IsNullOrEmpty( e.Data.FileOrFolder ) && BaseDropObject.CanCreateDropFor( e.Data.FileOrFolder ) )
 		{
-			Drop( e.Data.Url.ToString() );
+			if ( e.IsDrop )
+				Drop( e.Data.FileOrFolder, e.DropEdge );
+
 			return DropAction.Move;
 		}
 
-		if ( !string.IsNullOrEmpty( e.Data.FileOrFolder ) && e.IsDrop )
+		if ( e.Data.Url is not null )
 		{
-			Drop( e.Data.FileOrFolder );
+			if ( e.IsDrop )
+				Drop( e.Data.Url.ToString(), e.DropEdge );
+
 			return DropAction.Move;
 		}
 
@@ -555,11 +585,14 @@ partial class GameObjectNode : TreeNode<GameObject>
 		m.AddOption( "Copy", "content_copy", EditorScene.Copy, "editor.copy" ).Enabled = isObjectMenu;
 		m.AddOption( "Paste", "content_paste", EditorScene.Paste, "editor.paste" );
 		m.AddOption( "Paste As Child", null, EditorScene.PasteAsChild, "editor.paste-as-child" ).Enabled = isObjectMenu;
+		m.AddOption( "Paste Special", "content_paste_go", EditorScene.PasteSpecial, "editor.paste-special" );
 		m.AddOption( "Create Group", "file_copy", SceneEditorMenus.Group, "editor.group" ).Enabled = isObjectMenu && !isPrefabRoot;
 		m.AddSeparator();
 		m.AddOption( "Rename", "label", treeNode.TreeView.BeginRename, "editor.rename" ).Enabled = isObjectMenu;
 		m.AddOption( "Duplicate", "file_copy", SceneEditorMenus.Duplicate, "editor.duplicate" ).Enabled = isObjectMenu && !isPrefabRoot;
 		m.AddOption( "Delete", "delete", SceneEditorMenus.Delete, "editor.delete" ).Enabled = isObjectMenu && !isPrefabRoot;
+		m.AddOption( "Hide/Show", "visibility_off", SceneEditorMenus.ToggleVisibility, "editor.toggle-visibility" ).Enabled = isObjectMenu;
+		m.AddOption( "Isolate Selection", "filter_center_focus", SceneEditorMenus.IsolateSelection, "editor.isolate-selection" ).Enabled = isObjectMenu;
 
 		m.AddSeparator();
 

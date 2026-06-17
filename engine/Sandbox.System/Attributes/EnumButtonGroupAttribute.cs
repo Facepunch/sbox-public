@@ -9,3 +9,11 @@ public class EnumButtonGroupAttribute : System.Attribute
 {
 
 }
+
+/// <summary>
+/// Forces an enum property to be shown as a dropdown list.
+/// </summary>
+[AttributeUsage( AttributeTargets.Property | AttributeTargets.Field )]
+public class EnumDropdownAttribute : System.Attribute
+{
+}

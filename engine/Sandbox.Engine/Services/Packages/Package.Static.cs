@@ -1,5 +1,5 @@
 ﻿using Refit;
-using Sandbox.Engine;
+using Sandbox.Internal;
 using Sandbox.Protobuf;
 using System.Collections.Concurrent;
 using System.Net.Http;
@@ -454,13 +454,13 @@ public partial class Package
 				p.Usage = u;
 			} );
 
-			IMenuDll.Current?.RunEvent( "package.update.users", usageChanged.PackageIdent, usageChanged.UserCount );
+			IMenuSystem.Current?.PackageUsageChanged( usageChanged.PackageIdent, usageChanged.UserCount );
 		}
 
 		if ( msg.Data is PackageMsg.FavouritesChanged favouriteChanged )
 		{
 			UpdatePackage( favouriteChanged.PackageIdent, p => p.Favourited = (int)favouriteChanged.Value );
-			IMenuDll.Current?.RunEvent( "package.update.favourites", favouriteChanged.PackageIdent, favouriteChanged.Value );
+			IMenuSystem.Current?.PackageFavouritesChanged( favouriteChanged.PackageIdent, favouriteChanged.Value );
 		}
 
 		if ( msg.Data is PackageMsg.VotesChanged votesChanged )

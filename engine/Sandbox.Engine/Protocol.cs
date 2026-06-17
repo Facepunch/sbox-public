@@ -8,15 +8,16 @@ public static class Protocol
 	/// <summary>
 	/// We cannot play packages with an Api version higher than this.
 	/// </summary>
-	public static int Api => 25;
+	public static int Api => 26;
 
 	/// <summary>
 	/// We cannot talk to servers or clients with a network protocol different to this.
 	/// </summary>
-	public static int Network => 1100;
+	public static int Network => 1102;
 }
 
 // Api Versions
+// 26. 15 June 2026 - Frontend mounts, manual mount opt-in
 // 25. 27 March 2026 - Shadows 2
 // 24. 21 January 2026 - Weekly update
 // 21. 12 July 2025 - Monthly update
@@ -26,6 +27,8 @@ public static class Protocol
 
 
 // Network Versions
+// 1102. 14th May 2026 - Connection display names are resolved locally
+// 1101. 04th May 2026 - TargetedInternalMessage uses ISerializer (wire format change)
 // 1100. 30th March 2026 - Compress-before-chunk, chunking moved to wire layer
 // 1099. 24th Feburary 2026 - ResourceId is now a long
 // 1098. 20th Feburary 2026 - Send network time as double

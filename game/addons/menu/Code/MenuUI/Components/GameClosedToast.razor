@@ -58,14 +58,10 @@
 {
     [Parameter, EditorRequired] public Package Package { get; set; }
 
-    RealTimeUntil timeUntilClose = 4;
+    const float Lifetime = 10;
+    float timeRemaining = Lifetime;
 
     Panel _closeProgress = default;
-
-    protected override void OnMouseOver(MousePanelEvent e)
-    {
-        timeUntilClose = 10;
-    }
 
     public override void Tick()
     {
@@ -73,11 +69,16 @@
 
         if ( _closeProgress is not null )
         {
-            _closeProgress.Style.Width = Length.Fraction( ((float)timeUntilClose.Relative) / 4.0f );
+            _closeProgress.Style.Width = Length.Fraction( timeRemaining / Lifetime );
             _closeProgress.Style.Dirty();
         }
 
-        if (timeUntilClose < 0)
+        if ( HasHovered )
+            return;
+
+        timeRemaining -= RealTime.Delta;
+
+        if ( timeRemaining < 0 )
         {
             Delete();
         }

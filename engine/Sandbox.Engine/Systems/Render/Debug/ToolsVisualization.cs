@@ -4,7 +4,7 @@ internal static partial class DebugOverlay
 {
 	public partial class ToolsVisualization
 	{
-		[ConVar( "mat_toolsvis", Help = "Set the render debug visualization mode" )]
+		[ConVar( "mat_toolsvis", Help = "Set the render debug visualization mode", Flags = ConVarFlags.Protected | ConVarFlags.Cheat )]
 		internal static SceneCameraDebugMode mat_toolsvis { get; set; }
 
 		internal static void Draw( ref Vector2 pos )

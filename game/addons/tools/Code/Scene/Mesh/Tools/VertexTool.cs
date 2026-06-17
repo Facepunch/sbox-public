@@ -14,6 +14,26 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 
 	public override bool HasBoxSelectionMode() => true;
 
+	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
+	{
+		base.BuildSceneContextMenu( menu, ray, trace );
+
+		int count = Selection.OfType<MeshVertex>().Count( x => x.IsValid() );
+		if ( count == 0 ) return;
+
+		menu.AddSeparator();
+
+		var ops = menu.AddMenu( "Vertex Operations", "build" );
+		AddMenuOption( ops, "Merge Verts", "merge", "mesh.merge", count > 1 );
+		AddMenuOption( ops, "Connect Verts", "link", "mesh.connect", count > 1 );
+		AddMenuOption( ops, "Bevel Verts", "straighten", "mesh.bevel", true );
+
+		var sel = menu.AddMenu( "Vertex Selection", "select_all" );
+		AddMenuOption( sel, "Select Loop", "all_out", "mesh.select-loop", count > 1 );
+		AddMenuOption( sel, "Invert Selection", "swap_vert", InvertCurrentSelection, "mesh.invert-selection", true );
+		sel.AddOption( "Select All", "select_all", () => InvokeShortcut( "mesh.select-all" ), "mesh.select-all" );
+	}
+
 	protected override void OnBoxSelect( Frustum frustum, Rect screenRect, bool isFinal )
 	{
 		HashSet<MeshVertex> selection = [];
@@ -23,6 +43,8 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 		{
 			var mesh = component.Mesh;
 			if ( mesh == null ) continue;
+
+			if ( component.GameObject.Tags.Has( "hidden" ) ) continue;
 
 			var bounds = component.GetWorldBounds();
 			if ( !frustum.IsInside( bounds, true ) )
@@ -177,6 +199,49 @@ public sealed partial class VertexTool( MeshTool tool ) : SelectionTool<MeshVert
 			foreach ( var hVertex in vertex.Component.Mesh.VertexHandles )
 				Selection.Add( new MeshVertex( vertex.Component, hVertex ) );
 		}
+	}
+
+	public override List<MeshFace> ExtrudeSelection( Vector3 delta = default )
+	{
+		var groups = Selection.OfType<MeshVertex>()
+			.GroupBy( v => v.Component );
+
+		var connectingFaces = new List<MeshFace>();
+		if ( !groups.Any() )
+			return connectingFaces;
+
+		var selectedVertices = new List<MeshVertex>();
+		var components = groups.Select( x => x.Key );
+
+		using ( SceneEditorSession.Active.UndoScope( "Extrude Vertices" ).WithComponentChanges( components ).Push() )
+		{
+			var extrudeWidth = EditorScene.GizmoSettings.GridSpacing;
+
+			foreach ( var group in groups )
+			{
+				var component = group.Key;
+				var mesh = component.Mesh;
+				var vertices = group.Select( x => x.Handle ).ToList();
+
+				mesh.ExtendOrExtrudeVertices( vertices, 0.0f, extrudeWidth,
+					out var modifiedVertices, out _, out var newFaces );
+
+				foreach ( var hVertex in modifiedVertices )
+					selectedVertices.Add( new MeshVertex( component, hVertex ) );
+
+				foreach ( var hFace in newFaces )
+					connectingFaces.Add( new MeshFace( component, hFace ) );
+			}
+		}
+
+		Selection.Clear();
+
+		foreach ( var vertex in selectedVertices )
+			Selection.Add( vertex );
+
+		CalculateSelectionVertices();
+
+		return connectingFaces;
 	}
 
 	protected override IEnumerable<IMeshElement> GetAllSelectedElements()

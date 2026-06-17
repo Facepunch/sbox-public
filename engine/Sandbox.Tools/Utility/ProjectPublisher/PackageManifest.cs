@@ -84,6 +84,7 @@ public partial class ProjectPublisher
 			if ( project.Config.Type == "game" )
 			{
 				await IncludeFiles( rootFolder, "ProjectSettings/*", cancel );
+				await IncludeCursorImages();
 			}
 
 			await Task.Delay( 10 );
@@ -410,6 +411,27 @@ public partial class ProjectPublisher
 			Assets.Add( e );
 		}
 
+		internal async Task IncludeCursorImages()
+		{
+			if ( FileSystem.ProjectSettings is null || FileSystem.Content is null ) return;
+
+			var settings = EditorUtility.LoadProjectSettings<CursorSettings>( "Cursors.config" );
+			var cursors = settings?.Cursors;
+			if ( cursors is null ) return;
+
+			foreach ( var cursor in cursors.Values )
+			{
+				if ( string.IsNullOrWhiteSpace( cursor.Image ) ) continue;
+
+				var relative = cursor.Image.NormalizeFilename( true, false );
+				if ( !LooseFileAllowed( relative, false ) ) continue;
+
+				var absPath = FileSystem.Content.GetFullPath( cursor.Image );
+				if ( !string.IsNullOrWhiteSpace( absPath ) && File.Exists( absPath ) )
+					await AddFile( absPath, relative );
+			}
+		}
+
 		internal async Task IncludeFiles( string root, string wildcardScript, CancellationToken cancel, bool allowSourceFiles = false )
 		{
 			if ( !System.IO.Directory.Exists( root ) )
@@ -448,11 +470,9 @@ public partial class ProjectPublisher
 		public static bool LooseFileAllowed( string file, bool allowSourceFiles )
 		{
 			if ( file.Contains( "/obj/", StringComparison.OrdinalIgnoreCase ) ) return false;
-			if ( file.Contains( "/.git", StringComparison.OrdinalIgnoreCase ) ) return false;
-			if ( file.Contains( "/.addon", StringComparison.OrdinalIgnoreCase ) ) return false;
 
-			if ( file.Contains( "/.editorconfig", StringComparison.OrdinalIgnoreCase ) ) return false;
-			if ( file.Contains( "/.vs/", StringComparison.OrdinalIgnoreCase ) ) return false;
+			// Ignore all dot folders and dot files (.git, .vs, .idea, .editorconfig, .addon, etc)
+			if ( file.Contains( "/.", StringComparison.OrdinalIgnoreCase ) ) return false;
 			if ( file.Contains( "_bakeresourcecache", StringComparison.OrdinalIgnoreCase ) ) return false;
 			if ( file.Contains( "launchsettings.json", StringComparison.OrdinalIgnoreCase ) ) return false;
 

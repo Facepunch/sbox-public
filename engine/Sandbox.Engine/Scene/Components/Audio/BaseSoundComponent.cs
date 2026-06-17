@@ -1,4 +1,5 @@
 using Sandbox.Audio;
+using System.Text.Json.Serialization;
 
 namespace Sandbox;
 
@@ -31,11 +32,38 @@ public abstract class BaseSoundComponent : Component
 	[Property, Group( "DistanceAttenuationOverride" )] public Curve Falloff { get; set; } = new Curve( new( 0, 1, MathF.PI, -MathF.PI ), new( 1, 0 ) );
 
 	[Property, ToggleGroup( "OcclusionOverride", Label = "Override Occlusion" )] public bool OcclusionOverride { get; set; } = false;
-	[Property, Group( "OcclusionOverride" )] public bool Occlusion { get; set; } = false;
-	[Range( 0, 256 ), Property, Group( "OcclusionOverride" )] public float OcclusionRadius { get; set; } = 32.0f;
+	[Property, Group( "OcclusionOverride" )] public bool OcclusionEnabled { get; set; } = false;
 
-	[Property, ToggleGroup( "ReflectionOverride", Label = "Override Reflection" )] public bool ReflectionOverride { get; set; } = false;
-	[Property, Group( "ReflectionOverride" )] public bool Reflections { get; set; } = false;
+	/// <summary>Legacy alias for <see cref="OcclusionEnabled"/>.</summary>
+	[Hide, Obsolete( "Use OcclusionEnabled instead." )]
+	public bool Occlusion
+	{
+		get => OcclusionEnabled;
+		set => OcclusionEnabled = value;
+	}
+
+	/// <summary>Legacy occlusion radius. No longer used by the simulation.</summary>
+	[JsonInclude, Hide, Obsolete( "OcclusionRadius is no longer used by the simulation." )]
+	public float OcclusionRadius { get; set; } = 32.0f;
+
+	[Property, ToggleGroup( "ReverbOverride", Label = "Override Reverb" )] public bool ReverbOverride { get; set; } = false;
+	[Property, Group( "ReverbOverride" )] public bool ReverbEnabled { get; set; } = false;
+
+	/// <summary>Legacy alias for <see cref="ReverbOverride"/>.</summary>
+	[Hide, Obsolete( "Use ReverbOverride instead." )]
+	public bool ReflectionOverride
+	{
+		get => ReverbOverride;
+		set => ReverbOverride = value;
+	}
+
+	/// <summary>Legacy alias for <see cref="ReverbEnabled"/>.</summary>
+	[Hide, Obsolete( "Use ReverbEnabled instead." )]
+	public bool Reflections
+	{
+		get => ReverbEnabled;
+		set => ReverbEnabled = value;
+	}
 
 	protected SoundHandle SoundHandle;
 
@@ -60,8 +88,12 @@ public abstract class BaseSoundComponent : Component
 
 		if ( OcclusionOverride )
 		{
-			h.Occlusion = Occlusion;
-			h.OcclusionRadius = OcclusionRadius;
+			h.OcclusionEnabled = OcclusionEnabled;
+		}
+
+		if ( ReverbOverride )
+		{
+			h.ReverbEnabled = ReverbEnabled;
 		}
 
 		if ( DistanceAttenuationOverride )
@@ -74,7 +106,7 @@ public abstract class BaseSoundComponent : Component
 		if ( Force2d )
 		{
 			h.Position = Vector3.Forward * 10.0f;
-			h.Occlusion = false;
+			h.OcclusionEnabled = false;
 			h.AirAbsorption = false;
 			h.DistanceAttenuation = false;
 			h.Transmission = false;

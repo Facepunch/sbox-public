@@ -5,7 +5,7 @@ public static class ForumMsg
 	[ProtoContract( ImplicitFields = ImplicitFields.AllFields )]
 	public class ThreadPosted : IMessage
 	{
-		public static ushort MessageIdent => 7000;
+		public static MessageId MessageIdent => MessageId.ForumThreadPosted;
 
 		public long ForumId { get; set; }
 		public long ThreadId { get; set; }
@@ -16,7 +16,7 @@ public static class ForumMsg
 	[ProtoContract( ImplicitFields = ImplicitFields.AllFields )]
 	public class ReplyPosted : IMessage
 	{
-		public static ushort MessageIdent => 7001;
+		public static MessageId MessageIdent => MessageId.ForumReplyPosted;
 
 		public long ForumId { get; set; }
 		public long ThreadId { get; set; }
@@ -27,7 +27,7 @@ public static class ForumMsg
 	[ProtoContract( ImplicitFields = ImplicitFields.AllFields )]
 	public class ThreadEdited : IMessage
 	{
-		public static ushort MessageIdent => 7002;
+		public static MessageId MessageIdent => MessageId.ForumThreadEdited;
 
 		public long ForumId { get; set; }
 		public long ThreadId { get; set; }

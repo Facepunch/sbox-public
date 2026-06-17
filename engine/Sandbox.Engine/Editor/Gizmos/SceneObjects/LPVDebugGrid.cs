@@ -1,8 +1,8 @@
 namespace Sandbox;
 
+using Sandbox.Rendering;
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 
 /// <summary>
 /// Debug grid overlay for visualizing probe positions.
@@ -20,6 +20,9 @@ sealed class LPVDebugGridObject : SceneCustomObject
 
 	private readonly Material _material = Material.FromShader( "shaders/lpv_debug.shader" );
 	private readonly List<Vertex> _vertices = new();
+	private readonly CommandList _commandList = new( "LPVDebugGrid" );
+	private GpuBuffer<Vertex> _gpuVertexBuffer;
+	private int _gpuVertexCount;
 	private bool _dirty = true;
 
 	public Transform GridTransform;
@@ -28,7 +31,9 @@ sealed class LPVDebugGridObject : SceneCustomObject
 	public float SampleSize = 10f;
 	public IndirectLightVolume.Probe[] Probes;
 
-	public LPVDebugGridObject( SceneWorld sceneWorld ) : base( sceneWorld ) { }
+	public LPVDebugGridObject( SceneWorld sceneWorld ) : base( sceneWorld )
+	{
+	}
 
 	public void UpdateGrid( Transform transform, BBox lpvBounds, Vector3Int counts, float sampleSize, IndirectLightVolume.Probe[] probes = null )
 	{
@@ -40,24 +45,42 @@ sealed class LPVDebugGridObject : SceneCustomObject
 		LPVBounds = lpvBounds;
 		SampleSize = sampleSize;
 		Probes = probes;
+
+		if ( !_dirty )
+			return;
+
+		Rebuild();
+
+		if ( _vertices.Count > 0 )
+		{
+			if ( _gpuVertexBuffer is null || _gpuVertexBuffer.ElementCount < _vertices.Count )
+			{
+				MainThread.QueueDispose( _gpuVertexBuffer );
+				_gpuVertexBuffer = new GpuBuffer<Vertex>( _vertices.Count, GpuBuffer.UsageFlags.Vertex );
+			}
+
+			_gpuVertexBuffer.SetData( _vertices );
+		}
+
+		_gpuVertexCount = _vertices.Count;
+		BuildCommandList();
+		_dirty = false;
 	}
 
 	public override void RenderSceneObject()
 	{
-		if ( _material is null || Counts.x <= 0 || Counts.y <= 0 || Counts.z <= 0 )
+		_commandList.ExecuteOnRenderThread();
+	}
+
+	private void BuildCommandList()
+	{
+		_commandList.Reset();
+
+		if ( _gpuVertexCount == 0 || !_gpuVertexBuffer.IsValid() || _material is null )
 			return;
 
-		if ( _dirty )
-		{
-			Rebuild();
-			_dirty = false;
-		}
-
-		if ( _vertices.Count == 0 )
-			return;
-
-		Attributes.Set( "SampleSize", Math.Clamp( SampleSize, 0.1f, 100f ) );
-		Graphics.Draw( CollectionsMarshal.AsSpan( _vertices ), _vertices.Count, default, default, _material, Attributes, Graphics.PrimitiveType.Triangles );
+		_commandList.Attributes.Set( "SampleSize", Math.Clamp( SampleSize, 0.1f, 100f ) );
+		_commandList.Draw( _gpuVertexBuffer, _material, 0, _gpuVertexCount );
 	}
 
 	private void Rebuild()

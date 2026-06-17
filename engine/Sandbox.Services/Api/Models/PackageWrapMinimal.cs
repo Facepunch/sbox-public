@@ -4,7 +4,7 @@ namespace Sandbox.Services;
 
 public class PackageWrapMinimal
 {
-	public OrganizationDto Org { get; set; }
+	public OrganizationMinimal Org { get; set; }
 
 	[JsonIgnore]
 	public long AssetId { get; set; }
@@ -20,7 +20,9 @@ public class PackageWrapMinimal
 	public string TypeName { get; set; }
 	public DateTimeOffset Updated { get; set; }
 	public DateTimeOffset Created { get; set; }
+	public bool Archived { get; set; } = false;
 	public PackageUsageStats UsageStats { get; set; }
+	public long UsersNow { get; set; }
 	public string[] Tags { get; set; }
 	public int Favourited { get; set; }
 	public int Collections { get; set; }
@@ -29,9 +31,28 @@ public class PackageWrapMinimal
 	public int VotesUp { get; set; }
 	public int VotesDown { get; set; }
 	public bool Public { get; set; }
+	public bool Mature { get; set; }
+
+	/// <summary>
+	/// Small icon badges shown over the thumbnail in lists — workshop-approved,
+	/// updated-since-you-played, etc. Computed at wrap time; may be empty, never null.
+	/// </summary>
+	public List<PackageFlair> Flair { get; set; } = [];
 
 	// Added afterwards, describes how a user interacted with this package
 	public PackageInteraction Interaction { get; set; }
+	public long Spawns { get; set; }
+	public long PlayerSpawns { get; set; }
+
+	/// <summary>
+	/// The total size of the current version of this package in bytes
+	/// </summary>
+	public long FileSize { get; set; }
+
+	/// <summary>
+	/// A tag to show to moderators to highlight
+	/// </summary>
+	public string ModTag { get; set; }
 
 	public string DevLink( string append = "/" )
 	{

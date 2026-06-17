@@ -5,6 +5,13 @@ namespace Sandbox.Resources;
 public abstract class TextureGenerator : ResourceGenerator<Texture>
 {
 	/// <summary>
+	/// When set, the compiled texture will use this format instead of automatically determining one.
+	/// Useful to avoid block compression (BC1/BC7) for textures that require pixel-perfect quality (sprites, UI, icons).
+	/// </summary>
+	[Hide]
+	public virtual ImageFormat? FormatOverride => null;
+
+	/// <summary>
 	/// Find an existing texture for this
 	/// </summary>
 	protected virtual ValueTask<Texture> CreateTexture( Options options, CancellationToken ct )
@@ -55,12 +62,30 @@ public abstract class TextureGenerator : ResourceGenerator<Texture>
 
 	public virtual EmbeddedResource? CreateEmbeddedResource()
 	{
-		return new EmbeddedResource
+		var di = DisplayInfo.For( this );
+		var data = Json.SerializeAsObject( this );
+
+		var embed = new EmbeddedResource
 		{
 			ResourceCompiler = "texture",
-			ResourceGenerator = DisplayInfo.For( this ).ClassName ?? GetType().FullName,
-			Data = Json.SerializeAsObject( this )
+			ResourceGenerator = di.ClassName ?? GetType().FullName,
+			Data = data
 		};
+
+		// If the generator supports caching to disk, create a deterministic path for the compiled texture
+		if ( CacheToDisk && EngineFileSystem.Mounted is BaseFileSystem mounted )
+		{
+			var generatorName = (di.ClassName ?? di.Name).ToLower().GetFilenameSafe();
+			var crc = Sandbox.Utility.Crc64.FromString( data.ToJsonString() );
+			var compiledPath = $"textures/generated/{generatorName}/{crc:x}.vtex";
+
+			if ( mounted.FileExists( $"{compiledPath}_c" ) )
+			{
+				embed.CompiledPath = compiledPath;
+			}
+		}
+
+		return embed;
 	}
 
 }

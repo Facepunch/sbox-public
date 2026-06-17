@@ -10,6 +10,7 @@ native class CQueryResult as NativeEngine.CQueryResult
 
 	int Count();
 	IPhysicsShape Element( int i );
+	void RemoveAll();
 }
 
 [Handle:Sandbox.PhysicsShape]

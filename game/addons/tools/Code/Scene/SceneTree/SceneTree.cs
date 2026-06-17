@@ -197,9 +197,6 @@ public partial class SceneTreeWidget : Widget
 				if ( go.Parent is null || go.Flags.HasFlag( GameObjectFlags.Hidden ) )
 					continue;
 
-				if ( go.IsPrefabInstance && !go.IsPrefabInstanceRoot )
-					continue;
-
 				if ( !go.Name.Contains( search, StringComparison.OrdinalIgnoreCase ) )
 					continue;
 

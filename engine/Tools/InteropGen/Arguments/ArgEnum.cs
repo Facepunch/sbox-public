@@ -15,17 +15,17 @@ public class ArgEnum : Arg
 	public override string NativeType => Type.NativeNameWithNamespace;
 	public override string NativeDelegateType => "int64";
 
-	public override string ToInterop( bool native, string code = null )
+	public override string ToInterop( Side side, string code = null )
 	{
 		code ??= Name;
 
-		return !native ? $"(long)({code})" : $"(int64)({code})";
+		return side == Side.Managed ? $"(long)({code})" : $"(int64)({code})";
 	}
 
-	public override string FromInterop( bool native, string code = null )
+	public override string FromInterop( Side side, string code = null )
 	{
 		code ??= Name;
 
-		return !native ? $"({ManagedType})({code})" : $"({NativeType})({code})";
+		return side == Side.Managed ? $"({ManagedType})({code})" : $"({NativeType})({code})";
 	}
 }

@@ -4,7 +4,8 @@ global using System;
 global using System.Collections.Generic;
 global using System.Linq;
 global using System.Threading.Tasks;
-
+using MenuProject;
+using MenuProject.Overlay.Overlays;
 using Sandbox;
 using Sandbox.Audio;
 using Sandbox.Internal;
@@ -41,6 +42,9 @@ public partial class MenuSystem : IMenuSystem
 
 	public void Shutdown()
 	{
+		gameClosingPanel?.Delete();
+		gameClosingPanel = null;
+
 		MenuOverlay.Shutdown();
 
 		Dev?.Delete();
@@ -51,6 +55,8 @@ public partial class MenuSystem : IMenuSystem
 	}
 
 	Package oldGamePackage;
+
+	GameClosing gameClosingPanel;
 
 	public void Tick()
 	{
@@ -67,7 +73,48 @@ public partial class MenuSystem : IMenuSystem
 			}
 		}
 
+		TickEscapeToClose();
 		UpdateMusic();
+	}
+
+	void TickEscapeToClose()
+	{
+		if ( Game.InGame )
+		{
+			var startDelay = 0.2f;
+			var holdDelay = 1.5f;
+
+			if ( MenuUtility.EscapeTime > startDelay )
+			{
+				var et = MenuUtility.EscapeTime - startDelay;
+
+				if ( !gameClosingPanel.IsValid() )
+				{
+					gameClosingPanel = new GameClosing();
+					gameClosingPanel.Parent = MenuOverlay.Instance.TopCenter;
+				}
+
+				gameClosingPanel.Progress = Math.Clamp( et / holdDelay, 0f, 1f );
+				gameClosingPanel.StateHasChanged();
+
+				if ( gameClosingPanel.Progress >= 1 )
+				{
+					gameClosingPanel?.Delete();
+					gameClosingPanel = null;
+					Game.Close();
+				}
+			}
+			else
+			{
+				gameClosingPanel?.Delete();
+				gameClosingPanel = null;
+			}
+		}
+		else
+		{
+			gameClosingPanel?.Delete();
+			gameClosingPanel = null;
+		}
 	}
 
 	public void Popup( string type, string title, string subtitle )
@@ -89,11 +136,11 @@ public partial class MenuSystem : IMenuSystem
 
 	public string Url
 	{
-		get => MainMenuPanel.Instance.Navigator.CurrentUrl;
-		set => MainMenuPanel.Instance.Navigator.Navigate( value );
+		get => MainMenu.Instance.Navigator.CurrentUrl;
+		set => MainMenu.Instance.Navigator.Navigate( value );
 	}
 
-	public bool ForceCursorVisible => DeveloperMode.Open;
+	public bool ForceCursorVisible => DeveloperMode.Open || ChatOverlay.IsOpen;
 
 
 	class MenuMusic
@@ -139,7 +186,7 @@ public partial class MenuSystem : IMenuSystem
 			}
 
 			player.Volume = Volume * TargetVolume;
-			player.Position = new Vector3( 0, 0, 0 );
+			player.Position = Vector3.Zero;
 			player.ListenLocal = true;
 			player.TargetMixer = Mixer.FindMixerByName( "music" );
 		}
@@ -154,7 +201,7 @@ public partial class MenuSystem : IMenuSystem
 		bool isAvatarMenu = Game.ActiveScene?.Get<AvatarEditManager>() != null;
 		bool isLoadingScreen = LoadingScreen.IsVisible;
 
-		menu.Enabled = false; // Game.IsMainMenuVisible && !isLoadingScreen && !isAvatarMenu;
+		menu.Enabled = false;
 		menu.Update();
 
 		loading.Enabled = LoadingScreen.IsVisible && (IGameInstance.Current is null || IGameInstance.Current.IsLoading);
@@ -176,5 +223,17 @@ public partial class MenuSystem : IMenuSystem
 	{
 		var package = await Package.FetchAsync( ident, false );
 		((IMenuSystem)MenuSystem.Instance).OnPackageClosed( package );
+	}
+
+	public Action<string, long> OnPackageUsageChanged { get; set; }
+
+	public void PackageUsageChanged( string packageIdent, long userCount )
+	{
+		OnPackageUsageChanged?.InvokeWithWarning( packageIdent, userCount );
+	}
+
+	public void PackageFavouritesChanged( string packageIdent, long value )
+	{
+		// ignore for now
 	}
 }

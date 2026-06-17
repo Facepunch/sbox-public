@@ -23,7 +23,7 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	/// Storage for painted clutter model instances.
 	/// Serialized with the scene - this is the source of truth for painted clutter.
 	/// </summary>
-	[Property]
+	[Property, Hide]
 	public ClutterStorage Storage { get; set; } = new();
 
 	/// <summary>

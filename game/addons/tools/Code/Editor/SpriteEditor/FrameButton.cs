@@ -130,6 +130,7 @@ public class FrameButton : Widget
 				Paint.SetDefaultFont( 8 * FrameSize );
 				var tagsText = string.Join( ", ", frame.BroadcastMessages.Distinct() );
 				var iconText = string.Join( " ", frame.BroadcastMessages.Select( x => GetEnumIcon( x.Type ) ).Distinct() ).Trim();
+				if ( string.IsNullOrEmpty( tagsText ) ) tagsText = " ";
 				var tagsRect = Paint.MeasureText( pixRect, tagsText, TextFlag.CenterBottom );
 				var iconOffset = new Vector2( tagsRect.Size.y + 6 * FrameSize, 0 );
 				tagsRect.Left = pixRect.Left;

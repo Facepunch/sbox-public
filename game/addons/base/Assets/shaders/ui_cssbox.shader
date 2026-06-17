@@ -218,7 +218,7 @@ PS
 				uv.x += vBorderPixelRatio.x; //Get the offset of the middle one
 
 				//Vertical Middle Repeat
-				uv.y = ( vBoxTexCoord.y - BorderImageWidth.y ) / ( BoxSize.y - ( BorderImageWidth.y + BorderImageWidth.z ) ) * vRepeatAmount.y;
+				uv.y = ( vBoxTexCoord.y - BorderImageWidth.y ) / ( BoxSize.y - ( BorderImageWidth.y + BorderImageWidth.w ) ) * vRepeatAmount.y;
 				uv.y = fmod( uv.y, vMiddleSize.y );
 				uv.y += vBorderPixelRatio.y; //Get the offset of the middle one
 			}
@@ -252,7 +252,7 @@ PS
 		else if( vBoxTexCoord.y > BoxSize.y - BorderImageWidth.w )
 			uv.y = ( ( (vBoxTexCoord.y - ( BoxSize.y - BorderImageWidth.w) ) / BorderImageWidth.w) * vBorderPixelRatio.w ) + ( 1.0 - vBorderPixelRatio.w );
 
-		float4 r = g_tBorderImage.Sample( Bindless::GetSampler( NonUniformResourceIndex( ClampSamplerIndex ) ), uv );
+		float4 r = g_tBorderImage.Sample( Bindless::GetSampler( ClampSamplerIndex ), uv );
 		r.xyz = SrgbGammaToLinear( r.xyz );
 		return r;
 	}
@@ -310,7 +310,7 @@ PS
 
 			float mipBias = -1.5; // negative = sharper, positive = blurrier
 	
-			vImage = g_tColor.SampleBias( Bindless::GetSampler( NonUniformResourceIndex( SamplerIndex ) ), vUV, mipBias );
+			vImage = g_tColor.SampleBias( Bindless::GetSampler( SamplerIndex ), vUV, mipBias );
 
 			// Clamping UV? NoRepeat (3) will clamp both
 			if ( BgRepeat != 0 && BgRepeat != 4 )

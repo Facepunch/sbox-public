@@ -1,5 +1,6 @@
 
 using NativeEngine;
+using Sandbox.Rendering;
 
 namespace Sandbox;
 
@@ -303,6 +304,8 @@ public class SceneMapLoader : MapLoader
 
 	public class TextSceneObject : SceneCustomObject
 	{
+		private readonly CommandList _commandList = new( "MapText" );
+
 		public string Text { get; set; }
 		public string FontName { get; set; } = "Roboto";
 		public float FontSize { get; set; } = 100.0f;
@@ -314,10 +317,17 @@ public class SceneMapLoader : MapLoader
 			RenderLayer = SceneRenderLayer.Default;
 		}
 
+		internal void BuildCommandList()
+		{
+			_commandList.Reset();
+			_commandList.Attributes.SetCombo( "D_WORLDPANEL", 1 );
+			var scope = new TextRendering.Scope( Text, ColorTint, FontSize, FontName, (int)FontWeight );
+			_commandList.DrawText( scope, new Rect( 0 ), TextFlags );
+		}
+
 		public override void RenderSceneObject()
 		{
-			Graphics.Attributes.SetCombo( "D_WORLDPANEL", 1 );
-			Graphics.DrawText( new Rect( 0 ), Text, ColorTint, FontName, FontSize, FontWeight, TextFlags );
+			_commandList.ExecuteOnRenderThread();
 		}
 	}
 
@@ -360,6 +370,7 @@ public class SceneMapLoader : MapLoader
 		else if ( justifyVertical == 2 )
 			textObject.TextFlags |= TextFlag.Top;
 
+		textObject.BuildCommandList();
 		SceneObjects.Add( textObject );
 	}
 

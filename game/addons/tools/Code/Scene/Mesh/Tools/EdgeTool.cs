@@ -11,6 +11,36 @@ namespace Editor.MeshEditor;
 [Group( "2" )]
 public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>( tool )
 {
+	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
+	{
+		base.BuildSceneContextMenu( menu, ray, trace );
+
+		var edges = Selection.OfType<MeshEdge>().Where( x => x.IsValid() ).ToArray();
+		int count = edges.Length;
+		if ( count == 0 ) return;
+
+		bool canFill = edges.Any( x => x.IsOpen );
+
+		menu.AddSeparator();
+
+		var ops = menu.AddMenu( "Edge Operations", "build" );
+		AddMenuOption( ops, "Merge Edges", "merge_type", "mesh.merge", count > 1 );
+		AddMenuOption( ops, "Split Edges", "call_split", "mesh.split", true );
+		AddMenuOption( ops, "Bridge Edges", "device_hub", "mesh.bridge-tool", count > 1 );
+		AddMenuOption( ops, "Fill Hole", "format_color_fill", "mesh.fill-hole", canFill );
+		AddMenuOption( ops, "Connect Edges", "link", "mesh.connect", count > 1 );
+		AddMenuOption( ops, "Bevel Edges", "straighten", "mesh.edge-bevel", true );
+		AddMenuOption( ops, "Dissolve Edges", "blur_off", "mesh.dissolve", true );
+		AddMenuOption( ops, "Collapse Edges", "unfold_less", "mesh.collapse", true );
+
+		var sel = menu.AddMenu( "Edge Selection", "select_all" );
+		AddMenuOption( sel, "Select Loop", "all_out", "mesh.select-loop", true );
+		AddMenuOption( sel, "Select Ring", "data_array", "mesh.select-ring", true );
+		AddMenuOption( sel, "Select Ribs", "timeline", "mesh.select-ribs", true );
+		AddMenuOption( sel, "Invert Selection", "swap_vert", InvertCurrentSelection, "mesh.invert-selection", true );
+
+		sel.AddOption( "Select All", "select_all", () => InvokeShortcut( "mesh.select-all" ), "mesh.select-all" );
+	}
 
 	public override void OnUpdate()
 	{

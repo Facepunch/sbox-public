@@ -1,0 +1,187 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using System;
+@using System.Collections.Generic;
+@namespace MenuProject.Rewards
+@inherits PanelComponent
+
+<root>
+
+	<div class="topbar">
+		<Button class="clicky back" Icon="west" Text="Back" @onclick="@Back" />
+	</div>
+
+	@if ( IsLoading )
+	{
+		<div class="center">
+			<div class="spinner">
+				<icon>hourglass_empty</icon>
+			</div>
+		</div>
+	}
+	else if ( Offer is null )
+	{
+		<div class="center">
+			<label class="title">Nothing to open right now.</label>
+			<label class="sub">Jump into a game to receive your reward drop.</label>
+			<Button class="clicky" Text="Back" Icon="west" @onclick="@Back" />
+		</div>
+	}
+	else if ( Result is not null && Result.Success )
+	{
+		<div class="result-bar">
+			<icon class="result-icon">celebration</icon>
+			<label class="result-text">You claimed your reward!</label>
+			<Button class="clicky primary" Text="Done" Icon="check" @onclick="@Back" />
+		</div>
+	}
+	else if ( ShowClaimBar )
+	{
+		<div class="claim-bar">
+			<div class="claim-info">
+				<div class="select-banner">
+					<label>Select @Offer.PickCount @( Offer.PickCount == 1 ? "Reward" : "Rewards" )</label>
+				</div>
+				<label class="blurb">Pick your item — it's yours to keep, free.</label>
+			</div>
+
+			<Button class="clicky claim" Text="@ClaimText" Icon="redeem" Disabled="@( !CanConfirm )" @onclick="@Confirm" />
+		</div>
+	}
+
+</root>
+
+@code
+{
+	/// <summary>The offer being opened, claimed from the backend when this scene loads.</summary>
+	RewardOffer Offer { get; set; }
+
+	/// <summary>The result once the player has committed their pick, otherwise null.</summary>
+	RewardResult Result { get; set; }
+
+	/// <summary>True while we're claiming the offer from the backend.</summary>
+	bool IsLoading { get; set; }
+
+	/// <summary>True while the ChooseReward call is in flight.</summary>
+	bool IsChoosing { get; set; }
+
+	/// <summary>True once the crate is open and cards are displayed.</summary>
+	bool ShowClaimBar { get; set; }
+
+	/// <summary>Reference to the card spawner driving the 3D cards.</summary>
+	RewardCardSpawner CardSpawner { get; set; }
+
+	bool _hasLoaded;
+
+	protected override void OnEnabled()
+	{
+		base.OnEnabled();
+
+		if ( _hasLoaded )
+			return;
+
+		_hasLoaded = true;
+		_ = LoadOffer();
+	}
+
+	async Task LoadOffer()
+	{
+		IsLoading = true;
+		Offer = await MenuUtility.Rewards.ClaimReward();
+		IsLoading = false;
+
+		if ( Offer == null ) return;
+
+		// Find or create the card spawner and give it the offer
+		CardSpawner = Scene.GetAll<RewardCardSpawner>().FirstOrDefault();
+		if ( CardSpawner != null )
+		{
+			CardSpawner.Offer = Offer;
+			CardSpawner.OnSelectionChanged = OnCardSelectionChanged;
+			CardSpawner.OnCardsRevealed = OnCardsRevealed;
+		}
+	}
+
+	/// <summary>
+	/// Called by the RewardCardSpawner when cards are revealed (crate fully open).
+	/// </summary>
+	public void OnCardsRevealed()
+	{
+		ShowClaimBar = true;
+	}
+
+	/// <summary>
+	/// Called when a 3D card is selected or deselected.
+	/// </summary>
+	void OnCardSelectionChanged( long itemDefId, bool selected )
+	{
+		// The spawner manages selection state, we just need to refresh our UI
+		ShowClaimBar = true;
+		StateHasChanged();
+	}
+
+	string ClaimText => IsChoosing ? "Claiming…" : "Claim";
+
+	/// <summary>You can confirm once you've picked exactly the number of items the offer allows.</summary>
+	bool CanConfirm
+	{
+		get
+		{
+			if ( Offer is null ) return false;
+			if ( Result is not null ) return false;
+			if ( IsChoosing ) return false;
+			if ( CardSpawner is null ) return false;
+
+			return CardSpawner.SelectedItems.Count == Offer.PickCount;
+		}
+	}
+
+	void Confirm()
+	{
+		if ( !CanConfirm )
+			return;
+
+		IsChoosing = true;
+
+		if ( CardSpawner is not null )
+			CardSpawner.SelectionLocked = true;
+
+		_ = ConfirmAsync();
+	}
+
+	async Task ConfirmAsync()
+	{
+		var choice = new RewardChoice();
+		choice.DropId = Offer.DropId;
+		choice.ItemDefIds = CardSpawner.SelectedItems.ToArray();
+
+		Result = await MenuUtility.Rewards.ChooseReward( choice );
+		IsChoosing = false;
+
+		if ( Result.Success )
+			Burst();
+	}
+
+	/// <summary>Fire the confetti when the player commits their pick.</summary>
+	void Burst()
+	{
+		foreach ( var emitter in Scene.GetAll<ParticleEmitter>() )
+		{
+			emitter.ResetEmitter();
+		}
+	}
+
+	/// <summary>Return to the main menu, which rebuilds the front page and refreshes the reward progress.</summary>
+	void Back()
+	{
+		CardSpawner?.DestroyCards();
+
+		var options = new SceneLoadOptions();
+		options.ShowLoadingScreen = true;
+		options.SetScene( "/scenes/menu-main.scene" );
+
+		Game.ActiveScene.Load( options );
+	}
+
+	protected override int BuildHash() => HashCode.Combine( IsLoading, Offer, Result, IsChoosing, ShowClaimBar, CardSpawner?.SelectedItems?.Count );
+}

@@ -59,7 +59,12 @@ public partial class Popup : BasePopup
 		AboveLeft,
 
 		/// <summary>
-		/// Below the source panel, aliging on the left. Do not stretch to size of <see cref="Popup.PopupSource"/>.
+		/// Above the source panel, aligned to the right.
+		/// </summary>
+		AboveRight,
+
+		/// <summary>
+		/// Below the source panel, aligned to the left.
 		/// </summary>
 		BelowLeft,
 
@@ -67,6 +72,11 @@ public partial class Popup : BasePopup
 		/// Below the source panel, centered horizontally.
 		/// </summary>
 		BelowCenter,
+
+		/// <summary>
+		/// Below the source panel, aligned to the right.
+		/// </summary>
+		BelowRight,
 
 		/// <summary>
 		/// Below the source panel, stretch to the width of the <see cref="Popup.PopupSource"/>.
@@ -138,12 +148,20 @@ public partial class Popup : BasePopup
 				AddClass( "above-center" );
 				break;
 
+			case PositionMode.AboveRight:
+				AddClass( "above-right" );
+				break;
+
 			case PositionMode.BelowLeft:
 				AddClass( "below-left" );
 				break;
 
 			case PositionMode.BelowCenter:
 				AddClass( "below-center" );
+				break;
+
+			case PositionMode.BelowRight:
+				AddClass( "below-right" );
 				break;
 
 			case PositionMode.BelowStretch:
@@ -309,20 +327,20 @@ public partial class Popup : BasePopup
 					break;
 				}
 			case PositionMode.Right:
-			{
-				Style.Right = null;
-				Style.Left = rect.Right + PopupSourceOffset;
-				Style.Top = rect.Top + rect.Height * 0.5f;
-				break;
-			}
+				{
+					Style.Right = null;
+					Style.Left = rect.Right + PopupSourceOffset;
+					Style.Top = rect.Top + rect.Height * 0.5f;
+					break;
+				}
 			case PositionMode.RightBottom:
-			{
-				Style.Right = null;
-				Style.Left = rect.Right + PopupSourceOffset;
-				Style.Top = null;
-				Style.Bottom = (h - rect.Bottom);
-				break;
-			}
+				{
+					Style.Right = null;
+					Style.Left = rect.Right + PopupSourceOffset;
+					Style.Top = null;
+					Style.Bottom = (h - rect.Bottom);
+					break;
+				}
 			case PositionMode.LeftBottom:
 				{
 					Style.Left = null;
@@ -346,6 +364,14 @@ public partial class Popup : BasePopup
 					break;
 				}
 
+			case PositionMode.AboveRight:
+				{
+					Style.Left = null;
+					Style.Right = (Parent.Box.Rect * Parent.ScaleFromScreen).Width - rect.Right;
+					Style.Bottom = (Parent.Box.Rect * Parent.ScaleFromScreen).Height - rect.Top + PopupSourceOffset;
+					break;
+				}
+
 			case PositionMode.BelowLeft:
 				{
 					Style.Left = rect.Left;
@@ -356,6 +382,14 @@ public partial class Popup : BasePopup
 			case PositionMode.BelowCenter:
 				{
 					Style.Left = rect.Center.x; // centering is done via styles
+					Style.Top = rect.Bottom + PopupSourceOffset;
+					break;
+				}
+
+			case PositionMode.BelowRight:
+				{
+					Style.Left = null;
+					Style.Right = (Parent.Box.Rect * Parent.ScaleFromScreen).Width - rect.Right;
 					Style.Top = rect.Bottom + PopupSourceOffset;
 					break;
 				}

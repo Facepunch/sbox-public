@@ -1,6 +1,17 @@
-﻿ItemStore
+﻿@import "/styles/_theme.scss";
+
+ItemStore
 {
     position: relative;
+    background-color: $default-950;
+    align-items: center;
+    justify-content: center;
+}
+
+Page
+{
+    width: 100%;
+    max-width: $screen-w-xl;
 }
 
 .itemlist
@@ -34,4 +45,19 @@ CartButton
 .itemlist
 {
     margin: 32px;
+}
+.owned-header
+{
+    width: 100%;
+    padding: 16px 8px 8px;
+    flex-shrink: 0;
+
+    h2
+    {
+        color: #717a8d;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        font-size: 13px;
+        font-weight: 600;
+    }
 }

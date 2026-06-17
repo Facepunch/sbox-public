@@ -34,7 +34,7 @@ partial class PanelRenderer
 					texture.IsDirty = false;
 			}
 
-			target.Boxes.Add( desc );
+			target.AddBox( desc );
 		}
 	}
 }

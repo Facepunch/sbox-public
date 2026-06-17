@@ -1,0 +1,88 @@
+@using System;
+@using MenuProject
+@using MenuProject.MenuUI.Components
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@using Sandbox.Mounting;
+
+@inherits Popup
+
+@namespace Sandbox.UI.Mounts
+<root>
+	<div class="header">
+        <h2>Mounted Games</h2>
+		<i Tooltip="Access content from supported games in your Steam library">info</i>
+	</div>
+
+    <div class="inner">
+    @{
+		foreach (var mount in Mounts )
+		{
+			if ( mount.IsInstalled )
+			{
+				<Checkbox class=@GetState(mount)
+					Tooltip=@mount.Title
+					LabelText=@mount.Title
+					Checked=@mount.IsMounted @ValueChanged=@( (bool x) => _ = SetState( mount, x ) ) />
+			}
+			else
+			{
+				<span>
+					<i>folder_off</i><Label>@mount.Title</Label>
+				</span>
+			}
+		}
+	}
+    </div>
+</root>
+
+@code
+{
+	IEnumerable<BaseGameMount> Mounts => Sandbox.Mounting.Directory.GetAll()
+		.Select( x => Sandbox.Mounting.Directory.Get( x.Ident ) )
+		.OrderByDescending( x => x.IsInstalled )
+		.ThenBy( x => x.Title );
+
+	public enum MountState
+	{
+		Mounted,
+		Installed,
+		Missing
+	}
+
+	public static MountState GetState( BaseGameMount mount )
+	{
+		if ( mount.IsMounted )
+			return MountState.Mounted;
+
+		if ( mount.IsInstalled )
+			return MountState.Installed;
+
+		return MountState.Missing;
+	}
+
+	private async Task SetState( BaseGameMount mount, bool enabled )
+	{
+		string job = mount.IsMounted ? "Unmounting" : "Mounting";
+		var toast = new Toast()
+		{
+			Title = $"{job} {mount.Title}",
+			Icon = "album",
+			ExtraClasses = "loading"
+		};
+
+		MenuOverlay.Instance?.BottomRight?.Queue(toast, duration: 0, clickToDismiss: false);
+		await MenuUtility.SetMountState(mount.Ident, enabled);
+
+		StateHasChanged();
+		toast.Dismiss();
+
+		MenuOverlay.Instance?.BottomRight?.Queue(new MenuProject.Toast()
+		{
+			Title = $"{job} {mount.Title} complete!",
+			Icon = "download_done",
+		} );
+	}
+
+}

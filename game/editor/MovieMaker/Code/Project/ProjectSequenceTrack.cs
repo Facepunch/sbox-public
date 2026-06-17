@@ -87,7 +87,7 @@ public sealed partial class ProjectSequenceTrack( MovieProject project, Guid id,
 		var resourceGroups = Blocks
 			.GroupBy( x => x.Resource );
 
-		var propertyTrackGenericType = typeof(ProjectSequencePropertyTrack<>);
+		var propertyTrackGenericType = typeof( ProjectSequencePropertyTrack<> );
 
 		foreach ( var group in resourceGroups )
 		{
@@ -153,7 +153,7 @@ file sealed class ProjectSequencePropertyTrack<T> : IProjectSequencePropertyTrac
 		Blocks = [.. blocks];
 	}
 
-	public ICompiledPropertyTrack Compile() => SourceTrack with { Blocks = [..CompileBlocks()] };
+	public ICompiledPropertyTrack Compile() => SourceTrack with { Blocks = [.. CompileBlocks()] };
 
 	private IEnumerable<ICompiledPropertyBlock<T>> CompileBlocks()
 	{

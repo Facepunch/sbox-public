@@ -130,6 +130,7 @@ public partial class SceneViewportWidget : Widget
 	bool mouseWasPressed = false;
 	int framesAfterRelease = 0;
 	Vector2 initialMousePosition = Vector2.Zero;
+	Vector3 initialCameraPosition = Vector3.Zero;
 
 	/// <summary>
 	/// When the mouse is pressed, don't change the input enabled state
@@ -215,7 +216,7 @@ public partial class SceneViewportWidget : Widget
 			Renderer.Camera = _activeCamera;
 		}
 
-		_activeCamera.BackgroundColor = "#32415e";
+		_activeCamera.BackgroundColor = EditorPreferences.CameraBackgroundColor;
 		_activeCamera.WorldPosition = State.CameraPosition;
 		_activeCamera.WorldRotation = State.CameraRotation;
 
@@ -328,6 +329,7 @@ public partial class SceneViewportWidget : Widget
 		if ( e.Button == MouseButtons.Right )
 		{
 			initialMousePosition = e.LocalPosition;
+			initialCameraPosition = cameraTargetPosition ?? GizmoInstance.GetValue<Vector3?>( "CameraTarget" ) ?? _activeCamera.WorldPosition;
 		}
 	}
 
@@ -414,13 +416,15 @@ public partial class SceneViewportWidget : Widget
 
 		// Unity does a 6 pixel deadzone to trigger the context menu
 		if ( e.KeyboardModifiers == KeyboardModifiers.None && e.Button == MouseButtons.Right &&
-			 Vector2.DistanceBetween( initialMousePosition, e.LocalPosition ) < 6 )
+			 Vector2.DistanceBetween( initialMousePosition, e.LocalPosition ) < 6 &&
+			 initialCameraPosition == (cameraTargetPosition ?? GizmoInstance.GetValue<Vector3?>( "CameraTarget" ) ?? _activeCamera.WorldPosition) )
 		{
 			var menu = new ContextMenu( this ) { Searchable = true };
 			bool HasSelection = Session.Selection.OfType<GameObject>().Any();
 			menu.AddOption( "Cut", "content_cut", EditorScene.Cut, "editor.cut" ).Enabled = HasSelection;
 			menu.AddOption( "Copy", "content_copy", EditorScene.Copy, "editor.copy" ).Enabled = HasSelection;
-			menu.AddOption( "Paste", "content_paste", PasteAtCursor );
+			menu.AddOption( "Paste", "content_paste", PasteAtCursor, "editor.paste" );
+			menu.AddOption( "Paste Special", "content_paste_go", EditorScene.PasteSpecial, "editor.paste-special" );
 			menu.AddSeparator();
 			menu.AddOption( "Duplicate", "file_copy", SceneEditorMenus.Duplicate, "editor.duplicate" ).Enabled = HasSelection;
 			menu.AddOption( "Delete", "delete", SceneEditorMenus.Delete, "editor.delete" ).Enabled = HasSelection;
@@ -451,6 +455,10 @@ public partial class SceneViewportWidget : Widget
 				var ev = new EditorEvent.ShowContextMenuEvent( Session, menu, ray, trace );
 
 				EditorEvent.RunInterface<EditorEvent.ISceneView>( x => x.ShowContextMenu( ev ) );
+
+				var activeTool = SceneView?.Tools.CurrentTool;
+				activeTool?.BuildSceneContextMenu( menu, ray, trace );
+				activeTool?.CurrentTool?.BuildSceneContextMenu( menu, ray, trace );
 			}
 
 			menu.OpenAtCursor();
@@ -489,9 +497,9 @@ public partial class SceneViewportWidget : Widget
 		//
 
 		var hasMouseFocus = hasMouseInput;
-		if ( IsFocused && SceneViewWidget.Current.IsValid() )
+		if ( hasMouseFocus || IsFocused || Renderer.IsFocused )
 		{
-			SceneViewWidget.Current.LastSelectedViewportWidget = this;
+			SceneView.LastSelectedViewportWidget = this;
 		}
 
 		GizmoInstance.Input.IsHovered = hasMouseFocus;
@@ -718,6 +726,7 @@ public partial class SceneViewportWidget : Widget
 		var tr = session.Scene.Trace.Ray( Gizmo.CurrentRay, Gizmo.RayDepth )
 					.UseRenderMeshes( true )
 					.UsePhysicsWorld( false )
+					.WithoutTags( "hidden" )
 					.Run();
 
 		if ( tr.Hit && tr.Component.IsValid() )
@@ -750,14 +759,44 @@ public partial class SceneViewportWidget : Widget
 		if ( !_activeCamera.IsValid() )
 			return;
 
+		// Only frame in the active viewport for this scene view.
+		if ( SceneView.LastSelectedViewportWidget.IsValid() && SceneView.LastSelectedViewportWidget != this )
+			return;
+
 		// Make sure the camera transform is up to date
 		_activeCamera.WorldPosition = State.CameraPosition;
 		_activeCamera.WorldRotation = State.CameraRotation;
 
-		var distance = MathX.SphereCameraDistance( target.Size.Length, _activeCamera.FieldOfView ) * 1.0f;
+		if ( State.Is2D )
+		{
+			var viewForward = _activeCamera.WorldRotation.Forward;
+			var size = target.Size;
+			var viewSize = State.View switch
+			{
+				ViewMode.Top2d => new Vector2( size.x, size.y ),
+				ViewMode.Front2d => new Vector2( size.y, size.z ),
+				ViewMode.Side2d => new Vector2( size.z, size.x ),
+				ViewMode.Flat2d => new Vector2( size.x, size.y ),
+				_ => new Vector2( size.x, size.y )
+			};
 
-		cameraTargetPosition = target.Center + distance * _activeCamera.WorldRotation.Backward;
-		cameraOrbitDistance = target.Center.Distance( cameraTargetPosition.Value );
+			var renderSize = Renderer.Size * Renderer.DpiScale;
+			var aspect = MathF.Max( renderSize.y > 0f ? renderSize.x / renderSize.y : 1f, 0.0001f );
+			var fitHeight = MathF.Max( viewSize.y, viewSize.x / aspect );
+			State.CameraOrthoHeight = MathF.Max( 16f, fitHeight * 1.2f );
+			CurrentOrthoHeight = State.CameraOrthoHeight;
+
+			var depthOffset = Vector3.Dot( target.Center - State.CameraPosition, viewForward );
+			cameraTargetPosition = target.Center - viewForward * depthOffset;
+			cameraOrbitDistance = target.Center.Distance( cameraTargetPosition.Value );
+		}
+		else
+		{
+			var distance = MathX.SphereCameraDistance( target.Size.Length, _activeCamera.FieldOfView ) * 1.0f;
+
+			cameraTargetPosition = target.Center + distance * _activeCamera.WorldRotation.Backward;
+			cameraOrbitDistance = target.Center.Distance( cameraTargetPosition.Value );
+		}
 
 		GizmoInstance.SetValue<Vector3?>( "CameraTarget", null );
 		GizmoInstance.SetValue<Vector3>( "CameraVelocity", 0 );

@@ -111,8 +111,7 @@ CS
         if (maskDepth < sceneDepth && IsValidCoordinate(vReadPos))
         {
             // Sample the source texture at the reprojected position
-            float4 sourceColor = Mip.SampleLevel(g_sBilinearClamp, ( (float2)vDispatchId.xy / ( g_vViewportSize.xy + 1 ) ) , 0);
-            sourceColor = Mip[vReadPos / 2];
+            float4 sourceColor = Mip[vReadPos / 2];
 
             const int2 vWritePos = vDispatchId.xy;
             Output[vWritePos] = clamp( sourceColor, 0.0f, 4.0f );

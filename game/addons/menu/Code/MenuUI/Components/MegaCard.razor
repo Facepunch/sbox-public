@@ -1,4 +1,4 @@
-﻿@namespace Menu
+@namespace Menu
 @using Sandbox;
 @using Sandbox.UI;
 @using Menu;
@@ -8,21 +8,24 @@
 
 <root class="megacard">
 
-    @if (Metrics is not null)
-    {
-        <div class="metrics">@Metrics</div>
-    }
-
     <div class="body-outer">
 
-        @if (Tabs is not null)
+        @if (Tabs is not null || Metrics is not null)
         {
-            <div class="tabs">@Tabs</div>
+            <div class="tabs">
+                @Tabs
+                @if (Metrics is not null)
+                {
+                    <div class="metrics">@Metrics</div>
+                }
+            </div>
         }
 
         <div class="body">
 
             <div class="row">
+
+                <div class="content">@Content</div>
 
                 <div class="left">
 
@@ -34,9 +37,6 @@
                     @Left
 
                 </div>
-
-
-                <div class="content">@Content</div>
 
             </div>
 

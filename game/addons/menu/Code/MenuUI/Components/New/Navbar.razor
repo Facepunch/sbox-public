@@ -15,36 +15,37 @@
 
             <separator class="vertical" />
 
+            @*
             <Button Href="/hub" Icon="hub">#menu.hub</Button>
+            *@
 
-            <Button href="/games/dash" icon="sports_esports" Text="#menu.games">
-                <HoverMenu>
-                    <Button Href="/games/dash" icon="diamond">Discover</Button>
-                    <Button Href="/games/group?Query=type:game sort:favourite&title=Favourite Games&Icon=💖" icon="favorite">Favourites</Button>
-                    <Button Href="/games/all" icon="manage_search">Search</Button>
-                </HoverMenu>
-            </Button>
+            <Button Tooltip="Find Games" Href="/games/dash" Icon="diamond">Discover</Button>
+            <Button Href="/games/all" Icon="sports_esports">Games</Button>
             <Button Href="/maps/all" Icon="map">#menu.maps</Button>
             <Button Href="/multiplayer" Icon="view_list">#menu.multiplayer</Button>
         </div>
         
-        <MainSearchBar />
-
-
         <div class="right">
             <Button @onmouseup=@OpenAvatarScene Icon="emoji_people">#menu.avatar</Button>
-            <Button Href="/itemstore" class="unread" Icon="store">#menu.store</Button>
+
+            <span class="store-wrapper">
+                <FeaturedStoreItem />
+                <Button Href="/itemstore" class="unread" Icon="store">#menu.store</Button>
+            </span>
 
             <separator class="vertical" />
 
-            <NotificationButton />
-            <Button onmouseup="@Settings" Icon="settings"></Button>
+            <NotificationButton Tooltip="Notifications" />
+            <Button Tooltip="Favourited Games" Href="/games/group?Query=type:game sort:favourite&title=Favourite Games&Icon=💖" icon="favorite"></Button>
+			<Sandbox.UI.Mounts.MountButton Tooltip="Mounted Games" />
+			<Button @onmouseup=@Settings Tooltip="Settings" Icon="settings"/>
 
-            <Button onmouseup="@Quit" class="close" Icon="close"></Button>
+			<Button onmouseup="@Quit" class="close" Tooltip="Quit" Icon="power_settings_new" />
         </div>
 
-        <FeaturedStoreItem />
     </div>
+
+    <MainSearchBar />
 </root>
 
 @code {

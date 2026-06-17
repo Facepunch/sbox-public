@@ -41,33 +41,29 @@
         }
     }
 
-    protected override void OnMouseDown(MousePanelEvent e)
+    protected override void OnClick(MousePanelEvent e)
     {
+        e.StopPropagation();
         Ancestors.OfType<WorkshopPage>().FirstOrDefault()?.OnPackageSelected(Package);
     }
 
+    protected override void OnRightClick(MousePanelEvent e)
+    {
+        OnCardRightClicked();
+        e.StopPropagation();
+    }
 
     void OnCardRightClicked()
     {
-        OnMenu?.Invoke();
-    }
+        var menu = MenuPanel.Open(this);
 
-    [Event("package.update.users")]
-    public void UpdateUsers(string ident, long value)
-    {
-        if (ident != Package.FullIdent) return;
+        menu.AddOption("open_in_browser", "View Webpage", () => MenuUtility.OpenUrl(Package.Url));
+        menu.AddOption("content_copy", "Copy Url", () => Clipboard.SetText(Package.Url));
+        menu.AddOption("content_copy", "Copy Ident", () => Clipboard.SetText(Package.FullIdent));
 
-        var u = Package.Usage;
-        u.UsersNow = value;
-        Package.Usage = u;
-        StateHasChanged();
-    }
-
-    [Event("package.update.favourites")]
-    public void UpdateFaves(string ident, long value)
-    {
-        if (ident != Package.FullIdent) return;
-        Package.Favourited = (int)value;
-        StateHasChanged();
+        menu.AddSpacer();
+        menu.AddOption("corporate_fare", $"View Creator", () => Game.Overlay.ShowOrganizationModal(Package.Org));
+        menu.AddOption("star", "Review", () => Game.Overlay.ShowReviewModal(Package));
+        menu.AddOption("flag", "Report", () => Game.Overlay.ShowReportModal(Package.FullIdent));
     }
 }

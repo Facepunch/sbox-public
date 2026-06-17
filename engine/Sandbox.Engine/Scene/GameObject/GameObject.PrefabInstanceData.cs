@@ -275,6 +275,7 @@ internal class PrefabInstanceData
 	{
 		// We only want to ignore these basic overrides for overrides targeting the root
 		if ( !_instanceRoot.IsOutermostPrefabInstanceRoot ) return false;
+		if ( _instanceGuidToPrefabGuid.GetValueOrDefault( _instanceRoot.Id ) != propertyPrefabTargetId ) return false;
 
 		propertyName = RemapTransformPropertyName( propertyName );
 		return _ignoredProperties.Contains( propertyName );

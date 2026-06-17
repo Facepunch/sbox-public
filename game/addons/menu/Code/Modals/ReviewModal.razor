@@ -26,19 +26,35 @@
 
             <div class="ratings">
 
-                <div class="rating @( Score == Review.ReviewScore.Negative ? "active" : "" )" @onclick="@( () => SetRating( Review.ReviewScore.Negative ) )">
-                    <div class="icon">💩</div>
-                    <div class="text">Needs Work</div>
+                <div class="ratings-outline">
+                    <div class="rating @( Score == Review.ReviewScore.Negative ? "active" : "" )" @onclick="@( () => SetRating( Review.ReviewScore.Negative ) )">
+                        <div class="icon">💩</div>
+                        <div class="text">Needs Work</div>
+                    </div>
+
+                    <div class="rating @( Score == Review.ReviewScore.Promise ? "active" : "" )" @onclick="@( () => SetRating( Review.ReviewScore.Promise ) )">
+                        <div class="icon">😐</div>
+                        <div class="text">Promising</div>
+                    </div>
+
+                    <div class="rating @( Score == Review.ReviewScore.Positive ? "active" : "" )" @onclick="@( () => SetRating( Review.ReviewScore.Positive ) )">
+                        <div class="icon">😍</div>
+                        <div class="text">Recommended</div>
+                    </div>
                 </div>
 
-                <div class="rating @( Score == Review.ReviewScore.Promise ? "active" : "" )" @onclick="@( () => SetRating( Review.ReviewScore.Promise ) )">
-                    <div class="icon">😐</div>
-                    <div class="text">Promising</div>
+            </div>
+
+            <div class="tag-entry">
+
+                <div class="tagcolumn positive-tags">
+                    <label>What did you like?</label>
+                    <TagSelector Value:bind=@PositiveTags/>
                 </div>
 
-                <div class="rating @( Score == Review.ReviewScore.Positive ? "active" : "" )" @onclick="@( () => SetRating( Review.ReviewScore.Positive ) )">
-                    <div class="icon">😍</div>
-                    <div class="text">Recommended</div>
+                <div class="tagcolumn negative-tags">
+                    <label>What did you dislike?</label>
+                    <TagSelector Value:bind=@NegativeTags />
                 </div>
 
             </div>
@@ -64,6 +80,8 @@
 
     string ReviewText{ get; set; }
     Review.ReviewScore Score { get; set; }
+    Review.PositiveTags PositiveTags { get; set; }
+    Review.NegativeTags NegativeTags { get; set; }
 
     TextEntry _textEntry = default;
     bool _posting;
@@ -74,6 +92,8 @@
     {
         var oldReview = await Sandbox.Services.Review.Get(Package.FullIdent, Sandbox.Utility.Steam.SteamId);
         ReviewText = oldReview?.Content;
+        PositiveTags = oldReview?.Positives ?? Review.PositiveTags.None;
+        NegativeTags = oldReview?.Negatives ?? Review.NegativeTags.None;
         Score = oldReview?.Score ?? Review.ReviewScore.None;
     }
 
@@ -103,7 +123,7 @@
 
         try
         {
-            await MenuUtility.PostReview(Package.FullIdent, Score, ReviewText);
+            await MenuUtility.PostReview(Package.FullIdent, Score, ReviewText, PositiveTags, NegativeTags);
             CloseModal(true);
         }
         finally

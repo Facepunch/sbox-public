@@ -1,5 +1,5 @@
-﻿using Sandbox.Html;
-using Sandbox.Rendering;
+﻿using Microsoft.AspNetCore.Components;
+using Sandbox.Html;
 using System.Globalization;
 
 namespace Sandbox.UI
@@ -147,6 +147,7 @@ namespace Sandbox.UI
 		/// <summary>
 		/// Text to display on the label.
 		/// </summary>
+		[Parameter]
 		public virtual string Text
 		{
 			get => _text;
@@ -175,6 +176,7 @@ namespace Sandbox.UI
 		/// <summary>
 		/// Set to true if this is rich text. This means it can support some inline html elements.
 		/// </summary>
+		[Parameter]
 		public bool IsRich { get; set; }
 
 		public override void SetProperty( string name, string value )

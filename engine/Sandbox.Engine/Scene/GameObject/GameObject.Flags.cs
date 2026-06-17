@@ -6,7 +6,7 @@ public enum GameObjectFlags
 	None = 0,
 
 	/// <summary>
-	/// Hide this object in heirachy/inspector
+	/// Hide this object in hierarchy/inspector
 	/// </summary>
 	Hidden = 1,
 

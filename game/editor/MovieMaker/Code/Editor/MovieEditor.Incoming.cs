@@ -52,7 +52,7 @@ partial class MovieEditor : EditorEvent.ISceneEdited
 
 	private bool CanRecord( Type targetType, ref string propertyPath )
 	{
-		if ( targetType == typeof(GameObject) )
+		if ( targetType == typeof( GameObject ) )
 		{
 			propertyPath = NormalizeGameObjectProperty( propertyPath );
 		}
@@ -62,7 +62,7 @@ partial class MovieEditor : EditorEvent.ISceneEdited
 			propertyPath = propertyPath[..^2];
 		}
 
-		if ( targetType == typeof(GameObject))
+		if ( targetType == typeof( GameObject ) )
 		{
 			if ( propertyPath is not ("LocalScale" or "LocalRotation" or "LocalPosition") )
 			{
@@ -75,7 +75,7 @@ partial class MovieEditor : EditorEvent.ISceneEdited
 
 	private TrackView? GetOrCreateTrack( GameObject go, string propertyPath )
 	{
-		if ( !CanRecord( typeof(GameObject), ref propertyPath ) ) return null;
+		if ( !CanRecord( typeof( GameObject ), ref propertyPath ) ) return null;
 
 		try
 		{

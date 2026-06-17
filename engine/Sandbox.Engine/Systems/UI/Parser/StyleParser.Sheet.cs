@@ -7,19 +7,21 @@ internal static partial class StyleParser
 	[ThreadStatic]
 	static int IncludeLoops = 0;
 
-	public static StyleSheet ParseSheet( string content, string filename = "none", IEnumerable<(string, string)> variables = null )
+	public static StyleSheet ParseSheet( string content, string filename = "none", IEnumerable<(string, string)> variables = null, bool recover = false )
 	{
 		IncludeLoops = 0;
 
 		StyleSheet sheet = new();
 		sheet.AddVariables( variables );
 
-		ParseToSheet( content, filename, sheet );
+		ParseToSheet( content, filename, sheet, recover );
+
+		sheet.BuildIndex();
 
 		return sheet;
 	}
 
-	private static void ParseToSheet( string content, string filename, StyleSheet sheet )
+	private static void ParseToSheet( string content, string filename, StyleSheet sheet, bool recover = false )
 	{
 		IncludeLoops++;
 
@@ -38,38 +40,114 @@ internal static partial class StyleParser
 			if ( p.IsEnd )
 				break;
 
-			if ( ParseVariable( ref p, sheet ) )
-				continue;
+			//
+			// When recovery is enabled we isolate parse failures to this single construct, so one
+			// unsupported selector, bad property, or unknown at-rule (eg @media) doesn't throw away
+			// every other rule in the stylesheet.
+			//
+			var blockStart = p.Pointer;
+			var nodeCountBefore = sheet.Nodes.Count;
 
-			if ( ParseKeyframes( ref p, sheet ) )
-				continue;
-
-			if ( ParseMixinDefinition( ref p, sheet ) )
-				continue;
-
-			if ( ParseImport( ref p, sheet, filename ) )
-				continue;
-
-			// Handle top-level @include (emits rules without parent selector)
-			if ( ParseTopLevelInclude( ref p, sheet ) )
-				continue;
-
-			var selector = p.ReadUntilOrEnd( "{;$@" );
-
-			if ( selector is null )
-				throw new System.Exception( $"Parse Error, expected class name {p.FileAndLine}" );
-
-			if ( p.IsEnd ) throw new System.Exception( $"Parse Error, unexpected end {p.FileAndLine}" );
-
-			if ( p.Current != '{' ) throw new System.Exception( $"Parse Error, unexpected character {p.Current} {p.FileAndLine}" );
-
-			if ( p.Current == '{' )
+			try
 			{
+				if ( ParseVariable( ref p, sheet ) )
+					continue;
+
+				if ( ParseKeyframes( ref p, sheet ) )
+					continue;
+
+				if ( ParseMixinDefinition( ref p, sheet ) )
+					continue;
+
+				if ( ParseImport( ref p, sheet, filename, recover ) )
+					continue;
+
+				// Handle top-level @include (emits rules without parent selector)
+				if ( ParseTopLevelInclude( ref p, sheet ) )
+					continue;
+
+				var selector = p.ReadUntilOrEnd( "{;$@" );
+
+				if ( selector is null )
+					throw new System.Exception( $"Parse Error, expected class name {p.FileAndLine}" );
+
+				if ( p.IsEnd ) throw new System.Exception( $"Parse Error, unexpected end {p.FileAndLine}" );
+
+				if ( p.Current != '{' ) throw new System.Exception( $"Parse Error, unexpected character {p.Current} {p.FileAndLine}" );
+
 				ReadStyleBlock( ref p, selector, sheet, null );
+			}
+			catch ( System.Exception e ) when ( recover )
+			{
+				// Make the construct all-or-nothing: drop any nodes that were added before the failure.
+				if ( sheet.Nodes.Count > nodeCountBefore )
+					sheet.Nodes.RemoveRange( nodeCountBefore, sheet.Nodes.Count - nodeCountBefore );
+
+				// Skip past the malformed construct so the rest of the sheet still parses.
+				p.Pointer = SkipMalformedBlock( content, blockStart );
+
+				Log.Warning( $"Skipping malformed rule in {filename}: {e.Message}" );
 			}
 		}
 
 		IncludeLoops--;
+	}
+
+	/// <summary>
+	/// Used to recover from a parse error in a single rule: returns the index just past the end of the
+	/// (possibly malformed) construct starting at <paramref name="start"/> so parsing can continue with
+	/// the next rule. Comments have already been stripped, so we only need to respect quoted strings and
+	/// brace nesting. Always returns a value greater than <paramref name="start"/> to guarantee progress.
+	/// </summary>
+	private static int SkipMalformedBlock( string text, int start )
+	{
+		int len = text.Length;
+		int i = start;
+		char quote = '\0';
+
+		// Phase 1: find the opening brace. If a ; appears first the construct is a statement with no block.
+		while ( i < len )
+		{
+			char c = text[i];
+
+			if ( quote != '\0' )
+			{
+				if ( c == quote ) quote = '\0';
+			}
+			else if ( c == '"' || c == '\'' ) quote = c;
+			else if ( c == ';' ) return i + 1;
+			else if ( c == '{' ) break;
+
+			i++;
+		}
+
+		if ( i >= len )
+			return len;
+
+		// Phase 2: brace-match from the opening brace to its (possibly nested) close.
+		int depth = 0;
+		quote = '\0';
+
+		while ( i < len )
+		{
+			char c = text[i];
+
+			if ( quote != '\0' )
+			{
+				if ( c == quote ) quote = '\0';
+			}
+			else if ( c == '"' || c == '\'' ) quote = c;
+			else if ( c == '{' ) depth++;
+			else if ( c == '}' )
+			{
+				depth--;
+				if ( depth == 0 ) return i + 1;
+			}
+
+			i++;
+		}
+
+		return len;
 	}
 
 	private static bool ParseVariable( ref Parse p, StyleSheet sheet )
@@ -93,16 +171,16 @@ internal static partial class StyleParser
 		return true;
 	}
 
-	private static void TryImport( StyleSheet sheet, string filename, string includeFileAndLine )
+	private static void TryImport( StyleSheet sheet, string filename, string includeFileAndLine, bool recover = false )
 	{
 		if ( !GlobalContext.Current.FileMount.FileExists( filename ) )
 			throw new System.Exception( $"Missing import {filename} ({includeFileAndLine})" );
 
 		var text = GlobalContext.Current.FileMount.ReadAllText( filename );
-		ParseToSheet( text, filename, sheet );
+		ParseToSheet( text, filename, sheet, recover );
 	}
 
-	private static bool ParseImport( ref Parse p, StyleSheet sheet, string filename )
+	private static bool ParseImport( ref Parse p, StyleSheet sheet, string filename, bool recover = false )
 	{
 		if ( p.Current != '@' )
 			return false;
@@ -153,7 +231,7 @@ internal static partial class StyleParser
 					localPath = cleanFile.ToLower();
 				}
 
-				TryImport( sheet, localPath, p.FileAndLine );
+				TryImport( sheet, localPath, p.FileAndLine, recover );
 			}
 
 			if ( p.Is( ';' ) )
@@ -227,7 +305,6 @@ internal static partial class StyleParser
 		p = p.SkipWhitespaceAndNewlines();
 
 		var node = new StyleBlock();
-		node.LoadOrder = sheet.Nodes.Count();
 		node.FileName = p.FileName;
 		node.AbsolutePath = GlobalContext.Current.FileMount?.GetFullPath( p.FileName );
 		node.FileLine = p.CurrentLine;
@@ -298,6 +375,8 @@ internal static partial class StyleParser
 				// Only add this node if it's not empty
 				if ( !node.IsEmpty )
 				{
+					// Assign load order as we add so nested rules get distinct, source-ordered values
+					node.LoadOrder = sheet.Nodes.Count();
 					sheet.Nodes.Add( node );
 				}
 

@@ -1,31 +1,76 @@
-﻿@import "/styles/_theme.scss";
+@import "/styles/_theme.scss";
 
-ContentBlockBody {
+$mask-w: 100px;
+$mask-w-padded: 132px; // + 32px
+
+ContentBlockBody
+{
 	position: relative;
-
+	width: 100%;
 	max-width: 100%;
 
-	&:hover {
-		.visible {
+	&:hover
+	{
+		.visible
+		{
 			opacity: 1;
 			cursor: pointer;
 			pointer-events: all;
 		}
 	}
 
-	> .content-wrapper {
+	> .content-wrapper
+	{
 		padding-top: 16px;
 		padding-bottom: 48px;
 	}
 
-	> .content {
-		padding: 16px 32px;
+	> .content
+	{
+		margin-left: -$mask-w;
+		margin-right: -$mask-w;
+		padding-left: $mask-w-padded;
+		padding-right: $mask-w-padded;
+		padding-top: 16px;
+		padding-bottom: 16px;
 		overflow-x: scroll;
 		overflow-y: hidden;
 		gap: 1rem;
 	}
 
-	> .nav-button {
+	> .overlay
+	{
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		pointer-events: none;
+		z-index: 98;
+
+		.fade-left
+		{
+			position: absolute;
+			left: -$mask-w;
+			width: calc($mask-w + 38px);
+			height: 100%;
+			background-color: $default-950;
+			mask: linear-gradient( to left, black 0%, white 90%);
+		}
+
+		.fade-right
+		{
+			position: absolute;
+			right: -$mask-w;
+			width: calc($mask-w + 38px);
+			height: 100%;
+			background-color: $default-950;
+			mask: linear-gradient( to right, black 0%, white 90%);
+		}
+	}
+
+	> .nav-button
+	{
 		@include border;
 		position: absolute;
 		z-index: 99;
@@ -39,31 +84,37 @@ ContentBlockBody {
 		opacity: 0;
 		transition: all 0.1s ease;
 
-		.icon {
+		.icon
+		{
 			font-size: 21px;
 			color: #70788b;
 			transition: all 0.1s ease;
 		}
 
-		&:active {
-			sound-in: ui.button.press;
+		&:active
+		{
+			sound-in: "ui.button.press";
 		}
 
-		&:hover {
-			sound-in: ui.button.over;
+		&:hover
+		{
+			sound-in: "ui.button.over";
 			background-color: $default-800;
 
-			.icon {
+			.icon
+			{
 				color: white;
 			}
 		}
 
-		&.left {
-			left: 12px;
+		&.left
+		{
+			left: 16px;
 		}
 
-		&.right {
-			right: 12px;
+		&.right
+		{
+			right: 16px;
 		}
 	}
 }

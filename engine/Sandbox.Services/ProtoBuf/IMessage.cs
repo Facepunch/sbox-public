@@ -1,6 +1,6 @@
-﻿namespace Sandbox.Protobuf;
+namespace Sandbox.Protobuf;
 
 public interface IMessage
 {
-	public static abstract ushort MessageIdent { get; }
+	public static abstract MessageId MessageIdent { get; }
 }

@@ -60,4 +60,22 @@ public partial class Terrain
 		HeightMap.Update( new ReadOnlySpan<ushort>( Storage.HeightMap ) );
 		ControlMap.Update( new ReadOnlySpan<UInt32>( Storage.ControlMap ) );
 	}
+
+	/// <summary>
+	/// Update the collider heights/materials from the current CPU data for a region.
+	/// </summary>
+	public void UpdateCollision( SyncFlags flags, RectInt region )
+	{
+		Assert.NotNull( Storage );
+
+		region.Left = Math.Clamp( region.Left, 0, Storage.Resolution - 1 );
+		region.Right = Math.Clamp( region.Right, 0, Storage.Resolution - 1 );
+		region.Top = Math.Clamp( region.Top, 0, Storage.Resolution - 1 );
+		region.Bottom = Math.Clamp( region.Bottom, 0, Storage.Resolution - 1 );
+
+		if ( flags.HasFlag( SyncFlags.Height ) )
+			UpdateColliderHeights( region.Left, region.Top, region.Width, region.Height );
+		if ( flags.HasFlag( SyncFlags.Control ) )
+			UpdateColliderMaterials( region.Left, region.Top, region.Width, region.Height );
+	}
 }

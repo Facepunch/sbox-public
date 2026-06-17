@@ -1,5 +1,4 @@
-﻿
-namespace Editor.MeshEditor;
+﻿namespace Editor.MeshEditor;
 
 partial class ClipTool
 {
@@ -13,6 +12,9 @@ partial class ClipTool
 		readonly ClipTool _tool;
 		readonly Button _applyButton;
 		readonly Button _cancelButton;
+		readonly IconButton _keepFront;
+		readonly IconButton _keepBack;
+		readonly IconButton _keepBoth;
 
 		public ClipToolWidget( ClipTool tool ) : base()
 		{
@@ -25,9 +27,9 @@ partial class ClipTool
 				var row = group.AddRow();
 				row.Spacing = 4;
 
-				CreateButton( "Keep Front", "hammer/clipper_keep_front.png", null, () => Keep( ClipKeepMode.Front ), true, row );
-				CreateButton( "Keep Back", "hammer/clipper_keep_back.png", null, () => Keep( ClipKeepMode.Back ), true, row );
-				CreateButton( "Keep Both", "hammer/clipper_keep_both.png", null, () => Keep( ClipKeepMode.Both ), true, row );
+				_keepFront = CreateButton( "Keep Front", "hammer/clipper_keep_front.png", null, () => Keep( ClipKeepMode.Front ), true, row );
+				_keepBack = CreateButton( "Keep Back", "hammer/clipper_keep_back.png", null, () => Keep( ClipKeepMode.Back ), true, row );
+				_keepBoth = CreateButton( "Keep Both", "hammer/clipper_keep_both.png", null, () => Keep( ClipKeepMode.Both ), true, row );
 			}
 
 			Layout.AddSpacingCell( 8 );
@@ -63,15 +65,23 @@ partial class ClipTool
 		[Shortcut( "mesh.clip-apply", "enter", typeof( SceneViewWidget ) )]
 		void Apply() => _tool.Apply();
 
+		[Shortcut( "mesh.clip-apply-stay", "space", typeof( SceneViewWidget ) )]
+		void ApplyAndContinue() => _tool.Apply( false );
+
 		[Shortcut( "mesh.clip-cancel", "ESC", typeof( SceneViewWidget ) )]
 		void Cancel() => _tool.Cancel();
 
+		[Shortcut( "mesh.clip-cycle-mode", "shift+x", typeof( SceneViewWidget ) )]
+		void CycleMode() => _tool.CycleMode();
 
 		[EditorEvent.Frame]
 		public void Frame()
 		{
 			_applyButton?.Enabled = _tool.CanApply;
 			_cancelButton?.Enabled = _tool.CanApply;
+			_keepFront?.IsActive = _tool.KeepMode == ClipKeepMode.Front;
+			_keepBack?.IsActive = _tool.KeepMode == ClipKeepMode.Back;
+			_keepBoth?.IsActive = _tool.KeepMode == ClipKeepMode.Both;
 		}
 	}
 }

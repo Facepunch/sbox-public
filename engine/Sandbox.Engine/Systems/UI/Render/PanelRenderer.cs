@@ -1,4 +1,4 @@
-using Sandbox.Rendering;
+﻿using Sandbox.Rendering;
 
 namespace Sandbox.UI;
 
@@ -10,6 +10,7 @@ internal sealed partial class PanelRenderer
 
 	readonly UIBatcher batcher = new();
 	readonly List<GPUBoxInstance> pendingInstances = new();
+	readonly List<DeferredInstance> deferredInstances = new();
 	int batchIndex;
 
 	[ConVar( "ui_visualize_batches", Help = "Visualize UI draw batches with colored overlays" )]
@@ -17,6 +18,7 @@ internal sealed partial class PanelRenderer
 
 	bool isWorldPanelContext;
 	int WorldPanelCombo => isWorldPanelContext ? 1 : 0;
+	Matrix? worldPanelMat;
 	internal RenderTarget DefaultRenderTarget;
 
 	internal void AdvanceFrame()
@@ -55,14 +57,26 @@ internal sealed partial class PanelRenderer
 			Screen = root.PanelBounds;
 			DefaultRenderTarget = Graphics.RenderTarget;
 			isWorldPanelContext = root.IsWorldPanel;
+			worldPanelMat = null;
+
+			if ( root is WorldPanel worldPanel )
+			{
+				worldPanelMat = Sandbox.ScenePanelObject.BuildPanelToWorldMatrix( worldPanel.Transform );
+			}
 
 			LayerStack?.Clear();
 			pendingInstances.Clear();
+			deferredInstances.Clear();
+			deferredOrder = 0;
+			zDepth = 0;
+			pendingBlendMode = BlendMode.Normal;
 			backdropGrabActive = false;
 			batchIndex = 0;
 
 			cl.Attributes.Set( "LayerMat", Matrix.Identity );
 			cl.Attributes.SetCombo( "D_WORLDPANEL", WorldPanelCombo );
+			if ( worldPanelMat.HasValue )
+				cl.Attributes.Set( "WorldMat", worldPanelMat.Value );
 			InitScissor( Screen, cl );
 
 			DrawPanel( root, cl );
@@ -94,6 +108,7 @@ internal sealed partial class PanelRenderer
 		public int DrawCalls;
 		public int InstanceCount;
 		public int FlushCount;
+		public int FrameGrabs;
 		public int ScissorCount;
 		public int GpuBufferCount;
 

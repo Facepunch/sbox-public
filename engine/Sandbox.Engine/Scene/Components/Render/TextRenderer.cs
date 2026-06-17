@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Nodes;
+using Sandbox.Rendering;
 
 namespace Sandbox;
 
@@ -121,6 +122,50 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 	} = VAlignment.Center;
 
 	/// <summary>
+	/// Controls how the text orients itself toward the camera.
+	/// </summary>
+	public enum BillboardMode
+	{
+		/// <summary>
+		/// The text uses its own world rotation.
+		/// </summary>
+		[Icon( "crop_din" )]
+		None,
+
+		/// <summary>
+		/// The text fully rotates to face the camera, so it's always readable.
+		/// </summary>
+		[Icon( "filter_center_focus" )]
+		Always,
+
+		/// <summary>
+		/// The text rotates around the vertical axis only, facing the camera while staying upright.
+		/// </summary>
+		[Icon( "360" )]
+		YOnly,
+	}
+
+	/// <summary>
+	/// Controls how the text orients itself toward the camera.
+	/// </summary>
+	[Property]
+	public BillboardMode Billboard
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			if ( _so.IsValid() )
+			{
+				_so.Billboard = field;
+				TransformChanged();
+			}
+		}
+	}
+
+	/// <summary>
 	/// The blend mode of the text. This determines how the text is rendered over the world.
 	/// </summary>
 	[Property]
@@ -133,7 +178,10 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 			field = value;
 
 			if ( _so.IsValid() )
+			{
 				_so.BlendMode = value;
+				_so.BuildCommandList();
+			}
 		}
 	} = BlendMode.Normal;
 
@@ -150,7 +198,10 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 			field = value;
 
 			if ( _so.IsValid() )
+			{
 				_so.FogStrength = value;
+				_so.BuildCommandList();
+			}
 		}
 	} = 1.0f;
 
@@ -162,11 +213,12 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 			BlendMode = BlendMode,
 			FogStrength = FogStrength,
 			TextScope = TextScope,
+			Billboard = Billboard,
 		};
 
 		UpdateAlignment();
 
-		_so.CalculateBounds();
+		TransformChanged();
 
 		RenderOptions.Apply( _so );
 
@@ -216,7 +268,9 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 	{
 		if ( !_so.IsValid() ) return;
 
-		_so.Transform = WorldTransform.WithScale( WorldScale * Scale );
+		var rotation = Billboard == BillboardMode.None ? WorldRotation : Rotation.Identity;
+
+		_so.Transform = new Transform( WorldPosition, rotation, WorldScale * Scale );
 		_so.CalculateBounds();
 	}
 
@@ -240,8 +294,11 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		{
 			_textScope.TextColor = value;
 
-			if ( _so is TextSceneObject so )
-				so.TextScope = _textScope;
+			if ( _so.IsValid() )
+			{
+				_so.TextScope = _textScope;
+				_so.BuildCommandList();
+			}
 		}
 	}
 
@@ -255,8 +312,11 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		{
 			_textScope.FontSize = value;
 
-			if ( _so is TextSceneObject so )
-				so.TextScope = _textScope;
+			if ( _so.IsValid() )
+			{
+				_so.TextScope = _textScope;
+				_so.CalculateBounds();
+			}
 		}
 	}
 	public int FontWeight
@@ -266,8 +326,11 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		{
 			_textScope.FontWeight = value;
 
-			if ( _so is TextSceneObject so )
-				so.TextScope = _textScope;
+			if ( _so.IsValid() )
+			{
+				_so.TextScope = _textScope;
+				_so.CalculateBounds();
+			}
 		}
 	}
 
@@ -278,8 +341,11 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		{
 			_textScope.FontName = value;
 
-			if ( _so is TextSceneObject so )
-				so.TextScope = _textScope;
+			if ( _so.IsValid() )
+			{
+				_so.TextScope = _textScope;
+				_so.CalculateBounds();
+			}
 		}
 	}
 
@@ -290,8 +356,11 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		{
 			_textScope.Text = value;
 
-			if ( _so is TextSceneObject so )
-				so.TextScope = _textScope;
+			if ( _so.IsValid() )
+			{
+				_so.TextScope = _textScope;
+				_so.CalculateBounds();
+			}
 		}
 	}
 
@@ -332,6 +401,9 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		public TextFlag TextFlags { get; set; } = TextFlag.DontClip | TextFlag.Center;
 		public BlendMode BlendMode { get; set; } = BlendMode.Normal;
 		public float FogStrength { get; set; } = 1.0f;
+		public BillboardMode Billboard { get; set; }
+
+		private readonly CommandList _commandList = new( "TextRenderer" );
 
 		private TextRendering.Scope _textScope;
 		public TextRendering.Scope TextScope
@@ -361,20 +433,44 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 			RenderLayer = SceneRenderLayer.Default;
 		}
 
-		public override void RenderSceneObject()
+		static readonly Matrix PanelMatrix = Matrix.CreateRotation( Rotation.From( 0, -90, 90 ) );
+
+		public void BuildCommandList()
 		{
+			_commandList.Reset();
+
 			if ( string.IsNullOrWhiteSpace( TextScope.Text ) )
 				return;
 
-			Graphics.Attributes.SetCombo( "D_WORLDPANEL", 1 );
-			Graphics.Attributes.SetComboEnum( "D_BLENDMODE", BlendMode );
-			Graphics.Attributes.Set( "g_FogStrength", FogStrength );
+			_commandList.Attributes.SetCombo( "D_WORLDPANEL", 1 );
+			_commandList.Attributes.SetCombo( "D_BLENDMODE", BlendMode );
+			_commandList.Attributes.Set( "g_FogStrength", FogStrength );
+			_commandList.DrawText( TextScope, new Rect( 0 ), TextFlags );
+		}
 
-			// Set a dummy WorldMat matrix so that ScenePanelObject doesn't break the transforms.
-			Matrix mat = Matrix.CreateRotation( Rotation.From( 0, -90, 90 ) );
-			Graphics.Attributes.Set( "WorldMat", mat );
+		public override void RenderSceneObject()
+		{
+			var worldMat = PanelMatrix;
 
-			Graphics.DrawText( new Rect( 0 ), TextScope, TextFlags );
+			if ( Billboard != BillboardMode.None )
+			{
+				var forward = Transform.Position - Graphics.CameraPosition;
+				var up = Graphics.CameraRotation.Up;
+
+				if ( Billboard == BillboardMode.YOnly )
+				{
+					forward = forward.WithZ( 0 );
+					up = Vector3.Up;
+				}
+
+				if ( forward.IsNearZeroLength )
+					return;
+
+				worldMat = Matrix.CreateWorld( Vector3.Zero, forward.Normal, up );
+			}
+
+			Graphics.Attributes.Set( "WorldMat", worldMat );
+			_commandList.ExecuteOnRenderThread();
 		}
 
 		public void CalculateBounds()
@@ -395,7 +491,18 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 				TextFlags.Contains( TextFlag.Top ) ? -x.Height * 0.5f : 0.0f );
 
 			var bounds = BBox.FromPositionAndSize( center * scale, new Vector3( 2, x.Width * scale.y, x.Height * scale.z ) );
-			Bounds = bounds.Transform( tx.WithScale( 1 ) );
+
+			if ( Billboard != BillboardMode.None )
+			{
+				var radius = (center * scale).Length + bounds.Size.Length * 0.5f;
+				Bounds = BBox.FromPositionAndSize( tx.Position, radius * 2.0f );
+			}
+			else
+			{
+				Bounds = bounds.Transform( tx.WithScale( 1 ) );
+			}
+
+			BuildCommandList();
 		}
 	}
 }

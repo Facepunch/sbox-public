@@ -76,6 +76,16 @@ public partial class Particle : IDynamicFloatContext
 	/// </summary>
 	internal GameObject Follower;
 
+	/// <summary>
+	/// When >= 0, local space simulation follows this bone on <see cref="AttachTarget"/>.
+	/// </summary>
+	internal int AttachBoneIndex = -1;
+
+	/// <summary>
+	/// The skinned model this particle follows in local space, paired with <see cref="AttachBoneIndex"/>.
+	/// </summary>
+	internal SkinnedModelRenderer AttachTarget;
+
 
 	public float LifeTimeRemaining => DeathTime - BornTime;
 
@@ -111,6 +121,8 @@ public partial class Particle : IDynamicFloatContext
 		p._data?.Clear();
 		p._controllers?.Clear();
 		p.hasUpdated = false;
+		p.AttachBoneIndex = -1;
+		p.AttachTarget = null;
 
 		return p;
 	}

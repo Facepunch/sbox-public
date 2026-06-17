@@ -6,31 +6,44 @@ public class ArgString : Arg
 	public override string ManagedType => "string";
 	public override string ManagedDelegateType => "IntPtr";
 	public override string NativeType => "const char*";
+	public override bool WrapsManagedCall => true;
 
-	public override string ReturnWrapCall( string call, bool native )
+	public override string ReturnWrapCall( string call, Side side )
 	{
-		return native ? $"return (const char*) SafeReturnString( (const char *) {call} );" : base.ReturnWrapCall( call, native );
+		if ( side != Side.Native )
+		{
+			return base.ReturnWrapCall( call, side );
+		}
+
+		// A "stable" return is guaranteed by the def to outlive the call, so we can skip the
+		// defensive copy into the thread local that SafeReturnString does.
+		if ( HasFlag( "stable" ) )
+		{
+			return $"return (const char*) {call};";
+		}
+
+		return $"return (const char*) SafeReturnString( (const char *) {call} );";
 	}
 
-	public override string ToInterop( bool native, string code = null )
+	public override string ToInterop( Side side, string code = null )
 	{
 		code ??= Name;
 
-		return !native
-			? IsReturn ? $"{Definition.Current.StringTools}.GetTemporaryStringPointerForNative( {code} )" : $"_str_{code}.Pointer"
-			: base.ToInterop( native, code );
+		return side == Side.Managed
+			? IsReturn ? $"{StringTools}.GetTemporaryStringPointerForNative( {code} )" : $"_str_{code}.Pointer"
+			: base.ToInterop( side, code );
 	}
 
-	public override string FromInterop( bool native, string code = null )
+	public override string FromInterop( Side side, string code = null )
 	{
 		code ??= Name;
 
-		return !native ? $"{Definition.Current.StringTools}.GetString( {code} )" : base.ToInterop( native, code );
+		return side == Side.Managed ? $"{StringTools}.GetString( {code} )" : base.ToInterop( side, code );
 	}
 
-	public override string WrapFunctionCall( string functionCall, bool native )
+	public override string WrapFunctionCall( string functionCall, Side side )
 	{
-		if ( !native && HasFlag( "out" ) )
+		if ( side == Side.Managed && HasFlag( "out" ) )
 		{
 			return $"IntPtr _outptr_{Name} = default;\n\n" +
 				$"try\n" +
@@ -39,14 +52,14 @@ public class ArgString : Arg
 				$"}}\n" +
 				$"finally\n" +
 				$"{{\n" +
-				$"	{Name} = {Definition.Current.StringTools}.GetString( _outptr_{Name} );\n" +
+				$"	{Name} = {StringTools}.GetString( _outptr_{Name} );\n" +
 				$"}}\n";
 		}
-		else if ( !native )
+		else if ( side == Side.Managed )
 		{
-			return $"var _str_{Name} = new {Definition.Current.StringTools}.InteropString( {Name} ); try {{ {functionCall} }} finally {{ _str_{Name}.Free(); }} ";
+			return $"var _str_{Name} = new {StringTools}.InteropString( {Name}, stackalloc byte[256] ); try {{ {functionCall} }} finally {{ _str_{Name}.Free(); }} ";
 		}
 
-		return base.WrapFunctionCall( functionCall, native );
+		return base.WrapFunctionCall( functionCall, side );
 	}
 }

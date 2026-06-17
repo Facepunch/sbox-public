@@ -1,3 +1,18 @@
+@import "/styles/_theme.scss";
+
+GamesPage
+{
+    background-color: $default-950;
+    align-items: center;
+    justify-content: center;
+}
+
+Page
+{
+    width: 100%;
+    max-width: $screen-w-xl;
+}
+
 GamesPage packagelist virtualgrid
 {
     padding: 32px;

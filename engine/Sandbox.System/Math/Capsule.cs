@@ -224,8 +224,20 @@ public struct Capsule : System.IEquatable<Capsule>
 	/// </summary>
 	public readonly bool Contains( Vector3 point )
 	{
-		// A point is inside the capsule if the distance to the edge is zero or negative
-		return GetEdgeDistance( point ) <= 0;
+		// A point is inside the capsule if it's within Radius of the axis segment.
+		// Note GetEdgeDistance can't be used here - it returns the unsigned distance
+		// to the surface, which is positive on both sides of it.
+		Vector3 lineVec = CenterB - CenterA;
+		float lineLength = lineVec.Length;
+
+		if ( lineLength < 0.00001f )
+			return (point - CenterA).LengthSquared <= Radius * Radius;
+
+		Vector3 lineDir = lineVec / lineLength;
+		float projection = Math.Clamp( Vector3.Dot( point - CenterA, lineDir ), 0, lineLength );
+		Vector3 closestPoint = CenterA + lineDir * projection;
+
+		return (point - closestPoint).LengthSquared <= Radius * Radius;
 	}
 
 	#region equality

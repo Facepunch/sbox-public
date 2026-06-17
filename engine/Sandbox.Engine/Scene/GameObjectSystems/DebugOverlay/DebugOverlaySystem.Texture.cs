@@ -52,7 +52,6 @@ file class ScreenTextureSceneObject : SceneCustomObject
 	public ScreenTextureSceneObject( SceneWorld sceneWorld ) : base( sceneWorld )
 	{
 		RenderLayer = SceneRenderLayer.OverlayWithoutDepth;
-		managedNative.ExecuteOnMainThread = false;
 	}
 
 	static bool ToScreenWithDirection( Vector3 world, out Vector2 screen )

@@ -1,6 +1,6 @@
 ﻿namespace Editor;
 
-class AssetFilterNode : TreeNode
+internal class AssetFilterNode : TreeNode
 {
 	public string Icon { get; }
 	public string Label { get; }

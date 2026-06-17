@@ -52,14 +52,10 @@ internal partial class GameInstanceDll
 		var instance = new SceneNetworkSystem( TypeLibrary, system );
 
 		NetworkedLargeFiles.NetworkInitialize( instance );
+		Platform.Chat.NetworkInitialize( instance );
 
 		if ( Networking.IsHost )
 		{
-			if ( Application.GamePackage is { } gamePackage )
-			{
-				ServerPackages.AddRequirement( gamePackage );
-			}
-
 			AddFilesToNetwork( NetworkedConfigFiles, EngineFileSystem.ProjectSettings, [".config"] );
 			AddFilesToNetwork( NetworkedLangFiles, Game.Language.FileSystem, [".json"] );
 			BuildNetworkedFiles();
@@ -77,7 +73,43 @@ internal partial class GameInstanceDll
 			NetworkedConfigFiles.Refresh();
 			NetworkedLangFiles.Refresh();
 
-			ResourceLoader.LoadAllGameResource( FileSystem.Mounted );
+			ResourceLoader.LoadAllGameResource( FileSystem.Mounted, reloadExisting: true );
+			FontManager.Instance.LoadAll( FileSystem.Mounted );
+
+			DidMountNetworkedFiles = true;
+		}
+
+		return instance;
+	}
+
+	public async Task<GameNetworkSystem> CreateGameNetworkingAsync( NetworkSystem system )
+	{
+		var instance = new SceneNetworkSystem( TypeLibrary, system );
+
+		NetworkedLargeFiles.NetworkInitialize( instance );
+		Platform.Chat.NetworkInitialize( instance );
+
+		if ( Networking.IsHost )
+		{
+			AddFilesToNetwork( NetworkedConfigFiles, EngineFileSystem.ProjectSettings, [".config"] );
+			AddFilesToNetwork( NetworkedLangFiles, Game.Language.FileSystem, [".json"] );
+			BuildNetworkedFiles();
+		}
+		else if ( !DidMountNetworkedFiles )
+		{
+			EngineFileSystem.ProjectSettings.Mount( NetworkedConfigFiles.Files );
+			Game.Language.FileSystem.Mount( NetworkedLangFiles.Files );
+			Game.Language.Refresh();
+
+			FileSystem.Mounted.Mount( NetworkedLargeFiles.Files );
+			FileSystem.Mounted.Mount( NetworkedSmallFiles.Files );
+
+			NetworkedSmallFiles.Refresh();
+			NetworkedConfigFiles.Refresh();
+			NetworkedLangFiles.Refresh();
+
+			LoadingScreen.Title = "Loading Resources";
+			await ResourceLoader.LoadAllGameResourceAsync( FileSystem.Mounted, reloadExisting: true );
 			FontManager.Instance.LoadAll( FileSystem.Mounted );
 
 			DidMountNetworkedFiles = true;
@@ -146,7 +178,7 @@ internal partial class GameInstanceDll
 			compiler.UpdateFromArchive( codeArchive );
 		};
 
-		CodeArchiveTable.PostNetworkUpdate = FinishLoadingCodeArchives;
+		CodeArchiveTable.PostNetworkUpdate = () => FinishLoadingCodeArchives();
 
 		//
 		// Config
@@ -155,33 +187,40 @@ internal partial class GameInstanceDll
 		ConfigTable.PostNetworkUpdate = UpdateConfigFromNetworkTable;
 	}
 
-	void FinishLoadingCodeArchives()
+	bool FinishLoadingCodeArchives()
 	{
+		if ( !compileGroup.NeedsBuild )
+		{
+			FinishLoadingAssemblies();
+			return true;
+		}
+
 		// We need to build it syncronously because we don't want other
 		// network shit coming in, that was created using the new assemblies
 		// and us not being able to understand because we don't have the
 		// new code compiled and loaded yet!
 		SyncContext.RunBlocking( compileGroup.BuildAsync() );
+		if ( !compileGroup.BuildResult.Success )
+			return false;
 
 		//
 		// Get the new assemblies and update them
 		//
-		if ( compileGroup.BuildResult.Success )
+		foreach ( var assm in compileGroup.BuildResult.Output )
 		{
-			foreach ( var assm in compileGroup.BuildResult.Output )
-			{
-				using var stream = new MemoryStream( assm.AssemblyData );
-				AssemblyEnroller.LoadAssemblyFromStream( assm.Compiler.AssemblyName, stream );
-			}
+			using var stream = new MemoryStream( assm.AssemblyData );
+			AssemblyEnroller.LoadAssemblyFromStream( assm.Compiler.AssemblyName, stream );
 		}
 
 		//
 		// Do the hotload and stuff
 		//
 		FinishLoadingAssemblies();
+
+		return true;
 	}
 
-	public async Task LoadNetworkTables( NetworkSystem system )
+	public async Task<bool> LoadNetworkTables( NetworkSystem system )
 	{
 		compileGroup = new CompileGroup( "server" );
 
@@ -198,14 +237,24 @@ internal partial class GameInstanceDll
 
 		// We might have loaded new assemblies, here's a safe time to
 		// hotload before we start downloading again.
-		FinishLoadingCodeArchives();
+		if ( !FinishLoadingCodeArchives() )
+		{
+			Disconnect( "Failed to compile code archives. Check log for details." );
+			return false;
+		}
 
 		// Load configs from network tables
 		UpdateConfigFromNetworkTable();
 
 		await ServerPackages.InstallAll();
 
+		// Prevent a blank title between the last package install and the download queue start.
+		if ( string.IsNullOrWhiteSpace( LoadingScreen.Title ) )
+			LoadingScreen.Title = "Loading..";
+
 		await NetworkedLargeFiles.RunDownloadQueue( system, default );
+
+		return true;
 	}
 
 	static string[] _interestingExtensions = new[] { "_c", ".scss", ".ttf" };
@@ -328,6 +377,41 @@ internal partial class GameInstanceDll
 		};
 
 		FileWatchers.Add( watcher );
+
+		NetworkTransientGeneratedFiles( project );
+
 		Log.Info( $"..done in {sw.Elapsed.TotalSeconds:0.00}s" );
+	}
+
+	/// <summary>
+	/// Make runtime-generated assets in the project's .sbox/transient/ folder available to joining clients
+	/// This is necessary for connected clients to see things like TextureGenerators.
+	/// </summary>
+	void NetworkTransientGeneratedFiles( Project project )
+	{
+		if ( project is null )
+			return;
+
+		var transientFolder = Path.Combine( project.GetRootPath(), ".sbox", "transient" );
+		if ( !Directory.Exists( transientFolder ) )
+			return;
+
+		var transientFs = new LocalFileSystem( transientFolder );
+
+		foreach ( var file in transientFs.FindFile( "/", "*", true ) )
+		{
+			UpdateNetworkFile( transientFs, file );
+		}
+
+		var watcher = transientFs.Watch();
+		watcher.OnChanges += w =>
+		{
+			foreach ( var fileName in w.Changes )
+			{
+				UpdateNetworkFile( transientFs, fileName );
+			}
+		};
+
+		FileWatchers.Add( watcher );
 	}
 }

@@ -13,7 +13,7 @@ public partial class Panel
 	/// Returns true if this panel has any active CSS transitions.
 	/// </summary>
 	[Hide]
-	public bool HasActiveTransitions => Transitions.HasAny;
+	public bool HasActiveTransitions => Transitions?.HasAny ?? false;
 
 	/// <summary>
 	/// Any transitions running, or about to run, will jump straight to the end.

@@ -76,7 +76,7 @@ MenuOverlay
 		transition: all 0.3s bounce-out;
 		position: absolute;
 		padding-left: 72px;
-		sound-in: ui.popup.message.open;
+		sound-in: "ui.popup.message.open";
 
 		& > .iconpanel
 		{
@@ -107,7 +107,7 @@ MenuOverlay
 			transition: all 0.1s ease-out;
 			opacity: 0;
 			transform: scale( 1.2 );
-			sound-in: ui.popup.message.close;
+			sound-in: "ui.popup.message.close";
 		}
 
 		.message
@@ -199,6 +199,7 @@ MenuOverlay
 
 .tooltip
 {
+	pointer-events: none;
 	background-color: #222;
 	border: 0.5px solid #333;
 	color: #ccc;
@@ -208,6 +209,10 @@ MenuOverlay
 	transition: all 0.1s ease-out;
 	transform: translateY( 0px) scale( 1 );
 	box-shadow: 2px 2px 30px black;
+
+	* {
+		pointer-events: none;
+	}
 
 	&:intro
 	{

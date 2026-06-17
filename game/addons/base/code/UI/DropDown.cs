@@ -108,6 +108,7 @@ namespace Sandbox.UI
 		{
 			AddClass( "dropdown" );
 			DropdownIndicator = Add.Icon( "expand_more", "dropdown_indicator" );
+			AcceptsFocus = true;
 		}
 
 		public DropDown( Panel parent ) : this()
@@ -115,9 +116,13 @@ namespace Sandbox.UI
 			Parent = parent;
 		}
 
-		public override void SetPropertyObject( string name, object value )
+		protected override void OnEscape( PanelEvent e )
 		{
-			base.SetPropertyObject( name, value );
+			if ( Popup != null )
+			{
+				Popup.Delete();
+				e.StopPropagation();
+			}
 		}
 
 		/// <summary>
@@ -134,12 +139,9 @@ namespace Sandbox.UI
 
 			if ( type.IsEnum )
 			{
-				var names = type.GetEnumNames();
-				var values = type.GetEnumValues();
-
-				for ( int i = 0; i < names.Length; i++ )
+				foreach ( var item in TypeLibrary.GetEnumDescription( type ) )
 				{
-					Options.Add( new Option( names[i], values.GetValue( i ) ) );
+					Options.Add( new Option( item.Title, item.Icon, item.ObjectValue ) );
 				}
 
 				return;

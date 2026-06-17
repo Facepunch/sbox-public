@@ -31,6 +31,8 @@ file sealed record LookAtProperty( ITrackReference<GameObject> Parent ) : ITrack
 [Expose]
 file sealed class LookAtPropertyFactory : ITrackPropertyFactory<ITrackReference<GameObject>, Vector3>
 {
+	public string BaseCategoryName => "Transform";
+
 	public bool PropertyExists( ITrackReference<GameObject> parent, string name ) => name == LookAtProperty.PropertyName;
 	public ITrackProperty<Vector3> CreateProperty( ITrackReference<GameObject> parent, string name ) => new LookAtProperty( parent );
 	public IEnumerable<string> GetPropertyNames( ITrackReference<GameObject> parent ) => [LookAtProperty.PropertyName];

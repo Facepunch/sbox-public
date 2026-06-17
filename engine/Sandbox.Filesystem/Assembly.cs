@@ -8,11 +8,11 @@ global using System.Threading.Tasks;
 global using static Sandbox.Internal.GlobalSystemNamespace;
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo( "Sandbox.Test" )]
 [assembly: InternalsVisibleTo( "Sandbox.Test.Unit" )]
+[assembly: InternalsVisibleTo( "Sandbox.Test.Engine" )]
+[assembly: InternalsVisibleTo( "Sandbox.Test.Integration" )]
 [assembly: InternalsVisibleTo( "Sandbox.Tools" )]
 [assembly: InternalsVisibleTo( "Sandbox.Menu" )]
 [assembly: InternalsVisibleTo( "Sandbox.GameInstance" )]
 [assembly: InternalsVisibleTo( "Sandbox.Engine" )]
 [assembly: InternalsVisibleTo( "Sandbox.Compiling" )]
-[assembly: InternalsVisibleTo( "Sandbox.Compiling.Test" )]

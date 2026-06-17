@@ -165,9 +165,10 @@ internal sealed class ProjectSettingsWindow : Window
 			categoriesBySection[sectionName].Add( (categoryType, icon, title) );
 		}
 
+		AddCategoryToList( typeof( ProjectPage ), "Project" );
+
 		if ( project.Config.Type == "game" )
 		{
-			AddCategoryToList( typeof( ProjectPage ), "Project" );
 			AddCategoryToList( typeof( GameCategory ), "Project" );
 			AddCategoryToList( typeof( StandaloneCategory ), "Project" );
 			AddCategoryToList( typeof( SystemsPage ), "Systems" );
@@ -177,6 +178,8 @@ internal sealed class ProjectSettingsWindow : Window
 			AddCategoryToList( typeof( InputCategory ), "Input" );
 
 			AddCategoryToList( typeof( MultiplayerCategory ), "Networking" );
+
+			AddCategoryToList( typeof( PlatformCategory ), "Platform" );
 
 			AddCategoryToList( typeof( CompilerCategory ), "Compiler" );
 
@@ -195,13 +198,6 @@ internal sealed class ProjectSettingsWindow : Window
 		else if ( project.Config.Type == "tool" )
 		{
 			AddCategoryToList( typeof( CompilerCategory ), "Compiler" );
-		}
-		else
-		{
-			//
-			// Always have a project category for other project types
-			//
-			AddCategoryToList( typeof( ProjectPage ), "Project" );
 		}
 
 		// Build the tree based on category counts
@@ -577,6 +573,9 @@ internal sealed class ProjectSettingsWindow : Window
 		{
 			EditorUtility.Projects.Updated( Project );
 			SaveCallback?.Invoke( Project );
+
+			EditorEvent.Run( "project.settings.saved" );
+
 		}
 
 		/// <summary>

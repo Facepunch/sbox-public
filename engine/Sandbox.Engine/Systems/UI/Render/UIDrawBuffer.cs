@@ -17,9 +17,24 @@ internal class UIDrawBuffer
 	/// </summary>
 	public RenderLayer ActiveLayer;
 
+	/// <summary>
+	/// The scale factor from logical to physical pixels for the current panel. Set before OnDraw().
+	/// </summary>
+	public float ScaleToScreen = 1f;
+
+	/// <summary>
+	/// Accumulated CSS opacity for the current panel. Set before OnDraw().
+	/// </summary>
+	public float Opacity = 1f;
+
+	/// <summary>
+	/// Active blend mode override for the current panel. Set before OnDraw().
+	/// </summary>
+	public BlendMode OverrideBlendMode = BlendMode.Normal;
+
 	public void AddBox( in BoxDrawDescriptor desc )
 	{
-		ActiveLayer.Boxes.Add( desc );
+		ActiveLayer.AddBox( desc );
 	}
 
 	public void AddShadow( in ShadowDrawDescriptor desc )
@@ -29,7 +44,7 @@ internal class UIDrawBuffer
 
 	public void AddOutline( in OutlineDrawDescriptor desc )
 	{
-		ActiveLayer.Outlines.Add( desc );
+		ActiveLayer.AddOutline( desc );
 	}
 
 	public void AddBackdrop( in BackdropDrawDescriptor desc )

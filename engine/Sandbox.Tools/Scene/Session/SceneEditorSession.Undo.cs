@@ -327,7 +327,6 @@ internal sealed class SceneUndoSnapshot : IDisposable
 				go.Deserialize( State[i], new GameObject.DeserializeOptions { IsRefreshing = true } );
 			}
 
-
 			RestoreHierachy( scene );
 		}
 
@@ -549,10 +548,10 @@ internal sealed class SceneUndoSnapshot : IDisposable
 		}
 		finally
 		{
-			_session.Scene.Directory.OnComponentAdded -= OnComponentAdded;
-			_session.Scene.Directory.OnGameObjectAdded -= OnGameObjectAdded;
+			_session?.Scene?.Directory?.OnComponentAdded -= OnComponentAdded;
+			_session?.Scene?.Directory?.OnGameObjectAdded -= OnGameObjectAdded;
 
-			_session.IsUndoScopeOpen = false;
+			_session?.IsUndoScopeOpen = false;
 			_alreadyDisposed = true;
 		}
 	}

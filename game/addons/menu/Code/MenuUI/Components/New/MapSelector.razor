@@ -1,0 +1,95 @@
+﻿@inherits Sandbox.UI.Panel
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Menu
+
+<root>
+    <div class="bottom">
+        <icon>map</icon>
+		<h3>@Title</h3>
+    </div>
+</root>
+
+@code 
+{
+	[Parameter]
+	public string Map { get; set; }
+
+	[Parameter]
+	public Package GamePackage { get; set; }
+
+	[Parameter]
+	public Action<string> OnValueChanged { get; set; }
+
+
+	public string Thumb
+	{
+		get => field;
+		set
+		{
+			field = value;
+			Style.SetBackgroundImage( value );
+		}
+	}
+
+	public string Title { get; private set; } = "Default Map";
+
+
+	protected override void OnMouseUp(MousePanelEvent e)
+	{
+		base.OnMouseUp(e);
+		OpenSelector();
+	}
+
+	protected override async Task OnParametersSetAsync()
+	{
+		await OnMapChanged(Map);
+	}
+
+	public void OpenSelector()
+	{
+		var mapTarget = GamePackage?.GetValue("MapTarget", GamePackage?.FullIdent);
+
+		Game.Overlay.ShowMapSelector( (pkg) =>
+		{
+			_ = OnMapChanged(pkg);
+
+			OnValueChanged?.Invoke(pkg);
+		}, Map );
+	}
+
+	public async Task OnMapChanged( string map )
+	{ 	
+		if ( string.IsNullOrWhiteSpace( map ) )
+		{
+			Thumb = "";
+			Title = "Default Map";
+			StateHasChanged();
+			return;
+		}
+
+		if ( Sandbox.Mounting.Directory.GetMetadata( map ) is { } meta )
+		{
+			Thumb = null;
+			Title = meta.Name;
+
+			StateHasChanged();
+			return;
+		}
+
+		var package = await Package.Fetch( map, true );
+		if ( package is not null )
+		{
+			Thumb = package.ThumbWide;
+			Title = package.Title;
+
+			StateHasChanged();
+			return;
+		}
+
+		Thumb = "";
+		Title = "Default Map";
+
+		StateHasChanged();
+	}
+}

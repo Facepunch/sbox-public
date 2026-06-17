@@ -60,7 +60,7 @@ internal class UIBatcher
 		if ( scissor.Rect.Width == 0 && scissor.Rect.Height == 0 )
 			return -1;
 
-		var hash = HashCode.Combine( scissor.Rect, scissor.CornerRadius, scissor.Matrix );
+		var hash = HashCode.Combine( scissor.Rect, scissor.CornerRadius, scissor.Matrix, scissor.Invert );
 
 		if ( scissorLookup.TryGetValue( hash, out var existing ) )
 			return existing;
@@ -71,6 +71,7 @@ internal class UIBatcher
 			Rect = scissor.Rect.ToVector4(),
 			CornerRadius = scissor.CornerRadius,
 			TransformMat = scissor.Matrix,
+			Invert = scissor.Invert ? 1 : 0,
 		} );
 
 		scissorLookup[hash] = index;
@@ -91,7 +92,7 @@ internal class UIBatcher
 		return index;
 	}
 
-	internal void Draw( List<GPUBoxInstance> instances, CommandList cl, int worldPanelCombo = 0 )
+	internal void Draw( List<GPUBoxInstance> instances, CommandList cl, int worldPanelCombo = 0, BlendMode blendMode = BlendMode.Normal )
 	{
 		int count = instances?.Count ?? 0;
 		if ( count == 0 ) return;
@@ -118,7 +119,7 @@ internal class UIBatcher
 		cl.Attributes.Set( "HasScissor", 0 );
 		cl.Attributes.Set( "BoxInstances", (GpuBuffer)boxBuffer );
 		cl.Attributes.Set( "InstanceOffset", offset );
-		cl.Attributes.SetCombo( "D_BLENDMODE", (int)BlendMode.Normal );
+		cl.Attributes.SetCombo( "D_BLENDMODE", (int)blendMode );
 		cl.Attributes.SetCombo( "D_WORLDPANEL", worldPanelCombo );
 		cl.DrawIndexedInstanced( (GpuBuffer)quadIndexBuffer, Material.UI.BatchedBox, count );
 	}

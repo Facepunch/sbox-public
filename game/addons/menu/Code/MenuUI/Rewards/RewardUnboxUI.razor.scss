@@ -1,0 +1,213 @@
+@import "/styles/_theme.scss";
+@import "/styles/_button.scss";
+
+RewardUnboxUI
+{
+	width: 100%;
+	height: 100%;
+	flex-direction: column;
+	justify-content: space-between;
+	color: $default-text;
+	font-family: $font-default;
+	pointer-events: none;
+
+	.topbar
+	{
+		flex-shrink: 0;
+		flex-direction: row;
+		padding: 24px;
+		pointer-events: all;
+
+		.back
+		{
+			align-self: flex-start;
+			align-items: center;
+			gap: 6px;
+			padding: 8px 18px;
+			border-radius: $rounding-large;
+			background-color: rgba( $default-50, 0.06 );
+			border: 1px solid $default-border;
+			color: $default-text;
+			transition: all 150ms $easing;
+
+			icon
+			{
+				font-size: 18px;
+				color: $default-200;
+			}
+
+			label
+			{
+				font-family: $font-heading;
+				font-weight: 600;
+			}
+
+			&:hover
+			{
+				background-color: rgba( $default-50, 0.12 );
+				border-color: rgba( $default-50, 0.2 );
+
+				icon
+				{
+					color: $default-text;
+				}
+			}
+		}
+	}
+
+	.center
+	{
+		flex-grow: 1;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 18px;
+		pointer-events: all;
+
+		.sub
+		{
+			font-family: $font-heading;
+			color: $default-300;
+		}
+
+		.spinner
+		{
+			align-items: center;
+			justify-content: center;
+			margin-bottom: 4px;
+
+			icon
+			{
+				font-size: 56px;
+				color: $default-300;
+				animation: reward-spin 1.1s linear infinite;
+			}
+		}
+
+		.title
+		{
+			font-family: $font-heading;
+			font-size: 24px;
+			font-weight: 700;
+		}
+	}
+
+	.claim-bar
+	{
+		flex-shrink: 0;
+		flex-direction: row;
+		justify-content: space-between;
+		align-items: center;
+		padding: 20px 32px;
+		pointer-events: all;
+		background-color: rgba( $default-800, 0.85 );
+		border-top: 1px solid $default-600;
+		backdrop-filter: blur( 24px );
+
+		.claim-info
+		{
+			flex-direction: column;
+			gap: 6px;
+
+			.select-banner
+			{
+				align-self: flex-start;
+				background-color: $primary-yellow;
+				padding: 6px 16px;
+				border-radius: $rounding-default;
+
+				label
+				{
+					font-family: $font-heading;
+					font-weight: 700;
+					font-size: $text-small;
+					letter-spacing: 0.5px;
+					text-transform: uppercase;
+					color: $default-950;
+				}
+			}
+
+			.blurb
+			{
+				font-family: $font-heading;
+				color: $default-300;
+				font-size: $text-small;
+			}
+		}
+
+		.claim
+		{
+			width: 250px;
+			justify-content: center;
+			gap: 8px;
+			padding: 14px 24px;
+			border-radius: $rounding-large;
+			background-color: $primary-green;
+			color: $default-950;
+			font-family: $font-heading;
+			font-weight: 700;
+			transition: all 150ms $easing;
+			font-size: 2rem;
+			cursor: pointer;
+
+			label
+			{
+				flex-grow: 0;
+				text-transform: uppercase;
+				letter-spacing: 1px;
+			}
+
+			icon
+			{
+				font-size: 18px;
+			}
+
+			&:hover
+			{
+				filter: brightness( 1.5 );
+				sound-in: "ui.button.over";
+			}
+
+			&:active
+			{
+				sound-in: "ui.button.press";
+			}
+
+			&.disabled
+			{
+				background-color: $default-700;
+				color: $default-300;
+				opacity: 1;
+				pointer-events: none;
+				filter: none;
+			}
+		}
+	}
+
+	.result-bar
+	{
+		flex-shrink: 0;
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+		gap: 16px;
+		padding: 24px 32px;
+		pointer-events: all;
+		background-color: rgba( $default-800, 0.85 );
+		border-top: 1px solid $default-600;
+		backdrop-filter: blur( 24px );
+
+		.result-icon
+		{
+			font-size: 32px;
+			color: $primary-yellow;
+		}
+
+		.result-text
+		{
+			font-family: $font-heading;
+			font-size: 24px;
+			font-weight: 700;
+		}
+	}
+}

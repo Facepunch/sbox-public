@@ -10,6 +10,11 @@ public static partial class Inventory
 	static List<Item> _items = new();
 
 	/// <summary>
+	/// Whether or not the inventory has been loaded from Steam.
+	/// </summary>
+	internal static bool HasLoaded { get; private set; }
+
+	/// <summary>
 	/// All of the items the user has in their inventory
 	/// </summary>
 	public static IReadOnlyCollection<Item> Items => _items.AsReadOnly();
@@ -39,6 +44,7 @@ public static partial class Inventory
 		}
 
 		CurrentBlob = SerializeResult( result );
+		HasLoaded = true;
 
 		// If we had items previously then notify of new items. This is usually caused by a call to Refresh after an in-game purchase.
 		if ( previousItems.Count() > 0 )

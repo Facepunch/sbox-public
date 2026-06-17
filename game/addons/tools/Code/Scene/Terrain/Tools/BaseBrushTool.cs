@@ -109,7 +109,6 @@ public abstract class BaseBrushTool : EditorTool
 			OnPaintEnded( terrain );
 		}
 
-		// Draw brush preview at hit position
 		var previewTransform = new Transform( tx.PointToWorld( hitPosition ), tx.Rotation );
 		_parent.DrawBrushPreview( previewTransform );
 	}
@@ -164,7 +163,7 @@ public abstract class BaseBrushTool : EditorTool
 		return region;
 	}
 
-	Action CreateUndoAction<T>( Terrain terrain, T[] dest, T[] region, RectInt dirtyRegion ) => () =>
+	Action CreateUndoAction<T>( Terrain terrain, T[] dest, T[] region, RectInt dirtyRegion, Terrain.SyncFlags flags ) => () =>
 	{
 		if ( !terrain.IsValid() )
 			return;
@@ -177,6 +176,7 @@ public abstract class BaseBrushTool : EditorTool
 			}
 		}
 		terrain.SyncGPUTexture();
+		terrain.UpdateCollision( flags, dirtyRegion );
 	};
 
 	protected virtual void OnPaintEnded( Terrain terrain )
@@ -195,8 +195,8 @@ public abstract class BaseBrushTool : EditorTool
 			var regionAfter = CopyRegion( terrain.Storage.HeightMap, terrain.Storage.Resolution, _dirtyRegion );
 
 			SceneEditorSession.Active.UndoSystem.Insert( $"Terrain {DisplayInfo.For( this ).Name}",
-				CreateUndoAction( terrain, terrain.Storage.HeightMap, regionBefore, _dirtyRegion ),
-				CreateUndoAction( terrain, terrain.Storage.HeightMap, regionAfter, _dirtyRegion ) );
+				CreateUndoAction( terrain, terrain.Storage.HeightMap, regionBefore, _dirtyRegion, Terrain.SyncFlags.Height ),
+				CreateUndoAction( terrain, terrain.Storage.HeightMap, regionAfter, _dirtyRegion, Terrain.SyncFlags.Height ) );
 		}
 		else
 		{
@@ -206,8 +206,8 @@ public abstract class BaseBrushTool : EditorTool
 			var regionAfter = CopyRegion( terrain.Storage.ControlMap, terrain.Storage.Resolution, _dirtyRegion );
 
 			SceneEditorSession.Active.UndoSystem.Insert( $"Terrain {DisplayInfo.For( this ).Name}",
-				CreateUndoAction( terrain, terrain.Storage.ControlMap, regionBefore, _dirtyRegion ),
-				CreateUndoAction( terrain, terrain.Storage.ControlMap, regionAfter, _dirtyRegion ) );
+				CreateUndoAction( terrain, terrain.Storage.ControlMap, regionBefore, _dirtyRegion, Terrain.SyncFlags.Control ),
+				CreateUndoAction( terrain, terrain.Storage.ControlMap, regionAfter, _dirtyRegion, Terrain.SyncFlags.Control ) );
 		}
 
 		_snapshot = null;

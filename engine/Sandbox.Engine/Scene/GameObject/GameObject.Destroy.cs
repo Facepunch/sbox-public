@@ -184,7 +184,10 @@ public partial class GameObject : IValid
 			Assert.AreEqual( 0, Children.Count, $"{Children.Count} children weren't deleted!" );
 		}
 
-		// Actually delete the objects
-		Scene?.SceneWorld?.DeletePendingObjects();
+		// Actually delete the objects - don't force a scene world to exist just to flush deletes
+		if ( Scene is { HasSceneWorld: true } )
+		{
+			Scene.SceneWorld.DeletePendingObjects();
+		}
 	}
 }

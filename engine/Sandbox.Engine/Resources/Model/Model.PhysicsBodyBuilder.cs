@@ -103,16 +103,16 @@ public sealed class PhysicsBodyBuilder
 	/// </summary>
 	public enum SimplifyMethod
 	{
-		/// <summary>Quadratic Error Metric – prioritizes preserving shape accuracy.</summary>
+		/// <summary>Quadratic Error Metric - prioritizes preserving shape accuracy.</summary>
 		QEM,
 
-		/// <summary>Iterative Vertex Removal – removes vertices gradually.</summary>
+		/// <summary>Iterative Vertex Removal - removes vertices gradually.</summary>
 		IVR,
 
-		/// <summary>No simplification – use the exact points provided.</summary>
+		/// <summary>No simplification - use the exact points provided.</summary>
 		None,
 
-		/// <summary>Iterative Face Removal – removes faces to reduce complexity.</summary>
+		/// <summary>Iterative Face Removal - removes faces to reduce complexity.</summary>
 		IFR
 	}
 
@@ -225,109 +225,5 @@ partial class ModelBuilder
 		};
 		_bodies.Add( builder );
 		return builder;
-	}
-
-	private unsafe CPhysBodyDescArray CreatePhysBodyDesc()
-	{
-		if ( _bodies.Count == 0 )
-			return default;
-
-		var arr = CPhysBodyDescArray.Create( _bodies.Count, _joints.Count );
-		int index = 0;
-		foreach ( var body in _bodies )
-		{
-			var desc = arr.Get( index++ );
-
-			foreach ( var hull in body.Hulls )
-			{
-				var simplify = hull.Simplify ?? new PhysicsBodyBuilder.HullSimplify
-				{
-					Method = PhysicsBodyBuilder.SimplifyMethod.None
-				};
-
-				fixed ( Vector3* pPoints = &hull.Points[0] )
-				{
-					desc.AddHull(
-						(IntPtr)pPoints,
-						hull.Points.Length,
-						hull.Transform,
-						simplify.AngleTolerance,
-						simplify.DistanceTolerance,
-						simplify.MaxFaces, simplify.MaxEdges, simplify.MaxVerts,
-						(int)simplify.Method
-					);
-				}
-			}
-
-			foreach ( var shape in body.Spheres )
-			{
-				desc.AddSphere( shape.Sphere );
-			}
-
-			foreach ( var shape in body.Capsules )
-			{
-				desc.AddCapsule( shape.Capsule );
-			}
-
-			foreach ( var mesh in body.Meshes )
-			{
-				fixed ( Vector3* pVertices = mesh.Vertices )
-				fixed ( uint* pIndices = mesh.Indices )
-				fixed ( byte* pMaterials = mesh.Materials )
-				{
-					desc.AddMesh(
-						(IntPtr)pVertices, (uint)mesh.Vertices.Length,
-						(IntPtr)pIndices, (uint)mesh.Indices.Length,
-						(IntPtr)pMaterials
-					);
-				}
-			}
-
-			desc.m_flMass = body.Mass;
-			desc.SetBoneName( body.BoneName );
-			desc.SetBindPose( body.BindPose );
-
-			if ( body.Surface is not null )
-			{
-				desc.SetSurface( new StringToken( body.Surface.NameHash ) );
-			}
-		}
-
-		index = 0;
-		foreach ( var joint in _joints )
-		{
-			var dest = arr.GetJoint( index++ );
-			var desc = joint.Desc;
-			dest.m_nType = (ushort)desc.Type;
-			dest.m_nBody1 = (ushort)desc.Body1;
-			dest.m_nBody2 = (ushort)desc.Body2;
-			dest.m_nFlags = desc.Flags;
-			dest.m_bEnableCollision = desc.EnableCollision;
-			dest.m_bEnableLinearLimit = desc.EnableLinearLimit;
-			dest.m_bEnableLinearMotor = desc.EnableLinearMotor;
-			dest.m_vLinearTargetVelocity = desc.LinearTargetVelocity;
-			dest.m_flMaxForce = desc.MaxForce;
-			dest.m_bEnableSwingLimit = desc.EnableSwingLimit;
-			dest.m_bEnableTwistLimit = desc.EnableTwistLimit;
-			dest.m_bEnableAngularMotor = desc.EnableAngularMotor;
-			dest.m_vAngularTargetVelocity = desc.AngularTargetVelocity;
-			dest.m_flMaxTorque = desc.MaxTorque;
-			dest.m_flLinearFrequency = desc.LinearFrequency;
-			dest.m_flLinearDampingRatio = desc.LinearDamping;
-			dest.m_flAngularFrequency = desc.AngularFrequency;
-			dest.m_flAngularDampingRatio = desc.AngularDamping;
-			dest.m_flLinearStrength = desc.LinearStrength;
-			dest.m_flAngularStrength = desc.AngularStrength;
-			dest.m_Frame1 = desc.Frame1;
-			dest.m_Frame2 = desc.Frame2;
-			dest.SetLinearLimitMin( desc.LinearLimit.x );
-			dest.SetLinearLimitMax( desc.LinearLimit.y );
-			dest.SetSwingLimitMin( desc.SwingLimit.x.DegreeToRadian() );
-			dest.SetSwingLimitMax( desc.SwingLimit.y.DegreeToRadian() );
-			dest.SetTwistLimitMin( desc.TwistLimit.x.DegreeToRadian() );
-			dest.SetTwistLimitMax( desc.TwistLimit.y.DegreeToRadian() );
-		}
-
-		return arr;
 	}
 }

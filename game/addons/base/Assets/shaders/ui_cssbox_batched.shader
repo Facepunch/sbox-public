@@ -51,6 +51,7 @@ COMMON
 		int ScissorIndex;
 		int Mode;
 		int TransformIndex;
+		int InverseScissorIndex;
 	};
 
 	float4 UnpackColor( uint packed )
@@ -73,6 +74,7 @@ COMMON
 		float4 Rect;
 		float4 CornerRadius;
 		float4x4 TransformMat;
+		int Invert;
 	};
 
 	StructuredBuffer<BoxInstanceData> BoxInstances < Attribute( "BoxInstances" ); >;
@@ -149,7 +151,7 @@ VS
 			o.vPositionPs = float4( vPositionLocal, 1 );
 			o.vPositionPs.y *= -1.0;
 
-			float4 vPositionWs = mul( g_matWorldPanel, float4( o.vPositionPs.xyz, 1.0 ) );
+			float3 vPositionWs = mul( g_matWorldPanel, float4( o.vPositionPs.xyz, 1.0 ) );
 			o.vPositionPs = Position3WsToPs( vPositionWs.xyz );
 		}
 		#endif
@@ -243,7 +245,7 @@ PS
 	float4 AddImageBorder( float2 texCoord, float2 boxSize, float4 borderWidth, int borderImageIndex, int borderImageSamplerIndex, int borderImageMode, int borderImageFill, float4 borderImageSlice )
 	{
 		float4 BorderImageWidth = borderWidth;
-		Texture2D borderTex = Bindless::GetTexture2D( NonUniformResourceIndex( borderImageIndex ), false );
+		Texture2D borderTex = Bindless::GetTexture2D( borderImageIndex );
 		float2 vBorderImageSize = TextureDimensions2D( borderTex, 0 );
 		float4 vBorderPixelSize = borderImageSlice;
 		float4 vBorderPixelRatio = vBorderPixelSize / float4( vBorderImageSize.x, vBorderImageSize.y, vBorderImageSize.x, vBorderImageSize.y );
@@ -263,7 +265,7 @@ PS
 				float2 vRepeatAmount = floor( ( boxSize * vMiddleSize ) / BorderImageWidth.xy );
 				uv.x = ( vBoxTexCoord.x - BorderImageWidth.x ) / ( boxSize.x - ( BorderImageWidth.x + BorderImageWidth.z ) ) * vRepeatAmount.x;
 				uv.x = fmod( uv.x, vMiddleSize.x ) + vBorderPixelRatio.x;
-				uv.y = ( vBoxTexCoord.y - BorderImageWidth.y ) / ( boxSize.y - ( BorderImageWidth.y + BorderImageWidth.z ) ) * vRepeatAmount.y;
+				uv.y = ( vBoxTexCoord.y - BorderImageWidth.y ) / ( boxSize.y - ( BorderImageWidth.y + BorderImageWidth.w ) ) * vRepeatAmount.y;
 				uv.y = fmod( uv.y, vMiddleSize.y ) + vBorderPixelRatio.y;
 			}
 			else
@@ -285,7 +287,7 @@ PS
 		else if ( vBoxTexCoord.y > boxSize.y - BorderImageWidth.w )
 			uv.y = ( ( vBoxTexCoord.y - ( boxSize.y - BorderImageWidth.w ) ) / BorderImageWidth.w ) * vBorderPixelRatio.w + ( 1.0 - vBorderPixelRatio.w );
 
-		float4 r = borderTex.Sample( Bindless::GetSampler( NonUniformResourceIndex( borderImageSamplerIndex ) ), uv );
+		float4 r = borderTex.Sample( Bindless::GetSampler( borderImageSamplerIndex ), uv );
 		r.xyz = SrgbGammaToLinear( r.xyz );
 		return r;
 	}
@@ -427,6 +429,26 @@ PS
 	{
 		BoxInstanceData inst = BoxInstances[i.iInstanceID];
 
+		// Per-instance scissoring via lookup table. Must run before mode dispatch so shadows/outlines also get clipped.
+		if ( inst.ScissorIndex >= 0 )
+		{
+			ScissorData scissor = ScissorBuffer[inst.ScissorIndex];
+			float2 pixelPos = i.vPositionPanelSpace.xy;
+			bool outside = IsOutsideBox( pixelPos, scissor.Rect, scissor.CornerRadius, scissor.TransformMat );
+			bool shouldClip = scissor.Invert ? !outside : outside;
+			clip( shouldClip ? -1 : 1 );
+		}
+
+		// Second scissor slot (used by outset box-shadows to clip inside the panel rect)
+		if ( inst.InverseScissorIndex >= 0 )
+		{
+			ScissorData scissor = ScissorBuffer[inst.InverseScissorIndex];
+			float2 pixelPos = i.vPositionPanelSpace.xy;
+			bool outside = IsOutsideBox( pixelPos, scissor.Rect, scissor.CornerRadius, scissor.TransformMat );
+			bool shouldClip = scissor.Invert ? !outside : outside;
+			clip( shouldClip ? -1 : 1 );
+		}
+
 		if ( inst.Mode == 1 ) return RenderShadow( inst, i, false );
 		if ( inst.Mode == 2 ) return RenderShadow( inst, i, true );
 		if ( inst.Mode == 3 ) return RenderOutline( inst, i );
@@ -452,8 +474,9 @@ PS
 			float2 vUV = -vOffset + ( i.vTexCoord.xy * ( boxSize / bgSize ) );
 			vUV = RotateTexCoord( vUV, inst.BackgroundAngle );
 
-			Texture2D tex = Bindless::GetTexture2D( NonUniformResourceIndex( inst.TextureIndex ), false );
-			float4 vImage = tex.SampleBias( Bindless::GetSampler( NonUniformResourceIndex( inst.SamplerIndex ) ), vUV, -1.5 );
+			Texture2D tex = Bindless::GetTexture2D( inst.TextureIndex );
+			// float4 vImage = float4( 1, 0, 0, 1 );
+			float4 vImage = tex.SampleBias( Bindless::GetSampler( inst.SamplerIndex ), vUV, -1.5 );
 
 			int bgRepeat = inst.BackgroundRepeat;
 			if ( bgRepeat != 0 && bgRepeat != 4 )
@@ -465,7 +488,13 @@ PS
 			}
 
 			vImage.xyz = SrgbGammaToLinear( vImage.xyz );
-			vImage *= bgTint;
+
+			#if ( D_BLENDMODE == 3 )
+				vImage.rgb *= bgTint.rgb;
+				vImage *= bgTint.a;
+			#else
+				vImage *= bgTint;
+			#endif
 
 			col.rgb = lerp( col.rgb, vImage.rgb, saturate( vImage.a + ( 1 - col.a ) ) );
 			col.a = max( col.a, vImage.a );
@@ -502,14 +531,6 @@ PS
 		else
 		{
 			col.a *= edge;
-		}
-
-		// Per-instance scissoring via lookup table
-		if ( inst.ScissorIndex >= 0 )
-		{
-			ScissorData scissor = ScissorBuffer[inst.ScissorIndex];
-			float2 pixelPos = i.vPositionPanelSpace.xy;
-			clip( IsOutsideBox( pixelPos, scissor.Rect, scissor.CornerRadius, scissor.TransformMat ) ? -1 : 1 );
 		}
 
 		return col;

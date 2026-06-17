@@ -25,12 +25,16 @@ public partial class Scene : GameObject
 	void PreTickReset()
 	{
 		// Forward our preference to the Scene's PhysicsWorld
-		if ( PhysicsWorld.IsValid() )
+		// Access the backing fields - ticking shouldn't force these worlds to exist
+		if ( _physicsWorld.IsValid() )
 		{
-			PhysicsWorld.SubSteps = Sandbox.ProjectSettings.Physics.SubSteps;
+			_physicsWorld.SubSteps = Sandbox.ProjectSettings.Physics.SubSteps;
 		}
 
-		SceneWorld.GradientFog.Enabled = false;
+		if ( _sceneWorld is not null )
+		{
+			_sceneWorld.GradientFog.Enabled = false;
+		}
 	}
 
 	double estimatedServerTime;
@@ -183,11 +187,6 @@ public partial class Scene : GameObject
 			using ( _signalFinishUpdate.Start() )
 			{
 				Signal( GameObjectSystem.Stage.FinishUpdate );
-			}
-
-			using ( PerformanceStats.Timings.Audio.Scope() )
-			{
-				SoundHandle.FlushCreatedSounds();
 			}
 		}
 

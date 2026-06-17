@@ -1,11 +1,10 @@
 @import "/styles/_Theme.scss";
 $size: 12px;
 
-FeaturedStoreItem
-{
+FeaturedStoreItem {
 	position: absolute;
-	right: 320px;
-	top: 64px;
+	right: 50%;
+	top: 48px;
 	flex-direction: column;
 	background-color: $default-900;
 	box-shadow: 0 4px 16px rgba( black, 0.33 );
@@ -14,22 +13,22 @@ FeaturedStoreItem
 	gap: 6px;
 	align-items: center;
 	z-index: 150;
-	opacity: 0;
 	cursor: pointer;
+	pointer-events: all;
+	min-width: 200px;
+	transform: translateX( 50% );
+	opacity: 0;
 
-	&:empty
-	{
+	&:empty {
 		display: none;
 	}
 
-	&.enabled
-	{
+	&.enabled {
 		animation: BounceIn 350ms $easing forwards;
 		animation-delay: 1s;
 	}
 
-	Button.hide
-	{
+	Button.hide {
 		position: absolute;
 		top: -8px;
 		right: -8px;
@@ -44,13 +43,12 @@ FeaturedStoreItem
 		transition: opacity 150ms $easing;
 		opacity: 0;
 
-		&:hover
-		{
+		&:hover {
 			background-color: $default-700;
+			border-radius: 50%;
 		}
 
-		iconpanel
-		{
+		iconpanel {
 			width: auto;
 			height: auto;
 			aspect-ratio: 1;
@@ -59,16 +57,12 @@ FeaturedStoreItem
 		}
 	}
 
-	&:hover
-	{
-		Button.hide
-		{
+		&:hover Button.hide,
+		Button.hide:hover {
 			opacity: 1;
 		}
-	}
 
-	.triangle
-	{
+	.triangle {
 		transform: rotate( 90deg ) translate( -2px -16px );
 		color: $default-900;
 		font-size: 32px;
@@ -79,34 +73,30 @@ FeaturedStoreItem
 		height: 0px;
 	}
 
-	Button
-	{
+	Button.item {
 		align-items: center;
 		flex-direction: column;
 		padding: 8px 10px;
 		pointer-events: all;
 		align-items: center;
 		gap: 6px;
+		width: 100%;
 
-		iconpanel
-		{
+		iconpanel {
 			width: 64px;
 			height: 64px;
 			background-size: cover;
 			background-position: center;
 		}
 
-		Label
-		{
+		Label {
 			font-weight: 700;
 			color: $default-text;
 		}
 	}
 
-	div.cta
-	{
-		Label
-		{
+	div.cta {
+		Label {
 			font-size: $text-eyebrow;
 			text-transform: uppercase;
 			font-family: $font-heading;
@@ -124,15 +114,13 @@ FeaturedStoreItem
 
 @keyframes BounceIn
 {
-	0%
-	{
-		transform: translateY( -25px );
+	0% {
+		transform: translate( 50% -25px );
 		opacity: 0;
 	}
 
-	100%
-	{
-		transform: translateY( 0px );
+	100% {
+		transform: translate( 50% 0px );
 		opacity: 1;
 	}
 }

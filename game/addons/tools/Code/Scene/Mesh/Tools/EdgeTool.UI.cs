@@ -123,6 +123,7 @@ partial class EdgeTool
 					CreateButton( "Bevel", "straighten", "mesh.edge-bevel", Bevel, CanBevel(), row.Layout );
 					CreateButton( "Edge Cut Tool", "polyline", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
 					CreateButton( "Edge Arch", "rounded_corner", "mesh.edge-arch-tool", OpenEdgeArchTool, CanArch(), row.Layout );
+					CreateButton( "Bridge", "device_hub", "mesh.bridge-tool", OpenBridgeTool, CanBridgeEdges(), row.Layout );
 
 					row.Layout.AddStretchCell();
 
@@ -145,9 +146,28 @@ partial class EdgeTool
 			}
 
 			Layout.AddStretchCell();
+
+			AddShortcuts(
+				("Loop Select", "Double Click"),
+				("Lasso Select", "Alt+Shift+Drag"),
+				("Lasso Deselect", "Alt+Ctrl+Drag"),
+				("Grow Selection", "Numpad +"),
+				("Shrink Selection", "Numpad -")
+			);
 		}
 
-		[Shortcut( "editor.select-all", "CTRL+A", typeof( SceneViewWidget ) )]
+		[Shortcut( "mesh.bridge-tool", "ALT+B", typeof( SceneViewWidget ) )]
+		void OpenBridgeTool()
+		{
+			if ( !CanBridgeEdges() )
+				return;
+
+			var tool = new BridgeTool( _edges );
+			tool.Manager = _tool.Manager;
+			_tool.CurrentTool = tool;
+		}
+
+		[Shortcut( "mesh.select-all", "CTRL+A", typeof( SceneViewWidget ) )]
 		private void SelectAll()
 		{
 			using var scope = SceneEditorSession.Scope();
@@ -317,22 +337,17 @@ partial class EdgeTool
 
 		private bool CanMerge()
 		{
-			if ( _edges.Length != 2 )
+			if ( _edges.Length < 2 )
 				return false;
 
-			var edgeA = _edges[0];
-			if ( !edgeA.IsValid() )
-				return false;
+			foreach ( var edge in _edges )
+			{
+				if ( !edge.IsValid() )
+					return false;
 
-			var edgeB = _edges[1];
-			if ( !edgeB.IsValid() )
-				return false;
-
-			if ( !edgeA.IsOpen )
-				return false;
-
-			if ( !edgeB.IsOpen )
-				return false;
+				if ( !edge.IsOpen )
+					return false;
+			}
 
 			return true;
 		}
@@ -363,32 +378,94 @@ partial class EdgeTool
 
 			using var scope = SceneEditorSession.Scope();
 
-			var edgeA = _edges[0];
-			var edgeB = _edges[1];
-
-			var undoScope = SceneEditorSession.Active.UndoScope( "Merge Edges" );
-
-			if ( edgeA.Component != edgeB.Component )
+			if ( _edges.Length == 2 )
 			{
-				undoScope = undoScope.WithComponentChanges( edgeA.Component )
-					.WithGameObjectDestructions( edgeB.Component.GameObject );
-			}
-			else
-			{
-				undoScope = undoScope.WithComponentChanges( [edgeA.Component, edgeB.Component] );
-			}
+				var edgeA = _edges[0];
+				var edgeB = _edges[1];
 
-			using ( undoScope.Push() )
-			{
-				edgeB = MergeMeshesOfEdges( edgeA, edgeB );
-				var mesh = edgeA.Component.Mesh;
+				var undoScope = SceneEditorSession.Active.UndoScope( "Merge Edges" );
 
-				if ( mesh.MergeEdges( edgeA.Handle, edgeB.Handle, out var hEdge ) )
+				if ( edgeA.Component != edgeB.Component )
 				{
-					mesh.ComputeFaceTextureCoordinatesFromParameters();
+					undoScope = undoScope.WithComponentChanges( edgeA.Component )
+						.WithGameObjectDestructions( edgeB.Component.GameObject );
+				}
+				else
+				{
+					undoScope = undoScope.WithComponentChanges( [edgeA.Component, edgeB.Component] );
+				}
 
-					var selection = SceneEditorSession.Active.Selection;
-					selection.Set( new MeshEdge( edgeA.Component, hEdge ) );
+				using ( undoScope.Push() )
+				{
+					edgeB = MergeMeshesOfEdges( edgeA, edgeB );
+					var mesh = edgeA.Component.Mesh;
+
+					if ( mesh.MergeEdges( edgeA.Handle, edgeB.Handle, out var hEdge ) )
+					{
+						var selection = SceneEditorSession.Active.Selection;
+						selection.Set( new MeshEdge( edgeA.Component, hEdge ) );
+					}
+				}
+
+				return;
+			}
+
+			var target = _components[0];
+			var vertexSet = new HashSet<VertexHandle>();
+			var vertices = new List<VertexHandle>();
+
+			using ( SceneEditorSession.Active.UndoScope( "Merge Edges" )
+				.WithComponentChanges( _components )
+				.WithGameObjectDestructions( _components.Skip( 1 ).Select( x => x.GameObject ).ToList() )
+				.Push() )
+			{
+				foreach ( var group in _edgeGroups )
+				{
+					Dictionary<VertexHandle, VertexHandle> remapVertices = null;
+					var sourceMesh = group.Key.Mesh;
+
+					if ( group.Key != target )
+					{
+						var transform = target.WorldTransform.ToLocal( group.Key.WorldTransform );
+						target.Mesh.MergeMesh( sourceMesh, transform, out remapVertices, out _, out _ );
+					}
+
+					foreach ( var edge in group )
+					{
+						sourceMesh.GetEdgeVertices( edge.Handle, out var a, out var b );
+
+						if ( remapVertices != null ) { a = remapVertices[a]; b = remapVertices[b]; }
+
+						if ( vertexSet.Add( a ) ) vertices.Add( a );
+						if ( vertexSet.Add( b ) ) vertices.Add( b );
+					}
+
+					if ( group.Key != target )
+					{
+						group.Key.DestroyGameObject();
+					}
+				}
+
+				var selection = SceneEditorSession.Active.Selection;
+				selection.Clear();
+
+				var resultVertices = target.Mesh.MergeVerticesWithinDistance( vertices, 0.1f, false, false, out var finalVertices ) > 0 ? finalVertices : vertices;
+
+				var resultVertexSet = new HashSet<VertexHandle>( resultVertices );
+				var addedEdges = new HashSet<int>();
+				foreach ( var hVertex in resultVertices )
+				{
+					target.Mesh.GetEdgesConnectedToVertex( hVertex, out var edges );
+					foreach ( var hEdge in edges )
+					{
+						target.Mesh.GetEdgeVertices( hEdge, out var a, out var b );
+						if ( !resultVertexSet.Contains( a ) || !resultVertexSet.Contains( b ) )
+							continue;
+
+						var canonical = Math.Min( hEdge.Index, target.Mesh.GetOppositeHalfEdge( hEdge ).Index );
+						if ( addedEdges.Add( canonical ) )
+							selection.Add( new MeshEdge( target, hEdge ) );
+					}
 				}
 			}
 		}
@@ -518,52 +595,80 @@ partial class EdgeTool
 			}
 		}
 
-		[Shortcut( "mesh.bridge-edges", "ALT+B", typeof( SceneViewWidget ) )]
-		private void BridgeEdges()
+		[Shortcut( "mesh.bridge-edges", "B", typeof( SceneViewWidget ) )]
+		void BridgeEdges()
 		{
 			if ( !CanBridgeEdges() )
 				return;
 
 			using var scope = SceneEditorSession.Scope();
 
-			var edgeA = _edges[0];
-			var edgeB = _edges[1];
+			var groups = _edges.GroupBy( e => e.Component ).ToList();
+			if ( groups.Count == 2 && groups[0].Count() != groups[1].Count() )
+				return;
 
-			using ( SceneEditorSession.Active.UndoScope( "Bridge Edges" )
-				.WithComponentChanges( [edgeA.Component, edgeB.Component] )
-				.Push() )
+			var undo = SceneEditorSession.Active.UndoScope( "Bridge Edges" )
+				.WithComponentChanges( groups[0].Key );
+
+			if ( groups.Count == 2 )
+				undo = undo.WithGameObjectDestructions( groups[1].Key.GameObject );
+
+			using ( undo.Push() )
 			{
-				if ( edgeA.Component.Mesh.BridgeEdges( edgeA.Handle, edgeB.Handle, out var hFace ) )
+				if ( groups.Count == 2 )
 				{
-					var selection = SceneEditorSession.Active.Selection;
-					selection.Clear();
+					var compA = groups[0].Key;
+					var compB = groups[1].Key;
+
+					var meshA = compA.Mesh;
+					var meshB = compB.Mesh;
+
+					var edgesA = groups[0].Select( e => e.Handle ).ToList();
+					var edgesB = groups[1].Select( e => e.Handle ).ToList();
+
+					var transform = compA.WorldTransform.ToLocal( compB.WorldTransform );
+					meshA.MergeMesh( meshB, transform, out _, out var remapEdges, out _ );
+
+					for ( int i = 0; i < edgesB.Count; i++ )
+						edgesB[i] = remapEdges[edgesB[i]];
+
+					compB.DestroyGameObject();
+
+					meshA.BridgeEdges( edgesA, edgesB );
+				}
+				else
+				{
+					var comp = groups[0].Key;
+					var mesh = comp.Mesh;
+
+					var edges = groups[0].Select( e => e.Handle ).ToList();
+
+					mesh.FindOpenEdgeIslands( edges, out var fullIslands );
+
+					if ( fullIslands.Count == 2 )
+					{
+						mesh.BridgeEdges( fullIslands[0], fullIslands[1] );
+					}
+					else if ( edges.Count == 2 )
+					{
+						mesh.BridgeEdges( edges[0], edges[1], out _ );
+					}
 				}
 			}
 		}
-
-		private bool CanBridgeEdges()
+		bool CanBridgeEdges()
 		{
-			if ( _edges.Length != 2 )
+			if ( _edges.Length < 2 )
 				return false;
 
-			var edgeA = _edges[0];
-			if ( !edgeA.IsValid() )
+			var groups = _edges.GroupBy( e => e.Component ).ToList();
+			if ( groups.Count is < 1 or > 2 )
 				return false;
 
-			var edgeB = _edges[1];
-			if ( !edgeB.IsValid() )
+			if ( _edges.Any( e => !e.IsValid() || !e.IsOpen ) )
 				return false;
 
-			if ( edgeA.Component != edgeB.Component )
-				return false;
-
-			if ( !edgeA.IsOpen )
-				return false;
-
-			if ( !edgeB.IsOpen )
-				return false;
-
-			return true;
+			return groups.Count != 2 || groups[0].Count() == groups[1].Count();
 		}
 
 		private bool CanDissolve()

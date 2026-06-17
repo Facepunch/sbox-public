@@ -8,7 +8,7 @@ namespace Sandbox;
 /// </summary>
 [Expose]
 [Title( "Particle Model Renderer" )]
-[Category( "Particles" )]
+[Category( "Effects" )]
 [Icon( "category" )]
 public sealed class ParticleModelRenderer : ParticleController, Component.ExecuteInEditor
 {
@@ -94,6 +94,13 @@ public sealed class ParticleModelRenderer : ParticleController, Component.Execut
 	/// </summary>
 	[Property]
 	public Material MaterialOverride { get; set; }
+
+	/// <summary>
+	/// When set, particles with local space enabled will follow this skinned model's bones.
+	/// Falls back to a <see cref="SkinnedModelRenderer"/> on this object or its parents when unset.
+	/// </summary>
+	[Property]
+	public SkinnedModelRenderer Target { get; set; }
 
 	/// <summary>
 	/// If true, the models will rotate relative to the this GameObject

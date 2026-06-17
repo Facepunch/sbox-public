@@ -28,7 +28,12 @@ public sealed partial class PhysicsBody : IHandle
 		World.RegisterBody( this );
 	}
 
-	void IHandle.HandleDestroy() => native = IntPtr.Zero;
+	void IHandle.HandleDestroy()
+	{
+		World?.ForgetBody( this );
+		native = IntPtr.Zero;
+	}
+
 	bool IHandle.HandleValid() => !native.IsNull;
 	#endregion
 
@@ -326,6 +331,16 @@ public sealed partial class PhysicsBody : IHandle
 			if ( value ) native.EnableAutoSleeping();
 			else native.DisableAutoSleeping();
 		}
+	}
+
+	/// <summary>
+	/// The speed threshold below which this body will be put to sleep. Units per second.
+	/// The default is about 2 units/sec. Increase this to make bodies sleep sooner, which is useful for stacking stability.
+	/// </summary>
+	public float SleepThreshold
+	{
+		get => native.GetSleepThreshold();
+		set => native.SetSleepThreshold( value );
 	}
 
 	/// <summary>
@@ -1071,6 +1086,37 @@ public sealed partial class PhysicsBody : IHandle
 			return false;
 
 		return native.CheckOverlap( body, transform );
+	}
+
+	/// <summary>
+	/// Finds the smallest move needed to separate us from another body, ignoring all collision rules.
+	/// Returns true if we're overlapping; moving us by <paramref name="direction"/> * <paramref name="distance"/> pushes us clear.
+	/// </summary>
+	public bool ComputePenetration( PhysicsBody body, out Vector3 direction, out float distance )
+	{
+		direction = default;
+		distance = default;
+
+		if ( !body.IsValid() )
+			return false;
+
+		return ComputePenetration( body, body.Transform, out direction, out distance );
+	}
+
+	/// <summary>
+	/// Finds the smallest move needed to separate us from another body placed at a given transform, ignoring
+	/// all collision rules. Returns true if we're overlapping; moving us by <paramref name="direction"/> *
+	/// <paramref name="distance"/> pushes us clear.
+	/// </summary>
+	public bool ComputePenetration( PhysicsBody body, Transform transform, out Vector3 direction, out float distance )
+	{
+		direction = default;
+		distance = default;
+
+		if ( !this.IsValid() || !body.IsValid() )
+			return false;
+
+		return native.ComputePenetration( body, transform, out direction, out distance );
 	}
 
 	/// <summary>

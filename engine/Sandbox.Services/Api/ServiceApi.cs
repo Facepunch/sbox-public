@@ -15,10 +15,11 @@ public partial class ServiceApi : IDisposable
 	public INotificationApi Notification { get; }
 	public IStorageApi Storage { get; }
 	public IUtilityApi Utility { get; }
+	public ICodeApi Code { get; }
 
 	HttpClient client;
 
-	public ServiceApi( string url = "https://services.facepunch.com/sbox" )
+	public ServiceApi( string url = "https://public.facepunch.com/sbox" )
 	{
 		var refitSettings = new RefitSettings
 		{
@@ -43,6 +44,7 @@ public partial class ServiceApi : IDisposable
 		Notification = RestService.For<INotificationApi>( client, refitSettings );
 		Storage = RestService.For<IStorageApi>( client, refitSettings );
 		Utility = RestService.For<IUtilityApi>( client, refitSettings );
+		Code = RestService.For<ICodeApi>( client, refitSettings );
 	}
 
 	public void SetApiKey( string apiKey )

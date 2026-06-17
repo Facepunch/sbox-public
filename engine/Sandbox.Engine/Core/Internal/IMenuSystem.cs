@@ -40,6 +40,16 @@ public interface IMenuSystem
 	public void OnPackageClosed( Package package );
 
 	/// <summary>
+	/// The backend is telling us that the number of users playing has changed
+	/// </summary>
+	void PackageUsageChanged( string packageIdent, long userCount );
+
+	/// <summary>
+	/// Notifies that the number of favourites for the specified package has changed.
+	/// </summary>
+	void PackageFavouritesChanged( string packageIdent, long value );
+
+	/// <summary>
 	/// True if we want to force the cursor to be visible and swallow input.
 	/// This is used for the developer console and loading screens.
 	/// </summary>

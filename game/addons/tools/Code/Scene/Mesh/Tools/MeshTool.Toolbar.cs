@@ -15,8 +15,7 @@ partial class MeshTool
 		var group = new Widget();
 		group.FixedHeight = Theme.RowHeight;
 		group.Layout = Layout.Row();
-		group.Layout.Spacing = 6;
-		group.Layout.Margin = new( 2, 0 );
+		group.Layout.Spacing = 2;
 
 		group.OnPaintOverride = () =>
 		{

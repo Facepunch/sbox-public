@@ -221,7 +221,7 @@ public sealed class ToolBarGroup : Widget
 		const int margin = 1;
 
 		var segments = ExampleValues.Length - 1;
-		
+
 		t *= segments - margin * 2;
 
 		var index = (int)MathF.Floor( t ) + margin;

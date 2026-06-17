@@ -178,6 +178,19 @@ native class CModelDoc
 	{
 		return self->SaveToFile( pFullPath, nullptr );
 	}
+
+	/// Add a physics hull from render geometry (convex hulls, one per mesh element)
+	inline void AddPhysicsHullFromRender()
+	{
+		CModelDocPhysicsHullFromRender *pNode = self->CreateNode< CModelDocPhysicsHullFromRender >( "", nullptr, MODELDOC_CREATE_NODE_DEFAULT );
+		pNode->SetHullMode( CModelDocPhysicsHullFromRender::HULL_MODE_HULL_PER_ELEMENT );
+	}
+
+	/// Add a physics mesh from render geometry (exact triangle mesh collision)
+	inline void AddPhysicsMeshFromRender()
+	{
+		self->CreateNode< CModelDocPhysicsMeshFromRender >( "", nullptr, MODELDOC_CREATE_NODE_DEFAULT );
+	}
 }
 
 native static accessor g_pModelDocUtils

@@ -65,7 +65,6 @@ public sealed class TrackListView
 			? [track, .. track.Children.SelectMany( EnumerateVisibleDescendants )]
 			: [track];
 
-
 	public TrackListView( Session session )
 	{
 		Session = session;
@@ -149,6 +148,43 @@ public sealed class TrackListView
 		foreach ( var view in SelectedTracks.ToArray() )
 		{
 			view.IsSelected = false;
+		}
+	}
+
+	/// <summary>
+	/// Makes sure all ancestors of the given tracks are expanded.
+	/// </summary>
+	public void ExpandAncestors( IEnumerable<IProjectTrack> tracks ) =>
+		ExpandAncestors( tracks.Select( Find ).OfType<TrackView>() );
+
+	/// <summary>
+	/// Makes sure all ancestors of the given tracks are expanded.
+	/// </summary>
+	public void ExpandAncestors( IEnumerable<TrackView> trackViews )
+	{
+		var changed = false;
+
+		foreach ( var trackView in trackViews )
+		{
+			changed |= trackView.Parent?.ExpandCore() ?? false;
+		}
+
+		if ( changed )
+		{
+			Update();
+		}
+	}
+
+	public void SelectAll( IEnumerable<IProjectTrack> tracks ) =>
+		SelectAll( tracks.Select( Find ).OfType<TrackView>() );
+
+	public void SelectAll( IEnumerable<TrackView> trackViews )
+	{
+		DeselectAll();
+
+		foreach ( var trackView in trackViews )
+		{
+			trackView.IsSelected = true;
 		}
 	}
 }

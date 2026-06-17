@@ -15,7 +15,7 @@ public class ArgLiteral : Arg
 
 	public override bool IsRealArgument => false;
 
-	public override string FromInterop( bool native, string code = null )
+	public override string FromInterop( Side side, string code = null )
 	{
 		return $"/* literal */ {Value}";
 	}

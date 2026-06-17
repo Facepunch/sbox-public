@@ -37,6 +37,8 @@ internal static partial class Rules
 		"System.Private.CoreLib/System.Threading.Tasks.Task.ContinueWith*",
 		"System.Private.CoreLib/System.Threading.Tasks.Task.TaskContinuationOptions",
 
+		"System.Private.CoreLib/System.Threading.Tasks.TaskCreationOptions",
+
 		"System.Private.CoreLib/System.Threading.Tasks.TaskCompletionSource",
 		"System.Private.CoreLib/System.Threading.Tasks.TaskCompletionSource.*",
 		"System.Private.CoreLib/System.Threading.Tasks.TaskCompletionSource`1",

@@ -19,7 +19,7 @@ internal sealed class SystemsPage : ProjectSettingsWindow.Category
 	{
 		// Get all systems with properties
 		var types = TypeLibrary.GetTypes<GameObjectSystem>()
-					.Where( t => t.Properties.Any( p => p.HasAttribute<PropertyAttribute>() ) )
+					.Where( t => t.Properties.Any( p => p.HasAttribute<PropertyAttribute>() && !p.HasAttribute<HideAttribute>() ) )
 					.OrderBy( x => x.Order )
 					.ThenBy( x => x.Title );
 
@@ -72,7 +72,7 @@ internal sealed class SystemsPage : ProjectSettingsWindow.Category
 
 		// Get all systems with properties
 		var types = TypeLibrary.GetTypes<GameObjectSystem>()
-					.Where( t => t.Properties.Any( p => p.HasAttribute<PropertyAttribute>() ) )
+					.Where( t => t.Properties.Any( p => p.HasAttribute<PropertyAttribute>() && !p.HasAttribute<HideAttribute>() ) )
 					.OrderBy( x => x.Order )
 					.ThenBy( x => x.Title )
 					.ToList();
@@ -119,7 +119,7 @@ internal sealed class SystemsPage : ProjectSettingsWindow.Category
 		var serializedObject = new SystemSerializedObject( systemType, _wantsEditScene ? _scene : null, _wantsEditScene ? _scenePendingChanges : null );
 
 		var properties = systemType.Properties
-			.Where( p => p.HasAttribute<PropertyAttribute>() );
+			.Where( p => p.HasAttribute<PropertyAttribute>() && !p.HasAttribute<HideAttribute>() );
 
 		foreach ( var prop in properties )
 		{

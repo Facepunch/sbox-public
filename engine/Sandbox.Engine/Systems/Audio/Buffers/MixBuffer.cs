@@ -150,6 +150,19 @@ public sealed unsafe class MixBuffer : IDisposable
 		Buffer.AsFloatSpan().Scale( volume );
 	}
 
+	/// <summary>
+	/// Clamp each sample to [-1, 1] to prevent digital clipping from multiple voices accumulating.
+	/// </summary>
+	public void HardLimit()
+	{
+		var span = Buffer;
+		for ( var i = 0; i < span.Length; i++ )
+		{
+			if ( span[i] > 1.0f ) span[i] = 1.0f;
+			else if ( span[i] < -1.0f ) span[i] = -1.0f;
+		}
+	}
+
 	public float LevelMax => Buffer.AsFloatSpan().Max();
 	public float LevelAvg => Buffer.AsFloatSpan().Average();
 

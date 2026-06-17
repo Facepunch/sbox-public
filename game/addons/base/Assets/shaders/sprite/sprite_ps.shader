@@ -374,8 +374,8 @@ PS
 		float fogStrength, alphaCutoff;
 		UnpackFogAndAlpha( sprite.FogStrengthCutout, fogStrength, alphaCutoff );
 
-		Texture2D ColorTexture = Bindless::GetTexture2D( NonUniformResourceIndex( sprite.TextureHandle ), true );
-		SamplerState spriteSampler = Bindless::GetSampler( NonUniformResourceIndex( sprite.SamplerIndex ) );
+		Texture2D ColorTexture = Bindless::GetTexture2D( sprite.TextureHandle, true );
+		SamplerState spriteSampler = Bindless::GetSampler( sprite.SamplerIndex );
 
 		float2 uv = GetUV(sprite, i.uv.xy); 
 		float4 textureColor = ColorTexture.Sample( spriteSampler, uv.xy ).rgba;

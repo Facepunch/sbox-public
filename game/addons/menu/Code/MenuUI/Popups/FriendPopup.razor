@@ -1,6 +1,7 @@
 @using System;
 @using Sandbox;
 @using Sandbox.UI;
+@using MenuProject;
 
 @inherits Popup
 
@@ -106,7 +107,17 @@
                 <cell class="text-title">Make Party Owner</cell>
             </column>
         </row>
-    }
+	}
+
+    @if (IsInParty && PartyRoom.Current.Owner.IsMe && !IsMe)
+	{
+		<row class="clicky is-party" @onclick=@Kick>
+			<cell><i>sports_martial_arts</i></cell>
+			<column>
+				<cell class="text-title">Kick</cell>
+			</column>
+		</row>
+	}
 
     @if ( IsMe && PartyRoom.Current is not null  )
     {
@@ -162,7 +173,6 @@
         get
         {
             if (IsMe) return false;
-            if (PartyRoom.Current is null) return false;
             if (IsInParty) return false;
 
             return true;
@@ -212,8 +222,9 @@
         Delete();
     }
 
-    public void InviteToParty()
+    async Task InviteToParty()
     {
+		await PartyDeck.EnsureLobbyExists();
         MenuUtility.InviteToParty(Friend.Id);
         Delete();
     }
@@ -234,5 +245,11 @@
     {
         PartyRoom.Current.SetOwner(Friend.Id);
         Delete();
-    }
+	}
+
+	void Kick()
+	{
+		PartyRoom.Current.Kick(Friend.Id);
+		Delete();
+	}
 }

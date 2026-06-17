@@ -45,11 +45,12 @@
             menu = null;
             timeUntilUpdate = 0;
             return;
-        }
+		}
+
+		Popup.CloseAll();
 
         menu = new NotificationList();
-        menu.SetPositioning(this, Popup.PositionMode.BelowLeft, -10.0f);
-        menu.StayOpen = true;
+        menu.SetPositioning(this, Popup.PositionMode.BelowRight, 16.0f);
     }
 
 }

@@ -16,10 +16,6 @@
 
     Profile profile;
 
-    bool InParty => PartyRoom.Current is not null;
-    bool IsPartyMember => InParty && PartyRoom.Current.Members.Contains(new Friend(UserId));
-    bool IsPartyOwner => InParty && PartyRoom.Current.Owner == new Friend(UserId);
-
     protected override async Task OnParametersSetAsync()
     {
         profile = await Profile.Get(UserId);
@@ -29,7 +25,6 @@
     public string CssClasses()
     {
         var friend = new Friend(UserId);
-        if (friend.IsMe) return "me";
         if (friend.IsPlayingThisGame && !string.IsNullOrEmpty(friend.GetRichPresence("connect"))) return "ingame joinable";
         if (friend.IsPlayingThisGame) return "ingame";
         if (friend.IsAway || friend.IsBusy || friend.IsSnoozing) return "online away";
@@ -59,6 +54,6 @@
         popup = FriendPopup.Show(this, new Friend(UserId), Popup.PositionMode.AboveCenter, 32);
     }
 
-    protected override int BuildHash() => HashCode.Combine(IsPartyOwner, CssClasses());
+    protected override int BuildHash() => HashCode.Combine( CssClasses() );
 
 }

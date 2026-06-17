@@ -2,18 +2,24 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text.RegularExpressions;
 
 namespace Facepunch.InteropGen.Parsers;
 
+/// <summary>
+/// Line-oriented parser for the .def DSL. Reads a file line by line, skipping blanks and comments,
+/// and routes each line either to a pushed sub-parser (class/function body) or to a directive handler.
+/// Subclasses add the directives they understand via <see cref="TryHandleDirective"/>.
+/// </summary>
 internal class BaseParser
 {
-	// Precompiled regex for better performance
-	private static readonly Regex _methodCallRegex = new(
-		@"([a-z]+?)\s+(.+)",
-		RegexOptions.IgnoreCase | RegexOptions.Compiled
-	);
+	// A directive line: the first word is the keyword, the rest is its argument.
+	private static readonly Regex DirectiveRegex = new( @"([a-z]+?)\s+(.+)", RegexOptions.IgnoreCase );
+
+	/// <summary>
+	/// An attribute line like [nogc]. Shared by the parsers that accept attributes.
+	/// </summary>
+	protected static readonly Regex AttributeRegex = new( @"^\[(.+)\]", RegexOptions.IgnoreCase );
 
 	protected Definition definition;
 	protected Stack<BaseParser> subParser = new();
@@ -31,40 +37,25 @@ internal class BaseParser
 
 	private void ParseText( string text )
 	{
-		// Use efficient line enumeration with StringSplitOptions
-		string[] lines = text.Split( ['\n', '\r'], StringSplitOptions.RemoveEmptyEntries );
-
-		foreach ( string line in lines )
+		foreach ( string line in text.Split( ['\n', '\r'], StringSplitOptions.RemoveEmptyEntries ) )
 		{
-			// Skip empty lines and whitespace-only lines
 			if ( string.IsNullOrWhiteSpace( line ) )
 			{
 				continue;
 			}
 
-			// Check for comments using efficient string operations
-			ReadOnlySpan<char> trimmedLine = line.AsSpan().TrimStart();
-			if ( trimmedLine.Length >= 2 && trimmedLine[0] == '/' && trimmedLine[1] == '/' )
+			// Skip comment lines
+			if ( line.TrimStart().StartsWith( "//", StringComparison.Ordinal ) )
 			{
 				continue;
 			}
 
 			definition.FullText += $"{line}\n";
 
-			// Clean up sub-parser stack efficiently
-			CleanupFinishedSubParsers();
-
-			if ( subParser.Count > 0 )
-			{
-				subParser.Peek().SubParseLine( line );
-				continue;
-			}
-
-			ParseLine( line );
+			SubParseLine( line );
 		}
 	}
 
-	// Optimize sub-parser cleanup
 	private void CleanupFinishedSubParsers()
 	{
 		while ( subParser.Count > 0 && subParser.Peek().Finished )
@@ -88,22 +79,21 @@ internal class BaseParser
 
 	public virtual void ParseLine( string line )
 	{
-		// Use cached regex for method parsing
-		Match match = _methodCallRegex.Match( line );
+		// A line like "ident foo" is a directive: the first word selects a handler, the rest is the argument.
+		Match match = DirectiveRegex.Match( line );
 		if ( match.Success )
 		{
-			MethodInfo method = GetMethod( match.Groups[1].Value );
-			if ( method != null )
+			string keyword = match.Groups[1].Value;
+			string arg = match.Groups[2].Value.Trim();
+
+			// Strip surrounding quotes
+			if ( arg.Length >= 2 && arg[0] == '"' && arg[^1] == '"' )
 			{
-				string arg = match.Groups[2].Value.Trim();
+				arg = arg[1..^1];
+			}
 
-				// More efficient quote removal using Span operations
-				if ( arg.Length >= 2 && arg[0] == '"' && arg[^1] == '"' )
-				{
-					arg = arg[1..^1];
-				}
-
-				_ = method.Invoke( this, new object[] { arg } );
+			if ( TryHandleDirective( keyword, arg ) )
+			{
 				return;
 			}
 		}
@@ -111,46 +101,38 @@ internal class BaseParser
 		Log.Warning( $"Unhandled Line \"{line}\" in \"{fileStack.Peek()}\"" );
 	}
 
-	private readonly Dictionary<string, MethodInfo> MethodCache = [];
-
-	public MethodInfo GetMethod( string name )
+	/// <summary>
+	/// Handle a directive line. Overridden by parsers that define directives; returns false if unknown.
+	/// </summary>
+	protected virtual bool TryHandleDirective( string keyword, string arg )
 	{
-		if ( MethodCache.TryGetValue( name, out MethodInfo method ) )
-		{
-			return method;
-		}
-
-		method = GetType().GetMethod( name );
-		MethodCache[name] = method;
-		return method;
+		return false;
 	}
 
 	public void IncludeFile( string filename )
 	{
-		string path = System.IO.Path.GetDirectoryName( fileStack.Peek() );
-		string fullname = System.IO.Path.Combine( path, filename );
+		string path = Path.GetDirectoryName( fileStack.Peek() );
+		string fullname = Path.Combine( path, filename );
 
-		//using ( Log.Group( ConsoleColor.DarkGreen, $"{filename}" ) )
-		{
-			fileStack.Push( fullname );
+		fileStack.Push( fullname );
 
-			string text = System.IO.File.ReadAllText( fullname );
-			ParseText( text );
+		string text = File.ReadAllText( fullname );
+		ParseText( text );
 
-			_ = fileStack.Pop();
-		}
+		_ = fileStack.Pop();
 	}
 
 	public void IncludeFolder( string filename )
 	{
-		SearchOption option = filename.EndsWith( "/*" ) ? System.IO.SearchOption.AllDirectories : System.IO.SearchOption.TopDirectoryOnly;
+		SearchOption option = filename.EndsWith( "/*" ) ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
 
-		string path = System.IO.Path.GetDirectoryName( fileStack.Peek() );
-		string fullname = System.IO.Path.Combine( path, filename );
+		string path = Path.GetDirectoryName( fileStack.Peek() );
+		string fullname = Path.Combine( path, filename );
 
-		foreach ( string file in System.IO.Directory.GetFiles( fullname.TrimEnd( '*' ), "*.def", option ).OrderBy( x => x ) )
+		// Directory.GetFiles returns rooted paths, so include them directly.
+		foreach ( string file in Directory.GetFiles( fullname.TrimEnd( '*' ), "*.def", option ).OrderBy( x => x ) )
 		{
-			IncludeFile( System.IO.Path.Combine( fullname, file ) );
+			IncludeFile( file );
 		}
 	}
 }

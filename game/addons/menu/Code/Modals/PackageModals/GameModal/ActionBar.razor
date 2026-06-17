@@ -15,11 +15,11 @@
 
 	    @if ( IsDedicatedServerOnly )
 	    {
-		    <Button icon="list" class="@(LobbyCount == 0 ? "disabled" : "")" onclick=@OpenLobbyList>@LobbyCount Servers</Button>
+		    <Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Servers</Button>
 	    }
 	    else if ( IsMultiplayerGame )
         {
-            <Button icon="list" class="@(LobbyCount == 0 ? "disabled" : "")" onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
+			<Button icon="list" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OpenLobbyList>@LobbyCount Lobbies</Button>
         }
 
     </div>
@@ -40,6 +40,13 @@
                 }
             }
 
+            @if ( Package.Info.IsStreamerGame )
+            {
+                var text = Streamer.IsActive ? $"{Streamer.ViewerCount} Viewers" : "Stream Setup";
+
+                <Button Active=@Streamer.IsActive Text="@text" Icon="settings_input_antenna" class="streaming" @onclick="@(() => Game.Overlay.ShowServiceConnector())"></Button>
+            }
+
             @if (IsVrOnly && !Application.IsVR)
             {
                 <Button icon="panorama_photosphere" class="play disabled">VR Only</Button>
@@ -48,21 +55,17 @@
             {
 	            @if ( IsDedicatedServerOnly )
 	            {
-		            <Button icon="auto_awesome" class="play" onclick=@ShowServerList>Find Game</Button>
+					<Button icon="auto_awesome" class="play" Disabled=@(!MenuHelpers.HasAuthority) onclick=@ShowServerList>View Servers</Button>
 	            }
 	            else
 	            {
 		            var text = ((!IsMultiplayerGame || IsQuickPlayGame) ? "Play Game" : "New Game");
-		            var classes = $"play { (IsReady() ? "" : "disabled") } ";
 
-		            <Button Icon="play_arrow" class="@classes" onclick=@OnPlay>
-			            @text
-		            </Button>
+                    <Button Icon="play_arrow" class="play" Text=@text Disabled=@(!MenuHelpers.HasAuthority || !IsReady()) onclick=@OnPlay />
 
 		            @if (IsMultiplayerGame && !IsQuickPlayGame)
 		            {
-			            var mpclasses = $"play {(LobbyCount == 0 ? "disabled" : "")} ";
-			            <Button icon="auto_awesome" class="@mpclasses" onclick=@OnJoinGame>Join Game</Button>
+                        <Button icon="auto_awesome" class="play" Disabled=@(LobbyCount == 0 || !MenuHelpers.HasAuthority) onclick=@OnJoinGame Text="Join Game"></Button>
 		            }
 	            }
             }
@@ -81,17 +84,17 @@
     [Parameter] public Package Package {get;set;}
     [Parameter] public Package MapPackage { get; set; }
 
-    protected override int BuildHash () => System.HashCode.Combine( Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount );
+    protected override int BuildHash() => System.HashCode.Combine(Package, Modal?.HasFullPackage, IsVrOnly, IsMultiplayerGame, LobbyCount, MenuHelpers.HasAuthority, Streamer.IsActive, Streamer.ViewerCount);
 
-    bool IsVrOnly => Package.GetMeta<ControlModeSettings>("ControlModes")?.IsVROnly ?? false;
-    bool IsMultiplayerGame => Package.Tags.Contains("multiplayer") || LobbyCount > 0 || Package.GetMeta<int>("MaxPlayers", 1) > 1;
-    bool IsQuickPlayGame => Package.GetMeta( "LaunchMode", "default" ).ToLower() == "quickplay";
-    bool IsDedicatedServerOnly => Package.GetMeta( "LaunchMode", "default" ).ToLower() == "dedicatedserveronly";
+    bool IsVrOnly => Package.Info.IsVrOnly;
+    bool IsMultiplayerGame => Package.Tags.Contains("multiplayer") || LobbyCount > 0 || Package.Info.MaxPlayers > 1;
+    bool IsQuickPlayGame => Package.Info.IsQuickPlay;
+    bool IsDedicatedServerOnly => Package.Info.IsDedicatedServerOnly;
     int LobbyCount => Modal?.Lobbies?.Count() ?? 0;
 
     protected override async Task OnParametersSetAsync()
     {
-        var map = Package.GetValue("DefaultMap", "");
+        var map = Package.Info.DefaultMap;
         if ( !string.IsNullOrWhiteSpace(map ) )
         {
             MapPackage = await Package.FetchAsync(map, false);
@@ -100,14 +103,14 @@
 
     private void ShowServerList()
     {
-	    MenuUtility.CloseAllModals();
+        MenuUtility.CloseAllModals();
 
-	    this.Navigate( $"/multiplayer?Package={Package.FullIdent}" );
+        MenuSystem.Instance.Url = $"/multiplayer?Package={Package.FullIdent}";
     }
 
     void OnPlay()
     {
-        MenuHelpers.PlayGame( Package );
+		MenuHelpers.PlayGame( Package, MapPackage );
     }
 
     async Task<bool> OnJoinGame()
@@ -116,7 +119,13 @@
         LoadingScreen.Title = "Finding Game..";
         LoadingScreen.Subtitle = "Please wait while we find a game for you to join.";
 
-        return await MenuUtility.TryJoinLobby(Package.FullIdent);
+        bool success = await MenuUtility.TryJoinLobby(Package.FullIdent);
+        if (success)
+            return true;
+            
+        LoadingScreen.IsVisible = false;
+        ModalSystem.Instance.Notice( "Join Game Failed", "Couldn't join any available games", "search_off" );
+        return false;
     }
 
     void OpenLobbyList()
@@ -128,17 +137,16 @@
     {
         if (Package is null) return false;
 
-        if ( Package.GetValue( "UseCreateGameModal", false ) )
+        if ( Package.Info.UsesCreateGameModal )
             return false;
 
-        var settings = Package.GetMeta<List<GameSetting>>( "GameSettings", null );
-        if ( settings is not null && settings.Count > 0 )
+        if ( Package.Info.HasGameSettings )
             return false;
 
-        if (Package.GetValue("NeedsMap", false)) return true;
+        if ( Package.Info.NeedsMap ) return true;
 
         // legacy
-        var launchMode = Package.GetMeta("LaunchMode", "default");
+        var launchMode = Package.Info.LaunchMode;
         return string.Equals(launchMode, "launcher", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -150,7 +158,7 @@
 
     void SelectMap()
     {
-        var mapTarget = Package.GetValue("MapTarget", Package.FullIdent);
+        var mapTarget = Package.Info.MapTarget;
 
         Game.Overlay.ShowPackageSelector($"type:map sort:popular target:{mapTarget}", (pkg) =>
         {

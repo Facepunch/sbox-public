@@ -33,3 +33,25 @@ public struct MountInfo
 		Mounted = e.IsMounted;
 	}
 }
+
+/// <summary>
+/// Information about a mount resource
+/// </summary>
+public struct MountResourceInfo
+{
+	/// <inheritdoc cref="ResourceLoader.Path" />
+	public string Path { get; init; }
+
+	/// <inheritdoc cref="ResourceLoader.Name" />
+	public string Name { get; init; }
+
+	/// <inheritdoc cref="ResourceLoader.Flags" />
+	public ResourceFlags Flags { get; init; }
+
+	public MountResourceInfo( ResourceLoader e )
+	{
+		Name = e.Name;
+		Path = e.Path;
+		Flags = e.Flags;
+	}
+}

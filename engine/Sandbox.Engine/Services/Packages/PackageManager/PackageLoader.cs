@@ -42,6 +42,7 @@ internal sealed partial class PackageLoader : IDisposable
 	{
 		log = new Logger( $"PackageLoader/{name}" );
 		LoadContext = new LoadContext( parentAssembly );
+		LoadContext.OnDemandResolver = ResolveAssemblyOnDemand;
 		// ILHotload only makes sense for the editor
 		if ( Application.IsEditor || Application.IsUnitTest )
 		{
@@ -378,13 +379,26 @@ internal sealed partial class PackageLoader : IDisposable
 		//
 		foreach ( var child in ap.Package.EnumeratePackageReferences() )
 		{
+			if ( PackageManager.Find( child, true, false ) == null )
+			{
+				log.Warning( $"LoadPackage: skipping missing dependency '{child}'" );
+				continue;
+			}
+
 			LoadPackage( child );
 		}
 
-		var parent = ap.Package.GetMeta<string>( "ParentPackage", null );
+		var parent = ap.Package.Info.ParentPackage;
 		if ( !string.IsNullOrWhiteSpace( parent ) && Package.TryParseIdent( parent, out var _ ) )
 		{
-			LoadPackage( parent );
+			if ( PackageManager.Find( parent, true, false ) != null )
+			{
+				LoadPackage( parent );
+			}
+			else
+			{
+				log.Warning( $"LoadPackage: skipping missing parent '{parent}'" );
+			}
 		}
 
 		try
@@ -408,28 +422,37 @@ internal sealed partial class PackageLoader : IDisposable
 	{
 		ArgumentNullException.ThrowIfNull( package );
 
-		var ordered = new AssemblyOrderer();
-
 		var assemblyList = package.AssemblyFileSystem.FindFile( "", "*.dll", true ).ToArray();
 
-		foreach ( var assemblyName in assemblyList.OrderBy( x => x.Length ) ) // TODO - we'll have to deal with this at some point
+		foreach ( var assemblyName in assemblyList )
 		{
-			// don't load editor dlls here unless we're in tools mode
 			if ( assemblyName.EndsWith( ".editor.dll", StringComparison.OrdinalIgnoreCase ) && !ToolsMode )
 				continue;
 
-			var fileName = assemblyName;
-			var bytes = package.AssemblyFileSystem.ReadAllBytes( fileName ).ToArray();
-			ordered.Add( fileName, bytes );
-		}
-
-		foreach ( (var name, var bytes) in ordered.GetDependencyOrdered() )
-		{
-			var result = LoadAssemblyFromPackage( package, name, bytes );
+			var result = LoadAssemblyFromPackage( package, assemblyName );
 
 			if ( result?.Assembly == null )
-				throw new System.Exception( $"Error loading {name}" );
+				throw new System.Exception( $"Error loading {assemblyName}" );
 		}
+	}
+
+	/// <summary>
+	/// Called by <see cref="LoadContext"/> when a dependency assembly can't be resolved through
+	/// normal means. Searches all active packages' assembly filesystems so imports are satisfied
+	/// on demand rather than requiring every dep to be pre-loaded upfront.
+	/// </summary>
+	private Assembly ResolveAssemblyOnDemand( string assemblyName )
+	{
+		foreach ( var ap in PackageManager.ActivePackages )
+		{
+			var filename = $"{assemblyName}.dll";
+			if ( ap.AssemblyFileSystem?.FileExists( filename ) != true ) continue;
+
+			var result = LoadAssemblyFromPackage( ap, filename );
+			return result?.Assembly;
+		}
+
+		return null;
 	}
 
 	LoadedAssembly AddAssembly( Package package, string assemblyName, TrustedBinaryStream dllStream, byte[] codeArchive )
@@ -504,16 +527,7 @@ internal sealed partial class PackageLoader : IDisposable
 
 			if ( !ToolsMode )
 			{
-				try
-				{
-					var ft = FastTimer.StartNew();
-					ReflectionUtility.PreJIT( incoming.Assembly );
-					Log.Trace( $"PreJit {incoming.Name} took {ft.Elapsed.TotalSeconds:0.00}" );
-				}
-				catch ( Exception ex )
-				{
-					Log.Warning( ex, $"{ex.GetType().Name} thrown while calling PreJIT on {incoming.Name} ({ex.Message})" );
-				}
+				_ = ReflectionUtility.PreJITAsync( incoming.Assembly );
 			}
 
 			//

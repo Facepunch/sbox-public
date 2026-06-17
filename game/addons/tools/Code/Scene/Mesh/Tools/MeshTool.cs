@@ -40,7 +40,6 @@ public partial class MeshTool : EditorTool
 		yield return new VertexTool( this );
 		yield return new EdgeTool( this );
 		yield return new FaceTool( this );
-		yield return new TextureTool( this );
 		yield return new VertexPaintTool( this );
 		yield return new DisplacementTool( this );
 	}
@@ -50,7 +49,7 @@ public partial class MeshTool : EditorTool
 		base.OnEnabled();
 
 		AllowGameObjectSelection = false;
-		AllowContextMenu = false;
+		AllowContextMenu = true;
 
 		Selection.Clear();
 
@@ -68,6 +67,17 @@ public partial class MeshTool : EditorTool
 	public override void OnSelectionChanged()
 	{
 		CurrentTool?.OnSelectionChanged();
+	}
+
+	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
+	{
+		menu.AddSeparator();
+		AddMenuOption( menu, "Frame Selection", "center_focus_strong", FrameSelectionFromShortcut, "mesh.frame-selection", true );
+	}
+
+	private static void FrameSelectionFromShortcut()
+	{
+		InvokeShortcut( "mesh.frame-selection" );
 	}
 
 	[Shortcut( "tools.mesh-tool", "m", typeof( SceneViewWidget ) )]

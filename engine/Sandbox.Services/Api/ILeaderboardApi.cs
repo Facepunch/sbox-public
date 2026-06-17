@@ -6,10 +6,10 @@ public partial class ServiceApi
 {
 	public interface ILeaderboardApi
 	{
-		[Get( "/package/leaderboard/" )]
+		[Get( "/package/leaderboard/2/" )]
 		Task<LeaderboardResponseEx> Query( LeaderboardQuery query );
 
-		[Get( "/package/leaderboard/{package}/{leaderboard}/u/{steamid}/{mode}" )]
+		[Get( "/package/leaderboard/1/{package}/{leaderboard}/u/{steamid}/{mode}" )]
 		Task<LeaderboardResponseLegacy> QueryLegacy( string package, string leaderboard, long steamid, string mode, [Query] int take = 20 );
 	}
 }
@@ -79,7 +79,7 @@ public class LeaderboardResponseEx
 		public string CountryCode { get; set; }
 		public string DisplayName { get; set; }
 		public DateTimeOffset Timestamp { get; set; }
-		public Dictionary<string, object> Data { get; set; }
+		public string DataUrl { get; set; }
 	}
 
 	public string Stat { get; set; }

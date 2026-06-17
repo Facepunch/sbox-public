@@ -30,7 +30,6 @@ public sealed unsafe partial class CommandList
 		Enabled = true;
 
 		Attributes = new AttributeAccess( this, GetLocalAttributes );
-		GlobalAttributes = new AttributeAccess( this, GetFrameAttributes );
 	}
 
 	public CommandList( string debugName ) : this()
@@ -40,8 +39,7 @@ public sealed unsafe partial class CommandList
 
 	/// <summary>
 	/// Holds the function and state data for a single command. 
-	/// We should FIGHT to keep this as small as possible. Every byte
-	/// you add to this makes it WORSE.
+	/// Target: fit within 2 cache lines (128 bytes).
 	/// </summary>
 	struct Entry
 	{
@@ -60,18 +58,25 @@ public sealed unsafe partial class CommandList
 		public Vector4 Data1;
 		public Vector4 Data2;
 		public Vector4 Data3;
+		public Vector4 Data4;
 	}
 
 	/// <summary>
-	/// An ordered list of entries that will execute on the render thread.
+	/// An ordered list of entries that will execute on the render thread. All access (record and
+	/// execute) is serialized by <see cref="_lock"/> - recording and executing the same list from
+	/// two threads at once is caller misuse, but the lock guarantees it can't crash or corrupt state.
 	/// </summary>
 	readonly List<Entry> _entries = new List<Entry>( 8 );
+
+
 
 	[System.Runtime.CompilerServices.MethodImpl( System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining )]
 	void AddEntry( delegate*< ref Entry, CommandList, void > execute, Entry data )
 	{
 		data.Execute = execute;
-		_entries.Add( data );
+
+		lock ( _lock )
+			_entries.Add( data );
 	}
 
 	[Obsolete]
@@ -116,9 +121,13 @@ public sealed unsafe partial class CommandList
 
 	public void Reset()
 	{
-		GlobalAttributes.ClearRenderTargets();
-		Attributes.ClearRenderTargets();
-		_entries.Clear();
+		// Serialize against execution: clearing the entry list or the render-target cache while
+		// another thread is mid-execute would corrupt them. The lock makes that safe.
+		lock ( _lock )
+		{
+			Attributes.ClearRenderTargets();
+			_entries.Clear();
+		}
 	}
 
 	public void Blit( Material material, RenderAttributes attributes = null )
@@ -218,9 +227,11 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.Attributes.Set( entry.Token, (Matrix)entry.Object2 );
+			Graphics.Attributes.Set( entry.Token, Unsafe.As<Vector4, Matrix>( ref entry.Data1 ) );
 		}
-		AddEntry( &Execute, new Entry { Token = token, Object2 = matrix } );
+		var e = new Entry { Token = token };
+		Unsafe.As<Vector4, Matrix>( ref e.Data1 ) = matrix;
+		AddEntry( &Execute, e );
 	}
 
 	[Obsolete]
@@ -367,9 +378,11 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			Graphics.FrameAttributes.Set( entry.Token, (Matrix)entry.Object2 );
+			Graphics.FrameAttributes.Set( entry.Token, Unsafe.As<Vector4, Matrix>( ref entry.Data1 ) );
 		}
-		AddEntry( &Execute, new Entry { Token = token, Object2 = matrix } );
+		var e = new Entry { Token = token };
+		Unsafe.As<Vector4, Matrix>( ref e.Data1 ) = matrix;
+		AddEntry( &Execute, e );
 	}
 
 	[Obsolete]
@@ -418,10 +431,15 @@ public sealed unsafe partial class CommandList
 			var previousState = other.state;
 			other.state = commandList.state;
 
-			for ( int i = 0; i < other._entries.Count; i++ )
+			// Lock the inserted list while we iterate it, so it can't be recorded/reset out from
+			// under us on another thread.
+			lock ( other._lock )
 			{
-				var e = other._entries[i];
-				e.Execute( ref e, other );
+				for ( int i = 0; i < other._entries.Count; i++ )
+				{
+					var e = other._entries[i];
+					e.Execute( ref e, other );
+				}
 			}
 
 			other.state = previousState;
@@ -519,6 +537,28 @@ public sealed unsafe partial class CommandList
 			Data2 = new Vector4( transform.Scale.y, transform.Scale.z, transform.Rotation.x, transform.Rotation.y ),
 			Data3 = new Vector4( transform.Rotation.z, transform.Rotation.w, 0, 0 )
 		} );
+	}
+
+	/// <summary>
+	/// Draws multiple instances of a model using GPU instancing at a specific LOD level.
+	///
+	/// Use `GetTransformMatrix( int instance )` in shaders to access the instance transform.
+	///
+	/// There is a limit of 1,048,576 transform slots per frame when using this method.
+	/// </summary>
+	/// <param name="model">The model to draw</param>
+	/// <param name="transforms">Instance transform data to draw</param>
+	/// <param name="lodLevel">LOD level to render (0 = highest detail)</param>
+	/// <param name="attributes">Optional attributes to apply only for this draw call</param>
+	public void DrawModelInstanced( Model model, Span<Transform> transforms, int lodLevel, RenderAttributes attributes = null )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.DrawModelInstanced( (Model)entry.Object1, ((Transform[])entry.Object5).AsSpan(), (int)entry.Data1.x, (RenderAttributes)entry.Object2 );
+		}
+
+		var transformsCopy = transforms.ToArray();
+		AddEntry( &Execute, new Entry { Object1 = model, Object5 = transformsCopy, Data1 = new Vector4( lodLevel, 0, 0, 0 ), Object2 = attributes } );
 	}
 
 	/// <summary>
@@ -732,6 +772,9 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
+			// Pass the name as the pool's targetName so this handle maps to a stable physical texture
+			// across frames. Without it, any RT of matching dimensions/format shares one pool bucket and
+			// the name->texture mapping can shuffle frame-to-frame (breaking temporal/history buffers).
 			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.y, (ImageFormat)(int)entry.Data1.x, depthFormat: ImageFormat.None, numMips: (int)entry.Data1.z );
 			commandList.state.renderTargets[(string)entry.Object5] = temp;
 		}
@@ -754,7 +797,7 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.x, (ImageFormat)(int)entry.Data1.y, (ImageFormat)(int)entry.Data1.z, (MultisampleAmount)(int)entry.Data1.w, (int)entry.Data2.x );
+			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.x, (ImageFormat)(int)entry.Data1.y, (ImageFormat)(int)entry.Data1.z, (MultisampleAmount)(int)entry.Data1.w, (int)entry.Data2.x, targetName: (string)entry.Object5 );
 			commandList.state.renderTargets[(string)entry.Object5] = temp;
 		}
 
@@ -777,7 +820,7 @@ public sealed unsafe partial class CommandList
 	{
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
-			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.x, (int)entry.Data1.y, (ImageFormat)(int)entry.Data1.z, (ImageFormat)(int)entry.Data1.w, (MultisampleAmount)(int)entry.Data2.x, (int)entry.Data2.y );
+			var temp = Sandbox.RenderTarget.GetTemporary( (int)entry.Data1.x, (int)entry.Data1.y, (ImageFormat)(int)entry.Data1.z, (ImageFormat)(int)entry.Data1.w, (MultisampleAmount)(int)entry.Data2.x, (int)entry.Data2.y, targetName: (string)entry.Object5 );
 			commandList.state.renderTargets[(string)entry.Object5] = temp;
 		}
 
@@ -857,6 +900,37 @@ public sealed unsafe partial class CommandList
 	/// </summary>
 	[Obsolete]
 	public void SetGlobal( StringToken token, RenderTargetHandle.ColorIndexRef buffer ) => GlobalAttributes.Set( token, buffer );
+
+	/// <summary>
+	/// Binds the given render target's color texture to a stable, pipeline-level bindless slot
+	/// for this frame. This is how full-screen pipeline resources (ambient occlusion, screen-space
+	/// reflections) are published to the rest of the pipeline: consumers read a fixed descriptor
+	/// binding rather than a per-view render attribute. Because procedural layers build their
+	/// command lists on threaded jobs, writing the result index into the shared frame attributes
+	/// would race - this fixed slot is resolved single-threaded at submit, so it doesn't.
+	/// </summary>
+	internal void SetPipelineTexture( PipelineTextureSlot slot, RenderTargetHandle.ColorTextureRef buffer )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			if ( commandList.state.GetRenderTarget( (string)entry.Object5 ) is not { } target )
+			{
+				Log.Warning( $"[{commandList.DebugName ?? "CommandList"}] Unknown rt: {(string)entry.Object5}" );
+				return;
+			}
+
+			NativeEngine.CSceneSystem.SetPipelineTextureIndex( (int)entry.Data1.x, target.ColorTarget.Index );
+		}
+
+		// Dont write out of bounds of the pipeline slots
+		if ( slot < 0 || slot >= PipelineTextureSlot.Count )
+		{
+			Log.Warning( $"[{DebugName ?? "CommandList"}] Invalid pipeline texture slot: {(int)slot}" );
+			return;
+		}
+
+		AddEntry( &Execute, new Entry { Object5 = buffer.Name, Data1 = new Vector4( (int)slot, 0, 0, 0 ) } );
+	}
 
 
 	/// <inheritdoc cref="ComputeShader.Dispatch(int, int, int)"/>
@@ -1167,6 +1241,35 @@ public sealed unsafe partial class CommandList
 	}
 
 	/// <summary>
+	/// Issues a UAV barrier for the color texture of the given render target handle, ensuring writes
+	/// from prior shader invocations are visible to subsequent ones without changing the resource layout.
+	/// Use this for a UAV (RWTexture) that is written in one pass and read back as a UAV in a later pass,
+	/// where the layout doesn't change and a plain transition wouldn't emit a barrier.
+	/// </summary>
+	/// <param name="texture">The render target color handle.</param>
+	public void UavBarrier( RenderTargetHandle.ColorTextureRef texture )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			if ( commandList.state.GetRenderTarget( (string)entry.Object5 ) is not { } target )
+			{
+				Log.Warning( $"[{commandList.DebugName ?? "CommandList"}] Unknown rt: {(string)entry.Object5}" );
+				return;
+			}
+
+			Graphics.UavBarrier( target.ColorTarget );
+		}
+
+		AddEntry( &Execute, new Entry { Object5 = texture.Name } );
+	}
+
+	/// <summary>
+	/// Issues a UAV barrier for the color texture of the given render target handle.
+	/// </summary>
+	/// <param name="handle">The render target handle.</param>
+	public void UavBarrier( RenderTargetHandle handle ) => UavBarrier( handle.ColorTexture );
+
+	/// <summary>
 	/// Issues a UAV barrier for the given GPU buffer, ensuring writes from prior shader invocations
 	/// are visible to subsequent ones.
 	/// </summary>
@@ -1179,6 +1282,42 @@ public sealed unsafe partial class CommandList
 		}
 
 		AddEntry( &Execute, new Entry { Object1 = buffer } );
+	}
+
+	/// <summary>
+	/// Sets up per-object lighting for the given scene object. Writes lighting state
+	/// into <see cref="Graphics.Attributes"/> at execution time.
+	/// </summary>
+	internal void SetupLighting( SceneObject obj, RenderAttributes attr = null )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.SetupLighting( (SceneObject)entry.Object1, (RenderAttributes)entry.Object2 );
+		}
+
+		AddEntry( &Execute, new Entry { Object1 = obj, Object2 = attr } );
+	}
+
+	/// <summary>
+	/// Uploads data from an array to a GPU buffer at execution time.
+	/// Zero-copy: the array reference is stored directly without copying.
+	/// The caller must ensure the array contents remain stable until the command list
+	/// has finished executing (i.e. until the next <see cref="Reset"/> call).
+	/// </summary>
+	internal void SetBufferData<T>( GpuBuffer<T> buffer, T[] data, int sourceOffset = 0, int count = -1, int elementOffset = 0 ) where T : unmanaged
+	{
+		if ( count < 0 ) count = data.Length - sourceOffset;
+
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			var buf = (GpuBuffer<T>)entry.Object1;
+			var arr = (T[])entry.Object2;
+			int srcOffset = (int)entry.Data1.z;
+			int length = (int)entry.Data1.y;
+			buf.SetData( arr.AsSpan( srcOffset, length ), (int)entry.Data1.x );
+		}
+
+		AddEntry( &Execute, new Entry { Object1 = buffer, Object2 = data, Data1 = new Vector4( elementOffset, count, sourceOffset, 0 ) } );
 	}
 
 	/// <summary>
@@ -1259,17 +1398,19 @@ public sealed unsafe partial class CommandList
 	/// <param name="scope">The text rendering scope.</param>
 	/// <param name="rect">The rectangle to draw the text in.</param>
 	/// <param name="flags">Text alignment flags (optional).</param>
-	public void DrawText( TextRendering.Scope scope, Rect rect, TextFlag flags = TextFlag.LeftTop )
+	/// <param name="angleDegrees">Rotation angle in degrees (optional).</param>
+	public void DrawText( TextRendering.Scope scope, Rect rect, TextFlag flags = TextFlag.LeftTop, float angleDegrees = 0f )
 	{
 		// Resolve the TextBlock at entry-add time so we store a class reference instead of
 		// boxing the Scope struct and TextFlag enum into object fields.
 		var tb = TextRendering.GetOrCreateTextBlock( scope, flags, 8096 );
-		if ( tb is null ) return; // headless
+		if ( tb is null ) return;
 
 		static void Execute( ref Entry entry, CommandList commandList )
 		{
 			var position = new Rect( entry.Data1.x, entry.Data1.y, entry.Data1.z, entry.Data1.w );
 			var flags = (TextFlag)(int)entry.Data2.x;
+			var angle = entry.Data2.y;
 			var tb = (TextRendering.TextBlock)entry.Object1;
 
 			// MakeReady resets TimeSinceUsed, preventing Tick() from evicting this block
@@ -1279,14 +1420,18 @@ public sealed unsafe partial class CommandList
 			Graphics.Attributes.Set( "SamplerIndex", SamplerState.GetBindlessIndex( new SamplerState() { Filter = tb.FilterMode } ) );
 
 			var rect = position.Align( tb.Texture.Size, flags );
-			Graphics.DrawQuad( rect.Floor(), Material.UI.Text, Color.White );
+
+			if ( angle == 0f )
+				Graphics.DrawQuad( rect.Floor(), Material.UI.Text, Color.White );
+			else
+				Graphics.DrawQuad( rect.Floor(), angle, Material.UI.Text, Color.White );
 		}
 
 		AddEntry( &Execute, new Entry
 		{
 			Object1 = tb,
 			Data1 = new Vector4( rect.Left, rect.Top, rect.Width, rect.Height ),
-			Data2 = new Vector4( (float)(int)flags, 0, 0, 0 )
+			Data2 = new Vector4( (float)(int)flags, angleDegrees, 0, 0 )
 		} );
 	}
 }

@@ -53,11 +53,6 @@ public struct FindPackageQuery
 	public string SearchString;
 
 	/// <summary>
-	/// References this package id
-	/// </summary>
-	public long WithReference;
-
-	/// <summary>
 	/// Org name
 	/// </summary>
 	public string Org;
@@ -66,6 +61,11 @@ public struct FindPackageQuery
 	/// Must contain all tags
 	/// </summary>
 	public List<string> WithTag;
+
+	/// <summary>
+	/// Must NOT contain any of these tags
+	/// </summary>
+	public List<string> WithoutTag;
 
 	/// <summary>
 	/// In contest
@@ -93,6 +93,17 @@ public struct FindPackageQuery
 	public bool Unplayed;
 
 	/// <summary>
+	/// Hide games/maps tagged "incomplete" in the index (low-effort, near-empty storefront).
+	/// Set by the "is:complete" query token — used by curated shelves like Up and Coming.
+	/// </summary>
+	public bool RequireComplete;
+
+	/// <summary>
+	/// Show hidden/banned packages
+	/// </summary>
+	public bool IsModerator;
+
+	/// <summary>
 	/// Facets like Category:Wall
 	/// </summary>
 	public Dictionary<string, string> Facets;
@@ -106,10 +117,10 @@ public struct FindPackageQuery
 		Random,
 		Trending,
 
+		FavouriteCount,
 		ThumbsUp,
 		ThumbsDown,
-		Favourites,
-		InCollections,
+		InCollections_REMOVEME,
 
 		/// <summary>
 		/// Order by recently used
@@ -130,18 +141,38 @@ public struct FindPackageQuery
 		/// <summary>
 		/// No sorting
 		/// </summary>
-		None
+		None,
+
+		/// <summary>Sort by Wilson lower bound on review proportion — "best rated".</summary>
+		BestRated,
+
+		/// <summary>Sort by total review count — "most reviewed".</summary>
+		MostReviewed,
+
+		/// <summary>Composite quality score — popularity, reviews, engagement, freshness.</summary>
+		Quality,
+
+		/// <summary>Well-reviewed but low-traffic packages.</summary>
+		HiddenGem,
+
+		/// <summary>"Because you played X" — packages co-played by users with similar history.</summary>
+		Recommended,
+
+		/// <summary>
+		/// Games/maps the user has played that have been published since they last played,
+		/// ranked by likely interest (playtime × recency). Needs SteamId.
+		/// </summary>
+		UpdatedSincePlayed,
 	}
 
-	public static FindPackageQuery Parse( string query )
+	public static FindPackageQuery Parse( string query, long steamid )
 	{
 		if ( string.IsNullOrWhiteSpace( query ) )
 			return default;
 
 		var find = new FindPackageQuery
 		{
-			GetTotalCount = true,
-			GetFacets = true
+			SteamId = steamid
 		};
 
 		var tokens = query.ToLowerInvariant().Split( ' ', StringSplitOptions.RemoveEmptyEntries );
@@ -165,16 +196,20 @@ public struct FindPackageQuery
 
 			// Handle key:value pairs
 			var colonIndex = token.IndexOf( ':' );
-			if ( colonIndex > 0 && colonIndex < token.Length - 1 )
+			if ( colonIndex >= 0 )
 			{
-				var key = token[..colonIndex];
-				var value = token[(colonIndex + 1)..].Trim();
-
-				if ( !ProcessToken( ref find, key, value ) )
+				// ignore malformed tokens like "org:" or ":org"
+				if ( colonIndex > 0 && colonIndex < token.Length - 1 )
 				{
-					// Unknown tokens become facets
-					find.Facets ??= new();
-					find.Facets[key] = value;
+					var key = token[..colonIndex];
+					var value = token[(colonIndex + 1)..].Trim();
+
+					if ( !ProcessToken( ref find, key, value ) )
+					{
+						// Unknown tokens become facets
+						find.Facets ??= new();
+						find.Facets[key] = value;
+					}
 				}
 			}
 			else
@@ -200,10 +235,12 @@ public struct FindPackageQuery
 				return true;
 
 			case "sort":
-				if ( value == "favourite" )
+
+				// TODO: this needs to move to "is:fave"
+				if ( value == "favourite" || value == "favourites" || value == "favorites" || value == "favorite" )
 				{
 					find.FavouritesSteamId = find.SteamId;
-					find.Sort = SortMode.None;
+					find.Sort = SortMode.Used;
 				}
 				else
 				{
@@ -232,8 +269,15 @@ public struct FindPackageQuery
 				return true;
 
 			case "is":
+
 				if ( value == "unplayed" )
 					find.Unplayed = true;
+
+				if ( value == "complete" )
+					find.RequireComplete = true;
+
+				if ( value == "fave" )
+					find.FavouritesSteamId = find.SteamId;
 				// Note: "owner" case was tracked but never used in original
 				return true;
 
@@ -266,17 +310,17 @@ public struct FindPackageQuery
 		}
 	}
 
-	private static SortMode ParseSortMode( string sort )
+	public static SortMode ParseSortMode( string sort )
 	{
 		return sort switch
 		{
 			"live" or "referenced" or "referencing" or "user" or "used" or "played" => SortMode.Used,
+			"revisit" or "updatedsinceplayed" => SortMode.UpdatedSincePlayed,
 			"oldest" => SortMode.Created, // TODO: might need reverse order flag
 			"newest" => SortMode.Created,
 			"upvotes" => SortMode.ThumbsUp,
 			"downvotes" => SortMode.ThumbsDown,
-			"favourite" or "favorites" or "favourites" => SortMode.Favourites,
-			"collections" => SortMode.InCollections,
+			"favcount" => SortMode.FavouriteCount,
 			"friends" => SortMode.Friends,
 			"random" => SortMode.Random,
 			"popular" => SortMode.Popular,
@@ -290,6 +334,12 @@ public struct FindPackageQuery
 			"spawnsweek" => SortMode.SpawnsWeek,
 			"spawnsmonth" => SortMode.SpawnsMonth,
 			"playersnow" => SortMode.PlayersNow,
+			"bestrated" or "rated" => SortMode.BestRated,
+			"mostreviewed" or "reviewed" => SortMode.MostReviewed,
+			"quality" => SortMode.Quality,
+			"hiddengem" or "underrated" => SortMode.HiddenGem,
+			// "spawns*" enum values exist for binary compat but have no Kusto-side
+			// implementation; deliberately not parsed so they're unreachable from URLs.
 			_ => SortMode.Popular // Default
 		};
 	}

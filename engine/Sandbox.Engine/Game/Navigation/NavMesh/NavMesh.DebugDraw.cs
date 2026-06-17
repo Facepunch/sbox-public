@@ -16,7 +16,7 @@ public sealed partial class NavMesh
 
 	internal static Vector3 debugDrawGroundOffset = new( 0, 0, 4f );
 
-	[ConVar( "nav_debug_draw_distance", ConVarFlags.Protected, Min = 0, Max = 40000f, Help = "Draw Distance of the nav mesh." )]
+	[ConVar( "nav_debug_draw_distance", ConVarFlags.Protected | ConVarFlags.Cheat, Min = 0, Max = 40000f, Help = "Draw Distance of the nav mesh." )]
 	private static float debugTileDrawDistance { get; set; } = 15000f;
 
 	private List<Line> debugTileBorders;

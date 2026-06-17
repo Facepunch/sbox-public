@@ -1,4 +1,4 @@
-<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc29:version{3cec427c-1b0e-4d48-a90a-0436f33a6041} -->
+<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc30:version{8c2d7a91-9c42-4bf0-883a-5a3b1762d4f1} -->
 {
 	rootNode = 
 	{
@@ -26,8 +26,18 @@
 				[
 					{
 						_class = "DefaultMaterialGroup"
-						remaps = [  ]
-						use_global_default = true
+						remaps = 
+						[
+							{
+								from = "summer_shorts_lod0sg.vmat"
+								to = "models/citizen_clothes/shorts/summer_shorts/textures/summer_shorts.vmat"
+							},
+							{
+								from = "citizen_skin.vmat"
+								to = "models/citizen/skin/citizen_skin01.vmat"
+							},
+						]
+						use_global_default = false
 						global_default_material = "models/citizen_clothes/shorts/summer_shorts/textures/summer_shorts.vmat"
 					},
 				]
@@ -120,6 +130,23 @@
 							]
 						}
 					},
+					{
+						_class = "RenderMeshFile"
+						name = "Cut_Legs"
+						filename = "models/citizen_clothes/shorts/boxing_shorts/Models/citizen_cut_legs.fbx"
+						import_translation = [ 0.0, 0.0, 0.0 ]
+						import_rotation = [ 0.0, 0.0, 0.0 ]
+						import_scale = 1.0
+						align_origin_x_type = "None"
+						align_origin_y_type = "None"
+						align_origin_z_type = "None"
+						parent_bone = ""
+						import_filter = 
+						{
+							exclude_by_default = false
+							exception_list = [  ]
+						}
+					},
 				]
 			},
 			{
@@ -132,6 +159,7 @@
 						meshes = 
 						[
 							"summer_shorts_LOD0",
+							"Cut_Legs",
 						]
 					},
 					{
@@ -140,6 +168,7 @@
 						meshes = 
 						[
 							"summer_shorts_LOD1",
+							"Cut_Legs",
 						]
 					},
 					{
@@ -148,6 +177,7 @@
 						meshes = 
 						[
 							"summer_shorts_LOD2",
+							"Cut_Legs",
 						]
 					},
 					{
@@ -156,6 +186,7 @@
 						meshes = 
 						[
 							"summer_shorts_LOD3",
+							"Cut_Legs",
 						]
 					},
 				]

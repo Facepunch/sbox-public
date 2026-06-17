@@ -94,6 +94,8 @@ public static class SceneEditorExtensions
 
 			if ( self.ControlMode != "firstperson" )
 			{
+				EditorShortcuts.ReleaseAll();
+
 				delta = 0;
 				self.ControlMode = "firstperson";
 				self.StompCursorPosition( Application.CursorPosition );
@@ -218,6 +220,7 @@ public static class SceneEditorExtensions
 			}
 
 			cameraTarget = default;
+			moved = true;
 		}
 
 		if ( cameraTarget.HasValue )

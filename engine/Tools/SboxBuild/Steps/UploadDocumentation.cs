@@ -1,7 +1,7 @@
-﻿using System.Text;
+﻿using Facepunch.AssemblySchema;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Facepunch.AssemblySchema;
 using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
@@ -37,7 +37,7 @@ internal class UploadDocumentation( string name ) : Step( name )
 
 			using var http = new HttpClient();
 			http.Timeout = TimeSpan.FromMinutes( 5 );
-			var url = "https://services.facepunch.com/sbox/release/create";
+			var url = "https://public.facepunch.com/sbox/internal/release";
 
 			var payload = new
 			{

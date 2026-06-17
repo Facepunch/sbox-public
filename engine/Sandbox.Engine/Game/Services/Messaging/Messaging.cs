@@ -53,7 +53,14 @@ public static class Messaging
 	{
 		while ( incoming.Reader.TryRead( out var msg ) )
 		{
-			OnMessage?.Invoke( msg );
+			try
+			{
+				OnMessage?.Invoke( msg );
+			}
+			catch ( System.Exception e )
+			{
+				Log.Warning( e );
+			}
 		}
 	}
 

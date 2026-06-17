@@ -306,11 +306,10 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 			throw new ArgumentException( "Couldn't load json" );
 		}
 
+		using var blobs = BlobDataSerializer.Load( BinaryData, ResourcePath );
+
 		JsonUpgrade( jso );
 		jso.Remove( "__version" );
-
-		// Load binary data for deserialization
-		using var blobs = BlobDataSerializer.Load( BinaryData, ResourcePath );
 
 		Deserialize( jso );
 

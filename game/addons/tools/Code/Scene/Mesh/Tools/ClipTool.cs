@@ -1,4 +1,3 @@
-
 namespace Editor.MeshEditor;
 
 [Alias( "tools.clip-tool" )]
@@ -23,6 +22,8 @@ public partial class ClipTool : EditorTool
 			if ( field == value ) return;
 			field = value;
 
+			EditorCookie.Set( "ClipTool.CapNewSurfaces", value );
+
 			ApplyClipPreview();
 		}
 	}
@@ -39,6 +40,9 @@ public partial class ClipTool : EditorTool
 		{
 			if ( field == value ) return;
 			field = value;
+
+
+			EditorCookie.Set( "ClipTool.KeepMode", value );
 
 			ApplyClipPreview();
 		}
@@ -72,7 +76,9 @@ public partial class ClipTool : EditorTool
 
 			foreach ( var group in Selection.OfType<MeshFace>().GroupBy( f => f.Component ) )
 			{
-				_targets[group.Key] = (group.Key.Mesh, [.. group.Select( f => f.Handle )]);
+				var selectedFaces = new HashSet<HalfEdgeMesh.FaceHandle>( group.Select( f => f.Handle ) );
+				var targetFaces = selectedFaces.Count == group.Key.Mesh.FaceHandles.Count() ? null : selectedFaces;
+				_targets[group.Key] = (group.Key.Mesh, targetFaces);
 			}
 		}
 
@@ -81,6 +87,9 @@ public partial class ClipTool : EditorTool
 
 	public override void OnEnabled()
 	{
+		KeepMode = EditorCookie.Get( "ClipTool.KeepMode", ClipKeepMode.Front );
+		CapNewSurfaces = EditorCookie.Get( "ClipTool.CapNewSurfaces", false );
+
 		Reset();
 		CacheSelectedMeshes();
 	}
@@ -276,11 +285,17 @@ public partial class ClipTool : EditorTool
 
 	void Apply()
 	{
+		Apply( true );
+	}
+
+	void Apply( bool closeTool = true )
+	{
 		if ( !CanApply ) return;
 
 		_applied = true;
 
 		var components = _targets.Keys.Where( x => x.IsValid() ).ToArray();
+		var selectAllFacesAfterApply = _faceSelection && _targets.Values.Any( x => x.Faces is null );
 
 		_newEdges.Clear();
 
@@ -294,7 +309,8 @@ public partial class ClipTool : EditorTool
 			.WithGameObjectCreations()
 			.Push() )
 		{
-			Selection.Clear();
+			if ( closeTool || _faceSelection )
+				Selection.Clear();
 
 			foreach ( var (component, data) in _targets.ToArray() )
 			{
@@ -303,14 +319,15 @@ public partial class ClipTool : EditorTool
 				if ( _faceSelection == false && KeepMode == ClipKeepMode.Both )
 				{
 					var newMesh = ApplyClipBoth( component, data.Faces );
-					Selection.Add( newMesh.GameObject );
+					if ( closeTool )
+						Selection.Add( newMesh.GameObject );
 				}
 				else
 				{
 					ApplyClip( component, _plane.Value, KeepMode, data.Faces );
 				}
 
-				if ( _faceSelection == false )
+				if ( closeTool && _faceSelection == false )
 				{
 					Selection.Add( component.GameObject );
 				}
@@ -318,19 +335,33 @@ public partial class ClipTool : EditorTool
 
 			if ( _faceSelection )
 			{
-				foreach ( var edge in _newEdges )
+				if ( selectAllFacesAfterApply )
 				{
-					if ( !edge.IsValid() )
-						continue;
+					foreach ( var (component, data) in _targets )
+					{
+						if ( !component.IsValid() || data.Faces is not null )
+							continue;
 
-					var mesh = edge.Component.Mesh;
-					mesh.GetFacesConnectedToEdge( edge.Handle, out var faceA, out var faceB );
+						foreach ( var face in component.Mesh.FaceHandles )
+							Selection.Add( new MeshFace( component, face ) );
+					}
+				}
+				else
+				{
+					foreach ( var edge in _newEdges )
+					{
+						if ( !edge.IsValid() )
+							continue;
 
-					if ( faceA.IsValid )
-						Selection.Add( new MeshFace( edge.Component, faceA ) );
+						var mesh = edge.Component.Mesh;
+						mesh.GetFacesConnectedToEdge( edge.Handle, out var faceA, out var faceB );
 
-					if ( faceB.IsValid )
-						Selection.Add( new MeshFace( edge.Component, faceB ) );
+						if ( faceA.IsValid )
+							Selection.Add( new MeshFace( edge.Component, faceA ) );
+
+						if ( faceB.IsValid )
+							Selection.Add( new MeshFace( edge.Component, faceB ) );
+					}
 				}
 			}
 
@@ -339,8 +370,16 @@ public partial class ClipTool : EditorTool
 		}
 
 		Reset();
+		_applied = false;
 
-		EditorToolManager.SetSubTool( _faceSelection ? nameof( FaceTool ) : nameof( ObjectSelection ) );
+		if ( closeTool )
+		{
+			EditorToolManager.SetSubTool( _faceSelection ? nameof( FaceTool ) : nameof( ObjectSelection ) );
+		}
+		else if ( _faceSelection )
+		{
+			CacheSelectedMeshes();
+		}
 	}
 
 	void Cancel()
@@ -469,5 +508,15 @@ public partial class ClipTool : EditorTool
 			foreach ( var v in mesh.GetEdges() )
 				Gizmo.Draw.Line( v );
 		}
+	}
+
+	void CycleMode()
+	{
+		KeepMode = KeepMode switch
+		{
+			ClipKeepMode.Front => ClipKeepMode.Back,
+			ClipKeepMode.Back => ClipKeepMode.Both,
+			_ => ClipKeepMode.Front
+		};
 	}
 }
