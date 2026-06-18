@@ -39,10 +39,11 @@
 	protected override void OnMouseUp(MousePanelEvent e)
 	{
 		base.OnMouseUp(e);
-
-		if ( popup.IsValid() )
+		
+		if ( popup is not null && popup.IsVisible )
 		{
 			popup.Delete();
+			popup = null;
 			return;
 		}
 

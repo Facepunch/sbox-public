@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 
 namespace Sandbox.Rendering;
@@ -7,6 +6,9 @@ public sealed partial class CommandList
 {
 	public unsafe class AttributeAccess
 	{
+		// Writes (Grab*Texture) and the clear (Reset) happen under the owning CommandList's _lock,
+		// so they're already serialized. GetRenderTarget is the only access not already under that
+		// lock, so it takes it explicitly - see below.
 		private readonly Dictionary<string, RenderTarget> _renderTargets = new();
 
 		internal Func<RenderAttributes> _get;
@@ -364,13 +366,18 @@ public sealed partial class CommandList
 		/// </summary>
 		public RenderTarget GetRenderTarget( string name )
 		{
-			if ( _renderTargets.TryGetValue( name, out var rt ) )
-				return rt;
-			return null;
+			// Serialize against execute-thread writes / Reset clears, which hold the CommandList's _lock.
+			lock ( list._lock )
+			{
+				if ( _renderTargets.TryGetValue( name, out var rt ) )
+					return rt;
+				return null;
+			}
 		}
 
 		internal void ClearRenderTargets()
 		{
+			// Caller (Reset) already holds the CommandList's _lock.
 			_renderTargets.Clear();
 		}
 	}

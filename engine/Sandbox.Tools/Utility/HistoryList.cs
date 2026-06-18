@@ -87,6 +87,9 @@ namespace Editor
 		/// </summary>
 		public bool Navigate( int delta )
 		{
+			if ( list.Count == 0 )
+				return false;
+
 			var target = (position + delta).Clamp( 0, list.Count - 1 );
 			if ( target == position )
 				return false;

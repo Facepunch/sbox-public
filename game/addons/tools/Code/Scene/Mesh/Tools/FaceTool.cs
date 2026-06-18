@@ -143,6 +143,7 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		menu.AddSeparator();
 
 		var ops = menu.AddMenu( "Face Operations", "build" );
+		AddMenuOption( ops, "Inset Faces", "filter_center_focus", "mesh.inset-tool", true );
 		AddMenuOption( ops, "Bridge Faces", "device_hub", "mesh.bridge-tool", true );
 		AddMenuOption( ops, "Thicken Faces", "layers", "mesh.thicken-faces", true );
 		AddMenuOption( ops, "Combine Faces", "join_full", "mesh.combine-faces", true );

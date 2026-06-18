@@ -35,11 +35,12 @@
 
             <separator class="vertical" />
 
-            <NotificationButton />
+            <NotificationButton Tooltip="Notifications" />
             <Button Tooltip="Favourited Games" Href="/games/group?Query=type:game sort:favourite&title=Favourite Games&Icon=💖" icon="favorite"></Button>
-            <Button @onmouseup=@Settings Icon="settings"></Button>
+			<Sandbox.UI.Mounts.MountButton Tooltip="Mounted Games" />
+			<Button @onmouseup=@Settings Tooltip="Settings" Icon="settings"/>
 
-            <Button onmouseup="@Quit" class="close" Icon="power_settings_new"></Button>
+			<Button onmouseup="@Quit" class="close" Tooltip="Quit" Icon="power_settings_new" />
         </div>
 
     </div>

@@ -124,6 +124,17 @@ public static partial class Game
 			IModalSystem.Current?.PackageSelect( query, onSelect, onFilterChanged );
 		}
 
+		/// <summary>
+		/// Opens a modal for selecting a map.
+		/// This can be either a map package from the workshop (an ident), or a scene from a mount (a path)
+		/// </summary>
+		public static void ShowMapSelector( Action<string> onSelect, string selected = null )
+		{
+			using var scope = GlobalContext.MenuScope();
+
+			IModalSystem.Current?.MapSelect( onSelect, selected );
+		}
+
 		[Obsolete( "Use ShowFriendsList with FriendsListModalOptions instead." )]
 		public static void ShowFriendsList() => ShowFriendsList( new() );
 

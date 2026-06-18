@@ -2,10 +2,13 @@
 
 namespace Facepunch.InteropGen.Parsers;
 
+/// <summary>
+/// Captures the braced native body of an inline function verbatim, tracking nesting so it stops at
+/// the matching closing brace.
+/// </summary>
 internal class BodyParser : BaseParser
 {
 	private readonly Function Func;
-	public bool IsNative { get; set; }
 
 	public BodyParser( Definition definition, Function f )
 	{
@@ -17,7 +20,9 @@ internal class BodyParser : BaseParser
 
 	public override void ParseLine( string line )
 	{
-		if ( line.Trim() == "{" )
+		string trimmed = line.Trim();
+
+		if ( trimmed == "{" )
 		{
 			Scopes++;
 
@@ -28,7 +33,7 @@ internal class BodyParser : BaseParser
 			}
 		}
 
-		if ( line.Trim() == "}" )
+		if ( trimmed == "}" )
 		{
 			Scopes--;
 
@@ -41,5 +46,4 @@ internal class BodyParser : BaseParser
 
 		_ = Func.Body.AppendLine( line );
 	}
-
 }

@@ -190,10 +190,17 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	//
 	// Editor Actions
 	//
+	internal bool IsSceneSaved => Scene?.Editor?.GetSceneFolder() is not null;
+
+	[ShowIf( nameof( IsSceneSaved ), false )]
+	[InfoBox( "Save the scene before baking indirect light volumes.", "warning", EditorTint.Yellow )]
+	[Button( "Bake", "lightbulb" ), ReadOnly]
+	public void BakeProbesUnavailableMessage() { }
 
 	/// <summary>
 	/// Starts the probe baking process to capture lighting into the volume textures.
 	/// </summary>
+	[ShowIf( nameof( IsSceneSaved ), true )]
 	[Button( "Bake", "lightbulb" )]
 	public async Task BakeProbes( CancellationToken ct = default )
 	{

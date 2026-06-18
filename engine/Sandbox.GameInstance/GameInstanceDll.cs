@@ -75,12 +75,15 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		ConVarSystem.AddAssembly( Game.GameAssembly, "game" );
 	}
 
-	public Task Initialize()
+	public async Task Initialize()
 	{
 		ResetEnvironment();
 		Networking.StartThread();
 
-		return Task.CompletedTask;
+		if ( !Application.IsStandalone )
+		{
+			await Mounting.MountConfig.Mount();
+		}
 	}
 
 	public void Exiting()

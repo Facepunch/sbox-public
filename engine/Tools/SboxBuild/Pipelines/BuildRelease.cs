@@ -25,7 +25,7 @@ internal class BuildRelease
 		builder.AddStep( new BuildContent( "Build Content" ) );
 
 		// Testing
-		builder.AddStep( new Test( "Tests" ) );
+		builder.AddStep( new Test( "Tests", filter: Test.ExcludeLiveBackend ) );
 
 		// has to run after test because it make s&box.sln.. eh
 		builder.AddStep( new BuildAddons( "Build Addons" ) );

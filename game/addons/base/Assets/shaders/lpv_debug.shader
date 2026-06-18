@@ -109,15 +109,14 @@ PS
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
         const float fSphereRadius = flSampleSize;
-        float3 vSpherePosition = i.vSpherePositionWs;
-        vSpherePosition -= fSphereRadius;
+        const float3 vSpherePosition = i.vSpherePositionWs;
 
-        const float4 vSphere = float4( vSpherePosition, fSphereRadius ).w;
+        const float4 vSphere = float4( vSpherePosition, fSphereRadius );
 
         const float3 vRayOrigin = g_vCameraPositionWs;
-        const float3 vRayDirection = CalculatePositionToCameraDirWs( g_vCameraPositionWs - i.vPositionWithOffsetWs ); 
+        const float3 vRayDirection = CalculatePositionToCameraDirWs( g_vCameraPositionWs - i.vPositionWithOffsetWs );
 
-        float fIntersect = sphIntersect( vRayOrigin - vSpherePosition, vRayDirection, vSphere );
+        float fIntersect = sphIntersect( vRayOrigin, vRayDirection, vSphere );
         
         float3 vHitPosition = vRayOrigin + vRayDirection * fIntersect;
         float3 vNormal = normalize( vHitPosition - i.vSpherePositionWs );

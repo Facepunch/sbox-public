@@ -102,7 +102,7 @@ public sealed partial class Model : Resource
 	/// <summary>
 	/// Whether this model is an error model or invalid or not.
 	/// </summary>
-	public bool IsError => native.IsNull || !native.IsStrongHandleValid() || native.IsError();
+	public override bool IsError => native.IsNull || !native.IsStrongHandleValid() || native.IsError();
 
 	/// <summary>
 	/// Name of the model, usually being its file path.

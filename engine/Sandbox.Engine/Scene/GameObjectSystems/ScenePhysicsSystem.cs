@@ -8,7 +8,7 @@ namespace Sandbox;
 [Expose]
 sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 {
-	private readonly PhysicsWorld PhysicsWorld;
+	private PhysicsWorld PhysicsWorld;
 	private HashSetEx<Collider> KeyframeColliders { get; set; } = new();
 	private HashSet<Rigidbody> RigidBodies { get; set; } = new();
 	private List<ISceneCollisionEvents> CollisionEvents { get; } = new();
@@ -19,8 +19,16 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 	{
 		Listen( Stage.PhysicsStep, 0, UpdatePhysics, "UpdatePhysics" );
 		Listen( Stage.FinishUpdate, 0, DebugDrawPhysics, "DebugDrawPhysics" );
+	}
 
-		PhysicsWorld = scene.PhysicsWorld;
+	/// <summary>
+	/// Called by the scene when it creates its physics world. The world is created on
+	/// demand by the first thing that needs physics - we shouldn't be the ones forcing
+	/// it to exist.
+	/// </summary>
+	internal void OnPhysicsWorldCreated( PhysicsWorld world )
+	{
+		PhysicsWorld = world;
 		PhysicsWorld.OnIntersectionStart += OnIntersectionStart;
 		PhysicsWorld.OnIntersectionHit += OnIntersectionHit;
 		PhysicsWorld.OnIntersectionUpdate += OnIntersectionUpdate;
@@ -79,8 +87,8 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 			c.UpdateKeyframeTransform();
 		}
 
-		// The actual physics step
-		Scene.PhysicsWorld.Step( Time.NowDouble, Time.Delta, steps );
+		// The actual physics step - if the world was never created there's nothing to step
+		PhysicsWorld?.Step( Time.NowDouble, Time.Delta, steps );
 
 		//
 		// Update the positions of the rigidbodies based on the new physics positions
@@ -160,12 +168,12 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 
 	void DebugDrawPhysics()
 	{
-		if ( !Scene.PhysicsWorld.IsValid() )
+		if ( !PhysicsWorld.IsValid() )
 			return;
 
 		using ( Performance.Scope( "PhysicsDraw" ) )
 		{
-			Scene.PhysicsWorld.DebugDraw();
+			PhysicsWorld.DebugDraw();
 		}
 	}
 

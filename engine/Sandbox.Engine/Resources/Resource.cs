@@ -38,6 +38,7 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 
 
 	[Hide, JsonIgnore] public abstract bool IsValid { get; }
+	[Hide, JsonIgnore] public virtual bool IsError => false;
 
 	/// <summary>
 	/// True if this resource has been changed but the changes aren't written to disk

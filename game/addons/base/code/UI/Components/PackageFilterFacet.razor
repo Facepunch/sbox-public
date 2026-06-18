@@ -10,10 +10,17 @@
     var classes = current == null ? "" : "is-active";
 }
 
-<root class="packagefilterfacet @classes" onmousedown="@OpenMenu">
+<root class="packagefilterfacet @classes" onmousedown="@OpenMenu" Tooltip="@Facet.Title">
+	@{
+		var icon = current?.Icon ?? Facet.Entries.FirstOrDefault()?.Icon;
+		@if ( icon is not null )
+		{
+			<i>@icon</i>
+		}
+	}
 
     @if ( current != null )
-    {
+	{
         <div>@current.Title</div>
         <div class="addon-button clear-button" @onmousedown="@OnClear"><i>clear</i></div>
     }
@@ -27,41 +34,43 @@
 
 @code
 {
-    [Parameter] public Package.Facet Facet { get; set; }
-    [Parameter] public string Value { get; set; }
-    [Parameter] public Action<Package.Facet, string> OnChange { get; set; }
+	[Parameter] public Package.Facet Facet { get; set; }
+	[Parameter] public string Value { get; set; }
+	[Parameter] public Action<Package.Facet, string> OnChange { get; set; }
 
-    Popup menu;
+	Popup menu;
 
-    void SwitchTo( Package.Facet.Entry entry )
-    {
-        if (entry == null || Value == entry.Name)
-        {
-            OnChange?.Invoke(Facet, null);
-            Value = null;
-        }
-        else
-        {
-            OnChange?.Invoke(Facet, entry.Name);
-            Value = entry.Name;
-        }
+	void SwitchTo( Package.Facet.Entry entry )
+	{
+		if (entry == null || Value == entry.Name)
+		{
+			OnChange?.Invoke(Facet, null);
+			Value = null;
+		}
+		else
+		{
+			OnChange?.Invoke(Facet, entry.Name);
+			Value = entry.Name;
+		}
 
-        StateHasChanged();
-    }
+		StateHasChanged();
+	}
 
-    void OpenMenu()
-    {
-        if (menu.IsValid())
-        {
-            menu.Delete();
-            return;
-        }
+	void OpenMenu()
+	{
+		if (menu.IsValid())
+		{
+			menu.Delete();
+			return;
+		}
 
-        menu = new Popup(this, Popup.PositionMode.BelowLeft, 0.0f);
+		menu = new Popup(this, Popup.PositionMode.BelowLeft, 0.0f);
+
+		menu.Style.MinWidth = Box.Rect.Width;
 
         foreach (var entry in Facet.Entries)
         {
-            var o = menu.AddOption(entry.Title, "", () => SwitchTo(entry));
+            var o = menu.AddOption(entry.Title, entry.Icon, () => SwitchTo(entry));
 
             o.AddChild(new Label() { Classes = "count", Text = $"{entry.Count:n0}" });
 

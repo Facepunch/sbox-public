@@ -1,9 +1,9 @@
 using Button = Sandbox.Mapping.Button;
 
-partial class QuakeMap( string pakDir, string fileName ) : SceneLoader<QuakeMount>
+partial class QuakeMap : SceneLoader<QuakeMount>
 {
-	public string PakDir { get; set; } = pakDir;
-	public string FileName { get; set; } = fileName;
+	public string PakDir { get; init; }
+	public string FileName { get; init; }
 
 	private List<Texture> Textures { get; init; } = [];
 	private List<Texture> FullbrightTextures { get; init; } = [];
@@ -23,6 +23,16 @@ partial class QuakeMap( string pakDir, string fileName ) : SceneLoader<QuakeMoun
 
 	private readonly List<PendingDoor> _doors = [];
 	private readonly List<(Button Button, string Target)> _buttons = [];
+
+	public QuakeMap( string pakDir, string fileName )
+	{
+		PakDir = pakDir;
+		FileName = fileName;
+
+		// hide stuff like b_shell1.bsp which isn't a map, it's a model
+		string fn = System.IO.Path.GetFileName( FileName );
+		Flags = Flags.WithFlag( ResourceFlags.DeveloperOnly, fn.StartsWith( "b_" ) );
+	}
 
 	protected override void BuildScene()
 	{

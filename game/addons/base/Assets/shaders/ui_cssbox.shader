@@ -218,7 +218,7 @@ PS
 				uv.x += vBorderPixelRatio.x; //Get the offset of the middle one
 
 				//Vertical Middle Repeat
-				uv.y = ( vBoxTexCoord.y - BorderImageWidth.y ) / ( BoxSize.y - ( BorderImageWidth.y + BorderImageWidth.z ) ) * vRepeatAmount.y;
+				uv.y = ( vBoxTexCoord.y - BorderImageWidth.y ) / ( BoxSize.y - ( BorderImageWidth.y + BorderImageWidth.w ) ) * vRepeatAmount.y;
 				uv.y = fmod( uv.y, vMiddleSize.y );
 				uv.y += vBorderPixelRatio.y; //Get the offset of the middle one
 			}

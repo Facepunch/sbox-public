@@ -308,6 +308,16 @@ public static partial class MenuUtility
 		return services.Select( x => new LinkedService( x.Type, x.Id, x.Name, x.Avatar ) ).ToList();
 	}
 
+	public static async Task SetMountState( string name, bool state )
+	{
+		await Sandbox.Mounting.Directory.SetMountState( name, state );
+
+		if ( !Application.IsEditor )
+		{
+			Sandbox.Mounting.MountConfig.Save();
+		}
+	}
+
 	/// <summary>
 	/// Allows async tasks to wait to be executed in the menu context
 	/// </summary>

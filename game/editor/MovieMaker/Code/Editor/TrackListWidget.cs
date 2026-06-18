@@ -14,7 +14,7 @@ namespace Editor.MovieMaker;
 public sealed class TrackListWidget : Widget
 {
 	public Session Session { get; }
-	public Timeline TimeLine { get; }
+	public Timeline Timeline { get; }
 
 	private SceneEditorSession SceneEditorSession { get; }
 
@@ -36,7 +36,7 @@ public sealed class TrackListWidget : Widget
 		: base( parent )
 	{
 		Session = session;
-		TimeLine = session.Editor.TimelinePanel!.Timeline;
+		Timeline = session.Editor.TimelinePanel!.Timeline;
 
 		SceneEditorSession = SceneEditorSession.Resolve( Session.Player.Scene );
 		SceneEditorSession.Selection.OnItemAdded += OnSelectionAdded;
@@ -69,7 +69,7 @@ public sealed class TrackListWidget : Widget
 		_rootTracks = new SynchronizedSet<TrackView, TrackWidget>(
 			AddRootTrack, RemoveRootTrack, UpdateChildTrack );
 
-		TimeLine.ViewChanged += Timeline_ViewChanged;
+		Timeline.ViewChanged += Timeline_ViewChanged;
 
 		Load( Session.TrackList );
 
@@ -104,7 +104,7 @@ public sealed class TrackListWidget : Widget
 		if ( trackView.SameGameObjectDescendants.Any( x => x.IsSelected ) ) return;
 
 		trackView.Select();
-		TimeLine.ScrollToTrack( trackView );
+		Timeline.ScrollToTrack( trackView );
 	}
 
 	protected override void OnPaint()
@@ -120,7 +120,7 @@ public sealed class TrackListWidget : Widget
 			_trackList.Changed -= TrackList_Changed;
 		}
 
-		TimeLine.ViewChanged -= Timeline_ViewChanged;
+		Timeline.ViewChanged -= Timeline_ViewChanged;
 		SceneEditorSession.Selection.OnItemAdded -= OnSelectionAdded;
 	}
 
@@ -220,7 +220,7 @@ public sealed class TrackListWidget : Widget
 			CreatePlaceholder();
 		}
 
-		Timeline_ViewChanged( TimeLine.VisibleRect );
+		Timeline_ViewChanged( Timeline.VisibleRect );
 	}
 
 	private void CreatePlaceholder()
@@ -245,12 +245,7 @@ public sealed class TrackListWidget : Widget
 
 		if ( data.OfType<SerializedProperty>().FirstOrDefault() is { } property )
 		{
-			if ( property.Parent.Targets?.FirstOrDefault() is Component parentComponent )
-			{
-				return true;
-			}
-
-			return false;
+			return property.FindPathInScene() is not null;
 		}
 
 		if ( data.Assets.FirstOrDefault( x => x.AssetPath?.EndsWith( ".movie" ) ?? false ) is { } assetData )
@@ -290,10 +285,9 @@ public sealed class TrackListWidget : Widget
 		{
 			foreach ( var property in properties )
 			{
-				if ( property.Parent.Targets?.FirstOrDefault() is Component parentComponent )
-				{
-					yield return Session.GetOrCreateTrack( parentComponent, property.Name );
-				}
+				if ( property.FindPathInScene() is not { } path ) continue;
+
+				yield return Session.GetOrCreateTrack( path );
 			}
 		}
 	}
@@ -320,7 +314,9 @@ public sealed class TrackListWidget : Widget
 		Session.TrackList.Update();
 		Session.ClipModified();
 
-		// Look for track presets that match all created tracks
+		Session.TrackList.ExpandAncestors( tracks );
+		Session.TrackList.SelectAll( tracks );
+		Timeline.ScrollToTrack( tracks[0] );
 
 		var trackViews = tracks
 			.Select( Session.TrackList.Find )
@@ -328,6 +324,8 @@ public sealed class TrackListWidget : Widget
 			.ToArray();
 
 		if ( trackViews.Length == 0 ) return;
+
+		// Look for track presets that match all created tracks
 
 		var matchingPresets = TrackPreset.BuiltInPresets
 			.Concat( Session.Config.TrackPresets )

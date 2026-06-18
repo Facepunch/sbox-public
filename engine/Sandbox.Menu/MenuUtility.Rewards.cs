@@ -2,6 +2,54 @@ using System;
 
 namespace Sandbox;
 
+/// <summary>
+/// Item rarity grades, matching the backend's <c>ItemDef.ItemRarity</c> enum.
+/// </summary>
+public enum ItemRarity : byte
+{
+	None,
+	Common,
+	Uncommon,
+	Rare,
+	Epic,
+	Legendary,
+	Mythic,
+	Exotic
+}
+
+public static class ItemRarityExtensions
+{
+	/// <summary>
+	/// The outline/border colour for a rarity grade, matching sbox.web.
+	/// Returns null for <see cref="ItemRarity.None"/>.
+	/// </summary>
+	public static string GetColor( this ItemRarity rarity ) => rarity switch
+	{
+		ItemRarity.Common => "#b0c3d9",
+		ItemRarity.Uncommon => "#5e98d9",
+		ItemRarity.Rare => "#4b69ff",
+		ItemRarity.Epic => "#8847ff",
+		ItemRarity.Legendary => "#d32ce6",
+		ItemRarity.Mythic => "#eb4b4b",
+		ItemRarity.Exotic => "#e4ae39",
+		_ => null,
+	};
+
+	/// <summary>
+	/// Parse a rarity string (from Steam item properties) into the enum.
+	/// </summary>
+	public static ItemRarity ParseRarity( string value )
+	{
+		if ( string.IsNullOrWhiteSpace( value ) )
+			return ItemRarity.None;
+
+		if ( Enum.TryParse<ItemRarity>( value, ignoreCase: true, out var result ) )
+			return result;
+
+		return ItemRarity.None;
+	}
+}
+
 public static partial class MenuUtility
 {
 	/// <summary>
@@ -40,6 +88,7 @@ public static partial class MenuUtility
 		/// </summary>
 		public static async Task<RewardResult> ChooseReward( RewardChoice choice )
 		{
+
 			var serviceChoice = new Services.RewardChoice();
 			serviceChoice.DropId = choice.DropId;
 			serviceChoice.ItemDefIds = choice.ItemDefIds;
@@ -58,6 +107,8 @@ public class RewardState
 {
 	public RewardWindow[] Windows { get; set; } = Array.Empty<RewardWindow>();
 	public RewardOffer Pending { get; set; }
+
+	internal RewardState() { }
 
 	internal RewardState( Services.RewardState state )
 	{
@@ -90,6 +141,8 @@ public class RewardWindow
 	public string Title { get; set; }
 	public bool IsEligible { get; set; }
 	public RewardFacet[] Facets { get; set; } = Array.Empty<RewardFacet>();
+
+	internal RewardWindow() { }
 
 	internal RewardWindow( Services.RewardWindow window )
 	{
@@ -142,6 +195,8 @@ public class RewardOffer
 	public int PickCount { get; set; }
 	public RewardItem[] Items { get; set; } = Array.Empty<RewardItem>();
 
+	internal RewardOffer() { }
+
 	internal RewardOffer( Services.RewardOffer offer )
 	{
 		DropId = offer.DropId;
@@ -164,12 +219,22 @@ public class RewardItem
 	public long ItemDefId { get; set; }
 	public string Name { get; set; }
 	public string Icon { get; set; }
+	public ItemRarity Rarity { get; set; }
+
+	/// <summary>The hex colour for this item's rarity (e.g. "#8847ff"), or null if no rarity.</summary>
+	public string RarityColor => Rarity.GetColor();
+
+	internal RewardItem() { }
 
 	internal RewardItem( Services.RewardItem item )
 	{
 		ItemDefId = item.ItemDefId;
 		Name = item.Name;
 		Icon = item.Icon;
+
+		// Resolve rarity from the Steam inventory definition
+		var def = Services.Inventory.FindDefinition( (int)item.ItemDefId );
+		Rarity = ItemRarityExtensions.ParseRarity( def?.Rarity );
 	}
 }
 
@@ -186,6 +251,8 @@ public class RewardResult
 	public bool Success { get; set; }
 	public string Error { get; set; }
 	public RewardItem[] Items { get; set; } = Array.Empty<RewardItem>();
+
+	internal RewardResult() { }
 
 	internal RewardResult( Services.RewardResult result )
 	{

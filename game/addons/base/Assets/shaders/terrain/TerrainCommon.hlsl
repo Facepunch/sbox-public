@@ -30,6 +30,8 @@ struct TerrainStruct
     // Height Blending
     bool HeightBlending;
     float HeightBlendSharpness;
+
+    int samplerindex;
 };
 
 enum TerrainFlags
@@ -135,11 +137,13 @@ class Terrain
         if ( baseMat.bcr_texid <= 0 )
             return float3( 1, 1, 1 );
 
+        SamplerState baseSampler = Bindless::GetSampler( Get().samplerindex );
+
         float2 baseUV = texUV * baseMat.uvscale;
         if ( baseMat.HasFlag( TerrainFlags::NoTile ) )
             baseUV = Terrain_SampleSeamlessUV( baseUV );
 
-        float4 baseBcr = Bindless::GetTexture2D( baseMat.bcr_texid ).Sample( g_sAnisotropic, baseUV );
+        float4 baseBcr = Bindless::GetTexture2D( baseMat.bcr_texid ).Sample( baseSampler, baseUV );
         float3 baseColor = SrgbGammaToLinear( baseBcr.rgb );
 
         float blend = material.GetNormalizedBlend();
@@ -147,16 +151,18 @@ class Terrain
         if ( blend <= 0.01 || overlayMat.bcr_texid <= 0 )
             return baseColor;
 
+        SamplerState overlaySampler = Bindless::GetSampler( Get().samplerindex );
+
         float2 overlayUV = texUV * overlayMat.uvscale;
         if ( overlayMat.HasFlag( TerrainFlags::NoTile ) )
             overlayUV = Terrain_SampleSeamlessUV( overlayUV );
 
-        float4 overlayBcr = Bindless::GetTexture2D( overlayMat.bcr_texid ).Sample( g_sAnisotropic, overlayUV );
+        float4 overlayBcr = Bindless::GetTexture2D( overlayMat.bcr_texid ).Sample( overlaySampler, overlayUV );
 
         if ( Get().HeightBlending && baseMat.nho_texid > 0 && overlayMat.nho_texid > 0 )
         {
-            float baseHeight = Bindless::GetTexture2D( baseMat.nho_texid ).Sample( g_sAnisotropic, baseUV ).b * baseMat.heightstrength;
-            float overlayHeight = Bindless::GetTexture2D( overlayMat.nho_texid ).Sample( g_sAnisotropic, overlayUV ).b * overlayMat.heightstrength;
+            float baseHeight = Bindless::GetTexture2D( baseMat.nho_texid ).Sample( baseSampler, baseUV ).b * baseMat.heightstrength;
+            float overlayHeight = Bindless::GetTexture2D( overlayMat.nho_texid ).Sample( overlaySampler, overlayUV ).b * overlayMat.heightstrength;
             blend = saturate( blend + (overlayHeight - baseHeight) * Get().HeightBlendSharpness * 10.0 );
         }
 
@@ -171,11 +177,13 @@ class Terrain
         if ( baseMat.bcr_texid <= 0 )
             return float3( 1, 1, 1 );
 
+        SamplerState baseSampler = Bindless::GetSampler( Get().samplerindex );
+
         float2 baseUV = texUV * baseMat.uvscale;
         if ( baseMat.HasFlag( TerrainFlags::NoTile ) )
             baseUV = Terrain_SampleSeamlessUV( baseUV );
 
-        float4 baseBcr = Bindless::GetTexture2D( baseMat.bcr_texid ).SampleLevel( g_sBilinearClamp, baseUV, mipLevel );
+        float4 baseBcr = Bindless::GetTexture2D( baseMat.bcr_texid ).SampleLevel( baseSampler, baseUV, mipLevel );
         float3 baseColor = SrgbGammaToLinear( baseBcr.rgb );
 
         float blend = material.GetNormalizedBlend();
@@ -183,16 +191,18 @@ class Terrain
         if ( blend <= 0.01 || overlayMat.bcr_texid <= 0 )
             return baseColor;
 
+        SamplerState overlaySampler = Bindless::GetSampler( Get().samplerindex );
+
         float2 overlayUV = texUV * overlayMat.uvscale;
         if ( overlayMat.HasFlag( TerrainFlags::NoTile ) )
             overlayUV = Terrain_SampleSeamlessUV( overlayUV );
 
-        float4 overlayBcr = Bindless::GetTexture2D( overlayMat.bcr_texid ).SampleLevel( g_sBilinearClamp, overlayUV, mipLevel );
+        float4 overlayBcr = Bindless::GetTexture2D( overlayMat.bcr_texid ).SampleLevel( overlaySampler, overlayUV, mipLevel );
 
         if ( Get().HeightBlending && baseMat.nho_texid > 0 && overlayMat.nho_texid > 0 )
         {
-            float baseHeight = Bindless::GetTexture2D( baseMat.nho_texid ).SampleLevel( g_sBilinearClamp, baseUV, mipLevel ).b * baseMat.heightstrength;
-            float overlayHeight = Bindless::GetTexture2D( overlayMat.nho_texid ).SampleLevel( g_sBilinearClamp, overlayUV, mipLevel ).b * overlayMat.heightstrength;
+            float baseHeight = Bindless::GetTexture2D( baseMat.nho_texid ).SampleLevel( baseSampler, baseUV, mipLevel ).b * baseMat.heightstrength;
+            float overlayHeight = Bindless::GetTexture2D( overlayMat.nho_texid ).SampleLevel( overlaySampler, overlayUV, mipLevel ).b * overlayMat.heightstrength;
             blend = saturate( blend + (overlayHeight - baseHeight) * Get().HeightBlendSharpness * 10.0 );
         }
 

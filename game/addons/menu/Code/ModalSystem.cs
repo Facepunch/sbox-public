@@ -108,6 +108,15 @@ public class ModalSystem : IModalSystem
 		} );
 	}
 
+	public void MapSelect( Action<string> onSelected, string selected )
+	{
+		var modal = new MapSelectorModal();
+		modal.OnSelected = onSelected;
+		modal.SetSelected( selected );
+
+		Push( modal );
+	}
+
 	public void Organization( Package.Organization org )
 	{
 		CloseExisting<OrganizationModal>();

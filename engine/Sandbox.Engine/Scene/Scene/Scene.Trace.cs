@@ -581,7 +581,7 @@ public partial struct SceneTrace
 	{
 		if ( !Application.IsEditor )
 		{
-			Log.Error( "UseRenderMeshes is only available in edito" );
+			Log.Error( "UseRenderMeshes is only available in editor" );
 			return this;
 		}
 		var t = this;
@@ -598,7 +598,7 @@ public partial struct SceneTrace
 	{
 		if ( !Application.IsEditor )
 		{
-			Log.Error( "UseRenderMeshes is only available in edito" );
+			Log.Error( "UseRenderMeshes is only available in editor" );
 			return this;
 		}
 		var t = this;

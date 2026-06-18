@@ -28,7 +28,14 @@ public static partial class Gizmo
 		/// The SceneWorld this instance is writing to. This world exists only for this instance.
 		/// You need to add this world to your camera for it to render (!)
 		/// </summary>
-		public SceneWorld World { get; init; }
+		SceneWorld _world;
+
+		/// <summary>
+		/// The world the gizmos are drawn into. Created on first use - every scene owns
+		/// a gizmo instance, but most never draw a gizmo, so don't pay for a native
+		/// world up front.
+		/// </summary>
+		public SceneWorld World => _world ??= new SceneWorld();
 
 		/// <summary>
 		/// Input state. Should be setup before push.
@@ -139,8 +146,6 @@ public static partial class Gizmo
 
 		public Instance()
 		{
-			World = new SceneWorld();
-
 			Entries = new();
 			Pool = new();
 		}
@@ -150,7 +155,8 @@ public static partial class Gizmo
 		/// </summary>
 		public void Dispose()
 		{
-			World?.Delete();
+			_world?.Delete();
+			_world = null;
 			Pool?.Clear();
 			Entries.Clear();
 		}
@@ -241,7 +247,9 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 			}
 
 			Pool.Clear();
-			World.DeletePendingObjects();
+
+			// don't force the world to exist just to flush deletes
+			_world?.DeletePendingObjects();
 		}
 
 		void MouseUpdate()

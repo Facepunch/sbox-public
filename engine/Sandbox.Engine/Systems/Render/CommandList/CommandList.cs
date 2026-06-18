@@ -62,7 +62,9 @@ public sealed unsafe partial class CommandList
 	}
 
 	/// <summary>
-	/// An ordered list of entries that will execute on the render thread.
+	/// An ordered list of entries that will execute on the render thread. All access (record and
+	/// execute) is serialized by <see cref="_lock"/> - recording and executing the same list from
+	/// two threads at once is caller misuse, but the lock guarantees it can't crash or corrupt state.
 	/// </summary>
 	readonly List<Entry> _entries = new List<Entry>( 8 );
 
@@ -72,7 +74,9 @@ public sealed unsafe partial class CommandList
 	void AddEntry( delegate*< ref Entry, CommandList, void > execute, Entry data )
 	{
 		data.Execute = execute;
-		_entries.Add( data );
+
+		lock ( _lock )
+			_entries.Add( data );
 	}
 
 	[Obsolete]
@@ -117,10 +121,13 @@ public sealed unsafe partial class CommandList
 
 	public void Reset()
 	{
-		Attributes.ClearRenderTargets();
-		_entries.Clear();
-
-
+		// Serialize against execution: clearing the entry list or the render-target cache while
+		// another thread is mid-execute would corrupt them. The lock makes that safe.
+		lock ( _lock )
+		{
+			Attributes.ClearRenderTargets();
+			_entries.Clear();
+		}
 	}
 
 	public void Blit( Material material, RenderAttributes attributes = null )
@@ -294,6 +301,100 @@ public sealed unsafe partial class CommandList
 		AddEntry( &Execute, new Entry { Token = token, Object2 = data } );
 	}
 
+	[Obsolete]
+	public void SetGlobal( StringToken token, GpuBuffer buffer )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, (GpuBuffer)entry.Object2 );
+		}
+		AddEntry( &Execute, new Entry { Token = token, Object2 = buffer } );
+	}
+
+	[Obsolete]
+	public void SetGlobal( StringToken token, int i )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, (int)entry.Data1.x );
+		}
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( i, 0, 0, 0 ) } );
+	}
+
+	[Obsolete]
+	public void SetGlobal( StringToken token, bool b )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, (int)entry.Data1.x != 0 );
+		}
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( b ? 1 : 0, 0, 0, 0 ) } );
+	}
+
+	[Obsolete]
+	public void SetGlobal( StringToken token, float f )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, entry.Data1.x );
+		}
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( f, 0, 0, 0 ) } );
+	}
+
+	[Obsolete] public void SetGlobal( StringToken token, double f ) => SetGlobal( token, (float)f );
+
+	[Obsolete]
+	public void SetGlobal( StringToken token, Vector2 vector2 )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, new Vector2( entry.Data1.x, entry.Data1.y ) );
+		}
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( vector2.x, vector2.y, 0, 0 ) } );
+	}
+
+	[Obsolete]
+	public void SetGlobal( StringToken token, Vector3 vector3 )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, new Vector3( entry.Data1.x, entry.Data1.y, entry.Data1.z ) );
+		}
+		AddEntry( &Execute, new Entry { Token = token, Data1 = new Vector4( vector3.x, vector3.y, vector3.z, 0 ) } );
+	}
+
+	[Obsolete]
+	public void SetGlobal( StringToken token, Vector4 vector4 )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, entry.Data1 );
+		}
+		AddEntry( &Execute, new Entry { Token = token, Data1 = vector4 } );
+	}
+
+	[Obsolete]
+	public void SetGlobal( StringToken token, Matrix matrix )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, Unsafe.As<Vector4, Matrix>( ref entry.Data1 ) );
+		}
+		var e = new Entry { Token = token };
+		Unsafe.As<Vector4, Matrix>( ref e.Data1 ) = matrix;
+		AddEntry( &Execute, e );
+	}
+
+	[Obsolete]
+	public void SetGlobal( StringToken token, Texture texture )
+	{
+		static void Execute( ref Entry entry, CommandList commandList )
+		{
+			Graphics.FrameAttributes.Set( entry.Token, (Texture)entry.Object2 );
+		}
+		AddEntry( &Execute, new Entry { Token = token, Object2 = texture } );
+	}
+
 	/// <summary>
 	/// Takes a copy of the framebuffer and returns a handle to it
 	/// </summary>
@@ -330,10 +431,15 @@ public sealed unsafe partial class CommandList
 			var previousState = other.state;
 			other.state = commandList.state;
 
-			for ( int i = 0; i < other._entries.Count; i++ )
+			// Lock the inserted list while we iterate it, so it can't be recorded/reset out from
+			// under us on another thread.
+			lock ( other._lock )
 			{
-				var e = other._entries[i];
-				e.Execute( ref e, other );
+				for ( int i = 0; i < other._entries.Count; i++ )
+				{
+					var e = other._entries[i];
+					e.Execute( ref e, other );
+				}
 			}
 
 			other.state = previousState;
@@ -788,6 +894,12 @@ public sealed unsafe partial class CommandList
 	/// </summary>
 	[Obsolete]
 	public void Set( StringToken token, RenderTargetHandle.ColorTextureRef buffer, int mip = -1 ) => Attributes.Set( token, buffer, mip );
+
+	/// <summary>
+	/// Set the color texture from this named render target to this attribute
+	/// </summary>
+	[Obsolete]
+	public void SetGlobal( StringToken token, RenderTargetHandle.ColorIndexRef buffer ) => GlobalAttributes.Set( token, buffer );
 
 	/// <summary>
 	/// Binds the given render target's color texture to a stable, pipeline-level bindless slot

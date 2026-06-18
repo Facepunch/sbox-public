@@ -21,9 +21,9 @@ RWTexture2DArray<float4> g_bindless_RWTexture2DArray[] EXTERNAL_DESC_SET( u, g_g
 // by procedural layers (AO, SSR). Rather than route a dynamic bindless index through the racy
 // per-view render attributes, the scene system publishes the indices in a single small structured
 // buffer at a fixed binding. The buffer persists frame-to-frame, so consumers automatically read
-// last frame's result if a producer is skipped. Binding MUST match SCENE_PIPELINE_TEX_BINDING in
-// scenesystem_flags.h, and the slot order MUST match SCENE_PIPELINE_TEX_SLOT_* there.
-StructuredBuffer<int> g_PipelineTextureIndices EXTERNAL_DESC_SET(t, g_globalLateBoundBindlessSet, 8);
+// last frame's result if a producer is skipped. Binding MUST match RENDER_GLOBAL_BINDING_PIPELINE_TEX_INDICES
+// in renderdevicetypes.h
+StructuredBuffer<int> g_PipelineTextureIndices EXTERNAL_DESC_SET(t, g_globalLateBoundBindlessSet, 14);
 
 enum PipelineTextureSlot
 {

@@ -43,10 +43,10 @@ internal partial class Project
 		if ( IsUnitTestProject )
 		{
 			sb.AppendLine( $"	<ItemGroup>" );
-			sb.AppendLine( $"		<PackageReference Include=\"Microsoft.NET.Test.Sdk\" Version=\"17.7.2\" /> " );
-			sb.AppendLine( $"		<PackageReference Include=\"MSTest.TestAdapter\" Version=\"3.1.1\" /> " );
-			sb.AppendLine( $"		<PackageReference Include=\"MSTest.TestFramework\" Version=\"3.1.1\" /> " );
-			sb.AppendLine( $"		<PackageReference Include=\"coverlet.collector\" Version=\"6.0.0\" /> " );
+			sb.AppendLine( $"		<PackageReference Include=\"Microsoft.NET.Test.Sdk\" Version=\"17.12.0\" /> " );
+			sb.AppendLine( $"		<PackageReference Include=\"MSTest.TestAdapter\" Version=\"3.6.4\" /> " );
+			sb.AppendLine( $"		<PackageReference Include=\"MSTest.TestFramework\" Version=\"3.6.4\" /> " );
+			sb.AppendLine( $"		<PackageReference Include=\"coverlet.collector\" Version=\"6.0.2\" /> " );
 			sb.AppendLine( $"	</ItemGroup>" );
 			sb.AppendLine( $"" );
 		}

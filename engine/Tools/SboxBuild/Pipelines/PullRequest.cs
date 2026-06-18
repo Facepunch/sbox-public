@@ -48,7 +48,7 @@ internal class PullRequest
 			// Build shaders is allowed to fail
 			builder.AddStep( new BuildShaders( "Build Shaders" ), continueOnFailure: true );
 			builder.AddStep( new BuildContent( "Build Content" ) );
-			builder.AddStep( new Test( "Tests" ) );
+			builder.AddStep( new Test( "Tests", filter: Test.ExcludeLiveBackend ) );
 			builder.AddStep( new BuildAddons( "Build Addons" ) );
 		}
 

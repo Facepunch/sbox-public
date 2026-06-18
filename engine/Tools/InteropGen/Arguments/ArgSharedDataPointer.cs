@@ -3,7 +3,7 @@
 /// <summary>
 /// Qt defines some things as regular classes that contain nothing but a smart pointer to the
 /// real data. Marking a class as [SharedDataPointer] will:
-/// 
+///
 /// 1. Always return as a new Class()
 /// 2. Pass to native as a pointer to that class
 /// 3. Pass to the native function as a instance to that class (*) ptr
@@ -16,19 +16,19 @@ public class ArgSharedDataPointer : ArgDefinedClass
 
 	}
 
-	public override string FromInterop( bool native, string code = null )
+	public override string FromInterop( Side side, string code = null )
 	{
-		return native ? "*" + (code ?? Name) : base.FromInterop( native, code );
+		return side == Side.Native ? "*" + (code ?? Name) : base.FromInterop( side, code );
 	}
 
-	public override string ToInterop( bool native, string code = null )
+	public override string ToInterop( Side side, string code = null )
 	{
-		return !native ? $"{code ?? Name}.GetPointerAssertIfNull()" : base.ToInterop( native, code );
+		return side == Side.Managed ? $"{code ?? Name}.GetPointerAssertIfNull()" : base.ToInterop( side, code );
 	}
 
-	public override string ReturnWrapCall( string functionCall, bool native )
+	public override string ReturnWrapCall( string functionCall, Side side )
 	{
-		return native
+		return side == Side.Native
 			? $"return new {Class.NativeNameWithNamespace}( {functionCall} );"
 			: $"return new {Class.ManagedNameWithNamespace}( {functionCall} );";
 	}

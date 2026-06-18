@@ -8,7 +8,7 @@ native static class EngineGlue as NativeEngine.EngineGlue
 	string KeyValues3ToJson( KeyValues3 kv );
 	KeyValues3 LoadKeyValues3( string kvString );
 	uint GetStringToken( string str );
-	string GetStringTokenValue( uint token );
+	stable string GetStringTokenValue( uint token );
 
 	void AddSearchPath( string path, string groupid, bool head );
 	bool RemoveSearchPath( string path, string groupid );

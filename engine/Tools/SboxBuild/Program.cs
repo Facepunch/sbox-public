@@ -153,13 +153,19 @@ internal class Program
 			description: "Skip building before running tests (assumes projects are already built)",
 			getDefaultValue: () => false );
 
+		var filterOption = new Option<string>(
+			"--filter",
+			description: "dotnet test filter expression, e.g. TestCategory!=LiveBackend",
+			getDefaultValue: () => null );
+
 		testsCommand.AddOption( noBuildOption );
-		testsCommand.SetHandler( ( bool noBuild ) =>
+		testsCommand.AddOption( filterOption );
+		testsCommand.SetHandler( ( bool noBuild, string filter ) =>
 		{
-			var step = new Test( "Run Tests", noBuild );
+			var step = new Test( "Run Tests", noBuild, filter );
 			ExitCode result = step.Run();
 			Environment.ExitCode = (int)result;
-		}, noBuildOption );
+		}, noBuildOption, filterOption );
 		rootCommand.Add( testsCommand );
 	}
 

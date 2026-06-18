@@ -253,6 +253,8 @@ internal class GameInstance : IGameInstance
 		if ( !string.IsNullOrWhiteSpace( LaunchArguments.Map ) )
 		{
 			var map = LaunchArguments.Map;
+			Application.Map = map;
+
 			await LoadMapPackage( map, token );
 			Application.MapPackage = _mapPackage;
 		}
