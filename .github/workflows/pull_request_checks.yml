@@ -26,4 +26,4 @@ jobs:
         run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- build --config Developer
 
       - name: Test
-        run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- test
+        run: dotnet run --project .\engine\Tools\SboxBuild\SboxBuild.csproj -- test --filter "TestCategory!=LiveBackend"
