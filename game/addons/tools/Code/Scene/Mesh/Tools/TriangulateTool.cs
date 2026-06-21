@@ -7,10 +7,10 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 {
 	readonly Dictionary<MeshComponent, PolygonMesh> _originalMeshes = [];
 	readonly Dictionary<MeshComponent, List<FaceHandle>> _remappedFaces = [];
-	
+
 	readonly Dictionary<MeshComponent, List<FaceHandle>> _triangulatedFaces = [];
 	readonly Dictionary<MeshComponent, List<Line>> _interiorEdgeLines = [];
-	
+
 	public enum QuadMethod
 	{
 		Fixed,
@@ -24,7 +24,7 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 		Fan,
 		Outer,
 	}
-	
+
 	public override void OnEnabled()
 	{
 		if ( faces is not { Length: > 0 } ) return;
@@ -33,10 +33,10 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 		{
 			var component = group.Key;
 			if ( !component.IsValid() ) continue;
-			
+
 			var originalMesh = new PolygonMesh { Transform = component.Mesh.Transform };
 			originalMesh.MergeMesh( component.Mesh, Transform.Zero, out _, out _, out var faceMap );
-			
+
 			_originalMeshes[component] = originalMesh;
 			_remappedFaces[component] = group
 				.Select( f => faceMap.TryGetValue( f.Handle, out var mapped ) ? mapped : default )
@@ -46,13 +46,13 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 	}
 
 	public override void OnDisabled() => RestoreOriginals();
-	
+
 	public override void OnUpdate()
 	{
 		foreach ( var (component, lines) in _interiorEdgeLines )
 		{
 			if ( !component.IsValid() || lines.Count == 0 ) continue;
-			
+
 			using ( Gizmo.ObjectScope( component.GameObject, component.WorldTransform ) )
 			{
 				using ( Gizmo.Scope( "TriangulationPreview" ) )
@@ -66,7 +66,8 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 					}
 				}
 
-				if ( _originalMeshes.TryGetValue( component, out var originalMesh ) && _remappedFaces.TryGetValue( component, out var remapped ) )
+				if ( _originalMeshes.TryGetValue( component, out var originalMesh ) &&
+				     _remappedFaces.TryGetValue( component, out var remapped ) )
 				{
 					using ( Gizmo.Scope( "SelectionOutline" ) )
 					{
@@ -100,12 +101,12 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 
 			var mesh = new PolygonMesh { Transform = originalMesh.Transform };
 			mesh.MergeMesh( originalMesh, Transform.Zero, out _, out _, out var faceMap );
-			
+
 			var facesToTriangulate = _remappedFaces[component]
 				.Select( f => faceMap.TryGetValue( f, out var mapped ) ? mapped : default )
 				.Where( f => f.IsValid )
 				.ToArray();
-			
+
 			if ( facesToTriangulate.Length == 0 )
 			{
 				component.Mesh = mesh;
@@ -116,7 +117,7 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 			List<FaceHandle> triangulateFaces = [];
 			foreach ( var face in facesToTriangulate )
 			{
-				if ( mesh.GetFaceEdges( face ).Length < minTriangles ) 
+				if ( mesh.GetFaceEdges( face ).Length < minTriangles )
 					continue;
 
 				if ( mesh.GetFaceEdges( face ).Length == 4 )
@@ -135,19 +136,19 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 
 			_triangulatedFaces[component] = triangulateFaces;
 			_interiorEdgeLines[component] = lines;
-			
+
 			component.Mesh = mesh;
 		}
 	}
-	
+
 	public void Apply()
 	{
 		var components = _originalMeshes.Keys.Where( c => c.IsValid() ).ToArray();
 		if ( components.Length == 0 ) return;
-		
+
 		var resultMeshes = components.ToDictionary( c => c, c => c.Mesh );
 		RestoreOriginals();
-		
+
 		using var scope = SceneEditorSession.Scope();
 
 		using ( SceneEditorSession.Active.UndoScope( "Triangulate Faces" )
@@ -156,7 +157,7 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 		{
 			var selection = SceneEditorSession.Active.Selection;
 			selection.Clear();
-			
+
 			foreach ( var component in components )
 			{
 				component.Mesh = resultMeshes[component];
@@ -167,18 +168,18 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 					selection.Add( new MeshFace( component, face ) );
 			}
 		}
-		
+
 		Cleanup();
-		EditorToolManager.SetSubTool( nameof( FaceTool ) );
+		EditorToolManager.SetSubTool( nameof(FaceTool) );
 	}
 
 	public void Cancel()
 	{
 		RestoreOriginals();
 		Cleanup();
-		EditorToolManager.SetSubTool( nameof( FaceTool ) );
+		EditorToolManager.SetSubTool( nameof(FaceTool) );
 	}
-	
+
 	void RestoreOriginals()
 	{
 		foreach ( var (component, originalMesh) in _originalMeshes )
@@ -192,19 +193,20 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 	{
 		_originalMeshes.Clear();
 		_remappedFaces.Clear();
-		
+
 		_triangulatedFaces.Clear();
 		_interiorEdgeLines.Clear();
 	}
 
-	static void TriangulateQuad( QuadMethod method, PolygonMesh mesh, FaceHandle face, out List<FaceHandle> newFaces, out HalfEdgeHandle newEdge )
+	static void TriangulateQuad( QuadMethod method, PolygonMesh mesh, FaceHandle face, out List<FaceHandle> newFaces,
+		out HalfEdgeHandle newEdge )
 	{
 		var mat = mesh.GetFaceMaterial( face );
 		var hVertices = mesh.GetFaceVertices( face );
 
 		List<Color32> vb = [];
 		List<Color32> vc = [];
-		
+
 		// Walk the edge, getting the VertexBlend and VertexColor at each edge.
 		var startEdge = face.Edge;
 		var currentEdge = startEdge;
@@ -213,9 +215,8 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 			vb.Add( mesh.GetVertexBlend( currentEdge ) );
 			vc.Add( mesh.GetVertexColor( currentEdge ) );
 			currentEdge = currentEdge.NextEdge;
-			
 		} while ( currentEdge != startEdge );
-		
+
 		Vector2[] UVs = mesh.GetFaceTextureCoords( face );
 		mesh.GetFaceTextureParameters( face, out Vector4 axisU, out Vector4 axisV, out Vector2 scale );
 
@@ -224,8 +225,8 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 		{
 			vPos.Add( mesh.GetVertexPosition( hVertex ) );
 		}
-		
-		mesh.RemoveFaces( [ face ] );
+
+		mesh.RemoveFaces( [face] );
 
 		var newVerts = mesh.AddVertices( [..vPos] );
 
@@ -238,18 +239,18 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 			tri1 = mesh.AddFace( newVerts[0], newVerts[1], newVerts[2] );
 			mesh.SetFaceTextureCoords( tri1, [UVs[0], UVs[1], UVs[2]] );
 			mesh.SetFaceTextureParameters( tri1, axisU, axisV, scale );
-			
+
 			mesh.SetVertexColor( tri1.Edge, vc[0] );
 			mesh.SetVertexColor( tri1.Edge.NextEdge, vc[1] );
 			mesh.SetVertexColor( tri1.Edge.NextEdge.NextEdge, vc[2] );
 			mesh.SetVertexBlend( tri1.Edge, vb[0] );
 			mesh.SetVertexBlend( tri1.Edge.NextEdge, vb[1] );
 			mesh.SetVertexBlend( tri1.Edge.NextEdge.NextEdge, vb[2] );
-					
+
 			tri2 = mesh.AddFace( newVerts[2], newVerts[3], newVerts[0] );
 			mesh.SetFaceTextureCoords( tri2, [UVs[2], UVs[3], UVs[0]] );
 			mesh.SetFaceTextureParameters( tri2, axisU, axisV, scale );
-			
+
 			mesh.SetVertexColor( tri2.Edge, vc[2] );
 			mesh.SetVertexColor( tri2.Edge.NextEdge, vc[3] );
 			mesh.SetVertexColor( tri2.Edge.NextEdge.NextEdge, vc[0] );
@@ -264,18 +265,18 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 			tri1 = mesh.AddFace( newVerts[1], newVerts[2], newVerts[3] );
 			mesh.SetFaceTextureCoords( tri1, [UVs[1], UVs[2], UVs[3]] );
 			mesh.SetFaceTextureParameters( tri1, axisU, axisV, scale );
-			
+
 			mesh.SetVertexColor( tri1.Edge, vc[1] );
 			mesh.SetVertexColor( tri1.Edge.NextEdge, vc[2] );
 			mesh.SetVertexColor( tri1.Edge.NextEdge.NextEdge, vc[3] );
 			mesh.SetVertexBlend( tri1.Edge, vb[1] );
 			mesh.SetVertexBlend( tri1.Edge.NextEdge, vb[2] );
 			mesh.SetVertexBlend( tri1.Edge.NextEdge.NextEdge, vb[3] );
-					
+
 			tri2 = mesh.AddFace( newVerts[3], newVerts[0], newVerts[1] );
 			mesh.SetFaceTextureCoords( tri2, [UVs[3], UVs[0], UVs[1]] );
 			mesh.SetFaceTextureParameters( tri2, axisU, axisV, scale );
-			
+
 			mesh.SetVertexColor( tri2.Edge, vc[3] );
 			mesh.SetVertexColor( tri2.Edge.NextEdge, vc[0] );
 			mesh.SetVertexColor( tri2.Edge.NextEdge.NextEdge, vc[1] );
@@ -283,7 +284,7 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 			mesh.SetVertexBlend( tri2.Edge.NextEdge, vb[0] );
 			mesh.SetVertexBlend( tri2.Edge.NextEdge.NextEdge, vb[1] );
 		}
-		
+
 		switch ( method )
 		{
 			case QuadMethod.Fixed:
@@ -309,6 +310,7 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 					{
 						QuadTriangulateAlternate();
 					}
+
 					break;
 				}
 			case QuadMethod.LongestDiagonal:
@@ -324,6 +326,7 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 					{
 						QuadTriangulateAlternate();
 					}
+
 					break;
 				}
 			default:
@@ -332,34 +335,35 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 					break;
 				}
 		}
-		
+
 		mesh.SetFaceMaterial( tri1, mat );
 		mesh.SetFaceMaterial( tri2, mat );
-		
+
 		var mergeVerts = hVertices.Concat( newVerts ).ToArray();
-		
+
 		mesh.MergeVerticesWithinDistance( mergeVerts, 0.0001f, true, true, out _ );
 		mesh.ComputeFaceTextureCoordinatesFromParameters();
-		
+
 		var edges1 = mesh.GetFaceEdges( tri1 );
 		var edges2 = mesh.GetFaceEdges( tri2 );
 
-		newFaces = [ tri1, tri2 ];
+		newFaces = [tri1, tri2];
 		newEdge = edges1.Intersect( edges2 ).FirstOrDefault();
 	}
-	
-	static void TriangulateNgon( NgonMethod method, PolygonMesh mesh, FaceHandle face, out List<FaceHandle> newFaces, out List<HalfEdgeHandle> newEdges )
+
+	static void TriangulateNgon( NgonMethod method, PolygonMesh mesh, FaceHandle face, out List<FaceHandle> newFaces,
+		out List<HalfEdgeHandle> newEdges )
 	{
 		newFaces = [];
 		newEdges = [];
-		
+
 		var mat = mesh.GetFaceMaterial( face );
-		
+
 		var hVertices = mesh.GetFaceVertices( face );
-		
+
 		List<Color32> vb = [];
 		List<Color32> vc = [];
-		
+
 		// Walk the edge, getting the VertexBlend and VertexColor at each edge.
 		var startEdge = face.Edge;
 		var currentEdge = startEdge;
@@ -369,7 +373,6 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 			vb.Add( mesh.GetVertexBlend( currentEdge ) );
 			vc.Add( mesh.GetVertexColor( currentEdge ) );
 			currentEdge = currentEdge.NextEdge;
-			
 		} while ( currentEdge != startEdge );
 
 		var vPos = new List<Vector3>();
@@ -377,24 +380,24 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 		{
 			vPos.Add( mesh.GetVertexPosition( hVertex ) );
 		}
-		
+
 		var vUv = mesh.GetFaceTextureCoords( face );
 		mesh.GetFaceTextureParameters( face, out Vector4 axisU, out Vector4 axisV, out Vector2 scale );
-		
+
 		// Get face normal, tangent and bitangent for 2D projection.
 		mesh.ComputeFaceNormal( face, out var normal );
 		Vector3 reference = MathF.Abs( normal.z ) < 0.99f ? Vector3.Up : Vector3.Right;
-		
+
 		var tangent = normal.Cross( reference ).Normal;
 		var bitangent = normal.Cross( tangent ).Normal;
-		
+
 		// Returns 2D projected vertex.
 		Vector2 Project( Vector3 p ) { return new Vector2( p.Dot( tangent ), p.Dot( bitangent ) ); }
-		
-		mesh.RemoveFaces( [ face ] );
-		
+
+		mesh.RemoveFaces( [face] );
+
 		var newVerts = mesh.AddVertices( [..vPos] );
-		
+
 		// Projected 2D position of the vertices.
 		var projPos = new List<Vector2>();
 		foreach ( var pos in newVerts.Select( mesh.GetVertexPosition ) )
@@ -412,62 +415,63 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 		switch ( method )
 		{
 			case NgonMethod.Fan:
-			{
-				// Loop all verts
-				while ( polygon.Count > 3 )
 				{
-					bool foundEar = false;
-
-					for ( int i = 0; i < polygon.Count; i++ )
+					// Loop all verts
+					while ( polygon.Count > 3 )
 					{
-						if ( !IsEar( i ) )
-							continue;
+						bool foundEar = false;
 
-						int prev = (i - 1 + polygon.Count) % polygon.Count;
-						int next = (i + 1) % polygon.Count;
+						for ( int i = 0; i < polygon.Count; i++ )
+						{
+							if ( !IsEar( i ) )
+								continue;
 
-						int a = polygon[prev];
-						int b = polygon[i];
-						int c = polygon[next];
+							int prev = (i - 1 + polygon.Count) % polygon.Count;
+							int next = (i + 1) % polygon.Count;
 
-						// Create triangle and set UVs.
-						var newFace = mesh.AddFace( newVerts[a], newVerts[b], newVerts[c] );
-						newFaces.Add( newFace );
-						
-						mesh.SetFaceTextureCoords( newFace, [vUv[a], vUv[b], vUv[c]] );
-						mesh.SetFaceTextureParameters( newFace, axisU, axisV, scale );
-						mesh.SetFaceMaterial( newFace, mat );
-				
-						// Vertex colors/blends
-						var edge = newFace.Edge;
+							int a = polygon[prev];
+							int b = polygon[i];
+							int c = polygon[next];
 
-						mesh.SetVertexBlend( edge, vb[a] );
-						mesh.SetVertexColor( edge, vc[a] );
-						edge = edge.NextEdge;
+							// Create triangle and set UVs.
+							var newFace = mesh.AddFace( newVerts[a], newVerts[b], newVerts[c] );
+							newFaces.Add( newFace );
 
-						mesh.SetVertexBlend( edge, vb[b] );
-						mesh.SetVertexColor( edge, vc[b] );
-						edge = edge.NextEdge;
+							mesh.SetFaceTextureCoords( newFace, [vUv[a], vUv[b], vUv[c]] );
+							mesh.SetFaceTextureParameters( newFace, axisU, axisV, scale );
+							mesh.SetFaceMaterial( newFace, mat );
 
-						mesh.SetVertexBlend( edge, vb[c] );
-						mesh.SetVertexColor( edge, vc[c] );
-				
-						// Remove ear tip.
-						polygon.RemoveAt( i );
-				
-						foundEar = true;
-						break;
+							// Vertex colors/blends
+							var edge = newFace.Edge;
+
+							mesh.SetVertexBlend( edge, vb[a] );
+							mesh.SetVertexColor( edge, vc[a] );
+							edge = edge.NextEdge;
+
+							mesh.SetVertexBlend( edge, vb[b] );
+							mesh.SetVertexColor( edge, vc[b] );
+							edge = edge.NextEdge;
+
+							mesh.SetVertexBlend( edge, vb[c] );
+							mesh.SetVertexColor( edge, vc[c] );
+
+							// Remove ear tip.
+							polygon.RemoveAt( i );
+
+							foundEar = true;
+							break;
+						}
+
+						// Invalid/self-intersecting polygon.
+						if ( !foundEar )
+						{
+							Log.Warning( "Ear found." );
+							return;
+						}
 					}
-			
-					// Invalid/self-intersecting polygon.
-					if ( !foundEar )
-					{
-						Log.Warning( "Ear found." );
-						return;
-					}
+
+					break;
 				}
-				break;
-			}
 			case NgonMethod.Outer:
 				{
 					int startIndex = 0;
@@ -494,8 +498,8 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 							// Create triangle.
 							var newFace = mesh.AddFace( newVerts[a], newVerts[b], newVerts[c] );
 							newFaces.Add( newFace );
-							
-							mesh.SetFaceTextureCoords( newFace, [ vUv[a], vUv[b], vUv[c] ] );
+
+							mesh.SetFaceTextureCoords( newFace, [vUv[a], vUv[b], vUv[c]] );
 							mesh.SetFaceTextureParameters( newFace, axisU, axisV, scale );
 							mesh.SetFaceMaterial( newFace, mat );
 
@@ -529,6 +533,7 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 							return;
 						}
 					}
+
 					break;
 				}
 			default:
@@ -536,16 +541,16 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 					break;
 				}
 		}
-		
+
 		// Final triangle.
-		var finalFace = mesh.AddFace( newVerts[ polygon[ 0 ]], newVerts[ polygon[ 1 ]], newVerts[ polygon[ 2 ] ] );
+		var finalFace = mesh.AddFace( newVerts[polygon[0]], newVerts[polygon[1]], newVerts[polygon[2]] );
 		{
 			mesh.SetFaceTextureCoords( finalFace, [vUv[polygon[0]], vUv[polygon[1]], vUv[polygon[2]]] );
 			mesh.SetFaceTextureParameters( finalFace, axisU, axisV, scale );
 			mesh.SetFaceMaterial( finalFace, mat );
 			newFaces.Add( finalFace );
 		}
-		
+
 		// Get all the new internal edges.
 		foreach ( var newFace in newFaces )
 		{
@@ -555,7 +560,7 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 				if ( !mesh.IsEdgeOpen( edge ) ) newEdges.Add( edge );
 			}
 		}
-		
+
 		// Vertex colors/blends
 		var finalEdge = finalFace.Edge;
 
@@ -571,7 +576,7 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 			mesh.SetVertexBlend( finalEdge, vb[polygon[2]] );
 			mesh.SetVertexColor( finalEdge, vc[polygon[2]] );
 		}
-		
+
 		// Merge the triangulated face into the mesh.
 		var mergeVerts = hVertices.Concat( newVerts ).ToArray();
 		{
@@ -584,22 +589,22 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 		{
 			int prev = (current - 1 + polygon.Count) % polygon.Count;
 			int next = (current + 1) % polygon.Count;
-			
+
 			// Must be convex.
 			if ( !IsConvex( prev, current, next ) )
 				return false;
 
-			var a = projPos[ polygon[prev] ];
-			var b = projPos[ polygon[current] ];
-			var c = projPos[ polygon[next] ];
-			
+			var a = projPos[polygon[prev]];
+			var b = projPos[polygon[current]];
+			var c = projPos[polygon[next]];
+
 			// No other vertex may lie inside.
 			for ( int i = 0; i < polygon.Count; i++ )
 			{
 				if ( i == prev || i == current || i == next )
 					continue;
 
-				var p = projPos[ polygon[i] ];
+				var p = projPos[polygon[i]];
 
 				if ( PointInTriangle( p, a, b, c ) )
 					return false;
@@ -607,13 +612,13 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 
 			return true;
 		}
-		
+
 		bool IsConvex( int prev, int current, int next )
 		{
-			var a = projPos[ polygon[ prev ] ];
-			var b = projPos[ polygon[ current ] ];
-			var c = projPos[ polygon[ next ] ];
-			
+			var a = projPos[polygon[prev]];
+			var b = projPos[polygon[current]];
+			var c = projPos[polygon[next]];
+
 			float cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
 			return cross > 0.0001f;
 		}
