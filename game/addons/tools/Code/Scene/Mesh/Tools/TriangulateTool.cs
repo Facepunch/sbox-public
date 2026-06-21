@@ -80,7 +80,7 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 				}
 
 				if ( _originalMeshes.TryGetValue( component, out PolygonMesh originalMesh ) &&
-				     _remappedFaces.TryGetValue( component, out List<FaceHandle> remapped ) )
+					 _remappedFaces.TryGetValue( component, out List<FaceHandle> remapped ) )
 				{
 					using ( Gizmo.Scope( "SelectionOutline" ) )
 					{
@@ -180,8 +180,8 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 		using IDisposable scope = SceneEditorSession.Scope();
 
 		using ( SceneEditorSession.Active.UndoScope( "Triangulate Faces" )
-			       .WithComponentChanges( components )
-			       .Push() )
+				   .WithComponentChanges( components )
+				   .Push() )
 		{
 			SelectionSystem selection = SceneEditorSession.Active.Selection;
 			selection.Clear();
@@ -203,14 +203,14 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 		}
 
 		Cleanup();
-		EditorToolManager.SetSubTool( nameof(FaceTool) );
+		EditorToolManager.SetSubTool( nameof( FaceTool ) );
 	}
 
 	public void Cancel()
 	{
 		RestoreOriginals();
 		Cleanup();
-		EditorToolManager.SetSubTool( nameof(FaceTool) );
+		EditorToolManager.SetSubTool( nameof( FaceTool ) );
 	}
 
 	private void RestoreOriginals()
@@ -264,7 +264,7 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 
 		mesh.RemoveFaces( [face] );
 
-		VertexHandle[] newVerts = mesh.AddVertices( [..vPos] );
+		VertexHandle[] newVerts = mesh.AddVertices( [.. vPos] );
 
 		FaceHandle tri1;
 		FaceHandle tri2;
@@ -433,7 +433,7 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 
 		mesh.RemoveFaces( [face] );
 
-		VertexHandle[] newVerts = mesh.AddVertices( [..vPos] );
+		VertexHandle[] newVerts = mesh.AddVertices( [.. vPos] );
 
 		// Projected 2D position of the vertices.
 		List<Vector2> projPos = new();
@@ -674,7 +674,7 @@ public partial class TriangulateTool( MeshFace[] faces ) : EditorTool
 			float Sign( Vector2 p1, Vector2 p2, Vector2 p3 )
 			{
 				return ((p1.x - p3.x) * (p2.y - p3.y)) -
-				       ((p2.x - p3.x) * (p1.y - p3.y));
+					   ((p2.x - p3.x) * (p1.y - p3.y));
 			}
 
 			bool b1 = Sign( p, a, b ) < 0.0f;

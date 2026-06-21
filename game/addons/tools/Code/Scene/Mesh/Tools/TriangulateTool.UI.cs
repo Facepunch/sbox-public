@@ -30,19 +30,19 @@ partial class TriangulateTool
 
 				ControlSheet sheet = new();
 				ControlWidget control =
-					sheet.AddRow( this.GetSerialized().GetProperty( nameof(_triangulateProperties) ) );
+					sheet.AddRow( this.GetSerialized().GetProperty( nameof( _triangulateProperties ) ) );
 				control.OnChildValuesChanged += _ => UpdateMesh();
 				row.Add( sheet );
 
 				row = group.AddRow();
 				row.Spacing = 4;
 
-				Button apply = new("Apply", "done");
+				Button apply = new( "Apply", "done" );
 				apply.Clicked = Apply;
 				apply.ToolTip = "[Apply " + EditorShortcuts.GetKeys( "mesh.inset-apply" ) + "]";
 				row.Add( apply );
 
-				Button cancel = new("Cancel", "close");
+				Button cancel = new( "Cancel", "close" );
 				cancel.Clicked = Cancel;
 				cancel.ToolTip = "[Cancel " + EditorShortcuts.GetKeys( "mesh.inset-cancel" ) + "]";
 				row.Add( cancel );
