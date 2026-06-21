@@ -33,14 +33,14 @@ internal record ArtifactManifest
 /// <summary>
 /// Syncs the master branch to the public repository by filtering specific paths
 /// </summary>
-internal class SyncPublicRepo( string name, bool dryRun = false ) : Step( name )
+internal class SyncPublicRepo( bool dryRun = false )
 {
 	private const string PUBLIC_REPO = "Facepunch/sbox-public";
 	private const string PUBLIC_BRANCH = "master";
 	private const string SHALLOW_EXCLUDE_TAG = "public-history-root";
 	private const int MAX_PARALLEL_UPLOADS = 32;
 
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{

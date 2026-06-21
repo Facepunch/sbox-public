@@ -2,11 +2,11 @@
 
 namespace Facepunch.Steps;
 
-internal class UploadSteam( string name, string branch ) : Step( name )
+internal class UploadSteam( string branch )
 {
 	public string Branch { get; } = branch;
 
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{

@@ -2,9 +2,9 @@
 
 namespace Facepunch.Steps;
 
-internal class UploadSymbolsStep( string name ) : Step( name )
+internal class UploadSymbols
 {
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{

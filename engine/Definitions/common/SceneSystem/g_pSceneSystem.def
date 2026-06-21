@@ -215,4 +215,12 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 
 	// Managed timestamp support for CommandList etc.
 	bool SetManagedPerfMarker( IRenderContext ctx, string markerName );
+
+	inline void SetNextRenderTime( float flNextTime )
+	{
+		if ( g_pSceneSystem )
+		{
+			g_pSceneSystem->SetNextRenderTime( flNextTime );
+		}
+	}
 }

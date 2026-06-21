@@ -10,13 +10,13 @@ namespace Facepunch.Steps;
 /// <summary>
 /// Downloads public artifacts that match the current repository commit.
 /// </summary>
-internal class DownloadPublicArtifacts( string name, bool nativeBinariesOnly = false ) : Step( name )
+internal class DownloadPublicArtifacts( bool nativeBinariesOnly = false )
 {
 	private const string BaseUrl = "https://artifacts.sbox.game";
 	private const int MaxParallelDownloads = 32;
 	private const int MaxDownloadAttempts = 3;
 	private const int MaxManifestLookbackCommits = 128;
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{

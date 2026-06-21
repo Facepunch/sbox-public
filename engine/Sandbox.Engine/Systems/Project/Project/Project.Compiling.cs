@@ -26,7 +26,7 @@ public partial class Project
 	/// <summary>
 	/// Whether to save/load compiled assemblies to disk.
 	/// </summary>
-	bool CacheAssemblies => IsBuiltIn && Application.IsRetail;
+	bool CacheAssemblies => IsBuiltIn && Application.IsRetail && Application.IsEditor;
 
 	/// <summary>
 	/// These package types should reference package.base

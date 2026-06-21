@@ -5,11 +5,11 @@ namespace Facepunch.Steps;
 /// <summary>
 /// Step to generate Visual Studio solutions without building them
 /// </summary>
-internal class GenerateSolutions( string name, BuildConfiguration configuration = BuildConfiguration.Developer ) : Step( name )
+internal class GenerateSolutions( BuildConfiguration configuration = BuildConfiguration.Developer )
 {
 	private readonly Platform platform = Platform.Create();
 
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		// Generate solutions based on configuration
 		if ( configuration == BuildConfiguration.Retail )
