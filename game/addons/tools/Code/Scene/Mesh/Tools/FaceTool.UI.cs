@@ -131,6 +131,7 @@ partial class FaceTool
 				CreateButton( "Clipping Tool", "content_cut", "mesh.open-clipping-tool", OpenClippingTool, _faces.Length > 0, grid );
 				CreateButton( "Bridge", "device_hub", "mesh.bridge-tool", OpenBridgeTool, CanBridgeFaces(), grid );
 				CreateButton( "Inset", "filter_center_focus", "mesh.inset-tool", OpenInsetTool, _faces.Length > 0, grid );
+				CreateButton( "Triangulate", "change_history", "mesh.triangulate-tool", OpenTriangulateTool, _faces.Length > 0, grid );
 
 				grid.AddStretchCell();
 
@@ -218,6 +219,17 @@ partial class FaceTool
 				return;
 
 			var tool = new InsetTool( _faces );
+			tool.Manager = _meshTool.Manager;
+			_meshTool.CurrentTool = tool;
+		}
+
+		[Shortcut( "mesh.triangulate-tool", "CTRL+T", typeof( SceneViewWidget ) )]
+		void OpenTriangulateTool()
+		{
+			if ( _faces.Length == 0 )
+				return;
+
+			var tool = new TriangulateTool( _faces );
 			tool.Manager = _meshTool.Manager;
 			_meshTool.CurrentTool = tool;
 		}
