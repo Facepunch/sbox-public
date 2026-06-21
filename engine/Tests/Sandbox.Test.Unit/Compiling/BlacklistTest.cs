@@ -572,6 +572,46 @@ public partial class BlacklistTest
 	}
 
 	/// <summary>
+	/// `stackalloc T[n]` -> Span<T> lowers to the void* Span ctor in IL, but it's NOT an explicit ctor
+	/// call in source, so the blacklist on `Span<T>.Span(void*, int)` must leave it alone. If this ever
+	/// starts failing, we've broken every stackalloc-to-Span in sandboxed code (incl. first-party).
+	/// </summary>
+	[TestMethod]
+	public void StackAllocSpan_IsAllowed()
+	{
+		var sourceCode = """
+			System.Span<int> s = stackalloc int[4];
+			s[0] = 1;
+			System.ReadOnlySpan<int> r = s;
+			var _ = r[0];
+			""";
+
+		CompileAndWalk( sourceCode, out var diagnostics );
+
+		Assert.AreEqual( 0, diagnostics.Count, $"stackalloc must not trip the blacklist; got: {string.Join( ", ", diagnostics.Select( d => d.GetMessage() ) )}" );
+	}
+
+	/// <summary>
+	/// GetPinnableReference() (the `fixed( T* = span )` hook) must be blocked when called explicitly.
+	/// It's reachable in safe code - returns ref T - unlike the void* ctor, which needs `unsafe` and so
+	/// forces the whitelist (and this walker) off entirely.
+	/// </summary>
+	[TestMethod]
+	public void SpanGetPinnableReference_IsBlocked()
+	{
+		var sourceCode = """
+			System.Span<int> s = stackalloc int[4];
+			ref int r = ref s.GetPinnableReference();
+			r = 1;
+			""";
+
+		CompileAndWalk( sourceCode, out var diagnostics );
+
+		Assert.AreEqual( 1, diagnostics.Count, $"Expected 1 SB500, got: {string.Join( ", ", diagnostics.Select( d => d.GetMessage() ) )}" );
+		Assert.AreEqual( "SB500", diagnostics.FirstOrDefault().Id );
+	}
+
+	/// <summary>
 	/// Rewrite <paramref name="source"/> to replace references to <paramref name="fullyQualifiedMember"/> with
 	/// a different kind of qualification.
 	/// </summary>

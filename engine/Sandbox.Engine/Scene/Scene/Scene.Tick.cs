@@ -105,8 +105,15 @@ public partial class Scene : GameObject
 		foreach ( var c in updateComponents.EnumerateLocked( true ) ) c.InternalUpdate();
 	}
 
+	List<IRenderThread> renderThreadEventTargets = new();
+
 	internal void PreRender()
 	{
+		// Snapshot IRenderThread components on the main thread so the render thread
+		// can iterate without racing against concurrent Add/Remove in objectIndex.
+		renderThreadEventTargets.Clear();
+		GetAll( renderThreadEventTargets );
+
 		foreach ( var c in preRenderComponents.EnumerateLocked() ) c.OnPreRenderInternal();
 	}
 
@@ -244,7 +251,7 @@ public partial class Scene : GameObject
 		}
 
 		using var timeScope = Time.Scope( TimeNow, TimeDelta );
-		using var gizmoScope = gizmoInstance.Push();
+		using var gizmoScope = gizmoInstance?.Push();
 
 		using ( PerformanceStats.Timings.Async.Scope() )
 		{

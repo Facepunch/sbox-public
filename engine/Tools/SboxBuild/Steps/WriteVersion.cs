@@ -5,9 +5,9 @@ namespace Facepunch.Steps;
 /// <summary>
 /// Step to write version information to a file
 /// </summary>
-internal class WriteVersion( string name ) : Step( name )
+internal class WriteVersion
 {
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{

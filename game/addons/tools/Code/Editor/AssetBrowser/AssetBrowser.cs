@@ -713,10 +713,9 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 	{
 		if ( asset is null ) return;
 
-		var folder = System.IO.Path.GetDirectoryName( asset.AbsolutePath );
 		EditorWindow.DockManager.RaiseDock( this );
 
-		NavigateTo( folder );
+		NavigateTo( asset.AbsolutePath );
 
 		// wait for the list to (successfully) populate before selecting the item
 		var success = await RefreshTask;

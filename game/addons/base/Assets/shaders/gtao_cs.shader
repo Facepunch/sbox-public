@@ -10,7 +10,6 @@ CS
     #include "postprocess/shared.hlsl"
 
     #include "common\classes\Depth.hlsl"
-    #include "common\classes\Motion.hlsl"
     
     #include "common\thirdparty\XeGTAO.h"
     #include "common\thirdparty\XeGTAO.hlsl"
@@ -74,13 +73,6 @@ CS
     // input output textures for the second pass (XeGTAO_MainPass)
     Texture2D<float>             g_srcWorkingDepth       < Attribute("WorkingDepth"); > ;       // viewspace depth with MIPs, output by XeGTAO_PrefilterDepths16x16 and consumed by XeGTAO_MainPass
     RWTexture2D<float>           g_outWorkingAOTerm      < Attribute("WorkingAOTerm"); > ;      // output AO term (includes bent normals if enabled - packed as R11G11B10 scaled by AO)
-    RWTexture2D<float>           g_outWorkingEdges       < Attribute("WorkingEdges"); > ;       // output depth-based edges used by the denoiser
-
-    // input output textures for the third pass
-    Texture2D                    g_srcWorkingAOTerm      < Attribute("WorkingAOTerm"); > ;    // coming from previous pass
-    Texture2D<float>             g_srcWorkingEdges       < Attribute("WorkingEdges"); > ; // coming from previous pass
-    RWTexture2D<float>           g_outAO                 < Attribute("FinalAOTerm"); >;         // final AO term - just 'visibility' or 'visibility + bent normals'
-    Texture2D                    g_prevAO                < Attribute("FinalAOTermPrev"); >;
 
     // same-frame spatial denoiser ping-pong resources (configured per pass by C#)
     Texture2D<float>             g_srcSpatialIn          < Attribute("SpatialIn"); >;
@@ -93,7 +85,6 @@ CS
     RWTexture2D<float>           g_outFullResAO          < Attribute("FullResAO"); > ;
 
     SamplerState                PointClamp               < Filter( POINT ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
-    SamplerState                BilinearClamp            < Filter( MIN_MAG_MIP_LINEAR ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
 
     //-------------------------------------------------------------------------------------------------------------------
 
@@ -102,11 +93,10 @@ CS
         ViewDepthChain,
         MainPass,
         DenoiseSpatial,
-        DenoiseTemporal,
         BilateralUpsample
     };
 
-    DynamicCombo( D_PASS, 0..4, Sys( All ) );
+    DynamicCombo( D_PASS, 0..3, Sys( All ) );
     DynamicCombo( D_QUALITY, 0..2, Sys( All ) );
 
     //-------------------------------------------------------------------------------------------------------------------
@@ -240,70 +230,70 @@ CS
     }
 
     //-------------------------------------------------------------------------------------------------------------------
-    float TemporalDenoiseAO( uint2 vDispatchId, GTAOConstants sGTAOConsts )
-    {
-        float taaBlendAmount = sGTAOConsts.TAABlendAmount;
-
-        // Reproject using the full-resolution depth buffer and motion, then sample the AO-resolution
-        // history texture. UVs map identically to either resolution (both sample the same [0,1] region).
-        float2 fullResPos = AoPosToFullResPos( (float2)vDispatchId + 0.5, sGTAOConsts.ViewportSize ) - 0.5;
-        fullResPos = clamp( fullResPos, 0.0.xx, g_vViewportSize.xy - 1.0.xx );
-        float3 prevFramePosSs = Motion::Get( fullResPos );
-        float2 vPrevUV = saturate( ( prevFramePosSs.xy + 0.5 ) * g_vInvViewportSize );
-
-        // Neighborhood clamp against AO-resolution current samples to suppress ghosting.
-        float4 vMin = 9999;
-        float4 vMax = -9999;
-        int2 aoMax = int2( sGTAOConsts.ViewportSize ) - 1;
-        [unroll] for( int i = -1; i <= 1; i++ )
-        [unroll] for( int j = -1; j <= 1; j++ )
-        {
-            int2 samplePos = clamp( int2( vDispatchId ) + int2( i, j ), int2( 0, 0 ), aoMax );
-            float4 s = g_srcWorkingAOTerm[ samplePos ];
-            vMin = min( vMin, s );
-            vMax = max( vMax, s );
-        }
-
-        float4 vPrevSample = g_prevAO.SampleLevel( BilinearClamp, vPrevUV, 0 );
-        float4 vPrevClamped = clamp( vPrevSample, vMin, vMax );
-        float4 vCurrentSample = g_srcWorkingAOTerm[ vDispatchId ];
-
-        return lerp( vCurrentSample, vPrevClamped, taaBlendAmount ).r;
-    }
-
-    //---------------------------------------------------------------------------------------------------------------
-    // Loads depth + view-space normal for an AO-resolution position in a single coordinate mapping.
-    // Fusing these avoids the duplicate AoPosToFullResPos that separate LoadSpatialDepth / LoadNormal would do.
     void LoadSpatialDepthNormal( int2 aoPos, GTAOConstants consts, out float depth, out lpfloat3 normal )
     {
         float2 fullResPosF = AoPosToFullResPos( (float2)aoPos + 0.5, consts.ViewportSize ) - 0.5;
         int2 fullResPos = clamp( (int2)fullResPosF, int2( 0, 0 ), int2( g_vViewportSize.xy ) - 1 );
         depth = g_srcWorkingDepth.Load( int3( fullResPos, 0 ) );
-        normal = (lpfloat3)Vector3WsToVs( SampleWorldNormal( fullResPos ) );
-        normal.z = -normal.z;
+        normal = (lpfloat3)SampleWorldNormal( fullResPos );
     }
 
-    float SpatialDenoiseATrous( uint2 aoPos, GTAOConstants consts, int stepWidth )
+    #define GTAO_DENOISE_GROUP_SIZE 8
+    #define GTAO_DENOISE_TILE_STRIDE 16
+    #define GTAO_DENOISE_TILE_TEXELS (GTAO_DENOISE_TILE_STRIDE * GTAO_DENOISE_TILE_STRIDE)
+
+    groupshared float    g_spatialTileAO[GTAO_DENOISE_TILE_TEXELS];
+    groupshared float    g_spatialTileDepth[GTAO_DENOISE_TILE_TEXELS];
+    groupshared lpfloat3 g_spatialTileNormal[GTAO_DENOISE_TILE_TEXELS];
+
+    int GetSpatialTileIndex( int2 tilePos )
     {
-        int2 pos = int2( aoPos );
+        return tilePos.y * GTAO_DENOISE_TILE_STRIDE + tilePos.x;
+    }
+
+    void LoadSpatialDenoiseTile( uint2 aoPos, uint2 groupThreadId, GTAOConstants consts, int stepWidth )
+    {
         int2 aoMax = int2( consts.ViewportSize ) - 1;
+        int2 groupBase = int2( aoPos ) - int2( groupThreadId );
+        int2 tileOrigin = groupBase - stepWidth;
+        uint tileSize = GTAO_DENOISE_GROUP_SIZE + stepWidth * 2;
+        uint tileTexels = tileSize * tileSize;
+        uint linearThread = groupThreadId.y * GTAO_DENOISE_GROUP_SIZE + groupThreadId.x;
 
-        float centerAO = g_srcSpatialIn.Load( int3( clamp( pos, int2( 0, 0 ), aoMax ), 0 ) );
+        for ( uint tileLinear = linearThread; tileLinear < tileTexels; tileLinear += GTAO_DENOISE_GROUP_SIZE * GTAO_DENOISE_GROUP_SIZE )
+        {
+            int2 tilePos = int2( tileLinear % tileSize, tileLinear / tileSize );
+            int tileIndex = GetSpatialTileIndex( tilePos );
+            int2 samplePos = clamp( tileOrigin + tilePos, int2( 0, 0 ), aoMax );
 
-        float centerDepth;
-        lpfloat3 centerNormal;
-        LoadSpatialDepthNormal( pos, consts, centerDepth, centerNormal );
+            float depth;
+            lpfloat3 normal;
+            LoadSpatialDepthNormal( samplePos, consts, depth, normal );
 
-        // Keep depth sensitivity proportional to distance so far geometry doesn't over-blur.
+            g_spatialTileAO[tileIndex] = g_srcSpatialIn.Load( int3( samplePos, 0 ) );
+            g_spatialTileDepth[tileIndex] = depth;
+            g_spatialTileNormal[tileIndex] = normal;
+        }
+
+        GroupMemoryBarrierWithGroupSync();
+    }
+
+    float SpatialDenoiseATrous( uint2 aoPos, uint2 groupThreadId, GTAOConstants consts )
+    {
+        int stepWidth = clamp( g_nSpatialStep, 1, 4 );
+        LoadSpatialDenoiseTile( aoPos, groupThreadId, consts, stepWidth );
+
+        int2 centerTile = int2( groupThreadId ) + stepWidth;
+        int centerIndex = GetSpatialTileIndex( centerTile );
+
+        float centerAO = g_spatialTileAO[centerIndex];
+        float centerDepth = g_spatialTileDepth[centerIndex];
+        lpfloat3 centerNormal = g_spatialTileNormal[centerIndex];
         float depthSigma = max( abs( centerDepth ) * ( 0.01 * stepWidth ), 0.01 );
 
-        // Center sample always passes edge tests against itself (dot=1, depthDiff=0), so seed
-        // the accumulator with its known weight (4.0) and skip its redundant depth/normal loads.
         float sum  = centerAO * 4.0;
         float sumW = 4.0;
 
-        // 8 neighbors of the 3x3 wavelet kernel (1 2 1 / 2 [4] 2 / 1 2 1) with dilated step.
-        // Center (weight 4) handled above; offsets + weights stored as compile-time constants.
         static const int2  offsets[8] = {
             int2( -1, -1 ), int2( 0, -1 ), int2( 1, -1 ),
             int2( -1,  0 ),                int2( 1,  0 ),
@@ -314,24 +304,21 @@ CS
         [unroll]
         for ( int i = 0; i < 8; i++ )
         {
-            int2 samplePos = clamp( pos + offsets[i] * stepWidth, int2( 0, 0 ), aoMax );
+            int2 sampleTile = centerTile + offsets[i] * stepWidth;
+            int sampleIndex = GetSpatialTileIndex( sampleTile );
 
-            float ao = g_srcSpatialIn.Load( int3( samplePos, 0 ) );
-
-            // Fused depth + normal load: single AoPosToFullResPos instead of two separate calls.
-            float sampleDepth;
-            lpfloat3 sampleNormal;
-            LoadSpatialDepthNormal( samplePos, consts, sampleDepth, sampleNormal );
+            float ao = g_spatialTileAO[sampleIndex];
+            float sampleDepth = g_spatialTileDepth[sampleIndex];
+            lpfloat3 sampleNormal = g_spatialTileNormal[sampleIndex];
 
             float depthW = exp2( -abs( sampleDepth - centerDepth ) / depthSigma );
 
-            // pow(dot, 24) via repeated squaring (5 muls, no transcendentals).
             float nDot = saturate( dot( sampleNormal, centerNormal ) );
-            float n2  = nDot * nDot;   // ^2
-            float n4  = n2  * n2;      // ^4
-            float n8  = n4  * n4;      // ^8
-            float n16 = n8  * n8;      // ^16
-            float normalW = n8 * n16;  // ^24
+            float n2  = nDot * nDot;
+            float n4  = n2  * n2;
+            float n8  = n4  * n4;
+            float n16 = n8  * n8;
+            float normalW = n8 * n16;
 
             float w = kWeights[i] * depthW * normalW;
             sum  += ao * w;
@@ -359,6 +346,9 @@ CS
         }
         else if ( D_PASS == GTAOPasses::MainPass )
         {
+            if ( vDispatchId.x >= sGTAOConsts.ViewportSize.x || vDispatchId.y >= sGTAOConsts.ViewportSize.y )
+                return;
+
             lpfloat2 localNoise;
             
             // idk blue noise is perceptually much smoother on spatial denoising
@@ -366,15 +356,14 @@ CS
 
             if ( bUseBlueNoise )
             {
-                // Blue noise: spatially uniform, temporally animated via Cranley-Patterson rotation
-                int2 noiseCoord = ( vDispatchId.xy + int2( sGTAOConsts.NoiseIndex * 7, sGTAOConsts.NoiseIndex * 3 ) ) % 256;
+                // Blue noise: spatially uniform sampling pattern
+                int2 noiseCoord = vDispatchId.xy % 256;
                 localNoise = lpfloat2( g_tBlueNoise[ noiseCoord ].rg );
             }
             else
             {
-                // Hilbert R2 quasi-random sequence — best low-discrepancy spatiotemporal noise for GTAO
+                // Hilbert R2 quasi-random sequence — best low-discrepancy spatial noise for GTAO
                 uint hilbertIndex = HilbertIndex( vDispatchId.x, vDispatchId.y );
-                hilbertIndex += 288 * ( sGTAOConsts.NoiseIndex % 64 );
                 localNoise = lpfloat2( frac( 0.5 + hilbertIndex * float2( 0.75487766624669276005, 0.5698402909980532659114 ) ) );
             }
             
@@ -411,21 +400,13 @@ CS
                 sGTAOConsts,
                 g_srcWorkingDepth,
                 PointClamp,
-                g_outWorkingAOTerm,
-                g_outWorkingEdges
+                g_outWorkingAOTerm
             );
         }
         else if ( D_PASS == GTAOPasses::DenoiseSpatial )
         {
-            if ( vDispatchId.x >= sGTAOConsts.ViewportSize.x || vDispatchId.y >= sGTAOConsts.ViewportSize.y )
-                return;
-
-            int stepWidth = max( g_nSpatialStep, 1 );
-            g_outSpatialOut[vDispatchId] = SpatialDenoiseATrous( vDispatchId, sGTAOConsts, stepWidth );
-        }
-        else if ( D_PASS == GTAOPasses::DenoiseTemporal )
-        {
-            g_outAO[vDispatchId] = TemporalDenoiseAO( vDispatchId, sGTAOConsts );
+            float ao = SpatialDenoiseATrous( vDispatchId, vGroupThreadID, sGTAOConsts );
+            g_outSpatialOut[vDispatchId] = ao;
         }
         else if ( D_PASS == GTAOPasses::BilateralUpsample )
         {

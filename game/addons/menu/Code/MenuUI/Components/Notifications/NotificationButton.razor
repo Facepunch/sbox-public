@@ -38,8 +38,8 @@
     Popup menu;
 
     void OpenPopup()
-    {
-        if (menu.IsValid())
+	{
+		if ( menu is not null && menu.IsVisible )
         {
             menu.Delete();
             menu = null;

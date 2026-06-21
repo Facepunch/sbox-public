@@ -7,10 +7,9 @@ namespace Facepunch.Steps;
 /// with Azure Trusted Signing (artifact-signing). Auth is handled via DefaultAzureCredential
 /// (expects AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_CLIENT_SECRET in the environment).
 /// </summary>
-internal class SignBinaries() : Step( "SignBinaries" )
+internal class SignBinaries
 {
-
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		string rootDir = Directory.GetCurrentDirectory();
 

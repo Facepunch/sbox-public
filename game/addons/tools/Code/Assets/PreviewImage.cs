@@ -61,9 +61,12 @@ class PreviewImage : AssetPreview
 	{
 		using ( Scene.Push() )
 		{
-			var background = new GameObject( true, "checkerboard" );
-			background.WorldPosition = Vector3.Forward;
-			AddSprite( background, GetCheckerboardTexture() );
+			if ( !IsRenderingThumbnail )
+			{
+				var background = new GameObject( true, "checkerboard" );
+				background.WorldPosition = Vector3.Forward;
+				AddSprite( background, GetCheckerboardTexture() );
+			}
 
 			PrimaryObject = new GameObject( true, "texture" );
 			PrimaryObject.WorldTransform = Transform.Zero;
@@ -217,42 +220,18 @@ class PreviewImage : AssetPreview
 		Camera.WorldRotation = Rotation.LookAt( Vector3.Forward );
 	}
 
-	public override Widget CreateWidget( Widget parent )
+	public override Widget CreateToolbar()
 	{
 		if ( Texture is null )
 			return null;
 
-		return new TextureMipPreview( parent, this );
-	}
-}
-
-file sealed class TextureMipPreview : Widget
-{
-	public TextureMipPreview( Widget parent, PreviewImage preview ) : base( parent )
-	{
-		Layout = Layout.Column();
-
-		Layout.Add( new MipToolbar( this, preview ) );
-
-		var render = new SceneRenderingWidget();
-		render.Scene = preview.Scene;
-		preview.Camera.BackgroundColor = Theme.ControlBackground;
-		render.OnPreFrame += () =>
-		{
-			using ( preview.Scene.Push() )
-			{
-				preview.ScreenSize = (Vector2Int)render.Size;
-				preview.UpdateScene( RealTime.Now * preview.PreviewWidgetCycleSpeed, RealTime.Delta );
-			}
-		};
-
-		Layout.Add( render, 1 );
+		return new MipToolbar( this );
 	}
 }
 
 file sealed class MipToolbar : Widget
 {
-	public MipToolbar( Widget parent, PreviewImage preview ) : base( parent )
+	public MipToolbar( PreviewImage preview ) : base( null )
 	{
 		var controlHeight = Theme.RowHeight + 8;
 		FixedHeight = controlHeight + 12;

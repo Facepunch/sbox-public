@@ -91,14 +91,23 @@ internal static class EngineLoop
 
 		int maxFps = RenderSettings.Instance.MaxFrameRate;
 
-		if ( InputSystem.IsAppActive() ) return maxFps;
+		double effectiveFps = maxFps;
+		if ( Game.IsMainMenuVisible )
+		{
+			int maxMenu = RenderSettings.Instance.MaxFrameRateMenu;
+			if ( maxMenu > 0 && maxMenu < effectiveFps ) effectiveFps = maxMenu;
+		}
 
-		// only use maxinactive if it's over 0 and lower than maxfps
-		int maxInactive = RenderSettings.Instance.MaxFrameRateInactive;
-		if ( maxInactive <= 0 ) return maxFps;
-		if ( maxInactive > maxFps ) return maxFps;
+		if ( !InputSystem.IsAppActive() )
+		{
+			// Inactive cap is bounded by the effective active cap so the menu cap still applies when tabbed out.
+			int maxInactive = RenderSettings.Instance.MaxFrameRateInactive;
+			if ( maxInactive <= 0 ) return effectiveFps;
+			if ( maxInactive > effectiveFps ) return effectiveFps;
+			return maxInactive;
+		}
 
-		return maxInactive;
+		return effectiveFps;
 	}
 
 	static void SleepForFrameRateClamp( FastTimer frameTime )

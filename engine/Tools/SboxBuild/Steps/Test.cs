@@ -3,7 +3,7 @@ using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
-internal class Test( string name, bool noBuild = true, string filter = null ) : Step( name )
+internal class Test( bool noBuild = true, string filter = null )
 {
 	/// <summary>
 	/// Filter for pull request runs: everything except tests that talk to the live backend,
@@ -27,7 +27,7 @@ internal class Test( string name, bool noBuild = true, string filter = null ) : 
 		new( "Sandbox.Test.Integration", NeedsEngine: true ),
 	];
 
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{

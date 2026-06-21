@@ -12,7 +12,7 @@ public class MountButton : PopupButton
 
 	public override void Open()
 	{
-		if ( Popup.IsValid() )
+		if ( Popup is not null && Popup.IsVisible )
 		{
 			Popup.Delete();
 			Popup = null;

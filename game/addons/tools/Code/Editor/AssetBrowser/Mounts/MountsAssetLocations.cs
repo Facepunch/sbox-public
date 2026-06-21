@@ -1,4 +1,5 @@
-﻿using Sandbox.Mounting;
+﻿using Sandbox;
+using Sandbox.Mounting;
 
 namespace Editor;
 
@@ -86,6 +87,12 @@ public class MountsAssetLocations : AssetLocations, IMountEvents
 
 		menu.OpenAtCursor();
 		e.Accepted = true;
+	}
+
+	[EditorEvent.Hotload]
+	void Hotload()
+	{
+		BuildLocations();
 	}
 
 	void IMountEvents.OnMountEnabled( BaseGameMount source )

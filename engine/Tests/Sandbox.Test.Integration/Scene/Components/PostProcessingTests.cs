@@ -131,7 +131,6 @@ public class PostProcessingComponentTest
 		Assert.AreEqual( 128, ao.Radius );
 		Assert.AreEqual( 1.0f, ao.FalloffRange );
 		Assert.AreEqual( 5.0f, ao.ThinCompensation );
-		Assert.AreEqual( AmbientOcclusion.DenoiseModes.Spatial, ao.DenoiseMode );
 
 		var bloom = go.Components.Create<Bloom>( false );
 		Assert.AreEqual( SceneCamera.BloomAccessor.BloomMode.Additive, bloom.Mode );
@@ -344,8 +343,6 @@ public class PostProcessingComponentTest
 	/// <summary>
 	/// The heavier rendering effects round trip their configuration: ambient occlusion,
 	/// bloom, depth of field, color grading curves, tonemapping and highlight outline.
-	/// AmbientOcclusion.DenoiseMode has no [Property] attribute so it is NOT serialized -
-	/// a Temporal setting falls back to the Spatial default after the round trip.
 	/// ScreenSpaceReflections and Highlight have no serializable settings but survive as
 	/// component presence.
 	/// </summary>
@@ -362,7 +359,6 @@ public class PostProcessingComponentTest
 		ao.Radius = 256;
 		ao.FalloffRange = 0.5f;
 		ao.ThinCompensation = 2.0f;
-		ao.DenoiseMode = AmbientOcclusion.DenoiseModes.Temporal;
 
 		var bloom = go.Components.Create<Bloom>();
 		bloom.Mode = SceneCamera.BloomAccessor.BloomMode.Screen;
@@ -412,7 +408,6 @@ public class PostProcessingComponentTest
 		Assert.AreEqual( 256, loadedAo.Radius );
 		Assert.AreEqual( 0.5f, loadedAo.FalloffRange );
 		Assert.AreEqual( 2.0f, loadedAo.ThinCompensation );
-		Assert.AreEqual( AmbientOcclusion.DenoiseModes.Spatial, loadedAo.DenoiseMode, "DenoiseMode has no [Property] attribute so it is not serialized" );
 
 		var loadedBloom = clone.Components.Get<Bloom>();
 		Assert.IsNotNull( loadedBloom );

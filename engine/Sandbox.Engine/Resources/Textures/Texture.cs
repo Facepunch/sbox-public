@@ -28,7 +28,7 @@ public partial class Texture : Resource, IDisposable
 	/// <summary>
 	/// Whether this texture is an error or invalid or not.
 	/// </summary>
-	public bool IsError => native.IsNull || !native.IsStrongHandleValid() || native.IsError();
+	public override bool IsError => native.IsNull || !native.IsStrongHandleValid() || native.IsError();
 
 	public override bool IsValid => native.IsValid;
 
