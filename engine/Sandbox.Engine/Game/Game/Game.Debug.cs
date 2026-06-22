@@ -8,18 +8,24 @@ public static partial class Game
 	internal static void DumpScene()
 	{
 		var scene = ActiveScene;
+
 		if ( !scene.IsValid() )
 			return;
 
 		using var sceneScope = scene.Push();
 
 		var children = new JsonArray();
-		var options = new GameObject.SerializeOptions();
+		var options = new GameObject.SerializeOptions()
+		{
+			SceneForDump = true
+		};
 
 		foreach ( var child in scene.Children )
 		{
 			var jso = child.Serialize( options );
-			if ( jso is null ) continue;
+
+			if ( jso is null )
+				continue;
 
 			children.Add( jso );
 		}
@@ -28,6 +34,7 @@ public static partial class Game
 			return;
 
 		var json = children.ToJsonString();
+
 		if ( string.IsNullOrWhiteSpace( json ) )
 			return;
 

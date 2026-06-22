@@ -23,6 +23,12 @@ public partial class GameObject
 		public bool SceneForNetwork { get; set; }
 
 		/// <summary>
+		/// If we're serializing for a scene dump we'll include properties which we would otherwise not want serialized.
+		/// e.g. Network.Owner
+		/// </summary>
+		public bool SceneForDump { get; set; }
+
+		/// <summary>
 		/// We're cloning this object
 		/// </summary>
 		[Obsolete( "Has no effect" )]
@@ -143,14 +149,33 @@ public partial class GameObject
 	{
 		options ??= _defaultSerializeOptions;
 
-		if ( !options.ShouldSave( this ) ) return null;
+		if ( !options.ShouldSave( this ) )
+			return null;
+
+		JsonObject json;
 
 		if ( IsOutermostPrefabInstanceRoot && !options.SerializePrefabForDiff && !options.SingleNetworkObject && !options.SceneForNetwork )
 		{
-			return SerializePrefabInstance();
+			json = SerializePrefabInstance();
+		}
+		else
+		{
+			json = SerializeStandard( options );
 		}
 
-		var json = SerializeStandard( options );
+		// If we're serializing for a scene dump append additional metadata
+		if ( options.SceneForDump && NetworkMode == NetworkMode.Object )
+		{
+			var ownerId = Network.OwnerId;
+			var owner = Network.Owner;
+			var ownerName = ownerId == Guid.Empty ? "Host" : owner?.DisplayName ?? $"Unknown Owner - {ownerId}";
+
+			json[JsonKeys.SceneDumpInfo] = new JsonObject
+			{
+				[nameof( SceneDumpInfo.ConnectionId )] = ownerId,
+				[nameof( SceneDumpInfo.ConnectionName )] = ownerName
+			};
+		}
 
 		return json;
 	}
@@ -202,7 +227,7 @@ public partial class GameObject
 		json.Add( JsonKeys.AlwaysTransmit, AlwaysTransmit );
 		json.Add( JsonKeys.OwnerTransfer, (int)OwnerTransfer );
 
-		if ( (!options.SceneForNetwork && !options.SingleNetworkObject)
+		if ( !options.SceneForNetwork && !options.SingleNetworkObject
 				&& (IsNestedPrefabInstanceRoot || (IsOutermostPrefabInstanceRoot && options.SerializePrefabForDiff)) )
 		{
 			if ( options.SerializeForPrefabInstanceToPrefabUpdate && Parent is not null && Parent.IsOutermostPrefabInstanceRoot )
@@ -299,6 +324,17 @@ public partial class GameObject
 	public virtual void Deserialize( JsonObject node, DeserializeOptions options )
 	{
 		ArgumentNullException.ThrowIfNull( node, nameof( node ) );
+
+		SceneDump = null;
+
+		if ( node[JsonKeys.SceneDumpInfo] is JsonObject sceneDumpInfo )
+		{
+			SceneDump = new SceneDumpInfo
+			{
+				ConnectionId = sceneDumpInfo.GetPropertyValue<Guid>( nameof( SceneDumpInfo.ConnectionId ), Guid.Empty ),
+				ConnectionName = sceneDumpInfo.GetPropertyValue<string>( nameof( SceneDumpInfo.ConnectionName ), null )
+			};
+		}
 
 		using var sceneScope = Scene.Push();
 
@@ -676,7 +712,7 @@ public partial class GameObject
 		Flags &= ~flagsToKeep;
 
 		// Copy set flags from source
-		Flags |= (inFlags & flagsToKeep);
+		Flags |= inFlags & flagsToKeep;
 	}
 
 	private bool IsPrefabLoaded( PrefabFile prefabFile )
@@ -1059,6 +1095,8 @@ public partial class GameObject
 		// Editor only keys used to influence serialization logic when performing editor actions
 		internal const string EditorPrefabInstanceNestedSource = "__EditorPrefabNestedInstance";
 		internal const string EditorSkipPrefabBreakOnRefresh = "__EditorSkipPrefabBreakOnRefresh";
-	}
 
+		// Scene dump keys
+		internal const string SceneDumpInfo = "__SceneDumpInfo";
+	}
 }
