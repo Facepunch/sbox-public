@@ -131,6 +131,7 @@ partial class FaceTool
 				CreateButton( "Clipping Tool", "content_cut", "mesh.open-clipping-tool", OpenClippingTool, _faces.Length > 0, grid );
 				CreateButton( "Bridge", "device_hub", "mesh.bridge-tool", OpenBridgeTool, CanBridgeFaces(), grid );
 				CreateButton( "Inset", "filter_center_focus", "mesh.inset-tool", OpenInsetTool, _faces.Length > 0, grid );
+				CreateButton( "Quadrangulate", "crop_square", "mesh.quadrangulate-tool", OpenQuadrangulateTool, _faces.Length > 1, grid );
 
 				grid.AddStretchCell();
 
@@ -218,6 +219,17 @@ partial class FaceTool
 				return;
 
 			var tool = new InsetTool( _faces );
+			tool.Manager = _meshTool.Manager;
+			_meshTool.CurrentTool = tool;
+		}
+
+		[Shortcut( "mesh.quadrangulate-tool", "ALT+J", typeof( SceneViewWidget ) )]
+		void OpenQuadrangulateTool()
+		{
+			if ( _faces.Length <= 1 )
+				return;
+
+			var tool = new QuadrangulateTool( _faces );
 			tool.Manager = _meshTool.Manager;
 			_meshTool.CurrentTool = tool;
 		}
