@@ -119,7 +119,6 @@ public static partial class EditorUtility
 				c.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"AddonIdent\", {project.Config.Ident.QuoteSafe()} )]" );
 				c.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"OrgIdent\", {project.Config.Org.QuoteSafe()} )]" );
 				c.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"Ident\", {project.Config.FullIdent.QuoteSafe()} )]" );
-				c.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"CompileTime\", {System.DateTime.UtcNow.ToString().QuoteSafe()} )]" );
 				c.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"EngineVersion\", {Sandbox.Engine.Protocol.Api.ToString().QuoteSafe()} )]" );
 				c.GeneratedCode.AppendLine( $"[assembly: global::System.Reflection.AssemblyMetadata( \"EngineMinorVersion\", {1.ToString().QuoteSafe()} )]" );
 			}

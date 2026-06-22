@@ -7,7 +7,6 @@
   <Folder Name="/Engine/" />
   <Folder Name="/Engine/Dev/">
     <Project Path="Definitions/Definitions.csproj" />
-    <Project Path="Sandbox.CodeUpgrader.Test/Sandbox.CodeUpgrader.Test.csproj" />
     <Project Path="Sandbox.CodeUpgrader/Sandbox.CodeUpgrader.csproj" />
     <Project Path="Sandbox.Generator/Sandbox.Generator.csproj" />
     <Project Path="Tools/CodeGen/CodeGen.csproj" />
@@ -42,7 +41,6 @@
     <Project Path="ThirdParty/Topten.RichTextKit/Topten.RichTextKit.csproj" />
   </Folder>
   <Folder Name="/Engine/Tier0/Compiling/">
-    <Project Path="Sandbox.Compiling.Test/Sandbox.Compiling.Test.csproj" />
     <Project Path="Sandbox.Compiling/Sandbox.Compiling.csproj" />
   </Folder>
   <Folder Name="/Engine/Tier0/Mounting/">
@@ -65,13 +63,13 @@
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="Benchmark/Benchmark.csproj" />
-    <Project Path="Sandbox.Hotload.Test/Sandbox.Hotload.Test.csproj" />
-    <Project Path="Sandbox.Test/Sandbox.Test.csproj" />
-    <Project Path="Sandbox.Test.Unit/Sandbox.Test.Unit.csproj" />
+    <Project Path="Tests/Sandbox.Test.Engine/Sandbox.Test.Engine.csproj" />
+    <Project Path="Tests/Sandbox.Test.Integration/Sandbox.Test.Integration.csproj" />
+    <Project Path="Tests/Sandbox.Test.Unit/Sandbox.Test.Unit.csproj" />
   </Folder>
-  <Folder Name="/Tests/Resources/">
-    <Project Path="Sandbox.Test.Generate/Sandbox.Test.Generate.csproj" />
-    <Project Path="Sandbox.Test.Hotload/Sandbox.Test.AfterHotload.csproj" />
-    <Project Path="Sandbox.Test.Hotload/Sandbox.Test.BeforeHotload.csproj" />
+  <Folder Name="/Tests/Fixtures/">
+    <Project Path="Tests/Fixtures/HotloadTestAssembly/Sandbox.Test.AfterHotload.csproj" />
+    <Project Path="Tests/Fixtures/HotloadTestAssembly/Sandbox.Test.BeforeHotload.csproj" />
+    <Project Path="Tests/Fixtures/Sandbox.Test.Generate/Sandbox.Test.Generate.csproj" />
   </Folder>
 </Solution>

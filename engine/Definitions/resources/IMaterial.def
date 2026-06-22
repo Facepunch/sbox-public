@@ -4,8 +4,8 @@
 [ResourceHandle:HMaterial]
 native class IMaterial2 as NativeEngine.IMaterial
 {
-	string GetName();
-	string GetNameWithMod();
+	stable string GetName();
+	stable string GetNameWithMod();
 
 	ulong GetSimilarityKey();
 

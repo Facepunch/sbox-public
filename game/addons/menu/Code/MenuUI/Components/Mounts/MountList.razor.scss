@@ -1,0 +1,88 @@
+
+@import "/styles/_theme.scss";
+
+@import "/styles/form/_checkbox.scss";
+
+MountList.popup-panel
+{
+	min-width: 300px;
+	height: 400px;
+	border-radius: $rounding-default;
+	font-family: Poppins;
+	font-size: 14px;
+	padding-bottom: 0px;
+	flex-direction: column;
+	padding: 8px 8px 0px 8px;
+	width: 300px;
+	color: rgba(178, 190, 212, 0.8);
+	overflow-y: scroll;
+	overflow-x: hidden;
+	background: $default-900;
+	border: 1px solid $default-border;
+	border-radius: $rounding-large;
+}
+
+.header
+{
+	padding: 8px;
+	align-items: center;
+
+	> h2
+	{
+		color: #fafaff;
+		font-size: $text-regular;
+		font-weight: 700;
+		font-family: $font-heading;
+		flex: 1;
+	}
+
+	i
+	{
+		text-transform: none;
+		font-size: 18px;
+	}
+}
+
+MountList > .inner
+{
+	flex-direction: column;
+	overflow-y: scroll;
+	overflow-x: hidden;
+	gap: 4px;
+	padding: 4px;
+}
+
+MountList > .inner > *
+{
+	flex-shrink: 0;
+	border-radius: 4px;
+	position: relative;
+	background-color: $default-950;
+	padding: 2px 4px;
+	align-items: center;
+	gap: 8px;
+
+	.checkmark
+	{
+		height: 16px;
+		width: 16px;
+		font-size: 12px;
+		min-height: 16px;
+	}
+
+	label
+	{
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	&.missing
+	{
+		pointer-events: none;
+
+		.checkmark
+		{
+			border: 1px grey solid;
+		}
+	}
+}

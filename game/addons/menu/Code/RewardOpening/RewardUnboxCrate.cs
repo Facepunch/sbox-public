@@ -84,6 +84,18 @@ public sealed class RewardUnboxCrate : Component
 	[Property] public List<GameObject> FinaleParticles { get; set; } = new();
 
 	/// <summary>
+	/// Particle template to clone and tint for high-rarity items (better than Uncommon).
+	/// Spawns on top of the base burst at the crate's position when each flap opens.
+	/// </summary>
+	[Property] public GameObject RarityBurstParticle { get; set; }
+
+	/// <summary>
+	/// Particle template to clone at the click contact point each time the box is hit
+	/// before it's fully opened. Keep disabled in the scene.
+	/// </summary>
+	[Property] public GameObject ClickBurstParticle { get; set; }
+
+	/// <summary>
 	/// How far the inner filling rises (in local Z) when fully open.
 	/// </summary>
 	[Property] public float FillingRiseHeight { get; set; } = 15f;
@@ -117,6 +129,12 @@ public sealed class RewardUnboxCrate : Component
 	/// True once all flaps have been opened.
 	/// </summary>
 	public bool IsFullyOpen => Flaps.Count > 0 && _nextFlapIndex >= Flaps.Count;
+
+	/// <summary>
+	/// Distinct rarities above Uncommon present in the offer. Set externally before opening.
+	/// One rarity burst particle is spawned per entry on each flap open.
+	/// </summary>
+	public List<ItemRarity> BurstRarities { get; set; } = new();
 
 	/// <summary>
 	/// How many flaps have been opened so far.
@@ -213,6 +231,7 @@ public sealed class RewardUnboxCrate : Component
 			{
 				DoOpenNextFlap();
 				EmitBurstParticles();
+				EmitRarityBurst();
 				_flapPending = false;
 			}
 			else
@@ -254,6 +273,9 @@ public sealed class RewardUnboxCrate : Component
 
 	private void OnBumped( Vector3 hitPosition, Vector3 hitNormal )
 	{
+		// Spawn click burst particle at the contact point
+		EmitClickBurst( hitPosition, hitNormal );
+
 		// Bump up the rustle volume on each click
 		_rustleTargetVolume = MathF.Min( _rustleTargetVolume + 0.35f, 1f );
 
@@ -297,6 +319,7 @@ public sealed class RewardUnboxCrate : Component
 		if ( flapOpened )
 		{
 			EmitBurstParticles();
+			EmitRarityBurst();
 		}
 	}
 
@@ -407,6 +430,86 @@ public sealed class RewardUnboxCrate : Component
 				StartEnabled = true
 			} );
 			instance.NetworkMode = NetworkMode.Never;
+		}
+	}
+
+	/// <summary>
+	/// Clones the RarityBurstParticle template once per distinct rarity above Uncommon,
+	/// tinting each clone to its rarity colour. Scales particle count by current flap number.
+	/// </summary>
+	private void EmitRarityBurst()
+	{
+		if ( RarityBurstParticle == null ) return;
+		if ( BurstRarities == null || BurstRarities.Count == 0 ) return;
+
+		// Scale particles with each flap (1x on first, 2x on second, etc.)
+		int flapMultiplier = _nextFlapIndex;
+
+		foreach ( var rarity in BurstRarities )
+		{
+			var color = rarity.GetColor();
+			if ( color == null ) continue;
+
+			var parsedColor = Color.Parse( color ) ?? Color.White;
+
+			var instance = RarityBurstParticle.Clone( new CloneConfig
+			{
+				Transform = RarityBurstParticle.WorldTransform,
+				StartEnabled = true
+			} );
+			instance.NetworkMode = NetworkMode.Never;
+
+			foreach ( var effect in instance.GetComponentsInChildren<ParticleEffect>( true ) )
+			{
+				effect.Tint = parsedColor;
+				effect.MaxParticles = effect.MaxParticles * flapMultiplier;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Clones the ClickBurstParticle at the click contact point, tinted per rarity.
+	/// Only fires before fully opened and only if the crate contains something above Uncommon.
+	/// </summary>
+	private void EmitClickBurst( Vector3 hitPosition, Vector3 hitNormal )
+	{
+		if ( ClickBurstParticle == null ) return;
+		if ( IsFullyOpen ) return;
+		if ( BurstRarities == null || BurstRarities.Count == 0 ) return;
+
+		var rotation = Rotation.LookAt( hitNormal, Vector3.Up );
+
+		bool playedSound = false;
+		foreach ( var rarity in BurstRarities )
+		{
+			var color = rarity.GetColor();
+			if ( color == null ) continue;
+
+			var parsedColor = Color.Parse( color ) ?? Color.White;
+
+			var instance = ClickBurstParticle.Clone( new CloneConfig
+			{
+				Transform = new Transform( hitPosition, rotation ),
+				StartEnabled = true
+			} );
+			instance.NetworkMode = NetworkMode.Never;
+
+			if ( !playedSound )
+			{
+				var clickSound = Sound.Play( "box_shine" );
+				if ( Flaps.Count > 0 )
+				{
+					float progress = _nextFlapIndex / (float)Flaps.Count;
+					int semitones = (int)(progress * 12f); // 0-12 semitones over the full progress
+					clickSound.Pitch = MathF.Pow( 2f, semitones / 12f );
+				}
+				playedSound = true;
+			}
+
+			foreach ( var effect in instance.GetComponentsInChildren<ParticleEffect>( true ) )
+			{
+				effect.Tint = parsedColor;
+			}
 		}
 	}
 

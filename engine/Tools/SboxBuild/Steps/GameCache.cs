@@ -2,9 +2,9 @@
 
 namespace Facepunch.Steps;
 
-internal class GameCache() : Step( "GameCache" )
+internal class GameCache
 {
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		string rootDir = Directory.GetCurrentDirectory();
 		string exePath = Path.Combine( rootDir, "engine", "Tools", "CreateGameCache", "bin", "CreateGameCache.exe" );

@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.Tracing;
+﻿using System.Collections.Frozen;
+using System.Diagnostics.Tracing;
 using System.Threading;
 
 namespace Sandbox.Diagnostics;
@@ -169,15 +170,20 @@ class GCEventListener : EventListener
 		}
 	}
 
+	// Allocated by this listener's own event dispatch, excluded so they don't pollute the report.
+	private static readonly FrozenSet<string> _selfNoise = new[]
+	{
+		"System.Diagnostics.Tracing.EventWrittenEventArgs",
+		"System.Diagnostics.Tracing.EventSource+MoreEventInfo",
+		"MoreEventInfo",
+	}.ToFrozenSet();
+
 	private void ProcessAllocationEvent( EventWrittenEventArgs eventData )
 	{
 		var tl = eventData.Payload[5] as string;
 
-		//if ( "System.String" == tl ) return;
-		//if ( "System.Diagnostics.StackFrame" == tl ) return;
-		//if ( "System.RuntimeMethodInfoStub" == tl ) return;
-		//if ( "System.Text.StringBuilder" == tl ) return;
-		//if ( "System.Diagnostics.Tracing.EventWrittenEventArgs" == tl ) return;
+		if ( tl is null || _selfNoise.Contains( tl ) )
+			return;
 
 		Stats value = default;
 		_writer.TryGetValue( tl, out value );

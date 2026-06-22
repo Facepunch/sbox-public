@@ -13,6 +13,7 @@ public interface IModalSystem
 	public void Review( Package package );
 	public void Report( string packageIdent );
 	public void PackageSelect( string query, Action<Package> onPackageSelected, Action<string> onFilterChanged = null );
+	public void MapSelect( Action<string> onMapSelected, string selected = null );
 	public void FriendsList( in FriendsListModalOptions options );
 	public void Server( Sandbox.Network.LobbyInformation lobby );
 	public void ServerList( in ServerListConfig config );
@@ -88,7 +89,13 @@ public struct CreateGameResults
 
 	public Dictionary<string, string> GameSettings { get; set; } = new();
 
-	public string MapIdent { get; set; }
+	[Obsolete( "Use Map instead" )]
+	public string MapIdent => Map;
+
+	/// <summary>
+	/// The user selected map. This can be an ident of a package, or path to a mount scene.
+	/// </summary>
+	public string Map { get; set; }
 
 	public int MaxPlayers { get; set; }
 

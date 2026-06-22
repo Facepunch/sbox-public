@@ -2,12 +2,12 @@
 
 namespace Facepunch.Steps;
 
-internal class SentryRelease( string name, string org, string project ) : Step( name )
+internal class SentryRelease( string org, string project )
 {
 	public string Organization { get; } = org;
 	public string Project { get; } = project;
 
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{

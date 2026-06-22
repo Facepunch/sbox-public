@@ -26,11 +26,11 @@ public enum BuildConfiguration
 /// <summary>
 /// Step to build the native code components
 /// </summary>
-internal class BuildNative( string name, BuildConfiguration configuration = BuildConfiguration.Developer, bool clean = false ) : Step( name )
+internal class BuildNative( BuildConfiguration configuration = BuildConfiguration.Developer, bool clean = false )
 {
 	private readonly Platform platform = Platform.Create();
 
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		// Build strategy based on build type
 		if ( configuration == BuildConfiguration.Retail )

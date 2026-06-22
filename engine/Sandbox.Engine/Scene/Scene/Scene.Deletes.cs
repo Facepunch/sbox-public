@@ -26,6 +26,7 @@ public partial class Scene : GameObject
 			}
 		}
 
-		SceneWorld?.DeletePendingObjects();
+		// don't force the scene world to exist just to flush deletes
+		_sceneWorld?.DeletePendingObjects();
 	}
 }

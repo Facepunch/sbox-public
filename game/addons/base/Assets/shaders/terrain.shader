@@ -279,7 +279,7 @@ PS
         // Sample materials by index
         for ( int i = 0; i < 4; i++ )
         {
-            TerrainMaterial mat = g_TerrainMaterials[ i ];
+            TerrainMaterial mat = g_TerrainMaterials[ indices[i] ];
             float2 layerUV = texUV * mat.uvscale;
             float2x2 uvAngle = float2x2( 1, 0, 0, 1 );
 

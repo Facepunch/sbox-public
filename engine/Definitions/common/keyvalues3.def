@@ -18,7 +18,7 @@ native class KeyValues3
 	ulong GetValueUint64();
 	float GetValueFloat();
 	double GetValueDouble();
-	string GetValueString();
+	stable string GetValueString();
 	Vector3 GetValueVector();
 	Color GetValueColor();
 
@@ -32,7 +32,7 @@ native class KeyValues3
 	void SetMemberInt( CastTo[CKV3MemberName] string key, int value );
 	void SetMemberFloat( CastTo[CKV3MemberName] string key, float value );
 
-	string GetMemberString( CastTo[CKV3MemberName] string key );
+	stable string GetMemberString( CastTo[CKV3MemberName] string key );
 	int GetMemberInt( CastTo[CKV3MemberName] string key, int defaultValue );
 	float GetMemberFloat( CastTo[CKV3MemberName] string key, float defaultValue );
 	Vector3 GetMemberVector( CastTo[CKV3MemberName] string key, Vector3 defaultValue );
@@ -48,7 +48,7 @@ native class KeyValues3
 
 	int GetMemberCount();
 	KeyValues3 GetMember( int idx );
-	string GetMemberName( int idx );
+	stable string GetMemberName( int idx );
 
 	inline CUtlBuffer Save()
 	{

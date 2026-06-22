@@ -658,8 +658,8 @@ namespace Sandbox.UI
 				else if ( word == "initial" )
 				{
 					// "initial" expands to 0 1 auto
-					FlexShrink ??= 0;
-					FlexGrow ??= 1;
+					FlexGrow ??= 0;
+					FlexShrink ??= 1;
 					FlexBasis = Length.Auto;
 
 					return true;

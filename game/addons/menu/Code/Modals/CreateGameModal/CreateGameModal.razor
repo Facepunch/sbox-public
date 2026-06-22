@@ -77,7 +77,7 @@
 						<div class="row">
                             <div class="is-label">Map</div>
                             <div class="control">
-                                <MapSelector MapPackage=@MapPackage OnValueChanged=@OnMapSelected />
+								<MapSelector Map=@Map OnValueChanged=@OnMapSelected />
                             </div>
                         </div>
                     }
@@ -127,140 +127,138 @@
 
 @code
 {
-    public List<GameSetting> Settings { get; set; }
-    public Package MapPackage { get; set; }
-    public Sandbox.Network.LobbyPrivacy Privacy { get; set; }
+	public List<GameSetting> Settings { get; set; }
+	public string Map { get; set; }
+	public Sandbox.Network.LobbyPrivacy Privacy { get; set; }
 
-    public Action<CreateGameResults> OnComplete { get; set; }
+	public Action<CreateGameResults> OnComplete { get; set; }
 
-    CreateGameResults Output { get; set; }
-    Package Package { get; set; }
+	CreateGameResults Output { get; set; }
+	Package Package { get; set; }
 
-    string CookieName => $"{Package.FullIdent}_create_game_config";
-    string CurrentTabName;
+	string CookieName => $"{Package.FullIdent}_create_game_config";
+	string CurrentTabName;
 
-    //
-    // Multiplayer Settings
-    // 
+	//
+	// Multiplayer Settings
+	// 
 
-    int MaxPlayers => Package.Info.MaxPlayers;
-    int MinPlayers => Package.Info.MinPlayers;
-    bool IsMultiplayerGame => Package.Tags.Contains( "multiplayer" ) || Package.Info.MaxPlayers > 1;
-    string ServerName { get; set; }
-    int Players { get; set; }
+	int MaxPlayers => Package.Info.MaxPlayers;
+	int MinPlayers => Package.Info.MinPlayers;
+	bool IsMultiplayerGame => Package.Tags.Contains( "multiplayer" ) || Package.Info.MaxPlayers > 1;
+	string ServerName { get; set; }
+	int Players { get; set; }
 
-    public CreateGameModal( Sandbox.Modals.CreateGameOptions options )
-    {
-        Package = options.Package;
-        OnComplete = options.OnComplete;
+	public CreateGameModal( Sandbox.Modals.CreateGameOptions options )
+	{
+		Package = options.Package;
+		OnComplete = options.OnComplete;
 
-        //
-        // Check if we have a saved config
-        //
-        Output = Game.Cookies.Get<CreateGameResults>( CookieName, new()
+		//
+		// Check if we have a saved config
+		//
+		Output = Game.Cookies.Get<CreateGameResults>( CookieName, new()
         {
             MaxPlayers = MinPlayers,
             ServerName = $"{Sandbox.Utility.Steam.PersonaName}'s game"
         } );
 
-        //
-        // Apply config / defaults
-        //
-        Players = Output.MaxPlayers;
-        ServerName = Output.ServerName;
-        Settings = Package.Info.GameSettings ?? new List<GameSetting>();
+		//
+		// Apply config / defaults
+		//
+		Players = Output.MaxPlayers;
+		ServerName = Output.ServerName;
+		Settings = Package.Info.GameSettings ?? new List<GameSetting>();
 
-        //
-        // Verify cookie data
-        //
-        if ( Players < MinPlayers )
-        {
-            Players = MinPlayers;
-        }
-        if ( string.IsNullOrEmpty( ServerName ) )
-        {
-            ServerName = $"{Sandbox.Utility.Steam.PersonaName}'s game";
-        }
+		//
+		// Verify cookie data
+		//
+		if ( Players < MinPlayers )
+		{
+			Players = MinPlayers;
+		}
+		if ( string.IsNullOrEmpty( ServerName ) )
+		{
+			ServerName = $"{Sandbox.Utility.Steam.PersonaName}'s game";
+		}
 
-        //
-        // Initialize GameSettings dictionary with defaults if missing
-        //
+		//
+		// Initialize GameSettings dictionary with defaults if missing
+		//
 
-        foreach ( var setting in Settings )
-        {
-            if ( !Output.GameSettings.ContainsKey( setting.Name ) )
-            {
-                Output.GameSettings[setting.Name] = setting.Default ?? string.Empty;
-            }
-        }
+		foreach ( var setting in Settings )
+		{
+			if ( !Output.GameSettings.ContainsKey( setting.Name ) )
+			{
+				Output.GameSettings[setting.Name] = setting.Default ?? string.Empty;
+			}
+		}
 
-        SetMap( Output.MapIdent ?? Package.Info.DefaultMap );
-    }
+		SetMap( Output.Map ?? Package.Info.DefaultMap );
+	}
 
-    private async void SetMap( string ident )
-    {
-        if ( !string.IsNullOrWhiteSpace( ident ) )
-        {
-            MapPackage = await Package.FetchAsync( ident, false );
-        }
-    }
+	private void SetMap( string map )
+	{
+		Map = map;
+		Output = Output with { Map = map };
+	}
 
-    List<Option> GetOptions( GameSetting e )
-    {
-        var options = new List<Option>();
+	List<Option> GetOptions( GameSetting e )
+	{
+		var options = new List<Option>();
 
-        foreach ( var o in e.Options )
-        {
-            options.Add( new Option( o.Name.ToTitleCase(), o.Name ) { Icon = o.Icon } );
-        }
+		foreach ( var o in e.Options )
+		{
+			options.Add( new Option( o.Name.ToTitleCase(), o.Name ) { Icon = o.Icon } );
+		}
 
-        return options;
-    }
+		return options;
+	}
 
-    public bool HasOptions( GameSetting entry )
-    {
-        return entry.Options is not null && entry.Options.Count > 0;
-    }
+	public bool HasOptions( GameSetting entry )
+	{
+		return entry.Options is not null && entry.Options.Count > 0;
+	}
 
-    public bool IsNumeric( GameSetting entry, out float flValue )
-    {
-        flValue = default;
+	public bool IsNumeric( GameSetting entry, out float flValue )
+	{
+		flValue = default;
 
-        if ( float.TryParse( entry.Default, out var fl ) )
-        {
-            flValue = fl;
-            return true;
-        }
-        return false;
-    }
+		if ( float.TryParse( entry.Default, out var fl ) )
+		{
+			flValue = fl;
+			return true;
+		}
+		return false;
+	}
 
-    public bool IsCheckbox( GameSetting entry )
-    {
-        // 0 or 1, no min, no max, no steps. Could easily be a bool
-        var canPassAsBool = ( entry.Default.Equals( "0" ) || entry.Default.Equals( "1" ) ) && entry.Min is null && entry.Max is null && entry.Step is null;
+	public bool IsCheckbox( GameSetting entry )
+	{
+		// 0 or 1, no min, no max, no steps. Could easily be a bool
+		var canPassAsBool = ( entry.Default.Equals( "0" ) || entry.Default.Equals( "1" ) ) && entry.Min is null && entry.Max is null && entry.Step is null;
 
-        if ( canPassAsBool ) return true;
+		if ( canPassAsBool ) return true;
 
-        if ( bool.TryParse( entry.Default, out var b ) )
-            return true;
+		if ( bool.TryParse( entry.Default, out var b ) )
+			return true;
 
-        return false;
-    }
+		return false;
+	}
 
-    bool NeedsMap()
-    {   
-        if ( Package is null ) return false;
-        if ( Package.Info.NeedsMap ) return true;
+	bool NeedsMap()
+	{   
+		if ( Package is null ) return false;
+		if ( Package.Info.NeedsMap ) return true;
 
-        // legacy
-        var launchMode = Package.Info.LaunchMode;
-        return string.Equals( launchMode, "launcher", StringComparison.OrdinalIgnoreCase );
-    }
+		// legacy
+		var launchMode = Package.Info.LaunchMode;
+		return string.Equals( launchMode, "launcher", StringComparison.OrdinalIgnoreCase );
+	}
 
-    void OnMapSelected( Package pkg )
-    {
-        Output = Output with { MapIdent = pkg.FullIdent };
-        StateHasChanged();
+	void OnMapSelected( string map )
+	{
+		SetMap( map );
+		StateHasChanged();
     }
 
     private string GetGroupName( string group )

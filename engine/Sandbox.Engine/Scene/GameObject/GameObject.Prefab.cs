@@ -174,6 +174,10 @@ public partial class GameObject
 	}
 	PrefabInstanceData _prefabInstanceData = null;
 
+	// Id of a nested prefab instance whose guid mappings are built in PostDeserialize, once its
+	// subtree has its final ids.
+	private Guid? _pendingNestedMappingId;
+
 	/// <summary>
 	/// Defines objects within a scene hierarchy we want to track for prefab diffing and patching.
 	/// </summary>

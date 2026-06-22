@@ -99,6 +99,17 @@
 			CardSpawner.Offer = Offer;
 			CardSpawner.OnSelectionChanged = OnCardSelectionChanged;
 			CardSpawner.OnCardsRevealed = OnCardsRevealed;
+
+			// Tell the crate which rarities to burst (one particle per distinct rarity above Uncommon)
+			if ( CardSpawner.Crate != null && Offer.Items.Length > 0 )
+			{
+				CardSpawner.Crate.BurstRarities = Offer.Items
+					.Select( i => i.Rarity )
+					.Where( r => r > ItemRarity.Uncommon )
+					.Distinct()
+					.OrderBy( r => r )
+					.ToList();
+			}
 		}
 	}
 
@@ -176,11 +187,7 @@
 	{
 		CardSpawner?.DestroyCards();
 
-		var options = new SceneLoadOptions();
-		options.ShowLoadingScreen = true;
-		options.SetScene( "/scenes/menu-main.scene" );
-
-		Game.ActiveScene.Load( options );
+		SceneTransition.Load( "/scenes/menu-main.scene" );
 	}
 
 	protected override int BuildHash() => HashCode.Combine( IsLoading, Offer, Result, IsChoosing, ShowClaimBar, CardSpawner?.SelectedItems?.Count );

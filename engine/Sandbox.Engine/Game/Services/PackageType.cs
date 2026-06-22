@@ -88,6 +88,23 @@ public sealed class PackageType
 	public static PackageType Prefab => Get( "prefab" );
 
 	/// <summary>
+	/// Whether this package type supports asset licenses.
+	/// </summary>
+	public bool HasAssetLicenses => AssetLicenses?.Count > 0;
+
+	/// <summary>
+	/// Get asset license options as simple value types.
+	/// Useful for game/addon code that can't reference Sandbox.Services types directly.
+	/// </summary>
+	public IReadOnlyList<(string Name, string Title, string Description)> GetAssetLicenseOptions()
+	{
+		if ( AssetLicenses is null || AssetLicenses.Count == 0 )
+			return Array.Empty<(string, string, string)>();
+
+		return AssetLicenses.Select( l => (l.Name, l.Title, l.Description) ).ToArray();
+	}
+
+	/// <summary>
 	/// Populate the type list. Reads the last cached copy from disk first so the game has
 	/// data immediately (and works offline / when the backend is down), then fetches fresh
 	/// data from the API and writes that back to disk. Safe to call again to refresh.

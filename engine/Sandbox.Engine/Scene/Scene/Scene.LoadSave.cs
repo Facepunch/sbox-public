@@ -43,7 +43,7 @@ public partial class Scene : GameObject
 
 		if ( sceneFile.ResourceName != null )
 		{
-			Name = sceneFile.ResourceName.ToTitleCase();
+			Name = sceneFile.ResourceName;
 		}
 
 		ProcessDeletes();

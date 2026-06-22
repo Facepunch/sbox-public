@@ -62,7 +62,9 @@ public sealed unsafe partial class CommandList
 	}
 
 	/// <summary>
-	/// An ordered list of entries that will execute on the render thread.
+	/// An ordered list of entries that will execute on the render thread. All access (record and
+	/// execute) is serialized by <see cref="_lock"/> - recording and executing the same list from
+	/// two threads at once is caller misuse, but the lock guarantees it can't crash or corrupt state.
 	/// </summary>
 	readonly List<Entry> _entries = new List<Entry>( 8 );
 
@@ -72,7 +74,9 @@ public sealed unsafe partial class CommandList
 	void AddEntry( delegate*< ref Entry, CommandList, void > execute, Entry data )
 	{
 		data.Execute = execute;
-		_entries.Add( data );
+
+		lock ( _lock )
+			_entries.Add( data );
 	}
 
 	[Obsolete]
@@ -117,10 +121,13 @@ public sealed unsafe partial class CommandList
 
 	public void Reset()
 	{
-		Attributes.ClearRenderTargets();
-		_entries.Clear();
-
-
+		// Serialize against execution: clearing the entry list or the render-target cache while
+		// another thread is mid-execute would corrupt them. The lock makes that safe.
+		lock ( _lock )
+		{
+			Attributes.ClearRenderTargets();
+			_entries.Clear();
+		}
 	}
 
 	public void Blit( Material material, RenderAttributes attributes = null )
@@ -424,10 +431,15 @@ public sealed unsafe partial class CommandList
 			var previousState = other.state;
 			other.state = commandList.state;
 
-			for ( int i = 0; i < other._entries.Count; i++ )
+			// Lock the inserted list while we iterate it, so it can't be recorded/reset out from
+			// under us on another thread.
+			lock ( other._lock )
 			{
-				var e = other._entries[i];
-				e.Execute( ref e, other );
+				for ( int i = 0; i < other._entries.Count; i++ )
+				{
+					var e = other._entries[i];
+					e.Execute( ref e, other );
+				}
 			}
 
 			other.state = previousState;

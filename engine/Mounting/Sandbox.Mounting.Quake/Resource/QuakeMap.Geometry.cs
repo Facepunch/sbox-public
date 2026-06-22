@@ -46,9 +46,12 @@ partial class QuakeMap
 		var litData = Host.GetFileBytes( PakDir, litPath );
 		var palette = Host.GetPalette( PakDir );
 
+		var textureCount = file.Textures.Length;
+		if ( palette is null && textureCount > 0 )
+			throw new Exception( "Missing palette.lmp" );
+
 		CreateSurfaces( file, litData );
 
-		var textureCount = file.Textures.Length;
 		var decoded = new byte[textureCount][];
 		var masks = new byte[textureCount][];
 		var dims = new (int Width, int Height)[textureCount];

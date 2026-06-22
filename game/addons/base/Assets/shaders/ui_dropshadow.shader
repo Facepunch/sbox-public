@@ -83,8 +83,8 @@ PS
 			}
 		}
 		
-		// Output to screen
-		color /= Quality * Directions - 15.0;
+		// Normalize by actual sample count: Directions * Quality blur samples plus the incoming centre sample
+		color /= Quality * Directions + 1.0;
 
 		return color;
 	}

@@ -81,7 +81,7 @@
 
 	void SelectGame()
 	{
-		Game.Overlay.ShowPackageSelector("type:game sort:popular", (pkg) => {
+		Game.Overlay.ShowPackageSelector("type:game sort:rankweek", (pkg) => {
 			GamePackage = pkg;
 			StateHasChanged();
 		});

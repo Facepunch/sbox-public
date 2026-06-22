@@ -397,6 +397,11 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 	Transform lastTransform;
 
+	// The skinned models our live particles are following, ref-counted so PreStep knows exactly which
+	// snapshots to prime and when nobody needs them anymore. Empty == nothing follows a bone == zero cost.
+	// The bone transforms live on each renderer's shared snapshot; particles hold their own handle + index.
+	readonly Dictionary<SkinnedModelRenderer, int> _boneTargets = new();
+
 	ConcurrentQueue<Particle> deleteList = new ConcurrentQueue<Particle>();
 
 	/// <summary>
@@ -470,6 +475,7 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 		Particles.Clear();
 		DelayedParticles.Clear();
+		_boneTargets.Clear();
 
 		foreach ( var go in _spawnedGameObjects )
 		{
@@ -516,16 +522,24 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		var forceScale = ForceScale.Evaluate( p, 7723 );
 		var localSpace = LocalSpace.Evaluate( p, 254 ).Clamp( 0, 1 );
 
-		if ( _parentMoved && frame > 0 && localSpace > 0.001f )
+		var appliedBoneSpace = false;
+
+		// Ask the particle's target renderer how this bone moved (lock-free; its snapshot was primed in
+		// PreStep). A false return - dead target, no snapshot, or an out-of-range index - falls through to
+		// emitter-space local movement.
+		if ( p.AttachTarget.IsValid() && p.AttachBoneIndex >= 0 && frame > 0 && !localSpace.AlmostEqual( 0.0f )
+			&& p.AttachTarget.TryGetSnapshotBone( p.AttachBoneIndex, out var lastBoneTx, out var boneTx ) )
 		{
-			var localPos = lastTransform.PointToLocal( p.Position );
-			var worldPos = _worldTx.PointToWorld( localPos );
+			ApplyLocalSpaceMovement( ref p, localSpace, lastBoneTx, boneTx );
+			appliedBoneSpace = true;
+		}
 
-			var localVelocity = lastTransform.NormalToLocal( p.Velocity.Normal );
-			var worldVelocity = _worldTx.NormalToWorld( localVelocity ) * p.Velocity.Length;
-
-			p.Position = p.Position.LerpTo( worldPos, localSpace );
-			p.Velocity = p.Velocity.LerpTo( worldVelocity, localSpace );
+		// Fall back to emitter-space local movement when there's no bone to follow (or the bone index
+		// is out of range for the resolved skeleton) - otherwise these particles would get no local-space
+		// correction at all.
+		if ( !appliedBoneSpace && _parentMoved && frame > 0 && !localSpace.AlmostEqual( 0.0f ) )
+		{
+			ApplyLocalSpaceMovement( ref p, localSpace, lastTransform, _worldTx );
 		}
 
 		p.ApplyDamping( damping * timeScale );
@@ -740,6 +754,8 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 		_parentMoved = deltaTransform != global::Transform.Zero;
 
+		PrimeBoneTargets();
+
 		OnPreStep?.Invoke( _timeDelta );
 
 		_trace = Scene.Trace.WithoutTags( CollisionIgnore );
@@ -830,6 +846,52 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		DeferredParticleForces.Clear();
 	}
 
+	void AddBoneTarget( SkinnedModelRenderer target )
+	{
+		_boneTargets.TryGetValue( target, out var count );
+		_boneTargets[target] = count + 1;
+	}
+
+	void ReleaseBoneTarget( SkinnedModelRenderer target )
+	{
+		if ( !_boneTargets.TryGetValue( target, out var count ) )
+			return;
+
+		if ( count <= 1 )
+			_boneTargets.Remove( target );
+		else
+			_boneTargets[target] = count - 1;
+	}
+
+	/// <summary>
+	/// Prime the bone snapshot of every skinned model our particles are following, on the main thread, so the
+	/// parallel particle update can read them lock-free. Runs serially in <see cref="PreStep"/>; does nothing
+	/// when nothing is following a bone.
+	/// </summary>
+	void PrimeBoneTargets()
+	{
+		foreach ( var target in _boneTargets.Keys )
+		{
+			target.EnsureBoneSnapshot();
+		}
+	}
+
+	/// <summary>
+	/// Transport a particle from <paramref name="lastTx"/> into <paramref name="worldTx"/> (a frame's old to
+	/// new transform) and lerp toward it by <paramref name="localSpace"/>, so it follows that frame's movement.
+	/// </summary>
+	static void ApplyLocalSpaceMovement( ref Particle p, float localSpace, in Transform lastTx, in Transform worldTx )
+	{
+		var localPos = lastTx.PointToLocal( p.Position );
+		var worldPos = worldTx.PointToWorld( localPos );
+
+		var localVelocity = lastTx.NormalToLocal( p.Velocity.Normal );
+		var worldVelocity = worldTx.NormalToWorld( localVelocity ) * p.Velocity.Length;
+
+		p.Position = p.Position.LerpTo( worldPos, localSpace );
+		p.Velocity = p.Velocity.LerpTo( worldVelocity, localSpace );
+	}
+
 	/// <summary>
 	/// Emit a particle at the given position.
 	/// </summary>
@@ -837,6 +899,19 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	/// <param name="delta">The time delta of the spawn. The first spawned particle is 0, the last spawned particle is 1. This is used to evaluate the spawn particles like lifetime and delay.</param>
 	/// <returns>A particle, will never be null. It's up to you to obey max particles.</returns>
 	public Particle Emit( Vector3 position, float delta )
+	{
+		return Emit( position, delta, null, -1 );
+	}
+
+	/// <summary>
+	/// Emit a particle at the given position.
+	/// </summary>
+	/// <param name="position">The position in which to spawn the particle</param>
+	/// <param name="delta">The time delta of the spawn. The first spawned particle is 0, the last spawned particle is 1. This is used to evaluate the spawn particles like lifetime and delay.</param>
+	/// <param name="boneIndex">When >= 0, local space simulation will follow this bone on <paramref name="attachTarget"/>.</param>
+	/// <param name="attachTarget">The skinned model whose bone (<paramref name="boneIndex"/>) the particle should follow.</param>
+	/// <returns>A particle, will never be null. It's up to you to obey max particles.</returns>
+	public Particle Emit( Vector3 position, float delta, SkinnedModelRenderer attachTarget, int boneIndex )
 	{
 		var localSpace = LocalSpace.Evaluate( 0, 254 ).Clamp( 0, 1 );
 		var delay = StartDelay.Evaluate( delta, Random.Shared.Float() );
@@ -846,10 +921,25 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 		p.Position = position;
 		p.StartPosition = position;
 		p.Radius = 1.0f;
+		p.AttachBoneIndex = boneIndex;
 		p.Velocity = Vector3.Random.Normal * StartVelocity.Evaluate( delta, Random.Shared.Float() );
 
+		// Read the bone's transform straight off the renderer's snapshot - no per-frame target resolution.
+		// Falls back to the emitter transform when there's no bone target.
+		var spaceTx = WorldTransform;
+		if ( boneIndex >= 0 && attachTarget.IsValid() )
+		{
+			p.AttachTarget = attachTarget;
+			AddBoneTarget( attachTarget );
+
+			// Prime now (main thread) so the read below and this frame's update see a valid snapshot.
+			attachTarget.EnsureBoneSnapshot();
+			if ( attachTarget.TryGetSnapshotBone( boneIndex, out _, out var boneTx ) )
+				spaceTx = boneTx;
+		}
+
 		var initialVelocity = InitialVelocity.Evaluate( delta, Random.Shared.Float(), Random.Shared.Float(), Random.Shared.Float() );
-		p.Velocity += initialVelocity.LerpTo( WorldTransform.NormalToWorld( initialVelocity ) * initialVelocity.Length, localSpace );
+		p.Velocity += initialVelocity.LerpTo( spaceTx.NormalToWorld( initialVelocity ) * initialVelocity.Length, localSpace );
 
 		p.BornTime += delay;
 		p.DeathTime = p.BornTime + Lifetime.Evaluate( delta, p.Rand( 145, 100 ) );
@@ -893,6 +983,11 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 	public void Terminate( Particle p )
 	{
+		// Release by reference, not IsValid() - a destroyed renderer is still a valid dictionary key, so the
+		// ref-count stays balanced.
+		if ( p.AttachTarget is not null )
+			ReleaseBoneTarget( p.AttachTarget );
+
 		if ( p.hasUpdated )
 		{
 			p.hasUpdated = false;

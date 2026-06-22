@@ -43,7 +43,7 @@ internal class BlacklistCodeWalker( SemanticModel semanticModel ) : CSharpSyntax
 
 		var fullyQualifiedName = symbol.ToDisplayString( FullyQualifiedSymbolFormat );
 
-		if ( !CompilerRules.Blacklist.Any( x => x.IsMatch( fullyQualifiedName ) ) )
+		if ( !CompilerRules.IsBlocked( fullyQualifiedName ) )
 		{
 			base.DefaultVisit( node );
 			return;

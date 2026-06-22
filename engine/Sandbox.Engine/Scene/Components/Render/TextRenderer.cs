@@ -122,6 +122,50 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 	} = VAlignment.Center;
 
 	/// <summary>
+	/// Controls how the text orients itself toward the camera.
+	/// </summary>
+	public enum BillboardMode
+	{
+		/// <summary>
+		/// The text uses its own world rotation.
+		/// </summary>
+		[Icon( "crop_din" )]
+		None,
+
+		/// <summary>
+		/// The text fully rotates to face the camera, so it's always readable.
+		/// </summary>
+		[Icon( "filter_center_focus" )]
+		Always,
+
+		/// <summary>
+		/// The text rotates around the vertical axis only, facing the camera while staying upright.
+		/// </summary>
+		[Icon( "360" )]
+		YOnly,
+	}
+
+	/// <summary>
+	/// Controls how the text orients itself toward the camera.
+	/// </summary>
+	[Property]
+	public BillboardMode Billboard
+	{
+		get;
+		set
+		{
+			if ( field == value ) return;
+			field = value;
+
+			if ( _so.IsValid() )
+			{
+				_so.Billboard = field;
+				TransformChanged();
+			}
+		}
+	}
+
+	/// <summary>
 	/// The blend mode of the text. This determines how the text is rendered over the world.
 	/// </summary>
 	[Property]
@@ -169,11 +213,12 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 			BlendMode = BlendMode,
 			FogStrength = FogStrength,
 			TextScope = TextScope,
+			Billboard = Billboard,
 		};
 
 		UpdateAlignment();
 
-		_so.CalculateBounds();
+		TransformChanged();
 
 		RenderOptions.Apply( _so );
 
@@ -223,7 +268,9 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 	{
 		if ( !_so.IsValid() ) return;
 
-		_so.Transform = WorldTransform.WithScale( WorldScale * Scale );
+		var rotation = Billboard == BillboardMode.None ? WorldRotation : Rotation.Identity;
+
+		_so.Transform = new Transform( WorldPosition, rotation, WorldScale * Scale );
 		_so.CalculateBounds();
 	}
 
@@ -354,6 +401,7 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 		public TextFlag TextFlags { get; set; } = TextFlag.DontClip | TextFlag.Center;
 		public BlendMode BlendMode { get; set; } = BlendMode.Normal;
 		public float FogStrength { get; set; } = 1.0f;
+		public BillboardMode Billboard { get; set; }
 
 		private readonly CommandList _commandList = new( "TextRenderer" );
 
@@ -385,6 +433,8 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 			RenderLayer = SceneRenderLayer.Default;
 		}
 
+		static readonly Matrix PanelMatrix = Matrix.CreateRotation( Rotation.From( 0, -90, 90 ) );
+
 		public void BuildCommandList()
 		{
 			_commandList.Reset();
@@ -395,12 +445,31 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 			_commandList.Attributes.SetCombo( "D_WORLDPANEL", 1 );
 			_commandList.Attributes.SetCombo( "D_BLENDMODE", BlendMode );
 			_commandList.Attributes.Set( "g_FogStrength", FogStrength );
-			_commandList.Attributes.Set( "WorldMat", Matrix.CreateRotation( Rotation.From( 0, -90, 90 ) ) );
 			_commandList.DrawText( TextScope, new Rect( 0 ), TextFlags );
 		}
 
 		public override void RenderSceneObject()
 		{
+			var worldMat = PanelMatrix;
+
+			if ( Billboard != BillboardMode.None )
+			{
+				var forward = Transform.Position - Graphics.CameraPosition;
+				var up = Graphics.CameraRotation.Up;
+
+				if ( Billboard == BillboardMode.YOnly )
+				{
+					forward = forward.WithZ( 0 );
+					up = Vector3.Up;
+				}
+
+				if ( forward.IsNearZeroLength )
+					return;
+
+				worldMat = Matrix.CreateWorld( Vector3.Zero, forward.Normal, up );
+			}
+
+			Graphics.Attributes.Set( "WorldMat", worldMat );
 			_commandList.ExecuteOnRenderThread();
 		}
 
@@ -422,7 +491,16 @@ public sealed class TextRenderer : Renderer, Component.ExecuteInEditor
 				TextFlags.Contains( TextFlag.Top ) ? -x.Height * 0.5f : 0.0f );
 
 			var bounds = BBox.FromPositionAndSize( center * scale, new Vector3( 2, x.Width * scale.y, x.Height * scale.z ) );
-			Bounds = bounds.Transform( tx.WithScale( 1 ) );
+
+			if ( Billboard != BillboardMode.None )
+			{
+				var radius = (center * scale).Length + bounds.Size.Length * 0.5f;
+				Bounds = BBox.FromPositionAndSize( tx.Position, radius * 2.0f );
+			}
+			else
+			{
+				Bounds = bounds.Transform( tx.WithScale( 1 ) );
+			}
 
 			BuildCommandList();
 		}

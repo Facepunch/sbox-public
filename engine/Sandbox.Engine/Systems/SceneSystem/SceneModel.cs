@@ -126,6 +126,47 @@ public sealed partial class SceneModel : SceneObject
 	}
 
 	/// <summary>
+	/// Fill <paramref name="dest"/> with this frame's world space bone transforms in a single interop call,
+	/// indexed by bone index. Entries past the model's bone count are left as identity. Much cheaper than
+	/// calling <see cref="GetBoneWorldTransform(int)"/> in a loop.
+	/// </summary>
+	internal unsafe void GetBoneWorldTransforms( Span<Transform> dest )
+	{
+		if ( animNative.IsNull || dest.IsEmpty )
+			return;
+
+		fixed ( Transform* p = dest )
+			animNative.GetWorldSpaceRenderBoneTransforms( dest.Length, (IntPtr)p );
+	}
+
+	/// <summary>
+	/// Fill <paramref name="dest"/> with the previous frame's world space bone transforms in a single interop
+	/// call - the counterpart to <see cref="GetBoneWorldTransforms"/>, for computing per-bone motion.
+	/// </summary>
+	internal unsafe void GetBoneWorldPreviousTransforms( Span<Transform> dest )
+	{
+		if ( animNative.IsNull || dest.IsEmpty )
+			return;
+
+		fixed ( Transform* p = dest )
+			animNative.GetWorldSpaceRenderBonePreviousTransforms( dest.Length, (IntPtr)p );
+	}
+
+	/// <summary>
+	/// Fill <paramref name="dest"/> with the parent-space bone transforms in a single interop call, indexed by
+	/// bone index. Entries past the model's bone count are left as identity. Much cheaper than calling
+	/// <see cref="GetParentSpaceBone(int)"/> in a loop.
+	/// </summary>
+	internal unsafe void GetParentSpaceBones( Span<Transform> dest )
+	{
+		if ( animNative.IsNull || dest.IsEmpty )
+			return;
+
+		fixed ( Transform* p = dest )
+			animNative.GetParentSpaceBones( dest.Length, (IntPtr)p );
+	}
+
+	/// <summary>
 	/// Returns the world space transform of a bone by its name.
 	/// </summary>
 	/// <param name="boneName">Name of the bone to calculate transform of.</param>

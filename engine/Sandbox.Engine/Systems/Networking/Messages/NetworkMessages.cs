@@ -56,7 +56,7 @@ struct ServerInfo
 	public int MaxPlayers { get; set; }
 	public int EngineVersion { get; set; }
 	public string GamePackage { get; set; }
-	public string MapPackage { get; set; }
+	public string Map { get; set; }
 	public Guid HandshakeId { get; set; }
 
 	/// <summary>

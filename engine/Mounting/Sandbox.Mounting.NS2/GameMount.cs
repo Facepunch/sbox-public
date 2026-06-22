@@ -9,6 +9,8 @@ public class GameMount : BaseGameMount
 	const long appId = 4920;
 	string appDir;
 
+	public override long? SteamAppId => appId;
+
 	protected override void Initialize( InitializeContext context )
 	{
 		if ( !context.IsAppInstalled( appId ) )

@@ -57,6 +57,12 @@ internal static class Utility
 		{
 			foreach ( var envVar in environmentVariables )
 			{
+				if ( envVar.Value is null )
+				{
+					process.StartInfo.EnvironmentVariables.Remove( envVar.Key );
+					continue;
+				}
+
 				process.StartInfo.EnvironmentVariables[envVar.Key] = envVar.Value;
 			}
 		}

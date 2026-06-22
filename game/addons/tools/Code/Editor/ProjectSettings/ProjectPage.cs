@@ -1,5 +1,7 @@
 ﻿namespace Editor.ProjectSettingPages;
 
+using Sandbox.Services;
+
 [Title( "Configuration" )]
 internal sealed class ProjectPage : ProjectSettingsWindow.Category
 {
@@ -26,6 +28,36 @@ internal sealed class ProjectPage : ProjectSettingsWindow.Category
 	/// Have we changed the parent package? If so, on save / exit we want to restart the editor
 	/// </summary>
 	private bool HasChangedParentPackage { get; set; }
+
+	/// <summary>
+	/// Whether the license dropdown is shown and should be saved.
+	/// </summary>
+	private bool ShowLicense { get; set; }
+
+	/// <summary>
+	/// Currently selected license name (e.g. "CC0", "CC_BY").
+	/// </summary>
+	private string _selectedLicense;
+
+	/// <summary>
+	/// Dropdown control widget for license selection.
+	/// </summary>
+	private LicenseControlWidget LicenseDropdown { get; set; }
+
+	/// <summary>
+	/// Cached package reference for saving the license.
+	/// </summary>
+	private Package FetchedPackage { get; set; }
+
+	/// <summary>
+	/// Property provides the "Asset License" label for the ControlSheetRow.
+	/// </summary>
+	[Title( "Asset License" )]
+	public string CurrentAssetLicense
+	{
+		get => _selectedLicense;
+		set => _selectedLicense = value;
+	}
 
 	[Editor( "package:game" ), Title( "Supported Games" )]
 	public string GameSupport
@@ -120,6 +152,30 @@ internal sealed class ProjectPage : ProjectSettingsWindow.Category
 			cs.AddProperty( this, x => x.ParentGame );
 		}
 
+		//
+		// Asset license - shown when the package type supports licenses
+		//
+		var packageType = PackageType.Get( project.Config.Type );
+		if ( packageType is { HasAssetLicenses: true } )
+		{
+			var licenseOptions = packageType.GetAssetLicenseOptions();
+			ShowLicense = true;
+
+			// Load from local metadata as initial value
+			if ( project.Config.TryGetMeta<string>( "AssetLicense", out var localLicense ) )
+			{
+				_selectedLicense = localLicense;
+			}
+
+			_ = FetchLicenseAsync( project );
+
+			var thisSo = this.GetSerialized();
+			var licenseProp = thisSo.GetProperty( nameof( CurrentAssetLicense ) );
+			licenseProp.OnChanged = p => StateHasChanged( p );
+			LicenseDropdown = cs.AddControl<LicenseControlWidget>( licenseProp );
+			LicenseDropdown.SetLicenseOptions( licenseOptions );
+		}
+
 		BodyLayout.Add( cs );
 
 		//
@@ -165,11 +221,48 @@ internal sealed class ProjectPage : ProjectSettingsWindow.Category
 		Project.Config.Title = CurrentPackageTitle;
 		Project.Config.Ident = CurrentPackageIdent;
 		Project.Config.Org = CurrentPackageOrgIdent;
+
+		// Save the asset license locally and to the backend
+		if ( ShowLicense )
+		{
+			Project.Config.SetMeta( "AssetLicense", _selectedLicense ?? "" );
+			_ = SaveLicenseAsync();
+		}
+
 		base.OnSave();
 
 		if ( HasChangedParentPackage )
 		{
 			EditorUtility.RestartEditorPrompt( "You need to restart the editor after changing the parent package." );
 		}
+	}
+
+	private async Task FetchLicenseAsync( Project project )
+	{
+		var package = await Package.FetchAsync( project.Config.FullIdent, partial: false, useCache: false );
+		if ( package is null )
+			return;
+
+		FetchedPackage = package;
+
+		// Only update from remote if we don't already have a local value
+		if ( string.IsNullOrEmpty( _selectedLicense ) && !string.IsNullOrEmpty( package.AssetLicense ) )
+		{
+			_selectedLicense = package.AssetLicense;
+
+			if ( LicenseDropdown is not null && LicenseDropdown.IsValid )
+			{
+				LicenseDropdown.Update();
+			}
+		}
+	}
+
+	private async Task SaveLicenseAsync()
+	{
+		FetchedPackage ??= await Package.FetchAsync( Project.Config.FullIdent, partial: false );
+		if ( FetchedPackage is null )
+			return;
+
+		await FetchedPackage.UpdateValue( "assetLicense", _selectedLicense ?? "" );
 	}
 }

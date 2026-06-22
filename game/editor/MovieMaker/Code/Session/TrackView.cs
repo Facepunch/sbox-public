@@ -225,7 +225,7 @@ public sealed partial class TrackView : IComparable<TrackView>
 		}
 	}
 
-	private bool ExpandCore()
+	internal bool ExpandCore()
 	{
 		var changed = !IsExpanded;
 

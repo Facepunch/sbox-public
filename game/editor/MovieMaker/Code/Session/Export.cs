@@ -279,11 +279,14 @@ public sealed class SessionRenderer
 				var subFrameFraction = isWarmup ? 0f : (float)j / subFrameCount;
 				var subFrameTime = MathX.Lerp( exposureStart, exposureEnd, subFrameFraction ) / config.FrameRate;
 				var nextTime = frameTime + MovieTime.FromSeconds( subFrameTime );
+				var deltaTime = nextTime - prevTime;
+
+				using var timeScope = Time.Scope( nextTime.TotalSeconds, deltaTime.TotalSeconds );
 
 				_session.PlayheadTime = nextTime;
 				_session.Editor?.TimelinePanel?.Timeline.PanToPlayheadTime();
 
-				BeforeRenderFrame( captureCamera, config, nextTime - prevTime );
+				BeforeRenderFrame( captureCamera, config, deltaTime );
 
 				// Render a (sub)frame!
 

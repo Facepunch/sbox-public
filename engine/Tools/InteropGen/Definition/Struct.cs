@@ -1,36 +1,18 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
 namespace Facepunch.InteropGen;
 
+/// <summary>
+/// A value type shared across the boundary: a struct, an enum, or a pointer-handle (DECLARE_POINTER_HANDLE).
+/// Both sides must agree on its size, which is checked at startup.
+/// </summary>
 public class Struct
 {
-	// Precompiled regex for better performance
-	private static readonly Regex _structParseRegex = new(
+	private static readonly Regex StructParseRegex = new(
 		@"([\w.:\(\)]+)( [\s+]?(?:as|is) [\s+]?([\w.:]+))?(.+)?",
-		RegexOptions.IgnoreCase | RegexOptions.Compiled
+		RegexOptions.IgnoreCase
 	);
-
-	// Cache for struct parsing results
-	private static readonly ConcurrentDictionary<string, ParsedStructDefinition> _structParseCache = new();
-
-	// Struct to hold parsed components efficiently
-	private readonly struct ParsedStructDefinition
-	{
-		public readonly string Name;
-		public readonly string Alias;
-		public readonly string ExtraInfo;
-
-		public ParsedStructDefinition( string name, string alias, string extraInfo )
-		{
-			Name = name;
-			Alias = alias;
-			ExtraInfo = extraInfo;
-		}
-	}
 
 	public string NativeName { get; set; }
 	public string NativeNamespace { get; set; }
@@ -46,83 +28,20 @@ public class Struct
 	/// </summary>
 	public bool IsPointer { get; set; }
 
-	public string CreateUsing { get; set; }
-
-	private string _nativeNameWithNamespace;
-	public string NativeNameWithNamespace
-	{
-		get
-		{
-			if ( _nativeNameWithNamespace is not null )
-			{
-				return _nativeNameWithNamespace;
-			}
-
-			if ( string.IsNullOrEmpty( NativeNamespace ) )
-			{
-				return NativeName;
-			}
-
-			_nativeNameWithNamespace = $"{NativeNamespace}::{NativeName}";
-			return _nativeNameWithNamespace;
-		}
-	}
-
-	private string _managedNameWithNamespace;
-	public string ManagedNameWithNamespace
-	{
-		get
-		{
-			if ( _managedNameWithNamespace is not null )
-			{
-				return _managedNameWithNamespace;
-			}
-
-			if ( string.IsNullOrEmpty( ManagedNamespace ) )
-			{
-				return ManagedName;
-			}
-
-			_managedNameWithNamespace = $"{ManagedNamespace}.{ManagedName}";
-			return _managedNameWithNamespace;
-		}
-	}
+	public string NativeNameWithNamespace => string.IsNullOrEmpty( NativeNamespace ) ? NativeName : $"{NativeNamespace}::{NativeName}";
+	public string ManagedNameWithNamespace => string.IsNullOrEmpty( ManagedNamespace ) ? ManagedName : $"{ManagedNamespace}.{ManagedName}";
 
 	internal static Struct Parse( bool isNative, string type, string line )
 	{
-		// Check cache first
-		if ( _structParseCache.TryGetValue( line, out ParsedStructDefinition cached ) )
-		{
-			return CreateFromCached( isNative, type, cached );
-		}
-
-		// Parse with regex only if not cached
-		Match match = _structParseRegex.Match( line );
+		Match match = StructParseRegex.Match( line );
 		if ( !match.Success )
 		{
 			Log.WriteLine( $"Couldn't parse {type} definition: {line}" );
 			return null;
 		}
 
-		ParsedStructDefinition parsed = new(
-			name: match.Groups[1].Value,
-			alias: match.Groups[3].Value,
-			extraInfo: match.Groups[4].Value
-		);
-
-		// Cache the result if cache isn't too large
-		if ( _structParseCache.Count < 1000 )
-		{
-			_structParseCache.TryAdd( line, parsed );
-		}
-
-		return CreateFromCached( isNative, type, parsed );
-	}
-
-	private static Struct CreateFromCached( bool isNative, string type, ParsedStructDefinition parsed )
-	{
-		string name = parsed.Name;
-		string alias = parsed.Alias;
+		string name = match.Groups[1].Value;
+		string alias = match.Groups[3].Value;
 
 		if ( string.IsNullOrWhiteSpace( alias ) )
 		{
@@ -137,7 +56,9 @@ public class Struct
 		Struct s = new()
 		{
 			NativeName = name,
-			ManagedName = alias
+			ManagedName = alias,
+			IsEnum = type == "enum",
+			IsPointer = type == "pointer"
 		};
 
 		if ( name.Contains( '.' ) )
@@ -154,34 +75,7 @@ public class Struct
 			s.ManagedNamespace = alias[..last];
 		}
 
-		s.IsEnum = type == "enum";
-		s.IsPointer = type == "pointer";
-
-		s.ParseExtra( parsed.ExtraInfo );
-
 		return s;
-	}
-
-	private void ParseExtra( string value )
-	{
-		if ( string.IsNullOrWhiteSpace( value ) )
-		{
-			return;
-		}
-
-		value = value.Trim( ' ', '[', ']', ';' );
-
-		string[] flags = value.Split( ';' );
-
-		foreach ( string flag in flags )
-		{
-			if ( flag.StartsWith( "CreateUsing:" ) )
-			{
-				CreateUsing = flag.Replace( "CreateUsing:", "" );
-				CreateUsing = CreateUsing.Replace( "self.", $"{NativeNameWithNamespace}::" );
-			}
-		}
-
 	}
 
 	private readonly List<string> attr = [];

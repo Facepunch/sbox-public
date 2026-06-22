@@ -109,6 +109,7 @@ native class IPhysicsBody as NativeEngine.IPhysicsBody
 	void SetTargetTransform( Vector3 vTargetPosition, Rotation vTargetAngles, float flTimeOffset );
 
 	bool CheckOverlap( IPhysicsBody body, Transform transform );
+	bool ComputePenetration( IPhysicsBody body, Transform transform, cref out Vector3 direction, cref out float distance );
 
 	Vector3 GetLocalInertiaVector();
 	Rotation GetLocalInertiaOrientation();

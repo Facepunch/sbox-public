@@ -34,11 +34,27 @@
             <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@VSyncOptions Value:bind=@VSync></ButtonGroup>
         </row>
 
+        <h2><i>speed</i>Framerate</h2>
+
         <row class="with-gaps">
             <cell class="glass with-padding is-label">
-                Framerate Limit (game)
+                Game
             </cell>
             <SliderControl class="glass with-grow" Value:bind=@FrameRateLimit Min="@(0)" Max="@(500)" Step="@(1)" ShowTextEntry="@true"></SliderControl>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Menu
+            </cell>
+            <SliderControl class="glass with-grow" Value:bind=@MenuFrameRateLimit Min="@(0)" Max="@(500)" Step="@(1)" ShowTextEntry="@true"></SliderControl>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Inactive
+            </cell>
+            <SliderControl class="glass with-grow" Value:bind=@InactiveFrameRateLimit Min="@(0)" Max="@(500)" Step="@(1)" ShowTextEntry="@true"></SliderControl>
         </row>
 
         <h2><i>brush</i>Quality</h2>
@@ -156,6 +172,8 @@
     public ShadowQuality ShadowQuality { get; set; }
     public float MotionBlurScale { get; set; }
     public int FrameRateLimit { get; set; }
+    public int MenuFrameRateLimit { get; set; }
+    public int InactiveFrameRateLimit { get; set; }
 
     public Sandbox.Engine.Settings.UpscalerMode UpscalerMode { get; set; }
     public Sandbox.Engine.Settings.Fsr3UpscalerQuality Fsr3UpscalerQuality { get; set; }
@@ -263,6 +281,8 @@
         MotionBlurScale = MenuUtility.RenderSettings.MotionBlurScale;
 
         FrameRateLimit = MenuUtility.RenderSettings.MaxFrameRate;
+        MenuFrameRateLimit = MenuUtility.RenderSettings.MaxFrameRateMenu;
+        InactiveFrameRateLimit = MenuUtility.RenderSettings.MaxFrameRateInactive;
 
         UpscalerMode = MenuUtility.RenderSettings.UpscalerMode;
         Fsr3UpscalerQuality = MenuUtility.RenderSettings.Fsr3UpscalerQuality;
@@ -327,6 +347,8 @@
         MenuUtility.RenderSettings.MotionBlurScale = MotionBlurScale;
 
         MenuUtility.RenderSettings.MaxFrameRate = FrameRateLimit;
+        MenuUtility.RenderSettings.MaxFrameRateMenu = MenuFrameRateLimit;
+        MenuUtility.RenderSettings.MaxFrameRateInactive = InactiveFrameRateLimit;
 
         MenuUtility.RenderSettings.UpscalerMode = UpscalerMode;
         MenuUtility.RenderSettings.Fsr3UpscalerQuality = Fsr3UpscalerQuality;
