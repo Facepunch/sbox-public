@@ -122,19 +122,31 @@ partial class FaceTool
 			{
 				var group = AddGroup( "Tools", collapsible: true );
 
-				var grid = Layout.Row();
-				grid.Spacing = 4;
+				{
+					var row = new Widget { Layout = Layout.Row() };
+					row.Layout.Spacing = 4;
 
-				CreateButton( "Fast Texture Tool", "texture", "mesh.fast-texture-tool", OpenFastTextureTool, true, grid );
-				CreateButton( "Edge Cut Tool", "polyline", "mesh.edge-cut-tool", OpenEdgeCutTool, true, grid );
-				CreateButton( "Mirror Tool", "flip", "mesh.mirror-tool", OpenMirrorTool, _faces.Length > 0, grid );
-				CreateButton( "Clipping Tool", "content_cut", "mesh.open-clipping-tool", OpenClippingTool, _faces.Length > 0, grid );
-				CreateButton( "Bridge", "device_hub", "mesh.bridge-tool", OpenBridgeTool, CanBridgeFaces(), grid );
-				CreateButton( "Inset", "filter_center_focus", "mesh.inset-tool", OpenInsetTool, _faces.Length > 0, grid );
+					CreateButton( "Fast Texture Tool", "texture", "mesh.fast-texture-tool", OpenFastTextureTool, true, row.Layout );
+					CreateButton( "Edge Cut Tool", "polyline", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
+					CreateButton( "Mirror Tool", "flip", "mesh.mirror-tool", OpenMirrorTool, _faces.Length > 0, row.Layout );
+					CreateButton( "Clipping Tool", "content_cut", "mesh.open-clipping-tool", OpenClippingTool, _faces.Length > 0, row.Layout );
+					CreateButton( "Bridge", "device_hub", "mesh.bridge-tool", OpenBridgeTool, CanBridgeFaces(), row.Layout );
+					CreateButton( "Inset", "filter_center_focus", "mesh.inset-tool", OpenInsetTool, _faces.Length > 0, row.Layout );
 
-				grid.AddStretchCell();
+					row.Layout.AddStretchCell();
 
-				group.Add( grid );
+					group.Add( row );
+				}
+				{
+					var row = new Widget { Layout = Layout.Row() };
+					row.Layout.Spacing = 4;
+
+					CreateButton( "Topology Tool", "details", "mesh.topology-tool", OpenTopologyTool, _faces.Length > 0, row.Layout );
+
+					row.Layout.AddStretchCell();
+
+					group.Add( row );
+				}
 			}
 
 			BuildTextureUI( so, target );
@@ -218,6 +230,17 @@ partial class FaceTool
 				return;
 
 			var tool = new InsetTool( _faces );
+			tool.Manager = _meshTool.Manager;
+			_meshTool.CurrentTool = tool;
+		}
+		
+		[Shortcut( "mesh.topology-tool", "CTRL+T", typeof( SceneViewWidget ) )]
+		void OpenTopologyTool()
+		{
+			if ( _faces.Length == 0 )
+				return;
+
+			var tool = new TopologyTool( _faces );
 			tool.Manager = _meshTool.Manager;
 			_meshTool.CurrentTool = tool;
 		}
