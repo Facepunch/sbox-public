@@ -236,8 +236,6 @@ public partial class QuadrangulateTool( MeshFace[] faces ) : EditorTool
 					int neighbourIndexA = Array.IndexOf( neighbourVerts, sharedVertA );
 					int neighbourIndexB = Array.IndexOf( neighbourVerts, sharedVertB );
 
-					float margin = 0.0001f;
-
 					bool matchA = faceUVs[faceIndexA].AlmostEqual( neighbourUVs[neighbourIndexA] );
 					bool matchB = faceUVs[faceIndexB].AlmostEqual( neighbourUVs[neighbourIndexB] );
 
