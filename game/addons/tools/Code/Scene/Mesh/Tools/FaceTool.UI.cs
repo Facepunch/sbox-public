@@ -233,7 +233,7 @@ partial class FaceTool
 			tool.Manager = _meshTool.Manager;
 			_meshTool.CurrentTool = tool;
 		}
-		
+
 		[Shortcut( "mesh.topology-tool", "CTRL+T", typeof( SceneViewWidget ) )]
 		void OpenTopologyTool()
 		{

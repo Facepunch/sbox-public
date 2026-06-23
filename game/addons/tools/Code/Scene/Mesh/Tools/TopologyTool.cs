@@ -96,7 +96,7 @@ public partial class TopologyTool( MeshFace[] faces ) : EditorTool
 				if ( ToolOperationType == TopologyOperationType.Triangulate )
 				{
 					if ( _originalMeshes.TryGetValue( component, out PolygonMesh originalMesh ) &&
-					     _remappedFaces.TryGetValue( component, out List<FaceHandle> remapped ) )
+						 _remappedFaces.TryGetValue( component, out List<FaceHandle> remapped ) )
 					{
 						using ( Gizmo.Scope( "SelectionOutline" ) )
 						{
@@ -223,8 +223,8 @@ public partial class TopologyTool( MeshFace[] faces ) : EditorTool
 		}
 
 		using ( SceneEditorSession.Active.UndoScope( name )
-			       .WithComponentChanges( components )
-			       .Push() )
+				   .WithComponentChanges( components )
+				   .Push() )
 		{
 			SelectionSystem selection = SceneEditorSession.Active.Selection;
 			selection.Clear();
@@ -246,14 +246,14 @@ public partial class TopologyTool( MeshFace[] faces ) : EditorTool
 		}
 
 		Cleanup();
-		EditorToolManager.SetSubTool( nameof(FaceTool) );
+		EditorToolManager.SetSubTool( nameof( FaceTool ) );
 	}
 
 	public void Cancel()
 	{
 		RestoreOriginals();
 		Cleanup();
-		EditorToolManager.SetSubTool( nameof(FaceTool) );
+		EditorToolManager.SetSubTool( nameof( FaceTool ) );
 	}
 
 	private void RestoreOriginals()

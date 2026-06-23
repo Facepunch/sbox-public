@@ -16,12 +16,12 @@ public partial class TopologyTool
 
 		public float Score => Shape + Normal;
 	}
-	
+
 	private static void QuadrangulateFaces( PolygonMesh mesh, FaceHandle[] faces, float faceAngle, float shapeAngle,
 		bool uv, bool color, bool blend, bool material, bool smooth, out List<FaceHandle> processedFaces,
 		out List<Line> processedEdges )
 	{
-		
+
 		processedFaces = [];
 		processedEdges = [];
 
@@ -97,9 +97,9 @@ public partial class TopologyTool
 				if ( color )
 				{
 					bool match = mesh.GetVertexColor( sharedEdge ) ==
-					             mesh.GetVertexColor( sharedEdge.OppositeEdge.NextEdge.NextEdge ) &&
-					             mesh.GetVertexColor( sharedEdge.OppositeEdge ) ==
-					             mesh.GetVertexColor( sharedEdge.NextEdge.NextEdge );
+								 mesh.GetVertexColor( sharedEdge.OppositeEdge.NextEdge.NextEdge ) &&
+								 mesh.GetVertexColor( sharedEdge.OppositeEdge ) ==
+								 mesh.GetVertexColor( sharedEdge.NextEdge.NextEdge );
 					if ( !match )
 					{
 						continue;
@@ -109,9 +109,9 @@ public partial class TopologyTool
 				if ( blend )
 				{
 					bool match = mesh.GetVertexBlend( sharedEdge ) ==
-					             mesh.GetVertexBlend( sharedEdge.OppositeEdge.NextEdge.NextEdge ) &&
-					             mesh.GetVertexBlend( sharedEdge.OppositeEdge ) ==
-					             mesh.GetVertexBlend( sharedEdge.NextEdge.NextEdge );
+								 mesh.GetVertexBlend( sharedEdge.OppositeEdge.NextEdge.NextEdge ) &&
+								 mesh.GetVertexBlend( sharedEdge.OppositeEdge ) ==
+								 mesh.GetVertexBlend( sharedEdge.NextEdge.NextEdge );
 					if ( !match )
 					{
 						continue;
@@ -256,12 +256,12 @@ public partial class TopologyTool
 		}
 	}
 
-	private static void TriangulateFaces(PolygonMesh mesh, FaceHandle[] faces, QuadMethod quadMethod, NgonMethod ngonMethod, 
+	private static void TriangulateFaces( PolygonMesh mesh, FaceHandle[] faces, QuadMethod quadMethod, NgonMethod ngonMethod,
 		int minEdges, out List<FaceHandle> processedFaces, out List<Line> processedEdges )
 	{
 		processedFaces = [];
 		processedEdges = [];
-		
+
 		foreach ( var face in faces )
 		{
 			var edges = mesh.GetFaceEdges( face );
@@ -436,7 +436,7 @@ public partial class TopologyTool
 			newFaces = [tri1, tri2];
 			newEdge = mesh.GetEdgeLine( edges1.Intersect( edges2 ).FirstOrDefault() );
 		}
-		
+
 		static void TriangulateNgon( NgonMethod method, PolygonMesh mesh, FaceHandle face,
 			out List<FaceHandle> newFaces,
 			out List<Line> newEdges )
@@ -724,7 +724,7 @@ public partial class TopologyTool
 				float Sign( Vector2 p1, Vector2 p2, Vector2 p3 )
 				{
 					return ((p1.x - p3.x) * (p2.y - p3.y)) -
-					       ((p2.x - p3.x) * (p1.y - p3.y));
+						   ((p2.x - p3.x) * (p1.y - p3.y));
 				}
 
 				bool b1 = Sign( p, a, b ) < 0.0f;
