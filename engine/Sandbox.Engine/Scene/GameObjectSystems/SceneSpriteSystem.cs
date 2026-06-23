@@ -3,13 +3,14 @@ namespace Sandbox;
 using Sandbox.Hashing;
 using Sandbox.Rendering;
 using System.Buffers;
-using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Runtime.InteropServices;
 
 public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 {
 	private readonly record struct SystemOffset( IBatchedParticleSpriteRenderer System, int Offset, int ParticleCount );
+
+	private readonly record struct ParticleResult( Guid Id, ulong Group, IBatchedParticleSpriteRenderer System, int Offset, int Count, int SplotCount, BBox Bounds );
 
 	/// <summary>Carries the data needed to configure a new <see cref="SpriteBatchSceneObject"/> from the original component state.</summary>
 	private readonly record struct RenderGroupConfig( InstanceGroupFlags Flags, RenderOptions RenderOptions, IReadOnlySet<uint> Tags );
@@ -31,8 +32,8 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		base.Dispose();
 	}
 
-	private readonly ConcurrentBag<Guid> _activeParticleEmitters = new();
-	private readonly ConcurrentBag<(Guid id, ulong group, IBatchedParticleSpriteRenderer system, int offset, int count, int splotCount, BBox bounds)> _particleProcessingResults = new();
+	private Guid[] _activeParticleEmitters = [];
+	private ParticleResult[] _particleProcessingResults = [];
 	private HashSet<Guid> _registeredSpriteRenderers = new();
 	private SpriteBatchSceneObject.SpriteData[] _sharedSprites;
 	private readonly List<SystemOffset> _systemOffsets = [];
@@ -40,14 +41,11 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 	private readonly HashSet<Guid> _activeParticleIds = new();
 	private readonly HashSet<Guid> _currentEnabledSprites = new();
 	private readonly List<Guid> _spritesToRemove = new();
+	private readonly List<Guid> _keysToRemoveScratch = new();
 
 	internal unsafe void UpdateParticleSprites()
 	{
 		var spriteRenderers = Scene.GetAllComponents<IBatchedParticleSpriteRenderer>();
-
-		// Clear
-		while ( _activeParticleEmitters.TryTake( out _ ) ) { }
-		while ( _particleProcessingResults.TryTake( out _ ) ) { }
 
 		// Calculate total size needed and ensure shared block is large enough
 		int totalParticles = 0;
@@ -62,8 +60,9 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		{
 			foreach ( var rg in RenderGroups )
 			{
-				var keysToRemove = rg.Value.SpriteGroups.Keys.ToList();
-				foreach ( var key in keysToRemove )
+				_keysToRemoveScratch.Clear();
+				_keysToRemoveScratch.AddRange( rg.Value.SpriteGroups.Keys );
+				foreach ( var key in _keysToRemoveScratch )
 				{
 					rg.Value.UnregisterSpriteGroup( key );
 				}
@@ -96,6 +95,26 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 			}
 		}
 
+		int systemCount = _systemOffsets.Count;
+
+		if ( _particleProcessingResults.Length < systemCount )
+		{
+			_particleProcessingResults = new ParticleResult[systemCount];
+		}
+		else
+		{
+			Array.Clear( _particleProcessingResults );
+		}
+
+		if ( _activeParticleEmitters.Length < systemCount )
+		{
+			_activeParticleEmitters = new Guid[systemCount];
+		}
+		else
+		{
+			Array.Clear( _activeParticleEmitters );
+		}
+
 		// Parallel processing to write simulated particles to the data block that will be copied to the GPU
 		// Process all batched particle renderers
 		Parallel.For( 0, _systemOffsets.Count, i =>
@@ -105,7 +124,7 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 			var particleRenderer = (ParticleRenderer)systemInfo.System;
 			var particleSystemID = particleRenderer.Id;
-			_activeParticleEmitters.Add( particleSystemID );
+			_activeParticleEmitters[i] = particleSystemID;
 
 			var rendergroup = GetRenderGroupKey( systemInfo.System, (GameTags)particleRenderer.Tags, particleRenderer.RenderOptions );
 
@@ -118,24 +137,28 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 
 			if ( result.SpriteCount == 0 ) return;
 
-			_particleProcessingResults.Add( (particleSystemID, rendergroup, systemInfo.System, systemInfo.Offset, result.SpriteCount, result.SplotCount, result.Bounds) );
+			_particleProcessingResults[i] = new ParticleResult( particleSystemID, rendergroup, systemInfo.System, systemInfo.Offset, result.SpriteCount, result.SplotCount, result.Bounds );
 		} );
 
 		// Cleanup inactive particle emitters
 		_activeParticleIds.Clear();
-		foreach ( var id in _activeParticleEmitters ) _activeParticleIds.Add( id );
+		for ( int i = 0; i < systemCount; i++ )
+		{
+			var id = _activeParticleEmitters[i];
+			if ( id != Guid.Empty ) _activeParticleIds.Add( id );
+		}
 		foreach ( var rg in RenderGroups )
 		{
-			var keysToRemove = rg.Value.SpriteGroups.Keys.Where( id => !_activeParticleIds.Contains( id ) ).ToList();
-			foreach ( var key in keysToRemove )
-			{
-				rg.Value.UnregisterSpriteGroup( key );
-			}
+			RemoveInactiveSpriteGroups( rg.Value );
 		}
 
 		// Register buffers to corresponding render groups
-		foreach ( var (id, rendergroup, system, offset, count, splotCount, bounds) in _particleProcessingResults )
+		for ( int i = 0; i < systemCount; i++ )
 		{
+			var (id, rendergroup, system, offset, count, splotCount, bounds) = _particleProcessingResults[i];
+			if ( count == 0 )
+				continue;
+
 			foreach ( var rg in RenderGroups )
 			{
 				rg.Value.UnregisterSpriteGroup( id );
@@ -155,11 +178,23 @@ public sealed class SceneSpriteSystem : GameObjectSystem<SceneSpriteSystem>
 		// Final cleanup for systems that no longer exist
 		foreach ( var rg in RenderGroups )
 		{
-			var keysToRemove = rg.Value.SpriteGroups.Keys.Where( id => !_activeParticleIds.Contains( id ) ).ToList();
-			foreach ( var key in keysToRemove )
-			{
-				rg.Value.UnregisterSpriteGroup( key );
-			}
+			RemoveInactiveSpriteGroups( rg.Value );
+		}
+	}
+
+	private void RemoveInactiveSpriteGroups( SpriteBatchSceneObject renderGroup )
+	{
+		_keysToRemoveScratch.Clear();
+
+		foreach ( var id in renderGroup.SpriteGroups.Keys )
+		{
+			if ( !_activeParticleIds.Contains( id ) )
+				_keysToRemoveScratch.Add( id );
+		}
+
+		foreach ( var key in _keysToRemoveScratch )
+		{
+			renderGroup.UnregisterSpriteGroup( key );
 		}
 	}
 

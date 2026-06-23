@@ -7,23 +7,6 @@
 
 <root class="videocontrols">
 
-    <div class="left">
-
-        @if ( VideoPlayer.IsPaused )
-        {
-            <div class="playbutton video-control-button" onclick="@VideoPlayer.Resume">
-                <i>play_arrow</i>
-            </div>
-        }
-        else
-        {
-            <div class="playbutton video-control-button" onclick="@VideoPlayer.Pause">
-                <i>pause</i>
-            </div>
-        }
-
-    </div>
-
     <div class="right">
 
         <div class="timeline">
@@ -33,6 +16,19 @@
         <div class="meta">
 
             <div class="left">
+
+				@if ( VideoPlayer.IsPaused )
+				{
+					<div class="playbutton video-control-button" onclick="@VideoPlayer.Resume">
+						<i>play_arrow</i>
+					</div>
+				}
+				else
+				{
+					<div class="playbutton video-control-button" onclick="@VideoPlayer.Pause">
+						<i>pause</i>
+					</div>
+				}
 
                 @if ( !VideoPlayer.HasAudio )
                 {
@@ -79,7 +75,15 @@
 
 	protected override void OnParametersSet ()
 	{
+		Volume = Game.Cookies.Get( "videoplayer.volume", Volume );
+
 		VideoPlayer.Audio.Volume = Volume;
+	}
+
+	protected override void OnClick(MousePanelEvent e)
+	{
+		base.OnClick(e);
+		e.StopPropagation();
 	}
 
 	protected override int BuildHash()
@@ -96,6 +100,8 @@
 	{
 		Volume = value;
 		VideoPlayer.Audio.Volume = value;
+
+		Game.Cookies.Set( "videoplayer.volume", Volume );
 	}
 
     string GetPlayback()

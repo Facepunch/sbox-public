@@ -44,7 +44,7 @@ public class AssetPreview : IDisposable
 	/// <summary>
 	/// Is this preview animated? If it's not animated then it's a waste of time rendering a video.
 	/// </summary>
-	public virtual bool IsAnimatedPreview => true;
+	public virtual bool IsAnimatedPreview => false;
 
 	/// <summary>
 	/// How long should the video be

@@ -461,6 +461,15 @@ public class Window : DockWindow, IAssetEditor
 
 	public void TogglePlayPause()
 	{
+		// When pressing play on the last frame with LoopMode.None, restart from the first frame
+		if ( !IsPlaying && SelectedAnimation is not null && SelectedAnimation.LoopMode == Sprite.LoopMode.None )
+		{
+			if ( CurrentFrameIndex >= SelectedAnimation.Frames.Count - 1 )
+			{
+				CurrentFrameIndex = 0;
+			}
+		}
+
 		IsPlaying = !IsPlaying;
 		OnPlayPause?.Invoke();
 	}

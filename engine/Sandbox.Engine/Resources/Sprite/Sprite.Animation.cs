@@ -120,6 +120,30 @@ public partial class Sprite
 		public LoopMode LoopMode { get; set; } = LoopMode.Loop;
 
 		/// <summary>
+		/// The frame index at which looping starts. A value of -1 means the first frame (0).
+		/// </summary>
+		[Hide]
+		public int LoopStart { get; set; } = -1;
+
+		/// <summary>
+		/// The frame index at which looping ends. A value of -1 means the last frame.
+		/// </summary>
+		[Hide]
+		public int LoopEnd { get; set; } = -1;
+
+		/// <summary>
+		/// Returns the effective loop start frame index, resolving -1 to 0.
+		/// </summary>
+		[Hide, JsonIgnore]
+		public int EffectiveLoopStart => LoopStart < 0 ? 0 : Math.Clamp( LoopStart, 0, Math.Max( 0, (Frames?.Count ?? 1) - 1 ) );
+
+		/// <summary>
+		/// Returns the effective loop end frame index, resolving -1 to the last frame.
+		/// </summary>
+		[Hide, JsonIgnore]
+		public int EffectiveLoopEnd => LoopEnd < 0 ? Math.Max( 0, (Frames?.Count ?? 1) - 1 ) : Math.Clamp( LoopEnd, 0, Math.Max( 0, (Frames?.Count ?? 1) - 1 ) );
+
+		/// <summary>
 		/// A list of frames that make up the animation. Each frame is a texture that will be displayed in sequence.
 		/// </summary>
 		[Group( "Frames", StartFolded = true ), WideMode( HasLabel = false )]

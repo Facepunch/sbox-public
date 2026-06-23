@@ -1,5 +1,6 @@
 ﻿using Facepunch.ActionGraphs;
 using Sandbox.ActionGraphs;
+using System.Buffers;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -441,8 +442,20 @@ public partial class GameObject
 
 		if ( node[JsonKeys.Components] is JsonArray componentArray )
 		{
-			var existingComponents = options.IsRefreshing ? Components.GetAll().ToHashSet() : null;
-			var processedComponents = options.IsRefreshing ? new HashSet<Component>( existingComponents.Count ) : null;
+			// Track which existing components we process so we can destroy any that disappeared,
+			// keeping an unchanged refresh allocation-free.
+			Component[] existing = null;
+			int existingCount = 0;
+			Component[] processed = null;
+			int processedCount = 0;
+
+			if ( options.IsRefreshing )
+			{
+				existing = ArrayPool<Component>.Shared.Rent( Components.Count );
+				foreach ( var c in Components.GetAll() ) existing[existingCount++] = c;
+
+				processed = ArrayPool<Component>.Shared.Rent( componentArray.Count );
+			}
 
 			for ( int componentIndex = 0; componentIndex < componentArray.Count; componentIndex++ )
 			{
@@ -527,7 +540,7 @@ public partial class GameObject
 
 				if ( options.IsRefreshing )
 				{
-					processedComponents.Add( c );
+					processed[processedCount++] = c;
 
 					// change order of components needed
 					if ( Components.IndexOf( c ) != componentIndex )
@@ -539,20 +552,22 @@ public partial class GameObject
 
 			if ( options.IsRefreshing )
 			{
-				// For network refresh, filter out components that shouldn't be networked
-				if ( options.IsNetworkRefresh )
+				// Destroy any pre-existing component we didn't process this pass. We iterate the snapshot,
+				// not the live list, so destroying here is safe.
+				for ( int i = 0; i < existingCount; i++ )
 				{
-					existingComponents.RemoveWhere( c => c.Flags.Contains( ComponentFlags.NotNetworked ) );
-				}
+					var existingComponent = existing[i];
 
-				// Common operation for both refresh types
-				existingComponents.ExceptWith( processedComponents );
+					if ( WasProcessed( processed, processedCount, existingComponent ) ) continue;
 
-				// Common destruction for both refresh types
-				foreach ( var existingComponent in existingComponents )
-				{
+					// Keep components that shouldn't be networked during a network refresh.
+					if ( options.IsNetworkRefresh && existingComponent.Flags.Contains( ComponentFlags.NotNetworked ) ) continue;
+
 					existingComponent.Destroy();
 				}
+
+				ArrayPool<Component>.Shared.Return( processed, clearArray: true );
+				ArrayPool<Component>.Shared.Return( existing, clearArray: true );
 			}
 		}
 
@@ -623,6 +638,16 @@ public partial class GameObject
 
 		// Trigger OnEnabled after the GameObject has been deserialized fully, _enabled was set before, so OnAwake calls properly
 		UpdateEnabledStatus();
+	}
+
+	private static bool WasProcessed( Component[] processed, int count, Component component )
+	{
+		for ( int i = 0; i < count; i++ )
+		{
+			if ( ReferenceEquals( processed[i], component ) ) return true;
+		}
+
+		return false;
 	}
 
 	private void DeserializeFlags( JsonObject node, DeserializeOptions options )

@@ -5,28 +5,26 @@ namespace Editor.Inspectors;
 [CanEdit( "asset:vsnd" )]
 public class SoundFileCompileSettings : Widget, IAssetInspector
 {
-	private Asset Asset;
-
 	public class Settings
 	{
-		[Title( "Enabled" ), Category( "Looping" )]
+		[Title( "Looping Enabled" ), Header( "Looping" )]
 		public bool Loop { get; set; }
 
-		[Category( "Looping" ), ShowIf( nameof( Loop ), true )]
+		[ShowIf( nameof( Loop ), true )]
 		[Description( "Start Time" )]
 		public float Start { get; set; }
 
-		[Category( "Looping" ), ShowIf( nameof( Loop ), true )]
+		[ShowIf( nameof( Loop ), true )]
 		[Description( "End Time, 0 is end of sound" )]
 		public float End { get; set; }
 
-		[Title( "Sample Rate" ), Category( "Resampling" )]
+		[Title( "Sample Rate" ), Header( "Resampling" )]
 		public SamplingRate Rate { get; set; } = SamplingRate.Rate44100;
 
-		[Title( "Enabled" ), Category( "Compression" )]
+		[Title( "Enabled" ), Header( "Compression" )]
 		public bool Compress { get; set; }
 
-		[Title( "Bitrate" ), Category( "Compression" ), MinMax( 128, 256 )]
+		[Title( "Bitrate" ), MinMax( 128, 256 )]
 		public int Bitrate { get; set; } = 256;
 
 		public enum SamplingRate
@@ -44,7 +42,11 @@ public class SoundFileCompileSettings : Widget, IAssetInspector
 		}
 	}
 
-	private Settings _settings = new();
+	/// <summary>
+	/// Each selected asset paired with the Settings object bound to it in the sheet. One entry for a single
+	/// selection, many for multi-select.
+	/// </summary>
+	private readonly List<(Asset Asset, Settings Settings)> _targets = new();
 
 	public SoundFileCompileSettings( Widget parent ) : base( parent )
 	{
@@ -53,33 +55,93 @@ public class SoundFileCompileSettings : Widget, IAssetInspector
 
 	public void SetAsset( Asset asset )
 	{
-		Asset = asset;
-
-		if ( Asset.MetaData is null )
+		if ( asset?.MetaData is null )
 			return;
 
-		_settings.Loop = Asset.MetaData.Get( "loop", false );
-		_settings.Start = Asset.MetaData.Get( "start", 0.0f );
-		_settings.End = Asset.MetaData.Get( "end", 0.0f );
-		_settings.Rate = Asset.MetaData.Get( "rate", Settings.SamplingRate.Rate44100 );
-		_settings.Compress = Asset.MetaData.Get( "compress", false );
-		_settings.Bitrate = Asset.MetaData.Get( "bitrate", 256 );
+		_targets.Clear();
 
-		var so = EditorTypeLibrary.GetSerializedObject( _settings );
-		Layout = ControlSheet.Create( so );
+		var settings = Load( asset );
+		_targets.Add( (asset, settings) );
+
+		var so = EditorTypeLibrary.GetSerializedObject( settings );
 		so.OnPropertyChanged += ValuesChanged;
+
+		Layout = ControlSheet.Create( so );
 	}
 
-	void ValuesChanged( SerializedProperty property )
+	public bool SetAssets( Asset[] assets )
 	{
-		if ( Asset.MetaData is null )
+		_targets.Clear();
+
+		var mso = new MultiSerializedObject();
+
+		foreach ( var asset in assets )
+		{
+			if ( asset?.MetaData is null )
+				continue;
+
+			var settings = Load( asset );
+			_targets.Add( (asset, settings) );
+
+			mso.Add( EditorTypeLibrary.GetSerializedObject( settings ) );
+		}
+
+		if ( _targets.Count == 0 )
+			return false;
+
+		mso.Rebuild();
+		mso.OnPropertyChanged += ValuesChanged;
+
+		Layout = ControlSheet.Create( mso );
+
+		return true;
+	}
+
+	/// <summary>
+	/// Read an asset's compile metadata into a fresh Settings object.
+	/// </summary>
+	private static Settings Load( Asset asset )
+	{
+		var meta = asset.MetaData;
+
+		return new Settings
+		{
+			Loop = meta.Get( "loop", false ),
+			Start = meta.Get( "start", 0.0f ),
+			End = meta.Get( "end", 0.0f ),
+			Rate = meta.Get( "rate", Settings.SamplingRate.Rate44100 ),
+			Compress = meta.Get( "compress", false ),
+			Bitrate = meta.Get( "bitrate", 256 ),
+		};
+	}
+
+	/// <summary>
+	/// Write a Settings object back to an asset's compile metadata.
+	/// </summary>
+	private static void Save( Asset asset, Settings settings )
+	{
+		var meta = asset.MetaData;
+		if ( meta is null )
 			return;
 
-		Asset.MetaData.Set( "loop", _settings.Loop );
-		Asset.MetaData.Set( "start", _settings.Start );
-		Asset.MetaData.Set( "end", _settings.End );
-		Asset.MetaData.Set( "rate", _settings.Rate );
-		Asset.MetaData.Set( "compress", _settings.Compress );
-		Asset.MetaData.Set( "bitrate", _settings.Bitrate );
+		meta.Set( "loop", settings.Loop );
+		meta.Set( "start", settings.Start );
+		meta.Set( "end", settings.End );
+		meta.Set( "rate", settings.Rate );
+		meta.Set( "compress", settings.Compress );
+		meta.Set( "bitrate", settings.Bitrate );
+	}
+
+	/// <summary>
+	/// A value changed in the sheet. For multi-select the edit has already been propagated to every target's
+	/// Settings by the MultiSerializedObject, so we just persist each one - untouched fields keep their own
+	/// per-asset values.
+	/// </summary>
+	private void ValuesChanged( SerializedProperty property )
+	{
+		foreach ( var (asset, settings) in _targets )
+		{
+			Save( asset, settings );
+		}
 	}
 }

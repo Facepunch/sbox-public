@@ -1,4 +1,6 @@
-﻿namespace Editor;
+﻿using Sandbox.Resources;
+
+namespace Editor;
 
 internal static class MaterialMenu
 {
@@ -178,9 +180,8 @@ Layer0
 
 		if ( isAnimation )
 		{
-			// Export one sprite with each frame as an animation
-			var paths = entries.Select( x => System.IO.Path.ChangeExtension( x.Asset.Path, System.IO.Path.GetExtension( x.Asset.AbsolutePath ) ) );
-			var sprite = Sprite.FromTextures( paths.Select( x => Texture.Load( x ) ).ToArray() );
+			var textures = entries.Select( x => TextureFromImageFile( x ) ).Where( x => x is not null ).ToArray();
+			var sprite = Sprite.FromTextures( textures );
 			var json = sprite.Serialize().ToJsonString();
 			System.IO.File.WriteAllText( fd.SelectedFile, json );
 
@@ -195,10 +196,12 @@ Layer0
 			// Export individual sprites
 			foreach ( var p in entries )
 			{
-				var path = System.IO.Path.ChangeExtension( p.Asset.Path, System.IO.Path.GetExtension( p.Asset.AbsolutePath ) );
-				var sprite = Sprite.FromTexture( Texture.Load( path ) );
+				var texture = TextureFromImageFile( p );
+				if ( texture is null ) continue;
+
+				var sprite = Sprite.FromTexture( texture );
 				var json = sprite.Serialize().ToJsonString();
-				var outPath = System.IO.Path.Combine( System.IO.Path.GetDirectoryName( fd.SelectedFile ), System.IO.Path.GetFileNameWithoutExtension( path ) + ".sprite" );
+				var outPath = System.IO.Path.Combine( System.IO.Path.GetDirectoryName( fd.SelectedFile ), System.IO.Path.GetFileNameWithoutExtension( p.Asset.AbsolutePath ) + ".sprite" );
 				System.IO.File.WriteAllText( outPath, json );
 
 				asset = AssetSystem.RegisterFile( outPath );
@@ -212,5 +215,15 @@ Layer0
 		MainAssetBrowser.Instance?.Local.UpdateAssetList();
 		MainAssetBrowser.Instance?.Local.FocusOnAsset( asset );
 		EditorUtility.InspectorObject = asset;
+	}
+
+	private static Texture TextureFromImageFile( AssetEntry entry )
+	{
+		var generator = new ImageFileGenerator
+		{
+			FilePath = entry.Asset.RelativePath
+		};
+
+		return generator.Create( ResourceGenerator.Options.Default );
 	}
 }

@@ -23,17 +23,30 @@ using System.Runtime.CompilerServices;
 
 namespace DotRecast.Detour.Crowd
 {
+	// Flat item pool + index-chained hash buckets, matching the original C++ dtProximityGrid.
 	internal class DtProximityGrid
 	{
+		private struct Item
+		{
+			public long Key;
+			public DtCrowdAgent Agent;
+			public int Next;
+		}
+
+		private const int BucketCount = 1024; // power of two
+
 		private readonly float _cellSize;
 		private readonly float _invCellSize;
-		private readonly Dictionary<long, List<DtCrowdAgent>> _items;
+
+		private Item[] _pool = new Item[256];
+		private int _poolHead;
+		private readonly int[] _buckets = new int[BucketCount];
 
 		public DtProximityGrid( float cellSize )
 		{
 			_cellSize = cellSize;
 			_invCellSize = 1.0f / cellSize;
-			_items = new Dictionary<long, List<DtCrowdAgent>>();
+			Array.Fill( _buckets, -1 );
 		}
 
 		[MethodImpl( MethodImplOptions.AggressiveInlining )]
@@ -54,9 +67,19 @@ namespace DotRecast.Detour.Crowd
 		}
 
 		[MethodImpl( MethodImplOptions.AggressiveInlining )]
+		private static int HashKey( long key )
+		{
+			ulong h = (ulong)key * 0x9E3779B97F4A7C15UL;
+			return (int)(h >> 32) & (BucketCount - 1);
+		}
+
 		public void Clear()
 		{
-			_items.Clear();
+			Array.Fill( _buckets, -1 );
+
+			// Don't keep agents alive through the pool
+			Array.Clear( _pool, 0, _poolHead );
+			_poolHead = 0;
 		}
 
 		public void AddItem( DtCrowdAgent agent, float minx, float miny, float maxx, float maxy )
@@ -70,14 +93,16 @@ namespace DotRecast.Detour.Crowd
 			{
 				for ( int x = iminx; x <= imaxx; ++x )
 				{
-					long key = CombineKey( x, y );
-					if ( !_items.TryGetValue( key, out var ids ) )
+					if ( _poolHead >= _pool.Length )
 					{
-						ids = new List<DtCrowdAgent>();
-						_items.Add( key, ids );
+						Array.Resize( ref _pool, _pool.Length * 2 );
 					}
 
-					ids.Add( agent );
+					long key = CombineKey( x, y );
+					int bucket = HashKey( key );
+
+					_pool[_poolHead] = new Item { Key = key, Agent = agent, Next = _buckets[bucket] };
+					_buckets[bucket] = _poolHead++;
 				}
 			}
 		}
@@ -96,15 +121,13 @@ namespace DotRecast.Detour.Crowd
 				for ( int x = iminx; x <= imaxx; ++x )
 				{
 					long key = CombineKey( x, y );
-					bool hasPool = _items.TryGetValue( key, out var pool );
-					if ( !hasPool )
-					{
-						continue;
-					}
 
-					for ( int idx = 0; idx < pool.Count; ++idx )
+					for ( int idx = _buckets[HashKey( key )]; idx != -1; idx = _pool[idx].Next )
 					{
-						var item = pool[idx];
+						if ( _pool[idx].Key != key )
+							continue;
+
+						var item = _pool[idx].Agent;
 
 						// Check if the id exists already.
 						int end = n;
@@ -131,9 +154,15 @@ namespace DotRecast.Detour.Crowd
 
 		public IEnumerable<(long, int)> GetItemCounts()
 		{
-			return _items
-				.Where( e => e.Value.Count > 0 )
-				.Select( e => (e.Key, e.Value.Count) );
+			var counts = new Dictionary<long, int>();
+
+			for ( int i = 0; i < _poolHead; i++ )
+			{
+				counts.TryGetValue( _pool[i].Key, out var count );
+				counts[_pool[i].Key] = count + 1;
+			}
+
+			return counts.Select( e => (e.Key, e.Value) );
 		}
 
 		public float GetCellSize()
