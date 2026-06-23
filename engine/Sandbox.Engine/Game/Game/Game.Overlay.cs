@@ -124,6 +124,17 @@ public static partial class Game
 			IModalSystem.Current?.PackageSelect( query, onSelect, onFilterChanged );
 		}
 
+		/// <summary>
+		/// Opens a modal for selecting a map.
+		/// This can be either a map package from the workshop (an ident), or a scene from a mount (a path)
+		/// </summary>
+		public static void ShowMapSelector( Action<string> onSelect, string selected = null )
+		{
+			using var scope = GlobalContext.MenuScope();
+
+			IModalSystem.Current?.MapSelect( onSelect, selected );
+		}
+
 		[Obsolete( "Use ShowFriendsList with FriendsListModalOptions instead." )]
 		public static void ShowFriendsList() => ShowFriendsList( new() );
 
@@ -217,6 +228,25 @@ public static partial class Game
 		{
 			using var scope = GlobalContext.MenuScope();
 			IModalSystem.Current?.WorkshopPublish( options );
+		}
+
+		/// <summary>
+		/// Starts a local benchmark run from within the game. The results panel is shown when all packages complete.
+		/// </summary>
+		/// <param name="packageFilter">Package names to include (null = all configured packages)</param>
+		/// <param name="testFilter">Individual test names to run (null = all). Passed to packages via the benchmark.tests game setting.</param>
+		public static void RunLocalBenchmarks( string[] packageFilter = null, string[] testFilter = null )
+		{
+			BenchmarkOrchestrator.Run( packageFilter, testFilter );
+		}
+
+		/// <summary>
+		/// Opens the benchmark results modal with the given batch ID and per-test summaries.
+		/// </summary>
+		public static void ShowBenchmarkResults( Guid batchId, IReadOnlyList<BenchmarkTestSummary> summaries )
+		{
+			using var scope = GlobalContext.MenuScope();
+			IModalSystem.Current?.BenchmarkResults( batchId, summaries );
 		}
 
 		/// <summary>

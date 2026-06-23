@@ -97,12 +97,8 @@ public partial class Texture
 
 		// Calculate expected size for validation (cubemaps need size * 6)
 		var outputFormat = VTexWriter.VTEX_FormatToRuntime( writer.Header.Format );
-		bool isCompressedOnDisk = writer.Header.Format is VTexWriter.VTEX_Format_t.VTEX_FORMAT_PNG_RGBA8888
-			or VTexWriter.VTEX_Format_t.VTEX_FORMAT_PNG_DXT5
-			or VTexWriter.VTEX_Format_t.VTEX_FORMAT_JPEG_RGBA8888
-			or VTexWriter.VTEX_Format_t.VTEX_FORMAT_JPEG_DXT5;
 
-		if ( !isCompressedOnDisk )
+		if ( !VTexWriter.IsCompressedOnDisk( writer.Header.Format ) )
 		{
 			var expectedSize = NativeEngine.ImageLoader.GetMemRequired( width, height, depth, mipCount, outputFormat ) * numFaces;
 

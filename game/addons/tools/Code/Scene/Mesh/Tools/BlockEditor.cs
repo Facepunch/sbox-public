@@ -87,6 +87,17 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 				tr.EndPosition = point;
 			}
 		}
+		else if ( tr.Component is MeshComponent mesh && mesh.Mesh is not null )
+		{
+			var face = mesh.Mesh.TriangleToFace( tr.Triangle );
+			if ( face.IsValid )
+			{
+				mesh.Mesh.ComputeFaceNormal( face, out var localNormal );
+				var center = mesh.WorldTransform.PointToWorld( mesh.Mesh.GetFaceCenter( face ) );
+				tr.Normal = mesh.WorldTransform.NormalToWorld( localNormal );
+				tr.EndPosition = new Plane( center, tr.Normal ).SnapToPlane( tr.EndPosition );
+			}
+		}
 
 		if ( !tr.Hit ) return;
 
@@ -284,8 +295,10 @@ public sealed class BlockEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 
 	static Vector3 GridSnap( Vector3 point, Vector3 normal )
 	{
-		var basis = Rotation.LookAt( normal );
-		return Gizmo.Snap( point * basis.Inverse, new Vector3( 0, 1, 1 ) ) * basis;
+		var n = normal.Normal.Abs();
+		var x = n.x >= n.y && n.x >= n.z;
+		var y = !x && n.y >= n.z;
+		return Gizmo.Snap( point, new Vector3( x ? 0 : 1, y ? 0 : 1, x || y ? 1 : 0 ) );
 	}
 
 	public override Widget CreateWidget()

@@ -1,0 +1,136 @@
+﻿@namespace MenuProject.Modals
+@inherits MenuProject.Modals.BaseModal
+
+@using Sandbox;
+@using System;
+@using Sandbox.UI
+@using Sandbox.Mounting
+
+@using MenuProject.Modals.MapSelect
+
+<root class="package-selection-modal">
+
+	<div class="window">
+
+		<div class="tabs">
+			<span class="@(ActiveTab == "workshop" ? " active" : "")" @onclick=@(() => ActiveTab = "workshop")>
+				<icon>business_center</icon>
+				Workshop
+			</span>
+
+			<div class="seperator" />
+
+			@{
+				foreach ( var t in Directory.GetAll().OrderBy( x => x.Title ) )
+				{
+					var mount = Directory.Get( t.Ident );
+					IEnumerable<ResourceLoader> scenes = mount.GetAll( ResourceType.Scene ).Where( x => !IsHidden( x ) );
+
+					string key = $"mount:{t.Ident}";
+					var c = !t.Mounted ? "disabled" : ActiveTab == key ? "active" : "";
+
+					<span class="@c" @onclick=@(() => ActiveTab = key)>
+						<icon>sports_esports</icon>
+						@t.Title
+						@if ( t.Mounted )
+						{
+							<Menu.Badge Text=@($"{scenes.Count()}") />
+						}
+					</span>
+				}
+			}
+		</div>
+
+		<div class="body">
+			@if ( ActiveTab == "workshop")
+			{
+				<PackageList ShowFilters="@true" Query="type:map sort:trending" Take=@(200)>
+					<Item Context="package">
+						<MapTile Package="@package" OnSelect=@(() => OnSelectPackage(package)) />
+					</Item>
+				</PackageList>
+			}
+			else if ( Directory.Get(ActiveTab.Replace("mount:", "")) is { } mount )
+			{
+				var scenes = mount.GetAll(ResourceType.Scene)
+					.Where(x => !IsHidden(x) && MatchesSearch(x.Name))
+					.OrderBy(x => x.Name);
+
+				<div class="toolbar">
+					<h2>@mount.Title</h2>
+					<spacer/>					
+					<TextEntry class="search" Text=@Search OnTextEdited=@OnSearchEdited Icon="search"/>
+				</div>
+
+				if (!scenes.Any())
+				{
+					<Label class="medium none">No results</Label>
+				}
+				else
+				{
+					<VirtualGrid ItemSize=@(new Vector2( 260, 170 ))
+					Items=@(scenes)>
+						<Item Context="item">
+							@if (item is ResourceLoader scene)
+							{
+							<MapTile Title="@scene.Name" Tooltip="@scene.Path" OnSelect=@(() => OnSelectScene(scene.Path)) />
+						}
+					</Item>
+				</VirtualGrid>
+				}
+			}
+		</div>
+	</div>
+                
+</root>
+
+@code
+{
+	public string ActiveTab { get; set; } = "workshop";
+
+	public string Search { get; set; }
+
+	[Parameter] public Action<string> OnSelected { get; set; }
+
+	public void SetSelected( string map )
+	{
+		var isMounted = MountUtility.TryParse( map, out string ident )
+			&& Directory.Get( ident ) is { IsMounted: true };
+
+		ActiveTab = isMounted ? $"mount:{ident}" : "workshop";
+		StateHasChanged();
+	}
+
+	public void OnSelectPackage( Package package )
+	{
+		CloseModal(true);
+		OnSelected?.Invoke( package.FullIdent );
+	}
+
+	public void OnSelectScene( string path )
+	{
+		CloseModal(true);
+		OnSelected?.Invoke(path);
+	}
+
+	void OnSearchEdited( string value )
+	{
+		Search = value;
+		StateHasChanged();
+	}
+
+	bool IsHidden( ResourceLoader resource )
+	{
+		if ( resource.Flags.Contains( ResourceFlags.DeveloperOnly ) )
+			return true;
+
+		return false;
+	}
+
+	bool MatchesSearch( string name )
+	{
+		if ( string.IsNullOrEmpty( Search ) )
+			return true;
+		return name.Contains( Search, StringComparison.OrdinalIgnoreCase );
+	}
+}

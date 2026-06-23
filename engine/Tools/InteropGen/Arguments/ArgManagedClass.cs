@@ -1,5 +1,8 @@
 ﻿namespace Facepunch.InteropGen;
 
+/// <summary>
+/// A managed class passed across the boundary as a uint object id (resolved via InteropSystem).
+/// </summary>
 public class ArgManagedClass : Arg
 {
 	public Class Class { get; set; }
@@ -13,20 +16,11 @@ public class ArgManagedClass : Arg
 	}
 
 	public override string ManagedType => "global::" + Class.ManagedNameWithNamespace;
-
-
 	public override string ManagedDelegateType => "uint";
-
-	public override string GetManagedDelegateType( bool incoming )
-	{
-		return "uint";
-	}
-
-	public override string NativeType => $"uint";
-
+	public override string NativeType => "uint";
 	public override string NativeDelegateType => "uint";
 
-	public override string FromInterop( bool native, string code = null )
+	public override string FromInterop( Side side, string code = null )
 	{
 		code ??= Name;
 
@@ -35,7 +29,7 @@ public class ArgManagedClass : Arg
 		// a new instance of the class. In reality we should only be calling this
 		// once per class to save a new instance.
 		//
-		if ( native )
+		if ( side == Side.Native )
 		{
 			return code;
 		}
@@ -48,7 +42,7 @@ public class ArgManagedClass : Arg
 		return $"Sandbox.InteropSystem.Get<{Class.ManagedNameWithNamespace}>( {code} )";
 	}
 
-	public override string ToInterop( bool native, string code = null )
+	public override string ToInterop( Side side, string code = null )
 	{
 		code ??= Name;
 
@@ -56,7 +50,7 @@ public class ArgManagedClass : Arg
 		// Passing a managed class to native - we just use the .NativePointer property
 		// Which should be using the NativePointer class to create a GCHandle.
 		//
-		return !native ? $" Sandbox.InteropSystem.GetAddress( {code}, true )" : $"{code}";
+		return side == Side.Managed ? $" Sandbox.InteropSystem.GetAddress( {code}, true )" : $"{code}";
 	}
 
 }

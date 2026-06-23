@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+	Pass this file via the "settings" option when collecting coverage with the
+	"XPlat Code Coverage" collector. The hotload tests rewrite the Before/After
+	fixture assemblies' IL at runtime; letting coverlet instrument them breaks
+	the hotload member matching, so they are excluded from instrumentation here.
+-->
+<RunSettings>
+	<DataCollectionRunSettings>
+		<DataCollectors>
+			<DataCollector friendlyName="XPlat Code Coverage">
+				<Configuration>
+					<Exclude>[Sandbox.Test.Before]*,[Sandbox.Test.After]*</Exclude>
+				</Configuration>
+			</DataCollector>
+		</DataCollectors>
+	</DataCollectionRunSettings>
+</RunSettings>

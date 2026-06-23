@@ -37,7 +37,7 @@ internal partial class AssemblyAccess
 
 	bool Touch( TypeDefinition typedef )
 	{
-		return Touch( $"{typedef.Module.Assembly.Name.Name}/{typedef.FullName}", "type" );
+		return Touch( AccessSignature.Type( typedef ), "type" );
 	}
 
 	bool Touch( TypeReference typeRef )
@@ -124,25 +124,7 @@ internal partial class AssemblyAccess
 
 	bool Touch( MethodDefinition typedef )
 	{
-		var touchName = $"{typedef.Module.Assembly.Name.Name}/{typedef.DeclaringType.FullName}.{typedef.Name}";
-
-		if ( typedef.HasGenericParameters )
-		{
-			var gparms = string.Join( ",", typedef.GenericParameters.Select( x => x.Name.ToString() ) );
-			if ( !string.IsNullOrWhiteSpace( gparms ) ) gparms = $"<{gparms}>";
-			touchName += gparms;
-		}
-
-		if ( typedef.HasParameters )
-		{
-			var parms = string.Join( ", ", typedef.Parameters.Select( x => x.ParameterType.ToString() ) );
-			if ( !string.IsNullOrWhiteSpace( parms ) ) parms = $" {parms} ";
-			touchName += $"({parms})";
-		}
-		else
-		{
-			touchName += "()";
-		}
+		var touchName = AccessSignature.Method( typedef );
 
 		if ( Touch( touchName, "method" ) )
 			return true;

@@ -2,9 +2,9 @@
 
 namespace Facepunch.Steps;
 
-internal class BuildContent( string name ) : Step( name )
+internal class BuildContent
 {
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{

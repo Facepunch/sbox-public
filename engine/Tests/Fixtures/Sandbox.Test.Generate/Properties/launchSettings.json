@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Sandbox.Test.Generate": {
+      "commandName": "Project",
+      "workingDirectory": "../../Sandbox.Test.Engine/data"
+    }
+  }
+}

@@ -86,6 +86,14 @@ public abstract class SelectionTool : EditorTool
 	{
 	}
 
+	public virtual void AlignDown( bool useLocalDown )
+	{
+	}
+
+	public virtual void AlignToClosestNormal()
+	{
+	}
+
 	public override Widget CreateShortcutsWidget() => new SelectionToolShortcutsWidget( this );
 
 	/// <summary>
@@ -161,6 +169,15 @@ file class SelectionToolShortcutsWidget( SelectionTool tool ) : Widget
 
 	[Shortcut( "mesh.selection-nudge-right", "RIGHT", typeof( SceneViewWidget ) )]
 	public void NudgeRight() => tool.Nudge( Vector2.Right );
+
+	[Shortcut( "mesh.align-down-local", "CTRL+KP_1", typeof( SceneViewWidget ) )]
+	public void AlignDownLocal() => tool.AlignDown( useLocalDown: true );
+
+	[Shortcut( "mesh.align-down-world", "CTRL+KP_2", typeof( SceneViewWidget ) )]
+	public void AlignDownWorld() => tool.AlignDown( useLocalDown: false );
+
+	[Shortcut( "mesh.align-to-closest-normal", "CTRL+KP_3", typeof( SceneViewWidget ) )]
+	public void AlignToClosestNormal() => tool.AlignToClosestNormal();
 }
 
 public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T : IMeshElement
@@ -283,10 +300,105 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 			var sel = menu.AddMenu( "Selection", "select_all" );
 			AddMenuOption( sel, "Grow Selection (+)", "add", "mesh.grow-selection", true );
 			AddMenuOption( sel, "Shrink Selection (-)", "remove", "mesh.shrink-selection", true );
+
+			menu.AddSeparator();
+
+			var transforms = menu.AddMenu( "Transforms", "open_with" );
+			AddMenuOption( transforms, "Align Down Local", "vertical_align_bottom", "mesh.align-down-local", true );
+			AddMenuOption( transforms, "Align Down World", "vertical_align_bottom", "mesh.align-down-world", true );
+			AddMenuOption( transforms, "Align To Closest Normal", "swap_vert", "mesh.align-to-closest-normal", true );
 		}
 
 		menu.AddSeparator();
 		menu.AddOption( "Lift Material", "colorize", () => LiftMaterialFromContextTrace( trace ), "mesh.lift-material" );
+	}
+
+	[Shortcut( "mesh.align-down-local", "CTRL+KP_1", typeof( SceneViewWidget ) )]
+	private void AlignDownLocal()
+	{
+		AlignDown( useLocalDown: true );
+	}
+
+	[Shortcut( "mesh.align-down-world", "CTRL+KP_2", typeof( SceneViewWidget ) )]
+	private void AlignDownWorld()
+	{
+		AlignDown( useLocalDown: false );
+	}
+
+	[Shortcut( "mesh.align-to-closest-normal", "CTRL+KP_3", typeof( SceneViewWidget ) )]
+	public override void AlignToClosestNormal()
+	{
+		if ( !_vertexSelection.Any() )
+			return;
+
+		var components = _vertexSelection
+			.Select( x => x.Component )
+			.Distinct();
+
+		using var scope = SceneEditorSession.Scope();
+		using var undoScope = SceneEditorSession.Active.UndoScope( "Align To Closest Normal" )
+			.WithComponentChanges( components )
+			.Push();
+
+		foreach ( var vertex in _vertexSelection )
+		{
+			var transform = vertex.Transform;
+			var worldPos = vertex.PositionWorld;
+			var direction = transform.Rotation.Down;
+
+			var trace = Scene.Trace
+				.Ray( worldPos, worldPos + direction * 10000 )
+				.WithoutTags( "trigger" )
+				.UseRenderMeshes( true )
+				.UsePhysicsWorld( false )
+				.Run();
+
+			if ( !trace.Hit )
+				continue;
+
+			vertex.Component.Mesh.SetVertexPosition( vertex.Handle, transform.PointToLocal( trace.HitPosition ) );
+		}
+
+		Pivot = CalculateSelectionOrigin();
+	}
+
+	public override void AlignDown( bool useLocalDown )
+	{
+		if ( !_vertexSelection.Any() )
+			return;
+
+		var components = _vertexSelection
+			.Select( x => x.Component )
+			.Distinct();
+
+		using var scope = SceneEditorSession.Scope();
+		using var undoScope = SceneEditorSession.Active.UndoScope( "Align Down" )
+			.WithComponentChanges( components )
+			.Push();
+
+		foreach ( var vertex in _vertexSelection )
+		{
+			var transform = vertex.Transform;
+			var worldPos = vertex.PositionWorld;
+
+			var direction = useLocalDown
+				? transform.Rotation.Down
+				: Vector3.Down;
+
+			var trace = Scene.Trace
+				.Ray( worldPos, worldPos + direction * 10000 )
+				.WithoutTags( "trigger" )
+				.UseRenderMeshes( true )
+				.UsePhysicsWorld( false )
+				.Run();
+
+			if ( !trace.Hit )
+				continue;
+
+			vertex.Component.Mesh.SetVertexPosition( vertex.Handle, transform.PointToLocal( trace.HitPosition ) );
+		}
+
+		Pivot = CalculateSelectionOrigin();
 	}
 
 	public override void OnUpdate()

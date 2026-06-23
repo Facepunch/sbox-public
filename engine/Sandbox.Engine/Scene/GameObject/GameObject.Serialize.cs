@@ -1,5 +1,6 @@
 ﻿using Facepunch.ActionGraphs;
 using Sandbox.ActionGraphs;
+using System.Buffers;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -321,6 +322,9 @@ public partial class GameObject
 		{
 			if ( this is not PrefabScene )
 			{
+				// Set the persisted id first; nested mapping gap-fill is seeded by it.
+				DeserializeId( node );
+
 				InitPrefabInstance( prefabSource, true );
 
 				var prefabFile = PrefabFile.Load( PrefabInstance.PrefabSource );
@@ -330,17 +334,17 @@ public partial class GameObject
 					return;
 				}
 
-				// Need to create those since they are not stored
-				if ( !PrefabInstance.InitMappingsForNestedInstance( node[JsonKeys.Id].Deserialize<Guid>() ) )
-				{
-					PostDeserialize( options );
-					return;
-				}
+				// Build the (unstored) nested mappings in PostDeserialize, once the subtree has its
+				// final ids. Doing it here would run against temp ids and an empty subtree.
+				_pendingNestedMappingId = node[JsonKeys.Id].Deserialize<Guid>();
 			}
 		}
 		// Handle full prefab instances
 		else if ( node[JsonKeys.PrefabInstanceSource] is JsonValue __prefab && __prefab.TryGetValue( out prefabSource ) )
 		{
+			// Set the persisted id first; mapping gap-fill is seeded by it.
+			DeserializeId( node );
+
 			InitPrefabInstance( prefabSource, false );
 
 			var prefabFile = PrefabFile.Load( PrefabInstance.PrefabSource );
@@ -438,8 +442,20 @@ public partial class GameObject
 
 		if ( node[JsonKeys.Components] is JsonArray componentArray )
 		{
-			var existingComponents = options.IsRefreshing ? Components.GetAll().ToHashSet() : null;
-			var processedComponents = options.IsRefreshing ? new HashSet<Component>( existingComponents.Count ) : null;
+			// Track which existing components we process so we can destroy any that disappeared,
+			// keeping an unchanged refresh allocation-free.
+			Component[] existing = null;
+			int existingCount = 0;
+			Component[] processed = null;
+			int processedCount = 0;
+
+			if ( options.IsRefreshing )
+			{
+				existing = ArrayPool<Component>.Shared.Rent( Components.Count );
+				foreach ( var c in Components.GetAll() ) existing[existingCount++] = c;
+
+				processed = ArrayPool<Component>.Shared.Rent( componentArray.Count );
+			}
 
 			for ( int componentIndex = 0; componentIndex < componentArray.Count; componentIndex++ )
 			{
@@ -524,7 +540,7 @@ public partial class GameObject
 
 				if ( options.IsRefreshing )
 				{
-					processedComponents.Add( c );
+					processed[processedCount++] = c;
 
 					// change order of components needed
 					if ( Components.IndexOf( c ) != componentIndex )
@@ -536,20 +552,22 @@ public partial class GameObject
 
 			if ( options.IsRefreshing )
 			{
-				// For network refresh, filter out components that shouldn't be networked
-				if ( options.IsNetworkRefresh )
+				// Destroy any pre-existing component we didn't process this pass. We iterate the snapshot,
+				// not the live list, so destroying here is safe.
+				for ( int i = 0; i < existingCount; i++ )
 				{
-					existingComponents.RemoveWhere( c => c.Flags.Contains( ComponentFlags.NotNetworked ) );
-				}
+					var existingComponent = existing[i];
 
-				// Common operation for both refresh types
-				existingComponents.ExceptWith( processedComponents );
+					if ( WasProcessed( processed, processedCount, existingComponent ) ) continue;
 
-				// Common destruction for both refresh types
-				foreach ( var existingComponent in existingComponents )
-				{
+					// Keep components that shouldn't be networked during a network refresh.
+					if ( options.IsNetworkRefresh && existingComponent.Flags.Contains( ComponentFlags.NotNetworked ) ) continue;
+
 					existingComponent.Destroy();
 				}
+
+				ArrayPool<Component>.Shared.Return( processed, clearArray: true );
+				ArrayPool<Component>.Shared.Return( existing, clearArray: true );
 			}
 		}
 
@@ -620,6 +638,16 @@ public partial class GameObject
 
 		// Trigger OnEnabled after the GameObject has been deserialized fully, _enabled was set before, so OnAwake calls properly
 		UpdateEnabledStatus();
+	}
+
+	private static bool WasProcessed( Component[] processed, int count, Component component )
+	{
+		for ( int i = 0; i < count; i++ )
+		{
+			if ( ReferenceEquals( processed[i], component ) ) return true;
+		}
+
+		return false;
 	}
 
 	private void DeserializeFlags( JsonObject node, DeserializeOptions options )
@@ -848,6 +876,14 @@ public partial class GameObject
 
 	internal void PostDeserialize( DeserializeOptions options )
 	{
+		// Build deferred nested mappings now the subtree has its final ids, before
+		// PushDeserializeContext consumes the lookup.
+		if ( _pendingNestedMappingId is Guid pendingNestedMappingId )
+		{
+			_pendingNestedMappingId = null;
+			PrefabInstance.InitMappingsForNestedInstance( pendingNestedMappingId );
+		}
+
 		using var prefabContext = PushDeserializeContext();
 
 		Components.ForEach( "PostDeserialize", true, c => c.PostDeserialize() );

@@ -228,8 +228,7 @@ class Decals
 					{
 						float strength = asfloat( DecalsExtraDataBuffer.Load( decal.ExtraDataOffset + 44 ) );
 						float4 decal_emission = Bindless::GetTexture2D( emissionIdx ).SampleGrad( textureSampler, decalUV.xy, gradUV.xy, gradUV.zw );
-						material.Emission = lerp( material.Emission, decal_emission.rgb, decal_albedo.a );
-						material.Emission *= strength;
+						material.Emission = lerp( material.Emission, decal_emission.rgb * strength, decal_albedo.a );
 					}
 				}
 				else

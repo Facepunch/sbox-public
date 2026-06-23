@@ -8,7 +8,7 @@ public static class Protocol
 	/// <summary>
 	/// We cannot play packages with an Api version higher than this.
 	/// </summary>
-	public static int Api => 25;
+	public static int Api => 26;
 
 	/// <summary>
 	/// We cannot talk to servers or clients with a network protocol different to this.
@@ -17,6 +17,7 @@ public static class Protocol
 }
 
 // Api Versions
+// 26. 15 June 2026 - Frontend mounts, manual mount opt-in
 // 25. 27 March 2026 - Shadows 2
 // 24. 21 January 2026 - Weekly update
 // 21. 12 July 2025 - Monthly update

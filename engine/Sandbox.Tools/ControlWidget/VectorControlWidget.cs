@@ -97,7 +97,7 @@ public class VectorControlWidget : ControlWidget
 	}
 }
 
-file sealed class UniformVectorProperty( SerializedObject components ) : SerializedProperty.Proxy
+internal sealed class UniformVectorProperty( SerializedObject components ) : SerializedProperty.Proxy
 {
 	protected override SerializedProperty ProxyTarget => components.GetProperty( "x" );
 

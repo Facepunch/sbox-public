@@ -226,10 +226,25 @@
 			var maxHitResult = asTrigger ? CollisionRules.Result.Trigger : CollisionRules.Result.Collide;
 			var collisionRules = targetWorld.CollisionRules;
 
+			// Snapshot tags once so we don't box the enumerator per-tag inside the RuntimeTags loop.
+			// 64 is 4x SBOX_MAX_COLLISION_TAG_COUNT, so it covers anything that can affect collision.
+			Span<StringToken> tagTokens = stackalloc StringToken[64];
+			int tagCount = 0;
+			foreach ( var tag in tags )
+			{
+				if ( tagCount >= tagTokens.Length )
+				{
+					Log.Warning( $"WithCollisionRules: tag set exceeded {tagTokens.Length} entries, ignoring the rest" );
+					break;
+				}
+				tagTokens[tagCount++] = tag;
+			}
+			tagTokens = tagTokens[..tagCount];
+
 			foreach ( var other in collisionRules.RuntimeTags )
 			{
 				var result = CollisionRules.Result.Collide;
-				foreach ( var tag in tags )
+				foreach ( var tag in tagTokens )
 				{
 					var r = collisionRules.GetCollisionRule( other, tag );
 					if ( r > result ) result = r;

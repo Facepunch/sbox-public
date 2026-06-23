@@ -47,6 +47,10 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 			AddMenuOption( transform, "Set Origin To Pivot", "gps_fixed", "mesh.set-origin-to-pivot", true );
 			AddMenuOption( transform, "Center Origin", "center_focus_strong", "mesh.center-origin", true );
 			AddMenuOption( transform, "Align To View", "visibility", "gameObject.align-to-view", true );
+			transform.AddSeparator();
+			AddMenuOption( transform, "Align Down Local", "vertical_align_bottom", "mesh.align-down-local", true );
+			AddMenuOption( transform, "Align Down World", "vertical_align_bottom", "mesh.align-down-world", true );
+			AddMenuOption( transform, "Align To Closest Normal", "swap_vert", "mesh.align-to-closest-normal", true );
 		}
 
 		if ( hasObjects )
@@ -534,5 +538,18 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 		Pivot = box.Center;
 
 		Tool?.MoveMode?.OnBegin( this );
+	}
+
+	public override void AlignDown( bool useLocalDown )
+	{
+		if ( useLocalDown )
+			SceneEditorMenus.AlignToGroundLocal();
+		else
+			SceneEditorMenus.AlignToGround();
+	}
+
+	public override void AlignToClosestNormal()
+	{
+		SceneEditorMenus.AlignToClosestNormal();
 	}
 }

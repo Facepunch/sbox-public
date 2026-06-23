@@ -1089,6 +1089,37 @@ public sealed partial class PhysicsBody : IHandle
 	}
 
 	/// <summary>
+	/// Finds the smallest move needed to separate us from another body, ignoring all collision rules.
+	/// Returns true if we're overlapping; moving us by <paramref name="direction"/> * <paramref name="distance"/> pushes us clear.
+	/// </summary>
+	public bool ComputePenetration( PhysicsBody body, out Vector3 direction, out float distance )
+	{
+		direction = default;
+		distance = default;
+
+		if ( !body.IsValid() )
+			return false;
+
+		return ComputePenetration( body, body.Transform, out direction, out distance );
+	}
+
+	/// <summary>
+	/// Finds the smallest move needed to separate us from another body placed at a given transform, ignoring
+	/// all collision rules. Returns true if we're overlapping; moving us by <paramref name="direction"/> *
+	/// <paramref name="distance"/> pushes us clear.
+	/// </summary>
+	public bool ComputePenetration( PhysicsBody body, Transform transform, out Vector3 direction, out float distance )
+	{
+		direction = default;
+		distance = default;
+
+		if ( !this.IsValid() || !body.IsValid() )
+			return false;
+
+		return native.ComputePenetration( body, transform, out direction, out distance );
+	}
+
+	/// <summary>
 	/// Checks if there's any contact points with another body
 	/// </summary>
 	internal bool IsTouching( PhysicsBody body, bool triggersOnly )

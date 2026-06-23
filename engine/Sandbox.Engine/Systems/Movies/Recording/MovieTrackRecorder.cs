@@ -221,7 +221,7 @@ internal sealed class MovieGameObjectTrackRecorder : MovieTrackRecorder<Compiled
 		return name.AsSpan( 0, bracketIndex - 1 ).Equals( _rootName, StringComparison.Ordinal );
 	}
 
-	public bool CanTarget( GameObject gameObject )
+	public bool CanTarget( GameObject gameObject, string? trackName )
 	{
 		if ( Target.IsBound )
 		{
@@ -230,7 +230,7 @@ internal sealed class MovieGameObjectTrackRecorder : MovieTrackRecorder<Compiled
 
 		var prefabSource = gameObject.IsPrefabInstanceRoot ? gameObject.PrefabInstanceSource : null;
 
-		return Track.Metadata?.PrefabSource == prefabSource && MatchesRootName( gameObject.Name );
+		return Track.Metadata?.PrefabSource == prefabSource && MatchesRootName( trackName ?? gameObject.Name );
 	}
 
 	public MovieGameObjectTrackRecorder Child( IReferenceTrack<GameObject> track )
@@ -252,7 +252,7 @@ internal sealed class MovieGameObjectTrackRecorder : MovieTrackRecorder<Compiled
 		return recorder;
 	}
 
-	public MovieGameObjectTrackRecorder Child( GameObject gameObject )
+	public MovieGameObjectTrackRecorder Child( GameObject gameObject, string? trackName = null )
 	{
 		Assert.True( gameObject.Parent == Target.Value );
 
@@ -260,13 +260,13 @@ internal sealed class MovieGameObjectTrackRecorder : MovieTrackRecorder<Compiled
 
 		var recorder = Children
 			.OfType<MovieGameObjectTrackRecorder>()
-			.FirstOrDefault( x => x.CanTarget( gameObject ) );
+			.FirstOrDefault( x => x.CanTarget( gameObject, trackName ) );
 
 		if ( recorder is null )
 		{
 			// Create a new child recorder for this GameObject
 
-			var track = Track.GameObject( gameObject.Name, metadata: new TrackMetadata(
+			var track = Track.GameObject( trackName ?? gameObject.Name, metadata: new TrackMetadata(
 				ReferenceId: gameObject.Id,
 				PrefabSource: gameObject.IsPrefabInstanceRoot ? gameObject.PrefabInstanceSource : null ) );
 

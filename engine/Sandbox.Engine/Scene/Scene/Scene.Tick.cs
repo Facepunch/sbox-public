@@ -25,12 +25,16 @@ public partial class Scene : GameObject
 	void PreTickReset()
 	{
 		// Forward our preference to the Scene's PhysicsWorld
-		if ( PhysicsWorld.IsValid() )
+		// Access the backing fields - ticking shouldn't force these worlds to exist
+		if ( _physicsWorld.IsValid() )
 		{
-			PhysicsWorld.SubSteps = Sandbox.ProjectSettings.Physics.SubSteps;
+			_physicsWorld.SubSteps = Sandbox.ProjectSettings.Physics.SubSteps;
 		}
 
-		SceneWorld.GradientFog.Enabled = false;
+		if ( _sceneWorld is not null )
+		{
+			_sceneWorld.GradientFog.Enabled = false;
+		}
 	}
 
 	double estimatedServerTime;
@@ -101,8 +105,15 @@ public partial class Scene : GameObject
 		foreach ( var c in updateComponents.EnumerateLocked( true ) ) c.InternalUpdate();
 	}
 
+	List<IRenderThread> renderThreadEventTargets = new();
+
 	internal void PreRender()
 	{
+		// Snapshot IRenderThread components on the main thread so the render thread
+		// can iterate without racing against concurrent Add/Remove in objectIndex.
+		renderThreadEventTargets.Clear();
+		GetAll( renderThreadEventTargets );
+
 		foreach ( var c in preRenderComponents.EnumerateLocked() ) c.OnPreRenderInternal();
 	}
 
@@ -240,7 +251,7 @@ public partial class Scene : GameObject
 		}
 
 		using var timeScope = Time.Scope( TimeNow, TimeDelta );
-		using var gizmoScope = gizmoInstance.Push();
+		using var gizmoScope = gizmoInstance?.Push();
 
 		using ( PerformanceStats.Timings.Async.Scope() )
 		{

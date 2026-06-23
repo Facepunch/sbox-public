@@ -6,6 +6,11 @@ namespace Sandbox.MovieMaker.Properties;
 
 #nullable enable
 
+public readonly record struct DisplayInfo(
+	string Title, string Category = "Properties",
+	string? Description = null,
+	string? Icon = null );
+
 /// <summary>
 /// Used by <see cref="TrackBinder"/> to create <see cref="ITrackProperty"/> instances that allow <see cref="ITrack"/>s
 /// to modify values in a scene.
@@ -30,9 +35,9 @@ public interface ITrackPropertyFactory
 	Type? GetTargetType( ITrackTarget parent, string name );
 
 	/// <summary>
-	/// When listing properties to add, what category should we use for the given property provided by this factory?
+	/// When listing properties to add, how should we format the name / description / icon?
 	/// </summary>
-	string GetCategoryName( ITrackTarget parent, string name ) => "Other";
+	DisplayInfo GetDisplayInfo( ITrackTarget parent, string name ) => new( name.ToTitleCase() );
 
 	/// <summary>
 	/// Create a property with the given <paramref name="parent"/>, <paramref name="name"/>, and property value type <typeparamref name="T"/>.
@@ -51,8 +56,17 @@ public interface ITrackPropertyFactory<in TParent> : ITrackPropertyFactory
 {
 	IEnumerable<string> GetPropertyNames( TParent parent );
 
-	/// <inheritdoc cref="ITrackPropertyFactory.GetCategoryName"/>
-	string GetCategoryName( TParent parent, string name ) => "Other";
+	string BaseCategoryName => "Other";
+
+	/// <inheritdoc cref="ITrackPropertyFactory.GetDisplayInfo"/>
+	DisplayInfo GetDisplayInfo( TParent parent, string name )
+	{
+		var split = name.Split( ['_', '.'], StringSplitOptions.RemoveEmptyEntries );
+
+		return split.Length <= 1
+			? new( name.ToTitleCase(), Category: BaseCategoryName )
+			: new( split[^1].ToTitleCase(), Category: string.Join( "/", split.Take( split.Length - 1 ).Select( x => x.ToTitleCase() ) ) );
+	}
 
 	/// <inheritdoc cref="ITrackPropertyFactory.GetTargetType"/>
 	Type? GetTargetType( TParent parent, string name );
@@ -65,10 +79,10 @@ public interface ITrackPropertyFactory<in TParent> : ITrackPropertyFactory
 			? GetPropertyNames( typedParent )
 			: Enumerable.Empty<string>();
 
-	string ITrackPropertyFactory.GetCategoryName( ITrackTarget parent, string name ) =>
+	DisplayInfo ITrackPropertyFactory.GetDisplayInfo( ITrackTarget parent, string name ) =>
 		parent is TParent typedParent
-			? GetCategoryName( typedParent, name )
-			: "Other";
+			? GetDisplayInfo( typedParent, name )
+			: new( name.ToTitleCase(), Category: BaseCategoryName );
 
 	Type? ITrackPropertyFactory.GetTargetType( ITrackTarget parent, string name ) =>
 		parent is TParent typedParent
@@ -153,10 +167,10 @@ public static class TrackProperty
 			: property;
 	}
 
-	public static IEnumerable<(string Name, string Category, Type Type)> GetAll( ITrackTarget parent )
+	public static IEnumerable<(string Name, DisplayInfo Display, Type Type)> GetAll( ITrackTarget parent )
 	{
 		return Factories.SelectMany( x => x.GetPropertyNames( parent )
-				.Select( y => (Name: y, Category: x.GetCategoryName( parent, y ), Type: GetFinalTargetType( x, parent, y )) )
+				.Select( y => (Name: y, Display: x.GetDisplayInfo( parent, y ), Type: GetFinalTargetType( x, parent, y )) )
 				.Where( y => y.Type is not null && y.Type != typeof( Unknown ) ) )
 			.DistinctBy( x => x.Name )!;
 	}

@@ -55,7 +55,7 @@ internal partial class NetworkSystem
 		}
 
 		log.Trace( $"Server Id is {source.Id}" );
-		log.Trace( $"Map Name is {msg.MapName}" );
+		log.Trace( $"Map is {msg.MapName} ({msg.Map})" );
 		log.Trace( $"Server Name is {msg.ServerName}" );
 		log.Trace( $"Engine version is {msg.EngineVersion}" );
 		log.Trace( $"Game Package is {msg.GamePackage}" );
@@ -73,7 +73,7 @@ internal partial class NetworkSystem
 
 			if ( !Application.IsStandalone )
 			{
-				LaunchArguments.Map = msg.MapPackage;
+				LaunchArguments.Map = msg.Map;
 
 				bool success = await IGameInstanceDll.Current.LoadGamePackageAsync( msg.GamePackage, flags, default );
 				if ( !success )
@@ -103,6 +103,34 @@ internal partial class NetworkSystem
 		Networking.MaxPlayers = msg.MaxPlayers;
 		Networking.ServerName = msg.ServerName;
 		Networking.MapName = msg.MapName;
+
+		//
+		// Check any required mount for this map
+		//
+		if ( Mounting.MountUtility.TryParse( msg.Map, out string ident ) )
+		{
+			// make sure the mount exists and is mounted
+			var mount = Mounting.Directory.Get( ident );
+			if ( mount is null || !mount.IsInstalled )
+			{
+				IGameInstanceDll.Current.Disconnect( $"Mount is not available: {ident}" );
+				Networking.Disconnect();
+				return;
+			}
+
+			LoadingScreen.Title = $"Mounting {mount.Title}";
+			await Mounting.Directory.Mount( ident );
+
+			// load the scene now so that it's ready by the time we get to snapshot
+			// which may/will reference procedural resources and could be out of order from the MapInstance doing it's thing (woof)
+			var scenefile = SceneFile.Load( msg.MapName );
+			if ( scenefile is null )
+			{
+				IGameInstanceDll.Current.Disconnect( $"Map not found: {msg.MapName}" );
+				Networking.Disconnect();
+				return;
+			}
+		}
 
 		//
 		// Tell me what I need
@@ -236,7 +264,12 @@ internal partial class NetworkSystem
 		log.Trace( "Welcome!" );
 
 		LoadingScreen.Title = "Loading Network Tables";
-		await IGameInstanceDll.Current?.LoadNetworkTables( this );
+		if ( !await IGameInstanceDll.Current?.LoadNetworkTables( this ) )
+		{
+			// code archive compile failed or something
+			Networking.Disconnect();
+			return;
+		}
 
 		LoadingScreen.Title = "Init Game System";
 		await InitializeGameSystemAsync();

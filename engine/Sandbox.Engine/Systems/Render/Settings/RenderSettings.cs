@@ -33,6 +33,12 @@ public partial class RenderSettings
 		set => ConVarSystem.SetInt( "fps_max_inactive", value, true );
 	}
 
+	public int MaxFrameRateMenu
+	{
+		get => ConVarSystem.GetInt( "fps_max_menu", 60, true );
+		set => ConVarSystem.SetInt( "fps_max_menu", value, true );
+	}
+
 	public float DefaultFOV
 	{
 		get => ConVarSystem.GetFloat( "default_fov", 80, true );
@@ -168,6 +174,7 @@ public partial class RenderSettings
 		AntiAliasQuality = MultisampleAmount.Multisample8x;
 		MaxFrameRate = 300;
 		MaxFrameRateInactive = 60;
+		MaxFrameRateMenu = 60;
 		DefaultFOV = 75;
 		UpscalerMode = UpscalerMode.Off;
 		UpscalerRenderScale = 0.75f;

@@ -70,10 +70,8 @@ public class PositionEditorTool : EditorTool
 
 				StartDrag( nonSceneGos );
 
-				var offset = (moveDelta + handlePosition) * handleRotation.Inverse;
-				offset = Gizmo.Snap( offset, moveDelta * handleRotation.Inverse );
-				offset *= handleRotation;
-				offset -= handlePosition;
+				var snapped = Gizmo.Snap( handlePosition, moveDelta, handleRotation );
+				var offset = snapped - handlePosition;
 
 				foreach ( var entry in startPoints )
 				{

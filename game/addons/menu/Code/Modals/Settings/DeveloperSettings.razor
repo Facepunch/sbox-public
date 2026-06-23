@@ -1,4 +1,4 @@
-﻿@using Sandbox.UI;
+@using Sandbox.UI;
 @using Sandbox.Internal;
 @using Sandbox;
 @namespace MenuProject.Settings
@@ -18,7 +18,23 @@
             <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@ConsoleOverlayOptions Value:bind=@ShowConsoleOverlay></ButtonGroup>
         </row>
 
-	</div>
+        <h2>Benchmark</h2>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">facepunch.benchmark</cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@YesNo Value:bind=@RunMain></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">facepunch.sbdm</cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@YesNo Value:bind=@RunSbdm></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <Button class="clicky primary with-grow" onclick=@OnRunBenchmarks disabled=@BenchmarkRunning>Run Benchmarks</Button>
+        </row>
+
+    </div>
 
      <div class="with-grow"></div>
 
@@ -36,7 +52,12 @@
         new Option("On", true),
     };
 
+    List<Option> YesNo = [new Option( "Off", false ), new Option( "On", true )];
+
     bool ShowConsoleOverlay = false;
+    bool RunMain = true;
+    bool RunSbdm = false;
+    bool BenchmarkRunning = false;
 
     protected override void OnAfterTreeRender(bool firstTime)
     {
@@ -62,6 +83,19 @@
     public void OnApply()
     {
         ConsoleSystem.SetValue("consoleoverlay", ShowConsoleOverlay);
+    }
+
+    void OnRunBenchmarks()
+    {
+        if ( BenchmarkRunning || (!RunMain && !RunSbdm) ) return;
+
+        var packages = new List<string>();
+        if ( RunMain ) packages.Add( "facepunch.benchmark" );
+        if ( RunSbdm ) packages.Add( "facepunch.sbdm" );
+
+        BenchmarkRunning = true;
+        Game.Overlay.CloseAll();
+        Game.Overlay.RunLocalBenchmarks( packages.ToArray() );
     }
 
 }

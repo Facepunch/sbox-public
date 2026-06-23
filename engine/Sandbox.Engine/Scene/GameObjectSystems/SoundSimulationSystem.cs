@@ -86,8 +86,9 @@ internal sealed partial class SoundSimulationSystem : GameObjectSystem<SoundSimu
 		using var _ = PerformanceStats.Timings.Audio.Scope();
 		var sw = DebugOverlay.overlay_audio != 0 ? System.Diagnostics.Stopwatch.StartNew() : null;
 
+		// only trace against a physics world that already exists - don't create one
+		if ( !Scene.HasPhysicsWorld ) return;
 		var world = Scene.PhysicsWorld;
-		if ( !world.IsValid() ) return;
 
 		_sceneListeners.Clear();
 		foreach ( var l in Audio.Listener.ActiveList )

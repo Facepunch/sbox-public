@@ -178,7 +178,7 @@ internal partial class GameInstanceDll
 			compiler.UpdateFromArchive( codeArchive );
 		};
 
-		CodeArchiveTable.PostNetworkUpdate = FinishLoadingCodeArchives;
+		CodeArchiveTable.PostNetworkUpdate = () => FinishLoadingCodeArchives();
 
 		//
 		// Config
@@ -187,12 +187,12 @@ internal partial class GameInstanceDll
 		ConfigTable.PostNetworkUpdate = UpdateConfigFromNetworkTable;
 	}
 
-	void FinishLoadingCodeArchives()
+	bool FinishLoadingCodeArchives()
 	{
 		if ( !compileGroup.NeedsBuild )
 		{
 			FinishLoadingAssemblies();
-			return;
+			return true;
 		}
 
 		// We need to build it syncronously because we don't want other
@@ -200,26 +200,27 @@ internal partial class GameInstanceDll
 		// and us not being able to understand because we don't have the
 		// new code compiled and loaded yet!
 		SyncContext.RunBlocking( compileGroup.BuildAsync() );
+		if ( !compileGroup.BuildResult.Success )
+			return false;
 
 		//
 		// Get the new assemblies and update them
 		//
-		if ( compileGroup.BuildResult.Success )
+		foreach ( var assm in compileGroup.BuildResult.Output )
 		{
-			foreach ( var assm in compileGroup.BuildResult.Output )
-			{
-				using var stream = new MemoryStream( assm.AssemblyData );
-				AssemblyEnroller.LoadAssemblyFromStream( assm.Compiler.AssemblyName, stream );
-			}
+			using var stream = new MemoryStream( assm.AssemblyData );
+			AssemblyEnroller.LoadAssemblyFromStream( assm.Compiler.AssemblyName, stream );
 		}
 
 		//
 		// Do the hotload and stuff
 		//
 		FinishLoadingAssemblies();
+
+		return true;
 	}
 
-	public async Task LoadNetworkTables( NetworkSystem system )
+	public async Task<bool> LoadNetworkTables( NetworkSystem system )
 	{
 		compileGroup = new CompileGroup( "server" );
 
@@ -236,7 +237,11 @@ internal partial class GameInstanceDll
 
 		// We might have loaded new assemblies, here's a safe time to
 		// hotload before we start downloading again.
-		FinishLoadingCodeArchives();
+		if ( !FinishLoadingCodeArchives() )
+		{
+			Disconnect( "Failed to compile code archives. Check log for details." );
+			return false;
+		}
 
 		// Load configs from network tables
 		UpdateConfigFromNetworkTable();
@@ -248,6 +253,8 @@ internal partial class GameInstanceDll
 			LoadingScreen.Title = "Loading..";
 
 		await NetworkedLargeFiles.RunDownloadQueue( system, default );
+
+		return true;
 	}
 
 	static string[] _interestingExtensions = new[] { "_c", ".scss", ".ttf" };
@@ -370,6 +377,41 @@ internal partial class GameInstanceDll
 		};
 
 		FileWatchers.Add( watcher );
+
+		NetworkTransientGeneratedFiles( project );
+
 		Log.Info( $"..done in {sw.Elapsed.TotalSeconds:0.00}s" );
+	}
+
+	/// <summary>
+	/// Make runtime-generated assets in the project's .sbox/transient/ folder available to joining clients
+	/// This is necessary for connected clients to see things like TextureGenerators.
+	/// </summary>
+	void NetworkTransientGeneratedFiles( Project project )
+	{
+		if ( project is null )
+			return;
+
+		var transientFolder = Path.Combine( project.GetRootPath(), ".sbox", "transient" );
+		if ( !Directory.Exists( transientFolder ) )
+			return;
+
+		var transientFs = new LocalFileSystem( transientFolder );
+
+		foreach ( var file in transientFs.FindFile( "/", "*", true ) )
+		{
+			UpdateNetworkFile( transientFs, file );
+		}
+
+		var watcher = transientFs.Watch();
+		watcher.OnChanges += w =>
+		{
+			foreach ( var fileName in w.Changes )
+			{
+				UpdateNetworkFile( transientFs, fileName );
+			}
+		};
+
+		FileWatchers.Add( watcher );
 	}
 }

@@ -8,7 +8,39 @@ public partial class Scene : GameObject
 {
 	public bool IsEditor { get; private set; }
 
-	public SceneWorld SceneWorld { get; private set; }
+	bool _destroyed;
+	SceneWorld _sceneWorld;
+
+	/// <summary>
+	/// True if the scene world has been created. Reading <see cref="SceneWorld"/> creates
+	/// it - check this first when you only want to act on a world that already exists.
+	/// </summary>
+	internal bool HasSceneWorld => _sceneWorld is not null;
+
+	/// <summary>
+	/// True if the physics world has been created. Reading <see cref="PhysicsWorld"/> creates
+	/// it - check this first when you only want to act on a world that already exists.
+	/// </summary>
+	internal bool HasPhysicsWorld => _physicsWorld.IsValid();
+
+	/// <summary>
+	/// The scene world, holding this scene's renderables. Created on first access, so
+	/// scenes that never render anything (like prefab caches or tests) never create one.
+	/// </summary>
+	public SceneWorld SceneWorld
+	{
+		get
+		{
+			if ( _sceneWorld is null && !_destroyed )
+			{
+				_sceneWorld = new SceneWorld();
+			}
+
+			return _sceneWorld;
+		}
+		private set => _sceneWorld = value;
+	}
+
 	public SceneWorld DebugSceneWorld => gizmoInstance?.World;
 
 	[System.Obsolete( "Use Scene.Editor.HasUnsavedChanges" )]
@@ -52,7 +84,7 @@ public partial class Scene : GameObject
 
 	private PhysicsWorld CreatePhysicsWorld()
 	{
-		return new PhysicsWorld
+		var world = new PhysicsWorld
 		{
 			DebugSceneWorld = DebugSceneWorld,
 			Gravity = Vector3.Down * 850,
@@ -60,13 +92,17 @@ public partial class Scene : GameObject
 			CollisionRules = ProjectSettings.Collision,
 			Scene = this
 		};
+
+		// the physics system steps the world and forwards its collision events
+		GetSystem<ScenePhysicsSystem>()?.OnPhysicsWorldCreated( world );
+
+		return world;
 	}
 
 	protected Scene( bool isEditor ) : base( true, "Scene" )
 	{
 		_all.Add( this );
 
-		SceneWorld = new SceneWorld();
 		Directory = new GameObjectDirectory( this );
 
 		RenderAttributes = new();
@@ -88,7 +124,7 @@ public partial class Scene : GameObject
 	/// <summary>
 	/// Returns true if this scene has not been destroyed
 	/// </summary>
-	public override bool IsValid => SceneWorld is not null;
+	public override bool IsValid => !_destroyed;
 
 	/// <summary>
 	/// Destroy this scene. After this you should never use it again.
@@ -114,6 +150,10 @@ public partial class Scene : GameObject
 		ShutdownSystems();
 
 		GC.SuppressFinalize( this );
+
+		// the lazy world properties stop creating once this is set, so tearing
+		// down a world that was never created stays a no-op
+		_destroyed = true;
 
 		_physicsWorld?.Delete();
 		_physicsWorld = default;

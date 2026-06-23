@@ -70,7 +70,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	/// </summary>
 	private void ExecuteCommandLists( Stage stage, SceneCamera currentCamera )
 	{
-		Scene.RunEvent<IRenderThread>( x => x.OnRenderStage( this, stage ) );
+		Scene.RunRenderThreadEvent( this, stage );
 
 		if ( commandlists.TryGetValue( stage, out var list ) )
 		{

@@ -239,7 +239,7 @@ lpfloat3x3 XeGTAO_RotFromToMatrix( lpfloat3 from, lpfloat3 to )
 }
 
 void XeGTAO_MainPass( const uint2 pixCoord, lpfloat sliceCount, lpfloat stepsPerSlice, const lpfloat2 localNoise, lpfloat3 viewspaceNormal, const GTAOConstants consts, 
-    Texture2D<float> sourceViewspaceDepth, SamplerState depthSampler, RWTexture2D<float> outWorkingAOTerm, RWTexture2D<float> outWorkingEdges )
+    Texture2D<float> sourceViewspaceDepth, SamplerState depthSampler, RWTexture2D<float> outWorkingAOTerm )
 {                                                                       
     float2 normalizedScreenPos = (pixCoord + 0.5.xx) * consts.ViewportPixelSize;
 
@@ -256,7 +256,6 @@ void XeGTAO_MainPass( const uint2 pixCoord, lpfloat sliceCount, lpfloat stepsPer
     const lpfloat pixBZ = valuesBR.x;
 
     lpfloat4 edgesLRTB  = XeGTAO_CalculateEdges( (lpfloat)viewspaceZ, (lpfloat)pixLZ, (lpfloat)pixRZ, (lpfloat)pixTZ, (lpfloat)pixBZ );
-    outWorkingEdges[pixCoord] = XeGTAO_PackEdges(edgesLRTB);
 
 	// Generating screen space normals in-place is faster than generating normals in a separate pass but requires
 	// use of 32bit depth buffer (16bit works but visibly degrades quality) which in turn slows everything down. So to
@@ -453,11 +452,11 @@ void XeGTAO_MainPass( const uint2 pixCoord, lpfloat sliceCount, lpfloat stepsPer
 #endif
 
                 float2 sampleScreenPos0 = normalizedScreenPos + sampleOffset;
-                float  SZ0 = sourceViewspaceDepth.SampleLevel( depthSampler, sampleScreenPos0, mipLevel ).x;
-                float3 samplePos0 = XeGTAO_ComputeViewspacePosition( sampleScreenPos0, SZ0, consts );
-
                 float2 sampleScreenPos1 = normalizedScreenPos - sampleOffset;
+                float  SZ0 = sourceViewspaceDepth.SampleLevel( depthSampler, sampleScreenPos0, mipLevel ).x;
                 float  SZ1 = sourceViewspaceDepth.SampleLevel( depthSampler, sampleScreenPos1, mipLevel ).x;
+
+                float3 samplePos0 = XeGTAO_ComputeViewspacePosition( sampleScreenPos0, SZ0, consts );
                 float3 samplePos1 = XeGTAO_ComputeViewspacePosition( sampleScreenPos1, SZ1, consts );
 
                 float3 sampleDelta0     = (samplePos0 - float3(pixCenterPos)); // using lpfloat for sampleDelta causes precision issues

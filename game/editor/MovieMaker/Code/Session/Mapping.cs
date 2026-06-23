@@ -188,6 +188,18 @@ partial class Session
 		return GetOrCreateTrack( GetOrCreateTrack( cmp ), propertyPath );
 	}
 
+	public IProjectTrack GetOrCreateTrack( SandboxToolExtensions.PropertyPath path )
+	{
+		var fullName = path.FullName;
+
+		return path.Targets.FirstOrDefault() switch
+		{
+			GameObject go => GetOrCreateTrack( go, fullName ),
+			Component cmp => GetOrCreateTrack( cmp, fullName ),
+			_ => throw new InvalidOperationException( "Expected GameObject or Component property target." )
+		};
+	}
+
 	public ProjectSequenceTrack GetOrCreateTrack( MovieResource resource )
 	{
 		if ( GetTrack( resource ) is { } existing ) return existing;
@@ -222,25 +234,29 @@ partial class Session
 	/// <summary>
 	/// Create a track hierarchy matching the given <paramref name="preset"/>, rooted on <paramref name="rootTrack"/>.
 	/// </summary>
-	public void LoadPreset( IProjectTrack rootTrack, ITrackTarget rootTarget, TrackPresetNode preset )
+	public IEnumerable<IProjectTrack> LoadPreset( IProjectTrack rootTrack, ITrackTarget rootTarget, TrackPresetNode preset )
 	{
 		if ( preset.AllChildren )
 		{
 			foreach ( var (name, _, _) in TrackProperty.GetAll( rootTarget ) )
 			{
-				GetOrCreateTrack( rootTrack, name );
+				yield return GetOrCreateTrack( rootTrack, name );
 			}
 
-			return;
+			yield break;
 		}
 
 		foreach ( var childPreset in preset.Children )
 		{
-			if ( GetOrCreatePresetTrackCore( rootTrack, rootTarget, childPreset ) is { } childTrack )
-			{
-				var childTarget = Binder.Get( childTrack );
+			if ( GetOrCreatePresetTrackCore( rootTrack, rootTarget, childPreset ) is not { } childTrack ) continue;
 
-				LoadPreset( childTrack, childTarget, childPreset );
+			yield return childTrack;
+
+			var childTarget = Binder.Get( childTrack );
+
+			foreach ( var createdChildTrack in LoadPreset( childTrack, childTarget, childPreset ) )
+			{
+				yield return createdChildTrack;
 			}
 		}
 	}
@@ -343,6 +359,8 @@ partial class Session
 	public void AdvanceAnimations( MovieTime deltaTime )
 	{
 		// Negative deltas aren't supported :(
+
+		deltaTime = deltaTime.Absolute;
 
 		var dt = (float)deltaTime.Clamp( (MovieTime.Zero, MovieTime.FromSeconds( 0.25 )) ).TotalSeconds;
 
