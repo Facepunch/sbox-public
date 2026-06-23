@@ -522,4 +522,45 @@ public class TerrainComponentTest
 		go.Destroy();
 		scene.ProcessDeletes();
 	}
+
+	/// <summary>
+	/// FindClosestPoint resolves a query against the heightfield collider instead of falling
+	/// back to the body origin. A point high above the centre plateau snaps straight down onto
+	/// the plateau surface, keeping its horizontal position and landing at the full terrain
+	/// height, and a point over the flat base snaps down to height zero - two distinct world
+	/// queries return two distinct surface points rather than the same constant.
+	/// </summary>
+	[TestMethod]
+	public void FindClosestPointSnapsToHeightfieldSurface()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var storage = CreateSmallStorage();
+		RaiseCenterPlateau( storage );
+
+		var go = scene.CreateObject();
+		var terrain = go.Components.Create<Terrain>( false );
+		terrain.Storage = storage;
+		terrain.Enabled = true;
+
+		Assert.IsTrue( terrain.KeyBody.IsValid(), "The terrain needs a keyframe body to query against" );
+
+		var overPlateau = terrain.FindClosestPoint( new Vector3( 3150, 5000, 3150 ) );
+
+		Assert.AreEqual( 3150.0f, overPlateau.x, 75.0f, "The closest point keeps the query's ground position" );
+		Assert.AreEqual( 1000.0f, overPlateau.y, 25.0f, "The closest point sits on the plateau surface, not the body origin" );
+		Assert.AreEqual( 3150.0f, overPlateau.z, 75.0f );
+
+		var overBase = terrain.FindClosestPoint( new Vector3( 800, 300, 800 ) );
+
+		Assert.AreEqual( 800.0f, overBase.x, 75.0f );
+		Assert.AreEqual( 0.0f, overBase.y, 25.0f, "The flat base sits at height zero" );
+		Assert.AreEqual( 800.0f, overBase.z, 75.0f );
+
+		Assert.AreNotEqual( overPlateau, overBase, "Distinct queries resolve to distinct surface points, not one constant" );
+
+		go.Destroy();
+		scene.ProcessDeletes();
+	}
 }

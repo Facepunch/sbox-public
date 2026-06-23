@@ -78,7 +78,7 @@ public abstract partial class GameObjectSystem : IDeltaSnapshot
 					return;
 
 				var attribute = p.GetAttribute<SyncAttribute>();
-				var interpolate = attribute?.Flags.HasFlag( SyncFlags.Interpolate ) ?? false;
+				var interpolate = attribute is not null && (attribute.Flags & SyncFlags.Interpolate) != 0;
 
 				if ( interpolate && p.Value is not null )
 				{
@@ -103,7 +103,7 @@ public abstract partial class GameObjectSystem : IDeltaSnapshot
 	protected T __sync_GetValue<T>( WrappedPropertyGet<T> p )
 	{
 		var attribute = p.GetAttribute<SyncAttribute>();
-		var interpolate = attribute?.Flags.HasFlag( SyncFlags.Interpolate ) ?? false;
+		var interpolate = attribute is not null && (attribute.Flags & SyncFlags.Interpolate) != 0;
 		if ( !interpolate ) return p.Value;
 
 		var slot = NetworkObject.GetPropertySlot( p.MemberIdent, Id );

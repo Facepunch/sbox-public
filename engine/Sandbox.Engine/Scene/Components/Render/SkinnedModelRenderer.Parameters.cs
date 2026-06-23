@@ -8,48 +8,50 @@ public sealed partial class SkinnedModelRenderer
 	/// <summary>
 	/// If something sets parameters before the model is spawned, then we store them
 	/// and apply them when it does spawn. This isn't ideal, but it is what it is.
+	/// Stored per-type so setting a value type every frame doesn't box.
 	/// </summary>
-	readonly Dictionary<string, object> parameters = new( StringComparer.OrdinalIgnoreCase );
+	Dictionary<string, float> _floatParams;
+	Dictionary<string, int> _intParams;
+	Dictionary<string, bool> _boolParams;
+	Dictionary<string, Vector3> _vectorParams;
+	Dictionary<string, Rotation> _rotationParams;
 
 	public void Set( string v, Vector3 value )
 	{
-		parameters[v] = value;
+		(_vectorParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = value;
 		SceneModel?.SetAnimParameter( v, value );
 	}
 
 	public void Set( string v, int value )
 	{
-		parameters[v] = value;
+		(_intParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = value;
 		SceneModel?.SetAnimParameter( v, value );
 	}
 
 	public void Set( string v, float value )
 	{
-		parameters[v] = value;
+		(_floatParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = value;
 		SceneModel?.SetAnimParameter( v, value );
 	}
 	public void Set( string v, bool value )
 	{
-		parameters[v] = value;
+		(_boolParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = value;
 		SceneModel?.SetAnimParameter( v, value );
 	}
 
 	public void Set( string v, Rotation value )
 	{
-		parameters[v] = value;
+		(_rotationParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = value;
 		SceneModel?.SetAnimParameter( v, value );
 	}
 
 	void ApplyStoredAnimParameters()
 	{
-		foreach ( var p in parameters )
-		{
-			if ( p.Value is Vector3 v ) SceneModel.SetAnimParameter( p.Key, v );
-			if ( p.Value is float f ) SceneModel.SetAnimParameter( p.Key, f );
-			if ( p.Value is int i ) SceneModel.SetAnimParameter( p.Key, i );
-			if ( p.Value is bool b ) SceneModel.SetAnimParameter( p.Key, b );
-			if ( p.Value is Rotation r ) SceneModel.SetAnimParameter( p.Key, r );
-		}
+		if ( _vectorParams is not null ) foreach ( var p in _vectorParams ) SceneModel.SetAnimParameter( p.Key, p.Value );
+		if ( _floatParams is not null ) foreach ( var p in _floatParams ) SceneModel.SetAnimParameter( p.Key, p.Value );
+		if ( _intParams is not null ) foreach ( var p in _intParams ) SceneModel.SetAnimParameter( p.Key, p.Value );
+		if ( _boolParams is not null ) foreach ( var p in _boolParams ) SceneModel.SetAnimParameter( p.Key, p.Value );
+		if ( _rotationParams is not null ) foreach ( var p in _rotationParams ) SceneModel.SetAnimParameter( p.Key, p.Value );
 
 		// Tick the animation by a frame so we're fully up to date on the first frame.
 		if ( Scene.IsEditor && !CanUpdateInEditor() )
@@ -67,7 +69,11 @@ public sealed partial class SkinnedModelRenderer
 	/// </summary>
 	public void ClearParameters()
 	{
-		parameters.Clear();
+		_floatParams?.Clear();
+		_intParams?.Clear();
+		_boolParams?.Clear();
+		_vectorParams?.Clear();
+		_rotationParams?.Clear();
 
 		if ( SceneModel.IsValid() )
 		{
@@ -77,13 +83,24 @@ public sealed partial class SkinnedModelRenderer
 
 	internal void ClearParameter( string name )
 	{
-		parameters.Remove( name );
+		_floatParams?.Remove( name );
+		_intParams?.Remove( name );
+		_boolParams?.Remove( name );
+		_vectorParams?.Remove( name );
+		_rotationParams?.Remove( name );
 	}
 
 	internal bool ContainsParameter( string name )
 	{
-		return parameters.ContainsKey( name );
+		return (_floatParams?.ContainsKey( name ) ?? false)
+			|| (_intParams?.ContainsKey( name ) ?? false)
+			|| (_boolParams?.ContainsKey( name ) ?? false)
+			|| (_vectorParams?.ContainsKey( name ) ?? false)
+			|| (_rotationParams?.ContainsKey( name ) ?? false);
 	}
+
+	/// <summary>Total number of stored (modified) anim-graph parameters across all types.</summary>
+	internal int StoredParameterCount => (_floatParams?.Count ?? 0) + (_intParams?.Count ?? 0) + (_boolParams?.Count ?? 0) + (_vectorParams?.Count ?? 0) + (_rotationParams?.Count ?? 0);
 
 	//	public void Set( string v, Enum value ) => _sceneObject.SetAnimParameter( v, value );
 

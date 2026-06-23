@@ -224,6 +224,8 @@ public partial class Panel
 
 		if ( texture != null )
 		{
+			texture.MarkUsed();
+
 			desc.BackgroundImage = texture;
 			desc.BackgroundRect = ImageRect.Calculate( new ImageRect.Input
 			{

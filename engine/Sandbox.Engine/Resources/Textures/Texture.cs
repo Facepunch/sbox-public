@@ -86,6 +86,8 @@ public partial class Texture : Resource, IDisposable
 		// they release it, it'll be a hanging pointer!
 		native = texture.native.CopyStrongHandle();
 
+		IsAnimated = texture.IsAnimated;
+
 		UpdateSheetInfo();
 
 		gotdesc = false;
@@ -135,6 +137,11 @@ public partial class Texture : Resource, IDisposable
 	/// Whether this texture has finished loading or not.
 	/// </summary>
 	public bool IsLoaded { get; internal set; } = true;
+
+	/// <summary>
+	/// True if this is a multi-frame animated image (GIF, animated WebP) driven by <see cref="Tick"/>.
+	/// </summary>
+	public bool IsAnimated { get; internal set; }
 
 	/// <summary>
 	/// Image format of this texture.

@@ -202,15 +202,8 @@ public static partial class Json
 		}
 	}
 
-	internal static void DeserializeToObject( object target, JsonObject root )
-	{
-		if ( target is null )
-			return;
-
-		var type = target.GetType();
-
-		// TODO: we can probably cache this
-		var propertyDict = type.GetProperties( BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic )
+	static readonly ReflectionCache<Type, Dictionary<string, PropertyInfo>> DeserializePropertyCache = new( static t =>
+		t.GetProperties( BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic )
 			.Where( x => x.CanWrite )
 			.Where( x =>
 				x.SetMethod!.IsPublic && !x.HasAttribute( typeof( JsonIgnoreAttribute ) ) ||
@@ -218,7 +211,16 @@ public static partial class Json
 				x.HasAttribute( typeof( PropertyAttribute ) ) )
 			.Select( x => (Name: x.GetCustomAttribute<JsonPropertyNameAttribute>() is { } jpna ? jpna.Name : x.Name, Property: x) )
 			.DistinctBy( x => x.Name, StringComparer.OrdinalIgnoreCase )
-			.ToDictionary( x => x.Name, x => x.Property, StringComparer.OrdinalIgnoreCase );
+			.ToDictionary( x => x.Name, x => x.Property, StringComparer.OrdinalIgnoreCase ) );
+
+	internal static void DeserializeToObject( object target, JsonObject root )
+	{
+		if ( target is null )
+			return;
+
+		var type = target.GetType();
+
+		var propertyDict = DeserializePropertyCache[type];
 
 		foreach ( var property in root )
 		{

@@ -17,11 +17,12 @@ internal class RemoteSnapshotState
 	private record struct PredictedEntry( byte[] Value, float ExpireTime, ulong Hash );
 	public record struct Entry( ushort SnapshotId, byte[] Data, ulong Hash );
 
-	private readonly Dictionary<int, PredictedEntry> _predictedData = new( 128 );
+	// One of these exists per (connection, object) and holds one entry per synced slot -> don't pre-size them
+	private readonly Dictionary<int, PredictedEntry> _predictedData = new();
 	public ushort SnapshotId { get; set; }
 	public Guid ObjectId { get; init; }
 
-	public readonly Dictionary<int, Entry> Data = new( 128 );
+	public readonly Dictionary<int, Entry> Data = new();
 
 	/// <summary>
 	/// Whether the incoming snapshot id is newer than our last processed one. This
