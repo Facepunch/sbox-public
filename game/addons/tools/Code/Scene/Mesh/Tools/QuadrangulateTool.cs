@@ -52,7 +52,7 @@ public partial class QuadrangulateTool( MeshFace[] faces ) : EditorTool
 		}
 	}
 	
-	public void UpdateQuadrangulate( float faceAngle, float shapeAngle, float topology, bool uv, bool color, bool blend, bool material, bool smooth )
+	public void UpdateQuadrangulate( float faceAngle, float shapeAngle, bool uv, bool color, bool blend, bool material, bool smooth )
 	{
 		_quadFaces.Clear();
 		_removedEdgeLines.Clear();
@@ -75,7 +75,7 @@ public partial class QuadrangulateTool( MeshFace[] faces ) : EditorTool
 				continue;
 			}
 			
-			QuadrangulateFaces( mesh, facesToQuad, faceAngle, shapeAngle, topology, uv, color, blend, material, smooth, out var newFaces, out var removedEdges );
+			QuadrangulateFaces( mesh, facesToQuad, faceAngle, shapeAngle, uv, color, blend, material, smooth, out var newFaces, out var removedEdges);
 
 			_quadFaces[component] = newFaces;
 			_removedEdgeLines[component] = removedEdges;
@@ -105,9 +105,9 @@ public partial class QuadrangulateTool( MeshFace[] faces ) : EditorTool
 			{
 				component.Mesh = resultMeshes[component];
 
-				if ( !_quadFaces.TryGetValue( component, out var insetFaces ) ) continue;
+				if ( !_quadFaces.TryGetValue( component, out var quadFaces ) ) continue;
 
-				foreach ( var face in insetFaces.Where( f => f.IsValid ) )
+				foreach ( var face in quadFaces.Where( f => f.IsValid ) )
 					selection.Add( new MeshFace( component, face ) );
 			}
 		}
@@ -140,35 +140,45 @@ public partial class QuadrangulateTool( MeshFace[] faces ) : EditorTool
 		_removedEdgeLines.Clear();
 	}
 
-	static void QuadrangulateFaces( PolygonMesh mesh, FaceHandle[] faces, float faceAngle, float shapeAngle,
-		float topology, bool uv, bool color, bool blend, bool material, bool smooth, out List<FaceHandle> newFaces, out List<Line> removedEdges )
+	static void QuadrangulateFaces( PolygonMesh mesh, FaceHandle[] faces, float faceAngle, float shapeAngle, bool uv, bool color, bool blend, bool material, bool smooth, out List<FaceHandle> newFaces, out List<Line> removedEdges )
 	{
 		newFaces = [];
 		removedEdges = [];
 
+		List<FacePair> facePairs = [];
+
 		// Get faces that share an edge, score them based on how viable they are to quadrangulate.
 		foreach ( var face in faces )
 		{
-			// Get neighbouring faces that were selected during the operation.
+			if (mesh.GetFaceEdges( face ).Length > 3) continue;
+			
+			// Get neighbouring faces that were selected when opening the tool.
 			List<FaceHandle> neighbourFaces = [];
 			
 			mesh.GetFacesConnectedToFace( face, out var connectedFaces );
 			neighbourFaces.AddRange( connectedFaces.Where( connectedFace => faces.Contains( connectedFace ) ) );
 
+			// Get the edge shared between the faces.
 			foreach ( var neighbourFace in neighbourFaces )
 			{
-				mesh.GetEdgesConnectedToFace( face, out var faceEdges );
-				mesh.GetEdgesConnectedToFace( neighbourFace, out var neighbourEdges );
+				if (mesh.GetFaceEdges( neighbourFace ).Length > 3) continue;
+				
+				// Skip checks if processed two faces in an earlier loop.
+				if (facePairs.Exists( x => x.FaceB == face && x.FaceA == neighbourFace )) continue;
+				
+				var faceEdges = mesh.GetFaceEdges( face );
+				var neighbourEdges = mesh.GetFaceEdges( neighbourFace );
 
 				var sharedEdge = faceEdges.First( edge => neighbourEdges.Contains( edge ) );
+				mesh.GetEdgeVertices( sharedEdge, out var sharedVertA, out var sharedVertB );
 				
-				// Check if faces are valid for scoring according to properties.
-				if ( smooth && mesh.GetEdgeSmoothing( sharedEdge ) == PolygonMesh.EdgeSmoothMode.Hard ) continue;
+				// Check if faces pass checks prior to scoring.
+				{
+					if ( smooth && mesh.GetEdgeSmoothing( sharedEdge ) == PolygonMesh.EdgeSmoothMode.Hard ) continue;
+				}
 				
 				if ( uv )
 				{
-					mesh.GetEdgeVertices( sharedEdge, out var sharedVertA, out var sharedVertB );
-					
 					var faceUVs = mesh.GetFaceTextureCoords( face );
 					var faceVerts = mesh.GetFaceVertices( face );
 					
@@ -208,19 +218,81 @@ public partial class QuadrangulateTool( MeshFace[] faces ) : EditorTool
 					             mesh.GetVertexBlend( sharedEdge.NextEdge.NextEdge );
 					if ( !match ) continue;
 				}
-				
-				if ( material && mesh.GetFaceMaterial( face ) != mesh.GetFaceMaterial( neighbourFace ) ) continue;
 
-				var faceNormal = GetFaceNormal( face );
-				var neighbourNormal = GetFaceNormal( neighbourFace );
+				{
+					if ( material && mesh.GetFaceMaterial( face ) != mesh.GetFaceMaterial( neighbourFace ) ) continue;
+				}
 
-				float degree = MathF.Acos( Vector3.Dot( faceNormal, neighbourNormal ) ).RadianToDegree();
-				if ( degree >= QuadrangulateMaxFaceAngle ) continue;
+				float normal;
+				{
+					var faceNormal = GetFaceNormal( face );
+					var neighbourNormal = GetFaceNormal( neighbourFace );
+
+					float degree = MathF.Acos( Vector3.Dot( faceNormal, neighbourNormal ) ).RadianToDegree();
+					if ( degree >= faceAngle ) continue;
+					
+					normal = ( degree / faceAngle );
+				}
+
+				float shape;
+				{
+					(float a, float b) = GetFaceShape( sharedEdge );
+
+					var maxAngle = 90 + shapeAngle;
+					var minAngle = 90 - shapeAngle;
+
+					if ( a < minAngle || a > maxAngle ) continue;
+					if ( b < minAngle || b > maxAngle ) continue;
+
+					var limitA = Math.Min( Math.Abs( maxAngle - a ), Math.Abs( minAngle - a ) );
+					var limitB = Math.Min( Math.Abs( maxAngle - b ), Math.Abs( minAngle - b ) );
+
+					var max = Math.Min( limitA, limitB );
+					shape = ( max / shapeAngle );
+				}
+
+				float area;
+				{
+					area = GetSharedFaceArea( face, neighbourFace );
+				}
 				
-				removedEdges.Add( mesh.GetEdgeLine( sharedEdge ) );
+				facePairs.Add( new FacePair( face, neighbourFace, sharedEdge ) { Normal = normal, Shape = shape, Area = area } );
 			}
 		}
 
+		// Order face pairs by score, start removing the highest scoring until there is no more.
+		List<HalfEdgeHandle> edgesToRemove = [];
+		while ( facePairs.Count > 0 )
+		{
+			var e = facePairs.OrderBy( x => x.Score ).Last();
+			edgesToRemove.Add( e.SharedEdge );
+
+			facePairs.RemoveAll(x =>
+				x.FaceA == e.FaceA || x.FaceA == e.FaceB ||
+				x.FaceB == e.FaceA || x.FaceB == e.FaceB
+			);
+			
+			facePairs.Remove( e );
+		}
+
+		removedEdges.AddRange( edgesToRemove.Select( e => mesh.GetEdgeLine( e ) ) );
+		mesh.DissolveEdges( edgesToRemove, false, PolygonMesh.DissolveRemoveVertexCondition.None );
+
+		float GetFaceArea( FaceHandle face )
+		{
+			var vhs = mesh.GetFaceVertices( face );
+			
+			Vector3 a = mesh.GetVertexPosition( vhs[0] );
+			Vector3 b = mesh.GetVertexPosition( vhs[1] );
+			Vector3 c = mesh.GetVertexPosition( vhs[2] );
+
+			float area = Vector3.Cross( b - a, c - a ).Length * 0.5f;
+			return area;
+		}
+
+		float GetSharedFaceArea( FaceHandle face, FaceHandle neighbourFace ) =>
+			GetFaceArea( face ) + GetFaceArea( neighbourFace );
+		
 		Vector3 GetFaceNormal( FaceHandle face )
 		{
 			var vhs = mesh.GetFaceVertices( face );
@@ -229,8 +301,55 @@ public partial class QuadrangulateTool( MeshFace[] faces ) : EditorTool
 			Vector3 b = mesh.GetVertexPosition( vhs[1] );
 			Vector3 c = mesh.GetVertexPosition( vhs[2] );
 
-			Vector3 normal = Vector3.Cross( b - a, c - a ).Normal;
+			var normal = Vector3.Cross( b - a, c - a ).Normal;
 			return normal;
 		}
+		
+		(float a, float b) GetFaceShape ( HalfEdgeHandle edge )
+		{
+			mesh.GetEdgeVertices( edge, out var hVertexA, out var hVertexB );
+			var hVertexC = mesh.GetNextVertexInFace( edge ).Vertex;
+			var hVertexD = mesh.GetNextVertexInFace( edge.OppositeEdge ).Vertex;
+
+			float a;
+			float b;
+
+			// Corner A
+			{
+				var quadADirA = ( mesh.GetVertexPosition( hVertexC ) - mesh.GetVertexPosition( hVertexA )).Normal;
+				var quadADirB = ( mesh.GetVertexPosition( hVertexD ) - mesh.GetVertexPosition( hVertexA )).Normal;
+				
+				var dot = Vector3.Dot(  quadADirA, quadADirB ).Clamp( -1.0f, 1.0f );
+				var sharedVertADegrees = MathF.Acos( dot) * 180.0f / MathF.PI;
+				
+				a = sharedVertADegrees;
+			}
+			
+			// Corner B
+			{
+				var quadBDirA = ( mesh.GetVertexPosition( hVertexC ) - mesh.GetVertexPosition( hVertexB )).Normal;
+				var quadBDirB = ( mesh.GetVertexPosition( hVertexD ) - mesh.GetVertexPosition( hVertexB )).Normal;
+				
+				var dot = Vector3.Dot(  quadBDirA, quadBDirB ).Clamp( -1.0f, 1.0f );
+				var sharedVertBDegrees = MathF.Acos( dot) * 180.0f / MathF.PI;
+				
+				b = sharedVertBDegrees;
+			}
+
+			return (a, b);
+		}
+	}
+	
+	private struct FacePair( FaceHandle face, FaceHandle neighbourFace, HalfEdgeHandle edge )
+	{
+		public FaceHandle FaceA { get; } = face;
+		public FaceHandle FaceB { get; } = neighbourFace;
+		public HalfEdgeHandle SharedEdge { get; } = edge;
+		
+		public float Shape { get; set; }
+		public float Normal { get; set; }
+		public float Area { get; set; }
+		
+		public float Score => (Shape + Normal);
 	}
 }
