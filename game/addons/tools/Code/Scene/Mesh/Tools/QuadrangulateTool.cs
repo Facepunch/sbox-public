@@ -12,7 +12,7 @@ public partial class QuadrangulateTool( MeshFace[] faces ) : EditorTool
 	
 	public override void OnEnabled()
 	{
-		if ( faces is not { Length: > 0 } ) return;
+		if ( faces is not { Length: > 1 } ) return;
 
 		foreach ( var group in faces.GroupBy( f => f.Component ) )
 		{
@@ -340,11 +340,11 @@ public partial class QuadrangulateTool( MeshFace[] faces ) : EditorTool
 		}
 	}
 	
-	private struct FacePair( FaceHandle face, FaceHandle neighbourFace, HalfEdgeHandle edge )
+	private record struct FacePair( FaceHandle Face, FaceHandle NeighbourFace, HalfEdgeHandle Edge )
 	{
-		public FaceHandle FaceA { get; } = face;
-		public FaceHandle FaceB { get; } = neighbourFace;
-		public HalfEdgeHandle SharedEdge { get; } = edge;
+		public FaceHandle FaceA { get; } = Face;
+		public FaceHandle FaceB { get; } = NeighbourFace;
+		public HalfEdgeHandle SharedEdge { get; } = Edge;
 		
 		public float Shape { get; set; }
 		public float Normal { get; set; }
