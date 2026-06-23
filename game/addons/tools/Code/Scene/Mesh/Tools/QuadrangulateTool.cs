@@ -119,8 +119,8 @@ public partial class QuadrangulateTool( MeshFace[] faces ) : EditorTool
 		using IDisposable scope = SceneEditorSession.Scope();
 
 		using ( SceneEditorSession.Active.UndoScope( "Quadrangulate Faces" )
-			       .WithComponentChanges( components )
-			       .Push() )
+				   .WithComponentChanges( components )
+				   .Push() )
 		{
 			SelectionSystem selection = SceneEditorSession.Active.Selection;
 			selection.Clear();
@@ -142,14 +142,14 @@ public partial class QuadrangulateTool( MeshFace[] faces ) : EditorTool
 		}
 
 		Cleanup();
-		EditorToolManager.SetSubTool( nameof(FaceTool) );
+		EditorToolManager.SetSubTool( nameof( FaceTool ) );
 	}
 
 	public void Cancel()
 	{
 		RestoreOriginals();
 		Cleanup();
-		EditorToolManager.SetSubTool( nameof(FaceTool) );
+		EditorToolManager.SetSubTool( nameof( FaceTool ) );
 	}
 
 	private void RestoreOriginals()
@@ -252,9 +252,9 @@ public partial class QuadrangulateTool( MeshFace[] faces ) : EditorTool
 				if ( color )
 				{
 					bool match = mesh.GetVertexColor( sharedEdge ) ==
-					             mesh.GetVertexColor( sharedEdge.OppositeEdge.NextEdge.NextEdge ) &&
-					             mesh.GetVertexColor( sharedEdge.OppositeEdge ) ==
-					             mesh.GetVertexColor( sharedEdge.NextEdge.NextEdge );
+								 mesh.GetVertexColor( sharedEdge.OppositeEdge.NextEdge.NextEdge ) &&
+								 mesh.GetVertexColor( sharedEdge.OppositeEdge ) ==
+								 mesh.GetVertexColor( sharedEdge.NextEdge.NextEdge );
 					if ( !match )
 					{
 						continue;
@@ -264,9 +264,9 @@ public partial class QuadrangulateTool( MeshFace[] faces ) : EditorTool
 				if ( blend )
 				{
 					bool match = mesh.GetVertexBlend( sharedEdge ) ==
-					             mesh.GetVertexBlend( sharedEdge.OppositeEdge.NextEdge.NextEdge ) &&
-					             mesh.GetVertexBlend( sharedEdge.OppositeEdge ) ==
-					             mesh.GetVertexBlend( sharedEdge.NextEdge.NextEdge );
+								 mesh.GetVertexBlend( sharedEdge.OppositeEdge.NextEdge.NextEdge ) &&
+								 mesh.GetVertexBlend( sharedEdge.OppositeEdge ) ==
+								 mesh.GetVertexBlend( sharedEdge.NextEdge.NextEdge );
 					if ( !match )
 					{
 						continue;
