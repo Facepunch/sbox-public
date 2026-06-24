@@ -518,7 +518,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 	{
 		var elements = Selection.OfType<T>().ToArray();
 
-		bool isConverting = Application.KeyboardModifiers.Contains( KeyboardModifiers.Alt );
+		bool isConverting = Application.KeyboardModifiers.Contains( KeyboardModifiers.Alt ) || Tool.ConvertSelection;
 		var convertedElements = isConverting ?
 			ConvertSelectionToCurrentType().ToArray() : [];
 
