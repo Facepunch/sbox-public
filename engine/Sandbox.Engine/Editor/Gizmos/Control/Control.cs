@@ -20,9 +20,24 @@ public static partial class Gizmo
 		}
 
 		/// <summary>
+		/// Visual style for the position center handle of the position gizmo.
+		/// </summary>
+		public enum PositionCenterHandleStyle
+		{
+			/// <summary>
+			/// Default position center handle style.
+			/// </summary>
+			Default = 0,
+			/// <summary>
+			/// Draw the position center handle as a bicone.
+			/// </summary>
+			Bicone = 1
+		}
+
+		/// <summary>
 		/// A front left up position movement widget. If widget was moved then will return true and out will return the new position.
 		/// </summary>
-		public bool Position( string name, Vector3 position, out Vector3 newPos, Rotation? axisRotation = null, float squareSize = 3.0f )
+		public bool Position( string name, Vector3 position, out Vector3 newPos, Rotation? axisRotation = null, float squareSize = 3.0f, PositionCenterHandleStyle centerHandleStyle = PositionCenterHandleStyle.Default )
 		{
 			if ( position.IsNaN )
 			{
@@ -79,7 +94,7 @@ public static partial class Gizmo
 					var camRot = Transform.RotationToLocal( Camera.Rotation );
 
 					Sandbox.Gizmo.Draw.Color = Color.White.WithAlpha( 1.1f );
-					if ( DragSquare( "drag-camera", squareSize, camRot, out var moved, DrawPositionCenter ) )
+					if ( DragSquare( "drag-camera", squareSize, camRot, out var moved, () => DrawPositionCenter( centerHandleStyle ) ) )
 					{
 						// movement is in camera space
 						movement += moved;
@@ -141,10 +156,27 @@ public static partial class Gizmo
 			return true;
 		}
 
-		static void DrawPositionCenter()
+		static void DrawPositionCenter( PositionCenterHandleStyle centerHandleStyle )
 		{
-			Sandbox.Gizmo.Draw.LineThickness = 2.0f;
-			Sandbox.Gizmo.Draw.LineCircle( 0, Sandbox.Gizmo.IsHovered ? 0.6f : 0.5f, 8 );
+			switch ( centerHandleStyle )
+			{
+				case PositionCenterHandleStyle.Bicone:
+					Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Colors.Pivot;
+
+					if ( !Sandbox.Gizmo.IsHovered ) Sandbox.Gizmo.Draw.Color = Sandbox.Gizmo.Draw.Color.Darken( 0.33f );
+
+					using ( Sandbox.Gizmo.Scope() )
+					{
+						Sandbox.Gizmo.Hitbox.DepthBias = 0.01f;
+						Sandbox.Gizmo.Transform = Sandbox.Gizmo.Transform.WithRotation( Rotation.Identity );
+						Sandbox.Gizmo.Draw.SolidBicone( 4.0f, 1.5f );
+					}
+					break;
+				default:
+					Sandbox.Gizmo.Draw.LineThickness = 2.0f;
+					Sandbox.Gizmo.Draw.LineCircle( 0, Sandbox.Gizmo.IsHovered ? 0.6f : 0.5f, 8 );
+					break;
+			}
 		}
 
 		/// <summary>
