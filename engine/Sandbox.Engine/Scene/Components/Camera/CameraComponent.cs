@@ -574,14 +574,14 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		EnsureSceneCameraCreated();
 		UpdateSceneCameraTransform( sceneCamera );
 
-		return sceneCamera.GetRay( pixelPosition, ScreenRect.Size );
+		return sceneCamera.GetRay( pixelPosition, ScreenRect.Size / Screen.DpiScale );
 	}
 
 	public Ray ScreenNormalToRay( Vector3 normalPosition )
 	{
 		var pixelPosition = new Vector3(
-			normalPosition.x * ScreenRect.Size.x,
-			normalPosition.y * ScreenRect.Size.y,
+			normalPosition.x * ScreenRect.Size.x / Screen.DpiScale,
+			normalPosition.y * ScreenRect.Size.y / Screen.DpiScale,
 			normalPosition.z );
 
 		return ScreenPixelToRay( pixelPosition );

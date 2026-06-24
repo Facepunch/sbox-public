@@ -32,6 +32,12 @@ public static class Screen
 	/// </summary>
 	public static float DesktopScale { get; private set; } = 1.0f;
 
+	/// <summary>
+	/// The current dpi scale of the application window.
+	/// Reflects physical-to-logical pixel ratio used by the windowing system (eg. 2.25 at 225% DPI).
+	/// </summary>
+	public static float DpiScale { get; internal set; } = 1.0f;
+
 	internal static void UpdateFromEngine()
 	{
 		ThreadSafe.AssertIsMainThread();
