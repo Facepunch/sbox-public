@@ -83,7 +83,7 @@ partial class MeshTool
 		AddCheckboxOption( menu, "Backface Selection", "flip_to_back", "Allow selection of backfacing elements",
 			EditorPreferences.BackfaceSelection, ( v ) => { EditorPreferences.BackfaceSelection = v; } );
 
-		AddCheckboxOption( menu, "Transfer Selection", "swap_horizontal_circle", "Convert current selection when changing between tools.",
+		AddCheckboxOption( menu, "Convert Selection", "swap_horizontal_circle", "Convert current selection when changing between tools.",
 			ConvertSelection, ( v ) => { ConvertSelection = v; } );
 
 		menu.OpenAtCursor();
