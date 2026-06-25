@@ -86,16 +86,41 @@ public class PolygonMeshSerializationTest
 	}
 
 	[TestMethod]
-	public void WriteContainsExpectedFields()
+	public void WriteStoresMeshDataAsBinaryBlob()
 	{
 		var mesh = Json.Deserialize<PolygonMesh>( LegacyMeshJson );
 		var json = Json.Serialize( mesh );
 
-		Assert.IsTrue( json.Contains( "\"Topology\"" ) );
-		Assert.IsTrue( json.Contains( "\"Positions\"" ) );
-		Assert.IsTrue( json.Contains( "\"TextureCoord\"" ) );
-		Assert.IsTrue( json.Contains( "\"MaterialIndex\"" ) );
-		Assert.IsTrue( json.Contains( "\"EdgeFlags\"" ) );
+		// Heavy mesh data now lives in a single binary "Data" blob rather than as
+		// individual JSON arrays.
+		Assert.IsTrue( json.Contains( "\"Data\"" ) );
+		Assert.IsFalse( json.Contains( "\"Topology\"" ) );
+		Assert.IsFalse( json.Contains( "\"Positions\"" ) );
+		Assert.IsFalse( json.Contains( "\"TextureCoord\"" ) );
+		Assert.IsFalse( json.Contains( "\"MaterialIndex\"" ) );
+		Assert.IsFalse( json.Contains( "\"EdgeFlags\"" ) );
+	}
+
+	[TestMethod]
+	public void RoundTripThroughBlobContextPreservesData()
+	{
+		var original = Json.Deserialize<PolygonMesh>( LegacyMeshJson );
+
+		string json;
+
+		// With an active blob context the mesh data is written to the blob store and
+		// referenced by guid instead of being embedded inline.
+		using ( BlobDataSerializer.Capture() )
+		{
+			json = Json.Serialize( original );
+
+			Assert.IsTrue( json.Contains( "$blob" ), "Active context should write a blob reference" );
+
+			var restored = Json.Deserialize<PolygonMesh>( json );
+
+			Assert.AreEqual( original.VertexHandles.Count(), restored.VertexHandles.Count() );
+			Assert.AreEqual( original.FaceHandles.Count(), restored.FaceHandles.Count() );
+		}
 	}
 
 	[TestMethod]
