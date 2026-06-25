@@ -841,6 +841,76 @@ public partial class GameObject
 	}
 
 	/// <summary>
+	/// Rewrites members marked with <see cref="SyncFlags.FromHost"/> to current component values
+	/// for all component payloads inside a serialized game object tree.
+	/// </summary>
+	internal void PreserveFromHostSyncMembers( JsonObject node )
+	{
+		if ( node[JsonKeys.Components] is JsonArray componentArray )
+		{
+			foreach ( var componentNode in componentArray )
+			{
+				if ( componentNode is JsonObject componentJson )
+				{
+					Component existingComponent = null;
+
+					if ( Scene.IsValid() && componentJson.TryGetPropertyValue( Component.JsonKeys.Id, out var componentIdNode ) )
+					{
+						try
+						{
+							existingComponent = Scene.Directory.FindComponentByGuid( componentIdNode.Deserialize<Guid>() );
+						}
+						catch
+						{
+							existingComponent = null;
+						}
+					}
+
+					if ( existingComponent.IsValid() )
+					{
+						existingComponent.PreserveFromHostSyncMembers( componentJson );
+					}
+					else
+					{
+						RemoveFromHostSyncMembers( componentJson );
+					}
+				}
+			}
+		}
+
+		if ( node[JsonKeys.Children] is JsonArray childArray )
+		{
+			foreach ( var childNode in childArray )
+			{
+				if ( childNode is JsonObject childJson )
+				{
+					PreserveFromHostSyncMembers( childJson );
+				}
+			}
+		}
+	}
+
+
+	private void RemoveFromHostSyncMembers( JsonObject componentJson )
+	{
+		var componentTypeName = componentJson.GetPropertyValue( Component.JsonKeys.Type, "" );
+		if ( string.IsNullOrEmpty( componentTypeName ) )
+			return;
+
+		var componentType = Game.TypeLibrary.GetType<Component>( componentTypeName, true );
+		if ( componentType is null || componentType.TargetType.IsAbstract )
+			return;
+
+		foreach ( var propertyAndAttribute in ReflectionQueryCache.SyncProperties( componentType.TargetType ) )
+		{
+			if ( !propertyAndAttribute.Attribute.Flags.HasFlag( SyncFlags.FromHost ) )
+				continue;
+
+			componentJson.Remove( propertyAndAttribute.Property.Name );
+		}
+	}
+
+	/// <summary>
 	/// Push ActionGraph source location and cache if we're a prefab instance or map object.
 	/// </summary>
 	private ActionGraph.SerializationOptionsScope? PushDeserializeContext()
@@ -1061,5 +1131,4 @@ public partial class GameObject
 		internal const string EditorPrefabInstanceNestedSource = "__EditorPrefabNestedInstance";
 		internal const string EditorSkipPrefabBreakOnRefresh = "__EditorSkipPrefabBreakOnRefresh";
 	}
-
 }
