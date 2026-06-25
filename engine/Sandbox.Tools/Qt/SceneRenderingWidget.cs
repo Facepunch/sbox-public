@@ -10,6 +10,25 @@ public class SceneRenderingWidget : Frame
 {
 	private static readonly HashSet<SceneRenderingWidget> All = new();
 
+	private static int _suspendRenderingCount;
+
+	/// <summary>
+	/// While true, <see cref="RenderAll"/> skips rendering every scene widget.
+	/// </summary>
+	public static bool IsRenderingSuspended => _suspendRenderingCount > 0;
+
+	/// <summary>
+	/// Temporarily stop all scene widgets (viewports, asset previews, thumbnails) from rendering
+	/// until the returned scope is disposed. Useful around heavy blocking work such as saving a
+	/// scene, where pumped frames would otherwise waste several seconds re-rendering every viewport.
+	/// Reference counted, so nested suspensions are safe.
+	/// </summary>
+	public static IDisposable SuspendRendering()
+	{
+		_suspendRenderingCount++;
+		return new Sandbox.Utility.DisposeAction( static () => _suspendRenderingCount-- );
+	}
+
 	internal SwapChainHandle_t SwapChain;
 
 	/// <summary>
@@ -258,6 +277,9 @@ public class SceneRenderingWidget : Frame
 
 	internal static void RenderAll()
 	{
+		if ( IsRenderingSuspended )
+			return;
+
 		foreach ( var widget in All )
 		{
 			if ( !widget.Visible ) continue;

@@ -354,6 +354,11 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			ProjectCookie.SetString( $"LastSaveLocation.{extension}", Path.GetDirectoryName( saveLocation ) );
 		}
 
+		// Serializing and compiling the scene blocks the main thread for a while. Any frames
+		// pumped during that time would otherwise re-render every scene viewport/preview (~tens
+		// of ms each), stacking up into a multi-second stall - so pause widget rendering for now.
+		using var suspendRendering = SceneRenderingWidget.SuspendRendering();
+
 		EditorEvent.Run( "scene.beforesave", Active.Scene );
 
 		var asset = AssetSystem.CreateResource( extension, saveLocation );
