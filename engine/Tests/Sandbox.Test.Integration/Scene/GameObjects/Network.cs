@@ -186,6 +186,49 @@ public class NetworkTest
 	}
 
 	[TestMethod]
+	public void MalformedClientTickDoesNotThrowAndSubsequentTickStillApplies()
+	{
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		clientAndHost.BecomeHost();
+		clientAndHost.Client.VisibilityOrigins = [new Vector3( 1f, 1f, 1f )];
+
+		var malformedData = new byte[0];
+		using ( var malformed = new ByteStream( 64 ) )
+		{
+			// Count says 1 origin but only 2 floats are provided, so z is missing.
+			malformed.Write( InternalMessageType.ClientTick );
+			malformed.Write( (char)1 );
+			malformed.Write( 10f );
+			malformed.Write( 20f );
+			malformedData = malformed.ToArray();
+		}
+
+		var validData = new byte[0];
+		using ( var valid = new ByteStream( 64 ) )
+		{
+			valid.Write( InternalMessageType.ClientTick );
+			valid.Write( (char)1 );
+			valid.Write( 1f );
+			valid.Write( 2f );
+			valid.Write( 3f );
+			validData = valid.ToArray();
+		}
+
+		var stream = new[] { malformedData, validData };
+		foreach ( var data in stream )
+		{
+			using var reader = ByteStream.CreateReader( data );
+			Networking.System.HandleIncomingMessage( new NetworkSystem.NetworkMessage { Source = clientAndHost.Client, Data = reader } );
+		}
+
+		// The malformed packet should have been caught and ignored, and the valid one applied.
+		Assert.AreEqual( 1, clientAndHost.Client.VisibilityOrigins.Length );
+		Assert.AreEqual( new Vector3( 1f, 2f, 3f ), clientAndHost.Client.VisibilityOrigins[0] );
+	}
+
+	[TestMethod]
 	public void RegisterSyncProps()
 	{
 		Assert.IsNotNull( Game.TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );

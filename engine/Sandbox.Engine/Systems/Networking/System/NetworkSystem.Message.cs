@@ -91,7 +91,19 @@ internal partial class NetworkSystem
 		Connection?.GetIncomingMessages( HandleIncomingMessage );
 	}
 
-	void HandleIncomingMessage( NetworkMessage msg )
+	internal void HandleIncomingMessage( NetworkMessage msg )
+	{
+		try
+		{
+			HandleIncomingMessageInternal( msg );
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Error processing network message from {msg.Source}" );
+		}
+	}
+
+	void HandleIncomingMessageInternal( NetworkMessage msg )
 	{
 		// Conna: If this message is not from the host and we're still connecting, ignore it.
 		if ( !IsHost && !msg.Source.IsHost && Connection.Local.IsConnecting )
@@ -162,14 +174,7 @@ internal partial class NetworkSystem
 			// defined in an assemblly we didn't recieve yet (because we're connecting)
 			// so just ignore these exceptions, but output an error for now so we know it's happening.
 			//
-			try
-			{
-				obj = TypeLibrary.FromBytes<object>( ref msg.Data );
-			}
-			catch ( Exception e )
-			{
-				Log.Warning( e, $"Skipping message from {msg.Source}, deserialize error ({e.Message})!" );
-			}
+			obj = TypeLibrary.FromBytes<object>( ref msg.Data );
 
 			if ( obj is null )
 			{
@@ -185,15 +190,7 @@ internal partial class NetworkSystem
 
 			if ( typeMessageHandlers.TryGetValue( obj.GetType(), out var h ) )
 			{
-				try
-				{
-					h( obj, msg.Source, requestGuid );
-				}
-				catch ( Exception e )
-				{
-					Log.Warning( e );
-				}
-
+				h( obj, msg.Source, requestGuid );
 				return;
 			}
 
@@ -209,15 +206,7 @@ internal partial class NetworkSystem
 
 		if ( messageHandlers.TryGetValue( type, out var handler ) )
 		{
-			try
-			{
-				handler( type, msg );
-			}
-			catch ( Exception e )
-			{
-				Log.Warning( e );
-			}
-
+			handler( type, msg );
 			return;
 		}
 
