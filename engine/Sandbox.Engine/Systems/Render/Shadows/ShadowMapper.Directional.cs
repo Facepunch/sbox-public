@@ -288,6 +288,14 @@ internal partial class ShadowMapper
 		gpuShadowData.Color = new Vector4( light.LightColor, light.FogStrength );
 		gpuShadowData.Direction = new Vector4( -light.WorldDirection, 0 );
 
+		// 3D skybox is fully static with baked light, keep the directional light for shading but skip shadow cascades
+		if ( view.GetRenderAttributesPtr().GetBoolValue( "IsSkybox", false ) )
+		{
+			gpuShadowData.CascadeCount = 0;
+			GPUDirectionalLightData = gpuShadowData;
+			return;
+		}
+
 		DirectionalShadowMemorySize = 0;
 
 		// native stuff does this WorldDirection shit, we can just do light.Rotation if stuff is rotated properly

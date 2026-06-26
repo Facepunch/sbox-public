@@ -101,6 +101,9 @@ internal class UploadBuildArtifacts
 				if ( !UploadZip( s3, bucket, zipPath, $"builds/{commit}.zip" ) )
 					return ExitCode.Failure;
 
+				// Hand the size to the later report-build step so it can record the artifact's byte size.
+				Utility.SetGitHubEnv( "BUILD_ARTIFACT_BYTES", zipSize.ToString() );
+
 				Log.Info( $"Build artifact available at {R2.PublicBaseUrl}/builds/{commit}.zip" );
 
 				return ExitCode.Success;

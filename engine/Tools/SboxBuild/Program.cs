@@ -39,6 +39,7 @@ internal class Program
 		AddCheckNativeTouchedCommand( rootCommand );
 		AddNotifySlackCommand( rootCommand );
 		AddUploadReferenceAssembliesCommand( rootCommand );
+		AddReportBuildCommand( rootCommand );
 
 		rootCommand.Invoke( args );
 		return Environment.ExitCode;
@@ -286,6 +287,13 @@ internal class Program
 		{
 			Environment.ExitCode = (int)NotifySlack.Run( message );
 		}, messageOption );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddReportBuildCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "report-build", "Report this build to the backend Test Lab (idempotent by commit)" );
+		cmd.SetHandler( () => { Environment.ExitCode = (int)new ReportBuild().Run(); } );
 		rootCommand.Add( cmd );
 	}
 
