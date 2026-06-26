@@ -6,7 +6,7 @@
 /// 
 [Title( "Noise" )]
 [Icon( "shuffle" )]
-[Alias( "noise" )]
+[Alias( "tools.terrain.noise" )]
 [Group( "1" )]
 [Order( 0 )]
 public class NoiseTool : BaseBrushTool

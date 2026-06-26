@@ -212,6 +212,11 @@ public class ModalSystem : IModalSystem
 		} );
 	}
 
+	public void BenchmarkResults( Guid batchId, IReadOnlyList<BenchmarkTestSummary> summaries )
+	{
+		Push( new BenchmarkResultModal( batchId, summaries ) );
+	}
+
 	public void Report( string packageIdent )
 	{
 		Push( new ReportModal { PackageIdent = packageIdent } );

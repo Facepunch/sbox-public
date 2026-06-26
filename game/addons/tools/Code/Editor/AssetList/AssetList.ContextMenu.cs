@@ -596,7 +596,7 @@ public partial class AssetList
 
 			if ( count > 1 )
 			{
-				var assets = e.SelectedList.Select( x => x.Asset ).ToArray();
+				var assets = e.SelectedList.Select( x => x.Asset ).Where( x => x != null ).Distinct().ToArray();
 				var o = e.Menu.AddOption( $"Batch Publish ({assets.Length})..", "cloud_upload", () => BatchPublisher.FromAssetsWithEnablePublish( assets ) );
 			}
 		}

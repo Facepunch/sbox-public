@@ -31,6 +31,11 @@ public interface IModalSystem
 	/// </summary>
 	public void PauseMenu();
 
+	/// <summary>
+	/// Shows the benchmark results panel after a local benchmark run completes.
+	/// </summary>
+	public void BenchmarkResults( Guid batchId, IReadOnlyList<BenchmarkTestSummary> summaries );
+
 	public bool IsModalOpen { get; }
 	public bool IsPauseMenuOpen { get; }
 }
@@ -196,4 +201,19 @@ public struct WorkshopPublishOptions
 
 		Categories[name] = prop;
 	}
+}
+
+/// <summary>
+/// Display-ready summary of a single benchmark test, passed to IModalSystem.BenchmarkResults.
+/// </summary>
+public struct BenchmarkTestSummary
+{
+	public string Name { get; set; }
+	public double AvgFps { get; set; }
+	public double AvgFrameTimeMs { get; set; }
+	/// <summary>P99 frame time — time exceeded by 1% of frames.</summary>
+	public double OnePercentLowMs { get; set; }
+	public double AvgGpuFrametimeMs { get; set; }
+	public double Stuttering { get; set; }
+	public double DurationSeconds { get; set; }
 }

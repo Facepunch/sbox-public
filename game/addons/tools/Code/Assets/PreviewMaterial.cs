@@ -3,8 +3,6 @@
 [AssetPreview( "vmat" )]
 class PreviewMaterial : AssetPreview
 {
-	//public override bool IsAnimatedPreview => false;
-
 	public override float PreviewWidgetCycleSpeed => 0.2f;
 
 	SkyBox2D skyboxObject;

@@ -1,10 +1,22 @@
-﻿using Sandbox.Utility;
+﻿using Sandbox.Hashing;
+using Sandbox.Utility;
+using System.Runtime.InteropServices;
 
 namespace Sandbox;
 
 public static partial class Gizmo
 {
 	internal static Instance Active { get; set; }
+
+	/// <summary>
+	/// Allocation-free pool key for a gizmo scene object. <see cref="Type"/> compares by reference.
+	/// </summary>
+	internal readonly record struct GizmoObjectKey( ulong PathHash, int Create, ulong KeyHash, Type Type, int Disambiguator = 0 );
+
+	/// <summary>
+	/// Deterministic, allocation-free hash of a char span. Not <see cref="string.GetHashCode()"/> (per-process random).
+	/// </summary>
+	internal static ulong HashString( ReadOnlySpan<char> span ) => XxHash3.HashToUInt64( MemoryMarshal.AsBytes( span ) );
 
 	/// <summary>
 	/// Holds the backend state for a Gizmo scope. This allows us to have multiple different gizmo
@@ -50,12 +62,12 @@ public static partial class Gizmo
 		/// <summary>
 		/// Last frame's objects that are available for reuse
 		/// </summary>
-		internal Dictionary<string, object> Pool { get; set; }
+		internal Dictionary<GizmoObjectKey, object> Pool { get; set; }
 
 		/// <summary>
 		/// This frame's created (or re-used) objects
 		/// </summary>
-		internal Dictionary<string, object> Entries { get; set; }
+		internal Dictionary<GizmoObjectKey, object> Entries { get; set; }
 
 		/// <summary>
 		/// This frame's created (or re-used) objects
@@ -317,15 +329,23 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 		internal T FindOrCreate<T>( string key, Func<T> value ) where T : SceneObject
 		{
 			Active.scope.Create++;
-			var path = $"{Sandbox.Gizmo.Path}#{Active.scope.Create}/{key}/{typeof( T )}";
+
+			var objectKey = new GizmoObjectKey(
+				HashString( Sandbox.Gizmo.Path ),
+				Active.scope.Create,
+				HashString( key ),
+				typeof( T ) );
+
+			// Disambiguate key collisions so the second object doesn't stomp (and leak) the first in Entries.
+			while ( Entries.ContainsKey( objectKey ) ) objectKey = objectKey with { Disambiguator = objectKey.Disambiguator + 1 };
 
 			//
 			// Do we have this in our pool (created last frame)
 			// If so, we can re-use it.
 			//
-			if ( Pool.TryGetValue( path, out var obj ) )
+			if ( Pool.TryGetValue( objectKey, out var obj ) )
 			{
-				Pool.Remove( path );
+				Pool.Remove( objectKey );
 			}
 
 			//
@@ -340,16 +360,7 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 			if ( obj == null )
 				return default;
 
-			//
-			// If this happens then something is going wrong. We're creating objects with the same path
-			// If we ignore it Entries values will get stomped and we'll leak objects. So create a unique value.
-			//
-			if ( Entries.ContainsKey( path ) )
-			{
-				path = $"{path}[{Guid.NewGuid()}]";
-			}
-
-			Entries[path] = obj;
+			Entries[objectKey] = obj;
 			return obj as T;
 		}
 

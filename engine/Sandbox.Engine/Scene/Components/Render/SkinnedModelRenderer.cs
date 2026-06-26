@@ -380,7 +380,7 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 		if ( PlayAnimationsInEditorScene ) return true;
 
 		// Do we have any modified animgraph parameters?
-		if ( parameters.Count > 0 )
+		if ( StoredParameterCount > 0 )
 			return true;
 
 		// If we're not using animgraph, do we have a sequence selected?

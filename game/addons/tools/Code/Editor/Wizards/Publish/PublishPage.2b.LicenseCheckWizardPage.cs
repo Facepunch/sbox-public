@@ -27,7 +27,9 @@ partial class PublishWizard
 		Task FetchTask;
 		List<PackageLicenseEntry> Entries = new();
 
-		record PackageLicenseEntry( Package Package, LicenseFlags Flags );
+		readonly HashSet<PackageLicenseEntry> ExpandedEntries = new();
+		record PackageLicenseEntry( string Ident, Package Package, LicenseFlags Flags, IReadOnlyList<Asset> Sources );
+		record ReferenceRow( PackageLicenseEntry Parent, Asset Asset );
 
 		[Flags]
 		enum LicenseFlags
@@ -96,6 +98,9 @@ partial class PublishWizard
 			// Right column - asset list
 			var right = row.AddColumn();
 			right.Add( new Label( "Referenced Cloud Assets" ) );
+			var hint = new Label( "Click a package to see which project assets reference it." );
+			hint.Color = Theme.TextControl.WithAlpha( 0.6f );
+			right.Add( hint );
 			right.Spacing = 8;
 
 			AssetList = new ListView( null );
@@ -107,7 +112,8 @@ partial class PublishWizard
 				Paint.DrawRect( AssetList.LocalRect, Theme.ControlRadius );
 				return false;
 			};
-			AssetList.ItemPaint = PaintAssetEntry;
+			AssetList.ItemPaint = PaintItem;
+			AssetList.ItemClicked = OnItemClicked;
 			right.Add( AssetList, 1 );
 
 			// Start fetching license data
@@ -117,20 +123,22 @@ partial class PublishWizard
 		async Task FetchLicenses()
 		{
 			Entries.Clear();
+			ExpandedEntries.Clear();
 
-			var references = CloudAsset.GetAssetReferences( true );
-			if ( references.Count == 0 )
+			var referenceSources = CloudAsset.GetAssetReferenceSources( true );
+			if ( referenceSources.Count == 0 )
 				return;
 
 			// Fetch all packages in parallel with a concurrency limit
 			// useCache: false to ensure we get fresh data with license fields
 			using var semaphore = new SemaphoreSlim( 10 );
-			var tasks = references.Select( async ident =>
+			var tasks = referenceSources.Select( async kv =>
 			{
 				await semaphore.WaitAsync();
 				try
 				{
-					return await Package.FetchAsync( ident, partial: false, useCache: false );
+					var package = await Package.FetchAsync( kv.Key, partial: false, useCache: false );
+					return (Ident: kv.Key, Package: package, Sources: kv.Value);
 				}
 				finally
 				{
@@ -138,15 +146,19 @@ partial class PublishWizard
 				}
 			} ).ToList();
 
-			var packages = await Task.WhenAll( tasks );
+			var results = await Task.WhenAll( tasks );
 
-			foreach ( var package in packages )
+			foreach ( var result in results )
 			{
-				if ( package is null )
+				if ( result.Package is null )
 					continue;
 
-				var flags = CategorizePackage( package );
-				Entries.Add( new PackageLicenseEntry( package, flags ) );
+				var flags = CategorizePackage( result.Package );
+				var sources = result.Sources
+					.OrderBy( a => a.Path ?? a.Name, StringComparer.OrdinalIgnoreCase )
+					.ToList();
+
+				Entries.Add( new PackageLicenseEntry( result.Ident, result.Package, flags, sources ) );
 			}
 
 			// Sort: non-commercial first, then attribution-only, then unknown, then free
@@ -188,7 +200,46 @@ partial class PublishWizard
 			AttributionWarning.Visible = hasAttribution;
 			NoLicenseWarning.Visible = hasNoLicense;
 
-			AssetList.SetItems( Entries );
+			RebuildList();
+		}
+
+		void RebuildList()
+		{
+			var rows = new List<object>();
+			foreach ( var entry in Entries )
+			{
+				rows.Add( entry );
+
+				if ( !ExpandedEntries.Contains( entry ) )
+					continue;
+
+				foreach ( var asset in entry.Sources )
+					rows.Add( new ReferenceRow( entry, asset ) );
+			}
+
+			AssetList.SetItems( rows );
+		}
+
+		void OnItemClicked( object value )
+		{
+			if ( value is PackageLicenseEntry entry )
+			{
+				if ( entry.Sources.Count == 0 )
+					return;
+
+				if ( !ExpandedEntries.Remove( entry ) )
+					ExpandedEntries.Add( entry );
+
+				RebuildList();
+				return;
+			}
+
+			// Clicking a reference row focuses that asset in the browser
+			if ( value is ReferenceRow reference && reference.Asset is not null )
+			{
+				MainAssetBrowser.Instance?.Local?.FocusOnAsset( reference.Asset );
+				EditorUtility.InspectorObject = reference.Asset;
+			}
 		}
 
 		void CopyAttributionToClipboard()
@@ -201,11 +252,21 @@ partial class PublishWizard
 			EditorUtility.Clipboard.Copy( text );
 		}
 
-		void PaintAssetEntry( VirtualWidget item )
+		void PaintItem( VirtualWidget item )
 		{
-			if ( item.Object is not PackageLicenseEntry entry )
-				return;
+			switch ( item.Object )
+			{
+				case PackageLicenseEntry entry:
+					PaintAssetEntry( item, entry );
+					break;
+				case ReferenceRow reference:
+					PaintReferenceRow( item, reference );
+					break;
+			}
+		}
 
+		void PaintAssetEntry( VirtualWidget item, PackageLicenseEntry entry )
+		{
 			Paint.SetDefaultFont();
 
 			var r = item.Rect.Shrink( 8, 2 );
@@ -219,8 +280,21 @@ partial class PublishWizard
 				Paint.DrawRect( item.Rect, Theme.ControlRadius );
 			}
 
+			bool hasSources = entry.Sources.Count > 0;
+			bool isExpanded = ExpandedEntries.Contains( entry );
+
+			// Expand/Collapse arrow
+			float contentLeft = item.Rect.Left + 4;
+			if ( hasSources )
+			{
+				var chevronRect = new Rect( item.Rect.Left + 4, item.Rect.Top, item.Rect.Height, item.Rect.Height );
+				Paint.SetPen( item.Hovered ? Color.White : Theme.TextControl.WithAlpha( 0.7f ) );
+				Paint.DrawIcon( chevronRect, isExpanded ? "expand_more" : "chevron_right", 16, TextFlag.Center );
+				contentLeft = chevronRect.Right;
+			}
+
 			// Draw multiple color indicator bars on the left for each flag
-			float barX = item.Rect.Left;
+			float barX = contentLeft;
 			float barWidth = 4;
 			float barGap = 2;
 
@@ -234,14 +308,19 @@ partial class PublishWizard
 				barX += barWidth + barGap;
 			}
 
-			// Draw package title
+			// Draw package title (with reference count)
 			var textColor = item.Hovered ? Color.White : Theme.TextControl;
 			Paint.SetPen( textColor );
 
 			var titleRect = r;
 			titleRect.Left = barX + 4;
 			titleRect.Right -= 160;
-			Paint.DrawText( titleRect, $"{entry.Package.Title ?? entry.Package.FullIdent}", TextFlag.LeftCenter | TextFlag.SingleLine );
+
+			var title = entry.Package.Title ?? entry.Package.FullIdent;
+			if ( hasSources )
+				title = $"{title} ({entry.Sources.Count})";
+
+			Paint.DrawText( titleRect, title, TextFlag.LeftCenter | TextFlag.SingleLine );
 
 			Paint.SetDefaultFont( 6 );
 
@@ -257,6 +336,35 @@ partial class PublishWizard
 				var finalRect = Paint.DrawText( tagRect, label, TextFlag.RightCenter | TextFlag.SingleLine );
 				tagX -= finalRect.Width + 4;
 			}
+		}
+
+		void PaintReferenceRow( VirtualWidget item, ReferenceRow reference )
+		{
+			var asset = reference.Asset;
+
+			Paint.ClearPen();
+			Paint.SetBrush( Color.Black.WithAlpha( item.Hovered ? 0.10f : 0.18f ) );
+			Paint.DrawRect( item.Rect );
+
+			var r = item.Rect.Shrink( 8, 2 );
+			r.Left += 28; // Indent beneath the package row
+
+			// Asset Icon
+			var iconRect = new Rect( r.Left, item.Rect.Top + 4, item.Rect.Height - 8, item.Rect.Height - 8 );
+			var icon = asset?.AssetType?.Icon16;
+			if ( icon is not null )
+			{
+				Paint.ClearPen();
+				Paint.Draw( iconRect, icon );
+			}
+
+			// Asset Name
+			var textRect = r;
+			textRect.Left = iconRect.Right + 8;
+
+			Paint.SetDefaultFont( 7 );
+			Paint.SetPen( item.Hovered ? Color.White : Theme.TextControl.WithAlpha( 0.85f ) );
+			Paint.DrawText( textRect, asset?.Path ?? asset?.Name ?? "Unknown asset", TextFlag.LeftCenter | TextFlag.SingleLine );
 		}
 
 		static IEnumerable<LicenseFlags> GetIndividualFlags( LicenseFlags flags )

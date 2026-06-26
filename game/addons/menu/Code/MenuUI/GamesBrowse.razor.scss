@@ -1,0 +1,115 @@
+@import "/styles/_theme.scss";
+
+GamesBrowse
+{
+    background-color: $default-950;
+    align-items: center;
+    justify-content: center;
+}
+
+GamesBrowse Page
+{
+    width: 100%;
+    max-width: $screen-w-xl;
+}
+
+GamesBrowse h2
+{
+    font-size: 2rem;
+    font-weight: 650;
+    padding: 2rem;
+    padding-bottom: 0;
+}
+
+GamesBrowse .categories
+{
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 5rem;
+    gap: 1rem;
+    justify-content: space-around;
+}
+
+GamesBrowse .category
+{
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	min-width: 300px;
+	max-width: 500px;
+	min-height: 300px;
+	flex-grow: 1;
+	background: rgba( $default-900, 0.8 );
+	border: 1px solid #000a;
+	border-radius: $rounding-large;
+	outline: 1px solid #fff1;
+	padding: 2rem 1.5rem;
+	gap: 0.75rem;
+	cursor: pointer;
+	position: relative;
+	overflow: hidden;
+
+	.media
+	{
+		position: absolute;
+		inset: 0;
+		background-position: center;
+		background-size: cover;
+		border-radius: 5px;
+		overflow: hidden;
+		aspect-ratio: 1;
+	}
+
+	.inner
+	{
+		position: absolute;
+		bottom: -3px;
+		left: -3px;
+		right: -3px;
+		overflow: hidden;
+		padding: 1rem;
+		flex-direction: column;
+		color: $default-text;
+		backdrop-filter: blur( 10px ) saturate( 0 ) contrast( 0.5 ) brightness( 0.2 );
+	}
+
+	&:hover
+	{
+		background: rgba( $primary-blue, 0.15 );
+		border-color: $primary-blue;
+
+		.icon
+		{
+			color: $default-text;
+		}
+
+		.media
+		{
+		}
+	}
+
+	.icon
+	{
+		font-size: 1.5rem;
+		color: $default-300;
+		transition: all 150ms $easing;
+		margin-right: 0.5rem;
+	}
+
+	.title
+	{
+		font-family: $font-heading;
+		font-size: 1.5rem;
+		font-weight: 600;
+		flex-shrink: 0;
+	}
+
+	.description
+	{
+		font-size: 1rem;
+		color: $default-200;
+		flex-shrink: 0;
+		text-align: justify;
+	}
+}

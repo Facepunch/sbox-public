@@ -1,5 +1,6 @@
 ﻿using Facepunch.ActionGraphs;
 using Sandbox.ActionGraphs;
+using System.Buffers;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -8,6 +9,16 @@ namespace Sandbox;
 public partial class GameObject
 {
 	internal const int GameObjectVersion = 2;
+
+	// The only flags we actually save. Everything else is runtime junk (Loading, Bone, etc) and saving it
+	// just causes phantom Flags overrides in prefab diffs. Networking is the exception, see below.
+	internal const GameObjectFlags PersistedFlags =
+					GameObjectFlags.ProceduralBone |
+					GameObjectFlags.EditorOnly |
+					GameObjectFlags.NotNetworked |
+					GameObjectFlags.Absolute |
+					GameObjectFlags.PhysicsBone |
+					GameObjectFlags.Hidden;
 
 	/// <summary>
 	/// Helper variable for editor refreshes during deserialization.
@@ -188,7 +199,10 @@ public partial class GameObject
 
 		json[JsonKeys.Id] = Id;
 		if ( GameObjectVersion != 0 ) json[JsonKeys.Version] = GameObjectVersion;
-		json[JsonKeys.Flags] = (long)Flags;
+
+		// Networking wants all the flags (it applies them verbatim on the other end), otherwise just the saved ones.
+		var serializedFlags = (options.SceneForNetwork || options.SingleNetworkObject) ? Flags : (Flags & PersistedFlags);
+		json[JsonKeys.Flags] = (long)serializedFlags;
 		json[JsonKeys.Name] = Name;
 
 		SerializeTransform( json );
@@ -441,8 +455,20 @@ public partial class GameObject
 
 		if ( node[JsonKeys.Components] is JsonArray componentArray )
 		{
-			var existingComponents = options.IsRefreshing ? Components.GetAll().ToHashSet() : null;
-			var processedComponents = options.IsRefreshing ? new HashSet<Component>( existingComponents.Count ) : null;
+			// Track which existing components we process so we can destroy any that disappeared,
+			// keeping an unchanged refresh allocation-free.
+			Component[] existing = null;
+			int existingCount = 0;
+			Component[] processed = null;
+			int processedCount = 0;
+
+			if ( options.IsRefreshing )
+			{
+				existing = ArrayPool<Component>.Shared.Rent( Components.Count );
+				foreach ( var c in Components.GetAll() ) existing[existingCount++] = c;
+
+				processed = ArrayPool<Component>.Shared.Rent( componentArray.Count );
+			}
 
 			for ( int componentIndex = 0; componentIndex < componentArray.Count; componentIndex++ )
 			{
@@ -527,7 +553,7 @@ public partial class GameObject
 
 				if ( options.IsRefreshing )
 				{
-					processedComponents.Add( c );
+					processed[processedCount++] = c;
 
 					// change order of components needed
 					if ( Components.IndexOf( c ) != componentIndex )
@@ -539,20 +565,22 @@ public partial class GameObject
 
 			if ( options.IsRefreshing )
 			{
-				// For network refresh, filter out components that shouldn't be networked
-				if ( options.IsNetworkRefresh )
+				// Destroy any pre-existing component we didn't process this pass. We iterate the snapshot,
+				// not the live list, so destroying here is safe.
+				for ( int i = 0; i < existingCount; i++ )
 				{
-					existingComponents.RemoveWhere( c => c.Flags.Contains( ComponentFlags.NotNetworked ) );
-				}
+					var existingComponent = existing[i];
 
-				// Common operation for both refresh types
-				existingComponents.ExceptWith( processedComponents );
+					if ( WasProcessed( processed, processedCount, existingComponent ) ) continue;
 
-				// Common destruction for both refresh types
-				foreach ( var existingComponent in existingComponents )
-				{
+					// Keep components that shouldn't be networked during a network refresh.
+					if ( options.IsNetworkRefresh && existingComponent.Flags.Contains( ComponentFlags.NotNetworked ) ) continue;
+
 					existingComponent.Destroy();
 				}
+
+				ArrayPool<Component>.Shared.Return( processed, clearArray: true );
+				ArrayPool<Component>.Shared.Return( existing, clearArray: true );
 			}
 		}
 
@@ -625,6 +653,16 @@ public partial class GameObject
 		UpdateEnabledStatus();
 	}
 
+	private static bool WasProcessed( Component[] processed, int count, Component component )
+	{
+		for ( int i = 0; i < count; i++ )
+		{
+			if ( ReferenceEquals( processed[i], component ) ) return true;
+		}
+
+		return false;
+	}
+
 	private void DeserializeFlags( JsonObject node, DeserializeOptions options )
 	{
 		if ( !node.TryGetPropertyValue( JsonKeys.Flags, out var inFlagNode ) )
@@ -638,20 +676,8 @@ public partial class GameObject
 			return;
 		}
 
-		// We only want to deserialize certain flags, the rest are runtime only.
-		const GameObjectFlags flagsToKeep =
-						GameObjectFlags.ProceduralBone |
-						GameObjectFlags.EditorOnly |
-						GameObjectFlags.NotNetworked |
-						GameObjectFlags.Absolute |
-						GameObjectFlags.PhysicsBone |
-						GameObjectFlags.Hidden;
-
-		// Clear the flags we're about to deserialize
-		Flags &= ~flagsToKeep;
-
-		// Copy set flags from source
-		Flags |= (inFlags & flagsToKeep);
+		// Only take the flags we actually save, keep whatever runtime ones we already have.
+		Flags = (Flags & ~PersistedFlags) | (inFlags & PersistedFlags);
 	}
 
 	private bool IsPrefabLoaded( PrefabFile prefabFile )

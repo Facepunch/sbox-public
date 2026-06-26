@@ -40,6 +40,9 @@ namespace DotRecast.Detour
 		private DtMeshTile m_nextFree; //< Freelist of tiles.
 		private DtMeshTile[] m_tiles; //< List of tiles.
 
+		// Reused by AddTile/RemoveTile neighbour connection
+		private readonly DtMeshTile[] m_neisScratch = new DtMeshTile[32];
+
 		/** The maximum number of vertices per navigation polygon. */
 		private int m_maxVertPerPoly;
 
@@ -454,12 +457,11 @@ namespace DotRecast.Detour
 			ConnectExtOffMeshLinks( tile, tile, -1 );
 
 			// Create connections with neighbour tiles.
-			const int MAX_NEIS = 32;
-			DtMeshTile[] neis = new DtMeshTile[MAX_NEIS];
+			DtMeshTile[] neis = m_neisScratch;
 			int nneis;
 
 			// Connect with layers in current tile.
-			nneis = GetTilesAt( header.x, header.y, neis, MAX_NEIS );
+			nneis = GetTilesAt( header.x, header.y, neis, neis.Length );
 			for ( int j = 0; j < nneis; ++j )
 			{
 				if ( neis[j] == tile )
@@ -476,7 +478,7 @@ namespace DotRecast.Detour
 			// Connect with neighbour tiles.
 			for ( int i = 0; i < 8; ++i )
 			{
-				nneis = GetNeighbourTilesAt( header.x, header.y, i, neis, MAX_NEIS );
+				nneis = GetNeighbourTilesAt( header.x, header.y, i, neis, neis.Length );
 				for ( int j = 0; j < nneis; ++j )
 				{
 					ConnectExtLinks( tile, neis[j], i );
@@ -539,12 +541,11 @@ namespace DotRecast.Detour
 			}
 
 			// Remove connections to neighbour tiles.
-			const int MAX_NEIS = 32;
-			DtMeshTile[] neis = new DtMeshTile[MAX_NEIS];
+			DtMeshTile[] neis = m_neisScratch;
 			int nneis = 0;
 
 			// Disconnect from other layers in current tile.
-			nneis = GetTilesAt( tile.data.header.x, tile.data.header.y, neis, MAX_NEIS );
+			nneis = GetTilesAt( tile.data.header.x, tile.data.header.y, neis, neis.Length );
 			for ( int j = 0; j < nneis; ++j )
 			{
 				if ( neis[j] == tile ) continue;
@@ -554,7 +555,7 @@ namespace DotRecast.Detour
 			// Disconnect from neighbour tiles.
 			for ( int i = 0; i < 8; ++i )
 			{
-				nneis = GetNeighbourTilesAt( tile.data.header.x, tile.data.header.y, i, neis, MAX_NEIS );
+				nneis = GetNeighbourTilesAt( tile.data.header.x, tile.data.header.y, i, neis, neis.Length );
 				for ( int j = 0; j < nneis; ++j )
 				{
 					UnconnectLinks( neis[j], tile );

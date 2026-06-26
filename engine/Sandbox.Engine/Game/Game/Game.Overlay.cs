@@ -231,6 +231,25 @@ public static partial class Game
 		}
 
 		/// <summary>
+		/// Starts a local benchmark run from within the game. The results panel is shown when all packages complete.
+		/// </summary>
+		/// <param name="packageFilter">Package names to include (null = all configured packages)</param>
+		/// <param name="testFilter">Individual test names to run (null = all). Passed to packages via the benchmark.tests game setting.</param>
+		public static void RunLocalBenchmarks( string[] packageFilter = null, string[] testFilter = null )
+		{
+			BenchmarkOrchestrator.Run( packageFilter, testFilter );
+		}
+
+		/// <summary>
+		/// Opens the benchmark results modal with the given batch ID and per-test summaries.
+		/// </summary>
+		public static void ShowBenchmarkResults( Guid batchId, IReadOnlyList<BenchmarkTestSummary> summaries )
+		{
+			using var scope = GlobalContext.MenuScope();
+			IModalSystem.Current?.BenchmarkResults( batchId, summaries );
+		}
+
+		/// <summary>
 		/// Opens the pause menu overlay. This is the same menu that appears when pressing ESC.
 		/// </summary>
 		public static void ShowPauseMenu()

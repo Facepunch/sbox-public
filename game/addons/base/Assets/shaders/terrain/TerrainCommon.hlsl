@@ -258,7 +258,7 @@ class Terrain
     {
         float2 texUV;
         float4 weights;
-        CompactTerrainMaterial mat00, mat10, mat01, mat11;
+        CompactTerrainMaterial mat00 = CompactTerrainMaterial::Decode( 0 ), mat10 = CompactTerrainMaterial::Decode( 0 ), mat01 = CompactTerrainMaterial::Decode( 0 ), mat11 = CompactTerrainMaterial::Decode( 0 );
 
         if ( !FetchTerrainMaterials( worldPos, texUV, mat00, mat10, mat01, mat11, weights ) )
             return float3( 1, 1, 1 );
@@ -274,7 +274,7 @@ class Terrain
     {
         float2 texUV;
         float4 weights;
-        CompactTerrainMaterial mat00, mat10, mat01, mat11;
+        CompactTerrainMaterial mat00 = CompactTerrainMaterial::Decode( 0 ), mat10 = CompactTerrainMaterial::Decode( 0 ), mat01 = CompactTerrainMaterial::Decode( 0 ), mat11 = CompactTerrainMaterial::Decode( 0 );
 
         if ( !FetchTerrainMaterials( worldPos, texUV, mat00, mat10, mat01, mat11, weights ) )
             return float3( 1, 1, 1 );

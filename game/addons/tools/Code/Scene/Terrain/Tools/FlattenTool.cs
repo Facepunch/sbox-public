@@ -5,7 +5,7 @@
 /// </summary>
 [Title( "Flatten" )]
 [Icon( "trending_flat" )]
-[Alias( "flatten" )]
+[Alias( "tools.terrain.flatten" )]
 [Group( "1" )]
 [Order( 0 )]
 public class FlattenTool : BaseBrushTool

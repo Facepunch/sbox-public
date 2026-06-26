@@ -3,6 +3,7 @@
 [AssetPreview( "vmdl" )]
 class PreviewModel : AssetPreview
 {
+	public override bool IsAnimatedPreview => true;
 	public override float PreviewWidgetCycleSpeed => 0.2f;
 
 	SkinnedModelRenderer modelRenderer;

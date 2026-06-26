@@ -473,6 +473,27 @@ public class RefreshTest : SceneTest
 		Assert.AreEqual( originalIds["GrandChild2A"], refreshedGrandChild2A.Id, "GrandChild2A ID should be preserved" );
 	}
 
+	// A refresh applies flags verbatim. A plain (disk-style) snapshot has runtime flags stripped, so a refresh
+	// from it keeps the persisted flags and drops the runtime ones (which then get re-derived at runtime).
+	[TestMethod]
+	public void RefreshFromPlainSnapshotAppliesFlagsVerbatim()
+	{
+		using var scope = new Scene().Push();
+
+		var go = new GameObject( true, "Object" );
+		go.Flags |= GameObjectFlags.Hidden;
+
+		var json = go.Serialize(); // plain: strips runtime flags
+
+		// Runtime flag set on the live object after the snapshot was taken.
+		go.Flags |= GameObjectFlags.Loading;
+
+		go.Deserialize( json, new GameObject.DeserializeOptions { IsRefreshing = true } );
+
+		Assert.IsTrue( go.Flags.Contains( GameObjectFlags.Hidden ), "persisted flag should be applied" );
+		Assert.IsFalse( go.Flags.Contains( GameObjectFlags.Loading ), "verbatim refresh from a plain snapshot clears runtime flags" );
+	}
+
 	// Helper method to find a child object in the JSON by name
 	private JsonObject FindChildByName( JsonObject parentJson, string childName )
 	{
