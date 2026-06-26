@@ -3,7 +3,6 @@
 
 #include "common/classes/ClusterCulling.hlsl"
 #include "common/classes/Light.hlsl"
-#include "common/classes/LTC.hlsl"
 #include "common/classes/Bindless.hlsl"
 #include "common/classes/Sheet.hlsl"
 #include "common/classes/Depth.hlsl"

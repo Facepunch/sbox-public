@@ -227,7 +227,7 @@ public static partial class TextRendering
 				Texture = Texture.Create( width, height, ImageFormat.BGRA8888 )
 									.WithName( "textblock" )
 									.WithData( bitmap.GetPixels(), width * height * bitmap.BytesPerPixel )
-									.WithDynamicUsage()
+									.WithStaticUsage()
 									.WithMips( mips )
 									.Finish();
 			}

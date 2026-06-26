@@ -96,6 +96,13 @@ public sealed class ParticleModelRenderer : ParticleController, Component.Execut
 	public Material MaterialOverride { get; set; }
 
 	/// <summary>
+	/// When set, particles with local space enabled will follow this skinned model's bones.
+	/// Falls back to a <see cref="SkinnedModelRenderer"/> on this object or its parents when unset.
+	/// </summary>
+	[Property]
+	public SkinnedModelRenderer Target { get; set; }
+
+	/// <summary>
 	/// If true, the models will rotate relative to the this GameObject
 	/// </summary>
 	[Property]

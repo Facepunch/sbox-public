@@ -96,79 +96,35 @@ COMMON
 
 	float2 SampleProbeDistance( TextureCube depthTex, float3 targetDirection )
 	{
-		const uint sampleCount = 256;
-		// Very tight cone - approximately 1 octahedral texel
-		const float coneAngle = 0.04f;
-		
-		float weightedDistance = 0.0f;
-		float weightedDistance2 = 0.0f;
-		float totalWeight = 0.0f;
-		
-		// Track min distance for conservative depth estimation
-		float minDistance = MaxProbeDistance;
-		
-		// Build orthonormal basis around target direction
-		float3 N = normalize( targetDirection );
-		float3 up = abs( N.z ) < 0.999f ? float3( 0, 0, 1 ) : float3( 1, 0, 0 );
-		float3 T = normalize( cross( up, N ) );
-		float3 B = cross( N, T );
-		
-		const float goldenRatio = 1.61803398874989484820459;
-		const float PI = 3.14159265358979323846264;
-		
+		const uint sampleCount = 1024;
+
+		const float probeDistanceExponent = 50.0f;
+
+		// result = ( sum(dist * w), sum(dist^2 * w), sum(w) )
+		float3 result = 0.0f;
+
 		[loop]
 		for ( uint i = 0; i < sampleCount; ++i )
 		{
-			// Fibonacci spiral within cone
-			float fi = (i + 0.5f);
-			float phi = 2.0f * PI * goldenRatio * fi;
-			float r = sqrt( fi / sampleCount );
-			
-			float theta = r * coneAngle;
-			float sinTheta = sin( theta );
-			float cosTheta = cos( theta );
-			
-			// Local direction in tangent space
-			float3 localDir = float3( cos( phi ) * sinTheta, sin( phi ) * sinTheta, cosTheta );
-			
-			// Transform to world space
-			float3 rayDirection = normalize( T * localDir.x + B * localDir.y + N * localDir.z );
-			
-			// Weight by cosine falloff from center
-			float weight = cosTheta * cosTheta; // Squared for tighter center focus
-			
-			float distance = GetDepthDistance( depthTex, rayDirection );
-			distance = clamp( distance, 0.01f, MaxProbeDistance );
-			
-			minDistance = min( minDistance, distance );
-			
-			weightedDistance += distance * weight;
-			weightedDistance2 += distance * distance * weight;
-			totalWeight += weight;
+			float3 rayDirection = FibonacciDirection( i, sampleCount );
+
+			float weight = pow( max( 0.0f, dot( targetDirection, rayDirection ) ), probeDistanceExponent );
+			if ( weight <= 0.0f )
+				continue;
+
+			float distance = abs( GetDepthDistance( depthTex, rayDirection ) );
+			distance = min( distance, MaxProbeDistance );
+
+			result += float3( distance * weight, distance * distance * weight, weight );
 		}
-		
-		if ( totalWeight > 0.0f )
-		{
-			float mean = weightedDistance / totalWeight;
-			float meanSq = weightedDistance2 / totalWeight;
-			float variance = max( 0.0f, meanSq - mean * mean );
-			
-			// Conservative depth: bias strongly toward minimum distance
-			// This is the key to preventing light leaks - we'd rather have
-			// slightly darker shadows than any light bleeding through
-			float depthRange = mean - minDistance;
-			float conservativeBias = saturate( depthRange / max( mean, 0.1f ) );
-			
-			// Blend 50% toward minimum when there's depth discontinuity
-			mean = lerp( mean, minDistance, conservativeBias * 0.5f );
-			
-			// Also reduce variance at discontinuities to sharpen the shadow
-			variance *= (1.0f - conservativeBias * 0.5f);
-			
-			return float2( mean, variance );
-		}
-		
-		return float2( MaxProbeDistance, 0.0f );
+
+		if ( result.z > 1e-9f )
+			result.xy /= result.z;
+		else
+			return float2( MaxProbeDistance, MaxProbeDistance * MaxProbeDistance );
+
+		// Store the two distance moments: mean and mean of distance-squared.
+		return result.xy;
 	}
 
 
@@ -185,9 +141,10 @@ CS
 		#define DDGI_OCT_RESOLUTION DDGI_DISTANCE_OCT_RESOLUTION
 	#endif
 
-	#define TILE_SIZE (DDGI_OCT_RESOLUTION + 2)
+	#define TILE_SIZE DDGI_OCT_RESOLUTION
 
-	groupshared float4 gs_ProbeData[TILE_SIZE][TILE_SIZE];
+	// Staging buffer for the whole tile so we can blend octahedral edges before writing out
+	groupshared float4 g_TileResults[TILE_SIZE][TILE_SIZE];
 
 	// Integrate irradiance from cubemap for a given direction
 	float4 IntegrateIrradiance( float3 direction )
@@ -201,37 +158,9 @@ CS
 	float4 IntegrateDistance( float3 direction )
 	{
 		float2 distanceData = SampleProbeDistance( SourceDepth, direction );
-		float mean = min( distanceData.x, 65504.0f );
-		float variance = min( distanceData.y, 65504.0f );
-		return float4( mean, variance, 0, 0 );
-	}
-
-	// Get the source texel for border pixels (octahedral wrap)
-	uint2 GetBorderSourceTexel( uint2 localPos, uint octResolution, uint tileSize )
-	{
-		bool isLeft   = ( localPos.x == 0 );
-		bool isRight  = ( localPos.x == tileSize - 1 );
-		bool isBottom = ( localPos.y == 0 );
-		bool isTop    = ( localPos.y == tileSize - 1 );
-
-		bool isCorner = ( isLeft || isRight ) && ( isBottom || isTop );
-		bool isRowTexel = !isLeft && !isRight;
-
-		if ( isCorner )
-		{
-			// Corners: diagonally opposite interior corner
-			return uint2( isRight ? 1 : octResolution, isTop ? 1 : octResolution );
-		}
-		else if ( isRowTexel )
-		{
-			// Top/bottom border: mirror X, step Y into interior
-			return uint2( ( tileSize - 1 ) - localPos.x, localPos.y + ( isTop ? -1 : 1 ) );
-		}
-		else
-		{
-			// Left/right border: step X into interior, mirror Y
-			return uint2( localPos.x + ( isRight ? -1 : 1 ), ( tileSize - 1 ) - localPos.y );
-		}
+		float mean = min( distanceData.x, 65504.0f );        // Mean distance
+		float meanSquared = min( distanceData.y, 65504.0f ); // Mean of distance squared
+		return float4( mean, meanSquared, 0, 0 );
 	}
 
 	[numthreads( TILE_SIZE, TILE_SIZE, 1 )]
@@ -239,37 +168,45 @@ CS
 	{
 		uint2 localPos = vGroupThreadId.xy;
 		uint3 probeIndex = (uint3)ProbeIndex;
-		
+
 		uint2 baseCoord = DDGI::BaseCoordinate( probeIndex.xy, DDGI_OCT_RESOLUTION );
-		bool isInterior = all( localPos >= 1 && localPos <= DDGI_OCT_RESOLUTION );
 
-		// Phase 1: Interior threads integrate, others initialize to zero
-		gs_ProbeData[localPos.y][localPos.x] = 0;
+		// Borderless: every texel maps directly to an octahedral direction
+		float2 octCoord = DDGI::TexelToOctahedralCoord( localPos, DDGI_OCT_RESOLUTION );
+		float3 direction = DDGI::OctahedralDecode( octCoord );
 
-		if ( isInterior )
-		{
-			uint2 interiorIdx = localPos - 1;
-			float2 octCoord = DDGI::TexelToOctahedralCoord( interiorIdx, DDGI_OCT_RESOLUTION );
-			float3 direction = DDGI::OctahedralDecode( octCoord );
+		#if D_PASS == 0
+			float4 value = IntegrateIrradiance( direction );
+		#else
+			float4 value = IntegrateDistance( direction );
+		#endif
 
-			#if D_PASS == 0
-				gs_ProbeData[localPos.y][localPos.x] = IntegrateIrradiance( direction );
-			#else
-				gs_ProbeData[localPos.y][localPos.x] = IntegrateDistance( direction );
-			#endif
-		}
+		// Stage the result so neighbouring threads can read it while blending the seam
+		g_TileResults[localPos.y][localPos.x] = value;
 
 		GroupMemoryBarrierWithGroupSync();
 
-		// Phase 2: Resolve source texel and write to output
-		uint2 srcPos = isInterior ? localPos : GetBorderSourceTexel( localPos, DDGI_OCT_RESOLUTION, TILE_SIZE );
-		float4 data = gs_ProbeData[srcPos.y][srcPos.x];
+		// The octahedral map is borderless, so the boundary texels are discontinuous across the
+		// seam. Each edge texel is identified with a mirrored texel on the same edge (corners map
+		// to the diagonally opposite corner). Blend the two 50/50 so the seam stays continuous.
+		const uint N = DDGI_OCT_RESOLUTION;
+		bool onX = ( localPos.x == 0 || localPos.x == N - 1 );
+		bool onY = ( localPos.y == 0 || localPos.y == N - 1 );
+		if ( onX || onY )
+		{
+			uint2 mirror = localPos;
+			if ( onY ) mirror.x = ( N - 1 ) - localPos.x;
+			if ( onX ) mirror.y = ( N - 1 ) - localPos.y;
+
+			value = 0.5f * value + 0.5f * g_TileResults[mirror.y][mirror.x];
+		}
+
 		uint3 dstCoord = uint3( baseCoord + localPos, probeIndex.z );
 
 		#if D_PASS == 0
-			IrradianceVolume[dstCoord] = data;
+			IrradianceVolume[dstCoord] = value;
 		#else
-			DistanceVolume[dstCoord] = data.xy;
+			DistanceVolume[dstCoord] = value.xy;
 		#endif
 	}
 }

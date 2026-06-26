@@ -5,6 +5,8 @@ public abstract class GameMount : BaseGameMount
 {
 	public abstract long AppId { get; }
 
+	public override long? SteamAppId => AppId;
+
 	public abstract IReadOnlyList<string> GameDirs { get; }
 
 	string appDir;

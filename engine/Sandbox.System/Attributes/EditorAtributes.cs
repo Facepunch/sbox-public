@@ -344,6 +344,20 @@ namespace Sandbox
 	}
 
 	/// <summary>
+	/// When applied to a Vector2/3/4 property, adds a toggle in the inspector to edit
+	/// every component as a single uniform value. Set <see cref="Default"/> to start in
+	/// uniform mode until the user toggles it.
+	/// </summary>
+	[System.AttributeUsage( System.AttributeTargets.Property | System.AttributeTargets.Field )]
+	public sealed class UniformAttribute : System.Attribute
+	{
+		/// <summary>
+		/// Whether uniform editing is on by default, before the user has toggled it.
+		/// </summary>
+		public bool Default { get; set; }
+	}
+
+	/// <summary>
 	/// Display this in the inspector - but don't let anyone edit it
 	/// </summary>
 	public sealed class ReadOnlyAttribute : System.Attribute

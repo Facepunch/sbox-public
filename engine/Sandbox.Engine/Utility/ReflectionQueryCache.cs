@@ -53,7 +53,15 @@ internal static class ReflectionQueryCache
 		if ( _isICloneableSafe.TryGetValue( t, out var cached ) )
 			return cached;
 
-		var isSafe = t.GetMethod( nameof( ICloneable.Clone ), Type.EmptyTypes )?.DeclaringType == t;
+		bool isSafe = false;
+
+		if ( typeof( ICloneable ).IsAssignableFrom( t ) )
+		{
+			// Resolve via the interface map so explicit/non-public Clone() implementations are caught too
+			var map = t.GetInterfaceMap( typeof( ICloneable ) );
+			var target = map.TargetMethods.Length > 0 ? map.TargetMethods[0] : null;
+			isSafe = target is not null && target.DeclaringType == t;
+		}
 
 		_isICloneableSafe[t] = isSafe;
 		return isSafe;

@@ -128,10 +128,10 @@ partial class PrimitiveTool
 			Layout.AddStretchCell();
 		}
 
-		[Shortcut( "mesh.primitive-tool-create", "enter", ShortcutType.Application )]
+		[Shortcut( "mesh.primitive-tool-create", "enter", typeof( SceneViewWidget ) )]
 		void Create() => _tool.Create();
 
-		[Shortcut( "mesh.primitive-tool-cancel", "ESC", ShortcutType.Application )]
+		[Shortcut( "mesh.primitive-tool-cancel", "ESC", typeof( SceneViewWidget ) )]
 		void Cancel() => _tool.Cancel();
 
 		static IEnumerable<TypeDescription> GetBuilderTypes()

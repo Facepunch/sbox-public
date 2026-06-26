@@ -147,11 +147,15 @@ public static class Application
 	/// </summary>
 	internal static Package MapPackage { get; set; }
 
-
 	/// <summary>
 	/// The currently loaded game package's ident - if applicable.
 	/// </summary>
 	internal static string GameIdent { get; set; }
+
+	/// <summary>
+	/// The currently loaded map, can be an ident or a path.
+	/// </summary>
+	internal static string Map { get; set; }
 
 #if DEBUG
 	public static bool IsDebug => true;

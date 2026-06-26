@@ -56,6 +56,31 @@ public static class Directory
 	}
 
 	/// <summary>
+	/// Get metadata for a resource
+	/// </summary>
+	public static MountResourceInfo? GetMetadata( string filename )
+	{
+		if ( !MountUtility.TryParse( filename, out string sourceName ) )
+			return null;
+
+		var source = Get( sourceName );
+		if ( source is null )
+		{
+			Log.Warning( $"Couldn't find source \"{sourceName}\"" );
+			return null;
+		}
+
+		var entry = source.GetByPath( filename );
+		if ( entry is null )
+		{
+			Log.Warning( $"Couldn't find file \"{filename}\" in {source.Ident}" );
+			return null;
+		}
+
+		return new MountResourceInfo( entry );
+	}
+
+	/// <summary>
 	/// Get a specific mount by name
 	/// </summary>
 	public static BaseGameMount Get( string name )
@@ -82,7 +107,7 @@ public static class Directory
 	}
 
 	/// <summary>
-	/// Set mounted or not mounted. Called by user via editor.
+	/// Set mounted or not mounted.
 	/// </summary>
 	internal static async Task SetMountState( string name, bool state )
 	{
@@ -126,21 +151,17 @@ public static class Directory
 	{
 		resource = default;
 
-		if ( !filename.StartsWith( "mount://" ) ) return false;
-
-		var sourceName = filename.Substring( 8 );
-
-		var i = sourceName.IndexOf( '/' );
-		sourceName = sourceName.Substring( 0, i );
+		if ( !MountUtility.TryParse( filename, out string sourceName ) )
+			return false;
 
 		var source = Get( sourceName );
 		if ( source is null )
 		{
-			Log.Warning( $"Couldn't find source \"{source}\"" );
+			Log.Warning( $"Couldn't find source \"{sourceName}\"" );
 			return false;
 		}
 
-		var entry = source.Resources.FirstOrDefault( x => string.Equals( x.Path, filename, StringComparison.OrdinalIgnoreCase ) );
+		var entry = source.GetByPath( filename );
 		if ( entry is null )
 		{
 			Log.Warning( $"Couldn't find file \"{filename}\" in {source.Ident}" );
@@ -160,21 +181,17 @@ public static class Directory
 
 	internal static async Task<object> TryLoadAsync( string filename, ResourceType type )
 	{
-		if ( !filename.StartsWith( "mount://" ) ) return null;
-
-		var sourceName = filename.Substring( 8 );
-
-		var i = sourceName.IndexOf( '/' );
-		sourceName = sourceName.Substring( 0, i );
+		if ( !MountUtility.TryParse( filename, out string sourceName ) )
+			return null;
 
 		var source = Get( sourceName );
 		if ( source is null )
 		{
-			Log.Warning( $"Couldn't find source \"{source}\"" );
+			Log.Warning( $"Couldn't find source \"{sourceName}\"" );
 			return null;
 		}
 
-		var entry = source.Resources.FirstOrDefault( x => string.Equals( x.Path, filename, StringComparison.OrdinalIgnoreCase ) );
+		var entry = source.GetByPath( filename );
 		if ( entry is null )
 		{
 			Log.Warning( $"Couldn't find file \"{filename}\" in {source.Ident}" );

@@ -2,6 +2,16 @@ using Sandbox;
 
 namespace Editor.TerrainEditor;
 
+public struct BrushData
+{
+	public Vector2 UV;
+	public float Strength;
+	public int Size;
+	public float Rotation;
+	public float FlattenHeight;
+	public int SplatChannel;
+}
+
 /// <summary>
 /// Our sculpt brush types, passed to the compute shader
 /// </summary>
@@ -35,6 +45,11 @@ public abstract class BaseBrushTool : EditorTool
 	protected bool _dragging;
 	protected RectInt _dirtyRegion;
 	protected ushort[] _snapshot;
+	protected GpuBuffer<BrushData> _brushBuffer;
+
+	Vector3 _lastHitWorldPos;
+	Transform _lastHitTx;
+	Vector2? _cursorLockPosition;
 
 	/// <summary>
 	/// Which sculpting mode are we using right now?
@@ -51,6 +66,8 @@ public abstract class BaseBrushTool : EditorTool
 	/// </summary>
 	protected Plane StrokePlane;
 
+	public virtual bool PaintMode { get; set; } = false;
+
 	public BaseBrushTool( TerrainEditorTool terrainEditorTool )
 	{
 		_parent = terrainEditorTool;
@@ -63,7 +80,8 @@ public abstract class BaseBrushTool : EditorTool
 
 	public override void OnUpdate()
 	{
-		var terrain = GetSelectedComponent<Terrain>();
+		var terrain = GetSelectedComponent<Terrain>() ?? Scene.Get<Terrain>();
+
 		if ( !terrain.IsValid() )
 			return;
 
@@ -72,13 +90,48 @@ public abstract class BaseBrushTool : EditorTool
 
 		var tx = terrain.WorldTransform;
 
+		if ( Application.MouseButtons.HasFlag( MouseButtons.Middle ) )
+		{
+			_cursorLockPosition ??= Application.UnscaledCursorPosition;
+			var d = Application.UnscaledCursorPosition - _cursorLockPosition.Value;
+
+			if ( Gizmo.IsShiftPressed )
+			{
+				_parent.BrushSettings.Size = (int)(_parent.BrushSettings.Size + d.x * 0.25f).Clamp( 8, 2048 );
+				_parent.BrushSettings.Opacity = (_parent.BrushSettings.Opacity - d.y * 0.002f).Clamp( 0f, 1f );
+			}
+			else if ( Gizmo.IsCtrlPressed && !_parent.BrushSettings.RandomRotation )
+			{
+				_parent.BrushSettings.Rotation = ((_parent.BrushSettings.Rotation + d.x * 0.5f) % 360f + 360f) % 360f;
+			}
+
+			Application.UnscaledCursorPosition = _cursorLockPosition.Value;
+			SceneOverlay.Parent.Cursor = CursorShape.Blank;
+
+			DrawBrushAdjustText();
+			DrawBrushPreviewAt( _lastHitWorldPos, _lastHitTx );
+			return;
+		}
+		else
+		{
+			if ( _cursorLockPosition.HasValue )
+				SceneOverlay.Parent.Cursor = CursorShape.None;
+			_cursorLockPosition = null;
+		}
+
+		_lastHitWorldPos = tx.PointToWorld( hitPosition );
+		_lastHitTx = tx;
+
 		if ( Gizmo.IsLeftMouseDown )
 		{
 			bool shouldSculpt = !_dragging || !Application.CursorDelta.IsNearZeroLength;
 
 			if ( !_dragging )
 			{
-				StrokePlane = new Plane( tx.PointToWorld( hitPosition ), tx.Rotation.Up );
+				if ( _parent.BrushSettings.RandomRotation )
+					_parent.BrushSettings.Rotation = Random.Shared.NextSingle() * 360f;
+
+				StrokePlane = new Plane( _lastHitWorldPos, tx.Rotation.Up );
 
 				_dragging = true;
 
@@ -109,8 +162,44 @@ public abstract class BaseBrushTool : EditorTool
 			OnPaintEnded( terrain );
 		}
 
-		var previewTransform = new Transform( tx.PointToWorld( hitPosition ), tx.Rotation );
-		_parent.DrawBrushPreview( previewTransform );
+		DrawBrushPreviewAt( _lastHitWorldPos, _lastHitTx, PaintMode ? terrain : null );
+	}
+
+	void DrawBrushPreviewAt( Vector3 worldPos, Transform tx, Terrain terrain = null )
+	{
+		if ( _parent.SimpleBrushMode )
+			_parent.DrawSimpleBrushPreview( worldPos, tx, terrain );
+		else
+			_parent.DrawBrushPreview( new Transform( worldPos, tx.Rotation ), terrain );
+	}
+
+	void DrawBrushAdjustText()
+	{
+		var textScope = new TextRendering.Scope
+		{
+			TextColor = Color.White,
+			FontSize = 16 * Gizmo.Settings.GizmoScale * Application.DpiScale,
+			FontName = "Roboto Mono",
+			FontWeight = 600,
+			LineHeight = 1,
+			Outline = new TextRendering.Outline() { Color = Color.Black, Enabled = true, Size = 3 }
+		};
+
+		var offset = Vector2.Up * 24;
+
+		if ( Gizmo.IsShiftPressed )
+		{
+			textScope.Text = $"Size: {_parent.BrushSettings.Size}";
+			Gizmo.Draw.ScreenText( textScope, _lastHitWorldPos, offset );
+
+			textScope.Text = $"Opacity: {_parent.BrushSettings.Opacity:0.##}";
+			Gizmo.Draw.ScreenText( textScope, _lastHitWorldPos, offset * 2 );
+		}
+		else if ( Gizmo.IsCtrlPressed && !_parent.BrushSettings.RandomRotation )
+		{
+			textScope.Text = $"Rotation: {_parent.BrushSettings.Rotation:0.#}°";
+			Gizmo.Draw.ScreenText( textScope, _lastHitWorldPos, offset );
+		}
 	}
 
 	protected virtual void OnPaintStart( Terrain terrain )
@@ -133,10 +222,16 @@ public abstract class BaseBrushTool : EditorTool
 		cs.Attributes.Set( "Heightmap", terrain.HeightMap );
 		cs.Attributes.Set( "ControlMap", terrain.ControlMap );
 
-		cs.Attributes.Set( "HeightUV", paint.HitUV );
-		cs.Attributes.Set( "FlattenHeight", paint.FlattenHeight );
-		cs.Attributes.Set( "BrushStrength", opacity ); ;
-		cs.Attributes.Set( "BrushSize", size );
+		_brushBuffer ??= new GpuBuffer<BrushData>( 1 );
+		_brushBuffer.SetData( new[] { new BrushData
+		{
+			UV = paint.HitUV,
+			Strength = opacity,
+			Size = size,
+			Rotation = paint.BrushSettings.Rotation * MathF.PI / 180f,
+			FlattenHeight = paint.FlattenHeight,
+		} } );
+		cs.Attributes.Set( "BrushSettings", _brushBuffer );
 		cs.Attributes.Set( "Brush", paint.Brush.Texture );
 
 		cs.Dispatch( size, size, 1 );
@@ -163,7 +258,7 @@ public abstract class BaseBrushTool : EditorTool
 		return region;
 	}
 
-	Action CreateUndoAction<T>( Terrain terrain, T[] dest, T[] region, RectInt dirtyRegion ) => () =>
+	Action CreateUndoAction<T>( Terrain terrain, T[] dest, T[] region, RectInt dirtyRegion, Terrain.SyncFlags flags ) => () =>
 	{
 		if ( !terrain.IsValid() )
 			return;
@@ -176,6 +271,7 @@ public abstract class BaseBrushTool : EditorTool
 			}
 		}
 		terrain.SyncGPUTexture();
+		terrain.UpdateCollision( flags, dirtyRegion );
 	};
 
 	protected virtual void OnPaintEnded( Terrain terrain )
@@ -194,8 +290,8 @@ public abstract class BaseBrushTool : EditorTool
 			var regionAfter = CopyRegion( terrain.Storage.HeightMap, terrain.Storage.Resolution, _dirtyRegion );
 
 			SceneEditorSession.Active.UndoSystem.Insert( $"Terrain {DisplayInfo.For( this ).Name}",
-				CreateUndoAction( terrain, terrain.Storage.HeightMap, regionBefore, _dirtyRegion ),
-				CreateUndoAction( terrain, terrain.Storage.HeightMap, regionAfter, _dirtyRegion ) );
+				CreateUndoAction( terrain, terrain.Storage.HeightMap, regionBefore, _dirtyRegion, Terrain.SyncFlags.Height ),
+				CreateUndoAction( terrain, terrain.Storage.HeightMap, regionAfter, _dirtyRegion, Terrain.SyncFlags.Height ) );
 		}
 		else
 		{
@@ -205,8 +301,8 @@ public abstract class BaseBrushTool : EditorTool
 			var regionAfter = CopyRegion( terrain.Storage.ControlMap, terrain.Storage.Resolution, _dirtyRegion );
 
 			SceneEditorSession.Active.UndoSystem.Insert( $"Terrain {DisplayInfo.For( this ).Name}",
-				CreateUndoAction( terrain, terrain.Storage.ControlMap, regionBefore, _dirtyRegion ),
-				CreateUndoAction( terrain, terrain.Storage.ControlMap, regionAfter, _dirtyRegion ) );
+				CreateUndoAction( terrain, terrain.Storage.ControlMap, regionBefore, _dirtyRegion, Terrain.SyncFlags.Control ),
+				CreateUndoAction( terrain, terrain.Storage.ControlMap, regionAfter, _dirtyRegion, Terrain.SyncFlags.Control ) );
 		}
 
 		_snapshot = null;

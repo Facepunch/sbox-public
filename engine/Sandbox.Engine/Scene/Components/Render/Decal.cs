@@ -320,10 +320,14 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 	{
 		if ( !Gizmo.IsSelected )
 		{
+			// The direction arrow is only legible up close - skip it (and its cone) when the camera is far.
+			if ( Gizmo.Camera.Position.Distance( Gizmo.Transform.Position ) > 512.0f )
+				return;
+
 			using ( Gizmo.Scope() )
 			{
 				Gizmo.Transform = Gizmo.Transform.WithScale( 1 );
-				Gizmo.Draw.Arrow( Vector3.Zero, Vector3.Forward * 8.0f, 2, 1 );
+				Gizmo.Draw.Arrow( Vector3.Zero, Vector3.Forward * 8.0f, 2, 0.5f );
 			}
 		}
 		else if ( _def is not null )

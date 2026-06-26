@@ -657,7 +657,7 @@ internal sealed class TextBlock : IDisposable
 		{
 			UI.WhiteSpace.Normal or UI.WhiteSpace.NoWrap => text.CollapseWhiteSpace(),
 			UI.WhiteSpace.PreLine => text.CollapseSpacesAndPreserveLines(),
-			UI.WhiteSpace.Pre => text,
+			UI.WhiteSpace.Pre or UI.WhiteSpace.PreWrap or UI.WhiteSpace.BreakSpaces => text,
 			_ => throw new Exception( $"Unknown white-space value {WhiteSpace}" ),
 		};
 

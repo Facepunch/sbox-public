@@ -142,6 +142,8 @@ public sealed partial class KeyframeEditMode : EditMode
 	/// </summary>
 	private bool CreateOrUpdateKeyframeHandle( TrackView view, Keyframe keyframe )
 	{
+		view.ExpandAncestors();
+
 		if ( GetTimelineTrack( view ) is not { } timelineTrack ) return false;
 		if ( GetHandles( timelineTrack ) is not { } handles ) return false;
 
@@ -301,6 +303,18 @@ public sealed partial class KeyframeEditMode : EditMode
 		Session.PlayheadTime = time;
 	}
 
+	private void SelectKeyframe( TrackView trackView, Keyframe keyframe )
+	{
+		var timelineTrack = Timeline.Tracks.FirstOrDefault( x => x.View == trackView );
+
+		if ( timelineTrack is null ) return;
+		if ( !_trackKeyframeHandles.TryGetValue( timelineTrack, out var handles ) ) return;
+		if ( handles.FirstOrDefault( x => x.Time == keyframe.Time ) is not { } handle ) return;
+
+		Timeline.DeselectAll();
+		handle.Selected = true;
+	}
+
 	private IEnumerable<TrackView> GetWritableDescendantTrackViews( TrackView parentView )
 	{
 		if ( !parentView.Target.IsBound ) yield break;
@@ -405,10 +419,13 @@ public sealed partial class KeyframeEditMode : EditMode
 			Gizmo.Draw.Color = Color.White.Darken( Gizmo.IsHovered ? 0f : 0.125f );
 			Gizmo.Draw.SolidSphere( Vector3.Zero, radius );
 
-			if ( Gizmo.HasClicked && Gizmo.Pressed.This )
-			{
-				Session.PlayheadTime = keyframe.Time;
-			}
+			if ( !Gizmo.HasClicked || !Gizmo.Pressed.This ) continue;
+
+			Session.PlayheadTime = keyframe.Time;
+			Timeline.PanToPlayheadTime();
+
+			SelectKeyframe( trackView, keyframe );
+			trackView.InspectProperty();
 		}
 	}
 

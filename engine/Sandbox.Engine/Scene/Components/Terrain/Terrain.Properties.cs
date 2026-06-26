@@ -42,6 +42,51 @@ public partial class Terrain
 		}
 	}
 
+	RenderAttributes _attributes;
+
+	/// <summary>
+	/// Attributes that are applied to the terrain based on the current material and shader.
+	/// If the terrain is disabled, the changes are deferred until it is enabled again.
+	/// Attributes are not saved to disk, and are not cloned when copying the terrain.
+	/// </summary>
+	public RenderAttributes Attributes
+	{
+		get
+		{
+			if ( _so.IsValid() )
+			{
+				return _so.Attributes;
+			}
+			_attributes ??= new RenderAttributes();
+			return _attributes;
+		}
+	}
+
+	/// <summary>
+	/// Backup the specified RenderAttributes so we can restore them later with <see cref="RestoreRenderAttributes(RenderAttributes)"/>
+	/// </summary>
+	void BackupRenderAttributes( RenderAttributes attributes )
+	{
+		if ( attributes is null || !_so.IsValid() )
+			return;
+
+		_attributes ??= new RenderAttributes();
+		attributes.MergeTo( _attributes );
+	}
+
+	/// <summary>
+	/// Restore any attributes that were previously backed up with <see cref="BackupRenderAttributes(RenderAttributes)"/>
+	/// </summary>
+	void RestoreRenderAttributes( RenderAttributes attributes )
+	{
+		if ( _attributes is not null )
+		{
+			_attributes.MergeTo( attributes );
+		}
+
+		_attributes = null;
+	}
+
 	/// <summary>
 	/// Uniform world size of the width and length of the terrain.
 	/// </summary>
@@ -86,7 +131,7 @@ public partial class Terrain
 	private int _clipMapLodExtentTexelsProperty = 256;
 	private int _subdivisionFactorProperty = 1;
 
-	[Property, Category( "Clipmap" )]
+	[Property, Category( "Clipmap" ), Range( 1, 8 )]
 	public int ClipMapLodLevels
 	{
 		get => _clipMapLodLevelsProperty;
@@ -95,14 +140,14 @@ public partial class Terrain
 			if ( _clipMapLodLevelsProperty == value )
 				return;
 
-			_clipMapLodLevelsProperty = value;
+			_clipMapLodLevelsProperty = value.Clamp( 1, 8 );
 
 			// Rebuild clipmap mesh when LOD levels change
 			CreateClipmapSceneObject();
 		}
 	}
 
-	[Property, Category( "Clipmap" )]
+	[Property, Category( "Clipmap" ), Range( 16, 2048 )]
 	public int ClipMapLodExtentTexels
 	{
 		get => _clipMapLodExtentTexelsProperty;
@@ -111,7 +156,7 @@ public partial class Terrain
 			if ( _clipMapLodExtentTexelsProperty == value )
 				return;
 
-			_clipMapLodExtentTexelsProperty = value;
+			_clipMapLodExtentTexelsProperty = value.Clamp( 16, 2048 );
 
 			// Rebuild clipmap mesh when extent changes
 			CreateClipmapSceneObject();

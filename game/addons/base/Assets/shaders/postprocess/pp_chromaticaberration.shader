@@ -67,7 +67,7 @@ PS
         float4 g = g_tColorBuffer.Sample( g_sBilinearMirror, vTexCoords - (offsetScale * caAmount.g ));
         float4 b = g_tColorBuffer.Sample( g_sBilinearMirror, vTexCoords - (offsetScale * caAmount.b ));
 
-        return float4( r.r, g.g, b.b, r.a + g.a + b.a );
+        return float4( r.r, g.g, b.b, ( r.a + g.a + b.a ) / 3.0f );
     }
 
     float4 MainPs( PixelInput i ) : SV_Target0

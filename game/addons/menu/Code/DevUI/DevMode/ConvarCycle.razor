@@ -1,0 +1,72 @@
+@namespace Sandbox.UI.Dev
+@inherits Panel
+
+<root>
+    @Title<span class="suffix">@CurrentLabel</span>
+</root>
+
+
+@code
+{
+    [Parameter] public string Title { get; set; }
+    [Parameter] public string ConVar { get; set; }
+    /// <summary>Comma separated cycle values, e.g. "0,1,2,3".</summary>
+    [Parameter] public string Values { get; set; } = "0,1";
+    /// <summary>Optional comma separated labels matching Values, e.g. "Off,Basic,Detailed,All".</summary>
+    [Parameter] public string Labels { get; set; }
+    /// <summary>Value considered "off" for the active highlight. Defaults to the first entry in Values.</summary>
+    [Parameter] public string OffValue { get; set; }
+
+    string[] ValueList => (Values ?? "").Split( ',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries );
+    string[] LabelList => (Labels ?? "").Split( ',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries );
+
+    string CurrentValue => ConVar != null ? (ConsoleSystem.GetValue( ConVar ) ?? "") : "";
+
+    string CurrentLabel
+    {
+        get
+        {
+            var values = ValueList;
+            var labels = LabelList;
+            if ( values.Length == 0 ) return null;
+
+            var idx = Array.FindIndex( values, v => string.Equals( v, CurrentValue, StringComparison.OrdinalIgnoreCase ) );
+            if ( idx < 0 ) return null;
+
+            if ( labels.Length > idx ) return $" · {labels[idx]}";
+            return $" · {values[idx]}";
+        }
+    }
+
+    public void Cycle( int direction )
+	{
+		if ( ConVar == null ) return;
+        var values = ValueList;
+        if ( values.Length == 0 ) return;
+
+        var idx = Array.FindIndex( values, v => string.Equals( v, CurrentValue, StringComparison.OrdinalIgnoreCase ) );
+        if ( idx < 0 ) idx = 0;
+        else idx = ((idx + direction) % values.Length + values.Length) % values.Length;
+
+        ConsoleSystem.Run( ConVar, values[idx] );
+	}
+
+    public override void Tick()
+	{
+		base.Tick();
+		if ( ConVar == null ) return;
+
+        var off = OffValue ?? (ValueList.Length > 0 ? ValueList[0] : "0");
+        SetClass( "active", !string.Equals( CurrentValue, off, StringComparison.OrdinalIgnoreCase ) );
+	}
+
+    protected override void OnClick( MousePanelEvent e )
+    {
+        Cycle( 1 );
+    }
+
+    protected override void OnRightClick( MousePanelEvent e )
+    {
+        Cycle( -1 );
+    }
+}

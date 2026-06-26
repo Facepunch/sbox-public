@@ -188,9 +188,24 @@ internal static partial class InputRouter
 
 	static readonly HashSet<string> UserCursors = new();
 
+	static readonly CaseInsensitiveDictionary<string> CursorAliases = new()
+	{
+		{ "text", "ibeam" },
+		{ "pointer", "hand" },
+		{ "hourglass", "wait" },
+		{ "nesw-resize", "sizenesw" },
+		{ "nwse-resize", "sizenwse" },
+		{ "ew-resize", "sizewe" },
+		{ "ns-resize", "sizens" },
+	};
+
 	static void SetCursorType( string name )
 	{
 		name = MouseCursorVisible ? string.IsNullOrWhiteSpace( name ) ? "arrow" : name.ToLower() : "none";
+
+		if ( CursorAliases.TryGetValue( name, out var canonical ) )
+			name = canonical;
+
 		if ( name == CursorName )
 			return;
 

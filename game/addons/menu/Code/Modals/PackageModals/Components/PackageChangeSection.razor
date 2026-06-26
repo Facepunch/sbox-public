@@ -1,0 +1,47 @@
+@namespace MenuProject.Modals.PackageModalComponents
+@inherits Panel
+@using Sandbox;
+@using Sandbox.UI;
+@using Menu;
+@using System.Collections.Immutable;
+
+@* One category within a changelist (Added / Improved / Fixed / ...). Mirrors the web's
+   ChangeListSection - an icon + title header above a bulleted list of entries. *@
+
+@if (Entries.Length == 0) return;
+
+<root class="@ClassName">
+
+    <div class="header">
+        <label class="emoji">@Icon</label>
+        <label class="section-title">@Title</label>
+    </div>
+
+    <div class="entries">
+        @foreach (var entry in Entries)
+        {
+            <div class="entry">
+                <label class="bullet">•</label>
+                @if (!string.IsNullOrWhiteSpace(entry.Url) && entry.Url.StartsWith("https://"))
+                {
+                    <label class="text link" @onclick="@(() => MenuUtility.OpenUrl(entry.Url))">@entry.Text</label>
+                }
+                else
+                {
+                    <label class="text">@entry.Text</label>
+                }
+            </div>
+        }
+    </div>
+
+</root>
+
+@code
+{
+    [Parameter] public ImmutableArray<Package.ChangeListEntry> Entries { get; set; } = ImmutableArray<Package.ChangeListEntry>.Empty;
+    [Parameter] public string ClassName { get; set; }
+    [Parameter] public string Icon { get; set; }
+    [Parameter] public string Title { get; set; }
+
+    protected override int BuildHash() => System.HashCode.Combine(ClassName, Title, Entries.Length);
+}

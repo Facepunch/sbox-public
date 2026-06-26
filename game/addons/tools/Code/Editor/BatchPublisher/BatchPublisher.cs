@@ -1,9 +1,9 @@
 ﻿namespace Editor;
 
+using Editor.Wizards;
 using Sandbox;
 using Sandbox.Utility;
 using System;
-using Editor.Wizards;
 
 public class BatchPublisher : BaseWindow
 {
@@ -217,6 +217,11 @@ public class BatchPublisher : BaseWindow
 
 file class AssetRow : Widget
 {
+	/// <summary>
+	/// Maximum title length accepted by the publish backend.
+	/// </summary>
+	const int MaxTitleLength = 64;
+
 	Asset Asset { get; init; }
 
 	string _status;
@@ -295,8 +300,52 @@ file class AssetRow : Widget
 		ProjectSettingsWindow.OpenForProject( addon );
 	}
 
+	/// <summary>
+	/// Clean a title so it passes publishing validation: strip the line breaks and tabs the backend rejects,
+	/// trim leading/trailing whitespace, and clamp to the length limit on a word boundary where possible.
+	/// </summary>
+	static string ClampTitle( string title )
+	{
+		if ( string.IsNullOrEmpty( title ) )
+			return title;
+
+		// The backend disallows line breaks/tabs and leading/trailing whitespace.
+		title = title.Replace( '\r', ' ' ).Replace( '\n', ' ' ).Replace( '\t', ' ' ).Trim();
+
+		if ( title.Length <= MaxTitleLength )
+			return title;
+
+		var cut = title.LastIndexOf( ' ', MaxTitleLength );
+		if ( cut <= 0 )
+			return title.Substring( 0, MaxTitleLength ).TrimEnd();
+
+		return title.Substring( 0, cut ).TrimEnd();
+	}
+
+	/// <summary>
+	/// Whether an ident would pass the publish backend's rules: 2-63 characters, lower-case letters, digits,
+	/// underscores and hyphens only. (The backend rejects idents of 64 or more characters.)
+	/// </summary>
+	static bool IsValidIdent( string ident )
+	{
+		if ( ident is null || ident.Length < 2 || ident.Length >= 64 )
+			return false;
+
+		foreach ( var c in ident )
+		{
+			if ( c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '_' or '-' )
+				continue;
+
+			return false;
+		}
+
+		return true;
+	}
+
 	public async Task RefreshStatus()
 	{
+		if ( !IsValid ) return;
+
 		if ( Asset.Publishing.ProjectConfig.Org != Project.Current.Config.Org && Asset.Publishing.ProjectConfig.Org == "local" )
 		{
 			Log.Info( $"Changing org to {Project.Current.Config.Org}" );
@@ -306,6 +355,29 @@ file class AssetRow : Widget
 
 		SetEffectOpacity( 1.0f );
 		NeedsUpload = true;
+
+		var config = Asset.Publishing.ProjectConfig;
+
+		// A title (unlike the ident) isn't unique or immutable, so rather than erroring on one that breaks
+		// the publish rules we just fix it in place - sanitise it and trim an over-long one to fit. We
+		// validate explicitly against the backend's real limits rather than via the config's attributes,
+		// which can lag behind them.
+		var clampedTitle = ClampTitle( config.Title );
+		if ( clampedTitle != config.Title )
+		{
+			config.Title = clampedTitle;
+			Asset.Publishing.Save();
+		}
+
+		// An invalid ident can't be auto-fixed here (regeneration lives in the engine), so flag it and skip
+		// rather than shipping something the backend would reject.
+		if ( !IsValidIdent( config.Ident ) )
+		{
+			Status = "Invalid ident";
+			SetEffectOpacity( 0.5f );
+			NeedsUpload = false;
+			return;
+		}
 
 		var package = await Package.FetchAsync( Asset.Publishing.ProjectConfig.FullIdent, false );
 		if ( package is null )

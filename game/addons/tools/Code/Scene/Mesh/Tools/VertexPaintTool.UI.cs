@@ -141,6 +141,15 @@ partial class VertexPaintTool
 
 			Layout.AddStretchCell();
 
+			AddShortcuts(
+				("Paint", "LMB"),
+				("Erase", "Ctrl+LMB"),
+				("Sample Color", "Ctrl+RMB"),
+				("Adjust Radius", "Shift+MMB Drag"),
+				("Adjust Strength", "Ctrl+MMB ↕"),
+				("Adjust Hardness", "Ctrl+MMB ↔")
+			);
+
 			UpdateModeVisibility( tool.Mode );
 		}
 
@@ -303,13 +312,18 @@ partial class VertexPaintTool
 				World = world
 			};
 
-			var light = new ScenePointLight( world )
+			var light = new SceneSpotLight( world )
 			{
 				Radius = 4000,
-				LightColor = Color.White * 0.8f,
+				LightColor = Color.White * 0.7f,
 				Position = new Vector3( 0, 0, 100 ),
+				ConeOuter = 89,
+				ConeInner = 75,
+				QuadraticAttenuation = 5f,
 				ShadowsEnabled = true
 			};
+
+			light.Rotation = Rotation.From( 90, 0, 0 );
 
 			var mesh = CreatePlane( new Color( mask.x, mask.y, mask.z, mask.w ) );
 			var model = Model.Builder

@@ -7,6 +7,35 @@ public class FrameButton : Widget
 
 	public bool IsCurrentFrame => SpriteEditor.CurrentFrameIndex == FrameIndex;
 	public Sprite.Frame Frame => SpriteEditor.SelectedAnimation?.Frames[FrameIndex];
+	public bool IsOutsideLoopRange
+	{
+		get
+		{
+			var anim = SpriteEditor.SelectedAnimation;
+			if ( anim is null || anim.LoopMode == Sprite.LoopMode.None ) return false;
+			return FrameIndex < anim.EffectiveLoopStart || FrameIndex > anim.EffectiveLoopEnd;
+		}
+	}
+
+	public bool IsLoopStart
+	{
+		get
+		{
+			var anim = SpriteEditor.SelectedAnimation;
+			if ( anim is null || !anim.IsAnimated || anim.LoopMode == Sprite.LoopMode.None ) return false;
+			return FrameIndex == anim.EffectiveLoopStart;
+		}
+	}
+
+	public bool IsLoopEnd
+	{
+		get
+		{
+			var anim = SpriteEditor.SelectedAnimation;
+			if ( anim is null || !anim.IsAnimated || anim.LoopMode == Sprite.LoopMode.None ) return false;
+			return FrameIndex == anim.EffectiveLoopEnd;
+		}
+	}
 
 	public int FrameIndex;
 	private Pixmap Pixmap;
@@ -16,7 +45,14 @@ public class FrameButton : Widget
 	bool draggingAhead = false;
 	private int lastHash = 0;
 
+	private bool _isDraggingLoopHandle;
+	private bool _draggingLoopIsStart;
+	private int _dragOriginalLoopStart;
+	private int _dragOriginalLoopEnd;
+
 	public static float FrameSize = 1f;
+	private static readonly Color LoopHandleColor = new Color( 0.2f, 0.7f, 1.0f, 0.9f );
+	private const float LoopHandleZoneWidth = 12f;
 	private static Dictionary<Sprite.BroadcastEventType, string> _enumIconCache = new();
 
 	public FrameButton( Timeline timeline, int index ) : base( null )
@@ -39,6 +75,7 @@ public class FrameButton : Widget
 
 		StatusTip = $"Frame {FrameIndex}";
 
+		MouseTracking = true;
 		IsDraggable = true;
 		AcceptDrops = true;
 	}
@@ -95,6 +132,13 @@ public class FrameButton : Widget
 		if ( dragData?.IsValid ?? false )
 		{
 			Paint.SetBrushAndPen( Theme.WindowBackground.WithAlpha( 0.5f ) );
+			Paint.DrawRect( LocalRect );
+		}
+
+		// Dim frames outside the loop range
+		if ( IsOutsideLoopRange )
+		{
+			Paint.SetBrushAndPen( Theme.WindowBackground.WithAlpha( 0.6f ) );
 			Paint.DrawRect( LocalRect );
 		}
 
@@ -163,6 +207,196 @@ public class FrameButton : Widget
 			Paint.SetPen( Theme.Primary, 2f, PenStyle.Dot );
 			Paint.DrawLine( LocalRect.TopRight, LocalRect.BottomRight );
 		}
+
+		// Draw loop handle indicators on boundary frames
+		PaintLoopHandles();
+	}
+
+	/// <summary>
+	/// Draws colored loop handle indicators on the left/right edges of loop boundary frames.
+	/// </summary>
+	private void PaintLoopHandles()
+	{
+		var handleWidth = Math.Min( LoopHandleZoneWidth, Width / 3f );
+
+		if ( IsLoopStart )
+		{
+			var handleRect = new Rect( LocalRect.Left, LocalRect.Top, handleWidth, LocalRect.Height );
+			var handleColor = _isDraggingLoopHandle && _draggingLoopIsStart ? LoopHandleColor.WithAlpha( 1f ) : LoopHandleColor.WithAlpha( 0.6f );
+			Paint.SetBrushAndPen( handleColor );
+			Paint.DrawRect( handleRect );
+
+			// Draw right-pointing triangle
+			Paint.ClearPen();
+			Paint.SetBrush( LoopHandleColor );
+			var cx = handleRect.Center.x;
+			var cy = handleRect.Center.y;
+			var ts = Math.Min( 8f, handleWidth - 2f );
+			Paint.DrawPolygon(
+				new Vector2( cx - ts / 2f, cy - ts / 2f ),
+				new Vector2( cx + ts / 2f, cy ),
+				new Vector2( cx - ts / 2f, cy + ts / 2f )
+			);
+		}
+
+		if ( IsLoopEnd )
+		{
+			var handleRect = new Rect( LocalRect.Right - handleWidth, LocalRect.Top, handleWidth, LocalRect.Height );
+			var handleColor = _isDraggingLoopHandle && !_draggingLoopIsStart ? LoopHandleColor.WithAlpha( 1f ) : LoopHandleColor.WithAlpha( 0.6f );
+			Paint.SetBrushAndPen( handleColor );
+			Paint.DrawRect( handleRect );
+
+			// Draw left-pointing triangle
+			Paint.ClearPen();
+			Paint.SetBrush( LoopHandleColor );
+			var cx = handleRect.Center.x;
+			var cy = handleRect.Center.y;
+			var ts = Math.Min( 8f, handleWidth - 2f );
+			Paint.DrawPolygon(
+				new Vector2( cx + ts / 2f, cy - ts / 2f ),
+				new Vector2( cx - ts / 2f, cy ),
+				new Vector2( cx + ts / 2f, cy + ts / 2f )
+			);
+		}
+	}
+
+	/// <summary>
+	/// Checks if a local X position is within a loop handle's hit zone.
+	/// Returns true and sets isStart if a handle was hit.
+	/// </summary>
+	private bool HitTestLoopHandle( float localX, out bool isStart )
+	{
+		isStart = false;
+		var handleWidth = Math.Min( LoopHandleZoneWidth, Width / 3f );
+
+		if ( IsLoopStart && localX < handleWidth )
+		{
+			isStart = true;
+			return true;
+		}
+
+		if ( IsLoopEnd && localX > Width - handleWidth )
+		{
+			isStart = false;
+			return true;
+		}
+
+		return false;
+	}
+
+	protected override void OnMousePress( MouseEvent e )
+	{
+		if ( e.Button == MouseButtons.Left && HitTestLoopHandle( e.LocalPosition.x, out var isStart ) )
+		{
+			_isDraggingLoopHandle = true;
+			_draggingLoopIsStart = isStart;
+			Cursor = CursorShape.SizeH;
+
+			// Capture pre-drag state for undo
+			var anim = SpriteEditor.SelectedAnimation;
+			_dragOriginalLoopStart = anim.LoopStart;
+			_dragOriginalLoopEnd = anim.LoopEnd;
+
+			// Disable drag-and-drop so it doesn't intercept our mouse move events
+			IsDraggable = false;
+
+			e.Accepted = true;
+			return;
+		}
+
+		base.OnMousePress( e );
+	}
+
+	protected override void OnMouseMove( MouseEvent e )
+	{
+		if ( _isDraggingLoopHandle )
+		{
+			var anim = SpriteEditor?.SelectedAnimation;
+			if ( anim is null ) return;
+
+			var frameCount = anim.Frames?.Count ?? 0;
+			if ( frameCount == 0 ) return;
+
+			var newIndex = Timeline.FrameIndexFromScreenX( e.ScreenPosition.x );
+
+			if ( _draggingLoopIsStart )
+			{
+				var maxStart = anim.EffectiveLoopEnd;
+				newIndex = Math.Clamp( newIndex, 0, maxStart );
+
+				// Set to -1 when dragged to first frame so it adapts if frames are added
+				anim.LoopStart = (newIndex == 0) ? -1 : newIndex;
+			}
+			else
+			{
+				var minEnd = anim.EffectiveLoopStart;
+				newIndex = Math.Clamp( newIndex, minEnd, frameCount - 1 );
+
+				// Set to -1 when dragged to last frame so it adapts if frames are added
+				anim.LoopEnd = (newIndex == frameCount - 1) ? -1 : newIndex;
+			}
+
+			// Repaint all frame buttons to update dimming without rebuilding the frame list
+			foreach ( var btn in Timeline.FrameButtons )
+				btn.Update();
+
+			e.Accepted = true;
+			return;
+		}
+
+		// Update cursor when hovering over a loop handle zone
+		if ( HitTestLoopHandle( e.LocalPosition.x, out _ ) )
+		{
+			Cursor = CursorShape.SizeH;
+		}
+		else
+		{
+			Cursor = CursorShape.Finger;
+		}
+
+		base.OnMouseMove( e );
+	}
+
+	protected override void OnMouseReleased( MouseEvent e )
+	{
+		if ( _isDraggingLoopHandle && e.Button == MouseButtons.Left )
+		{
+			_isDraggingLoopHandle = false;
+			Cursor = CursorShape.Finger;
+			IsDraggable = true;
+
+			// Push an undo entry if the loop points actually changed
+			var anim = SpriteEditor.SelectedAnimation;
+			var newLoopStart = anim.LoopStart;
+			var newLoopEnd = anim.LoopEnd;
+			var origLoopStart = _dragOriginalLoopStart;
+			var origLoopEnd = _dragOriginalLoopEnd;
+
+			if ( newLoopStart != origLoopStart || newLoopEnd != origLoopEnd )
+			{
+				var label = _draggingLoopIsStart ? "Move Loop Start" : "Move Loop End";
+				SpriteEditor.UndoStack.Insert( label,
+					() =>
+					{
+						anim.LoopStart = origLoopStart;
+						anim.LoopEnd = origLoopEnd;
+						SpriteEditor.OnSpriteModified?.Invoke();
+					},
+					() =>
+					{
+						anim.LoopStart = newLoopStart;
+						anim.LoopEnd = newLoopEnd;
+						SpriteEditor.OnSpriteModified?.Invoke();
+					} );
+
+				SpriteEditor.SetModified();
+			}
+
+			e.Accepted = true;
+			return;
+		}
+
+		base.OnMouseReleased( e );
 	}
 
 	protected override void OnMouseClick( MouseEvent e )
@@ -210,6 +444,9 @@ public class FrameButton : Widget
 
 	protected override void OnDragStart()
 	{
+		// Don't start frame reorder drag while dragging a loop handle
+		if ( _isDraggingLoopHandle ) return;
+
 		base.OnDragStart();
 
 		dragData = new Drag( this );

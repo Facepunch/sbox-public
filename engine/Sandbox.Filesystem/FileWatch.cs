@@ -195,6 +195,7 @@ public sealed class FileWatch : IDisposable
 	internal void AddFile( string file )
 	{
 		watchFiles ??= new List<string>();
-		watchFiles.Add( file );
+		if ( !watchFiles.Contains( file ) )
+			watchFiles.Add( file );
 	}
 }

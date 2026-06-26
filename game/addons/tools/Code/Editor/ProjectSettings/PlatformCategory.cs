@@ -1,6 +1,6 @@
 namespace Editor.ProjectSettingPages;
 
-[Title( "Chat" ), Icon( "chat" )]
+[Title( "Platform" ), Icon( "chat" )]
 internal sealed class PlatformCategory : ProjectSettingsWindow.Category
 {
 	PlatformSettings settings;

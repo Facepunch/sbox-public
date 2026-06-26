@@ -68,6 +68,8 @@ public static partial class AssetSystem
 		var blobPath = context.AbsolutePath + "_d";
 		if ( System.IO.File.Exists( blobPath ) )
 		{
+			context.AddCompileReference( blobPath );
+
 			var blobData = System.IO.File.ReadAllBytes( blobPath );
 			unsafe
 			{

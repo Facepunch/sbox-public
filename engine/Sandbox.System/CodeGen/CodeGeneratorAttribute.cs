@@ -43,7 +43,7 @@ public class CodeGeneratorAttribute : Attribute
 	public CodeGeneratorAttribute( CodeGeneratorFlags type, string callbackName, int priority = 0 )
 	{
 		CallbackName = callbackName;
-		Priority = 0;
+		Priority = priority;
 		Type = type;
 	}
 }

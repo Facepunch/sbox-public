@@ -4,6 +4,9 @@ public static partial class Gizmo
 {
 	public sealed partial class GizmoControls
 	{
+		private BBox _bbStart;
+		private BBox _bbDelta;
+
 		private static bool ArrowPoint( string name, Vector3 direction, float length, Color color, out float distance, ref bool pressed )
 		{
 			distance = 0.0f;
@@ -104,12 +107,31 @@ public static partial class Gizmo
 
 				outPressed = pressed;
 
+				if ( !pressed )
+				{
+					_bbStart = value;
+					_bbDelta = default;
+					return false;
+				}
+
 				if ( resizeDist.AlmostEqual( 0 ) )
 					return false;
 
 				outResizeAxis = resizeAxis;
-				outValue.Maxs += Vector3.Max( resizeAxis, Vector3.Zero ) * resizeDist;
-				outValue.Mins += Vector3.Min( resizeAxis, Vector3.Zero ) * resizeDist;
+
+				_bbDelta.Maxs += Vector3.Max( resizeAxis, Vector3.Zero ) * resizeDist;
+				_bbDelta.Mins += Vector3.Min( resizeAxis, Vector3.Zero ) * resizeDist;
+
+				var mins = _bbStart.Mins + _bbDelta.Mins;
+				var maxs = _bbStart.Maxs + _bbDelta.Maxs;
+
+				if ( Settings.SnapToGrid != IsCtrlPressed )
+				{
+					mins = Gizmo.Snap( mins, _bbDelta.Mins );
+					maxs = Gizmo.Snap( maxs, _bbDelta.Maxs );
+				}
+
+				outValue = new BBox { Mins = mins, Maxs = maxs };
 				return true;
 			}
 		}

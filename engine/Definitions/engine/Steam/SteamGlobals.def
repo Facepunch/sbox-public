@@ -1,3 +1,4 @@
+// Steam global API bindings
 native static class globalSteam as NativeEngine.Steam
 {
 	static ISteamHTMLSurface SteamHTMLSurface();
@@ -30,6 +31,10 @@ native static class globalSteam as NativeEngine.Steam
 
 	inline void SteamGameServer_Init( int gamePort, int queryPort, string serverVersion )
 	{
-		SteamGameServer_InitEx( 0, static_cast<uint16>( gamePort ), static_cast<uint16>( queryPort ), eServerModeAuthenticationAndSecure, serverVersion, nullptr );
+		if ( SteamGameServer_InitEx( 0, static_cast<uint16>( gamePort ), static_cast<uint16>( queryPort ), eServerModeAuthenticationAndSecure, serverVersion, nullptr ) != k_ESteamAPIInitResult_OK )
+		{
+			Warning( "[Steam] SteamGameServer_Init: failed to init in authenticated mode (no active Steam session?), falling back to unauthenticated mode - server will not be listed or VAC protected\n" );
+			SteamGameServer_InitEx( 0, static_cast<uint16>( gamePort ), static_cast<uint16>( queryPort ), eServerModeNoAuthentication, serverVersion, nullptr );
+		}
 	}
 }

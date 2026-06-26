@@ -113,7 +113,7 @@ partial class BevelTool
 			}
 		}
 
-		[Shortcut( "mesh.edge-bevel-cancel", "ESC", ShortcutType.Application )]
+		[Shortcut( "mesh.edge-bevel-cancel", "ESC", typeof( SceneViewWidget ) )]
 		private void Cancel()
 		{
 			var components = _edges.Select( x => x.Component ).ToArray();
@@ -135,7 +135,7 @@ partial class BevelTool
 			EditorToolManager.SetSubTool( nameof( EdgeTool ) );
 		}
 
-		[Shortcut( "mesh.edge-bevel-apply", "enter", ShortcutType.Application )]
+		[Shortcut( "mesh.edge-bevel-apply", "enter", typeof( SceneViewWidget ) )]
 		private void Apply()
 		{
 			var components = _edges.Select( x => x.Component ).ToArray();

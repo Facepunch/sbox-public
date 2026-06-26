@@ -7,7 +7,7 @@ namespace Sandbox;
 /// A GameObject which is saved to a file.
 /// </summary>
 [Expose]
-[AssetType( Name = "Prefab", Extension = "prefab", Category = "World", Flags = AssetTypeFlags.NoEmbedding )]
+[AssetType( Name = "Prefab", Extension = "prefab", Category = "World", Flags = AssetTypeFlags.NoEmbedding, IconColor = "#86c4fe" )]
 public partial class PrefabFile : GameResource
 {
 	/// <summary>

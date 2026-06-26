@@ -119,6 +119,8 @@ native static class MeshGlue as NativeEngine.MeshGlue
 	void SetMeshVertexRange( IMesh renderMesh, int startVertex, int vertexCount );
 	void SetMeshIndexRange( IMesh renderMesh, int startIndex, int indexCount );
 
+	int AddMeshDrawCall( IMesh renderMesh, IMaterial material, int nPrimType, int startIndex, int indexCount, int startVertex, int vertexCount );
+
 	void SetMeshVertexBuffer( IMesh renderMesh, VertexBufferHandle_t hVB, void* pData, int nDataSize );
 	void SetMeshIndexBuffer( IMesh renderMesh, IndexBufferHandle_t hIB, void* pData, int nDataSize );
 
@@ -163,4 +165,10 @@ native static class MeshGlue as NativeEngine.MeshGlue
 	CUtlBuffer SerializeMeshBuffers( IModel model, int nMesh );
 	CUtlBuffer SerializeMeshData( IModel model, int nMesh );
 	CUtlBuffer SerializeModelData( IModel model );
+	CUtlBuffer SerializePhysicsData( IModel model );
+	CUtlBuffer SerializePhysicsDataFromAggregate( CPhysicsData physData );
+
+	CPhysicsData BuildAggregateData( CPhysBodyDescArray pBodies );
+
+	void SetMeshMorphData( IMesh renderMesh, CastTo[SboxMorphDesc_t*] void* morphDescs, int numMorphs, CastTo[SboxMorphVertexDelta_t*] void* deltas, int numDeltas, string morphNames );
 }

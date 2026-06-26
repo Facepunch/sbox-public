@@ -19,13 +19,13 @@ class ControlSheetLabel : Widget
 		IsDraggable = IsDraggableProperty( property );
 	}
 
-	private bool IsDraggableProperty( SerializedProperty property )
+	/// <summary>
+	/// We can drag Component or GameObject properties to use in Movie Maker
+	/// and visual scripts.
+	/// </summary>
+	private static bool IsDraggableProperty( SerializedProperty property )
 	{
-		if ( property.IsMultipleValues ) return false;
-
-		var target = property.Parent?.Targets.FirstOrDefault();
-
-		return target is GameObject or Component or GameTransform;
+		return property.FindPathInScene() is not null;
 	}
 
 	protected override void OnDragStart()

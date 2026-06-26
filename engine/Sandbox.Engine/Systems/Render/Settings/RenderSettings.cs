@@ -21,11 +21,6 @@ public partial class RenderSettings
 		Config.SetDefaults( this );
 	}
 
-	internal void Init()
-	{
-		ApplyVideoMode();
-	}
-
 	public int MaxFrameRate
 	{
 		get => ConVarSystem.GetInt( "fps_max", 100, true );
@@ -36,6 +31,12 @@ public partial class RenderSettings
 	{
 		get => ConVarSystem.GetInt( "fps_max_inactive", 100, true );
 		set => ConVarSystem.SetInt( "fps_max_inactive", value, true );
+	}
+
+	public int MaxFrameRateMenu
+	{
+		get => ConVarSystem.GetInt( "fps_max_menu", 60, true );
+		set => ConVarSystem.SetInt( "fps_max_menu", value, true );
 	}
 
 	public float DefaultFOV
@@ -167,12 +168,13 @@ public partial class RenderSettings
 		ResolutionWidth = desktopWidth;
 		ResolutionHeight = desktopHeight;
 
-		Fullscreen = true;
+		Fullscreen = false;
 		Borderless = true;
 		VSync = true;
 		AntiAliasQuality = MultisampleAmount.Multisample8x;
 		MaxFrameRate = 300;
 		MaxFrameRateInactive = 60;
+		MaxFrameRateMenu = 60;
 		DefaultFOV = 75;
 		UpscalerMode = UpscalerMode.Off;
 		UpscalerRenderScale = 0.75f;

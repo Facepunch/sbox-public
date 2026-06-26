@@ -133,7 +133,9 @@ internal static class CloneHelpers
 		// Fast path: if the type implements ICloneable and is not a BCL/system type (whose Clone()
 		// is only a shallow copy that would silently skip GUID rewiring), call Clone() directly
 		// to avoid the JSON roundtrip overhead.
-		if ( originalValue is ICloneable cloneable && ReflectionQueryCache.IsICloneableSafe( valueType ) )
+		// Only when the member is assignable: SetMemberValue no-ops on get-only properties (e.g.
+		// Renderer.RenderOptions) and would drop the clone, so those fall through to the JSON path.
+		if ( originalValue is ICloneable cloneable && ReflectionQueryCache.IsICloneableSafe( valueType ) && IsMemberAssignable( member ) )
 		{
 			SetMemberValue( member, target, cloneable.Clone() );
 			return;
@@ -160,6 +162,23 @@ internal static class CloneHelpers
 
 			SetMemberValue( member, target, clonedValue );
 		}
+	}
+
+	/// <summary>
+	/// Whether <see cref="SetMemberValue"/> can write this member. Mirrors the setter guard in <see cref="PropertyDescription.SetValue"/>.
+	/// </summary>
+	private static bool IsMemberAssignable( MemberDescription member )
+	{
+		if ( member is not PropertyDescription prop )
+			return true;
+
+		if ( prop.PropertyInfo.SetMethod is null )
+			return false;
+
+		if ( !prop.TypeDescription.IsDynamicAssembly && (!prop.IsSetMethodPublic || prop.IsSetMethodInitOnly) )
+			return false;
+
+		return true;
 	}
 
 	private static void SetMemberValue(

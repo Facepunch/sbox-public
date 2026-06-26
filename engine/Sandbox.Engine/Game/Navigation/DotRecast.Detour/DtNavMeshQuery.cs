@@ -31,10 +31,19 @@ namespace DotRecast.Detour
 		protected readonly DtNavMesh m_nav; //< Pointer to navmesh data.
 		protected DtQueryData m_query; //< Sliced query state.
 
-		protected readonly DtNodePool m_tinyNodePool; //< Pointer to small node pool. 
-		protected readonly DtNodePool m_nodePool; //< Pointer to node pool. 
-		protected readonly DtNodeQueue m_openList; //< Pointer to open list queue. 
+		protected readonly DtNodePool m_tinyNodePool; //< Pointer to small node pool.
+		protected readonly DtNodePool m_nodePool; //< Pointer to node pool.
+		protected readonly DtNodeQueue m_openList; //< Pointer to open list queue.
 		protected readonly HashSet<int> m_visitedNodesCache;
+
+		// Reused FIFO scratch for the breadth-first walks, pop = advance the head index
+		private readonly List<DtNode> m_bfsStack = new();
+
+		// Reused by FindNearestPoly
+		private DtFindNearestPolyQuery m_findNearestPolyQuery;
+
+		// Reused by QueryPolygons
+		private readonly DtMeshTile[] m_tileScratch = new DtMeshTile[32];
 
 		//////////////////////////////////////////////////////////////////////////////////////////
 
@@ -573,7 +582,8 @@ namespace DotRecast.Detour
 			isOverPoly = false;
 
 			// Get nearby polygons from proximity grid.
-			DtFindNearestPolyQuery query = new DtFindNearestPolyQuery( this, center );
+			var query = m_findNearestPolyQuery ??= new DtFindNearestPolyQuery( this, center );
+			query.Init( this, center );
 			DtStatus status = QueryPolygons( center, halfExtents, filter, query );
 			if ( status.Failed() )
 			{
@@ -778,14 +788,13 @@ namespace DotRecast.Detour
 			m_nav.CalcTileLoc( bmin, out var minx, out var miny );
 			m_nav.CalcTileLoc( bmax, out var maxx, out var maxy );
 
-			const int MAX_NEIS = 32;
-			DtMeshTile[] neis = new DtMeshTile[MAX_NEIS];
+			DtMeshTile[] neis = m_tileScratch;
 
 			for ( int y = miny; y <= maxy; ++y )
 			{
 				for ( int x = minx; x <= maxx; ++x )
 				{
-					int nneis = m_nav.GetTilesAt( x, y, neis, MAX_NEIS );
+					int nneis = m_nav.GetTilesAt( x, y, neis, neis.Length );
 					for ( int j = 0; j < nneis; ++j )
 					{
 						QueryPolygonsInTile( neis[j], bmin, bmax, filter, query );
@@ -1886,8 +1895,9 @@ namespace DotRecast.Detour
 			startNode.total = 0;
 			startNode.id = startRef;
 			startNode.flags = DtNodeFlags.DT_NODE_CLOSED;
-			LinkedList<DtNode> stack = new LinkedList<DtNode>();
-			stack.AddLast( startNode );
+			m_bfsStack.Clear();
+			int bfsHead = 0;
+			m_bfsStack.Add( startNode );
 
 			Vector3 bestPos = new Vector3();
 			float bestDist = float.MaxValue;
@@ -1904,11 +1914,10 @@ namespace DotRecast.Detour
 			const int MAX_NEIS = 8;
 			Span<long> neis = stackalloc long[MAX_NEIS];
 
-			while ( 0 < stack.Count )
+			while ( bfsHead < m_bfsStack.Count )
 			{
 				// Pop front.
-				DtNode curNode = stack.First?.Value;
-				stack.RemoveFirst();
+				DtNode curNode = m_bfsStack[bfsHead++];
 
 				// Get poly and tile.
 				// The API input has been checked already, skip checking internal data.
@@ -2006,7 +2015,7 @@ namespace DotRecast.Detour
 							// Mark as the node as visited and push to queue.
 							neighbourNode.pidx = m_tinyNodePool.GetNodeIdx( curNode );
 							neighbourNode.flags |= DtNodeFlags.DT_NODE_CLOSED;
-							stack.AddLast( neighbourNode );
+							m_bfsStack.Add( neighbourNode );
 						}
 					}
 				}
@@ -2878,8 +2887,9 @@ namespace DotRecast.Detour
 			startNode.pidx = 0;
 			startNode.id = startRef;
 			startNode.flags = DtNodeFlags.DT_NODE_CLOSED;
-			LinkedList<DtNode> stack = new LinkedList<DtNode>();
-			stack.AddLast( startNode );
+			m_bfsStack.Clear();
+			int bfsHead = 0;
+			m_bfsStack.Add( startNode );
 
 			resultRef.Add( startNode.id );
 			resultParent.Add( 0L );
@@ -2889,11 +2899,10 @@ namespace DotRecast.Detour
 			Span<Vector3> pa = stackalloc Vector3[m_nav.GetMaxVertsPerPoly()];
 			Span<Vector3> pb = stackalloc Vector3[m_nav.GetMaxVertsPerPoly()];
 
-			while ( 0 < stack.Count )
+			while ( bfsHead < m_bfsStack.Count )
 			{
 				// Pop front.
-				DtNode curNode = stack.First?.Value;
-				stack.RemoveFirst();
+				DtNode curNode = m_bfsStack[bfsHead++];
 
 				// Get poly and tile.
 				// The API input has been checked already, skip checking internal data.
@@ -3006,7 +3015,7 @@ namespace DotRecast.Detour
 
 					resultRef.Add( neighbourRef );
 					resultParent.Add( curRef );
-					stack.AddLast( neighbourNode );
+					m_bfsStack.Add( neighbourNode );
 				}
 			}
 

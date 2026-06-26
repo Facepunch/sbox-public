@@ -10,6 +10,7 @@ public class BrushPreviewSceneObject : SceneCustomObject
 	public Vector3 TerrainOrigin { get; set; }
 	public Vector3 TerrainRight { get; set; }
 	public Vector3 TerrainForward { get; set; }
+	public float BrushRotation { get; set; } = 0f;
 
 	static Material material = Material.FromShader( "shaders/terrain_brush.shader" );
 
@@ -33,6 +34,7 @@ public class BrushPreviewSceneObject : SceneCustomObject
 		attributes.Set( "TerrainOrigin", TerrainOrigin );
 		attributes.Set( "TerrainRight", TerrainRight );
 		attributes.Set( "TerrainForward", TerrainForward );
+		attributes.Set( "BrushRotation", BrushRotation * MathF.PI / 180f );
 
 		Graphics.GrabDepthTexture( "DepthBuffer", attributes );
 

@@ -21,22 +21,43 @@ freely, subject to the following restrictions:
 
 namespace DotRecast.Detour
 {
+	// Flat node array + index-chained hash buckets, matching the original C++ dtNodePool.
 	internal class DtNodePool
 	{
-		private readonly Dictionary<long, List<DtNode>> m_map;
+		private const int HashSize = 1024; // power of two
 
+		private DtNode[] m_nodes;
+		private int[] m_next;
+		private readonly int[] m_first;
 		private int m_nodeCount;
-		private readonly List<DtNode> m_nodes;
+
+		private readonly List<DtNode> m_findScratch = new();
 
 		public DtNodePool()
 		{
-			m_map = new Dictionary<long, List<DtNode>>();
-			m_nodes = new List<DtNode>();
+			m_nodes = new DtNode[128];
+			m_next = new int[128];
+			m_first = new int[HashSize];
+			Array.Fill( m_first, -1 );
+		}
+
+		private static int HashRef( long id )
+		{
+			ulong h = (ulong)id * 0x9E3779B97F4A7C15UL;
+			return (int)(h >> 32) & (HashSize - 1);
 		}
 
 		public void Clear()
 		{
-			m_map.Clear();
+			// Release shortcut lists so they don't linger on a pooled pool
+			for ( int i = 0; i < m_nodeCount; i++ )
+			{
+				var node = m_nodes[i];
+				if ( node != null )
+					node.shortcut = null;
+			}
+
+			Array.Fill( m_first, -1 );
 			m_nodeCount = 0;
 		}
 
@@ -45,61 +66,62 @@ namespace DotRecast.Detour
 			return m_nodeCount;
 		}
 
+		/// <summary>
+		/// Find every node for the given poly ref. The returned list is reused by the next call.
+		/// </summary>
 		public int FindNodes( long id, out List<DtNode> nodes )
 		{
-			var hasNode = m_map.TryGetValue( id, out nodes );
-			if ( hasNode )
+			m_findScratch.Clear();
+
+			for ( int i = m_first[HashRef( id )]; i != -1; i = m_next[i] )
 			{
-				return nodes.Count;
+				if ( m_nodes[i].id == id )
+					m_findScratch.Add( m_nodes[i] );
 			}
 
-			return 0;
+			nodes = m_findScratch;
+			return m_findScratch.Count;
 		}
 
 		public DtNode FindNode( long id )
 		{
-			m_map.TryGetValue( id, out var nodes );
-			if ( nodes != null && 0 != nodes.Count )
+			// Chains prepend, so the last match is the first node created for this id
+			DtNode found = null;
+
+			for ( int i = m_first[HashRef( id )]; i != -1; i = m_next[i] )
 			{
-				return nodes[0];
+				if ( m_nodes[i].id == id )
+					found = m_nodes[i];
 			}
 
-			return null;
+			return found;
 		}
 
 		public DtNode GetNode( long id, int state )
 		{
-			m_map.TryGetValue( id, out var nodes );
-			if ( nodes != null )
+			int bucket = HashRef( id );
+
+			for ( int i = m_first[bucket]; i != -1; i = m_next[i] )
 			{
-				foreach ( DtNode node in nodes )
-				{
-					if ( node.state == state )
-					{
-						return node;
-					}
-				}
-			}
-			else
-			{
-				nodes = new List<DtNode>();
-				m_map.Add( id, nodes );
+				var node = m_nodes[i];
+				if ( node.id == id && node.state == state )
+					return node;
 			}
 
-			return Create( id, state, nodes );
+			return Create( id, state, bucket );
 		}
 
-		private DtNode Create( long id, int state, List<DtNode> nodes )
+		private DtNode Create( long id, int state, int bucket )
 		{
-			if ( m_nodes.Count <= m_nodeCount )
+			if ( m_nodeCount >= m_nodes.Length )
 			{
-				var newNode = new DtNode( m_nodeCount );
-				m_nodes.Add( newNode );
+				Array.Resize( ref m_nodes, m_nodes.Length * 2 );
+				Array.Resize( ref m_next, m_next.Length * 2 );
 			}
 
-			int i = m_nodeCount;
-			m_nodeCount++;
-			var node = m_nodes[i];
+			int i = m_nodeCount++;
+			var node = m_nodes[i] ??= new DtNode( i );
+			node.pos = Vector3.Zero; // reset: nodes are reused across Clear()
 			node.pidx = 0;
 			node.cost = 0;
 			node.total = 0;
@@ -108,7 +130,9 @@ namespace DotRecast.Detour
 			node.flags = 0;
 			node.shortcut = null;
 
-			nodes.Add( node );
+			m_next[i] = m_first[bucket];
+			m_first[bucket] = i;
+
 			return node;
 		}
 

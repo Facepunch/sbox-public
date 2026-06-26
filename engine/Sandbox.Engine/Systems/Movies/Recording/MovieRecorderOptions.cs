@@ -142,11 +142,15 @@ public sealed record MovieRecorderOptions(
 			.WithCaptureAll<AmbientLight>()
 			.WithCaptureAll<ParticleEffect>()
 			.WithCaptureAll<ParticleEmitter>()
+			.WithCaptureAll<BeamEffect>()
 			.WithCaptureAll<SoundPointComponent>();
 	}
 
 	public MovieRecorderOptions WithCaptureGameObject( GameObject gameObject ) =>
 		WithCaptureAction( recorder => recorder.GetTrackRecorder( gameObject )?.Capture() );
+
+	public MovieRecorderOptions WithCaptureGameObject( GameObject gameObject, string trackName ) =>
+		WithCaptureAction( recorder => recorder.GetTrackRecorder( gameObject, trackName )?.Capture() );
 
 	public MovieRecorderOptions WithCaptureComponent( Component component ) =>
 		WithCaptureAction( recorder => recorder.GetTrackRecorder( component )?.Capture() );

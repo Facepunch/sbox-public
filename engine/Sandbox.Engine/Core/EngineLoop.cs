@@ -25,6 +25,8 @@ internal static class EngineLoop
 	{
 		if ( Application.WantsExit )
 		{
+			SoundHandle.Shutdown();
+			MixingThread.DrainDisposals();
 			g_pEngineServiceMgr.ExitMainLoop();
 		}
 
@@ -55,6 +57,12 @@ internal static class EngineLoop
 				wantsQuit = !EngineGlobal.SourceEngineFrame( appDict, time, previousTime );
 			}
 
+			if ( wantsQuit )
+			{
+				SoundHandle.Shutdown();
+				MixingThread.DrainDisposals();
+			}
+
 			try
 			{
 				using ( _frameEnd.Start() )
@@ -83,14 +91,23 @@ internal static class EngineLoop
 
 		int maxFps = RenderSettings.Instance.MaxFrameRate;
 
-		if ( InputSystem.IsAppActive() ) return maxFps;
+		double effectiveFps = maxFps;
+		if ( Game.IsMainMenuVisible )
+		{
+			int maxMenu = RenderSettings.Instance.MaxFrameRateMenu;
+			if ( maxMenu > 0 && maxMenu < effectiveFps ) effectiveFps = maxMenu;
+		}
 
-		// only use maxinactive if it's over 0 and lower than maxfps
-		int maxInactive = RenderSettings.Instance.MaxFrameRateInactive;
-		if ( maxInactive <= 0 ) return maxFps;
-		if ( maxInactive > maxFps ) return maxFps;
+		if ( !InputSystem.IsAppActive() )
+		{
+			// Inactive cap is bounded by the effective active cap so the menu cap still applies when tabbed out.
+			int maxInactive = RenderSettings.Instance.MaxFrameRateInactive;
+			if ( maxInactive <= 0 ) return effectiveFps;
+			if ( maxInactive > effectiveFps ) return effectiveFps;
+			return maxInactive;
+		}
 
-		return maxInactive;
+		return effectiveFps;
 	}
 
 	static void SleepForFrameRateClamp( FastTimer frameTime )
@@ -226,7 +243,6 @@ internal static class EngineLoop
 		// Give each sound handle an opportunity to for a frame think
 		using ( PerformanceStats.Timings.Audio.Scope() )
 		{
-			SoundHandle.TickAll();
 			MixingThread.UpdateGlobals();
 		}
 
@@ -397,19 +413,29 @@ internal static class EngineLoop
 		convar.Run( args );
 	}
 
+	static Superluminal _clientOutput = new Superluminal( "OnClientOutput", "#3a6ea5" );
+	static Superluminal _toolsRender = new Superluminal( "Tools Render", "#6e6e3a" );
+	static Superluminal _gameRender = new Superluminal( "Game Render", "#3a6e4d" );
+	static Superluminal _menuRender = new Superluminal( "Menu Render", "#6e3a6e" );
+
 	internal static void OnClientOutput()
 	{
+		using var _outputScope = _clientOutput.Start();
+
 		// The editor renders it's own game scene
 		if ( Application.IsEditor )
 		{
-			IToolsDll.Current?.OnRender();
+			using ( _toolsRender.Start() )
+				IToolsDll.Current?.OnRender();
 			return;
 		}
 
 		var engineChain = g_pEngineServiceMgr.GetEngineSwapChain();
 
-		IGameInstanceDll.Current?.OnRender( engineChain );
-		IMenuDll.Current?.OnRender( engineChain );
+		using ( _gameRender.Start() )
+			IGameInstanceDll.Current?.OnRender( engineChain );
+		using ( _menuRender.Start() )
+			IMenuDll.Current?.OnRender( engineChain );
 	}
 
 	/// <summary>

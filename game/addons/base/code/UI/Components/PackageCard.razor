@@ -6,6 +6,11 @@
 
 <root class=@BuildClass() @onrightclick=@OnCardRightClicked onclick=@OnCardClicked>
     <div class="image" style="background-image: url(@(Image() ?? "/ui/sbox-logo-square.svg"))">
+        @if ( Package != null && Package.Flair.IsEmpty == false)
+        {
+            <PackageFlairBar Flair="@Package.Flair" />
+        }
+
         @if (Package?.Usage.UsersNow > 0)
         {
             <div class="online package-users" title="Playing Now">@Package.Usage.UsersNow</div>
@@ -80,5 +85,5 @@
         _ => Package?.ThumbWide
     };
 
-    protected override int BuildHash() => System.HashCode.Combine(Package?.FullIdent, Package?.Usage.UsersNow);
+    protected override int BuildHash() => System.HashCode.Combine(Package?.FullIdent, Package?.Usage.UsersNow, Package?.Flair.Length);
 }

@@ -334,7 +334,7 @@
 		{
 			_class = "CResourceAssetTypeInfo"
 			m_Name = "physics_collision"
-			m_FriendlyName = "Physics Collision Mesh"
+			m_FriendlyName = "Physics"
 			m_IconLg = "toolimages:assettypes/physics_lg.png"
 			m_IconSm = "toolimages:assettypes/physics_sm.png"
 			m_Ext = "vphys"

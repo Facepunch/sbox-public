@@ -3,9 +3,9 @@ using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
-internal class BuildShaders( string name, bool forced = false ) : Step( name )
+internal class BuildShaders( bool forced = false )
 {
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{

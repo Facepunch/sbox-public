@@ -25,15 +25,34 @@ class ProgramSource
 	/// </summary>
 	internal async Task<bool> Compile( ShaderCompileOptions options, Shader vfx, string source, ShaderCompile.Results result, CancellationToken token, string absolutePath, string relativePath )
 	{
-		//Console.WriteLine( $"	{ProgramType}: {(IsOutOfDate ? "out of date" : "okay")}" );
-
-		bool nonInteractiveConsole = Console.IsOutputRedirected || Console.IsInputRedirected || Console.IsErrorRedirected;
-
 		using var context = ShaderCompile.GetSharedContext( ProgramType );
 		context.MaskedSource = ShaderTools.MaskShaderSource( source, ProgramType, false );
 
 		ShaderPreprocessor preprocessor = new( new ShaderPreprocessorOptions() { ExpandIncludes = true, IgnoreCoreIncludes = true } );
 		context.MaskedSource = preprocessor.Preprocess( context.MaskedSource, absolutePath, relativePath );
+
+		return await CompileCore( options, vfx, result, context, token );
+	}
+
+	/// <summary>
+	/// Recompile this program from source that has already been masked and include-expanded - the form embedded
+	/// in a compiled <c>.shader_c</c>. Skips the mask + preprocess steps <see cref="Compile"/> runs on raw
+	/// <c>.shader</c> source, because that source isn't available when recompiling from a published package.
+	/// </summary>
+	internal async Task<bool> RecompileFromMaskedSource( ShaderCompileOptions options, Shader vfx, string maskedSource, ShaderCompile.Results result, CancellationToken token )
+	{
+		using var context = ShaderCompile.GetSharedContext( ProgramType );
+		context.MaskedSource = maskedSource;
+
+		return await CompileCore( options, vfx, result, context, token );
+	}
+
+	/// <summary>
+	/// Compiles every combo for this program using the source already set on <paramref name="context"/>.
+	/// </summary>
+	async Task<bool> CompileCore( ShaderCompileOptions options, Shader vfx, ShaderCompile.Results result, ShaderCompileContext context, CancellationToken token )
+	{
+		bool nonInteractiveConsole = Console.IsOutputRedirected || Console.IsInputRedirected || Console.IsErrorRedirected;
 
 		FastTimer fastTimer = FastTimer.StartNew();
 

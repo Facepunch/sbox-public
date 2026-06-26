@@ -49,6 +49,15 @@
             <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@VoiceModeOptions Value:bind=@SelectedVoiceMode></ButtonGroup>
         </row>
 
+        <h2>Simulation</h2>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Acoustic Simulation
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@AcousticSimulationOptions Value:bind=@AcousticSimulation></ButtonGroup>
+        </row>
+
         <h2>Misc</h2>
 
         <row class="with-gaps">
@@ -72,6 +81,7 @@
     public float VoiceVolume { get; set; }
     public VoiceMode SelectedVoiceMode { get; set; }
     public bool BackgroundAudio { get; set; }
+    public bool AcousticSimulation { get; set; }
 
     public string AudioDevice { get; set; }
 
@@ -90,6 +100,12 @@
         new Option("Push-to-Talk", VoiceMode.PushToTalk),
         new Option("Open Microphone", VoiceMode.OpenMicrophone),
         new Option("Disabled", VoiceMode.Disabled),
+    };
+
+	List<Option> AcousticSimulationOptions = new List<Option>()
+    {
+        new Option("Off", false),
+        new Option("On", true),
     };
 
 	List<Option> BackgroundAudioOptions = new List<Option>()
@@ -117,6 +133,7 @@
         {
             Sandbox.Internal.AudioSettings.SetActiveDevice(devices.First().Id);
         }
+        ConsoleSystem.SetValue("snd_simulation_enable", true);
         ConsoleSystem.SetValue("volume", 1.0f);
         ConsoleSystem.SetValue("music_volume", 1.0f);
         ConsoleSystem.SetValue("voip_volume", 1.0f);
@@ -126,6 +143,7 @@
 
     public void OnCancel()
     {
+        AcousticSimulation = ConsoleSystem.GetValue("snd_simulation_enable").ToBool();
         GlobalVolume = ConsoleSystem.GetValue("volume").ToFloat();
         MusicVolume = ConsoleSystem.GetValue("music_volume").ToFloat();
         VoiceVolume = ConsoleSystem.GetValue("voip_volume").ToFloat();
@@ -137,6 +155,7 @@
     public void OnApply()
     {
         Sandbox.Internal.AudioSettings.SetActiveDevice((string)AudioDevice);
+        ConsoleSystem.SetValue("snd_simulation_enable", AcousticSimulation);
         ConsoleSystem.SetValue("volume", GlobalVolume);
         ConsoleSystem.SetValue("music_volume", MusicVolume);
         ConsoleSystem.SetValue("voip_volume", VoiceVolume);

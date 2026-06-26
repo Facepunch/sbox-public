@@ -3,8 +3,6 @@
 [AssetPreview( "vmat" )]
 class PreviewMaterial : AssetPreview
 {
-	//public override bool IsAnimatedPreview => false;
-
 	public override float PreviewWidgetCycleSpeed => 0.2f;
 
 	SkyBox2D skyboxObject;
@@ -93,7 +91,7 @@ class PreviewMaterial : AssetPreview
 
 		var ps = new ControlSheet();
 
-		ps.AddProperty( Camera, x => x.BackgroundColor );
+		ps.AddProperty( this, x => x.BackgroundColor );
 		ps.AddProperty( PrimaryObject.GetComponent<ModelRenderer>(), x => x.Tint );
 		//ps.AddProperty( Camera, x => x.EnablePostProcessing );
 

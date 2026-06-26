@@ -1,4 +1,5 @@
 ﻿using Sandbox.Engine;
+using Sandbox.Modals;
 using System.Threading;
 
 namespace Sandbox.Services;
@@ -28,6 +29,8 @@ public partial class BenchmarkSystem
 	/// </summary>
 	public void Start( string name )
 	{
+		BenchmarkOrchestrator.EnsureTracyCaptureStarted();
+
 		testName = name;
 
 		metrics.Clear();
@@ -126,13 +129,34 @@ public partial class BenchmarkSystem
 	/// <summary>
 	/// Finish this benchmark session and send it off to the backend
 	/// </summary>
-	public Task<Guid> SendAsync( CancellationToken token = default )
+	public async Task<Guid> SendAsync( CancellationToken token = default )
 	{
 		var value = results.Values.ToArray();
+		var summaries = value.Select( BuildSummary ).ToArray();
 		results.Clear();
 		allocations?.Stop();
 
-		return Api.Benchmarks.Post( value, token );
+		var batchId = await Api.Benchmarks.Post( value, token );
+		BenchmarkOrchestrator.LastBatchId = batchId;
+		BenchmarkOrchestrator.Summaries.AddRange( summaries );
+		return batchId;
+	}
+
+	private static BenchmarkTestSummary BuildSummary( BenchmarkRecord r )
+	{
+		static double Get( BenchmarkRecord rec, string key, Func<Sampler.Result, double> sel )
+			=> rec.Data.TryGetValue( key, out var v ) && v is Sampler.Result sr ? sel( sr ) : 0;
+
+		return new BenchmarkTestSummary
+		{
+			Name = r.Name,
+			DurationSeconds = r.Duration,
+			AvgFps = Get( r, "Fps", x => x.Avg ),
+			AvgFrameTimeMs = Get( r, "FrameTimeMs", x => x.Avg ),
+			OnePercentLowMs = Get( r, "FrameTimeMs", x => x.P99 ),
+			AvgGpuFrametimeMs = Get( r, "GpuFrametime", x => x.Avg ),
+			Stuttering = Get( r, "FrameTimeMs", x => x.Stuttering ),
+		};
 	}
 }
 

@@ -399,11 +399,17 @@ public class AssetInspector : InspectorWidget
 	}
 
 	/// <summary>
-	/// Doesn't handle IAssetInspector or BaseResourceEditor
+	/// Builds the editing UI when multiple assets are selected. Game resources are edited together via a
+	/// <see cref="MultiSerializedObject"/>; raw assets whose settings live in metadata (e.g. vsnd, jpg) are
+	/// handled by their <see cref="IAssetInspector"/> if every selection shares the same type.
+	/// Doesn't handle BaseResourceEditor.
 	/// </summary>
 	private void CreateMultiContentUI( SerializedObject target )
 	{
 		CreateContentLayout();
+
+		if ( TryCreateMultiAssetInspector() )
+			return;
 
 		MultiSerializedObject mso = new MultiSerializedObject();
 
@@ -433,6 +439,53 @@ public class AssetInspector : InspectorWidget
 		SaveOption.Triggered = saveAction;
 
 		Scroller?.Canvas?.Parent?.Update();
+	}
+
+	/// <summary>
+	/// If every selected asset is the same type and that type has a custom <see cref="IAssetInspector"/>,
+	/// create it once and hand it the whole selection via <see cref="IAssetInspector.SetAssets"/>. Returns
+	/// false (leaving the caller to fall back to the generic path) for mixed selections, game resources, or
+	/// types without a custom inspector.
+	/// </summary>
+	private bool TryCreateMultiAssetInspector()
+	{
+		if ( Assets is null || Assets.Length < 2 )
+			return false;
+
+		// Only when every selected asset is the exact same type.
+		if ( Assets.Select( x => x.AssetType ).Distinct().Count() != 1 )
+			return false;
+
+		// Game resources have their own MultiSerializedObject path below.
+		if ( Assets.Any( x => x.TryLoadResource<GameResource>( out _ ) ) )
+			return false;
+
+		var assetType = $"asset:{Assets[0].AssetType.FileExtension.ToLower()}";
+		var editor = CanEditAttribute.CreateEditorFor( assetType );
+
+		// Only use the type editor if it genuinely supports multi-select - otherwise editing it would
+		// silently affect just one asset while the header says "N Assets", which is confusing.
+		if ( editor is not IAssetInspector inspector )
+		{
+			editor?.Destroy();
+			return false;
+		}
+
+		inspector.SetInspector( this );
+
+		if ( !inspector.SetAssets( Assets ) )
+		{
+			editor?.Destroy();
+			return false;
+		}
+
+		if ( editor.IsValid() )
+			ContentLayout.Add( editor );
+
+		ContentLayout.AddStretchCell();
+		Scroller?.Canvas?.Parent?.Update();
+
+		return true;
 	}
 
 	public void SaveAsset( Asset target, Sandbox.GameResource assetObject )
@@ -532,10 +585,36 @@ public class AssetInspector : InspectorWidget
 		SaveOption.Bind( "Enabled" ).ReadOnly().From( () => { return Asset.HasUnsavedChanges; }, null );
 	}
 
+	/// <summary>
+	/// Implemented by a widget that edits a particular asset type (matched via <see cref="CanEditAttribute"/>,
+	/// e.g. <c>[CanEdit( "asset:vsnd" )]</c>). The hosting <see cref="AssetInspector"/> creates the widget and
+	/// feeds it the current selection through these calls.
+	/// </summary>
 	public interface IAssetInspector
 	{
+		/// <summary>
+		/// Called when a single asset is selected. Bind your editing UI to it.
+		/// </summary>
 		public void SetAsset( Asset asset );
+
+		/// <summary>
+		/// Called instead of <see cref="SetAsset"/> when multiple assets of the same type are selected.
+		/// Return true if this inspector applied the whole selection (i.e. it supports multi-select editing).
+		/// The default returns false, meaning "I only handle a single asset" - the caller then shows the
+		/// header-only multi view rather than silently editing just the first asset.
+		/// </summary>
+		public bool SetAssets( Asset[] assets ) => false;
+
+		/// <summary>
+		/// Gives the inspector the shared <see cref="AssetPreview"/> for the selected asset, so it can drive
+		/// or react to the preview. Optional - the default does nothing.
+		/// </summary>
 		public void SetAssetPreview( AssetPreview preview ) { }
+
+		/// <summary>
+		/// Gives the inspector a reference back to the hosting <see cref="AssetInspector"/>, e.g. to toggle its
+		/// Save option or read its context. Optional - the default does nothing.
+		/// </summary>
 		public void SetInspector( AssetInspector inspector ) { }
 	}
 

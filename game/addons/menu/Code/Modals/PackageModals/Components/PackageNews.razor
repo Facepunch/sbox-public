@@ -4,6 +4,8 @@
 
 <root>
 
+    <PackageTabHeader Title="News" Subtitle="@($"The latest news from the creators of {Package?.Title}.")" />
+
     @foreach (var entry in News)
     {
         <div class="entry" @onclick="@( () => OpenNews( entry ) )">

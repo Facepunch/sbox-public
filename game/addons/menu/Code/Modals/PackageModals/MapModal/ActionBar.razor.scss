@@ -9,14 +9,12 @@ ActionBar
 ActionBar > .left
 {
     flex-grow: 1;
-    padding: 32px;
 }
 
 ActionBar > .right
 {
     justify-content: flex-end;
     gap: 6px;
-    padding: 32px;
 }
 
 Button

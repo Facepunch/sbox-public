@@ -219,7 +219,7 @@ public partial class SoundPlayer : Widget
 				{
 					SoundHandle = EditorUtility.PlaySound( Sound, Time );
 					SoundHandle.Time = Time;
-					SoundHandle.Occlusion = false;
+					SoundHandle.OcclusionEnabled = false;
 					SoundHandle.DistanceAttenuation = false;
 				}
 

@@ -1,0 +1,46 @@
+@using Sandbox;
+@using Sandbox.UI;
+@namespace Sandbox
+@inherits PanelComponent
+
+<root class="reward-card-panel @( IsSelected ? "selected" : "" ) @RarityClass" style="@BorderStyle">
+
+	<div class="card-art" style="background-image: url( @Item?.Icon )">
+		@if ( IsSelected )
+		{
+			<div class="check-circle">
+				<icon>check</icon>
+			</div>
+		}
+	</div>
+
+	<div class="card-footer">
+		<label class="card-name">@Item?.Name</label>
+		@if ( Item?.Rarity is not null and not ItemRarity.None )
+		{
+			<label class="card-rarity" style="color: @Item.RarityColor">@Item.Rarity</label>
+		}
+	</div>
+
+</root>
+
+@code
+{
+	/// <summary>The reward item to display.</summary>
+	public RewardItem Item { get; set; }
+
+	/// <summary>Whether this card is currently selected.</summary>
+	public bool IsSelected { get; set; }
+
+	string RarityClass => Item?.Rarity switch
+	{
+		null or ItemRarity.None => "",
+		_ => $"rarity-{Item.Rarity.ToString().ToLowerInvariant()}"
+	};
+
+	string BorderStyle => Item?.RarityColor is not null
+		? $"border-color: {Item.RarityColor}"
+		: "";
+
+	protected override int BuildHash() => HashCode.Combine( Item?.ItemDefId, IsSelected, Item?.Rarity );
+}

@@ -86,7 +86,8 @@ VS
         geoNormal = normalize( mul( Terrain::Get().Transform, float4( geoNormal, 0.0 ) ).xyz );
 
         // Vertex displacement
-        if ( g_bVertexDisplacement )
+    #if ( D_GRID == 0 )
+        if ( g_bVertexDisplacement && Terrain::Get().ControlMapTexture != 0 )
         {
             // Blend displacement between all materials
             float totalDisplacement = 0.0f;
@@ -98,23 +99,25 @@ VS
             
             // Sample base material displacement
             TerrainMaterial mat = g_TerrainMaterials[material.BaseTextureId];
+            SamplerState materialSampler = Bindless::GetSampler( Terrain::Get().samplerindex );
             float2 baseLayerUV = ( o.LocalPosition.xy / 32.0f ) * mat.uvscale;
 
             if( mat.HasFlag( TerrainFlags::NoTile ) )
                 baseLayerUV = Terrain_SampleSeamlessUV( baseLayerUV );
 
-            float4 baseNho = Bindless::GetTexture2D( mat.nho_texid ).SampleLevel( g_sAnisotropic, baseLayerUV, 0 );
-            float baseDisplacement = baseNho.b * mat.displacementscale;
+            float4 baseNho = Bindless::GetTexture2D( mat.nho_texid ).SampleLevel( materialSampler, baseLayerUV, 0 );
+            float baseDisplacement = ( baseNho.b - 0.5f ) * 2.0f * mat.displacementscale;
             
             // Sample overlay material displacement
             mat = g_TerrainMaterials[material.OverlayTextureId];
+            materialSampler = Bindless::GetSampler( Terrain::Get().samplerindex );
             float2 overlayLayerUV = ( o.LocalPosition.xy / 32.0f ) * mat.uvscale;
             
             if( mat.HasFlag( TerrainFlags::NoTile ) )
                 overlayLayerUV = Terrain_SampleSeamlessUV( overlayLayerUV );
 
-            float4 overlayNho = Bindless::GetTexture2D( mat.nho_texid ).SampleLevel( g_sAnisotropic, overlayLayerUV, 0 );
-            float overlayDisplacement = overlayNho.b * mat.displacementscale;
+            float4 overlayNho = Bindless::GetTexture2D( mat.nho_texid ).SampleLevel( materialSampler, overlayLayerUV, 0 );
+            float overlayDisplacement = ( overlayNho.b - 0.5f ) * 2.0f * mat.displacementscale;
             
             // Blend between base and overlay displacement
             float blend = material.GetNormalizedBlend();
@@ -130,6 +133,7 @@ VS
             // Displace vertex along geometric normal
             o.LocalPosition.xyz += geoNormal * totalDisplacement * displacementFade;
         }
+    #endif
 
         o.WorldPosition = mul( Terrain::Get().Transform, float4( o.LocalPosition, 1.0 ) ).xyz;
         o.PixelPosition = Position3WsToPs( o.WorldPosition.xyz );
@@ -275,7 +279,7 @@ PS
         // Sample materials by index
         for ( int i = 0; i < 4; i++ )
         {
-            TerrainMaterial mat = g_TerrainMaterials[ i ];
+            TerrainMaterial mat = g_TerrainMaterials[ indices[i] ];
             float2 layerUV = texUV * mat.uvscale;
             float2x2 uvAngle = float2x2( 1, 0, 0, 1 );
 
@@ -287,9 +291,10 @@ PS
 
             Texture2D tBcr = Bindless::GetTexture2D( mat.bcr_texid );
             Texture2D tNho = Bindless::GetTexture2D( mat.nho_texid );
+            SamplerState materialSampler = Bindless::GetSampler( Terrain::Get().samplerindex );
 
-            float4 bcr = tBcr.Sample( g_sAnisotropic, layerUV );
-            float4 nho = tNho.Sample( g_sAnisotropic, layerUV );
+            float4 bcr = tBcr.Sample( materialSampler, layerUV );
+            float4 nho = tNho.Sample( materialSampler, layerUV );
 
             float3 normal = ComputeNormalFromRGTexture( nho.rg );
             normal.xy = mul( uvAngle, normal.xy );
@@ -378,6 +383,7 @@ PS
 
         // Sample base material with optional seamless UVs when requested
         TerrainMaterial baseMat = g_TerrainMaterials[material.BaseTextureId];
+        SamplerState baseSampler = Bindless::GetSampler( Terrain::Get().samplerindex );
         float2 baseUV = texUV * baseMat.uvscale;
         float2x2 baseUvAngle = float2x2( 1, 0, 0, 1 );
         float2 baseSampleUV = baseUV;
@@ -387,8 +393,8 @@ PS
             baseSampleUV = Terrain_SampleSeamlessUV( baseUV, baseUvAngle );
         }
         
-        float4 baseBcr = Bindless::GetTexture2D( baseMat.bcr_texid ).Sample( g_sAnisotropic, baseSampleUV );
-        float4 baseNho = Bindless::GetTexture2D( baseMat.nho_texid ).Sample( g_sAnisotropic, baseSampleUV );
+        float4 baseBcr = Bindless::GetTexture2D( baseMat.bcr_texid ).Sample( baseSampler, baseSampleUV );
+        float4 baseNho = Bindless::GetTexture2D( baseMat.nho_texid ).Sample( baseSampler, baseSampleUV );
 
         float3 baseNormal = ComputeNormalFromRGTexture( baseNho.rg );
         baseNormal.xy = mul( baseUvAngle, baseNormal.xy );
@@ -397,6 +403,7 @@ PS
 
         // Sample overlay material with optional seamless UVs when requested
         TerrainMaterial overlayMat = g_TerrainMaterials[material.OverlayTextureId];
+        SamplerState overlaySampler = Bindless::GetSampler( Terrain::Get().samplerindex );
         float2 overlayUV = texUV * overlayMat.uvscale;
         float2x2 overlayUvAngle = float2x2( 1, 0, 0, 1 );
         float2 overlaySampleUV = overlayUV;
@@ -406,8 +413,8 @@ PS
             overlaySampleUV = Terrain_SampleSeamlessUV( overlayUV, overlayUvAngle );
         }
         
-        float4 overlayBcr = Bindless::GetTexture2D( overlayMat.bcr_texid ).Sample( g_sAnisotropic, overlaySampleUV );
-        float4 overlayNho = Bindless::GetTexture2D( overlayMat.nho_texid ).Sample( g_sAnisotropic, overlaySampleUV );
+        float4 overlayBcr = Bindless::GetTexture2D( overlayMat.bcr_texid ).Sample( overlaySampler, overlaySampleUV );
+        float4 overlayNho = Bindless::GetTexture2D( overlayMat.nho_texid ).Sample( overlaySampler, overlaySampleUV );
 
         float3 overlayNormal = ComputeNormalFromRGTexture( overlayNho.rg );
         overlayNormal.xy = mul( overlayUvAngle, overlayNormal.xy );
@@ -422,10 +429,12 @@ PS
         {
             float baseHeight = baseNho.b * baseMat.heightstrength;
             float overlayHeight = overlayNho.b * overlayMat.heightstrength;
-            
+
             float heightDiff = overlayHeight - baseHeight;
             float sharpness = Terrain::Get().HeightBlendSharpness * 10.0;
-            blend = saturate( blend + heightDiff * sharpness );
+
+            float blendMix = blend * ( 1.0 - blend ) * 4.0;
+            blend = saturate( blend + heightDiff * sharpness * blendMix );
         }
 
         // Blend materials

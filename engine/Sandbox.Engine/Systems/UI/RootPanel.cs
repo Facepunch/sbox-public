@@ -294,19 +294,26 @@ public partial class RootPanel : Panel
 		{
 			Parallel.ForEach( styleRuleUpdates, panel =>
 			{
-				if ( !panel.IsValid )
-					return;
-
-				if ( panel.Style.BuildRulesInThread() )
+				try
 				{
-					lock ( l )
-					{
-						locks++;
-						panel.SetNeedsPreLayout();
-					}
-				}
+					if ( !panel.IsValid() || panel.Style is null )
+						return;
 
-				panel.MarkStylesRebuilt();
+					if ( panel.Style.BuildRulesInThread() )
+					{
+						lock ( l )
+						{
+							locks++;
+							panel.SetNeedsPreLayout();
+						}
+					}
+
+					panel.MarkStylesRebuilt();
+				}
+				catch ( Exception e )
+				{
+					Log.Warning( e, e.Message );
+				}
 
 			} );
 

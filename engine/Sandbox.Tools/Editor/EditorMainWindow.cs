@@ -500,7 +500,7 @@ public class EditorMainWindow : DockWindow
 	private void OnFileMenuAboutToShow()
 	{
 		save.Enabled = SceneEditorSession.Active?.HasUnsavedChanges ?? false;
-		saveAs.Enabled = SceneEditorSession.Active is not null;
+		saveAs.Enabled = SceneEditorSession.Active is { IsMounted: false };
 		saveAll.Enabled = SceneEditorSession.All.Any();
 		discard.Enabled = SceneEditorSession.Active?.HasUnsavedChanges ?? false;
 	}

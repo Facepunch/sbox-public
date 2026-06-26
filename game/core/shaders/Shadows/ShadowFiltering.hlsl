@@ -80,6 +80,37 @@ static const float2 g_vPoissonDisk16[16] =
 };
 
 //--------------------------------------------------------------------------------------------------
+// Receiver plane depth bias (Isidoro 2006, AMD)
+//
+// Reconstructs the receiver surface plane in shadow-map UV/depth space using screen-space
+// derivatives of the shadow-space position. Returns the gradient ( dz/du, dz/dv ) so each PCF
+// tap can compute its exact comparison depth as: shadowPos.z + dot( uvOffset, gradient ).
+//
+// This eliminates the slope-related shadow acne that a uniform depth bias can't handle without
+// causing peter-panning. Falls back gracefully via the determinant clamp at silhouette pixels
+// where the 2x2 derivative quad straddles a depth discontinuity.
+//--------------------------------------------------------------------------------------------------
+float2 ComputeReceiverPlaneDepthBias( ShadowPCFInput i )
+{
+    float3 vShadowPos = i.ShadowPos;
+
+    float3 vDX = ddx_fine( vShadowPos );
+    float3 vDY = ddy_fine( vShadowPos );
+
+    float2 vBiasUV;
+    vBiasUV.x = vDY.y * vDX.z - vDX.y * vDY.z;
+    vBiasUV.y = vDX.x * vDY.z - vDY.x * vDX.z;
+
+    float flDet = vDX.x * vDY.y - vDX.y * vDY.x;
+    vBiasUV /= sign( flDet ) * max( abs( flDet ), 1e-8 );
+
+    // Cap to a sane slope - |dz/du| > ~1 implies the receiver plane spans the whole
+    // shadow map in depth across a single UV unit, which is almost always a derivative
+    // glitch at a silhouette and would otherwise produce a huge per-tap offset.
+    return clamp( vBiasUV, -1.0, 1.0 );
+}
+
+//--------------------------------------------------------------------------------------------------
 // R2 quasi-random sequence (Martin Roberts 2018)
 // Uses the plastic constant (unique real root of x³ = x + 1, p ≈ 1.3247) to achieve
 // optimal low-discrepancy distribution in 2D - smoother than blue noise with no texture
@@ -107,18 +138,19 @@ float SampleShadowPCF_Poisson5( ShadowPCFInput i )
     float2x2 mRotation = float2x2( flCos, -flSin, flSin, flCos );
     
     float2 vFilterScale = flFilterRadius * flHardness * vTexelSize;
-    
+    float2 vDzDuv = ComputeReceiverPlaneDepthBias( i );
+
     float flShadow = 0.0;
-    
+
     [unroll]
     for ( int s = 0; s < 5; s++ )
     {
         float2 vOffset = mul( mRotation, g_vPoissonDisk5[s] ) * vFilterScale;
         float2 vSampleUV = i.ShadowPos.xy + vOffset;
-        float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
+        float flCompareDepth = saturate( i.ShadowPos.z + dot( vOffset, vDzDuv ) + i.Bias );
         flShadow += i.ShadowMap.SampleCmpLevelZero( ShadowDepthPCFSampler, vSampleUV, flCompareDepth );
     }
-    
+
     return flShadow / 5.0;
 }
 
@@ -138,18 +170,19 @@ float SampleShadowPCF_Poisson12( ShadowPCFInput i )
     float2x2 mRotation = float2x2( flCos, -flSin, flSin, flCos );
     
     float2 vFilterScale = flFilterRadius * flHardness * vTexelSize;
-    
+    float2 vDzDuv = ComputeReceiverPlaneDepthBias( i );
+
     float flShadow = 0.0;
-    
+
     [unroll]
     for ( int s = 0; s < 12; s++ )
     {
         float2 vOffset = mul( mRotation, g_vPoissonDisk12[s] ) * vFilterScale;
         float2 vSampleUV = i.ShadowPos.xy + vOffset;
-        float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
+        float flCompareDepth = saturate( i.ShadowPos.z + dot( vOffset, vDzDuv ) + i.Bias );
         flShadow += i.ShadowMap.SampleCmpLevelZero( ShadowDepthPCFSampler, vSampleUV, flCompareDepth );
     }
-    
+
     return flShadow / 12.0;
 }
 
@@ -169,18 +202,19 @@ float SampleShadowPCF_Poisson16( ShadowPCFInput i )
     float2x2 mRotation = float2x2( flCos, -flSin, flSin, flCos );
     
     float2 vFilterScale = flFilterRadius * flHardness * vTexelSize;
-    
+    float2 vDzDuv = ComputeReceiverPlaneDepthBias( i );
+
     float flShadow = 0.0;
-    
+
     [unroll]
     for ( int s = 0; s < 16; s++ )
     {
         float2 vOffset = mul( mRotation, g_vPoissonDisk16[s] ) * vFilterScale;
         float2 vSampleUV = i.ShadowPos.xy + vOffset;
-        float flCompareDepth = saturate( i.ShadowPos.z + i.Bias );
+        float flCompareDepth = saturate( i.ShadowPos.z + dot( vOffset, vDzDuv ) + i.Bias );
         flShadow += i.ShadowMap.SampleCmpLevelZero( ShadowDepthPCFSampler, vSampleUV, flCompareDepth );
     }
-    
+
     return flShadow / 16.0;
 }
 

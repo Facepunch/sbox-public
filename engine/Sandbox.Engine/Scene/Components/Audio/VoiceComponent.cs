@@ -231,8 +231,7 @@ public class Voice : Component
 		if ( WorldspacePlayback )
 		{
 			sound.Position = WorldPosition;
-			sound.Occlusion = true;
-			sound.OcclusionRadius = 64;
+			sound.OcclusionEnabled = true;
 		}
 		else
 		{

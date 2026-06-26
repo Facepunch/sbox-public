@@ -8,6 +8,8 @@ public partial class Scene : GameObject
 	[ActionGraphIgnore]
 	public SceneTrace Trace => new SceneTrace( this );
 
+	[ThreadStatic] static List<PhysicsTraceResult> _physicsTraceScratch;
+
 	internal IEnumerable<SceneTraceResult> RunTraceAll( SceneTrace trace )
 	{
 		SceneMetrics.RayTraceAll++;
@@ -22,7 +24,9 @@ public partial class Scene : GameObject
 
 		if ( trace.IncludePhysicsWorld )
 		{
-			var physicsResults = trace.PhysicsTrace.RunAll();
+			var physicsResults = _physicsTraceScratch ??= new List<PhysicsTraceResult>();
+			physicsResults.Clear();
+			trace.PhysicsTrace.RunAll( physicsResults );
 
 			foreach ( var result in physicsResults )
 			{
@@ -55,7 +59,8 @@ public partial class Scene : GameObject
 		}
 
 		SceneTrace.ClearTraceFilter();
-		return results.OrderBy( r => r.Fraction );
+		results.Sort( static ( a, b ) => a.Fraction.CompareTo( b.Fraction ) );
+		return results;
 	}
 
 	internal unsafe SceneTraceResult RunTrace( SceneTrace trace )
@@ -123,12 +128,29 @@ public partial class Scene : GameObject
 		};
 	}
 
+	sealed class TraceQueryResult
+	{
+		public CQueryResult Vec = CQueryResult.Create();
+		~TraceQueryResult() => Vec.DeleteThis();
+	}
+
+	[ThreadStatic] static TraceQueryResult _threadQueryResult;
+	static CQueryResult ThreadQueryResult
+	{
+		get
+		{
+			_threadQueryResult ??= new TraceQueryResult();
+			_threadQueryResult.Vec.RemoveAll();
+			return _threadQueryResult.Vec;
+		}
+	}
+
 	/// <summary>
 	/// Find game objects in a sphere using physics.
 	/// </summary>
 	public IEnumerable<GameObject> FindInPhysics( Sphere sphere )
 	{
-		var results = CQueryResult.Create();
+		var results = ThreadQueryResult;
 		PhysicsWorld.native.Query( results, sphere.Center, sphere.Radius, 0x07 );
 		return FilterQueryResults( results );
 	}
@@ -138,7 +160,7 @@ public partial class Scene : GameObject
 	/// </summary>
 	public IEnumerable<GameObject> FindInPhysics( BBox box )
 	{
-		var results = CQueryResult.Create();
+		var results = ThreadQueryResult;
 		PhysicsWorld.native.Query( results, box, 0x07 );
 		return FilterQueryResults( results );
 	}
@@ -152,9 +174,29 @@ public partial class Scene : GameObject
 		if ( !frustum.TryGetCorners( corners ) )
 			return Enumerable.Empty<GameObject>();
 
-		var results = CQueryResult.Create();
+		var results = ThreadQueryResult;
 		PhysicsWorld.native.Query( results, (IntPtr)corners, 8, 0x07 );
 		return FilterQueryResults( results );
+	}
+
+	/// <summary>
+	/// Find physics bodies overlapping a sphere, writing into a caller-provided span.
+	/// </summary>
+	internal int FindBodiesInPhysics( Vector3 center, float radius, Span<PhysicsBody> result )
+	{
+		var queryResult = ThreadQueryResult;
+		PhysicsWorld.native.Query( queryResult, center, radius, 0x07 );
+
+		int total = queryResult.Count();
+		int written = 0;
+		for ( int i = 0; i < total && written < result.Length; i++ )
+		{
+			var shape = queryResult.Element( i );
+			if ( !shape.IsValid() ) continue;
+			var body = shape.Body;
+			if ( body.IsValid() ) result[written++] = body;
+		}
+		return written;
 	}
 
 	private HashSet<GameObject> FilterQueryResults( CQueryResult results )
@@ -177,8 +219,6 @@ public partial class Scene : GameObject
 
 			gameObjects.Add( gameObject );
 		}
-
-		results.DeleteThis();
 
 		return gameObjects;
 	}
@@ -546,7 +586,7 @@ public partial struct SceneTrace
 	{
 		if ( !Application.IsEditor )
 		{
-			Log.Error( "UseRenderMeshes is only available in edito" );
+			Log.Error( "UseRenderMeshes is only available in editor" );
 			return this;
 		}
 		var t = this;
@@ -563,7 +603,7 @@ public partial struct SceneTrace
 	{
 		if ( !Application.IsEditor )
 		{
-			Log.Error( "UseRenderMeshes is only available in edito" );
+			Log.Error( "UseRenderMeshes is only available in editor" );
 			return this;
 		}
 		var t = this;

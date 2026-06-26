@@ -51,6 +51,10 @@ internal static class BlobDataSerializer
 		if ( _current == null )
 			return null;
 
+		if ( _current.Blobs.TryGetValue( guid, out var registeredBlob ) )
+			return registeredBlob;
+
+		// Fall back to pre-existing binary data loaded from file
 		var binaryData = _current.BinaryData;
 		if ( binaryData == null || !binaryData.TryGetValue( guid, out var blobData ) )
 			return null;
@@ -232,6 +236,16 @@ internal static class BlobDataSerializer
 				binaryData = ParseFile( FileSystem.Mounted.ReadAllBytes( path ) );
 			else if ( File.Exists( path ) )
 				binaryData = ParseFile( File.ReadAllBytes( path ) );
+			else // Read from compiled scene instead
+			{
+				var compiledPath = filePath + "_c";
+				if ( FileSystem.Mounted?.FileExists( compiledPath ) == true )
+				{
+					var blockData = Game.Resources.ReadCompiledResourceBlock( CompiledBlobName, FileSystem.Mounted.ReadAllBytes( compiledPath ) );
+					if ( blockData != null )
+						binaryData = ParseFile( blockData );
+				}
+			}
 		}
 
 		var context = new BlobContext( _current, binaryData );

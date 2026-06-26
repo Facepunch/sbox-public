@@ -1,4 +1,5 @@
 ﻿using ExCSS;
+using Sandbox.Rendering;
 using System.Runtime.InteropServices;
 using static Sandbox.ModelRenderer;
 
@@ -71,6 +72,7 @@ public partial class Terrain
 
 		Assert.NotNull( Scene );
 
+		BackupRenderAttributes( _so?.Attributes );
 		_so?.Delete();
 		_so = null;
 
@@ -91,6 +93,8 @@ public partial class Terrain
 
 		_so.Flags.ExcludeGameLayer = RenderType == ShadowRenderType.ShadowsOnly;
 		_so.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
+
+		RestoreRenderAttributes( _so.Attributes );
 
 		// If we have no textures, push a grid texture (SUCKS)
 		_so.Attributes.SetCombo( "D_GRID", Storage?.Materials.Count == 0 );
@@ -123,6 +127,7 @@ public partial class Terrain
 
 		public bool HeightBlending;
 		public float HeightBlendSharpness;
+		public int SamplerIndex;
 	}
 
 	[StructLayout( LayoutKind.Sequential )]
@@ -168,7 +173,8 @@ public partial class Terrain
 			Resolution = Storage.TerrainSize / Storage.Resolution,
 			HeightScale = Storage.TerrainHeight,
 			HeightBlending = Storage.MaterialSettings.HeightBlendEnabled,
-			HeightBlendSharpness = Storage.MaterialSettings.HeightBlendSharpness
+			HeightBlendSharpness = Storage.MaterialSettings.HeightBlendSharpness,
+			SamplerIndex = SamplerState.GetBindlessIndex( Storage.MaterialSettings.Sampler )
 		};
 
 		// Upload to the GPU buffer
@@ -192,6 +198,7 @@ public partial class Terrain
 			return;
 
 		var gpuMaterials = new GPUTerrainMaterial[64];
+
 		for ( int i = 0; i < 64; i++ )
 		{
 			var layer = Storage.Materials.ElementAtOrDefault( i );

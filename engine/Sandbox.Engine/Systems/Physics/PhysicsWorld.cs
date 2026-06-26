@@ -40,6 +40,8 @@ public sealed partial class PhysicsWorld : IHandle
 	/// </summary>
 	public IEnumerable<PhysicsBody> Bodies => bodies.Where( x => x.IsValid() );
 
+	internal int BodyCount => bodies.Count;
+
 	//public Action<int, PhysicsBody, PhysicsBody, Vector3> Internal_OnCollision;
 
 	/// <summary>
@@ -451,6 +453,9 @@ public sealed partial class PhysicsWorld : IHandle
 		world.RemoveBody( physicsBody );
 		bodies.Remove( physicsBody );
 	}
+
+	// If a body handle is deleted from native, we can forget it here (empties bodies list of invalid bodies).
+	internal void ForgetBody( PhysicsBody physicsBody ) => bodies.Remove( physicsBody );
 }
 
 [Expose]

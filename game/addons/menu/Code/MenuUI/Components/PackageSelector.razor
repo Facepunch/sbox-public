@@ -5,9 +5,7 @@
 @namespace Menu
 
 <root class="flex-row grow" style="flex-shrink: 0">
-    <div style="flex-shrink: 0; flex-direction: column; max-width: 100%;">
-         <PackageList ShowFilters="@true" Query=@Query OnFilterChanged="@OnFilterChanged" OnSelected="@OnSelect" Take=@(200)></PackageList>
-    </div>
+    <PackageList ShowFilters="@true" Query=@Query OnFilterChanged="@OnFilterChanged" OnSelected="@OnSelect" Take=@(200)></PackageList>
 </root>
 
 @code

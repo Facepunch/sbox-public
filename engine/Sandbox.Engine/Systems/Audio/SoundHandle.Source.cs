@@ -1,101 +1,148 @@
-﻿using Sandbox.Audio;
+using Sandbox.Audio;
 
 namespace Sandbox;
 
 partial class SoundHandle
 {
-	private SteamAudioSource _audioSource;
-	private Dictionary<Listener, SteamAudioSource> _audioSources;
+	private DirectSoundModel _acousticModel;
+	private Dictionary<Listener, DirectSoundModel> _acousticModels;
+	private BinauralEffect _binauralEffect;
+	private Dictionary<Listener, BinauralEffect> _binauralEffects;
 
-	internal SteamAudioSource GetSource( Listener listener )
+	internal DirectSoundModel GetDirectSoundModel( Listener listener )
 	{
-		// Find listener source
-		if ( _audioSources?.TryGetValue( listener, out var source ) == true )
-		{
+		if ( _acousticModels?.TryGetValue( listener, out var source ) == true )
 			return source;
-		}
 
-		// Local audio source
-		return _audioSource;
+		return _acousticModel;
 	}
 
-	private void UpdateSources()
+	internal BinauralEffect GetBinaural( Listener listener )
 	{
-		// Only need a single audio source if listen local
+		if ( _binauralEffects?.TryGetValue( listener, out var binaural ) == true )
+			return binaural;
+
+		return _binauralEffect;
+	}
+
+	private void UpdateAcousticModel( DirectSoundModel source )
+	{
+		source.ListenLocal = ListenLocal;
+		source.AirAbsorption = AirAbsorption;
+		source.Occlusion = OcclusionEnabled;
+		source.DistanceAttenuation = DistanceAttenuation;
+		source.ReverbAmount = Reverb;
+		source.Distance = Distance;
+		source.Falloff = Falloff;
+		source.Update( Transform );
+	}
+
+	private void UpdateSources( IReadOnlyList<Listener> removedListeners )
+	{
 		if ( ListenLocal )
 		{
-			_audioSource ??= new SteamAudioSource();
-			_audioSource.UpdateFrom( this );
+			_acousticModel ??= new DirectSoundModel();
+			UpdateAcousticModel( _acousticModel );
+			_binauralEffect ??= new BinauralEffect();
 
-			// Dispose listener sources if there's any
-			if ( _audioSources is not null )
+			if ( _acousticModels is not null )
 			{
-				foreach ( var source in _audioSources.Values )
-				{
-					source.Dispose();
-				}
+				foreach ( var source in _acousticModels.Values )
+					Audio.MixingThread.QueueAcousticModelDisposal( source );
 
-				_audioSources.Clear();
-				_audioSources = default;
+				_acousticModels.Clear();
+				_acousticModels = default;
+			}
+
+			if ( _binauralEffects is not null )
+			{
+				foreach ( var binaural in _binauralEffects.Values )
+					Audio.MixingThread.QueueBinauralDisposal( binaural );
+
+				_binauralEffects.Clear();
+				_binauralEffects = default;
 			}
 
 			return;
 		}
 
-		// Dispose local audio source if we're not listen local
-		if ( _audioSource is not null )
+		if ( _acousticModel is not null )
 		{
-			_audioSource?.Dispose();
-			_audioSource = null;
+			Audio.MixingThread.QueueAcousticModelDisposal( _acousticModel );
+			_acousticModel = null;
 		}
 
-		// Remove stale sources - only if we have any
-		if ( _audioSources is { Count: > 0 } )
+		if ( _binauralEffect is not null )
 		{
-			foreach ( var removed in Listener.RemovedList )
+			Audio.MixingThread.QueueBinauralDisposal( _binauralEffect );
+			_binauralEffect = null;
+		}
+
+		if ( _acousticModels is { Count: > 0 } && removedListeners.Count > 0 )
+		{
+			for ( var i = 0; i < removedListeners.Count; i++ )
 			{
-				if ( _audioSources.Remove( removed, out var source ) )
-				{
-					source.Dispose();
-				}
+				var removed = removedListeners[i];
+#pragma warning disable CA2000 // ownership transferred to disposal queue immediately
+				if ( _acousticModels.Remove( removed, out var source ) )
+					Audio.MixingThread.QueueAcousticModelDisposal( source );
+
+				if ( _binauralEffects?.Remove( removed, out var binaural ) == true )
+					Audio.MixingThread.QueueBinauralDisposal( binaural );
+#pragma warning restore CA2000
 			}
 		}
 
-		// Find listeners of this scene and update sources
 		var scene = Scene;
-
 		foreach ( var listener in Listener.ActiveList )
 		{
-			if ( listener.Scene != scene ) continue;
+			if ( listener.Scene != scene )
+				continue;
 
-			_audioSources ??= new();
+			_acousticModels ??= new( ReferenceEqualityComparer.Instance );
+			_binauralEffects ??= new( ReferenceEqualityComparer.Instance );
 
-			if ( !_audioSources.TryGetValue( listener, out var source ) )
+			if ( !_acousticModels.TryGetValue( listener, out var src ) )
 			{
-				source = new SteamAudioSource();
-				_audioSources[listener] = source;
+				src = new DirectSoundModel();
+				_acousticModels[listener] = src;
 			}
 
-			source.UpdateFrom( this, scene?.PhysicsWorld, listener.Position );
+			UpdateAcousticModel( src );
+
+			if ( !_binauralEffects.ContainsKey( listener ) )
+				_binauralEffects[listener] = new BinauralEffect();
 		}
 	}
 
 	private void DisposeSources()
 	{
-		// Dispose local source
-		MainThread.QueueDispose( _audioSource );
-		_audioSource = default;
+		Audio.MixingThread.QueueAcousticModelDisposal( _acousticModel );
+		_acousticModel = default;
 
-		// Dispose listener sources if there's any
-		if ( _audioSources is not null )
+		if ( _acousticModels is not null )
 		{
-			foreach ( var source in _audioSources.Values )
-			{
-				MainThread.QueueDispose( source );
-			}
+			foreach ( var source in _acousticModels.Values )
+				Audio.MixingThread.QueueAcousticModelDisposal( source );
 
-			_audioSources.Clear();
-			_audioSources = default;
+			_acousticModels.Clear();
+			_acousticModels = default;
 		}
+
+		Audio.MixingThread.QueueBinauralDisposal( _binauralEffect );
+		_binauralEffect = default;
+
+		if ( _binauralEffects is not null )
+		{
+			foreach ( var binaural in _binauralEffects.Values )
+				Audio.MixingThread.QueueBinauralDisposal( binaural );
+
+			_binauralEffects.Clear();
+			_binauralEffects = default;
+		}
+
+		Audio.MixingThread.QueueReverbDisposal( _reverb );
+		_reverb = null;
+		SourceRoom = default;
 	}
 }

@@ -1,4 +1,6 @@
 ﻿using Sandbox;
+using Sandbox.Hashing;
+using System.Buffers.Binary;
 using System.Collections.ObjectModel;
 using System.Text.Json.Nodes;
 using static Sandbox.GameObject;
@@ -45,6 +47,28 @@ internal class PrefabInstanceData
 	}
 
 	/// <summary>
+	/// Deterministically derives a stable instance guid for a prefab object with no persisted mapping
+	/// entry (e.g. one added to a nested prefab after its consumers were saved). Stable across cache
+	/// rebuilds, unique per instance. Compatibility contract: changing it invalidates saved identities.
+	/// </summary>
+	internal static Guid DeriveInstanceGuid( Guid seed, Guid prefabGuid )
+	{
+		Span<byte> input = stackalloc byte[32];
+		seed.TryWriteBytes( input[..16] );
+		prefabGuid.TryWriteBytes( input[16..] );
+
+		Span<byte> derived = stackalloc byte[16];
+		BinaryPrimitives.WriteUInt64LittleEndian( derived[..8], XxHash3.HashToUInt64( input ) );
+		BinaryPrimitives.WriteUInt64LittleEndian( derived[8..], XxHash3.HashToUInt64( input, seed: 0x5bd1e9955bd1e995 ) );
+
+		// Mark as an RFC 4122 version 8 (custom) guid so derived ids are well formed and recognizable
+		derived[7] = (byte)((derived[7] & 0x0F) | 0x80);
+		derived[8] = (byte)((derived[8] & 0x3F) | 0x80);
+
+		return new Guid( derived );
+	}
+
+	/// <summary>
 	/// Initialize lookups for this prefab instance.
 	/// </summary>
 	/// <param name="prefabToInstance">Mapping from prefab GUIDs to instance GUIDs</param>
@@ -80,6 +104,7 @@ internal class PrefabInstanceData
 
 		// Use a swap-dictionary to avoid .ToArray() allocations each iteration
 		var next = new Dictionary<Guid, Guid>( current.Count );
+		var droppedEntries = 0;
 
 		// Build a mapping all the way back to the original prefab
 		while ( prefabGameObject is not PrefabCacheScene )
@@ -92,6 +117,10 @@ internal class PrefabInstanceData
 				if ( levelLookup.TryGetValue( prefabId, out var outerPrefabId ) )
 				{
 					next[instanceId] = outerPrefabId;
+				}
+				else
+				{
+					droppedEntries++;
 				}
 			}
 			(current, next) = (next, current);
@@ -106,13 +135,18 @@ internal class PrefabInstanceData
 			}
 		}
 
+		if ( droppedEntries > 0 )
+		{
+			Log.Warning( $"Dropped {droppedEntries} unresolvable mapping entries while rebuilding nested prefab instance mappings for {_instanceRoot} ({PrefabSource}). Identities for those objects will be re-derived." );
+		}
+
 		// Add any new objects that don't have mappings yet (modifying in-place
 		// since 'current' is already a local dictionary we can mutate).
 		foreach ( var requiredGuid in relevantInstanceGuids )
 		{
 			if ( !current.ContainsKey( requiredGuid ) )
 			{
-				current[requiredGuid] = Guid.NewGuid();
+				current[requiredGuid] = DeriveInstanceGuid( _instanceRoot.Id, requiredGuid );
 			}
 		}
 
@@ -275,6 +309,7 @@ internal class PrefabInstanceData
 	{
 		// We only want to ignore these basic overrides for overrides targeting the root
 		if ( !_instanceRoot.IsOutermostPrefabInstanceRoot ) return false;
+		if ( _instanceGuidToPrefabGuid.GetValueOrDefault( _instanceRoot.Id ) != propertyPrefabTargetId ) return false;
 
 		propertyName = RemapTransformPropertyName( propertyName );
 		return _ignoredProperties.Contains( propertyName );
@@ -853,12 +888,12 @@ internal class PrefabInstanceData
 			}
 		}
 
-		// Add missing mappings
+		// Add missing mappings, derived deterministically so they stay stable across loads.
 		foreach ( var requiredObjId in requiredGuids )
 		{
 			if ( !newLookup.ContainsKey( requiredObjId ) )
 			{
-				newLookup.Add( requiredObjId, Guid.NewGuid() );
+				newLookup.Add( requiredObjId, DeriveInstanceGuid( _instanceRoot.Id, requiredObjId ) );
 			}
 		}
 
@@ -902,7 +937,7 @@ internal class PrefabInstanceData
 		{
 			if ( !instanceToPrefabLookup.ContainsKey( requiredObjId ) )
 			{
-				instanceToPrefabLookup.Add( requiredObjId, Guid.NewGuid() );
+				instanceToPrefabLookup.Add( requiredObjId, DeriveInstanceGuid( instanceRoot.Id, requiredObjId ) );
 			}
 		}
 	}

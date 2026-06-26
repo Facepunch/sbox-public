@@ -38,18 +38,19 @@
     Popup menu;
 
     void OpenPopup()
-    {
-        if (menu.IsValid())
+	{
+		if ( menu is not null && menu.IsVisible )
         {
             menu.Delete();
             menu = null;
             timeUntilUpdate = 0;
             return;
-        }
+		}
+
+		Popup.CloseAll();
 
         menu = new NotificationList();
         menu.SetPositioning(this, Popup.PositionMode.BelowRight, 16.0f);
-        menu.StayOpen = true;
     }
 
 }

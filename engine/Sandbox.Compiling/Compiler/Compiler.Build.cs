@@ -37,6 +37,25 @@ partial class Compiler
 	}
 
 	/// <summary>
+	/// Fill CompilerOutput from a precompiled assembly, as if it had been built by this compiler.
+	/// </summary>
+	internal void UpdateFromAssembly( byte[] bytes )
+	{
+		using ( var a_stream = new System.IO.MemoryStream( bytes ) )
+		{
+			MetadataReference = Microsoft.CodeAnalysis.MetadataReference.CreateFromStream( a_stream );
+		}
+
+		var version = Interlocked.Increment( ref compileCounter );
+		Output = new CompilerOutput( this )
+		{
+			Successful = true,
+			Version = Version.Parse( $"0.0.{version}.0" ),
+			MetadataReference = MetadataReference
+		};
+	}
+
+	/// <summary>
 	/// Called by <see cref="CompileGroup"/> before a build starts. Prepares this compiler
 	/// to be referenced by other compilers before they build with <see cref="BuildAsync"/>.
 	/// </summary>

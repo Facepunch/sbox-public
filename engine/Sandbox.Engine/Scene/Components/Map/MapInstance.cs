@@ -37,7 +37,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	/// <summary>
 	/// True if the map is loaded
 	/// </summary>
-	public bool IsLoaded => loadedMap is not null;
+	public bool IsLoaded { get; set; }
 
 	readonly SemaphoreSlim mapLoadSemaphore = new( 1 );
 	readonly HashSet<CancellationTokenSource> tokenSources = new();
@@ -55,6 +55,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	SceneMap loadedMap;
 	GameObject _mapPhysics;
 	string loadedMapName;
+	Package loadedMapPkg;
 	string sceneMapScenePath;
 
 	public MapInstance() : base()
@@ -128,7 +129,13 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	/// </summary>
 	public void UnloadMap()
 	{
+		if ( loadedMapPkg is not null )
+		{
+			ServerPackages.Current?.RemoveRequirement( loadedMapPkg );
+		}
+
 		loadedMapName = null;
+		loadedMapPkg = null;
 		sceneMapScenePath = null;
 
 		bool hadMap = loadedMap is not null;
@@ -164,6 +171,8 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			g_pWorldRendererMgr.ServiceWorldRequests();
 			SceneMap.OnMapUpdated -= OnMapUpdated;
 		}
+
+		IsLoaded = false;
 	}
 
 	protected override void OnUpdate()
@@ -190,9 +199,11 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	{
 		if ( UseMapFromLaunch && !string.IsNullOrWhiteSpace( LaunchArguments.Map ) )
 		{
-			MapName = LaunchArguments.Map;
-			await LoadMapAsync( MapName, context );
-			return true;
+			if ( await LoadMapAsync( LaunchArguments.Map, context ) )
+			{
+				MapName = LaunchArguments.Map;
+				return true;
+			}
 		}
 
 		if ( string.IsNullOrWhiteSpace( MapName ) )
@@ -237,11 +248,15 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			if ( mapFileName.EndsWith( ".vmap" ) )
 				mapFileName = System.IO.Path.ChangeExtension( mapFileName, ".vpk" );
 
-			// If this looks like a package ident, then download it
-			if ( !mapFileName.EndsWith( ".vpk" ) && Package.TryParseIdent( mapName, out var parts ) )
+			if ( mapFileName.EndsWith( ".scene" ) || mapFileName.EndsWith( ".vpk" ) )
 			{
-				var package = await Package.Fetch( mapName, false );
+				// can just load these directly
+			}
+			else if ( Package.TryParseIdent( mapName, out var parts ) )
+			{
+				// If this looks like a package ident, then download it
 
+				var package = await Package.Fetch( mapName, false );
 				if ( package is null || !IsValid )
 				{
 					Log.Warning( $"No package found: {mapName}" );
@@ -263,7 +278,11 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 				if ( !IsValid || fs is null )
 					return false;
 
+				loadedMapPkg = package;
 				mapFileName = package.PrimaryAsset;
+
+				if ( mapFileName.EndsWith( ".vmap" ) )
+					mapFileName = System.IO.Path.ChangeExtension( mapFileName, ".vpk" );
 
 				if ( string.IsNullOrWhiteSpace( mapFileName ) )
 				{
@@ -277,11 +296,12 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 					// use shortest name, just trying to avoid loading the skybox vpk
 					mapFileName = maps.OrderBy( x => x.Length ).First();
 				}
-				else if ( mapFileName.EndsWith( ".scene" ) )
-				{
-					// Scene maps can be loaded, but we need to do some special work with the GameObjects.
-					sceneMapScenePath = mapFileName;
-				}
+			}
+
+			if ( mapFileName.EndsWith( ".scene" ) )
+			{
+				// Scene maps can be loaded, but we need to do some special work with the GameObjects.
+				sceneMapScenePath = mapFileName;
 			}
 
 			token.ThrowIfCancellationRequested();
@@ -294,19 +314,20 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 				await Task.Yield();
 				token.ThrowIfCancellationRequested();
 
-				using ( Scene.Push() )
+				using var scope = Scene.Push();
+
+				if ( mapFileName.EndsWith( ".vpk" ) )
 				{
 					var loader = new MapComponentMapLoader( this, NoOrigin ? 0 : WorldPosition );
 					loadedMap = new SceneMap( loader.World, mapFileName, loader );
 
 					if ( loadedMap.IsValid() )
 					{
-						var aggregateData = g_pPhysicsSystem.GetAggregateData( $"{loadedMap.MapFolder}/world_physics.vphys" );
-						if ( aggregateData.IsValid )
+						var vphysPath = $"{loadedMap.MapFolder}/world_physics.vphys";
+						Physics = PhysicsGroupDescription.Load( vphysPath );
+						if ( Physics is not null )
 						{
 							var objectKey = $"{mapFileName}.World Physics";
-
-							Physics = new PhysicsGroupDescription( aggregateData );
 							var go = new GameObject();
 
 							//
@@ -326,12 +347,20 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 						}
 						else
 						{
-							Log.Warning( $"Couldn't find map physics: '{loadedMap.MapFolder}/world_physics.vphys'" );
-							SentrySdk.AddBreadcrumb( $"Couldn't find map physics: '{loadedMap.MapFolder}/world_physics.vphys'", "map.load" );
+							Log.Warning( $"Couldn't find map physics: '{vphysPath}'" );
+							SentrySdk.AddBreadcrumb( $"Couldn't find map physics: '{vphysPath}'", "map.load" );
 						}
 					}
+				}
 
-					LoadMapSceneGameObjects( mapName );
+				if ( !LoadMapSceneGameObjects( mapName ) )
+				{
+					if ( !string.IsNullOrWhiteSpace( sceneMapScenePath ) )
+					{
+						// we're explictly trying to load a scenemap, and we couldn't - so this whole thing has failed
+						Log.Warning( $"Failed to load scenemap: {sceneMapScenePath}" );
+						return false;
+					}
 				}
 			}
 			catch ( Exception e )
@@ -342,6 +371,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			}
 
 			OnMapLoaded?.InvokeWithWarning();
+			IsLoaded = true;
 		}
 		finally
 		{
@@ -377,14 +407,16 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		}
 	}
 
-	private void LoadMapSceneGameObjects( string mapName )
+	private bool LoadMapSceneGameObjects( string mapName )
 	{
 		// If this is being loaded from a vpk, load scene contents from world.scene_c.
 		// If this is from an actual scene, just use that.
 		var path = string.IsNullOrWhiteSpace( sceneMapScenePath ) ? $"{loadedMap?.MapFolder}/world.scene_c" : sceneMapScenePath + "_c";
-		var scene = Game.Resources.LoadRawGameResource( path );
-		if ( scene is not SceneFile sceneFile )
-			return;
+		var sceneFile = SceneFile.Load( path );
+		sceneFile ??= Game.Resources.LoadRawGameResource( path ) as SceneFile;
+
+		if ( sceneFile is null )
+			return false;
 
 		// Wouldn't this be nice? Doesn't make sense within a MapInstance, but when we switch away
 		// SceneLoadOptions options = new() { IsAdditive = true };
@@ -419,6 +451,8 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 				go.NetworkSpawn();
 			}
 		}
+
+		return true;
 	}
 
 	private bool ShouldIgnoreGameObject( JsonObject json )

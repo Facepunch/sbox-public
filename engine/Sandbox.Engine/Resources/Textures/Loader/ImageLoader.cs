@@ -48,6 +48,7 @@ internal static class Image
 				codec = null; // ownership transferred to Animation
 
 				var texture = CreateTexture( animation.Bitmap, debugName );
+				texture.IsAnimated = true;
 				animation.Texture = new System.WeakReference<Texture>( texture );
 				Texture.Animations.Add( animation );
 

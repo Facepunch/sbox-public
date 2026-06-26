@@ -122,7 +122,7 @@ public class ResourceSystem
 		foreach ( var resource in toDispose )
 		{
 			// Don't wait/rely for finalizer get rid of this immediately
-			resource.Destroy();
+			resource?.Destroy();
 		}
 
 		ResourceIndex.Clear();

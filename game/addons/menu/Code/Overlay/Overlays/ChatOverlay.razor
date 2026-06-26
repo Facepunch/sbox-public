@@ -121,12 +121,7 @@
             Open();
         }
 
-        if ( IsOpen && Input.Pressed( "escape" ) )
-        {
-            Close();
-        }
-
-        if ( IsOpen && TimeSinceOpened > 0.1f && Panel is not null && !Panel.HasInputFocus )
+        if ( IsOpen && TimeSinceOpened > 0.1f && Panel.IsValid() && !Panel.HasInputFocus )
         {
             Close();
         }

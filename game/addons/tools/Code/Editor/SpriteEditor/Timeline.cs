@@ -179,6 +179,29 @@ public class Timeline : Widget
 		CurrentFrameControl.HasRange = true;
 	}
 
+	/// <summary>
+	/// Finds the frame index closest to a given screen X position.
+	/// </summary>
+	public int FrameIndexFromScreenX( float screenX )
+	{
+		int bestIndex = 0;
+		float bestDist = float.MaxValue;
+
+		for ( int i = 0; i < FrameButtons.Count; i++ )
+		{
+			var btn = FrameButtons[i];
+			var centerX = btn.ScreenPosition.x + btn.Width / 2f;
+			var dist = MathF.Abs( screenX - centerX );
+			if ( dist < bestDist )
+			{
+				bestDist = dist;
+				bestIndex = i;
+			}
+		}
+
+		return bestIndex;
+	}
+
 	protected override void OnContextMenu( ContextMenuEvent e )
 	{
 		base.OnContextMenu( e );
@@ -299,13 +322,16 @@ public class Timeline : Widget
 			{
 				foreach ( var asset in x )
 				{
-					var texture = asset.LoadResource<Texture>();
-					if ( texture is null ) continue;
-					var frame = new Sprite.Frame()
+					// Use ImageFileGenerator so the texture is stored as an EmbeddedResource so it's compiled correctly for cloud references
+					var generator = new ImageFileGenerator
 					{
-						Texture = texture
+						FilePath = asset.RelativePath
 					};
-					SpriteEditor.SelectedAnimation.Frames.Add( frame );
+
+					var texture = generator.Create( ResourceGenerator.Options.Default );
+					if ( texture is null ) continue;
+
+					SpriteEditor.SelectedAnimation.Frames.Add( new Sprite.Frame { Texture = texture } );
 				}
 			} );
 

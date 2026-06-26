@@ -10,6 +10,7 @@ public class PlatformSettings : ConfigData
 	/// <summary>
 	/// Whether the built-in text chat system is enabled for this game.
 	/// </summary>
+	[Group( "Chat Settings" ), Title( "Enabled" )]
 	public bool ChatEnabled
 	{
 		get
@@ -31,11 +32,13 @@ public class PlatformSettings : ConfigData
 	/// and events still fire, but the built-in overlay is hidden. Use this when
 	/// implementing a custom chat UI.
 	/// </summary>
+	[Group( "Chat Settings" ), Title( "Show UI" )]
 	public bool ChatShowUI { get; set; } = true;
 
 	/// <summary>
 	/// Maximum length of a single chat message in characters.
 	/// </summary>
-	[Range( 32, 256 )]
+	[Group( "Chat Settings" )]
+	[Range( 32, 256 ), Title( "Chat Max Length" )]
 	public int ChatMaxMessageLength { get; set; } = 255;
 }

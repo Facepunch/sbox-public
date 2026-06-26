@@ -2,9 +2,9 @@
 
 namespace Facepunch.Steps;
 
-internal class InteropGen( string name, bool skipNative = false ) : Step( name )
+internal class InteropGen( bool skipNative = false )
 {
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		Facepunch.InteropGen.Program.ProcessManifest( "engine", skipNative );
 		return ExitCode.Success;

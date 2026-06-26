@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -8,24 +9,47 @@ internal unsafe static partial class Interop
 {
 	private static Logger log = Logging.GetLogger();
 
-	[SkipHotload] static List<PassBackString> FrameAllocatedStrings = new();
+	// Native can call back into managed (and thus allocate temporary return strings)
+	// from non-main threads, while Free() drains this at frame end on the main thread,
+	// so this has to be a concurrent collection.
+	[SkipHotload] static ConcurrentQueue<PassBackString> FrameAllocatedStrings = new();
 
 	public static int Free()
 	{
 		int i = 0;
 
-		foreach ( var entry in FrameAllocatedStrings )
+		while ( FrameAllocatedStrings.TryDequeue( out var entry ) )
 		{
 			entry.Free();
 			i++;
 		}
 
-		FrameAllocatedStrings.Clear();
-
 		return i;
 	}
 
 	const int maxNativeString = 1024 * 1024 * 64; // a 64mb string sounds sensible!
+
+	/// <summary>
+	/// Throw helpers for the generated bindings. Keeping the throw (and its message formatting) out
+	/// of the generated methods keeps their bodies tiny, so they inline well and JIT fast.
+	/// </summary>
+	[System.Diagnostics.CodeAnalysis.DoesNotReturn]
+	public static void ThrowNullSelf( string className, string methodName )
+	{
+		throw new System.NullReferenceException( $"{className} was null when calling {methodName}" );
+	}
+
+	[System.Diagnostics.CodeAnalysis.DoesNotReturn]
+	public static void ThrowNull( string className )
+	{
+		throw new System.NullReferenceException( $"{className} was null" );
+	}
+
+	[System.Diagnostics.CodeAnalysis.DoesNotReturn]
+	public static void ThrowNullFunctionPointer()
+	{
+		throw new System.Exception( "Function Pointer Is Null" );
+	}
 
 	/// <summary>
 	/// Convert a native utf pointer to a string
@@ -35,15 +59,19 @@ internal unsafe static partial class Interop
 		if ( pointer == IntPtr.Zero )
 			return null;
 
-		int length = GetUtf8Length( (byte*)pointer, maxNativeString );
+		// Uses the runtime's vectorized strlen to find the null terminator
+		var span = MemoryMarshal.CreateReadOnlySpanFromNullTerminated( (byte*)pointer );
 
-		if ( length < 0 )
+		if ( span.Length >= maxNativeString )
 		{
 			Log.Warning( "Really long, or really invalid string detected" );
 			return null;
 		}
 
-		return GetString( pointer, length );
+		if ( span.IsEmpty )
+			return string.Empty;
+
+		return Encoding.UTF8.GetString( span );
 	}
 
 	/// <summary>
@@ -58,21 +86,6 @@ internal unsafe static partial class Interop
 			return string.Empty;
 
 		return Encoding.UTF8.GetString( (byte*)pointer, byteLen );
-	}
-
-	/// <summary>
-	/// Get the length of a null-terminated UTF-8 string using AVX2 (fallback to scalar if unavailable)
-	/// </summary>
-	[MethodImpl( MethodImplOptions.AggressiveInlining )]
-	private static int GetUtf8Length( byte* ptr, int maxLen )
-	{
-		byte* start = ptr;
-		int length = 0;
-
-		while ( length < maxLen && ptr[length] != 0 )
-			length++;
-
-		return length >= maxLen ? -1 : length;
 	}
 
 	/// <summary>
@@ -100,27 +113,72 @@ internal unsafe static partial class Interop
 	public unsafe ref struct InteropString
 	{
 		public IntPtr Pointer;
+		private bool heap;
 
 		public InteropString( string str )
 		{
 			if ( str is null )
 				return;
 
-			uint nb = (uint)Encoding.UTF8.GetByteCount( str );
-			byte* mem = (byte*)NativeMemory.Alloc( nb + 1 );
+			AllocateOnHeap( str, Encoding.UTF8.GetByteCount( str ) );
+		}
+
+		/// <summary>
+		/// Marshal using a caller-provided buffer - the generated bindings pass a stackalloc, so
+		/// typical strings never touch the heap allocator. Falls back to the heap when the encoded
+		/// string doesn't fit. The buffer must outlive this struct.
+		/// </summary>
+		public InteropString( string str, Span<byte> buffer )
+		{
+			if ( str is null )
+				return;
+
+			// UTF8 is at most 3 bytes per char, so this guarantees a fit without counting first
+			if ( str.Length * 3 + 1 <= buffer.Length )
+			{
+				UseBuffer( str, buffer );
+				return;
+			}
+
+			int byteCount = Encoding.UTF8.GetByteCount( str );
+			if ( byteCount < buffer.Length )
+			{
+				UseBuffer( str, buffer );
+				return;
+			}
+
+			AllocateOnHeap( str, byteCount );
+		}
+
+		private void UseBuffer( string str, Span<byte> buffer )
+		{
+			int nb = Encoding.UTF8.GetBytes( str, buffer );
+			buffer[nb] = 0;
+			Pointer = (IntPtr)Unsafe.AsPointer( ref MemoryMarshal.GetReference( buffer ) );
+		}
+
+		private void AllocateOnHeap( string str, int byteCount )
+		{
+			byte* mem = (byte*)NativeMemory.Alloc( (uint)byteCount + 1 );
 
 			fixed ( char* src = str )
 			{
-				Encoding.UTF8.GetBytes( src, str.Length, mem, (int)nb );
+				Encoding.UTF8.GetBytes( src, str.Length, mem, byteCount );
 			}
 
-			mem[nb] = 0;
+			mem[byteCount] = 0;
 			Pointer = (IntPtr)mem;
+			heap = true;
 		}
 
 		public void Free()
 		{
-			NativeMemory.Free( (void*)Pointer );
+			if ( heap )
+			{
+				NativeMemory.Free( (void*)Pointer );
+				heap = false;
+			}
+
 			Pointer = default;
 		}
 	}
@@ -210,7 +268,7 @@ internal unsafe static partial class Interop
 	internal static IntPtr GetTemporaryStringPointerForNative( string str )
 	{
 		var f = new PassBackString( str );
-		FrameAllocatedStrings.Add( f );
+		FrameAllocatedStrings.Enqueue( f );
 		return f.Pointer;
 	}
 }

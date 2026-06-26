@@ -1,5 +1,7 @@
 ﻿
-$primary: red !default;
+@import "/styles/_theme.scss";
+
+$primary: $primary-blue !default;
 $primary-alt: white !default;
 $form-control-height: 24px !default;
 
@@ -8,6 +10,7 @@ $form-control-height: 24px !default;
 	cursor: pointer;
 	color: rgba( $primary-alt, 0.6 );
 	align-items: center;
+	gap: 8px;
 
 	label
 	{
@@ -18,15 +21,15 @@ $form-control-height: 24px !default;
 	{
 		padding: 1px;
 		font-size: 22px;
-		border: 3px solid $primary;
-		border-radius: 4px;
+		border: 1px solid $primary;
+		border-radius: $rounding-small;
 		text-align: center;
 		justify-content: center;
 		align-items: center;
 		color: transparent;
 		min-height: $form-control-height;
-		margin-right: 10px;
 		pointer-events: none;
+		flex-shrink: 0;
 	}
 
 	&.checked

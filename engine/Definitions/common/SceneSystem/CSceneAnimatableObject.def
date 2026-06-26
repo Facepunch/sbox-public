@@ -8,14 +8,24 @@ delegate SboxAnimGraphChangedCallback;
 [Handle:Sandbox.SceneModel]
 native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSceneObject
 {
+	[nogc]
 	void SetWorldSpaceRenderBoneTransform( int nBoneIndex, Transform pRenderWorldTransform );
+	[nogc]
 	Transform GetWorldSpaceRenderBoneTransform( int nBoneIndex );
 	Transform GetWorldSpaceRenderBoneTransform( string boneName );
+	[nogc]
 	Transform GetWorldSpaceRenderBonePreviousTransform( int nBoneIndex );
 	Transform GetWorldSpaceRenderBonePreviousTransform( string boneName );
+	[nogc]
 	Transform GetLocalSpaceRenderBoneTransform( int nBoneIndex );
 	Transform GetLocalSpaceRenderBoneTransform( string boneName );
+	[nogc]
 	Transform GetWorldSpaceAnimationTransform( int nBoneIndex );
+
+	[nogc]
+	void GetWorldSpaceRenderBoneTransforms( int nNumBones, void* pOut );
+	[nogc]
+	void GetWorldSpaceRenderBonePreviousTransforms( int nNumBones, void* pOut );
 
 	void Update( float dt );
 	void MergeFrom( CSceneAnimatableObject other );
@@ -25,7 +35,10 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 
 	void ResetGraphParameters();
 
+	[nogc]
 	Transform GetParentSpaceBone( int index );
+	[nogc]
+	void GetParentSpaceBones( int nNumBones, void* pOut );
 	void SetParentSpaceBone( int index, Transform tx );
 
 	void InitAnimGraph( SboxAnimGraphChangedCallback pAnimGraphChangedCallback );
@@ -46,7 +59,7 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 	void DirectPlayback_PlaySequence( string pSequenceName, Vector3 vTargetPos, float flFacingHeading, float flInterpTime );
 	void DirectPlayback_CancelSequence();
 	float DirectPlayback_GetSequenceCycle();
-	string DirectPlayback_GetSequence();
+	stable string DirectPlayback_GetSequence();
 	void DirectPlayback_SetSequenceStartTime( float flStartTime );
 	float DirectPlayback_GetSequenceDuration();
 
@@ -55,7 +68,7 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 	void SetShouldUseAnimGraph( bool bEnabled );
 	bool GetShouldUseAnimGraph();
 
-	string GetSequence();
+	stable string GetSequence();
 	void SetSequence( string pSequenceName );
 
 	float GetSequenceDuration();
@@ -85,7 +98,9 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 	//
 	// Bone Overrides
 	//
+	[nogc]
 	void ClearPhysicsBones();
+	[nogc]
 	void SetPhysicsBone( ushort bone, Transform transform );
 
 	Transform GetRootMotion();

@@ -11,6 +11,7 @@ native class CUtlVector<PhysicsTrace.Result> as NativeEngine.CUtlVectorTraceResu
 
 	int Count();
 	PhysicsTrace.Result Element( int i );
+	void RemoveAll();
 }
 
 native static class PhysicsTrace

@@ -39,42 +39,41 @@ StructuredBuffer<DDGIVolume> DDGIVolumes < Attribute( "DDGI_Volumes" ); >;
 uint DDGIVolumeCount < Attribute( "DDGI_VolumeCount" ); >;
 
 #define DDGISampler g_sBilinearClamp
-#define DDGI_IRRADIANCE_OCT_RESOLUTION 6
-#define DDGI_DISTANCE_OCT_RESOLUTION 14
-#define DDGI_BORDER 1
+#define DDGI_IRRADIANCE_OCT_RESOLUTION 8
+#define DDGI_DISTANCE_OCT_RESOLUTION 16
 
 class DDGI
 {
-    // Tile size = octahedral resolution + 2 border texels (1 on each side)
+    // Tile size equals the octahedral resolution (no border texels)
     static uint TileSize(uint resolution)
     {
-        return resolution + 2;
+        return resolution;
     }
 
     // Base coordinate of a probe's tile in the 2D atlas slice
     static uint2 BaseCoordinate(uint2 probeXY, uint resolution)
     {
-        uint tile = TileSize(resolution);
-        return probeXY * tile;
+        return probeXY * TileSize(resolution);
     }
 
-    // Convert interior texel index [0, octResolution-1] to normalized octahedral coordinate [0, 1]
-    // Used by integration shader to determine which direction to store at each texel
-    static float2 TexelToOctahedralCoord(uint2 interiorIdx, uint octResolution)
+    // Convert a texel index [0, octResolution-1] to its normalized octahedral coordinate [0, 1].
+    // Standard center mapping (Cigolle et al. 2014): texel i samples the direction at its centre,
+    // oct = (i + 0.5) / N. Integration writes this direction into every texel of the tile.
+    static float2 TexelToOctahedralCoord(uint2 texelIdx, uint octResolution)
     {
-        // Texel center mapping that aligns with edge-to-edge sampling
-        return (float2(interiorIdx) + 0.5f) / float(octResolution);
+        return (float2(texelIdx) + 0.5f) / float(octResolution);
     }
 
-    // Convert normalized octahedral coordinate [0, 1] to texel coordinate within a probe tile
-    // Used by sampling functions to compute UV coordinates
+    // Inverse of TexelToOctahedralCoord: map a normalized octahedral coord [0,1] to a continuous
+    // texel coordinate. oct = (i + 0.5)/N inverts to texelCoord = oct * N. We clamp into
+    // [0.5, octResolution-0.5] so the bilinear taps stay on this probe's texels: the boundary
+    // half-texel wraps onto the edge texel by itself instead of bleeding into the neighbour tile.
     static float2 OctahedralCoordToTexel(float2 octNormalized, uint octResolution)
     {
-        // Edge-to-edge mapping: [0,1] -> [1, octResolution+1]
-        // Allows bilinear sampling to blend with border texels at the edges
-        return 1.0f + octNormalized * octResolution;
+        float n = float(octResolution);
+        return clamp( octNormalized * n, 0.5f, n - 0.5f );
     }
-    
+
     // Computes the surfaceBias parameter used by DDGI evaluation
     // The surfaceNormal and cameraDirection arguments are expected to be normalized
     static float3 GetSurfaceBias(float3 surfaceNormal, float3 cameraDirection, DDGIVolume volume)
@@ -128,50 +127,32 @@ class DDGI
         return data.xyz;
     }
 
-    static float3 SampleProbeIrradiance( in DDGIVolume volume, Texture3D irradianceTex, int3 probeIndex, float3 direction )
+    // Sample a probe's octahedral tile with a single hardware bilinear fetch.
+    // OctahedralCoordToTexel clamps the local coordinate into [0.5, N-0.5], so both bilinear
+    // taps always land on this probe's texels and never bleed into a neighbouring tile.
+    static float4 SampleProbeOctahedral( in DDGIVolume volume, Texture3D tex, int3 probeIndex, float3 direction, uint octResolution )
     {
         float2 octNormalized = OctahedralEncode( direction );
-        const uint octResolution = DDGI_IRRADIANCE_OCT_RESOLUTION;
-        const uint tileSize = TileSize(octResolution);
+        float2 tileLocal = OctahedralCoordToTexel( octNormalized, octResolution );
 
-        // Atlas dimensions in texels
-        float2 atlasSize = float2(volume.ProbeCounts.x, volume.ProbeCounts.y) * tileSize;
-        atlasSize = max(atlasSize, float2(1.0f, 1.0f));
+        float2 atlasSize = max( float2( volume.ProbeCounts.xy ) * float( octResolution ), 1.0f );
+        float2 texelCoord = float2( probeIndex.xy ) * float( octResolution ) + tileLocal;
 
-        // Convert octahedral coordinate to texel position using shared helper
-        float2 interiorTexel = OctahedralCoordToTexel(octNormalized, octResolution);
-
-        // Add base offset for this probe's tile
-        float2 texelCoord = float2(probeIndex.x, probeIndex.y) * tileSize + interiorTexel;
-        
         float3 uvw;
         uvw.xy = texelCoord / atlasSize;
-        uvw.z = (float( probeIndex.z ) + 0.5f ) / max( float( volume.ProbeCounts.z ), 1.0f );
+        uvw.z = ( float( probeIndex.z ) + 0.5f ) / max( float( volume.ProbeCounts.z ), 1.0f );
 
-        return irradianceTex.SampleLevel( DDGISampler, uvw, 0.0f ).rgb;
+        return tex.SampleLevel( DDGISampler, uvw, 0.0f );
+    }
+
+    static float3 SampleProbeIrradiance( in DDGIVolume volume, Texture3D irradianceTex, int3 probeIndex, float3 direction )
+    {
+        return SampleProbeOctahedral( volume, irradianceTex, probeIndex, direction, DDGI_IRRADIANCE_OCT_RESOLUTION ).rgb;
     }
 
     static float2 SampleProbeDistance( in DDGIVolume volume, Texture3D distanceTex, int3 probeIndex, float3 direction )
     {
-        float2 octNormalized = OctahedralEncode( direction );
-        const uint octResolution = DDGI_DISTANCE_OCT_RESOLUTION;
-        const uint tileSize = TileSize(octResolution);
-
-        // Atlas dimensions in texels
-        float2 atlasSize = float2(volume.ProbeCounts.x, volume.ProbeCounts.y) * tileSize;
-        atlasSize = max(atlasSize, float2(1.0f, 1.0f));
-
-        // Convert octahedral coordinate to texel position using shared helper
-        float2 interiorTexel = OctahedralCoordToTexel(octNormalized, octResolution);
-
-        // Add base offset for this probe's tile
-        float2 texelCoord = float2(probeIndex.x, probeIndex.y) * tileSize + interiorTexel;
-        
-        float3 uvw;
-        uvw.xy = texelCoord / atlasSize;
-        uvw.z = (float(probeIndex.z) + 0.5f ) / max( float( volume.ProbeCounts.z ), 1.0f );
-
-        return distanceTex.SampleLevel( DDGISampler, uvw, 0.0f ).rg;
+        return SampleProbeOctahedral( volume, distanceTex, probeIndex, direction, DDGI_DISTANCE_OCT_RESOLUTION ).rg;
     }
 
     static float ComputeVisibility(float distanceToSample, float2 meanVariance)

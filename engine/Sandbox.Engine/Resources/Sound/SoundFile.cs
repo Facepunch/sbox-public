@@ -225,6 +225,9 @@ public partial class SoundFile : Resource, IValid
 	/// </summary>
 	internal static unsafe SoundFile Create( string filename, Span<byte> data, int channels, uint rate, int format, uint sampleCount, float duration, int loopStart, int loopEnd )
 	{
+		if ( Application.IsHeadless )
+			return null;
+
 		fixed ( byte* pData = data )
 		{
 			var sfx = g_pSoundSystem.CreateSound( filename, channels, (int)rate, format, (int)sampleCount, duration, loopStart, loopEnd, (IntPtr)pData, data.Length );

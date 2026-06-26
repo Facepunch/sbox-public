@@ -1,6 +1,7 @@
 @using System;
 @using MenuProject.MenuUI.Components
 @using Sandbox.UI;
+@using Sandbox.Html;
 @using Sandbox;
 @using Menu;
 @inherits Panel;
@@ -8,54 +9,67 @@
 
 <root>
 
-    <column onmouseup="@OnPressLink">
-        <row>
-            @if ( Entry.Player is not null )
+    <row class="entry">
+
+        @if ( Entry.Package is not null )
+        {
+            <div class="thumb clicky" onmousedown="@OpenPackage">
+                @if ( !string.IsNullOrEmpty( Entry.Package.Thumb ) )
+                {
+                    <img src="@Entry.Package.Thumb" />
+                }
+                else
+                {
+                    <i>sports_esports</i>
+                }
+            </div>
+        }
+
+        <div class="body">
+            @if ( Entry.Package is not null )
             {
-                <Avatar UserId=@Entry.Player.Id class="small" />
-                <PlayerLink Target="@Entry.Player"></PlayerLink>
+                <PackageLink Target="@Entry.Package"></PackageLink>
             }
 
-            <Label>@SimplifiedText()</Label>
-        </row>
-    </column>
+            <row class="who">
+                <Label class="action" IsRich=@(true) Text=@ActivityText() OnNodeClicked=@OnNodeClicked></Label>
+            </row>
+        </div>
+
+    </row>
 
 </root>
 
 @code{
 
     public Sandbox.Services.Feed Entry;
-    string Text;
 
-    protected override void OnParametersSet()
-    {
-        Text = Entry.Text;
-
-        Text = Text.Replace( "{package}", Entry.Package.Title );
-    }
-
-    void OnPressCard()
+    void OpenPackage()
     {
         Entry.Package?.OpenModal();
     }
 
-    void OnPressLink()
+    void OnNodeClicked( INode node )
     {
-        if ( Entry.Url.StartsWith( "/u" ) )
+        var href = node.GetAttribute( "href", null );
+
+        if ( href is not null && href.StartsWith( "player:" ) && long.TryParse( href["player:".Length..], out var steamId ) )
         {
-            var parts = Entry.Url.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            if ( parts.Length == 3 )
-            {
-                Game.Overlay.ShowPlayer(Entry.Player.Id, parts[2]);
-                return;
-            }
+            Game.Overlay.ShowPlayer( steamId );
         }
-
-        Entry.Package?.OpenModal();
     }
 
-    string SimplifiedText()
+    string ActivityText()
     {
-        return Entry.Text.Replace("{package}", $"{Entry.Package.Title}");
+        var action = Entry.Text.Replace( "{package}", Entry.Package?.Title ?? "" );
+        action = System.Net.WebUtility.HtmlEncode( action );
+
+        if ( Entry.Player is null )
+            return action;
+
+        var name = System.Net.WebUtility.HtmlEncode( Entry.Player.Name );
+        var cls = Entry.Player.Online ? "player-link online" : "player-link";
+
+        return $"<a href=\"player:{Entry.Player.Id}\" class=\"{cls}\">{name}</a> {action}";
     }
 }

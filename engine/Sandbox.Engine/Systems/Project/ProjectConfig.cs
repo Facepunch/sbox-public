@@ -29,7 +29,7 @@ public class ProjectConfig
 	/// The human readable title, for example "Sandbox", "Counter-Strike"
 	/// </summary>
 	[Display( GroupName = "Setup", Order = -100, Name = "Title", Description = "The human readable title, for example \"Sandbox\", \"Counter - Strike\"" )]
-	[MaxLength( 32 )]
+	[MaxLength( 64 )]
 	[MinLength( 3 )]
 	public string Title { get; set; }
 

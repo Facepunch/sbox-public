@@ -12,6 +12,7 @@ internal class PageSceneView : Widget
 		var sheet = new ControlSheet();
 
 		sheet.AddProperty( () => EditorPreferences.CameraFieldOfView );
+		sheet.AddProperty( () => EditorPreferences.CameraBackgroundColor );
 
 		sheet.AddProperty( () => EditorPreferences.CameraZNear );
 		sheet.AddProperty( () => EditorPreferences.CameraZFar );

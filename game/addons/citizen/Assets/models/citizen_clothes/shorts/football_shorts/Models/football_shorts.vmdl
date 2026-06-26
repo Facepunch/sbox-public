@@ -27,6 +27,14 @@
 					{
 						_class = "LODGroup"
 						switch_threshold = 0.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
 						meshes = 
 						[
 							"LOD0",
@@ -36,6 +44,14 @@
 					{
 						_class = "LODGroup"
 						switch_threshold = 10.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
 						meshes = 
 						[
 							"LOD1",
@@ -45,18 +61,35 @@
 					{
 						_class = "LODGroup"
 						switch_threshold = 20.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
 						meshes = 
 						[
 							"LOD2",
-							"LOD2",
+							"Cut_Legs",
 						]
 					},
 					{
 						_class = "LODGroup"
 						switch_threshold = 40.0
+						auto_simplify_mode = 0
+						auto_reduction = 0.5
+						auto_max_error = 0.0
+						auto_lock_border_vertices = true
+						auto_permissive_simplification = false
+						auto_protect_uv_seams = true
+						auto_regularize = 1
+						auto_prune_isolated_components = false
 						meshes = 
 						[
 							"LOD3",
+							"Cut_Legs",
 						]
 					},
 				]

@@ -88,7 +88,7 @@ partial class EdgeArchTool
 			UpdateMesh();
 		}
 
-		[Shortcut( "mesh.edge-arch-cancel", "ESC", ShortcutType.Application )]
+		[Shortcut( "mesh.edge-arch-cancel", "ESC", typeof( SceneViewWidget ) )]
 		private void Cancel()
 		{
 			var components = _edges.Select( x => x.Component ).ToArray();
@@ -112,7 +112,7 @@ partial class EdgeArchTool
 			EditorToolManager.SetSubTool( nameof( EdgeTool ) );
 		}
 
-		[Shortcut( "mesh.edge-arch-apply", "enter", ShortcutType.Application )]
+		[Shortcut( "mesh.edge-arch-apply", "enter", typeof( SceneViewWidget ) )]
 		private void Apply()
 		{
 			var components = _edges.Select( x => x.Component ).ToArray();
