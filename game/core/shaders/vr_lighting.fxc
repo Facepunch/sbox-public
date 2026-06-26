@@ -302,44 +302,6 @@ float3 GetTransmissiveThickness( const FinalCombinerInput_t f, const BinnedLight
 	return 1.0f;
 }
 
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Todo: Make this single path for everything? This is much nicer, and LTC makes this pretty cheap
-// Missing: Transmissive, Anisotropic, Two Lobe Specular, Cloth Shading BRDF
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------
-void ComputeDirectLightingForAreaLight( const FinalCombinerInput_t f, const BinnedLight lightData, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive, float flFalloff = 1.0f, bool bBaked = false )
-{
-	float3 vPositionToCameraDirWs = CalculatePositionToCameraDirWs( f.vPositionWs.xyz);
-	float flRoughness = IsotropicRoughnessFromAnisotropicRoughness( f.vRoughness.xy );
-	float flNDotV					= ClampToPositive( dot( vPositionToCameraDirWs.xyz, f.vNormalWs.xyz ) );
-	float3 vBRDF = CalcBRDFReflectionFactor( flNDotV, flRoughness, f.vSpecularColor);
-	float flShadow = 1.0f; // Not yet
-
-	if( lightData.IsDiffuseEnabled()  )
-	{
-		vDiffuse += !bBaked ? ( LTC::Contribution(
-							lightData,                          // Light data
-							f.vPositionWs.xyz,                  // World-space position (P)
-							f.vNormalWs.xyz,                    // World-space normal (N)
-							normalize(vPositionToCameraDirWs),  // World-space view direction (V)
-							flRoughness,                     // Material roughness parameter
-							false
-		) * flShadow * flFalloff ) : lightData.Color;
-	}
-
-	if( lightData.IsSpecularEnabled() )
-	{
-        vSpecular += LTC::Contribution(
-                         lightData,                         // Light data
-                         f.vPositionWs.xyz,                 // World-space position (P)
-                         f.vNormalWs.xyz,                   // World-space normal (N)
-                         normalize(vPositionToCameraDirWs), // World-space view direction (V)
-                         flRoughness,                       // Material roughness parameter
-                         true
-		) * flShadow * flFalloff * vBRDF;
-	}
-	
-	// Todo: Transmissive
-}
 //---------------------------------------------------------------------------------------------------------------------------------------------------------
 void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLight lightData, inout float3 vDiffuse, inout float3 vSpecular, inout float3 vTransmissive, bool bBaked = false )
 {
@@ -369,16 +331,6 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLi
 		return;
 	}
 	
-	bool isAreaLight = lightData.ShapeSize.x > 1.0f;
-	if( isAreaLight )
-    {
-		// We do some weird math for falloff calculation in lightdesc for point lights, we only want the truncation value of this for area lights since
-		// LTC already does falloff by itself, this approximates the falloff value correctly, soon should use barn lights system without this bs
-		const float flAreaFalloff = ( lightData.FalloffBias * ( lightData.RadiusSquared / 10000.0f ) ) * ( 1.0 - ( flDistToLightSq / lightData.RadiusSquared ) );
-
-        ComputeDirectLightingForAreaLight(f, lightData, vDiffuse, vSpecular, vTransmissive, flAreaFalloff, bBaked );
-		return;
-	}
 
     float flSpotAtten = flConeToDirection * lightData.SpotLightInnerOuterConeCosines.z;
     float flLightFalloff = CalculateDistanceFalloff(flDistToLightSq, lightData.LinearFalloff, lightData.QuadraticFalloff, lightData.FalloffBias, 1.0);

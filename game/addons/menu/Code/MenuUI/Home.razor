@@ -3,18 +3,30 @@
 @using Sandbox;
 @using System;
 @using Menu
+@using MenuProject.MenuUI.Front
+@using MenuProject.MenuUI.Front.Feed
 @inherits Panel
 @page "/home"
 
 <div class="page">
 
     <column>
+        <SpotlightGames />
         <div class="grow" />
         <RewardProgress />
         <News />
     </column>
 
     <DesktopButtons />
+
+    <column class="right">
+        <Card>
+            <ChildContent>
+                    <PlayerFeed Take=@(30) />
+            </ChildContent>
+        </Card>
+
+    </column>
 
 </div>
 

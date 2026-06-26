@@ -10,6 +10,16 @@ public partial class GameObject
 {
 	internal const int GameObjectVersion = 2;
 
+	// The only flags we actually save. Everything else is runtime junk (Loading, Bone, etc) and saving it
+	// just causes phantom Flags overrides in prefab diffs. Networking is the exception, see below.
+	internal const GameObjectFlags PersistedFlags =
+					GameObjectFlags.ProceduralBone |
+					GameObjectFlags.EditorOnly |
+					GameObjectFlags.NotNetworked |
+					GameObjectFlags.Absolute |
+					GameObjectFlags.PhysicsBone |
+					GameObjectFlags.Hidden;
+
 	/// <summary>
 	/// Helper variable for editor refreshes during deserialization.
 	/// </summary>
@@ -189,7 +199,10 @@ public partial class GameObject
 
 		json[JsonKeys.Id] = Id;
 		if ( GameObjectVersion != 0 ) json[JsonKeys.Version] = GameObjectVersion;
-		json[JsonKeys.Flags] = (long)Flags;
+
+		// Networking wants all the flags (it applies them verbatim on the other end), otherwise just the saved ones.
+		var serializedFlags = (options.SceneForNetwork || options.SingleNetworkObject) ? Flags : (Flags & PersistedFlags);
+		json[JsonKeys.Flags] = (long)serializedFlags;
 		json[JsonKeys.Name] = Name;
 
 		SerializeTransform( json );
@@ -663,20 +676,8 @@ public partial class GameObject
 			return;
 		}
 
-		// We only want to deserialize certain flags, the rest are runtime only.
-		const GameObjectFlags flagsToKeep =
-						GameObjectFlags.ProceduralBone |
-						GameObjectFlags.EditorOnly |
-						GameObjectFlags.NotNetworked |
-						GameObjectFlags.Absolute |
-						GameObjectFlags.PhysicsBone |
-						GameObjectFlags.Hidden;
-
-		// Clear the flags we're about to deserialize
-		Flags &= ~flagsToKeep;
-
-		// Copy set flags from source
-		Flags |= (inFlags & flagsToKeep);
+		// Only take the flags we actually save, keep whatever runtime ones we already have.
+		Flags = (Flags & ~PersistedFlags) | (inFlags & PersistedFlags);
 	}
 
 	private bool IsPrefabLoaded( PrefabFile prefabFile )

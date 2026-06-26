@@ -429,10 +429,12 @@ PS
         {
             float baseHeight = baseNho.b * baseMat.heightstrength;
             float overlayHeight = overlayNho.b * overlayMat.heightstrength;
-            
+
             float heightDiff = overlayHeight - baseHeight;
             float sharpness = Terrain::Get().HeightBlendSharpness * 10.0;
-            blend = saturate( blend + heightDiff * sharpness );
+
+            float blendMix = blend * ( 1.0 - blend ) * 4.0;
+            blend = saturate( blend + heightDiff * sharpness * blendMix );
         }
 
         // Blend materials

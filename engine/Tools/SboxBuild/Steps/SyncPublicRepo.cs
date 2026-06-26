@@ -826,22 +826,7 @@ internal class SyncPublicRepo( bool dryRun = false )
 		return string.IsNullOrEmpty( relativePath ) ? "." : relativePath;
 	}
 
-	private static string GetR2Base()
-	{
-		var r2AccessKeyId = Environment.GetEnvironmentVariable( "SYNC_R2_ACCESS_KEY_ID" );
-		var r2SecretAccessKey = Environment.GetEnvironmentVariable( "SYNC_R2_SECRET_ACCESS_KEY" );
-		var r2Bucket = Environment.GetEnvironmentVariable( "SYNC_R2_BUCKET" );
-		var r2Endpoint = Environment.GetEnvironmentVariable( "SYNC_R2_ENDPOINT" );
-
-		if ( string.IsNullOrEmpty( r2AccessKeyId ) || string.IsNullOrEmpty( r2SecretAccessKey ) ||
-			 string.IsNullOrEmpty( r2Bucket ) || string.IsNullOrEmpty( r2Endpoint ) )
-		{
-			Log.Error( "R2 credentials not properly configured in environment variables" );
-			return null;
-		}
-
-		return $":s3,bucket={r2Bucket},provider=Cloudflare,access_key_id={r2AccessKeyId},secret_access_key={r2SecretAccessKey},endpoint='{r2Endpoint}':";
-	}
+	private static string GetR2Base() => R2.GetRcloneRemote();
 
 	private static string ToForwardSlash( string path )
 	{

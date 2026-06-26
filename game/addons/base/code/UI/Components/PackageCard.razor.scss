@@ -42,6 +42,8 @@ PackageCard
 		padding: 8px 2px; // Optically aligned
 	}
 
+	
+
 	&.list
 	{
 		flex-grow: 1;
@@ -200,4 +202,15 @@ PackageCard
 			background-color: $default-900;
 		}
 	}
+}
+
+
+.package-card.list packageflairbar
+{
+	display: none;
+}
+
+.package-card.list .package-users
+{
+	display: none;
 }

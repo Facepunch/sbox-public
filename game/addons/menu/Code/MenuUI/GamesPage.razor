@@ -51,7 +51,7 @@
         </Left>
 
         <Body>
-            <PackageList @ref=PackageList ShowFilters="@false" Query=@($"type:game sort:{filterOrder} {GetQuery()}") OnSelected=@Selected OnMenu=@Menu Take=@(200)></PackageList>
+            <PackageList @ref=PackageList ShowFilters="@false" Query=@($"type:game sort:{filterOrder} {Filter} {GetQuery()}") OnSelected=@Selected OnMenu=@Menu Take=@(200)></PackageList>
         </Body>
     </Page>
 </root>
@@ -68,6 +68,28 @@
             field = value;
         }
     }
+
+    // When navigating in from the games landing page (GamesBrowse), the chosen
+    // category supplies an initial sort order and any extra query tokens (tags
+    // etc). The sidebar stays fully usable on top of these.
+    //
+    // The navigator caches this page by url-without-query and re-applies query
+    // params via SetProperty (not OnParametersSet) when you navigate back to it,
+    // so the sort has to be seeded from the setter to update on every visit.
+    [Parameter]
+    public string Sort
+    {
+        get => field;
+        set
+        {
+            field = value;
+            // Reset to the default when a category specifies no sort, otherwise
+            // the previous category's sort would carry over on re-navigation.
+            filterOrder = string.IsNullOrEmpty( value ) ? "quality" : value;
+        }
+    }
+
+    [Parameter] public string Filter { get; set; }
 
     string filterOrder = "quality";
 
@@ -139,7 +161,7 @@
 
     protected override int BuildHash()
     {
-        return System.HashCode.Combine(Result, GetQuery(), filterOrder, NeedsSetQuery, Query);
+        return System.HashCode.Combine(Result, GetQuery(), filterOrder, NeedsSetQuery, Query, Filter);
     }
 
     void Selected(Package package)
