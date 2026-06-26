@@ -181,6 +181,9 @@ internal sealed partial class PackageLoader : IDisposable
 					if ( baseHotloaded ) return true;
 					break;
 
+				case "library":
+					break;
+
 				default:
 					return false;
 			}

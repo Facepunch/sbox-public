@@ -112,6 +112,10 @@ public sealed partial class Project
 			{
 				AddLibrariesToProject( project );
 			}
+			else if ( Config.Type == "library" && !IsBuiltIn )
+			{
+				AddDeclaredLibrariesToProject( project );
+			}
 		}
 
 		if ( Config.Type == "game" || Config.Type == "library" || Config.Type == "addon" )
@@ -151,6 +155,19 @@ public sealed partial class Project
 		foreach ( var library in Project.Libraries.Where( x => x.HasCodePath() ) )
 		{
 			project.PackageReferences.Add( library.Package.GetIdent( false, false ) );
+		}
+	}
+
+	private void AddDeclaredLibrariesToProject( ProjectInfo project )
+	{
+		if ( Config.PackageReferences is null )
+			return;
+
+		foreach ( var library in Project.Libraries.Where( x => x.HasCodePath() ) )
+		{
+			var ident = library.Package.GetIdent( false, false );
+			if ( Config.PackageReferences.Contains( ident, StringComparer.OrdinalIgnoreCase ) )
+				project.PackageReferences.Add( ident );
 		}
 	}
 

@@ -194,6 +194,7 @@ internal sealed class ProjectSettingsWindow : Window
 		else if ( project.Config.Type == "library" )
 		{
 			AddCategoryToList( typeof( CompilerCategory ), "Compiler" );
+			AddCategoryToList( typeof( ReferencesCategory ), "Other" );
 		}
 		else if ( project.Config.Type == "tool" )
 		{

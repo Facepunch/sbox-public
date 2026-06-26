@@ -274,6 +274,17 @@ public partial class Project
 				yield return library.Package;
 			}
 		}
+		else if ( Config.PackageReferences is { Count: > 0 } )
+		{
+			foreach ( var ident in Config.PackageReferences )
+			{
+				var library = Project.Libraries.FirstOrDefault( x =>
+					x.HasCodePath() && x.Package.GetIdent( false, false ).Equals( ident, StringComparison.OrdinalIgnoreCase ) );
+
+				if ( library is not null )
+					yield return library.Package;
+			}
+		}
 	}
 
 	/// <summary>

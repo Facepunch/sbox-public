@@ -38,40 +38,41 @@ public static partial class EditorUtility
 			bool hasBase = false;
 
 			//
-			// Install any libraries (unless we are a library)
+			// Install the libraries this project references
 			//
-			if ( project.Config.Type != "library" )
+			foreach ( var (library, references) in SortLibrariesForCompilation( Project.Libraries, logOutput ) )
 			{
-				foreach ( var (library, references) in SortLibrariesForCompilation( Project.Libraries, logOutput ) )
+				if ( project.Config.Type == "library" &&
+					!project.Package.PackageReferences.Contains( library.Package.GetIdent( false, false ), StringComparer.OrdinalIgnoreCase ) )
+					continue;
+
+				await PackageManager.InstallAsync( new PackageLoadOptions( library.Package.FullIdent, "publish" ) );
+
+				// Compile library
 				{
-					await PackageManager.InstallAsync( new PackageLoadOptions( library.Package.FullIdent, "publish" ) );
+					var compileSettings = new Compiler.Configuration();
+					compileSettings.Clean();
+					compileSettings.ReleaseMode = Compiler.ReleaseMode.Release;
 
-					// Compile library
+					var libCompiler = compileGroup.CreateCompiler( library.Package.CompilerName, library.GetCodePath(), compileSettings );
+					libCompiler.UseAbsoluteSourcePaths = false;
+					libCompiler.GeneratedCode.AppendLine( "global using static Sandbox.Internal.GlobalGameNamespace;" );
+
+					// Required by razor
+					libCompiler.GeneratedCode.AppendLine( "global using Microsoft.AspNetCore.Components;" );
+					libCompiler.GeneratedCode.AppendLine( "global using Microsoft.AspNetCore.Components.Rendering;" );
+
+					libCompiler.AddBaseReference();
+
+					foreach ( var reference in references )
 					{
-						var compileSettings = new Compiler.Configuration();
-						compileSettings.Clean();
-						compileSettings.ReleaseMode = Compiler.ReleaseMode.Release;
-
-						var libCompiler = compileGroup.CreateCompiler( library.Package.CompilerName, library.GetCodePath(), compileSettings );
-						libCompiler.UseAbsoluteSourcePaths = false;
-						libCompiler.GeneratedCode.AppendLine( "global using static Sandbox.Internal.GlobalGameNamespace;" );
-
-						// Required by razor
-						libCompiler.GeneratedCode.AppendLine( "global using Microsoft.AspNetCore.Components;" );
-						libCompiler.GeneratedCode.AppendLine( "global using Microsoft.AspNetCore.Components.Rendering;" );
-
-						libCompiler.AddBaseReference();
-
-						foreach ( var reference in references )
-						{
-							libCompiler.AddReference( reference.Package );
-						}
+						libCompiler.AddReference( reference.Package );
 					}
+				}
 
-					// add a reference to it from the main compiler
-					{
-						compiler.AddReference( library.Package );
-					}
+				// add a reference to it from the main compiler
+				{
+					compiler.AddReference( library.Package );
 				}
 			}
 
