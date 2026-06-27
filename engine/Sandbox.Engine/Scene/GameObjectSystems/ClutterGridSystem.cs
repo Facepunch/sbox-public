@@ -25,12 +25,25 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	private readonly List<Terrain> _sceneTerrains = [];
 	private readonly HashSet<ClutterLayer> _layersToRebuild = [];
 
+	private ClutterStorage _storage = new();
+
 	/// <summary>
 	/// Storage for painted clutter model instances.
 	/// Serialized with the scene - this is the source of truth for painted clutter.
 	/// </summary>
 	[Property, Hide]
-	public ClutterStorage Storage { get; set; } = new();
+	public ClutterStorage Storage
+	{
+		get => _storage;
+		set
+		{
+			_storage = value;
+			// The data may have been replaced wholesale (e.g. by a map load applying this
+			// scene's GameObjectSystem overrides). Mark dirty so the painted layer rebuilds
+			// on the next update.
+			_dirty = true;
+		}
+	}
 
 	/// <summary>
 	/// Layer for rendering painted model instances from Storage.
