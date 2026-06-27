@@ -34,10 +34,10 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	[Property, Hide]
 	public ClutterStorage Storage
 	{
-		get => _storage;
+		get => field;
 		set
 		{
-			_storage = value;
+			field = value;
 			// The data may have been replaced wholesale (e.g. by a map load applying this
 			// scene's GameObjectSystem overrides). Mark dirty so the painted layer rebuilds
 			// on the next update.
