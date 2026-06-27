@@ -434,14 +434,9 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 		using var optionsScope = ActionGraph.PushSerializationOptions( sceneFile.SerializationOptions with { ForceUpdateCached = Scene.IsEditor } );
 		using var sceneScope = Scene.Push();
-		// Establish a blob context so any binary blob data ($blob) in the map scene - both on
-		// GameObjects and on GameObjectSystems (e.g. painted clutter) - can be resolved. Uses the
-		// in-memory BinaryData if still present, otherwise falls back to the compiled file on disk.
+		// Set up a blob context to resolve binary data in the map scene.
 		using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, path );
 		using var batchGroup = CallbackBatch.Batch();
-
-		// Clear cached binary data now that we've loaded it.
-		sceneFile.BinaryData = null;
 
 		foreach ( var json in sceneFile.GameObjects )
 		{
@@ -468,10 +463,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			}
 		}
 
-		// A scene map's GameObjectSystems data (e.g. painted clutter stored on ClutterGridSystem)
-		// lives at scene level, not on a GameObject, so it isn't covered by the loop above. Apply
-		// it onto the host scene's systems so that data survives being loaded through a MapInstance.
-		// Note: this data is in absolute scene coordinates and is not offset by the MapInstance origin.
+		// Apply scene-level GameObjectSystems data (e.g. painted clutter) to the host scene
 		if ( sceneFile.SceneProperties is not null
 			&& sceneFile.SceneProperties.TryGetPropertyValue( "GameObjectSystems", out var systemsNode )
 			&& systemsNode is not null )
