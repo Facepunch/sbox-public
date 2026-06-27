@@ -91,16 +91,24 @@ CS
         }
         if ( D_SCULPT_MODE == MODE_SMOOTH )
         {
-            float brush = Brush.SampleLevel( g_sBilinearBorder, brushUV, 0 ) * BrushSettings[0].Strength;
+            float brushSample = Brush.SampleLevel( g_sBilinearBorder, brushUV, 0 );
+            float strength = BrushSettings[0].Strength;
+            float brush = brushSample * strength;
             if ( brush <= 0.0f ) return;
-            
-            // Sample surroundings (3x3)
+
+            // Strength above 1 widens the averaging kernel so smoothing gets
+            // progressively "harder" over a larger area. The blend factor itself
+            // is clamped to [0,1] below so we never extrapolate past the average
+            // (which caused spikes/ringing at opacity > 1).
+            int radius = clamp( (int)ceil( abs( strength ) ), 1, 8 );
+
+            // Sample surroundings ((2*radius+1)^2 neighbourhood)
             float sum = 0.0f;
             int sampleCount = 0;
             
-            for ( int y = -1; y <= 1; y++ )
+            for ( int y = -radius; y <= radius; y++ )
             {
-                for ( int x = -1; x <= 1; x++ )
+                for ( int x = -radius; x <= radius; x++ )
                 {
                     int2 samplePos = texel + int2( x, y );
                     
@@ -114,8 +122,11 @@ CS
             
             float average = sum / sampleCount;
             float height = Heightmap.Load( texel ).x;
-            
-            Heightmap[texel] = lerp( height, average, brush );
+
+            // Clamp blend to [0,1] so the smooth only ever moves toward the
+            // neighbourhood average, never overshoots it.
+            float t = saturate( brush );
+            Heightmap[texel] = lerp( height, average, t );
         }
         if ( D_SCULPT_MODE == MODE_HOLE )
         {
