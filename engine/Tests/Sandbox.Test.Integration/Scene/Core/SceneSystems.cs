@@ -6,7 +6,9 @@ namespace SceneTests.Core;
 /// <summary>
 /// Pins how per-scene GameObjectSystem property overrides apply: matching systems get
 /// their properties set, unknown systems and malformed json warn instead of crashing,
-/// and one bad property doesn't stop the others.
+/// and one bad property doesn't stop the others. Also covers transient overrides (e.g.
+/// applied by a MapInstance): they revert on dispose and are excluded from the host
+/// scene's serialization so another source's data isn't baked in.
 /// </summary>
 [TestClass]
 public class SceneSystemOverridesTest
@@ -97,6 +99,114 @@ public class SceneSystemOverridesTest
 			scene.ApplyGameObjectSystemOverrides( JsonValue.Create( "this is not an object" ) );
 			scene.ApplyGameObjectSystemOverrides( null );
 		} );
+	}
+
+	/// <summary>
+	/// A transient override (e.g. applied by a MapInstance) reverts to the scene's own value
+	/// when its scope is disposed.
+	/// </summary>
+	[TestMethod]
+	public void TransientOverrideRevertsOnDispose()
+	{
+		WithTestSystems( scene =>
+		{
+			var system = scene.GetSystem<OverridableSystem>();
+			Assert.AreEqual( 0, system.Speed );
+
+			var node = Json.ParseToJsonObject( $$"""
+				{ "{{typeof( OverridableSystem ).FullName}}": { "Speed": 42 } }
+				""" );
+
+			using ( scene.ApplyGameObjectSystemOverrides( node, transient: true ) )
+			{
+				Assert.AreEqual( 42, system.Speed, "the transient override should apply while in scope" );
+			}
+
+			Assert.AreEqual( 0, system.Speed, "the transient override should revert once disposed" );
+		} );
+	}
+
+	/// <summary>
+	/// A transient override is excluded from the scene's own serialization, so loading a map's
+	/// systems through a MapInstance doesn't bake that data into the host scene.
+	/// </summary>
+	[TestMethod]
+	public void TransientOverrideIsNotSerialized()
+	{
+		WithTestSystems( scene =>
+		{
+			var node = Json.ParseToJsonObject( $$"""
+				{ "{{typeof( OverridableSystem ).FullName}}": { "Speed": 42 } }
+				""" );
+
+			using var scope = scene.ApplyGameObjectSystemOverrides( node, transient: true );
+
+			Assert.AreEqual( 42, scene.GetSystem<OverridableSystem>().Speed, "the override is live in the scene" );
+			Assert.IsNull( SerializedSystemSpeed( scene ), "but a transient override must not be written into GameObjectSystems" );
+		} );
+	}
+
+	/// <summary>
+	/// A non-transient override (the scene's own systems) is serialized normally.
+	/// </summary>
+	[TestMethod]
+	public void NonTransientOverrideIsSerialized()
+	{
+		WithTestSystems( scene =>
+		{
+			var node = Json.ParseToJsonObject( $$"""
+				{ "{{typeof( OverridableSystem ).FullName}}": { "Speed": 42 } }
+				""" );
+
+			scene.ApplyGameObjectSystemOverrides( node );
+
+			Assert.AreEqual( 42, (int)SerializedSystemSpeed( scene ), "a non-transient override should be serialized" );
+		} );
+	}
+
+	/// <summary>
+	/// When a transient override masks a value the scene already owns, serialization keeps the
+	/// scene's own (pre-transient) value rather than the transient overlay - and disposing the
+	/// overlay leaves the scene's own value intact.
+	/// </summary>
+	[TestMethod]
+	public void TransientOverridePreservesSceneOwnValue()
+	{
+		WithTestSystems( scene =>
+		{
+			var ownNode = Json.ParseToJsonObject( $$"""
+				{ "{{typeof( OverridableSystem ).FullName}}": { "Speed": 7 } }
+				""" );
+			scene.ApplyGameObjectSystemOverrides( ownNode );
+
+			var mapNode = Json.ParseToJsonObject( $$"""
+				{ "{{typeof( OverridableSystem ).FullName}}": { "Speed": 42 } }
+				""" );
+
+			using ( scene.ApplyGameObjectSystemOverrides( mapNode, transient: true ) )
+			{
+				Assert.AreEqual( 42, scene.GetSystem<OverridableSystem>().Speed, "the transient overlay is live while in scope" );
+				Assert.AreEqual( 7, (int)SerializedSystemSpeed( scene ), "serialization keeps the scene's own value, not the overlay" );
+			}
+
+			Assert.AreEqual( 7, scene.GetSystem<OverridableSystem>().Speed, "after dispose the scene's own value remains" );
+			Assert.AreEqual( 7, (int)SerializedSystemSpeed( scene ) );
+		} );
+	}
+
+	/// <summary>
+	/// Reads the serialized value of <see cref="OverridableSystem.Speed"/> out of the scene's
+	/// GameObjectSystems block, or null if it wasn't serialized.
+	/// </summary>
+	static JsonNode SerializedSystemSpeed( Scene scene )
+	{
+		if ( scene.SerializeProperties()["GameObjectSystems"] is not JsonObject systems )
+			return null;
+
+		if ( systems[typeof( OverridableSystem ).FullName] is not JsonObject props )
+			return null;
+
+		return props["Speed"];
 	}
 
 	/// <summary>
