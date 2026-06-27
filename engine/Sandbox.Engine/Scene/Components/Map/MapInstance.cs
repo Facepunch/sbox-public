@@ -472,7 +472,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 		if ( hasSystems )
 		{
-			_systemOverridesScope = Scene.ApplyGameObjectSystemOverrides( systemsNode, transient: true );
+			_systemOverridesScope = Scene.ApplyTransientGameObjectSystemOverrides( systemsNode );
 		}
 
 		return true;

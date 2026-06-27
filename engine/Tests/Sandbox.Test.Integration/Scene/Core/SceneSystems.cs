@@ -117,7 +117,7 @@ public class SceneSystemOverridesTest
 				{ "{{typeof( OverridableSystem ).FullName}}": { "Speed": 42 } }
 				""" );
 
-			using ( scene.ApplyGameObjectSystemOverrides( node, transient: true ) )
+			using ( scene.ApplyTransientGameObjectSystemOverrides( node ) )
 			{
 				Assert.AreEqual( 42, system.Speed, "the transient override should apply while in scope" );
 			}
@@ -139,7 +139,7 @@ public class SceneSystemOverridesTest
 				{ "{{typeof( OverridableSystem ).FullName}}": { "Speed": 42 } }
 				""" );
 
-			using var scope = scene.ApplyGameObjectSystemOverrides( node, transient: true );
+			using var scope = scene.ApplyTransientGameObjectSystemOverrides( node );
 
 			Assert.AreEqual( 42, scene.GetSystem<OverridableSystem>().Speed, "the override is live in the scene" );
 			Assert.IsNull( SerializedSystemSpeed( scene ), "but a transient override must not be written into GameObjectSystems" );
@@ -183,7 +183,7 @@ public class SceneSystemOverridesTest
 				{ "{{typeof( OverridableSystem ).FullName}}": { "Speed": 42 } }
 				""" );
 
-			using ( scene.ApplyGameObjectSystemOverrides( mapNode, transient: true ) )
+			using ( scene.ApplyTransientGameObjectSystemOverrides( mapNode ) )
 			{
 				Assert.AreEqual( 42, scene.GetSystem<OverridableSystem>().Speed, "the transient overlay is live while in scope" );
 				Assert.AreEqual( 7, (int)SerializedSystemSpeed( scene ), "serialization keeps the scene's own value, not the overlay" );

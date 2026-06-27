@@ -1,4 +1,4 @@
-using System.Text.Json.Nodes;
+﻿using System.Text.Json.Nodes;
 
 namespace Sandbox;
 
@@ -61,7 +61,7 @@ public partial class Scene
 	/// Apply configuration values to a GameObjectSystem with priority:
 	/// 1. Project-wide value (from <see cref="ProjectSettings.Systems"/>)
 	/// 2. Default value (already set by property initializer)
-	/// Scene-specific overrides are applied during deserialization via <see cref="ApplyGameObjectSystemOverrides"/>
+	/// Scene-specific overrides are applied during deserialization via <see cref="ApplyGameObjectSystemOverrides(JsonNode)"/>
 	/// </summary>
 	void ApplyGameObjectSystemConfig( GameObjectSystem system )
 	{
@@ -96,14 +96,41 @@ public partial class Scene
 	readonly List<SystemOverrideScope> _transientSystemOverrides = new();
 
 	/// <summary>
-	/// Applies GameObjectSystem overrides from the given node. Returns a disposable to revert changes.
+	/// Applies and saves GameObjectSystem overrides from the given node. For transient (revertible) overrides, use <see cref="ApplyTransientGameObjectSystemOverrides"/>.
 	/// </summary>
-	/// <param name="overridesNode">Serialized GameObjectSystems overrides.</param>
-	/// <param name="transient">If true, overrides are temporary and reverted on dispose; otherwise, they are saved with the scene.</param>
-	internal IDisposable ApplyGameObjectSystemOverrides( JsonNode overridesNode, bool transient = false )
+	/// <param name="overridesNode">Serialized system overrides.</param>
+	internal void ApplyGameObjectSystemOverrides( JsonNode overridesNode )
+	{
+		ApplyGameObjectSystemOverrides( overridesNode, capture: null );
+	}
+
+	/// <summary>
+	/// Applies GameObjectSystem overrides from the node and returns a disposable to revert them.
+	/// </summary>
+	/// <param name="overridesNode">Serialized system overrides.</param>
+	internal IDisposable ApplyTransientGameObjectSystemOverrides( JsonNode overridesNode )
+	{
+		var revert = new SystemOverrideScope( this, transient: true );
+
+		ApplyGameObjectSystemOverrides( overridesNode, revert );
+
+		// Nothing matched, so there's nothing to revert - don't hand back a live scope.
+		if ( !revert.HasCaptures )
+			return null;
+
+		_transientSystemOverrides.Add( revert );
+		return revert;
+	}
+
+	/// <summary>
+	/// Applies the overrides to the scene's systems
+	/// </summary>
+	/// <param name="overridesNode">Serialized system overrides.</param>
+	/// <param name="capture">if non-null, the previous value of each overridden property is recorded into it so the change can be reverted.</param>
+	void ApplyGameObjectSystemOverrides( JsonNode overridesNode, SystemOverrideScope capture )
 	{
 		if ( overridesNode is null )
-			return null;
+			return;
 
 		Dictionary<string, JsonObject> overrides;
 
@@ -114,13 +141,11 @@ public partial class Scene
 		catch ( System.Exception e )
 		{
 			Log.Warning( e, $"Error when deserializing GameObjectSystem overrides ({e.Message})" );
-			return null;
+			return;
 		}
 
 		if ( overrides is null || overrides.Count == 0 )
-			return null;
-
-		var revert = new SystemOverrideScope( this, transient );
+			return;
 
 		foreach ( var system in systems.Values )
 		{
@@ -139,8 +164,8 @@ public partial class Scene
 					try
 					{
 						// Remember the current value first, so the override can be unwound later.
-						if ( property.CanRead )
-							revert.Capture( system, property, property.GetValue( system ) );
+						if ( capture is not null && property.CanRead )
+							capture.Capture( system, property, property.GetValue( system ) );
 
 						// Deserialize the JSON node directly to the property's type
 						var value = Json.FromNode( valueNode, property.PropertyType );
@@ -153,14 +178,6 @@ public partial class Scene
 				}
 			}
 		}
-
-		if ( !revert.HasCaptures )
-			return null;
-
-		if ( transient )
-			_transientSystemOverrides.Add( revert );
-
-		return revert;
 	}
 
 	/// <summary>

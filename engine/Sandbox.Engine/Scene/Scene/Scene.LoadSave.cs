@@ -353,9 +353,7 @@ public partial class Scene : GameObject
 		// Prevent system scene loads from overwriting main scene system properties.
 		if ( !isSystemScene && data.TryGetPropertyValue( "GameObjectSystems", out var systemOverridesNode ) )
 		{
-#pragma warning disable CA2000 // Dispose objects before losing scope
 			ApplyGameObjectSystemOverrides( systemOverridesNode );
-#pragma warning restore CA2000
 		}
 
 		//
