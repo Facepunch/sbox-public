@@ -435,11 +435,13 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		using var optionsScope = ActionGraph.PushSerializationOptions( sceneFile.SerializationOptions with { ForceUpdateCached = Scene.IsEditor } );
 		using var sceneScope = Scene.Push();
 		// Establish a blob context so any binary blob data ($blob) in the map scene - both on
-		// GameObjects and on GameObjectSystems (e.g. painted clutter) - can be resolved.
-		// A cached SceneFile has its BinaryData consumed after first load and the compiled file
-		// isn't always reachable via the default path, so resolve the blob bytes explicitly.
-		using var blobs = BlobDataSerializer.LoadFromMemory( ResolveMapBlobData( sceneFile, path ) ?? System.Array.Empty<byte>() );
+		// GameObjects and on GameObjectSystems (e.g. painted clutter) - can be resolved. Uses the
+		// in-memory BinaryData if still present, otherwise falls back to the compiled file on disk.
+		using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, path );
 		using var batchGroup = CallbackBatch.Batch();
+
+		// Clear cached binary data now that we've loaded it.
+		sceneFile.BinaryData = null;
 
 		foreach ( var json in sceneFile.GameObjects )
 		{
@@ -478,52 +480,6 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		}
 
 		return true;
-	}
-
-	/// <summary>
-	/// Resolve the raw blob bytes (in the blob-file format understood by <see cref="BlobDataSerializer"/>)
-	/// for a map scene. A cached <see cref="SceneFile"/> has its in-memory BinaryData consumed after its
-	/// first load, and the compiled file isn't always reachable via the default mounted filesystem in
-	/// every context (e.g. editing/playing a local scene through a MapInstance), so we probe several
-	/// filesystems and fall back to extracting the DBLOB block from the compiled scene.
-	/// </summary>
-	private static byte[] ResolveMapBlobData( SceneFile sceneFile, string compiledPath )
-	{
-		if ( sceneFile?.BinaryData is { Length: > 0 } inMemory )
-			return inMemory;
-
-		if ( string.IsNullOrWhiteSpace( compiledPath ) )
-			return null;
-
-		var basePath = compiledPath.EndsWith( "_c" ) ? compiledPath[..^2] : compiledPath;
-		var sidecarPath = basePath + "_d";
-		var resourcePath = basePath + "_c";
-
-		BaseFileSystem[] filesystems =
-		{
-			FileSystem.Mounted,
-			PackageManager.MountedFileSystem,
-		};
-
-		foreach ( var fs in filesystems )
-		{
-			if ( fs is null )
-				continue;
-
-			// The "_d" sidecar is already stored in the blob-file format.
-			if ( fs.FileExists( sidecarPath ) )
-				return fs.ReadAllBytes( sidecarPath ).ToArray();
-
-			// Otherwise pull the DBLOB block out of the compiled scene.
-			if ( fs.FileExists( resourcePath ) )
-			{
-				var block = Game.Resources.ReadCompiledResourceBlock( BlobDataSerializer.CompiledBlobName, fs.ReadAllBytes( resourcePath ) );
-				if ( block is { Length: > 0 } )
-					return block;
-			}
-		}
-
-		return null;
 	}
 
 	private bool ShouldIgnoreGameObject( JsonObject json )
