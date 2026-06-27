@@ -1,10 +1,8 @@
 namespace Sandbox;
 
 /// <summary>
-/// Implemented by <see cref="BlobData"/> types that reference other assets (by resource path)
-/// inside their binary payload. The resource compiler uses this to register those paths as
-/// runtime references so they get included when the owning resource is published. Without this,
-/// asset paths stored in binary blobs are invisible to the JSON reference scanner.
+/// For <see cref="BlobData"/> types whose binary data reference other assets by resource path.
+/// Ensures asset references in blobs are recognized by the resource compiler.
 /// </summary>
 public interface IBlobReferences
 {

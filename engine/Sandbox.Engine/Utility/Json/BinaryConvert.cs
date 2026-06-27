@@ -70,9 +70,7 @@ internal class BinaryConvert : JsonConverterFactory
 			writer.WriteStartObject();
 			writer.WriteString( "$blob", guid.ToString() );
 
-			// Emit any asset paths stored inside the (otherwise opaque) binary payload so the
-			// resource compiler's JSON scanner registers them as references and includes them
-			// when the owning resource is published.
+			// Emit asset references for resource compiler detection.
 			if ( value is IBlobReferences references )
 			{
 				writer.WriteStartArray( "$refs" );

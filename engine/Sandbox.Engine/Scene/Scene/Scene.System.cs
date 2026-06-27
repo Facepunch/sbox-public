@@ -91,17 +91,9 @@ public partial class Scene
 	}
 
 	/// <summary>
-	/// Apply scene-specific GameObjectSystem property overrides.
-	/// Called during scene deserialization, and when a scene map is loaded through a
-	/// <see cref="MapInstance"/>.
+	/// Applies scene-specific GameObjectSystem overrides during deserialization or map load.
+	/// Returns a disposable to revert these overrides, or null if none applied.
 	/// </summary>
-	/// <returns>
-	/// A disposable that, when disposed, restores the overridden properties to the values they
-	/// held before this call. This lets transient sources (e.g. a <see cref="MapInstance"/>) apply
-	/// their system data non-destructively and cleanly revert it when they unload. Returns null
-	/// when nothing was applied. Callers that own the data permanently (the main scene load) can
-	/// simply ignore the return value.
-	/// </returns>
 	internal IDisposable ApplyGameObjectSystemOverrides( JsonNode overridesNode )
 	{
 		if ( overridesNode is null )
@@ -160,9 +152,7 @@ public partial class Scene
 	}
 
 	/// <summary>
-	/// Remembers GameObjectSystem property values that an override replaced, and restores them when
-	/// disposed. This keeps system overrides (e.g. painted clutter loaded by a <see cref="MapInstance"/>)
-	/// non-destructive: the host scene's prior state is brought back as soon as the source goes away.
+	/// Saves and restores previous GameObjectSystem property values.
 	/// </summary>
 	sealed class SystemOverrideScope : IDisposable
 	{
