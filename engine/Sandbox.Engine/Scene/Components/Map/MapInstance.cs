@@ -58,11 +58,6 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	Package loadedMapPkg;
 	string sceneMapScenePath;
 
-	/// <summary>
-	/// Scope for reverting GameObjectSystem property overrides applied by this map.
-	/// </summary>
-	IDisposable _systemOverridesScope;
-
 	public MapInstance() : base()
 	{
 		OnMapLoaded += UpdateDirtyReflections;
@@ -151,10 +146,6 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		RemoveCollision();
 
 		Physics = null;
-
-		// Revert system overrides (e.g. painted clutter) from this map.
-		_systemOverridesScope?.Dispose();
-		_systemOverridesScope = null;
 
 		if ( GameObject.IsValid() && GameObject.Children is not null )
 		{
@@ -468,7 +459,7 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			&& sceneFile.SceneProperties.TryGetPropertyValue( "GameObjectSystems", out var systemsNode )
 			&& systemsNode is not null )
 		{
-			_systemOverridesScope = Scene.ApplyGameObjectSystemOverrides( systemsNode );
+			Scene.ApplyGameObjectSystemOverrides( systemsNode );
 		}
 
 		return true;

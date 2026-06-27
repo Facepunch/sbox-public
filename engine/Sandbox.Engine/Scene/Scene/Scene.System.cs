@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Nodes;
+using System.Text.Json.Nodes;
 
 namespace Sandbox;
 
@@ -91,13 +91,13 @@ public partial class Scene
 	}
 
 	/// <summary>
-	/// Applies scene-specific GameObjectSystem overrides during deserialization or map load.
-	/// Returns a disposable to revert these overrides, or null if none applied.
+	/// Apply scene-specific GameObjectSystem property overrides.
+	/// Called during scene deserialization.
 	/// </summary>
-	internal IDisposable ApplyGameObjectSystemOverrides( JsonNode overridesNode )
+	internal void ApplyGameObjectSystemOverrides( JsonNode overridesNode )
 	{
 		if ( overridesNode is null )
-			return null;
+			return;
 
 		Dictionary<string, JsonObject> overrides;
 
@@ -108,13 +108,11 @@ public partial class Scene
 		catch ( System.Exception e )
 		{
 			Log.Warning( e, $"Error when deserializing GameObjectSystem overrides ({e.Message})" );
-			return null;
+			return;
 		}
 
 		if ( overrides is null || overrides.Count == 0 )
-			return null;
-
-		var revert = new SystemOverrideScope();
+			return;
 
 		foreach ( var system in systems.Values )
 		{
@@ -132,10 +130,6 @@ public partial class Scene
 				{
 					try
 					{
-						// Remember the current value first, so the override can be unwound later.
-						if ( property.CanRead )
-							revert.Capture( system, property, property.GetValue( system ) );
-
 						// Deserialize the JSON node directly to the property's type
 						var value = Json.FromNode( valueNode, property.PropertyType );
 						property.SetValue( system, value );
@@ -146,43 +140,6 @@ public partial class Scene
 					}
 				}
 			}
-		}
-
-		return revert.HasCaptures ? revert : null;
-	}
-
-	/// <summary>
-	/// Saves and restores previous GameObjectSystem property values.
-	/// </summary>
-	sealed class SystemOverrideScope : IDisposable
-	{
-		private readonly List<(GameObjectSystem System, PropertyDescription Property, object PreviousValue)> _captured = new();
-
-		public bool HasCaptures => _captured.Count > 0;
-
-		public void Capture( GameObjectSystem system, PropertyDescription property, object previousValue )
-		{
-			_captured.Add( (system, property, previousValue) );
-		}
-
-		public void Dispose()
-		{
-			// Restore in reverse, so stacked overrides unwind in the opposite order they applied.
-			for ( int i = _captured.Count - 1; i >= 0; i-- )
-			{
-				var (system, property, previousValue) = _captured[i];
-
-				try
-				{
-					property.SetValue( system, previousValue );
-				}
-				catch ( Exception ex )
-				{
-					Log.Warning( $"Failed to revert system override on {system.GetType().FullName}.{property.Name}: {ex.Message}" );
-				}
-			}
-
-			_captured.Clear();
 		}
 	}
 
