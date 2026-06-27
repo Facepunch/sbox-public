@@ -9,7 +9,7 @@ public sealed partial class ClutterGridSystem
 	/// Manages storage and serialization of painted clutter instances.
 	/// Uses binary serialization via BlobData for efficient storage.
 	/// </summary>
-	public sealed class ClutterStorage : BlobData
+	public sealed class ClutterStorage : BlobData, IBlobReferences
 	{
 		public override int Version => 1;
 
@@ -37,6 +37,12 @@ public sealed partial class ClutterGridSystem
 		/// Gets all model paths that have instances.
 		/// </summary>
 		public IEnumerable<string> ModelPaths => _instances.Keys;
+
+		/// <summary>
+		/// Model paths referenced by painted instances. Emitted into the resource JSON on save so
+		/// painted clutter models are included when the owning scene/prefab is published.
+		/// </summary>
+		public IEnumerable<string> GetReferencedResources() => ModelPaths;
 
 		/// <summary>
 		/// Gets instances for a specific model path.
