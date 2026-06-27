@@ -41,20 +41,21 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 	}
 
 	/// <summary>
-	/// Check for new terrains, queue generation/cleanup jobs, and process pending jobs.
+	/// Check for new terrains, cleaning up old ones, queue generation/cleanup jobs, and process pending jobs.
 	/// </summary>
 	private void OnUpdate()
 	{
 		var camera = GetActiveCamera();
-		if ( camera == null )
-			return;
+		if ( camera != null )
+		{
+			_lastCameraPosition = camera.WorldPosition;
 
-		_lastCameraPosition = camera.WorldPosition;
+			SubscribeToTerrains();
+			UpdateInfiniteLayers( _lastCameraPosition );
+			ProcessJobs();
+		}
 
-		SubscribeToTerrains();
-		UpdateInfiniteLayers( _lastCameraPosition );
-		ProcessJobs();
-
+		// Rebuild even if no camera is present (to delete painted clutter)
 		if ( _dirty )
 		{
 			RebuildPaintedLayer();
