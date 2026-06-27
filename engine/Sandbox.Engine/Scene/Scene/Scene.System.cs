@@ -92,12 +92,20 @@ public partial class Scene
 
 	/// <summary>
 	/// Apply scene-specific GameObjectSystem property overrides.
-	/// Called during scene deserialization.
+	/// Called during scene deserialization, and when a scene map is loaded through a
+	/// <see cref="MapInstance"/>.
 	/// </summary>
-	internal void ApplyGameObjectSystemOverrides( JsonNode overridesNode )
+	/// <returns>
+	/// A disposable that, when disposed, restores the overridden properties to the values they
+	/// held before this call. This lets transient sources (e.g. a <see cref="MapInstance"/>) apply
+	/// their system data non-destructively and cleanly revert it when they unload. Returns null
+	/// when nothing was applied. Callers that own the data permanently (the main scene load) can
+	/// simply ignore the return value.
+	/// </returns>
+	internal IDisposable ApplyGameObjectSystemOverrides( JsonNode overridesNode )
 	{
 		if ( overridesNode is null )
-			return;
+			return null;
 
 		Dictionary<string, JsonObject> overrides;
 
@@ -108,11 +116,13 @@ public partial class Scene
 		catch ( System.Exception e )
 		{
 			Log.Warning( e, $"Error when deserializing GameObjectSystem overrides ({e.Message})" );
-			return;
+			return null;
 		}
 
 		if ( overrides is null || overrides.Count == 0 )
-			return;
+			return null;
+
+		var revert = new SystemOverrideScope();
 
 		foreach ( var system in systems.Values )
 		{
@@ -130,6 +140,10 @@ public partial class Scene
 				{
 					try
 					{
+						// Remember the current value first, so the override can be unwound later.
+						if ( property.CanRead )
+							revert.Capture( system, property, property.GetValue( system ) );
+
 						// Deserialize the JSON node directly to the property's type
 						var value = Json.FromNode( valueNode, property.PropertyType );
 						property.SetValue( system, value );
@@ -140,6 +154,45 @@ public partial class Scene
 					}
 				}
 			}
+		}
+
+		return revert.HasCaptures ? revert : null;
+	}
+
+	/// <summary>
+	/// Remembers GameObjectSystem property values that an override replaced, and restores them when
+	/// disposed. This keeps system overrides (e.g. painted clutter loaded by a <see cref="MapInstance"/>)
+	/// non-destructive: the host scene's prior state is brought back as soon as the source goes away.
+	/// </summary>
+	sealed class SystemOverrideScope : IDisposable
+	{
+		private readonly List<(GameObjectSystem System, PropertyDescription Property, object PreviousValue)> _captured = new();
+
+		public bool HasCaptures => _captured.Count > 0;
+
+		public void Capture( GameObjectSystem system, PropertyDescription property, object previousValue )
+		{
+			_captured.Add( (system, property, previousValue) );
+		}
+
+		public void Dispose()
+		{
+			// Restore in reverse, so stacked overrides unwind in the opposite order they applied.
+			for ( int i = _captured.Count - 1; i >= 0; i-- )
+			{
+				var (system, property, previousValue) = _captured[i];
+
+				try
+				{
+					property.SetValue( system, previousValue );
+				}
+				catch ( Exception ex )
+				{
+					Log.Warning( $"Failed to revert system override on {system.GetType().FullName}.{property.Name}: {ex.Message}" );
+				}
+			}
+
+			_captured.Clear();
 		}
 	}
 
