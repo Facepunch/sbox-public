@@ -283,7 +283,10 @@ public partial class Scene : GameObject
 			{
 				if ( !property.CanWrite ) continue;
 
-				var currentValue = property.GetValue( system );
+				// Serialize pre-override value if masked by a transient override.
+				var currentValue = TryGetPreTransientValue( system, property, out var preValue )
+					? preValue
+					: property.GetValue( system );
 				var hasGlobalValue = ProjectSettings.Systems.TryGetPropertyValue( systemType, property, out var globalValue );
 				var compareValue = hasGlobalValue ? globalValue : SystemsConfig.GetDefaultValue( property );
 
@@ -347,14 +350,12 @@ public partial class Scene : GameObject
 			}
 		}
 
-		//
-		// We don't want system scene loads to overwrite the main scene's system properties.
-		// System scenes can add GameObjects, but they should not reconfigure systems that
-		// already belong to the main scene (same reason NavMesh is guarded below).
-		//
+		// Prevent system scene loads from overwriting main scene system properties.
 		if ( !isSystemScene && data.TryGetPropertyValue( "GameObjectSystems", out var systemOverridesNode ) )
 		{
+#pragma warning disable CA2000 // Dispose objects before losing scope
 			ApplyGameObjectSystemOverrides( systemOverridesNode );
+#pragma warning restore CA2000
 		}
 
 		//

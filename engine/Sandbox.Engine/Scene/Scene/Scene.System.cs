@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Nodes;
+using System.Text.Json.Nodes;
 
 namespace Sandbox;
 
@@ -91,18 +91,16 @@ public partial class Scene
 	}
 
 	/// <summary>
-	/// Apply scene-specific GameObjectSystem property overrides.
-	/// Called during scene deserialization, and when a scene map is loaded through a
-	/// <see cref="MapInstance"/>.
+	/// Tracks temporary GameObjectSystem overrides (e.g. from MapInstance) so original values can be restored.
 	/// </summary>
-	/// <returns>
-	/// A disposable that, when disposed, restores the overridden properties to the values they
-	/// held before this call. This lets transient sources (e.g. a <see cref="MapInstance"/>) apply
-	/// their system data non-destructively and cleanly revert it when they unload. Returns null
-	/// when nothing was applied. Callers that own the data permanently (the main scene load) can
-	/// simply ignore the return value.
-	/// </returns>
-	internal IDisposable ApplyGameObjectSystemOverrides( JsonNode overridesNode )
+	readonly List<SystemOverrideScope> _transientSystemOverrides = new();
+
+	/// <summary>
+	/// Applies GameObjectSystem overrides from the given node. Returns a disposable to revert changes.
+	/// </summary>
+	/// <param name="overridesNode">Serialized GameObjectSystems overrides.</param>
+	/// <param name="transient">If true, overrides are temporary and reverted on dispose; otherwise, they are saved with the scene.</param>
+	internal IDisposable ApplyGameObjectSystemOverrides( JsonNode overridesNode, bool transient = false )
 	{
 		if ( overridesNode is null )
 			return null;
@@ -122,7 +120,7 @@ public partial class Scene
 		if ( overrides is null || overrides.Count == 0 )
 			return null;
 
-		var revert = new SystemOverrideScope();
+		var revert = new SystemOverrideScope( this, transient );
 
 		foreach ( var system in systems.Values )
 		{
@@ -156,17 +154,44 @@ public partial class Scene
 			}
 		}
 
-		return revert.HasCaptures ? revert : null;
+		if ( !revert.HasCaptures )
+			return null;
+
+		if ( transient )
+			_transientSystemOverrides.Add( revert );
+
+		return revert;
 	}
 
 	/// <summary>
-	/// Remembers GameObjectSystem property values that an override replaced, and restores them when
-	/// disposed. This keeps system overrides (e.g. painted clutter loaded by a <see cref="MapInstance"/>)
-	/// non-destructive: the host scene's prior state is brought back as soon as the source goes away.
+	/// Gets the pre-override value for a system property if masked by a transient override.
+	/// </summary>
+	bool TryGetPreTransientValue( GameObjectSystem system, PropertyDescription property, out object value )
+	{
+		foreach ( var scope in _transientSystemOverrides )
+		{
+			if ( scope.TryGetCaptured( system, property, out value ) )
+				return true;
+		}
+
+		value = null;
+		return false;
+	}
+
+	/// <summary>
+	/// Saves and restores previous GameObjectSystem property values.
 	/// </summary>
 	sealed class SystemOverrideScope : IDisposable
 	{
+		private readonly Scene _scene;
+		private readonly bool _transient;
 		private readonly List<(GameObjectSystem System, PropertyDescription Property, object PreviousValue)> _captured = new();
+
+		public SystemOverrideScope( Scene scene, bool transient )
+		{
+			_scene = scene;
+			_transient = transient;
+		}
 
 		public bool HasCaptures => _captured.Count > 0;
 
@@ -175,8 +200,29 @@ public partial class Scene
 			_captured.Add( (system, property, previousValue) );
 		}
 
+		/// <summary>
+		/// Returns the pre-override value captured for the given system property, if any.
+		/// </summary>
+		public bool TryGetCaptured( GameObjectSystem system, PropertyDescription property, out object value )
+		{
+			foreach ( var (s, p, previousValue) in _captured )
+			{
+				if ( s == system && p == property )
+				{
+					value = previousValue;
+					return true;
+				}
+			}
+
+			value = null;
+			return false;
+		}
+
 		public void Dispose()
 		{
+			if ( _transient )
+				_scene?._transientSystemOverrides.Remove( this );
+
 			// Restore in reverse, so stacked overrides unwind in the opposite order they applied.
 			for ( int i = _captured.Count - 1; i >= 0; i-- )
 			{

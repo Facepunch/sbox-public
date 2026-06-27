@@ -58,9 +58,10 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 	Package loadedMapPkg;
 	string sceneMapScenePath;
 
-	// Reverts any GameObjectSystem property overrides this map applied to the host scene (e.g.
-	// painted clutter, which lives at scene level rather than under our GameObject). Disposed when
-	// the map unloads so those changes don't outlive the map.
+	/// <summary>
+	/// Scope for reverting GameObjectSystem property overrides applied by this map (e.g. painted
+	/// clutter). Disposed when the map unloads so those changes don't outlive the map.
+	/// </summary>
 	IDisposable _systemOverridesScope;
 
 	public MapInstance() : base()
@@ -152,9 +153,8 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 		Physics = null;
 
-		// GameObjectSystem data applied from this scene map (e.g. painted clutter) lives on the
-		// host scene's systems, not under this MapInstance, so it isn't covered by the child-object
-		// cleanup below. Reverting the override restores the systems to their pre-map state.
+		// Revert any GameObjectSystem property overrides (e.g. painted clutter) this map applied
+		// to the host scene, restoring the scene's own pre-map values.
 		_systemOverridesScope?.Dispose();
 		_systemOverridesScope = null;
 
@@ -463,15 +463,16 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 			}
 		}
 
-		// A scene map's GameObjectSystems data (e.g. painted clutter stored on ClutterGridSystem)
-		// lives at scene level, not on a GameObject, so it isn't covered by the loop above. Apply
-		// it onto the host scene's systems so that data survives being loaded through a MapInstance.
-		// Note: this data is in absolute scene coordinates and is not offset by the MapInstance origin.
-		if ( sceneFile.SceneProperties is not null
-			&& sceneFile.SceneProperties.TryGetPropertyValue( "GameObjectSystems", out var systemsNode )
-			&& systemsNode is not null )
+		// Apply map-level GameObjectSystems (e.g. clutter) as transient overrides to the host scene.
+		// These are reverted when the map unloads and use absolute scene coordinates.
+		JsonNode systemsNode = null;
+		var hasSystems = sceneFile.SceneProperties is not null
+			&& sceneFile.SceneProperties.TryGetPropertyValue( "GameObjectSystems", out systemsNode )
+			&& systemsNode is not null;
+
+		if ( hasSystems )
 		{
-			_systemOverridesScope = Scene.ApplyGameObjectSystemOverrides( systemsNode );
+			_systemOverridesScope = Scene.ApplyGameObjectSystemOverrides( systemsNode, transient: true );
 		}
 
 		return true;
