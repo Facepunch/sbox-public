@@ -301,7 +301,7 @@ public class Voice : Component
 	private void OnVoice( Memory<byte> compressed )
 	{
 		if ( IsProxy ) return;
-		if ( singleRecorder != this ) return;
+		if ( !recording ) return;
 
 		if ( Networking.System is not null )
 		{
