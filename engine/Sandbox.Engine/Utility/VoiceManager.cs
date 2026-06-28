@@ -3,7 +3,7 @@ using System.Buffers;
 
 namespace Sandbox;
 
-internal static class VoiceManager
+public static class VoiceManager
 {
 	static ISteamUser steamUser;
 	static byte[] compressedBuffer = new byte[1024 * 32];
