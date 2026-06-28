@@ -112,7 +112,8 @@ public partial class Scene
 	{
 		var revert = new SystemOverrideScope( this, transient: true );
 
-		try {
+		try
+		{
 			ApplyGameObjectSystemOverrides( overridesNode, revert );
 
 			// Nothing matched, so there's nothing to revert - don't hand back a live scope.
@@ -120,8 +121,12 @@ public partial class Scene
 				return null;
 
 			_transientSystemOverrides.Add( revert );
-			return revert;
-		} 
+
+			// Ownership transferred to the caller (and tracking list); don't dispose in finally.
+			var result = revert;
+			revert = null;
+			return result;
+		}
 		finally
 		{
 			revert?.Dispose();
