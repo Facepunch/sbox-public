@@ -392,6 +392,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	internal readonly LocalSnapshotState LocalSnapshotState = new();
 
 	private readonly HashSet<Guid> _culledConnections = [];
+	private readonly HashSet<Guid> _createMessageConnections = [];
 	private readonly Dictionary<Guid, CullState> _cullStates = new();
 	private readonly SnapshotValueCache _snapshotCache = new();
 	private TimeUntil _nextUpdateCachedBounds;
@@ -410,6 +411,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	{
 		LocalSnapshotState.RemoveConnection( id );
 		_culledConnections.Remove( id );
+		_createMessageConnections.Remove( id );
 		_cullStates.Remove( id );
 	}
 
@@ -428,6 +430,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	private void ClearConnections()
 	{
 		LocalSnapshotState.ClearConnections();
+		_createMessageConnections.Clear();
 	}
 
 	bool IDeltaSnapshot.ShouldTransmit( Connection target )
@@ -446,6 +449,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 				if ( !_culledConnections.Remove( target.Id ) )
 					continue;
 
+				EnsureCreateMessageSent( target );
 				GameObject.Network.SetCullState( target, false );
 			}
 
@@ -496,6 +500,7 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 				LocalSnapshotState.RemoveConnection( target.Id );
 				GameObject.Network.SetCullState( target, false );
+				EnsureCreateMessageSent( target );
 
 				shouldTransmitToAny = true;
 				state.Culled = false;
@@ -519,11 +524,32 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	}
 
 	/// <summary>
+	/// Ensure that a create message has been sent to the specified <see cref="Connection"/>. If it has not, then send it.
+	/// </summary>
+	/// <param name="target"></param>
+	internal void EnsureCreateMessageSent( Connection target )
+	{
+		if ( !_createMessageConnections.Add( target.Id ) )
+			return;
+
+		target.SendMessage( GetCreateMessage() );
+	}
+
+	/// <summary>
+	/// Mark that a create message has been sent to the specified <see cref="Connection"/>.
+	/// </summary>
+	/// <param name="target"></param>
+	internal void MarkCreateMessageSent( Connection target )
+	{
+		_createMessageConnections.Add( target.Id );
+	}
+
+	/// <summary>
 	/// Is this network object visible to the provided <see cref="Connection"/>. We'll check if we
 	/// have a culler component and use that, but we'll also use our bounds to determine if we're
 	/// visible.
 	/// </summary>
-	private bool IsVisible( Connection target, BBox worldBounds )
+	internal bool IsVisible( Connection target, BBox worldBounds )
 	{
 		// Do we have a INetworkVisible? We're going to let that take priority.
 		var go = GameObject;
