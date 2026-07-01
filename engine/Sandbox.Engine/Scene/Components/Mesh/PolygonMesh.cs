@@ -4339,6 +4339,18 @@ public sealed partial class PolygonMesh : IJsonConvert
 		return textureSize;
 	}
 
+	internal bool HasLoadingMaterialTextures()
+	{
+		foreach ( var material in Materials )
+		{
+			// A texture that is still streaming in has no valid size to derive a scale from
+			if ( material?.FirstTexture is { IsLoaded: false, IsError: false } )
+				return true;
+		}
+
+		return false;
+	}
+
 	public bool IsEdgeSmooth( HalfEdgeHandle hEdge )
 	{
 		if ( IsEdgeOpen( hEdge ) )

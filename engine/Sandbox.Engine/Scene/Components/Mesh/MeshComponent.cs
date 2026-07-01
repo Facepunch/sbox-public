@@ -151,6 +151,23 @@ public sealed class MeshComponent : Collider, ExecuteInEditor, ITintable, IMater
 		RebuildRenderMesh();
 
 		base.OnEnabledInternal();
+
+		_ = RecomputeTextureParametersWhenTexturesLoad();
+	}
+
+	// Face texture parameters are derived from the coordinates using each material's texture size.
+	// A streamed texture isn't resident yet when we enable, so its faces derive against a fallback
+	// size and the scale comes out wrong. Wait for the textures then derive from the coordinates again.
+	async Task RecomputeTextureParametersWhenTexturesLoad()
+	{
+		if ( !Scene.IsEditor || Mesh is null || !Mesh.HasLoadingMaterialTextures() )
+			return;
+
+		while ( this.IsValid() && Mesh is not null && Mesh.HasLoadingMaterialTextures() )
+			await Task.Delay( 10 );
+
+		if ( this.IsValid() && Mesh is not null )
+			Mesh.ComputeFaceTextureParametersFromCoordinates();
 	}
 
 	protected override void OnDisabled()
