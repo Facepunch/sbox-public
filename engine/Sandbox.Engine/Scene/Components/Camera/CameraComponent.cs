@@ -569,6 +569,9 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 		return new Vector2( v.x, v.y );
 	}
 
+	/// <summary>
+	/// Convert from screen pixel coordinates (DPI aware) to a ray in world space.
+	/// </summary>
 	public Ray ScreenPixelToRay( Vector2 pixelPosition )
 	{
 		EnsureSceneCameraCreated();

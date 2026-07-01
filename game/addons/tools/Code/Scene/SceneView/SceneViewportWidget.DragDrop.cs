@@ -88,12 +88,15 @@ public partial class SceneViewportWidget : Widget
 
 		if ( currentDrop is not null )
 		{
+			// Normalize pos (Qt logical pixels vs camera's physical pixels)
+			var normalizedPos = (ev.LocalPosition - Renderer.Position) / Renderer.Size;
+		
 			// TODO: Render meshes don't support tags, material drop doesn't need it though
 			var tr = SceneEditorSession.Active.Scene.Trace
 							.WithoutTags( "isdragdrop", "trigger" )
 							.UseRenderMeshes( currentDrop is MaterialDropObject )
 							.UsePhysicsWorld( currentDrop is not MaterialDropObject )
-							.Ray( _activeCamera.ScreenPixelToRay( ev.LocalPosition - Renderer.Position ), _activeCamera.ZFar + MathF.Abs( _activeCamera.ZNear ) )
+							.Ray( _activeCamera.ScreenNormalToRay( normalizedPos ), _activeCamera.ZFar + MathF.Abs( _activeCamera.ZNear ) )
 							.Run();
 
 			if ( !tr.Hit )

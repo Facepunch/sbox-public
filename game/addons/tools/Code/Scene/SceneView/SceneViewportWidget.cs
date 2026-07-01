@@ -370,7 +370,8 @@ public partial class SceneViewportWidget : Widget
 		return false;
 	}
 
-	Ray CursorTraceRay => _activeCamera.ScreenPixelToRay( initialMousePosition );
+	// Convert initialMousePosition (Qt pixels) to camera screen-normal (divide by Renderer.Size)
+	Ray CursorTraceRay => _activeCamera.ScreenNormalToRay( (initialMousePosition - Renderer.Position) / Renderer.Size );
 
 	[Shortcut( "editor.paste", "CTRL+V" )]
 	void Paste()
