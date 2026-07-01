@@ -576,6 +576,11 @@ file class AssetFolderInstance : SceneFolder
 
 		if ( filename.StartsWith( '/' ) ) filename = filename[1..];
 
+		// Register the newly written file with the asset system so it is 
+		// immediately without waiting for the file watcher.
+		var absolutePath = System.IO.Path.Combine( _folder, filename );
+		AssetSystem.RegisterFile( absolutePath );
+
 		return System.IO.Path.Combine( _relativeFolder, filename ).NormalizeFilename( false );
 	}
 }
