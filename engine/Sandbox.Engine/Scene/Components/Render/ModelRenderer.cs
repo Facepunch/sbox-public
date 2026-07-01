@@ -114,6 +114,27 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 		}
 	} = ShadowRenderType.On;
 
+	private bool _batchable = true;
+
+	/// <summary>
+	/// Allow this object to be batched with others sharing the same material.
+	/// Disable when the object uses dynamic attributes that affect rendering.
+	/// </summary>
+	[Property, Category( "Rendering" )]
+	[DefaultValue( true )]
+	public bool Batchable
+	{
+		get => _batchable;
+		set
+		{
+			if ( _batchable == value ) return;
+			_batchable = value;
+
+			if ( _sceneObject.IsValid() )
+				_sceneObject.Batchable = value;
+		}
+	}
+
 	private int? _lodOverride;
 
 	/// <summary>
@@ -244,6 +265,7 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 		_sceneObject.Model = model;
 		_sceneObject.MeshGroupMask = BodyGroups;
 		_sceneObject.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
+		_sceneObject.Batchable = _batchable;
 		_sceneObject.RenderingEnabled = model.HasRenderMeshes();
 
 		if ( _lodOverride.HasValue )
@@ -384,6 +406,7 @@ public partial class ModelRenderer : Renderer, ExecuteInEditor, ITintable, IMate
 			Tint = mr.Tint;
 			BodyGroups = mr.BodyGroups;
 			MaterialGroup = mr.MaterialGroup;
+			Batchable = mr.Batchable;
 		}
 	}
 
