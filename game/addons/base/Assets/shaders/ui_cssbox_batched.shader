@@ -496,8 +496,11 @@ PS
 				vImage *= bgTint;
 			#endif
 
-			col.rgb = lerp( col.rgb, vImage.rgb, saturate( vImage.a + ( 1 - col.a ) ) );
-			col.a = max( col.a, vImage.a );
+			// Alpha composite the background image over the background color (source-over, premultiplied).
+			float4 vComposited;
+			vComposited.a = vImage.a + ( 1 - vImage.a ) * col.a;
+			vComposited.rgb = vComposited.a > 0.0 ? ( vImage.a * vImage.rgb + ( 1 - vImage.a ) * col.a * col.rgb ) * rcp( max( vComposited.a, 1e-5 ) ) : col.rgb;
+			col = vComposited;
 		}
 
 		// Border image or solid border

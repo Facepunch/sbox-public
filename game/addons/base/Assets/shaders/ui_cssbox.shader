@@ -337,8 +337,11 @@ PS
 				vImage *= bgTint;
 			#endif
 
-			vBox.rgb = lerp( vBox.rgb, vImage.rgb, saturate( vImage.a + ( 1 - vBox.a ) ) );
-			vBox.a = max( vBox.a, vImage.a );
+			// Alpha composite the background image over the background color (source-over, premultiplied).
+			float4 vComposited;
+			vComposited.a = vImage.a + ( 1 - vImage.a ) * vBox.a;
+			vComposited.rgb = vComposited.a > 0.0 ? ( vImage.a * vImage.rgb + ( 1 - vImage.a ) * vBox.a * vBox.rgb ) * rcp( max( vComposited.a, 1e-5 ) ) : vBox.rgb;
+			vBox = vComposited;
 		}
 		
 		o.vColor = vBox;
