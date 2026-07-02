@@ -82,18 +82,16 @@ static const float2 g_vPoissonDisk16[16] =
 //--------------------------------------------------------------------------------------------------
 // Receiver plane depth bias (Isidoro 2006, AMD)
 //
-// Reconstructs the receiver surface plane in shadow-map UV/depth space using screen-space
-// derivatives of the shadow-space position. Returns the gradient ( dz/du, dz/dv ) so each PCF
-// tap can compute its exact comparison depth as: shadowPos.z + dot( uvOffset, gradient ).
+// Solves the 2x2 screen-space derivative system for the receiver plane's depth gradient in
+// shadow-map UV space, so each PCF tap follows the surface:
+//     compareDepth = shadowPos.z + dot( uvOffset, gradient )
+// This removes the slope acne in shadow maps even at very tight bias values.
 //
-// This eliminates the slope-related shadow acne that a uniform depth bias can't handle without
-// causing peter-panning. Falls back gracefully via the determinant clamp at silhouette pixels
-// where the 2x2 derivative quad straddles a depth discontinuity.
 //--------------------------------------------------------------------------------------------------
-float2 ComputeReceiverPlaneDepthBias( ShadowPCFInput i )
+float2 ComputeReceiverPlaneDepthBias( float3 vShadowPos )
 {
-    float3 vShadowPos = i.ShadowPos;
-
+    // Dont run this on non-pixel shaders, since ddx/ddy are undefined there and will produce NaN values
+#if ( PROGRAM == VFX_PROGRAM_PS )
     float3 vDX = ddx_fine( vShadowPos );
     float3 vDY = ddy_fine( vShadowPos );
 
@@ -102,12 +100,14 @@ float2 ComputeReceiverPlaneDepthBias( ShadowPCFInput i )
     vBiasUV.y = vDX.x * vDY.z - vDY.x * vDX.z;
 
     float flDet = vDX.x * vDY.y - vDX.y * vDY.x;
-    vBiasUV /= sign( flDet ) * max( abs( flDet ), 1e-8 );
+    float flRcpDet = flDet != 0.0 ? 1.0 / flDet : 0.0;
 
-    // Cap to a sane slope - |dz/du| > ~1 implies the receiver plane spans the whole
-    // shadow map in depth across a single UV unit, which is almost always a derivative
-    // glitch at a silhouette and would otherwise produce a huge per-tap offset.
-    return clamp( vBiasUV, -1.0, 1.0 );
+    // Cap to a sane slope - |dz/du| > ~1 implies the receiver plane spans the whole shadow map
+    // in depth across a single UV unit, which is a near-degenerate derivative glitch that would
+    // otherwise produce a huge per-tap offset.
+    return clamp(vBiasUV * flRcpDet, -1.0, 1.0);
+#endif
+    return 0.0f;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -138,7 +138,7 @@ float SampleShadowPCF_Poisson5( ShadowPCFInput i )
     float2x2 mRotation = float2x2( flCos, -flSin, flSin, flCos );
     
     float2 vFilterScale = flFilterRadius * flHardness * vTexelSize;
-    float2 vDzDuv = ComputeReceiverPlaneDepthBias( i );
+    float2 vDzDuv = ComputeReceiverPlaneDepthBias( i.ShadowPos );
 
     float flShadow = 0.0;
 
@@ -170,7 +170,7 @@ float SampleShadowPCF_Poisson12( ShadowPCFInput i )
     float2x2 mRotation = float2x2( flCos, -flSin, flSin, flCos );
     
     float2 vFilterScale = flFilterRadius * flHardness * vTexelSize;
-    float2 vDzDuv = ComputeReceiverPlaneDepthBias( i );
+    float2 vDzDuv = ComputeReceiverPlaneDepthBias( i.ShadowPos );
 
     float flShadow = 0.0;
 
@@ -202,7 +202,7 @@ float SampleShadowPCF_Poisson16( ShadowPCFInput i )
     float2x2 mRotation = float2x2( flCos, -flSin, flSin, flCos );
     
     float2 vFilterScale = flFilterRadius * flHardness * vTexelSize;
-    float2 vDzDuv = ComputeReceiverPlaneDepthBias( i );
+    float2 vDzDuv = ComputeReceiverPlaneDepthBias( i.ShadowPos );
 
     float flShadow = 0.0;
 
@@ -256,3 +256,4 @@ float SampleShadowPCF( ShadowPCFInput i )
 }
 
 #endif
+

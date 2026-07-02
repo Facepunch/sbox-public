@@ -135,10 +135,18 @@ CS
     groupshared int groupWriteOffset[64];
     groupshared int groupBaseOffset;
 
-	// Here we calculate sqrt distance, its faster
+	// Perspective: squared Euclidean distance.
+	// Orthographic: depth along the view axis only
 	float CalculateDistance(float3 worldPosition)
 	{
 		float3 delta = (worldPosition - CameraPosition);
+
+		// Check if orthographic
+		if ( g_matViewToProjection[3].w != 0.0f )
+		{
+			return dot( delta, g_vCameraDirWs.xyz );
+		}
+
 		return dot(delta, delta);
 	}
 

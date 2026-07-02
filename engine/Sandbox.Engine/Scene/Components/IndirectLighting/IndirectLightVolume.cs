@@ -190,6 +190,7 @@ public sealed partial class IndirectLightVolume : Component, Component.ExecuteIn
 	//
 	// Editor Actions
 	//
+	[Expose, Hide]
 	internal bool IsSceneSaved => Scene?.Editor?.GetSceneFolder() is not null;
 
 	[ShowIf( nameof( IsSceneSaved ), false )]

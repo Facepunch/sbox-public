@@ -16,9 +16,9 @@ public class Preview : Widget
 		Layout.Add( Rendering );
 	}
 
-	public void AddVisemes( List<PhonemeFrame> phonemes, float t, float dt )
+	public void AddVisemes( List<VisemeFrame> visemes, float t, float dt )
 	{
-		Rendering.AddVisemes( phonemes, t, dt );
+		Rendering.AddVisemes( visemes, t, dt );
 	}
 
 	private class RenderingWidget : SceneRenderingWidget
@@ -52,75 +52,94 @@ public class Preview : Widget
 			SceneObject = new SceneModel( world, "models/citizen/citizen.vmdl", Transform.Zero.WithPosition( Vector3.Backward * 250 ) );
 		}
 
-		public void AddVisemes( List<PhonemeFrame> phonemes, float t, float dt )
+		public void AddVisemes( List<VisemeFrame> visemes, float t, float dt )
 		{
+			if ( !SceneObject.IsValid() )
+				return;
+
 			SceneObject.Morphs.ResetAll();
 
-			int pcount = phonemes.Count;
-			for ( int k = 0; k < pcount; k++ )
-			{
-				var phoneme = phonemes[k];
-				float phonemeStartTime = phoneme.StartTime;
-				float phonemeEndTime = phoneme.EndTime;
+			if ( visemes == null || visemes.Count == 0 )
+				return;
 
-				if ( t > phonemeStartTime && t < phonemeEndTime )
+			// Accumulate a weight per viseme for the frames active around time t.
+			Span<float> visemeWeights = stackalloc float[LipSyncGenerator.Count];
+
+			int count = visemes.Count;
+			for ( int k = 0; k < count; k++ )
+			{
+				var frame = visemes[k];
+				float startTime = frame.StartTime;
+				float endTime = frame.EndTime;
+
+				if ( t > startTime && t < endTime )
 				{
-					if ( k < pcount - 1 )
+					if ( k < count - 1 )
 					{
-						var next = phonemes[k + 1];
+						var next = visemes[k + 1];
 						float nextStartTime = next.StartTime;
 						float nextEndTime = next.EndTime;
 
-						// Determine the blend length based on the current and next phoneme
-						if ( nextStartTime == phonemeEndTime )
+						// Determine the blend length based on the current and next viseme
+						if ( nextStartTime == endTime )
 						{
-							// No gap, increase the blend length to the end of the next phoneme
-							dt = MathF.Max( dt, MathF.Min( nextEndTime - t, phonemeEndTime - phonemeStartTime ) );
+							// No gap, increase the blend length to the end of the next viseme
+							dt = MathF.Max( dt, MathF.Min( nextEndTime - t, endTime - startTime ) );
 						}
 						else
 						{
-							// Dead space, increase the blend length to the start of the next phoneme
-							dt = MathF.Max( dt, MathF.Min( nextStartTime - t, phonemeEndTime - phonemeStartTime ) );
+							// Dead space, increase the blend length to the start of the next viseme
+							dt = MathF.Max( dt, MathF.Min( nextStartTime - t, endTime - startTime ) );
 						}
 					}
 					else
 					{
-						// Last phoneme in list, increase the blend length to the length of the current phoneme
-						dt = MathF.Max( dt, phonemeEndTime - phonemeStartTime );
+						// Last viseme in list, increase the blend length to its own length
+						dt = MathF.Max( dt, endTime - startTime );
 					}
 				}
 
-				float t1 = (phonemeStartTime - t) / dt;
-				float t2 = (phonemeEndTime - t) / dt;
+				float t1 = (startTime - t) / dt;
+				float t2 = (endTime - t) / dt;
 
-				// Check for overlap of the current time t with the phoneme duration
+				// Check for overlap of the current time t with the viseme duration
 				if ( t1 < 1.0f && t2 > 0.0f )
 				{
 					t1 = MathF.Max( t1, 0 );
 					t2 = MathF.Min( t2, 1 );
 
 					float scale = (t2 - t1);
-					AddViseme( phoneme.Code, scale );
+					visemeWeights[frame.Viseme] = MathF.Max( visemeWeights[frame.Viseme], scale );
 				}
 			}
+
+			ApplyVisemes( visemeWeights );
 		}
 
-		public void AddViseme( int phoneme, float scale )
+		// Blend the model's morphs towards the accumulated viseme weights, the same way the
+		// runtime LipSync component drives a face from lipsync visemes.
+		private void ApplyVisemes( ReadOnlySpan<float> visemeWeights )
 		{
-			if ( !SceneObject.IsValid() )
+			var model = SceneObject.Model;
+			if ( model is null )
 				return;
 
-			var model = SceneObject.Model;
 			var morphs = SceneObject.Morphs;
+			int morphCount = model.MorphCount;
 
-			for ( int i = 0; i < model.MorphCount; ++i )
+			for ( int morphIndex = 0; morphIndex < morphCount; morphIndex++ )
 			{
-				var weight = 0.0f;
-				if ( weight <= 0.0f )
-					continue;
+				float morph = 0.0f;
+				for ( int v = 0; v < LipSyncGenerator.Count; v++ )
+				{
+					if ( visemeWeights[v] <= 0.0f )
+						continue;
 
-				weight *= scale;
-				morphs.Set( i, morphs.Get( i ) + weight );
+					var weight = model.GetVisemeMorph( LipSyncGenerator.MorphName( v ), morphIndex );
+					morph += (weight - morph) * visemeWeights[v];
+				}
+
+				morphs.Set( morphIndex, Math.Clamp( morph, 0f, 1f ) );
 			}
 		}
 

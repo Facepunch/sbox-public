@@ -354,7 +354,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 		_snapTargets.Update( targets );
 	}
 
-	private MovieTime? _contextMenuTime;
+	private Vector2? _contextMenuScenePos;
 	private TimeSince _sinceClick;
 	private IMovieItem? _lastClickedItem;
 
@@ -365,7 +365,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 		base.OnMousePress( e );
 
 		DragType = DragTypes.None;
-		_contextMenuTime = null;
+		_contextMenuScenePos = null;
 
 		if ( e.ButtonState == MouseButtons.Middle )
 		{
@@ -422,9 +422,9 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 			// Move the playhead to be within whatever we clicked on
 
-			if ( movieItem.MovePlayheadOnSelect || e.RightMouseButton )
+			if ( movieItem.SelectionTime is not null || e.RightMouseButton )
 			{
-				time = time.Clamp( movieItem.TimeRange );
+				time = movieItem.SelectionTime ?? time.Clamp( movieItem.TimeRange );
 				Session.PlayheadTime = time;
 			}
 
@@ -451,7 +451,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 		if ( e.RightMouseButton )
 		{
-			_contextMenuTime = time;
+			_contextMenuScenePos = scenePos;
 
 			if ( accepted ) return;
 
@@ -493,7 +493,7 @@ public partial class Timeline : GraphicsView, ISnapSource
 
 		// Don't open context menu if we right-click + drag
 
-		if ( e.RightMouseButton && time == _contextMenuTime )
+		if ( e.RightMouseButton && Equals( scenePos, _contextMenuScenePos ) )
 		{
 			e.Accepted = true;
 

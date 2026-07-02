@@ -43,12 +43,10 @@ static class MixingThread
 	static readonly ConcurrentQueue<DirectSoundModel> _acousticModelDisposalQueue = new();
 	static readonly ConcurrentQueue<BinauralEffect> _binauralDisposalQueue = new();
 	static readonly ConcurrentQueue<NativeReverbEffect> _reverbDisposalQueue = new();
-	static readonly ConcurrentQueue<CAudioStreamManaged> _streamDestroyQueue = new();
 	static readonly List<AudioSampler> _pendingSamplerDisposals = new();
 	static readonly List<DirectSoundModel> _pendingAcousticModelDisposals = new();
 	static readonly List<BinauralEffect> _pendingBinauralDisposals = new();
 	static readonly List<NativeReverbEffect> _pendingReverbDisposals = new();
-	static readonly List<CAudioStreamManaged> _pendingStreamDestroys = new();
 
 	static readonly List<SoundHandle> _buildVoiceList = new();
 	static readonly Dictionary<Mixer, int> _voicesPerMixer = new( ReferenceEqualityComparer.Instance );
@@ -59,12 +57,10 @@ static class MixingThread
 		foreach ( var s in _pendingAcousticModelDisposals ) _acousticModelDisposalQueue.Enqueue( s );
 		foreach ( var b in _pendingBinauralDisposals ) _binauralDisposalQueue.Enqueue( b );
 		foreach ( var r in _pendingReverbDisposals ) _reverbDisposalQueue.Enqueue( r );
-		foreach ( var s in _pendingStreamDestroys ) _streamDestroyQueue.Enqueue( s );
 		_pendingSamplerDisposals.Clear();
 		_pendingAcousticModelDisposals.Clear();
 		_pendingBinauralDisposals.Clear();
 		_pendingReverbDisposals.Clear();
-		_pendingStreamDestroys.Clear();
 	}
 
 	internal static void DrainDisposals()
@@ -85,7 +81,6 @@ static class MixingThread
 			while ( _acousticModelDisposalQueue.TryDequeue( out var s ) ) s.Dispose();
 			while ( _binauralDisposalQueue.TryDequeue( out var b ) ) b.Dispose();
 			while ( _reverbDisposalQueue.TryDequeue( out var r ) ) r.Dispose();
-			while ( _streamDestroyQueue.TryDequeue( out var s ) ) s.Destroy();
 		}
 
 
@@ -110,11 +105,6 @@ static class MixingThread
 	internal static void QueueReverbDisposal( NativeReverbEffect reverb )
 	{
 		if ( reverb is not null ) _pendingReverbDisposals.Add( reverb );
-	}
-
-	internal static void QueueStreamDestroy( CAudioStreamManaged stream )
-	{
-		if ( stream.IsValid ) _pendingStreamDestroys.Add( stream );
 	}
 
 	internal static void ApplyWritebacks()
@@ -150,6 +140,8 @@ static class MixingThread
 	static void BuildSnapshot( VoiceFrameSnapshot snapshot )
 	{
 		snapshot.Reset();
+
+		Sandbox.SoundSimulationSystem.BeginPrimeFrame();
 
 		foreach ( var listener in Listener.ActiveList )
 		{
@@ -242,7 +234,6 @@ static class MixingThread
 		while ( _acousticModelDisposalQueue.TryDequeue( out var source ) ) source.Dispose();
 		while ( _binauralDisposalQueue.TryDequeue( out var binaural ) ) binaural.Dispose();
 		while ( _reverbDisposalQueue.TryDequeue( out var reverb ) ) reverb.Dispose();
-		while ( _streamDestroyQueue.TryDequeue( out var stream ) ) stream.Destroy();
 		SoundHandle.LipSyncAccessor.DrainDestructionQueue();
 	}
 

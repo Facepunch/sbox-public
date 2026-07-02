@@ -45,4 +45,9 @@ public partial class Model
 	public int GetIndexCount( int drawcall ) => MeshGlue.GetModelIndexCount( native, drawcall );
 	public int GetIndexStart( int drawcall ) => MeshGlue.GetModelIndexStart( native, drawcall );
 	public int GetBaseVertex( int drawcall ) => MeshGlue.GetModelBaseVertex( native, drawcall );
+
+	/// <summary>
+	/// Index count of the mesh drawn at the given LOD.
+	/// </summary>
+	public int GetIndexCountForLod( int lod ) => MeshGlue.GetModelLodIndexCount( native, lod );
 }

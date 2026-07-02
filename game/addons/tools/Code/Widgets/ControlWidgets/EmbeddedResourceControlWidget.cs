@@ -325,10 +325,7 @@ public class EmbeddedResourceControlWidget : ControlWidget
 
 		if ( asset.TryLoadResource<GameResource>( out var gr ) )
 		{
-			var embeddedSerialized = SerializedProperty.GetValue<GameResource>().Serialize();
-
-			// Deserialize into this freshly made resource
-			gr.Deserialize( embeddedSerialized );
+			gr.CopyFrom( SerializedProperty.GetValue<GameResource>() );
 
 			// Cull any notion of an embedded resource, as it's not one anymore
 			gr.EmbeddedResource = null;
@@ -398,7 +395,7 @@ public class EmbeddedResourceControlWidget : ControlWidget
 		// Create a fresh resource when switching to embedded
 		//
 		var resource = EditorTypeLibrary.Create<GameResource>( target.PropertyType.Name );
-		resource.Deserialize( data );
+		resource.CopyFrom( source );
 
 		resource.EmbeddedResource = new()
 		{

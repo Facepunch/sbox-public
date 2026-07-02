@@ -89,52 +89,107 @@ internal static class EngineLoop
 		if ( Application.IsBenchmark ) return -1;
 		if ( Application.IsHeadless ) return 60;
 
-		int maxFps = RenderSettings.Instance.MaxFrameRate;
+		double effectiveFps = RenderSettings.Instance.MaxFrameRate;
 
-		double effectiveFps = maxFps;
-		if ( Game.IsMainMenuVisible )
-		{
-			int maxMenu = RenderSettings.Instance.MaxFrameRateMenu;
-			if ( maxMenu > 0 && maxMenu < effectiveFps ) effectiveFps = maxMenu;
-		}
+		// Menu and inactive caps tighten the active cap (and each other), applying even when it's uncapped.
+		if ( Game.IsMainMenuVisible ) effectiveFps = TightenCap( effectiveFps, RenderSettings.Instance.MaxFrameRateMenu );
 
-		if ( !InputSystem.IsAppActive() )
+		if ( !InputSystem.IsAppActive() ) effectiveFps = TightenCap( effectiveFps, RenderSettings.Instance.MaxFrameRateInactive );
+
+		// Under vsync, a cap above the refresh lets the main thread race ahead of the present queue
+		// and stall on it (bimodal frame delivery / judder). Clamp to the refresh instead. No-op when
+		// the cap is already at/below it.
+		if ( RenderSettings.Instance.VSync )
 		{
-			// Inactive cap is bounded by the effective active cap so the menu cap still applies when tabbed out.
-			int maxInactive = RenderSettings.Instance.MaxFrameRateInactive;
-			if ( maxInactive <= 0 ) return effectiveFps;
-			if ( maxInactive > effectiveFps ) return effectiveFps;
-			return maxInactive;
+			double refresh = GetDisplayRefreshRate();
+			if ( refresh > 0 && (effectiveFps <= 0 || refresh < effectiveFps) )
+				effectiveFps = refresh;
 		}
 
 		return effectiveFps;
 	}
 
+	// Lower of two fps caps, treating <= 0 as unlimited so a cap still applies when the other is uncapped.
+	static double TightenCap( double current, int candidate )
+	{
+		if ( candidate <= 0 ) return current;
+		if ( current <= 0 ) return candidate;
+		return Math.Min( current, candidate );
+	}
+
+	static double cachedRefreshRate;
+	static FastTimer refreshRateTimer = FastTimer.StartNew();
+
+	/// <summary>
+	/// Desktop refresh rate (Hz) of the default monitor, cached and re-queried every couple of
+	/// seconds. Returns 0 if unknown (treat as "no clamp").
+	/// </summary>
+	static double GetDisplayRefreshRate()
+	{
+		if ( cachedRefreshRate <= 0 || refreshRateTimer.ElapsedSeconds > 2.0 )
+		{
+			int w = 0, h = 0;
+			uint hz = 0;
+			EngineGlobal.Plat_GetDesktopResolution( EngineGlobal.Plat_GetDefaultMonitorIndex(), ref w, ref h, ref hz );
+			cachedRefreshRate = hz;
+			refreshRateTimer = FastTimer.StartNew();
+		}
+
+		return cachedRefreshRate;
+	}
+
+	// Drift-compensated pacing: wake each frame on an absolute 1/fps grid rather than padding from the
+	// frame's own start, so per-frame overhead doesn't accumulate into drift. Resyncs after a hitch.
+	static FastTimer pacingClock = FastTimer.StartNew();
+	static double nextFrameDeadlineMs;
+
 	static void SleepForFrameRateClamp( FastTimer frameTime )
 	{
 		double maxFps = GetMaxFrameRate();
-		if ( maxFps <= 0 ) return;
 
-		using var inst = _sleepForFrameCap.Start();
-
-		double targetMilliseconds = 1000.0 / maxFps;
+		double targetMilliseconds = maxFps > 0 ? 1000.0 / maxFps : 0;
 		if ( targetMilliseconds > 100 ) targetMilliseconds = 100; // min is 10fps
-		if ( frameTime.ElapsedMilliSeconds >= targetMilliseconds ) return; // no sleep needed
 
-		var sleepMs = targetMilliseconds - frameTime.ElapsedMilliSeconds;
-
-		if ( sleepMs > 1.0 )
+		if ( targetMilliseconds <= 0 )
 		{
-			System.Threading.Thread.Sleep( (int)sleepMs );
+			nextFrameDeadlineMs = 0; // uncapped — drop the grid
+		}
+		else
+		{
+			double nowMs = pacingClock.ElapsedMilliSeconds;
+
+			// Next grid point is one period after the previous deadline (not after 'now') — the drift
+			// compensation. Seed from 'now' on the first frame.
+			double deadlineMs = nextFrameDeadlineMs > 0 ? nextFrameDeadlineMs + targetMilliseconds : nowMs + targetMilliseconds;
+
+			// More than a period behind (a hitch)? Resync to 'now' rather than catch up in a burst.
+			if ( nowMs - deadlineMs > targetMilliseconds )
+				deadlineMs = nowMs;
+
+			if ( nowMs < deadlineMs )
+			{
+				using var inst = _sleepForFrameCap.Start();
+
+				double sleepMs = deadlineMs - nowMs;
+
+				if ( sleepMs > 1.0 )
+				{
+					System.Threading.Thread.Sleep( (int)sleepMs );
+				}
+
+				// sleep is inaccurate (to nearest 1ms, we call timeBeginPeriod in engine)
+				// so bleed off any residual fractions of a millisecond
+				while ( pacingClock.ElapsedMilliSeconds < deadlineMs )
+				{
+					// wait
+				}
+			}
+
+			nextFrameDeadlineMs = deadlineMs;
 		}
 
-		// sleep is inaccurate (to nearest 1ms, we call timeBeginPeriod in engine)
-		// so bleed off any residual fractions of a millisecond
-		while ( frameTime.ElapsedMilliSeconds < targetMilliseconds )
-		{
-			// wait
-		}
-
+		// Feed the on-screen pacing overlay (no-op unless overlay_fps is on).
+		DebugOverlay.FrameTimeGraph.Sample( frameTime.ElapsedMilliSeconds );
 	}
 
 	/// <summary>

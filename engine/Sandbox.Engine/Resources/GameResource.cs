@@ -329,6 +329,19 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 	}
 
 	/// <summary>
+	/// Copy the serialized state of another resource into this one, including binary blob data.
+	/// </summary>
+	public void CopyFrom( GameResource source )
+	{
+		var json = source.Serialize();
+		json.Remove( "__version" );
+
+		// Resolve $blob references from the binary data Serialize just captured
+		using var blobs = BlobDataSerializer.LoadFromMemory( source.BinaryData );
+		Deserialize( json );
+	}
+
+	/// <summary>
 	/// Called after we serialize, allowing you to store any extra or modify the output.
 	/// </summary>
 	protected virtual void OnJsonSerialize( JsonObject node )
