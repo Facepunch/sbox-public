@@ -10,6 +10,16 @@ public partial class GameObject
 {
 	internal const int GameObjectVersion = 2;
 
+	// The only flags we actually save. Everything else is runtime junk (Loading, Bone, etc) and saving it
+	// just causes phantom Flags overrides in prefab diffs. Networking is the exception, see below.
+	internal const GameObjectFlags PersistedFlags =
+					GameObjectFlags.ProceduralBone |
+					GameObjectFlags.EditorOnly |
+					GameObjectFlags.NotNetworked |
+					GameObjectFlags.Absolute |
+					GameObjectFlags.PhysicsBone |
+					GameObjectFlags.Hidden;
+
 	/// <summary>
 	/// Helper variable for editor refreshes during deserialization.
 	/// </summary>
@@ -189,7 +199,10 @@ public partial class GameObject
 
 		json[JsonKeys.Id] = Id;
 		if ( GameObjectVersion != 0 ) json[JsonKeys.Version] = GameObjectVersion;
-		json[JsonKeys.Flags] = (long)Flags;
+
+		// Networking wants all the flags (it applies them verbatim on the other end), otherwise just the saved ones.
+		var serializedFlags = (options.SceneForNetwork || options.SingleNetworkObject) ? Flags : (Flags & PersistedFlags);
+		json[JsonKeys.Flags] = (long)serializedFlags;
 		json[JsonKeys.Name] = Name;
 
 		SerializeTransform( json );
@@ -205,7 +218,10 @@ public partial class GameObject
 		if ( (!options.SceneForNetwork && !options.SingleNetworkObject)
 				&& (IsNestedPrefabInstanceRoot || (IsOutermostPrefabInstanceRoot && options.SerializePrefabForDiff)) )
 		{
-			if ( options.SerializeForPrefabInstanceToPrefabUpdate && Parent is not null && Parent.IsOutermostPrefabInstanceRoot )
+			// For prefab updates all existing nested roots keep their instance data, regardless of depth.
+			// Marking them as nested source instead would wipe their mappings in the prefab cache scene,
+			// where InitMappingsForNestedInstance has no outer instance lookup to rebuild them from.
+			if ( options.SerializeForPrefabInstanceToPrefabUpdate )
 			{
 				json[JsonKeys.EditorSkipPrefabBreakOnRefresh] = true;
 			}
@@ -663,20 +679,8 @@ public partial class GameObject
 			return;
 		}
 
-		// We only want to deserialize certain flags, the rest are runtime only.
-		const GameObjectFlags flagsToKeep =
-						GameObjectFlags.ProceduralBone |
-						GameObjectFlags.EditorOnly |
-						GameObjectFlags.NotNetworked |
-						GameObjectFlags.Absolute |
-						GameObjectFlags.PhysicsBone |
-						GameObjectFlags.Hidden;
-
-		// Clear the flags we're about to deserialize
-		Flags &= ~flagsToKeep;
-
-		// Copy set flags from source
-		Flags |= (inFlags & flagsToKeep);
+		// Only take the flags we actually save, keep whatever runtime ones we already have.
+		Flags = (Flags & ~PersistedFlags) | (inFlags & PersistedFlags);
 	}
 
 	private bool IsPrefabLoaded( PrefabFile prefabFile )
@@ -836,6 +840,76 @@ public partial class GameObject
 					component.DeserializeProperty( t.Members.FirstOrDefault( x => x.Name == target.Property ), value );
 				}
 			}
+		}
+	}
+
+	/// <summary>
+	/// Rewrites members marked with <see cref="SyncFlags.FromHost"/> to current component values
+	/// for all component payloads inside a serialized game object tree.
+	/// </summary>
+	internal void PreserveFromHostSyncMembers( JsonObject node )
+	{
+		if ( node[JsonKeys.Components] is JsonArray componentArray )
+		{
+			foreach ( var componentNode in componentArray )
+			{
+				if ( componentNode is JsonObject componentJson )
+				{
+					Component existingComponent = null;
+
+					if ( Scene.IsValid() && componentJson.TryGetPropertyValue( Component.JsonKeys.Id, out var componentIdNode ) )
+					{
+						try
+						{
+							existingComponent = Scene.Directory.FindComponentByGuid( componentIdNode.Deserialize<Guid>() );
+						}
+						catch
+						{
+							existingComponent = null;
+						}
+					}
+
+					if ( existingComponent.IsValid() )
+					{
+						existingComponent.PreserveFromHostSyncMembers( componentJson );
+					}
+					else
+					{
+						RemoveFromHostSyncMembers( componentJson );
+					}
+				}
+			}
+		}
+
+		if ( node[JsonKeys.Children] is JsonArray childArray )
+		{
+			foreach ( var childNode in childArray )
+			{
+				if ( childNode is JsonObject childJson )
+				{
+					PreserveFromHostSyncMembers( childJson );
+				}
+			}
+		}
+	}
+
+
+	private void RemoveFromHostSyncMembers( JsonObject componentJson )
+	{
+		var componentTypeName = componentJson.GetPropertyValue( Component.JsonKeys.Type, "" );
+		if ( string.IsNullOrEmpty( componentTypeName ) )
+			return;
+
+		var componentType = Game.TypeLibrary.GetType<Component>( componentTypeName, true );
+		if ( componentType is null || componentType.TargetType.IsAbstract )
+			return;
+
+		foreach ( var propertyAndAttribute in ReflectionQueryCache.SyncProperties( componentType.TargetType ) )
+		{
+			if ( !propertyAndAttribute.Attribute.Flags.HasFlag( SyncFlags.FromHost ) )
+				continue;
+
+			componentJson.Remove( propertyAndAttribute.Property.Name );
 		}
 	}
 
@@ -1060,5 +1134,4 @@ public partial class GameObject
 		internal const string EditorPrefabInstanceNestedSource = "__EditorPrefabNestedInstance";
 		internal const string EditorSkipPrefabBreakOnRefresh = "__EditorSkipPrefabBreakOnRefresh";
 	}
-
 }

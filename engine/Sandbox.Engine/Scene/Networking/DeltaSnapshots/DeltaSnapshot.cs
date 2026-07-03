@@ -1,5 +1,5 @@
 using Sandbox.Engine;
-using Sandbox.Hashing;
+using System.IO.Hashing;
 
 using Sandbox.Network;
 

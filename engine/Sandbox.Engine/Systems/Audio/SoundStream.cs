@@ -93,9 +93,10 @@ public sealed partial class SoundStream : IHandle, IDisposable
 
 		GC.SuppressFinalize( this );
 
-		// ~CAudioStreamManaged nulls CSfxTable::pSource — defer to the mix-thread drain
-		// so destruction lands after the snapshot rotates and no mixer is mid-deref.
-		Audio.MixingThread.QueueStreamDestroy( native );
+		// Destroy() drops our reference; the native stream is reference counted and frees only once its
+		// last mixer is gone, so it's never freed mid-mix. Runs on the main thread (the finalizer routes
+		// here via QueueDispose), where Destroy frees the managed handle.
+		native.Destroy();
 		native = IntPtr.Zero;
 	}
 

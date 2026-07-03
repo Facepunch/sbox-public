@@ -4,11 +4,16 @@ partial class MeshTool
 {
 	private EditorToolButton vertexSnapButton;
 	private EditorToolButton selectionOptionsButton;
+	private EditorToolButton textureLockButton;
 
 	public bool VertexSnappingEnabled { get; set; } = false;
 	public bool OverlaySelection { get; set; } = true;
 	public bool LassoPartialSelection { get; set; } = true;
 	public bool SelectionThrough { get; set; } = true;
+
+	public bool TextureLock { get; set; } = true;
+	public bool TextureLockScale { get; set; } = false;
+	public bool TextureLockComponent { get; set; } = false;
 
 	public override Widget CreateToolbarWidget()
 	{
@@ -39,6 +44,14 @@ partial class MeshTool
 		selectionOptionsButton.Action = ShowSelectionOptionsMenu;
 
 		group.Layout.Add( selectionOptionsButton );
+
+		textureLockButton = new EditorToolButton();
+		textureLockButton.GetIcon = () => "lock";
+		textureLockButton.ToolTip = "Texture Lock";
+		textureLockButton.Action = ShowTextureLockMenu;
+		textureLockButton.IsActive = () => TextureLock;
+
+		group.Layout.Add( textureLockButton );
 
 		return group;
 	}
@@ -81,6 +94,45 @@ partial class MeshTool
 
 		AddCheckboxOption( menu, "Backface Selection", "flip_to_back", "Allow selection of backfacing elements",
 			EditorPreferences.BackfaceSelection, ( v ) => { EditorPreferences.BackfaceSelection = v; } );
+
+		menu.OpenAtCursor();
+	}
+
+	private void ShowTextureLockMenu()
+	{
+		var menu = new Menu();
+		menu.ContentMargins = 0;
+
+		var header = new Widget
+		{
+			FixedWidth = 250f,
+			FixedHeight = Theme.RowHeight,
+			Layout = Layout.Row()
+		};
+		header.Layout.Spacing = 4;
+		header.Layout.Margin = new Sandbox.UI.Margin( 8, 0 );
+		header.OnPaintOverride = () =>
+		{
+			Paint.ClearPen();
+			Paint.SetBrush( Theme.WidgetBackground );
+			Paint.DrawRect( header.LocalRect );
+			return true;
+		};
+
+		var label = header.Layout.Add( new Label( "Texture Lock" ) );
+		label.SetStyles( "font-weight: bold;" );
+
+		menu.AddWidget( header );
+		menu.AddSeparator();
+
+		AddCheckboxOption( menu, "Texture Lock", "lock", "Lock textures to the geometry when transforming a selection",
+			TextureLock, ( v ) => { TextureLock = v; SaveTextureLock(); } );
+
+		AddCheckboxOption( menu, "Lock Scale", "aspect_ratio", "Scale texture coordinates with the selection when scaling",
+			TextureLockScale, ( v ) => { TextureLockScale = v; SaveTextureLockScale(); } );
+
+		AddCheckboxOption( menu, "Lock Component", "open_with", "Lock textures when moving vertices, edges and faces",
+			TextureLockComponent, ( v ) => { TextureLockComponent = v; SaveTextureLockComponent(); } );
 
 		menu.OpenAtCursor();
 	}
@@ -152,11 +204,29 @@ partial class MeshTool
 		EditorCookie.Set( "MeshTool.SelectionThrough", SelectionThrough );
 	}
 
+	private void SaveTextureLock()
+	{
+		EditorCookie.Set( "MeshTool.TextureLock", TextureLock );
+	}
+
+	private void SaveTextureLockScale()
+	{
+		EditorCookie.Set( "MeshTool.TextureLockScale", TextureLockScale );
+	}
+
+	private void SaveTextureLockComponent()
+	{
+		EditorCookie.Set( "MeshTool.TextureLockComponent", TextureLockComponent );
+	}
+
 	private void LoadToolbarCookies()
 	{
 		OverlaySelection = EditorCookie.Get( "MeshTool.OverlaySelection", true );
 		VertexSnappingEnabled = EditorCookie.Get( "MeshTool.VertexSnapping", false );
 		LassoPartialSelection = EditorCookie.Get( "MeshTool.LassoPartialSelection", true );
 		SelectionThrough = EditorCookie.Get( "MeshTool.SelectionThrough", true );
+		TextureLock = EditorCookie.Get( "MeshTool.TextureLock", true );
+		TextureLockScale = EditorCookie.Get( "MeshTool.TextureLockScale", false );
+		TextureLockComponent = EditorCookie.Get( "MeshTool.TextureLockComponent", false );
 	}
 }

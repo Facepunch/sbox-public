@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 
 namespace Editor;
@@ -251,6 +252,7 @@ public class PackageSelector : Dialog
 		token.ThrowIfCancellationRequested();
 
 		AddonList.SetItems( result.Packages );
+		AddonList.UpdateIfDirty();
 
 		if ( SelectedPackages != null && AddonList.SelectedItems.Count() != SelectedPackages.Length )
 		{

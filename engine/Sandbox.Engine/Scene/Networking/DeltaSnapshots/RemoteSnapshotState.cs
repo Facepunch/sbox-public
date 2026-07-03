@@ -1,5 +1,3 @@
-using Sandbox.Hashing;
-
 namespace Sandbox.Network;
 
 /// <summary>

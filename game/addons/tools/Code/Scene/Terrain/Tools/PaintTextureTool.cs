@@ -1,107 +1,51 @@
 using System;
-using static Sandbox.PhysicsGroupDescription.BodyPart;
 
 namespace Editor.TerrainEditor;
 
 [Title( "Paint Texture" )]
 [Icon( "brush" )]
-[Alias( "paint" )]
+[Alias( "tools.terrain.paint-texture" )]
 [Group( "1" )]
 [Order( 1 )]
-public class PaintTextureTool : EditorTool
+public class PaintTextureTool : BaseBrushTool
 {
-	TerrainEditorTool parent;
-	bool _dragging;
-	protected RectInt _dirtyRegion;
-	protected ushort[] _snapshot;
-
-	public PaintTextureTool( TerrainEditorTool terrainEditorTool )
+	public PaintTextureTool( TerrainEditorTool terrainEditorTool ) : base( terrainEditorTool )
 	{
-		parent = terrainEditorTool;
 	}
 
 	public static int SplatChannel { get; set; } = 0;
 
-	public override void OnUpdate()
-	{
-		var terrain = GetSelectedComponent<Terrain>();
-		if ( !terrain.IsValid() )
-			return;
+	public override bool PaintMode { get; set; } = true;
 
-		if ( !terrain.RayIntersects( Gizmo.CurrentRay, Gizmo.RayDepth, out var hitPosition ) )
-			return;
-
-		// Draw brush preview at hit position
-		var tx = terrain.WorldTransform;
-		var previewTransform = new Transform( tx.PointToWorld( hitPosition ), tx.Rotation );
-		parent.DrawBrushPreview( previewTransform, terrain );
-
-		if ( Gizmo.IsLeftMouseDown )
-		{
-			bool shouldSculpt = !_dragging || !Application.CursorDelta.IsNearZeroLength;
-
-			if ( !_dragging )
-			{
-				_dragging = true;
-
-				var uv = new Vector2( hitPosition.x, hitPosition.y ) / terrain.Storage.TerrainSize;
-				var x = (int)Math.Floor( terrain.Storage.Resolution * uv.x );
-				var y = (int)Math.Floor( terrain.Storage.Resolution * uv.y );
-
-				_dirtyRegion = new( new Vector2Int( x, y ) );
-			}
-
-			if ( shouldSculpt )
-			{
-				TerrainPaintParameters parameters = new()
-				{
-					HitPosition = hitPosition,
-					HitUV = new Vector2( hitPosition.x, hitPosition.y ) / terrain.Storage.TerrainSize,
-					FlattenHeight = hitPosition.z / terrain.Storage.TerrainHeight,
-					Brush = TerrainEditorTool.Brush,
-					BrushSettings = parent.BrushSettings
-				};
-
-				OnPaint( terrain, parameters );
-			}
-		}
-		else if ( _dragging )
-		{
-			_dragging = false;
-			OnPaintEnded( terrain );
-		}
-	}
-
-	protected virtual void OnPaintStart( Terrain terrain )
-	{
-		// Make a snapshot of the Storage so we can reference it OnPaintEnded (Because we still want to live update this for collision)
-		_snapshot = terrain.Storage.HeightMap;
-	}
-
-	public void OnPaint( Terrain terrain, TerrainPaintParameters paint )
+	protected override void OnPaint( Terrain terrain, TerrainPaintParameters paint )
 	{
 		int size = (int)Math.Floor( paint.BrushSettings.Size * 2.0f / terrain.Storage.TerrainSize * terrain.Storage.Resolution );
 		size = Math.Max( 1, size );
 
 		var cs = new ComputeShader( "terrain/cs_terrain_splat" );
 		cs.Attributes.Set( "ControlMap", terrain.ControlMap );
-		cs.Attributes.Set( "ControlUV", paint.HitUV );
-		cs.Attributes.Set( "BrushStrength", paint.BrushSettings.Opacity * (Gizmo.IsCtrlPressed ? -1.0f : 1.0f) ); ;
-		cs.Attributes.Set( "BrushSize", size );
+		_brushBuffer ??= new GpuBuffer<BrushData>( 1 );
+		_brushBuffer.SetData( new[] { new BrushData
+		{
+			UV = paint.HitUV,
+			Strength = paint.BrushSettings.Opacity * (Gizmo.IsCtrlPressed ? -1.0f : 1.0f),
+			Size = size,
+			Rotation = paint.BrushSettings.Rotation * MathF.PI / 180f,
+			SplatChannel = SplatChannel,
+		} } );
+		cs.Attributes.Set( "BrushSettings", _brushBuffer );
 		cs.Attributes.Set( "Brush", paint.Brush.Texture );
-		cs.Attributes.Set( "SplatChannel", SplatChannel );
-
-		var x = (int)Math.Floor( terrain.Storage.Resolution * paint.HitUV.x ) - size / 2;
-		var y = (int)Math.Floor( terrain.Storage.Resolution * paint.HitUV.y ) - size / 2;
 
 		cs.Dispatch( size, size, 1 );
 
+		var x = (int)Math.Floor( terrain.Storage.Resolution * paint.HitUV.x ) - size / 2;
+		var y = (int)Math.Floor( terrain.Storage.Resolution * paint.HitUV.y ) - size / 2;
 
 		// Grow the dirty region (+1 to be conservative of the floor) 
 		_dirtyRegion.Add( new RectInt( x, y, size + 1, size + 1 ) );
 	}
 
-	protected virtual void OnPaintEnded( Terrain terrain )
+	protected override void OnPaintEnded( Terrain terrain )
 	{
 		// Clamp our dirty region within the bounds of the terrain
 		_dirtyRegion.Left = Math.Clamp( _dirtyRegion.Left, 0, terrain.Storage.Resolution - 1 );

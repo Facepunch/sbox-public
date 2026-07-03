@@ -37,6 +37,7 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		AddMenuOption( sel, "Select Loop", "all_out", "mesh.select-loop", true );
 		AddMenuOption( sel, "Select Ring", "data_array", "mesh.select-ring", true );
 		AddMenuOption( sel, "Select Ribs", "timeline", "mesh.select-ribs", true );
+		AddMenuOption( sel, "Select Path", "route", "mesh.select-path", count == 2 && edges[0].Component == edges[1].Component );
 		AddMenuOption( sel, "Invert Selection", "swap_vert", InvertCurrentSelection, "mesh.invert-selection", true );
 
 		sel.AddOption( "Select All", "select_all", () => InvokeShortcut( "mesh.select-all" ), "mesh.select-all" );
@@ -275,10 +276,15 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		if ( !targetEdge.IsValid() )
 			return;
 
-		if ( Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) && TrySelectEdgePath( targetEdge ) )
-			return;
+		var shift = Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift );
 
-		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Shift ) )
+		if ( shift && HasEdgePathStart( targetEdge ) )
+		{
+			TrySelectEdgePath( targetEdge );
+			return;
+		}
+
+		if ( !shift )
 			Selection.Clear();
 
 		if ( !Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) )
@@ -289,8 +295,15 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		}
 	}
 
-	private bool TrySelectEdgePath( MeshEdge targetEdge )
+	private bool HasEdgePathStart( MeshEdge targetEdge )
 	{
+		return TryGetEdgePathStart( targetEdge, out _ );
+	}
+
+	private bool TryGetEdgePathStart( MeshEdge targetEdge, out MeshEdge startEdge )
+	{
+		startEdge = default;
+
 		var selected = Selection.OfType<MeshEdge>()
 			.Where( e => e.IsValid() && e.Component == targetEdge.Component )
 			.ToList();
@@ -298,17 +311,28 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		if ( selected.Count == 0 || selected.Count > 2 )
 			return false;
 
-		var startEdge = selected.FirstOrDefault( e =>
+		var mesh = targetEdge.Component.Mesh;
+		startEdge = selected.FirstOrDefault( e =>
 			e.Handle != targetEdge.Handle &&
-			e.Handle != targetEdge.Component.Mesh.GetOppositeHalfEdge( targetEdge.Handle )
+			e.Handle != mesh.GetOppositeHalfEdge( targetEdge.Handle )
 		);
 
-		if ( !startEdge.IsValid() )
+		return startEdge.IsValid();
+	}
+
+	private bool TrySelectEdgePath( MeshEdge targetEdge )
+	{
+		if ( !TryGetEdgePathStart( targetEdge, out var startEdge ) )
 			return false;
 
 		var path = FindShortestEdgePath( startEdge, targetEdge );
 		if ( path == null || path.Count == 0 )
-			return false;
+		{
+			if ( !Selection.Contains( targetEdge ) )
+				Selection.Add( targetEdge );
+
+			return true;
+		}
 
 		foreach ( var edge in path.Where( e => !Selection.Contains( e ) ) )
 			Selection.Add( edge );
@@ -316,7 +340,7 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		return true;
 	}
 
-	private List<MeshEdge> FindShortestEdgePath( MeshEdge start, MeshEdge end )
+	internal static List<MeshEdge> FindShortestEdgePath( MeshEdge start, MeshEdge end )
 	{
 		if ( start.Component != end.Component )
 			return null;

@@ -2,11 +2,10 @@
 
 PackageDescription
 {
-    flex-shrink: 0;
-    padding: 32px;
-    color: $default-text;
-    width: 100%;
-    
+	flex-shrink: 0;
+	padding: 32px;
+	color: #ADB3CB;
+	width: 100%;
 }
 
 PackageDescription HtmlPanel
@@ -32,9 +31,9 @@ image
 
 blockquote
 {
-    padding: 10px;
-    padding-left: 20px;
-    border-left: 2px solid #3273eb;
+	margin: 1rem 0 1rem 0;
+	padding-left: 1rem;
+	border-left: 2px solid #3273eb;
 }
 
 ul, ol

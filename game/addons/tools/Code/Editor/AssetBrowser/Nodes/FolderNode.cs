@@ -8,6 +8,8 @@ class FolderNode : TreeNode<LocalAssetBrowser.Location>
 	public string Icon { get; set; }
 	public bool TitleCase { get; set; } = false;
 
+	public bool IsPresent { get; private set; } = true;
+
 	DirectoryEntry.FolderMetadata Metadata;
 
 	FileSystemWatcher watcher;
@@ -17,7 +19,9 @@ class FolderNode : TreeNode<LocalAssetBrowser.Location>
 		Icon = location.Icon;
 		Metadata = DirectoryEntry.GetMetadata( Value.Path );
 
-		if ( location is DiskLocation )
+		IsPresent = Value.IsValid();
+
+		if ( location is DiskLocation && IsPresent )
 		{
 			watcher = new FileSystemWatcher( location.Path );
 			watcher.EnableRaisingEvents = true;
@@ -66,7 +70,7 @@ class FolderNode : TreeNode<LocalAssetBrowser.Location>
 
 		rect.Left += 24;
 
-		Paint.SetPen( Theme.Text );
+		Paint.SetPen( IsPresent ? Theme.Text : Theme.TextDisabled );
 		Paint.SetDefaultFont();
 		Paint.DrawText( rect, TitleCase ? Name.ToTitleCase() : Name, TextFlag.LeftCenter );
 	}

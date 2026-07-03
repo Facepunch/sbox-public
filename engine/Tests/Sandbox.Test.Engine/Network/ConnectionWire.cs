@@ -147,67 +147,52 @@ public class ConnectionWireTest
 	}
 
 	[TestMethod]
-	public void AssembleChunk_TooShort_Throws()
+	public void AssembleChunk_TooShort_IsDropped()
 	{
 		// FlagChunk header needs 9 bytes minimum
 		var packet = new byte[] { Connection.FlagChunk, 0x00, 0x00, 0x00, 0x00 };
 
 		var conn = new StubConnection();
-		Assert.ThrowsException<InvalidDataException>( () =>
-		{
-			conn.OnRawPacketReceived( packet, StubHandler );
-		} );
+		Assert.IsFalse( ReceiveIsDelivered( conn, packet ), "Malformed chunk packet should be dropped, not delivered" );
 	}
 
 	[TestMethod]
-	public void AssembleChunk_IndexExceedsTotal_Throws()
+	public void AssembleChunk_IndexExceedsTotal_IsDropped()
 	{
 		// index=5, total=3 — invalid
 		var packet = MakeChunkPacket( chunkIndex: 5, totalChunks: 3, dataLength: 10 );
 
 		var conn = new StubConnection();
-		Assert.ThrowsException<InvalidDataException>( () =>
-		{
-			conn.OnRawPacketReceived( packet, StubHandler );
-		} );
+		Assert.IsFalse( ReceiveIsDelivered( conn, packet ), "Malformed chunk packet should be dropped, not delivered" );
 	}
 
 	[TestMethod]
-	public void AssembleChunk_TotalOne_Throws()
+	public void AssembleChunk_TotalOne_IsDropped()
 	{
 		// total=1 is invalid for chunked messages (should have been sent as a single packet)
 		var packet = MakeChunkPacket( chunkIndex: 0, totalChunks: 1, dataLength: 10 );
 
 		var conn = new StubConnection();
-		Assert.ThrowsException<InvalidDataException>( () =>
-		{
-			conn.OnRawPacketReceived( packet, StubHandler );
-		} );
+		Assert.IsFalse( ReceiveIsDelivered( conn, packet ), "Malformed chunk packet should be dropped, not delivered" );
 	}
 
 	[TestMethod]
-	public void AssembleChunk_TotalExceedsLimit_Throws()
+	public void AssembleChunk_TotalExceedsLimit_IsDropped()
 	{
 		var packet = MakeChunkPacket( chunkIndex: 0, totalChunks: 2000, dataLength: 10 );
 
 		var conn = new StubConnection();
-		Assert.ThrowsException<InvalidDataException>( () =>
-		{
-			conn.OnRawPacketReceived( packet, StubHandler );
-		} );
+		Assert.IsFalse( ReceiveIsDelivered( conn, packet ), "Malformed chunk packet should be dropped, not delivered" );
 	}
 
 	[TestMethod]
-	public void AssembleChunk_OutOfOrderWithoutFirst_Throws()
+	public void AssembleChunk_OutOfOrderWithoutFirst_IsDropped()
 	{
 		// Send chunk index=1 without a preceding index=0 — no assembly in progress
 		var packet = MakeChunkPacket( chunkIndex: 1, totalChunks: 3, dataLength: 10 );
 
 		var conn = new StubConnection();
-		Assert.ThrowsException<InvalidDataException>( () =>
-		{
-			conn.OnRawPacketReceived( packet, StubHandler );
-		} );
+		Assert.IsFalse( ReceiveIsDelivered( conn, packet ), "Malformed chunk packet should be dropped, not delivered" );
 	}
 
 	// Helpers
@@ -221,9 +206,13 @@ public class ConnectionWireTest
 		return result;
 	}
 
-	private static void StubHandler( Sandbox.Network.NetworkSystem.NetworkMessage msg )
+	// Drives the receive path and reports whether the packet reached the handler. A malformed packet must be
+	// dropped without throwing out of OnRawPacketReceived, so the call returning normally is part of the test.
+	private static bool ReceiveIsDelivered( StubConnection conn, byte[] packet )
 	{
-		// No-op; we only care about whether the receive path throws.
+		var delivered = false;
+		conn.OnRawPacketReceived( packet, _ => delivered = true );
+		return delivered;
 	}
 
 	/// <summary>

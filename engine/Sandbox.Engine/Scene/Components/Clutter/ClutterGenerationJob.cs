@@ -66,11 +66,6 @@ class ClutterGenerationJob
 	public ClutterStorage Storage { get; init; }
 
 	/// <summary>
-	/// Optional list to collect physics bodies created for component-owned (volume) instances.
-	/// </summary>
-	public List<PhysicsBody> BodyList { get; init; }
-
-	/// <summary>
 	/// Optional callback when job completes (for volume mode progress tracking).
 	/// </summary>
 	public Action OnComplete { get; init; }
@@ -177,19 +172,6 @@ class ClutterGenerationJob
 							instance.Transform.Rotation,
 							instance.Transform.Scale.x
 						);
-					}
-
-					// Spawn a static physics body if the model has physics data
-					if ( instance.Entry.Model.Physics?.Parts.Count > 0 )
-					{
-						var body = CreateStaticBody( instance.Entry.Model, instance.Transform, Parent.Scene );
-						if ( body != null )
-						{
-							if ( isComponentOwned )
-								BodyList?.Add( body );
-							else
-								Tile?.AddBody( body );
-						}
 					}
 
 					continue;

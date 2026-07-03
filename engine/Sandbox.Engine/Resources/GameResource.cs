@@ -64,6 +64,19 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 	}
 
 	/// <summary>
+	/// The package this resource was loaded from, if it came from a downloaded/mounted package.
+	/// Null for resources that belong to the local/current project.
+	/// </summary>
+	[Hide, JsonIgnore]
+	internal Package Package { get; set; }
+
+	/// <summary>
+	/// True if this resource was loaded from a mounted remote (cloud) package rather than the local project.
+	/// </summary>
+	[Hide, JsonIgnore]
+	public bool IsRemote => Package is { IsRemote: true };
+
+	/// <summary>
 	/// True if we're waiting for our load to complete
 	/// </summary>
 	bool _awaitingLoad;
@@ -326,6 +339,19 @@ public abstract partial class GameResource : Resource, ISourceLineProvider
 		{
 			Json.DeserializeToObject( this, jso );
 		}
+	}
+
+	/// <summary>
+	/// Copy the serialized state of another resource into this one, including binary blob data.
+	/// </summary>
+	public void CopyFrom( GameResource source )
+	{
+		var json = source.Serialize();
+		json.Remove( "__version" );
+
+		// Resolve $blob references from the binary data Serialize just captured
+		using var blobs = BlobDataSerializer.LoadFromMemory( source.BinaryData );
+		Deserialize( json );
 	}
 
 	/// <summary>

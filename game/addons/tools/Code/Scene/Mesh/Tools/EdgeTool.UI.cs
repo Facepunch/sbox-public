@@ -107,6 +107,7 @@ partial class EdgeTool
 				CreateButton( "Select Loop", "all_out", "mesh.select-loop", SelectLoop, CanSelectLoop(), row.Layout );
 				CreateButton( "Select Ring", "data_array", "mesh.select-ring", SelectRing, CanSelectRing(), row.Layout );
 				CreateButton( "Select Ribs", "timeline", "mesh.select-ribs", SelectRibs, CanSelectRibs(), row.Layout );
+				CreateButton( "Select Path", "route", "mesh.select-path", SelectPath, CanSelectPath(), row.Layout );
 
 				row.Layout.AddStretchCell();
 
@@ -149,6 +150,7 @@ partial class EdgeTool
 
 			AddShortcuts(
 				("Loop Select", "Double Click"),
+				("Path Select", "Shift + Double Click"),
 				("Lasso Select", "Alt+Shift+Drag"),
 				("Lasso Deselect", "Alt+Ctrl+Drag"),
 				("Grow Selection", "Numpad +"),
@@ -847,6 +849,31 @@ partial class EdgeTool
 					foreach ( var hNewEdge in edgeLoop )
 						selection.Add( new MeshEdge( group.Key, hNewEdge ) );
 				}
+			}
+		}
+
+		private bool CanSelectPath()
+		{
+			return _edges.Length == 2 && _edges[0].Component == _edges[1].Component;
+		}
+
+		[Shortcut( "mesh.select-path", "CTRL+L", typeof( SceneViewWidget ) )]
+		private void SelectPath()
+		{
+			if ( !CanSelectPath() )
+				return;
+
+			var path = FindShortestEdgePath( _edges[0], _edges[1] );
+			if ( path is null || path.Count == 0 )
+				return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Select Edge Path" ).Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				foreach ( var edge in path )
+					selection.Add( edge );
 			}
 		}
 

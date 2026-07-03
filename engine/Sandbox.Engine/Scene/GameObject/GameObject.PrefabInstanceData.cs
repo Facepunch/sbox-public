@@ -1,5 +1,5 @@
 ﻿using Sandbox;
-using Sandbox.Hashing;
+using System.IO.Hashing;
 using System.Buffers.Binary;
 using System.Collections.ObjectModel;
 using System.Text.Json.Nodes;
@@ -91,7 +91,7 @@ internal class PrefabInstanceData
 		}
 
 		// Only collect GUIDs belonging to this nested instance's subtree instead of
-		// copying the entire outermost dictionary — avoids large allocations and page faults.
+		// copying the entire outermost dictionary, avoids large allocations and page faults.
 		var relevantInstanceGuids = GetRequiredInstanceGuids( _instanceRoot );
 		var outermostLookup = _instanceRoot.OutermostPrefabInstanceRoot.PrefabInstance._instanceGuidToPrefabGuid;
 
@@ -180,7 +180,7 @@ internal class PrefabInstanceData
 	{
 		var prefabFile = ResourceLibrary.Get<PrefabFile>( PrefabSource );
 
-		// Prefab file is missing or not yet loaded — preserve the last known patch so the scene
+		// Prefab file is missing or not yet loaded, preserve the last known patch so the scene
 		// can still be saved and round-tripped. The data will be fully restored when the file returns.
 		if ( prefabFile is null || prefabFile.IsPromise || prefabFile.RootObject is null )
 		{
@@ -688,7 +688,7 @@ internal class PrefabInstanceData
 		prefabScene.ToPrefabFile();
 
 		// Previously added PrefabInstances are now nested, so convert them
-		PrefabInstanceData.ConvertAllPrefabInstancesToNested( _instanceRoot );
+		PrefabInstanceData.ConvertChildPrefabInstancesToNested( _instanceRoot );
 
 		// Patch should be empty now
 		ClearPatch( true );
@@ -998,6 +998,10 @@ internal class PrefabInstanceData
 		}
 	}
 
+	/// <summary>
+	/// Converts full prefab instance roots to nested instances, starting at and including <paramref name="go"/>.
+	/// Use after <paramref name="go"/> was written into a prefab and its instances now live inside it.
+	/// </summary>
 	public static void ConvertAllPrefabInstancesToNested( GameObject go )
 	{
 		if ( go.IsOutermostPrefabInstanceRoot )
@@ -1006,10 +1010,20 @@ internal class PrefabInstanceData
 		}
 		else
 		{
-			foreach ( var child in go.Children )
-			{
-				ConvertAllPrefabInstancesToNested( child );
-			}
+			ConvertChildPrefabInstancesToNested( go );
+		}
+	}
+
+	/// <summary>
+	/// Converts full prefab instance roots below <paramref name="go"/> to nested instances, excluding
+	/// <paramref name="go"/> itself. Use after applying an instance root back to its prefab: its added
+	/// instances are now part of the prefab, but the root's own relationship to anything above is unchanged.
+	/// </summary>
+	public static void ConvertChildPrefabInstancesToNested( GameObject go )
+	{
+		foreach ( var child in go.Children )
+		{
+			ConvertAllPrefabInstancesToNested( child );
 		}
 	}
 }

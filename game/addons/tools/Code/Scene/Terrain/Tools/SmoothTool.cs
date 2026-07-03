@@ -5,7 +5,7 @@
 /// </summary>
 [Title( "Smooth" )]
 [Icon( "rounded_corner" )]
-[Alias( "smooth" )]
+[Alias( "tools.terrain.smooth" )]
 [Group( "1" )]
 [Order( 0 )]
 public class SmoothTool : BaseBrushTool

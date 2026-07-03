@@ -258,4 +258,18 @@ internal static class Utility
 
 		return $"{size:0.##} {units[unitIndex]}";
 	}
+
+	/// <summary>
+	/// Exports an environment variable to later steps of the same GitHub Actions job by appending it to the
+	/// file referenced by GITHUB_ENV. No-op when not running under Actions (GITHUB_ENV unset), so locally the
+	/// value is simply never seen by subsequent steps.
+	/// </summary>
+	public static void SetGitHubEnv( string name, string value )
+	{
+		var githubEnv = Environment.GetEnvironmentVariable( "GITHUB_ENV" );
+		if ( string.IsNullOrEmpty( githubEnv ) )
+			return;
+
+		File.AppendAllText( githubEnv, $"{name}={value}{Environment.NewLine}" );
+	}
 }

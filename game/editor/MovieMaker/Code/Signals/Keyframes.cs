@@ -18,16 +18,50 @@ public enum KeyframeInterpolation
 	Cubic
 }
 
+public enum KeyframeConnection
+{
+	Unknown = -1,
+
+	[Icon( "join_full" )]
+	Connect = 0,
+
+	[Icon( "join_right" )]
+	StartBlock,
+
+	[Icon( "join_left" )]
+	EndBlock
+}
+
 public interface IKeyframe
 {
 	MovieTime Time { get; }
 	object? Value { get; }
 	KeyframeInterpolation Interpolation { get; }
+	KeyframeConnection Connection { get; }
 }
 
-public readonly record struct Keyframe( MovieTime Time, object? Value, KeyframeInterpolation Interpolation ) : IKeyframe, IComparable<Keyframe>
+public readonly record struct Keyframe( MovieTime Time, object? Value, KeyframeInterpolation Interpolation, KeyframeConnection Connection ) : IKeyframe, IComparable<Keyframe>
 {
-	public int CompareTo( Keyframe other ) => Time.CompareTo( other.Time );
+	private static int GetConnectionOrdinal( KeyframeConnection connection )
+	{
+		return connection switch
+		{
+			KeyframeConnection.EndBlock => -1,
+			KeyframeConnection.StartBlock => 1,
+			_ => 0
+		};
+	}
+
+	public int CompareTo( Keyframe other )
+	{
+		var timeCompare = Time.CompareTo( other.Time );
+		if ( timeCompare != 0 ) return timeCompare;
+
+		// Keyframes can overlap if they have different connection modes.
+		// One block can end at the same moment that another block starts.
+
+		return GetConnectionOrdinal( Connection ).CompareTo( GetConnectionOrdinal( other.Connection ) );
+	}
 
 	public static InterpolationMode GetInterpolationMode( KeyframeInterpolation prev, KeyframeInterpolation next ) => (prev, next) switch
 	{
@@ -134,12 +168,14 @@ partial record PropertySignal<T>
 public readonly record struct Keyframe<T>(
 	MovieTime Time,
 	T Value,
-	KeyframeInterpolation Interpolation ) : IKeyframe, IComparable<Keyframe<T>>
+	KeyframeInterpolation Interpolation,
+	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )]
+	KeyframeConnection Connection ) : IKeyframe, IComparable<Keyframe<T>>
 {
 	public static implicit operator Keyframe( Keyframe<T> keyframe ) =>
-		new( keyframe.Time, keyframe.Value, keyframe.Interpolation );
+		new( keyframe.Time, keyframe.Value, keyframe.Interpolation, keyframe.Connection );
 	public static explicit operator Keyframe<T>( Keyframe keyframe ) =>
-		new( keyframe.Time, (T)keyframe.Value!, keyframe.Interpolation );
+		new( keyframe.Time, (T)keyframe.Value!, keyframe.Interpolation, keyframe.Connection );
 
 	public int CompareTo( Keyframe<T> other ) => Time.CompareTo( other.Time );
 
@@ -171,7 +207,12 @@ file sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes ) : 
 			return Keyframes[0].Value;
 		}
 
-		if ( time >= Keyframes[^1].Time )
+		// Hack: during editing, we want to be able to modify the last keyframe
+		// of a block even if it overlaps the first keyframe of the next block.
+		// We work around that by editing with the playhead 1 tick before the
+		// keyframe, so we want to make sure we don't interpolate that value.
+
+		if ( time >= Keyframes[^1].Time - MovieTime.Epsilon )
 		{
 			return Keyframes[^1].Value;
 		}
@@ -244,7 +285,7 @@ file sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes ) : 
 	/// </summary>
 	private int FindIndex( MovieTime time )
 	{
-		var index = Keyframes.BinarySearch( new Keyframe<T>( time, default!, default ) );
+		var index = Keyframes.BinarySearch( new Keyframe<T>( time, default!, default, default ) );
 
 		// exact match
 
@@ -257,7 +298,7 @@ file sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes ) : 
 
 	private int? FindIndexExact( MovieTime time )
 	{
-		var index = Keyframes.BinarySearch( new Keyframe<T>( time, default!, default ) );
+		var index = Keyframes.BinarySearch( new Keyframe<T>( time, default!, default, default ) );
 
 		return index >= 0 ? index : null;
 	}

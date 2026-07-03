@@ -3,6 +3,7 @@
 [AssetPreview( "scene" )]
 class PreviewScene : AssetPreview
 {
+	public override bool IsAnimatedPreview => true;
 	public override float PreviewWidgetCycleSpeed => 0.2f;
 
 	public override bool UsePixelEvaluatorForThumbs => true;

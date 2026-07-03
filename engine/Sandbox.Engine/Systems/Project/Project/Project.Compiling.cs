@@ -145,6 +145,25 @@ public partial class Project
 				Compiler.AddReference( reference );
 			}
 
+			//
+			// If we have a parent package, set up the reference provider so the
+			// compiler can resolve the parent package's types. The addon's own
+			// ActivePackage Lookup() will find the parent in the other active packages.
+			//
+			if ( Config.Type == "addon" )
+			{
+				var parentPackage = Config.GetMetaOrDefault<string>( "ParentPackage", null );
+				if ( !string.IsNullOrWhiteSpace( parentPackage ) && Package.TryParseIdent( parentPackage, out var parentParts ) )
+				{
+					var currentAp = PackageManager.Find( Config.FullIdent, true, false );
+					if ( currentAp is not null )
+					{
+						CompileGroup.ReferenceProvider = currentAp;
+						Compiler.AddReference( $"package.{parentParts.org}.{parentParts.package}" );
+					}
+				}
+			}
+
 			Compiler.WatchForChanges();
 		}
 

@@ -184,37 +184,29 @@ native accessor g_pSceneSystem as NativeEngine.CSceneSystem
 	void SetGPUProfilerMode( SceneSystemGPUProfilerMode_t eProfilerMode );
 	SceneSystemGPUProfilerMode_t GetGPUProfilerMode();
 
+	inline void RefreshGpuTimestampSnapshot()
+	{
+		g_pSceneSystem->RefreshTimestampSnapshot( SWAP_CHAIN_HANDLE_INVALID );
+	}
+
 	inline int GetGpuTimestampCount()
 	{
-		CUtlVector< SceneSystemTimestampFrameData_t > timestamps;
-		g_pSceneSystem->GetMostRecentTimestampFrameSummary( SWAP_CHAIN_HANDLE_INVALID, timestamps );
-		return timestamps.Count();
+		return g_pSceneSystem->GetTimestampSnapshotCount();
 	}
 
 	inline float GetGpuTimestampDuration( int index )
 	{
-		CUtlVector< SceneSystemTimestampFrameData_t > timestamps;
-		g_pSceneSystem->GetMostRecentTimestampFrameSummary( SWAP_CHAIN_HANDLE_INVALID, timestamps );
-		if ( index >= 0 && index < timestamps.Count() )
-		{
-			return timestamps[index].m_flDurationInMilliseconds;
-		}
-		return 0.0f;
+		return g_pSceneSystem->GetTimestampSnapshotDurationMs( index );
 	}
 
-	inline string GetGpuTimestampName( int index )
+	inline string GetGpuTimestampPath( int index )
 	{
-		CUtlVector< SceneSystemTimestampFrameData_t > timestamps;
-		g_pSceneSystem->GetMostRecentTimestampFrameSummary( SWAP_CHAIN_HANDLE_INVALID, timestamps );
-		if ( index >= 0 && index < timestamps.Count() )
-		{
-			return timestamps[index].m_sGroupName.Get();
-		}
-		return "";
+		return g_pSceneSystem->GetTimestampSnapshotPath( index );
 	}
 
-	// Managed timestamp support for CommandList etc.
-	bool SetManagedPerfMarker( IRenderContext ctx, string markerName );
+	// Begin returns a scope handle to pass to End. No parent: the tree is rebuilt by containment in the summary.
+	void* BeginManagedPerfMarker( IRenderContext ctx, string markerName );
+	void EndManagedPerfMarker( IRenderContext ctx, void* scope );
 
 	inline void SetNextRenderTime( float flNextTime )
 	{

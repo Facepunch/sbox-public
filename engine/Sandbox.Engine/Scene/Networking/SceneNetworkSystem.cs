@@ -935,6 +935,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			gameObject.SetParentFromNetwork( parentObject );
 		}
 
+		if ( source is not null && !source.IsHost )
+		{
+			gameObject.PreserveFromHostSyncMembers( gameObjectJson );
+		}
+
 		using ( var _ = CallbackBatch.Batch() )
 		using ( BlobDataSerializer.LoadFromMemory( message.BlobData ) )
 		{
@@ -1007,6 +1012,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		else if ( component.GameObject != gameObject )
 		{
 			return;
+		}
+
+		if ( source is not null && !source.IsHost )
+		{
+			component.PreserveFromHostSyncMembers( componentJson );
 		}
 
 		using ( CallbackBatch.Batch() )

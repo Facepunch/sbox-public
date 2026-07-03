@@ -1,28 +1,86 @@
-FeedRow {
-    flex-shrink: 0;
+FeedRow
+{
+	flex-shrink: 0;
+	width: 100%;
+	overflow: hidden;
 
-    row {
-        align-items: center;
-        gap: 3px;
-    }
+	.entry
+	{
+		flex-direction: row;
+		align-items: flex-start;
+		gap: 10px;
+		width: 100%;
+	}
 
-    Avatar {
-        margin-right: 4px;
-    }
+	.thumb
+	{
+		width: 38px;
+		height: 38px;
+		border-radius: 4px;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		background-color: rgba( black, 0.3 );
+		overflow: hidden;
+		pointer-events: all;
+
+		img
+		{
+			width: 38px;
+			height: 38px;
+		}
+
+		i
+		{
+			font-size: 20px;
+			color: #747e90;
+		}
+	}
+
+	.body
+	{
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.who
+	{
+		align-items: flex-start;
+		gap: 6px;
+		color: red;
+		max-width: 100%;
+	}
+
+	Avatar
+	{
+		margin-top: 1px;
+	}
+
+	.action
+	{
+		flex-grow: 1;
+		min-width: 0;
+		white-space: normal;
+		color: #b9c2d0;
+	}
 }
 
-FeedRow .message {
-    gap: 5px;
-    flex-direction: row;
-    font-size: 14px;
-    font-weight: 600;
+// Inline clickable player name inside the rich-text feed line. These must be
+// top-level (not nested under FeedRow): rich-text nodes are matched by their
+// own tag/class only, so a descendant selector would never hit the <a> node.
+.player-link
+{
+	color: #3d88ff;
+	font-weight: 600;
+	cursor: pointer;
 }
 
-FeedRow .message .text {
-    color: #d4def6;
+.player-link.online
+{
+	color: #b6ff00;
 }
 
-FeedRow .meta {
-    color: #747e90;
-    font-size: 12px;
+.player-link:hover
+{
+	color: white;
 }

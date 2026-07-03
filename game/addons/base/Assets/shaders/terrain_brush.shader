@@ -77,6 +77,9 @@ PS
 
 	float g_flRadius < Attribute( "Radius" ); Default( 16.0f ); >;
 	float4 g_flColor < Attribute( "Color" ); >;
+	float g_flBrushRotation < Attribute( "BrushRotation" ); Default( 0.0f ); >;
+
+	SamplerState g_sBilinearBorder < Filter( BILINEAR ); AddressU( BORDER ); AddressV( BORDER ); >;
 
 	// Grid overlay: world-space terrain axes and cell size (0 = disabled)
 	float3 g_vTerrainOrigin  < Attribute( "TerrainOrigin" );  Default3( 0, 0, 0 ); >;
@@ -145,7 +148,13 @@ PS
 			float3 localPos = i.DecalOrigin - vPositionWs;
 			float2 uv = float2( localPos.x, -localPos.y ) / ( 2 * g_flRadius ) - float2( 0.5, 0.5 );
 
-			float opacity = g_tBrush.Sample( g_sBilinearWrap, uv ).r;
+			float2 centeredUV = uv + 0.5;
+			float sinA, cosA;
+			sincos( g_flBrushRotation, sinA, cosA );
+			float2 rotatedUV = float2( -centeredUV.x * cosA - centeredUV.y * sinA,
+			                           -centeredUV.x * sinA + centeredUV.y * cosA ) + 0.5;
+
+			float opacity = g_tBrush.Sample( g_sBilinearBorder, rotatedUV ).r;
 			float4 color = float4( g_flColor.rgb, g_flColor.a * opacity );
 
 			// Grid overlay: project world position onto terrain's XY plane and draw cell lines
