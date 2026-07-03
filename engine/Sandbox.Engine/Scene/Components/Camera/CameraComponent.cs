@@ -570,7 +570,7 @@ public sealed partial class CameraComponent : Component, Component.ExecuteInEdit
 	}
 
 	/// <summary>
-	/// Convert from screen pixel coordinates (DPI aware) to a ray in world space.
+	/// Convert from screen pixel coordinates (not DPI scaled, see EditorUtility) to a ray in world space.
 	/// </summary>
 	public Ray ScreenPixelToRay( Vector2 pixelPosition )
 	{
