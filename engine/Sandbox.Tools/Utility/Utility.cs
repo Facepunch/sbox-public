@@ -528,6 +528,20 @@ public static partial class EditorUtility
 	public static bool IsRecordingVideo => ScreenRecorder.IsRecording();
 
 	/// <summary>
+	/// Convert from local widget pixel coordinates to a ray in world space.
+	/// Converts logical Qt coordinates to the camera's physical pixel space before delegating to <see cref="CameraComponent.ScreenPixelToRay"/>.
+	/// </summary>
+	/// <param name="camera">The camera to cast from. Should have <see cref="CameraComponent.CustomSize"/> set to the widget render size.</param>
+	/// <param name="pixelPosition">Cursor position in local widget coordinates (logical pixels).</param>
+	public static Ray ScreenPixelToRay( CameraComponent camera, Vector2 pixelPosition )
+	{
+		if ( !camera.IsValid() )
+			return default;
+
+		return camera.ScreenPixelToRay( pixelPosition * Application.DpiScale );
+	}
+
+	/// <summary>
 	/// Display a modal dialog message. This is a blocking call.
 	/// </summary>
 	public static void DisplayDialog( string title, string message, string okay = "Okay", string icon = "⚠️", Widget parent = null )
