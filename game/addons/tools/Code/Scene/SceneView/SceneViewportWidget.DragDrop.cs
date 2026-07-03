@@ -88,7 +88,6 @@ public partial class SceneViewportWidget : Widget
 
 		if ( currentDrop is not null )
 		{
-
 			// TODO: Render meshes don't support tags, material drop doesn't need it though
 			var tr = SceneEditorSession.Active.Scene.Trace
 							.WithoutTags( "isdragdrop", "trigger" )
