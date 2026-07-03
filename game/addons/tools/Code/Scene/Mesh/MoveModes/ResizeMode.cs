@@ -14,9 +14,6 @@ public sealed class ResizeMode : MoveMode
 	private Rotation _basis;
 
 	private Vector3 _activeResizeAxis;
-	private Vector3 _resizeTextPosition;
-	private float _resizeDistance;
-	private bool _isResizing;
 
 	public override void OnBegin( SelectionTool tool )
 	{
@@ -25,17 +22,12 @@ public sealed class ResizeMode : MoveMode
 		_box = _startBox;
 
 		_activeResizeAxis = default;
-		_resizeTextPosition = default;
-		_resizeDistance = 0.0f;
-		_isResizing = false;
 	}
 
 	protected override void OnUpdate( SelectionTool tool )
 	{
 		if ( !Gizmo.IsLeftMouseDown )
-		{
-			_isResizing = false;
-		}
+			_activeResizeAxis = default;
 
 		var snapTarget = FindVertexSnapTarget( tool );
 
@@ -48,12 +40,9 @@ public sealed class ResizeMode : MoveMode
 			{
 				_box = outBox;
 				_activeResizeAxis = resizeAxis;
-				_isResizing = true;
 
 				if ( snapTarget.HasValue )
 					ApplyVertexSnap( ref _box, resizeAxis, _basis.Inverse * snapTarget.Value );
-
-				UpdateResizeMeasurement( resizeAxis );
 
 				tool.StartDrag();
 				ResizeBBox( tool, _startBox, _box, _basis );
@@ -62,11 +51,8 @@ public sealed class ResizeMode : MoveMode
 			}
 		}
 
-		if ( _isResizing && Gizmo.IsLeftMouseDown )
-		{
-			UpdateResizeMeasurement( _activeResizeAxis );
-			DrawResizeText( _resizeTextPosition, _resizeDistance );
-		}
+		if ( Gizmo.IsLeftMouseDown && _activeResizeAxis != Vector3.Zero )
+			DrawResizeText( _startBox, _box, _activeResizeAxis, _basis );
 	}
 
 	static Vector3? FindVertexSnapTarget( SelectionTool tool )
@@ -138,65 +124,41 @@ public sealed class ResizeMode : MoveMode
 		tool.Resize( basis * origin, basis, scale );
 	}
 
-	private void UpdateResizeMeasurement( Vector3 resizeAxis )
-	{
-		var startLocal = GetResizeFaceCenter( _startBox, resizeAxis );
-		var endLocal = GetResizeFaceCenter( _box, resizeAxis );
-
-		var handleWorld = _basis * endLocal;
-		var outwardWorld = GetResizeFaceOutward( resizeAxis );
-
-		_resizeDistance = startLocal.Distance( endLocal );
-
-		var cameraDistance = Gizmo.Camera.Position.Distance( handleWorld );
-		var worldOffset = 10.0f * Gizmo.Settings.GizmoScale * (cameraDistance / 50.0f).Clamp( 0.5f, 4.0f );
-
-		_resizeTextPosition = handleWorld + outwardWorld * worldOffset;
-	}
-
-	static Vector3 GetResizeFaceCenter( BBox box, Vector3 axis )
+	static void DrawResizeText( BBox startBox, BBox box, Vector3 axis, Rotation basis )
 	{
 		var i = FaceAxis( axis );
-		var point = box.Center;
+		var resizeDelta = MathF.Abs( box.Size[i] - startBox.Size[i] );
 
-		point[i] = IsMaxsFace( axis ) ? box.Maxs[i] : box.Mins[i];
+		if ( resizeDelta < 0.01f )
+			return;
 
-		return point;
-	}
+		var position = box.Center;
+		position[i] = IsMaxsFace( axis ) ? box.Maxs[i] : box.Mins[i];
 
-	private Vector3 GetResizeFaceOutward( Vector3 axis )
-	{
-		var i = FaceAxis( axis );
 		var outward = Vector3.Zero;
-
 		outward[i] = IsMaxsFace( axis ) ? 1.0f : -1.0f;
 
-		return (_basis * outward).Normal;
-	}
+		position = basis * position;
 
-	private void DrawResizeText( Vector3 position, float distance )
-	{
+		var cameraDistance = Gizmo.Camera.Position.Distance( position );
+		var scaledTextSize = 22 * Gizmo.Settings.GizmoScale * Application.DpiScale * (cameraDistance / 50.0f).Clamp( 0.5f, 1.0f );
+		var worldOffset = 10.0f * Gizmo.Settings.GizmoScale * (cameraDistance / 50.0f).Clamp( 0.5f, 4.0f );
+
+		position += (basis * outward).Normal * worldOffset;
+
 		using ( Gizmo.Scope( "ResizeText" ) )
 		{
 			Gizmo.Draw.IgnoreDepth = true;
-
-			var textSize = 22 * Gizmo.Settings.GizmoScale * Application.DpiScale;
-
-			var cameraDistance = Gizmo.Camera.Position.Distance( position );
-			var scaledTextSize = textSize * (cameraDistance / 50.0f).Clamp( 0.5f, 1.0f );
-
-			var textScope = new TextRendering.Scope
+			Gizmo.Draw.ScreenText( new TextRendering.Scope
 			{
-				Text = $"{distance:0.##}",
+				Text = $"{resizeDelta:0.##}",
 				TextColor = Color.White,
 				FontSize = scaledTextSize,
 				FontName = "Roboto Mono",
 				FontWeight = 600,
 				LineHeight = 1,
 				Outline = new TextRendering.Outline() { Color = Color.Black, Enabled = true, Size = 3 }
-			};
-
-			Gizmo.Draw.ScreenText( textScope, position, new Vector2( 0, -scaledTextSize * 0.5f ) );
+			}, position, new Vector2( 0, -scaledTextSize * 0.5f ) );
 		}
 	}
 
