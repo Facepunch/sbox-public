@@ -535,10 +535,9 @@ public partial struct PhysicsTraceBuilder
 	}
 
 	/// <summary>
-	/// Run the trace and fill <paramref name="buffer"/> with up to <c>buffer.Length</c> hits.
-	/// Returns the number of hits written. Use this overload to avoid allocations.
+	/// Run the trace and append every hit to <paramref name="results"/>, returning the hit count.
 	/// </summary>
-	internal readonly unsafe int RunAll( Span<PhysicsTraceResult> buffer )
+	internal readonly unsafe int RunAll( List<PhysicsTraceResult> results )
 	{
 		if ( targetWorld is null )
 			throw new InvalidOperationException( "No physics world to trace" );
@@ -560,12 +559,15 @@ public partial struct PhysicsTraceBuilder
 
 		var nativeResults = ThreadTraceVec;
 		PhysicsTrace.TraceAll( r, nativeResults );
-		var count = Math.Min( nativeResults.Count(), buffer.Length );
+		var count = nativeResults.Count();
 
 		_currentfilterCallback = default;
 
+		// Pre-size once so a large first trace doesn't repeatedly grow/realloc the backing array
+		results.EnsureCapacity( results.Count + count );
+
 		for ( var i = 0; i < count; i++ )
-			buffer[i] = PhysicsTraceResult.From( nativeResults.Element( i ), request.StartShape );
+			results.Add( PhysicsTraceResult.From( nativeResults.Element( i ), request.StartShape ) );
 
 		return count;
 	}

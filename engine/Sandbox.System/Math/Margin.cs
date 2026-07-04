@@ -178,15 +178,16 @@ namespace Sandbox.UI
 		}
 
 		/// <summary>
-		/// Where padding is an edge type rect, will return this rect expanded with those edges.
+		/// Where padding is an edge type rect, will return this rect contracted by those edges.
+		/// The inverse of <see cref="EdgeAdd"/>.
 		/// </summary>
 		public Margin EdgeSubtract( Margin edges )
 		{
 			var r = this;
-			r.left += edges.left;
-			r.top += edges.top;
-			r.right -= edges.right;
-			r.bottom -= edges.bottom;
+			r.left -= edges.left;
+			r.top -= edges.top;
+			r.right += edges.right;
+			r.bottom += edges.bottom;
 
 			return r;
 		}

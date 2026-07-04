@@ -109,7 +109,6 @@ public abstract class BaseSoundComponent : Component
 			h.OcclusionEnabled = false;
 			h.AirAbsorption = false;
 			h.DistanceAttenuation = false;
-			h.Transmission = false;
 		}
 	}
 

@@ -1,9 +1,14 @@
-﻿namespace Sandbox;
+﻿using System.Buffers;
+
+namespace Sandbox;
 
 public static partial class Gizmo
 {
 	public sealed partial class GizmoDraw
 	{
+		// Reused across solid draw calls instead of allocating a temporary list each frame.
+		readonly List<Vertex> _scratchVertices = new();
+
 		/// <summary>
 		/// Draw a solid cone shape
 		/// </summary>
@@ -27,13 +32,14 @@ public static partial class Gizmo
 
 			float flAngle = 0;
 			float flAngleStep = (2.0f * MathF.PI) / (float)nSegments;
-			Vector3[] pVerts = new Vector3[nSegments];
+			Vector3[] pVerts = ArrayPool<Vector3>.Shared.Rent( nSegments );
+
 			for ( int i = 0; i < nSegments; flAngle += flAngleStep, i++ )
 			{
 				pVerts[i] = @base + flRadius * (vecLeft * MathF.Sin( flAngle ) + vecUp * MathF.Cos( flAngle ));
 			}
 
-			// Draw the cone.	
+			// Draw the cone.
 			for ( int i = 0; i < nSegments - 1; i++ )
 			{
 				var n = (pVerts[i] + vecTip).Normal;
@@ -53,16 +59,14 @@ public static partial class Gizmo
 
 
 			// Draw the base.
-			if ( true )
+			for ( int i = 1; i < nSegments - 1; i++ )
 			{
-				for ( int i = 1; i < nSegments - 1; i++ )
-				{
-					so.Vertices.Add( new Vertex( pVerts[0], Color ) { Normal = -vecUp } );
-					so.Vertices.Add( new Vertex( pVerts[i], Color ) { Normal = -vecUp } );
-					so.Vertices.Add( new Vertex( pVerts[i + 1], Color ) { Normal = -vecUp } );
-				}
+				so.Vertices.Add( new Vertex( pVerts[0], Color ) { Normal = -vecUp } );
+				so.Vertices.Add( new Vertex( pVerts[i], Color ) { Normal = -vecUp } );
+				so.Vertices.Add( new Vertex( pVerts[i + 1], Color ) { Normal = -vecUp } );
 			}
 
+			ArrayPool<Vector3>.Shared.Return( pVerts );
 		}
 
 		/// <summary>
@@ -259,7 +263,8 @@ public static partial class Gizmo
 		public void SolidSphere( Vector3 center, float radius, int hSegments = 8, int vSegments = 8 )
 		{
 			var so = VertexObject( Graphics.PrimitiveType.Triangles, SolidMaterial );
-			var vertices = new List<Vertex>();
+			var vertices = _scratchVertices;
+			vertices.Clear();
 
 			for ( var y = 0; y <= vSegments; y++ )
 			{
@@ -307,7 +312,8 @@ public static partial class Gizmo
 		public void SolidCylinder( Vector3 start, Vector3 end, float radius, int hSegments = 32 )
 		{
 			var so = VertexObject( Graphics.PrimitiveType.Triangles, SolidMaterial );
-			var vertices = new List<Vertex>();
+			var vertices = _scratchVertices;
+			vertices.Clear();
 
 			var axis = (end - start).Normal;
 			var up = Vector3.Up;
@@ -373,7 +379,8 @@ public static partial class Gizmo
 		public void SolidCapsule( Vector3 start, Vector3 end, float radius, int hSegments, int vSegments )
 		{
 			var so = VertexObject( Graphics.PrimitiveType.Triangles, SolidMaterial );
-			var vertices = new List<Vertex>();
+			var vertices = _scratchVertices;
+			vertices.Clear();
 
 			var axis = (end - start).Normal;
 			var right = Vector3.Cross( axis, Vector3.Right ).Normal;

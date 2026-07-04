@@ -8,6 +8,8 @@ public partial class Scene : GameObject
 	[ActionGraphIgnore]
 	public SceneTrace Trace => new SceneTrace( this );
 
+	[ThreadStatic] static List<PhysicsTraceResult> _physicsTraceScratch;
+
 	internal IEnumerable<SceneTraceResult> RunTraceAll( SceneTrace trace )
 	{
 		SceneMetrics.RayTraceAll++;
@@ -22,7 +24,9 @@ public partial class Scene : GameObject
 
 		if ( trace.IncludePhysicsWorld )
 		{
-			var physicsResults = trace.PhysicsTrace.RunAll();
+			var physicsResults = _physicsTraceScratch ??= new List<PhysicsTraceResult>();
+			physicsResults.Clear();
+			trace.PhysicsTrace.RunAll( physicsResults );
 
 			foreach ( var result in physicsResults )
 			{
@@ -55,7 +59,8 @@ public partial class Scene : GameObject
 		}
 
 		SceneTrace.ClearTraceFilter();
-		return results.OrderBy( r => r.Fraction );
+		results.Sort( static ( a, b ) => a.Fraction.CompareTo( b.Fraction ) );
+		return results;
 	}
 
 	internal unsafe SceneTraceResult RunTrace( SceneTrace trace )
@@ -581,7 +586,7 @@ public partial struct SceneTrace
 	{
 		if ( !Application.IsEditor )
 		{
-			Log.Error( "UseRenderMeshes is only available in edito" );
+			Log.Error( "UseRenderMeshes is only available in editor" );
 			return this;
 		}
 		var t = this;
@@ -598,7 +603,7 @@ public partial struct SceneTrace
 	{
 		if ( !Application.IsEditor )
 		{
-			Log.Error( "UseRenderMeshes is only available in edito" );
+			Log.Error( "UseRenderMeshes is only available in editor" );
 			return this;
 		}
 		var t = this;

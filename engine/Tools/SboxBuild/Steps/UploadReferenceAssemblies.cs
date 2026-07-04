@@ -11,7 +11,7 @@ namespace Facepunch.Steps;
 /// backend, which stores them as the reference assemblies used for server-side
 /// compilation of user code.
 /// </summary>
-internal class UploadReferenceAssemblies( string name, BuildTarget target = BuildTarget.Staging ) : Step( name )
+internal class UploadReferenceAssemblies( BuildTarget target = BuildTarget.Staging )
 {
 	private const string Endpoint = "https://public.facepunch.com/sbox/internal/reference-assemblies";
 	private readonly BuildTarget _target = target;
@@ -30,7 +30,7 @@ internal class UploadReferenceAssemblies( string name, BuildTarget target = Buil
 		"game/bin/managed/Microsoft.AspNetCore.Components.dll",
 	};
 
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		return UploadAsync().GetAwaiter().GetResult();
 	}

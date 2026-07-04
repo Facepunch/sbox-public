@@ -16,6 +16,26 @@ public static class MountUtility
 	}
 
 	/// <summary>
+	/// Attempt to parse an ident from a mount path
+	/// </summary>
+	public static bool TryParse( string path, out string ident )
+	{
+		ident = default;
+
+		if ( !IsMountPath( path ) )
+			return false;
+
+		var sourceName = path[8..];
+		var i = sourceName.IndexOf( '/' );
+
+		if ( i < 0 )
+			return false;
+
+		ident = sourceName[..i];
+		return true;
+	}
+
+	/// <summary>
 	/// Find a ResourceLoader by its mount path.
 	/// </summary>
 	public static ResourceLoader FindLoader( string loaderPath )

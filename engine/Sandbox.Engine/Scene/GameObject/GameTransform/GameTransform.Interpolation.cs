@@ -213,18 +213,18 @@ public partial class GameTransform
 	}
 
 
-	internal void Update()
+	internal void Update( double now, double cullBefore )
 	{
 		if ( GameObject.IsProxy )
 		{
-			InterpolateNetwork();
+			InterpolateNetwork( now );
 			return;
 		}
 
-		InterpolateFixedUpdate();
+		InterpolateFixedUpdate( now, cullBefore );
 	}
 
-	void InterpolateFixedUpdate()
+	void InterpolateFixedUpdate( double now, double cullBefore )
 	{
 		if ( GameObject?.Flags.Contains( GameObjectFlags.NoInterpolation ) ?? false )
 		{
@@ -236,18 +236,9 @@ public partial class GameTransform
 		var tx = _interpolatedLocal;
 
 		// Use 0 window since entries are timestamped into the future
-		tx.Position = _positionBuffer?.IsEmpty == false ? _positionBuffer.Query( Time.NowDouble ).Value : _targetLocal.Position;
-		tx.Rotation = _rotationBuffer?.IsEmpty == false ? _rotationBuffer.Query( Time.NowDouble ).Rotation : _targetLocal.Rotation;
-		tx.Scale = _scaleBuffer?.IsEmpty == false ? _scaleBuffer.Query( Time.NowDouble ).Value : _targetLocal.Scale;
-
-		float updateFreq = ProjectSettings.Physics.FixedUpdateFrequency.Clamp( 1, 1000 );
-		var fixedDelta = 1f / updateFreq;
-
-		// Keep more history to avoid culling data we might still need for interpolation
-		var cullOlderThanThreshold = fixedDelta * 2f;
-		_positionBuffer?.CullOlderThan( Time.NowDouble - cullOlderThanThreshold );
-		_rotationBuffer?.CullOlderThan( Time.NowDouble - cullOlderThanThreshold );
-		_scaleBuffer?.CullOlderThan( Time.NowDouble - cullOlderThanThreshold );
+		tx.Position = _positionBuffer?.IsEmpty == false ? _positionBuffer.QueryAndCull( now, cullBefore ).Value : _targetLocal.Position;
+		tx.Rotation = _rotationBuffer?.IsEmpty == false ? _rotationBuffer.QueryAndCull( now, cullBefore ).Rotation : _targetLocal.Rotation;
+		tx.Scale = _scaleBuffer?.IsEmpty == false ? _scaleBuffer.QueryAndCull( now, cullBefore ).Value : _targetLocal.Scale;
 
 		_interpolatedLocal = tx;
 		TransformChanged( true );
@@ -258,7 +249,7 @@ public partial class GameTransform
 		}
 	}
 
-	void InterpolateNetwork()
+	void InterpolateNetwork( double now )
 	{
 		if ( GameObject?.Flags.Contains( GameObjectFlags.NoInterpolation ) ?? false )
 		{
@@ -268,13 +259,11 @@ public partial class GameTransform
 		if ( _networkTransformBuffer?.IsEmpty == false )
 		{
 			var interpolationTime = Networking.InterpolationTime;
-			var state = _networkTransformBuffer.Query( Time.NowDouble - interpolationTime );
+			var state = _networkTransformBuffer.QueryAndCull( now - interpolationTime, now - (interpolationTime * 3f) );
 
 			_interpolatedLocal = state.Transform;
 			_targetLocal = _interpolatedLocal;
 			TransformChanged();
-
-			_networkTransformBuffer.CullOlderThan( Time.NowDouble - (interpolationTime * 3f) );
 		}
 
 		if ( _networkTransformBuffer?.IsEmpty ?? true )

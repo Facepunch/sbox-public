@@ -49,6 +49,8 @@ struct PixelInput
 
     #if ( PROGRAM == VFX_PROGRAM_VS )
         float4 PixelPosition : SV_Position;
+        // x: heightmap bounds, y: control-map holes. Primitive culled when all verts negative (preserves early-z vs clip()).
+        float2 CullDistance : SV_CullDistance;
     #endif
 
     #if ( PROGRAM == VFX_PROGRAM_PS )
@@ -139,19 +141,17 @@ VS
         o.PixelPosition = Position3WsToPs( o.WorldPosition.xyz );
         o.LodLevel = i.PositionAndLod.z;
 
-        // Check for holes in vertex shader using control map's extra data
+        // Reject holes and out-of-bounds clipmap at the vertex stage so the rasterizer culls
+        // whole primitives before the PS runs, instead of clip()/discard which kills early-z.
+        // Signed distance: positive = keep, negative = cull. A triangle is culled only when every
+        // vertex is negative for a component (triangle-granular; sub-triangle edges are not clipped).
+        o.CullDistance.x = min( min( uv.x, uv.y ), min( 1.0 - uv.x, 1.0 - uv.y ) );
+        o.CullDistance.y = 1.0;
         if ( Terrain::Get().ControlMapTexture != 0 )
         {
             Texture2D tControlMap = Bindless::GetTexture2D( Terrain::Get().ControlMapTexture );
-            float rawPixel = tControlMap.SampleLevel( g_sPointClamp, uv, 0 ).r;
-            CompactTerrainMaterial material = CompactTerrainMaterial::DecodeFromFloat( rawPixel );
-            
-            if ( material.IsHole )
-            {
-                o.LocalPosition = float3( 0. / 0., 0, 0 );
-                o.WorldPosition = mul( Terrain::Get().Transform, float4( o.LocalPosition, 1.0 ) ).xyz;
-                o.PixelPosition = Position3WsToPs( o.WorldPosition.xyz );
-            }
+            CompactTerrainMaterial holeMat = CompactTerrainMaterial::DecodeFromFloat( tControlMap.SampleLevel( g_sPointClamp, uv, 0 ).r );
+            o.CullDistance.y = holeMat.IsHole ? -1.0 : 1.0;
         }
 
 		return o;
@@ -279,7 +279,7 @@ PS
         // Sample materials by index
         for ( int i = 0; i < 4; i++ )
         {
-            TerrainMaterial mat = g_TerrainMaterials[ i ];
+            TerrainMaterial mat = g_TerrainMaterials[ indices[i] ];
             float2 layerUV = texUV * mat.uvscale;
             float2x2 uvAngle = float2x2( 1, 0, 0, 1 );
 
@@ -429,10 +429,12 @@ PS
         {
             float baseHeight = baseNho.b * baseMat.heightstrength;
             float overlayHeight = overlayNho.b * overlayMat.heightstrength;
-            
+
             float heightDiff = overlayHeight - baseHeight;
             float sharpness = Terrain::Get().HeightBlendSharpness * 10.0;
-            blend = saturate( blend + heightDiff * sharpness );
+
+            float blendMix = blend * ( 1.0 - blend ) * 4.0;
+            blend = saturate( blend + heightDiff * sharpness * blendMix );
         }
 
         // Blend materials
@@ -451,13 +453,6 @@ PS
         Texture2D tHeightMap = Bindless::GetTexture2D( Terrain::Get().HeightMapTexture );
         float2 texSize = TextureDimensions2D( tHeightMap, 0 );
         float2 uv = i.LocalPosition.xy / ( texSize * Terrain::Get().Resolution );
-
-        // Clip any of the clipmap that exceeds the heightmap bounds
-        if ( uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0 )
-        {
-            clip( -1 );
-            return float4( 0, 0, 0, 0 );
-        }
 
         float3 tangentU, tangentV;
         float3 geoNormal;
@@ -515,20 +510,6 @@ PS
             float blend10 = fracUV.x * (1 - fracUV.y);
             float blend01 = (1 - fracUV.x) * fracUV.y;
             float blend11 = fracUV.x * fracUV.y;
-            
-            // Check for holes - blend hole values
-            float holeBlend = 0.0;
-            if ( mat00.IsHole ) holeBlend += blend00;
-            if ( mat10.IsHole ) holeBlend += blend10;
-            if ( mat01.IsHole ) holeBlend += blend01;
-            if ( mat11.IsHole ) holeBlend += blend11;
-            
-            // Clip if predominantly a hole
-            if ( holeBlend > 0.5 )
-            {
-                clip( -1 );
-                return float4( 0, 0, 0, 0 );
-            }
             
             // Sample materials from all 4 pixels
             float3 albedo00, albedo10, albedo01, albedo11;

@@ -1,4 +1,6 @@
-﻿namespace Sandbox;
+﻿using System.Threading;
+
+namespace Sandbox;
 
 public sealed partial class SkinnedModelRenderer
 {
@@ -67,6 +69,18 @@ public sealed partial class SkinnedModelRenderer
 		foreach ( var entry in boneObjects )
 		{
 			boneToGameObject[entry.Key] = entry.Value;
+
+			if ( entry.Value.Flags.Contains( GameObjectFlags.ProceduralBone ) )
+				continue;
+
+			if ( entry.Value.Flags.Contains( GameObjectFlags.Absolute ) )
+				continue;
+
+			var bone = entry.Key;
+
+			entry.Value.LocalTransform = bone.Parent is { } parent
+				? parent.LocalTransform.ToLocal( bone.LocalTransform )
+				: bone.LocalTransform;
 		}
 	}
 
@@ -178,6 +192,13 @@ public sealed partial class SkinnedModelRenderer
 
 		Transform[] transforms = new Transform[Model.BoneCount];
 
+		// World space has a batch fill - one interop call instead of one per bone.
+		if ( world && SceneModel.IsValid() )
+		{
+			SceneModel.GetBoneWorldTransforms( transforms );
+			return transforms;
+		}
+
 		for ( int i = 0; i < Model.BoneCount; i++ )
 		{
 			if ( world )
@@ -228,5 +249,101 @@ public sealed partial class SkinnedModelRenderer
 
 		SceneModel.GetBoneVelocity( boneIndex, out var linear, out var angular );
 		return new BoneVelocity( linear, angular );
+	}
+
+	Transform[] _boneSnapshot;
+	Transform[] _boneSnapshotPrevious;
+	int _boneSnapshotFrame = -1;
+	readonly Lock _boneSnapshotLock = new();
+
+	/// <summary>
+	/// This frame's final world-space bone transforms, cached so repeated callers - and parallel readers -
+	/// share a single skeleton read instead of each fetching bones one at a time. Rebuilt at most once per
+	/// frame. The returned data is shared and must not be mutated. Empty if there's no valid model.
+	/// </summary>
+	public ReadOnlySpan<Transform> BoneWorldTransforms
+	{
+		get
+		{
+			EnsureBoneSnapshot();
+			return _boneSnapshot;
+		}
+	}
+
+	/// <summary>
+	/// Last frame's final world-space bone transforms - the counterpart to <see cref="BoneWorldTransforms"/>,
+	/// so consumers can tell how each bone moved this frame without tracking it themselves.
+	/// </summary>
+	public ReadOnlySpan<Transform> PreviousBoneWorldTransforms
+	{
+		get
+		{
+			EnsureBoneSnapshot();
+			return _boneSnapshotPrevious;
+		}
+	}
+
+	/// <summary>
+	/// Read a single bone's current and previous world transform from this frame's snapshot, assuming it's
+	/// already been primed this frame (via <see cref="EnsureBoneSnapshot"/> or <see cref="BoneWorldTransforms"/>).
+	/// Lock-free and safe to call from worker threads once primed. Returns false if the snapshot isn't built
+	/// or the index is out of range, leaving both transforms identity.
+	/// </summary>
+	internal bool TryGetSnapshotBone( int boneIndex, out Transform previous, out Transform current )
+	{
+		// Grab the array refs locally - they're only swapped during the once-per-frame rebuild, never while
+		// a primed frame is being read in parallel.
+		var cur = _boneSnapshot;
+		var prev = _boneSnapshotPrevious;
+
+		if ( cur is null || boneIndex < 0 || boneIndex >= cur.Length )
+		{
+			previous = current = global::Transform.Zero;
+			return false;
+		}
+
+		current = cur[boneIndex];
+		previous = prev[boneIndex];
+		return true;
+	}
+
+	/// <summary>
+	/// Build this frame's bone-transform snapshot if it isn't already. Call once on the main thread to prime
+	/// the cache; <see cref="TryGetSnapshotBone"/> and the span properties can then be read lock-free for the
+	/// rest of the frame. The lock-free fast path makes this cheap to call repeatedly; the lock only guards
+	/// the once-per-frame rebuild so concurrent first-time callers can't tear the arrays.
+	/// </summary>
+	internal void EnsureBoneSnapshot()
+	{
+		if ( Model is null || !SceneModel.IsValid() )
+			return;
+
+		var frame = Scene.GetSystem<SceneAnimationSystem>().BoneFrame;
+
+		if ( _boneSnapshotFrame == frame && _boneSnapshot is not null )
+			return;
+
+		lock ( _boneSnapshotLock )
+		{
+			if ( _boneSnapshotFrame == frame && _boneSnapshot is not null )
+				return;
+
+			var boneCount = Model.BoneCount;
+
+			if ( _boneSnapshot is null || _boneSnapshot.Length != boneCount )
+			{
+				_boneSnapshot = new Transform[boneCount];
+				_boneSnapshotPrevious = new Transform[boneCount];
+			}
+
+			var model = SceneModel;
+
+			// One interop transition each (the calls are [nogc]), instead of two per bone.
+			model.GetBoneWorldTransforms( _boneSnapshot );
+			model.GetBoneWorldPreviousTransforms( _boneSnapshotPrevious );
+
+			// Publish the frame token last so the lock-free fast path never sees a half-built snapshot.
+			_boneSnapshotFrame = frame;
+		}
 	}
 }

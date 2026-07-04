@@ -51,7 +51,7 @@ PauseModal.modal > .inner > .bottom-bar
 		gap: 1rem;
 	}
 
-	button.button
+	.button
 	{
 		width: auto;
 		font-size: 2rem;
@@ -60,6 +60,7 @@ PauseModal.modal > .inner > .bottom-bar
 		border-radius: 10px;
 		padding: 2rem 3rem;
 		opacity: 1;
+		cursor: pointer;
 
 		.icon
 		{
@@ -132,16 +133,16 @@ PauseModal.modal > .inner > .bottom-bar
 	font-weight: bold;
 }
 
-button.button
+.button
 {
 	opacity: 0.5;
 	gap: 16px;
 	width: 300px;
-}
 
-button:hover
-{
-	opacity: 1;
+	&:hover
+	{
+		opacity: 1;
+	}
 }
 
 PauseModal .tiles-container

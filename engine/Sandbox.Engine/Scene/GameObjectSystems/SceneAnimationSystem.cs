@@ -8,6 +8,13 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 {
 	private HashSetEx<SkinnedModelRenderer> SkinnedRenderers { get; } = new();
 
+	/// <summary>
+	/// Incremented once per frame when bones are updated. Lets per-frame bone caches - like
+	/// <see cref="SkinnedModelRenderer.BoneWorldTransforms"/> - know when they're stale without re-reading
+	/// the skeleton more than once per frame.
+	/// </summary>
+	public int BoneFrame { get; private set; }
+
 	internal void AddRenderer( SkinnedModelRenderer renderer )
 	{
 		SkinnedRenderers.Add( renderer );
@@ -43,10 +50,17 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 
 	void UpdateAnimation()
 	{
+		// Bump once per frame, before any FinishUpdate-stage consumer reads bone snapshots.
+		BoneFrame++;
+
 		using ( PerformanceStats.Timings.Animation.Scope() )
 		{
 			_rootRenderers.Clear();
 			_boneMergeRoots.Clear();
+
+			// Nothing animating - no bones to update, no decode caches worth maintaining
+			if ( SkinnedRenderers.Count == 0 )
+				return;
 
 			foreach ( var renderer in SkinnedRenderers.EnumerateLocked() )
 			{

@@ -15,10 +15,11 @@ public static partial class Gizmo
 	/// </summary>
 	public sealed partial class GizmoDraw
 	{
-		static Material LineMaterial = Material.Load( "materials/gizmo/line.vmat" );
-		static Material SolidMaterial = Material.Load( "materials/gizmo/solid.vmat" );
-		static Material SpriteMaterial = Material.Load( "materials/gizmo/sprite.vmat" );
-		static Material GridMaterial = Material.Load( "materials/gizmo/grid.vmat" );
+		// Loaded on first draw, so scenes that never draw a gizmo don't load them
+		static Material LineMaterial => field ??= Material.Load( "materials/gizmo/line.vmat" );
+		static Material SolidMaterial => field ??= Material.Load( "materials/gizmo/solid.vmat" );
+		static Material SpriteMaterial => field ??= Material.Load( "materials/gizmo/sprite.vmat" );
+		static Material GridMaterial => field ??= Material.Load( "materials/gizmo/grid.vmat" );
 
 		internal GizmoDraw()
 		{
@@ -45,6 +46,7 @@ public static partial class Gizmo
 
 		static VertexSceneObject _vertexObject;
 		static string _vertexObjectPath;
+		static Material _vertexObjectMaterial;
 
 		/// <summary>
 		/// Ignore depth when drawing, draw on top of everything

@@ -5,19 +5,19 @@ public partial class AssetBrowser
 	/// <summary>
 	/// Gets the closest open <see cref="Project"/> to the current focused widget
 	/// </summary>
-	public static LocalAssetBrowser Get()
+	public static WrappedAssetBrowser Get()
 	{
-		LocalAssetBrowser browser;
+		WrappedAssetBrowser browser;
 
 		// 1. try to find one for the current focused window
 		if ( Application.FocusWidget?.GetWindow() is DockWindow dockable )
 		{
-			browser = dockable.DockManager.GetDockWidget( "Asset Browser" ) as LocalAssetBrowser;
+			browser = dockable.DockManager.GetDockWidget( "Asset Browser" ) as WrappedAssetBrowser;
 			if ( browser.IsValid() ) return browser;
 		}
 
 		// 2. try the primary instance
-		browser = MainAssetBrowser.Instance.Local;
+		browser = MainAssetBrowser.Instance;
 		if ( browser.IsValid() ) return browser;
 
 		return null;
@@ -26,12 +26,12 @@ public partial class AssetBrowser
 	/// <summary>
 	/// Gets the closest open <see cref="Project"/> to the current focused widget, or creates a new one
 	/// </summary>
-	public static LocalAssetBrowser GetOrCreate()
+	private static WrappedAssetBrowser GetOrCreate()
 	{
 		if ( Get() is { } browser )
 			return browser;
 
-		return EditorWindow.DockManager.Create<MainAssetBrowser>().Local;
+		return EditorWindow.DockManager.Create<MainAssetBrowser>();
 	}
 
 	/// <summary>
@@ -40,8 +40,11 @@ public partial class AssetBrowser
 	/// </summary>
 	public static void OpenTo( Asset asset, bool skipEvents = false )
 	{
-		var browser = GetOrCreate();
-		EditorWindow.DockManager.RaiseDock( browser );
+		var wrapped = GetOrCreate();
+		EditorWindow.DockManager.RaiseDock( wrapped );
+
+		var browser = wrapped.GetBrowser( asset );
+		wrapped.SwitchTo( browser );
 		browser.Focus( true );
 		browser.FocusOnAsset( asset, skipEvents );
 	}
@@ -58,8 +61,11 @@ public partial class AssetBrowser
 			return;
 		}
 
-		var browser = GetOrCreate();
-		EditorWindow.DockManager.RaiseDock( browser );
+		var wrapped = GetOrCreate();
+		EditorWindow.DockManager.RaiseDock( wrapped );
+
+		var browser = wrapped.GetBrowser( entry );
+		wrapped.SwitchTo( browser );
 		browser.Focus( true );
 		browser.NavigateTo( entry.AbsolutePath );
 	}

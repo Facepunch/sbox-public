@@ -26,9 +26,16 @@
             <Item Context="item">
                 @if (item is Package package)
                 {
+					@if (Item != null)
+					{
+						@Item(package)
+					}
+					else
+					{
                     <PackageCard RightClicked=@(() => OnMenu?.Invoke(package))
                                  Clicked=@(() => OnSelected?.Invoke(package))
                                  Package=@package></PackageCard>
+					}
                 }
             </Item>
         </VirtualGrid>
@@ -46,7 +53,9 @@
     [Parameter] public System.Action<Package> OnMenu { get; set; }
     [Parameter] public System.Action<Package> OnSelected { get; set; }
     [Parameter] public Action<string> OnFilterChanged { get; set; }
-    [Parameter] public Package[] Packages { get; set; }
+	[Parameter] public Package[] Packages { get; set; }
+
+	[Parameter] public RenderFragment<Package> Item { get; set; }
 
     [Parameter] public List<Package> FoundPackages { get; set; }
 

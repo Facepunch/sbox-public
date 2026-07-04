@@ -3,41 +3,93 @@
 @using Sandbox.UI;
 @namespace Menu
 
-<root style="background-image: url(@(MapPackage?.ThumbWide ?? ""))">
+<root>
     <div class="bottom">
         <icon>map</icon>
-        <h3>@(MapPackage?.Title ?? "Default Map")</h3>
+		<h3>@Title</h3>
     </div>
 </root>
 
 @code 
 {
-    [Parameter]
-    public Package MapPackage { get; set; }
+	[Parameter]
+	public string Map { get; set; }
 
-    [Parameter]
-    public Package GamePackage { get; set; }
+	[Parameter]
+	public Package GamePackage { get; set; }
 
-    [Parameter]
-    public Action<Package> OnValueChanged { get; set; }
+	[Parameter]
+	public Action<string> OnValueChanged { get; set; }
 
 
-    protected override void OnMouseUp(MousePanelEvent e)
-    {
-        base.OnMouseUp(e);
-        OpenSelector();
-    }
+	public string Thumb
+	{
+		get => field;
+		set
+		{
+			field = value;
+			Style.SetBackgroundImage( value );
+		}
+	}
 
-    public void OpenSelector()
-    {
-        var mapTarget = GamePackage?.Info.MapTarget;
+	public string Title { get; private set; } = "Default Map";
 
-        Game.Overlay.ShowPackageSelector($"type:map sort:popular target:{mapTarget}", (pkg) =>
-        {
-            MapPackage = pkg;
 
-            OnValueChanged?.Invoke(pkg);
-            StateHasChanged();
-        });
-    }
+	protected override void OnMouseUp(MousePanelEvent e)
+	{
+		base.OnMouseUp(e);
+		OpenSelector();
+	}
+
+	protected override async Task OnParametersSetAsync()
+	{
+		await OnMapChanged(Map);
+	}
+
+	public void OpenSelector()
+	{
+		var mapTarget = GamePackage?.GetValue("MapTarget", GamePackage?.FullIdent);
+
+		Game.Overlay.ShowMapSelector( (pkg) =>
+		{
+			_ = OnMapChanged(pkg);
+
+			OnValueChanged?.Invoke(pkg);
+		}, Map );
+	}
+
+	public async Task OnMapChanged( string map )
+	{ 	
+		if ( string.IsNullOrWhiteSpace( map ) )
+		{
+			Thumb = "";
+			Title = "Default Map";
+			StateHasChanged();
+			return;
+		}
+
+		if ( Sandbox.Mounting.Directory.GetMetadata( map ) is { } meta )
+		{
+			Thumb = null;
+			Title = meta.Name;
+
+			StateHasChanged();
+			return;
+		}
+
+		var package = await Package.Fetch( map, true );
+		if ( package is not null )
+		{
+			Thumb = package.ThumbWide;
+			Title = package.Title;
+
+			StateHasChanged();
+			return;
+		}
+
+		Thumb = "";
+		Title = "Default Map";
+
+		StateHasChanged();
+	}
 }

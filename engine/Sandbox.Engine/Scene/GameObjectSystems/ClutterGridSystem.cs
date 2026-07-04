@@ -40,6 +40,23 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 		Listen( Stage.SceneLoaded, 0, RebuildPaintedLayer, "ClutterGridSystem.RestorePainted" );
 	}
 
+	public override void Dispose()
+	{
+		base.Dispose();
+
+		foreach ( var terrain in _subscribedTerrains )
+			if ( terrain.IsValid() ) terrain.OnTerrainModified -= OnTerrainModified;
+		_subscribedTerrains.Clear();
+
+		_painted?.ClearAllTiles();
+		_painted = null;
+
+		foreach ( var layer in _componentToLayer.Values )
+			layer.ClearAllTiles();
+
+		_componentToLayer.Clear();
+	}
+
 	/// <summary>
 	/// Check for new terrains, queue generation/cleanup jobs, and process pending jobs.
 	/// </summary>
@@ -51,6 +68,8 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 
 		_lastCameraPosition = camera.WorldPosition;
 
+		PublishLodParameters( camera );
+
 		SubscribeToTerrains();
 		UpdateInfiniteLayers( _lastCameraPosition );
 		ProcessJobs();
@@ -60,6 +79,29 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 			RebuildPaintedLayer();
 			_dirty = false;
 		}
+
+		_painted?.RebuildIfDirty();
+
+		foreach ( var (component, layer) in _componentToLayer )
+		{
+			if ( component.IsValid() && !component.Infinite )
+				layer.RebuildIfDirty();
+		}
+	}
+
+	/// <summary>
+	/// Pushes the active camera's LOD parameters to the clutter scene objects for GPU LOD selection.
+	/// </summary>
+	private static void PublishLodParameters( CameraComponent camera )
+	{
+		var sceneCamera = camera.SceneCamera;
+
+		ClutterBatchSceneObject.Lod = new ClutterBatchSceneObject.LodParams
+		{
+			CameraPos = camera.WorldPosition,
+			TanHalfFov = MathF.Tan( camera.FieldOfView.DegreeToRadian() * 0.5f ),
+			ViewportWidth = sceneCamera is not null ? sceneCamera.Size.x : 1920f,
+		};
 	}
 
 	private void SubscribeToTerrains()
@@ -217,11 +259,16 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 		return new BBox( minWorld, maxWorld );
 	}
 
-	private CameraComponent GetActiveCamera()
+	internal CameraComponent GetActiveCamera()
 	{
-		return Scene.IsEditor
-			? Scene.Camera
-			: Scene.Camera; // Figure out a way to grab editor camera
+		if ( Scene.IsEditor )
+		{
+			var editorCamera = Application.Editor?.Camera;
+			if ( editorCamera.IsValid() )
+				return editorCamera;
+		}
+
+		return Scene.Camera;
 	}
 
 	internal ClutterLayer GetOrCreateLayer( ClutterComponent component, ClutterSettings settings )
@@ -400,23 +447,7 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 			_painted = new ClutterLayer( settings, null, this );
 		}
 
-		_painted.ClearAllTiles();
-
-		foreach ( var modelPath in Storage.ModelPaths )
-		{
-			var model = ResourceLibrary.Get<Model>( modelPath );
-			if ( model == null ) continue;
-
-			foreach ( var instance in Storage.GetInstances( modelPath ) )
-			{
-				_painted.AddModelInstance( Vector2Int.Zero, new()
-				{
-					Transform = new( instance.Position, instance.Rotation, instance.Scale ),
-					Entry = new() { Model = model }
-				} );
-			}
-		}
-
-		_painted.RebuildBatches();
+		// The layer owns both rendering and collision for its instances.
+		_painted.PopulateFromStorage( Storage );
 	}
 }

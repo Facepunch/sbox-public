@@ -4,9 +4,9 @@ using static Facepunch.Constants;
 
 namespace Facepunch.Steps;
 
-internal class BuildAddons( string name ) : Step( name )
+internal class BuildAddons
 {
-	protected override ExitCode RunInternal()
+	internal ExitCode Run()
 	{
 		try
 		{

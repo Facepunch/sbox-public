@@ -1,18 +1,4 @@
-﻿using System.Text.Json.Serialization;
-
-namespace Editor.SoundEditor;
-
-public struct PhonemeFrame
-{
-	[JsonPropertyName( "phoneme" )]
-	public int Code { get; set; }
-
-	[JsonPropertyName( "start" )]
-	public float StartTime { get; set; }
-
-	[JsonPropertyName( "end" )]
-	public float EndTime { get; set; }
-}
+﻿namespace Editor.SoundEditor;
 
 public class Timeline : Widget
 {
@@ -21,13 +7,11 @@ public class Timeline : Widget
 	public bool Playing { get; set; }
 	public bool Repeating { get; set; }
 	public float Time { get; private set; }
-	public List<PhonemeFrame> Frames;
+	public List<VisemeFrame> Frames;
 
 	private readonly Option PlayOption;
 	private readonly Option PlayFromStartOption;
 	private readonly Option RepeatOption;
-
-	private bool _prevPlay = false;
 
 	public Timeline( Widget parent ) : base( parent )
 	{
@@ -59,6 +43,15 @@ public class Timeline : Widget
 		Playing = true;
 	}
 
+	/// <summary>
+	/// Replace the timeline's visemes.
+	/// </summary>
+	public void SetVisemes( List<VisemeFrame> frames )
+	{
+		Frames = frames;
+		TimelineView.SetVisemes( frames );
+	}
+
 	public void SetSamples( short[] samples, float duration, string sound )
 	{
 		TimelineView.SetSamples( samples, duration, sound );
@@ -72,8 +65,8 @@ public class Timeline : Widget
 		if ( asset.MetaData == null )
 			return;
 
-		Frames = asset.MetaData.Get<List<PhonemeFrame>>( "phonemes" );
-		TimelineView.SetPhonemes( Frames );
+		Frames = asset.MetaData.Get<List<VisemeFrame>>( "visemes" );
+		TimelineView.SetVisemes( Frames );
 	}
 
 	[EditorEvent.Frame]
@@ -86,16 +79,18 @@ public class Timeline : Widget
 		PlayOption.Icon = Playing ? "pause" : "play_arrow";
 		RepeatOption.Text = Repeating ? "Repeat Off" : "Repeat On";
 		RepeatOption.Checked = Repeating;
+	}
 
-		if ( Application.IsKeyDown( KeyCode.Space ) && Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) && !_prevPlay )
-		{
-			PlayFromStart();
-		}
-		else if ( Application.IsKeyDown( KeyCode.Space ) && !_prevPlay )
-		{
-			Playing = !Playing;
-		}
-		_prevPlay = Application.IsKeyDown( KeyCode.Space );
+	[Shortcut( "sound.play", "SPACE", ShortcutType.Window )]
+	private void TogglePlayback()
+	{
+		Playing = !Playing;
+	}
+
+	[Shortcut( "sound.play-from-start", "CTRL+SPACE", ShortcutType.Window )]
+	private void PlayFromStartShortcut()
+	{
+		PlayFromStart();
 	}
 }
 
@@ -105,7 +100,7 @@ public class TimelineView : GraphicsView
 	private readonly TimeAxis TimeAxis;
 	private readonly Scrubber Scrubber;
 	private readonly WaveForm WaveForm;
-	private readonly List<PhonemeItem> PhonemeItems = new();
+	private readonly List<VisemeItem> VisemeItems = new();
 
 	public float Duration { get; private set; }
 	public float ZoomFactor { get; private set; }
@@ -152,7 +147,7 @@ public class TimelineView : GraphicsView
 
 		Scrubber.Position = Scrubber.Position.WithX( PositionFromTime( Time ) - 3 ).SnapToGrid( 1.0f );
 
-		foreach ( var item in PhonemeItems )
+		foreach ( var item in VisemeItems )
 		{
 			item.Position = new Vector2( PositionFromTime( item.Frame.StartTime ), Theme.RowHeight );
 			item.Size = new Vector2( PositionFromTime( item.Frame.EndTime - item.Frame.StartTime ), SceneRect.Bottom - Theme.RowHeight );
@@ -253,19 +248,34 @@ public class TimelineView : GraphicsView
 		WaveForm.SetSamples( samples, duration );
 	}
 
-	public void SetPhonemes( List<PhonemeFrame> frames )
+	public void SetVisemes( List<VisemeFrame> frames )
 	{
+		ClearVisemes();
+
 		if ( frames == null )
 			return;
 
 		foreach ( var frame in frames )
 		{
-			var item = new PhonemeItem( this, frame );
-			item.Position = new Vector2( PositionFromTime( frame.StartTime ), Theme.RowHeight );
-			item.Size = new Vector2( PositionFromTime( frame.EndTime - frame.StartTime ), SceneRect.Bottom - Theme.RowHeight );
-			PhonemeItems.Add( item );
-			Add( item );
+			AddItem( frame );
 		}
+	}
+
+	private void AddItem( VisemeFrame frame )
+	{
+		var item = new VisemeItem( this, frame );
+		item.Position = new Vector2( PositionFromTime( frame.StartTime ), Theme.RowHeight );
+		item.Size = new Vector2( PositionFromTime( frame.EndTime - frame.StartTime ), SceneRect.Bottom - Theme.RowHeight );
+		VisemeItems.Add( item );
+		Add( item );
+	}
+
+	public void ClearVisemes()
+	{
+		foreach ( var item in VisemeItems.ToArray() )
+			item.Destroy();
+
+		VisemeItems.Clear();
 	}
 
 	public void MoveScrubber( float position )
@@ -275,9 +285,9 @@ public class TimelineView : GraphicsView
 		Timeline.Playing = false;
 	}
 
-	internal void PhonemeKeyPress( KeyEvent e )
+	internal void VisemeKeyPress( KeyEvent e )
 	{
-		var items = PhonemeItems.Where( x => x.Selected ).ToArray();
+		var items = VisemeItems.Where( x => x.Selected ).ToArray();
 
 		if ( e.Key == KeyCode.Delete )
 		{
@@ -288,9 +298,9 @@ public class TimelineView : GraphicsView
 		}
 	}
 
-	internal void Delete( PhonemeItem item )
+	internal void Delete( VisemeItem item )
 	{
-		if ( PhonemeItems.Remove( item ) )
+		if ( VisemeItems.Remove( item ) )
 		{
 			item.Destroy();
 		}
@@ -298,7 +308,7 @@ public class TimelineView : GraphicsView
 
 	internal void UpdateFrames()
 	{
-		Timeline.Frames = PhonemeItems.Select( x => x.Frame ).ToList();
+		Timeline.Frames = VisemeItems.Select( x => x.Frame ).ToList();
 	}
 
 	protected override void OnContextMenu( ContextMenuEvent e )
@@ -308,34 +318,21 @@ public class TimelineView : GraphicsView
 		var time = TimeFromPosition( ToScene( e.LocalPosition ).x );
 		var menu = new ContextMenu( this );
 
-		var groupedPhonemes = PhonemeItem.PhonemeDescriptions
-							   .GroupBy( p => p.Value.Category )
-							   .OrderBy( g => g.Key );
+		var visemeMenu = menu.AddMenu( "Create Viseme" );
 
-		var phonemeMenu = menu.AddMenu( $"Create Phoneme" );
-
-		foreach ( var group in groupedPhonemes )
+		// Skip silence (0); there's nothing to place for it.
+		for ( int viseme = 1; viseme < LipSyncGenerator.Count; viseme++ )
 		{
-			var submenu = phonemeMenu.AddMenu( group.Key.ToString().Replace( '_', ' ' ) );
-
-			foreach ( var p in group )
-			{
-				submenu.AddOption( $"{p.Value.Name.ToUpper()} - {p.Value.Desc}", null, () => CreatePhoneme( p.Key, time ) );
-			}
+			var v = viseme;
+			visemeMenu.AddOption( LipSyncGenerator.Label( v ), null, () => CreateViseme( v, time ) );
 		}
 
 		menu.OpenAt( e.ScreenPosition );
 	}
 
-	private void CreatePhoneme( int code, float time )
+	private void CreateViseme( int viseme, float time )
 	{
-		var frame = new PhonemeFrame { Code = code, StartTime = time, EndTime = time + 0.1f };
-		var item = new PhonemeItem( this, frame );
-		item.Position = new Vector2( PositionFromTime( time ), Theme.RowHeight );
-		item.Size = new Vector2( PositionFromTime( frame.EndTime - frame.StartTime ), SceneRect.Bottom - Theme.RowHeight );
-		PhonemeItems.Add( item );
-		Add( item );
-
+		AddItem( new VisemeFrame { Viseme = viseme, StartTime = time, EndTime = time + 0.1f } );
 		UpdateFrames();
 	}
 }
@@ -556,11 +553,10 @@ public class Scrubber : GraphicsItem
 	}
 }
 
-public class PhonemeItem : GraphicsItem
+public class VisemeItem : GraphicsItem
 {
 	private readonly TimelineView TimelineView;
-	private readonly PhonemeDesc Desc;
-	public PhonemeFrame Frame { get; private set; }
+	public VisemeFrame Frame { get; private set; }
 
 	[Flags]
 	private enum SizeDirection
@@ -574,13 +570,12 @@ public class PhonemeItem : GraphicsItem
 	private Vector2 Offset;
 	private SizeDirection Direction;
 
-	public PhonemeItem( TimelineView view, PhonemeFrame frame )
+	public VisemeItem( TimelineView view, VisemeFrame frame )
 	{
 		Frame = frame;
-		Desc = PhonemeDescriptions[frame.Code];
 
 		TimelineView = view;
-		ToolTip = $"{Desc.Name.ToUpper()} - {Desc.Desc}";
+		ToolTip = LipSyncGenerator.Label( frame.Viseme );
 
 		ZIndex = -1;
 		HoverEvents = true;
@@ -613,7 +608,7 @@ public class PhonemeItem : GraphicsItem
 	{
 		base.OnKeyPress( e );
 
-		TimelineView.PhonemeKeyPress( e );
+		TimelineView.VisemeKeyPress( e );
 		TimelineView.UpdateFrames();
 	}
 
@@ -630,7 +625,7 @@ public class PhonemeItem : GraphicsItem
 		Paint.SetPen( Theme.Text );
 		var r = LocalRect;
 		r.Height = Theme.RowHeight;
-		Paint.DrawText( r.Shrink( 2 ), Desc.Name.ToUpper() );
+		Paint.DrawText( r.Shrink( 2 ), LipSyncGenerator.Label( Frame.Viseme ) );
 	}
 
 	private Rect ResizeLeft( Rect rect, float position )
@@ -762,75 +757,4 @@ public class PhonemeItem : GraphicsItem
 
 		UpdateFrame();
 	}
-
-	public struct PhonemeDesc
-	{
-		public string Name { get; set; }
-		public string Desc { get; set; }
-		public PhonemeCategory Category { get; set; }
-	}
-
-	public enum PhonemeCategory
-	{
-		Stop_Plosive,
-		Fricative,
-		Affricate,
-		Nasal,
-		Approximant,
-		Trill,
-		Tap_Flap,
-		Vowel,
-		Rhotic_Vowel,
-	}
-
-	internal static readonly Dictionary<int, PhonemeDesc> PhonemeDescriptions = new()
-	{
-		{ 'b', new PhonemeDesc { Name = "b", Desc = "Big : voiced alveolar stop", Category = PhonemeCategory.Stop_Plosive } },
-		{ 'm', new PhonemeDesc { Name = "m", Desc = "Mat : voiced bilabial nasal", Category = PhonemeCategory.Nasal } },
-		{ 'p', new PhonemeDesc { Name = "p", Desc = "Put; voiceless alveolar stop", Category = PhonemeCategory.Stop_Plosive } },
-		{ 'w', new PhonemeDesc { Name = "w", Desc = "With : voiced labial-velar approximant", Category = PhonemeCategory.Approximant } },
-		{ 'f', new PhonemeDesc { Name = "f", Desc = "Fork : voiceless labiodental fricative", Category = PhonemeCategory.Fricative } },
-		{ 'v', new PhonemeDesc { Name = "v", Desc = "Val : voiced labialdental fricative", Category = PhonemeCategory.Fricative } },
-		{ 0x0279, new PhonemeDesc { Name = "r", Desc = "Red : voiced alveolar approximant", Category = PhonemeCategory.Approximant } },
-		{ 'r', new PhonemeDesc { Name = "r2", Desc = "Red : voiced alveolar trill", Category = PhonemeCategory.Trill } },
-		{ 0x027b, new PhonemeDesc { Name = "r3", Desc = "Red : voiced retroflex approximant", Category = PhonemeCategory.Approximant } },
-		{ 0x025a, new PhonemeDesc { Name = "er", Desc = "URn : rhotacized schwa", Category = PhonemeCategory.Vowel } },
-		{ 0x025d, new PhonemeDesc { Name = "er2", Desc = "URn : rhotacized lower-mid central vowel", Category = PhonemeCategory.Vowel } },
-		{ 0x00f0, new PhonemeDesc { Name = "dh", Desc = "THen : voiced dental fricative", Category = PhonemeCategory.Fricative } },
-		{ 0x03b8, new PhonemeDesc { Name = "th", Desc = "THin : voiceless dental fricative", Category = PhonemeCategory.Fricative } },
-		{ 0x0283, new PhonemeDesc { Name = "sh", Desc = "SHe : voiceless postalveolar fricative", Category = PhonemeCategory.Fricative } },
-		{ 0x02a4, new PhonemeDesc { Name = "jh", Desc = "Joy : voiced postalveolar afficate", Category = PhonemeCategory.Affricate } },
-		{ 0x02a7, new PhonemeDesc { Name = "ch", Desc = "CHin : voiceless postalveolar affricate", Category = PhonemeCategory.Affricate } },
-		{ 's', new PhonemeDesc { Name = "s", Desc = "Sit : voiceless alveolar fricative", Category = PhonemeCategory.Fricative } },
-		{ 'z', new PhonemeDesc { Name = "z", Desc = "Zap : voiced alveolar fricative", Category = PhonemeCategory.Fricative } },
-		{ 'd', new PhonemeDesc { Name = "d", Desc = "Dig : voiced bilabial stop", Category = PhonemeCategory.Stop_Plosive } },
-		{ 0x027e, new PhonemeDesc { Name = "d2", Desc = "Dig : voiced alveolar flap or tap", Category = PhonemeCategory.Tap_Flap } },
-		{ 'l', new PhonemeDesc { Name = "l", Desc = "Lid : voiced alveolar lateral approximant", Category = PhonemeCategory.Approximant } },
-		{ 0x026b, new PhonemeDesc { Name = "l2", Desc = "Lid : velarized voiced alveolar lateral approximant", Category = PhonemeCategory.Approximant } },
-		{ 'n', new PhonemeDesc { Name = "n", Desc = "No : voiced alveolar nasal", Category = PhonemeCategory.Nasal } },
-		{ 't', new PhonemeDesc { Name = "t", Desc = "Talk : voiceless bilabial stop", Category = PhonemeCategory.Stop_Plosive } },
-		{ 'o', new PhonemeDesc { Name = "ow", Desc = "gO : upper-mid back rounded vowel", Category = PhonemeCategory.Vowel } },
-		{ 'u', new PhonemeDesc { Name = "uw", Desc = "tOO : high back rounded vowel", Category = PhonemeCategory.Vowel } },
-		{ 'e', new PhonemeDesc { Name = "ey", Desc = "Ate : upper-mid front unrounded vowel", Category = PhonemeCategory.Vowel } },
-		{ 0x00e6, new PhonemeDesc { Name = "ae", Desc = "cAt : semi-low front unrounded vowel", Category = PhonemeCategory.Vowel } },
-		{ 0x0251, new PhonemeDesc { Name = "aa", Desc = "fAther : low back unrounded vowel", Category = PhonemeCategory.Vowel } },
-		{ 'a', new PhonemeDesc { Name = "aa2", Desc = "fAther : low front unrounded vowel", Category = PhonemeCategory.Vowel } },
-		{ 'i',  new PhonemeDesc { Name ="iy", Desc = "fEEl : high front unrounded vowel", Category = PhonemeCategory.Vowel } },
-		{ 'j', new PhonemeDesc { Name = "y", Desc = "Yacht : voiced palatal approximant", Category = PhonemeCategory.Approximant } },
-		{ 0x028c, new PhonemeDesc { Name = "ah", Desc = "cUt : lower-mid back unrounded vowel", Category = PhonemeCategory.Vowel } },
-		{ 0x0254, new PhonemeDesc { Name = "ao",  Desc = "dOg : lower-mid back rounded vowel", Category = PhonemeCategory.Vowel } },
-		{ 0x0259, new PhonemeDesc { Name = "ax", Desc = "Ago : mid-central unrounded vowel", Category = PhonemeCategory.Vowel } },
-		{ 0x025c, new PhonemeDesc { Name = "ax2", Desc = "Ago : lower-mid central unrounded vowel", Category = PhonemeCategory.Vowel } },
-		{ 0x025b, new PhonemeDesc { Name = "eh", Desc = "pEt : lower-mid front unrounded vowel", Category = PhonemeCategory.Vowel } },
-		{ 0x026a, new PhonemeDesc { Name = "ih", Desc = "fIll : semi-high front unrounded vowel", Category = PhonemeCategory.Vowel } },
-		{ 0x0268, new PhonemeDesc { Name = "ih2", Desc = "fIll : high central unrounded vowel", Category = PhonemeCategory.Vowel } },
-		{ 0x028a, new PhonemeDesc { Name =  "uh", Desc = "bOOk : semi-high back rounded vowel", Category = PhonemeCategory.Vowel} },
-		{ 'g', new PhonemeDesc { Name = "g", Desc = "taG : voiced velar stop", Category = PhonemeCategory.Stop_Plosive } },
-		{ 0x0261, new PhonemeDesc { Name = "g2", Desc = "taG : voiced velar stop", Category = PhonemeCategory.Stop_Plosive } },
-		{ 'h', new PhonemeDesc { Name = "hh", Desc = "Help : voiceless glottal fricative", Category = PhonemeCategory.Fricative } },
-		{ 0x0266, new PhonemeDesc { Name = "hh2", Desc = "Help : breathy-voiced glottal fricative", Category = PhonemeCategory.Fricative } },
-		{ 'k', new PhonemeDesc { Name = "c", Desc = "Cut : voiceless velar stop", Category = PhonemeCategory.Stop_Plosive } },
-		{ 0x014b, new PhonemeDesc { Name = "nx", Desc = "siNG : voiced velar nasal", Category = PhonemeCategory.Nasal } },
-		{ 0x0292, new PhonemeDesc { Name = "zh", Desc = "aZure : voiced postalveolar fricative", Category = PhonemeCategory.Fricative } }
-	};
 }

@@ -1,3 +1,7 @@
+$success: #4db649;
+$primary: #3273EB;
+$warning: #b72d4f;
+
 HtmlPanel
 {
     flex-direction: column;
@@ -17,12 +21,24 @@ HtmlPanel strong
 
 HtmlPanel h1
 {
-    font-size: 1.33rem;
+	font-size: 1.75rem;
+	font-weight: 700;
+	font-family: Poppins;
+	margin: 1rem 0;
+	flex-shrink: 0;
+	flex-direction: column;
+	color: white;
+}
+
+HtmlPanel h2
+{
+	font-size: 1.4rem;
     font-weight: 700;
     font-family: Poppins;
     margin: 1rem 0;
     flex-shrink: 0;
     flex-direction: column;
+	color: white;
 }
 
 HtmlPanel label
@@ -35,11 +51,17 @@ strong
     font-weight: bold;
 }
 
+del
+{
+	text-decoration: line-through;
+}
+
 spoiler
 {
     color: black;
     background-color: black;
     padding: 5px;
+	pointer-events: all;
 }
 
 spoiler:hover
@@ -110,4 +132,64 @@ HtmlPanel li .bullet
 {
     flex-shrink: 0;
     margin-right: 6px;
+}
+
+HtmlPanel success
+{
+	background-color: rgba( $success, 5% );
+	border-left: 5px solid $success;
+
+	&::before
+	{
+		font-family: "Material Icons";
+		content: "new_releases";
+		color: $success;
+	}
+}
+
+HtmlPanel info
+{
+	background-color: rgba( $primary, 5% );
+	border-left: 5px solid $primary;
+
+	&::before
+	{
+		font-family: "Material Icons";
+		content: "info";
+		color: $primary;
+	}
+}
+
+HtmlPanel warning
+{
+	background-color: rgba( $warning, 5% );
+	border-left: 5px solid $warning;
+
+	&::before
+	{
+		font-family: "Material Icons";
+		content: "gpp_maybe";
+		color: $warning;
+	}
+}
+
+HtmlPanel success, HtmlPanel info, HtmlPanel warning
+{
+	margin: 1rem 0;
+	padding: 1.25rem 1rem 1.25rem 64px;
+	min-height: 64px;
+	border-radius: 0px 8px 8px 0px;
+	position: relative;
+	color: white;
+	align-items: center;
+
+	&::before
+	{
+		position: absolute;
+		left: 16px;
+		top: 50%;
+		transform: translateY( -50% );
+		font-size: 28px;
+		line-height: 1;
+	}
 }

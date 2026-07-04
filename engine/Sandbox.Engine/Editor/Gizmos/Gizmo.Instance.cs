@@ -1,10 +1,22 @@
-﻿using Sandbox.Utility;
+﻿using System.IO.Hashing;
+using Sandbox.Utility;
+using System.Runtime.InteropServices;
 
 namespace Sandbox;
 
 public static partial class Gizmo
 {
 	internal static Instance Active { get; set; }
+
+	/// <summary>
+	/// Allocation-free pool key for a gizmo scene object. <see cref="Type"/> compares by reference.
+	/// </summary>
+	internal readonly record struct GizmoObjectKey( ulong PathHash, int Create, ulong KeyHash, Type Type, int Disambiguator = 0 );
+
+	/// <summary>
+	/// Deterministic, allocation-free hash of a char span. Not <see cref="string.GetHashCode()"/> (per-process random).
+	/// </summary>
+	internal static ulong HashString( ReadOnlySpan<char> span ) => XxHash3.HashToUInt64( MemoryMarshal.AsBytes( span ) );
 
 	/// <summary>
 	/// Holds the backend state for a Gizmo scope. This allows us to have multiple different gizmo
@@ -28,7 +40,14 @@ public static partial class Gizmo
 		/// The SceneWorld this instance is writing to. This world exists only for this instance.
 		/// You need to add this world to your camera for it to render (!)
 		/// </summary>
-		public SceneWorld World { get; init; }
+		SceneWorld _world;
+
+		/// <summary>
+		/// The world the gizmos are drawn into. Created on first use - every scene owns
+		/// a gizmo instance, but most never draw a gizmo, so don't pay for a native
+		/// world up front.
+		/// </summary>
+		public SceneWorld World => _world ??= new SceneWorld();
 
 		/// <summary>
 		/// Input state. Should be setup before push.
@@ -43,12 +62,12 @@ public static partial class Gizmo
 		/// <summary>
 		/// Last frame's objects that are available for reuse
 		/// </summary>
-		internal Dictionary<string, object> Pool { get; set; }
+		internal Dictionary<GizmoObjectKey, object> Pool { get; set; }
 
 		/// <summary>
 		/// This frame's created (or re-used) objects
 		/// </summary>
-		internal Dictionary<string, object> Entries { get; set; }
+		internal Dictionary<GizmoObjectKey, object> Entries { get; set; }
 
 		/// <summary>
 		/// This frame's created (or re-used) objects
@@ -139,8 +158,6 @@ public static partial class Gizmo
 
 		public Instance()
 		{
-			World = new SceneWorld();
-
 			Entries = new();
 			Pool = new();
 		}
@@ -150,7 +167,8 @@ public static partial class Gizmo
 		/// </summary>
 		public void Dispose()
 		{
-			World?.Delete();
+			_world?.Delete();
+			_world = null;
 			Pool?.Clear();
 			Entries.Clear();
 		}
@@ -241,7 +259,9 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 			}
 
 			Pool.Clear();
-			World.DeletePendingObjects();
+
+			// don't force the world to exist just to flush deletes
+			_world?.DeletePendingObjects();
 		}
 
 		void MouseUpdate()
@@ -309,15 +329,23 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 		internal T FindOrCreate<T>( string key, Func<T> value ) where T : SceneObject
 		{
 			Active.scope.Create++;
-			var path = $"{Sandbox.Gizmo.Path}#{Active.scope.Create}/{key}/{typeof( T )}";
+
+			var objectKey = new GizmoObjectKey(
+				HashString( Sandbox.Gizmo.Path ),
+				Active.scope.Create,
+				HashString( key ),
+				typeof( T ) );
+
+			// Disambiguate key collisions so the second object doesn't stomp (and leak) the first in Entries.
+			while ( Entries.ContainsKey( objectKey ) ) objectKey = objectKey with { Disambiguator = objectKey.Disambiguator + 1 };
 
 			//
 			// Do we have this in our pool (created last frame)
 			// If so, we can re-use it.
 			//
-			if ( Pool.TryGetValue( path, out var obj ) )
+			if ( Pool.TryGetValue( objectKey, out var obj ) )
 			{
-				Pool.Remove( path );
+				Pool.Remove( objectKey );
 			}
 
 			//
@@ -332,16 +360,7 @@ Selected: {(current.SelectedPath == null ? "" : string.Join( ", ", current.Selec
 			if ( obj == null )
 				return default;
 
-			//
-			// If this happens then something is going wrong. We're creating objects with the same path
-			// If we ignore it Entries values will get stomped and we'll leak objects. So create a unique value.
-			//
-			if ( Entries.ContainsKey( path ) )
-			{
-				path = $"{path}[{Guid.NewGuid()}]";
-			}
-
-			Entries[path] = obj;
+			Entries[objectKey] = obj;
 			return obj as T;
 		}
 

@@ -208,6 +208,110 @@ internal static partial class PackageManager
 			return files?.Any( f => f.Path.StartsWith( ".bin/", StringComparison.OrdinalIgnoreCase ) && f.Path.EndsWith( ".dll", StringComparison.OrdinalIgnoreCase ) ) ?? false;
 		}
 
+		internal bool HasCodeArchives()
+		{
+			return FileSystem.FindFile( "/", "*.cll", true ).Any();
+		}
+
+		/// <summary>
+		/// Fallback for remote packages that ship code archives (.cll) but no precompiled dlls.
+		/// Compiles the archives locally and mounts the resulting assemblies onto
+		/// <see cref="AssemblyFileSystem"/>, matching how <see cref="DownloadBinDllsAsync"/>
+		/// exposes manifest dlls, so the normal load path picks them up.
+		/// </summary>
+		internal async Task<bool> CompileCodeArchive()
+		{
+			// get all the code archives
+			var codeArchives = FileSystem.FindFile( "/", "*.cll", true ).ToArray();
+
+			// It's okay for packages not to have code archives, but return as a fail
+			if ( codeArchives.Length == 0 )
+				return false;
+
+			var analytic = new Api.Events.EventRecord( "package.compile" );
+			analytic.SetValue( "package", Package.FullIdent );
+			analytic.SetValue( "version", Package.Revision?.VersionId );
+			analytic.SetValue( "archives", codeArchives );
+
+			using var group = new CompileGroup( Package.Ident );
+			group.AccessControl = PackageManager.AccessControl;
+			group.ReferenceProvider = this;
+
+			using ( analytic.ScopeTimer( "LoadArchives" ) )
+			{
+				foreach ( var file in codeArchives )
+				{
+					var bytes = await FileSystem.ReadAllBytesAsync( file );
+					if ( bytes is null || bytes.Length <= 1 )
+						throw new System.Exception( "Couldn't load code archive - error opening" );
+					// Deserialize to a code archive
+					var archive = new CodeArchive( bytes );
+					// Create a compiler for it
+					var compiler = group.GetOrCreateCompiler( archive.CompilerName );
+					compiler.UpdateFromArchive( archive );
+					LoadingScreen.Subtitle = System.IO.Path.GetFileName( file );
+					await Task.Yield();
+				}
+			}
+
+			// Compile that bad boy
+			using ( analytic.ScopeTimer( "Compile" ) )
+			{
+				LoadingScreen.Subtitle = null;
+				await group.BuildAsync();
+				await Task.Yield();
+			}
+
+			if ( !group.BuildResult.Success )
+			{
+				// Add an analytic so we can track these failures on the backend
+				var er = new Api.Events.EventRecord( "package.compile.error" );
+				er.SetValue( "package", Package.FullIdent );
+				er.SetValue( "version", Package.Revision?.VersionId );
+				er.SetValue( "errors", group.BuildResult.BuildDiagnosticsString( Microsoft.CodeAnalysis.DiagnosticSeverity.Error ) );
+				er.Submit();
+
+				return false;
+			}
+
+			analytic.SetValue( "Diagnostics", group.BuildResult.Diagnostics
+												.Where( x => x.Severity > Microsoft.CodeAnalysis.DiagnosticSeverity.Warning )
+												.Select( x => new
+												{
+													x.Severity,
+													x.Location?.SourceTree?.FilePath,
+													x.Location?.GetLineSpan().StartLinePosition,
+													Message = x.GetMessage()
+												} )
+												.ToArray() );
+
+			// Should be successful
+			Assert.True( group.BuildResult.Success );
+
+			using ( analytic.ScopeTimer( "Write" ) )
+			{
+				var memFs = new MemoryFileSystem();
+				// Copy the compiled assemblies to the assembly filesystem, flat, so they load
+				// exactly like manifest-downloaded precompiled dlls.
+				foreach ( var assembly in group.BuildResult.Output )
+				{
+					Log.Trace( $"WRITE {assembly.Compiler.AssemblyName}.dll" );
+					memFs.WriteAllBytes( $"{assembly.Compiler.AssemblyName}.dll", assembly.AssemblyData );
+					LoadingScreen.Subtitle = assembly.Compiler.AssemblyName;
+					await Task.Yield();
+				}
+
+				AssemblyFileSystem ??= new AggregateFileSystem();
+				AssemblyFileSystem.Mount( memFs );
+			}
+
+			LoadingScreen.Subtitle = null;
+
+			analytic.Submit();
+
+			return true;
+		}
+
 		private void Mount( bool reloadResources = true )
 		{
 			MountedFileSystem.Mount( FileSystem );

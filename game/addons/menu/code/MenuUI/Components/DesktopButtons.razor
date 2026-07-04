@@ -7,10 +7,11 @@
 @namespace Sandbox.UI
 @inherits Panel
 
-<div class="stack">
-    <Button icon="@CurrentModelMode" onclick="@ToggleHuman"></Button>
-    <Button Icon="🛟" Tooltip="Show welcome screen" onclick="@ShowWelcome"></Button>
-</div>
+<Card class="stack">
+    <ChildContent>
+        <Button icon="@CurrentModelMode" onclick="@ToggleHuman"></Button>
+    </ChildContent>
+</Card>
 
 @code
 {
@@ -19,13 +20,6 @@
     string CurrentModelMode => !IsHuman ? "🌭" : "🙎🏼";
 
     protected override int BuildHash() => System.HashCode.Combine(IsHuman);
-
-    void ShowWelcome()
-    {
-        if ( MainMenu.Instance is null ) return;
-        var modal = new WelcomeScreenModal();
-        modal.Parent = MainMenu.Instance.Panel;
-    }
 
     async Task ToggleHuman()
     {

@@ -1,25 +1,23 @@
 @import "/styles/_theme.scss";
 
-DesktopButtons
+Home DesktopButtons
 {
-	width: 50%;
 	align-items: flex-end;
 	justify-content: flex-end;
-	height: 100%;
 	z-index: -10;
 
-	.stack
+	Card
 	{
+		flex-grow: 0;
+		width: auto;
+		border-radius: 100px;
+		padding: 0rem 0rem;
 		flex-direction: row;
-		align-items: flex-end;
-		gap: 10px;
-		padding: 6px;
+		overflow: visible;
 	}
 
 	Button
 	{
-		width: 72px;
-		height: 72px;
 		pointer-events: all;
 		cursor: pointer;
 		opacity: 0.4;

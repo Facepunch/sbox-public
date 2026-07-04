@@ -2,8 +2,8 @@ namespace DotRecast.Detour
 {
 	internal class DtFindNearestPolyQuery : IDtPolyQuery
 	{
-		private readonly DtNavMeshQuery _query;
-		private readonly Vector3 _center;
+		private DtNavMeshQuery _query;
+		private Vector3 _center;
 		private float _nearestDistanceSqr;
 		private long _nearestRef;
 		private Vector3 _nearestPoint;
@@ -11,10 +11,17 @@ namespace DotRecast.Detour
 
 		public DtFindNearestPolyQuery( DtNavMeshQuery query, Vector3 center )
 		{
+			Init( query, center );
+		}
+
+		public void Init( DtNavMeshQuery query, Vector3 center )
+		{
 			_query = query;
 			_center = center;
 			_nearestDistanceSqr = float.MaxValue;
+			_nearestRef = 0;
 			_nearestPoint = center;
+			_overPoly = false;
 		}
 
 		public void Process( DtMeshTile tile, Span<long> refs, int count )

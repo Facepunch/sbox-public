@@ -94,13 +94,13 @@ public partial class Terrain
 		_so.Flags.ExcludeGameLayer = RenderType == ShadowRenderType.ShadowsOnly;
 		_so.Flags.CastShadows = RenderType == ShadowRenderType.On || RenderType == ShadowRenderType.ShadowsOnly;
 
+		RestoreRenderAttributes( _so.Attributes );
+
 		// If we have no textures, push a grid texture (SUCKS)
 		_so.Attributes.SetCombo( "D_GRID", Storage?.Materials.Count == 0 );
 
 		_so.Attributes.Set( "Terrain", TerrainBuffer );
 		_so.Attributes.Set( "TerrainMaterials", MaterialsBuffer );
-
-		RestoreRenderAttributes( _so.Attributes );
 
 		// We want these accessible globally too, probably
 		Scene.RenderAttributes.Set( "Terrain", TerrainBuffer );

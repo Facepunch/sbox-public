@@ -14,9 +14,9 @@ public class ArgDelegate : Arg
 	public override string ManagedType => "IntPtr";
 	public override string NativeType => "void*";
 
-	public override string FromInterop( bool native, string code = null )
+	public override string FromInterop( Side side, string code = null )
 	{
-		return native ? $"FunctionPointerToDelegate<{DelegateName}>( {code ?? Name} )" : base.FromInterop( native, code );
+		return side == Side.Native ? $"FunctionPointerToDelegate<{DelegateName}>( {code ?? Name} )" : base.FromInterop( side, code );
 	}
 
 }

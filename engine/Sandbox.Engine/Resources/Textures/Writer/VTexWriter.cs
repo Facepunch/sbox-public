@@ -64,8 +64,43 @@ internal class VTexWriter
 		}
 	}
 
+	/// <summary>
+	/// PNG/JPEG disk formats store exactly one 2D image — the runtime decodes a single blob.
+	/// Enforce that invariant here so we can never write a header claiming mips or faces
+	/// that the streaming data doesn't contain (the engine would read out of bounds).
+	/// </summary>
+	void NormalizeCompressedDiskFormat()
+	{
+		bool isMultiImage = Header.Flags.HasFlag( VTEX_Flags_t.VTEX_FLAG_CUBE_TEXTURE )
+			|| Header.Flags.HasFlag( VTEX_Flags_t.VTEX_FLAG_VOLUME_TEXTURE )
+			|| Header.Flags.HasFlag( VTEX_Flags_t.VTEX_FLAG_TEXTURE_ARRAY );
+
+		// A PNG blob can only hold a single 2D image, store raw pixels instead
+		if ( Header.Format == VTEX_Format_t.VTEX_FORMAT_PNG_RGBA8888 && isMultiImage )
+		{
+			Header.Format = VTEX_Format_t.VTEX_FORMAT_RGBA8888;
+		}
+
+		if ( !IsCompressedOnDisk( Header.Format ) )
+			return;
+
+		Header.MipCount = 1;
+		Header.Flags |= VTEX_Flags_t.VTEX_FLAG_NO_LOD;
+		Layers.RemoveAll( x => x.Mip > 0 );
+	}
+
+	public static bool IsCompressedOnDisk( VTEX_Format_t format )
+	{
+		return format is VTEX_Format_t.VTEX_FORMAT_PNG_RGBA8888
+			or VTEX_Format_t.VTEX_FORMAT_PNG_DXT5
+			or VTEX_Format_t.VTEX_FORMAT_JPEG_RGBA8888
+			or VTEX_Format_t.VTEX_FORMAT_JPEG_DXT5;
+	}
+
 	public byte[] GetData()
 	{
+		NormalizeCompressedDiskFormat();
+
 		using var buffer = ByteStream.Create( 256 );
 		buffer.Write( Header );
 
@@ -77,6 +112,8 @@ internal class VTexWriter
 
 	public byte[] GetStreamingData()
 	{
+		NormalizeCompressedDiskFormat();
+
 		using var buffer = ByteStream.Create( 256 );
 
 		var outputFormat = VTexWriter.VTEX_FormatToRuntime( Header.Format );

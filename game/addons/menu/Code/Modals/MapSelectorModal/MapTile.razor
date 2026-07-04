@@ -1,0 +1,69 @@
+﻿@using Sandbox;
+@using System;
+@using Sandbox.UI
+@using Sandbox.Mounting
+
+@namespace MenuProject.Modals.MapSelect
+
+<root>
+	@if ( Thumbnail is not null )
+	{
+		<div class="image" style="background-image: url(@Thumbnail)">
+
+		@if (Package is not null)
+		{
+			<div class="overlay">
+				<row>
+					<icon>thumb_up</icon>
+					<label>@VotePercentage()</label>
+				</row>
+			</div>
+		}
+		</div>
+	}
+	else
+	{
+		<div class="image"><i>no_photography</i></div>
+	}
+	<label class="medium title">@Title</label>
+</root>
+
+@code
+{
+	[Parameter]
+	public string Title { get; set; }
+
+	[Parameter]
+	public string Thumbnail { get; set; }
+
+	[Parameter]
+	public Package Package { get; set; }
+
+	[Parameter]
+	public Action OnSelect { get; set; }
+
+	protected override void OnParametersSet()
+	{
+		base.OnParametersSet();
+
+		if ( Package is not null )
+		{
+			Title = Package.Title;
+			Thumbnail = Package.ThumbWide;
+		}
+	}
+
+	protected override void OnClick(MousePanelEvent e)
+	{
+		base.OnClick(e);
+		OnSelect?.Invoke();
+	}
+
+
+	string VotePercentage()
+	{
+		if (Package == null) return "Unrated";
+		if (Package.VotesUp == 0 && Package.VotesDown == 0) return "Unrated";
+		return $"{(int)(Package.VotesUp * 100f / (Package.VotesUp + Package.VotesDown))}%";
+	}
+}

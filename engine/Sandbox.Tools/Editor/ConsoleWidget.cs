@@ -61,7 +61,7 @@ internal class ConsoleWidget : Widget
 	/// </summary>
 	void ClearDiagnosticLogs()
 	{
-		Output.SetEvents( Events.Where( x => !x.IsDiagnostic ) );
+		Output.SetEvents( Events.Where( x => !x.IsDiagnostic && ShouldShowEvent( x ) ) );
 	}
 
 	void PopulateDiagnostics()

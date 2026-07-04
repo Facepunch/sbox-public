@@ -81,9 +81,9 @@ public partial class SoundEvent : GameResource
 	public bool AirAbsorption { get; set; } = true;
 
 	/// <summary>
-	/// Allow this sound to be transmitted through geometry
+	/// Legacy transmission toggle. Transmission is now derived from occlusion and material response.
 	/// </summary>
-	[HideIf( nameof( UI ), true )]
+	[JsonInclude, Hide, Obsolete( "Transmission is derived from occlusion and material response." )]
 	public bool Transmission { get; set; } = true;
 
 	/// <summary>

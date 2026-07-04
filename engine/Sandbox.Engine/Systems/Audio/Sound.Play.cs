@@ -44,7 +44,6 @@ public static unsafe partial class Sound
 			handle.ListenLocal = true;
 			handle.DistanceAttenuation = false;
 			handle.AirAbsorption = false;
-			handle.Transmission = false;
 			handle.OcclusionEnabled = false;
 			handle.ReverbEnabled = false;
 			if ( handle.TargetMixer is null )
@@ -56,7 +55,6 @@ public static unsafe partial class Sound
 		{
 			handle.DistanceAttenuation = soundEvent.DistanceAttenuation;
 			handle.AirAbsorption = soundEvent.AirAbsorption;
-			handle.Transmission = soundEvent.Transmission;
 			handle.OcclusionEnabled = soundEvent.OcclusionEnabled;
 			handle.ReverbEnabled = soundEvent.ReverbEnabled;
 		}

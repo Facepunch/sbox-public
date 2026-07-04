@@ -20,7 +20,7 @@
             *@
 
             <Button Tooltip="Find Games" Href="/games/dash" Icon="diamond">Discover</Button>
-            <Button Href="/games/all" Icon="sports_esports">Games</Button>
+            <Button Href="/games" Icon="sports_esports">Games</Button>
             <Button Href="/maps/all" Icon="map">#menu.maps</Button>
             <Button Href="/multiplayer" Icon="view_list">#menu.multiplayer</Button>
         </div>
@@ -35,11 +35,12 @@
 
             <separator class="vertical" />
 
-            <NotificationButton />
+            <NotificationButton Tooltip="Notifications" />
             <Button Tooltip="Favourited Games" Href="/games/group?Query=type:game sort:favourite&title=Favourite Games&Icon=💖" icon="favorite"></Button>
-            <Button @onmouseup=@Settings Icon="settings"></Button>
+			<Sandbox.UI.Mounts.MountButton Tooltip="Mounted Games" />
+			<Button @onmouseup=@Settings Tooltip="Settings" Icon="settings"/>
 
-            <Button onmouseup="@Quit" class="close" Icon="power_settings_new"></Button>
+			<Button onmouseup="@Quit" class="close" Tooltip="Quit" Icon="power_settings_new" />
         </div>
 
     </div>

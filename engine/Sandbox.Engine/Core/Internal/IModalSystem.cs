@@ -13,6 +13,7 @@ public interface IModalSystem
 	public void Review( Package package );
 	public void Report( string packageIdent );
 	public void PackageSelect( string query, Action<Package> onPackageSelected, Action<string> onFilterChanged = null );
+	public void MapSelect( Action<string> onMapSelected, string selected = null );
 	public void FriendsList( in FriendsListModalOptions options );
 	public void Server( Sandbox.Network.LobbyInformation lobby );
 	public void ServerList( in ServerListConfig config );
@@ -29,6 +30,11 @@ public interface IModalSystem
 	/// The menu that is shown when escape is pressed while playing.
 	/// </summary>
 	public void PauseMenu();
+
+	/// <summary>
+	/// Shows the benchmark results panel after a local benchmark run completes.
+	/// </summary>
+	public void BenchmarkResults( Guid batchId, IReadOnlyList<BenchmarkTestSummary> summaries );
 
 	public bool IsModalOpen { get; }
 	public bool IsPauseMenuOpen { get; }
@@ -88,7 +94,13 @@ public struct CreateGameResults
 
 	public Dictionary<string, string> GameSettings { get; set; } = new();
 
-	public string MapIdent { get; set; }
+	[Obsolete( "Use Map instead" )]
+	public string MapIdent => Map;
+
+	/// <summary>
+	/// The user selected map. This can be an ident of a package, or path to a mount scene.
+	/// </summary>
+	public string Map { get; set; }
 
 	public int MaxPlayers { get; set; }
 
@@ -189,4 +201,19 @@ public struct WorkshopPublishOptions
 
 		Categories[name] = prop;
 	}
+}
+
+/// <summary>
+/// Display-ready summary of a single benchmark test, passed to IModalSystem.BenchmarkResults.
+/// </summary>
+public struct BenchmarkTestSummary
+{
+	public string Name { get; set; }
+	public double AvgFps { get; set; }
+	public double AvgFrameTimeMs { get; set; }
+	/// <summary>P99 frame time — time exceeded by 1% of frames.</summary>
+	public double OnePercentLowMs { get; set; }
+	public double AvgGpuFrametimeMs { get; set; }
+	public double Stuttering { get; set; }
+	public double DurationSeconds { get; set; }
 }

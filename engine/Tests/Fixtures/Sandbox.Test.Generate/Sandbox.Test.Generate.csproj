@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- Dev utility: regenerates the checked-in .razor.cs files next to .razor test data. Run from the folder containing the .razor files. Not a test suite. -->
+
+	<PropertyGroup>
+		<IsTestProject>false</IsTestProject>
+		<NoWarn>$(NoWarn);NETSDK1138</NoWarn>
+		<OutputType>Exe</OutputType>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\..\Sandbox.Generator\Sandbox.Generator.csproj" />
+		<ProjectReference Include="..\..\..\Sandbox.Razor\Sandbox.Razor.csproj" />
+	</ItemGroup>
+
+</Project>

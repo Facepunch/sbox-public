@@ -11,7 +11,7 @@ native accessor g_pPhysicsSystem as NativeEngine.g_pPhysicsSystem
 
 	IPhysSurfacePropertyController GetSurfacePropertyController();
 
-	bool CastHeightField( cref out Vector3 vOut, Vector3 vRayStart, Vector3 vRayDelta, CastTo[uint16_t*] void* Heights, int SizeX, int SizeY, float SizeScale, float HeightScale );
+	bool CastHeightField( cref out Vector3 vOut, cref out Vector3 vNormalOut, cref out float flFraction, Vector3 vRayStart, Vector3 vRayDelta, CastTo[uint16_t*] void* Heights, int SizeX, int SizeY, float SizeScale, float HeightScale );
 
 	inline CPhysicsData GetAggregateData( string resourceName )
 	{

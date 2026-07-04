@@ -30,6 +30,28 @@ internal unsafe static partial class Interop
 	const int maxNativeString = 1024 * 1024 * 64; // a 64mb string sounds sensible!
 
 	/// <summary>
+	/// Throw helpers for the generated bindings. Keeping the throw (and its message formatting) out
+	/// of the generated methods keeps their bodies tiny, so they inline well and JIT fast.
+	/// </summary>
+	[System.Diagnostics.CodeAnalysis.DoesNotReturn]
+	public static void ThrowNullSelf( string className, string methodName )
+	{
+		throw new System.NullReferenceException( $"{className} was null when calling {methodName}" );
+	}
+
+	[System.Diagnostics.CodeAnalysis.DoesNotReturn]
+	public static void ThrowNull( string className )
+	{
+		throw new System.NullReferenceException( $"{className} was null" );
+	}
+
+	[System.Diagnostics.CodeAnalysis.DoesNotReturn]
+	public static void ThrowNullFunctionPointer()
+	{
+		throw new System.Exception( "Function Pointer Is Null" );
+	}
+
+	/// <summary>
 	/// Convert a native utf pointer to a string
 	/// </summary>
 	public static string GetString( IntPtr pointer )
@@ -91,27 +113,72 @@ internal unsafe static partial class Interop
 	public unsafe ref struct InteropString
 	{
 		public IntPtr Pointer;
+		private bool heap;
 
 		public InteropString( string str )
 		{
 			if ( str is null )
 				return;
 
-			uint nb = (uint)Encoding.UTF8.GetByteCount( str );
-			byte* mem = (byte*)NativeMemory.Alloc( nb + 1 );
+			AllocateOnHeap( str, Encoding.UTF8.GetByteCount( str ) );
+		}
+
+		/// <summary>
+		/// Marshal using a caller-provided buffer - the generated bindings pass a stackalloc, so
+		/// typical strings never touch the heap allocator. Falls back to the heap when the encoded
+		/// string doesn't fit. The buffer must outlive this struct.
+		/// </summary>
+		public InteropString( string str, Span<byte> buffer )
+		{
+			if ( str is null )
+				return;
+
+			// UTF8 is at most 3 bytes per char, so this guarantees a fit without counting first
+			if ( str.Length * 3 + 1 <= buffer.Length )
+			{
+				UseBuffer( str, buffer );
+				return;
+			}
+
+			int byteCount = Encoding.UTF8.GetByteCount( str );
+			if ( byteCount < buffer.Length )
+			{
+				UseBuffer( str, buffer );
+				return;
+			}
+
+			AllocateOnHeap( str, byteCount );
+		}
+
+		private void UseBuffer( string str, Span<byte> buffer )
+		{
+			int nb = Encoding.UTF8.GetBytes( str, buffer );
+			buffer[nb] = 0;
+			Pointer = (IntPtr)Unsafe.AsPointer( ref MemoryMarshal.GetReference( buffer ) );
+		}
+
+		private void AllocateOnHeap( string str, int byteCount )
+		{
+			byte* mem = (byte*)NativeMemory.Alloc( (uint)byteCount + 1 );
 
 			fixed ( char* src = str )
 			{
-				Encoding.UTF8.GetBytes( src, str.Length, mem, (int)nb );
+				Encoding.UTF8.GetBytes( src, str.Length, mem, byteCount );
 			}
 
-			mem[nb] = 0;
+			mem[byteCount] = 0;
 			Pointer = (IntPtr)mem;
+			heap = true;
 		}
 
 		public void Free()
 		{
-			NativeMemory.Free( (void*)Pointer );
+			if ( heap )
+			{
+				NativeMemory.Free( (void*)Pointer );
+				heap = false;
+			}
+
 			Pointer = default;
 		}
 	}

@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 using static Sandbox.Internal.GlobalGameNamespace;
@@ -185,7 +184,15 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 			.FirstOrDefault( CanMakeTrackFromMember );
 	}
 
-	public string GetCategoryName( ITrackTarget parent, string name ) => "Members";
+	public DisplayInfo GetDisplayInfo( ITrackTarget parent, string name )
+	{
+		if ( GetMember( parent, name ) is { } member )
+		{
+			return new DisplayInfo( member.Title, Category: member.Group ?? member.DeclaringType.Title, Description: member.Description, Icon: member.Icon );
+		}
+
+		return new DisplayInfo( name.ToTitleCase(), Category: "Members" );
+	}
 
 	public Type? GetTargetType( ITrackTarget parent, string name )
 	{
@@ -205,8 +212,8 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 	}
 
 	// TODO: Because Type.IsPrimitive isn't allowed
-	private static HashSet<Type> PrimitiveTypes { get; } = new()
-	{
+	private static HashSet<Type> PrimitiveTypes { get; } =
+	[
 		typeof( bool ),
 		typeof( byte ),
 		typeof( sbyte ),
@@ -220,16 +227,21 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 		typeof( ulong ),
 		typeof( short ),
 		typeof( ushort )
-	};
+	];
 
-	private static HashSet<Type> SystemTypes { get; } = new()
-	{
+	private static HashSet<Type> SystemTypes { get; } =
+	[
 		typeof( string ),
 		typeof( GameObject )
-	};
+	];
 
-	private static HashSet<Type> MathPrimitiveTypes { get; } = new()
-	{
+	private static HashSet<Type> IgnoredTypes { get; } =
+	[
+		typeof( AnimationGraph )
+	];
+
+	private static HashSet<Type> MathPrimitiveTypes { get; } =
+	[
 		typeof( Color ),
 		typeof( Color32 ),
 		typeof( ColorHsv ),
@@ -247,13 +259,23 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 		typeof( ParticleVector3 ),
 		typeof( Transform ),
 		typeof( TextRendering.Scope )
-	};
+	];
 
-	private static HashSet<Type> AccessorTypes { get; } = new()
-	{
+	private static HashSet<Type> AccessorTypes { get; } =
+	[
 		typeof( SkinnedModelRenderer.MorphAccessor ),
 		typeof( SkinnedModelRenderer.ParameterAccessor ),
 		typeof( SkinnedModelRenderer.SequenceAccessor )
+	];
+
+	private static Dictionary<Type, HashSet<string>> AllowedComponentProperties { get; } = new()
+	{
+		{
+			typeof( Component ),
+			[
+				nameof( Component.Enabled )
+			]
+		}
 	};
 
 	private static bool CanMakeTrackFromProperties( Type type )
@@ -294,6 +316,11 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 		if ( member.TypeDescription.TargetType.IsAssignableTo( typeof( Component ) ) )
 		{
 			// if ( !member.HasAttribute( typeof(PropertyAttribute) ) ) return false;
+
+			if ( AllowedComponentProperties.TryGetValue( member.DeclaringType.TargetType, out var allowList ) )
+			{
+				return allowList.Contains( member.Name );
+			}
 		}
 
 		if ( !canWrite )
@@ -302,15 +329,14 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 			// because we can modify its properties
 
 			if ( valueType.IsValueType ) return false;
+			if ( valueType == typeof( string ) ) return false;
 
 			// Filtering out scene object stuff to avoid the list getting cluttered
 
 			// TODO: should we support this kind of indirection?
 
-			if ( valueType == typeof( GameObject ) ) return false;
+			if ( valueType.IsAssignableTo( typeof( GameObject ) ) ) return false;
 			if ( valueType.IsAssignableTo( typeof( Component ) ) ) return false;
-
-			return true;
 		}
 
 		return IsValidPropertyType( valueType );
@@ -321,6 +347,7 @@ file sealed class MemberPropertyFactory : ITrackPropertyFactory
 		if ( PrimitiveTypes.Contains( type ) ) return true;
 		if ( MathPrimitiveTypes.Contains( type ) ) return true;
 		if ( SystemTypes.Contains( type ) ) return true;
+		if ( IgnoredTypes.Contains( type ) ) return false;
 
 		if ( type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof( List<> ) )
 		{

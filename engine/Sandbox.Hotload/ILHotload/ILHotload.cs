@@ -378,6 +378,8 @@ public partial class ILHotload : IDisposable
 			return false;
 		}
 
+		log.Trace( $"TryReplaceMethod({source.ToSimpleString()}, source: {source.DeclaringType?.Assembly.GetName().Version}, replace: {replace.DeclaringType?.Assembly.GetName().Version})" );
+
 		var sourceAssembly = source.Module.Assembly;
 
 		if ( !ActiveDetours.TryGetValue( sourceAssembly, out var asmDetours ) )
@@ -397,6 +399,7 @@ public partial class ILHotload : IDisposable
 				// We're currently working on this detour
 				//
 
+				log.Trace( $"  in progress" );
 				return true;
 			}
 
@@ -406,6 +409,7 @@ public partial class ILHotload : IDisposable
 				// Exactly this detour is already in place
 				//
 
+				log.Trace( $"  already detoured" );
 				return true;
 			}
 
@@ -463,8 +467,9 @@ public partial class ILHotload : IDisposable
 
 			asmDetours[source] = detour;
 		}
-		catch ( NotSupportedException )
+		catch ( NotSupportedException e )
 		{
+			log.Trace( e );
 			asmDetours.Remove( source );
 			return false;
 		}
@@ -475,6 +480,7 @@ public partial class ILHotload : IDisposable
 			return false;
 		}
 
+		log.Trace( $"  success" );
 		return true;
 	}
 

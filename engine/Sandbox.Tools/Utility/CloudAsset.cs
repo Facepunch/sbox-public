@@ -51,24 +51,13 @@ public class CloudAsset
 
 
 	/// <summary>
-	/// Install multiple packages, skipping what's already installed. Does progress window.
+	/// Some projects were saved with multiple references to different versions of the same
+	/// package. Collapse the references down to one ident per package so we only try to
+	/// install each once - an unpinned reference is upgraded by a version-pinned one, and
+	/// conflicting pins resolve to the newest version. Unparseable idents are dropped.
 	/// </summary>
-	public static async Task<bool> Install( string windowTitle, IEnumerable<string> packages )
+	internal static string[] DeduplicateReferences( IEnumerable<string> packages )
 	{
-		if ( packages.Count() == 0 ) return true;
-
-		if ( Backend.Package is null )
-		{
-			Log.Warning( $"Unable to install cloud assets, backend not available." );
-			return false;
-		}
-
-		using var progress = Application.Editor.ProgressSection();
-		progress.Title = windowTitle;
-		var cancel = progress.GetCancel();
-
-		// Sol: for whatever reason some projects were being saved with multiple refs to different version of the same package?
-		// make sure we're only trying one ref of any package (prefer the newest, version-pinned one) otherwise stuff gets confusing
 		Dictionary<string, int?> versions = new();
 		foreach ( var ident in packages )
 		{
@@ -97,14 +86,27 @@ public class CloudAsset
 			}
 		}
 
-		IEnumerable<string> idents = versions.Select( x =>
-		{
-			var packageIdent = x.Key;
-			if ( x.Value.HasValue ) packageIdent += $"#{x.Value}";
-			return packageIdent;
-		} );
+		return versions.Select( x => x.Value.HasValue ? $"{x.Key}#{x.Value}" : x.Key ).ToArray();
+	}
 
-		var undownloaded = idents.Where( x => !IsInstalled( x ) ).ToArray();
+	/// <summary>
+	/// Install multiple packages, skipping what's already installed. Does progress window.
+	/// </summary>
+	public static async Task<bool> Install( string windowTitle, IEnumerable<string> packages )
+	{
+		if ( packages.Count() == 0 ) return true;
+
+		if ( Backend.Package is null )
+		{
+			Log.Warning( $"Unable to install cloud assets, backend not available." );
+			return false;
+		}
+
+		using var progress = Application.Editor.ProgressSection();
+		progress.Title = windowTitle;
+		var cancel = progress.GetCancel();
+
+		var undownloaded = DeduplicateReferences( packages ).Where( x => !IsInstalled( x ) ).ToArray();
 
 		int total = undownloaded.Count();
 		int i = 0;
@@ -141,44 +143,7 @@ public class CloudAsset
 			return false;
 		}
 
-		// Sol: for whatever reason some projects were being saved with multiple refs to different version of the same package?
-		// make sure we're only trying one ref of any package (prefer the newest, version-pinned one) otherwise stuff gets confusing
-		Dictionary<string, int?> versions = new();
-		foreach ( var ident in packages )
-		{
-			if ( !Package.TryParseIdent( ident, out var parts ) )
-				continue;
-
-			string fullIdent = Package.FormatIdent( parts.org, parts.package );
-			var newVer = parts.version;
-
-			if ( !versions.TryGetValue( fullIdent, out var existingVer ) || existingVer == null )
-			{
-				versions[fullIdent] = newVer;
-				continue;
-			}
-
-			if ( newVer == null )
-				continue;
-
-			if ( existingVer != newVer )
-			{
-				// version conflict! choose newest
-				var bestVer = Math.Max( newVer.Value, existingVer.Value );
-				Log.Info( $"Found duplicate reference '{ident}' with conflicting versions (using: {bestVer})" );
-
-				versions[fullIdent] = bestVer;
-			}
-		}
-
-		IEnumerable<string> idents = versions.Select( x =>
-		{
-			var packageIdent = x.Key;
-			if ( x.Value.HasValue ) packageIdent += $"#{x.Value}";
-			return packageIdent;
-		} );
-
-		var undownloaded = idents.Where( x => !IsInstalled( x ) ).ToArray();
+		var undownloaded = DeduplicateReferences( packages ).Where( x => !IsInstalled( x ) ).ToArray();
 
 		int total = undownloaded.Count();
 		if ( total == 0 ) return true;
@@ -281,8 +246,34 @@ public class CloudAsset
 	/// </summary>
 	public static HashSet<string> GetAssetReferences( bool currentProjectOnly )
 	{
+		return new HashSet<string>( GetAssetReferenceSources( currentProjectOnly ).Keys, StringComparer.OrdinalIgnoreCase );
+	}
+
+	/// <summary>
+	/// Gets all referenced cloud assets and all local assets that reference them
+	/// </summary>
+	public static Dictionary<string, List<Asset>> GetAssetReferenceSources( bool currentProjectOnly )
+	{
 		string projectPath = Project.Current.GetAssetsPath().Replace( '\\', '/' );
-		var packages = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		var references = new Dictionary<string, List<Asset>>( StringComparer.OrdinalIgnoreCase );
+		var seen = new Dictionary<string, HashSet<Asset>>( StringComparer.OrdinalIgnoreCase );
+
+		void AddReference( string packageIdent, Asset asset )
+		{
+			if ( string.IsNullOrWhiteSpace( packageIdent ) )
+				return;
+
+			if ( !references.TryGetValue( packageIdent, out var sources ) )
+			{
+				sources = new List<Asset>();
+				references[packageIdent] = sources;
+				seen[packageIdent] = new HashSet<Asset>();
+			}
+
+			// A single asset can list the same package more than once, prevent duplicates
+			if ( seen[packageIdent].Add( asset ) )
+				sources.Add( asset );
+		}
 
 		HashSet<string> validAssetPaths = null;
 		if ( currentProjectOnly )
@@ -313,14 +304,12 @@ public class CloudAsset
 				if ( string.IsNullOrWhiteSpace( json ) ) continue;
 
 				if ( JsonNode.Parse( json ) is not JsonObject jso ) continue;
-				if ( jso["__references"] is not JsonArray references ) continue;
-				if ( references.Count == 0 ) continue;
+				if ( jso["__references"] is not JsonArray refs ) continue;
+				if ( refs.Count == 0 ) continue;
 
-				foreach ( var jsonNode in references )
+				foreach ( var jsonNode in refs )
 				{
-					string packageIdent = jsonNode.ToString();
-					//Log.Info( $"{packageIdent} ({r.AbsolutePath})");
-					packages.Add( packageIdent );
+					AddReference( jsonNode.ToString(), r );
 				}
 			}
 			catch ( JsonException e )
@@ -344,8 +333,7 @@ public class CloudAsset
 			{
 				foreach ( var packageIdent in config.EditorReferences )
 				{
-					//Log.Info( $"{packageIdent} ({m.AbsolutePath})" );
-					packages.Add( packageIdent );
+					AddReference( packageIdent, r );
 				}
 			}
 
@@ -353,12 +341,11 @@ public class CloudAsset
 			{
 				foreach ( var packageIdent in config.DistinctPackageReferences )
 				{
-					//Log.Info( $"{packageIdent} ({m.AbsolutePath})" );
-					packages.Add( packageIdent );
+					AddReference( packageIdent, r );
 				}
 			}
 		}
 
-		return packages;
+		return references;
 	}
 }

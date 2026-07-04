@@ -1,7 +1,33 @@
-﻿namespace Editor.MeshEditor;
+using HalfEdgeMesh;
 
-public abstract class SelectionTool : EditorTool
+namespace Editor.MeshEditor;
+
+public abstract class SelectionTool( MeshTool tool ) : EditorTool
 {
+	public MeshTool Tool { get; } = tool;
+
+	protected TextureLockTransform _transformKind = TextureLockTransform.Move;
+
+	protected enum TextureLockTransform
+	{
+		Move,
+		Rotate,
+		Scale,
+	}
+	protected virtual bool LockTextureOnMove => Tool.TextureLock;
+	protected bool ShouldLockTexture()
+	{
+		if ( Tool is null )
+			return false;
+
+		return _transformKind switch
+		{
+			TextureLockTransform.Scale => Tool.TextureLockScale,
+			TextureLockTransform.Rotate => Tool.TextureLock,
+			_ => LockTextureOnMove,
+		};
+	}
+
 	public virtual void SetMoveMode( MoveMode mode ) { }
 
 	public Vector3 Pivot { get; set; }
@@ -86,6 +112,14 @@ public abstract class SelectionTool : EditorTool
 	{
 	}
 
+	public virtual void AlignDown( bool useLocalDown )
+	{
+	}
+
+	public virtual void AlignToClosestNormal()
+	{
+	}
+
 	public override Widget CreateShortcutsWidget() => new SelectionToolShortcutsWidget( this );
 
 	/// <summary>
@@ -161,17 +195,26 @@ file class SelectionToolShortcutsWidget( SelectionTool tool ) : Widget
 
 	[Shortcut( "mesh.selection-nudge-right", "RIGHT", typeof( SceneViewWidget ) )]
 	public void NudgeRight() => tool.Nudge( Vector2.Right );
+
+	[Shortcut( "mesh.align-down-local", "CTRL+KP_1", typeof( SceneViewWidget ) )]
+	public void AlignDownLocal() => tool.AlignDown( useLocalDown: true );
+
+	[Shortcut( "mesh.align-down-world", "CTRL+KP_2", typeof( SceneViewWidget ) )]
+	public void AlignDownWorld() => tool.AlignDown( useLocalDown: false );
+
+	[Shortcut( "mesh.align-to-closest-normal", "CTRL+KP_3", typeof( SceneViewWidget ) )]
+	public void AlignToClosestNormal() => tool.AlignToClosestNormal();
 }
 
-public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T : IMeshElement
+public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) where T : IMeshElement
 {
-	protected MeshTool Tool { get; private init; } = tool;
-
 	protected override Type PreviousSelectionKey => typeof( T );
 	readonly HashSet<MeshVertex> _vertexSelection = [];
 	readonly Dictionary<MeshVertex, Vector3> _transformVertices = [];
 	List<MeshFace> _transformFaces;
 	IDisposable _undoScope;
+
+	protected override bool LockTextureOnMove => Tool.TextureLockComponent;
 
 	protected virtual bool HasMoveMode => true;
 
@@ -194,6 +237,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 
 	public override void Translate( Vector3 delta )
 	{
+		_transformKind = TextureLockTransform.Move;
+
 		foreach ( var entry in _transformVertices )
 		{
 			var position = entry.Value + delta;
@@ -204,6 +249,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 
 	public override void Rotate( Vector3 origin, Rotation basis, Rotation delta )
 	{
+		_transformKind = TextureLockTransform.Rotate;
+
 		foreach ( var entry in _transformVertices )
 		{
 			var rotation = basis * delta * basis.Inverse;
@@ -218,6 +265,8 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 
 	public override void Scale( Vector3 origin, Rotation basis, Vector3 scale )
 	{
+		_transformKind = TextureLockTransform.Scale;
+
 		foreach ( var entry in _transformVertices )
 		{
 			var position = (entry.Value - origin) * basis.Inverse;
@@ -230,8 +279,15 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 		}
 	}
 
+	public override void Resize( Vector3 origin, Rotation basis, Vector3 scale )
+	{
+		Scale( origin, basis, scale );
+	}
+
 	public override void Shear( Vector3 origin, Rotation basis, Vector3 shearAxis, Vector3 constraintAxis, float amount )
 	{
+		_transformKind = TextureLockTransform.Move;
+
 		foreach ( var entry in _transformVertices )
 		{
 			var position = (entry.Value - origin) * basis.Inverse;
@@ -256,8 +312,9 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 		Selection.OnItemAdded += OnMeshSelectionChanged;
 		Selection.OnItemRemoved += OnMeshSelectionChanged;
 
-		SceneEditorSession.Active.UndoSystem.OnUndo += ( _ ) => OnMeshSelectionChanged();
-		SceneEditorSession.Active.UndoSystem.OnRedo += ( _ ) => OnMeshSelectionChanged();
+		var undo = SceneEditorSession.Active.UndoSystem;
+		undo.OnUndo += OnUndoRedo;
+		undo.OnRedo += OnUndoRedo;
 
 		RestorePreviousSelection<T>();
 		SelectElements();
@@ -267,7 +324,19 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 
 	public override void OnDisabled()
 	{
+		Selection.OnItemAdded -= OnMeshSelectionChanged;
+		Selection.OnItemRemoved -= OnMeshSelectionChanged;
+
+		var undo = SceneEditorSession.Active.UndoSystem;
+		undo.OnUndo -= OnUndoRedo;
+		undo.OnRedo -= OnUndoRedo;
+
 		SaveCurrentSelection<T>();
+	}
+
+	void OnUndoRedo( object _ )
+	{
+		OnMeshSelectionChanged();
 	}
 
 	public bool IsAllowedToSelect => Tool?.MoveMode?.AllowSceneSelection ?? true;
@@ -283,10 +352,105 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 			var sel = menu.AddMenu( "Selection", "select_all" );
 			AddMenuOption( sel, "Grow Selection (+)", "add", "mesh.grow-selection", true );
 			AddMenuOption( sel, "Shrink Selection (-)", "remove", "mesh.shrink-selection", true );
+
+			menu.AddSeparator();
+
+			var transforms = menu.AddMenu( "Transforms", "open_with" );
+			AddMenuOption( transforms, "Align Down Local", "vertical_align_bottom", "mesh.align-down-local", true );
+			AddMenuOption( transforms, "Align Down World", "vertical_align_bottom", "mesh.align-down-world", true );
+			AddMenuOption( transforms, "Align To Closest Normal", "swap_vert", "mesh.align-to-closest-normal", true );
 		}
 
 		menu.AddSeparator();
 		menu.AddOption( "Lift Material", "colorize", () => LiftMaterialFromContextTrace( trace ), "mesh.lift-material" );
+	}
+
+	[Shortcut( "mesh.align-down-local", "CTRL+KP_1", typeof( SceneViewWidget ) )]
+	private void AlignDownLocal()
+	{
+		AlignDown( useLocalDown: true );
+	}
+
+	[Shortcut( "mesh.align-down-world", "CTRL+KP_2", typeof( SceneViewWidget ) )]
+	private void AlignDownWorld()
+	{
+		AlignDown( useLocalDown: false );
+	}
+
+	[Shortcut( "mesh.align-to-closest-normal", "CTRL+KP_3", typeof( SceneViewWidget ) )]
+	public override void AlignToClosestNormal()
+	{
+		if ( !_vertexSelection.Any() )
+			return;
+
+		var components = _vertexSelection
+			.Select( x => x.Component )
+			.Distinct();
+
+		using var scope = SceneEditorSession.Scope();
+		using var undoScope = SceneEditorSession.Active.UndoScope( "Align To Closest Normal" )
+			.WithComponentChanges( components )
+			.Push();
+
+		foreach ( var vertex in _vertexSelection )
+		{
+			var transform = vertex.Transform;
+			var worldPos = vertex.PositionWorld;
+			var direction = transform.Rotation.Down;
+
+			var trace = Scene.Trace
+				.Ray( worldPos, worldPos + direction * 10000 )
+				.WithoutTags( "trigger" )
+				.UseRenderMeshes( true )
+				.UsePhysicsWorld( false )
+				.Run();
+
+			if ( !trace.Hit )
+				continue;
+
+			vertex.Component.Mesh.SetVertexPosition( vertex.Handle, transform.PointToLocal( trace.HitPosition ) );
+		}
+
+		Pivot = CalculateSelectionOrigin();
+	}
+
+	public override void AlignDown( bool useLocalDown )
+	{
+		if ( !_vertexSelection.Any() )
+			return;
+
+		var components = _vertexSelection
+			.Select( x => x.Component )
+			.Distinct();
+
+		using var scope = SceneEditorSession.Scope();
+		using var undoScope = SceneEditorSession.Active.UndoScope( "Align Down" )
+			.WithComponentChanges( components )
+			.Push();
+
+		foreach ( var vertex in _vertexSelection )
+		{
+			var transform = vertex.Transform;
+			var worldPos = vertex.PositionWorld;
+
+			var direction = useLocalDown
+				? transform.Rotation.Down
+				: Vector3.Down;
+
+			var trace = Scene.Trace
+				.Ray( worldPos, worldPos + direction * 10000 )
+				.WithoutTags( "trigger" )
+				.UseRenderMeshes( true )
+				.UsePhysicsWorld( false )
+				.Run();
+
+			if ( !trace.Hit )
+				continue;
+
+			vertex.Component.Mesh.SetVertexPosition( vertex.Handle, transform.PointToLocal( trace.HitPosition ) );
+		}
+
+		Pivot = CalculateSelectionOrigin();
 	}
 
 	public override void OnUpdate()
@@ -753,27 +917,53 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 
 	protected override void OnUpdateDrag()
 	{
+		var sideFaces = new Dictionary<MeshComponent, HashSet<FaceHandle>>();
 		if ( _transformFaces is not null )
 		{
 			foreach ( var group in _transformFaces.GroupBy( x => x.Component ) )
 			{
 				var mesh = group.Key.Mesh;
-				var faces = group.Select( x => x.Handle ).ToArray();
+				var handles = new HashSet<FaceHandle>();
 
-				foreach ( var face in faces )
+				foreach ( var face in group )
 				{
-					mesh.TextureAlignToGrid( mesh.Transform, face );
+					mesh.TextureAlignToGrid( mesh.Transform, face.Handle );
+					handles.Add( face.Handle );
 				}
+
+				sideFaces[group.Key] = handles;
 			}
 		}
 
-		var meshes = _transformVertices
-			.Select( x => x.Key.Component.Mesh )
-			.Distinct();
-
-		foreach ( var mesh in meshes )
+		if ( !ShouldLockTexture() )
 		{
-			mesh.ComputeFaceTextureCoordinatesFromParameters();
+			foreach ( var mesh in _transformVertices.Select( x => x.Key.Component.Mesh ).Distinct() )
+			{
+				mesh.ComputeFaceTextureCoordinatesFromParameters();
+			}
+
+			return;
+		}
+
+		foreach ( var group in _transformVertices.Keys.GroupBy( x => x.Component ) )
+		{
+			var mesh = group.Key.Mesh;
+			var faces = new HashSet<FaceHandle>();
+
+			foreach ( var vertex in group )
+			{
+				if ( mesh.GetFacesConnectedToVertex( vertex.Handle, out var connected ) )
+				{
+					foreach ( var face in connected )
+						faces.Add( face );
+				}
+			}
+
+			if ( sideFaces.TryGetValue( group.Key, out var excluded ) )
+				faces.ExceptWith( excluded );
+
+			if ( faces.Count > 0 )
+				mesh.ComputeFaceTextureParametersFromCoordinates( faces );
 		}
 	}
 
@@ -781,6 +971,7 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool where T 
 	{
 		_transformVertices.Clear();
 		_transformFaces = null;
+		_transformKind = TextureLockTransform.Move;
 
 		_undoScope?.Dispose();
 		_undoScope = null;

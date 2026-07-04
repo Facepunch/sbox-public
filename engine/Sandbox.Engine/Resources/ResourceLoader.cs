@@ -26,7 +26,7 @@ internal static class ResourceLoader
 		}
 	}
 
-	internal static void LoadAllGameResource( BaseFileSystem fileSystem, bool reloadExisting = false )
+	internal static void LoadAllGameResource( BaseFileSystem fileSystem, bool reloadExisting = false, Package sourcePackage = null )
 	{
 		var sw = Stopwatch.StartNew();
 		var types = Game.TypeLibrary.GetAttributes<AssetTypeAttribute>().DistinctBy( x => x.Extension )
@@ -56,7 +56,7 @@ internal static class ResourceLoader
 
 			try
 			{
-				var se = Game.Resources.LoadGameResource( type, file, fileSystem, true );
+				var se = Game.Resources.LoadGameResource( type, file, fileSystem, true, sourcePackage );
 				if ( se != null ) allResources.Add( se );
 			}
 			catch ( Exception ex )
@@ -84,7 +84,7 @@ internal static class ResourceLoader
 		// like editing an asset while the gamemode is running would?
 	}
 
-	internal static async Task LoadAllGameResourceAsync( BaseFileSystem fileSystem, CancellationToken ct = default, bool reloadExisting = false )
+	internal static async Task LoadAllGameResourceAsync( BaseFileSystem fileSystem, CancellationToken ct = default, bool reloadExisting = false, Package sourcePackage = null )
 	{
 		var sw = Stopwatch.StartNew();
 		var types = Game.TypeLibrary.GetAttributes<AssetTypeAttribute>().DistinctBy( x => x.Extension )
@@ -118,7 +118,7 @@ internal static class ResourceLoader
 
 			try
 			{
-				var se = Game.Resources.LoadGameResource( type, file, fileSystem, true );
+				var se = Game.Resources.LoadGameResource( type, file, fileSystem, true, sourcePackage );
 				if ( se != null ) allResources.Add( se );
 			}
 			catch ( Exception ex )

@@ -139,20 +139,29 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 			if ( Storage != null )
 				Gizmo.Draw.LineBBox( new BBox( Vector3.Zero, new Vector3( Storage.TerrainSize, Storage.TerrainSize, Storage.TerrainHeight ) ) );
 		}
-
-		// Oh this is so bad
-		if ( RayIntersects( Gizmo.CurrentRay, Gizmo.RayDepth, out var hitPosition ) )
-		{
-			Gizmo.Hitbox.TrySetHovered( hitPosition );
-		}
 	}
 
 	/// <summary>
 	/// Given a world ray, finds out the LOCAL position it intersects with this terrain.
 	/// </summary>
-	public unsafe bool RayIntersects( Ray ray, float distance, out Vector3 position )
+	public bool RayIntersects( Ray ray, float distance, out Vector3 position )
+	{
+		return RayIntersects( ray, distance, out position, out _, out _ );
+	}
+
+	/// <summary>
+	/// Given a world ray, finds out the LOCAL position it intersects with this terrain.
+	/// </summary>
+	public bool RayIntersects( Ray ray, float distance, out Vector3 position, out Vector3 normal )
+	{
+		return RayIntersects( ray, distance, out position, out normal, out _ );
+	}
+
+	internal unsafe bool RayIntersects( Ray ray, float distance, out Vector3 position, out Vector3 normal, out float fraction )
 	{
 		position = default;
+		normal = WorldTransform.Rotation.Up;
+		fraction = 1f;
 
 		if ( Storage is null )
 			return false;
@@ -187,6 +196,8 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 		{
 			if ( g_pPhysicsSystem.CastHeightField(
 				out position,
+				out normal,
+				out fraction,
 				ray.Position,
 				ray.ProjectSafe( distance ),
 				(IntPtr)heights,
@@ -196,6 +207,7 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 				heightScale ) )
 			{
 				position = offset.PointToWorld( position );
+				normal = offset.NormalToWorld( normal );
 
 				return true;
 			}

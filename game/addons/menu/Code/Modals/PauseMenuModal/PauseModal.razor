@@ -54,7 +54,8 @@
                 }
 
                 <Button class="circle" Tooltip="Reconfigure Controls" Icon="gamepad" @onclick="@(() => Game.Overlay.ShowBinds())"></Button>
-                <Button class="circle" Tooltip="Open Settings" Icon="settings" @onclick="@(() => Game.Overlay.ShowSettingsModal())"></Button>
+				<Sandbox.UI.Mounts.MountButton class="circle" Tooltip="Mounted Games" PositionMode=@Popup.PositionMode.AboveCenter />
+				<Button class="circle" Tooltip="Open Settings" Icon="settings" @onclick="@(() => Game.Overlay.ShowSettingsModal())"></Button>
 
                 @if ( (game?.Info.IsStreamerGame ?? false) )
                 {
@@ -94,9 +95,9 @@
         if ( Networking.IsActive && !Networking.IsHost )
             return;
 
-        if ( !string.IsNullOrEmpty( x.MapIdent ) )
+        if ( !string.IsNullOrEmpty( x.Map ) )
         {
-            LaunchArguments.Map = x.MapIdent;
+			LaunchArguments.Map = x.Map;
         }
 
         Game.Load( Game.Ident, true );

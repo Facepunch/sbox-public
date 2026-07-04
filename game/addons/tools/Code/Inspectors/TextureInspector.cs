@@ -114,18 +114,20 @@ public class TextureInspector : Widget, IAssetInspector
 
 		Asset = asset;
 
-		if ( asset.IsProcedural )
+		if ( !asset.HasSourceFile || asset.IsProcedural )
 		{
-			var texture = asset.LoadResource<Texture>();
+			ReadOnly = true;
+			Asset.HasUnsavedChanges = false;
 
+			Layout.Add( new WarningBox( "This asset has no source file. It is either a built-in asset or was created procedurally." ) );
+
+			var texture = asset.LoadResource<Texture>();
 			var cs = new ControlSheet();
 			cs.AddProperty( texture, x => x.Width );
 			cs.AddProperty( texture, x => x.Height );
 			cs.AddProperty( texture, x => x.Depth );
 			cs.AddProperty( texture, x => x.ImageFormat );
-
 			Layout.Add( cs );
-			Asset.HasUnsavedChanges = false;
 			return;
 		}
 
@@ -137,7 +139,6 @@ public class TextureInspector : Widget, IAssetInspector
 
 			File = Json.Deserialize<TextureFile>( json );
 			FileData = json;
-
 			Asset.HasUnsavedChanges = false;
 
 			if ( File.Images is not null )
@@ -166,6 +167,10 @@ public class TextureInspector : Widget, IAssetInspector
 
 	public void SetInspector( AssetInspector inspector )
 	{
+		inspector.ReadOnly = ReadOnly;
+		if ( ReadOnly )
+			return;
+
 		inspector.BindSaveToUnsavedChanges();
 		inspector.OnSave += Save;
 		inspector.OnReset += Restore;
@@ -173,9 +178,7 @@ public class TextureInspector : Widget, IAssetInspector
 
 	private void OnDirty()
 	{
-		if ( Asset is null )
-			return;
-		if ( File is null )
+		if ( Asset is null || ReadOnly )
 			return;
 		var json = Json.Serialize( File );
 		if ( string.IsNullOrEmpty( json ) )
@@ -188,9 +191,7 @@ public class TextureInspector : Widget, IAssetInspector
 
 	private void Save()
 	{
-		if ( Asset is null )
-			return;
-		if ( File is null )
+		if ( Asset is null || ReadOnly )
 			return;
 		var json = Json.Serialize( File );
 		if ( string.IsNullOrEmpty( json ) )
@@ -202,7 +203,7 @@ public class TextureInspector : Widget, IAssetInspector
 
 	private void Restore()
 	{
-		if ( string.IsNullOrWhiteSpace( FileData ) )
+		if ( string.IsNullOrWhiteSpace( FileData ) || ReadOnly )
 			return;
 		System.IO.File.WriteAllText( Asset.AbsolutePath, FileData );
 		Asset.HasUnsavedChanges = false;

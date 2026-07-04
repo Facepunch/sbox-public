@@ -11,18 +11,30 @@ internal class NavMeshTile : IDisposable
 {
 	public Vector2Int TilePosition;
 
+	// Payload ([uncompressedLen:4][lz4]); a tile-owned buffer grown to a high-water mark and reused in
+	// place for live tiles (so per-frame regeneration stays alloc-free), or the exact array when baked.
 	private byte[] _compressedHeightField;
+	private int _compressedHeightFieldLength;
+	private bool _compressedHeightFieldOwned;
 
 	private HashSet<NavMeshSpatialAuxiliaryData> _spatialData = new();
 
-	public bool IsHeightFieldValid => _compressedHeightField != null;
+	public bool IsHeightFieldValid => _compressedHeightFieldLength > 0;
 
 	/// <summary>
 	/// True if the cached heightfield originates from baked data rather than live geometry.
 	/// </summary>
 	public bool IsBakedHeightField { get; private set; }
 
-	public byte[] CompressedHeightField => _compressedHeightField;
+	// Honour the length, not the array size: the buffer may be grown past the current payload.
+	public ReadOnlySpan<byte> CompressedHeightField => _compressedHeightField is null ? default : _compressedHeightField.AsSpan( 0, _compressedHeightFieldLength );
+
+	private void ClearCompressedHeightField()
+	{
+		_compressedHeightField = null;
+		_compressedHeightFieldLength = 0;
+		_compressedHeightFieldOwned = false;
+	}
 
 	public void HeightfieldBuildComplete()
 	{
@@ -46,7 +58,7 @@ internal class NavMeshTile : IDisposable
 
 	public void Dispose()
 	{
-		_compressedHeightField = null;
+		ClearCompressedHeightField();
 	}
 
 	public bool IsNavmeshBuildRequested { get; private set; } = false;
@@ -78,20 +90,20 @@ internal class NavMeshTile : IDisposable
 	{
 		if ( chf == null )
 		{
-			_compressedHeightField = null;
+			ClearCompressedHeightField();
 			return;
 		}
 
-		// Atomic swap: compress first, then assign in one step to avoid
-		// a window where concurrent readers see null
-		var compressed = Compress( chf );
-		_compressedHeightField = compressed;
+		// Safe to reuse the buffer in place: the cache state machine never overlaps a write with a read for the same tile.
+		Compress( chf );
 		IsBakedHeightField = false;
 	}
 
 	internal void SetCompressedHeightField( byte[] compressedData )
 	{
 		_compressedHeightField = compressedData;
+		_compressedHeightFieldLength = compressedData?.Length ?? 0;
+		_compressedHeightFieldOwned = false;
 		IsBakedHeightField = true;
 	}
 
@@ -328,35 +340,48 @@ internal class NavMeshTile : IDisposable
 		}
 	}
 
-	private byte[] Compress( CompactHeightfield chf )
+	private void Compress( CompactHeightfield chf )
 	{
 		using var tileStream = ByteStream.Create( MaxTileByteSize );
 		tileStream.Write( chf );
 
 		var data = tileStream.ToSpan();
 
-		var compressed = LZ4.CompressBlock( data, System.IO.Compression.CompressionLevel.Fastest );
-		var payload = new byte[sizeof( int ) + compressed.Length];
-		BinaryPrimitives.WriteInt32LittleEndian( payload.AsSpan( 0, sizeof( int ) ), data.Length );
-		compressed.CopyTo( payload.AsSpan( sizeof( int ) ) );
-		return payload;
+		using var compressed = new PooledSpan<byte>( LZ4.MaxCompressedSize( data.Length ) );
+		var compressedLength = LZ4.CompressBlock( data, compressed.Span, System.IO.Compression.CompressionLevel.Fastest );
+
+		var payloadLength = sizeof( int ) + compressedLength;
+
+		// Grow the tile-owned buffer only when the payload no longer fits; otherwise reuse it in place.
+		if ( !_compressedHeightFieldOwned || _compressedHeightField == null || _compressedHeightField.Length < payloadLength )
+		{
+			_compressedHeightField = GC.AllocateUninitializedArray<byte>( payloadLength );
+			_compressedHeightFieldOwned = true;
+		}
+
+		BinaryPrimitives.WriteInt32LittleEndian( _compressedHeightField.AsSpan( 0, sizeof( int ) ), data.Length );
+		compressed.Span.Slice( 0, compressedLength ).CopyTo( _compressedHeightField.AsSpan( sizeof( int ) ) );
+
+		// Publish length last so a reader never sees a torn payload.
+		_compressedHeightFieldLength = payloadLength;
 	}
 
 	public CompactHeightfield DecompressCachedHeightField()
 	{
-		if ( _compressedHeightField == null )
+		if ( _compressedHeightFieldLength == 0 )
 		{
 			return null;
 		}
 
-		var expectedLength = BinaryPrimitives.ReadInt32LittleEndian( _compressedHeightField.AsSpan().Slice( 0, sizeof( int ) ) );
+		var payload = _compressedHeightField.AsSpan( 0, _compressedHeightFieldLength );
+		var expectedLength = BinaryPrimitives.ReadInt32LittleEndian( payload.Slice( 0, sizeof( int ) ) );
 
 		if ( expectedLength == 0 )
 		{
 			return null;
 		}
 
-		var compressedBuffer = _compressedHeightField.AsSpan().Slice( sizeof( int ) );
+		var compressedBuffer = payload.Slice( sizeof( int ) );
 		using var decompressedBuffer = new PooledSpan<byte>( expectedLength );
 
 		LZ4.DecompressBlock( compressedBuffer, decompressedBuffer.Span );

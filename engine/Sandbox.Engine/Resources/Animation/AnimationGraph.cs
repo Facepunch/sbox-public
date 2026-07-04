@@ -23,7 +23,7 @@ public sealed partial class AnimationGraph : Resource
 	/// <summary>
 	/// Whether the animation graph is invalid, or has not yet loaded.
 	/// </summary>
-	public bool IsError => native.IsNull || !native.IsStrongHandleValid();
+	public override bool IsError => native.IsNull || !native.IsStrongHandleValid();
 
 	/// <summary>
 	/// Animation graph file name.

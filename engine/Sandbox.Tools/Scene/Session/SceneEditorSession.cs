@@ -212,7 +212,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		if ( !SceneDock.IsValid() )
 			return;
 
-		var name = Scene.Name.ToTitleCase().Trim();
+		var name = Scene.Name.Trim();
 		if ( Scene.Editor?.HasUnsavedChanges ?? false ) name += "*";
 
 		EditorWindow?.UpdateEditorTitle( name );

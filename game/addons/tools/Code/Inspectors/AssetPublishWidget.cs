@@ -119,6 +119,8 @@ sealed class AssetPublishWidget : Widget, AssetSystem.IEventListener
 		settings.OnClick = () => ProjectSettingsWindow.OpenForProject( addon );
 
 		var package = await Package.FetchAsync( addon.Config.FullIdent, false );
+		if ( !Layout.IsValid() ) return;
+
 		if ( package is not null )
 		{
 			var view = Layout.Add( new IconButton( "launch" ) );

@@ -42,6 +42,8 @@ PackageCard
 		padding: 8px 2px; // Optically aligned
 	}
 
+	
+
 	&.list
 	{
 		flex-grow: 1;
@@ -139,7 +141,6 @@ PackageCard
 		text-overflow: ellipsis;
 		max-height: 24px;
 		flex-shrink: 1;
-		max-width: 150px;
 		font-size: 14px;
 	}
 
@@ -201,4 +202,15 @@ PackageCard
 			background-color: $default-900;
 		}
 	}
+}
+
+
+.package-card.list packageflairbar
+{
+	display: none;
+}
+
+.package-card.list .package-users
+{
+	display: none;
 }

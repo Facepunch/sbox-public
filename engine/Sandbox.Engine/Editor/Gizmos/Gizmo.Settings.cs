@@ -6,6 +6,11 @@ public static partial class Gizmo
 {
 	public static SceneSettings Settings => Active?.Settings;
 
+	/// <summary>
+	/// Bumped when gizmo type enable/disable settings change, so cached handles know to rebuild.
+	/// </summary>
+	internal static int GizmoTypeGeneration { get; private set; }
+
 	[Expose]
 	public enum GridAxis
 	{
@@ -113,6 +118,7 @@ public static partial class Gizmo
 			if ( type is null ) return;
 
 			DisabledGizmos[type.FullName] = !enabled;
+			GizmoTypeGeneration++;
 		}
 
 		/// <summary>
@@ -121,6 +127,7 @@ public static partial class Gizmo
 		public void ClearEnabledGizmos()
 		{
 			DisabledGizmos.Clear();
+			GizmoTypeGeneration++;
 		}
 	}
 }

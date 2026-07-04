@@ -487,11 +487,15 @@ public static class EditorScene
 
 		var serialized = selection.Select( x =>
 		{
+			using var blobs = BlobDataSerializer.Capture();
+
 			var s = x.Serialize( options );
 			// When we copy we keep the world transform.
 			s["Position"] = JsonValue.Create( x.WorldPosition );
 			s["Rotation"] = JsonValue.Create( x.WorldRotation );
 			s["Scale"] = JsonValue.Create( x.WorldScale );
+
+			blobs.SaveTo( s );
 			return s;
 		} );
 
@@ -588,6 +592,8 @@ public static class EditorScene
 							var go = SceneEditorSession.Active.Scene.CreateObject();
 							// avoids some warnings
 							SceneUtility.MakeIdGuidsUnique( jso );
+
+							using var blobs = BlobDataSerializer.LoadFrom( jso );
 							go.Deserialize( jso );
 
 							if ( target.IsValid() )

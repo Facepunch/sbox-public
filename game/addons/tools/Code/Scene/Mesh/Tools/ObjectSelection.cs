@@ -1,4 +1,6 @@
 ﻿
+using HalfEdgeMesh;
+
 namespace Editor.MeshEditor;
 
 /// <summary>
@@ -8,16 +10,18 @@ namespace Editor.MeshEditor;
 [Icon( "layers" )]
 [Alias( "tools.object-selection" )]
 [Group( "5" )]
-public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
+public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool( tool )
 {
-	public MeshTool Tool { get; private init; } = tool;
-
 	readonly Dictionary<GameObject, Transform> _startPoints = [];
 	readonly Dictionary<MeshVertex, Vector3> _transformVertices = [];
 	IDisposable _undoScope;
 
 	MeshComponent[] _meshes = [];
 	GameObject[] _objects = [];
+
+	readonly Dictionary<MeshComponent, FaceTextureParameters[]> _startFaceParameters = [];
+
+	readonly record struct FaceTextureParameters( FaceHandle Face, Vector4 AxisU, Vector4 AxisV, Vector2 Scale );
 
 	public override void BuildSceneContextMenu( Menu menu, Ray ray, SceneTraceResult? trace )
 	{
@@ -47,6 +51,10 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 			AddMenuOption( transform, "Set Origin To Pivot", "gps_fixed", "mesh.set-origin-to-pivot", true );
 			AddMenuOption( transform, "Center Origin", "center_focus_strong", "mesh.center-origin", true );
 			AddMenuOption( transform, "Align To View", "visibility", "gameObject.align-to-view", true );
+			transform.AddSeparator();
+			AddMenuOption( transform, "Align Down Local", "vertical_align_bottom", "mesh.align-down-local", true );
+			AddMenuOption( transform, "Align Down World", "vertical_align_bottom", "mesh.align-down-world", true );
+			AddMenuOption( transform, "Align To Closest Normal", "swap_vert", "mesh.align-to-closest-normal", true );
 		}
 
 		if ( hasObjects )
@@ -87,6 +95,8 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 			_startPoints[go] = go.WorldTransform;
 		}
 
+		_startFaceParameters.Clear();
+
 		foreach ( var mesh in _meshes )
 		{
 			foreach ( var vertex in mesh.Mesh.VertexHandles )
@@ -94,12 +104,24 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 				var v = new MeshVertex( mesh, vertex );
 				_transformVertices[v] = mesh.WorldTransform.PointToWorld( mesh.Mesh.GetVertexPosition( vertex ) );
 			}
+
+			var parameters = new List<FaceTextureParameters>();
+
+			foreach ( var face in mesh.Mesh.FaceHandles )
+			{
+				mesh.Mesh.GetFaceTextureParameters( face, out var axisU, out var axisV, out var scale );
+				parameters.Add( new FaceTextureParameters( face, axisU, axisV, scale ) );
+			}
+
+			_startFaceParameters[mesh] = parameters.ToArray();
 		}
 	}
 
 	protected override void OnEndDrag()
 	{
 		_startPoints.Clear();
+		_startFaceParameters.Clear();
+		_transformKind = TextureLockTransform.Move;
 
 		_undoScope?.Dispose();
 		_undoScope = null;
@@ -107,6 +129,8 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 
 	public override void Translate( Vector3 delta )
 	{
+		_transformKind = TextureLockTransform.Move;
+
 		foreach ( var entry in _startPoints )
 		{
 			entry.Key.WorldPosition = entry.Value.Position + delta;
@@ -115,6 +139,8 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 
 	public override void Rotate( Vector3 origin, Rotation basis, Rotation delta )
 	{
+		_transformKind = TextureLockTransform.Rotate;
+
 		foreach ( var entry in _startPoints )
 		{
 			var rot = basis * delta * basis.Inverse;
@@ -129,6 +155,8 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 
 	public override void Scale( Vector3 origin, Rotation basis, Vector3 deltaScale )
 	{
+		_transformKind = TextureLockTransform.Scale;
+
 		foreach ( var entry in _startPoints )
 		{
 			var position = entry.Value.Position - origin;
@@ -149,6 +177,8 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 
 	public override void Resize( Vector3 origin, Rotation basis, Vector3 scale )
 	{
+		_transformKind = TextureLockTransform.Scale;
+
 		var invBasis = basis.Inverse;
 
 		foreach ( var entry in _startPoints )
@@ -181,9 +211,30 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 		{
 			if ( start.Key.GetComponent<MeshComponent>() is not { } mc || !mc.IsValid() ) continue;
 
-			mc.Mesh.ComputeFaceTextureCoordinatesFromParameters();
 			mc.WorldTransform = mc.Mesh.Transform;
 			mc.RebuildMesh();
+		}
+	}
+
+	protected override void OnUpdateDrag()
+	{
+		if ( ShouldLockTexture() )
+			return;
+
+		foreach ( var (mesh, parameters) in _startFaceParameters )
+		{
+			if ( !mesh.IsValid() )
+				continue;
+
+			foreach ( var p in parameters )
+			{
+				if ( !p.Face.IsValid )
+					continue;
+
+				mesh.Mesh.SetFaceTextureParameters( p.Face, p.AxisU, p.AxisV, p.Scale );
+			}
+
+			mesh.RebuildMesh();
 		}
 	}
 
@@ -534,5 +585,18 @@ public sealed partial class ObjectSelection( MeshTool tool ) : SelectionTool
 		Pivot = box.Center;
 
 		Tool?.MoveMode?.OnBegin( this );
+	}
+
+	public override void AlignDown( bool useLocalDown )
+	{
+		if ( useLocalDown )
+			SceneEditorMenus.AlignToGroundLocal();
+		else
+			SceneEditorMenus.AlignToGround();
+	}
+
+	public override void AlignToClosestNormal()
+	{
+		SceneEditorMenus.AlignToClosestNormal();
 	}
 }

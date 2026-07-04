@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		Unit tests: no native engine, no FACEPUNCH_ENGINE, runs anywhere dotnet runs - keep it that way.
+		Tests that need the native DLLs loaded belong in Sandbox.Test.Engine instead.
+		Includes the compiler toolchain tests (Compiling/, Hotload/) - those share state so they're
+		[DoNotParallelize]; everything else runs method-level parallel (see Assembly.cs).
+	-->
+
+	<ItemGroup>
+		<Compile Remove="Data\**\*.cs" />
+		<None Include="Data\**\*.*" CopyToOutputDirectory="Always" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="OxyPlot.Core" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Common" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeRefactoring.Testing" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Sandbox.Bind\Sandbox.Bind.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Compiling\Sandbox.Compiling.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Engine\Sandbox.Engine.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Event\Sandbox.Event.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Filesystem\Sandbox.Filesystem.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Hotload\Sandbox.Hotload.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Reflection\Sandbox.Reflection.csproj" />
+		<ProjectReference Include="..\..\Sandbox.System\Sandbox.System.csproj" />
+		<ProjectReference Include="..\..\Sandbox.Tools\Sandbox.Tools.csproj" />
+		<ProjectReference Include="..\Fixtures\HotloadTestAssembly\Sandbox.Test.AfterHotload.csproj">
+			<Aliases>After</Aliases>
+		</ProjectReference>
+		<ProjectReference Include="..\Fixtures\HotloadTestAssembly\Sandbox.Test.BeforeHotload.csproj">
+			<Aliases>Before</Aliases>
+		</ProjectReference>
+	</ItemGroup>
+
+</Project>
