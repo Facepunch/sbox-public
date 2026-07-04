@@ -25,6 +25,18 @@ public partial class Particle : IDynamicFloatContext
 	public Vector3 SequenceTime;
 	public int Frame;
 
+	/// <summary>
+	/// The rotation the particle was given when it was emitted. Over-lifetime rotation is applied
+	/// on top of this so the initial rotation isn't lost each frame.
+	/// </summary>
+	public Angles StartAngles;
+
+	/// <summary>
+	/// The scale the particle was given when it was emitted. Over-lifetime scale is multiplied
+	/// on top of this so the initial scale isn't lost each frame.
+	/// </summary>
+	public float StartScale;
+
 	int RandomSeed;
 	internal bool hasUpdated;
 
@@ -107,6 +119,7 @@ public partial class Particle : IDynamicFloatContext
 		p.BornTime = Time.Now;
 		p.Age = 0;
 		p.Angles = Angles.Zero;
+		p.StartAngles = Angles.Zero;
 		p.Frame = 0;
 		p.Velocity = 0;
 		p.Color = Color.White;
@@ -115,6 +128,7 @@ public partial class Particle : IDynamicFloatContext
 		p.Sequence = 0;
 		p.SequenceTime = 0;
 		p.Size = 5;
+		p.StartScale = 1;
 		p.HitTime = -1000;
 		p.LastHitTime = -1000;
 		p.TimeScale = 1;

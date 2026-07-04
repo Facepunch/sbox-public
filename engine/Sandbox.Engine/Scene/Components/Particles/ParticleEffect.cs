@@ -114,22 +114,46 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	public bool ApplyRotation { get; set; } = false;
 
 	/// <summary>
-	/// The pitch rotation of the particles.
+	/// The initial pitch rotation given to each particle when it is emitted.
 	/// </summary>
-	[Property, Feature( "Rotation" )]
+	[Title( "Pitch" )]
+	[Property, Feature( "Rotation" ), Header( "Initial" )]
 	public ParticleFloat Pitch { get; set; } = 0.0f;
 
 	/// <summary>
-	/// The yaw rotation of the particles.
+	/// The initial yaw rotation given to each particle when it is emitted.
 	/// </summary>
+	[Title( "Yaw" )]
 	[Property, Feature( "Rotation" )]
 	public ParticleFloat Yaw { get; set; } = 0.0f;
 
 	/// <summary>
-	/// The roll rotation of the particles.
+	/// The initial roll rotation given to each particle when it is emitted.
 	/// </summary>
+	[Title( "Roll" )]
 	[Property, Feature( "Rotation" )]
 	public ParticleFloat Roll { get; set; } = 0.0f;
+
+	/// <summary>
+	/// The pitch rotation applied over the particle's lifetime, added on top of the initial pitch.
+	/// </summary>
+	[Title( "Pitch" )]
+	[Property, Feature( "Rotation" ), Header( "Over Lifetime" )]
+	public ParticleFloat PitchOverLifetime { get; set; } = 0.0f;
+
+	/// <summary>
+	/// The yaw rotation applied over the particle's lifetime, added on top of the initial yaw.
+	/// </summary>
+	[Title( "Yaw" )]
+	[Property, Feature( "Rotation" )]
+	public ParticleFloat YawOverLifetime { get; set; } = 0.0f;
+
+	/// <summary>
+	/// The roll rotation applied over the particle's lifetime, added on top of the initial roll.
+	/// </summary>
+	[Title( "Roll" )]
+	[Property, Feature( "Rotation" )]
+	public ParticleFloat RollOverLifetime { get; set; } = 0.0f;
 
 	/// <summary>
 	/// Enables or disables color application for particles.
@@ -174,15 +198,23 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	public bool ApplyShape { get; set; } = false;
 
 	/// <summary>
-	/// The scale of particles.
+	/// The initial scale given to each particle when it is emitted.
 	/// </summary>
-	[Property, Feature( "Shape" )]
+	[Title( "Scale" )]
+	[Property, Feature( "Shape" ), Header( "Initial" )]
 	public ParticleFloat Scale { get; set; } = 1.0f;
+
+	/// <summary>
+	/// The scale applied over the particle's lifetime, multiplied on top of the initial scale.
+	/// </summary>
+	[Title( "Scale" )]
+	[Property, Feature( "Shape" ), Header( "Over Lifetime" )]
+	public ParticleFloat ScaleOverLifetime { get; set; } = 1.0f;
 
 	/// <summary>
 	/// The stretch factor of particles, affecting their aspect ratio.
 	/// </summary>
-	[Property, Feature( "Shape" )]
+	[Property, Feature( "Shape" ), Header( "Stretch" )]
 	public ParticleFloat Stretch { get; set; } = 0.0f;
 
 	/// <summary>
@@ -302,6 +334,16 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 	/// </summary>
 	[Property, Feature( "SheetSequence" ), Title( "Snap To Frame" )]
 	public bool SnapToFrame { get; set; } = false;
+
+	/// <summary>
+	/// When enabled, the sequence speed is scaled by the particle's lifetime so the animation
+	/// advances the same total amount regardless of how long the particle lives. With a
+	/// <see cref="SequenceSpeed"/> of 1 a non-looping sheet sequence will finish playing exactly as
+	/// the particle dies, which lets you randomize the particle's lifetime (and speed) without the
+	/// animation being cut off partway through.
+	/// </summary>
+	[Property, Feature( "SheetSequence" ), Title( "Fit To Lifetime" )]
+	public bool SequenceFitToLifetime { get; set; } = false;
 
 	/// <summary>
 	/// Enables or disables the use of prefabs for particles.
@@ -635,7 +677,9 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 		if ( ApplyShape )
 		{
-			p.Size = Scale.Evaluate( p, 6211 );
+			// Start from the scale the particle was emitted with, then multiply the over-lifetime scale
+			// on top so the initial scale isn't overwritten each frame.
+			p.Size = p.StartScale * ScaleOverLifetime.Evaluate( p, 6212 );
 
 			var aspect = Stretch.Evaluate( p, 62415 );
 			if ( aspect < 0 )
@@ -650,15 +694,30 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 		if ( ApplyRotation )
 		{
-			p.Angles.pitch = Pitch.Evaluate( p, 2363 );
-			p.Angles.yaw = Yaw.Evaluate( p, 8762 );
-			p.Angles.roll = Roll.Evaluate( p, 3675 );
+			// Start from the rotation the particle was emitted with, then add the over-lifetime rotation
+			// on top so the initial rotation isn't overwritten each frame.
+			p.Angles.pitch = p.StartAngles.pitch + PitchOverLifetime.Evaluate( p, 2364 );
+			p.Angles.yaw = p.StartAngles.yaw + YawOverLifetime.Evaluate( p, 8763 );
+			p.Angles.roll = p.StartAngles.roll + RollOverLifetime.Evaluate( p, 3676 );
 		}
 
 		if ( SheetSequence )
 		{
 			p.SequenceTime.x = SequenceTime.Evaluate( p, 7234 );
-			p.SequenceTime.y += SequenceSpeed.Evaluate( p, 1351 ) * timeScale;
+
+			var sequenceSpeed = SequenceSpeed.Evaluate( p, 1351 ) * timeScale;
+
+			// Scale the speed by the particle's lifetime so the animation advances the same total
+			// amount no matter how long the particle lives. This keeps a non-looping sequence from
+			// being cut off partway through when the lifetime (and/or speed) is randomized.
+			if ( SequenceFitToLifetime )
+			{
+				var lifetime = p.LifeTimeRemaining;
+				if ( lifetime > 0.0f )
+					sequenceSpeed /= lifetime;
+			}
+
+			p.SequenceTime.y += sequenceSpeed;
 			p.Sequence = (int)SequenceId.Evaluate( p, 1051 );
 		}
 
@@ -940,6 +999,20 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 		var initialVelocity = InitialVelocity.Evaluate( delta, Random.Shared.Float(), Random.Shared.Float(), Random.Shared.Float() );
 		p.Velocity += initialVelocity.LerpTo( spaceTx.NormalToWorld( initialVelocity ) * initialVelocity.Length, localSpace );
+
+		if ( ApplyRotation )
+		{
+			p.Angles.pitch = Pitch.Evaluate( delta, Random.Shared.Float() );
+			p.Angles.yaw = Yaw.Evaluate( delta, Random.Shared.Float() );
+			p.Angles.roll = Roll.Evaluate( delta, Random.Shared.Float() );
+			p.StartAngles = p.Angles;
+		}
+
+		if ( ApplyShape )
+		{
+			p.StartScale = Scale.Evaluate( delta, Random.Shared.Float() );
+			p.Size = p.StartScale;
+		}
 
 		p.BornTime += delay;
 		p.DeathTime = p.BornTime + Lifetime.Evaluate( delta, p.Rand( 145, 100 ) );
