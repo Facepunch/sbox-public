@@ -25,7 +25,14 @@ public class AssetPreviewWidget : Widget
 	async Task InitAsync()
 	{
 		await preview.InitializeScene();
+
+		if ( preview == null || !this.IsValid() )
+			return;
+
 		await preview.InitializeAsset();
+
+		if ( preview == null || !this.IsValid() )
+			return;
 
 		for ( int i = 0; i < 4; i++ )
 		{

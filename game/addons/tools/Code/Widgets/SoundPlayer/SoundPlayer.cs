@@ -12,8 +12,6 @@ public partial class SoundPlayer : Widget
 
 	private readonly IconButton PlayOption;
 
-	private bool _prevPlay = false;
-
 	public SoundPlayer( Widget parent ) : base( parent )
 	{
 		Name = "Timeline";
@@ -88,6 +86,18 @@ public partial class SoundPlayer : Widget
 		Paint.DrawRect( LocalRect );
 	}
 
+	[Shortcut( "sound.play", "SPACE", ShortcutType.Window )]
+	private void TogglePlayback()
+	{
+		Playing = !Playing;
+	}
+
+	[Shortcut( "sound.play-from-start", "CTRL+SPACE", ShortcutType.Window )]
+	private void PlayFromStartShortcut()
+	{
+		Play( 0 );
+	}
+
 	[EditorEvent.Frame]
 	protected void OnFrame()
 	{
@@ -96,19 +106,6 @@ public partial class SoundPlayer : Widget
 
 		PlayOption.ToolTip = Playing ? "Pause" : "Play";
 		PlayOption.Icon = Playing ? "pause" : "play_arrow";
-
-		if ( Application.FocusWidget.IsValid() )
-		{
-			if ( Application.IsKeyDown( KeyCode.Space ) && Application.KeyboardModifiers.HasFlag( KeyboardModifiers.Ctrl ) && !_prevPlay )
-			{
-				Play( 0 );
-			}
-			else if ( Application.IsKeyDown( KeyCode.Space ) && !_prevPlay )
-			{
-				Playing = !Playing;
-			}
-			_prevPlay = Application.IsKeyDown( KeyCode.Space );
-		}
 	}
 
 	public class TimelineView : GraphicsView

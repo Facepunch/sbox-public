@@ -46,11 +46,6 @@ public partial class BenchmarkSystem
 			samplers = CreateSamplers();
 		}
 
-		// Settle the heap so each repeat starts from a clean baseline
-		GC.Collect( 2, GCCollectionMode.Forced, blocking: true );
-		GC.WaitForPendingFinalizers();
-		GC.Collect( 2, GCCollectionMode.Forced, blocking: true );
-
 		timer.Start();
 		allocations.Start();
 		sampling = true;
@@ -132,6 +127,12 @@ public partial class BenchmarkSystem
 		}
 
 		results[testName] = benchmarkResult;
+
+		// Settle the heap now that sampling has stopped, so the collection stall never
+		// lands in a sampled frame and the next run starts from a clean baseline
+		GC.Collect( 2, GCCollectionMode.Forced, blocking: true );
+		GC.WaitForPendingFinalizers();
+		GC.Collect( 2, GCCollectionMode.Forced, blocking: true );
 	}
 
 	/// <summary>
