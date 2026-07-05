@@ -12,7 +12,7 @@
 	margin: 5px 0px;
 	font-family: $DefaultFont;
 	color: $Text;
-	font-size: 11px;
+	font-size: $FontSizeMenu;
 	font-weight: 500;
 }
 

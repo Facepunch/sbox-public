@@ -4,7 +4,7 @@ QTreeView {
     padding: 0px;
     color: $TextLight;
     qproperty-indentation: 20;
-    font-size: 12px;
+    font-size: $FontSizeTree;
 }
 
 CQFilteredTreeWidget {
@@ -38,7 +38,7 @@ QTreeView::branch:open:has-children {
 
 QTreeView::item QLineEdit {
     border: 0px;
-    font-size: 12px;
+    font-size: $FontSizeTree;
 }
 
 QTreeView::item QLineEdit:focus {

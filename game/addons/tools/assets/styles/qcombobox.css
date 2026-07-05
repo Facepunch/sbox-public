@@ -1,6 +1,6 @@
 QComboBox {
 	font-family: $DefaultFont;
-	font-size: 11px;
+	font-size: $FontSizeChrome;
 	color: $TextControl;
 	border-radius: 4px;
 	min-height: $RowHeight;

@@ -4,7 +4,7 @@ QMenuBar {
     color: $WindowBackground;
     border: 0px;
     font-family: $DefaultFont;
-    font-size: 11px;
+    font-size: $FontSizeMenu;
 }
 
 QMenuBar:active {
@@ -31,7 +31,7 @@ QMenu {
     margin: 0px;
     color: $Text;
     font-family: $DefaultFont;
-    font-size: 11px;
+    font-size: $FontSizeMenu;
 }
 
 QMenu::icon,

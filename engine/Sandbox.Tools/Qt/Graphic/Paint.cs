@@ -290,11 +290,13 @@ namespace Editor
 			// work around that
 			weight = 400 + (weight / 10);
 
+			float scaledSize = size * (EditorPreferences.WidgetFontScale / 100f);
+
 			fontInfo.FontName = name;
-			fontInfo.FontSize = size;
+			fontInfo.FontSize = scaledSize;
 			fontInfo.FontWeight = weight;
 
-			WidgetUtil.PaintSetFont( Current, name, (int)size, weight, italic, sizeInPixels );
+			WidgetUtil.PaintSetFont( Current, name, (int)Math.Round( scaledSize ), weight, italic, sizeInPixels );
 		}
 
 		public static void SetDefaultFont( float size = 8, int weight = 400, bool italic = false, bool sizeInPixels = false )

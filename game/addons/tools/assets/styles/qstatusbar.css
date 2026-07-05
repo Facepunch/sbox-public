@@ -10,7 +10,7 @@ QStatusBar {
 QStatusBar>QLabel {
 	margin: 4px 2px;
 	color: $TextControl;
-	font-size: 11px;
+	font-size: $FontSizeChrome;
 }
 
 QStatusBar::item {

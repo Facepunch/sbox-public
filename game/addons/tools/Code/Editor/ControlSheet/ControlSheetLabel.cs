@@ -44,6 +44,7 @@ class ControlSheetLabel : Widget
 	{
 		base.OnPaint();
 
+		Paint.SetDefaultFont();
 		Paint.SetBrushAndPen( Theme.TextControl, Theme.TextControl );
 
 		Paint.Pen = Theme.TextControl.WithAlpha( Paint.HasMouseOver ? 1.0f : 0.7f );

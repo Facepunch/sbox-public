@@ -1,11 +1,11 @@
 FieldTitle {
 	font-weight: 450;
-	font-size: 9pt;
+	font-size: $FontSizeLabelLarge;
 	color: $Text;
 }
 
 FieldSubtitle {
-	font-size: 8pt;
+	font-size: $FontSizeLabelBody;
 	color: $TextLight;
 }
 
@@ -16,24 +16,24 @@ ListView {
 
 Label[type="body"] {
 	color: $TextLight;
-	font-size: 12px;
+	font-size: $FontSizeLabelLarge;
 	margin-bottom: 16px;
 }
 
 Label[type="small"] {
 	color: $TextLight;
-	font-size: 10px;
+	font-size: $FontSizeLabelTiny;
 }
 
 Label[type="warning"] {
-	font-size: 12px;
+	font-size: $FontSizeLabelLarge;
 	padding: 8px;
 	min-height: 52px;
 }
 
 Label[type="title"] {
 	font-family: $DefaultFont;
-	font-size: 26px;
+	font-size: $FontSizeLabelTitle;
 	font-weight: 600;
 	color: $Text;
 	margin-bottom: 10px;
@@ -42,7 +42,7 @@ Label[type="title"] {
 
 Label[type="subtitle"] {
 	font-family: $DefaultFont;
-	font-size: 16px;
+	font-size: $FontSizeLabelSubtitle;
 	font-weight: 600;
 	color: $TextLight;
 	margin-left: 0px;

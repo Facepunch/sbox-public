@@ -1,6 +1,7 @@
 QTabBar {
 	border: 0px;
 	font-family: $DefaultFont;
+	font-size: $FontSizeChrome;
 	margin: 0px;
 	padding: 0px;
 	qproperty-drawBase: 0;

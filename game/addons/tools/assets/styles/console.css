@@ -50,7 +50,7 @@ ConsoleWidget QLineEdit:focus {
 
 ConsoleWidget #Output,
 ConsoleWidget QLineEdit {
-	font-size: 10px;
+	font-size: $FontSizeConsole;
 	font-family: "Roboto Mono";
 	font-weight: 450;
 }
