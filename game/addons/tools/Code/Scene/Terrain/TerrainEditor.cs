@@ -92,7 +92,8 @@ public partial class TerrainEditorTool : EditorTool
 		}
 
 		// Paint-only sections — hidden unless PaintTextureTool is active
-		var paintOnlySection = new PaintOnlySectionWidget( this, opacityRow );
+		var sidebarStretch = new Widget( sidebar ) { VerticalSizeMode = SizeMode.Flexible };
+		var paintOnlySection = new PaintOnlySectionWidget( this, opacityRow, sidebarStretch );
 		{
 			// Material selection
 			var terrain = GetSelectedComponent<Terrain>() ?? Scene.Get<Terrain>();
@@ -100,12 +101,12 @@ public partial class TerrainEditorTool : EditorTool
 			if ( terrain.IsValid() )
 			{
 				var group = ToolSidebarWidget.CreateGroupWidget( "Materials", SizeMode.Flexible );
-				paintOnlySection.Layout.Add( group );
+				paintOnlySection.Layout.Add( group, 1 );
 
 				var materialList = new TerrainMaterialList( paintOnlySection, terrain );
 				materialList.ItemSize += 24;
 				materialList.BuildItems();
-				group.ContentLayout.Add( materialList );
+				group.ContentLayout.Add( materialList, 1 );
 
 				var hlayout = group.ContentLayout.AddRow();
 				hlayout.Spacing = 8;
@@ -132,16 +133,17 @@ public partial class TerrainEditorTool : EditorTool
 				hlayout.Add( newTerrainMat, 1 );
 			}
 
-			sidebar.Layout.Add( paintOnlySection );
+			sidebar.Layout.Add( paintOnlySection, 1 );
+			sidebar.Layout.Add( sidebarStretch, 1 );
 		}
 
-		sidebar.Layout.AddStretchCell();
 		SetOpacityToolTip( opacityRow );
 
 		sidebar.AddShortcuts(
 			("Adjust Size", "Shift+MMB ↔"),
 			("Adjust Opacity", "Shift+MMB ↕"),
-			("Rotate", "CTRL+MMB ↔")
+			("Rotate", "CTRL+MMB ↔"),
+			("Switch brush preview", "Capslock")
 			);
 
 		return sidebar;
@@ -280,13 +282,16 @@ internal class PaintOnlySectionWidget : Widget
 {
 	readonly TerrainEditorTool _tool;
 	readonly ControlSheetRow _opacityRow;
+	readonly Widget _sidebarStretch;
 
-	public PaintOnlySectionWidget( TerrainEditorTool tool, ControlSheetRow opacityRow ) : base( null )
+	public PaintOnlySectionWidget( TerrainEditorTool tool, ControlSheetRow opacityRow, Widget sidebarStretch ) : base( null )
 	{
 		_tool = tool;
 		_opacityRow = opacityRow;
+		_sidebarStretch = sidebarStretch;
 		Layout = Layout.Column();
 		Layout.Spacing = 2;
+		VerticalSizeMode = SizeMode.Flexible;
 	}
 
 	[EditorEvent.Frame]
@@ -294,6 +299,9 @@ internal class PaintOnlySectionWidget : Widget
 	{
 		bool isPaint = _tool.CurrentTool is PaintTextureTool;
 		Hidden = !isPaint;
+
+		if ( _sidebarStretch.IsValid() )
+			_sidebarStretch.Hidden = isPaint;
 
 		if ( !_opacityRow.IsValid() ) return;
 
