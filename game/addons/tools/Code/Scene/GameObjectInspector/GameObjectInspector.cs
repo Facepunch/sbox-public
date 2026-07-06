@@ -145,6 +145,14 @@ public class GameObjectInspector : InspectorWidget
 		base.OnContextMenu( e );
 	}
 
+	[Event( "scene.play" )]
+	public void OnScenePlay()
+	{
+		// Try to switch to the game version of the object
+		var id = SerializedObject.GetProperty( nameof( GameObject.Id ) ).GetValue<Guid>();
+		EditorUtility.InspectorObject = Game.ActiveScene.Directory.FindByGuid( id );
+	}
+
 	[EditorEvent.Frame]
 	public void Frame()
 	{
