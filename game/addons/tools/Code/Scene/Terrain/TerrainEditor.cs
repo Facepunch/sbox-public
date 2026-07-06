@@ -83,6 +83,7 @@ public partial class TerrainEditorTool : EditorTool
 			var rot = group.Add( ControlSheetRow.Create( so.GetProperty( nameof( BrushSettings.Rotation ) ) ) );
 			rot.Enabled = !BrushSettings.RandomRotation;
 			var rndRot = group.Add( ControlSheetRow.Create( so.GetProperty( nameof( BrushSettings.RandomRotation ) ) ) );
+			group.Add( ControlSheetRow.Create( so.GetProperty( nameof( BrushSettings.ShowGridPreview ) ) ) );
 
 			so.OnPropertyChanged += ( prop ) =>
 			{
@@ -194,7 +195,7 @@ public partial class TerrainEditorTool : EditorTool
 		_previewObject.Color = color;
 		_previewObject.BrushRotation = BrushSettings.Rotation;
 
-		if ( terrain?.Storage is not null )
+		if ( BrushSettings.ShowGridPreview && terrain?.Storage is not null )
 		{
 			var tx = terrain.WorldTransform;
 			_previewObject.CellSize = terrain.Storage.TerrainSize / terrain.Storage.Resolution;
@@ -225,11 +226,18 @@ public partial class TerrainEditorTool : EditorTool
 			_previewObject.Color = color.WithAlpha( 0 );
 			_previewObject.BrushRotation = BrushSettings.Rotation;
 
-			var ttx = terrain.WorldTransform;
-			_previewObject.CellSize = terrain.Storage.TerrainSize / terrain.Storage.Resolution;
-			_previewObject.TerrainOrigin = ttx.Position;
-			_previewObject.TerrainRight = ttx.Rotation.Right;
-			_previewObject.TerrainForward = ttx.Rotation.Forward;
+			if ( BrushSettings.ShowGridPreview )
+			{
+				var ttx = terrain.WorldTransform;
+				_previewObject.CellSize = terrain.Storage.TerrainSize / terrain.Storage.Resolution;
+				_previewObject.TerrainOrigin = ttx.Position;
+				_previewObject.TerrainRight = ttx.Rotation.Right;
+				_previewObject.TerrainForward = ttx.Rotation.Forward;
+			}
+			else
+			{
+				_previewObject.CellSize = 0f;
+			}
 		}
 		else if ( _previewObject != null )
 		{
