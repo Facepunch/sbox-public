@@ -216,6 +216,69 @@ public partial class GameObject
 		}
 	}
 
+	// Used to deterimine if a bone gizmo should be drawn as a bip or a bone
+	static string[] _nonBipWhitelist = [
+		"pelvis", "hips", "spine", "ribcage", "head", "neck",
+		"shoulder", "collar", "clavicle", "arm", "elbow",
+		"hand", "wrist", "palm", "finger", "digit",
+		"meta", "index", "middle", "pinky", "ring", "thumb",
+		"leg", "thigh", "knee", "calf", "ankle",
+		"heel", "foot", "ball", "toe",
+	];
+	static string[] _nonBipBlacklist = [
+		"twist", "mscl", "lookat", "ik", "targ", "trg",
+		"tip", "end", "root", "reflex", "rfx", "dyn",
+		"cloth", "attach", "attch", "phys", "upnode",
+	];
+
+	/// <summary>
+	/// Try to guess based on names if a bone should be drawn as a bone (connected) or a bip (disconnected)
+	/// </summary>
+	static bool DrawBoneAsBip( string child, string parent = null )
+	{
+		var bip = true;
+		// if the name has one of these substrings its probably a bone
+		foreach ( var str in _nonBipWhitelist )
+		{
+			if ( !child.Contains( str, StringComparison.InvariantCultureIgnoreCase ) )
+				continue;
+			bip = false;
+			break;
+		}
+		if ( !bip )
+		{
+			// unless it has one of these, then its probably some procedural shit
+			foreach ( var str in _nonBipBlacklist )
+			{
+				if ( !child.Contains( str, StringComparison.InvariantCultureIgnoreCase ) )
+					continue;
+				bip = true;
+				break;
+			}
+		}
+		if ( parent is null )
+			return bip;
+		bip = bip || DrawBoneAsBip( parent ); //also check parent is valid
+		if ( bip && parent.Length == child.Length )
+		{
+			// even if it isn't a standard skeleton bone we still want to pick up chains
+			// so stuff like rope_01 -> rope_02 still draws as a bone
+			bip = false;
+			for ( var i = 0; i < parent.Length; i++ )
+			{
+				var a = parent[i];
+				var b = child[i];
+				if ( a == b )
+					continue;
+				if ( char.IsNumber( a ) && char.IsNumber( b ) )
+					continue;
+				bip = true;
+				break;
+			}
+		}
+		return bip;
+	}
+
 	void DrawBoneGizmo()
 	{
 		if ( !Gizmo.Settings.GizmosEnabled )
@@ -227,35 +290,67 @@ public partial class GameObject
 		if ( !Parent.IsValid() )
 			return;
 
-		if ( !Parent.Flags.Contains( GameObjectFlags.Bone ) )
-			return;
-
 		var distance = Root.WorldPosition.Distance( Gizmo.Camera.Position );
 		if ( distance > 500.0f )
 			return;
 
-		var position = WorldTransform.PointToLocal( Parent.WorldPosition );
-		var length = position.Length * 0.5f;
-		var width = length * 0.1f;
-
-		if ( width.AlmostEqual( 0.0f ) )
+		var bounds = BBox.FromPositionAndSize( WorldPosition );
+		foreach ( var child in Children )
+			bounds = bounds.AddPoint( child.WorldPosition );
+		if ( !Gizmo.Camera.GetFrustum( new( 0, 1 ), 1 ).IsInside( bounds.Grow( 8 ), true ) )
 			return;
 
 		using ( Gizmo.Scope( "Bone" ) )
 		{
-			Gizmo.Hitbox.DepthBias *= 0.2f;
-			Gizmo.Draw.IgnoreDepth = true;
-			Gizmo.Draw.Color = Color.White.WithAlpha( 0.2f );
+			Gizmo.Hitbox.DepthBias *= 0.1f;
 			Gizmo.Draw.LineThickness = 1;
+			Gizmo.Draw.IgnoreDepth = true;
+			Gizmo.Draw.Color = Gizmo.IsSelected ? Gizmo.Colors.Active : Gizmo.IsHovered ? Color.White : Color.White.Darken( 0.5f );
 
-			Gizmo.Draw.Line( 0, position );
+			var dist = Gizmo.CameraTransform.Position.Distance( WorldPosition );
+			var size = dist.Remap( 0, 256, 1.5f, 0.4f );
+			if ( Gizmo.Camera.Ortho )
+				size *= Gizmo.Camera.OrthoHeight * 0.006f;
+			else
+			{
+				size *= 1024.0f / Gizmo.Camera.Size.Length;
+				size *= dist * Gizmo.Camera.FieldOfView.DegreeToRadian() * 0.006f;
+			}
+			var rot = Gizmo.LocalCameraTransform.Rotation;
+			var bip = true;
+			// bones
+			var bsize = size * 0.6f;
+			Gizmo.Hitbox.Sphere( new Sphere( 0, bsize ) );
+			foreach ( var child in Children )
+			{
+				if ( DrawBoneAsBip( child.Name, Name ) )
+					continue;
+				bip = false;
 
-			Gizmo.Draw.Color = Gizmo.IsSelected ? Gizmo.Colors.Active : Gizmo.IsHovered ? Color.White : Color.White.WithAlpha( 0.2f );
-			Gizmo.Draw.LineThickness = Gizmo.IsSelected ? 2 : Gizmo.IsHovered ? 2 : 1;
+				var delta = Gizmo.CameraTransform.PointToLocal( child.WorldPosition ).WithX( 0 );
+				delta -= Gizmo.CameraTransform.PointToLocal( WorldPosition ).WithX( 0 );
+				var aim = rot * Rotation.FromRoll( MathF.Atan2( delta.z, delta.y ).RadianToDegree() - 90 );
+				var tip = Gizmo.Transform.PointToLocal( child.WorldPosition );
+				Gizmo.Draw.SolidTriangle( aim.Left * bsize, tip, aim.Right * bsize );
+				Gizmo.Draw.SolidTriangle( aim.Left * bsize, aim.Down * bsize, aim.Right * bsize );
 
-			Gizmo.Draw.Sprite( 0, 0.4f, Texture.White );
-
-			Gizmo.Hitbox.Sphere( new Sphere( 0, 0.4f ) );
+				Gizmo.Transform = Gizmo.Transform.WithRotation( Rotation.LookAt( Vector3.Direction( WorldPosition, child.WorldPosition ), rot.Up ) );
+				var girth = bsize * 0.6f;
+				Gizmo.Hitbox.BBox( new( new Vector3( 0, -girth, -girth ), new Vector3( tip.Length, girth, girth ) ) );
+				Gizmo.Transform = Gizmo.Transform.WithRotation( WorldRotation );
+			}
+			if ( bip )
+			{
+				// bip
+				Gizmo.Hitbox.Sphere( new Sphere( 0, size ) );
+				Gizmo.Draw.SolidTriangle( rot.Left * size, rot.Up * size, rot.Right * size );
+				Gizmo.Draw.SolidTriangle( rot.Left * size, rot.Down * size, rot.Right * size );
+			}
+			if ( Gizmo.IsHovered && !Gizmo.IsSelected )
+			{
+				var offset = Gizmo.LocalCameraTransform.Position.Length.Remap( 0, 256, 12, 6 );
+				Gizmo.Draw.ScreenText( Name, WorldPosition, Vector2.Right * offset, size: 14, flags: TextFlag.LeftCenter );
+			}
 
 			if ( Gizmo.WasClicked )
 				GizmoSelect();
