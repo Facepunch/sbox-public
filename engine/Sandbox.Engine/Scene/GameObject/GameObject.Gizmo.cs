@@ -220,15 +220,15 @@ public partial class GameObject
 	static string[] _nonBipWhitelist = [
 		"pelvis", "hips", "spine", "ribcage", "head", "neck",
 		"shoulder", "collar", "clavicle", "arm", "elbow",
-		"hand", "wrist", "palm", "finger", "digit",
-		"meta", "index", "middle", "pinky", "ring", "thumb",
-		"leg", "thigh", "knee", "calf", "ankle",
-		"heel", "foot", "ball", "toe",
+		"hand", "wrist", "palm", "finger", "digit", "meta",
+		"index", "middle", "pinky", "ring", "thumb", "leg",
+		"thigh", "knee", "calf", "ankle", "heel", "foot",
+		"ball", "toe"
 	];
 	static string[] _nonBipBlacklist = [
 		"twist", "mscl", "lookat", "ik", "targ", "trg",
 		"tip", "end", "root", "reflex", "rfx", "dyn",
-		"cloth", "attach", "attch", "phys", "upnode",
+		"cloth", "attach", "attch", "phys", "upnode"
 	];
 
 	/// <summary>
