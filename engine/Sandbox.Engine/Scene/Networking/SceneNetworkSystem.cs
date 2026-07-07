@@ -1,4 +1,5 @@
-﻿using Sandbox.Network;
+﻿using Sandbox.Engine;
+using Sandbox.Network;
 using Sandbox.Utility;
 using System.IO;
 using System.Text.Json.Nodes;
@@ -244,6 +245,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		// Let them know we have now loaded this scene.
 		var loadedMsg = new SceneLoadedMsg { SceneId = msg.SceneId, Id = msg.Id };
 		connection.SendMessage( loadedMsg, NetFlags.Reliable );
+
+		if ( Application.IsEditor )
+		{
+			IToolsDll.Current?.SetPlaying();
+		}
 
 		LoadingScreen.IsVisible = false;
 	}
