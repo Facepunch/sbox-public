@@ -1,15 +1,22 @@
 ﻿using Facepunch.ActionGraphs;
 using Microsoft.CodeAnalysis;
-using Sandbox.ActionGraphs;
 using System;
 using System.Text;
 
 namespace Editor;
 
 [Dock( "Editor", "Console", "text_snippet" )]
-internal class ConsoleWidget : Widget
+internal sealed class ConsoleWidget : Widget
 {
-	internal static ConsoleWidget Instance { get; private set; }
+	private static ConsoleWidget _instance;
+	internal static ConsoleWidget Instance
+	{
+		get
+		{
+			if ( _instance is null || !_instance.IsValid ) return null;
+			return _instance;
+		}
+	}
 
 	//
 	// Keep quite a lot but not really stupid amounts, we want them so we can filter
@@ -117,7 +124,7 @@ internal class ConsoleWidget : Widget
 
 	public ConsoleWidget( Widget parent ) : base( parent )
 	{
-		Instance = this;
+		_instance = this;
 
 		DeleteOnClose = true;
 
@@ -221,6 +228,11 @@ internal class ConsoleWidget : Widget
 
 	public override void OnDestroyed()
 	{
+		if ( ReferenceEquals( _instance, this ) )
+		{
+			_instance = null;
+		}
+
 		EditorUtility.RemoveLogger( OnConsoleMessage );
 		ClearStatusBar();
 	}
