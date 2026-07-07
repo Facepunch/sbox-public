@@ -43,6 +43,7 @@ CS
         float Rotation;
         float FlattenHeight;
         int SplatChannel;
+        float2 PlaneGradient;
     };
     StructuredBuffer<BrushData> BrushSettings < Attribute( "BrushSettings" ); >;
 
@@ -85,9 +86,13 @@ CS
             float brush = Brush.SampleLevel( g_sBilinearBorder, brushUV, 0 ) * BrushSettings[0].Strength;
             float height = Heightmap.Load( texel ).x;
 
+            // Follow the stroke plane across the brush footprint, the gradient is zero for a world aligned flatten
+            float2 texelDelta = float2( texel ) - float2( w, h ) * BrushSettings[0].UV;
+            float targetHeight = saturate( BrushSettings[0].FlattenHeight + dot( texelDelta, BrushSettings[0].PlaneGradient ) );
+
             // TODO: I think we're gonna need the delta of the last hit UV, so we can flatten everything
             // between those two points, oherwise there'll be gaps
-            Heightmap[texel] = lerp( height, BrushSettings[0].FlattenHeight, brush );
+            Heightmap[texel] = lerp( height, targetHeight, brush );
         }
         if ( D_SCULPT_MODE == MODE_SMOOTH )
         {
