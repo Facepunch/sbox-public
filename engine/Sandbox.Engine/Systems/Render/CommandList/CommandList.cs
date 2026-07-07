@@ -486,7 +486,7 @@ public sealed unsafe partial class CommandList
 			}
 			catch ( System.Exception e )
 			{
-				Log.Warning( e, $"Error when executing CommandList {_debugName ?? string.Empty}" );
+				Log.Warning( e, $"Error when executing CommandList {_debugName}" );
 			}
 
 			Graphics.Context.EndPixEvent();
