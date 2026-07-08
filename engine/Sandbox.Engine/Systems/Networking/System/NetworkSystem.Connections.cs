@@ -127,6 +127,9 @@ internal partial class NetworkSystem
 
 	internal void OnDisconnected( Connection source )
 	{
+		// Capture the state before we reset it below, so we can report where a failed join dropped.
+		var previousState = source.State;
+
 		if ( source.State >= Connection.ChannelState.Welcome )
 		{
 			// We only need to call this if we called OnConnected, which would only
@@ -142,7 +145,17 @@ internal partial class NetworkSystem
 		if ( !IsHost )
 			return;
 
-		Log.Info( $"{source.Name} [{source.SteamId}] disconnected" );
+		// If the connection never got as far as sending us its UserInfo then it has no name or
+		// SteamId yet, so don't log a misleading "Unknown Player" - log the address and the
+		// handshake state it dropped at instead, which is far more useful for diagnosing failed joins.
+		if ( source.PreInfo is null && ConnectionInfo.Get( source.Id ) is null )
+		{
+			Log.Info( $"Connection from {source.Address} disconnected during handshake (state: {previousState})" );
+		}
+		else
+		{
+			Log.Info( $"{source.Name} [{source.SteamId}] disconnected" );
+		}
 
 		ConnectionInfo.Remove( source.Id );
 		OnConnectionInfoUpdated();
