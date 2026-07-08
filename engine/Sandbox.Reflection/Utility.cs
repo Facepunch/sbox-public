@@ -100,6 +100,13 @@ internal static class ReflectionUtility
 
 		var valueType = value.GetType();
 
+		// A default(ImmutableArray<T>) is a struct wrapping a null array: it boxes to a non-null object, but any
+		// collection access (even .Count) throws "operation cannot be performed on a default instance". Treat it
+		// as empty rather than letting it throw - this was the SceneTrace._traceIgnore* noise on shutdown.
+		if ( valueType.IsGenericType && valueType.GetGenericTypeDefinition() == typeof( System.Collections.Immutable.ImmutableArray<> )
+			 && valueType.GetProperty( "IsDefault" )?.GetValue( value ) is true )
+			return false;
+
 		// Check if this is a generic collection whose element type matches
 		if ( HasGenericElementOfType( valueType, targetType ) )
 		{
