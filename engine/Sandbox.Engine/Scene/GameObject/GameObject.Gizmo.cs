@@ -223,7 +223,7 @@ public partial class GameObject
 		"hand", "wrist", "palm", "finger", "digit", "meta",
 		"index", "middle", "pinky", "ring", "thumb", "leg",
 		"thigh", "knee", "calf", "ankle", "heel", "foot",
-		"ball", "toe"
+		"ball", "toe", "shin"
 	];
 	static string[] _nonBipBlacklist = [
 		"twist", "mscl", "lookat", "ik", "targ", "trg",
