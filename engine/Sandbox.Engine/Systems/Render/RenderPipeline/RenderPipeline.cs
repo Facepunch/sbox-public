@@ -9,8 +9,12 @@ namespace Sandbox.Rendering;
 internal partial class RenderPipeline
 {
 
-	DepthNormalPrepassLayer DepthNormalLargePrepass { get; } = new( true );
-	DepthNormalPrepassLayer DepthNormalSmallPrepass { get; } = new( false );
+	DepthNormalPrepassLayer[] DepthNormalPrepasses { get; } =
+	[
+		new DepthNormalPrepassLayer( DepthNormalPrepassLayer.PrepassMode.Overlay ),
+		new DepthNormalPrepassLayer( DepthNormalPrepassLayer.PrepassMode.Large ),
+		new DepthNormalPrepassLayer( DepthNormalPrepassLayer.PrepassMode.Small ),
+	];
 	LightbinnerLayer LightbinnerLayer { get; } = new();
 	DepthDownsampleLayer DepthDownsampleLayer { get; } = new();
 	MotionVectorLayer MotionVectorLayer { get; } = new();
@@ -57,17 +61,23 @@ internal partial class RenderPipeline
 			// matt: I don't think this makes sense anymore, Valve used to do it to opt out of smaller objects entirely.
 			//       However doing 1 big pass seems to double draw calls, it's possible it's not rendering everything?
 			//
-			DepthNormalLargePrepass.Setup( view, gbufferColor, rtDepth );
-			var largePrepass = DepthNormalLargePrepass.AddToView( view, viewport );
-			largePrepass.SetBoundingVolumeSizeCullThresholdInPercent( 60 );
-
-			DepthNormalSmallPrepass.Setup( view, gbufferColor, rtDepth );
-			var smallPrepass = DepthNormalSmallPrepass.AddToView( view, viewport );
-			smallPrepass.SetBoundingVolumeSizeCullThresholdInPercent( -60 );
-
 			bool disableDepthPrepassCulling = view.GetRenderAttributesPtr().GetBoolValue( "NoPrepassCulling", false );
-			largePrepass.SetLayerNoCull( disableDepthPrepassCulling );
-			smallPrepass.SetLayerNoCull( disableDepthPrepassCulling );
+
+			foreach ( var prepass in DepthNormalPrepasses )
+			{
+				prepass.Setup( view, gbufferColor, rtDepth );
+				var layer = prepass.AddToView( view, viewport );
+
+				// Overlay writes the stencil bit at its real depth; every other prepass tests it so
+				// their (potentially nearer) depth can't overwrite pixels the overlay already claimed.
+				layer.SetOverlayStencil( prepass.Mode == DepthNormalPrepassLayer.PrepassMode.Overlay );
+
+				if ( prepass.CullThresholdPercent == 0 )
+					continue;
+
+				layer.SetBoundingVolumeSizeCullThresholdInPercent( prepass.CullThresholdPercent );
+				layer.SetLayerNoCull( disableDepthPrepassCulling );
+			}
 
 			// Pass that DepthNormals are enabled to the rest of the pipeline
 			view.GetRenderAttributesPtr().SetIntValue( "NormalsTextureIndex", gbufferColor.ColorTarget.Index );

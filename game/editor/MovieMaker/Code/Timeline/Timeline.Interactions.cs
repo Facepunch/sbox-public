@@ -17,7 +17,15 @@ public interface IMovieItem
 	/// </summary>
 	MovieTime? SelectionTime => TimeRange.Duration.IsZero ? TimeRange.Start : null;
 
+	/// <summary>
+	/// Called when this item is clicked twice in quick succession.
+	/// </summary>
 	void DoubleClick() { }
+
+	/// <summary>
+	/// Called when this item is selected individually (not box selected or multi-selected with ctrl).
+	/// </summary>
+	void SingleSelected() { }
 }
 
 public interface ITrackItem : IMovieItem

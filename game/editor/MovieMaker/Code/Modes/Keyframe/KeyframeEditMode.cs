@@ -391,7 +391,7 @@ public sealed partial class KeyframeEditMode : EditMode
 
 	protected override void OnSelectAll()
 	{
-		foreach ( var handle in _trackKeyframeHandles.SelectMany( x => x.Value ) )
+		foreach ( var handle in _trackKeyframeHandles.SelectMany( x => x.Value ).ToArray() )
 		{
 			handle.Selected = true;
 		}

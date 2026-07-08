@@ -6,7 +6,7 @@
 /// <b>Shift</b> - extrude selection
 /// </summary>
 [Title( "Move/Position" )]
-[Icon( "control_camera" )]
+[Icon( "meshtools/move_modes/move-position.png" )]
 [Alias( "mesh.position.mode" )]
 [Order( 0 )]
 public sealed class PositionMode : MoveMode

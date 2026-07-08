@@ -74,6 +74,28 @@ public class SearchWidget : Widget
 		}
 	}
 
+	/// <summary>
+	/// Clears the search text and any active type/tag filters.
+	/// </summary>
+	public void Clear()
+	{
+		if ( AssetTypes is { Enabled: true } && (AssetTypes.ActiveTags.Count > 0 || AssetTypes.ExcludedTags.Count > 0) )
+		{
+			AssetTypes.ActiveTags.Clear();
+			AssetTypes.ExcludedTags.Clear();
+			AssetTypes.Rebuild();
+		}
+
+		if ( !string.IsNullOrEmpty( LineEdit.Text ) )
+		{
+			LineEdit.Text = string.Empty;
+			return;
+		}
+
+		ValueChanged?.Invoke();
+		Update();
+	}
+
 	private void OnTextChanged( string value )
 	{
 		if ( value.EndsWith( " " ) )

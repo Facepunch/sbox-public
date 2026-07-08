@@ -399,7 +399,7 @@ internal sealed class MenuDll : IMenuDll
 	{
 		using var _ = PushScope();
 
-		if ( Input.EscapePressed && IGameInstance.Current is not null )
+		if ( Input.EscapePressed && IGameInstance.Current is not null && !Application.IsEditor )
 		{
 			Input.EscapePressed = false;
 			IModalSystem.Current?.PauseMenu();

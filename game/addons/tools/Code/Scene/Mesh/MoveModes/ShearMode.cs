@@ -4,7 +4,7 @@
 /// Shear the selection by sliding vertices along one axis relative to another.
 /// </summary>
 [Title( "Shear" )]
-[Icon( "content_cut" )]
+[Icon( "meshtools/move_modes/shear.png" )]
 [Alias( "mesh.shear.mode" )]
 [Order( 5 )]
 public sealed class ShearMode : MoveMode

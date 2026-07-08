@@ -1,5 +1,6 @@
 ﻿using System.IO.Compression;
 using System.Net.Http.Headers;
+using System.Text.RegularExpressions;
 using JetBrains.Refasmer;
 using static Facepunch.Constants;
 
@@ -44,6 +45,10 @@ internal class UploadReferenceAssemblies( BuildTarget target = BuildTarget.Stagi
 			return ExitCode.Failure;
 		}
 
+		// The backend keys compiled UGC DLLs on Protocol.Api, so refuse to upload refs without it.
+		if ( !TryReadProtocolApi( out var protocolApi ) )
+			return ExitCode.Failure;
+
 		// Collect the assemblies we want to ship as references.
 		if ( !TryCollectAssemblies( out var files ) )
 			return ExitCode.Failure;
@@ -70,8 +75,9 @@ internal class UploadReferenceAssemblies( BuildTarget target = BuildTarget.Stagi
 
 			using var request = new HttpRequestMessage( HttpMethod.Post, requestUri ) { Content = content };
 			request.Headers.TryAddWithoutValidation( "Authorization", $"Bearer {key}" );
+			request.Headers.TryAddWithoutValidation( "X-Engine-Version", $"{protocolApi}" );
 
-			Log.Info( $"Uploading reference assemblies (channel: {channel}, ref: {gitRef})..." );
+			Log.Info( $"Uploading reference assemblies (channel: {channel}, ref: {gitRef}, protocol: {protocolApi})..." );
 
 			using var response = await http.SendAsync( request );
 			var body = await response.Content.ReadAsStringAsync();
@@ -89,6 +95,34 @@ internal class UploadReferenceAssemblies( BuildTarget target = BuildTarget.Stagi
 		{
 			try { if ( File.Exists( zipPath ) ) File.Delete( zipPath ); } catch { }
 		}
+	}
+
+	/// <summary>
+	/// Reads <c>Protocol.Api</c> out of the engine source - the packaged assemblies are refasmed
+	/// (bodies stripped), so it can't be read from the DLLs. Fails loudly so a Protocol.cs
+	/// refactor breaks CI instead of silently shipping unversioned refs.
+	/// </summary>
+	private static bool TryReadProtocolApi( out int api )
+	{
+		api = 0;
+
+		const string source = "engine/Sandbox.Engine/Protocol.cs";
+
+		if ( !File.Exists( source ) )
+		{
+			Log.Error( $"Cannot determine Protocol.Api: {source} not found." );
+			return false;
+		}
+
+		var match = Regex.Match( File.ReadAllText( source ), @"public\s+static\s+int\s+Api\s*=>\s*(\d+)" );
+
+		if ( !match.Success || !int.TryParse( match.Groups[1].Value, out api ) )
+		{
+			Log.Error( $"Cannot determine Protocol.Api: pattern not found in {source}." );
+			return false;
+		}
+
+		return true;
 	}
 
 	/// <summary>

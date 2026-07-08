@@ -3,6 +3,7 @@
 [CustomEditor( typeof( ParticleFloat ) )]
 public class ParticleFloatControlWidget : ControlWidget
 {
+	public override bool SupportsMultiEdit => true;
 	public Color HighlightColor { get; set; }
 	public string Label { get; set; }
 

@@ -375,7 +375,7 @@ void ComputeDirectLightingForLight( const FinalCombinerInput_t f, const BinnedLi
 	// Directional lights use their own CSM shadow path
 	if ( lightData.Type == LightType::LightTypeDirectional && g_DirectionalLightCascadeCount > 0 )
 	{
-		flShadowScalar = DirectionalLightShadow::GetVisibility( f.vPositionWs.xyz, f.vPositionSs.xy );
+		flShadowScalar = DirectionalLightShadow::GetVisibility( f.vPositionWs.xyz, f.vPositionSs );
 	}
 
 	#if ( !S_TRANSMISSIVE )
@@ -422,7 +422,7 @@ void ComputeDirectionalLight( const FinalCombinerInput_t f, inout float3 vDiffus
 	// Only sample shadows if cascades exist
 	if ( g_DirectionalLightCascadeCount > 0 )
 	{
-		flShadowScalar = DirectionalLightShadow::GetVisibility( f.vPositionWs.xyz, f.vPositionSs.xy );
+		flShadowScalar = DirectionalLightShadow::GetVisibility( f.vPositionWs.xyz, f.vPositionSs );
 	}
 
 	float3 vTransmissiveThickness = 1.0f;

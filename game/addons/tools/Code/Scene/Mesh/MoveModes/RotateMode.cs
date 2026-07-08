@@ -7,7 +7,7 @@ namespace Editor.MeshEditor;
 /// <b>Shift</b> - extrude selection
 /// </summary>
 [Title( "Rotate" )]
-[Icon( "360" )]
+[Icon( "meshtools/move_modes/rotate.png" )]
 [Alias( "mesh.rotate.mode" )]
 [Order( 1 )]
 public sealed class RotateMode : MoveMode

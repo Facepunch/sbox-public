@@ -52,16 +52,18 @@ public readonly record struct Keyframe( MovieTime Time, object? Value, KeyframeI
 		};
 	}
 
-	public int CompareTo( Keyframe other )
+	internal static int Compare( (MovieTime Time, KeyframeConnection Connection) a, (MovieTime Time, KeyframeConnection Connection) b )
 	{
-		var timeCompare = Time.CompareTo( other.Time );
+		var timeCompare = a.Time.CompareTo( b.Time );
 		if ( timeCompare != 0 ) return timeCompare;
 
 		// Keyframes can overlap if they have different connection modes.
 		// One block can end at the same moment that another block starts.
 
-		return GetConnectionOrdinal( Connection ).CompareTo( GetConnectionOrdinal( other.Connection ) );
+		return GetConnectionOrdinal( a.Connection ).CompareTo( GetConnectionOrdinal( b.Connection ) );
 	}
+
+	public int CompareTo( Keyframe other ) => Compare( (Time, Connection), (other.Time, other.Connection) );
 
 	public static InterpolationMode GetInterpolationMode( KeyframeInterpolation prev, KeyframeInterpolation next ) => (prev, next) switch
 	{
@@ -84,8 +86,8 @@ partial record PropertySignal
 	public bool HasKeyframes => Keyframes.Count > 0;
 
 	public IEnumerable<Keyframe> GetKeyframes( MovieTimeRange timeRange ) => Keyframes
-		.SkipWhile( x => x.Time < timeRange.Start )
-		.TakeWhile( x => x.Time <= timeRange.End );
+		.SkipWhile( x => x.Time < timeRange.Start || x.Time == timeRange.Start && x.Connection is KeyframeConnection.EndBlock )
+		.TakeWhile( x => x.Time < timeRange.End || x.Time == timeRange.End && x.Connection is not KeyframeConnection.StartBlock );
 
 	protected virtual IEnumerable<Keyframe> OnGetKeyframes() => [];
 
@@ -156,7 +158,7 @@ partial record PropertySignal<T>
 
 		foreach ( var next in keyframes.Skip( 1 ) )
 		{
-			if ( prev.Time > next.Time ) return false;
+			if ( prev.CompareTo( next ) > 0 ) return false;
 
 			prev = next;
 		}
@@ -170,14 +172,14 @@ public readonly record struct Keyframe<T>(
 	T Value,
 	KeyframeInterpolation Interpolation,
 	[property: JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )]
-	KeyframeConnection Connection ) : IKeyframe, IComparable<Keyframe<T>>
+	KeyframeConnection Connection = KeyframeConnection.Connect ) : IKeyframe, IComparable<Keyframe<T>>
 {
 	public static implicit operator Keyframe( Keyframe<T> keyframe ) =>
 		new( keyframe.Time, keyframe.Value, keyframe.Interpolation, keyframe.Connection );
 	public static explicit operator Keyframe<T>( Keyframe keyframe ) =>
 		new( keyframe.Time, (T)keyframe.Value!, keyframe.Interpolation, keyframe.Connection );
 
-	public int CompareTo( Keyframe<T> other ) => Time.CompareTo( other.Time );
+	public int CompareTo( Keyframe<T> other ) => Keyframe.Compare( (Time, Connection), (other.Time, other.Connection) );
 
 	object? IKeyframe.Value => Value;
 }
@@ -185,7 +187,7 @@ public readonly record struct Keyframe<T>(
 public interface IKeyframeSignal : IPropertySignal;
 
 [JsonDiscriminator( "Keyframes" )]
-file sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes ) : PropertySignal<T>, IKeyframeSignal
+internal sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes ) : PropertySignal<T>, IKeyframeSignal
 {
 	private readonly ImmutableArray<Keyframe<T>> _keyframes = ValidateKeyframes( Keyframes );
 
@@ -285,22 +287,17 @@ file sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes ) : 
 	/// </summary>
 	private int FindIndex( MovieTime time )
 	{
-		var index = Keyframes.BinarySearch( new Keyframe<T>( time, default!, default, default ) );
+		// Prefer finding exactly a start block if there's a tie
 
-		// exact match
+		var index = Keyframes.BinarySearch( new Keyframe<T>( time, default!, default, KeyframeConnection.StartBlock ) );
+
+		// Positive index means exact match
 
 		if ( index >= 0 ) return index;
 
 		// ~index is next keyframe after time, we want previous keyframe
 
 		return Math.Clamp( ~index - 1, 0, Keyframes.Length - 1 );
-	}
-
-	private int? FindIndexExact( MovieTime time )
-	{
-		var index = Keyframes.BinarySearch( new Keyframe<T>( time, default!, default, default ) );
-
-		return index >= 0 ? index : null;
 	}
 
 	protected override PropertySignal<T> OnWithKeyframes( IReadOnlyList<Keyframe<T>> keyframes )
@@ -332,7 +329,12 @@ file sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes ) : 
 
 		if ( end is { } e )
 		{
-			j = Math.Min( FindIndex( e ) + 1, Keyframes.Length - 1 );
+			j = Math.Min( FindIndex( e ), Keyframes.Length - 1 );
+
+			if ( j < Keyframes.Length - 1 && Keyframes[j].Time < e )
+			{
+				j += 1;
+			}
 		}
 
 		// Cubic needs to know about previous / next keyframe
@@ -379,16 +381,16 @@ file sealed record KeyframeSignal<T>( ImmutableArray<Keyframe<T>> Keyframes ) : 
 			throw new ArgumentException( "Expected at least one keyframe.", nameof( keyframes ) );
 		}
 
-		var prevTime = keyframes[0].Time;
+		var prev = keyframes[0];
 
-		foreach ( var keyframe in keyframes.Skip( 1 ) )
+		foreach ( var next in keyframes.Skip( 1 ) )
 		{
-			if ( keyframe.Time < prevTime )
+			if ( prev.CompareTo( next ) > 0 )
 			{
-				throw new ArgumentException( "Keyframes must be sorted by ascending time.", nameof( keyframes ) );
+				throw new ArgumentException( "Keyframes must be sorted.", nameof( keyframes ) );
 			}
 
-			prevTime = keyframe.Time;
+			prev = next;
 		}
 
 		return keyframes;

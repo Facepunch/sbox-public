@@ -252,7 +252,7 @@ partial class TerrainComponentWidget : ComponentEditorWidget
 			{
 				if ( bitmap.Width != resolution || bitmap.Height != resolution )
 				{
-					Log.Warning( $"Skipping {Path.GetFileName( file )}:  does not match terrain resolution " );
+					Log.Warning( $"Skipping {Path.GetFileName( file )}: does not match terrain resolution" );
 					continue;
 				}
 
@@ -274,6 +274,9 @@ partial class TerrainComponentWidget : ComponentEditorWidget
 
 			materialIndexOffset += 4;
 		}
+
+		if ( materialIndexOffset == 0 )
+			return;
 
 		// find top 2 contributors across all splatmaps, we dont care about the rest
 		for ( int i = 0; i < numPixels; i++ )

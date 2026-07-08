@@ -4,33 +4,36 @@
 #include "common/classes/Depth.hlsl"
 class MSAAUtils
 {
-    // Gets the gather lane whose texel center is closest to the current MSAA sample position.
-    // Used to composite a non-MSAA texture into a MSAA buffer: first filters to texels that
-    // match our depth, then picks the spatially nearest one via branchless paired tournament.
+    // UV to feed a Gather on a non-MSAA full-res texture. Anchored a quarter texel off the
+    // quad boundary so the 2x2 quad selection is numerically stable (a corner-exact uv can
+    // flip quads per pixel and shimmer), with this pixel's own texel on lane y.
+    static float2 GetGatherUv( float4 vPositionSs )
+    {
+        return ( vPositionSs.xy ) * g_vInvViewportSize.xy;
+    }
+
+    // Gets the gather lane to composite a non-MSAA texture into an MSAA buffer.
+    // With uv from GetGatherUv, the gather quad's lanes are x=(0,+1) y=(+1,+1) z=(+1,0) w=(0,0)
+    // texels, so lane y is this pixel's own texel. Prefer it; when its depth doesn't match this
+    // sample's depth (MSAA edge), fall back to the neighbour lane with the closest depth.
     static int GetSampleIndex( float4 vPositionSs, float2 uv )
     {
-        float4 depths = g_tDepthChain.GatherRed( g_sBilinearClamp, uv );
-        float4 depthDiffs = abs( vPositionSs.z - depths );
+        float4 depthDiffs = abs( vPositionSs.z - g_tDepthChain.GatherRed( g_sBilinearClamp, uv ) );
 
-        // Only consider lanes within epsilon of the closest depth match
-        float minDiff = min( min( depthDiffs.x, depthDiffs.y ), min( depthDiffs.z, depthDiffs.w ) );
-        float4 valid = step( depthDiffs, minDiff + 1e-5 );
+        // Branchless argmin: pairwise tournament, index assembled as bit0 + 2*bit1
+        float2 sel  = step( depthDiffs.yw, depthDiffs.xz ); // winner within pairs (x,y) and (z,w)
+        float2 best = min( depthDiffs.xz, depthDiffs.yw );  // each pair's best score
+        float  pair = step( best.y, best.x );               // which pair won
 
-        // Squared sub-pixel distance from fragment to each gather texel center
-        // Texel centers: lane0(0.25,0.25) lane1(0.75,0.25) lane2(0.25,0.75) lane3(0.75,0.75)
-        float2 dx = frac( vPositionSs.x ) - float2( 0.25, 0.75 );
-        float2 dy = frac( vPositionSs.y ) - float2( 0.25, 0.75 );
-        float4 distSq = dx.xyxy * dx.xyxy + dy.xxyy * dy.xxyy;
+        return (int)dot( float2( lerp( sel.x, sel.y, pair ), pair ), float2( 1, 2 ) );
+    }
 
-        // Large penalty knocks out depth-mismatched lanes
-        float4 scores = distSq + ( 1.0 - valid ) * 1e8;
-
-        // Branchless argmin: paired tournament builds a 2-bit index
-        float2 sel  = step( scores.yw + 1e-6, scores.xz );   // per-pair winner (bit0 candidates)
-        float2 best = lerp( scores.xz, scores.yw, sel );      // per-pair best score
-        float  pair = step( best.y + 1e-6, best.x );          // winning pair    (bit1)
-
-        return (int)( lerp( sel.x, sel.y, pair ) + pair * 2.0 );
+    // Composites a non-MSAA single-channel texture into an MSAA target: GatherRed at the
+    // correctly offset uv, then return the depth/position-matched lane for this sample.
+    static float SampleRed( Texture2D tTex, float4 vPositionSs )
+    {
+        float2 uv = GetGatherUv( vPositionSs );
+        return tTex.GatherRed( g_sBilinearClamp, uv )[ GetSampleIndex( vPositionSs, uv ) ];
     }
 };
 

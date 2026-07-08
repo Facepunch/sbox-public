@@ -178,11 +178,11 @@ public sealed class Door : Component, Component.IPressable
 				Transform.Local = _startTransform.RotateAround( _pivotPosition, Rotation.FromYaw( TargetAngle ) );
 			}
 
-			State = DoorState.Open;
+			_state = DoorState.Open;
 		}
 		else
 		{
-			State = DoorState.Closed;
+			_state = DoorState.Closed;
 		}
 
 		if ( LinkedDoor.IsValid() )

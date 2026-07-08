@@ -82,6 +82,10 @@ public class SceneOverlayWidget : Widget
 			{
 				EditorEvent.Run( "sceneview.paintoverlay" );
 			}
+			else
+			{
+				vw.PaintOrientationGizmo();
+			}
 		}
 	}
 }

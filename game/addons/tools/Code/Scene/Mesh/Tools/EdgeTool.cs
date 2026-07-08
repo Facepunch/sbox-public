@@ -6,7 +6,7 @@ namespace Editor.MeshEditor;
 /// Select and edit edges.
 /// </summary>
 [Title( "Edge Tool" )]
-[Icon( "show_chart" )]
+[Icon( "meshtools/sub-tools/edge_tool.png" )]
 [Alias( "tools.edge-tool" )]
 [Group( "2" )]
 public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>( tool )
@@ -24,22 +24,21 @@ public sealed partial class EdgeTool( MeshTool tool ) : SelectionTool<MeshEdge>(
 		menu.AddSeparator();
 
 		var ops = menu.AddMenu( "Edge Operations", "build" );
-		AddMenuOption( ops, "Merge Edges", "merge_type", "mesh.merge", count > 1 );
-		AddMenuOption( ops, "Split Edges", "call_split", "mesh.split", true );
-		AddMenuOption( ops, "Bridge Edges", "device_hub", "mesh.bridge-tool", count > 1 );
-		AddMenuOption( ops, "Fill Hole", "format_color_fill", "mesh.fill-hole", canFill );
-		AddMenuOption( ops, "Connect Edges", "link", "mesh.connect", count > 1 );
-		AddMenuOption( ops, "Bevel Edges", "straighten", "mesh.edge-bevel", true );
-		AddMenuOption( ops, "Dissolve Edges", "blur_off", "mesh.dissolve", true );
-		AddMenuOption( ops, "Collapse Edges", "unfold_less", "mesh.collapse", true );
+		AddMenuOption( ops, "Merge Edges", "meshtools/edge_tool_button/merge_1.png", "mesh.merge", count > 1 );
+		AddMenuOption( ops, "Split Edges", "meshtools/edge_tool_button/split.png", "mesh.split", true );
+		AddMenuOption( ops, "Bridge Edges", "meshtools/edge_tool_button/bridge.png", "mesh.bridge-tool", count > 1 );
+		AddMenuOption( ops, "Fill Hole", "meshtools/edge_tool_button/fill_hole.png", "mesh.fill-hole", canFill );
+		AddMenuOption( ops, "Connect Edges", "meshtools/edge_tool_button/connect_1.png", "mesh.connect", count > 1 );
+		AddMenuOption( ops, "Bevel Edges", "meshtools/edge_tool_button/bevel_1.png", "mesh.edge-bevel", true );
+		AddMenuOption( ops, "Dissolve Edges", "meshtools/edge_tool_button/dissolve.png", "mesh.dissolve", true );
+		AddMenuOption( ops, "Collapse Edges", "meshtools/edge_tool_button/collapse.png", "mesh.collapse", true );
 
 		var sel = menu.AddMenu( "Edge Selection", "select_all" );
-		AddMenuOption( sel, "Select Loop", "all_out", "mesh.select-loop", true );
-		AddMenuOption( sel, "Select Ring", "data_array", "mesh.select-ring", true );
-		AddMenuOption( sel, "Select Ribs", "timeline", "mesh.select-ribs", true );
-		AddMenuOption( sel, "Select Path", "route", "mesh.select-path", count == 2 && edges[0].Component == edges[1].Component );
+		AddMenuOption( sel, "Select Loop", "meshtools/edge_tool_button/select_loop.png", "mesh.select-loop", true );
+		AddMenuOption( sel, "Select Ring", "meshtools/edge_tool_button/select_ring.png", "mesh.select-ring", true );
+		AddMenuOption( sel, "Select Ribs", "meshtools/edge_tool_button/select_ribs.png", "mesh.select-ribs", true );
+		AddMenuOption( sel, "Select Path", "meshtools/edge_tool_button/select_path.png", "mesh.select-path", count == 2 && edges[0].Component == edges[1].Component );
 		AddMenuOption( sel, "Invert Selection", "swap_vert", InvertCurrentSelection, "mesh.invert-selection", true );
-
 		sel.AddOption( "Select All", "select_all", () => InvokeShortcut( "mesh.select-all" ), "mesh.select-all" );
 	}
 
