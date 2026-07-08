@@ -55,9 +55,19 @@ internal sealed class DirectSoundModel : IDisposable
 		_diffractionTarget = value;
 		LastDiffractionProbes = probesFound;
 		LastDiffractionRays = probesTotal;
-		if ( !_firstTraceApplied )
-			_smoothedDiffraction = value;
+		if ( !_firstTraceApplied ) _smoothedDiffraction = value;
 		_firstTraceApplied = true;
+	}
+
+	// Seed both bands before the first trace. GetParams uses Max, so seeding one alone gets masked.
+	// markTraced=true counts it as already traced (a measured prime); false leaves it for the sim.
+	internal void SetInitialOcclusion( FrequencyBands value, bool markTraced = false )
+	{
+		_targetTransmission = value;
+		_transmission = value;
+		_diffractionTarget = value;
+		_smoothedDiffraction = value;
+		if ( markTraced ) _firstTraceApplied = true;
 	}
 
 	public void Update( Transform transform )

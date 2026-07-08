@@ -49,6 +49,8 @@ public class PrefabInstanceTest : SceneTest
 	private const string BasicPrefabPath = "test_prefab_instance_basic.prefab";
 	private const string InnerPrefabPath = "test_prefab_instance_inner.prefab";
 	private const string OuterPrefabPath = "test_prefab_instance_outer.prefab";
+	private const string ContainerPrefabPath = "test_prefab_instance_container.prefab";
+	private const string GroupedOuterPrefabPath = "test_prefab_instance_grouped_outer.prefab";
 
 	// GUIDs used inside the basic test prefab
 	private const string RootGuid = "9e6a3e6e-0001-4a01-8001-000000000001";
@@ -56,6 +58,17 @@ public class PrefabInstanceTest : SceneTest
 	private const string ChildAGuid = "9e6a3e6e-0001-4a01-8001-000000000003";
 	private const string ChildACompGuid = "9e6a3e6e-0001-4a01-8001-000000000004";
 	private const string ChildBGuid = "9e6a3e6e-0001-4a01-8001-000000000005";
+
+	// GUIDs used inside the standalone container test prefab
+	private const string ContainerRootGuid = "9e6a3e6e-0004-4a04-8004-000000000001";
+	private const string ContainerCompGuid = "9e6a3e6e-0004-4a04-8004-000000000002";
+	private const string ContainerSlotGuid = "9e6a3e6e-0004-4a04-8004-000000000003";
+
+	// GUIDs used inside the grouped outer test prefab (nested instance under a group child)
+	private const string GroupedOuterRootGuid = "9e6a3e6e-0005-4a05-8005-000000000001";
+	private const string GroupedOuterGroupGuid = "9e6a3e6e-0005-4a05-8005-000000000002";
+	private const string GroupedNestedInstanceGuid = "9e6a3e6e-0005-4a05-8005-000000000003";
+	private const string GroupedNestedCompGuid = "9e6a3e6e-0005-4a05-8005-000000000004";
 
 	// GUIDs used inside the inner/outer test prefabs (nested prefab instance tests)
 	private const string InnerRootGuid = "9e6a3e6e-0002-4a02-8002-000000000001";
@@ -110,6 +123,82 @@ public class PrefabInstanceTest : SceneTest
 				"Enabled": true,
 				"Components": [],
 				"Children": []
+			}
+		]
+	}
+	""";
+
+	/// <summary>
+	/// Root object JSON for a standalone container prefab: a root with a stat component and an
+	/// empty child. Used as the drop target when adding a prefab instance to another instance.
+	/// </summary>
+	private static readonly string ContainerPrefabJson = $$"""
+	{
+		"__guid": "{{ContainerRootGuid}}",
+		"__version": 2,
+		"Flags": 0,
+		"Name": "ContainerRoot",
+		"Enabled": true,
+		"Components": [
+			{
+				"__type": "PrefabInstanceStatComponent",
+				"__guid": "{{ContainerCompGuid}}",
+				"__enabled": true,
+				"Number": 20,
+				"Text": "container"
+			}
+		],
+		"Children": [
+			{
+				"__guid": "{{ContainerSlotGuid}}",
+				"__version": 2,
+				"Flags": 0,
+				"Name": "Slot",
+				"Enabled": true,
+				"Components": [],
+				"Children": []
+			}
+		]
+	}
+	""";
+
+	/// <summary>
+	/// Root object JSON for an outer prefab whose nested instance sits under a plain group
+	/// child instead of directly under the root, like props grouped inside a structure prefab.
+	/// </summary>
+	private static readonly string GroupedOuterPrefabJson = $$"""
+	{
+		"__guid": "{{GroupedOuterRootGuid}}",
+		"__version": 2,
+		"Flags": 0,
+		"Name": "GroupedOuterRoot",
+		"Enabled": true,
+		"Components": [],
+		"Children": [
+			{
+				"__guid": "{{GroupedOuterGroupGuid}}",
+				"__version": 2,
+				"Flags": 0,
+				"Name": "Props",
+				"Enabled": true,
+				"Components": [],
+				"Children": [
+					{
+						"__guid": "{{GroupedNestedInstanceGuid}}",
+						"__version": 2,
+						"__Prefab": "{{InnerPrefabPath}}",
+						"__PrefabInstancePatch": {
+							"AddedObjects": [],
+							"RemovedObjects": [],
+							"PropertyOverrides": [],
+							"MovedObjects": []
+						},
+						"__PrefabIdToInstanceId": {
+							"{{InnerRootGuid}}": "{{GroupedNestedInstanceGuid}}",
+							"{{InnerCompGuid}}": "{{GroupedNestedCompGuid}}"
+						}
+					}
+				]
 			}
 		]
 	}
@@ -970,6 +1059,211 @@ public class PrefabInstanceTest : SceneTest
 		// clone maps to live objects) - so we only pin key coverage here, not identity.
 		Assert.IsTrue( restoredNested.PrefabInstance.PrefabToInstanceLookup.ContainsKey( Guid.Parse( InnerRootGuid ) ) );
 		Assert.IsTrue( restoredNested.PrefabInstance.PrefabToInstanceLookup.ContainsKey( Guid.Parse( InnerCompGuid ) ) );
+	}
+
+	/// <summary>
+	/// Dragging an item prefab instance into another prefab instance and applying changes on
+	/// the outer root (editor "Apply to Prefab" = OverridePrefabWithInstance) must keep all
+	/// scene objects intact: names, components, values and children must survive, the item
+	/// must become a nested instance, and fresh clones must contain the item.
+	/// </summary>
+	[TestMethod]
+	public void OverridePrefabWithInstanceKeepsAddedPrefabInstanceIntact()
+	{
+		using var containerRegistration = Helpers.RegisterPrefabFromJson( ContainerPrefabPath, ContainerPrefabJson );
+		var containerScene = SceneUtility.GetPrefabScene( ResourceLibrary.Get<PrefabFile>( ContainerPrefabPath ) );
+		using var itemRegistration = RegisterBasicPrefab( out var itemScene );
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		// Drag outer prefab into scene
+		var container = containerScene.Clone();
+
+		// Drag item prefab into scene, then into the outer instance in the hierarchy
+		var item = itemScene.Clone();
+		item.SetParent( container );
+
+		container.PrefabInstance.RefreshPatch();
+		Assert.IsTrue( container.PrefabInstance.IsAddedGameObject( item ) );
+
+		// "Apply to Prefab" on the outer root
+		container.PrefabInstance.OverridePrefabWithInstance();
+
+		// The container keeps its own content
+		Assert.AreEqual( "ContainerRoot", container.Name );
+		var containerComp = container.Components.Get<PrefabInstanceStatComponent>();
+		Assert.IsNotNull( containerComp );
+		Assert.AreEqual( 20, containerComp.Number );
+		Assert.AreEqual( "container", containerComp.Text );
+		Assert.IsNotNull( GetChild( container, "Slot" ) );
+
+		// The container stays a regular outermost instance, applying must not flag it nested
+		Assert.IsTrue( container.IsOutermostPrefabInstanceRoot );
+		Assert.IsFalse( container.PrefabInstance.IsNested );
+
+		// The item keeps its content and becomes a nested instance
+		Assert.AreEqual( "BasicRoot", item.Name );
+		Assert.IsTrue( item.IsPrefabInstanceRoot );
+		Assert.IsTrue( item.IsNestedPrefabInstanceRoot );
+		Assert.AreEqual( BasicPrefabPath, item.PrefabInstanceSource );
+
+		var itemComp = item.Components.Get<PrefabInstanceStatComponent>();
+		Assert.IsNotNull( itemComp );
+		Assert.AreEqual( 5, itemComp.Number );
+		Assert.AreEqual( "prefab", itemComp.Text );
+
+		var itemChildA = GetChild( item, "ChildA" );
+		Assert.IsNotNull( GetChild( item, "ChildB" ) );
+		Assert.AreEqual( 10, itemChildA.Components.Get<PrefabInstanceStatComponent>().Number );
+
+		Assert.IsFalse( container.PrefabInstance.IsModified() );
+
+		// A fresh clone of the container prefab contains the item as nested instance
+		var fresh = containerScene.Clone();
+		var freshItem = GetChild( fresh, "BasicRoot" );
+		Assert.IsTrue( freshItem.IsNestedPrefabInstanceRoot );
+		Assert.AreEqual( 5, freshItem.Components.Get<PrefabInstanceStatComponent>().Number );
+		Assert.AreEqual( 10, GetChild( freshItem, "ChildA" ).Components.Get<PrefabInstanceStatComponent>().Number );
+	}
+
+	/// <summary>
+	/// Regression: OverridePrefabWithInstance used to flag the applied root itself as nested.
+	/// If that instance was later dragged into another prefab instance, the reparent logic
+	/// treated it as belonging to the new outer instance without any GUID mappings, corrupting
+	/// both prefabs on the next apply. This chains: apply on the item, drag it into another
+	/// instance (onto a child), apply on the outer.
+	/// </summary>
+	[TestMethod]
+	public void ApplyToPrefabAfterAddedInstanceWasPreviouslyApplied()
+	{
+		using var containerRegistration = Helpers.RegisterPrefabFromJson( ContainerPrefabPath, ContainerPrefabJson );
+		var containerScene = SceneUtility.GetPrefabScene( ResourceLibrary.Get<PrefabFile>( ContainerPrefabPath ) );
+		using var itemRegistration = RegisterBasicPrefab( out _ );
+		var itemScene = SceneUtility.GetPrefabScene( ResourceLibrary.Get<PrefabFile>( BasicPrefabPath ) );
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var container = containerScene.Clone();
+		var item = itemScene.Clone();
+
+		// Tweak the item and apply changes on it first
+		item.Components.Get<PrefabInstanceStatComponent>().Number = 42;
+		item.PrefabInstance.RefreshPatch();
+		item.PrefabInstance.OverridePrefabWithInstance();
+
+		Assert.IsTrue( item.IsOutermostPrefabInstanceRoot );
+		Assert.IsFalse( item.PrefabInstance.IsNested );
+
+		// Drag the item onto a child inside the container instance
+		var slot = GetChild( container, "Slot" );
+		item.SetParent( slot );
+
+		// The item must still be its own instance, added to the container
+		Assert.IsTrue( item.IsOutermostPrefabInstanceRoot );
+		container.PrefabInstance.RefreshPatch();
+		Assert.IsTrue( container.PrefabInstance.IsAddedGameObject( item ) );
+
+		// "Apply to Prefab" on the outer root
+		container.PrefabInstance.OverridePrefabWithInstance();
+		container.PrefabInstance.RefreshPatch();
+
+		// The prefab file is saved, hot reload round-trips the JSON and rebuilds the cache scene
+		var containerFile = ResourceLibrary.Get<PrefabFile>( ContainerPrefabPath );
+		containerFile.RootObject = JsonNode.Parse( containerFile.RootObject.ToJsonString() ).AsObject();
+		((PrefabCacheScene)(GameObject)containerScene).Refresh( containerFile );
+
+		// The editor then refreshes all instances of the changed prefab in open scenes
+		container.UpdateFromPrefab();
+
+		// Everything must still be intact
+		Assert.AreEqual( 20, container.Components.Get<PrefabInstanceStatComponent>().Number );
+
+		var refreshedSlot = GetChild( container, "Slot" );
+		var refreshedItem = GetChild( refreshedSlot, "BasicRoot" );
+		Assert.IsTrue( refreshedItem.IsNestedPrefabInstanceRoot );
+
+		var itemComp = refreshedItem.Components.Get<PrefabInstanceStatComponent>();
+		Assert.IsNotNull( itemComp );
+		Assert.AreEqual( 42, itemComp.Number );
+		Assert.AreEqual( "prefab", itemComp.Text );
+		Assert.AreEqual( 10, GetChild( refreshedItem, "ChildA" ).Components.Get<PrefabInstanceStatComponent>().Number );
+
+		// Fresh clones contain the chain with correct values
+		var fresh = containerScene.Clone();
+		var freshItem = GetChild( GetChild( fresh, "Slot" ), "BasicRoot" );
+		Assert.AreEqual( 42, freshItem.Components.Get<PrefabInstanceStatComponent>().Number );
+	}
+
+	/// <summary>
+	/// Regression: applying an instance whose prefab contains a nested instance under a plain
+	/// group child (not directly under the root) wiped that nested instance's data in the
+	/// prefab cache scene. The update serialization only marked direct children of the root
+	/// with EditorSkipPrefabBreakOnRefresh, deeper nested roots got EditorPrefabInstanceNestedSource,
+	/// which cannot rebuild mappings inside a PrefabCacheScene. Everything then lost its
+	/// identity, values and components on refresh.
+	/// </summary>
+	[TestMethod]
+	public void ApplyToPrefabKeepsDeepNestedInstanceIntact()
+	{
+		using var innerRegistration = Helpers.RegisterPrefabFromJson( InnerPrefabPath, InnerPrefabJson );
+		using var groupedRegistration = Helpers.RegisterPrefabFromJson( GroupedOuterPrefabPath, GroupedOuterPrefabJson );
+		var groupedScene = SceneUtility.GetPrefabScene( ResourceLibrary.Get<PrefabFile>( GroupedOuterPrefabPath ) );
+		using var itemRegistration = RegisterBasicPrefab( out _ );
+		var itemScene = SceneUtility.GetPrefabScene( ResourceLibrary.Get<PrefabFile>( BasicPrefabPath ) );
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var outer = groupedScene.Clone();
+		var group = GetChild( outer, "Props" );
+		var nested = GetChild( group, "InnerRoot" );
+		Assert.IsTrue( nested.IsNestedPrefabInstanceRoot );
+
+		var nestedId = nested.Id;
+		var nestedComp = nested.Components.Get<PrefabInstanceStatComponent>();
+		var nestedCompId = nestedComp.Id;
+		Assert.AreEqual( 7, nestedComp.Number );
+
+		// Drag the item into the outer instance and apply
+		var item = itemScene.Clone();
+		item.SetParent( outer );
+		outer.PrefabInstance.RefreshPatch();
+		outer.PrefabInstance.OverridePrefabWithInstance();
+		outer.PrefabInstance.RefreshPatch();
+
+		// The prefab file keeps the nested instance with its original stable ids
+		var outerFile = ResourceLibrary.Get<PrefabFile>( GroupedOuterPrefabPath );
+		var fileGroup = outerFile.RootObject["Children"].AsArray().First( c => c["Name"]?.GetValue<string>() == "Props" );
+		var fileNested = fileGroup["Children"].AsArray().First().AsObject();
+		Assert.AreEqual( InnerPrefabPath, fileNested["__Prefab"]?.GetValue<string>() );
+		var fileMapping = fileNested["__PrefabIdToInstanceId"].AsObject();
+		Assert.AreEqual( GroupedNestedInstanceGuid, fileMapping[InnerRootGuid]?.GetValue<string>() );
+		Assert.AreEqual( GroupedNestedCompGuid, fileMapping[InnerCompGuid]?.GetValue<string>() );
+
+		// Hot reload round-trips the JSON and rebuilds the cache scene, then instances refresh
+		outerFile.RootObject = JsonNode.Parse( outerFile.RootObject.ToJsonString() ).AsObject();
+		((PrefabCacheScene)(GameObject)groupedScene).Refresh( outerFile );
+		outer.UpdateFromPrefab();
+
+		// The nested instance keeps its identity, content and mappings in the scene
+		var refreshedNested = GetChild( GetChild( outer, "Props" ), "InnerRoot" );
+		Assert.AreEqual( nestedId, refreshedNested.Id );
+		Assert.IsTrue( refreshedNested.IsNestedPrefabInstanceRoot );
+
+		var refreshedComp = refreshedNested.Components.Get<PrefabInstanceStatComponent>();
+		Assert.IsNotNull( refreshedComp );
+		Assert.AreEqual( nestedCompId, refreshedComp.Id );
+		Assert.AreEqual( 7, refreshedComp.Number );
+		Assert.AreEqual( "inner", refreshedComp.Text );
+
+		Assert.AreEqual( refreshedNested.Id, refreshedNested.PrefabInstance.PrefabToInstanceLookup[Guid.Parse( InnerRootGuid )] );
+		Assert.AreEqual( refreshedComp.Id, refreshedNested.PrefabInstance.PrefabToInstanceLookup[Guid.Parse( InnerCompGuid )] );
+
+		// The added item is intact too
+		var refreshedItem = GetChild( outer, "BasicRoot" );
+		Assert.AreEqual( 5, refreshedItem.Components.Get<PrefabInstanceStatComponent>().Number );
 	}
 
 	/// <summary>

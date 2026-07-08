@@ -54,6 +54,7 @@ internal static class BenchmarkOrchestrator
 		_durationArg = CommandLine.GetSwitch( "+benchmark-duration", null );
 		ExportPath = CommandLine.GetSwitch( "+benchmark-export", null );
 
+		_preRunSnapshot = RenderSettings.Instance.CaptureSnapshot();
 		RenderSettings.Instance.ApplySettingsForBenchmarks();
 
 		if ( CommandLine.HasSwitch( "+benchmark-tracy" ) && !string.IsNullOrEmpty( ExportPath ) )
@@ -64,6 +65,7 @@ internal static class BenchmarkOrchestrator
 
 		if ( !TryLoadNextPackage() )
 		{
+			RestoreSettings();
 			Console.WriteLine( "Quitting" );
 			ConVarSystem.Run( "quit" );
 		}

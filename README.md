@@ -23,7 +23,7 @@ This repository is for building the engine from source for those who want to con
 
 ### Steam
 
-You can download and install the s&box editor directly from [Steam](https://sbox.game/give-me-that).
+You can download and install the s&box editor directly from [Steam](https://store.steampowered.com/app/590830/sbox/).
 
 ### Compiling from Source
 

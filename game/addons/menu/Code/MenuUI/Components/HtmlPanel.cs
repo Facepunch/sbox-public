@@ -34,7 +34,7 @@ public class HtmlPanel : Panel
 		}
 	}
 
-	static string[] breakinElements = ["div", "p", "h1", "h2", "h3", "h4", "figure", "pre", "img", "video", "blockquote", "ul", "li", "ol"];
+	static string[] breakinElements = ["div", "p", "h1", "h2", "h3", "h4", "success", "info", "warning", "figure", "pre", "img", "video", "blockquote", "ul", "li", "ol"];
 
 	static bool IsTextElement( Sandbox.Html.INode node )
 	{

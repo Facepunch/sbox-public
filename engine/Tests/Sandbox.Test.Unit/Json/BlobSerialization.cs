@@ -263,6 +263,99 @@ public class BlobSerializationTest
 		File.Delete( testFilePath );
 		File.Delete( testFilePath + "_d" );
 	}
+
+	[TestMethod]
+	public void InlineBlobRoundTrip()
+	{
+		var blob = new TestBlob
+		{
+			IntValue = 123,
+			StringValue = "Inline Data",
+			Positions = new List<Vector3>
+			{
+				new Vector3( 10, 20, 30 ),
+				new Vector3( 40, 50, 60 )
+			}
+		};
+
+		JsonNode node;
+		using ( var blobs = BlobDataSerializer.Capture() )
+		{
+			node = Json.ToNode( blob );
+			blobs.SaveTo( node );
+		}
+
+		Assert.IsNotNull( node["__blobdata"] );
+
+		TestBlob result;
+		using ( var blobs = BlobDataSerializer.LoadFrom( node ) )
+		{
+			result = Json.FromNode( node, typeof( TestBlob ) ) as TestBlob;
+		}
+
+		Assert.IsNotNull( result );
+		Assert.AreEqual( blob.IntValue, result.IntValue );
+		Assert.AreEqual( blob.StringValue, result.StringValue );
+		Assert.IsTrue( blob.Positions.SequenceEqual( result.Positions ) );
+	}
+
+	[TestMethod]
+	public void InlineBlobProperty()
+	{
+		var container = new ContainerWithBlob
+		{
+			Name = "Inline Container",
+			RegularValue = 777,
+			BlobData = new TestBlob { IntValue = 456, StringValue = "Data in blob" }
+		};
+
+		JsonNode node;
+		using ( var blobs = BlobDataSerializer.Capture() )
+		{
+			node = Json.ToNode( container );
+			blobs.SaveTo( node );
+		}
+
+		ContainerWithBlob result;
+		using ( var blobs = BlobDataSerializer.LoadFrom( node ) )
+		{
+			result = Json.FromNode( node, typeof( ContainerWithBlob ) ) as ContainerWithBlob;
+		}
+
+		Assert.IsNotNull( result );
+		Assert.AreEqual( "Inline Container", result.Name );
+		Assert.AreEqual( 777, result.RegularValue );
+		Assert.IsNotNull( result.BlobData );
+		Assert.AreEqual( 456, result.BlobData.IntValue );
+		Assert.AreEqual( "Data in blob", result.BlobData.StringValue );
+	}
+
+	[TestMethod]
+	public void SaveToNodeWithNoBlobs()
+	{
+		var node = new JsonObject { ["Name"] = "Nothing here" };
+
+		using ( var blobs = BlobDataSerializer.Capture() )
+		{
+			Assert.IsFalse( blobs.SaveTo( node ) );
+		}
+
+		Assert.IsFalse( node.ContainsKey( "__blobdata" ) );
+	}
+
+	[TestMethod]
+	public void LoadFromNodeWithNoBlobs()
+	{
+		var node = new JsonObject { ["$blob"] = Guid.NewGuid().ToString() };
+
+		TestBlob result;
+		using ( var blobs = BlobDataSerializer.LoadFrom( node ) )
+		{
+			result = Json.FromNode( node, typeof( TestBlob ) ) as TestBlob;
+		}
+
+		Assert.IsNull( result );
+	}
 }
 
 /// <summary>

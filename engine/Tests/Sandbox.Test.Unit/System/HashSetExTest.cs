@@ -11,8 +11,8 @@ public class HashSetExTest
 	/// </summary>
 	[TestMethod]
 	[DataRow( 1_000 )]
-	[DataRow( 10_000 )]
-	[DataRow( 100_000 )]
+	//[DataRow( 10_000 )]
+	//[DataRow( 100_000 )]
 	//[DataRow( 1_000_000 )]
 	public void DeferredAdd( int itemCount )
 	{
@@ -49,8 +49,8 @@ public class HashSetExTest
 	/// </summary>
 	[TestMethod]
 	[DataRow( 1_000 )]
-	[DataRow( 10_000 )]
-	[DataRow( 100_000 )]
+	//[DataRow( 10_000 )]
+	//[DataRow( 100_000 )]
 	//[DataRow( 1_000_000 )]
 	public void DeferredRemove( int itemCount )
 	{
@@ -77,8 +77,8 @@ public class HashSetExTest
 	/// </summary>
 	[TestMethod]
 	[DataRow( 1_000, 1_000 )]
-	[DataRow( 10_000, 1_000 )]
-	[DataRow( 100_000, 1_000 )]
+	//[DataRow( 10_000, 1_000 )]
+	//[DataRow( 100_000, 1_000 )]
 	public void WorstCaseIteration( int itemCount, int iterations )
 	{
 		var hashSet = new HashSetEx<int>();

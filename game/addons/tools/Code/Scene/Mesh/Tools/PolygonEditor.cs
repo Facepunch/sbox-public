@@ -5,7 +5,7 @@ namespace Editor.MeshEditor;
 /// <summary>
 /// Draw a polygon mesh.
 /// </summary>
-[Title( "Polygon" ), Icon( "pentagon" )]
+[Title( "Polygon" ), Icon( "meshtools/primitve_tools/polygon.png" )]
 public sealed class PolygonEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 {
 	Plane _plane;

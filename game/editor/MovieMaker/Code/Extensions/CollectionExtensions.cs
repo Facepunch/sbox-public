@@ -1,7 +1,6 @@
-﻿using System.Collections;
-using Sandbox.MovieMaker;
+﻿using Sandbox.MovieMaker;
+using System.Collections;
 using System.Collections.Immutable;
-using System.Diagnostics;
 using System.Linq;
 
 namespace Editor.MovieMaker;
@@ -101,6 +100,56 @@ public static class CollectionExtensions
 		list.RemoveAt( list.Count - 1 );
 
 		return item;
+	}
+
+	extension<T>( IEnumerable<T> items ) where T : class
+	{
+		public IReadOnlyList<(T Prev, T Next)> GetSelectedPairs( IReadOnlySet<T> selected )
+		{
+			if ( selected.Count < 2 ) return [];
+
+			var list = new List<(T Prev, T Next)>( selected.Count - 1 );
+
+			T? prev = null;
+
+			foreach ( var next in items )
+			{
+				if ( prev is not null && selected.Contains( prev ) && selected.Contains( next ) )
+				{
+					list.Add( (prev, next) );
+				}
+
+				prev = next;
+			}
+
+			return list;
+		}
+
+		public IReadOnlyList<IReadOnlyList<T>> GetSelectedRanges( IReadOnlySet<T> selected )
+		{
+			var outerList = new List<IReadOnlyList<T>>();
+			var innerList = new List<T>();
+
+			foreach ( var next in items )
+			{
+				if ( selected.Contains( next ) )
+				{
+					innerList.Add( next );
+				}
+				else if ( innerList.Count > 0 )
+				{
+					outerList.Add( [..innerList] );
+					innerList.Clear();
+				}
+			}
+
+			if ( innerList.Count > 0 )
+			{
+				outerList.Add( [..innerList] );
+			}
+
+			return outerList;
+		}
 	}
 }
 

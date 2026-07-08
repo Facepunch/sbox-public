@@ -140,6 +140,18 @@ public sealed partial class SceneModel : SceneObject
 	}
 
 	/// <summary>
+	/// The index of the bone closest to a world position, or -1 without bones. Resolved natively in a
+	/// single interop call - no bone transforms are copied out.
+	/// </summary>
+	internal int GetClosestBoneIndex( Vector3 worldPoint )
+	{
+		if ( animNative.IsNull )
+			return -1;
+
+		return animNative.GetClosestBoneIndex( worldPoint );
+	}
+
+	/// <summary>
 	/// Fill <paramref name="dest"/> with the previous frame's world space bone transforms in a single interop
 	/// call - the counterpart to <see cref="GetBoneWorldTransforms"/>, for computing per-bone motion.
 	/// </summary>

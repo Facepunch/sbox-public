@@ -90,7 +90,7 @@ namespace Sandbox.SolutionGenerator
 				{
 					if ( proj.Contains( "\\" ) )
 					{
-						csproj.ProjectReferences += $"		<Reference Include=\"{proj}\" />\n";
+						csproj.ProjectReferences += $"		<Reference Include=\"{System.Security.SecurityElement.Escape( proj )}\" />\n";
 						continue;
 					}
 

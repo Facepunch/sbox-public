@@ -24,7 +24,7 @@ Home
 	}
 }
 
-Home column Card
+Home Card
 {
 	background: rgba( $default-950, 0.8 );
 	backdrop-filter: blur( 10px );
@@ -33,5 +33,33 @@ Home column Card
 	flex-direction: column;
 	padding: 2rem;
 	border-radius: $rounding-large;
+}
+
+Home column.right
+{
+	// DesktopButtons hardcodes width: 50% and height: 100% (it used to be a
+	// direct child of .page). Inside this column that would eat the whole
+	// height and squash the feed - clamp it to its own content size and keep
+	// it full width so the buttons stay pinned bottom-right.
+	DesktopButtons
+	{
+		width: 100%;
+		height: auto;
+		flex-shrink: 0;
+	}
+
+	Card.feed
+	{
+		gap: 1rem;
+		flex-grow: 1;
+		min-height: 0;
+		overflow: hidden;
+
+		// Pinned header - only the list below it scrolls.
+		label.medium
+		{
+			flex-shrink: 0;
+		}
+	}
 }
 

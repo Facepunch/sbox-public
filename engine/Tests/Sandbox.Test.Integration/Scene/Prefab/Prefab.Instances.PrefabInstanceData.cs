@@ -655,6 +655,34 @@ public class InstanceDataTest
 		Assert.AreEqual( new Vector3( 3, 3, 3 ), outerPrefabScene.Children[0].Components.Get<BoxCollider>().Scale );
 	}
 
+	[TestMethod]
+	public void RuntimeFlagOnInstanceDoesNotCreatePrefabDiff()
+	{
+		var saveLocation = "___runtime_flag_diff_test.prefab";
+		using var prefab = SceneTests.Helpers.RegisterPrefabFromJson( saveLocation, _basicPrefabSource );
+		var prefabScene = SceneUtility.GetPrefabScene( ResourceLibrary.Get<PrefabFile>( saveLocation ) );
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+		var instance = prefabScene.Clone( Vector3.Zero );
+
+		// Clean instance, no Flags override in the patch.
+		instance.PrefabInstance.RefreshPatch();
+		Assert.IsFalse( instance.PrefabInstance.IsPropertyOverridden( instance, GameObject.JsonKeys.Flags ) );
+
+		// A runtime flag (the envmap-probe Loading case) must not show up as a Flags override.
+		instance.Flags |= GameObjectFlags.Loading;
+		instance.PrefabInstance.RefreshPatch();
+		Assert.IsFalse( instance.PrefabInstance.IsPropertyOverridden( instance, GameObject.JsonKeys.Flags ),
+			"a runtime flag must not produce a Flags override in the prefab patch" );
+
+		// A persisted flag is a real override and should be recorded.
+		instance.Flags |= GameObjectFlags.Hidden;
+		instance.PrefabInstance.RefreshPatch();
+		Assert.IsTrue( instance.PrefabInstance.IsPropertyOverridden( instance, GameObject.JsonKeys.Flags ),
+			"a persisted flag should be recorded as a Flags override in the prefab patch" );
+	}
+
 	static readonly string _basicPrefabSource = """"
 	{
 		"__guid": "fab370f8-2e2c-48cf-a523-e4be49723490",

@@ -35,13 +35,29 @@ CS
     RWTexture2D<float> Heightmap < Attribute( "Heightmap" ); >;
     RWTexture2D<float> ControlMap < Attribute( "ControlMap" ); >;
     
-    float2 HeightUV < Attribute( "HeightUV" ); >;
-    float FlattenHeight < Attribute( "FlattenHeight" ); >;
-    int BrushSize < Attribute( "BrushSize" ); >;
-    float BrushStrength < Attribute( "BrushStrength" ); >;
+    struct BrushData
+    {
+        float2 UV;
+        float Strength;
+        int Size;
+        float Rotation;
+        float FlattenHeight;
+        int SplatChannel;
+    };
+    StructuredBuffer<BrushData> BrushSettings < Attribute( "BrushSettings" ); >;
+
 	Texture2D<float> Brush < Attribute( "Brush" ); >;
 
     SamplerState g_sBilinearBorder < Filter( BILINEAR ); AddressU( BORDER ); AddressV( BORDER ); >;
+
+    float2 RotateBrushUV( float2 uv )
+    {
+        float2 centered = uv - 0.5;
+        float sinA, cosA;
+        sincos( BrushSettings[0].Rotation, sinA, cosA );
+        return float2( centered.x * cosA - centered.y * sinA,
+                       centered.x * sinA + centered.y * cosA ) + 0.5;
+    }
 
 	[numthreads( 16, 16, 1 )]
 	void MainCs( uint nGroupIndex : SV_GroupIndex, uint3 vThreadId : SV_DispatchThreadID )
@@ -49,33 +65,33 @@ CS
         float w, h;
         Heightmap.GetDimensions( w, h );
 
-        int2 texelCenter = int2( float2( w, h ) * HeightUV );
-        int2 texelOffset = int2( vThreadId.xy ) - int( BrushSize / 2 );
+        int2 texelCenter = int2( float2( w, h ) * BrushSettings[0].UV );
+        int2 texelOffset = int2( vThreadId.xy ) - int( BrushSettings[0].Size / 2 );
 
         int2 texel = texelCenter + texelOffset;
         if ( texel.x < 0 || texel.y < 0 || texel.x >= w || texel.y >= h ) return;
 
-        float2 brushUV = float2( vThreadId.xy ) / BrushSize;
+        float2 brushUV = RotateBrushUV( float2( vThreadId.xy ) / BrushSettings[0].Size );
 
         if ( D_SCULPT_MODE == MODE_RAISE_LOWER )
         {
             float brush = Brush.SampleLevel( g_sBilinearBorder, brushUV, 0 );
             float height = Heightmap.Load( texel ).x;
 
-            Heightmap[texel] = height + brush * 0.001f * BrushStrength;
+            Heightmap[texel] = height + brush * 0.001f * BrushSettings[0].Strength;
         }
         if ( D_SCULPT_MODE == MODE_FLATTEN )
         {
-            float brush = Brush.SampleLevel( g_sBilinearBorder, brushUV, 0 ) * BrushStrength;
+            float brush = Brush.SampleLevel( g_sBilinearBorder, brushUV, 0 ) * BrushSettings[0].Strength;
             float height = Heightmap.Load( texel ).x;
-            
+
             // TODO: I think we're gonna need the delta of the last hit UV, so we can flatten everything
             // between those two points, oherwise there'll be gaps
-            Heightmap[texel] = lerp( height, FlattenHeight, brush );
+            Heightmap[texel] = lerp( height, BrushSettings[0].FlattenHeight, brush );
         }
         if ( D_SCULPT_MODE == MODE_SMOOTH )
         {
-            float brush = Brush.SampleLevel( g_sBilinearBorder, brushUV, 0 ) * BrushStrength;
+            float brush = Brush.SampleLevel( g_sBilinearBorder, brushUV, 0 ) * BrushSettings[0].Strength;
             if ( brush <= 0.0f ) return;
             
             // Sample surroundings (3x3)
@@ -103,8 +119,8 @@ CS
         }
         if ( D_SCULPT_MODE == MODE_HOLE )
         {
-            float brush = Brush.SampleLevel( g_sBilinearBorder, brushUV, 0 ) * BrushStrength;
-            
+            float brush = Brush.SampleLevel( g_sBilinearBorder, brushUV, 0 ) * BrushSettings[0].Strength;
+
             bool setHole = brush > 0.1f;
             bool clearHole = brush < -0.1f;
             
@@ -129,7 +145,7 @@ CS
             noise = (noise * 2.0f - 1.0f);
             
             float height = Heightmap.Load( texel ).x;
-            Heightmap[texel] = height + noise * noiseStrength * BrushStrength * brush;
+            Heightmap[texel] = height + noise * noiseStrength * BrushSettings[0].Strength * brush;
         }
     }
 }

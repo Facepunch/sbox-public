@@ -161,7 +161,7 @@ sealed partial class NetworkDebugSystem : GameObjectSystem<NetworkDebugSystem>
 	/// </summary>
 	internal void TrackSync( string name, int bytes, bool outbound = false, Connection source = default )
 	{
-		if ( !NetworkRecord )
+		if ( DebugOverlay.overlay_network_calls == 0 && !NetworkRecord )
 			return;
 
 		EnsureInitialized();

@@ -26,6 +26,8 @@ native class CSceneAnimatableObject as NativeEngine.CSceneAnimatableObject : CSc
 	void GetWorldSpaceRenderBoneTransforms( int nNumBones, void* pOut );
 	[nogc]
 	void GetWorldSpaceRenderBonePreviousTransforms( int nNumBones, void* pOut );
+	[nogc]
+	int GetClosestBoneIndex( Vector3 vWorldPoint );
 
 	void Update( float dt );
 	void MergeFrom( CSceneAnimatableObject other );

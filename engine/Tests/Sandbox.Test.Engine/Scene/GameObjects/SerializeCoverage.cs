@@ -175,6 +175,54 @@ public class SerializeCoverageTest : SceneTest
 		Assert.IsFalse( restored.Flags.Contains( GameObjectFlags.Deserializing ), "the deserializing flag must be cleared when done" );
 	}
 
+	// Loading and friends shouldn't end up on disk, they break prefab diffs if they do.
+	[TestMethod]
+	public void TransientFlagsAreNotSerializedForDisk()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		go.Flags |= GameObjectFlags.Hidden | GameObjectFlags.Loading;
+
+		var flags = (GameObjectFlags)(long)go.Serialize()[GameObject.JsonKeys.Flags];
+
+		Assert.IsTrue( flags.Contains( GameObjectFlags.Hidden ) );
+		Assert.IsFalse( flags.Contains( GameObjectFlags.Loading ) );
+	}
+
+	// Network is the exception, it sends everything.
+	[TestMethod]
+	public void NetworkSerializeKeepsFullFlags()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		go.Flags |= GameObjectFlags.Hidden | GameObjectFlags.Loading;
+
+		var flags = (GameObjectFlags)(long)go.Serialize( new GameObject.SerializeOptions { SceneForNetwork = true } )[GameObject.JsonKeys.Flags];
+
+		Assert.IsTrue( flags.Contains( GameObjectFlags.Hidden ) );
+		Assert.IsTrue( flags.Contains( GameObjectFlags.Loading ) );
+	}
+
+	// With every flag set, a disk serialize must write precisely PersistedFlags and nothing else.
+	[TestMethod]
+	public void OnlyPersistedFlagsAreWrittenToDisk()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var go = scene.CreateObject();
+		// NotSaved omits the whole object from disk, so leave it off.
+		go.Flags = (GameObjectFlags)(~0) & ~GameObjectFlags.NotSaved;
+
+		var flags = (GameObjectFlags)(long)go.Serialize()[GameObject.JsonKeys.Flags];
+
+		Assert.AreEqual( GameObject.PersistedFlags, flags, "disk serialize must contain exactly the persisted flags" );
+	}
+
 	/// <summary>
 	/// EditorOnly objects are destroyed on the spot when deserialized into a
 	/// non-editor scene - they never appear in game.

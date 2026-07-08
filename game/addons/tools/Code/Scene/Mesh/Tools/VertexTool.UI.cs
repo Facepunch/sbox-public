@@ -80,7 +80,7 @@ partial class VertexTool
 					var row = new Widget { Layout = Layout.Row() };
 					row.Layout.Spacing = 4;
 
-					CreateButton( "Merge", "merge", "mesh.merge", Merge, _vertices.Length > 1, row.Layout );
+					CreateButton( "Merge", "meshtools/vertex_tools/merge.png", "mesh.merge", Merge, _vertices.Length > 1, row.Layout );
 
 					var distance = new FloatControlWidget( toolSo.GetProperty( nameof( MergeDistance ) ) );
 					distance.FixedHeight = Theme.ControlHeight;
@@ -103,12 +103,11 @@ partial class VertexTool
 					var row = new Widget { Layout = Layout.Row() };
 					row.Layout.Spacing = 4;
 
-					CreateButton( "Connect", "link", "mesh.connect", Connect, _vertices.Length > 1, row.Layout );
-					CreateButton( "Bevel", "rounded_corner", "mesh.bevel", Bevel, _vertices.Length > 0, row.Layout );
-					CreateButton( "Snap To Vertex", "gps_fixed", "mesh.snap_to_vertex", SnapToVertex, _vertices.Length > 1, row.Layout );
-					CreateButton( "Weld UVs", "join_inner", "mesh.vertex-weld-uvs", WeldUVs, _vertices.Length > 0, row.Layout );
-					CreateButton( "Edge Cut Tool", "polyline", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
-
+					CreateButton( "Connect", "meshtools/vertex_tools/connect.png", "mesh.connect", Connect, _vertices.Length > 1, row.Layout );
+					CreateButton( "Bevel", "meshtools/vertex_tools/bevel.png", "mesh.bevel", Bevel, _vertices.Length > 0, row.Layout );
+					CreateButton( "Snap To Vertex", "meshtools/vertex_tools/snap_to_vertex.png", "mesh.snap_to_vertex", SnapToVertex, _vertices.Length > 1, row.Layout );
+					CreateButton( "Weld UVs", "meshtools/vertex_tools/weld_uvs.png", "mesh.vertex-weld-uvs", WeldUVs, _vertices.Length > 0, row.Layout );
+					CreateButton( "Edge Cut Tool", "meshtools/vertex_tools/edge_cut_tool.png", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
 					row.Layout.AddStretchCell();
 
 					group.Add( row );

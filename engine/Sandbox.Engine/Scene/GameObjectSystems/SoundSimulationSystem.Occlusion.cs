@@ -15,7 +15,12 @@ partial class SoundSimulationSystem
 	const float OcclusionJitterMaxDist = 1378f; // ~35m; beyond this the jitter is noise vs. cost.
 	const float OcclusionStepPast = 6f;
 	const int MaxOcclusionHits = 3;
-	const int MaxOcclusionsPerFrame = 16;
+	const int MaxOcclusionsPerFrame = 18;
+
+	// Synchronous occlusion traces per snapshot build, so new sounds start occluded not full volume.
+	const int MaxPrimesPerFrame = 8;
+	static readonly FrequencyBands HalfOccluded = FrequencyBands.One * 0.5f;
+	static int _primesRemaining;
 
 	readonly ref struct TraceCtx
 	{
@@ -185,6 +190,45 @@ partial class SoundSimulationSystem
 				u.Source.SetTargetDiffraction( u.Diffraction, u.DiffractionProbesFound, u.DiffractionProbesTotal );
 			u.Handle.OcclusionPhase = _tick;
 		}
+	}
+
+	// Reset the prime budget once per snapshot build.
+	internal static void BeginPrimeFrame() => _primesRemaining = MaxPrimesPerFrame;
+
+	// Seed a new model's occlusion before its first mix so it doesn't start at full volume.
+	internal void PrimeNewModel( SoundHandle handle, Audio.Listener listener, Audio.DirectSoundModel model )
+	{
+		if ( !snd_simulation_enable || !snd_occlusion_enable ) return;
+		if ( !handle.OcclusionEnabled ) return;
+		if ( handle.TargetMixer is { } mixer && mixer.Occlusion <= 0f ) return;
+		if ( !Scene.HasPhysicsWorld ) return;
+
+		if ( _primesRemaining <= 0 )
+		{
+			model.SetInitialOcclusion( HalfOccluded ); // over budget: guess, left untraced for the sim
+			return;
+		}
+		_primesRemaining--;
+
+		var world = Scene.PhysicsWorld;
+		var soundPos = handle.Transform.Position;
+
+		EscapeBodyBuffer sourceEscape = default;
+		int sourceEscapeCount = GatherSourceEscapeBodies( soundPos, sourceEscape );
+		EscapeBodyBuffer listenerEscape = default;
+		int listenerEscapeCount = GatherListenerEscapeBodies( listener.Position, listenerEscape );
+
+		var trace = ApplySimulationTags( world.Trace, handle );
+		trace.filterCallback = EscapeFilter;
+
+		var ctx = new TraceCtx( trace,
+			((Span<PhysicsBody>)sourceEscape)[..sourceEscapeCount],
+			((Span<PhysicsBody>)listenerEscape)[..listenerEscapeCount] );
+
+		var tx = ComputeOcclusion( soundPos, listener.Position, 0f, ctx, out _, out _ );
+		// Mark traced so the sim re-traces it in turn rather than fast-tracking it.
+		model.SetInitialOcclusion( tx, markTraced: true );
+		handle.OcclusionPhase = _tick;
 	}
 
 	static bool LosBlocked( Vector3 from, Vector3 to, in TraceCtx ctx, ReadOnlySpan<PhysicsBody> ignoreNear )

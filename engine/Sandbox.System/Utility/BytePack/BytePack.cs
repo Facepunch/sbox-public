@@ -13,6 +13,10 @@ internal partial class BytePack
 	readonly Dictionary<Identifier, Packer> handlers = new();
 	readonly Dictionary<int, Packer> typeHandler = new();
 
+	// Cap recursion so a deeply nested payload can't overflow the stack (uncatchable). Thread-local.
+	[ThreadStatic] static int _depth;
+	const int MaxDepth = 500;
+
 	internal Func<Type, Packer> OnCreatePackerFromType { get; set; }
 	internal Func<int, Packer> OnCreatePackerFromIdentifier { get; set; }
 
@@ -80,29 +84,41 @@ internal partial class BytePack
 
 	public object Deserialize( ref ByteStream data )
 	{
-		var h = data.Read<Identifier>();
+		_depth++;
 
-		if ( h == Identifier.Runtime )
+		try
 		{
-			int typeIdent = data.Read<int>();
-			var p = GetOrCreatePacker( typeIdent );
+			if ( _depth > MaxDepth )
+				throw new System.Exception( $"BytePack recursion depth exceeded ({MaxDepth}) - possible malicious payload" );
 
-			if ( p is not null )
+			var h = data.Read<Identifier>();
+
+			if ( h == Identifier.Runtime )
 			{
-				return p.Read( ref data );
+				int typeIdent = data.Read<int>();
+				var p = GetOrCreatePacker( typeIdent );
+
+				if ( p is not null )
+				{
+					return p.Read( ref data );
+				}
+
+				throw new System.Exception( $"Unhandled runtime ident {typeIdent}" );
 			}
 
-			throw new System.Exception( $"Unhandled runtime ident {typeIdent}" );
-		}
+			if ( handlers.TryGetValue( h, out var typeInfo ) )
+			{
+				return typeInfo.Read( ref data );
+			}
 
-		if ( handlers.TryGetValue( h, out var typeInfo ) )
+
+			if ( h == Identifier.Null ) return null;
+			throw new System.Exception( $"Unhandled header {h}" );
+		}
+		finally
 		{
-			return typeInfo.Read( ref data );
+			_depth--;
 		}
-
-
-		if ( h == Identifier.Null ) return null;
-		throw new System.Exception( $"Unhandled header {h}" );
 	}
 
 	void Serialize<T>( ref ByteStream bs, T obj )

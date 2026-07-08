@@ -8,12 +8,24 @@ namespace Editor.MovieMaker;
 public interface IMovieItem
 {
 	bool MultiSelectable => false;
-	bool MovePlayheadOnSelect => TimeRange.Duration.IsZero;
 	bool OverridesMouseEvents => false;
 
 	MovieTimeRange TimeRange { get; }
 
+	/// <summary>
+	/// Move the playhead to this time when this item is selected.
+	/// </summary>
+	MovieTime? SelectionTime => TimeRange.Duration.IsZero ? TimeRange.Start : null;
+
+	/// <summary>
+	/// Called when this item is clicked twice in quick succession.
+	/// </summary>
 	void DoubleClick() { }
+
+	/// <summary>
+	/// Called when this item is selected individually (not box selected or multi-selected with ctrl).
+	/// </summary>
+	void SingleSelected() { }
 }
 
 public interface ITrackItem : IMovieItem

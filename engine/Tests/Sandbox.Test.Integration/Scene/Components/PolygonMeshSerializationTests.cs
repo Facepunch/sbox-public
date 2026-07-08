@@ -86,16 +86,61 @@ public class PolygonMeshSerializationTest
 	}
 
 	[TestMethod]
-	public void WriteContainsExpectedFields()
+	public void WritesBinaryData()
 	{
 		var mesh = Json.Deserialize<PolygonMesh>( LegacyMeshJson );
 		var json = Json.Serialize( mesh );
 
-		Assert.IsTrue( json.Contains( "\"Topology\"" ) );
-		Assert.IsTrue( json.Contains( "\"Positions\"" ) );
-		Assert.IsTrue( json.Contains( "\"TextureCoord\"" ) );
-		Assert.IsTrue( json.Contains( "\"MaterialIndex\"" ) );
-		Assert.IsTrue( json.Contains( "\"EdgeFlags\"" ) );
+		Assert.IsTrue( json.Contains( "\"Data\"" ) );
+
+		foreach ( var stream in new[] { "Topology", "Positions", "Blends", "Colors", "TextureCoord", "MaterialIndex", "EdgeFlags" } )
+			Assert.IsFalse( json.Contains( $"\"{stream}\"" ), $"{stream} should be packed into the binary blob, not written as a JSON array" );
+	}
+
+	[TestMethod]
+	public void RoundTripPreservesUvs()
+	{
+		var original = Json.Deserialize<PolygonMesh>( LegacyMeshJson );
+		var restored = Json.Deserialize<PolygonMesh>( Json.Serialize( original ) );
+
+		var transform = new Transform( new Vector3( 32, -16, 8 ), Rotation.FromYaw( 30 ) );
+		original.Transform = transform;
+		restored.Transform = transform;
+
+		var originalFaces = original.FaceHandles.ToArray();
+		var restoredFaces = restored.FaceHandles.ToArray();
+
+		Assert.AreEqual( original.VertexHandles.Count(), restored.VertexHandles.Count() );
+		Assert.AreEqual( originalFaces.Length, restoredFaces.Length );
+
+		for ( int i = 0; i < originalFaces.Length; i++ )
+		{
+			original.GetFaceTextureParameters( originalFaces[i], out var u1, out var v1, out var s1 );
+			restored.GetFaceTextureParameters( restoredFaces[i], out var u2, out var v2, out var s2 );
+
+			Assert.AreEqual( u1, u2, $"Face {i} TextureUAxis changed through the blob" );
+			Assert.AreEqual( v1, v2, $"Face {i} TextureVAxis changed through the blob" );
+			Assert.AreEqual( s1, s2, $"Face {i} TextureScale changed through the blob" );
+		}
+	}
+
+	[TestMethod]
+	public void BlobContextWritesReference()
+	{
+		var mesh = Json.Deserialize<PolygonMesh>( LegacyMeshJson );
+
+		var inlineJson = Json.Serialize( mesh );
+
+		using var blobs = BlobDataSerializer.Capture();
+		var referencedJson = Json.Serialize( mesh );
+
+		Assert.IsTrue( referencedJson.Contains( "$blob" ), "An active context should reference the blob by guid" );
+		Assert.IsTrue( referencedJson.Length < inlineJson.Length, "Referencing the sidecar should be smaller than embedding base64 inline" );
+
+		var restored = Json.Deserialize<PolygonMesh>( referencedJson );
+
+		Assert.AreEqual( mesh.VertexHandles.Count(), restored.VertexHandles.Count() );
+		Assert.AreEqual( mesh.FaceHandles.Count(), restored.FaceHandles.Count() );
 	}
 
 	[TestMethod]

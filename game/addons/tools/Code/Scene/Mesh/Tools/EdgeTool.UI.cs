@@ -46,10 +46,10 @@ partial class EdgeTool
 				var row = new Widget { Layout = Layout.Row() };
 				row.Layout.Spacing = 4;
 
-				CreateButton( "Dissolve", "blur_off", "mesh.dissolve", Dissolve, CanDissolve(), row.Layout );
-				CreateButton( "Collapse", "unfold_less", "mesh.collapse", Collapse, CanCollapse(), row.Layout );
-				CreateButton( "Connect", "link", "mesh.connect", Connect, CanConnect(), row.Layout );
-				CreateButton( "Extend", "call_made", "mesh.extend", Extend, CanExtend(), row.Layout );
+				CreateButton( "Dissolve", "meshtools/edge_tool_button/dissolve.png", "mesh.dissolve", Dissolve, CanDissolve(), row.Layout );
+				CreateButton( "Collapse", "meshtools/edge_tool_button/collapse.png", "mesh.collapse", Collapse, CanCollapse(), row.Layout );
+				CreateButton( "Connect", "meshtools/edge_tool_button/connect_1.png", "mesh.connect", Connect, CanConnect(), row.Layout );
+				CreateButton( "Extend", "meshtools/edge_tool_button/extend.png", "mesh.extend", Extend, CanExtend(), row.Layout );
 
 				row.Layout.AddStretchCell();
 
@@ -62,12 +62,11 @@ partial class EdgeTool
 				var row = new Widget { Layout = Layout.Row() };
 				row.Layout.Spacing = 4;
 
-				CreateButton( "Merge", "merge_type", "mesh.merge", Merge, CanMerge(), row.Layout );
-				CreateButton( "Split", "call_split", "mesh.split", Split, CanSplit(), row.Layout );
-				CreateButton( "Snap Edge to Edge", "compare_arrows", "mesh.snap-edge-to-edge", SnapEdgeToEdge, _edges.Length == 2, row.Layout );
-				CreateButton( "Fill Hole", "format_color_fill", "mesh.fill-hole", FillHole, CanFillHole(), row.Layout );
-				CreateButton( "Bridge", "device_hub", "mesh.bridge-edges", BridgeEdges, CanBridgeEdges(), row.Layout );
-
+				CreateButton( "Merge", "meshtools/edge_tool_button/merge_1.png", "mesh.merge", Merge, CanMerge(), row.Layout );
+				CreateButton( "Split", "meshtools/edge_tool_button/split.png", "mesh.split", Split, CanSplit(), row.Layout );
+				CreateButton( "Snap Edge to Edge", "meshtools/edge_tool_button/snap_edge_to_edge.png", "mesh.snap-edge-to-edge", SnapEdgeToEdge, _edges.Length == 2, row.Layout );
+				CreateButton( "Fill Hole", "meshtools/edge_tool_button/fill_hole.png", "mesh.fill-hole", FillHole, CanFillHole(), row.Layout );
+				CreateButton( "Bridge", "meshtools/edge_tool_button/bridge.png", "mesh.bridge-edges", BridgeEdges, CanBridgeEdges(), row.Layout );
 				row.Layout.AddStretchCell();
 
 				group.Add( row );
@@ -78,9 +77,9 @@ partial class EdgeTool
 				var row = new Widget { Layout = Layout.Row() };
 				row.Layout.Spacing = 4;
 
-				CreateButton( "Hard Normals", "crop_square", "mesh.hard-normals", HardNormals, _edges.Length > 0, row.Layout );
-				CreateButton( "Soft Normals", "blur_on", "mesh.soft-normals", SoftNormals, _edges.Length > 0, row.Layout );
-				CreateButton( "Default Normals", "trip_origin", "mesh.default-normals", DefaultNormals, _edges.Length > 0, row.Layout );
+				CreateButton( "Hard Normals", "meshtools/edge_tool_button/hard_normals.png", "mesh.hard-normals", HardNormals, _edges.Length > 0, row.Layout );
+				CreateButton( "Soft Normals", "meshtools/edge_tool_button/soft_normals.png", "mesh.soft-normals", SoftNormals, _edges.Length > 0, row.Layout );
+				CreateButton( "Default Normals", "meshtools/edge_tool_button/default_normals.png", "mesh.default-normals", DefaultNormals, _edges.Length > 0, row.Layout );
 
 				row.Layout.AddStretchCell();
 
@@ -92,7 +91,7 @@ partial class EdgeTool
 				var row = new Widget { Layout = Layout.Row() };
 				row.Layout.Spacing = 4;
 
-				CreateButton( "Weld UVs", "scatter_plot", "mesh.edge-weld-uvs", WeldUVs, _edges.Length > 0, row.Layout );
+				CreateButton( "Weld UVs", "meshtools/edge_tool_button/weld_uvs.png", "mesh.edge-weld-uvs", WeldUVs, _edges.Length > 0, row.Layout );
 
 				row.Layout.AddStretchCell();
 
@@ -104,9 +103,10 @@ partial class EdgeTool
 				var row = new Widget { Layout = Layout.Row() };
 				row.Layout.Spacing = 4;
 
-				CreateButton( "Select Loop", "all_out", "mesh.select-loop", SelectLoop, CanSelectLoop(), row.Layout );
-				CreateButton( "Select Ring", "data_array", "mesh.select-ring", SelectRing, CanSelectRing(), row.Layout );
-				CreateButton( "Select Ribs", "timeline", "mesh.select-ribs", SelectRibs, CanSelectRibs(), row.Layout );
+				CreateButton( "Select Loop", "meshtools/edge_tool_button/select_loop.png", "mesh.select-loop", SelectLoop, CanSelectLoop(), row.Layout );
+				CreateButton( "Select Ring", "meshtools/edge_tool_button/select_ring.png", "mesh.select-ring", SelectRing, CanSelectRing(), row.Layout );
+				CreateButton( "Select Ribs", "meshtools/edge_tool_button/select_ribs.png", "mesh.select-ribs", SelectRibs, CanSelectRibs(), row.Layout );
+				CreateButton( "Select Path", "meshtools/edge_tool_button/select_path.png", "mesh.select-path", SelectPath, CanSelectPath(), row.Layout );
 
 				row.Layout.AddStretchCell();
 
@@ -120,10 +120,10 @@ partial class EdgeTool
 					var row = new Widget { Layout = Layout.Row() };
 					row.Layout.Spacing = 4;
 
-					CreateButton( "Bevel", "straighten", "mesh.edge-bevel", Bevel, CanBevel(), row.Layout );
-					CreateButton( "Edge Cut Tool", "polyline", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
-					CreateButton( "Edge Arch", "rounded_corner", "mesh.edge-arch-tool", OpenEdgeArchTool, CanArch(), row.Layout );
-					CreateButton( "Bridge", "device_hub", "mesh.bridge-tool", OpenBridgeTool, CanBridgeEdges(), row.Layout );
+					CreateButton( "Bevel", "meshtools/edge_tool_button/bevel_1.png", "mesh.edge-bevel", Bevel, CanBevel(), row.Layout );
+					CreateButton( "Edge Cut Tool", "meshtools/edge_tool_button/edge_cut_tool_1.png", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
+					CreateButton( "Edge Arch", "meshtools/edge_tool_button/edge_arch.png", "mesh.edge-arch-tool", OpenEdgeArchTool, CanArch(), row.Layout );
+					CreateButton( "Bridge", "meshtools/face_tool/bridge_1.png", "mesh.bridge-tool", OpenBridgeTool, CanBridgeEdges(), row.Layout );
 
 					row.Layout.AddStretchCell();
 
@@ -136,7 +136,7 @@ partial class EdgeTool
 
 					var numCutsControl = ControlWidget.Create( this.GetSerialized().GetProperty( nameof( NumCuts ) ) );
 					numCutsControl.FixedHeight = Theme.ControlHeight;
-					CreateButton( "Quick Bevel", "carpenter", "mesh.edge-quick-bevel", QuickBevel, CanBevel(), row.Layout );
+					CreateButton( "Quick Bevel", "meshtools/edge_tool_button/quick_bevel.png", "mesh.edge-quick-bevel", QuickBevel, CanBevel(), row.Layout );
 					row.Layout.Add( numCutsControl );
 
 					row.Layout.AddStretchCell();
@@ -149,6 +149,7 @@ partial class EdgeTool
 
 			AddShortcuts(
 				("Loop Select", "Double Click"),
+				("Path Select", "Shift + Double Click"),
 				("Lasso Select", "Alt+Shift+Drag"),
 				("Lasso Deselect", "Alt+Ctrl+Drag"),
 				("Grow Selection", "Numpad +"),
@@ -847,6 +848,31 @@ partial class EdgeTool
 					foreach ( var hNewEdge in edgeLoop )
 						selection.Add( new MeshEdge( group.Key, hNewEdge ) );
 				}
+			}
+		}
+
+		private bool CanSelectPath()
+		{
+			return _edges.Length == 2 && _edges[0].Component == _edges[1].Component;
+		}
+
+		[Shortcut( "mesh.select-path", "CTRL+L", typeof( SceneViewWidget ) )]
+		private void SelectPath()
+		{
+			if ( !CanSelectPath() )
+				return;
+
+			var path = FindShortestEdgePath( _edges[0], _edges[1] );
+			if ( path is null || path.Count == 0 )
+				return;
+
+			using var scope = SceneEditorSession.Scope();
+
+			using ( SceneEditorSession.Active.UndoScope( "Select Edge Path" ).Push() )
+			{
+				var selection = SceneEditorSession.Active.Selection;
+				foreach ( var edge in path )
+					selection.Add( edge );
 			}
 		}
 

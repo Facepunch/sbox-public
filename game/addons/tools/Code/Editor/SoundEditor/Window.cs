@@ -134,8 +134,17 @@ public class Window : DockWindow, IAssetEditor
 
 		if ( Timeline.Frames != null && Timeline.Frames.Count > 0 )
 		{
-			Asset.MetaData.Set( "phonemes", Timeline.Frames );
+			Asset.MetaData.Set( "visemes", Timeline.Frames );
 		}
+	}
+
+	// Analyze the loaded audio offline and replace the timeline's visemes.
+	private void GenerateLipSync()
+	{
+		if ( SoundFile == null || Samples == null )
+			return;
+
+		Timeline.SetVisemes( LipSyncGenerator.Generate( Samples, Duration ) );
 	}
 
 	private void CreateToolBar()
@@ -144,6 +153,7 @@ public class Window : DockWindow, IAssetEditor
 		AddToolBar( toolBar, ToolbarPosition.Top );
 
 		toolBar.AddOption( "Save", "common/save.png", Save ).StatusTip = "Save";
+		toolBar.AddOption( "Generate Lip Sync", "record_voice_over", GenerateLipSync ).StatusTip = "Generate visemes from the audio";
 		toolBar.AddOption( "Full Recompile", "refresh", () => Asset.Compile( true ) ).StatusTip = "Full Recompile";
 	}
 

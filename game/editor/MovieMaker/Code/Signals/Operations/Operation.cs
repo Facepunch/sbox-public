@@ -95,6 +95,11 @@ public abstract record BinaryOperation<T>( PropertySignal<T> First, PropertySign
 			return true;
 		}
 
+		if ( TryMergeKeyframes( transitionTimeRange, firstBefore, secondAfter, out reduced ) )
+		{
+			return true;
+		}
+
 		// Check if reduced First and Second are identical to un-reduced: can just return this
 
 		if ( firstBefore.Equals( First ) && secondAfter.Equals( Second ) )
@@ -108,6 +113,57 @@ public abstract record BinaryOperation<T>( PropertySignal<T> First, PropertySign
 		before = firstBefore;
 		after = secondAfter;
 		return false;
+	}
+
+	/// <summary>
+	/// Can merge keyframe signals if they end / start at a zero-duration transition.
+	/// </summary>
+	private bool TryMergeKeyframes( MovieTimeRange transitionTimeRange,
+		PropertySignal<T> first,
+		PropertySignal<T> second,
+		[NotNullWhen( true )] out PropertySignal<T>? reduced )
+	{
+		reduced = null;
+
+		if ( !transitionTimeRange.Duration.IsZero ) return false;
+
+		if ( first is not KeyframeSignal<T> firstKeyframeSignal ) return false;
+		if ( second is not KeyframeSignal<T> secondKeyframeSignal ) return false;
+
+		var firstEndKeyframe = firstKeyframeSignal.Keyframes[^1];
+		var secondStartKeyframe = secondKeyframeSignal.Keyframes[0];
+
+		if ( firstEndKeyframe.Time != transitionTimeRange.Start ) return false;
+		if ( secondStartKeyframe.Time != transitionTimeRange.Start ) return false;
+
+		// Merge keyframes with equivalent values
+
+		if ( EqualityComparer<T>.Default.Equals( firstEndKeyframe.Value, secondStartKeyframe.Value ) )
+		{
+			firstEndKeyframe = firstEndKeyframe with { Connection = KeyframeConnection.Connect };
+
+			reduced = FromKeyframes( [
+				..firstKeyframeSignal.Keyframes[..^1],
+				firstEndKeyframe,
+				..secondKeyframeSignal.Keyframes[1..]
+			] );
+
+			return true;
+		}
+
+		// Otherwise make sure they're end block / start block keyframes
+
+		firstEndKeyframe = firstEndKeyframe with { Connection = KeyframeConnection.EndBlock };
+		secondStartKeyframe = secondStartKeyframe with { Connection = KeyframeConnection.StartBlock };
+
+		reduced = FromKeyframes( [
+			..firstKeyframeSignal.Keyframes[..^1],
+			firstEndKeyframe,
+			secondStartKeyframe,
+			..secondKeyframeSignal.Keyframes[1..]
+		] );
+
+		return true;
 	}
 
 	protected IEnumerable<MovieTimeRange> GetTransitionPaintHints( MovieTimeRange timeRange, MovieTimeRange transitionTimeRange )

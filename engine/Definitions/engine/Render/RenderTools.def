@@ -13,7 +13,8 @@ native static class RenderTools as NativeEngine.RenderTools
 	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, IModel hModel, RenderBufferHandle_t hDrawArgBuffer, int nBufferOffset, CRenderAttributes attributes );
 	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, IModel hModel, CastTo[CTransformUnaligned*] void* transforms, int numTransforms, CRenderAttributes attributes, int nLodLevel );
 	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, IModel hModel, RenderBufferHandle_t hDrawArgBuffer, int nBufferOffset, CRenderAttributes attributes, int nLodLevel );
-	
+	void DrawModel( IRenderContext renderContext, ISceneLayer sceneLayer, IModel hModel, RenderBufferHandle_t hTransformBuffer, RenderBufferHandle_t hDrawArgBuffer, int nBufferOffset, CRenderAttributes attributes, int nLodLevel );
+
 	//
 	// Render context can be null and we'll create one
 	//

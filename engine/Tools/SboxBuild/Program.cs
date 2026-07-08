@@ -35,9 +35,11 @@ internal class Program
 		AddUploadSteamCommand( rootCommand );
 		AddDiscordPostCommand( rootCommand );
 		AddDownloadPublicArtifactsCommand( rootCommand );
+		AddUploadBuildArtifactsCommand( rootCommand );
 		AddCheckNativeTouchedCommand( rootCommand );
 		AddNotifySlackCommand( rootCommand );
 		AddUploadReferenceAssembliesCommand( rootCommand );
+		AddReportBuildCommand( rootCommand );
 
 		rootCommand.Invoke( args );
 		return Environment.ExitCode;
@@ -257,6 +259,13 @@ internal class Program
 		rootCommand.Add( cmd );
 	}
 
+	private static void AddUploadBuildArtifactsCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "upload-build-artifacts", "Package a runnable build into a zip and upload it to R2" );
+		cmd.SetHandler( () => { Environment.ExitCode = (int)new UploadBuildArtifacts().Run(); } );
+		rootCommand.Add( cmd );
+	}
+
 	private static void AddCheckNativeTouchedCommand( RootCommand rootCommand )
 	{
 		var cmd = new Command( "check-native-touched", "Check if the PR touches native code; writes native_touched output" );
@@ -278,6 +287,13 @@ internal class Program
 		{
 			Environment.ExitCode = (int)NotifySlack.Run( message );
 		}, messageOption );
+		rootCommand.Add( cmd );
+	}
+
+	private static void AddReportBuildCommand( RootCommand rootCommand )
+	{
+		var cmd = new Command( "report-build", "Report this build to the backend Test Lab (idempotent by commit)" );
+		cmd.SetHandler( () => { Environment.ExitCode = (int)new ReportBuild().Run(); } );
 		rootCommand.Add( cmd );
 	}
 

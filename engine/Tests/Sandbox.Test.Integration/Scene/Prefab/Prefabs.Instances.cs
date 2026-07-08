@@ -737,7 +737,7 @@ public partial class InstancesTest
 		instance.LocalTransform = new Transform( new Vector3( 100, 200, 300 ), Rotation.FromYaw( 45 ), Vector3.One );
 		instance.Name = "ModifiedInstance";
 		instance.Enabled = false;
-		instance.Flags = GameObjectFlags.DontDestroyOnLoad;
+		instance.Flags = GameObjectFlags.Hidden; // a persisted flag, runtime-only ones don't survive a save anyway
 
 		// Modify a component property
 		instance.Components.Get<ModelRenderer>( true ).Tint = Color.Blue;
@@ -753,7 +753,7 @@ public partial class InstancesTest
 		Assert.AreEqual( new Transform( new Vector3( 100, 200, 300 ), Rotation.FromYaw( 45 ), Vector3.One ), instance.LocalTransform );
 		Assert.AreEqual( "ModifiedInstance", instance.Name );
 		Assert.IsFalse( instance.Enabled );
-		Assert.IsTrue( instance.Flags.HasFlag( GameObjectFlags.DontDestroyOnLoad ) );
+		Assert.IsTrue( instance.Flags.HasFlag( GameObjectFlags.Hidden ) );
 
 		// Assert that component overrides are reverted
 		Assert.AreEqual( new Color( 1, 0, 0, 1 ), instance.Components.Get<ModelRenderer>( true ).Tint );

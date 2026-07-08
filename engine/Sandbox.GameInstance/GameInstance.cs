@@ -142,6 +142,7 @@ internal class GameInstance : IGameInstance
 				}
 				else
 				{
+					BenchmarkOrchestrator.RestoreSettings();
 					Console.WriteLine( "Quitting" );
 					ConVarSystem.Run( "quit" );
 				}

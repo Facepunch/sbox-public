@@ -110,6 +110,7 @@ native static class MeshGlue as NativeEngine.MeshGlue
 	int GetModelIndexCount( IModel model, int drawCall );
 	int GetModelIndexStart( IModel model, int drawCall );
 	int GetModelBaseVertex( IModel model, int drawCall );
+	int GetModelLodIndexCount( IModel model, int lod );
 
 	void SetMeshMaterial( IMesh renderMesh, IMaterial material );
 	void SetMeshPrimType( IMesh renderMesh, int nPrimType );

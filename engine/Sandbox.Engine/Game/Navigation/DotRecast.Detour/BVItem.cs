@@ -1,6 +1,6 @@
 namespace DotRecast.Detour
 {
-	internal class BVItem
+	internal struct BVItem
 	{
 		public Vector3Int bmin;
 		public Vector3Int bmax;

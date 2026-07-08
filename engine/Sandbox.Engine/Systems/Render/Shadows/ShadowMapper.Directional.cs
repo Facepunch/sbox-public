@@ -16,7 +16,7 @@ unsafe struct GPUDirectionalLight
 	public fixed int ShadowMapIndex[4];
 	public uint CascadeCount;
 	public float InverseShadowMapSize;
-	public float Padding;
+	public uint ShadowMaskTextureIndex;
 	public bool Enabled;
 	public fixed float CascadeHardness[4];
 	public Vector4 CascadeSphere0;
@@ -288,6 +288,14 @@ internal partial class ShadowMapper
 		gpuShadowData.Color = new Vector4( light.LightColor, light.FogStrength );
 		gpuShadowData.Direction = new Vector4( -light.WorldDirection, 0 );
 
+		// 3D skybox is fully static with baked light, keep the directional light for shading but skip shadow cascades
+		if ( view.GetRenderAttributesPtr().GetBoolValue( "IsSkybox", false ) )
+		{
+			gpuShadowData.CascadeCount = 0;
+			GPUDirectionalLightData = gpuShadowData;
+			return;
+		}
+
 		DirectionalShadowMemorySize = 0;
 
 		// native stuff does this WorldDirection shit, we can just do light.Rotation if stuff is rotated properly
@@ -368,6 +376,9 @@ internal partial class ShadowMapper
 
 		gpuShadowData.CascadeCount = (uint)numCascades;
 		gpuShadowData.InverseShadowMapSize = 1.0f / shadowmapSize;
+
+		// Masks are generated per camera - pick the one published for the camera this view renders.
+		gpuShadowData.ShadowMaskTextureIndex = light.ShadowMaskTextureIndices.GetValueOrDefault( view.m_ManagedCameraId );
 		GPUDirectionalLightData = gpuShadowData;
 	}
 

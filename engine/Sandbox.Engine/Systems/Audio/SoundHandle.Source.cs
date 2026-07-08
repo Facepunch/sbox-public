@@ -106,6 +106,9 @@ partial class SoundHandle
 			{
 				src = new DirectSoundModel();
 				_acousticModels[listener] = src;
+
+				// Prime occlusion on creation so it doesn't start at full volume. Fires once per source.
+				SoundSimulationSystem.Get( scene )?.PrimeNewModel( this, listener, src );
 			}
 
 			UpdateAcousticModel( src );

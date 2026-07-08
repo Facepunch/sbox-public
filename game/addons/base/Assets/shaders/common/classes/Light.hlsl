@@ -35,7 +35,7 @@ class Light
 
     BinnedLight LightData;
 
-    void Init( float3 vPositionWs, BinnedLight lightData, float2 screenPos );
+    void Init( float3 vPositionWs, BinnedLight lightData, float4 vPositionSs );
     static Light From( float3 vPositionWs, float4 vPositionSs, uint nLightIndex, float2 vLightMapUV = 0.0f );
     static uint Count( float4 vPositionSs );
     float3 GetLightCookie(float3 vPositionWs);
@@ -43,12 +43,12 @@ class Light
     float3 GetLightDirection(float3 vPositionWs);
     float3 GetLightPosition();
     float GetLightAttenuation(float3 vPositionWs);
-    float Shadows(float3 vPositionWs, float2 screenPos);
+    float Shadows(float3 vPositionWs, float4 vPositionSs);
 };
 
 //-----------------------------------------------------------------------------
 
-void Light::Init( float3 vPositionWs, BinnedLight lightData, float2 screenPos )
+void Light::Init( float3 vPositionWs, BinnedLight lightData, float4 vPositionSs )
 {
     LightData = lightData;
 
@@ -56,7 +56,7 @@ void Light::Init( float3 vPositionWs, BinnedLight lightData, float2 screenPos )
     Direction = GetLightDirection( vPositionWs );
     Position = GetLightPosition();
     Attenuation = GetLightAttenuation( vPositionWs );
-    Visibility = Shadows( vPositionWs, screenPos );
+    Visibility = Shadows( vPositionWs, vPositionSs );
 }
 
 // Light::From and Light::Count are implemented after StaticLight (forward reference)
@@ -110,16 +110,16 @@ float Light::GetLightAttenuation(float3 vPositionWs)
     return flLightMask;
 }
 
-float Light::Shadows(float3 vPositionWs, float2 screenPos)
+float Light::Shadows(float3 vPositionWs, float4 vPositionSs)
 {
     float flShadowScalar = 1.0;
 
     if (LightData.Type == LightType::LightTypeDirectional)
-        flShadowScalar = DirectionalLightShadow::GetVisibility(vPositionWs, screenPos);
+        flShadowScalar = DirectionalLightShadow::GetVisibility(vPositionWs, vPositionSs);
     else if (LightData.Type == LightType::LightTypePoint)
         flShadowScalar = ProjectedShadowCube::GetVisibility(LightData.ShadowMapIndex, vPositionWs);
     else if (LightData.Type == LightType::LightTypeSpot)
-        flShadowScalar = ProjectedShadow::GetVisibility(LightData.ShadowMapIndex, vPositionWs, screenPos);
+        flShadowScalar = ProjectedShadow::GetVisibility(LightData.ShadowMapIndex, vPositionWs, vPositionSs.xy);
 
     return flShadowScalar;
 }
@@ -143,7 +143,7 @@ class ProbeLight
     }
 
     // Get a Light from a probe at the given sub-index (0-3)
-    static Light From( float3 vPositionWs, uint subIndex, float2 screenPos )
+    static Light From( float3 vPositionWs, uint subIndex, float4 vPositionSs )
     {
         Light light = (Light)0;
 
@@ -158,7 +158,7 @@ class ProbeLight
             return light;
 
         BinnedLight bakedLight = BakedIndexedLightConstantByIndex( bakedIdx );
-        light.Init( vPositionWs, bakedLight, screenPos );
+        light.Init( vPositionWs, bakedLight, vPositionSs );
         light.Attenuation = strength;
 
         return light;
@@ -190,7 +190,7 @@ class LightmappedLight
         strengths = LightMap(1).SampleLevel( g_sTrilinearClamp, float3( vLightMapUV, 0.0f ), 0 );
     }
 
-    static Light From( float3 vPositionWs, float2 vLightMapUV, uint subIndex, float2 screenPos )
+    static Light From( float3 vPositionWs, float2 vLightMapUV, uint subIndex, float4 vPositionSs )
     {
         Light light = (Light)0;
 
@@ -205,7 +205,7 @@ class LightmappedLight
             return light;
 
         BinnedLight bakedLight = BakedIndexedLightConstantByIndex( bakedIdx );
-        light.Init( vPositionWs, bakedLight, screenPos );
+        light.Init( vPositionWs, bakedLight, vPositionSs );
         light.Attenuation = strength;
 
         return light;
@@ -226,13 +226,13 @@ class StaticLight
         return 0;
     }
 
-    static Light From( float3 vPositionWs, float2 vLightMapUV, uint subIndex, float2 screenPos )
+    static Light From( float3 vPositionWs, float2 vLightMapUV, uint subIndex, float4 vPositionSs )
     {
         if ( ProbeLight::UsesProbes() )
-            return ProbeLight::From( vPositionWs, subIndex, screenPos );
+            return ProbeLight::From( vPositionWs, subIndex, vPositionSs );
 
         if ( LightmappedLight::UsesLightmaps() )
-            return LightmappedLight::From( vPositionWs, vLightMapUV, subIndex, screenPos );
+            return LightmappedLight::From( vPositionWs, vLightMapUV, subIndex, vPositionSs );
 
         return (Light)0;
     }
@@ -254,11 +254,11 @@ static Light Light::From( float3 vPositionWs, float4 vPositionSs, uint nLightInd
         uint clusterLocalIndex = min( nLightIndex, range.Count - 1 );
         uint lightIndex = Cluster::LoadItem( range, clusterLocalIndex );
 
-        light.Init( vPositionWs, DynamicLightConstantByIndex( lightIndex ), vPositionSs.xy );
+        light.Init( vPositionWs, DynamicLightConstantByIndex( lightIndex ), vPositionSs );
         return light;
     }
 
-    return StaticLight::From( vPositionWs, vLightMapUV, nLightIndex - dynamicCount, vPositionSs.xy );
+    return StaticLight::From( vPositionWs, vLightMapUV, nLightIndex - dynamicCount, vPositionSs );
 }
 
 static uint Light::Count( float4 vPositionSs )

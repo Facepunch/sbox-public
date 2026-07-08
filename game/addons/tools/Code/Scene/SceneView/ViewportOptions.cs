@@ -17,7 +17,16 @@ public partial class ViewportOptions : Widget
 	public void Rebuild()
 	{
 		Layout.Clear( true );
-		Layout.Add( new IconButton( "tune", OpenViewSettings ) { ToolTip = "View Settings", IconSize = 16, Background = Theme.ControlBackground.WithAlpha( 0.6f ) } );
+
+		Layout.Add( new IconButton( "tune", OpenViewSettings )
+		{
+			ToolTip = "View Settings",
+			IconSize = 16,
+			Background = Color.Transparent,
+			BackgroundActive = Color.Transparent,
+			FixedWidth = 16,
+			FixedHeight = 16,
+		} );
 	}
 
 	protected override void OnPaint()

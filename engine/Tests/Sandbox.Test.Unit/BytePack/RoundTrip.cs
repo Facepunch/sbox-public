@@ -7,9 +7,26 @@ using System.Text.Json;
 
 namespace BytePackTests;
 
+// 51 test methods across the partial files in this folder all round-trip through the same
+// TypeLibrary, and building one scans the whole engine assembly - so this class is
+// [DoNotParallelize] (methods run one at a time, never touching typeLibrary concurrently)
+// and it's built once for the whole class instead of once per test method.
+[DoNotParallelize]
 public partial class RoundTripTest : BaseRoundTrip
 {
+	static TypeLibrary typeLibrary;
 
+	[ClassInitialize]
+	public static void ClassInitialize( TestContext context )
+	{
+		typeLibrary = new TypeLibrary();
+		typeLibrary.AddAssembly( typeof( Vector3 ).Assembly, false );
+		typeLibrary.AddAssembly( typeof( Bootstrap ).Assembly, false );
+		typeLibrary.AddAssembly( typeof( RoundTripTest ).Assembly, true );
+	}
+
+	public override byte[] Serialize( object obj ) => typeLibrary.ToBytes( obj );
+	public override object Deserialize( byte[] data ) => typeLibrary.FromBytes<object>( data );
 }
 
 
@@ -41,22 +58,28 @@ public class BaseRoundTrip
 
 	TypeLibrary typeLibrary;
 
-	public BaseRoundTrip()
+	// Lazy: subclasses that override both Serialize and Deserialize (to test against
+	// their own TypeLibrary instances) never touch this, so building it eagerly in the
+	// constructor was wasted work on every one of their test methods.
+	TypeLibrary TypeLibrary => typeLibrary ??= CreateTypeLibrary();
+
+	static TypeLibrary CreateTypeLibrary()
 	{
-		typeLibrary = new TypeLibrary();
+		var typeLibrary = new TypeLibrary();
 		typeLibrary.AddAssembly( typeof( Vector3 ).Assembly, false );
 		typeLibrary.AddAssembly( typeof( Bootstrap ).Assembly, false );
-		typeLibrary.AddAssembly( GetType().Assembly, true );
+		typeLibrary.AddAssembly( typeof( BaseRoundTrip ).Assembly, true );
+		return typeLibrary;
 	}
 
 	public virtual byte[] Serialize( object obj )
 	{
-		return typeLibrary.ToBytes( obj );
+		return TypeLibrary.ToBytes( obj );
 	}
 
 	public virtual object Deserialize( byte[] data )
 	{
-		return typeLibrary.FromBytes<object>( data );
+		return TypeLibrary.FromBytes<object>( data );
 	}
 
 	public int DoRoundTrip( object obj )

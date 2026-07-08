@@ -85,29 +85,25 @@ public partial class Asset
 			ProjectConfig.Type = PackageType();
 			ProjectConfig.SetMeta( "SingleAssetSource", asset.RelativePath );
 
-			// If we're a map then make a note of what we're targetting
-			if ( ProjectConfig.Type == "map" )
+			var project = Project.Current;
+
+			//
+			// If we're publishing in a game project, then set the parent package as this game
+			//
+			if ( project.Config.Type == "game" )
 			{
-				var proj = Project.Current;
+				var isParent = !project.Config.FullIdent.StartsWith( "local." ) // not a local package
+					&& !string.Equals( project.Config.FullIdent, ProjectConfig.FullIdent ); // not the same ident
 
-				//
-				// If we're publishing a map in a game project, then set the map's parent package as this game
-				//
-				if ( proj.Config.Type == "game" )
-				{
-					bool IsProjectParent = !proj.Config.FullIdent.StartsWith( "local." ) // not a local package
-						&& !string.Equals( proj.Config.FullIdent, ProjectConfig.FullIdent ); // not the same ident
+				ProjectConfig.SetMeta( "ParentPackage", isParent ? project.Config.FullIdent : null );
+			}
 
-					ProjectConfig.SetMeta( "ParentPackage", IsProjectParent ? Project.Current.Config.FullIdent : null );
-				}
-
-				//
-				// If we're publishing a map in a addon project, set the map's parent package as the addon's target
-				//
-				if ( proj.Config.Type == "addon" )
-				{
-					ProjectConfig.SetMeta( "ParentPackage", Project.Current.Config.GetMetaOrDefault( "ParentPackage", "" ) );
-				}
+			//
+			// If we're publishing in an addon project, set the parent package as the addon's target
+			//
+			if ( project.Config.Type == "addon" )
+			{
+				ProjectConfig.SetMeta( "ParentPackage", project.Config.GetMetaOrDefault( "ParentPackage", "" ) );
 			}
 		}
 

@@ -510,6 +510,11 @@ public partial class Package
 			foreach ( var p in PackageReferences )
 				yield return p;
 		}
+
+		// A targeted addon depends on its parent game
+		var parent = Info.ParentPackage;
+		if ( TryParseIdent( parent, out _ ) )
+			yield return parent;
 	}
 
 	/// <summary>

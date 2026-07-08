@@ -189,6 +189,13 @@ public class SceneLight : SceneObject
 
 	public float ShadowHardness { get; set; } = 0.0f;
 
+	/// <summary>
+	/// Bindless indices of the screen-space shadow masks for this light, keyed by managed camera id
+	/// (masks are generated per rendering view). Written from threaded procedural-layer jobs while
+	/// other views' light binning reads it, hence the concurrent dictionary.
+	/// </summary>
+	internal readonly System.Collections.Concurrent.ConcurrentDictionary<int, uint> ShadowMaskTextureIndices = new();
+
 	internal override void OnTransformChanged( in Transform tx )
 	{
 		base.OnTransformChanged( tx );

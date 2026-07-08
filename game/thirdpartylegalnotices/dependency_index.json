@@ -1061,6 +1061,20 @@
 			"Copyright": [
 				"2024 Advanced Micro Devices, Inc."
 			]
+		},
+		{
+			"Name": "Bend Studio Screen Space Shadows",
+			"Comment": "Bend Studio's wavefront screen-space contact shadow technique (SIGGRAPH 2023). The GPU projection code is included in shaders/common/thirdparty/bend_sss_gpu.hlsl and the CPU dispatch list builder is ported in the ScreenSpaceShadows component.",
+			"UsedBy": [
+				"sbox",
+				"sbox-dev"
+			],
+			"License": "Apache-2.0",
+			"ProjectUrl": "https://www.bendstudio.com/blog/inside-bend-screen-space-shadows/",
+			"Linkage": "static",
+			"Copyright": [
+				"2023 Sony Interactive Entertainment"
+			]
 		}
 	]
 }

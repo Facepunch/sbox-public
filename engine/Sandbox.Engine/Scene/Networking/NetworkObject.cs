@@ -730,7 +730,10 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 
 			// Only the host can modify network flags after the object has been spawned.
 			if ( !source.IsHost )
+			{
 				jsonObj.Remove( GameObject.JsonKeys.NetworkFlags );
+				GameObject.PreserveFromHostSyncMembers( jsonObj );
+			}
 
 			GameObject.SetParentFromNetwork( scene.Directory.FindByGuid( message.Parent ) );
 			GameObject.NetworkRefresh( jsonObj );

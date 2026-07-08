@@ -15,34 +15,54 @@ public sealed partial class SkinnedModelRenderer
 	Dictionary<string, bool> _boolParams;
 	Dictionary<string, Vector3> _vectorParams;
 	Dictionary<string, Rotation> _rotationParams;
+	Dictionary<string, string> _enumParams;
+
+	// A parameter can be reached through more than one overload - an enum by index or by option
+	// name, a bool by float. Every write drops the other stores' entry for the name, so the last
+	// write wins when the stored parameters reapply.
 
 	public void Set( string v, Vector3 value )
 	{
+		ClearParameter( v );
 		(_vectorParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = value;
 		SceneModel?.SetAnimParameter( v, value );
 	}
 
 	public void Set( string v, int value )
 	{
+		ClearParameter( v );
 		(_intParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = value;
 		SceneModel?.SetAnimParameter( v, value );
 	}
 
 	public void Set( string v, float value )
 	{
+		ClearParameter( v );
 		(_floatParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = value;
 		SceneModel?.SetAnimParameter( v, value );
 	}
 	public void Set( string v, bool value )
 	{
+		ClearParameter( v );
 		(_boolParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = value;
 		SceneModel?.SetAnimParameter( v, value );
 	}
 
 	public void Set( string v, Rotation value )
 	{
+		ClearParameter( v );
 		(_rotationParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = value;
 		SceneModel?.SetAnimParameter( v, value );
+	}
+
+	/// <summary>
+	/// Set an enum parameter by option name (e.g. Set( "holdtype", "pistol" )).
+	/// </summary>
+	public void Set( string v, string option )
+	{
+		ClearParameter( v );
+		(_enumParams ??= new( StringComparer.OrdinalIgnoreCase ))[v] = option;
+		SceneModel?.SetAnimParameter( v, option );
 	}
 
 	void ApplyStoredAnimParameters()
@@ -52,6 +72,7 @@ public sealed partial class SkinnedModelRenderer
 		if ( _intParams is not null ) foreach ( var p in _intParams ) SceneModel.SetAnimParameter( p.Key, p.Value );
 		if ( _boolParams is not null ) foreach ( var p in _boolParams ) SceneModel.SetAnimParameter( p.Key, p.Value );
 		if ( _rotationParams is not null ) foreach ( var p in _rotationParams ) SceneModel.SetAnimParameter( p.Key, p.Value );
+		if ( _enumParams is not null ) foreach ( var p in _enumParams ) SceneModel.SetAnimParameter( p.Key, p.Value );
 
 		// Tick the animation by a frame so we're fully up to date on the first frame.
 		if ( Scene.IsEditor && !CanUpdateInEditor() )
@@ -74,6 +95,7 @@ public sealed partial class SkinnedModelRenderer
 		_boolParams?.Clear();
 		_vectorParams?.Clear();
 		_rotationParams?.Clear();
+		_enumParams?.Clear();
 
 		if ( SceneModel.IsValid() )
 		{
@@ -88,6 +110,7 @@ public sealed partial class SkinnedModelRenderer
 		_boolParams?.Remove( name );
 		_vectorParams?.Remove( name );
 		_rotationParams?.Remove( name );
+		_enumParams?.Remove( name );
 	}
 
 	internal bool ContainsParameter( string name )
@@ -96,11 +119,12 @@ public sealed partial class SkinnedModelRenderer
 			|| (_intParams?.ContainsKey( name ) ?? false)
 			|| (_boolParams?.ContainsKey( name ) ?? false)
 			|| (_vectorParams?.ContainsKey( name ) ?? false)
-			|| (_rotationParams?.ContainsKey( name ) ?? false);
+			|| (_rotationParams?.ContainsKey( name ) ?? false)
+			|| (_enumParams?.ContainsKey( name ) ?? false);
 	}
 
 	/// <summary>Total number of stored (modified) anim-graph parameters across all types.</summary>
-	internal int StoredParameterCount => (_floatParams?.Count ?? 0) + (_intParams?.Count ?? 0) + (_boolParams?.Count ?? 0) + (_vectorParams?.Count ?? 0) + (_rotationParams?.Count ?? 0);
+	internal int StoredParameterCount => (_floatParams?.Count ?? 0) + (_intParams?.Count ?? 0) + (_boolParams?.Count ?? 0) + (_vectorParams?.Count ?? 0) + (_rotationParams?.Count ?? 0) + (_enumParams?.Count ?? 0);
 
 	//	public void Set( string v, Enum value ) => _sceneObject.SetAnimParameter( v, value );
 

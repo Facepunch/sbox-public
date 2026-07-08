@@ -1,0 +1,38 @@
+@using System;
+@using Sandbox.UI;
+@using Sandbox;
+@using Menu;
+@inherits Panel;
+
+@if (Packages.Count == 0)
+    return;
+
+<root>
+    <Card class="spotlight">
+        <ChildContent>
+            @foreach (var p in Packages.Take( 1 ) )
+            {
+                <PackageCard Size=@PackageCard.SizeType.List Package=@p Clicked="@(() => p.OpenModal())" RightClicked="@(() => MenuHelpers.OpenPackageMenu(this, p))" />
+            }
+        </ChildContent>
+    </Card>
+</root>
+
+@code{
+    List<Package> Packages = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Update();
+    }
+
+    async Task Update()
+    {
+        var found = await Package.FindAsync( "type:game in:facepunch.spotlight sort:random", 2, 0, default );
+
+        Packages.Clear();
+        Packages.AddRange( found.Packages );
+
+        StateHasChanged();
+    }
+}

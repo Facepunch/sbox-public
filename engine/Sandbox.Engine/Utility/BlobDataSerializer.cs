@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json.Nodes;
 
 namespace Sandbox;
 
@@ -219,6 +220,20 @@ internal static class BlobDataSerializer
 	}
 
 	/// <summary>
+	/// Create a blob deserialization context from blob data stored on a json object
+	/// by <see cref="BlobContext.SaveTo( JsonNode )"/>.
+	/// </summary>
+	internal static BlobContext LoadFrom( JsonNode json )
+	{
+		byte[] data = null;
+
+		if ( json?["__blobdata"]?.GetValue<string>() is string base64 )
+			data = Convert.FromBase64String( base64 );
+
+		return LoadFromMemory( data );
+	}
+
+	/// <summary>
 	/// Create a blob deserialization context from a file.
 	/// </summary>
 	public static BlobContext LoadFrom( string filePath )
@@ -270,6 +285,20 @@ internal static class BlobDataSerializer
 		}
 
 		public byte[] ToByteArray() => GetBlobData( Blobs );
+
+		/// <summary>
+		/// Store the captured blob data on a json object, so it travels with it.
+		/// </summary>
+		internal bool SaveTo( JsonNode json )
+		{
+			if ( json is not JsonObject jso ) return false;
+
+			var data = GetBlobData( Blobs );
+			if ( data == null || data.Length == 0 ) return false;
+
+			jso["__blobdata"] = Convert.ToBase64String( data );
+			return true;
+		}
 
 		public bool SaveTo( string filePath )
 		{
