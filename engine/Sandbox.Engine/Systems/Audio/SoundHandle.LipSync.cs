@@ -86,7 +86,7 @@ public partial class SoundHandle
 			OVRLipSyncGlobal.ovrLipSync_CreateContextEx(
 				out _context,
 				OVRLipSync.ContextProvider.Enhanced_with_Laughter,
-				VoiceManager.SampleRate,
+				Microphone.SampleRate,
 				true );
 
 			_visemes = new float[(int)OVRLipSync.Viseme.Count];

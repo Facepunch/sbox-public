@@ -69,12 +69,12 @@ public static partial class Sound
 	/// </summary>
 	public static unsafe void UncompressVoiceData( byte[] buffer, Action<Memory<short>> ondata )
 	{
-		VoiceManager.Uncompress( buffer, ondata );
+		Microphone.Uncompress( buffer, ondata );
 	}
 
 	/// <summary>
 	/// The sample rate for voice data
 	/// </summary>
-	public static int VoiceSampleRate => VoiceManager.SampleRate;
+	public static int VoiceSampleRate => Microphone.SampleRate;
 
 }

@@ -69,7 +69,7 @@ public partial class PartyRoom : ILobby
 		}
 
 		LobbyManager.Register( this );
-		VoiceManager.OnCompressedVoiceData += OnVoiceRecorded;
+		Microphone.OnCompressedDataInternal += OnVoiceRecorded;
 	}
 
 	public void Leave()
@@ -95,7 +95,7 @@ public partial class PartyRoom : ILobby
 		// we don't need to know when people enter and leave, so forget about it.
 		LobbyManager.Unregister( this );
 
-		VoiceManager.OnCompressedVoiceData -= OnVoiceRecorded;
+		Microphone.OnCompressedDataInternal -= OnVoiceRecorded;
 	}
 
 	/// <summary>
@@ -142,11 +142,11 @@ public partial class PartyRoom : ILobby
 
 			if ( _voiceRecording )
 			{
-				VoiceManager.StartRecording();
+				Microphone.StartRecording();
 			}
 			else
 			{
-				VoiceManager.StopRecording();
+				Microphone.StopRecording();
 			}
 		}
 	}
@@ -154,7 +154,7 @@ public partial class PartyRoom : ILobby
 	/// <summary>
 	/// Voice data has been recieved. Send it to everyone.
 	/// </summary>
-	private void OnVoiceRecorded( Memory<byte> memory )
+	private void OnVoiceRecorded( ReadOnlyMemory<byte> memory )
 	{
 		// Don't send 
 		if ( !VoiceCommunicationAllowed )
