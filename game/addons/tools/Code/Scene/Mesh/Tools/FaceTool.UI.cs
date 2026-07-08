@@ -141,11 +141,11 @@ partial class FaceTool
 				{
 					var row = new Widget { Layout = Layout.Row() };
 					row.Layout.Spacing = 4;
-					
+
 					CreateButton( "Topology Tool", "meshtools/face_tool/topology.png", "mesh.topology-tool", OpenTopologyTool, _faces.Length > 0, row.Layout );
 
 					row.Layout.AddStretchCell();
-					
+
 					group.Add( row );
 				}
 			}
