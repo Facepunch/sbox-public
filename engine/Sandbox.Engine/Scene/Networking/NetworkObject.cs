@@ -1,4 +1,4 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 using Sandbox.Network;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
@@ -564,6 +564,24 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot, INetworkWa
 		}
 
 		return true;
+	}
+
+	/// <summary>
+	/// Force the cull-delay grace period to expire for all connections tracking this object, so the
+	/// next call to <see cref="IDeltaSnapshot.UpdateTransmitState"/> re-evaluates visibility immediately
+	/// instead of waiting out <see cref="CullDelay"/>.
+	/// </summary>
+	internal void ForceVisibilityUpdate()
+	{
+		foreach ( var id in _cullStates.Keys )
+		{
+			var state = _cullStates[id];
+			if ( state.Culled )
+				continue;
+
+			state.LastVisibleAt = Time.Now - CullDelay;
+			_cullStates[id] = state;
+		}
 	}
 
 	/// <summary>
