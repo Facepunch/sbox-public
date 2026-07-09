@@ -230,8 +230,7 @@ internal class UISystem
 		//
 		// Tick various input systems
 		//
-		Input.Tick( RootPanels.Where( p => !p.IsWorldPanel ).OrderByDescending( x => x.ComputedStyle?.ZIndex ?? 0 ),
-			allowMouseInput && DoAnyPanelsWantMouseVisible() );
+		Input.Tick( RootPanels.Where( p => !p.IsWorldPanel ).OrderByDescending( x => x.ComputedStyle?.ZIndex ?? 0 ), allowMouseInput && DoAnyPanelsWantMouseVisible() );
 
 		TickWorldInput();
 
@@ -272,9 +271,7 @@ internal class UISystem
 				buttonState = Sandbox.Engine.InputContext.InputState.Game;
 
 				if ( CurrentFocus is not null )
-					buttonState = CurrentFocus.ButtonInput == PanelInputType.Game
-						? InputContext.InputState.Game
-						: InputContext.InputState.UI;
+					buttonState = CurrentFocus.ButtonInput == PanelInputType.Game ? InputContext.InputState.Game : InputContext.InputState.UI;
 			}
 
 			//
@@ -286,9 +283,7 @@ internal class UISystem
 				buttonState = Sandbox.Engine.InputContext.InputState.Game;
 
 				if ( CurrentFocus is not null )
-					buttonState = CurrentFocus.ButtonInput == PanelInputType.Game
-						? InputContext.InputState.Game
-						: InputContext.InputState.UI;
+					buttonState = CurrentFocus.ButtonInput == PanelInputType.Game ? InputContext.InputState.Game : InputContext.InputState.UI;
 			}
 
 			//
@@ -322,9 +317,7 @@ internal class UISystem
 				mouseState = InputContext.InputState.UI;
 
 			if ( CurrentFocus is not null )
-				buttonState = CurrentFocus.ButtonInput == PanelInputType.Game
-					? InputContext.InputState.Game
-					: InputContext.InputState.UI;
+				buttonState = CurrentFocus.ButtonInput == PanelInputType.Game ? InputContext.InputState.Game : InputContext.InputState.UI;
 
 			// No input if we're not playing
 			if ( !inGame )
@@ -340,8 +333,7 @@ internal class UISystem
 			}
 		}
 
-		Game.InputContext.UpdateInputFromUI( mouseState, Input.Hovered, Panel.MouseCapture is not null, buttonState,
-			CurrentFocus );
+		Game.InputContext.UpdateInputFromUI( mouseState, Input.Hovered, Panel.MouseCapture is not null, buttonState, CurrentFocus );
 	}
 
 	IEnumerable<RootPanel> EnumerateWorldRootPanels()
