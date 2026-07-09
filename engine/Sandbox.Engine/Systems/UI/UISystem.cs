@@ -335,18 +335,31 @@ internal class UISystem
 
 		Game.InputContext.UpdateInputFromUI( mouseState, Input.Hovered, Panel.MouseCapture is not null, buttonState, CurrentFocus );
 	}
+	
+	IEnumerable<RootPanel> EnumerateWorldRootPanels()
+	{
+		foreach (var root in RootPanels)
+		{
+			if ( !root.IsValid() )
+				continue;
+
+			if ( !root.IsWorldPanel )
+				continue;
+
+			yield return root;
+		}
+	}
 
 	void TickWorldInput()
 	{
 		var scene = Game.ActiveScene;
 		if ( !scene.IsValid() ) return;
 
-		var rootPanels = scene.GetAllComponents<WorldPanel>();
 		var worldInputs = scene.GetAllComponents<WorldInput>();
 
 		foreach ( var worldInput in worldInputs )
 		{
-			worldInput.WorldPanelInput.Tick( rootPanels.Select( x => x.GetPanel() as RootPanel ), true );
+			worldInput.WorldPanelInput.Tick( EnumerateWorldRootPanels(), true );
 		}
 	}
 
