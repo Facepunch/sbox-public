@@ -602,6 +602,89 @@ public class NetworkTest
 		Assert.AreEqual( 2, comp2.SyncInt );
 	}
 
+	[TestMethod]
+	public void NetworkVisibleComponent_DeterminesPerConnectionVisibility()
+	{
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		clientAndHost.BecomeHost();
+
+		var hiddenFrom = new MockConnection( Guid.NewGuid() );
+
+		var go = new GameObject();
+		var visibility = go.Components.Create<VisibilityTestComponent>();
+		visibility.HiddenFrom = hiddenFrom;
+		go.NetworkSpawn( new NetworkSpawnOptions { Owner = Connection.Local, AlwaysTransmit = false } );
+
+		IDeltaSnapshot networkObject = go._net;
+		Connection[] targets = { clientAndHost.Client, hiddenFrom };
+
+		Time.Now = 0f;
+		networkObject.UpdateTransmitState( targets );
+
+		Time.Now = 3f;
+		networkObject.UpdateTransmitState( targets );
+
+		Assert.IsTrue( networkObject.ShouldTransmit( clientAndHost.Client ), "Connection allowed by INetworkVisible should keep receiving updates" );
+		Assert.IsFalse( networkObject.ShouldTransmit( hiddenFrom ), "Connection excluded by INetworkVisible should be culled" );
+	}
+
+	[TestMethod]
+	public void Culled_OnlyAfterGracePeriodElapses()
+	{
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		clientAndHost.BecomeHost();
+
+		var go = new GameObject();
+		var visibility = go.Components.Create<VisibilityTestComponent>();
+		go.NetworkSpawn( new NetworkSpawnOptions { Owner = Connection.Local, AlwaysTransmit = false } );
+
+		IDeltaSnapshot networkObject = go._net;
+		Connection[] targets = { clientAndHost.Client };
+
+		Time.Now = 0f;
+		networkObject.UpdateTransmitState( targets );
+		Assert.IsTrue( networkObject.ShouldTransmit( clientAndHost.Client ) );
+
+		visibility.IsVisible = false;
+		Time.Now = 1f;
+		networkObject.UpdateTransmitState( targets );
+		Assert.IsTrue( networkObject.ShouldTransmit( clientAndHost.Client ), "Should still be transmitting during the grace period" );
+
+		Time.Now = 3f;
+		networkObject.UpdateTransmitState( targets );
+		Assert.IsFalse( networkObject.ShouldTransmit( clientAndHost.Client ), "Should be culled once the grace period has elapsed" );
+	}
+
+	[TestMethod]
+	public void ForceVisibilityUpdate_BypassesGracePeriod()
+	{
+		using var scope = new Scene().Push();
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		clientAndHost.BecomeHost();
+
+		var go = new GameObject();
+		var visibility = go.Components.Create<VisibilityTestComponent>();
+		go.NetworkSpawn( new NetworkSpawnOptions { Owner = Connection.Local, AlwaysTransmit = false } );
+
+		IDeltaSnapshot networkObject = go._net;
+		Connection[] targets = { clientAndHost.Client };
+
+		Time.Now = 0f;
+		networkObject.UpdateTransmitState( targets );
+		Assert.IsTrue( networkObject.ShouldTransmit( clientAndHost.Client ) );
+
+		visibility.IsVisible = false;
+		go.Network.ForceVisibilityUpdate();
+
+		networkObject.UpdateTransmitState( targets );
+		Assert.IsFalse( networkObject.ShouldTransmit( clientAndHost.Client ), "ForceVisibilityUpdate should cull immediately, without waiting for the grace period" );
+	}
+
 	/// <summary>
 	/// When destroying a scene with networked objects, those objects must not emit <see cref="ObjectDestroyMsg"/>
 	/// inside a <see cref="SceneNetworkSystem.SuppressDestroyMessages"/> scope.
@@ -827,5 +910,19 @@ public class NetworkTest
 	{
 		[Property, Sync]
 		public int RegularInt { get; set; } = 1;
+	}
+
+	private class VisibilityTestComponent : Component, Component.INetworkVisible
+	{
+		public bool IsVisible { get; set; } = true;
+		public Connection HiddenFrom { get; set; }
+
+		bool Component.INetworkVisible.IsVisibleToConnection( Connection connection, in BBox worldBounds )
+		{
+			if ( connection == HiddenFrom )
+				return false;
+
+			return IsVisible;
+		}
 	}
 }

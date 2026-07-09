@@ -403,6 +403,24 @@ internal sealed partial class NetworkObject : IValid, IDeltaSnapshot
 	private const float CullDelay = 2f;
 
 	/// <summary>
+	/// Force the cull-delay grace period to expire for all connections tracking this object, so the
+	/// next call to <see cref="IDeltaSnapshot.UpdateTransmitState"/> re-evaluates visibility immediately
+	/// instead of waiting out <see cref="CullDelay"/>.
+	/// </summary>
+	internal void ForceVisibilityUpdate()
+	{
+		foreach ( var id in _cullStates.Keys )
+		{
+			var state = _cullStates[id];
+			if ( state.Culled )
+				continue;
+
+			state.LastVisibleAt = Time.Now - CullDelay;
+			_cullStates[id] = state;
+		}
+	}
+
+	/// <summary>
 	/// Remove a connection id from any internal data structures.
 	/// </summary>
 	/// <param name="id"></param>
