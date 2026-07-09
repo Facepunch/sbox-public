@@ -139,7 +139,8 @@ PackageCard
 	.package-title
 	{
 		text-overflow: ellipsis;
-		max-height: 24px;
+		// keep above the line height, or the title gets truncated away at fractional ui scales
+		max-height: 30px;
 		flex-shrink: 1;
 		font-size: 14px;
 	}
