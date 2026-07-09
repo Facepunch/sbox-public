@@ -33,7 +33,16 @@
 
     public static MainMenu Instance { get; private set; }
 
+    [MenuConVar( "menu_background", Help = "Menu background detail: full, simple or off", Saved = true )]
+    public static string BackgroundMode { get; set; } = "full";
+
     static bool _welcomeShown;
+
+    string _appliedDetailMode;
+    bool _backgroundWasEnabled;
+    readonly Dictionary<SpotLight, bool> _savedShadows = new();
+    readonly Dictionary<Component, bool> _savedPostFx = new();
+    Dictionary<string, List<Sandbox.Clutter.ClutterGridSystem.ClutterStorage.Instance>> _savedClutter;
 
     override protected void OnEnabled()
     {
@@ -75,7 +84,97 @@
         SetClass( "is-vr", Application.IsVR );
         SetClass( "has-streamer-account", Sandbox.MenuEngine.Account.HasLinkedStreamerServices );
 
+        var mode = BackgroundMode?.ToLowerInvariant() switch
+        {
+            "simple" => "simple",
+            "off" => "off",
+            _ => "full"
+        };
+
         var isInGame = Application.IsEditor ? false : Game.InGame;
-        Background.Enabled = Navigator?.CurrentUrl == "/home" && !isInGame;
+        var showBackground = Navigator?.CurrentUrl == "/home" && !isInGame && mode != "off";
+        Background.Enabled = showBackground;
+
+        // Only touch the scene while the background is active - its components can't be
+        // found while the object is disabled. Reapply when it comes back on.
+        var justEnabled = showBackground && !_backgroundWasEnabled;
+        _backgroundWasEnabled = showBackground;
+
+        if ( showBackground && (_appliedDetailMode != mode || justEnabled) )
+        {
+            ApplyBackgroundDetail( mode == "simple" );
+            _appliedDetailMode = mode;
+        }
+    }
+
+    void ApplyBackgroundDetail( bool simple )
+    {
+        if ( simple )
+        {
+            foreach ( var light in Scene.GetAllComponents<SpotLight>() )
+            {
+                if ( !_savedShadows.ContainsKey( light ) )
+                    _savedShadows[light] = light.Shadows;
+
+                light.Shadows = false;
+            }
+
+            foreach ( var fx in Scene.GetAllComponents<Sandbox.Bloom>().Cast<Component>().Concat( Scene.GetAllComponents<Sandbox.AmbientOcclusion>() ) )
+            {
+                if ( !_savedPostFx.ContainsKey( fx ) )
+                    _savedPostFx[fx] = fx.Enabled;
+
+                fx.Enabled = false;
+            }
+        }
+        else
+        {
+            foreach ( var (light, shadows) in _savedShadows )
+            {
+                if ( light.IsValid() )
+                    light.Shadows = shadows;
+            }
+
+            _savedShadows.Clear();
+
+            foreach ( var (fx, enabled) in _savedPostFx )
+            {
+                if ( fx.IsValid() )
+                    fx.Enabled = enabled;
+            }
+
+            _savedPostFx.Clear();
+        }
+
+        ApplyClutterDetail( simple );
+    }
+
+    void ApplyClutterDetail( bool simple )
+    {
+        var clutter = Scene.GetSystem<Sandbox.Clutter.ClutterGridSystem>();
+        if ( clutter?.Storage is null )
+            return;
+
+        if ( simple )
+        {
+            if ( _savedClutter is not null || clutter.Storage.TotalCount == 0 )
+                return;
+
+            // Painted clutter has no visibility toggle, so snapshot the instances,
+            // clear them and restore the snapshot when switching back to Full.
+            _savedClutter = clutter.Storage.GetAllInstances().ToDictionary( x => x.Key, x => x.Value.ToList() );
+            clutter.Storage.ClearAll();
+            clutter.Flush();
+        }
+        else if ( _savedClutter is not null )
+        {
+            foreach ( var (modelPath, instances) in _savedClutter )
+            {
+                clutter.Storage.AddInstances( modelPath, instances );
+            }
+
+            _savedClutter = null;
+            clutter.Flush();
+        }
     }
 }

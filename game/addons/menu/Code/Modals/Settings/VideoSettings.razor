@@ -59,6 +59,16 @@
 
         <h2><i>brush</i>Quality</h2>
 
+        @if ( UpscalerMode != Sandbox.Engine.Settings.UpscalerMode.FSR3 )
+        {
+            <row class="with-gaps">
+                <cell class="glass with-padding is-label">
+                    Render Resolution
+                </cell>
+                <SliderControl class="glass with-grow" Value:bind=@UpscalerRenderScalePercent Min="@(25)" Max="@(100)" Step="@(1)" ShowTextEntry="@true"></SliderControl>
+            </row>
+        }
+
         <row class="with-gaps">
             <cell class="glass with-padding is-label">
                 Anti-Aliasing
@@ -101,6 +111,20 @@
             <SliderControl class="glass with-grow" Value:bind=@MotionBlurScale Min="@(0.0f)" Max="@(1.0f)" Step="@(0.01f)" ShowTextEntry="@true"></SliderControl>
         </row>
 
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Menu Background
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@MenuBackgroundOptions Value:bind=@MenuBackground></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Performance Overlay
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@ToggleOptions Value:bind=@PerformanceOverlayEnabled></ButtonGroup>
+        </row>
+
         <h2><i>auto_awesome</i>Upscaling</h2>
 
         <row class="with-gaps">
@@ -110,23 +134,8 @@
             <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@UpscalerModeOptions Value:bind=@UpscalerMode></ButtonGroup>
         </row>
 
-        @if ( UpscalerMode == Sandbox.Engine.Settings.UpscalerMode.Stretch )
+        @if ( UpscalerMode == Sandbox.Engine.Settings.UpscalerMode.FSR1 )
         {
-            <row class="with-gaps">
-                <cell class="glass with-padding is-label">
-                    Render Quality
-                </cell>
-                <SliderControl class="glass with-grow" Value:bind=@UpscalerRenderScalePercent Min="@(40)" Max="@(100)" Step="@(1)" ShowTextEntry="@true"></SliderControl>
-            </row>
-        }
-        else if ( UpscalerMode == Sandbox.Engine.Settings.UpscalerMode.FSR1 )
-        {
-            <row class="with-gaps">
-                <cell class="glass with-padding is-label">
-                    Render Quality
-                </cell>
-                <SliderControl class="glass with-grow" Value:bind=@UpscalerRenderScalePercent Min="@(50)" Max="@(100)" Step="@(1)" ShowTextEntry="@true"></SliderControl>
-            </row>
             <row class="with-gaps">
                 <cell class="glass with-padding is-label">
                     Sharpness
@@ -153,6 +162,64 @@
                 <SliderControl class="glass with-grow" Value:bind=@Fsr3SharpnessPercent Min="@(0)" Max="@(100)" Step="@(1)" ShowTextEntry="@true"></SliderControl>
             </row>
         }
+
+        <h2><i>tune</i>Advanced</h2>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Shadow Distance
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@ShadowDistanceOptions Value:bind=@ShadowDistance></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Sun Shadows
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@ToggleOptions Value:bind=@SunShadows></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Dynamic Light Shadows
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@ToggleOptions Value:bind=@DynamicShadows></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Contact Shadows
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@ToggleOptions Value:bind=@ContactShadows></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Ambient Occlusion
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@AmbientOcclusionOptions Value:bind=@AoQuality></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Reflections
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@ReflectionOptions Value:bind=@ReflectionQuality></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Bloom
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@ToggleOptions Value:bind=@BloomEnabled></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Decal Limit
+            </cell>
+            <SliderControl class="glass with-grow" Value:bind=@DecalLimit Min="@(0)" Max="@(1000)" Step="@(50)" ShowTextEntry="@true"></SliderControl>
+        </row>
     </div>
 
      <SettingsFooter OnCancel=@OnCancel OnRestore=@OnRestore OnApply=@OnApply></SettingsFooter>
@@ -168,9 +235,61 @@
     public bool VSync { get; set; }
     public TextureQuality TextureDetail { get; set; }
     public VolumetricFogQuality VolumetricFogQuality { get; set; }
-    public PostProcessQuality PostProcessQuality { get; set; }
-    public ShadowQuality ShadowQuality { get; set; }
+
+    PostProcessQuality _postProcessQuality;
+    public PostProcessQuality PostProcessQuality
+    {
+        get => _postProcessQuality;
+        set
+        {
+            // The bind system echoes the current value back after ReadSettings, don't let it stomp the advanced rows
+            if ( _postProcessQuality == value )
+                return;
+
+            _postProcessQuality = value;
+
+            // Sync the advanced rows to the group's fan-out values (mirrors quality_profiles.json)
+            (AoQuality, ReflectionQuality) = value switch
+            {
+                Sandbox.Engine.Settings.PostProcessQuality.Low => (0, 0),
+                Sandbox.Engine.Settings.PostProcessQuality.Medium => (2, 4),
+                _ => (3, 2),
+            };
+        }
+    }
+
+    ShadowQuality _shadowQuality;
+    public ShadowQuality ShadowQuality
+    {
+        get => _shadowQuality;
+        set
+        {
+            // The bind system echoes the current value back after ReadSettings, don't let it stomp the advanced rows
+            if ( _shadowQuality == value )
+                return;
+
+            _shadowQuality = value;
+
+            // Mirrors r.shadows.csm.distance in quality_profiles.json
+            ShadowDistance = value switch
+            {
+                Sandbox.Engine.Settings.ShadowQuality.Low => 4000,
+                Sandbox.Engine.Settings.ShadowQuality.Medium => 9000,
+                _ => 15000,
+            };
+        }
+    }
+
     public float MotionBlurScale { get; set; }
+
+    public int ShadowDistance { get; set; }
+    public bool SunShadows { get; set; }
+    public bool DynamicShadows { get; set; }
+    public bool ContactShadows { get; set; }
+    public int AoQuality { get; set; }
+    public int ReflectionQuality { get; set; }
+    public bool BloomEnabled { get; set; }
+    public int DecalLimit { get; set; }
     public int FrameRateLimit { get; set; }
     public int MenuFrameRateLimit { get; set; }
     public int InactiveFrameRateLimit { get; set; }
@@ -180,6 +299,8 @@
     public int UpscalerRenderScalePercent { get; set; }
     public int Fsr1SharpnessPercent { get; set; }
     public int Fsr3SharpnessPercent { get; set; }
+    public string MenuBackground { get; set; }
+    public bool PerformanceOverlayEnabled { get; set; }
 
     List<Option> UpscalerModeOptions = new List<Option>()
     {
@@ -214,11 +335,20 @@
     };
 
     List<Option> VSyncOptions = [new("Off", false), new("On", true)];
+    List<Option> ToggleOptions = [new("Off", false), new("On", true)];
+    List<Option> MenuBackgroundOptions = [new("Full", "full"), new("Simple", "simple"), new("Off", "off")];
+
+    // Near/Medium/Far match the ShadowQuality group's r.shadows.csm.distance values
+    List<Option> ShadowDistanceOptions = [new("Near", 4000), new("Medium", 9000), new("Far", 15000)];
+    List<Option> AmbientOcclusionOptions = [new("Off", 0), new("Low", 1), new("Medium", 2), new("High", 3)];
+
+    // Values are the r_ssr_downsample_ratio resolution divisor - 0 = off, 4 = quarter res, 2 = half res
+    List<Option> ReflectionOptions = [new("Off", 0), new("Low", 4), new("High", 2)];
 
     List<Option> TextureDetailOptions = [new("Low", Sandbox.Engine.Settings.TextureQuality.Low), new("Medium", Sandbox.Engine.Settings.TextureQuality.Medium), new("High", Sandbox.Engine.Settings.TextureQuality.High)];
-    List<Option> VolumetricFogQualityOptions = [new("Low", VolumetricFogQuality.Low), new("Medium", VolumetricFogQuality.Medium), new("High", VolumetricFogQuality.High)];
-    List<Option> PostProcessOptions = [new("Low", PostProcessQuality.Low), new("Medium", PostProcessQuality.Medium), new("High", PostProcessQuality.High)];
-    List<Option> ShadowQualityOptions = [new("Low", ShadowQuality.Low), new("Medium", ShadowQuality.Medium), new("High", ShadowQuality.High)];
+    List<Option> VolumetricFogQualityOptions = [new("Low", Sandbox.Engine.Settings.VolumetricFogQuality.Low), new("Medium", Sandbox.Engine.Settings.VolumetricFogQuality.Medium), new("High", Sandbox.Engine.Settings.VolumetricFogQuality.High)];
+    List<Option> PostProcessOptions = [new("Low", Sandbox.Engine.Settings.PostProcessQuality.Low), new("Medium", Sandbox.Engine.Settings.PostProcessQuality.Medium), new("High", Sandbox.Engine.Settings.PostProcessQuality.High)];
+    List<Option> ShadowQualityOptions = [new("Low", Sandbox.Engine.Settings.ShadowQuality.Low), new("Medium", Sandbox.Engine.Settings.ShadowQuality.Medium), new("High", Sandbox.Engine.Settings.ShadowQuality.High)];
 
     static List<Option> _resolutionOptions = [];
     public static List<Option> ResolutionOptions
@@ -289,6 +419,37 @@
         UpscalerRenderScalePercent = (int)MathF.Round( MenuUtility.RenderSettings.UpscalerRenderScale * 100f );
         Fsr1SharpnessPercent = (int)MathF.Round( MenuUtility.RenderSettings.Fsr1Sharpness * 100f );
         Fsr3SharpnessPercent = (int)MathF.Round( MenuUtility.RenderSettings.Fsr3Sharpness * 100f );
+
+        // Off renders at native resolution, show the slider at 100%
+        if ( UpscalerMode == Sandbox.Engine.Settings.UpscalerMode.Off )
+            UpscalerRenderScalePercent = 100;
+
+        MenuBackground = MainMenu.BackgroundMode;
+        PerformanceOverlayEnabled = Sandbox.UI.Dev.PerformanceOverlay.ShowPerfOverlay;
+
+        // Read after the quality groups so live values overwrite the group defaults seeded above
+        ShadowDistance = SnapShadowDistance( MenuUtility.RenderSettings.ShadowDistance );
+        SunShadows = MenuUtility.RenderSettings.SunShadows;
+        DynamicShadows = MenuUtility.RenderSettings.DynamicShadows;
+        ContactShadows = MenuUtility.RenderSettings.ContactShadows;
+        AoQuality = Math.Clamp( MenuUtility.RenderSettings.AmbientOcclusionQuality, 0, 3 );
+        ReflectionQuality = SnapReflectionQuality( MenuUtility.RenderSettings.ReflectionQuality );
+        BloomEnabled = MenuUtility.RenderSettings.BloomEnabled;
+        DecalLimit = Math.Clamp( MenuUtility.RenderSettings.MaxDecals, 0, 1000 );
+    }
+
+    // Console-set values can be anything, snap to the nearest button so the UI always shows a selection
+    static int SnapShadowDistance( float distance )
+    {
+        if ( distance < 6500 ) return 4000;
+        if ( distance < 12000 ) return 9000;
+        return 15000;
+    }
+
+    static int SnapReflectionQuality( int ratio )
+    {
+        if ( ratio <= 0 ) return 0;
+        return ratio >= 3 ? 4 : 2;
     }
 
     public void OnRestore()
@@ -346,15 +507,39 @@
         MenuUtility.RenderSettings.ShadowQuality = ShadowQuality;
         MenuUtility.RenderSettings.MotionBlurScale = MotionBlurScale;
 
+        // Applied after the quality groups so explicit choices win over the group fan-out
+        MenuUtility.RenderSettings.ShadowDistance = ShadowDistance;
+        MenuUtility.RenderSettings.SunShadows = SunShadows;
+        MenuUtility.RenderSettings.DynamicShadows = DynamicShadows;
+        MenuUtility.RenderSettings.ContactShadows = ContactShadows;
+        MenuUtility.RenderSettings.AmbientOcclusionQuality = AoQuality;
+        MenuUtility.RenderSettings.ReflectionQuality = ReflectionQuality;
+        MenuUtility.RenderSettings.BloomEnabled = BloomEnabled;
+        MenuUtility.RenderSettings.MaxDecals = DecalLimit;
+
         MenuUtility.RenderSettings.MaxFrameRate = FrameRateLimit;
         MenuUtility.RenderSettings.MaxFrameRateMenu = MenuFrameRateLimit;
         MenuUtility.RenderSettings.MaxFrameRateInactive = InactiveFrameRateLimit;
+
+        // The render resolution slider drives the upscaler - 100% renders native, below that
+        // FSR1 upscales unless Stretch or FSR1 was picked explicitly. FSR3 sets its own
+        // scale through quality presets.
+        if ( UpscalerMode != Sandbox.Engine.Settings.UpscalerMode.FSR3 )
+        {
+            if ( UpscalerRenderScalePercent >= 100 )
+                UpscalerMode = Sandbox.Engine.Settings.UpscalerMode.Off;
+            else if ( UpscalerMode == Sandbox.Engine.Settings.UpscalerMode.Off )
+                UpscalerMode = Sandbox.Engine.Settings.UpscalerMode.FSR1;
+        }
 
         MenuUtility.RenderSettings.UpscalerMode = UpscalerMode;
         MenuUtility.RenderSettings.Fsr3UpscalerQuality = Fsr3UpscalerQuality;
         MenuUtility.RenderSettings.UpscalerRenderScale = UpscalerRenderScalePercent / 100f;
         MenuUtility.RenderSettings.Fsr1Sharpness = Fsr1SharpnessPercent / 100f;
         MenuUtility.RenderSettings.Fsr3Sharpness = Fsr3SharpnessPercent / 100f;
+
+        MainMenu.BackgroundMode = MenuBackground;
+        Sandbox.UI.Dev.PerformanceOverlay.ShowPerfOverlay = PerformanceOverlayEnabled;
 
         MenuUtility.RenderSettings.Apply();
     }
