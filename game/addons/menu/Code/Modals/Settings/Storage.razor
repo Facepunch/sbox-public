@@ -61,6 +61,55 @@
 
         </column>
 
+        <div class="list-header">
+            <h2>Downloaded Games</h2>
+            <ButtonGroup class="glass" ButtonClass="glass with-click" Options=@SortOptions Value:bind=@SortBy></ButtonGroup>
+        </div>
+
+        @if (!GamePackages.Any())
+        {
+            <div class="empty-list">Games you download will show up here once they've been played.</div>
+        }
+
+        @foreach (var package in SortedPackages)
+        {
+            <row class="package-row">
+
+                <div class="thumb" style="background-image: url( @(string.IsNullOrEmpty(package.Thumb) ? "/ui/sbox-logo-square.svg" : package.Thumb) )"></div>
+
+                <column class="info">
+                    <div class="title">@package.Title <span class="ident">@package.Ident</span></div>
+                    <div class="breakdown">@GetBreakdown(package.Ident)</div>
+                </column>
+
+                <column class="dates">
+                    <div>Downloaded @package.Downloaded.Humanize()</div>
+                    <div>Played @package.LastPlayed.Humanize()</div>
+                </column>
+
+                <div class="size">@package.Size.FormatBytes()</div>
+
+                <Button Icon="delete" Tooltip="Delete Cached Files" @onclick=@(() => ConfirmDelete(package))></Button>
+
+            </row>
+        }
+
+        @if (SharedCount > 0)
+        {
+            <row class="package-row shared">
+
+                <div class="thumb is-icon"><icon>checkroom</icon></div>
+
+                <column class="info">
+                    <div class="title">Avatar Items &amp; Shared Assets</div>
+                    <div class="breakdown">@SharedCount packages - clothing and other assets used across games</div>
+                </column>
+
+                <div class="size">@SharedSize.FormatBytes()</div>
+
+            </row>
+        }
+
 	</div>
 
     <div class="page-footer">
@@ -90,9 +139,36 @@
 
     Dictionary<string, long> SizeBreakdown = new Dictionary<string, long>();
 
+    List<MenuUtility.Storage.PackageEntry> Packages = new();
+    Dictionary<string, string> PackageBreakdowns = new();
+
     long Files;
     long Size;
     long OldSize;
+
+    string SortBy { get; set; } = "size";
+
+    List<Option> SortOptions = [new("Size", "size"), new("Last Played", "played"), new("Name", "name")];
+
+    /// <summary>
+    /// Package types that are games you join and play. Everything else (clothing,
+    /// models etc) is shared content and gets lumped into a single line.
+    /// </summary>
+    static readonly string[] GameTypes = ["game", "gamemode", "map"];
+
+    static bool IsGame( MenuUtility.Storage.PackageEntry package ) => GameTypes.Contains( package.Type, StringComparer.OrdinalIgnoreCase );
+
+    IEnumerable<MenuUtility.Storage.PackageEntry> GamePackages => Packages.Where( IsGame );
+
+    long SharedSize => Packages.Where( x => !IsGame(x) ).Sum( x => x.Size );
+    int SharedCount => Packages.Count( x => !IsGame(x) );
+
+    IEnumerable<MenuUtility.Storage.PackageEntry> SortedPackages => SortBy switch
+    {
+        "played" => GamePackages.OrderByDescending( x => x.LastPlayed ),
+        "name" => GamePackages.OrderBy( x => x.Title ),
+        _ => GamePackages.OrderByDescending( x => x.Size )
+    };
 
     protected override void OnAfterTreeRender(bool firstTime)
     {
@@ -117,6 +193,21 @@
     }
 
     /// <summary>
+    /// Ask before purging a package's cached files
+    /// </summary>
+    void ConfirmDelete( MenuUtility.Storage.PackageEntry package )
+    {
+        MenuOverlay.Question( $"Delete {package.Size.FormatBytes()} of cached files for {package.Title}? It'll redownload next time you play it.", "delete",
+            () => _ = DeletePackage( package ), null );
+    }
+
+    async Task DeletePackage( MenuUtility.Storage.PackageEntry package )
+    {
+        await MenuUtility.Storage.DeletePackageAsync( package.Ident );
+        TryRefresh();
+    }
+
+    /// <summary>
     /// Refresh the file usage (if there isn't already a refresh in progress)
     /// </summary>
     void TryRefresh()
@@ -124,6 +215,28 @@
         if (refreshTask != null && !refreshTask.IsCompleted ) return;
 
         refreshTask = Refresh();
+    }
+
+    string GetBreakdown( string ident )
+    {
+        return PackageBreakdowns.GetValueOrDefault( ident, "" );
+    }
+
+    static string ClassifyFile( string filename )
+    {
+        if (filename.Contains(".vpk", StringComparison.OrdinalIgnoreCase)) return "Map";
+        if (filename.Contains(".vtex", StringComparison.OrdinalIgnoreCase)) return "Texture";
+        if (filename.Contains(".shader", StringComparison.OrdinalIgnoreCase)) return "Shader";
+        if (filename.Contains(".png", StringComparison.OrdinalIgnoreCase)) return "Image";
+        if (filename.Contains(".jpg", StringComparison.OrdinalIgnoreCase)) return "Image";
+        if (filename.Contains(".gif", StringComparison.OrdinalIgnoreCase)) return "Image";
+        if (filename.Contains(".mp4", StringComparison.OrdinalIgnoreCase)) return "Video";
+        if (filename.Contains(".vmt", StringComparison.OrdinalIgnoreCase)) return "Material";
+        if (filename.Contains(".vmat", StringComparison.OrdinalIgnoreCase)) return "Material";
+        if (filename.Contains(".vmdl", StringComparison.OrdinalIgnoreCase)) return "Model";
+        if (filename.Contains(".vsnd", StringComparison.OrdinalIgnoreCase)) return "Sound";
+
+        return "Other";
     }
 
     async Task Refresh()
@@ -147,23 +260,7 @@
             if (entry.LastAccessed < cutoff)
                 OldSize += entry.Size;
 
-            var type = "Other";
-
-            if (entry.Filename.Contains(".vpk", StringComparison.OrdinalIgnoreCase)) type = "Map";
-            else if (entry.Filename.Contains(".vtex", StringComparison.OrdinalIgnoreCase)) type = "Texture";
-            else if (entry.Filename.Contains(".shader", StringComparison.OrdinalIgnoreCase)) type = "Shader";
-            else if (entry.Filename.Contains(".png", StringComparison.OrdinalIgnoreCase)) type = "Image";
-            else if (entry.Filename.Contains(".jpg", StringComparison.OrdinalIgnoreCase)) type = "Image";
-            else if (entry.Filename.Contains(".gif", StringComparison.OrdinalIgnoreCase)) type = "Image";
-            else if (entry.Filename.Contains(".mp4", StringComparison.OrdinalIgnoreCase)) type = "Video";
-            else if (entry.Filename.Contains(".vmt", StringComparison.OrdinalIgnoreCase)) type = "Material";
-            else if (entry.Filename.Contains(".vmdl", StringComparison.OrdinalIgnoreCase)) type = "Model";
-            else if (entry.Filename.Contains(".vsnd", StringComparison.OrdinalIgnoreCase)) type = "Sound";
-
-            if (type == "Other")
-            {
-             //   type = System.IO.Path.GetExtension( entry.Filename );
-            }
+            var type = ClassifyFile(entry.Filename);
 
             if (!SizeBreakdown.ContainsKey(type))
                 SizeBreakdown[type] = 0;
@@ -180,5 +277,43 @@
         }
 
         StateHasChanged();
+
+        Packages = await MenuUtility.Storage.GetPackagesAsync();
+        StateHasChanged();
+
+        await RefreshBreakdowns();
+    }
+
+    /// <summary>
+    /// Count each package's cached files by type, same categories as the totals above
+    /// </summary>
+    async Task RefreshBreakdowns()
+    {
+        PackageBreakdowns.Clear();
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        foreach (var package in GamePackages)
+        {
+            var counts = new Dictionary<string, int>();
+
+            foreach (var file in MenuUtility.Storage.GetPackageFiles(package.Ident))
+            {
+                var type = ClassifyFile(file.Filename);
+
+                counts[type] = counts.GetValueOrDefault(type) + 1;
+
+                if (sw.ElapsedMilliseconds > 16)
+                {
+                    sw.Restart();
+                    await Task.DelayRealtime( 1 );
+                }
+            }
+
+            PackageBreakdowns[package.Ident] = string.Join(" • ", counts.OrderByDescending(x => x.Value)
+                .Select(x => $"{x.Value:n0} {(x.Value == 1 ? x.Key : x.Key + "s")}"));
+
+            StateHasChanged();
+        }
     }
 }

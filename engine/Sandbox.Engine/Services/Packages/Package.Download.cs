@@ -53,6 +53,9 @@ public partial class Package
 		// filter out files we're never going to download
 		entries = entries.Where( FilterFileDownloads ).ToArray();
 
+		// remember what we downloaded, so storage tools can attribute cache files to packages
+		DownloadedPackages.Update( this, entries );
+
 		if ( options.SkipAssetDownload )
 		{
 			entries = entries.Where( x => x.Path.StartsWith( ".bin" ) ).ToArray();

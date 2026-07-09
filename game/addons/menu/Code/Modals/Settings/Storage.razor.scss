@@ -2,28 +2,51 @@
 .page-content
 {
     font-family: Poppins;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: scroll;
+
+    > *
+    {
+        flex-shrink: 0;
+    }
 }
 
 .page-footer
 {
+    flex-grow: 0;
+    padding: 16px;
     gap: 16px;
 }
 
-button.button
+.page-footer button.button
 {
     font-family: Poppins;
-    font-size: 14px;
-    font-weight: bold;
-    padding: 2px 16px;
     background-color: #525967;
+    color: white;
+    font-size: 14px;
+    padding: 4px 16px;
+    font-weight: bold;
     border-radius: 8px;
-    color: #c6d4ee;
+    cursor: pointer;
+    border: 3px solid transparent;
+    gap: 8px;
+    flex-shrink: 0;
 
     &:hover
     {
-        filter: brightness(1.5);
-        color: white;
+        filter: brightness( 1.5 );
+    }
+
+    IconPanel
+    {
+        font-size: 28px;
+        opacity: 0.5;
+    }
+
+    label
+    {
+        flex-grow: 1;
+        text-align: center;
     }
 }
 
@@ -101,4 +124,134 @@ button.button
 {
     background-color: #5F592D;
     color: #C0C654;
+}
+
+.list-header
+{
+    flex-shrink: 0;
+    margin-top: 24px;
+    justify-content: space-between;
+    align-items: center;
+
+    ButtonGroup
+    {
+        width: auto;
+        padding-right: 0;
+    }
+}
+
+.empty-list
+{
+    flex-shrink: 0;
+    padding: 24px;
+    justify-content: center;
+    color: #8a92a6;
+    font-family: Poppins;
+}
+
+row.package-row
+{
+    gap: 16px;
+    padding: 8px 16px 8px 8px;
+
+    .thumb
+    {
+        width: 64px;
+        height: 64px;
+        flex-shrink: 0;
+        border-radius: 8px;
+        background-size: cover;
+        background-position: center;
+        background-color: rgba(white, 0.05);
+    }
+
+    .info
+    {
+        flex-grow: 1;
+        flex-shrink: 1;
+        flex-direction: column;
+        justify-content: center;
+        gap: 4px;
+        overflow: hidden;
+
+        .title
+        {
+            font-family: Poppins;
+            font-weight: 600;
+            font-size: 15px;
+            color: white;
+            align-items: center;
+            gap: 8px;
+
+            .ident
+            {
+                font-weight: 400;
+                font-size: 12px;
+                color: #8a92a6;
+            }
+        }
+
+        .breakdown
+        {
+            font-size: 11px;
+            color: #8a92a6;
+            white-space: nowrap;
+        }
+    }
+
+    .dates
+    {
+        flex-shrink: 0;
+        flex-direction: column;
+        justify-content: center;
+        gap: 4px;
+        font-size: 11px;
+        color: #8a92a6;
+        text-align: right;
+        align-items: flex-end;
+    }
+
+    .size
+    {
+        flex-shrink: 0;
+        width: 90px;
+        justify-content: flex-end;
+        align-items: center;
+        font-family: Poppins;
+        font-weight: 600;
+        font-size: 14px;
+        color: #c6d4ee;
+    }
+
+    .thumb.is-icon
+    {
+        justify-content: center;
+        align-items: center;
+
+        icon
+        {
+            font-size: 32px;
+            color: #8a92a6;
+        }
+    }
+
+    &.shared
+    {
+        padding-right: 56px;
+    }
+
+    button.button
+    {
+        flex-shrink: 0;
+        background-color: #525967;
+        border-radius: 8px;
+        padding: 4px 12px;
+        color: #c6d4ee;
+
+        &:hover
+        {
+            filter: brightness( 1.5 );
+            color: white;
+        }
+    }
 }
