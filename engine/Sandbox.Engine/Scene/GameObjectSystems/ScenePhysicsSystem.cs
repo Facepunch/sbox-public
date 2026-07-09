@@ -13,6 +13,11 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 	private HashSet<Rigidbody> RigidBodies { get; set; } = new();
 	private List<ISceneCollisionEvents> CollisionEvents { get; } = new();
 
+	// Rigidbodies whose physics body moved this step (populated from PhysicsWorld.OnBodyActive).
+	// We drain this each step instead of scanning every Rigidbody, so settled/asleep bodies cost nothing.
+	private readonly HashSet<Rigidbody> MovedRigidbodies = new();
+	private readonly List<Rigidbody> MovedBuffer = new();
+
 	internal bool Enabled { get; set; }
 
 	public ScenePhysicsSystem( Scene scene ) : base( scene )
@@ -35,6 +40,7 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		PhysicsWorld.OnIntersectionEnd += OnIntersectionEnd;
 		PhysicsWorld.OnBodyOutOfBounds += OnBodyOutOfBounds;
 		PhysicsWorld.OnBodyFellAsleep += OnBodyFellAsleep;
+		PhysicsWorld.OnBodyActive += OnBodyActive;
 	}
 
 	public override void Dispose()
@@ -50,6 +56,7 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		PhysicsWorld.OnIntersectionEnd -= OnIntersectionEnd;
 		PhysicsWorld.OnBodyOutOfBounds -= OnBodyOutOfBounds;
 		PhysicsWorld.OnBodyFellAsleep -= OnBodyFellAsleep;
+		PhysicsWorld.OnBodyActive -= OnBodyActive;
 	}
 
 	void UpdatePhysics()
@@ -91,14 +98,21 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		PhysicsWorld?.Step( Time.NowDouble, Time.Delta, steps );
 
 		//
-		// Update the positions of the rigidbodies based on the new physics positions
-		// todo: we should only update ones that have changed, skip asleep?
+		// Update the positions of the rigidbodies that the solver reported as moved this step.
+		// Asleep/settled bodies don't fire OnBodyActive, so they're skipped entirely.
+		// We buffer then clear so UpdateTransformFromBody's transform-changed callbacks can't mutate the set mid-iteration.
 		//
-		// I don't feel comfortable doing this in a thread, because of all the LocalTransformChanged callbacks
-		// System.Threading.Tasks.Parallel.ForEach( Scene.GetAll<Rigidbody>(), c => c.UpdateTransformFromBody() );
-		foreach ( var obj in Scene.GetAll<Rigidbody>() )
+		MovedBuffer.Clear();
+		foreach ( var rb in MovedRigidbodies )
 		{
-			obj.UpdateTransformFromBody();
+			if ( rb.IsValid() )
+				MovedBuffer.Add( rb );
+		}
+		MovedRigidbodies.Clear();
+
+		foreach ( var rb in MovedBuffer )
+		{
+			rb.UpdateTransformFromBody();
 		}
 
 		//
@@ -164,6 +178,12 @@ sealed class ScenePhysicsSystem : GameObjectSystem<ScenePhysicsSystem>
 		var rb = body.Component as Rigidbody;
 		if ( rb.IsValid() == false ) return;
 		IScenePhysicsEvents.Post( x => x.OnFellAsleep( rb ) );
+	}
+
+	void OnBodyActive( PhysicsBody body )
+	{
+		if ( body.Component is Rigidbody rb )
+			MovedRigidbodies.Add( rb );
 	}
 
 	void DebugDrawPhysics()
