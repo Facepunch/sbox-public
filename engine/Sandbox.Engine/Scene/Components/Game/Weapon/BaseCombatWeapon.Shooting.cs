@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class BaseWeapon
+public partial class BaseCombatWeapon
 {
 	/// <summary>
 	/// Traces a bullet through the world and, on the host, damages and pushes whatever it hits. This
@@ -86,7 +86,7 @@ public partial class BaseWeapon
 		return merged;
 	}
 
-	// The damage + impulse core shared by trace hits and client hit claims (BaseWeapon.HitClaims).
+	// The damage + impulse core shared by trace hits and client hit claims (BaseCombatWeapon.HitClaims).
 	static void ApplyBulletDamage( GameObject hitObject, Vector3 origin, Vector3 position, Vector3 direction, float damage, float force, GameObject attacker, GameObject weapon, TagSet tags, Hitbox hitbox = null, PhysicsShape shape = null )
 	{
 		if ( !hitObject.IsValid() )
@@ -163,7 +163,7 @@ public partial class BaseWeapon
 	/// <see cref="Attacker"/>. When the host controls the weapon (seats, NPCs, a host-owned weapon)
 	/// the damage applies immediately. On the owning client the hit is sent to the host as a claim -
 	/// the client's trace decides where the shot landed, the host applies (or rejects) the damage.
-	/// See BaseWeapon.HitClaims.
+	/// See BaseCombatWeapon.HitClaims.
 	/// </summary>
 	protected SceneTraceResult ShootBullet( SceneTraceResult tr, float damage, float force, TagSet tags = null, bool hitboxTags = true )
 	{
@@ -181,7 +181,7 @@ public partial class BaseWeapon
 	}
 
 	/// <summary>
-	/// Fires a bullet from this weapon's <see cref="BaseWeapon.AimRay"/> - traced with
+	/// Fires a bullet from this weapon's <see cref="BaseCombatWeapon.AimRay"/> - traced with
 	/// <see cref="BulletTrace"/>, resolved through <see cref="ShootBullet(SceneTraceResult,float,float,TagSet,bool)"/>.
 	/// </summary>
 	protected SceneTraceResult ShootBullet( float distance, float radius, float damage, float force, TagSet tags = null )
@@ -191,10 +191,10 @@ public partial class BaseWeapon
 	}
 
 	/// <summary>
-	/// Fires a volley of bullets from this weapon's <see cref="BaseWeapon.AimRay"/> - one
+	/// Fires a volley of bullets from this weapon's <see cref="BaseCombatWeapon.AimRay"/> - one
 	/// <see cref="BulletTrace"/> per pellet, each randomly deflected within <paramref name="spread"/>
 	/// degrees. On the host the damage applies immediately; on the owning client the whole volley is
-	/// claimed to the host in a single message (see BaseWeapon.HitClaims). Returns every pellet's
+	/// claimed to the host in a single message (see BaseCombatWeapon.HitClaims). Returns every pellet's
 	/// trace so the caller can drive tracers and impacts.
 	/// </summary>
 	protected SceneTraceResult[] ShootBullets( int count, Vector2 spread, float distance, float radius, float damage, float force, TagSet tags = null )

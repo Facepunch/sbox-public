@@ -18,8 +18,8 @@ public sealed class TestItem : BaseInventoryItem
 	public int Holsters { get; private set; }
 	public int Controls { get; private set; }
 	public int Drops { get; private set; }
-	public InventoryComponent AddedTo { get; private set; }
-	public InventoryComponent RemovedFrom { get; private set; }
+	public BaseInventoryComponent AddedTo { get; private set; }
+	public BaseInventoryComponent RemovedFrom { get; private set; }
 
 	public override bool ShouldAvoid => Avoid;
 
@@ -28,8 +28,8 @@ public sealed class TestItem : BaseInventoryItem
 	protected override void OnEquipped() => Equips++;
 	protected override void OnHolstered() => Holsters++;
 	protected override void OnControl() => Controls++;
-	protected override void OnAdded( InventoryComponent inventory ) => AddedTo = inventory;
-	protected override void OnRemoved( InventoryComponent inventory ) => RemovedFrom = inventory;
+	protected override void OnAdded( BaseInventoryComponent inventory ) => AddedTo = inventory;
+	protected override void OnRemoved( BaseInventoryComponent inventory ) => RemovedFrom = inventory;
 
 	protected override bool OnDrop()
 	{
@@ -44,7 +44,7 @@ public sealed class TestItem : BaseInventoryItem
 /// <summary>
 /// An inventory whose game hooks can be vetoed, for testing the extension points.
 /// </summary>
-public sealed class TestInventory : InventoryComponent
+public sealed class TestInventory : BaseInventoryComponent
 {
 	public bool AllowAdd = true;
 	public bool AllowMove = true;
@@ -54,7 +54,7 @@ public sealed class TestInventory : InventoryComponent
 }
 
 /// <summary>
-/// Pins the InventoryComponent contract: slot assignment and refusal, the equip/holster
+/// Pins the BaseInventoryComponent contract: slot assignment and refusal, the equip/holster
 /// lifecycle with switch vetoes, remove and drop flows, slot moving, best-item selection
 /// and the per-frame control pump.
 /// </summary>
@@ -92,10 +92,10 @@ public class InventoryComponentTest
 	/// <summary>
 	/// Creates an inventory on a fresh GameObject.
 	/// </summary>
-	static InventoryComponent CreateInventory( Scene scene, int maxSlots = 6 )
+	static BaseInventoryComponent CreateInventory( Scene scene, int maxSlots = 6 )
 	{
 		var go = scene.CreateObject();
-		var inventory = go.Components.Create<InventoryComponent>();
+		var inventory = go.Components.Create<BaseInventoryComponent>();
 		inventory.MaxSlots = maxSlots;
 		return inventory;
 	}
@@ -518,7 +518,7 @@ public class InventoryComponentTest
 		using var sceneScope = scene.Push();
 
 		var inventory = CreateInventory( scene );
-		inventory.Behaviour = InventoryComponent.InventoryBehaviour.Buckets;
+		inventory.Behaviour = BaseInventoryComponent.InventoryBehaviour.Buckets;
 
 		var late = CreateItem( scene );
 		late.PreferredSlot = 2;
@@ -567,7 +567,7 @@ public class InventoryComponentTest
 		crowbar.Components.Create<TestItem>( false );
 
 		inventory.StartingItems = [pistol, crowbar];
-		inventory.StartingAmmo = [new InventoryComponent.AmmoGrant { Type = TestAmmoResource.Pistol, Amount = 48 }];
+		inventory.StartingAmmo = [new BaseInventoryComponent.AmmoGrant { Type = TestAmmoResource.Pistol, Amount = 48 }];
 
 		inventory.GiveLoadout();
 
@@ -578,7 +578,7 @@ public class InventoryComponentTest
 }
 
 /// <summary>
-/// Pins the BaseWeapon ammo contract: magazine seeding on pickup, clip and reserve
+/// Pins the BaseCombatWeapon ammo contract: magazine seeding on pickup, clip and reserve
 /// spending with the host mirror, the empty checks, reserve pool arithmetic and the
 /// timed host reload loop.
 /// </summary>
@@ -616,20 +616,20 @@ public class BaseWeaponAmmoTest
 	/// Creates an inventory with a PlayerController on the same GameObject, so weapons
 	/// added to it count as held (IsHeld resolves the controller from the hierarchy).
 	/// </summary>
-	static InventoryComponent CreateHeldInventory( Scene scene )
+	static BaseInventoryComponent CreateHeldInventory( Scene scene )
 	{
 		var go = scene.CreateObject();
 		go.Components.Create<PlayerController>();
-		return go.Components.Create<InventoryComponent>();
+		return go.Components.Create<BaseInventoryComponent>();
 	}
 
 	/// <summary>
 	/// Creates a weapon with a magazine and a reserve type, not yet in an inventory.
 	/// </summary>
-	static BaseWeapon CreateWeapon( Scene scene, int clipSize = 8, AmmoResource ammoType = null, int startingAmmo = 0 )
+	static BaseCombatWeapon CreateWeapon( Scene scene, int clipSize = 8, BaseAmmoResource ammoType = null, int startingAmmo = 0 )
 	{
 		var go = scene.CreateObject();
-		var weapon = go.Components.Create<BaseWeapon>();
+		var weapon = go.Components.Create<BaseCombatWeapon>();
 		weapon.ClipMaxSize = clipSize;
 		weapon.PrimaryAmmoType = ammoType ?? TestAmmoResource.Pistol;
 		weapon.StartingAmmo = startingAmmo;
@@ -649,7 +649,7 @@ public class BaseWeaponAmmoTest
 		var inventory = CreateHeldInventory( scene );
 
 		var go = scene.CreateObject();
-		var weapon = go.Components.Create<BaseWeapon>();
+		var weapon = go.Components.Create<BaseCombatWeapon>();
 		weapon.ClipMaxSize = 8;
 
 		inventory.Add( weapon );
@@ -863,7 +863,7 @@ public class BaseWeaponAmmoTest
 /// An ammo type built in code. Real ones load from disk and get their path from the asset
 /// system - the reserve pool is keyed by that path, so tests set one directly.
 /// </summary>
-public sealed class TestAmmoResource : AmmoResource
+public sealed class TestAmmoResource : BaseAmmoResource
 {
 	public static readonly TestAmmoResource Pistol = new( "test/pistol.ammo" );
 	public static readonly TestAmmoResource Rifle = new( "test/rifle.ammo" );
@@ -877,7 +877,7 @@ public sealed class TestAmmoResource : AmmoResource
 /// <summary>
 /// A weapon exposing the protected shooting API so tests can drive it directly.
 /// </summary>
-public sealed class TestWeapon : BaseWeapon
+public sealed class TestWeapon : BaseCombatWeapon
 {
 	public SceneTraceResult Shoot( float distance, float radius, float damage, float force, TagSet tags = null )
 		=> ShootBullet( distance, radius, damage, force, tags );
@@ -1052,7 +1052,7 @@ public class BaseWeaponShootingTest
 		using var sceneScope = scene.Push();
 
 		var weapon = CreateWeapon( scene );
-		weapon.Ballistics = new BaseWeapon.BallisticConfig
+		weapon.Ballistics = new BaseCombatWeapon.BallisticConfig
 		{
 			Damage = 12f,
 			Pellets = 4,
@@ -1084,7 +1084,7 @@ public class BaseWeaponShootingTest
 
 		var inventoryGo = scene.CreateObject();
 		inventoryGo.Components.Create<PlayerController>();
-		var inventory = inventoryGo.Components.Create<InventoryComponent>();
+		var inventory = inventoryGo.Components.Create<BaseInventoryComponent>();
 
 		var weaponGo = scene.CreateObject();
 		var weapon = weaponGo.Components.Create<TestWeapon>();

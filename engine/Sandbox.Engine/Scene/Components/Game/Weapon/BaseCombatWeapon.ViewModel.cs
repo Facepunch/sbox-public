@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class BaseWeapon
+public partial class BaseCombatWeapon
 {
 	/// <summary>
 	/// First-person view model prefab. Spawned only on the client holding this item.

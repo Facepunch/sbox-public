@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class BaseWeapon
+public partial class BaseCombatWeapon
 {
 	//
 	// Ammo, modelled on GMod's SWEP.Primary / SWEP.Secondary. A weapon can feed from a magazine
@@ -39,7 +39,7 @@ public partial class BaseWeapon
 	/// still forces the reload rhythm, it just never runs out. Assign a type for a finite reserve,
 	/// shared with other weapons of the same type.
 	/// </summary>
-	[Property, Feature( "Ammo" )] public AmmoResource PrimaryAmmoType { get; set; }
+	[Property, Feature( "Ammo" )] public BaseAmmoResource PrimaryAmmoType { get; set; }
 
 	/// <summary>
 	/// Magazine size for secondary fire, or -1 when it doesn't use one (GMod's Secondary.ClipSize).
@@ -51,7 +51,7 @@ public partial class BaseWeapon
 	[Property, Feature( "Ammo" )] public int SecondaryDefaultClip { get; set; } = -1;
 
 	/// <inheritdoc cref="PrimaryAmmoType"/>
-	[Property, Feature( "Ammo" )] public AmmoResource SecondaryAmmoType { get; set; }
+	[Property, Feature( "Ammo" )] public BaseAmmoResource SecondaryAmmoType { get; set; }
 
 	/// <summary>
 	/// Rounds currently in the primary magazine, or -1 when the weapon doesn't use one (GMod's Clip1).
@@ -82,11 +82,11 @@ public partial class BaseWeapon
 
 	/// <summary>
 	/// Reserve ammo of the given type available to this weapon. Reads the owning inventory's shared
-	/// pool (<see cref="InventoryComponent.GetAmmo"/>) - reserve ammo lives on the inventory, not the
+	/// pool (<see cref="BaseInventoryComponent.GetAmmo"/>) - reserve ammo lives on the inventory, not the
 	/// weapon, so guns of the same type share it. A null ammo type is a bottomless reserve. Returns 0
 	/// when the weapon isn't in an inventory. Override to use a different store.
 	/// </summary>
-	protected virtual int GetReserveAmmo( AmmoResource ammoType )
+	protected virtual int GetReserveAmmo( BaseAmmoResource ammoType )
 	{
 		if ( ammoType is null )
 			return int.MaxValue;
@@ -98,7 +98,7 @@ public partial class BaseWeapon
 	/// Take up to <paramref name="amount"/> reserve ammo of the given type from the owning inventory's
 	/// pool, returning how much was actually taken. Pairs with <see cref="GetReserveAmmo"/>.
 	/// </summary>
-	protected virtual int TakeReserveAmmo( AmmoResource ammoType, int amount )
+	protected virtual int TakeReserveAmmo( BaseAmmoResource ammoType, int amount )
 	{
 		if ( ammoType is null )
 			return amount;
@@ -247,7 +247,7 @@ public partial class BaseWeapon
 	/// reserve instead (GMod's duplicate pickup), when there's an ammo type with room. The
 	/// duplicate is consumed by the donation, or left where it is.
 	/// </summary>
-	protected override bool OnAdding( InventoryComponent inventory )
+	protected override bool OnAdding( BaseInventoryComponent inventory )
 	{
 		var existing = FindSameWeapon( inventory );
 		if ( existing is null )
@@ -266,7 +266,7 @@ public partial class BaseWeapon
 
 	// A weapon of the same type already in the inventory, if any. Prefab weapons only match their
 	// own prefab - two data-configured guns sharing a class aren't the same weapon.
-	BaseWeapon FindSameWeapon( InventoryComponent inventory )
+	BaseCombatWeapon FindSameWeapon( BaseInventoryComponent inventory )
 	{
 		foreach ( var item in inventory.GetComponentsInChildren<BaseInventoryItem>( true ) )
 		{
@@ -276,7 +276,7 @@ public partial class BaseWeapon
 			if ( item.GameObject.PrefabInstanceSource != GameObject.PrefabInstanceSource )
 				continue;
 
-			return item as BaseWeapon;
+			return item as BaseCombatWeapon;
 		}
 
 		return null;
@@ -286,7 +286,7 @@ public partial class BaseWeapon
 	/// Seed the magazines with their default contents, and the inventory's reserve pool with
 	/// <see cref="StartingAmmo"/>. Host only, runs once when the weapon enters an inventory.
 	/// </summary>
-	protected override void OnAdded( InventoryComponent inventory )
+	protected override void OnAdded( BaseInventoryComponent inventory )
 	{
 		base.OnAdded( inventory );
 

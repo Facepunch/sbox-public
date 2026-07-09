@@ -319,6 +319,7 @@ public partial class Asset
 			lp.IsTransient = true;
 			lp.OnSaveProject = () => asset.Publishing.Save();
 			lp.Config = asset.Publishing.ProjectConfig;
+			lp.RootDirectory = Project.Current?.RootDirectory;
 
 			return lp;
 		}

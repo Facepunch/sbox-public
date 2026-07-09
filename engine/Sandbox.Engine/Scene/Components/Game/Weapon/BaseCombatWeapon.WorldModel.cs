@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class BaseWeapon
+public partial class BaseCombatWeapon
 {
 	/// <summary>
 	/// Which hand(s) a weapon is held in. Matches the animgraph's "holdtype_handedness" options (2H, RH, LH).

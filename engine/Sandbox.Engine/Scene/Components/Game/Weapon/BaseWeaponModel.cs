@@ -5,7 +5,7 @@ namespace Sandbox;
 /// muzzle, the shell-eject port, and so on - and plays the stock presentation off them: muzzle
 /// flash, brass and tracer prefabs, plus the b_deploy/b_attack/b_reload animation parameters. Drop
 /// this on a weapon model prefab, wire the attachment GameObjects, and override the On* hooks to
-/// extend or replace any of it. The holding <see cref="BaseWeapon"/> drives it through those hooks.
+/// extend or replace any of it. The holding <see cref="BaseCombatWeapon"/> drives it through those hooks.
 /// </summary>
 [Title( "Weapon Model" )]
 [Group( "Game" )]

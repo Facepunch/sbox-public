@@ -154,7 +154,7 @@ public partial class ProjectPublisher
 			}
 		}
 
-		internal async Task BuildFrom( Asset singleAsset, CancellationToken cancel = default )
+		internal async Task BuildFrom( Asset singleAsset, Project project = null, CancellationToken cancel = default )
 		{
 			Assets.Clear();
 
@@ -162,6 +162,14 @@ public partial class ProjectPublisher
 			assetList.Add( singleAsset );
 
 			await CollectAssets( assetList, cancel );
+
+			if ( project is not null )
+			{
+				foreach ( var path in AllCodePaths( project ) )
+				{
+					await IncludeFiles( path, "*", cancel, IncludeSourceFiles );
+				}
+			}
 
 			progress = null;
 

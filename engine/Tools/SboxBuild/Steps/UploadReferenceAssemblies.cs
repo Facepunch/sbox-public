@@ -66,7 +66,7 @@ internal class UploadReferenceAssemblies( BuildTarget target = BuildTarget.Stagi
 			var channel = BuildTargetToSteamBranch( _target );
 			var gitRef = GetRef();
 
-			var requestUri = $"{Endpoint}?channel={Uri.EscapeDataString( channel )}&ref={Uri.EscapeDataString( gitRef )}";
+			var requestUri = $"{Endpoint}?channel={Uri.EscapeDataString( channel )}&ref={Uri.EscapeDataString( gitRef )}&engineVersion={protocolApi}";
 
 			using var http = new HttpClient { Timeout = TimeSpan.FromMinutes( 10 ) };
 
@@ -75,7 +75,6 @@ internal class UploadReferenceAssemblies( BuildTarget target = BuildTarget.Stagi
 
 			using var request = new HttpRequestMessage( HttpMethod.Post, requestUri ) { Content = content };
 			request.Headers.TryAddWithoutValidation( "Authorization", $"Bearer {key}" );
-			request.Headers.TryAddWithoutValidation( "X-Engine-Version", $"{protocolApi}" );
 
 			Log.Info( $"Uploading reference assemblies (channel: {channel}, ref: {gitRef}, protocol: {protocolApi})..." );
 

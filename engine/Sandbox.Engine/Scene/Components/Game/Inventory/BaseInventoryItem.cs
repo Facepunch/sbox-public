@@ -1,7 +1,7 @@
 namespace Sandbox;
 
 /// <summary>
-/// Base for anything that can live in an <see cref="InventoryComponent"/>. Handles the basics every
+/// Base for anything that can live in an <see cref="BaseInventoryComponent"/>. Handles the basics every
 /// item needs - a networked slot, editor metadata, and overridable equip/holster lifecycle - so
 /// deriving an item is almost no boilerplate. Usable as-is for a simple no-code pickup, or derive
 /// from it for weapons, tools, etc.
@@ -51,7 +51,7 @@ public partial class BaseInventoryItem : Component, Component.IPressable
 	/// hierarchy so it's correct on every peer. The nearest ancestor, never this item's own
 	/// GameObject - an item that is itself an inventory (a backpack) belongs to its holder.
 	/// </summary>
-	public InventoryComponent Inventory => GetComponentInParent<InventoryComponent>( true, false );
+	public BaseInventoryComponent Inventory => GetComponentInParent<BaseInventoryComponent>( true, false );
 
 	/// <summary>
 	/// True when this is the active (deployed) item in its inventory.
@@ -66,7 +66,7 @@ public partial class BaseInventoryItem : Component, Component.IPressable
 
 	/// <summary>
 	/// True when the inventory should avoid auto-switching to this item - e.g. a gun with nothing to
-	/// fire. <see cref="InventoryComponent.GetBestItem"/> falls back to avoided items only when there's
+	/// fire. <see cref="BaseInventoryComponent.GetBestItem"/> falls back to avoided items only when there's
 	/// nothing better.
 	/// </summary>
 	public virtual bool ShouldAvoid => false;
@@ -76,7 +76,7 @@ public partial class BaseInventoryItem : Component, Component.IPressable
 	/// pickup consult it, so a refused item shows no prompt - role-locked weapons, class
 	/// restrictions, quest gates. Base allows it.
 	/// </summary>
-	protected virtual bool OnCanPickup( InventoryComponent inventory ) => true;
+	protected virtual bool OnCanPickup( BaseInventoryComponent inventory ) => true;
 
 	/// <summary>
 	/// Return false to stop the inventory making this item active.
@@ -105,7 +105,7 @@ public partial class BaseInventoryItem : Component, Component.IPressable
 	/// <summary>
 	/// Called each frame on the owning client while this is the active item - read input and drive
 	/// the item's behaviour here (firing, reloading, aiming, etc). Pumped by the inventory; see
-	/// <see cref="InventoryComponent.Pump"/> and <see cref="InventoryComponent.ManualPumping"/>.
+	/// <see cref="BaseInventoryComponent.Pump"/> and <see cref="BaseInventoryComponent.ManualPumping"/>.
 	/// Base does nothing.
 	/// </summary>
 	protected virtual void OnControl() { }
@@ -115,17 +115,17 @@ public partial class BaseInventoryItem : Component, Component.IPressable
 	/// consuming this item instead (a duplicate weapon donates its ammo, a stackable merges into
 	/// its stack). Runs on the host for every add - pickups, loadouts, code. Base allows it.
 	/// </summary>
-	protected virtual bool OnAdding( InventoryComponent inventory ) => true;
+	protected virtual bool OnAdding( BaseInventoryComponent inventory ) => true;
 
 	/// <summary>
 	/// Called on the host when added to an inventory. Base does nothing.
 	/// </summary>
-	protected virtual void OnAdded( InventoryComponent inventory ) { }
+	protected virtual void OnAdded( BaseInventoryComponent inventory ) { }
 
 	/// <summary>
 	/// Called on the host when removed from an inventory. Base does nothing.
 	/// </summary>
-	protected virtual void OnRemoved( InventoryComponent inventory ) { }
+	protected virtual void OnRemoved( BaseInventoryComponent inventory ) { }
 
 	/// <summary>
 	/// Places this item in the world after being dropped. The default unparents it (keeping its
@@ -158,24 +158,24 @@ public partial class BaseInventoryItem : Component, Component.IPressable
 	/// True when the given inventory is allowed to pick this item up (see <see cref="OnCanPickup"/>).
 	/// Queryable by UI - a pure check, nothing happens.
 	/// </summary>
-	public bool CanPickup( InventoryComponent inventory ) => OnCanPickup( inventory );
+	public bool CanPickup( BaseInventoryComponent inventory ) => OnCanPickup( inventory );
 
 	//
 	// Internal dispatch. The inventory (same assembly) calls these to invoke the protected hooks
 	// above. Game code drives the inventory, never these directly.
 	//
 
-	internal bool Adding( InventoryComponent inventory ) => OnAdding( inventory );
+	internal bool Adding( BaseInventoryComponent inventory ) => OnAdding( inventory );
 	internal bool Holstering( BaseInventoryItem next ) => OnHolstering( next );
 	internal void Equip() => OnEquipped();
 	internal void Holster() => OnHolstered();
 	internal void Control() => OnControl();
-	internal void Added( InventoryComponent inventory ) => OnAdded( inventory );
-	internal void Removed( InventoryComponent inventory ) => OnRemoved( inventory );
+	internal void Added( BaseInventoryComponent inventory ) => OnAdded( inventory );
+	internal void Removed( BaseInventoryComponent inventory ) => OnRemoved( inventory );
 
 	/// <summary>
 	/// Drops this item out of its inventory into the world via <see cref="OnDrop"/>, clearing its
-	/// slot. Returns false if the item refused. Driven by <see cref="InventoryComponent.Drop"/>.
+	/// slot. Returns false if the item refused. Driven by <see cref="BaseInventoryComponent.Drop"/>.
 	/// </summary>
 	internal bool Drop()
 	{
@@ -188,7 +188,7 @@ public partial class BaseInventoryItem : Component, Component.IPressable
 
 	//
 	// Use pickup. An item lying in the world is pressable - pressing it asks the presser's
-	// inventory to take it, when that inventory picks up by Use (see InventoryComponent.PickupMode).
+	// inventory to take it, when that inventory picks up by Use (see BaseInventoryComponent.PickupMode).
 	//
 
 	bool Component.IPressable.CanPress( Component.IPressable.Event e ) => PickupInventoryFor( e.Source ) is not null;
@@ -212,13 +212,13 @@ public partial class BaseInventoryItem : Component, Component.IPressable
 	}
 
 	// The pressing player's inventory, when this item is in the world and they pick up by Use.
-	InventoryComponent PickupInventoryFor( Component source )
+	BaseInventoryComponent PickupInventoryFor( Component source )
 	{
 		if ( Inventory is not null )
 			return null;
 
-		var inventory = source?.GetComponentInParent<InventoryComponent>( true );
-		if ( !inventory.IsValid() || inventory.PickupMode != InventoryComponent.PickupBehaviour.Use )
+		var inventory = source?.GetComponentInParent<BaseInventoryComponent>( true );
+		if ( !inventory.IsValid() || inventory.PickupMode != BaseInventoryComponent.PickupBehaviour.Use )
 			return null;
 
 		// The item gets a say - a refused item shows no prompt at all.

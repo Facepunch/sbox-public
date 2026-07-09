@@ -678,6 +678,10 @@ file class MapComponentMapLoader : SceneMapLoader
 	//
 	void CreateLightComponent( GameObject go, ObjectEntry kv, LightType type )
 	{
+		// Never network these - LegacyData is internal (not serialized), so a snapshot copy
+		// would arrive half-configured, and every client builds an identical light from the vpk anyway.
+		go.NetworkMode = NetworkMode.Never;
+
 		var data = LightData.Parse( kv, type );
 		if ( !data.Enabled )
 			return;

@@ -75,11 +75,13 @@ public class SearchWidget : Widget
 	}
 
 	/// <summary>
-	/// Clears the search text and any active type/tag filters.
+	/// Clears the search text and any active type/tag filters. Does nothing if no filter is active.
 	/// </summary>
 	public void Clear()
 	{
-		if ( AssetTypes is { Enabled: true } && (AssetTypes.ActiveTags.Count > 0 || AssetTypes.ExcludedTags.Count > 0) )
+		bool hadTags = AssetTypes is { Enabled: true } && (AssetTypes.ActiveTags.Count > 0 || AssetTypes.ExcludedTags.Count > 0);
+
+		if ( hadTags )
 		{
 			AssetTypes.ActiveTags.Clear();
 			AssetTypes.ExcludedTags.Clear();
@@ -91,6 +93,9 @@ public class SearchWidget : Widget
 			LineEdit.Text = string.Empty;
 			return;
 		}
+
+		if ( !hadTags )
+			return;
 
 		ValueChanged?.Invoke();
 		Update();

@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class InventoryComponent
+public partial class BaseInventoryComponent
 {
 	/// <summary>
 	/// Adds an already-spawned item to the inventory. Slot -1 picks one: the item's
@@ -184,7 +184,7 @@ public partial class InventoryComponent
 	/// Host only - who may move items between which inventories is game policy, so games route
 	/// their own requests here. Returns whether the item moved.
 	/// </summary>
-	public bool Transfer( BaseInventoryItem item, InventoryComponent to, int slot = -1 )
+	public bool Transfer( BaseInventoryItem item, BaseInventoryComponent to, int slot = -1 )
 	{
 		if ( !Networking.IsHost )
 			return false;

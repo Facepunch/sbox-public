@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class BaseWeapon
+public partial class BaseCombatWeapon
 {
 	//
 	// Primary / secondary attack, modelled on GMod's SWEP. You write one PrimaryAttack that spends ammo
@@ -8,7 +8,7 @@ public partial class BaseWeapon
 	// client for a held weapon, the host for seats/NPCs/world weapons. The client is authoritative over
 	// its own shots: it traces against the world it sees (so hits land where the shooter aimed, no lag
 	// compensation) and reports them to the host as hit claims, which the host applies - and can reject
-	// (see BaseWeapon.HitClaims). Ammo spends are mirrored to the host, which owns the magazine.
+	// (see BaseCombatWeapon.HitClaims). Ammo spends are mirrored to the host, which owns the magazine.
 	//
 	// The inventory pumps OnControl on the owning client: it reads input and fires the attack.
 	//

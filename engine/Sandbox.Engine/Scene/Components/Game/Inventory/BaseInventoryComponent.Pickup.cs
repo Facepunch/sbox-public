@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class InventoryComponent
+public partial class BaseInventoryComponent
 {
 	//
 	// Picking up items lying in the world - dropped by someone, or placed in the scene. Touch sweeps

@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class BaseWeapon
+public partial class BaseCombatWeapon
 {
 	//
 	// How this weapon's bullets fly. Drives the default PrimaryAttack, so a data-configured gun works

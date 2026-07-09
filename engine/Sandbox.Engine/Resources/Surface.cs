@@ -144,6 +144,8 @@ public partial class Surface : GameResource
 		All[Index] = this;
 	}
 
+	static readonly Surface _defaultSurface = new();
+
 	/// <summary>
 	/// Find a surface by its index in the array. This is the fastest way to lookup, so it's
 	/// passed from things like Traces since the index is going to be the same. It's important to
@@ -160,7 +162,7 @@ public partial class Surface : GameResource
 			return v.Value;
 		}
 
-		throw new System.Exception( "Default Surface not found!" );
+		return _defaultSurface;
 	}
 
 	/// <summary>

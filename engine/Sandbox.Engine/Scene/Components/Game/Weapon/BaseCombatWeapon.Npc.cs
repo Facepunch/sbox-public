@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class BaseWeapon
+public partial class BaseCombatWeapon
 {
 	//
 	// What an NPC needs to know to fight with this weapon, modelled on GMod's CBaseCombatWeapon AI

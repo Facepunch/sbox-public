@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class InventoryComponent
+public partial class BaseInventoryComponent
 {
 	//
 	// The starting loadout - items and reserve ammo granted by the host when the inventory starts.
@@ -12,7 +12,7 @@ public partial class InventoryComponent
 	public record struct AmmoGrant()
 	{
 		/// <summary>The ammo type to grant.</summary>
-		public AmmoResource Type { get; set; }
+		public BaseAmmoResource Type { get; set; }
 
 		/// <summary>How much reserve to grant.</summary>
 		public int Amount { get; set; }

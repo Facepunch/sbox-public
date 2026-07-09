@@ -40,7 +40,7 @@ public partial class ProjectPublisher
 		// p.Manifest.IncludeSourceFiles = asset.Publishing.ProjectConfig.IncludeSourceFiles;
 		p.Manifest.IncludeSourceFiles = false; // tony: Disabled this until we implement it in a better way
 		p.SetMetaFromAsset( asset );
-		await p.Manifest.BuildFrom( asset );
+		await p.Manifest.BuildFrom( asset, fakeProject );
 
 		// include thumbnail!
 		var thumb = await asset.RenderThumb();

@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class BaseWeapon : ICameraModifier
+public partial class BaseCombatWeapon : ICameraModifier
 {
 	int ICameraModifier.CameraOrder => 200;
 

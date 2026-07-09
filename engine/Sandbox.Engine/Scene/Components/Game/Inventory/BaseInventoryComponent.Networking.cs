@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class InventoryComponent
+public partial class BaseInventoryComponent
 {
 	// These are owner-only: a client can ask things of its own inventory, never anyone else's. The
 	// engine enforces that (NetFlags.OwnerOnly rejects any caller that isn't this object's owner), then

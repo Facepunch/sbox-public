@@ -8,13 +8,14 @@ namespace Sandbox;
 /// </summary>
 /// <remarks>
 /// This is deliberately animation agnostic and knows nothing about players. Driving hold-type
-/// animations belongs in layers built on top of this - see <see cref="BaseWeapon"/>.
+/// animations belongs in layers built on top of this - see <see cref="BaseCombatWeapon"/>.
 /// </remarks>
 [Expose]
 [Icon( "inventory_2" )]
 [Group( "Game" )]
 [Title( "Inventory" )]
-public partial class InventoryComponent : Component
+[Alias( "Sandbox.InventoryComponent" )]
+public partial class BaseInventoryComponent : Component
 {
 	/// <summary>
 	/// How an inventory assigns its slots.

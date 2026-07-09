@@ -2,7 +2,7 @@
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using System.IO.Hashing;
+using Sandbox.Hashing;
 
 namespace Sandbox;
 
@@ -255,7 +255,7 @@ public static partial class Json
 		/// <summary>Hash of the path to this object in the JSON structure</summary>
 		public ulong PathHash;
 
-		// Null for leaves, lazy-init avoids one LinkedList allocation per component.
+		// Null for leaves — lazy-init avoids one LinkedList allocation per component.
 		private LinkedList<TrackedObject> _children;
 		public LinkedList<TrackedObject> Children => _children ??= new LinkedList<TrackedObject>();
 
@@ -269,7 +269,7 @@ public static partial class Json
 		{
 			// Data.Parent is null after CopyStrippedData (normal case).
 			// Exception: a TrackedObject overwritten in IdToTrackedObject by a later duplicate
-			// (contract violation, IDs must be unique). Its Data still points to the source
+			// (contract violation — IDs must be unique). Its Data still points to the source
 			// tree; clone it on the spot so we can safely reparent.
 			var root = Data.Parent == null ? Data : Data.DeepClone().AsObject();
 
@@ -407,7 +407,7 @@ public static partial class Json
 			return result;
 		}
 
-		// Pass 1: traverse without cloning, Data references point into the original tree.
+		// Pass 1: traverse without cloning — Data references point into the original tree.
 		TraverseNode( root, 0UL, definitions, result, null, null, false );
 
 		// Pass 2: replace Data with a fresh stripped copy that owns its own nodes
@@ -517,7 +517,7 @@ public static partial class Json
 			foreach ( var (propName, propValue) in jsonObject )
 			{
 				// Simple values (strings, numbers, bools, null) can't contain tracked
-				// objects, skip them entirely.
+				// objects — skip them entirely.
 				if ( propValue is not (JsonObject or JsonArray) )
 					continue;
 
@@ -550,7 +550,7 @@ public static partial class Json
 
 				if ( item is JsonObject )
 				{
-					// Process this object, TraverseNode returns the TrackedObject it created (if any).
+					// Process this object — TraverseNode returns the TrackedObject it created (if any).
 					var trackedObj = TraverseNode( item, childPathHash, definitions, result, parent, containerProperty, true );
 
 					// If we found a valid identifier, update its node with previous element info
@@ -941,7 +941,7 @@ public static partial class Json
 	/// </summary>
 	private static ulong HashAppend( ulong parentHash, int index )
 	{
-		// Hash the index value directly as bytes, no int.ToString() allocation
+		// Hash the index value directly as bytes — no int.ToString() allocation
 		var bytes = MemoryMarshal.AsBytes( new ReadOnlySpan<int>( in index ) );
 		var indexHash = XxHash3.HashToUInt64( bytes );
 

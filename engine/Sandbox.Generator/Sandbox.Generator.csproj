@@ -14,7 +14,6 @@
 	<ItemGroup>
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0-2.final"/>
 		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.12.0-beta1.25218.8"/>
-		<PackageReference Include="System.IO.Hashing" Version="10.0.0" />
 	</ItemGroup>
 
 </Project>

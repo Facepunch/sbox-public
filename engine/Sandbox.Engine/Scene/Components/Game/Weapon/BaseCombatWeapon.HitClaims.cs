@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class BaseWeapon
+public partial class BaseCombatWeapon
 {
 	//
 	// Client-authoritative hit registration, modelled on Rust. The owning client traces its shots

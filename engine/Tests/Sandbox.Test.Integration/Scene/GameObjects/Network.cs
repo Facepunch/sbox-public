@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json.Nodes;
 using Sandbox.Internal;
+using Sandbox.Mapping;
 using Sandbox.Network;
 using SceneTests;
 
@@ -747,6 +748,68 @@ public class NetworkTest
 		go._net.OnRefreshMessage( clientAndHost.Client, refreshMsg );
 
 		Assert.AreEqual( 3, comp.RegularInt, "Regular property should be overwritten by network refresh on the host" );
+	}
+
+	[TestMethod]
+	[DataRow( false, DisplayName = "Sent from Server" )]
+	[DataRow( true, DisplayName = "Sent from Client" )]
+	public void DontDeserializeScriptFromClient( bool sentFromClient )
+	{
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		var senderScene = new Scene();
+		var receiverScene = new Scene();
+
+		var sender = sentFromClient ? clientAndHost.Client : clientAndHost.Host;
+		var receiver = sentFromClient ? clientAndHost.Host : clientAndHost.Client;
+
+		//
+		// SENDER
+		//
+
+		using ( senderScene.Push() )
+		{
+			clientAndHost.Become( sender );
+
+			var go = new GameObject( "Button" );
+			var btn = go.AddComponent<Button>();
+
+			btn.OnTurnedOn = new Doo
+			{
+				Body =
+				[
+					new Doo.InvokeBlock
+					{
+						InvokeType = Doo.InvokeType.Static,
+						Member = "Sandbox.Doo+Methods.LogInfo",
+						Arguments =
+						[
+							new Doo.LiteralExpression { LiteralValue = "Hello, World!" }
+						]
+					}
+				]
+			};
+
+			go.NetworkSpawn();
+			btn.TurnOn();
+		}
+
+		//
+		// RECEIVER
+		//
+
+		using ( receiverScene.Push() )
+		{
+			Assert.IsNull( receiverScene.GetComponentInChildren<Button>() );
+
+			clientAndHost.Become( receiver );
+			clientAndHost.ProcessMessages();
+
+			var btn = receiverScene.GetComponentInChildren<Button>();
+
+			Assert.IsNotNull( btn );
+			Assert.AreEqual( sentFromClient, btn.OnTurnedOn is null );
+		}
 	}
 
 	private class NetworkTestComponent : Component

@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class BaseWeapon
+public partial class BaseCombatWeapon
 {
 	//
 	// Reloading. Host authoritative: the host runs the reload over time, topping the magazine up from

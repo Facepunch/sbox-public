@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class BaseWeapon
+public partial class BaseCombatWeapon
 {
 	//
 	// Shot presentation, modelled on GMod's ShootEffects / DoImpactEffect. ShootEffects plays the

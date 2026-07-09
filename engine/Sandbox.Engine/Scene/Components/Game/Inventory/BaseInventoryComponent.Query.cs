@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class InventoryComponent
+public partial class BaseInventoryComponent
 {
 	/// <summary>
 	/// Returns the item in the given slot, or null if the slot is empty. When items share the slot

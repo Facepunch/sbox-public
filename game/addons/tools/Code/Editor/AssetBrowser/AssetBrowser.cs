@@ -715,10 +715,6 @@ public partial class AssetBrowser : Widget, IBrowser, AssetSystem.IEventListener
 
 		EditorWindow.DockManager.RaiseDock( this );
 
-		// clear any active search filter so the asset isn't hidden
-		if ( !Search.IsEmpty || (Search.AssetTypes is { Enabled: true } && (Search.AssetTypes.ActiveTags.Count > 0 || Search.AssetTypes.ExcludedTags.Count > 0)) )
-			Search.Clear();
-
 		NavigateTo( asset.AbsolutePath );
 
 		// wait for the list to (successfully) populate before selecting the item

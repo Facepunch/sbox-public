@@ -1,11 +1,11 @@
 namespace Sandbox;
 
-public partial class InventoryComponent
+public partial class BaseInventoryComponent
 {
 	//
 	// Reserve ammo, modelled on GMod where ammo lives on the player rather than the gun, keyed by
-	// AmmoResource. Two pistols using the same ammo type share one pool. Weapons read and spend from
-	// here through BaseWeapon's reserve hooks.
+	// BaseAmmoResource. Two pistols using the same ammo type share one pool. Weapons read and spend from
+	// here through BaseCombatWeapon's reserve hooks.
 	//
 	// The pool is FromHost, so only the host's writes replicate. The owning client spends locally for
 	// instant feedback and mirrors the spend to the host (TakeAmmo), whose pool is the truth. Grants
@@ -15,12 +15,12 @@ public partial class InventoryComponent
 	[Sync( SyncFlags.FromHost )] private NetDictionary<string, int> Ammo { get; set; } = new();
 
 	// The pool is keyed by the resource's path - readable on the wire and stable across sessions.
-	private static string AmmoKey( AmmoResource type ) => type?.ResourcePath;
+	private static string AmmoKey( BaseAmmoResource type ) => type?.ResourcePath;
 
 	/// <summary>
 	/// How much reserve ammo of the given type this inventory holds. Null is 0.
 	/// </summary>
-	public int GetAmmo( AmmoResource type )
+	public int GetAmmo( BaseAmmoResource type )
 	{
 		var key = AmmoKey( type );
 		if ( string.IsNullOrEmpty( key ) )
@@ -30,14 +30,14 @@ public partial class InventoryComponent
 	}
 
 	/// <summary>Does this inventory hold at least <paramref name="amount"/> reserve ammo of the given type?</summary>
-	public bool HasAmmo( AmmoResource type, int amount = 1 ) => GetAmmo( type ) >= amount;
+	public bool HasAmmo( BaseAmmoResource type, int amount = 1 ) => GetAmmo( type ) >= amount;
 
 	/// <summary>
-	/// Add reserve ammo of the given type, clamped to the type's <see cref="AmmoResource.MaxReserve"/>.
+	/// Add reserve ammo of the given type, clamped to the type's <see cref="BaseAmmoResource.MaxReserve"/>.
 	/// Returns how much was actually added. Call this from host game logic (pickups) - it's
 	/// authoritative on the host.
 	/// </summary>
-	public int GiveAmmo( AmmoResource type, int amount )
+	public int GiveAmmo( BaseAmmoResource type, int amount )
 	{
 		var key = AmmoKey( type );
 		if ( string.IsNullOrEmpty( key ) || amount <= 0 )
@@ -56,7 +56,7 @@ public partial class InventoryComponent
 	/// Set the reserve ammo of the given type to an exact value (clamped to zero). Ignores the
 	/// type's max - the escape hatch for game logic that wants to exceed it.
 	/// </summary>
-	public void SetAmmo( AmmoResource type, int amount )
+	public void SetAmmo( BaseAmmoResource type, int amount )
 	{
 		var key = AmmoKey( type );
 		if ( string.IsNullOrEmpty( key ) )
@@ -70,7 +70,7 @@ public partial class InventoryComponent
 	/// actually removed. The owning client spends locally and the spend is mirrored to the host,
 	/// whose pool is the truth.
 	/// </summary>
-	public int TakeAmmo( AmmoResource type, int amount )
+	public int TakeAmmo( BaseAmmoResource type, int amount )
 	{
 		var key = AmmoKey( type );
 		if ( string.IsNullOrEmpty( key ) || amount <= 0 )

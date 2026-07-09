@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-using System.IO.Hashing;
+using Sandbox.Hashing;
 using Sandbox.Rendering;
 using System.Buffers;
 using System.Collections.Frozen;

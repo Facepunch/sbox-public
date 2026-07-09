@@ -1,7 +1,7 @@
 namespace Editor;
 
 /// <summary>
-/// Editor for hold type strings (e.g. <see cref="Sandbox.BaseWeapon.HoldType"/>) - a combo pre-filled
+/// Editor for hold type strings (e.g. <see cref="Sandbox.BaseCombatWeapon.HoldType"/>) - a combo pre-filled
 /// with the hold types the citizen animgraph understands, editable so graphs with their own options
 /// can use anything.
 /// </summary>

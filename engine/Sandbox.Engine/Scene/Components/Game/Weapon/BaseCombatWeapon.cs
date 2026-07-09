@@ -15,7 +15,8 @@ namespace Sandbox;
 [Title( "Weapon" )]
 [Group( "Game" )]
 [Icon( "sports_martial_arts" )]
-public partial class BaseWeapon : BaseInventoryItem
+[Alias( "Sandbox.BaseWeapon" )]
+public partial class BaseCombatWeapon : BaseInventoryItem
 {
 	/// <summary>
 	/// The player controller holding this, or null if it isn't held by one (it's in the world, or

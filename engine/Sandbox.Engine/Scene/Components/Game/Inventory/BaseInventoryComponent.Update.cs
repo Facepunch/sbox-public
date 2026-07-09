@@ -1,6 +1,6 @@
 namespace Sandbox;
 
-public partial class InventoryComponent
+public partial class BaseInventoryComponent
 {
 	/// <summary>
 	/// By default the inventory pumps the active item's control every frame in its own update. Turn

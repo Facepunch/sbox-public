@@ -2,7 +2,7 @@ using Sandbox.Rendering;
 
 namespace Sandbox;
 
-public partial class BaseWeapon
+public partial class BaseCombatWeapon
 {
 	//
 	// Weapon HUD, modelled on GMod's DoDrawCrosshair. Every frame the holding client gives the weapon
