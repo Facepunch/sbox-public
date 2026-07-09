@@ -42,6 +42,32 @@ public static class Microphone
 	public static bool IsActive => timeSinceLastHear < 0.2f;
 
 	/// <summary>
+	/// State of the on-screen microphone indicator (the "mic icon").
+	/// </summary>
+	public enum IndicatorState
+	{
+		/// <summary>Not recording - icon hidden.</summary>
+		Hidden,
+		/// <summary>Recording, but currently silent - icon shown.</summary>
+		Open,
+		/// <summary>Recording and capturing audible sound - icon shown as "hot".</summary>
+		Capturing
+	}
+
+	/// <summary>
+	/// Authoritative state for the on-screen microphone indicator (the "mic icon"), owned here next to
+	/// the recording logic on purpose. Voice data can only reach a game via <see cref="OnCompressedData"/>,
+	/// which only fires after <see cref="StartRecording"/> has set <see cref="IsRecording"/> - so any capture
+	/// of the local user's mic necessarily drives this on. The indicator is the main protection against a game
+	/// covertly recording the user (e.g. recording then silencing their voice), so this mapping must stay
+	/// bound to the real recording state and must not be overridable by game code.
+	/// </summary>
+	public static IndicatorState Indicator =>
+		!IsRecording ? IndicatorState.Hidden :
+		IsActive ? IndicatorState.Capturing :
+		IndicatorState.Open;
+
+	/// <summary>
 	/// Called on the main thread each time a chunk of compressed voice data is captured from the
 	/// microphone (only while <see cref="IsRecording"/>). The data is Steam-compressed - send it to
 	/// other players however you like, then decode it on the receiving end with <see cref="Decompress"/>.
@@ -63,6 +89,11 @@ public static class Microphone
 	/// Start recording from the microphone. While recording, captured voice data is delivered via
 	/// <see cref="OnCompressedData"/>. Returns <c>false</c> if voice capture isn't <see cref="IsAvailable">available</see>.
 	/// </summary>
+	/// <remarks>
+	/// This sets <see cref="IsRecording"/>, which drives the on-screen mic indicator via <see cref="Indicator"/>.
+	/// That coupling is deliberate and is the user's protection against covert recording - don't add a way to
+	/// capture voice data without going through here.
+	/// </remarks>
 	public static bool StartRecording()
 	{
 		if ( !IsAvailable ) return false;
