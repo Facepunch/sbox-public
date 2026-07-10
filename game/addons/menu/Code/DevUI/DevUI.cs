@@ -8,6 +8,7 @@ public class DevLayer : RootPanel
 	{
 		AddChild<DeveloperMode>();
 		AddChild<ConsoleOverlay>();
+		AddChild<PerformanceOverlay>();
 
 		ExceptionNotification = AddChild<ExceptionNotification>();
 
