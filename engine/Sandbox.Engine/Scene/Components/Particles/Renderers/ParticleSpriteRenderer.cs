@@ -158,19 +158,19 @@ public sealed partial class ParticleSpriteRenderer : ParticleRenderer, Component
 	/// and other fast moving particles. Pair with <see cref="FaceVelocity"/> so the vertical axis follows the
 	/// direction of motion.
 	/// </summary>
-	[Property, ToggleGroup( "Stretch Velocity" ), Order( 4 )]
+	[Property, ToggleGroup( "Stretch" ), Order( 4 )]
 	public bool Stretch { get; set; }
 
 	/// <summary>
 	/// Stretches particles proportionally to their speed. Set to 0 for constant stretching.
 	/// </summary>
-	[Property, ToggleGroup( "Stretch Velocity" ), Range( 0, 1 )]
+	[Property, ToggleGroup( "Stretch" ), Range( 0, 1 )]
 	public float StretchSpeedScale { get; set; } = 0.0f;
 
 	/// <summary>
 	/// Scale of the stretching of
 	/// </summary>
-	[Property, ToggleGroup( "Stretch Velocity" ), Range( 0, 2 )]
+	[Property, ToggleGroup( "Stretch" ), Range( 0, 2 )]
 	public float StretchScale { get; set; } = 1.0f;
 
 	/// <summary>
