@@ -14,6 +14,12 @@ public partial class Particle : IDynamicFloatContext
 
 	[ActionGraphInclude]
 	public Vector3 Velocity;
+
+	/// <summary>
+	/// The last non-zero velocity, used by velocity aligned billboards to keep their orientation when the particle stops moving.
+	/// </summary>
+	internal Vector3 LastVelocity;
+
 	public Color Color;
 	public Color OverlayColor;
 	public float Alpha;
@@ -109,6 +115,7 @@ public partial class Particle : IDynamicFloatContext
 		p.Angles = Angles.Zero;
 		p.Frame = 0;
 		p.Velocity = 0;
+		p.LastVelocity = 0;
 		p.Color = Color.White;
 		p.OverlayColor = Color.White.WithAlpha( 0 );
 		p.Alpha = 1;
