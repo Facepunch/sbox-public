@@ -112,18 +112,28 @@ public partial class RenderSettings
 		{
 			VideoSettings.Set<UpscalerMode>( "upscaler.mode", value );
 			ConVarSystem.SetInt( "r_upscaling", (int)value, true );
+
+			// Re-clamp the render scale for the new mode - FSR1 has a higher minimum
+			UpscalerRenderScale = UpscalerRenderScale;
 		}
 	}
 
 	/// <summary>
-	/// Render-resolution scale used by Stretch and FSR1 modes (25-100%).
+	/// FSR1 (EASU) is only specified for upscale factors up to 2x per axis. Below 50%
+	/// render scale it produces blocky smearing, and RCAS sharpening amplifies the
+	/// undersampling into speckle artifacts. Stretch has no such constraint.
+	/// </summary>
+	static float MinRenderScale( UpscalerMode mode ) => mode == UpscalerMode.FSR1 ? 0.5f : 0.25f;
+
+	/// <summary>
+	/// Render-resolution scale used by Stretch (25-100%) and FSR1 (50-100%) modes.
 	/// </summary>
 	public float UpscalerRenderScale
 	{
 		get => VideoSettings.Get<float>( "upscaler.render_scale", 0.75f );
 		set
 		{
-			float v = Math.Clamp( value, 0.25f, 1.0f );
+			float v = Math.Clamp( value, MinRenderScale( UpscalerMode ), 1.0f );
 			VideoSettings.Set<float>( "upscaler.render_scale", v );
 			ConVarSystem.SetFloat( "r_upscaler_render_scale", v, true );
 		}
@@ -281,11 +291,13 @@ public partial class RenderSettings
 	/// </summary>
 	internal void ApplyUpscalerSettings()
 	{
-		if ( VideoSettings.TryGet<UpscalerMode>( "upscaler.mode", out var mode ) )
+		if ( !VideoSettings.TryGet<UpscalerMode>( "upscaler.mode", out var mode ) )
+			mode = UpscalerMode;
+		else
 			ConVarSystem.SetInt( "r_upscaling", (int)mode, true );
 
 		if ( VideoSettings.TryGet<float>( "upscaler.render_scale", out var scale ) )
-			ConVarSystem.SetFloat( "r_upscaler_render_scale", Math.Clamp( scale, 0.25f, 1.0f ), true );
+			ConVarSystem.SetFloat( "r_upscaler_render_scale", Math.Clamp( scale, MinRenderScale( mode ), 1.0f ), true );
 
 		if ( VideoSettings.TryGet<float>( "upscaler.fsr1_sharpness", out var fsr1Sharpness ) )
 			ConVarSystem.SetFloat( "r_fsr_rcas_sharpness", fsr1Sharpness, true );

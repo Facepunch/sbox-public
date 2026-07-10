@@ -539,13 +539,16 @@
 
         // The render resolution slider drives the upscaler - 100% renders native, below that
         // FSR1 upscales unless Stretch or FSR1 was picked explicitly. FSR3 sets its own
-        // scale through quality presets.
+        // scale through quality presets. FSR1 (EASU) is only specified up to 2x per axis,
+        // so scales below 50% fall back to Stretch instead of producing smear/speckle.
         if ( UpscalerMode != Sandbox.Engine.Settings.UpscalerMode.FSR3 )
         {
             if ( UpscalerRenderScalePercent >= 100 )
                 UpscalerMode = Sandbox.Engine.Settings.UpscalerMode.Off;
             else if ( UpscalerMode == Sandbox.Engine.Settings.UpscalerMode.Off )
-                UpscalerMode = Sandbox.Engine.Settings.UpscalerMode.FSR1;
+                UpscalerMode = UpscalerRenderScalePercent < 50 ? Sandbox.Engine.Settings.UpscalerMode.Stretch : Sandbox.Engine.Settings.UpscalerMode.FSR1;
+            else if ( UpscalerMode == Sandbox.Engine.Settings.UpscalerMode.FSR1 && UpscalerRenderScalePercent < 50 )
+                UpscalerMode = Sandbox.Engine.Settings.UpscalerMode.Stretch;
         }
 
         MenuUtility.RenderSettings.UpscalerMode = UpscalerMode;
