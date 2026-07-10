@@ -27,6 +27,10 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 	Rotation WorldRotation { get; }
 	bool FaceVelocity { get; }
 	float RotationOffset { get; }
+
+	// Stretches the sprite along its vertical axis based on velocity, overridden by renderers that expose it
+	bool Stretch => false;
+
 	bool MotionBlur { get; }
 	bool LeadingTrail { get; }
 	float BlurAmount { get; }
@@ -45,8 +49,8 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 	BillboardAlignment Alignment { get; }
 
 	// Stretch scaling, overridden by renderers that expose them
-	float SpeedScale => 0.0f;
-	float Length => 1.0f;
+	float StretchSpeedScale => 0.0f;
+	float StretchScale => 1.0f;
 
 	/// <summary>
 	/// Result of particle processing operation
@@ -79,6 +83,9 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 		// facing the camera
 		var isVelocityAligned = Alignment == BillboardAlignment.LookAtCamera && FaceVelocity;
 		var billboardModeUint = isVelocityAligned ? VelocityAlignedBillboardMode : (uint)(SpriteRenderer.BillboardMode)Alignment;
+		var stretchEnabled = Stretch;
+		var stretchSpeedScale = StretchSpeedScale;
+		var stretchScale = StretchScale;
 
 		var blurAmountRemapped = BlurAmount.Remap( 0, 1, 0, 6, false );
 		var blurSpacingRemapped = BlurSpacing.Remap( 0, 1, 0, 1, false );
@@ -148,6 +155,12 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 				if ( Type == ParticleType.Text || (sequenceData == Vector4.Zero && aspect != 1) )
 				{
 					scaleX *= aspect;
+				}
+
+				if ( stretchEnabled )
+				{
+					// Stretch along the velocity: proportional to size, plus proportional to speed
+					scaleY = scaleY * stretchScale + vel.Length * stretchSpeedScale;
 				}
 
 				float halfSize = MathF.Max( pivotMaxX * 2f * scaleX, pivotMaxY * 2f * scaleY );
