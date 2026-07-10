@@ -294,7 +294,23 @@
     public int MenuFrameRateLimit { get; set; }
     public int InactiveFrameRateLimit { get; set; }
 
-    public Sandbox.Engine.Settings.UpscalerMode UpscalerMode { get; set; }
+    Sandbox.Engine.Settings.UpscalerMode _upscalerMode;
+    public Sandbox.Engine.Settings.UpscalerMode UpscalerMode
+    {
+        get => _upscalerMode;
+        set
+        {
+            if ( _upscalerMode == value )
+                return;
+
+            _upscalerMode = value;
+
+            // Off means native resolution - snap the slider to 100% so OnApply
+            // doesn't turn the choice back into an upscaler
+            if ( value == Sandbox.Engine.Settings.UpscalerMode.Off )
+                UpscalerRenderScalePercent = 100;
+        }
+    }
     public Sandbox.Engine.Settings.Fsr3UpscalerQuality Fsr3UpscalerQuality { get; set; }
     public int UpscalerRenderScalePercent { get; set; }
     public int Fsr1SharpnessPercent { get; set; }

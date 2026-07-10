@@ -22,6 +22,7 @@ public partial class RenderSettings
 
 		// Explicit advanced choices apply on top of the quality group fan-out
 		ApplyAdvancedOverrides();
+		ApplyUpscalerSettings();
 	}
 
 	public int MaxFrameRate
@@ -270,6 +271,30 @@ public partial class RenderSettings
 	{
 		get => ConVarSystem.GetInt( "maxdecals", 1000, true );
 		set => ConVarSystem.SetInt( "maxdecals", value, true );
+	}
+
+	/// <summary>
+	/// Push the cookie-backed upscaler choices to their convars. The native engine
+	/// restores machine_convars.vcfg at startup, which can disagree with what the
+	/// settings UI shows - the cookies are the source of truth, so they win.
+	/// Settings the user never touched have no cookie and keep the engine's value.
+	/// </summary>
+	internal void ApplyUpscalerSettings()
+	{
+		if ( VideoSettings.TryGet<UpscalerMode>( "upscaler.mode", out var mode ) )
+			ConVarSystem.SetInt( "r_upscaling", (int)mode, true );
+
+		if ( VideoSettings.TryGet<float>( "upscaler.render_scale", out var scale ) )
+			ConVarSystem.SetFloat( "r_upscaler_render_scale", Math.Clamp( scale, 0.25f, 1.0f ), true );
+
+		if ( VideoSettings.TryGet<float>( "upscaler.fsr1_sharpness", out var fsr1Sharpness ) )
+			ConVarSystem.SetFloat( "r_fsr_rcas_sharpness", fsr1Sharpness, true );
+
+		if ( VideoSettings.TryGet<Fsr3UpscalerQuality>( "upscaler.quality", out var fsr3Quality ) && fsr3Quality != Fsr3UpscalerQuality.Off )
+			ConVarSystem.SetInt( "r_fsr3_quality", (int)fsr3Quality, true );
+
+		if ( VideoSettings.TryGet<float>( "upscaler.fsr3_sharpness", out var fsr3Sharpness ) )
+			ConVarSystem.SetFloat( "r_fsr3_sharpness", fsr3Sharpness, true );
 	}
 
 	/// <summary>
