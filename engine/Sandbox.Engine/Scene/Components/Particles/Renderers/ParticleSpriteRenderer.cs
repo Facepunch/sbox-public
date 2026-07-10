@@ -110,6 +110,8 @@ public sealed partial class ParticleSpriteRenderer : ParticleRenderer, Component
 
 	/// <summary>
 	/// Aligns the sprite to face its velocity direction.
+	/// With LookAtCamera aligns the sprite's vertical axis to the particle's 3D velocity while still facing the camera,
+	/// other alignments rotate the sprite in screen space.
 	/// </summary>
 	[Property, ToggleGroup( "FaceVelocity" ), Order( 2 )]
 	public bool FaceVelocity { get; set; }

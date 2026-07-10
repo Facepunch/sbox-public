@@ -174,6 +174,56 @@ VS
 		return transform;
 	}
 
+	// Velocity aligned billboard - the sprite's vertical axis is aligned to the particle
+	// velocity and the sprite rotates around it to face the camera
+	float4x4 BuildVelocityAlignedBillboardMatrix(float3 position, float3 velocity, float3 scale, float2 offset, float rollDegrees)
+	{
+		float3 stretchAxis = normalize(velocity);
+
+		// Face the camera position - orthographic cameras have no useful position, use the view direction
+		bool isOrthographic = g_matViewToProjection[3].w != 0.0f;
+		float3 viewDir = isOrthographic ? g_vCameraDirWs : (position - g_vCameraPositionWs);
+
+		// Project the view direction onto the plane perpendicular to the velocity
+		viewDir -= stretchAxis * dot(viewDir, stretchAxis);
+		float viewLength = length(viewDir);
+
+		if (viewLength < 0.001)
+		{
+			// Camera is on the velocity axis, pick any perpendicular direction
+			float3 reference = abs(stretchAxis.x) < 0.9 ? float3(1, 0, 0) : float3(0, 0, 1);
+			viewDir = normalize(cross(stretchAxis, reference));
+		}
+		else
+		{
+			viewDir = viewDir / viewLength;
+		}
+
+		float3 billboardRight = normalize(cross(stretchAxis, -viewDir));
+		float3 billboardUp = stretchAxis;
+		float3 billboardForward = -viewDir;
+
+		// Apply Z/Roll rotation around the view axis
+		if (rollDegrees != 0)
+		{
+			float3x3 zRotation = MatrixBuildRotationAboutAxis(viewDir, rollDegrees);
+			billboardRight = mul(zRotation, billboardRight);
+			billboardUp = mul(zRotation, billboardUp);
+		}
+
+		// Apply offset in billboard space
+		float3 offsetPos = position + GetSpriteOffset(offset, -billboardRight, -billboardUp, scale);
+
+		// Build transformation matrix
+		float4x4 transform;
+		transform[0] = float4(billboardRight * scale.x, 0);
+		transform[1] = float4(billboardUp * scale.y, 0);
+		transform[2] = float4(billboardForward * scale.z, 0);
+		transform[3] = float4(offsetPos, 1);
+
+		return transform;
+	}
+
 	PixelInput MainVs( uint vertexIndex : SV_VertexID, uint instanceID : SV_InstanceID )
 	{
 		SpriteVertex v = Vertices[vertexIndex];
@@ -194,6 +244,19 @@ VS
 		{
 			scale.y *= -1;
 			transform = BuildBillboardMatrix(position, sprite.Rotation, scale, sprite.Offset, true);
+		}
+		else if (billboardMode == 4) // Face velocity - align vertical axis to velocity, face camera
+		{
+			if (dot(sprite.Velocity, sprite.Velocity) > 0.001)
+			{
+				scale.y *= -1;
+				transform = BuildVelocityAlignedBillboardMatrix(position, sprite.Velocity, scale, sprite.Offset, max(sprite.RotationOffset, 0));
+			}
+			else
+			{
+				// Not moving - fall back to a regular billboard
+				transform = BuildBillboardMatrix(position, sprite.Rotation, scale, sprite.Offset, false);
+			}
 		}
 		else // No billboard - use full rotation
 		{

@@ -164,8 +164,9 @@ CS
 		// Transfer sprite to out buffer
 		if(isValid)
 		{
-			if ( sprite.RotationOffset > -1 )
-			{	
+			// Velocity aligned billboards apply the rotation offset in the vertex shader instead
+			if ( sprite.RotationOffset > -1 && sprite.BillboardMode != 4 )
+			{
 				float4 ss = mul( g_matWorldToView, float4( sprite.Velocity, 0 ) );
 				ss.z = 0;
 				ss = normalize( ss );

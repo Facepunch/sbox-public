@@ -16,6 +16,10 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 		Text
 	}
 
+	// GPU billboard mode for the velocity aligned billboard used by FaceVelocity, sits after
+	// the SpriteRenderer.BillboardMode values and is matched by the sprite shaders
+	const uint VelocityAlignedBillboardMode = 4;
+
 	ParticleType Type => ParticleType.Sprite;
 	ParticleEffect ParticleEffect { get; }
 	float Scale { get; }
@@ -39,6 +43,10 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 
 	// Additional properties needed for some renderers
 	BillboardAlignment Alignment { get; }
+
+	// Stretch scaling, overridden by renderers that expose them
+	float SpeedScale => 0.0f;
+	float Length => 1.0f;
 
 	/// <summary>
 	/// Result of particle processing operation
@@ -66,8 +74,11 @@ internal interface IBatchedParticleSpriteRenderer : ISpriteRenderGroup
 		// Precompute constants
 		var scale = MathF.Abs( (Scale / 2f) * WorldScale.x );
 		var objectAngles = WorldRotation;
-		var billboardModeUint = (uint)(SpriteRenderer.BillboardMode)Alignment;
 		var isObjectAlignment = Alignment == BillboardAlignment.Object;
+		// LookAtCamera with FaceVelocity aligns the sprite's vertical axis to the 3D velocity while still
+		// facing the camera
+		var isVelocityAligned = Alignment == BillboardAlignment.LookAtCamera && FaceVelocity;
+		var billboardModeUint = isVelocityAligned ? VelocityAlignedBillboardMode : (uint)(SpriteRenderer.BillboardMode)Alignment;
 
 		var blurAmountRemapped = BlurAmount.Remap( 0, 1, 0, 6, false );
 		var blurSpacingRemapped = BlurSpacing.Remap( 0, 1, 0, 1, false );
