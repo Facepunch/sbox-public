@@ -550,12 +550,16 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			Game.ActiveScene = null;
 		}
 
-		Game.ActiveScene = new();
+		// Hold the scene in a local: for in-process client sessions the awaits below can
+		// resume outside the session's context scope, where Game.ActiveScene is a DIFFERENT
+		// scene (the host's) - everything after an await must use this local.
+		var scene = new Scene();
+		Game.ActiveScene = scene;
 		Game.ActiveScene.StartLoading();
 
 		Time.Now = (float)msg.Time;
 		Time.NowDouble = msg.Time;
-		Game.ActiveScene.UpdateTimeFromHost( msg.Time );
+		scene.UpdateTimeFromHost( msg.Time );
 
 		{
 			using var blobs = BlobDataSerializer.LoadFromMemory( msg.BlobData );
@@ -564,7 +568,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			if ( !string.IsNullOrWhiteSpace( msg.SceneData ) )
 			{
 				var sceneData = JsonNode.Parse( msg.SceneData ).AsObject();
-				Game.ActiveScene.Deserialize( sceneData, networkDeserializeOptionsCreate );
+				scene.Deserialize( sceneData, networkDeserializeOptionsCreate );
 			}
 
 			var createdNetworkObjects = new List<Tuple<GameObject, ObjectCreateMsg>>();
@@ -591,7 +595,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			if ( type is null )
 				continue;
 
-			var system = Game.ActiveScene.GetSystemByType( type );
+			var system = scene.GetSystemByType( type );
 			if ( system is null )
 				continue;
 
@@ -606,17 +610,18 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		LoadingScreen.Title = null;
 
-		// Wait for loading to finish
-		if ( Game.ActiveScene is not null )
-		{
-			await Game.ActiveScene.WaitForLoading();
-		}
+		// Wait for loading to finish. From here on we may have resumed outside the original
+		// context (see the comment where `scene` is captured) - only use the local.
+		await scene.WaitForLoading();
 
-		if ( Game.ActiveScene.IsValid() )
+		if ( scene.IsValid() )
 		{
-			Game.ActiveScene.Signal( GameObjectSystem.Stage.SceneLoaded );
+			// Push explicitly: the ambient scene scope can't be trusted after the await.
+			using var sceneScope = scene.Push();
 
-			Game.ActiveScene.RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
+			scene.Signal( GameObjectSystem.Stage.SceneLoaded );
+
+			scene.RunEvent<ISceneStartup>( x => x.OnClientInitialize() );
 		}
 
 		Game.IsPlaying = true;

@@ -461,6 +461,10 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			//
 			using ( Performance.Scope( "GameFrame" ) )
 			{
+				// While a docked in-process client tab has input focus, the host scene ticks
+				// with muted input - the focused client consumes the real input instead.
+				using var inputMute = InProcessClientSession.Focused is not null ? InProcessClientSession.MuteHostInput() : null;
+
 				// The old scene could be invalid here as a network message may end
 				// up destroying it (such as changing a scene)
 				if ( scene.IsValid() )

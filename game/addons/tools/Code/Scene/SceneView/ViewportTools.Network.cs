@@ -72,6 +72,7 @@ partial class ViewportTools
 		menu.AddOption( new( "Disconnect", "phonelink_erase", EditorUtility.Network.Disconnect ) { Enabled = EditorUtility.Network.Active } );
 
 		menu.AddSeparator();
+		menu.AddOption( new( "Join via docked instance", "dock_to_right", LocalInstance.AddDockedClient ) { Enabled = LocalInstance.CanAdd } );
 		menu.AddOption( new( "Join via new instance", "connected_tv", SpawnProcess ) { Enabled = EditorUtility.Network.Hosting } );
 		menu.AddOption( new( "Start dedicated server", "terminal", SpawnDedicatedServer ) );
 		menu.AddSeparator();

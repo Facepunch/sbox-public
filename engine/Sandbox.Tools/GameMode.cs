@@ -16,6 +16,12 @@ public static class GameMode
 	internal static bool IsPlayWidget( SceneRenderingWidget widget ) => widget == _inPlay;
 
 	/// <summary>
+	/// True while the play widget (the host's game view) has focus. Used by docked client
+	/// tabs to know when the player has clicked back into the host's game.
+	/// </summary>
+	internal static bool PlayWidgetFocused => _inPlay?.IsFocused ?? false;
+
+	/// <summary>
 	/// Given a widget, register it for SDL input, and tell the engine this is the swapchain we have
 	/// </summary>
 	/// <param name="widget"></param>
