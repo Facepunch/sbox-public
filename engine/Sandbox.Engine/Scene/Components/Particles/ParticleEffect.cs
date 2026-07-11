@@ -677,8 +677,6 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 		if ( ApplyShape )
 		{
-			// Start from the scale the particle was emitted with, then multiply the over-lifetime scale
-			// on top so the initial scale isn't overwritten each frame.
 			p.Size = p.StartScale * ScaleOverLifetime.Evaluate( p, 6212 );
 
 			var aspect = Stretch.Evaluate( p, 62415 );
@@ -694,8 +692,6 @@ public sealed partial class ParticleEffect : Component, Component.ExecuteInEdito
 
 		if ( ApplyRotation )
 		{
-			// Start from the rotation the particle was emitted with, then add the over-lifetime rotation
-			// on top so the initial rotation isn't overwritten each frame.
 			p.Angles.pitch = p.StartAngles.pitch + PitchOverLifetime.Evaluate( p, 2364 );
 			p.Angles.yaw = p.StartAngles.yaw + YawOverLifetime.Evaluate( p, 8763 );
 			p.Angles.roll = p.StartAngles.roll + RollOverLifetime.Evaluate( p, 3676 );

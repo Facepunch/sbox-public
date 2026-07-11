@@ -24,17 +24,7 @@ public partial class Particle : IDynamicFloatContext
 	public int Sequence;
 	public Vector3 SequenceTime;
 	public int Frame;
-
-	/// <summary>
-	/// The rotation the particle was given when it was emitted. Over-lifetime rotation is applied
-	/// on top of this so the initial rotation isn't lost each frame.
-	/// </summary>
 	public Angles StartAngles;
-
-	/// <summary>
-	/// The scale the particle was given when it was emitted. Over-lifetime scale is multiplied
-	/// on top of this so the initial scale isn't lost each frame.
-	/// </summary>
 	public float StartScale;
 
 	int RandomSeed;
