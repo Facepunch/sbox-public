@@ -24,6 +24,12 @@ public static class LocalInstance
 	/// </summary>
 	public static void AddDockedClient()
 	{
+		if ( Sandbox.VR.VRSystem.IsActive )
+		{
+			// VR tracking and input are process-global - docked clients can't isolate them.
+			Log.Warning( "VR is active - docked clients report as non-VR players and don't receive VR input" );
+		}
+
 		if ( !EditorUtility.Network.Hosting )
 		{
 			if ( EditorUtility.Network.Active )

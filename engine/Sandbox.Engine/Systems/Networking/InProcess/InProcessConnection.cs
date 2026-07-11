@@ -80,6 +80,11 @@ internal sealed class InProcessConnection : Connection
 
 			// Don't re-verify the same Steam inventory once per docked client.
 			userInfo.InventoryBlob = null;
+
+			// A docked client has no headset of its own - never inherit the host's VR state,
+			// or games would spawn VR pawns that mirror the host's actual head/hand poses
+			// (VR tracking is process-global).
+			userInfo.IsVr = false;
 		}
 
 		return true;
