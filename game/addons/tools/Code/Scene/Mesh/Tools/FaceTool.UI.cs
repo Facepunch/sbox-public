@@ -122,19 +122,32 @@ partial class FaceTool
 			{
 				var group = AddGroup( "Tools", collapsible: true );
 
-				var grid = Layout.Row();
-				grid.Spacing = 4;
+				{
+					var row = new Widget { Layout = Layout.Row() };
+					row.Layout.Spacing = 4;
 
-				CreateButton( "Fast Texture Tool", "meshtools/texture_tool_buttons/fast_texture_tool.png", "mesh.fast-texture-tool", OpenFastTextureTool, true, grid );
-				CreateButton( "Edge Cut Tool", "meshtools/face_tool/edge_cut_tool.png", "mesh.edge-cut-tool", OpenEdgeCutTool, true, grid );
-				CreateButton( "Mirror Tool", "meshtools/face_tool/mirror_tool.png", "mesh.mirror-tool", OpenMirrorTool, _faces.Length > 0, grid );
-				CreateButton( "Clipping Tool", "meshtools/face_tool/clipping_tool.png", "mesh.open-clipping-tool", OpenClippingTool, _faces.Length > 0, grid );
-				CreateButton( "Bridge", "meshtools/face_tool/bridge_1.png", "mesh.bridge-tool", OpenBridgeTool, CanBridgeFaces(), grid );
-				CreateButton( "Inset", "meshtools/face_tool/insert_face.png", "mesh.inset-tool", OpenInsetTool, _faces.Length > 0, grid );
+					CreateButton( "Fast Texture Tool", "meshtools/texture_tool_buttons/fast_texture_tool.png", "mesh.fast-texture-tool", OpenFastTextureTool, true, row.Layout );
+					CreateButton( "Edge Cut Tool", "meshtools/face_tool/edge_cut_tool.png", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
+					CreateButton( "Mirror Tool", "meshtools/face_tool/mirror_tool.png", "mesh.mirror-tool", OpenMirrorTool, _faces.Length > 0, row.Layout );
+					CreateButton( "Clipping Tool", "meshtools/face_tool/clipping_tool.png", "mesh.open-clipping-tool", OpenClippingTool, _faces.Length > 0, row.Layout );
+					CreateButton( "Bridge", "meshtools/face_tool/bridge_1.png", "mesh.bridge-tool", OpenBridgeTool, CanBridgeFaces(), row.Layout );
+					CreateButton( "Inset", "meshtools/face_tool/insert_face.png", "mesh.inset-tool", OpenInsetTool, _faces.Length > 0, row.Layout );
 
-				grid.AddStretchCell();
+					row.Layout.AddStretchCell();
 
-				group.Add( grid );
+					group.Add( row );
+				}
+
+				{
+					var row = new Widget { Layout = Layout.Row() };
+					row.Layout.Spacing = 4;
+
+					CreateButton( "Topology Tool", "meshtools/face_tool/topology.png", "mesh.topology-tool", OpenTopologyTool, _faces.Length > 0, row.Layout );
+
+					row.Layout.AddStretchCell();
+
+					group.Add( row );
+				}
 			}
 
 			BuildTextureUI( so, target );
@@ -218,6 +231,17 @@ partial class FaceTool
 				return;
 
 			var tool = new InsetTool( _faces );
+			tool.Manager = _meshTool.Manager;
+			_meshTool.CurrentTool = tool;
+		}
+
+		[Shortcut( "mesh.topology-tool", "CTRL+T", typeof( SceneViewWidget ) )]
+		void OpenTopologyTool()
+		{
+			if ( _faces.Length == 0 )
+				return;
+
+			var tool = new TopologyTool( _faces );
 			tool.Manager = _meshTool.Manager;
 			_meshTool.CurrentTool = tool;
 		}
