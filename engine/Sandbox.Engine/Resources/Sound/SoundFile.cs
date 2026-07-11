@@ -75,7 +75,10 @@ public partial class SoundFile : Resource, IValid
 	internal CSfxTable native;
 	internal VSound_t sound;
 
-	internal static Dictionary<string, SoundFile> Loaded = new();
+	// Keyed by resource path ("sounds/foo.vsnd"). Wrappers are created here both by
+	// game code asking for a sound and by the resource system loading one - the key
+	// has to match either way, so normalize case and slashes.
+	internal static Dictionary<string, SoundFile> Loaded = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
 	/// Ran when the file is reloaded/recompiled, etc.
@@ -143,7 +146,7 @@ public partial class SoundFile : Resource, IValid
 	{
 		Shutdown();
 
-		Loaded = new Dictionary<string, SoundFile>();
+		Loaded = new Dictionary<string, SoundFile>( StringComparer.OrdinalIgnoreCase );
 	}
 
 	internal static void Shutdown()
@@ -197,6 +200,8 @@ public partial class SoundFile : Resource, IValid
 	public static SoundFile Load( string filename )
 	{
 		ThreadSafe.AssertIsMainThread( "SoundFile.Load" );
+
+		filename = filename.Replace( '\\', '/' );
 
 		if ( !filename.EndsWith( ".vsnd", StringComparison.OrdinalIgnoreCase ) )
 			filename = System.IO.Path.ChangeExtension( filename, "vsnd" );

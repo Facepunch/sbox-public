@@ -7,7 +7,7 @@ namespace Editor.MeshEditor;
 /// Paint and blend vertices.
 /// </summary>
 [Title( "Vertex Paint Tool" )]
-[Icon( "brush" )]
+[Icon( "meshtools/sub-tools/vertex_paint_tool.png" )]
 [Alias( "tools.vertex-paint-tool" )]
 [Group( "6" )]
 public partial class VertexPaintTool( MeshTool tool ) : EditorTool

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Reflection;
 using Sandbox.Internal;
 using Sandbox.Network;
 
@@ -27,15 +28,9 @@ internal sealed class ClientAndHost : IDisposable
 		_clientSystem = new NetworkSystem( "client", typeLibrary );
 		Networking.System = _clientSystem;
 
-		Host = new TestConnection( Guid.NewGuid(), true )
-		{
-			State = Connection.ChannelState.Connected
-		};
+		Host = new TestConnection( Guid.NewGuid(), true );
 
-		Client = new TestConnection( Guid.NewGuid() )
-		{
-			State = Connection.ChannelState.Connected
-		};
+		Client = new TestConnection( Guid.NewGuid() );
 
 		var clientSceneSystem = new SceneNetworkSystem( typeLibrary, _clientSystem );
 		_clientSystem.GameSystem = clientSceneSystem;
@@ -50,7 +45,11 @@ internal sealed class ClientAndHost : IDisposable
 		var serverSceneSystem = new SceneNetworkSystem( typeLibrary, _hostSystem );
 		_hostSystem.GameSystem = serverSceneSystem;
 		_hostSystem.InitializeHost();
+		_hostSystem.OnConnected( Client );
 		_hostSystem.AddConnection( Client, remoteUserData );
+
+		Host.State = Connection.ChannelState.Connected;
+		Client.State = Connection.ChannelState.Connected;
 	}
 
 	public void BecomeClient()
@@ -65,6 +64,44 @@ internal sealed class ClientAndHost : IDisposable
 		Connection.Local = Host;
 		Networking.System = _hostSystem;
 		SceneNetworkSystem.Instance = _hostSystem.GameSystem as SceneNetworkSystem;
+	}
+
+	public void Become( Connection connection )
+	{
+		if ( connection == Host ) BecomeHost();
+		else if ( connection == Client ) BecomeClient();
+		else throw new ArgumentOutOfRangeException( nameof( connection ) );
+	}
+
+	public void ProcessMessages()
+	{
+		if ( Connection.Local == Host )
+		{
+			ProcessMessages( Client, Host, _hostSystem );
+		}
+		else
+		{
+			ProcessMessages( Host, Client, _clientSystem );
+		}
+	}
+
+	private static void ProcessMessages( TestConnection sender, TestConnection receiver, NetworkSystem receiverSystem )
+	{
+		// Using reflection to keep HandleIncomingMessage private
+
+		var handleMessageMethod = typeof( NetworkSystem ).GetMethod( "HandleIncomingMessage", BindingFlags.Instance | BindingFlags.NonPublic )
+			?? throw new Exception( "Unable to find private method NetworkSystem.HandleIncomingMessage needed for test." );
+
+		// Have to create a delegate instead of MethodInfo.Invoke() because NetworkMessage is a ref struct
+
+		var handleMessageDelegate = handleMessageMethod.CreateDelegate<Action<NetworkSystem.NetworkMessage>>( receiverSystem );
+
+		foreach ( var message in receiver.Messages )
+		{
+			using var reader = ByteStream.CreateReader( message.Raw );
+
+			handleMessageDelegate( new NetworkSystem.NetworkMessage { Source = sender, Data = reader } );
+		}
 	}
 
 	/// <summary>

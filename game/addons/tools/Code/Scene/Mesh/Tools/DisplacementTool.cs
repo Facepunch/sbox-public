@@ -6,7 +6,7 @@ namespace Editor.MeshEditor;
 /// Sculpt and displace mesh vertices.
 /// </summary>
 [Title( "Displacement Tool" )]
-[Icon( "landscape" )]
+[Icon( "meshtools/sub-tools/displacement_tool.png" )]
 [Alias( "tools.displacement-tool" )]
 [Group( "7" )]
 public partial class DisplacementTool( MeshTool tool ) : EditorTool

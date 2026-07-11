@@ -399,20 +399,31 @@ public partial class Timeline : GraphicsView, ISnapSource
 			{
 				// Ctrl multi-selects, if possible
 
-				foreach ( var selected in SelectedItems.ToArray() )
-				{
-					if ( selected is not IMovieItem { MultiSelectable: true } )
-					{
-						selected.Selected = false;
-					}
-				}
+				var singleSelect = !movieItem.MultiSelectable || !e.HasCtrl;
 
-				if ( !movieItem.MultiSelectable || !e.HasCtrl )
+				if ( singleSelect )
 				{
 					DeselectAll();
 				}
+				else
+				{
+					// Might have a current selection that can't multi-select
+
+					foreach ( var selected in SelectedItems.ToArray() )
+					{
+						if ( selected is not IMovieItem { MultiSelectable: true } )
+						{
+							selected.Selected = false;
+						}
+					}
+				}
 
 				item.Selected = true;
+
+				if ( singleSelect )
+				{
+					movieItem.SingleSelected();
+				}
 
 				if ( item is ITrackItem trackItem )
 				{

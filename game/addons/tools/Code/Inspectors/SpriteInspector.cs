@@ -13,8 +13,9 @@ public class SpriteInspector : InspectorWidget, AssetInspector.IAssetInspector
 	Sprite.Animation SelectedAnimation;
 
 	Sprite.AnimationState _animationState = new();
-	bool IsSingleFrame => Sprite.Animations.Count == 1 && SelectedAnimation.Frames.Count == 1;
+	int _cleanStateHash;
 
+	bool IsSingleFrame => Sprite.Animations.Count == 1 && SelectedAnimation.Frames.Count == 1;
 
 	public SpriteInspector( SerializedObject so ) : base( so )
 	{
@@ -74,18 +75,26 @@ public class SpriteInspector : InspectorWidget, AssetInspector.IAssetInspector
 				// Show single frame editor if we only have one animation with one frame for easy inline editing
 				var controlSheet = new ControlSheet();
 
-				controlSheet.AddObject( SelectedAnimation.Frames[0].GetSerialized(), sp =>
+				var frameSerialized = SelectedAnimation.Frames[0].GetSerialized();
+				var animationSerialized = SelectedAnimation.GetSerialized();
+
+				controlSheet.AddObject( frameSerialized, sp =>
 				{
 					if ( sp.Name == nameof( Sprite.Frame.Texture ) )
 						return true;
 					return false;
 				} );
-				controlSheet.AddObject( SelectedAnimation.GetSerialized(), sp =>
+				controlSheet.AddObject( animationSerialized, sp =>
 				{
 					if ( sp.Name == nameof( Sprite.Animation.Name ) || sp.Name == nameof( Sprite.Animation.Frames ) )
 						return false;
 					return true;
 				} );
+
+				// Single Frame editors edit the child objects (frame/animation) directly so we check those properties for changes made
+				_cleanStateHash = GetStateHash();
+				frameSerialized.OnPropertyChanged += _ => MarkDirtyIfChanged();
+				animationSerialized.OnPropertyChanged += _ => MarkDirtyIfChanged();
 
 				rightColumn.Add( controlSheet );
 			}
@@ -109,6 +118,30 @@ public class SpriteInspector : InspectorWidget, AssetInspector.IAssetInspector
 		}
 
 		rightColumn.AddStretchCell();
+	}
+
+	int GetStateHash()
+	{
+		if ( Sprite is null )
+			return 0;
+
+		return Sprite.Serialize().ToJsonString().FastHash();
+	}
+
+	void MarkDirtyIfChanged()
+	{
+		if ( Sprite is null )
+			return;
+
+		if ( Sprite.HasUnsavedChanges )
+			return;
+
+		var hash = GetStateHash();
+		if ( hash == _cleanStateHash )
+			return;
+
+		_cleanStateHash = hash;
+		Sprite.StateHasChanged();
 	}
 
 	protected override void DoLayout()

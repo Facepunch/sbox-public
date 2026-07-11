@@ -7,7 +7,7 @@ namespace Editor.MeshEditor;
 /// Select and edit face geometry.
 /// </summary>
 [Title( "Face Tool" )]
-[Icon( "change_history" )]
+[Icon( "meshtools/sub-tools/face_tool.png" )]
 [Alias( "tools.face-tool" )]
 [Group( "3" )]
 public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>( tool )
@@ -143,21 +143,21 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		menu.AddSeparator();
 
 		var ops = menu.AddMenu( "Face Operations", "build" );
-		AddMenuOption( ops, "Inset Faces", "filter_center_focus", "mesh.inset-tool", true );
-		AddMenuOption( ops, "Bridge Faces", "device_hub", "mesh.bridge-tool", true );
-		AddMenuOption( ops, "Thicken Faces", "layers", "mesh.thicken-faces", true );
-		AddMenuOption( ops, "Combine Faces", "join_full", "mesh.combine-faces", true );
-		AddMenuOption( ops, "Collapse Faces", "unfold_less", "mesh.collapse", true );
-		AddMenuOption( ops, "Detach Faces", "call_split", "mesh.detach-faces", true );
-		AddMenuOption( ops, "Extract Faces", "content_cut", "mesh.extract-faces", true );
-		AddMenuOption( ops, "Merge Meshes", "join_full", "mesh.merge-meshes", true );
+		AddMenuOption( ops, "Inset Faces", "meshtools/face_tool/insert_face.png", "mesh.inset-tool", true );
+		AddMenuOption( ops, "Bridge Faces", "meshtools/face_tool/bridge_1.png", "mesh.bridge-tool", true );
+		AddMenuOption( ops, "Thicken Faces", "meshtools/face_tool/thicken_faces.png", "mesh.thicken-faces", true );
+		AddMenuOption( ops, "Combine Faces", "meshtools/face_tool/combine_faces.png", "mesh.combine-faces", true );
+		AddMenuOption( ops, "Collapse Faces", "meshtools/face_tool/collapse_faces.png", "mesh.collapse", true );
+		AddMenuOption( ops, "Detach Faces", "meshtools/face_tool/detach_faces.png", "mesh.detach-faces", true );
+		AddMenuOption( ops, "Extract Faces", "meshtools/face_tool/extract_faces.png", "mesh.extract-faces", true );
+		AddMenuOption( ops, "Merge Meshes", "meshtools/object_selection_buttons/merge_meshes.png", "mesh.merge-meshes", true );
 		AddMenuOption( ops, "Apply Material", "format_color_fill", "mesh.apply-material", true );
 
 		var tex = menu.AddMenu( "Texture Operations", "gradient" );
 		AddMenuOption( tex, "Apply Material", "format_color_fill", "mesh.apply-material", true );
-		AddMenuOption( tex, "Apply by Hotspot", "my_location", "mesh.apply-hotspot", true );
-		AddMenuOption( tex, "Apply by Hotspot (Per Face)", "texture", "mesh.apply-hotspot-per-face", true );
-		AddMenuOption( tex, "Fast Texture Tool", "edit", "mesh.fast-texture-tool", true );
+		AddMenuOption( tex, "Apply by Hotspot", "meshtools/texture_tool_buttons/apply_by_hotspot.png", "mesh.apply-hotspot", true );
+		AddMenuOption( tex, "Apply by Hotspot (Per Face)", "meshtools/texture_tool_buttons/apply_by_hotspot_(per_face).png", "mesh.apply-hotspot-per-face", true );
+		AddMenuOption( tex, "Fast Texture Tool", "meshtools/texture_tool_buttons/fast_texture_tool.png", "mesh.fast-texture-tool", true );
 
 		var sel = menu.AddMenu( "Face Selection", "select_all" );
 		AddMenuOption( sel, "Select Loop", "all_out", "mesh.select-loop", true );
@@ -165,8 +165,8 @@ public sealed partial class FaceTool( MeshTool tool ) : SelectionTool<MeshFace>(
 		sel.AddOption( "Select All", "select_all", () => InvokeShortcut( "mesh.select-all" ), "mesh.select-all" );
 
 		var util = menu.AddMenu( "Face Tools", "tune" );
-		AddMenuOption( util, "Invert Mesh", "flip", "mesh.flip-all-faces", true );
-		AddMenuOption( util, "Remove Bad Faces", "delete_sweep", "mesh.remove-bad-faces", true );
+		AddMenuOption( util, "Invert Mesh", "meshtools/face_tool/flip_all_faces.png", "mesh.flip-all-faces", true );
+		AddMenuOption( util, "Remove Bad Faces", "meshtools/face_tool/remove_bad_faces.png", "mesh.remove-bad-faces", true );
 	}
 
 	protected override IEnumerable<MeshFace> ConvertSelectionToCurrentType()

@@ -237,6 +237,9 @@ public class AssetInspector : InspectorWidget
 					SaveOption.Bind( "Enabled" ).ReadOnly().From( () => gameResource.HasUnsavedChanges, null );
 				}
 
+				// Set the save action here, otherwise clicking Save falls through to the unused OnSave callback and nothing is actually saved
+				SaveOption.Triggered = saveAction;
+
 				if ( custom is IAssetInspector customInspector )
 				{
 					customInspector.SetAsset( target );
@@ -340,21 +343,24 @@ public class AssetInspector : InspectorWidget
 
 					var so = gameResource.GetSerialized();
 
+					sheet.AddObject( so, filter: FilterProperties );
+
+					// Only flag the resource dirty when its serialized content genuinely changes
+					var cleanStateHash = gameResource.Serialize().ToJsonString().FastHash();
+
 					so.OnPropertyChanged += x =>
 					{
 						if ( isReadOnly ) return;
+						if ( gameResource.HasUnsavedChanges ) return;
+
+						var hash = gameResource.Serialize().ToJsonString().FastHash();
+						if ( hash == cleanStateHash ) return;
+						cleanStateHash = hash;
 
 						// TODO: this inspector should have its own undo system for edits to this
 						gameResource.StateHasChanged();
 					};
 
-					if ( isReadOnly )
-					{
-						//todo
-						//so = so.AsReadOnly();
-					}
-
-					sheet.AddObject( so, filter: FilterProperties );
 					ContentLayout.Add( sheet );
 					ContentLayout.AddStretchCell();
 				}

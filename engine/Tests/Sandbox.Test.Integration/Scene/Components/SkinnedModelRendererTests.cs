@@ -638,4 +638,42 @@ public class SkinnedRendererTest
 		clone.Destroy();
 		scene.ProcessDeletes();
 	}
+
+	/// <summary>
+	/// GetClosestBone resolves the nearest bone natively - a point at head height and a point at the
+	/// feet pick different bones, and the native answer matches a managed scan over the same bone
+	/// transforms.
+	/// </summary>
+	[TestMethod]
+	public void GetClosestBoneFindsNearestBone()
+	{
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		var smr = CreateCitizenRenderer( scene, out _ );
+
+		var headPoint = new Vector3( 0, 0, 64 );
+		var headBone = smr.GetClosestBone( headPoint );
+		var footBone = smr.GetClosestBone( new Vector3( 0, 0, 2 ) );
+
+		Assert.IsNotNull( headBone );
+		Assert.IsNotNull( footBone );
+		Assert.AreNotEqual( headBone, footBone, "head and feet resolve to different bones" );
+
+		var bones = smr.GetBoneTransforms( true );
+		var closest = -1;
+		var closestDist = float.MaxValue;
+
+		for ( var i = 0; i < bones.Length; i++ )
+		{
+			var dist = bones[i].Position.Distance( headPoint );
+			if ( dist < closestDist )
+			{
+				closestDist = dist;
+				closest = i;
+			}
+		}
+
+		Assert.AreEqual( closest, headBone.Index, "the native answer matches a managed scan" );
+	}
 }

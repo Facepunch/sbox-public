@@ -34,7 +34,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Facepunch.ActionGraphs" Version="1.9.26" />
+		<PackageReference Include="Facepunch.ActionGraphs" Version="1.9.27" />
 		<PackageReference Include="Fleck" Version="1.2.0" />
 		<PackageReference Include="LiteDB" Version="5.0.21" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0-2.final" />

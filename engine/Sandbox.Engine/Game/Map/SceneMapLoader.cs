@@ -79,7 +79,7 @@ public class SceneMapLoader : MapLoader
 		CreateLightProbeVolume( kv );
 	}
 
-	private enum LightType
+	internal enum LightType
 	{
 		Directional,
 		Spot,
@@ -89,45 +89,113 @@ public class SceneMapLoader : MapLoader
 		Capsule,
 	}
 
+	/// <summary>
+	/// Parsed keyvalues for a Hammer light entity. Shared by the raw <see cref="SceneLight"/> path
+	/// here and the GameObject/component path used when a map loads into a scene.
+	/// </summary>
+	internal readonly struct LightData
+	{
+		public LightType Type { get; init; }
+		public bool Enabled { get; init; }
+		public Color Color { get; init; }
+		public float Brightness { get; init; }
+		public float Range { get; init; }
+		public float FallOff { get; init; }
+		public float InnerConeAngle { get; init; }
+		public float OuterConeAngle { get; init; }
+		public float Attenuation0 { get; init; }
+		public float Attenuation1 { get; init; }
+		public float Attenuation2 { get; init; }
+		public bool CastShadows { get; init; }
+		public Texture LightCookie { get; init; }
+		public int BakeLightIndex { get; init; }
+		public float BakeLightIndexScale { get; init; }
+		public bool BakedLightIndexing { get; init; }
+		public int DirectLight { get; init; }
+		public int FogLighting { get; init; }
+		public float FogContributionStrength { get; init; }
+		public bool RenderDiffuse { get; init; }
+		public bool RenderSpecular { get; init; }
+		public float LightSourceDim0 { get; init; }
+		public float LightSourceDim1 { get; init; }
+
+		/// <summary>
+		/// The light color after brightness and attenuation scaling, matching the raw scene light.
+		/// </summary>
+		public Color FinalColor
+		{
+			get
+			{
+				var color = Color * Brightness;
+
+				// Point/spot style lights scale their color by the attenuation magnitude.
+				if ( Type is LightType.Spot or LightType.Omni or LightType.Rect or LightType.Capsule )
+				{
+					float scaleFactor = Attenuation2 * 10000 + Attenuation1 * 100 + Attenuation0;
+					if ( scaleFactor > 0 )
+						color *= scaleFactor;
+				}
+
+				return color;
+			}
+		}
+
+		public static LightData Parse( ObjectEntry kv, LightType type ) => new()
+		{
+			Type = type,
+			Enabled = kv.GetValue<bool>( "enabled" ),
+			Color = kv.GetValue<Color>( "color" ),
+			Brightness = kv.GetValue( "brightness", 1.0f ),
+			Range = kv.GetValue( "range", 1024.0f ),
+			FallOff = kv.GetValue<float>( "falloff" ),
+			InnerConeAngle = kv.GetValue( "innerconeangle", 45.0f ),
+			OuterConeAngle = kv.GetValue( "outerconeangle", 60.0f ),
+			Attenuation0 = kv.GetValue( "attenuation0", 0.0f ),
+			Attenuation1 = kv.GetValue( "attenuation1", 0.0f ),
+			Attenuation2 = kv.GetValue( "attenuation2", 1.0f ),
+			CastShadows = kv.GetValue<int>( "castshadows" ) == 1,
+			LightCookie = kv.GetResource<Texture>( "lightcookie" ),
+			BakeLightIndex = kv.GetValue( "bakelightindex", -1 ),
+			BakeLightIndexScale = kv.GetValue( "bakelightindexscale", 1.0f ),
+			BakedLightIndexing = kv.GetValue( "baked_light_indexing", true ),
+			DirectLight = kv.GetValue( "directlight", 2 ),
+			FogLighting = kv.GetValue<int>( "fog_lighting", 2 ),
+			FogContributionStrength = kv.GetValue<float>( "fogcontributionstrength", 1.0f ),
+			RenderDiffuse = kv.GetValue( "renderdiffuse", true ),
+			RenderSpecular = kv.GetValue( "renderspecular", true ),
+			LightSourceDim0 = kv.GetValue<float>( "lightsourcedim0" ),
+			LightSourceDim1 = kv.GetValue<float>( "lightsourcedim1" ),
+		};
+
+		/// <summary>
+		/// The advanced settings that aren't exposed as component properties, for the component path.
+		/// </summary>
+		public readonly Light.LegacyLightData ToLegacyData() => new()
+		{
+			DirectLight = DirectLight,
+			BakeLightIndex = BakeLightIndex,
+			BakeLightIndexScale = BakeLightIndexScale,
+			BakedLightIndexing = BakedLightIndexing,
+			FogContributionStrength = FogContributionStrength,
+			RenderDiffuse = RenderDiffuse,
+			RenderSpecular = RenderSpecular,
+			FogLighting = FogLighting,
+		};
+	}
+
 	private void CreateLight( ObjectEntry kv, LightType lightType )
 	{
-		if ( !kv.GetValue<bool>( "enabled" ) )
+		var data = LightData.Parse( kv, lightType );
+		if ( !data.Enabled )
 			return;
-
-		var color = kv.GetValue<Color>( "color" );
-		var brightness = kv.GetValue( "brightness", 1.0f );
-		var bounceScale = kv.GetValue( "bouncescale", 1.0f );
-		var range = kv.GetValue( "range", 1024.0f );
-		var fallOff = kv.GetValue<float>( "falloff" );
-		var innerConeAngle = kv.GetValue( "innerconeangle", 45.0f );
-		var outerConeAngle = kv.GetValue( "outerconeangle", 60.0f );
-		var attenuation0 = kv.GetValue( "attenuation0", 0.0f );
-		var attenuation1 = kv.GetValue( "attenuation1", 0.0f );
-		var attenuation2 = kv.GetValue( "attenuation2", 1.0f );
-		var castShadows = kv.GetValue<int>( "castshadows" ) == 1;
-		var shadowCascadeCount = kv.GetValue<int>( "numcascades", 1 );
-		var shadowCascadeDistanceScale = kv.GetValue<float>( "shadowcascadedistancescale" );
-		var lightCookie = kv.GetResource<Texture>( "lightcookie" );
-		var bakeLightIndex = kv.GetValue( "bakelightindex", -1 );
-		var bakeLightIndexScale = kv.GetValue( "bakelightindexscale", 1.0f );
-		var bakedLightIndexing = kv.GetValue( "baked_light_indexing", true );
-		var directLight = kv.GetValue( "directlight", 2 );
-		var fogLighting = kv.GetValue<int>( "fog_lighting", 2 );
-		var fogContributionStrength = kv.GetValue<float>( "fogcontributionstrength", 1.0f );
-		var renderDiffuse = kv.GetValue( "renderdiffuse", true );
-		var renderSpecular = kv.GetValue( "renderspecular", true );
-		var shadowTextureWidth = kv.GetValue<int>( "shadowtexturewidth" );
-		var shadowTextureHeight = kv.GetValue<int>( "shadowtextureheight" );
-		var lightSourceDim0 = kv.GetValue<float>( "lightsourcedim0" );
-		var lightSourceDim1 = kv.GetValue<float>( "lightsourcedim1" );
 
 		SceneLight sceneLight = null;
 
 		if ( lightType == LightType.Directional )
 		{
-			sceneLight = new SceneDirectionalLight( World, kv.Rotation, color * brightness )
+			sceneLight = new SceneDirectionalLight( World, kv.Rotation, data.FinalColor )
 			{
-				ShadowsEnabled = castShadows,
+				ShadowsEnabled = data.CastShadows,
 				ShadowCascadeCount = 4,
 				ShadowCascadeSplitRatio = 0.91f
 			};
@@ -136,98 +204,70 @@ public class SceneMapLoader : MapLoader
 		}
 		else if ( lightType == LightType.Spot )
 		{
-			sceneLight = new SceneSpotLight( World, kv.Position, color * brightness )
+			sceneLight = new SceneSpotLight( World, kv.Position, data.FinalColor )
 			{
 				Rotation = kv.Rotation,
-				ShadowsEnabled = castShadows,
-				ConeInner = innerConeAngle,
-				ConeOuter = outerConeAngle,
-				Radius = range,
-				FallOff = fallOff,
-				ConstantAttenuation = attenuation0,
-				LinearAttenuation = attenuation1,
-				QuadraticAttenuation = attenuation2 * 10000.0f,
-				LightCookie = lightCookie,
+				ShadowsEnabled = data.CastShadows,
+				ConeInner = data.InnerConeAngle,
+				ConeOuter = data.OuterConeAngle,
+				Radius = data.Range,
+				FallOff = data.FallOff,
+				ConstantAttenuation = data.Attenuation0,
+				LinearAttenuation = data.Attenuation1,
+				QuadraticAttenuation = data.Attenuation2 * 10000.0f,
+				LightCookie = data.LightCookie,
 			};
 
 			sceneLight.Tags.Add( "light_spot" );
-
-			float scaleFactor = attenuation2 * 10000 + attenuation1 * 100 + attenuation0;
-
-			if ( scaleFactor > 0 )
-			{
-				sceneLight.LightColor *= scaleFactor;
-			}
 		}
 		else if ( lightType == LightType.Omni )
 		{
-			sceneLight = new ScenePointLight( World, kv.Position, range, color * brightness )
+			sceneLight = new ScenePointLight( World, kv.Position, data.Range, data.FinalColor )
 			{
 				Rotation = kv.Rotation,
-				ShadowsEnabled = castShadows,
-				Radius = range,
-				ConstantAttenuation = attenuation0,
-				LinearAttenuation = attenuation1,
-				QuadraticAttenuation = attenuation2 * 10000.0f,
-				LightCookie = lightCookie,
+				ShadowsEnabled = data.CastShadows,
+				Radius = data.Range,
+				ConstantAttenuation = data.Attenuation0,
+				LinearAttenuation = data.Attenuation1,
+				QuadraticAttenuation = data.Attenuation2 * 10000.0f,
+				LightCookie = data.LightCookie,
 			};
 
 			sceneLight.Tags.Add( "light_omni" );
-
-			float scaleFactor = attenuation2 * 10000 + attenuation1 * 100 + attenuation0;
-
-			if ( scaleFactor > 0 )
-			{
-				sceneLight.LightColor *= scaleFactor;
-			}
 		}
 		else if ( lightType == LightType.Rect )
 		{
-			sceneLight = new SceneSpotLight( World, kv.Position, color * brightness )
+			sceneLight = new SceneSpotLight( World, kv.Position, data.FinalColor )
 			{
 				Rotation = kv.Rotation,
 				ShadowsEnabled = false, // Not yet
-				Radius = range,
-				ConstantAttenuation = attenuation0,
-				LinearAttenuation = attenuation1,
-				QuadraticAttenuation = attenuation2 * 10000.0f,
+				Radius = data.Range,
+				ConstantAttenuation = data.Attenuation0,
+				LinearAttenuation = data.Attenuation1,
+				QuadraticAttenuation = data.Attenuation2 * 10000.0f,
 				ConeInner = 90,
 				ConeOuter = 90,
-				LightCookie = lightCookie,
+				LightCookie = data.LightCookie,
 				Shape = SceneLight.LightShape.Rectangle,
 			};
 
 			sceneLight.Tags.Add( "light_rect" );
-
-			float scaleFactor = attenuation2 * 10000 + attenuation1 * 100 + attenuation0;
-
-			if ( scaleFactor > 0 )
-			{
-				sceneLight.LightColor *= scaleFactor;
-			}
 		}
 		else if ( lightType == LightType.Capsule )
 		{
-			sceneLight = new ScenePointLight( World, kv.Position, range, color * brightness )
+			sceneLight = new ScenePointLight( World, kv.Position, data.Range, data.FinalColor )
 			{
 				Rotation = kv.Rotation,
 				ShadowsEnabled = false, // Not yet
-				Radius = range,
-				ConstantAttenuation = attenuation0,
-				LinearAttenuation = attenuation1,
-				QuadraticAttenuation = attenuation2 * 10000.0f,
-				LightCookie = lightCookie,
+				Radius = data.Range,
+				ConstantAttenuation = data.Attenuation0,
+				LinearAttenuation = data.Attenuation1,
+				QuadraticAttenuation = data.Attenuation2 * 10000.0f,
+				LightCookie = data.LightCookie,
 				Shape = SceneLight.LightShape.Capsule,
 			};
 
 			sceneLight.Tags.Add( "light_capsule" );
-
-			float scaleFactor = attenuation2 * 10000 + attenuation1 * 100 + attenuation0;
-
-			if ( scaleFactor > 0 )
-			{
-				sceneLight.LightColor *= scaleFactor;
-			}
 		}
 		else if ( lightType == LightType.Ortho )
 		{
@@ -244,59 +284,20 @@ public class SceneMapLoader : MapLoader
 		var light = sceneLight.lightNative;
 		light.SetWorldDirection( kv.Rotation );
 
-
-		switch ( directLight )
-		{
-			case 3: // HAMMER_DIRECT_LIGHT_STATIONARY
-				light.SetLightFlags( light.GetLightFlags() | 16 ); // LIGHTTYPE_FLAGS_MIXED_SHADOWS
-				light.SetLightFlags( light.GetLightFlags() | 32 ); // LIGHTTYPE_FLAGS_BAKED
-				break;
-			case 1: // HAMMER_DIRECT_LIGHT_BAKED
-				light.SetLightFlags( light.GetLightFlags() | 32 ); // LIGHTTYPE_FLAGS_BAKED
-				break;
-		}
-
-		light.GetAttributesPtrForModify().SetFloatValue( "MixedShadowsStrength", 1.0f );
-		light.SetCascadeDistanceScale( shadowCascadeDistanceScale );
-		light.SetBounceColor( light.GetColor() * bounceScale );
-		light.SetBakeLightIndex( bakeLightIndex );
-		light.SetBakeLightIndexScale( bakeLightIndexScale );
-		light.SetUsesIndexedBakedLighting( bakedLightIndexing );
-		light.SetFogContributionStength( fogContributionStrength );
-		light.SetRenderDiffuse( renderDiffuse );
-		light.SetRenderSpecular( renderSpecular );
-		light.SetFogLightingMode( fogLighting );
-		light.SetShadowTextureWidth( shadowTextureWidth );
-		light.SetShadowTextureHeight( shadowTextureHeight );
-
-		if ( lightType == LightType.Ortho )
-		{
-			var orthoLightWidth = kv.GetValue<float>( "ortholightwidth", 512 );
-			var orthoLightHeight = kv.GetValue<float>( "ortholightheight", 512 );
-
-			float aspect = orthoLightWidth / orthoLightHeight;
-			var width = shadowTextureWidth;
-			width = (width == 0) ? 2048 : width;
-			var height = (int)(width * aspect);
-			height = height.Clamp( 1, 8196 );
-
-			light.SetLightSourceSize0( orthoLightWidth );
-			light.SetLightSourceSize1( orthoLightHeight );
-			light.SetShadowTextureWidth( width / 4 );
-			light.SetShadowTextureHeight( height / 4 );
-		}
+		// Apply the advanced native settings shared with the component path.
+		data.ToLegacyData().ApplyTo( light );
 
 		if ( lightType == LightType.Rect )
 		{
 			light.SetLightShape( LightSourceShape_t.Rectangle );
-			light.SetLightSourceDim0( lightSourceDim0 );
-			light.SetLightSourceDim1( lightSourceDim1 );
+			light.SetLightSourceDim0( data.LightSourceDim0 );
+			light.SetLightSourceDim1( data.LightSourceDim1 );
 		}
 		else if ( lightType == LightType.Capsule )
 		{
 			light.SetLightShape( LightSourceShape_t.Capsule );
-			light.SetLightSourceDim0( lightSourceDim0 );
-			light.SetLightSourceDim1( lightSourceDim1 );
+			light.SetLightSourceDim0( data.LightSourceDim0 );
+			light.SetLightSourceDim1( data.LightSourceDim1 );
 		}
 
 		SceneObjects.Add( sceneLight );

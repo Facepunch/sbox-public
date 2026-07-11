@@ -59,9 +59,22 @@ public partial class Scene : GameObject
 				// get all the gameobjects that should survive
 				var savedObjects = GetAllObjects( false ).Where( x => x.Flags.Contains( GameObjectFlags.DontDestroyOnLoad ) );
 
-				// move them to the scene root
+				// move only DontDestroyOnLoad roots that are not already under another DontDestroyOnLoad ancestor to the scene root
 				foreach ( var saved in savedObjects )
 				{
+					bool hasSurvivingAncestor = false;
+					for ( var parent = saved.Parent; parent != this; parent = parent.Parent )
+					{
+						if ( parent?.Flags.Contains( GameObjectFlags.DontDestroyOnLoad ) == true )
+						{
+							hasSurvivingAncestor = true;
+							break;
+						}
+					}
+
+					if ( hasSurvivingAncestor )
+						continue;
+
 					saved.SetParent( this );
 				}
 

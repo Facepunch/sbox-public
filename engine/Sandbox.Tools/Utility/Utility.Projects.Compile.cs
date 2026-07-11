@@ -176,8 +176,15 @@ public static partial class EditorUtility
 				return;
 			}
 
+			var referenceName = $"package.{parentParts.org}.{parentParts.package}";
+			if ( currentAp.Lookup( referenceName ) is null )
+			{
+				logOutput?.Invoke( $"Warning: Could not resolve parent package reference '{parentPackage}', skipping" );
+				return;
+			}
+
 			compiler.Group.ReferenceProvider = currentAp;
-			compiler.AddReference( $"package.{parentParts.org}.{parentParts.package}" );
+			compiler.AddReference( referenceName );
 			logOutput?.Invoke( $"Added parent package reference: {parentPackage}" );
 		}
 

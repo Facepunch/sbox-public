@@ -204,7 +204,10 @@ native class CModel as NativeEngine.IModel
 		return self->GetFlexControllerName( LocalFlexController_t( nFlexController ) );
 	}
 
-	float GetVisemeMorph( string viseme, int morph );
+	int GetVisemeIndex( string viseme );
+
+	[nogc]
+	float GetVisemeMorph( int viseme, int morph );
 
 	int GetNumAnim();
 	stable string GetAnimationName( int nAnimation );

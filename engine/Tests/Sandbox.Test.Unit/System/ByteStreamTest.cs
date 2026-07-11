@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using static Sandbox.IByteParsable;
 
 namespace SystemTests;
@@ -336,6 +337,40 @@ public class ByteStreamTest
 			ulong arrPtr = leakStream.Read<ulong>();
 
 		} );
+	}
+
+	// A copy of a ByteStream taken before Dispose() must not be able to read a buffer that Dispose()
+	// returned to the pool - otherwise it leaks whatever the next renter writes. https://hackerone.com/reports/3775849
+	[TestMethod]
+	[DoNotParallelize]
+	public void CopyCannotReadAfterDispose()
+	{
+		const int size = 128; // exact bucket size, so the buffer is actually pooled
+		const ulong secret = 0xDEADBEEFCAFEF00DUL;
+
+		var stream = ByteStream.Create( size );
+		stream.Write( 0UL );  // so the copy has 8 in-bounds bytes to read back
+		var copy = stream;    // struct copy keeps the buffer reference
+		stream.Dispose();     // buffer goes back to ArrayPool.Shared
+
+		// We can't guarantee which rent hands back the exact buffer we just returned, so keep renting
+		// same-size buffers and stamping a secret into each. The leaked copy must never read it back.
+		for ( int i = 0; i < 64; i++ )
+		{
+			var reused = ArrayPool<byte>.Shared.Rent( size );
+			try
+			{
+				BitConverter.TryWriteBytes( reused, secret ); // simulates the next renter's secret
+
+				ulong stolen = 0;
+				try { copy.Position = 0; stolen = copy.Read<ulong>(); } catch { /* denied after dispose = secure */ }
+				Assert.AreNotEqual( secret, stolen, "ByteStream copy read a buffer that Dispose() returned to the pool" );
+			}
+			finally
+			{
+				ArrayPool<byte>.Shared.Return( reused, clearArray: true );
+			}
+		}
 	}
 
 	/// <summary>

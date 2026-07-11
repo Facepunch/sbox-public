@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Nodes;
+﻿using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Sandbox.Resources;
 
@@ -20,6 +21,34 @@ public abstract class ResourceCompileContext
 	public abstract int ResourceVersion { get; set; }
 
 	internal abstract int WriteBlock( string blockName, IntPtr data, int count );
+
+	/// <summary>
+	/// Write a named block of data into the compiled resource. The name is a four
+	/// character code, eg "LIPS". Read it back at runtime when the resource loads,
+	/// in <see cref="Resource.OnLoaded"/>.
+	/// </summary>
+	public unsafe void WriteBlock( string blockName, ReadOnlySpan<byte> data )
+	{
+		if ( blockName is null || blockName.Length != 4 )
+			throw new ArgumentException( "Block names are four character codes, eg \"LIPS\"", nameof( blockName ) );
+
+		if ( data.IsEmpty )
+			return;
+
+		fixed ( byte* ptr = data )
+		{
+			WriteBlock( blockName, (IntPtr)ptr, data.Length );
+		}
+	}
+
+	/// <summary>
+	/// Serialize an object to json and write it to a named block in the compiled
+	/// resource. Read it back at runtime in <see cref="Resource.OnLoaded"/>.
+	/// </summary>
+	public void WriteBlockJson( string blockName, object obj )
+	{
+		WriteBlock( blockName, JsonSerializer.SerializeToUtf8Bytes( obj, Json.options ) );
+	}
 
 	/// <summary>
 	/// Add a reference. This means that the resource we're compiling depends on this resource.
@@ -61,6 +90,61 @@ public abstract class ResourceCompileContext
 	/// Read the source, either from in memory, or from disk
 	/// </summary>
 	public abstract byte[] ReadSource();
+
+	JsonObject _meta;
+	bool _metaRead;
+
+	/// <summary>
+	/// The asset's .meta file as json, or null if it doesn't have one.
+	/// </summary>
+	public JsonObject ReadMeta()
+	{
+		if ( _metaRead )
+			return _meta;
+
+		_metaRead = true;
+
+		var metaPath = AbsolutePath + ".meta";
+
+		// Depend on the meta even when it doesn't exist yet - authoring one later
+		// (eg adding visemes to a sound for the first time) should recompile us
+		AddCompileReference( metaPath );
+
+		try
+		{
+			if ( System.IO.File.Exists( metaPath ) )
+			{
+				_meta = Json.ParseToJsonObject( System.IO.File.ReadAllText( metaPath ) );
+			}
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Couldn't read meta file {metaPath}" );
+		}
+
+		return _meta;
+	}
+
+	/// <summary>
+	/// Read a value from the asset's .meta file,
+	/// eg <c>Context.ReadMeta&lt;List&lt;VisemeFrame&gt;&gt;( "visemes" )</c>.
+	/// </summary>
+	public T ReadMeta<T>( string key, T defaultValue = default )
+	{
+		var meta = ReadMeta();
+		if ( meta is null || meta[key] is not JsonNode node )
+			return defaultValue;
+
+		try
+		{
+			return node.Deserialize<T>( Json.options );
+		}
+		catch ( Exception e )
+		{
+			Log.Warning( e, $"Couldn't read '{key}' from {AbsolutePath}.meta" );
+			return defaultValue;
+		}
+	}
 
 	/// <summary>
 	/// Read the source, either from in memory, or from disk

@@ -36,6 +36,7 @@ public partial class AssetBrowser
 
 	/// <summary>
 	/// Opens an AssetBrowser to the <paramref name="asset"/>, raising the window into view.
+	/// Clears any active search filter so the asset isn't hidden.
 	/// If no AssetBrowser is open already, a new one will be opened. 
 	/// </summary>
 	public static void OpenTo( Asset asset, bool skipEvents = false )
@@ -46,6 +47,7 @@ public partial class AssetBrowser
 		var browser = wrapped.GetBrowser( asset );
 		wrapped.SwitchTo( browser );
 		browser.Focus( true );
+		browser.Search.Clear();
 		browser.FocusOnAsset( asset, skipEvents );
 	}
 
@@ -67,6 +69,7 @@ public partial class AssetBrowser
 		var browser = wrapped.GetBrowser( entry );
 		wrapped.SwitchTo( browser );
 		browser.Focus( true );
+		browser.Search.Clear();
 		browser.NavigateTo( entry.AbsolutePath );
 	}
 }

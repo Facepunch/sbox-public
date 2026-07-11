@@ -18,6 +18,7 @@ public partial class GameObject
 					GameObjectFlags.NotNetworked |
 					GameObjectFlags.Absolute |
 					GameObjectFlags.PhysicsBone |
+					GameObjectFlags.Static |
 					GameObjectFlags.Hidden;
 
 	/// <summary>

@@ -18,13 +18,23 @@ public static unsafe partial class Sound
 
 	public static SoundHandle Play( SoundEvent soundEvent, float fadeInTime = 0.0f )
 	{
+		return Play( soundEvent, out _, fadeInTime );
+	}
+
+	/// <summary>
+	/// Play a sound event, telling the caller which sound file got picked.
+	/// </summary>
+	internal static SoundHandle Play( SoundEvent soundEvent, out SoundFile soundFile, float fadeInTime = 0.0f )
+	{
+		soundFile = null;
+
 		if ( Application.IsHeadless )
 			return SoundHandle.Empty;
 
 		if ( soundEvent is null )
 			return default;
 
-		var soundFile = soundEvent.GetNextSound();
+		soundFile = soundEvent.GetNextSound();
 		if ( !soundFile.IsValid() )
 			return null;
 

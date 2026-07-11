@@ -7,7 +7,7 @@ namespace Editor.MeshEditor;
 /// <b>Shift</b> - extrude selection
 /// </summary>
 [Title( "Scale" )]
-[Icon( "zoom_out_map" )]
+[Icon( "meshtools/move_modes/scale.png" )]
 [Alias( "mesh.scale.mode" )]
 [Order( 2 )]
 public sealed class ScaleMode : MoveMode

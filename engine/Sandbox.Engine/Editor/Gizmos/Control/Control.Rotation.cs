@@ -187,9 +187,6 @@ public static partial class Gizmo
 
 			//Gizmo.Draw.Plane( pressPoint, dragNormal );
 
-			// don't let scale affect the drag amounts
-			angleDifference /= Gizmo.Transform.UniformScale;
-
 			if ( angleDifference == 0.0f ) return false;
 
 			angleDelta = -angleDifference;

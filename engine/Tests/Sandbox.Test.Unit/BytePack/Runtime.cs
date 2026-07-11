@@ -197,23 +197,26 @@ class RecursiveClass
 	public RecursiveClass Other { get; set; }
 }
 
-[TestClass]
+// Building tlA/tlB scans every type in Bootstrap's assembly, which is expensive - so this
+// class is [DoNotParallelize] (methods run one at a time, never touching tlA/tlB concurrently)
+// and the pair is built once for the whole class instead of once per test method.
+[TestClass, DoNotParallelize]
 public class RuntimeTest : BaseRoundTrip
 {
-	TypeLibrary tlA;
-	TypeLibrary tlB;
+	static TypeLibrary tlA;
+	static TypeLibrary tlB;
 
-	[TestInitialize]
-	public void TestInitialize()
+	[ClassInitialize]
+	public static void ClassInitialize( TestContext context )
 	{
 		// test using different type libraries, to avoid caches
 		tlA = new TypeLibrary();
 		tlA.AddAssembly( typeof( Bootstrap ).Assembly, true );
-		tlA.AddAssembly( GetType().Assembly, true );
+		tlA.AddAssembly( typeof( RuntimeTest ).Assembly, true );
 
 		tlB = new TypeLibrary();
 		tlB.AddAssembly( typeof( Bootstrap ).Assembly, true );
-		tlB.AddAssembly( GetType().Assembly, true );
+		tlB.AddAssembly( typeof( RuntimeTest ).Assembly, true );
 	}
 
 	[TestCleanup]

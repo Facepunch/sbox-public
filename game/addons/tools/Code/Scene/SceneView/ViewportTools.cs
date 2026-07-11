@@ -122,12 +122,9 @@ public partial class ViewportTools : Widget
 
 	private void UpdateChildren()
 	{
-		foreach ( var child in toolbarWidget.Children )
+		foreach ( var button in toolbarWidget.GetDescendants<EditorToolButton>() )
 		{
-			if ( child is EditorToolButton button )
-			{
-				button.UpdateState();
-			}
+			button.UpdateState();
 		}
 	}
 

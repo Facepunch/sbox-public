@@ -9,7 +9,11 @@ namespace Sandbox;
 
 public partial class Project
 {
-	static CompileGroup CompileGroup;
+	/// <summary>
+	/// The compile group every local project's code builds in. Internal so game code can't see
+	/// it - editor code reaches it through the Sandbox.Tools Project extensions.
+	/// </summary>
+	internal static CompileGroup CompileGroup { get; private set; }
 
 
 	/// <summary>

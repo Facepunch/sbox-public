@@ -22,7 +22,7 @@ public sealed class RecorderTest : SceneTestBase
 		options ??= MovieRecorderOptions.Default;
 
 		var recorder = new MovieRecorder( Game.ActiveScene, options );
-		var dt = MovieTime.FromFrames( 1, options.SampleRate );
+		var dt = MovieTime.FromFrames( 1, options.SampleRate * 4 );
 
 		while ( true )
 		{
@@ -80,6 +80,60 @@ public sealed class RecorderTest : SceneTestBase
 
 		Assert.IsTrue( posTrack.TryGetValue( MovieTime.Lerp( 0d, duration, 0.5 ), out var posC ) );
 		Assert.AreEqual( (startPos + endPos) * 0.5f, posC );
+	}
+
+	/// <summary>
+	/// Make sure two objects moving along the exact same path are still
+	/// at the same positions, even if one starts recording later.
+	/// </summary>
+	[TestMethod]
+	public void RecordPositionAligned()
+	{
+		var foo = new GameObject( "Foo" );
+		var bar = new GameObject( "Bar" ) { Enabled = false };
+
+		var startPos = new Vector3( 100f, 0f, 0f );
+		var endPos = new Vector3( 200f, 0f, 0f );
+
+		foo.LocalPosition = bar.LocalPosition = startPos;
+
+		var options = new MovieRecorderOptions()
+			.WithCaptureGameObject( foo )
+			.WithCaptureGameObject( bar );
+
+		var clip = Record( options, 1d, t =>
+		{
+			// Enable bar half a sample period after the start of the movie
+
+			bar.Enabled = t >= 0.5 / options.SampleRate;
+
+			// Both objects are always at the same position as each other during recording
+
+			foo.LocalPosition = bar.LocalPosition = Vector3.Lerp( startPos, endPos, (float)t.TotalSeconds );
+		} );
+
+		Console.WriteLine( Json.Serialize( clip ) );
+
+		var fooPosTrack = clip.GetProperty<Vector3>( foo.Name, nameof( GameObject.LocalPosition ) );
+		var barPosTrack = clip.GetProperty<Vector3>( bar.Name, nameof( GameObject.LocalPosition ) );
+
+		Assert.IsNotNull( fooPosTrack );
+		Assert.IsNotNull( barPosTrack );
+
+		Assert.IsTrue( fooPosTrack.TryGetValue( 0.0, out var fooStartPos ) );
+		Assert.AreEqual( startPos, fooStartPos );
+
+		// Bar track only starts recording a short time after 0.0
+
+		Assert.IsFalse( barPosTrack.TryGetValue( 0.0, out _ ) );
+
+		// Nevertheless, both tracks should be approximately the same at 0.5 seconds
+
+		Assert.IsTrue( fooPosTrack.TryGetValue( 0.5, out var fooMidPos ) );
+		Assert.IsTrue( barPosTrack.TryGetValue( 0.5, out var barMidPos ) );
+
+		Assert.IsTrue( fooMidPos.AlmostEqual( (startPos + endPos) * 0.5f, 0.01f ) );
+		Assert.IsTrue( barMidPos.AlmostEqual( (startPos + endPos) * 0.5f, 0.01f ) );
 	}
 
 	/// <summary>

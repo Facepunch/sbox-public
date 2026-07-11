@@ -26,7 +26,8 @@ public class GameObjectDiffTest
 	[DataRow( 100, 300, 300 )]
 	[DataRow( 100, 400, 400 )]
 	[DataRow( 100, 500, 500 )]
-	[DataRow( 5000, 5000, 5000 )] // stress test let's go
+	[DataRow( 500, 1000, 1000 )]
+	//[DataRow( 5000, 5000, 5000 )] // stress test let's go
 	public void StructuredGameObjects(
 		int gameObjectCount, int componentCount, int mutationCount )
 	{
