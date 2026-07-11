@@ -608,6 +608,10 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 				if ( nwo is not ObjectCreateMsg oc )
 					continue;
 
+				// Fold blobs into the shared scope - Deserialize is deferred to the batch flush,
+				// so a per-object scope would be gone before its blob data (eg. mesh) is read.
+				blobs.Load( oc.BlobData );
+
 				var go = new GameObject();
 				go.Deserialize( JsonNode.Parse( oc.JsonData ).AsObject(), networkDeserializeOptionsCreate );
 				createdNetworkObjects.Add( new( go, oc ) );
