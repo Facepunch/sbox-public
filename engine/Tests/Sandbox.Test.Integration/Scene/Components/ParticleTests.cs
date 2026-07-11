@@ -485,9 +485,10 @@ public class ParticleEffectTest
 	}
 
 	/// <summary>
-	/// With ApplyShape enabled the effect evaluates its Scale against each particle every
-	/// step. A linear 0-to-1 curve evaluated over life must produce a particle size equal
-	/// to the particle's stored LifeDelta on every axis.
+	/// With ApplyShape enabled the effect evaluates its over-lifetime Scale against each particle
+	/// every step, multiplied on top of the initial scale. A linear 0-to-1 curve evaluated over life
+	/// (with an initial scale of 1) must produce a particle size equal to the particle's stored
+	/// LifeDelta on every axis.
 	/// </summary>
 	[TestMethod]
 	public void ScaleCurve_EvaluatedOverLife()
@@ -499,7 +500,7 @@ public class ParticleEffectTest
 		var effect = go.Components.Create<ParticleEffect>();
 		effect.Lifetime = 1.0f;
 		effect.ApplyShape = true;
-		effect.Scale = new ParticleFloat
+		effect.ScaleOverLifetime = new ParticleFloat
 		{
 			Type = ParticleFloat.ValueType.Curve,
 			CurveA = Curve.Linear,
