@@ -1,0 +1,108 @@
+
+#include "sbox/ads/DockAreaWidget.h"
+#include "sbox/ads/DockManager.h"
+#include "sbox/dockcomponents.h"
+
+native enum ads::DockWidgetArea is Editor.DockManager.Area;
+native enum ads::CDockWidget::DockWidgetFeature is Editor.DockManager.DockWidgetFeature;
+
+native class ads::CDockManager as Native.CDockManager : QWidget
+{
+	inline static void Setup()
+	{
+		CSboxDockComponentsFactory::Install();
+
+		ads::CDockManager::setAutoHideConfigFlags(ads::CDockManager::DefaultAutoHideConfig);
+		ads::CDockManager::setAutoHideConfigFlag(ads::CDockManager::AutoHideShowOnMouseOver, true);
+		ads::CDockManager::setAutoHideConfigFlag(ads::CDockManager::DockAreaHasAutoHideButton, false);
+
+		ads::CDockManager::setConfigFlag( ads::CDockManager::DockAreaHasCloseButton, false );
+		ads::CDockManager::setConfigFlag( ads::CDockManager::AllTabsHaveCloseButton, true );
+		ads::CDockManager::setConfigFlag( ads::CDockManager::DockAreaHasUndockButton, false );
+		ads::CDockManager::setConfigFlag( ads::CDockManager::DockAreaDynamicTabsMenuButtonVisibility, true );
+		ads::CDockManager::setConfigFlag( ads::CDockManager::DisableTabTextEliding, true );
+		ads::CDockManager::setConfigFlag( ads::CDockManager::DoubleClickUndocksWidget, false );
+		ads::CDockManager::setConfigFlag( ads::CDockManager::OpaqueSplitterResize, true );
+		ads::CDockManager::setConfigFlag( ads::CDockManager::TabCloseButtonIsToolButton, true );
+		ads::CDockManager::setConfigFlag( ads::CDockManager::DisableStylesheet, true );
+	}
+
+	static CDockManager Create( QWidget parent ); [new]
+
+	CDockWidget createDockWidget( QString name );
+	CDockWidget findDockWidget( QString name );
+	void removeDockWidget( CDockWidget dockWidget );
+
+	void addDockWidget( Editor.DockManager.Area, CDockWidget dockWidget, CDockAreaWidget dockAreaWidget, int index );
+	void addDockWidgetTab( Editor.DockManager.Area, CDockWidget dockWidget );
+	void addDockWidgetTabToArea( CDockWidget dockWidget, CDockAreaWidget dockAreaWidget, int index );
+	void addDockWidgetFloating( CDockWidget dockWidget );
+
+	CDockWidget centralWidget();
+	void setCentralWidget( CDockWidget dockWidget );
+
+	QByteArray saveState( int version );
+	bool restoreState( const QByteArray state, int version );
+
+	// needs FocusHighlighting feature flag enabled
+	CDockWidget focusedDockWidget();
+
+	void hideManagerAndFloatingWidgets();
+
+	bool isRestoringState();
+}
+
+native class ads::CDockAreaWidget as Native.CDockAreaWidget : QWidget
+{
+
+}
+
+native class ads::CDockWidget as Native.CDockWidget : QWidget
+{
+	// don't wrap content in a QScrollArea - native render widgets inside one cause
+	// synchronous resize recursion (stack overflow); content manages its own scrolling
+	inline void setWidget( QWidget widget )
+	{
+		self->setWidget( widget, ads::CDockWidget::ForceNoScrollArea );
+	}
+
+	QWidget widget();
+
+	// CDockWidgetTab* tabWidget() const;
+
+	void setFeature( Editor.DockManager.DockWidgetFeature feature, bool on );
+
+	CDockManager dockManager();
+	CDockAreaWidget dockAreaWidget();
+
+	bool isCentralWidget();
+
+	void setIcon(QIcon icon);
+	inline void setIconFromPixmap( QPixmap icon )
+	{
+		QIcon qicon( *icon );
+		self->setIcon( qicon );
+	}
+
+	void setTabToolTip(QString tip);
+
+	inline void setMinimumSizeHintFromContent( bool enable )
+	{
+		self->setMinimumSizeHintMode( enable ? ads::CDockWidget::MinimumSizeHintFromContent : ads::CDockWidget::MinimumSizeHintFromDockWidget );
+	}
+
+	// bool isFullScreen();
+	bool isTabbed();
+	bool isCurrentTab();
+	void setAsCurrentTab();
+
+	// void raise();
+
+	void setFloating();
+	bool isFloating();
+
+	bool isClosed();
+
+	void toggleView( bool open );
+	void closeDockWidget();
+}

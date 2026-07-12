@@ -81,9 +81,9 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		SceneDock.Parent = EditorWindow;
 		SceneDock.Visible = true;
 
-		UpdateEditorTitle();
-
 		Dock();
+
+		UpdateEditorTitle();
 	}
 
 	internal static void OnEditorWindowRestoreLayout()
@@ -108,22 +108,12 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			dummy?.Destroy();
 	}
 
+	internal DockWidget DockWidget { get; private set; }
+
 	void Dock()
 	{
-		// Don't try to dock if we're being made by the DockManager (it will dock us after)
-		if ( EditorWindow.DockManager._creatingDock )
-			return;
-
-		// Dock inside the same area as other scenes (must be open)
-		var siblingDock = All.Where( x => x != this && EditorWindow.DockManager.IsDockOpen( x.SceneDock ) ).FirstOrDefault();
-		if ( siblingDock is not null )
-		{
-			EditorWindow.DockManager.AddDock( siblingDock.SceneDock, SceneDock, DockArea.Inside );
-			return;
-		}
-
-		// It should be impossible to have no scenes open, fail safe
-		EditorWindow.DockManager.AddDock( null, SceneDock, DockArea.LastUsed );
+		DockWidget = EditorWindow.DockManager.CreateDockWidget( SceneDock.Name, "grid_4x4", SceneDock );
+		EditorWindow.DockManager.AddDock( DockWidget, DockArea.Center );
 	}
 
 	bool _destroyed;
@@ -160,6 +150,12 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		GameSession?.Destroy();
 		GameSession = null;
 
+		if ( DockWidget.IsValid() )
+		{
+			EditorWindow?.DockManager?.RemoveDock( DockWidget );
+			DockWidget = default;
+		}
+
 		SceneDock?.Destroy();
 		SceneDock = default;
 	}
@@ -182,9 +178,9 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public void BringToFront()
 	{
-		if ( EditorWindow.DockManager.IsDockOpen( SceneDock, false ) )
+		if ( DockWidget.IsValid() )
 		{
-			EditorWindow.DockManager.RaiseDock( SceneDock );
+			DockWidget.SetAsCurrentTab();
 		}
 
 		UpdateEditorTitle();
@@ -230,6 +226,11 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			{
 				SceneDock.SetWindowIcon( "grid_4x4" );
 				SceneDock.WindowTitle = name;
+			}
+
+			if ( DockWidget.IsValid() )
+			{
+				DockWidget.WindowTitle = SceneDock.WindowTitle;
 			}
 		}
 	}
@@ -443,6 +444,47 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	[Obsolete]
 	public void RecordChange( SerializedProperty property )
 	{
+	}
+
+	/// <summary>
+	/// Persist the list of open scenes so they can be reopened next session.
+	/// </summary>
+	internal static void SaveOpenSessions()
+	{
+		var open = All
+			.Where( x => x is not GameEditorSession )
+			.Select( x => x.Scene.Source?.ResourcePath )
+			.Where( x => !string.IsNullOrEmpty( x ) )
+			.Distinct()
+			.ToArray();
+
+		ProjectCookie?.Set( "editor.openscenes", open );
+		ProjectCookie?.Set( "editor.activescene", Active?.Scene.Source?.ResourcePath );
+	}
+
+	/// <summary>
+	/// Reopen the scenes that were open last session. Falls back to the project's
+	/// startup scene (or a blank scene) if there's nothing to restore.
+	/// </summary>
+	internal static void RestoreOpenSessions()
+	{
+		foreach ( var path in ProjectCookie?.Get( "editor.openscenes", Array.Empty<string>() ) ?? [] )
+		{
+			CreateFromPath( path );
+		}
+
+		if ( All.Count == 0 )
+		{
+			var startupScene = Project.Current?.Config.GetMetaOrDefault<string>( "StartupScene", null );
+			var session = string.IsNullOrWhiteSpace( startupScene ) ? null : CreateFromPath( startupScene );
+			session ??= CreateDefault();
+			session.MakeActive();
+			return;
+		}
+
+		var activePath = ProjectCookie?.Get<string>( "editor.activescene", null );
+		var active = All.FirstOrDefault( x => x.Scene.Source?.ResourcePath == activePath ) ?? All[0];
+		active.MakeActive();
 	}
 
 	/// <summary>

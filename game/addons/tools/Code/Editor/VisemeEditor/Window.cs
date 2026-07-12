@@ -7,7 +7,6 @@ public class Window : DockWindow
 {
 	public bool CanOpenMultipleAssets => true;
 
-	private string DefaultDockState;
 	private Preview Preview;
 	private Visemes Visemes;
 	private Morphs Morphs;
@@ -77,25 +76,20 @@ public class Window : DockWindow
 
 	public void CreateUI()
 	{
-		DockManager.RegisterDockType( "Morphs", "tune", null, false );
 		Morphs = new Morphs( this );
 		Morphs.Model = Model;
 		Morphs.OnValueEdited += OnMorphEdited;
 		Morphs.OnReset += OnResetMorphs;
-		DockManager.AddDock( null, Morphs, DockArea.Right, DockManager.DockProperty.HideOnClose );
+		var morphsDock = DockManager.AddDock( "Morphs", "tune", Morphs, DockArea.Right );
 
-		DockManager.RegisterDockType( "Visemes", "abc", null, false );
 		Visemes = new Visemes( this );
 		Visemes.Model = Model;
 		Visemes.OnSelectionChanged += OnVisemeSelected;
-		DockManager.AddDock( null, Visemes, DockArea.Right, DockManager.DockProperty.HideOnClose );
+		DockManager.AddDock( "Visemes", "abc", Visemes, DockArea.Right, relativeTo: morphsDock );
 
-		DockManager.RegisterDockType( "Preview", "photo", null, false );
 		Preview = new Preview( this );
 		Preview.Model = Model;
-		DockManager.AddDock( null, Preview, DockArea.Left, DockManager.DockProperty.HideOnClose, 1.5f );
-
-		DockManager.Update();
+		DockManager.AddDock( "Preview", "photo", Preview, DockArea.Left );
 
 		if ( VisemeSelected != null )
 		{
@@ -111,8 +105,6 @@ public class Window : DockWindow
 			Preview.SetMorphs( morphs );
 			Visemes.SetMorphs( VisemeSelected, morphs );
 		}
-
-		DefaultDockState = DockManager.State;
 
 		if ( StateCookie != "VisemeEditor" )
 		{
@@ -176,13 +168,6 @@ public class Window : DockWindow
 		{
 			VisemeData.Remove( key );
 		}
-	}
-
-	protected override void RestoreDefaultDockLayout()
-	{
-		DockManager.State = DefaultDockState;
-
-		SaveToStateCookie();
 	}
 
 	[EditorEvent.Hotload]

@@ -94,6 +94,14 @@ native class QWidget as Native.QWidget : QObject
     bool isMaximized();
     bool isFullScreen();
 
+	inline void setMaximized( bool maximized )
+	{
+		if ( maximized )
+			self->setWindowState( self->windowState() | Qt::WindowMaximized );
+		else
+			self->setWindowState( self->windowState() & ~Qt::WindowMaximized );
+	}
+
 	void setMouseTracking(bool enable);
     bool hasMouseTracking();
     bool underMouse();
@@ -161,6 +169,53 @@ native class QWidget as Native.QWidget : QObject
 	inline QRect ScreenGeometry()
 	{
 		return self->screen()->availableGeometry();
+	}
+
+	// the window's client geometry in global coordinates - save this and feed it back
+	// to tryRestoreGeometry to reproduce the window placement exactly, with no window
+	// frame margin guesswork
+	inline QRect windowGeometry()
+	{
+		return self->geometry();
+	}
+
+	// applies saved window geometry if the screen it was on still exists. The platform
+	// window must exist and be associated with that screen before we move, otherwise
+	// Qt maps the coordinates with the DPI scale of whatever screen the window would
+	// otherwise be created on. Returns false if no screen contains the rect.
+	inline bool tryRestoreGeometry( QRect rect )
+	{
+		QScreen* screen = QGuiApplication::screenAt( rect.center().toPoint() );
+		if ( !screen )
+			return false;
+
+		self->createWinId();
+		self->windowHandle()->setScreen( screen );
+
+		self->setGeometry( rect.toRect() );
+		return true;
+	}
+
+	// centers on the given window's screen, or the screen this window is already on
+	// (primary if it hasn't been created yet), clamping size to fit. If this window is
+	// already created we must reassociate it with the target screen first, otherwise Qt
+	// maps the move against the screen it's currently on, misplacing it when monitor
+	// DPIs differ. Windows not yet created just store the geometry and resolve their
+	// screen on creation.
+	inline void centerOnScreen( QWidget other )
+	{
+		QWindow* handle = self->windowHandle();
+		QScreen* screen = other ? other->screen() : handle ? self->screen() : QGuiApplication::primaryScreen();
+
+		if ( handle )
+			handle->setScreen( screen );
+
+		QRect avail = screen->availableGeometry();
+		self->resize( self->size().boundedTo( avail.size() ) );
+
+		QRect frame = self->frameGeometry();
+		frame.moveCenter( other ? other->window()->frameGeometry().center() : avail.center() );
+		self->move( frame.topLeft() );
 	}
 
 	void setContentsMargins(int left, int top, int right, int bottom);

@@ -83,8 +83,6 @@ public class MainWindow : DockWindow
 	private List<string> _fileHistory = new();
 	private int _fileHistoryPosition = 0;
 
-	private string _defaultDockState;
-
 	public bool CanOpenMultipleAssets => true;
 
 	public MainWindow()
@@ -1068,14 +1066,6 @@ public class MainWindow : DockWindow
 	{
 		BuildMenuBar();
 
-		DockManager.RegisterDockType( "Graph", "account_tree", null, false );
-		DockManager.RegisterDockType( "Preview", "photo", null, false );
-		DockManager.RegisterDockType( "Properties", "edit", null, false );
-		DockManager.RegisterDockType( "Output", "notes", null, false );
-		DockManager.RegisterDockType( "Console", "text_snippet", null, false );
-		DockManager.RegisterDockType( "Undo History", "history", null, false );
-		DockManager.RegisterDockType( "Palette", "palette", null, false );
-
 		_graphCanvas = new Widget( this ) { WindowTitle = $"{(_asset != null ? _asset.Name : "untitled")}{(_dirty ? "*" : "")}" };
 		_graphCanvas.Name = "Graph";
 		_graphCanvas.SetWindowIcon( "account_tree" );
@@ -1181,22 +1171,18 @@ public class MainWindow : DockWindow
 
 		_palette = new PaletteWidget( this, IsSubgraph );
 
-		DockManager.AddDock( null, _preview, DockArea.Left, DockManager.DockProperty.HideOnClose );
-		DockManager.AddDock( null, _graphCanvas, DockArea.Right, DockManager.DockProperty.HideCloseButton | DockManager.DockProperty.HideOnClose, 0.7f );
-		DockManager.AddDock( _graphCanvas, _output, DockArea.Bottom, DockManager.DockProperty.HideOnClose, 0.25f );
-		DockManager.AddDock( _preview, _properties, DockArea.Bottom, DockManager.DockProperty.HideOnClose, 0.5f );
+		var graph = DockManager.AddDock( "Graph", "account_tree", _graphCanvas, DockArea.Center );
+		var preview = DockManager.AddDock( "Preview", "photo", _preview, DockArea.Left );
+		DockManager.AddDock( "Properties", "edit", _properties, DockArea.Bottom, relativeTo: preview );
+		var output = DockManager.AddDock( "Output", "notes", _output, DockArea.Bottom, relativeTo: graph );
 
-		// Yuck, console is internal but i want it, what is the correct way?
-		var console = EditorTypeLibrary.Create( "ConsoleWidget", typeof( Widget ), new[] { this } ) as Widget;
-		DockManager.AddDock( _output, console, DockArea.Inside, DockManager.DockProperty.HideOnClose );
+		if ( EditorTypeLibrary.Create( "ConsoleWidget", typeof( Widget ), new[] { this } ) is Widget console )
+			DockManager.AddDock( "Console", "text_snippet", console, DockArea.Center, relativeTo: output );
 
-		DockManager.AddDock( _output, _undoHistory, DockArea.Inside, DockManager.DockProperty.HideOnClose );
-		DockManager.AddDock( _output, _palette, DockArea.Inside, DockManager.DockProperty.HideOnClose );
+		DockManager.AddDock( "Undo History", "history", _undoHistory, DockArea.Center, relativeTo: output );
+		DockManager.AddDock( "Palette", "palette", _palette, DockArea.Center, relativeTo: output );
 
 		DockManager.RaiseDock( "Output" );
-		DockManager.Update();
-
-		_defaultDockState = DockManager.State;
 
 		if ( StateCookie != "ShaderGraph" )
 		{
@@ -1220,13 +1206,6 @@ public class MainWindow : DockWindow
 
 		var shouldEvaluate = _properties.Target is not CommentNode;
 		SetDirty( shouldEvaluate );
-	}
-
-	protected override void RestoreDefaultDockLayout()
-	{
-		DockManager.State = _defaultDockState;
-
-		SaveToStateCookie();
 	}
 
 	protected override bool OnClose()

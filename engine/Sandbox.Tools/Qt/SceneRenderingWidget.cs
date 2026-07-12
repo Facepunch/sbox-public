@@ -36,6 +36,10 @@ public class SceneRenderingWidget : Frame
 
 	public SceneRenderingWidget( Widget parent = null ) : base( parent )
 	{
+		// Keep ancestors non-native, otherwise every dock splitter above us becomes a
+		// real HWND and resizes recurse through Win32 until stack overflow. Must be
+		// set before WA_NativeWindow. See qtoolscenewidget.cpp for the full story.
+		SetFlag( Flag.WA_DontCreateNativeAncestors, true );
 		SetFlag( Flag.WA_NativeWindow, true );
 		SetFlag( Flag.WA_PaintOnScreen, true );
 		SetFlag( Flag.WA_NoSystemBackground, true );
@@ -62,10 +66,7 @@ public class SceneRenderingWidget : Frame
 		All.Remove( this );
 		RenderSettings.Instance.OnVideoSettingsChanged -= HandleVideoChanged;
 
-		// The swapchain might still be in use by native, so defer its destruction until the end of the frame.
-		// Otherwise, a race condition could occur where render targets are accessed after destruction, causing a delayed crash.
-		EngineLoop.DisposeAtFrameEnd( new Sandbox.Utility.DisposeAction( () => g_pRenderDevice.DestroySwapChain( SwapChain ) ) );
-		SwapChain = default;
+		ReleaseSwapChain();
 
 		GizmoInstance?.Dispose();
 		GizmoInstance = default;
@@ -158,12 +159,34 @@ public class SceneRenderingWidget : Frame
 		UpdateGizmoInputs( ref GizmoInstance.Input, camera, hasMouseFocus );
 	}
 
+	// Qt destroys and recreates our native window when a dock reparents us into
+	// another window - release the swapchain and Render will rebuild it against
+	// the new handle.
+	internal override void OnWinIdChanged()
+	{
+		ReleaseSwapChain();
+	}
+
+	void ReleaseSwapChain()
+	{
+		if ( SwapChain == default ) return;
+
+		// The swapchain might still be in use by native, so defer its destruction until the end of the frame.
+		// Otherwise, a race condition could occur where render targets are accessed after destruction, causing a delayed crash.
+		var swapChain = SwapChain;
+		EngineLoop.DisposeAtFrameEnd( new Sandbox.Utility.DisposeAction( () => g_pRenderDevice.DestroySwapChain( swapChain ) ) );
+		SwapChain = default;
+	}
+
 	void Render()
 	{
 		if ( !Scene.IsValid() ) return;
 		if ( !Visible ) return;
 
-		if ( SwapChain == default ) return;
+		if ( SwapChain == default )
+		{
+			SwapChain = WidgetUtil.CreateSwapChain( _widget, RenderSettings.Instance.AntiAliasQuality.ToEngine() );
+		}
 
 		using ( Scene.Push() )
 		{

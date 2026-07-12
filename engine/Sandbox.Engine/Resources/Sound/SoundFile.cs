@@ -81,11 +81,6 @@ public partial class SoundFile : Resource, IValid
 	internal static Dictionary<string, SoundFile> Loaded = new( StringComparer.OrdinalIgnoreCase );
 
 	/// <summary>
-	/// Ran when the file is reloaded/recompiled, etc.
-	/// </summary>
-	public Action OnSoundReloaded { get; set; }
-
-	/// <summary>
 	/// true if sound is loaded
 	/// </summary>
 	public bool IsLoaded => sound.IsValid;
@@ -188,8 +183,6 @@ public partial class SoundFile : Resource, IValid
 	{
 		if ( native.IsValid )
 			sound = native.GetSound();
-
-		OnSoundReloaded?.Invoke();
 	}
 
 	/// <summary>
@@ -468,9 +461,17 @@ public partial class SoundFile : Resource, IValid
 	};
 
 	/// <summary>
-	/// Request decompressed audio samples.
+	/// Request decompressed audio samples. Multi-channel sounds are downmixed to mono.
 	/// </summary>
-	public async Task<short[]> GetSamplesAsync()
+	public Task<short[]> GetSamplesAsync() => GetSamplesAsync( false );
+
+	/// <summary>
+	/// Request decompressed audio samples. Stereo sounds keep both channels, interleaved
+	/// (L,R,L,R..). Sounds with any other channel count are downmixed to mono.
+	/// </summary>
+	public Task<short[]> GetSamplesInterleavedAsync() => GetSamplesAsync( true );
+
+	async Task<short[]> GetSamplesAsync( bool interleaved )
 	{
 		if ( native.IsNull )
 			return null;
@@ -489,6 +490,10 @@ public partial class SoundFile : Resource, IValid
 				return null;
 			}
 		}
+
+		// make sure the sound handle is valid so things like Channels work below
+		if ( !sound.IsValid )
+			sound = native.GetSound();
 
 		timeout = 0;
 
@@ -510,11 +515,11 @@ public partial class SoundFile : Resource, IValid
 			}
 
 
-			return GetSamples();
+			return GetSamples( interleaved );
 		}
 	}
 
-	unsafe short[] GetSamples()
+	unsafe short[] GetSamples( bool interleaved )
 	{
 		int sampleCount = native.GetSampleCount();
 		if ( sampleCount == 0 )
@@ -522,12 +527,22 @@ public partial class SoundFile : Resource, IValid
 			return null;
 		}
 
+		// the native interleaved path only preserves stereo - anything else comes back mono
+		if ( interleaved && Channels == 2 )
+		{
+			sampleCount *= 2;
+		}
+
 		// TODO: do something better than allocating an array each time?
 		var samples = new short[sampleCount];
 
 		fixed ( short* memory = &samples[0] )
 		{
-			if ( !native.GetSamples( (IntPtr)memory, (uint)sampleCount ) )
+			var ok = interleaved
+				? native.GetSamplesInterleaved( (IntPtr)memory, (uint)sampleCount )
+				: native.GetSamples( (IntPtr)memory, (uint)sampleCount );
+
+			if ( !ok )
 				return null;
 		}
 

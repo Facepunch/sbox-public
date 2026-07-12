@@ -2,7 +2,7 @@
 
 namespace Editor;
 
-[Dock( "Editor", "Asset Browser", "folder_open" )]
+[Dock( "Editor", "Asset Browser", "folder_open", DockArea.Bottom )]
 public class MainAssetBrowser : WrappedAssetBrowser
 {
 	private static WrappedAssetBrowser _instance;
@@ -77,12 +77,5 @@ public class MainAssetBrowser : WrappedAssetBrowser
 
 		EditorUtility.InspectorObject = asset;
 		return true;
-	}
-
-	[Event( "tools.editorwindow.postcreateview" )]
-	private static void AddViewMenuButtons( Menu menu )
-	{
-		menu.AddSeparator();
-		menu.AddOption( "New Asset Browser", "create_new_folder", () => EditorWindow.DockManager.Create<MainAssetBrowser>() );
 	}
 }

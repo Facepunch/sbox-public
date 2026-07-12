@@ -903,14 +903,15 @@ namespace Editor
 
 		/// <summary>
 		/// Restore position and size previously stored via <see cref="SaveGeometry"/>.
+		/// Returns false if the state is empty or no longer valid, e.g. after monitor or DPI changes.
 		/// </summary>
 		/// <param name="state"></param>
-		public void RestoreGeometry( string state )
+		public bool RestoreGeometry( string state )
 		{
 			if ( string.IsNullOrWhiteSpace( state ) )
-				return;
+				return false;
 
-			_widget.restoreGeometry( state );
+			return _widget.restoreGeometry( state );
 		}
 
 		/// <summary>
@@ -1066,6 +1067,21 @@ namespace Editor
 		}
 
 		public bool IsMaximized => _widget.isMaximized();
+
+		/// <summary>
+		/// Centre this window. Visible windows stay on their current screen;
+		/// windows not yet shown open centred over the main editor window.
+		/// </summary>
+		internal void CenterWindow()
+		{
+			var relativeTo = !Visible && EditorWindow.IsValid() && EditorWindow != this ? EditorWindow : null;
+			_widget.centerOnScreen( relativeTo?._widget ?? default );
+		}
+
+		/// <summary>
+		/// Set the maximized window state without showing the window, unlike <see cref="MakeMaximized"/>.
+		/// </summary>
+		public void SetMaximized( bool maximized ) => _widget.setMaximized( maximized );
 
 		public void MakeWindowed()
 		{

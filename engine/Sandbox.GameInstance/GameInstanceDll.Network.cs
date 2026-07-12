@@ -345,7 +345,8 @@ internal partial class GameInstanceDll
 		// No network files needed for package based games
 		if ( gameInstance.IsRemote ) return;
 
-		Log.Info( "Building network files.." );
+		if ( AssetDownloadCache.DebugNetworkFiles )
+			Log.Info( "Building network files.." );
 
 		// include anything on resource paths
 		var project = Project.Current;
@@ -380,7 +381,8 @@ internal partial class GameInstanceDll
 
 		NetworkTransientGeneratedFiles( project );
 
-		Log.Info( $"..done in {sw.Elapsed.TotalSeconds:0.00}s" );
+		if ( AssetDownloadCache.DebugNetworkFiles )
+			Log.Info( $"..done in {sw.Elapsed.TotalSeconds:0.00}s" );
 	}
 
 	/// <summary>

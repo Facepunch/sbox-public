@@ -83,7 +83,7 @@ public class AssetPreviewWidget : Widget
 		Update();
 	}
 
-	protected override Vector2 SizeHint() => 400;
+	protected override Vector2 SizeHint() => new Vector2( 100, preview?.PreferredHeight ?? 400 );
 
 	public override void OnDestroyed()
 	{

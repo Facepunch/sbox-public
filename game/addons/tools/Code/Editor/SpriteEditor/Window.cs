@@ -61,10 +61,12 @@ public class Window : DockWindow, IAssetEditor
 		OnSpriteModified += UpdateCurrentAnimation;
 		OnAnimationSelected += () => _lastAnimationName = SelectedAnimation?.Name;
 
-		StateCookie = "SpriteEditor";
-
 		SetWindowIcon( "emoji_emotions" );
-		RestoreDefaultDockLayout();
+
+		CreateDocks();
+		RebuildUI();
+
+		StateCookie = "SpriteEditor";
 	}
 
 	public void AssetOpen( Asset asset )
@@ -79,32 +81,14 @@ public class Window : DockWindow, IAssetEditor
 		throw new NotImplementedException();
 	}
 
-	protected override void RestoreDefaultDockLayout()
+	private void CreateDocks()
 	{
-		var inspector = new Inspector( this );
-		var timeline = new Timeline( this );
-		var animationList = new AnimationList( this );
 		_preview = new Preview( this );
 
-		DockManager.Clear();
-		DockManager.RegisterDockType( "Preview", "emoji_emotions", () =>
-		{
-			_preview = new Preview( this );
-			return _preview;
-		} );
-		DockManager.RegisterDockType( "Inspector", "edit", () => new Inspector( this ) );
-		DockManager.RegisterDockType( "Timeline", "view_column", () => new Timeline( this ) );
-		DockManager.RegisterDockType( "Animations", "directions_walk", () => new AnimationList( this ) );
-
-		DockManager.AddDock( null, inspector, DockArea.Left, DockManager.DockProperty.HideOnClose );
-		DockManager.AddDock( null, _preview, DockArea.Right, DockManager.DockProperty.HideOnClose, split: 0.8f );
-
-		DockManager.AddDock( _preview, timeline, DockArea.Bottom, DockManager.DockProperty.HideOnClose, split: 0.2f );
-		DockManager.AddDock( inspector, animationList, DockArea.Bottom, DockManager.DockProperty.HideOnClose, split: 0.45f );
-
-		DockManager.Update();
-
-		RebuildUI();
+		var preview = DockManager.AddDock( "Preview", "emoji_emotions", _preview, DockArea.Center );
+		var inspector = DockManager.AddDock( "Inspector", "edit", new Inspector( this ), DockArea.Left );
+		DockManager.AddDock( "Animations", "directions_walk", new AnimationList( this ), DockArea.Bottom, relativeTo: inspector );
+		DockManager.AddDock( "Timeline", "view_column", new Timeline( this ), DockArea.Bottom, relativeTo: preview );
 	}
 
 	private void RebuildUI()

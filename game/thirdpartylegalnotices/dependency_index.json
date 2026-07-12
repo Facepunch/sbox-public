@@ -863,16 +863,16 @@
 			]
 		},
 		{
-			"Name": "ToolWindowManager",
-			"Comment": "ToolWindowManager is a Qt based tool window manager. This allows Qt projects to use docking functionality similar to QDockWidget, but since it's a separate component it's easier to customise and extend and so has a number of improvements over the built-in docking system.",
+			"Name": "Qt Advanced Docking System",
+			"Comment": "Qt Advanced Docking System lets you create customizable layouts using a full featured window docking system similar to what is found in many popular integrated development environments (IDEs) such as Visual Studio.",
 			"UsedBy": [
 				"toolframework2"
 			],
-			"License": "MIT",
-			"ProjectUrl": "https://github.com/baldurk/toolwindowmanager",
-			"Linkage": "static",
+			"License": "LGPL-2.1",
+			"ProjectUrl": "https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System",
+			"Linkage": "dynamic",
 			"Copyright": [
-				"2014 Pavel Strakhov"
+				"2017 Uwe Kindler"
 			]
 		},
 		{

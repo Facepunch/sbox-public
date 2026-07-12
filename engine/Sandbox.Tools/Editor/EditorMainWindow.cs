@@ -104,7 +104,6 @@ public class EditorMainWindow : DockWindow
 	private Option discard;
 	private Option undoOption;
 	private Option redoOption;
-	private Option gameMode;
 
 	internal EditorMainWindow()
 	{
@@ -157,9 +156,10 @@ public class EditorMainWindow : DockWindow
 			var gameMenu = MenuBar.AddMenu( "Game" );
 			gameMenu.AddOption( "Play", "play_arrow", EditorScene.TogglePlay, "editor.toggle-play" );
 
-			gameMode = gameMenu.AddOption( new Option()
+			gameMenu.AddOption( new Option()
 			{
 				Checkable = true,
+				Checked = EditorScene.PlayMode,
 				Toggled = ( b ) => EditorScene.PlayMode = b,
 				Text = "Play in Game Mode",
 				Icon = "sports_esports"
@@ -310,25 +310,16 @@ public class EditorMainWindow : DockWindow
 		// Load gizmo settings
 		EditorScene.RestoreState();
 
-		// Load game mode value
-		gameMode.Checked = EditorScene.PlayMode;
-
 		// Register our menu bar and dock options, doesn't open anything
 		MenuBar.RegisterNamed( "Editor", MenuBar );
 		DockAttribute.RegisterWindow( "Editor", this );
 
+		// Reopen last session's scenes so their docks exist before the layout is restored
+		SceneEditorSession.RestoreOpenSessions();
+
 		// This will attempt to restore the last used layout (or default layout if first time)
 		// Which means it will create dock widgets and move them around
-		// This also involves creating SceneDocks which open scenes
 		StateCookie = "SboxSceneEditor";
-
-		// fucking horrible
-		string geometryCookie = EditorCookie.GetString( $"Window.{StateCookie}.Geometry", null );
-		if ( geometryCookie is null )
-		{
-			// no saved geometry, so default to center
-			Center();
-		}
 
 		EditorEvent.Run( "editor.created", this );
 
@@ -342,24 +333,39 @@ public class EditorMainWindow : DockWindow
 		NativeEngine.InputSystem.SetEditorMainWindow( _widget.winId() );
 	}
 
-	record struct LayoutFile( string Name, string Json );
+	public override void SaveToStateCookie()
+	{
+		base.SaveToStateCookie();
+
+		SceneEditorSession.SaveOpenSessions();
+	}
 
 	protected override void RestoreDefaultDockLayout()
 	{
-		var layout = FileSystem.Config.ReadJsonOrDefault<LayoutFile>( $"/editor/layout/default.json", default );
-		if ( layout.Name is null ) return;
-		if ( layout.Json is null ) return;
-
-		var json = layout.Json;
-
-		// On first launch, open the project's startup scene instead of a blank untitled scene
-		var startupScene = Project.Current?.Config.GetMetaOrDefault<string>( "StartupScene", null );
-		if ( !string.IsNullOrWhiteSpace( startupScene ) )
+		// hide everything, leaving the scene views as the only visible areas
+		foreach ( var dock in DockManager.DockTypes )
 		{
-			json = json.Replace( "SceneDock:untitled", $"SceneDock:{startupScene}" );
+			DockManager.SetDockState( dock.Title, false );
 		}
 
-		DockManager.State = json;
+		// make sure every scene is open, gathered into a single central area
+		SceneEditorSession.OnEditorWindowRestoreLayout();
+
+		DockWidget scene = null;
+		foreach ( var session in SceneEditorSession.All )
+		{
+			var dock = session.DockWidget;
+			if ( !dock.IsValid() || dock.IsClosed ) continue;
+
+			if ( scene is null ) scene = dock;
+			else DockManager.AddDock( dock, scene );
+		}
+
+		// classic layout: hierarchy left, inspector right, asset browser + console under the scene
+		DockManager.OpenDock( "Hierarchy", DockArea.Left );
+		DockManager.OpenDock( "Inspector", DockArea.Right );
+		var browser = DockManager.OpenDock( "Asset Browser", DockArea.Bottom, scene );
+		DockManager.OpenDock( "Console", DockArea.Center, browser );
 	}
 
 	/// <summary>

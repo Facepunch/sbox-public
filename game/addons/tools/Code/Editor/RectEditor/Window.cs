@@ -30,8 +30,6 @@ public partial class Window : DockWindow, IAssetEditor
 
 	private UndoSystem UndoSystem;
 
-	private string DefaultDockState;
-
 	public int GridPower { get; set; } = 4;
 	public bool GridEnabled { get; set; } = true;
 
@@ -177,19 +175,16 @@ public partial class Window : DockWindow, IAssetEditor
 
 	protected virtual void BuildDock()
 	{
-		DockManager.RegisterDockType( "Rect View", "space_dashboard", null, false );
 		RectView = new RectView( this );
-		DockManager.AddDock( null, RectView, DockArea.Right, DockManager.DockProperty.HideOnClose, 0.0f );
+		DockManager.AddDock( "Rect View", "space_dashboard", RectView, DockArea.Right );
 
-		DockManager.RegisterDockType( "Properties", "edit", null, false );
 		Properties = new Properties( this );
 		UpdateProperties();
-		DockManager.AddDock( null, Properties, DockArea.Left, DockManager.DockProperty.HideOnClose, 0.4f );
+		var properties = DockManager.AddDock( "Properties", "edit", Properties, DockArea.Left );
 
-		DockManager.RegisterDockType( "Material Reference", "texture", null, false );
 		MaterialReference = new MaterialReference( this, OnReferenceChanged );
 		MaterialReference.SetReferences( MaterialReferences );
-		DockManager.AddDock( Properties, MaterialReference, DockArea.Bottom, DockManager.DockProperty.HideOnClose, 0.4f );
+		DockManager.AddDock( "Material Reference", "texture", MaterialReference, DockArea.Bottom, relativeTo: properties );
 	}
 
 	protected virtual void InitRectanglesFromMeshFaces()
@@ -255,9 +250,6 @@ public partial class Window : DockWindow, IAssetEditor
 		{
 			MaterialReference.Select( previousMat );
 		}
-
-		DockManager.Update();
-		DefaultDockState = DockManager.State;
 
 		if ( StateCookie != Name )
 		{
@@ -510,13 +502,6 @@ public partial class Window : DockWindow, IAssetEditor
 	public void SelectMember( string memberName )
 	{
 		throw new NotImplementedException();
-	}
-
-	protected override void RestoreDefaultDockLayout()
-	{
-		DockManager.State = DefaultDockState;
-
-		SaveToStateCookie();
 	}
 
 	[EditorEvent.Hotload]
