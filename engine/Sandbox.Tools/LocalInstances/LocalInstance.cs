@@ -58,4 +58,23 @@ public static class LocalInstance
 		EditorWindow.DockManager.AddDock( sibling, widget, sibling.IsValid() ? DockArea.Inside : DockArea.Right );
 		EditorWindow.DockManager.RaiseDock( widget );
 	}
+
+	//
+	// CTRL+F1..F12 gives input focus to docked client 1..12 and raises its tab;
+	// pressing it again hands input back to the host. Works from the editor and
+	// while playing (engine function keys route into the same shortcuts).
+	//
+
+	[Shortcut( "localinstances.focus1", "CTRL+F1", ShortcutType.Window )] static void FocusClient1() => ClientInstanceWidget.FocusInstance( 1 );
+	[Shortcut( "localinstances.focus2", "CTRL+F2", ShortcutType.Window )] static void FocusClient2() => ClientInstanceWidget.FocusInstance( 2 );
+	[Shortcut( "localinstances.focus3", "CTRL+F3", ShortcutType.Window )] static void FocusClient3() => ClientInstanceWidget.FocusInstance( 3 );
+	[Shortcut( "localinstances.focus4", "CTRL+F4", ShortcutType.Window )] static void FocusClient4() => ClientInstanceWidget.FocusInstance( 4 );
+	[Shortcut( "localinstances.focus5", "CTRL+F5", ShortcutType.Window )] static void FocusClient5() => ClientInstanceWidget.FocusInstance( 5 );
+	[Shortcut( "localinstances.focus6", "CTRL+F6", ShortcutType.Window )] static void FocusClient6() => ClientInstanceWidget.FocusInstance( 6 );
+	[Shortcut( "localinstances.focus7", "CTRL+F7", ShortcutType.Window )] static void FocusClient7() => ClientInstanceWidget.FocusInstance( 7 );
+	[Shortcut( "localinstances.focus8", "CTRL+F8", ShortcutType.Window )] static void FocusClient8() => ClientInstanceWidget.FocusInstance( 8 );
+	[Shortcut( "localinstances.focus9", "CTRL+F9", ShortcutType.Window )] static void FocusClient9() => ClientInstanceWidget.FocusInstance( 9 );
+	[Shortcut( "localinstances.focus10", "CTRL+F10", ShortcutType.Window )] static void FocusClient10() => ClientInstanceWidget.FocusInstance( 10 );
+	[Shortcut( "localinstances.focus11", "CTRL+F11", ShortcutType.Window )] static void FocusClient11() => ClientInstanceWidget.FocusInstance( 11 );
+	[Shortcut( "localinstances.focus12", "CTRL+F12", ShortcutType.Window )] static void FocusClient12() => ClientInstanceWidget.FocusInstance( 12 );
 }

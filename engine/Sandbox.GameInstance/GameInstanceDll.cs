@@ -523,7 +523,18 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		using ( Game.ActiveScene?.Push() )
 		{
 			Game.Language?.Tick();
-			GlobalContext.Current.UISystem.Simulate( mouseIsAllowed );
+
+			// While a docked in-process client has input focus, ITS UI system processes
+			// input (hover/focus state is process-global, one processor per frame) and
+			// its input context leads the router - the host's UI just keeps rendering.
+			if ( InProcessClientSession.Focused is not null )
+			{
+				GlobalContext.Current.UISystem.SimulateNoInput();
+			}
+			else
+			{
+				GlobalContext.Current.UISystem.Simulate( mouseIsAllowed );
+			}
 
 			Game.ActiveScene?.ProcessDeletes();
 		}

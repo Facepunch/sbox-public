@@ -159,14 +159,20 @@ internal sealed class InProcessTenant : IDisposable
 			BuildTypeLibrary( gameAssemblies );
 
 			// A tenant UI world of its own, so in-game panels don't route through the
-			// host's UI system. Deliberately not wired to device input events - input
-			// reaches the focused tenant through the session's input routing instead.
+			// host's UI system. While this session has input focus, the input router
+			// puts this context FIRST - so its UI state decides UI-vs-game routing and
+			// mouse capture, UI events land in the tenant's queue, and game events feed
+			// the global input accumulators exactly like the host's context does.
 			var uiSystem = new UISystem();
 			var inputContext = new InputContext
 			{
 				Name = _debugName,
 				TargetUISystem = uiSystem
 			};
+
+			inputContext.OnGameMouseWheel += Input.AddMouseWheel;
+			inputContext.OnMouseMotion += Input.AddMouseMovement;
+			inputContext.OnGameButton += Input.OnButton;
 
 			context.UISystem = uiSystem;
 			context.InputContext = inputContext;
@@ -339,6 +345,12 @@ internal sealed class InProcessTenant : IDisposable
 		{
 			try
 			{
+				// The whole teardown runs under the tenant's scope: resource destruction
+				// resolves Game.Resources ambiently, and running it under the host's
+				// context made every tenant resource copy unregister the HOST's entry
+				// for the same file - prefabs vanished from the editor until restart.
+				using var scope = new GlobalContext.GlobalContextScope( Context );
+
 				// The tenant's own serializer options hold JsonTypeInfo for its private
 				// types - clear THAT instance's caches only. Never the global STJ cache:
 				// nuking the host's serializer state mid-session corrupts things like

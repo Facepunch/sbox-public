@@ -370,6 +370,44 @@ public class InProcessIsolationTests
 	}
 
 	[TestMethod]
+	public void TenantDisposal_DoesNotEvictHostResources()
+	{
+		// The bug this guards against: a tenant's copy of a resource shares the host
+		// copy's id; destroying the tenant copy under the wrong context unregistered the
+		// HOST's entry - prefabs vanished from the editor until restart, and rejoining
+		// clients spawned players with no gear.
+		const string path = "prefabs/eviction_probe.prefab";
+
+		var hostPrefab = new PrefabFile();
+		hostPrefab.LoadFromJson( """{ "RootObject": { "Name": "Probe", "Enabled": true } }""" );
+		hostPrefab.Register( path );
+
+		try
+		{
+			using var fx = new HostFixture( "scenes/eviction.scene", withProbeComponent: true );
+
+			var session = fx.CreateIsolated( "Evictor" );
+			Assert.IsTrue( session.IsIsolated );
+
+			PumpUntilConnected( new[] { session }, fx.Host );
+			Assert.IsTrue( session.IsConnected );
+
+			// The tenant loaded its own copies of every resource. Killing the session
+			// must leave the host's registrations untouched.
+			session.Dispose();
+			fx.DropSession( session );
+
+			var found = ResourceLibrary.Get<PrefabFile>( path );
+			Assert.IsNotNull( found, "Host resource was evicted by tenant disposal" );
+			Assert.AreSame( hostPrefab, found, "Host lookup must return the host's own instance" );
+		}
+		finally
+		{
+			Game.Resources.Unregister( hostPrefab );
+		}
+	}
+
+	[TestMethod]
 	public void IsolatedSessions_ReplicatedStateStillFlows()
 	{
 		using var fx = new HostFixture( "scenes/isolation_network.scene", withProbeComponent: true );

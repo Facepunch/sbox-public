@@ -62,14 +62,22 @@ public class ResourceSystem
 		// This isn't thread safe
 		ThreadSafe.AssertIsMainThread();
 
-		// Make sure we're unregistering the currently indexed resource
+		// Make sure we're unregistering the currently indexed resource: several wrappers
+		// can share one resource id (an in-process client tenant holds its own copies of
+		// the host's files) - destroying one copy must never evict a different instance.
 
-		ResourceIndexLong.Remove( resource.ResourceIdLong );
-		WeakIndexLong.Remove( resource.ResourceIdLong );
+		if ( ResourceIndexLong.TryGetValue( resource.ResourceIdLong, out var indexed ) && ReferenceEquals( indexed, resource ) )
+			ResourceIndexLong.Remove( resource.ResourceIdLong );
+
+		if ( WeakIndexLong.TryGetValue( resource.ResourceIdLong, out var weakRefLong ) && weakRefLong.TryGetTarget( out var weakLong ) && ReferenceEquals( weakLong, resource ) )
+			WeakIndexLong.Remove( resource.ResourceIdLong );
 
 #pragma warning disable CS0618 // Type or member is obsolete
-		ResourceIndex.Remove( resource.ResourceId );
-		WeakIndex.Remove( resource.ResourceId );
+		if ( ResourceIndex.TryGetValue( resource.ResourceId, out var indexedInt ) && ReferenceEquals( indexedInt, resource ) )
+			ResourceIndex.Remove( resource.ResourceId );
+
+		if ( WeakIndex.TryGetValue( resource.ResourceId, out var weakRefInt ) && weakRefInt.TryGetTarget( out var weakInt ) && ReferenceEquals( weakInt, resource ) )
+			WeakIndex.Remove( resource.ResourceId );
 #pragma warning restore CS0618 // Type or member is obsolete
 
 

@@ -22,6 +22,32 @@ public static class GameMode
 	internal static bool PlayWidgetFocused => _inPlay?.IsFocused ?? false;
 
 	/// <summary>
+	/// Bind the engine's window state to the given window/swapchain - this is what ties
+	/// SDL input routing (buttons, capture) to a window. Docked clients borrow it while
+	/// they hold input focus.
+	/// </summary>
+	internal static void SetEngineStateWindow( nint winId, SwapChainHandle_t swapChain )
+	{
+		g_pEngineServiceMgr.SetEngineState( winId, swapChain );
+	}
+
+	/// <summary>
+	/// Point the engine's window state AND game input focus back at the play widget -
+	/// called when a docked client releases input focus to the host. Re-asserting the
+	/// focus flag matters: the released tab's "focus off" call would otherwise clobber
+	/// the play widget's earlier "focus on", leaving the host input dead until an OS
+	/// focus cycle fires the Qt focus event again.
+	/// </summary>
+	internal static void RestoreEngineState()
+	{
+		if ( _inPlay is SceneRenderingWidget playWidget && playWidget.IsValid() && playWidget._widget.IsValid )
+		{
+			g_pEngineServiceMgr.SetEngineState( playWidget._widget.winId(), playWidget.SwapChain );
+			NativeEngine.InputSystem.OnEditorGameFocusChange( playWidget._widget.winId(), true );
+		}
+	}
+
+	/// <summary>
 	/// Given a widget, register it for SDL input, and tell the engine this is the swapchain we have
 	/// </summary>
 	/// <param name="widget"></param>
@@ -94,6 +120,12 @@ public static class GameMode
 	{
 		// SDL handles position when the widget is focused; only fill in the gap when unfocused.
 		if ( _inPlay is null || _inPlay.IsFocused )
+			return;
+
+		// While a docked client holds input focus, the router's cursor position is in
+		// THAT client's window space (fed by SDL). Injecting play-widget-local coordinates
+		// here would hover the focused client's UI from the host's view.
+		if ( Sandbox.InProcessClientSession.Focused is not null )
 			return;
 
 		var pos = new Vector2( (int)local.x, (int)local.y );

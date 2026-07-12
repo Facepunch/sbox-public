@@ -180,6 +180,12 @@ public class StyleSheet
 		if ( GlobalContext.Current.FileMount is null )
 			return;
 
+		// In-process client tenants don't register stylesheet watchers: the callbacks
+		// are held by the filesystem watch list, so they outlive the tenant and fire
+		// against a shut-down context. Tenant sessions rebuild on hotload anyway.
+		if ( GlobalContext.Current.IsInProcessTenant )
+			return;
+
 		//
 		// Store the current context to pass through to the watcher because
 		// we might be in a different scope later, and won't be able to find the files
@@ -189,13 +195,17 @@ public class StyleSheet
 		Watcher = context.FileMount.Watch();
 		Watcher.OnChanges += x =>
 		{
+			// The context can be torn down between the file change and this callback.
+			if ( context.FileMount is null )
+				return;
+
 			UpdateFromFile( name, true, context );
 
 			// Watch any files that got @import'd during this reparse so editing them hotloads too
 			foreach ( var file in IncludedFiles )
 				Watcher?.AddFile( file );
 
-			context.UISystem.DirtyAllStyles();
+			context.UISystem?.DirtyAllStyles();
 		};
 
 		foreach ( var file in IncludedFiles )

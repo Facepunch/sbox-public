@@ -82,7 +82,10 @@ internal class UISystem
 	{
 		using ( Performance.Scope( "Update Screen Size" ) )
 		{
-			Screen.UpdateFromEngine();
+			// In-process client tenants render into a dock widget: their session slice
+			// sets Screen to the widget's size - the engine swapchain is the host's.
+			if ( !GlobalContext.Current.IsInProcessTenant )
+				Screen.UpdateFromEngine();
 		}
 
 		using ( Performance.Scope( "Tick Panels" ) )
@@ -145,7 +148,10 @@ internal class UISystem
 	/// </summary>
 	internal void SimulateNoInput()
 	{
-		Screen.UpdateFromEngine();
+		// See the matching comment in Simulate - tenant Screen size comes from the slice.
+		if ( !GlobalContext.Current.IsInProcessTenant )
+			Screen.UpdateFromEngine();
+
 		TickPanels();
 		PreLayout();
 		RunDeferredDeletion();

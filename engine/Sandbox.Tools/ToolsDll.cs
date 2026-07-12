@@ -285,8 +285,10 @@ internal class ToolsDll : IToolsDll
 
 		// Escape was pressed in game and wasn't swallowed
 		// so lets change focus from the game window to the main editor
-		// window, which is going to free the mouse cursor from being captured
-		if ( Game.IsPlaying && Input.EscapePressed )
+		// window, which is going to free the mouse cursor from being captured.
+		// When a docked client holds input focus its tab gets first claim on
+		// escape (to hand input back to the host) - don't race it.
+		if ( Game.IsPlaying && Input.EscapePressed && Sandbox.InProcessClientSession.Focused is null )
 		{
 			EditorWindow.Focus();
 			Input.EscapePressed = false;

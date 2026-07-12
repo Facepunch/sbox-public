@@ -15,6 +15,37 @@ namespace Editor;
 /// </summary>
 public class ClientInstanceWidget : Widget
 {
+	/// <summary>
+	/// All live docked client tabs, for focus switching (Shift+F1..F12).
+	/// </summary>
+	internal static readonly List<ClientInstanceWidget> All = new();
+
+	/// <summary>
+	/// Give input focus to docked client <paramref name="number"/>, raising its tab.
+	/// If it already has focus, hand input back to the host instead. Returns false if
+	/// no such client exists.
+	/// </summary>
+	internal static bool FocusInstance( int number )
+	{
+		var widget = All.FirstOrDefault( w => w.IsValid() && w.InstanceNumber == number );
+
+		if ( widget?._session is null )
+			return false;
+
+		if ( Sandbox.InProcessClientSession.Focused == widget._session )
+		{
+			widget.ReleaseInputFocus();
+		}
+		else
+		{
+			EditorWindow.DockManager.RaiseDock( widget );
+			widget.ClaimInputFocus();
+		}
+
+		widget.Update();
+		return true;
+	}
+
 	Sandbox.InProcessClientSession _session;
 	readonly SceneRenderingWidget _renderer;
 
@@ -28,9 +59,22 @@ public class ClientInstanceWidget : Widget
 	internal ClientInstanceWidget() : base( null )
 	{
 		Layout = Layout.Row();
+
+		// A slim frame around the render view - painted green while this client has
+		// input focus, so you can always tell who you're driving.
+		Layout.Margin = 2;
+
 		_renderer = new SceneRenderingWidget( this );
 		_renderer.Visible = false;
-		Layout.Add( _renderer );
+
+		// Stretch factor so the render view fills the whole tab, not its preferred size.
+		Layout.Add( _renderer, 1 );
+
+		All.Add( this );
+
+		// Claim input the moment the render view actually gets focus (a click) - polling
+		// IsFocused once a frame misses transitions and made claiming feel unreliable.
+		_renderer.Focused += _ => ClaimInputFocus();
 
 		DeleteOnClose = true;
 		FocusMode = FocusMode.Click;
@@ -84,6 +128,10 @@ public class ClientInstanceWidget : Widget
 
 		UpdateInputFocus();
 
+		// The session's world reports this view's size through Screen while it ticks,
+		// so its UI lays out - and its game projects - against the actual dock size.
+		_session.ViewSize = _renderer.Size * _renderer.DpiScale;
+
 		// Advance this client one frame: networking handshake/messages + scene simulation.
 		_session.Tick();
 
@@ -116,12 +164,21 @@ public class ClientInstanceWidget : Widget
 					"Compare against shared mode with 'docked_client_isolation 0' (recreate the tab after changing it)." );
 			}
 		}
+
+		// Repaint the focus frame when the focused session changes.
+		var focusedNow = Sandbox.InProcessClientSession.Focused == _session;
+		if ( focusedNow != _paintedFocused )
+		{
+			_paintedFocused = focusedNow;
+			Update();
+		}
 	}
 
 	bool _hasInputFocus;
 	bool _rebuilding;
 	bool _refocusOnConnect;
 	bool _reportedNoCamera;
+	bool _paintedFocused;
 
 	/// <summary>
 	/// Click the client's view to drive that client with your keyboard/mouse; click the host's
@@ -132,19 +189,66 @@ public class ClientInstanceWidget : Widget
 	/// this window - the same hookup GameMode does for the play widget, minus the engine-state
 	/// rerouting so the host's HUD stays where it belongs.
 	/// </summary>
+	nint _registeredWinId;
+
+	void ClaimInputFocus()
+	{
+		if ( _session is null || !_renderer.IsValid() )
+			return;
+
+		// Transitions must be ordered: the previous owner's cleanup (focus-off,
+		// unregister) has to happen BEFORE our claim, or its next-frame release
+		// clobbers our freshly registered window and inputs go dead.
+		foreach ( var other in All )
+		{
+			if ( other != this && other._hasInputFocus )
+				other.ReleaseInputFocus( restoreHost: false );
+		}
+
+		Sandbox.InProcessClientSession.Focused = _session;
+
+		RegisterInputWindow( _renderer._widget.winId() );
+		_hasInputFocus = true;
+	}
+
+	void RegisterInputWindow( nint winId )
+	{
+		if ( _registeredWinId == winId )
+			return;
+
+		UnregisterInputWindow();
+
+		NativeEngine.InputSystem.RegisterWindowWithSDL( winId );
+		NativeEngine.InputSystem.OnEditorGameFocusChange( winId, true );
+
+		// The engine's window state is what ties SDL input routing (buttons, capture)
+		// to a window - the same hookup the play widget gets. Without it clicks are
+		// interpreted against the play widget's window and land erratically.
+		GameMode.SetEngineStateWindow( winId, _renderer.SwapChain );
+
+		_registeredWinId = winId;
+	}
+
+	void UnregisterInputWindow( bool restoreHost = true )
+	{
+		if ( _registeredWinId == 0 )
+			return;
+
+		NativeEngine.InputSystem.OnEditorGameFocusChange( _registeredWinId, false );
+		NativeEngine.InputSystem.UnregisterWindowFromSDL( _registeredWinId );
+		_registeredWinId = 0;
+
+		// Hand the engine window state and game focus back to the host's game view -
+		// unless another docked client is claiming right behind us.
+		if ( restoreHost )
+		{
+			GameMode.RestoreEngineState();
+		}
+	}
+
 	void UpdateInputFocus()
 	{
 		var claimed = Sandbox.InProcessClientSession.Focused == _session;
-
-		// Claim on click into our view.
-		if ( _renderer.IsFocused && !claimed )
-		{
-			Sandbox.InProcessClientSession.Focused = _session;
-			NativeEngine.InputSystem.RegisterWindowWithSDL( _renderer._widget.winId() );
-			NativeEngine.InputSystem.OnEditorGameFocusChange( _renderer._widget.winId(), true );
-			_hasInputFocus = true;
-			return;
-		}
 
 		if ( !_hasInputFocus )
 			return;
@@ -156,14 +260,31 @@ public class ClientInstanceWidget : Widget
 			return;
 		}
 
+		// Escape always hands input back to the host - reaching the game view with a
+		// click can be a fight when the focused client's game has mouse capture.
+		if ( Sandbox.Input.EscapePressed )
+		{
+			Sandbox.Input.EscapePressed = false;
+			ReleaseInputFocus();
+			return;
+		}
+
 		// The player clicked back into the host's game view, or hid this tab.
 		if ( GameMode.PlayWidgetFocused || !Visible )
 		{
 			ReleaseInputFocus();
+			return;
+		}
+
+		// Undocking the tab into its own window reparents it to a new native window -
+		// keep the SDL registration pointed at the window the view actually lives in.
+		if ( _renderer.IsValid() && _renderer._widget.IsValid )
+		{
+			RegisterInputWindow( _renderer._widget.winId() );
 		}
 	}
 
-	void ReleaseInputFocus()
+	void ReleaseInputFocus( bool restoreHost = true )
 	{
 		if ( !_hasInputFocus )
 			return;
@@ -173,11 +294,14 @@ public class ClientInstanceWidget : Widget
 		if ( _session is not null && Sandbox.InProcessClientSession.Focused == _session )
 			Sandbox.InProcessClientSession.Focused = null;
 
-		if ( _renderer.IsValid() && _renderer._widget.IsValid )
-		{
-			NativeEngine.InputSystem.OnEditorGameFocusChange( _renderer._widget.winId(), false );
-			NativeEngine.InputSystem.UnregisterWindowFromSDL( _renderer._widget.winId() );
-		}
+		UnregisterInputWindow( restoreHost );
+
+		// If the client's game had captured/hidden the mouse, give it back.
+		Mouse.Visibility = MouseVisibility.Auto;
+
+		// Keep Qt's focus state in agreement, so the next click is a clean re-claim.
+		if ( _renderer.IsValid() )
+			_renderer.Blur();
 	}
 
 	/// <summary>
@@ -224,9 +348,11 @@ public class ClientInstanceWidget : Widget
 
 	protected override void OnPaint()
 	{
-		// Only visible until the client's scene covers the tab.
+		// The frame around the render view: green while this client has input focus.
+		var focused = _session is not null && Sandbox.InProcessClientSession.Focused == _session;
+
 		Paint.ClearPen();
-		Paint.SetBrush( Theme.WidgetBackground );
+		Paint.SetBrush( focused ? Theme.Green : Theme.WidgetBackground );
 		Paint.DrawRect( LocalRect );
 
 		Paint.SetPen( Theme.TextLight );
@@ -243,6 +369,8 @@ public class ClientInstanceWidget : Widget
 
 	public override void OnDestroyed()
 	{
+		All.Remove( this );
+
 		ReleaseInputFocus();
 
 		_session?.Dispose();

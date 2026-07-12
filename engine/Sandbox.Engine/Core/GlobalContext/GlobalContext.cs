@@ -28,6 +28,13 @@ internal partial class GlobalContext
 	public InputContext InputContext { get; set; }
 
 	/// <summary>
+	/// The mouse visibility this world wants (see <see cref="Mouse.Visibility"/>). Per
+	/// context: the host's game and each docked client's game set their own, and the
+	/// input router applies whichever world currently has input focus.
+	/// </summary>
+	public MouseVisibility MouseVisibility { get; set; } = MouseVisibility.Auto;
+
+	/// <summary>
 	/// The active scene for this game instance.
 	/// </summary>
 	public Scene ActiveScene { get; set; }

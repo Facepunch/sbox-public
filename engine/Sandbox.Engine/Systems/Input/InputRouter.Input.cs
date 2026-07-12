@@ -139,6 +139,13 @@ internal static partial class InputRouter
 				return;
 			}
 
+			// A focused docked client's world gets the game escape, not the host's.
+			if ( Sandbox.InProcessClientSession.Focused?.Tenant?.Context?.InputContext is { } docked )
+			{
+				docked.In_Escape();
+				return;
+			}
+
 			// Let the game input get first dibs
 			if ( IGameInstance.Current is not null && IGameInstanceDll.Current.InputContext.In_Escape() )
 			{

@@ -108,6 +108,14 @@ internal sealed class InProcessClientSession : IDisposable
 	internal Input.Context InputContext { get; }
 
 	/// <summary>
+	/// The pixel size of the view this client renders into (the dock tab), fed by the
+	/// editor widget every frame. While the session ticks, <see cref="Screen"/> reports
+	/// this size, so the client's UI lays out and its game code projects against the
+	/// actual view - not the host's game window.
+	/// </summary>
+	public Vector2 ViewSize { get; set; }
+
+	/// <summary>
 	/// The session whose slice is currently executing on the main thread (inside
 	/// <see cref="Push"/>). Used by engine systems that need to attribute work to a
 	/// session - e.g. sounds created during a slice route to the session's submix.
@@ -305,6 +313,12 @@ internal sealed class InProcessClientSession : IDisposable
 		var savedTimeNow = Time.NowDouble;
 		var savedTimeDelta = (double)Time.Delta;
 		var savedSyncContext = SynchronizationContext.Current;
+		var savedScreenSize = Screen.Size;
+
+		if ( ViewSize.x >= 1f && ViewSize.y >= 1f )
+		{
+			Screen.Size = ViewSize;
+		}
 
 		// Isolated mode: swap the whole world - GlobalContext carries the tenant's
 		// TypeLibrary, ActiveScene, resources, events, tasks, UI. The tenant context
@@ -346,6 +360,7 @@ internal sealed class InProcessClientSession : IDisposable
 			Connection.Local = savedLocal;
 			Time.Update( savedTimeNow, savedTimeDelta );
 			SynchronizationContext.SetSynchronizationContext( savedSyncContext );
+			Screen.Size = savedScreenSize;
 
 			contextScope?.Dispose();
 
@@ -405,14 +420,21 @@ internal sealed class InProcessClientSession : IDisposable
 				scene.GameTick( 0 ); // time already advanced above
 			}
 
-			// The tenant's in-game UI lives in its own UI system - simulate it here so
-			// panels tick, style and lay out; ScreenPanels then render through the scene's
-			// camera exactly like the host's do. No input processing: hover/capture state
-			// is process-global, so a second UI system ticking input against it makes the
-			// host's UI hover and click in sympathy.
+			// The tenant's in-game UI lives in its own UI system. Exactly ONE UI system
+			// processes input per frame - the focused world's - because hover/focus state
+			// is process-global. The focused session simulates with full input (its
+			// InputContext is first in the router, so device events land in its queue and
+			// its state drives mouse capture); everyone else is layout/render only.
 			if ( Tenant.IsIsolated && Tenant.Context?.UISystem is { } uiSystem )
 			{
-				uiSystem.SimulateNoInput();
+				if ( Focused == this )
+				{
+					uiSystem.Simulate( allowMouseInput: true );
+				}
+				else
+				{
+					uiSystem.SimulateNoInput();
+				}
 			}
 		}
 		else
