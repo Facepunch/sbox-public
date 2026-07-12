@@ -323,6 +323,8 @@ public partial class GameObject
 			Gizmo.Hitbox.Sphere( new Sphere( 0, bsize ) );
 			foreach ( var child in Children )
 			{
+				if ( !child.Flags.Contains( GameObjectFlags.Bone ) )
+					return;
 				if ( DrawBoneAsBip( child.Name, Name ) )
 					continue;
 				bip = false;
