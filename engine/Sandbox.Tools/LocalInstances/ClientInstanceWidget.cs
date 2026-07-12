@@ -318,6 +318,10 @@ public class ClientInstanceWidget : Widget
 				_session = Sandbox.InProcessClientSession.Create();
 				WindowTitle = $"Client {_session.Number}";
 
+				// The tab text lives on the containing dock widget.
+				if ( EditorWindow.DockManager.FindDockWidget( this ) is { } dock )
+					dock.WindowTitle = WindowTitle;
+
 				// This tab had input focus before a code-change rebuild - keep it.
 				if ( _refocusOnConnect && _hasInputFocus )
 				{

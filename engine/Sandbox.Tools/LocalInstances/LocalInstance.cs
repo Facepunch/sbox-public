@@ -48,15 +48,25 @@ public static class LocalInstance
 			Name = $"ClientInstance:{Guid.NewGuid():N}",
 			WindowTitle = "Client",
 		};
-		widget.SetWindowIcon( "connected_tv" );
-
-		widget.Parent = EditorWindow;
 		widget.Visible = true;
+
+		var dock = EditorWindow.DockManager.CreateDockWidget( widget.Name, "connected_tv", widget );
+		dock.WindowTitle = "Client";
 
 		// Dock as a tab in the same area as the scene tabs.
 		var sibling = SceneEditorSession.Active?.SceneDock;
-		EditorWindow.DockManager.AddDock( sibling, widget, sibling.IsValid() ? DockArea.Inside : DockArea.Right );
-		EditorWindow.DockManager.RaiseDock( widget );
+		var siblingDock = sibling.IsValid() ? EditorWindow.DockManager.FindDockWidget( sibling ) : null;
+
+		if ( siblingDock is not null )
+		{
+			EditorWindow.DockManager.AddDock( dock, siblingDock );
+		}
+		else
+		{
+			EditorWindow.DockManager.AddDock( dock, DockArea.Right );
+		}
+
+		dock.SetAsCurrentTab();
 	}
 
 	//
