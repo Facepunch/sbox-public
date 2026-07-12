@@ -7,6 +7,7 @@ using Sandbox.UI;
 using Sandbox.Utility;
 using Sandbox.VR;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Sandbox;
@@ -111,6 +112,10 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		GlobalContext.Current.OnHotload();
 		Game.ActiveScene?.OnHotload();
 		Event.Run( "hotloaded" );
+
+		// Docked in-process clients run private copies of the game assemblies - they
+		// rebuild (an instant in-process reconnect) to pick up the new code.
+		InProcessClientSession.NotifyHostCodeChanged();
 	}
 
 	/// <summary>
@@ -937,6 +942,13 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		value = default;
 
 		if ( !Networking.IsActive ) return false;
+
+		// A docked in-process client is asking: the host's replicated table lives in this
+		// same process and is authoritative - serve from it directly, so the client sees
+		// exactly what a real remote client would receive over the wire.
+		if ( Networking.System is { IsInProcessClient: true } )
+			return ReplicatedConvars.TryGetHostValue( name, out value );
+
 		if ( Networking.IsHost ) return false;
 
 		return ReplicatedConvars.TryGetValue( name, out value );
@@ -968,5 +980,30 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	{
 		AssemblyEnroller.LoadPackage( package.FullIdent, true );
 		return Task.CompletedTask;
+	}
+
+	/// <summary>
+	/// The compiled bytes of every non-editor game assembly, for in-process client
+	/// tenants to load private copies from (see <see cref="InProcessTenant"/>).
+	/// </summary>
+	public IReadOnlyList<(string Name, byte[] Bytes)> GetGameAssemblies()
+	{
+		if ( AssemblyEnroller is null )
+			return null;
+
+		var result = new List<(string Name, byte[] Bytes)>();
+
+		foreach ( var a in AssemblyEnroller.GetLoadedAssemblies() )
+		{
+			if ( a.IsEditorAssembly )
+				continue;
+
+			if ( a.Assembly is null )
+				continue;
+
+			result.Add( (a.Name, a.CompiledAssemblyBytes) );
+		}
+
+		return result;
 	}
 }

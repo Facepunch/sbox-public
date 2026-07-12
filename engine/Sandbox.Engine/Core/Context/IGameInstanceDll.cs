@@ -69,6 +69,14 @@ internal unsafe interface IGameInstanceDll
 	/// Load the assemblies from this package into the current game instance
 	/// </summary>
 	public Task LoadPackageAssembliesAsync( Package package );
+
+	/// <summary>
+	/// The name and compiled bytes of every non-editor game assembly currently loaded,
+	/// in load order. Used by in-process client tenants to load private copies of the
+	/// game code (see <see cref="InProcessTenant"/>). Null when the implementation
+	/// can't provide them - tenants fall back to shared assemblies.
+	/// </summary>
+	public IReadOnlyList<(string Name, byte[] Bytes)> GetGameAssemblies() => null;
 }
 
 [Flags]

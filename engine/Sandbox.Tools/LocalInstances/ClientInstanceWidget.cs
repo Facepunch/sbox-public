@@ -59,6 +59,22 @@ public class ClientInstanceWidget : Widget
 			return;
 		}
 
+		// The host's game code changed (hotload) - this session's private assembly copies
+		// are stale. Rebuild: dispose and reconnect in-process, which is near-instant.
+		if ( _session.NeedsRebuild )
+		{
+			_refocusOnConnect = Sandbox.InProcessClientSession.Focused == _session;
+			_rebuilding = true;
+			_reportedNoCamera = false;
+
+			_session.Dispose();
+			_session = null;
+			_waitingForHost = 0;
+
+			Update();
+			return;
+		}
+
 		// If the host stopped (editor Stop button), shut the client down with it.
 		if ( !Game.IsPlaying || Sandbox.Networking.System is null || !Sandbox.Networking.System.IsHost )
 		{
@@ -86,9 +102,26 @@ public class ClientInstanceWidget : Widget
 			_renderer.Visible = showScene;
 			Update();
 		}
+
+		// A connected client whose scene has no active camera renders a black tab -
+		// say so once, because from the outside it just looks broken.
+		if ( showScene && _session.IsConnected && !_reportedNoCamera )
+		{
+			_reportedNoCamera = true;
+
+			if ( !scene.Camera.IsValid() )
+			{
+				Log.Warning( $"Docked client {_session.Number}: the scene has no active camera, so this tab will render black. " +
+					"If the game creates its camera from code, check its client-side spawn path. " +
+					"Compare against shared mode with 'docked_client_isolation 0' (recreate the tab after changing it)." );
+			}
+		}
 	}
 
 	bool _hasInputFocus;
+	bool _rebuilding;
+	bool _refocusOnConnect;
+	bool _reportedNoCamera;
 
 	/// <summary>
 	/// Click the client's view to drive that client with your keyboard/mouse; click the host's
@@ -160,6 +193,16 @@ public class ClientInstanceWidget : Widget
 			{
 				_session = Sandbox.InProcessClientSession.Create();
 				WindowTitle = $"Client {_session.Number}";
+
+				// This tab had input focus before a code-change rebuild - keep it.
+				if ( _refocusOnConnect && _hasInputFocus )
+				{
+					Sandbox.InProcessClientSession.Focused = _session;
+				}
+
+				_rebuilding = false;
+				_refocusOnConnect = false;
+
 				Update();
 			}
 			catch ( Exception e )
@@ -190,7 +233,7 @@ public class ClientInstanceWidget : Widget
 
 		if ( _session is null )
 		{
-			Paint.DrawText( LocalRect, "Starting host…", TextFlag.Center );
+			Paint.DrawText( LocalRect, _rebuilding ? "Reloading code…" : "Starting host…", TextFlag.Center );
 		}
 		else if ( !_session.IsConnected )
 		{

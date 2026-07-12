@@ -462,6 +462,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		MountedVPKs?.Dispose();
 		MountedVPKs = null;
 
+		// Don't keep scene objects alive past the system's death - in-process client
+		// sessions rely on disposal releasing every reference into their scene.
+		BatchSpawnList.Clear();
+		PendingSceneLoads.Clear();
+
 		if ( Instance == this )
 			Instance = null;
 	}

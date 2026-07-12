@@ -137,6 +137,28 @@ internal class UISystem
 		}
 	}
 
+	/// <summary>
+	/// Simulate without processing any input: panels tick, style, lay out and build their
+	/// command lists so they render - but no hover, click or focus processing. Used for
+	/// docked in-process client UI: input state (hover, capture) is process-global, so
+	/// ticking a second UI system's input against it cross-contaminates the host's UI.
+	/// </summary>
+	internal void SimulateNoInput()
+	{
+		Screen.UpdateFromEngine();
+		TickPanels();
+		PreLayout();
+		RunDeferredDeletion();
+		Layout();
+		PostLayout();
+		RunDeferredDeletion();
+		BuildDescriptors();
+
+		PanelRenderer.Stats.Reset();
+		BuildCommandLists();
+		CombineCommandLists();
+	}
+
 	internal void DirtyAllStyles()
 	{
 		for ( int i = RootPanels.Count() - 1; i >= 0; i-- )

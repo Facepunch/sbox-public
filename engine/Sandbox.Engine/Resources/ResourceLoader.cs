@@ -75,9 +75,15 @@ internal static class ResourceLoader
 			resource.PostLoadInternal();
 		}
 
-		foreach ( var type in types )
+		// In-process client tenants don't register file watchers: the watcher callbacks run
+		// under the ambient (host) context, and the static watcher registry would capture
+		// tenant-typed attribute instances - rooting the tenant's collectible assemblies.
+		if ( !GlobalContext.Current.IsInProcessTenant )
 		{
-			AddWatcherForType( type.Value );
+			foreach ( var type in types )
+			{
+				AddWatcherForType( type.Value );
+			}
 		}
 
 		// TODO: Check for edited but not saved OR recompiled assets and load in their values on server/client
@@ -138,8 +144,12 @@ internal static class ResourceLoader
 
 		LoadingScreen.Subtitle = null;
 
-		foreach ( var type in types )
-			AddWatcherForType( type.Value );
+		// See the matching comment in LoadAllGameResource - no watchers for tenants.
+		if ( !GlobalContext.Current.IsInProcessTenant )
+		{
+			foreach ( var type in types )
+				AddWatcherForType( type.Value );
+		}
 	}
 
 

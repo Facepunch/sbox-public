@@ -54,6 +54,13 @@ public static partial class Json
 			Game.NodeLibrary ?? throw new InvalidOperationException(
 				$"{nameof( Game.NodeLibrary )} not set when deserializing." ) );
 
+		// In-process client tenants build their own per-context options, but must not
+		// touch process-wide statics: overwriting the filesystem options would make the
+		// host serialize through the tenant's world, and the warm-up would bake tenant
+		// types into caches that outlive the tenant's collectible assemblies.
+		if ( GlobalContext.Current.IsInProcessTenant )
+			return;
+
 		BaseFileSystem.JsonSerializerOptions = options;
 
 		if ( typeLibrary is not null )

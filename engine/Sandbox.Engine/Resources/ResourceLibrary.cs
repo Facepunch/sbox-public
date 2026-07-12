@@ -38,7 +38,9 @@ public class ResourceSystem
 #pragma warning restore CS0618 // Type or member is obsolete
 		ResourceIndexLong[resource.ResourceIdLong] = resource;
 
-		if ( resource is GameResource gameResource && !gameResource.IsPromise )
+		// Tenant contexts (docked in-process clients) load private copies of resources the
+		// editor already knows about - don't announce them to editor listeners again.
+		if ( resource is GameResource gameResource && !gameResource.IsPromise && !GlobalContext.Current.IsInProcessTenant )
 		{
 			IToolsDll.Current?.RunEvent<IEventListener>( i => i.OnRegister( gameResource ) );
 		}
@@ -71,7 +73,7 @@ public class ResourceSystem
 #pragma warning restore CS0618 // Type or member is obsolete
 
 
-		if ( resource is GameResource gameResource && !gameResource.IsPromise )
+		if ( resource is GameResource gameResource && !gameResource.IsPromise && !GlobalContext.Current.IsInProcessTenant )
 		{
 			IToolsDll.Current?.RunEvent<IEventListener>( i => i.OnUnregister( gameResource ) );
 		}

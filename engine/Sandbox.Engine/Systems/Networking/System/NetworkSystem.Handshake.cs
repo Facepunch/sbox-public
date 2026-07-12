@@ -92,7 +92,9 @@ internal partial class NetworkSystem
 			log.Trace( $"No game package - must be a developer" );
 		}
 
-		if ( IGameInstanceDll.Current is not null )
+		// In-process clients keep their own (tenant) TypeLibrary - never replace it with
+		// the host's, that would undo the per-client assembly isolation.
+		if ( IGameInstanceDll.Current is not null && !IsInProcessClient )
 		{
 			// TypeLibrary was probably rebuilt, keep it up to date
 			TypeLibrary = IGameInstanceDll.Current.TypeLibrary;
