@@ -78,11 +78,20 @@ public partial class Scene : GameObject
 		system.DeltaSnapshots.Tick();
 	}
 
-	internal void SerializeNetworkObjects( List<object> collection )
+	internal void SerializeNetworkObjects( Connection source, List<object> collection )
 	{
 		foreach ( var target in networkedObjects )
 		{
-			collection.Add( target.GetCreateMessage() );
+			if ( target.GameObject?.IsDestroyed ?? true )
+				continue;
+
+			// Filter on the root's real visibility, not ShouldTransmit which is stale for a fresh join.
+			var root = target.RootNetworkObject;
+			if ( source is null || target.ShouldIncludeInSnapshot( source )
+				|| (root != target && (root?.ShouldIncludeInSnapshot( source ) ?? false)) )
+			{
+				collection.Add( target.GetCreateMessage() );
+			}
 		}
 	}
 

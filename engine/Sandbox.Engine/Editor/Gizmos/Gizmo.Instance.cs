@@ -1,4 +1,4 @@
-﻿using System.IO.Hashing;
+﻿using Sandbox.Hashing;
 using Sandbox.Utility;
 using System.Runtime.InteropServices;
 

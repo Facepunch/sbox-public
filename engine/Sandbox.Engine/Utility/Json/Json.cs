@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Sandbox.Utility;
 
 namespace Sandbox;
 
@@ -354,6 +355,41 @@ public static partial class Json
 				value.ReplaceWith( v );
 			}
 		}
+	}
+
+	/// <summary>
+	/// When true, attempting to deserialize a Doo or ActionGraph will throw.
+	/// </summary>
+	[ThreadStatic]
+	private static bool scriptDeserializationDisabled;
+
+	/// <summary>
+	/// Throws if we're in a <see cref="DisableScriptDeserialization"/> block.
+	/// </summary>
+	internal static void AssertCanDeserializeScripts()
+	{
+		if ( scriptDeserializationDisabled )
+		{
+			throw new Exception( "Script deserialization is disabled in this context." );
+		}
+	}
+
+	/// <summary>
+	/// Disables deserializing scripts until the returned <see cref="IDisposable"/> is disposed.
+	/// This should wrap any deserialization of payloads from untrusted sources.
+	/// </summary>
+	internal static IDisposable DisableScriptDeserialization()
+	{
+		var agScope = ActionGraph.PushSerializationOptions( new SerializationOptions( DeserializeMode: DeserializeMode.DisabledThrow ) );
+		var prev = scriptDeserializationDisabled;
+
+		scriptDeserializationDisabled = true;
+
+		return new DisposeAction( () =>
+		{
+			agScope.Dispose();
+			scriptDeserializationDisabled = prev;
+		} );
 	}
 }
 

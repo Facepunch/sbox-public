@@ -64,6 +64,9 @@ public class ClutterDefinition : GameResource
 			if ( entry != null )
 			{
 				hash.Add( entry.Weight );
+				hash.Add( entry.LocalScale );
+				hash.Add( entry.CastShadows );
+				hash.Add( entry.EnablePhysics );
 				hash.Add( entry.Model?.GetHashCode() ?? 0 );
 				hash.Add( entry.Prefab?.GetHashCode() ?? 0 );
 			}

@@ -105,6 +105,30 @@ public partial class Scene : GameObject
 		foreach ( var c in updateComponents.EnumerateLocked( true ) ) c.InternalUpdate();
 	}
 
+	List<CameraComponent> _cameraViewScratch = new();
+
+	/// <summary>
+	/// Composes every enabled camera's view - the one point in the frame where the camera moves.
+	/// Runs after Update and bone merging, before PreRender.
+	/// </summary>
+	void UpdateCameraViews()
+	{
+		// Snapshot - a modifier could add or remove cameras while we iterate.
+		_cameraViewScratch.Clear();
+		_cameraViewScratch.AddRange( Cameras );
+
+		// One sorted modifier set serves every camera this tick.
+		var modifiers = IsEditor ? null : CameraComponent.GatherModifiers( this );
+
+		foreach ( var camera in _cameraViewScratch )
+		{
+			if ( !camera.IsValid() || !camera.Active )
+				continue;
+
+			camera.ComposeView( modifiers );
+		}
+	}
+
 	List<IRenderThread> renderThreadEventTargets = new();
 
 	internal void PreRender()
@@ -141,7 +165,7 @@ public partial class Scene : GameObject
 
 	/// <summary>
 	/// This is called in EditorTick and GameTick. It's only called in EditorTick if we're actually
-	/// an editor scene. 
+	/// an editor scene.
 	/// </summary>
 	void SharedTick()
 	{
@@ -179,6 +203,9 @@ public partial class Scene : GameObject
 			{
 				Signal( GameObjectSystem.Stage.UpdateBones );
 			}
+
+			// The cameras' views become final here - PreRender and rendering read a settled camera.
+			UpdateCameraViews();
 
 			if ( !Application.IsHeadless )
 			{

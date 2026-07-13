@@ -31,7 +31,7 @@ namespace Editor
 			Show();
 
 			UpdateGeometry();
-			Position = ScreenGeometry.Contain( Size ).Position;
+			CenterWindow();
 
 			//
 			// Resample background image if dpi scale is gonna make us draw it bigger

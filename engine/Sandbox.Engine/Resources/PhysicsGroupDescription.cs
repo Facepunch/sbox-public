@@ -42,6 +42,26 @@ public sealed class PhysicsGroupDescription : Resource
 		base.Destroy();
 	}
 
+	internal override void OnReloaded()
+	{
+		// The native resource has been reloaded in place (e.g. a map recompile
+		// rewrote world_physics.vphys) - rebuild our parts from the new data.
+		Dispose();
+		Refresh();
+
+		foreach ( var scene in Scene.All )
+		{
+			using var scope = scene.Push();
+
+			foreach ( var c in scene.GetAllComponents<IHasPhysicsDescription>() )
+			{
+				if ( c.Physics != this ) continue;
+
+				c.OnPhysicsReloaded();
+			}
+		}
+	}
+
 	/// <summary>
 	/// Create from a resource-system strong handle (e.g. from <see cref="NativeGlue.Resources.GetPhysics"/>).
 	/// Uses <see cref="NativeResourceCache"/> exactly like <see cref="Model.FromNative"/>.
@@ -83,6 +103,8 @@ public sealed class PhysicsGroupDescription : Resource
 
 		_parts.Clear();
 		_joints.Clear();
+		_surfaces.Clear();
+		_tags.Clear();
 	}
 
 	readonly List<BodyPart> _parts = new();
@@ -101,16 +123,12 @@ public sealed class PhysicsGroupDescription : Resource
 
 	void Refresh()
 	{
-		_surfaces.Clear();
-
 		var surfaceCount = _native.GetSurfacePropertiesCount();
 		for ( int i = 0; i < surfaceCount; i++ )
 		{
 			var s = _native.GetSurfaceProperties( i );
 			_surfaces.Add( s.IsValid ? s.m_name : "default" );
 		}
-
-		_tags.Clear();
 
 		var attributeCount = _native.GetCollisionAttributeCount();
 		for ( int attributeIndex = 0; attributeIndex < attributeCount; attributeIndex++ )
@@ -126,8 +144,6 @@ public sealed class PhysicsGroupDescription : Resource
 			_tags.Add( tags );
 		}
 
-		_parts.Clear();
-
 		for ( int i = 0; i < _native.GetPartCount(); i++ )
 		{
 			var tx = _native.GetBoneCount() > 0 ? _native.GetBindPose( i ) : Transform.Zero;
@@ -135,8 +151,6 @@ public sealed class PhysicsGroupDescription : Resource
 
 			_parts.Add( new BodyPart( this, boneName, _native.GetPart( i ), tx ) );
 		}
-
-		_joints.Clear();
 
 		for ( int i = 0; i < _native.GetJointCount(); i++ )
 		{
@@ -514,4 +528,18 @@ public sealed class PhysicsGroupDescription : Resource
 			}
 		}
 	}
+}
+
+internal interface IHasPhysicsDescription
+{
+	/// <summary>
+	/// The <see cref="PhysicsGroupDescription"/> associated with this object.
+	/// </summary>
+	PhysicsGroupDescription Physics { get; }
+
+	/// <summary>
+	/// Called by the engine when the associated <see cref="PhysicsGroupDescription"/> is
+	/// reloaded. Implementing classes should rebuild any physics created from it.
+	/// </summary>
+	void OnPhysicsReloaded();
 }

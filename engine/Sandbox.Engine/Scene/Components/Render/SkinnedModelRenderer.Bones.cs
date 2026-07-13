@@ -184,6 +184,23 @@ public sealed partial class SkinnedModelRenderer
 	}
 
 	/// <summary>
+	/// The bone closest to a world position, or null when there's no model. Resolved natively in one
+	/// call - nothing is allocated or copied. Use for sticking things to the nearest bone (impact
+	/// decals, gibs).
+	/// </summary>
+	public BoneCollection.Bone GetClosestBone( Vector3 worldPoint )
+	{
+		if ( Model is null || !SceneModel.IsValid() )
+			return null;
+
+		var index = SceneModel.GetClosestBoneIndex( worldPoint );
+		if ( index < 0 || index >= Model.Bones.AllBones.Count )
+			return null;
+
+		return Model.Bones.AllBones[index];
+	}
+
+	/// <summary>
 	/// Allocate an array of bone transforms in either world space or parent space.
 	/// </summary>
 	public Transform[] GetBoneTransforms( bool world )

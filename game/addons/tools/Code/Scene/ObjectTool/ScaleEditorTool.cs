@@ -56,13 +56,17 @@ public class ScaleEditorTool : EditorTool
 				{
 					if ( !go.IsValid() ) continue;
 
-					var newSize = startSize + Gizmo.Snap( scaleDelta, scaleDelta ) * 2.0f;
+					var newSize = MathF.Max( startSize.x, MathF.Max( startSize.y, startSize.z ) );
+					if ( newSize < 0.001f ) newSize = 1.0f;
+
+					var snap = Gizmo.Snap( scaleDelta, scaleDelta ) * 2.0f;
 
 					go.WorldScale = new Vector3(
-						startSize.x > 0.001f ? startScale.x * newSize.x / startSize.x : startScale.x,
-						startSize.y > 0.001f ? startScale.y * newSize.y / startSize.y : startScale.y,
-						startSize.z > 0.001f ? startScale.z * newSize.z / startSize.z : startScale.z
+						startScale.x * (1.0f + snap.x / newSize),
+						startScale.y * (1.0f + snap.y / newSize),
+						startScale.z * (1.0f + snap.z / newSize)
 					);
+
 					go.DispatchEdited( nameof( GameObject.LocalScale ) );
 				}
 			}

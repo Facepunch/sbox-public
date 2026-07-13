@@ -920,15 +920,23 @@ public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) 
 		var sideFaces = new Dictionary<MeshComponent, HashSet<FaceHandle>>();
 		if ( _transformFaces is not null )
 		{
+			var extrudedFaces = Selection.OfType<MeshFace>()
+				.GroupBy( x => x.Component )
+				.ToDictionary( g => g.Key, g => g.Select( x => x.Handle ).ToHashSet() );
+
 			foreach ( var group in _transformFaces.GroupBy( x => x.Component ) )
 			{
 				var mesh = group.Key.Mesh;
-				var handles = new HashSet<FaceHandle>();
+				var handles = group.Select( x => x.Handle ).ToHashSet();
+
+				var exclude = new HashSet<FaceHandle>( handles );
+				if ( extrudedFaces.TryGetValue( group.Key, out var newFaces ) )
+					exclude.UnionWith( newFaces );
 
 				foreach ( var face in group )
 				{
-					mesh.TextureAlignToGrid( mesh.Transform, face.Handle );
-					handles.Add( face.Handle );
+					if ( !mesh.TextureWrapFromNeighbour( face.Handle, exclude ) )
+						mesh.TextureAlignToGrid( mesh.Transform, face.Handle );
 				}
 
 				sideFaces[group.Key] = handles;

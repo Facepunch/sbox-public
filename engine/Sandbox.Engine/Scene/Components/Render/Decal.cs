@@ -102,6 +102,19 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 	[Property, Range( 0, 1 )]
 	public float AttenuationAngle { get; set; } = 1.0f;
 
+	/// <summary>
+	/// Adjusts the opacity mask based on the height map. At 1 decal is fully visible, and at 0 it goes invisible.
+	/// This setting requires a valid height map on your decals.
+	/// </summary>
+	[Property, Header( "Height Coverage Mask" ), Range( 0, 1 )]
+	public ParticleFloat CoverageAmount { get; set; } = 1.0f;
+
+	/// <summary>
+	/// Controls the smoothness of height coverage. No fade at 0, maximum fade at 0.5.
+	/// </summary>
+	[Property, Range( 0.0f, 0.5f )]
+	public float CoverageRange { get; set; } = 0.07f;
+
 	private uint _sortLayer;
 
 	/// <summary>
@@ -285,6 +298,8 @@ public sealed partial class Decal : Component, Component.ExecuteInEditor, Compon
 		_sceneObject.Color = _def.Tint * ColorTint.Evaluate( delta, Rand( 238 ) );
 		_sceneObject.ColorMix = _def.ColorMix * ColorMix.Evaluate( delta, Rand( 324 ) );
 		_sceneObject.AttenuationAngle = AttenuationAngle;
+		_sceneObject.CoverageAmount = _def.CoverageAmount * CoverageAmount.Evaluate( delta, Rand( 493 ) );
+		_sceneObject.CoverageRange = CoverageRange;
 		_sceneObject.ParallaxStrength = Parallax.Evaluate( delta, Rand( 245 ) ) * _def.ParallaxStrength * 0.25f;
 		_sceneObject.SamplerIndex = SamplerState.GetBindlessIndex( new SamplerState { AddressModeU = TextureAddressMode.Clamp, AddressModeV = TextureAddressMode.Clamp, Filter = _def.FilterMode } );
 		_sceneObject.Transform = tx;

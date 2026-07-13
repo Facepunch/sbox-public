@@ -51,11 +51,11 @@ partial class ObjectSelection
 					var grid = Layout.Row();
 					grid.Spacing = 4;
 
-					CreateButton( "Set Origin To Pivot", "gps_fixed", "mesh.set-origin-to-pivot", SetOriginToPivot, _meshes.Length > 0, grid );
-					CreateButton( "Center Origin", "center_focus_strong", "mesh.center-origin", CenterOrigin, _meshes.Length > 0, grid );
-					CreateButton( "Merge Meshes", "join_full", "mesh.merge-meshes", MergeMeshes, _meshes.Length > 1, grid );
-					CreateButton( "Merge Meshes By Edge", "link", null, MergeMeshesByEdge, _meshes.Length > 1, grid );
-					CreateButton( "Separate Mesh Components", "call_split", "mesh.separate-components", SeparateComponents, _meshes.Length > 0, grid );
+					CreateButton( "Set Origin To Pivot", "meshtools/object_selection_buttons/set_origin_to_pivot.png", "mesh.set-origin-to-pivot", SetOriginToPivot, _meshes.Length > 0, grid );
+					CreateButton( "Center Origin", "meshtools/object_selection_buttons/center_origin.png", "mesh.center-origin", CenterOrigin, _meshes.Length > 0, grid );
+					CreateButton( "Merge Meshes", "meshtools/object_selection_buttons/merge_meshes.png", "mesh.merge-meshes", MergeMeshes, _meshes.Length > 1, grid );
+					CreateButton( "Merge Meshes By Edge", "meshtools/object_selection_buttons/merge_meshes_by_edge.png", null, MergeMeshesByEdge, _meshes.Length > 1, grid );
+					CreateButton( "Separate Mesh Components", "meshtools/object_selection_buttons/separate_mesh_components.png", "mesh.separate-components", SeparateComponents, _meshes.Length > 0, grid );
 
 					grid.AddStretchCell();
 
@@ -66,10 +66,10 @@ partial class ObjectSelection
 					var grid = Layout.Row();
 					grid.Spacing = 4;
 
-					CreateButton( "Flip Faces", "flip", "mesh.flip-all-mesh-faces", FlipMesh, _meshes.Length > 0, grid );
-					CreateButton( "Bake Scale", "straighten", null, BakeScale, _meshes.Length > 0, grid );
-					CreateButton( "Convert To Mesh", "auto_mode", "mesh.convert-model-to-mesh", ConvertModelsToMeshes, _modelRenderers.Length > 0, grid );
-					CreateButton( "Save To Model", "save", null, SaveToModel, _meshes.Length > 0, grid );
+					CreateButton( "Flip Faces", "meshtools/face_tool/flip_all_faces.png", "mesh.flip-all-mesh-faces", FlipMesh, _meshes.Length > 0, grid );
+					CreateButton( "Bake Scale", "meshtools/object_selection_buttons/bake_scale.png", null, BakeScale, _meshes.Length > 0, grid );
+					CreateButton( "Convert To Mesh", "meshtools/object_selection_buttons/convert_to_mesh.png", "mesh.convert-model-to-mesh", ConvertModelsToMeshes, _modelRenderers.Length > 0, grid );
+					CreateButton( "Save To Model", "meshtools/object_selection_buttons/save_to_model.png", null, SaveToModel, _meshes.Length > 0, grid );
 
 					grid.AddStretchCell();
 
@@ -83,11 +83,11 @@ partial class ObjectSelection
 				var grid = Layout.Row();
 				grid.Spacing = 4;
 
-				CreateButton( "Previous", "chevron_left", "mesh.previous-pivot", PreviousPivot, _gos.Length > 0, grid );
-				CreateButton( "Next", "chevron_right", "mesh.next-pivot", NextPivot, _gos.Length > 0, grid );
-				CreateButton( "Clear", "restart_alt", "mesh.clear-pivot", ClearPivot, _gos.Length > 0, grid );
-				CreateButton( "Center", "center_focus_strong", "mesh.center-pivot", CenterPivot, _gos.Length > 0, grid );
-				CreateButton( "World Origin", "language", "mesh.zero-pivot", ZeroPivot, _gos.Length > 0, grid );
+				CreateButton( "Previous", "meshtools/pivot_tools/previous.png", "mesh.previous-pivot", PreviousPivot, _gos.Length > 0, grid );
+				CreateButton( "Next", "meshtools/pivot_tools/next.png", "mesh.next-pivot", NextPivot, _gos.Length > 0, grid );
+				CreateButton( "Clear", "meshtools/pivot_tools/clear.png", "mesh.clear-pivot", ClearPivot, _gos.Length > 0, grid );
+				CreateButton( "Center", "meshtools/object_selection_buttons/center_origin.png", "mesh.center-pivot", CenterPivot, _gos.Length > 0, grid );
+				CreateButton( "World Origin", "meshtools/pivot_tools/world_origin.png", "mesh.zero-pivot", ZeroPivot, _gos.Length > 0, grid );
 
 				grid.AddStretchCell();
 
@@ -100,9 +100,9 @@ partial class ObjectSelection
 				var grid = Layout.Row();
 				grid.Spacing = 4;
 
-				CreateButton( "Clipping Tool", "content_cut", "mesh.open-clipping-tool", OpenClippingTool, _meshes.Length > 0, grid );
-				CreateButton( "Mirror Tool", "flip", "mesh.mirror-tool", OpenMirrorTool, _gos.Length > 0, grid );
-				CreateButton( "Boolean Tool", "difference", "mesh.boolean-tool", OpenBooleanTool, _meshes.Length == 2, grid );
+				CreateButton( "Clipping Tool", "meshtools/face_tool/clipping_tool.png", "mesh.open-clipping-tool", OpenClippingTool, _meshes.Length > 0, grid );
+				CreateButton( "Mirror Tool", "meshtools/object_selection_buttons/mirror_tool.png", "mesh.mirror-tool", OpenMirrorTool, _gos.Length > 0, grid );
+				CreateButton( "Boolean Tool", "meshtools/object_selection_buttons/boolean_tool.png", "mesh.boolean-tool", OpenBooleanTool, _meshes.Length == 2, grid );
 
 				grid.AddStretchCell();
 

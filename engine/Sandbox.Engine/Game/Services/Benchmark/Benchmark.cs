@@ -66,7 +66,7 @@ public partial class BenchmarkSystem
 			new ("Gen0Collections",                     () => PerformanceStats.Gen0Collections ),
 			new ("Gen1Collections",                     () => PerformanceStats.Gen1Collections ),
 			new ("Gen2Collections",                     () => PerformanceStats.Gen2Collections ),
-			new ("GcPauseMs",                           () => TimeSpan.FromTicks( PerformanceStats.GcPause ).Milliseconds ), // Convert to ms so it matches the other timings
+			new ("GcPauseMs",                           () => TimeSpan.FromTicks( PerformanceStats.GcPause ).TotalMilliseconds ), // Convert to ms so it matches the other timings
 			new ("Exceptions",                          () => PerformanceStats.Exceptions ),
 
 			// SceneStats

@@ -116,31 +116,11 @@ public class Preview : Widget
 			ApplyVisemes( visemeWeights );
 		}
 
-		// Blend the model's morphs towards the accumulated viseme weights, the same way the
-		// runtime LipSync component drives a face from lipsync visemes.
+		// Blend the model's morphs towards the accumulated viseme weights - the same
+		// blend the game uses, so the preview mouth matches in game.
 		private void ApplyVisemes( ReadOnlySpan<float> visemeWeights )
 		{
-			var model = SceneObject.Model;
-			if ( model is null )
-				return;
-
-			var morphs = SceneObject.Morphs;
-			int morphCount = model.MorphCount;
-
-			for ( int morphIndex = 0; morphIndex < morphCount; morphIndex++ )
-			{
-				float morph = 0.0f;
-				for ( int v = 0; v < LipSyncGenerator.Count; v++ )
-				{
-					if ( visemeWeights[v] <= 0.0f )
-						continue;
-
-					var weight = model.GetVisemeMorph( LipSyncGenerator.MorphName( v ), morphIndex );
-					morph += (weight - morph) * visemeWeights[v];
-				}
-
-				morphs.Set( morphIndex, Math.Clamp( morph, 0f, 1f ) );
-			}
+			SceneObject.Morphs.ApplyVisemes( visemeWeights );
 		}
 
 		protected override void PreFrame()

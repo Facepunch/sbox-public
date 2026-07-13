@@ -545,6 +545,16 @@ public partial class SceneObject : IHandle
 			get => HasFlag( Rendering.SceneObjectFlags.NoZPrepass ) == false;
 			set => SetFlag( Rendering.SceneObjectFlags.NoZPrepass, !value );
 		}
+
+		/// <summary>
+		/// Whether this object is a static, permanent part of the world that never moves.
+		/// Static objects can use cheaper rendering paths (e.g. we dont render them on dynamic shadowmaps ).
+		/// </summary>
+		public bool IsStatic
+		{
+			get => HasFlag( Rendering.SceneObjectFlags.StaticObject );
+			set => SetFlag( Rendering.SceneObjectFlags.StaticObject, value );
+		}
 	}
 
 	public sealed override int GetHashCode() => base.GetHashCode();

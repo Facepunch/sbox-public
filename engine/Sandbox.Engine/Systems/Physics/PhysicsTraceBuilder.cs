@@ -411,10 +411,15 @@ public partial struct PhysicsTraceBuilder
 
 	// Named this radius instead of size just incase there's some casting going on and Size gets called instead
 	/// <summary>
-	/// Makes this trace a sphere of given radius.
+	/// Makes this trace a sphere of given radius. Zero (or less) is ignored - the trace keeps its
+	/// current shape (a plain ray if none was set).
 	/// </summary>
 	public readonly PhysicsTraceBuilder Radius( float radius )
 	{
+		// A zero radius sphere is degenerate and hits nothing.
+		if ( radius <= 0 )
+			return this;
+
 		var c = this;
 		c.request.StartShape.Type = PhysicsTrace.Request.ShapeType.Sphere;
 		c.request.StartShape.Radius = radius;

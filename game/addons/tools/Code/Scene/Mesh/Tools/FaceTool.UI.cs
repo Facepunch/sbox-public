@@ -81,10 +81,10 @@ partial class FaceTool
 					var row = new Widget { Layout = Layout.Row() };
 					row.Layout.Spacing = 4;
 
-					CreateButton( "Extract Faces", "content_cut", "mesh.extract-faces", ExtractFaces, _faces.Length > 0, row.Layout );
-					CreateButton( "Detach Faces", "call_split", "mesh.detach-faces", DetachFaces, _faces.Length > 0, row.Layout );
-					CreateButton( "Combine Faces", "join_full", "mesh.combine-faces", CombineFaces, _faces.Length > 0, row.Layout );
-					CreateButton( "Collapse Faces", "unfold_less", "mesh.collapse", Collapse, _faces.Length > 0, row.Layout );
+					CreateButton( "Extract Faces", "meshtools/face_tool/extract_faces.png", "mesh.extract-faces", ExtractFaces, _faces.Length > 0, row.Layout );
+					CreateButton( "Detach Faces", "meshtools/face_tool/detach_faces.png", "mesh.detach-faces", DetachFaces, _faces.Length > 0, row.Layout );
+					CreateButton( "Combine Faces", "meshtools/face_tool/combine_faces.png", "mesh.combine-faces", CombineFaces, _faces.Length > 0, row.Layout );
+					CreateButton( "Collapse Faces", "meshtools/face_tool/collapse_faces.png", "mesh.collapse", Collapse, _faces.Length > 0, row.Layout );
 
 					row.Layout.AddStretchCell();
 
@@ -95,9 +95,9 @@ partial class FaceTool
 					var row = new Widget { Layout = Layout.Row() };
 					row.Layout.Spacing = 4;
 
-					CreateButton( "Remove Bad Faces", "delete_sweep", "mesh.remove-bad-faces", RemoveBadFaces, _faces.Length > 0, row.Layout );
-					CreateButton( "Flip All Faces", "flip", "mesh.flip-all-faces", FlipAllFaces, _faces.Length > 0, row.Layout );
-					CreateButton( "Thicken Faces", "layers", "mesh.thicken-faces", ThickenFaces, _faces.Length > 0, row.Layout );
+					CreateButton( "Remove Bad Faces", "meshtools/face_tool/remove_bad_faces.png", "mesh.remove-bad-faces", RemoveBadFaces, _faces.Length > 0, row.Layout );
+					CreateButton( "Flip All Faces", "meshtools/face_tool/flip_all_faces.png", "mesh.flip-all-faces", FlipAllFaces, _faces.Length > 0, row.Layout );
+					CreateButton( "Thicken Faces", "meshtools/face_tool/thicken_faces.png", "mesh.thicken-faces", ThickenFaces, _faces.Length > 0, row.Layout );
 
 					row.Layout.AddStretchCell();
 
@@ -108,7 +108,7 @@ partial class FaceTool
 					var row = new Widget { Layout = Layout.Row() };
 					row.Layout.Spacing = 4;
 
-					CreateButton( "Slice", "grid_4x4", "mesh.quad-slice", QuadSlice, _faces.Length > 0, row.Layout );
+					CreateButton( "Slice", "meshtools/face_tool/slice.png", "mesh.quad-slice", QuadSlice, _faces.Length > 0, row.Layout );
 
 					var control = ControlWidget.Create( tool.GetSerialized().GetProperty( nameof( NumCuts ) ) );
 					control.FixedHeight = Theme.ControlHeight;
@@ -125,12 +125,12 @@ partial class FaceTool
 				var grid = Layout.Row();
 				grid.Spacing = 4;
 
-				CreateButton( "Fast Texture Tool", "texture", "mesh.fast-texture-tool", OpenFastTextureTool, true, grid );
-				CreateButton( "Edge Cut Tool", "polyline", "mesh.edge-cut-tool", OpenEdgeCutTool, true, grid );
-				CreateButton( "Mirror Tool", "flip", "mesh.mirror-tool", OpenMirrorTool, _faces.Length > 0, grid );
-				CreateButton( "Clipping Tool", "content_cut", "mesh.open-clipping-tool", OpenClippingTool, _faces.Length > 0, grid );
-				CreateButton( "Bridge", "device_hub", "mesh.bridge-tool", OpenBridgeTool, CanBridgeFaces(), grid );
-				CreateButton( "Inset", "filter_center_focus", "mesh.inset-tool", OpenInsetTool, _faces.Length > 0, grid );
+				CreateButton( "Fast Texture Tool", "meshtools/texture_tool_buttons/fast_texture_tool.png", "mesh.fast-texture-tool", OpenFastTextureTool, true, grid );
+				CreateButton( "Edge Cut Tool", "meshtools/face_tool/edge_cut_tool.png", "mesh.edge-cut-tool", OpenEdgeCutTool, true, grid );
+				CreateButton( "Mirror Tool", "meshtools/face_tool/mirror_tool.png", "mesh.mirror-tool", OpenMirrorTool, _faces.Length > 0, grid );
+				CreateButton( "Clipping Tool", "meshtools/face_tool/clipping_tool.png", "mesh.open-clipping-tool", OpenClippingTool, _faces.Length > 0, grid );
+				CreateButton( "Bridge", "meshtools/face_tool/bridge_1.png", "mesh.bridge-tool", OpenBridgeTool, CanBridgeFaces(), grid );
+				CreateButton( "Inset", "meshtools/face_tool/insert_face.png", "mesh.inset-tool", OpenInsetTool, _faces.Length > 0, grid );
 
 				grid.AddStretchCell();
 

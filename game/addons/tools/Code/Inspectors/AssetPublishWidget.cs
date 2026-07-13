@@ -35,25 +35,11 @@ sealed class AssetPublishWidget : Widget, AssetSystem.IEventListener
 		Paint.DrawRect( LocalRect );
 	}
 
-	ResourcePublishContext BuildPubishContext()
-	{
-		var context = new ResourcePublishContext();
-
-		// pre fill?
-
-		var resource = Asset.LoadResource();
-		if ( resource == null )
-		{
-			return context;
-		}
-
-		resource.ConfigurePublishing( context );
-		return context;
-	}
+	ResourcePublishContext BuildPublishContext() => Asset.Publishing.BuildPublishContext();
 
 	void StartBuild()
 	{
-		var context = BuildPubishContext();
+		var context = BuildPublishContext();
 
 		Layout.Clear( true );
 
@@ -133,7 +119,7 @@ sealed class AssetPublishWidget : Widget, AssetSystem.IEventListener
 
 	void OpenProjectWindow( Project project )
 	{
-		var w = PublishWizard.Open( project, BuildPubishContext() );
+		var w = PublishWizard.Open( project, BuildPublishContext() );
 	}
 }
 

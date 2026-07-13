@@ -349,8 +349,6 @@ public class WaveForm : GraphicsItem
 	private short[] Samples;
 	private float Duration;
 	private readonly List<WaveLine> WaveLines = new();
-	private short MinSample = short.MaxValue;
-	private short MaxSample = short.MinValue;
 
 	public WaveForm( TimelineView view )
 	{
@@ -398,22 +396,12 @@ public class WaveForm : GraphicsItem
 
 	public void CreateWaveLines()
 	{
-		MinSample = short.MaxValue;
-		MaxSample = short.MinValue;
-
 		WaveLines.Clear();
 
 		if ( Samples == null || Samples.Length == 0 )
 			return;
 
 		var sampleCount = Samples.Length;
-
-		for ( int i = 0; i < sampleCount; i++ )
-		{
-			var sample = Samples[i];
-			MinSample = Math.Min( sample, MinSample );
-			MaxSample = Math.Max( sample, MaxSample );
-		}
 
 		var waveformWidth = TimelineView.PositionFromTime( Duration ) / 4.0f;
 		var duration = Duration;
@@ -423,10 +411,11 @@ public class WaveForm : GraphicsItem
 		var timePerPixel = duration / (waveformWidth - 1);
 		var pixelTime = 0.0f;
 
-		int minVal = Math.Max( Math.Abs( (int)MinSample ), Math.Abs( (int)MaxSample ) );
-		int maxVal = -minVal;
-
-		float fRange = maxVal - minVal;
+		// normalize against full scale rather than the sound's own peak, so quiet sounds
+		// draw small and loud sounds fill the view
+		const int minVal = short.MaxValue;
+		const int maxVal = -minVal;
+		const float fRange = maxVal - minVal;
 
 		for ( int pi = 0; pi < waveformWidth; ++pi, pixelTime += timePerPixel )
 		{
@@ -449,8 +438,8 @@ public class WaveForm : GraphicsItem
 
 			WaveLines.Add( new WaveLine
 			{
-				top = fRange != 0.0f ? (lo - minVal) / fRange : 0.5f,
-				bottom = fRange != 0.0f ? (hi - minVal) / fRange : 0.5f
+				top = (lo - minVal) / fRange,
+				bottom = (hi - minVal) / fRange
 			} );
 		}
 

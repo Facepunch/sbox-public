@@ -49,10 +49,7 @@ public sealed partial class PlayerController : Component
 				UpdateLookAt();
 			}
 
-			if ( UseCameraControls )
-			{
-				UpdateCameraPosition();
-			}
+			UpdateCameraInput();
 
 			UpdateEyeTransform();
 		}

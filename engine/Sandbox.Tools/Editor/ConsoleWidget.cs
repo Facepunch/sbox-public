@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Editor;
 
-[Dock( "Editor", "Console", "text_snippet" )]
+[Dock( "Editor", "Console", "text_snippet", DockArea.AutoHideBottom )]
 internal class ConsoleWidget : Widget
 {
 	internal static ConsoleWidget Instance { get; private set; }

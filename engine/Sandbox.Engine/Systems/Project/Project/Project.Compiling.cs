@@ -12,9 +12,17 @@ public partial class Project
 	[JsonIgnore]
 	public bool HasCompiler => Compiler is not null || EditorCompiler is not null;
 
+	/// <summary>
+	/// The compiler for this project's game code, null when it has none. Internal so game code
+	/// can't see it - editor code reaches it through the Sandbox.Tools Project extensions.
+	/// </summary>
 	[JsonIgnore]
 	internal Compiler Compiler { get; private set; }
 
+	/// <summary>
+	/// The compiler for this project's editor code, null when it has none. Internal so game code
+	/// can't see it - editor code reaches it through the Sandbox.Tools Project extensions.
+	/// </summary>
 	[JsonIgnore]
 	internal Compiler EditorCompiler { get; private set; }
 

@@ -112,6 +112,12 @@ internal partial class NetworkSystem
 			return;
 		}
 
+		// Don't try to deserialize any scripts if we don't trust the sender!
+
+		using var scriptDisabledScope = !msg.Source.CanSendScripts
+			? Json.DisableScriptDeserialization()
+			: null;
+
 		var type = msg.Data.Read<InternalMessageType>();
 
 		if ( type == InternalMessageType.HeartbeatPing )

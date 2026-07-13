@@ -1,5 +1,5 @@
 ﻿using BenchmarkDotNet.Attributes;
-using System.IO.Hashing;
+using Sandbox.Hashing;
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;

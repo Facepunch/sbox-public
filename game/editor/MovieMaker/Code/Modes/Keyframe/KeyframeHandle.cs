@@ -101,6 +101,11 @@ public sealed class KeyframeHandle : GraphicsItem, IComparable<KeyframeHandle>, 
 		Update();
 	}
 
+	void IMovieItem.SingleSelected()
+	{
+		EditMode?.DefaultInterpolation = Keyframe.Interpolation;
+	}
+
 	protected override void OnSelectionChanged()
 	{
 		base.OnSelectionChanged();

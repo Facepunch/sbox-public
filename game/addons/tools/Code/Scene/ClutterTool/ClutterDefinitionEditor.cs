@@ -11,6 +11,8 @@ public class ClutterDefinitionEditor : BaseResourceEditor<ClutterDefinition>
 	private SerializedObject _serialized;
 	private Layout _scattererProperties;
 	private Type _currentScattererType;
+	private Layout _entryProperties;
+	private SerializedProperty _entriesProperty;
 
 	protected override void Initialize( Asset asset, ClutterDefinition resource )
 	{
@@ -58,10 +60,39 @@ public class ClutterDefinitionEditor : BaseResourceEditor<ClutterDefinition>
 		container.VerticalSizeMode = SizeMode.CanGrow;
 
 		var sheet = new ControlSheet();
-		sheet.AddRow( serialized.GetProperty( nameof( ClutterDefinition.Entries ) ) );
+		_entriesProperty = serialized.GetProperty( nameof( ClutterDefinition.Entries ) );
+		var gridWidget = sheet.AddControl<ClutterEntriesGridWidget>( _entriesProperty );
+		gridWidget.OnEntrySelected = RebuildEntryProperties;
 
 		container.Layout.Add( sheet, 1 );
+		_entryProperties = container.Layout.AddColumn();
+
 		return container;
+	}
+
+	private void RebuildEntryProperties( ClutterEntry entry )
+	{
+		_entryProperties?.Clear( true );
+
+		if ( entry is null )
+			return;
+
+		var so = entry.GetSerialized();
+		so.OnPropertyChanged += ( prop ) =>
+		{
+			if ( _entriesProperty is null )
+				return;
+
+			_entriesProperty.SetValue( _entriesProperty.GetValue<List<ClutterEntry>>() );
+			_entriesProperty.Parent?.NoteChanged( _entriesProperty );
+		};
+
+		var sheet = new ControlSheet();
+		sheet.AddRow( so.GetProperty( nameof( ClutterEntry.Weight ) ) );
+		sheet.AddRow( so.GetProperty( nameof( ClutterEntry.LocalScale ) ) );
+		sheet.AddRow( so.GetProperty( nameof( ClutterEntry.CastShadows ) ) );
+		sheet.AddRow( so.GetProperty( nameof( ClutterEntry.EnablePhysics ) ) );
+		_entryProperties.Add( sheet );
 	}
 
 	private Widget CreateScattererTab( SerializedObject serialized )

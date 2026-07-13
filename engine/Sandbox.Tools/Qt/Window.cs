@@ -276,16 +276,6 @@ namespace Editor
 		/// <summary>
 		/// Position the window at the centre of the screen, or main editor window if one is present.
 		/// </summary>
-		public void Center()
-		{
-			if ( EditorWindow != null && EditorWindow != this )
-			{
-				Position = EditorWindow.ScreenRect.Contain( Size ).Position;
-			}
-			else
-			{
-				Position = ScreenGeometry.Contain( Size ).Position;
-			}
-		}
+		public void Center() => CenterWindow();
 	}
 }

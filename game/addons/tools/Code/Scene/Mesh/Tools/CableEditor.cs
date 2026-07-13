@@ -5,7 +5,7 @@ namespace Editor.MeshEditor;
 /// <summary>
 /// Draw a cable path by placing points in the scene.
 /// </summary>
-[Title( "Cable" ), Icon( "cable" )]
+[Title( "Cable" ), Icon( "meshtools/primitve_tools/cable.png" )]
 public sealed class CableEditor( PrimitiveTool tool ) : PrimitiveEditor( tool )
 {
 	readonly List<Vector3> _points = [];

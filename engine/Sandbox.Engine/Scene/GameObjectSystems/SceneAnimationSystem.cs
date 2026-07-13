@@ -64,6 +64,10 @@ public sealed class SceneAnimationSystem : GameObjectSystem<SceneAnimationSystem
 
 			foreach ( var renderer in SkinnedRenderers.EnumerateLocked() )
 			{
+				// Drive viseme morphs from any speaking voice before bones/morphs update
+				if ( renderer.VoiceActive )
+					renderer.UpdateVoice();
+
 				if ( renderer.IsRootRenderer )
 					_rootRenderers.Add( renderer );
 

@@ -1,9 +1,10 @@
-﻿using System;
+﻿using Sandbox.Hashing;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.IO.Hashing;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 

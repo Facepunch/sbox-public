@@ -127,6 +127,34 @@ public abstract partial class Resource : IValid, IJsonConvert, BytePack.ISeriali
 		}
 	}
 
+	/// <summary>
+	/// Called when this resource's file data has been loaded (or reloaded), while
+	/// that data is still in memory. This is our chance to read anything we want
+	/// out of the compiled file - custom blocks written by managed resource
+	/// compilers, for example. The context is only valid during this call, so copy
+	/// out what you need. Main thread.
+	/// </summary>
+	internal virtual void OnLoaded( ResourceLoadContext context )
+	{
+	}
+
+	/// <summary>
+	/// Called by the resource system when any resource's file data has been loaded,
+	/// while that data is still in memory. Almost all resource loads are initiated
+	/// from managed, so usually the wrapper already exists - find it by identity
+	/// and hand it the file data via <see cref="OnLoaded"/>. Runs on the main
+	/// thread, fires on reloads too.
+	/// </summary>
+	internal static void OnResourceLoaded( string resourceName, IntPtr header )
+	{
+		// This fires from the engine frame, outside any context scope - the wrapper
+		// could be registered in either context's resource system, so check both.
+		var resource = Engine.GlobalContext.Game.ResourceSystem.Get( typeof( Resource ), resourceName )
+			?? Engine.GlobalContext.Menu.ResourceSystem.Get( typeof( Resource ), resourceName );
+
+		resource?.OnLoaded( new ResourceLoadContext( resourceName, header ) );
+	}
+
 	public override string ToString()
 	{
 		return $"{GetType().Name}:{ResourceName}";

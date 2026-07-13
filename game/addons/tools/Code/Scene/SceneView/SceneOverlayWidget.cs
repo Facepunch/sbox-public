@@ -11,7 +11,7 @@ public class SceneOverlayWidget : Widget
 		TranslucentBackground = true;
 		NoSystemBackground = true;
 
-		WindowFlags = WindowFlags.FramelessWindowHint | WindowFlags.Tool;
+		WindowFlags = WindowFlags.FramelessWindowHint | WindowFlags.Tool | WindowFlags.WindowStaysOnTopHint;
 
 		Active = this;
 
@@ -81,6 +81,10 @@ public class SceneOverlayWidget : Widget
 			if ( vw.SceneView.CurrentView == SceneViewWidget.ViewMode.Game )
 			{
 				EditorEvent.Run( "sceneview.paintoverlay" );
+			}
+			else
+			{
+				vw.PaintOrientationGizmo();
 			}
 		}
 	}

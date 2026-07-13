@@ -129,6 +129,8 @@ public class HomeWidget : Widget
 			RefreshLocalProjects();
 		}
 
+		// Fill the taskbar jump list so recent projects are there before you open anything.
+		TaskbarJumpList.Refresh();
 	}
 
 	private void RefreshLocalProjects()
@@ -389,6 +391,9 @@ public class HomeWidget : Widget
 
 	public void OpenProject( Project project, string args = null )
 	{
+		// LastOpened's already been bumped and saved, so this project is now top of the jump list.
+		TaskbarJumpList.Refresh();
+
 		ProcessStartInfo info = new ProcessStartInfo( "sbox-dev.exe", $"{Environment.CommandLine} -project \"{project.ConfigFilePath}\" {args ?? ""}" );
 		info.UseShellExecute = true;
 		info.CreateNoWindow = true;

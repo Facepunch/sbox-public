@@ -145,6 +145,7 @@ internal static class EngineLoop
 
 	static void SleepForFrameRateClamp( FastTimer frameTime )
 	{
+		double frameSleepMs = 0;
 		double maxFps = GetMaxFrameRate();
 
 		double targetMilliseconds = maxFps > 0 ? 1000.0 / maxFps : 0;
@@ -183,10 +184,15 @@ internal static class EngineLoop
 				{
 					// wait
 				}
+
+				// actual time parked this frame, including any oversleep
+				frameSleepMs = pacingClock.ElapsedMilliSeconds - nowMs;
 			}
 
 			nextFrameDeadlineMs = deadlineMs;
 		}
+
+		PerformanceStats.Timings.Idle.AddMilliseconds( frameSleepMs );
 
 		// Feed the on-screen pacing overlay (no-op unless overlay_fps is on).
 		DebugOverlay.FrameTimeGraph.Sample( frameTime.ElapsedMilliSeconds );

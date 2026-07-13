@@ -6,8 +6,12 @@ class PreviewSoundFile : AssetPreview
 {
 	SoundFile soundFile;
 	SoundPlayer previewWidget;
+	int channels = 1;
 
 	public override float PreviewWidgetCycleSpeed => 0.2f;
+
+	// The waveform is a flat strip - it doesn't need the tall square panel that 3D previews use.
+	public override float PreferredHeight => 200;
 
 	public bool AutoPlay
 	{
@@ -23,7 +27,7 @@ class PreviewSoundFile : AssetPreview
 	public override Widget CreateWidget( Widget parent )
 	{
 		previewWidget = new SoundPlayer( parent );
-		previewWidget.SetSamples( samples, soundFile.Duration, soundFile.ResourcePath );
+		previewWidget.SetSamples( samples, soundFile.Duration, soundFile.ResourcePath, channels );
 
 		if ( AutoPlay )
 		{
@@ -46,7 +50,10 @@ class PreviewSoundFile : AssetPreview
 	{
 		await soundFile.LoadAsync();
 
-		samples = await soundFile.GetSamplesAsync();
+		// interleaved so stereo sounds can draw both channels. The interleaved fetch only
+		// preserves stereo - any other channel count comes back as a single downmixed channel
+		samples = await soundFile.GetSamplesInterleavedAsync();
+		channels = soundFile.Channels == 2 ? 2 : 1;
 	}
 
 	public override Task RenderToBitmap( Bitmap bitmap )

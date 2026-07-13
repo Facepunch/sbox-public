@@ -286,6 +286,10 @@ public sealed partial class SkinnedModelRenderer : ModelRenderer, Component.Exec
 	{
 		BuildBoneHierarchy();
 
+		// If the model is changing, let go of any voice morphs now, while the
+		// scene object still has the old model our morph indices belong to
+		ReleaseVoiceMorphs();
+
 		base.UpdateObject();
 
 		if ( !SceneModel.IsValid() )

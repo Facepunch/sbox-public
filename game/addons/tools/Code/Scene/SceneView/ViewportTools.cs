@@ -79,9 +79,9 @@ public partial class ViewportTools : Widget
 
 		toolbar.AddStretchCell();
 
-		var centerGroup = center.Add( AddGroup() );
-		centerGroup.Layout.Spacing = Spacing;
-		BuildPlayToolbar( centerGroup.Layout );
+		PlayToolbar = center.Add( AddGroup() );
+		PlayToolbar.Layout.Spacing = Spacing;
+		BuildPlayToolbar( PlayToolbar.Layout );
 
 		BuildToolbarRight( right );
 
@@ -122,12 +122,9 @@ public partial class ViewportTools : Widget
 
 	private void UpdateChildren()
 	{
-		foreach ( var child in toolbarWidget.Children )
+		foreach ( var button in toolbarWidget.GetDescendants<EditorToolButton>() )
 		{
-			if ( child is EditorToolButton button )
-			{
-				button.UpdateState();
-			}
+			button.UpdateState();
 		}
 	}
 

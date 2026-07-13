@@ -47,6 +47,7 @@ partial class DisplacementTool
 				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.Hardness ) ) ) );
 				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.NormalDir ) ) ) );
 				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.PaintBackfacing ) ) ) );
+				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.ScaleWithDistance ) ) ) );
 			}
 			{
 				var group = AddGroup( "Visualization" );

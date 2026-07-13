@@ -133,6 +133,12 @@ public class AssetPreview : IDisposable
 	}
 
 	/// <summary>
+	/// Preferred height of the preview panel. Scene-based previews want to be tall; flat previews like
+	/// the sound waveform can override this to take up less vertical space. Width is unaffected.
+	/// </summary>
+	public virtual float PreferredHeight => 400;
+
+	/// <summary>
 	/// Create a toolbar docked above the preview's content
 	/// </summary>
 	public virtual Widget CreateToolbar()
