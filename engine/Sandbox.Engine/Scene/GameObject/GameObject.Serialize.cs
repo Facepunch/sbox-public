@@ -325,9 +325,6 @@ public partial class GameObject
 			JsonUpgrader.Upgrade( serializedVersion, node, GetType() );
 		}
 
-		DeserializeFlags( node, options );
-		Flags |= GameObjectFlags.Deserializing;
-
 		if ( node[JsonKeys.EditorSkipPrefabBreakOnRefresh] is null )
 		{
 			_prefabInstanceData = null;
@@ -419,12 +416,10 @@ public partial class GameObject
 			PrefabInstance.InitLookups( nodePrefabToInstanceId );
 			PrefabInstance.InitPatch( instancePatch );
 			PrefabInstance.RemapPrefabIdsToInstanceIds( ref node );
-
-			// Re-deserialize flags now that node points at the actual patched prefab data instead of
-			// the instance-source stub (which has no Flags key).
-			DeserializeFlags( node, options );
-			Flags |= GameObjectFlags.Deserializing;
 		}
+
+		DeserializeFlags( node, options );
+		Flags |= GameObjectFlags.Deserializing;
 
 		// Handle networked prefab instances, we just init the path
 		if ( node[JsonKeys.NetworkedPrefabInstance] is JsonValue _prefab && _prefab.TryGetValue( out prefabSource ) )
