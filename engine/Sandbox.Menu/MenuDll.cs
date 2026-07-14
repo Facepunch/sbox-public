@@ -84,7 +84,7 @@ internal sealed class MenuDll : IMenuDll
 		// Give the GAM an early init, because we might want to load an assembly before
 		// it's actually initialized properly
 		//
-		Loader = new PackageLoader( "Menu", GetType().Assembly, disableAccessControl: true );
+		Loader = new PackageLoader( "Menu", GetType().Assembly );
 		Loader.HotloadWatch( Game.GameAssembly ); // Sandbox.Game is per instance
 		Loader.OnAfterHotload = () =>
 		{

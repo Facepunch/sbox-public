@@ -9,15 +9,10 @@ internal static partial class PackageManager
 	static Logger log = new Logger( "PackageManager" );
 
 	/// <summary>
-	/// The library used to load assemblies
+	/// Resolves Cecil assembly definitions for hotload. Package assemblies are supplied on demand.
 	/// </summary>
-	internal static AccessControl AccessControl { get; } = new AccessControl { PackageAssemblyResolver = GetPackageAssemblyBytes };
+	internal static PackageAssemblyResolver AssemblyResolver { get; } = new PackageAssemblyResolver { PackageBytes = GetPackageAssemblyBytes };
 
-	/// <summary>
-	/// Provides the raw DLL bytes for a <c>package.*</c> assembly by searching the active packages'
-	/// assembly filesystems. Used by <see cref="AccessControl"/> to build Cecil definitions on demand
-	/// during verification. Context-free and static - it reads only global package state.
-	/// </summary>
 	private static byte[] GetPackageAssemblyBytes( string assemblyName )
 	{
 		var filename = $"{assemblyName}.dll";

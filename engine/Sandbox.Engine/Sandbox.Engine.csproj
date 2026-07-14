@@ -53,7 +53,6 @@
 
 	<ItemGroup>
 		<ProjectReference Include="../Mounting/Sandbox.Mounting/Sandbox.Mounting.csproj" />
-		<ProjectReference Include="../Sandbox.Access/Sandbox.Access.csproj" />
 		<ProjectReference Include="../Sandbox.CodeUpgrader/Sandbox.CodeUpgrader.csproj" />
 		<ProjectReference Include="../Sandbox.Compiling/Sandbox.Compiling.csproj" />
 		<ProjectReference Include="../Sandbox.Event/Sandbox.Event.csproj" />

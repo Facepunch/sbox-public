@@ -20,7 +20,7 @@ public class PackageAssemblyResolverTest
 		var consumerBytes = Compile( "package.resolver.consumer", "public sealed class Consumer { public StreamedDependency Value; }", dependencyReference );
 
 		using var resolver = new PackageAssemblyResolver();
-		resolver.AddAssembly( dependencyBytes );
+		resolver.AddAssembly( dependencyBytes, "package.resolver.dependency" );
 
 		using var stream = new MemoryStream( consumerBytes );
 		using var consumer = AssemblyDefinition.ReadAssembly( stream,

@@ -21,11 +21,6 @@ internal static partial class PackageManager
 		public BaseFileSystem AssemblyFileSystem { get; private set; }
 
 		/// <summary>
-		/// Access control running over its assemblies ahead of them loading, see <see cref="PackageLoader.PreVerifyAsync(ActivePackage)"/>
-		/// </summary>
-		internal Task Verification { get; set; }
-
-		/// <summary>
 		/// The project settings folder
 		/// </summary>
 		public BaseFileSystem ProjectSettings { get; private set; }
@@ -72,9 +67,6 @@ internal static partial class PackageManager
 			else
 			{
 				await o.DownloadAsync( token, options );
-
-				// Its code can get checked while the rest of the install happens, ready for when it loads
-				if ( package.TypeName is "game" or "library" ) _ = PackageLoader.PreVerifyAsync( o );
 			}
 
 			ActivePackages.Add( o );
@@ -141,13 +133,21 @@ internal static partial class PackageManager
 			}
 
 			//
-			// Mount assembly from this package
+			// Only the package's code archives. Its files can come from a workshop item anyone can upload to, and
+			// nothing checks a dll before it loads, so dlls only ever come from the backend or our own compile.
 			//
 			AssemblyFileSystem = new AggregateFileSystem();
 			if ( FileSystem.DirectoryExists( ".bin" ) )
 			{
-				// Mount as a subsystem of the package's FileSystem
-				AssemblyFileSystem.Mount( FileSystem.CreateSubSystem( ".bin" ) );
+				var archives = new MemoryFileSystem();
+				foreach ( var file in FileSystem.FindFile( ".bin", "*.cll", true ) )
+				{
+					var directory = System.IO.Path.GetDirectoryName( file );
+					if ( !string.IsNullOrEmpty( directory ) ) archives.CreateDirectory( directory );
+					archives.WriteAllBytes( file, FileSystem.ReadAllBytes( $".bin/{file}" ).ToArray() );
+				}
+
+				AssemblyFileSystem.Mount( archives );
 			}
 
 			MemoryFileSystem dllFs = null;
@@ -163,11 +163,9 @@ internal static partial class PackageManager
 				if ( dllFs is null && !hasArchives )
 					throw new System.Exception( $"Couldn't get the code for '{Package.FullIdent}': {error}" );
 			}
-			else if ( !HasCodeArchives() )
+			else if ( !HasCodeArchives() && HasManifestDlls() )
 			{
-				// Everything that isn't a game compiles its code archives on install, older revisions
-				// without any only have the dlls in their manifest
-				dllFs = await DownloadBinDllsAsync( Package.Revision, token );
+				Log.Warning( $"'{Package.FullIdent}' only has prebuilt dlls, which never load - it has no code until it's republished" );
 			}
 
 			if ( dllFs != null )
@@ -295,39 +293,9 @@ internal static partial class PackageManager
 			return (memFs, null);
 		}
 
-		private static async Task<MemoryFileSystem> DownloadBinDllsAsync( Package.IRevision revision, CancellationToken token )
-		{
-			var files = revision?.Manifest?.Files;
-			if ( files is null ) return null;
-
-			var dllFiles = files
-				.Where( f => f.Path.StartsWith( ".bin/", StringComparison.OrdinalIgnoreCase ) &&
-							 f.Path.EndsWith( ".dll", StringComparison.OrdinalIgnoreCase ) )
-				.ToArray();
-
-			if ( dllFiles.Length == 0 ) return null;
-
-			var memFs = new MemoryFileSystem();
-
-			foreach ( var file in dllFiles )
-			{
-				token.ThrowIfCancellationRequested();
-				LoadingScreen.Subtitle = System.IO.Path.GetFileName( file.Path );
-
-				var bytes = await GetCachedDllAsync( file, token );
-				if ( bytes is not null )
-				{
-					memFs.WriteAllBytes( System.IO.Path.GetFileName( file.Path ), bytes );
-				}
-			}
-
-			LoadingScreen.Subtitle = null;
-			return memFs;
-		}
-
 		/// <summary>
 		/// The dll's bytes from the download cache, fetched into it first when they aren't there or
-		/// don't match the manifest's crc. The bytes still go through access control before they load.
+		/// don't match the backend's crc. Nothing checks them before they load, so they must come from the backend.
 		/// </summary>
 		private static async Task<byte[]> GetCachedDllAsync( ManifestSchema.File file, CancellationToken token )
 		{
@@ -369,8 +337,8 @@ internal static partial class PackageManager
 		/// <summary>
 		/// Fallback for remote packages that ship code archives (.cll) but no precompiled dlls.
 		/// Compiles the archives locally and mounts the resulting assemblies onto
-		/// <see cref="AssemblyFileSystem"/>, matching how <see cref="DownloadBinDllsAsync"/>
-		/// exposes manifest dlls, so the normal load path picks them up.
+		/// <see cref="AssemblyFileSystem"/>, matching how <see cref="DownloadCompiledDllAsync"/>
+		/// exposes backend dlls, so the normal load path picks them up.
 		/// </summary>
 		internal async Task<bool> CompileCodeArchive()
 		{
@@ -387,7 +355,6 @@ internal static partial class PackageManager
 			analytic.SetValue( "archives", codeArchives );
 
 			using var group = new CompileGroup( Package.Ident );
-			group.AccessControl = PackageManager.AccessControl;
 			group.ReferenceProvider = this;
 
 			using ( analytic.ScopeTimer( "LoadArchives" ) )

@@ -49,7 +49,7 @@ static class CodeAccessGate
 	/// characterize the rules against raw, un-rewritten source - e.g. before generator redirects (like
 	/// the ArrayPool.Shared -> PublicArrayPool rewrite) kick in.
 	/// </summary>
-	public static Result Verify( string source, bool runGenerator = true, string assemblyName = "package.test", bool allowUnsafe = false, AccessRules rules = null )
+	public static Result Verify( string source, bool runGenerator = true, string assemblyName = "package.test", bool allowUnsafe = false, AccessRules rules = null, IEnumerable<MetadataReference> extraReferences = null )
 	{
 		var config = new Compiler.Configuration { Whitelist = true, Unsafe = allowUnsafe };
 
@@ -62,7 +62,8 @@ static class CodeAccessGate
 			.WithNullableContextOptions( NullableContextOptions.Disable )
 			.WithAllowUnsafe( allowUnsafe );
 
-		var compilation = CSharpCompilation.Create( assemblyName, [syntaxTree], BuildReferences(), options );
+		var references = BuildReferences().Concat( extraReferences ?? [] );
+		var compilation = CSharpCompilation.Create( assemblyName, [syntaxTree], references, options );
 
 		// Run generators before the walk, matching production (BuildInternal runs generators, then the
 		// walker on the resulting trees).

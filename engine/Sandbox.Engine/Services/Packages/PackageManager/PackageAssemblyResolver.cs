@@ -28,8 +28,9 @@ sealed class PackageAssemblyResolver : IAssemblyResolver
 	}
 
 	// Streamed assemblies may not exist in an active package filesystem, but hotload still needs
-	// their Cecil definitions to resolve dependencies.
-	internal void AddAssembly( byte[] bytes, string expectedPackageName = null )
+	// their Cecil definitions to resolve dependencies. Package assemblies are always named after
+	// their file, and only package.* names are ungated by the compiler, so anything else is rejected.
+	internal void AddAssembly( byte[] bytes, string expectedName )
 	{
 		ObjectDisposedException.ThrowIf( Assemblies is null, this );
 
@@ -37,12 +38,12 @@ sealed class PackageAssemblyResolver : IAssemblyResolver
 		var options = new ReaderParameters { ReadingMode = ReadingMode.Immediate, InMemory = true, AssemblyResolver = this };
 		var assembly = AssemblyDefinition.ReadAssembly( stream, options );
 
-		if ( expectedPackageName is not null &&
-			(!assembly.Name.Name.StartsWith( "package.", StringComparison.OrdinalIgnoreCase ) ||
-			 !assembly.Name.Name.Equals( expectedPackageName, StringComparison.OrdinalIgnoreCase )) )
+		if ( !assembly.Name.Name.StartsWith( "package.", StringComparison.OrdinalIgnoreCase ) ||
+			 !assembly.Name.Name.Equals( expectedName, StringComparison.OrdinalIgnoreCase ) )
 		{
+			var name = assembly.Name.Name;
 			assembly.Dispose();
-			throw new InvalidDataException( $"Assembly '{assembly.Name.Name}' does not match package '{expectedPackageName}'" );
+			throw new InvalidDataException( $"Assembly '{name}' does not match package '{expectedName}'" );
 		}
 
 		var older = Assemblies

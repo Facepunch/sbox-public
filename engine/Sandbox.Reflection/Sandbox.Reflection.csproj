@@ -25,7 +25,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Sandbox.Access\Sandbox.Access.csproj" />
     <ProjectReference Include="..\Sandbox.Hotload\Sandbox.Hotload.csproj" />
     <ProjectReference Include="..\Sandbox.System\Sandbox.System.csproj" />
   </ItemGroup>

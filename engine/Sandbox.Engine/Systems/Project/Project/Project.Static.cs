@@ -40,7 +40,6 @@ public partial class Project
 		CompileGroup?.Dispose();
 
 		CompileGroup = new( "local" );
-		CompileGroup.AccessControl = PackageManager.AccessControl;
 		CompileGroup.PrintErrorsInConsole = !Application.IsEditor;
 		CompileGroup.OnCompileStarted = OnCompileStarted;
 		CompileGroup.OnCompileFinished = OnCompileFinished;
@@ -52,7 +51,6 @@ public partial class Project
 		CompileGroup?.Dispose();
 
 		CompileGroup = new( "local" );
-		CompileGroup.AccessControl = PackageManager.AccessControl;
 		CompileGroup.PrintErrorsInConsole = !Application.IsEditor;
 		CompileGroup.OnCompileStarted = OnCompileStarted;
 		CompileGroup.OnCompileFinished = OnCompileFinished;
