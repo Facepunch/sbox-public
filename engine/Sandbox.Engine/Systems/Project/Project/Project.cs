@@ -191,7 +191,7 @@ public sealed partial class Project
 	/// <summary>
 	/// Returns true if the Code path exists
 	/// </summary>
-	public bool HasCodePath() => RootDirectory is not null && System.IO.Directory.Exists( GetCodePath() );
+	public bool HasCodePath() => ProjectFileSystem?.DirectoryExists( "Code" ) ?? false;
 
 	/// <summary>
 	/// Absolute path to the Editor folder of the project.
@@ -201,7 +201,7 @@ public sealed partial class Project
 	/// <summary>
 	/// Returns true if the Editor path exists
 	/// </summary>
-	public bool HasEditorPath() => RootDirectory is not null && System.IO.Directory.Exists( GetEditorPath() );
+	public bool HasEditorPath() => ProjectFileSystem?.DirectoryExists( "Editor" ) ?? false;
 
 	/// <summary>
 	/// Absolute path to the Assets folder of the project, or <see langword="null"/> if not set.
@@ -217,7 +217,7 @@ public sealed partial class Project
 	/// <summary>
 	/// Returns true if the Assets path exists
 	/// </summary>
-	public bool HasAssetsPath() => RootDirectory is not null && System.IO.Directory.Exists( GetAssetsPath() );
+	public bool HasAssetsPath() => ProjectFileSystem?.DirectoryExists( "Assets" ) ?? false;
 
 	internal void Save()
 	{

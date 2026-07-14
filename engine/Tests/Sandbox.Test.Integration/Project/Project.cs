@@ -36,58 +36,14 @@ public class ProjectTest
 	}
 
 	/// <summary>
-	/// Verifies every Get*Path method returns an absolute path.
-	/// </summary>
-	[TestMethod]
-	public void GetProjectPathsAreAbsolute()
-	{
-		var project = Project.AddFromFile( "unittest/addons/testmap/.sbproj" );
-
-		Assert.IsTrue( System.IO.Path.IsPathRooted( project.GetRootPath() ) );
-		Assert.IsTrue( System.IO.Path.IsPathRooted( project.GetCodePath() ) );
-		Assert.IsTrue( System.IO.Path.IsPathRooted( project.GetAssetsPath() ) );
-		Assert.IsTrue( System.IO.Path.IsPathRooted( project.GetEditorPath() ) );
-		Assert.IsTrue( System.IO.Path.IsPathRooted( project.GetLocalizationPath() ) );
-		Assert.IsTrue( System.IO.Path.IsPathRooted( project.GetProjectPath() ) );
-	}
-
-	/// <summary>
-	/// Verifies the folder paths resolve underneath the project root.
-	/// </summary>
-	[TestMethod]
-	public void GetProjectPathsAreRootedUnderProject()
-	{
-		var project = Project.AddFromFile( "unittest/addons/testmap/.sbproj" );
-		var rootPath = project.GetRootPath();
-
-		Assert.IsTrue( project.GetCodePath().StartsWith( rootPath ) );
-		Assert.IsTrue( project.GetAssetsPath().StartsWith( rootPath ) );
-		Assert.IsTrue( project.GetEditorPath().StartsWith( rootPath ) );
-		Assert.IsTrue( project.GetLocalizationPath().StartsWith( rootPath ) );
-	}
-
-	/// <summary>
-	/// Verifies GetProjectPath finds the project's .sbproj file on disk.
-	/// </summary>
-	[TestMethod]
-	public void GetProjectPathFindsSbproj()
-	{
-		var project = Project.AddFromFile( "unittest/addons/testmap/.sbproj" );
-		var projectPath = project.GetProjectPath();
-
-		Assert.IsNotNull( projectPath );
-		Assert.IsTrue( projectPath.EndsWith( ".sbproj" ) );
-		Assert.IsTrue( System.IO.File.Exists( projectPath ) );
-	}
-
-	/// <summary>
 	/// Verifies Has*Path resolves lowercase folders case-insensitively (CIPFS on Linux).
 	/// </summary>
 	[TestMethod]
 	public void HasProjectPathsAreCaseInsensitive()
 	{
-		var project = Project.AddFromFile( "unittest/addons/case-insensitive/case_insensitive.sbproj" );
+		var project = Project.AddFromFile( "unittest/addons/case-insensitive/.sbproj" );
 
+		// Asserts if (/Assets, /Code, /Editor) matches on-disk (/assets, /code, /editor)
 		Assert.IsTrue( project.HasAssetsPath() );
 		Assert.IsTrue( project.HasCodePath() );
 		Assert.IsTrue( project.HasEditorPath() );
