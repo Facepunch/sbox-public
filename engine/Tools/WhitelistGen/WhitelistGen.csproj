@@ -10,8 +10,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Reuse the scanner's own signature formatter (AccessSignature) so output matches exactly. -->
-    <ProjectReference Include="..\..\Sandbox.Access\Sandbox.Access.csproj" />
+    <!-- Reuse the analyzer's own Roslyn signature formatter (SymbolSignature) so generated rules
+         cannot drift from what AccessWalker matches against. -->
+    <ProjectReference Include="..\..\Sandbox.Compiling\Sandbox.Compiling.csproj" />
   </ItemGroup>
 
 </Project>
