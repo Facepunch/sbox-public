@@ -207,6 +207,12 @@ internal class ToolsDll : IToolsDll
 		await StartupLoadProject.Run();
 	}
 
+	public void LoadPackageAssemblies( Package package )
+	{
+		if ( package is null || AssemblyEnroller is null ) return;
+		AssemblyEnroller.LoadPackage( package.FullIdent );
+	}
+
 	/// <summary>
 	/// Called from the code generator, the job of this function is:
 	/// 1. Make sure the package is downloaded and installed
@@ -237,8 +243,9 @@ internal class ToolsDll : IToolsDll
 	{
 		log.Trace( $"OnPackageInstalled: {package.Package.FullIdent} {context}" );
 
-		// only load if a tools context
-		if ( context != "tools" && context != "hammer" && package.Package is not LocalPackage ) return;
+		// Runtime-mounted packages can create objects that the editor inspects directly. Enroll their
+		// assemblies too, otherwise EditorTypeLibrary can't describe components from remote addons.
+		if ( !ShouldEnrollPackage( package.Package, context ) ) return;
 
 		// The menu addon should never leak into other projects, its loading is handled in MenuDll.
 		if ( package.Package is LocalPackage { Project.Config.Ident: "menu" } && Project.Current?.Config?.Ident != "menu" ) return;
@@ -247,6 +254,11 @@ internal class ToolsDll : IToolsDll
 
 		// make sure it's loaded into our context
 		AssemblyEnroller.LoadPackage( package.Package.FullIdent );
+	}
+
+	internal static bool ShouldEnrollPackage( Package package, string context )
+	{
+		return package is LocalPackage || context is "tools" or "hammer" or "game";
 	}
 
 	public void OnFunctionKey( ButtonCode key, KeyboardModifiers modifiers )

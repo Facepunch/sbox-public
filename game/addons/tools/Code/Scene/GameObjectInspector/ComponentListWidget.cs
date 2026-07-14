@@ -39,7 +39,6 @@ public class ComponentListWidget : Widget
 
 		// A list of components we've already seen
 		HashSet<Component> used = new HashSet<Component>();
-		HashSet<Component> toRemove = new HashSet<Component>();
 
 		//
 		// Here we build a list of all components that are on all the selected game objects
@@ -59,12 +58,6 @@ public class ComponentListWidget : Widget
 		{
 			if ( !component.IsValid() ) continue;
 			if ( component.Flags.HasFlag( ComponentFlags.Hidden ) ) continue;
-			var baseType = EditorTypeLibrary.GetType( component.GetType() )?.BaseType?.TargetType;
-			if ( !(baseType == typeof( Component ) || (baseType?.IsSubclassOf( typeof( Component ) ) ?? false)) )
-			{
-				toRemove.Add( component );
-				continue;
-			}
 
 			// Get all the components of this type on all the selected game objects
 			var allGobs = gobs.Select( x => x.Components.GetAll()
@@ -109,11 +102,6 @@ public class ComponentListWidget : Widget
 			newLayout.Add( sheet );
 
 			current[component] = sheet;
-		}
-
-		foreach ( var t in toRemove )
-		{
-			t?.Destroy();
 		}
 
 		Layout.Clear( true );
@@ -295,7 +283,7 @@ public class ComponentListWidget : Widget
 		menu.AddSeparator();
 
 		var t = EditorTypeLibrary.GetType( component.GetType() );
-		if ( t.SourceFile is not null )
+		if ( t?.SourceFile is not null )
 		{
 			bool isPackage = component.GetType().Assembly.IsPackage();
 			var filename = System.IO.Path.GetFileName( t.SourceFile );
@@ -404,7 +392,7 @@ public class ComponentListWidget : Widget
 		menu.AddSeparator();
 
 		var t = EditorTypeLibrary.GetType( component.GetType() );
-		if ( t.SourceFile is not null )
+		if ( t?.SourceFile is not null )
 		{
 			bool isPackage = component.GetType().Assembly.IsPackage();
 			var filename = System.IO.Path.GetFileName( t.SourceFile );
