@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
-namespace CompilingTests;
+namespace CompilingTests.CodeAccess;
 
 [TestClass]
 [DoNotParallelize]
@@ -89,11 +89,12 @@ public partial class BlacklistTest
 			Console.WriteLine( $"{diag}" );
 		}
 
-		// 3 errors please
-		// data\code\blacklist\Unsafe.cs( 10, 17 ): error SB500: Prohibited type 'System.Runtime.CompilerServices.Unsafe.As<float, int>(float)' used
-		// data\code\blacklist\UsingStatic.cs( 8, 28 ): error SB500: Prohibited type 'System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan<int>(int, int)' used
-		// data\code\blacklist\UsingAlias.cs( 3, 2 ): error SB500: Prohibited type 'System.Runtime.CompilerServices.InlineArrayAttribute.InlineArrayAttribute(int)' used
-		Assert.AreEqual( 4, compiler.Diagnostics.Length );
+		var messages = compiler.Diagnostics.Select( d => d.GetMessage() ).ToList();
+		Assert.AreEqual( 6, messages.Count );
+		Assert.AreEqual( 1, messages.Count( m => m.Contains( "Unsafe.As" ) ) );
+		Assert.AreEqual( 1, messages.Count( m => m.Contains( "MemoryMarshal.CreateReadOnlySpan" ) ) );
+		Assert.AreEqual( 2, messages.Count( m => m.Contains( "InlineArrayAttribute" ) ) );
+		Assert.AreEqual( 2, messages.Count( m => m.Contains( "Console.WriteLine" ) ) );
 
 		// We want to fail
 		Assert.IsFalse( compileSuccessCallback );
@@ -131,7 +132,7 @@ public partial class BlacklistTest
 
 		var semanticModel = compilation.GetSemanticModel( syntaxTree );
 
-		var walker = new BlacklistCodeWalker( semanticModel );
+		var walker = new Sandbox.AccessWalker( semanticModel, checkAllowList: false );
 		walker.Visit( syntaxTree.GetRoot() );
 
 		diagnostics = walker.Diagnostics;
