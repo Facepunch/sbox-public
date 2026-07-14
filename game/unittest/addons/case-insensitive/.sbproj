@@ -4,25 +4,5 @@
   "Org": "local",
   "Ident": "case_insensitive",
   "Schema": 1,
-  "IncludeSourceFiles": false,
-  "Resources": null,
-  "PackageReferences": [],
-  "EditorReferences": null,
-  "Mounts": null,
-  "IsStandaloneOnly": false,
-  "Metadata": {
-    "MaxPlayers": 64,
-    "MinPlayers": 1,
-    "TickRate": 50,
-    "GameNetworkType": "Multiplayer",
-    "MapSelect": "Unrestricted",
-    "MapList": [
-      "facepunch.flatgrass"
-    ],
-    "RankType": "None",
-    "PerMapRanking": false,
-    "LeaderboardType": "None",
-    "CsProjName": "",
-    "StartupScene": "scenes/minimal.scene"
-  }
+  "Metadata": {}
 }
