@@ -245,9 +245,6 @@ partial class Compiler
 
 		bool ilHotloadSupported;
 
-		// An archive update from a host can rebind unchanged trees, so those rescan every source tree
-		var sourceTreePaths = _currentArchive is null ? null : compiler.SyntaxTrees.Select( x => x.FilePath ).ToHashSet();
-
 		{
 			var processor = RunGenerators( compiler, modifiedSyntaxTrees, output );
 
@@ -262,12 +259,18 @@ partial class Compiler
 			}
 		}
 
-		// check for blacklisted methods/types used in compilation
-		// we need this because the c# compiler will post optimize and use tons of blacklisted methods
-		// run this after generators because they can contain user inputs too
+		// Validate rewritten source plus trees added by generators. Compiler optimizations happen later,
+		// so compiler-emitted Unsafe calls aren't mistaken for user code.
 		if ( _config.Whitelist )
 		{
-			RunBlacklistWalker( compiler, _currentArchive is null ? modifiedSyntaxTrees : compiler.SyntaxTrees.Where( x => sourceTreePaths.Contains( x.FilePath ) ).ToList(), output );
+			// An archive update from a host can rebind unchanged trees, so those rescan every source tree
+			var inputPaths = inputSyntaxTrees.Select( x => x.FilePath ).ToHashSet( StringComparer.OrdinalIgnoreCase );
+			var accessSyntaxTrees = _currentArchive is null
+				? new List<SyntaxTree>( modifiedSyntaxTrees )
+				: compiler.SyntaxTrees.Where( x => inputPaths.Contains( x.FilePath ) ).ToList();
+			accessSyntaxTrees.AddRange( compiler.SyntaxTrees.Where( x => !inputPaths.Contains( x.FilePath ) ) );
+
+			RunAccessWalker( compiler, accessSyntaxTrees, output );
 
 			// Errors, fail
 			if ( output.Diagnostics.Any( x => x.Severity == DiagnosticSeverity.Error ) )
