@@ -683,6 +683,80 @@ public class InstanceDataTest
 			"a persisted flag should be recorded as a Flags override in the prefab patch" );
 	}
 
+	[TestMethod]
+	public void StaticFlagOnPrefabRoot_IsPreservedOnFullPrefabInstance()
+	{
+		var saveLocation = "___static_flag_instance.prefab";
+		using var prefab = SceneTests.Helpers.RegisterPrefabFromJson( saveLocation, _staticFlagPrefabSource );
+
+		// The prefab root itself carries the Static flag.
+		var prefabScene = SceneUtility.GetPrefabScene( ResourceLibrary.Get<PrefabFile>( saveLocation ) );
+		Assert.IsTrue( prefabScene.Flags.Contains( GameObjectFlags.Static ), "Prefab root should have the Static flag." );
+
+		var scene = new Scene();
+		using var sceneScope = scene.Push();
+
+		// Deserialize a full prefab instance stub, the stub has no Flags key, so the Static flag can only come from the patched prefab data.
+		var hierarchy = scene.CreateObject();
+		hierarchy.Deserialize( Json.ParseToJsonObject( _gameObjectWithStaticFlagPrefabInstance ) );
+
+		Assert.AreEqual( 1, hierarchy.Children.Count );
+		var instance = hierarchy.Children[0];
+		Assert.IsTrue( instance.IsPrefabInstanceRoot, "Deserialized child should be a full prefab instance root." );
+		Assert.IsTrue( instance.Flags.Contains( GameObjectFlags.Static ),
+			"Static flag from the prefab root must be preserved on the full prefab instance." );
+		Assert.IsTrue( instance.IsStatic );
+	}
+
+	static readonly string _staticFlagPrefabSource = """"
+	{
+		"__guid": "a1b2c3d4-1111-4111-8111-111111111111",
+		"Flags": 32768,
+		"Name": "StaticObject",
+		"Position": "0,0,0",
+		"Enabled": true,
+		"Components": [
+			{
+				"__type": "ModelRenderer",
+				"__guid": "a1b2c3d4-2222-4222-8222-222222222222",
+				"BodyGroups": 18446744073709551615,
+				"MaterialGroup": null,
+				"MaterialOverride": null,
+				"Model": null,
+				"RenderType": "On",
+				"Tint": "1,0,0,1"
+			}
+		],
+		"Children": []
+	}
+	"""";
+
+	static readonly string _gameObjectWithStaticFlagPrefabInstance = """"
+	{
+		"__guid": "a1b2c3d4-0000-4000-8000-000000000000",
+		"Name": "Root",
+		"Position": "0,0,0",
+		"Enabled": true,
+		"Children": [
+			{
+				"__guid": "a1b2c3d4-3333-4333-8333-333333333333",
+				"__version": 1,
+				"__Prefab": "___static_flag_instance.prefab",
+				"__PrefabInstancePatch": {
+					"AddedObjects": [],
+					"RemovedObjects": [],
+					"PropertyOverrides": [],
+					"MovedObjects": []
+				},
+				"__PrefabIdToInstanceId": {
+					"a1b2c3d4-1111-4111-8111-111111111111": "a1b2c3d4-3333-4333-8333-333333333333",
+					"a1b2c3d4-2222-4222-8222-222222222222": "a1b2c3d4-4444-4444-8444-444444444444"
+				}
+			}
+		]
+	}
+	"""";
+
 	static readonly string _basicPrefabSource = """"
 	{
 		"__guid": "fab370f8-2e2c-48cf-a523-e4be49723490",
