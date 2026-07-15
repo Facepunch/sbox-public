@@ -41,4 +41,13 @@ public class PlatformSettings : ConfigData
 	[Group( "Chat Settings" )]
 	[Range( 32, 256 ), Title( "Chat Max Length" )]
 	public int ChatMaxMessageLength { get; set; } = 255;
+
+	/// <summary>
+	/// Show the default subtitle UI overlay for sounds with subtitle tracks. When
+	/// false, the tracks still load and <see cref="SubtitlesGameObjectSystem.GetActive"/>
+	/// still works, but the built-in overlay is hidden. Use this when implementing
+	/// a custom subtitle UI.
+	/// </summary>
+	[Group( "Subtitle Settings" ), Title( "Show UI" )]
+	public bool SubtitlesShowUI { get; set; } = true;
 }

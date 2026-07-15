@@ -90,7 +90,7 @@ public class Window : DockWindow, IAssetEditor
 		DockManager.AddDock( "Timeline", "view_column", new Timeline( this ), DockArea.Bottom );
 	}
 
-	protected override void CreateDefaultDockLayout()
+	protected override void BuildDefaultLayout()
 	{
 		var preview = DockManager.OpenDock( "Preview", DockArea.Center );
 		var inspector = DockManager.OpenDock( "Inspector", DockArea.Left );
@@ -187,7 +187,7 @@ public class Window : DockWindow, IAssetEditor
 
 		SetAA( Antialiasing );
 
-		view.AddOption( "Restore To Default", "settings_backup_restore", RestoreDefaultDockLayout );
+		view.AddOption( "Restore To Default", "settings_backup_restore", ResetLayout );
 		view.AddSeparator();
 
 		foreach ( var dock in DockManager.DockTypes )

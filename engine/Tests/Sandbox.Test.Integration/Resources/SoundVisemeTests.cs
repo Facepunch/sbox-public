@@ -1,10 +1,11 @@
 namespace ResourceTests;
 
 /// <summary>
-/// Pins the sound lipsync surface: SoundFile.Visemes reads the "LIPS" block that
-/// the managed sound compiler injects at compile time (that path needs an editor
-/// compile, so the positive case is covered by unit tests on VisemeTrack and in
-/// editor use), and SpeakSound wires a voice up to a SkinnedModelRenderer.
+/// Pins the sound lipsync and subtitle surface: SoundFile.Visemes/.Subtitles read
+/// the "LIPS"/"SUBT" blocks that the managed sound compiler injects at compile time
+/// (that path needs an editor compile, so the positive case is covered by unit
+/// tests on VisemeTrack/SubtitleTrack and in editor use), and SpeakSound wires a
+/// voice up to a SkinnedModelRenderer.
 /// </summary>
 [TestClass]
 public class SoundVisemeTests
@@ -35,8 +36,9 @@ public class SoundVisemeTests
 			if ( soundFile is null )
 				Assert.Inconclusive( "Native sound system can't precache sounds on this machine (no audio device?)" );
 
-			// An unloaded sound has no track yet
+			// An unloaded sound has no tracks yet
 			Assert.IsNull( soundFile.Visemes );
+			Assert.IsNull( soundFile.Subtitles );
 
 			// Async vsnd resource loads only complete while the engine is pumping
 			// frames, which this harness doesn't do - so the loaded path can only
@@ -44,9 +46,10 @@ public class SoundVisemeTests
 			if ( !await soundFile.LoadAsync() )
 				Assert.Inconclusive( "Sound resource load didn't complete in the test harness - can't verify the loaded path" );
 
-			// Loaded and still no track - this sound genuinely has no visemes
+			// Loaded and still no tracks - this sound genuinely has no visemes or subtitles
 			Assert.IsTrue( soundFile.IsValidForPlayback, "A loaded sound should be valid for playback" );
 			Assert.IsNull( soundFile.Visemes );
+			Assert.IsNull( soundFile.Subtitles );
 		}
 		finally
 		{

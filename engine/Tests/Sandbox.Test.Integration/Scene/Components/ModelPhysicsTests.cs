@@ -687,7 +687,8 @@ public class ModelPhysicsTest
 			Assert.AreEqual( 0, modelPhysics.PhysicsRebuildCount );
 
 			Assert.IsTrue( go.IsValid(), "Cloned GameObject should be valid" );
-			Assert.IsTrue( go.WorldPosition.Distance( targetPos ) < 1.0f, "Cloned GameObject should be near the target position" );
+			// Allows for the ragdoll settling under gravity during the single GameTick above.
+			Assert.IsTrue( go.WorldPosition.Distance( targetPos ) < 5.0f, "Cloned GameObject should be near the target position" );
 
 			Assert.IsTrue( go.GetAllObjects( true ).Count() > 50, "Should have more than 50 child objects" );
 

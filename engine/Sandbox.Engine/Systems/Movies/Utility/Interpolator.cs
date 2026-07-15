@@ -1,7 +1,4 @@
-﻿
-using System;
-
-namespace Sandbox.MovieMaker;
+﻿namespace Sandbox.MovieMaker;
 
 #nullable enable
 

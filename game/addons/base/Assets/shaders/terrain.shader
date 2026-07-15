@@ -34,11 +34,19 @@ COMMON
     int g_nPreviewLayer < Attribute( "PreviewLayer" ); >;
 
     bool g_bVertexDisplacement < Attribute( "VertexDisplacement" ); Default( 0 ); >;
+    float g_flDisplacementFadeDist < Attribute( "DisplacementFadeDist" ); >;
+
+    // Set per draw: shadow passes skip vertex displacement (small relief isn't worth the extra taps there).
+    bool g_bTerrainShadowPass < Attribute( "TerrainShadowPass" ); Default( 0 ); >;
+
+    // Whether any hole is painted on the terrain; hole-free terrains skip control-map work in depth passes.
+    bool g_bTerrainHasHoles < Attribute( "TerrainHasHoles" ); Default( 1 ); >;
 }
 
 struct VertexInput
 {
 	float3 PositionAndLod : POSITION < Semantic( PosXyz ); >;
+	uint InstanceID : SV_InstanceID < Semantic( InstanceTransformUv ); >;
 };
 
 struct PixelInput
@@ -49,8 +57,6 @@ struct PixelInput
 
     #if ( PROGRAM == VFX_PROGRAM_VS )
         float4 PixelPosition : SV_Position;
-        // x: heightmap bounds, y: control-map holes. Primitive culled when all verts negative (preserves early-z vs clip()).
-        float2 CullDistance : SV_CullDistance;
     #endif
 
     #if ( PROGRAM == VFX_PROGRAM_PS )
@@ -66,93 +72,76 @@ VS
 	{
         PixelInput o;
 
+        TerrainMeshlet meshlet = g_TerrainMeshlets[i.InstanceID];
+
         Texture2D tHeightMap = Bindless::GetTexture2D( Terrain::Get().HeightMapTexture );
-        o.LocalPosition = Terrain_ClipmapSingleMesh( i.PositionAndLod, tHeightMap, Terrain::Get().Resolution, Terrain::Get().TransformInv );
+        float flLodLevel;
+        o.LocalPosition = Terrain_ClipmapMeshlet( i.PositionAndLod.xy, meshlet, tHeightMap, Terrain::Get().UnitsPerTexel, flLodLevel );
 
         o.LocalPosition.z *= Terrain::Get().HeightScale;
 
-        // Calculate UV coordinates for sampling control map and material textures
-        float2 texSize = TextureDimensions2D( tHeightMap, 0 );
-        float2 uv = o.LocalPosition.xy / ( texSize * Terrain::Get().Resolution );
-
-        // Calculate the normal of the displacement using 3 samples
-        float2 texelSize = 1.0f / texSize;
-        float center = abs( tHeightMap.SampleLevel( g_sBilinearBorder, uv, 0 ).r );
-        float r = abs( tHeightMap.SampleLevel( g_sBilinearBorder, uv + texelSize * float2( 1, 0 ), 0 ).r );
-        float b = abs( tHeightMap.SampleLevel( g_sBilinearBorder, uv + texelSize * float2( 0, 1 ), 0 ).r );
-
-        float normalStrength = Terrain::Get().HeightScale / Terrain::Get().Resolution;
-        float3 geoNormal = normalize( float3( center - r, (b - center) * -1, 1.0f / normalStrength ) );
-
-        // Transform normal to world space
-        geoNormal = normalize( mul( Terrain::Get().Transform, float4( geoNormal, 0.0 ) ).xyz );
-
-        // Vertex displacement
+        // Vertex displacement, skipped in shadow passes - we want those as cheap as possible
     #if ( D_GRID == 0 )
-        if ( g_bVertexDisplacement && Terrain::Get().ControlMapTexture != 0 )
+        if ( g_bVertexDisplacement && !g_bTerrainShadowPass && Terrain::Get().ControlMapTexture != 0 )
         {
-            // Blend displacement between all materials
-            float totalDisplacement = 0.0f;
+            // Fade displacement to zero by the region's edge. Measure from a snapped centre, not the continuous
+            // camera, so the amount is fixed per vertex and the surface doesn't "breathe" up/down as you move.
+            float2 dispCenter = roundToIncrement( g_vClipCameraLocal, Terrain::Get().UnitsPerTexel * 2.0f );
+            float camDist = max( abs( o.LocalPosition.x - dispCenter.x ), abs( o.LocalPosition.y - dispCenter.y ) );
+            float t = saturate( camDist / g_flDisplacementFadeDist );
+            float displacementFade = 1.0 - t * t;
 
-            // Use compact control map with point sampling
-            Texture2D tControlMap = Bindless::GetTexture2D( Terrain::Get().ControlMapTexture );
-            float rawPixel = tControlMap.SampleLevel( g_sPointClamp, uv, 0 ).r;
-            CompactTerrainMaterial material = CompactTerrainMaterial::DecodeFromFloat( rawPixel );
-            
-            // Sample base material displacement
-            TerrainMaterial mat = g_TerrainMaterials[material.BaseTextureId];
-            SamplerState materialSampler = Bindless::GetSampler( Terrain::Get().samplerindex );
-            float2 baseLayerUV = ( o.LocalPosition.xy / 32.0f ) * mat.uvscale;
+            if ( displacementFade > 0 )
+            {
+                float2 texSize = TextureDimensions2D( tHeightMap, 0 );
+                float2 uv = o.LocalPosition.xy / ( texSize * Terrain::Get().UnitsPerTexel );
+                CompactTerrainMaterial controlMat = CompactTerrainMaterial::DecodeFromFloat( Terrain::GetControlMap().SampleLevel( g_sPointClamp, uv, 0 ).r );
 
-            if( mat.HasFlag( TerrainFlags::NoTile ) )
-                baseLayerUV = Terrain_SampleSeamlessUV( baseLayerUV );
+                // Sample base material displacement
+                TerrainMaterial baseMat = g_TerrainMaterials[controlMat.BaseTextureId];
+                SamplerState materialSampler = Bindless::GetSampler( Terrain::Get().samplerindex );
+                float2 baseLayerUV = ( o.LocalPosition.xy / 32.0f ) * baseMat.uvscale;
 
-            float4 baseNho = Bindless::GetTexture2D( mat.nho_texid ).SampleLevel( materialSampler, baseLayerUV, 0 );
-            float baseDisplacement = ( baseNho.b - 0.5f ) * 2.0f * mat.displacementscale;
-            
-            // Sample overlay material displacement
-            mat = g_TerrainMaterials[material.OverlayTextureId];
-            materialSampler = Bindless::GetSampler( Terrain::Get().samplerindex );
-            float2 overlayLayerUV = ( o.LocalPosition.xy / 32.0f ) * mat.uvscale;
-            
-            if( mat.HasFlag( TerrainFlags::NoTile ) )
-                overlayLayerUV = Terrain_SampleSeamlessUV( overlayLayerUV );
+                if( baseMat.HasFlag( TerrainFlags::NoTile ) )
+                    baseLayerUV = Terrain_SampleSeamlessUV( baseLayerUV );
 
-            float4 overlayNho = Bindless::GetTexture2D( mat.nho_texid ).SampleLevel( materialSampler, overlayLayerUV, 0 );
-            float overlayDisplacement = ( overlayNho.b - 0.5f ) * 2.0f * mat.displacementscale;
-            
-            // Blend between base and overlay displacement
-            float blend = material.GetNormalizedBlend();
-            totalDisplacement = lerp( baseDisplacement, overlayDisplacement, blend );
+                float4 baseNho = Bindless::GetTexture2D( baseMat.nho_texid ).SampleLevel( materialSampler, baseLayerUV, 0 );
+                float baseDisplacement = ( baseNho.b - 0.5f ) * 2.0f * baseMat.displacementscale;
 
-            // Fade displacement on coarse LODs to prevent seam cracks
-            // Displacement fading starts at LOD 2 and completes by LOD 4 to prevent seam cracks between LODs.
-            static const float DISPLACEMENT_FADE_START_LOD = 2.0f; // LOD at which displacement fading starts
-            static const float DISPLACEMENT_FADE_RANGE = 2.0f;     // Number of LODs over which fading occurs
-            float lodLevel = i.PositionAndLod.z;
-            float displacementFade = saturate(1.0 - (lodLevel - DISPLACEMENT_FADE_START_LOD) / DISPLACEMENT_FADE_RANGE);
+                float blend = controlMat.GetNormalizedBlend();
+                float totalDisplacement = baseDisplacement;
 
-            // Displace vertex along geometric normal
-            o.LocalPosition.xyz += geoNormal * totalDisplacement * displacementFade;
+                if ( blend > 0.0f || Terrain::Get().HeightBlending )
+                {
+                    TerrainMaterial overlayMat = g_TerrainMaterials[controlMat.OverlayTextureId];
+                    float2 overlayLayerUV = ( o.LocalPosition.xy / 32.0f ) * overlayMat.uvscale;
+
+                    if( overlayMat.HasFlag( TerrainFlags::NoTile ) )
+                        overlayLayerUV = Terrain_SampleSeamlessUV( overlayLayerUV );
+
+                    float4 overlayNho = Bindless::GetTexture2D( overlayMat.nho_texid ).SampleLevel( materialSampler, overlayLayerUV, 0 );
+                    float overlayDisplacement = ( overlayNho.b - 0.5f ) * 2.0f * overlayMat.displacementscale;
+
+                    // Height-aware blend, matching the surface color/normal blend
+                    if ( Terrain::Get().HeightBlending && baseMat.nho_texid > 0 && overlayMat.nho_texid > 0 )
+                    {
+                        float baseHeight = baseNho.b * baseMat.heightstrength;
+                        float overlayHeight = overlayNho.b * overlayMat.heightstrength;
+                        blend = Terrain_HeightBlendWeight( blend, baseHeight, overlayHeight, Terrain::Get().HeightBlendSharpness );
+                    }
+
+                    totalDisplacement = lerp( baseDisplacement, overlayDisplacement, blend );
+                }
+
+                float3 geoNormal = Terrain::SampleNormal( uv );
+                o.LocalPosition.xyz += geoNormal * totalDisplacement * displacementFade;
+            }
         }
     #endif
 
         o.WorldPosition = mul( Terrain::Get().Transform, float4( o.LocalPosition, 1.0 ) ).xyz;
         o.PixelPosition = Position3WsToPs( o.WorldPosition.xyz );
-        o.LodLevel = i.PositionAndLod.z;
-
-        // Reject holes and out-of-bounds clipmap at the vertex stage so the rasterizer culls
-        // whole primitives before the PS runs, instead of clip()/discard which kills early-z.
-        // Signed distance: positive = keep, negative = cull. A triangle is culled only when every
-        // vertex is negative for a component (triangle-granular; sub-triangle edges are not clipped).
-        o.CullDistance.x = min( min( uv.x, uv.y ), min( 1.0 - uv.x, 1.0 - uv.y ) );
-        o.CullDistance.y = 1.0;
-        if ( Terrain::Get().ControlMapTexture != 0 )
-        {
-            Texture2D tControlMap = Bindless::GetTexture2D( Terrain::Get().ControlMapTexture );
-            CompactTerrainMaterial holeMat = CompactTerrainMaterial::DecodeFromFloat( tControlMap.SampleLevel( g_sPointClamp, uv, 0 ).r );
-            o.CullDistance.y = holeMat.IsHole ? -1.0 : 1.0;
-        }
+        o.LodLevel = (uint)flLodLevel;
 
 		return o;
 	}
@@ -268,10 +257,12 @@ PS
         return blendFactor;
     }
 
-    void Terrain_SplatIndexed( in float2 texUV, in uint indices[4], in float weights[4],
+    void Terrain_SplatIndexed( in float2 texUV, in float2 texDdx, in float2 texDdy, in uint indices[4], in float weights[4],
         out float3 albedo, out float3 normal, out float roughness, out float ao, out float metal )
     {
         texUV /= 32;
+        texDdx /= 32;
+        texDdy /= 32;
 
         float3 albedos[4], normals[4];
         float heights[4], roughnesses[4], aos[4], metalness[4];
@@ -279,6 +270,18 @@ PS
         // Sample materials by index
         for ( int i = 0; i < 4; i++ )
         {
+            // Empty slot after merging - skip its taps
+            if ( weights[i] <= 0.0f )
+            {
+                albedos[i] = 0;
+                normals[i] = float3( 0, 0, 1 );
+                roughnesses[i] = 0;
+                heights[i] = 0;
+                aos[i] = 0;
+                metalness[i] = 0;
+                continue;
+            }
+
             TerrainMaterial mat = g_TerrainMaterials[ indices[i] ];
             float2 layerUV = texUV * mat.uvscale;
             float2x2 uvAngle = float2x2( 1, 0, 0, 1 );
@@ -293,8 +296,11 @@ PS
             Texture2D tNho = Bindless::GetTexture2D( mat.nho_texid );
             SamplerState materialSampler = Bindless::GetSampler( Terrain::Get().samplerindex );
 
-            float4 bcr = tBcr.Sample( materialSampler, layerUV );
-            float4 nho = tNho.Sample( materialSampler, layerUV );
+            // Explicit gradients: this runs inside divergent flow where implicit derivatives are undefined
+            float2 layerDdx = mul( uvAngle, texDdx * mat.uvscale );
+            float2 layerDdy = mul( uvAngle, texDdy * mat.uvscale );
+            float4 bcr = tBcr.SampleGrad( materialSampler, layerUV, layerDdx, layerDdy );
+            float4 nho = tNho.SampleGrad( materialSampler, layerUV, layerDdx, layerDdy );
 
             float3 normal = ComputeNormalFromRGTexture( nho.rg );
             normal.xy = mul( uvAngle, normal.xy );
@@ -376,10 +382,12 @@ PS
     /// <summary>
     /// Witcher format splatting - blends base and overlay materials with blend factor
     /// </summary>
-    void Terrain_Splat( in float2 texUV, in CompactTerrainMaterial material,
+    void Terrain_Splat( in float2 texUV, in float2 texDdx, in float2 texDdy, in CompactTerrainMaterial material,
         out float3 albedo, out float3 normal, out float roughness, out float ao, out float metal )
     {
         texUV /= 32;
+        texDdx /= 32;
+        texDdy /= 32;
 
         // Sample base material with optional seamless UVs when requested
         TerrainMaterial baseMat = g_TerrainMaterials[material.BaseTextureId];
@@ -393,13 +401,27 @@ PS
             baseSampleUV = Terrain_SampleSeamlessUV( baseUV, baseUvAngle );
         }
         
-        float4 baseBcr = Bindless::GetTexture2D( baseMat.bcr_texid ).Sample( baseSampler, baseSampleUV );
-        float4 baseNho = Bindless::GetTexture2D( baseMat.nho_texid ).Sample( baseSampler, baseSampleUV );
+        float2 baseDdx = mul( baseUvAngle, texDdx * baseMat.uvscale );
+        float2 baseDdy = mul( baseUvAngle, texDdy * baseMat.uvscale );
+        float4 baseBcr = Bindless::GetTexture2D( baseMat.bcr_texid ).SampleGrad( baseSampler, baseSampleUV, baseDdx, baseDdy );
+        float4 baseNho = Bindless::GetTexture2D( baseMat.nho_texid ).SampleGrad( baseSampler, baseSampleUV, baseDdx, baseDdy );
 
         float3 baseNormal = ComputeNormalFromRGTexture( baseNho.rg );
         baseNormal.xy = mul( baseUvAngle, baseNormal.xy );
         baseNormal.xz *= baseMat.normalstrength;
         baseNormal = normalize( baseNormal );
+
+        float blend = material.GetNormalizedBlend();
+
+        if ( blend <= 0.0f && !Terrain::Get().HeightBlending )
+        {
+            albedo = SrgbGammaToLinear( baseBcr.rgb );
+            normal = baseNormal;
+            roughness = baseBcr.a;
+            ao = baseNho.a;
+            metal = baseMat.metalness;
+            return;
+        }
 
         // Sample overlay material with optional seamless UVs when requested
         TerrainMaterial overlayMat = g_TerrainMaterials[material.OverlayTextureId];
@@ -413,28 +435,21 @@ PS
             overlaySampleUV = Terrain_SampleSeamlessUV( overlayUV, overlayUvAngle );
         }
         
-        float4 overlayBcr = Bindless::GetTexture2D( overlayMat.bcr_texid ).Sample( overlaySampler, overlaySampleUV );
-        float4 overlayNho = Bindless::GetTexture2D( overlayMat.nho_texid ).Sample( overlaySampler, overlaySampleUV );
+        float2 overlayDdx = mul( overlayUvAngle, texDdx * overlayMat.uvscale );
+        float2 overlayDdy = mul( overlayUvAngle, texDdy * overlayMat.uvscale );
+        float4 overlayBcr = Bindless::GetTexture2D( overlayMat.bcr_texid ).SampleGrad( overlaySampler, overlaySampleUV, overlayDdx, overlayDdy );
+        float4 overlayNho = Bindless::GetTexture2D( overlayMat.nho_texid ).SampleGrad( overlaySampler, overlaySampleUV, overlayDdx, overlayDdy );
 
         float3 overlayNormal = ComputeNormalFromRGTexture( overlayNho.rg );
         overlayNormal.xy = mul( overlayUvAngle, overlayNormal.xy );
         overlayNormal.xz *= overlayMat.normalstrength;
         overlayNormal = normalize( overlayNormal );
 
-        // Get normalized blend factor
-        float blend = material.GetNormalizedBlend();
-
-        // Height blending if enabled
         if ( Terrain::Get().HeightBlending )
         {
             float baseHeight = baseNho.b * baseMat.heightstrength;
             float overlayHeight = overlayNho.b * overlayMat.heightstrength;
-
-            float heightDiff = overlayHeight - baseHeight;
-            float sharpness = Terrain::Get().HeightBlendSharpness * 10.0;
-
-            float blendMix = blend * ( 1.0 - blend ) * 4.0;
-            blend = saturate( blend + heightDiff * sharpness * blendMix );
+            blend = Terrain_HeightBlendWeight( blend, baseHeight, overlayHeight, Terrain::Get().HeightBlendSharpness );
         }
 
         // Blend materials
@@ -445,20 +460,134 @@ PS
         metal = lerp( baseMat.metalness, overlayMat.metalness, blend );
     }
 
-	// 
+	//
 	// Main
 	//
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
         Texture2D tHeightMap = Bindless::GetTexture2D( Terrain::Get().HeightMapTexture );
         float2 texSize = TextureDimensions2D( tHeightMap, 0 );
-        float2 uv = i.LocalPosition.xy / ( texSize * Terrain::Get().Resolution );
+        float2 uv = i.LocalPosition.xy / ( texSize * Terrain::Get().UnitsPerTexel );
+
+        // Clip any of the clipmap that exceeds the heightmap bounds
+        if ( uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0 )
+        {
+            clip( -1 );
+            return float4( 0, 0, 0, 0 );
+        }
+
+    #if ( S_MODE_DEPTH )
+        // Hole-free terrain: depth passes only need the bounds clip above
+        if ( !g_bTerrainHasHoles )
+            return 1;
+    #endif
+
+        float3 albedo = float3( 1, 1, 1 );
+        float3 norm = float3( 0, 0, 1 );
+        float roughness = 1;
+        float ao = 1;
+        float metalness = 0;
+
+    #if D_GRID
+        #if ( S_MODE_DEPTH == 0 )
+            Terrain_ProcGrid( i.LocalPosition.xy, albedo, roughness );
+        #endif
+    #else
+        // Compact format: simple base/overlay blending
+        if ( Terrain::Get().ControlMapTexture != 0 )
+        {
+            float4 quadWeights;
+            uint4 controlBits = Terrain::GatherControlQuad( uv, quadWeights );
+
+            CompactTerrainMaterial mat00 = CompactTerrainMaterial::Decode( controlBits.x );
+            CompactTerrainMaterial mat10 = CompactTerrainMaterial::Decode( controlBits.y );
+            CompactTerrainMaterial mat01 = CompactTerrainMaterial::Decode( controlBits.z );
+            CompactTerrainMaterial mat11 = CompactTerrainMaterial::Decode( controlBits.w );
+
+            float blend00 = quadWeights.x;
+            float blend10 = quadWeights.y;
+            float blend01 = quadWeights.z;
+            float blend11 = quadWeights.w;
+            
+            // Check for holes - blend hole values
+            float holeBlend = 0.0;
+            if ( mat00.IsHole ) holeBlend += blend00;
+            if ( mat10.IsHole ) holeBlend += blend10;
+            if ( mat01.IsHole ) holeBlend += blend01;
+            if ( mat11.IsHole ) holeBlend += blend11;
+            
+            // Clip if predominantly a hole
+            if ( holeBlend > 0.5 )
+            {
+                clip( -1 );
+                return float4( 0, 0, 0, 0 );
+            }
+            
+        #if ( S_MODE_DEPTH == 0 )
+            float2 splatDdx = ddx( i.LocalPosition.xy );
+            float2 splatDdy = ddy( i.LocalPosition.xy );
+
+            // Corners are identical everywhere except within a texel of a painted boundary - one splat is exact
+            if ( controlBits.x == controlBits.y && controlBits.x == controlBits.z && controlBits.x == controlBits.w )
+            {
+                Terrain_Splat( i.LocalPosition.xy, splatDdx, splatDdy, mat00, albedo, norm, roughness, ao, metalness );
+            }
+            else if ( Terrain::Get().HeightBlending )
+            {
+                CompactTerrainMaterial mats[4];
+                mats[0] = mat00; mats[1] = mat10; mats[2] = mat01; mats[3] = mat11;
+
+                albedo = 0; norm = 0; roughness = 0; ao = 0; metalness = 0;
+
+                [unroll]
+                for ( int c = 0; c < 4; c++ )
+                {
+                    float3 cornerAlbedo, cornerNormal;
+                    float cornerRough, cornerAo, cornerMetal;
+                    Terrain_Splat( i.LocalPosition.xy, splatDdx, splatDdy, mats[c], cornerAlbedo, cornerNormal, cornerRough, cornerAo, cornerMetal );
+
+                    float w = quadWeights[c];
+                    albedo += cornerAlbedo * w;
+                    norm += cornerNormal * w;
+                    roughness += cornerRough * w;
+                    ao += cornerAo * w;
+                    metalness += cornerMetal * w;
+                }
+            }
+            else
+            {
+                // Merge the corner stacks into the top-4 heaviest materials and sample each distinct
+                // material once, instead of splatting all four corners and blending.
+                uint indices00[4], indices10[4], indices01[4], indices11[4];
+                float weights00[4], weights10[4], weights01[4], weights11[4];
+                mat00.GetMaterialStack( indices00, weights00 );
+                mat10.GetMaterialStack( indices10, weights10 );
+                mat01.GetMaterialStack( indices01, weights01 );
+                mat11.GetMaterialStack( indices11, weights11 );
+
+                uint mergedIndices[4];
+                float mergedWeights[4];
+                MergeBilinearMaterials(
+                    indices00, weights00, blend00,
+                    indices10, weights10, blend10,
+                    indices01, weights01, blend01,
+                    indices11, weights11, blend11,
+                    mergedIndices, mergedWeights );
+
+                Terrain_SplatIndexed( i.LocalPosition.xy, splatDdx, splatDdy, mergedIndices, mergedWeights, albedo, norm, roughness, ao, metalness );
+            }
+        #endif
+            
+        }
+    #endif
+
+    #if ( S_MODE_DEPTH )
+        // Depth passes only need the clips above
+        return 1;
+    #endif
 
         float3 tangentU, tangentV;
-        float3 geoNormal;
-
-        // Calculate base normal from heightmap
-        geoNormal = Terrain_Normal( tHeightMap, uv, Terrain::Get().HeightScale, tangentU, tangentV );
+        float3 geoNormal = Terrain::NormalBasis( uv, tangentU, tangentV );
 
         // Transform to world space
         geoNormal = mul( Terrain::Get().Transform, float4( geoNormal, 0.0 ) ).xyz;
@@ -470,69 +599,8 @@ PS
         tangentU = normalize( tangentU - geoNormal * dot( tangentU, geoNormal ) );
         tangentV = normalize( cross( geoNormal, tangentU ) );
 
-        float3 albedo = float3( 1, 1, 1 );
-        float3 norm = float3( 0, 0, 1 );
-        float roughness = 1;
-        float ao = 1;
-        float metalness = 0;
-
-    #if D_GRID
-        Terrain_ProcGrid( i.LocalPosition.xy, albedo, roughness );
-    #else
-        // Compact format: simple base/overlay blending
-        if ( Terrain::Get().ControlMapTexture != 0 )
-        {
-            Texture2D tControlMap = Terrain::GetControlMap();
-            
-            // Manual bilinear filtering using Gather4
-            float2 controlTexSize;
-            tControlMap.GetDimensions( controlTexSize.x, controlTexSize.y );
-            float2 pixelUV = uv * controlTexSize - 0.5;
-            float2 fracUV = frac( pixelUV );
-            
-            // Sample 4 neighboring pixels using point sampling
-            float2 texelSize = 1.0 / controlTexSize;
-            float2 baseUV = (floor( pixelUV ) + 0.5) / controlTexSize;
-            
-            float sample00 = tControlMap.Sample( g_sPointClamp, baseUV ).r;
-            float sample10 = tControlMap.Sample( g_sPointClamp, baseUV + float2(texelSize.x, 0) ).r;
-            float sample01 = tControlMap.Sample( g_sPointClamp, baseUV + float2(0, texelSize.y) ).r;
-            float sample11 = tControlMap.Sample( g_sPointClamp, baseUV + float2(texelSize.x, texelSize.y) ).r;
-            
-            // Decode all 4 materials
-            CompactTerrainMaterial mat00 = CompactTerrainMaterial::DecodeFromFloat( sample00 );
-            CompactTerrainMaterial mat10 = CompactTerrainMaterial::DecodeFromFloat( sample10 );
-            CompactTerrainMaterial mat01 = CompactTerrainMaterial::DecodeFromFloat( sample01 );
-            CompactTerrainMaterial mat11 = CompactTerrainMaterial::DecodeFromFloat( sample11 );
-            
-            // Calculate bilinear weights
-            float blend00 = (1 - fracUV.x) * (1 - fracUV.y);
-            float blend10 = fracUV.x * (1 - fracUV.y);
-            float blend01 = (1 - fracUV.x) * fracUV.y;
-            float blend11 = fracUV.x * fracUV.y;
-            
-            // Sample materials from all 4 pixels
-            float3 albedo00, albedo10, albedo01, albedo11;
-            float3 normal00, normal10, normal01, normal11;
-            float rough00, rough10, rough01, rough11;
-            float ao00, ao10, ao01, ao11;
-            float metal00, metal10, metal01, metal11;
-            
-            Terrain_Splat( i.LocalPosition.xy, mat00, albedo00, normal00, rough00, ao00, metal00 );
-            Terrain_Splat( i.LocalPosition.xy, mat10, albedo10, normal10, rough10, ao10, metal10 );
-            Terrain_Splat( i.LocalPosition.xy, mat01, albedo01, normal01, rough01, ao01, metal01 );
-            Terrain_Splat( i.LocalPosition.xy, mat11, albedo11, normal11, rough11, ao11, metal11 );
-            
-            // Bilinear blend between the 4 samples
-            albedo = albedo00 * blend00 + albedo10 * blend10 + albedo01 * blend01 + albedo11 * blend11;
-            norm = normal00 * blend00 + normal10 * blend10 + normal01 * blend01 + normal11 * blend11;
-            roughness = rough00 * blend00 + rough10 * blend10 + rough01 * blend01 + rough11 * blend11;
-            ao = ao00 * blend00 + ao10 * blend10 + ao01 * blend01 + ao11 * blend11;
-            metalness = metal00 * blend00 + metal10 * blend10 + metal01 * blend01 + metal11 * blend11;
-        }
-    #endif
-
         Material p = Material::Init();
+
         p.Albedo = albedo;
         p.Normal = TransformNormal( norm, geoNormal, tangentU, tangentV );
         p.Roughness = roughness;

@@ -1,4 +1,4 @@
-﻿using Sandbox.Engine;
+using Sandbox.Engine;
 using Sandbox.Engine.Settings;
 using Sandbox.Modals;
 using Sandbox.Services;
@@ -36,6 +36,29 @@ public static partial class MenuUtility
 	public static void RemoveChatListener( Action<ChatMessageEvent> listener )
 	{
 		Platform.Chat.OnMessage -= listener;
+	}
+
+	/// <summary>
+	/// Collect the subtitle lines being spoken right now, from the running game's
+	/// scene (or the menu's own scene when not in a game). Used by the menu's
+	/// subtitle overlay.
+	/// </summary>
+	public static void GetSubtitles( List<SubtitlesGameObjectSystem.Line> lines )
+	{
+		// We're called from the menu context, but the active scene has to be
+		// resolved in the game's - Game.ActiveScene is per-context, and the menu
+		// context's is the menu background scene, not the game the player is in
+		Scene scene;
+
+		using ( GlobalContext.GameScope() )
+		{
+			scene = Application.GetActiveScene();
+		}
+
+		if ( !scene.IsValid() )
+			return;
+
+		scene.GetSystem<SubtitlesGameObjectSystem>()?.GetActive( lines );
 	}
 
 	public static ConCmdAttribute.AutoCompleteResult[] AutoComplete( string text, int maxCount )

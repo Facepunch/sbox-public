@@ -345,20 +345,15 @@ public class EditorMainWindow : DockWindow
 		SceneEditorSession.SaveOpenSessions();
 	}
 
-	protected override void CreateDefaultDockLayout()
+	protected override void BuildDefaultLayout()
 	{
-		foreach ( var dock in DockManager.DockTypes )
-		{
-			DockManager.SetDockState( dock.Title, false );
-		}
-
 		// classic layout: hierarchy left, inspector right, asset browser + console under the scene
 		var hierarchy = DockManager.OpenDock( "Hierarchy", DockArea.Left );
 		DockManager.OpenDock( "Inspector", DockArea.Right );
 		var browser = DockManager.OpenDock( "Asset Browser", DockArea.Bottom, _centralDock );
 		DockManager.OpenDock( "Console", DockArea.Center, browser );
 
-		DockManager.SetSplitterProportions( hierarchy, 0.25f, 0.5f, 0.25f );
+		DockManager.SetSplitterProportions( hierarchy, 0.2f, 0.6f, 0.2f );
 		DockManager.SetSplitterProportions( browser, 0.75f, 0.25f );
 	}
 

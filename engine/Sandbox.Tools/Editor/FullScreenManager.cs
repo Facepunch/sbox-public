@@ -27,24 +27,19 @@ internal partial class FullScreenManager
 	/// </summary>
 	public void Clear()
 	{
-		if ( Widget is null )
+		if ( !Widget.IsValid() )
 			return;
-
-		EditorWindow.DockManager.Visible = true;
 
 		if ( EditorWindow.Console.IsValid() )
 		{
 			EditorWindow.Console.Input.FocusMode = FocusMode.TabOrClick;
 		}
 
-		if ( Widget.IsValid() )
-		{
-			Widget.Parent = PreviousParent;
+		Widget.Parent = PreviousParent;
 
-			if ( PreviousParent.IsValid() )
-			{
-				PreviousParent.Layout?.Add( Widget );
-			}
+		if ( PreviousParent.IsValid() )
+		{
+			PreviousParent.Layout?.Add( Widget );
 		}
 
 		Widget = null;
@@ -54,15 +49,8 @@ internal partial class FullScreenManager
 	[EditorEvent.Frame]
 	public void OnFrame()
 	{
-		if ( Widget is null )
-			return;
-
-		// If the widget died while fullscreen, restore the docks
 		if ( !Widget.IsValid() )
-		{
-			Clear();
 			return;
-		}
 
 		if ( Widget.Size != GetTargetSize() || Widget.Position != GetTargetPosition() )
 		{
@@ -112,10 +100,6 @@ internal partial class FullScreenManager
 
 		// Set our target widget's parent to the editor's main window, so we can size it properly
 		widget.Parent = EditorWindow;
-
-		// The docks are native windows, which always draw above sibling widget content,
-		// so the fullscreen widget can't simply cover them - hide them while it's active
-		EditorWindow.DockManager.Visible = false;
 
 		// Make sure we kill focus from the console
 		if ( EditorWindow.Console.IsValid() )

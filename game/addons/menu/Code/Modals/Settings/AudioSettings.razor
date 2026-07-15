@@ -1,4 +1,4 @@
-﻿@using Sandbox.UI;
+@using Sandbox.UI;
 @using Sandbox;
 @namespace MenuProject.Settings
 @inherits Panel
@@ -55,7 +55,7 @@
             <cell class="glass with-padding is-label">
                 Acoustic Simulation
             </cell>
-            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@AcousticSimulationOptions Value:bind=@AcousticSimulation></ButtonGroup>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@OffOnOptions Value:bind=@AcousticSimulation></ButtonGroup>
         </row>
 
         <h2>Misc</h2>
@@ -64,7 +64,14 @@
             <cell class="glass with-padding is-label">
                 Background Audio
             </cell>
-            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@BackgroundAudioOptions Value:bind=@BackgroundAudio></ButtonGroup>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@OffOnOptions Value:bind=@BackgroundAudio></ButtonGroup>
+        </row>
+
+        <row class="with-gaps">
+            <cell class="glass with-padding is-label">
+                Subtitles
+            </cell>
+            <ButtonGroup class="glass with-grow" ButtonClass="glass with-grow with-click" Options=@OffOnOptions Value:bind=@Subtitles></ButtonGroup>
         </row>
 
     </div>
@@ -82,6 +89,7 @@
     public VoiceMode SelectedVoiceMode { get; set; }
     public bool BackgroundAudio { get; set; }
     public bool AcousticSimulation { get; set; }
+    public bool Subtitles { get; set; }
 
     public string AudioDevice { get; set; }
 
@@ -102,13 +110,7 @@
         new Option("Disabled", VoiceMode.Disabled),
     };
 
-	List<Option> AcousticSimulationOptions = new List<Option>()
-    {
-        new Option("Off", false),
-        new Option("On", true),
-    };
-
-	List<Option> BackgroundAudioOptions = new List<Option>()
+	List<Option> OffOnOptions = new List<Option>()
     {
         new Option("Off", false),
         new Option("On", true),
@@ -139,6 +141,7 @@
         ConsoleSystem.SetValue("voip_volume", 1.0f);
         ConsoleSystem.SetValue("voip_mode", (int)VoiceMode.PushToTalk);
         ConsoleSystem.SetValue("snd_mute_losefocus", false);
+        ConsoleSystem.SetValue("snd_subtitles", false);
     }
 
     public void OnCancel()
@@ -149,6 +152,7 @@
         VoiceVolume = ConsoleSystem.GetValue("voip_volume").ToFloat();
         SelectedVoiceMode = Enum.Parse<VoiceMode>(ConsoleSystem.GetValue("voip_mode"), true);
         BackgroundAudio = !ConsoleSystem.GetValue("snd_mute_losefocus").ToBool();
+        Subtitles = ConsoleSystem.GetValue("snd_subtitles").ToBool();
         AudioDevice = Sandbox.Internal.AudioSettings.GetActiveDevice().Id;
     }
 
@@ -161,5 +165,6 @@
         ConsoleSystem.SetValue("voip_volume", VoiceVolume);
         ConsoleSystem.SetValue("voip_mode", (int)SelectedVoiceMode);
         ConsoleSystem.SetValue("snd_mute_losefocus", !BackgroundAudio);
+        ConsoleSystem.SetValue("snd_subtitles", Subtitles);
     }
 }
