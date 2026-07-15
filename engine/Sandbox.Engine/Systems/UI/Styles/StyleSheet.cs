@@ -180,12 +180,6 @@ public class StyleSheet
 		if ( GlobalContext.Current.FileMount is null )
 			return;
 
-		// In-process client tenants don't register stylesheet watchers: the callbacks
-		// are held by the filesystem watch list, so they outlive the tenant and fire
-		// against a shut-down context. Tenant sessions rebuild on hotload anyway.
-		if ( GlobalContext.Current.IsInProcessTenant )
-			return;
-
 		//
 		// Store the current context to pass through to the watcher because
 		// we might be in a different scope later, and won't be able to find the files

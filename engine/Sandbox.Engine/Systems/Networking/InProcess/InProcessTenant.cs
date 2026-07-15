@@ -62,6 +62,14 @@ internal sealed class InProcessTenant : IDisposable
 	[ConVar( "docked_client_isolation", ConVarFlags.Protected )]
 	internal static bool IsolationEnabled { get; set; } = true;
 
+	static InProcessTenant()
+	{
+		// Tenant contexts never watch files: the watchers live on the host's (shared)
+		// filesystems, so their callbacks would outlive the tenant and root its collectible
+		// assemblies. Tenant sessions rebuild on code change instead of hot-reloading.
+		BaseFileSystem.SuppressWatcherCreation = static () => GlobalContext.Current.IsInProcessTenant;
+	}
+
 	InProcessTenant( string debugName )
 	{
 		_debugName = debugName;
@@ -177,7 +185,7 @@ internal sealed class InProcessTenant : IDisposable
 			context.UISystem = uiSystem;
 			context.InputContext = inputContext;
 
-			Json.Initialize();
+			Json.Initialize( updateProcessDefaults: false );
 
 			LoadResources();
 		}

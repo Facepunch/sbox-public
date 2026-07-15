@@ -390,8 +390,22 @@ public class BaseFileSystem
 		return (int)FindFile( path, recursive: recursive ).Sum( x => system.GetFileLength( Path.Combine( path, x ) ) );
 	}
 
+	/// <summary>
+	/// Ambient veto for watcher creation, evaluated on every <see cref="Watch"/> call. The
+	/// engine points this at contexts whose lifetime is shorter than the filesystem's (an
+	/// in-process client tenant shares the host's filesystems) - a real watcher would hold
+	/// their callbacks, and through them the whole context, after they're gone.
+	/// </summary>
+	internal static Func<bool> SuppressWatcherCreation { get; set; }
+
+	internal static bool WatcherCreationSuppressed => SuppressWatcherCreation?.Invoke() ?? false;
+
 	internal FileWatch Watch( string pathglob = null )
 	{
+		// Hand out a detached watcher: same interface, never registered, never fires.
+		if ( WatcherCreationSuppressed )
+			return (pathglob != null) ? new FileWatch( this, pathglob ) : new FileWatch( this );
+
 		watcher?.Dispose();
 		watcher = null;
 

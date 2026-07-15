@@ -12,8 +12,10 @@ internal partial class GlobalContext
 	/// <summary>
 	/// True when this context belongs to an in-process client tenant (an editor docked
 	/// client, see <see cref="Sandbox.InProcessTenant"/>) rather than the Menu or Game.
-	/// Editor-facing side effects (like asset registration events) are suppressed for
-	/// tenant contexts, because the editor's world is the host's.
+	/// Process-global side effects a tenant must not perform are suppressed at their choke
+	/// points rather than at every call site: editor event announcements (ToolsDll.RunEvent),
+	/// file watcher creation (BaseFileSystem.SuppressWatcherCreation) and engine screen-size
+	/// updates (Screen.UpdateFromEngine).
 	/// </summary>
 	public bool IsInProcessTenant { get; init; }
 

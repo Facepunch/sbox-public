@@ -51,10 +51,18 @@ internal class ToolsDll : IToolsDll
 		ProjectCookie?.Save();
 	}
 
-	public void RunEvent( string name ) => EditorEvent.Run( name );
-	public void RunEvent( string name, object argument ) => EditorEvent.Run( name, argument );
-	public void RunEvent( string name, object arg0, object arg1 ) => EditorEvent.Run( name, arg0, arg1 );
-	public void RunEvent<T>( Action<T> action ) => EditorEvent.RunInterface<T>( action );
+	/// <summary>
+	/// Engine events announce the host's state to the editor. An in-process client tenant
+	/// (docked client) runs the same engine code under its own context - its resource loads,
+	/// mounts and saves are private to that tenant, so announcing them to the editor again
+	/// would be a lie about the host. Mute the whole seam instead of gating every sender.
+	/// </summary>
+	static bool MuteEvents => GlobalContext.Current.IsInProcessTenant;
+
+	public void RunEvent( string name ) { if ( !MuteEvents ) EditorEvent.Run( name ); }
+	public void RunEvent( string name, object argument ) { if ( !MuteEvents ) EditorEvent.Run( name, argument ); }
+	public void RunEvent( string name, object arg0, object arg1 ) { if ( !MuteEvents ) EditorEvent.Run( name, arg0, arg1 ); }
+	public void RunEvent<T>( Action<T> action ) { if ( !MuteEvents ) EditorEvent.RunInterface<T>( action ); }
 
 	/// <summary>
 	/// Called from <see cref="EngineLoop.OnClientOutput"/>,

@@ -22,10 +22,13 @@ public static partial class Json
 	}
 
 	/// <summary>
-	/// Should be called on startup and when hotloading. 
-	/// The reason for doing on hotloading is to clear all the types in JsonSerializableFactory
+	/// Should be called on startup and when hotloading.
+	/// The reason for doing on hotloading is to clear all the types in JsonSerializableFactory.
+	/// Pass <paramref name="updateProcessDefaults"/> false to only build the current context's
+	/// options, leaving process-wide state (the filesystem's serializer options, the serializer
+	/// warm-up caches) alone - for secondary contexts like in-process client tenants.
 	/// </summary>
-	internal static void Initialize()
+	internal static void Initialize( bool updateProcessDefaults = true )
 	{
 		var typeLibrary = Game.TypeLibrary;
 
@@ -54,11 +57,7 @@ public static partial class Json
 			Game.NodeLibrary ?? throw new InvalidOperationException(
 				$"{nameof( Game.NodeLibrary )} not set when deserializing." ) );
 
-		// In-process client tenants build their own per-context options, but must not
-		// touch process-wide statics: overwriting the filesystem options would make the
-		// host serialize through the tenant's world, and the warm-up would bake tenant
-		// types into caches that outlive the tenant's collectible assemblies.
-		if ( GlobalContext.Current.IsInProcessTenant )
+		if ( !updateProcessDefaults )
 			return;
 
 		BaseFileSystem.JsonSerializerOptions = options;
