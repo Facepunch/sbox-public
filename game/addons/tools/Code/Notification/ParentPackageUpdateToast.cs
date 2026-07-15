@@ -80,7 +80,7 @@ internal sealed class ParentPackageUpdateToast : ToastWidget
 		{
 			await EditorUtility.Projects.UpdateParentPackage( PackageIdent, RevisionId );
 
-			if ( !IsValid() )
+			if ( !IsValid )
 				return;
 
 			isUpdating = false;
@@ -95,7 +95,7 @@ internal sealed class ParentPackageUpdateToast : ToastWidget
 		{
 			Log.Warning( exception, $"Unable to update parent package {PackageIdent}: {exception.Message}" );
 
-			if ( !IsValid() )
+			if ( !IsValid )
 				return;
 
 			isUpdating = false;
@@ -124,7 +124,7 @@ internal sealed class ParentPackageUpdateToast : ToastWidget
 			.OfType<ParentPackageUpdateToast>()
 			.FirstOrDefault( x => IsSamePackage( x.PackageIdent, packageIdent ) );
 
-		if ( existing.IsValid() )
+		if ( existing is { IsValid: true } )
 		{
 			existing.SetAvailableRevision( revisionId );
 			return;
