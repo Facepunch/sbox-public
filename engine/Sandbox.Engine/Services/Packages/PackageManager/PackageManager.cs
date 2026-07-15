@@ -67,7 +67,7 @@ internal static partial class PackageManager
 		var existingPackage = Find( options.PackageIdent, options.AllowLocalPackages );
 		if ( existingPackage != null )
 		{
-			if ( !options.ReplaceExistingRevision || MatchesRequestedRevision( existingPackage, options.PackageIdent ) )
+			if ( !ShouldReplaceExistingRevision( options, existingPackage.Package.Revision?.VersionId ) )
 			{
 				existingPackage.AddContextTag( options.ContextTag );
 				log.Info( $"Install Package (Already Mounted) {options.PackageIdent} [{options.ContextTag}]" );
@@ -131,12 +131,18 @@ internal static partial class PackageManager
 		return ap;
 	}
 
-	private static bool MatchesRequestedRevision( ActivePackage activePackage, string packageIdent )
+	/// <summary>
+	/// Returns whether an explicitly requested exact revision should replace the mounted revision.
+	/// </summary>
+	internal static bool ShouldReplaceExistingRevision( PackageLoadOptions options, long? activeRevisionId )
 	{
-		if ( !Package.TryParseIdent( packageIdent, out var parsed ) || parsed.version is null )
-			return true;
+		if ( !options.ReplaceExistingRevision )
+			return false;
 
-		return activePackage.Package.Revision?.VersionId == parsed.version.Value;
+		if ( !Package.TryParseIdent( options.PackageIdent, out var parsed ) || parsed.version is null )
+			return false;
+
+		return activeRevisionId != parsed.version.Value;
 	}
 
 	public static void UnmountTagged( string tag )
