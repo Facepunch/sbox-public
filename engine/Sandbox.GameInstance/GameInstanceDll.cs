@@ -113,8 +113,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		Game.ActiveScene?.OnHotload();
 		Event.Run( "hotloaded" );
 
-		// Docked in-process clients run private copies of the game assemblies - they
-		// rebuild (an instant in-process reconnect) to pick up the new code.
+		// Docked clients run private assembly copies - they rebuild to pick up the new code.
 		InProcessClientSession.NotifyHostCodeChanged();
 	}
 
@@ -466,8 +465,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 			//
 			using ( Performance.Scope( "GameFrame" ) )
 			{
-				// While a docked in-process client tab has input focus, the host scene ticks
-				// with muted input - the focused client consumes the real input instead.
+				// The focused docked client consumes the real input; the host ticks muted.
 				using var inputMute = InProcessClientSession.Focused is not null ? InProcessClientSession.MuteHostInput() : null;
 
 				// The old scene could be invalid here as a network message may end
@@ -524,9 +522,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		{
 			Game.Language?.Tick();
 
-			// While a docked in-process client has input focus, ITS UI system processes
-			// input (hover/focus state is process-global, one processor per frame) and
-			// its input context leads the router - the host's UI just keeps rendering.
+			// The focused docked client's UI system processes input this frame (hover/focus
+			// state is process-global, one processor per frame) - ours just keeps rendering.
 			if ( InProcessClientSession.Focused is not null )
 			{
 				GlobalContext.Current.UISystem.SimulateNoInput();
@@ -954,9 +951,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		if ( !Networking.IsActive ) return false;
 
-		// A docked in-process client is asking: the host's replicated table lives in this
-		// same process and is authoritative - serve from it directly, so the client sees
-		// exactly what a real remote client would receive over the wire.
+		// In-process client: the host's replicated table lives in this same process and is
+		// authoritative - serve from it directly.
 		if ( Networking.System is { IsInProcessClient: true } )
 			return ReplicatedConvars.TryGetHostValue( name, out value );
 
@@ -994,8 +990,8 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 	}
 
 	/// <summary>
-	/// The compiled bytes of every non-editor game assembly, for in-process client
-	/// tenants to load private copies from (see <see cref="InProcessTenant"/>).
+	/// The compiled bytes of every non-editor game assembly, for in-process client tenants
+	/// to load private copies from.
 	/// </summary>
 	public IReadOnlyList<(string Name, byte[] Bytes)> GetGameAssemblies()
 	{

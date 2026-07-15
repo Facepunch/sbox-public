@@ -22,9 +22,8 @@ public static class GameMode
 	internal static bool PlayWidgetFocused => _inPlay?.IsFocused ?? false;
 
 	/// <summary>
-	/// Bind the engine's window state to the given window/swapchain - this is what ties
-	/// SDL input routing (buttons, capture) to a window. Docked clients borrow it while
-	/// they hold input focus.
+	/// Bind the engine's window state (what ties SDL input routing to a window) to the
+	/// given window/swapchain. Docked clients borrow it while they hold input focus.
 	/// </summary>
 	internal static void SetEngineStateWindow( nint winId, SwapChainHandle_t swapChain )
 	{
@@ -32,11 +31,10 @@ public static class GameMode
 	}
 
 	/// <summary>
-	/// Point the engine's window state AND game input focus back at the play widget -
-	/// called when a docked client releases input focus to the host. Re-asserting the
-	/// focus flag matters: the released tab's "focus off" call would otherwise clobber
-	/// the play widget's earlier "focus on", leaving the host input dead until an OS
-	/// focus cycle fires the Qt focus event again.
+	/// Point the engine's window state and game input focus back at the play widget, when
+	/// a docked client releases input focus. Re-asserting the focus flag matters: the
+	/// released tab's "focus off" would otherwise clobber the play widget's earlier
+	/// "focus on", leaving host input dead until an OS focus cycle.
 	/// </summary>
 	internal static void RestoreEngineState()
 	{
@@ -124,9 +122,8 @@ public static class GameMode
 		if ( _inPlay is null || _inPlay.IsFocused )
 			return;
 
-		// While a docked client holds input focus, the router's cursor position is in
-		// THAT client's window space (fed by SDL). Injecting play-widget-local coordinates
-		// here would hover the focused client's UI from the host's view.
+		// While a docked client holds input focus the router's cursor is in THAT client's
+		// window space - injecting play-widget coordinates would hover its UI from here.
 		if ( Sandbox.InProcessClientSession.Focused is not null )
 			return;
 

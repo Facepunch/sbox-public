@@ -138,10 +138,8 @@ internal class UISystem
 	}
 
 	/// <summary>
-	/// Simulate without processing any input: panels tick, style, lay out and build their
-	/// command lists so they render - but no hover, click or focus processing. Used for
-	/// docked in-process client UI: input state (hover, capture) is process-global, so
-	/// ticking a second UI system's input against it cross-contaminates the host's UI.
+	/// Simulate without processing any input - hover/capture state is process-global, so
+	/// only one UI system per frame may tick input against it.
 	/// </summary>
 	internal void SimulateNoInput()
 	{

@@ -7,23 +7,11 @@ namespace Sandbox;
 
 /// <summary>
 /// The isolated world of one in-process client session: its own <see cref="GlobalContext"/>
-/// (the same mechanism that separates the Menu and Game worlds today) plus private copies of
-/// the game assemblies in a collectible <see cref="Sandbox.Internal.LoadContext"/>.
-///
-/// The private assembly copies are what give each docked client its own static fields - a
-/// game that keeps state in statics behaves exactly like it would across real processes,
-/// because each tenant runs its own instance of the game code. Engine assemblies stay shared
-/// by identity: tenant game types derive from the same Component/GameObject the host uses,
-/// and tenants talk to the host through the serialized wire protocol, never through object
-/// identity - the same contract a real out-of-process client has.
-///
-/// The tenant context also carries a fresh TypeLibrary, ResourceSystem (tenant-typed
-/// GameResources), NodeLibrary, EventSystem, TaskSource, UISystem and JsonSerializerOptions,
-/// so nothing the tenant's game code touches through <see cref="Game"/> leaks host state.
-///
-/// If isolation can't be built (no game instance, an assembly without compiled bytes, a
-/// static constructor throwing) we fall back to fully shared mode - the proven behaviour
-/// docked clients shipped with - rather than a half-isolated session.
+/// (the same mechanism that separates the Menu and Game worlds) plus private copies of the
+/// game assemblies in a collectible <see cref="Sandbox.Internal.LoadContext"/>, so game
+/// statics are per-client like they would be across real processes. Engine assemblies stay
+/// shared by identity. If isolation can't be built we fall back to fully shared mode rather
+/// than a half-isolated session.
 /// </summary>
 internal sealed class InProcessTenant : IDisposable
 {
@@ -40,7 +28,6 @@ internal sealed class InProcessTenant : IDisposable
 
 	/// <summary>
 	/// True when this tenant has private game assembly copies (isolated statics).
-	/// False means shared fallback mode: everything behaves as before isolation existed.
 	/// </summary>
 	public bool IsIsolated { get; private set; }
 
@@ -54,19 +41,17 @@ internal sealed class InProcessTenant : IDisposable
 	public IReadOnlyList<Assembly> Assemblies => _assemblies;
 
 	/// <summary>
-	/// Give each docked client private copies of the game assemblies, so game statics are
-	/// per-client like they would be across real processes. Turn off to run docked clients
-	/// against the host's assemblies (shared statics, the original behaviour) - useful to
-	/// A/B a problem you suspect is isolation-related.
+	/// Give each docked client private copies of the game assemblies (per-client statics).
+	/// Turn off to run docked clients against the host's assemblies, to A/B a problem you
+	/// suspect is isolation-related.
 	/// </summary>
 	[ConVar( "docked_client_isolation", ConVarFlags.Protected )]
 	internal static bool IsolationEnabled { get; set; } = true;
 
 	static InProcessTenant()
 	{
-		// Tenant contexts never watch files: the watchers live on the host's (shared)
-		// filesystems, so their callbacks would outlive the tenant and root its collectible
-		// assemblies. Tenant sessions rebuild on code change instead of hot-reloading.
+		// Tenants never watch files: watcher callbacks live on the host's (shared) filesystems,
+		// so they'd outlive the tenant and root its collectible assemblies.
 		BaseFileSystem.SuppressWatcherCreation = static () => GlobalContext.Current.IsInProcessTenant;
 	}
 
@@ -116,8 +101,6 @@ internal sealed class InProcessTenant : IDisposable
 
 		if ( !tenant.IsIsolated )
 		{
-			// Shared fallback: the session runs against the host's world, like docked clients
-			// did before isolation. Statics are shared with the host in this mode.
 			tenant.Context = null;
 			tenant.TypeLibrary = IGameInstanceDll.Current?.TypeLibrary ?? GlobalGameNamespace.TypeLibrary;
 		}
@@ -127,8 +110,6 @@ internal sealed class InProcessTenant : IDisposable
 
 	void Initialize( IReadOnlyList<(string Name, byte[] Bytes)> gameAssemblies )
 	{
-		// No game instance, no game assemblies at all, or a game assembly we don't have
-		// bytes for: we can't (or don't need to) rebuild the game's type world - shared mode.
 		if ( gameAssemblies is null || gameAssemblies.Count == 0 )
 			return;
 
@@ -154,9 +135,8 @@ internal sealed class InProcessTenant : IDisposable
 			Cookies = host.Cookies,
 		};
 
-		// Assigned before the build steps below - they reach the context through this
-		// property. IsIsolated only flips once everything succeeded; on failure the
-		// caller tears this back down.
+		// The build steps below reach the context through this property; on failure the
+		// caller tears it back down.
 		Context = context;
 
 		using ( new GlobalContext.GlobalContextScope( context ) )
@@ -166,11 +146,8 @@ internal sealed class InProcessTenant : IDisposable
 
 			BuildTypeLibrary( gameAssemblies );
 
-			// A tenant UI world of its own, so in-game panels don't route through the
-			// host's UI system. While this session has input focus, the input router
-			// puts this context FIRST - so its UI state decides UI-vs-game routing and
-			// mouse capture, UI events land in the tenant's queue, and game events feed
-			// the global input accumulators exactly like the host's context does.
+			// Own UI world, so in-game panels don't route through the host's UI system.
+			// While this session has focus the input router puts this context first.
 			var uiSystem = new UISystem();
 			var inputContext = new InputContext
 			{
@@ -197,8 +174,7 @@ internal sealed class InProcessTenant : IDisposable
 
 	/// <summary>
 	/// Mirror of <see cref="Game.InitTypeLibrary"/>: shared engine assemblies by identity,
-	/// then private tenant copies of every game assembly, loaded from the host's already
-	/// compiled bytes - no recompilation.
+	/// then private tenant copies of every game assembly from the host's compiled bytes.
 	/// </summary>
 	void BuildTypeLibrary( IReadOnlyList<(string Name, byte[] Bytes)> gameAssemblies )
 	{
@@ -234,10 +210,8 @@ internal sealed class InProcessTenant : IDisposable
 		// shared assemblies; only the game assemblies themselves get private copies.
 		_loadContext = new LoadContext( typeof( InProcessTenant ).Assembly );
 
-		//
-		// Load every game assembly into the tenant context first, so sibling references
-		// (game -> base) resolve to tenant copies rather than the host's.
-		//
+		// Load every assembly first, so sibling references (game -> base) resolve to
+		// tenant copies rather than the host's.
 		foreach ( var (name, bytes) in gameAssemblies )
 		{
 			var assembly = _loadContext.LoadWithEmbeds( bytes, false );
@@ -247,10 +221,7 @@ internal sealed class InProcessTenant : IDisposable
 			_assemblies.Add( assembly );
 		}
 
-		//
 		// Then run static constructors and register types, in the host's original load order.
-		// TypeLibrary access is disabled during static constructors, same as PackageLoader.
-		//
 		foreach ( var assembly in _assemblies )
 		{
 			using ( Context.DisableTypelibraryScope( "Disabled during static constructors." ) )
@@ -271,9 +242,8 @@ internal sealed class InProcessTenant : IDisposable
 	}
 
 	/// <summary>
-	/// Load tenant-typed GameResources from the shared mounted filesystem, so tenant game
-	/// code gets its own typed instances (a host-typed WeaponData is a foreign type to
-	/// tenant code). JSON only - the heavy native data (textures, models) stays shared.
+	/// Load tenant-typed GameResources (a host-typed resource is a foreign type to tenant
+	/// code). JSON only - the heavy native data (textures, models) stays shared.
 	/// </summary>
 	void LoadResources()
 	{
@@ -289,7 +259,7 @@ internal sealed class InProcessTenant : IDisposable
 
 	/// <summary>
 	/// Look up a resource in this tenant's resource system, for engine callbacks that fire
-	/// outside any context scope (see <see cref="Resource.OnResourceLoaded"/>).
+	/// outside any context scope.
 	/// </summary>
 	public Resource FindResource( string resourceName )
 	{
@@ -318,16 +288,14 @@ internal sealed class InProcessTenant : IDisposable
 	{
 		try
 		{
-			// Engine reflection caches (Scene's indexable-types cache and friends) hold
-			// Type keys from any scene that ever ticked - including this tenant's.
+			// Engine reflection caches hold Type keys from any scene that ever ticked.
 			foreach ( var asm in _assemblies )
 			{
 				ReflectionCacheBase.PruneAssembly( asm );
 			}
 
-			// Each assembly lives in its own child context inside the LoadContext - the
-			// children must be unloaded explicitly (the parent's Unload doesn't cascade,
-			// and its child list would keep them rooted).
+			// Each assembly lives in its own child context inside the LoadContext - they
+			// must be unloaded explicitly, the parent's Unload doesn't cascade.
 			if ( _loadContext is not null )
 			{
 				foreach ( var asm in _assemblies )
@@ -353,20 +321,15 @@ internal sealed class InProcessTenant : IDisposable
 		{
 			try
 			{
-				// The whole teardown runs under the tenant's scope: resource destruction
-				// resolves Game.Resources ambiently, and running it under the host's
-				// context made every tenant resource copy unregister the HOST's entry
-				// for the same file - prefabs vanished from the editor until restart.
+				// Teardown must run under the tenant's scope: resource destruction resolves
+				// Game.Resources ambiently, and under the host's context it would evict the
+				// host's entries for the same files.
 				using var scope = new GlobalContext.GlobalContextScope( Context );
 
-				// The tenant's own serializer options hold JsonTypeInfo for its private
-				// types - clear THAT instance's caches only. Never the global STJ cache:
-				// nuking the host's serializer state mid-session corrupts things like
-				// prefab deserialization until restart.
 				ClearJsonCaches( Context.JsonSerializerOptions );
 
-				// Remove every private assembly's types from the tenant TypeLibrary so no
-				// TypeDescription roots the collectible load context, then shut down.
+				// Remove every private assembly's types so no TypeDescription roots the
+				// collectible load context.
 				if ( Context.TypeLibrary is not null )
 				{
 					foreach ( var asm in _assemblies )
@@ -380,13 +343,12 @@ internal sealed class InProcessTenant : IDisposable
 
 				Context.Shutdown();
 
-				// Shutdown() leaves several references in place that a live context needs -
-				// scrub everything that can reach tenant types, in case the context object
-				// itself is retained somewhere (captured execution contexts, logging).
+				// Shutdown() leaves references a live context needs - scrub everything that
+				// can reach tenant types, in case the context object itself is retained
+				// somewhere (captured execution contexts, logging).
 				if ( Context.NodeLibrary is not null )
 				{
-					// The node library holds definitions referencing tenant types - remove
-					// them explicitly (Reset alone doesn't release them).
+					// Reset alone doesn't release definitions referencing tenant types.
 					foreach ( var asm in _assemblies )
 					{
 						Context.NodeLibrary.RemoveAssembly( asm );
@@ -415,8 +377,7 @@ internal sealed class InProcessTenant : IDisposable
 
 		TypeLibrary = null;
 
-		// Engine-wide reflection caches are keyed by Type - drop this tenant's entries so
-		// nothing roots the collectible load context. Targeted, never a global clear.
+		// Engine-wide reflection caches are keyed by Type - drop this tenant's entries.
 		foreach ( var asm in _assemblies )
 		{
 			ReflectionQueryCache.RemoveAssembly( asm );
@@ -428,10 +389,9 @@ internal sealed class InProcessTenant : IDisposable
 	static System.Reflection.MethodInfo _jsonClearInstanceCaches;
 
 	/// <summary>
-	/// Clear the cached JsonTypeInfo held by ONE options instance (the tenant's own) -
-	/// after a scene snapshot it holds type infos for the tenant's private component
-	/// types, which would root the collectible assemblies. Uses the same internal
-	/// per-instance method the runtime's hot-reload handler uses.
+	/// Clear the cached JsonTypeInfo held by ONE options instance - it roots the tenant's
+	/// private types. Never the global STJ cache, that would corrupt the host's serializer
+	/// state mid-session.
 	/// </summary>
 	static void ClearJsonCaches( System.Text.Json.JsonSerializerOptions options )
 	{

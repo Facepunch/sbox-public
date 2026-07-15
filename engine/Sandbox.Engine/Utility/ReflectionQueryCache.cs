@@ -43,10 +43,8 @@ internal static class ReflectionQueryCache
 	}
 
 	/// <summary>
-	/// Drop cached entries for types from the given assembly only. Used when an in-process
-	/// client tenant's collectible assemblies unload: cached Type keys would root them
-	/// forever, but a full <see cref="ClearTypeCache"/> mid-session is needlessly
-	/// destructive to the host.
+	/// Drop cached entries for types from the given assembly only - cached Type keys would
+	/// root an unloading collectible assembly forever.
 	/// </summary>
 	public static void RemoveAssembly( Assembly assembly )
 	{

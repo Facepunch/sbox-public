@@ -96,6 +96,21 @@ public static partial class Input
 		}
 
 		/// <summary>
+		/// Discard everything accumulated since the last flip. Device input accumulates into
+		/// every live context, so a context that should publish neutral input must clear
+		/// before it flips.
+		/// </summary>
+		public void ClearAccumulated()
+		{
+			AccumActionsPressed = 0;
+			AccumActionsReleased = 0;
+			AccumKeysPressed.Clear();
+			AccumKeysReleased.Clear();
+			AccumMouseDelta = default;
+			AccumMouseWheel = default;
+		}
+
+		/// <summary>
 		/// Copy accumulated values. Flip previous actions to current actions etc.
 		/// </summary>
 		public void Flip()

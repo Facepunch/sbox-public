@@ -6,12 +6,9 @@ using Sandbox.Compression;
 namespace Sandbox.Network;
 
 /// <summary>
-/// One endpoint of an in-process connection pair, used by editor "docked client" sessions
-/// (<see cref="InProcessClientSession"/>). The peer endpoint lives in the same process:
-/// the host's <see cref="NetworkSystem"/> owns one end (via <see cref="InProcessSocket"/>),
-/// an in-process client's system owns the other. Messages are queued in memory and drained
-/// on the main thread when each side's system ticks - there is no wire, no thread hops, and
-/// no chunking (no packet size limits in memory).
+/// One endpoint of an in-process connection pair (see <see cref="InProcessClientSession"/>).
+/// The host's <see cref="NetworkSystem"/> owns one end, the in-process client's the other.
+/// Messages are queued in memory and drained on the main thread as each side ticks.
 /// </summary>
 internal sealed class InProcessConnection : Connection
 {
@@ -20,22 +17,20 @@ internal sealed class InProcessConnection : Connection
 	/// </summary>
 	public InProcessConnection Peer { get; private set; }
 
-	// (payload, isWireEncoded): SendStream queues the raw payload directly - encoding
-	// (compression) is pointless in-process. Broadcast's single-encode path arrives through
-	// Send() with already-encoded bytes, flagged so InternalRecv knows to decode.
+	// SendStream queues raw payloads (encoding is pointless in-process); Broadcast arrives
+	// through Send() already encoded, flagged so InternalRecv knows to decode.
 	readonly ConcurrentQueue<(byte[] Data, bool Encoded)> _inbox = new();
 
 	readonly bool _representsHost;
 	bool _closed;
 
-	// Private decode buffer: Connection's shared static decode buffer belongs to the network
-	// thread; we decode on the main thread and must not race it.
+	// Connection's shared static decode buffer belongs to the network thread; we decode on
+	// the main thread and must not race it.
 	byte[] _decodeBuffer;
 
 	/// <summary>
 	/// Fake identity stamped into the handshake so each in-process client appears as a
-	/// distinct player. Only used on the client-side endpoint (the one that represents
-	/// the host from the client's point of view).
+	/// distinct player.
 	/// </summary>
 	public string FakeName { get; init; }
 	public SteamId FakeSteamId { get; init; }
@@ -81,18 +76,14 @@ internal sealed class InProcessConnection : Connection
 			// Don't re-verify the same Steam inventory once per docked client.
 			userInfo.InventoryBlob = null;
 
-			// A docked client has no headset of its own - never inherit the host's VR state,
-			// or games would spawn VR pawns that mirror the host's actual head/hand poses
-			// (VR tracking is process-global).
+			// VR tracking is process-global - inheriting the host's VR state would spawn
+			// VR pawns mirroring the host's actual head/hand poses.
 			userInfo.IsVr = false;
 		}
 
 		return true;
 	}
 
-	/// <summary>
-	/// Normal send path: skip wire encoding entirely, hand the raw payload to the peer.
-	/// </summary>
 	internal override void SendStream( ByteStream stream, NetFlags flags = NetFlags.Reliable )
 	{
 		if ( _closed || Peer is null )
@@ -102,10 +93,8 @@ internal sealed class InProcessConnection : Connection
 		MessagesSent++;
 	}
 
-	/// <summary>
-	/// Pre-encoded path (Broadcast encodes once for all connections). Never chunk - the inbox
-	/// has no packet size limit.
-	/// </summary>
+	// Pre-encoded path: Broadcast encodes once for all connections. Never chunk - the
+	// inbox has no packet size limit.
 	internal override void Send( byte[] encoded, NetFlags flags )
 	{
 		if ( _closed || Peer is null )
@@ -117,7 +106,6 @@ internal sealed class InProcessConnection : Connection
 
 	internal override void InternalSend( byte[] data, NetFlags flags )
 	{
-		// All sends are intercepted by the SendStream/Send overrides above.
 		if ( _closed || Peer is null )
 			return;
 
@@ -126,8 +114,7 @@ internal sealed class InProcessConnection : Connection
 
 	internal override void InternalRecv( NetworkSystem.MessageHandler handler )
 	{
-		// Bound the drain to what's queued right now so a handler that triggers an immediate
-		// reply-to-self can't spin this loop forever.
+		// Bounded drain: a handler that triggers a reply-to-self can't spin this forever.
 		var count = _inbox.Count;
 
 		while ( count-- > 0 && _inbox.TryDequeue( out var item ) )
@@ -153,9 +140,8 @@ internal sealed class InProcessConnection : Connection
 	}
 
 	/// <summary>
-	/// Decode a wire-encoded payload using a private buffer (see field comment).
-	/// Mirrors <see cref="Connection.Decode"/> minus the shared state; chunk packets can't
-	/// occur because our Send override never chunks.
+	/// Mirrors <see cref="Connection.Decode"/> minus the shared decode buffer; chunk packets
+	/// can't occur because our Send override never chunks.
 	/// </summary>
 	ReadOnlySpan<byte> DecodeLocal( byte[] data )
 	{

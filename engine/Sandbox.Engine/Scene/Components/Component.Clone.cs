@@ -228,9 +228,8 @@ internal static class MemberCopyCache
 	internal static void Clear() => _cache.Clear();
 
 	/// <summary>
-	/// Drop cached delegates for members declared in the given assembly. Used when an
-	/// in-process client tenant's collectible assemblies unload - a cached key would
-	/// root them, and clearing everything mid-session would be needlessly destructive.
+	/// Drop cached delegates for members declared in the given assembly, so a cached key
+	/// can't root an unloading collectible assembly.
 	/// </summary>
 	internal static void RemoveAssembly( System.Reflection.Assembly assembly )
 	{

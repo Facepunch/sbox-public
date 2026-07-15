@@ -204,9 +204,8 @@ public partial class SoundHandle : IValid, IDisposable
 
 	/// <summary>
 	/// Set when this sound was created by a docked in-process client session: the session's
-	/// private submix under Master. Overrides <see cref="TargetMixer"/> completely, so a
-	/// client's whole soundscape lives in one submix whose volume follows tab focus - one
-	/// client's game can't play audio through the host's mixers.
+	/// private submix, which overrides <see cref="TargetMixer"/> completely so a client's
+	/// game can't play audio through the host's mixers.
 	/// </summary>
 	internal Mixer TenantMixer { get; set; }
 
@@ -346,7 +345,6 @@ public partial class SoundHandle : IValid, IDisposable
 		_sfx = soundHandle;
 		_sceneRef = new WeakReference<Scene>( Game.ActiveScene );
 
-		// Sounds born inside a docked client's tick belong to that client's submix.
 		TenantMixer = InProcessClientSession.CurrentSlice?.ClientMixer;
 
 		var tempSound = _sfx.GetSound();
@@ -489,9 +487,8 @@ public partial class SoundHandle : IValid, IDisposable
 
 	internal static void StopAll( float fade, Mixer mixer = null )
 	{
-		// A blanket stop is scoped to the world it was called from: a docked client's
-		// game calling Sound.StopAll must not silence the host or the other clients,
-		// and the host's must not silence the clients.
+		// A blanket stop is scoped to the world it was called from - a docked client's
+		// Sound.StopAll must not silence the host or the other clients, and vice versa.
 		var sliceMixer = InProcessClientSession.CurrentSlice?.ClientMixer;
 
 		_tickList.Clear();
@@ -603,8 +600,6 @@ public partial class SoundHandle : IValid, IDisposable
 			SpacialBlend = SpacialBlend,
 			Position = Position,
 			Scene = Scene,
-			// The tenant submix wins: mix-time matching must route docked client
-			// sounds to their session's mixer, never the host's (see TenantMixer).
 			TargetMixer = TenantMixer ?? TargetMixer,
 			CreatedTime = _CreatedTime,
 			SourceOffset = sourceOffset,

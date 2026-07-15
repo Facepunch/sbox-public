@@ -42,10 +42,9 @@ public struct StringToken : IEquatable<StringToken>
 
 		var token = value.MurmurHash2( true );
 
-		// Tokens are case-insensitive (the hash lowercases), so the reverse lookup must
-		// return a canonical casing. Storing the raw value made GetValue depend on which
-		// casing happened to register first process-wide - e.g. the type name "Trigger"
-		// beating the collision tag "trigger", breaking case-sensitive tag comparisons.
+		// Tokens are case-insensitive (the hash lowercases), so the reverse lookup must be
+		// canonical too - storing the raw value made GetValue depend on which casing
+		// happened to register first process-wide.
 		CacheReverse[token] = value.ToLowerInvariant();
 
 		return token;

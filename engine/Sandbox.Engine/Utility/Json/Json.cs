@@ -25,8 +25,7 @@ public static partial class Json
 	/// Should be called on startup and when hotloading.
 	/// The reason for doing on hotloading is to clear all the types in JsonSerializableFactory.
 	/// Pass <paramref name="updateProcessDefaults"/> false to only build the current context's
-	/// options, leaving process-wide state (the filesystem's serializer options, the serializer
-	/// warm-up caches) alone - for secondary contexts like in-process client tenants.
+	/// options, leaving process-wide state alone (in-process client tenants).
 	/// </summary>
 	internal static void Initialize( bool updateProcessDefaults = true )
 	{

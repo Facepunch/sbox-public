@@ -1,10 +1,9 @@
 namespace Sandbox.Network;
 
 /// <summary>
-/// A host-side socket for in-process client sessions ("docked clients" in the editor).
-/// Registered on the host's <see cref="NetworkSystem"/>; accepting an endpoint kicks off the
-/// standard handshake, and the host drains each client's messages through the normal
-/// per-frame socket path. Everything happens on the main thread.
+/// Host-side socket for in-process client sessions. Accepting an endpoint kicks off the
+/// standard handshake; the host drains each client's messages through the normal per-frame
+/// socket path. Main-thread only.
 /// </summary>
 internal sealed class InProcessSocket : NetworkSocket
 {
@@ -17,8 +16,6 @@ internal sealed class InProcessSocket : NetworkSocket
 	internal void Accept( InProcessConnection hostSideEndpoint )
 	{
 		_clients.Add( hostSideEndpoint );
-
-		// NetworkSystem.OnConnected: assigns a connection id and starts the handshake.
 		OnClientConnect?.Invoke( hostSideEndpoint );
 	}
 
@@ -46,7 +43,7 @@ internal sealed class InProcessSocket : NetworkSocket
 
 	internal override void ProcessMessagesInThread()
 	{
-		// Main-thread-only transport; nothing to do on the network thread.
+		// Nothing to do on the network thread.
 	}
 
 	internal override void Dispose()

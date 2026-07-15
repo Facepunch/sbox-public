@@ -62,9 +62,8 @@ internal partial class NetworkSystem
 		log.Trace( $"My Client ID is {Connection.Local.Id}" );
 
 		// This is a bit of a mess, it needs a good cleaning up. If they have a menu package, then load it first.
-		// In-process clients skip this entirely: they share the process with the host, so the game
-		// package (assemblies, resources, mounts) is already loaded - reloading it in-process would
-		// tear down shared state and kill the session.
+		// In-process clients skip this: the game package is already loaded in this process,
+		// and reloading it would tear down shared state.
 		if ( !string.IsNullOrEmpty( msg.GamePackage ) && !IsInProcessClient )
 		{
 			LoadingScreen.Title = $"Loading {msg.GamePackage}";
@@ -92,8 +91,8 @@ internal partial class NetworkSystem
 			log.Trace( $"No game package - must be a developer" );
 		}
 
-		// In-process clients keep their own (tenant) TypeLibrary - never replace it with
-		// the host's, that would undo the per-client assembly isolation.
+		// In-process clients keep their tenant TypeLibrary - replacing it with the host's
+		// would undo the per-client assembly isolation.
 		if ( IGameInstanceDll.Current is not null && !IsInProcessClient )
 		{
 			// TypeLibrary was probably rebuilt, keep it up to date
@@ -110,8 +109,8 @@ internal partial class NetworkSystem
 		Networking.MapName = msg.MapName;
 
 		//
-		// Check any required mount for this map. In-process clients share the host's process,
-		// so anything the host has mounted is already available - don't mount again.
+		// Check any required mount for this map. Whatever the host mounted is already
+		// available to an in-process client - don't mount again.
 		//
 		if ( !IsInProcessClient && Mounting.MountUtility.TryParse( msg.Map, out string ident ) )
 		{
@@ -271,9 +270,8 @@ internal partial class NetworkSystem
 
 		if ( IsInProcessClient )
 		{
-			// In-process client: same process as the host, so the game assemblies and
-			// resources are already loaded - compiling the host's code archives or
-			// remounting files would corrupt shared state. Create the game system directly.
+			// Everything is already loaded in this process - compiling the host's code
+			// archives or remounting would corrupt shared state.
 			GameSystem = new SceneNetworkSystem( TypeLibrary, this );
 			GameSystem.OnInitialize();
 		}

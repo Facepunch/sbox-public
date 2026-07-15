@@ -391,10 +391,9 @@ public class BaseFileSystem
 	}
 
 	/// <summary>
-	/// Ambient veto for watcher creation, evaluated on every <see cref="Watch"/> call. The
-	/// engine points this at contexts whose lifetime is shorter than the filesystem's (an
-	/// in-process client tenant shares the host's filesystems) - a real watcher would hold
-	/// their callbacks, and through them the whole context, after they're gone.
+	/// Ambient veto for watcher creation. The engine points this at contexts whose lifetime
+	/// is shorter than the filesystem's (in-process client tenants) - a real watcher would
+	/// hold their callbacks, and through them the whole context, after they're gone.
 	/// </summary>
 	internal static Func<bool> SuppressWatcherCreation { get; set; }
 

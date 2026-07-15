@@ -51,12 +51,9 @@ internal class ToolsDll : IToolsDll
 		ProjectCookie?.Save();
 	}
 
-	/// <summary>
-	/// Engine events announce the host's state to the editor. An in-process client tenant
-	/// (docked client) runs the same engine code under its own context - its resource loads,
-	/// mounts and saves are private to that tenant, so announcing them to the editor again
-	/// would be a lie about the host. Mute the whole seam instead of gating every sender.
-	/// </summary>
+	// Engine events announce the host's state to the editor. A docked client tenant's
+	// resource loads, mounts and saves are private to that tenant - announcing them
+	// again would be a lie about the host, so mute the whole seam.
 	static bool MuteEvents => GlobalContext.Current.IsInProcessTenant;
 
 	public void RunEvent( string name ) { if ( !MuteEvents ) EditorEvent.Run( name ); }
@@ -294,8 +291,7 @@ internal class ToolsDll : IToolsDll
 		// Escape was pressed in game and wasn't swallowed
 		// so lets change focus from the game window to the main editor
 		// window, which is going to free the mouse cursor from being captured.
-		// When a docked client holds input focus its tab gets first claim on
-		// escape (to hand input back to the host) - don't race it.
+		// A focused docked client's tab gets first claim on escape - don't race it.
 		if ( Game.IsPlaying && Input.EscapePressed && Sandbox.InProcessClientSession.Focused is null )
 		{
 			EditorWindow.Focus();

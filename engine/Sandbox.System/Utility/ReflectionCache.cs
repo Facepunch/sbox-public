@@ -21,9 +21,8 @@ internal abstract class ReflectionCacheBase
 	}
 
 	/// <summary>
-	/// Remove cached entries keyed by members of the given assembly from every cache.
-	/// Called when a collectible assembly (an in-process client tenant's private game
-	/// code) is unloading - a cached Type key would keep it loaded forever.
+	/// Remove entries keyed by members of the given assembly from every cache - a cached
+	/// Type key would keep an unloading collectible assembly loaded forever.
 	/// </summary>
 	public static void PruneAssembly( Assembly assembly )
 	{

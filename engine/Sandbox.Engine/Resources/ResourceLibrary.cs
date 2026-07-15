@@ -60,9 +60,8 @@ public class ResourceSystem
 		// This isn't thread safe
 		ThreadSafe.AssertIsMainThread();
 
-		// Make sure we're unregistering the currently indexed resource: several wrappers
-		// can share one resource id (an in-process client tenant holds its own copies of
-		// the host's files) - destroying one copy must never evict a different instance.
+		// Several wrappers can share one resource id (in-process client tenants hold their
+		// own copies of the host's files) - destroying one copy must not evict another.
 
 		if ( ResourceIndexLong.TryGetValue( resource.ResourceIdLong, out var indexed ) && ReferenceEquals( indexed, resource ) )
 			ResourceIndexLong.Remove( resource.ResourceIdLong );

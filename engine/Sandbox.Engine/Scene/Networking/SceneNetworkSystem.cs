@@ -496,8 +496,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 		MountedVPKs?.Dispose();
 		MountedVPKs = null;
 
-		// Don't keep scene objects alive past the system's death - in-process client
-		// sessions rely on disposal releasing every reference into their scene.
+		// In-process client sessions rely on disposal releasing every reference into their scene.
 		BatchSpawnList.Clear();
 		PendingSceneLoads.Clear();
 
@@ -589,9 +588,8 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			Game.ActiveScene = null;
 		}
 
-		// Hold the scene in a local: for in-process client sessions the awaits below can
-		// resume outside the session's context scope, where Game.ActiveScene is a DIFFERENT
-		// scene (the host's) - everything after an await must use this local.
+		// For in-process client sessions the awaits below can resume outside the session's
+		// context scope, where Game.ActiveScene is a DIFFERENT scene - use this local.
 		var scene = new Scene();
 		Game.ActiveScene = scene;
 		Game.ActiveScene.StartLoading();
@@ -649,13 +647,11 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 
 		LoadingScreen.Title = null;
 
-		// Wait for loading to finish. From here on we may have resumed outside the original
-		// context (see the comment where `scene` is captured) - only use the local.
 		await scene.WaitForLoading();
 
 		if ( scene.IsValid() )
 		{
-			// Push explicitly: the ambient scene scope can't be trusted after the await.
+			// The ambient scene scope can't be trusted after the await - push explicitly.
 			using var sceneScope = scene.Push();
 
 			scene.Signal( GameObjectSystem.Stage.SceneLoaded );

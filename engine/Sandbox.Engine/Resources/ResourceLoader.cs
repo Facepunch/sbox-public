@@ -150,8 +150,8 @@ internal static class ResourceLoader
 		if ( string.IsNullOrEmpty( type.Extension ) )
 			return;
 
-		// No watching in this context - and the static registry below must not capture
-		// the attribute instance either, or it roots a shorter-lived context's assemblies.
+		// No watching in this context - the static registry below must not capture the
+		// attribute either, or it roots a shorter-lived context's assemblies.
 		if ( BaseFileSystem.WatcherCreationSuppressed )
 			return;
 

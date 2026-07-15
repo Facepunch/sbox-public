@@ -94,8 +94,7 @@ internal class ReplicatedConvars
 
 	/// <summary>
 	/// Get the authoritative (host-side) value of a replicated ConVar, straight from the
-	/// string table the host maintains. Used by docked in-process clients, which share the
-	/// host's process: this is exactly the data a remote client would receive over the wire.
+	/// string table the host maintains. Used by docked in-process clients.
 	/// </summary>
 	public bool TryGetHostValue( string name, out string value )
 	{

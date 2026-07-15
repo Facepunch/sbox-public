@@ -8,22 +8,11 @@ namespace Sandbox;
 
 /// <summary>
 /// A complete in-process game client - the engine side of the editor's "docked client" tabs.
-/// Owns its own <see cref="NetworkSystem"/>, <see cref="SceneNetworkSystem"/>, local
-/// <see cref="Connection"/> and client <see cref="Scene"/>, connected to the in-editor host
-/// through an in-memory transport and driven through the REAL connection handshake
-/// (ServerInfo → UserInfo → Welcome → Snapshot → Activate), so game code sees a genuine
-/// multiplayer client.
-///
-/// The engine's networking state is global (Networking.System, SceneNetworkSystem.Instance,
-/// Connection.Local, Game.ActiveScene) - the same pattern the integration tests multiplex with
-/// ClientAndHost. Each session tick swaps those globals to this client's world, pumps its
-/// networking and scene simulation, then swaps back, SAVING what the handlers wrote (the
-/// handshake legitimately replaces Connection.Local and Game.ActiveScene mid-slice). Async
-/// continuations started inside a slice are captured by a per-session SynchronizationContext
-/// and pumped inside later slices, so they also run under this client's context.
-///
-/// Everything is main-thread only, in-process, sharing loaded assemblies and resources with
-/// the host - which is what makes joining instant compared to spawning an sbox.exe.
+/// Owns its own <see cref="NetworkSystem"/>, local <see cref="Connection"/> and client
+/// <see cref="Scene"/>, connected to the in-editor host through an in-memory transport and
+/// driven through the real connection handshake. The engine's networking state is global,
+/// so each tick swaps those globals to this client's world and back (see <see cref="Push"/>).
+/// Main-thread only.
 /// </summary>
 internal sealed class InProcessClientSession : IDisposable
 {
@@ -49,8 +38,7 @@ internal sealed class InProcessClientSession : IDisposable
 
 	/// <summary>
 	/// This client's isolated world: its own GlobalContext and private copies of the game
-	/// assemblies, so game statics, events, resources and UI are per-client. Falls back to
-	/// shared mode (host's TypeLibrary and context) if isolation couldn't be built.
+	/// assemblies. Falls back to shared mode if isolation couldn't be built.
 	/// </summary>
 	internal InProcessTenant Tenant { get; }
 
@@ -61,20 +49,17 @@ internal sealed class InProcessClientSession : IDisposable
 
 	/// <summary>
 	/// This client's game scene. Null until the snapshot has been applied.
-	/// In isolated mode the scene lives in the tenant's context (null after disposal).
 	/// </summary>
 	public Scene Scene => Tenant.IsIsolated ? Tenant.Context?.ActiveScene : _scene;
 
 	/// <summary>
-	/// Set when the host's game code changed (hotload): this session's private assembly
-	/// copies are stale, and the owner should dispose it and create a fresh session -
-	/// an instant in-process reconnect that picks up the new code.
+	/// The host's game code changed (hotload), so this session's private assembly copies are
+	/// stale - the owner should dispose it and create a fresh session.
 	/// </summary>
 	public bool NeedsRebuild { get; private set; }
 
 	/// <summary>
-	/// The host's game assemblies changed - flag every isolated session for rebuild.
-	/// Shared-mode sessions run the host's assemblies directly and hotload with it.
+	/// Flag every isolated session for rebuild. Shared-mode sessions hotload with the host.
 	/// </summary>
 	public static void NotifyHostCodeChanged()
 	{
@@ -86,8 +71,8 @@ internal sealed class InProcessClientSession : IDisposable
 	}
 
 	/// <summary>
-	/// Find a resource registered in this session's tenant resource system, for engine
-	/// callbacks that fire outside any context scope.
+	/// Find a resource in this session's tenant resource system, for engine callbacks that
+	/// fire outside any context scope.
 	/// </summary>
 	internal Resource FindTenantResource( string resourceName ) => Tenant.FindResource( resourceName );
 
@@ -102,30 +87,25 @@ internal sealed class InProcessClientSession : IDisposable
 	public bool IsDefunct => _disposed || System.IsDisconnected;
 
 	/// <summary>
-	/// This client's blank input context, pushed while the session ticks WITHOUT input focus,
+	/// This client's input context, pushed blank while the session ticks without input focus
 	/// so its pawns get neutral input instead of mirroring the host player's keys.
 	/// </summary>
 	internal Input.Context InputContext { get; }
 
 	/// <summary>
-	/// The pixel size of the view this client renders into (the dock tab), fed by the
-	/// editor widget every frame. While the session ticks, <see cref="Screen"/> reports
-	/// this size, so the client's UI lays out and its game code projects against the
-	/// actual view - not the host's game window.
+	/// The pixel size of the view this client renders into, fed by the editor widget every
+	/// frame. <see cref="Screen"/> reports this size while the session ticks.
 	/// </summary>
 	public Vector2 ViewSize { get; set; }
 
 	/// <summary>
-	/// The session whose slice is currently executing on the main thread (inside
-	/// <see cref="Push"/>). Used by engine systems that need to attribute work to a
-	/// session - e.g. sounds created during a slice route to the session's submix.
+	/// The session whose slice is currently executing on the main thread, for engine systems
+	/// that need to attribute work to a session (e.g. sounds route to its submix).
 	/// </summary>
 	public static InProcessClientSession CurrentSlice { get; private set; }
 
 	/// <summary>
-	/// This session's private audio submix under Master. Every sound the session's game
-	/// code creates routes here (see <see cref="SoundHandle.TenantMixer"/>), and its
-	/// volume follows tab focus: the focused client is audible, the rest are muted.
+	/// This session's private audio submix under Master. Volume follows tab focus.
 	/// Null until first used, or when there's no master mixer (headless tests).
 	/// </summary>
 	public Audio.Mixer ClientMixer
@@ -148,10 +128,9 @@ internal sealed class InProcessClientSession : IDisposable
 	static InProcessClientSession _focused;
 
 	/// <summary>
-	/// The session that currently has input focus (its editor tab is focused). It ticks under
-	/// the REAL per-frame input context, so its pawn is driven by the player's actual input,
-	/// while the host's game tick is muted (see <see cref="MuteHostInput"/>). Its audio submix
-	/// is unmuted; every other session's is muted. Null when the host has input as normal.
+	/// The session that currently has input focus. It ticks under the real per-frame input
+	/// while the host's game tick is muted (see <see cref="MuteHostInput"/>), and its audio
+	/// submix is the only unmuted one. Null when the host has input as normal.
 	/// </summary>
 	public static InProcessClientSession Focused
 	{
@@ -165,12 +144,6 @@ internal sealed class InProcessClientSession : IDisposable
 				if ( session._clientMixer is not null )
 					session._clientMixer.Volume = session == value ? 1f : 0f;
 			}
-
-			// NOTE: clicking the focused client's in-game UI is not wired up yet. Device
-			// UI events flow through the host's InputContext into its target UI system;
-			// retargeting that wholesale breaks the host's game input and cursor capture
-			// (tried - it gates far more than UI events), so tenant UI clicks need a
-			// finer-grained routing of just the UI event queue.
 		}
 	}
 
@@ -178,9 +151,8 @@ internal sealed class InProcessClientSession : IDisposable
 	static Input.Context _muteContext;
 
 	/// <summary>
-	/// Push a permanently-blank input context AND zero the analog statics. Used by the host's
-	/// game tick while a docked client has input focus, so the host pawn stops responding
-	/// while the player drives the focused client. Dispose restores everything.
+	/// Push a permanently-blank input context and zero the analog statics, so the host pawn
+	/// stops responding while the player drives a focused client. Dispose restores everything.
 	/// </summary>
 	public static IDisposable MuteHostInput()
 	{
@@ -197,10 +169,8 @@ internal sealed class InProcessClientSession : IDisposable
 	}
 
 	/// <summary>
-	/// Neutralize the input statics that are NOT backed by the input context: AnalogMove and
-	/// AnalogLook are recomputed by Input.Process once per frame as plain statics, so a blank
-	/// context alone doesn't stop pawns from reading the player's WASD/mouse-look. Without
-	/// this, every scene ticking in the process moves with the same input.
+	/// AnalogMove/AnalogLook are plain statics recomputed once per frame, not backed by the
+	/// input context - a blank context alone doesn't stop pawns from reading them.
 	/// </summary>
 	static IDisposable ZeroAnalogInput()
 	{
@@ -237,8 +207,7 @@ internal sealed class InProcessClientSession : IDisposable
 	/// <summary>
 	/// Create an in-process client and start its handshake with the current host.
 	/// Must be called on the main thread while hosting is active.
-	/// <paramref name="gameAssemblies"/> overrides where the tenant's private assembly
-	/// copies come from (tests) - normally they come from the game instance.
+	/// <paramref name="gameAssemblies"/> overrides the tenant's assembly source (tests).
 	/// </summary>
 	public static InProcessClientSession Create( string name = null, IReadOnlyList<(string Name, byte[] Bytes)> gameAssemblies = null )
 	{
@@ -258,8 +227,6 @@ internal sealed class InProcessClientSession : IDisposable
 		var session = new InProcessClientSession( socket, name, gameAssemblies );
 		All.Add( session );
 
-		// We are currently under the HOST context - accepting starts the handshake, which
-		// sends ServerInfo (host state) into the client's inbox.
 		socket.Accept( session._hostEndpoint );
 
 		return session;
@@ -276,8 +243,6 @@ internal sealed class InProcessClientSession : IDisposable
 		Number = number;
 		PlayerName = string.IsNullOrWhiteSpace( name ) ? $"Client {number}" : name;
 
-		// Build the isolated world first: private game assembly copies with their own
-		// statics, own TypeLibrary, own resources. Never throws - falls back to shared.
 		Tenant = InProcessTenant.Create( $"InProcessClient{number}", gameAssemblies );
 
 		SteamId fakeSteamId = Utility.Steam.BaseFakeSteamId + FakeSteamIdBase + (ulong)number;
@@ -299,7 +264,8 @@ internal sealed class InProcessClientSession : IDisposable
 
 	/// <summary>
 	/// Swap the process-wide networking globals to this client's world. Dispose swaps back,
-	/// saving anything the client's handlers replaced in the meantime.
+	/// saving anything the client's handlers replaced in the meantime (the handshake
+	/// legitimately replaces Connection.Local and Game.ActiveScene mid-slice).
 	/// </summary>
 	public IDisposable Push()
 	{
@@ -320,10 +286,8 @@ internal sealed class InProcessClientSession : IDisposable
 			Screen.Size = ViewSize;
 		}
 
-		// Isolated mode: swap the whole world - GlobalContext carries the tenant's
-		// TypeLibrary, ActiveScene, resources, events, tasks, UI. The tenant context
-		// persists between slices, so ActiveScene needs no save/restore of its own.
-		// Shared mode: the context stays the host's, so ActiveScene is swapped by hand.
+		// Isolated mode: the tenant context carries ActiveScene. Shared mode: the context
+		// stays the host's, so ActiveScene is swapped by hand.
 		var contextScope = Tenant.Push();
 		Scene savedScene = null;
 
@@ -345,7 +309,6 @@ internal sealed class InProcessClientSession : IDisposable
 		{
 			CurrentSlice = savedSlice;
 
-			// Save back what this client's handlers wrote during the slice.
 			_gameSystem = SceneNetworkSystem.Instance ?? System.GameSystem as SceneNetworkSystem;
 			_localConnection = Connection.Local;
 
@@ -369,9 +332,7 @@ internal sealed class InProcessClientSession : IDisposable
 	}
 
 	/// <summary>
-	/// Advance this client one frame: pump its networking (handshake and game messages run
-	/// under its context) and tick its scene simulation. Mirrors the per-frame flow of
-	/// GameInstanceDll.Tick for a real client.
+	/// Advance this client one frame: pump its networking and tick its scene simulation.
 	/// </summary>
 	public void Tick()
 	{
@@ -394,12 +355,10 @@ internal sealed class InProcessClientSession : IDisposable
 
 	void TickInternal()
 	{
-		// Continuations captured in earlier slices (scene loading etc).
 		_syncContext.Pump();
 
-		// Input routing: the focused session ticks under the AMBIENT context - the real
-		// per-frame input, so its pawn is driven by the player (the host's tick is muted, see
-		// MuteHostInput). Unfocused sessions push their own blank context so their pawns idle.
+		// The focused session ticks under the real per-frame input; unfocused sessions push
+		// their own blank context so their pawns idle.
 		using var inputScope = Focused == this ? null : PushBlankInput();
 
 		var scene = Game.ActiveScene;
@@ -420,11 +379,8 @@ internal sealed class InProcessClientSession : IDisposable
 				scene.GameTick( 0 ); // time already advanced above
 			}
 
-			// The tenant's in-game UI lives in its own UI system. Exactly ONE UI system
-			// processes input per frame - the focused world's - because hover/focus state
-			// is process-global. The focused session simulates with full input (its
-			// InputContext is first in the router, so device events land in its queue and
-			// its state drives mouse capture); everyone else is layout/render only.
+			// Exactly one UI system processes input per frame - the focused world's - because
+			// hover/capture state is process-global. Everyone else is layout/render only.
 			if ( Tenant.IsIsolated && Tenant.Context?.UISystem is { } uiSystem )
 			{
 				if ( Focused == this )
@@ -439,7 +395,6 @@ internal sealed class InProcessClientSession : IDisposable
 		}
 		else
 		{
-			// Still handshaking - no scene yet.
 			PumpNetwork();
 		}
 
@@ -450,28 +405,15 @@ internal sealed class InProcessClientSession : IDisposable
 	{
 		var contextScope = InputContext.Push();
 
-		// Device input is accumulated into EVERY Input.Context (see Input.AddMouseMovement
-		// and the action press paths) - a private context is NOT naturally blank. Discard
-		// whatever accumulated since last tick so the Flip below publishes truly neutral
-		// input; otherwise every unfocused client's pawn jumps when the host player jumps.
-		InputContext.AccumActionsPressed = 0;
-		InputContext.AccumActionsReleased = 0;
-		InputContext.AccumKeysPressed.Clear();
-		InputContext.AccumKeysReleased.Clear();
-		InputContext.AccumMouseDelta = default;
-		InputContext.AccumMouseWheel = default;
-
+		InputContext.ClearAccumulated();
 		InputContext.Flip();
 
-		// Invariant: a cleared context must publish no actions. If this fires, input
-		// isolation is broken and unfocused clients will mirror the player's buttons.
 		if ( InputContext.ActionsCurrent != 0 && !_warnedDirtyInput )
 		{
 			_warnedDirtyInput = true;
 			Log.Warning( $"In-process client {Number}: blank input context published actions {InputContext.ActionsCurrent:X} - input isolation failure" );
 		}
 
-		// The context only covers buttons/actions/mouse - analog statics leak separately.
 		var analogScope = ZeroAnalogInput();
 
 		return new DisposeAction( () =>
@@ -505,7 +447,8 @@ internal sealed class InProcessClientSession : IDisposable
 
 		ThreadSafe.AssertIsMainThread();
 
-		// Tear down the client side under ITS context.
+		// Tear down the client side under ITS context, so nothing roots the tenant's
+		// objects or its collectible assemblies.
 		using ( Push() )
 		{
 			try
@@ -513,13 +456,9 @@ internal sealed class InProcessClientSession : IDisposable
 				if ( !System.IsDisconnected )
 					System.Disconnect();
 
-				// The game system holds references into the client scene - drop it so
-				// nothing roots the tenant's objects (or its collectible assemblies).
 				System.GameSystem?.Dispose();
 				System.GameSystem = null;
 
-				// In isolated mode the scene lives in the tenant context (which is current
-				// inside this scope) - Game.ActiveScene resolves to it in both modes.
 				Game.ActiveScene?.Destroy();
 				Game.ActiveScene = null;
 			}
@@ -529,15 +468,13 @@ internal sealed class InProcessClientSession : IDisposable
 			}
 		}
 
-		// Pending async continuations captured during slices can close over scene objects -
-		// they must never run after disposal, and must not root the tenant's assemblies.
+		// Pending continuations close over scene objects - they must never run after disposal.
 		_syncContext.Clear();
 
 		_scene = null;
 		_gameSystem = null;
 
-		// Notify the host under the HOST context (we are outside the scope again) so
-		// OnLeave cleanup runs against the host's scene.
+		// Notify the host outside the scope, so OnLeave cleanup runs against the host's scene.
 		try
 		{
 			_hostSocket.Disconnect( _hostEndpoint );
@@ -547,7 +484,6 @@ internal sealed class InProcessClientSession : IDisposable
 			Log.Warning( e, $"In-process client {Number} host-side disconnect error: {e.Message}" );
 		}
 
-		// Stop this session's sounds and remove its submix from the master tree.
 		try
 		{
 			if ( _clientMixer is not null )
@@ -562,16 +498,13 @@ internal sealed class InProcessClientSession : IDisposable
 			Log.Warning( e, $"In-process client {Number} mixer teardown error: {e.Message}" );
 		}
 
-		// Last: shut down the tenant world and start unloading its private assemblies.
-		// The collectible load context finishes unloading once the GC has collected the
-		// tenant's scene objects.
 		Tenant.Dispose();
 	}
 
 	/// <summary>
-	/// Captures async continuations started during this session's slices so they can be run
-	/// inside later slices, under this session's context, instead of leaking into whatever
-	/// context the main thread happens to be in when they'd otherwise resume.
+	/// Captures async continuations started during this session's slices, so they run inside
+	/// later slices under this session's context instead of whatever context the main thread
+	/// happens to be in.
 	/// </summary>
 	sealed class QueuedSyncContext : SynchronizationContext
 	{
@@ -584,7 +517,6 @@ internal sealed class InProcessClientSession : IDisposable
 
 		public override void Send( SendOrPostCallback d, object state )
 		{
-			// Main-thread-only feature; a synchronous Send can just run inline.
 			d( state );
 		}
 
@@ -606,10 +538,6 @@ internal sealed class InProcessClientSession : IDisposable
 			}
 		}
 
-		/// <summary>
-		/// Discard pending continuations without running them. Used on session disposal so
-		/// closures can't root the session's scene or its collectible assemblies.
-		/// </summary>
 		public void Clear()
 		{
 			while ( _queue.TryDequeue( out _ ) )

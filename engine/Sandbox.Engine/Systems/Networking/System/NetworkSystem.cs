@@ -33,11 +33,9 @@ internal partial class NetworkSystem
 	public string DebugName { get; }
 
 	/// <summary>
-	/// True if this system is an in-process client session (an editor "docked client",
-	/// see <see cref="InProcessClientSession"/>). It shares the process - and therefore
-	/// assemblies, resources and mounts - with the host, so the handshake skips all
-	/// process-level side effects (code archive compilation, file mounting, editor
-	/// play-state changes, global game disconnection).
+	/// True if this system is an in-process client session (an editor "docked client").
+	/// It shares the process with the host, so the handshake skips process-level side
+	/// effects: code archive compilation, mounting, editor play-state, global disconnect.
 	/// </summary>
 	internal bool IsInProcessClient { get; init; }
 
