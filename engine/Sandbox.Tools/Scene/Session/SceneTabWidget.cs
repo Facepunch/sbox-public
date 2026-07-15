@@ -121,6 +121,8 @@ sealed class SceneTabWidget : Widget
 
 	internal bool IsCurrent( SceneTab tab ) => _currentTab == tab;
 
+	internal List<SceneTab> Tabs => _tabs;
+
 	void RebuildTabBar()
 	{
 		_tabBar.Layout.Clear( false );
@@ -306,6 +308,33 @@ sealed class SceneTab : Widget
 	{
 		base.OnMousePress( e );
 		if ( e.LeftMouseButton ) Session.MakeActive();
+	}
+
+	protected override void OnContextMenu( ContextMenuEvent e )
+	{
+		var menu = new ContextMenu( this );
+		var tabs = _owner.Tabs;
+		var index = tabs.IndexOf( this );
+
+		menu.AddOption( "Close", null, CloseSession );
+		AddCloseOption( menu, "Close Others", tabs.Where( x => x != this ) );
+		AddCloseOption( menu, "Close Tabs to the Left", tabs.Take( index ) );
+		AddCloseOption( menu, "Close Tabs to the Right", tabs.Skip( index + 1 ) );
+
+		menu.OpenAtCursor();
+		e.Accepted = true;
+	}
+
+	static void AddCloseOption( ContextMenu menu, string title, IEnumerable<SceneTab> tabs )
+	{
+		var closable = tabs.ToArray();
+		if ( closable.Length == 0 ) return;
+
+		menu.AddOption( title, null, () =>
+		{
+			foreach ( var tab in closable )
+				tab.CloseSession();
+		} );
 	}
 
 	void CloseSession()

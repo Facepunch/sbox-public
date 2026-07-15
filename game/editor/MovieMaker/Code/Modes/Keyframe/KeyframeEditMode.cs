@@ -14,7 +14,17 @@ public sealed partial class KeyframeEditMode : EditMode
 	public bool AutoCreateTracks { get; set; }
 	public bool CreateKeyframeOnClick { get; set; }
 
-	public KeyframeInterpolation DefaultInterpolation { get; set; } = KeyframeInterpolation.Cubic;
+	private KeyframeInterpolation _defaultInterpolation;
+
+	public KeyframeInterpolation DefaultInterpolation
+	{
+		get => _defaultInterpolation;
+		set
+		{
+			_defaultInterpolation = value;
+			Session.Cookies.KeyframeInterpolation = value;
+		}
+	}
 
 	public IEnumerable<KeyframeHandle> SelectedKeyframes => Timeline.SelectedItems.OfType<KeyframeHandle>();
 
@@ -24,6 +34,8 @@ public sealed partial class KeyframeEditMode : EditMode
 
 	protected override void OnEnable()
 	{
+		_defaultInterpolation = Session.Cookies.KeyframeInterpolation;
+
 		var changesGroup = ToolBar.AddGroup();
 
 		var button = changesGroup.AddToggle( new( "Automatic Track Creation", "playlist_add",

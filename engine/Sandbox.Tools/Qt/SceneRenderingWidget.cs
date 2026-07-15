@@ -12,9 +12,6 @@ public class SceneRenderingWidget : Frame
 
 	internal SwapChainHandle_t SwapChain;
 
-	// A released swapchain is destroyed at frame end and owns our window until then
-	private bool _destroyPending;
-
 	/// <summary>
 	/// The active scene that we're rendering
 	/// </summary>
@@ -39,10 +36,6 @@ public class SceneRenderingWidget : Frame
 
 	public SceneRenderingWidget( Widget parent = null ) : base( parent )
 	{
-		// Keep ancestors non-native, otherwise every dock splitter above us becomes a
-		// real HWND and resizes recurse through Win32 until stack overflow. Must be
-		// set before WA_NativeWindow. See qtoolscenewidget.cpp for the full story.
-		SetFlag( Flag.WA_DontCreateNativeAncestors, true );
 		SetFlag( Flag.WA_NativeWindow, true );
 		SetFlag( Flag.WA_PaintOnScreen, true );
 		SetFlag( Flag.WA_NoSystemBackground, true );
@@ -69,7 +62,10 @@ public class SceneRenderingWidget : Frame
 		All.Remove( this );
 		RenderSettings.Instance.OnVideoSettingsChanged -= HandleVideoChanged;
 
-		ReleaseSwapChain();
+		// The swapchain might still be in use by native, so defer its destruction until the end of the frame.
+		// Otherwise, a race condition could occur where render targets are accessed after destruction, causing a delayed crash.
+		EngineLoop.DisposeAtFrameEnd( new Sandbox.Utility.DisposeAction( () => g_pRenderDevice.DestroySwapChain( SwapChain ) ) );
+		SwapChain = default;
 
 		GizmoInstance?.Dispose();
 		GizmoInstance = default;
@@ -162,43 +158,12 @@ public class SceneRenderingWidget : Frame
 		UpdateGizmoInputs( ref GizmoInstance.Input, camera, hasMouseFocus );
 	}
 
-	// Qt destroys and recreates our native window when a dock reparents us into
-	// another window - release the swapchain and Render will rebuild it against
-	// the new handle.
-	internal override void OnWinIdChanged()
-	{
-		ReleaseSwapChain();
-	}
-
-	void ReleaseSwapChain()
-	{
-		if ( SwapChain == default ) return;
-
-		// The swapchain might still be in use by native, so defer its destruction until the end of the frame.
-		// Otherwise, a race condition could occur where render targets are accessed after destruction, causing a delayed crash.
-		var swapChain = SwapChain;
-		_destroyPending = true;
-		EngineLoop.DisposeAtFrameEnd( new Sandbox.Utility.DisposeAction( () =>
-		{
-			g_pRenderDevice.DestroySwapChain( swapChain );
-			_destroyPending = false;
-		} ) );
-		SwapChain = default;
-	}
-
 	void Render()
 	{
 		if ( !Scene.IsValid() ) return;
 		if ( !Visible ) return;
 
-		if ( SwapChain == default )
-		{
-			// The retired swapchain still owns our window until it's destroyed at
-			// frame end - creating a second one against it would fail, wait a frame.
-			if ( _destroyPending ) return;
-
-			SwapChain = WidgetUtil.CreateSwapChain( _widget, RenderSettings.Instance.AntiAliasQuality.ToEngine() );
-		}
+		if ( SwapChain == default ) return;
 
 		using ( Scene.Push() )
 		{
@@ -280,10 +245,15 @@ public class SceneRenderingWidget : Frame
 
 	internal void HandleVideoChanged()
 	{
-		// No swapchain right now - Render will create one with the current settings
-		if ( SwapChain == default ) return;
+		var msaaAmount = RenderSettings.Instance.AntiAliasQuality.ToEngine();
 
-		WidgetUtil.UpdateSwapChainMSAA( SwapChain, RenderSettings.Instance.AntiAliasQuality.ToEngine() );
+		if ( SwapChain == default )
+		{
+			SwapChain = WidgetUtil.CreateSwapChain( _widget, msaaAmount );
+			return;
+		}
+
+		WidgetUtil.UpdateSwapChainMSAA( SwapChain, msaaAmount );
 	}
 
 	internal static void RenderAll()

@@ -145,12 +145,6 @@ native class QWidget as Native.QWidget : QObject
 	QWidget parentWidget();
 
 	QWidget window();
-	inline void setTransientParent( QWidget parent )
-	{
-		self->winId();
-		parent->winId();
-		self->windowHandle()->setTransientParent( parent->windowHandle() );
-	}
 
 	void AddClassName( QString name );
 	void Polish();

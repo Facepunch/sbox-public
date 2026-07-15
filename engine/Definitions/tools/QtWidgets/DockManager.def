@@ -25,12 +25,6 @@ native class ads::CDockManager as Native.CDockManager : QWidget
 		ads::CDockManager::setConfigFlag( ads::CDockManager::OpaqueSplitterResize, true );
 		ads::CDockManager::setConfigFlag( ads::CDockManager::TabCloseButtonIsToolButton, true );
 		ads::CDockManager::setConfigFlag( ads::CDockManager::DisableStylesheet, true );
-
-		// Dock containers host native render widgets (swapchains). Making dock/area/floating
-		// windows native keeps the widget hierarchy natively parented, so floating and
-		// re-docking doesn't destroy and recreate the render widget's window out from
-		// under its swapchain.
-		ads::CDockManager::setConfigFlag( ads::CDockManager::UseNativeWindows, true );
 	}
 
 	static CDockManager Create( QWidget parent ); [new]

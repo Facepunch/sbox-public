@@ -1224,9 +1224,8 @@ public class WorldComponentTest
 	/// <summary>
 	/// A dynamic body inside a WaterVolume receives buoyancy and ends up far above
 	/// an identical free-falling body, while bodies carrying an ignore tag fall
-	/// like there's no water at all. Note GameTick advances 0.1s per call but
-	/// ProjectSettings.Physics.MaxFixedUpdates (default 2) clamps each tick to two
-	/// 50Hz fixed steps, so 50 ticks only simulate ~2 seconds of physics.
+	/// like there's no water at all. Assertions are directional (relative body
+	/// heights), so they hold regardless of how much physics each GameTick simulates.
 	/// </summary>
 	[TestMethod]
 	public void WaterVolumeFloatsBodies()
@@ -1266,7 +1265,7 @@ public class WorldComponentTest
 		var corked = CreateFloater( scene, new Vector3( 50, 50, -200 ), "cork" );
 		var control = CreateFloater( scene, new Vector3( 2000, 0, -200 ) );
 
-		// 50 ticks = 100 fixed steps at 50Hz (~2s of physics) - free fall covers ~1600 units
+		// Enough ticks for the control body to free-fall well clear of the floater.
 		for ( int i = 0; i < 50; i++ ) scene.GameTick();
 
 		Assert.IsTrue( control.WorldPosition.z < -1000f, $"the control should free fall: {control.WorldPosition}" );
