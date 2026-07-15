@@ -36,6 +36,9 @@ public sealed partial class ClutterGridSystem : GameObjectSystem
 
 	public ClutterGridSystem( Scene scene ) : base( scene )
 	{
+		if ( Application.IsHeadless )
+			return;
+
 		Listen( Stage.FinishUpdate, 0, OnUpdate, "ClutterGridSystem.Update" );
 		Listen( Stage.SceneLoaded, 0, RebuildPaintedLayer, "ClutterGridSystem.RestorePainted" );
 	}
