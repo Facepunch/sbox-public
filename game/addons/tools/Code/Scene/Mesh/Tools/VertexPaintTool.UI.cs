@@ -16,6 +16,38 @@ partial class VertexPaintTool
 		readonly ControlSheetRow _paintRow;
 		readonly Label _selectionCountLabel;
 		readonly VertexPaintTool _tool;
+		readonly Widget _noiseSettingsWidget;
+		readonly Widget _occlusionSettingsWidget;
+		readonly Widget _curvatureSettingsWidget;
+		readonly Button _fillButton;
+
+
+		[Shortcut( "vertexpainttool.OpenColorPicker", "F", typeof( SceneViewWidget ) )]
+		void OpenColorPicker()
+		{
+			if ( _tool.Mode != PaintMode.Color )
+				return;
+
+			var picker = ColorPicker.OpenColorPopup( _tool.Color, c => _tool.Color = c );
+			picker.HasAlpha = false;
+			picker.IsHDR = false;
+		}
+
+		[Shortcut( "vertexpainttool.togglepaintmode", "M", typeof( SceneViewWidget ) )]
+		void TogglePaintMode()
+		{
+			_tool.Mode = _tool.Mode == PaintMode.Blend ? PaintMode.Color : PaintMode.Blend;
+			UpdateModeVisibility( _tool.Mode );
+		}
+
+		[Shortcut( "vertexpainttool.floodfill", "Backspace", typeof( SceneViewWidget ) )]
+		void FloodFill() => _tool.FillSelection();
+
+		[Shortcut( "vertexpainttool.invertfill", "SHIFT+Backspace", typeof( SceneViewWidget ) )]
+		void InvertFill() => _tool.InvertSelection();
+
+		[Shortcut( "vertexpainttool.resetpaint", "CTRL+Backspace", typeof( SceneViewWidget ) )]
+		void ResetPaint() => _tool.ResetPaintData();
 
 		public VertexPaintToolWidget( VertexPaintTool tool ) : base()
 		{
@@ -37,6 +69,7 @@ partial class VertexPaintTool
 
 				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.LimitToActiveMaterial ) ) ) );
 				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.PaintBackfacing ) ) ) );
+				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.ScaleWithDistance ) ) ) );
 			}
 			{
 				var group = AddGroup( "Painting" );
@@ -133,8 +166,65 @@ partial class VertexPaintTool
 
 				modeProp.OnChanged += ( e ) => UpdateModeVisibility( tool.Mode );
 			}
+
 			{
-				var group = AddGroup( "Visualization" );
+				var group = AddGroup( "Fill Options", collapsible: true );
+
+				_fillButton = new Button( "Flood Fill", "format_color_fill" );
+				_fillButton.ToolTip = "Fill the current selection with the active color/blend";
+				_fillButton.Clicked = () => tool.FillSelection();
+				group.Add( _fillButton );
+
+				var _invertButton = new Button( "Invert Selection", "flip" );
+				_invertButton.ToolTip = "Invert the current selection";
+				_invertButton.Clicked = () => tool.InvertSelection();
+				group.Add( _invertButton );
+
+				var resetButton = new Button( "Reset Paint Data", "format_color_reset" );
+				resetButton.ToolTip = "Reset the selection back to default";
+				resetButton.Clicked = () => tool.ResetPaintData();
+				group.Add( resetButton );
+
+				var fillModeProp = so.GetProperty( nameof( tool.FillMode ) );
+				group.Add( ControlSheetRow.Create( fillModeProp ) );
+
+				var scaleProp = so.GetProperty( nameof( tool.NoiseScale ) );
+				var seedProp = so.GetProperty( nameof( tool.NoiseSeed ) );
+				var contrastProp = so.GetProperty( nameof( tool.NoiseContrast ) );
+
+				_noiseSettingsWidget = new Widget( this );
+				_noiseSettingsWidget.Layout = Layout.Column();
+				_noiseSettingsWidget.Layout.Spacing = 2;
+				_noiseSettingsWidget.Layout.Add( ControlSheetRow.Create( scaleProp ) );
+				_noiseSettingsWidget.Layout.Add( ControlSheetRow.Create( seedProp ) );
+				_noiseSettingsWidget.Layout.Add( ControlSheetRow.Create( contrastProp ) );
+
+				var noisePreview = new NoisePreviewWidget( tool, this ) { FixedHeight = 96 };
+				_noiseSettingsWidget.Layout.AddSpacingCell( 8 );
+				_noiseSettingsWidget.Layout.Add( noisePreview );
+				group.Add( _noiseSettingsWidget );
+
+				_occlusionSettingsWidget = new Widget( this );
+				_occlusionSettingsWidget.Layout = Layout.Column();
+				_occlusionSettingsWidget.Layout.Spacing = 2;
+				_occlusionSettingsWidget.Layout.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.OcclusionRadius ) ) ) );
+				group.Add( _occlusionSettingsWidget );
+
+				_curvatureSettingsWidget = new Widget( this );
+				_curvatureSettingsWidget.Layout = Layout.Column();
+				_curvatureSettingsWidget.Layout.Spacing = 2;
+				_curvatureSettingsWidget.Layout.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.CurvatureAngle ) ) ) );
+				group.Add( _curvatureSettingsWidget );
+
+				scaleProp.OnChanged += ( e ) => noisePreview.Update();
+				seedProp.OnChanged += ( e ) => noisePreview.Update();
+				contrastProp.OnChanged += ( e ) => noisePreview.Update();
+
+				fillModeProp.OnChanged += ( e ) => UpdateFillModeVisibility( tool.FillMode );
+			}
+
+			{
+				var group = AddGroup( "Visualization", collapsible: true );
 				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.ShowVerts ) ) ) );
 				group.Add( ControlSheetRow.Create( so.GetProperty( nameof( tool.ShowSelection ) ) ) );
 			}
@@ -144,13 +234,15 @@ partial class VertexPaintTool
 			AddShortcuts(
 				("Paint", "LMB"),
 				("Erase", "Ctrl+LMB"),
-				("Sample Color", "Ctrl+RMB"),
+				("Sample Color", "(Hold) V"),
 				("Adjust Radius", "Shift+MMB Drag"),
 				("Adjust Strength", "Ctrl+MMB ↕"),
-				("Adjust Hardness", "Ctrl+MMB ↔")
+				("Adjust Hardness", "Ctrl+MMB ↔"),
+				("Add Selection", "Shift+RMB")
 			);
 
 			UpdateModeVisibility( tool.Mode );
+			UpdateFillModeVisibility( tool.FillMode );
 		}
 
 		static int GetVertexPaintLayerCount( Material material )
@@ -171,6 +263,13 @@ partial class VertexPaintTool
 			_blendRow.Visible = mode == PaintMode.Blend;
 			_channelsWidget.Visible = mode == PaintMode.Blend;
 			_paintRow.Visible = mode == PaintMode.Color;
+		}
+
+		void UpdateFillModeVisibility( PaintFillMode mode )
+		{
+			_noiseSettingsWidget.Visible = mode == PaintFillMode.Noise;
+			_occlusionSettingsWidget.Visible = mode == PaintFillMode.Occlusion;
+			_curvatureSettingsWidget.Visible = mode == PaintFillMode.Curvature;
 		}
 
 		[EditorEvent.Frame]

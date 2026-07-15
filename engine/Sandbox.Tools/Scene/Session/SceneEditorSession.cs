@@ -16,6 +16,8 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public static List<SceneEditorSession> All { get; } = new();
 
+	internal static SceneEditorSession Playing => All.FirstOrDefault( x => x.GameSession is not null );
+
 	/// <summary>
 	/// The editor session that is currently active
 	/// </summary>
@@ -71,49 +73,16 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	}
 
 	/// <summary>
-	/// Create the tabbed dock widget that holds the scene view
+	/// Create the scene view widget and open it as a tab in the central scene area
 	/// </summary>
 	void CreateSceneDock()
 	{
 		SceneDock = EditorTypeLibrary.Create<Widget>( "SceneDock", new object[] { this } );
 		SceneDock.Name = $"SceneDock:{(Scene.Source?.ResourcePath ?? "untitled")}";
 
-		SceneDock.Parent = EditorWindow;
-		SceneDock.Visible = true;
-
-		Dock();
+		EditorWindow.SceneTabs.Open( this );
 
 		UpdateEditorTitle();
-	}
-
-	internal static void OnEditorWindowRestoreLayout()
-	{
-		// When we restore a layout it hides all windows and restores a default layout
-		// Our currently open scenes are going to be in limbo with no area
-		// So we need to show and dock them
-
-		// Restoring will open a blank SceneDock as an area for the others to dock on
-		var dummy = All.Where( x => x.Scene.Source is null && EditorWindow.DockManager.IsDockOpen( x.SceneDock ) ).FirstOrDefault();
-
-		foreach ( var entry in All )
-		{
-			if ( EditorWindow.DockManager.IsDockOpen( entry.SceneDock ) )
-				continue;
-
-			entry.Dock();
-		}
-
-		// Remove our dummy dock, unless it's the only one open somehow
-		if ( All.Count > 1 )
-			dummy?.Destroy();
-	}
-
-	internal DockWidget DockWidget { get; private set; }
-
-	void Dock()
-	{
-		DockWidget = EditorWindow.DockManager.CreateDockWidget( SceneDock.Name, "grid_4x4", SceneDock );
-		EditorWindow.DockManager.AddDock( DockWidget, DockArea.Center );
 	}
 
 	bool _destroyed;
@@ -124,6 +93,9 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 			return;
 
 		_destroyed = true;
+
+		if ( GameSession is not null && Game.IsPlaying )
+			EditorScene.Stop();
 
 		// If this is the active scene
 		// switch away to a sibling
@@ -144,17 +116,14 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 		All.Remove( this );
 		EditorEvent.Unregister( this );
 
+		// remove the tab before destroying its scene view
+		EditorWindow?.SceneTabs?.Remove( this );
+
 		Scene?.Destroy();
 		Scene = null;
 
 		GameSession?.Destroy();
 		GameSession = null;
-
-		if ( DockWidget.IsValid() )
-		{
-			EditorWindow?.DockManager?.RemoveDock( DockWidget );
-			DockWidget = default;
-		}
 
 		SceneDock?.Destroy();
 		SceneDock = default;
@@ -178,10 +147,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 	/// </summary>
 	public void BringToFront()
 	{
-		if ( DockWidget.IsValid() )
-		{
-			DockWidget.SetAsCurrentTab();
-		}
+		EditorWindow?.SceneTabs?.MakeCurrent( this );
 
 		UpdateEditorTitle();
 	}
@@ -228,10 +194,7 @@ public partial class SceneEditorSession : Scene.ISceneEditorSession
 				SceneDock.WindowTitle = name;
 			}
 
-			if ( DockWidget.IsValid() )
-			{
-				DockWidget.WindowTitle = SceneDock.WindowTitle;
-			}
+			EditorWindow?.SceneTabs?.UpdateTitle( this );
 		}
 	}
 

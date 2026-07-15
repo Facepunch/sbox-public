@@ -11,6 +11,8 @@ partial class SceneEditorSession
 
 	public void SetPlaying( Scene scene )
 	{
+		Assert.IsNull( Playing, "Attempted to create a game session while another is active." );
+
 		GameSession = new GameEditorSession( this, scene );
 
 		// carry the selection over to the equivalent runtime objects

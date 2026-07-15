@@ -25,6 +25,25 @@ public class ClutterEntry
 	public float Weight { get; set; } = 1.0f;
 
 	/// <summary>
+	/// Uniform scale multiplier applied on top of whatever scale the scatterer picks per instance.
+	/// </summary>
+	[Property, Range( 0.1f, 5f )]
+	public float LocalScale { get; set; } = 1.0f;
+
+	/// <summary>
+	/// Whether instances of this entry cast shadows.
+	/// </summary>
+	[Property]
+	public bool CastShadows { get; set; } = true;
+
+	/// <summary>
+	/// Whether instances of this entry get a physics collision body. Only affects model-based
+	/// entries - prefab entries bring their own physics via their own components.
+	/// </summary>
+	[Property]
+	public bool EnablePhysics { get; set; } = true;
+
+	/// <summary>
 	/// Returns whether this entry has a valid asset to spawn.
 	/// </summary>
 	public bool HasAsset => Prefab is not null || Model is not null;

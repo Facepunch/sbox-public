@@ -228,7 +228,6 @@ public class TerrainComponentTest
 		Assert.AreEqual( 6, terrain.ClipMapLodLevels );
 		Assert.AreEqual( 256, terrain.ClipMapLodExtentTexels );
 		Assert.AreEqual( 1, terrain.SubdivisionFactor );
-		Assert.AreEqual( 3, terrain.SubdivisionLodCount );
 
 		Assert.AreEqual( 0.0f, terrain.TerrainSize, "Size reads zero with no storage" );
 		Assert.AreEqual( 0.0f, terrain.TerrainHeight );
@@ -249,9 +248,6 @@ public class TerrainComponentTest
 		Assert.AreEqual( 1, terrain.SubdivisionFactor, "Subdivision factor clamps to 1..4" );
 		terrain.SubdivisionFactor = 9;
 		Assert.AreEqual( 4, terrain.SubdivisionFactor );
-
-		terrain.SubdivisionLodCount = 99;
-		Assert.AreEqual( 99, terrain.SubdivisionLodCount, "Subdivision LOD count is not clamped by the setter" );
 
 		var storage = CreateSmallStorage();
 		terrain.Storage = storage;
@@ -289,7 +285,6 @@ public class TerrainComponentTest
 		terrain.ClipMapLodLevels = 4;
 		terrain.ClipMapLodExtentTexels = 128;
 		terrain.SubdivisionFactor = 2;
-		terrain.SubdivisionLodCount = 5;
 		terrain.RenderType = ModelRenderer.ShadowRenderType.ShadowsOnly;
 		terrain.MaterialOverride = mat;
 		terrain.Friction = 0.25f;
@@ -304,7 +299,6 @@ public class TerrainComponentTest
 		Assert.AreEqual( 4, loaded.ClipMapLodLevels );
 		Assert.AreEqual( 128, loaded.ClipMapLodExtentTexels );
 		Assert.AreEqual( 2, loaded.SubdivisionFactor );
-		Assert.AreEqual( 5, loaded.SubdivisionLodCount );
 		Assert.AreEqual( ModelRenderer.ShadowRenderType.ShadowsOnly, loaded.RenderType );
 		Assert.AreEqual( mat.Name, loaded.MaterialOverride?.Name, "Material override should round trip by path" );
 		Assert.AreEqual( 0.25f, loaded.Friction );
@@ -363,9 +357,9 @@ public class TerrainComponentTest
 		Assert.AreEqual( 1000.0f, terrain.LocalBounds.Maxs.y, 1.0f, "The plateau reaches the full terrain height" );
 		Assert.AreEqual( 6300.0f, terrain.LocalBounds.Maxs.z, 1.0f );
 
-		Assert.AreEqual( sceneObjectBaseline, scene.SceneWorld.SceneObjects.Count(), "The empty render device aborts clipmap creation, no scene object appears" );
+		Assert.AreEqual( sceneObjectBaseline + 1, scene.SceneWorld.SceneObjects.Count(), "The clipmap scene object is created even on the empty render device" );
 
-		Assert.IsNotNull( terrain.HeightMap, "The CPU-side heightmap texture is created before the buffer upload fails" );
+		Assert.IsNotNull( terrain.HeightMap, "The CPU-side heightmap texture is created" );
 		Assert.AreEqual( 64, terrain.HeightMap.Width );
 		Assert.AreEqual( 64, terrain.HeightMap.Height );
 		Assert.IsNotNull( terrain.ControlMap );

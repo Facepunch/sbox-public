@@ -129,13 +129,19 @@ public static unsafe partial class Sound
 	[Obsolete( "Decibels are obsolete" )]
 	public static SoundHandle PlayFile( SoundFile soundFile, float volume, float pitch, float decibels, float delay, float fadeInTime = 0.0f )
 	{
-		return PlayFile( soundFile.native.self, volume, pitch, delay, fadeInTime, soundFile.ResourceName );
+		return PlayFile( soundFile, volume, pitch, delay, fadeInTime );
 	}
 
 	[ActionGraphNode( "sound.playfile" ), Title( "Play Sound File" ), Group( "Audio" ), Icon( "volume_up" )]
 	public static SoundHandle PlayFile( SoundFile soundFile, float volume = 1.0f, float pitch = 1.0f, float delay = 0.0f, float fadeInTime = 0.0f )
 	{
-		return PlayFile( soundFile.native.self, volume, pitch, delay, fadeInTime, soundFile.ResourceName );
+		var handle = PlayFile( soundFile.native.self, volume, pitch, delay, fadeInTime, soundFile.ResourceName );
+		if ( handle.IsValid() )
+		{
+			handle.SoundFile = soundFile;
+		}
+
+		return handle;
 	}
 
 	internal static SoundHandle PlayFile( CSfxTable soundFile, float volume = 1.0f, float pitch = 1.0f, float delay = 0.0f, float fadeInTime = 0.0f, string debugName = "" )

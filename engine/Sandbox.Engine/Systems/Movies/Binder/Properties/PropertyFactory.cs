@@ -7,9 +7,37 @@ namespace Sandbox.MovieMaker.Properties;
 #nullable enable
 
 public readonly record struct DisplayInfo(
-	string Title, string Category = "Properties",
+	string Title,
+	string Category = "Properties",
 	string? Description = null,
-	string? Icon = null );
+	string? Icon = null )
+{
+	internal static DisplayInfo FromName( string name )
+	{
+		return new DisplayInfo( name.ToTitleCase() );
+	}
+
+	internal static DisplayInfo FromEnumValue( object value )
+	{
+		var enumType = value.GetType();
+
+		if ( Game.TypeLibrary.GetEnumDescription( enumType ) is not { } desc )
+		{
+			return FromName( value.ToString()! );
+		}
+
+		if ( desc.GetEntry( value ) is not { Title: not null } entry )
+		{
+			return FromName( value.ToString()! );
+		}
+
+		return new DisplayInfo(
+			Title: entry.Title,
+			Category: entry.Group,
+			Description: entry.Description,
+			Icon: entry.Icon );
+	}
+}
 
 /// <summary>
 /// Used by <see cref="TrackBinder"/> to create <see cref="ITrackProperty"/> instances that allow <see cref="ITrack"/>s
@@ -37,7 +65,7 @@ public interface ITrackPropertyFactory
 	/// <summary>
 	/// When listing properties to add, how should we format the name / description / icon?
 	/// </summary>
-	DisplayInfo GetDisplayInfo( ITrackTarget parent, string name ) => new( name.ToTitleCase() );
+	DisplayInfo GetDisplayInfo( ITrackTarget parent, string name ) => DisplayInfo.FromName( name );
 
 	/// <summary>
 	/// Create a property with the given <paramref name="parent"/>, <paramref name="name"/>, and property value type <typeparamref name="T"/>.

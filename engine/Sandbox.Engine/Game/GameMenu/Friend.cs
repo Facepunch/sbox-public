@@ -83,6 +83,8 @@ public partial struct Friend : IEquatable<Friend>
 	/// </summary>
 	public readonly string GetRichPresence( string key ) => Internal.GetRichPresence( key );
 
+	internal readonly bool InviteToGame( string connectString ) => Internal.InviteToGame( connectString );
+
 	/// <summary>
 	/// Returns true if they're playing this game
 	/// </summary>

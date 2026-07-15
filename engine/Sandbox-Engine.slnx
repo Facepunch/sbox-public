@@ -12,6 +12,7 @@
     <Project Path="Tools/CodeGen/CodeGen.csproj" />
     <Project Path="Tools/CreateGameCache/CreateGameCache.csproj" />
     <Project Path="Tools/MenuBuild/MenuBuild.csproj" />
+    <Project Path="Tools/PackageBuild/PackageBuild.csproj" />
     <Project Path="Tools/ShaderCompiler/ShaderCompiler.csproj" />
   </Folder>
   <Folder Name="/Engine/Exe/">

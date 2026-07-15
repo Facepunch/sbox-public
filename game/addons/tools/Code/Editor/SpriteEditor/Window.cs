@@ -65,7 +65,7 @@ public class Window : DockWindow, IAssetEditor
 
 		CreateDocks();
 		RebuildUI();
-
+		Show();
 		StateCookie = "SpriteEditor";
 	}
 
@@ -73,7 +73,6 @@ public class Window : DockWindow, IAssetEditor
 	{
 		Raise();
 		Open( null, asset );
-		Show();
 	}
 
 	public void SelectMember( string memberName )
@@ -85,10 +84,22 @@ public class Window : DockWindow, IAssetEditor
 	{
 		_preview = new Preview( this );
 
-		var preview = DockManager.AddDock( "Preview", "emoji_emotions", _preview, DockArea.Center );
-		var inspector = DockManager.AddDock( "Inspector", "edit", new Inspector( this ), DockArea.Left );
-		DockManager.AddDock( "Animations", "directions_walk", new AnimationList( this ), DockArea.Bottom, relativeTo: inspector );
-		DockManager.AddDock( "Timeline", "view_column", new Timeline( this ), DockArea.Bottom, relativeTo: preview );
+		DockManager.AddDock( "Preview", "emoji_emotions", _preview, DockArea.Center );
+		DockManager.AddDock( "Inspector", "edit", new Inspector( this ), DockArea.Left );
+		DockManager.AddDock( "Animations", "directions_walk", new AnimationList( this ), DockArea.Bottom );
+		DockManager.AddDock( "Timeline", "view_column", new Timeline( this ), DockArea.Bottom );
+	}
+
+	protected override void BuildDefaultLayout()
+	{
+		var preview = DockManager.OpenDock( "Preview", DockArea.Center );
+		var inspector = DockManager.OpenDock( "Inspector", DockArea.Left );
+		var animations = DockManager.OpenDock( "Animations", DockArea.Bottom, inspector );
+		var timeline = DockManager.OpenDock( "Timeline", DockArea.Bottom );
+
+		DockManager.SetSplitterProportions( animations, 0.68f, 0.32f );
+		DockManager.SetSplitterProportions( preview, 0.25f, 0.75f );
+		DockManager.SetSplitterProportions( timeline, 0.75f, 0.25f );
 	}
 
 	private void RebuildUI()
@@ -176,7 +187,7 @@ public class Window : DockWindow, IAssetEditor
 
 		SetAA( Antialiasing );
 
-		view.AddOption( "Restore To Default", "settings_backup_restore", RestoreDefaultDockLayout );
+		view.AddOption( "Restore To Default", "settings_backup_restore", ResetLayout );
 		view.AddSeparator();
 
 		foreach ( var dock in DockManager.DockTypes )

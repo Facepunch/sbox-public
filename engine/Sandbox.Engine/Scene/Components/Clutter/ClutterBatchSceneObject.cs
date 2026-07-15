@@ -42,7 +42,7 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 
 	private GpuBuffer<Vector4> _spheres;
 
-	public ClutterBatchSceneObject( SceneWorld world, Model model ) : base( world )
+	public ClutterBatchSceneObject( SceneWorld world, Model model, bool castShadows = true ) : base( world )
 	{
 		_model = model;
 		_modelRadius = model.Bounds.Size.Length * 0.5f;
@@ -62,7 +62,7 @@ internal class ClutterBatchSceneObject : SceneCustomObject
 
 		Flags.IsOpaque = true;
 		Flags.IsTranslucent = false;
-		Flags.CastShadows = true;
+		Flags.CastShadows = castShadows;
 		Flags.WantsPrePass = true;
 	}
 

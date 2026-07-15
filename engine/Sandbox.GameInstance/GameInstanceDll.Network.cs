@@ -258,8 +258,12 @@ internal partial class GameInstanceDll
 	}
 
 	static string[] _interestingExtensions = new[] { "_c", ".scss", ".ttf" };
-	static string[] _engineAssets = new[] { "vtex_c", "vmat_c", "vsnd_c", "vmdl_c", "vpk", "vanmgrph_c" }; // anything that the engine has to download has to be a LARGE download
+	static string[] _engineAssets = new[] { "vtex_c", "vmat_c", "vsnd_c", "vmdl_c", "vpk", "vanmgrph_c", "shader_c" }; // anything the native engine loads from disk has to be a LARGE download
 	List<string> _netIncludePaths = new(); // wildcard-supported paths we also want to include content of
+
+	// Small files only live in an in-memory filesystem, which native loaders can't read - engine assets must be a real file on disk.
+	internal static bool ShouldUseLargeDownload( string filename, long size )
+		=> size >= 1024 * 64 || _engineAssets.Any( x => filename.EndsWith( x ) );
 
 	bool ShouldNetworkFile( string filename )
 	{
@@ -289,14 +293,10 @@ internal partial class GameInstanceDll
 		if ( !fs.FileExists( filename ) )
 			return;
 
-		bool isEngineAsset = _engineAssets.Any( x => filename.EndsWith( x ) );
-
 		var fullPath = fs.GetFullPath( filename );
 		var size = fs.FileSize( filename );
 
-		var smallFileSize = 1024 * 64; // biggest file to include in the memory filesystem is 64kb
-
-		if ( !isEngineAsset && size < smallFileSize )
+		if ( !ShouldUseLargeDownload( filename, size ) )
 		{
 			var bytes = fs.ReadAllBytes( filename );
 			var wasAdded = NetworkedSmallFiles.AddFile( fs, filename, bytes.ToArray() );

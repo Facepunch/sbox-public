@@ -50,6 +50,10 @@ native class ads::CDockManager as Native.CDockManager : QWidget
 	void hideManagerAndFloatingWidgets();
 
 	bool isRestoringState();
+	inline bool setSplitterProportions( CDockAreaWidget area, float[] proportions, int count )
+	{
+		return CSboxDocking::SetSplitterProportions( area, proportions, count );
+	}
 }
 
 native class ads::CDockAreaWidget as Native.CDockAreaWidget : QWidget

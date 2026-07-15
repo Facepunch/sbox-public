@@ -102,6 +102,7 @@ public class MainWindow : DockWindow
 
 		CreateUI();
 		Show();
+		StateCookie = "ShaderGraph";
 
 		CreateNew();
 	}
@@ -721,7 +722,7 @@ public class MainWindow : DockWindow
 	private void OnViewMenu( Menu view )
 	{
 		view.Clear();
-		view.AddOption( "Restore To Default", "settings_backup_restore", RestoreDefaultDockLayout );
+		view.AddOption( "Restore To Default", "settings_backup_restore", ResetLayout );
 		view.AddSeparator();
 
 		foreach ( var dock in DockManager.DockTypes )
@@ -1171,10 +1172,10 @@ public class MainWindow : DockWindow
 
 		_palette = new PaletteWidget( this, IsSubgraph );
 
-		var graph = DockManager.AddDock( "Graph", "account_tree", _graphCanvas, DockArea.Center );
-		var preview = DockManager.AddDock( "Preview", "photo", _preview, DockArea.Left );
-		DockManager.AddDock( "Properties", "edit", _properties, DockArea.Bottom, relativeTo: preview );
-		var output = DockManager.AddDock( "Output", "notes", _output, DockArea.Bottom, relativeTo: graph );
+		DockManager.AddDock( "Graph", "account_tree", _graphCanvas, DockArea.Center );
+		DockManager.AddDock( "Preview", "photo", _preview, DockArea.Left );
+		DockManager.AddDock( "Properties", "edit", _properties, DockArea.Bottom );
+		var output = DockManager.AddDock( "Output", "notes", _output, DockArea.Bottom );
 
 		if ( EditorTypeLibrary.Create( "ConsoleWidget", typeof( Widget ), new[] { this } ) is Widget console )
 			DockManager.AddDock( "Console", "text_snippet", console, DockArea.Center, relativeTo: output );
@@ -1184,16 +1185,24 @@ public class MainWindow : DockWindow
 
 		DockManager.RaiseDock( "Output" );
 
-		if ( StateCookie != "ShaderGraph" )
-		{
-			StateCookie = "ShaderGraph";
-		}
-		else
-		{
-			RestoreFromStateCookie();
-		}
-
 		Compile();
+	}
+
+	protected override void BuildDefaultLayout()
+	{
+		var graph = DockManager.OpenDock( "Graph", DockArea.Center );
+		var preview = DockManager.OpenDock( "Preview", DockArea.Left );
+		DockManager.SetSplitterProportions( preview, 0.28f, 0.72f );
+
+		var properties = DockManager.OpenDock( "Properties", DockArea.Bottom, preview );
+		var output = DockManager.OpenDock( "Output", DockArea.Bottom, graph );
+		DockManager.OpenDock( "Console", DockArea.Center, output );
+		DockManager.OpenDock( "Undo History", DockArea.Center, output );
+		DockManager.OpenDock( "Palette", DockArea.Center, output );
+
+		DockManager.SetSplitterProportions( properties, 0.68f, 0.32f );
+		DockManager.SetSplitterProportions( output, 0.75f, 0.25f );
+		DockManager.RaiseDock( "Output" );
 	}
 
 	private void OnPropertyUpdated()

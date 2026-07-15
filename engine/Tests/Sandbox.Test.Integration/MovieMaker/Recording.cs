@@ -1,10 +1,8 @@
-﻿using Sandbox;
-using Sandbox.MovieMaker;
+﻿using Sandbox.MovieMaker;
 using Sandbox.MovieMaker.Compiled;
-using SceneTests;
 using System;
+using System.Collections.Generic;
 using System.Text.Json.Nodes;
-using Sandbox.Internal;
 using Sandbox.MovieMaker.Properties;
 
 namespace MovieMakerTests;
@@ -38,6 +36,24 @@ public sealed class RecorderTest : SceneTestBase
 		}
 
 		return recorder.ToClip();
+	}
+
+	public static MovieClip Record( MovieRecorderOptions? options, MovieTime duration,
+		params IEnumerable<(MovieTime Time, Action Action)> events )
+	{
+		using var eventEnumerator = events.GetEnumerator();
+
+		var hasEvent = eventEnumerator.MoveNext();
+
+		// ReSharper disable AccessToDisposedClosure
+		return Record( options, duration, t =>
+		{
+			if ( !hasEvent || eventEnumerator.Current.Time > t ) return;
+
+			eventEnumerator.Current.Action();
+			hasEvent = eventEnumerator.MoveNext();
+		} );
+		// ReSharper restore AccessToDisposedClosure
 	}
 
 	/// <summary>
@@ -155,6 +171,104 @@ public sealed class RecorderTest : SceneTestBase
 
 		Assert.IsNull( clip.GetReference<GameObject>( "Foo" ) );
 		Assert.IsNotNull( clip.GetReference<GameObject>( "Bar" ) );
+	}
+
+	/// <summary>
+	/// Capture a game object's tags.
+	/// </summary>
+	[TestMethod]
+	public void RecordTags()
+	{
+		var go = new GameObject( "Example" );
+
+		go.Tags.Add( "player" );
+		go.Tags.Add( "test" );
+
+		var options = new MovieRecorderOptions()
+			.WithCaptureGameObject( go );
+
+		var clip = Record( options, 4.0,
+			(1.0, () => go.Tags.Remove( "test" )),
+			(2.0, () => go.Tags.Add( "test" )),
+			(3.0, () => go.Tags.RemoveAll()) );
+
+		Console.WriteLine( Json.Serialize( clip ) );
+
+		var playerTagTrack = clip.GetProperty<bool>( go.Name, nameof( GameObject.Tags ), "player" );
+		var testTagTrack = clip.GetProperty<bool>( go.Name, nameof( GameObject.Tags ), "test" );
+		var unknownTagTrack = clip.GetProperty<bool>( go.Name, nameof( GameObject.Tags ), "unknown" );
+
+		Assert.IsNotNull( playerTagTrack );
+		Assert.IsNotNull( testTagTrack );
+		Assert.IsNull( unknownTagTrack );
+
+		bool tag;
+
+		Assert.IsTrue( playerTagTrack.TryGetValue( 0.5, out tag ) && tag );
+		Assert.IsTrue( testTagTrack.TryGetValue( 0.5, out tag ) && tag );
+
+		Assert.IsTrue( playerTagTrack.TryGetValue( 1.5, out tag ) && tag );
+		Assert.IsTrue( testTagTrack.TryGetValue( 1.5, out tag ) && !tag );
+
+		Assert.IsTrue( playerTagTrack.TryGetValue( 2.5, out tag ) && tag );
+		Assert.IsTrue( testTagTrack.TryGetValue( 2.5, out tag ) && tag );
+
+		Assert.IsTrue( playerTagTrack.TryGetValue( 3.5, out tag ) && !tag );
+		Assert.IsTrue( testTagTrack.TryGetValue( 3.5, out tag ) && !tag );
+	}
+
+	/// <summary>
+	/// Don't capture tags inherited from a parent object.
+	/// </summary>
+	[TestMethod]
+	public void DontRecordInheritedTags()
+	{
+		var parent = new GameObject( "Parent" );
+
+		parent.Tags.Add( "foo" );
+
+		var child = new GameObject( parent, name: "Child" );
+
+		child.Tags.Add( "bar" );
+
+		var options = new MovieRecorderOptions()
+			.WithCaptureGameObject( child );
+
+		var clip = Record( options, 1.0 );
+
+		Console.WriteLine( Json.Serialize( clip ) );
+
+		Assert.IsNotNull( clip.GetProperty<bool>( parent.Name, nameof( GameObject.Tags ), "foo" ) );
+		Assert.IsNotNull( clip.GetProperty<bool>( parent.Name, child.Name, nameof( GameObject.Tags ), "bar" ) );
+		Assert.IsNull( clip.GetProperty<bool>( parent.Name, child.Name, nameof( GameObject.Tags ), "foo" ) );
+	}
+
+	/// <summary>
+	/// Capture a game object's <see cref="GameObjectFlags.Absolute"/>.
+	/// </summary>
+	[TestMethod]
+	public void RecordAbsoluteFlag()
+	{
+		var go = new GameObject( "Example" );
+
+		var options = new MovieRecorderOptions()
+			.WithCaptureGameObject( go );
+
+		var clip = Record( options, 3.0,
+			(1.0, () => go.Flags |= GameObjectFlags.Absolute),
+			(2.0, () => go.Flags &= ~GameObjectFlags.Absolute) );
+
+		Console.WriteLine( Json.Serialize( clip ) );
+
+		var flagTrack = clip.GetProperty<bool>( go.Name, nameof( GameObject.Flags ), nameof( GameObjectFlags.Absolute ) );
+
+		Assert.IsNotNull( flagTrack );
+
+		bool flag;
+
+		Assert.IsTrue( flagTrack.TryGetValue( 0.5, out flag ) && !flag );
+		Assert.IsTrue( flagTrack.TryGetValue( 1.5, out flag ) && flag );
+		Assert.IsTrue( flagTrack.TryGetValue( 2.5, out flag ) && !flag );
 	}
 
 	[TestMethod]

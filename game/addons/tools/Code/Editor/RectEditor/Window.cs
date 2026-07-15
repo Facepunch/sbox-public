@@ -11,6 +11,22 @@ public class HotspotEditorWindow : Window
 	{
 		WindowTitle = "Hotspot Editor";
 	}
+
+	public override void Show()
+	{
+		base.Show();
+		StateCookie = Name;
+	}
+
+	protected override void BuildDefaultLayout()
+	{
+		var properties = DockManager.OpenDock( "Properties", DockArea.Left );
+		var rectView = DockManager.OpenDock( "Rect View", DockArea.Right );
+		var materialReference = DockManager.OpenDock( "Material Reference", DockArea.Bottom, properties );
+
+		DockManager.SetSplitterProportions( materialReference, 0.70f, 0.30f );
+		DockManager.SetSplitterProportions( rectView, 0.30f, 0.70f );
+	}
 }
 
 public partial class Window : DockWindow, IAssetEditor
@@ -251,14 +267,8 @@ public partial class Window : DockWindow, IAssetEditor
 			MaterialReference.Select( previousMat );
 		}
 
-		if ( StateCookie != Name )
-		{
-			StateCookie = Name;
-		}
-		else
-		{
-			RestoreFromStateCookie();
-		}
+		if ( Visible )
+			RestoreLayout();
 	}
 
 	protected void OnDocumentModified()
@@ -335,7 +345,7 @@ public partial class Window : DockWindow, IAssetEditor
 	private void OnViewMenu( Menu view )
 	{
 		view.Clear();
-		view.AddOption( "Restore To Default", "settings_backup_restore", RestoreDefaultDockLayout );
+		view.AddOption( "Restore To Default", "settings_backup_restore", ResetLayout );
 		view.AddSeparator();
 
 		foreach ( var dock in DockManager.DockTypes )
@@ -507,7 +517,7 @@ public partial class Window : DockWindow, IAssetEditor
 	[EditorEvent.Hotload]
 	public void OnHotload()
 	{
-		SaveToStateCookie();
+		SaveLayout();
 
 		RemoveToolBar( ToolBar );
 		ToolBar.Destroy();

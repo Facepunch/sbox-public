@@ -2,7 +2,7 @@ namespace Editor;
 
 /// <summary>
 /// Editor control widget for <see cref="AnyOfType{T}"/>.
-/// Shows a dropdown to select the concrete type, and inline property editors for the selected instance.
+/// Shows a dropdown to select the concrete type.
 /// </summary>
 [CustomEditor( typeof( AnyOfType<> ) )]
 sealed class AnyOfTypeControlWidget : DropdownControlWidget<TypeDescription>
@@ -11,7 +11,6 @@ sealed class AnyOfTypeControlWidget : DropdownControlWidget<TypeDescription>
 
 	Type _baseType;
 	TypeDescription _wrapperType;
-	Layout _propertyContainer;
 
 	public AnyOfTypeControlWidget( SerializedProperty property ) : base( property )
 	{
@@ -20,13 +19,6 @@ sealed class AnyOfTypeControlWidget : DropdownControlWidget<TypeDescription>
 
 		Layout = Layout.Column();
 		Layout.AddSpacingCell( Theme.RowHeight );
-
-		_propertyContainer = Layout.AddColumn();
-		_propertyContainer.Margin = new Sandbox.UI.Margin( 0, 2, 0, 0 );
-
-		var inner = GetInnerValue();
-		if ( inner is not null )
-			RebuildPropertySheet( inner );
 	}
 
 	protected override string GetDisplayText()
@@ -55,8 +47,6 @@ sealed class AnyOfTypeControlWidget : DropdownControlWidget<TypeDescription>
 	{
 		var typeDesc = item is Entry e ? e.Value : item as TypeDescription;
 
-		_propertyContainer.Clear( true );
-
 		if ( typeDesc is null )
 		{
 			SerializedProperty.SetValue( _wrapperType.CreateGeneric<object>( [_baseType] ) );
@@ -67,7 +57,6 @@ sealed class AnyOfTypeControlWidget : DropdownControlWidget<TypeDescription>
 		if ( instance is null ) return;
 
 		WriteWrapper( instance );
-		RebuildPropertySheet( instance );
 	}
 
 	object GetInnerValue()
@@ -81,20 +70,4 @@ sealed class AnyOfTypeControlWidget : DropdownControlWidget<TypeDescription>
 		SerializedProperty.SetValue( _wrapperType.CreateGeneric<object>( [_baseType], [instance] ) );
 	}
 
-	void RebuildPropertySheet( object instance )
-	{
-		_propertyContainer.Clear( true );
-		if ( instance is null ) return;
-
-		var so = instance.GetSerialized();
-		if ( so is null ) return;
-
-		so.OnPropertyChanged += ( _ ) => WriteWrapper( instance );
-
-		var cs = new ControlSheet();
-		cs.AddObject( so );
-		cs.Margin = 0;
-
-		_propertyContainer.Add( cs );
-	}
 }

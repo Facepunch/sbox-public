@@ -212,6 +212,13 @@ internal partial class AssemblyAccess
 			Touch( $"System.Private.CoreLib/System.Runtime.InteropServices.StructLayout", "attribute" );
 		}
 
+		// ComImport is a metadata flag, not a real attribute, so the attribute checks miss it.
+		// Left unchecked a [ComImport] type can spin up arbitrary COM objects and escape the sandbox.
+		if ( type.IsImport )
+		{
+			Touch( $"System.Private.CoreLib/System.Runtime.InteropServices.ComImportAttribute", "attribute" );
+		}
+
 		TestAttributes( type.CustomAttributes );
 
 		if ( type.IsArray )

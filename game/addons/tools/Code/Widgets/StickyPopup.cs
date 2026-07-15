@@ -193,6 +193,11 @@ public partial class StickyPopup : Widget
 	[EditorEvent.Frame]
 	void OnFrame()
 	{
+		if ( !Owner.IsValid() || !Owner.Visible )
+		{
+			Destroy();
+			return;
+		}
 		// If the application isn't in focus, destroy the popup
 		if ( !Application.FocusWidget.IsValid() )
 		{

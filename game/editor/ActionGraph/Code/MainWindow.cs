@@ -212,7 +212,7 @@ public partial class MainWindow : DockWindow, EditorEvent.ISceneView, IActionGra
 
 	public void RebuildUI()
 	{
-		RestoreDefaultDockLayout();
+		BuildDefaultLayout();
 
 		MenuBar.Clear();
 
@@ -259,7 +259,7 @@ public partial class MainWindow : DockWindow, EditorEvent.ISceneView, IActionGra
 	private void OnViewMenu( Menu view )
 	{
 		view.Clear();
-		view.AddOption( "Restore To Default", "settings_backup_restore", RestoreDefaultDockLayout );
+		view.AddOption( "Restore To Default", "settings_backup_restore", ResetLayout );
 		view.AddSeparator();
 
 		foreach ( var dock in DockManager.DockTypes )
@@ -278,7 +278,7 @@ public partial class MainWindow : DockWindow, EditorEvent.ISceneView, IActionGra
 		style.Toggled += b => ActionGraphView.EnableGridAlignedWires = b;
 	}
 
-	protected override void RestoreDefaultDockLayout()
+	protected override void BuildDefaultLayout()
 	{
 		var openViews = Views
 			.Select( x => x.ActionGraph )
@@ -298,6 +298,10 @@ public partial class MainWindow : DockWindow, EditorEvent.ISceneView, IActionGra
 			var dock = DockManager.OpenDock( view.Name, viewArea is null ? DockArea.Right : DockArea.Center, viewArea );
 			viewArea ??= dock;
 		}
+
+		DockManager.SetSplitterProportions( inspector, 0.75f, 0.25f );
+		if ( viewArea is not null )
+			DockManager.SetSplitterProportions( viewArea, 0.25f, 0.75f );
 	}
 
 	[Shortcut( "editor.quit", "CTRL+Q", ShortcutType.Window )]

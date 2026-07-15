@@ -12,6 +12,12 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 	[ConVar( "r_terrain_displacement", ConVarFlags.Cheat )]
 	internal static bool UseVertexDisplacement { get; set; } = true;
 
+	/// <summary>
+	/// Scales the FOV of the frustum used to cull terrain meshlets.
+	/// </summary>
+	[ConVar( "r_terrain_meshlet_frustum_scale", ConVarFlags.Cheat )]
+	internal static float MeshletFrustumScale { get; set; } = 1.0f;
+
 	public override bool IsConcave => true;
 
 	protected override void OnEnabled()
@@ -36,15 +42,7 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 		Transform.OnTransformChanged -= OnTerrainChanged;
 		Storage?.MaterialSettings?.OnChanged -= OnTerrainChanged;
 
-		BackupRenderAttributes( _so?.Attributes );
-		_so?.Delete();
-		_so = null;
-
-		HeightMap?.Dispose();
-		ControlMap?.Dispose();
-
-		HeightMap = null;
-		ControlMap = null;
+		DisposeRenderResources();
 
 		TerrainBuffer?.Dispose();
 		TerrainBuffer = null;
@@ -56,6 +54,24 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 		{
 			Scene.RenderAttributes.Set( "TerrainCount", 0 );
 		}
+	}
+
+	// Tear down the scene object and the GPU textures. Shared by DestroyInternal and Create (which rebuilds them).
+	void DisposeRenderResources()
+	{
+		BackupRenderAttributes( _so?.Attributes );
+		_so?.Delete();
+		_so = null;
+
+		HeightMap?.Dispose();
+		ControlMap?.Dispose();
+		NormalMap?.Dispose();
+
+		HeightMap = null;
+		ControlMap = null;
+		NormalMap = null;
+		_normalBakeCs = null;
+		_normalBakeDirty = false;
 	}
 
 	void OnTerrainChanged()
@@ -70,7 +86,17 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 		if ( !_so.IsValid() )
 			return;
 
+		if ( _normalBakeDirty && _normalBakeCs is not null )
+		{
+			_normalBakeDirty = false;
+			_so.PendingBake = RecordNormalBake();
+		}
+
 		_so.Attributes.Set( "VertexDisplacement", UseVertexDisplacement );
+
+		var cam = Scene.IsEditor ? Application.Editor.Camera : Scene.Camera;
+		if ( cam.IsValid() )
+			_so.UpdateView( GetCullFrustum( cam ), cam.WorldPosition );
 
 		if ( Storage is null )
 			return;
@@ -84,6 +110,12 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 			material.BCRTexture?.MarkUsed( 4096 );
 			material.NHOTexture?.MarkUsed( 4096 );
 		}
+	}
+	private Frustum GetCullFrustum( CameraComponent cam )
+	{
+		float scale = Math.Clamp( MeshletFrustumScale, 0, 1 );
+		var sr = cam.ScreenRect;
+		return cam.GetFrustum( sr.Shrink( sr.Width * (1.0f - scale) * 0.5f, sr.Height * (1.0f - scale) * 0.5f ) );
 	}
 
 	protected override void OnTagsChanged()
@@ -100,15 +132,7 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 		if ( !Active )
 			return;
 
-		BackupRenderAttributes( _so?.Attributes );
-		_so?.Delete();
-		_so = null;
-
-		HeightMap?.Dispose();
-		ControlMap?.Dispose();
-
-		HeightMap = null;
-		ControlMap = null;
+		DisposeRenderResources();
 
 		if ( Storage is null )
 			return;
@@ -237,5 +261,8 @@ public sealed partial class Terrain : Collider, Component.ExecuteInEditor
 			.WithUAVBinding()
 			.WithName( "terrain_controlmap" )
 			.Finish();
+
+		UpdateHoleState( new RectInt( 0, 0, Storage.Resolution, Storage.Resolution ) );
+		RebakeNormalMap();
 	}
 }

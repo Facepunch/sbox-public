@@ -1209,7 +1209,6 @@ namespace Editor
 		{
 			return QObject.FindOrCreate( _widget.window() ) as Widget;
 		}
-
 	}
 
 

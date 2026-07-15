@@ -21,11 +21,13 @@ class ClutterLayer
 	/// <summary>
 	/// Batches organized by model. LOD is computed on the GPU per view, so batches are keyed by model.
 	/// </summary>
-	private readonly Dictionary<Model, ClutterBatchSceneObject> _batches = [];
+	private readonly record struct ClutterBatchKey( Model Model, bool CastShadows );
 
-	private readonly Dictionary<Model, List<Transform>> _instancesByModel = [];
-	private readonly HashSet<Model> _activeModels = [];
-	private readonly List<Model> _staleModels = [];
+	private readonly Dictionary<ClutterBatchKey, ClutterBatchSceneObject> _batches = [];
+
+	private readonly Dictionary<ClutterBatchKey, List<Transform>> _instancesByModel = [];
+	private readonly HashSet<ClutterBatchKey> _activeModels = [];
+	private readonly List<ClutterBatchKey> _staleModels = [];
 
 	private readonly HashSet<Vector2Int> _activeCoords = [];
 	private readonly List<Vector2Int> _coordsToRemove = [];
@@ -211,6 +213,9 @@ class ClutterLayer
 		if ( model?.Physics?.Parts.Count is not > 0 )
 			return;
 
+		if ( instance.Entry?.EnablePhysics is false )
+			return;
+
 		var scene = ParentObject?.Scene ?? GridSystem?.Scene;
 		if ( scene == null )
 			return;
@@ -256,39 +261,39 @@ class ClutterLayer
 			{
 				if ( instance.Entry?.Model == null ) continue;
 
-				var model = instance.Entry.Model;
-				_activeModels.Add( model );
+				var key = new ClutterBatchKey( instance.Entry.Model, instance.Entry.CastShadows );
+				_activeModels.Add( key );
 
-				if ( !_instancesByModel.TryGetValue( model, out var list ) )
+				if ( !_instancesByModel.TryGetValue( key, out var list ) )
 				{
 					list = [];
-					_instancesByModel[model] = list;
+					_instancesByModel[key] = list;
 				}
 
 				list.Add( instance.Transform );
 			}
 		}
 
-		foreach ( var model in _activeModels )
+		foreach ( var key in _activeModels )
 		{
-			if ( !_batches.TryGetValue( model, out var batch ) )
+			if ( !_batches.TryGetValue( key, out var batch ) )
 			{
-				batch = new ClutterBatchSceneObject( scene.SceneWorld, model );
-				_batches[model] = batch;
+				batch = new ClutterBatchSceneObject( scene.SceneWorld, key.Model, key.CastShadows );
+				_batches[key] = batch;
 			}
 
-			batch.SetInstances( _instancesByModel[model] );
+			batch.SetInstances( _instancesByModel[key] );
 		}
 
-		// Remove batches whose model no longer has any instances.
+		// Remove batches whose key no longer has any instances.
 		_staleModels.Clear();
-		foreach ( var model in _batches.Keys )
-			if ( !_activeModels.Contains( model ) ) _staleModels.Add( model );
+		foreach ( var key in _batches.Keys )
+			if ( !_activeModels.Contains( key ) ) _staleModels.Add( key );
 
-		foreach ( var model in _staleModels )
+		foreach ( var key in _staleModels )
 		{
-			_batches[model].Delete();
-			_batches.Remove( model );
+			_batches[key].Delete();
+			_batches.Remove( key );
 		}
 
 		_dirty = false;

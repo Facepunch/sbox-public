@@ -229,6 +229,16 @@ namespace Sandbox.UI
 					Options.Add( o );
 				}
 			}
+
+			if ( BuildOptions is not null )
+			{
+				Options = BuildOptions.Invoke();
+			}
+
+			if ( _value is not null )
+			{
+				Select( _value.ToString(), false );
+			}
 		}
 	}
 }

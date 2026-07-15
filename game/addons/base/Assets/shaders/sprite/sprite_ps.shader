@@ -17,6 +17,10 @@ MODES
 
 COMMON
 {
+	#if ( D_OPAQUE == 0 )
+		#define S_TRANSLUCENT 1
+	#endif
+
 	#include "common/shared.hlsl"
 
 	enum SpriteFlags
@@ -27,6 +31,45 @@ COMMON
 		FlipH = 0x4,
 		SnapToFrame = 0x8
 	};
+
+	struct SpriteData
+	{
+		float3 Position;
+		float3 Rotation;
+		float2 Scale;
+		uint TintColor;
+		uint OverlayColor;
+		int TextureHandle;
+		int RenderFlags;
+		uint BillboardMode;
+		uint FogStrengthCutout; // Lower 16 bits: fog, upper 16 bits: alpha cutout
+		uint Lighting;
+		float DepthFeather;
+		int SamplerIndex;
+		int Splots;
+		int Sequence;
+		float SequenceTime;
+		float RotationOffset;
+		float4 MotionBlur;
+		float3 Velocity;
+		float4 BlendSheetUV;
+		float2 Offset;
+	};
+
+	StructuredBuffer<SpriteData> Sprites < Attribute( "Sprites" ); >;
+	StructuredBuffer<uint> SortLUT < Attribute( "SortLUT" ); >;
+	int IsSorted < Attribute( "IsSorted" ); >;
+	int CurrentBufferSize < Attribute( "SpriteCount" ); >;
+
+	SpriteData GetSprite( uint index )
+	{
+		int spriteIndex = index;
+		if ( IsSorted == 1 )
+		{
+			spriteIndex = SortLUT[CurrentBufferSize - 1 - index];
+		}
+		return Sprites[spriteIndex];
+	}
 }
 
 struct PixelInput
@@ -50,68 +93,25 @@ VS
 		float4 normal;
 		float2 uv;
 	};
-	StructuredBuffer<SpriteVertex> Vertices < Attribute("Vertices"); >; 
-
-	struct SpriteData
-	{
-		float3 Position;
-		float3 Rotation;
-		float2 Scale;
-		uint TintColor;
-		uint OverlayColor;
-		int TextureID;
-		int Flags;
-		uint BillboardMode;
-		uint FogStrengthCutout;
-		int Lighting;
-		float DepthFeather;
-		int SamplerIndex;
-		uint Splots;
-		int Sequence;
-		float SequenceTime;
-		float RotationOffset;
-		float4 MotionBlur;
-		float3 Velocity;
-		float4 BlendSheetUV;
-		float2 Offset;
-	};
-
-	StructuredBuffer<SpriteData> Sprites < Attribute("Sprites"); >; 
-	
-	StructuredBuffer<uint> SortLUT < Attribute("SortLUT"); >; 
-
-	int IsSorted < Attribute("IsSorted"); >;
-	int CurrentBufferSize < Attribute("SpriteCount"); >;
+	StructuredBuffer<SpriteVertex> Vertices < Attribute( "Vertices" ); >;
 
 	float4x4 WorldToView < Attribute( "WorldToView" ); >;
 
-	float3 GetScale(float4x4 mat)
+	float3 GetScale( float4x4 mat )
 	{
 		float3 scale;
-		scale.x = length(float3(mat._11, mat._12, mat._13));
-		scale.y = length(float3(mat._21, mat._22, mat._23));
-		scale.z = length(float3(mat._31, mat._32, mat._33));
+		scale.x = length( float3( mat._11, mat._12, mat._13 ) );
+		scale.y = length( float3( mat._21, mat._22, mat._23 ) );
+		scale.z = length( float3( mat._31, mat._32, mat._33 ) );
 		return scale;
 	}
 
-
-	SpriteData GetSprite(uint index)
+	float3 GetSpriteOffset( float2 offset, float3 right, float3 up, float3 scale )
 	{
-		int spriteIndex = index;
-		if ( IsSorted == 1 )
-		{
-			spriteIndex = SortLUT[CurrentBufferSize - 1 - index];
-		}
-
-		return Sprites[spriteIndex];
-	}
-
-	float3 GetSpriteOffset(float2 offset, float3 right, float3 up, float3 scale)
-	{
-		float3 offsetPos = float3(0, 0, 0);
+		float3 offsetPos = float3( 0, 0, 0 );
 		float pivotScale = 20.0f;
-		offsetPos += (offset.x - 0.5f) * right * scale.x * pivotScale;
-		offsetPos += (offset.y - 0.5f) * up * scale.y * pivotScale;
+		offsetPos += ( offset.x - 0.5f ) * right * scale.x * pivotScale;
+		offsetPos += ( offset.y - 0.5f ) * up * scale.y * pivotScale;
 		return offsetPos;
 	}
 
@@ -216,7 +216,7 @@ VS
 		float blendAmount = 0.0f;
 		float4 blendedUV = float4(0.0f, 0.0f, 0.0f, 0.0f);
 
-		bool snapToFrame = (sprite.Flags & SnapToFrame) != 0;
+		bool snapToFrame = (sprite.RenderFlags & SnapToFrame) != 0;
 
 		if (snapToFrame)
 		{
@@ -263,59 +263,10 @@ PS
 
 	RenderState( CullMode, NONE );
 
-	struct SpriteVertex
-	{
-		float4 position;
-		float4 normal;
-		float2 uv;
-	};
-	StructuredBuffer<SpriteVertex> Vertices < Attribute("Vertices"); >; 
-
-	struct SpriteData
-	{
-		float3 Position;
-		float3 Rotation;
-		float2 Scale;
-		uint TintColor;
-		uint OverlayColor;
-		int TextureHandle;
-		int RenderFlags;
-		uint BillboardMode;
-		uint FogStrengthCutout;  // Lower 16 bits: fog, upper 16 bits: alpha cutout
-		uint Lighting;
-		float DepthFeather;
-		int SamplerIndex;
-		int Splots;
-		int Sequence;
-		float SequenceTime;
-		float RotationOffset;
-		float4 MotionBlur; 
-		float3 Velocity;
-		float4 BlendSheetUV;
-		float2 Offset;
-	};
-
-	StructuredBuffer<SpriteData> Sprites < Attribute("Sprites"); >; 
-	StructuredBuffer<uint> SortLUT < Attribute("SortLUT"); >; 
-	int IsSorted < Attribute("IsSorted"); >;
-	int CurrentBufferSize < Attribute("SpriteCount"); >;
-
 	DynamicCombo( D_BLEND, 0..1, Sys( ALL ) );
 	DynamicCombo( D_OPAQUE, 0..1, Sys( ALL ) );
 
 	float g_FogStrength < Attribute( "g_FogStrength" ); >;
-
-	// Bindless Accesor for sprite data
-	SpriteData GetSprite(uint index)
-	{
-		int spriteIndex = index;
-		if ( IsSorted == 1 )
-		{
-			spriteIndex = SortLUT[CurrentBufferSize - 1 - index];
-		}
-
-		return Sprites[spriteIndex];
-	}
 
 	// Performs UV Flipping
 	float2 GetUV(SpriteData sprite, float2 inUV)

@@ -13,22 +13,25 @@ public static partial class AssetSystem
 		var filename = context.AbsolutePath;
 		var extension = System.IO.Path.GetExtension( filename ).Trim( '.' );
 
-		var assetType = AssetType.Find( extension );
-		if ( assetType is null )
-		{
-			Log.Info( $"Unknown asset type for {extension} - skipping compile!" );
-			return false;
-		}
+		// Do we have a specific compiler? These register the source extensions they
+		// handle themselves ([ResourceIdentity("wav")] etc), so check before the
+		// asset type bail below - source extensions like wav aren't asset type
+		// identifiers, and skipping here silently dropped the blocks these
+		// compilers write (a sound's visemes and subtitles).
+		var chosen = FindCompilerForExtension( extension );
 
-		var compilers = EditorTypeLibrary.GetTypes<ResourceCompiler>().Where( x => !x.IsInterface && !x.IsAbstract ).ToArray();
-		var chosen = compilers.Where( x => x.GetAttributes<ResourceCompiler.ResourceIdentityAttribute>().Any( y => y.Name == extension ) ).FirstOrDefault();
-
-		// do we have a specific compiler?
 		if ( chosen is not null )
 		{
 			var compiler = chosen.Create<ResourceCompiler>();
 			compiler.SetContext( context );
 			return compiler.CompileInternal();
+		}
+
+		var assetType = AssetType.Find( extension );
+		if ( assetType is null )
+		{
+			Log.Info( $"Unknown asset type for {extension} - skipping compile!" );
+			return false;
 		}
 
 		// this is a game resource
@@ -41,6 +44,44 @@ public static partial class AssetSystem
 		// Nothing!
 
 		return false;
+	}
+
+	// Extension -> compiler type, so bulk compiles don't repeat the type library
+	// scan and attribute reflection once per asset. Case-insensitive because the
+	// asset system lowercases paths but direct CompileResource callers might not.
+	// Volatile and read via a local snapshot: compiles can run off the main
+	// thread while a hotload on the main thread clears the cache.
+	static volatile Dictionary<string, TypeDescription> _compilersByExtension;
+
+	[EditorEvent.Hotload]
+	static void ClearCompilerCache()
+	{
+		_compilersByExtension = null;
+	}
+
+	static TypeDescription FindCompilerForExtension( string extension )
+	{
+		var map = _compilersByExtension;
+
+		if ( map is null )
+		{
+			map = new Dictionary<string, TypeDescription>( System.StringComparer.OrdinalIgnoreCase );
+
+			foreach ( var type in EditorTypeLibrary.GetTypes<ResourceCompiler>() )
+			{
+				if ( type.IsInterface || type.IsAbstract )
+					continue;
+
+				foreach ( var identity in type.GetAttributes<ResourceCompiler.ResourceIdentityAttribute>() )
+				{
+					map.TryAdd( identity.Name, type );
+				}
+			}
+
+			_compilersByExtension = map;
+		}
+
+		return map.TryGetValue( extension, out var found ) ? found : null;
 	}
 
 	static void CompileGameResource( ResourceCompileContext context )

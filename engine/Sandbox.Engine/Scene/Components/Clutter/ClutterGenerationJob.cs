@@ -104,7 +104,10 @@ class ClutterGenerationJob
 			}
 
 			if ( instances is { Count: > 0 } )
+			{
+				ApplyEntryLocalScale( instances );
 				SpawnInstances( instances );
+			}
 
 			if ( Tile != null )
 			{
@@ -115,6 +118,22 @@ class ClutterGenerationJob
 		finally
 		{
 			OnComplete?.Invoke();
+		}
+	}
+
+	private static void ApplyEntryLocalScale( List<ClutterInstance> instances )
+	{
+		for ( int i = 0; i < instances.Count; i++ )
+		{
+			var instance = instances[i];
+			var localScale = instance.Entry?.LocalScale ?? 1f;
+			if ( localScale == 1f )
+				continue;
+
+			var transform = instance.Transform;
+			transform.Scale *= localScale;
+			instance.Transform = transform;
+			instances[i] = instance;
 		}
 	}
 

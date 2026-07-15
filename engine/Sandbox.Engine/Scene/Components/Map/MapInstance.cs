@@ -678,8 +678,8 @@ file class MapComponentMapLoader : SceneMapLoader
 	//
 	void CreateLightComponent( GameObject go, ObjectEntry kv, LightType type )
 	{
-		// Never network these - LegacyData is internal (not serialized), so a snapshot copy
-		// would arrive half-configured, and every client builds an identical light from the vpk anyway.
+		// Never network these — LegacyData is internal (not serialized), so a snapshot copy would
+		// arrive half-configured. Every client builds an identical light from the map VPK anyway.
 		go.NetworkMode = NetworkMode.Never;
 
 		var data = LightData.Parse( kv, type );
@@ -698,8 +698,16 @@ file class MapComponentMapLoader : SceneMapLoader
 			spot.ConeOuter = data.OuterConeAngle;
 			spot.Cookie = data.LightCookie;
 
+			// Hammer lights have attenuation and cone mask from the lightmap itself
+			// We can take advantage of that and tighten the cone for sharper shadows
+			spot.ConeInner = MathF.Min( data.InnerConeAngle, 80.0f );
+			spot.ConeOuter = MathF.Min( data.OuterConeAngle, 80.0f );
+
+			// Native quadratic is the Hammer coefficient; SceneLight.QuadraticAttenuation scales by 10000.
+			legacy.ConstantAttenuation = data.Attenuation0;
 			legacy.LinearAttenuation = data.Attenuation1;
 			legacy.QuadraticAttenuation = data.Attenuation2;
+			legacy.FallOff = data.FallOff;
 
 			light = spot;
 		}
@@ -708,6 +716,7 @@ file class MapComponentMapLoader : SceneMapLoader
 			var point = go.Components.Create<PointLight>();
 			point.Radius = data.Range;
 
+			legacy.ConstantAttenuation = data.Attenuation0;
 			legacy.LinearAttenuation = data.Attenuation1;
 			legacy.QuadraticAttenuation = data.Attenuation2;
 			legacy.Cookie = data.LightCookie; // PointLight doesn't expose a cookie property
@@ -719,8 +728,13 @@ file class MapComponentMapLoader : SceneMapLoader
 			light = go.Components.Create<DirectionalLight>();
 		}
 
+		// Hammer lights have no concept of "hardness" — let's make them reasonably sharp by default.
+		light.ShadowHardness = 0.5f;
+
 		light.LightColor = data.FinalColor;
 		light.Shadows = data.CastShadows;
+		// Fog mode / render diffuse-specular / attenuation ride in LegacyData — applied when the
+		// scene light is created (OnEnabled). Component FogMode can't express Hammer's "Baked" fog.
 		light.LegacyData = legacy;
 	}
 

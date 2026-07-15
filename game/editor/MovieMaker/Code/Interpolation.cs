@@ -1,5 +1,5 @@
 ﻿using System.Numerics;
-using Sandbox.MovieMaker;
+using System.Runtime.CompilerServices;
 using Sandbox.Utility;
 
 namespace Editor.MovieMaker;
@@ -48,24 +48,31 @@ public interface ITransformer<T>
 
 public static class Transformer
 {
-	private static Dictionary<Type, ITransformer<object?>?> Cache { get; } = new();
+	[SkipHotload]
+	private static ConditionalWeakTable<Type, ITransformer<object?>?> Cache { get; } = new();
 
 	public static ITransformer<object?>? GetDefault( Type type )
 	{
-		if ( Cache.TryGetValue( type, out var cached ) ) return cached;
+		if ( Cache.TryGetValue( type, out var transformer ) ) return transformer;
 
 		try
 		{
 			var transformerType = typeof( LocalTransformerWrapper<> )
 				.MakeGenericType( type );
 
-			return Cache[type] = (ITransformer<object?>?)Activator.CreateInstance( transformerType );
+			transformer = (ITransformer<object?>?)Activator.CreateInstance( transformerType );
+
+			Cache.AddOrUpdate( type, transformer );
+			return transformer;
 		}
 		catch
 		{
-			return Cache[type] = null;
+			Cache.AddOrUpdate( type, null );
+			return null;
 		}
 	}
+
+	public static bool CanTransform( Type type ) => GetDefault( type ) is not null;
 
 	public static ITransformer<T>? GetDefault<T>()
 	{

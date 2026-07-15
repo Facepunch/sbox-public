@@ -145,15 +145,45 @@ public partial class DockManager : Widget
 	}
 
 	/// <summary>
-	/// Sets a widget as the central (non-closable, non-tabbed) area.
+	/// Sets a widget as the central (always present, non-closable) area. Must be
+	/// called before any other dock is added. Returns the dock hosting it, which
+	/// can be used as a target for relative docking.
 	/// </summary>
-	public void SetCentralWidget( Widget w )
+	public DockWidget SetCentralWidget( Widget widget )
 	{
-		var dockWidget = _nativeDockManager.createDockWidget( "CentralWidget" );
-		dockWidget.setWidget( w._widget );
-		dockWidget.setFeature( DockWidgetFeature.NoTab, true );
+		ArgumentNullException.ThrowIfNull( widget );
 
-		_nativeDockManager.setCentralWidget( dockWidget );
+		var dock = CreateDockWidget( "CentralWidget", string.Empty, widget );
+		dock._nativeDockWidget.setFeature( DockWidgetFeature.NoTab, true );
+
+		_nativeDockManager.setCentralWidget( dock._nativeDockWidget );
+
+		return dock;
+	}
+
+	/// <summary>
+	/// Sets the relative proportions of every visible area in the splitter containing <paramref name="dock"/>.
+	/// Values are ordered left-to-right or top-to-bottom.
+	/// </summary>
+	/// <param name="dock">Any dock in the splitter.</param>
+	/// <param name="proportions">One relative proportion for each visible area. Values do not need to total 1.</param>
+	/// <returns>Whether the proportions were applied.</returns>
+	public unsafe bool SetSplitterProportions( DockWidget dock, params ReadOnlySpan<float> proportions )
+	{
+		if ( dock is null || proportions.Length < 2 )
+			return false;
+
+		foreach ( var proportion in proportions )
+		{
+			if ( !float.IsFinite( proportion ) || proportion < 0.0f )
+				return false;
+		}
+
+		fixed ( float* proportionPtr = proportions )
+		{
+			_nativeDockManager.layout().activate();
+			return _nativeDockManager.setSplitterProportions( dock.GetDockAreaWidget(), proportionPtr, proportions.Length );
+		}
 	}
 
 	/// <summary>

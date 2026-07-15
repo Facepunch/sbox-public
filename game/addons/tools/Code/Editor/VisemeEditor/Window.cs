@@ -24,6 +24,7 @@ public class Window : DockWindow
 
 		CreateUI();
 		Show();
+		StateCookie = "VisemeEditor";
 	}
 
 	public void AssetOpen( Asset asset )
@@ -80,12 +81,12 @@ public class Window : DockWindow
 		Morphs.Model = Model;
 		Morphs.OnValueEdited += OnMorphEdited;
 		Morphs.OnReset += OnResetMorphs;
-		var morphsDock = DockManager.AddDock( "Morphs", "tune", Morphs, DockArea.Right );
+		DockManager.AddDock( "Morphs", "tune", Morphs, DockArea.Right );
 
 		Visemes = new Visemes( this );
 		Visemes.Model = Model;
 		Visemes.OnSelectionChanged += OnVisemeSelected;
-		DockManager.AddDock( "Visemes", "abc", Visemes, DockArea.Right, relativeTo: morphsDock );
+		DockManager.AddDock( "Visemes", "abc", Visemes, DockArea.Right );
 
 		Preview = new Preview( this );
 		Preview.Model = Model;
@@ -106,14 +107,14 @@ public class Window : DockWindow
 			Visemes.SetMorphs( VisemeSelected, morphs );
 		}
 
-		if ( StateCookie != "VisemeEditor" )
-		{
-			StateCookie = "VisemeEditor";
-		}
-		else
-		{
-			RestoreFromStateCookie();
-		}
+	}
+
+	protected override void BuildDefaultLayout()
+	{
+		var preview = DockManager.OpenDock( "Preview", DockArea.Left );
+		DockManager.OpenDock( "Morphs", DockArea.Right );
+		DockManager.OpenDock( "Visemes", DockArea.Right );
+		DockManager.SetSplitterProportions( preview, 0.55f, 0.25f, 0.20f );
 	}
 
 	private void OnVisemeSelected( string name )
@@ -173,12 +174,13 @@ public class Window : DockWindow
 	[EditorEvent.Hotload]
 	public void OnHotload()
 	{
-		SaveToStateCookie();
+		SaveLayout();
 
 		DockManager.Clear();
 		MenuBar.Clear();
 
 		CreateUI();
+		RestoreLayout();
 	}
 
 	protected override void OnClosed()

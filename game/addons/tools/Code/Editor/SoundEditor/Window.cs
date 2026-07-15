@@ -25,6 +25,7 @@ public class Window : DockWindow, IAssetEditor, AssetSystem.IEventListener
 		CreateToolBar();
 		CreateUI();
 		Show();
+		StateCookie = "SoundEditor";
 	}
 
 	public void AssetOpen( Asset asset )
@@ -93,18 +94,19 @@ public class Window : DockWindow, IAssetEditor, AssetSystem.IEventListener
 		Timeline.SetSamples( Samples, Duration, Sound );
 		Timeline.SetAsset( Asset );
 
-		DockManager.AddDock( new DockManager.DockInfo { Title = "Preview", Icon = "photo", Area = DockArea.Center, CreateAction = () => Preview } );
-		DockManager.AddDock( new DockManager.DockInfo { Title = "Properties", Icon = "edit", Area = DockArea.Right, CreateAction = () => Properties } );
-		DockManager.AddDock( new DockManager.DockInfo { Title = "Timeline", Icon = "timeline", Area = DockArea.Bottom, CreateAction = () => Timeline } );
+		DockManager.AddDock( "Preview", "photo", Preview, DockArea.Center );
+		DockManager.AddDock( "Properties", "edit", Properties, DockArea.Right );
+		DockManager.AddDock( "Timeline", "timeline", Timeline, DockArea.Bottom );
+	}
 
-		if ( StateCookie != "SoundEditor" )
-		{
-			StateCookie = "SoundEditor";
-		}
-		else
-		{
-			RestoreFromStateCookie();
-		}
+	protected override void BuildDefaultLayout()
+	{
+		var preview = DockManager.OpenDock( "Preview", DockArea.Center );
+		DockManager.OpenDock( "Properties", DockArea.Right );
+		DockManager.SetSplitterProportions( preview, 0.72f, 0.28f );
+
+		var timeline = DockManager.OpenDock( "Timeline", DockArea.Bottom, preview );
+		DockManager.SetSplitterProportions( timeline, 0.72f, 0.28f );
 	}
 
 	[EditorEvent.Hotload]
@@ -119,9 +121,18 @@ public class Window : DockWindow, IAssetEditor, AssetSystem.IEventListener
 		if ( Asset == null )
 			return;
 
-		if ( Timeline.Frames != null && Timeline.Frames.Count > 0 )
+		// Setting null removes the key, so deleting every item on a track and
+		// saving clears it from the .meta - otherwise stale data would keep
+		// compiling into the sound forever. Null lists mean "never loaded", so
+		// leave whatever is there alone.
+		if ( Timeline.Frames != null )
 		{
-			Asset.MetaData.Set( "visemes", Timeline.Frames );
+			Asset.MetaData.Set( "visemes", Timeline.Frames.Count > 0 ? Timeline.Frames : null );
+		}
+
+		if ( Timeline.Words != null )
+		{
+			Asset.MetaData.Set( "subtitles", Timeline.Words.Count > 0 ? Timeline.Words : null );
 		}
 	}
 
@@ -141,6 +152,7 @@ public class Window : DockWindow, IAssetEditor, AssetSystem.IEventListener
 
 		toolBar.AddOption( "Save", "common/save.png", Save ).StatusTip = "Save";
 		toolBar.AddOption( "Generate Lip Sync", "record_voice_over", GenerateLipSync ).StatusTip = "Generate visemes from the audio";
+		toolBar.AddOption( "Set Subtitles", "subtitles", () => Timeline.EditTranscript() ).StatusTip = "Type the sound's transcript to lay out subtitle words on the timeline";
 		toolBar.AddOption( "Full Recompile", "refresh", () => Asset.Compile( true ) ).StatusTip = "Full Recompile";
 	}
 
@@ -161,7 +173,7 @@ public class Window : DockWindow, IAssetEditor, AssetSystem.IEventListener
 	private void OnViewMenu( Menu view )
 	{
 		view.Clear();
-		view.AddOption( "Restore To Default", "settings_backup_restore", RestoreDefaultDockLayout );
+		view.AddOption( "Restore To Default", "settings_backup_restore", ResetLayout );
 		view.AddSeparator();
 
 		foreach ( var dock in DockManager.DockTypes )
