@@ -122,8 +122,7 @@ public static class GameMode
 		if ( _inPlay is null || _inPlay.IsFocused )
 			return;
 
-		// While a docked client holds input focus the router's cursor is in THAT client's
-		// window space - injecting play-widget coordinates would hover its UI from here.
+		// While a docked client holds focus the router's cursor is in that client's window space - don't inject ours.
 		if ( Sandbox.InProcessClientSession.Focused is not null )
 			return;
 

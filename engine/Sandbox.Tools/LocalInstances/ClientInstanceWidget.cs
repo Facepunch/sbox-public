@@ -104,8 +104,7 @@ public class ClientInstanceWidget : Widget
 			Update();
 		}
 
-		// A connected client whose scene has no active camera renders a black tab - say so
-		// once, because from the outside it just looks broken.
+		// A connected client without an active camera renders a black tab - say so once, it just looks broken from outside.
 		if ( showScene && _session.IsConnected && !_reportedNoCamera )
 		{
 			_reportedNoCamera = true;
@@ -144,8 +143,7 @@ public class ClientInstanceWidget : Widget
 		if ( _session is null || !_renderer.IsValid() )
 			return;
 
-		// The previous owner's cleanup must happen BEFORE our claim, or its next-frame
-		// release clobbers our freshly registered window and inputs go dead.
+		// The previous owner's cleanup must happen BEFORE our claim, or its next-frame release clobbers our registration.
 		foreach ( var other in All )
 		{
 			if ( other != this && other._hasInputFocus )
@@ -168,8 +166,7 @@ public class ClientInstanceWidget : Widget
 		NativeEngine.InputSystem.RegisterWindowWithSDL( winId );
 		NativeEngine.InputSystem.OnEditorGameFocusChange( winId, true );
 
-		// The engine's window state ties SDL input routing (buttons, capture) to a window -
-		// without it clicks are interpreted against the play widget's window.
+		// Engine window state ties SDL input routing to a window - without it clicks land against the play widget's window.
 		GameMode.SetEngineStateWindow( winId, _renderer.SwapChain );
 
 		_registeredWinId = winId;
@@ -184,8 +181,7 @@ public class ClientInstanceWidget : Widget
 		NativeEngine.InputSystem.UnregisterWindowFromSDL( _registeredWinId );
 		_registeredWinId = 0;
 
-		// Hand the engine window state back to the host's game view - unless another
-		// docked client is claiming right behind us.
+		// Hand engine window state back to the host's game view - unless another docked client is claiming right behind us.
 		if ( restoreHost )
 		{
 			GameMode.RestoreEngineState();
@@ -206,8 +202,7 @@ public class ClientInstanceWidget : Widget
 			return;
 		}
 
-		// Escape always hands input back to the host - reaching the game view with a click
-		// can be a fight when the focused client's game has mouse capture.
+		// Escape always hands input back - clicking into the game view is a fight when the client's game captures the mouse.
 		if ( Sandbox.Input.EscapePressed )
 		{
 			Sandbox.Input.EscapePressed = false;
@@ -222,8 +217,7 @@ public class ClientInstanceWidget : Widget
 			return;
 		}
 
-		// Undocking the tab reparents it to a new native window - keep the SDL registration
-		// pointed at the window the view actually lives in.
+		// Undocking reparents to a new native window - keep the SDL registration pointed at the actual window.
 		if ( _renderer.IsValid() && _renderer._widget.IsValid )
 		{
 			RegisterInputWindow( _renderer._widget.winId() );

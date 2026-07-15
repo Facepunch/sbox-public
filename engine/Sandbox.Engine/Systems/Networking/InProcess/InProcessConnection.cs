@@ -17,15 +17,13 @@ internal sealed class InProcessConnection : Connection
 	/// </summary>
 	public InProcessConnection Peer { get; private set; }
 
-	// SendStream queues raw payloads (encoding is pointless in-process); Broadcast arrives
-	// through Send() already encoded, flagged so InternalRecv knows to decode.
+	// SendStream queues raw payloads (encoding is pointless in-process); Broadcast arrives pre-encoded, flagged for decode.
 	readonly ConcurrentQueue<(byte[] Data, bool Encoded)> _inbox = new();
 
 	readonly bool _representsHost;
 	bool _closed;
 
-	// Connection's shared static decode buffer belongs to the network thread; we decode on
-	// the main thread and must not race it.
+	// Connection's shared decode buffer belongs to the network thread; we decode on the main thread and must not race it.
 	byte[] _decodeBuffer;
 
 	/// <summary>
@@ -76,8 +74,7 @@ internal sealed class InProcessConnection : Connection
 			// Don't re-verify the same Steam inventory once per docked client.
 			userInfo.InventoryBlob = null;
 
-			// VR tracking is process-global - inheriting the host's VR state would spawn
-			// VR pawns mirroring the host's actual head/hand poses.
+			// VR tracking is process-global - inheriting the host's VR state would spawn VR pawns mirroring its real pose.
 			userInfo.IsVr = false;
 		}
 
@@ -93,8 +90,7 @@ internal sealed class InProcessConnection : Connection
 		MessagesSent++;
 	}
 
-	// Pre-encoded path: Broadcast encodes once for all connections. Never chunk - the
-	// inbox has no packet size limit.
+	// Pre-encoded path: Broadcast encodes once for all connections. Never chunk - the inbox has no packet size limit.
 	internal override void Send( byte[] encoded, NetFlags flags )
 	{
 		if ( _closed || Peer is null )

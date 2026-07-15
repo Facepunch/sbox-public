@@ -286,8 +286,7 @@ internal sealed class InProcessClientSession : IDisposable
 			Screen.Size = ViewSize;
 		}
 
-		// Isolated mode: the tenant context carries ActiveScene. Shared mode: the context
-		// stays the host's, so ActiveScene is swapped by hand.
+		// Isolated mode: the tenant context carries ActiveScene. Shared mode: swap it by hand.
 		var contextScope = Tenant.Push();
 		Scene savedScene = null;
 
@@ -357,8 +356,7 @@ internal sealed class InProcessClientSession : IDisposable
 	{
 		_syncContext.Pump();
 
-		// The focused session ticks under the real per-frame input; unfocused sessions push
-		// their own blank context so their pawns idle.
+		// The focused session ticks under the real input; unfocused sessions push a blank context so their pawns idle.
 		using var inputScope = Focused == this ? null : PushBlankInput();
 
 		var scene = Game.ActiveScene;
@@ -379,8 +377,7 @@ internal sealed class InProcessClientSession : IDisposable
 				scene.GameTick( 0 ); // time already advanced above
 			}
 
-			// Exactly one UI system processes input per frame - the focused world's - because
-			// hover/capture state is process-global. Everyone else is layout/render only.
+			// Only the focused world's UI system processes input this frame - hover/capture state is process-global.
 			if ( Tenant.IsIsolated && Tenant.Context?.UISystem is { } uiSystem )
 			{
 				if ( Focused == this )
@@ -447,8 +444,7 @@ internal sealed class InProcessClientSession : IDisposable
 
 		ThreadSafe.AssertIsMainThread();
 
-		// Tear down the client side under ITS context, so nothing roots the tenant's
-		// objects or its collectible assemblies.
+		// Tear down the client side under ITS context, so nothing roots the tenant's collectible assemblies.
 		using ( Push() )
 		{
 			try

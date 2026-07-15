@@ -60,8 +60,7 @@ public class ResourceSystem
 		// This isn't thread safe
 		ThreadSafe.AssertIsMainThread();
 
-		// Several wrappers can share one resource id (in-process client tenants hold their
-		// own copies of the host's files) - destroying one copy must not evict another.
+		// Several wrappers can share one resource id (in-process client tenants) - destroying one copy must not evict another.
 
 		if ( ResourceIndexLong.TryGetValue( resource.ResourceIdLong, out var indexed ) && ReferenceEquals( indexed, resource ) )
 			ResourceIndexLong.Remove( resource.ResourceIdLong );

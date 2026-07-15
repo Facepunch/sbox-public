@@ -522,8 +522,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 		{
 			Game.Language?.Tick();
 
-			// The focused docked client's UI system processes input this frame (hover/focus
-			// state is process-global, one processor per frame) - ours just keeps rendering.
+			// The focused docked client's UI system processes input this frame (one processor per frame) - ours just renders.
 			if ( InProcessClientSession.Focused is not null )
 			{
 				GlobalContext.Current.UISystem.SimulateNoInput();
@@ -951,8 +950,7 @@ internal partial class GameInstanceDll : Engine.IGameInstanceDll
 
 		if ( !Networking.IsActive ) return false;
 
-		// In-process client: the host's replicated table lives in this same process and is
-		// authoritative - serve from it directly.
+		// In-process client: the host's authoritative replicated table lives in this process - serve from it directly.
 		if ( Networking.System is { IsInProcessClient: true } )
 			return ReplicatedConvars.TryGetHostValue( name, out value );
 

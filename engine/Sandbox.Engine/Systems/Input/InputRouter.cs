@@ -81,8 +81,7 @@ internal static partial class InputRouter
 				if ( menu is not null ) yield return menu;
 			}
 
-			// A focused docked client routes device input through its own context, so ITS
-			// UI state - not the host's - decides UI-vs-game routing and mouse capture.
+			// A focused docked client's own context decides UI-vs-game routing and mouse capture - not the host's.
 			if ( Sandbox.InProcessClientSession.Focused?.Tenant?.Context?.InputContext is { } docked )
 			{
 				yield return docked;

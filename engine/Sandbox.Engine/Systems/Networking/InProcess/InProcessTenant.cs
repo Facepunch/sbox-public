@@ -50,8 +50,7 @@ internal sealed class InProcessTenant : IDisposable
 
 	static InProcessTenant()
 	{
-		// Tenants never watch files: watcher callbacks live on the host's (shared) filesystems,
-		// so they'd outlive the tenant and root its collectible assemblies.
+		// Tenants never watch files: watcher callbacks live on the host's filesystems and would root the tenant's assemblies.
 		BaseFileSystem.SuppressWatcherCreation = static () => GlobalContext.Current.IsInProcessTenant;
 	}
 
@@ -135,8 +134,7 @@ internal sealed class InProcessTenant : IDisposable
 			Cookies = host.Cookies,
 		};
 
-		// The build steps below reach the context through this property; on failure the
-		// caller tears it back down.
+		// The build steps below reach the context through this property; on failure the caller tears it back down.
 		Context = context;
 
 		using ( new GlobalContext.GlobalContextScope( context ) )
@@ -146,8 +144,7 @@ internal sealed class InProcessTenant : IDisposable
 
 			BuildTypeLibrary( gameAssemblies );
 
-			// Own UI world, so in-game panels don't route through the host's UI system.
-			// While this session has focus the input router puts this context first.
+			// Own UI world so in-game panels don't route through the host's; the router puts this context first while focused.
 			var uiSystem = new UISystem();
 			var inputContext = new InputContext
 			{
@@ -206,12 +203,10 @@ internal sealed class InProcessTenant : IDisposable
 			nodeLibrary.AddAssembly( Context.LocalAssembly );
 		}
 
-		// Root the tenant load context at Sandbox.Engine so engine references resolve to the
-		// shared assemblies; only the game assemblies themselves get private copies.
+		// Root the load context at Sandbox.Engine so engine references resolve to the shared assemblies.
 		_loadContext = new LoadContext( typeof( InProcessTenant ).Assembly );
 
-		// Load every assembly first, so sibling references (game -> base) resolve to
-		// tenant copies rather than the host's.
+		// Load every assembly first, so sibling references (game -> base) resolve to tenant copies rather than the host's.
 		foreach ( var (name, bytes) in gameAssemblies )
 		{
 			var assembly = _loadContext.LoadWithEmbeds( bytes, false );
@@ -294,8 +289,7 @@ internal sealed class InProcessTenant : IDisposable
 				ReflectionCacheBase.PruneAssembly( asm );
 			}
 
-			// Each assembly lives in its own child context inside the LoadContext - they
-			// must be unloaded explicitly, the parent's Unload doesn't cascade.
+			// Each assembly lives in its own child context - unload explicitly, the parent's Unload doesn't cascade.
 			if ( _loadContext is not null )
 			{
 				foreach ( var asm in _assemblies )
@@ -321,15 +315,12 @@ internal sealed class InProcessTenant : IDisposable
 		{
 			try
 			{
-				// Teardown must run under the tenant's scope: resource destruction resolves
-				// Game.Resources ambiently, and under the host's context it would evict the
-				// host's entries for the same files.
+				// Run under the tenant's scope - resource destruction resolves Game.Resources ambiently and would evict the host's entries otherwise.
 				using var scope = new GlobalContext.GlobalContextScope( Context );
 
 				ClearJsonCaches( Context.JsonSerializerOptions );
 
-				// Remove every private assembly's types so no TypeDescription roots the
-				// collectible load context.
+				// Remove every private assembly's types so no TypeDescription roots the collectible load context.
 				if ( Context.TypeLibrary is not null )
 				{
 					foreach ( var asm in _assemblies )
@@ -343,9 +334,7 @@ internal sealed class InProcessTenant : IDisposable
 
 				Context.Shutdown();
 
-				// Shutdown() leaves references a live context needs - scrub everything that
-				// can reach tenant types, in case the context object itself is retained
-				// somewhere (captured execution contexts, logging).
+				// Shutdown() leaves references a live context needs - scrub everything that can reach tenant types in case the context object is retained.
 				if ( Context.NodeLibrary is not null )
 				{
 					// Reset alone doesn't release definitions referencing tenant types.

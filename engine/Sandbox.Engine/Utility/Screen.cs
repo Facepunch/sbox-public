@@ -36,8 +36,7 @@ public static class Screen
 	{
 		ThreadSafe.AssertIsMainThread();
 
-		// In-process client tenants render into an editor widget - their session slice
-		// drives Size, the engine swapchain is the host's window.
+		// In-process client tenants render into an editor widget - the session slice drives Size, not the engine swapchain.
 		if ( Engine.GlobalContext.Current.IsInProcessTenant )
 			return;
 

@@ -100,8 +100,7 @@ public class InProcessIsolationTests
 
 		public HostFixture( string scenePath, bool withProbeComponent )
 		{
-			// The host gets its own copy of the probe assembly in the default context -
-			// this plays the role of the game code the editor host runs.
+			// The host's own copy of the probe assembly plays the role of the game code the editor host runs.
 			HostProbe = Assembly.Load( ProbeBytes );
 			HostProbeType = HostProbe.GetType( "ProbeComponent" );
 			GlobalGameNamespace.TypeLibrary.AddAssembly( HostProbe, true );
@@ -111,8 +110,7 @@ public class InProcessIsolationTests
 			Host.InitializeHost();
 			Host.GameSystem = new SceneNetworkSystem( GlobalGameNamespace.TypeLibrary, Host );
 
-			// The camera matters: the docked client tab renders the scene through
-			// Scene.Camera, so the snapshot must deliver a working camera or the tab is black.
+			// The docked tab renders through Scene.Camera - the snapshot must deliver a working camera or the tab is black.
 			var objectJson = withProbeComponent
 				? $$"""{ "Id": "{{Guid.NewGuid()}}", "Name": "ProbeObject", "Enabled": true, "Components": [ { "__type": "ProbeComponent", "__guid": "{{Guid.NewGuid()}}" } , { "__type": "CameraComponent", "__guid": "{{Guid.NewGuid()}}" } ] }"""
 				: $$"""{ "Id": "{{Guid.NewGuid()}}", "Name": "ProbeObject", "Enabled": true }""";
@@ -134,8 +132,7 @@ public class InProcessIsolationTests
 
 		public InProcessClientSession CreateShared( string name )
 		{
-			// An explicitly empty assembly list forces shared mode - the test host has a
-			// real game instance whose assemblies would otherwise be picked up.
+			// An explicitly empty assembly list forces shared mode - otherwise the test host's real game assemblies get picked up.
 			var session = InProcessClientSession.Create( name, Array.Empty<(string Name, byte[] Bytes)>() );
 			_sessions.Add( session );
 			return session;
@@ -178,9 +175,7 @@ public class InProcessIsolationTests
 		Assert.IsTrue( s1.IsConnected, "Session 1 should connect" );
 		Assert.IsTrue( s2.IsConnected, "Session 2 should connect" );
 
-		//
 		// Each tenant has its own copy of the game assembly: three distinct Types.
-		//
 		var t1 = s1.Tenant.Assemblies.Single().GetType( "ProbeComponent" );
 		var t2 = s2.Tenant.Assemblies.Single().GetType( "ProbeComponent" );
 
@@ -193,10 +188,7 @@ public class InProcessIsolationTests
 		Assert.IsNotNull( s1.Tenant.TypeLibrary.GetType( t1 ), "Tenant 1 TypeLibrary should know its own type" );
 		Assert.IsNull( s1.Tenant.TypeLibrary.GetType( fx.HostProbeType ), "Tenant 1 TypeLibrary should not know the host's type" );
 
-		//
-		// The whole point: statics are per-tenant. Write three different values through
-		// three type identities, then read all three back - nothing bleeds.
-		//
+		// The whole point: statics are per-tenant. Write through three type identities, read all three back - nothing bleeds.
 		SetStatic( fx.HostProbeType, "Counter", 1000 );
 		SetStatic( t1, "Counter", 111 );
 		SetStatic( t2, "Counter", 222 );
@@ -213,17 +205,11 @@ public class InProcessIsolationTests
 		Assert.AreEqual( "client one", GetStatic( t1, "Owner" ) );
 		Assert.AreEqual( "client two", GetStatic( t2, "Owner" ) );
 
-		//
-		// End to end through the REAL snapshot: the host scene's ProbeComponent arrived
-		// in each client scene as an instance of the TENANT's type, not the host's.
-		//
+		// The host scene's ProbeComponent arrived in each client scene as the TENANT's type, not the host's.
 		AssertSceneHasTenantComponent( s1, t1 );
 		AssertSceneHasTenantComponent( s2, t2 );
 
-		//
-		// The camera survived the snapshot too - the docked tab renders through
-		// Scene.Camera, so a missing camera means a black tab.
-		//
+		// The camera survived the snapshot too - a missing camera means a black docked tab.
 		Assert.IsTrue( s1.Scene.Camera.IsValid(), "Tenant scene should have an active camera from the snapshot" );
 		Assert.IsTrue( s2.Scene.Camera.IsValid(), "Tenant scene should have an active camera from the snapshot" );
 
@@ -249,8 +235,7 @@ public class InProcessIsolationTests
 	{
 		using var fx = new HostFixture( "scenes/isolation_fallback.scene", withProbeComponent: false );
 
-		// No game instance and no injected assemblies: the tenant must fall back to
-		// shared mode and still work exactly like before isolation existed.
+		// No game instance and no injected assemblies: falls back to shared mode and still works.
 		var session = fx.CreateShared( "Fallback" );
 
 		Assert.IsFalse( session.IsIsolated, "Session without game assemblies should run in shared mode" );
@@ -284,8 +269,7 @@ public class InProcessIsolationTests
 		Assert.IsTrue( isolated.NeedsRebuild, "Isolated session must be flagged for rebuild on host code change" );
 		Assert.IsFalse( shared.NeedsRebuild, "Shared session must not be flagged" );
 
-		// The rebuild flow is dispose + recreate - do exactly that and verify the new
-		// session comes up isolated and connected, like the editor tab does on hotload.
+		// The rebuild flow is dispose + recreate, like the editor tab does on hotload - verify it comes up isolated and connected.
 		isolated.Dispose();
 
 		var rebuilt = fx.CreateIsolated( "Rebuilt" );
@@ -303,8 +287,7 @@ public class InProcessIsolationTests
 
 		var weakAssembly = CreateConnectDispose( fx );
 
-		// The tenant load context is collectible: once the session is disposed nothing
-		// should root its assembly.
+		// The tenant load context is collectible: once the session is disposed nothing should root its assembly.
 		AssertUnloads( weakAssembly, "Tenant assembly should unload after session disposal - something is rooting the collectible load context" );
 	}
 
@@ -336,8 +319,7 @@ public class InProcessIsolationTests
 	[TestMethod]
 	public void DisposedSession_UnloadsTenantAssemblies_WithoutConnecting()
 	{
-		// The bisect twin of the test above: no handshake, no scene - if this passes and
-		// the connected variant fails, the rooting is in the connected path.
+		// Bisect twin: no handshake, no scene - if this passes and the connected variant fails, the rooting is in the connected path.
 		using var fx = new HostFixture( "scenes/isolation_unload_noconnect.scene", withProbeComponent: true );
 
 		var weakAssembly = CreateConnectDispose( fx, connect: false );
@@ -362,8 +344,7 @@ public class InProcessIsolationTests
 
 		session.Dispose();
 
-		// Mirror production: the editor widget drops its session reference right after
-		// disposal - keeping the dead session rooted is not a scenario that exists.
+		// Mirror production: the editor widget drops its session reference right after disposal.
 		fx.DropSession( session );
 
 		return weak;
@@ -372,10 +353,7 @@ public class InProcessIsolationTests
 	[TestMethod]
 	public void TenantDisposal_DoesNotEvictHostResources()
 	{
-		// The bug this guards against: a tenant's copy of a resource shares the host
-		// copy's id; destroying the tenant copy under the wrong context unregistered the
-		// HOST's entry - prefabs vanished from the editor until restart, and rejoining
-		// clients spawned players with no gear.
+		// Guards: destroying a tenant resource copy (shares the host copy's id) under the wrong context evicted the HOST's entry.
 		const string path = "prefabs/eviction_probe.prefab";
 
 		var hostPrefab = new PrefabFile();
@@ -392,8 +370,7 @@ public class InProcessIsolationTests
 			PumpUntilConnected( new[] { session }, fx.Host );
 			Assert.IsTrue( session.IsConnected );
 
-			// The tenant loaded its own copies of every resource. Killing the session
-			// must leave the host's registrations untouched.
+			// The tenant loaded its own copies of every resource - killing the session must leave the host's registrations untouched.
 			session.Dispose();
 			fx.DropSession( session );
 
@@ -419,16 +396,11 @@ public class InProcessIsolationTests
 
 		Assert.IsTrue( s1.IsConnected && s2.IsConnected );
 
-		//
 		// Distinct identities on the host, exactly like the shared-mode multi-client test.
-		//
 		Assert.AreEqual( 2, fx.Host.Connections.Count() );
 		Assert.AreEqual( 2, fx.Host.Connections.Select( c => c.Name ).Distinct().Count() );
 
-		//
-		// A new object created on the host reaches both isolated clients through the
-		// normal object-create path - the wire protocol works across type worlds.
-		//
+		// A new host object reaches both isolated clients - the wire protocol works across type worlds.
 		using ( fx.HostScene.Push() )
 		{
 			var go = new GameObject( true, "LateObject" );

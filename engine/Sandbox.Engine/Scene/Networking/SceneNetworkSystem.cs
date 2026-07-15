@@ -588,8 +588,7 @@ public partial class SceneNetworkSystem : GameNetworkSystem
 			Game.ActiveScene = null;
 		}
 
-		// For in-process client sessions the awaits below can resume outside the session's
-		// context scope, where Game.ActiveScene is a DIFFERENT scene - use this local.
+		// For in-process clients the awaits below can resume where Game.ActiveScene is a DIFFERENT scene - use this local.
 		var scene = new Scene();
 		Game.ActiveScene = scene;
 		Game.ActiveScene.StartLoading();

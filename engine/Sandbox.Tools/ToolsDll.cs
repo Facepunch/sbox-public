@@ -51,9 +51,7 @@ internal class ToolsDll : IToolsDll
 		ProjectCookie?.Save();
 	}
 
-	// Engine events announce the host's state to the editor. A docked client tenant's
-	// resource loads, mounts and saves are private to that tenant - announcing them
-	// again would be a lie about the host, so mute the whole seam.
+	// Editor events describe the HOST's state - a tenant's private resource loads/mounts/saves must not re-announce, so mute the whole seam.
 	static bool MuteEvents => GlobalContext.Current.IsInProcessTenant;
 
 	public void RunEvent( string name ) { if ( !MuteEvents ) EditorEvent.Run( name ); }

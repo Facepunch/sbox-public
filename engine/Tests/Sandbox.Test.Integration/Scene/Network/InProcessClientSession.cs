@@ -42,9 +42,6 @@ public class InProcessClientSessionTests
 
 		try
 		{
-			//
-			// Host: network system + scene system + a scene containing a recognizable object
-			//
 			host = new NetworkSystem( "server", GlobalGameNamespace.TypeLibrary );
 			Networking.System = host;
 			host.InitializeHost();
@@ -56,43 +53,28 @@ public class InProcessClientSessionTests
 			Game.ActiveScene = hostScene;
 			Game.IsPlaying = true;
 
-			//
-			// Client: create the in-process session; this registers the InProcessSocket on
-			// the host and starts the handshake.
-			//
 			session = InProcessClientSession.Create( "Tenant One" );
 
 			Assert.IsTrue( host.Sockets.OfType<InProcessSocket>().Any(), "Host should have an InProcessSocket" );
 
 			PumpUntilConnected( session, host );
 
-			//
-			// Client side: fully connected, with its own scene built from the snapshot.
-			//
 			Assert.IsTrue( session.IsConnected, "Client should reach Connected state" );
 			Assert.IsNotNull( session.Scene, "Client should have a scene from the snapshot" );
 			Assert.AreNotEqual( hostScene, session.Scene, "Client scene must be a distinct instance" );
 			Assert.IsTrue( session.Scene.Children.Any( x => x.Name == "HostTestObject" ),
 				"Client scene should contain the host's object" );
 
-			//
-			// Host side: exactly one connection, fully connected, with the fake identity.
-			//
 			var hostSide = host.Connections.SingleOrDefault();
 			Assert.IsNotNull( hostSide, "Host should have one client connection" );
 			Assert.AreEqual( Connection.ChannelState.Connected, hostSide.State );
 			Assert.AreEqual( "Tenant One", hostSide.Name );
 
-			//
-			// Host globals must be exactly as we left them - no tenant leakage.
-			//
 			Assert.AreEqual( host, Networking.System, "Networking.System leaked" );
 			Assert.AreEqual( hostScene, Game.ActiveScene, "Game.ActiveScene leaked" );
 			Assert.AreEqual( prevLocal, Connection.Local, "Connection.Local leaked" );
 
-			//
-			// The client keeps ticking fine while connected.
-			//
+			// A few steady-state ticks shouldn't disturb anything.
 			for ( var i = 0; i < 8; i++ )
 			{
 				session.Tick();
@@ -102,9 +84,6 @@ public class InProcessClientSessionTests
 			Assert.IsTrue( session.IsConnected );
 			Assert.AreEqual( hostScene, Game.ActiveScene, "Game.ActiveScene leaked after steady-state ticks" );
 
-			//
-			// Disconnect: host cleans up the connection through the normal path.
-			//
 			session.Dispose();
 			session = null;
 

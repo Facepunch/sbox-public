@@ -487,8 +487,7 @@ public partial class SoundHandle : IValid, IDisposable
 
 	internal static void StopAll( float fade, Mixer mixer = null )
 	{
-		// A blanket stop is scoped to the world it was called from - a docked client's
-		// Sound.StopAll must not silence the host or the other clients, and vice versa.
+		// Scoped to the calling world - a docked client's StopAll must not silence the host or other clients, and vice versa.
 		var sliceMixer = InProcessClientSession.CurrentSlice?.ClientMixer;
 
 		_tickList.Clear();
