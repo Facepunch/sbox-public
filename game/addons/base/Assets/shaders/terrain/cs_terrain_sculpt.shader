@@ -91,27 +91,24 @@ CS
         }
         if ( D_SCULPT_MODE == MODE_SMOOTH )
         {
-            float brushSample = Brush.SampleLevel( g_sBilinearBorder, brushUV, 0 );
+            float brush = Brush.SampleLevel( g_sBilinearBorder, brushUV, 0 );
             float strength = BrushSettings[0].Strength;
-            float brush = brushSample * strength;
-            if ( brush <= 0.0f ) return;
+            if ( brush <= 0.0f || strength <= 0.0f ) return;
 
-            // Strength above 1 widens the averaging kernel so smoothing gets
-            // progressively "harder" over a larger area. The blend factor itself
-            // is clamped to [0,1] below so we never extrapolate past the average
-            // (which caused spikes/ringing at opacity > 1).
-            int radius = clamp( (int)ceil( abs( strength ) ), 1, 8 );
+            // Kernel size and blend both follow the brush falloff - anything that
+            // cuts off abruptly leaves a crease along the stroke edge
+            int radius = clamp( (int)ceil( brush * strength ), 1, 8 );
 
-            // Sample surroundings ((2*radius+1)^2 neighbourhood)
+            // Average the (2*radius+1)^2 neighbourhood
             float sum = 0.0f;
             int sampleCount = 0;
-            
+
             for ( int y = -radius; y <= radius; y++ )
             {
                 for ( int x = -radius; x <= radius; x++ )
                 {
                     int2 samplePos = texel + int2( x, y );
-                    
+
                     if ( samplePos.x >= 0 && samplePos.y >= 0 && samplePos.x < w && samplePos.y < h )
                     {
                         sum += Heightmap.Load( samplePos ).x;
@@ -119,13 +116,16 @@ CS
                     }
                 }
             }
-            
+
             float average = sum / sampleCount;
             float height = Heightmap.Load( texel ).x;
 
-            // Clamp blend to [0,1] so the smooth only ever moves toward the
-            // neighbourhood average, never overshoots it.
-            float t = saturate( brush );
+            // Strength above 1 steepens the response curve instead of scaling, which
+            // would clip the falloff into a hard-edged stamp. Capped below full
+            // replacement: our neighbour reads race other threads' writes, and an
+            // uncapped blend lets already-averaged values cascade into a plateau.
+            float t = strength <= 1.0f ? brush * strength : min( 1.0f - pow( 1.0f - brush, strength ), 0.5f );
+
             Heightmap[texel] = lerp( height, average, t );
         }
         if ( D_SCULPT_MODE == MODE_HOLE )
