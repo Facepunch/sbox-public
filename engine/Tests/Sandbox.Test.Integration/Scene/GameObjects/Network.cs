@@ -93,6 +93,49 @@ public class NetworkTest
 	}
 
 	[TestMethod]
+	[DataRow( NetworkFlags.None )]
+	[DataRow( NetworkFlags.NoPositionSync )]
+	[DataRow( NetworkFlags.NoRotationSync )]
+	[DataRow( NetworkFlags.NoScaleSync )]
+	public void ProxyKeepsUnsyncedComponentLocal( NetworkFlags flags )
+	{
+		Assert.IsNotNull( TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );
+
+		using var scope = new Scene().Push();
+
+		using var clientAndHost = new ClientAndHost( TypeLibrary );
+
+		clientAndHost.BecomeClient();
+
+		var go = new GameObject();
+		go.Network.Flags |= flags;
+
+		go.NetworkSpawn( clientAndHost.Host );
+		Assert.IsTrue( go.IsProxy );
+
+		var localTransform = new Transform( new Vector3( 100f, 0f, 0f ), Rotation.From( 0f, 45f, 0f ), Vector3.One * 2f );
+		var networkTransform = new Transform( new Vector3( -100f, 0f, 0f ), Rotation.From( 0f, 90f, 0f ), Vector3.One * 4f );
+
+		go.Transform.Local = localTransform;
+
+		var time = Time.NowDouble;
+		go.Transform.FromNetwork( networkTransform, false );
+
+		go.Transform.Update( time + Networking.InterpolationTime * 2f, time );
+
+		var expected = new Transform(
+			(flags & NetworkFlags.NoPositionSync) != 0 ? localTransform.Position : networkTransform.Position,
+			(flags & NetworkFlags.NoRotationSync) != 0 ? localTransform.Rotation : networkTransform.Rotation,
+			(flags & NetworkFlags.NoScaleSync) != 0 ? localTransform.Scale : networkTransform.Scale );
+
+		var local = go.Transform.InterpolatedLocal;
+
+		Assert.IsTrue( local.Position.AlmostEqual( expected.Position ), $"Position was {local.Position}" );
+		Assert.IsTrue( local.Rotation.Distance( expected.Rotation ) < 0.01f, $"Rotation was {local.Rotation}" );
+		Assert.IsTrue( local.Scale.AlmostEqual( expected.Scale ), $"Scale was {local.Scale}" );
+	}
+
+	[TestMethod]
 	public void NetworkedInput()
 	{
 		Assert.IsNotNull( TypeLibrary.GetType<ModelRenderer>(), "TypeLibrary hasn't been given the game assembly" );
