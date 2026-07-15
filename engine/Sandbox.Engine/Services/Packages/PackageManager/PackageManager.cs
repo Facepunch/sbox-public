@@ -59,21 +59,30 @@ internal static partial class PackageManager
 		if ( options.PackageIdent == "local.base" )
 			options.PackageIdent = "local.base#local";
 
+		ActivePackage replacingPackage = null;
+
 		//
 		// If this package exists then mark it with our tag and move on
 		//
 		var existingPackage = Find( options.PackageIdent, options.AllowLocalPackages );
 		if ( existingPackage != null )
 		{
-			existingPackage.AddContextTag( options.ContextTag );
-			log.Info( $"Install Package (Already Mounted) {options.PackageIdent} [{options.ContextTag}]" );
-			options.Loading?.LoadingProgress( LoadingProgress.Create( $"Loading {existingPackage.Package.Title}" ) );
-			return existingPackage;
+			if ( !options.ReplaceExistingRevision || MatchesRequestedRevision( existingPackage, options.PackageIdent ) )
+			{
+				existingPackage.AddContextTag( options.ContextTag );
+				log.Info( $"Install Package (Already Mounted) {options.PackageIdent} [{options.ContextTag}]" );
+				options.Loading?.LoadingProgress( LoadingProgress.Create( $"Loading {existingPackage.Package.Title}" ) );
+				return existingPackage;
+			}
+
+			replacingPackage = existingPackage;
 		}
 
 		log.Trace( $"Install Package {options.PackageIdent} [{options.ContextTag}]" );
 		options.Loading?.LoadingProgress( LoadingProgress.Create( $"Fetching {options.PackageIdent}" ) );
-		var package = await FetchPackageAsync( options.PackageIdent, options.AllowLocalPackages );
+		var package = options.ReplaceExistingRevision
+			? await Package.FetchAsync( options.PackageIdent, false, false )
+			: await FetchPackageAsync( options.PackageIdent, options.AllowLocalPackages );
 
 		options.CancellationToken.ThrowIfCancellationRequested();
 
@@ -110,8 +119,24 @@ internal static partial class PackageManager
 			}
 		}
 
+		if ( replacingPackage is not null )
+		{
+			ap.Tags.UnionWith( replacingPackage.Tags );
+			ServerPackages.Forget( replacingPackage );
+			replacingPackage.Delete();
+			ActivePackages.Remove( replacingPackage );
+		}
+
 		ap.AddContextTag( options.ContextTag );
 		return ap;
+	}
+
+	private static bool MatchesRequestedRevision( ActivePackage activePackage, string packageIdent )
+	{
+		if ( !Package.TryParseIdent( packageIdent, out var parsed ) || parsed.version is null )
+			return true;
+
+		return activePackage.Package.Revision?.VersionId == parsed.version.Value;
 	}
 
 	public static void UnmountTagged( string tag )
@@ -183,7 +208,7 @@ internal static partial class PackageManager
 		//
 		foreach ( var packageName in dependancies )
 		{
-			await InstallAsync( options with { PackageIdent = packageName } );
+			await InstallAsync( options with { PackageIdent = packageName, ReplaceExistingRevision = false } );
 			options.CancellationToken.ThrowIfCancellationRequested();
 		}
 

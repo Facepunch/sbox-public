@@ -45,6 +45,12 @@ internal struct PackageLoadOptions
 	public bool AllowLocalPackages { get; set; } = true;
 
 	/// <summary>
+	/// Replace an already-mounted remote package when <see cref="PackageIdent"/> requests a different exact revision.
+	/// This is intentionally opt-in so ordinary dependency installs keep using their mounted revision.
+	/// </summary>
+	public bool ReplaceExistingRevision { get; set; }
+
+	/// <summary>
 	/// If true we will only download the code files (.bin) and not the assets.
 	/// </summary>
 	public bool SkipAssetDownload { get; set; }
