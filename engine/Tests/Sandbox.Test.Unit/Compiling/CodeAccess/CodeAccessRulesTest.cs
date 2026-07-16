@@ -71,6 +71,37 @@ public class CodeAccessRulesTest
 	}
 
 	[DataTestMethod]
+	[DataRow( "+=", "add_Changed", "remove_Changed" )]
+	[DataRow( "-=", "remove_Changed", "add_Changed" )]
+	public void EventAccess_ChecksExactlyTheExecutedAccessor( string operation, string executedAccessor, string otherAccessor )
+	{
+		var source = $$"""
+			public sealed class Target
+			{
+				public event System.Action Changed;
+			}
+
+			public static class Probe
+			{
+				public static void Run( Target target, System.Action handler )
+				{
+					target.Changed {{operation}} handler;
+				}
+			}
+			""";
+
+		var allowedRules = new AccessRules( [.. Rules.All, "external/Target*", $"!external/Target.{otherAccessor}*" ] );
+		var allowed = CodeAccessGate.Verify( source, runGenerator: false, assemblyName: "external", rules: allowedRules );
+		Assert.IsFalse( allowed.EmitFailed, $"fixture must compile: {allowed}" );
+		Assert.AreEqual( 0, allowed.Denied.Count, $"{otherAccessor} must not be checked for '{operation}': {allowed}" );
+
+		var deniedRules = new AccessRules( [.. Rules.All, "external/Target*", $"!external/Target.{executedAccessor}*" ] );
+		var denied = CodeAccessGate.Verify( source, runGenerator: false, assemblyName: "external", rules: deniedRules );
+		Assert.IsTrue( denied.Denied.Any( x => x.Contains( executedAccessor ) ),
+			$"{executedAccessor} must be checked for '{operation}': {denied}" );
+	}
+
+	[DataTestMethod]
 	[DataRow( "NoSlash" )]
 	[DataRow( "!" )]
 	[DataRow( "-" )]

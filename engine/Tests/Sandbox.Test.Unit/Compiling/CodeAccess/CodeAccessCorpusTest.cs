@@ -114,6 +114,15 @@ public class CodeAccessCorpusTest
 		new( "DllImport denied",
 			D( "public static class Native { [System.Runtime.InteropServices.DllImport( \"user32\" )] public static extern int Msg( int h ); }" ),
 			false, true, "DllImport" ),
+		new( "LibraryImport denied",
+			D( "public static class Native { [System.Runtime.InteropServices.LibraryImport( \"native\" )] public static int Call() => 0; }" ),
+			false, true, "LibraryImport" ),
+		new( "LibraryImport alias denied",
+			D( "using Import = System.Runtime.InteropServices.LibraryImportAttribute; public static class Native { [Import( \"native\" )] public static int Call() => 0; }" ),
+			false, true, "LibraryImport" ),
+		new( "ComImport alias denied",
+			D( "using Imported = System.Runtime.InteropServices.ComImportAttribute; [Imported] [System.Runtime.InteropServices.Guid( \"00020400-0000-0000-C000-000000000046\" )] public interface IEscapeAlias { }" ),
+			false, true, "ComImport" ),
 		new( "TypeForwardedTo denied",
 			D( "[assembly: System.Runtime.CompilerServices.TypeForwardedTo( typeof( System.Diagnostics.Process ) )] public class Marker { }" ),
 			false, true, "TypeForwardedTo" ),
@@ -201,5 +210,24 @@ public class CodeAccessCorpusTest
 		Assert.AreEqual( 0, generated.Denied.Count, $"generated access should use PublicArrayPool: {generated}" );
 		Assert.IsTrue( raw.Denied.Any( x => x.Contains( "get_Shared" ) ), $"raw access must be denied: {raw}" );
 		Assert.IsTrue( aliased.Denied.Any( x => x.Contains( "get_Shared" ) ), $"unrewritten alias must be denied: {aliased}" );
+	}
+
+	[TestMethod]
+	public void OmittedExplicitTypePositions_AreDenied()
+	{
+		(string Name, string Source, string DeniedType)[] cases =
+		[
+			("sizeof", D( "public static unsafe class X { public static int Run() => sizeof( System.Runtime.InteropServices.GCHandle ); }" ), "GCHandle"),
+			("declaration expression", D( "public static class X { public static void Run() { (System.Diagnostics.Process process, int value) = (null, 0); } }" ), "Process"),
+			("function pointer", D( "public static unsafe class X { public static void Run() { delegate*<System.Runtime.InteropServices.GCHandle, void> callback = null; } }" ), "GCHandle"),
+		];
+
+		foreach ( var (name, source, deniedType) in cases )
+		{
+			var result = CodeAccessGate.Verify( source, allowUnsafe: true );
+			Assert.IsFalse( result.EmitFailed, $"[{name}] fixture should compile: {result}" );
+			Assert.IsTrue( result.Denied.Any( x => x.Contains( deniedType ) ),
+				$"[{name}] should deny explicit use of {deniedType}: {result}" );
+		}
 	}
 }
