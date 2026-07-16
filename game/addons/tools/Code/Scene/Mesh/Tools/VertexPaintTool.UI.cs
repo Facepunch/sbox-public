@@ -21,6 +21,7 @@ partial class VertexPaintTool
 		readonly Widget _curvatureSettingsWidget;
 		readonly Button _fillButton;
 
+		ColorPicker _colorPicker;
 
 		[Shortcut( "vertexpainttool.OpenColorPicker", "F", typeof( SceneViewWidget ) )]
 		void OpenColorPicker()
@@ -28,9 +29,17 @@ partial class VertexPaintTool
 			if ( _tool.Mode != PaintMode.Color )
 				return;
 
+			if ( _colorPicker.IsValid() )
+			{
+				_colorPicker.Focus();
+				return;
+			}
+
 			var picker = ColorPicker.OpenColorPopup( _tool.Color, c => _tool.Color = c );
 			picker.HasAlpha = false;
 			picker.IsHDR = false;
+
+			_colorPicker = picker;
 		}
 
 		[Shortcut( "vertexpainttool.togglepaintmode", "M", typeof( SceneViewWidget ) )]

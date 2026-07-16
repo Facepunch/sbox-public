@@ -252,7 +252,7 @@ public static class EditorScene
 
 		if ( playMode )
 		{
-			if ( IGameInstance.Current is null )
+			if ( IGameInstance.Current is not null )
 			{
 				LoadingScreen.IsVisible = true;
 				LoadingScreen.Title = "Loading Game..";

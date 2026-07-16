@@ -135,11 +135,25 @@ partial class FaceTool
 				grid.AddStretchCell();
 
 				group.Add( grid );
+
+				var row2 = Layout.Row();
+				row2.Spacing = 4;
+
+				CreateButton( "Find / Replace Material", "find_replace", "mesh.find-replace-material-tool", OpenFindReplaceMaterialTool, true, row2 );
+
+				row2.AddStretchCell();
+
+				group.Add( row2 );
 			}
 
 			BuildTextureUI( so, target );
 
 			Layout.AddStretchCell();
+
+			{
+				var group = AddGroup( "Visualization" );
+				group.Add( ControlSheetRow.Create( tool.GetSerialized().GetProperty( nameof( ShowSelectionBounds ) ) ) );
+			}
 
 			{
 				var group = AddGroup( "Filtered Selection [Alt + Double Click]", collapsible: true );

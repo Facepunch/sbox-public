@@ -180,6 +180,14 @@ public abstract class SelectionTool( MeshTool tool ) : EditorTool
 			Selection.Add( element );
 		}
 	}
+
+	protected virtual bool ShowSelectionBoundsDefault => false;
+
+	public bool ShowSelectionBounds
+	{
+		get => EditorCookie.Get( $"mesh.{GetType().Name}.show-selection-bounds", ShowSelectionBoundsDefault );
+		set => EditorCookie.Set( $"mesh.{GetType().Name}.show-selection-bounds", value );
+	}
 }
 
 file class SelectionToolShortcutsWidget( SelectionTool tool ) : Widget
@@ -204,6 +212,8 @@ file class SelectionToolShortcutsWidget( SelectionTool tool ) : Widget
 
 	[Shortcut( "mesh.align-to-closest-normal", "CTRL+KP_3", typeof( SceneViewWidget ) )]
 	public void AlignToClosestNormal() => tool.AlignToClosestNormal();
+	[Shortcut( "mesh.toggle-selection-bounds", "/", typeof( SceneViewWidget ) )]
+	public void ToggleSelectionBounds() => tool.ShowSelectionBounds = !tool.ShowSelectionBounds;
 }
 
 public abstract class SelectionTool<T>( MeshTool tool ) : SelectionTool( tool ) where T : IMeshElement

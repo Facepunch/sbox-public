@@ -7,7 +7,7 @@ partial class EdgeTool
 {
 	public override Widget CreateToolSidebar()
 	{
-		return new EdgeSelectionWidget( Tool, GetSerializedSelection() );
+		return new EdgeSelectionWidget( GetSerializedSelection(), this );
 	}
 
 	public class EdgeSelectionWidget : ToolSidebarWidget
@@ -20,7 +20,7 @@ partial class EdgeTool
 		[Range( 0, 16 ), Step( 1 ), WideMode]
 		private int NumCuts = 1;
 
-		public EdgeSelectionWidget( MeshTool tool, SerializedObject selection ) : base()
+		public EdgeSelectionWidget( SerializedObject selection, EdgeTool tool ) : base()
 		{
 			AddTitle( "Edge Mode", "show_chart" );
 
@@ -28,10 +28,10 @@ partial class EdgeTool
 				var group = AddGroup( "Move Mode" );
 				var row = group.AddRow();
 				row.Spacing = 8;
-				tool.CreateMoveModeButtons( row );
+				tool.Tool.CreateMoveModeButtons( row );
 			}
 
-			_tool = tool;
+			_tool = tool.Tool;
 
 			_edges = selection.Targets
 				.OfType<MeshEdge>()
@@ -124,7 +124,8 @@ partial class EdgeTool
 					CreateButton( "Edge Cut Tool", "meshtools/edge_tool_button/edge_cut_tool_1.png", "mesh.edge-cut-tool", OpenEdgeCutTool, true, row.Layout );
 					CreateButton( "Edge Arch", "meshtools/edge_tool_button/edge_arch.png", "mesh.edge-arch-tool", OpenEdgeArchTool, CanArch(), row.Layout );
 					CreateButton( "Bridge", "meshtools/face_tool/bridge_1.png", "mesh.bridge-tool", OpenBridgeTool, CanBridgeEdges(), row.Layout );
-
+					var btn = CreateButton( "Extrude Along Path", "meshtools/texture_tool_buttons/justify_bottom.png", "mesh.path-extrude", PathExtrude, CanPathExtrude(), row.Layout );
+					btn.ToolTip += "<br/> <br/>Extrude the selected profile edges along a path defined by the selected path edges. Select the profile edges first, then the path edges.";
 					row.Layout.AddStretchCell();
 
 					group.Add( row );
@@ -146,6 +147,11 @@ partial class EdgeTool
 			}
 
 			Layout.AddStretchCell();
+
+			{
+				var group = AddGroup( "Visualization" );
+				group.Add( ControlSheetRow.Create( tool.GetSerialized().GetProperty( nameof( ShowSelectionBounds ) ) ) );
+			}
 
 			AddShortcuts(
 				("Loop Select", "Double Click"),
@@ -670,6 +676,19 @@ partial class EdgeTool
 				return false;
 
 			return groups.Count != 2 || groups[0].Count() == groups[1].Count();
+		}
+
+		bool CanPathExtrude() => PathExtrudeTool.CanExtrude( _edgeGroups, _edges );
+
+		[Shortcut( "mesh.path-extrude", "ALT+X", typeof( SceneViewWidget ) )]
+		void PathExtrude()
+		{
+			if ( !CanPathExtrude() )
+				return;
+
+			var tool = new PathExtrudeTool( _edgeGroups, _edges );
+			tool.Manager = _tool.Manager;
+			_tool.CurrentTool = tool;
 		}
 
 		private bool CanDissolve()
