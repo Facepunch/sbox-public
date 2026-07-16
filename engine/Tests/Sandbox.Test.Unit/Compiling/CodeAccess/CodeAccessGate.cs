@@ -10,14 +10,14 @@ namespace CompilingTests.CodeAccess;
 /// <summary>
 /// Compiles a snippet exactly as a sandboxed package build does and runs the single code-access
 /// analyzer (<see cref="AccessWalker"/>) over it. One Roslyn walker enforces both the member-level
-/// allow-list and the memory-unsafe blacklist - there is no separate gate and no IL scan.
+/// allow-list and the memory-unsafe hard blocks - there is no separate gate and no IL scan.
 /// </summary>
 static class CodeAccessGate
 {
 	/// <summary>Outcome of the unified analyzer for one snippet.</summary>
 	public sealed class Result
 	{
-		/// <summary>Signatures the analyzer rejected (allow-list denials + blacklist hits).</summary>
+		/// <summary>Signatures the analyzer rejected (allow-list denials + hard-block hits).</summary>
 		public IReadOnlyList<string> Denied { get; init; } = [];
 
 		/// <summary>True if the snippet failed to compile (a test-authoring error, unless intended).</summary>

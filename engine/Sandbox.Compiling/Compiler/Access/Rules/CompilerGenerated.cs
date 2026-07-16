@@ -5,7 +5,7 @@ internal static partial class Rules
 	internal static string[] CompilerGenerated = new[]
 	{
 		// Compiler generates all this scary shit that the user shouldn't be using
-		// User code is checked in Sandbox.Compiling blacklist.
+		// User code is checked by Sandbox.Compiling hard-block rules.
 		//
 		// These are the ref-based Unsafe members the C# compiler emits for safe code
 		// (Span indexers, inline arrays, collection expressions, in/ref readonly). We list them

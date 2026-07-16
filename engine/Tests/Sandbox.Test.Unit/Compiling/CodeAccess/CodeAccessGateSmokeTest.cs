@@ -46,7 +46,7 @@ public class CodeAccessGateSmokeTest
 	public void UnsafeAs_IsDenied()
 	{
 		// The compiler emits Unsafe.As for safe code, so the allow-list permits the emitted overload
-		// (CompilerGenerated.cs), but naming it in source is a blacklist hit (SB500). The single walker
+		// (CompilerGenerated.cs), but naming it in source is a hard-block hit (SB500). The single walker
 		// enforces both, so it's denied.
 		var r = CodeAccessGate.Verify( Method(
 			"var v = System.Runtime.CompilerServices.Unsafe.As<System.Version>( new System.Version() );" ) );

@@ -8,13 +8,13 @@ namespace CompilingTests.CodeAccess;
 
 [TestClass]
 [DoNotParallelize]
-public partial class BlacklistTest
+public partial class HardBlockTest
 {
 
 	[TestMethod]
 	public async Task DefaultCompilerFailsWhitelist()
 	{
-		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
+		var codePath = System.IO.Path.GetFullPath( "data/code/hard_block" );
 		using var group = new CompileGroup( "TestWhitelist" );
 
 		var compiler = group.GetOrCreateCompiler( "test" );
@@ -32,7 +32,7 @@ public partial class BlacklistTest
 	[TestMethod]
 	public async Task CompilerWithWhitelistFails()
 	{
-		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
+		var codePath = System.IO.Path.GetFullPath( "data/code/hard_block" );
 		using var group = new CompileGroup( "TestWhitelist" );
 
 		var compilerSettings = new Compiler.Configuration();
@@ -52,7 +52,7 @@ public partial class BlacklistTest
 	[TestMethod]
 	public async Task CompilerWithoutWhitelistSucceeds()
 	{
-		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
+		var codePath = System.IO.Path.GetFullPath( "data/code/hard_block" );
 		using var group = new CompileGroup( "TestWhitelist" );
 
 		var compilerSettings = new Compiler.Configuration();
@@ -74,7 +74,7 @@ public partial class BlacklistTest
 	{
 		bool compileSuccessCallback = false;
 
-		var codePath = System.IO.Path.GetFullPath( "data/code/blacklist" );
+		var codePath = System.IO.Path.GetFullPath( "data/code/hard_block" );
 		using var group = new CompileGroup( "Test" );
 		group.OnCompileSuccess = () => compileSuccessCallback = true;
 
@@ -162,7 +162,7 @@ public partial class BlacklistTest
 			using Sandbox;
 			using Sandbox.Diagnostics;
 
-			public static class SandboxEscapeDegeneratedBlacklist
+			public static class SandboxEscapeDegeneratedHardBlock
 			{
 				[AttributeUsage(AttributeTargets.Method)]
 				[CodeGenerator(CodeGeneratorFlags.WrapMethod | CodeGeneratorFlags.Static, "OnMethodInvoked")]
@@ -443,7 +443,7 @@ public partial class BlacklistTest
 	/// <summary>
 	/// The exploit redefines UnsafeAccessorAttribute locally in the same namespace using
 	/// #pragma warning disable CS0436, so the CLR still interprets it as the real attribute.
-	/// The blacklist must match on fully-qualified name regardless of which assembly defines the type.
+	/// The hard block must match on fully-qualified name regardless of which assembly defines the type.
 	/// </summary>
 	[TestMethod]
 	public void UnsafeAccessorAttribute_IsBlocked_LocalRedefinition()
@@ -574,7 +574,7 @@ public partial class BlacklistTest
 
 	/// <summary>
 	/// `stackalloc T[n]` -> Span<T> lowers to the void* Span ctor in IL, but it's NOT an explicit ctor
-	/// call in source, so the blacklist on `Span<T>.Span(void*, int)` must leave it alone. If this ever
+	/// call in source, so the hard block on `Span<T>.Span(void*, int)` must leave it alone. If this ever
 	/// starts failing, we've broken every stackalloc-to-Span in sandboxed code (incl. first-party).
 	/// </summary>
 	[TestMethod]
@@ -589,7 +589,7 @@ public partial class BlacklistTest
 
 		CompileAndWalk( sourceCode, out var diagnostics );
 
-		Assert.AreEqual( 0, diagnostics.Count, $"stackalloc must not trip the blacklist; got: {string.Join( ", ", diagnostics.Select( d => d.GetMessage() ) )}" );
+		Assert.AreEqual( 0, diagnostics.Count, $"stackalloc must not trip the hard block; got: {string.Join( ", ", diagnostics.Select( d => d.GetMessage() ) )}" );
 	}
 
 	/// <summary>

@@ -8,7 +8,7 @@ namespace CompilingTests.CodeAccess;
 ///
 /// Each row pins the analyzer's verdict for one snippet - whether it's denied, and optionally a
 /// substring the denial must contain. The two rule categories the single walker enforces are recorded
-/// separately (<see cref="Case.ExpectBlacklisted"/> = memory-unsafe blacklist rule,
+/// separately (<see cref="Case.ExpectHardBlocked"/> = memory-unsafe hard-block rule,
 /// <see cref="Case.ExpectAccessDenied"/> = member-level allow-list denial) only to document WHY a case
 /// is denied; the assertion is on their union (<see cref="Case.ExpectDenied"/>).
 /// </summary>
@@ -35,17 +35,17 @@ public class CodeAccessCorpusTest
 	public sealed record Case(
 		string Name,
 		string Source,
-		bool ExpectBlacklisted,
+		bool ExpectHardBlocked,
 		bool ExpectAccessDenied,
 		string DeniedContains = null )
 	{
 		/// <summary>
-		/// Denied if either rule category rejects the snippet: the memory-unsafe blacklist
-		/// (<see cref="ExpectBlacklisted"/>) or the member-level allow-list (<see cref="ExpectAccessDenied"/>).
-		/// A blacklist hit the allow-list would pass (compiler-emitted infra like <c>Unsafe.As</c>) is why
+		/// Denied if either rule category rejects the snippet: the memory-unsafe hard block
+		/// (<see cref="ExpectHardBlocked"/>) or the member-level allow-list (<see cref="ExpectAccessDenied"/>).
+		/// A hard-block hit the allow-list would pass (compiler-emitted infra like <c>Unsafe.As</c>) is why
 		/// this is a union.
 		/// </summary>
-		public bool ExpectDenied => ExpectBlacklisted || ExpectAccessDenied;
+		public bool ExpectDenied => ExpectHardBlocked || ExpectAccessDenied;
 	}
 
 	static IEnumerable<Case> Corpus =>
@@ -130,8 +130,8 @@ public class CodeAccessCorpusTest
 			D( "public class FinalizerProbe { public System.Action Capture() => base.Finalize; }" ),
 			false, true, "Object.Finalize" ),
 
-		// ---- Union cases: source-blacklist vs Access divergence ----
-		new( "Unsafe.As blacklisted, Access allows",
+		// ---- Union cases: source hard block vs Access divergence ----
+		new( "Unsafe.As hard-blocked, Access allows",
 			M( "var v = System.Runtime.CompilerServices.Unsafe.As<System.Version>( new System.Version() );" ),
 			true, false, "Unsafe.As" ),
 		new( "Unsafe.SizeOf allowed by both", M( "var _ = System.Runtime.CompilerServices.Unsafe.SizeOf<int>();" ), false, false ),
