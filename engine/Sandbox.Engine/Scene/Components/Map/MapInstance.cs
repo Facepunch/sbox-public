@@ -425,6 +425,11 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 
 		using var optionsScope = ActionGraph.PushSerializationOptions( sceneFile.SerializationOptions with { ForceUpdateCached = Scene.IsEditor } );
 		using var sceneScope = Scene.Push();
+
+		// Blob data (eg. MeshComponent geometry) is referenced by guid from the scene json -
+		// deserializing without an open scope silently yields empty blobs. Declared before the
+		// batch so it outlives the deferred property flush (usings dispose in reverse order).
+		using var blobs = BlobDataSerializer.Load( sceneFile.BinaryData, sceneFile.ResourcePath );
 		using var batchGroup = CallbackBatch.Batch();
 
 		foreach ( var json in sceneFile.GameObjects )
