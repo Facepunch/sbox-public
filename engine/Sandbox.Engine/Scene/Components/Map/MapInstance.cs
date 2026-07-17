@@ -454,13 +454,13 @@ public partial class MapInstance : Component, Component.ExecuteInEditor
 		}
 
 		var props = sceneFile.SceneProperties;
-		
+
 		// Apply game object system properties
 		if ( props.TryGetPropertyValue( "GameObjectSystems", out var systemOverridesNode ) )
 		{
 			Scene.ApplyGameObjectSystemOverrides( systemOverridesNode );
 		}
-		
+
 		// Load the incoming scene's NavMesh
 		Scene.NavMesh.Deserialize( props["NavMesh"] as JsonObject );
 
