@@ -18,6 +18,9 @@ public class SymbolSignatureTest
 			{
 				public class Inner<U>
 				{
+					public unsafe int* Pointer;
+					public unsafe delegate*<int, void> Callback;
+
 					public Inner( ref T value ) { }
 
 					public V Convert<V>( in T input, out U output, ref V value )
@@ -36,9 +39,10 @@ public class SymbolSignatureTest
 				}
 			}
 			""" );
+		var globalTree = CSharpSyntaxTree.ParseText( "public class GlobalType { }" );
 		var compilation = CSharpCompilation.Create(
 			"signature-fixture",
-			[tree],
+			[tree, globalTree],
 			FrameworkReferences.All.Values,
 			new CSharpCompilationOptions( OutputKind.DynamicallyLinkedLibrary ).WithAllowUnsafe( true ) );
 		var errors = compilation.GetDiagnostics().Where( x => x.Severity == DiagnosticSeverity.Error ).ToArray();
@@ -47,6 +51,16 @@ public class SymbolSignatureTest
 		var inner = compilation.GetTypeByMetadataName( "Fixtures.Outer`1+Inner`1" );
 		Assert.IsNotNull( inner );
 		Assert.AreEqual( "Fixtures.Outer`1/Inner`1", SymbolSignature.Type( inner ) );
+
+		var pointer = inner.GetMembers( "Pointer" ).OfType<IFieldSymbol>().Single();
+		Assert.AreEqual( "System.Int32*", SymbolSignature.Type( pointer.Type ) );
+
+		var callback = inner.GetMembers( "Callback" ).OfType<IFieldSymbol>().Single();
+		Assert.AreEqual( "delegate*<int, void>", SymbolSignature.Type( callback.Type ) );
+
+		var globalType = compilation.GetTypeByMetadataName( "GlobalType" );
+		Assert.IsNotNull( globalType );
+		Assert.AreEqual( "GlobalType", SymbolSignature.Type( globalType ) );
 
 		var constructor = inner.InstanceConstructors.Single( x => x.Parameters.Length == 1 );
 		Assert.AreEqual( "Fixtures.Outer`1/Inner`1..ctor( T& )", SymbolSignature.Method( constructor ) );

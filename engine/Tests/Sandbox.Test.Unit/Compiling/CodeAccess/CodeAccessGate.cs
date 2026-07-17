@@ -104,7 +104,7 @@ static class CodeAccessGate
 		return new Result { Denied = RunWalker( compilation, walkTrees, rules ) };
 	}
 
-	static IReadOnlyList<MetadataReference> BuildReferences()
+	internal static IReadOnlyList<MetadataReference> BuildReferences()
 	{
 		var refs = new List<MetadataReference>( FrameworkReferences.All.Values );
 

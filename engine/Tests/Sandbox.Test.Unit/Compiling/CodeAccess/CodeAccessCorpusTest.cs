@@ -220,6 +220,17 @@ public class CodeAccessCorpusTest
 			("sizeof", D( "public static unsafe class X { public static int Run() => sizeof( System.Runtime.InteropServices.GCHandle ); }" ), "GCHandle"),
 			("declaration expression", D( "public static class X { public static void Run() { (System.Diagnostics.Process process, int value) = (null, 0); } }" ), "Process"),
 			("function pointer", D( "public static unsafe class X { public static void Run() { delegate*<System.Runtime.InteropServices.GCHandle, void> callback = null; } }" ), "GCHandle"),
+			("indexer return type", D( "public sealed class X { public System.Diagnostics.Process this[int index] => null; }" ), "Process"),
+			("event declaration type", D( "public static class X { public static event System.Action<System.Diagnostics.Process> Changed; }" ), "Process"),
+			("event accessor declaration type", D( "public static class X { public static event System.Action<System.Diagnostics.Process> Changed { add { } remove { } } }" ), "Process"),
+			("delegate return type", D( "public delegate System.Diagnostics.Process Factory();" ), "Process"),
+			("operator return type", D( "public readonly struct X { public static System.Diagnostics.Process operator +( X left, X right ) => null; }" ), "Process"),
+			("conversion return type", D( "public readonly struct X { public static explicit operator System.Diagnostics.Process( X value ) => null; }" ), "Process"),
+			("declaration pattern type", M( "object value = null; if ( value is System.Diagnostics.Process process ) { }" ), "Process"),
+			("type pattern", M( "object value = null; var match = value switch { System.Diagnostics.Process => true, _ => false };" ), "Process"),
+			("recursive pattern type", M( "object value = null; var match = value is System.Diagnostics.Process { };" ), "Process"),
+			("pointer element type", D( "public static unsafe class X { public static void Run() { System.Runtime.InteropServices.GCHandle* pointer = null; } }" ), "GCHandle"),
+			("switch type pattern", M( "object value = 1; switch ( value ) { case System.Diagnostics.Process: break; }" ), "Process"),
 		];
 
 		foreach ( var (name, source, deniedType) in cases )

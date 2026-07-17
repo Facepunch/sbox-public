@@ -198,6 +198,25 @@ sealed class AccessWalker : CSharpSyntaxWalker
 		base.VisitTypePattern( node );
 	}
 
+	public override void VisitConstantPattern( ConstantPatternSyntax node )
+	{
+		var info = _model.GetSymbolInfo( node.Expression );
+		var type = info.Symbol as ITypeSymbol ?? info.CandidateSymbols.OfType<ITypeSymbol>().FirstOrDefault();
+		if ( type is not null )
+			CheckType( node.Expression, type );
+
+		base.VisitConstantPattern( node );
+	}
+
+	public override void VisitCaseSwitchLabel( CaseSwitchLabelSyntax node )
+	{
+		var info = _model.GetSymbolInfo( node.Value );
+		var type = info.Symbol as ITypeSymbol ?? info.CandidateSymbols.OfType<ITypeSymbol>().FirstOrDefault();
+		if ( type is not null )
+			CheckType( node.Value, type );
+		base.VisitCaseSwitchLabel( node );
+	}
+
 	public override void VisitRecursivePattern( RecursivePatternSyntax node )
 	{
 		if ( node.Type is { } rt )

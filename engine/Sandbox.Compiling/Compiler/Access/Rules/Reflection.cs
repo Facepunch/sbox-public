@@ -13,7 +13,6 @@ internal static partial class Rules
 		//
 		"System.Private.CoreLib/System.Reflection.MemberInfo",
 		"System.Private.CoreLib/System.Reflection.MemberInfo.get_Name()",
-		"System.Private.CoreLib/System.Reflection.MemberInfo.get_Name()",
 		"System.Private.CoreLib/System.Reflection.MemberInfo.IsDefined( System.Type, System.Boolean )",
 		"System.Private.CoreLib/System.Reflection.MemberInfo.get_DeclaringType()",
 
@@ -34,7 +33,6 @@ internal static partial class Rules
 		//
 		"System.Private.CoreLib/System.Reflection.MethodInfo",
 		"System.Private.CoreLib/System.Reflection.MethodInfo.op_Equality*",
-		"System.Private.CoreLib/System.Reflection.MethodInfo.get_Name()",
 
 		//
 		// Very basic interaction

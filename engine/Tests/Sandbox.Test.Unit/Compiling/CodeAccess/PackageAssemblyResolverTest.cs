@@ -53,6 +53,72 @@ public class PackageAssemblyResolverTest
 		Assert.IsFalse( enroller.LoadAssemblyFromStream( "package.bad", stream ) );
 	}
 
+	[TestMethod]
+	public void StreamedAssembly_ReplacesSameVersionAndEvictsOlderVersions()
+	{
+		var version1 = Compile( "package.resolver.versioned", "[assembly: System.Reflection.AssemblyVersion( \"1.0.0.0\" )] public sealed class V1 { }" );
+		var version2 = Compile( "package.resolver.versioned", "[assembly: System.Reflection.AssemblyVersion( \"2.0.0.0\" )] public sealed class V2 { }" );
+		var version1Name = new AssemblyNameReference( "package.resolver.versioned", new System.Version( 1, 0, 0, 0 ) );
+
+		using var resolver = new PackageAssemblyResolver();
+		resolver.AddAssembly( version1 );
+		var original = resolver.Resolve( version1Name );
+
+		resolver.AddAssembly( version1 );
+		var replacement = resolver.Resolve( version1Name );
+		Assert.AreNotSame( original, replacement );
+
+		resolver.AddAssembly( version2 );
+		var newest = resolver.Resolve( version1Name );
+		Assert.AreEqual( new System.Version( 2, 0, 0, 0 ), newest.Name.Version );
+	}
+
+	[TestMethod]
+	public void PackageCallback_ResolvesOnceThenUsesCache()
+	{
+		var bytes = Compile( "package.resolver.callback", "public sealed class CallbackDependency { }" );
+		var calls = 0;
+		using var resolver = new PackageAssemblyResolver
+		{
+			PackageBytes = name =>
+			{
+				calls++;
+				return name == "package.resolver.callback" ? bytes : null;
+			}
+		};
+		var name = new AssemblyNameReference( "package.resolver.callback", new System.Version( 0, 0, 0, 0 ) );
+
+		var first = resolver.Resolve( name );
+		var cached = resolver.Resolve( name, new ReaderParameters() );
+
+		Assert.AreSame( first, cached );
+		Assert.AreEqual( 1, calls );
+		Assert.ThrowsException<System.Exception>( () => resolver.Resolve(
+			new AssemblyNameReference( "package.resolver.missing", new System.Version( 1, 0, 0, 0 ) ) ) );
+	}
+
+	[TestMethod]
+	public void FrameworkAssembly_ResolvesFromDiskAndCaches()
+	{
+		using var resolver = new PackageAssemblyResolver();
+		var name = AssemblyNameReference.Parse( typeof( System.Text.Json.JsonSerializer ).Assembly.FullName );
+
+		var first = resolver.Resolve( name, new ReaderParameters() );
+		var cached = resolver.Resolve( name );
+
+		Assert.AreSame( first, cached );
+		Assert.ThrowsException<System.Exception>( () => resolver.Resolve(
+			new AssemblyNameReference( "Sandbox.DefinitelyMissing", new System.Version( 1, 0, 0, 0 ) ) ) );
+	}
+
+	[TestMethod]
+	public void Dispose_IsIdempotent()
+	{
+		var resolver = new PackageAssemblyResolver();
+		resolver.Dispose();
+		resolver.Dispose();
+	}
+
 	static byte[] Compile( string assemblyName, string source, params MetadataReference[] additionalReferences )
 	{
 		var references = new List<MetadataReference>( FrameworkReferences.All.Values );
